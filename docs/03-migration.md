@@ -147,7 +147,7 @@ Discuz X3.4 默认 UTF-8，但历史数据可能混入 GBK 编码：
 
 | 检查项 | 方法 | 通过标准 |
 |--------|------|---------|
-| 行数一致 | 源表 COUNT vs D1 COUNT | 精确匹配 |
+| 行数一致 | 过滤后源数据 COUNT vs D1 COUNT | 精确匹配（对比的是应用过滤条件后的源数据，非原始表总数） |
 | 外键完整 | posts.thread_id 全部在 threads.id 中 | 0 orphan |
 | 外键完整 | posts.author_id 全部在 users.id 中 | 0 orphan |
 | 外键完整 | threads.forum_id 全部在 forums.id 中 | 0 orphan |
@@ -163,7 +163,7 @@ Discuz X3.4 默认 UTF-8，但历史数据可能混入 GBK 编码：
 | 场景 | 策略 | 说明 |
 |------|------|------|
 | 帖子 `author_id` 不在 `users` 中 | **报告 + 中止** | 全量迁移用户后不应出现。若出现说明数据源有问题 |
-| 帖子 `thread_id` 不在 `threads` 中 | **跳过 + 记录** | 可能指向 `displayorder < 0` 的隐藏帖或合并帖。记录到 `migration.log` |
+| 帖子 `thread_id` 不在 `threads` 中 | **跳过 + 记录** | 可能指向 `displayorder < 0` 的隐藏帖或 `closed > 1` 的合并帖。记录到 `migration.log`。验证阶段的 0 orphan 检查基于实际写入 D1 的数据，被跳过的记录不计入 |
 | 附件 `post_id` 不在 `posts` 中 | **跳过 + 记录** | 帖子可能是 `invisible ≠ 0` 被过滤掉的 |
 | 头像文件不存在 | **avatar 设为空字符串** | `avatarstatus=1` 但实际文件缺失时，降级为无头像 |
 | 附件文件不存在 | **保留数据库记录，file_path 不变** | R2 上传阶段单独处理缺失文件，不影响 D1 数据迁移 |

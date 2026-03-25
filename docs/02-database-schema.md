@@ -51,7 +51,7 @@ CREATE TABLE users (
   password_hash TEXT    NOT NULL DEFAULT '',
   password_salt TEXT    NOT NULL DEFAULT '',
   avatar        TEXT    NOT NULL DEFAULT '',
-  status        INTEGER NOT NULL DEFAULT 0,   -- 0=normal, -1=banned
+  status        INTEGER NOT NULL DEFAULT 0,   -- 0=normal, -1=banned, -2=archived
   role          INTEGER NOT NULL DEFAULT 0,   -- 0=user, 1=admin, 2=super-mod, 3=mod
   reg_date      INTEGER NOT NULL DEFAULT 0,
   last_login    INTEGER NOT NULL DEFAULT 0,
@@ -242,7 +242,7 @@ closed == 1     → thread is closed (locked)
 closed > 1      → thread was merged into thread with tid = closed
 ```
 
-当 `closed > 1` 时，该主题实际上是一个重定向。迁移时应跳过或创建重定向记录。
+当 `closed > 1` 时，该主题实际上是一个重定向。**迁移时直接跳过**（见下方迁移决策）。
 
 **帖子分片：** DZ 将帖子数据分布在 `pre_forum_post`（主表，posttableid=0）和 `pre_forum_post_1` 到 `pre_forum_post_4`（本实例）之间。`posttableid` 字段决定查询哪张表。迁移时必须读取所有帖子表。
 
