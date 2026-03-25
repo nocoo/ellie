@@ -1,2 +1,24 @@
 # Reference data (local only, not committed)
 reference/
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Bun
+bun.lock
+
+# Migration output
+output/
+*.db
+*.sqlite
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+.dev.vars
