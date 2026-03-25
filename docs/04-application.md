@@ -28,7 +28,8 @@ Cloudflare Worker (API + SSR)
 | `/api/v1/posts` | 回复列表、发回复 | 读公开，写需登录 |
 | `/api/v1/users` | 用户资料、登录、注册 | 资料公开，认证操作需凭证 |
 | `/api/v1/attachments` | 附件下载、上传 | 下载公开，上传需登录 |
-| `/api/admin/*` | 管理后台 API | 需 role ∈ {1, 2}（admin 或 super-mod） |
+| `/api/v1/moderation` | 版块级管理（置顶、加精、移动、关闭帖子） | 需 role ∈ {1, 2, 3}（mod 通过此入口操作所辖版块） |
+| `/api/admin/*` | 管理后台 API（全站用户管理、版块增删、系统配置） | 需 role ∈ {1, 2}（admin 或 super-mod） |
 
 ### 认证方案
 
@@ -69,7 +70,7 @@ Client → Worker → validate + auth → D1 primary (INSERT post)
 
 - 前端：React SPA（或 Next.js 子路径），通过 `/api/admin/*` 与 Worker 交互
 - 部署：与论坛 Worker 同一个项目，`/admin` 路径下的静态资源从 R2/KV 提供
-- 权限：middleware 检查 JWT 中的 `role IN (1, 2)`（admin=1, super-mod=2）。mod=3 无管理后台权限（仅前台版块管理）
+- 权限：middleware 检查 JWT 中的 `role IN (1, 2)`（admin=1, super-mod=2）。mod=3 无管理后台权限，其版块管理操作走 `/api/v1/moderation`
 
 ## 论坛前端（BBS）
 
