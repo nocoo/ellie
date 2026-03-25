@@ -1,5 +1,8 @@
-# Docs
+# Ellie 文档
 
-| # | Document | Description |
-|---|----------|-------------|
-| 01 | [Database Schema](01-database-schema.md) | D1 schema design and Discuz X3.4 field mapping |
+| 编号 | 文档 | 内容 |
+|------|------|------|
+| 01 | [架构设计](./01-architecture.md) | 技术选型、项目结构、质量体系、实施路线图 |
+| 02 | [数据库设计](./02-database-schema.md) | D1 Schema、字段映射、索引设计、性能方案、容量规划 |
+| 03 | [数据迁移](./03-migration.md) | 迁移流程、ETL 设计、BBCode 转换、编码处理、验证清单 |
+| 04 | [应用设计](./04-application.md) | 管理后台、论坛前端（待定） |

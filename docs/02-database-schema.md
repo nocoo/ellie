@@ -1,24 +1,24 @@
-# Database Schema
+# 数据库设计
 
-Cloudflare D1 schema for Ellie, mapped from Discuz! X3.4.
+Ellie 的 Cloudflare D1 数据库 schema，从 Discuz! X3.4 映射而来。
 
-Source: `tongji.nocoo.cloud` — MySQL 8.0.42, databases `db_tongji_main` and `db_tongji_ucenter`.
+数据源：`tongji.nocoo.cloud` — MySQL 8.0.42，数据库 `db_tongji_main` 和 `db_tongji_ucenter`。
 
-## Overview
+## 概述
 
-Discuz X3.4 has 200+ tables. Ellie only migrates the core forum data:
+Discuz X3.4 有 200+ 张表。Ellie 只迁移核心论坛数据：
 
 | Ellie Table | Discuz Source | Purpose |
 |-------------|---------------|---------|
-| `users` | `uc_members` + `pre_common_member` + `pre_common_member_count` | User accounts |
-| `forums` | `pre_forum_forum` + `pre_forum_forumfield` | Forum categories and boards |
-| `threads` | `pre_forum_thread` | Thread (topic) metadata |
-| `posts` | `pre_forum_post` + `pre_forum_post_1~4` | Post content (first post + replies) |
-| `attachments` | `pre_forum_attachment` (index) + `pre_forum_attachment_0~9` (shards) | File attachments |
+| `users` | `uc_members` + `pre_common_member` + `pre_common_member_count` | 用户账号 |
+| `forums` | `pre_forum_forum` + `pre_forum_forumfield` | 论坛分区和版块 |
+| `threads` | `pre_forum_thread` | 帖子（主题）元数据 |
+| `posts` | `pre_forum_post` + `pre_forum_post_1~4` | 帖子内容（首帖 + 回复） |
+| `attachments` | `pre_forum_attachment`（索引表）+ `pre_forum_attachment_0~9`（分片表） | 文件附件 |
 
-> Full schema of all DZ tables is at `reference/db/schema_all.sql.gz` for reference.
+> 所有 DZ 表的完整 schema 见 `reference/db/schema_all.sql.gz`，仅供参考。
 
-### Database layout
+### 数据库布局
 
 ```
 db_tongji_ucenter          db_tongji_main
@@ -61,25 +61,25 @@ CREATE TABLE users (
 );
 ```
 
-**Field mapping:**
+**字段映射：**
 
 | Field | Discuz Table | Discuz Field | Type | Notes |
 |-------|-------------|--------------|------|-------|
-| `id` | `pre_common_member` | `uid` | mediumint unsigned PK | Also PK in `uc_members` (same uid space) |
-| `username` | `uc_members` | `username` | char(15) | In `db_tongji_ucenter`. `pre_common_member` also has `username` |
-| `email` | `uc_members` | `email` | char(32) | `pre_common_member.email` is char(40), prefer ucenter as auth source |
-| `password_hash` | `uc_members` | `password` | char(32) | `md5(md5(password) + salt)` — see below |
-| `password_salt` | `uc_members` | `salt` | char(6) | 6-char random string |
-| `avatar` | — | Computed from `uid` | — | `data/avatar/{uid%16}/{uid%256}/{uid}_avatar_big.jpg` |
-| `status` | `pre_common_member` | `status` | tinyint(1) | `0`=normal, `-1`=banned. Also check `freeze` field |
-| `role` | `pre_common_member` | `adminid` | tinyint(1) | `0`=user, `1`=admin, `2`=super-mod, `3`=mod |
-| `reg_date` | `pre_common_member` | `regdate` | int unsigned | Unix timestamp |
-| `last_login` | `uc_members` | `lastlogintime` | int unsigned | Unix timestamp |
-| `threads` | `pre_common_member_count` | `threads` | mediumint unsigned | ⚠️ NOT in `pre_common_member` — separate table, join on `uid` |
-| `posts` | `pre_common_member_count` | `posts` | mediumint unsigned | ⚠️ NOT in `pre_common_member` — separate table, join on `uid` |
+| `id` | `pre_common_member` | `uid` | mediumint unsigned PK | 同时也是 `uc_members` 的 PK（共享 uid 空间） |
+| `username` | `uc_members` | `username` | char(15) | 位于 `db_tongji_ucenter`。`pre_common_member` 也有 `username` |
+| `email` | `uc_members` | `email` | char(32) | `pre_common_member.email` 是 char(40)，优先使用 ucenter 作为认证源 |
+| `password_hash` | `uc_members` | `password` | char(32) | `md5(md5(password) + salt)` — 详见下方 |
+| `password_salt` | `uc_members` | `salt` | char(6) | 6 位随机字符串 |
+| `avatar` | — | 由 `uid` 计算 | — | `data/avatar/{uid%16}/{uid%256}/{uid}_avatar_big.jpg` |
+| `status` | `pre_common_member` | `status` | tinyint(1) | `0`=正常，`-1`=封禁。同时检查 `freeze` 字段 |
+| `role` | `pre_common_member` | `adminid` | tinyint(1) | `0`=用户，`1`=管理员，`2`=超级版主，`3`=版主 |
+| `reg_date` | `pre_common_member` | `regdate` | int unsigned | Unix 时间戳 |
+| `last_login` | `uc_members` | `lastlogintime` | int unsigned | Unix 时间戳 |
+| `threads` | `pre_common_member_count` | `threads` | mediumint unsigned | ⚠️ 不在 `pre_common_member` 中 — 独立表，通过 `uid` 关联 |
+| `posts` | `pre_common_member_count` | `posts` | mediumint unsigned | ⚠️ 不在 `pre_common_member` 中 — 独立表，通过 `uid` 关联 |
 | `credits` | `pre_common_member` | `credits` | int | |
 
-**Migration query:**
+**迁移查询：**
 
 ```sql
 SELECT
@@ -96,21 +96,21 @@ WHERE m.status >= 0    -- exclude banned
   AND m.freeze = 0;    -- exclude frozen
 ```
 
-**Useful filter fields (not migrated as columns but used during migration):**
+**辅助过滤字段（不作为列迁移，但在迁移过程中使用）：**
 
 | Field | Table | Notes |
 |-------|-------|-------|
-| `avatarstatus` | `pre_common_member` | `0`=no avatar, `1`=has avatar — skip avatar migration for users without one |
-| `freeze` | `pre_common_member` | `0`=normal, `1`=frozen — may filter or flag |
-| `groupid` | `pre_common_member` | User group ID — determines permission level in DZ |
+| `avatarstatus` | `pre_common_member` | `0`=无头像，`1`=有头像 — 无头像的用户跳过头像迁移 |
+| `freeze` | `pre_common_member` | `0`=正常，`1`=冻结 — 可过滤或标记 |
+| `groupid` | `pre_common_member` | 用户组 ID — 在 DZ 中决定权限等级 |
 
-**Password verification (legacy):**
+**密码验证（旧版）：**
 
 ```
 stored_hash == md5(md5(user_input) + stored_salt)
 ```
 
-On successful login, silently upgrade to argon2id and clear `password_salt`.
+登录成功后，静默升级为 argon2id 并清除 `password_salt`。
 
 ---
 
@@ -134,27 +134,27 @@ CREATE TABLE forums (
 );
 ```
 
-**Field mapping:**
+**字段映射：**
 
 | Field | Discuz Table | Discuz Field | Type | Notes |
 |-------|-------------|--------------|------|-------|
 | `id` | `pre_forum_forum` | `fid` | mediumint unsigned PK | |
-| `parent_id` | `pre_forum_forum` | `fup` | mediumint unsigned | `0` = top-level category |
+| `parent_id` | `pre_forum_forum` | `fup` | mediumint unsigned | `0` = 顶级分类 |
 | `name` | `pre_forum_forum` | `name` | char(50) | |
-| `description` | `pre_forum_forumfield` | `description` | text | Separate table, join on `fid` |
-| `icon` | `pre_forum_forumfield` | `icon` | varchar(255) | Forum icon path |
+| `description` | `pre_forum_forumfield` | `description` | text | 独立表，通过 `fid` 关联 |
+| `icon` | `pre_forum_forumfield` | `icon` | varchar(255) | 版块图标路径 |
 | `display_order` | `pre_forum_forum` | `displayorder` | smallint | |
 | `threads` | `pre_forum_forum` | `threads` | mediumint unsigned | |
 | `posts` | `pre_forum_forum` | `posts` | mediumint unsigned | |
-| `type` | `pre_forum_forum` | `type` | enum('group','forum','sub') | `group`=category, `forum`=board, `sub`=sub-board |
-| `status` | `pre_forum_forum` | `status` | tinyint(1) | `0`=hidden, `1`=normal. Filter hidden forums |
-| `last_thread_id` | `pre_forum_forum` | `lastpost` | char(110) | Parsed from `lastpost` field (format: `tid\tsubject\ttimestamp\tposter`) |
-| `last_post_at` | `pre_forum_forum` | `lastpost` | char(110) | Timestamp portion of `lastpost` |
-| `last_poster` | `pre_forum_forum` | `lastpost` | char(110) | Poster portion of `lastpost` |
+| `type` | `pre_forum_forum` | `type` | enum('group','forum','sub') | `group`=分类，`forum`=版块，`sub`=子版块 |
+| `status` | `pre_forum_forum` | `status` | tinyint(1) | `0`=隐藏，`1`=正常。过滤隐藏版块 |
+| `last_thread_id` | `pre_forum_forum` | `lastpost` | char(110) | 从 `lastpost` 字段解析（格式：`tid\tsubject\ttimestamp\tposter`） |
+| `last_post_at` | `pre_forum_forum` | `lastpost` | char(110) | `lastpost` 中的时间戳部分 |
+| `last_poster` | `pre_forum_forum` | `lastpost` | char(110) | `lastpost` 中的发帖人部分 |
 
-**Hierarchy:** `group` (category) → `forum` (board) → `sub` (sub-board). `parent_id` points to the parent `fid`.
+**层级结构：** `group`（分类）→ `forum`（版块）→ `sub`（子版块）。`parent_id` 指向父级 `fid`。
 
-**Migration query:**
+**迁移查询：**
 
 ```sql
 SELECT
@@ -198,29 +198,29 @@ CREATE INDEX idx_threads_latest ON threads(last_post_at DESC);
 CREATE INDEX idx_threads_digest ON threads(digest, last_post_at DESC) WHERE digest > 0;
 ```
 
-**Field mapping:**
+**字段映射：**
 
 | Field | Discuz Table | Discuz Field | Type | Notes |
 |-------|-------------|--------------|------|-------|
 | `id` | `pre_forum_thread` | `tid` | mediumint unsigned PK | |
 | `forum_id` | `pre_forum_thread` | `fid` | mediumint unsigned | |
 | `author_id` | `pre_forum_thread` | `authorid` | mediumint unsigned | |
-| `author_name` | `pre_forum_thread` | `author` | char(15) | Denormalized username |
+| `author_name` | `pre_forum_thread` | `author` | char(15) | 反范式化的用户名 |
 | `subject` | `pre_forum_thread` | `subject` | char(80) | |
-| `created_at` | `pre_forum_thread` | `dateline` | int unsigned | Unix timestamp |
-| `last_post_at` | `pre_forum_thread` | `lastpost` | int unsigned | Unix timestamp |
-| `last_poster` | `pre_forum_thread` | `lastposter` | char(15) | Last replier's username |
+| `created_at` | `pre_forum_thread` | `dateline` | int unsigned | Unix 时间戳 |
+| `last_post_at` | `pre_forum_thread` | `lastpost` | int unsigned | Unix 时间戳 |
+| `last_poster` | `pre_forum_thread` | `lastposter` | char(15) | 最后回复者用户名 |
 | `replies` | `pre_forum_thread` | `replies` | mediumint unsigned | |
 | `views` | `pre_forum_thread` | `views` | int unsigned | |
-| `closed` | `pre_forum_thread` | `closed` | mediumint unsigned | `0`=open, `1`=closed, `>1`=merged into thread tid=closed |
-| `sticky` | `pre_forum_thread` | `displayorder` | tinyint(1) | `0`=normal, `1`=sticky, `2`=global sticky, `3`=category sticky |
-| `digest` | `pre_forum_thread` | `digest` | tinyint(1) | `0`=no, `1~3`=digest level |
-| `special` | `pre_forum_thread` | `special` | tinyint(1) | `0`=normal, `1`=poll, `2`=trade, `3`=reward, `4`=activity, `5`=debate |
-| `highlight` | `pre_forum_thread` | `highlight` | tinyint(1) | Title style encoding (color/bold/italic) |
-| `recommends` | `pre_forum_thread` | `recommends` | smallint | Net upvotes (recommend_add - recommend_sub) |
-| `post_table_id` | `pre_forum_thread` | `posttableid` | smallint unsigned | ⚠️ Which `pre_forum_post_N` shard holds this thread's replies. `0` = main table |
+| `closed` | `pre_forum_thread` | `closed` | mediumint unsigned | `0`=开放，`1`=关闭，`>1`=已合并到 tid=closed 的帖子 |
+| `sticky` | `pre_forum_thread` | `displayorder` | tinyint(1) | `0`=普通，`1`=置顶，`2`=全局置顶，`3`=分类置顶 |
+| `digest` | `pre_forum_thread` | `digest` | tinyint(1) | `0`=否，`1~3`=精华等级 |
+| `special` | `pre_forum_thread` | `special` | tinyint(1) | `0`=普通，`1`=投票，`2`=交易，`3`=悬赏，`4`=活动，`5`=辩论 |
+| `highlight` | `pre_forum_thread` | `highlight` | tinyint(1) | 标题样式编码（颜色/加粗/斜体） |
+| `recommends` | `pre_forum_thread` | `recommends` | smallint | 净推荐数（recommend_add - recommend_sub） |
+| `post_table_id` | `pre_forum_thread` | `posttableid` | smallint unsigned | ⚠️ 该主题的回复存储在哪个 `pre_forum_post_N` 分片中。`0` = 主表 |
 
-**Key semantics for `closed`:**
+**`closed` 字段的关键语义：**
 
 ```
 closed == 0     → thread is open
@@ -228,9 +228,9 @@ closed == 1     → thread is closed (locked)
 closed > 1      → thread was merged into thread with tid = closed
 ```
 
-When `closed > 1`, the thread is effectively a redirect. Migration should either skip or create a redirect record.
+当 `closed > 1` 时，该主题实际上是一个重定向。迁移时应跳过或创建重定向记录。
 
-**Post sharding:** DZ distributes post data across `pre_forum_post` (main, posttableid=0) and `pre_forum_post_1` through `pre_forum_post_4` (on this instance). The `posttableid` field determines which table to query. Migration must read from ALL post tables.
+**帖子分片：** DZ 将帖子数据分布在 `pre_forum_post`（主表，posttableid=0）和 `pre_forum_post_1` 到 `pre_forum_post_4`（本实例）之间。`posttableid` 字段决定查询哪张表。迁移时必须读取所有帖子表。
 
 ---
 
@@ -253,40 +253,40 @@ CREATE INDEX idx_posts_thread ON posts(thread_id, position);
 CREATE INDEX idx_posts_author ON posts(author_id, created_at DESC);
 ```
 
-**Field mapping:**
+**字段映射：**
 
 | Field | Discuz Table | Discuz Field | Type | Notes |
 |-------|-------------|--------------|------|-------|
-| `id` | `pre_forum_post[_N]` | `pid` | int unsigned | UNIQUE KEY (not PK in DZ — DZ PK is `(tid, position)`) |
+| `id` | `pre_forum_post[_N]` | `pid` | int unsigned | UNIQUE KEY（在 DZ 中不是 PK — DZ 的 PK 是 `(tid, position)`） |
 | `thread_id` | `pre_forum_post[_N]` | `tid` | mediumint unsigned | |
 | `forum_id` | `pre_forum_post[_N]` | `fid` | mediumint unsigned | |
 | `author_id` | `pre_forum_post[_N]` | `authorid` | mediumint unsigned | |
 | `author_name` | `pre_forum_post[_N]` | `author` | varchar(15) | |
-| `content` | `pre_forum_post[_N]` | `message` | mediumtext | ⚠️ BBCode → HTML conversion needed — see content format below |
-| `created_at` | `pre_forum_post[_N]` | `dateline` | int unsigned | Unix timestamp |
-| `is_first` | `pre_forum_post[_N]` | `first` | tinyint(1) | `1`=thread opener, `0`=reply |
-| `position` | `pre_forum_post[_N]` | `position` | int unsigned | Floor number (1-based, AUTO_INCREMENT) |
+| `content` | `pre_forum_post[_N]` | `message` | mediumtext | ⚠️ 需要进行 BBCode → HTML 转换 — 详见下方内容格式 |
+| `created_at` | `pre_forum_post[_N]` | `dateline` | int unsigned | Unix 时间戳 |
+| `is_first` | `pre_forum_post[_N]` | `first` | tinyint(1) | `1`=主题首帖，`0`=回复 |
+| `position` | `pre_forum_post[_N]` | `position` | int unsigned | 楼层号（从 1 开始，AUTO_INCREMENT） |
 
-**Critical filter fields (used during migration, not stored):**
+**关键过滤字段（迁移时使用，不存储为列）：**
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `invisible` | tinyint(1) | `0`=visible, `-1`=pending review, `-5`=ignored. **Only migrate `invisible = 0`** |
-| `htmlon` | tinyint(1) | `1`=HTML enabled in this post. If on, `message` may contain raw HTML |
-| `bbcodeoff` | tinyint(1) | `1`=BBCode disabled. If on, `[tags]` in message are literal text, not BBCode |
+| `invisible` | tinyint(1) | `0`=可见，`-1`=待审核，`-5`=已忽略。**仅迁移 `invisible = 0` 的记录** |
+| `htmlon` | tinyint(1) | `1`=该帖启用 HTML。如果开启，`message` 可能包含原始 HTML |
+| `bbcodeoff` | tinyint(1) | `1`=BBCode 已禁用。如果开启，`message` 中的 `[tags]` 是纯文本而非 BBCode |
 
-**Post table distribution (this instance):**
+**帖子表数据分布（本实例）：**
 
 | Table | Rows | posttableid |
 |-------|------|-------------|
-| `pre_forum_post` (main) | 6,234,374 | `0` |
+| `pre_forum_post`（主表） | 6,234,374 | `0` |
 | `pre_forum_post_1` | 716,601 | `1` |
 | `pre_forum_post_2` | 823,776 | `2` |
 | `pre_forum_post_3` | 862,397 | `3` |
 | `pre_forum_post_4` | 873,734 | `4` |
-| **Total** | **9,510,882** | |
+| **合计** | **9,510,882** | |
 
-**Migration query (per table):**
+**迁移查询（每张表）：**
 
 ```sql
 -- Repeat for each post table: pre_forum_post, pre_forum_post_1 ... pre_forum_post_4
@@ -296,13 +296,13 @@ FROM pre_forum_post
 WHERE invisible = 0;
 ```
 
-**Content format:**
+**内容格式：**
 
-DZ stores BBCode in `message`. Before converting, check per-post flags:
-- If `bbcodeoff = 1`: treat `message` as plain text (no BBCode parsing)
-- If `htmlon = 1`: `message` may contain raw HTML mixed with BBCode
+DZ 在 `message` 中存储 BBCode。转换前需检查每条帖子的标志位：
+- 如果 `bbcodeoff = 1`：将 `message` 视为纯文本（不进行 BBCode 解析）
+- 如果 `htmlon = 1`：`message` 可能包含原始 HTML 与 BBCode 混合的内容
 
-BBCode → HTML conversion table:
+BBCode → HTML 转换对照表：
 
 | BBCode | HTML |
 |--------|------|
@@ -315,7 +315,7 @@ BBCode → HTML conversion table:
 | `[code]text[/code]` | `<pre><code>text</code></pre>` |
 | `[color=red]text[/color]` | `<span style="color:red">text</span>` |
 | `[size=4]text[/size]` | `<span style="font-size:...">text</span>` |
-| `[attach]aid[/attach]` | Resolve to attachment URL via `attachments` table |
+| `[attach]aid[/attach]` | 通过 `attachments` 表解析为附件 URL |
 
 ---
 
@@ -341,24 +341,24 @@ CREATE INDEX idx_attachments_post ON attachments(post_id);
 CREATE INDEX idx_attachments_thread ON attachments(thread_id);
 ```
 
-**Field mapping:**
+**字段映射：**
 
 | Field | Discuz Table | Discuz Field | Type | Notes |
 |-------|-------------|--------------|------|-------|
-| `id` | `pre_forum_attachment` | `aid` | mediumint unsigned PK | From the **index table** |
+| `id` | `pre_forum_attachment` | `aid` | mediumint unsigned PK | 来自**索引表** |
 | `thread_id` | `pre_forum_attachment_N` | `tid` | mediumint unsigned | |
 | `post_id` | `pre_forum_attachment_N` | `pid` | int unsigned | |
 | `author_id` | `pre_forum_attachment_N` | `uid` | mediumint unsigned | |
-| `filename` | `pre_forum_attachment_N` | `filename` | varchar(255) | Original upload name |
-| `file_path` | `pre_forum_attachment_N` | `attachment` | varchar(255) | DZ relative path → R2 key |
-| `file_size` | `pre_forum_attachment_N` | `filesize` | int unsigned | Bytes |
-| `is_image` | `pre_forum_attachment_N` | `isimage` | tinyint(1) | `0`=no, `1`=yes (NOT -1/1) |
-| `width` | `pre_forum_attachment_N` | `width` | smallint unsigned | Image width in px, `0` for non-images |
-| `has_thumb` | `pre_forum_attachment_N` | `thumb` | tinyint unsigned | `0`=no thumbnail, `1`=has thumbnail |
-| `downloads` | `pre_forum_attachment` | `downloads` | mediumint | ⚠️ On the **index table**, NOT the shard tables |
-| `created_at` | `pre_forum_attachment_N` | `dateline` | int unsigned | Unix timestamp |
+| `filename` | `pre_forum_attachment_N` | `filename` | varchar(255) | 原始上传文件名 |
+| `file_path` | `pre_forum_attachment_N` | `attachment` | varchar(255) | DZ 相对路径 → R2 key |
+| `file_size` | `pre_forum_attachment_N` | `filesize` | int unsigned | 字节 |
+| `is_image` | `pre_forum_attachment_N` | `isimage` | tinyint(1) | `0`=否，`1`=是（不是 -1/1） |
+| `width` | `pre_forum_attachment_N` | `width` | smallint unsigned | 图片宽度（px），非图片为 `0` |
+| `has_thumb` | `pre_forum_attachment_N` | `thumb` | tinyint unsigned | `0`=无缩略图，`1`=有缩略图 |
+| `downloads` | `pre_forum_attachment` | `downloads` | mediumint | ⚠️ 在**索引表**上，不在分片表上 |
+| `created_at` | `pre_forum_attachment_N` | `dateline` | int unsigned | Unix 时间戳 |
 
-**Attachment sharding architecture:**
+**附件分片架构：**
 
 ```
 pre_forum_attachment (index table)
@@ -379,9 +379,9 @@ pre_forum_attachment_0 ~ _9 (shard tables)
 └── sha1             ← file hash for dedup/integrity
 ```
 
-**Shard lookup:** Use `pre_forum_attachment.tableid` to determine which `_N` table to query. Do NOT assume `tid % 10` — use the `tableid` field.
+**分片查找：** 使用 `pre_forum_attachment.tableid` 确定查询哪张 `_N` 表。不要假设 `tid % 10` — 使用 `tableid` 字段。
 
-**Migration query:**
+**迁移查询：**
 
 ```sql
 SELECT
@@ -394,40 +394,40 @@ WHERE a.tableid = 0;
 -- Repeat for tableid 1~9 with corresponding shard table
 ```
 
-**Useful fields for migration logic (not stored as columns):**
+**迁移逻辑中使用的辅助字段（不存储为列）：**
 
 | Field | Table | Notes |
 |-------|-------|-------|
-| `remote` | `_N` shard | `0`=local filesystem, `1`/`2`=remote storage. Determines how to resolve file path |
-| `sha1` | `_N` shard | char(40). Use for dedup before uploading to R2 |
-| `description` | `_N` shard | Attachment description text |
+| `remote` | `_N` 分片 | `0`=本地文件系统，`1`/`2`=远程存储。决定文件路径的解析方式 |
+| `sha1` | `_N` 分片 | char(40)。上传到 R2 前用于去重 |
+| `description` | `_N` 分片 | 附件描述文本 |
 
-**File storage:** DZ stores local files in `data/attachment/forum/`. The `attachment` field contains the relative path (e.g., `202301/01/12345_abc.jpg`). Migrate to Cloudflare R2, store the R2 object key in `file_path`.
+**文件存储：** DZ 将本地文件存储在 `data/attachment/forum/` 下。`attachment` 字段包含相对路径（如 `202301/01/12345_abc.jpg`）。迁移到 Cloudflare R2 后，将 R2 对象 key 存储在 `file_path` 中。
 
-**Thumbnail files:** When `thumb = 1`, a thumbnail exists at the same path with `forum.php?mod=attachment` serving it. The physical file is typically at `{path}.thumb.jpg`.
+**缩略图文件：** 当 `thumb = 1` 时，缩略图存在于相同路径，通过 `forum.php?mod=attachment` 提供服务。物理文件通常位于 `{path}.thumb.jpg`。
 
 ---
 
-## Data Volume (tongji.nocoo.cloud)
+## 数据量（tongji.nocoo.cloud）
 
 | Table | Rows | Data Size | Compressed Dump |
 |-------|------|-----------|-----------------|
 | `uc_members` | 1,140,438 | 551 MB | 66 MB |
-| `pre_common_member` | 70,853 | 31 MB | (in main_small) |
-| `pre_common_member_count` | 70,860 | 7 MB | (in main_small) |
-| `pre_forum_forum` + `forumfield` | ~213 | < 1 MB | (in main_small) |
+| `pre_common_member` | 70,853 | 31 MB | （在 main_small 中） |
+| `pre_common_member_count` | 70,860 | 7 MB | （在 main_small 中） |
+| `pre_forum_forum` + `forumfield` | ~213 | < 1 MB | （在 main_small 中） |
 | `pre_forum_thread` | 790,115 | 984 MB | 44 MB |
-| `pre_forum_post` (main) | 6,234,374 | 3,228 MB | 924 MB |
-| `pre_forum_post_1~4` (shards) | 3,276,508 | 1,484 MB | 440 MB |
-| `pre_forum_attachment` (index) | 78,178 | 5 MB | (in main_small) |
-| `pre_forum_attachment_0~9` (shards) | ~76,721 | ~9 MB | (in main_small) |
-| **Total** | **~11.7M rows** | **~6.3 GB** | **~1.4 GB** |
+| `pre_forum_post`（主表） | 6,234,374 | 3,228 MB | 924 MB |
+| `pre_forum_post_1~4`（分片表） | 3,276,508 | 1,484 MB | 440 MB |
+| `pre_forum_attachment`（索引表） | 78,178 | 5 MB | （在 main_small 中） |
+| `pre_forum_attachment_0~9`（分片表） | ~76,721 | ~9 MB | （在 main_small 中） |
+| **合计** | **~11.7M 行** | **~6.3 GB** | **~1.4 GB** |
 
-Note: `uc_members` has 1.14M records but `pre_common_member` only has 70K — the discrepancy is due to archived/purged members. `pre_common_member_archive` holds 1.07M archived records.
+注意：`uc_members` 有 114 万条记录，但 `pre_common_member` 只有 7 万条 — 差异来自已归档/清理的用户。`pre_common_member_archive` 存储了 107 万条归档记录。
 
-## D1 Capacity Planning
+## D1 容量规划
 
-### Actual data measurement (tongji.nocoo.cloud, visible content only)
+### 实际数据测量（tongji.nocoo.cloud，仅可见内容）
 
 | D1 Table | Rows | Content Size | Est. D1 Size (with indexes) |
 |----------|------|-------------|---------------------------|
@@ -436,46 +436,46 @@ Note: `uc_members` has 1.14M records but `pre_common_member` only has 70K — th
 | users | 70,853 | 14 MB | ~25 MB |
 | attachments | 78,178 | 22 MB | ~35 MB |
 | forums | 213 | < 1 MB | < 1 MB |
-| **Total** | **~10.3M** | **~3,700 MB** | **~5,000 MB** |
+| **合计** | **~10.3M** | **~3,700 MB** | **~5,000 MB** |
 
-### D1 limits (Workers Paid plan)
+### D1 限制（Workers Paid 计划）
 
 | Limit | Value | Status |
 |-------|-------|--------|
-| Database size | **10 GB** (hard cap, cannot increase) | ~5 GB used → ✅ 50% headroom |
-| Databases per account | 50,000 | 1 used |
-| Account storage | 1 TB | ~5 GB used |
-| Max query duration | 30 seconds | |
-| Max row size | 2 MB | Largest post ~50 KB → ✅ |
-| Max bound params | 100 per query | |
-| Max SQL length | 100 KB | |
-| LIKE/GLOB pattern | 50 bytes max | ⚠️ limits search |
-| Concurrency | Single-threaded per database | ⚠️ see write optimization |
+| 数据库大小 | **10 GB**（硬上限，无法提升） | ~5 GB 已用 → ✅ 50% 余量 |
+| 每账号数据库数 | 50,000 | 已用 1 个 |
+| 账号存储总量 | 1 TB | ~5 GB 已用 |
+| 最大查询时长 | 30 秒 | |
+| 最大行大小 | 2 MB | 最大帖子 ~50 KB → ✅ |
+| 最大绑定参数数 | 每次查询 100 个 | |
+| 最大 SQL 长度 | 100 KB | |
+| LIKE/GLOB 模式 | 最长 50 字节 | ⚠️ 限制搜索能力 |
+| 并发 | 每个数据库单线程 | ⚠️ 参见写入优化 |
 
-**Single database is viable.** If future growth pushes toward 8 GB, split `posts` into a separate D1 database by date range (hot/cold). The 50,000 databases/account limit provides ample room for horizontal scaling.
+**单数据库方案可行。** 如果未来增长推进到 8 GB，可按日期范围（热/冷数据）将 `posts` 拆分到独立的 D1 数据库。每账号 50,000 个数据库的限制为水平扩展提供了充足空间。
 
-> Note: the 6.3 GB "Data Size" in the DZ source tables above is MySQL InnoDB overhead. Actual content is ~3.7 GB. SQLite (D1) stores data more compactly.
+> 注意：上面 DZ 源表中 6.3 GB 的"Data Size"包含 MySQL InnoDB 开销。实际内容约 3.7 GB。SQLite（D1）存储数据更紧凑。
 
 ---
 
-## Performance
+## 性能
 
-### Query patterns and index coverage
+### 查询模式与索引覆盖
 
-Every common page type must hit an index. Full table scans on 9.4M posts = 30s timeout + massive row-read billing.
+每种常见页面类型都必须命中索引。对 940 万条帖子进行全表扫描会导致 30 秒超时 + 大量行读取计费。
 
 | Page | Query Pattern | Index Used | Rows Scanned |
 |------|--------------|------------|-------------|
-| **Forum list** | `SELECT * FROM forums` | Full scan (213 rows — OK) | 213 |
-| **Thread list** | `WHERE forum_id = ? ORDER BY sticky DESC, last_post_at DESC LIMIT 20` | `idx_threads_forum` ✅ | ~20 |
-| **Thread view** | `WHERE thread_id = ? ORDER BY position LIMIT 20` | `idx_posts_thread` ✅ | ~20 |
-| **User profile** | `WHERE author_id = ? ORDER BY created_at DESC LIMIT 20` | `idx_threads_author` / `idx_posts_author` ✅ | ~20 |
-| **Homepage** | `ORDER BY last_post_at DESC LIMIT 20` | `idx_threads_latest` ✅ | ~20 |
-| **Digest list** | `WHERE digest > 0 ORDER BY last_post_at DESC LIMIT 20` | `idx_threads_digest` ✅ (partial) | ~20 |
-| **Attachment resolve** | `WHERE id = ?` | PK | 1 |
-| **Post attachments** | `WHERE post_id IN (...)` | `idx_attachments_post` ✅ | ~1-10 |
+| **版块列表** | `SELECT * FROM forums` | 全表扫描（213 行 — 可接受） | 213 |
+| **帖子列表** | `WHERE forum_id = ? ORDER BY sticky DESC, last_post_at DESC LIMIT 20` | `idx_threads_forum` ✅ | ~20 |
+| **帖子详情** | `WHERE thread_id = ? ORDER BY position LIMIT 20` | `idx_posts_thread` ✅ | ~20 |
+| **用户主页** | `WHERE author_id = ? ORDER BY created_at DESC LIMIT 20` | `idx_threads_author` / `idx_posts_author` ✅ | ~20 |
+| **首页** | `ORDER BY last_post_at DESC LIMIT 20` | `idx_threads_latest` ✅ | ~20 |
+| **精华列表** | `WHERE digest > 0 ORDER BY last_post_at DESC LIMIT 20` | `idx_threads_digest` ✅（部分索引） | ~20 |
+| **附件解析** | `WHERE id = ?` | PK | 1 |
+| **帖子附件** | `WHERE post_id IN (...)` | `idx_attachments_post` ✅ | ~1-10 |
 
-### Complete index inventory
+### 完整索引清单
 
 ```sql
 -- threads (790K rows, ~350 MB with indexes)
@@ -495,9 +495,9 @@ CREATE INDEX idx_attachments_thread ON attachments(thread_id);  -- thread attach
 -- users: UNIQUE(username) in CREATE TABLE already acts as an index
 ```
 
-### Pagination: keyset, not OFFSET
+### 分页：使用 keyset，而非 OFFSET
 
-D1 (SQLite) scans OFFSET rows before returning results. `OFFSET 50000` on 9.4M posts is catastrophic. Use keyset (cursor) pagination everywhere:
+D1（SQLite）在返回结果前会扫描 OFFSET 行。对 940 万条帖子执行 `OFFSET 50000` 是灾难性的。所有地方都使用 keyset（游标）分页：
 
 ```sql
 -- Thread listing: cursor = (last_sticky, last_post_at) from previous page
@@ -525,7 +525,7 @@ ORDER BY created_at DESC
 LIMIT 20;
 ```
 
-### Caching architecture
+### 缓存架构
 
 ```
 Request → Cloudflare Worker (Smart Placement enabled)
@@ -553,19 +553,19 @@ Request → Cloudflare Worker (Smart Placement enabled)
       └─ Search index updates ─ rebuild embeddings on new content
 ```
 
-**Why each layer:**
+**各层用途说明：**
 
 | Layer | Latency | Use Case |
 |-------|---------|----------|
-| Cache API | <1 ms (edge hit) | Identical page requests within TTL window |
-| KV | ~10 ms (global) | Cross-page shared data (sessions, hot content) |
-| D1 replica | ~5-50 ms | SQL queries when cache miss, nearest region |
-| D1 primary | ~20-100 ms | Writes and post-write reads |
-| R2 | ~50-200 ms | Binary files (served via CDN for repeat access) |
+| Cache API | <1 ms（边缘命中） | TTL 窗口内的相同页面请求 |
+| KV | ~10 ms（全球） | 跨页面共享数据（会话、热门内容） |
+| D1 replica | ~5-50 ms | 缓存未命中时的 SQL 查询，就近区域 |
+| D1 primary | ~20-100 ms | 写入和写后读 |
+| R2 | ~50-200 ms | 二进制文件（通过 CDN 缓存重复访问） |
 
-### D1 read replication
+### D1 读副本
 
-Enable read replication for global latency reduction. D1 automatically replicates to all regions (ENAM, WNAM, WEUR, EEUR, APAC, OC).
+启用读副本以降低全球延迟。D1 自动复制到所有区域（ENAM、WNAM、WEUR、EEUR、APAC、OC）。
 
 ```typescript
 // Read-only pages (thread list, thread view, forum list)
@@ -577,26 +577,26 @@ const session = db.withSession("first-primary");
 const posts = await session.prepare("SELECT ...").all();
 ```
 
-### Write optimization
+### 写入优化
 
-D1 is **single-threaded** — one write at a time per database. Strategies to avoid bottleneck:
+D1 是**单线程**的 — 每个数据库同一时间只能处理一个写入。避免瓶颈的策略：
 
 | Problem | Solution |
 |---------|----------|
-| **View count storms** | Don't `UPDATE threads SET views = views + 1` per request. Batch in KV or Durable Object, flush to D1 every 30-60s |
-| **Burst posting** | Write through Cloudflare Queue. Worker enqueues, consumer batch-inserts to D1 |
-| **Forum/thread counters** | Update asynchronously after post creation (via Queue consumer) |
-| **Index write amplification** | Each index adds a write per INSERT. 6 indexes on posts = 7 writes per post. Acceptable at forum scale |
+| **浏览量风暴** | 不要每次请求都执行 `UPDATE threads SET views = views + 1`。在 KV 或 Durable Object 中批量聚合，每 30-60 秒刷入 D1 |
+| **突发发帖** | 通过 Cloudflare Queue 写入。Worker 入队，消费者批量插入 D1 |
+| **版块/帖子计数器** | 在帖子创建后异步更新（通过 Queue 消费者） |
+| **索引写放大** | 每个索引增加一次写入。posts 上有 6 个索引 = 每条帖子 7 次写入。在论坛规模下可接受 |
 
-### Search strategy
+### 搜索策略
 
-D1 has no practical full-text search for Chinese content. `LIKE '%关键词%'` = full scan on 9.4M rows → timeout.
+D1 对中文内容没有实用的全文搜索能力。`LIKE '%关键词%'` = 对 940 万行全表扫描 → 超时。
 
 | Option | Pros | Cons | Recommendation |
 |--------|------|------|----------------|
-| **Workers AI + Vectorize** | Semantic search, multilingual, no tokenizer issue | Requires embedding pipeline, async index | ✅ Phase 2 |
-| **FTS5** | Built into D1, SQL-native | No Chinese tokenizer, adds ~1-2 GB to DB, virtual tables can't be exported | ❌ Skip |
-| **External (Algolia/Meilisearch)** | Best search UX, CJK support | Extra service, cost | Consider if AI search insufficient |
-| **Prefix search on subject** | Simple `WHERE subject LIKE 'keyword%'` with index | Only matches from start, useless for Chinese | ❌ Skip |
+| **Workers AI + Vectorize** | 语义搜索，多语言，无分词问题 | 需要 embedding 流水线，异步索引 | ✅ 第二阶段 |
+| **FTS5** | D1 内置，SQL 原生 | 无中文分词器，增加 ~1-2 GB 数据库体积，虚拟表无法导出 | ❌ 跳过 |
+| **外部服务（Algolia/Meilisearch）** | 最佳搜索体验，CJK 支持 | 额外服务，有成本 | AI 搜索不足时考虑 |
+| **前缀搜索 subject** | 简单的 `WHERE subject LIKE 'keyword%'` 可用索引 | 只能匹配开头，对中文无用 | ❌ 跳过 |
 
-Recommend: defer search to Phase 2. Start with thread subject + author name lookup (exact match via existing indexes). Add Workers AI embeddings later for semantic search.
+建议：搜索功能推迟到第二阶段。先实现帖子标题 + 作者名查找（通过现有索引精确匹配）。后续添加 Workers AI embedding 实现语义搜索。
