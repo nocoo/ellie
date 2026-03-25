@@ -317,6 +317,10 @@ export interface PostExtractionStats {
 	filtered: number;
 	encodingRepaired: number;
 	bbcodeFailures: number;
+	/** Called when BBCode conversion fails for a post. */
+	onBbcodeFailure?: (pid: number, error: string) => void;
+	/** Called when encoding repair is applied to a post. */
+	onEncodingFailure?: (pid: number, issue: string) => void;
 }
 
 /**
@@ -332,25 +336,31 @@ export function extractPost(row: ParsedRow, stats?: PostExtractionStats): RowRec
 	const message = row[POST_COLS.message] ?? "";
 	const bbcodeoff = Number(row[POST_COLS.bbcodeoff]) === 1;
 	const htmlon = Number(row[POST_COLS.htmlon]) === 1;
+	const pid = Number(row[POST_COLS.pid]);
 
 	// Encoding validation
 	const { text: cleanMessage, repaired } = validateEncoding(message);
-	if (repaired && stats) stats.encodingRepaired++;
+	if (repaired) {
+		if (stats) stats.encodingRepaired++;
+		stats?.onEncodingFailure?.(pid, "encoding repaired from GBK mojibake");
+	}
 
 	// BBCode → HTML conversion
 	let content: string;
 	try {
 		content = bbcodeToHtml(cleanMessage, { bbcodeoff, htmlon });
-	} catch {
+	} catch (err) {
 		// BBCode parse failure — keep original text
 		content = cleanMessage;
 		if (stats) stats.bbcodeFailures++;
+		const errMsg = err instanceof Error ? err.message : String(err);
+		stats?.onBbcodeFailure?.(pid, errMsg);
 	}
 
 	if (stats) stats.total++;
 
 	return {
-		id: Number(row[POST_COLS.pid]),
+		id: pid,
 		thread_id: Number(row[POST_COLS.tid]),
 		forum_id: Number(row[POST_COLS.fid]),
 		author_id: Number(row[POST_COLS.authorid]),
