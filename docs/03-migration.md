@@ -115,19 +115,29 @@ INSERT INTO `table` VALUES (1,'foo','bar'),(2,'baz','qux');
 | `[b]text[/b]` | `<strong>text</strong>` |
 | `[i]text[/i]` | `<em>text</em>` |
 | `[u]text[/u]` | `<u>text</u>` |
+| `[s]text[/s]` | `<s>text</s>` |
 | `[url=href]text[/url]` | `<a href="href">text</a>` |
 | `[img]src[/img]` | `<img src="src">` |
 | `[quote]text[/quote]` | `<blockquote>text</blockquote>` |
 | `[code]text[/code]` | `<pre><code>text</code></pre>` |
 | `[color=red]text[/color]` | `<span style="color:red">text</span>` |
 | `[size=4]text[/size]` | `<span style="font-size:...">text</span>` |
-| `[attach]aid[/attach]` | 通过 `attachments` 表解析为附件 URL |
+| `[align=center]text[/align]` | `<div style="text-align:center">text</div>` |
+| `[hr]` | `<hr>` |
+| `[attach]aid[/attach]` | `<attachment data-aid="aid"></attachment>` |
+| `[list][*]item[/list]` | `<ul><li>item</ul>` |
+| `[list=1][*]item[/list]` | `<ol><li>item</ol>` |
 
 ### 特殊处理
-- `bbcodeoff = 1` 时：不做 BBCode 解析，内容视为纯文本
-- `htmlon = 1` 时：保留原始 HTML，只转换 BBCode 部分
-- `[attach]aid[/attach]`：替换为 `/attachments/{aid}` 占位符（运行时解析为 R2 URL）
+- `bbcodeoff = 1` 时：不做 BBCode 解析，内容视为纯文本（HTML 实体转义）
+- `htmlon = 1` 时：保留原始 HTML，但 **过滤危险元素**（`<script>`、`<style>`、事件处理器、`<iframe>`/`<embed>`/`<object>` 等），再转换 BBCode 部分
+- `[attach]aid[/attach]`：替换为 `<attachment data-aid="aid"></attachment>` 占位元素，运行时由前端解析为 R2 附件 URL
 - 嵌套标签：支持合理深度的嵌套（如 `[b][color=red]text[/color][/b]`）
+
+### 安全过滤
+- **URL 协议白名单**：`[url]` 和 `[img]` 的 URL 仅允许 `http:`/`https:`/`ftp:`/`mailto:` 和相对路径，阻止 `javascript:`/`data:`/`vbscript:` 等危险协议
+- **CSS 值验证**：`[color]` 仅接受 hex（`#abc`/`#FF0000`）、命名颜色、`rgb()` 格式；`[align]` 仅接受 `left`/`center`/`right`/`justify`。不合法的值剥离标签保留内容
+- **htmlon 净化**：移除 `<script>`/`<style>` 块、`on*` 事件处理器属性、`javascript:` 协议、`<iframe>`/`<embed>`/`<object>`/`<applet>`/`<form>`/`<base>`/`<meta>`/`<link>` 标签
 
 ## 编码处理
 

@@ -70,7 +70,7 @@ CREATE TABLE users (
 | `email` | `uc_members` | `email` | char(32) | `pre_common_member.email` 是 char(40)，优先使用 ucenter 作为认证源 |
 | `password_hash` | `uc_members` | `password` | char(32) | `md5(md5(password) + salt)` — 详见下方 |
 | `password_salt` | `uc_members` | `salt` | char(6) | 6 位随机字符串 |
-| `avatar` | — | 由 `uid` 计算 | — | `data/avatar/{uid%16}/{uid%256}/{uid}_avatar_big.jpg` |
+| `avatar` | — | 由 `uid` 计算 | — | R2 key: `avatars/{uid}.jpg`（源路径 `data/avatar/{uid%16}/{uid%256}/{uid}_avatar_big.jpg`） |
 | `status` | `pre_common_member` | `status` | tinyint(1) | `0`=正常，`-1`=封禁，`-2`=归档。见下方迁移策略 |
 | `role` | `pre_common_member` | `adminid` | tinyint(1) | `0`=用户，`1`=管理员，`2`=超级版主，`3`=版主 |
 | `reg_date` | `pre_common_member` | `regdate` | int unsigned | Unix 时间戳 |
