@@ -44,7 +44,7 @@ reference/db/*.sql.gz
 | 顺序 | 表 | 行数 | 依赖 | 数据源文件 |
 |------|---|------|------|-----------|
 | 1 | forums | 213 | 无 | main_small.sql.gz |
-| 2 | users | ~70K | 无 | main_small.sql.gz + ucenter.sql.gz |
+| 2 | users | ~1.14M | 无 | ucenter.sql.gz + main_small.sql.gz |
 | 3 | threads | ~790K | forums, users | thread.sql.gz |
 | 4 | posts | ~9.4M | threads, users | post_main.sql.gz + post_shards.sql.gz |
 | 5 | attachments | ~78K | posts, users | main_small.sql.gz |
@@ -58,21 +58,23 @@ reference/db/*.sql.gz
   - 格式：`"tid\tsubject\ttimestamp\tposter"`，用 `\t` 分割
 
 ### users
-- 源表：`pre_common_member` JOIN `uc_members` JOIN `pre_common_member_count`
-- 过滤：`status >= 0 AND freeze = 0`
+- 源表：`uc_members` LEFT JOIN `pre_common_member` LEFT JOIN `pre_common_member_archive` LEFT JOIN `pre_common_member_count`
+- 过滤：无（全量迁移 114 万用户）
 - 转换：
   - `adminid` → `role`（0=user, 1=admin, 2=super-mod, 3=mod）
   - `avatarstatus` → `avatar` 路径计算（仅 avatarstatus=1 时计算）
   - 密码字段直接映射（hash + salt），不做转换
-- 注意：`uc_members` 有 114 万记录，`pre_common_member` 只有 7 万（差额为归档用户）
+  - `status` 映射：活跃用户取 `pre_common_member.status`（0=正常，-1=封禁），`freeze=1` 也标记为 -1；归档用户统一标记 -2
+- 策略：以 `uc_members` 为基准（114 万），分两步——先活跃用户（JOIN `pre_common_member`），再归档用户（JOIN `pre_common_member_archive` 且排除已导入的）
+- 注意：`uc_members` 有 114 万记录，`pre_common_member` 7 万 + `pre_common_member_archive` 107 万
 
 ### threads
 - 源表：`pre_forum_thread`
-- 过滤：无特殊过滤（`displayorder >= 0` 保留所有可见帖）
+- 过滤：`displayorder >= 0`（保留所有可见帖）**且 `closed <= 1`**（跳过合并帖）
 - 转换：
   - `displayorder` → `sticky`
-  - `closed` > 1 时为合并帖，记录目标 tid
   - `posttableid` → `post_table_id`
+- 跳过合并帖：`closed > 1` 表示该 thread 已合并到 tid=closed 的目标 thread。这些只是重定向壳，内容已在目标 thread 中。如需 URL 兼容，可在 Worker 层用 KV 做 tid 映射
 
 ### posts
 - 源表：`pre_forum_post` + `pre_forum_post_1` ~ `pre_forum_post_4`（5 个表）
@@ -108,7 +110,18 @@ INSERT INTO `table` VALUES (1,'foo','bar'),(2,'baz','qux');
 
 ### 转换规则
 
-（同 02-database-schema.md 中的 BBCode→HTML 转换表）
+| BBCode | HTML |
+|--------|------|
+| `[b]text[/b]` | `<strong>text</strong>` |
+| `[i]text[/i]` | `<em>text</em>` |
+| `[u]text[/u]` | `<u>text</u>` |
+| `[url=href]text[/url]` | `<a href="href">text</a>` |
+| `[img]src[/img]` | `<img src="src">` |
+| `[quote]text[/quote]` | `<blockquote>text</blockquote>` |
+| `[code]text[/code]` | `<pre><code>text</code></pre>` |
+| `[color=red]text[/color]` | `<span style="color:red">text</span>` |
+| `[size=4]text[/size]` | `<span style="font-size:...">text</span>` |
+| `[attach]aid[/attach]` | 通过 `attachments` 表解析为附件 URL |
 
 ### 特殊处理
 - `bbcodeoff = 1` 时：不做 BBCode 解析，内容视为纯文本
@@ -125,7 +138,7 @@ Discuz X3.4 默认 UTF-8，但历史数据可能混入 GBK 编码：
 
 ## 批量写入
 
-- 使用 `better-sqlite3` 直接写本地 SQLite 文件
+- 使用 `bun:sqlite` 直接写本地 SQLite 文件（零依赖，Bun 内置）
 - 每批 500 行，包裹在事务中（`BEGIN...COMMIT`）
 - 先建表（DDL from 02-database-schema.md），再建索引（数据写入完成后）
 - 进度输出：每 10,000 行报告一次
@@ -140,5 +153,20 @@ Discuz X3.4 默认 UTF-8，但历史数据可能混入 GBK 编码：
 | 外键完整 | threads.forum_id 全部在 forums.id 中 | 0 orphan |
 | 外键完整 | attachments.post_id 全部在 posts.id 中 | 0 orphan |
 | 编码正确 | 随机抽样 1000 条帖子，人工可读 | 0 乱码 |
-| 查询性能 | 8 种查询模式（见 02-database-schema.md） | 全部 <100ms |
+| 查询性能 | 8 种查询模式（见 02-database-schema.md） | 索引命中 <10ms，整体 <50ms |
 | 索引有效 | EXPLAIN QUERY PLAN 确认走索引 | 无 SCAN TABLE |
+
+## 错误处理
+
+迁移脚本遇到异常数据时的处理策略：
+
+| 场景 | 策略 | 说明 |
+|------|------|------|
+| 帖子 `author_id` 不在 `users` 中 | **报告 + 中止** | 全量迁移用户后不应出现。若出现说明数据源有问题 |
+| 帖子 `thread_id` 不在 `threads` 中 | **跳过 + 记录** | 可能指向 `displayorder < 0` 的隐藏帖或合并帖。记录到 `migration.log` |
+| 附件 `post_id` 不在 `posts` 中 | **跳过 + 记录** | 帖子可能是 `invisible ≠ 0` 被过滤掉的 |
+| 头像文件不存在 | **avatar 设为空字符串** | `avatarstatus=1` 但实际文件缺失时，降级为无头像 |
+| 附件文件不存在 | **保留数据库记录，file_path 不变** | R2 上传阶段单独处理缺失文件，不影响 D1 数据迁移 |
+| BBCode 解析失败 | **保留原始文本 + 标记** | 记录 pid 到 `bbcode_failures.log`，content 存原始 message |
+| 编码无法修复 | **保留原始字节 + 标记** | 记录 pid 到 `encoding_failures.log` |
+| SQL dump 解析错误 | **中止当前表** | 报告行号和原始内容，人工检查 |

@@ -9,8 +9,9 @@ Ellie 是一个将 Discuz! X3.4 论坛数据迁移到 Cloudflare 平台的项目
 
 | 层次 | 技术 | 原因 |
 |------|------|------|
-| 运行时 | Bun | 原生 TypeScript 支持，内置测试框架，SQLite 支持 |
+| 运行时 | Bun | 原生 TypeScript 支持，内置测试框架，内置 SQLite（`bun:sqlite`） |
 | 语言 | TypeScript (strict) | 类型安全，重构友好 |
+| 本地 SQLite | `bun:sqlite` | Bun 内置，零依赖，API 兼容 better-sqlite3，用于迁移脚本写入本地 D1 文件 |
 | 数据库 | Cloudflare D1 | SQLite 兼容，全球分布式读副本，Worker 原生绑定 |
 | 文件存储 | Cloudflare R2 | S3 兼容，无出口费用，CDN 分发 |
 | 缓存 | Cache API + Workers KV | 边缘缓存 + 全球 KV |
@@ -41,24 +42,31 @@ Ellie 是一个将 Discuz! X3.4 论坛数据迁移到 Cloudflare 平台的项目
 - 实时通知
 - 用户互动功能
 
-## 项目结构
+## 项目结构（目标）
+
+> 以下为完整目标结构。尚未创建的部分在实现各 Phase 时逐步建立。
 
 ```
 ellie/
 ├── docs/                     # 项目文档
 ├── scripts/
 │   └── migrate/              # Phase 1: 迁移脚本
-│       ├── index.ts          # 迁移入口
+│       ├── index.ts          # 迁移入口（orchestrate ETL 全流程）
 │       ├── extract/          # 数据提取（SQL dump 解析）
-│       ├── transform/        # 数据转换（BBCode、编码、密码）
-│       ├── load/             # 数据加载（SQLite/D1 写入）
-│       └── verify/           # 迁移验证
-├── src/                      # Phase 2+: 应用代码
+│       │   └── parser.ts     # gzip SQL dump 流式解析器
+│       ├── transform/        # 数据转换
+│       │   ├── bbcode.ts     # BBCode → HTML
+│       │   ├── encoding.ts   # 编码检测与修复
+│       │   ├── avatar.ts     # uid → 头像路径计算
+│       │   └── password.ts   # 密码字段映射（直接透传）
+│       ├── load/             # 数据加载（bun:sqlite 写入本地 SQLite）
+│       └── verify/           # 迁移验证（完整性、编码、性能）
+├── src/                      # Phase 2+: Worker API + 应用代码
 ├── tests/
 │   ├── unit/                 # L1 单元测试
 │   └── integration/          # L2 集成测试
 ├── reference/                # 本地参考数据（gitignored）
-│   └── db/                   # MySQL dump 文件
+│   └── db/                   # MySQL dump 文件（~1.4 GB）
 ├── package.json
 ├── tsconfig.json
 ├── biome.json
