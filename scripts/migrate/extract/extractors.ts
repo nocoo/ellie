@@ -16,24 +16,29 @@ import type { ParsedRow } from "./parser";
 
 /**
  * Source columns for pre_forum_forum (from main_small dump):
- * fid, fup, name, type, status, displayorder, threads, posts, lastpost, ...
+ * fid, fup, type, name, status, displayorder, styleid, threads, posts,
+ * todayposts, yesterdayposts, rank, oldrank, lastpost, ...
+ *
+ * Verified against CREATE TABLE in main_small.sql.gz.
  *
  * We also need pre_forum_forumfield for description and icon.
  * Since we're parsing SQL dumps (not live queries), we handle the two tables
  * separately and join in the orchestrator.
  */
 
-/** Column indices for pre_forum_forum INSERT VALUES. */
+/** Column indices for pre_forum_forum INSERT VALUES (verified from dump DDL). */
 const FORUM_COLS = {
 	fid: 0,
 	fup: 1,
-	name: 2,
-	type: 7,
-	status: 3,
-	displayorder: 4,
-	threads: 5,
-	posts: 6,
-	lastpost: 8,
+	type: 2,
+	name: 3,
+	status: 4,
+	displayorder: 5,
+	// styleid: 6,
+	threads: 7,
+	posts: 8,
+	// todayposts: 9, yesterdayposts: 10, rank: 11, oldrank: 12,
+	lastpost: 13,
 } as const;
 
 /**
@@ -87,14 +92,21 @@ export function extractForum(
 
 // ─── Users ─────────────────────────────────────────────────────────────────────
 
-/** Column indices for uc_members INSERT VALUES. */
+/**
+ * Column indices for uc_members INSERT VALUES (verified from dump DDL).
+ *
+ * uid, username, password, email, myid, myidkey, regip, regdate,
+ * lastloginip, lastlogintime, salt, secques
+ */
 const UC_MEMBER_COLS = {
 	uid: 0,
 	username: 1,
 	password: 2,
-	salt: 3,
-	email: 4,
-	lastlogintime: 8,
+	email: 3,
+	// myid: 4, myidkey: 5, regip: 6, regdate: 7, lastloginip: 8,
+	lastlogintime: 9,
+	salt: 10,
+	// secques: 11,
 } as const;
 
 /** Column indices for pre_common_member INSERT VALUES. */
@@ -201,26 +213,37 @@ export function extractUser(
 
 // ─── Threads ───────────────────────────────────────────────────────────────────
 
-/** Column indices for pre_forum_thread INSERT VALUES. */
+/**
+ * Column indices for pre_forum_thread INSERT VALUES (verified from dump DDL).
+ *
+ * tid, fid, posttableid, typeid, sortid, readperm, price, author, authorid,
+ * subject, dateline, lastpost, lastposter, views, replies, displayorder,
+ * highlight, digest, rate, special, attachment, moderated, closed, stickreply,
+ * recommends, recommend_add, recommend_sub, ...
+ */
 const THREAD_COLS = {
 	tid: 0,
 	fid: 1,
 	posttableid: 2,
-	authorid: 4,
-	author: 5,
-	subject: 6,
-	dateline: 7,
-	lastpost: 8,
-	lastposter: 9,
-	views: 10,
-	replies: 11,
-	displayorder: 12,
-	digest: 14,
-	closed: 15,
-	special: 17,
-	highlight: 19,
-	recommend_add: 21,
-	recommend_sub: 22,
+	// typeid: 3, sortid: 4, readperm: 5, price: 6,
+	author: 7,
+	authorid: 8,
+	subject: 9,
+	dateline: 10,
+	lastpost: 11,
+	lastposter: 12,
+	views: 13,
+	replies: 14,
+	displayorder: 15,
+	highlight: 16,
+	digest: 17,
+	// rate: 18,
+	special: 19,
+	// attachment: 20, moderated: 21,
+	closed: 22,
+	// stickreply: 23, recommends: 24,
+	recommend_add: 25,
+	recommend_sub: 26,
 } as const;
 
 /**
@@ -260,7 +283,14 @@ export function extractThread(row: ParsedRow): RowRecord | null {
 
 // ─── Posts ──────────────────────────────────────────────────────────────────────
 
-/** Column indices for pre_forum_post INSERT VALUES. */
+/**
+ * Column indices for pre_forum_post INSERT VALUES (verified from dump DDL).
+ *
+ * pid, fid, tid, first, author, authorid, subject, dateline, message,
+ * useip, port, invisible, anonymous, usesig, htmlon, bbcodeoff,
+ * smileyoff, parseurloff, attachment, rate, ratetimes, status,
+ * tags, comment, replycredit, position
+ */
 const POST_COLS = {
 	pid: 0,
 	fid: 1,
@@ -268,12 +298,17 @@ const POST_COLS = {
 	first: 3,
 	author: 4,
 	authorid: 5,
+	// subject: 6,
 	dateline: 7,
 	message: 8,
-	invisible: 12,
-	position: 16,
-	bbcodeoff: 19,
-	htmlon: 22,
+	// useip: 9, port: 10,
+	invisible: 11,
+	// anonymous: 12, usesig: 13,
+	htmlon: 14,
+	bbcodeoff: 15,
+	// smileyoff: 16, parseurloff: 17, attachment: 18,
+	// rate: 19, ratetimes: 20, status: 21, tags: 22, comment: 23, replycredit: 24,
+	position: 25,
 } as const;
 
 /** Stats tracked during post extraction. */
@@ -329,17 +364,24 @@ export function extractPost(row: ParsedRow, stats?: PostExtractionStats): RowRec
 
 // ─── Attachments ───────────────────────────────────────────────────────────────
 
-/** Column indices for pre_forum_attachment (index table) INSERT VALUES. */
+/**
+ * Column indices for pre_forum_attachment (index table) INSERT VALUES.
+ * Verified from dump DDL: aid, tid, pid, downloads, uid, tableid
+ */
 const ATTACH_INDEX_COLS = {
 	aid: 0,
 	tid: 1,
 	pid: 2,
-	uid: 3,
-	tableid: 4,
-	downloads: 5,
+	downloads: 3,
+	uid: 4,
+	tableid: 5,
 } as const;
 
-/** Column indices for pre_forum_attachment_N (shard table) INSERT VALUES. */
+/**
+ * Column indices for pre_forum_attachment_N (shard table) INSERT VALUES.
+ * Verified from dump DDL: aid, tid, pid, uid, dateline, filename, filesize,
+ * attachment, remote, description, readperm, price, isimage, width, thumb, picid, sha1
+ */
 const ATTACH_SHARD_COLS = {
 	aid: 0,
 	tid: 1,
@@ -349,9 +391,10 @@ const ATTACH_SHARD_COLS = {
 	filename: 5,
 	filesize: 6,
 	attachment: 7,
-	isimage: 10,
-	width: 12,
-	thumb: 13,
+	// remote: 8, description: 9, readperm: 10, price: 11,
+	isimage: 12,
+	width: 13,
+	thumb: 14,
 } as const;
 
 /** Data from the attachment index table. */

@@ -49,11 +49,10 @@ export async function migrateForums(loader: BatchLoader, sourceDir: string): Pro
 	log("  Parsing pre_forum_forumfield...");
 	const forumFields = new Map<number, { description: string; icon: string }>();
 	await parseDumpFile(dumpFile, "pre_forum_forumfield", (row) => {
-		// forumfield columns: fid=0, description=1, ..., icon=5 (approximate)
-		// We need fid, description, icon — positions depend on actual dump
+		// forumfield columns verified from DDL: fid=0, description=1, password=2, icon=3
 		const fid = Number(row[0]);
 		const description = row[1] ?? "";
-		const icon = row[5] ?? "";
+		const icon = row[3] ?? "";
 		forumFields.set(fid, { description, icon });
 	});
 	log(`  Collected ${forumFields.size} forum field records`);

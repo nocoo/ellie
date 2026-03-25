@@ -73,7 +73,7 @@ describe("parseLastPost", () => {
 // ─── extractForum ─────────────────────────────────────────────────────────────
 
 describe("extractForum", () => {
-	// FORUM_COLS: fid=0, fup=1, name=2, status=3, displayorder=4, threads=5, posts=6, type=7, lastpost=8
+	// FORUM_COLS: fid=0, fup=1, type=2, name=3, status=4, displayorder=5, threads=7, posts=8, lastpost=13
 	const forumFields = new Map<number, { description: string; icon: string }>();
 	forumFields.set(10, { description: "Test forum desc", icon: "icon.png" });
 
@@ -81,13 +81,13 @@ describe("extractForum", () => {
 		return row({
 			0: "10", // fid
 			1: "0", // fup
-			2: "General Discussion", // name
-			3: "1", // status (active)
-			4: "1", // displayorder
-			5: "100", // threads
-			6: "500", // posts
-			7: "forum", // type
-			8: "42\tLast thread\t1700000000\tadmin", // lastpost
+			2: "forum", // type
+			3: "General Discussion", // name
+			4: "1", // status (active)
+			5: "1", // displayorder
+			7: "100", // threads
+			8: "500", // posts
+			13: "42\tLast thread\t1700000000\tadmin", // lastpost
 			...overrides,
 		});
 	}
@@ -113,8 +113,8 @@ describe("extractForum", () => {
 	});
 
 	test("filters out hidden forums (status != 1)", () => {
-		expect(extractForum(forumRow({ 3: "0" }), forumFields)).toBeNull();
-		expect(extractForum(forumRow({ 3: "2" }), forumFields)).toBeNull();
+		expect(extractForum(forumRow({ 4: "0" }), forumFields)).toBeNull();
+		expect(extractForum(forumRow({ 4: "2" }), forumFields)).toBeNull();
 	});
 
 	test("uses empty strings when forumFields has no entry", () => {
@@ -125,14 +125,14 @@ describe("extractForum", () => {
 	});
 
 	test("handles sub-forum type and parent_id", () => {
-		const result = extractForum(forumRow({ 1: "5", 7: "sub" }), forumFields);
+		const result = extractForum(forumRow({ 1: "5", 2: "sub" }), forumFields);
 		expect(result).not.toBeNull();
 		expect(result?.parent_id).toBe(5);
 		expect(result?.type).toBe("sub");
 	});
 
 	test("handles empty lastpost field", () => {
-		const result = extractForum(forumRow({ 8: "" }), forumFields);
+		const result = extractForum(forumRow({ 13: "" }), forumFields);
 		expect(result).not.toBeNull();
 		expect(result?.last_thread_id).toBe(0);
 		expect(result?.last_post_at).toBe(0);
@@ -201,15 +201,15 @@ describe("parseMemberCountRow", () => {
 // ─── extractUser ──────────────────────────────────────────────────────────────
 
 describe("extractUser", () => {
-	// UC_MEMBER_COLS: uid=0, username=1, password=2, salt=3, email=4, lastlogintime=8
+	// UC_MEMBER_COLS: uid=0, username=1, password=2, email=3, lastlogintime=9, salt=10
 	function ucRow(overrides: Record<number, string> = {}): ParsedRow {
 		return row({
 			0: "100", // uid
 			1: "testuser", // username
 			2: "abc123hash", // password
-			3: "x1y2z3", // salt
-			4: "test@example.com", // email
-			8: "1700000000", // lastlogintime
+			3: "test@example.com", // email
+			9: "1700000000", // lastlogintime
+			10: "x1y2z3", // salt
 			...overrides,
 		});
 	}
@@ -295,29 +295,29 @@ describe("extractUser", () => {
 // ─── extractThread ────────────────────────────────────────────────────────────
 
 describe("extractThread", () => {
-	// THREAD_COLS: tid=0, fid=1, posttableid=2, authorid=4, author=5, subject=6,
-	//   dateline=7, lastpost=8, lastposter=9, views=10, replies=11, displayorder=12,
-	//   digest=14, closed=15, special=17, highlight=19, recommend_add=21, recommend_sub=22
+	// THREAD_COLS: tid=0, fid=1, posttableid=2, author=7, authorid=8, subject=9,
+	//   dateline=10, lastpost=11, lastposter=12, views=13, replies=14, displayorder=15,
+	//   highlight=16, digest=17, special=19, closed=22, recommend_add=25, recommend_sub=26
 	function threadRow(overrides: Record<number, string> = {}): ParsedRow {
 		return row({
 			0: "1000", // tid
 			1: "10", // fid
 			2: "0", // posttableid
-			4: "100", // authorid
-			5: "testuser", // author
-			6: "Hello World", // subject
-			7: "1700000000", // dateline
-			8: "1700001000", // lastpost
-			9: "replier", // lastposter
-			10: "500", // views
-			11: "20", // replies
-			12: "0", // displayorder (normal)
-			14: "0", // digest
-			15: "0", // closed
-			17: "0", // special
-			19: "0", // highlight
-			21: "10", // recommend_add
-			22: "3", // recommend_sub
+			7: "testuser", // author
+			8: "100", // authorid
+			9: "Hello World", // subject
+			10: "1700000000", // dateline
+			11: "1700001000", // lastpost
+			12: "replier", // lastposter
+			13: "500", // views
+			14: "20", // replies
+			15: "0", // displayorder (normal)
+			16: "0", // highlight
+			17: "0", // digest
+			19: "0", // special
+			22: "0", // closed
+			25: "10", // recommend_add
+			26: "3", // recommend_sub
 			...overrides,
 		});
 	}
@@ -347,34 +347,34 @@ describe("extractThread", () => {
 	});
 
 	test("filters hidden threads (displayorder < 0)", () => {
-		expect(extractThread(threadRow({ 12: "-1" }))).toBeNull();
-		expect(extractThread(threadRow({ 12: "-5" }))).toBeNull();
+		expect(extractThread(threadRow({ 15: "-1" }))).toBeNull();
+		expect(extractThread(threadRow({ 15: "-5" }))).toBeNull();
 	});
 
 	test("filters merged threads (closed > 1)", () => {
-		expect(extractThread(threadRow({ 15: "2" }))).toBeNull();
-		expect(extractThread(threadRow({ 15: "1000" }))).toBeNull();
+		expect(extractThread(threadRow({ 22: "2" }))).toBeNull();
+		expect(extractThread(threadRow({ 22: "1000" }))).toBeNull();
 	});
 
 	test("keeps closed=0 and closed=1 threads", () => {
-		expect(extractThread(threadRow({ 15: "0" }))).not.toBeNull();
-		expect(extractThread(threadRow({ 15: "1" }))).not.toBeNull();
+		expect(extractThread(threadRow({ 22: "0" }))).not.toBeNull();
+		expect(extractThread(threadRow({ 22: "1" }))).not.toBeNull();
 	});
 
 	test("sticky thread (displayorder > 0)", () => {
-		const result = extractThread(threadRow({ 12: "3" }));
+		const result = extractThread(threadRow({ 15: "3" }));
 		expect(result).not.toBeNull();
 		expect(result?.sticky).toBe(3);
 	});
 
 	test("digest thread", () => {
-		const result = extractThread(threadRow({ 14: "1" }));
+		const result = extractThread(threadRow({ 17: "1" }));
 		expect(result).not.toBeNull();
 		expect(result?.digest).toBe(1);
 	});
 
 	test("recommends handles negative result", () => {
-		const result = extractThread(threadRow({ 21: "2", 22: "5" }));
+		const result = extractThread(threadRow({ 25: "2", 26: "5" }));
 		expect(result).not.toBeNull();
 		expect(result?.recommends).toBe(-3);
 	});
@@ -390,7 +390,7 @@ describe("extractThread", () => {
 
 describe("extractPost", () => {
 	// POST_COLS: pid=0, fid=1, tid=2, first=3, author=4, authorid=5,
-	//   dateline=7, message=8, invisible=12, position=16, bbcodeoff=19, htmlon=22
+	//   dateline=7, message=8, invisible=11, htmlon=14, bbcodeoff=15, position=25
 	function postRow(overrides: Record<number, string> = {}): ParsedRow {
 		return row({
 			0: "5000", // pid
@@ -401,10 +401,10 @@ describe("extractPost", () => {
 			5: "100", // authorid
 			7: "1700000000", // dateline
 			8: "Hello [b]world[/b]", // message
-			12: "0", // invisible (visible)
-			16: "1", // position
-			19: "0", // bbcodeoff (BBCode enabled)
-			22: "0", // htmlon (HTML disabled)
+			11: "0", // invisible (visible)
+			14: "0", // htmlon (HTML disabled)
+			15: "0", // bbcodeoff (BBCode enabled)
+			25: "1", // position
 			...overrides,
 		});
 	}
@@ -424,9 +424,9 @@ describe("extractPost", () => {
 	});
 
 	test("filters invisible posts", () => {
-		expect(extractPost(postRow({ 12: "1" }))).toBeNull();
-		expect(extractPost(postRow({ 12: "-1" }))).toBeNull();
-		expect(extractPost(postRow({ 12: "-5" }))).toBeNull();
+		expect(extractPost(postRow({ 11: "1" }))).toBeNull();
+		expect(extractPost(postRow({ 11: "-1" }))).toBeNull();
+		expect(extractPost(postRow({ 11: "-5" }))).toBeNull();
 	});
 
 	test("stats: total incremented on success", () => {
@@ -448,13 +448,13 @@ describe("extractPost", () => {
 			encodingRepaired: 0,
 			bbcodeFailures: 0,
 		};
-		extractPost(postRow({ 12: "1" }), stats);
+		extractPost(postRow({ 11: "1" }), stats);
 		expect(stats.total).toBe(0);
 		expect(stats.filtered).toBe(1);
 	});
 
 	test("bbcodeoff=1 disables BBCode parsing", () => {
-		const result = extractPost(postRow({ 8: "[b]bold[/b]", 19: "1" }));
+		const result = extractPost(postRow({ 8: "[b]bold[/b]", 15: "1" }));
 		expect(result).not.toBeNull();
 		// With bbcodeoff, BBCode tags should be escaped not converted
 		expect(result?.content).not.toContain("<strong>");
@@ -490,10 +490,10 @@ describe("extractPost", () => {
 // ─── parseAttachmentIndex ─────────────────────────────────────────────────────
 
 describe("parseAttachmentIndex", () => {
-	// ATTACH_INDEX_COLS: aid=0, tid=1, pid=2, uid=3, tableid=4, downloads=5
+	// ATTACH_INDEX_COLS: aid=0, tid=1, pid=2, downloads=3, uid=4, tableid=5
 
 	test("parses attachment index row", () => {
-		const r = row({ 0: "300", 1: "1000", 2: "5000", 3: "100", 4: "2", 5: "42" });
+		const r = row({ 0: "300", 1: "1000", 2: "5000", 3: "42", 4: "100", 5: "2" });
 		const result = parseAttachmentIndex(r);
 		expect(result).toEqual({
 			aid: 300,
@@ -506,7 +506,7 @@ describe("parseAttachmentIndex", () => {
 	});
 
 	test("downloads defaults to 0", () => {
-		const r = row({ 0: "1", 1: "1", 2: "1", 3: "1", 4: "0" });
+		const r = row({ 0: "1", 1: "1", 2: "1", 4: "1", 5: "0" });
 		const result = parseAttachmentIndex(r);
 		expect(result.downloads).toBe(0);
 	});
@@ -516,7 +516,7 @@ describe("parseAttachmentIndex", () => {
 
 describe("extractAttachment", () => {
 	// ATTACH_SHARD_COLS: aid=0, tid=1, pid=2, uid=3, dateline=4, filename=5,
-	//   filesize=6, attachment=7, isimage=10, width=12, thumb=13
+	//   filesize=6, attachment=7, isimage=12, width=13, thumb=14
 
 	function shardRow(overrides: Record<number, string> = {}): ParsedRow {
 		return row({
@@ -528,9 +528,9 @@ describe("extractAttachment", () => {
 			5: "photo.jpg", // filename
 			6: "102400", // filesize
 			7: "forum/202301/01/photo.jpg", // attachment path
-			10: "1", // isimage
-			12: "800", // width
-			13: "1", // thumb
+			12: "1", // isimage
+			13: "800", // width
+			14: "1", // thumb
 			...overrides,
 		});
 	}
@@ -576,7 +576,7 @@ describe("extractAttachment", () => {
 	});
 
 	test("non-image attachment", () => {
-		const result = extractAttachment(shardRow({ 10: "0", 12: "0", 13: "0" }), indexMap);
+		const result = extractAttachment(shardRow({ 12: "0", 13: "0", 14: "0" }), indexMap);
 		expect(result).not.toBeNull();
 		expect(result?.is_image).toBe(0);
 		expect(result?.width).toBe(0);
