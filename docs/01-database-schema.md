@@ -118,16 +118,19 @@ On successful login, silently upgrade to argon2id and clear `password_salt`.
 
 ```sql
 CREATE TABLE forums (
-  id            INTEGER PRIMARY KEY,  -- DZ fid
-  parent_id     INTEGER NOT NULL DEFAULT 0,
-  name          TEXT    NOT NULL,
-  description   TEXT    NOT NULL DEFAULT '',
-  icon          TEXT    NOT NULL DEFAULT '',
-  display_order INTEGER NOT NULL DEFAULT 0,
-  threads       INTEGER NOT NULL DEFAULT 0,
-  posts         INTEGER NOT NULL DEFAULT 0,
-  type          TEXT    NOT NULL DEFAULT 'forum',
-  status        INTEGER NOT NULL DEFAULT 1
+  id              INTEGER PRIMARY KEY,  -- DZ fid
+  parent_id       INTEGER NOT NULL DEFAULT 0,
+  name            TEXT    NOT NULL,
+  description     TEXT    NOT NULL DEFAULT '',
+  icon            TEXT    NOT NULL DEFAULT '',
+  display_order   INTEGER NOT NULL DEFAULT 0,
+  threads         INTEGER NOT NULL DEFAULT 0,
+  posts           INTEGER NOT NULL DEFAULT 0,
+  type            TEXT    NOT NULL DEFAULT 'forum',
+  status          INTEGER NOT NULL DEFAULT 1,
+  last_thread_id  INTEGER NOT NULL DEFAULT 0,
+  last_post_at    INTEGER NOT NULL DEFAULT 0,
+  last_poster     TEXT    NOT NULL DEFAULT ''
 );
 ```
 
@@ -145,6 +148,9 @@ CREATE TABLE forums (
 | `posts` | `pre_forum_forum` | `posts` | mediumint unsigned | |
 | `type` | `pre_forum_forum` | `type` | enum('group','forum','sub') | `group`=category, `forum`=board, `sub`=sub-board |
 | `status` | `pre_forum_forum` | `status` | tinyint(1) | `0`=hidden, `1`=normal. Filter hidden forums |
+| `last_thread_id` | `pre_forum_forum` | `lastpost` | char(110) | Parsed from `lastpost` field (format: `tid\tsubject\ttimestamp\tposter`) |
+| `last_post_at` | `pre_forum_forum` | `lastpost` | char(110) | Timestamp portion of `lastpost` |
+| `last_poster` | `pre_forum_forum` | `lastpost` | char(110) | Poster portion of `lastpost` |
 
 **Hierarchy:** `group` (category) → `forum` (board) → `sub` (sub-board). `parent_id` points to the parent `fid`.
 
@@ -153,10 +159,12 @@ CREATE TABLE forums (
 ```sql
 SELECT
   f.fid, f.fup, f.name, ff.description, ff.icon,
-  f.displayorder, f.threads, f.posts, f.type, f.status
+  f.displayorder, f.threads, f.posts, f.type, f.status,
+  f.lastpost  -- char(110), format: "tid\tsubject\ttimestamp\tposter"
 FROM pre_forum_forum f
 LEFT JOIN pre_forum_forumfield ff ON ff.fid = f.fid
 WHERE f.status = 1;
+-- Parse f.lastpost in application code to extract last_thread_id, last_post_at, last_poster
 ```
 
 ---
@@ -185,7 +193,9 @@ CREATE TABLE threads (
 );
 
 CREATE INDEX idx_threads_forum ON threads(forum_id, sticky DESC, last_post_at DESC);
-CREATE INDEX idx_threads_author ON threads(author_id);
+CREATE INDEX idx_threads_author ON threads(author_id, created_at DESC);
+CREATE INDEX idx_threads_latest ON threads(last_post_at DESC);
+CREATE INDEX idx_threads_digest ON threads(digest, last_post_at DESC) WHERE digest > 0;
 ```
 
 **Field mapping:**
@@ -240,7 +250,7 @@ CREATE TABLE posts (
 );
 
 CREATE INDEX idx_posts_thread ON posts(thread_id, position);
-CREATE INDEX idx_posts_author ON posts(author_id);
+CREATE INDEX idx_posts_author ON posts(author_id, created_at DESC);
 ```
 
 **Field mapping:**
@@ -415,11 +425,178 @@ WHERE a.tableid = 0;
 
 Note: `uc_members` has 1.14M records but `pre_common_member` only has 70K — the discrepancy is due to archived/purged members. `pre_common_member_archive` holds 1.07M archived records.
 
-## D1 Constraints
+## D1 Capacity Planning
 
-| Limit | Value | Mitigation |
-|-------|-------|------------|
-| Database size | 10 GB (free) / 50 GB (paid) | Text-only forum data is typically < 1 GB after filtering |
-| Query result | 5 MB / 1000 rows max | Paginate all list queries |
-| Full-text search | Not supported | Use Workers AI or external search |
-| Write throughput | Limited | Acceptable for low-traffic archive + basic interaction |
+### Actual data measurement (tongji.nocoo.cloud, visible content only)
+
+| D1 Table | Rows | Content Size | Est. D1 Size (with indexes) |
+|----------|------|-------------|---------------------------|
+| posts | 9,376,041 | 3,480 MB | ~4,500 MB |
+| threads | 790,115 | 170 MB | ~350 MB |
+| users | 70,853 | 14 MB | ~25 MB |
+| attachments | 78,178 | 22 MB | ~35 MB |
+| forums | 213 | < 1 MB | < 1 MB |
+| **Total** | **~10.3M** | **~3,700 MB** | **~5,000 MB** |
+
+### D1 limits (Workers Paid plan)
+
+| Limit | Value | Status |
+|-------|-------|--------|
+| Database size | **10 GB** (hard cap, cannot increase) | ~5 GB used → ✅ 50% headroom |
+| Databases per account | 50,000 | 1 used |
+| Account storage | 1 TB | ~5 GB used |
+| Max query duration | 30 seconds | |
+| Max row size | 2 MB | Largest post ~50 KB → ✅ |
+| Max bound params | 100 per query | |
+| Max SQL length | 100 KB | |
+| LIKE/GLOB pattern | 50 bytes max | ⚠️ limits search |
+| Concurrency | Single-threaded per database | ⚠️ see write optimization |
+
+**Single database is viable.** If future growth pushes toward 8 GB, split `posts` into a separate D1 database by date range (hot/cold). The 50,000 databases/account limit provides ample room for horizontal scaling.
+
+> Note: the 6.3 GB "Data Size" in the DZ source tables above is MySQL InnoDB overhead. Actual content is ~3.7 GB. SQLite (D1) stores data more compactly.
+
+---
+
+## Performance
+
+### Query patterns and index coverage
+
+Every common page type must hit an index. Full table scans on 9.4M posts = 30s timeout + massive row-read billing.
+
+| Page | Query Pattern | Index Used | Rows Scanned |
+|------|--------------|------------|-------------|
+| **Forum list** | `SELECT * FROM forums` | Full scan (213 rows — OK) | 213 |
+| **Thread list** | `WHERE forum_id = ? ORDER BY sticky DESC, last_post_at DESC LIMIT 20` | `idx_threads_forum` ✅ | ~20 |
+| **Thread view** | `WHERE thread_id = ? ORDER BY position LIMIT 20` | `idx_posts_thread` ✅ | ~20 |
+| **User profile** | `WHERE author_id = ? ORDER BY created_at DESC LIMIT 20` | `idx_threads_author` / `idx_posts_author` ✅ | ~20 |
+| **Homepage** | `ORDER BY last_post_at DESC LIMIT 20` | `idx_threads_latest` ✅ | ~20 |
+| **Digest list** | `WHERE digest > 0 ORDER BY last_post_at DESC LIMIT 20` | `idx_threads_digest` ✅ (partial) | ~20 |
+| **Attachment resolve** | `WHERE id = ?` | PK | 1 |
+| **Post attachments** | `WHERE post_id IN (...)` | `idx_attachments_post` ✅ | ~1-10 |
+
+### Complete index inventory
+
+```sql
+-- threads (790K rows, ~350 MB with indexes)
+CREATE INDEX idx_threads_forum  ON threads(forum_id, sticky DESC, last_post_at DESC);  -- thread listing
+CREATE INDEX idx_threads_author ON threads(author_id, created_at DESC);                -- user profile
+CREATE INDEX idx_threads_latest ON threads(last_post_at DESC);                         -- homepage
+CREATE INDEX idx_threads_digest ON threads(digest, last_post_at DESC) WHERE digest > 0; -- digest listing
+
+-- posts (9.4M rows, ~4.5 GB with indexes)
+CREATE INDEX idx_posts_thread ON posts(thread_id, position);          -- thread view
+CREATE INDEX idx_posts_author ON posts(author_id, created_at DESC);   -- user profile
+
+-- attachments (78K rows, ~35 MB with indexes)
+CREATE INDEX idx_attachments_post   ON attachments(post_id);    -- post rendering
+CREATE INDEX idx_attachments_thread ON attachments(thread_id);  -- thread attachments
+
+-- users: UNIQUE(username) in CREATE TABLE already acts as an index
+```
+
+### Pagination: keyset, not OFFSET
+
+D1 (SQLite) scans OFFSET rows before returning results. `OFFSET 50000` on 9.4M posts is catastrophic. Use keyset (cursor) pagination everywhere:
+
+```sql
+-- Thread listing: cursor = (last_sticky, last_post_at) from previous page
+SELECT id, author_name, subject, created_at, last_post_at, last_poster,
+       replies, views, sticky, digest
+FROM threads
+WHERE forum_id = ?
+  AND (sticky < :last_sticky
+       OR (sticky = :last_sticky AND last_post_at < :last_post_at))
+ORDER BY sticky DESC, last_post_at DESC
+LIMIT 20;
+
+-- Post listing: cursor = last position
+SELECT id, author_id, author_name, content, created_at, is_first, position
+FROM posts
+WHERE thread_id = ? AND position > :last_position
+ORDER BY position
+LIMIT 20;
+
+-- User's threads: cursor = last created_at
+SELECT id, forum_id, subject, created_at, replies, views
+FROM threads
+WHERE author_id = ? AND created_at < :last_created_at
+ORDER BY created_at DESC
+LIMIT 20;
+```
+
+### Caching architecture
+
+```
+Request → Cloudflare Worker (Smart Placement enabled)
+  │
+  ├─ Cache API (edge, per-PoP)
+  │   ├─ Forum list ────────── TTL 5 min, invalidate on admin change
+  │   ├─ Thread list pages ─── TTL 1 min, invalidate on new thread/reply
+  │   └─ Thread view pages ─── TTL 1 min, invalidate on new reply
+  │
+  ├─ Workers KV (global, eventually consistent)
+  │   ├─ Homepage hot threads ─ TTL 30-60s
+  │   ├─ User sessions ──────── TTL 24h
+  │   └─ Forum metadata ─────── TTL 5 min
+  │
+  ├─ D1 (single database, read replication enabled)
+  │   ├─ Sessions API: "first-unconstrained" for reads (hit nearest replica)
+  │   └─ Sessions API: "first-primary" for post-write reads (consistency)
+  │
+  ├─ R2 (object storage)
+  │   ├─ Attachments (forum files)
+  │   └─ Avatars (user profile images)
+  │
+  └─ Queues (async write buffer)
+      ├─ View count batching ── aggregate, flush to D1 every N seconds
+      └─ Search index updates ─ rebuild embeddings on new content
+```
+
+**Why each layer:**
+
+| Layer | Latency | Use Case |
+|-------|---------|----------|
+| Cache API | <1 ms (edge hit) | Identical page requests within TTL window |
+| KV | ~10 ms (global) | Cross-page shared data (sessions, hot content) |
+| D1 replica | ~5-50 ms | SQL queries when cache miss, nearest region |
+| D1 primary | ~20-100 ms | Writes and post-write reads |
+| R2 | ~50-200 ms | Binary files (served via CDN for repeat access) |
+
+### D1 read replication
+
+Enable read replication for global latency reduction. D1 automatically replicates to all regions (ENAM, WNAM, WEUR, EEUR, APAC, OC).
+
+```typescript
+// Read-only pages (thread list, thread view, forum list)
+const session = db.withSession("first-unconstrained");
+const threads = await session.prepare("SELECT ...").all();
+
+// After writing (user just posted a reply, needs to see it)
+const session = db.withSession("first-primary");
+const posts = await session.prepare("SELECT ...").all();
+```
+
+### Write optimization
+
+D1 is **single-threaded** — one write at a time per database. Strategies to avoid bottleneck:
+
+| Problem | Solution |
+|---------|----------|
+| **View count storms** | Don't `UPDATE threads SET views = views + 1` per request. Batch in KV or Durable Object, flush to D1 every 30-60s |
+| **Burst posting** | Write through Cloudflare Queue. Worker enqueues, consumer batch-inserts to D1 |
+| **Forum/thread counters** | Update asynchronously after post creation (via Queue consumer) |
+| **Index write amplification** | Each index adds a write per INSERT. 6 indexes on posts = 7 writes per post. Acceptable at forum scale |
+
+### Search strategy
+
+D1 has no practical full-text search for Chinese content. `LIKE '%关键词%'` = full scan on 9.4M rows → timeout.
+
+| Option | Pros | Cons | Recommendation |
+|--------|------|------|----------------|
+| **Workers AI + Vectorize** | Semantic search, multilingual, no tokenizer issue | Requires embedding pipeline, async index | ✅ Phase 2 |
+| **FTS5** | Built into D1, SQL-native | No Chinese tokenizer, adds ~1-2 GB to DB, virtual tables can't be exported | ❌ Skip |
+| **External (Algolia/Meilisearch)** | Best search UX, CJK support | Extra service, cost | Consider if AI search insufficient |
+| **Prefix search on subject** | Simple `WHERE subject LIKE 'keyword%'` with index | Only matches from start, useless for Chinese | ❌ Skip |
+
+Recommend: defer search to Phase 2. Start with thread subject + author name lookup (exact match via existing indexes). Add Workers AI embeddings later for semantic search.
