@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseCliArgs } from "../../scripts/migrate/index";
+import { parseCliArgs } from "../../scripts/migrate/cli";
 
 describe("parseCliArgs", () => {
 	test("returns empty config for no args", () => {

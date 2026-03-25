@@ -1,17 +1,4 @@
-/**
- * Migration orchestrator — coordinates the full ETL pipeline.
- *
- * Reads MySQL dump files from reference/db/, extracts rows, transforms data,
- * and loads into a local SQLite database (D1-compatible format).
- *
- * Usage:
- *   bun run scripts/migrate/index.ts [--db output.db] [--source reference/db]
- *
- * Per docs/03-migration.md: migrate in FK dependency order:
- *   forums → users → threads → posts → attachments
- */
-
-import { parseArgs } from "node:util";
+import { DEFAULT_CONFIG, type MigrateConfig, parseCliArgs } from "./cli";
 import {
 	type AttachmentIndexData,
 	type MemberCountData,
@@ -28,25 +15,8 @@ import {
 import { parseDumpFile } from "./extract/parser";
 import { BatchLoader } from "./load/batch-insert";
 
-// ─── Configuration ──────────────────────────────────────────────────────────
-
-export interface MigrateConfig {
-	/** Path to dump files directory. */
-	sourceDir: string;
-	/** Path to output SQLite database file. */
-	dbPath: string;
-	/** Batch size for INSERT transactions. */
-	batchSize: number;
-	/** Progress reporting interval (rows). */
-	progressInterval: number;
-}
-
-const DEFAULT_CONFIG: MigrateConfig = {
-	sourceDir: "reference/db",
-	dbPath: "output/ellie.db",
-	batchSize: 500,
-	progressInterval: 10000,
-};
+export type { MigrateConfig };
+export { parseCliArgs };
 
 // ─── Logging ────────────────────────────────────────────────────────────────
 
@@ -359,24 +329,6 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 }
 
 // ─── CLI Entry Point ────────────────────────────────────────────────────────
-
-export function parseCliArgs(args: string[]): Partial<MigrateConfig> {
-	const { values } = parseArgs({
-		args,
-		options: {
-			db: { type: "string" },
-			source: { type: "string" },
-			batch: { type: "string" },
-		},
-		strict: false,
-	});
-
-	const config: Partial<MigrateConfig> = {};
-	if (values.db) config.dbPath = values.db;
-	if (values.source) config.sourceDir = values.source;
-	if (values.batch) config.batchSize = Number(values.batch);
-	return config;
-}
 
 // Only run when executed directly (not imported)
 const isMainModule = import.meta.url === `file://${process.argv[1]}`;

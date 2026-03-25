@@ -1,5 +1,9 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
+import { existsSync, unlinkSync, writeFileSync } from "node:fs";
+import { gzipSync } from "node:zlib";
 import {
+	type ParsedRow,
+	parseDumpFile,
 	parseInsertLine,
 	parseInsertStatement,
 	parseQuotedString,
@@ -118,6 +122,28 @@ describe("parseTuple", () => {
 		expect(row).toEqual([]);
 	});
 
+	test("truncated tuple (no closing paren)", () => {
+		const { row, end } = parseTuple("1,'hello'", 0);
+		// Should parse what it can, reaching end of string
+		expect(row).toHaveLength(2);
+		expect(row[0]).toBe("1");
+		expect(row[1]).toBe("hello");
+		expect(end).toBe(9);
+	});
+
+	test("unterminated quoted string", () => {
+		// String without closing quote — parser should handle gracefully
+		const { value } = parseQuotedString("'unterminated", 0);
+		expect(value).toBe("unterminated");
+	});
+
+	test("tuple with only closing paren after comma-space", () => {
+		// Tests the early ) return after comma skip
+		const { row } = parseTuple("1, )", 0);
+		expect(row).toHaveLength(1);
+		expect(row[0]).toBe("1");
+	});
+
 	test("negative number", () => {
 		const { row } = parseTuple("-1,'test',0)", 0);
 		expect(row).toEqual(["-1", "test", "0"]);
@@ -196,6 +222,13 @@ describe("parseInsertLine", () => {
 		expect(rows[0]?.[3]).toBe("41351b8d5de2c653d5f8cb1c85dec559");
 		expect(rows[0]?.[8]).toBe("1"); // adminid
 	});
+
+	test("handles trailing whitespace/garbage after semicolon", () => {
+		// Tests the else branch (line 176) in parseInsertLine for unexpected chars
+		const rows = parseInsertLine("INSERT INTO `t` VALUES (1,'a')  ;  extra", "t");
+		expect(rows).toHaveLength(1);
+		expect(rows[0]).toEqual(["1", "a"]);
+	});
 });
 
 describe("parseInsertStatement", () => {
@@ -227,5 +260,99 @@ describe("parseInsertStatement", () => {
 	test("empty SQL returns empty", () => {
 		const rows = parseInsertStatement("", "users");
 		expect(rows).toHaveLength(0);
+	});
+});
+
+// ─── parseDumpFile (stream parsing of gzipped SQL dumps) ─────────────────────
+
+const DUMP_FIXTURE = "/tmp/ellie-test-dump.sql.gz";
+
+function cleanupDump() {
+	if (existsSync(DUMP_FIXTURE)) unlinkSync(DUMP_FIXTURE);
+}
+
+function createGzipDump(content: string): void {
+	const compressed = gzipSync(Buffer.from(content, "utf-8"));
+	writeFileSync(DUMP_FIXTURE, compressed);
+}
+
+describe("parseDumpFile", () => {
+	afterEach(cleanupDump);
+
+	test("parses rows from gzipped dump (options form)", async () => {
+		createGzipDump(
+			[
+				"-- MySQL dump",
+				"INSERT INTO `users` VALUES (1,'alice','a@t.com'),(2,'bob','b@t.com');",
+				"INSERT INTO `users` VALUES (3,'carol','c@t.com');",
+			].join("\n"),
+		);
+
+		const rows: ParsedRow[] = [];
+		const total = await parseDumpFile(DUMP_FIXTURE, {
+			tableName: "users",
+			onRow: (row) => rows.push(row),
+		});
+
+		expect(total).toBe(3);
+		expect(rows).toHaveLength(3);
+		expect(rows[0]?.[1]).toBe("alice");
+		expect(rows[2]?.[1]).toBe("carol");
+	});
+
+	test("parses rows from gzipped dump (shorthand form)", async () => {
+		createGzipDump("INSERT INTO `test` VALUES (1,'x'),(2,'y');");
+
+		const rows: ParsedRow[] = [];
+		const total = await parseDumpFile(DUMP_FIXTURE, "test", (row) => rows.push(row));
+
+		expect(total).toBe(2);
+		expect(rows).toHaveLength(2);
+	});
+
+	test("filters by table name", async () => {
+		createGzipDump(
+			[
+				"INSERT INTO `posts` VALUES (1,'content');",
+				"INSERT INTO `users` VALUES (1,'alice','a@t.com');",
+			].join("\n"),
+		);
+
+		const rows: ParsedRow[] = [];
+		await parseDumpFile(DUMP_FIXTURE, "users", (row) => rows.push(row));
+		expect(rows).toHaveLength(1);
+		expect(rows[0]?.[1]).toBe("alice");
+	});
+
+	test("returns 0 for no matching table", async () => {
+		createGzipDump("INSERT INTO `posts` VALUES (1,'content');");
+
+		const rows: ParsedRow[] = [];
+		const total = await parseDumpFile(DUMP_FIXTURE, "users", (row) => rows.push(row));
+		expect(total).toBe(0);
+		expect(rows).toHaveLength(0);
+	});
+
+	test("progress callback fires at interval", async () => {
+		const lines = Array.from({ length: 5 }, (_, i) => `INSERT INTO \`t\` VALUES (${i},'row${i}');`);
+		createGzipDump(lines.join("\n"));
+
+		const progress: number[] = [];
+		await parseDumpFile(DUMP_FIXTURE, {
+			tableName: "t",
+			progressInterval: 2,
+			onProgress: (count) => progress.push(count),
+		});
+
+		expect(progress).toEqual([2, 4]);
+	});
+
+	test("handles Chinese content in gzip", async () => {
+		createGzipDump("INSERT INTO `posts` VALUES (1,'你好世界');");
+
+		const rows: ParsedRow[] = [];
+		await parseDumpFile(DUMP_FIXTURE, "posts", (row) => rows.push(row));
+		expect(rows).toHaveLength(1);
+		expect(rows[0]?.[1]).toBe("你好世界");
 	});
 });

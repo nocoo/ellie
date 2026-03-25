@@ -184,9 +184,21 @@ export function parseInsertLine(line: string, tableName: string): ParsedRow[] {
 /**
  * Stream-parse a gzipped MySQL dump file and yield rows for the target table.
  *
+ * Overload signatures:
+ * - `parseDumpFile(filePath, options)` — full options object
+ * - `parseDumpFile(filePath, tableName, onRow)` — convenient shorthand
+ *
  * @returns Total number of rows parsed.
  */
-export async function parseDumpFile(filePath: string, options: ParseOptions): Promise<number> {
+export async function parseDumpFile(
+	filePath: string,
+	optionsOrTable: ParseOptions | string,
+	onRowFn?: (row: ParsedRow) => void,
+): Promise<number> {
+	const options: ParseOptions =
+		typeof optionsOrTable === "string"
+			? { tableName: optionsOrTable, onRow: onRowFn }
+			: optionsOrTable;
 	const { tableName, onRow, onProgress, progressInterval = 10000 } = options;
 
 	const prefix = `INSERT INTO \`${tableName}\` VALUES `;
