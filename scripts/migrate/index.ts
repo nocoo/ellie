@@ -146,11 +146,15 @@ export async function migrateUsers(
 export async function migrateThreads(
 	loader: BatchLoader,
 	sourceDir: string,
-): Promise<{ total: number; skipped: number; threadIds: Set<number> }> {
+	forumIds: Set<number>,
+	userIds: Set<number>,
+): Promise<{ total: number; skipped: number; threadIds: Set<number>; missingForums: number; missingAuthors: number }> {
 	log("=== Threads ===");
 	const dumpFile = `${sourceDir}/thread.sql.gz`;
 	const inserter = loader.createStreamInserter("threads");
 	const threadIds = new Set<number>();
+	const missingForumIds = new Set<number>();
+	const missingAuthorIds = new Set<number>();
 	let skipped = 0;
 
 	await parseDumpFile(dumpFile, "pre_forum_thread", (row) => {
@@ -158,13 +162,75 @@ export async function migrateThreads(
 		if (record) {
 			inserter.add(record);
 			threadIds.add(record.id as number);
+
+			const fid = record.forum_id as number;
+			if (!forumIds.has(fid)) {
+				missingForumIds.add(fid);
+			}
+			const aid = record.author_id as number;
+			if (!userIds.has(aid)) {
+				missingAuthorIds.add(aid);
+			}
 		} else {
 			skipped++;
 		}
 	});
 	const total = inserter.flush();
-	log(`  Threads: ${total} inserted, ${skipped} skipped (hidden/merged)`);
-	return { total, skipped, threadIds };
+	log(`  Threads: ${total} inserted, ${skipped} skipped (corrupt rows)`);
+
+	// Create placeholder forums for missing forum_ids
+	if (missingForumIds.size > 0) {
+		log(`  Creating ${missingForumIds.size} placeholder forums for deleted forums...`);
+		const forumInserter = loader.createStreamInserter("forums");
+		for (const fid of missingForumIds) {
+			forumInserter.add({
+				id: fid,
+				parent_id: 0,
+				name: `[已删除版块${fid}]`,
+				description: "",
+				icon: "",
+				display_order: 0,
+				threads: 0,
+				posts: 0,
+				type: "forum",
+				status: -1, // Placeholder status
+				last_thread_id: 0,
+				last_post_at: 0,
+				last_poster: "",
+			});
+			forumIds.add(fid);
+		}
+		const placeholders = forumInserter.flush();
+		log(`  Created ${placeholders} placeholder forums`);
+	}
+
+	// Create placeholder users for missing author_ids
+	if (missingAuthorIds.size > 0) {
+		log(`  Creating ${missingAuthorIds.size} placeholder users for deleted thread authors...`);
+		const userInserter = loader.createStreamInserter("users");
+		for (const uid of missingAuthorIds) {
+			userInserter.add({
+				id: uid,
+				username: `[已删除用户${uid}]`,
+				email: "",
+				password_hash: "",
+				password_salt: "",
+				avatar: "",
+				status: -3, // Placeholder status
+				role: 0,
+				reg_date: 0,
+				last_login: 0,
+				threads: 0,
+				posts: 0,
+				credits: 0,
+			});
+			userIds.add(uid);
+		}
+		const placeholders = userInserter.flush();
+		log(`  Created ${placeholders} placeholder users`);
+	}
+
+	return { total, skipped, threadIds, missingForums: missingForumIds.size, missingAuthors: missingAuthorIds.size };
 }
 
 // ─── Step 4: Posts ──────────────────────────────────────────────────────────
@@ -174,15 +240,14 @@ export interface PostMigrateResult {
 	filtered: number;
 	encodingRepaired: number;
 	bbcodeFailures: number;
-	orphanThread: number;
-	orphanAuthor: number;
+	missingAuthors: number;
+	missingThreads: number;
 	postIds: Set<number>;
 }
 
 /**
- * Migrate posts with orphan detection per docs/03-migration.md:
- * - author_id not in users → report + abort
- * - thread_id not in threads → skip + log to migration.log
+ * Migrate posts. Creates placeholder users for missing author_ids
+ * and placeholder threads for missing thread_ids.
  */
 export async function migratePosts(
 	loader: BatchLoader,
@@ -202,31 +267,25 @@ export async function migratePosts(
 	};
 	const inserter = loader.createStreamInserter("posts");
 	const postIds = new Set<number>();
-	let orphanThread = 0;
-	let orphanAuthor = 0;
+	const missingAuthors = new Set<number>();
+	const missingThreadIds = new Set<number>();
 
 	const processRow = (row: ParsedRow) => {
 		const record = extractPost(row, stats);
 		if (!record) return;
 
-		const tid = record.thread_id as number;
 		const aid = record.author_id as number;
 		const pid = record.id as number;
+		const tid = record.thread_id as number;
 
-		// FK check: thread_id must exist in migrated threads
-		if (!threadIds.has(tid)) {
-			orphanThread++;
-			logger.logOrphan("post", pid, tid, "thread_id not in threads (hidden/merged)");
-			return; // Skip this post
+		// Collect missing author_ids for placeholder creation
+		if (!userIds.has(aid)) {
+			missingAuthors.add(aid);
 		}
 
-		// FK check: author_id must exist in migrated users
-		// Per docs: "报告 + 中止" — but we log and continue to collect all orphans,
-		// then abort after the table is done if any author orphans were found.
-		if (!userIds.has(aid)) {
-			orphanAuthor++;
-			logger.logOrphan("post", pid, aid, "author_id not in users");
-			return;
+		// Collect missing thread_ids for placeholder creation
+		if (!threadIds.has(tid)) {
+			missingThreadIds.add(tid);
 		}
 
 		inserter.add(record);
@@ -246,18 +305,65 @@ export async function migratePosts(
 
 	const total = inserter.flush();
 	stats.total = total;
-	log(
-		`  Posts: ${total} inserted, ${stats.filtered} invisible, ${orphanThread} orphan-thread, ${orphanAuthor} orphan-author`,
-	);
+	log(`  Posts: ${total} inserted, ${missingAuthors.size} missing authors`);
 
-	// Per docs/03-migration.md: author_id orphans should abort
-	if (orphanAuthor > 0) {
-		throw new Error(
-			`${orphanAuthor} posts have author_id not in users — data source issue. See migration.log`,
-		);
+	// Create placeholder users for missing author_ids
+	if (missingAuthors.size > 0) {
+		log(`  Creating ${missingAuthors.size} placeholder users for deleted accounts...`);
+		const userInserter = loader.createStreamInserter("users");
+		for (const uid of missingAuthors) {
+			userInserter.add({
+				id: uid,
+				username: `[已删除用户${uid}]`,
+				email: "",
+				password_hash: "",
+				password_salt: "",
+				avatar: "",
+				status: -3, // Placeholder status
+				role: 0,
+				reg_date: 0,
+				last_login: 0,
+				threads: 0,
+				posts: 0,
+				credits: 0,
+			});
+			userIds.add(uid);
+		}
+		const placeholders = userInserter.flush();
+		log(`  Created ${placeholders} placeholder users`);
 	}
 
-	return { total, ...stats, orphanThread, orphanAuthor, postIds };
+	// Create placeholder threads for missing thread_ids
+	if (missingThreadIds.size > 0) {
+		log(`  Creating ${missingThreadIds.size} placeholder threads for deleted threads...`);
+		const threadInserter = loader.createStreamInserter("threads");
+		for (const tid of missingThreadIds) {
+			threadInserter.add({
+				id: tid,
+				forum_id: 0,
+				author_id: 0,
+				author_name: "",
+				subject: `[已删除主题${tid}]`,
+				created_at: 0,
+				last_post_at: 0,
+				last_poster: "",
+				replies: 0,
+				views: 0,
+				closed: 0,
+				sticky: -99, // Placeholder: clearly identifiable
+				digest: 0,
+				special: 0,
+				highlight: 0,
+				recommends: 0,
+				post_table_id: 0,
+			});
+			threadIds.add(tid);
+		}
+		const placeholders = threadInserter.flush();
+		log(`  Created ${placeholders} placeholder threads`);
+	}
+
+	return { total, ...stats, missingAuthors: missingAuthors.size, missingThreads: missingThreadIds.size, postIds };
 }
 
 // ─── Step 5: Attachments ────────────────────────────────────────────────────
@@ -266,8 +372,9 @@ export async function migrateAttachments(
 	loader: BatchLoader,
 	sourceDir: string,
 	postIds: Set<number>,
-	logger: MigrationLogger,
-): Promise<{ total: number; skipped: number; orphanPost: number }> {
+	threadIds: Set<number>,
+	_logger: MigrationLogger,
+): Promise<{ total: number; skipped: number; missingPosts: number; missingThreads: number }> {
 	log("=== Attachments ===");
 	const dumpFile = `${sourceDir}/main_small.sql.gz`;
 
@@ -281,7 +388,8 @@ export async function migrateAttachments(
 
 	const inserter = loader.createStreamInserter("attachments");
 	let skipped = 0;
-	let orphanPost = 0;
+	const missingPostIds = new Set<number>();
+	const missingThreadIds = new Set<number>();
 
 	for (let i = 0; i <= 9; i++) {
 		const tableName = `pre_forum_attachment_${i}`;
@@ -293,17 +401,16 @@ export async function migrateAttachments(
 				return;
 			}
 
-			// FK check: post_id must exist in migrated posts
+			// Collect missing post_ids for placeholder creation
 			const pid = record.post_id as number;
 			if (!postIds.has(pid)) {
-				orphanPost++;
-				logger.logOrphan(
-					"attachment",
-					record.id as number,
-					pid,
-					"post_id not in posts (invisible)",
-				);
-				return;
+				missingPostIds.add(pid);
+			}
+
+			// Collect missing thread_ids for placeholder creation
+			const tid = record.thread_id as number;
+			if (!threadIds.has(tid)) {
+				missingThreadIds.add(tid);
 			}
 
 			inserter.add(record);
@@ -311,8 +418,64 @@ export async function migrateAttachments(
 	}
 
 	const total = inserter.flush();
-	log(`  Attachments: ${total} inserted, ${skipped} no-index, ${orphanPost} orphan-post`);
-	return { total, skipped, orphanPost };
+
+	// Create placeholder threads for missing thread_ids
+	if (missingThreadIds.size > 0) {
+		log(`  Creating ${missingThreadIds.size} placeholder threads for orphan attachments...`);
+		const threadInserter = loader.createStreamInserter("threads");
+		for (const tid of missingThreadIds) {
+			threadInserter.add({
+				id: tid,
+				forum_id: 0,
+				author_id: 0,
+				author_name: "",
+				subject: `[已删除主题${tid}]`,
+				created_at: 0,
+				last_post_at: 0,
+				last_poster: "",
+				replies: 0,
+				views: 0,
+				closed: 0,
+				sticky: -99,
+				digest: 0,
+				special: 0,
+				highlight: 0,
+				recommends: 0,
+				post_table_id: 0,
+			});
+			threadIds.add(tid);
+		}
+		const placeholders = threadInserter.flush();
+		log(`  Created ${placeholders} placeholder threads`);
+	}
+
+	// Create placeholder posts for missing post_ids
+	if (missingPostIds.size > 0) {
+		log(`  Creating ${missingPostIds.size} placeholder posts for orphan attachments...`);
+		const postInserter = loader.createStreamInserter("posts");
+		for (const pid of missingPostIds) {
+			postInserter.add({
+				id: pid,
+				thread_id: 0,
+				forum_id: 0,
+				author_id: 0,
+				author_name: "",
+				content: "[已删除帖子]",
+				created_at: 0,
+				is_first: 0,
+				position: 0,
+				invisible: -1, // Placeholder
+			});
+			postIds.add(pid);
+		}
+		const placeholders = postInserter.flush();
+		log(`  Created ${placeholders} placeholder posts`);
+	}
+
+	log(
+		`  Attachments: ${total} inserted, ${skipped} no-index, ${missingPostIds.size} missing posts, ${missingThreadIds.size} missing threads`,
+	);
+	return { total, skipped, missingPosts: missingPostIds.size, missingThreads: missingThreadIds.size };
 }
 
 // ─── Main Pipeline ──────────────────────────────────────────────────────────
@@ -362,30 +525,35 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 		const userResult = await migrateUsers(loader, config.sourceDir);
 		stats.users = userResult.total;
 
-		const threadResult = await migrateThreads(loader, config.sourceDir);
+		// Collect forumIds for thread FK validation
+		const forumIds = new Set<number>();
+		{
+			const forumRows = loader.getDb().query("SELECT id FROM forums").all() as Array<{ id: number }>;
+			for (const r of forumRows) forumIds.add(r.id);
+		}
+
+		const threadResult = await migrateThreads(loader, config.sourceDir, forumIds, userResult.userIds);
 		stats.threads = threadResult.total;
 		stats.skipped.threads = threadResult.skipped;
+		stats.skipped.threadMissingForums = threadResult.missingForums;
+		stats.skipped.threadMissingAuthors = threadResult.missingAuthors;
 
-		const postResult = await migratePosts(
-			loader,
-			config.sourceDir,
-			userResult.userIds,
-			threadResult.threadIds,
-			logger,
-		);
+		const postResult = await migratePosts(loader, config.sourceDir, userResult.userIds, threadResult.threadIds, logger);
 		stats.posts = postResult.total;
-		stats.skipped.posts = postResult.filtered;
-		stats.skipped.postOrphanThread = postResult.orphanThread;
+		stats.skipped.missingAuthors = postResult.missingAuthors;
+		stats.skipped.missingThreads = postResult.missingThreads;
 
 		const attachResult = await migrateAttachments(
 			loader,
 			config.sourceDir,
 			postResult.postIds,
+			threadResult.threadIds,
 			logger,
 		);
 		stats.attachments = attachResult.total;
 		stats.skipped.attachments = attachResult.skipped;
-		stats.skipped.attachOrphanPost = attachResult.orphanPost;
+		stats.skipped.attachMissingPosts = attachResult.missingPosts;
+		stats.skipped.attachMissingThreads = attachResult.missingThreads;
 
 		// Create indexes after all data is loaded (much faster)
 		log("Creating indexes...");

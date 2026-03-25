@@ -1,12 +1,21 @@
 # 数据迁移
 
+## 核心原则
+
+**完整保留数据，不丢弃任何内容。**
+
+- 即使数据存在不一致（如帖子指向已删除的用户、被隐藏的版块包含帖子），也完整迁移
+- 被删除/隐藏/合并等状态通过字段值透传到新系统，由应用层决定展示策略
+- 对于 FK 断裂的情况（如帖子的 author_id 指向已删除的用户），使用**占位记录**（如"已删除用户"）保持引用完整性
+- 迁移后再根据业务需求处理这些历史遗留数据
+
 ## 概述
 
 从 tongji.nocoo.cloud 的 Discuz! X3.4 MySQL 数据库迁移到 Cloudflare D1。
 
 - **数据源**：`reference/db/` 中的 MySQL dump 文件（`.sql.gz`）
 - **目标**：本地 SQLite 文件 → Cloudflare D1
-- **数据量**：~1170 万行原始数据，过滤后 ~1030 万行可见数据
+- **数据量**：~1170 万行原始数据，全量迁移
 
 ## 迁移流程
 
@@ -53,7 +62,7 @@ reference/db/*.sql.gz
 
 ### forums
 - 源表：`pre_forum_forum` JOIN `pre_forum_forumfield`
-- 过滤：`status = 1`（隐藏版块排除）
+- 过滤：无（全量迁移，`status` 原值透传：0=关闭, 1=正常, 3=群组）
 - 转换：`lastpost` char(110) 解析为 `last_thread_id` / `last_post_at` / `last_poster`
   - 格式：`"tid\tsubject\ttimestamp\tposter"`，用 `\t` 分割
 
@@ -70,15 +79,15 @@ reference/db/*.sql.gz
 
 ### threads
 - 源表：`pre_forum_thread`
-- 过滤：`displayorder >= 0`（保留所有可见帖）**且 `closed <= 1`**（跳过合并帖）
+- 过滤：无（全量迁移，`displayorder` 和 `closed` 状态透传）
 - 转换：
-  - `displayorder` → `sticky`
+  - `displayorder` → `sticky`（负值=隐藏，0=普通，正值=置顶）
   - `posttableid` → `post_table_id`
-- 跳过合并帖：`closed > 1` 表示该 thread 已合并到 tid=closed 的目标 thread。这些只是重定向壳，内容已在目标 thread 中。如需 URL 兼容，可在 Worker 层用 KV 做 tid 映射
+- 合并帖：`closed > 1` 表示该 thread 已合并到 tid=closed 的目标 thread。这些记录完整保留，应用层可按 `closed` 值做 redirect
 
 ### posts
 - 源表：`pre_forum_post` + `pre_forum_post_1` ~ `pre_forum_post_4`（5 个表）
-- 过滤：`invisible = 0`（排除审核中/被删帖子）
+- 过滤：无（全量迁移，`invisible` 状态透传：0=可见, 1=审核中, -1/-5=已删除）
 - 转换：
   - `message` → `content`：BBCode → HTML（检查 `bbcodeoff` 和 `htmlon` flag）
   - 编码检测和修复
@@ -167,15 +176,31 @@ Discuz X3.4 默认 UTF-8，但历史数据可能混入 GBK 编码：
 | 查询性能 | 8 种查询模式（见 02-database-schema.md） | 索引命中 <10ms，整体 <50ms |
 | 索引有效 | EXPLAIN QUERY PLAN 确认走索引 | 无 SCAN TABLE |
 
+## 占位记录
+
+基于"完整保留数据"原则，FK 断裂时使用占位记录而非跳过：
+
+| 场景 | 占位策略 |
+|------|---------|
+| 帖子 `author_id` 不在 `users` 中 | 创建占位用户（username="[已删除用户{uid}]", status=-3）|
+| 帖子 `thread_id` 不在 `threads` 中 | 创建占位主题（subject="[已删除主题{tid}]", sticky=-99）|
+| 主题 `forum_id` 不在 `forums` 中 | 创建占位版块（name="[已删除版块{fid}]", status=-1）|
+| 主题 `author_id` 不在 `users` 中 | 创建占位用户（username="[已删除用户{uid}]", status=-3）|
+| 附件 `post_id` 不在 `posts` 中 | 创建占位帖子（content="[已删除帖子]", invisible=-1）|
+
+占位记录在迁移完成后可按 status/invisible 值识别和处理。
+
 ## 错误处理
 
 迁移脚本遇到异常数据时的处理策略：
 
 | 场景 | 策略 | 说明 |
 |------|------|------|
-| 帖子 `author_id` 不在 `users` 中 | **记录全部异常后中止** | 全量迁移用户后不应出现。遍历完所有帖子后，若存在 author orphan 则报错退出（延迟中止以收集全部异常 pid，方便排障） |
-| 帖子 `thread_id` 不在 `threads` 中 | **跳过 + 记录** | 可能指向 `displayorder < 0` 的隐藏帖或 `closed > 1` 的合并帖。记录到 `migration.log`。验证阶段的 0 orphan 检查基于实际写入 D1 的数据，被跳过的记录不计入 |
-| 附件 `post_id` 不在 `posts` 中 | **跳过 + 记录** | 帖子可能是 `invisible ≠ 0` 被过滤掉的 |
+| 帖子 `author_id` 不在 `users` 中 | **创建占位用户 + 继续** | 收集所有缺失 uid，批量创建占位用户，帖子全量保留 |
+| 帖子 `thread_id` 不在 `threads` 中 | **创建占位主题 + 继续** | 收集所有缺失 tid，批量创建占位主题（sticky=-99），帖子全量保留 |
+| 主题 `forum_id` 不在 `forums` 中 | **创建占位版块 + 继续** | 收集所有缺失 fid，批量创建占位版块（status=-1），主题全量保留 |
+| 主题 `author_id` 不在 `users` 中 | **创建占位用户 + 继续** | 收集所有缺失 uid，批量创建占位用户，主题全量保留 |
+| 附件 `post_id` 不在 `posts` 中 | **创建占位帖子 + 继续** | 收集所有缺失 pid，批量创建占位帖子，附件全量保留 |
 | 头像文件不存在 | **avatar 设为空字符串** | `avatarstatus=1` 但实际文件缺失时，降级为无头像 |
 | 附件文件不存在 | **保留数据库记录，file_path 不变** | R2 上传阶段单独处理缺失文件，不影响 D1 数据迁移 |
 | BBCode 解析失败 | **保留原始文本 + 标记** | 记录 pid 到 `bbcode_failures.log`，content 存原始 message |

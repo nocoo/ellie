@@ -112,9 +112,22 @@ describe("extractForum", () => {
 		});
 	});
 
-	test("filters out hidden forums (status != 1)", () => {
-		expect(extractForum(forumRow({ 4: "0" }), forumFields)).toBeNull();
-		expect(extractForum(forumRow({ 4: "2" }), forumFields)).toBeNull();
+	test("preserves all status values (0=closed, 1=normal, 3=group)", () => {
+		const closed = extractForum(forumRow({ 4: "0" }), forumFields);
+		expect(closed).not.toBeNull();
+		expect(closed?.status).toBe(0);
+
+		const normal = extractForum(forumRow({ 4: "1" }), forumFields);
+		expect(normal).not.toBeNull();
+		expect(normal?.status).toBe(1);
+
+		const group = extractForum(forumRow({ 4: "3" }), forumFields);
+		expect(group).not.toBeNull();
+		expect(group?.status).toBe(3);
+	});
+
+	test("filters out corrupt rows with fid=0", () => {
+		expect(extractForum(forumRow({ 0: "0" }), forumFields)).toBeNull();
 	});
 
 	test("uses empty strings when forumFields has no entry", () => {
@@ -346,14 +359,24 @@ describe("extractThread", () => {
 		});
 	});
 
-	test("filters hidden threads (displayorder < 0)", () => {
-		expect(extractThread(threadRow({ 15: "-1" }))).toBeNull();
-		expect(extractThread(threadRow({ 15: "-5" }))).toBeNull();
+	test("keeps hidden threads (displayorder < 0) with correct sticky value", () => {
+		const hidden1 = extractThread(threadRow({ 15: "-1" }));
+		expect(hidden1).not.toBeNull();
+		expect(hidden1?.sticky).toBe(-1);
+
+		const hidden5 = extractThread(threadRow({ 15: "-5" }));
+		expect(hidden5).not.toBeNull();
+		expect(hidden5?.sticky).toBe(-5);
 	});
 
-	test("filters merged threads (closed > 1)", () => {
-		expect(extractThread(threadRow({ 22: "2" }))).toBeNull();
-		expect(extractThread(threadRow({ 22: "1000" }))).toBeNull();
+	test("keeps merged threads (closed > 1) with correct closed value", () => {
+		const merged2 = extractThread(threadRow({ 22: "2" }));
+		expect(merged2).not.toBeNull();
+		expect(merged2?.closed).toBe(2);
+
+		const merged1000 = extractThread(threadRow({ 22: "1000" }));
+		expect(merged1000).not.toBeNull();
+		expect(merged1000?.closed).toBe(1000);
 	});
 
 	test("keeps closed=0 and closed=1 threads", () => {
@@ -423,10 +446,18 @@ describe("extractPost", () => {
 		expect(result?.position).toBe(1);
 	});
 
-	test("filters invisible posts", () => {
-		expect(extractPost(postRow({ 11: "1" }))).toBeNull();
-		expect(extractPost(postRow({ 11: "-1" }))).toBeNull();
-		expect(extractPost(postRow({ 11: "-5" }))).toBeNull();
+	test("keeps invisible posts with invisible value passed through", () => {
+		const invisible1 = extractPost(postRow({ 11: "1" }));
+		expect(invisible1).not.toBeNull();
+		expect(invisible1?.invisible).toBe(1);
+
+		const invisibleNeg1 = extractPost(postRow({ 11: "-1" }));
+		expect(invisibleNeg1).not.toBeNull();
+		expect(invisibleNeg1?.invisible).toBe(-1);
+
+		const invisibleNeg5 = extractPost(postRow({ 11: "-5" }));
+		expect(invisibleNeg5).not.toBeNull();
+		expect(invisibleNeg5?.invisible).toBe(-5);
 	});
 
 	test("stats: total incremented on success", () => {
@@ -439,18 +470,6 @@ describe("extractPost", () => {
 		extractPost(postRow(), stats);
 		expect(stats.total).toBe(1);
 		expect(stats.filtered).toBe(0);
-	});
-
-	test("stats: filtered incremented on invisible", () => {
-		const stats: PostExtractionStats = {
-			total: 0,
-			filtered: 0,
-			encodingRepaired: 0,
-			bbcodeFailures: 0,
-		};
-		extractPost(postRow({ 11: "1" }), stats);
-		expect(stats.total).toBe(0);
-		expect(stats.filtered).toBe(1);
 	});
 
 	test("bbcodeoff=1 disables BBCode parsing", () => {

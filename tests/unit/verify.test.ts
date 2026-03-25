@@ -132,6 +132,7 @@ function createTestDb(): BatchLoader {
 			created_at: 1700000000,
 			is_first: 1,
 			position: 1,
+			invisible: 0,
 		},
 		{
 			id: 2,
@@ -143,6 +144,7 @@ function createTestDb(): BatchLoader {
 			created_at: 1700001000,
 			is_first: 0,
 			position: 2,
+			invisible: 0,
 		},
 		{
 			id: 3,
@@ -154,6 +156,7 @@ function createTestDb(): BatchLoader {
 			created_at: 1700000500,
 			is_first: 1,
 			position: 1,
+			invisible: 0,
 		},
 	]);
 
@@ -238,7 +241,7 @@ describe("verifyForeignKeys", () => {
 
 		// Insert a post referencing non-existent thread
 		db.run(
-			"INSERT INTO posts (id, thread_id, forum_id, author_id, author_name, content, created_at, is_first, position) VALUES (99, 999, 1, 1, 'admin', 'orphan', 0, 0, 1)",
+			"INSERT INTO posts (id, thread_id, forum_id, author_id, author_name, content, created_at, is_first, position, invisible) VALUES (99, 999, 1, 1, 'admin', 'orphan', 0, 0, 1, 0)",
 		);
 
 		const results = verifyForeignKeys(db);
@@ -331,7 +334,7 @@ describe("verifyEncoding", () => {
 
 		// Insert a post with replacement character
 		db.run(
-			"INSERT INTO posts (id, thread_id, forum_id, author_id, author_name, content, created_at, is_first, position) VALUES (99, 1, 1, 1, 'admin', 'Bad \uFFFD encoding', 0, 0, 1)",
+			"INSERT INTO posts (id, thread_id, forum_id, author_id, author_name, content, created_at, is_first, position, invisible) VALUES (99, 1, 1, 1, 'admin', 'Bad \uFFFD encoding', 0, 0, 1, 0)",
 		);
 
 		const report = verifyEncoding(db, 100);

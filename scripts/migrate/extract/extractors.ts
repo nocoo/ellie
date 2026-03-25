@@ -60,16 +60,17 @@ export function parseLastPost(lastpost: string | null): {
 }
 
 /**
- * Extract a forum row. Returns null if filtered out (status != 1).
+ * Extract a forum row. All forums are migrated (status passed through).
+ * Returns null only for the undefined/corrupt row edge case.
  */
 export function extractForum(
 	row: ParsedRow,
 	forumFields: Map<number, { description: string; icon: string }>,
 ): RowRecord | null {
-	const status = Number(row[FORUM_COLS.status]);
-	if (status !== 1) return null; // Filter hidden forums
-
 	const fid = Number(row[FORUM_COLS.fid]);
+	if (!fid) return null; // Skip corrupt/undefined rows
+
+	const status = Number(row[FORUM_COLS.status]) || 0;
 	const lastpost = parseLastPost(row[FORUM_COLS.lastpost] ?? null);
 	const fields = forumFields.get(fid);
 
@@ -83,7 +84,7 @@ export function extractForum(
 		threads: Number(row[FORUM_COLS.threads]) || 0,
 		posts: Number(row[FORUM_COLS.posts]) || 0,
 		type: row[FORUM_COLS.type] ?? "forum",
-		status: 1,
+		status,
 		last_thread_id: lastpost.lastThreadId,
 		last_post_at: lastpost.lastPostAt,
 		last_poster: lastpost.lastPoster,
@@ -247,21 +248,19 @@ const THREAD_COLS = {
 } as const;
 
 /**
- * Extract a thread row. Returns null if filtered out.
- * Filters: displayorder >= 0 (visible) AND closed <= 1 (skip merged).
+ * Extract a thread row. All threads are migrated (status passed through).
  */
 export function extractThread(row: ParsedRow): RowRecord | null {
+	const tid = Number(row[THREAD_COLS.tid]);
+	if (!tid) return null; // Skip corrupt rows
+
 	const displayorder = Number(row[THREAD_COLS.displayorder]) || 0;
-	if (displayorder < 0) return null; // Hidden thread
-
 	const closed = Number(row[THREAD_COLS.closed]) || 0;
-	if (closed > 1) return null; // Merged thread — skip per migration decision
-
 	const recommendAdd = Number(row[THREAD_COLS.recommend_add]) || 0;
 	const recommendSub = Number(row[THREAD_COLS.recommend_sub]) || 0;
 
 	return {
-		id: Number(row[THREAD_COLS.tid]),
+		id: tid,
 		forum_id: Number(row[THREAD_COLS.fid]),
 		author_id: Number(row[THREAD_COLS.authorid]),
 		author_name: row[THREAD_COLS.author] ?? "",
@@ -324,19 +323,16 @@ export interface PostExtractionStats {
 }
 
 /**
- * Extract a post row. Returns null if filtered out (invisible != 0).
+ * Extract a post row. All posts are migrated (invisible status passed through).
  */
 export function extractPost(row: ParsedRow, stats?: PostExtractionStats): RowRecord | null {
-	const invisible = Number(row[POST_COLS.invisible]) || 0;
-	if (invisible !== 0) {
-		if (stats) stats.filtered++;
-		return null;
-	}
+	const pid = Number(row[POST_COLS.pid]);
+	if (!pid) return null; // Skip corrupt rows
 
+	const invisible = Number(row[POST_COLS.invisible]) || 0;
 	const message = row[POST_COLS.message] ?? "";
 	const bbcodeoff = Number(row[POST_COLS.bbcodeoff]) === 1;
 	const htmlon = Number(row[POST_COLS.htmlon]) === 1;
-	const pid = Number(row[POST_COLS.pid]);
 
 	// Encoding validation
 	const { text: cleanMessage, repaired } = validateEncoding(message);
@@ -369,6 +365,7 @@ export function extractPost(row: ParsedRow, stats?: PostExtractionStats): RowRec
 		created_at: Number(row[POST_COLS.dateline]) || 0,
 		is_first: Number(row[POST_COLS.first]) || 0,
 		position: Number(row[POST_COLS.position]) || 0,
+		invisible,
 	};
 }
 

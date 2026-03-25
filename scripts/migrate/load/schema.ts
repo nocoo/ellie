@@ -68,7 +68,8 @@ export const TABLE_DDL: string[] = [
   content       TEXT    NOT NULL DEFAULT '',
   created_at    INTEGER NOT NULL DEFAULT 0,
   is_first      INTEGER NOT NULL DEFAULT 0,
-  position      INTEGER NOT NULL DEFAULT 0
+  position      INTEGER NOT NULL DEFAULT 0,
+  invisible     INTEGER NOT NULL DEFAULT 0
 )`,
 
 	`CREATE TABLE IF NOT EXISTS attachments (
@@ -169,6 +170,7 @@ export const TABLE_COLUMNS: Record<TableName, string[]> = {
 		"created_at",
 		"is_first",
 		"position",
+		"invisible",
 	],
 	attachments: [
 		"id",

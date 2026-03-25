@@ -353,6 +353,7 @@ describe("StreamInserter", () => {
 				created_at: 0,
 				is_first: 1,
 				position: 1,
+				invisible: 0,
 			},
 		]);
 
