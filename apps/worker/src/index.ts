@@ -21,6 +21,11 @@ export default {
 
 		// Route handling
 		try {
+			// Health check (no auth, no cache)
+			if (path === "/api/live" && request.method === "GET") {
+				return (await import("./handlers/live")).live(request, env);
+			}
+
 			// Public routes
 			if (path === "/api/v1/forums" && request.method === "GET") {
 				return (await import("./handlers/forum")).list(request, env);
