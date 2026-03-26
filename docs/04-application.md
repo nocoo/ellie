@@ -239,16 +239,16 @@
 
 | 编号 | 提交信息 | 内容 | 测试 |
 |------|---------|------|------|
-| 4.6.1 | `feat: add forum layout (topbar + navbar + footer)` | ForumLayout + TopBar + ForumNavbar + SiteFooter | L1: 导航渲染 |
-| 4.6.2 | `feat: add forum list page` | useForumListViewModel + ForumGroup + ForumCard + (forum)/page.tsx | L1 ≥90%: 树过滤/隐藏版块 |
-| 4.6.3 | `feat: add thread list page` | useThreadListViewModel + ThreadList + ThreadItem + ThreadBadge + forums/[id]/page.tsx | L1 ≥90%: 排序/筛选/分页/badge |
-| 4.6.4 | `feat: add thread detail page` | useThreadDetailViewModel + PostCard + UserCard + AttachmentResolver + threads/[id]/page.tsx | L1 ≥90%: 附件分组/权限判断/mod actions |
-| 4.6.5 | `feat: add post editor (tiptap)` | usePostEditorViewModel + PostEditor + EmojiPicker | L1 ≥90%: submit/canSubmit/validation |
-| 4.6.6 | `feat: add user profile page` | useUserProfileViewModel + users/[id]/page.tsx | L1 ≥90%: tab 切换/分页 |
-| 4.6.7 | `feat: add search page` | useSearchViewModel + search/page.tsx | L1 ≥90%: titlePrefix/authorName 切换 |
-| 4.6.8 | `feat: add digest page` | useDigestListViewModel + digest/page.tsx | L1: 列表加载 |
-| 4.6.9 | `feat: add login page` | useAuthViewModel + login/page.tsx | L1: login/logout/error states |
-| 4.6.10 | `feat: add proxy route guard` | proxy.ts — 公开/认证/管理路由分类 | L1: 路由匹配逻辑 |
+| 4.6.1 | `feat: add forum layout (topbar + navbar + footer)` | ForumLayout + TopBar + ForumNavbar + SiteFooter | ✅ L1: 导航渲染 |
+| 4.6.2 | `feat: add forum list page` | useForumListViewModel + ForumGroup + ForumCard + (forum)/page.tsx | ✅ L1 ≥90%: 树过滤/隐藏版块 |
+| 4.6.3 | `feat: add thread list page` | useThreadListViewModel + ThreadList + ThreadItem + ThreadBadge + forums/[id]/page.tsx | ✅ L1 ≥90%: 排序/筛选/分页/badge |
+| 4.6.4 | `feat: add thread detail page` | useThreadDetailViewModel + PostCard + UserCard + AttachmentResolver + threads/[id]/page.tsx | ✅ L1 ≥90%: 附件分组/权限判断/mod actions |
+| 4.6.5 | `feat: add post editor (tiptap)` | usePostEditorViewModel + PostEditor + EmojiPicker | ✅ L1 ≥90%: submit/canSubmit/validation |
+| 4.6.6 | `feat: add user profile page` | useUserProfileViewModel + users/[id]/page.tsx | ✅ L1 ≥90%: tab 切换/分页 |
+| 4.6.7 | `feat: add search page` | useSearchViewModel + search/page.tsx | ✅ L1 ≥90%: titlePrefix/authorName 切换 |
+| 4.6.8 | `feat: add digest page` | useDigestListViewModel + digest/page.tsx | ✅ L1: 列表加载 |
+| 4.6.9 | `feat: add login page` | useAuthViewModel + login/page.tsx | ✅ L1: login/logout/error states |
+| 4.6.10 | `feat: add proxy route guard` | proxy.ts — 公开/认证/管理路由分类 | ✅ L1: 路由匹配逻辑 |
 
 > **4.6 结束时**：论坛前端功能完整，ViewModel L1 ≥90%，业务组件 L1 ≥80%。
 
