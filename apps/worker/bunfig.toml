@@ -1,14 +1,11 @@
-{
-	"coverage": {
-		"enabled": true,
-		"include": ["src/**/*.ts"],
-		"exclude": [
-			"src/**/*.test.ts",
-			"src/**/*.spec.ts",
-			"node_modules/**"
-		]
-	},
-	"prettier": {
-		"indentWidth": 2
-	}
-}
+[coverage]
+enabled = true
+include = ["src/**/*.ts"]
+exclude = [
+	"src/**/*.test.ts",
+	"src/**/*.spec.ts",
+	"node_modules/**"
+]
+
+[prettier]
+indentWidth = 2

@@ -8,15 +8,15 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	const limit = Number.parseInt(url.searchParams.get("limit") || "20", 10);
 	const _cursor = url.searchParams.get("cursor");
 
-	let stmt;
+	let result: D1Result;
 	if (forumId) {
-		stmt = env.DB.prepare(
+		const stmt = env.DB.prepare(
 			"SELECT * FROM threads WHERE forum_id = ? ORDER BY last_post_at DESC LIMIT ?",
 		);
-		const _result = await stmt.bind(Number(forumId), limit).all();
+		result = await stmt.bind(Number(forumId), limit).all();
 	} else {
-		stmt = env.DB.prepare("SELECT * FROM threads ORDER BY last_post_at DESC LIMIT ?");
-		const _result = await stmt.bind(limit).all();
+		const stmt = env.DB.prepare("SELECT * FROM threads ORDER BY last_post_at DESC LIMIT ?");
+		result = await stmt.bind(limit).all();
 	}
 
 	return new Response(JSON.stringify(result.results), {
@@ -26,7 +26,9 @@ export async function list(request: Request, env: Env): Promise<Response> {
 
 export async function getById(request: Request, env: Env): Promise<Response> {
 	const url = new URL(request.url);
-	const id = Number.parseInt(url.pathname.split("/").pop()!, 10);
+	const pathParts = url.pathname.split("/");
+	const idStr = pathParts[pathParts.length - 1];
+	const id = Number.parseInt(idStr ?? "0", 10);
 
 	const stmt = env.DB.prepare("SELECT * FROM threads WHERE id = ?");
 	const result = await stmt.bind(id).first();
