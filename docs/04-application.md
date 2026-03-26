@@ -122,8 +122,8 @@
 
 | 编号 | 提交信息 | 内容 | 质量状态 |
 |------|---------|------|---------|
-| 4.1.1 | `feat: init next.js 16 project with bun` | Next.js 16 + TypeScript strict + Bun | — |
-| 4.1.2 | `feat: add tailwind v4 + design tokens` | Tailwind CSS v4 + `tailwind.css` 设计 token + 暗黑模式变量 | — |
+| 4.1.1 | `feat: init next.js 16 project with bun` | Next.js 16 + TypeScript strict + Bun | ✅ |
+| 4.1.2 | `feat: add tailwind v4 + design tokens` | Tailwind CSS v4 + `tailwind.css` 设计 token + 暗黑模式变量 | ✅ |
 | 4.1.3 | `feat: add shadcn/ui base components` | shadcn/ui init + Button/Card/Badge 等基础组件 | — |
 | 4.1.4 | `chore: setup husky + lint-staged + biome strict` | Husky pre-commit (G1: biome check) + pre-push 骨架 | **G1 生效** |
 | 4.1.5 | `chore: setup bun test + coverage config` | bun test 配置 + coverage 排除规则 + pre-commit 加入 L1 | **L1 管道生效**（无测试文件，管道空跑通过；4.2 起产生实际覆盖率） |
