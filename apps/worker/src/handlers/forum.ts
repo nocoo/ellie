@@ -1,39 +1,56 @@
-// Forum handlers for Cloudflare Worker
+import type { Forum } from "@ellie/types";
 import type { Env } from "../lib/env";
-import { corsHeaders } from "../middleware/cors";
 
+// Forum handlers for Cloudflare Worker
+import { corsHeaders } from "../middleware/cors";
+import { errorResponse } from "../middleware/error";
+
+/** GET /api/v1/forums - List all forums (no pagination) */
 export async function list(_request: Request, env: Env): Promise<Response> {
 	const stmt = env.DB.prepare("SELECT * FROM forums ORDER BY display_order");
 	const result = await stmt.all();
 
-	return new Response(JSON.stringify(result.results), {
-		headers: { ...corsHeaders(), "Content-Type": "application/json" },
-	});
+	// Convert snake_case from D1 to camelCase for frontend
+	const forums: Forum[] = result.results as Forum[];
+
+	return new Response(
+		JSON.stringify({
+			data: forums,
+			meta: {
+				timestamp: Date.now(),
+				requestId: crypto.randomUUID(),
+			},
+		}),
+		{
+			headers: { ...corsHeaders(), "Content-Type": "application/json" },
+		},
+	);
 }
 
+/** GET /api/v1/forums/:id - Get forum by ID */
 export async function getById(request: Request, env: Env): Promise<Response> {
 	const url = new URL(request.url);
-	const id = Number.parseInt(url.pathname.split("/").pop()!, 10);
+	const pathParts = url.pathname.split("/");
+	const idStr = pathParts[pathParts.length - 1];
+	const id = Number.parseInt(idStr ?? "0", 10);
 
 	const stmt = env.DB.prepare("SELECT * FROM forums WHERE id = ?");
 	const result = await stmt.bind(id).first();
 
 	if (!result) {
-		return new Response(JSON.stringify({ error: "Forum not found" }), {
-			status: 404,
-			headers: { ...corsHeaders(), "Content-Type": "application/json" },
-		});
+		return errorResponse("FORUM_NOT_FOUND", 404);
 	}
 
-	return new Response(JSON.stringify(result), {
-		headers: { ...corsHeaders(), "Content-Type": "application/json" },
-	});
-}
-
-export async function update(_request: Request, _env: Env): Promise<Response> {
-	// TODO: Implement forum update
-	return new Response(JSON.stringify({ error: "Not implemented" }), {
-		status: 501,
-		headers: { ...corsHeaders(), "Content-Type": "application/json" },
-	});
+	return new Response(
+		JSON.stringify({
+			data: result as Forum,
+			meta: {
+				timestamp: Date.now(),
+				requestId: crypto.randomUUID(),
+			},
+		}),
+		{
+			headers: { ...corsHeaders(), "Content-Type": "application/json" },
+		},
+	);
 }
