@@ -1,10 +1,13 @@
 {
+	"extends": ["../../biome.json"],
 	"linter": {
-		"recommended": true,
+		"enabled": true,
 		"rules": {
 			"style": {
-				"noNonNullAssertion": "error",
-				"noImplicitAnyLet": "error"
+				"noNonNullAssertion": "error"
+			},
+			"suspicious": {
+				"noExplicitAny": "error"
 			}
 		}
 	}
