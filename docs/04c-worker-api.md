@@ -150,19 +150,20 @@ interface ThreadListResponse {
 }
 ```
 
-**Cursor 编码**：使用 04a 定义的 opaque cursor：
-- `latest` 排序 → `base64(JSON({ lastPostAt, id }))`
+**Cursor 编码**：使用 04a 定义的 opaque cursor（严格遵循索引排序）：
+- `latest` 排序 → `base64(JSON({ sticky, lastPostAt, id }))`  ← 注意含 sticky
 - `newest` 排序 → `base64(JSON({ createdAt, id }))`
 - `hot` 排序 → `base64(JSON({ replies, id }))`
 
-**SQL 实现**（严格遵循 02 §分页策略）：
+**SQL 实现**（严格遵循 02 §分页策略，使用 idx_threads_forum 索引）：
 
 ```typescript
 // Cursor 解析
 const cursor = params.cursor ? decodeCursor(params.cursor) : null;
 
 // Thread listing: keyset 分页（而非 OFFSET）
-// latest 排序的 cursor: base64(JSON({ lastPostAt, id }))
+// latest 排序的 cursor: base64(JSON({ sticky, lastPostAt, id }))
+// 索引: idx_threads_forum(forum_id, sticky DESC, last_post_at DESC)
 const sql = cursor
   ? `WHERE forum_id = ? AND (sticky < ? OR (sticky = ? AND (last_post_at < ? OR (last_post_at = ? AND id < ?))))
      ORDER BY sticky DESC, last_post_at DESC, id DESC LIMIT 20`
@@ -326,7 +327,7 @@ const params = cursor
 **密码工具实现（lib/password.ts）：**
 
 ```typescript
-import { HmacMD5 } from "crypto-js"; // 或使用 spark-md5
+import { MD5 } from "crypto-js"; // 或使用 spark-md5
 
 // 验证 Discuz 旧密码（使用纯 JS MD5 实现）
 export async function verifyDiscuzPassword(
@@ -335,8 +336,10 @@ export async function verifyDiscuzPassword(
   salt: string,
 ): Promise<boolean> {
   // Discuz: md5(md5(password) + salt)
-  const doubleMd5 = HmacMD5(input, "").toString();
-  const finalHash = HmacMD5(doubleMd5 + salt, "").toString();
+  // 注意：是普通 MD5，不是 HMAC-MD5
+  const firstMd5 = MD5(input).toString();
+  const doubleMd5 = MD5(firstMd5).toString();
+  const finalHash = MD5(doubleMd5 + salt).toString();
   return finalHash === storedHash;
 }
 
@@ -602,7 +605,7 @@ interface JwtPayload {
   exp: number;
 }
 
-// JWT_SECRET 存储在 wrangler.toml [vars] 中，非 KV
+// JWT_SECRET 通过 wrangler secret put 管理（不写入版本控制）
 export async function authMiddleware(
   request: Request,
   env: Env,
