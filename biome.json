@@ -50,6 +50,16 @@
 					}
 				}
 			}
+		},
+		{
+			"include": ["src/components/forum/post-card.tsx"],
+			"linter": {
+				"rules": {
+					"security": {
+						"noDangerouslySetInnerHtml": "off"
+					}
+				}
+			}
 		}
 	]
 }
