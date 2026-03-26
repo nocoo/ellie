@@ -1,7 +1,8 @@
 // api/v1/moderation/route.ts — Moderator action endpoints
 // Ref: 04b §API 路由边界 — /api/v1/moderation (role ∈ {1,2,3})
 
-import { errorResponse, getMockUserRole, getRepos, isModRole, parseId } from "@/lib/api-utils";
+import { getAuthUserRole } from "@/lib/api-auth";
+import { errorResponse, getRepos, isModRole, parseId } from "@/lib/api-utils";
 import { NextResponse } from "next/server";
 
 /**
@@ -12,8 +13,7 @@ import { NextResponse } from "next/server";
  * Requires mod role (Admin=1, SuperMod=2, Mod=3).
  */
 export async function POST(request: Request) {
-	// Phase 2: use session role. Mock: use X-Mock-Role header.
-	const role = getMockUserRole(request);
+	const role = await getAuthUserRole(request);
 	if (role === null || !isModRole(role)) {
 		return errorResponse("Forbidden: moderator role required", 403);
 	}

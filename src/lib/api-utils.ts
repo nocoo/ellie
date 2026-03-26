@@ -58,17 +58,3 @@ export function isModRole(role: number): boolean {
 export function isAdminRole(role: number): boolean {
 	return ADMIN_ROLES.has(role as UserRole);
 }
-
-/**
- * Extract mock user role from request headers.
- *
- * Phase 2: will use NextAuth session/JWT.
- * Mock phase: reads X-Mock-Role header for testing.
- */
-export function getMockUserRole(request: Request): number | null {
-	const roleHeader = request.headers.get("X-Mock-Role");
-	if (roleHeader === null) return null;
-	const role = Number(roleHeader);
-	if (Number.isNaN(role)) return null;
-	return role;
-}

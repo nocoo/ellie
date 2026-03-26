@@ -2,14 +2,15 @@
 // Ref: 04b §API 路由边界 — /api/admin/users (role ∈ {1,2})
 
 import type { UserListParams } from "@/data/repositories/types";
-import { errorResponse, getMockUserRole, getRepos, isAdminRole, parseId } from "@/lib/api-utils";
+import { getAuthUserRole } from "@/lib/api-auth";
+import { errorResponse, getRepos, isAdminRole, parseId } from "@/lib/api-utils";
 import { NextResponse } from "next/server";
 
 /**
  * GET /api/admin/users — List users (admin view with all fields)
  */
 export async function GET(request: Request) {
-	const role = getMockUserRole(request);
+	const role = await getAuthUserRole(request);
 	if (role === null || !isAdminRole(role)) {
 		return errorResponse("Forbidden: admin role required", 403);
 	}
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
  * Actions: "ban", "unban", "setRole"
  */
 export async function POST(request: Request) {
-	const role = getMockUserRole(request);
+	const role = await getAuthUserRole(request);
 	if (role === null || !isAdminRole(role)) {
 		return errorResponse("Forbidden: admin role required", 403);
 	}

@@ -1,14 +1,15 @@
 // api/admin/forums/route.ts — Admin forum management endpoints
 // Ref: 04b §API 路由边界 — /api/admin/forums (role ∈ {1,2})
 
-import { errorResponse, getMockUserRole, getRepos, isAdminRole, parseId } from "@/lib/api-utils";
+import { getAuthUserRole } from "@/lib/api-auth";
+import { errorResponse, getRepos, isAdminRole, parseId } from "@/lib/api-utils";
 import { NextResponse } from "next/server";
 
 /**
  * GET /api/admin/forums — List all forums (admin view)
  */
 export async function GET(request: Request) {
-	const role = getMockUserRole(request);
+	const role = await getAuthUserRole(request);
 	if (role === null || !isAdminRole(role)) {
 		return errorResponse("Forbidden: admin role required", 403);
 	}
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
  * Body: { forumId, name?, description?, icon?, status?, displayOrder? }
  */
 export async function POST(request: Request) {
-	const role = getMockUserRole(request);
+	const role = await getAuthUserRole(request);
 	if (role === null || !isAdminRole(role)) {
 		return errorResponse("Forbidden: admin role required", 403);
 	}

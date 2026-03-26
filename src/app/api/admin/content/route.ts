@@ -1,14 +1,15 @@
 // api/admin/content/route.ts — Admin content moderation endpoints
 // Ref: 04b §API 路由边界 — /api/admin/content (role ∈ {1,2})
 
-import { errorResponse, getMockUserRole, getRepos, isAdminRole, parseId } from "@/lib/api-utils";
+import { getAuthUserRole } from "@/lib/api-auth";
+import { errorResponse, getRepos, isAdminRole, parseId } from "@/lib/api-utils";
 import { NextResponse } from "next/server";
 
 /**
  * GET /api/admin/content — List threads/posts for content moderation
  */
 export async function GET(request: Request) {
-	const role = getMockUserRole(request);
+	const role = await getAuthUserRole(request);
 	if (role === null || !isAdminRole(role)) {
 		return errorResponse("Forbidden: admin role required", 403);
 	}
@@ -46,7 +47,7 @@ export async function GET(request: Request) {
  * Body: { type: "thread" | "post", id }
  */
 export async function POST(request: Request) {
-	const role = getMockUserRole(request);
+	const role = await getAuthUserRole(request);
 	if (role === null || !isAdminRole(role)) {
 		return errorResponse("Forbidden: admin role required", 403);
 	}
