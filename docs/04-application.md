@@ -182,8 +182,9 @@
 | 4.3.6 | `feat: add mock attachment repository + tests` | `data/repositories/attachment.repository.ts` + tests | ✅ L1 100% |
 | 4.3.7 | `feat: add repository factory` | `data/index.ts` — createRepositories() | ✅ |
 | 4.3.8 | `feat: add auth mock (nextauth credentials)` | `auth.ts` + mock user 验证 | ✅ L1: login success/failure |
+| 4.3.R | `fix: shared state model` | MockDataStore 单一数据源 + 真实游标分页 + 作者字段 + auth 同源 + 质量门禁 | ✅ Review fix: 489 tests, tsc gate |
 
-> **4.3 结束时**：`data/` 覆盖率 ≥95%，Repository Contract 完全可验证。
+> **4.3 结束时**：`data/` 覆盖率 ≥95%，Repository Contract 完全可验证。Review 修复：共享状态模型、游标分页、作者输入、auth 同源、typecheck+coverage 门禁。
 
 ---
 
