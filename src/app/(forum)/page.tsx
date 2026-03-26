@@ -1,12 +1,30 @@
 // (forum)/page.tsx — Forum home page (forum list)
 // Ref: 04d §论坛首页 — Grouped forum list
-// Full implementation in §4.6.2; this is the placeholder.
 
-export default function ForumHomePage() {
+import { ForumGroup } from "@/components/forum/forum-group";
+import { createRepositories } from "@/data/index";
+import { fetchForumList } from "@/viewmodels/forum/forum-list";
+
+/**
+ * Forum homepage — displays grouped forum list.
+ *
+ * Server component: fetches data at request time (mock phase).
+ * Phase 2: Will use ISR/streaming for real D1 data.
+ */
+export default async function ForumHomePage() {
+	const repos = createRepositories();
+	const { tree } = await fetchForumList(repos);
+
 	return (
-		<div className="rounded-[14px] bg-card p-6">
-			<h1 className="text-2xl font-bold">Forum Home</h1>
-			<p className="mt-2 text-muted-foreground">Forum list will be implemented in §4.6.2.</p>
+		<div className="space-y-4">
+			{tree.map((group) => (
+				<ForumGroup key={group.id} group={group} />
+			))}
+			{tree.length === 0 && (
+				<div className="rounded-[14px] bg-card p-6 text-center text-muted-foreground">
+					No forums available.
+				</div>
+			)}
 		</div>
 	);
 }
