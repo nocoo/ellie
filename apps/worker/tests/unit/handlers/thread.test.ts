@@ -11,6 +11,28 @@ describe("thread handlers", () => {
 		RATE_LIMITER: {} as DurableObjectNamespace,
 	};
 
+	/** Full D1 row (snake_case) matching the real threads table */
+	const makeD1ThreadRow = (overrides?: Record<string, unknown>) => ({
+		id: 1,
+		forum_id: 10,
+		author_id: 100,
+		author_name: "alice",
+		subject: "Test Thread",
+		created_at: 1711540800,
+		last_post_at: 1711544400,
+		last_poster: "bob",
+		replies: 5,
+		views: 42,
+		closed: 0,
+		sticky: 0,
+		digest: 0,
+		special: 0,
+		highlight: 0,
+		recommends: 3,
+		post_table_id: 1, // internal field — should NOT appear in output
+		...overrides,
+	});
+
 	describe("list", () => {
 		it("should require forumId parameter", async () => {
 			const response = await list(new Request("https://example.com/api/v1/threads"), mockEnv);
@@ -33,19 +55,11 @@ describe("thread handlers", () => {
 
 		it("should clamp limit to [1, 50]", async () => {
 			const allSpy = mock(() => Promise.resolve({ results: [] }));
-
 			const bindSpy = mock((..._args: unknown[]) => ({
 				all: allSpy,
 			}));
-
-			const prepareSpy = mock(() => ({
-				bind: bindSpy,
-			}));
-
-			const db = {
-				prepare: prepareSpy,
-			} as unknown as D1Database;
-
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
 			// Test limit > 50
@@ -57,23 +71,47 @@ describe("thread handlers", () => {
 			expect(bindSpy).toHaveBeenLastCalledWith(expect.any(Number), 20); // default
 		});
 
-		it("should query threads without cursor on first page", async () => {
-			const threads = [{ id: 1, sticky: 0, lastPostAt: 1234567890 }];
-
-			const allSpy = mock(() => Promise.resolve({ results: threads }));
-
+		it("should map D1 snake_case rows to camelCase Thread objects", async () => {
+			const d1Row = makeD1ThreadRow();
+			const allSpy = mock(() => Promise.resolve({ results: [d1Row] }));
 			const bindSpy = mock((..._args: unknown[]) => ({
 				all: allSpy,
 			}));
-
-			const prepareSpy = mock(() => ({
-				bind: bindSpy,
-			}));
-
 			const db = {
-				prepare: prepareSpy,
+				prepare: mock(() => ({ bind: bindSpy })),
 			} as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
 
+			const response = await list(
+				new Request("https://example.com/api/v1/threads?forumId=10"),
+				env,
+			);
+
+			const data = await response.json();
+			const thread = data.data[0];
+			// Verify camelCase mapping
+			expect(thread.forumId).toBe(10);
+			expect(thread.authorId).toBe(100);
+			expect(thread.authorName).toBe("alice");
+			expect(thread.createdAt).toBe(1711540800);
+			expect(thread.lastPostAt).toBe(1711544400);
+			expect(thread.lastPoster).toBe("bob");
+			// Verify internal field stripped
+			expect(thread.post_table_id).toBeUndefined();
+			expect(thread.postTableId).toBeUndefined();
+			// Verify no snake_case leaks
+			expect(thread.forum_id).toBeUndefined();
+			expect(thread.author_id).toBeUndefined();
+		});
+
+		it("should query threads without cursor on first page", async () => {
+			const d1Row = makeD1ThreadRow();
+			const allSpy = mock(() => Promise.resolve({ results: [d1Row] }));
+			const bindSpy = mock((..._args: unknown[]) => ({
+				all: allSpy,
+			}));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
 			await list(new Request("https://example.com/api/v1/threads?forumId=1"), env);
@@ -85,22 +123,19 @@ describe("thread handlers", () => {
 		});
 
 		it("should decode and use cursor for pagination", async () => {
-			const cursor = btoa(JSON.stringify({ sticky: 1, lastPostAt: 1234567890, id: 100 }));
-
+			const cursor = btoa(
+				JSON.stringify({
+					sticky: 1,
+					lastPostAt: 1234567890,
+					id: 100,
+				}),
+			);
 			const allSpy = mock(() => Promise.resolve({ results: [] }));
-
 			const bindSpy = mock((..._args: unknown[]) => ({
 				all: allSpy,
 			}));
-
-			const prepareSpy = mock(() => ({
-				bind: bindSpy,
-			}));
-
-			const db = {
-				prepare: prepareSpy,
-			} as unknown as D1Database;
-
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
 			await list(
@@ -110,7 +145,6 @@ describe("thread handlers", () => {
 				env,
 			);
 
-			// Should call bind with cursor values
 			expect(bindSpy).toHaveBeenCalledWith(
 				1,
 				1, // sticky
@@ -122,25 +156,22 @@ describe("thread handlers", () => {
 			);
 		});
 
-		it("should generate next cursor when results fill the page", async () => {
-			const threads = Array.from({ length: 20 }, (_, i) => ({
-				id: i + 1,
-				sticky: 0,
-				lastPostAt: 1234567890 + i,
-			}));
+		it("should generate valid next cursor that roundtrips correctly", async () => {
+			const threads = Array.from({ length: 20 }, (_, i) =>
+				makeD1ThreadRow({
+					id: i + 1,
+					sticky: 0,
+					last_post_at: 1234567890 + i,
+				}),
+			);
 
 			const allSpy = mock(() => Promise.resolve({ results: threads }));
-
 			const bindSpy = mock((..._args: unknown[]) => ({
 				all: allSpy,
 			}));
-
 			const db = {
-				prepare: mock(() => ({
-					bind: bindSpy,
-				})),
+				prepare: mock(() => ({ bind: bindSpy })),
 			} as unknown as D1Database;
-
 			const env = { ...mockEnv, DB: db };
 
 			const response = await list(
@@ -150,23 +181,23 @@ describe("thread handlers", () => {
 
 			const data = await response.json();
 			expect(data.meta.nextCursor).toBeDefined();
+
+			// Decode and verify cursor roundtrip
+			const decoded = JSON.parse(atob(data.meta.nextCursor));
+			expect(decoded.sticky).toBe(0);
+			expect(decoded.lastPostAt).toBe(1234567890 + 19);
+			expect(decoded.id).toBe(20);
 		});
 
 		it("should not generate next cursor when results are less than limit", async () => {
-			const threads = [{ id: 1, sticky: 0, lastPostAt: 1234567890 }];
-
-			const allSpy = mock(() => Promise.resolve({ results: threads }));
-
+			const d1Row = makeD1ThreadRow();
+			const allSpy = mock(() => Promise.resolve({ results: [d1Row] }));
 			const bindSpy = mock((..._args: unknown[]) => ({
 				all: allSpy,
 			}));
-
 			const db = {
-				prepare: mock(() => ({
-					bind: bindSpy,
-				})),
+				prepare: mock(() => ({ bind: bindSpy })),
 			} as unknown as D1Database;
-
 			const env = { ...mockEnv, DB: db };
 
 			const response = await list(
@@ -180,17 +211,12 @@ describe("thread handlers", () => {
 
 		it("should include metadata in response", async () => {
 			const allSpy = mock(() => Promise.resolve({ results: [] }));
-
 			const bindSpy = mock((..._args: unknown[]) => ({
 				all: allSpy,
 			}));
-
 			const db = {
-				prepare: mock(() => ({
-					bind: bindSpy,
-				})),
+				prepare: mock(() => ({ bind: bindSpy })),
 			} as unknown as D1Database;
-
 			const env = { ...mockEnv, DB: db };
 
 			const response = await list(new Request("https://example.com/api/v1/threads?forumId=1"), env);
@@ -201,26 +227,16 @@ describe("thread handlers", () => {
 		});
 
 		it("should handle invalid cursor gracefully", async () => {
-			// Invalid cursor - valid JSON but wrong structure
 			const invalidCursor = btoa(JSON.stringify({ wrong: "structure" }));
-
 			const allSpy = mock(() => Promise.resolve({ results: [] }));
-
 			const bindSpy = mock((..._args: unknown[]) => ({
 				all: allSpy,
 			}));
-
-			const prepareSpy = mock(() => ({
-				bind: bindSpy,
-			}));
-
-			const db = {
-				prepare: prepareSpy,
-			} as unknown as D1Database;
-
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
-			const _response = await list(
+			await list(
 				new Request(
 					`https://example.com/api/v1/threads?forumId=1&cursor=${encodeURIComponent(invalidCursor)}`,
 				),
@@ -232,26 +248,16 @@ describe("thread handlers", () => {
 		});
 
 		it("should handle malformed cursor (invalid base64)", async () => {
-			// Completely invalid cursor
 			const malformedCursor = "not-valid-base64!!!";
-
 			const allSpy = mock(() => Promise.resolve({ results: [] }));
-
 			const bindSpy = mock((..._args: unknown[]) => ({
 				all: allSpy,
 			}));
-
-			const prepareSpy = mock(() => ({
-				bind: bindSpy,
-			}));
-
-			const db = {
-				prepare: prepareSpy,
-			} as unknown as D1Database;
-
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
-			const _response = await list(
+			await list(
 				new Request(
 					`https://example.com/api/v1/threads?forumId=1&cursor=${encodeURIComponent(malformedCursor)}`,
 				),
@@ -264,17 +270,12 @@ describe("thread handlers", () => {
 
 		it("should use default limit of 20 when no limit parameter provided", async () => {
 			const allSpy = mock(() => Promise.resolve({ results: [] }));
-
 			const bindSpy = mock((..._args: unknown[]) => ({
 				all: allSpy,
 			}));
-
 			const db = {
-				prepare: mock(() => ({
-					bind: bindSpy,
-				})),
+				prepare: mock(() => ({ bind: bindSpy })),
 			} as unknown as D1Database;
-
 			const env = { ...mockEnv, DB: db };
 
 			await list(new Request("https://example.com/api/v1/threads?forumId=1"), env);
@@ -284,67 +285,88 @@ describe("thread handlers", () => {
 
 		it("should use valid limit within range", async () => {
 			const allSpy = mock(() => Promise.resolve({ results: [] }));
-
 			const bindSpy = mock((..._args: unknown[]) => ({
 				all: allSpy,
 			}));
-
 			const db = {
-				prepare: mock(() => ({
-					bind: bindSpy,
-				})),
+				prepare: mock(() => ({ bind: bindSpy })),
 			} as unknown as D1Database;
-
 			const env = { ...mockEnv, DB: db };
 
 			await list(new Request("https://example.com/api/v1/threads?forumId=1&limit=30"), env);
 
 			expect(bindSpy).toHaveBeenCalledWith(1, 30);
 		});
+
+		it("should include CORS headers with origin", async () => {
+			const allSpy = mock(() => Promise.resolve({ results: [] }));
+			const bindSpy = mock((..._args: unknown[]) => ({
+				all: allSpy,
+			}));
+			const db = {
+				prepare: mock(() => ({ bind: bindSpy })),
+			} as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await list(
+				new Request("https://example.com/api/v1/threads?forumId=1", {
+					headers: {
+						Origin: "http://localhost:3000",
+					},
+				}),
+				env,
+			);
+
+			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
+		});
+
+		it("should include CORS headers on error responses", async () => {
+			const response = await list(
+				new Request("https://example.com/api/v1/threads", {
+					headers: {
+						Origin: "https://ellie.nocoo.cloud",
+					},
+				}),
+				mockEnv,
+			);
+
+			expect(response.status).toBe(400);
+			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("https://ellie.nocoo.cloud");
+		});
 	});
 
 	describe("getById", () => {
-		it("should return thread when found", async () => {
-			const thread = { id: 123, subject: "Test Thread" };
-
-			const firstSpy = mock(() => Promise.resolve(thread));
-
+		it("should map D1 row to camelCase Thread when found", async () => {
+			const d1Row = makeD1ThreadRow({ id: 123 });
+			const firstSpy = mock(() => Promise.resolve(d1Row));
 			const bindSpy = mock((..._args: unknown[]) => ({
 				first: firstSpy,
 			}));
-
-			const prepareSpy = mock(() => ({
-				bind: bindSpy,
-			}));
-
-			const db = {
-				prepare: prepareSpy,
-			} as unknown as D1Database;
-
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
 			const response = await getById(new Request("https://example.com/api/v1/threads/123"), env);
 
 			expect(response.status).toBe(200);
 			const data = await response.json();
-			expect(data.data).toEqual(thread);
+			expect(data.data.id).toBe(123);
+			expect(data.data.forumId).toBe(10);
+			expect(data.data.authorId).toBe(100);
+			expect(data.data.createdAt).toBe(1711540800);
+			// No snake_case leaks
+			expect(data.data.forum_id).toBeUndefined();
+			// No internal fields
+			expect(data.data.post_table_id).toBeUndefined();
 		});
 
 		it("should return 404 when thread not found", async () => {
 			const firstSpy = mock(() => Promise.resolve(null));
-
 			const bindSpy = mock((..._args: unknown[]) => ({
 				first: firstSpy,
 			}));
-
-			const prepareSpy = mock(() => ({
-				bind: bindSpy,
-			}));
-
-			const db = {
-				prepare: prepareSpy,
-			} as unknown as D1Database;
-
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
 			const response = await getById(new Request("https://example.com/api/v1/threads/999"), env);
@@ -355,20 +377,13 @@ describe("thread handlers", () => {
 		});
 
 		it("should parse thread ID from URL", async () => {
-			const firstSpy = mock(() => Promise.resolve({ id: 456 }));
-
+			const d1Row = makeD1ThreadRow({ id: 456 });
+			const firstSpy = mock(() => Promise.resolve(d1Row));
 			const bindSpy = mock((..._args: unknown[]) => ({
 				first: firstSpy,
 			}));
-
-			const prepareSpy = mock(() => ({
-				bind: bindSpy,
-			}));
-
-			const db = {
-				prepare: prepareSpy,
-			} as unknown as D1Database;
-
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
 			await getById(new Request("https://example.com/api/v1/threads/456"), env);
@@ -380,7 +395,9 @@ describe("thread handlers", () => {
 	describe("create", () => {
 		it("should return 501 NOT_IMPLEMENTED", async () => {
 			const response = await create(
-				new Request("https://example.com/api/v1/threads", { method: "POST" }),
+				new Request("https://example.com/api/v1/threads", {
+					method: "POST",
+				}),
 				mockEnv,
 			);
 

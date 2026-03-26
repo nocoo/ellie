@@ -18,13 +18,17 @@ interface AuthUser {
 
 /** POST /api/v1/auth/login - Login with password upgrade */
 export async function login(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
 	try {
 		const { username, password } = (await request.json()) as LoginInput;
 
 		if (!username || !password) {
-			return errorResponse("INVALID_REQUEST", 400, {
-				message: "username and password are required",
-			});
+			return errorResponse(
+				"INVALID_REQUEST",
+				400,
+				{ message: "username and password are required" },
+				origin,
+			);
 		}
 
 		// Query user from D1
@@ -34,7 +38,7 @@ export async function login(request: Request, env: Env): Promise<Response> {
 		const result = await stmt.bind(username).first();
 
 		if (!result) {
-			return errorResponse("INVALID_CREDENTIALS", 401);
+			return errorResponse("INVALID_CREDENTIALS", 401, undefined, origin);
 		}
 
 		const user = result as {
@@ -48,7 +52,7 @@ export async function login(request: Request, env: Env): Promise<Response> {
 
 		// Check if user is banned
 		if (user.status !== 0) {
-			return errorResponse("USER_BANNED", 403);
+			return errorResponse("USER_BANNED", 403, undefined, origin);
 		}
 
 		// Verify password (support both Discuz and PBKDF2 formats)
@@ -62,7 +66,7 @@ export async function login(request: Request, env: Env): Promise<Response> {
 		}
 
 		if (!isValid) {
-			return errorResponse("INVALID_CREDENTIALS", 401);
+			return errorResponse("INVALID_CREDENTIALS", 401, undefined, origin);
 		}
 
 		// Generate JWT token (7 days)
@@ -114,10 +118,13 @@ export async function login(request: Request, env: Env): Promise<Response> {
 				},
 			}),
 			{
-				headers: { ...corsHeaders(), "Content-Type": "application/json" },
+				headers: {
+					...corsHeaders(origin),
+					"Content-Type": "application/json",
+				},
 			},
 		);
 	} catch {
-		return errorResponse("INTERNAL_ERROR", 500);
+		return errorResponse("INTERNAL_ERROR", 500, undefined, origin);
 	}
 }
