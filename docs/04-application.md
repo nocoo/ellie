@@ -226,6 +226,8 @@
 | 4.5.6 | `feat: add admin auth guard` | (admin)/layout.tsx 权限检查 + resolveAdmin() | ✅ L1: all role combinations |
 
 > **4.5 结束时**：Admin 后台功能完整，ViewModel L1 ≥90%。
+>
+> **✅ 标记范围说明**：4.5 的 ✅ 表示 **ViewModel 层 + 组件层 + L1 测试** 完成。Admin 页面路由文件（`admin/page.tsx` 等）为 **placeholder**，尚未接线到 ViewModel。这是设计意图：Mock 阶段仅验证纯函数和组件合约，页面接线在 Phase 2 接入真实数据源后完成。
 
 ---
 
@@ -251,6 +253,8 @@
 | 4.6.10 | `feat: add proxy route guard` | proxy.ts — 公开/认证/管理路由分类 | ✅ L1: 路由匹配逻辑 |
 
 > **4.6 结束时**：论坛前端功能完整，ViewModel L1 ≥90%，业务组件 L1 ≥80%。
+>
+> **✅ 标记范围说明**：4.6 的 ✅ 表示 **ViewModel 层 + 组件层 + L1 测试** 完成。部分页面路由文件（如 `forums/[id]/page.tsx`、`search/page.tsx`）已创建但尚未完整接线 ViewModel 数据（传空数组或占位 UI）。这些页面的完整接线取决于 Phase 2 数据源就绪。`users/[id]/page.tsx` 是唯一完整接线的页面（server component + ViewModel 调用）。
 
 ---
 
