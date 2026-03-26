@@ -41,6 +41,19 @@ describe("proxy route guard", () => {
 			expect(classifyRoute("/search?q=test")).toBe("public");
 		});
 
+		// --- NextAuth API routes ---
+		test("/api/auth/signin is public", () => {
+			expect(classifyRoute("/api/auth/signin")).toBe("public");
+		});
+
+		test("/api/auth/session is public", () => {
+			expect(classifyRoute("/api/auth/session")).toBe("public");
+		});
+
+		test("/api/auth/callback/credentials is public", () => {
+			expect(classifyRoute("/api/auth/callback/credentials")).toBe("public");
+		});
+
 		// --- API v1 public routes ---
 		test("/api/v1/forums is public", () => {
 			expect(classifyRoute("/api/v1/forums")).toBe("public");
