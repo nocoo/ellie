@@ -7,5 +7,14 @@ binding = "DB"
 database_name = "ellie-db"
 database_id = "<D1_DATABASE_ID>"
 
+[[kv_namespaces]]
+binding = "KV"
+id = "<KV_NAMESPACE_ID>"
+
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+
 [vars]
 ENVIRONMENT = "production"
+ALLOWED_ORIGINS = "https://ellie.nocoo.cloud"
