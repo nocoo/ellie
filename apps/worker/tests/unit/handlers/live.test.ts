@@ -77,6 +77,24 @@ describe("live handler", () => {
 			);
 		});
 
+		it("should set Access-Control-Allow-Origin for allowed origin", async () => {
+			const req = new Request("https://example.com/api/live", {
+				headers: { Origin: "https://ellie.nocoo.cloud" },
+			});
+			const response = await live(req, env);
+
+			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("https://ellie.nocoo.cloud");
+		});
+
+		it("should not set Access-Control-Allow-Origin for disallowed origin", async () => {
+			const req = new Request("https://example.com/api/live", {
+				headers: { Origin: "https://evil.com" },
+			});
+			const response = await live(req, env);
+
+			expect(response.headers.get("Access-Control-Allow-Origin")).toBeNull();
+		});
+
 		it("should probe D1 with SELECT 1", async () => {
 			const firstSpy = mock(() => Promise.resolve({ probe: 1 }));
 			const prepareSpy = mock(() => ({ first: firstSpy }));
@@ -158,6 +176,16 @@ describe("live handler", () => {
 			expect(response.headers.get("Access-Control-Allow-Methods")).toBe(
 				"GET, POST, PATCH, DELETE, OPTIONS",
 			);
+		});
+
+		it("should set Access-Control-Allow-Origin on error for allowed origin", async () => {
+			const req = new Request("https://example.com/api/live", {
+				headers: { Origin: "http://localhost:3000" },
+			});
+			const response = await live(req, env);
+
+			expect(response.status).toBe(503);
+			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
 		});
 	});
 

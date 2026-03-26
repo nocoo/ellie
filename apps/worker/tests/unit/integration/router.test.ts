@@ -83,6 +83,24 @@ describe("worker router integration", () => {
 			const data = await response.json();
 			expect(data.status).toBe("ok");
 		});
+
+		it("should include Access-Control-Allow-Origin for allowed origin", async () => {
+			const env = makeEnv({
+				prepare: mock(() => ({
+					first: mock(() => Promise.resolve({ probe: 1 })),
+				})),
+			});
+
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/live", {
+					headers: { Origin: "https://ellie.nocoo.cloud" },
+				}),
+				env,
+			);
+
+			expect(response.status).toBe(200);
+			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("https://ellie.nocoo.cloud");
+		});
 	});
 
 	// ─── Forum Routes ─────────────────────────────────────
