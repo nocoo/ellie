@@ -51,8 +51,8 @@ CREATE TABLE users (
   password_hash TEXT    NOT NULL DEFAULT '',
   password_salt TEXT    NOT NULL DEFAULT '',
   avatar        TEXT    NOT NULL DEFAULT '',
-  status        INTEGER NOT NULL DEFAULT 0,   -- 0=normal, -1=banned, -2=archived
-  role          INTEGER NOT NULL DEFAULT 0,   -- 0=user, 1=admin, 2=super-mod, 3=mod
+  status        INTEGER NOT NULL DEFAULT 0,   -- 0=normal, -1=banned, -2=archived, -3=placeholder
+  role          INTEGER NOT NULL DEFAULT 0,   -- 0=user, 1=admin, 2=super-mod, 3=mod (actual data also has -1, 7)
   reg_date      INTEGER NOT NULL DEFAULT 0,
   last_login    INTEGER NOT NULL DEFAULT 0,
   threads       INTEGER NOT NULL DEFAULT 0,
@@ -71,8 +71,8 @@ CREATE TABLE users (
 | `password_hash` | `uc_members` | `password` | char(32) | `md5(md5(password) + salt)` — 详见下方 |
 | `password_salt` | `uc_members` | `salt` | char(6) | 6 位随机字符串 |
 | `avatar` | — | 由 `uid` 计算 | — | R2 key: `avatars/{uid}.jpg`（源路径 `data/avatar/{uid%16}/{uid%256}/{uid}_avatar_big.jpg`） |
-| `status` | `pre_common_member` | `status` | tinyint(1) | `0`=正常，`-1`=封禁，`-2`=归档。见下方迁移策略 |
-| `role` | `pre_common_member` | `adminid` | tinyint(1) | `0`=用户，`1`=管理员，`2`=超级版主，`3`=版主 |
+| `status` | `pre_common_member` | `status` | tinyint(1) | `0`=正常，`-1`=封禁，`-2`=归档，`-3`=占位（迁移中 FK 断裂时自动创建）。见下方迁移策略 |
+| `role` | `pre_common_member` | `adminid` | tinyint(1) | `0`=用户，`1`=管理员，`2`=超级版主，`3`=版主。实际数据还包含 `-1` 和 `7`（DZ 扩展角色） |
 | `reg_date` | `pre_common_member` | `regdate` | int unsigned | Unix 时间戳 |
 | `last_login` | `uc_members` | `lastlogintime` | int unsigned | Unix 时间戳 |
 | `threads` | `pre_common_member_count` | `threads` | mediumint unsigned | ⚠️ 不在 `pre_common_member` 中 — 独立表，通过 `uid` 关联 |
@@ -109,6 +109,8 @@ WHERE a.uid NOT IN (SELECT uid FROM db_tongji_main.pre_common_member);
 ```
 
 > **决策：全量迁移。** `uc_members` 有 114 万条记录，`pre_common_member` 只有 7 万条，差异的 107 万在 `pre_common_member_archive` 中（DZ 自动归档长期不登录的用户）。这些归档用户的帖子仍在系统中，必须迁移以保证 FK 完整性。归档用户 `status = -2`，不开放登录但保留数据关联。
+>
+> **⚠️ 实际迁移发现：** dump 中 `pre_common_member_archive` 和 `pre_common_member_count` 均为 0 条记录。所有 114 万用户均来自 `uc_members`，其中 7 万能匹配到 `pre_common_member`（获得 status/role/avatar 等数据），剩余 ~107 万用户缺少 member 数据（status/role/threads/posts 等均为默认值 0）。
 
 **辅助过滤字段（不作为列迁移，但在迁移过程中使用）：**
 
@@ -141,7 +143,7 @@ CREATE TABLE forums (
   threads         INTEGER NOT NULL DEFAULT 0,
   posts           INTEGER NOT NULL DEFAULT 0,
   type            TEXT    NOT NULL DEFAULT 'forum',
-  status          INTEGER NOT NULL DEFAULT 1,
+  status          INTEGER NOT NULL DEFAULT 1,   -- 0=hidden, 1=normal, 3=group, -1=placeholder
   last_thread_id  INTEGER NOT NULL DEFAULT 0,
   last_post_at    INTEGER NOT NULL DEFAULT 0,
   last_poster     TEXT    NOT NULL DEFAULT ''
@@ -161,7 +163,7 @@ CREATE TABLE forums (
 | `threads` | `pre_forum_forum` | `threads` | mediumint unsigned | |
 | `posts` | `pre_forum_forum` | `posts` | mediumint unsigned | |
 | `type` | `pre_forum_forum` | `type` | enum('group','forum','sub') | `group`=分类，`forum`=版块，`sub`=子版块 |
-| `status` | `pre_forum_forum` | `status` | tinyint(1) | `0`=隐藏，`1`=正常。过滤隐藏版块 |
+| `status` | `pre_forum_forum` | `status` | tinyint(1) | `0`=隐藏，`1`=正常，`3`=群组，`-1`=占位（迁移中 FK 断裂时自动创建）。**全量迁移，不过滤** |
 | `last_thread_id` | `pre_forum_forum` | `lastpost` | char(110) | 从 `lastpost` 字段解析（格式：`tid\tsubject\ttimestamp\tposter`） |
 | `last_post_at` | `pre_forum_forum` | `lastpost` | char(110) | `lastpost` 中的时间戳部分 |
 | `last_poster` | `pre_forum_forum` | `lastpost` | char(110) | `lastpost` 中的发帖人部分 |
@@ -176,9 +178,8 @@ SELECT
   f.displayorder, f.threads, f.posts, f.type, f.status,
   f.lastpost  -- char(110), format: "tid\tsubject\ttimestamp\tposter"
 FROM pre_forum_forum f
-LEFT JOIN pre_forum_forumfield ff ON ff.fid = f.fid
-WHERE f.status = 1;
--- Parse f.lastpost in application code to extract last_thread_id, last_post_at, last_poster
+LEFT JOIN pre_forum_forumfield ff ON ff.fid = f.fid;
+-- 全量迁移，不过滤 status。Parse f.lastpost in application code to extract last_thread_id, last_post_at, last_poster
 ```
 
 ---
@@ -198,7 +199,7 @@ CREATE TABLE threads (
   replies       INTEGER NOT NULL DEFAULT 0,
   views         INTEGER NOT NULL DEFAULT 0,
   closed        INTEGER NOT NULL DEFAULT 0,
-  sticky        INTEGER NOT NULL DEFAULT 0,
+  sticky        INTEGER NOT NULL DEFAULT 0,   -- <0=hidden, 0=normal, 1+=pinned, -99=placeholder
   digest        INTEGER NOT NULL DEFAULT 0,
   special       INTEGER NOT NULL DEFAULT 0,
   highlight     INTEGER NOT NULL DEFAULT 0,
@@ -227,7 +228,7 @@ CREATE INDEX idx_threads_digest ON threads(digest, last_post_at DESC) WHERE dige
 | `replies` | `pre_forum_thread` | `replies` | mediumint unsigned | |
 | `views` | `pre_forum_thread` | `views` | int unsigned | |
 | `closed` | `pre_forum_thread` | `closed` | mediumint unsigned | `0`=开放，`1`=关闭，`>1`=已合并到 tid=closed 的帖子 |
-| `sticky` | `pre_forum_thread` | `displayorder` | tinyint(1) | `0`=普通，`1`=置顶，`2`=全局置顶，`3`=分类置顶 |
+| `sticky` | `pre_forum_thread` | `displayorder` | tinyint(1) | 负值=隐藏，`0`=普通，`1`=置顶，`2`=全局置顶，`3`=分类置顶，`-99`=占位（迁移中 FK 断裂时自动创建） |
 | `digest` | `pre_forum_thread` | `digest` | tinyint(1) | `0`=否，`1~3`=精华等级 |
 | `special` | `pre_forum_thread` | `special` | tinyint(1) | `0`=普通，`1`=投票，`2`=交易，`3`=悬赏，`4`=活动，`5`=辩论 |
 | `highlight` | `pre_forum_thread` | `highlight` | tinyint(1) | 标题样式编码（颜色/加粗/斜体） |
@@ -242,7 +243,7 @@ closed == 1     → thread is closed (locked)
 closed > 1      → thread was merged into thread with tid = closed
 ```
 
-当 `closed > 1` 时，该主题实际上是一个重定向。**迁移时直接跳过**（见下方迁移决策）。
+当 `closed > 1` 时，该主题实际上是一个重定向。**迁移时完整保留**，应用层根据 `closed` 值做 redirect 处理。
 
 **帖子分片：** DZ 将帖子数据分布在 `pre_forum_post`（主表，posttableid=0）和 `pre_forum_post_1` 到 `pre_forum_post_4`（本实例）之间。`posttableid` 字段决定查询哪张表。迁移时必须读取所有帖子表。
 
@@ -260,7 +261,8 @@ CREATE TABLE posts (
   content       TEXT    NOT NULL DEFAULT '',
   created_at    INTEGER NOT NULL DEFAULT 0,
   is_first      INTEGER NOT NULL DEFAULT 0,
-  position      INTEGER NOT NULL DEFAULT 0
+  position      INTEGER NOT NULL DEFAULT 0,
+  invisible     INTEGER NOT NULL DEFAULT 0    -- 0=visible, -1=deleted, -5=ignored, 1=pending review
 );
 
 CREATE INDEX idx_posts_thread ON posts(thread_id, position);
@@ -280,12 +282,12 @@ CREATE INDEX idx_posts_author ON posts(author_id, created_at DESC);
 | `created_at` | `pre_forum_post[_N]` | `dateline` | int unsigned | Unix 时间戳 |
 | `is_first` | `pre_forum_post[_N]` | `first` | tinyint(1) | `1`=主题首帖，`0`=回复 |
 | `position` | `pre_forum_post[_N]` | `position` | int unsigned | 楼层号（从 1 开始，AUTO_INCREMENT） |
+| `invisible` | `pre_forum_post[_N]` | `invisible` | tinyint(1) | `0`=可见，`1`=待审核，`-1`=已删除，`-5`=已忽略。**全量迁移，状态透传** |
 
-**关键过滤字段（迁移时使用，不存储为列）：**
+**辅助标志位（迁移时使用，不存储为列）：**
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `invisible` | tinyint(1) | `0`=可见，`-1`=待审核，`-5`=已忽略。**仅迁移 `invisible = 0` 的记录** |
 | `htmlon` | tinyint(1) | `1`=该帖启用 HTML。如果开启，`message` 可能包含原始 HTML |
 | `bbcodeoff` | tinyint(1) | `1`=BBCode 已禁用。如果开启，`message` 中的 `[tags]` 是纯文本而非 BBCode |
 
@@ -300,14 +302,16 @@ CREATE INDEX idx_posts_author ON posts(author_id, created_at DESC);
 | `pre_forum_post_4` | 873,734 | `4` |
 | **合计** | **9,510,882** | |
 
+> 实际迁移后含 14 条占位帖子（invisible=-1），posts 总计 9,510,896 行。
+
 **迁移查询（每张表）：**
 
 ```sql
 -- Repeat for each post table: pre_forum_post, pre_forum_post_1 ... pre_forum_post_4
 SELECT pid, tid, fid, authorid, author, message, dateline, first, position,
        invisible, htmlon, bbcodeoff
-FROM pre_forum_post
-WHERE invisible = 0;
+FROM pre_forum_post;
+-- 全量迁移，不过滤 invisible。invisible 值透传到 D1
 ```
 
 **内容格式：**
@@ -323,13 +327,31 @@ BBCode → HTML 转换对照表：
 | `[b]text[/b]` | `<strong>text</strong>` |
 | `[i]text[/i]` | `<em>text</em>` |
 | `[u]text[/u]` | `<u>text</u>` |
+| `[s]text[/s]` | `<s>text</s>` |
 | `[url=href]text[/url]` | `<a href="href">text</a>` |
 | `[img]src[/img]` | `<img src="src">` |
 | `[quote]text[/quote]` | `<blockquote>text</blockquote>` |
 | `[code]text[/code]` | `<pre><code>text</code></pre>` |
 | `[color=red]text[/color]` | `<span style="color:red">text</span>` |
 | `[size=4]text[/size]` | `<span style="font-size:...">text</span>` |
-| `[attach]aid[/attach]` | 通过 `attachments` 表解析为附件 URL |
+| `[align=center]text[/align]` | `<div style="text-align:center">text</div>` |
+| `[hr]` | `<hr>` |
+| `[attach]aid[/attach]` | `<attachment data-aid="aid"></attachment>` — 运行时由前端解析为 R2 附件 URL |
+| `[list][*]item[/list]` | `<ul><li>item</ul>` |
+| `[list=1][*]item[/list]` | `<ol><li>item</ol>` |
+
+**⚠️ 尚未转换的 DZ 特有标签（存量数据中存在）：**
+
+| BBCode | 说明 | 处理状态 |
+|--------|------|---------|
+| `[font=宋体]text[/font]` | 字体设置 | ❌ 保留原始 BBCode |
+| `[backcolor=yellow]text[/backcolor]` | 背景色 | ❌ 保留原始 BBCode |
+| `[table][tr][td]...[/td][/tr][/table]` | 表格 | ❌ 保留原始 BBCode |
+| `[email]addr[/email]` | 邮件链接 | ❌ 保留原始 BBCode |
+| `[p=30, 2, left]text[/p]` | DZ 段落格式 | ❌ 保留原始 BBCode |
+| `[i=s]text[/i]` | DZ 特殊斜体 | ❌ 保留原始 BBCode |
+
+> 这些标签在早期帖子（2002-2010 年）中较常见。未来可按需扩展 BBCode 转换器，或在前端渲染时处理剩余 BBCode 标签。
 
 ---
 
@@ -366,7 +388,7 @@ CREATE INDEX idx_attachments_thread ON attachments(thread_id);
 | `filename` | `pre_forum_attachment_N` | `filename` | varchar(255) | 原始上传文件名 |
 | `file_path` | `pre_forum_attachment_N` | `attachment` | varchar(255) | DZ 相对路径 → R2 key |
 | `file_size` | `pre_forum_attachment_N` | `filesize` | int unsigned | 字节 |
-| `is_image` | `pre_forum_attachment_N` | `isimage` | tinyint(1) | `0`=否，`1`=是（不是 -1/1） |
+| `is_image` | `pre_forum_attachment_N` | `isimage` | tinyint(1) | `-1`=未知，`0`=否，`1`=是 |
 | `width` | `pre_forum_attachment_N` | `width` | smallint unsigned | 图片宽度（px），非图片为 `0` |
 | `has_thumb` | `pre_forum_attachment_N` | `thumb` | tinyint unsigned | `0`=无缩略图，`1`=有缩略图 |
 | `downloads` | `pre_forum_attachment` | `downloads` | mediumint | ⚠️ 在**索引表**上，不在分片表上 |
@@ -439,24 +461,29 @@ WHERE a.tableid = 0;
 
 注意：`uc_members` 有 114 万条记录，`pre_common_member` 只有 7 万条。差异来自 `pre_common_member_archive` 中的 107 万条归档记录（长期不登录被 DZ 自动归档）。**全量迁移 114 万用户**，归档用户标记 `status = -2`。
 
+> **⚠️ 实际迁移发现：** dump 中 `pre_common_member_archive` 为 0 条记录（表存在但无 INSERT 数据），`pre_common_member_count` 同样为 0 条记录。因此实际迁移中无用户被标记为 `status = -2`（归档），所有用户的 `threads`/`posts` 计数均为 0。这些数据缺失来自 dump 导出配置，非迁移脚本问题。
+
 ## D1 容量规划
 
-### 实际数据测量（tongji.nocoo.cloud，仅可见内容）
+### 实际数据测量（迁移结果，全量数据含占位记录）
 
 | D1 Table | Rows | Content Size | Est. D1 Size (with indexes) |
 |----------|------|-------------|---------------------------|
-| posts | 9,376,041 | 3,480 MB | ~4,500 MB |
-| threads | 790,115 | 170 MB | ~350 MB |
-| users | 1,140,438 | ~230 MB | ~280 MB |
-| attachments | 78,178 | 22 MB | ~35 MB |
-| forums | 213 | < 1 MB | < 1 MB |
-| **合计** | **~11.4M** | **~3,900 MB** | **~5,200 MB** |
+| posts | 9,510,896 | ~3,600 MB | ~4,500 MB |
+| threads | 982,598 | ~220 MB | ~400 MB |
+| users | 1,141,586 | ~230 MB | ~280 MB |
+| attachments | 76,721 | ~22 MB | ~35 MB |
+| forums | 218 | < 1 MB | < 1 MB |
+| **合计** | **11,712,019** | **~4,070 MB** | **~5,200 MB** |
+
+> 实际本地 SQLite 文件大小为 4.32 GB（含索引）。
+> 占位记录分布：forums 5 条（status=-1），users 1,148 条（status=-3），threads 192,483 条（sticky=-99），posts 14 条（invisible=-1）。
 
 ### D1 限制（Workers Paid 计划）
 
 | Limit | Value | Status |
 |-------|-------|--------|
-| 数据库大小 | **10 GB**（硬上限，无法提升） | ~5.2 GB 已用 → ✅ 48% 余量 |
+| 数据库大小 | **10 GB**（硬上限，无法提升） | ~4.3 GB 已用（实测） → ✅ 57% 余量 |
 | 每账号数据库数 | 50,000 | 已用 1 个 |
 | 账号存储总量 | 1 TB | ~5 GB 已用 |
 | 最大查询时长 | 30 秒 | |
@@ -476,7 +503,7 @@ WHERE a.tableid = 0;
 
 ### 查询模式与索引覆盖
 
-每种常见页面类型都必须命中索引。对 940 万条帖子进行全表扫描会导致 30 秒超时 + 大量行读取计费。
+每种常见页面类型都必须命中索引。对 950 万条帖子进行全表扫描会导致 30 秒超时 + 大量行读取计费。
 
 | Page | Query Pattern | Index Used | Rows Scanned | Target Latency |
 |------|--------------|------------|-------------|----------------|
@@ -494,15 +521,16 @@ WHERE a.tableid = 0;
 ### 完整索引清单
 
 ```sql
--- threads (790K rows, ~350 MB with indexes)
+-- threads (982K rows, ~400 MB with indexes)
 CREATE INDEX idx_threads_forum  ON threads(forum_id, sticky DESC, last_post_at DESC);  -- thread listing
 CREATE INDEX idx_threads_author ON threads(author_id, created_at DESC);                -- user profile
 CREATE INDEX idx_threads_latest ON threads(last_post_at DESC);                         -- homepage
 CREATE INDEX idx_threads_digest ON threads(digest, last_post_at DESC) WHERE digest > 0; -- digest listing
 
--- posts (9.4M rows, ~4.5 GB with indexes)
-CREATE INDEX idx_posts_thread ON posts(thread_id, position);          -- thread view
-CREATE INDEX idx_posts_author ON posts(author_id, created_at DESC);   -- user profile
+-- posts (9.5M rows, ~4.5 GB with indexes)
+CREATE INDEX idx_posts_thread ON posts(thread_id, position);
+CREATE INDEX idx_posts_author ON posts(author_id, created_at DESC);
+```
 
 -- attachments (78K rows, ~35 MB with indexes)
 CREATE INDEX idx_attachments_post   ON attachments(post_id);    -- post rendering
@@ -513,7 +541,7 @@ CREATE INDEX idx_attachments_thread ON attachments(thread_id);  -- thread attach
 
 ### 分页：使用 keyset，而非 OFFSET
 
-D1（SQLite）在返回结果前会扫描 OFFSET 行。对 940 万条帖子执行 `OFFSET 50000` 是灾难性的。所有地方都使用 keyset（游标）分页：
+D1（SQLite）在返回结果前会扫描 OFFSET 行。对 950 万条帖子执行 `OFFSET 50000` 是灾难性的。所有地方都使用 keyset（游标）分页：
 
 ```sql
 -- Thread listing: cursor = (last_sticky, last_post_at) from previous page
@@ -644,12 +672,12 @@ D1 对中文内容没有实用的全文搜索能力。`LIKE '%关键词%'` = 对
 
 ### 合并帖子
 
-**决策：跳过 `closed > 1` 的 thread 记录。**
+**决策：完整保留 `closed > 1` 的 thread 记录。**
 
 - 当 `closed > 1` 时，`closed` 的值是目标 thread 的 tid（重定向）
 - 这些帖子的内容已经合并到目标 thread 中，只剩一个壳
-- 迁移时直接跳过，不创建重定向记录
-- 如果未来需要 URL 兼容（旧链接 `tid=xxx` 跳转），在 Worker 层用 KV 存一份 tid→target_tid 映射即可
+- **完整保留**，应用层根据 `closed` 值做 redirect 处理
+- 如果需要 URL 兼容（旧链接 `tid=xxx` 跳转），前端直接读 `closed` 字段做重定向，无需额外映射表
 
 ### 匿名/已删除作者
 
@@ -659,3 +687,38 @@ D1 对中文内容没有实用的全文搜索能力。`LIKE '%关键词%'` = 对
 - 即使 `authorid` 指向的用户被删除或不存在，`author_name` 仍然可以展示
 - D1 schema 中的 FK 约束是逻辑约束（SQLite 默认不强制），不会因缺失用户导致写入失败
 - 但迁移验证仍然要求 0 orphan — 全量迁移用户后，所有帖子的 `author_id` 应该都能关联到 `users.id`
+
+### 占位记录（Placeholder Records）
+
+**决策：FK 断裂时创建占位记录，保持引用完整性。**
+
+迁移过程中发现大量 FK 断裂（帖子指向已删除的用户/主题/版块），使用占位记录而非跳过：
+
+| 场景 | 占位策略 | 实际数量 |
+|------|---------|---------|
+| 主题 `forum_id` 不在 `forums` 中 | 创建占位版块（name=`[已删除版块{fid}]`, status=-1） | 5 |
+| 主题/帖子 `author_id` 不在 `users` 中 | 创建占位用户（username=`[已删除用户{uid}]`, status=-3） | 1,148 |
+| 帖子 `thread_id` 不在 `threads` 中 | 创建占位主题（subject=`[已删除主题{tid}]`, sticky=-99） | 192,483 |
+| 附件 `post_id` 不在 `posts` 中 | 创建占位帖子（content=`[已删除帖子]`, invisible=-1） | 14 |
+| 附件 `thread_id` 不在 `threads` 中 | 创建占位主题（同上） | 含在上述数量中 |
+
+> 占位记录在迁移完成后可按 status/invisible/sticky 标记值识别和处理。应用层可选择隐藏或特殊展示。
+
+### 隐藏帖子（invisible ≠ 0）
+
+**决策：全量迁移，`invisible` 值透传。**
+
+- DZ 中 `invisible` 含义：`0`=可见，`1`=待审核，`-1`=已删除，`-5`=已忽略
+- 之前文档写"仅迁移 invisible=0"，已改为全量迁移
+- 应用层根据 `invisible` 值决定展示策略（管理后台可看到所有帖子，前台仅展示 `invisible=0`）
+
+### 数据源缺失
+
+**发现：dump 中两张表数据为空。**
+
+| 表 | 预期 | 实际 | 影响 |
+|---|------|------|------|
+| `pre_common_member_count` | 7 万条（uid + threads + posts 计数） | 0 条 | 所有用户 `threads`/`posts` 字段为 0 |
+| `pre_common_member_archive` | ~107 万条（归档用户详细数据） | 0 条 | 无用户被标记为 `status=-2`（归档） |
+
+这是 dump 导出配置问题（表结构存在但无 INSERT 数据），非迁移脚本 bug。后续可从线上数据库补充导出这两张表的数据。
