@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { Env } from "../../../src/lib/env";
+import { createJwt } from "../../../src/lib/jwt";
 import { authMiddleware } from "../../../src/middleware/auth";
 
 describe("authMiddleware", () => {
@@ -37,9 +38,25 @@ describe("authMiddleware", () => {
 		expect(result).toBeInstanceOf(Response);
 		const response = result as Response;
 		expect(response.status).toBe(401);
+		const data = await response.json();
+		expect(data.error.code).toBe("UNAUTHORIZED");
 	});
 
-	it("should return 401 for invalid token", async () => {
+	it("should return 401 when Authorization header is just 'Bearer' with no token", async () => {
+		const request = new Request("https://example.com/api/v1/threads", {
+			headers: {
+				Authorization: "Bearer",
+			},
+		});
+
+		const result = await authMiddleware(request, mockEnv);
+
+		expect(result).toBeInstanceOf(Response);
+		const response = result as Response;
+		expect(response.status).toBe(401);
+	});
+
+	it("should return 401 for invalid token format", async () => {
 		const request = new Request("https://example.com/api/v1/threads", {
 			headers: {
 				Authorization: "Bearer invalid_token",
@@ -55,29 +72,15 @@ describe("authMiddleware", () => {
 		expect(data.error.code).toBe("INVALID_TOKEN");
 	});
 
-	it("should return user object for valid token", async () => {
-		// Create a valid token
-		const payload = {
-			userId: 123,
-			role: 1,
-			exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
-		};
-		const header = { alg: "HS256", typ: "JWT" };
-		const encodedHeader = btoa(JSON.stringify(header))
-			.replace(/\+/g, "-")
-			.replace(/\//g, "_")
-			.replace(/=/g, "");
-		const encodedPayload = btoa(JSON.stringify(payload))
-			.replace(/\+/g, "-")
-			.replace(/\//g, "_")
-			.replace(/=/g, "");
-
-		// Create signature (simplified - in real case this would be HMAC-SHA256)
-		const signature = btoa("test_signature")
-			.replace(/\+/g, "-")
-			.replace(/\//g, "_")
-			.replace(/=/g, "");
-		const token = `${encodedHeader}.${encodedPayload}.${signature}`;
+	it("should return 401 for token signed with wrong secret", async () => {
+		const token = await createJwt(
+			{
+				userId: 1,
+				role: 0,
+				exp: Math.floor(Date.now() / 1000) + 3600,
+			},
+			"wrong-secret-key",
+		);
 
 		const request = new Request("https://example.com/api/v1/threads", {
 			headers: {
@@ -85,28 +88,106 @@ describe("authMiddleware", () => {
 			},
 		});
 
-		// This will fail signature verification, but we can test the structure
 		const result = await authMiddleware(request, mockEnv);
 
-		// Since we can't easily mock the signature verification,
-		// we'll get INVALID_TOKEN, but the path is correct
 		expect(result).toBeInstanceOf(Response);
 		const response = result as Response;
+		expect(response.status).toBe(401);
 		const data = await response.json();
-		// Either success or invalid token depending on signature check
-		expect(["INVALID_TOKEN", "UNAUTHORIZED"]).toContain(data.error.code);
+		expect(data.error.code).toBe("INVALID_TOKEN");
 	});
 
-	it("should extract token from Bearer header correctly", async () => {
+	it("should return 401 for expired token", async () => {
+		const token = await createJwt(
+			{
+				userId: 1,
+				role: 0,
+				exp: Math.floor(Date.now() / 1000) - 3600, // 1 hour ago
+			},
+			mockEnv.JWT_SECRET,
+		);
+
 		const request = new Request("https://example.com/api/v1/threads", {
 			headers: {
-				Authorization: "Bearer my_token_here",
+				Authorization: `Bearer ${token}`,
 			},
 		});
 
-		// The token should be extracted correctly
-		const authHeader = request.headers.get("Authorization");
-		expect(authHeader).toBe("Bearer my_token_here");
-		expect(authHeader?.slice(7)).toBe("my_token_here");
+		const result = await authMiddleware(request, mockEnv);
+
+		expect(result).toBeInstanceOf(Response);
+		const response = result as Response;
+		expect(response.status).toBe(401);
+		const data = await response.json();
+		expect(data.error.code).toBe("TOKEN_EXPIRED");
+	});
+
+	it("should return user object for valid non-expired token", async () => {
+		const token = await createJwt(
+			{
+				userId: 123,
+				role: 2,
+				exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
+			},
+			mockEnv.JWT_SECRET,
+		);
+
+		const request = new Request("https://example.com/api/v1/threads", {
+			headers: {
+				Authorization: `Bearer ${token}`,
+			},
+		});
+
+		const result = await authMiddleware(request, mockEnv);
+
+		// Should NOT be a Response (it should be the user object)
+		expect(result).not.toBeInstanceOf(Response);
+		const authResult = result as { user: { userId: number; role: number } };
+		expect(authResult.user.userId).toBe(123);
+		expect(authResult.user.role).toBe(2);
+	});
+
+	it("should extract correct userId and role from token", async () => {
+		const token = await createJwt(
+			{
+				userId: 999,
+				role: 1,
+				exp: Math.floor(Date.now() / 1000) + 7200,
+			},
+			mockEnv.JWT_SECRET,
+		);
+
+		const request = new Request("https://example.com/api/v1/threads", {
+			headers: {
+				Authorization: `Bearer ${token}`,
+			},
+		});
+
+		const result = await authMiddleware(request, mockEnv);
+		const authResult = result as { user: { userId: number; role: number } };
+		expect(authResult.user.userId).toBe(999);
+		expect(authResult.user.role).toBe(1);
+	});
+
+	it("should handle token with role 0 (regular user)", async () => {
+		const token = await createJwt(
+			{
+				userId: 50,
+				role: 0,
+				exp: Math.floor(Date.now() / 1000) + 3600,
+			},
+			mockEnv.JWT_SECRET,
+		);
+
+		const request = new Request("https://example.com/api/v1/threads", {
+			headers: {
+				Authorization: `Bearer ${token}`,
+			},
+		});
+
+		const result = await authMiddleware(request, mockEnv);
+		const authResult = result as { user: { userId: number; role: number } };
+		expect(authResult.user.userId).toBe(50);
+		expect(authResult.user.role).toBe(0);
 	});
 });

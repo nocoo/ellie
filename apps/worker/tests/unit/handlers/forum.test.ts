@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
-import { getById, list } from "../../../src/handlers/forum";
+import { getById, list, update } from "../../../src/handlers/forum";
 import type { Env } from "../../../src/lib/env";
 
 describe("forum handlers", () => {
@@ -81,6 +81,20 @@ describe("forum handlers", () => {
 				"GET, POST, PATCH, DELETE, OPTIONS",
 			);
 		});
+
+		it("should return empty array when no forums exist", async () => {
+			const db = {
+				prepare: mock(() => ({
+					all: mock(() => Promise.resolve({ results: [] })),
+				})),
+			} as unknown as D1Database;
+
+			const env = { ...mockEnv, DB: db };
+			const response = await list(new Request("https://example.com/api/v1/forums"), env);
+
+			const data = await response.json();
+			expect(data.data).toEqual([]);
+		});
 	});
 
 	describe("getById", () => {
@@ -152,6 +166,19 @@ describe("forum handlers", () => {
 
 			// NaN should result in not found
 			expect(response.status).toBe(404);
+		});
+	});
+
+	describe("update", () => {
+		it("should return 501 NOT_IMPLEMENTED", async () => {
+			const response = await update(
+				new Request("https://example.com/api/admin/forums/1", { method: "PATCH" }),
+				mockEnv,
+			);
+
+			expect(response.status).toBe(501);
+			const data = await response.json();
+			expect(data.error.code).toBe("NOT_IMPLEMENTED");
 		});
 	});
 });

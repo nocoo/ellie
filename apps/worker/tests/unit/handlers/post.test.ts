@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
-import { getById, list } from "../../../src/handlers/post";
+import { create, getById, list } from "../../../src/handlers/post";
 import type { Env } from "../../../src/lib/env";
 
 describe("post handlers", () => {
@@ -232,6 +232,48 @@ describe("post handlers", () => {
 			// Should fall back to first page query
 			expect(prepareSpy).toHaveBeenCalledWith(expect.not.stringContaining("position >"));
 		});
+
+		it("should not generate next cursor when results are empty", async () => {
+			const allSpy = mock(() => Promise.resolve({ results: [] }));
+
+			const bindSpy = mock((..._args: unknown[]) => ({
+				all: allSpy,
+			}));
+
+			const db = {
+				prepare: mock(() => ({
+					bind: bindSpy,
+				})),
+			} as unknown as D1Database;
+
+			const env = { ...mockEnv, DB: db };
+
+			const response = await list(new Request("https://example.com/api/v1/posts?threadId=1"), env);
+
+			const data = await response.json();
+			expect(data.meta.nextCursor).toBeUndefined();
+			expect(data.data).toEqual([]);
+		});
+
+		it("should use valid limit within range", async () => {
+			const allSpy = mock(() => Promise.resolve({ results: [] }));
+
+			const bindSpy = mock((..._args: unknown[]) => ({
+				all: allSpy,
+			}));
+
+			const db = {
+				prepare: mock(() => ({
+					bind: bindSpy,
+				})),
+			} as unknown as D1Database;
+
+			const env = { ...mockEnv, DB: db };
+
+			await list(new Request("https://example.com/api/v1/posts?threadId=1&limit=10"), env);
+
+			expect(bindSpy).toHaveBeenCalledWith(1, 10);
+		});
 	});
 
 	describe("getById", () => {
@@ -305,6 +347,19 @@ describe("post handlers", () => {
 			await getById(new Request("https://example.com/api/v1/posts/456"), env);
 
 			expect(bindSpy).toHaveBeenCalledWith(456);
+		});
+	});
+
+	describe("create", () => {
+		it("should return 501 NOT_IMPLEMENTED", async () => {
+			const response = await create(
+				new Request("https://example.com/api/v1/posts", { method: "POST" }),
+				mockEnv,
+			);
+
+			expect(response.status).toBe(501);
+			const data = await response.json();
+			expect(data.error.code).toBe("NOT_IMPLEMENTED");
 		});
 	});
 });
