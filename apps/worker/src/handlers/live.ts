@@ -11,7 +11,8 @@ import { corsHeaders } from "../middleware/cors";
  * - Lightweight — only runs `SELECT 1` against D1
  * - Error responses never contain "ok" (prevents keyword monitor false positives)
  */
-export async function live(_request: Request, env: Env): Promise<Response> {
+export async function live(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
 	const timestamp = Date.now();
 	let d1Status = "connected";
 	let healthy = true;
@@ -38,7 +39,7 @@ export async function live(_request: Request, env: Env): Promise<Response> {
 	return new Response(JSON.stringify(body), {
 		status: healthy ? 200 : 503,
 		headers: {
-			...corsHeaders(),
+			...corsHeaders(origin),
 			"Content-Type": "application/json",
 			"Cache-Control": "no-store",
 		},
