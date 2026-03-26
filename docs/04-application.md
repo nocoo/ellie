@@ -152,13 +152,13 @@
 
 | 编号 | 提交信息 | 内容 | 测试 |
 |------|---------|------|------|
-| 4.2.1 | `feat: add core type definitions` | `models/types.ts` — 所有 enum + interface | 编译验证 |
-| 4.2.2 | `feat: add permission model + tests` | `models/permission.ts` + tests | L1 ≥95%: 全量 role × status × action 组合 |
-| 4.2.3 | `feat: add thread model functions + tests` | `models/thread.ts` (getThreadBadges, decodeHighlight) + tests | L1 ≥95%: 所有 special/sticky/digest 组合 |
-| 4.2.4 | `feat: add forum model functions + tests` | `models/forum.ts` (buildForumTree, filterVisibleForums) + tests | L1 ≥95%: 空数组/单层/三层嵌套 |
-| 4.2.5 | `feat: add pagination utilities + tests` | `models/pagination.ts` (cursor encode/decode) + tests | L1 ≥95% |
-| 4.2.6 | `feat: add shared lib utilities + tests` | `lib/utils.ts`, `lib/attachment.ts` (attachmentUrl, thumbnailUrl, sanitize) + tests | L1 ≥95% |
-| 4.2.7 | `feat: add repository interfaces` | `data/repositories/types.ts` — 全部 Repository 接口 | 编译验证 |
+| 4.2.1 | `feat: add core type definitions` | `models/types.ts` — 所有 enum + interface | ✅ 编译验证 |
+| 4.2.2 | `feat: add permission model + tests` | `models/permission.ts` + tests | ✅ L1 100%: 全量 role × status × action 组合 |
+| 4.2.3 | `feat: add thread model functions + tests` | `models/thread.ts` (getThreadBadges, decodeHighlight) + tests | ✅ L1 100%: 所有 special/sticky/digest 组合 |
+| 4.2.4 | `feat: add forum model functions + tests` | `models/forum.ts` (buildForumTree, filterVisibleForums) + tests | ✅ L1 100%: 空数组/单层/三层嵌套 |
+| 4.2.5 | `feat: add pagination utilities + tests` | `models/pagination.ts` (cursor encode/decode) + tests | ✅ L1 100% |
+| 4.2.6 | `feat: add shared lib utilities + tests` | `lib/utils.ts`, `lib/attachment.ts` (attachmentUrl, thumbnailUrl, sanitize) + tests | ✅ L1 100% |
+| 4.2.7 | `feat: add repository interfaces` | `data/repositories/types.ts` — 全部 Repository 接口 | ✅ 编译验证 |
 
 > **4.2 结束时**：`models/` + `lib/` 覆盖率 ≥95%，Contract 通过 L1 锁定。
 
@@ -174,14 +174,14 @@
 
 | 编号 | 提交信息 | 内容 | 测试 |
 |------|---------|------|------|
-| 4.3.1 | `feat: add mock data sets` | `data/mock/users.ts`, `forums.ts`, `threads.ts`, `posts.ts`, `attachments.ts` | — |
-| 4.3.2 | `feat: add mock forum repository + tests` | `data/repositories/forum.repository.ts` + tests | L1 ≥95%: listAll/getById/update |
-| 4.3.3 | `feat: add mock thread repository + tests` | `data/repositories/thread.repository.ts` + tests | L1 ≥95%: list/search/create/delete/mod 操作 |
-| 4.3.4 | `feat: add mock post repository + tests` | `data/repositories/post.repository.ts` + tests | L1 ≥95%: list by threadId/authorId |
-| 4.3.5 | `feat: add mock user repository + tests` | `data/repositories/user.repository.ts` + tests | L1 ≥95%: list/search/filter/setStatus/setRole |
-| 4.3.6 | `feat: add mock attachment repository + tests` | `data/repositories/attachment.repository.ts` + tests | L1 ≥95% |
-| 4.3.7 | `feat: add repository factory` | `data/index.ts` — createRepositories() | — |
-| 4.3.8 | `feat: add auth mock (nextauth credentials)` | `auth.ts` + mock user 验证 | L1: login success/failure |
+| 4.3.1 | `feat: add mock data sets` | `data/mock/users.ts`, `forums.ts`, `threads.ts`, `posts.ts`, `attachments.ts` | ✅ |
+| 4.3.2 | `feat: add mock forum repository + tests` | `data/repositories/forum.repository.ts` + tests | ✅ L1 100%: listAll/getById/update |
+| 4.3.3 | `feat: add mock thread repository + tests` | `data/repositories/thread.repository.ts` + tests | ✅ L1 100%: list/search/create/delete/mod 操作 |
+| 4.3.4 | `feat: add mock post repository + tests` | `data/repositories/post.repository.ts` + tests | ✅ L1 100%: list by threadId/authorId |
+| 4.3.5 | `feat: add mock user repository + tests` | `data/repositories/user.repository.ts` + tests | ✅ L1 100%: list/search/filter/setStatus/setRole |
+| 4.3.6 | `feat: add mock attachment repository + tests` | `data/repositories/attachment.repository.ts` + tests | ✅ L1 100% |
+| 4.3.7 | `feat: add repository factory` | `data/index.ts` — createRepositories() | ✅ |
+| 4.3.8 | `feat: add auth mock (nextauth credentials)` | `auth.ts` + mock user 验证 | ✅ L1: login success/failure |
 
 > **4.3 结束时**：`data/` 覆盖率 ≥95%，Repository Contract 完全可验证。
 
