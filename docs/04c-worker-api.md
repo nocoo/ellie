@@ -16,7 +16,7 @@ Ellie Worker 是基于 Cloudflare Workers 的边缘 API 层，作为前端与 D1
 1. **共享包优先**：Worker 组合 `@ellie/types`、`@ellie/repositories`，不重复定义类型
 2. **Contract 对齐**：API 返回体严格遵循 04a 定义的 `PaginatedResult`、cursor 编码
 3. **权限分层**：区分 `/api/v1/moderation`（Mod可用）和 `/api/admin/*`（仅后台）
-4. **密码兼容**：支持 Discuz 旧密码验证，登录成功后静默升级为 argon2id
+4. **密码兼容**：支持 Discuz 旧密码验证，登录成功后静默升级为 PBKDF2-SHA256
 
 ## 架构
 
@@ -68,7 +68,7 @@ apps/worker/
 | 部署 | wrangler | ^3.114 | `wrangler dev` / `wrangler deploy` |
 | 类型 | @cloudflare/workers-types | ^4.202 | TypeScript 类型定义 |
 | 路由 | 手动路由 | - | 轻量级，无额外依赖 |
-| 密码 | Web Crypto API | - | 原生 argon2id（CF Workers 支持） |
+| 密码 | Web Crypto API | - | PBKDF2-SHA256（Workers 原生） |
 
 ---
 
@@ -80,7 +80,7 @@ apps/worker/
 │   ├── index.ts              # Worker 入口，路由分发
 │   ├── lib/
 │   │   ├── env.ts            # Env 类型定义（JWT_SECRET, DB, KV, RATE_LIMITER）
-│   │   └── password.ts       # 密码工具：verifyDiscuzPassword, hashArgon2id
+│   │   └── password.ts       # 密码工具：verifyDiscuzPassword, hashPassword, verifyPassword
 │   ├── middleware/
 │   │   ├── cors.ts           # CORS 处理
 │   │   ├── auth.ts           # JWT 认证中间件
@@ -162,10 +162,29 @@ interface ThreadListResponse {
 const cursor = params.cursor ? decodeCursor(params.cursor) : null;
 
 // Thread listing: keyset 分页（而非 OFFSET）
+// latest 排序的 cursor: base64(JSON({ lastPostAt, id }))
 const sql = cursor
-  ? `WHERE forum_id = ? AND (sticky < ? OR (sticky = ? AND last_post_at < ?))
-     ORDER BY sticky DESC, last_post_at DESC LIMIT 20`
-  : `WHERE forum_id = ? ORDER BY sticky DESC, last_post_at DESC LIMIT 20`;
+  ? `WHERE forum_id = ? AND (sticky < ? OR (sticky = ? AND (last_post_at < ? OR (last_post_at = ? AND id < ?))))
+     ORDER BY sticky DESC, last_post_at DESC, id DESC LIMIT 20`
+  : `WHERE forum_id = ? ORDER BY sticky DESC, last_post_at DESC, id DESC LIMIT 20`;
+
+// 参数绑定
+const params = cursor
+  ? [forumId, cursor.sticky, cursor.sticky, cursor.lastPostAt, cursor.lastPostAt, cursor.id]
+  : [forumId];
+```
+
+**Post 分页（基于 position）：**
+
+```typescript
+// position cursor: base64(JSON({ position }))
+const sql = cursor
+  ? `WHERE thread_id = ? AND position > ? ORDER BY position LIMIT 20`
+  : `WHERE thread_id = ? ORDER BY position LIMIT 20`;
+
+const params = cursor
+  ? [threadId, cursor.position]
+  : [threadId];
 ```
 
 ### 错误码定义
@@ -193,6 +212,9 @@ const sql = cursor
 | GET | /api/v1/forums/:id | 获取单个版块详情 | - |
 
 **响应示例：**
+
+> **注意**：论坛列表只有 213 条记录，全量返回，**不使用 PaginatedResult**。
+
 ```json
 {
   "data": [
@@ -271,16 +293,17 @@ const sql = cursor
 | POST | /api/v1/auth/refresh | 刷新 Token | `{ refreshToken }` |
 | POST | /api/v1/auth/logout | 登出 | - |
 
-**密码验证流程（Discuz 兼容 + argon2id 升级）：**
+**密码验证流程（Discuz 兼容 + PBKDF2-SHA256 升级）：**
 
 ```
 1. 客户端发送 username + password（明文，HTTPS）
 2. Worker 查询 D1 获取 user.password_hash + user.password_salt
 3. 验证旧密码：md5(md5(password) + salt) === password_hash
+   - 使用纯 JS MD5 实现（crypto-js 或 spark-md5）
 4. 验证成功后：
    a. 生成 JWT access token（7天有效期）
    b. 生成 refresh token（随机字符串，存 KV，30天）
-   c. 静默升级：argon2id.hash(password) → 更新 D1
+   c. 静默升级：PBKDF2-SHA256(password) → 更新 D1
    d. 清除 password_salt
 5. 返回 { token, refreshToken, user }
 ```
@@ -300,31 +323,25 @@ const sql = cursor
 }
 ```
 
-**密码升级实现（lib/password.ts）：**
+**密码工具实现（lib/password.ts）：**
 
 ```typescript
-// 验证 Discuz 旧密码
+import { HmacMD5 } from "crypto-js"; // 或使用 spark-md5
+
+// 验证 Discuz 旧密码（使用纯 JS MD5 实现）
 export async function verifyDiscuzPassword(
   input: string,
   storedHash: string,
   salt: string,
 ): Promise<boolean> {
-  const md5 = async (text: string) => {
-    const msgBuffer = new TextEncoder().encode(text);
-    const hashBuffer = await crypto.subtle.digest("MD5", msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-  };
-
-  const doubleMd5 = await md5(input);
-  const finalHash = await md5(doubleMd5 + salt);
+  // Discuz: md5(md5(password) + salt)
+  const doubleMd5 = HmacMD5(input, "").toString();
+  const finalHash = HmacMD5(doubleMd5 + salt, "").toString();
   return finalHash === storedHash;
 }
 
-// Argon2id 哈希（Cloudflare Workers 支持）
-export async function hashArgon2id(password: string): Promise<string> {
-  // 使用 Web Crypto API 的 PBKDF2 作为替代
-  // 或使用 Cloudflare Workers 的 argon2id binding
+// PBKDF2-SHA256 哈希（升级目标格式）
+export async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
@@ -334,7 +351,10 @@ export async function hashArgon2id(password: string): Promise<string> {
     ["deriveBits"],
   );
 
+  // 生成随机 salt (16 bytes)
   const salt = crypto.getRandomValues(new Uint8Array(16));
+
+  // 派生 256-bit key
   const derivedBits = await crypto.subtle.deriveBits(
     {
       name: "PBKDF2",
@@ -346,12 +366,51 @@ export async function hashArgon2id(password: string): Promise<string> {
     256,
   );
 
-  // 组合 salt + hash
-  const combined = new Uint8Array(salt.length + derivedBits.byteLength);
-  combined.set(salt);
-  combined.set(new Uint8Array(derivedBits), salt.length);
+  // 存储格式：base64(salt + hash) = base64(salt) + "." + base64(hash)
+  const saltB64 = btoa(String.fromCharCode(...salt));
+  const hashB64 = btoa(String.fromCharCode(...new Uint8Array(derivedBits)));
 
-  return btoa(String.fromCharCode(...combined));
+  return `${saltB64}.${hashB64}`;
+}
+
+// 验证新密码格式
+export async function verifyPassword(
+  input: string,
+  storedHash: string,
+): Promise<boolean> {
+  const [saltB64, hashB64] = storedHash.split(".");
+  const salt = Uint8Array.from(atob(saltB64), c => c.charCodeAt(0));
+  const expectedHash = Uint8Array.from(atob(hashB64), c => c.charCodeAt(0));
+
+  const encoder = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(input),
+    "PBKDF2",
+    false,
+    ["deriveBits"],
+  );
+
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt: salt,
+      iterations: 100000,
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    256,
+  );
+
+  const derivedArray = new Uint8Array(derivedBits);
+
+  // 常量时间比较
+  if (derivedArray.length !== expectedHash.length) return false;
+  let match = 0;
+  for (let i = 0; i < derivedArray.length; i++) {
+    match |= derivedArray[i] ^ expectedHash[i];
+  }
+  return match === 0;
 }
 ```
 
@@ -380,8 +439,8 @@ export async function login(request: Request, env: Env): Promise<Response> {
     // 旧密码：md5(md5(password) + salt)
     isValid = await verifyDiscuzPassword(password, user.password_hash, user.password_salt);
   } else {
-    // 新密码：argon2id
-    isValid = await verifyArgon2id(password, user.password_hash);
+    // 新密码：PBKDF2-SHA256
+    isValid = await verifyPassword(password, user.password_hash);
   }
 
   if (!isValid) {
@@ -399,7 +458,7 @@ export async function login(request: Request, env: Env): Promise<Response> {
 
   // 静默升级密码（如果是旧格式）
   if (user.password_salt) {
-    const newHash = await hashArgon2id(password);
+    const newHash = await hashPassword(password);
     await env.DB.prepare(
       "UPDATE users SET password_hash = ?, password_salt = '' WHERE id = ?"
     ).bind(newHash, user.id).run();
@@ -620,7 +679,10 @@ export async function rateLimitMiddleware(
 ): Promise<boolean> {
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
 
-  const response = await env.RATE_LIMITER.fetch(
+  // Durable Object 正确调用方式：先获取 stub，再 fetch
+  const id = env.RATE_LIMITER.idFromName(ip);
+  const stub = env.RATE_LIMITER.get(id);
+  const response = await stub.fetch(
     `https://rate-limiter/?key=${ip}&limit=100&window=600`
   );
 
@@ -632,10 +694,18 @@ export async function rateLimitMiddleware(
 **wrangler.toml 配置：**
 
 ```toml
+# Durable Object 定义
 [[durable_objects.bindings]]
 name = "RATE_LIMITER"
 class_name = "RateLimiter"
-script_name = "worker"
+
+# Env 类型定义（lib/env.ts）
+export interface Env {
+  DB: D1Database;
+  KV: KVNamespace;
+  JWT_SECRET: string;
+  RATE_LIMITER: DurableObjectNamespace; // 注意是 Namespace，不是 DO 实例
+}
 ```
 
 ---
@@ -657,7 +727,7 @@ script_name = "worker"
 ```typescript
 // tests/unit/lib/password.test.ts
 import { describe, it, expect } from "bun:test";
-import { verifyDiscuzPassword, hashArgon2id } from "../../src/lib/password";
+import { verifyDiscuzPassword, hashPassword, verifyPassword } from "../../src/lib/password";
 
 describe("verifyDiscuzPassword", () => {
   it("should verify old Discuz password format", async () => {
@@ -671,6 +741,14 @@ describe("verifyDiscuzPassword", () => {
   it("should reject wrong password", async () => {
     const result = await verifyDiscuzPassword("wrong", hash, salt);
     expect(result).toBe(false);
+  });
+});
+
+describe("hashPassword", () => {
+  it("should create PBKDF2 hash that verifies correctly", async () => {
+    const hash = await hashPassword("password123");
+    const isValid = await verifyPassword("password123", hash);
+    expect(isValid).toBe(true);
   });
 });
 ```
@@ -752,14 +830,14 @@ database_id = "<TEST_DB_ID>"
 | 编号 | 提交信息 | 内容 | 质量状态 |
 |------|---------|------|---------|
 | 6 | `feat(worker): add discuz password verification` | `lib/password.ts` verifyDiscuzPassword | **L1: 100%** |
-| 7 | `feat(worker): add argon2id password hashing` | `lib/password.ts` hashArgon2id | **L1: 100%** |
+| 7 | `feat(worker): add pbkdf2 password hashing` | `lib/password.ts` hashPassword, verifyPassword | **L1: 100%** |
 | 8 | `feat(worker): add jwt create/verify utilities` | HS256 JWT 签名、验证、过期检查 | **L1: 100%** |
 
 ### Phase 3: 公开 API
 
 | 编号 | 提交信息 | 内容 | 质量状态 |
 |------|---------|------|---------|
-| 9 | `feat(worker): add forums API with PaginatedResult` | GET /api/v1/forums, 使用 @ellie/types | **L1: 100%** |
+| 9 | `feat(worker): add forums API` | GET /api/v1/forums（全量，无分页）, 使用 @ellie/types | **L1: 100%** |
 | 10 | `feat(worker): add threads API with keyset cursor` | GET /api/v1/threads, cursor 编码对齐 04a | **L1: 100%** |
 | 11 | `feat(worker): add posts API with position cursor` | GET /api/v1/posts, 基于 position 的 keyset | **L1: 100%** |
 | 12 | `feat(worker): add users API` | GET /api/v1/users/:id | **L1: 100%** |
@@ -768,7 +846,7 @@ database_id = "<TEST_DB_ID>"
 
 | 编号 | 提交信息 | 内容 | 质量状态 |
 |------|---------|------|---------|
-| 13 | `feat(worker): add login endpoint with password upgrade` | POST /api/v1/auth/login, 静默升级 argon2id | **L1: 100%** |
+| 13 | `feat(worker): add login endpoint with password upgrade` | POST /api/v1/auth/login, 静默升级 PBKDF2 | **L1: 100%** |
 | 14 | `feat(worker): add jwt auth middleware` | JWT 验证、payload 类型 | **L1: 100%** |
 | 15 | `feat(worker): add refresh token flow` | POST /api/v1/auth/refresh, KV 存储 | **L1: 100%** |
 | 16 | `feat(worker): add durable object rate limiter` | DO 实现，替换 KV 计数方案 | **L1: 100%** |
@@ -842,12 +920,7 @@ id = "<KV_NAMESPACE_ID>"
 
 ### Durable Object 绑定
 
-```toml
-[[durable_objects.bindings]]
-name = "RATE_LIMITER"
-class_name = "RateLimiter"
-script_name = "worker"
-```
+Durable Object 绑定配置已在 `middleware/rate-limit.ts` 部分定义，包含完整的 Env 类型说明。
 
 ---
 
@@ -889,7 +962,7 @@ wrangler tail
 4. **SQL 注入防护**：使用参数化查询
 5. **输入验证**：验证所有输入参数
 6. **敏感数据脱敏**：用户密码、邮箱等敏感信息不返回
-7. **密码升级**：Discuz 旧密码登录后自动升级为 argon2id
+7. **密码升级**：Discuz 旧密码登录后自动升级为 PBKDF2-SHA256
 
 ---
 
