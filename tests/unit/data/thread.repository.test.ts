@@ -159,7 +159,7 @@ describe("MockThreadRepository", () => {
 			const first = all.items[0];
 			const found = await repo.getById(first.id);
 			expect(found).not.toBeNull();
-			expect(found!.id).toBe(first.id);
+			expect(found?.id).toBe(first.id);
 		});
 
 		test("returns null when not found", async () => {
@@ -201,11 +201,11 @@ describe("MockThreadRepository", () => {
 			expect(store.posts.length).toBe(postsBefore + 1);
 			const firstPost = store.posts.find((p) => p.threadId === created.id);
 			expect(firstPost).toBeDefined();
-			expect(firstPost!.isFirst).toBe(true);
-			expect(firstPost!.content).toBe("<p>First post content</p>");
-			expect(firstPost!.authorId).toBe(1);
-			expect(firstPost!.authorName).toBe("admin");
-			expect(firstPost!.position).toBe(1);
+			expect(firstPost?.isFirst).toBe(true);
+			expect(firstPost?.content).toBe("<p>First post content</p>");
+			expect(firstPost?.authorId).toBe(1);
+			expect(firstPost?.authorName).toBe("admin");
+			expect(firstPost?.position).toBe(1);
 		});
 	});
 
@@ -248,7 +248,7 @@ describe("MockThreadRepository", () => {
 			const target = all.items[0];
 			await repo.setSticky(target.id, StickyLevel.Global);
 			const updated = await repo.getById(target.id);
-			expect(updated!.sticky).toBe(StickyLevel.Global);
+			expect(updated?.sticky).toBe(StickyLevel.Global);
 		});
 
 		test("throws for non-existent", async () => {
@@ -262,7 +262,7 @@ describe("MockThreadRepository", () => {
 			const target = all.items[0];
 			await repo.setDigest(target.id, 2);
 			const updated = await repo.getById(target.id);
-			expect(updated!.digest).toBe(2);
+			expect(updated?.digest).toBe(2);
 		});
 	});
 
@@ -272,7 +272,7 @@ describe("MockThreadRepository", () => {
 			const target = all.items[0];
 			await repo.setClosed(target.id, true);
 			const updated = await repo.getById(target.id);
-			expect(updated!.closed).toBe(1);
+			expect(updated?.closed).toBe(1);
 		});
 
 		test("reopens a thread", async () => {
@@ -281,7 +281,7 @@ describe("MockThreadRepository", () => {
 			await repo.setClosed(target.id, true);
 			await repo.setClosed(target.id, false);
 			const updated = await repo.getById(target.id);
-			expect(updated!.closed).toBe(0);
+			expect(updated?.closed).toBe(0);
 		});
 	});
 
@@ -291,7 +291,7 @@ describe("MockThreadRepository", () => {
 			const target = all.items[0];
 			await repo.move(target.id, 99);
 			const updated = await repo.getById(target.id);
-			expect(updated!.forumId).toBe(99);
+			expect(updated?.forumId).toBe(99);
 		});
 
 		test("syncs forumId on associated posts", async () => {
@@ -303,11 +303,11 @@ describe("MockThreadRepository", () => {
 				content: "<p>Body</p>",
 			});
 			const postBefore = store.posts.find((p) => p.threadId === created.id);
-			expect(postBefore!.forumId).toBe(10);
+			expect(postBefore?.forumId).toBe(10);
 
 			await repo.move(created.id, 77);
 			const postAfter = store.posts.find((p) => p.threadId === created.id);
-			expect(postAfter!.forumId).toBe(77);
+			expect(postAfter?.forumId).toBe(77);
 		});
 
 		test("throws for non-existent", async () => {

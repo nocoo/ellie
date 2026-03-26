@@ -33,7 +33,7 @@ describe("MockForumRepository", () => {
 			const first = forums[0];
 			const found = await repo.getById(first.id);
 			expect(found).not.toBeNull();
-			expect(found!.id).toBe(first.id);
+			expect(found?.id).toBe(first.id);
 		});
 
 		test("returns null when not found", async () => {
@@ -49,7 +49,7 @@ describe("MockForumRepository", () => {
 			const target = forums[0];
 			await repo.update(target.id, { name: "New Name" });
 			const updated = await repo.getById(target.id);
-			expect(updated!.name).toBe("New Name");
+			expect(updated?.name).toBe("New Name");
 		});
 
 		test("updates description", async () => {
@@ -57,7 +57,7 @@ describe("MockForumRepository", () => {
 			const target = forums[0];
 			await repo.update(target.id, { description: "New desc" });
 			const updated = await repo.getById(target.id);
-			expect(updated!.description).toBe("New desc");
+			expect(updated?.description).toBe("New desc");
 		});
 
 		test("updates status", async () => {
@@ -65,7 +65,7 @@ describe("MockForumRepository", () => {
 			const target = forums[0];
 			await repo.update(target.id, { status: 0 });
 			const updated = await repo.getById(target.id);
-			expect(updated!.status).toBe(0);
+			expect(updated?.status).toBe(0);
 		});
 
 		test("updates displayOrder", async () => {
@@ -73,7 +73,7 @@ describe("MockForumRepository", () => {
 			const target = forums[0];
 			await repo.update(target.id, { displayOrder: 99 });
 			const updated = await repo.getById(target.id);
-			expect(updated!.displayOrder).toBe(99);
+			expect(updated?.displayOrder).toBe(99);
 		});
 
 		test("updates icon", async () => {
@@ -81,7 +81,7 @@ describe("MockForumRepository", () => {
 			const target = forums[0];
 			await repo.update(target.id, { icon: "new-icon" });
 			const updated = await repo.getById(target.id);
-			expect(updated!.icon).toBe("new-icon");
+			expect(updated?.icon).toBe("new-icon");
 		});
 
 		test("partial update — only touches specified fields", async () => {
@@ -90,8 +90,8 @@ describe("MockForumRepository", () => {
 			const originalName = target.name;
 			await repo.update(target.id, { description: "Changed" });
 			const updated = await repo.getById(target.id);
-			expect(updated!.name).toBe(originalName);
-			expect(updated!.description).toBe("Changed");
+			expect(updated?.name).toBe(originalName);
+			expect(updated?.description).toBe("Changed");
 		});
 
 		test("throws for non-existent forum", async () => {
@@ -104,7 +104,7 @@ describe("MockForumRepository", () => {
 			await repo.update(target.id, { name: "Mutated" });
 			const all = await repo.listAll();
 			const found = all.find((f) => f.id === target.id);
-			expect(found!.name).toBe("Mutated");
+			expect(found?.name).toBe("Mutated");
 		});
 	});
 });

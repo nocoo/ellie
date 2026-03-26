@@ -10,31 +10,31 @@ describe("AdminSidebar", () => {
 		test("includes dashboard route", () => {
 			const dashboard = NAV_ITEMS.find((item) => item.href === "/admin");
 			expect(dashboard).toBeDefined();
-			expect(dashboard!.label).toBe("Dashboard");
+			expect(dashboard?.label).toBe("Dashboard");
 		});
 
 		test("includes users route", () => {
 			const users = NAV_ITEMS.find((item) => item.href === "/admin/users");
 			expect(users).toBeDefined();
-			expect(users!.label).toBe("Users");
+			expect(users?.label).toBe("Users");
 		});
 
 		test("includes content route", () => {
 			const content = NAV_ITEMS.find((item) => item.href === "/admin/content");
 			expect(content).toBeDefined();
-			expect(content!.label).toBe("Content");
+			expect(content?.label).toBe("Content");
 		});
 
 		test("includes forums route", () => {
 			const forums = NAV_ITEMS.find((item) => item.href === "/admin/forums");
 			expect(forums).toBeDefined();
-			expect(forums!.label).toBe("Forums");
+			expect(forums?.label).toBe("Forums");
 		});
 
 		test("includes settings route", () => {
 			const settings = NAV_ITEMS.find((item) => item.href === "/admin/settings");
 			expect(settings).toBeDefined();
-			expect(settings!.label).toBe("Settings");
+			expect(settings?.label).toBe("Settings");
 		});
 
 		test("all items have icon component", () => {

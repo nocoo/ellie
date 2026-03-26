@@ -1,0 +1,19 @@
+{
+	"name": "@ellie/cli",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"bin": "./src/index.ts",
+	"scripts": {
+		"start": "bun run src/index.ts",
+		"build": "bun build ./src/index.ts --outdir ./dist"
+	},
+	"dependencies": {
+		"@ellie/types": "workspace:*",
+		"chalk": "^5.3.0",
+		"cli-cursor": "^4.0.0",
+		"commander": "^12.1.0",
+		"inquirer": "^9.2.0",
+		"ora": "^8.0.0"
+	}
+}

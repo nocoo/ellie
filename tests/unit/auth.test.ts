@@ -13,15 +13,15 @@ describe("validateMockCredentials", () => {
 	test("valid admin credentials → returns user", () => {
 		const user = validateMockCredentials(store.users, "admin", "admin");
 		expect(user).not.toBeNull();
-		expect(user!.username).toBe("admin");
-		expect(user!.role).toBe(UserRole.Admin);
+		expect(user?.username).toBe("admin");
+		expect(user?.role).toBe(UserRole.Admin);
 	});
 
 	test("valid regular user credentials → returns user", () => {
 		const user = validateMockCredentials(store.users, "zhangsan", "zhangsan");
 		expect(user).not.toBeNull();
-		expect(user!.username).toBe("zhangsan");
-		expect(user!.role).toBe(UserRole.User);
+		expect(user?.username).toBe("zhangsan");
+		expect(user?.role).toBe(UserRole.User);
 	});
 
 	test("wrong password → returns null", () => {
@@ -45,13 +45,13 @@ describe("validateMockCredentials", () => {
 	test("supermod credentials → returns user with SuperMod role", () => {
 		const user = validateMockCredentials(store.users, "supermod", "supermod");
 		expect(user).not.toBeNull();
-		expect(user!.role).toBe(UserRole.SuperMod);
+		expect(user?.role).toBe(UserRole.SuperMod);
 	});
 
 	test("mod credentials → returns user with Mod role", () => {
 		const user = validateMockCredentials(store.users, "mod_tech", "mod_tech");
 		expect(user).not.toBeNull();
-		expect(user!.role).toBe(UserRole.Mod);
+		expect(user?.role).toBe(UserRole.Mod);
 	});
 
 	test("auth reflects user status mutations (shared state)", () => {

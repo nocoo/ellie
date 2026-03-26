@@ -118,7 +118,7 @@ describe("filterVisibleForums", () => {
 		const node: ForumTreeNode = { ...makeForum({ id: 1, status: 1 }), children: [] };
 		const result = filterVisibleForums(node);
 		expect(result).not.toBeNull();
-		expect(result!.id).toBe(1);
+		expect(result?.id).toBe(1);
 	});
 
 	test("hidden node → returns null", () => {
@@ -147,8 +147,8 @@ describe("filterVisibleForums", () => {
 		};
 		const result = filterVisibleForums(parent);
 		expect(result).not.toBeNull();
-		expect(result!.children).toHaveLength(1);
-		expect(result!.children[0].id).toBe(10);
+		expect(result?.children).toHaveLength(1);
+		expect(result?.children[0].id).toBe(10);
 	});
 
 	test("deeply nested hidden node is pruned", () => {
@@ -160,7 +160,7 @@ describe("filterVisibleForums", () => {
 		const group: ForumTreeNode = { ...makeForum({ id: 1, status: 1 }), children: [forum] };
 		const result = filterVisibleForums(group);
 		expect(result).not.toBeNull();
-		expect(result!.children[0].children).toHaveLength(0);
+		expect(result?.children[0].children).toHaveLength(0);
 	});
 
 	test("does not mutate original tree", () => {

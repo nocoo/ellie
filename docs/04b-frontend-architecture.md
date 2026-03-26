@@ -46,66 +46,94 @@
 
 ## 项目结构
 
-沿用 Doc01 的**单包结构**，前端代码放 `src/`，与迁移脚本共存。不引入 monorepo。
+**Monorepo 结构（pnpm workspace）**：前端代码位于 `apps/web/`，API 由 `apps/worker/` 提供，共享类型和 Repository 在 `packages/`。
 
 ```
 ellie/
-├── docs/                        # 项目文档（已有）
-├── scripts/migrate/             # Phase 1: 迁移脚本（已有）
-├── src/                         # 应用代码
-│   ├── app/
-│   │   ├── layout.tsx           # 根 Layout: AuthProvider + 字体 + 主题
-│   │   ├── login/page.tsx       # 登录页
-│   │   ├── (forum)/             # 论坛 Route Group（→ 04d）
-│   │   │   ├── page.tsx         # / — 首页（论坛版块列表）
-│   │   │   └── ...
-│   │   ├── (admin)/             # Admin Route Group（→ 04c）
-│   │   │   └── ...
-│   │   └── api/                 # API Routes
-│   │       ├── auth/[...nextauth]/route.ts
-│   │       ├── v1/              # 论坛 API
-│   │       └── admin/           # Admin API
+├── apps/
+│   ├── web/                     # Next.js 前端（本文档范围）
+│   │   ├── src/
+│   │   │   ├── app/
+│   │   │   │   ├── layout.tsx   # 根 Layout: AuthProvider + 字体 + 主题
+│   │   │   │   ├── login/page.tsx # 登录页
+│   │   │   │   ├── (forum)/     # 论坛 Route Group（→ 04d）
+│   │   │   │   │   ├── page.tsx # / — 首页（论坛版块列表）
+│   │   │   │   │   └── ...
+│   │   │   │   └── (admin)/     # Admin Route Group（→ 04c）
+│   │   │   │       └── ...
+│   │   │   │
+│   │   │   ├── components/
+│   │   │   │   ├── ui/          # shadcn/ui 原子组件（共享）
+│   │   │   │   ├── layout/      # 布局组件（共享）
+│   │   │   │   ├── forum/       # 论坛组件（→ 04d）
+│   │   │   │   └── admin/       # Admin 组件（→ 04c）
+│   │   │   │
+│   │   │   ├── lib/
+│   │   │   │   ├── utils.ts     # cn(), formatDate()
+│   │   │   │   ├── palette.ts   # 设计 token
+│   │   │   │   ├── constants.ts # 全局常量
+│   │   │   │   └── api-client.ts # Worker API 客户端
+│   │   │   │
+│   │   │   ├── hooks/           # 共享 hooks
+│   │   │   │   ├── useIsMobile.ts
+│   │   │   │   ├── useTheme.ts
+│   │   │   │   └── useDebounce.ts
+│   │   │   │
+│   │   │   ├── auth.ts          # NextAuth 配置
+│   │   │   └── proxy.ts         # Next.js 16 proxy
+│   │   │
+│   │   ├── public/
+│   │   │   └── smileys/         # Discuz Smiley 表情图片（04e）
+│   │   │
+│   │   ├── next.config.ts
+│   │   ├── tailwind.css         # Tailwind v4 + 设计 token
+│   │   ├── components.json      # shadcn/ui
+│   │   ├── package.json         # 依赖：@ellie/types, @ellie/repositories
+│   │   └── tsconfig.json        # references to @ellie/types, @ellie/repositories
 │   │
-│   ├── models/                  # Model 层（04a 定义）
-│   ├── viewmodels/              # ViewModel 层（04c/04d 各自定义）
-│   ├── data/                    # 数据层（04a 定义接口）
-│   │   ├── mock/                # Mock 数据
-│   │   ├── repositories/        # Repository 接口 + 实现
-│   │   └── index.ts             # 工厂
-│   │
-│   ├── components/
-│   │   ├── ui/                  # shadcn/ui 原子组件（共享）
-│   │   ├── layout/              # 布局组件（共享）
-│   │   ├── forum/               # 论坛组件（→ 04d）
-│   │   └── admin/               # Admin 组件（→ 04c）
-│   │
-│   ├── lib/
-│   │   ├── utils.ts             # cn(), formatDate()
-│   │   ├── palette.ts           # 设计 token
-│   │   └── constants.ts         # 全局常量
-│   │
-│   ├── hooks/                   # 共享 hooks
-│   │   ├── useIsMobile.ts
-│   │   ├── useTheme.ts
-│   │   └── useDebounce.ts
-│   │
-│   ├── auth.ts                  # NextAuth 配置
-│   └── proxy.ts                 # Next.js 16 proxy
+│   └── worker/                  # Cloudflare Worker API（→ 04c）
+│       ├── src/
+│       │   ├── index.ts         # Worker 入口
+│       │   ├── handlers/        # API 路由处理器
+│       │   ├── middleware/      # 认证/限流/CORS
+│       │   └── lib/
+│       ├── wrangler.toml
+│       └── package.json
 │
+├── packages/
+│   ├── types/                   # 共享类型定义（@ellie/types）
+│   ├── repositories/            # 共享 Repository（@ellie/repositories）
+│   ├── db/                      # 共享 D1 客户端（@ellie/db）
+│   ├── cli/                     # Telnet 风格 CLI（@ellie/cli）
+│   └── migrate/                 # 迁移脚本（@ellie/migrate）
+│
+├── docs/                        # 项目文档（已有）
 ├── tests/
 │   ├── unit/                    # L1（models/ viewmodels/ components/）
 │   └── integration/             # L2（api/）
 │
-├── public/
-│   └── smileys/                 # Discuz Smiley 表情图片（04e）
-│
-├── next.config.ts
-├── tailwind.css                 # Tailwind v4 + 设计 token
-├── components.json              # shadcn/ui
-├── package.json                 # 在现有基础上扩展
-├── tsconfig.json
+├── pnpm-workspace.yaml          # Workspace 配置
+├── package.json                 # Root package.json
+├── tsconfig.json                # Root tsconfig（references）
 └── biome.json                   # 已有
 ```
+
+### API 架构
+
+前端不直接访问 D1，所有 API 请求通过 Cloudflare Worker：
+
+```
+┌─────────────┐     fetch()     ┌──────────────┐     D1 bind     ┌─────────┐
+│  Next.js    │ ───────────────▶│   Worker     │ ──────────────▶│   D1    │
+│  (apps/web) │◀─────────────── │  (worker/)   │◀────────────── │ Database │
+└─────────────┘    JSON         └──────────────┘    SQLite      └─────────┘
+```
+
+Worker 提供：
+- `/api/v1/*` — 公开 API（论坛列表、主题、帖子、用户）
+- `/api/admin/*` — 管理 API（需认证）
+- CORS、限流、认证中间件
+
 
 ---
 

@@ -50,7 +50,7 @@ describe("forum-management ViewModel", () => {
 
 			await actions.updateForum(target.id, { name: "Updated Name" });
 			const updated = await repos.forums.getById(target.id);
-			expect(updated!.name).toBe("Updated Name");
+			expect(updated?.name).toBe("Updated Name");
 		});
 
 		test("toggleVisibility flips status 1 → 0", async () => {
@@ -60,9 +60,9 @@ describe("forum-management ViewModel", () => {
 			const active = forums.find((f) => f.status === 1);
 			expect(active).toBeDefined();
 
-			await actions.toggleVisibility(active!.id, 1);
-			const updated = await repos.forums.getById(active!.id);
-			expect(updated!.status).toBe(0);
+			await actions.toggleVisibility(active?.id, 1);
+			const updated = await repos.forums.getById(active?.id);
+			expect(updated?.status).toBe(0);
 		});
 
 		test("toggleVisibility flips status 0 → 1", async () => {
@@ -76,7 +76,7 @@ describe("forum-management ViewModel", () => {
 			// Then toggle back
 			await actions.toggleVisibility(target.id, 0);
 			const updated = await repos.forums.getById(target.id);
-			expect(updated!.status).toBe(1);
+			expect(updated?.status).toBe(1);
 		});
 
 		test("updateOrder changes displayOrder", async () => {
@@ -87,7 +87,7 @@ describe("forum-management ViewModel", () => {
 
 			await actions.updateOrder(target.id, 999);
 			const updated = await repos.forums.getById(target.id);
-			expect(updated!.displayOrder).toBe(999);
+			expect(updated?.displayOrder).toBe(999);
 		});
 
 		test("updateForum throws for non-existent forum", async () => {

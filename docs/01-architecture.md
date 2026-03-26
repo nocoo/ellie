@@ -15,21 +15,23 @@ Ellie 是一个将 Discuz! X3.4 论坛数据迁移到 Cloudflare 平台的项目
 | 数据库 | Cloudflare D1 | SQLite 兼容，全球分布式读副本，Worker 原生绑定 |
 | 文件存储 | Cloudflare R2 | S3 兼容，无出口费用，CDN 分发 |
 | 缓存 | Cache API + Workers KV | 边缘缓存 + 全球 KV |
-| 应用框架 | Next.js on Cloudflare | Phase 2，SSR + Workers 部署 |
-| 包管理 | Bun | 内置包管理器 |
+| 应用框架 | Next.js 16 | App Router, Turbopack, Server Components |
+| Worker API | Cloudflare Workers | D1 中间层，边缘计算 |
+| CLI 客户端 | Commander + Inquirer | Telnet 风格命令行界面 |
+| 包管理 | pnpm | Workspace monorepo 支持 |
 | 代码质量 | Biome | Lint + Format 一体化，比 ESLint 快 |
 | 测试 | bun test | 内置，兼容 Jest API |
 
 ## 实施路线图
 
-### Phase 1：数据迁移（当前）
+### Phase 1：数据迁移（已完成）
 - 从 MySQL dump 解析数据
 - 转换编码、BBCode、密码格式
 - 写入本地 SQLite 验证
 - 导入 Cloudflare D1
 - 验证数据完整性、编码正确性、查询性能
 
-### Phase 2：API 层 + 管理后台
+### Phase 2：API 层 + 管理后台（进行中）
 - Cloudflare Worker API
 - 管理后台（用户管理、内容审核）
 
@@ -37,38 +39,75 @@ Ellie 是一个将 Discuz! X3.4 论坛数据迁移到 Cloudflare 平台的项目
 - Next.js 论坛界面
 - 帖子列表、帖子阅读、用户资料
 
-### Phase 4：搜索 + 高级功能
-- Workers AI + Vectorize 语义搜索
-- 实时通知
-- 用户互动功能
+### Phase 4：CLI 客户端
+- Telnet 风格命令行界面
+- 浏览版块、主题、帖子
+- 发布回复
 
-## 项目结构（目标）
-
-> 以下为完整目标结构。尚未创建的部分在实现各 Phase 时逐步建立。
+## Monorepo 结构
 
 ```
 ellie/
-├── docs/                     # 项目文档
-├── scripts/
-│   └── migrate/              # Phase 1: 迁移脚本
-│       ├── index.ts          # 迁移入口（orchestrate ETL 全流程）
-│       ├── extract/          # 数据提取（SQL dump 解析）
-│       │   └── parser.ts     # gzip SQL dump 流式解析器
-│       ├── transform/        # 数据转换
-│       │   ├── bbcode.ts     # BBCode → HTML
-│       │   ├── encoding.ts   # 编码检测与修复
-│       │   ├── avatar.ts     # uid → 头像路径计算
-│       │   └── password.ts   # 密码字段映射（直接透传）
-│       ├── load/             # 数据加载（bun:sqlite 写入本地 SQLite）
-│       └── verify/           # 迁移验证（完整性、编码、性能）
-├── src/                      # Phase 2+: Worker API + 应用代码
+├── apps/
+│   ├── web/                    # Next.js 前端
+│   │   ├── app/                # App Router 页面
+│   │   ├── components/         # React 组件
+│   │   ├── lib/                # 工具函数
+│   │   ├── models/             # 数据模型
+│   │   └── package.json
+│   │
+│   └── worker/                 # Cloudflare Worker API
+│       ├── src/
+│       │   ├── index.ts        # Worker 入口
+│       │   ├── handlers/       # API 路由处理器
+│       │   ├── middleware/     # 认证/限流/CORS
+│       │   └── lib/
+│       ├── wrangler.toml
+│       └── package.json
+│
+├── packages/
+│   ├── types/                  # 共享类型定义
+│   │   ├── src/                # Forum, Thread, Post, User 等
+│   │   └── package.json
+│   │
+│   ├── repositories/           # 共享 Repository
+│   │   ├── src/
+│   │   │   ├── types.ts        # Repository 接口
+│   │   │   ├── mock/           # Mock 实现
+│   │   │   └── d1/             # D1 实现（Worker 用）
+│   │   └── package.json
+│   │
+│   ├── db/                     # 共享 D1 客户端
+│   │   ├── src/
+│   │   │   ├── d1.ts           # D1 客户端封装
+│   │   │   └── schema.ts       # 表结构定义
+│   │   └── package.json
+│   │
+│   ├── cli/                    # Telnet 风格 CLI
+│   │   ├── src/
+│   │   │   ├── index.ts        # CLI 入口
+│   │   │   ├── commands/       # 命令实现
+│   │   │   └── client.ts       # Worker API 客户端
+│   │   └── package.json
+│   │
+│   └── migrate/                # 迁移脚本
+│       ├── src/
+│       │   ├── index.ts
+│       │   ├── extract/
+│       │   ├── transform/
+│       │   ├── load/
+│       │   └── verify/
+│       └── package.json
+│
+├── docs/                       # 项目文档
 ├── tests/
-│   ├── unit/                 # L1 单元测试
-│   └── integration/          # L2 集成测试
-├── reference/                # 本地参考数据（gitignored）
-│   └── db/                   # MySQL dump 文件（~1.4 GB）
-├── package.json
-├── tsconfig.json
+│   ├── unit/                   # L1 单元测试
+│   └── integration/            # L2 集成测试
+├── reference/                  # 本地参考数据（gitignored）
+│   └── db/                     # MySQL dump 文件（~1.4 GB）
+├── pnpm-workspace.yaml         # Workspace 配置
+├── package.json                # Root package.json
+├── tsconfig.json               # Root tsconfig（references）
 ├── biome.json
 └── wrangler.toml
 ```
@@ -81,7 +120,7 @@ ellie/
 |------|------|------|---------|
 | L1 单元测试 | bun test | ≥95% 覆盖率 | pre-commit |
 | L2 集成测试 | bun test | 真实 SQLite 数据 | pre-push |
-| L3 端到端测试 | N/A | 迁移工具无 UI | — |
+| L3 端到端测试 | Playwright | E2E 场景 | CI |
 | G1 静态分析 | Biome strict | 0 error, 0 warning | pre-commit |
 | G2 安全门控 | osv-scanner + gitleaks | 依赖漏洞 + 密钥泄露 | pre-push |
 | D1 测试隔离 | ellie-db-test | 独立测试 D1 实例 | L2 连接 |
