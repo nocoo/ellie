@@ -218,12 +218,12 @@
 
 | 编号 | 提交信息 | 内容 | 测试 |
 |------|---------|------|------|
-| 4.5.1 | `feat: add admin layout (sidebar + header)` | AdminLayout + AdminSidebar | L1: sidebar 折叠/展开 |
-| 4.5.2 | `feat: add dashboard viewmodel + page` | useDashboardViewModel + StatCard + ChartWidgets + admin/page.tsx | L1 ≥90%: 数据聚合逻辑 |
-| 4.5.3 | `feat: add user management viewmodel + page` | useUserManagementViewModel + UserTable + admin/users/page.tsx | L1 ≥90%: 筛选/搜索/ban/unban/roleChange |
-| 4.5.4 | `feat: add content moderation viewmodel + page` | useContentModerationViewModel + ContentTable + admin/content/page.tsx | L1 ≥90%: tab 切换/筛选/物理删除 |
-| 4.5.5 | `feat: add forum management viewmodel + page` | useForumManagementViewModel + ForumTree + admin/forums/page.tsx | L1 ≥90%: 树构建/编辑/隐藏/排序 |
-| 4.5.6 | `feat: add admin auth guard` | (admin)/layout.tsx 权限检查 + resolveAdmin() | L1: canAccessAdmin 各角色组合 |
+| 4.5.1 | `feat: add admin layout (sidebar + header)` | AdminLayout + AdminSidebar | ✅ L1: nav items + exports |
+| 4.5.2 | `feat: add dashboard viewmodel + page` | useDashboardViewModel + StatCard + ChartWidgets + admin/page.tsx | ✅ L1 ≥90%: todayStart/daysAgo/aggregateTrend + fetchDashboardData |
+| 4.5.3 | `feat: add user management viewmodel + page` | useUserManagementViewModel + UserTable + admin/users/page.tsx | ✅ L1 ≥90%: filter/search/ban/unban/roleChange |
+| 4.5.4 | `feat: add content moderation viewmodel + page` | useContentModerationViewModel + ContentTable + admin/content/page.tsx | ✅ L1 ≥90%: threads/posts + delete |
+| 4.5.5 | `feat: add forum management viewmodel + page` | useForumManagementViewModel + ForumTree + admin/forums/page.tsx | ✅ L1 ≥90%: tree/edit/hide/order |
+| 4.5.6 | `feat: add admin auth guard` | (admin)/layout.tsx 权限检查 + resolveAdmin() | ✅ L1: all role combinations |
 
 > **4.5 结束时**：Admin 后台功能完整，ViewModel L1 ≥90%。
 
