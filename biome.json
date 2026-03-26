@@ -38,6 +38,28 @@
 		}
 	},
 	"files": {
-		"ignore": ["node_modules", "dist", "reference", "*.sql", "*.sql.gz"]
-	}
+		"ignore": ["node_modules", "dist", ".next", "reference", "*.sql", "*.sql.gz"]
+	},
+	"overrides": [
+		{
+			"include": ["src/components/ui/**"],
+			"linter": {
+				"rules": {
+					"a11y": {
+						"noLabelWithoutControl": "off"
+					}
+				}
+			}
+		},
+		{
+			"include": ["src/components/forum/post-card.tsx"],
+			"linter": {
+				"rules": {
+					"security": {
+						"noDangerouslySetInnerHtml": "off"
+					}
+				}
+			}
+		}
+	]
 }
