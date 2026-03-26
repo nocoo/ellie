@@ -4,8 +4,8 @@
 // Tests that interactive features work end-to-end:
 // - Sort controls change URL and reload data
 // - Search returns results
-// - Reply form submits and new reply appears
-// - Admin actions execute and state changes
+// - Reply form submits and new reply appears in post list
+// - Admin actions execute and produce observable state changes
 //
 // Uses loginAs() helper for tests that require authentication.
 
@@ -64,7 +64,11 @@ test.describe("Thread detail — reply submission", () => {
 		await page.goto("/threads/50001");
 		await expect(page.locator("h2", { hasText: "Reply" })).toBeVisible();
 
-		// Type reply content
+		// Count existing posts before submitting
+		const postCards = page.locator(".bg-secondary .prose");
+		const countBefore = await postCards.count();
+
+		// Type reply content with unique text
 		const textarea = page.locator("textarea[placeholder*='reply']");
 		await expect(textarea).toBeVisible();
 		const replyText = `E2E test reply ${Date.now()}`;
@@ -75,72 +79,105 @@ test.describe("Thread detail — reply submission", () => {
 		await expect(submitBtn).toBeEnabled();
 		await submitBtn.click();
 
-		// Wait for page refresh — the reply should appear in the post list
-		// After router.refresh(), the textarea should be cleared (component remounts)
+		// After router.refresh(), the textarea should be cleared
 		await expect(textarea).toHaveValue("", { timeout: 10000 });
+
+		// The new reply text should appear in the post list
+		await expect(page.locator(".prose", { hasText: replyText })).toBeVisible({ timeout: 10000 });
+
+		// Post count should have increased by 1
+		await expect(postCards).toHaveCount(countBefore + 1, { timeout: 10000 });
 	});
 });
 
 test.describe("Admin actions — logged in as admin", () => {
-	test("admin can click Ban and status changes", async ({ page }) => {
+	test("admin can click Ban and user status changes to Banned", async ({ page }) => {
 		await loginAs(page, "admin");
 
 		await page.goto("/admin/users");
 		await expect(page.locator("h2", { hasText: "User Management" })).toBeVisible();
 
-		// Find a Ban button (should exist for non-admin users)
+		// Find the first row with a Ban button (non-banned user)
 		const banBtn = page.locator("button", { hasText: "Ban" }).first();
 		await expect(banBtn).toBeVisible({ timeout: 5000 });
+
+		// Get the row containing this Ban button to track its state change
+		const targetRow = banBtn.locator("xpath=ancestor::tr");
+		// Verify the row does NOT have a "Banned" badge before clicking
+		await expect(targetRow.locator("text=Banned")).not.toBeVisible();
 
 		// Click Ban
 		await banBtn.click();
 
-		// After refresh, the same row should show "Unban" instead of "Ban"
-		// (or at minimum the Banned status badge should appear)
-		await expect(
-			page.locator("text=Banned").or(page.locator("button", { hasText: "Unban" })),
-		).toBeVisible({ timeout: 10000 });
+		// After refresh, the same row should show:
+		// 1. "Banned" status badge
+		await expect(targetRow.locator("text=Banned")).toBeVisible({ timeout: 10000 });
+		// 2. "Unban" button instead of "Ban"
+		await expect(targetRow.locator("button", { hasText: "Unban" })).toBeVisible({
+			timeout: 10000,
+		});
 	});
 
-	test("admin can click Delete on content page", async ({ page }) => {
+	test("admin can delete a thread and row count decreases", async ({ page }) => {
 		await loginAs(page, "admin");
 
 		await page.goto("/admin/content");
 		await expect(page.locator("h2", { hasText: "Content Moderation" })).toBeVisible();
 
-		// Count threads before delete
-		const rowsBefore = await page.locator("tbody tr").count();
-		expect(rowsBefore).toBeGreaterThan(0);
+		// Count rows before delete
+		const rows = page.locator("tbody tr");
+		const countBefore = await rows.count();
+		expect(countBefore).toBeGreaterThan(0);
 
-		// Click first Delete button and confirm dialog
+		// Capture the subject text of the first thread to verify it disappears
+		const firstRowSubject = await rows.first().locator("td").first().textContent();
+		expect(firstRowSubject).toBeTruthy();
+
+		// Click first Delete button and auto-accept the confirm dialog
 		page.on("dialog", (dialog) => dialog.accept());
 		const deleteBtn = page.locator("button", { hasText: "Delete" }).first();
 		await deleteBtn.click();
 
-		// After refresh, should have one fewer row (or same if pagination)
-		// At minimum, the page should not show an error
-		await expect(page.locator("h2", { hasText: "Content Moderation" })).toBeVisible({
-			timeout: 10000,
-		});
+		// After refresh: row count should decrease by 1
+		await expect(rows).toHaveCount(countBefore - 1, { timeout: 10000 });
+
+		// The specific thread subject should no longer appear in the first row
+		// (it was either removed or replaced by the next thread)
+		if (countBefore > 1) {
+			const newFirstSubject = await rows.first().locator("td").first().textContent();
+			expect(newFirstSubject).not.toBe(firstRowSubject);
+		}
 	});
 
-	test("admin can toggle forum visibility", async ({ page }) => {
+	test("admin can toggle forum visibility and badge flips", async ({ page }) => {
 		await loginAs(page, "admin");
 
 		await page.goto("/admin/forums");
 		await expect(page.locator("h2", { hasText: "Forum Management" })).toBeVisible();
 
-		// Find a Hide button
-		const toggleBtn = page.locator("button", { hasText: /Hide|Show/ }).first();
+		// Find the first toggle button and its containing context
+		const toggleBtn = page.locator("button", { hasText: /^(Hide|Show)$/ }).first();
 		await expect(toggleBtn).toBeVisible({ timeout: 5000 });
 		const initialText = await toggleBtn.textContent();
+
+		// Find the nearest status badge to verify it changes
+		const parentContainer = toggleBtn.locator("xpath=ancestor::div[contains(@class,'flex')]");
+		const initialBadge = initialText === "Hide" ? "Active" : "Hidden";
+		await expect(parentContainer.locator(`text=${initialBadge}`)).toBeVisible();
 
 		// Click toggle
 		await toggleBtn.click();
 
-		// After refresh, the button text should flip (Hide → Show or Show → Hide)
-		const expectedText = initialText === "Hide" ? "Show" : "Hide";
-		await expect(page.locator("button", { hasText: expectedText }).first()).toBeVisible({
+		// After refresh, the button text should flip
+		const expectedBtnText = initialText === "Hide" ? "Show" : "Hide";
+		const expectedBadge = initialText === "Hide" ? "Hidden" : "Active";
+
+		await expect(page.locator("button", { hasText: expectedBtnText }).first()).toBeVisible({
+			timeout: 10000,
+		});
+
+		// The status badge should also flip
+		await expect(parentContainer.locator(`text=${expectedBadge}`).first()).toBeVisible({
 			timeout: 10000,
 		});
 	});
