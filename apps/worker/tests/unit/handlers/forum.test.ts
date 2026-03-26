@@ -4,6 +4,7 @@ import type { Env } from "../../../src/lib/env";
 
 describe("forum handlers", () => {
 	const mockEnv: Env = {
+		API_KEY: "test-api-key",
 		DB: {} as D1Database,
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret",

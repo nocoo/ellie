@@ -9,7 +9,7 @@ const ALLOWED_ORIGINS = [
 export function corsHeaders(origin?: string): Record<string, string> {
 	const headers: Record<string, string> = {
 		"Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
-		"Access-Control-Allow-Headers": "Content-Type, Authorization",
+		"Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
 		"Access-Control-Max-Age": "86400",
 	};
 

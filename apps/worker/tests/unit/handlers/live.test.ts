@@ -4,6 +4,7 @@ import type { Env } from "../../../src/lib/env";
 
 describe("live handler", () => {
 	const baseEnv: Env = {
+		API_KEY: "test-api-key",
 		DB: {} as D1Database,
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret",
@@ -72,7 +73,7 @@ describe("live handler", () => {
 				"GET, POST, PATCH, DELETE, OPTIONS",
 			);
 			expect(response.headers.get("Access-Control-Allow-Headers")).toBe(
-				"Content-Type, Authorization",
+				"Content-Type, Authorization, X-API-Key",
 			);
 		});
 
