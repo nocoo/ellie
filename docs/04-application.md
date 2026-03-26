@@ -311,12 +311,12 @@
 
 | 编号 | 提交信息 | 内容 | 测试 |
 |------|---------|------|------|
-| 4.9.1 | `test: add playwright e2e setup` | Playwright 配置 + 端口 23000 | — |
-| 4.9.2 | `test: add e2e critical path` | 登录 → 浏览版块 → 查看帖子 → 发帖 → 回帖 | L3 |
-| 4.9.3 | `test: add e2e admin path` | 登录 Admin → 仪表盘 → 用户管理 → 封禁 | L3 |
-| 4.9.4 | `test: add e2e theme + responsive` | 暗黑模式切换 + mobile 导航 | L3 |
-| 4.9.5 | `feat: add vote poll mock ui (04e)` | VotePoll mock 交互 UI（投票/查看结果） | L1: 投票状态切换 |
-| 4.9.6 | `feat: add smiley renderer (04e)` | /smileys/ 图片兼容渲染 | L1 |
+| 4.9.1 | `test: add playwright e2e setup` | Playwright 配置 + 端口 23000 | — | ✅ |
+| 4.9.2 | `test: add e2e critical path` | 登录 → 浏览版块 → 查看帖子 → 发帖 → 回帖 | L3 | ✅ |
+| 4.9.3 | `test: add e2e admin path` | 登录 Admin → 仪表盘 → 用户管理 → 封禁 | L3 | ✅ |
+| 4.9.4 | `test: add e2e theme + responsive` | 暗黑模式切换 + mobile 导航 | L3 | ✅ |
+| 4.9.5 | `feat: add vote poll mock ui (04e)` | VotePoll mock 交互 UI（投票/查看结果） | L1: 投票状态切换 | ✅ |
+| 4.9.6 | `feat: add smiley renderer (04e)` | /smileys/ 图片兼容渲染 | L1 | ✅ |
 
 > **注意**：ThreadBadge special types 已在 4.2.3（model 层 getThreadBadges）和 4.6.3（组件层 ThreadBadge）中完成，此处不再重复。
 >
