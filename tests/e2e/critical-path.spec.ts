@@ -1,44 +1,49 @@
-// tests/e2e/critical-path.spec.ts — E2E critical path
+// tests/e2e/critical-path.spec.ts — E2E page reachability
 // Ref: 04-application §4.9.2
-// Login → browse forums → view thread → create thread → reply
+//
+// Current scope: Verifies that all critical pages render without errors.
+// These are SHALLOW tests — they confirm pages load, not that full
+// functionality works (e.g. we check login form renders, not that
+// login actually authenticates).
+//
+// Phase 2 TODO: Deepen to test actual flows (login → session → create
+// thread → see it in list → reply → see reply). This requires pages
+// to be fully wired to ViewModels with real data flow.
 
 import { expect, test } from "@playwright/test";
 
-test.describe("Critical path", () => {
-	test("homepage loads with forum list", async ({ page }) => {
+test.describe("Page reachability — forum", () => {
+	test("homepage loads with forum layout", async ({ page }) => {
 		await page.goto("/");
-		// Should show the forum layout
 		await expect(page.locator("text=Ellie")).toBeVisible();
-		// Should have forum groups
 		await expect(page.locator("text=Home")).toBeVisible();
 	});
 
-	test("can navigate to digest page", async ({ page }) => {
+	test("digest page loads", async ({ page }) => {
 		await page.goto("/digest");
 		await expect(page.locator("text=Digest")).toBeVisible();
 		await expect(page.locator("text=Featured threads")).toBeVisible();
 	});
 
-	test("can navigate to search page", async ({ page }) => {
+	test("search page loads", async ({ page }) => {
 		await page.goto("/search");
 		await expect(page.locator("text=Search")).toBeVisible();
 	});
 
-	test("can navigate to login page", async ({ page }) => {
+	test("login page renders form fields", async ({ page }) => {
 		await page.goto("/login");
 		await expect(page.locator("text=Ellie")).toBeVisible();
 		await expect(page.locator('input[id="username"]')).toBeVisible();
 		await expect(page.locator('input[id="password"]')).toBeVisible();
 	});
 
-	test("login form validation disables button for empty fields", async ({ page }) => {
+	test("login form disables submit when fields are empty", async ({ page }) => {
 		await page.goto("/login");
 		const submitButton = page.locator('button[type="submit"]');
-		// Button should be disabled when fields are empty
 		await expect(submitButton).toBeDisabled();
 	});
 
-	test("login form enables button with valid input", async ({ page }) => {
+	test("login form enables submit with input", async ({ page }) => {
 		await page.goto("/login");
 		await page.fill('input[id="username"]', "admin");
 		await page.fill('input[id="password"]', "admin");
@@ -46,20 +51,17 @@ test.describe("Critical path", () => {
 		await expect(submitButton).toBeEnabled();
 	});
 
-	test("can browse forum thread list", async ({ page }) => {
-		// Navigate to a forum (using forum ID from mock data)
+	test("forum thread list page loads", async ({ page }) => {
 		await page.goto("/forums/10");
-		// Should show thread list or forum page content
 		await expect(page).toHaveURL(/\/forums\/10/);
 	});
 
-	test("can view thread detail", async ({ page }) => {
-		// Navigate to a thread
+	test("thread detail page loads", async ({ page }) => {
 		await page.goto("/threads/50001");
 		await expect(page).toHaveURL(/\/threads\/50001/);
 	});
 
-	test("can view user profile", async ({ page }) => {
+	test("user profile page loads", async ({ page }) => {
 		await page.goto("/users/1");
 		await expect(page).toHaveURL(/\/users\/1/);
 	});
