@@ -203,6 +203,42 @@ const params = cursor
 
 ## API 端点
 
+### 基础设施端点
+
+#### Health Check（健康检查）
+
+| 方法 | 路径 | 说明 | 认证 |
+|------|------|------|------|
+| GET | /api/live | 系统健康检查 | 无 |
+
+**设计规范**（来源：Memory 知识库 `label_规范`）：
+- 不被登录保护，不被缓存（`Cache-Control: no-store`）
+- 探测 D1 连通性（`SELECT 1 AS probe`），轻量快速
+- 错误响应中不包含 "ok"（防止 keyword monitor 误判）
+- UT 覆盖率 100%
+
+**正常响应（200）：**
+```json
+{
+  "status": "ok",
+  "environment": "production",
+  "timestamp": 1711540800000,
+  "checks": { "d1": "connected" }
+}
+```
+
+**异常响应（503）：**
+```json
+{
+  "status": "error",
+  "environment": "production",
+  "timestamp": 1711540800000,
+  "checks": { "d1": "unreachable: <error message>" }
+}
+```
+
+---
+
 ### 公开 API（无需认证）
 
 #### Forum（版块）
@@ -924,6 +960,18 @@ id = "<KV_NAMESPACE_ID>"
 ### Durable Object 绑定
 
 Durable Object 绑定配置已在 `middleware/rate-limit.ts` 部分定义，包含完整的 Env 类型说明。
+
+### 自定义域名
+
+```toml
+# Custom domain (requires DNS in Cloudflare)
+[[routes]]
+pattern = "ellie.worker.hexly.ai/*"
+```
+
+- 域名绑定通过 Dashboard → Workers → project → Settings → Domains & Routes → Add → Custom Domain
+- DNS 已在 Cloudflare 托管时秒级生效
+- CORS 白名单已包含 `https://ellie.worker.hexly.ai`
 
 ---
 
