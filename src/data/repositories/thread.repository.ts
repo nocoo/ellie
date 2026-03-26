@@ -151,6 +151,12 @@ export function createMockThreadRepository(store: MockDataStore): ThreadReposito
 			const idx = store.threads.findIndex((t) => t.id === id);
 			if (idx === -1) throw new Error(`Thread ${id} not found`);
 			store.threads.splice(idx, 1);
+			// Cascade: remove all posts belonging to this thread
+			for (let i = store.posts.length - 1; i >= 0; i--) {
+				if (store.posts[i].threadId === id) {
+					store.posts.splice(i, 1);
+				}
+			}
 		},
 
 		async setSticky(id: number, level: StickyLevel): Promise<void> {
@@ -175,6 +181,12 @@ export function createMockThreadRepository(store: MockDataStore): ThreadReposito
 			const thread = store.threads.find((t) => t.id === id);
 			if (!thread) throw new Error(`Thread ${id} not found`);
 			thread.forumId = targetForumId;
+			// Sync: update forumId on all posts belonging to this thread
+			for (const post of store.posts) {
+				if (post.threadId === id) {
+					post.forumId = targetForumId;
+				}
+			}
 		},
 	};
 }

@@ -218,6 +218,24 @@ describe("MockThreadRepository", () => {
 			expect(await repo.getById(target.id)).toBeNull();
 		});
 
+		test("cascade-deletes associated posts", async () => {
+			const created = await repo.create({
+				forumId: 10,
+				authorId: 1,
+				authorName: "admin",
+				subject: "Cascade test",
+				content: "<p>First</p>",
+			});
+			// Verify the first post exists
+			const postsBefore = store.posts.filter((p) => p.threadId === created.id);
+			expect(postsBefore.length).toBe(1);
+
+			await repo.delete(created.id);
+			// Posts should be gone
+			const postsAfter = store.posts.filter((p) => p.threadId === created.id);
+			expect(postsAfter.length).toBe(0);
+		});
+
 		test("throws for non-existent", async () => {
 			await expect(repo.delete(999999)).rejects.toThrow("Thread 999999 not found");
 		});
@@ -274,6 +292,22 @@ describe("MockThreadRepository", () => {
 			await repo.move(target.id, 99);
 			const updated = await repo.getById(target.id);
 			expect(updated!.forumId).toBe(99);
+		});
+
+		test("syncs forumId on associated posts", async () => {
+			const created = await repo.create({
+				forumId: 10,
+				authorId: 1,
+				authorName: "admin",
+				subject: "Move sync test",
+				content: "<p>Body</p>",
+			});
+			const postBefore = store.posts.find((p) => p.threadId === created.id);
+			expect(postBefore!.forumId).toBe(10);
+
+			await repo.move(created.id, 77);
+			const postAfter = store.posts.find((p) => p.threadId === created.id);
+			expect(postAfter!.forumId).toBe(77);
 		});
 
 		test("throws for non-existent", async () => {

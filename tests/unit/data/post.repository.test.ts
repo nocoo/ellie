@@ -145,6 +145,54 @@ describe("MockPostRepository", () => {
 			expect(after.total).toBe(before - 1);
 		});
 
+		test("decrements thread reply count", async () => {
+			// Create a reply first, then delete it
+			const reply = await repo.create({
+				threadId: 50001,
+				authorId: 10,
+				authorName: "zhangsan",
+				content: "<p>temp reply</p>",
+			});
+			const thread = store.threads.find((t) => t.id === 50001)!;
+			const repliesBefore = thread.replies;
+
+			await repo.delete(reply.id);
+			expect(thread.replies).toBe(repliesBefore - 1);
+		});
+
+		test("recalculates lastPostAt and lastPoster on delete", async () => {
+			const thread = store.threads.find((t) => t.id === 50001)!;
+			// Add two replies
+			await repo.create({
+				threadId: 50001,
+				authorId: 10,
+				authorName: "zhangsan",
+				content: "<p>reply 1</p>",
+			});
+			const reply2 = await repo.create({
+				threadId: 50001,
+				authorId: 11,
+				authorName: "lisi",
+				content: "<p>reply 2</p>",
+			});
+			expect(thread.lastPoster).toBe("lisi");
+
+			// Delete the latest reply — lastPoster should roll back to zhangsan
+			await repo.delete(reply2.id);
+			expect(thread.lastPoster).toBe("zhangsan");
+		});
+
+		test("does not decrement replies when deleting first post", async () => {
+			const firstPost = store.posts.find((p) => p.threadId === 50001 && p.isFirst);
+			if (!firstPost) throw new Error("No first post for thread 50001");
+			const thread = store.threads.find((t) => t.id === 50001)!;
+			const repliesBefore = thread.replies;
+
+			await repo.delete(firstPost.id);
+			// First post deletion should not affect reply count
+			expect(thread.replies).toBe(repliesBefore);
+		});
+
 		test("throws for non-existent", async () => {
 			await expect(repo.delete(999999)).rejects.toThrow("Post 999999 not found");
 		});

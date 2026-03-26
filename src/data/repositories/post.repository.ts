@@ -98,7 +98,22 @@ export function createMockPostRepository(store: MockDataStore): PostRepository {
 		async delete(id: number): Promise<void> {
 			const idx = store.posts.findIndex((p) => p.id === id);
 			if (idx === -1) throw new Error(`Post ${id} not found`);
+			const deleted = store.posts[idx];
 			store.posts.splice(idx, 1);
+
+			// Update thread reply count and last post info
+			const thread = store.threads.find((t) => t.id === deleted.threadId);
+			if (thread && !deleted.isFirst) {
+				thread.replies = Math.max(0, thread.replies - 1);
+				// Recalculate lastPostAt and lastPoster from remaining posts
+				const remaining = store.posts
+					.filter((p) => p.threadId === deleted.threadId)
+					.sort((a, b) => b.position - a.position);
+				if (remaining.length > 0) {
+					thread.lastPostAt = remaining[0].createdAt;
+					thread.lastPoster = remaining[0].authorName;
+				}
+			}
 		},
 	};
 }
