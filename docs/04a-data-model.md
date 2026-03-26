@@ -283,7 +283,7 @@ export interface PaginationParams {
 ```
 
 **Cursor 结构**：cursor 是 opaque string，内部编码为 `base64(JSON({ sortValue, id }))`。不同排序方式使用不同的 sortValue：
-- `latest` 排序 → `{ lastPostAt, id }`
+- `latest` 排序 → `{ sticky, lastPostAt, id }`  ← 注意：含 sticky，处理置顶帖
 - `newest` 排序 → `{ createdAt, id }`
 - `hot` 排序 → `{ replies, id }`
 
