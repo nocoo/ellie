@@ -18,3 +18,7 @@ class_name = "RateLimiter"
 [vars]
 ENVIRONMENT = "production"
 ALLOWED_ORIGINS = "https://ellie.nocoo.cloud"
+
+# Custom domain (requires DNS in Cloudflare)
+[[routes]]
+pattern = "ellie.worker.hexly.ai/*"

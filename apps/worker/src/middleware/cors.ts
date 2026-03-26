@@ -2,6 +2,7 @@
 
 const ALLOWED_ORIGINS = [
 	"https://ellie.nocoo.cloud",
+	"https://ellie.worker.hexly.ai",
 	"http://localhost:3000",
 ];
 
