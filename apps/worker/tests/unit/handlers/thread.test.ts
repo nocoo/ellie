@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
-import { getById, list } from "../../../src/handlers/thread";
+import { create, getById, list } from "../../../src/handlers/thread";
 import type { Env } from "../../../src/lib/env";
 
 describe("thread handlers", () => {
@@ -261,6 +261,46 @@ describe("thread handlers", () => {
 			// Should fall back to first page query
 			expect(prepareSpy).toHaveBeenCalledWith(expect.not.stringContaining("sticky <"));
 		});
+
+		it("should use default limit of 20 when no limit parameter provided", async () => {
+			const allSpy = mock(() => Promise.resolve({ results: [] }));
+
+			const bindSpy = mock((..._args: unknown[]) => ({
+				all: allSpy,
+			}));
+
+			const db = {
+				prepare: mock(() => ({
+					bind: bindSpy,
+				})),
+			} as unknown as D1Database;
+
+			const env = { ...mockEnv, DB: db };
+
+			await list(new Request("https://example.com/api/v1/threads?forumId=1"), env);
+
+			expect(bindSpy).toHaveBeenCalledWith(1, 20);
+		});
+
+		it("should use valid limit within range", async () => {
+			const allSpy = mock(() => Promise.resolve({ results: [] }));
+
+			const bindSpy = mock((..._args: unknown[]) => ({
+				all: allSpy,
+			}));
+
+			const db = {
+				prepare: mock(() => ({
+					bind: bindSpy,
+				})),
+			} as unknown as D1Database;
+
+			const env = { ...mockEnv, DB: db };
+
+			await list(new Request("https://example.com/api/v1/threads?forumId=1&limit=30"), env);
+
+			expect(bindSpy).toHaveBeenCalledWith(1, 30);
+		});
 	});
 
 	describe("getById", () => {
@@ -334,6 +374,19 @@ describe("thread handlers", () => {
 			await getById(new Request("https://example.com/api/v1/threads/456"), env);
 
 			expect(bindSpy).toHaveBeenCalledWith(456);
+		});
+	});
+
+	describe("create", () => {
+		it("should return 501 NOT_IMPLEMENTED", async () => {
+			const response = await create(
+				new Request("https://example.com/api/v1/threads", { method: "POST" }),
+				mockEnv,
+			);
+
+			expect(response.status).toBe(501);
+			const data = await response.json();
+			expect(data.error.code).toBe("NOT_IMPLEMENTED");
 		});
 	});
 });

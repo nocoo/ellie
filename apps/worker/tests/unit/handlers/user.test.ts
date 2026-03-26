@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
-import { getById } from "../../../src/handlers/user";
+import { deleteFn, getById } from "../../../src/handlers/user";
 import type { Env } from "../../../src/lib/env";
 
 describe("user handlers", () => {
@@ -107,6 +107,19 @@ describe("user handlers", () => {
 
 			// NaN should result in not found
 			expect(response.status).toBe(404);
+		});
+	});
+
+	describe("deleteFn", () => {
+		it("should return 501 NOT_IMPLEMENTED", async () => {
+			const response = await deleteFn(
+				new Request("https://example.com/api/admin/users/1", { method: "DELETE" }),
+				mockEnv,
+			);
+
+			expect(response.status).toBe(501);
+			const data = await response.json();
+			expect(data.error.code).toBe("NOT_IMPLEMENTED");
 		});
 	});
 });
