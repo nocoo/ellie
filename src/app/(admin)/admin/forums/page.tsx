@@ -1,9 +1,10 @@
-// Admin forum management page — forum tree view
+// Admin forum management page — forum tree view with actions
 // Ref: 04c §版块管理 — tree view, edit, hide/show, reorder
 //
 // Server component: fetches forum tree at request time.
-// Phase 2: Add edit/hide/reorder interactions.
+// Visibility toggle buttons are client components that call admin API.
 
+import { AdminForumActions } from "@/components/admin/admin-forum-actions";
 import { createRepositories } from "@/data/index";
 import type { ForumTreeNode } from "@/models/forum";
 import { fetchForumTree } from "@/viewmodels/admin/forum-management";
@@ -46,6 +47,7 @@ function ForumCategory({ node }: { node: ForumTreeNode }) {
 				<div className="flex items-center gap-2 text-xs text-muted-foreground">
 					<StatusBadge status={node.status} />
 					<span>Order: {node.displayOrder}</span>
+					<AdminForumActions forumId={node.id} status={node.status} />
 				</div>
 			</div>
 
@@ -64,6 +66,7 @@ function ForumCategory({ node }: { node: ForumTreeNode }) {
 								<StatusBadge status={forum.status} />
 								<span>{forum.threads} threads</span>
 								<span>Order: {forum.displayOrder}</span>
+								<AdminForumActions forumId={forum.id} status={forum.status} />
 							</div>
 						</li>
 					))}

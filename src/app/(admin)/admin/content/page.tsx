@@ -1,9 +1,10 @@
-// Admin content moderation page — thread list for review
+// Admin content moderation page — thread list with delete actions
 // Ref: 04c §内容审核 — threads/posts tab, filter by forum, delete
 //
 // Server component: fetches recent threads at request time.
-// Phase 2: Add tabs (threads/posts), forum filter, delete actions.
+// Delete buttons are client components that call admin API.
 
+import { AdminContentActions } from "@/components/admin/admin-content-actions";
 import { createRepositories } from "@/data/index";
 import { fetchThreads } from "@/viewmodels/admin/content-moderation";
 
@@ -25,6 +26,7 @@ export default async function AdminContentPage() {
 								<th className="p-4">Forum</th>
 								<th className="p-4 text-right">Replies</th>
 								<th className="p-4 text-right">Date</th>
+								<th className="p-4 text-right">Actions</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -37,11 +39,14 @@ export default async function AdminContentPage() {
 									<td className="p-4 text-right text-muted-foreground">
 										{new Date(thread.createdAt * 1000).toLocaleDateString()}
 									</td>
+									<td className="p-4 text-right">
+										<AdminContentActions type="thread" id={thread.id} />
+									</td>
 								</tr>
 							))}
 							{result.items.length === 0 && (
 								<tr>
-									<td colSpan={5} className="p-8 text-center text-muted-foreground">
+									<td colSpan={6} className="p-8 text-center text-muted-foreground">
 										No threads found.
 									</td>
 								</tr>

@@ -1,9 +1,10 @@
-// Admin user management page — user list with role/status info
+// Admin user management page — user list with role/status info + ban/unban
 // Ref: 04c §用户管理 — search, filter, ban/unban, role change
 //
 // Server component: fetches user list at request time.
-// Phase 2: Add client-side interactions for ban/unban/role change.
+// Action buttons are client components that call admin API.
 
+import { AdminUserActions } from "@/components/admin/admin-user-actions";
 import { UserAvatar } from "@/components/user-avatar";
 import { createRepositories } from "@/data/index";
 import { UserRole, UserStatus } from "@/models/types";
@@ -40,6 +41,7 @@ export default async function AdminUsersPage() {
 								<th className="p-4">Role</th>
 								<th className="p-4">Status</th>
 								<th className="p-4 text-right">Posts</th>
+								<th className="p-4 text-right">Actions</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -71,11 +73,14 @@ export default async function AdminUsersPage() {
 										</span>
 									</td>
 									<td className="p-4 text-right text-muted-foreground">{user.posts}</td>
+									<td className="p-4 text-right">
+										<AdminUserActions userId={user.id} status={user.status} />
+									</td>
 								</tr>
 							))}
 							{result.items.length === 0 && (
 								<tr>
-									<td colSpan={5} className="p-8 text-center text-muted-foreground">
+									<td colSpan={6} className="p-8 text-center text-muted-foreground">
 										No users found.
 									</td>
 								</tr>
