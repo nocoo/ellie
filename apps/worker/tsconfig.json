@@ -3,6 +3,8 @@
 		"target": "ESNext",
 		"lib": ["esnext"],
 		"strict": true,
+		"composite": true,
+		"declaration": true,
 		"noEmit": true,
 		"esModuleInterop": true,
 		"module": "ESNext",
@@ -10,7 +12,8 @@
 		"resolveJsonModule": true,
 		"isolatedModules": true,
 		"forceConsistentCasingInFileNames": true,
-		"types": ["@cloudflare/workers-types"]
+		"skipLibCheck": true,
+		"types": ["@cloudflare/workers-types", "bun-types"]
 	},
 	"include": ["src/**/*.ts"],
 	"exclude": ["node_modules"]

@@ -1,0 +1,11 @@
+{
+	"linter": {
+		"recommended": true,
+		"rules": {
+			"style": {
+				"noNonNullAssertion": "error",
+				"noImplicitAnyLet": "error"
+			}
+		}
+	}
+}
