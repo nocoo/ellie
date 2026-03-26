@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./tailwind.css";
+import { Providers } from "@/components/providers";
 import { themeInitScript } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
 import { Geist } from "next/font/google";
@@ -19,7 +20,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: FOUC prevention must be inline script */}
 				<script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
 			</head>
-			<body>{children}</body>
+			<body>
+				<Providers>{children}</Providers>
+			</body>
 		</html>
 	);
 }
