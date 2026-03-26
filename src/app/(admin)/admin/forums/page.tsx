@@ -1,8 +1,8 @@
-// Admin forum management page — forum tree view with actions
-// Ref: 04c §版块管理 — tree view, edit, hide/show, reorder
+// Admin forum management page — forum tree view with full actions
+// Ref: 04c §版块管理 — tree view, edit name/description, hide/show, display order
 //
 // Server component: fetches forum tree at request time.
-// Visibility toggle buttons are client components that call admin API.
+// Action buttons (edit/visibility/order) are client components.
 
 import { AdminForumActions } from "@/components/admin/admin-forum-actions";
 import { createRepositories } from "@/data/index";
@@ -38,16 +38,22 @@ function ForumCategory({ node }: { node: ForumTreeNode }) {
 		<div className="rounded-[14px] bg-card">
 			{/* Category header */}
 			<div className="flex items-center justify-between border-b border-border p-4">
-				<div>
+				<div className="min-w-0 flex-1">
 					<h3 className="font-medium">{node.name}</h3>
 					{node.description && (
 						<p className="mt-0.5 text-sm text-muted-foreground">{node.description}</p>
 					)}
 				</div>
-				<div className="flex items-center gap-2 text-xs text-muted-foreground">
+				<div className="ml-4 flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
 					<StatusBadge status={node.status} />
 					<span>Order: {node.displayOrder}</span>
-					<AdminForumActions forumId={node.id} status={node.status} />
+					<AdminForumActions
+						forumId={node.id}
+						status={node.status}
+						name={node.name}
+						description={node.description}
+						displayOrder={node.displayOrder}
+					/>
 				</div>
 			</div>
 
@@ -56,17 +62,23 @@ function ForumCategory({ node }: { node: ForumTreeNode }) {
 				<ul className="divide-y divide-border">
 					{node.children.map((forum) => (
 						<li key={forum.id} className="flex items-center justify-between p-4 pl-8">
-							<div>
+							<div className="min-w-0 flex-1">
 								<span className="text-sm font-medium">{forum.name}</span>
 								{forum.description && (
 									<p className="mt-0.5 text-xs text-muted-foreground">{forum.description}</p>
 								)}
 							</div>
-							<div className="flex items-center gap-3 text-xs text-muted-foreground">
+							<div className="ml-4 flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
 								<StatusBadge status={forum.status} />
 								<span>{forum.threads} threads</span>
 								<span>Order: {forum.displayOrder}</span>
-								<AdminForumActions forumId={forum.id} status={forum.status} />
+								<AdminForumActions
+									forumId={forum.id}
+									status={forum.status}
+									name={forum.name}
+									description={forum.description}
+									displayOrder={forum.displayOrder}
+								/>
 							</div>
 						</li>
 					))}
