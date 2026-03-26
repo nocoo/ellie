@@ -5,7 +5,6 @@ export interface Env {
 	ENVIRONMENT: string;
 	JWT_SECRET: string;
 	KV: KVNamespace;
-	RATE_LIMITER: DurableObjectNamespace;
 }
 
 export interface CFRequest extends Request {

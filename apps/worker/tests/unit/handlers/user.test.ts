@@ -8,7 +8,6 @@ describe("user handlers", () => {
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret",
 		KV: {} as KVNamespace,
-		RATE_LIMITER: {} as DurableObjectNamespace,
 	};
 
 	/** D1 row (snake_case) as it would come from SELECT with specific columns */
