@@ -26,7 +26,8 @@ export function errorResponse(message: string, status: number): NextResponse {
 
 /**
  * Create repositories instance.
- * Phase 2: may add request-scoped caching.
+ * Uses the module-level singleton store — all requests share state.
+ * Phase 2: may add request-scoped caching on top of D1 repos.
  */
 export function getRepos(): Repositories {
 	return createRepositories();

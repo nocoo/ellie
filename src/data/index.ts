@@ -1,8 +1,13 @@
 // data/index.ts — Repository factory
 // Ref: 04a §Repository Factory, 04b §3 MVVM
-// Creates a shared MockDataStore and passes it to all repositories,
-// ensuring cross-repo state consistency (e.g. thread.create → post repo sees the new post).
-// Phase 2: switch to API implementations when Worker is ready.
+//
+// Module-level singleton MockDataStore ensures cross-request state
+// persistence within a single server process. All repositories share
+// the same backing arrays, so thread.create → post repo sees the new post,
+// and mutations survive across multiple API requests.
+//
+// IMPORTANT: This is in-memory only — state is lost on server restart.
+// Phase 2: replace with D1-backed repositories (state persists in DB).
 
 import { type MockDataStore, createMockDataStore } from "./mock/store";
 import { createMockAttachmentRepository } from "./repositories/attachment.repository";
@@ -28,8 +33,29 @@ export interface Repositories {
 	_store: MockDataStore;
 }
 
+// ---------------------------------------------------------------------------
+// Singleton store — one shared instance per server process.
+// Mutations from any API route are visible to all subsequent requests.
+// Reset only on server restart. Phase 2 replaces this with D1.
+// ---------------------------------------------------------------------------
+let _singleton: MockDataStore | null = null;
+
+function getStore(): MockDataStore {
+	if (!_singleton) {
+		_singleton = createMockDataStore();
+	}
+	return _singleton;
+}
+
+/**
+ * Reset the singleton store. Used by tests to get a clean state.
+ */
+export function resetStore(): void {
+	_singleton = null;
+}
+
 export function createRepositories(): Repositories {
-	const store = createMockDataStore();
+	const store = getStore();
 	return {
 		forums: createMockForumRepository(store),
 		threads: createMockThreadRepository(store),
