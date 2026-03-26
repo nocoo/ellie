@@ -257,7 +257,7 @@ export async function migratePosts(
 		);
 	}
 
-	return { total, ...stats, orphanThread, orphanAuthor, postIds };
+	return { ...stats, orphanThread, orphanAuthor, postIds };
 }
 
 // ─── Step 5: Attachments ────────────────────────────────────────────────────

@@ -41,8 +41,8 @@ export function parseCliArgs(args: string[]): Partial<MigrateConfig> {
 	});
 
 	const config: Partial<MigrateConfig> = {};
-	if (values.db) config.dbPath = values.db;
-	if (values.source) config.sourceDir = values.source;
-	if (values.batch) config.batchSize = Number(values.batch);
+	if (typeof values.db === "string") config.dbPath = values.db;
+	if (typeof values.source === "string") config.sourceDir = values.source;
+	if (typeof values.batch === "string") config.batchSize = Number(values.batch);
 	return config;
 }
