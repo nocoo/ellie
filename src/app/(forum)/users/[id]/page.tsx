@@ -1,19 +1,22 @@
 // (forum)/users/[id]/page.tsx — User profile page
 // Ref: 04d §用户主页 — user info + tabs (threads/posts)
+//
+// Server component: fetches user profile and recent activity.
 
 import { UserAvatar } from "@/components/user-avatar";
 import { createRepositories } from "@/data/index";
-import { fetchUserProfile } from "@/viewmodels/forum/user-profile";
+import {
+	fetchUserPosts,
+	fetchUserProfile,
+	fetchUserThreads,
+} from "@/viewmodels/forum/user-profile";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 interface PageProps {
 	params: Promise<{ id: string }>;
 }
 
-/**
- * User profile page — server component.
- * Displays user info card. Tab content loaded client-side in Phase 2.
- */
 export default async function UserProfilePage({ params }: PageProps) {
 	const { id } = await params;
 	const userId = Number(id);
@@ -23,6 +26,12 @@ export default async function UserProfilePage({ params }: PageProps) {
 	if (!data) notFound();
 
 	const { user, roleLabel, statusLabel } = data;
+
+	// Fetch recent activity
+	const [threadsResult, postsResult] = await Promise.all([
+		fetchUserThreads(repos, userId, { limit: 10 }),
+		fetchUserPosts(repos, userId, { limit: 10 }),
+	]);
 
 	return (
 		<div className="space-y-4">
@@ -45,9 +54,45 @@ export default async function UserProfilePage({ params }: PageProps) {
 				</div>
 			</div>
 
-			{/* Tab content placeholder — Phase 2: client component with tab switching */}
+			{/* Recent threads */}
 			<div className="rounded-[14px] bg-card p-6">
-				<p className="text-muted-foreground">Thread and post history will load here.</p>
+				<h2 className="mb-3 text-lg font-semibold">Recent Threads</h2>
+				{threadsResult.items.length === 0 ? (
+					<p className="text-sm text-muted-foreground">No threads yet.</p>
+				) : (
+					<ul className="space-y-2">
+						{threadsResult.items.map((thread) => (
+							<li key={thread.id} className="flex items-center justify-between text-sm">
+								<Link href={`/threads/${thread.id}`} className="truncate hover:underline">
+									{thread.subject}
+								</Link>
+								<span className="shrink-0 text-xs text-muted-foreground">
+									{thread.replies} replies
+								</span>
+							</li>
+						))}
+					</ul>
+				)}
+			</div>
+
+			{/* Recent posts */}
+			<div className="rounded-[14px] bg-card p-6">
+				<h2 className="mb-3 text-lg font-semibold">Recent Posts</h2>
+				{postsResult.items.length === 0 ? (
+					<p className="text-sm text-muted-foreground">No posts yet.</p>
+				) : (
+					<ul className="space-y-2">
+						{postsResult.items.map((post) => (
+							<li key={post.id} className="text-sm">
+								<Link href={`/threads/${post.threadId}`} className="block truncate hover:underline">
+									{post.content.slice(0, 100)}
+									{post.content.length > 100 ? "..." : ""}
+								</Link>
+								<span className="text-xs text-muted-foreground">in thread #{post.threadId}</span>
+							</li>
+						))}
+					</ul>
+				)}
 			</div>
 		</div>
 	);
