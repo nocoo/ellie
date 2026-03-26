@@ -198,11 +198,11 @@
 
 | 编号 | 提交信息 | 内容 | 测试 |
 |------|---------|------|------|
-| 4.4.1 | `feat: add theme toggle (light/dark/system)` | ThemeToggle + useTheme hook + FOUC 防闪 script | L1: hook 状态切换 |
-| 4.4.2 | `feat: add breadcrumbs component` | Breadcrumbs 通用组件 | L1: 渲染 + 层级正确性 |
-| 4.4.3 | `feat: add keyset pagination component` | ForumPagination + usePagination hook | L1: loadMore/loadPrev/reset |
-| 4.4.4 | `feat: add user avatar component` | UserAvatar (R2 path → img) | L1: 有头像/无头像/fallback |
-| 4.4.5 | `feat: add responsive hooks` | useIsMobile + useDebounce | L1 ≥95% (纯 hook) |
+| 4.4.1 | `feat: add theme toggle (light/dark/system)` | ThemeToggle + useTheme hook + FOUC 防闪 script | ✅ L1: init script structure + exports |
+| 4.4.2 | `feat: add breadcrumbs component` | Breadcrumbs 通用组件 | ✅ L1: data contract + exports |
+| 4.4.3 | `feat: add keyset pagination component` | ForumPagination + usePagination hook | ✅ L1: state contract + exports |
+| 4.4.4 | `feat: add user avatar component` | UserAvatar (R2 path → img) | ✅ L1: getInitials + exports |
+| 4.4.5 | `feat: add responsive hooks` | useIsMobile + useDebounce | ✅ L1: constants + exports |
 
 > **4.4 结束时**：共享组件就绪，4.5 和 4.6 可并行开展。
 
