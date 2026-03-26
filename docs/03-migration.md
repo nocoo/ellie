@@ -210,3 +210,92 @@ Discuz X3.4 默认 UTF-8，但历史数据可能混入 GBK 编码：
 | BBCode 解析失败 | **保留原始文本 + 标记** | 记录 pid 到 `bbcode_failures.log`，content 存原始 message |
 | 编码无法修复 | **保留原始字节 + 标记** | 记录 pid 到 `encoding_failures.log` |
 | SQL dump 解析错误 | **中止当前表** | 报告行号和原始内容，人工检查 |
+
+## D1 导入实战
+
+Cloudflare D1 的 `wrangler d1 execute --file` 有诸多限制，需要特殊处理。
+
+### 导入限制
+
+| 限制项 | 说明 | 解决方案 |
+|-------|------|---------|
+| SQL 语句长度 | 单条语句最大 100KB | 超长内容截断（47 个帖子被截断） |
+| 解析方式 | 按行解析 SQL | 换行用 `replace(...,char(10))` 处理 |
+| 文件大小 | 5 GiB 上传限制 | 拆成小文件（每 20K 行 ~10-30MB） |
+| 执行超时 | 大文件导入易超时 | 逐个小文件导入，自动重试 |
+| 并发 | 导入期间数据库锁定 | 顺序导入，不可并行 |
+| 外键约束 | `PRAGMA defer_foreign_keys` 在 import 模式无效 | 用 `PRAGMA foreign_keys = OFF` |
+
+### 导出脚本 (`scripts/migrate/export-v3.ts`)
+
+关键技术：
+
+1. **换行处理**：帖子内容中的 `\n`/`\r` 替换为 token `{{LF}}`/`{{CR}}`，再用 `replace()` 函数还原
+   ```typescript
+   replace(replace('content{{LF}}here', '{{LF}}', char(10)), '{{CR}}', char(13))
+   ```
+
+2. **NULL 字节清理**：历史数据中有 `\x00` 字节，会导致 SQL 解析失败
+   ```typescript
+   s = s.replaceAll("\x00", "");
+   ```
+
+3. **超长内容截断**：检测字节长度超过 95KB 的内容，二分查找截断到安全范围内
+   ```typescript
+   const byteLen = new TextEncoder().encode(line).length;
+   if (byteLen > 95000) { /* truncate */ }
+   ```
+
+4. **分块导出**：每 20K 行一个文件，确保单文件在 10-30MB 之间
+
+### 导入脚本 (`scripts/migrate/import-v3.sh`)
+
+- 150 个小文件逐个导入
+- 自动重试机制（最多 3 次）
+- D1 reset 恢复等待（遇到 `D1_RESET_DO` 时等 120 秒）
+- `rows_written` 验证（虽然 wrangler meta 显示不准确）
+
+### 实际导入结果
+
+| 表 | 行数 | 文件数 | 导入耗时 |
+|---|---|---|---|
+| forums | 218 | 1 | ~1 秒 |
+| users | 1,141,586 | 1 | ~3 秒 |
+| threads | 982,598 | 1 | ~2 秒 |
+| posts | 9,510,896 | 150 | ~54 分钟 |
+| attachments | 76,721 | 1 | ~2 秒 |
+
+**总耗时：约 60 分钟**
+
+### 最终数据库
+
+- **大小**：4.5 GB（含索引 331 MB）
+- **查询性能**：核心查询 < 10ms，统计查询 ~100-200ms
+- **索引**：8 个，全部生效
+
+### 性能测试结果
+
+| 查询类型 | 耗时 | 索引使用 |
+|---------|------|---------|
+| 按用户查帖子 | 3.4ms | idx_posts_author |
+| 主题帖子分页 | 1.8ms | idx_posts_thread |
+| 全站最新主题 | 0.5ms | idx_threads_latest |
+| 按论坛查主题 | 136ms | idx_threads_forum |
+| 论坛统计（GROUP BY） | 159ms | 全表扫描 |
+
+### 故障排除记录
+
+1. **`unistr() not supported`**：sqlite3 3.51+ CLI 输出用 `unistr()` 编码控制字符，D1 不支持
+   - 解决：用 `bun:sqlite` 直接导出 SQL
+
+2. **`Expression tree is too large (maximum depth 100)`**：用 `||` 拼接换行导致嵌套过深
+   - 解决：改用 `replace()` 函数（仅 2 层嵌套）
+
+3. **`SQLITE_TOOBIG: statement too long`**：单个 INSERT 语句超过 100KB
+   - 解决：检测字节长度并截断超长内容
+
+4. **静默失败（`success: true` 但 `rows_written: 0`）**：文件包含 NULL 字节或换行导致解析中断
+   - 解决：清理 NULL 字节，确保每条 SQL 单行
+
+5. **D1_RESET_DO 恢复模式**：失败后需要等待 60-120 秒才能重试
+   - 解决：检测到该错误时等待 120 秒后重试
