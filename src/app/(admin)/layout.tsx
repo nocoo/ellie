@@ -1,19 +1,28 @@
-// (admin)/layout.tsx — Admin Route Group layout with auth guard
-// Ref: 04c §权限守卫 — page-level auth check
+// (admin)/layout.tsx — Admin Route Group layout with AdminLayout shell
+// Ref: 04c §AdminLayout — sidebar + header + content area
 //
-// MOCK PHASE: This layout is a pass-through. Auth enforcement happens at
-// the proxy level (src/proxy.ts) via X-Mock-Uid/X-Mock-Role headers.
-// Phase 2: This layout will call auth() and redirect non-admin users
-// to /login, providing a server-side fallback guard.
+// Wraps all /admin/* pages in the AdminLayout component which provides
+// the sidebar navigation, header, and responsive behavior.
+// Session user info is passed to the sidebar for display.
 
+import { AdminLayout } from "@/components/layout/admin-layout";
+import { auth } from "@/lib/auth-instance";
 import type { ReactNode } from "react";
 
-/**
- * Admin layout wraps all /admin/* pages.
- * Auth is enforced at proxy level (proxy.ts checks X-Mock-Role ∈ {1,2}).
- * This layout serves as a secondary guard for Phase 2 when NextAuth is used.
- */
-export default function AdminGroupLayout({ children }: { children: ReactNode }) {
-	// Phase 2: const session = await auth(); redirect if !canAccessAdmin(session)
-	return <>{children}</>;
+export default async function AdminGroupLayout({ children }: { children: ReactNode }) {
+	// Read session to display user info in sidebar
+	let user: { username: string; avatar?: string | null } | undefined;
+	try {
+		const session = await auth();
+		if (session?.user) {
+			user = {
+				username: session.user.name ?? "Admin",
+				avatar: session.user.image,
+			};
+		}
+	} catch {
+		// Not in Next.js request context — skip user info
+	}
+
+	return <AdminLayout user={user}>{children}</AdminLayout>;
 }
