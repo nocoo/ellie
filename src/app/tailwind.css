@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens — derived from 04b-frontend-architecture.md §设计系统
+ * Color values in HSL (hue saturation% lightness%) for Tailwind v4 compatibility.
+ * 3-layer brightness: L0 background → L1 card → L2 secondary
+ */
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+	/* Brand */
+	--color-primary: oklch(0.48 0.12 250); /* #336699 */
+	--color-primary-foreground: oklch(1 0 0); /* white */
+
+	/* Semantic — 3-layer brightness (L0 → L1 → L2) */
+	--color-background: oklch(1 0 0); /* L0: page */
+	--color-foreground: oklch(0.32 0 0); /* #444 */
+	--color-muted: oklch(0.44 0 0); /* #666 */
+	--color-muted-foreground: oklch(0.64 0 0); /* #999 */
+	--color-card: oklch(0.97 0.005 250); /* L1: card panel */
+	--color-card-foreground: oklch(0.32 0 0);
+	--color-secondary: oklch(0.95 0.005 250); /* L2: nested */
+	--color-secondary-foreground: oklch(0.32 0 0);
+	--color-accent: oklch(0.92 0.015 250); /* #E5EDF2 */
+	--color-accent-foreground: oklch(0.32 0 0);
+	--color-border: oklch(0.82 0.005 250); /* #CDCDCD */
+	--color-input: oklch(0.82 0.005 250);
+	--color-ring: oklch(0.48 0.12 250);
+
+	/* Status */
+	--color-destructive: oklch(0.63 0.18 25);
+	--color-destructive-foreground: oklch(1 0 0);
+	--color-warning: oklch(0.7 0.16 60);
+	--color-warning-foreground: oklch(0.25 0 0);
+	--color-success: oklch(0.6 0.15 155);
+	--color-success-foreground: oklch(1 0 0);
+
+	/* Radius */
+	--radius-card: 14px;
+	--radius-widget: 10px;
+	--radius: 0.75rem;
+
+	/* Sidebar (shadcn sidebar component tokens) */
+	--color-sidebar: oklch(0.97 0.005 250);
+	--color-sidebar-foreground: oklch(0.32 0 0);
+	--color-sidebar-border: oklch(0.82 0.005 250);
+	--color-sidebar-accent: oklch(0.92 0.015 250);
+	--color-sidebar-accent-foreground: oklch(0.32 0 0);
+	--color-sidebar-ring: oklch(0.48 0.12 250);
+}
+
+.dark {
+	--color-primary: oklch(0.6 0.15 250);
+	--color-primary-foreground: oklch(1 0 0);
+
+	--color-background: oklch(0.18 0.01 250); /* L0 dark */
+	--color-foreground: oklch(0.9 0 0);
+	--color-muted: oklch(0.55 0 0);
+	--color-muted-foreground: oklch(0.65 0 0);
+	--color-card: oklch(0.22 0.01 250); /* L1 dark */
+	--color-card-foreground: oklch(0.9 0 0);
+	--color-secondary: oklch(0.26 0.01 250); /* L2 dark */
+	--color-secondary-foreground: oklch(0.9 0 0);
+	--color-accent: oklch(0.3 0.02 250);
+	--color-accent-foreground: oklch(0.9 0 0);
+	--color-border: oklch(0.35 0.01 250);
+	--color-input: oklch(0.35 0.01 250);
+	--color-ring: oklch(0.6 0.15 250);
+
+	--color-destructive: oklch(0.6 0.2 25);
+	--color-destructive-foreground: oklch(1 0 0);
+	--color-warning: oklch(0.65 0.16 60);
+	--color-warning-foreground: oklch(0.15 0 0);
+	--color-success: oklch(0.55 0.15 155);
+	--color-success-foreground: oklch(1 0 0);
+
+	--color-sidebar: oklch(0.22 0.01 250);
+	--color-sidebar-foreground: oklch(0.9 0 0);
+	--color-sidebar-border: oklch(0.35 0.01 250);
+	--color-sidebar-accent: oklch(0.3 0.02 250);
+	--color-sidebar-accent-foreground: oklch(0.9 0 0);
+	--color-sidebar-ring: oklch(0.6 0.15 250);
+}
+
+/*
+ * Typography — 04b §字体
+ * Inter (body), DM Sans (heading), JetBrains Mono (code)
+ */
+body {
+	font-family: "Inter", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	font-family: "DM Sans", "Microsoft YaHei", sans-serif;
+}
+
+code,
+pre {
+	font-family: "JetBrains Mono", "Cascadia Code", monospace;
+}

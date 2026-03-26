@@ -26,8 +26,10 @@
 	},
 	"trustedDependencies": ["@biomejs/biome"],
 	"dependencies": {
+		"@tailwindcss/postcss": "^4",
 		"next": "^16",
 		"react": "^19",
-		"react-dom": "^19"
+		"react-dom": "^19",
+		"tailwindcss": "^4"
 	}
 }

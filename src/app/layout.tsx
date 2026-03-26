@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import "./tailwind.css";
 
 export const metadata: Metadata = {
 	title: "Ellie — 同济网论坛",
