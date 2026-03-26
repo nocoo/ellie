@@ -1,0 +1,5 @@
+# L1 + L2 + G2 — full gate check before push
+bun test tests/unit/
+# bun test tests/integration/  # L2: uncomment after 4.8
+# bunx osv-scanner .           # G2: uncomment after osv-scanner installed
+# bunx gitleaks detect         # G2: uncomment after gitleaks installed
