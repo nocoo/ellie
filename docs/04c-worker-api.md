@@ -51,7 +51,7 @@ apps/worker/
 │   ├── middleware/      # 认证/限流/CORS
 │   └── lib/
 │       ├── env.ts       # Env 类型定义
-│       └── password.ts  # Discuz 密码验证 + argon2id 升级
+│       └── password.ts  # Discuz 密码验证 + PBKDF2 升级
 └── wrangler.toml
 ```
 
@@ -718,7 +718,7 @@ export interface Env {
 
 | 模块 | 测试内容 | 工具 |
 |------|---------|------|
-| `lib/password.ts` | Discuz 密码验证、argon2id 哈希 | bun test |
+| `lib/password.ts` | Discuz 密码验证、PBKDF2 哈希 | bun test |
 | `middleware/auth.ts` | JWT 验证逻辑、权限检查 | bun test |
 | `middleware/rate-limit.ts` | 速率限制逻辑（mock DO） | bun test |
 | `handlers/*` | 各 handler 函数 | bun test + mock D1 |
