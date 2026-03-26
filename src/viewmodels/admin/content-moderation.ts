@@ -39,7 +39,7 @@ export async function fetchThreads(
 	});
 }
 
-/** Fetch posts for content moderation (requires forumId → threadId mapping, or list by author) */
+/** Fetch posts for content moderation (aggregates across threads) */
 export async function fetchPosts(
 	repos: Repositories,
 	forumId: number | null,
@@ -47,32 +47,47 @@ export async function fetchPosts(
 	direction?: "forward" | "backward",
 	limit = 20,
 ): Promise<PaginatedResult<Post>> {
-	// If filtering by forum, get threads in that forum first, then list posts
-	if (forumId !== null) {
-		const threads = await repos.threads.list({ forumId, limit: 250 });
-		if (threads.items.length === 0) {
-			return { items: [], nextCursor: null, prevCursor: null, total: 0 };
-		}
-		// For simplicity in mock phase, list posts by first thread
-		// A real implementation would aggregate across threads
-		return repos.posts.list({
-			threadId: threads.items[0].id,
-			cursor,
-			direction,
-			limit,
-		});
-	}
-	// Without forum filter, we need at least a threadId — use first thread
-	const allThreads = await repos.threads.list({ limit: 1 });
-	if (allThreads.items.length === 0) {
+	// Get threads to aggregate posts from
+	const threadResult =
+		forumId !== null
+			? await repos.threads.list({ forumId, limit: 250 })
+			: await repos.threads.list({ limit: 250 });
+
+	if (threadResult.items.length === 0) {
 		return { items: [], nextCursor: null, prevCursor: null, total: 0 };
 	}
-	return repos.posts.list({
-		threadId: allThreads.items[0].id,
-		cursor,
-		direction,
-		limit,
-	});
+
+	// Aggregate posts across all threads
+	const allPosts: Post[] = [];
+	for (const thread of threadResult.items) {
+		const posts = await repos.posts.list({ threadId: thread.id, limit: 250 });
+		allPosts.push(...posts.items);
+	}
+
+	// Sort by createdAt descending (newest first for moderation review)
+	allPosts.sort((a, b) => b.createdAt - a.createdAt || b.id - a.id);
+
+	// Manual cursor-based pagination over the aggregated list
+	let page = allPosts;
+	if (cursor) {
+		const cursorId = Number(cursor);
+		if (!Number.isNaN(cursorId)) {
+			const idx = page.findIndex((p) => p.id === cursorId);
+			if (idx !== -1) {
+				page =
+					direction === "backward"
+						? page.slice(Math.max(0, idx - limit), idx)
+						: page.slice(idx + 1);
+			}
+		}
+	}
+
+	const sliced = page.slice(0, limit);
+	const nextCursor =
+		sliced.length === limit && page.length > limit ? String(sliced[sliced.length - 1].id) : null;
+	const prevCursor = cursor && sliced.length > 0 ? String(sliced[0].id) : null;
+
+	return { items: sliced, nextCursor, prevCursor, total: allPosts.length };
 }
 
 /** Create content moderation actions */

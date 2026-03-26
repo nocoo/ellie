@@ -54,11 +54,35 @@ describe("content-moderation ViewModel", () => {
 			expect(result.items.length).toBeGreaterThan(0);
 		});
 
+		test("aggregates posts across multiple threads", async () => {
+			const repos = createRepositories();
+			const result = await fetchPosts(repos, null, undefined, undefined, 250);
+			// Verify posts come from more than one thread
+			const threadIds = new Set(result.items.map((p) => p.threadId));
+			expect(threadIds.size).toBeGreaterThan(1);
+		});
+
+		test("returns posts sorted by createdAt descending", async () => {
+			const repos = createRepositories();
+			const result = await fetchPosts(repos, null, undefined, undefined, 50);
+			for (let i = 1; i < result.items.length; i++) {
+				const curr = result.items[i];
+				const prev = result.items[i - 1];
+				expect(prev.createdAt).toBeGreaterThanOrEqual(curr.createdAt);
+			}
+		});
+
 		test("returns empty for non-existent forum", async () => {
 			const repos = createRepositories();
 			const result = await fetchPosts(repos, 999999);
 			expect(result.items).toHaveLength(0);
 			expect(result.total).toBe(0);
+		});
+
+		test("respects limit parameter", async () => {
+			const repos = createRepositories();
+			const result = await fetchPosts(repos, null, undefined, undefined, 3);
+			expect(result.items.length).toBeLessThanOrEqual(3);
 		});
 	});
 
