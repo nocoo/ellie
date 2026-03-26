@@ -10,7 +10,7 @@
 		"migrate": "bun run scripts/migrate/index.ts",
 		"test": "bun test",
 		"test:unit": "bun test tests/unit/",
-		"test:integration": "bun test tests/integration/",
+		"test:integration": "bun test --preload ./tests/integration/preload.ts tests/integration/",
 		"test:coverage": "bun test --coverage tests/unit/",
 		"typecheck": "tsc --noEmit",
 		"lint": "biome check .",
