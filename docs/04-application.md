@@ -288,14 +288,14 @@
 
 | 编号 | 提交信息 | 内容 | 测试 |
 |------|---------|------|------|
-| 4.8.1 | `test: add api test infrastructure` | `tests/integration/setup.ts` — 自动启停 dev server（端口 13000） | — |
-| 4.8.2 | `test: add forum api integration tests` | GET /api/v1/forums 全量 + getById | L2: 真 HTTP，断言 JSON 结构 |
-| 4.8.3 | `test: add thread api integration tests` | GET/POST/DELETE /api/v1/threads + search | L2: CRUD + 权限拒绝 |
-| 4.8.4 | `test: add post api integration tests` | GET/POST/DELETE /api/v1/posts | L2: 分页 + 权限 |
-| 4.8.5 | `test: add user profile api tests` | GET /api/v1/users + GET /api/v1/users/:id | L2: 公开资料搜索 + 筛选 |
-| 4.8.6 | `test: add moderation api integration tests` | /api/v1/moderation 端点 | L2: 版主操作 + 权限拒绝 |
-| 4.8.7 | `test: add admin api integration tests` | /api/admin/* 端点 | L2: 管理操作 + 权限守卫 403 |
-| 4.8.8 | `test: add nextauth integration tests` | POST /api/auth/callback/credentials + POST /api/auth/signout + GET /api/auth/session | L2: 成功/失败/session 状态 |
+| 4.8.1 | `test: add api test infrastructure` | `tests/integration/setup.ts` — 自动启停 dev server（端口 13000） | ✅ — |
+| 4.8.2 | `test: add forum api integration tests` | GET /api/v1/forums 全量 + getById | ✅ L2: 真 HTTP，断言 JSON 结构 |
+| 4.8.3 | `test: add thread api integration tests` | GET/POST/DELETE /api/v1/threads + search | ✅ L2: CRUD + 权限拒绝 |
+| 4.8.4 | `test: add post api integration tests` | GET/POST/DELETE /api/v1/posts | ✅ L2: 分页 + 权限 |
+| 4.8.5 | `test: add user profile api tests` | GET /api/v1/users + GET /api/v1/users/:id | ✅ L2: 公开资料搜索 + 筛选 |
+| 4.8.6 | `test: add moderation api integration tests` | /api/v1/moderation 端点 | ✅ L2: 版主操作 + 权限拒绝 |
+| 4.8.7 | `test: add admin api integration tests` | /api/admin/* 端点 | ✅ L2: 管理操作 + 权限守卫 403 |
+| 4.8.8 | `test: add nextauth integration tests` | POST /api/auth/callback/credentials + POST /api/auth/signout + GET /api/auth/session | ✅ L2: 成功/失败/session 状态 |
 
 > **4.8 结束时**：L1 + L2 + G1 + G2 全部达标。D1=N/A，**Tier B（Mock 阶段上限）**。
 
