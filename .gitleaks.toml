@@ -1,0 +1,8 @@
+[allowlist]
+description = "Allow test-only secrets that are not real credentials"
+
+# Integration test uses a hardcoded fake AUTH_SECRET for NextAuth
+# File: tests/integration/setup.ts
+paths = [
+  '''tests/integration/setup\.ts''',
+]
