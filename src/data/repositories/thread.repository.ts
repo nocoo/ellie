@@ -1,9 +1,8 @@
 // data/repositories/thread.repository.ts — Mock ThreadRepository implementation
 // Ref: 04a §ThreadRepository
 
-import { MOCK_POSTS } from "@/data/mock/posts";
-import { MOCK_THREADS } from "@/data/mock/threads";
-import { encodeCursor } from "@/models/pagination";
+import type { MockDataStore } from "@/data/mock/store";
+import { decodeCursor, encodeCursor } from "@/models/pagination";
 import type { Thread } from "@/models/types";
 import { StickyLevel } from "@/models/types";
 import type {
@@ -14,29 +13,64 @@ import type {
 	ThreadSearchParams,
 } from "./types";
 
-export function createMockThreadRepository(): ThreadRepository {
-	const threads: Thread[] = MOCK_THREADS.map((t) => ({ ...t }));
-	let nextId = Math.max(...threads.map((t) => t.id)) + 1;
+type SortKey = "lastPostAt" | "createdAt" | "replies";
 
-	function paginate(items: Thread[], limit: number): PaginatedResult<Thread> {
-		const page = items.slice(0, limit);
-		return {
-			items: page,
-			nextCursor:
-				page.length === limit && items.length > limit
-					? encodeCursor({
-							sortValue: page[page.length - 1].lastPostAt,
-							id: page[page.length - 1].id,
-						})
-					: null,
-			prevCursor: null,
-			total: items.length,
-		};
+function getSortKey(sort: "latest" | "newest" | "hot"): SortKey {
+	if (sort === "newest") return "createdAt";
+	if (sort === "hot") return "replies";
+	return "lastPostAt";
+}
+
+function paginateCursor(
+	sorted: Thread[],
+	sortKey: SortKey,
+	limit: number,
+	cursor?: string,
+	direction: "forward" | "backward" = "forward",
+): PaginatedResult<Thread> {
+	let filtered = sorted;
+
+	if (cursor) {
+		const payload = decodeCursor(cursor);
+		if (payload) {
+			if (direction === "forward") {
+				filtered = sorted.filter(
+					(t) =>
+						t[sortKey] < payload.sortValue ||
+						(t[sortKey] === payload.sortValue && t.id < payload.id),
+				);
+			} else {
+				filtered = sorted.filter(
+					(t) =>
+						t[sortKey] > payload.sortValue ||
+						(t[sortKey] === payload.sortValue && t.id > payload.id),
+				);
+				// Backward: we filtered items "before" the cursor in reverse order,
+				// but we still want them in descending order, so reverse then take last N
+				filtered = filtered.slice(-limit);
+			}
+		}
 	}
 
+	const page = direction === "backward" ? filtered.slice(0, limit) : filtered.slice(0, limit);
+
+	const nextCursor =
+		page.length === limit && filtered.length > limit
+			? encodeCursor({ sortValue: page[page.length - 1][sortKey], id: page[page.length - 1].id })
+			: null;
+
+	const prevCursor =
+		cursor && page.length > 0
+			? encodeCursor({ sortValue: page[0][sortKey], id: page[0].id })
+			: null;
+
+	return { items: page, nextCursor, prevCursor, total: sorted.length };
+}
+
+export function createMockThreadRepository(store: MockDataStore): ThreadRepository {
 	return {
 		async list(params: ThreadListParams): Promise<PaginatedResult<Thread>> {
-			let filtered = [...threads];
+			let filtered = [...store.threads];
 
 			if (params.forumId !== undefined)
 				filtered = filtered.filter((t) => t.forumId === params.forumId);
@@ -46,14 +80,13 @@ export function createMockThreadRepository(): ThreadRepository {
 			if (params.createdAfter !== undefined)
 				filtered = filtered.filter((t) => t.createdAt >= params.createdAfter!);
 
-			// Sort
 			const sort = params.sort ?? "latest";
-			if (sort === "latest") filtered.sort((a, b) => b.lastPostAt - a.lastPostAt);
-			else if (sort === "newest") filtered.sort((a, b) => b.createdAt - a.createdAt);
-			else if (sort === "hot") filtered.sort((a, b) => b.replies - a.replies);
+			const sortKey = getSortKey(sort);
+			// Descending sort
+			filtered.sort((a, b) => b[sortKey] - a[sortKey] || b.id - a.id);
 
 			const limit = params.limit ?? 20;
-			return paginate(filtered, limit);
+			return paginateCursor(filtered, sortKey, limit, params.cursor, params.direction);
 		},
 
 		async search(params: ThreadSearchParams): Promise<PaginatedResult<Thread>> {
@@ -61,32 +94,32 @@ export function createMockThreadRepository(): ThreadRepository {
 				throw new Error("search requires titlePrefix or authorName");
 			}
 
-			let filtered = [...threads];
+			let filtered = [...store.threads];
 			if (params.titlePrefix)
 				filtered = filtered.filter((t) => t.subject.startsWith(params.titlePrefix!));
 			if (params.authorName) filtered = filtered.filter((t) => t.authorName === params.authorName);
 
-			filtered.sort((a, b) => b.createdAt - a.createdAt);
+			filtered.sort((a, b) => b.createdAt - a.createdAt || b.id - a.id);
 			const limit = params.limit ?? 20;
-			return paginate(filtered, limit);
+			return paginateCursor(filtered, "createdAt", limit, params.cursor, params.direction);
 		},
 
 		async getById(id: number): Promise<Thread | null> {
-			return threads.find((t) => t.id === id) ?? null;
+			return store.threads.find((t) => t.id === id) ?? null;
 		},
 
 		async create(input: CreateThreadInput): Promise<Thread> {
-			const id = nextId++;
+			const id = store.nextId();
 			const now = Math.floor(Date.now() / 1000);
 			const thread: Thread = {
 				id,
 				forumId: input.forumId,
-				authorId: 0, // would come from auth context
-				authorName: "anonymous",
+				authorId: input.authorId,
+				authorName: input.authorName,
 				subject: input.subject,
 				createdAt: now,
 				lastPostAt: now,
-				lastPoster: "anonymous",
+				lastPoster: input.authorName,
 				replies: 0,
 				views: 0,
 				closed: 0,
@@ -96,15 +129,15 @@ export function createMockThreadRepository(): ThreadRepository {
 				highlight: 0,
 				recommends: 0,
 			};
-			threads.push(thread);
+			store.threads.push(thread);
 
-			// Also create the first post
-			MOCK_POSTS.push({
-				id: nextId++,
+			// Create the first post in the shared store
+			store.posts.push({
+				id: store.nextId(),
 				threadId: id,
 				forumId: input.forumId,
-				authorId: 0,
-				authorName: "anonymous",
+				authorId: input.authorId,
+				authorName: input.authorName,
 				content: input.content,
 				createdAt: now,
 				isFirst: true,
@@ -115,31 +148,31 @@ export function createMockThreadRepository(): ThreadRepository {
 		},
 
 		async delete(id: number): Promise<void> {
-			const idx = threads.findIndex((t) => t.id === id);
+			const idx = store.threads.findIndex((t) => t.id === id);
 			if (idx === -1) throw new Error(`Thread ${id} not found`);
-			threads.splice(idx, 1);
+			store.threads.splice(idx, 1);
 		},
 
 		async setSticky(id: number, level: StickyLevel): Promise<void> {
-			const thread = threads.find((t) => t.id === id);
+			const thread = store.threads.find((t) => t.id === id);
 			if (!thread) throw new Error(`Thread ${id} not found`);
 			thread.sticky = level;
 		},
 
 		async setDigest(id: number, level: number): Promise<void> {
-			const thread = threads.find((t) => t.id === id);
+			const thread = store.threads.find((t) => t.id === id);
 			if (!thread) throw new Error(`Thread ${id} not found`);
 			thread.digest = level;
 		},
 
 		async setClosed(id: number, closed: boolean): Promise<void> {
-			const thread = threads.find((t) => t.id === id);
+			const thread = store.threads.find((t) => t.id === id);
 			if (!thread) throw new Error(`Thread ${id} not found`);
 			thread.closed = closed ? 1 : 0;
 		},
 
 		async move(id: number, targetForumId: number): Promise<void> {
-			const thread = threads.find((t) => t.id === id);
+			const thread = store.threads.find((t) => t.id === id);
 			if (!thread) throw new Error(`Thread ${id} not found`);
 			thread.forumId = targetForumId;
 		},

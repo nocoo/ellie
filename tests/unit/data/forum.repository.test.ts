@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, test } from "bun:test";
+import { type MockDataStore, createMockDataStore } from "@/data/mock/store";
 import { createMockForumRepository } from "@/data/repositories/forum.repository";
 import type { ForumRepository } from "@/data/repositories/types";
 
+let store: MockDataStore;
 let repo: ForumRepository;
 
 beforeEach(() => {
-	repo = createMockForumRepository();
+	store = createMockDataStore();
+	repo = createMockForumRepository(store);
 });
 
 describe("MockForumRepository", () => {
@@ -92,7 +95,16 @@ describe("MockForumRepository", () => {
 		});
 
 		test("throws for non-existent forum", async () => {
-			expect(repo.update(999999, { name: "x" })).rejects.toThrow("Forum 999999 not found");
+			await expect(repo.update(999999, { name: "x" })).rejects.toThrow("Forum 999999 not found");
+		});
+
+		test("mutation visible via listAll (shared state)", async () => {
+			const forums = await repo.listAll();
+			const target = forums[0];
+			await repo.update(target.id, { name: "Mutated" });
+			const all = await repo.listAll();
+			const found = all.find((f) => f.id === target.id);
+			expect(found!.name).toBe("Mutated");
 		});
 	});
 });

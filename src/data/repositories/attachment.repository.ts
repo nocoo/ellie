@@ -1,20 +1,18 @@
 // data/repositories/attachment.repository.ts — Mock AttachmentRepository implementation
 // Ref: 04a §AttachmentRepository
 
-import { MOCK_ATTACHMENTS } from "@/data/mock/attachments";
+import type { MockDataStore } from "@/data/mock/store";
 import type { Attachment } from "@/models/types";
 import type { AttachmentRepository } from "./types";
 
-export function createMockAttachmentRepository(): AttachmentRepository {
-	const attachments: Attachment[] = MOCK_ATTACHMENTS.map((a) => ({ ...a }));
-
+export function createMockAttachmentRepository(store: MockDataStore): AttachmentRepository {
 	return {
 		async listByPostId(postId: number): Promise<Attachment[]> {
-			return attachments.filter((a) => a.postId === postId);
+			return store.attachments.filter((a) => a.postId === postId);
 		},
 
 		async listByThreadId(threadId: number): Promise<Attachment[]> {
-			return attachments.filter((a) => a.threadId === threadId);
+			return store.attachments.filter((a) => a.threadId === threadId);
 		},
 	};
 }

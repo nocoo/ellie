@@ -1,25 +1,22 @@
 // data/repositories/forum.repository.ts — Mock ForumRepository implementation
 // Ref: 04a §ForumRepository
 
-import { MOCK_FORUMS } from "@/data/mock/forums";
+import type { MockDataStore } from "@/data/mock/store";
 import type { Forum } from "@/models/types";
 import type { ForumRepository, UpdateForumInput } from "./types";
 
-export function createMockForumRepository(): ForumRepository {
-	// Clone mock data so mutations don't affect the original
-	const forums: Forum[] = MOCK_FORUMS.map((f) => ({ ...f }));
-
+export function createMockForumRepository(store: MockDataStore): ForumRepository {
 	return {
 		async listAll(): Promise<Forum[]> {
-			return [...forums];
+			return [...store.forums];
 		},
 
 		async getById(id: number): Promise<Forum | null> {
-			return forums.find((f) => f.id === id) ?? null;
+			return store.forums.find((f) => f.id === id) ?? null;
 		},
 
 		async update(id: number, input: UpdateForumInput): Promise<void> {
-			const forum = forums.find((f) => f.id === id);
+			const forum = store.forums.find((f) => f.id === id);
 			if (!forum) throw new Error(`Forum ${id} not found`);
 			if (input.name !== undefined) forum.name = input.name;
 			if (input.description !== undefined) forum.description = input.description;

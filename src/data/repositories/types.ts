@@ -66,6 +66,8 @@ export interface ThreadSearchParams extends PaginationParams {
 
 export interface CreateThreadInput {
 	forumId: number;
+	authorId: number;
+	authorName: string;
 	subject: string;
 	content: string;
 }
@@ -92,6 +94,8 @@ export interface PostListParams extends PaginationParams {
 
 export interface CreatePostInput {
 	threadId: number;
+	authorId: number;
+	authorName: string;
 	content: string;
 }
 

@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, test } from "bun:test";
+import { type MockDataStore, createMockDataStore } from "@/data/mock/store";
 import { createMockAttachmentRepository } from "@/data/repositories/attachment.repository";
 import type { AttachmentRepository } from "@/data/repositories/types";
 
+let store: MockDataStore;
 let repo: AttachmentRepository;
 
 beforeEach(() => {
-	repo = createMockAttachmentRepository();
+	store = createMockDataStore();
+	repo = createMockAttachmentRepository(store);
 });
 
 describe("MockAttachmentRepository", () => {
