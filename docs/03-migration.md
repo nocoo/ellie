@@ -70,12 +70,16 @@ reference/db/*.sql.gz
 - 源表：`uc_members` LEFT JOIN `pre_common_member` LEFT JOIN `pre_common_member_archive` LEFT JOIN `pre_common_member_count`
 - 过滤：无（全量迁移 114 万用户）
 - 转换：
-  - `adminid` → `role`（0=user, 1=admin, 2=super-mod, 3=mod）
+  - `adminid` → `role`（0=user, 1=admin, 2=super-mod, 3=mod；实际数据还有 -1 和 7 等 DZ 扩展值，直接透传）
   - `avatarstatus` → `avatar` 路径计算（仅 avatarstatus=1 时计算）
   - 密码字段直接映射（hash + salt），不做转换
   - `status` 映射：活跃用户取 `pre_common_member.status`（0=正常，-1=封禁），`freeze=1` 也标记为 -1；归档用户统一标记 -2
 - 策略：以 `uc_members` 为基准（114 万），分两步——先活跃用户（JOIN `pre_common_member`），再归档用户（JOIN `pre_common_member_archive` 且排除已导入的）
 - 注意：`uc_members` 有 114 万记录，`pre_common_member` 7 万 + `pre_common_member_archive` 107 万
+- ⚠️ 历史迁移遗留：该论坛经历过多次迁移（包括 Discuz! 版本升级）。`uc_members`（UCenter 用户表）是后期引入的，部分早期用户的扩展数据在历次迁移中丢失。实际 dump 中 `pre_common_member_archive` 和 `pre_common_member_count` 均为 0 条记录。导致：
+  - 10.3 万发过帖的用户缺少 member 元数据（status/role/credits/reg_date 均为默认值）
+  - 所有用户的 `threads`/`posts` 计数字段为 0
+  - `threads`/`posts` 可在迁移后从帖子数据重新计算；其他字段需从线上数据库补充
 
 ### threads
 - 源表：`pre_forum_thread`

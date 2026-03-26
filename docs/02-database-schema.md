@@ -712,7 +712,9 @@ D1 对中文内容没有实用的全文搜索能力。`LIKE '%关键词%'` = 对
 - 之前文档写"仅迁移 invisible=0"，已改为全量迁移
 - 应用层根据 `invisible` 值决定展示策略（管理后台可看到所有帖子，前台仅展示 `invisible=0`）
 
-### 数据源缺失
+### 数据源缺失与历史迁移遗留
+
+**背景：** 该论坛经历过多次迁移，包括 Discuz! 自身版本的升级迁移。`uc_members`（UCenter 用户表）并非论坛初始就存在——它是 Discuz! 引入 UCenter 统一认证后新增的表。在某次迁移过程中，部分用户的扩展数据未能完整迁移过来。
 
 **发现：dump 中两张表数据为空。**
 
@@ -721,4 +723,27 @@ D1 对中文内容没有实用的全文搜索能力。`LIKE '%关键词%'` = 对
 | `pre_common_member_count` | 7 万条（uid + threads + posts 计数） | 0 条 | 所有用户 `threads`/`posts` 字段为 0 |
 | `pre_common_member_archive` | ~107 万条（归档用户详细数据） | 0 条 | 无用户被标记为 `status=-2`（归档） |
 
-这是 dump 导出配置问题（表结构存在但无 INSERT 数据），非迁移脚本 bug。后续可从线上数据库补充导出这两张表的数据。
+**用户数据完整度分析（迁移后实测）：**
+
+| 用户分类 | 数量 | 说明 |
+|---------|------|------|
+| 有 member 数据 + 发过帖 | 68,512 | 核心活跃用户，数据完整 |
+| 有 member 数据 + 未发帖 | 2,340 | 注册用户，数据完整 |
+| 无 member 数据 + 发过帖 | 102,969 | ⚠️ 真实用户，缺少 status/role/credits/reg_date |
+| 无 member 数据 + 未发帖 | 966,616 | 纯注册用户，缺少 member 元数据 |
+| 占位用户（status=-3） | 1,148 | FK 修复产生 |
+| 封禁用户（status=-1） | 1 | |
+| **合计** | **1,141,586** | |
+
+"无 member 数据"指仅存在于 `uc_members` 中（有 username/email/password），但在 `pre_common_member` 中无对应记录（role/credits/reg_date/avatarstatus 等均为默认值 0）。这 10.3 万发过帖的用户集中在 2002-2015 年，是论坛早期的真实用户，其 member 数据很可能在历次迁移中丢失。
+
+**迁移后修正计划（TODO）：**
+
+以下字段可在迁移完成后从已有数据中重新计算，无需依赖源表：
+
+| 字段 | 修正方式 | 说明 |
+|------|---------|------|
+| `users.threads` | `SELECT COUNT(*) FROM threads WHERE author_id = ? AND sticky != -99` | 用户发起的主题数 |
+| `users.posts` | `SELECT COUNT(*) FROM posts WHERE author_id = ? AND invisible = 0` | 用户的可见帖子数 |
+
+其他缺失字段（`reg_date`、`credits`、`role`、`avatarstatus`）无法从帖子数据推算，需要从线上数据库补充导出 `pre_common_member_archive` 或通过其他方式恢复。
