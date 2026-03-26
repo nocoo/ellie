@@ -4,21 +4,13 @@ compatibility_date = "2024-01-01"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "ellie-db"
-database_id = "<D1_DATABASE_ID>"
+database_name = "tongjinet-db"
+database_id = "2b4bbcda-6a08-45bf-bbde-badfa4d73c8f"
 
 [[kv_namespaces]]
 binding = "KV"
-id = "<KV_NAMESPACE_ID>"
-
-[[durable_objects.bindings]]
-name = "RATE_LIMITER"
-class_name = "RateLimiter"
+id = "9506856500c34ceb82ab989063962a6d"
 
 [vars]
 ENVIRONMENT = "production"
 ALLOWED_ORIGINS = "https://ellie.nocoo.cloud"
-
-# Custom domain (requires DNS in Cloudflare)
-[[routes]]
-pattern = "ellie.worker.hexly.ai/*"

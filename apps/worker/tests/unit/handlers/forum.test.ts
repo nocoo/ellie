@@ -8,7 +8,6 @@ describe("forum handlers", () => {
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret",
 		KV: {} as KVNamespace,
-		RATE_LIMITER: {} as DurableObjectNamespace,
 	};
 
 	/** Full D1 row (snake_case) matching the real forums table */

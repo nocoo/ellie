@@ -9,7 +9,6 @@ describe("authMiddleware", () => {
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret-key-for-jwt-hs256",
 		KV: {} as KVNamespace,
-		RATE_LIMITER: {} as DurableObjectNamespace,
 	};
 
 	it("should return 401 when Authorization header is missing", async () => {

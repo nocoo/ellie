@@ -8,7 +8,6 @@ describe("live handler", () => {
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret",
 		KV: {} as KVNamespace,
-		RATE_LIMITER: {} as DurableObjectNamespace,
 	};
 
 	const makeRequest = () => new Request("https://example.com/api/live");

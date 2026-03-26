@@ -47,7 +47,6 @@ describe("auth handlers", () => {
 		KV: {
 			put: mock(() => Promise.resolve()),
 		} as unknown as KVNamespace,
-		RATE_LIMITER: {} as DurableObjectNamespace,
 	};
 
 	describe("login", () => {

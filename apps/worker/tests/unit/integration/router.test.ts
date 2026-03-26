@@ -26,7 +26,6 @@ describe("worker router integration", () => {
 		KV: {
 			put: mock(() => Promise.resolve()),
 		} as unknown as KVNamespace,
-		RATE_LIMITER: {} as DurableObjectNamespace,
 	});
 
 	const makeRequest = (url: string, init?: RequestInit): CFRequest =>
