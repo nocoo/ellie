@@ -1,0 +1,6 @@
+# L1 + G1 + G2 — full gate check before push
+bun run typecheck                              # G1: compile check
+bun test tests/unit/                           # L1: unit tests
+# bun test tests/integration/                  # L2: uncomment after 4.8
+osv-scanner scan --lockfile bun.lock           # G2: dependency vulnerability scan
+gitleaks detect --no-banner                    # G2: secret leak detection

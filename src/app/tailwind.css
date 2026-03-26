@@ -1,0 +1,185 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/*
+ * Design tokens — derived from 04b-frontend-architecture.md §设计系统
+ * 3-layer brightness: L0 background → L1 card → L2 secondary
+ *
+ * shadcn variables (--primary, --background, etc.) are mapped to
+ * Tailwind --color-* tokens via @theme inline below.
+ */
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+	/* Brand — #336699 tongjiwang blue */
+	--primary: oklch(0.48 0.12 250);
+	--primary-foreground: oklch(1 0 0);
+
+	/* 3-layer brightness system */
+	--background: oklch(1 0 0); /* L0: page */
+	--foreground: oklch(0.32 0 0); /* #444 */
+	--card: oklch(0.97 0.005 250); /* L1: card panel */
+	--card-foreground: oklch(0.32 0 0);
+	--secondary: oklch(0.95 0.005 250); /* L2: nested */
+	--secondary-foreground: oklch(0.32 0 0);
+	--muted: oklch(0.44 0 0); /* #666 */
+	--muted-foreground: oklch(0.64 0 0); /* #999 */
+	--accent: oklch(0.92 0.015 250); /* #E5EDF2 */
+	--accent-foreground: oklch(0.32 0 0);
+	--popover: oklch(1 0 0);
+	--popover-foreground: oklch(0.32 0 0);
+
+	/* Borders & inputs */
+	--border: oklch(0.82 0.005 250); /* #CDCDCD */
+	--input: oklch(0.82 0.005 250);
+	--ring: oklch(0.48 0.12 250);
+
+	/* Status */
+	--destructive: oklch(0.63 0.18 25);
+	--warning: oklch(0.7 0.16 60);
+	--success: oklch(0.6 0.15 155);
+
+	/* Chart */
+	--chart-1: oklch(0.48 0.12 250);
+	--chart-2: oklch(0.6 0.15 155);
+	--chart-3: oklch(0.7 0.16 60);
+	--chart-4: oklch(0.63 0.18 25);
+	--chart-5: oklch(0.55 0.1 300);
+
+	/* Sidebar (admin) */
+	--sidebar: oklch(0.97 0.005 250);
+	--sidebar-foreground: oklch(0.32 0 0);
+	--sidebar-primary: oklch(0.48 0.12 250);
+	--sidebar-primary-foreground: oklch(1 0 0);
+	--sidebar-accent: oklch(0.92 0.015 250);
+	--sidebar-accent-foreground: oklch(0.32 0 0);
+	--sidebar-border: oklch(0.82 0.005 250);
+	--sidebar-ring: oklch(0.48 0.12 250);
+
+	/* Radius */
+	--radius: 0.625rem;
+	--radius-card: 14px;
+	--radius-widget: 10px;
+}
+
+.dark {
+	--primary: oklch(0.6 0.15 250);
+	--primary-foreground: oklch(1 0 0);
+
+	--background: oklch(0.18 0.01 250); /* L0 dark */
+	--foreground: oklch(0.9 0 0);
+	--card: oklch(0.22 0.01 250); /* L1 dark */
+	--card-foreground: oklch(0.9 0 0);
+	--secondary: oklch(0.26 0.01 250); /* L2 dark */
+	--secondary-foreground: oklch(0.9 0 0);
+	--muted: oklch(0.55 0 0);
+	--muted-foreground: oklch(0.65 0 0);
+	--accent: oklch(0.3 0.02 250);
+	--accent-foreground: oklch(0.9 0 0);
+	--popover: oklch(0.22 0.01 250);
+	--popover-foreground: oklch(0.9 0 0);
+
+	--border: oklch(0.35 0.01 250);
+	--input: oklch(0.35 0.01 250);
+	--ring: oklch(0.6 0.15 250);
+
+	--destructive: oklch(0.6 0.2 25);
+	--warning: oklch(0.65 0.16 60);
+	--success: oklch(0.55 0.15 155);
+
+	--chart-1: oklch(0.6 0.15 250);
+	--chart-2: oklch(0.55 0.15 155);
+	--chart-3: oklch(0.65 0.16 60);
+	--chart-4: oklch(0.6 0.2 25);
+	--chart-5: oklch(0.5 0.1 300);
+
+	--sidebar: oklch(0.22 0.01 250);
+	--sidebar-foreground: oklch(0.9 0 0);
+	--sidebar-primary: oklch(0.6 0.15 250);
+	--sidebar-primary-foreground: oklch(1 0 0);
+	--sidebar-accent: oklch(0.3 0.02 250);
+	--sidebar-accent-foreground: oklch(0.9 0 0);
+	--sidebar-border: oklch(0.35 0.01 250);
+	--sidebar-ring: oklch(0.6 0.15 250);
+}
+
+/*
+ * Typography — 04b §字体
+ * Inter (body), DM Sans (heading), JetBrains Mono (code)
+ */
+body {
+	font-family: "Inter", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	font-family: "DM Sans", "Microsoft YaHei", sans-serif;
+}
+
+code,
+pre {
+	font-family: "JetBrains Mono", "Cascadia Code", monospace;
+}
+
+@theme inline {
+	--font-heading: var(--font-sans);
+	--font-sans: var(--font-sans);
+	--color-sidebar-ring: var(--sidebar-ring);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar: var(--sidebar);
+	--color-chart-5: var(--chart-5);
+	--color-chart-4: var(--chart-4);
+	--color-chart-3: var(--chart-3);
+	--color-chart-2: var(--chart-2);
+	--color-chart-1: var(--chart-1);
+	--color-ring: var(--ring);
+	--color-input: var(--input);
+	--color-border: var(--border);
+	--color-destructive: var(--destructive);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-accent: var(--accent);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-muted: var(--muted);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-secondary: var(--secondary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-primary: var(--primary);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-popover: var(--popover);
+	--color-card-foreground: var(--card-foreground);
+	--color-card: var(--card);
+	--color-foreground: var(--foreground);
+	--color-background: var(--background);
+	--color-warning: var(--warning);
+	--color-success: var(--success);
+	--radius-sm: calc(var(--radius) * 0.6);
+	--radius-md: calc(var(--radius) * 0.8);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) * 1.4);
+	--radius-2xl: calc(var(--radius) * 1.8);
+	--radius-3xl: calc(var(--radius) * 2.2);
+	--radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+	* {
+		@apply border-border outline-ring/50;
+	}
+	body {
+		@apply bg-background text-foreground;
+	}
+	html {
+		@apply font-sans;
+	}
+}

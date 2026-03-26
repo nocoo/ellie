@@ -6,6 +6,7 @@ node_modules/
 
 # Build output
 dist/
+.next/
 
 # Bun
 bun.lock
@@ -22,3 +23,6 @@ output/
 .env
 .env.local
 .dev.vars
+
+# Next.js generated
+next-env.d.ts

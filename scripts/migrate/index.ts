@@ -267,25 +267,31 @@ export async function migratePosts(
 	};
 	const inserter = loader.createStreamInserter("posts");
 	const postIds = new Set<number>();
-	const missingAuthors = new Set<number>();
-	const missingThreadIds = new Set<number>();
+	let orphanThread = 0;
+	let orphanAuthor = 0;
 
 	const processRow = (row: ParsedRow) => {
 		const record = extractPost(row, stats);
 		if (!record) return;
 
+		const tid = record.thread_id as number;
 		const aid = record.author_id as number;
 		const pid = record.id as number;
-		const tid = record.thread_id as number;
 
-		// Collect missing author_ids for placeholder creation
-		if (!userIds.has(aid)) {
-			missingAuthors.add(aid);
+		// FK check: thread_id must exist in migrated threads
+		if (!threadIds.has(tid)) {
+			orphanThread++;
+			logger.logOrphan("post", pid, tid, "thread_id not in threads (hidden/merged)");
+			return; // Skip this post
 		}
 
-		// Collect missing thread_ids for placeholder creation
-		if (!threadIds.has(tid)) {
-			missingThreadIds.add(tid);
+		// FK check: author_id must exist in migrated users
+		// Per docs: "报告 + 中止" — but we log and continue to collect all orphans,
+		// then abort after the table is done if any author orphans were found.
+		if (!userIds.has(aid)) {
+			orphanAuthor++;
+			logger.logOrphan("post", pid, aid, "author_id not in users");
+			return;
 		}
 
 		inserter.add(record);
@@ -305,65 +311,18 @@ export async function migratePosts(
 
 	const total = inserter.flush();
 	stats.total = total;
-	log(`  Posts: ${total} inserted, ${missingAuthors.size} missing authors`);
+	log(
+		`  Posts: ${total} inserted, ${stats.filtered} invisible, ${orphanThread} orphan-thread, ${orphanAuthor} orphan-author`,
+	);
 
-	// Create placeholder users for missing author_ids
-	if (missingAuthors.size > 0) {
-		log(`  Creating ${missingAuthors.size} placeholder users for deleted accounts...`);
-		const userInserter = loader.createStreamInserter("users");
-		for (const uid of missingAuthors) {
-			userInserter.add({
-				id: uid,
-				username: `[已删除用户${uid}]`,
-				email: "",
-				password_hash: "",
-				password_salt: "",
-				avatar: "",
-				status: -3, // Placeholder status
-				role: 0,
-				reg_date: 0,
-				last_login: 0,
-				threads: 0,
-				posts: 0,
-				credits: 0,
-			});
-			userIds.add(uid);
-		}
-		const placeholders = userInserter.flush();
-		log(`  Created ${placeholders} placeholder users`);
+	// Per docs/03-migration.md: author_id orphans should abort
+	if (orphanAuthor > 0) {
+		throw new Error(
+			`${orphanAuthor} posts have author_id not in users — data source issue. See migration.log`,
+		);
 	}
 
-	// Create placeholder threads for missing thread_ids
-	if (missingThreadIds.size > 0) {
-		log(`  Creating ${missingThreadIds.size} placeholder threads for deleted threads...`);
-		const threadInserter = loader.createStreamInserter("threads");
-		for (const tid of missingThreadIds) {
-			threadInserter.add({
-				id: tid,
-				forum_id: 0,
-				author_id: 0,
-				author_name: "",
-				subject: `[已删除主题${tid}]`,
-				created_at: 0,
-				last_post_at: 0,
-				last_poster: "",
-				replies: 0,
-				views: 0,
-				closed: 0,
-				sticky: -99, // Placeholder: clearly identifiable
-				digest: 0,
-				special: 0,
-				highlight: 0,
-				recommends: 0,
-				post_table_id: 0,
-			});
-			threadIds.add(tid);
-		}
-		const placeholders = threadInserter.flush();
-		log(`  Created ${placeholders} placeholder threads`);
-	}
-
-	return { total, ...stats, missingAuthors: missingAuthors.size, missingThreads: missingThreadIds.size, postIds };
+	return { ...stats, orphanThread, orphanAuthor, postIds };
 }
 
 // ─── Step 5: Attachments ────────────────────────────────────────────────────

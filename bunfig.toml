@@ -1,0 +1,17 @@
+[test]
+coverageSkipTestFiles = true
+coverageThreshold = { line = 80, function = 80 }
+
+# Only match .test.ts files — exclude .spec.ts (Playwright E2E)
+root = "."
+
+# UI shell layers are exempt from coverage (04-application §3.2)
+coverageExclude = [
+  "src/app/**/page.tsx",
+  "src/app/**/layout.tsx",
+  "src/components/ui/**",
+  "scripts/**",
+  "node_modules/**",
+  ".next/**",
+  "tests/e2e/**",
+]
