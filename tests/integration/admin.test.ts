@@ -4,14 +4,22 @@
 import { describe, expect, test } from "bun:test";
 import { apiFetch, apiPost } from "./setup";
 
+/**
+ * Admin GET helper — includes X-Mock-Uid for proxy auth + X-Mock-Role for
+ * the admin role guard inside the API route.
+ */
 function adminGet(path: string, role?: number): Promise<Response> {
-	const headers: Record<string, string> = {};
+	const headers: Record<string, string> = { "X-Mock-Uid": "1" };
 	if (role !== undefined) headers["X-Mock-Role"] = String(role);
 	return apiFetch(path, { headers });
 }
 
+/**
+ * Admin POST helper — includes X-Mock-Uid for proxy auth + X-Mock-Role for
+ * the admin role guard inside the API route.
+ */
 function adminPost(path: string, body: Record<string, unknown>, role?: number): Promise<Response> {
-	const headers: Record<string, string> = {};
+	const headers: Record<string, string> = { "X-Mock-Uid": "1" };
 	if (role !== undefined) headers["X-Mock-Role"] = String(role);
 	return apiPost(path, body, headers);
 }

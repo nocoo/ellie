@@ -28,7 +28,16 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
 }
 
 /**
+ * Default mock auth headers — simulate an authenticated regular user.
+ * Proxy requires X-Mock-Uid on non-public routes.
+ */
+export const DEFAULT_AUTH_HEADERS: Record<string, string> = {
+	"X-Mock-Uid": "1",
+};
+
+/**
  * Make a JSON POST request to the dev server.
+ * Includes default auth headers (X-Mock-Uid) so proxy allows the request.
  */
 export async function apiPost(
 	path: string,
@@ -39,6 +48,7 @@ export async function apiPost(
 		method: "POST",
 		headers: {
 			"Content-Type": "application/json",
+			...DEFAULT_AUTH_HEADERS,
 			...headers,
 		},
 		body: JSON.stringify(body),
@@ -47,11 +57,15 @@ export async function apiPost(
 
 /**
  * Make a DELETE request to the dev server.
+ * Includes default auth headers (X-Mock-Uid) so proxy allows the request.
  */
 export async function apiDelete(path: string, headers?: Record<string, string>): Promise<Response> {
 	return fetch(`${BASE_URL}${path}`, {
 		method: "DELETE",
-		headers,
+		headers: {
+			...DEFAULT_AUTH_HEADERS,
+			...headers,
+		},
 	});
 }
 
