@@ -1,10 +1,11 @@
 // (forum)/threads/[id]/page.tsx — Thread detail page
-// Ref: 04d §帖子详情 — thread + posts + attachments
+// Ref: 04d §帖子详情 — thread + posts + attachments + reply
 
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { ForumPagination } from "@/components/forum-pagination";
 import { PostCard } from "@/components/forum/post-card";
 import { ThreadBadge } from "@/components/forum/thread-badge";
+import { ThreadReplyForm } from "@/components/forum/thread-reply-form";
 import { createRepositories } from "@/data/index";
 import { fetchThreadDetail } from "@/viewmodels/forum/thread-detail";
 import { notFound } from "next/navigation";
@@ -70,6 +71,9 @@ export default async function ThreadDetailPage({ params }: PageProps) {
 				nextCursor={data.nextCursor}
 				total={data.total}
 			/>
+
+			{/* Reply form */}
+			<ThreadReplyForm threadId={threadId} closed={data.thread.closed === 1} />
 		</div>
 	);
 }
