@@ -8,7 +8,7 @@
 		"build": "next build",
 		"start": "next start",
 		"migrate": "bun run scripts/migrate/index.ts",
-		"test": "bun test",
+		"test": "bun test --path-ignore-patterns 'tests/e2e/**'",
 		"test:unit": "bun test tests/unit/",
 		"test:integration": "bun test --preload ./tests/integration/preload.ts tests/integration/",
 		"test:coverage": "bun test --coverage tests/unit/",
