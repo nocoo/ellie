@@ -1,14 +1,16 @@
-// Admin user management page — user list with role/status info + ban/unban
-// Ref: 04c §用户管理 — search, filter, ban/unban, role change
+// Admin user management page — full user list with search, filter, actions
+// Ref: 04c §用户管理 — search, filter by role/status, ban/unban, role change
 //
-// Server component: fetches user list at request time.
-// Action buttons are client components that call admin API.
+// Server component: reads filters from URL searchParams, fetches filtered user list.
+// Filter controls and action buttons are client components.
 
 import { AdminUserActions } from "@/components/admin/admin-user-actions";
+import { AdminUserFilters } from "@/components/admin/admin-user-filters";
 import { UserAvatar } from "@/components/user-avatar";
 import { createRepositories } from "@/data/index";
 import { UserRole, UserStatus } from "@/models/types";
-import { DEFAULT_FILTERS, fetchUserList } from "@/viewmodels/admin/user-management";
+import type { UserManagementFilters } from "@/viewmodels/admin/user-management";
+import { fetchUserList } from "@/viewmodels/admin/user-management";
 
 const ROLE_LABELS: Record<number, string> = {
 	[UserRole.Admin]: "Admin",
@@ -23,13 +25,33 @@ const STATUS_LABELS: Record<number, string> = {
 	[UserStatus.Archived]: "Archived",
 };
 
-export default async function AdminUsersPage() {
+interface PageProps {
+	searchParams: Promise<Record<string, string | undefined>>;
+}
+
+export default async function AdminUsersPage({ searchParams }: PageProps) {
+	const params = await searchParams;
 	const repos = createRepositories();
-	const result = await fetchUserList(repos, DEFAULT_FILTERS);
+
+	// Build filters from URL searchParams
+	const filters: UserManagementFilters = {
+		search: params.search ?? "",
+		role: params.role !== undefined ? (Number(params.role) as UserRole) : null,
+		status: params.status !== undefined ? (Number(params.status) as UserStatus) : null,
+	};
+
+	const result = await fetchUserList(repos, filters);
 
 	return (
 		<div className="space-y-6">
 			<h2 className="text-2xl font-semibold">User Management</h2>
+
+			{/* Filters: search + role + status */}
+			<AdminUserFilters
+				search={filters.search}
+				role={params.role ?? ""}
+				status={params.status ?? ""}
+			/>
 
 			<div className="rounded-[14px] bg-card">
 				<div className="overflow-x-auto">
@@ -74,7 +96,7 @@ export default async function AdminUsersPage() {
 									</td>
 									<td className="p-4 text-right text-muted-foreground">{user.posts}</td>
 									<td className="p-4 text-right">
-										<AdminUserActions userId={user.id} status={user.status} />
+										<AdminUserActions userId={user.id} status={user.status} role={user.role} />
 									</td>
 								</tr>
 							))}
