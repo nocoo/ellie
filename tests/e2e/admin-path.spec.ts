@@ -1,18 +1,14 @@
 // tests/e2e/admin-path.spec.ts — E2E admin page reachability
 // Ref: 04-application §4.9.3
 //
-// Current scope: Verifies admin pages render without errors.
-// These are SHALLOW tests — they check pages load, not that admin
-// functionality works (e.g. we check sidebar renders, not that
-// ban/role-change actually persists).
+// Verifies admin pages render without errors.
+// Functional admin tests (ban, delete, toggle visibility) are in
+// functional-flows.spec.ts.
 //
-// NOTE: With proxy auth enforcement, these pages now require
-// X-Mock-Uid + X-Mock-Role headers. In browser E2E context,
-// proxy headers can't be set per-request. These tests work because
-// Next.js dev server handles page routes server-side (proxy only
-// runs on API and non-static routes in dev mode).
-//
-// Phase 2 TODO: Test actual admin workflows after pages are wired.
+// NOTE: With proxy auth enforcement, admin pages in E2E require either
+// session cookies or bypassing the proxy. In dev mode, Next.js server
+// renders pages directly (proxy only intercepts certain routes).
+// Phase 2: Use proper login flow to set session cookie before admin tests.
 
 import { expect, test } from "@playwright/test";
 

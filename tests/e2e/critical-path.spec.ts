@@ -1,14 +1,12 @@
 // tests/e2e/critical-path.spec.ts — E2E page reachability
 // Ref: 04-application §4.9.2
 //
-// Current scope: Verifies that all critical pages render without errors.
-// These are SHALLOW tests — they confirm pages load, not that full
-// functionality works (e.g. we check login form renders, not that
-// login actually authenticates).
+// Verifies that all critical pages render without errors.
+// Functional flow tests (sort, search, reply, admin actions) are in
+// functional-flows.spec.ts.
 //
-// Phase 2 TODO: Deepen to test actual flows (login → session → create
-// thread → see it in list → reply → see reply). This requires pages
-// to be fully wired to ViewModels with real data flow.
+// Login → session → post flow requires cookie-based auth setup which
+// is deferred to Phase 2 when real user authentication is implemented.
 
 import { expect, test } from "@playwright/test";
 
