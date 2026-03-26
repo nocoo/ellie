@@ -1,9 +1,11 @@
 // proxy.ts — Route guard (Next.js 16 proxy pattern)
 // Ref: 04b §路由守卫 — public/auth/admin route classification
 //
-// Phase 2: This module will be used by Next.js middleware or proxy
-// to enforce authentication. Currently exports pure classification
-// functions for route matching.
+// Next.js 16 replaces middleware.ts with proxy.ts.
+// Exports the required `proxy` function + pure classification helpers.
+
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
 /**
  * Route access level.
@@ -106,3 +108,35 @@ export function isAdminRoute(pathname: string): boolean {
 export function isAuthRoute(pathname: string): boolean {
 	return classifyRoute(pathname) === "auth";
 }
+
+// ---------------------------------------------------------------------------
+// Next.js 16 proxy function (replaces middleware)
+// ---------------------------------------------------------------------------
+
+/**
+ * Next.js 16 proxy function — runs on every request.
+ *
+ * Mock phase: pass-through (no auth enforcement).
+ * Phase 2: redirect unauthenticated users to /login for auth routes,
+ *          return 403 for admin routes without admin role.
+ */
+export function proxy(request: NextRequest) {
+	const { pathname } = request.nextUrl;
+	const access = classifyRoute(pathname);
+
+	// Mock phase: log classification but don't enforce
+	// Phase 2: check session and enforce access control
+	if (access === "admin" || access === "auth") {
+		// Pass through for now — enforcement comes in Phase 2
+	}
+
+	return NextResponse.next();
+}
+
+/**
+ * Route matcher — only run proxy on matched routes.
+ * Skip static assets and internal Next.js paths.
+ */
+export const config = {
+	matcher: ["/((?!_next/static|_next/image|favicon.ico|smileys/).*)"],
+};
