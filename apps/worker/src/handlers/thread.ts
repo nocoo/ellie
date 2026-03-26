@@ -95,7 +95,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		result = await stmt.bind(forumIdNum, clampedLimit).all();
 	}
 
-	const threads = result.results as Thread[];
+	const threads = result.results as unknown as Thread[];
 
 	// Generate next cursor if we have more results
 	let nextCursor: string | undefined;
@@ -141,7 +141,7 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 
 	return new Response(
 		JSON.stringify({
-			data: result as Thread,
+			data: result as unknown as Thread,
 			meta: {
 				timestamp: Date.now(),
 				requestId: crypto.randomUUID(),
@@ -151,4 +151,10 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 			headers: { ...corsHeaders(), "Content-Type": "application/json" },
 		},
 	);
+}
+
+/** POST /api/v1/threads - Create a new thread (requires auth) */
+export async function create(_request: Request, _env: Env): Promise<Response> {
+	// TODO: Implement thread creation with auth
+	return errorResponse("NOT_IMPLEMENTED", 501);
 }

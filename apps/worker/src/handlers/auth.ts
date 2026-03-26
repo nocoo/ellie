@@ -103,7 +103,7 @@ export async function login(request: Request, env: Env): Promise<Response> {
 					token,
 					refreshToken,
 					user: {
-						id: user.id,
+						userId: user.id,
 						username: user.username,
 						role: user.role,
 					} satisfies AuthUser,
