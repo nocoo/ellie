@@ -37,8 +37,8 @@ describe("createRepositories — cross-repo consistency", () => {
 		});
 
 		const updated = await repos.threads.getById(thread.id);
-		expect(updated!.replies).toBe(1);
-		expect(updated!.lastPoster).toBe("zhangsan");
+		expect(updated?.replies).toBe(1);
+		expect(updated?.lastPoster).toBe("zhangsan");
 	});
 
 	test("user.setStatus change is reflected in auth validation", async () => {
@@ -50,7 +50,7 @@ describe("createRepositories — cross-repo consistency", () => {
 		expect(user).not.toBeNull();
 
 		// Ban the user via user repository
-		await repos.users.setStatus(user!.id, UserStatus.Banned);
+		await repos.users.setStatus(user?.id, UserStatus.Banned);
 
 		// Auth now rejects
 		expect(validateMockCredentials(repos._store.users, "admin", "admin")).toBeNull();

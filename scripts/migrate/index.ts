@@ -148,7 +148,13 @@ export async function migrateThreads(
 	sourceDir: string,
 	forumIds: Set<number>,
 	userIds: Set<number>,
-): Promise<{ total: number; skipped: number; threadIds: Set<number>; missingForums: number; missingAuthors: number }> {
+): Promise<{
+	total: number;
+	skipped: number;
+	threadIds: Set<number>;
+	missingForums: number;
+	missingAuthors: number;
+}> {
 	log("=== Threads ===");
 	const dumpFile = `${sourceDir}/thread.sql.gz`;
 	const inserter = loader.createStreamInserter("threads");
@@ -230,7 +236,13 @@ export async function migrateThreads(
 		log(`  Created ${placeholders} placeholder users`);
 	}
 
-	return { total, skipped, threadIds, missingForums: missingForumIds.size, missingAuthors: missingAuthorIds.size };
+	return {
+		total,
+		skipped,
+		threadIds,
+		missingForums: missingForumIds.size,
+		missingAuthors: missingAuthorIds.size,
+	};
 }
 
 // ─── Step 4: Posts ──────────────────────────────────────────────────────────
@@ -434,7 +446,12 @@ export async function migrateAttachments(
 	log(
 		`  Attachments: ${total} inserted, ${skipped} no-index, ${missingPostIds.size} missing posts, ${missingThreadIds.size} missing threads`,
 	);
-	return { total, skipped, missingPosts: missingPostIds.size, missingThreads: missingThreadIds.size };
+	return {
+		total,
+		skipped,
+		missingPosts: missingPostIds.size,
+		missingThreads: missingThreadIds.size,
+	};
 }
 
 // ─── Main Pipeline ──────────────────────────────────────────────────────────
@@ -487,17 +504,30 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 		// Collect forumIds for thread FK validation
 		const forumIds = new Set<number>();
 		{
-			const forumRows = loader.getDb().query("SELECT id FROM forums").all() as Array<{ id: number }>;
+			const forumRows = loader.getDb().query("SELECT id FROM forums").all() as Array<{
+				id: number;
+			}>;
 			for (const r of forumRows) forumIds.add(r.id);
 		}
 
-		const threadResult = await migrateThreads(loader, config.sourceDir, forumIds, userResult.userIds);
+		const threadResult = await migrateThreads(
+			loader,
+			config.sourceDir,
+			forumIds,
+			userResult.userIds,
+		);
 		stats.threads = threadResult.total;
 		stats.skipped.threads = threadResult.skipped;
 		stats.skipped.threadMissingForums = threadResult.missingForums;
 		stats.skipped.threadMissingAuthors = threadResult.missingAuthors;
 
-		const postResult = await migratePosts(loader, config.sourceDir, userResult.userIds, threadResult.threadIds, logger);
+		const postResult = await migratePosts(
+			loader,
+			config.sourceDir,
+			userResult.userIds,
+			threadResult.threadIds,
+			logger,
+		);
 		stats.posts = postResult.total;
 		stats.skipped.missingAuthors = postResult.missingAuthors;
 		stats.skipped.missingThreads = postResult.missingThreads;

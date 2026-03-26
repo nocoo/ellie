@@ -48,24 +48,24 @@ describe("getThreadBadges — sticky", () => {
 		const badges = getThreadBadges(makeThread({ sticky: StickyLevel.Global }));
 		const badge = findBadge(badges, "sticky");
 		expect(badge).toBeDefined();
-		expect(badge!.label).toBe("全局置顶");
-		expect(badge!.variant).toBe("destructive");
+		expect(badge?.label).toBe("全局置顶");
+		expect(badge?.variant).toBe("destructive");
 	});
 
 	test("category sticky → 分类置顶 warning", () => {
 		const badges = getThreadBadges(makeThread({ sticky: StickyLevel.Category }));
 		const badge = findBadge(badges, "sticky");
 		expect(badge).toBeDefined();
-		expect(badge!.label).toBe("分类置顶");
-		expect(badge!.variant).toBe("warning");
+		expect(badge?.label).toBe("分类置顶");
+		expect(badge?.variant).toBe("warning");
 	});
 
 	test("forum sticky → 置顶 default", () => {
 		const badges = getThreadBadges(makeThread({ sticky: StickyLevel.Forum }));
 		const badge = findBadge(badges, "sticky");
 		expect(badge).toBeDefined();
-		expect(badge!.label).toBe("置顶");
-		expect(badge!.variant).toBe("default");
+		expect(badge?.label).toBe("置顶");
+		expect(badge?.variant).toBe("default");
 	});
 });
 
@@ -81,20 +81,20 @@ describe("getThreadBadges — digest", () => {
 		const badges = getThreadBadges(makeThread({ digest: 1 }));
 		const badge = findBadge(badges, "digest");
 		expect(badge).toBeDefined();
-		expect(badge!.label).toBe("精华");
-		expect(badge!.variant).toBe("success");
+		expect(badge?.label).toBe("精华");
+		expect(badge?.variant).toBe("success");
 	});
 
 	test("digest=2 → 精华 II", () => {
 		const badges = getThreadBadges(makeThread({ digest: 2 }));
 		const badge = findBadge(badges, "digest");
-		expect(badge!.label).toBe("精华 II");
+		expect(badge?.label).toBe("精华 II");
 	});
 
 	test("digest=3 → 精华 III", () => {
 		const badges = getThreadBadges(makeThread({ digest: 3 }));
 		const badge = findBadge(badges, "digest");
-		expect(badge!.label).toBe("精华 III");
+		expect(badge?.label).toBe("精华 III");
 	});
 });
 
@@ -110,8 +110,8 @@ describe("getThreadBadges — closed", () => {
 		const badges = getThreadBadges(makeThread({ closed: 1 }));
 		const badge = findBadge(badges, "closed");
 		expect(badge).toBeDefined();
-		expect(badge!.label).toBe("锁定");
-		expect(badge!.variant).toBe("secondary");
+		expect(badge?.label).toBe("锁定");
+		expect(badge?.variant).toBe("secondary");
 	});
 });
 
@@ -136,8 +136,8 @@ describe("getThreadBadges — special", () => {
 			const badges = getThreadBadges(makeThread({ special: val }));
 			const badge = findBadge(badges, "special");
 			expect(badge).toBeDefined();
-			expect(badge!.label).toBe(label);
-			expect(badge!.variant).toBe(variant);
+			expect(badge?.label).toBe(label);
+			expect(badge?.variant).toBe(variant);
 		});
 	}
 

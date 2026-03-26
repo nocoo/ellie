@@ -88,7 +88,7 @@ describe("user-management ViewModel", () => {
 
 			await actions.banUser(target.id);
 			const updated = await repos.users.getById(target.id);
-			expect(updated!.status).toBe(UserStatus.Banned);
+			expect(updated?.status).toBe(UserStatus.Banned);
 		});
 
 		test("unbanUser sets status to Active", async () => {
@@ -102,7 +102,7 @@ describe("user-management ViewModel", () => {
 
 			await actions.unbanUser(target.id);
 			const updated = await repos.users.getById(target.id);
-			expect(updated!.status).toBe(UserStatus.Active);
+			expect(updated?.status).toBe(UserStatus.Active);
 		});
 
 		test("changeRole updates user role", async () => {
@@ -113,9 +113,9 @@ describe("user-management ViewModel", () => {
 			const regularUser = users.items.find((u) => u.role === UserRole.User);
 			expect(regularUser).toBeDefined();
 
-			await actions.changeRole(regularUser!.id, UserRole.Mod);
-			const updated = await repos.users.getById(regularUser!.id);
-			expect(updated!.role).toBe(UserRole.Mod);
+			await actions.changeRole(regularUser?.id, UserRole.Mod);
+			const updated = await repos.users.getById(regularUser?.id);
+			expect(updated?.role).toBe(UserRole.Mod);
 		});
 	});
 });

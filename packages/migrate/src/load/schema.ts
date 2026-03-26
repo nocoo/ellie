@@ -1,0 +1,189 @@
+/**
+ * D1 database schema — DDL statements for creating tables and indexes.
+ *
+ * Directly from docs/02-database-schema.md. Tables are created in FK dependency
+ * order; indexes are created after all data is loaded (per docs/03-migration.md).
+ */
+
+/** DDL statements to create all tables (no indexes). */
+export const TABLE_DDL: string[] = [
+	`CREATE TABLE IF NOT EXISTS forums (
+  id              INTEGER PRIMARY KEY,
+  parent_id       INTEGER NOT NULL DEFAULT 0,
+  name            TEXT    NOT NULL,
+  description     TEXT    NOT NULL DEFAULT '',
+  icon            TEXT    NOT NULL DEFAULT '',
+  display_order   INTEGER NOT NULL DEFAULT 0,
+  threads         INTEGER NOT NULL DEFAULT 0,
+  posts           INTEGER NOT NULL DEFAULT 0,
+  type            TEXT    NOT NULL DEFAULT 'forum',
+  status          INTEGER NOT NULL DEFAULT 1,
+  last_thread_id  INTEGER NOT NULL DEFAULT 0,
+  last_post_at    INTEGER NOT NULL DEFAULT 0,
+  last_poster     TEXT    NOT NULL DEFAULT ''
+)`,
+
+	`CREATE TABLE IF NOT EXISTS users (
+  id            INTEGER PRIMARY KEY,
+  username      TEXT    NOT NULL UNIQUE,
+  email         TEXT    NOT NULL DEFAULT '',
+  password_hash TEXT    NOT NULL DEFAULT '',
+  password_salt TEXT    NOT NULL DEFAULT '',
+  avatar        TEXT    NOT NULL DEFAULT '',
+  status        INTEGER NOT NULL DEFAULT 0,
+  role          INTEGER NOT NULL DEFAULT 0,
+  reg_date      INTEGER NOT NULL DEFAULT 0,
+  last_login    INTEGER NOT NULL DEFAULT 0,
+  threads       INTEGER NOT NULL DEFAULT 0,
+  posts         INTEGER NOT NULL DEFAULT 0,
+  credits       INTEGER NOT NULL DEFAULT 0
+)`,
+
+	`CREATE TABLE IF NOT EXISTS threads (
+  id            INTEGER PRIMARY KEY,
+  forum_id      INTEGER NOT NULL REFERENCES forums(id),
+  author_id     INTEGER NOT NULL REFERENCES users(id),
+  author_name   TEXT    NOT NULL DEFAULT '',
+  subject       TEXT    NOT NULL,
+  created_at    INTEGER NOT NULL DEFAULT 0,
+  last_post_at  INTEGER NOT NULL DEFAULT 0,
+  last_poster   TEXT    NOT NULL DEFAULT '',
+  replies       INTEGER NOT NULL DEFAULT 0,
+  views         INTEGER NOT NULL DEFAULT 0,
+  closed        INTEGER NOT NULL DEFAULT 0,
+  sticky        INTEGER NOT NULL DEFAULT 0,
+  digest        INTEGER NOT NULL DEFAULT 0,
+  special       INTEGER NOT NULL DEFAULT 0,
+  highlight     INTEGER NOT NULL DEFAULT 0,
+  recommends    INTEGER NOT NULL DEFAULT 0,
+  post_table_id INTEGER NOT NULL DEFAULT 0
+)`,
+
+	`CREATE TABLE IF NOT EXISTS posts (
+  id            INTEGER PRIMARY KEY,
+  thread_id     INTEGER NOT NULL REFERENCES threads(id),
+  forum_id      INTEGER NOT NULL REFERENCES forums(id),
+  author_id     INTEGER NOT NULL REFERENCES users(id),
+  author_name   TEXT    NOT NULL DEFAULT '',
+  content       TEXT    NOT NULL DEFAULT '',
+  created_at    INTEGER NOT NULL DEFAULT 0,
+  is_first      INTEGER NOT NULL DEFAULT 0,
+  position      INTEGER NOT NULL DEFAULT 0,
+  invisible     INTEGER NOT NULL DEFAULT 0
+)`,
+
+	`CREATE TABLE IF NOT EXISTS attachments (
+  id          INTEGER PRIMARY KEY,
+  thread_id   INTEGER NOT NULL REFERENCES threads(id),
+  post_id     INTEGER NOT NULL REFERENCES posts(id),
+  author_id   INTEGER NOT NULL REFERENCES users(id),
+  filename    TEXT    NOT NULL,
+  file_path   TEXT    NOT NULL,
+  file_size   INTEGER NOT NULL DEFAULT 0,
+  is_image    INTEGER NOT NULL DEFAULT 0,
+  width       INTEGER NOT NULL DEFAULT 0,
+  has_thumb   INTEGER NOT NULL DEFAULT 0,
+  downloads   INTEGER NOT NULL DEFAULT 0,
+  created_at  INTEGER NOT NULL DEFAULT 0
+)`,
+];
+
+/** DDL statements to create all indexes. Applied after data load for performance. */
+export const INDEX_DDL: string[] = [
+	// threads indexes
+	"CREATE INDEX IF NOT EXISTS idx_threads_forum ON threads(forum_id, sticky DESC, last_post_at DESC)",
+	"CREATE INDEX IF NOT EXISTS idx_threads_author ON threads(author_id, created_at DESC)",
+	"CREATE INDEX IF NOT EXISTS idx_threads_latest ON threads(last_post_at DESC)",
+	"CREATE INDEX IF NOT EXISTS idx_threads_digest ON threads(digest, last_post_at DESC) WHERE digest > 0",
+
+	// posts indexes
+	"CREATE INDEX IF NOT EXISTS idx_posts_thread ON posts(thread_id, position)",
+	"CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_id, created_at DESC)",
+
+	// attachments indexes
+	"CREATE INDEX IF NOT EXISTS idx_attachments_post ON attachments(post_id)",
+	"CREATE INDEX IF NOT EXISTS idx_attachments_thread ON attachments(thread_id)",
+];
+
+/** Table names in FK dependency order (for migration). */
+export const TABLE_ORDER = ["forums", "users", "threads", "posts", "attachments"] as const;
+export type TableName = (typeof TABLE_ORDER)[number];
+
+/** Column names for each table (in INSERT order). */
+export const TABLE_COLUMNS: Record<TableName, string[]> = {
+	forums: [
+		"id",
+		"parent_id",
+		"name",
+		"description",
+		"icon",
+		"display_order",
+		"threads",
+		"posts",
+		"type",
+		"status",
+		"last_thread_id",
+		"last_post_at",
+		"last_poster",
+	],
+	users: [
+		"id",
+		"username",
+		"email",
+		"password_hash",
+		"password_salt",
+		"avatar",
+		"status",
+		"role",
+		"reg_date",
+		"last_login",
+		"threads",
+		"posts",
+		"credits",
+	],
+	threads: [
+		"id",
+		"forum_id",
+		"author_id",
+		"author_name",
+		"subject",
+		"created_at",
+		"last_post_at",
+		"last_poster",
+		"replies",
+		"views",
+		"closed",
+		"sticky",
+		"digest",
+		"special",
+		"highlight",
+		"recommends",
+		"post_table_id",
+	],
+	posts: [
+		"id",
+		"thread_id",
+		"forum_id",
+		"author_id",
+		"author_name",
+		"content",
+		"created_at",
+		"is_first",
+		"position",
+		"invisible",
+	],
+	attachments: [
+		"id",
+		"thread_id",
+		"post_id",
+		"author_id",
+		"filename",
+		"file_path",
+		"file_size",
+		"is_image",
+		"width",
+		"has_thumb",
+		"downloads",
+		"created_at",
+	],
+};

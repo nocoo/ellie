@@ -1,0 +1,11 @@
+name = "ellie-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ellie-db"
+database_id = "<D1_DATABASE_ID>"
+
+[vars]
+ENVIRONMENT = "production"

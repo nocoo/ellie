@@ -111,7 +111,7 @@ describe("MockUserRepository", () => {
 		test("returns user when exists", async () => {
 			const found = await repo.getById(1);
 			expect(found).not.toBeNull();
-			expect(found!.id).toBe(1);
+			expect(found?.id).toBe(1);
 		});
 
 		test("returns null when not found", async () => {
@@ -123,7 +123,7 @@ describe("MockUserRepository", () => {
 		test("updates user status", async () => {
 			await repo.setStatus(1, UserStatus.Banned);
 			const updated = await repo.getById(1);
-			expect(updated!.status).toBe(UserStatus.Banned);
+			expect(updated?.status).toBe(UserStatus.Banned);
 		});
 
 		test("throws for non-existent user", async () => {
@@ -137,7 +137,7 @@ describe("MockUserRepository", () => {
 		test("updates user role", async () => {
 			await repo.setRole(10, UserRole.Mod);
 			const updated = await repo.getById(10);
-			expect(updated!.role).toBe(UserRole.Mod);
+			expect(updated?.role).toBe(UserRole.Mod);
 		});
 
 		test("throws for non-existent user", async () => {

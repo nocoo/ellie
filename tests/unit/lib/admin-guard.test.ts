@@ -8,7 +8,7 @@ describe("admin-guard", () => {
 				user: { id: "1", name: "admin", role: "admin" },
 			});
 			expect(user).not.toBeNull();
-			expect(user!.username).toBe("admin");
+			expect(user?.username).toBe("admin");
 		});
 
 		test("returns user for supermod role", () => {
