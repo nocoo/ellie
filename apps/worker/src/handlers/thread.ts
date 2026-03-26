@@ -1,6 +1,6 @@
-import type { Thread } from "@ellie/types";
 // Thread handlers for Cloudflare Worker
 import type { Env } from "../lib/env";
+import { toThread } from "../lib/mappers";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
@@ -39,8 +39,16 @@ function decodeThreadCursor(cursor: string): ThreadCursorPayload | null {
 	}
 }
 
+/** D1 row shape for cursor extraction (snake_case) */
+interface D1ThreadRow {
+	id: number;
+	sticky: number;
+	last_post_at: number;
+}
+
 /** GET /api/v1/threads - List threads with keyset pagination */
 export async function list(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const forumId = url.searchParams.get("forumId");
 	const limitParam = url.searchParams.get("limit");
@@ -54,16 +62,12 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		limitNum === undefined || limitNum <= 0 ? DEFAULT_PAGE_SIZE : Math.min(limitNum, MAX_PAGE_SIZE);
 
 	if (!forumId) {
-		return errorResponse("INVALID_REQUEST", 400, {
-			message: "forumId is required",
-		});
+		return errorResponse("INVALID_REQUEST", 400, { message: "forumId is required" }, origin);
 	}
 
 	const forumIdNum = Number.parseInt(forumId, 10);
 	if (Number.isNaN(forumIdNum)) {
-		return errorResponse("INVALID_REQUEST", 400, {
-			message: "Invalid forumId",
-		});
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid forumId" }, origin);
 	}
 
 	const cursor = cursorStr ? decodeThreadCursor(cursorStr) : null;
@@ -95,17 +99,18 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		result = await stmt.bind(forumIdNum, clampedLimit).all();
 	}
 
-	const threads = result.results as unknown as Thread[];
+	// Map D1 snake_case rows to camelCase Thread type
+	const threads = result.results.map((row) => toThread(row as Record<string, unknown>));
 
-	// Generate next cursor if we have more results
+	// Generate next cursor from raw D1 row (snake_case) — NOT from mapped Thread
 	let nextCursor: string | undefined;
 	if (threads.length === clampedLimit && threads.length > 0) {
-		const lastThread = threads[threads.length - 1];
-		if (lastThread) {
+		const lastRawRow = result.results[result.results.length - 1] as unknown as D1ThreadRow;
+		if (lastRawRow) {
 			nextCursor = encodeThreadCursor({
-				sticky: lastThread.sticky,
-				lastPostAt: lastThread.lastPostAt,
-				id: lastThread.id,
+				sticky: lastRawRow.sticky,
+				lastPostAt: lastRawRow.last_post_at,
+				id: lastRawRow.id,
 			});
 		}
 	}
@@ -120,13 +125,17 @@ export async function list(request: Request, env: Env): Promise<Response> {
 			},
 		}),
 		{
-			headers: { ...corsHeaders(), "Content-Type": "application/json" },
+			headers: {
+				...corsHeaders(origin),
+				"Content-Type": "application/json",
+			},
 		},
 	);
 }
 
 /** GET /api/v1/threads/:id - Get thread by ID */
 export async function getById(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const pathParts = url.pathname.split("/");
 	const idStr = pathParts[pathParts.length - 1];
@@ -136,25 +145,29 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 	const result = await stmt.bind(id).first();
 
 	if (!result) {
-		return errorResponse("THREAD_NOT_FOUND", 404);
+		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
 
 	return new Response(
 		JSON.stringify({
-			data: result as unknown as Thread,
+			data: toThread(result as Record<string, unknown>),
 			meta: {
 				timestamp: Date.now(),
 				requestId: crypto.randomUUID(),
 			},
 		}),
 		{
-			headers: { ...corsHeaders(), "Content-Type": "application/json" },
+			headers: {
+				...corsHeaders(origin),
+				"Content-Type": "application/json",
+			},
 		},
 	);
 }
 
 /** POST /api/v1/threads - Create a new thread (requires auth) */
-export async function create(_request: Request, _env: Env): Promise<Response> {
+export async function create(request: Request, _env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
 	// TODO: Implement thread creation with auth
-	return errorResponse("NOT_IMPLEMENTED", 501);
+	return errorResponse("NOT_IMPLEMENTED", 501, undefined, origin);
 }

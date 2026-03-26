@@ -1,6 +1,6 @@
-import type { Post } from "@ellie/types";
 // Post handlers for Cloudflare Worker
 import type { Env } from "../lib/env";
+import { toPost } from "../lib/mappers";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
@@ -35,6 +35,7 @@ function decodePostCursor(cursor: string): PostCursorPayload | null {
 
 /** GET /api/v1/posts - List posts with position-based pagination */
 export async function list(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const threadId = url.searchParams.get("threadId");
 	const limit = Number.parseInt(url.searchParams.get("limit") || "20", 10);
@@ -48,16 +49,12 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		limitNum === undefined || limitNum <= 0 ? DEFAULT_PAGE_SIZE : Math.min(limitNum, MAX_PAGE_SIZE);
 
 	if (!threadId) {
-		return errorResponse("INVALID_REQUEST", 400, {
-			message: "threadId is required",
-		});
+		return errorResponse("INVALID_REQUEST", 400, { message: "threadId is required" }, origin);
 	}
 
 	const threadIdNum = Number.parseInt(threadId, 10);
 	if (Number.isNaN(threadIdNum)) {
-		return errorResponse("INVALID_REQUEST", 400, {
-			message: "Invalid threadId",
-		});
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid threadId" }, origin);
 	}
 
 	const cursor = cursorStr ? decodePostCursor(cursorStr) : null;
@@ -77,9 +74,10 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		result = await stmt.bind(threadIdNum, clampedLimit).all();
 	}
 
-	const posts = result.results as unknown as Post[];
+	// Map D1 snake_case rows to camelCase Post type
+	const posts = result.results.map((row) => toPost(row as Record<string, unknown>));
 
-	// Generate next cursor if we have more results
+	// Generate next cursor from raw D1 row (position is same in both)
 	let nextCursor: string | undefined;
 	if (posts.length === clampedLimit && posts.length > 0) {
 		const lastPost = posts[posts.length - 1];
@@ -100,13 +98,17 @@ export async function list(request: Request, env: Env): Promise<Response> {
 			},
 		}),
 		{
-			headers: { ...corsHeaders(), "Content-Type": "application/json" },
+			headers: {
+				...corsHeaders(origin),
+				"Content-Type": "application/json",
+			},
 		},
 	);
 }
 
 /** GET /api/v1/posts/:id - Get post by ID */
 export async function getById(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const pathParts = url.pathname.split("/");
 	const idStr = pathParts[pathParts.length - 1];
@@ -116,25 +118,29 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 	const result = await stmt.bind(id).first();
 
 	if (!result) {
-		return errorResponse("POST_NOT_FOUND", 404);
+		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
 
 	return new Response(
 		JSON.stringify({
-			data: result as unknown as Post,
+			data: toPost(result as Record<string, unknown>),
 			meta: {
 				timestamp: Date.now(),
 				requestId: crypto.randomUUID(),
 			},
 		}),
 		{
-			headers: { ...corsHeaders(), "Content-Type": "application/json" },
+			headers: {
+				...corsHeaders(origin),
+				"Content-Type": "application/json",
+			},
 		},
 	);
 }
 
 /** POST /api/v1/posts - Create a new post (requires auth) */
-export async function create(_request: Request, _env: Env): Promise<Response> {
+export async function create(request: Request, _env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
 	// TODO: Implement post creation with auth
-	return errorResponse("NOT_IMPLEMENTED", 501);
+	return errorResponse("NOT_IMPLEMENTED", 501, undefined, origin);
 }

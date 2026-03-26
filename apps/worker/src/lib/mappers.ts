@@ -1,0 +1,154 @@
+// D1 row mappers — convert snake_case D1 results to camelCase frontend types
+// Each mapper explicitly selects and renames fields, preventing
+// accidental exposure of sensitive or internal columns.
+
+import type { Forum, Post, Thread, User } from "@ellie/types";
+
+/** D1 row shape for users table */
+interface D1UserRow {
+	id: number;
+	username: string;
+	email: string;
+	avatar: string;
+	status: number;
+	role: number;
+	reg_date: number;
+	last_login: number;
+	threads: number;
+	posts: number;
+	credits: number;
+	// Sensitive fields (never exposed):
+	// password_hash, password_salt
+}
+
+/** D1 row shape for forums table */
+interface D1ForumRow {
+	id: number;
+	parent_id: number;
+	name: string;
+	description: string;
+	icon: string;
+	display_order: number;
+	threads: number;
+	posts: number;
+	type: string;
+	status: number;
+	last_thread_id: number;
+	last_post_at: number;
+	last_poster: string;
+}
+
+/** D1 row shape for threads table */
+interface D1ThreadRow {
+	id: number;
+	forum_id: number;
+	author_id: number;
+	author_name: string;
+	subject: string;
+	created_at: number;
+	last_post_at: number;
+	last_poster: string;
+	replies: number;
+	views: number;
+	closed: number;
+	sticky: number;
+	digest: number;
+	special: number;
+	highlight: number;
+	recommends: number;
+	// Internal field (never exposed):
+	// post_table_id
+}
+
+/** D1 row shape for posts table */
+interface D1PostRow {
+	id: number;
+	thread_id: number;
+	forum_id: number;
+	author_id: number;
+	author_name: string;
+	content: string;
+	created_at: number;
+	is_first: number; // INTEGER 0/1 in D1
+	position: number;
+}
+
+/**
+ * Maps a D1 user row to the frontend User type.
+ * Strips password_hash, password_salt and other sensitive fields.
+ */
+export function toUser(row: Record<string, unknown>): User {
+	const r = row as unknown as D1UserRow;
+	return {
+		id: r.id,
+		username: r.username,
+		email: r.email,
+		avatar: r.avatar,
+		status: r.status,
+		role: r.role,
+		regDate: r.reg_date,
+		lastLogin: r.last_login,
+		threads: r.threads,
+		posts: r.posts,
+		credits: r.credits,
+	};
+}
+
+/** Maps a D1 forum row to the frontend Forum type. */
+export function toForum(row: Record<string, unknown>): Forum {
+	const r = row as unknown as D1ForumRow;
+	return {
+		id: r.id,
+		parentId: r.parent_id,
+		name: r.name,
+		description: r.description,
+		icon: r.icon,
+		displayOrder: r.display_order,
+		threads: r.threads,
+		posts: r.posts,
+		type: r.type as Forum["type"],
+		status: r.status,
+		lastThreadId: r.last_thread_id,
+		lastPostAt: r.last_post_at,
+		lastPoster: r.last_poster,
+	};
+}
+
+/** Maps a D1 thread row to the frontend Thread type. Strips post_table_id. */
+export function toThread(row: Record<string, unknown>): Thread {
+	const r = row as unknown as D1ThreadRow;
+	return {
+		id: r.id,
+		forumId: r.forum_id,
+		authorId: r.author_id,
+		authorName: r.author_name,
+		subject: r.subject,
+		createdAt: r.created_at,
+		lastPostAt: r.last_post_at,
+		lastPoster: r.last_poster,
+		replies: r.replies,
+		views: r.views,
+		closed: r.closed,
+		sticky: r.sticky,
+		digest: r.digest,
+		special: r.special,
+		highlight: r.highlight,
+		recommends: r.recommends,
+	};
+}
+
+/** Maps a D1 post row to the frontend Post type. Converts is_first INTEGER to boolean. */
+export function toPost(row: Record<string, unknown>): Post {
+	const r = row as unknown as D1PostRow;
+	return {
+		id: r.id,
+		threadId: r.thread_id,
+		forumId: r.forum_id,
+		authorId: r.author_id,
+		authorName: r.author_name,
+		content: r.content,
+		createdAt: r.created_at,
+		isFirst: r.is_first === 1,
+		position: r.position,
+	};
+}

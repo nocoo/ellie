@@ -1,5 +1,7 @@
 // Error handling middleware for Cloudflare Worker
 
+import { corsHeaders } from "./cors";
+
 export interface ErrorResponse {
 	error: {
 		code: string;
@@ -12,18 +14,20 @@ export function errorResponse(
 	code: string,
 	status: number,
 	details?: Record<string, unknown>,
+	origin?: string,
 ): Response {
 	const body: ErrorResponse = {
 		error: {
 			code,
 			message: getStatusMessage(code),
-			...details && { details },
+			...(details && { details }),
 		},
 	};
 
 	return new Response(JSON.stringify(body), {
 		status,
 		headers: {
+			...corsHeaders(origin),
 			"Content-Type": "application/json",
 		},
 	});
