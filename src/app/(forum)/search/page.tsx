@@ -1,20 +1,78 @@
 // (forum)/search/page.tsx — Search page
 // Ref: 04d §搜索 — title prefix / author name search
+//
+// Client component: interactive search with API-driven results.
 
 "use client";
 
+import { ThreadItem } from "@/components/forum/thread-item";
 import { Input } from "@/components/ui/input";
+import type { ThreadBadge } from "@/models/thread";
+import { decodeHighlight, getThreadBadges } from "@/models/thread";
+import type { HighlightStyle } from "@/models/thread";
+import type { Thread } from "@/models/types";
 import type { SearchType } from "@/viewmodels/forum/search";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-/**
- * Search page — client component for interactive search.
- *
- * Phase 2: Will call executeSearch and display results with pagination.
- */
+interface SearchResult {
+	thread: Thread;
+	badges: ThreadBadge[];
+	highlightStyle: HighlightStyle | null;
+}
+
 export default function SearchPage() {
 	const [query, setQuery] = useState("");
 	const [searchType, setSearchType] = useState<SearchType>("title");
+	const [results, setResults] = useState<SearchResult[]>([]);
+	const [searching, setSearching] = useState(false);
+	const [total, setTotal] = useState(0);
+	const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+	const executeSearch = useCallback(async (q: string, type: SearchType) => {
+		if (q.trim().length === 0) {
+			setResults([]);
+			setTotal(0);
+			return;
+		}
+
+		setSearching(true);
+		try {
+			const param = type === "title" ? "search" : "author";
+			const res = await fetch(`/api/v1/threads?${param}=${encodeURIComponent(q.trim())}`);
+			if (!res.ok) return;
+
+			const json = await res.json();
+			const items: Thread[] = json.data?.items ?? [];
+			setResults(
+				items.map((t) => ({
+					thread: t,
+					badges: getThreadBadges(t),
+					highlightStyle: decodeHighlight(t.highlight),
+				})),
+			);
+			setTotal(json.data?.total ?? items.length);
+		} catch {
+			// Network error — silently ignore
+		} finally {
+			setSearching(false);
+		}
+	}, []);
+
+	// Debounced search on query/type change
+	useEffect(() => {
+		if (debounceRef.current) clearTimeout(debounceRef.current);
+		if (query.trim().length === 0) {
+			setResults([]);
+			setTotal(0);
+			return;
+		}
+		debounceRef.current = setTimeout(() => {
+			executeSearch(query, searchType);
+		}, 300);
+		return () => {
+			if (debounceRef.current) clearTimeout(debounceRef.current);
+		};
+	}, [query, searchType, executeSearch]);
 
 	return (
 		<div className="space-y-4">
@@ -56,9 +114,33 @@ export default function SearchPage() {
 				</div>
 			</div>
 
-			{/* Results placeholder — Phase 2 */}
-			<div className="rounded-[14px] bg-card p-6 text-center text-muted-foreground">
-				{query.trim() ? `Searching for "${query}"...` : "Enter a search term to find threads."}
+			{/* Results */}
+			<div className="rounded-[14px] bg-card p-4">
+				{searching ? (
+					<p className="py-4 text-center text-muted-foreground">Searching...</p>
+				) : results.length > 0 ? (
+					<div className="space-y-2">
+						<p className="mb-3 text-sm text-muted-foreground">
+							{total} result{total !== 1 ? "s" : ""} found
+						</p>
+						{results.map((item) => (
+							<ThreadItem
+								key={item.thread.id}
+								thread={item.thread}
+								badges={item.badges}
+								highlightStyle={item.highlightStyle}
+							/>
+						))}
+					</div>
+				) : query.trim() ? (
+					<p className="py-4 text-center text-muted-foreground">
+						No results found for &quot;{query}&quot;.
+					</p>
+				) : (
+					<p className="py-4 text-center text-muted-foreground">
+						Enter a search term to find threads.
+					</p>
+				)}
 			</div>
 		</div>
 	);
