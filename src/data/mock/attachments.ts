@@ -1,0 +1,63 @@
+// data/mock/attachments.ts — Mock attachment data
+// Ref: 04a §Attachment interface
+
+import type { Attachment } from "@/models/types";
+
+export const MOCK_ATTACHMENTS: Attachment[] = [
+	{
+		id: 1001,
+		threadId: 50002,
+		postId: 100010,
+		authorId: 11,
+		filename: "高等数学复习资料.pdf",
+		filePath: "attachments/2024/03/1001_高数复习.pdf",
+		fileSize: 2_500_000,
+		isImage: false,
+		width: 0,
+		hasThumb: false,
+		downloads: 156,
+		createdAt: 1711353600,
+	},
+	{
+		id: 1002,
+		threadId: 50001,
+		postId: 100001,
+		authorId: 1,
+		filename: "招生简章海报.jpg",
+		filePath: "attachments/2024/03/1002_poster.jpg",
+		fileSize: 850_000,
+		isImage: true,
+		width: 1200,
+		hasThumb: true,
+		downloads: 89,
+		createdAt: 1711526400,
+	},
+	{
+		id: 1003,
+		threadId: 50001,
+		postId: 100001,
+		authorId: 1,
+		filename: "专业目录.xlsx",
+		filePath: "attachments/2024/03/1003_majors.xlsx",
+		fileSize: 450_000,
+		isImage: false,
+		width: 0,
+		hasThumb: false,
+		downloads: 234,
+		createdAt: 1711526400,
+	},
+	{
+		id: 1004,
+		threadId: 50010,
+		postId: 100020,
+		authorId: 3,
+		filename: "ts59-features.png",
+		filePath: "attachments/2024/03/1004_ts59.png",
+		fileSize: 320_000,
+		isImage: true,
+		width: 800,
+		hasThumb: true,
+		downloads: 45,
+		createdAt: 1711526400,
+	},
+];
