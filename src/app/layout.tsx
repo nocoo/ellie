@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./tailwind.css";
-import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
+import { Geist } from "next/font/google";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
 	title: "Ellie — 同济网论坛",

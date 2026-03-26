@@ -39,5 +39,17 @@
 	},
 	"files": {
 		"ignore": ["node_modules", "dist", ".next", "reference", "*.sql", "*.sql.gz"]
-	}
+	},
+	"overrides": [
+		{
+			"include": ["src/components/ui/**"],
+			"linter": {
+				"rules": {
+					"a11y": {
+						"noLabelWithoutControl": "off"
+					}
+				}
+			}
+		}
+	]
 }
