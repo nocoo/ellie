@@ -2,6 +2,7 @@
 // Ref: 04b §API 路由边界 — /api/v1/posts (read: public, write: auth)
 
 import type { PostListParams } from "@/data/repositories/types";
+import { getAuthUserId } from "@/lib/api-auth";
 import { errorResponse, getRepos } from "@/lib/api-utils";
 import { NextResponse } from "next/server";
 
@@ -36,12 +37,11 @@ export async function GET(request: Request) {
  * POST /api/v1/posts — Create a new post (reply)
  *
  * Body: { threadId, content }
- * Requires auth: X-Mock-Uid header (Phase 2: NextAuth session).
+ * Requires auth: session cookie (browser) or X-Mock-Uid header (API testing).
  */
 export async function POST(request: Request) {
-	// Mock auth check — Phase 2: use NextAuth session
-	const mockUid = request.headers.get("X-Mock-Uid");
-	if (!mockUid) {
+	const authorId = await getAuthUserId(request);
+	if (!authorId) {
 		return errorResponse("Authentication required", 401);
 	}
 
@@ -63,8 +63,7 @@ export async function POST(request: Request) {
 		return errorResponse("Missing required fields: threadId, content", 400);
 	}
 
-	// Phase 2: resolve authorId/authorName from session JWT
-	const authorId = Number(mockUid);
+	// Resolve author from authenticated user
 	const user = await repos.users.getById(authorId);
 	const authorName = user?.username ?? "anonymous";
 
