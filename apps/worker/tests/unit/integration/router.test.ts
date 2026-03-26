@@ -7,8 +7,11 @@ import type { CFRequest, Env } from "../../../src/lib/env";
  * proving the router dispatches to the correct handlers.
  */
 describe("worker router integration", () => {
+	const TEST_API_KEY = "test-api-key";
+
 	/** Minimal mock env — handlers will hit mock DB */
 	const makeEnv = (dbOverrides?: Partial<{ prepare: unknown }>): Env => ({
+		API_KEY: TEST_API_KEY,
 		DB: {
 			prepare: mock(() => ({
 				all: mock(() => Promise.resolve({ results: [] })),
@@ -31,6 +34,86 @@ describe("worker router integration", () => {
 	const makeRequest = (url: string, init?: RequestInit): CFRequest =>
 		new Request(url, init) as CFRequest;
 
+	/** Shorthand: inject X-API-Key header into init */
+	const withApiKey = (init?: RequestInit): RequestInit => ({
+		...init,
+		headers: {
+			...(init?.headers ?? {}),
+			"X-API-Key": TEST_API_KEY,
+		},
+	});
+
+	// ─── API Key Gate ─────────────────────────────────────
+
+	describe("API Key validation", () => {
+		it("should return 401 without X-API-Key header", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/v1/forums"),
+				makeEnv(),
+			);
+
+			expect(response.status).toBe(401);
+			const data = await response.json();
+			expect(data.error.code).toBe("UNAUTHORIZED");
+		});
+
+		it("should return 401 with wrong X-API-Key", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/v1/forums", {
+					headers: { "X-API-Key": "wrong-key" },
+				}),
+				makeEnv(),
+			);
+
+			expect(response.status).toBe(401);
+		});
+
+		it("should include CORS headers on 401 response", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/v1/forums", {
+					headers: { Origin: "https://ellie.nocoo.cloud" },
+				}),
+				makeEnv(),
+			);
+
+			expect(response.status).toBe(401);
+			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("https://ellie.nocoo.cloud");
+		});
+
+		it("should NOT require API key for GET /api/live", async () => {
+			const env = makeEnv({
+				prepare: mock(() => ({
+					first: mock(() => Promise.resolve({ probe: 1 })),
+				})),
+			});
+
+			const response = await worker.fetch(makeRequest("https://api.example.com/api/live"), env);
+
+			expect(response.status).toBe(200);
+		});
+
+		it("should NOT require API key for OPTIONS preflight", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/v1/forums", {
+					method: "OPTIONS",
+					headers: { Origin: "https://ellie.nocoo.cloud" },
+				}),
+				makeEnv(),
+			);
+
+			expect(response.status).toBe(204);
+		});
+
+		it("should pass with valid X-API-Key", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/v1/forums", withApiKey()),
+				makeEnv(),
+			);
+
+			expect(response.status).toBe(200);
+		});
+	});
+
 	// ─── CORS Preflight ───────────────────────────────────
 
 	describe("CORS preflight", () => {
@@ -50,6 +133,7 @@ describe("worker router integration", () => {
 			expect(response.headers.get("Access-Control-Allow-Methods")).toBe(
 				"GET, POST, PATCH, DELETE, OPTIONS",
 			);
+			expect(response.headers.get("Access-Control-Allow-Headers")).toContain("X-API-Key");
 		});
 
 		it("should not set Allow-Origin for disallowed origin", async () => {
@@ -107,7 +191,7 @@ describe("worker router integration", () => {
 	describe("GET /api/v1/forums", () => {
 		it("should route to forum list handler", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/v1/forums"),
+				makeRequest("https://api.example.com/api/v1/forums", withApiKey()),
 				makeEnv(),
 			);
 
@@ -120,7 +204,7 @@ describe("worker router integration", () => {
 	describe("GET /api/v1/forums/:id", () => {
 		it("should route to forum getById handler", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/v1/forums/1"),
+				makeRequest("https://api.example.com/api/v1/forums/1", withApiKey()),
 				makeEnv(),
 			);
 
@@ -136,7 +220,7 @@ describe("worker router integration", () => {
 	describe("GET /api/v1/threads", () => {
 		it("should route to thread list handler (requires forumId)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/v1/threads?forumId=1"),
+				makeRequest("https://api.example.com/api/v1/threads?forumId=1", withApiKey()),
 				makeEnv(),
 			);
 
@@ -147,7 +231,7 @@ describe("worker router integration", () => {
 
 		it("should return 400 without forumId", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/v1/threads"),
+				makeRequest("https://api.example.com/api/v1/threads", withApiKey()),
 				makeEnv(),
 			);
 
@@ -158,7 +242,7 @@ describe("worker router integration", () => {
 	describe("GET /api/v1/threads/:id", () => {
 		it("should route to thread getById handler", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/v1/threads/1"),
+				makeRequest("https://api.example.com/api/v1/threads/1", withApiKey()),
 				makeEnv(),
 			);
 
@@ -173,7 +257,7 @@ describe("worker router integration", () => {
 	describe("GET /api/v1/posts", () => {
 		it("should route to post list handler (requires threadId)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/v1/posts?threadId=1"),
+				makeRequest("https://api.example.com/api/v1/posts?threadId=1", withApiKey()),
 				makeEnv(),
 			);
 
@@ -186,7 +270,7 @@ describe("worker router integration", () => {
 	describe("GET /api/v1/posts/:id", () => {
 		it("should route to post getById handler", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/v1/posts/1"),
+				makeRequest("https://api.example.com/api/v1/posts/1", withApiKey()),
 				makeEnv(),
 			);
 
@@ -201,7 +285,7 @@ describe("worker router integration", () => {
 	describe("GET /api/v1/users/:id", () => {
 		it("should route to user getById handler", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/v1/users/1"),
+				makeRequest("https://api.example.com/api/v1/users/1", withApiKey()),
 				makeEnv(),
 			);
 
@@ -216,16 +300,19 @@ describe("worker router integration", () => {
 	describe("POST /api/v1/auth/login", () => {
 		it("should route to auth login handler", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/v1/auth/login", {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify({
-						username: "test",
-						password: "test",
+				makeRequest(
+					"https://api.example.com/api/v1/auth/login",
+					withApiKey({
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+						},
+						body: JSON.stringify({
+							username: "test",
+							password: "test",
+						}),
 					}),
-				}),
+				),
 				makeEnv(),
 			);
 
@@ -237,7 +324,7 @@ describe("worker router integration", () => {
 
 		it("should NOT match GET /api/v1/auth/login", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/v1/auth/login"),
+				makeRequest("https://api.example.com/api/v1/auth/login", withApiKey()),
 				makeEnv(),
 			);
 
@@ -250,7 +337,7 @@ describe("worker router integration", () => {
 	describe("POST /api/v1/threads (stub)", () => {
 		it("should route to thread create handler", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/v1/threads", { method: "POST" }),
+				makeRequest("https://api.example.com/api/v1/threads", withApiKey({ method: "POST" })),
 				makeEnv(),
 			);
 
@@ -261,7 +348,7 @@ describe("worker router integration", () => {
 	describe("POST /api/v1/posts (stub)", () => {
 		it("should route to post create handler", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/v1/posts", { method: "POST" }),
+				makeRequest("https://api.example.com/api/v1/posts", withApiKey({ method: "POST" })),
 				makeEnv(),
 			);
 
@@ -272,7 +359,7 @@ describe("worker router integration", () => {
 	describe("PATCH /api/admin/forums/:id (stub)", () => {
 		it("should route to forum update handler", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/forums/1", { method: "PATCH" }),
+				makeRequest("https://api.example.com/api/admin/forums/1", withApiKey({ method: "PATCH" })),
 				makeEnv(),
 			);
 
@@ -283,7 +370,7 @@ describe("worker router integration", () => {
 	describe("DELETE /api/admin/users/:id (stub)", () => {
 		it("should route to user delete handler", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/users/1", { method: "DELETE" }),
+				makeRequest("https://api.example.com/api/admin/users/1", withApiKey({ method: "DELETE" })),
 				makeEnv(),
 			);
 
@@ -296,11 +383,14 @@ describe("worker router integration", () => {
 	describe("unknown routes", () => {
 		it("should return 404 with CORS headers for unknown paths", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/v1/unknown", {
-					headers: {
-						Origin: "https://ellie.nocoo.cloud",
-					},
-				}),
+				makeRequest(
+					"https://api.example.com/api/v1/unknown",
+					withApiKey({
+						headers: {
+							Origin: "https://ellie.nocoo.cloud",
+						},
+					}),
+				),
 				makeEnv(),
 			);
 
@@ -310,7 +400,7 @@ describe("worker router integration", () => {
 
 		it("should return 404 for wrong HTTP method", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/v1/forums", { method: "DELETE" }),
+				makeRequest("https://api.example.com/api/v1/forums", withApiKey({ method: "DELETE" })),
 				makeEnv(),
 			);
 
@@ -336,11 +426,14 @@ describe("worker router integration", () => {
 			});
 
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/v1/forums", {
-					headers: {
-						Origin: "http://localhost:3000",
-					},
-				}),
+				makeRequest(
+					"https://api.example.com/api/v1/forums",
+					withApiKey({
+						headers: {
+							Origin: "http://localhost:3000",
+						},
+					}),
+				),
 				env,
 			);
 

@@ -41,6 +41,7 @@ function createLoginRequest(body: Record<string, unknown>) {
 
 describe("auth handlers", () => {
 	const mockEnv: Env = {
+		API_KEY: "test-api-key",
 		DB: {} as D1Database,
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret-key-for-jwt-hs256",

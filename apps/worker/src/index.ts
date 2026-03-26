@@ -1,5 +1,6 @@
 // Ellie API Worker — Cloudflare Worker middleware for D1 access
 import type { CFRequest, Env } from "./lib/env";
+import { validateApiKey } from "./middleware/apiKey";
 import { corsHeaders } from "./middleware/cors";
 
 // ─── Router ───────────────────────────────────────────────────────
@@ -28,6 +29,10 @@ export default {
 			if (path === "/api/live" && request.method === "GET") {
 				return await (await import("./handlers/live")).live(request, env);
 			}
+
+			// API Key gate — all routes below require a valid X-API-Key header
+			const apiKeyError = validateApiKey(request, env, origin);
+			if (apiKeyError) return apiKeyError;
 
 			// Public routes
 			if (path === "/api/v1/forums" && request.method === "GET") {

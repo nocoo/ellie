@@ -6,7 +6,7 @@ describe("corsHeaders", () => {
 		const headers = corsHeaders();
 
 		expect(headers["Access-Control-Allow-Methods"]).toBe("GET, POST, PATCH, DELETE, OPTIONS");
-		expect(headers["Access-Control-Allow-Headers"]).toBe("Content-Type, Authorization");
+		expect(headers["Access-Control-Allow-Headers"]).toBe("Content-Type, Authorization, X-API-Key");
 		expect(headers["Access-Control-Max-Age"]).toBe("86400");
 		expect(headers["Access-Control-Allow-Origin"]).toBeUndefined();
 	});
@@ -61,7 +61,9 @@ describe("withCorsHeaders", () => {
 		expect(result.headers.get("Access-Control-Allow-Methods")).toBe(
 			"GET, POST, PATCH, DELETE, OPTIONS",
 		);
-		expect(result.headers.get("Access-Control-Allow-Headers")).toBe("Content-Type, Authorization");
+		expect(result.headers.get("Access-Control-Allow-Headers")).toBe(
+			"Content-Type, Authorization, X-API-Key",
+		);
 		expect(result.headers.get("Access-Control-Max-Age")).toBe("86400");
 	});
 
