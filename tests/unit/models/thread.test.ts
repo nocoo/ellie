@@ -123,13 +123,13 @@ describe("getThreadBadges — special", () => {
 		expect(findBadge(badges, "special")).toBeUndefined();
 	});
 
-	const specialCases: [number, string, string][] = [
+	const specialCases = [
 		[1, "投票", "default"],
 		[2, "交易", "warning"],
 		[3, "悬赏", "warning"],
 		[4, "活动", "default"],
 		[5, "辩论", "default"],
-	];
+	] as const;
 
 	for (const [val, label, variant] of specialCases) {
 		test(`special=${val} → ${label} ${variant}`, () => {
