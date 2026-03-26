@@ -26,6 +26,7 @@ import {
 	parseMemberRow,
 } from "./extract/extractors";
 import { parseDumpFile } from "./extract/parser";
+import type { ParsedRow } from "./extract/parser";
 import { BatchLoader } from "./load/batch-insert";
 import { MigrationLogger } from "./load/logger";
 import { verifyEncoding } from "./verify/encoding";
@@ -198,7 +199,7 @@ export async function migratePosts(
 	let orphanThread = 0;
 	let orphanAuthor = 0;
 
-	const processRow = (row: string[]) => {
+	const processRow = (row: ParsedRow) => {
 		const record = extractPost(row, stats);
 		if (!record) return;
 
@@ -250,7 +251,7 @@ export async function migratePosts(
 		);
 	}
 
-	return { total, ...stats, orphanThread, orphanAuthor, postIds };
+	return { ...stats, orphanThread, orphanAuthor, postIds };
 }
 
 // ─── Step 5: Attachments ────────────────────────────────────────────────────

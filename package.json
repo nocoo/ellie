@@ -4,6 +4,9 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
+		"dev": "next dev --turbopack",
+		"build": "next build",
+		"start": "next start",
 		"migrate": "bun run scripts/migrate/index.ts",
 		"test": "bun test",
 		"test:unit": "bun test tests/unit/",
@@ -15,7 +18,16 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.0",
-		"@types/bun": "^1.2.0"
+		"@types/bun": "^1.2.0",
+		"@types/node": "^22",
+		"@types/react": "^19",
+		"@types/react-dom": "^19",
+		"typescript": "^5.9"
 	},
-	"trustedDependencies": ["@biomejs/biome"]
+	"trustedDependencies": ["@biomejs/biome"],
+	"dependencies": {
+		"next": "^16",
+		"react": "^19",
+		"react-dom": "^19"
+	}
 }
