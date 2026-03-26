@@ -20,7 +20,7 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 
 	return new Response(
 		JSON.stringify({
-			data: result as User,
+			data: result as unknown as User,
 			meta: {
 				timestamp: Date.now(),
 				requestId: crypto.randomUUID(),

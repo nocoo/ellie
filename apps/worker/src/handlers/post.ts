@@ -77,7 +77,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		result = await stmt.bind(threadIdNum, clampedLimit).all();
 	}
 
-	const posts = result.results as Post[];
+	const posts = result.results as unknown as Post[];
 
 	// Generate next cursor if we have more results
 	let nextCursor: string | undefined;
@@ -121,7 +121,7 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 
 	return new Response(
 		JSON.stringify({
-			data: result as Post,
+			data: result as unknown as Post,
 			meta: {
 				timestamp: Date.now(),
 				requestId: crypto.randomUUID(),

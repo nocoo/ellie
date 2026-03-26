@@ -1,25 +1,26 @@
 {
-  "name": "@ellie/worker",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "tail": "wrangler tail",
-    "typecheck": "tsc --noEmit",
-    "test": "bun test",
-    "test:coverage": "bun test --coverage"
-  },
-  "dependencies": {
-    "@cloudflare/workers-types": "^4.20250320.0",
-    "@ellie/types": "workspace:*",
-    "crypto-js": "^4.2.0"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^1.9.0",
-    "bun-types": "latest",
-    "typescript": "^5.9",
-    "wrangler": "^3.114.0"
-  }
+	"name": "@ellie/worker",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "wrangler dev",
+		"deploy": "wrangler deploy",
+		"tail": "wrangler tail",
+		"typecheck": "tsc --noEmit",
+		"test": "bun test",
+		"test:coverage": "bun test --coverage"
+	},
+	"dependencies": {
+		"@cloudflare/workers-types": "^4.20250320.0",
+		"@ellie/types": "workspace:*",
+		"crypto-js": "^4.2.0"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.0",
+		"@types/crypto-js": "^4.2.2",
+		"bun-types": "latest",
+		"typescript": "^5.9",
+		"wrangler": "^3.114.0"
+	}
 }

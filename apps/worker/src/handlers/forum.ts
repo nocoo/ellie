@@ -11,7 +11,7 @@ export async function list(_request: Request, env: Env): Promise<Response> {
 	const result = await stmt.all();
 
 	// Convert snake_case from D1 to camelCase for frontend
-	const forums: Forum[] = result.results as Forum[];
+	const forums: Forum[] = result.results as unknown as Forum[];
 
 	return new Response(
 		JSON.stringify({
@@ -43,7 +43,7 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 
 	return new Response(
 		JSON.stringify({
-			data: result as Forum,
+			data: result as unknown as Forum,
 			meta: {
 				timestamp: Date.now(),
 				requestId: crypto.randomUUID(),
@@ -53,4 +53,10 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 			headers: { ...corsHeaders(), "Content-Type": "application/json" },
 		},
 	);
+}
+
+/** PATCH /api/admin/forums/:id - Update forum (admin only) */
+export async function update(_request: Request, _env: Env): Promise<Response> {
+	// TODO: Implement forum update with auth and admin check
+	return errorResponse("NOT_IMPLEMENTED", 501);
 }

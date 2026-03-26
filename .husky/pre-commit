@@ -1,1 +1,1 @@
-bunx lint-staged && bun run typecheck && bun test tests/unit/
+bunx lint-staged && pnpm -r exec tsc --noEmit && cd apps/worker && bun test
