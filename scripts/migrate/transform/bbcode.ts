@@ -68,6 +68,11 @@ export function sanitizeUrl(url: string): string {
 /**
  * Strip dangerous HTML tags and attributes from htmlon content.
  * This is a migration-time sanitizer, not a runtime one.
+ *
+ * Limitation: regex-based, not a full HTML parser. May miss edge cases
+ * with malformed tags, entity-encoded protocols (&#106;avascript:),
+ * or unusual attribute quoting. Acceptable for migration of known
+ * Discuz-generated HTML; runtime output should use a proper sanitizer.
  */
 export function sanitizeHtml(html: string): string {
 	let result = html;

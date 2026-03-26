@@ -138,6 +138,7 @@ INSERT INTO `table` VALUES (1,'foo','bar'),(2,'baz','qux');
 - **URL 协议白名单**：`[url]` 和 `[img]` 的 URL 仅允许 `http:`/`https:`/`ftp:`/`mailto:` 和相对路径，阻止 `javascript:`/`data:`/`vbscript:` 等危险协议
 - **CSS 值验证**：`[color]` 仅接受 hex（`#abc`/`#FF0000`）、命名颜色、`rgb()` 格式；`[align]` 仅接受 `left`/`center`/`right`/`justify`。不合法的值剥离标签保留内容
 - **htmlon 净化**：移除 `<script>`/`<style>` 块、`on*` 事件处理器属性、`javascript:` 协议、`<iframe>`/`<embed>`/`<object>`/`<applet>`/`<form>`/`<base>`/`<meta>`/`<link>` 标签
+- **⚠️ 局限性**：`sanitizeHtml` 基于正则匹配，非完整 HTML 解析器。对畸形标签、实体编码协议（`&#106;avascript:`）、异常属性引号等边角 case 可能遗漏。迁移源为 Discuz 生成的已知模式 HTML，风险可控；运行时展示应使用专业 sanitizer（如 DOMPurify）
 
 ## 编码处理
 
@@ -172,7 +173,7 @@ Discuz X3.4 默认 UTF-8，但历史数据可能混入 GBK 编码：
 
 | 场景 | 策略 | 说明 |
 |------|------|------|
-| 帖子 `author_id` 不在 `users` 中 | **报告 + 中止** | 全量迁移用户后不应出现。若出现说明数据源有问题 |
+| 帖子 `author_id` 不在 `users` 中 | **记录全部异常后中止** | 全量迁移用户后不应出现。遍历完所有帖子后，若存在 author orphan 则报错退出（延迟中止以收集全部异常 pid，方便排障） |
 | 帖子 `thread_id` 不在 `threads` 中 | **跳过 + 记录** | 可能指向 `displayorder < 0` 的隐藏帖或 `closed > 1` 的合并帖。记录到 `migration.log`。验证阶段的 0 orphan 检查基于实际写入 D1 的数据，被跳过的记录不计入 |
 | 附件 `post_id` 不在 `posts` 中 | **跳过 + 记录** | 帖子可能是 `invisible ≠ 0` 被过滤掉的 |
 | 头像文件不存在 | **avatar 设为空字符串** | `avatarstatus=1` 但实际文件缺失时，降级为无头像 |

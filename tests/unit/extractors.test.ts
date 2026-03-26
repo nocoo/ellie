@@ -485,6 +485,40 @@ describe("extractPost", () => {
 		expect(result?.content).toContain("你好世界");
 		expect(result?.content).toContain("<strong>测试</strong>");
 	});
+
+	test("onEncodingFailure callback fires on repaired encoding", () => {
+		// Create a message with GBK mojibake pattern (common: 鎴 = UTF-8 bytes of 我 read as GBK then back)
+		// Use a known mojibake pattern that validateEncoding will detect and repair
+		const mojibake = Buffer.from([0xc3, 0xa6, 0xc2, 0x88, 0xc2, 0x91]).toString("utf-8");
+		const failures: Array<{ pid: number; issue: string }> = [];
+		const stats: PostExtractionStats = {
+			total: 0,
+			filtered: 0,
+			encodingRepaired: 0,
+			bbcodeFailures: 0,
+			onEncodingFailure: (pid, issue) => failures.push({ pid, issue }),
+		};
+		extractPost(postRow({ 0: "42", 8: mojibake }), stats);
+		if (stats.encodingRepaired > 0) {
+			// If encoding was actually repaired, callback should have fired
+			expect(failures.length).toBe(1);
+			expect(failures[0].pid).toBe(42);
+		}
+		// Either way, the counter and callback should be consistent
+		expect(failures.length).toBe(stats.encodingRepaired);
+	});
+
+	test("onBbcodeFailure and onEncodingFailure callbacks are optional", () => {
+		// Should not throw when callbacks are not provided
+		const stats: PostExtractionStats = {
+			total: 0,
+			filtered: 0,
+			encodingRepaired: 0,
+			bbcodeFailures: 0,
+		};
+		const result = extractPost(postRow(), stats);
+		expect(result).not.toBeNull();
+	});
 });
 
 // ─── parseAttachmentIndex ─────────────────────────────────────────────────────

@@ -25,8 +25,7 @@ import {
 	parseMemberCountRow,
 	parseMemberRow,
 } from "./extract/extractors";
-import { parseDumpFile } from "./extract/parser";
-import type { ParsedRow } from "./extract/parser";
+import { type ParsedRow, parseDumpFile } from "./extract/parser";
 import { BatchLoader } from "./load/batch-insert";
 import { MigrationLogger } from "./load/logger";
 import { verifyEncoding } from "./verify/encoding";
@@ -193,7 +192,14 @@ export async function migratePosts(
 	logger: MigrationLogger,
 ): Promise<PostMigrateResult> {
 	log("=== Posts ===");
-	const stats = { total: 0, filtered: 0, encodingRepaired: 0, bbcodeFailures: 0 };
+	const stats = {
+		total: 0,
+		filtered: 0,
+		encodingRepaired: 0,
+		bbcodeFailures: 0,
+		onBbcodeFailure: (pid: number, error: string) => logger.logBbcodeFailure(pid, error),
+		onEncodingFailure: (pid: number, issue: string) => logger.logEncodingFailure(pid, issue),
+	};
 	const inserter = loader.createStreamInserter("posts");
 	const postIds = new Set<number>();
 	let orphanThread = 0;
