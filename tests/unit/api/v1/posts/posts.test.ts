@@ -38,10 +38,10 @@ describe("GET /api/v1/posts", () => {
 });
 
 describe("POST /api/v1/posts", () => {
-	test("creates post with valid body", async () => {
+	test("creates post with valid body and auth", async () => {
 		const request = new Request("http://localhost/api/v1/posts", {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
+			headers: { "Content-Type": "application/json", "X-Mock-Uid": "1" },
 			body: JSON.stringify({
 				threadId: THREAD_ID,
 				content: "Test reply content",
@@ -54,10 +54,23 @@ describe("POST /api/v1/posts", () => {
 		expect(json.data.content).toBe("Test reply content");
 	});
 
-	test("returns 400 for missing fields", async () => {
+	test("returns 401 without auth header", async () => {
 		const request = new Request("http://localhost/api/v1/posts", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				threadId: THREAD_ID,
+				content: "Should fail",
+			}),
+		});
+		const response = await POST(request);
+		expect(response.status).toBe(401);
+	});
+
+	test("returns 400 for missing fields", async () => {
+		const request = new Request("http://localhost/api/v1/posts", {
+			method: "POST",
+			headers: { "Content-Type": "application/json", "X-Mock-Uid": "1" },
 			body: JSON.stringify({ threadId: THREAD_ID }),
 		});
 		const response = await POST(request);
@@ -67,7 +80,7 @@ describe("POST /api/v1/posts", () => {
 	test("returns 400 for invalid JSON", async () => {
 		const request = new Request("http://localhost/api/v1/posts", {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
+			headers: { "Content-Type": "application/json", "X-Mock-Uid": "1" },
 			body: "not json",
 		});
 		const response = await POST(request);

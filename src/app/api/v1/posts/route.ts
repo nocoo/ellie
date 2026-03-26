@@ -36,10 +36,15 @@ export async function GET(request: Request) {
  * POST /api/v1/posts — Create a new post (reply)
  *
  * Body: { threadId, content }
- * Requires auth (Phase 2: checked via session).
- * Mock phase: uses authorId=1, authorName="admin".
+ * Requires auth: X-Mock-Uid header (Phase 2: NextAuth session).
  */
 export async function POST(request: Request) {
+	// Mock auth check — Phase 2: use NextAuth session
+	const mockUid = request.headers.get("X-Mock-Uid");
+	if (!mockUid) {
+		return errorResponse("Authentication required", 401);
+	}
+
 	const repos = getRepos();
 
 	let body: Record<string, unknown>;
@@ -58,11 +63,15 @@ export async function POST(request: Request) {
 		return errorResponse("Missing required fields: threadId, content", 400);
 	}
 
-	// Phase 2: get authorId/authorName from session
+	// Phase 2: resolve authorId/authorName from session JWT
+	const authorId = Number(mockUid);
+	const user = await repos.users.getById(authorId);
+	const authorName = user?.username ?? "anonymous";
+
 	const post = await repos.posts.create({
 		threadId,
-		authorId: 1,
-		authorName: "admin",
+		authorId,
+		authorName,
 		content,
 	});
 

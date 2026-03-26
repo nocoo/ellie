@@ -113,21 +113,64 @@ export function isAuthRoute(pathname: string): boolean {
 // Next.js 16 proxy function (replaces middleware)
 // ---------------------------------------------------------------------------
 
+// Mock auth header names — Phase 2 replaces with NextAuth session/JWT.
+const MOCK_UID_HEADER = "X-Mock-Uid";
+const MOCK_ROLE_HEADER = "X-Mock-Role";
+// Admin roles: Admin=1, SuperMod=2
+const ADMIN_ROLE_VALUES = new Set([1, 2]);
+
 /**
  * Next.js 16 proxy function — runs on every request.
  *
- * Mock phase: pass-through (no auth enforcement).
- * Phase 2: redirect unauthenticated users to /login for auth routes,
- *          return 403 for admin routes without admin role.
+ * Mock phase: enforces auth using X-Mock-Uid / X-Mock-Role headers.
+ *   - "auth" routes: require X-Mock-Uid, redirect to /login if missing
+ *   - "admin" routes: require X-Mock-Uid + X-Mock-Role ∈ {1,2}, return 403 if missing
+ *   - "public" routes: pass through
+ *
+ * Phase 2: replace header checks with NextAuth session/JWT validation.
  */
 export function proxy(request: NextRequest) {
 	const { pathname } = request.nextUrl;
 	const access = classifyRoute(pathname);
 
-	// Mock phase: log classification but don't enforce
-	// Phase 2: check session and enforce access control
-	if (access === "admin" || access === "auth") {
-		// Pass through for now — enforcement comes in Phase 2
+	if (access === "public") {
+		return NextResponse.next();
+	}
+
+	// Check mock authentication
+	const uid = request.headers.get(MOCK_UID_HEADER);
+	const isAuthenticated = uid !== null && uid !== "";
+
+	if (access === "auth") {
+		if (!isAuthenticated) {
+			// API routes get 401, page routes redirect to login
+			if (pathname.startsWith("/api/")) {
+				return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+			}
+			const loginUrl = request.nextUrl.clone();
+			loginUrl.pathname = "/login";
+			loginUrl.searchParams.set("callbackUrl", pathname);
+			return NextResponse.redirect(loginUrl);
+		}
+		return NextResponse.next();
+	}
+
+	if (access === "admin") {
+		if (!isAuthenticated) {
+			if (pathname.startsWith("/api/")) {
+				return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+			}
+			const loginUrl = request.nextUrl.clone();
+			loginUrl.pathname = "/login";
+			return NextResponse.redirect(loginUrl);
+		}
+		// Check admin role
+		const roleStr = request.headers.get(MOCK_ROLE_HEADER);
+		const role = roleStr !== null ? Number(roleStr) : null;
+		if (role === null || !ADMIN_ROLE_VALUES.has(role)) {
+			return NextResponse.json({ error: "Forbidden: admin role required" }, { status: 403 });
+		}
+		return NextResponse.next();
 	}
 
 	return NextResponse.next();
