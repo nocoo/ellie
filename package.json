@@ -12,6 +12,7 @@
 		"test:unit": "bun test tests/unit/",
 		"test:integration": "bun test tests/integration/",
 		"test:coverage": "bun test --coverage tests/unit/",
+		"typecheck": "tsc --noEmit",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",
