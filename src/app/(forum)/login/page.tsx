@@ -1,5 +1,8 @@
 // (forum)/login/page.tsx — Login page
 // Ref: 04d §登录页 — username + password + error display
+//
+// Uses NextAuth signIn("credentials") for authentication.
+// On success, redirects to callbackUrl (from search params) or homepage.
 
 "use client";
 
@@ -8,15 +11,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { canLogin } from "@/viewmodels/forum/auth";
 import { BookOpen } from "lucide-react";
+import { signIn } from "next-auth/react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
-/**
- * Login page.
- *
- * Phase 2: Will call signIn("credentials", { username, password })
- * and handle redirect.
- */
 export default function LoginPage() {
+	const router = useRouter();
+	const searchParams = useSearchParams();
+	const callbackUrl = searchParams.get("callbackUrl") || "/";
+
 	const [username, setUsername] = useState("");
 	const [password, setPassword] = useState("");
 	const [error, setError] = useState<string | null>(null);
@@ -26,12 +29,24 @@ export default function LoginPage() {
 		e.preventDefault();
 		setLoading(true);
 		setError(null);
-		// Phase 2: call signIn()
-		// Mock: just show error after delay
-		setTimeout(() => {
-			setError("Login not yet connected (mock phase)");
+
+		try {
+			const result = await signIn("credentials", {
+				username,
+				password,
+				redirect: false,
+			});
+
+			if (result?.error) {
+				setError("Invalid username or password");
+			} else {
+				router.push(callbackUrl);
+			}
+		} catch {
+			setError("An unexpected error occurred");
+		} finally {
 			setLoading(false);
-		}, 500);
+		}
 	};
 
 	return (
