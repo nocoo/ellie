@@ -1,4 +1,4 @@
-use base64::prelude::{Engine as _, BASE64_STANDARD};
+use base64::prelude::{BASE64_STANDARD, Engine as _};
 use serde::{Deserialize, Serialize};
 
 /// Cursor payload matching the TypeScript CursorPayload from @ellie/types.
@@ -53,8 +53,7 @@ mod tests {
 	fn decode_from_typescript_compatible_cursor() {
 		// Simulate what the TypeScript encodeCursor produces:
 		// btoa(JSON.stringify({ sortValue: 1700000000, id: 99 }))
-		let ts_cursor = BASE64_STANDARD
-			.encode(r#"{"sortValue":1700000000,"id":99}"#.as_bytes());
+		let ts_cursor = BASE64_STANDARD.encode(r#"{"sortValue":1700000000,"id":99}"#.as_bytes());
 		let decoded = decode_cursor(&ts_cursor).unwrap();
 		assert_eq!(decoded.sort_value, 1700000000);
 		assert_eq!(decoded.id, 99);

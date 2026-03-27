@@ -248,7 +248,11 @@ mod tests {
 
 	#[test]
 	fn user_role_round_trip() {
-		for (val, expected) in [(0, UserRole::User), (1, UserRole::Admin), (3, UserRole::Mod)] {
+		for (val, expected) in [
+			(0, UserRole::User),
+			(1, UserRole::Admin),
+			(3, UserRole::Mod),
+		] {
 			let role = UserRole::try_from(val).unwrap();
 			assert_eq!(role, expected);
 			assert_eq!(i32::from(role), val);
@@ -395,16 +399,14 @@ mod tests {
 
 	#[test]
 	fn deserialize_error_response() {
-		let json =
-			r#"{ "error": { "code": "TOKEN_EXPIRED", "message": "JWT has expired" } }"#;
+		let json = r#"{ "error": { "code": "TOKEN_EXPIRED", "message": "JWT has expired" } }"#;
 		let err: ErrorResponse = serde_json::from_str(json).unwrap();
 		assert_eq!(err.error.code, "TOKEN_EXPIRED");
 	}
 
 	#[test]
 	fn deserialize_live_response() {
-		let json =
-			r#"{ "status": "ok", "environment": "test", "timestamp": 1700000000 }"#;
+		let json = r#"{ "status": "ok", "environment": "test", "timestamp": 1700000000 }"#;
 		let live: LiveResponse = serde_json::from_str(json).unwrap();
 		assert_eq!(live.environment, "test");
 	}
