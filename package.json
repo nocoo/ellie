@@ -11,6 +11,7 @@
 		"cli": "pnpm --filter cli start",
 		"worker:dev": "pnpm --filter worker dev",
 		"worker:deploy": "pnpm --filter worker deploy",
+		"tui": "bun --bun run scripts/tui.ts",
 		"test": "pnpm -r test",
 		"test:unit": "pnpm -r --filter '!**/e2e' run test:unit",
 		"test:integration": "pnpm -r run test:integration",
