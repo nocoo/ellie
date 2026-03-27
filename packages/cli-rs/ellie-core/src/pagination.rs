@@ -28,7 +28,7 @@ pub fn decode_cursor(cursor: &str) -> Option<CursorPayload> {
 /// Clamp a requested page size to `[1, MAX_PAGE_SIZE]`, defaulting to `DEFAULT_PAGE_SIZE`.
 pub fn clamp_page_size(limit: Option<usize>) -> usize {
 	match limit {
-		Some(n) if n >= 1 && n <= MAX_PAGE_SIZE => n,
+		Some(n) if (1..=MAX_PAGE_SIZE).contains(&n) => n,
 		Some(n) if n > MAX_PAGE_SIZE => MAX_PAGE_SIZE,
 		_ => DEFAULT_PAGE_SIZE,
 	}
