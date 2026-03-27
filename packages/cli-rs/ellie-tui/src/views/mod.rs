@@ -1,4 +1,5 @@
 pub mod forum_list;
+pub mod help_panel;
 pub mod login_form;
 pub mod post_view;
 pub mod search_bar;

@@ -39,12 +39,20 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App, tc: &ThemeColors) {
 				.bg(tc.error)
 				.add_modifier(Modifier::BOLD),
 		),
+		InputMode::Help => Span::styled(
+			" HELP ",
+			Style::default()
+				.fg(tc.bg)
+				.bg(tc.highlight)
+				.add_modifier(Modifier::BOLD),
+		),
 	};
 
 	let hints = match app.input_mode {
-		InputMode::Normal => " j/k:移动 Enter:进入 /:搜索 q:退出",
+		InputMode::Normal => " j/k:移动 Enter:进入 /:搜索 ?:帮助 q:退出",
 		InputMode::Search => " Enter/Esc:退出搜索",
 		InputMode::Login => " Tab:切换字段 Enter:提交 Esc:取消",
+		InputMode::Help => " Esc/?/q:关闭帮助",
 	};
 
 	let status_msg = app

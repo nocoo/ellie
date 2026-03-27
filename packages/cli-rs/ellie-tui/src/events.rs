@@ -23,6 +23,7 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) {
 		InputMode::Normal => handle_normal_mode(app, key),
 		InputMode::Search => handle_search_mode(app, key),
 		InputMode::Login => handle_login_mode(app, key),
+		InputMode::Help => handle_help_mode(app, key),
 	}
 }
 
@@ -118,6 +119,11 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
 			app.status_message = Some(format!("theme: {}", next.label()));
 		}
 
+		// Help panel
+		KeyCode::Char('?') => {
+			app.input_mode = InputMode::Help;
+		}
+
 		// Ctrl+C always quits
 		KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
 			app.should_quit = true;
@@ -190,6 +196,17 @@ fn handle_login_mode(app: &mut App, key: KeyEvent) {
 			app.login_form.active_field_mut().push(c);
 		}
 
+		_ => {}
+	}
+}
+
+// ─── Help Mode ───────────────────────────────────────────
+
+fn handle_help_mode(app: &mut App, key: KeyEvent) {
+	match key.code {
+		KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('?') => {
+			app.input_mode = InputMode::Normal;
+		}
 		_ => {}
 	}
 }
@@ -588,6 +605,39 @@ mod tests {
 			ViewState::User { user_id } => assert_eq!(*user_id, 42),
 			_ => panic!("expected User view"),
 		}
+	}
+
+	// ─── Help mode tests ──────────────────────────────
+
+	#[test]
+	fn question_mark_opens_help() {
+		let mut app = make_app();
+		handle_key_event(&mut app, key(KeyCode::Char('?')));
+		assert_eq!(app.input_mode, InputMode::Help);
+	}
+
+	#[test]
+	fn help_mode_esc_closes() {
+		let mut app = make_app();
+		app.input_mode = InputMode::Help;
+		handle_key_event(&mut app, key(KeyCode::Esc));
+		assert_eq!(app.input_mode, InputMode::Normal);
+	}
+
+	#[test]
+	fn help_mode_q_closes() {
+		let mut app = make_app();
+		app.input_mode = InputMode::Help;
+		handle_key_event(&mut app, key(KeyCode::Char('q')));
+		assert_eq!(app.input_mode, InputMode::Normal);
+	}
+
+	#[test]
+	fn help_mode_question_mark_toggles() {
+		let mut app = make_app();
+		app.input_mode = InputMode::Help;
+		handle_key_event(&mut app, key(KeyCode::Char('?')));
+		assert_eq!(app.input_mode, InputMode::Normal);
 	}
 
 	// ─── Helpers ───────────────────────────────────────
