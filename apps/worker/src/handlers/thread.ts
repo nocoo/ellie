@@ -1,6 +1,8 @@
 // Thread handlers for Cloudflare Worker
 import type { Env } from "../lib/env";
 import { toThread } from "../lib/mappers";
+import { jsonResponse } from "../lib/response";
+import { withAuth } from "../lib/routeHelpers";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
@@ -169,8 +171,73 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 }
 
 /** POST /api/v1/threads - Create a new thread (requires auth) */
-export async function create(request: Request, _env: Env): Promise<Response> {
+export const create = withAuth(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
-	// TODO: Implement thread creation with auth
-	return errorResponse("NOT_IMPLEMENTED", 501, undefined, origin);
-}
+
+	let body: Record<string, unknown>;
+	try {
+		body = (await request.json()) as Record<string, unknown>;
+	} catch {
+		return errorResponse("INVALID_BODY", 400, undefined, origin);
+	}
+
+	const forumId = typeof body.forumId === "number" ? body.forumId : undefined;
+	const subject = typeof body.subject === "string" ? body.subject : undefined;
+	const content = typeof body.content === "string" ? body.content : undefined;
+
+	if (typeof forumId !== "number" || Number.isNaN(forumId)) {
+		return errorResponse("INVALID_BODY", 400, { message: "forumId is required (number)" }, origin);
+	}
+	if (!subject || subject.trim().length === 0) {
+		return errorResponse("INVALID_BODY", 400, { message: "subject is required" }, origin);
+	}
+	if (subject.length > 200) {
+		return errorResponse(
+			"INVALID_BODY",
+			400,
+			{ message: "subject must be at most 200 characters" },
+			origin,
+		);
+	}
+	if (!content || content.trim().length === 0) {
+		return errorResponse("INVALID_BODY", 400, { message: "content is required" }, origin);
+	}
+
+	// Validate forum exists
+	const forum = await env.DB.prepare("SELECT id FROM forums WHERE id = ?").bind(forumId).first();
+	if (!forum) {
+		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
+	}
+
+	const now = Math.floor(Date.now() / 1000);
+	const authorName = `user_${user.userId}`; // TODO: fetch from users table
+
+	// Step 1: Insert thread
+	const threadResult = await env.DB.prepare(
+		"INSERT INTO threads (forum_id, author_id, author_name, subject, created_at, last_post_at, last_poster, replies, views, closed, sticky, digest) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0)",
+	)
+		.bind(forumId, user.userId, authorName, subject.trim(), now, now, authorName)
+		.run();
+
+	const threadId = threadResult.meta.last_row_id;
+
+	// Step 2: Batch insert first post + update counts
+	await env.DB.batch([
+		env.DB.prepare(
+			"INSERT INTO posts (thread_id, forum_id, author_id, author_name, content, created_at, is_first, position) VALUES (?, ?, ?, ?, ?, ?, 1, 1)",
+		).bind(threadId, forumId, user.userId, authorName, content.trim(), now),
+		env.DB.prepare(
+			"UPDATE forums SET threads = threads + 1, posts = posts + 1, last_thread_id = ?, last_post_at = ?, last_poster = ? WHERE id = ?",
+		).bind(threadId, now, authorName, forumId),
+		env.DB.prepare("UPDATE users SET threads = threads + 1, posts = posts + 1 WHERE id = ?").bind(
+			user.userId,
+		),
+	]);
+
+	// Fetch created thread
+	const createdThread = await env.DB.prepare("SELECT * FROM threads WHERE id = ?")
+		.bind(threadId)
+		.first();
+
+	return jsonResponse(toThread(createdThread as Record<string, unknown>), origin, undefined, 201);
+});

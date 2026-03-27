@@ -60,6 +60,7 @@ export function makeD1ThreadRow(overrides?: Record<string, unknown>) {
 		special: 0,
 		highlight: 0,
 		recommends: 0,
+		post_table_id: 1, // internal field — should NOT appear in output
 		...overrides,
 	};
 }
