@@ -61,6 +61,15 @@ export default {
 			if (path === "/api/v1/auth/login" && request.method === "POST") {
 				return await (await import("./handlers/auth")).login(request, env);
 			}
+			if (path === "/api/v1/auth/refresh" && request.method === "POST") {
+				return await (await import("./handlers/auth")).refresh(request, env);
+			}
+			if (path === "/api/v1/auth/logout" && request.method === "DELETE") {
+				return await (await import("./handlers/auth")).logout(request, env);
+			}
+			if (path === "/api/v1/auth/me" && request.method === "GET") {
+				return await (await import("./handlers/auth")).me(request, env);
+			}
 
 			// Authenticated routes (TODO: add auth middleware)
 			if (path === "/api/v1/threads" && request.method === "POST") {

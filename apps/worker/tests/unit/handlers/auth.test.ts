@@ -1,7 +1,8 @@
 import { describe, expect, it, mock } from "bun:test";
-import { login } from "../../../src/handlers/auth";
+import { login, logout, me, refresh } from "../../../src/handlers/auth";
 import type { Env } from "../../../src/lib/env";
 import { hashPassword } from "../../../src/lib/password";
+import { createJwtForRole, makeD1UserRow } from "../../helpers";
 
 // Helper to create a mock D1 database
 function createMockDb(
@@ -464,6 +465,241 @@ describe("auth handlers", () => {
 			expect(response.headers.get("Access-Control-Allow-Methods")).toBe(
 				"GET, POST, PATCH, DELETE, OPTIONS",
 			);
+		});
+	});
+
+	describe("refresh", () => {
+		const refreshEnv = (
+			kvStore: Map<string, string>,
+			dbUser: { id: number; username: string; role: number; status: number } | null,
+		): Env => {
+			const firstSpy = mock(() => Promise.resolve(dbUser));
+			const bindSpy = mock((..._args: unknown[]) => ({ first: firstSpy }));
+			const prepareSpy = mock((_sql: string) => ({ bind: bindSpy }));
+
+			return {
+				...mockEnv,
+				DB: { prepare: prepareSpy } as unknown as D1Database,
+				KV: {
+					get: mock((key: string) => Promise.resolve(kvStore.get(key) ?? null)),
+					put: mock((key: string, value: string) => {
+						kvStore.set(key, value);
+						return Promise.resolve();
+					}),
+					delete: mock((key: string) => {
+						kvStore.delete(key);
+						return Promise.resolve();
+					}),
+				} as unknown as KVNamespace,
+			};
+		};
+
+		const createRefreshRequest = (body: Record<string, unknown>) =>
+			new Request("https://example.com/api/v1/auth/refresh", {
+				method: "POST",
+				body: JSON.stringify(body),
+				headers: { "Content-Type": "application/json" },
+			});
+
+		it("should require refreshToken in body", async () => {
+			const kvStore = new Map<string, string>();
+			const env = refreshEnv(kvStore, { id: 1, username: "test", role: 0, status: 0 });
+
+			const response = await refresh(createRefreshRequest({}), env);
+
+			expect(response.status).toBe(400);
+			const body = await response.json();
+			expect(body.error.code).toBe("INVALID_REQUEST");
+			expect(body.error.details.message).toBe("refreshToken is required");
+		});
+
+		it("should return 401 for invalid refresh token", async () => {
+			const kvStore = new Map<string, string>();
+			const env = refreshEnv(kvStore, { id: 1, username: "test", role: 0, status: 0 });
+
+			const response = await refresh(createRefreshRequest({ refreshToken: "invalid-token" }), env);
+
+			expect(response.status).toBe(401);
+			const body = await response.json();
+			expect(body.error.code).toBe("INVALID_REFRESH_TOKEN");
+		});
+
+		it("should return 401 for deleted user (and clean up token)", async () => {
+			const kvStore = new Map<string, string>([["refresh:valid-token", "123"]]);
+			const env = refreshEnv(kvStore, null);
+
+			const response = await refresh(createRefreshRequest({ refreshToken: "valid-token" }), env);
+
+			expect(response.status).toBe(401);
+			const body = await response.json();
+			expect(body.error.code).toBe("INVALID_REFRESH_TOKEN");
+			expect(kvStore.get("refresh:valid-token")).toBeUndefined();
+		});
+
+		it("should return 403 for banned user (and clean up token)", async () => {
+			const kvStore = new Map<string, string>([["refresh:valid-token", "123"]]);
+			const env = refreshEnv(kvStore, { id: 123, username: "banned", role: 0, status: -1 });
+
+			const response = await refresh(createRefreshRequest({ refreshToken: "valid-token" }), env);
+
+			expect(response.status).toBe(403);
+			const body = await response.json();
+			expect(body.error.code).toBe("USER_BANNED");
+			expect(kvStore.get("refresh:valid-token")).toBeUndefined();
+		});
+
+		it("should issue new JWT and rotated refresh token", async () => {
+			const kvStore = new Map<string, string>([["refresh:old-token", "42"]]);
+			const env = refreshEnv(kvStore, { id: 42, username: "testuser", role: 1, status: 0 });
+
+			const response = await refresh(createRefreshRequest({ refreshToken: "old-token" }), env);
+
+			expect(response.status).toBe(200);
+			const body = await response.json();
+
+			expect(body.data.token).toBeDefined();
+			expect(typeof body.data.token).toBe("string");
+			expect(body.data.refreshToken).toBeDefined();
+			expect(typeof body.data.refreshToken).toBe("string");
+			expect(body.data.refreshToken).not.toBe("old-token");
+			expect(body.data.user).toEqual({
+				userId: 42,
+				username: "testuser",
+				role: 1,
+			});
+
+			// Old token deleted, new token stored
+			expect(kvStore.get("refresh:old-token")).toBeUndefined();
+			expect(kvStore.has(`refresh:${body.data.refreshToken}`)).toBe(true);
+		});
+
+		it("should handle malformed JSON", async () => {
+			const kvStore = new Map<string, string>();
+			const env = refreshEnv(kvStore, null);
+
+			const response = await refresh(
+				new Request("https://example.com/api/v1/auth/refresh", {
+					method: "POST",
+					body: "invalid json",
+					headers: { "Content-Type": "application/json" },
+				}),
+				env,
+			);
+
+			expect(response.status).toBe(500);
+			const body = await response.json();
+			expect(body.error.code).toBe("INTERNAL_ERROR");
+		});
+	});
+
+	describe("logout", () => {
+		const createLogoutRequest = (body: Record<string, unknown>) =>
+			new Request("https://example.com/api/v1/auth/logout", {
+				method: "DELETE",
+				body: JSON.stringify(body),
+				headers: { "Content-Type": "application/json" },
+			});
+
+		it("should require refreshToken in body", async () => {
+			const kvStore = new Map<string, string>();
+			const env: Env = {
+				...mockEnv,
+				KV: {
+					delete: mock((key: string) => {
+						kvStore.delete(key);
+						return Promise.resolve();
+					}),
+				} as unknown as KVNamespace,
+			};
+
+			const response = await logout(createLogoutRequest({}), env);
+
+			expect(response.status).toBe(400);
+			const body = await response.json();
+			expect(body.error.code).toBe("INVALID_REQUEST");
+		});
+
+		it("should delete refresh token from KV", async () => {
+			const kvStore = new Map<string, string>([["refresh:my-token", "123"]]);
+			const env: Env = {
+				...mockEnv,
+				KV: {
+					delete: mock((key: string) => {
+						kvStore.delete(key);
+						return Promise.resolve();
+					}),
+				} as unknown as KVNamespace,
+			};
+
+			const response = await logout(createLogoutRequest({ refreshToken: "my-token" }), env);
+
+			expect(response.status).toBe(200);
+			const body = await response.json();
+			expect(body.data.loggedOut).toBe(true);
+			expect(kvStore.get("refresh:my-token")).toBeUndefined();
+		});
+
+		it("should succeed even if token doesn't exist (idempotent)", async () => {
+			const env: Env = {
+				...mockEnv,
+				KV: { delete: mock(() => Promise.resolve()) } as unknown as KVNamespace,
+			};
+
+			const response = await logout(createLogoutRequest({ refreshToken: "non-existent" }), env);
+
+			expect(response.status).toBe(200);
+			const body = await response.json();
+			expect(body.data.loggedOut).toBe(true);
+		});
+	});
+
+	describe("me", () => {
+		it("should return current user profile", async () => {
+			const userRow = makeD1UserRow({ id: 42, username: "meuser", role: 1 });
+			const { db } = createMockDb({ firstResult: userRow });
+
+			const token = await createJwtForRole(1, 42);
+			const env = { ...mockEnv, DB: db };
+
+			const response = await me(
+				new Request("https://example.com/api/v1/auth/me", {
+					headers: { Authorization: `Bearer ${token}` },
+				}),
+				env,
+			);
+
+			expect(response.status).toBe(200);
+			const body = await response.json();
+			expect(body.data.id).toBe(42);
+			expect(body.data.username).toBe("meuser");
+			expect(body.data.role).toBe(1);
+		});
+
+		it("should require authentication", async () => {
+			const { db } = createMockDb();
+			const env = { ...mockEnv, DB: db };
+
+			const response = await me(new Request("https://example.com/api/v1/auth/me"), env);
+
+			expect(response.status).toBe(401);
+		});
+
+		it("should return 404 for non-existent user", async () => {
+			const { db } = createMockDb({ firstResult: null });
+
+			const token = await createJwtForRole(1, 999);
+			const env = { ...mockEnv, DB: db };
+
+			const response = await me(
+				new Request("https://example.com/api/v1/auth/me", {
+					headers: { Authorization: `Bearer ${token}` },
+				}),
+				env,
+			);
+
+			expect(response.status).toBe(404);
+			const body = await response.json();
+			expect(body.error.code).toBe("USER_NOT_FOUND");
 		});
 	});
 });
