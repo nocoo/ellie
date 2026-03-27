@@ -201,16 +201,12 @@ pub struct ApiResponse<T> {
 impl<T> ApiResponse<T> {
 	/// Whether the server indicated more pages are available.
 	pub fn has_more(&self) -> bool {
-		self.meta
-			.as_ref()
-			.is_some_and(|m| m.next_cursor.is_some())
+		self.meta.as_ref().is_some_and(|m| m.next_cursor.is_some())
 	}
 
 	/// The cursor for fetching the next page, if any.
 	pub fn next_cursor(&self) -> Option<&str> {
-		self.meta
-			.as_ref()
-			.and_then(|m| m.next_cursor.as_deref())
+		self.meta.as_ref().and_then(|m| m.next_cursor.as_deref())
 	}
 }
 

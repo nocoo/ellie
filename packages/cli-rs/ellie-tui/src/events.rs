@@ -116,7 +116,11 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
 			let next = app.theme.next();
 			next.save(&mut app.config);
 			app.theme = next;
-			app.status_message = Some(format!("theme: {}", next.label()));
+			let label = next.label();
+			match app.config.write(None) {
+				Ok(()) => app.status_message = Some(format!("theme: {label}")),
+				Err(_) => app.status_message = Some(format!("theme: {label} (save failed)")),
+			}
 		}
 
 		// Help panel
@@ -456,12 +460,15 @@ mod tests {
 
 		handle_key_event(&mut app, key(KeyCode::Char('t')));
 		assert_eq!(app.theme, Theme::Dracula);
+		assert_eq!(app.config.theme, "dracula");
 
 		handle_key_event(&mut app, key(KeyCode::Char('t')));
 		assert_eq!(app.theme, Theme::Nord);
+		assert_eq!(app.config.theme, "nord");
 
 		handle_key_event(&mut app, key(KeyCode::Char('t')));
 		assert_eq!(app.theme, Theme::Default);
+		assert_eq!(app.config.theme, "default");
 	}
 
 	#[test]
