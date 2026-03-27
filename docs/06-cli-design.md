@@ -645,13 +645,21 @@ cargo llvm-cov --all-areas --html
 
 ```rust
 // ellie-core/tests/integration.rs
+mod helpers;
+
+/// Shared test client — reads URL/key from env, refuses to default to production.
+fn test_client() -> ApiClient {
+    ApiClient::new(
+        std::env::var("ELLIE_API_URL").expect("ELLIE_API_URL must be set (use test Worker URL)"),
+        std::env::var("ELLIE_API_KEY").expect("ELLIE_API_KEY must be set"),
+    )
+}
+
 #[test]
 #[ignore]  // Run with: cargo test --test integration -- --ignored
 fn get_forums_e2e() {
-    let client = ApiClient::new(
-        std::env::var("ELLIE_API_URL").unwrap_or_else(|_| "http://localhost:8787".to_string()),
-        std::env::var("ELLIE_API_KEY").expect("ELLIE_API_KEY must be set"),
-    );
+    let client = test_client();
+    helpers::assert_test_environment(&client);  // D1 isolation gate
 
     let result: ApiResponse<Vec<Forum>> = client.get_forums().unwrap();
     assert!(!result.data.is_empty());
@@ -703,25 +711,75 @@ gitleaks detect --no-banner
 
 ### D1 Test Isolation — 测试资源物理隔离
 
-**核心原则**：Dev 可连 prod（调试真实数据），但 E2E 测试必须物理隔离于生产资源。
+**核心原则**：Dev 可连 prod（调试真实数据），但 L2 集成测试必须物理隔离于生产资源。
 
-**命名规范**：
+**职责边界**：
 
-| 资源类型 | Prod | Test (E2E) |
-|----------|------|------------|
-| D1 Database | `tongjinet-db` | `tongjinet-db-test` |
-| KV Namespace | `ellie` | `ellie-test` |
+CLI 是纯 HTTP 客户端，不直接持有 D1/KV 访问能力。资源隔离的**实施方**是 Worker（见 04b 文档的 D1 Isolation 部分），CLI 的职责是**验证自己连接的是隔离环境**而非生产环境。
 
-**三重验证**：
-1. 环境变量覆盖：`process.env.NODE_ENV === "test"`
-2. 运行时校验：test 模式下必须使用 test 资源
-3. 测试标记表：`_test_marker` 表验证
+| 层 | 职责 | 实施方 |
+|----|------|--------|
+| 资源隔离 | `tongjinet-db-test` D1 / `ellie-test` KV | Worker `[env.test]` |
+| 隔离三重验证 | binding 校验 / 运行时资源名 / `_test_marker` 表 | Worker 测试 (04b) |
+| **连接目标验证** | 确认 CLI L2 测试连接的是 test Worker | **CLI (本文档)** |
 
-**CI 中的隔离验证**：
+**CLI 侧验证方式**：
+
+L2 测试启动时，通过 `GET /api/live` 端点检查 Worker 返回的 `environment` 字段。该端点已存在且返回 `{ "environment": "production" | "test", ... }`。
+
+```rust
+// ellie-core/tests/helpers.rs
+
+/// Verify the target Worker is running in test mode before any L2 test touches data.
+/// Panics with a clear message if connected to production — prevents accidental
+/// test traffic against real user data.
+pub fn assert_test_environment(client: &ApiClient) {
+    let live: LiveResponse = client.get_live().expect("GET /api/live failed");
+    assert_eq!(
+        live.environment, "test",
+        "SAFETY: L2 tests must target a test Worker (environment={:?}), \
+         not production. Set ELLIE_API_URL to your test Worker URL.",
+        live.environment
+    );
+}
+```
+
+```rust
+// ellie-core/tests/integration.rs
+mod helpers;
+
+#[test]
+#[ignore]
+fn get_forums_e2e() {
+    let client = test_client();
+    helpers::assert_test_environment(&client);  // gate: refuse to run against prod
+
+    let result: ApiResponse<Vec<Forum>> = client.get_forums().unwrap();
+    assert!(!result.data.is_empty());
+}
+```
+
+**ApiClient 需要的 `get_live` 方法**：
+
+```rust
+// 在 ApiClient impl 中追加（/api/live 不需要 API Key）
+pub fn get_live(&self) -> Result<LiveResponse> {
+    let url = format!("{}/api/live", self.base_url);
+    let res = self.agent.get(&url).call()?;
+    Ok(res.into_json()?)
+}
+```
+
+**环境变量配置**：
+
 ```bash
-# 验证 L2 测试使用 test DB
+# L2 测试必须指向 test Worker，不可省略
+ELLIE_API_URL=https://ellie-test.nocoo.workers.dev  # test Worker
+ELLIE_API_KEY=<test-api-key>
 cargo test --test integration -- --ignored
 ```
+
+> **注意**：Worker 侧 `[env.test]` 配置（含 test D1/KV binding）和三重验证是 Worker 文档 (04b) 的职责。CLI 文档仅负责验证连接目标正确性。
 
 ### Tier 判定规则
 
