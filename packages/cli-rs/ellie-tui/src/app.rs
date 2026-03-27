@@ -1,3 +1,4 @@
+use ellie_core::client::ApiClient;
 use ellie_core::config::Config;
 use ellie_core::types::{Forum, LoggedUser, Post, Thread, User};
 
@@ -162,6 +163,21 @@ impl LoginFormState {
 	}
 }
 
+// ─── Pending Actions ─────────────────────────────────────
+
+/// Actions that need network I/O, dispatched between event handling and rendering.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PendingAction {
+	LoadForums,
+	LoadThreads { forum_id: u64 },
+	LoadMoreThreads { forum_id: u64 },
+	LoadPosts { thread_id: u64 },
+	LoadMorePosts { thread_id: u64 },
+	LoadUser { user_id: u64 },
+	Login { username: String, password: String },
+	RefreshCurrentView,
+}
+
 // ─── App ─────────────────────────────────────────────────
 
 pub struct App {
@@ -192,6 +208,12 @@ pub struct App {
 
 	// Theme
 	pub theme: Theme,
+
+	// API client
+	pub client: ApiClient,
+
+	// Pending network action (dispatched by the main loop)
+	pub pending_action: Option<PendingAction>,
 }
 
 // ─── Theme ───────────────────────────────────────────────
@@ -241,6 +263,10 @@ impl App {
 	pub fn new(config: Config) -> Self {
 		let theme = Theme::load(&config);
 		let logged_in_user = config.auth.as_ref().map(|a| a.user.clone());
+		let mut client = ApiClient::new(config.api_url.clone(), config.api_key.clone());
+		if let Some(auth) = &config.auth {
+			client.set_token(Some(auth.token.clone()));
+		}
 		Self {
 			should_quit: false,
 			input_mode: InputMode::Normal,
@@ -258,6 +284,8 @@ impl App {
 			login_form: LoginFormState::default(),
 			config,
 			theme,
+			client,
+			pending_action: Some(PendingAction::LoadForums),
 		}
 	}
 
