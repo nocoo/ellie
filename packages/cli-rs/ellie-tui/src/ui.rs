@@ -31,6 +31,11 @@ pub fn draw(frame: &mut Frame, app: &App) {
 	if app.input_mode == InputMode::Login {
 		views::login_form::draw(frame, &app.login_form, &tc);
 	}
+
+	// Overlay: help panel
+	if app.input_mode == InputMode::Help {
+		views::help_panel::draw(frame, &tc);
+	}
 }
 
 // ─── Row 0: Header ──────────────────────────────────────
@@ -63,13 +68,13 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App, tc: &crate::theme::Them
 fn draw_content(frame: &mut Frame, area: Rect, app: &App, tc: &crate::theme::ThemeColors) {
 	match &app.current_view {
 		ViewState::Forums { list } => {
-			views::forum_list::draw(frame, area, &app.forums, list, tc);
+			views::forum_list::draw(frame, area, &app.forums, list, app.loading, tc);
 		}
 		ViewState::Threads { list, .. } => {
-			views::thread_list::draw(frame, area, &app.threads, list, tc);
+			views::thread_list::draw(frame, area, &app.threads, list, app.loading, tc);
 		}
 		ViewState::Posts { list, .. } => {
-			views::post_view::draw(frame, area, &app.posts, list, tc);
+			views::post_view::draw(frame, area, &app.posts, list, app.loading, tc);
 		}
 		ViewState::User { user_id } => {
 			views::user_profile::draw(frame, area, *user_id, app.current_user.as_ref(), tc);

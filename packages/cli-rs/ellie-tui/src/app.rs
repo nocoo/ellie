@@ -9,6 +9,7 @@ pub enum InputMode {
 	Normal,
 	Search,
 	Login,
+	Help,
 }
 
 // ─── List State ──────────────────────────────────────────

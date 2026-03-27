@@ -3,7 +3,7 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListItem};
+use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
 
 use crate::app::ListState;
 use crate::theme::ThemeColors;
@@ -15,8 +15,22 @@ pub fn draw(
 	area: Rect,
 	forums: &[Forum],
 	list_state: &ListState,
+	loading: bool,
 	tc: &ThemeColors,
 ) {
+	// Empty / loading state
+	if forums.is_empty() {
+		let msg = if loading {
+			"  Loading forums..."
+		} else {
+			"  No forums available"
+		};
+		let p = Paragraph::new(Span::styled(msg, Style::default().fg(tc.muted)))
+			.style(Style::default().bg(tc.bg));
+		frame.render_widget(p, area);
+		return;
+	}
+
 	let items: Vec<ListItem> = visible_items(forums, list_state)
 		.enumerate()
 		.map(|(i, forum)| {
