@@ -54,25 +54,43 @@ impl Config {
 	}
 
 	/// Load config from file. Falls back to defaults if file doesn't exist.
+	/// Environment variables `ELLIE_API_URL` and `ELLIE_API_KEY` override file values.
 	pub fn load(explicit_path: Option<&PathBuf>) -> Self {
 		let Some(path) = Self::resolve_path(explicit_path) else {
-			return Self::default_config();
+			return Self::default_config().with_env_overrides();
 		};
 
 		if !path.exists() {
-			return Self::default_config();
+			return Self::default_config().with_env_overrides();
 		}
 
 		match fs::read_to_string(&path) {
-			Ok(contents) => serde_json::from_str(&contents).unwrap_or_else(|_| {
-				eprintln!(
-					"warning: config file at {} is malformed, using defaults",
-					path.display()
-				);
-				Self::default_config()
-			}),
-			Err(_) => Self::default_config(),
+			Ok(contents) => serde_json::from_str(&contents)
+				.unwrap_or_else(|_| {
+					eprintln!(
+						"warning: config file at {} is malformed, using defaults",
+						path.display()
+					);
+					Self::default_config()
+				})
+				.with_env_overrides(),
+			Err(_) => Self::default_config().with_env_overrides(),
 		}
+	}
+
+	/// Apply environment variable overrides on top of loaded config.
+	fn with_env_overrides(mut self) -> Self {
+		if let Ok(url) = std::env::var("ELLIE_API_URL") {
+			if !url.is_empty() {
+				self.api_url = url;
+			}
+		}
+		if let Ok(key) = std::env::var("ELLIE_API_KEY") {
+			if !key.is_empty() {
+				self.api_key = key;
+			}
+		}
+		self
 	}
 
 	/// Write config to file, creating parent directories if needed.
@@ -229,5 +247,56 @@ mod tests {
 		let config: Config = serde_json::from_str(json).unwrap();
 		assert_eq!(config.theme, "default");
 		assert!(config.auth.is_none());
+	}
+
+	#[test]
+	fn env_override_api_key() {
+		// Use a unique env var name-scoping trick: set, apply, then restore.
+		let orig_key = std::env::var("ELLIE_API_KEY").ok();
+		let orig_url = std::env::var("ELLIE_API_URL").ok();
+
+		// SAFETY: test is single-threaded; we restore original values after.
+		unsafe {
+			std::env::set_var("ELLIE_API_KEY", "from-env");
+			std::env::set_var("ELLIE_API_URL", "http://env-override");
+		}
+
+		let config = Config::default_config().with_env_overrides();
+		assert_eq!(config.api_key, "from-env");
+		assert_eq!(config.api_url, "http://env-override");
+
+		// Restore
+		unsafe {
+			match orig_key {
+				Some(v) => std::env::set_var("ELLIE_API_KEY", v),
+				None => std::env::remove_var("ELLIE_API_KEY"),
+			}
+			match orig_url {
+				Some(v) => std::env::set_var("ELLIE_API_URL", v),
+				None => std::env::remove_var("ELLIE_API_URL"),
+			}
+		}
+	}
+
+	#[test]
+	fn env_override_empty_is_ignored() {
+		let orig_key = std::env::var("ELLIE_API_KEY").ok();
+
+		// SAFETY: test is single-threaded; we restore original value after.
+		unsafe {
+			std::env::set_var("ELLIE_API_KEY", "");
+		}
+
+		let mut config = Config::default_config();
+		config.api_key = "from-file".to_string();
+		let config = config.with_env_overrides();
+		assert_eq!(config.api_key, "from-file");
+
+		unsafe {
+			match orig_key {
+				Some(v) => std::env::set_var("ELLIE_API_KEY", v),
+				None => std::env::remove_var("ELLIE_API_KEY"),
+			}
+		}
 	}
 }
