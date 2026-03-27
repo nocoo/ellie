@@ -152,7 +152,7 @@ fn build_post_lines<'a>(posts: &[Post], width: usize, tc: &'a ThemeColors) -> Ve
 			lines.push(Line::from(vec![
 				Span::styled("│ ", Style::default().fg(tc.border)),
 				Span::styled(content_line, Style::default().fg(tc.fg)),
-				Span::styled(format!("{padding}│"), Style::default().fg(tc.border)),
+				Span::styled(format!("{padding} │"), Style::default().fg(tc.border)),
 			]));
 		}
 
