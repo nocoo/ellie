@@ -66,3 +66,79 @@ pub fn draw(
 		.style(Style::default().fg(tc.fg));
 	frame.render_widget(list, area);
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use ratatui::Terminal;
+	use ratatui::backend::TestBackend;
+
+	use crate::app::Theme;
+
+	fn dummy_post(id: u64, content: &str) -> Post {
+		Post {
+			id,
+			thread_id: 1,
+			forum_id: 1,
+			content: content.to_string(),
+			author_id: 1,
+			author_name: "alice".to_string(),
+			position: 1,
+			created_at: 0,
+			is_first: true,
+		}
+	}
+
+	#[test]
+	fn render_loading_state() {
+		let backend = TestBackend::new(60, 3);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let tc = Theme::Default.colors();
+		terminal
+			.draw(|f| draw(f, f.area(), &[], &ListState::default(), true, &tc))
+			.unwrap();
+		let buf = terminal.backend().buffer().content().to_vec();
+		let text: String = buf
+			.iter()
+			.map(|c| c.symbol().chars().next().unwrap_or(' '))
+			.collect();
+		assert!(text.contains("Loading posts"));
+	}
+
+	#[test]
+	fn render_empty_state() {
+		let backend = TestBackend::new(60, 3);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let tc = Theme::Default.colors();
+		terminal
+			.draw(|f| draw(f, f.area(), &[], &ListState::default(), false, &tc))
+			.unwrap();
+		let buf = terminal.backend().buffer().content().to_vec();
+		let text: String = buf
+			.iter()
+			.map(|c| c.symbol().chars().next().unwrap_or(' '))
+			.collect();
+		assert!(text.contains("No posts"));
+	}
+
+	#[test]
+	fn render_post_items() {
+		let backend = TestBackend::new(80, 5);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let tc = Theme::Default.colors();
+		let posts = vec![
+			dummy_post(1, "Hello this is a post"),
+			dummy_post(2, "Another reply"),
+		];
+		terminal
+			.draw(|f| draw(f, f.area(), &posts, &ListState::default(), false, &tc))
+			.unwrap();
+		let buf = terminal.backend().buffer().content().to_vec();
+		let text: String = buf
+			.iter()
+			.map(|c| c.symbol().chars().next().unwrap_or(' '))
+			.collect();
+		assert!(text.contains("alice"));
+		assert!(text.contains("Hello this is a post"));
+	}
+}

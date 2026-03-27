@@ -70,3 +70,70 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App, tc: &ThemeColors) {
 	let bar = Paragraph::new(line).style(Style::default().bg(tc.bg));
 	frame.render_widget(bar, area);
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use ellie_core::config::Config;
+	use ratatui::Terminal;
+	use ratatui::backend::TestBackend;
+
+	use crate::app::{App, Theme};
+
+	fn buf_text(terminal: &Terminal<TestBackend>) -> String {
+		terminal
+			.backend()
+			.buffer()
+			.content()
+			.iter()
+			.map(|c| c.symbol().chars().next().unwrap_or(' '))
+			.collect()
+	}
+
+	#[test]
+	fn render_normal_mode() {
+		let backend = TestBackend::new(80, 1);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let app = App::new(Config::default_config());
+		let tc = Theme::Default.colors();
+		terminal.draw(|f| draw(f, f.area(), &app, &tc)).unwrap();
+		let text = buf_text(&terminal);
+		assert!(text.contains("NORMAL"));
+	}
+
+	#[test]
+	fn render_search_mode() {
+		let backend = TestBackend::new(80, 1);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let mut app = App::new(Config::default_config());
+		app.input_mode = InputMode::Search;
+		let tc = Theme::Default.colors();
+		terminal.draw(|f| draw(f, f.area(), &app, &tc)).unwrap();
+		let text = buf_text(&terminal);
+		assert!(text.contains("SEARCH"));
+	}
+
+	#[test]
+	fn render_help_mode() {
+		let backend = TestBackend::new(80, 1);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let mut app = App::new(Config::default_config());
+		app.input_mode = InputMode::Help;
+		let tc = Theme::Default.colors();
+		terminal.draw(|f| draw(f, f.area(), &app, &tc)).unwrap();
+		let text = buf_text(&terminal);
+		assert!(text.contains("HELP"));
+	}
+
+	#[test]
+	fn render_status_message() {
+		let backend = TestBackend::new(80, 1);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let mut app = App::new(Config::default_config());
+		app.status_message = Some("loaded 5 forums".to_string());
+		let tc = Theme::Default.colors();
+		terminal.draw(|f| draw(f, f.area(), &app, &tc)).unwrap();
+		let text = buf_text(&terminal);
+		assert!(text.contains("loaded 5 forums"));
+	}
+}

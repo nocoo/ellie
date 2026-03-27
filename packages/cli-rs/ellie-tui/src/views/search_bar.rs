@@ -15,3 +15,28 @@ pub fn draw(frame: &mut Frame, area: Rect, breadcrumb: &str, tc: &ThemeColors) {
 	.style(Style::default().bg(tc.bg));
 	frame.render_widget(line, area);
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use ratatui::Terminal;
+	use ratatui::backend::TestBackend;
+
+	use crate::app::Theme;
+
+	#[test]
+	fn render_breadcrumb() {
+		let backend = TestBackend::new(60, 1);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let tc = Theme::Default.colors();
+		terminal
+			.draw(|f| draw(f, f.area(), "版块 > 校园", &tc))
+			.unwrap();
+		let buf = terminal.backend().buffer().content().to_vec();
+		let text: String = buf
+			.iter()
+			.map(|c| c.symbol().chars().next().unwrap_or(' '))
+			.collect();
+		assert!(text.contains(">"));
+	}
+}

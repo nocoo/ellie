@@ -45,3 +45,56 @@ pub fn draw(
 	let profile = Paragraph::new(text).style(Style::default().bg(tc.bg));
 	frame.render_widget(profile, area);
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use ratatui::Terminal;
+	use ratatui::backend::TestBackend;
+
+	use crate::app::Theme;
+
+	#[test]
+	fn render_loading_user() {
+		let backend = TestBackend::new(40, 3);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let tc = Theme::Default.colors();
+		terminal.draw(|f| draw(f, f.area(), 42, None, &tc)).unwrap();
+		let buf = terminal.backend().buffer().content().to_vec();
+		let text: String = buf
+			.iter()
+			.map(|c| c.symbol().chars().next().unwrap_or(' '))
+			.collect();
+		assert!(text.contains("Loading user #42"));
+	}
+
+	#[test]
+	fn render_user_profile() {
+		let backend = TestBackend::new(40, 5);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let tc = Theme::Default.colors();
+		let user = User {
+			id: 1,
+			username: "alice".to_string(),
+			role: ellie_core::types::UserRole::User,
+			status: ellie_core::types::UserStatus::Active,
+			posts: 42,
+			threads: 7,
+			credits: 100,
+			email: String::new(),
+			avatar: String::new(),
+			reg_date: 0,
+			last_login: 0,
+		};
+		terminal
+			.draw(|f| draw(f, f.area(), 1, Some(&user), &tc))
+			.unwrap();
+		let buf = terminal.backend().buffer().content().to_vec();
+		let text: String = buf
+			.iter()
+			.map(|c| c.symbol().chars().next().unwrap_or(' '))
+			.collect();
+		assert!(text.contains("alice"));
+		assert!(text.contains("42"));
+	}
+}
