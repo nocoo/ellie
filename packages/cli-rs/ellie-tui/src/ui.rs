@@ -81,3 +81,56 @@ fn draw_content(frame: &mut Frame, area: Rect, app: &App, tc: &crate::theme::The
 		}
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use ellie_core::config::Config;
+	use ratatui::Terminal;
+	use ratatui::backend::TestBackend;
+
+	fn buf_text(terminal: &Terminal<TestBackend>) -> String {
+		terminal
+			.backend()
+			.buffer()
+			.content()
+			.iter()
+			.map(|c| c.symbol().chars().next().unwrap_or(' '))
+			.collect()
+	}
+
+	#[test]
+	fn draw_full_layout_default() {
+		let backend = TestBackend::new(80, 24);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let app = App::new(Config::default_config());
+		terminal.draw(|f| draw(f, &app)).unwrap();
+		let text = buf_text(&terminal);
+		assert!(text.contains("Ellie Forum"));
+		assert!(text.contains("NORMAL"));
+	}
+
+	#[test]
+	fn draw_login_overlay() {
+		let backend = TestBackend::new(80, 24);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let mut app = App::new(Config::default_config());
+		app.input_mode = InputMode::Login;
+		terminal.draw(|f| draw(f, &app)).unwrap();
+		let text = buf_text(&terminal);
+		assert!(text.contains("Login"));
+		assert!(text.contains("Username"));
+	}
+
+	#[test]
+	fn draw_help_overlay() {
+		let backend = TestBackend::new(80, 24);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let mut app = App::new(Config::default_config());
+		app.input_mode = InputMode::Help;
+		terminal.draw(|f| draw(f, &app)).unwrap();
+		let text = buf_text(&terminal);
+		assert!(text.contains("Help"));
+		assert!(text.contains("Keybindings"));
+	}
+}

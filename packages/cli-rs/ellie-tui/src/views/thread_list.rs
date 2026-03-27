@@ -78,3 +78,104 @@ pub fn draw(
 		.style(Style::default().fg(tc.fg));
 	frame.render_widget(list, area);
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use ratatui::Terminal;
+	use ratatui::backend::TestBackend;
+
+	use crate::app::Theme;
+
+	fn dummy_thread(id: u64, subject: &str) -> Thread {
+		Thread {
+			id,
+			forum_id: 1,
+			subject: subject.to_string(),
+			author_id: 1,
+			author_name: "user".to_string(),
+			created_at: 0,
+			views: 0,
+			replies: 0,
+			last_post_at: 0,
+			last_poster: "user".to_string(),
+			sticky: StickyLevel::None,
+			digest: 0,
+			closed: 0,
+			special: 0,
+			highlight: 0,
+			recommends: 0,
+		}
+	}
+
+	#[test]
+	fn render_loading_state() {
+		let backend = TestBackend::new(60, 3);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let tc = Theme::Default.colors();
+		terminal
+			.draw(|f| draw(f, f.area(), &[], &ListState::default(), true, &tc))
+			.unwrap();
+		let buf = terminal.backend().buffer().content().to_vec();
+		let text: String = buf
+			.iter()
+			.map(|c| c.symbol().chars().next().unwrap_or(' '))
+			.collect();
+		assert!(text.contains("Loading threads"));
+	}
+
+	#[test]
+	fn render_empty_state() {
+		let backend = TestBackend::new(60, 3);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let tc = Theme::Default.colors();
+		terminal
+			.draw(|f| draw(f, f.area(), &[], &ListState::default(), false, &tc))
+			.unwrap();
+		let buf = terminal.backend().buffer().content().to_vec();
+		let text: String = buf
+			.iter()
+			.map(|c| c.symbol().chars().next().unwrap_or(' '))
+			.collect();
+		assert!(text.contains("No threads"));
+	}
+
+	#[test]
+	fn render_thread_items() {
+		let backend = TestBackend::new(80, 5);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let tc = Theme::Default.colors();
+		let threads = vec![dummy_thread(1, "Hello world"), dummy_thread(2, "Rust tips")];
+		terminal
+			.draw(|f| draw(f, f.area(), &threads, &ListState::default(), false, &tc))
+			.unwrap();
+		let buf = terminal.backend().buffer().content().to_vec();
+		let text: String = buf
+			.iter()
+			.map(|c| c.symbol().chars().next().unwrap_or(' '))
+			.collect();
+		assert!(text.contains("Hello world"));
+		assert!(text.contains("Rust tips"));
+	}
+
+	#[test]
+	fn render_sticky_thread() {
+		let backend = TestBackend::new(80, 3);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let tc = Theme::Default.colors();
+		let mut t = dummy_thread(1, "Important");
+		t.sticky = StickyLevel::Global;
+		terminal
+			.draw(|f| draw(f, f.area(), &[t], &ListState::default(), false, &tc))
+			.unwrap();
+		let buf = terminal.backend().buffer().content().to_vec();
+		let text: String = buf
+			.iter()
+			.map(|c| c.symbol().chars().next().unwrap_or(' '))
+			.collect();
+		// Sticky threads show the [置顶] prefix; CJK chars are split across cells
+		// in TestBackend, so check for the surrounding brackets
+		assert!(text.contains("Important"));
+		assert!(text.contains("["));
+	}
+}

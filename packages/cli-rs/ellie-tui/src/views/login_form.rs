@@ -91,6 +91,20 @@ pub fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use ratatui::Terminal;
+	use ratatui::backend::TestBackend;
+
+	use crate::app::Theme;
+
+	fn buf_text(terminal: &Terminal<TestBackend>) -> String {
+		terminal
+			.backend()
+			.buffer()
+			.content()
+			.iter()
+			.map(|c| c.symbol().chars().next().unwrap_or(' '))
+			.collect()
+	}
 
 	#[test]
 	fn centered_rect_basic() {
@@ -109,5 +123,31 @@ mod tests {
 		// Clamped to area dimensions
 		assert_eq!(r.width, 20);
 		assert_eq!(r.height, 10);
+	}
+
+	#[test]
+	fn render_login_form_shows_fields() {
+		let backend = TestBackend::new(80, 24);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let tc = Theme::Default.colors();
+		let mut form = LoginFormState::default();
+		form.username = "alice".to_string();
+		terminal.draw(|f| draw(f, &form, &tc)).unwrap();
+		let text = buf_text(&terminal);
+		assert!(text.contains("Login"));
+		assert!(text.contains("Username"));
+		assert!(text.contains("alice"));
+	}
+
+	#[test]
+	fn render_login_form_shows_error() {
+		let backend = TestBackend::new(80, 24);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let tc = Theme::Default.colors();
+		let mut form = LoginFormState::default();
+		form.error = Some("bad credentials".to_string());
+		terminal.draw(|f| draw(f, &form, &tc)).unwrap();
+		let text = buf_text(&terminal);
+		assert!(text.contains("bad credentials"));
 	}
 }

@@ -337,4 +337,45 @@ mod tests {
 		assert_eq!(backoff_duration(1), Duration::from_millis(400));
 		assert_eq!(backoff_duration(2), Duration::from_millis(800));
 	}
+
+	#[test]
+	fn retry_constants() {
+		assert_eq!(MAX_RETRIES, 3);
+		assert_eq!(INITIAL_BACKOFF_MS, 200);
+	}
+
+	#[test]
+	fn login_response_fields() {
+		let resp = LoginResponse {
+			token: "tok".to_string(),
+			refresh_token: "ref".to_string(),
+			user: crate::types::LoggedUser {
+				user_id: 1,
+				username: "alice".to_string(),
+				role: crate::types::UserRole::User,
+			},
+		};
+		assert_eq!(resp.token, "tok");
+		assert_eq!(resp.refresh_token, "ref");
+		assert_eq!(resp.user.username, "alice");
+	}
+
+	#[test]
+	fn api_error_is_std_error() {
+		let err = ApiError {
+			status: 400,
+			code: "BAD_REQUEST".to_string(),
+			message: "missing field".to_string(),
+		};
+		// Verify it implements std::error::Error
+		let e: &dyn std::error::Error = &err;
+		assert!(!e.to_string().is_empty());
+	}
+
+	#[test]
+	fn auth_expired_is_std_error() {
+		let err = AuthExpiredError;
+		let e: &dyn std::error::Error = &err;
+		assert_eq!(e.to_string(), "authentication token expired");
+	}
 }

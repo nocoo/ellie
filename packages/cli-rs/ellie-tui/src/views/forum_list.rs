@@ -63,3 +63,80 @@ pub fn draw(
 		.style(Style::default().fg(tc.fg));
 	frame.render_widget(list, area);
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use ratatui::Terminal;
+	use ratatui::backend::TestBackend;
+
+	use crate::app::Theme;
+
+	fn dummy_forum(id: u64, name: &str) -> Forum {
+		Forum {
+			id,
+			parent_id: 0,
+			name: name.to_string(),
+			description: String::new(),
+			icon: String::new(),
+			display_order: 0,
+			threads: 10,
+			posts: 100,
+			forum_type: ellie_core::types::ForumType::Forum,
+			status: 1,
+			last_thread_id: 0,
+			last_post_at: 0,
+			last_poster: String::new(),
+		}
+	}
+
+	#[test]
+	fn render_loading_state() {
+		let backend = TestBackend::new(60, 3);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let tc = Theme::Default.colors();
+		terminal
+			.draw(|f| draw(f, f.area(), &[], &ListState::default(), true, &tc))
+			.unwrap();
+		let buf = terminal.backend().buffer().content().to_vec();
+		let text: String = buf
+			.iter()
+			.map(|c| c.symbol().chars().next().unwrap_or(' '))
+			.collect();
+		assert!(text.contains("Loading forums"));
+	}
+
+	#[test]
+	fn render_empty_state() {
+		let backend = TestBackend::new(60, 3);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let tc = Theme::Default.colors();
+		terminal
+			.draw(|f| draw(f, f.area(), &[], &ListState::default(), false, &tc))
+			.unwrap();
+		let buf = terminal.backend().buffer().content().to_vec();
+		let text: String = buf
+			.iter()
+			.map(|c| c.symbol().chars().next().unwrap_or(' '))
+			.collect();
+		assert!(text.contains("No forums available"));
+	}
+
+	#[test]
+	fn render_forum_items() {
+		let backend = TestBackend::new(80, 5);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let tc = Theme::Default.colors();
+		let forums = vec![dummy_forum(1, "Campus"), dummy_forum(2, "Tech")];
+		terminal
+			.draw(|f| draw(f, f.area(), &forums, &ListState::default(), false, &tc))
+			.unwrap();
+		let buf = terminal.backend().buffer().content().to_vec();
+		let text: String = buf
+			.iter()
+			.map(|c| c.symbol().chars().next().unwrap_or(' '))
+			.collect();
+		assert!(text.contains("Campus"));
+		assert!(text.contains("Tech"));
+	}
+}
