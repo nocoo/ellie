@@ -26,3 +26,9 @@ output/
 
 # Next.js generated
 next-env.d.ts
+
+# Rust
+target/
+*.so
+*.dylib
+*.dll
