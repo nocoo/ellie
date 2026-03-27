@@ -19,7 +19,7 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &App, tc: &ThemeColors) {
 		),
 		InputMode::Search => {
 			let query = match &app.current_view {
-				ViewState::Forums { list } => &list.search_query,
+				ViewState::Forums { list, .. } => &list.search_query,
 				ViewState::Threads { list, .. } => &list.search_query,
 				ViewState::Posts { list, .. } => &list.search_query,
 				ViewState::User { .. } => "",

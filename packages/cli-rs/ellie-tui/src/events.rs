@@ -2,6 +2,7 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 
 use crate::actions::schedule_data_load;
 use crate::app::{App, InputMode, PendingAction, ViewState};
+use crate::views::forum_list;
 
 /// Poll for a keyboard event with 50ms timeout.
 /// Returns `Some(KeyEvent)` if a key was pressed, `None` on timeout or non-key events.
@@ -40,6 +41,7 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
 			if let Some(list) = app.current_list_mut() {
 				list.move_down(total);
 			}
+			sync_forum_table_state(app);
 		}
 
 		// Navigation: up
@@ -47,6 +49,7 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
 			if let Some(list) = app.current_list_mut() {
 				list.move_up();
 			}
+			sync_forum_table_state(app);
 		}
 
 		// Jump to top
@@ -54,6 +57,7 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
 			if let Some(list) = app.current_list_mut() {
 				list.jump_top();
 			}
+			sync_forum_table_state(app);
 		}
 
 		// Jump to bottom
@@ -62,6 +66,7 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
 			if let Some(list) = app.current_list_mut() {
 				list.jump_bottom(total);
 			}
+			sync_forum_table_state(app);
 		}
 
 		// Enter selection
@@ -218,9 +223,14 @@ fn handle_help_mode(app: &mut App, key: KeyEvent) {
 // ─── Helpers ─────────────────────────────────────────────
 
 /// Get the total number of items in the current view's data cache.
+/// For Forums view, this returns the tree node count (which may differ from
+/// the flat `forums.len()` if orphan grouping changes).
 fn current_item_count(app: &App) -> usize {
 	match &app.current_view {
-		ViewState::Forums { .. } => app.forums.len(),
+		ViewState::Forums { .. } => {
+			let tree = forum_list::build_forum_tree(&app.forums);
+			tree.len()
+		}
 		ViewState::Threads { .. } => app.threads.len(),
 		ViewState::Posts { .. } => app.posts.len(),
 		ViewState::User { .. } => 0,
@@ -229,16 +239,17 @@ fn current_item_count(app: &App) -> usize {
 
 /// Handle Enter key: drill into the selected item.
 fn handle_enter(app: &mut App) {
-	let idx = match app.current_list_mut() {
-		Some(list) => list.selected_index(),
-		None => return,
-	};
-
 	match &app.current_view {
-		ViewState::Forums { .. } => {
-			if let Some(forum) = app.forums.get(idx) {
-				let forum_id = forum.id;
-				let forum_name = forum.name.clone();
+		ViewState::Forums { list, .. } => {
+			// Use the tree to find the correct forum — skip groups.
+			let tree = forum_list::build_forum_tree(&app.forums);
+			let row = list.selected_row;
+			if let Some(node) = tree.get(row) {
+				if node.is_group {
+					return; // Groups are headers, not navigable
+				}
+				let forum_id = node.forum.id;
+				let forum_name = node.forum.name.clone();
 				app.push_view(ViewState::Threads {
 					forum_id,
 					forum_name,
@@ -249,6 +260,10 @@ fn handle_enter(app: &mut App) {
 			}
 		}
 		ViewState::Threads { .. } => {
+			let idx = match app.current_list_mut() {
+				Some(list) => list.selected_index(),
+				None => return,
+			};
 			if let Some(thread) = app.threads.get(idx) {
 				let thread_id = thread.id;
 				let subject = thread.subject.clone();
@@ -293,7 +308,7 @@ fn apply_current_filter(app: &mut App) {
 	// and app.current_view (mutable). We match on current_view mutably and access
 	// the data fields directly since they don't overlap with the view enum.
 	match &mut app.current_view {
-		ViewState::Forums { list } => {
+		ViewState::Forums { list, .. } => {
 			list.apply_filter(&app.forums, |f, q| f.name.to_lowercase().contains(q));
 		}
 		ViewState::Threads { list, .. } => {
@@ -303,6 +318,17 @@ fn apply_current_filter(app: &mut App) {
 			list.apply_filter(&app.posts, |p, q| p.content.to_lowercase().contains(q));
 		}
 		ViewState::User { .. } => {}
+	}
+}
+
+/// Keep the ratatui `TableState` selection in sync with the `ListState`
+/// for the Forums view. Called after any navigation action.
+fn sync_forum_table_state(app: &mut App) {
+	if let ViewState::Forums {
+		list, table_state, ..
+	} = &mut app.current_view
+	{
+		table_state.select(Some(list.selected_row));
 	}
 }
 

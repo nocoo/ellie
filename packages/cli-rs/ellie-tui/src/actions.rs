@@ -187,7 +187,7 @@ fn refresh_current(app: &mut App) {
 /// Get the next_cursor from the current view's list state.
 fn current_cursor(app: &App) -> Option<String> {
 	match &app.current_view {
-		ViewState::Forums { list }
+		ViewState::Forums { list, .. }
 		| ViewState::Threads { list, .. }
 		| ViewState::Posts { list, .. } => list.next_cursor.clone(),
 		ViewState::User { .. } => None,
