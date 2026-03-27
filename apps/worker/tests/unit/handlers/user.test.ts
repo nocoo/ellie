@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
-import { deleteFn, getById } from "../../../src/handlers/user";
+import { getById } from "../../../src/handlers/user";
 import type { Env } from "../../../src/lib/env";
 
 describe("user handlers", () => {
@@ -178,25 +178,6 @@ describe("user handlers", () => {
 				env,
 			);
 
-			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
-		});
-	});
-
-	describe("deleteFn", () => {
-		it("should return 501 NOT_IMPLEMENTED with CORS headers", async () => {
-			const response = await deleteFn(
-				new Request("https://example.com/api/admin/users/1", {
-					method: "DELETE",
-					headers: {
-						Origin: "http://localhost:3000",
-					},
-				}),
-				mockEnv,
-			);
-
-			expect(response.status).toBe(501);
-			const data = await response.json();
-			expect(data.error.code).toBe("NOT_IMPLEMENTED");
 			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
 		});
 	});

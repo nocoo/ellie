@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
-import { getById, list, update } from "../../../src/handlers/forum";
+import { getById, list } from "../../../src/handlers/forum";
 import type { Env } from "../../../src/lib/env";
 
 describe("forum handlers", () => {
@@ -206,23 +206,6 @@ describe("forum handlers", () => {
 			const response = await getById(new Request("https://example.com/api/v1/forums/abc"), env);
 
 			expect(response.status).toBe(404);
-		});
-	});
-
-	describe("update", () => {
-		it("should return 501 NOT_IMPLEMENTED with CORS headers", async () => {
-			const response = await update(
-				new Request("https://example.com/api/admin/forums/1", {
-					method: "PATCH",
-					headers: { Origin: "http://localhost:3000" },
-				}),
-				mockEnv,
-			);
-
-			expect(response.status).toBe(501);
-			const data = await response.json();
-			expect(data.error.code).toBe("NOT_IMPLEMENTED");
-			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
 		});
 	});
 });
