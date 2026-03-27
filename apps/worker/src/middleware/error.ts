@@ -53,6 +53,7 @@ function getStatusMessage(code: string): string {
 		SELF_BAN: "Cannot ban yourself",
 		SELF_ROLE_CHANGE: "Cannot change your own role",
 		CANNOT_DELETE_FIRST_POST: "Cannot delete the first post — delete the thread instead",
+		INVALID_REFRESH_TOKEN: "Refresh token is invalid or expired",
 	};
 
 	return messages[code] || "An error occurred";
