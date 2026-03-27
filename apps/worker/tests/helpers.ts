@@ -97,6 +97,24 @@ export function makeD1UserRow(overrides?: Record<string, unknown>) {
 	};
 }
 
+export function makeD1AttachmentRow(overrides?: Record<string, unknown>) {
+	return {
+		id: 1,
+		thread_id: 1,
+		post_id: 1,
+		author_id: 10,
+		filename: "test.jpg",
+		file_path: "/attachments/test.jpg",
+		file_size: 12345,
+		is_image: 1,
+		width: 800,
+		has_thumb: 1,
+		downloads: 0,
+		created_at: 1711540800,
+		...overrides,
+	};
+}
+
 // ─── JWT Helpers ───────────────────────────────────────────
 
 export async function createJwtForRole(
