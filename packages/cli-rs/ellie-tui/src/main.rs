@@ -30,13 +30,42 @@ struct Cli {
 	/// Path to config file (default: ~/.config/ellie/config.json)
 	#[arg(short, long)]
 	config: Option<std::path::PathBuf>,
+
+	/// API key for authentication (overrides config file and ELLIE_API_KEY env var)
+	#[arg(long)]
+	api_key: Option<String>,
+
+	/// API base URL (overrides config file and ELLIE_API_URL env var)
+	#[arg(long)]
+	api_url: Option<String>,
 }
 
 fn main() -> Result<()> {
 	let cli = Cli::parse();
 
-	// Load config
-	let config = Config::load(cli.config.as_ref());
+	// Load config: file → env var overrides (in Config::load) → CLI arg overrides
+	let mut config = Config::load(cli.config.as_ref());
+
+	// CLI args have highest priority
+	if let Some(key) = cli.api_key {
+		config.api_key = key;
+	}
+	if let Some(url) = cli.api_url {
+		config.api_url = url;
+	}
+
+	// Validate: API key is required for all API calls
+	if config.api_key.is_empty() {
+		eprintln!("error: no API key configured\n");
+		eprintln!("Set one of:");
+		eprintln!("  --api-key <KEY>");
+		eprintln!("  ELLIE_API_KEY=<KEY>");
+		if let Some(path) = Config::config_path() {
+			eprintln!("  \"apiKey\" in {}", path.display());
+		}
+		std::process::exit(1);
+	}
+
 	let mut app = App::new(config);
 
 	// Setup terminal
