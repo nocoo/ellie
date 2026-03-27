@@ -101,11 +101,7 @@ impl ApiClient {
 	}
 
 	/// POST request with JSON body and auth headers.
-	fn api_post<T: DeserializeOwned>(
-		&self,
-		path: &str,
-		body: &serde_json::Value,
-	) -> Result<T> {
+	fn api_post<T: DeserializeOwned>(&self, path: &str, body: &serde_json::Value) -> Result<T> {
 		let url = format!("{}{}", self.base_url, path);
 		let mut req = self.agent.post(&url).header("X-API-Key", &self.api_key);
 
@@ -251,8 +247,7 @@ mod tests {
 
 	#[test]
 	fn client_set_token() {
-		let mut client =
-			ApiClient::new("https://example.com".to_string(), "test-key".to_string());
+		let mut client = ApiClient::new("https://example.com".to_string(), "test-key".to_string());
 		assert!(!client.is_authenticated());
 
 		client.set_token(Some("jwt-token".to_string()));

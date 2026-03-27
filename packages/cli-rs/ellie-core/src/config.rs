@@ -77,12 +77,13 @@ impl Config {
 
 	/// Write config to file, creating parent directories if needed.
 	pub fn write(&self, explicit_path: Option<&PathBuf>) -> Result<()> {
-		let path = Self::resolve_path(explicit_path)
-			.context("could not determine config file path")?;
+		let path =
+			Self::resolve_path(explicit_path).context("could not determine config file path")?;
 
 		if let Some(parent) = path.parent() {
-			fs::create_dir_all(parent)
-				.with_context(|| format!("failed to create config directory: {}", parent.display()))?;
+			fs::create_dir_all(parent).with_context(|| {
+				format!("failed to create config directory: {}", parent.display())
+			})?;
 		}
 
 		let json = serde_json::to_string_pretty(self)?;
