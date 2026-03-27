@@ -1,6 +1,7 @@
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 
-use crate::app::{App, InputMode, ViewState};
+use crate::actions::schedule_data_load;
+use crate::app::{App, InputMode, PendingAction, ViewState};
 
 /// Poll for a keyboard event with 50ms timeout.
 /// Returns `Some(KeyEvent)` if a key was pressed, `None` on timeout or non-key events.
@@ -87,15 +88,26 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
 		KeyCode::Char('u') => handle_view_user(app),
 
 		// Next page (load more)
-		KeyCode::Char('n') => {
-			app.status_message = Some("loading more...".to_string());
-			// Actual network request is dispatched by the main loop
-		}
+		KeyCode::Char('n') => match &app.current_view {
+			ViewState::Threads { forum_id, list, .. } if list.has_more => {
+				let fid = *forum_id;
+				app.pending_action = Some(PendingAction::LoadMoreThreads { forum_id: fid });
+				app.status_message = Some("loading more...".to_string());
+			}
+			ViewState::Posts {
+				thread_id, list, ..
+			} if list.has_more => {
+				let tid = *thread_id;
+				app.pending_action = Some(PendingAction::LoadMorePosts { thread_id: tid });
+				app.status_message = Some("loading more...".to_string());
+			}
+			_ => {}
+		},
 
 		// Refresh current view
 		KeyCode::Char('r') => {
+			app.pending_action = Some(PendingAction::RefreshCurrentView);
 			app.status_message = Some("refreshing...".to_string());
-			// Actual network request is dispatched by the main loop
 		}
 
 		// Cycle theme
@@ -156,9 +168,11 @@ fn handle_login_mode(app: &mut App, key: KeyEvent) {
 
 		// Submit login
 		KeyCode::Enter => {
+			let username = app.login_form.username.clone();
+			let password = app.login_form.password.clone();
 			app.input_mode = InputMode::Normal;
+			app.pending_action = Some(PendingAction::Login { username, password });
 			app.status_message = Some("logging in...".to_string());
-			// Actual network request is dispatched by the main loop
 		}
 
 		// Toggle field focus
@@ -209,6 +223,7 @@ fn handle_enter(app: &mut App) {
 					forum_name,
 					list: Default::default(),
 				});
+				schedule_data_load(app);
 				app.status_message = Some("loading threads...".to_string());
 			}
 		}
@@ -221,6 +236,7 @@ fn handle_enter(app: &mut App) {
 					subject,
 					list: Default::default(),
 				});
+				schedule_data_load(app);
 				app.status_message = Some("loading posts...".to_string());
 			}
 		}
@@ -244,6 +260,7 @@ fn handle_view_user(app: &mut App) {
 
 	if let Some(uid) = user_id {
 		app.push_view(ViewState::User { user_id: uid });
+		schedule_data_load(app);
 		app.status_message = Some("loading user profile...".to_string());
 	}
 }
@@ -439,6 +456,13 @@ mod tests {
 	#[test]
 	fn n_sets_loading_more_status() {
 		let mut app = make_app();
+		// Must be in a Threads view with has_more=true for 'n' to trigger
+		app.push_view(ViewState::Threads {
+			forum_id: 1,
+			forum_name: "Test".to_string(),
+			list: crate::app::ListState::default(), // has_more defaults to true
+		});
+		app.threads = vec![dummy_thread(1, 1, "T1", 1)];
 		handle_key_event(&mut app, key(KeyCode::Char('n')));
 		assert!(
 			app.status_message
@@ -446,6 +470,19 @@ mod tests {
 				.unwrap()
 				.contains("loading more")
 		);
+		assert_eq!(
+			app.pending_action,
+			Some(PendingAction::LoadMoreThreads { forum_id: 1 })
+		);
+	}
+
+	#[test]
+	fn n_does_nothing_in_forums_view() {
+		let mut app = make_app();
+		app.pending_action = None;
+		handle_key_event(&mut app, key(KeyCode::Char('n')));
+		// 'n' in forums view does nothing
+		assert!(app.pending_action.is_none());
 	}
 
 	// ─── Search mode tests ─────────────────────────────

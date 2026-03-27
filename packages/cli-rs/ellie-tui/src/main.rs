@@ -1,3 +1,4 @@
+pub mod actions;
 pub mod app;
 pub mod events;
 pub mod theme;
@@ -18,6 +19,7 @@ use ellie_core::config::Config;
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 
+use crate::actions::dispatch_pending_action;
 use crate::app::App;
 use crate::events::{handle_key_event, poll_key_event};
 
@@ -69,6 +71,9 @@ fn main() -> Result<()> {
 
 fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> Result<()> {
 	loop {
+		// Dispatch any pending network actions (blocking I/O)
+		dispatch_pending_action(app);
+
 		// Draw
 		terminal.draw(|frame| ui::draw(frame, app))?;
 
