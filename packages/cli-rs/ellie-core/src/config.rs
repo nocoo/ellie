@@ -32,12 +32,22 @@ pub struct AuthConfig {
 	pub user: LoggedUser,
 }
 
+/// Build-time default API key. Set via `ELLIE_DEFAULT_API_KEY` at compile time.
+///
+/// Release builds inject the production key so the CLI works out of the box.
+/// Dev builds without this env var get an empty default — users must set
+/// `ELLIE_API_KEY` at runtime or configure `~/.config/ellie/config.json`.
+const DEFAULT_API_KEY: &str = match option_env!("ELLIE_DEFAULT_API_KEY") {
+	Some(k) => k,
+	None => "",
+};
+
 impl Config {
-	/// Default config with production API URL and empty API key.
+	/// Default config with production API URL and build-time API key.
 	pub fn default_config() -> Self {
 		Self {
 			api_url: "https://ellie.worker.hexly.ai".to_string(),
-			api_key: String::new(),
+			api_key: DEFAULT_API_KEY.to_string(),
 			auth: None,
 			theme: default_theme(),
 		}
@@ -56,36 +66,45 @@ impl Config {
 	/// Load config from file. Falls back to defaults if file doesn't exist.
 	/// Environment variables `ELLIE_API_URL` and `ELLIE_API_KEY` override file values.
 	pub fn load(explicit_path: Option<&PathBuf>) -> Self {
+		let config = Self::load_from_file(explicit_path);
+		config.apply_overrides(|k| std::env::var(k))
+	}
+
+	/// Load config from file only (no env overrides). Used internally.
+	fn load_from_file(explicit_path: Option<&PathBuf>) -> Self {
 		let Some(path) = Self::resolve_path(explicit_path) else {
-			return Self::default_config().with_env_overrides();
+			return Self::default_config();
 		};
 
 		if !path.exists() {
-			return Self::default_config().with_env_overrides();
+			return Self::default_config();
 		}
 
 		match fs::read_to_string(&path) {
-			Ok(contents) => serde_json::from_str(&contents)
-				.unwrap_or_else(|_| {
-					eprintln!(
-						"warning: config file at {} is malformed, using defaults",
-						path.display()
-					);
-					Self::default_config()
-				})
-				.with_env_overrides(),
-			Err(_) => Self::default_config().with_env_overrides(),
+			Ok(contents) => serde_json::from_str(&contents).unwrap_or_else(|_| {
+				eprintln!(
+					"warning: config file at {} is malformed, using defaults",
+					path.display()
+				);
+				Self::default_config()
+			}),
+			Err(_) => Self::default_config(),
 		}
 	}
 
-	/// Apply environment variable overrides on top of loaded config.
-	fn with_env_overrides(mut self) -> Self {
-		if let Ok(url) = std::env::var("ELLIE_API_URL")
+	/// Apply overrides from an env-var lookup function.
+	///
+	/// Production passes `std::env::var`; tests pass a closure/HashMap.
+	fn apply_overrides<F>(mut self, env_var: F) -> Self
+	where
+		F: Fn(&str) -> std::result::Result<String, std::env::VarError>,
+	{
+		if let Ok(url) = env_var("ELLIE_API_URL")
 			&& !url.is_empty()
 		{
 			self.api_url = url;
 		}
-		if let Ok(key) = std::env::var("ELLIE_API_KEY")
+		if let Ok(key) = env_var("ELLIE_API_KEY")
 			&& !key.is_empty()
 		{
 			self.api_key = key;
@@ -146,7 +165,7 @@ mod tests {
 	fn default_config_values() {
 		let config = Config::default_config();
 		assert_eq!(config.api_url, "https://ellie.worker.hexly.ai");
-		assert!(config.api_key.is_empty());
+		assert_eq!(config.api_key, DEFAULT_API_KEY);
 		assert!(config.auth.is_none());
 		assert_eq!(config.theme, "default");
 	}
@@ -251,52 +270,50 @@ mod tests {
 
 	#[test]
 	fn env_override_api_key() {
-		// Use a unique env var name-scoping trick: set, apply, then restore.
-		let orig_key = std::env::var("ELLIE_API_KEY").ok();
-		let orig_url = std::env::var("ELLIE_API_URL").ok();
+		use std::collections::HashMap;
+		let env: HashMap<&str, &str> = HashMap::from([
+			("ELLIE_API_KEY", "from-env"),
+			("ELLIE_API_URL", "http://env-override"),
+		]);
 
-		// SAFETY: test is single-threaded; we restore original values after.
-		unsafe {
-			std::env::set_var("ELLIE_API_KEY", "from-env");
-			std::env::set_var("ELLIE_API_URL", "http://env-override");
-		}
-
-		let config = Config::default_config().with_env_overrides();
+		let config = Config::default_config().apply_overrides(|k| {
+			env.get(k)
+				.map(|v| v.to_string())
+				.ok_or(std::env::VarError::NotPresent)
+		});
 		assert_eq!(config.api_key, "from-env");
 		assert_eq!(config.api_url, "http://env-override");
-
-		// Restore
-		unsafe {
-			match orig_key {
-				Some(v) => std::env::set_var("ELLIE_API_KEY", v),
-				None => std::env::remove_var("ELLIE_API_KEY"),
-			}
-			match orig_url {
-				Some(v) => std::env::set_var("ELLIE_API_URL", v),
-				None => std::env::remove_var("ELLIE_API_URL"),
-			}
-		}
 	}
 
 	#[test]
 	fn env_override_empty_is_ignored() {
-		let orig_key = std::env::var("ELLIE_API_KEY").ok();
-
-		// SAFETY: test is single-threaded; we restore original value after.
-		unsafe {
-			std::env::set_var("ELLIE_API_KEY", "");
-		}
+		use std::collections::HashMap;
+		let env: HashMap<&str, &str> = HashMap::from([("ELLIE_API_KEY", "")]);
 
 		let mut config = Config::default_config();
 		config.api_key = "from-file".to_string();
-		let config = config.with_env_overrides();
+		let config = config.apply_overrides(|k| {
+			env.get(k)
+				.map(|v| v.to_string())
+				.ok_or(std::env::VarError::NotPresent)
+		});
 		assert_eq!(config.api_key, "from-file");
+	}
 
-		unsafe {
-			match orig_key {
-				Some(v) => std::env::set_var("ELLIE_API_KEY", v),
-				None => std::env::remove_var("ELLIE_API_KEY"),
-			}
-		}
+	#[test]
+	fn env_override_missing_is_ignored() {
+		use std::collections::HashMap;
+		let env: HashMap<&str, &str> = HashMap::new(); // no env vars at all
+
+		let mut config = Config::default_config();
+		config.api_key = "from-file".to_string();
+		config.api_url = "http://from-file".to_string();
+		let config = config.apply_overrides(|k| {
+			env.get(k)
+				.map(|v| v.to_string())
+				.ok_or(std::env::VarError::NotPresent)
+		});
+		assert_eq!(config.api_key, "from-file");
+		assert_eq!(config.api_url, "http://from-file");
 	}
 }
