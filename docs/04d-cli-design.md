@@ -31,10 +31,10 @@ Base URL: https://ellie.worker.hexly.ai
 每个请求（除 `GET /api/live`）必须携带 `X-API-Key` header：
 
 ```
-X-API-Key: <shared-secret>
+X-API-Key: <client-credential>
 ```
 
-API Key 是应用级密钥，内嵌在 CLI 配置中，不面向终端用户。
+API Key 是**公开的客户端凭证**（类似移动 App 的 API Key），随 CLI 发行包一起分发。它的作用是基本的访问控制——区分"经过授权的客户端"与"任意爬虫/扫描器"，而非机密保护。任何拥有 CLI 的用户都能看到这个值，这是预期行为。
 
 **Layer 2 — JWT Token（可选，登录后获取）**
 
@@ -45,16 +45,18 @@ API Key 是应用级密钥，内嵌在 CLI 配置中，不面向终端用户。
 ```
 启动 CLI
   │
-  ├─ 读取 ~/.config/ellie/config.json
-  │   ├─ 有 API Key？ → 使用
-  │   └─ 无？ → 首次使用引导（输入或自动配置）
+  ├─ API Key 内置于 CLI 发行包，自动注入所有请求
   │
   ├─ 有已保存的 JWT？
   │   ├─ 未过期 → 自动附加到请求
-  │   └─ 已过期 → 尝试 refreshToken，失败则提示重新登录
+  │   └─ 已过期 → 清除本地 token，提示用户重新登录
   │
   └─ 无 JWT → 匿名模式（仅 API Key 认证）
 ```
+
+> **注意：** Worker 登录接口会返回 `refreshToken`（存储在 KV，30 天有效），但当前 Worker
+> **尚未实现** `POST /api/v1/auth/refresh` 端点。CLI 暂不使用 refreshToken 续期，
+> JWT 过期后要求用户重新登录。后续 Worker 实现 refresh 端点后再启用静默续期。
 
 ### 登录接口
 
@@ -82,10 +84,9 @@ X-API-Key: <key>
 ```json
 {
   "apiUrl": "https://ellie.worker.hexly.ai",
-  "apiKey": "<shared-secret>",
+  "apiKey": "<client-credential, shipped with CLI>",
   "auth": {
     "token": "<JWT>",
-    "refreshToken": "<UUID>",
     "user": {
       "userId": 123,
       "username": "alice",
@@ -102,19 +103,59 @@ X-API-Key: <key>
 class ApiClient {
   private baseUrl: string;
   private apiKey: string;
-  private token: string | null;
+  private token: string | null = null;
 
+  constructor(config: { apiUrl: string; apiKey: string; token?: string }) {
+    this.baseUrl = config.apiUrl;
+    this.apiKey = config.apiKey;
+    this.token = config.token ?? null;
+  }
+
+  /** Core request — merges caller headers with auth headers (caller wins on conflict) */
   async request<T>(path: string, options?: RequestInit): Promise<T> {
-    const headers: Record<string, string> = {
+    const authHeaders: Record<string, string> = {
       "Content-Type": "application/json",
       "X-API-Key": this.apiKey,
     };
     if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`;
+      authHeaders["Authorization"] = `Bearer ${this.token}`;
     }
-    const res = await fetch(`${this.baseUrl}${path}`, { ...options, headers });
+
+    const mergedHeaders = { ...authHeaders, ...(options?.headers ?? {}) };
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      ...options,
+      headers: mergedHeaders,
+    });
+
+    if (res.status === 401 && this.token) {
+      // JWT expired — clear token, caller should prompt re-login
+      this.token = null;
+      throw new AuthExpiredError();
+    }
     if (!res.ok) throw new ApiError(res.status, await res.json());
     return res.json();
+  }
+
+  /** Login and store JWT in memory + persist to config */
+  async login(username: string, password: string): Promise<AuthUser> {
+    const data = await this.request<{
+      data: { token: string; refreshToken: string; user: AuthUser };
+    }>("/api/v1/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    });
+    this.token = data.data.token;
+    // refreshToken is returned but not used until server implements /auth/refresh
+    return data.data.user;
+  }
+
+  /** Clear local auth state */
+  logout(): void {
+    this.token = null;
+  }
+
+  get isAuthenticated(): boolean {
+    return this.token !== null;
   }
 }
 ```
@@ -226,11 +267,14 @@ class ApiClient {
 
 ### 文件结构
 
+> **当前状态：** `packages/cli/src/` 只有 `index.ts`（commander 骨架）和 `client.ts`。
+> 以下为目标架构，实现后 `index.ts` 将被 `main.tsx` 替代。
+
 ```
 packages/cli/src/
-├── main.tsx              # 入口：ink render，终端初始化
+├── main.tsx              # 入口：ink render，终端初始化（替代当前 index.ts）
 ├── store.ts              # 全局状态（对应 llmfit tui_app.rs App struct）
-├── client.ts             # API Client（已有，需更新）
+├── client.ts             # API Client（已有，需重写）
 ├── config.ts             # ~/.config/ellie/ 读写
 ├── theme.ts              # 主题定义（对应 llmfit theme.rs）
 ├── components/
@@ -253,10 +297,19 @@ packages/cli/src/
 // types.ts
 type InputMode = "normal" | "search" | "login";
 
+/** Per-view list state — each view in the stack keeps its own cursor/filter/pagination */
+interface ListState {
+  selectedRow: number;
+  searchQuery: string;
+  filteredIndices: number[];  // 对应 llmfit filtered_fits
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
 type ViewState =
-  | { view: "forums" }
-  | { view: "threads"; forumId: number; forumName: string }
-  | { view: "posts"; threadId: number; subject: string }
+  | { view: "forums"; list: ListState }
+  | { view: "threads"; forumId: number; forumName: string; list: ListState }
+  | { view: "posts"; threadId: number; subject: string; list: ListState }
   | { view: "user"; userId: number };
 
 // store.ts — 对应 llmfit tui_app.rs
@@ -265,33 +318,31 @@ interface AppState {
   mode: InputMode;
   loading: boolean;
 
-  // 导航栈（支持 Esc 返回）
+  // 导航栈（支持 Esc 返回）— 每个视图携带自己的列表状态
   viewStack: ViewState[];
   currentView: ViewState;
 
-  // 数据缓存
+  // 数据缓存（按视图类型分区）
   forums: Forum[];
   threads: Thread[];
   posts: Post[];
   currentUser: User | null;
 
-  // 列表状态
-  selectedRow: number;
-  searchQuery: string;
-  filteredIndices: number[];  // 对应 llmfit filtered_fits
-
-  // 分页
-  nextCursor: string | null;
-  hasMore: boolean;
-
   // 认证
-  isLoggedIn: boolean;
-  username: string | null;
+  auth: {
+    token: string | null;
+    user: { userId: number; username: string; role: number } | null;
+  };
 
   // 主题
   theme: Theme;
 }
 ```
+
+**设计要点：** `ListState` 内嵌在每个 `ViewState` 中，当用户 push 进入子视图时，
+父视图的 `selectedRow` / `searchQuery` / `nextCursor` 等状态保留在 `viewStack` 里。
+pop 回来时完整恢复，无需重新加载或重置滚动位置。这直接对应 llmfit 中
+`all_fits` + `filtered_fits` 与 `selected_index` 的组合模式。
 
 ### 键盘操作（对应 llmfit tui_events.rs）
 
@@ -406,6 +457,10 @@ const themes = {
 ---
 
 ## 本地运行
+
+> **当前：** `bun run packages/cli/src/index.ts`（commander 骨架，无 TUI 功能）
+
+改造完成后：
 
 ```bash
 cd packages/cli
