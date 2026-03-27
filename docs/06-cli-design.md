@@ -868,12 +868,12 @@ gitleaks detect --no-banner          # G2
 - [x] Login flow wiring
 
 ### Phase 4 — Integration（L2）
-- [ ] 添加 integration test infrastructure
-- [ ] GET /api/v1/forums E2E test
-- [ ] GET /api/v1/threads pagination E2E test
-- [ ] POST /api/v1/auth/login E2E test
-- [ ] D1 isolation verification
-- [ ] 集成 Rust L2 tests 到 pre-push hook
+- [x] 添加 integration test infrastructure
+- [x] GET /api/v1/forums E2E test
+- [x] GET /api/v1/threads pagination E2E test
+- [x] POST /api/v1/auth/login E2E test
+- [x] D1 isolation verification
+- [x] 集成 Rust L2 tests 到 pre-push hook
 
 ### Phase 5 — 打磨
 - [ ] 集成 osv-scanner + gitleaks（G2）
