@@ -1,4 +1,6 @@
 use std::fmt;
+use std::thread;
+use std::time::Duration;
 
 use anyhow::Result;
 use serde::de::DeserializeOwned;
@@ -47,6 +49,11 @@ pub struct LoginResponse {
 	pub user: LoggedUser,
 }
 
+// ─── Retry Configuration ─────────────────────────────────
+
+const MAX_RETRIES: u32 = 3;
+const INITIAL_BACKOFF_MS: u64 = 200;
+
 // ─── Client ──────────────────────────────────────────────
 
 pub struct ApiClient {
@@ -81,42 +88,70 @@ impl ApiClient {
 		self.token.is_some()
 	}
 
-	/// GET request with auth headers.
+	/// GET request with auth headers and retry on transient errors.
 	fn api_get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
 		let url = format!("{}{}", self.base_url, path);
-		let mut req = self.agent.get(&url).header("X-API-Key", &self.api_key);
 
-		if let Some(token) = &self.token {
-			req = req.header("Authorization", &format!("Bearer {token}"));
+		for attempt in 0..MAX_RETRIES {
+			let mut req = self.agent.get(&url).header("X-API-Key", &self.api_key);
+			if let Some(token) = &self.token {
+				req = req.header("Authorization", &format!("Bearer {token}"));
+			}
+
+			match req.call() {
+				Ok(resp) => {
+					let status: u16 = resp.status().into();
+					if status >= 500 && attempt + 1 < MAX_RETRIES {
+						// Server error — retry with backoff
+						thread::sleep(backoff_duration(attempt));
+						continue;
+					}
+					if status >= 400 {
+						return self.parse_error(status, resp.into_body());
+					}
+					return Ok(resp.into_body().read_json()?);
+				}
+				Err(e) if attempt + 1 < MAX_RETRIES => {
+					// Network error — retry with backoff
+					thread::sleep(backoff_duration(attempt));
+					continue;
+				}
+				Err(e) => return Err(e.into()),
+			}
 		}
-
-		let resp = req.call()?;
-		let status: u16 = resp.status().into();
-
-		if status >= 400 {
-			return self.parse_error(status, resp.into_body());
-		}
-
-		Ok(resp.into_body().read_json()?)
+		unreachable!("retry loop should return within MAX_RETRIES attempts");
 	}
 
-	/// POST request with JSON body and auth headers.
+	/// POST request with JSON body, auth headers, and retry on transient errors.
 	fn api_post<T: DeserializeOwned>(&self, path: &str, body: &serde_json::Value) -> Result<T> {
 		let url = format!("{}{}", self.base_url, path);
-		let mut req = self.agent.post(&url).header("X-API-Key", &self.api_key);
 
-		if let Some(token) = &self.token {
-			req = req.header("Authorization", &format!("Bearer {token}"));
+		for attempt in 0..MAX_RETRIES {
+			let mut req = self.agent.post(&url).header("X-API-Key", &self.api_key);
+			if let Some(token) = &self.token {
+				req = req.header("Authorization", &format!("Bearer {token}"));
+			}
+
+			match req.send_json(body) {
+				Ok(resp) => {
+					let status: u16 = resp.status().into();
+					if status >= 500 && attempt + 1 < MAX_RETRIES {
+						thread::sleep(backoff_duration(attempt));
+						continue;
+					}
+					if status >= 400 {
+						return self.parse_error(status, resp.into_body());
+					}
+					return Ok(resp.into_body().read_json()?);
+				}
+				Err(e) if attempt + 1 < MAX_RETRIES => {
+					thread::sleep(backoff_duration(attempt));
+					continue;
+				}
+				Err(e) => return Err(e.into()),
+			}
 		}
-
-		let resp = req.send_json(body)?;
-		let status: u16 = resp.status().into();
-
-		if status >= 400 {
-			return self.parse_error(status, resp.into_body());
-		}
-
-		Ok(resp.into_body().read_json()?)
+		unreachable!("retry loop should return within MAX_RETRIES attempts");
 	}
 
 	/// Parse the Worker's `{ error: { code, message } }` envelope from an error response.
@@ -235,6 +270,11 @@ impl ApiClient {
 	}
 }
 
+/// Exponential backoff: 200ms, 400ms, 800ms, ...
+fn backoff_duration(attempt: u32) -> Duration {
+	Duration::from_millis(INITIAL_BACKOFF_MS * 2u64.pow(attempt))
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -289,5 +329,12 @@ mod tests {
 		.into();
 		let api_err = err.downcast_ref::<ApiError>().unwrap();
 		assert_eq!(api_err.status, 500);
+	}
+
+	#[test]
+	fn backoff_duration_exponential() {
+		assert_eq!(backoff_duration(0), Duration::from_millis(200));
+		assert_eq!(backoff_duration(1), Duration::from_millis(400));
+		assert_eq!(backoff_duration(2), Duration::from_millis(800));
 	}
 }
