@@ -846,15 +846,15 @@ gitleaks detect --no-banner          # G2
 - [x] 添加 typed API methods（getForums, getThreads, getPosts, getUser）
 
 ### Phase 2 — TUI Framework（ellie-tui）
-- [ ] 添加 ratatui + crossterm + clap 依赖
-- [ ] 定义 InputMode, ListState, ViewState enums
-- [ ] 实现 App struct with view stack
-- [ ] 实现终端初始化和清理（panic handler）
-- [ ] 实现键盘事件轮询（50ms timeout）
-- [ ] 实现 Normal mode key handlers
-- [ ] 实现 Search and Login mode handlers
-- [ ] 实现 4-zone layout rendering
-- [ ] 实现主题系统（default/dracula/nord）
+- [x] 添加 ratatui + crossterm + clap 依赖
+- [x] 定义 InputMode, ListState, ViewState enums
+- [x] 实现 App struct with view stack
+- [x] 实现终端初始化和清理（panic handler）
+- [x] 实现键盘事件轮询（50ms timeout）
+- [x] 实现 Normal mode key handlers
+- [x] 实现 Search and Login mode handlers
+- [x] 实现 4-zone layout rendering
+- [x] 实现主题系统（default/dracula/nord）
 
 ### Phase 3 — Views 组件
 - [ ] ForumList view（树形结构）
