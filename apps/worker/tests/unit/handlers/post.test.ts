@@ -45,7 +45,7 @@ describe("post handlers", () => {
 			expect(data.error.code).toBe("INVALID_REQUEST");
 		});
 
-		it("should clamp limit to [1, 50]", async () => {
+		it("should clamp limit to [1, 100]", async () => {
 			const allSpy = mock(() => Promise.resolve({ results: [] }));
 			const bindSpy = mock((..._args: unknown[]) => ({
 				all: allSpy,
@@ -54,13 +54,17 @@ describe("post handlers", () => {
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
-			// Test limit > 50
+			// Test limit > 100
+			await list(new Request("https://example.com/api/v1/posts?threadId=1&limit=200"), env);
+			expect(bindSpy).toHaveBeenLastCalledWith(expect.any(Number), 100);
+
+			// Test limit within range
 			await list(new Request("https://example.com/api/v1/posts?threadId=1&limit=100"), env);
-			expect(bindSpy).toHaveBeenLastCalledWith(expect.any(Number), 50);
+			expect(bindSpy).toHaveBeenLastCalledWith(expect.any(Number), 100);
 
 			// Test limit < 1
 			await list(new Request("https://example.com/api/v1/posts?threadId=1&limit=0"), env);
-			expect(bindSpy).toHaveBeenLastCalledWith(expect.any(Number), 20); // default
+			expect(bindSpy).toHaveBeenLastCalledWith(expect.any(Number), 100); // default
 		});
 
 		it("should map D1 snake_case rows to camelCase Post objects", async () => {
@@ -122,7 +126,7 @@ describe("post handlers", () => {
 			await list(new Request("https://example.com/api/v1/posts?threadId=1"), env);
 
 			expect(prepareSpy).toHaveBeenCalledWith(expect.stringContaining("ORDER BY position"));
-			expect(bindSpy).toHaveBeenCalledWith(1, 20);
+			expect(bindSpy).toHaveBeenCalledWith(1, 100);
 		});
 
 		it("should decode and use cursor for pagination", async () => {
@@ -145,12 +149,12 @@ describe("post handlers", () => {
 			expect(bindSpy).toHaveBeenCalledWith(
 				1, // threadId
 				100, // position
-				20, // limit
+				100, // limit
 			);
 		});
 
 		it("should generate valid next cursor that roundtrips correctly", async () => {
-			const posts = Array.from({ length: 20 }, (_, i) =>
+			const posts = Array.from({ length: 100 }, (_, i) =>
 				makeD1PostRow({ id: i + 1, position: i + 1 }),
 			);
 
@@ -164,7 +168,7 @@ describe("post handlers", () => {
 			const env = { ...mockEnv, DB: db };
 
 			const response = await list(
-				new Request("https://example.com/api/v1/posts?threadId=1&limit=20"),
+				new Request("https://example.com/api/v1/posts?threadId=1&limit=100"),
 				env,
 			);
 
@@ -173,7 +177,7 @@ describe("post handlers", () => {
 
 			// Decode and verify cursor roundtrip
 			const decoded = JSON.parse(atob(data.meta.nextCursor));
-			expect(decoded.position).toBe(20);
+			expect(decoded.position).toBe(100);
 		});
 
 		it("should not generate next cursor when results are less than limit", async () => {

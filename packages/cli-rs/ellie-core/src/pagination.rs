@@ -10,8 +10,8 @@ pub struct CursorPayload {
 	pub id: u64,
 }
 
-pub const DEFAULT_PAGE_SIZE: usize = 20;
-pub const MAX_PAGE_SIZE: usize = 50;
+pub const DEFAULT_PAGE_SIZE: usize = 100;
+pub const MAX_PAGE_SIZE: usize = 100;
 
 /// Encode a cursor payload to an opaque base64 string.
 pub fn encode_cursor(payload: &CursorPayload) -> String {
@@ -100,12 +100,12 @@ mod tests {
 	fn clamp_page_size_valid_range() {
 		assert_eq!(clamp_page_size(Some(1)), 1);
 		assert_eq!(clamp_page_size(Some(25)), 25);
-		assert_eq!(clamp_page_size(Some(50)), 50);
+		assert_eq!(clamp_page_size(Some(100)), 100);
 	}
 
 	#[test]
 	fn clamp_page_size_over_max() {
-		assert_eq!(clamp_page_size(Some(100)), MAX_PAGE_SIZE);
+		assert_eq!(clamp_page_size(Some(101)), MAX_PAGE_SIZE);
 		assert_eq!(clamp_page_size(Some(999)), MAX_PAGE_SIZE);
 	}
 }

@@ -64,6 +64,20 @@ impl ListState {
 		self.selected_row = count.saturating_sub(1);
 	}
 
+	/// Move selection down by `n` rows (for half-page jump).
+	pub fn page_down(&mut self, n: usize, total: usize) {
+		if total == 0 {
+			return;
+		}
+		let max = self.visible_count(total).saturating_sub(1);
+		self.selected_row = (self.selected_row + n).min(max);
+	}
+
+	/// Move selection up by `n` rows (for half-page jump).
+	pub fn page_up(&mut self, n: usize) {
+		self.selected_row = self.selected_row.saturating_sub(n);
+	}
+
 	/// Number of visible items (filtered or total).
 	pub fn visible_count(&self, total: usize) -> usize {
 		if self.filtered_indices.is_empty() && self.search_query.is_empty() {
@@ -219,6 +233,9 @@ pub struct App {
 
 	// Pending network action (dispatched by the main loop)
 	pub pending_action: Option<PendingAction>,
+
+	// Content area height in rows (updated each frame, used for half-page jumps)
+	pub content_height: u16,
 }
 
 // ─── Theme ───────────────────────────────────────────────
@@ -292,6 +309,7 @@ impl App {
 			theme,
 			client,
 			pending_action: Some(PendingAction::LoadForums),
+			content_height: 20, // sensible default, updated each frame
 		}
 	}
 
@@ -398,6 +416,38 @@ mod tests {
 
 		ls.jump_bottom(0);
 		assert_eq!(ls.selected_row, 0); // saturating_sub
+	}
+
+	#[test]
+	fn list_state_page_down() {
+		let mut ls = ListState::default();
+		ls.page_down(5, 20);
+		assert_eq!(ls.selected_row, 5);
+		ls.page_down(5, 20);
+		assert_eq!(ls.selected_row, 10);
+		// Clamp at max
+		ls.page_down(100, 20);
+		assert_eq!(ls.selected_row, 19);
+	}
+
+	#[test]
+	fn list_state_page_down_empty() {
+		let mut ls = ListState::default();
+		ls.page_down(5, 0);
+		assert_eq!(ls.selected_row, 0);
+	}
+
+	#[test]
+	fn list_state_page_up() {
+		let mut ls = ListState::default();
+		ls.selected_row = 15;
+		ls.page_up(5);
+		assert_eq!(ls.selected_row, 10);
+		ls.page_up(5);
+		assert_eq!(ls.selected_row, 5);
+		// Saturates at 0
+		ls.page_up(100);
+		assert_eq!(ls.selected_row, 0);
 	}
 
 	#[test]

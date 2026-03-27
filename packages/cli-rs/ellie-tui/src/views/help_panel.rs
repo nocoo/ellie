@@ -11,6 +11,8 @@ const HELP_LINES: &[(&str, &str)] = &[
 	("k / ↑", "Move up"),
 	("g", "Jump to top"),
 	("G", "Jump to bottom"),
+	("Ctrl+D / PgDn", "Half-page down"),
+	("Ctrl+U / PgUp", "Half-page up"),
 	("Enter", "Open selected item"),
 	("Esc / Backspace", "Go back"),
 	("n", "Load next page"),

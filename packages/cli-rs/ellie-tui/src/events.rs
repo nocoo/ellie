@@ -69,6 +69,40 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
 			sync_forum_table_state(app);
 		}
 
+		// Half-page down: Ctrl+D or PageDown
+		KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+			let half = (app.content_height / 2).max(1) as usize;
+			let total = current_item_count(app);
+			if let Some(list) = app.current_list_mut() {
+				list.page_down(half, total);
+			}
+			sync_forum_table_state(app);
+		}
+		KeyCode::PageDown => {
+			let half = (app.content_height / 2).max(1) as usize;
+			let total = current_item_count(app);
+			if let Some(list) = app.current_list_mut() {
+				list.page_down(half, total);
+			}
+			sync_forum_table_state(app);
+		}
+
+		// Half-page up: Ctrl+U or PageUp
+		KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+			let half = (app.content_height / 2).max(1) as usize;
+			if let Some(list) = app.current_list_mut() {
+				list.page_up(half);
+			}
+			sync_forum_table_state(app);
+		}
+		KeyCode::PageUp => {
+			let half = (app.content_height / 2).max(1) as usize;
+			if let Some(list) = app.current_list_mut() {
+				list.page_up(half);
+			}
+			sync_forum_table_state(app);
+		}
+
 		// Enter selection
 		KeyCode::Enter => handle_enter(app),
 
@@ -422,6 +456,79 @@ mod tests {
 
 		handle_key_event(&mut app, key(KeyCode::Char('g')));
 		assert_eq!(app.current_list_mut().unwrap().selected_row, 0);
+	}
+
+	#[test]
+	fn ctrl_d_pages_down() {
+		let mut app = make_app();
+		// 20 forums so we have room to page
+		app.forums = (1..=20).map(|i| dummy_forum(i, &format!("F{i}"))).collect();
+		app.content_height = 20; // half = 10
+
+		handle_key_event(
+			&mut app,
+			key_with_mod(KeyCode::Char('d'), KeyModifiers::CONTROL),
+		);
+		assert_eq!(app.current_list_mut().unwrap().selected_row, 10);
+	}
+
+	#[test]
+	fn ctrl_u_pages_up() {
+		let mut app = make_app();
+		app.forums = (1..=20).map(|i| dummy_forum(i, &format!("F{i}"))).collect();
+		app.content_height = 20;
+
+		// Move to row 15 first
+		if let Some(list) = app.current_list_mut() {
+			list.selected_row = 15;
+		}
+		sync_forum_table_state(&mut app);
+
+		handle_key_event(
+			&mut app,
+			key_with_mod(KeyCode::Char('u'), KeyModifiers::CONTROL),
+		);
+		assert_eq!(app.current_list_mut().unwrap().selected_row, 5);
+	}
+
+	#[test]
+	fn page_down_key() {
+		let mut app = make_app();
+		app.forums = (1..=20).map(|i| dummy_forum(i, &format!("F{i}"))).collect();
+		app.content_height = 10; // half = 5
+
+		handle_key_event(&mut app, key(KeyCode::PageDown));
+		assert_eq!(app.current_list_mut().unwrap().selected_row, 5);
+	}
+
+	#[test]
+	fn page_up_key() {
+		let mut app = make_app();
+		app.forums = (1..=20).map(|i| dummy_forum(i, &format!("F{i}"))).collect();
+		app.content_height = 10;
+
+		if let Some(list) = app.current_list_mut() {
+			list.selected_row = 12;
+		}
+		sync_forum_table_state(&mut app);
+
+		handle_key_event(&mut app, key(KeyCode::PageUp));
+		assert_eq!(app.current_list_mut().unwrap().selected_row, 7);
+	}
+
+	#[test]
+	fn plain_u_still_views_user() {
+		let mut app = make_app();
+		app.forums = vec![dummy_forum(1, "F")];
+		handle_key_event(&mut app, key(KeyCode::Enter)); // push Threads
+		app.threads = vec![dummy_thread(10, 1, "Thread1", 42)];
+
+		// Plain 'u' (no modifier) should trigger view user, not page up
+		handle_key_event(&mut app, key(KeyCode::Char('u')));
+		match &app.current_view {
+			ViewState::User { user_id } => assert_eq!(*user_id, 42),
+			_ => panic!("expected User view, plain 'u' should view user"),
+		}
 	}
 
 	#[test]

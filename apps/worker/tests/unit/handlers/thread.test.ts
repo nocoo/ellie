@@ -53,7 +53,7 @@ describe("thread handlers", () => {
 			expect(data.error.code).toBe("INVALID_REQUEST");
 		});
 
-		it("should clamp limit to [1, 50]", async () => {
+		it("should clamp limit to [1, 100]", async () => {
 			const allSpy = mock(() => Promise.resolve({ results: [] }));
 			const bindSpy = mock((..._args: unknown[]) => ({
 				all: allSpy,
@@ -62,13 +62,17 @@ describe("thread handlers", () => {
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
-			// Test limit > 50
+			// Test limit > 100
+			await list(new Request("https://example.com/api/v1/threads?forumId=1&limit=200"), env);
+			expect(bindSpy).toHaveBeenLastCalledWith(expect.any(Number), 100);
+
+			// Test limit within range
 			await list(new Request("https://example.com/api/v1/threads?forumId=1&limit=100"), env);
-			expect(bindSpy).toHaveBeenLastCalledWith(expect.any(Number), 50);
+			expect(bindSpy).toHaveBeenLastCalledWith(expect.any(Number), 100);
 
 			// Test limit < 1
 			await list(new Request("https://example.com/api/v1/threads?forumId=1&limit=0"), env);
-			expect(bindSpy).toHaveBeenLastCalledWith(expect.any(Number), 20); // default
+			expect(bindSpy).toHaveBeenLastCalledWith(expect.any(Number), 100); // default
 		});
 
 		it("should map D1 snake_case rows to camelCase Thread objects", async () => {
@@ -119,7 +123,7 @@ describe("thread handlers", () => {
 			expect(prepareSpy).toHaveBeenCalledWith(
 				expect.stringContaining("ORDER BY sticky DESC, last_post_at DESC"),
 			);
-			expect(bindSpy).toHaveBeenCalledWith(1, 20);
+			expect(bindSpy).toHaveBeenCalledWith(1, 100);
 		});
 
 		it("should decode and use cursor for pagination", async () => {
@@ -152,7 +156,7 @@ describe("thread handlers", () => {
 				1234567890, // lastPostAt
 				1234567890, // lastPostAt
 				100, // id
-				20, // limit
+				100, // limit
 			);
 		});
 
@@ -268,7 +272,7 @@ describe("thread handlers", () => {
 			expect(prepareSpy).toHaveBeenCalledWith(expect.not.stringContaining("sticky <"));
 		});
 
-		it("should use default limit of 20 when no limit parameter provided", async () => {
+		it("should use default limit of 100 when no limit parameter provided", async () => {
 			const allSpy = mock(() => Promise.resolve({ results: [] }));
 			const bindSpy = mock((..._args: unknown[]) => ({
 				all: allSpy,
@@ -280,7 +284,7 @@ describe("thread handlers", () => {
 
 			await list(new Request("https://example.com/api/v1/threads?forumId=1"), env);
 
-			expect(bindSpy).toHaveBeenCalledWith(1, 20);
+			expect(bindSpy).toHaveBeenCalledWith(1, 100);
 		});
 
 		it("should use valid limit within range", async () => {
