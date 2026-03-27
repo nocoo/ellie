@@ -7,6 +7,8 @@ pub mod status_bar;
 pub mod thread_list;
 pub mod user_profile;
 
+use chrono::{Local, TimeZone};
+use regex::Regex;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::app::ListState;
@@ -69,6 +71,103 @@ pub fn pad_to_width(s: &str, target_width: usize) -> String {
 /// Backward-compatible alias. Prefer [`truncate_to_width`] in new code.
 pub fn truncate(s: &str, max_width: usize) -> String {
 	truncate_to_width(s, max_width)
+}
+
+/// Format a Unix timestamp (seconds) to `YYYY/MM/DD HH:MM:SS` in local time.
+/// Returns `"-"` for timestamp 0.
+pub fn format_timestamp(ts: u64) -> String {
+	if ts == 0 {
+		return "-".to_string();
+	}
+	match Local.timestamp_opt(ts as i64, 0) {
+		chrono::LocalResult::Single(dt) => dt.format("%Y/%m/%d %H:%M:%S").to_string(),
+		_ => "-".to_string(),
+	}
+}
+
+/// Discuz emoticon code → Unicode emoji mapping.
+/// Covers both raw DZ codes (`:)`, `:D`) and named codes (`:hug:`, `:kiss:`).
+const EMOTICON_MAP: &[(&str, &str)] = &[
+	// Default pack — punctuation-style
+	(":)", "😊"),
+	(":(", "😞"),
+	(":D", "😃"),
+	(":@", "😡"),
+	(":o", "😮"),
+	(":P", "😛"),
+	(":$", "😳"),
+	(";)", "😉"),
+	(":|", "😅"),
+	(":L", "🤣"),
+	(":Q", "😢"),
+	(":lol", "🤣"),
+	// Default pack — named codes
+	(":hug:", "🤗"),
+	(":victory:", "✌️"),
+	(":time:", "⏰"),
+	(":kiss:", "😘"),
+	(":handshake", "🤝"),
+	(":call:", "📞"),
+	(":loveliness:", "🥰"),
+	// Common named codes from other Discuz installs
+	(":laugh:", "😄"),
+	(":smile:", "😊"),
+	(":cry:", "😢"),
+	(":sad:", "😞"),
+	(":angry:", "😡"),
+	(":tongue:", "😛"),
+	(":shy:", "😳"),
+	(":cool:", "😎"),
+	(":sweat:", "😅"),
+	(":heart:", "❤️"),
+	(":rose:", "🌹"),
+	(":gift:", "🎁"),
+	(":beer:", "🍺"),
+	(":coffee:", "☕"),
+	(":funk:", "😤"),
+	(":dizzy:", "😵"),
+	(":shutup:", "🤐"),
+	(":sleepy:", "😴"),
+	(":biggrin:", "😃"),
+	(":shocked:", "😱"),
+	(":curse:", "🤬"),
+	(":titter:", "🤭"),
+];
+
+/// Strip HTML tags, BBCode/UBB tags, and Discuz emoticon codes from content.
+///
+/// - HTML: `<tag ...>` and `</tag>`
+/// - BBCode: `[tag]`, `[tag=...]`, `[/tag]`
+/// - Emoticons: `:code:` → mapped emoji or removed
+/// - Consecutive whitespace collapsed to single space
+/// - Leading/trailing whitespace trimmed
+pub fn strip_markup(s: &str) -> String {
+	// 1. Replace emoticon codes with emoji
+	let mut result = s.to_string();
+	for &(code, emoji) in EMOTICON_MAP {
+		result = result.replace(code, emoji);
+	}
+
+	// 2. Strip HTML tags: <...>
+	let html_re = Regex::new(r"<[^>]*>").unwrap();
+	result = html_re.replace_all(&result, "").to_string();
+
+	// 3. Strip BBCode/UBB tags: [tag], [tag=...], [/tag]
+	let bbc_re = Regex::new(r"\[/?[a-zA-Z][a-zA-Z0-9]*(?:=[^\]]*)?]").unwrap();
+	result = bbc_re.replace_all(&result, "").to_string();
+
+	// 4. Strip Discuz brace-wrapped emoticon codes: {:soso_e100:}, {:coolmonkey_001:}
+	// Must run before the bare :word: regex to avoid leaving empty {}
+	let brace_emo_re = Regex::new(r"\{:[^}]+:\}").unwrap();
+	result = brace_emo_re.replace_all(&result, "").to_string();
+
+	// 5. Strip remaining Discuz emoticon codes not in map: :word:
+	let emo_re = Regex::new(r":[a-zA-Z_][a-zA-Z0-9_]*:").unwrap();
+	result = emo_re.replace_all(&result, "").to_string();
+
+	// 6. Collapse consecutive whitespace to single space, trim
+	let ws_re = Regex::new(r"\s+").unwrap();
+	ws_re.replace_all(result.trim(), " ").to_string()
 }
 
 #[cfg(test)]
@@ -185,5 +284,78 @@ mod tests {
 		ls.filtered_indices = vec![1, 3];
 		let result: Vec<_> = visible_items(&items, &ls).collect();
 		assert_eq!(result, vec![&20, &40]);
+	}
+
+	// ─── format_timestamp ──────────────────────────────
+
+	#[test]
+	fn format_timestamp_zero() {
+		assert_eq!(format_timestamp(0), "-");
+	}
+
+	#[test]
+	fn format_timestamp_valid() {
+		let s = format_timestamp(1711540800);
+		// Should be a date string like "2024/03/27 ..."
+		assert!(s.starts_with("20"));
+		assert!(s.contains('/'));
+		assert!(s.contains(':'));
+		assert_eq!(s.len(), 19); // "YYYY/MM/DD HH:MM:SS"
+	}
+
+	// ─── strip_markup ──────────────────────────────────
+
+	#[test]
+	fn strip_html_tags() {
+		assert_eq!(strip_markup("<b>bold</b> text"), "bold text");
+		assert_eq!(strip_markup("<blockquote>quoted</blockquote>"), "quoted");
+	}
+
+	#[test]
+	fn strip_bbcode_tags() {
+		assert_eq!(strip_markup("[b]bold[/b]"), "bold");
+		assert_eq!(strip_markup("[color=red]text[/color]"), "text");
+		assert_eq!(strip_markup("[i]italic[/i] normal"), "italic normal");
+	}
+
+	#[test]
+	fn strip_emoticon_to_emoji() {
+		assert_eq!(strip_markup(":laugh:"), "😄");
+		assert_eq!(strip_markup("hello :smile: world"), "hello 😊 world");
+	}
+
+	#[test]
+	fn strip_unknown_emoticon() {
+		assert_eq!(strip_markup(":unknownemote:"), "");
+	}
+
+	#[test]
+	fn strip_brace_wrapped_emoticon() {
+		assert_eq!(strip_markup("{:soso_e100:}"), "");
+		assert_eq!(
+			strip_markup("hello {:coolmonkey_001:} world"),
+			"hello world"
+		);
+		assert_eq!(
+			strip_markup("text {:soso_e100:} and {:soso_e113:} end"),
+			"text and end"
+		);
+	}
+
+	#[test]
+	fn strip_mixed_markup() {
+		let input = "<blockquote>[i]hello[/i] :laugh:  world  </blockquote>";
+		assert_eq!(strip_markup(input), "hello 😄 world");
+	}
+
+	#[test]
+	fn strip_collapses_whitespace() {
+		assert_eq!(strip_markup("hello   world"), "hello world");
+		assert_eq!(strip_markup("  leading  trailing  "), "leading trailing");
+	}
+
+	#[test]
+	fn strip_preserves_plain_text() {
+		assert_eq!(strip_markup("normal text here"), "normal text here");
 	}
 }

@@ -6,9 +6,9 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Cell, Paragraph, Row, Table, TableState};
 
 use crate::theme::ThemeColors;
-use crate::views::truncate_to_width;
+use crate::views::{format_timestamp, strip_markup, truncate_to_width};
 
-/// Render the post list as a table with author + content preview columns.
+/// Render the post list as a table with position | author | time | content columns.
 pub fn draw(
 	frame: &mut Frame,
 	area: Rect,
@@ -30,51 +30,51 @@ pub fn draw(
 		return;
 	}
 
-	// Dynamic content preview width = total width - author(14) - position(6) - padding(4)
-	let content_width = (area.width as usize).saturating_sub(24);
+	// Column widths: position(6) | author(14) | time(21) | content(flex)
+	let fixed_cols = 6 + 14 + 21 + 6; // 6 for padding/spacing
+	let content_width = (area.width as usize).saturating_sub(fixed_cols);
 
 	let rows: Vec<Row> = posts
 		.iter()
 		.map(|post| {
-			let preview = post.content.lines().next().unwrap_or("");
-			let preview = truncate_to_width(preview, content_width);
+			let cleaned = strip_markup(&post.content);
+			let preview_line = cleaned.lines().next().unwrap_or("");
+			let preview = truncate_to_width(preview_line, content_width);
 
 			Row::new(vec![
+				Cell::from(Line::from(Span::styled(
+					format!("#{}", post.position),
+					Style::default().fg(tc.muted),
+				))),
 				Cell::from(Line::from(Span::styled(
 					truncate_to_width(&post.author_name, 12),
 					Style::default().fg(tc.accent),
 				))),
 				Cell::from(Line::from(Span::styled(
-					preview,
-					Style::default().fg(tc.fg),
+					format_timestamp(post.created_at),
+					Style::default().fg(tc.muted),
 				))),
 				Cell::from(Line::from(Span::styled(
-					format!("#{}", post.position),
-					Style::default().fg(tc.muted),
+					preview,
+					Style::default().fg(tc.fg),
 				))),
 			])
 		})
 		.collect();
 
+	let header_style = Style::default().fg(tc.muted).add_modifier(Modifier::BOLD);
 	let header = Row::new(vec![
-		Cell::from(Span::styled(
-			"  作者",
-			Style::default().fg(tc.muted).add_modifier(Modifier::BOLD),
-		)),
-		Cell::from(Span::styled(
-			"内容",
-			Style::default().fg(tc.muted).add_modifier(Modifier::BOLD),
-		)),
-		Cell::from(Span::styled(
-			" 楼层",
-			Style::default().fg(tc.muted).add_modifier(Modifier::BOLD),
-		)),
+		Cell::from(Span::styled("  楼层", header_style)),
+		Cell::from(Span::styled("作者", header_style)),
+		Cell::from(Span::styled("发布时间", header_style)),
+		Cell::from(Span::styled("内容", header_style)),
 	]);
 
 	let widths = [
-		Constraint::Length(14),
-		Constraint::Min(20),
 		Constraint::Length(6),
+		Constraint::Length(14),
+		Constraint::Length(21),
+		Constraint::Min(20),
 	];
 
 	let table = Table::new(rows, widths)
@@ -107,7 +107,7 @@ mod tests {
 			author_id: 1,
 			author_name: "alice".to_string(),
 			position: 1,
-			created_at: 0,
+			created_at: 1711540800,
 			is_first: true,
 		}
 	}
@@ -148,7 +148,7 @@ mod tests {
 
 	#[test]
 	fn render_post_items() {
-		let backend = TestBackend::new(80, 5);
+		let backend = TestBackend::new(120, 5);
 		let mut terminal = Terminal::new(backend).unwrap();
 		let tc = Theme::Default.colors();
 		let posts = vec![
@@ -167,5 +167,49 @@ mod tests {
 			.collect();
 		assert!(text.contains("alice"));
 		assert!(text.contains("Hello this is a post"));
+		// Position should appear as #1
+		assert!(text.contains("#1"));
+	}
+
+	#[test]
+	fn render_strips_markup() {
+		let backend = TestBackend::new(120, 4);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let tc = Theme::Default.colors();
+		let posts = vec![dummy_post(1, "<b>bold</b> [i]italic[/i] :laugh: text")];
+		let mut ts = TableState::default();
+		ts.select(Some(0));
+		terminal
+			.draw(|f| draw(f, f.area(), &posts, &mut ts, false, &tc))
+			.unwrap();
+		let buf = terminal.backend().buffer().content().to_vec();
+		let text: String = buf
+			.iter()
+			.map(|c| c.symbol().chars().next().unwrap_or(' '))
+			.collect();
+		// Should not contain raw tags
+		assert!(!text.contains("<b>"));
+		assert!(!text.contains("[i]"));
+		// Emoji should be present
+		assert!(text.contains('😄'));
+	}
+
+	#[test]
+	fn render_header_position_first() {
+		let backend = TestBackend::new(120, 4);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let tc = Theme::Default.colors();
+		let posts = vec![dummy_post(1, "Test")];
+		let mut ts = TableState::default();
+		terminal
+			.draw(|f| draw(f, f.area(), &posts, &mut ts, false, &tc))
+			.unwrap();
+		let buf = terminal.backend().buffer().content().to_vec();
+		let symbols: Vec<&str> = buf.iter().map(|c| c.symbol()).collect();
+		// CJK chars in TestBackend occupy 2 cells, so check individual chars
+		assert!(symbols.contains(&"楼"));
+		assert!(symbols.contains(&"层"));
+		assert!(symbols.contains(&"发"));
+		assert!(symbols.contains(&"时"));
 	}
 }
