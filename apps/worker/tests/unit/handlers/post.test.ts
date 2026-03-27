@@ -1,29 +1,22 @@
 import { describe, expect, it, mock } from "bun:test";
 import { create, getById, list } from "../../../src/handlers/post";
 import type { Env } from "../../../src/lib/env";
+import {
+	TEST_JWT_SECRET,
+	createJwtForRole,
+	createMockDb,
+	makeD1PostRow,
+	makeD1ThreadRow,
+} from "../../helpers";
 
 describe("post handlers", () => {
 	const mockEnv: Env = {
 		API_KEY: "test-api-key",
 		DB: {} as D1Database,
 		ENVIRONMENT: "test",
-		JWT_SECRET: "test-secret",
+		JWT_SECRET: TEST_JWT_SECRET,
 		KV: {} as KVNamespace,
 	};
-
-	/** Full D1 row (snake_case) matching the real posts table */
-	const makeD1PostRow = (overrides?: Record<string, unknown>) => ({
-		id: 1,
-		thread_id: 10,
-		forum_id: 5,
-		author_id: 100,
-		author_name: "alice",
-		content: "Hello world",
-		created_at: 1711540800,
-		is_first: 1,
-		position: 1,
-		...overrides,
-	});
 
 	describe("list", () => {
 		it("should require threadId parameter", async () => {
@@ -68,7 +61,7 @@ describe("post handlers", () => {
 		});
 
 		it("should map D1 snake_case rows to camelCase Post objects", async () => {
-			const d1Row = makeD1PostRow();
+			const d1Row = makeD1PostRow({ thread_id: 10, forum_id: 5, author_id: 100 });
 			const allSpy = mock(() => Promise.resolve({ results: [d1Row] }));
 			const bindSpy = mock((..._args: unknown[]) => ({
 				all: allSpy,
@@ -299,7 +292,7 @@ describe("post handlers", () => {
 
 	describe("getById", () => {
 		it("should map D1 row to camelCase Post when found", async () => {
-			const d1Row = makeD1PostRow({ id: 123, is_first: 0 });
+			const d1Row = makeD1PostRow({ id: 123, thread_id: 10, forum_id: 5, is_first: 0 });
 			const firstSpy = mock(() => Promise.resolve(d1Row));
 			const bindSpy = mock((..._args: unknown[]) => ({
 				first: firstSpy,
@@ -354,7 +347,7 @@ describe("post handlers", () => {
 	});
 
 	describe("create", () => {
-		it("should return 501 NOT_IMPLEMENTED", async () => {
+		it("should require authentication", async () => {
 			const response = await create(
 				new Request("https://example.com/api/v1/posts", {
 					method: "POST",
@@ -362,9 +355,196 @@ describe("post handlers", () => {
 				mockEnv,
 			);
 
-			expect(response.status).toBe(501);
-			const data = await response.json();
-			expect(data.error.code).toBe("NOT_IMPLEMENTED");
+			expect(response.status).toBe(401);
+		});
+
+		it("should validate required fields", async () => {
+			const token = await createJwtForRole(0, 1);
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT id, forum_id, closed FROM threads WHERE id": makeD1ThreadRow({
+						id: 1,
+						closed: 0,
+					}),
+				},
+			});
+
+			const response = await create(
+				new Request("https://example.com/api/v1/posts", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ threadId: 1 }),
+				}),
+				{ ...mockEnv, DB: db },
+			);
+
+			expect(response.status).toBe(400);
+			const body = await response.json();
+			expect(body.error.code).toBe("INVALID_BODY");
+		});
+
+		it("should require valid threadId", async () => {
+			const token = await createJwtForRole(0, 1);
+			const { db } = createMockDb({});
+
+			const response = await create(
+				new Request("https://example.com/api/v1/posts", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ threadId: "invalid", content: "Test" }),
+				}),
+				{ ...mockEnv, DB: db },
+			);
+
+			expect(response.status).toBe(400);
+			const body = await response.json();
+			expect(body.error.code).toBe("INVALID_BODY");
+		});
+
+		it("should reject non-existent thread", async () => {
+			const token = await createJwtForRole(0, 1);
+			const { db } = createMockDb({
+				firstResults: { "SELECT id, forum_id, closed FROM threads WHERE id": null },
+			});
+
+			const response = await create(
+				new Request("https://example.com/api/v1/posts", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ threadId: 999, content: "Test reply" }),
+				}),
+				{ ...mockEnv, DB: db },
+			);
+
+			expect(response.status).toBe(404);
+			const body = await response.json();
+			expect(body.error.code).toBe("THREAD_NOT_FOUND");
+		});
+
+		it("should reject reply to closed thread", async () => {
+			const token = await createJwtForRole(0, 1);
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT id, forum_id, closed FROM threads WHERE id": { id: 1, forum_id: 10, closed: 1 },
+				},
+			});
+
+			const response = await create(
+				new Request("https://example.com/api/v1/posts", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ threadId: 1, content: "Test reply" }),
+				}),
+				{ ...mockEnv, DB: db },
+			);
+
+			expect(response.status).toBe(403);
+			const body = await response.json();
+			expect(body.error.code).toBe("THREAD_CLOSED");
+		});
+
+		it("should create reply and update counts", async () => {
+			const token = await createJwtForRole(0, 42);
+			const createdPost = makeD1PostRow({
+				id: 50,
+				thread_id: 1,
+				forum_id: 10,
+				position: 6,
+				is_first: 0,
+			});
+			const { db, batchCalls } = createMockDb({
+				firstResults: {
+					"SELECT id, forum_id, closed FROM threads WHERE id": { id: 1, forum_id: 10, closed: 0 },
+					"SELECT MAX(position)": { maxPos: 5 },
+					"SELECT * FROM posts WHERE id": createdPost,
+				},
+				runResults: {
+					"INSERT INTO posts": { success: true, meta: { last_row_id: 50 } },
+				},
+			});
+
+			const response = await create(
+				new Request("https://example.com/api/v1/posts", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ threadId: 1, content: "<p>My reply</p>" }),
+				}),
+				{ ...mockEnv, DB: db },
+			);
+
+			expect(response.status).toBe(201);
+			const body = await response.json();
+			expect(body.data.id).toBe(50);
+
+			// Verify batch was called: UPDATE threads + UPDATE forums + UPDATE users = 3
+			expect(batchCalls.length).toBe(1);
+			expect(batchCalls[0].length).toBe(3);
+		});
+
+		it("should trim content", async () => {
+			const token = await createJwtForRole(0, 42);
+			const createdPost = makeD1PostRow({ id: 50, content: "Trimmed" });
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT id, forum_id, closed FROM threads WHERE id": { id: 1, forum_id: 10, closed: 0 },
+					"SELECT MAX(position)": { maxPos: 1 },
+					"SELECT * FROM posts WHERE id": createdPost,
+				},
+				runResults: {
+					"INSERT INTO posts": { success: true, meta: { last_row_id: 50 } },
+				},
+			});
+
+			const response = await create(
+				new Request("https://example.com/api/v1/posts", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ threadId: 1, content: "  Trimmed  " }),
+				}),
+				{ ...mockEnv, DB: db },
+			);
+
+			expect(response.status).toBe(201);
+		});
+
+		it("should reject empty content after trimming", async () => {
+			const token = await createJwtForRole(0, 1);
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT id, forum_id, closed FROM threads WHERE id": { id: 1, forum_id: 10, closed: 0 },
+				},
+			});
+
+			const response = await create(
+				new Request("https://example.com/api/v1/posts", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ threadId: 1, content: "   " }),
+				}),
+				{ ...mockEnv, DB: db },
+			);
+
+			expect(response.status).toBe(400);
+			const body = await response.json();
+			expect(body.error.details.message).toBe("content is required");
+		});
+
+		it("should handle malformed JSON", async () => {
+			const token = await createJwtForRole(0, 1);
+			const { db } = createMockDb({});
+
+			const response = await create(
+				new Request("https://example.com/api/v1/posts", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: "invalid json",
+				}),
+				{ ...mockEnv, DB: db },
+			);
+
+			expect(response.status).toBe(400);
+			const body = await response.json();
+			expect(body.error.code).toBe("INVALID_BODY");
 		});
 	});
 });
