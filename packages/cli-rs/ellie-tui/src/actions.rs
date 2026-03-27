@@ -125,6 +125,7 @@ fn load_user(app: &mut App, user_id: u64) {
 			if handle_auth_expired(app, &e) {
 				return;
 			}
+			app.current_user = None; // Clear stale data on failure
 			app.status_message = Some(format!("error: {e}"));
 		}
 	}

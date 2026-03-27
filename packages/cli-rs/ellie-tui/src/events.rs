@@ -276,6 +276,7 @@ fn handle_view_user(app: &mut App) {
 	};
 
 	if let Some(uid) = user_id {
+		app.current_user = None; // Clear stale data before loading new profile
 		app.push_view(ViewState::User { user_id: uid });
 		schedule_data_load(app);
 		app.status_message = Some("loading user profile...".to_string());
@@ -605,6 +606,33 @@ mod tests {
 			ViewState::User { user_id } => assert_eq!(*user_id, 42),
 			_ => panic!("expected User view"),
 		}
+	}
+
+	#[test]
+	fn u_clears_current_user_before_loading() {
+		let mut app = make_app();
+		// Set a stale user from a previous view
+		app.current_user = Some(ellie_core::types::User {
+			id: 99,
+			username: "stale".to_string(),
+			role: ellie_core::types::UserRole::User,
+			status: ellie_core::types::UserStatus::Active,
+			posts: 0,
+			threads: 0,
+			credits: 0,
+			email: String::new(),
+			avatar: String::new(),
+			reg_date: 0,
+			last_login: 0,
+		});
+
+		app.forums = vec![dummy_forum(1, "F")];
+		handle_key_event(&mut app, key(KeyCode::Enter)); // push Threads
+		app.threads = vec![dummy_thread(10, 1, "Thread1", 42)];
+
+		handle_key_event(&mut app, key(KeyCode::Char('u')));
+		// current_user should be cleared so the loading state shows
+		assert!(app.current_user.is_none());
 	}
 
 	// ─── Help mode tests ──────────────────────────────
