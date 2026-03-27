@@ -83,6 +83,51 @@ describe("admin attachment handlers", () => {
 
 			expect(response.status).toBe(403);
 		});
+
+		it("should filter by threadId", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: { "SELECT COUNT": { total: 0 } },
+				allResults: { "SELECT * FROM attachments": [] },
+			});
+			const env = makeEnv({ DB: db });
+			const request = await createAdminRequest("GET", "/api/admin/attachments?threadId=10");
+
+			const response = await list(request, env);
+
+			expect(response.status).toBe(200);
+			const countCall = calls.find((c) => c.sql.includes("COUNT"));
+			expect(countCall?.sql).toContain("thread_id = ?");
+		});
+
+		it("should filter by authorId", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: { "SELECT COUNT": { total: 0 } },
+				allResults: { "SELECT * FROM attachments": [] },
+			});
+			const env = makeEnv({ DB: db });
+			const request = await createAdminRequest("GET", "/api/admin/attachments?authorId=3");
+
+			const response = await list(request, env);
+
+			expect(response.status).toBe(200);
+			const countCall = calls.find((c) => c.sql.includes("COUNT"));
+			expect(countCall?.sql).toContain("author_id = ?");
+		});
+
+		it("should filter by isImage=false", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: { "SELECT COUNT": { total: 0 } },
+				allResults: { "SELECT * FROM attachments": [] },
+			});
+			const env = makeEnv({ DB: db });
+			const request = await createAdminRequest("GET", "/api/admin/attachments?isImage=false");
+
+			const response = await list(request, env);
+
+			expect(response.status).toBe(200);
+			const countCall = calls.find((c) => c.sql.includes("COUNT"));
+			expect(countCall?.sql).toContain("is_image = 0");
+		});
 	});
 
 	describe("remove", () => {

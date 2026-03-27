@@ -617,4 +617,132 @@ describe("worker router integration", () => {
 			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
 		});
 	});
+
+	// ─── Uncovered Route Dispatches ──────────────────────
+
+	describe("Auth routes (refresh, logout, me)", () => {
+		it("POST /api/v1/auth/refresh should reach handler", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/v1/auth/refresh",
+					withApiKey({
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({}),
+					}),
+				),
+				makeEnv(),
+			);
+
+			// Handler will reject due to missing/invalid refresh token
+			expect([400, 401]).toContain(response.status);
+		});
+
+		it("DELETE /api/v1/auth/logout should reach handler", async () => {
+			const env = makeEnv();
+			// Add KV.delete for logout handler
+			(env.KV as unknown as Record<string, unknown>).delete = mock(() => Promise.resolve());
+
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/v1/auth/logout",
+					withApiKey({
+						method: "DELETE",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ refreshToken: "some-token" }),
+					}),
+				),
+				env,
+			);
+
+			// Handler succeeds (KV.delete is fire-and-forget)
+			expect(response.status).toBe(200);
+		});
+
+		it("GET /api/v1/auth/me should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/v1/auth/me", withApiKey()),
+				makeEnv(),
+			);
+
+			expect(response.status).toBe(401);
+		});
+	});
+
+	describe("Authenticated write routes", () => {
+		it("POST /api/v1/threads should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/v1/threads", withApiKey({ method: "POST" })),
+				makeEnv(),
+			);
+
+			expect(response.status).toBe(401);
+		});
+
+		it("POST /api/v1/posts should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/v1/posts", withApiKey({ method: "POST" })),
+				makeEnv(),
+			);
+
+			expect(response.status).toBe(401);
+		});
+	});
+
+	describe("User self-service routes", () => {
+		it("PATCH /api/v1/users/me should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/v1/users/me", withApiKey({ method: "PATCH" })),
+				makeEnv(),
+			);
+
+			expect(response.status).toBe(401);
+		});
+
+		it("POST /api/v1/users/me/password should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/v1/users/me/password",
+					withApiKey({ method: "POST" }),
+				),
+				makeEnv(),
+			);
+
+			expect(response.status).toBe(401);
+		});
+	});
+
+	describe("Attachment routes", () => {
+		it("GET /api/v1/posts/:id/attachments should route to handler", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/v1/posts/1/attachments", withApiKey()),
+				makeEnv(),
+			);
+
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.data).toBeArray();
+		});
+
+		it("GET /api/admin/attachments should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/admin/attachments", withApiKey()),
+				makeEnv(),
+			);
+
+			expect(response.status).toBe(401);
+		});
+
+		it("DELETE /api/admin/attachments/:id should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/attachments/1",
+					withApiKey({ method: "DELETE" }),
+				),
+				makeEnv(),
+			);
+
+			expect(response.status).toBe(401);
+		});
+	});
 });

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import { ban, getById, list, nuke, setRole, setStatus } from "../../../../src/handlers/admin/user";
-import { createJwtForRole, createMockDb, makeD1UserRow, makeEnv } from "../../../helpers";
+import {
+	createAdminRequest,
+	createJwtForRole,
+	createMockDb,
+	makeD1UserRow,
+	makeEnv,
+} from "../../../helpers";
 
 describe("admin user handlers", () => {
 	const adminEnv = (db: D1Database) => makeEnv({ DB: db });
@@ -580,6 +586,52 @@ describe("admin user handlers", () => {
 			);
 
 			expect(res.status).toBe(403);
+		});
+	});
+
+	describe("ID validation guards", () => {
+		it("getById should reject invalid user ID", async () => {
+			const { db } = createMockDb();
+			const env = makeEnv({ DB: db });
+			const request = await createAdminRequest("GET", "/api/admin/users/abc");
+
+			const response = await getById(request, env);
+
+			expect(response.status).toBe(400);
+			const body = await response.json();
+			expect(body.error.details.message).toBe("Invalid user ID");
+		});
+
+		it("setStatus should reject invalid user ID", async () => {
+			const { db } = createMockDb();
+			const env = makeEnv({ DB: db });
+			const request = await createAdminRequest("PATCH", "/api/admin/users/abc/status", {
+				status: 0,
+			});
+
+			const response = await setStatus(request, env);
+
+			expect(response.status).toBe(400);
+		});
+
+		it("setRole should reject invalid user ID", async () => {
+			const { db } = createMockDb();
+			const env = makeEnv({ DB: db });
+			const request = await createAdminRequest("PATCH", "/api/admin/users/abc/role", { role: 0 });
+
+			const response = await setRole(request, env);
+
+			expect(response.status).toBe(400);
+		});
+
+		it("ban should reject invalid user ID", async () => {
+			const { db } = createMockDb();
+			const env = makeEnv({ DB: db });
+			const request = await createAdminRequest("POST", "/api/admin/users/abc/ban");
+
+			const response = await ban(request, env);
+
+			expect(response.status).toBe(400);
 		});
 	});
 });

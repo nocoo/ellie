@@ -1,6 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import { batchDelete, list, remove } from "../../../../src/handlers/admin/post";
-import { createJwtForRole, createMockDb, makeD1PostRow, makeEnv } from "../../../helpers";
+import {
+	createAdminRequest,
+	createJwtForRole,
+	createMockDb,
+	makeD1PostRow,
+	makeEnv,
+} from "../../../helpers";
 
 describe("admin post handlers", () => {
 	const adminEnv = (db: D1Database) => makeEnv({ DB: db });
@@ -198,6 +204,32 @@ describe("admin post handlers", () => {
 			);
 
 			expect(res.status).toBe(404);
+		});
+
+		it("should reject invalid page number", async () => {
+			const { db } = createMockDb({});
+			const env = makeEnv({ DB: db });
+			const request = await createAdminRequest("GET", "/api/admin/posts?page=0");
+
+			const response = await list(request, env);
+
+			expect(response.status).toBe(400);
+			const body = await response.json();
+			expect(body.error.details.message).toBe("Invalid page number");
+		});
+	});
+
+	describe("remove — edge cases", () => {
+		it("should reject invalid post ID", async () => {
+			const { db } = createMockDb({});
+			const env = makeEnv({ DB: db });
+			const request = await createAdminRequest("DELETE", "/api/admin/posts/abc");
+
+			const response = await remove(request, env);
+
+			expect(response.status).toBe(400);
+			const body = await response.json();
+			expect(body.error.details.message).toBe("Invalid post ID");
 		});
 	});
 

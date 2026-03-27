@@ -204,6 +204,22 @@ describe("admin thread handlers", () => {
 
 			expect(res.status).toBe(200);
 		});
+
+		it("should reject invalid page number", async () => {
+			const { db } = createMockDb({});
+
+			const token = await createJwtForRole(1);
+			const res = await list(
+				new Request("https://api.example.com/api/admin/threads?page=0", {
+					headers: { Authorization: `Bearer ${token}` },
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("Invalid page number");
+		});
 	});
 
 	describe("getById", () => {
@@ -240,6 +256,21 @@ describe("admin thread handlers", () => {
 			expect(res.status).toBe(404);
 			const body = await res.json();
 			expect(body.error.code).toBe("THREAD_NOT_FOUND");
+		});
+
+		it("should reject invalid thread ID", async () => {
+			const { db } = createMockDb();
+			const token = await createJwtForRole(1);
+			const res = await getById(
+				new Request("https://api.example.com/api/admin/threads/abc", {
+					headers: { Authorization: `Bearer ${token}` },
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("Invalid thread ID");
 		});
 	});
 
@@ -284,6 +315,20 @@ describe("admin thread handlers", () => {
 			);
 
 			expect(res.status).toBe(404);
+		});
+
+		it("should reject invalid thread ID", async () => {
+			const { db } = createMockDb();
+			const token = await createJwtForRole(1);
+			const res = await remove(
+				new Request("https://api.example.com/api/admin/threads/abc", {
+					method: "DELETE",
+					headers: { Authorization: `Bearer ${token}` },
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
 		});
 	});
 
@@ -345,6 +390,21 @@ describe("admin thread handlers", () => {
 
 			expect(res.status).toBe(404);
 		});
+
+		it("should reject invalid thread ID", async () => {
+			const { db } = createMockDb();
+			const token = await createJwtForRole(1);
+			const res = await setSticky(
+				new Request("https://api.example.com/api/admin/threads/abc/sticky", {
+					method: "PATCH",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ level: 1 }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+		});
 	});
 
 	describe("setDigest", () => {
@@ -381,6 +441,43 @@ describe("admin thread handlers", () => {
 			);
 
 			expect(res.status).toBe(400);
+		});
+
+		it("should return 404 for non-existent thread", async () => {
+			const { db } = createMockDb({
+				runResults: { "UPDATE threads": { success: true, meta: { changes: 0 } } },
+			});
+
+			const token = await createJwtForRole(1);
+			const res = await setDigest(
+				new Request("https://api.example.com/api/admin/threads/999/digest", {
+					method: "PATCH",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ level: 1 }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(404);
+			const body = await res.json();
+			expect(body.error.code).toBe("THREAD_NOT_FOUND");
+		});
+
+		it("should reject malformed JSON", async () => {
+			const { db } = createMockDb();
+			const token = await createJwtForRole(1);
+			const res = await setDigest(
+				new Request("https://api.example.com/api/admin/threads/42/digest", {
+					method: "PATCH",
+					headers: { Authorization: `Bearer ${token}` },
+					body: "invalid json",
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.code).toBe("INVALID_BODY");
 		});
 	});
 
@@ -458,6 +555,43 @@ describe("admin thread handlers", () => {
 			);
 
 			expect(res.status).toBe(400);
+		});
+
+		it("should return 404 for non-existent thread", async () => {
+			const { db } = createMockDb({
+				runResults: { "UPDATE threads": { success: true, meta: { changes: 0 } } },
+			});
+
+			const token = await createJwtForRole(1);
+			const res = await setClosed(
+				new Request("https://api.example.com/api/admin/threads/999/close", {
+					method: "PATCH",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ closed: 1 }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(404);
+			const body = await res.json();
+			expect(body.error.code).toBe("THREAD_NOT_FOUND");
+		});
+
+		it("should reject malformed JSON", async () => {
+			const { db } = createMockDb();
+			const token = await createJwtForRole(1);
+			const res = await setClosed(
+				new Request("https://api.example.com/api/admin/threads/42/close", {
+					method: "PATCH",
+					headers: { Authorization: `Bearer ${token}` },
+					body: "invalid json",
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.code).toBe("INVALID_BODY");
 		});
 	});
 
@@ -556,6 +690,40 @@ describe("admin thread handlers", () => {
 			expect(res.status).toBe(400);
 			const body = await res.json();
 			expect(body.error.details.message).toBe("Target forum not found");
+		});
+
+		it("should reject missing forumId", async () => {
+			const { db } = createMockDb();
+			const token = await createJwtForRole(1);
+			const res = await move(
+				new Request("https://api.example.com/api/admin/threads/42/move", {
+					method: "PATCH",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({}),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("forumId is required");
+		});
+
+		it("should reject malformed JSON", async () => {
+			const { db } = createMockDb();
+			const token = await createJwtForRole(1);
+			const res = await move(
+				new Request("https://api.example.com/api/admin/threads/42/move", {
+					method: "PATCH",
+					headers: { Authorization: `Bearer ${token}` },
+					body: "invalid json",
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.code).toBe("INVALID_BODY");
 		});
 	});
 

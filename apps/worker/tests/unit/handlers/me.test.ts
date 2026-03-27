@@ -138,6 +138,28 @@ describe("user self-service handlers", () => {
 			const body = await response.json();
 			expect(body.error.code).toBe("INVALID_BODY");
 		});
+
+		it("should return 404 if user deleted after auth (race condition)", async () => {
+			const token = await createJwtForRole(0, 42);
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT id, username, email": null, // user vanished between auth and SELECT
+				},
+			});
+
+			const response = await updateProfile(
+				new Request("https://example.com/api/v1/users/me", {
+					method: "PATCH",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ email: "new@example.com" }),
+				}),
+				{ ...mockEnv, DB: db },
+			);
+
+			expect(response.status).toBe(404);
+			const body = await response.json();
+			expect(body.error.code).toBe("USER_NOT_FOUND");
+		});
 	});
 
 	describe("changePassword", () => {
@@ -252,6 +274,28 @@ describe("user self-service handlers", () => {
 			expect(response.status).toBe(400);
 			const body = await response.json();
 			expect(body.error.code).toBe("INVALID_BODY");
+		});
+
+		it("should return 404 if user record missing (race condition)", async () => {
+			const token = await createJwtForRole(0, 42);
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT password_hash": null, // user vanished between auth and SELECT
+				},
+			});
+
+			const response = await changePassword(
+				new Request("https://example.com/api/v1/users/me/password", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ oldPassword: "old_pass", newPassword: "new_pass_123" }),
+				}),
+				{ ...mockEnv, DB: db },
+			);
+
+			expect(response.status).toBe(404);
+			const body = await response.json();
+			expect(body.error.code).toBe("USER_NOT_FOUND");
 		});
 	});
 });
