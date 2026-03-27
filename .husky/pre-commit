@@ -1,1 +1,10 @@
 bunx lint-staged && pnpm -r exec tsc --noEmit && cd apps/worker && bun test
+
+# Rust (if cli-rs exists)
+if [ -f "packages/cli-rs/Cargo.toml" ]; then
+  cd packages/cli-rs
+  cargo fmt --check --all
+  cargo clippy --all-targets --all-features -- -D warnings
+  cargo test --workspace
+  cd ../..
+fi

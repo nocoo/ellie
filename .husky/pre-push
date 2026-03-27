@@ -4,3 +4,11 @@ bun test tests/unit/                           # L1: unit tests
 # bun test tests/integration/                  # L2: uncomment after 4.8
 osv-scanner scan --lockfile bun.lock           # G2: dependency vulnerability scan
 gitleaks detect --no-banner                    # G2: secret leak detection
+
+# Rust L2 + G2 (if cli-rs exists)
+if [ -f "packages/cli-rs/Cargo.toml" ]; then
+  cd packages/cli-rs
+  cargo test --test integration -- --ignored   # L2 (tests are #[ignore], must pass --ignored)
+  osv-scanner scan --lockfile Cargo.lock       # G2
+  cd ../..
+fi
