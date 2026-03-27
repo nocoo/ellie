@@ -80,7 +80,7 @@ X-API-Key: <key>
 
 ### 配置文件
 
-路径：`~/.config/ellie/config.json`
+路径：`~/.config/ellie/config.json`（**唯一配置文件**，theme 等所有设置均存于此处）
 
 ```json
 {
@@ -105,6 +105,16 @@ use anyhow::Result;
 use ureq::Agent;
 use serde::{Deserialize, Serialize};
 
+/// Structured error for auth expiry — callers match on this to trigger re-login UI.
+#[derive(Debug)]
+pub struct AuthExpiredError;
+impl std::fmt::Display for AuthExpiredError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "authentication token expired")
+    }
+}
+impl std::error::Error for AuthExpiredError {}
+
 pub struct ApiClient {
     agent: Agent,
     base_url: String,
@@ -120,7 +130,11 @@ impl ApiClient {
         Self { agent, base_url, api_key, token: None }
     }
 
-    /// Core request — merges auth headers (caller wins on conflict)
+    /// Core request — merges auth headers (caller wins on conflict).
+    ///
+    /// ureq 3.x returns HTTP 4xx/5xx as `Err(ureq::Error::StatusCode(..))`,
+    /// so we must match on the Result to extract the response body for
+    /// structured error handling (e.g. TOKEN_EXPIRED).
     fn request<T: for<'de> Deserialize<'de>>(&self, method: &str, path: &str, body: Option<&serde_json::Value>) -> Result<T> {
         let url = format!("{}{}", self.base_url, path);
         let mut req = self.agent.request(method, &url);
@@ -131,34 +145,44 @@ impl ApiClient {
             req = req.set("Authorization", &format!("Bearer {}", token));
         }
 
-        let res = if let Some(body) = body {
-            req.send_string(&body.to_string())?
+        let result = if let Some(body) = body {
+            req.set("Content-Type", "application/json")
+                .send_string(&body.to_string())
         } else {
-            req.call()?
+            req.call()
         };
 
-        let status = res.status();
-        if status == 401 {
-            let body: ErrorResponse = res.into_json()?;
-            if body.error.code == "TOKEN_EXPIRED" {
-                return Err anyhow::Error::new(AuthExpiredError);
+        match result {
+            Ok(res) => Ok(res.into_json()?),
+            Err(ureq::Error::StatusCode(status)) => {
+                // ureq consumed the request but gave us an error status.
+                // Re-read the response body from the error to get our API error envelope.
+                let err_res = status;  // ureq::Error::StatusCode wraps the Response
+                self.handle_error_response(err_res)
             }
-            return Err anyhow::Error::msg(body.error.message));
+            Err(e) => Err(e.into()),  // transport / DNS / timeout errors
         }
+    }
 
-        if !res.ok() {
-            let body: ErrorResponse = res.into_json()?;
-            return Err anyhow::Error::msg(body.error.message));
+    /// Parse the Worker's `{ error: { code, message } }` envelope from an error response.
+    fn handle_error_response<T>(&self, res: ureq::Response) -> Result<T> {
+        let status = res.status();
+        let body: std::result::Result<ErrorResponse, _> = res.into_json();
+
+        match body {
+            Ok(err) if status == 401 && err.error.code == "TOKEN_EXPIRED" => {
+                Err(AuthExpiredError.into())
+            }
+            Ok(err) => Err(anyhow::anyhow!("[{}] {}", err.error.code, err.error.message)),
+            Err(_) => Err(anyhow::anyhow!("HTTP {status} with unparseable body")),
         }
-
-        Ok(res.into_json()?)
     }
 
     /// Login — returns full payload for caller to persist
     pub fn login(&mut self, username: &str, password: &str) -> Result<LoginResponse> {
-        let body = serde_json::json!({ "username", "password" });
+        let body = serde_json::json!({ "username": username, "password": password });
         let res: ApiResponse<LoginData> = self.request("POST", "/api/v1/auth/login", Some(&body))?;
-        self.token = Some(res.data.token);
+        self.token = Some(res.data.token.clone());
         Ok(LoginResponse {
             token: res.data.token,
             refresh_token: res.data.refresh_token,
@@ -180,18 +204,22 @@ impl ApiClient {
         self.request("GET", "/api/v1/forums", None)
     }
 
+    /// Note: cursor values are base64-encoded and may contain `=`, `+`, `/`.
+    /// URL-encode them to avoid corrupting the query string.
     pub fn get_threads(&self, forum_id: u64, limit: usize, cursor: Option<&str>) -> Result<ApiResponse<Vec<Thread>>> {
         let path = format!("/api/v1/threads?forumId={}&limit={}{}",
             forum_id, limit,
-            cursor.map(|c| format!("&cursor={}", c)).unwrap_or_default()
+            cursor.map(|c| format!("&cursor={}", urlencoding::encode(c))).unwrap_or_default()
         );
         self.request("GET", &path, None)
     }
 
+    /// Note: cursor values are base64-encoded and may contain `=`, `+`, `/`.
+    /// URL-encode them to avoid corrupting the query string.
     pub fn get_posts(&self, thread_id: u64, limit: usize, cursor: Option<&str>) -> Result<ApiResponse<Vec<Post>>> {
         let path = format!("/api/v1/posts?threadId={}&limit={}{}",
             thread_id, limit,
-            cursor.map(|c| format!("&cursor={}", c)).unwrap_or_default()
+            cursor.map(|c| format!("&cursor={}", urlencoding::encode(c))).unwrap_or_default()
         );
         self.request("GET", &path, None)
     }
@@ -277,6 +305,7 @@ impl ApiClient {
 | `clap` | 4.x | CLI 参数解析（derive） | `clap` |
 | `directories` | latest | XDG 配置路径 | - |
 | `anyhow` | latest | 错误处理 | - |
+| `urlencoding` | latest | URL 编码 cursor 等查询参数 | - |
 | `base64` | latest | Cursor 编解码 | - |
 
 **移除的依赖（llmfit 有但 Ellie 不需要）**：
@@ -409,12 +438,16 @@ pub struct App {
     pub auth_token: Option<String>,
     pub logged_in_user: Option<LoggedUser>,
 
-    // Theme
+    // Config (single source of truth: ~/.config/ellie/config.json)
+    pub config: Config,
+
+    // Theme (derived from config.theme on load, persisted back to config on change)
     pub theme: Theme,
 }
 
 impl App {
-    pub fn new() -> Self {
+    pub fn new(config: Config) -> Self {
+        let theme = Theme::load(&config);
         Self {
             should_quit: false,
             input_mode: InputMode::Normal,
@@ -425,9 +458,10 @@ impl App {
             threads: Vec::new(),
             posts: Vec::new(),
             current_user: None,
-            auth_token: None,
-            logged_in_user: None,
-            theme: Theme::load(),
+            auth_token: config.auth.as_ref().map(|a| a.token.clone()),
+            logged_in_user: config.auth.as_ref().map(|a| a.user.clone()),
+            config,
+            theme,
         }
     }
 
@@ -557,20 +591,16 @@ impl Theme {
         }
     }
 
-    pub fn save(&self) {
-        // Persist to ~/.config/ellie/theme
-        if let Some(path) = dirs::config_dir().map(|p| p.join("ellie/theme")) {
-            let _ = fs::create_dir_all(path.parent().unwrap());
-            let _ = fs::write(&path, self.label());
-        }
+    /// Persist theme to the unified config file at ~/.config/ellie/config.json.
+    /// Theme is stored as the `theme` field — no separate file.
+    pub fn save(&self, config: &mut Config) {
+        config.theme = self.label().to_string();
+        config.write();
     }
 
-    pub fn load() -> Self {
-        dirs::config_dir()
-            .map(|p| p.join("ellie/theme"))
-            .and_then(|p| fs::read_to_string(p).ok())
-            .map(|s| Self::from_label(s.trim()))
-            .unwrap_or(Self::Default)
+    /// Load theme from the unified config file.
+    pub fn load(config: &Config) -> Self {
+        Self::from_label(&config.theme)
     }
 }
 
@@ -728,7 +758,7 @@ bun test tests/unit/                 # L1
 
 # Rust L2 + G2 (if cli-rs exists)
 if [ -f "packages/cli-rs/Cargo.toml" ]; then
-  cargo test --test integration      # L2
+  cargo test --test integration -- --ignored  # L2 (tests are #[ignore], must pass --ignored)
   osv-scanner scan --lockfile packages/cli-rs/Cargo.lock  # G2
 fi
 
