@@ -54,9 +54,9 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	const limitParam = url.searchParams.get("limit");
 	const cursorStr = url.searchParams.get("cursor");
 
-	// Clamp limit to [1, 50], defaulting to 20
-	const DEFAULT_PAGE_SIZE = 20;
-	const MAX_PAGE_SIZE = 50;
+	// Clamp limit to [1, 100], defaulting to 100
+	const DEFAULT_PAGE_SIZE = 100;
+	const MAX_PAGE_SIZE = 100;
 	const limitNum = limitParam ? Number.parseInt(limitParam, 10) : undefined;
 	const clampedLimit =
 		limitNum === undefined || limitNum <= 0 ? DEFAULT_PAGE_SIZE : Math.min(limitNum, MAX_PAGE_SIZE);

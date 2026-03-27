@@ -24,6 +24,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
 
 	draw_header(frame, chunks[0], app, &tc);
 	views::search_bar::draw(frame, chunks[1], &app.breadcrumb(), &tc);
+	app.content_height = chunks[2].height;
 	draw_content(frame, chunks[2], app, &tc);
 	views::status_bar::draw(frame, chunks[3], app, &tc);
 
