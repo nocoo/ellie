@@ -4,6 +4,8 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
+use unicode_width::UnicodeWidthStr;
+
 use crate::app::{App, InputMode, ViewState};
 use crate::views;
 
@@ -42,8 +44,9 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
 // ─── Row 0: Header ──────────────────────────────────────
 
 fn draw_header(frame: &mut Frame, area: Rect, app: &App, tc: &crate::theme::ThemeColors) {
+	let title_text = " 同济网 ";
 	let title = Span::styled(
-		" Ellie Forum — 同济网 ",
+		title_text,
 		Style::default().fg(tc.accent).add_modifier(Modifier::BOLD),
 	);
 
@@ -54,10 +57,10 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App, tc: &crate::theme::Them
 	};
 
 	// Right-align auth by padding
-	let title_len = 22; // approximate CJK + emoji width
-	let auth_len = auth.content.len();
-	let padding = area.width.saturating_sub((title_len + auth_len) as u16);
-	let pad = " ".repeat(padding as usize);
+	let title_width = UnicodeWidthStr::width(title_text);
+	let auth_width = UnicodeWidthStr::width(&*auth.content);
+	let padding = (area.width as usize).saturating_sub(title_width + auth_width);
+	let pad = " ".repeat(padding);
 
 	let line = Line::from(vec![title, Span::raw(pad), auth]);
 	let header = Paragraph::new(line).style(Style::default().bg(tc.bg).fg(tc.fg));
@@ -101,14 +104,28 @@ mod tests {
 			.collect()
 	}
 
+	fn buf_symbols(terminal: &Terminal<TestBackend>) -> Vec<String> {
+		terminal
+			.backend()
+			.buffer()
+			.content()
+			.iter()
+			.map(|c| c.symbol().to_string())
+			.collect()
+	}
+
 	#[test]
 	fn draw_full_layout_default() {
 		let backend = TestBackend::new(80, 24);
 		let mut terminal = Terminal::new(backend).unwrap();
 		let mut app = App::new(Config::default_config());
 		terminal.draw(|f| draw(f, &mut app)).unwrap();
+		let symbols = buf_symbols(&terminal);
+		// CJK chars in TestBackend split across 2 cells; check individual chars
+		assert!(symbols.contains(&"同".to_string()));
+		assert!(symbols.contains(&"济".to_string()));
+		assert!(symbols.contains(&"网".to_string()));
 		let text = buf_text(&terminal);
-		assert!(text.contains("Ellie Forum"));
 		assert!(text.contains("NORMAL"));
 	}
 
