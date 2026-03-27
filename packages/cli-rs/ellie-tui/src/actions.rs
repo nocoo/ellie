@@ -234,6 +234,7 @@ pub fn schedule_data_load(app: &mut App) {
 #[cfg(test)]
 mod tests {
 	use ellie_core::config::Config;
+	use ratatui::widgets::TableState;
 
 	use super::*;
 	use crate::app::ListState;
@@ -255,6 +256,7 @@ mod tests {
 			forum_id: 5,
 			forum_name: "Test".to_string(),
 			list: ListState::default(),
+			table_state: TableState::default().with_selected(Some(0)),
 		});
 		schedule_data_load(&mut app);
 		assert_eq!(
@@ -271,6 +273,7 @@ mod tests {
 			thread_id: 42,
 			subject: "Test".to_string(),
 			list: ListState::default(),
+			table_state: TableState::default().with_selected(Some(0)),
 		});
 		schedule_data_load(&mut app);
 		assert_eq!(
