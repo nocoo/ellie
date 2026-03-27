@@ -15,7 +15,7 @@ pub fn draw(
 	current_user: Option<&User>,
 	tc: &ThemeColors,
 ) {
-	let text = if let Some(user) = current_user {
+	let text = if let Some(user) = current_user.filter(|u| u.id == user_id) {
 		let role_str = format!("{:?}", user.role);
 		vec![
 			Line::from(Span::styled(
@@ -96,5 +96,37 @@ mod tests {
 			.collect();
 		assert!(text.contains("alice"));
 		assert!(text.contains("42"));
+	}
+
+	#[test]
+	fn render_mismatched_user_shows_loading() {
+		let backend = TestBackend::new(40, 3);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let tc = Theme::Default.colors();
+		// user.id=1 but we're viewing user_id=99 → should show loading
+		let user = User {
+			id: 1,
+			username: "alice".to_string(),
+			role: ellie_core::types::UserRole::User,
+			status: ellie_core::types::UserStatus::Active,
+			posts: 42,
+			threads: 7,
+			credits: 100,
+			email: String::new(),
+			avatar: String::new(),
+			reg_date: 0,
+			last_login: 0,
+		};
+		terminal
+			.draw(|f| draw(f, f.area(), 99, Some(&user), &tc))
+			.unwrap();
+		let buf = terminal.backend().buffer().content().to_vec();
+		let text: String = buf
+			.iter()
+			.map(|c| c.symbol().chars().next().unwrap_or(' '))
+			.collect();
+		// Should NOT show alice's data, should show loading for #99
+		assert!(!text.contains("alice"));
+		assert!(text.contains("Loading user #99"));
 	}
 }
