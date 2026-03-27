@@ -147,6 +147,7 @@ pub enum ViewState {
 		subject: String,
 		list: ListState,
 		table_state: TableState,
+		scroll_offset: u16,
 	},
 	User {
 		user_id: u64,
@@ -234,8 +235,9 @@ pub struct App {
 	// Pending network action (dispatched by the main loop)
 	pub pending_action: Option<PendingAction>,
 
-	// Content area height in rows (updated each frame, used for half-page jumps)
+	// Content area dimensions (updated each frame, used for half-page jumps and scroll clamping)
 	pub content_height: u16,
+	pub content_width: u16,
 }
 
 // ─── Theme ───────────────────────────────────────────────
@@ -310,6 +312,7 @@ impl App {
 			client,
 			pending_action: Some(PendingAction::LoadForums),
 			content_height: 20, // sensible default, updated each frame
+			content_width: 80,  // sensible default, updated each frame
 		}
 	}
 
@@ -606,6 +609,7 @@ mod tests {
 			subject: "Hello".to_string(),
 			list: ListState::default(),
 			table_state: TableState::default().with_selected(Some(0)),
+			scroll_offset: 0,
 		});
 		assert_eq!(app.view_stack.len(), 2);
 
@@ -645,6 +649,7 @@ mod tests {
 			subject: "新生报到".to_string(),
 			list: ListState::default(),
 			table_state: TableState::default().with_selected(Some(0)),
+			scroll_offset: 0,
 		});
 		assert_eq!(app.breadcrumb(), "版块 > 校园交流 > 新生报到");
 	}

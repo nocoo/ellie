@@ -3,6 +3,7 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use crate::actions::schedule_data_load;
 use crate::app::{App, InputMode, PendingAction, ViewState};
 use crate::views::forum_list;
+use crate::views::post_view;
 
 /// Poll for a keyboard event with 50ms timeout.
 /// Returns `Some(KeyEvent)` if a key was pressed, `None` on timeout or non-key events.
@@ -37,70 +38,111 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
 
 		// Navigation: down
 		KeyCode::Char('j') | KeyCode::Down => {
-			let total = current_item_count(app);
-			if let Some(list) = app.current_list_mut() {
-				list.move_down(total);
+			if let ViewState::Posts { scroll_offset, .. } = &mut app.current_view {
+				*scroll_offset += 1;
+				clamp_scroll(app);
+			} else {
+				let total = current_item_count(app);
+				if let Some(list) = app.current_list_mut() {
+					list.move_down(total);
+				}
+				sync_forum_table_state(app);
 			}
-			sync_forum_table_state(app);
 		}
 
 		// Navigation: up
 		KeyCode::Char('k') | KeyCode::Up => {
-			if let Some(list) = app.current_list_mut() {
-				list.move_up();
+			if let ViewState::Posts { scroll_offset, .. } = &mut app.current_view {
+				*scroll_offset = scroll_offset.saturating_sub(1);
+			} else {
+				if let Some(list) = app.current_list_mut() {
+					list.move_up();
+				}
+				sync_forum_table_state(app);
 			}
-			sync_forum_table_state(app);
 		}
 
 		// Jump to top
 		KeyCode::Char('g') => {
-			if let Some(list) = app.current_list_mut() {
-				list.jump_top();
+			if let ViewState::Posts { scroll_offset, .. } = &mut app.current_view {
+				*scroll_offset = 0;
+			} else {
+				if let Some(list) = app.current_list_mut() {
+					list.jump_top();
+				}
+				sync_forum_table_state(app);
 			}
-			sync_forum_table_state(app);
 		}
 
 		// Jump to bottom
 		KeyCode::Char('G') => {
-			let total = current_item_count(app);
-			if let Some(list) = app.current_list_mut() {
-				list.jump_bottom(total);
+			if let ViewState::Posts { scroll_offset, .. } = &mut app.current_view {
+				let total = post_view::total_content_lines(&app.posts, app.content_width as usize);
+				let max = total.saturating_sub(app.content_height as usize) as u16;
+				*scroll_offset = max;
+			} else {
+				let total = current_item_count(app);
+				if let Some(list) = app.current_list_mut() {
+					list.jump_bottom(total);
+				}
+				sync_forum_table_state(app);
 			}
-			sync_forum_table_state(app);
 		}
 
 		// Half-page down: Ctrl+D or PageDown
 		KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-			let half = (app.content_height / 2).max(1) as usize;
-			let total = current_item_count(app);
-			if let Some(list) = app.current_list_mut() {
-				list.page_down(half, total);
+			if let ViewState::Posts { scroll_offset, .. } = &mut app.current_view {
+				let half = (app.content_height / 2).max(1);
+				*scroll_offset += half;
+				clamp_scroll(app);
+			} else {
+				let half = (app.content_height / 2).max(1) as usize;
+				let total = current_item_count(app);
+				if let Some(list) = app.current_list_mut() {
+					list.page_down(half, total);
+				}
+				sync_forum_table_state(app);
 			}
-			sync_forum_table_state(app);
 		}
 		KeyCode::PageDown => {
-			let half = (app.content_height / 2).max(1) as usize;
-			let total = current_item_count(app);
-			if let Some(list) = app.current_list_mut() {
-				list.page_down(half, total);
+			if let ViewState::Posts { scroll_offset, .. } = &mut app.current_view {
+				let half = (app.content_height / 2).max(1);
+				*scroll_offset += half;
+				clamp_scroll(app);
+			} else {
+				let half = (app.content_height / 2).max(1) as usize;
+				let total = current_item_count(app);
+				if let Some(list) = app.current_list_mut() {
+					list.page_down(half, total);
+				}
+				sync_forum_table_state(app);
 			}
-			sync_forum_table_state(app);
 		}
 
 		// Half-page up: Ctrl+U or PageUp
 		KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-			let half = (app.content_height / 2).max(1) as usize;
-			if let Some(list) = app.current_list_mut() {
-				list.page_up(half);
+			if let ViewState::Posts { scroll_offset, .. } = &mut app.current_view {
+				let half = (app.content_height / 2).max(1);
+				*scroll_offset = scroll_offset.saturating_sub(half);
+			} else {
+				let half = (app.content_height / 2).max(1) as usize;
+				if let Some(list) = app.current_list_mut() {
+					list.page_up(half);
+				}
+				sync_forum_table_state(app);
 			}
-			sync_forum_table_state(app);
 		}
 		KeyCode::PageUp => {
-			let half = (app.content_height / 2).max(1) as usize;
-			if let Some(list) = app.current_list_mut() {
-				list.page_up(half);
+			if let ViewState::Posts { scroll_offset, .. } = &mut app.current_view {
+				let half = (app.content_height / 2).max(1);
+				*scroll_offset = scroll_offset.saturating_sub(half);
+			} else {
+				let half = (app.content_height / 2).max(1) as usize;
+				if let Some(list) = app.current_list_mut() {
+					list.page_up(half);
+				}
+				sync_forum_table_state(app);
 			}
-			sync_forum_table_state(app);
 		}
 
 		// Enter selection
@@ -307,6 +349,7 @@ fn handle_enter(app: &mut App) {
 					subject,
 					list: Default::default(),
 					table_state: ratatui::widgets::TableState::default().with_selected(Some(0)),
+					scroll_offset: 0,
 				});
 				schedule_data_load(app);
 				app.status_message = Some("loading posts...".to_string());
@@ -319,14 +362,22 @@ fn handle_enter(app: &mut App) {
 
 /// Handle 'u' key: view the author profile of the currently selected item.
 fn handle_view_user(app: &mut App) {
-	let idx = match app.current_list_mut() {
-		Some(list) => list.selected_index(),
-		None => return,
-	};
-
 	let user_id = match &app.current_view {
-		ViewState::Threads { .. } => app.threads.get(idx).map(|t| t.author_id),
-		ViewState::Posts { .. } => app.posts.get(idx).map(|p| p.author_id),
+		ViewState::Threads { .. } => {
+			let idx = match app.current_list_mut() {
+				Some(list) => list.selected_index(),
+				None => return,
+			};
+			app.threads.get(idx).map(|t| t.author_id)
+		}
+		ViewState::Posts { scroll_offset, .. } => {
+			let idx = post_view::post_index_at_scroll(
+				&app.posts,
+				*scroll_offset,
+				app.content_width as usize,
+			);
+			app.posts.get(idx).map(|p| p.author_id)
+		}
 		_ => None,
 	};
 
@@ -373,6 +424,15 @@ fn sync_forum_table_state(app: &mut App) {
 			table_state.select(Some(list.selected_row));
 		}
 		ViewState::User { .. } => {}
+	}
+}
+
+/// Clamp scroll_offset to valid range for Posts view.
+fn clamp_scroll(app: &mut App) {
+	if let ViewState::Posts { scroll_offset, .. } = &mut app.current_view {
+		let total = post_view::total_content_lines(&app.posts, app.content_width as usize);
+		let max = total.saturating_sub(app.content_height as usize) as u16;
+		*scroll_offset = (*scroll_offset).min(max);
 	}
 }
 

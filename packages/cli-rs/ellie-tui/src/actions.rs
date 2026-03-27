@@ -100,6 +100,10 @@ fn load_posts(app: &mut App, thread_id: u64, append: bool) {
 			} else {
 				app.posts = resp.data;
 				strip_post_content(&mut app.posts);
+				// Reset scroll position when loading fresh posts
+				if let ViewState::Posts { scroll_offset, .. } = &mut app.current_view {
+					*scroll_offset = 0;
+				}
 			}
 
 			if let Some(list) = app.current_list_mut() {
@@ -184,6 +188,10 @@ fn refresh_current(app: &mut App) {
 			if let Some(list) = app.current_list_mut() {
 				list.next_cursor = None;
 				list.has_more = true;
+			}
+			// Reset scroll position on refresh
+			if let ViewState::Posts { scroll_offset, .. } = &mut app.current_view {
+				*scroll_offset = 0;
 			}
 			load_posts(app, tid, false);
 		}
@@ -286,6 +294,7 @@ mod tests {
 			subject: "Test".to_string(),
 			list: ListState::default(),
 			table_state: TableState::default().with_selected(Some(0)),
+			scroll_offset: 0,
 		});
 		schedule_data_load(&mut app);
 		assert_eq!(
