@@ -8,7 +8,7 @@ use crate::app::{App, InputMode, ViewState};
 use crate::views;
 
 /// Render the full 4-zone layout.
-pub fn draw(frame: &mut Frame, app: &App) {
+pub fn draw(frame: &mut Frame, app: &mut App) {
 	let tc = app.theme.colors();
 
 	// 4-zone vertical layout: Header(1) | Breadcrumb(1) | Content(flex) | Status(1)
@@ -65,10 +65,12 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App, tc: &crate::theme::Them
 
 // ─── Row 2: Content ─────────────────────────────────────
 
-fn draw_content(frame: &mut Frame, area: Rect, app: &App, tc: &crate::theme::ThemeColors) {
-	match &app.current_view {
-		ViewState::Forums { list } => {
-			views::forum_list::draw(frame, area, &app.forums, list, app.loading, tc);
+fn draw_content(frame: &mut Frame, area: Rect, app: &mut App, tc: &crate::theme::ThemeColors) {
+	match &mut app.current_view {
+		ViewState::Forums {
+			table_state, ..
+		} => {
+			views::forum_list::draw(frame, area, &app.forums, table_state, app.loading, tc);
 		}
 		ViewState::Threads { list, .. } => {
 			views::thread_list::draw(frame, area, &app.threads, list, app.loading, tc);
@@ -77,7 +79,8 @@ fn draw_content(frame: &mut Frame, area: Rect, app: &App, tc: &crate::theme::The
 			views::post_view::draw(frame, area, &app.posts, list, app.loading, tc);
 		}
 		ViewState::User { user_id } => {
-			views::user_profile::draw(frame, area, *user_id, app.current_user.as_ref(), tc);
+			let user_id = *user_id;
+			views::user_profile::draw(frame, area, user_id, app.current_user.as_ref(), tc);
 		}
 	}
 }
@@ -103,8 +106,8 @@ mod tests {
 	fn draw_full_layout_default() {
 		let backend = TestBackend::new(80, 24);
 		let mut terminal = Terminal::new(backend).unwrap();
-		let app = App::new(Config::default_config());
-		terminal.draw(|f| draw(f, &app)).unwrap();
+		let mut app = App::new(Config::default_config());
+		terminal.draw(|f| draw(f, &mut app)).unwrap();
 		let text = buf_text(&terminal);
 		assert!(text.contains("Ellie Forum"));
 		assert!(text.contains("NORMAL"));
@@ -116,7 +119,7 @@ mod tests {
 		let mut terminal = Terminal::new(backend).unwrap();
 		let mut app = App::new(Config::default_config());
 		app.input_mode = InputMode::Login;
-		terminal.draw(|f| draw(f, &app)).unwrap();
+		terminal.draw(|f| draw(f, &mut app)).unwrap();
 		let text = buf_text(&terminal);
 		assert!(text.contains("Login"));
 		assert!(text.contains("Username"));
@@ -128,7 +131,7 @@ mod tests {
 		let mut terminal = Terminal::new(backend).unwrap();
 		let mut app = App::new(Config::default_config());
 		app.input_mode = InputMode::Help;
-		terminal.draw(|f| draw(f, &app)).unwrap();
+		terminal.draw(|f| draw(f, &mut app)).unwrap();
 		let text = buf_text(&terminal);
 		assert!(text.contains("Help"));
 		assert!(text.contains("Keybindings"));

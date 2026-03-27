@@ -119,6 +119,7 @@ impl ListState {
 pub enum ViewState {
 	Forums {
 		list: ListState,
+		table_state: ratatui::widgets::TableState,
 	},
 	Threads {
 		forum_id: u64,
@@ -276,6 +277,7 @@ impl App {
 			view_stack: Vec::new(),
 			current_view: ViewState::Forums {
 				list: ListState::default(),
+				table_state: ratatui::widgets::TableState::default().with_selected(Some(0)),
 			},
 			forums: Vec::new(),
 			threads: Vec::new(),
@@ -307,10 +309,18 @@ impl App {
 	/// Get a mutable reference to the current view's list state, if applicable.
 	pub fn current_list_mut(&mut self) -> Option<&mut ListState> {
 		match &mut self.current_view {
-			ViewState::Forums { list } => Some(list),
+			ViewState::Forums { list, .. } => Some(list),
 			ViewState::Threads { list, .. } => Some(list),
 			ViewState::Posts { list, .. } => Some(list),
 			ViewState::User { .. } => None,
+		}
+	}
+
+	/// Get a mutable reference to the Forums view's TableState, if in Forums view.
+	pub fn forum_table_state_mut(&mut self) -> Option<&mut ratatui::widgets::TableState> {
+		match &mut self.current_view {
+			ViewState::Forums { table_state, .. } => Some(table_state),
+			_ => None,
 		}
 	}
 
