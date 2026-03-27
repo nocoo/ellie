@@ -857,15 +857,15 @@ gitleaks detect --no-banner          # G2
 - [x] 实现主题系统（default/dracula/nord）
 
 ### Phase 3 — Views 组件
-- [ ] ForumList view（树形结构）
-- [ ] ThreadList view（分页表格）
-- [ ] PostView（滚动内容）
-- [ ] UserProfile view
-- [ ] LoginForm overlay
-- [ ] StatusBar component
-- [ ] SearchBar component
-- [ ] ApiClient integration to App
-- [ ] Login flow wiring
+- [x] ForumList view（树形结构）
+- [x] ThreadList view（分页表格）
+- [x] PostView（滚动内容）
+- [x] UserProfile view
+- [x] LoginForm overlay
+- [x] StatusBar component
+- [x] SearchBar component
+- [x] ApiClient integration to App
+- [x] Login flow wiring
 
 ### Phase 4 — Integration（L2）
 - [ ] 添加 integration test infrastructure
