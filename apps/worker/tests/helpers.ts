@@ -137,16 +137,6 @@ export async function createAdminRequest(
 
 // ─── Mock DB Builder ───────────────────────────────────────
 
-interface MockStmtResult {
-	first: ReturnType<typeof mock>;
-	all: ReturnType<typeof mock>;
-	run: ReturnType<typeof mock>;
-}
-
-interface MockStmt extends MockStmtResult {
-	bind: ReturnType<typeof mock>;
-}
-
 /**
  * Create a configurable mock D1Database that tracks SQL calls.
  *
@@ -167,45 +157,67 @@ export function createMockDb(config?: {
 	const calls: { sql: string; params: unknown[] }[] = [];
 	const batchCalls: unknown[][] = [];
 
-	const makeTerminals = (sql: string, _params: unknown[]): MockStmtResult => ({
-		first: mock(async () => {
-			if (config?.firstResults) {
-				for (const [key, val] of Object.entries(config.firstResults)) {
-					if (sql.includes(key)) return val;
-				}
-			}
-			return null;
-		}),
-		all: mock(async () => {
-			if (config?.allResults) {
-				for (const [key, val] of Object.entries(config.allResults)) {
-					if (sql.includes(key)) return { results: val };
-				}
-			}
-			return { results: [] };
-		}),
-		run: mock(async () => {
-			if (config?.runResults) {
-				for (const [key, val] of Object.entries(config.runResults)) {
-					if (sql.includes(key)) return val;
-				}
-			}
-			return { success: true, meta: { last_row_id: 1, changes: 1 } };
-		}),
-	});
-
 	const db = {
 		prepare: mock((sql: string) => {
-			const stmt: MockStmt = {
+			return {
 				bind: mock((...params: unknown[]) => {
 					calls.push({ sql, params });
-					return makeTerminals(sql, params);
+					return {
+						first: mock(async () => {
+							if (config?.firstResults) {
+								for (const [key, val] of Object.entries(config.firstResults)) {
+									if (sql.includes(key)) return val;
+								}
+							}
+							return null;
+						}),
+						all: mock(async () => {
+							if (config?.allResults) {
+								for (const [key, val] of Object.entries(config.allResults)) {
+									if (sql.includes(key)) return { results: val };
+								}
+							}
+							return { results: [] };
+						}),
+						run: mock(async () => {
+							if (config?.runResults) {
+								for (const [key, val] of Object.entries(config.runResults)) {
+									if (sql.includes(key)) return val;
+								}
+							}
+							return { success: true, meta: { last_row_id: 1, changes: 1 } };
+						}),
+					};
 				}),
-				...makeTerminals(sql, []),
-			};
-			// Also track parameterless calls
-			calls.push({ sql, params: [] });
-			return stmt;
+				// Also support parameterless calls
+				first: mock(async () => {
+					calls.push({ sql, params: [] });
+					if (config?.firstResults) {
+						for (const [key, val] of Object.entries(config.firstResults)) {
+							if (sql.includes(key)) return val;
+						}
+					}
+					return null;
+				}),
+				all: mock(async () => {
+					calls.push({ sql, params: [] });
+					if (config?.allResults) {
+						for (const [key, val] of Object.entries(config.allResults)) {
+							if (sql.includes(key)) return { results: val };
+						}
+					}
+					return { results: [] };
+				}),
+				run: mock(async () => {
+					calls.push({ sql, params: [] });
+					if (config?.runResults) {
+						for (const [key, val] of Object.entries(config.runResults)) {
+							if (sql.includes(key)) return val;
+						}
+					}
+					return { success: true, meta: { last_row_id: 1, changes: 1 } };
+				}),
+			} as unknown as D1PreparedStatement;
 		}),
 		batch: mock(async (stmts: unknown[]) => {
 			batchCalls.push(stmts);
