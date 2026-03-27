@@ -2,7 +2,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Block, Borders, Paragraph};
 
 use unicode_width::UnicodeWidthStr;
 
@@ -13,20 +13,19 @@ use crate::views;
 pub fn draw(frame: &mut Frame, app: &mut App) {
 	let tc = app.theme.colors();
 
-	// 4-zone vertical layout: Header(1) | Breadcrumb(1) | Content(flex) | Status(1)
+	// 4-zone vertical layout: Header(3) | Breadcrumb(1) | Content(flex) | Status(1)
 	let chunks = Layout::default()
 		.direction(Direction::Vertical)
 		.constraints([
-			Constraint::Length(1), // Header
+			Constraint::Length(3), // Header (bordered block)
 			Constraint::Length(1), // Breadcrumb
-			Constraint::Min(1),    // Content
+			Constraint::Min(10),   // Content (bordered block)
 			Constraint::Length(1), // Status bar
 		])
 		.split(frame.area());
 
 	draw_header(frame, chunks[0], app, &tc);
 	views::search_bar::draw(frame, chunks[1], &app.breadcrumb(), &tc);
-	app.content_height = chunks[2].height;
 	draw_content(frame, chunks[2], app, &tc);
 	views::status_bar::draw(frame, chunks[3], app, &tc);
 
@@ -44,11 +43,13 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
 // ─── Row 0: Header ──────────────────────────────────────
 
 fn draw_header(frame: &mut Frame, area: Rect, app: &App, tc: &crate::theme::ThemeColors) {
-	let title_text = " 同济网 ";
-	let title = Span::styled(
-		title_text,
-		Style::default().fg(tc.accent).add_modifier(Modifier::BOLD),
-	);
+	let block = Block::default()
+		.borders(Borders::ALL)
+		.border_style(Style::default().fg(tc.border))
+		.title(" 同济网 ")
+		.title_style(Style::default().fg(tc.accent).add_modifier(Modifier::BOLD));
+	let inner = block.inner(area);
+	frame.render_widget(block, area);
 
 	let auth = if let Some(user) = &app.logged_in_user {
 		Span::styled(format!("[{}] ", user.username), Style::default().fg(tc.fg))
@@ -56,33 +57,43 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App, tc: &crate::theme::Them
 		Span::styled("[未登录] ", Style::default().fg(tc.muted))
 	};
 
-	// Right-align auth by padding
-	let title_width = UnicodeWidthStr::width(title_text);
+	// Right-align auth info within the bordered area
 	let auth_width = UnicodeWidthStr::width(&*auth.content);
-	let padding = (area.width as usize).saturating_sub(title_width + auth_width);
+	let padding = inner.width.saturating_sub(auth_width as u16) as usize;
 	let pad = " ".repeat(padding);
 
-	let line = Line::from(vec![title, Span::raw(pad), auth]);
+	let line = Line::from(vec![Span::raw(pad), auth]);
 	let header = Paragraph::new(line).style(Style::default().bg(tc.bg).fg(tc.fg));
-	frame.render_widget(header, area);
+	frame.render_widget(header, inner);
 }
 
 // ─── Row 2: Content ─────────────────────────────────────
 
 fn draw_content(frame: &mut Frame, area: Rect, app: &mut App, tc: &crate::theme::ThemeColors) {
+	let block = Block::default()
+		.borders(Borders::ALL)
+		.border_style(Style::default().fg(tc.border));
+	let inner = block.inner(area);
+	frame.render_widget(block, area);
+
+	app.content_height = inner.height;
+	app.content_width = inner.width;
+
 	match &mut app.current_view {
 		ViewState::Forums { table_state, .. } => {
-			views::forum_list::draw(frame, area, &app.forums, table_state, app.loading, tc);
+			views::forum_list::draw(frame, inner, &app.forums, table_state, app.loading, tc);
 		}
 		ViewState::Threads { table_state, .. } => {
-			views::thread_list::draw(frame, area, &app.threads, table_state, app.loading, tc);
+			views::thread_list::draw(frame, inner, &app.threads, table_state, app.loading, tc);
 		}
-		ViewState::Posts { table_state, .. } => {
-			views::post_view::draw(frame, area, &app.posts, table_state, app.loading, tc);
+		ViewState::Posts {
+			scroll_offset, ..
+		} => {
+			views::post_view::draw(frame, inner, &app.posts, *scroll_offset, app.loading, tc);
 		}
 		ViewState::User { user_id } => {
 			let user_id = *user_id;
-			views::user_profile::draw(frame, area, user_id, app.current_user.as_ref(), tc);
+			views::user_profile::draw(frame, inner, user_id, app.current_user.as_ref(), tc);
 		}
 	}
 }

@@ -3,7 +3,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Cell, Paragraph, Row, Table, TableState};
+use ratatui::widgets::{Cell, Paragraph, Row, Scrollbar, ScrollbarOrientation, ScrollbarState, Table, TableState};
 
 use crate::theme::ThemeColors;
 use crate::views::{format_timestamp, truncate_to_width};
@@ -93,6 +93,7 @@ pub fn draw(
 		Constraint::Length(8),
 	];
 
+	let row_count = rows.len();
 	let table = Table::new(rows, widths)
 		.header(header)
 		.row_highlight_style(
@@ -104,6 +105,20 @@ pub fn draw(
 		.style(Style::default().bg(tc.bg).fg(tc.fg));
 
 	frame.render_stateful_widget(table, area, table_state);
+
+	// Scrollbar on the right when content overflows
+	let visible_rows = area.height.saturating_sub(1) as usize; // minus header
+	if row_count > visible_rows {
+		let mut scrollbar_state = ScrollbarState::new(row_count)
+			.position(table_state.selected().unwrap_or(0));
+		frame.render_stateful_widget(
+			Scrollbar::new(ScrollbarOrientation::VerticalRight)
+				.begin_symbol(Some("↑"))
+				.end_symbol(Some("↓")),
+			area,
+			&mut scrollbar_state,
+		);
+	}
 }
 
 #[cfg(test)]

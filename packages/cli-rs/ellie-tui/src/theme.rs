@@ -9,6 +9,7 @@ pub struct ThemeColors {
 	pub border: Color,
 	pub accent: Color,
 	pub highlight: Color,
+	pub highlight_bg: Color, // scrollbar track, selection background
 	pub error: Color,
 	pub sticky: Color, // pinned thread colour
 	pub digest: Color, // digest/featured thread colour
@@ -27,6 +28,7 @@ impl Theme {
 				border: Color::DarkGray,
 				accent: Color::Cyan,
 				highlight: Color::Blue,
+				highlight_bg: Color::DarkGray,
 				error: Color::Red,
 				sticky: Color::Yellow,
 				digest: Color::Green,
@@ -38,6 +40,7 @@ impl Theme {
 				border: Color::Rgb(68, 71, 90),       // #44475a (current line)
 				accent: Color::Rgb(189, 147, 249),    // #bd93f9 (purple)
 				highlight: Color::Rgb(139, 233, 253), // #8be9fd (cyan)
+				highlight_bg: Color::Rgb(68, 71, 90), // #44475a
 				error: Color::Rgb(255, 85, 85),       // #ff5555 (red)
 				sticky: Color::Rgb(241, 250, 140),    // #f1fa8c (yellow)
 				digest: Color::Rgb(80, 250, 123),     // #50fa7b (green)
@@ -49,6 +52,7 @@ impl Theme {
 				border: Color::Rgb(67, 76, 94),       // #434c5e (nord2)
 				accent: Color::Rgb(136, 192, 208),    // #88c0d0 (nord8, frost)
 				highlight: Color::Rgb(129, 161, 193), // #81a1c1 (nord9)
+				highlight_bg: Color::Rgb(59, 66, 82), // #3b4252 (nord1)
 				error: Color::Rgb(191, 97, 106),      // #bf616a (nord11, aurora red)
 				sticky: Color::Rgb(235, 203, 139),    // #ebcb8b (nord13, aurora yellow)
 				digest: Color::Rgb(163, 190, 140),    // #a3be8c (nord14, aurora green)
@@ -68,6 +72,7 @@ mod tests {
 		assert_eq!(c.fg, Color::Reset);
 		assert_eq!(c.accent, Color::Cyan);
 		assert_eq!(c.error, Color::Red);
+		assert_eq!(c.highlight_bg, Color::DarkGray);
 	}
 
 	#[test]
