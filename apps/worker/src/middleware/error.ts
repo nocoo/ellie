@@ -54,6 +54,8 @@ function getStatusMessage(code: string): string {
 		SELF_ROLE_CHANGE: "Cannot change your own role",
 		CANNOT_DELETE_FIRST_POST: "Cannot delete the first post — delete the thread instead",
 		INVALID_REFRESH_TOKEN: "Refresh token is invalid or expired",
+		THREAD_NOT_FOUND: "Thread not found",
+		THREAD_CLOSED: "Thread is closed and does not accept new replies",
 	};
 
 	return messages[code] || "An error occurred";

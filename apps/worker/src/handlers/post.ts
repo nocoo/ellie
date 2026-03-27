@@ -1,6 +1,8 @@
 // Post handlers for Cloudflare Worker
 import type { Env } from "../lib/env";
 import { toPost } from "../lib/mappers";
+import { jsonResponse } from "../lib/response";
+import { withAuth } from "../lib/routeHelpers";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
@@ -138,9 +140,71 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 	);
 }
 
-/** POST /api/v1/posts - Create a new post (requires auth) */
-export async function create(request: Request, _env: Env): Promise<Response> {
+/** POST /api/v1/posts - Reply to a thread (requires auth) */
+export const create = withAuth(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
-	// TODO: Implement post creation with auth
-	return errorResponse("NOT_IMPLEMENTED", 501, undefined, origin);
-}
+
+	let body: Record<string, unknown>;
+	try {
+		body = (await request.json()) as Record<string, unknown>;
+	} catch {
+		return errorResponse("INVALID_BODY", 400, undefined, origin);
+	}
+
+	const threadId = typeof body.threadId === "number" ? body.threadId : undefined;
+	const content = typeof body.content === "string" ? body.content : undefined;
+
+	if (typeof threadId !== "number" || Number.isNaN(threadId)) {
+		return errorResponse("INVALID_BODY", 400, { message: "threadId is required (number)" }, origin);
+	}
+	if (!content || content.trim().length === 0) {
+		return errorResponse("INVALID_BODY", 400, { message: "content is required" }, origin);
+	}
+
+	// Validate thread exists and is not closed
+	const thread = await env.DB.prepare("SELECT id, forum_id, closed FROM threads WHERE id = ?")
+		.bind(threadId)
+		.first<{ id: number; forum_id: number; closed: number }>();
+	if (!thread) {
+		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
+	}
+	if (thread.closed === 1) {
+		return errorResponse("THREAD_CLOSED", 403, undefined, origin);
+	}
+
+	// Get next position
+	const posResult = await env.DB.prepare(
+		"SELECT MAX(position) as maxPos FROM posts WHERE thread_id = ?",
+	)
+		.bind(threadId)
+		.first<{ maxPos: number | null }>();
+	const nextPosition = (posResult?.maxPos ?? 0) + 1;
+
+	const now = Math.floor(Date.now() / 1000);
+	const authorName = `user_${user.userId}`;
+
+	// Insert post
+	const postResult = await env.DB.prepare(
+		"INSERT INTO posts (thread_id, forum_id, author_id, author_name, content, created_at, is_first, position) VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
+	)
+		.bind(threadId, thread.forum_id, user.userId, authorName, content.trim(), now, nextPosition)
+		.run();
+
+	const postId = postResult.meta.last_row_id;
+
+	// Batch update counts
+	await env.DB.batch([
+		env.DB.prepare(
+			"UPDATE threads SET replies = replies + 1, last_post_at = ?, last_poster = ? WHERE id = ?",
+		).bind(now, authorName, threadId),
+		env.DB.prepare(
+			"UPDATE forums SET posts = posts + 1, last_post_at = ?, last_poster = ? WHERE id = ?",
+		).bind(now, authorName, thread.forum_id),
+		env.DB.prepare("UPDATE users SET posts = posts + 1 WHERE id = ?").bind(user.userId),
+	]);
+
+	// Fetch created post
+	const createdPost = await env.DB.prepare("SELECT * FROM posts WHERE id = ?").bind(postId).first();
+
+	return jsonResponse(toPost(createdPost as Record<string, unknown>), origin, undefined, 201);
+});
