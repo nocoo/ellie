@@ -131,8 +131,8 @@ class ApiClient {
       const body = await res.json();
       const code = body?.error?.code;
 
-      // Only treat as session expiry when we had a token and server says it's expired/invalid.
-      // Other 401s (bad API Key, wrong credentials) are plain ApiErrors.
+      // Only treat as session expiry when we had a token and server says it expired.
+      // Other 401s (bad API Key, wrong credentials, INVALID_TOKEN) are plain ApiErrors.
       if (res.status === 401 && this.token && code === "TOKEN_EXPIRED") {
         this.token = null;
         throw new AuthExpiredError();
