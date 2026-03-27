@@ -1,4 +1,9 @@
 {
+	"compilerOptions": {
+		"paths": {
+			"@/*": ["./apps/web/src/*"]
+		}
+	},
 	"files": [],
 	"references": [
 		{ "path": "./apps/web" },
