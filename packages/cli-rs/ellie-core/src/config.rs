@@ -80,15 +80,15 @@ impl Config {
 
 	/// Apply environment variable overrides on top of loaded config.
 	fn with_env_overrides(mut self) -> Self {
-		if let Ok(url) = std::env::var("ELLIE_API_URL") {
-			if !url.is_empty() {
-				self.api_url = url;
-			}
+		if let Ok(url) = std::env::var("ELLIE_API_URL")
+			&& !url.is_empty()
+		{
+			self.api_url = url;
 		}
-		if let Ok(key) = std::env::var("ELLIE_API_KEY") {
-			if !key.is_empty() {
-				self.api_key = key;
-			}
+		if let Ok(key) = std::env::var("ELLIE_API_KEY")
+			&& !key.is_empty()
+		{
+			self.api_key = key;
 		}
 		self
 	}
