@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { toForum, toPost, toThread, toUser } from "../../../src/lib/mappers";
+import { toAttachment, toForum, toPost, toThread, toUser } from "../../../src/lib/mappers";
 
 describe("D1 row mappers", () => {
 	describe("toUser", () => {
@@ -286,6 +286,126 @@ describe("D1 row mappers", () => {
 
 			const post = toPost(row);
 			expect(Object.keys(post)).toHaveLength(9);
+		});
+	});
+
+	describe("toAttachment", () => {
+		it("should map snake_case D1 row to camelCase Attachment", () => {
+			const row = {
+				id: 1,
+				thread_id: 10,
+				post_id: 20,
+				author_id: 100,
+				filename: "photo.jpg",
+				file_path: "/attachments/photo.jpg",
+				file_size: 54321,
+				is_image: 1,
+				width: 1024,
+				has_thumb: 1,
+				downloads: 5,
+				created_at: 1711540800,
+			};
+
+			const attachment = toAttachment(row);
+
+			expect(attachment.threadId).toBe(10);
+			expect(attachment.postId).toBe(20);
+			expect(attachment.authorId).toBe(100);
+			expect(attachment.filename).toBe("photo.jpg");
+			expect(attachment.filePath).toBe("/attachments/photo.jpg");
+			expect(attachment.fileSize).toBe(54321);
+			expect(attachment.width).toBe(1024);
+			expect(attachment.downloads).toBe(5);
+			expect(attachment.createdAt).toBe(1711540800);
+		});
+
+		it("should convert is_image INTEGER 1 to boolean true", () => {
+			const row = {
+				id: 1,
+				thread_id: 1,
+				post_id: 1,
+				author_id: 1,
+				filename: "img.png",
+				file_path: "/img.png",
+				file_size: 100,
+				is_image: 1,
+				width: 640,
+				has_thumb: 0,
+				downloads: 0,
+				created_at: 0,
+			};
+
+			const attachment = toAttachment(row);
+			expect(attachment.isImage).toBe(true);
+			expect(attachment.hasThumb).toBe(false);
+		});
+
+		it("should convert is_image INTEGER 0 to boolean false", () => {
+			const row = {
+				id: 2,
+				thread_id: 1,
+				post_id: 1,
+				author_id: 1,
+				filename: "doc.pdf",
+				file_path: "/doc.pdf",
+				file_size: 200,
+				is_image: 0,
+				width: 0,
+				has_thumb: 0,
+				downloads: 10,
+				created_at: 0,
+			};
+
+			const attachment = toAttachment(row);
+			expect(attachment.isImage).toBe(false);
+			expect(attachment.hasThumb).toBe(false);
+		});
+
+		it("should output exactly 12 fields", () => {
+			const row = {
+				id: 1,
+				thread_id: 0,
+				post_id: 0,
+				author_id: 0,
+				filename: "",
+				file_path: "",
+				file_size: 0,
+				is_image: 0,
+				width: 0,
+				has_thumb: 0,
+				downloads: 0,
+				created_at: 0,
+			};
+
+			const attachment = toAttachment(row);
+			expect(Object.keys(attachment)).toHaveLength(12);
+		});
+
+		it("should not leak snake_case field names", () => {
+			const row = {
+				id: 1,
+				thread_id: 1,
+				post_id: 1,
+				author_id: 1,
+				filename: "f",
+				file_path: "/f",
+				file_size: 1,
+				is_image: 1,
+				width: 1,
+				has_thumb: 1,
+				downloads: 0,
+				created_at: 0,
+			};
+
+			const attachment = toAttachment(row);
+			expect("thread_id" in attachment).toBe(false);
+			expect("post_id" in attachment).toBe(false);
+			expect("author_id" in attachment).toBe(false);
+			expect("file_path" in attachment).toBe(false);
+			expect("file_size" in attachment).toBe(false);
+			expect("is_image" in attachment).toBe(false);
+			expect("has_thumb" in attachment).toBe(false);
+			expect("created_at" in attachment).toBe(false);
 		});
 	});
 });

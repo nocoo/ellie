@@ -53,6 +53,9 @@ export default {
 			if (path.match(/^\/api\/v1\/posts\/\d+$/) && request.method === "GET") {
 				return await (await import("./handlers/post")).getById(request, env);
 			}
+			if (path.match(/^\/api\/v1\/posts\/\d+\/attachments$/) && request.method === "GET") {
+				return await (await import("./handlers/attachment")).listByPost(request, env);
+			}
 			if (path.match(/^\/api\/v1\/users\/\d+$/) && request.method === "GET") {
 				return await (await import("./handlers/user")).getById(request, env);
 			}
@@ -131,6 +134,14 @@ export default {
 			}
 			if (path.match(/^\/api\/admin\/posts\/\d+$/) && request.method === "DELETE") {
 				return await (await import("./handlers/admin/post")).remove(request, env);
+			}
+
+			// ── Admin: Attachments (Admin only) ──────────────
+			if (path === "/api/admin/attachments" && request.method === "GET") {
+				return await (await import("./handlers/admin/attachment")).list(request, env);
+			}
+			if (path.match(/^\/api\/admin\/attachments\/\d+$/) && request.method === "DELETE") {
+				return await (await import("./handlers/admin/attachment")).remove(request, env);
 			}
 
 			// ── Admin: Users (Admin only) ─────────────────────

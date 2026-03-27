@@ -2,7 +2,7 @@
 // Each mapper explicitly selects and renames fields, preventing
 // accidental exposure of sensitive or internal columns.
 
-import type { Forum, Post, Thread, User } from "@ellie/types";
+import type { Attachment, Forum, Post, Thread, User } from "@ellie/types";
 
 /** D1 row shape for users table */
 interface D1UserRow {
@@ -150,5 +150,40 @@ export function toPost(row: Record<string, unknown>): Post {
 		createdAt: r.created_at,
 		isFirst: r.is_first === 1,
 		position: r.position,
+	};
+}
+
+/** D1 row shape for attachments table */
+interface D1AttachmentRow {
+	id: number;
+	thread_id: number;
+	post_id: number;
+	author_id: number;
+	filename: string;
+	file_path: string;
+	file_size: number;
+	is_image: number; // INTEGER 0/1 in D1
+	width: number;
+	has_thumb: number; // INTEGER 0/1 in D1
+	downloads: number;
+	created_at: number;
+}
+
+/** Maps a D1 attachment row to the frontend Attachment type. Converts booleans. */
+export function toAttachment(row: Record<string, unknown>): Attachment {
+	const r = row as unknown as D1AttachmentRow;
+	return {
+		id: r.id,
+		threadId: r.thread_id,
+		postId: r.post_id,
+		authorId: r.author_id,
+		filename: r.filename,
+		filePath: r.file_path,
+		fileSize: r.file_size,
+		isImage: r.is_image === 1,
+		width: r.width,
+		hasThumb: r.has_thumb === 1,
+		downloads: r.downloads,
+		createdAt: r.created_at,
 	};
 }
