@@ -28,14 +28,22 @@ pub struct ForumNode<'a> {
 /// Forums directly under a group become depth-1.
 /// Sub-forums become depth-2.
 /// Orphan forums (parent_id = 0, type = Forum) go into a synthetic "其他" group.
+///
+/// Hidden forums (status=0) and social group forums (status=3) are excluded.
 pub fn build_forum_tree(forums: &[Forum]) -> Vec<ForumNode<'_>> {
 	if forums.is_empty() {
 		return Vec::new();
 	}
 
+	// Filter out hidden (status=0) and social group (status=3) forums
+	let visible: Vec<_> = forums
+		.iter()
+		.filter(|f| f.status != 0 && f.status != 3)
+		.collect();
+
 	// Index: parent_id → children, sorted by display_order
 	let mut children: HashMap<u64, Vec<&Forum>> = HashMap::new();
-	for f in forums {
+	for f in &visible {
 		children.entry(f.parent_id).or_default().push(f);
 	}
 	// Sort each bucket by display_order, then by id as tiebreaker
@@ -44,9 +52,10 @@ pub fn build_forum_tree(forums: &[Forum]) -> Vec<ForumNode<'_>> {
 	}
 
 	// Collect top-level groups (type=Group, parent_id=0), sorted by display_order
-	let mut groups: Vec<&Forum> = forums
+	let mut groups: Vec<&Forum> = visible
 		.iter()
 		.filter(|f| f.forum_type == ForumType::Group && f.parent_id == 0)
+		.copied()
 		.collect();
 	groups.sort_by(|a, b| a.display_order.cmp(&b.display_order).then(a.id.cmp(&b.id)));
 
@@ -89,7 +98,11 @@ pub fn build_forum_tree(forums: &[Forum]) -> Vec<ForumNode<'_>> {
 	}
 
 	// Orphans: parent_id=0 + type≠Group that weren't placed
-	let orphans: Vec<&Forum> = forums.iter().filter(|f| !placed.contains(&f.id)).collect();
+	let orphans: Vec<&Forum> = visible
+		.iter()
+		.filter(|f| !placed.contains(&f.id))
+		.copied()
+		.collect();
 
 	if !orphans.is_empty() {
 		// We don't have a real Forum struct to use as a group header,
@@ -222,6 +235,17 @@ mod tests {
 	use crate::app::Theme;
 
 	fn make_forum(id: u64, parent_id: u64, name: &str, ft: ForumType, order: i32) -> Forum {
+		make_forum_with_status(id, parent_id, name, ft, order, 1)
+	}
+
+	fn make_forum_with_status(
+		id: u64,
+		parent_id: u64,
+		name: &str,
+		ft: ForumType,
+		order: i32,
+		status: i32,
+	) -> Forum {
 		Forum {
 			id,
 			parent_id,
@@ -232,7 +256,7 @@ mod tests {
 			threads: 10,
 			posts: 100,
 			forum_type: ft,
-			status: 1,
+			status,
 			last_thread_id: 0,
 			last_post_at: 0,
 			last_poster: String::new(),
@@ -342,6 +366,55 @@ mod tests {
 		assert_eq!(tree_row_to_forum_index(&forums, &tree, 1), Some(1));
 		// Out of bounds
 		assert_eq!(tree_row_to_forum_index(&forums, &tree, 5), None);
+	}
+
+	#[test]
+	fn build_tree_filters_hidden_forums() {
+		let forums = vec![
+			make_forum(1, 0, "Visible Group", ForumType::Group, 1),
+			make_forum_with_status(2, 0, "Hidden Group", ForumType::Group, 2, 0),
+			make_forum(3, 1, "Visible Forum", ForumType::Forum, 1),
+			make_forum_with_status(4, 1, "Hidden Forum", ForumType::Forum, 2, 0),
+		];
+		let tree = build_forum_tree(&forums);
+
+		// Only visible forums should appear
+		assert_eq!(tree.len(), 2);
+		assert_eq!(tree[0].forum.name, "Visible Group");
+		assert_eq!(tree[1].forum.name, "Visible Forum");
+	}
+
+	#[test]
+	fn build_tree_filters_social_group_forums() {
+		let forums = vec![
+			make_forum(1, 0, "Normal Group", ForumType::Group, 1),
+			make_forum_with_status(2, 0, "校友群", ForumType::Group, 2, 3),
+			make_forum_with_status(3, 0, "学习工作群", ForumType::Group, 3, 3),
+			make_forum(4, 1, "Normal Forum", ForumType::Forum, 1),
+			make_forum_with_status(5, 2, "Job Group", ForumType::Forum, 1, 3),
+		];
+		let tree = build_forum_tree(&forums);
+
+		// Only normal forums should appear, social groups (status=3) are filtered
+		assert_eq!(tree.len(), 2);
+		assert_eq!(tree[0].forum.name, "Normal Group");
+		assert_eq!(tree[1].forum.name, "Normal Forum");
+	}
+
+	#[test]
+	fn build_tree_filters_mixed_statuses() {
+		let forums = vec![
+			make_forum(1, 0, "Group A", ForumType::Group, 1),
+			make_forum_with_status(2, 1, "Normal", ForumType::Forum, 1, 1),
+			make_forum_with_status(3, 1, "Hidden", ForumType::Forum, 2, 0),
+			make_forum_with_status(4, 1, "Social", ForumType::Forum, 3, 3),
+		];
+		let tree = build_forum_tree(&forums);
+
+		// Only the normal forum should appear under the group
+		assert_eq!(tree.len(), 2);
+		assert_eq!(tree[0].forum.name, "Group A");
+		assert_eq!(tree[1].forum.name, "Normal");
 	}
 
 	// ─── Render tests ────────────────────────────────
