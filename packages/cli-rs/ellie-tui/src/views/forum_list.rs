@@ -89,10 +89,7 @@ pub fn build_forum_tree(forums: &[Forum]) -> Vec<ForumNode<'_>> {
 	}
 
 	// Orphans: parent_id=0 + type≠Group that weren't placed
-	let orphans: Vec<&Forum> = forums
-		.iter()
-		.filter(|f| !placed.contains(&f.id))
-		.collect();
+	let orphans: Vec<&Forum> = forums.iter().filter(|f| !placed.contains(&f.id)).collect();
 
 	if !orphans.is_empty() {
 		// We don't have a real Forum struct to use as a group header,
@@ -112,7 +109,11 @@ pub fn build_forum_tree(forums: &[Forum]) -> Vec<ForumNode<'_>> {
 
 /// Return the index into the flat `forums` slice for a given visual row
 /// from the tree. This accounts for the tree reordering.
-pub fn tree_row_to_forum_index(forums: &[Forum], tree: &[ForumNode<'_>], row: usize) -> Option<usize> {
+pub fn tree_row_to_forum_index(
+	forums: &[Forum],
+	tree: &[ForumNode<'_>],
+	row: usize,
+) -> Option<usize> {
 	let node = tree.get(row)?;
 	let target_id = node.forum.id;
 	forums.iter().position(|f| f.id == target_id)
@@ -153,9 +154,7 @@ pub fn draw(
 			let (indent, style) = match node.depth {
 				0 => (
 					"",
-					Style::default()
-						.fg(tc.accent)
-						.add_modifier(Modifier::BOLD),
+					Style::default().fg(tc.accent).add_modifier(Modifier::BOLD),
 				),
 				1 => ("  ", Style::default().fg(tc.fg)),
 				_ => ("    ", Style::default().fg(tc.muted)),
@@ -191,21 +190,15 @@ pub fn draw(
 	let header = Row::new(vec![
 		Cell::from(Span::styled(
 			"  版块",
-			Style::default()
-				.fg(tc.muted)
-				.add_modifier(Modifier::BOLD),
+			Style::default().fg(tc.muted).add_modifier(Modifier::BOLD),
 		)),
 		Cell::from(Span::styled(
 			"   主题",
-			Style::default()
-				.fg(tc.muted)
-				.add_modifier(Modifier::BOLD),
+			Style::default().fg(tc.muted).add_modifier(Modifier::BOLD),
 		)),
 		Cell::from(Span::styled(
 			"   帖数",
-			Style::default()
-				.fg(tc.muted)
-				.add_modifier(Modifier::BOLD),
+			Style::default().fg(tc.muted).add_modifier(Modifier::BOLD),
 		)),
 	]);
 

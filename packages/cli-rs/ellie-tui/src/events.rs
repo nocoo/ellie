@@ -254,6 +254,7 @@ fn handle_enter(app: &mut App) {
 					forum_id,
 					forum_name,
 					list: Default::default(),
+					table_state: ratatui::widgets::TableState::default().with_selected(Some(0)),
 				});
 				schedule_data_load(app);
 				app.status_message = Some("loading threads...".to_string());
@@ -271,6 +272,7 @@ fn handle_enter(app: &mut App) {
 					thread_id,
 					subject,
 					list: Default::default(),
+					table_state: ratatui::widgets::TableState::default().with_selected(Some(0)),
 				});
 				schedule_data_load(app);
 				app.status_message = Some("loading posts...".to_string());
@@ -322,13 +324,21 @@ fn apply_current_filter(app: &mut App) {
 }
 
 /// Keep the ratatui `TableState` selection in sync with the `ListState`
-/// for the Forums view. Called after any navigation action.
+/// for all list views. Called after any navigation action.
 fn sync_forum_table_state(app: &mut App) {
-	if let ViewState::Forums {
-		list, table_state, ..
-	} = &mut app.current_view
-	{
-		table_state.select(Some(list.selected_row));
+	match &mut app.current_view {
+		ViewState::Forums {
+			list, table_state, ..
+		}
+		| ViewState::Threads {
+			list, table_state, ..
+		}
+		| ViewState::Posts {
+			list, table_state, ..
+		} => {
+			table_state.select(Some(list.selected_row));
+		}
+		ViewState::User { .. } => {}
 	}
 }
 
@@ -512,6 +522,7 @@ mod tests {
 			forum_id: 1,
 			forum_name: "Test".to_string(),
 			list: crate::app::ListState::default(), // has_more defaults to true
+			table_state: ratatui::widgets::TableState::default().with_selected(Some(0)),
 		});
 		app.threads = vec![dummy_thread(1, 1, "T1", 1)];
 		handle_key_event(&mut app, key(KeyCode::Char('n')));

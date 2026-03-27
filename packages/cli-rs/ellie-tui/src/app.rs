@@ -1,6 +1,7 @@
 use ellie_core::client::ApiClient;
 use ellie_core::config::Config;
 use ellie_core::types::{Forum, LoggedUser, Post, Thread, User};
+use ratatui::widgets::TableState;
 
 // ─── Input Modes ─────────────────────────────────────────
 
@@ -119,17 +120,19 @@ impl ListState {
 pub enum ViewState {
 	Forums {
 		list: ListState,
-		table_state: ratatui::widgets::TableState,
+		table_state: TableState,
 	},
 	Threads {
 		forum_id: u64,
 		forum_name: String,
 		list: ListState,
+		table_state: TableState,
 	},
 	Posts {
 		thread_id: u64,
 		subject: String,
 		list: ListState,
+		table_state: TableState,
 	},
 	User {
 		user_id: u64,
@@ -277,7 +280,7 @@ impl App {
 			view_stack: Vec::new(),
 			current_view: ViewState::Forums {
 				list: ListState::default(),
-				table_state: ratatui::widgets::TableState::default().with_selected(Some(0)),
+				table_state: TableState::default().with_selected(Some(0)),
 			},
 			forums: Vec::new(),
 			threads: Vec::new(),
@@ -313,14 +316,6 @@ impl App {
 			ViewState::Threads { list, .. } => Some(list),
 			ViewState::Posts { list, .. } => Some(list),
 			ViewState::User { .. } => None,
-		}
-	}
-
-	/// Get a mutable reference to the Forums view's TableState, if in Forums view.
-	pub fn forum_table_state_mut(&mut self) -> Option<&mut ratatui::widgets::TableState> {
-		match &mut self.current_view {
-			ViewState::Forums { table_state, .. } => Some(table_state),
-			_ => None,
 		}
 	}
 
@@ -551,6 +546,7 @@ mod tests {
 			forum_id: 1,
 			forum_name: "Campus".to_string(),
 			list: ListState::default(),
+			table_state: TableState::default().with_selected(Some(0)),
 		});
 		assert_eq!(app.view_stack.len(), 1);
 
@@ -559,6 +555,7 @@ mod tests {
 			thread_id: 42,
 			subject: "Hello".to_string(),
 			list: ListState::default(),
+			table_state: TableState::default().with_selected(Some(0)),
 		});
 		assert_eq!(app.view_stack.len(), 2);
 
@@ -589,6 +586,7 @@ mod tests {
 			forum_id: 1,
 			forum_name: "校园交流".to_string(),
 			list: ListState::default(),
+			table_state: TableState::default().with_selected(Some(0)),
 		});
 		assert_eq!(app.breadcrumb(), "版块 > 校园交流");
 
@@ -596,6 +594,7 @@ mod tests {
 			thread_id: 42,
 			subject: "新生报到".to_string(),
 			list: ListState::default(),
+			table_state: TableState::default().with_selected(Some(0)),
 		});
 		assert_eq!(app.breadcrumb(), "版块 > 校园交流 > 新生报到");
 	}

@@ -67,16 +67,14 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App, tc: &crate::theme::Them
 
 fn draw_content(frame: &mut Frame, area: Rect, app: &mut App, tc: &crate::theme::ThemeColors) {
 	match &mut app.current_view {
-		ViewState::Forums {
-			table_state, ..
-		} => {
+		ViewState::Forums { table_state, .. } => {
 			views::forum_list::draw(frame, area, &app.forums, table_state, app.loading, tc);
 		}
-		ViewState::Threads { list, .. } => {
-			views::thread_list::draw(frame, area, &app.threads, list, app.loading, tc);
+		ViewState::Threads { table_state, .. } => {
+			views::thread_list::draw(frame, area, &app.threads, table_state, app.loading, tc);
 		}
-		ViewState::Posts { list, .. } => {
-			views::post_view::draw(frame, area, &app.posts, list, app.loading, tc);
+		ViewState::Posts { table_state, .. } => {
+			views::post_view::draw(frame, area, &app.posts, table_state, app.loading, tc);
 		}
 		ViewState::User { user_id } => {
 			let user_id = *user_id;

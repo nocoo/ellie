@@ -1,20 +1,19 @@
 use ellie_core::types::{StickyLevel, Thread};
 use ratatui::Frame;
-use ratatui::layout::Rect;
+use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
+use ratatui::widgets::{Cell, Paragraph, Row, Table, TableState};
 
-use crate::app::ListState;
 use crate::theme::ThemeColors;
-use crate::views::{truncate, visible_items};
+use crate::views::truncate_to_width;
 
-/// Render the thread list view.
+/// Render the thread list as a table with proper column alignment.
 pub fn draw(
 	frame: &mut Frame,
 	area: Rect,
 	threads: &[Thread],
-	list_state: &ListState,
+	table_state: &mut TableState,
 	loading: bool,
 	tc: &ThemeColors,
 ) {
@@ -31,52 +30,84 @@ pub fn draw(
 		return;
 	}
 
-	let items: Vec<ListItem> = visible_items(threads, list_state)
-		.enumerate()
-		.map(|(i, thread)| {
-			let is_selected = i == list_state.selected_row;
-			let mut style = if is_selected {
-				Style::default()
-					.fg(tc.highlight)
-					.add_modifier(Modifier::BOLD)
-			} else {
-				Style::default().fg(tc.fg)
-			};
+	// Dynamic subject width = total width - author(12) - replies(8) - views(8) - padding(6)
+	let subject_width = (area.width as usize).saturating_sub(34);
+
+	let rows: Vec<Row> = threads
+		.iter()
+		.map(|thread| {
+			let mut style = Style::default().fg(tc.fg);
 
 			// Sticky threads get special colour
-			if thread.sticky != StickyLevel::None && !is_selected {
+			if thread.sticky != StickyLevel::None {
 				style = style.fg(tc.sticky);
 			}
-			if thread.digest != 0 && !is_selected {
+			if thread.digest != 0 {
 				style = style.fg(tc.digest);
 			}
 
-			let marker = if is_selected { "▸ " } else { "  " };
 			let prefix = match thread.sticky {
 				StickyLevel::None => "",
 				_ => "[置顶] ",
 			};
-			let line = format!(
-				"{}{}{:<40} {:<12} {}/{}",
-				marker,
-				prefix,
-				truncate(&thread.subject, 40),
-				thread.author_name,
-				thread.replies,
-				thread.views,
-			);
-			ListItem::new(Line::from(Span::styled(line, style)))
+			let subject_raw = format!("{prefix}{}", thread.subject);
+			let subject = truncate_to_width(&subject_raw, subject_width);
+
+			Row::new(vec![
+				Cell::from(Line::from(Span::styled(subject, style))),
+				Cell::from(Line::from(Span::styled(
+					truncate_to_width(&thread.author_name, 12),
+					Style::default().fg(tc.muted),
+				))),
+				Cell::from(Line::from(Span::styled(
+					format!("{:>6}", thread.replies),
+					Style::default().fg(tc.muted),
+				))),
+				Cell::from(Line::from(Span::styled(
+					format!("{:>6}", thread.views),
+					Style::default().fg(tc.muted),
+				))),
+			])
 		})
 		.collect();
 
-	let list = List::new(items)
-		.block(
-			Block::default()
-				.borders(Borders::NONE)
-				.style(Style::default().bg(tc.bg)),
+	let header = Row::new(vec![
+		Cell::from(Span::styled(
+			"  标题",
+			Style::default().fg(tc.muted).add_modifier(Modifier::BOLD),
+		)),
+		Cell::from(Span::styled(
+			"作者",
+			Style::default().fg(tc.muted).add_modifier(Modifier::BOLD),
+		)),
+		Cell::from(Span::styled(
+			"  回复",
+			Style::default().fg(tc.muted).add_modifier(Modifier::BOLD),
+		)),
+		Cell::from(Span::styled(
+			"  浏览",
+			Style::default().fg(tc.muted).add_modifier(Modifier::BOLD),
+		)),
+	]);
+
+	let widths = [
+		Constraint::Min(20),
+		Constraint::Length(12),
+		Constraint::Length(8),
+		Constraint::Length(8),
+	];
+
+	let table = Table::new(rows, widths)
+		.header(header)
+		.row_highlight_style(
+			Style::default()
+				.fg(tc.highlight)
+				.add_modifier(Modifier::BOLD),
 		)
-		.style(Style::default().fg(tc.fg));
-	frame.render_widget(list, area);
+		.highlight_symbol("▸ ")
+		.style(Style::default().bg(tc.bg).fg(tc.fg));
+
+	frame.render_stateful_widget(table, area, table_state);
 }
 
 #[cfg(test)]
@@ -113,8 +144,9 @@ mod tests {
 		let backend = TestBackend::new(60, 3);
 		let mut terminal = Terminal::new(backend).unwrap();
 		let tc = Theme::Default.colors();
+		let mut ts = TableState::default();
 		terminal
-			.draw(|f| draw(f, f.area(), &[], &ListState::default(), true, &tc))
+			.draw(|f| draw(f, f.area(), &[], &mut ts, true, &tc))
 			.unwrap();
 		let buf = terminal.backend().buffer().content().to_vec();
 		let text: String = buf
@@ -129,8 +161,9 @@ mod tests {
 		let backend = TestBackend::new(60, 3);
 		let mut terminal = Terminal::new(backend).unwrap();
 		let tc = Theme::Default.colors();
+		let mut ts = TableState::default();
 		terminal
-			.draw(|f| draw(f, f.area(), &[], &ListState::default(), false, &tc))
+			.draw(|f| draw(f, f.area(), &[], &mut ts, false, &tc))
 			.unwrap();
 		let buf = terminal.backend().buffer().content().to_vec();
 		let text: String = buf
@@ -146,8 +179,10 @@ mod tests {
 		let mut terminal = Terminal::new(backend).unwrap();
 		let tc = Theme::Default.colors();
 		let threads = vec![dummy_thread(1, "Hello world"), dummy_thread(2, "Rust tips")];
+		let mut ts = TableState::default();
+		ts.select(Some(0));
 		terminal
-			.draw(|f| draw(f, f.area(), &threads, &ListState::default(), false, &tc))
+			.draw(|f| draw(f, f.area(), &threads, &mut ts, false, &tc))
 			.unwrap();
 		let buf = terminal.backend().buffer().content().to_vec();
 		let text: String = buf
@@ -160,22 +195,22 @@ mod tests {
 
 	#[test]
 	fn render_sticky_thread() {
-		let backend = TestBackend::new(80, 3);
+		let backend = TestBackend::new(80, 4);
 		let mut terminal = Terminal::new(backend).unwrap();
 		let tc = Theme::Default.colors();
 		let mut t = dummy_thread(1, "Important");
 		t.sticky = StickyLevel::Global;
+		let mut ts = TableState::default();
 		terminal
-			.draw(|f| draw(f, f.area(), &[t], &ListState::default(), false, &tc))
+			.draw(|f| draw(f, f.area(), &[t], &mut ts, false, &tc))
 			.unwrap();
 		let buf = terminal.backend().buffer().content().to_vec();
 		let text: String = buf
 			.iter()
 			.map(|c| c.symbol().chars().next().unwrap_or(' '))
 			.collect();
-		// Sticky threads show the [置顶] prefix; CJK chars are split across cells
-		// in TestBackend, so check for the surrounding brackets
 		assert!(text.contains("Important"));
+		// Sticky threads show the [置顶] prefix
 		assert!(text.contains("["));
 	}
 }
