@@ -2,6 +2,7 @@ pub mod app;
 pub mod events;
 pub mod theme;
 pub mod ui;
+pub mod views;
 
 use std::io;
 use std::panic;
