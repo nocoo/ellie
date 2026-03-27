@@ -133,7 +133,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	);
 }
 
-/** GET /api/v1/threads/:id - Get thread by ID */
+/** GET /api/v1/threads/:id - Get thread by ID (and increment view count) */
 export async function getById(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
@@ -147,6 +147,9 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 	if (!result) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
+
+	// Fire-and-forget: increment view count (don't await)
+	void env.DB.prepare("UPDATE threads SET views = views + 1 WHERE id = ?").bind(id).run();
 
 	return new Response(
 		JSON.stringify({

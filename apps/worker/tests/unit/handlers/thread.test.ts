@@ -343,8 +343,10 @@ describe("thread handlers", () => {
 		it("should map D1 row to camelCase Thread when found", async () => {
 			const d1Row = makeD1ThreadRow({ id: 123 });
 			const firstSpy = mock(() => Promise.resolve(d1Row));
+			const runSpy = mock(() => Promise.resolve({ success: true }));
 			const bindSpy = mock((..._args: unknown[]) => ({
 				first: firstSpy,
+				run: runSpy,
 			}));
 			const prepareSpy = mock(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
@@ -366,8 +368,10 @@ describe("thread handlers", () => {
 
 		it("should return 404 when thread not found", async () => {
 			const firstSpy = mock(() => Promise.resolve(null));
+			const runSpy = mock(() => Promise.resolve({ success: true }));
 			const bindSpy = mock((..._args: unknown[]) => ({
 				first: firstSpy,
+				run: runSpy,
 			}));
 			const prepareSpy = mock(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
@@ -383,8 +387,10 @@ describe("thread handlers", () => {
 		it("should parse thread ID from URL", async () => {
 			const d1Row = makeD1ThreadRow({ id: 456 });
 			const firstSpy = mock(() => Promise.resolve(d1Row));
+			const runSpy = mock(() => Promise.resolve({ success: true }));
 			const bindSpy = mock((..._args: unknown[]) => ({
 				first: firstSpy,
+				run: runSpy,
 			}));
 			const prepareSpy = mock(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
@@ -393,6 +399,49 @@ describe("thread handlers", () => {
 			await getById(new Request("https://example.com/api/v1/threads/456"), env);
 
 			expect(bindSpy).toHaveBeenCalledWith(456);
+		});
+
+		it("should increment view count when thread is fetched", async () => {
+			const d1Row = makeD1ThreadRow({ id: 42 });
+			const firstSpy = mock(() => Promise.resolve(d1Row));
+			const runSpy = mock(() => Promise.resolve({ success: true }));
+			const bindSpy = mock((..._args: unknown[]) => ({
+				first: firstSpy,
+				run: runSpy,
+			}));
+			const prepareSpy = mock((_sql: string) => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			await getById(new Request("https://example.com/api/v1/threads/42"), env);
+
+			// Should call prepare for UPDATE threads SET views
+			const updateCall = prepareSpy.mock.calls.find((c) =>
+				(c[0] as string).includes("UPDATE threads SET views"),
+			);
+			expect(updateCall).toBeDefined();
+		});
+
+		it("should increment views even if UPDATE fails (fire-and-forget)", async () => {
+			const d1Row = makeD1ThreadRow({ id: 42 });
+			const firstSpy = mock(() => Promise.resolve(d1Row));
+			const runSpy = mock(() => Promise.resolve({ success: true }));
+			const bindSpy = mock((..._args: unknown[]) => ({
+				first: firstSpy,
+				run: runSpy,
+			}));
+			const prepareSpy = mock((_sql: string) => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await getById(new Request("https://example.com/api/v1/threads/42"), env);
+
+			// Should still return 200 despite UPDATE failure
+			expect(response.status).toBe(200);
+			const updateCall = prepareSpy.mock.calls.find((c) =>
+				(c[0] as string).includes("UPDATE threads SET views"),
+			);
+			expect(updateCall).toBeDefined();
 		});
 	});
 
