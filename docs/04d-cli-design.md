@@ -127,17 +127,30 @@ class ApiClient {
       headers: mergedHeaders,
     });
 
-    if (res.status === 401 && this.token) {
-      // JWT expired — clear token, caller should prompt re-login
-      this.token = null;
-      throw new AuthExpiredError();
+    if (!res.ok) {
+      const body = await res.json();
+      const code = body?.error?.code;
+
+      // Only treat as session expiry when we had a token and server says it's expired/invalid.
+      // Other 401s (bad API Key, wrong credentials) are plain ApiErrors.
+      if (res.status === 401 && this.token && code === "TOKEN_EXPIRED") {
+        this.token = null;
+        throw new AuthExpiredError();
+      }
+      throw new ApiError(res.status, body);
     }
-    if (!res.ok) throw new ApiError(res.status, await res.json());
     return res.json();
   }
 
-  /** Login and store JWT in memory + persist to config */
-  async login(username: string, password: string): Promise<AuthUser> {
+  /**
+   * Login — stores JWT in memory only.
+   * Caller (store/config layer) is responsible for persisting token to disk.
+   */
+  async login(username: string, password: string): Promise<{
+    token: string;
+    refreshToken: string;
+    user: AuthUser;
+  }> {
     const data = await this.request<{
       data: { token: string; refreshToken: string; user: AuthUser };
     }>("/api/v1/auth/login", {
@@ -145,8 +158,8 @@ class ApiClient {
       body: JSON.stringify({ username, password }),
     });
     this.token = data.data.token;
-    // refreshToken is returned but not used until server implements /auth/refresh
-    return data.data.user;
+    // Return full payload so caller can persist to config.json
+    return data.data;
   }
 
   /** Clear local auth state */
