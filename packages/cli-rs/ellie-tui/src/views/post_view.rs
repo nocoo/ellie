@@ -96,13 +96,17 @@ fn post_card_line_count(content: &str, width: usize) -> usize {
 	// Content: wrapped content
 	// Bottom border: 1 line
 	// Note: separator is added between posts, not counted here
-	let content_lines = wrap_text(content, width.saturating_sub(4)); // -4 for │ padding
+	let inner_width = width.saturating_sub(4);
+	let content_lines = wrap_text(content, inner_width);
 	3 + content_lines.len()
 }
 
 /// Build all post cards as styled lines with ASCII borders.
 fn build_post_lines<'a>(posts: &[Post], width: usize, tc: &'a ThemeColors) -> Vec<Line<'a>> {
 	let mut lines = Vec::new();
+
+	// Available width inside borders: width - 4 for │ │ borders
+	let inner_width = width.saturating_sub(4);
 
 	for (i, post) in posts.iter().enumerate() {
 		// Skip separator for first post
@@ -117,20 +121,22 @@ fn build_post_lines<'a>(posts: &[Post], width: usize, tc: &'a ThemeColors) -> Ve
 			truncate_to_width(&post.author_name, 16),
 			format_timestamp(post.created_at)
 		);
-		let title_len = title.len();
-		let top_padding = " ".repeat(width.saturating_sub(title_len + 10));
-		let top_border = format!("┌─ {title} {top_padding}─┐");
+		// Truncate title to fit in inner width
+		let title_truncated = truncate_to_width(&title, inner_width);
+		let title_len = title_truncated.len();
+		let dash_count = inner_width.saturating_sub(title_len + 1);
+		let top_border = format!("┌─ {title_truncated} {}─┐", "─".repeat(dash_count));
 		lines.push(Line::from(Span::styled(
 			top_border,
 			Style::default().fg(tc.border),
 		)));
 
 		// Title line inside
-		let title_padding = " ".repeat(width.saturating_sub(title_len));
+		let title_padding = " ".repeat(inner_width.saturating_sub(title_len));
 		lines.push(Line::from(vec![
 			Span::styled("│ ", Style::default().fg(tc.border)),
 			Span::styled(
-				truncate_to_width(&title, width.saturating_sub(2)),
+				title_truncated,
 				Style::default().fg(tc.accent).add_modifier(Modifier::BOLD),
 			),
 			Span::styled(
@@ -140,10 +146,9 @@ fn build_post_lines<'a>(posts: &[Post], width: usize, tc: &'a ThemeColors) -> Ve
 		]));
 
 		// Content lines
-		for content_line in wrap_text(&post.content, width.saturating_sub(4)) {
-			// Calculate padding before borrowing content_line
+		for content_line in wrap_text(&post.content, inner_width) {
 			let content_width = content_line.width();
-			let padding = " ".repeat(width.saturating_sub(content_width + 2));
+			let padding = " ".repeat(inner_width.saturating_sub(content_width));
 			lines.push(Line::from(vec![
 				Span::styled("│ ", Style::default().fg(tc.border)),
 				Span::styled(content_line, Style::default().fg(tc.fg)),
@@ -152,7 +157,7 @@ fn build_post_lines<'a>(posts: &[Post], width: usize, tc: &'a ThemeColors) -> Ve
 		}
 
 		// Bottom border
-		let bottom_dash = "─".repeat(width.saturating_sub(4));
+		let bottom_dash = "─".repeat(inner_width);
 		lines.push(Line::from(Span::styled(
 			format!("└─{bottom_dash}┘"),
 			Style::default().fg(tc.border),
