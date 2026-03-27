@@ -2,6 +2,7 @@ use ellie_core::client::AuthExpiredError;
 use ellie_core::pagination::DEFAULT_PAGE_SIZE;
 
 use crate::app::{App, InputMode, PendingAction, ViewState};
+use crate::views::strip_markup;
 
 /// Process the pending action, if any. This runs network I/O synchronously
 /// (ureq is blocking) and updates App state with the results.
@@ -93,9 +94,12 @@ fn load_posts(app: &mut App, thread_id: u64, append: bool) {
 			let next_cursor = resp.next_cursor().map(String::from);
 
 			if append {
+				let start = app.posts.len();
 				app.posts.extend(resp.data);
+				strip_post_content(&mut app.posts[start..]);
 			} else {
 				app.posts = resp.data;
+				strip_post_content(&mut app.posts);
 			}
 
 			if let Some(list) = app.current_list_mut() {
@@ -149,6 +153,14 @@ fn do_login(app: &mut App, username: &str, password: &str) {
 			app.input_mode = InputMode::Login; // stay in login mode
 			app.status_message = Some(format!("login failed: {e}"));
 		}
+	}
+}
+
+/// Pre-process post content: strip HTML/BBCode/emoticons once at load time
+/// so the render loop doesn't repeat this work every frame.
+fn strip_post_content(posts: &mut [ellie_core::types::Post]) {
+	for post in posts {
+		post.content = strip_markup(&post.content);
 	}
 }
 

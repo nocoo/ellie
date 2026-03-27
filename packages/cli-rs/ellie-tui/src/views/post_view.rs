@@ -6,7 +6,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Cell, Paragraph, Row, Table, TableState};
 
 use crate::theme::ThemeColors;
-use crate::views::{format_timestamp, strip_markup, truncate_to_width};
+use crate::views::{format_timestamp, truncate_to_width};
 
 /// Render the post list as a table with position | author | time | content columns.
 pub fn draw(
@@ -37,8 +37,8 @@ pub fn draw(
 	let rows: Vec<Row> = posts
 		.iter()
 		.map(|post| {
-			let cleaned = strip_markup(&post.content);
-			let preview_line = cleaned.lines().next().unwrap_or("");
+			// Content is already stripped at load time (actions::strip_post_content)
+			let preview_line = post.content.lines().next().unwrap_or("");
 			let preview = truncate_to_width(preview_line, content_width);
 
 			Row::new(vec![
@@ -172,11 +172,12 @@ mod tests {
 	}
 
 	#[test]
-	fn render_strips_markup() {
+	fn render_pre_stripped_content() {
+		// Content is pre-stripped at load time; the view should render it as-is
 		let backend = TestBackend::new(120, 4);
 		let mut terminal = Terminal::new(backend).unwrap();
 		let tc = Theme::Default.colors();
-		let posts = vec![dummy_post(1, "<b>bold</b> [i]italic[/i] :laugh: text")];
+		let posts = vec![dummy_post(1, "bold italic 😄 text")];
 		let mut ts = TableState::default();
 		ts.select(Some(0));
 		terminal
@@ -187,11 +188,11 @@ mod tests {
 			.iter()
 			.map(|c| c.symbol().chars().next().unwrap_or(' '))
 			.collect();
-		// Should not contain raw tags
+		assert!(text.contains("bold italic"));
+		assert!(text.contains('😄'));
+		// No raw tags should be present (content was already cleaned)
 		assert!(!text.contains("<b>"));
 		assert!(!text.contains("[i]"));
-		// Emoji should be present
-		assert!(text.contains('😄'));
 	}
 
 	#[test]

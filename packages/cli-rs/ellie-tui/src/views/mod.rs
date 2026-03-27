@@ -7,11 +7,22 @@ pub mod status_bar;
 pub mod thread_list;
 pub mod user_profile;
 
+use std::sync::LazyLock;
+
 use chrono::{Local, TimeZone};
 use regex::Regex;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::app::ListState;
+
+// ─── Pre-compiled regexes for strip_markup ─────────────────
+static RE_HTML: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<[^>]*>").unwrap());
+static RE_BBCODE: LazyLock<Regex> =
+	LazyLock::new(|| Regex::new(r"\[/?[a-zA-Z][a-zA-Z0-9]*(?:=[^\]]*)?]").unwrap());
+static RE_BRACE_EMO: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{:[^}]+:\}").unwrap());
+static RE_COLON_EMO: LazyLock<Regex> =
+	LazyLock::new(|| Regex::new(r":[a-zA-Z_][a-zA-Z0-9_]*:").unwrap());
+static RE_WHITESPACE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s+").unwrap());
 
 /// Get an iterator over visible items (filtered or all).
 pub fn visible_items<'a, T>(
@@ -149,25 +160,20 @@ pub fn strip_markup(s: &str) -> String {
 	}
 
 	// 2. Strip HTML tags: <...>
-	let html_re = Regex::new(r"<[^>]*>").unwrap();
-	result = html_re.replace_all(&result, "").to_string();
+	result = RE_HTML.replace_all(&result, "").to_string();
 
 	// 3. Strip BBCode/UBB tags: [tag], [tag=...], [/tag]
-	let bbc_re = Regex::new(r"\[/?[a-zA-Z][a-zA-Z0-9]*(?:=[^\]]*)?]").unwrap();
-	result = bbc_re.replace_all(&result, "").to_string();
+	result = RE_BBCODE.replace_all(&result, "").to_string();
 
 	// 4. Strip Discuz brace-wrapped emoticon codes: {:soso_e100:}, {:coolmonkey_001:}
 	// Must run before the bare :word: regex to avoid leaving empty {}
-	let brace_emo_re = Regex::new(r"\{:[^}]+:\}").unwrap();
-	result = brace_emo_re.replace_all(&result, "").to_string();
+	result = RE_BRACE_EMO.replace_all(&result, "").to_string();
 
 	// 5. Strip remaining Discuz emoticon codes not in map: :word:
-	let emo_re = Regex::new(r":[a-zA-Z_][a-zA-Z0-9_]*:").unwrap();
-	result = emo_re.replace_all(&result, "").to_string();
+	result = RE_COLON_EMO.replace_all(&result, "").to_string();
 
 	// 6. Collapse consecutive whitespace to single space, trim
-	let ws_re = Regex::new(r"\s+").unwrap();
-	ws_re.replace_all(result.trim(), " ").to_string()
+	RE_WHITESPACE.replace_all(result.trim(), " ").to_string()
 }
 
 #[cfg(test)]
