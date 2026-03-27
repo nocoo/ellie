@@ -829,21 +829,21 @@ gitleaks detect --no-banner          # G2
 ## 开发路线
 
 ### Phase 0 — 基础设施（质量优先）
-- [ ] 添加 Rust artifacts 到 .gitignore
-- [ ] 创建 Cargo workspace（ellie-core + ellie-tui）
-- [ ] 配置 rustfmt.toml + clippy.toml
-- [ ] 集成 Rust 质量门控到 husky hooks
+- [x] 添加 Rust artifacts 到 .gitignore
+- [x] 创建 Cargo workspace（ellie-core + ellie-tui）
+- [x] 配置 rustfmt.toml + clippy.toml
+- [x] 集成 Rust 质量门控到 husky hooks
 
 ### Phase 1 — Core Library（ellie-core）
-- [ ] 添加 serde + 核心依赖
-- [ ] 定义 domain enums（UserRole, UserStatus, StickyLevel, ForumType）
-- [ ] 定义 domain structs（User, Forum, Thread, Post, Attachment）
-- [ ] 定义 API response wrappers（ApiResponse, ErrorResponse）
-- [ ] 实现 cursor encode/decode utilities
-- [ ] 实现 XDG config file read/write
-- [ ] 实现 HTTP client with X-API-Key header
-- [ ] 添加 JWT authentication
-- [ ] 添加 typed API methods（getForums, getThreads, getPosts, getUser）
+- [x] 添加 serde + 核心依赖
+- [x] 定义 domain enums（UserRole, UserStatus, StickyLevel, ForumType）
+- [x] 定义 domain structs（User, Forum, Thread, Post, Attachment）
+- [x] 定义 API response wrappers（ApiResponse, ErrorResponse）
+- [x] 实现 cursor encode/decode utilities
+- [x] 实现 XDG config file read/write
+- [x] 实现 HTTP client with X-API-Key header
+- [x] 添加 JWT authentication
+- [x] 添加 typed API methods（getForums, getThreads, getPosts, getUser）
 
 ### Phase 2 — TUI Framework（ellie-tui）
 - [ ] 添加 ratatui + crossterm + clap 依赖
