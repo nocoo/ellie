@@ -39,13 +39,3 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 		},
 	);
 }
-
-/** DELETE /api/v1/users/:id - Delete user (admin only, requires auth) */
-export async function deleteFn(request: Request, _env: Env): Promise<Response> {
-	const origin = request.headers.get("Origin") ?? undefined;
-	// TODO: Implement user deletion with auth and admin check
-	return errorResponse("NOT_IMPLEMENTED", 501, undefined, origin);
-}
-
-// Named export for delete (reserved keyword)
-export { deleteFn as delete };

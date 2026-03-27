@@ -61,10 +61,3 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 		},
 	);
 }
-
-/** PATCH /api/admin/forums/:id - Update forum (admin only) */
-export async function update(request: Request, _env: Env): Promise<Response> {
-	const origin = request.headers.get("Origin") ?? undefined;
-	// TODO: Implement forum update with auth and admin check
-	return errorResponse("NOT_IMPLEMENTED", 501, undefined, origin);
-}

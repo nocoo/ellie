@@ -332,49 +332,222 @@ describe("worker router integration", () => {
 		});
 	});
 
-	// ─── Stub Routes ──────────────────────────────────────
+	// ─── Admin Routes ────────────────────────────────────
 
-	describe("POST /api/v1/threads (stub)", () => {
-		it("should route to thread create handler", async () => {
+	describe("Admin Forum routes", () => {
+		it("GET /api/admin/forums should require auth (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/v1/threads", withApiKey({ method: "POST" })),
+				makeRequest("https://api.example.com/api/admin/forums", withApiKey()),
 				makeEnv(),
 			);
-
-			expect(response.status).toBe(501);
+			expect(response.status).toBe(401);
 		});
-	});
 
-	describe("POST /api/v1/posts (stub)", () => {
-		it("should route to post create handler", async () => {
+		it("POST /api/admin/forums should require auth (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/v1/posts", withApiKey({ method: "POST" })),
+				makeRequest("https://api.example.com/api/admin/forums", withApiKey({ method: "POST" })),
 				makeEnv(),
 			);
-
-			expect(response.status).toBe(501);
+			expect(response.status).toBe(401);
 		});
-	});
 
-	describe("PATCH /api/admin/forums/:id (stub)", () => {
-		it("should route to forum update handler", async () => {
+		it("GET /api/admin/forums/:id should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/admin/forums/1", withApiKey()),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("PATCH /api/admin/forums/:id should require auth (401)", async () => {
 			const response = await worker.fetch(
 				makeRequest("https://api.example.com/api/admin/forums/1", withApiKey({ method: "PATCH" })),
 				makeEnv(),
 			);
+			expect(response.status).toBe(401);
+		});
 
-			expect(response.status).toBe(501);
+		it("DELETE /api/admin/forums/:id should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/admin/forums/1", withApiKey({ method: "DELETE" })),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
 		});
 	});
 
-	describe("DELETE /api/admin/users/:id (stub)", () => {
-		it("should route to user delete handler", async () => {
+	describe("Admin Thread routes", () => {
+		it("GET /api/admin/threads should require auth (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/users/1", withApiKey({ method: "DELETE" })),
+				makeRequest("https://api.example.com/api/admin/threads", withApiKey()),
 				makeEnv(),
 			);
+			expect(response.status).toBe(401);
+		});
 
-			expect(response.status).toBe(501);
+		it("GET /api/admin/threads/:id should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/admin/threads/1", withApiKey()),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("DELETE /api/admin/threads/:id should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/threads/1",
+					withApiKey({ method: "DELETE" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("PATCH /api/admin/threads/:id/sticky should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/threads/1/sticky",
+					withApiKey({ method: "PATCH" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("PATCH /api/admin/threads/:id/digest should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/threads/1/digest",
+					withApiKey({ method: "PATCH" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("PATCH /api/admin/threads/:id/close should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/threads/1/close",
+					withApiKey({ method: "PATCH" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("PATCH /api/admin/threads/:id/move should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/threads/1/move",
+					withApiKey({ method: "PATCH" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("POST /api/admin/threads/batch-delete should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/threads/batch-delete",
+					withApiKey({ method: "POST" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+	});
+
+	describe("Admin Post routes", () => {
+		it("GET /api/admin/posts should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/admin/posts", withApiKey()),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("DELETE /api/admin/posts/:id should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/admin/posts/1", withApiKey({ method: "DELETE" })),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("POST /api/admin/posts/batch-delete should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/posts/batch-delete",
+					withApiKey({ method: "POST" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+	});
+
+	describe("Admin User routes", () => {
+		it("GET /api/admin/users should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/admin/users", withApiKey()),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("GET /api/admin/users/:id should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/admin/users/1", withApiKey()),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("PATCH /api/admin/users/:id/status should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/users/1/status",
+					withApiKey({ method: "PATCH" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("PATCH /api/admin/users/:id/role should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/users/1/role",
+					withApiKey({ method: "PATCH" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("POST /api/admin/users/:id/ban should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/users/1/ban",
+					withApiKey({ method: "POST" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("POST /api/admin/users/:id/nuke should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/users/1/nuke",
+					withApiKey({ method: "POST" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
 		});
 	});
 
