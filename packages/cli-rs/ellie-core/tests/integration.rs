@@ -50,24 +50,22 @@ fn get_threads_pagination_e2e() {
 	// The forum might have threads or not, but the call should succeed
 	assert!(page1.data.len() <= 2, "should respect limit");
 
-	// If there's pagination, fetch next page
-	if let Some(pg) = &page1.pagination {
-		if pg.has_more {
-			let cursor = pg.next_cursor.as_deref().unwrap();
-			let page2: ApiResponse<Vec<Thread>> =
-				client.get_threads(forum_id, 2, Some(cursor)).unwrap();
-			assert!(page2.data.len() <= 2);
+	// If there's a next page, fetch it
+	if page1.has_more() {
+		let cursor = page1.next_cursor().unwrap();
+		let page2: ApiResponse<Vec<Thread>> =
+			client.get_threads(forum_id, 2, Some(cursor)).unwrap();
+		assert!(page2.data.len() <= 2);
 
-			// Pages should not overlap (different thread IDs)
-			if !page1.data.is_empty() && !page2.data.is_empty() {
-				let page1_ids: Vec<u64> = page1.data.iter().map(|t| t.id).collect();
-				let page2_ids: Vec<u64> = page2.data.iter().map(|t| t.id).collect();
-				for id in &page2_ids {
-					assert!(
-						!page1_ids.contains(id),
-						"page2 should not contain page1 thread IDs"
-					);
-				}
+		// Pages should not overlap (different thread IDs)
+		if !page1.data.is_empty() && !page2.data.is_empty() {
+			let page1_ids: Vec<u64> = page1.data.iter().map(|t| t.id).collect();
+			let page2_ids: Vec<u64> = page2.data.iter().map(|t| t.id).collect();
+			for id in &page2_ids {
+				assert!(
+					!page1_ids.contains(id),
+					"page2 should not contain page1 thread IDs"
+				);
 			}
 		}
 	}
