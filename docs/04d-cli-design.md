@@ -1,100 +1,418 @@
 # 04d — CLI 客户端设计
 
-> Telnet 风格命令行论坛客户端，通过 Worker API 访问数据。
+> TUI 论坛客户端，基于 Ellie Worker API，提供只读浏览 + 用户登录体验。
 
-## 功能
+## 概述
 
-- 浏览版块、主题、帖子
-- 查看用户资料
-- 发布回复（TODO）
-- 私信（TODO）
+Ellie CLI 是一个终端 TUI（Text User Interface）应用，连接 Cloudflare Worker API 浏览同济网论坛数据。采用类似 [llmfit-tui](https://github.com/AlexsJones/llmfit) 的全屏交互式架构，而非传统的子命令模式。
 
-## 技术栈
+**核心原则：**
+- **只读模式** — 浏览版块、主题、帖子、用户资料，不提供发帖/回复功能
+- **登录可选** — 匿名即可浏览，登录后可查看需要权限的内容
+- **全屏 TUI** — 键盘驱动的交互式界面，非一次性命令输出
 
-| 依赖 | 版本 | 说明 |
-|------|------|------|
-| commander | latest | 命令行参数解析 |
-| inquirer | latest | 交互式提示 |
-| chalk | latest | 终端颜色 |
-| ora | latest | 加载动画 |
-| @ellie/types | workspace:* | 共享类型 |
-| @ellie/api-client | 内置 | Worker API 客户端 |
+---
 
-## 命令
+## API 连接
 
-```bash
-# 查看帮助
-ellie --help
+### Worker 端点
 
-# 浏览版块列表
-ellie browse
-
-# 浏览指定版块
-ellie browse 1
-
-# 查看主题
-ellie thread 123
-
-# 发布回复（TODO）
-ellie reply 123
+```
+Base URL: https://ellie.worker.hexly.ai
+备用:     https://ellie.nocoo.workers.dev
 ```
 
-## API 客户端
+### 双层认证模型
 
-```typescript
-// packages/cli/src/client.ts
-const API_BASE = process.env.ELLIE_API_URL || "https://ellie.nocoo.cloud";
+所有请求需经过两层认证：
 
-export class ApiClient {
-	async request<T>(path: string, options?: RequestInit): Promise<T> {
-		const res = await fetch(`${API_BASE}${path}`, options);
-		if (!res.ok) throw new Error(`API error: ${res.status}`);
-		return res.json();
-	}
+**Layer 1 — API Key（必须）**
 
-	async getForums() {
-		return this.request("/api/v1/forums");
-	}
+每个请求（除 `GET /api/live`）必须携带 `X-API-Key` header：
 
-	async getThreads(forumId: number, limit = 20) {
-		const params = new URLSearchParams({ forumId: String(forumId), limit: String(limit) });
-		return this.request(`/api/v1/threads?${params}`);
-	}
+```
+X-API-Key: <shared-secret>
+```
+
+API Key 是应用级密钥，内嵌在 CLI 配置中，不面向终端用户。
+
+**Layer 2 — JWT Token（可选，登录后获取）**
+
+用户登录后获取 JWT，后续请求携带 `Authorization: Bearer <token>`。当前所有读取接口不强制 JWT，但未来可能按权限区分内容可见性。
+
+### 认证流程
+
+```
+启动 CLI
+  │
+  ├─ 读取 ~/.config/ellie/config.json
+  │   ├─ 有 API Key？ → 使用
+  │   └─ 无？ → 首次使用引导（输入或自动配置）
+  │
+  ├─ 有已保存的 JWT？
+  │   ├─ 未过期 → 自动附加到请求
+  │   └─ 已过期 → 尝试 refreshToken，失败则提示重新登录
+  │
+  └─ 无 JWT → 匿名模式（仅 API Key 认证）
+```
+
+### 登录接口
+
+```
+POST /api/v1/auth/login
+Content-Type: application/json
+X-API-Key: <key>
+
+{ "username": "alice", "password": "secret" }
+
+→ 200:
+{
+  "data": {
+    "token": "<JWT, 7天有效>",
+    "refreshToken": "<UUID, 30天有效>",
+    "user": { "userId": 123, "username": "alice", "role": 1 }
+  }
 }
 ```
 
-## 界面示例
+### 配置文件
+
+路径：`~/.config/ellie/config.json`
+
+```json
+{
+  "apiUrl": "https://ellie.worker.hexly.ai",
+  "apiKey": "<shared-secret>",
+  "auth": {
+    "token": "<JWT>",
+    "refreshToken": "<UUID>",
+    "user": {
+      "userId": 123,
+      "username": "alice",
+      "role": 1
+    }
+  },
+  "theme": "default"
+}
+```
+
+### API Client
+
+```typescript
+class ApiClient {
+  private baseUrl: string;
+  private apiKey: string;
+  private token: string | null;
+
+  async request<T>(path: string, options?: RequestInit): Promise<T> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-API-Key": this.apiKey,
+    };
+    if (this.token) {
+      headers["Authorization"] = `Bearer ${this.token}`;
+    }
+    const res = await fetch(`${this.baseUrl}${path}`, { ...options, headers });
+    if (!res.ok) throw new ApiError(res.status, await res.json());
+    return res.json();
+  }
+}
+```
+
+### 可用端点
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/live` | 健康检查（无需 API Key） |
+| `GET` | `/api/v1/forums` | 版块列表 |
+| `GET` | `/api/v1/forums/:id` | 版块详情 |
+| `GET` | `/api/v1/threads?forumId=X&limit=N&cursor=C` | 主题列表（游标分页） |
+| `GET` | `/api/v1/threads/:id` | 主题详情 |
+| `GET` | `/api/v1/posts?threadId=X&limit=N&cursor=C` | 帖子列表（游标分页） |
+| `GET` | `/api/v1/posts/:id` | 帖子详情 |
+| `GET` | `/api/v1/users/:id` | 用户资料 |
+| `POST` | `/api/v1/auth/login` | 用户登录 |
+
+---
+
+## 功能设计
+
+### 只读功能清单
+
+| 功能 | 描述 | 快捷键 |
+|------|------|--------|
+| 版块浏览 | 树形展示所有版块（父子层级） | 默认首屏 |
+| 主题列表 | 进入版块查看主题，置顶优先 | `Enter` |
+| 帖子阅读 | 查看主题内所有回帖，支持翻页 | `Enter` |
+| 用户资料 | 查看发帖人信息 | `u` |
+| 搜索过滤 | 在当前列表中搜索 | `/` |
+| 登录 | 输入用户名密码认证 | `L` |
+| 主题统计 | 查看回复数、浏览数、最后回复 | 列表内联 |
+
+### 不实现的功能
+
+- ~~发帖 / 回复~~ — 只读
+- ~~私信~~ — 只读
+- ~~管理操作~~ — 只读
+- ~~附件上传~~ — 只读
+
+### 视图导航
 
 ```
-$ ellie browse
+版块列表 (ForumList)
+  │ Enter
+  ▼
+主题列表 (ThreadList)
+  │ Enter
+  ▼
+帖子阅读 (PostView)
+  │ u
+  ▼
+用户资料 (UserProfile)
 
-┌─────────────────────────────────────────┐
-│ Ellie Forum CLI                         │
-├─────────────────────────────────────────┤
-│ [1] 同济大学                             │
-│   [2] 校园交流                           │
-│   [3] 学术信息                           │
-│ [4] 技术社区                             │
-│   [5] 编程开发                           │
-│   [6] 硬件讨论                           │
-└─────────────────────────────────────────┘
-
-> _
+任意视图按 Esc/Backspace 返回上一层
+按 q 退出程序
 ```
+
+---
+
+## 技术架构
+
+### 参考项目
+
+架构完全参考 [llmfit-tui](https://github.com/AlexsJones/llmfit)，将其 Rust/ratatui 模式映射到 TypeScript/Bun 生态。
+
+### 技术栈
+
+| 依赖 | 说明 | 对应 llmfit |
+|------|------|-------------|
+| `ink` | React for CLI — 组件化 TUI 渲染 | `ratatui` |
+| `ink-text-input` | 文本输入组件 | `crossterm` key events |
+| `@ellie/types` | 共享类型定义 | `llmfit-core` types |
+| `zustand` | 轻量状态管理 | `App` struct |
+| `@inkjs/ui` | 高级 UI 组件（Spinner、Select） | ratatui widgets |
+
+**移除的依赖（不再需要）：**
+- ~~commander~~ — 不再使用子命令模式
+- ~~inquirer~~ — ink 自带交互能力
+- ~~ora~~ — ink 有 Spinner 组件
+- ~~cli-cursor~~ — ink 自动管理
+
+### 核心架构（TEA 模式）
+
+遵循 The Elm Architecture（State → View → Event → Update），与 llmfit-tui 完全一致：
+
+```
+┌─────────────────────────────────────────────────┐
+│                    main.tsx                       │
+│  ink render(<App />) — 启动 TUI                  │
+├─────────────────────────────────────────────────┤
+│                                                   │
+│  ┌──────────┐   ┌──────────┐   ┌──────────────┐ │
+│  │  State    │──▶│  View    │──▶│  Terminal     │ │
+│  │ (store)   │   │ (React)  │   │  Output      │ │
+│  └──────────┘   └──────────┘   └──────────────┘ │
+│       ▲                                           │
+│       │         ┌──────────┐   ┌──────────────┐ │
+│       └─────────│  Update  │◀──│  Keyboard    │ │
+│                 │ (actions)│   │  Input       │ │
+│                 └──────────┘   └──────────────┘ │
+│                                                   │
+├─────────────────────────────────────────────────┤
+│                  client.ts                        │
+│  ApiClient — HTTP 请求，认证 header 注入          │
+└─────────────────────────────────────────────────┘
+```
+
+### 文件结构
+
+```
+packages/cli/src/
+├── main.tsx              # 入口：ink render，终端初始化
+├── store.ts              # 全局状态（对应 llmfit tui_app.rs App struct）
+├── client.ts             # API Client（已有，需更新）
+├── config.ts             # ~/.config/ellie/ 读写
+├── theme.ts              # 主题定义（对应 llmfit theme.rs）
+├── components/
+│   ├── App.tsx           # 根组件：布局 + 视图切换 + 键盘事件
+│   ├── StatusBar.tsx     # 底部状态栏：模式 + 快捷键提示
+│   ├── ForumList.tsx     # 版块树形列表
+│   ├── ThreadList.tsx    # 主题列表（表格 + 分页）
+│   ├── PostView.tsx      # 帖子阅读视图
+│   ├── UserProfile.tsx   # 用户资料卡片
+│   ├── LoginForm.tsx     # 登录表单（覆盖层）
+│   └── SearchBar.tsx     # 搜索输入
+└── types.ts              # CLI 内部类型（InputMode, ViewState 等）
+```
+
+### 状态管理
+
+对应 llmfit 的 `App` struct + `InputMode` enum：
+
+```typescript
+// types.ts
+type InputMode = "normal" | "search" | "login";
+
+type ViewState =
+  | { view: "forums" }
+  | { view: "threads"; forumId: number; forumName: string }
+  | { view: "posts"; threadId: number; subject: string }
+  | { view: "user"; userId: number };
+
+// store.ts — 对应 llmfit tui_app.rs
+interface AppState {
+  // 生命周期
+  mode: InputMode;
+  loading: boolean;
+
+  // 导航栈（支持 Esc 返回）
+  viewStack: ViewState[];
+  currentView: ViewState;
+
+  // 数据缓存
+  forums: Forum[];
+  threads: Thread[];
+  posts: Post[];
+  currentUser: User | null;
+
+  // 列表状态
+  selectedRow: number;
+  searchQuery: string;
+  filteredIndices: number[];  // 对应 llmfit filtered_fits
+
+  // 分页
+  nextCursor: string | null;
+  hasMore: boolean;
+
+  // 认证
+  isLoggedIn: boolean;
+  username: string | null;
+
+  // 主题
+  theme: Theme;
+}
+```
+
+### 键盘操作（对应 llmfit tui_events.rs）
+
+**Normal 模式：**
+
+| 键 | 动作 |
+|----|------|
+| `j` / `↓` | 下移光标 |
+| `k` / `↑` | 上移光标 |
+| `Enter` | 进入选中项 |
+| `Esc` / `Backspace` | 返回上一层 |
+| `/` | 进入搜索模式 |
+| `L` | 登录 |
+| `u` | 查看当前项作者资料 |
+| `n` | 下一页（加载更多） |
+| `g` | 跳到顶部 |
+| `G` | 跳到底部 |
+| `r` | 刷新当前视图 |
+| `t` | 切换主题 |
+| `q` | 退出 |
+
+**Search 模式：**
+
+| 键 | 动作 |
+|----|------|
+| 字符输入 | 追加到搜索词 |
+| `Backspace` | 删除字符 |
+| `Enter` / `Esc` | 退出搜索，回到 Normal |
+
+**Login 模式：**
+
+| 键 | 动作 |
+|----|------|
+| `Tab` | 切换用户名/密码字段 |
+| `Enter` | 提交登录 |
+| `Esc` | 取消登录 |
+
+### 界面布局
+
+对应 llmfit 的 4 行垂直布局：
+
+```
+┌─────────────────────────────────────────────────┐ ← Row 0: Header (1行)
+│ 🏛 Ellie Forum — 同济网                [alice]  │   标题 + 登录状态
+├─────────────────────────────────────────────────┤ ← Row 1: Breadcrumb (1行)
+│ 版块 > 校园交流 > 新生报到                       │   导航路径
+├─────────────────────────────────────────────────┤ ← Row 2: Content (弹性)
+│                                                   │
+│  ▸ [置顶] 2024级新生入学指南    alice   128/3.2k  │   当前视图内容
+│    求推荐校园周边美食          bob      42/856    │   （列表 / 帖子 / 资料）
+│    图书馆自习室怎么预约        carol    15/234    │
+│    ...                                            │
+│                                                   │
+├─────────────────────────────────────────────────┤ ← Row 3: Status (1行)
+│ NORMAL  j/k:移动 Enter:进入 /:搜索 q:退出       │   模式 + 快捷键提示
+└─────────────────────────────────────────────────┘
+```
+
+### 主题系统（对应 llmfit theme.rs）
+
+```typescript
+interface ThemeColors {
+  bg: string;
+  fg: string;
+  muted: string;
+  border: string;
+  accent: string;
+  highlight: string;
+  error: string;
+  sticky: string;    // 置顶帖颜色
+  digest: string;    // 精华帖颜色
+}
+
+const themes = {
+  default: { ... },
+  dracula: { ... },
+  nord: { ... },
+};
+```
+
+主题持久化到 `~/.config/ellie/config.json`，`t` 键循环切换。
+
+---
+
+## 开发路线
+
+### Phase 1 — 基础框架
+- [ ] 替换依赖：移除 commander/inquirer/ora，引入 ink
+- [ ] 实现 config.ts（读写 `~/.config/ellie/config.json`）
+- [ ] 更新 client.ts（base URL + X-API-Key + JWT headers）
+- [ ] 实现 store.ts（全局状态 + actions）
+- [ ] 实现 App.tsx 根组件 + StatusBar.tsx
+
+### Phase 2 — 核心视图
+- [ ] ForumList.tsx — 树形版块列表
+- [ ] ThreadList.tsx — 主题列表 + 游标分页
+- [ ] PostView.tsx — 帖子阅读 + 翻页
+- [ ] 视图导航栈（push/pop）
+
+### Phase 3 — 交互增强
+- [ ] SearchBar.tsx — 列表内过滤
+- [ ] LoginForm.tsx — 登录覆盖层
+- [ ] UserProfile.tsx — 用户资料卡片
+- [ ] 主题切换
+
+### Phase 4 — 打磨
+- [ ] 错误处理 + 重试
+- [ ] 加载状态 / Skeleton
+- [ ] 键盘快捷键帮助面板（`?`）
+- [ ] 单元测试
+
+---
 
 ## 本地运行
 
 ```bash
 cd packages/cli
-bun run src/index.ts
+bun run src/main.tsx
 ```
 
-## 开发路线
-
-- [x] 基础命令结构
-- [x] API 客户端
-- [ ] browse 命令实现
-- [ ] thread 命令实现
-- [ ] reply 命令实现
-- [ ] 登录认证
-- [ ] 配置文件（~/.ellie/config.json）
+环境变量覆盖：
+```bash
+ELLIE_API_URL=http://localhost:8787 bun run src/main.tsx
+```
