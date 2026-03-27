@@ -187,19 +187,42 @@ pub struct Attachment {
 
 // ─── API Response Wrappers ───────────────────────────────
 
-/// Standard success envelope: `{ "data": T }` or `{ "data": T, "pagination": {...} }`.
+/// Standard success envelope: `{ "data": T }` or `{ "data": T, "meta": {...} }`.
+///
+/// The Worker returns a `meta` object with `nextCursor`, `timestamp`, and `requestId`.
+/// `has_more` is inferred from the presence of `nextCursor`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiResponse<T> {
 	pub data: T,
 	#[serde(default)]
-	pub pagination: Option<PaginationMeta>,
+	pub meta: Option<ResponseMeta>,
 }
 
+impl<T> ApiResponse<T> {
+	/// Whether the server indicated more pages are available.
+	pub fn has_more(&self) -> bool {
+		self.meta
+			.as_ref()
+			.is_some_and(|m| m.next_cursor.is_some())
+	}
+
+	/// The cursor for fetching the next page, if any.
+	pub fn next_cursor(&self) -> Option<&str> {
+		self.meta
+			.as_ref()
+			.and_then(|m| m.next_cursor.as_deref())
+	}
+}
+
+/// Metadata returned alongside paginated responses.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PaginationMeta {
+pub struct ResponseMeta {
 	pub next_cursor: Option<String>,
-	pub has_more: bool,
+	#[serde(default)]
+	pub timestamp: Option<u64>,
+	#[serde(default)]
+	pub request_id: Option<String>,
 }
 
 /// Standard error envelope: `{ "error": { "code": "...", "message": "..." } }`.
@@ -374,27 +397,72 @@ mod tests {
 	// ─── API response wrapper tests ────────────────────
 
 	#[test]
-	fn deserialize_api_response_with_pagination() {
+	fn deserialize_api_response_with_meta() {
 		let json = r#"{
 			"data": [],
-			"pagination": {
+			"meta": {
 				"nextCursor": "eyJzb3J0VmFsdWUiOjEsImlkIjo5OX0=",
-				"hasMore": true
+				"timestamp": 1700000000,
+				"requestId": "550e8400-e29b-41d4-a716-446655440000"
 			}
 		}"#;
 		let resp: ApiResponse<Vec<Thread>> = serde_json::from_str(json).unwrap();
 		assert!(resp.data.is_empty());
-		let pg = resp.pagination.unwrap();
-		assert!(pg.has_more);
-		assert!(pg.next_cursor.is_some());
+		assert!(resp.has_more());
+		let meta = resp.meta.unwrap();
+		assert_eq!(
+			meta.next_cursor.as_deref(),
+			Some("eyJzb3J0VmFsdWUiOjEsImlkIjo5OX0=")
+		);
+		assert_eq!(meta.timestamp, Some(1700000000));
+		assert!(meta.request_id.is_some());
 	}
 
 	#[test]
-	fn deserialize_api_response_without_pagination() {
+	fn deserialize_api_response_without_meta() {
 		let json = r#"{ "data": { "id": 1, "parentId": 0, "name": "Test", "description": "", "icon": "", "displayOrder": 0, "threads": 0, "posts": 0, "type": "group", "status": 1, "lastThreadId": 0, "lastPostAt": 0, "lastPoster": "" } }"#;
 		let resp: ApiResponse<Forum> = serde_json::from_str(json).unwrap();
 		assert_eq!(resp.data.name, "Test");
-		assert!(resp.pagination.is_none());
+		assert!(resp.meta.is_none());
+		assert!(!resp.has_more());
+	}
+
+	#[test]
+	fn has_more_with_cursor() {
+		let resp: ApiResponse<Vec<u8>> = ApiResponse {
+			data: vec![],
+			meta: Some(ResponseMeta {
+				next_cursor: Some("abc".to_string()),
+				timestamp: None,
+				request_id: None,
+			}),
+		};
+		assert!(resp.has_more());
+		assert_eq!(resp.next_cursor(), Some("abc"));
+	}
+
+	#[test]
+	fn has_more_without_cursor() {
+		let resp: ApiResponse<Vec<u8>> = ApiResponse {
+			data: vec![],
+			meta: Some(ResponseMeta {
+				next_cursor: None,
+				timestamp: Some(123),
+				request_id: None,
+			}),
+		};
+		assert!(!resp.has_more());
+		assert_eq!(resp.next_cursor(), None);
+	}
+
+	#[test]
+	fn has_more_no_meta() {
+		let resp: ApiResponse<Vec<u8>> = ApiResponse {
+			data: vec![],
+			meta: None,
+		};
+		assert!(!resp.has_more());
+		assert_eq!(resp.next_cursor(), None);
 	}
 
 	#[test]

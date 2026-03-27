@@ -52,6 +52,10 @@ fn load_threads(app: &mut App, forum_id: u64, append: bool) {
 		.get_threads(forum_id, DEFAULT_PAGE_SIZE, cursor.as_deref())
 	{
 		Ok(resp) => {
+			// Extract pagination before moving data
+			let has_more = resp.has_more();
+			let next_cursor = resp.next_cursor().map(String::from);
+
 			if append {
 				app.threads.extend(resp.data);
 			} else {
@@ -60,12 +64,8 @@ fn load_threads(app: &mut App, forum_id: u64, append: bool) {
 
 			// Update pagination state
 			if let Some(list) = app.current_list_mut() {
-				if let Some(pg) = &resp.pagination {
-					list.next_cursor = pg.next_cursor.clone();
-					list.has_more = pg.has_more;
-				} else {
-					list.has_more = false;
-				}
+				list.next_cursor = next_cursor;
+				list.has_more = has_more;
 			}
 
 			let count = app.threads.len();
@@ -88,6 +88,10 @@ fn load_posts(app: &mut App, thread_id: u64, append: bool) {
 		.get_posts(thread_id, DEFAULT_PAGE_SIZE, cursor.as_deref())
 	{
 		Ok(resp) => {
+			// Extract pagination before moving data
+			let has_more = resp.has_more();
+			let next_cursor = resp.next_cursor().map(String::from);
+
 			if append {
 				app.posts.extend(resp.data);
 			} else {
@@ -95,12 +99,8 @@ fn load_posts(app: &mut App, thread_id: u64, append: bool) {
 			}
 
 			if let Some(list) = app.current_list_mut() {
-				if let Some(pg) = &resp.pagination {
-					list.next_cursor = pg.next_cursor.clone();
-					list.has_more = pg.has_more;
-				} else {
-					list.has_more = false;
-				}
+				list.next_cursor = next_cursor;
+				list.has_more = has_more;
 			}
 
 			let count = app.posts.len();
