@@ -291,6 +291,23 @@ describe("admin forum handlers", () => {
 			const body = await res.json();
 			expect(body.error.details.message).toBe("Parent forum not found");
 		});
+
+		it("should return 400 for malformed JSON", async () => {
+			const { db } = createMockDb();
+			const token = await createJwtForRole(1);
+			const res = await create(
+				new Request("https://api.example.com/api/admin/forums", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: "not json",
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.code).toBe("INVALID_BODY");
+		});
 	});
 
 	describe("update", () => {
@@ -394,6 +411,186 @@ describe("admin forum handlers", () => {
 			);
 
 			expect(res.status).toBe(400);
+		});
+
+		it("should update description field", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"FROM forums WHERE id": makeD1ForumRow({ id: 42, description: "updated" }),
+				},
+			});
+
+			const token = await createJwtForRole(1);
+			const res = await update(
+				new Request("https://api.example.com/api/admin/forums/42", {
+					method: "PATCH",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ description: "updated" }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(200);
+			const updateCall = calls.find((c) => c.sql.includes("UPDATE forums SET"));
+			expect(updateCall?.sql).toContain("description = ?");
+		});
+
+		it("should update icon field", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+				},
+			});
+
+			const token = await createJwtForRole(1);
+			const res = await update(
+				new Request("https://api.example.com/api/admin/forums/42", {
+					method: "PATCH",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ icon: "new-icon.png" }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(200);
+			const updateCall = calls.find((c) => c.sql.includes("UPDATE forums SET"));
+			expect(updateCall?.sql).toContain("icon = ?");
+		});
+
+		it("should update displayOrder field", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+				},
+			});
+
+			const token = await createJwtForRole(1);
+			const res = await update(
+				new Request("https://api.example.com/api/admin/forums/42", {
+					method: "PATCH",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ displayOrder: 5 }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(200);
+			const updateCall = calls.find((c) => c.sql.includes("UPDATE forums SET"));
+			expect(updateCall?.sql).toContain("display_order = ?");
+		});
+
+		it("should update parentId field", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+				},
+			});
+
+			const token = await createJwtForRole(1);
+			const res = await update(
+				new Request("https://api.example.com/api/admin/forums/42", {
+					method: "PATCH",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ parentId: 2 }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(200);
+			const updateCall = calls.find((c) => c.sql.includes("UPDATE forums SET"));
+			expect(updateCall?.sql).toContain("parent_id = ?");
+		});
+
+		it("should update type field", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+				},
+			});
+
+			const token = await createJwtForRole(1);
+			const res = await update(
+				new Request("https://api.example.com/api/admin/forums/42", {
+					method: "PATCH",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ type: "sub" }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(200);
+			const updateCall = calls.find((c) => c.sql.includes("UPDATE forums SET"));
+			expect(updateCall?.sql).toContain("type = ?");
+		});
+
+		it("should reject invalid status in update", async () => {
+			const { db } = createMockDb({});
+
+			const token = await createJwtForRole(1);
+			const res = await update(
+				new Request("https://api.example.com/api/admin/forums/42", {
+					method: "PATCH",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ status: 9 }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("status must be 0 or 1");
+		});
+
+		it("should reject invalid forum ID", async () => {
+			const { db } = createMockDb({});
+			const token = await createJwtForRole(1);
+			const res = await update(
+				new Request("https://api.example.com/api/admin/forums/abc", {
+					method: "PATCH",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ name: "Test" }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("Invalid forum ID");
+		});
+
+		it("should reject malformed JSON in update", async () => {
+			const { db } = createMockDb({});
+			const token = await createJwtForRole(1);
+			const res = await update(
+				new Request("https://api.example.com/api/admin/forums/42", {
+					method: "PATCH",
+					headers: { Authorization: `Bearer ${token}` },
+					body: "not json",
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.code).toBe("INVALID_BODY");
+		});
+
+		it("should reject name longer than 100 characters", async () => {
+			const { db } = createMockDb({});
+			const token = await createJwtForRole(1);
+			const longName = "a".repeat(101);
+			const res = await update(
+				new Request("https://api.example.com/api/admin/forums/42", {
+					method: "PATCH",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ name: longName }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("name must be at most 100 characters");
 		});
 	});
 
