@@ -82,6 +82,14 @@ export default {
 				return await (await import("./handlers/post")).create(request, env);
 			}
 
+			// User self-service
+			if (path === "/api/v1/users/me" && request.method === "PATCH") {
+				return await (await import("./handlers/me")).updateProfile(request, env);
+			}
+			if (path === "/api/v1/users/me/password" && request.method === "POST") {
+				return await (await import("./handlers/me")).changePassword(request, env);
+			}
+
 			// ── Admin: Forums (Admin only) ────────────────────
 			if (path === "/api/admin/forums" && request.method === "GET") {
 				return await (await import("./handlers/admin/forum")).list(request, env);

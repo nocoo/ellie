@@ -56,6 +56,7 @@ function getStatusMessage(code: string): string {
 		INVALID_REFRESH_TOKEN: "Refresh token is invalid or expired",
 		THREAD_NOT_FOUND: "Thread not found",
 		THREAD_CLOSED: "Thread is closed and does not accept new replies",
+		WRONG_PASSWORD: "Current password is incorrect",
 	};
 
 	return messages[code] || "An error occurred";
