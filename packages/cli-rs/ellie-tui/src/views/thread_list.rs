@@ -6,7 +6,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Cell, Paragraph, Row, Table, TableState};
 
 use crate::theme::ThemeColors;
-use crate::views::truncate_to_width;
+use crate::views::{format_timestamp, truncate_to_width};
 
 /// Render the thread list as a table with proper column alignment.
 pub fn draw(
@@ -30,8 +30,9 @@ pub fn draw(
 		return;
 	}
 
-	// Dynamic subject width = total width - author(12) - replies(8) - views(8) - padding(6)
-	let subject_width = (area.width as usize).saturating_sub(34);
+	// Column widths: subject(flex) | author(12) | time(21) | replies(8) | views(8)
+	let fixed_cols = 12 + 21 + 8 + 8 + 6; // 6 for padding/spacing
+	let subject_width = (area.width as usize).saturating_sub(fixed_cols);
 
 	let rows: Vec<Row> = threads
 		.iter()
@@ -60,6 +61,10 @@ pub fn draw(
 					Style::default().fg(tc.muted),
 				))),
 				Cell::from(Line::from(Span::styled(
+					format_timestamp(thread.created_at),
+					Style::default().fg(tc.muted),
+				))),
+				Cell::from(Line::from(Span::styled(
 					format!("{:>6}", thread.replies),
 					Style::default().fg(tc.muted),
 				))),
@@ -71,28 +76,19 @@ pub fn draw(
 		})
 		.collect();
 
+	let header_style = Style::default().fg(tc.muted).add_modifier(Modifier::BOLD);
 	let header = Row::new(vec![
-		Cell::from(Span::styled(
-			"  标题",
-			Style::default().fg(tc.muted).add_modifier(Modifier::BOLD),
-		)),
-		Cell::from(Span::styled(
-			"作者",
-			Style::default().fg(tc.muted).add_modifier(Modifier::BOLD),
-		)),
-		Cell::from(Span::styled(
-			"  回复",
-			Style::default().fg(tc.muted).add_modifier(Modifier::BOLD),
-		)),
-		Cell::from(Span::styled(
-			"  浏览",
-			Style::default().fg(tc.muted).add_modifier(Modifier::BOLD),
-		)),
+		Cell::from(Span::styled("  标题", header_style)),
+		Cell::from(Span::styled("作者", header_style)),
+		Cell::from(Span::styled("发布时间", header_style)),
+		Cell::from(Span::styled("回复", header_style)),
+		Cell::from(Span::styled("浏览", header_style)),
 	]);
 
 	let widths = [
 		Constraint::Min(20),
 		Constraint::Length(12),
+		Constraint::Length(21),
 		Constraint::Length(8),
 		Constraint::Length(8),
 	];
@@ -125,7 +121,7 @@ mod tests {
 			subject: subject.to_string(),
 			author_id: 1,
 			author_name: "user".to_string(),
-			created_at: 0,
+			created_at: 1711540800,
 			views: 0,
 			replies: 0,
 			last_post_at: 0,
@@ -175,7 +171,7 @@ mod tests {
 
 	#[test]
 	fn render_thread_items() {
-		let backend = TestBackend::new(80, 5);
+		let backend = TestBackend::new(120, 5);
 		let mut terminal = Terminal::new(backend).unwrap();
 		let tc = Theme::Default.colors();
 		let threads = vec![dummy_thread(1, "Hello world"), dummy_thread(2, "Rust tips")];
@@ -191,11 +187,13 @@ mod tests {
 			.collect();
 		assert!(text.contains("Hello world"));
 		assert!(text.contains("Rust tips"));
+		// Should contain formatted timestamp
+		assert!(text.contains("2024/"));
 	}
 
 	#[test]
 	fn render_sticky_thread() {
-		let backend = TestBackend::new(80, 4);
+		let backend = TestBackend::new(120, 4);
 		let mut terminal = Terminal::new(backend).unwrap();
 		let tc = Theme::Default.colors();
 		let mut t = dummy_thread(1, "Important");
@@ -210,7 +208,25 @@ mod tests {
 			.map(|c| c.symbol().chars().next().unwrap_or(' '))
 			.collect();
 		assert!(text.contains("Important"));
-		// Sticky threads show the [置顶] prefix
 		assert!(text.contains("["));
+	}
+
+	#[test]
+	fn render_header_has_time_column() {
+		let backend = TestBackend::new(120, 4);
+		let mut terminal = Terminal::new(backend).unwrap();
+		let tc = Theme::Default.colors();
+		let threads = vec![dummy_thread(1, "Test")];
+		let mut ts = TableState::default();
+		terminal
+			.draw(|f| draw(f, f.area(), &threads, &mut ts, false, &tc))
+			.unwrap();
+		let buf = terminal.backend().buffer().content().to_vec();
+		let symbols: Vec<&str> = buf.iter().map(|c| c.symbol()).collect();
+		// CJK chars in TestBackend occupy 2 cells, so check individual chars
+		assert!(symbols.contains(&"发"));
+		assert!(symbols.contains(&"布"));
+		assert!(symbols.contains(&"时"));
+		assert!(symbols.contains(&"间"));
 	}
 }

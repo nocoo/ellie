@@ -175,11 +175,11 @@ pub fn draw(
 				Row::new(vec![
 					Cell::from(Line::from(Span::styled(name, style))),
 					Cell::from(Line::from(Span::styled(
-						format!("{:>8}", node.forum.threads),
+						format!("{}", node.forum.threads),
 						Style::default().fg(tc.muted),
 					))),
 					Cell::from(Line::from(Span::styled(
-						format!("{:>8}", node.forum.posts),
+						format!("{}", node.forum.posts),
 						Style::default().fg(tc.muted),
 					))),
 				])
@@ -187,19 +187,11 @@ pub fn draw(
 		})
 		.collect();
 
+	let header_style = Style::default().fg(tc.muted).add_modifier(Modifier::BOLD);
 	let header = Row::new(vec![
-		Cell::from(Span::styled(
-			"  版块",
-			Style::default().fg(tc.muted).add_modifier(Modifier::BOLD),
-		)),
-		Cell::from(Span::styled(
-			"   主题",
-			Style::default().fg(tc.muted).add_modifier(Modifier::BOLD),
-		)),
-		Cell::from(Span::styled(
-			"   帖数",
-			Style::default().fg(tc.muted).add_modifier(Modifier::BOLD),
-		)),
+		Cell::from(Span::styled("  版块", header_style)),
+		Cell::from(Span::styled("主题", header_style)),
+		Cell::from(Span::styled("帖数", header_style)),
 	]);
 
 	let widths = [
