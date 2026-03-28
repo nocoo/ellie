@@ -33,6 +33,5 @@
 		"src/**/*.tsx",
 		".next/dev/types/**/*.ts"
 	],
-	"exclude": ["node_modules", "dist"],
-	"references": [{ "path": "../../packages/types" }, { "path": "../../packages/repositories" }]
+	"exclude": ["node_modules", "dist"]
 }
