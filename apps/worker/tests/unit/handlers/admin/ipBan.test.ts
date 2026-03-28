@@ -485,6 +485,74 @@ describe("admin ipBan handlers", () => {
 			expect(data.banned).toBe(false);
 		});
 
+		it("should return exact match over CIDR and wildcard", async () => {
+			const { db } = createMockDb({
+				allResults: {
+					"SELECT id, ip, admin_id": [
+						makeIpBanRow({ id: 1, ip: "10.0.*.*" }),
+						makeIpBanRow({ id: 2, ip: "10.0.0.0/24" }),
+						makeIpBanRow({ id: 3, ip: "10.0.0.5" }),
+					],
+				},
+			});
+			const env = makeEnv({ DB: db });
+			const request = await createAdminRequest("GET", "/api/admin/ip-bans/check-ip?ip=10.0.0.5");
+
+			const response = await checkIp(request, env);
+
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as Record<string, unknown>;
+			const data = body.data as Record<string, unknown>;
+			expect(data.banned).toBe(true);
+			expect((data.matchedRule as Record<string, unknown>).ip).toBe("10.0.0.5");
+		});
+
+		it("should return longer CIDR prefix over shorter", async () => {
+			const { db } = createMockDb({
+				allResults: {
+					"SELECT id, ip, admin_id": [
+						makeIpBanRow({ id: 1, ip: "192.168.0.0/16" }),
+						makeIpBanRow({ id: 2, ip: "192.168.1.0/24" }),
+					],
+				},
+			});
+			const env = makeEnv({ DB: db });
+			const request = await createAdminRequest(
+				"GET",
+				"/api/admin/ip-bans/check-ip?ip=192.168.1.50",
+			);
+
+			const response = await checkIp(request, env);
+
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as Record<string, unknown>;
+			const data = body.data as Record<string, unknown>;
+			expect(data.banned).toBe(true);
+			expect((data.matchedRule as Record<string, unknown>).ip).toBe("192.168.1.0/24");
+		});
+
+		it("should return CIDR over wildcard", async () => {
+			const { db } = createMockDb({
+				allResults: {
+					"SELECT id, ip, admin_id": [
+						makeIpBanRow({ id: 1, ip: "10.*.*.*" }),
+						makeIpBanRow({ id: 2, ip: "10.0.0.0/8" }),
+					],
+				},
+			});
+			const env = makeEnv({ DB: db });
+			const request = await createAdminRequest("GET", "/api/admin/ip-bans/check-ip?ip=10.0.0.5");
+
+			const response = await checkIp(request, env);
+
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as Record<string, unknown>;
+			const data = body.data as Record<string, unknown>;
+			expect(data.banned).toBe(true);
+			// CIDR /8 has specificity 8, wildcard 10.*.*.* has specificity 1
+			expect((data.matchedRule as Record<string, unknown>).ip).toBe("10.0.0.0/8");
+		});
+
 		it("should require ip query parameter", async () => {
 			const { db } = createMockDb({});
 			const env = makeEnv({ DB: db });

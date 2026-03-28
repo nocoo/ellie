@@ -172,6 +172,31 @@ function ipMatchesRule(inputIp: string, ruleIp: string): boolean {
 	return false;
 }
 
+/**
+ * Classify a rule IP for specificity ranking.
+ * Higher specificity = more specific rule = should take priority.
+ * - exact: specificity 1000 (most specific)
+ * - CIDR: specificity = prefix length (0–32, higher = more specific)
+ * - wildcard: specificity = number of non-wildcard octets (0–3)
+ */
+function ruleSpecificity(ruleIp: string): number {
+	// CIDR
+	if (ruleIp.includes("/")) {
+		const prefixStr = ruleIp.split("/")[1];
+		const prefix = Number.parseInt(prefixStr ?? "0", 10);
+		// CIDR /32 is effectively exact but still less than a true exact match
+		return Number.isNaN(prefix) ? 0 : prefix;
+	}
+	// Wildcard
+	if (ruleIp.includes("*")) {
+		const parts = ruleIp.split(".");
+		const nonWild = parts.filter((p) => p !== "*").length;
+		return nonWild; // 0–3, always less than CIDR /8 = 8
+	}
+	// Exact match (no / or *)
+	return 1000;
+}
+
 // ─── #47 GET /api/admin/ip-bans ───────────────────────────────────
 // Custom list handler: supports ip (LIKE) filter + expired toggle.
 // By default only returns valid (non-expired) bans.
@@ -305,15 +330,23 @@ export const checkIp = withEntityAuth(
 			.bind(now)
 			.all();
 
-		// Check each rule for a match
+		// Collect all matching rules
+		const matches: { ban: Record<string, unknown>; specificity: number }[] = [];
 		for (const row of result.results) {
 			const ban = row as Record<string, unknown>;
 			const ruleIp = ban.ip as string;
 			if (ipMatchesRule(ip, ruleIp)) {
-				return jsonResponse({ banned: true, matchedRule: toIpBan(ban) }, origin);
+				matches.push({ ban, specificity: ruleSpecificity(ruleIp) });
 			}
 		}
 
-		return jsonResponse({ banned: false }, origin);
+		if (matches.length === 0) {
+			return jsonResponse({ banned: false }, origin);
+		}
+
+		// Sort by specificity descending — most specific rule first
+		matches.sort((a, b) => b.specificity - a.specificity);
+
+		return jsonResponse({ banned: true, matchedRule: toIpBan(matches[0].ban) }, origin);
 	},
 );
