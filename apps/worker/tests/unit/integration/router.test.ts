@@ -531,4 +531,64 @@ describe("worker router integration", () => {
 			expect(data.data).toBeArray();
 		});
 	});
+
+	// ─── Moderation Routes ───────────────────────────────
+	// Moderation routes use Key A + JWT + role ∈ {1,2,3}
+
+	describe("Moderation routes", () => {
+		it("PATCH /api/v1/moderation/threads/:id/sticky should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/v1/moderation/threads/1/sticky",
+					withApiKey({ method: "PATCH" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("PATCH /api/v1/moderation/threads/:id/digest should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/v1/moderation/threads/1/digest",
+					withApiKey({ method: "PATCH" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("PATCH /api/v1/moderation/threads/:id/close should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/v1/moderation/threads/1/close",
+					withApiKey({ method: "PATCH" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("PATCH /api/v1/moderation/threads/:id/move should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/v1/moderation/threads/1/move",
+					withApiKey({ method: "PATCH" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("DELETE /api/v1/moderation/posts/:id should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/v1/moderation/posts/1",
+					withApiKey({ method: "DELETE" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+	});
 });

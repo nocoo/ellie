@@ -1,11 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import type { Env } from "../../../src/lib/env";
 import { createJwt } from "../../../src/lib/jwt";
-import { authMiddleware } from "../../../src/middleware/auth";
+import { authMiddleware, moderationMiddleware } from "../../../src/middleware/auth";
 
 describe("authMiddleware", () => {
 	const mockEnv: Env = {
 		API_KEY: "test-api-key",
+		ADMIN_API_KEY: "test-admin-api-key",
 		DB: {} as D1Database,
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret-key-for-jwt-hs256",
@@ -189,5 +190,99 @@ describe("authMiddleware", () => {
 		const authResult = result as { user: { userId: number; role: number } };
 		expect(authResult.user.userId).toBe(50);
 		expect(authResult.user.role).toBe(0);
+	});
+});
+
+describe("moderationMiddleware", () => {
+	const mockEnv: Env = {
+		API_KEY: "test-api-key",
+		ADMIN_API_KEY: "test-admin-api-key",
+		DB: {} as D1Database,
+		ENVIRONMENT: "test",
+		JWT_SECRET: "test-secret-key-for-jwt-hs256",
+		KV: {} as KVNamespace,
+	};
+
+	it("should return 401 when no Authorization header", async () => {
+		const request = new Request("https://example.com/api/v1/moderation/threads/1/sticky");
+		const result = await moderationMiddleware(request, mockEnv);
+		expect(result).toBeInstanceOf(Response);
+		expect((result as Response).status).toBe(401);
+	});
+
+	it("should return 403 for regular user (role 0)", async () => {
+		const token = await createJwt(
+			{ userId: 1, role: 0, exp: Math.floor(Date.now() / 1000) + 3600 },
+			mockEnv.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/moderation/threads/1/sticky", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+
+		const result = await moderationMiddleware(request, mockEnv);
+		expect(result).toBeInstanceOf(Response);
+		const response = result as Response;
+		expect(response.status).toBe(403);
+		const data = await response.json();
+		expect(data.error.code).toBe("FORBIDDEN_MOD_ONLY");
+	});
+
+	it("should allow Admin (role 1)", async () => {
+		const token = await createJwt(
+			{ userId: 1, role: 1, exp: Math.floor(Date.now() / 1000) + 3600 },
+			mockEnv.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/moderation/threads/1/sticky", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+
+		const result = await moderationMiddleware(request, mockEnv);
+		expect(result).not.toBeInstanceOf(Response);
+		const authResult = result as { user: { userId: number; role: number } };
+		expect(authResult.user.role).toBe(1);
+	});
+
+	it("should allow SuperMod (role 2)", async () => {
+		const token = await createJwt(
+			{ userId: 2, role: 2, exp: Math.floor(Date.now() / 1000) + 3600 },
+			mockEnv.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/moderation/threads/1/sticky", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+
+		const result = await moderationMiddleware(request, mockEnv);
+		expect(result).not.toBeInstanceOf(Response);
+		const authResult = result as { user: { userId: number; role: number } };
+		expect(authResult.user.role).toBe(2);
+	});
+
+	it("should allow Mod (role 3)", async () => {
+		const token = await createJwt(
+			{ userId: 3, role: 3, exp: Math.floor(Date.now() / 1000) + 3600 },
+			mockEnv.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/moderation/threads/1/sticky", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+
+		const result = await moderationMiddleware(request, mockEnv);
+		expect(result).not.toBeInstanceOf(Response);
+		const authResult = result as { user: { userId: number; role: number } };
+		expect(authResult.user.role).toBe(3);
+	});
+
+	it("should return 401 for expired token", async () => {
+		const token = await createJwt(
+			{ userId: 1, role: 1, exp: Math.floor(Date.now() / 1000) - 3600 },
+			mockEnv.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/moderation/threads/1/sticky", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+
+		const result = await moderationMiddleware(request, mockEnv);
+		expect(result).toBeInstanceOf(Response);
+		expect((result as Response).status).toBe(401);
 	});
 });

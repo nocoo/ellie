@@ -1,5 +1,5 @@
 // Ellie API Worker — Cloudflare Worker with D1 + KV
-// 61 endpoints: 17 public + 44 admin
+// 66 endpoints: 17 public + 5 moderation + 44 admin
 import type { CFRequest, Env } from "./lib/env";
 import { validateApiKey } from "./middleware/apiKey";
 import { corsHeaders } from "./middleware/cors";
@@ -90,6 +90,32 @@ export default {
 			}
 			if (path === "/api/v1/users/me/password" && request.method === "POST") {
 				return await (await import("./handlers/me")).changePassword(request, env);
+			}
+
+			// ── Moderation routes (Key A + JWT + role check) ─
+			if (
+				path.match(/^\/api\/v1\/moderation\/threads\/\d+\/sticky$/) &&
+				request.method === "PATCH"
+			) {
+				return await (await import("./handlers/moderation")).setSticky(request, env);
+			}
+			if (
+				path.match(/^\/api\/v1\/moderation\/threads\/\d+\/digest$/) &&
+				request.method === "PATCH"
+			) {
+				return await (await import("./handlers/moderation")).setDigest(request, env);
+			}
+			if (
+				path.match(/^\/api\/v1\/moderation\/threads\/\d+\/close$/) &&
+				request.method === "PATCH"
+			) {
+				return await (await import("./handlers/moderation")).setClose(request, env);
+			}
+			if (path.match(/^\/api\/v1\/moderation\/threads\/\d+\/move$/) && request.method === "PATCH") {
+				return await (await import("./handlers/moderation")).moveThread(request, env);
+			}
+			if (path.match(/^\/api\/v1\/moderation\/posts\/\d+$/) && request.method === "DELETE") {
+				return await (await import("./handlers/moderation")).deletePost(request, env);
 			}
 
 			// ══════════════════════════════════════════════════
