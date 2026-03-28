@@ -51,9 +51,7 @@ const postConfig: EntityConfig = {
 	afterDelete: async (_id, existing, _user, env) => {
 		const row = existing as { thread_id: number; forum_id: number };
 		await env.DB.batch([
-			env.DB.prepare("UPDATE threads SET replies = replies - 1 WHERE id = ?").bind(
-				row.thread_id,
-			),
+			env.DB.prepare("UPDATE threads SET replies = replies - 1 WHERE id = ?").bind(row.thread_id),
 			env.DB.prepare("UPDATE forums SET posts = posts - 1 WHERE id = ?").bind(row.forum_id),
 		]);
 	},
@@ -92,12 +90,7 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env, _user
 
 	const { ids } = body;
 	if (!Array.isArray(ids) || ids.length === 0) {
-		return errorResponse(
-			"INVALID_BODY",
-			400,
-			{ message: "ids must be a non-empty array" },
-			origin,
-		);
+		return errorResponse("INVALID_BODY", 400, { message: "ids must be a non-empty array" }, origin);
 	}
 	if (ids.length > MAX_BATCH_SIZE) {
 		return errorResponse(
@@ -158,10 +151,7 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env, _user
 	}
 	for (const [threadId, count] of threadUpdates) {
 		statements.push(
-			env.DB.prepare("UPDATE threads SET replies = replies - ? WHERE id = ?").bind(
-				count,
-				threadId,
-			),
+			env.DB.prepare("UPDATE threads SET replies = replies - ? WHERE id = ?").bind(count, threadId),
 		);
 	}
 	for (const [forumId, count] of forumUpdates) {

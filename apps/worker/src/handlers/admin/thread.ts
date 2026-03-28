@@ -1,7 +1,6 @@
 // Admin thread handlers — CRUD framework implementation
 // Endpoints #25-#30: list, getById, update, delete, batch-delete, batch-move
 
-import type { AuthUser } from "../../middleware/auth";
 import { withEntityAuth } from "../../lib/adminHelpers";
 import type { EntityConfig } from "../../lib/crud";
 import {
@@ -14,6 +13,7 @@ import type { Env } from "../../lib/env";
 import { toThread } from "../../lib/mappers";
 import { parseIdFromPath } from "../../lib/parseId";
 import { jsonResponse } from "../../lib/response";
+import type { AuthUser } from "../../middleware/auth";
 import { errorResponse } from "../../middleware/error";
 
 // ─── Entity config ───────────────────────────────────────────────
@@ -99,7 +99,7 @@ const threadConfig: EntityConfig = {
 
 	// ─── Lifecycle hooks ─────────────────────────────────────────
 
-	async beforeUpdate(id, data, existing, _user, env) {
+	async beforeUpdate(_id, data, _existing, _user, env) {
 		// Validate target forum exists when moving
 		if (data.forum_id !== undefined) {
 			const targetForum = await env.DB.prepare("SELECT id FROM forums WHERE id = ?")
@@ -132,15 +132,13 @@ const threadConfig: EntityConfig = {
 		}
 	},
 
-	async afterDelete(id, existing, _user, env) {
+	async afterDelete(_id, existing, _user, env) {
 		// Decrement forum threads/posts counts
 		const forumId = existing.forum_id as number;
 		const replies = existing.replies as number;
 		const postCount = replies + 1;
 
-		await env.DB.prepare(
-			"UPDATE forums SET threads = threads - 1, posts = posts - ? WHERE id = ?",
-		)
+		await env.DB.prepare("UPDATE forums SET threads = threads - 1, posts = posts - ? WHERE id = ?")
 			.bind(postCount, forumId)
 			.run();
 	},

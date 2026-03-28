@@ -2,7 +2,7 @@
 // Uses CRUD framework for getById, create, update, remove, batchDelete.
 // Custom handlers for list (expired filter) and check-ip (CIDR/wildcard matching).
 
-import type { AuthUser } from "../../middleware/auth";
+import { withEntityAuth } from "../../lib/adminHelpers";
 import type { EntityConfig } from "../../lib/crud";
 import {
 	createBatchDeleteHandler,
@@ -11,10 +11,10 @@ import {
 	createRemoveHandler,
 	createUpdateHandler,
 } from "../../lib/crud";
-import { withEntityAuth } from "../../lib/adminHelpers";
 import type { Env } from "../../lib/env";
 import { toIpBan } from "../../lib/mappers";
 import { jsonResponse, paginatedResponse } from "../../lib/response";
+import type { AuthUser } from "../../middleware/auth";
 import { errorResponse } from "../../middleware/error";
 
 // ─── Column list ──────────────────────────────────────────────────
@@ -211,9 +211,7 @@ export const list = withEntityAuth(
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid page number" }, origin);
 		}
 
-		const countResult = await env.DB.prepare(
-			`SELECT COUNT(*) as total FROM ip_bans ${whereClause}`,
-		)
+		const countResult = await env.DB.prepare(`SELECT COUNT(*) as total FROM ip_bans ${whereClause}`)
 			.bind(...params)
 			.first<{ total: number }>();
 

@@ -1,16 +1,12 @@
-// Admin user handlers (#36-#42) — CRUD framework + custom actions
-import type { AuthUser } from "../../middleware/auth";
-import type { EntityConfig } from "../../lib/crud";
-import {
-	createGetByIdHandler,
-	createListHandler,
-	createUpdateHandler,
-} from "../../lib/crud";
 import { withEntityAuth } from "../../lib/adminHelpers";
+import type { EntityConfig } from "../../lib/crud";
+import { createGetByIdHandler, createListHandler, createUpdateHandler } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { toUser } from "../../lib/mappers";
 import { parsePathSegment } from "../../lib/parseId";
 import { jsonResponse } from "../../lib/response";
+// Admin user handlers (#36-#42) — CRUD framework + custom actions
+import type { AuthUser } from "../../middleware/auth";
 import { errorResponse } from "../../middleware/error";
 
 // ─── Column list (never SELECT * — excludes password_hash, password_salt) ────
@@ -112,9 +108,7 @@ const userConfig: EntityConfig = {
 
 		// Username uniqueness check
 		if (data.username !== undefined) {
-			const existing = await env.DB.prepare(
-				"SELECT id FROM users WHERE username = ? AND id != ?",
-			)
+			const existing = await env.DB.prepare("SELECT id FROM users WHERE username = ? AND id != ?")
 				.bind(data.username, id)
 				.first();
 			if (existing) {
@@ -145,10 +139,7 @@ interface ContentDeletionResult {
 	postsDeleted: number;
 }
 
-async function deleteUserContent(
-	env: Env,
-	userId: number,
-): Promise<ContentDeletionResult> {
+async function deleteUserContent(env: Env, userId: number): Promise<ContentDeletionResult> {
 	// 1. Get user's threads to calculate forum impact
 	const threads = await env.DB.prepare(
 		"SELECT id, forum_id, replies FROM threads WHERE author_id = ?",
@@ -290,9 +281,7 @@ export const ban = withEntityAuth(
 		const result = await deleteUserContent(env, id);
 
 		// Update user: ban + zero counters
-		await env.DB.prepare(
-			"UPDATE users SET status = -1, threads = 0, posts = 0 WHERE id = ?",
-		)
+		await env.DB.prepare("UPDATE users SET status = -1, threads = 0, posts = 0 WHERE id = ?")
 			.bind(id)
 			.run();
 
@@ -387,12 +376,7 @@ export const batchStatus = withEntityAuth(
 			);
 		}
 		if (typeof body.status !== "number" || !VALID_STATUSES.has(body.status)) {
-			return errorResponse(
-				"INVALID_BODY",
-				400,
-				{ message: "status must be 0, -1, or -2" },
-				origin,
-			);
+			return errorResponse("INVALID_BODY", 400, { message: "status must be 0, -1, or -2" }, origin);
 		}
 
 		// Parse and validate IDs, auto-exclude current user
@@ -405,9 +389,7 @@ export const batchStatus = withEntityAuth(
 		}
 
 		const placeholders = ids.map(() => "?").join(",");
-		await env.DB.prepare(
-			`UPDATE users SET status = ? WHERE id IN (${placeholders})`,
-		)
+		await env.DB.prepare(`UPDATE users SET status = ? WHERE id IN (${placeholders})`)
 			.bind(body.status, ...ids)
 			.run();
 
@@ -448,12 +430,7 @@ export const batchRole = withEntityAuth(
 			);
 		}
 		if (typeof body.role !== "number" || !VALID_ROLES.has(body.role)) {
-			return errorResponse(
-				"INVALID_BODY",
-				400,
-				{ message: "role must be 0, 1, 2, or 3" },
-				origin,
-			);
+			return errorResponse("INVALID_BODY", 400, { message: "role must be 0, 1, 2, or 3" }, origin);
 		}
 
 		// Parse and validate IDs, auto-exclude current user
@@ -466,9 +443,7 @@ export const batchRole = withEntityAuth(
 		}
 
 		const placeholders = ids.map(() => "?").join(",");
-		await env.DB.prepare(
-			`UPDATE users SET role = ? WHERE id IN (${placeholders})`,
-		)
+		await env.DB.prepare(`UPDATE users SET role = ? WHERE id IN (${placeholders})`)
 			.bind(body.role, ...ids)
 			.run();
 
