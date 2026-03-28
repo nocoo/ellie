@@ -5,6 +5,25 @@ import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
+/** Static barcode decoration for the badge header. */
+const BARS: ReadonlyArray<{ id: string; width: number; opacity: number }> = [
+	2, 1, 3, 1, 2, 1, 1, 3, 1, 2, 1, 3, 2, 1, 1, 2, 3, 1, 2, 1,
+].map((w, i) => ({ id: `b${i}`, width: w * 1.5, opacity: i % 3 === 0 ? 0.9 : 0.5 }));
+
+function Barcode() {
+	return (
+		<div className="flex items-stretch gap-[1.5px] h-full">
+			{BARS.map((bar) => (
+				<div
+					key={bar.id}
+					className="rounded-[0.5px] bg-primary-foreground"
+					style={{ width: `${bar.width}px`, opacity: bar.opacity }}
+				/>
+			))}
+		</div>
+	);
+}
+
 function GoogleIcon() {
 	return (
 		<svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
@@ -32,6 +51,9 @@ function LoginContent() {
 	const searchParams = useSearchParams();
 	const error = searchParams.get("error");
 
+	const year = new Date().getFullYear();
+	const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+
 	const handleGoogleLogin = () => {
 		signIn("google", { callbackUrl: "/admin" });
 	};
@@ -39,20 +61,20 @@ function LoginContent() {
 	return (
 		<div className="relative flex min-h-screen flex-col bg-background overflow-hidden">
 			<div className="flex flex-1 items-center justify-center p-4">
-				{/* Radial glow */}
+				{/* Radial glow — oklch-safe: use fixed neutral tones instead of hsl(var()) */}
 				<div
 					className="pointer-events-none absolute inset-0"
 					style={{
 						background: [
 							"radial-gradient(ellipse 70% 55% at 50% 50%,",
-							"hsl(var(--foreground) / 0.045) 0%,",
-							"hsl(var(--foreground) / 0.042) 10%,",
-							"hsl(var(--foreground) / 0.036) 20%,",
-							"hsl(var(--foreground) / 0.028) 32%,",
-							"hsl(var(--foreground) / 0.020) 45%,",
-							"hsl(var(--foreground) / 0.012) 58%,",
-							"hsl(var(--foreground) / 0.006) 72%,",
-							"hsl(var(--foreground) / 0.002) 86%,",
+							"oklch(0.5 0 0 / 0.06) 0%,",
+							"oklch(0.5 0 0 / 0.055) 10%,",
+							"oklch(0.5 0 0 / 0.045) 20%,",
+							"oklch(0.5 0 0 / 0.035) 32%,",
+							"oklch(0.5 0 0 / 0.025) 45%,",
+							"oklch(0.5 0 0 / 0.015) 58%,",
+							"oklch(0.5 0 0 / 0.008) 72%,",
+							"oklch(0.5 0 0 / 0.003) 86%,",
 							"transparent 100%)",
 						].join(" "),
 					}}
@@ -62,7 +84,7 @@ function LoginContent() {
 					<ThemeToggle />
 				</div>
 				<div className="flex flex-col items-center">
-					{/* Badge card */}
+					{/* Badge card — bank card flipped vertical: 54/86 */}
 					<div
 						className="relative w-72 overflow-hidden rounded-2xl bg-card flex flex-col ring-1 ring-black/[0.08] dark:ring-white/[0.06]"
 						style={{
@@ -76,21 +98,37 @@ function LoginContent() {
 							].join(", "),
 						}}
 					>
-						{/* Header strip */}
+						{/* Header strip with barcode */}
 						<div className="bg-primary px-5 py-4">
 							<div className="flex items-center justify-between">
-								<div className="h-4 w-8 rounded-full bg-background/80" />
+								{/* Punch hole */}
+								<div
+									className="h-4 w-8 rounded-full bg-background/80"
+									style={{
+										boxShadow:
+											"inset 0 1.5px 3px rgba(0,0,0,0.35), inset 0 -0.5px 1px rgba(255,255,255,0.1)",
+									}}
+								/>
 								<span className="text-sm font-semibold text-primary-foreground">Ellie Admin</span>
 								<span className="text-[10px] font-medium uppercase tracking-widest text-primary-foreground/60">
 									v0.1
 								</span>
+							</div>
+							{/* Barcode row */}
+							<div className="mt-3 flex items-center justify-between">
+								<span className="text-[9px] font-mono text-primary-foreground/40 tracking-wider">
+									ID {year}-{today.slice(4)}
+								</span>
+								<div className="h-6">
+									<Barcode />
+								</div>
 							</div>
 						</div>
 
 						{/* Badge content */}
 						<div className="flex flex-1 flex-col items-center px-6 pt-6 pb-5">
 							{/* Logo placeholder */}
-							<div className="h-24 w-24 overflow-hidden rounded-full bg-secondary dark:bg-secondary ring-1 ring-border flex items-center justify-center">
+							<div className="h-24 w-24 overflow-hidden rounded-full bg-secondary dark:bg-[#171717] ring-1 ring-border flex items-center justify-center">
 								<span className="text-3xl font-bold text-primary">E</span>
 							</div>
 
@@ -109,6 +147,7 @@ function LoginContent() {
 							{/* Divider */}
 							<div className="mt-5 h-px w-full bg-border" />
 
+							{/* Spacing before action area */}
 							<div className="mt-5" />
 
 							{/* Google Sign-in button */}
@@ -120,6 +159,17 @@ function LoginContent() {
 								<GoogleIcon />
 								Sign in with Google
 							</button>
+
+							{/* Terms */}
+							<p className="mt-3 text-center text-[10px] leading-relaxed text-muted-foreground/60">
+								By signing in you agree to our{" "}
+								<a
+									href="/privacy"
+									className="underline hover:text-muted-foreground transition-colors"
+								>
+									privacy policy
+								</a>
+							</p>
 						</div>
 
 						{/* Footer strip */}
