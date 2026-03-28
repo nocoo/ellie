@@ -12,6 +12,7 @@ import {
 import type { Env } from "../../lib/env";
 import { toForum } from "../../lib/mappers";
 import { parsePathSegment } from "../../lib/parseId";
+import { recalcForumMetadata } from "../../lib/recalcMetadata";
 import { jsonResponse } from "../../lib/response";
 import type { AuthUser } from "../../middleware/auth";
 import { errorResponse } from "../../middleware/error";
@@ -255,6 +256,9 @@ export const merge = withEntityAuth(
 		];
 
 		await env.DB.batch(statements);
+
+		// Recalc target forum metadata after merge
+		await recalcForumMetadata(env, targetForumId as number);
 
 		return jsonResponse(
 			{

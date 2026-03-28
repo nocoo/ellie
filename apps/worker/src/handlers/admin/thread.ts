@@ -12,6 +12,7 @@ import {
 import type { Env } from "../../lib/env";
 import { toThread } from "../../lib/mappers";
 import { parseIdFromPath } from "../../lib/parseId";
+import { recalcForumMetadata } from "../../lib/recalcMetadata";
 import { jsonResponse } from "../../lib/response";
 import type { AuthUser } from "../../middleware/auth";
 import { errorResponse } from "../../middleware/error";
@@ -129,6 +130,10 @@ const threadConfig: EntityConfig = {
 					"UPDATE forums SET threads = threads + 1, posts = posts + ? WHERE id = ?",
 				).bind(postCount, newForumId),
 			]);
+
+			// Recalc metadata for both old and new forums
+			await recalcForumMetadata(env, oldForumId);
+			await recalcForumMetadata(env, newForumId);
 		}
 	},
 
@@ -141,6 +146,9 @@ const threadConfig: EntityConfig = {
 		await env.DB.prepare("UPDATE forums SET threads = threads - 1, posts = posts - ? WHERE id = ?")
 			.bind(postCount, forumId)
 			.run();
+
+		// Recalc forum metadata after thread deletion
+		await recalcForumMetadata(env, forumId);
 	},
 };
 
@@ -190,6 +198,9 @@ export const remove = withEntityAuth(
 				"UPDATE forums SET threads = threads - 1, posts = posts - ? WHERE id = ?",
 			).bind(postsDeleted, threadRow.forum_id),
 		]);
+
+		// Recalc forum metadata after thread deletion
+		await recalcForumMetadata(env, threadRow.forum_id);
 
 		return jsonResponse({ deleted: true, id, postsDeleted }, origin);
 	},
@@ -333,6 +344,12 @@ export const batchMove = withEntityAuth(
 		);
 
 		await env.DB.batch(statements);
+
+		// Recalc metadata for all affected forums (old ones + target)
+		for (const forumId of forumAdjustments.keys()) {
+			await recalcForumMetadata(env, forumId);
+		}
+		await recalcForumMetadata(env, targetForumId);
 
 		return jsonResponse({ moved: true, count: movable.length, forumId: targetForumId }, origin);
 	},

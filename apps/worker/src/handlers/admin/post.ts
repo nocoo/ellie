@@ -11,6 +11,7 @@ import {
 	createUpdateHandler,
 } from "../../lib/crud";
 import { toPost } from "../../lib/mappers";
+import { recalcForumMetadata, recalcThreadMetadata } from "../../lib/recalcMetadata";
 import { jsonResponse } from "../../lib/response";
 import { errorResponse } from "../../middleware/error";
 
@@ -59,6 +60,10 @@ const postConfig: EntityConfig = {
 			env.DB.prepare("UPDATE threads SET replies = replies - 1 WHERE id = ?").bind(row.thread_id),
 			env.DB.prepare("UPDATE forums SET posts = posts - 1 WHERE id = ?").bind(row.forum_id),
 		]);
+
+		// Recalc thread and forum metadata after post deletion
+		await recalcThreadMetadata(env, row.thread_id);
+		await recalcForumMetadata(env, row.forum_id);
 	},
 };
 
@@ -166,6 +171,14 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env, _user
 	}
 
 	await env.DB.batch(statements);
+
+	// Recalc metadata for affected threads and forums
+	for (const threadId of threadUpdates.keys()) {
+		await recalcThreadMetadata(env, threadId);
+	}
+	for (const forumId of forumUpdates.keys()) {
+		await recalcForumMetadata(env, forumId);
+	}
 
 	return jsonResponse({ deleted: true, count: deletable.length, skipped }, origin);
 });

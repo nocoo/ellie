@@ -4,6 +4,7 @@ import { createGetByIdHandler, createListHandler, createUpdateHandler } from "..
 import type { Env } from "../../lib/env";
 import { toUser } from "../../lib/mappers";
 import { parsePathSegment } from "../../lib/parseId";
+import { recalcForumMetadata, recalcThreadMetadata } from "../../lib/recalcMetadata";
 import { jsonResponse } from "../../lib/response";
 // Admin user handlers (#36-#42) — CRUD framework + custom actions
 import type { AuthUser } from "../../middleware/auth";
@@ -225,6 +226,21 @@ async function deleteUserContent(env: Env, userId: number): Promise<ContentDelet
 
 	if (statements.length > 0) {
 		await env.DB.batch(statements);
+	}
+
+	// Recalc metadata for all affected forums and threads
+	const allAffectedForumIds = new Set<number>();
+	for (const forumId of forumThreadCounts.keys()) {
+		allAffectedForumIds.add(forumId);
+	}
+	for (const row of standaloneRows) {
+		allAffectedForumIds.add(row.forum_id);
+	}
+	for (const forumId of allAffectedForumIds) {
+		await recalcForumMetadata(env, forumId);
+	}
+	for (const row of standaloneThreadRows) {
+		await recalcThreadMetadata(env, row.thread_id);
 	}
 
 	const totalPostsDeleted =
