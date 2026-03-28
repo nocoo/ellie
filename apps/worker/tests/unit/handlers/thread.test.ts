@@ -195,7 +195,7 @@ describe("thread handlers", () => {
 			);
 
 			const data = await response.json();
-			expect(data.meta.nextCursor).toBeUndefined();
+			expect(data.meta.nextCursor).toBeNull();
 		});
 
 		it("should include metadata in response", async () => {

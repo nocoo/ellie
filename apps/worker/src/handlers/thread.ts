@@ -106,7 +106,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	const threads = result.results.map((row) => toThread(row as Record<string, unknown>));
 
 	// Generate next cursor from raw D1 row (snake_case) — NOT from mapped Thread
-	let nextCursor: string | undefined;
+	let nextCursor: string | null = null;
 	if (threads.length === clampedLimit && threads.length > 0) {
 		const lastRawRow = result.results[result.results.length - 1] as unknown as D1ThreadRow;
 		if (lastRawRow) {

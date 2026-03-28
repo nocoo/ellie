@@ -190,7 +190,7 @@ describe("post handlers", () => {
 			);
 
 			const data = await response.json();
-			expect(data.meta.nextCursor).toBeUndefined();
+			expect(data.meta.nextCursor).toBeNull();
 		});
 
 		it("should handle invalid cursor gracefully", async () => {
@@ -248,7 +248,7 @@ describe("post handlers", () => {
 			const response = await list(new Request("https://example.com/api/v1/posts?threadId=1"), env);
 
 			const data = await response.json();
-			expect(data.meta.nextCursor).toBeUndefined();
+			expect(data.meta.nextCursor).toBeNull();
 			expect(data.data).toEqual([]);
 		});
 
