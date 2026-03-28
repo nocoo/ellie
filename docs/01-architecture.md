@@ -31,7 +31,7 @@ Ellie 是一个将 Discuz! X3.4 论坛数据迁移到 Cloudflare 平台并重建
 
 - **D1 数据库**：所有论坛数据存储在 Cloudflare D1（SQLite 兼容）
 - **Worker API**：唯一的数据访问入口，所有前端项目通过 HTTP 调用 Worker 读写数据
-- **认证模型**：双 Key 隔离 — Key A（`API_KEY`）守护公开/论坛端点，Key B（`ADMIN_API_KEY`）守护管理端点。论坛用户 JWT + Google OAuth Admin JWT 双认证体系完全独立
+- **认证模型**：双 Key 隔离 — Key A（`API_KEY`）守护公开/论坛端点，Key B（`ADMIN_API_KEY`）守护管理端点。论坛用户 JWT 用于 Web/CLI 写操作。Admin 路径仅验证 Key B（Admin 身份由 Next.js 服务端 Google OAuth 确认，Worker 无感知）
 
 ### 前端项目（共三个）
 

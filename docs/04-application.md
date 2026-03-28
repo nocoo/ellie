@@ -134,7 +134,7 @@
 > **依赖引入时点**（供执行参考）：
 > | 依赖 | 引入步骤 | 说明 |
 > |------|---------|------|
-> | NextAuth | 4.3.8 | auth mock + credentials provider |
+> | NextAuth | 4.3.8 | auth mock（forum: credentials provider, admin: google provider） |
 > | Tiptap | 4.6.5 | 富文本编辑器 |
 > | Recharts / Chart 库 | 4.5.2 | Admin 仪表盘趋势图 |
 > | Playwright | 4.9.1 | E2E 测试 |
@@ -221,9 +221,9 @@
 | 4.5.1 | `feat: add admin layout (sidebar + header)` | AdminLayout + AdminSidebar | ✅ L1: nav items + exports |
 | 4.5.2 | `feat: add dashboard viewmodel + page` | useDashboardViewModel + StatCard + ChartWidgets + admin/page.tsx | ✅ L1 ≥90%: todayStart/daysAgo/aggregateTrend + fetchDashboardData |
 | 4.5.3 | `feat: add user management viewmodel + page` | useUserManagementViewModel + UserTable + admin/users/page.tsx | ✅ L1 ≥90%: filter/search/ban/unban/roleChange |
-| 4.5.4 | `feat: add content moderation viewmodel + page` | useContentModerationViewModel + ContentTable + admin/content/page.tsx | ✅ L1 ≥90%: threads/posts + delete |
+| 4.5.4 | `feat: add thread management viewmodel + page` | useThreadManagementViewModel + ThreadTable + admin/threads/page.tsx | ✅ L1 ≥90%: filter/delete/move/sticky/digest |
 | 4.5.5 | `feat: add forum management viewmodel + page` | useForumManagementViewModel + ForumTree + admin/forums/page.tsx | ✅ L1 ≥90%: tree/edit/hide/order |
-| 4.5.6 | `feat: add admin auth guard` | (admin)/layout.tsx 权限检查 + resolveAdmin() | ✅ L1: all role combinations |
+| 4.5.6 | `feat: add admin auth guard` | (admin)/layout.tsx 权限检查 + resolveAdminFromSession()（验证 Google OAuth session + ADMIN_GOOGLE_IDS 白名单） | ✅ L1: 有效 session/无效 session/不在白名单 |
 
 > **4.5 结束时**：Admin 后台功能完整，ViewModel L1 ≥90%。
 >
@@ -270,13 +270,13 @@
 
 | 编号 | 提交信息 | 内容 | 测试 |
 |------|---------|------|------|
-| 4.7.1 | `feat: add nextauth route handler` | `app/api/auth/[...nextauth]/route.ts` — NextAuth catch-all（credentials provider） | ✅ L1: config 验证 |
+| 4.7.1 | `feat: add nextauth route handler` | `app/api/auth/[...nextauth]/route.ts` — NextAuth catch-all（Google OAuth provider） | ✅ L1: config 验证 |
 | 4.7.2 | `feat: add forum api routes` | `app/api/v1/forums/route.ts` + `app/api/v1/forums/[id]/route.ts` | ✅ L1: handler 调用 repo |
 | 4.7.3 | `feat: add thread api routes` | `app/api/v1/threads/route.ts` + `app/api/v1/threads/[id]/route.ts` — GET/POST/DELETE | ✅ L1: CRUD 路由 |
 | 4.7.4 | `feat: add post api routes` | `app/api/v1/posts/route.ts` + `app/api/v1/posts/[id]/route.ts` — GET/POST/DELETE | ✅ L1: 分页 + 权限守卫 |
 | 4.7.5 | `feat: add user profile api route` | `app/api/v1/users/route.ts` + `app/api/v1/users/[id]/route.ts` — 公开资料 | ✅ L1: 搜索/筛选 |
 | 4.7.6 | `feat: add moderation api routes` | `app/api/v1/moderation/route.ts` — 版主操作 | ✅ L1: role ∈ {1,2,3} 守卫 |
-| 4.7.7 | `feat: add admin api routes` | `app/api/admin/users/route.ts`, `app/api/admin/content/route.ts`, `app/api/admin/forums/route.ts` | ✅ L1: Key B + Admin JWT 守卫 |
+| 4.7.7 | `feat: add admin api routes` | `app/api/admin/users/route.ts`, `app/api/admin/threads/route.ts`, `app/api/admin/posts/route.ts`, `app/api/admin/forums/route.ts` 等 — 代理到 Worker | ✅ L1: Key B 守卫 + Google OAuth session 验证 |
 
 > **4.7 结束时**：所有 API 端点实现完毕，L2 集成测试有真实被测对象。
 
@@ -299,7 +299,7 @@
 | 4.8.5 | `test: add user profile api tests` | GET /api/v1/users + GET /api/v1/users/:id | ✅ L2: 公开资料搜索 + 筛选 |
 | 4.8.6 | `test: add moderation api integration tests` | /api/v1/moderation 端点 | ✅ L2: 版主操作 + 权限拒绝 |
 | 4.8.7 | `test: add admin api integration tests` | /api/admin/* 端点 | ✅ L2: 管理操作 + 权限守卫 403 |
-| 4.8.8 | `test: add nextauth integration tests` | POST /api/auth/callback/credentials + POST /api/auth/signout + GET /api/auth/session | ✅ L2: 成功/失败/session 状态 |
+| 4.8.8 | `test: add nextauth integration tests` | GET /api/auth/session + Google OAuth callback mock + signout | ✅ L2: session 有效/无效/白名单拒绝 |
 
 > **4.8 结束时**：L1 + L2 + G1 + G2 全部达标。D1=N/A，**Tier B（Mock 阶段上限）**。
 

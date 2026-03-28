@@ -1,6 +1,6 @@
 # 07 — API 接口参考手册
 
-> 基于实际代码的完整 API 文档。公开端点 17 个 + 管理端点 46 个 = 共 63 个。
+> 基于实际代码的完整 API 文档。公开端点 17 个 + 管理端点 44 个 = 共 61 个。
 >
 > **最后更新**：2026-03-28
 
@@ -24,9 +24,8 @@
   - [11. 用户（公开）](#11-用户公开)
   - [12-15. 认证](#12-15-认证)
   - [16-17. 用户自助服务](#16-17-用户自助服务)
-- [管理端点（#18-#63）](#管理端点1863)
+- [管理端点（#18-#61）](#管理端点1861)
   - [实体总览](#实体总览)
-  - [Admin 认证 — #62-#63](#admin-认证--6263)
   - [A. Forum 版块（Admin）— #18-#24](#a-forum-版块admin-1824)
   - [B. Thread 主题（Admin）— #25-#30](#b-thread-主题admin-2530)
   - [C. Post 帖子（Admin）— #31-#35](#c-post-帖子admin-3135)
@@ -51,7 +50,7 @@
 
 ### 认证体系
 
-系统采用双 Key + 双认证体系，论坛用户与 Admin 完全独立：
+系统采用双 Key 隔离体系，论坛用户认证与 Admin 路径完全独立：
 
 #### API Key 层（路由隔离）
 
@@ -83,25 +82,20 @@
 | 层级 | 请求头 | 适用范围 |
 |------|--------|----------|
 | **API Key B** | `X-API-Key: <ADMIN_API_KEY>` | `/api/admin/*` 所有端点 |
-| **Admin JWT** | `Authorization: Bearer <admin-token>` | 除 `/api/admin/auth/login` 外的所有 admin 端点 |
 
-**Admin JWT**：HS256 签名，有效期 24h。Payload：`{ googleId, email, type: "admin", exp, iat }`。
+Worker 对管理端点仅验证 Key B，不验证调用者身份。Admin 身份认证（Google OAuth + `ADMIN_GOOGLE_IDS` 白名单）在 Next.js 服务端完成，Worker 无感知。
 
-**Admin 登录流程**：Google Sign-In → ID Token → Worker 验证 → 白名单检查 → 签发 Admin JWT。
-
-> Admin 身份由 `ADMIN_GOOGLE_IDS` 环境变量白名单定义，与论坛用户完全独立。所有 Admin 全权相等，不分级。
+> Admin 身份由 Next.js 服务端的 `ADMIN_GOOGLE_IDS` 环境变量白名单定义，与论坛用户完全独立。所有 Admin 全权相等，不分级。
 
 #### 管理端点统一认证
 
-所有 `/api/admin/*` 路由（除 `/api/admin/auth/login`）在路由层经过统一的认证入口函数 `adminAuth(request, env)`：
+所有 `/api/admin/*` 路由仅需通过 Key B 验证：
 
 ```
-请求 → Key B 验证 → adminAuth() → Admin JWT 验证 (type=admin) → handler
+请求 → Key B 验证 → handler
 ```
 
-`adminAuth` 是唯一的管理端点认证入口。Handler 只接收已认证的 `admin: { googleId, email }` 对象。
-
-> **实现约束**：禁止在 handler 内部各自调用认证函数。`adminAuth` 由路由层（或 CRUD 框架的 wrapper）统一调用。
+Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ### 通用响应格式
 
@@ -173,7 +167,7 @@
 | `INVALID_REFRESH_TOKEN` | 401 | 刷新令牌无效或已过期 |
 | `WRONG_PASSWORD` | 401 | 当前密码不正确 |
 | `FORBIDDEN` | 403 | 拒绝访问 |
-| `FORBIDDEN_ADMIN_ONLY` | 403 | 此操作需要 Admin 权限（Admin JWT type 不匹配或 Google ID 不在白名单） |
+| `FORBIDDEN_ADMIN_ONLY` | 403 | 此操作需要 Admin 权限（Key B 无效） |
 | `FORBIDDEN_MOD_ONLY` | 403 | 此操作需要版主权限（论坛 JWT role 不满足） |
 | `USER_BANNED` | 403 | 用户账号已被封禁 |
 | `THREAD_CLOSED` | 403 | 主题已关闭，不接受新回复 |
@@ -1105,11 +1099,11 @@
 ---
 
 
-## 管理端点（#18-#63）
+## 管理端点（#18-#61）
 
 > 管理 API 按**实体**组织。每个实体遵循统一的 CRUD 模式，特殊操作作为实体的扩展端点。
 >
-> **认证要求**：所有 `/api/admin/*` 端点使用 **Key B**（`ADMIN_API_KEY`）+ **Admin JWT**（Google OAuth 登录后签发）。与论坛用户 JWT 完全独立。所有 Admin 全权相等，不分级。
+> **认证要求**：所有 `/api/admin/*` 端点使用 **Key B**（`ADMIN_API_KEY`）。Worker 仅验证 Key B，不关心调用者身份。Admin 身份（Google OAuth + 白名单）由 Next.js 服务端确认。所有 Admin 全权相等，不分级。
 >
 > **通用规则**：
 > - 管理列表端点使用**偏移分页**（`page`, `limit`），排序 `id DESC`。**例外**：Forum list 无分页（全量返回），按 `parent_id, display_order` 排序
@@ -1128,75 +1122,14 @@
 
 | 实体 | 表名 | 认证 | 端点 | CRUD | 特殊操作 |
 |------|------|------|------|------|----------|
-| **AdminAuth** | *(无表)* | Key B only | #62-#63 | — | login, me |
-| **Forum** | `forums` | Key B + Admin JWT | #18-#24 | L·R·C·U·D | merge, reorder |
-| **Thread** | `threads` | Key B + Admin JWT | #25-#30 | L·R·U·D | batch-delete, batch-move |
-| **Post** | `posts` | Key B + Admin JWT | #31-#35 | L·R·U·D | batch-delete |
-| **User** | `users` | Key B + Admin JWT | #36-#42 | L·R·U | ban, nuke, batch-status, batch-role |
-| **Attachment** | `attachments` | Key B + Admin JWT | #43-#46 | L·R·D | batch-delete |
-| **IpBan** | `ip_bans` | Key B + Admin JWT | #47-#53 | L·R·C·U·D | check-ip, batch-delete |
-| **CensorWord** | `censor_words` | Key B + Admin JWT | #54-#60 | L·R·C·U·D | test, batch-delete |
-| **Stats** | *(聚合)* | Key B + Admin JWT | #61 | R | — |
-
----
-
-### Admin 认证 — #62-#63
-
-#### #62 `POST /api/admin/auth/login`
-
-Google OAuth 登录，验证 Google ID Token 并签发 Admin JWT。
-
-| 属性 | 值 |
-|------|---|
-| 认证 | Key B only（无需 Admin JWT） |
-| 错误 | `INVALID_BODY`(400)、`UNAUTHORIZED`(401)、`FORBIDDEN`(403) |
-
-**请求体**：
-```json
-{ "idToken": "<Google ID Token>" }
-```
-
-**成功响应（200）**：
-```json
-{
-  "data": {
-    "token": "<admin-jwt, 24h 有效>",
-    "admin": {
-      "googleId": "1234567890",
-      "email": "admin@example.com"
-    }
-  },
-  "meta": { "timestamp": 1711612800000, "requestId": "..." }
-}
-```
-
-**处理流程**：
-1. 验证 Google ID Token（JWKS 公钥 + 签名 + audience + issuer + 过期时间）
-2. 提取 `sub`（Google ID）和 `email`
-3. 检查 `sub ∈ ADMIN_GOOGLE_IDS` 白名单 → 不在白名单返回 `FORBIDDEN`
-4. 签发 Admin JWT：`{ googleId, email, type: "admin", exp, iat }`
-
----
-
-#### #63 `GET /api/admin/auth/me`
-
-获取当前 Admin 身份信息。
-
-| 属性 | 值 |
-|------|---|
-| 认证 | Key B + Admin JWT |
-| 错误 | `UNAUTHORIZED`(401)、`TOKEN_EXPIRED`(401) |
-
-**成功响应（200）**：
-```json
-{
-  "data": {
-    "googleId": "1234567890",
-    "email": "admin@example.com"
-  },
-  "meta": { "timestamp": 1711612800000, "requestId": "..." }
-}
-```
+| **Forum** | `forums` | Key B | #18-#24 | L·R·C·U·D | merge, reorder |
+| **Thread** | `threads` | Key B | #25-#30 | L·R·U·D | batch-delete, batch-move |
+| **Post** | `posts` | Key B | #31-#35 | L·R·U·D | batch-delete |
+| **User** | `users` | Key B | #36-#42 | L·R·U | ban, nuke, batch-status, batch-role |
+| **Attachment** | `attachments` | Key B | #43-#46 | L·R·D | batch-delete |
+| **IpBan** | `ip_bans` | Key B | #47-#53 | L·R·C·U·D | check-ip, batch-delete |
+| **CensorWord** | `censor_words` | Key B | #54-#60 | L·R·C·U·D | test, batch-delete |
+| **Stats** | *(聚合)* | Key B | #61 | R | — |
 
 ---
 
@@ -1208,7 +1141,7 @@ Google OAuth 登录，验证 Google ID Token 并签发 Admin JWT。
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Key B + Admin JWT |
+| 认证 | Key B |
 | 分页 | 无（全量返回） |
 
 **成功响应（200）**：`{ data: Forum[], meta }` — 排序 `parent_id, display_order`。
@@ -1221,7 +1154,7 @@ Google OAuth 登录，验证 Google ID Token 并签发 Admin JWT。
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Key B + Admin JWT |
+| 认证 | Key B |
 | 错误 | `INVALID_REQUEST`(400)、`FORUM_NOT_FOUND`(404) |
 
 ---
@@ -1232,7 +1165,7 @@ Google OAuth 登录，验证 Google ID Token 并签发 Admin JWT。
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Key B + Admin JWT |
+| 认证 | Key B |
 
 **请求体：**
 
@@ -1256,7 +1189,7 @@ Google OAuth 登录，验证 Google ID Token 并签发 Admin JWT。
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Key B + Admin JWT |
+| 认证 | Key B |
 
 **可更新字段**：`name`, `description`, `icon`, `displayOrder`, `status`, `type`, `parentId` — 至少提供一个。
 
@@ -1270,7 +1203,7 @@ Google OAuth 登录，验证 Google ID Token 并签发 Admin JWT。
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Key B + Admin JWT |
+| 认证 | Key B |
 | 错误 | `FORUM_HAS_THREADS`(409) — `details: { threadCount }` |
 
 ---
@@ -1281,7 +1214,7 @@ Google OAuth 登录，验证 Google ID Token 并签发 Admin JWT。
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Key B + Admin JWT |
+| 认证 | Key B |
 
 **请求体**：`{ targetForumId: number }` — 目标版块必须存在，不能与源相同。
 
@@ -1308,7 +1241,7 @@ Google OAuth 登录，验证 Google ID Token 并签发 Admin JWT。
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Key B + Admin JWT |
+| 认证 | Key B |
 
 **请求体**：`{ orders: { id: number, displayOrder: number }[] }` — 非空，≤ 200 项。
 
@@ -1324,7 +1257,7 @@ Google OAuth 登录，验证 Google ID Token 并签发 Admin JWT。
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Key B + Admin JWT |
+| 认证 | Key B |
 | 分页 | 偏移分页 |
 
 **筛选参数：**
@@ -1354,7 +1287,7 @@ Google OAuth 登录，验证 Google ID Token 并签发 Admin JWT。
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Key B + Admin JWT |
+| 认证 | Key B |
 
 **可更新字段：**
 
@@ -1418,7 +1351,7 @@ Google OAuth 登录，验证 Google ID Token 并签发 Admin JWT。
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Key B + Admin JWT |
+| 认证 | Key B |
 | 分页 | 偏移分页 |
 
 **筛选参数：**
@@ -1444,7 +1377,7 @@ Google OAuth 登录，验证 Google ID Token 并签发 Admin JWT。
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Key B + Admin JWT |
+| 认证 | Key B |
 
 **请求体**：`{ content: string }` — 非空。
 
@@ -1484,7 +1417,7 @@ Google OAuth 登录，验证 Google ID Token 并签发 Admin JWT。
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Key B + Admin JWT |
+| 认证 | Key B |
 | 分页 | 偏移分页 |
 
 **筛选参数：**
@@ -1510,7 +1443,7 @@ Google OAuth 登录，验证 Google ID Token 并签发 Admin JWT。
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Key B + Admin JWT |
+| 认证 | Key B |
 
 **可更新字段：**
 
@@ -1611,7 +1544,7 @@ Google OAuth 登录，验证 Google ID Token 并签发 Admin JWT。
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Key B + Admin JWT |
+| 认证 | Key B |
 | 分页 | 偏移分页 |
 
 **筛选参数：**
@@ -1671,7 +1604,7 @@ Google OAuth 登录，验证 Google ID Token 并签发 Admin JWT。
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Key B + Admin JWT |
+| 认证 | Key B |
 | 分页 | 偏移分页 |
 
 **筛选参数：**
@@ -1773,7 +1706,7 @@ Google OAuth 登录，验证 Google ID Token 并签发 Admin JWT。
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Key B + Admin JWT |
+| 认证 | Key B |
 | 分页 | 偏移分页 |
 
 **筛选参数：**
@@ -1894,7 +1827,7 @@ Google OAuth 登录，验证 Google ID Token 并签发 Admin JWT。
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Key B + Admin JWT |
+| 认证 | Key B |
 
 **成功响应（200）：**
 ```json
@@ -1983,58 +1916,56 @@ Google OAuth 登录，验证 Google ID Token 并签发 Admin JWT。
 | 16 | `PATCH` | `/api/v1/users/me` | Key A + 论坛 JWT | — |
 | 17 | `POST` | `/api/v1/users/me/password` | Key A + 论坛 JWT | — |
 
-#### 管理端点（#18-#63）— 按实体分组
+#### 管理端点（#18-#61）— 按实体分组
 
 | # | 方法 | 路径 | 实体 | 认证 | 操作 |
 |---|------|------|------|------|------|
-| 18 | `GET` | `/api/admin/forums` | Forum | Key B + Admin JWT | list |
-| 19 | `GET` | `/api/admin/forums/:id` | Forum | Key B + Admin JWT | get |
-| 20 | `POST` | `/api/admin/forums` | Forum | Key B + Admin JWT | create |
-| 21 | `PATCH` | `/api/admin/forums/:id` | Forum | Key B + Admin JWT | update |
-| 22 | `DELETE` | `/api/admin/forums/:id` | Forum | Key B + Admin JWT | delete |
-| 23 | `POST` | `/api/admin/forums/:id/merge` | Forum | Key B + Admin JWT | merge |
-| 24 | `POST` | `/api/admin/forums/reorder` | Forum | Key B + Admin JWT | reorder |
-| 25 | `GET` | `/api/admin/threads` | Thread | Key B + Admin JWT | list |
-| 26 | `GET` | `/api/admin/threads/:id` | Thread | Key B + Admin JWT | get |
-| 27 | `PATCH` | `/api/admin/threads/:id` | Thread | Key B + Admin JWT | update *(含 sticky/digest/close/highlight/move)* |
-| 28 | `DELETE` | `/api/admin/threads/:id` | Thread | Key B + Admin JWT | delete |
-| 29 | `POST` | `/api/admin/threads/batch-delete` | Thread | Key B + Admin JWT | batch-delete |
-| 30 | `POST` | `/api/admin/threads/batch-move` | Thread | Key B + Admin JWT | batch-move |
-| 31 | `GET` | `/api/admin/posts` | Post | Key B + Admin JWT | list |
-| 32 | `GET` | `/api/admin/posts/:id` | Post | Key B + Admin JWT | get |
-| 33 | `PATCH` | `/api/admin/posts/:id` | Post | Key B + Admin JWT | update |
-| 34 | `DELETE` | `/api/admin/posts/:id` | Post | Key B + Admin JWT | delete |
-| 35 | `POST` | `/api/admin/posts/batch-delete` | Post | Key B + Admin JWT | batch-delete |
-| 36 | `GET` | `/api/admin/users` | User | Key B + Admin JWT | list |
-| 37 | `GET` | `/api/admin/users/:id` | User | Key B + Admin JWT | get |
-| 38 | `PATCH` | `/api/admin/users/:id` | User | Key B + Admin JWT | update *(含 status/role/credits/profile)* |
-| 39 | `POST` | `/api/admin/users/:id/ban` | User | Key B + Admin JWT | ban |
-| 40 | `POST` | `/api/admin/users/:id/nuke` | User | Key B + Admin JWT | nuke |
-| 41 | `POST` | `/api/admin/users/batch-status` | User | Key B + Admin JWT | batch-status |
-| 42 | `POST` | `/api/admin/users/batch-role` | User | Key B + Admin JWT | batch-role |
-| 43 | `GET` | `/api/admin/attachments` | Attachment | Key B + Admin JWT | list |
-| 44 | `GET` | `/api/admin/attachments/:id` | Attachment | Key B + Admin JWT | get |
-| 45 | `DELETE` | `/api/admin/attachments/:id` | Attachment | Key B + Admin JWT | delete |
-| 46 | `POST` | `/api/admin/attachments/batch-delete` | Attachment | Key B + Admin JWT | batch-delete |
-| 47 | `GET` | `/api/admin/ip-bans` | IpBan | Key B + Admin JWT | list |
-| 48 | `GET` | `/api/admin/ip-bans/:id` | IpBan | Key B + Admin JWT | get |
-| 49 | `POST` | `/api/admin/ip-bans` | IpBan | Key B + Admin JWT | create |
-| 50 | `PATCH` | `/api/admin/ip-bans/:id` | IpBan | Key B + Admin JWT | update |
-| 51 | `DELETE` | `/api/admin/ip-bans/:id` | IpBan | Key B + Admin JWT | delete |
-| 52 | `POST` | `/api/admin/ip-bans/batch-delete` | IpBan | Key B + Admin JWT | batch-delete |
-| 53 | `GET` | `/api/admin/ip-bans/check-ip` | IpBan | Key B + Admin JWT | check |
-| 54 | `GET` | `/api/admin/censor-words` | CensorWord | Key B + Admin JWT | list |
-| 55 | `GET` | `/api/admin/censor-words/:id` | CensorWord | Key B + Admin JWT | get |
-| 56 | `POST` | `/api/admin/censor-words` | CensorWord | Key B + Admin JWT | create |
-| 57 | `PATCH` | `/api/admin/censor-words/:id` | CensorWord | Key B + Admin JWT | update |
-| 58 | `DELETE` | `/api/admin/censor-words/:id` | CensorWord | Key B + Admin JWT | delete |
-| 59 | `POST` | `/api/admin/censor-words/batch-delete` | CensorWord | Key B + Admin JWT | batch-delete |
-| 60 | `POST` | `/api/admin/censor-words/test` | CensorWord | Key B + Admin JWT | test |
-| 61 | `GET` | `/api/admin/stats` | Stats | Key B + Admin JWT | get |
-| 62 | `POST` | `/api/admin/auth/login` | AdminAuth | Key B only | login |
-| 63 | `GET` | `/api/admin/auth/me` | AdminAuth | Key B + Admin JWT | me |
+| 18 | `GET` | `/api/admin/forums` | Forum | Key B | list |
+| 19 | `GET` | `/api/admin/forums/:id` | Forum | Key B | get |
+| 20 | `POST` | `/api/admin/forums` | Forum | Key B | create |
+| 21 | `PATCH` | `/api/admin/forums/:id` | Forum | Key B | update |
+| 22 | `DELETE` | `/api/admin/forums/:id` | Forum | Key B | delete |
+| 23 | `POST` | `/api/admin/forums/:id/merge` | Forum | Key B | merge |
+| 24 | `POST` | `/api/admin/forums/reorder` | Forum | Key B | reorder |
+| 25 | `GET` | `/api/admin/threads` | Thread | Key B | list |
+| 26 | `GET` | `/api/admin/threads/:id` | Thread | Key B | get |
+| 27 | `PATCH` | `/api/admin/threads/:id` | Thread | Key B | update *(含 sticky/digest/close/highlight/move)* |
+| 28 | `DELETE` | `/api/admin/threads/:id` | Thread | Key B | delete |
+| 29 | `POST` | `/api/admin/threads/batch-delete` | Thread | Key B | batch-delete |
+| 30 | `POST` | `/api/admin/threads/batch-move` | Thread | Key B | batch-move |
+| 31 | `GET` | `/api/admin/posts` | Post | Key B | list |
+| 32 | `GET` | `/api/admin/posts/:id` | Post | Key B | get |
+| 33 | `PATCH` | `/api/admin/posts/:id` | Post | Key B | update |
+| 34 | `DELETE` | `/api/admin/posts/:id` | Post | Key B | delete |
+| 35 | `POST` | `/api/admin/posts/batch-delete` | Post | Key B | batch-delete |
+| 36 | `GET` | `/api/admin/users` | User | Key B | list |
+| 37 | `GET` | `/api/admin/users/:id` | User | Key B | get |
+| 38 | `PATCH` | `/api/admin/users/:id` | User | Key B | update *(含 status/role/credits/profile)* |
+| 39 | `POST` | `/api/admin/users/:id/ban` | User | Key B | ban |
+| 40 | `POST` | `/api/admin/users/:id/nuke` | User | Key B | nuke |
+| 41 | `POST` | `/api/admin/users/batch-status` | User | Key B | batch-status |
+| 42 | `POST` | `/api/admin/users/batch-role` | User | Key B | batch-role |
+| 43 | `GET` | `/api/admin/attachments` | Attachment | Key B | list |
+| 44 | `GET` | `/api/admin/attachments/:id` | Attachment | Key B | get |
+| 45 | `DELETE` | `/api/admin/attachments/:id` | Attachment | Key B | delete |
+| 46 | `POST` | `/api/admin/attachments/batch-delete` | Attachment | Key B | batch-delete |
+| 47 | `GET` | `/api/admin/ip-bans` | IpBan | Key B | list |
+| 48 | `GET` | `/api/admin/ip-bans/:id` | IpBan | Key B | get |
+| 49 | `POST` | `/api/admin/ip-bans` | IpBan | Key B | create |
+| 50 | `PATCH` | `/api/admin/ip-bans/:id` | IpBan | Key B | update |
+| 51 | `DELETE` | `/api/admin/ip-bans/:id` | IpBan | Key B | delete |
+| 52 | `POST` | `/api/admin/ip-bans/batch-delete` | IpBan | Key B | batch-delete |
+| 53 | `GET` | `/api/admin/ip-bans/check-ip` | IpBan | Key B | check |
+| 54 | `GET` | `/api/admin/censor-words` | CensorWord | Key B | list |
+| 55 | `GET` | `/api/admin/censor-words/:id` | CensorWord | Key B | get |
+| 56 | `POST` | `/api/admin/censor-words` | CensorWord | Key B | create |
+| 57 | `PATCH` | `/api/admin/censor-words/:id` | CensorWord | Key B | update |
+| 58 | `DELETE` | `/api/admin/censor-words/:id` | CensorWord | Key B | delete |
+| 59 | `POST` | `/api/admin/censor-words/batch-delete` | CensorWord | Key B | batch-delete |
+| 60 | `POST` | `/api/admin/censor-words/test` | CensorWord | Key B | test |
+| 61 | `GET` | `/api/admin/stats` | Stats | Key B | get |
 
-**共计：63 个端点** = 17 公开（Key A）+ 46 管理（Key B：2 认证 + 44 实体操作）
+**共计：61 个端点** = 17 公开（Key A）+ 44 管理（Key B）
 
 ### 测试原则
 

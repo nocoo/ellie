@@ -132,7 +132,7 @@ ellie/
 Worker 提供：
 - `/api/v1/*` — 公开 API + 论坛用户认证（Key A 体系）
 - `/api/v1/moderation/*` — 版主操作（Key A + 论坛 JWT + role check）
-- `/api/admin/*` — 管理 API（Key B + Admin JWT）
+- `/api/admin/*` — 管理 API（Key B，Next.js 服务端直连）
 - CORS、限流、双 Key 认证中间件
 
 
@@ -208,11 +208,12 @@ function useXxxViewModel(params) {
   Auth source of truth: Worker（D1 用户表）
 
 Admin 后台:
-  Browser → Key B → Worker /api/admin/* → Admin JWT（Google OAuth 签发）
-  Auth source of truth: Google OAuth + ADMIN_GOOGLE_IDS 白名单
+  Browser → HttpOnly cookie → Next.js Server → 验证 Google OAuth session + ADMIN_GOOGLE_IDS
+  Next.js Server → Key B → Worker /api/admin/*（仅 Key B，无额外认证）
+  Auth source of truth: Next.js（Google OAuth + 白名单），Worker 仅信任 Key B
 ```
 
-**论坛前端**使用 Key A + 论坛用户 JWT。**Admin 后台**使用 Key B + Google OAuth Admin JWT。两套体系完全独立。
+**论坛前端**使用 Key A + 论坛用户 JWT。**Admin 后台**使用 Google OAuth session（NextAuth）→ Next.js 服务端验证白名单 → Key B 服务端直连 Worker。浏览器不持有 Key B 或任何 Worker 凭证。
 
 ### 路由守卫（Proxy）
 
@@ -247,7 +248,7 @@ Next.js 16 使用 `proxy.ts` 替代 `middleware.ts`：
 | `/api/v1/posts` | 回复列表、发回复 | Key A，写需论坛 JWT |
 | `/api/v1/users` | 用户资料 | Key A（公开） |
 | `/api/v1/moderation` | 版主操作 | Key A + 论坛 JWT（role ∈ {1, 2, 3}） |
-| `/api/admin/*` | 管理后台 | Key B + Admin JWT（Google OAuth） |
+| `/api/admin/*` | 管理后台 | Key B（Next.js 服务端直连 Worker，浏览器不可见） |
 
 ---
 
@@ -468,7 +469,7 @@ Phase 2 隔离三重验证：
 | `feat: add mock user repository + tests` | `data/repositories/user.repository.ts` + tests | L1: ≥95%，list/search/filter/setStatus/setRole |
 | `feat: add mock attachment repository + tests` | `data/repositories/attachment.repository.ts` + tests | L1: ≥95% |
 | `feat: add repository factory` | `data/index.ts` — createRepositories() | — |
-| `feat: add auth mock (nextauth credentials)` | `auth.ts` + mock user 验证 | L1: login success/failure |
+| `feat: add auth mock (nextauth google provider)` | `auth.ts` + mock Google OAuth session 验证 | L1: session resolve + whitelist check |
 
 > **Step 3 结束时**：data/ 覆盖率 ≥95%，Repository Contract 完全可验证。
 
@@ -497,9 +498,9 @@ Phase 2 隔离三重验证：
 | `feat: add admin layout (sidebar + header)` | AdminLayout + AdminSidebar | L1: sidebar 折叠/展开状态 |
 | `feat: add dashboard viewmodel + page` | useDashboardViewModel + StatCard + ChartWidgets + admin/page.tsx | L1 ≥90%: ViewModel 数据聚合逻辑 |
 | `feat: add user management viewmodel + page` | useUserManagementViewModel + UserTable + admin/users/page.tsx | L1 ≥90%: 筛选/搜索/ban/unban/roleChange |
-| `feat: add content moderation viewmodel + page` | useContentModerationViewModel + ContentTable + admin/content/page.tsx | L1 ≥90%: tab 切换/筛选/删除 |
+| `feat: add thread management viewmodel + page` | useThreadManagementViewModel + ThreadTable + admin/threads/page.tsx | L1 ≥90%: 筛选/删除/移动/置顶/精华 |
 | `feat: add forum management viewmodel + page` | useForumManagementViewModel + ForumTree + admin/forums/page.tsx | L1 ≥90%: 树构建/编辑/隐藏/排序 |
-| `feat: add admin auth guard` | (admin)/layout.tsx 权限检查 + resolveAdmin() | L1: canAccessAdmin 各角色组合 |
+| `feat: add admin auth guard` | (admin)/layout.tsx 权限检查 + resolveAdminFromSession()（验证 Google OAuth session + ADMIN_GOOGLE_IDS 白名单） | L1: 有效 session/无效 session/不在白名单 |
 
 ### Step 6：论坛前端 + ViewModel L1 ≥90%
 
@@ -537,7 +538,7 @@ Phase 2 隔离三重验证：
 | `test: add user profile api tests` | GET /api/v1/users + GET /api/v1/users/:id | L2: 公开资料搜索 + 筛选 |
 | `test: add moderation api integration tests` | /api/v1/moderation 端点 | L2: 版主操作 + 权限拒绝 |
 | `test: add admin api integration tests` | /api/admin/* 端点 | L2: 管理操作 + 权限守卫 403 |
-| `test: add nextauth integration tests` | POST /api/auth/callback/credentials + POST /api/auth/signout + GET /api/auth/session | L2: 成功/失败/session 状态 |
+| `test: add nextauth integration tests` | GET /api/auth/session + Google OAuth callback mock + signout | L2: session 有效/无效/白名单拒绝 |
 
 > **Step 7 结束时**：L1 + L2 + G1 + G2 全部达标。D1=N/A，**Tier B（Mock 阶段上限）**。
 
