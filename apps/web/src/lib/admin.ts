@@ -1,8 +1,8 @@
 /**
  * Admin authorization helpers.
  *
- * Admin status is determined by the ADMIN_GOOGLE_IDS environment variable,
- * a comma-separated list of Google `sub` IDs (NOT emails).
+ * Admin status is determined by the ADMIN_EMAILS environment variable,
+ * a comma-separated list of email addresses (following pew convention).
  */
 
 // ---------------------------------------------------------------------------
@@ -10,24 +10,24 @@
 // ---------------------------------------------------------------------------
 
 /**
- * Parse the ADMIN_GOOGLE_IDS env var into a Set of Google sub IDs.
+ * Parse the ADMIN_EMAILS env var into a Set of lowercase emails.
  */
-function getAdminGoogleIds(): Set<string> {
-	const raw = process.env.ADMIN_GOOGLE_IDS ?? "";
+function getAdminEmails(): Set<string> {
+	const raw = process.env.ADMIN_EMAILS ?? "";
 	return new Set(
 		raw
 			.split(",")
-			.map((id) => id.trim())
+			.map((e) => e.trim().toLowerCase())
 			.filter(Boolean),
 	);
 }
 
 /**
- * Check if the given Google sub ID is an admin.
+ * Check if the given email is an admin.
  */
-export function isAdminGoogleId(sub: string | undefined | null): boolean {
-	if (!sub) return false;
-	return getAdminGoogleIds().has(sub);
+export function isAdmin(email: string | undefined | null): boolean {
+	if (!email) return false;
+	return getAdminEmails().has(email.toLowerCase());
 }
 
 // ---------------------------------------------------------------------------
@@ -43,7 +43,7 @@ export interface AdminInfo {
 
 /**
  * Resolve admin info from a session.
- * Returns null if the session user's Google sub is not in ADMIN_GOOGLE_IDS.
+ * Returns null if the session user's email is not in ADMIN_EMAILS.
  */
 export function resolveAdmin(
 	session: {
@@ -52,11 +52,10 @@ export function resolveAdmin(
 ): AdminInfo | null {
 	if (!session?.user) return null;
 
-	const sub = session.user.id;
-	if (!isAdminGoogleId(sub)) return null;
+	if (!isAdmin(session.user.email)) return null;
 
 	return {
-		sub: sub as string,
+		sub: session.user.id ?? "",
 		email: session.user.email ?? "",
 		name: session.user.name ?? "",
 		image: session.user.image ?? undefined,
