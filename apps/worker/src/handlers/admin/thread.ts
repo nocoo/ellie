@@ -14,6 +14,7 @@ import { toThread } from "../../lib/mappers";
 import { parseIdFromPath } from "../../lib/parseId";
 import { recalcForumMetadata } from "../../lib/recalcMetadata";
 import { jsonResponse } from "../../lib/response";
+import { batchDecrementUserPosts, decrementUserThreads } from "../../lib/userCounters";
 import type { AuthUser } from "../../middleware/auth";
 import { errorResponse } from "../../middleware/error";
 
@@ -140,12 +141,16 @@ const threadConfig: EntityConfig = {
 	async afterDelete(_id, existing, _user, env) {
 		// Decrement forum threads/posts counts
 		const forumId = existing.forum_id as number;
+		const authorId = existing.author_id as number;
 		const replies = existing.replies as number;
 		const postCount = replies + 1;
 
 		await env.DB.prepare("UPDATE forums SET threads = threads - 1, posts = posts - ? WHERE id = ?")
 			.bind(postCount, forumId)
 			.run();
+
+		// Decrement thread author's thread count
+		await decrementUserThreads(env, authorId);
 
 		// Recalc forum metadata after thread deletion
 		await recalcForumMetadata(env, forumId);
@@ -180,7 +185,18 @@ export const remove = withEntityAuth(
 			return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 		}
 
-		const threadRow = thread as { forum_id: number; replies: number };
+		const threadRow = thread as { forum_id: number; author_id: number; replies: number };
+
+		// Query post authors before deletion for user counter updates
+		const postAuthors = await env.DB.prepare(
+			"SELECT author_id, COUNT(*) as cnt FROM posts WHERE thread_id = ? GROUP BY author_id",
+		)
+			.bind(id)
+			.all();
+		const authorCounts = new Map<number, number>();
+		for (const row of postAuthors.results as { author_id: number; cnt: number }[]) {
+			authorCounts.set(row.author_id, row.cnt);
+		}
 
 		// Count all posts belonging to this thread
 		const countResult = await env.DB.prepare(
@@ -198,6 +214,12 @@ export const remove = withEntityAuth(
 				"UPDATE forums SET threads = threads - 1, posts = posts - ? WHERE id = ?",
 			).bind(postsDeleted, threadRow.forum_id),
 		]);
+
+		// Decrement thread author's thread count
+		await decrementUserThreads(env, threadRow.author_id);
+
+		// Decrement post authors' post counts
+		await batchDecrementUserPosts(env, authorCounts);
 
 		// Recalc forum metadata after thread deletion
 		await recalcForumMetadata(env, threadRow.forum_id);

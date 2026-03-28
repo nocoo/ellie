@@ -6,6 +6,7 @@ import { toUser } from "../../lib/mappers";
 import { parsePathSegment } from "../../lib/parseId";
 import { recalcForumMetadata, recalcThreadMetadata } from "../../lib/recalcMetadata";
 import { jsonResponse } from "../../lib/response";
+import { batchDecrementUserPosts } from "../../lib/userCounters";
 // Admin user handlers (#36-#42) — CRUD framework + custom actions
 import type { AuthUser } from "../../middleware/auth";
 import { errorResponse } from "../../middleware/error";
@@ -174,6 +175,22 @@ async function deleteUserContent(env: Env, userId: number): Promise<ContentDelet
 		cnt: number;
 	}[];
 
+	// 5. Collateral damage: other users' posts in the user's threads
+	// These posts will be deleted too, so we need to decrement those authors' post counts
+	const collateralAuthorCounts = new Map<number, number>();
+	if (threadRows.length > 0) {
+		const threadIds = threadRows.map((t) => t.id);
+		const placeholders = threadIds.map(() => "?").join(",");
+		const collateralPosts = await env.DB.prepare(
+			`SELECT author_id, COUNT(*) as cnt FROM posts WHERE thread_id IN (${placeholders}) AND author_id != ? GROUP BY author_id`,
+		)
+			.bind(...threadIds, userId)
+			.all();
+		for (const row of collateralPosts.results as { author_id: number; cnt: number }[]) {
+			collateralAuthorCounts.set(row.author_id, row.cnt);
+		}
+	}
+
 	// Build batch
 	const statements: D1PreparedStatement[] = [];
 
@@ -242,6 +259,9 @@ async function deleteUserContent(env: Env, userId: number): Promise<ContentDelet
 	for (const row of standaloneThreadRows) {
 		await recalcThreadMetadata(env, row.thread_id);
 	}
+
+	// Decrement collateral authors' post counts (other users' posts in deleted threads)
+	await batchDecrementUserPosts(env, collateralAuthorCounts);
 
 	const totalPostsDeleted =
 		threadRows.reduce((sum, t) => sum + t.replies + 1, 0) +

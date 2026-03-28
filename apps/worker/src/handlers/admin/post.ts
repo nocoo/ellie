@@ -13,6 +13,7 @@ import {
 import { toPost } from "../../lib/mappers";
 import { recalcForumMetadata, recalcThreadMetadata } from "../../lib/recalcMetadata";
 import { jsonResponse } from "../../lib/response";
+import { batchDecrementUserPosts, decrementUserPosts } from "../../lib/userCounters";
 import { errorResponse } from "../../middleware/error";
 
 // ─── Entity Config ───────────────────────────────────────────────
@@ -55,11 +56,14 @@ const postConfig: EntityConfig = {
 		return undefined;
 	},
 	afterDelete: async (_id, existing, _user, env) => {
-		const row = existing as { thread_id: number; forum_id: number };
+		const row = existing as { thread_id: number; forum_id: number; author_id: number };
 		await env.DB.batch([
 			env.DB.prepare("UPDATE threads SET replies = replies - 1 WHERE id = ?").bind(row.thread_id),
 			env.DB.prepare("UPDATE forums SET posts = posts - 1 WHERE id = ?").bind(row.forum_id),
 		]);
+
+		// Decrement post author's post count
+		await decrementUserPosts(env, row.author_id);
 
 		// Recalc thread and forum metadata after post deletion
 		await recalcThreadMetadata(env, row.thread_id);
@@ -124,7 +128,7 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env, _user
 	// Fetch all posts to determine which are first posts
 	const placeholders = numericIds.map(() => "?").join(",");
 	const result = await env.DB.prepare(
-		`SELECT id, thread_id, forum_id, is_first FROM posts WHERE id IN (${placeholders})`,
+		`SELECT id, thread_id, forum_id, author_id, is_first FROM posts WHERE id IN (${placeholders})`,
 	)
 		.bind(...numericIds)
 		.all();
@@ -133,6 +137,7 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env, _user
 		id: number;
 		thread_id: number;
 		forum_id: number;
+		author_id: number;
 		is_first: number;
 	}[];
 
@@ -144,13 +149,15 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env, _user
 		return jsonResponse({ deleted: true, count: 0, skipped }, origin);
 	}
 
-	// Aggregate count updates by thread and forum
+	// Aggregate count updates by thread, forum, and author
 	const threadUpdates = new Map<number, number>();
 	const forumUpdates = new Map<number, number>();
+	const authorUpdates = new Map<number, number>();
 
 	for (const p of deletable) {
 		threadUpdates.set(p.thread_id, (threadUpdates.get(p.thread_id) ?? 0) + 1);
 		forumUpdates.set(p.forum_id, (forumUpdates.get(p.forum_id) ?? 0) + 1);
+		authorUpdates.set(p.author_id, (authorUpdates.get(p.author_id) ?? 0) + 1);
 	}
 
 	// Build batch statements
@@ -179,6 +186,9 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env, _user
 	for (const forumId of forumUpdates.keys()) {
 		await recalcForumMetadata(env, forumId);
 	}
+
+	// Decrement user post counts
+	await batchDecrementUserPosts(env, authorUpdates);
 
 	return jsonResponse({ deleted: true, count: deletable.length, skipped }, origin);
 });
