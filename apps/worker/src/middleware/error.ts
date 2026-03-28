@@ -48,6 +48,7 @@ function getStatusMessage(code: string): string {
 		FORBIDDEN_ADMIN_ONLY: "This action requires administrator privileges",
 		FORBIDDEN_MOD_ONLY: "This action requires moderator privileges",
 		INVALID_BODY: "Request body is invalid or missing required fields",
+		FORUM_NOT_FOUND: "Forum not found",
 		FORUM_HAS_THREADS: "Cannot delete forum that contains threads",
 		BATCH_LIMIT_EXCEEDED: "Batch operation exceeds maximum size",
 		SELF_BAN: "Cannot ban yourself",
@@ -56,7 +57,17 @@ function getStatusMessage(code: string): string {
 		INVALID_REFRESH_TOKEN: "Refresh token is invalid or expired",
 		THREAD_NOT_FOUND: "Thread not found",
 		THREAD_CLOSED: "Thread is closed and does not accept new replies",
+		POST_NOT_FOUND: "Post not found",
+		USER_NOT_FOUND: "User not found",
 		WRONG_PASSWORD: "Current password is incorrect",
+		USERNAME_TAKEN: "Username is already taken",
+		IP_BAN_NOT_FOUND: "IP ban record not found",
+		IP_BAN_DUPLICATE: "IP ban record already exists for this IP",
+		IP_BAN_SELF: "Cannot ban your own IP",
+		CENSOR_WORD_NOT_FOUND: "Censor word rule not found",
+		CENSOR_WORD_DUPLICATE: "Censor word rule already exists",
+		CENSOR_WORD_INVALID: "Censor word rule is invalid (too short or bad regex syntax)",
+		CONTENT_BANNED: "Content contains banned words",
 	};
 
 	return messages[code] || "An error occurred";

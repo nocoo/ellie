@@ -115,3 +115,25 @@ export interface Attachment {
 	downloads: number;
 	createdAt: number;
 }
+
+/** Maps to ip_bans table — IP ban management */
+export interface IpBan {
+	id: number;
+	ip: string;
+	adminId: number;
+	adminName: string;
+	reason: string;
+	expiresAt: number | null;
+	createdAt: number;
+}
+
+/** Maps to censor_words table — content filtering rules */
+export interface CensorWord {
+	id: number;
+	find: string;
+	replacement: string;
+	action: "ban" | "replace";
+	adminId: number;
+	adminName: string;
+	createdAt: number;
+}
