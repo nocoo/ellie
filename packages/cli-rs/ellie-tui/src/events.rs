@@ -831,7 +831,7 @@ mod tests {
 			posts: 0,
 			threads: 0,
 			credits: 0,
-			email: String::new(),
+			email: None,
 			avatar: String::new(),
 			reg_date: 0,
 			last_login: 0,
