@@ -5,13 +5,16 @@ import { validateApiKey } from "../../../src/middleware/apiKey";
 describe("validateApiKey", () => {
 	const mockEnv: Env = {
 		API_KEY: "test-api-key-abc123",
+		ADMIN_API_KEY: "test-admin-key-xyz789",
 		DB: {} as D1Database,
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret",
 		KV: {} as KVNamespace,
 	};
 
-	it("should return null (pass) when X-API-Key matches", () => {
+	// ── Key A for /api/v1/* ──────────────────────────────
+
+	it("should return null (pass) when Key A matches for /api/v1/* route", () => {
 		const request = new Request("https://example.com/api/v1/forums", {
 			headers: { "X-API-Key": "test-api-key-abc123" },
 		});
@@ -19,6 +22,39 @@ describe("validateApiKey", () => {
 		const result = validateApiKey(request, mockEnv);
 		expect(result).toBeNull();
 	});
+
+	it("should return 401 when Key B is used for /api/v1/* route", async () => {
+		const request = new Request("https://example.com/api/v1/forums", {
+			headers: { "X-API-Key": "test-admin-key-xyz789" },
+		});
+
+		const result = validateApiKey(request, mockEnv);
+		expect(result).toBeInstanceOf(Response);
+		expect(result?.status).toBe(401);
+	});
+
+	// ── Key B for /api/admin/* ───────────────────────────
+
+	it("should return null (pass) when Key B matches for /api/admin/* route", () => {
+		const request = new Request("https://example.com/api/admin/users", {
+			headers: { "X-API-Key": "test-admin-key-xyz789" },
+		});
+
+		const result = validateApiKey(request, mockEnv);
+		expect(result).toBeNull();
+	});
+
+	it("should return 401 when Key A is used for /api/admin/* route", async () => {
+		const request = new Request("https://example.com/api/admin/users", {
+			headers: { "X-API-Key": "test-api-key-abc123" },
+		});
+
+		const result = validateApiKey(request, mockEnv);
+		expect(result).toBeInstanceOf(Response);
+		expect(result?.status).toBe(401);
+	});
+
+	// ── Missing / wrong key ──────────────────────────────
 
 	it("should return 401 when X-API-Key is missing", async () => {
 		const request = new Request("https://example.com/api/v1/forums");
@@ -32,8 +68,18 @@ describe("validateApiKey", () => {
 		expect(data.error.message).toBe("Authentication required");
 	});
 
-	it("should return 401 when X-API-Key is wrong", async () => {
+	it("should return 401 when X-API-Key is wrong for /api/v1/*", async () => {
 		const request = new Request("https://example.com/api/v1/forums", {
+			headers: { "X-API-Key": "wrong-key" },
+		});
+
+		const result = validateApiKey(request, mockEnv);
+		expect(result).toBeInstanceOf(Response);
+		expect(result?.status).toBe(401);
+	});
+
+	it("should return 401 when X-API-Key is wrong for /api/admin/*", async () => {
+		const request = new Request("https://example.com/api/admin/forums", {
 			headers: { "X-API-Key": "wrong-key" },
 		});
 
@@ -51,6 +97,8 @@ describe("validateApiKey", () => {
 		expect(result).toBeInstanceOf(Response);
 		expect(result?.status).toBe(401);
 	});
+
+	// ── CORS headers ─────────────────────────────────────
 
 	it("should include CORS headers when origin is provided", () => {
 		const request = new Request("https://example.com/api/v1/forums");
