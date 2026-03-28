@@ -1,6 +1,6 @@
 # 07 — API 接口参考手册
 
-> 基于实际代码的完整 API 文档。公开端点 17 个 + 管理端点 44 个 = 共 61 个。
+> 基于实际代码的完整 API 文档。公开端点 17 个 + 管理端点 46 个 = 共 63 个。
 >
 > **最后更新**：2026-03-28
 
@@ -24,16 +24,17 @@
   - [11. 用户（公开）](#11-用户公开)
   - [12-15. 认证](#12-15-认证)
   - [16-17. 用户自助服务](#16-17-用户自助服务)
-- [管理端点（#18-#61）](#管理端点1861)
+- [管理端点（#18-#63）](#管理端点1863)
   - [实体总览](#实体总览)
+  - [Admin 认证 — #62-#63](#admin-认证--6263)
   - [A. Forum 版块（Admin）— #18-#24](#a-forum-版块admin-1824)
-  - [B. Thread 主题（SuperMod+）— #25-#30](#b-thread-主题supermod-2530)
-  - [C. Post 帖子（SuperMod+）— #31-#35](#c-post-帖子supermod-3135)
+  - [B. Thread 主题（Admin）— #25-#30](#b-thread-主题admin-2530)
+  - [C. Post 帖子（Admin）— #31-#35](#c-post-帖子admin-3135)
   - [D. User 用户（Admin）— #36-#42](#d-user-用户admin-3642)
   - [E. Attachment 附件（Admin）— #43-#46](#e-attachment-附件admin-4346)
   - [F. IpBan IP 封禁（Admin）— #47-#53](#f-ipban-ip-封禁admin-4753)
   - [G. CensorWord 敏感词（Admin）— #54-#60](#g-censorword-敏感词admin-5460)
-  - [H. Stats 站点统计（SuperMod+）— #61](#h-stats-站点统计supermod-61)
+  - [H. Stats 站点统计（Admin）— #61](#h-stats-站点统计admin-61)
 - [附录](#附录)
   - [测试原则](#测试原则)
 
@@ -50,41 +51,57 @@
 
 ### 认证体系
 
-系统采用三层认证，逐级递增：
+系统采用双 Key + 双认证体系，论坛用户与 Admin 完全独立：
+
+#### API Key 层（路由隔离）
+
+| Key | 环境变量 | 可访问路由 | 使用者 |
+|-----|---------|-----------|--------|
+| **Key A** | `API_KEY` | `/api/v1/*` | CLI、Web |
+| **Key B** | `ADMIN_API_KEY` | `/api/admin/*` | Admin Console |
+
+所有请求（除 `/api/live`）必须携带 `X-API-Key` header。Key A 不能访问 `/api/admin/*`，Key B 不能访问 `/api/v1/*`。
+
+#### 论坛用户认证（Key A 体系）
 
 | 层级 | 请求头 | 适用范围 |
 |------|--------|----------|
-| **API Key** | `X-API-Key: <密钥>` | 除 `/api/live` 外的所有端点 |
-| **JWT 令牌** | `Authorization: Bearer <token>` | 需要用户身份的端点 |
-| **角色鉴权** | JWT 内的 `role` 字段 | 管理端点（版主/管理员） |
+| **API Key A** | `X-API-Key: <API_KEY>` | `/api/v1/*` 所有端点 |
+| **论坛 JWT** | `Authorization: Bearer <token>` | 写操作、自助服务、版主操作 |
+| **角色鉴权** | JWT 内的 `role` 字段 | 版主操作（`/api/v1/moderation/*`） |
 
-**JWT 令牌**：HS256 签名，有效期 7 天。Payload 包含 `{ userId, role, exp }`。
+**论坛 JWT**：HS256 签名，有效期 7 天。Payload：`{ userId, role, exp, iat }`。
 
 **Refresh Token**：UUID 格式，存储在 KV 中，有效期 30 天，单次使用（旋转机制）。
 
-**角色鉴权说明**：
-- `withAuth`：仅验证 JWT 有效性，任何已登录用户均可访问
-- `withSuperMod`：要求 `role ∈ {1, 2}`（管理员、超级版主）
-- `withAdmin`：要求 `role === 1`（仅管理员）
+**角色鉴权说明**（仅用于 `/api/v1/moderation/*`）：
+- `withAuth`：仅验证论坛 JWT 有效性，任何已登录用户均可访问
+- `withModerator`：要求 `role ∈ {1, 2, 3}`（管理员、超级版主、版主）
+
+#### Admin 认证（Key B 体系）
+
+| 层级 | 请求头 | 适用范围 |
+|------|--------|----------|
+| **API Key B** | `X-API-Key: <ADMIN_API_KEY>` | `/api/admin/*` 所有端点 |
+| **Admin JWT** | `Authorization: Bearer <admin-token>` | 除 `/api/admin/auth/login` 外的所有 admin 端点 |
+
+**Admin JWT**：HS256 签名，有效期 24h。Payload：`{ googleId, email, type: "admin", exp, iat }`。
+
+**Admin 登录流程**：Google Sign-In → ID Token → Worker 验证 → 白名单检查 → 签发 Admin JWT。
+
+> Admin 身份由 `ADMIN_GOOGLE_IDS` 环境变量白名单定义，与论坛用户完全独立。所有 Admin 全权相等，不分级。
 
 #### 管理端点统一认证
 
-所有 `/api/admin/*` 路由在路由层经过统一的认证入口函数 `adminAuth(request, env)`：
+所有 `/api/admin/*` 路由（除 `/api/admin/auth/login`）在路由层经过统一的认证入口函数 `adminAuth(request, env)`：
 
 ```
-请求 → API Key 验证 → adminAuth() → 角色分发（admin / supermod）→ handler
+请求 → Key B 验证 → adminAuth() → Admin JWT 验证 (type=admin) → handler
 ```
 
-`adminAuth` 是唯一的管理端点认证入口。当前测试阶段使用 API Key + JWT 方案，后续更换认证机制（如 Session、OAuth）只需修改此单一函数。
+`adminAuth` 是唯一的管理端点认证入口。Handler 只接收已认证的 `admin: { googleId, email }` 对象。
 
-每个 `EntityConfig` 声明所需的最低角色：
-
-```ts
-auth: "admin"      // 经过 adminAuth() 后，要求 role === 1
-auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
-```
-
-> **实现约束**：禁止在 handler 内部各自调用认证函数。`adminAuth` 由路由层（或 CRUD 框架的 wrapper）统一调用，handler 只接收已认证的 `user` 对象。
+> **实现约束**：禁止在 handler 内部各自调用认证函数。`adminAuth` 由路由层（或 CRUD 框架的 wrapper）统一调用。
 
 ### 通用响应格式
 
@@ -156,8 +173,8 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 | `INVALID_REFRESH_TOKEN` | 401 | 刷新令牌无效或已过期 |
 | `WRONG_PASSWORD` | 401 | 当前密码不正确 |
 | `FORBIDDEN` | 403 | 拒绝访问 |
-| `FORBIDDEN_ADMIN_ONLY` | 403 | 此操作需要管理员权限 |
-| `FORBIDDEN_MOD_ONLY` | 403 | 此操作需要版主权限 |
+| `FORBIDDEN_ADMIN_ONLY` | 403 | 此操作需要 Admin 权限（Admin JWT type 不匹配或 Google ID 不在白名单） |
+| `FORBIDDEN_MOD_ONLY` | 403 | 此操作需要版主权限（论坛 JWT role 不满足） |
 | `USER_BANNED` | 403 | 用户账号已被封禁 |
 | `THREAD_CLOSED` | 403 | 主题已关闭，不接受新回复 |
 | `NOT_FOUND` | 404 | 资源不存在 |
@@ -1088,9 +1105,11 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 ---
 
 
-## 管理端点（#18-#61）
+## 管理端点（#18-#63）
 
 > 管理 API 按**实体**组织。每个实体遵循统一的 CRUD 模式，特殊操作作为实体的扩展端点。
+>
+> **认证要求**：所有 `/api/admin/*` 端点使用 **Key B**（`ADMIN_API_KEY`）+ **Admin JWT**（Google OAuth 登录后签发）。与论坛用户 JWT 完全独立。所有 Admin 全权相等，不分级。
 >
 > **通用规则**：
 > - 管理列表端点使用**偏移分页**（`page`, `limit`），排序 `id DESC`。**例外**：Forum list 无分页（全量返回），按 `parent_id, display_order` 排序
@@ -1109,14 +1128,75 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 
 | 实体 | 表名 | 认证 | 端点 | CRUD | 特殊操作 |
 |------|------|------|------|------|----------|
-| **Forum** | `forums` | Admin | #18-#24 | L·R·C·U·D | merge, reorder |
-| **Thread** | `threads` | SuperMod+ | #25-#30 | L·R·U·D | batch-delete, batch-move |
-| **Post** | `posts` | SuperMod+ | #31-#35 | L·R·U·D | batch-delete |
-| **User** | `users` | Admin | #36-#42 | L·R·U | ban, nuke, batch-status, batch-role |
-| **Attachment** | `attachments` | Admin | #43-#46 | L·R·D | batch-delete |
-| **IpBan** | `ip_bans` | Admin | #47-#53 | L·R·C·U·D | check-ip, batch-delete |
-| **CensorWord** | `censor_words` | Admin | #54-#60 | L·R·C·U·D | test, batch-delete |
-| **Stats** | *(聚合)* | SuperMod+ | #61 | R | — |
+| **AdminAuth** | *(无表)* | Key B only | #62-#63 | — | login, me |
+| **Forum** | `forums` | Key B + Admin JWT | #18-#24 | L·R·C·U·D | merge, reorder |
+| **Thread** | `threads` | Key B + Admin JWT | #25-#30 | L·R·U·D | batch-delete, batch-move |
+| **Post** | `posts` | Key B + Admin JWT | #31-#35 | L·R·U·D | batch-delete |
+| **User** | `users` | Key B + Admin JWT | #36-#42 | L·R·U | ban, nuke, batch-status, batch-role |
+| **Attachment** | `attachments` | Key B + Admin JWT | #43-#46 | L·R·D | batch-delete |
+| **IpBan** | `ip_bans` | Key B + Admin JWT | #47-#53 | L·R·C·U·D | check-ip, batch-delete |
+| **CensorWord** | `censor_words` | Key B + Admin JWT | #54-#60 | L·R·C·U·D | test, batch-delete |
+| **Stats** | *(聚合)* | Key B + Admin JWT | #61 | R | — |
+
+---
+
+### Admin 认证 — #62-#63
+
+#### #62 `POST /api/admin/auth/login`
+
+Google OAuth 登录，验证 Google ID Token 并签发 Admin JWT。
+
+| 属性 | 值 |
+|------|---|
+| 认证 | Key B only（无需 Admin JWT） |
+| 错误 | `INVALID_BODY`(400)、`UNAUTHORIZED`(401)、`FORBIDDEN`(403) |
+
+**请求体**：
+```json
+{ "idToken": "<Google ID Token>" }
+```
+
+**成功响应（200）**：
+```json
+{
+  "data": {
+    "token": "<admin-jwt, 24h 有效>",
+    "admin": {
+      "googleId": "1234567890",
+      "email": "admin@example.com"
+    }
+  },
+  "meta": { "timestamp": 1711612800000, "requestId": "..." }
+}
+```
+
+**处理流程**：
+1. 验证 Google ID Token（JWKS 公钥 + 签名 + audience + issuer + 过期时间）
+2. 提取 `sub`（Google ID）和 `email`
+3. 检查 `sub ∈ ADMIN_GOOGLE_IDS` 白名单 → 不在白名单返回 `FORBIDDEN`
+4. 签发 Admin JWT：`{ googleId, email, type: "admin", exp, iat }`
+
+---
+
+#### #63 `GET /api/admin/auth/me`
+
+获取当前 Admin 身份信息。
+
+| 属性 | 值 |
+|------|---|
+| 认证 | Key B + Admin JWT |
+| 错误 | `UNAUTHORIZED`(401)、`TOKEN_EXPIRED`(401) |
+
+**成功响应（200）**：
+```json
+{
+  "data": {
+    "googleId": "1234567890",
+    "email": "admin@example.com"
+  },
+  "meta": { "timestamp": 1711612800000, "requestId": "..." }
+}
+```
 
 ---
 
@@ -1128,7 +1208,7 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Admin |
+| 认证 | Key B + Admin JWT |
 | 分页 | 无（全量返回） |
 
 **成功响应（200）**：`{ data: Forum[], meta }` — 排序 `parent_id, display_order`。
@@ -1141,7 +1221,7 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Admin |
+| 认证 | Key B + Admin JWT |
 | 错误 | `INVALID_REQUEST`(400)、`FORUM_NOT_FOUND`(404) |
 
 ---
@@ -1152,7 +1232,7 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Admin |
+| 认证 | Key B + Admin JWT |
 
 **请求体：**
 
@@ -1176,7 +1256,7 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Admin |
+| 认证 | Key B + Admin JWT |
 
 **可更新字段**：`name`, `description`, `icon`, `displayOrder`, `status`, `type`, `parentId` — 至少提供一个。
 
@@ -1190,7 +1270,7 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Admin |
+| 认证 | Key B + Admin JWT |
 | 错误 | `FORUM_HAS_THREADS`(409) — `details: { threadCount }` |
 
 ---
@@ -1201,7 +1281,7 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Admin |
+| 认证 | Key B + Admin JWT |
 
 **请求体**：`{ targetForumId: number }` — 目标版块必须存在，不能与源相同。
 
@@ -1228,7 +1308,7 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Admin |
+| 认证 | Key B + Admin JWT |
 
 **请求体**：`{ orders: { id: number, displayOrder: number }[] }` — 非空，≤ 200 项。
 
@@ -1236,7 +1316,7 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 
 ---
 
-### B. Thread 主题（SuperMod+）— #25-#30
+### B. Thread 主题（Admin）— #25-#30
 
 #### #25 `GET /api/admin/threads`
 
@@ -1244,7 +1324,7 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 
 | 属性 | 值 |
 |------|---|
-| 认证 | SuperMod+ |
+| 认证 | Key B + Admin JWT |
 | 分页 | 偏移分页 |
 
 **筛选参数：**
@@ -1274,7 +1354,7 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 
 | 属性 | 值 |
 |------|---|
-| 认证 | SuperMod+ |
+| 认证 | Key B + Admin JWT |
 
 **可更新字段：**
 
@@ -1330,7 +1410,7 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 
 ---
 
-### C. Post 帖子（SuperMod+）— #31-#35
+### C. Post 帖子（Admin）— #31-#35
 
 #### #31 `GET /api/admin/posts`
 
@@ -1338,7 +1418,7 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 
 | 属性 | 值 |
 |------|---|
-| 认证 | SuperMod+ |
+| 认证 | Key B + Admin JWT |
 | 分页 | 偏移分页 |
 
 **筛选参数：**
@@ -1364,7 +1444,7 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 
 | 属性 | 值 |
 |------|---|
-| 认证 | SuperMod+ |
+| 认证 | Key B + Admin JWT |
 
 **请求体**：`{ content: string }` — 非空。
 
@@ -1404,7 +1484,7 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Admin |
+| 认证 | Key B + Admin JWT |
 | 分页 | 偏移分页 |
 
 **筛选参数：**
@@ -1430,7 +1510,7 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Admin |
+| 认证 | Key B + Admin JWT |
 
 **可更新字段：**
 
@@ -1531,7 +1611,7 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Admin |
+| 认证 | Key B + Admin JWT |
 | 分页 | 偏移分页 |
 
 **筛选参数：**
@@ -1591,7 +1671,7 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Admin |
+| 认证 | Key B + Admin JWT |
 | 分页 | 偏移分页 |
 
 **筛选参数：**
@@ -1693,7 +1773,7 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 
 | 属性 | 值 |
 |------|---|
-| 认证 | Admin |
+| 认证 | Key B + Admin JWT |
 | 分页 | 偏移分页 |
 
 **筛选参数：**
@@ -1806,7 +1886,7 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 
 ---
 
-### H. Stats 站点统计（SuperMod+）— #61
+### H. Stats 站点统计（Admin）— #61
 
 #### #61 `GET /api/admin/stats`
 
@@ -1814,7 +1894,7 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 
 | 属性 | 值 |
 |------|---|
-| 认证 | SuperMod+ |
+| 认证 | Key B + Admin JWT |
 
 **成功响应（200）：**
 ```json
@@ -1886,73 +1966,75 @@ auth: "supermod"   // 经过 adminAuth() 后，要求 role ∈ {1, 2}
 | # | 方法 | 路径 | 认证 | 分页 |
 |---|------|------|------|------|
 | 1 | `GET` | `/api/live` | 无 | — |
-| 2 | `GET` | `/api/v1/forums` | API Key | 无 |
-| 3 | `GET` | `/api/v1/forums/:id` | API Key | — |
-| 4 | `GET` | `/api/v1/threads` | API Key | 游标 |
-| 5 | `GET` | `/api/v1/threads/:id` | API Key | — |
-| 6 | `POST` | `/api/v1/threads` | API Key + JWT | — |
-| 7 | `GET` | `/api/v1/posts` | API Key | 游标 |
-| 8 | `GET` | `/api/v1/posts/:id` | API Key | — |
-| 9 | `POST` | `/api/v1/posts` | API Key + JWT | — |
-| 10 | `GET` | `/api/v1/posts/:id/attachments` | API Key | 无 |
-| 11 | `GET` | `/api/v1/users/:id` | API Key | — |
-| 12 | `POST` | `/api/v1/auth/login` | API Key | — |
-| 13 | `POST` | `/api/v1/auth/refresh` | API Key | — |
-| 14 | `DELETE` | `/api/v1/auth/logout` | API Key | — |
-| 15 | `GET` | `/api/v1/auth/me` | API Key + JWT | — |
-| 16 | `PATCH` | `/api/v1/users/me` | API Key + JWT | — |
-| 17 | `POST` | `/api/v1/users/me/password` | API Key + JWT | — |
+| 2 | `GET` | `/api/v1/forums` | Key A | 无 |
+| 3 | `GET` | `/api/v1/forums/:id` | Key A | — |
+| 4 | `GET` | `/api/v1/threads` | Key A | 游标 |
+| 5 | `GET` | `/api/v1/threads/:id` | Key A | — |
+| 6 | `POST` | `/api/v1/threads` | Key A + 论坛 JWT | — |
+| 7 | `GET` | `/api/v1/posts` | Key A | 游标 |
+| 8 | `GET` | `/api/v1/posts/:id` | Key A | — |
+| 9 | `POST` | `/api/v1/posts` | Key A + 论坛 JWT | — |
+| 10 | `GET` | `/api/v1/posts/:id/attachments` | Key A | 无 |
+| 11 | `GET` | `/api/v1/users/:id` | Key A | — |
+| 12 | `POST` | `/api/v1/auth/login` | Key A | — |
+| 13 | `POST` | `/api/v1/auth/refresh` | Key A | — |
+| 14 | `DELETE` | `/api/v1/auth/logout` | Key A | — |
+| 15 | `GET` | `/api/v1/auth/me` | Key A + 论坛 JWT | — |
+| 16 | `PATCH` | `/api/v1/users/me` | Key A + 论坛 JWT | — |
+| 17 | `POST` | `/api/v1/users/me/password` | Key A + 论坛 JWT | — |
 
-#### 管理端点（#18-#61）— 按实体分组
+#### 管理端点（#18-#63）— 按实体分组
 
 | # | 方法 | 路径 | 实体 | 认证 | 操作 |
 |---|------|------|------|------|------|
-| 18 | `GET` | `/api/admin/forums` | Forum | Admin | list |
-| 19 | `GET` | `/api/admin/forums/:id` | Forum | Admin | get |
-| 20 | `POST` | `/api/admin/forums` | Forum | Admin | create |
-| 21 | `PATCH` | `/api/admin/forums/:id` | Forum | Admin | update |
-| 22 | `DELETE` | `/api/admin/forums/:id` | Forum | Admin | delete |
-| 23 | `POST` | `/api/admin/forums/:id/merge` | Forum | Admin | merge |
-| 24 | `POST` | `/api/admin/forums/reorder` | Forum | Admin | reorder |
-| 25 | `GET` | `/api/admin/threads` | Thread | SuperMod+ | list |
-| 26 | `GET` | `/api/admin/threads/:id` | Thread | SuperMod+ | get |
-| 27 | `PATCH` | `/api/admin/threads/:id` | Thread | SuperMod+ | update *(含 sticky/digest/close/highlight/move)* |
-| 28 | `DELETE` | `/api/admin/threads/:id` | Thread | SuperMod+ | delete |
-| 29 | `POST` | `/api/admin/threads/batch-delete` | Thread | SuperMod+ | batch-delete |
-| 30 | `POST` | `/api/admin/threads/batch-move` | Thread | SuperMod+ | batch-move |
-| 31 | `GET` | `/api/admin/posts` | Post | SuperMod+ | list |
-| 32 | `GET` | `/api/admin/posts/:id` | Post | SuperMod+ | get |
-| 33 | `PATCH` | `/api/admin/posts/:id` | Post | SuperMod+ | update |
-| 34 | `DELETE` | `/api/admin/posts/:id` | Post | SuperMod+ | delete |
-| 35 | `POST` | `/api/admin/posts/batch-delete` | Post | SuperMod+ | batch-delete |
-| 36 | `GET` | `/api/admin/users` | User | Admin | list |
-| 37 | `GET` | `/api/admin/users/:id` | User | Admin | get |
-| 38 | `PATCH` | `/api/admin/users/:id` | User | Admin | update *(含 status/role/credits/profile)* |
-| 39 | `POST` | `/api/admin/users/:id/ban` | User | Admin | ban |
-| 40 | `POST` | `/api/admin/users/:id/nuke` | User | Admin | nuke |
-| 41 | `POST` | `/api/admin/users/batch-status` | User | Admin | batch-status |
-| 42 | `POST` | `/api/admin/users/batch-role` | User | Admin | batch-role |
-| 43 | `GET` | `/api/admin/attachments` | Attachment | Admin | list |
-| 44 | `GET` | `/api/admin/attachments/:id` | Attachment | Admin | get |
-| 45 | `DELETE` | `/api/admin/attachments/:id` | Attachment | Admin | delete |
-| 46 | `POST` | `/api/admin/attachments/batch-delete` | Attachment | Admin | batch-delete |
-| 47 | `GET` | `/api/admin/ip-bans` | IpBan | Admin | list |
-| 48 | `GET` | `/api/admin/ip-bans/:id` | IpBan | Admin | get |
-| 49 | `POST` | `/api/admin/ip-bans` | IpBan | Admin | create |
-| 50 | `PATCH` | `/api/admin/ip-bans/:id` | IpBan | Admin | update |
-| 51 | `DELETE` | `/api/admin/ip-bans/:id` | IpBan | Admin | delete |
-| 52 | `POST` | `/api/admin/ip-bans/batch-delete` | IpBan | Admin | batch-delete |
-| 53 | `GET` | `/api/admin/ip-bans/check-ip` | IpBan | Admin | check |
-| 54 | `GET` | `/api/admin/censor-words` | CensorWord | Admin | list |
-| 55 | `GET` | `/api/admin/censor-words/:id` | CensorWord | Admin | get |
-| 56 | `POST` | `/api/admin/censor-words` | CensorWord | Admin | create |
-| 57 | `PATCH` | `/api/admin/censor-words/:id` | CensorWord | Admin | update |
-| 58 | `DELETE` | `/api/admin/censor-words/:id` | CensorWord | Admin | delete |
-| 59 | `POST` | `/api/admin/censor-words/batch-delete` | CensorWord | Admin | batch-delete |
-| 60 | `POST` | `/api/admin/censor-words/test` | CensorWord | Admin | test |
-| 61 | `GET` | `/api/admin/stats` | Stats | SuperMod+ | get |
+| 18 | `GET` | `/api/admin/forums` | Forum | Key B + Admin JWT | list |
+| 19 | `GET` | `/api/admin/forums/:id` | Forum | Key B + Admin JWT | get |
+| 20 | `POST` | `/api/admin/forums` | Forum | Key B + Admin JWT | create |
+| 21 | `PATCH` | `/api/admin/forums/:id` | Forum | Key B + Admin JWT | update |
+| 22 | `DELETE` | `/api/admin/forums/:id` | Forum | Key B + Admin JWT | delete |
+| 23 | `POST` | `/api/admin/forums/:id/merge` | Forum | Key B + Admin JWT | merge |
+| 24 | `POST` | `/api/admin/forums/reorder` | Forum | Key B + Admin JWT | reorder |
+| 25 | `GET` | `/api/admin/threads` | Thread | Key B + Admin JWT | list |
+| 26 | `GET` | `/api/admin/threads/:id` | Thread | Key B + Admin JWT | get |
+| 27 | `PATCH` | `/api/admin/threads/:id` | Thread | Key B + Admin JWT | update *(含 sticky/digest/close/highlight/move)* |
+| 28 | `DELETE` | `/api/admin/threads/:id` | Thread | Key B + Admin JWT | delete |
+| 29 | `POST` | `/api/admin/threads/batch-delete` | Thread | Key B + Admin JWT | batch-delete |
+| 30 | `POST` | `/api/admin/threads/batch-move` | Thread | Key B + Admin JWT | batch-move |
+| 31 | `GET` | `/api/admin/posts` | Post | Key B + Admin JWT | list |
+| 32 | `GET` | `/api/admin/posts/:id` | Post | Key B + Admin JWT | get |
+| 33 | `PATCH` | `/api/admin/posts/:id` | Post | Key B + Admin JWT | update |
+| 34 | `DELETE` | `/api/admin/posts/:id` | Post | Key B + Admin JWT | delete |
+| 35 | `POST` | `/api/admin/posts/batch-delete` | Post | Key B + Admin JWT | batch-delete |
+| 36 | `GET` | `/api/admin/users` | User | Key B + Admin JWT | list |
+| 37 | `GET` | `/api/admin/users/:id` | User | Key B + Admin JWT | get |
+| 38 | `PATCH` | `/api/admin/users/:id` | User | Key B + Admin JWT | update *(含 status/role/credits/profile)* |
+| 39 | `POST` | `/api/admin/users/:id/ban` | User | Key B + Admin JWT | ban |
+| 40 | `POST` | `/api/admin/users/:id/nuke` | User | Key B + Admin JWT | nuke |
+| 41 | `POST` | `/api/admin/users/batch-status` | User | Key B + Admin JWT | batch-status |
+| 42 | `POST` | `/api/admin/users/batch-role` | User | Key B + Admin JWT | batch-role |
+| 43 | `GET` | `/api/admin/attachments` | Attachment | Key B + Admin JWT | list |
+| 44 | `GET` | `/api/admin/attachments/:id` | Attachment | Key B + Admin JWT | get |
+| 45 | `DELETE` | `/api/admin/attachments/:id` | Attachment | Key B + Admin JWT | delete |
+| 46 | `POST` | `/api/admin/attachments/batch-delete` | Attachment | Key B + Admin JWT | batch-delete |
+| 47 | `GET` | `/api/admin/ip-bans` | IpBan | Key B + Admin JWT | list |
+| 48 | `GET` | `/api/admin/ip-bans/:id` | IpBan | Key B + Admin JWT | get |
+| 49 | `POST` | `/api/admin/ip-bans` | IpBan | Key B + Admin JWT | create |
+| 50 | `PATCH` | `/api/admin/ip-bans/:id` | IpBan | Key B + Admin JWT | update |
+| 51 | `DELETE` | `/api/admin/ip-bans/:id` | IpBan | Key B + Admin JWT | delete |
+| 52 | `POST` | `/api/admin/ip-bans/batch-delete` | IpBan | Key B + Admin JWT | batch-delete |
+| 53 | `GET` | `/api/admin/ip-bans/check-ip` | IpBan | Key B + Admin JWT | check |
+| 54 | `GET` | `/api/admin/censor-words` | CensorWord | Key B + Admin JWT | list |
+| 55 | `GET` | `/api/admin/censor-words/:id` | CensorWord | Key B + Admin JWT | get |
+| 56 | `POST` | `/api/admin/censor-words` | CensorWord | Key B + Admin JWT | create |
+| 57 | `PATCH` | `/api/admin/censor-words/:id` | CensorWord | Key B + Admin JWT | update |
+| 58 | `DELETE` | `/api/admin/censor-words/:id` | CensorWord | Key B + Admin JWT | delete |
+| 59 | `POST` | `/api/admin/censor-words/batch-delete` | CensorWord | Key B + Admin JWT | batch-delete |
+| 60 | `POST` | `/api/admin/censor-words/test` | CensorWord | Key B + Admin JWT | test |
+| 61 | `GET` | `/api/admin/stats` | Stats | Key B + Admin JWT | get |
+| 62 | `POST` | `/api/admin/auth/login` | AdminAuth | Key B only | login |
+| 63 | `GET` | `/api/admin/auth/me` | AdminAuth | Key B + Admin JWT | me |
 
-**共计：61 个端点** = 17 公开 + 44 管理（7 实体 × CRUD + 批量操作 + 特殊操作 + 1 聚合）
+**共计：63 个端点** = 17 公开（Key A）+ 46 管理（Key B：2 认证 + 44 实体操作）
 
 ### 测试原则
 

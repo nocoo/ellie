@@ -29,7 +29,7 @@ attachments            →   Attachment interface
 export enum UserRole {
   User = 0,      // 普通用户
   Admin = 1,     // 管理员 — 全站权限
-  SuperMod = 2,  // 超级版主 — 管理后台 + 所有版块
+  SuperMod = 2,  // 超级版主 — 论坛前端所有版块版主操作
   Mod = 3,       // 版主 — 仅所辖版块（需 moderators 映射表）
 }
 
@@ -190,10 +190,10 @@ export interface Attachment {
 | 浏览公开版块 | ✅ | ✅ | ✅ | ✅ |
 | 发帖/回帖 | ✅ | ✅ | ✅ | ✅ |
 | 删除自己的帖子 | ✅ | ✅ | ✅ | ✅ |
-| 置顶/加精/关闭/删除他人帖子 | ❌ | ✅ 所辖版块 | ✅ 所有版块 | ✅ |
-| 移动帖子到其他版块 | ❌ | ✅ 所辖版块 | ✅ 所有版块 | ✅ |
-| 访问管理后台 `/admin` | ❌ | ❌ | ✅ | ✅ |
-| 用户管理（封禁/角色变更） | ❌ | ❌ | ❌ | ✅ |
+| 版主操作（置顶/加精/关闭/移动/删除） | ❌ | ✅ 所辖版块 | ✅ 所有版块 | ✅ |
+| 访问管理后台 `/admin` | ❌ | ❌ | ❌ | ❌ |
+
+> **Admin Console 独立于论坛用户体系**：管理后台通过 Google OAuth + `ADMIN_GOOGLE_IDS` 白名单认证，与论坛用户角色无关。上表中"版主操作"指论坛前端 `/api/v1/moderation/*` 端点，走 Key A + 论坛 JWT。
 
 ### 权限纯函数
 
@@ -217,9 +217,10 @@ export function canReplyToThread(user: User | null, thread: Thread): boolean {
 
 /**
  * 版主操作权限（置顶/加精/锁定/移动/删除他人帖子）。
- * - Admin / SuperMod：可操作所有版块（管理后台 + 论坛前端）
- * - Mod：当前阶段简化为可操作所有版块（仅论坛前端，不可进入管理后台）
+ * 在论坛前端（/api/v1/moderation/*）中使用，走 Key A + 论坛用户 JWT。
+ * - Admin (1) / SuperMod (2) / Mod (3)：均可在论坛前端执行版主操作
  * - 未来：Mod 需查询 moderators 表确认是否管辖该版块
+ * 注意：此函数与 Admin Console 无关。Admin Console 通过 Google OAuth 认证。
  */
 export function canModerate(user: User | null, _forumId: number): boolean {
   if (!user) return false;
@@ -228,6 +229,10 @@ export function canModerate(user: User | null, _forumId: number): boolean {
   return false;
 }
 
+/**
+ * @deprecated Admin Console 已改为 Google OAuth 认证，不再通过论坛用户角色判断。
+ * 此函数仅用于论坛前端的历史兼容（如显示版主标识等），不用于 Admin Console 准入判断。
+ */
 export function canAccessAdmin(user: User | null): boolean {
   if (!user) return false;
   return user.role === UserRole.Admin || user.role === UserRole.SuperMod;

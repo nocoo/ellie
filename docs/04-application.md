@@ -276,7 +276,7 @@
 | 4.7.4 | `feat: add post api routes` | `app/api/v1/posts/route.ts` + `app/api/v1/posts/[id]/route.ts` — GET/POST/DELETE | ✅ L1: 分页 + 权限守卫 |
 | 4.7.5 | `feat: add user profile api route` | `app/api/v1/users/route.ts` + `app/api/v1/users/[id]/route.ts` — 公开资料 | ✅ L1: 搜索/筛选 |
 | 4.7.6 | `feat: add moderation api routes` | `app/api/v1/moderation/route.ts` — 版主操作 | ✅ L1: role ∈ {1,2,3} 守卫 |
-| 4.7.7 | `feat: add admin api routes` | `app/api/admin/users/route.ts`, `app/api/admin/content/route.ts`, `app/api/admin/forums/route.ts` | ✅ L1: role ∈ {1,2} 守卫 |
+| 4.7.7 | `feat: add admin api routes` | `app/api/admin/users/route.ts`, `app/api/admin/content/route.ts`, `app/api/admin/forums/route.ts` | ✅ L1: Key B + Admin JWT 守卫 |
 
 > **4.7 结束时**：所有 API 端点实现完毕，L2 集成测试有真实被测对象。
 

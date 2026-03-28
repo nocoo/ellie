@@ -263,7 +263,7 @@ export function useThreadListViewModel(forumId: number) {
 
 **版主操作面板：**
 
-仅当 `canModerate(user, forumId)` 为 true 时展示。Admin / SuperMod / Mod 均可使用（Mod 不可进入管理后台，但在论坛前端拥有版主操作权限）：
+仅当 `canModerate(user, forumId)` 为 true 时展示。Admin (1) / SuperMod (2) / Mod (3) 均可使用。这些操作走 Key A + 论坛用户 JWT + `/api/v1/moderation/*` 端点，与 Admin Console（Key B + Google OAuth）无关：
 
 | 操作 | 调用 | 说明 |
 |------|------|------|
