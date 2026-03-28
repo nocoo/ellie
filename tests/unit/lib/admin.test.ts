@@ -1,61 +1,67 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { isAdminGoogleId, resolveAdmin } from "../../../apps/web/src/lib/admin";
+import { isAdmin, resolveAdmin } from "../../../apps/web/src/lib/admin";
 
-describe("isAdminGoogleId", () => {
-	const originalEnv = process.env.ADMIN_GOOGLE_IDS;
+describe("isAdmin", () => {
+	const originalEnv = process.env.ADMIN_EMAILS;
 
 	afterEach(() => {
 		if (originalEnv === undefined) {
-			process.env.ADMIN_GOOGLE_IDS = undefined;
+			process.env.ADMIN_EMAILS = undefined;
 		} else {
-			process.env.ADMIN_GOOGLE_IDS = originalEnv;
+			process.env.ADMIN_EMAILS = originalEnv;
 		}
 	});
 
 	it("returns false when env is not set", () => {
-		process.env.ADMIN_GOOGLE_IDS = undefined;
-		expect(isAdminGoogleId("12345")).toBe(false);
+		process.env.ADMIN_EMAILS = undefined;
+		expect(isAdmin("user@example.com")).toBe(false);
 	});
 
 	it("returns false for null/undefined", () => {
-		process.env.ADMIN_GOOGLE_IDS = "12345";
-		expect(isAdminGoogleId(null)).toBe(false);
-		expect(isAdminGoogleId(undefined)).toBe(false);
+		process.env.ADMIN_EMAILS = "admin@example.com";
+		expect(isAdmin(null)).toBe(false);
+		expect(isAdmin(undefined)).toBe(false);
 	});
 
-	it("returns true for matching sub", () => {
-		process.env.ADMIN_GOOGLE_IDS = "111,222,333";
-		expect(isAdminGoogleId("222")).toBe(true);
+	it("returns true for matching email", () => {
+		process.env.ADMIN_EMAILS = "a@example.com,b@example.com,c@example.com";
+		expect(isAdmin("b@example.com")).toBe(true);
 	});
 
-	it("returns false for non-matching sub", () => {
-		process.env.ADMIN_GOOGLE_IDS = "111,222,333";
-		expect(isAdminGoogleId("999")).toBe(false);
+	it("returns false for non-matching email", () => {
+		process.env.ADMIN_EMAILS = "a@example.com,b@example.com";
+		expect(isAdmin("z@example.com")).toBe(false);
+	});
+
+	it("is case-insensitive", () => {
+		process.env.ADMIN_EMAILS = "Admin@Example.COM";
+		expect(isAdmin("admin@example.com")).toBe(true);
+		expect(isAdmin("ADMIN@EXAMPLE.COM")).toBe(true);
 	});
 
 	it("trims whitespace from env values", () => {
-		process.env.ADMIN_GOOGLE_IDS = " 111 , 222 , 333 ";
-		expect(isAdminGoogleId("222")).toBe(true);
+		process.env.ADMIN_EMAILS = " a@x.com , b@x.com , c@x.com ";
+		expect(isAdmin("b@x.com")).toBe(true);
 	});
 
 	it("handles empty env string", () => {
-		process.env.ADMIN_GOOGLE_IDS = "";
-		expect(isAdminGoogleId("12345")).toBe(false);
+		process.env.ADMIN_EMAILS = "";
+		expect(isAdmin("user@example.com")).toBe(false);
 	});
 });
 
 describe("resolveAdmin", () => {
-	const originalEnv = process.env.ADMIN_GOOGLE_IDS;
+	const originalEnv = process.env.ADMIN_EMAILS;
 
 	beforeEach(() => {
-		process.env.ADMIN_GOOGLE_IDS = "admin-sub-1,admin-sub-2";
+		process.env.ADMIN_EMAILS = "admin@example.com,super@example.com";
 	});
 
 	afterEach(() => {
 		if (originalEnv === undefined) {
-			process.env.ADMIN_GOOGLE_IDS = undefined;
+			process.env.ADMIN_EMAILS = undefined;
 		} else {
-			process.env.ADMIN_GOOGLE_IDS = originalEnv;
+			process.env.ADMIN_EMAILS = originalEnv;
 		}
 	});
 
@@ -69,7 +75,7 @@ describe("resolveAdmin", () => {
 
 	it("returns null for non-admin user", () => {
 		const session = {
-			user: { id: "non-admin-sub", email: "user@example.com", name: "User", image: null },
+			user: { id: "123", email: "user@example.com", name: "User", image: null },
 		};
 		expect(resolveAdmin(session)).toBeNull();
 	});
@@ -77,7 +83,7 @@ describe("resolveAdmin", () => {
 	it("returns admin info for admin user", () => {
 		const session = {
 			user: {
-				id: "admin-sub-1",
+				id: "google-sub-123",
 				email: "admin@example.com",
 				name: "Admin",
 				image: "https://example.com/avatar.jpg",
@@ -85,7 +91,7 @@ describe("resolveAdmin", () => {
 		};
 		const result = resolveAdmin(session);
 		expect(result).toEqual({
-			sub: "admin-sub-1",
+			sub: "google-sub-123",
 			email: "admin@example.com",
 			name: "Admin",
 			image: "https://example.com/avatar.jpg",
@@ -94,12 +100,12 @@ describe("resolveAdmin", () => {
 
 	it("handles missing optional fields gracefully", () => {
 		const session = {
-			user: { id: "admin-sub-2" },
+			user: { id: "456", email: "super@example.com" },
 		};
 		const result = resolveAdmin(session);
 		expect(result).toEqual({
-			sub: "admin-sub-2",
-			email: "",
+			sub: "456",
+			email: "super@example.com",
 			name: "",
 			image: undefined,
 		});
