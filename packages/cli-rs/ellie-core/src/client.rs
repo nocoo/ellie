@@ -43,6 +43,7 @@ impl std::error::Error for ApiError {}
 // ─── Login Response ──────────────────────────────────────
 
 /// Processed login result returned to callers.
+#[derive(Debug)]
 pub struct LoginResponse {
 	pub token: String,
 	pub refresh_token: String,
@@ -61,6 +62,7 @@ pub struct ApiClient {
 	base_url: String,
 	api_key: String,
 	token: Option<String>,
+	refresh_token: Option<String>,
 }
 
 impl ApiClient {
@@ -77,11 +79,16 @@ impl ApiClient {
 			base_url,
 			api_key,
 			token: None,
+			refresh_token: None,
 		}
 	}
 
 	pub fn set_token(&mut self, token: Option<String>) {
 		self.token = token;
+	}
+
+	pub fn set_refresh_token(&mut self, refresh_token: Option<String>) {
+		self.refresh_token = refresh_token;
 	}
 
 	pub fn is_authenticated(&self) -> bool {
@@ -257,6 +264,7 @@ impl ApiClient {
 		let body = serde_json::json!({ "username": username, "password": password });
 		let res: ApiResponse<LoginData> = self.api_post("/api/v1/auth/login", &body)?;
 		self.token = Some(res.data.token.clone());
+		self.refresh_token = Some(res.data.refresh_token.clone());
 		Ok(LoginResponse {
 			token: res.data.token,
 			refresh_token: res.data.refresh_token,
@@ -264,9 +272,34 @@ impl ApiClient {
 		})
 	}
 
+	/// Refresh the JWT using the stored refresh token.
+	/// Returns a new LoginResponse with rotated tokens.
+	pub fn refresh(&mut self) -> Result<LoginResponse> {
+		let refresh_token = self
+			.refresh_token
+			.clone()
+			.ok_or_else(|| anyhow::anyhow!("no refresh token available"))?;
+
+		let body = serde_json::json!({ "refreshToken": refresh_token });
+		let res: ApiResponse<LoginData> = self.api_post("/api/v1/auth/refresh", &body)?;
+		self.token = Some(res.data.token.clone());
+		self.refresh_token = Some(res.data.refresh_token.clone());
+		Ok(LoginResponse {
+			token: res.data.token,
+			refresh_token: res.data.refresh_token,
+			user: res.data.user,
+		})
+	}
+
+	/// Check if a refresh token is available for auto-refresh.
+	pub fn has_refresh_token(&self) -> bool {
+		self.refresh_token.is_some()
+	}
+
 	/// Clear local auth state.
 	pub fn logout(&mut self) {
 		self.token = None;
+		self.refresh_token = None;
 	}
 }
 
@@ -377,5 +410,42 @@ mod tests {
 		let err = AuthExpiredError;
 		let e: &dyn std::error::Error = &err;
 		assert_eq!(e.to_string(), "authentication token expired");
+	}
+
+	#[test]
+	fn client_set_refresh_token() {
+		let mut client = ApiClient::new("https://example.com".to_string(), "test-key".to_string());
+		assert!(!client.has_refresh_token());
+
+		client.set_refresh_token(Some("refresh-tok".to_string()));
+		assert!(client.has_refresh_token());
+
+		client.logout();
+		assert!(!client.has_refresh_token());
+	}
+
+	#[test]
+	fn logout_clears_both_tokens() {
+		let mut client = ApiClient::new("https://example.com".to_string(), "test-key".to_string());
+		client.set_token(Some("jwt".to_string()));
+		client.set_refresh_token(Some("refresh".to_string()));
+		assert!(client.is_authenticated());
+		assert!(client.has_refresh_token());
+
+		client.logout();
+		assert!(!client.is_authenticated());
+		assert!(!client.has_refresh_token());
+	}
+
+	#[test]
+	fn refresh_without_token_returns_error() {
+		let mut client = ApiClient::new("https://example.com".to_string(), "test-key".to_string());
+		// No refresh token set
+		let result = client.refresh();
+		assert!(result.is_err());
+		assert!(result
+			.unwrap_err()
+			.to_string()
+			.contains("no refresh token available"));
 	}
 }

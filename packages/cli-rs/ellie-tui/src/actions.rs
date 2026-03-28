@@ -142,8 +142,12 @@ fn load_user(app: &mut App, user_id: u64) {
 fn do_login(app: &mut App, username: &str, password: &str) {
 	match app.client.login(username, password) {
 		Ok(resp) => {
-			// Persist auth to config
-			app.config.set_auth(resp.token, resp.user.clone());
+			// Persist auth (including refresh token) to config
+			app.config.set_auth(
+				resp.token,
+				Some(resp.refresh_token),
+				resp.user.clone(),
+			);
 			if let Err(e) = app.config.write(None) {
 				app.status_message = Some(format!("logged in, but failed to save config: {e}"));
 			} else {
@@ -214,10 +218,31 @@ fn current_cursor(app: &App) -> Option<String> {
 	}
 }
 
-/// Handle TOKEN_EXPIRED errors by clearing auth state and prompting re-login.
-/// Returns true if the error was an auth expiry.
+/// Handle TOKEN_EXPIRED errors by attempting auto-refresh, then falling back to re-login.
+/// Returns true if the error was an auth expiry (whether refresh succeeded or not).
 fn handle_auth_expired(app: &mut App, error: &anyhow::Error) -> bool {
 	if error.downcast_ref::<AuthExpiredError>().is_some() {
+		// Try auto-refresh if we have a refresh token
+		if app.client.has_refresh_token() {
+			match app.client.refresh() {
+				Ok(resp) => {
+					app.config.set_auth(
+						resp.token,
+						Some(resp.refresh_token),
+						resp.user.clone(),
+					);
+					let _ = app.config.write(None);
+					app.logged_in_user = Some(resp.user);
+					app.status_message =
+						Some("session refreshed automatically".to_string());
+					return true;
+				}
+				Err(_) => {
+					// Refresh failed — fall through to clear auth
+				}
+			}
+		}
+
 		app.config.clear_auth();
 		let _ = app.config.write(None);
 		app.client.logout();
