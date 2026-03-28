@@ -13,4 +13,4 @@ id = "9506856500c34ceb82ab989063962a6d"
 
 [vars]
 ENVIRONMENT = "production"
-ALLOWED_ORIGINS = "https://ellie.nocoo.cloud"
+ALLOWED_ORIGINS = "https://ellie.nocoo.cloud,https://ellie.worker.hexly.ai"

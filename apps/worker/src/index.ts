@@ -2,7 +2,7 @@
 // 66 endpoints: 17 public + 5 moderation + 44 admin
 import type { CFRequest, Env } from "./lib/env";
 import { validateApiKey } from "./middleware/apiKey";
-import { corsHeaders } from "./middleware/cors";
+import { configureAllowedOrigins, corsHeaders } from "./middleware/cors";
 import { errorResponse } from "./middleware/error";
 
 // ─── Router ───────────────────────────────────────────────────────
@@ -15,6 +15,9 @@ export default {
 		const url = new URL(request.url);
 		const path = url.pathname;
 		const origin = request.headers.get("Origin") ?? undefined;
+
+		// Configure CORS allowed origins from env (parsed once per request)
+		configureAllowedOrigins(env.ALLOWED_ORIGINS);
 
 		// CORS preflight
 		if (request.method === "OPTIONS") {

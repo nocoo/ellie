@@ -1,10 +1,25 @@
 // CORS middleware for Cloudflare Worker
 
-const ALLOWED_ORIGINS = [
-	"https://ellie.nocoo.cloud",
-	"https://ellie.worker.hexly.ai",
-	"http://localhost:3000",
-];
+/** Default origins for local dev when ALLOWED_ORIGINS env var is not set */
+const DEFAULT_ORIGINS = ["https://ellie.nocoo.cloud", "http://localhost:3000"];
+
+/** Active allowed origins — set per-request from env via configureAllowedOrigins() */
+let allowedOrigins: string[] = DEFAULT_ORIGINS;
+
+/**
+ * Parse the ALLOWED_ORIGINS env var (comma-separated) and set module state.
+ * Must be called at the start of each request in the router.
+ */
+export function configureAllowedOrigins(envValue?: string): void {
+	if (envValue) {
+		allowedOrigins = envValue
+			.split(",")
+			.map((s) => s.trim())
+			.filter(Boolean);
+	} else {
+		allowedOrigins = DEFAULT_ORIGINS;
+	}
+}
 
 export function corsHeaders(origin?: string): Record<string, string> {
 	const headers: Record<string, string> = {
@@ -13,7 +28,7 @@ export function corsHeaders(origin?: string): Record<string, string> {
 		"Access-Control-Max-Age": "86400",
 	};
 
-	if (origin && ALLOWED_ORIGINS.includes(origin)) {
+	if (origin && allowedOrigins.includes(origin)) {
 		headers["Access-Control-Allow-Origin"] = origin;
 	}
 

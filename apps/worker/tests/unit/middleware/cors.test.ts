@@ -1,7 +1,16 @@
-import { describe, expect, it } from "bun:test";
-import { corsHeaders, withCorsHeaders } from "../../../src/middleware/cors";
+import { afterEach, describe, expect, it } from "bun:test";
+import {
+	configureAllowedOrigins,
+	corsHeaders,
+	withCorsHeaders,
+} from "../../../src/middleware/cors";
 
-describe("corsHeaders", () => {
+// Reset to defaults after each test to avoid test pollution
+afterEach(() => {
+	configureAllowedOrigins(undefined);
+});
+
+describe("corsHeaders (default origins)", () => {
 	it("should return base headers without origin", () => {
 		const headers = corsHeaders();
 
@@ -11,13 +20,13 @@ describe("corsHeaders", () => {
 		expect(headers["Access-Control-Allow-Origin"]).toBeUndefined();
 	});
 
-	it("should include Allow-Origin for allowed origin (production)", () => {
+	it("should include Allow-Origin for default origin (production)", () => {
 		const headers = corsHeaders("https://ellie.nocoo.cloud");
 
 		expect(headers["Access-Control-Allow-Origin"]).toBe("https://ellie.nocoo.cloud");
 	});
 
-	it("should include Allow-Origin for allowed origin (localhost)", () => {
+	it("should include Allow-Origin for default origin (localhost)", () => {
 		const headers = corsHeaders("http://localhost:3000");
 
 		expect(headers["Access-Control-Allow-Origin"]).toBe("http://localhost:3000");
@@ -42,7 +51,6 @@ describe("corsHeaders", () => {
 	});
 
 	it("should NOT match similar but different origins", () => {
-		// Should not match subdomains or path-extended origins
 		expect(
 			corsHeaders("https://sub.ellie.nocoo.cloud")["Access-Control-Allow-Origin"],
 		).toBeUndefined();
@@ -50,6 +58,69 @@ describe("corsHeaders", () => {
 		expect(
 			corsHeaders("https://ellie.nocoo.cloud.evil.com")["Access-Control-Allow-Origin"],
 		).toBeUndefined();
+	});
+});
+
+describe("configureAllowedOrigins", () => {
+	it("should parse comma-separated origins from env", () => {
+		configureAllowedOrigins("https://a.com,https://b.com");
+
+		expect(corsHeaders("https://a.com")["Access-Control-Allow-Origin"]).toBe("https://a.com");
+		expect(corsHeaders("https://b.com")["Access-Control-Allow-Origin"]).toBe("https://b.com");
+		expect(corsHeaders("https://c.com")["Access-Control-Allow-Origin"]).toBeUndefined();
+	});
+
+	it("should handle spaces in comma-separated list", () => {
+		configureAllowedOrigins("https://a.com , https://b.com , https://c.com");
+
+		expect(corsHeaders("https://a.com")["Access-Control-Allow-Origin"]).toBe("https://a.com");
+		expect(corsHeaders("https://b.com")["Access-Control-Allow-Origin"]).toBe("https://b.com");
+		expect(corsHeaders("https://c.com")["Access-Control-Allow-Origin"]).toBe("https://c.com");
+	});
+
+	it("should filter empty entries", () => {
+		configureAllowedOrigins("https://a.com,,https://b.com,");
+
+		expect(corsHeaders("https://a.com")["Access-Control-Allow-Origin"]).toBe("https://a.com");
+		expect(corsHeaders("https://b.com")["Access-Control-Allow-Origin"]).toBe("https://b.com");
+	});
+
+	it("should fall back to defaults when env var is undefined", () => {
+		// First configure custom origins
+		configureAllowedOrigins("https://custom.com");
+		expect(corsHeaders("https://ellie.nocoo.cloud")["Access-Control-Allow-Origin"]).toBeUndefined();
+
+		// Then reset
+		configureAllowedOrigins(undefined);
+		expect(corsHeaders("https://ellie.nocoo.cloud")["Access-Control-Allow-Origin"]).toBe(
+			"https://ellie.nocoo.cloud",
+		);
+	});
+
+	it("should fall back to defaults when env var is empty string", () => {
+		configureAllowedOrigins("");
+		// Empty string is falsy, so falls back to defaults
+		expect(corsHeaders("https://ellie.nocoo.cloud")["Access-Control-Allow-Origin"]).toBe(
+			"https://ellie.nocoo.cloud",
+		);
+	});
+
+	it("should reject origins not in configured list", () => {
+		configureAllowedOrigins("https://only-this.com");
+
+		expect(corsHeaders("https://ellie.nocoo.cloud")["Access-Control-Allow-Origin"]).toBeUndefined();
+		expect(corsHeaders("http://localhost:3000")["Access-Control-Allow-Origin"]).toBeUndefined();
+		expect(corsHeaders("https://only-this.com")["Access-Control-Allow-Origin"]).toBe(
+			"https://only-this.com",
+		);
+	});
+
+	it("should handle single origin", () => {
+		configureAllowedOrigins("https://single.com");
+
+		expect(corsHeaders("https://single.com")["Access-Control-Allow-Origin"]).toBe(
+			"https://single.com",
+		);
 	});
 });
 
