@@ -44,8 +44,8 @@
 |------|------|------|------|
 | — | Dashboard | `/admin` | Admin, SuperMod |
 | 内容管理 | Users | `/admin/users` | Admin |
-| | Threads | `/admin/threads` | Admin, SuperMod, Mod |
-| | Posts | `/admin/posts` | Admin, SuperMod, Mod |
+| | Threads | `/admin/threads` | Admin, SuperMod |
+| | Posts | `/admin/posts` | Admin, SuperMod |
 | | Forums | `/admin/forums` | Admin |
 | | Attachments | `/admin/attachments` | Admin |
 | 安全管理 | IP Bans | `/admin/ip-bans` | Admin |
@@ -103,11 +103,11 @@ Browser (Client Component)
   │ fetch("/api/admin/users?page=1")
   ▼
 Next.js API Route (/api/admin/users/route.ts)
-  │ 读取 session JWT → 构造 Bearer token
-  │ fetch(WORKER_URL + "/api/admin/users?page=1", { headers: { Authorization, X-API-Key } })
+  │ 读取 NextAuth session → 验证角色 → 注入 admin context
+  │ fetch(WORKER_URL + "/api/admin/users?page=1", { headers: { X-API-Key, X-Admin-User-Id, X-Admin-Role } })
   ▼
 Cloudflare Worker (ellie.worker)
-  │ 验证 JWT + API Key → 执行 D1 查询
+  │ 验证 API Key → 读取 admin context → 执行 D1 查询
   ▼
 D1 Database
 ```
@@ -143,11 +143,12 @@ const WORKER_URL = process.env.WORKER_API_URL!;  // e.g. https://ellie.worker.he
 const API_KEY = process.env.WORKER_API_KEY!;      // 服务端密钥，不暴露给浏览器
 
 interface AdminApiOptions {
-  token?: string;   // JWT Bearer token（从 session 获取）
+  userId: string;   // Admin user ID（从 NextAuth session 获取）
+  role: number;     // Admin role（1=Admin, 2=SuperMod）
 }
 
 // 通用 GET/POST/PATCH/DELETE 方法
-// 自动注入 X-API-Key + Authorization headers
+// 自动注入 X-API-Key + X-Admin-User-Id + X-Admin-Role headers
 // 统一解析 { data, meta } 响应格式
 // 错误时抛出 typed AdminApiError
 ```
@@ -155,8 +156,8 @@ interface AdminApiOptions {
 ### 2.3 Next.js API Route 代理约定
 
 每个 API Route 做三件事：
-1. **读 session** — 从 NextAuth 获取 JWT token
-2. **转发** — 调用 adminApiClient 发往 Worker
+1. **验证 session** — 从 NextAuth 获取 session，调用 `resolveAdminFromSession()` 验证角色
+2. **转发** — 调用 adminApiClient 发往 Worker（API Key + admin context headers）
 3. **返回** — 透传 Worker 响应（status code + body）
 
 ```
@@ -200,16 +201,23 @@ Session Cookie (浏览器) → NextAuth auth() → JWT payload { userId, role }
                    ┌──────────────────────────┘
                    ▼
           API Route / Server Component
+                   │ resolveAdminFromSession() 验证 role ∈ {Admin, SuperMod}
                    │
-                   ▼ 构造 Worker JWT
-          Authorization: Bearer <worker-jwt>
-          X-API-Key: <server-side-key>
+                   ▼ API Key 直连
+          X-API-Key: <server-side-admin-key>
+          X-Admin-User-Id: <userId>
+          X-Admin-Role: <role>
                    │
                    ▼
-          Worker 验证 JWT + API Key → 执行操作
+          Worker 验证 API Key → 信任 admin context headers → 执行操作
 ```
 
-> **关键**：NextAuth session JWT 和 Worker JWT 是不同的 token。Server Component 和 API Route 需要用 Worker 的 auth 端点获取 Worker JWT，或直接使用 Admin API Key 绕过。具体方案在实现时确定。
+> **架构决策**：Admin 后台使用 **API Key 直连 Worker**，不走 JWT 认证链。
+>
+> - NextAuth session 仅用于前端身份验证和角色判断（layout guard + page guard）。
+> - `adminApiClient` 注入 `X-API-Key`（服务端环境变量）+ `X-Admin-User-Id` / `X-Admin-Role`（从 NextAuth session 提取）。
+> - Worker 端验证 API Key 合法性后，信任 admin context headers 执行操作。
+> - 此方案避免了 NextAuth JWT 与 Worker JWT 的转换问题，且 Phase 2 移除 NextAuth 时仅需替换 session 来源，`adminApiClient` 接口不变。
 
 ---
 
@@ -904,9 +912,9 @@ export default async function AdminGroupLayout({ children }) {
 每个 API Route 代理函数：
 
 ```typescript
-// 读取 session → 获取 Worker auth token
+// 读取 session → resolveAdminFromSession() 验证角色
 // 如果 session 无效或角色不足 → 返回 401/403
-// 否则转发到 Worker（Worker 再次验证 JWT + API Key）
+// 否则通过 adminApiClient 转发到 Worker（API Key 直连）
 ```
 
 ### 4.4 侧边栏条件渲染
@@ -917,9 +925,8 @@ export default async function AdminGroupLayout({ children }) {
 |------|-----------|
 | Admin (1) | 全部 8 项 |
 | SuperMod (2) | Dashboard, Threads, Posts |
-| Mod (3) | Threads, Posts（通过论坛前端操作更合适，但可查看） |
 
-> Moderator 能否进入 Admin Dashboard 是一个灰区。Worker 端点对 Threads/Posts 开放 moderator 权限，但前端侧边栏是否展示需权衡。建议：Moderator 仅通过论坛前端执行 mod 操作，Admin Dashboard 仅对 Admin + SuperMod 开放（与 proxy.ts 一致）。
+> Mod (3) 不进入 Admin Dashboard。内容审核操作通过论坛前端 moderation 流程完成，与 proxy.ts 的 `ADMIN_ROLE_VALUES = {1, 2}` 及 `canAccessAdmin()` 保持一致。
 
 ---
 
