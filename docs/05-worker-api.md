@@ -16,7 +16,7 @@ Ellie Worker 是基于 Cloudflare Workers 的边缘 API 层，作为前端与 D1
 1. **共享包优先**：Worker 组合 `@ellie/types`、`@ellie/repositories`，不重复定义类型
 2. **Contract 对齐**：API 返回体严格遵循 04a 定义的 `PaginatedResult`、cursor 编码
 3. **双 Key 隔离**：`API_KEY`（Key A）守护 `/api/v1/*`，`ADMIN_API_KEY`（Key B）守护 `/api/admin/*`，两组 Key 互不通用
-4. **双认证体系**：论坛用户 JWT（Web/CLI）与 Admin Google OAuth（Admin Console）完全独立
+4. **Admin = Key B 信任**：Worker 管理端点仅验证 Key B，不关心调用者身份。Admin 身份由 Next.js 服务端（Google OAuth + 白名单）负责确认，Worker 无需感知
 5. **权限分层**：`/api/v1/moderation/*`（版主操作，Mod+）在 Key A 体系下，`/api/admin/*` 在 Key B 体系下
 6. **密码兼容**：支持 Discuz 旧密码验证，登录成功后静默升级为 PBKDF2-SHA256
 
@@ -30,16 +30,16 @@ Ellie Worker 是基于 Cloudflare Workers 的边缘 API 层，作为前端与 D1
   Key A（API_KEY）            │  /api/v1/*   │  /api/admin/* │   Key B（ADMIN_API_KEY）
                              │  公开 + 论坛   │  管理端点      │
 ┌─────────┐   X-API-Key: A   │              │               │   X-API-Key: B   ┌───────────┐
-│  CLI    │ ────────────────▶│  论坛用户 JWT  │  Admin JWT    │◀──────────────── │  Admin    │
-│  (Rust) │   只读/可选JWT    │  (HS256)     │  (HS256)      │  Google OAuth    │  Console  │
+│  CLI    │ ────────────────▶│  论坛用户 JWT  │  仅 Key B     │◀──────────────── │  Next.js  │
+│  (Rust) │   只读/可选JWT    │  (HS256)     │  (无 JWT)     │  服务端直连       │  Server   │
 └─────────┘                  │              │               │                  └───────────┘
-                             │              │               │
-┌─────────┐   X-API-Key: A   │              │               │
-│  Web    │ ────────────────▶│              │               │
-│(Next.js)│   论坛用户 JWT    │              │               │
-└─────────┘                  └──────┬───────┴───────┬───────┘
-                                    │               │
-                              ┌─────▼─────┐   ┌────▼────┐
+                             │              │               │        ▲
+┌─────────┐   X-API-Key: A   │              │               │        │ Google OAuth
+│  Web    │ ────────────────▶│              │               │        │ (HttpOnly cookie)
+│(Next.js)│   论坛用户 JWT    │              │               │   ┌────┴──────┐
+└─────────┘                  └──────┬───────┴───────┬───────┘   │  Admin    │
+                                    │               │           │  Browser  │
+                              ┌─────▼─────┐   ┌────▼────┐      └───────────┘
                               │    D1     │   │   KV    │
                               │ (SQLite)  │   │(Session)│
                               └───────────┘   └─────────┘
@@ -51,9 +51,11 @@ Ellie Worker 是基于 Cloudflare Workers 的边缘 API 层，作为前端与 D1
 |--------|---------|---------|---------|
 | **CLI** | Key A（`API_KEY`） | 论坛 JWT（可选，只读不强制） | `/api/v1/*` 只读 |
 | **Web** | Key A（`API_KEY`） | 论坛 JWT（写操作必须） | `/api/v1/*` 读写 + `/api/v1/moderation/*` |
-| **Admin Console** | Key B（`ADMIN_API_KEY`） | Google OAuth → Admin JWT | `/api/admin/*` |
+| **Admin Console（Next.js Server）** | Key B（`ADMIN_API_KEY`） | 仅 Key B（服务端直连） | `/api/admin/*` |
 
 > **Key A 不能访问 `/api/admin/*`，Key B 不能访问 `/api/v1/*`**。两套 Key 在路由层严格隔离。
+>
+> **Admin 认证架构**：浏览器仅持有 HttpOnly + Secure 的 Google OAuth session cookie。Next.js 服务端验证 Google session + `ADMIN_GOOGLE_IDS` 白名单后，直接以 Key B 调用 Worker。Worker 不感知 Admin 身份——信任 Key B 即可。
 
 ### 与共享包的关系
 
@@ -98,15 +100,13 @@ apps/worker/
 ├── src/
 │   ├── index.ts              # Worker 入口，路由分发（含双 Key 路由层分流）
 │   ├── lib/
-│   │   ├── env.ts            # Env 类型定义（JWT_SECRET, DB, KV, RATE_LIMITER, ADMIN_API_KEY, ADMIN_GOOGLE_IDS）
+│   │   ├── env.ts            # Env 类型定义（JWT_SECRET, DB, KV, RATE_LIMITER, ADMIN_API_KEY）
 │   │   ├── password.ts       # 密码工具：verifyDiscuzPassword, hashPassword, verifyPassword
-│   │   ├── google-auth.ts    # Google ID Token 验证（公钥缓存 + 签名校验 + claims 提取）
-│   │   └── jwt.ts            # JWT 签发/验证（论坛用户 JWT + Admin JWT 共用）
+│   │   └── jwt.ts            # JWT 签发/验证（论坛用户 JWT）
 │   ├── middleware/
 │   │   ├── cors.ts           # CORS 处理
 │   │   ├── apiKey.ts         # 双 Key 路由分流（Key A → /api/v1/*, Key B → /api/admin/*）
 │   │   ├── auth.ts           # 论坛用户 JWT 认证中间件（/api/v1/* 写操作 + moderation）
-│   │   ├── adminAuth.ts      # Admin JWT 认证中间件（/api/admin/*，Google OAuth 签发的 Admin JWT）
 │   │   ├── rate-limit.ts     # 速率限制（Durable Object）
 │   │   └── error.ts          # 错误处理
 │   └── handlers/
@@ -115,9 +115,8 @@ apps/worker/
 │       ├── post.ts           # 帖子相关 API
 │       ├── user.ts           # 用户相关 API
 │       ├── auth.ts           # 论坛认证 API（登录/注册/刷新/登出）
-│       ├── adminAuth.ts      # Admin 认证 API（Google OAuth 登录 → 签发 Admin JWT）
 │       ├── moderation.ts     # 版主操作 API（role ∈ {1,2,3}，走 Key A + 论坛 JWT）
-│       └── admin.ts          # 管理 API（走 Key B + Admin JWT）
+│       └── admin.ts          # 管理 API（走 Key B，无需额外认证）
 ├── tests/
 │   ├── unit/                 # L1 单元测试
 │   │   ├── lib/
@@ -354,7 +353,7 @@ const params = cursor
 | POST | /api/v1/auth/refresh | 刷新 Token | `{ refreshToken }` |
 | POST | /api/v1/auth/logout | 登出 | - |
 
-> 论坛用户认证仅用于 Web 前端和 CLI。Admin Console 使用独立的 Google OAuth 认证（见下方 Admin 认证 API）。
+> 论坛用户认证仅用于 Web 前端和 CLI。Admin Console 使用独立的 Google OAuth 认证，在 Next.js 服务端完成身份验证后以 Key B 直连 Worker（Worker 侧无需额外认证）。
 
 **密码验证流程（Discuz 兼容 + PBKDF2-SHA256 升级）：**
 
@@ -596,49 +595,9 @@ export async function moderationMiddleware(
 
 ---
 
-### Admin 认证 API（Key B 体系，Google OAuth）
+### 管理 API（Key B）
 
-| 方法 | 路径 | 说明 | 请求体 |
-|------|------|------|--------|
-| POST | /api/admin/auth/login | Google OAuth 登录 | `{ idToken }` |
-| GET | /api/admin/auth/me | 获取当前 Admin 信息 | - |
-
-**Admin 登录流程：**
-
-```
-1. Admin Console 前端引导用户完成 Google Sign-In
-2. 获得 Google ID Token（JWT，由 Google 签发）
-3. POST /api/admin/auth/login { idToken: "<google-id-token>" }
-4. Worker 验证 Google ID Token：
-   a. 获取 Google 公钥（JWKS，带缓存）
-   b. 验证 JWT 签名、audience、issuer、过期时间
-   c. 提取 sub（Google ID）和 email
-   d. 检查 sub ∈ ADMIN_GOOGLE_IDS 环境变量白名单
-5. 通过后签发 Admin JWT（HS256，有效期 24h）：
-   payload: { googleId, email, type: "admin", exp, iat }
-6. 返回 { token: "<admin-jwt>", admin: { googleId, email } }
-```
-
-**Admin 登录响应：**
-```json
-{
-  "data": {
-    "token": "admin_jwt_token",
-    "admin": {
-      "googleId": "1234567890",
-      "email": "admin@example.com"
-    }
-  }
-}
-```
-
-> **与论坛用户完全独立**：Admin JWT 的 payload 包含 `type: "admin"` 字段，与论坛用户 JWT（包含 `userId` + `role`）结构不同。Worker 通过 `type` 字段区分两种 JWT。
-
----
-
-### 管理 API（Key B + Admin JWT）
-
-**重要**：`/api/admin/*` 使用 **Key B**（`ADMIN_API_KEY`）认证，与 Key A 完全隔离。Admin 身份由 Google OAuth 确定，与论坛用户角色无关。所有通过白名单的 Admin 权限相等，不分级。
+**重要**：`/api/admin/*` 使用 **Key B**（`ADMIN_API_KEY`）认证，与 Key A 完全隔离。Worker 仅验证 Key B，不关心调用者身份。Admin 身份认证（Google OAuth + `ADMIN_GOOGLE_IDS` 白名单）在 Next.js 服务端完成。所有通过白名单的 Admin 权限相等，不分级。
 
 | 方法 | 路径 | 说明 | 请求体 |
 |------|------|------|--------|
@@ -649,34 +608,7 @@ export async function moderationMiddleware(
 | PATCH | /api/admin/forums/:id | 更新版块 | `{ name?, description?, status?, displayOrder? }` |
 | DELETE | /api/admin/forums/:id | 删除版块 | - |
 
-**权限检查（Admin JWT 验证）：**
-
-```typescript
-export async function adminMiddleware(
-  request: Request,
-  env: Env,
-): Promise<{ admin: AdminAuthUser } | Response> {
-  // 验证 Admin JWT（非论坛用户 JWT）
-  const authHeader = request.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return errorResponse("UNAUTHORIZED", 401);
-  }
-
-  const token = authHeader.slice(7);
-  const payload = verifyJwt(token, env.JWT_SECRET);
-
-  // 必须是 Admin JWT（type === "admin"），拒绝论坛用户 JWT
-  if (payload.type !== "admin") {
-    return errorResponse("FORBIDDEN_ADMIN_ONLY", 403);
-  }
-
-  return {
-    admin: { googleId: payload.googleId, email: payload.email },
-  };
-}
-```
-
-> **AdminAuthUser 与 AuthUser 完全独立**：论坛用户 JWT 包含 `{ userId, role }`，Admin JWT 包含 `{ googleId, email, type: "admin" }`。两者不互通。
+**Admin 端点无需额外认证**：Key B 验证通过即可执行操作。Worker 不验证调用者身份，信任持有 Key B 的调用方（仅 Next.js 服务端持有 Key B）。
 
 ---
 
@@ -762,11 +694,6 @@ export async function authMiddleware(
   try {
     const payload = verifyJwt(token, env.JWT_SECRET) as ForumJwtPayload;
 
-    // 必须是论坛用户 JWT（没有 type 字段 或 type !== "admin"）
-    if ((payload as any).type === "admin") {
-      return errorResponse("FORBIDDEN", 403); // Admin JWT 不能访问论坛端点
-    }
-
     if (payload.exp < Math.floor(Date.now() / 1000)) {
       return errorResponse("TOKEN_EXPIRED", 401);
     }
@@ -777,55 +704,6 @@ export async function authMiddleware(
   }
 }
 ```
-
-### Admin JWT 认证（Key B 体系）
-
-```typescript
-// middleware/adminAuth.ts — 用于 /api/admin/*
-interface AdminJwtPayload {
-  googleId: string;
-  email: string;
-  type: "admin";
-  exp: number;
-  iat: number;
-}
-
-interface AdminAuthUser {
-  googleId: string;
-  email: string;
-}
-
-export async function adminAuth(
-  request: Request,
-  env: Env,
-): Promise<{ admin: AdminAuthUser } | Response> {
-  const authHeader = request.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return errorResponse("UNAUTHORIZED", 401);
-  }
-
-  const token = authHeader.slice(7);
-
-  try {
-    const payload = verifyJwt(token, env.JWT_SECRET) as AdminJwtPayload;
-
-    // 必须是 Admin JWT
-    if (payload.type !== "admin") {
-      return errorResponse("FORBIDDEN_ADMIN_ONLY", 403);
-    }
-
-    if (payload.exp < Math.floor(Date.now() / 1000)) {
-      return errorResponse("TOKEN_EXPIRED", 401);
-    }
-
-    return { admin: { googleId: payload.googleId, email: payload.email } };
-  } catch {
-    return errorResponse("INVALID_TOKEN", 401);
-  }
-}
-```
-
-> **`adminAuth` 是唯一的管理端点认证入口**。所有 `/api/admin/*` 路由（除 `/api/admin/auth/login`）在路由层调用此函数。Handler 只接收已认证的 `admin` 对象。
 
 ### 版主权限检查
 
@@ -862,10 +740,10 @@ export async function moderationMiddleware(
   │   ├─ /api/v1/users/me/* ────────────→ authMiddleware → 论坛 JWT 必须
   │   └─ /api/v1/moderation/* ──────────→ moderationMiddleware → 论坛 JWT + role ∈ {1,2,3}
   │
-  └─ /api/admin/* ──── Key B 验证 ──────→
-      ├─ POST /api/admin/auth/login ────→ 通过（只需 Key B，处理 Google ID Token）
-      └─ 其余 /api/admin/* ────────────→ adminAuth → Admin JWT 必须
+  └─ /api/admin/* ──── Key B 验证 ──────→ 通过（只需 Key B，无需额外认证）
 ```
+
+> **Admin 路径极简**：Worker 对 `/api/admin/*` 仅验证 Key B。Admin 身份（Google OAuth + 白名单）由 Next.js 服务端负责，Worker 无感知。
 
 ### 速率限制（Durable Object）
 
@@ -948,17 +826,15 @@ export interface Env {
 
   // 认证密钥
   API_KEY: string;               // Key A — /api/v1/* 客户端凭证（CLI、Web）
-  ADMIN_API_KEY: string;         // Key B — /api/admin/* 客户端凭证（Admin Console）
-  JWT_SECRET: string;            // HS256 签名密钥（论坛 JWT + Admin JWT 共用）
-
-  // Admin Google OAuth
-  ADMIN_GOOGLE_IDS: string;      // 逗号分隔的 Google ID 白名单（如 "id1,id2,id3"）
-  GOOGLE_CLIENT_ID: string;      // Google OAuth Client ID（用于验证 ID Token 的 audience）
+  ADMIN_API_KEY: string;         // Key B — /api/admin/* 客户端凭证（Next.js 服务端持有）
+  JWT_SECRET: string;            // HS256 签名密钥（论坛用户 JWT）
 
   // 限流
   RATE_LIMITER: DurableObjectNamespace;
 }
 ```
+
+> **ADMIN_GOOGLE_IDS 和 GOOGLE_CLIENT_ID 不在 Worker 环境中**。这两个变量属于 Next.js 服务端环境（Admin Console），用于 Google OAuth 身份验证和白名单检查。Worker 不需要感知 Admin 身份。
 
 ---
 
@@ -1119,24 +995,21 @@ database_id = "<TEST_DB_ID>"
 | 19 | `feat(worker): add create thread endpoint` | POST /api/v1/threads | **L1+L2: 100%** |
 | 20 | `feat(worker): add create post endpoint` | POST /api/v1/posts | **L1+L2: 100%** |
 
-### Phase 7: 管理认证 + 管理 API
+### Phase 7: 管理 API
 
 | 编号 | 提交信息 | 内容 | 质量状态 |
 |------|---------|------|---------|
 | 21 | `feat(worker): add dual api key middleware` | apiKey.ts — 路由分流（Key A → /api/v1/*, Key B → /api/admin/*） | **L1: 100%** |
-| 22 | `feat(worker): add google id token verification` | google-auth.ts — JWKS 公钥获取 + 签名验证 + claims 提取 | **L1: 100%** |
-| 23 | `feat(worker): add admin auth endpoint` | POST /api/admin/auth/login — Google OAuth 登录 → Admin JWT 签发 | **L1+L2: 100%** |
-| 24 | `feat(worker): add admin auth middleware` | adminAuth.ts — Admin JWT 验证（type === "admin"） | **L1: 100%** |
-| 25 | `feat(worker): add admin forum management` | PATCH /api/admin/forums/:id | **L1+L2: 100%** |
-| 26 | `feat(worker): add admin user management` | PATCH /api/admin/users/:id/* | **L1+L2: 100%** |
+| 22 | `feat(worker): add admin forum management` | PATCH /api/admin/forums/:id | **L1+L2: 100%** |
+| 23 | `feat(worker): add admin user management` | PATCH /api/admin/users/:id/* | **L1+L2: 100%** |
 
 ### Phase 8: 优化和完善
 
 | 编号 | 提交信息 | 内容 | 质量状态 |
 |------|---------|------|---------|
-| 27 | `test(worker): add integration tests with miniflare` | Miniflare 配置、L2 测试 | **L1+L2: 100%** |
-| 28 | `test(worker): add e2e tests with playwright` | E2E 测试场景 | **L1+L2+L3: 覆盖** |
-| 29 | `perf(worker): add request logging` | 请求日志、性能监控 | **L1+L2: 100%** |
+| 24 | `test(worker): add integration tests with miniflare` | Miniflare 配置、L2 测试 | **L1+L2: 100%** |
+| 25 | `test(worker): add e2e tests with playwright` | E2E 测试场景 | **L1+L2+L3: 覆盖** |
+| 26 | `perf(worker): add request logging` | 请求日志、性能监控 | **L1+L2: 100%** |
 
 ---
 
@@ -1156,21 +1029,19 @@ ALLOWED_ORIGINS = "https://ellie.nocoo.cloud"
 ```bash
 # 使用 wrangler secret put
 wrangler secret put API_KEY -c apps/worker/wrangler.toml           # Key A — CLI/Web 客户端凭证
-wrangler secret put ADMIN_API_KEY -c apps/worker/wrangler.toml     # Key B — Admin Console 凭证
-wrangler secret put JWT_SECRET -c apps/worker/wrangler.toml        # JWT 签名密钥
-wrangler secret put ADMIN_GOOGLE_IDS -c apps/worker/wrangler.toml  # Google ID 白名单（逗号分隔）
-wrangler secret put GOOGLE_CLIENT_ID -c apps/worker/wrangler.toml  # Google OAuth Client ID
+wrangler secret put ADMIN_API_KEY -c apps/worker/wrangler.toml     # Key B — Next.js 服务端持有
+wrangler secret put JWT_SECRET -c apps/worker/wrangler.toml        # JWT 签名密钥（论坛用户 JWT）
 ```
 
 | 变量 | 类型 | 说明 |
 |------|------|------|
 | `API_KEY` | secret | Key A — `/api/v1/*` 客户端凭证，CLI 和 Web 使用 |
-| `ADMIN_API_KEY` | secret | Key B — `/api/admin/*` 客户端凭证，Admin Console 使用 |
-| `JWT_SECRET` | secret | HS256 JWT 签名密钥（论坛 JWT 和 Admin JWT 共用） |
-| `ADMIN_GOOGLE_IDS` | secret | 允许登录 Admin 的 Google ID 白名单（逗号分隔） |
-| `GOOGLE_CLIENT_ID` | secret | Google OAuth Client ID（验证 ID Token 的 audience） |
+| `ADMIN_API_KEY` | secret | Key B — `/api/admin/*` 客户端凭证，Next.js 服务端持有 |
+| `JWT_SECRET` | secret | HS256 JWT 签名密钥（论坛用户 JWT） |
 | `ENVIRONMENT` | var | 环境标识（"production"） |
 | `ALLOWED_ORIGINS` | var | CORS 允许的源 |
+
+> **ADMIN_GOOGLE_IDS 和 GOOGLE_CLIENT_ID**：这两个变量属于 Next.js 服务端环境（`apps/web/.env`），不在 Worker secrets 中配置。完整的 Next.js Admin 环境变量列表（含 `GOOGLE_CLIENT_SECRET`、`AUTH_SECRET`、`NEXTAUTH_URL`）见 [04c §2.6](./04c-admin-console.md)。
 
 ### D1 绑定
 
@@ -1240,7 +1111,7 @@ wrangler tail
 ## 安全考虑
 
 1. **CORS 白名单**：只允许信任的域名访问
-2. **JWT 签名验证**：使用 HS256 算法，secret 通过 `wrangler secret put` 管理
+2. **JWT 签名验证**：使用 HS256 算法验证论坛用户 JWT，secret 通过 `wrangler secret put` 管理
 3. **速率限制**：使用 Durable Object 实现强一致性计数器
 4. **SQL 注入防护**：使用参数化查询
 5. **输入验证**：验证所有输入参数
@@ -1277,7 +1148,7 @@ export function logRequest(entry: LogEntry): void {
 
 ### Q1: Worker 是否为唯一 auth source？
 
-**回答**：Worker 管理两套独立的认证源：
+**回答**：Worker 管理论坛用户认证，Admin 路径仅信任 Key B：
 
 ```
 论坛用户（Web + CLI）:
@@ -1285,11 +1156,12 @@ export function logRequest(entry: LogEntry): void {
   Auth source: Worker（D1 用户表）
 
 Admin（Admin Console）:
-  Browser → Key B → Worker /api/admin/* → Google OAuth（Admin JWT）
-  Auth source: Google OAuth + ADMIN_GOOGLE_IDS 白名单
+  Browser → HttpOnly cookie → Next.js Server → 验证 Google OAuth session + ADMIN_GOOGLE_IDS 白名单
+  Next.js Server → Key B → Worker /api/admin/* → 执行操作
+  Auth source: Next.js（Google OAuth），Worker 仅信任 Key B
 ```
 
-NextAuth 在 Admin Console 中仅用于前端 session 管理（存储 Admin JWT），不作为认证源。
+Worker 不感知 Admin 身份。Admin 身份验证完全在 Next.js 服务端完成。
 
 ### Q2: packages/repositories / packages/db 是否保留？
 

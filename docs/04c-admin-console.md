@@ -61,7 +61,7 @@
 src/app/(admin)/
 ├── layout.tsx                          # AdminLayout + 权限守卫
 └── admin/
-    ├── login/page.tsx                  # /admin/login — Google OAuth 登录（Google Sign-In → Worker 验证 → Admin JWT）
+    ├── login/page.tsx                  # /admin/login — Google OAuth 登录（NextAuth Google Provider → HttpOnly session cookie）
     ├── page.tsx                        # /admin — Dashboard
     ├── users/page.tsx                  # /admin/users
     ├── threads/page.tsx                # /admin/threads
@@ -106,11 +106,11 @@ Browser (Client Component)
   │ fetch("/api/admin/users?page=1")
   ▼
 Next.js API Route (/api/admin/users/route.ts)
-  │ 读取 Google OAuth session → 验证 googleId ∈ ADMIN_GOOGLE_IDS → 注入 admin context
-  │ fetch(WORKER_URL + "/api/admin/users?page=1", { headers: { X-API-Key: ADMIN_API_KEY, Authorization: Bearer <admin-jwt> } })
+  │ 读取 Google OAuth session → 验证 googleId ∈ ADMIN_GOOGLE_IDS → Key B 直连 Worker
+  │ fetch(WORKER_URL + "/api/admin/users?page=1", { headers: { X-API-Key: ADMIN_API_KEY } })
   ▼
 Cloudflare Worker (ellie.worker)
-  │ 验证 ADMIN_API_KEY (Key B) → 验证 Admin JWT → 执行 D1 查询
+  │ 验证 ADMIN_API_KEY (Key B) → 执行 D1 查询
   ▼
 D1 Database
 ```
@@ -123,7 +123,7 @@ ViewModel (viewmodels/admin/users.ts)
   │ 调用 adminApi.users.list(filters)
   ▼
 adminApiClient (lib/admin-api.ts)
-  │ fetch(WORKER_URL + path, { headers: { X-API-Key: ADMIN_API_KEY, Authorization: Bearer <admin-jwt> } })
+  │ fetch(WORKER_URL + path, { headers: { X-API-Key: ADMIN_API_KEY } })
   │ 服务端直连 Worker（无跨域，无代理开销）
   ▼
 Cloudflare Worker → D1
@@ -145,14 +145,9 @@ Cloudflare Worker → D1
 const WORKER_URL = process.env.WORKER_API_URL!;         // e.g. https://ellie.worker.hexly.ai
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY!;        // Key B — Admin 专用密钥，不暴露给浏览器
 
-interface AdminApiOptions {
-  // 无需显式传入 — adminApiClient 内部调用 auth() 获取 Google OAuth session
-  // 自动从 session 中获取 Admin JWT token
-}
-
 // 通用 GET/POST/PATCH/DELETE 方法
-// 内部调用 auth() 获取 session，验证 isAdminGoogleId(session.user.sub)
-// 自动注入 X-API-Key: ADMIN_API_KEY + Authorization: Bearer <admin-jwt>
+// 内部自动注入 X-API-Key: ADMIN_API_KEY（仅此一个认证头）
+// 调用方（API Route / Server Component）在调用前已验证 Google OAuth session
 // 统一解析 { data, meta } 响应格式
 // 错误时抛出 typed AdminApiError
 ```
@@ -161,7 +156,7 @@ interface AdminApiOptions {
 
 每个 API Route 做三件事：
 1. **验证 admin** — 调用 `resolveAdminFromSession()` 验证 Google ID ∈ `ADMIN_GOOGLE_IDS`
-2. **转发** — 调用 adminApiClient 发往 Worker（ADMIN_API_KEY + Admin JWT）
+2. **转发** — 调用 adminApiClient 发往 Worker（仅 `X-API-Key: ADMIN_API_KEY`）
 3. **返回** — 透传 Worker 响应（status code + body）
 
 ```
@@ -200,32 +195,77 @@ src/app/api/admin/
 ### 2.4 Auth 传递
 
 ```
-Browser → Google Sign-In → ID Token
+Browser → Google Sign-In → NextAuth Google Provider
   │
-  ▼ POST /api/admin/auth/login (via Next.js proxy)
-Worker 验证 Google ID Token → 白名单检查 → 签发 Admin JWT
-  │
-  ▼ Admin JWT 存入 NextAuth Session
-Admin Console 前端持有 Admin JWT
+  ▼ NextAuth 设置 HttpOnly + Secure session cookie
+浏览器仅持有 session cookie，不持有任何 Worker 凭证
   │
   ▼ 后续请求
           API Route / Server Component
-                   │ resolveAdminFromSession() 验证 session 有效
+                   │ 读取 NextAuth session → 验证 Google ID ∈ ADMIN_GOOGLE_IDS
                    │
                    ▼ adminApiClient 发往 Worker
-          X-API-Key: <ADMIN_API_KEY>             ← Key B
-          Authorization: Bearer <admin-jwt>       ← Worker 签发的 Admin JWT
+          X-API-Key: <ADMIN_API_KEY>             ← Key B（仅此一个认证头）
                    │
                    ▼
-          Worker 验证 Key B → 验证 Admin JWT (type=admin) → 执行操作
+          Worker 验证 Key B → 执行操作（不关心调用者身份）
 ```
 
-> **架构决策**：Admin 后台使用 **ADMIN_API_KEY（Key B）直连 Worker**，与论坛 API_KEY（Key A）完全隔离。
+> **架构决策**：Admin 后台使用 **ADMIN_API_KEY（Key B）服务端直连 Worker**，与论坛 API_KEY（Key A）完全隔离。
 >
-> - NextAuth Google Provider 完成前端身份验证，session 中存储 Worker 签发的 Admin JWT。
-> - `adminApiClient` 注入 `X-API-Key: ADMIN_API_KEY` + `Authorization: Bearer <admin-jwt>`。
-> - Worker 端验证 Key B 合法性后，验证 Admin JWT 执行操作。
-> - Admin JWT 由 Worker 在 Google OAuth 登录时签发，包含 `{ googleId, email, type: "admin" }`，与论坛用户 JWT（包含 `{ userId, role }`）完全独立。
+> - 浏览器 **只持有 HttpOnly + Secure 的 session cookie**，不持有 Key B 或任何 Worker 凭证。
+> - NextAuth Google Provider 完成前端身份验证，`resolveAdminFromSession()` 验证 Google ID ∈ `ADMIN_GOOGLE_IDS`。
+> - `adminApiClient` 仅注入 `X-API-Key: ADMIN_API_KEY`（无 Authorization header）。
+> - Worker 仅验证 Key B，不感知 Admin 身份——信任持有 Key B 的调用方。
+> - **ADMIN_GOOGLE_IDS** 和 **GOOGLE_CLIENT_ID** 是 Next.js 服务端环境变量（`apps/web/.env`），不在 Worker 中。
+
+### 2.5 CSRF 防护
+
+Admin 写操作依赖浏览器携带的 HttpOnly session cookie 命中 Next.js `/api/admin/*` 代理，必须防范跨站请求伪造（CSRF）。
+
+**防护措施（三层）：**
+
+1. **SameSite cookie**：NextAuth session cookie 设置 `SameSite=Lax`（默认）。Lax 模式阻止跨站 POST/PATCH/DELETE 请求携带 cookie，仅允许顶级导航（GET）。
+2. **Origin 校验**：每个 `/api/admin/*` 代理 handler 在验证 session 前，检查 `Origin` 或 `Referer` header 是否匹配允许的域名列表（`ALLOWED_ADMIN_ORIGINS`）。不匹配或缺失时返回 403。
+3. **NextAuth CSRF Token**（兜底）：NextAuth v5 内置 CSRF protection，对 `/api/auth/*` 端点自动校验 `csrfToken`。Admin API Route 可复用相同的 token 机制作为额外保障。
+
+```typescript
+// lib/admin-proxy.ts — CSRF 校验（在 session 验证之前）
+const ALLOWED_ORIGINS = [
+  process.env.NEXTAUTH_URL,                    // e.g. https://ellie.nocoo.cloud
+  "http://localhost:3000",                     // 本地开发
+].filter(Boolean);
+
+function validateOrigin(request: Request): boolean {
+  const origin = request.headers.get("Origin")
+    || request.headers.get("Referer");
+  if (!origin) return false;
+  return ALLOWED_ORIGINS.some(allowed => origin.startsWith(allowed!));
+}
+
+// 在 createProxyHandler() 中：
+// if (request.method !== "GET" && !validateOrigin(request)) {
+//   return Response.json({ error: { code: "CSRF_REJECTED", message: "Origin not allowed" } }, { status: 403 });
+// }
+```
+
+> **设计决策**：SameSite=Lax 已覆盖大部分攻击面，Origin 校验提供纵深防御。不需要前端手动管理 CSRF token（NextAuth 自动处理）。
+
+### 2.6 Next.js 服务端环境变量
+
+Admin Console 所需的环境变量全部配置在 `apps/web/.env`（或 Vercel / Cloudflare Pages 环境变量），不在 Worker 中。
+
+| 变量 | 类型 | 说明 |
+|------|------|------|
+| `WORKER_API_URL` | URL | Worker 基础 URL（如 `https://ellie.worker.hexly.ai`） |
+| `ADMIN_API_KEY` | secret | Key B — `/api/admin/*` 凭证，仅服务端可见 |
+| `ADMIN_GOOGLE_IDS` | secret | 允许登录 Admin 的 Google ID 白名单（逗号分隔，如 `"id1,id2"`) |
+| `GOOGLE_CLIENT_ID` | secret | Google OAuth Client ID（NextAuth Google Provider 配置） |
+| `GOOGLE_CLIENT_SECRET` | secret | Google OAuth Client Secret（NextAuth Google Provider 配置） |
+| `AUTH_SECRET` | secret | NextAuth v5 session 签名密钥（即 `NEXTAUTH_SECRET`，用于加密 session cookie） |
+| `NEXTAUTH_URL` | URL | NextAuth 回调基础 URL（如 `https://ellie.nocoo.cloud`，本地开发 `http://localhost:3000`） |
+
+> **安全要求**：`ADMIN_API_KEY`、`GOOGLE_CLIENT_SECRET`、`AUTH_SECRET` 不能出现在客户端 bundle 中。Next.js 中不以 `NEXT_PUBLIC_` 前缀命名即可保证仅服务端可见。
 
 ---
 
@@ -299,7 +339,7 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
 
 ### 3.2 Users（/admin/users）
 
-**Worker 端点**：7 个（Admin 权限，Key B + Admin JWT）
+**Worker 端点**：7 个（Admin 权限，Key B）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -410,7 +450,7 @@ export async function batchSetRole(ids: number[], role: number): Promise<BatchRe
 
 ### 3.3 Threads（/admin/threads）
 
-**Worker 端点**：6 个（Admin 权限，Key B + Admin JWT）
+**Worker 端点**：6 个（Admin 权限，Key B）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -506,7 +546,7 @@ export async function batchMoveThreads(ids: number[], forumId: number): Promise<
 
 ### 3.4 Posts（/admin/posts）
 
-**Worker 端点**：5 个（Admin 权限，Key B + Admin JWT）
+**Worker 端点**：5 个（Admin 权限，Key B）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -580,7 +620,7 @@ export async function batchDeletePosts(ids: number[]): Promise<BatchDeleteResult
 
 ### 3.5 Forums（/admin/forums）
 
-**Worker 端点**：7 个（Admin 权限，Key B + Admin JWT）
+**Worker 端点**：7 个（Admin 权限，Key B）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -662,7 +702,7 @@ export async function reorderForums(orders: Array<{id: number; displayOrder: num
 
 ### 3.6 Attachments（/admin/attachments）
 
-**Worker 端点**：4 个（Admin 权限，Key B + Admin JWT）
+**Worker 端点**：4 个（Admin 权限，Key B）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -727,7 +767,7 @@ export async function batchDeleteAttachments(ids: number[]): Promise<BatchResult
 
 ### 3.7 IP Bans（/admin/ip-bans）
 
-**Worker 端点**：7 个（Admin 权限，Key B + Admin JWT）
+**Worker 端点**：7 个（Admin 权限，Key B）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -808,7 +848,7 @@ export async function checkIp(ip: string): Promise<CheckIpResult> {}
 
 ### 3.8 Censor Words（/admin/censor-words）
 
-**Worker 端点**：7 个（Admin 权限，Key B + Admin JWT）
+**Worker 端点**：7 个（Admin 权限，Key B）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -922,7 +962,7 @@ export default async function AdminGroupLayout({ children }) {
 ```typescript
 // 读取 session → resolveAdminFromSession() 验证 Google ID ∈ ADMIN_GOOGLE_IDS
 // 如果 session 无效或 Google ID 不在白名单 → 返回 401/403
-// 否则通过 adminApiClient 转发到 Worker（ADMIN_API_KEY + Admin JWT）
+// 否则通过 adminApiClient 转发到 Worker（仅 X-API-Key: ADMIN_API_KEY）
 ```
 
 ### 4.4 侧边栏渲染
@@ -1064,8 +1104,8 @@ interface AdminConfirmDialogProps {
 
 | # | Commit | 内容 | 测试 |
 |---|--------|------|------|
-| 6.1.1 | `feat: add admin api client (server-side)` | `lib/admin-api.ts` — 封装 `WORKER_API_URL` + `ADMIN_API_KEY`（Key B），注入 Admin JWT，通用 GET/POST/PATCH/DELETE，统一错误处理 `AdminApiError` | ✅ L1: 请求构造 + 错误解析 |
-| 6.1.2 | `feat: add admin api proxy helpers` | `lib/admin-proxy.ts` — `createProxyHandler()` 工厂函数：读 Google OAuth session → 构造 headers（ADMIN_API_KEY + Admin JWT）→ 转发 → 透传响应 | ✅ L1: header 注入 + 错误透传 |
+| 6.1.1 | `feat: add admin api client (server-side)` | `lib/admin-api.ts` — 封装 `WORKER_API_URL` + `ADMIN_API_KEY`（Key B），自动注入 `X-API-Key` header，通用 GET/POST/PATCH/DELETE，统一错误处理 `AdminApiError` | ✅ L1: 请求构造 + 错误解析 |
+| 6.1.2 | `feat: add admin api proxy helpers` | `lib/admin-proxy.ts` — `createProxyHandler()` 工厂函数：读 Google OAuth session → 验证 ADMIN_GOOGLE_IDS → 构造 headers（ADMIN_API_KEY）→ 转发 → 透传响应 | ✅ L1: header 注入 + 错误透传 |
 | 6.1.3 | `feat: add stats api route` | `app/api/admin/stats/route.ts` — 第一个代理端点，验证全链路通畅 | ✅ L1: 代理转发 |
 
 ---
