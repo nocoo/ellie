@@ -8,10 +8,12 @@ import type { CFRequest, Env } from "../../../src/lib/env";
  */
 describe("worker router integration", () => {
 	const TEST_API_KEY = "test-api-key";
+	const TEST_ADMIN_API_KEY = "test-admin-api-key";
 
 	/** Minimal mock env — handlers will hit mock DB */
 	const makeEnv = (dbOverrides?: Partial<{ prepare: unknown }>): Env => ({
 		API_KEY: TEST_API_KEY,
+		ADMIN_API_KEY: TEST_ADMIN_API_KEY,
 		DB: {
 			prepare: mock(() => ({
 				all: mock(() => Promise.resolve({ results: [] })),
@@ -34,12 +36,21 @@ describe("worker router integration", () => {
 	const makeRequest = (url: string, init?: RequestInit): CFRequest =>
 		new Request(url, init) as CFRequest;
 
-	/** Shorthand: inject X-API-Key header into init */
+	/** Shorthand: inject X-API-Key header (Key A) into init */
 	const withApiKey = (init?: RequestInit): RequestInit => ({
 		...init,
 		headers: {
 			...(init?.headers ?? {}),
 			"X-API-Key": TEST_API_KEY,
+		},
+	});
+
+	/** Shorthand: inject X-API-Key header (Key B) for admin routes */
+	const withAdminKey = (init?: RequestInit): RequestInit => ({
+		...init,
+		headers: {
+			...(init?.headers ?? {}),
+			"X-API-Key": TEST_ADMIN_API_KEY,
 		},
 	});
 
@@ -333,9 +344,13 @@ describe("worker router integration", () => {
 	});
 
 	// ─── Admin Routes ────────────────────────────────────
+	// Admin routes use Key B (ADMIN_API_KEY) — Key A is rejected at the apiKey gate.
+	// After task #20, admin endpoints won't need JWT either (only Key B).
+	// For now, withAdminKey provides Key B, and we test that admin routes
+	// still return 401 (from internal JWT auth — will be removed in task #20).
 
 	describe("Admin Forum routes", () => {
-		it("GET /api/admin/forums should require auth (401)", async () => {
+		it("GET /api/admin/forums should reject Key A (401)", async () => {
 			const response = await worker.fetch(
 				makeRequest("https://api.example.com/api/admin/forums", withApiKey()),
 				makeEnv(),
@@ -343,33 +358,47 @@ describe("worker router integration", () => {
 			expect(response.status).toBe(401);
 		});
 
-		it("POST /api/admin/forums should require auth (401)", async () => {
+		it("GET /api/admin/forums should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/forums", withApiKey({ method: "POST" })),
+				makeRequest("https://api.example.com/api/admin/forums", withAdminKey()),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("GET /api/admin/forums/:id should require auth (401)", async () => {
+		it("POST /api/admin/forums should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/forums/1", withApiKey()),
+				makeRequest("https://api.example.com/api/admin/forums", withAdminKey({ method: "POST" })),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("PATCH /api/admin/forums/:id should require auth (401)", async () => {
+		it("GET /api/admin/forums/:id should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/forums/1", withApiKey({ method: "PATCH" })),
+				makeRequest("https://api.example.com/api/admin/forums/1", withAdminKey()),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("DELETE /api/admin/forums/:id should require auth (401)", async () => {
+		it("PATCH /api/admin/forums/:id should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/forums/1", withApiKey({ method: "DELETE" })),
+				makeRequest(
+					"https://api.example.com/api/admin/forums/1",
+					withAdminKey({ method: "PATCH" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("DELETE /api/admin/forums/:id should require JWT with Key B (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/forums/1",
+					withAdminKey({ method: "DELETE" }),
+				),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
@@ -377,57 +406,60 @@ describe("worker router integration", () => {
 	});
 
 	describe("Admin Thread routes", () => {
-		it("GET /api/admin/threads should require auth (401)", async () => {
+		it("GET /api/admin/threads should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/threads", withApiKey()),
+				makeRequest("https://api.example.com/api/admin/threads", withAdminKey()),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("GET /api/admin/threads/:id should require auth (401)", async () => {
+		it("GET /api/admin/threads/:id should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/threads/1", withApiKey()),
+				makeRequest("https://api.example.com/api/admin/threads/1", withAdminKey()),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("PATCH /api/admin/threads/:id should require auth (401)", async () => {
-			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/threads/1", withApiKey({ method: "PATCH" })),
-				makeEnv(),
-			);
-			expect(response.status).toBe(401);
-		});
-
-		it("DELETE /api/admin/threads/:id should require auth (401)", async () => {
+		it("PATCH /api/admin/threads/:id should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
 				makeRequest(
 					"https://api.example.com/api/admin/threads/1",
-					withApiKey({ method: "DELETE" }),
+					withAdminKey({ method: "PATCH" }),
 				),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("POST /api/admin/threads/batch-delete should require auth (401)", async () => {
+		it("DELETE /api/admin/threads/:id should require JWT with Key B (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/threads/1",
+					withAdminKey({ method: "DELETE" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("POST /api/admin/threads/batch-delete should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
 				makeRequest(
 					"https://api.example.com/api/admin/threads/batch-delete",
-					withApiKey({ method: "POST" }),
+					withAdminKey({ method: "POST" }),
 				),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("POST /api/admin/threads/batch-move should require auth (401)", async () => {
+		it("POST /api/admin/threads/batch-move should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
 				makeRequest(
 					"https://api.example.com/api/admin/threads/batch-move",
-					withApiKey({ method: "POST" }),
+					withAdminKey({ method: "POST" }),
 				),
 				makeEnv(),
 			);
@@ -436,27 +468,30 @@ describe("worker router integration", () => {
 	});
 
 	describe("Admin Post routes", () => {
-		it("GET /api/admin/posts should require auth (401)", async () => {
+		it("GET /api/admin/posts should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/posts", withApiKey()),
+				makeRequest("https://api.example.com/api/admin/posts", withAdminKey()),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("DELETE /api/admin/posts/:id should require auth (401)", async () => {
+		it("DELETE /api/admin/posts/:id should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/posts/1", withApiKey({ method: "DELETE" })),
+				makeRequest(
+					"https://api.example.com/api/admin/posts/1",
+					withAdminKey({ method: "DELETE" }),
+				),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("POST /api/admin/posts/batch-delete should require auth (401)", async () => {
+		it("POST /api/admin/posts/batch-delete should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
 				makeRequest(
 					"https://api.example.com/api/admin/posts/batch-delete",
-					withApiKey({ method: "POST" }),
+					withAdminKey({ method: "POST" }),
 				),
 				makeEnv(),
 			);
@@ -465,68 +500,68 @@ describe("worker router integration", () => {
 	});
 
 	describe("Admin User routes", () => {
-		it("GET /api/admin/users should require auth (401)", async () => {
+		it("GET /api/admin/users should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/users", withApiKey()),
+				makeRequest("https://api.example.com/api/admin/users", withAdminKey()),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("GET /api/admin/users/:id should require auth (401)", async () => {
+		it("GET /api/admin/users/:id should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/users/1", withApiKey()),
+				makeRequest("https://api.example.com/api/admin/users/1", withAdminKey()),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("PATCH /api/admin/users/:id should require auth (401)", async () => {
+		it("PATCH /api/admin/users/:id should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/users/1", withApiKey({ method: "PATCH" })),
+				makeRequest("https://api.example.com/api/admin/users/1", withAdminKey({ method: "PATCH" })),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("POST /api/admin/users/:id/ban should require auth (401)", async () => {
+		it("POST /api/admin/users/:id/ban should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
 				makeRequest(
 					"https://api.example.com/api/admin/users/1/ban",
-					withApiKey({ method: "POST" }),
+					withAdminKey({ method: "POST" }),
 				),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("POST /api/admin/users/:id/nuke should require auth (401)", async () => {
+		it("POST /api/admin/users/:id/nuke should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
 				makeRequest(
 					"https://api.example.com/api/admin/users/1/nuke",
-					withApiKey({ method: "POST" }),
+					withAdminKey({ method: "POST" }),
 				),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("POST /api/admin/users/batch-status should require auth (401)", async () => {
+		it("POST /api/admin/users/batch-status should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
 				makeRequest(
 					"https://api.example.com/api/admin/users/batch-status",
-					withApiKey({ method: "POST" }),
+					withAdminKey({ method: "POST" }),
 				),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("POST /api/admin/users/batch-role should require auth (401)", async () => {
+		it("POST /api/admin/users/batch-role should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
 				makeRequest(
 					"https://api.example.com/api/admin/users/batch-role",
-					withApiKey({ method: "POST" }),
+					withAdminKey({ method: "POST" }),
 				),
 				makeEnv(),
 			);
@@ -708,20 +743,20 @@ describe("worker router integration", () => {
 			expect(data.data).toBeArray();
 		});
 
-		it("GET /api/admin/attachments should require auth (401)", async () => {
+		it("GET /api/admin/attachments should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/attachments", withApiKey()),
+				makeRequest("https://api.example.com/api/admin/attachments", withAdminKey()),
 				makeEnv(),
 			);
 
 			expect(response.status).toBe(401);
 		});
 
-		it("DELETE /api/admin/attachments/:id should require auth (401)", async () => {
+		it("DELETE /api/admin/attachments/:id should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
 				makeRequest(
 					"https://api.example.com/api/admin/attachments/1",
-					withApiKey({ method: "DELETE" }),
+					withAdminKey({ method: "DELETE" }),
 				),
 				makeEnv(),
 			);
@@ -733,62 +768,65 @@ describe("worker router integration", () => {
 	// ─── Admin IP Ban Routes ─────────────────────────────
 
 	describe("Admin IP Ban routes", () => {
-		it("GET /api/admin/ip-bans should require auth (401)", async () => {
+		it("GET /api/admin/ip-bans should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/ip-bans", withApiKey()),
+				makeRequest("https://api.example.com/api/admin/ip-bans", withAdminKey()),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("POST /api/admin/ip-bans should require auth (401)", async () => {
+		it("POST /api/admin/ip-bans should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/ip-bans", withApiKey({ method: "POST" })),
+				makeRequest("https://api.example.com/api/admin/ip-bans", withAdminKey({ method: "POST" })),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("GET /api/admin/ip-bans/:id should require auth (401)", async () => {
+		it("GET /api/admin/ip-bans/:id should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/ip-bans/1", withApiKey()),
+				makeRequest("https://api.example.com/api/admin/ip-bans/1", withAdminKey()),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("PATCH /api/admin/ip-bans/:id should require auth (401)", async () => {
-			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/ip-bans/1", withApiKey({ method: "PATCH" })),
-				makeEnv(),
-			);
-			expect(response.status).toBe(401);
-		});
-
-		it("DELETE /api/admin/ip-bans/:id should require auth (401)", async () => {
+		it("PATCH /api/admin/ip-bans/:id should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
 				makeRequest(
 					"https://api.example.com/api/admin/ip-bans/1",
-					withApiKey({ method: "DELETE" }),
+					withAdminKey({ method: "PATCH" }),
 				),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("GET /api/admin/ip-bans/check-ip should require auth (401)", async () => {
+		it("DELETE /api/admin/ip-bans/:id should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/ip-bans/check-ip", withApiKey()),
+				makeRequest(
+					"https://api.example.com/api/admin/ip-bans/1",
+					withAdminKey({ method: "DELETE" }),
+				),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("POST /api/admin/ip-bans/batch-delete should require auth (401)", async () => {
+		it("GET /api/admin/ip-bans/check-ip should require JWT with Key B (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/admin/ip-bans/check-ip", withAdminKey()),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("POST /api/admin/ip-bans/batch-delete should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
 				makeRequest(
 					"https://api.example.com/api/admin/ip-bans/batch-delete",
-					withApiKey({ method: "POST" }),
+					withAdminKey({ method: "POST" }),
 				),
 				makeEnv(),
 			);
@@ -799,71 +837,71 @@ describe("worker router integration", () => {
 	// ─── Admin Censor Word Routes ────────────────────────
 
 	describe("Admin Censor Word routes", () => {
-		it("GET /api/admin/censor-words should require auth (401)", async () => {
+		it("GET /api/admin/censor-words should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/censor-words", withApiKey()),
+				makeRequest("https://api.example.com/api/admin/censor-words", withAdminKey()),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("POST /api/admin/censor-words should require auth (401)", async () => {
+		it("POST /api/admin/censor-words should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
 				makeRequest(
 					"https://api.example.com/api/admin/censor-words",
-					withApiKey({ method: "POST" }),
+					withAdminKey({ method: "POST" }),
 				),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("GET /api/admin/censor-words/:id should require auth (401)", async () => {
+		it("GET /api/admin/censor-words/:id should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/censor-words/1", withApiKey()),
+				makeRequest("https://api.example.com/api/admin/censor-words/1", withAdminKey()),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("PATCH /api/admin/censor-words/:id should require auth (401)", async () => {
-			const response = await worker.fetch(
-				makeRequest(
-					"https://api.example.com/api/admin/censor-words/1",
-					withApiKey({ method: "PATCH" }),
-				),
-				makeEnv(),
-			);
-			expect(response.status).toBe(401);
-		});
-
-		it("DELETE /api/admin/censor-words/:id should require auth (401)", async () => {
+		it("PATCH /api/admin/censor-words/:id should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
 				makeRequest(
 					"https://api.example.com/api/admin/censor-words/1",
-					withApiKey({ method: "DELETE" }),
+					withAdminKey({ method: "PATCH" }),
 				),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("POST /api/admin/censor-words/batch-delete should require auth (401)", async () => {
+		it("DELETE /api/admin/censor-words/:id should require JWT with Key B (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/censor-words/1",
+					withAdminKey({ method: "DELETE" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("POST /api/admin/censor-words/batch-delete should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
 				makeRequest(
 					"https://api.example.com/api/admin/censor-words/batch-delete",
-					withApiKey({ method: "POST" }),
+					withAdminKey({ method: "POST" }),
 				),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("POST /api/admin/censor-words/test should require auth (401)", async () => {
+		it("POST /api/admin/censor-words/test should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
 				makeRequest(
 					"https://api.example.com/api/admin/censor-words/test",
-					withApiKey({ method: "POST" }),
+					withAdminKey({ method: "POST" }),
 				),
 				makeEnv(),
 			);
@@ -874,9 +912,9 @@ describe("worker router integration", () => {
 	// ─── Admin Stats Route ───────────────────────────────
 
 	describe("Admin Stats route", () => {
-		it("GET /api/admin/stats should require auth (401)", async () => {
+		it("GET /api/admin/stats should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest("https://api.example.com/api/admin/stats", withApiKey()),
+				makeRequest("https://api.example.com/api/admin/stats", withAdminKey()),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
@@ -886,22 +924,22 @@ describe("worker router integration", () => {
 	// ─── Admin Forum Extended Routes ─────────────────────
 
 	describe("Admin Forum extended routes", () => {
-		it("POST /api/admin/forums/reorder should require auth (401)", async () => {
+		it("POST /api/admin/forums/reorder should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
 				makeRequest(
 					"https://api.example.com/api/admin/forums/reorder",
-					withApiKey({ method: "POST" }),
+					withAdminKey({ method: "POST" }),
 				),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
 		});
 
-		it("POST /api/admin/forums/:id/merge should require auth (401)", async () => {
+		it("POST /api/admin/forums/:id/merge should require JWT with Key B (401)", async () => {
 			const response = await worker.fetch(
 				makeRequest(
 					"https://api.example.com/api/admin/forums/1/merge",
-					withApiKey({ method: "POST" }),
+					withAdminKey({ method: "POST" }),
 				),
 				makeEnv(),
 			);

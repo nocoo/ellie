@@ -6,6 +6,7 @@ import { createJwt } from "../src/lib/jwt";
 
 // ─── Constants ─────────────────────────────────────────────
 export const TEST_API_KEY = "test-api-key";
+export const TEST_ADMIN_API_KEY = "test-admin-api-key";
 export const TEST_JWT_SECRET = "test-secret-key-for-jwt-hs256";
 
 // ─── Env Factory ───────────────────────────────────────────
@@ -13,6 +14,7 @@ export const TEST_JWT_SECRET = "test-secret-key-for-jwt-hs256";
 export function makeEnv(overrides?: Partial<Env>): Env {
 	return {
 		API_KEY: TEST_API_KEY,
+		ADMIN_API_KEY: TEST_ADMIN_API_KEY,
 		DB: {} as D1Database,
 		ENVIRONMENT: "test",
 		JWT_SECRET: TEST_JWT_SECRET,
@@ -143,7 +145,7 @@ export async function createAdminRequest(
 ): Promise<Request> {
 	const token = await createJwtForRole(role, userId);
 	const headers: Record<string, string> = {
-		"X-API-Key": TEST_API_KEY,
+		"X-API-Key": TEST_ADMIN_API_KEY,
 		Authorization: `Bearer ${token}`,
 		"Content-Type": "application/json",
 	};
