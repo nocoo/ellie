@@ -10,6 +10,8 @@ export type {
 	Thread,
 	Post,
 	Attachment,
+	IpBan,
+	CensorWord,
 } from "./types";
 
 // ─── Forum ───────────────────────────────────────────────────

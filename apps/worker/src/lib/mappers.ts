@@ -2,7 +2,7 @@
 // Each mapper explicitly selects and renames fields, preventing
 // accidental exposure of sensitive or internal columns.
 
-import type { Attachment, Forum, Post, Thread, User } from "@ellie/types";
+import type { Attachment, CensorWord, Forum, IpBan, Post, Thread, User } from "@ellie/types";
 
 /** D1 row shape for users table */
 interface D1UserRow {
@@ -186,4 +186,81 @@ export function toAttachment(row: Record<string, unknown>): Attachment {
 		downloads: r.downloads,
 		createdAt: r.created_at,
 	};
+}
+
+/** D1 row shape for ip_bans table */
+interface D1IpBanRow {
+	id: number;
+	ip: string;
+	admin_id: number;
+	admin_name: string;
+	reason: string;
+	expires_at: number | null;
+	created_at: number;
+}
+
+/** Maps a D1 ip_bans row to the frontend IpBan type. */
+export function toIpBan(row: Record<string, unknown>): IpBan {
+	const r = row as unknown as D1IpBanRow;
+	return {
+		id: r.id,
+		ip: r.ip,
+		adminId: r.admin_id,
+		adminName: r.admin_name,
+		reason: r.reason,
+		expiresAt: r.expires_at,
+		createdAt: r.created_at,
+	};
+}
+
+/** D1 row shape for censor_words table */
+interface D1CensorWordRow {
+	id: number;
+	find: string;
+	replacement: string;
+	action: "ban" | "replace";
+	admin_id: number;
+	admin_name: string;
+	created_at: number;
+}
+
+/** Maps a D1 censor_words row to the frontend CensorWord type. */
+export function toCensorWord(row: Record<string, unknown>): CensorWord {
+	const r = row as unknown as D1CensorWordRow;
+	return {
+		id: r.id,
+		find: r.find,
+		replacement: r.replacement,
+		action: r.action,
+		adminId: r.admin_id,
+		adminName: r.admin_name,
+		createdAt: r.created_at,
+	};
+}
+
+/**
+ * Maps a D1 user row to PublicUser (no sensitive fields).
+ * For public GET /api/v1/users/:id
+ */
+export function toPublicUser(
+	row: Record<string, unknown>,
+): Pick<User, "id" | "username" | "avatar" | "role" | "regDate" | "threads" | "posts"> {
+	const r = row as unknown as D1UserRow;
+	return {
+		id: r.id,
+		username: r.username,
+		avatar: r.avatar,
+		role: r.role,
+		regDate: r.reg_date,
+		threads: r.threads,
+		posts: r.posts,
+	};
+}
+
+/**
+ * Maps a D1 user row to SelfUser (includes email, status, lastLogin, credits).
+ * For GET /api/v1/auth/me and PATCH /api/v1/users/me
+ */
+export function toSelfUser(row: Record<string, unknown>): User {
+	return toUser(row);
 }
