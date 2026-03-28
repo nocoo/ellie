@@ -4,18 +4,6 @@ import { createAdminRequest, createMockDb, makeD1AttachmentRow, makeEnv } from "
 
 describe("admin attachment handlers", () => {
 	describe("list", () => {
-		it("should require admin auth", async () => {
-			const { db } = createMockDb({});
-			const env = makeEnv({ DB: db });
-
-			const response = await list(
-				new Request("https://api.example.com/api/admin/attachments"),
-				env,
-			);
-
-			expect(response.status).toBe(401);
-		});
-
 		it("should list attachments with pagination", async () => {
 			const rows = [makeD1AttachmentRow({ id: 1 }), makeD1AttachmentRow({ id: 2 })];
 			const { db } = createMockDb({
@@ -23,7 +11,7 @@ describe("admin attachment handlers", () => {
 				allResults: { "SELECT * FROM attachments": rows },
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/attachments");
+			const request = createAdminRequest("GET", "/api/admin/attachments");
 
 			const response = await list(request, env);
 
@@ -40,7 +28,7 @@ describe("admin attachment handlers", () => {
 				allResults: { "SELECT * FROM attachments": [makeD1AttachmentRow({ post_id: 42 })] },
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/attachments?postId=42");
+			const request = createAdminRequest("GET", "/api/admin/attachments?postId=42");
 
 			const response = await list(request, env);
 
@@ -55,7 +43,7 @@ describe("admin attachment handlers", () => {
 				allResults: { "SELECT * FROM attachments": [] },
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/attachments?isImage=true");
+			const request = createAdminRequest("GET", "/api/admin/attachments?isImage=true");
 
 			const response = await list(request, env);
 
@@ -67,21 +55,11 @@ describe("admin attachment handlers", () => {
 		it("should reject invalid page number", async () => {
 			const { db } = createMockDb({});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/attachments?page=0");
+			const request = createAdminRequest("GET", "/api/admin/attachments?page=0");
 
 			const response = await list(request, env);
 
 			expect(response.status).toBe(400);
-		});
-
-		it("should reject non-admin users", async () => {
-			const { db } = createMockDb({});
-			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/attachments", undefined, 0); // role 0 = normal user
-
-			const response = await list(request, env);
-
-			expect(response.status).toBe(403);
 		});
 
 		it("should filter by threadId", async () => {
@@ -90,7 +68,7 @@ describe("admin attachment handlers", () => {
 				allResults: { "SELECT * FROM attachments": [] },
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/attachments?threadId=10");
+			const request = createAdminRequest("GET", "/api/admin/attachments?threadId=10");
 
 			const response = await list(request, env);
 
@@ -105,7 +83,7 @@ describe("admin attachment handlers", () => {
 				allResults: { "SELECT * FROM attachments": [] },
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/attachments?authorId=3");
+			const request = createAdminRequest("GET", "/api/admin/attachments?authorId=3");
 
 			const response = await list(request, env);
 
@@ -120,7 +98,7 @@ describe("admin attachment handlers", () => {
 				allResults: { "SELECT * FROM attachments": [] },
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/attachments?isImage=false");
+			const request = createAdminRequest("GET", "/api/admin/attachments?isImage=false");
 
 			const response = await list(request, env);
 
@@ -131,24 +109,12 @@ describe("admin attachment handlers", () => {
 	});
 
 	describe("remove", () => {
-		it("should require admin auth", async () => {
-			const { db } = createMockDb({});
-			const env = makeEnv({ DB: db });
-
-			const response = await remove(
-				new Request("https://api.example.com/api/admin/attachments/1", { method: "DELETE" }),
-				env,
-			);
-
-			expect(response.status).toBe(401);
-		});
-
 		it("should delete attachment", async () => {
 			const { db } = createMockDb({
 				firstResults: { "SELECT * FROM attachments WHERE id": makeD1AttachmentRow({ id: 5 }) },
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("DELETE", "/api/admin/attachments/5");
+			const request = createAdminRequest("DELETE", "/api/admin/attachments/5");
 
 			const response = await remove(request, env);
 
@@ -163,21 +129,11 @@ describe("admin attachment handlers", () => {
 				firstResults: { "SELECT * FROM attachments WHERE id": null },
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("DELETE", "/api/admin/attachments/999");
+			const request = createAdminRequest("DELETE", "/api/admin/attachments/999");
 
 			const response = await remove(request, env);
 
 			expect(response.status).toBe(404);
-		});
-
-		it("should reject non-admin users", async () => {
-			const { db } = createMockDb({});
-			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("DELETE", "/api/admin/attachments/1", undefined, 0);
-
-			const response = await remove(request, env);
-
-			expect(response.status).toBe(403);
 		});
 	});
 });

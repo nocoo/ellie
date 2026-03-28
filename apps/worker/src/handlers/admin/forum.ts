@@ -14,7 +14,7 @@ import { toForum } from "../../lib/mappers";
 import { parsePathSegment } from "../../lib/parseId";
 import { recalcForumMetadata } from "../../lib/recalcMetadata";
 import { jsonResponse } from "../../lib/response";
-import type { AuthUser } from "../../middleware/auth";
+
 import { errorResponse } from "../../middleware/error";
 
 // ─── Validation helpers ──────────────────────────────────────────
@@ -130,7 +130,7 @@ const forumConfig: EntityConfig = {
 
 	// ─── Lifecycle hooks ─────────────────────────────────────
 
-	async beforeCreate(data, _user, env, origin) {
+	async beforeCreate(data, env, origin) {
 		const parentId = (data.parent_id as number) ?? 0;
 		if (parentId !== 0) {
 			const parent = await env.DB.prepare("SELECT id FROM forums WHERE id = ?")
@@ -148,7 +148,7 @@ const forumConfig: EntityConfig = {
 		data.last_poster = "";
 	},
 
-	async beforeDelete(id, _existing, _user, env, origin) {
+	async beforeDelete(id, _existing, env, origin) {
 		const countResult = await env.DB.prepare(
 			"SELECT COUNT(*) as cnt FROM threads WHERE forum_id = ?",
 		)
@@ -182,7 +182,7 @@ export const remove = withEntityAuth(forumConfig, createRemoveHandler(forumConfi
 /** #23 POST /api/admin/forums/:id/merge — Merge source forum into target */
 export const merge = withEntityAuth(
 	forumConfig,
-	async (request: Request, env: Env, _user: AuthUser): Promise<Response> => {
+	async (request: Request, env: Env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 
 		// Parse source forum ID from path: /api/admin/forums/:id/merge
@@ -276,7 +276,7 @@ export const merge = withEntityAuth(
 /** #24 POST /api/admin/forums/reorder — Batch reorder forums */
 export const reorder = withEntityAuth(
 	forumConfig,
-	async (request: Request, env: Env, _user: AuthUser): Promise<Response> => {
+	async (request: Request, env: Env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 
 		let body: Record<string, unknown>;

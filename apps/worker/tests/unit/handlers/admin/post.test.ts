@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { batchDelete, getById, list, remove, update } from "../../../../src/handlers/admin/post";
-import { createJwtForRole, createMockDb, makeD1PostRow, makeEnv } from "../../../helpers";
+import { createMockDb, makeD1PostRow, makeEnv } from "../../../helpers";
 
 describe("admin post handlers", () => {
 	const adminEnv = (db: D1Database) => makeEnv({ DB: db });
@@ -16,11 +16,8 @@ describe("admin post handlers", () => {
 				firstResults: { "SELECT COUNT": { total: 2 } },
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await list(
-				new Request("https://api.example.com/api/admin/posts?page=1&limit=20", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
+				new Request("https://api.example.com/api/admin/posts?page=1&limit=20"),
 				adminEnv(db),
 			);
 			const body = await res.json();
@@ -38,11 +35,8 @@ describe("admin post handlers", () => {
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await list(
-				new Request("https://api.example.com/api/admin/posts?threadId=5", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
+				new Request("https://api.example.com/api/admin/posts?threadId=5"),
 				adminEnv(db),
 			);
 
@@ -57,11 +51,8 @@ describe("admin post handlers", () => {
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await list(
-				new Request("https://api.example.com/api/admin/posts?authorId=123", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
+				new Request("https://api.example.com/api/admin/posts?authorId=123"),
 				adminEnv(db),
 			);
 
@@ -76,11 +67,8 @@ describe("admin post handlers", () => {
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await list(
-				new Request("https://api.example.com/api/admin/posts?authorName=alice", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
+				new Request("https://api.example.com/api/admin/posts?authorName=alice"),
 				adminEnv(db),
 			);
 
@@ -95,11 +83,8 @@ describe("admin post handlers", () => {
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await list(
-				new Request("https://api.example.com/api/admin/posts?content=test", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
+				new Request("https://api.example.com/api/admin/posts?content=test"),
 				adminEnv(db),
 			);
 
@@ -114,11 +99,8 @@ describe("admin post handlers", () => {
 				firstResults: { "SELECT COUNT(*) as total": { total: 50 } },
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await list(
-				new Request("https://api.example.com/api/admin/posts?page=2&limit=20", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
+				new Request("https://api.example.com/api/admin/posts?page=2&limit=20"),
 				adminEnv(db),
 			);
 
@@ -127,44 +109,11 @@ describe("admin post handlers", () => {
 			expect(offsetCall?.params).toContain(20);
 		});
 
-		it("should reject user role (requires mod+)", async () => {
-			const { db } = createMockDb();
-			const token = await createJwtForRole(0); // User
-			const res = await list(
-				new Request("https://api.example.com/api/admin/posts", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
-				adminEnv(db),
-			);
-
-			expect(res.status).toBe(403);
-		});
-
-		it("should allow mod role", async () => {
-			const { db } = createMockDb({
-				allResults: { "FROM posts": [] },
-				firstResults: { "SELECT COUNT": { total: 0 } },
-			});
-
-			const token = await createJwtForRole(3); // Mod
-			const res = await list(
-				new Request("https://api.example.com/api/admin/posts", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
-				adminEnv(db),
-			);
-
-			expect(res.status).toBe(200);
-		});
-
 		it("should reject invalid page number", async () => {
 			const { db } = createMockDb({});
 
-			const token = await createJwtForRole(1);
 			const res = await list(
-				new Request("https://api.example.com/api/admin/posts?page=0", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
+				new Request("https://api.example.com/api/admin/posts?page=0"),
 				adminEnv(db),
 			);
 
@@ -183,11 +132,8 @@ describe("admin post handlers", () => {
 				firstResults: { "SELECT * FROM posts": postRow },
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await getById(
-				new Request("https://api.example.com/api/admin/posts/42", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
+				new Request("https://api.example.com/api/admin/posts/42"),
 				adminEnv(db),
 			);
 			const body = await res.json();
@@ -199,11 +145,8 @@ describe("admin post handlers", () => {
 
 		it("should return 404 for non-existent post", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await getById(
-				new Request("https://api.example.com/api/admin/posts/999", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
+				new Request("https://api.example.com/api/admin/posts/999"),
 				adminEnv(db),
 			);
 
@@ -214,11 +157,8 @@ describe("admin post handlers", () => {
 
 		it("should reject invalid post ID", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await getById(
-				new Request("https://api.example.com/api/admin/posts/abc", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
+				new Request("https://api.example.com/api/admin/posts/abc"),
 				adminEnv(db),
 			);
 
@@ -236,16 +176,15 @@ describe("admin post handlers", () => {
 			const updatedRow = makeD1PostRow({ id: 42, content: "<p>New content</p>" });
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT * FROM posts": postRow, // fetchRowFull (existing check)
-					"SELECT * FROM posts WHERE id": updatedRow, // fetchRow after update
+					"SELECT * FROM posts": postRow,
+					"SELECT * FROM posts WHERE id": updatedRow,
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/posts/42", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ content: "<p>New content</p>" }),
 				}),
 				adminEnv(db),
@@ -262,11 +201,10 @@ describe("admin post handlers", () => {
 				firstResults: { "SELECT * FROM posts": postRow },
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/posts/42", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ content: "" }),
 				}),
 				adminEnv(db),
@@ -283,11 +221,10 @@ describe("admin post handlers", () => {
 				firstResults: { "SELECT * FROM posts": postRow },
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/posts/42", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ content: 123 }),
 				}),
 				adminEnv(db),
@@ -304,11 +241,10 @@ describe("admin post handlers", () => {
 				firstResults: { "SELECT * FROM posts": postRow },
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/posts/42", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({}),
 				}),
 				adminEnv(db),
@@ -324,11 +260,10 @@ describe("admin post handlers", () => {
 				firstResults: { "SELECT * FROM posts": null },
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/posts/999", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ content: "<p>Updated</p>" }),
 				}),
 				adminEnv(db),
@@ -341,11 +276,10 @@ describe("admin post handlers", () => {
 
 		it("should reject invalid post ID", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/posts/abc", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ content: "<p>Updated</p>" }),
 				}),
 				adminEnv(db),
@@ -358,11 +292,10 @@ describe("admin post handlers", () => {
 
 		it("should reject malformed JSON", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/posts/42", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: "invalid json",
 				}),
 				adminEnv(db),
@@ -383,12 +316,8 @@ describe("admin post handlers", () => {
 				firstResults: { "SELECT * FROM posts WHERE id": postRow },
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await remove(
-				new Request("https://api.example.com/api/admin/posts/42", {
-					method: "DELETE",
-					headers: { Authorization: `Bearer ${token}` },
-				}),
+				new Request("https://api.example.com/api/admin/posts/42", { method: "DELETE" }),
 				adminEnv(db),
 			);
 			const body = await res.json();
@@ -408,12 +337,8 @@ describe("admin post handlers", () => {
 				firstResults: { "SELECT * FROM posts WHERE id": postRow },
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await remove(
-				new Request("https://api.example.com/api/admin/posts/1", {
-					method: "DELETE",
-					headers: { Authorization: `Bearer ${token}` },
-				}),
+				new Request("https://api.example.com/api/admin/posts/1", { method: "DELETE" }),
 				adminEnv(db),
 			);
 
@@ -431,14 +356,10 @@ describe("admin post handlers", () => {
 				firstResults: { "SELECT * FROM posts WHERE id": postRow },
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await remove(
 				new Request("https://api.example.com/api/admin/posts/1", {
 					method: "DELETE",
-					headers: {
-						Authorization: `Bearer ${token}`,
-						Origin: "http://localhost:3000",
-					},
+					headers: { Origin: "http://localhost:3000" },
 				}),
 				adminEnv(db),
 			);
@@ -452,12 +373,8 @@ describe("admin post handlers", () => {
 				firstResults: { "SELECT * FROM posts WHERE id": null },
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await remove(
-				new Request("https://api.example.com/api/admin/posts/999", {
-					method: "DELETE",
-					headers: { Authorization: `Bearer ${token}` },
-				}),
+				new Request("https://api.example.com/api/admin/posts/999", { method: "DELETE" }),
 				adminEnv(db),
 			);
 
@@ -468,12 +385,8 @@ describe("admin post handlers", () => {
 
 		it("should reject invalid post ID", async () => {
 			const { db } = createMockDb({});
-			const token = await createJwtForRole(1);
 			const res = await remove(
-				new Request("https://api.example.com/api/admin/posts/abc", {
-					method: "DELETE",
-					headers: { Authorization: `Bearer ${token}` },
-				}),
+				new Request("https://api.example.com/api/admin/posts/abc", { method: "DELETE" }),
 				adminEnv(db),
 			);
 
@@ -496,11 +409,10 @@ describe("admin post handlers", () => {
 				allResults: { "SELECT id, thread_id, forum_id, author_id, is_first FROM posts": postRows },
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await batchDelete(
 				new Request("https://api.example.com/api/admin/posts/batch-delete", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ ids: [1, 2, 3] }),
 				}),
 				adminEnv(db),
@@ -532,11 +444,10 @@ describe("admin post handlers", () => {
 				allResults: { "SELECT id, thread_id, forum_id, author_id, is_first FROM posts": postRows },
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await batchDelete(
 				new Request("https://api.example.com/api/admin/posts/batch-delete", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ ids: [1, 2] }),
 				}),
 				adminEnv(db),
@@ -558,11 +469,10 @@ describe("admin post handlers", () => {
 				allResults: { "SELECT id, thread_id, forum_id, author_id, is_first FROM posts": postRows },
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await batchDelete(
 				new Request("https://api.example.com/api/admin/posts/batch-delete", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ ids: [1, 2] }),
 				}),
 				adminEnv(db),
@@ -577,11 +487,10 @@ describe("admin post handlers", () => {
 		it("should return 400 for empty ids array", async () => {
 			const { db } = createMockDb();
 
-			const token = await createJwtForRole(1);
 			const res = await batchDelete(
 				new Request("https://api.example.com/api/admin/posts/batch-delete", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ ids: [] }),
 				}),
 				adminEnv(db),
@@ -595,11 +504,10 @@ describe("admin post handlers", () => {
 		it("should return 400 for non-array ids", async () => {
 			const { db } = createMockDb();
 
-			const token = await createJwtForRole(1);
 			const res = await batchDelete(
 				new Request("https://api.example.com/api/admin/posts/batch-delete", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ ids: "1,2,3" }),
 				}),
 				adminEnv(db),
@@ -613,11 +521,10 @@ describe("admin post handlers", () => {
 		it("should return 400 for over 100 ids", async () => {
 			const { db } = createMockDb();
 
-			const token = await createJwtForRole(1);
 			const res = await batchDelete(
 				new Request("https://api.example.com/api/admin/posts/batch-delete", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ ids: Array.from({ length: 101 }, (_, i) => i + 1) }),
 				}),
 				adminEnv(db),
@@ -637,11 +544,10 @@ describe("admin post handlers", () => {
 				allResults: { "SELECT id, thread_id, forum_id, author_id, is_first FROM posts": postRows },
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await batchDelete(
 				new Request("https://api.example.com/api/admin/posts/batch-delete", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ ids: [1, 2, "abc"] }),
 				}),
 				adminEnv(db),
@@ -657,11 +563,10 @@ describe("admin post handlers", () => {
 		it("should return 400 when all ids are non-numeric after filtering", async () => {
 			const { db } = createMockDb();
 
-			const token = await createJwtForRole(1);
 			const res = await batchDelete(
 				new Request("https://api.example.com/api/admin/posts/batch-delete", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ ids: ["abc", "def"] }),
 				}),
 				adminEnv(db),
@@ -674,11 +579,10 @@ describe("admin post handlers", () => {
 
 		it("should reject malformed JSON", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await batchDelete(
 				new Request("https://api.example.com/api/admin/posts/batch-delete", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: "invalid json",
 				}),
 				adminEnv(db),

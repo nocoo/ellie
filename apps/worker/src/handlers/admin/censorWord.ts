@@ -13,7 +13,7 @@ import {
 import type { Env } from "../../lib/env";
 import { toCensorWord } from "../../lib/mappers";
 import { jsonResponse } from "../../lib/response";
-import type { AuthUser } from "../../middleware/auth";
+
 import { errorResponse } from "../../middleware/error";
 
 // ─── Validation helpers ──────────────────────────────────────────
@@ -127,7 +127,7 @@ const censorWordConfig: EntityConfig = {
 
 	// ─── Lifecycle hooks ─────────────────────────────────────
 
-	async beforeCreate(data, user, env, origin) {
+	async beforeCreate(data, env, origin) {
 		const find = data.find as string;
 
 		// Validate regex syntax
@@ -143,15 +143,12 @@ const censorWordConfig: EntityConfig = {
 			data.replacement = "";
 		}
 
-		// Auto-fill admin fields
-		data.admin_id = user.userId;
-		const adminRow = await env.DB.prepare("SELECT username FROM users WHERE id = ?")
-			.bind(user.userId)
-			.first<{ username: string }>();
-		data.admin_name = adminRow?.username ?? "Unknown";
+		// Auto-fill admin fields (no user context in worker)
+		data.admin_id = 0;
+		data.admin_name = "System";
 	},
 
-	async beforeUpdate(id, data, existing, _user, env, origin) {
+	async beforeUpdate(id, data, existing, env, origin) {
 		const find = (data.find as string | undefined) ?? (existing.find as string);
 
 		// Validate regex syntax if find is being changed
@@ -200,7 +197,7 @@ export const batchDelete = withEntityAuth(
 /** #60 POST /api/admin/censor-words/test — test content against censor rules */
 export const test = withEntityAuth(
 	censorWordConfig,
-	async (request: Request, env: Env, _user: AuthUser): Promise<Response> => {
+	async (request: Request, env: Env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 
 		let body: Record<string, unknown>;

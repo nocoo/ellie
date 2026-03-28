@@ -8,7 +8,7 @@ import {
 	remove,
 	update,
 } from "../../../../src/handlers/admin/ipBan";
-import { createAdminRequest, createJwtForRole, createMockDb, makeEnv } from "../../../helpers";
+import { createAdminRequest, createMockDb, makeEnv } from "../../../helpers";
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -29,25 +29,6 @@ function makeIpBanRow(overrides?: Record<string, unknown>) {
 
 describe("admin ipBan handlers", () => {
 	describe("list", () => {
-		it("should require auth", async () => {
-			const { db } = createMockDb({});
-			const env = makeEnv({ DB: db });
-
-			const response = await list(new Request("https://api.example.com/api/admin/ip-bans"), env);
-
-			expect(response.status).toBe(401);
-		});
-
-		it("should reject non-admin users", async () => {
-			const { db } = createMockDb({});
-			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/ip-bans", undefined, 0);
-
-			const response = await list(request, env);
-
-			expect(response.status).toBe(403);
-		});
-
 		it("should return paginated results", async () => {
 			const rows = [makeIpBanRow({ id: 1 }), makeIpBanRow({ id: 2, ip: "10.0.0.2" })];
 			const { db } = createMockDb({
@@ -55,7 +36,7 @@ describe("admin ipBan handlers", () => {
 				allResults: { "SELECT id, ip, admin_id": rows },
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/ip-bans");
+			const request = createAdminRequest("GET", "/api/admin/ip-bans");
 
 			const response = await list(request, env);
 
@@ -72,7 +53,7 @@ describe("admin ipBan handlers", () => {
 				allResults: { "SELECT id, ip, admin_id": [makeIpBanRow()] },
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/ip-bans?ip=10.0");
+			const request = createAdminRequest("GET", "/api/admin/ip-bans?ip=10.0");
 
 			const response = await list(request, env);
 
@@ -88,7 +69,7 @@ describe("admin ipBan handlers", () => {
 				allResults: { "SELECT id, ip, admin_id": [] },
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/ip-bans");
+			const request = createAdminRequest("GET", "/api/admin/ip-bans");
 
 			await list(request, env);
 
@@ -102,7 +83,7 @@ describe("admin ipBan handlers", () => {
 				allResults: { "SELECT id, ip, admin_id": [] },
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/ip-bans?expired=true");
+			const request = createAdminRequest("GET", "/api/admin/ip-bans?expired=true");
 
 			await list(request, env);
 
@@ -120,7 +101,7 @@ describe("admin ipBan handlers", () => {
 				firstResults: { "SELECT id, ip, admin_id": row },
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/ip-bans/5");
+			const request = createAdminRequest("GET", "/api/admin/ip-bans/5");
 
 			const response = await getById(request, env);
 
@@ -134,7 +115,7 @@ describe("admin ipBan handlers", () => {
 		it("should return 404 for non-existent ban", async () => {
 			const { db } = createMockDb({});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/ip-bans/999");
+			const request = createAdminRequest("GET", "/api/admin/ip-bans/999");
 
 			const response = await getById(request, env);
 
@@ -150,12 +131,11 @@ describe("admin ipBan handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT id FROM ip_bans WHERE ip": null, // no duplicate
-					"SELECT username FROM users WHERE id": { username: "admin" },
 					"SELECT id, ip, admin_id": row, // re-fetch after INSERT
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("POST", "/api/admin/ip-bans", {
+			const request = createAdminRequest("POST", "/api/admin/ip-bans", {
 				ip: "192.168.1.100",
 				reason: "abuse",
 			});
@@ -172,7 +152,7 @@ describe("admin ipBan handlers", () => {
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("POST", "/api/admin/ip-bans", {
+			const request = createAdminRequest("POST", "/api/admin/ip-bans", {
 				ip: "10.0.0.1",
 			});
 
@@ -191,13 +171,11 @@ describe("admin ipBan handlers", () => {
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const token = await createJwtForRole(1);
 			const response = await create(
 				new Request("https://api.example.com/api/admin/ip-bans", {
 					method: "POST",
 					headers: {
 						"X-API-Key": "test-api-key",
-						Authorization: `Bearer ${token}`,
 						"Content-Type": "application/json",
 						Origin: "http://localhost:3000",
 					},
@@ -215,12 +193,10 @@ describe("admin ipBan handlers", () => {
 				firstResults: { "SELECT id FROM ip_bans WHERE ip": null },
 			});
 			const env = makeEnv({ DB: db });
-			const jwt = await createJwtForRole(1);
 			const request = new Request("https://api.example.com/api/admin/ip-bans", {
 				method: "POST",
 				headers: {
 					"X-API-Key": "test-api-key",
-					Authorization: `Bearer ${jwt}`,
 					"Content-Type": "application/json",
 					"CF-Connecting-IP": "10.0.0.1",
 				},
@@ -240,12 +216,10 @@ describe("admin ipBan handlers", () => {
 				firstResults: { "SELECT id FROM ip_bans WHERE ip": null },
 			});
 			const env = makeEnv({ DB: db });
-			const jwt = await createJwtForRole(1);
 			const request = new Request("https://api.example.com/api/admin/ip-bans", {
 				method: "POST",
 				headers: {
 					"X-API-Key": "test-api-key",
-					Authorization: `Bearer ${jwt}`,
 					"Content-Type": "application/json",
 					"CF-Connecting-IP": "192.168.1.50",
 				},
@@ -265,12 +239,10 @@ describe("admin ipBan handlers", () => {
 				firstResults: { "SELECT id FROM ip_bans WHERE ip": null },
 			});
 			const env = makeEnv({ DB: db });
-			const jwt = await createJwtForRole(1);
 			const request = new Request("https://api.example.com/api/admin/ip-bans", {
 				method: "POST",
 				headers: {
 					"X-API-Key": "test-api-key",
-					Authorization: `Bearer ${jwt}`,
 					"Content-Type": "application/json",
 					"CF-Connecting-IP": "10.0.5.6",
 				},
@@ -286,16 +258,15 @@ describe("admin ipBan handlers", () => {
 		});
 
 		it("should auto-fill admin_id, admin_name, and created_at", async () => {
-			const row = makeIpBanRow({ ip: "172.16.0.1", admin_name: "superadmin" });
+			const row = makeIpBanRow({ ip: "172.16.0.1", admin_name: "System" });
 			const { db, calls } = createMockDb({
 				firstResults: {
 					"SELECT id FROM ip_bans WHERE ip": null,
-					"SELECT username FROM users WHERE id": { username: "superadmin" },
 					"SELECT id, ip, admin_id": row,
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("POST", "/api/admin/ip-bans", {
+			const request = createAdminRequest("POST", "/api/admin/ip-bans", {
 				ip: "172.16.0.1",
 				reason: "test",
 			});
@@ -306,7 +277,7 @@ describe("admin ipBan handlers", () => {
 			const insertCall = calls.find((c) => c.sql.includes("INSERT"));
 			expect(insertCall).toBeDefined();
 			// admin_name should be in the inserted params
-			expect(insertCall?.params).toContain("superadmin");
+			expect(insertCall?.params).toContain("System");
 		});
 	});
 
@@ -322,7 +293,7 @@ describe("admin ipBan handlers", () => {
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("PATCH", "/api/admin/ip-bans/3", {
+			const request = createAdminRequest("PATCH", "/api/admin/ip-bans/3", {
 				reason: "updated reason",
 				expiresAt: 1800000000,
 			});
@@ -335,7 +306,7 @@ describe("admin ipBan handlers", () => {
 		it("should return 404 for non-existent ban", async () => {
 			const { db } = createMockDb({});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("PATCH", "/api/admin/ip-bans/999", {
+			const request = createAdminRequest("PATCH", "/api/admin/ip-bans/999", {
 				reason: "nope",
 			});
 
@@ -353,7 +324,7 @@ describe("admin ipBan handlers", () => {
 				firstResults: { "SELECT * FROM ip_bans WHERE id": makeIpBanRow({ id: 7 }) },
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("DELETE", "/api/admin/ip-bans/7");
+			const request = createAdminRequest("DELETE", "/api/admin/ip-bans/7");
 
 			const response = await remove(request, env);
 
@@ -367,7 +338,7 @@ describe("admin ipBan handlers", () => {
 		it("should return 404 for non-existent ban", async () => {
 			const { db } = createMockDb({});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("DELETE", "/api/admin/ip-bans/999");
+			const request = createAdminRequest("DELETE", "/api/admin/ip-bans/999");
 
 			const response = await remove(request, env);
 
@@ -383,7 +354,7 @@ describe("admin ipBan handlers", () => {
 				firstResults: { "SELECT * FROM ip_bans WHERE id": makeIpBanRow() },
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("POST", "/api/admin/ip-bans/batch-delete", {
+			const request = createAdminRequest("POST", "/api/admin/ip-bans/batch-delete", {
 				ids: [1, 2, 3],
 			});
 
@@ -398,7 +369,7 @@ describe("admin ipBan handlers", () => {
 		it("should reject empty ids array", async () => {
 			const { db } = createMockDb({});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("POST", "/api/admin/ip-bans/batch-delete", {
+			const request = createAdminRequest("POST", "/api/admin/ip-bans/batch-delete", {
 				ids: [],
 			});
 
@@ -418,7 +389,7 @@ describe("admin ipBan handlers", () => {
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/ip-bans/check-ip?ip=10.0.0.1");
+			const request = createAdminRequest("GET", "/api/admin/ip-bans/check-ip?ip=10.0.0.1");
 
 			const response = await checkIp(request, env);
 
@@ -436,10 +407,7 @@ describe("admin ipBan handlers", () => {
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest(
-				"GET",
-				"/api/admin/ip-bans/check-ip?ip=192.168.0.100",
-			);
+			const request = createAdminRequest("GET", "/api/admin/ip-bans/check-ip?ip=192.168.0.100");
 
 			const response = await checkIp(request, env);
 
@@ -457,7 +425,7 @@ describe("admin ipBan handlers", () => {
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/ip-bans/check-ip?ip=10.0.5.6");
+			const request = createAdminRequest("GET", "/api/admin/ip-bans/check-ip?ip=10.0.5.6");
 
 			const response = await checkIp(request, env);
 
@@ -475,7 +443,7 @@ describe("admin ipBan handlers", () => {
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/ip-bans/check-ip?ip=172.16.0.1");
+			const request = createAdminRequest("GET", "/api/admin/ip-bans/check-ip?ip=172.16.0.1");
 
 			const response = await checkIp(request, env);
 
@@ -496,7 +464,7 @@ describe("admin ipBan handlers", () => {
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/ip-bans/check-ip?ip=10.0.0.5");
+			const request = createAdminRequest("GET", "/api/admin/ip-bans/check-ip?ip=10.0.0.5");
 
 			const response = await checkIp(request, env);
 
@@ -517,10 +485,7 @@ describe("admin ipBan handlers", () => {
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest(
-				"GET",
-				"/api/admin/ip-bans/check-ip?ip=192.168.1.50",
-			);
+			const request = createAdminRequest("GET", "/api/admin/ip-bans/check-ip?ip=192.168.1.50");
 
 			const response = await checkIp(request, env);
 
@@ -541,7 +506,7 @@ describe("admin ipBan handlers", () => {
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/ip-bans/check-ip?ip=10.0.0.5");
+			const request = createAdminRequest("GET", "/api/admin/ip-bans/check-ip?ip=10.0.0.5");
 
 			const response = await checkIp(request, env);
 
@@ -556,7 +521,7 @@ describe("admin ipBan handlers", () => {
 		it("should require ip query parameter", async () => {
 			const { db } = createMockDb({});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/ip-bans/check-ip");
+			const request = createAdminRequest("GET", "/api/admin/ip-bans/check-ip");
 
 			const response = await checkIp(request, env);
 

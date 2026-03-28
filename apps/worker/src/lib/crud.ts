@@ -1,7 +1,7 @@
 // Admin CRUD framework — reusable factory functions for admin endpoints
 // All admin entities use EntityConfig to declare their CRUD behavior.
+// Admin auth = Key B only (validated at router level). No user identity available.
 
-import type { AuthUser } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 import type { Env } from "./env";
 import { parseIdFromPath } from "./parseId";
@@ -43,7 +43,7 @@ export interface EntityConfig {
 	table: string;
 	/** Singular entity name for error codes (e.g., "FORUM") */
 	entityName: string;
-	/** Auth level: "admin" or "moderator" */
+	/** Auth level (kept for documentation; enforcement is Key B at router level) */
 	auth: "admin" | "moderator";
 	/** Column list for SELECT (prevents leaking sensitive data) */
 	columns: string;
@@ -68,17 +68,11 @@ export interface EntityConfig {
 	/** 404 error code (default: NOT_FOUND) */
 	notFoundCode?: string;
 
-	// ─── Lifecycle hooks ───────────────────────────────────
-	beforeCreate?: (
-		data: Record<string, unknown>,
-		user: AuthUser,
-		env: Env,
-		origin?: string,
-	) => Promise<HookResult>;
+	// ─── Lifecycle hooks (no user identity — admin auth is Key B only) ───
+	beforeCreate?: (data: Record<string, unknown>, env: Env, origin?: string) => Promise<HookResult>;
 	afterCreate?: (
 		id: number,
 		data: Record<string, unknown>,
-		user: AuthUser,
 		env: Env,
 		origin?: string,
 	) => Promise<void>;
@@ -86,7 +80,6 @@ export interface EntityConfig {
 		id: number,
 		data: Record<string, unknown>,
 		existing: Record<string, unknown>,
-		user: AuthUser,
 		env: Env,
 		origin?: string,
 	) => Promise<HookResult>;
@@ -94,21 +87,18 @@ export interface EntityConfig {
 		id: number,
 		data: Record<string, unknown>,
 		existing: Record<string, unknown>,
-		user: AuthUser,
 		env: Env,
 		origin?: string,
 	) => Promise<void>;
 	beforeDelete?: (
 		id: number,
 		existing: Record<string, unknown>,
-		user: AuthUser,
 		env: Env,
 		origin?: string,
 	) => Promise<HookResult>;
 	afterDelete?: (
 		id: number,
 		existing: Record<string, unknown>,
-		user: AuthUser,
 		env: Env,
 		origin?: string,
 	) => Promise<void>;
@@ -235,7 +225,7 @@ function parseAndValidateId(
 // ─── Factory: List ────────────────────────────────────────────────
 
 export function createListHandler(config: EntityConfig) {
-	return async (request: Request, env: Env, _user: AuthUser): Promise<Response> => {
+	return async (request: Request, env: Env): Promise<Response> => {
 		const origin = getOrigin(request);
 		const url = new URL(request.url);
 		const { whereClause, params } = buildWhereClause(config.filters, url);
@@ -287,7 +277,7 @@ export function createListHandler(config: EntityConfig) {
 // ─── Factory: GetById ─────────────────────────────────────────────
 
 export function createGetByIdHandler(config: EntityConfig) {
-	return async (request: Request, env: Env, _user: AuthUser): Promise<Response> => {
+	return async (request: Request, env: Env): Promise<Response> => {
 		const origin = getOrigin(request);
 		const id = parseAndValidateId(request, config.entityName, origin);
 		if (id instanceof Response) return id;
@@ -302,7 +292,7 @@ export function createGetByIdHandler(config: EntityConfig) {
 // ─── Factory: Create ──────────────────────────────────────────────
 
 export function createCreateHandler(config: EntityConfig) {
-	return async (request: Request, env: Env, user: AuthUser): Promise<Response> => {
+	return async (request: Request, env: Env): Promise<Response> => {
 		const origin = getOrigin(request);
 		const fields = config.createFields;
 		if (!fields)
@@ -316,7 +306,7 @@ export function createCreateHandler(config: EntityConfig) {
 		const { data } = fieldResult;
 
 		if (config.beforeCreate) {
-			const hookResult = await config.beforeCreate(data, user, env, origin);
+			const hookResult = await config.beforeCreate(data, env, origin);
 			if (hookResult instanceof Response) return hookResult;
 		}
 
@@ -328,7 +318,7 @@ export function createCreateHandler(config: EntityConfig) {
 			.run();
 
 		const newId = result.meta.last_row_id;
-		if (config.afterCreate && newId) await config.afterCreate(newId, data, user, env, origin);
+		if (config.afterCreate && newId) await config.afterCreate(newId, data, env, origin);
 
 		const row = await fetchRow(env, config.table, config.columns, newId);
 		return jsonResponse(config.mapper(row as Record<string, unknown>), origin, undefined, 201);
@@ -338,7 +328,7 @@ export function createCreateHandler(config: EntityConfig) {
 // ─── Factory: Update ──────────────────────────────────────────────
 
 export function createUpdateHandler(config: EntityConfig) {
-	return async (request: Request, env: Env, user: AuthUser): Promise<Response> => {
+	return async (request: Request, env: Env): Promise<Response> => {
 		const origin = getOrigin(request);
 		const id = parseAndValidateId(request, config.entityName, origin);
 		if (id instanceof Response) return id;
@@ -360,7 +350,6 @@ export function createUpdateHandler(config: EntityConfig) {
 				id,
 				data,
 				existing as Record<string, unknown>,
-				user,
 				env,
 				origin,
 			);
@@ -373,7 +362,7 @@ export function createUpdateHandler(config: EntityConfig) {
 			.run();
 
 		if (config.afterUpdate)
-			await config.afterUpdate(id, data, existing as Record<string, unknown>, user, env, origin);
+			await config.afterUpdate(id, data, existing as Record<string, unknown>, env, origin);
 
 		const row = await fetchRow(env, config.table, config.columns, id);
 		return jsonResponse(config.mapper(row as Record<string, unknown>), origin);
@@ -383,7 +372,7 @@ export function createUpdateHandler(config: EntityConfig) {
 // ─── Factory: Remove ──────────────────────────────────────────────
 
 export function createRemoveHandler(config: EntityConfig) {
-	return async (request: Request, env: Env, user: AuthUser): Promise<Response> => {
+	return async (request: Request, env: Env): Promise<Response> => {
 		const origin = getOrigin(request);
 		const id = parseAndValidateId(request, config.entityName, origin);
 		if (id instanceof Response) return id;
@@ -403,7 +392,6 @@ export function createRemoveHandler(config: EntityConfig) {
 			const hookResult = await config.beforeDelete(
 				id,
 				existing as Record<string, unknown>,
-				user,
 				env,
 				origin,
 			);
@@ -412,7 +400,7 @@ export function createRemoveHandler(config: EntityConfig) {
 
 		await env.DB.prepare(`DELETE FROM ${config.table} WHERE id = ?`).bind(id).run();
 		if (config.afterDelete)
-			await config.afterDelete(id, existing as Record<string, unknown>, user, env, origin);
+			await config.afterDelete(id, existing as Record<string, unknown>, env, origin);
 
 		return jsonResponse({ deleted: true, id }, origin);
 	};
@@ -423,7 +411,7 @@ export function createRemoveHandler(config: EntityConfig) {
 export function createBatchDeleteHandler(config: EntityConfig) {
 	const maxBatch = config.batchLimit ?? 100;
 
-	return async (request: Request, env: Env, user: AuthUser): Promise<Response> => {
+	return async (request: Request, env: Env): Promise<Response> => {
 		const origin = getOrigin(request);
 		const bodyResult = await parseJsonBody(request, origin);
 		if (bodyResult instanceof Response) return bodyResult;
@@ -465,7 +453,6 @@ export function createBatchDeleteHandler(config: EntityConfig) {
 				const hookResult = await config.beforeDelete(
 					id,
 					existing as Record<string, unknown>,
-					user,
 					env,
 					origin,
 				);
@@ -474,7 +461,7 @@ export function createBatchDeleteHandler(config: EntityConfig) {
 
 			await env.DB.prepare(`DELETE FROM ${config.table} WHERE id = ?`).bind(id).run();
 			if (config.afterDelete)
-				await config.afterDelete(id, existing as Record<string, unknown>, user, env, origin);
+				await config.afterDelete(id, existing as Record<string, unknown>, env, origin);
 			count++;
 		}
 

@@ -7,13 +7,7 @@ import {
 	remove,
 	update,
 } from "../../../../src/handlers/admin/thread";
-import {
-	createAdminRequest,
-	createJwtForRole,
-	createMockDb,
-	makeD1ThreadRow,
-	makeEnv,
-} from "../../../helpers";
+import { createAdminRequest, createMockDb, makeD1ThreadRow, makeEnv } from "../../../helpers";
 
 describe("admin thread handlers", () => {
 	const adminEnv = (db: D1Database) => makeEnv({ DB: db });
@@ -31,7 +25,7 @@ describe("admin thread handlers", () => {
 				},
 			});
 
-			const req = await createAdminRequest("GET", "/api/admin/threads?page=1&limit=20");
+			const req = createAdminRequest("GET", "/api/admin/threads?page=1&limit=20");
 			const res = await list(req, adminEnv(db));
 			const body = await res.json();
 
@@ -48,7 +42,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
-			const req = await createAdminRequest("GET", "/api/admin/threads?forumId=5");
+			const req = createAdminRequest("GET", "/api/admin/threads?forumId=5");
 			const res = await list(req, adminEnv(db));
 
 			expect(res.status).toBe(200);
@@ -62,7 +56,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
-			const req = await createAdminRequest("GET", "/api/admin/threads?authorId=123");
+			const req = createAdminRequest("GET", "/api/admin/threads?authorId=123");
 			const res = await list(req, adminEnv(db));
 
 			expect(res.status).toBe(200);
@@ -76,7 +70,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
-			const req = await createAdminRequest("GET", "/api/admin/threads?authorName=alice");
+			const req = createAdminRequest("GET", "/api/admin/threads?authorName=alice");
 			const res = await list(req, adminEnv(db));
 
 			expect(res.status).toBe(200);
@@ -90,7 +84,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
-			const req = await createAdminRequest("GET", "/api/admin/threads?subject=test");
+			const req = createAdminRequest("GET", "/api/admin/threads?subject=test");
 			const res = await list(req, adminEnv(db));
 
 			expect(res.status).toBe(200);
@@ -104,7 +98,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
-			const req = await createAdminRequest("GET", "/api/admin/threads?sticky=1");
+			const req = createAdminRequest("GET", "/api/admin/threads?sticky=1");
 			const res = await list(req, adminEnv(db));
 
 			expect(res.status).toBe(200);
@@ -118,7 +112,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
-			const req = await createAdminRequest("GET", "/api/admin/threads?closed=1");
+			const req = createAdminRequest("GET", "/api/admin/threads?closed=1");
 			const res = await list(req, adminEnv(db));
 
 			expect(res.status).toBe(200);
@@ -132,7 +126,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
-			const req = await createAdminRequest("GET", "/api/admin/threads?digest=2");
+			const req = createAdminRequest("GET", "/api/admin/threads?digest=2");
 			const res = await list(req, adminEnv(db));
 
 			expect(res.status).toBe(200);
@@ -146,7 +140,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
-			const req = await createAdminRequest("GET", "/api/admin/threads?highlight=1");
+			const req = createAdminRequest("GET", "/api/admin/threads?highlight=1");
 			const res = await list(req, adminEnv(db));
 
 			expect(res.status).toBe(200);
@@ -160,7 +154,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT COUNT(*) as total": { total: 50 } },
 			});
 
-			const req = await createAdminRequest("GET", "/api/admin/threads?page=2&limit=20");
+			const req = createAdminRequest("GET", "/api/admin/threads?page=2&limit=20");
 			const res = await list(req, adminEnv(db));
 
 			expect(res.status).toBe(200);
@@ -168,54 +162,10 @@ describe("admin thread handlers", () => {
 			expect(offsetCall?.params).toContain(20); // OFFSET = (2-1)*20 = 20
 		});
 
-		it("should reject user role (requires mod+)", async () => {
-			const { db } = createMockDb();
-			const req = await createAdminRequest("GET", "/api/admin/threads", undefined, 0); // User role
-			const res = await list(req, adminEnv(db));
-
-			expect(res.status).toBe(403);
-		});
-
-		it("should allow admin role", async () => {
-			const { db } = createMockDb({
-				allResults: { "FROM threads": [] },
-				firstResults: { "SELECT COUNT": { total: 0 } },
-			});
-
-			const req = await createAdminRequest("GET", "/api/admin/threads", undefined, 1); // Admin
-			const res = await list(req, adminEnv(db));
-
-			expect(res.status).toBe(200);
-		});
-
-		it("should allow mod role", async () => {
-			const { db } = createMockDb({
-				allResults: { "FROM threads": [] },
-				firstResults: { "SELECT COUNT": { total: 0 } },
-			});
-
-			const req = await createAdminRequest("GET", "/api/admin/threads", undefined, 3); // Mod
-			const res = await list(req, adminEnv(db));
-
-			expect(res.status).toBe(200);
-		});
-
-		it("should allow supermod role", async () => {
-			const { db } = createMockDb({
-				allResults: { "FROM threads": [] },
-				firstResults: { "SELECT COUNT": { total: 0 } },
-			});
-
-			const req = await createAdminRequest("GET", "/api/admin/threads", undefined, 2); // SuperMod
-			const res = await list(req, adminEnv(db));
-
-			expect(res.status).toBe(200);
-		});
-
 		it("should reject invalid page number", async () => {
 			const { db } = createMockDb({});
 
-			const req = await createAdminRequest("GET", "/api/admin/threads?page=0");
+			const req = createAdminRequest("GET", "/api/admin/threads?page=0");
 			const res = await list(req, adminEnv(db));
 
 			expect(res.status).toBe(400);
@@ -233,7 +183,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT * FROM threads": threadRow },
 			});
 
-			const req = await createAdminRequest("GET", "/api/admin/threads/42");
+			const req = createAdminRequest("GET", "/api/admin/threads/42");
 			const res = await getById(req, adminEnv(db));
 			const body = await res.json();
 
@@ -244,7 +194,7 @@ describe("admin thread handlers", () => {
 
 		it("should return 404 for non-existent thread", async () => {
 			const { db } = createMockDb();
-			const req = await createAdminRequest("GET", "/api/admin/threads/999");
+			const req = createAdminRequest("GET", "/api/admin/threads/999");
 			const res = await getById(req, adminEnv(db));
 
 			expect(res.status).toBe(404);
@@ -254,7 +204,7 @@ describe("admin thread handlers", () => {
 
 		it("should reject invalid thread ID", async () => {
 			const { db } = createMockDb();
-			const req = await createAdminRequest("GET", "/api/admin/threads/abc");
+			const req = createAdminRequest("GET", "/api/admin/threads/abc");
 			const res = await getById(req, adminEnv(db));
 
 			expect(res.status).toBe(400);
@@ -268,7 +218,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT * FROM threads": threadRow },
 			});
 
-			const req = await createAdminRequest("GET", "/api/admin/threads/10");
+			const req = createAdminRequest("GET", "/api/admin/threads/10");
 			const res = await getById(req, adminEnv(db));
 			const body = await res.json();
 
@@ -294,7 +244,7 @@ describe("admin thread handlers", () => {
 				},
 			});
 
-			const req = await createAdminRequest("PATCH", "/api/admin/threads/42", {
+			const req = createAdminRequest("PATCH", "/api/admin/threads/42", {
 				subject: "New Title",
 			});
 			const res = await update(req, adminEnv(db));
@@ -316,7 +266,7 @@ describe("admin thread handlers", () => {
 				},
 			});
 
-			const req = await createAdminRequest("PATCH", "/api/admin/threads/42", { sticky: 2 });
+			const req = createAdminRequest("PATCH", "/api/admin/threads/42", { sticky: 2 });
 			const res = await update(req, adminEnv(db));
 
 			expect(res.status).toBe(200);
@@ -334,7 +284,7 @@ describe("admin thread handlers", () => {
 				},
 			});
 
-			const req = await createAdminRequest("PATCH", "/api/admin/threads/42", { digest: 3 });
+			const req = createAdminRequest("PATCH", "/api/admin/threads/42", { digest: 3 });
 			const res = await update(req, adminEnv(db));
 
 			expect(res.status).toBe(200);
@@ -352,7 +302,7 @@ describe("admin thread handlers", () => {
 				},
 			});
 
-			const req = await createAdminRequest("PATCH", "/api/admin/threads/42", { closed: 1 });
+			const req = createAdminRequest("PATCH", "/api/admin/threads/42", { closed: 1 });
 			const res = await update(req, adminEnv(db));
 
 			expect(res.status).toBe(200);
@@ -370,7 +320,7 @@ describe("admin thread handlers", () => {
 				},
 			});
 
-			const req = await createAdminRequest("PATCH", "/api/admin/threads/42", { highlight: 1 });
+			const req = createAdminRequest("PATCH", "/api/admin/threads/42", { highlight: 1 });
 			const res = await update(req, adminEnv(db));
 
 			expect(res.status).toBe(200);
@@ -387,7 +337,7 @@ describe("admin thread handlers", () => {
 				},
 			});
 
-			const req = await createAdminRequest("PATCH", "/api/admin/threads/42", { forumId: 10 });
+			const req = createAdminRequest("PATCH", "/api/admin/threads/42", { forumId: 10 });
 			const res = await update(req, adminEnv(db));
 
 			expect(res.status).toBe(200);
@@ -405,7 +355,7 @@ describe("admin thread handlers", () => {
 				},
 			});
 
-			const req = await createAdminRequest("PATCH", "/api/admin/threads/42", { forumId: 999 });
+			const req = createAdminRequest("PATCH", "/api/admin/threads/42", { forumId: 999 });
 			const res = await update(req, adminEnv(db));
 
 			expect(res.status).toBe(400);
@@ -421,13 +371,11 @@ describe("admin thread handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/threads/42", {
 					method: "PATCH",
 					headers: {
 						"X-API-Key": "test-api-key",
-						Authorization: `Bearer ${token}`,
 						"Content-Type": "application/json",
 						Origin: "http://localhost:3000",
 					},
@@ -451,7 +399,7 @@ describe("admin thread handlers", () => {
 			});
 
 			// Update subject only — no forum move
-			const req = await createAdminRequest("PATCH", "/api/admin/threads/42", {
+			const req = createAdminRequest("PATCH", "/api/admin/threads/42", {
 				subject: "Updated",
 			});
 			const res = await update(req, adminEnv(db));
@@ -470,7 +418,7 @@ describe("admin thread handlers", () => {
 				},
 			});
 
-			const req = await createAdminRequest("PATCH", "/api/admin/threads/42", {
+			const req = createAdminRequest("PATCH", "/api/admin/threads/42", {
 				sticky: 1,
 				closed: 1,
 				digest: 2,
@@ -491,7 +439,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT * FROM threads WHERE id": threadRow },
 			});
 
-			const req = await createAdminRequest("PATCH", "/api/admin/threads/42", {});
+			const req = createAdminRequest("PATCH", "/api/admin/threads/42", {});
 			const res = await update(req, adminEnv(db));
 
 			expect(res.status).toBe(400);
@@ -505,7 +453,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT * FROM threads WHERE id": threadRow },
 			});
 
-			const req = await createAdminRequest("PATCH", "/api/admin/threads/42", { sticky: 5 });
+			const req = createAdminRequest("PATCH", "/api/admin/threads/42", { sticky: 5 });
 			const res = await update(req, adminEnv(db));
 
 			expect(res.status).toBe(400);
@@ -519,7 +467,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT * FROM threads WHERE id": threadRow },
 			});
 
-			const req = await createAdminRequest("PATCH", "/api/admin/threads/42", { sticky: "high" });
+			const req = createAdminRequest("PATCH", "/api/admin/threads/42", { sticky: "high" });
 			const res = await update(req, adminEnv(db));
 
 			expect(res.status).toBe(400);
@@ -533,7 +481,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT * FROM threads WHERE id": threadRow },
 			});
 
-			const req = await createAdminRequest("PATCH", "/api/admin/threads/42", { digest: -1 });
+			const req = createAdminRequest("PATCH", "/api/admin/threads/42", { digest: -1 });
 			const res = await update(req, adminEnv(db));
 
 			expect(res.status).toBe(400);
@@ -547,7 +495,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT * FROM threads WHERE id": threadRow },
 			});
 
-			const req = await createAdminRequest("PATCH", "/api/admin/threads/42", { closed: 2 });
+			const req = createAdminRequest("PATCH", "/api/admin/threads/42", { closed: 2 });
 			const res = await update(req, adminEnv(db));
 
 			expect(res.status).toBe(400);
@@ -561,7 +509,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT * FROM threads WHERE id": threadRow },
 			});
 
-			const req = await createAdminRequest("PATCH", "/api/admin/threads/42", {
+			const req = createAdminRequest("PATCH", "/api/admin/threads/42", {
 				subject: "x".repeat(201),
 			});
 			const res = await update(req, adminEnv(db));
@@ -577,7 +525,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT * FROM threads WHERE id": threadRow },
 			});
 
-			const req = await createAdminRequest("PATCH", "/api/admin/threads/42", { subject: "  " });
+			const req = createAdminRequest("PATCH", "/api/admin/threads/42", { subject: "  " });
 			const res = await update(req, adminEnv(db));
 
 			expect(res.status).toBe(400);
@@ -591,7 +539,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT * FROM threads WHERE id": threadRow },
 			});
 
-			const req = await createAdminRequest("PATCH", "/api/admin/threads/42", { highlight: -1 });
+			const req = createAdminRequest("PATCH", "/api/admin/threads/42", { highlight: -1 });
 			const res = await update(req, adminEnv(db));
 
 			expect(res.status).toBe(400);
@@ -605,7 +553,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT * FROM threads WHERE id": threadRow },
 			});
 
-			const req = await createAdminRequest("PATCH", "/api/admin/threads/42", { forumId: 0 });
+			const req = createAdminRequest("PATCH", "/api/admin/threads/42", { forumId: 0 });
 			const res = await update(req, adminEnv(db));
 
 			expect(res.status).toBe(400);
@@ -616,7 +564,7 @@ describe("admin thread handlers", () => {
 		it("should return 404 for non-existent thread", async () => {
 			const { db } = createMockDb();
 
-			const req = await createAdminRequest("PATCH", "/api/admin/threads/999", { sticky: 1 });
+			const req = createAdminRequest("PATCH", "/api/admin/threads/999", { sticky: 1 });
 			const res = await update(req, adminEnv(db));
 
 			expect(res.status).toBe(404);
@@ -627,7 +575,7 @@ describe("admin thread handlers", () => {
 		it("should reject invalid thread ID", async () => {
 			const { db } = createMockDb();
 
-			const req = await createAdminRequest("PATCH", "/api/admin/threads/abc", { sticky: 1 });
+			const req = createAdminRequest("PATCH", "/api/admin/threads/abc", { sticky: 1 });
 			const res = await update(req, adminEnv(db));
 
 			expect(res.status).toBe(400);
@@ -637,13 +585,11 @@ describe("admin thread handlers", () => {
 
 		it("should reject malformed JSON", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/threads/42", {
 					method: "PATCH",
 					headers: {
 						"X-API-Key": "test-api-key",
-						Authorization: `Bearer ${token}`,
 					},
 					body: "invalid json",
 				}),
@@ -668,7 +614,7 @@ describe("admin thread handlers", () => {
 				},
 			});
 
-			const req = await createAdminRequest("DELETE", "/api/admin/threads/42");
+			const req = createAdminRequest("DELETE", "/api/admin/threads/42");
 			const res = await remove(req, adminEnv(db));
 			const body = await res.json();
 
@@ -686,7 +632,7 @@ describe("admin thread handlers", () => {
 				firstResults: { "SELECT * FROM threads": null },
 			});
 
-			const req = await createAdminRequest("DELETE", "/api/admin/threads/999");
+			const req = createAdminRequest("DELETE", "/api/admin/threads/999");
 			const res = await remove(req, adminEnv(db));
 
 			expect(res.status).toBe(404);
@@ -694,7 +640,7 @@ describe("admin thread handlers", () => {
 
 		it("should reject invalid thread ID", async () => {
 			const { db } = createMockDb();
-			const req = await createAdminRequest("DELETE", "/api/admin/threads/abc");
+			const req = createAdminRequest("DELETE", "/api/admin/threads/abc");
 			const res = await remove(req, adminEnv(db));
 
 			expect(res.status).toBe(400);
@@ -709,7 +655,7 @@ describe("admin thread handlers", () => {
 				},
 			});
 
-			const req = await createAdminRequest("DELETE", "/api/admin/threads/42");
+			const req = createAdminRequest("DELETE", "/api/admin/threads/42");
 			const res = await remove(req, adminEnv(db));
 			const body = await res.json();
 
@@ -733,7 +679,7 @@ describe("admin thread handlers", () => {
 				},
 			});
 
-			const req = await createAdminRequest("POST", "/api/admin/threads/batch-delete", {
+			const req = createAdminRequest("POST", "/api/admin/threads/batch-delete", {
 				ids: [1, 2],
 			});
 			const res = await batchDelete(req, adminEnv(db));
@@ -747,7 +693,7 @@ describe("admin thread handlers", () => {
 		it("should return 400 for empty ids array", async () => {
 			const { db } = createMockDb();
 
-			const req = await createAdminRequest("POST", "/api/admin/threads/batch-delete", { ids: [] });
+			const req = createAdminRequest("POST", "/api/admin/threads/batch-delete", { ids: [] });
 			const res = await batchDelete(req, adminEnv(db));
 
 			expect(res.status).toBe(400);
@@ -758,7 +704,7 @@ describe("admin thread handlers", () => {
 		it("should return 400 for over 100 ids", async () => {
 			const { db } = createMockDb();
 
-			const req = await createAdminRequest("POST", "/api/admin/threads/batch-delete", {
+			const req = createAdminRequest("POST", "/api/admin/threads/batch-delete", {
 				ids: Array.from({ length: 101 }, (_, i) => i),
 			});
 			const res = await batchDelete(req, adminEnv(db));
@@ -771,7 +717,7 @@ describe("admin thread handlers", () => {
 		it("should return 400 for non-array ids", async () => {
 			const { db } = createMockDb();
 
-			const req = await createAdminRequest("POST", "/api/admin/threads/batch-delete", {
+			const req = createAdminRequest("POST", "/api/admin/threads/batch-delete", {
 				ids: "1,2,3",
 			});
 			const res = await batchDelete(req, adminEnv(db));
@@ -784,7 +730,7 @@ describe("admin thread handlers", () => {
 		it("should return 400 for missing ids field", async () => {
 			const { db } = createMockDb();
 
-			const req = await createAdminRequest("POST", "/api/admin/threads/batch-delete", {});
+			const req = createAdminRequest("POST", "/api/admin/threads/batch-delete", {});
 			const res = await batchDelete(req, adminEnv(db));
 
 			expect(res.status).toBe(400);
@@ -794,7 +740,7 @@ describe("admin thread handlers", () => {
 			// The CRUD framework's batchDelete loops per-id: if none exist, count stays 0
 			const { db } = createMockDb();
 
-			const req = await createAdminRequest("POST", "/api/admin/threads/batch-delete", {
+			const req = createAdminRequest("POST", "/api/admin/threads/batch-delete", {
 				ids: [999, 1000],
 			});
 			const res = await batchDelete(req, adminEnv(db));
@@ -820,7 +766,7 @@ describe("admin thread handlers", () => {
 				},
 			});
 
-			const req = await createAdminRequest("POST", "/api/admin/threads/batch-delete", {
+			const req = createAdminRequest("POST", "/api/admin/threads/batch-delete", {
 				ids: [10],
 			});
 			const res = await batchDelete(req, adminEnv(db));
@@ -865,7 +811,7 @@ describe("admin thread handlers", () => {
 				},
 			});
 
-			const req = await createAdminRequest("POST", "/api/admin/threads/batch-move", {
+			const req = createAdminRequest("POST", "/api/admin/threads/batch-move", {
 				ids: [1, 2],
 				forumId: 10,
 			});
@@ -896,7 +842,7 @@ describe("admin thread handlers", () => {
 				},
 			});
 
-			const req = await createAdminRequest("POST", "/api/admin/threads/batch-move", {
+			const req = createAdminRequest("POST", "/api/admin/threads/batch-move", {
 				ids: [1, 2],
 				forumId: 10,
 			});
@@ -912,7 +858,7 @@ describe("admin thread handlers", () => {
 		it("should reject missing ids", async () => {
 			const { db } = createMockDb();
 
-			const req = await createAdminRequest("POST", "/api/admin/threads/batch-move", {
+			const req = createAdminRequest("POST", "/api/admin/threads/batch-move", {
 				forumId: 10,
 			});
 			const res = await batchMove(req, adminEnv(db));
@@ -925,7 +871,7 @@ describe("admin thread handlers", () => {
 		it("should reject empty ids array", async () => {
 			const { db } = createMockDb();
 
-			const req = await createAdminRequest("POST", "/api/admin/threads/batch-move", {
+			const req = createAdminRequest("POST", "/api/admin/threads/batch-move", {
 				ids: [],
 				forumId: 10,
 			});
@@ -939,7 +885,7 @@ describe("admin thread handlers", () => {
 		it("should reject over 100 ids", async () => {
 			const { db } = createMockDb();
 
-			const req = await createAdminRequest("POST", "/api/admin/threads/batch-move", {
+			const req = createAdminRequest("POST", "/api/admin/threads/batch-move", {
 				ids: Array.from({ length: 101 }, (_, i) => i + 1),
 				forumId: 10,
 			});
@@ -953,7 +899,7 @@ describe("admin thread handlers", () => {
 		it("should reject missing forumId", async () => {
 			const { db } = createMockDb();
 
-			const req = await createAdminRequest("POST", "/api/admin/threads/batch-move", {
+			const req = createAdminRequest("POST", "/api/admin/threads/batch-move", {
 				ids: [1, 2],
 			});
 			const res = await batchMove(req, adminEnv(db));
@@ -966,7 +912,7 @@ describe("admin thread handlers", () => {
 		it("should reject non-positive forumId", async () => {
 			const { db } = createMockDb();
 
-			const req = await createAdminRequest("POST", "/api/admin/threads/batch-move", {
+			const req = createAdminRequest("POST", "/api/admin/threads/batch-move", {
 				ids: [1, 2],
 				forumId: 0,
 			});
@@ -984,7 +930,7 @@ describe("admin thread handlers", () => {
 				},
 			});
 
-			const req = await createAdminRequest("POST", "/api/admin/threads/batch-move", {
+			const req = createAdminRequest("POST", "/api/admin/threads/batch-move", {
 				ids: [1, 2],
 				forumId: 999,
 			});
@@ -997,13 +943,11 @@ describe("admin thread handlers", () => {
 
 		it("should reject malformed JSON", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await batchMove(
 				new Request("https://api.example.com/api/admin/threads/batch-move", {
 					method: "POST",
 					headers: {
 						"X-API-Key": "test-api-key",
-						Authorization: `Bearer ${token}`,
 					},
 					body: "invalid json",
 				}),
@@ -1025,7 +969,7 @@ describe("admin thread handlers", () => {
 				},
 			});
 
-			const req = await createAdminRequest("POST", "/api/admin/threads/batch-move", {
+			const req = createAdminRequest("POST", "/api/admin/threads/batch-move", {
 				ids: [999, 1000],
 				forumId: 10,
 			});
@@ -1052,7 +996,7 @@ describe("admin thread handlers", () => {
 				},
 			});
 
-			const req = await createAdminRequest("POST", "/api/admin/threads/batch-move", {
+			const req = createAdminRequest("POST", "/api/admin/threads/batch-move", {
 				ids: [1, 2, 3],
 				forumId: 10,
 			});

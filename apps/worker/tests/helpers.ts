@@ -2,7 +2,6 @@
 
 import { mock } from "bun:test";
 import type { Env } from "../src/lib/env";
-import { createJwt } from "../src/lib/jwt";
 
 // ─── Constants ─────────────────────────────────────────────
 export const TEST_API_KEY = "test-api-key";
@@ -118,6 +117,9 @@ export function makeD1AttachmentRow(overrides?: Record<string, unknown>) {
 }
 
 // ─── JWT Helpers ───────────────────────────────────────────
+// Kept for non-admin tests that still use JWT auth (e.g., public API endpoints)
+
+import { createJwt } from "../src/lib/jwt";
 
 export async function createJwtForRole(
 	role: number,
@@ -136,17 +138,13 @@ export async function createJwtForRole(
 
 // ─── Request Factories ─────────────────────────────────────
 
-export async function createAdminRequest(
-	method: string,
-	path: string,
-	body?: unknown,
-	role = 1, // Admin by default
-	userId = 1,
-): Promise<Request> {
-	const token = await createJwtForRole(role, userId);
+/**
+ * Create an admin request with X-API-Key header.
+ * Admin endpoints are authenticated by Key B at the router level — no JWT needed.
+ */
+export function createAdminRequest(method: string, path: string, body?: unknown): Request {
 	const headers: Record<string, string> = {
 		"X-API-Key": TEST_ADMIN_API_KEY,
-		Authorization: `Bearer ${token}`,
 		"Content-Type": "application/json",
 	};
 	return new Request(`https://api.example.com${path}`, {

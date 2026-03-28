@@ -8,7 +8,6 @@ import { recalcForumMetadata, recalcThreadMetadata } from "../../lib/recalcMetad
 import { jsonResponse } from "../../lib/response";
 import { batchDecrementUserPosts } from "../../lib/userCounters";
 // Admin user handlers (#36-#42) — CRUD framework + custom actions
-import type { AuthUser } from "../../middleware/auth";
 import { errorResponse } from "../../middleware/error";
 
 // ─── Column list (never SELECT * — excludes password_hash, password_salt) ────
@@ -94,18 +93,8 @@ const userConfig: EntityConfig = {
 		},
 	],
 
-	// #38 beforeUpdate: self-protection + username uniqueness
-	beforeUpdate: async (id, data, _existing, user, env, origin) => {
-		// Self-protection: cannot change own status
-		if (data.status !== undefined && id === user.userId) {
-			return errorResponse("SELF_BAN", 400, undefined, origin);
-		}
-
-		// Self-protection: cannot change own role
-		if (data.role !== undefined && id === user.userId) {
-			return errorResponse("SELF_ROLE_CHANGE", 400, undefined, origin);
-		}
-
+	// #38 beforeUpdate: username uniqueness
+	beforeUpdate: async (id, data, _existing, env, origin) => {
 		// Username uniqueness check
 		if (data.username !== undefined) {
 			const existing = await env.DB.prepare("SELECT id FROM users WHERE username = ? AND id != ?")
@@ -277,16 +266,11 @@ async function deleteUserContent(env: Env, userId: number): Promise<ContentDelet
 
 export const ban = withEntityAuth(
 	userConfig,
-	async (request: Request, env: Env, user: AuthUser): Promise<Response> => {
+	async (request: Request, env: Env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 		const id = parsePathSegment(request, 1);
 		if (id === null) {
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
-		}
-
-		// Self-protection
-		if (id === user.userId) {
-			return errorResponse("SELF_BAN", 400, undefined, origin);
 		}
 
 		// Verify user exists
@@ -336,16 +320,11 @@ export const ban = withEntityAuth(
 
 export const nuke = withEntityAuth(
 	userConfig,
-	async (request: Request, env: Env, user: AuthUser): Promise<Response> => {
+	async (request: Request, env: Env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 		const id = parsePathSegment(request, 1);
 		if (id === null) {
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
-		}
-
-		// Self-protection
-		if (id === user.userId) {
-			return errorResponse("SELF_BAN", 400, undefined, origin);
 		}
 
 		// Verify user exists
@@ -383,7 +362,7 @@ const VALID_STATUSES = new Set([0, -1, -2]);
 
 export const batchStatus = withEntityAuth(
 	userConfig,
-	async (request: Request, env: Env, user: AuthUser): Promise<Response> => {
+	async (request: Request, env: Env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 
 		let body: Record<string, unknown>;
@@ -413,10 +392,8 @@ export const batchStatus = withEntityAuth(
 			return errorResponse("INVALID_BODY", 400, { message: "status must be 0, -1, or -2" }, origin);
 		}
 
-		// Parse and validate IDs, auto-exclude current user
-		const ids = body.ids
-			.map((id) => Number(id))
-			.filter((id) => !Number.isNaN(id) && id !== user.userId);
+		// Parse and validate IDs
+		const ids = body.ids.map((id) => Number(id)).filter((id) => !Number.isNaN(id));
 
 		if (ids.length === 0) {
 			return jsonResponse({ updated: true, count: 0 }, origin);
@@ -437,7 +414,7 @@ const VALID_ROLES = new Set([0, 1, 2, 3]);
 
 export const batchRole = withEntityAuth(
 	userConfig,
-	async (request: Request, env: Env, user: AuthUser): Promise<Response> => {
+	async (request: Request, env: Env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 
 		let body: Record<string, unknown>;
@@ -467,10 +444,8 @@ export const batchRole = withEntityAuth(
 			return errorResponse("INVALID_BODY", 400, { message: "role must be 0, 1, 2, or 3" }, origin);
 		}
 
-		// Parse and validate IDs, auto-exclude current user
-		const ids = body.ids
-			.map((id) => Number(id))
-			.filter((id) => !Number.isNaN(id) && id !== user.userId);
+		// Parse and validate IDs
+		const ids = body.ids.map((id) => Number(id)).filter((id) => !Number.isNaN(id));
 
 		if (ids.length === 0) {
 			return jsonResponse({ updated: true, count: 0 }, origin);
