@@ -89,6 +89,30 @@ export const TABLES = {
 			created_at INTEGER NOT NULL
 		);
 	`,
+
+	ip_bans: `
+		CREATE TABLE IF NOT EXISTS ip_bans (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			ip TEXT NOT NULL,
+			admin_id INTEGER NOT NULL,
+			admin_name TEXT NOT NULL DEFAULT '',
+			reason TEXT NOT NULL DEFAULT '',
+			expires_at INTEGER,
+			created_at INTEGER NOT NULL
+		);
+	`,
+
+	censor_words: `
+		CREATE TABLE IF NOT EXISTS censor_words (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			find TEXT NOT NULL,
+			replacement TEXT NOT NULL DEFAULT '**',
+			action TEXT NOT NULL DEFAULT 'replace' CHECK(action IN ('ban', 'replace')),
+			admin_id INTEGER NOT NULL,
+			admin_name TEXT NOT NULL DEFAULT '',
+			created_at INTEGER NOT NULL
+		);
+	`,
 };
 
 export const INDEXES = {
@@ -117,4 +141,8 @@ export const INDEXES = {
 		"CREATE INDEX IF NOT EXISTS idx_attachments_post ON attachments(post_id);",
 		"CREATE INDEX IF NOT EXISTS idx_attachments_thread ON attachments(thread_id);",
 	],
+
+	ip_bans: ["CREATE UNIQUE INDEX IF NOT EXISTS idx_ip_bans_ip ON ip_bans(ip);"],
+
+	censor_words: ["CREATE UNIQUE INDEX IF NOT EXISTS idx_censor_words_find ON censor_words(find);"],
 };
