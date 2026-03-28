@@ -393,6 +393,14 @@ describe("worker router integration", () => {
 			expect(response.status).toBe(401);
 		});
 
+		it("PATCH /api/admin/threads/:id should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/admin/threads/1", withApiKey({ method: "PATCH" })),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
 		it("DELETE /api/admin/threads/:id should require auth (401)", async () => {
 			const response = await worker.fetch(
 				makeRequest(
@@ -404,54 +412,21 @@ describe("worker router integration", () => {
 			expect(response.status).toBe(401);
 		});
 
-		it("PATCH /api/admin/threads/:id/sticky should require auth (401)", async () => {
-			const response = await worker.fetch(
-				makeRequest(
-					"https://api.example.com/api/admin/threads/1/sticky",
-					withApiKey({ method: "PATCH" }),
-				),
-				makeEnv(),
-			);
-			expect(response.status).toBe(401);
-		});
-
-		it("PATCH /api/admin/threads/:id/digest should require auth (401)", async () => {
-			const response = await worker.fetch(
-				makeRequest(
-					"https://api.example.com/api/admin/threads/1/digest",
-					withApiKey({ method: "PATCH" }),
-				),
-				makeEnv(),
-			);
-			expect(response.status).toBe(401);
-		});
-
-		it("PATCH /api/admin/threads/:id/close should require auth (401)", async () => {
-			const response = await worker.fetch(
-				makeRequest(
-					"https://api.example.com/api/admin/threads/1/close",
-					withApiKey({ method: "PATCH" }),
-				),
-				makeEnv(),
-			);
-			expect(response.status).toBe(401);
-		});
-
-		it("PATCH /api/admin/threads/:id/move should require auth (401)", async () => {
-			const response = await worker.fetch(
-				makeRequest(
-					"https://api.example.com/api/admin/threads/1/move",
-					withApiKey({ method: "PATCH" }),
-				),
-				makeEnv(),
-			);
-			expect(response.status).toBe(401);
-		});
-
 		it("POST /api/admin/threads/batch-delete should require auth (401)", async () => {
 			const response = await worker.fetch(
 				makeRequest(
 					"https://api.example.com/api/admin/threads/batch-delete",
+					withApiKey({ method: "POST" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("POST /api/admin/threads/batch-move should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/threads/batch-move",
 					withApiKey({ method: "POST" }),
 				),
 				makeEnv(),
@@ -506,23 +481,9 @@ describe("worker router integration", () => {
 			expect(response.status).toBe(401);
 		});
 
-		it("PATCH /api/admin/users/:id/status should require auth (401)", async () => {
+		it("PATCH /api/admin/users/:id should require auth (401)", async () => {
 			const response = await worker.fetch(
-				makeRequest(
-					"https://api.example.com/api/admin/users/1/status",
-					withApiKey({ method: "PATCH" }),
-				),
-				makeEnv(),
-			);
-			expect(response.status).toBe(401);
-		});
-
-		it("PATCH /api/admin/users/:id/role should require auth (401)", async () => {
-			const response = await worker.fetch(
-				makeRequest(
-					"https://api.example.com/api/admin/users/1/role",
-					withApiKey({ method: "PATCH" }),
-				),
+				makeRequest("https://api.example.com/api/admin/users/1", withApiKey({ method: "PATCH" })),
 				makeEnv(),
 			);
 			expect(response.status).toBe(401);
@@ -543,6 +504,28 @@ describe("worker router integration", () => {
 			const response = await worker.fetch(
 				makeRequest(
 					"https://api.example.com/api/admin/users/1/nuke",
+					withApiKey({ method: "POST" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("POST /api/admin/users/batch-status should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/users/batch-status",
+					withApiKey({ method: "POST" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("POST /api/admin/users/batch-role should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/users/batch-role",
 					withApiKey({ method: "POST" }),
 				),
 				makeEnv(),
@@ -612,8 +595,9 @@ describe("worker router integration", () => {
 
 			expect(response.status).toBe(500);
 			const data = await response.json();
-			expect(data.error).toBe("Internal server error");
-			expect(data.message).toBe("DB exploded");
+			expect(data.error.code).toBe("INTERNAL_ERROR");
+			expect(data.error.message).toBe("Internal server error");
+			expect(data.error.details.message).toBe("DB exploded");
 			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
 		});
 	});
@@ -742,6 +726,185 @@ describe("worker router integration", () => {
 				makeEnv(),
 			);
 
+			expect(response.status).toBe(401);
+		});
+	});
+
+	// ─── Admin IP Ban Routes ─────────────────────────────
+
+	describe("Admin IP Ban routes", () => {
+		it("GET /api/admin/ip-bans should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/admin/ip-bans", withApiKey()),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("POST /api/admin/ip-bans should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/admin/ip-bans", withApiKey({ method: "POST" })),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("GET /api/admin/ip-bans/:id should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/admin/ip-bans/1", withApiKey()),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("PATCH /api/admin/ip-bans/:id should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/admin/ip-bans/1", withApiKey({ method: "PATCH" })),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("DELETE /api/admin/ip-bans/:id should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/ip-bans/1",
+					withApiKey({ method: "DELETE" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("GET /api/admin/ip-bans/check-ip should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/admin/ip-bans/check-ip", withApiKey()),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("POST /api/admin/ip-bans/batch-delete should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/ip-bans/batch-delete",
+					withApiKey({ method: "POST" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+	});
+
+	// ─── Admin Censor Word Routes ────────────────────────
+
+	describe("Admin Censor Word routes", () => {
+		it("GET /api/admin/censor-words should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/admin/censor-words", withApiKey()),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("POST /api/admin/censor-words should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/censor-words",
+					withApiKey({ method: "POST" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("GET /api/admin/censor-words/:id should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/admin/censor-words/1", withApiKey()),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("PATCH /api/admin/censor-words/:id should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/censor-words/1",
+					withApiKey({ method: "PATCH" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("DELETE /api/admin/censor-words/:id should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/censor-words/1",
+					withApiKey({ method: "DELETE" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("POST /api/admin/censor-words/batch-delete should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/censor-words/batch-delete",
+					withApiKey({ method: "POST" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("POST /api/admin/censor-words/test should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/censor-words/test",
+					withApiKey({ method: "POST" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+	});
+
+	// ─── Admin Stats Route ───────────────────────────────
+
+	describe("Admin Stats route", () => {
+		it("GET /api/admin/stats should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest("https://api.example.com/api/admin/stats", withApiKey()),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+	});
+
+	// ─── Admin Forum Extended Routes ─────────────────────
+
+	describe("Admin Forum extended routes", () => {
+		it("POST /api/admin/forums/reorder should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/forums/reorder",
+					withApiKey({ method: "POST" }),
+				),
+				makeEnv(),
+			);
+			expect(response.status).toBe(401);
+		});
+
+		it("POST /api/admin/forums/:id/merge should require auth (401)", async () => {
+			const response = await worker.fetch(
+				makeRequest(
+					"https://api.example.com/api/admin/forums/1/merge",
+					withApiKey({ method: "POST" }),
+				),
+				makeEnv(),
+			);
 			expect(response.status).toBe(401);
 		});
 	});

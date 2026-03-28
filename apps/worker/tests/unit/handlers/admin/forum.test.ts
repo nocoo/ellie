@@ -1,22 +1,32 @@
 import { describe, expect, it } from "bun:test";
-import { create, getById, list, remove, update } from "../../../../src/handlers/admin/forum";
+import {
+	create,
+	getById,
+	list,
+	merge,
+	remove,
+	reorder,
+	update,
+} from "../../../../src/handlers/admin/forum";
 import { createJwtForRole, createMockDb, makeD1ForumRow, makeEnv } from "../../../helpers";
 
 describe("admin forum handlers", () => {
 	const adminEnv = (db: D1Database) => makeEnv({ DB: db });
 
+	// ─── list ────────────────────────────────────────────────
+
 	describe("list", () => {
-		it("should return all forums including hidden", async () => {
+		it("should return all forums (no pagination)", async () => {
 			const { db } = createMockDb({
 				allResults: {
-					"SELECT * FROM forums ORDER": [
+					"SELECT * FROM forums": [
 						makeD1ForumRow({ id: 1, status: 1, name: "Visible" }),
 						makeD1ForumRow({ id: 2, status: 0, name: "Hidden" }),
 					],
 				},
 			});
 
-			const token = await createJwtForRole(1); // Admin
+			const token = await createJwtForRole(1);
 			const res = await list(
 				new Request("https://api.example.com/api/admin/forums", {
 					headers: { Authorization: `Bearer ${token}` },
@@ -46,17 +56,14 @@ describe("admin forum handlers", () => {
 			expect(body.data).toEqual([]);
 		});
 
-		it("should require admin auth", async () => {
+		it("should require auth (no token → 401)", async () => {
 			const { db } = createMockDb();
 			const res = await list(new Request("https://api.example.com/api/admin/forums"), adminEnv(db));
-			// No API key = 401 from api key gate (actually wait, handlers don't check api key, router does)
-			// But since we're calling handler directly, it needs JWT
-			// The handler is wrapped with withAdmin, so it will call authMiddleware
 			expect(res.status).toBe(401);
 		});
 
-		it("should reject regular user", async () => {
-			const token = await createJwtForRole(0); // User
+		it("should reject regular user (role 0 → 403)", async () => {
+			const token = await createJwtForRole(0);
 			const { db } = createMockDb();
 			const res = await list(
 				new Request("https://api.example.com/api/admin/forums", {
@@ -66,7 +73,32 @@ describe("admin forum handlers", () => {
 			);
 			expect(res.status).toBe(403);
 		});
+
+		it("should map D1 rows to camelCase", async () => {
+			const { db } = createMockDb({
+				allResults: {
+					"SELECT * FROM forums": [
+						makeD1ForumRow({ id: 5, parent_id: 2, display_order: 3, last_thread_id: 99 }),
+					],
+				},
+			});
+
+			const token = await createJwtForRole(1);
+			const res = await list(
+				new Request("https://api.example.com/api/admin/forums", {
+					headers: { Authorization: `Bearer ${token}` },
+				}),
+				adminEnv(db),
+			);
+			const body = await res.json();
+
+			expect(body.data[0].parentId).toBe(2);
+			expect(body.data[0].displayOrder).toBe(3);
+			expect(body.data[0].lastThreadId).toBe(99);
+		});
 	});
+
+	// ─── getById ─────────────────────────────────────────────
 
 	describe("getById", () => {
 		it("should return forum by ID", async () => {
@@ -75,7 +107,7 @@ describe("admin forum handlers", () => {
 				firstResults: { "SELECT * FROM forums WHERE id": forumRow },
 			});
 
-			const token = await createJwtForRole(1); // Admin
+			const token = await createJwtForRole(1);
 			const res = await getById(
 				new Request("https://api.example.com/api/admin/forums/42", {
 					headers: { Authorization: `Bearer ${token}` },
@@ -119,7 +151,7 @@ describe("admin forum handlers", () => {
 			expect(body.error.code).toBe("INVALID_REQUEST");
 		});
 
-		it("should require admin auth", async () => {
+		it("should require auth", async () => {
 			const { db } = createMockDb();
 			const res = await getById(
 				new Request("https://api.example.com/api/admin/forums/42"),
@@ -128,6 +160,8 @@ describe("admin forum handlers", () => {
 			expect(res.status).toBe(401);
 		});
 	});
+
+	// ─── create ──────────────────────────────────────────────
 
 	describe("create", () => {
 		it("should create forum with all fields", async () => {
@@ -161,16 +195,20 @@ describe("admin forum handlers", () => {
 			const body = await res.json();
 			expect(body.data.name).toBe("New Forum");
 
-			// Verify SQL was called
 			const insertCall = calls.find((c) => c.sql.includes("INSERT INTO forums"));
 			expect(insertCall).toBeDefined();
 		});
 
-		it("should create forum with only required fields", async () => {
+		it("should create forum with only required fields (defaults applied)", async () => {
 			const { db } = createMockDb({
 				runResults: { success: true, meta: { last_row_id: 456 } },
 				firstResults: {
-					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 456, name: "Minimal" }),
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({
+						id: 456,
+						name: "Minimal",
+						type: "forum",
+						parent_id: 0,
+					}),
 				},
 			});
 
@@ -187,8 +225,8 @@ describe("admin forum handlers", () => {
 			expect(res.status).toBe(201);
 			const body = await res.json();
 			expect(body.data.name).toBe("Minimal");
-			expect(body.data.type).toBe("forum"); // default
-			expect(body.data.parentId).toBe(0); // default
+			expect(body.data.type).toBe("forum");
+			expect(body.data.parentId).toBe(0);
 		});
 
 		it("should return 400 when name is missing", async () => {
@@ -208,7 +246,7 @@ describe("admin forum handlers", () => {
 			expect(body.error.code).toBe("INVALID_BODY");
 		});
 
-		it("should return 400 when name is empty string", async () => {
+		it("should return 400 when name is empty/whitespace", async () => {
 			const { db } = createMockDb();
 			const token = await createJwtForRole(1);
 			const res = await create(
@@ -270,7 +308,7 @@ describe("admin forum handlers", () => {
 			expect(res.status).toBe(400);
 		});
 
-		it("should validate parent exists", async () => {
+		it("should validate parent forum exists (beforeCreate hook)", async () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT id FROM forums WHERE id": null, // parent not found
@@ -308,13 +346,43 @@ describe("admin forum handlers", () => {
 			const body = await res.json();
 			expect(body.error.code).toBe("INVALID_BODY");
 		});
+
+		it("should initialize counter columns via beforeCreate", async () => {
+			const { db, calls } = createMockDb({
+				runResults: { "INSERT INTO forums": { success: true, meta: { last_row_id: 10 } } },
+				firstResults: {
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 10, name: "New" }),
+				},
+			});
+
+			const token = await createJwtForRole(1);
+			await create(
+				new Request("https://api.example.com/api/admin/forums", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ name: "New" }),
+				}),
+				adminEnv(db),
+			);
+
+			// The INSERT should include counter columns initialized by beforeCreate
+			const insertCall = calls.find((c) => c.sql.includes("INSERT INTO forums"));
+			expect(insertCall).toBeDefined();
+			expect(insertCall?.sql).toContain("threads");
+			expect(insertCall?.sql).toContain("posts");
+			expect(insertCall?.sql).toContain("last_thread_id");
+			expect(insertCall?.sql).toContain("last_post_at");
+			expect(insertCall?.sql).toContain("last_poster");
+		});
 	});
+
+	// ─── update ──────────────────────────────────────────────
 
 	describe("update", () => {
 		it("should update forum with partial fields", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"SELECT id FROM forums WHERE id": { id: 42 },
+					// fetchRowFull for existence check + fetchRow for re-read after update
 					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42, name: "Updated Name" }),
 				},
 			});
@@ -340,9 +408,8 @@ describe("admin forum handlers", () => {
 		});
 
 		it("should return 404 for non-existent forum", async () => {
-			const { db } = createMockDb({
-				firstResults: { "SELECT id FROM forums WHERE id": null },
-			});
+			// fetchRowFull returns null → 404
+			const { db } = createMockDb();
 
 			const token = await createJwtForRole(1);
 			const res = await update(
@@ -357,9 +424,11 @@ describe("admin forum handlers", () => {
 			expect(res.status).toBe(404);
 		});
 
-		it("should return 400 for empty body", async () => {
+		it("should return 400 for empty body (no recognized fields)", async () => {
 			const { db } = createMockDb({
-				firstResults: { "SELECT id FROM forums WHERE id": { id: 42 } },
+				firstResults: {
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+				},
 			});
 
 			const token = await createJwtForRole(1);
@@ -374,12 +443,14 @@ describe("admin forum handlers", () => {
 
 			expect(res.status).toBe(400);
 			const body = await res.json();
-			expect(body.error.details.message).toBe("No fields to update");
+			expect(body.error.details.message).toBe("At least one field must be provided");
 		});
 
 		it("should return 400 for invalid type", async () => {
 			const { db } = createMockDb({
-				firstResults: { "SELECT id FROM forums WHERE id": { id: 42 } },
+				firstResults: {
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+				},
 			});
 
 			const token = await createJwtForRole(1);
@@ -397,7 +468,9 @@ describe("admin forum handlers", () => {
 
 		it("should return 400 for empty name", async () => {
 			const { db } = createMockDb({
-				firstResults: { "SELECT id FROM forums WHERE id": { id: 42 } },
+				firstResults: {
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+				},
 			});
 
 			const token = await createJwtForRole(1);
@@ -411,6 +484,50 @@ describe("admin forum handlers", () => {
 			);
 
 			expect(res.status).toBe(400);
+		});
+
+		it("should return 400 for name longer than 100 chars", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+				},
+			});
+
+			const token = await createJwtForRole(1);
+			const res = await update(
+				new Request("https://api.example.com/api/admin/forums/42", {
+					method: "PATCH",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ name: "a".repeat(101) }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("name must be at most 100 characters");
+		});
+
+		it("should reject invalid status in update", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+				},
+			});
+
+			const token = await createJwtForRole(1);
+			const res = await update(
+				new Request("https://api.example.com/api/admin/forums/42", {
+					method: "PATCH",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ status: 9 }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("status must be 0 or 1");
 		});
 
 		it("should update description field", async () => {
@@ -523,26 +640,8 @@ describe("admin forum handlers", () => {
 			expect(updateCall?.sql).toContain("type = ?");
 		});
 
-		it("should reject invalid status in update", async () => {
-			const { db } = createMockDb({});
-
-			const token = await createJwtForRole(1);
-			const res = await update(
-				new Request("https://api.example.com/api/admin/forums/42", {
-					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
-					body: JSON.stringify({ status: 9 }),
-				}),
-				adminEnv(db),
-			);
-
-			expect(res.status).toBe(400);
-			const body = await res.json();
-			expect(body.error.details.message).toBe("status must be 0 or 1");
-		});
-
-		it("should reject invalid forum ID", async () => {
-			const { db } = createMockDb({});
+		it("should reject invalid forum ID (non-numeric)", async () => {
+			const { db } = createMockDb();
 			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/forums/abc", {
@@ -558,8 +657,8 @@ describe("admin forum handlers", () => {
 			expect(body.error.details.message).toBe("Invalid forum ID");
 		});
 
-		it("should reject malformed JSON in update", async () => {
-			const { db } = createMockDb({});
+		it("should reject malformed JSON", async () => {
+			const { db } = createMockDb();
 			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/forums/42", {
@@ -574,31 +673,15 @@ describe("admin forum handlers", () => {
 			const body = await res.json();
 			expect(body.error.code).toBe("INVALID_BODY");
 		});
-
-		it("should reject name longer than 100 characters", async () => {
-			const { db } = createMockDb({});
-			const token = await createJwtForRole(1);
-			const longName = "a".repeat(101);
-			const res = await update(
-				new Request("https://api.example.com/api/admin/forums/42", {
-					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
-					body: JSON.stringify({ name: longName }),
-				}),
-				adminEnv(db),
-			);
-
-			expect(res.status).toBe(400);
-			const body = await res.json();
-			expect(body.error.details.message).toBe("name must be at most 100 characters");
-		});
 	});
+
+	// ─── remove ──────────────────────────────────────────────
 
 	describe("remove", () => {
 		it("should delete forum with no threads", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"SELECT id FROM forums WHERE id": { id: 42 },
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
 					"SELECT COUNT(*) as cnt FROM threads": { cnt: 0 },
 				},
 			});
@@ -621,10 +704,10 @@ describe("admin forum handlers", () => {
 			expect(deleteCall).toBeDefined();
 		});
 
-		it("should return 409 when forum has threads", async () => {
+		it("should return 409 when forum has threads (beforeDelete hook)", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT id FROM forums WHERE id": { id: 42 },
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
 					"SELECT COUNT(*) as cnt FROM threads": { cnt: 5 },
 				},
 			});
@@ -645,9 +728,7 @@ describe("admin forum handlers", () => {
 		});
 
 		it("should return 404 for non-existent forum", async () => {
-			const { db } = createMockDb({
-				firstResults: { "SELECT id FROM forums WHERE id": null },
-			});
+			const { db } = createMockDb();
 
 			const token = await createJwtForRole(1);
 			const res = await remove(
@@ -673,6 +754,310 @@ describe("admin forum handlers", () => {
 			);
 
 			expect(res.status).toBe(400);
+		});
+	});
+
+	// ─── merge ───────────────────────────────────────────────
+
+	describe("merge", () => {
+		it("should merge source forum into target", async () => {
+			const { db, batchCalls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 10 }), // source
+					"SELECT id FROM forums WHERE id": { id: 20 }, // target
+					"SELECT COUNT(*) as cnt FROM threads": { cnt: 3 },
+					"SELECT COUNT(*) as cnt FROM posts": { cnt: 15 },
+				},
+			});
+
+			const token = await createJwtForRole(1);
+			const res = await merge(
+				new Request("https://api.example.com/api/admin/forums/10/merge", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ targetForumId: 20 }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(200);
+			const body = await res.json();
+			expect(body.data.merged).toBe(true);
+			expect(body.data.sourceForumId).toBe(10);
+			expect(body.data.targetForumId).toBe(20);
+			expect(body.data.threadsMoved).toBe(3);
+			expect(body.data.postsMoved).toBe(15);
+
+			// Should call batch for the 4 statements
+			expect(batchCalls).toHaveLength(1);
+		});
+
+		it("should return 400 when targetForumId is missing", async () => {
+			const { db } = createMockDb();
+			const token = await createJwtForRole(1);
+			const res = await merge(
+				new Request("https://api.example.com/api/admin/forums/10/merge", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({}),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("targetForumId is required");
+		});
+
+		it("should return 400 when targetForumId is not a number", async () => {
+			const { db } = createMockDb();
+			const token = await createJwtForRole(1);
+			const res = await merge(
+				new Request("https://api.example.com/api/admin/forums/10/merge", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ targetForumId: "abc" }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("targetForumId is required");
+		});
+
+		it("should reject self-merge (source === target)", async () => {
+			const { db } = createMockDb();
+			const token = await createJwtForRole(1);
+			const res = await merge(
+				new Request("https://api.example.com/api/admin/forums/10/merge", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ targetForumId: 10 }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("Cannot merge a forum into itself");
+		});
+
+		it("should return 404 when source forum does not exist", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM forums WHERE id": null, // source not found
+				},
+			});
+
+			const token = await createJwtForRole(1);
+			const res = await merge(
+				new Request("https://api.example.com/api/admin/forums/999/merge", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ targetForumId: 20 }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(404);
+			const body = await res.json();
+			expect(body.error.code).toBe("FORUM_NOT_FOUND");
+		});
+
+		it("should return 400 when target forum does not exist", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 10 }), // source exists
+					"SELECT id FROM forums WHERE id": null, // target not found
+				},
+			});
+
+			const token = await createJwtForRole(1);
+			const res = await merge(
+				new Request("https://api.example.com/api/admin/forums/10/merge", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ targetForumId: 20 }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("Target forum not found");
+		});
+
+		it("should return 400 for invalid source ID (non-numeric)", async () => {
+			const { db } = createMockDb();
+			const token = await createJwtForRole(1);
+			const res = await merge(
+				new Request("https://api.example.com/api/admin/forums/abc/merge", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ targetForumId: 20 }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("Invalid forum ID");
+		});
+
+		it("should return 400 for malformed JSON", async () => {
+			const { db } = createMockDb();
+			const token = await createJwtForRole(1);
+			const res = await merge(
+				new Request("https://api.example.com/api/admin/forums/10/merge", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: "not json",
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("Invalid JSON body");
+		});
+	});
+
+	// ─── reorder ─────────────────────────────────────────────
+
+	describe("reorder", () => {
+		it("should batch reorder forums", async () => {
+			const { db, batchCalls } = createMockDb();
+			const token = await createJwtForRole(1);
+			const res = await reorder(
+				new Request("https://api.example.com/api/admin/forums/reorder", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({
+						orders: [
+							{ id: 1, displayOrder: 0 },
+							{ id: 2, displayOrder: 1 },
+							{ id: 3, displayOrder: 2 },
+						],
+					}),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(200);
+			const body = await res.json();
+			expect(body.data.updated).toBe(true);
+			expect(body.data.count).toBe(3);
+
+			expect(batchCalls).toHaveLength(1);
+		});
+
+		it("should return 400 for empty orders array", async () => {
+			const { db } = createMockDb();
+			const token = await createJwtForRole(1);
+			const res = await reorder(
+				new Request("https://api.example.com/api/admin/forums/reorder", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ orders: [] }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("orders must be a non-empty array");
+		});
+
+		it("should return 400 when orders is missing", async () => {
+			const { db } = createMockDb();
+			const token = await createJwtForRole(1);
+			const res = await reorder(
+				new Request("https://api.example.com/api/admin/forums/reorder", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({}),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("orders must be a non-empty array");
+		});
+
+		it("should return 400 when order item has invalid shape", async () => {
+			const { db } = createMockDb();
+			const token = await createJwtForRole(1);
+			const res = await reorder(
+				new Request("https://api.example.com/api/admin/forums/reorder", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({
+						orders: [{ id: "abc", displayOrder: 0 }],
+					}),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("Each order must have numeric id and displayOrder");
+		});
+
+		it("should return 400 when order item missing displayOrder", async () => {
+			const { db } = createMockDb();
+			const token = await createJwtForRole(1);
+			const res = await reorder(
+				new Request("https://api.example.com/api/admin/forums/reorder", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({
+						orders: [{ id: 1 }],
+					}),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+		});
+
+		it("should return 400 when exceeding max reorder items (200)", async () => {
+			const { db } = createMockDb();
+			const token = await createJwtForRole(1);
+			const orders = Array.from({ length: 201 }, (_, i) => ({
+				id: i + 1,
+				displayOrder: i,
+			}));
+			const res = await reorder(
+				new Request("https://api.example.com/api/admin/forums/reorder", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ orders }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.code).toBe("BATCH_LIMIT_EXCEEDED");
+		});
+
+		it("should return 400 for malformed JSON", async () => {
+			const { db } = createMockDb();
+			const token = await createJwtForRole(1);
+			const res = await reorder(
+				new Request("https://api.example.com/api/admin/forums/reorder", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: "not json",
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("Invalid JSON body");
 		});
 	});
 });

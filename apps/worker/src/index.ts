@@ -1,7 +1,9 @@
-// Ellie API Worker — Cloudflare Worker middleware for D1 access
+// Ellie API Worker — Cloudflare Worker with D1 + KV
+// 61 endpoints: 17 public + 44 admin
 import type { CFRequest, Env } from "./lib/env";
 import { validateApiKey } from "./middleware/apiKey";
 import { corsHeaders } from "./middleware/cors";
+import { errorResponse } from "./middleware/error";
 
 // ─── Router ───────────────────────────────────────────────────────
 
@@ -25,7 +27,7 @@ export default {
 		// Route handling — use `return await` so that rejections
 		// from handler promises are caught by the try/catch below.
 		try {
-			// Health check (no auth, no cache)
+			// ── #1 Health check (no auth, no cache) ──────────
 			if (path === "/api/live" && request.method === "GET") {
 				return await (await import("./handlers/live")).live(request, env);
 			}
@@ -34,7 +36,7 @@ export default {
 			const apiKeyError = validateApiKey(request, env, origin);
 			if (apiKeyError) return apiKeyError;
 
-			// Public routes
+			// ── Public routes (#2-#11) ───────────────────────
 			if (path === "/api/v1/forums" && request.method === "GET") {
 				return await (await import("./handlers/forum")).list(request, env);
 			}
@@ -60,7 +62,7 @@ export default {
 				return await (await import("./handlers/user")).getById(request, env);
 			}
 
-			// Auth routes
+			// ── Auth routes (#12-#15) ────────────────────────
 			if (path === "/api/v1/auth/login" && request.method === "POST") {
 				return await (await import("./handlers/auth")).login(request, env);
 			}
@@ -74,7 +76,7 @@ export default {
 				return await (await import("./handlers/auth")).me(request, env);
 			}
 
-			// Authenticated routes (TODO: add auth middleware)
+			// ── Authenticated routes (#6, #9) ────────────────
 			if (path === "/api/v1/threads" && request.method === "POST") {
 				return await (await import("./handlers/thread")).create(request, env);
 			}
@@ -82,7 +84,7 @@ export default {
 				return await (await import("./handlers/post")).create(request, env);
 			}
 
-			// User self-service
+			// ── User self-service (#16-#17) ──────────────────
 			if (path === "/api/v1/users/me" && request.method === "PATCH") {
 				return await (await import("./handlers/me")).updateProfile(request, env);
 			}
@@ -90,12 +92,23 @@ export default {
 				return await (await import("./handlers/me")).changePassword(request, env);
 			}
 
-			// ── Admin: Forums (Admin only) ────────────────────
+			// ══════════════════════════════════════════════════
+			// Admin endpoints (#18-#61)
+			// All go through adminAuth via withEntityAuth wrapper
+			// ══════════════════════════════════════════════════
+
+			// ── A. Forum (Admin) #18-#24 ─────────────────────
+			if (path === "/api/admin/forums/reorder" && request.method === "POST") {
+				return await (await import("./handlers/admin/forum")).reorder(request, env);
+			}
 			if (path === "/api/admin/forums" && request.method === "GET") {
 				return await (await import("./handlers/admin/forum")).list(request, env);
 			}
 			if (path === "/api/admin/forums" && request.method === "POST") {
 				return await (await import("./handlers/admin/forum")).create(request, env);
+			}
+			if (path.match(/^\/api\/admin\/forums\/\d+\/merge$/) && request.method === "POST") {
+				return await (await import("./handlers/admin/forum")).merge(request, env);
 			}
 			if (path.match(/^\/api\/admin\/forums\/\d+$/) && request.method === "GET") {
 				return await (await import("./handlers/admin/forum")).getById(request, env);
@@ -107,63 +120,52 @@ export default {
 				return await (await import("./handlers/admin/forum")).remove(request, env);
 			}
 
-			// ── Admin: Threads (Moderator+) ───────────────────
-			if (path === "/api/admin/threads" && request.method === "GET") {
-				return await (await import("./handlers/admin/thread")).list(request, env);
-			}
+			// ── B. Thread (Mod+) #25-#30 ─────────────────────
 			if (path === "/api/admin/threads/batch-delete" && request.method === "POST") {
 				return await (await import("./handlers/admin/thread")).batchDelete(request, env);
+			}
+			if (path === "/api/admin/threads/batch-move" && request.method === "POST") {
+				return await (await import("./handlers/admin/thread")).batchMove(request, env);
+			}
+			if (path === "/api/admin/threads" && request.method === "GET") {
+				return await (await import("./handlers/admin/thread")).list(request, env);
 			}
 			if (path.match(/^\/api\/admin\/threads\/\d+$/) && request.method === "GET") {
 				return await (await import("./handlers/admin/thread")).getById(request, env);
 			}
+			if (path.match(/^\/api\/admin\/threads\/\d+$/) && request.method === "PATCH") {
+				return await (await import("./handlers/admin/thread")).update(request, env);
+			}
 			if (path.match(/^\/api\/admin\/threads\/\d+$/) && request.method === "DELETE") {
 				return await (await import("./handlers/admin/thread")).remove(request, env);
 			}
-			if (path.match(/^\/api\/admin\/threads\/\d+\/sticky$/) && request.method === "PATCH") {
-				return await (await import("./handlers/admin/thread")).setSticky(request, env);
-			}
-			if (path.match(/^\/api\/admin\/threads\/\d+\/digest$/) && request.method === "PATCH") {
-				return await (await import("./handlers/admin/thread")).setDigest(request, env);
-			}
-			if (path.match(/^\/api\/admin\/threads\/\d+\/close$/) && request.method === "PATCH") {
-				return await (await import("./handlers/admin/thread")).setClosed(request, env);
-			}
-			if (path.match(/^\/api\/admin\/threads\/\d+\/move$/) && request.method === "PATCH") {
-				return await (await import("./handlers/admin/thread")).move(request, env);
-			}
 
-			// ── Admin: Posts (Moderator+) ─────────────────────
+			// ── C. Post (Mod+) #31-#35 ──────────────────────
+			if (path === "/api/admin/posts/batch-delete" && request.method === "POST") {
+				return await (await import("./handlers/admin/post")).batchDelete(request, env);
+			}
 			if (path === "/api/admin/posts" && request.method === "GET") {
 				return await (await import("./handlers/admin/post")).list(request, env);
 			}
-			if (path === "/api/admin/posts/batch-delete" && request.method === "POST") {
-				return await (await import("./handlers/admin/post")).batchDelete(request, env);
+			if (path.match(/^\/api\/admin\/posts\/\d+$/) && request.method === "GET") {
+				return await (await import("./handlers/admin/post")).getById(request, env);
+			}
+			if (path.match(/^\/api\/admin\/posts\/\d+$/) && request.method === "PATCH") {
+				return await (await import("./handlers/admin/post")).update(request, env);
 			}
 			if (path.match(/^\/api\/admin\/posts\/\d+$/) && request.method === "DELETE") {
 				return await (await import("./handlers/admin/post")).remove(request, env);
 			}
 
-			// ── Admin: Attachments (Admin only) ──────────────
-			if (path === "/api/admin/attachments" && request.method === "GET") {
-				return await (await import("./handlers/admin/attachment")).list(request, env);
+			// ── D. User (Admin) #36-#42 ─────────────────────
+			if (path === "/api/admin/users/batch-status" && request.method === "POST") {
+				return await (await import("./handlers/admin/user")).batchStatus(request, env);
 			}
-			if (path.match(/^\/api\/admin\/attachments\/\d+$/) && request.method === "DELETE") {
-				return await (await import("./handlers/admin/attachment")).remove(request, env);
+			if (path === "/api/admin/users/batch-role" && request.method === "POST") {
+				return await (await import("./handlers/admin/user")).batchRole(request, env);
 			}
-
-			// ── Admin: Users (Admin only) ─────────────────────
 			if (path === "/api/admin/users" && request.method === "GET") {
 				return await (await import("./handlers/admin/user")).list(request, env);
-			}
-			if (path.match(/^\/api\/admin\/users\/\d+$/) && request.method === "GET") {
-				return await (await import("./handlers/admin/user")).getById(request, env);
-			}
-			if (path.match(/^\/api\/admin\/users\/\d+\/status$/) && request.method === "PATCH") {
-				return await (await import("./handlers/admin/user")).setStatus(request, env);
-			}
-			if (path.match(/^\/api\/admin\/users\/\d+\/role$/) && request.method === "PATCH") {
-				return await (await import("./handlers/admin/user")).setRole(request, env);
 			}
 			if (path.match(/^\/api\/admin\/users\/\d+\/ban$/) && request.method === "POST") {
 				return await (await import("./handlers/admin/user")).ban(request, env);
@@ -171,28 +173,86 @@ export default {
 			if (path.match(/^\/api\/admin\/users\/\d+\/nuke$/) && request.method === "POST") {
 				return await (await import("./handlers/admin/user")).nuke(request, env);
 			}
+			if (path.match(/^\/api\/admin\/users\/\d+$/) && request.method === "GET") {
+				return await (await import("./handlers/admin/user")).getById(request, env);
+			}
+			if (path.match(/^\/api\/admin\/users\/\d+$/) && request.method === "PATCH") {
+				return await (await import("./handlers/admin/user")).update(request, env);
+			}
 
-			// 404
-			return new Response(JSON.stringify({ error: "Not found", path }), {
-				status: 404,
-				headers: {
-					...corsHeaders(origin),
-					"Content-Type": "application/json",
-				},
-			});
+			// ── E. Attachment (Admin) #43-#46 ────────────────
+			if (path === "/api/admin/attachments/batch-delete" && request.method === "POST") {
+				return await (await import("./handlers/admin/attachment")).batchDelete(request, env);
+			}
+			if (path === "/api/admin/attachments" && request.method === "GET") {
+				return await (await import("./handlers/admin/attachment")).list(request, env);
+			}
+			if (path.match(/^\/api\/admin\/attachments\/\d+$/) && request.method === "GET") {
+				return await (await import("./handlers/admin/attachment")).getById(request, env);
+			}
+			if (path.match(/^\/api\/admin\/attachments\/\d+$/) && request.method === "DELETE") {
+				return await (await import("./handlers/admin/attachment")).remove(request, env);
+			}
+
+			// ── F. IpBan (Admin) #47-#53 ────────────────────
+			if (path === "/api/admin/ip-bans/check-ip" && request.method === "GET") {
+				return await (await import("./handlers/admin/ipBan")).checkIp(request, env);
+			}
+			if (path === "/api/admin/ip-bans/batch-delete" && request.method === "POST") {
+				return await (await import("./handlers/admin/ipBan")).batchDelete(request, env);
+			}
+			if (path === "/api/admin/ip-bans" && request.method === "GET") {
+				return await (await import("./handlers/admin/ipBan")).list(request, env);
+			}
+			if (path === "/api/admin/ip-bans" && request.method === "POST") {
+				return await (await import("./handlers/admin/ipBan")).create(request, env);
+			}
+			if (path.match(/^\/api\/admin\/ip-bans\/\d+$/) && request.method === "GET") {
+				return await (await import("./handlers/admin/ipBan")).getById(request, env);
+			}
+			if (path.match(/^\/api\/admin\/ip-bans\/\d+$/) && request.method === "PATCH") {
+				return await (await import("./handlers/admin/ipBan")).update(request, env);
+			}
+			if (path.match(/^\/api\/admin\/ip-bans\/\d+$/) && request.method === "DELETE") {
+				return await (await import("./handlers/admin/ipBan")).remove(request, env);
+			}
+
+			// ── G. CensorWord (Admin) #54-#60 ───────────────
+			if (path === "/api/admin/censor-words/test" && request.method === "POST") {
+				return await (await import("./handlers/admin/censorWord")).test(request, env);
+			}
+			if (path === "/api/admin/censor-words/batch-delete" && request.method === "POST") {
+				return await (await import("./handlers/admin/censorWord")).batchDelete(request, env);
+			}
+			if (path === "/api/admin/censor-words" && request.method === "GET") {
+				return await (await import("./handlers/admin/censorWord")).list(request, env);
+			}
+			if (path === "/api/admin/censor-words" && request.method === "POST") {
+				return await (await import("./handlers/admin/censorWord")).create(request, env);
+			}
+			if (path.match(/^\/api\/admin\/censor-words\/\d+$/) && request.method === "GET") {
+				return await (await import("./handlers/admin/censorWord")).getById(request, env);
+			}
+			if (path.match(/^\/api\/admin\/censor-words\/\d+$/) && request.method === "PATCH") {
+				return await (await import("./handlers/admin/censorWord")).update(request, env);
+			}
+			if (path.match(/^\/api\/admin\/censor-words\/\d+$/) && request.method === "DELETE") {
+				return await (await import("./handlers/admin/censorWord")).remove(request, env);
+			}
+
+			// ── H. Stats (Admin) #61 ────────────────────────
+			if (path === "/api/admin/stats" && request.method === "GET") {
+				return await (await import("./handlers/admin/stats")).handleStats(request, env);
+			}
+
+			// ── 404 — Not Found ─────────────────────────────
+			return errorResponse("NOT_FOUND", 404, { path }, origin);
 		} catch (err) {
-			return new Response(
-				JSON.stringify({
-					error: "Internal server error",
-					message: err instanceof Error ? err.message : String(err),
-				}),
-				{
-					status: 500,
-					headers: {
-						...corsHeaders(origin),
-						"Content-Type": "application/json",
-					},
-				},
+			return errorResponse(
+				"INTERNAL_ERROR",
+				500,
+				{ message: err instanceof Error ? err.message : String(err) },
+				origin,
 			);
 		}
 	},
