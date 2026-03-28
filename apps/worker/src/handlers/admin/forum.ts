@@ -129,8 +129,7 @@ const forumConfig: EntityConfig = {
 
 	// ─── Lifecycle hooks ─────────────────────────────────────
 
-	async beforeCreate(data, _user, env) {
-		const origin = undefined;
+	async beforeCreate(data, _user, env, origin) {
 		const parentId = (data.parent_id as number) ?? 0;
 		if (parentId !== 0) {
 			const parent = await env.DB.prepare("SELECT id FROM forums WHERE id = ?")
@@ -148,8 +147,7 @@ const forumConfig: EntityConfig = {
 		data.last_poster = "";
 	},
 
-	async beforeDelete(id, _existing, _user, env) {
-		const origin = undefined;
+	async beforeDelete(id, _existing, _user, env, origin) {
 		const countResult = await env.DB.prepare(
 			"SELECT COUNT(*) as cnt FROM threads WHERE forum_id = ?",
 		)

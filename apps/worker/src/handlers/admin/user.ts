@@ -93,9 +93,7 @@ const userConfig: EntityConfig = {
 	],
 
 	// #38 beforeUpdate: self-protection + username uniqueness
-	beforeUpdate: async (id, data, _existing, user, env) => {
-		const origin = undefined; // not available in hook — safe fallback
-
+	beforeUpdate: async (id, data, _existing, user, env, origin) => {
 		// Self-protection: cannot change own status
 		if (data.status !== undefined && id === user.userId) {
 			return errorResponse("SELF_BAN", 400, undefined, origin);

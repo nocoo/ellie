@@ -425,6 +425,28 @@ describe("admin post handlers", () => {
 			);
 		});
 
+		it("should include CORS headers in beforeDelete hook error", async () => {
+			const postRow = makeD1PostRow({ id: 1, is_first: 1 });
+			const { db } = createMockDb({
+				firstResults: { "SELECT * FROM posts WHERE id": postRow },
+			});
+
+			const token = await createJwtForRole(1);
+			const res = await remove(
+				new Request("https://api.example.com/api/admin/posts/1", {
+					method: "DELETE",
+					headers: {
+						Authorization: `Bearer ${token}`,
+						Origin: "http://localhost:3000",
+					},
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			expect(res.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
+		});
+
 		it("should return 404 for non-existent post", async () => {
 			const { db } = createMockDb({
 				firstResults: { "SELECT * FROM posts WHERE id": null },

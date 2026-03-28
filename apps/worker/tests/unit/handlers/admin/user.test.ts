@@ -359,6 +359,32 @@ describe("admin user handlers", () => {
 			expect(body.error.code).toBe("SELF_BAN");
 		});
 
+		it("should include CORS headers in beforeUpdate hook error", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+				},
+			});
+
+			const token = await createJwtForRole(1, 42);
+			const res = await update(
+				new Request("https://api.example.com/api/admin/users/42", {
+					method: "PATCH",
+					headers: {
+						"X-API-Key": "test-api-key",
+						Authorization: `Bearer ${token}`,
+						"Content-Type": "application/json",
+						Origin: "http://localhost:3000",
+					},
+					body: JSON.stringify({ status: -1 }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			expect(res.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
+		});
+
 		it("should prevent self-role-change (SELF_ROLE_CHANGE) when updating own role", async () => {
 			const { db } = createMockDb({
 				firstResults: {

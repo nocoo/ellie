@@ -99,14 +99,14 @@ const threadConfig: EntityConfig = {
 
 	// ─── Lifecycle hooks ─────────────────────────────────────────
 
-	async beforeUpdate(_id, data, _existing, _user, env) {
+	async beforeUpdate(_id, data, _existing, _user, env, origin) {
 		// Validate target forum exists when moving
 		if (data.forum_id !== undefined) {
 			const targetForum = await env.DB.prepare("SELECT id FROM forums WHERE id = ?")
 				.bind(data.forum_id)
 				.first();
 			if (!targetForum) {
-				return errorResponse("INVALID_BODY", 400, { message: "Target forum not found" });
+				return errorResponse("INVALID_BODY", 400, { message: "Target forum not found" }, origin);
 			}
 		}
 		return undefined;
