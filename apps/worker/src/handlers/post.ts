@@ -81,7 +81,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	const posts = result.results.map((row) => toPost(row as Record<string, unknown>));
 
 	// Generate next cursor from raw D1 row (position is same in both)
-	let nextCursor: string | undefined;
+	let nextCursor: string | null = null;
 	if (posts.length === clampedLimit && posts.length > 0) {
 		const lastPost = posts[posts.length - 1];
 		if (lastPost) {
