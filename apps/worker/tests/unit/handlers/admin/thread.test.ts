@@ -803,6 +803,49 @@ describe("admin thread handlers", () => {
 			expect(res.status).toBe(200);
 			expect(body.data.count).toBe(0);
 		});
+
+		it("should cascade-delete posts and decrement author counters", async () => {
+			const threadRow = makeD1ThreadRow({ id: 10, forum_id: 5, author_id: 100, replies: 2 });
+			const postAuthorRows = [
+				{ author_id: 100, cnt: 1 },
+				{ author_id: 200, cnt: 2 },
+			];
+			const { db, calls, batchCalls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM threads WHERE id": threadRow,
+					"SELECT COUNT": { cnt: 3 },
+				},
+				allResults: {
+					"SELECT author_id, COUNT": postAuthorRows,
+				},
+			});
+
+			const req = await createAdminRequest("POST", "/api/admin/threads/batch-delete", {
+				ids: [10],
+			});
+			const res = await batchDelete(req, adminEnv(db));
+			const body = await res.json();
+
+			expect(res.status).toBe(200);
+			expect(body.data.deleted).toBe(true);
+			expect(body.data.count).toBe(1);
+
+			// Verify posts were deleted (afterDelete should DELETE FROM posts WHERE thread_id = ?)
+			const deletePostsCall = calls.find((c) =>
+				c.sql.includes("DELETE FROM posts WHERE thread_id"),
+			);
+			expect(deletePostsCall).toBeDefined();
+
+			// Verify user thread counter decremented
+			const threadCounterCall = calls.find((c) =>
+				c.sql.includes("UPDATE users SET threads = MAX(0, threads - ?)"),
+			);
+			expect(threadCounterCall).toBeDefined();
+
+			// Verify post author counters decremented via batch
+			// batchDecrementUserPosts creates a batch of UPDATE users SET posts = MAX(0, ...)
+			expect(batchCalls.length).toBeGreaterThanOrEqual(1);
+		});
 	});
 
 	// ─── batchMove ────────────────────────────────────────────

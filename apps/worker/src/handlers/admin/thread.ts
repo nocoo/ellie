@@ -138,19 +138,42 @@ const threadConfig: EntityConfig = {
 		}
 	},
 
-	async afterDelete(_id, existing, _user, env) {
-		// Decrement forum threads/posts counts
+	async afterDelete(id, existing, _user, env) {
 		const forumId = existing.forum_id as number;
 		const authorId = existing.author_id as number;
-		const replies = existing.replies as number;
-		const postCount = replies + 1;
 
-		await env.DB.prepare("UPDATE forums SET threads = threads - 1, posts = posts - ? WHERE id = ?")
-			.bind(postCount, forumId)
-			.run();
+		// Query post authors before deleting orphaned posts
+		const postAuthors = await env.DB.prepare(
+			"SELECT author_id, COUNT(*) as cnt FROM posts WHERE thread_id = ? GROUP BY author_id",
+		)
+			.bind(id)
+			.all();
+		const authorCounts = new Map<number, number>();
+		for (const row of postAuthors.results as { author_id: number; cnt: number }[]) {
+			authorCounts.set(row.author_id, row.cnt);
+		}
+
+		// Count posts for forum counter adjustment
+		const countResult = await env.DB.prepare(
+			"SELECT COUNT(*) as cnt FROM posts WHERE thread_id = ?",
+		)
+			.bind(id)
+			.first<{ cnt: number }>();
+		const postsInThread = countResult?.cnt ?? 0;
+
+		// Delete orphaned posts + decrement forum counts
+		await env.DB.batch([
+			env.DB.prepare("DELETE FROM posts WHERE thread_id = ?").bind(id),
+			env.DB.prepare(
+				"UPDATE forums SET threads = threads - 1, posts = posts - ? WHERE id = ?",
+			).bind(postsInThread, forumId),
+		]);
 
 		// Decrement thread author's thread count
 		await decrementUserThreads(env, authorId);
+
+		// Decrement post authors' post counts
+		await batchDecrementUserPosts(env, authorCounts);
 
 		// Recalc forum metadata after thread deletion
 		await recalcForumMetadata(env, forumId);
