@@ -1,210 +1,358 @@
-// Admin forum handlers for Cloudflare Worker
-import { ForumType } from "@ellie/types";
-import { toForum } from "../../lib/mappers";
-import { parseIdFromPath } from "../../lib/parseId";
-import { jsonResponse } from "../../lib/response";
-import { withAdmin } from "../../lib/routeHelpers";
-import { errorResponse } from "../../middleware/error";
+// Admin forum handlers — CRUD framework + custom merge/reorder endpoints
+import { ForumType } from "@ellie/types"
+import { withEntityAuth } from "../../lib/adminHelpers"
+import type { EntityConfig } from "../../lib/crud"
+import {
+	createCreateHandler,
+	createGetByIdHandler,
+	createListHandler,
+	createRemoveHandler,
+	createUpdateHandler,
+} from "../../lib/crud"
+import type { Env } from "../../lib/env"
+import { toForum } from "../../lib/mappers"
+import { parsePathSegment } from "../../lib/parseId"
+import { jsonResponse } from "../../lib/response"
+import type { AuthUser } from "../../middleware/auth"
+import { errorResponse } from "../../middleware/error"
 
-const VALID_FORUM_TYPES = new Set(Object.values(ForumType));
+// ─── Validation helpers ──────────────────────────────────────────
 
-/** GET /api/admin/forums — List all forums (including hidden) */
-export const list = withAdmin(async (request, env, _user) => {
-	const origin = request.headers.get("Origin") ?? undefined;
-	const result = await env.DB.prepare(
-		"SELECT * FROM forums ORDER BY parent_id, display_order",
-	).all();
-	const forums = result.results.map((row) => toForum(row as Record<string, unknown>));
-	return jsonResponse(forums, origin);
-});
+const VALID_FORUM_TYPES = new Set(Object.values(ForumType))
+const MAX_REORDER_ITEMS = 200
 
-/** GET /api/admin/forums/:id — Get forum by ID (including hidden) */
-export const getById = withAdmin(async (request, env, _user) => {
-	const origin = request.headers.get("Origin") ?? undefined;
-	const id = parseIdFromPath(request);
-	if (id === null) {
-		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid forum ID" }, origin);
+function validateName(value: unknown): string | null {
+	if (typeof value !== "string" || value.trim().length === 0) return "name is required"
+	if (value.length > 100) return "name must be at most 100 characters"
+	return null
+}
+
+function validateType(value: unknown): string | null {
+	if (typeof value !== "string" || !VALID_FORUM_TYPES.has(value as ForumType)) {
+		return "Invalid type"
 	}
+	return null
+}
 
-	const row = await env.DB.prepare("SELECT * FROM forums WHERE id = ?").bind(id).first();
-	if (!row) {
-		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
+function validateStatus(value: unknown): string | null {
+	if (typeof value !== "number" || (value !== 0 && value !== 1)) {
+		return "status must be 0 or 1"
 	}
+	return null
+}
 
-	return jsonResponse(toForum(row as Record<string, unknown>), origin);
-});
+// ─── Entity config ───────────────────────────────────────────────
 
-/** POST /api/admin/forums — Create a new forum */
-export const create = withAdmin(async (request, env, _user) => {
-	const origin = request.headers.get("Origin") ?? undefined;
+const forumConfig: EntityConfig = {
+	table: "forums",
+	entityName: "FORUM",
+	auth: "admin",
+	columns: "*",
+	mapper: toForum,
+	listPaginated: false,
+	listSort: "parent_id, display_order",
+	notFoundCode: "FORUM_NOT_FOUND",
+	createFields: [
+		{
+			name: "name",
+			column: "name",
+			required: true,
+			validate: validateName,
+		},
+		{
+			name: "type",
+			column: "type",
+			default: "forum",
+			validate: validateType,
+		},
+		{
+			name: "parentId",
+			column: "parent_id",
+			default: 0,
+		},
+		{
+			name: "description",
+			column: "description",
+			default: "",
+		},
+		{
+			name: "icon",
+			column: "icon",
+			default: "",
+		},
+		{
+			name: "displayOrder",
+			column: "display_order",
+			default: 0,
+		},
+		{
+			name: "status",
+			column: "status",
+			default: 1,
+			validate: validateStatus,
+		},
+	],
+	updateFields: [
+		{
+			name: "name",
+			column: "name",
+			validate: validateName,
+		},
+		{
+			name: "description",
+			column: "description",
+		},
+		{
+			name: "icon",
+			column: "icon",
+		},
+		{
+			name: "displayOrder",
+			column: "display_order",
+		},
+		{
+			name: "status",
+			column: "status",
+			validate: validateStatus,
+		},
+		{
+			name: "type",
+			column: "type",
+			validate: validateType,
+		},
+		{
+			name: "parentId",
+			column: "parent_id",
+		},
+	],
+	canDelete: true,
 
-	let body: Record<string, unknown>;
-	try {
-		body = (await request.json()) as Record<string, unknown>;
-	} catch {
-		return errorResponse("INVALID_BODY", 400, undefined, origin);
-	}
+	// ─── Lifecycle hooks ─────────────────────────────────────
 
-	const name = body.name;
-	if (typeof name !== "string" || name.trim().length === 0) {
-		return errorResponse("INVALID_BODY", 400, { message: "name is required" }, origin);
-	}
-	if (name.length > 100) {
-		return errorResponse(
-			"INVALID_BODY",
-			400,
-			{ message: "name must be at most 100 characters" },
-			origin,
-		);
-	}
-
-	const type = (body.type as string) ?? "forum";
-	if (!VALID_FORUM_TYPES.has(type as ForumType)) {
-		return errorResponse("INVALID_BODY", 400, { message: "Invalid type" }, origin);
-	}
-
-	const parentId = typeof body.parentId === "number" ? body.parentId : 0;
-	const description = typeof body.description === "string" ? body.description : "";
-	const icon = typeof body.icon === "string" ? body.icon : "";
-	const displayOrder = typeof body.displayOrder === "number" ? body.displayOrder : 0;
-	const status = typeof body.status === "number" ? body.status : 1;
-
-	if (status !== 0 && status !== 1) {
-		return errorResponse("INVALID_BODY", 400, { message: "status must be 0 or 1" }, origin);
-	}
-
-	// Validate parent exists if non-zero
-	if (parentId !== 0) {
-		const parent = await env.DB.prepare("SELECT id FROM forums WHERE id = ?")
-			.bind(parentId)
-			.first();
-		if (!parent) {
-			return errorResponse("INVALID_BODY", 400, { message: "Parent forum not found" }, origin);
+	async beforeCreate(data, _user, env) {
+		const origin = undefined
+		const parentId = (data.parent_id as number) ?? 0
+		if (parentId !== 0) {
+			const parent = await env.DB.prepare("SELECT id FROM forums WHERE id = ?")
+				.bind(parentId)
+				.first()
+			if (!parent) {
+				return errorResponse("INVALID_BODY", 400, { message: "Parent forum not found" }, origin)
+			}
 		}
-	}
+		// Initialize counter columns for new forums
+		data.threads = 0
+		data.posts = 0
+		data.last_thread_id = 0
+		data.last_post_at = 0
+		data.last_poster = ""
+	},
 
-	const result = await env.DB.prepare(
-		`INSERT INTO forums (parent_id, name, description, icon, display_order, threads, posts, type, status, last_thread_id, last_post_at, last_poster)
-		 VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, 0, 0, '')`,
-	)
-		.bind(parentId, name.trim(), description, icon, displayOrder, type, status)
-		.run();
-
-	// Re-fetch the created forum
-	const lastId = result.meta.last_row_id;
-	const created = await env.DB.prepare("SELECT * FROM forums WHERE id = ?").bind(lastId).first();
-
-	return jsonResponse(toForum(created as Record<string, unknown>), origin, undefined, 201);
-});
-
-/** PATCH /api/admin/forums/:id — Update forum */
-export const update = withAdmin(async (request, env, _user) => {
-	const origin = request.headers.get("Origin") ?? undefined;
-	const id = parseIdFromPath(request);
-	if (id === null) {
-		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid forum ID" }, origin);
-	}
-
-	let body: Record<string, unknown>;
-	try {
-		body = (await request.json()) as Record<string, unknown>;
-	} catch {
-		return errorResponse("INVALID_BODY", 400, undefined, origin);
-	}
-
-	// Build dynamic SET clause
-	const setClauses: string[] = [];
-	const params: unknown[] = [];
-
-	if (typeof body.name === "string") {
-		if (body.name.trim().length === 0) {
-			return errorResponse("INVALID_BODY", 400, { message: "name cannot be empty" }, origin);
+	async beforeDelete(id, _existing, _user, env) {
+		const origin = undefined
+		const countResult = await env.DB.prepare(
+			"SELECT COUNT(*) as cnt FROM threads WHERE forum_id = ?",
+		)
+			.bind(id)
+			.first<{ cnt: number }>()
+		if (countResult && countResult.cnt > 0) {
+			return errorResponse(
+				"FORUM_HAS_THREADS",
+				409,
+				{ threadCount: countResult.cnt },
+				origin,
+			)
 		}
-		if (body.name.length > 100) {
+	},
+}
+
+// ─── CRUD handlers (factory-generated) ───────────────────────────
+
+/** #18 GET /api/admin/forums */
+export const list = withEntityAuth(forumConfig, createListHandler(forumConfig))
+
+/** #19 GET /api/admin/forums/:id */
+export const getById = withEntityAuth(forumConfig, createGetByIdHandler(forumConfig))
+
+/** #20 POST /api/admin/forums */
+export const create = withEntityAuth(forumConfig, createCreateHandler(forumConfig))
+
+/** #21 PATCH /api/admin/forums/:id */
+export const update = withEntityAuth(forumConfig, createUpdateHandler(forumConfig))
+
+/** #22 DELETE /api/admin/forums/:id */
+export const remove = withEntityAuth(forumConfig, createRemoveHandler(forumConfig))
+
+// ─── Custom endpoints ────────────────────────────────────────────
+
+/** #23 POST /api/admin/forums/:id/merge — Merge source forum into target */
+export const merge = withEntityAuth(
+	forumConfig,
+	async (request: Request, env: Env, _user: AuthUser): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined
+
+		// Parse source forum ID from path: /api/admin/forums/:id/merge
+		const sourceId = parsePathSegment(request, 1)
+		if (sourceId === null) {
+			return errorResponse(
+				"INVALID_REQUEST",
+				400,
+				{ message: "Invalid forum ID" },
+				origin,
+			)
+		}
+
+		let body: Record<string, unknown>
+		try {
+			body = (await request.json()) as Record<string, unknown>
+		} catch {
+			return errorResponse("INVALID_BODY", 400, { message: "Invalid JSON body" }, origin)
+		}
+
+		const targetForumId = body.targetForumId
+		if (typeof targetForumId !== "number") {
 			return errorResponse(
 				"INVALID_BODY",
 				400,
-				{ message: "name must be at most 100 characters" },
+				{ message: "targetForumId is required" },
 				origin,
-			);
+			)
 		}
-		setClauses.push("name = ?");
-		params.push(body.name.trim());
-	}
-	if (typeof body.description === "string") {
-		setClauses.push("description = ?");
-		params.push(body.description);
-	}
-	if (typeof body.icon === "string") {
-		setClauses.push("icon = ?");
-		params.push(body.icon);
-	}
-	if (typeof body.displayOrder === "number") {
-		setClauses.push("display_order = ?");
-		params.push(body.displayOrder);
-	}
-	if (typeof body.status === "number") {
-		if (body.status !== 0 && body.status !== 1) {
-			return errorResponse("INVALID_BODY", 400, { message: "status must be 0 or 1" }, origin);
+
+		if (sourceId === targetForumId) {
+			return errorResponse(
+				"INVALID_BODY",
+				400,
+				{ message: "Cannot merge a forum into itself" },
+				origin,
+			)
 		}
-		setClauses.push("status = ?");
-		params.push(body.status);
-	}
-	if (typeof body.type === "string") {
-		if (!VALID_FORUM_TYPES.has(body.type as ForumType)) {
-			return errorResponse("INVALID_BODY", 400, { message: "Invalid type" }, origin);
+
+		// Verify source forum exists
+		const source = await env.DB.prepare("SELECT * FROM forums WHERE id = ?")
+			.bind(sourceId)
+			.first()
+		if (!source) {
+			return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin)
 		}
-		setClauses.push("type = ?");
-		params.push(body.type);
-	}
-	if (typeof body.parentId === "number") {
-		setClauses.push("parent_id = ?");
-		params.push(body.parentId);
-	}
 
-	if (setClauses.length === 0) {
-		return errorResponse("INVALID_BODY", 400, { message: "No fields to update" }, origin);
-	}
+		// Verify target forum exists
+		const target = await env.DB.prepare("SELECT id FROM forums WHERE id = ?")
+			.bind(targetForumId)
+			.first()
+		if (!target) {
+			return errorResponse(
+				"INVALID_BODY",
+				400,
+				{ message: "Target forum not found" },
+				origin,
+			)
+		}
 
-	// Check forum exists
-	const existing = await env.DB.prepare("SELECT id FROM forums WHERE id = ?").bind(id).first();
-	if (!existing) {
-		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
-	}
+		// Count threads and posts to move
+		const threadCount = await env.DB.prepare(
+			"SELECT COUNT(*) as cnt FROM threads WHERE forum_id = ?",
+		)
+			.bind(sourceId)
+			.first<{ cnt: number }>()
+		const postCount = await env.DB.prepare(
+			"SELECT COUNT(*) as cnt FROM posts WHERE forum_id = ?",
+		)
+			.bind(sourceId)
+			.first<{ cnt: number }>()
 
-	params.push(id);
-	await env.DB.prepare(`UPDATE forums SET ${setClauses.join(", ")} WHERE id = ?`)
-		.bind(...params)
-		.run();
+		const threadsMoved = threadCount?.cnt ?? 0
+		const postsMoved = postCount?.cnt ?? 0
 
-	// Re-fetch updated forum
-	const updated = await env.DB.prepare("SELECT * FROM forums WHERE id = ?").bind(id).first();
-	return jsonResponse(toForum(updated as Record<string, unknown>), origin);
-});
+		// Batch: move threads, move posts, update target counts, delete source
+		const statements: D1PreparedStatement[] = [
+			env.DB.prepare("UPDATE threads SET forum_id = ? WHERE forum_id = ?").bind(
+				targetForumId,
+				sourceId,
+			),
+			env.DB.prepare("UPDATE posts SET forum_id = ? WHERE forum_id = ?").bind(
+				targetForumId,
+				sourceId,
+			),
+			env.DB.prepare(
+				"UPDATE forums SET threads = threads + ?, posts = posts + ? WHERE id = ?",
+			).bind(threadsMoved, postsMoved, targetForumId),
+			env.DB.prepare("DELETE FROM forums WHERE id = ?").bind(sourceId),
+		]
 
-/** DELETE /api/admin/forums/:id — Delete forum (refuses if has threads) */
-export const remove = withAdmin(async (request, env, _user) => {
-	const origin = request.headers.get("Origin") ?? undefined;
-	const id = parseIdFromPath(request);
-	if (id === null) {
-		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid forum ID" }, origin);
-	}
+		await env.DB.batch(statements)
 
-	// Check forum exists
-	const existing = await env.DB.prepare("SELECT id FROM forums WHERE id = ?").bind(id).first();
-	if (!existing) {
-		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
-	}
+		return jsonResponse(
+			{
+				merged: true,
+				sourceForumId: sourceId,
+				targetForumId,
+				threadsMoved,
+				postsMoved,
+			},
+			origin,
+		)
+	},
+)
 
-	// Check no threads
-	const countResult = await env.DB.prepare("SELECT COUNT(*) as cnt FROM threads WHERE forum_id = ?")
-		.bind(id)
-		.first<{ cnt: number }>();
-	if (countResult && countResult.cnt > 0) {
-		return errorResponse("FORUM_HAS_THREADS", 409, { threadCount: countResult.cnt }, origin);
-	}
+/** #24 POST /api/admin/forums/reorder — Batch reorder forums */
+export const reorder = withEntityAuth(
+	forumConfig,
+	async (request: Request, env: Env, _user: AuthUser): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined
 
-	await env.DB.prepare("DELETE FROM forums WHERE id = ?").bind(id).run();
+		let body: Record<string, unknown>
+		try {
+			body = (await request.json()) as Record<string, unknown>
+		} catch {
+			return errorResponse("INVALID_BODY", 400, { message: "Invalid JSON body" }, origin)
+		}
 
-	return jsonResponse({ deleted: true, id }, origin);
-});
+		const orders = body.orders
+		if (!Array.isArray(orders) || orders.length === 0) {
+			return errorResponse(
+				"INVALID_BODY",
+				400,
+				{ message: "orders must be a non-empty array" },
+				origin,
+			)
+		}
+
+		if (orders.length > MAX_REORDER_ITEMS) {
+			return errorResponse(
+				"BATCH_LIMIT_EXCEEDED",
+				400,
+				{ message: `Maximum ${MAX_REORDER_ITEMS} items per batch` },
+				origin,
+			)
+		}
+
+		// Validate each order entry
+		for (const item of orders) {
+			if (
+				typeof item !== "object" ||
+				item === null ||
+				typeof (item as Record<string, unknown>).id !== "number" ||
+				typeof (item as Record<string, unknown>).displayOrder !== "number"
+			) {
+				return errorResponse(
+					"INVALID_BODY",
+					400,
+					{ message: "Each order must have numeric id and displayOrder" },
+					origin,
+				)
+			}
+		}
+
+		const statements = (orders as { id: number; displayOrder: number }[]).map((item) =>
+			env.DB.prepare("UPDATE forums SET display_order = ? WHERE id = ?").bind(
+				item.displayOrder,
+				item.id,
+			),
+		)
+
+		await env.DB.batch(statements)
+
+		return jsonResponse({ updated: true, count: orders.length }, origin)
+	},
+)
