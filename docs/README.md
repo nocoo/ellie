@@ -3,9 +3,9 @@
 ## 架构概览
 
 ```
-D1 数据库 → Worker API（唯一入口） → CLI 客户端 (Rust TUI)
-                                   → Web 论坛前端 (Next.js)
-                                   → Admin 管理后台 (Next.js)
+D1 数据库 → Worker API（唯一入口） → CLI 客户端 (Rust TUI, Key A)
+                                   → Web 论坛前端 (Next.js, Key A)
+                                   → Admin 管理后台 (Next.js, Key B + Google OAuth)
 ```
 
 ## 文档索引
@@ -31,10 +31,16 @@ D1 数据库 → Worker API（唯一入口） → CLI 客户端 (Rust TUI)
 
 | 编号 | 文档 | 内容 |
 |------|------|------|
-| 05 | [Worker API](./05-worker-api.md) | Cloudflare Worker、路由设计、中间件、认证、限流 |
+| 05 | [Worker API](./05-worker-api.md) | Cloudflare Worker、双 Key 路由隔离、中间件、论坛 JWT + Google OAuth 认证、限流 |
 
 ### CLI 客户端（Rust TUI）
 
 | 编号 | 文档 | 内容 |
 |------|------|------|
 | 06 | [CLI 客户端](./06-cli-design.md) | Rust/ratatui TUI、状态机、事件循环、6 维质量体系 |
+
+### API 接口参考
+
+| 编号 | 文档 | 内容 |
+|------|------|------|
+| 07 | [API 接口参考](./07-api-reference.md) | 完整 63 端点参考、双 Key 认证体系、数据实体、错误码 |

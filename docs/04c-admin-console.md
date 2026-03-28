@@ -40,16 +40,18 @@
 
 ### 1.1 导航分组
 
-| 分组 | 项目 | 路由 | 权限 |
-|------|------|------|------|
-| — | Dashboard | `/admin` | Admin, SuperMod |
-| 内容管理 | Users | `/admin/users` | Admin |
-| | Threads | `/admin/threads` | Admin, SuperMod |
-| | Posts | `/admin/posts` | Admin, SuperMod |
-| | Forums | `/admin/forums` | Admin |
-| | Attachments | `/admin/attachments` | Admin |
-| 安全管理 | IP Bans | `/admin/ip-bans` | Admin |
-| | Censor Words | `/admin/censor-words` | Admin |
+> **认证模型**：Admin 身份由 Google OAuth 登录 + `ADMIN_GOOGLE_IDS` 环境变量白名单定义，与论坛用户完全独立。Admin Console 使用 `ADMIN_API_KEY`（Key B）访问 Worker `/api/admin/*` 端点。所有通过白名单的 Admin 全权相等，不分级。
+
+| 分组 | 项目 | 路由 |
+|------|------|------|
+| — | Dashboard | `/admin` |
+| 内容管理 | Users | `/admin/users` |
+| | Threads | `/admin/threads` |
+| | Posts | `/admin/posts` |
+| | Forums | `/admin/forums` |
+| | Attachments | `/admin/attachments` |
+| 安全管理 | IP Bans | `/admin/ip-bans` |
+| | Censor Words | `/admin/censor-words` |
 
 > **Settings**（系统设置）后置，不纳入本期。
 
@@ -59,6 +61,7 @@
 src/app/(admin)/
 ├── layout.tsx                          # AdminLayout + 权限守卫
 └── admin/
+    ├── login/page.tsx                  # /admin/login — Google OAuth 登录（Google Sign-In → Worker 验证 → Admin JWT）
     ├── page.tsx                        # /admin — Dashboard
     ├── users/page.tsx                  # /admin/users
     ├── threads/page.tsx                # /admin/threads
@@ -103,11 +106,11 @@ Browser (Client Component)
   │ fetch("/api/admin/users?page=1")
   ▼
 Next.js API Route (/api/admin/users/route.ts)
-  │ 读取 NextAuth session → 验证角色 → 注入 admin context
-  │ fetch(WORKER_URL + "/api/admin/users?page=1", { headers: { X-API-Key, X-Admin-User-Id, X-Admin-Role } })
+  │ 读取 Google OAuth session → 验证 googleId ∈ ADMIN_GOOGLE_IDS → 注入 admin context
+  │ fetch(WORKER_URL + "/api/admin/users?page=1", { headers: { X-API-Key: ADMIN_API_KEY, Authorization: Bearer <admin-jwt> } })
   ▼
 Cloudflare Worker (ellie.worker)
-  │ 验证 API Key → 读取 admin context → 执行 D1 查询
+  │ 验证 ADMIN_API_KEY (Key B) → 验证 Admin JWT → 执行 D1 查询
   ▼
 D1 Database
 ```
@@ -120,7 +123,7 @@ ViewModel (viewmodels/admin/users.ts)
   │ 调用 adminApi.users.list(filters)
   ▼
 adminApiClient (lib/admin-api.ts)
-  │ fetch(WORKER_URL + path, { headers })
+  │ fetch(WORKER_URL + path, { headers: { X-API-Key: ADMIN_API_KEY, Authorization: Bearer <admin-jwt> } })
   │ 服务端直连 Worker（无跨域，无代理开销）
   ▼
 Cloudflare Worker → D1
@@ -139,16 +142,17 @@ Cloudflare Worker → D1
 // lib/admin-api.ts — 服务端 Worker API 客户端
 // 仅在 Server Component / API Route 中使用
 
-const WORKER_URL = process.env.WORKER_API_URL!;  // e.g. https://ellie.worker.hexly.ai
-const API_KEY = process.env.WORKER_API_KEY!;      // 服务端密钥，不暴露给浏览器
+const WORKER_URL = process.env.WORKER_API_URL!;         // e.g. https://ellie.worker.hexly.ai
+const ADMIN_API_KEY = process.env.ADMIN_API_KEY!;        // Key B — Admin 专用密钥，不暴露给浏览器
 
 interface AdminApiOptions {
-  userId: string;   // Admin user ID（从 NextAuth session 获取）
-  role: number;     // Admin role（1=Admin, 2=SuperMod）
+  // 无需显式传入 — adminApiClient 内部调用 auth() 获取 Google OAuth session
+  // 自动从 session 中获取 Admin JWT token
 }
 
 // 通用 GET/POST/PATCH/DELETE 方法
-// 自动注入 X-API-Key + X-Admin-User-Id + X-Admin-Role headers
+// 内部调用 auth() 获取 session，验证 isAdminGoogleId(session.user.sub)
+// 自动注入 X-API-Key: ADMIN_API_KEY + Authorization: Bearer <admin-jwt>
 // 统一解析 { data, meta } 响应格式
 // 错误时抛出 typed AdminApiError
 ```
@@ -156,8 +160,8 @@ interface AdminApiOptions {
 ### 2.3 Next.js API Route 代理约定
 
 每个 API Route 做三件事：
-1. **验证 session** — 从 NextAuth 获取 session，调用 `resolveAdminFromSession()` 验证角色
-2. **转发** — 调用 adminApiClient 发往 Worker（API Key + admin context headers）
+1. **验证 admin** — 调用 `resolveAdminFromSession()` 验证 Google ID ∈ `ADMIN_GOOGLE_IDS`
+2. **转发** — 调用 adminApiClient 发往 Worker（ADMIN_API_KEY + Admin JWT）
 3. **返回** — 透传 Worker 响应（status code + body）
 
 ```
@@ -196,28 +200,32 @@ src/app/api/admin/
 ### 2.4 Auth 传递
 
 ```
-Session Cookie (浏览器) → NextAuth auth() → JWT payload { userId, role }
-                                              │
-                   ┌──────────────────────────┘
-                   ▼
+Browser → Google Sign-In → ID Token
+  │
+  ▼ POST /api/admin/auth/login (via Next.js proxy)
+Worker 验证 Google ID Token → 白名单检查 → 签发 Admin JWT
+  │
+  ▼ Admin JWT 存入 NextAuth Session
+Admin Console 前端持有 Admin JWT
+  │
+  ▼ 后续请求
           API Route / Server Component
-                   │ resolveAdminFromSession() 验证 role ∈ {Admin, SuperMod}
+                   │ resolveAdminFromSession() 验证 session 有效
                    │
-                   ▼ API Key 直连
-          X-API-Key: <server-side-admin-key>
-          X-Admin-User-Id: <userId>
-          X-Admin-Role: <role>
+                   ▼ adminApiClient 发往 Worker
+          X-API-Key: <ADMIN_API_KEY>             ← Key B
+          Authorization: Bearer <admin-jwt>       ← Worker 签发的 Admin JWT
                    │
                    ▼
-          Worker 验证 API Key → 信任 admin context headers → 执行操作
+          Worker 验证 Key B → 验证 Admin JWT (type=admin) → 执行操作
 ```
 
-> **架构决策**：Admin 后台使用 **API Key 直连 Worker**，不走 JWT 认证链。
+> **架构决策**：Admin 后台使用 **ADMIN_API_KEY（Key B）直连 Worker**，与论坛 API_KEY（Key A）完全隔离。
 >
-> - NextAuth session 仅用于前端身份验证和角色判断（layout guard + page guard）。
-> - `adminApiClient` 注入 `X-API-Key`（服务端环境变量）+ `X-Admin-User-Id` / `X-Admin-Role`（从 NextAuth session 提取）。
-> - Worker 端验证 API Key 合法性后，信任 admin context headers 执行操作。
-> - 此方案避免了 NextAuth JWT 与 Worker JWT 的转换问题，且 Phase 2 移除 NextAuth 时仅需替换 session 来源，`adminApiClient` 接口不变。
+> - NextAuth Google Provider 完成前端身份验证，session 中存储 Worker 签发的 Admin JWT。
+> - `adminApiClient` 注入 `X-API-Key: ADMIN_API_KEY` + `Authorization: Bearer <admin-jwt>`。
+> - Worker 端验证 Key B 合法性后，验证 Admin JWT 执行操作。
+> - Admin JWT 由 Worker 在 Google OAuth 登录时签发，包含 `{ googleId, email, type: "admin" }`，与论坛用户 JWT（包含 `{ userId, role }`）完全独立。
 
 ---
 
@@ -291,7 +299,7 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
 
 ### 3.2 Users（/admin/users）
 
-**Worker 端点**：7 个（Admin 权限）
+**Worker 端点**：7 个（Admin 权限，Key B + Admin JWT）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -402,7 +410,7 @@ export async function batchSetRole(ids: number[], role: number): Promise<BatchRe
 
 ### 3.3 Threads（/admin/threads）
 
-**Worker 端点**：6 个（Moderator+ 权限）
+**Worker 端点**：6 个（Admin 权限，Key B + Admin JWT）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -498,7 +506,7 @@ export async function batchMoveThreads(ids: number[], forumId: number): Promise<
 
 ### 3.4 Posts（/admin/posts）
 
-**Worker 端点**：5 个（Moderator+ 权限）
+**Worker 端点**：5 个（Admin 权限，Key B + Admin JWT）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -572,7 +580,7 @@ export async function batchDeletePosts(ids: number[]): Promise<BatchDeleteResult
 
 ### 3.5 Forums（/admin/forums）
 
-**Worker 端点**：7 个（Admin 权限）
+**Worker 端点**：7 个（Admin 权限，Key B + Admin JWT）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -654,7 +662,7 @@ export async function reorderForums(orders: Array<{id: number; displayOrder: num
 
 ### 3.6 Attachments（/admin/attachments）
 
-**Worker 端点**：4 个（Admin 权限）
+**Worker 端点**：4 个（Admin 权限，Key B + Admin JWT）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -719,7 +727,7 @@ export async function batchDeleteAttachments(ids: number[]): Promise<BatchResult
 
 ### 3.7 IP Bans（/admin/ip-bans）
 
-**Worker 端点**：7 个（Admin 权限）
+**Worker 端点**：7 个（Admin 权限，Key B + Admin JWT）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -800,7 +808,7 @@ export async function checkIp(ip: string): Promise<CheckIpResult> {}
 
 ### 3.8 Censor Words（/admin/censor-words）
 
-**Worker 端点**：7 个（Admin 权限）
+**Worker 端点**：7 个（Admin 权限，Key B + Admin JWT）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -886,47 +894,46 @@ export async function testContent(content: string): Promise<TestResult> {}
 ```typescript
 // 沿用现有 proxy.ts classifyRoute()
 // /admin/* 和 /api/admin/* → "admin" 级别
-// 要求 role ∈ {1(Admin), 2(SuperMod)}
-// 不满足 → 页面重定向到 / 或 API 返回 403
+// 要求 NextAuth Google OAuth session 有效 + Google ID ∈ ADMIN_GOOGLE_IDS
+// 不满足 → 页面重定向到 /admin/login 或 API 返回 403
 ```
 
 ### 4.2 页面层（layout.tsx）
 
 ```typescript
-// (admin)/layout.tsx — 强化
+// (admin)/layout.tsx — Google OAuth 守卫
 export default async function AdminGroupLayout({ children }) {
   const session = await auth();
   const admin = resolveAdminFromSession(session);
   if (!admin) {
-    redirect("/login");
+    redirect("/admin/login");
   }
-  // 将 admin 信息传递给 AdminLayout（用户名 + 头像 + 角色）
+  // 将 admin 信息传递给 AdminLayout（Google email + 头像）
   return <AdminLayout user={admin}>{children}</AdminLayout>;
 }
 ```
 
-> 当前 layout.tsx 只读用户名/头像，不验角色。需强化为调用 `resolveAdminFromSession()` 做二次校验。
+> `resolveAdminFromSession()` 验证 session 有效且 Google ID 在白名单中。所有 Admin 全权相等，不再区分 role。
 
 ### 4.3 API 层（Next.js API Route）
 
 每个 API Route 代理函数：
 
 ```typescript
-// 读取 session → resolveAdminFromSession() 验证角色
-// 如果 session 无效或角色不足 → 返回 401/403
-// 否则通过 adminApiClient 转发到 Worker（API Key 直连）
+// 读取 session → resolveAdminFromSession() 验证 Google ID ∈ ADMIN_GOOGLE_IDS
+// 如果 session 无效或 Google ID 不在白名单 → 返回 401/403
+// 否则通过 adminApiClient 转发到 Worker（ADMIN_API_KEY + Admin JWT）
 ```
 
-### 4.4 侧边栏条件渲染
+### 4.4 侧边栏渲染
 
-根据用户角色动态显示导航项：
+所有通过 Google OAuth 白名单的 Admin 可见全部 8 个导航项，不分级。
 
 | 角色 | 可见导航项 |
 |------|-----------|
-| Admin (1) | 全部 8 项 |
-| SuperMod (2) | Dashboard, Threads, Posts |
+| Admin（白名单 Google ID） | 全部 8 项 |
 
-> Mod (3) 不进入 Admin Dashboard。内容审核操作通过论坛前端 moderation 流程完成，与 proxy.ts 的 `ADMIN_ROLE_VALUES = {1, 2}` 及 `canAccessAdmin()` 保持一致。
+> 版主（Mod）和超级版主（SuperMod）不进入 Admin Console。内容审核操作通过论坛前端 `/api/v1/moderation/*` 完成（走 Key A + 论坛用户 JWT）。
 
 ---
 
@@ -1057,8 +1064,8 @@ interface AdminConfirmDialogProps {
 
 | # | Commit | 内容 | 测试 |
 |---|--------|------|------|
-| 6.1.1 | `feat: add admin api client (server-side)` | `lib/admin-api.ts` — 封装 `WORKER_API_URL` + `WORKER_API_KEY`，通用 GET/POST/PATCH/DELETE，统一错误处理 `AdminApiError` | ✅ L1: 请求构造 + 错误解析 |
-| 6.1.2 | `feat: add admin api proxy helpers` | `lib/admin-proxy.ts` — `createProxyHandler()` 工厂函数：读 session → 构造 headers → 转发 → 透传响应 | ✅ L1: header 注入 + 错误透传 |
+| 6.1.1 | `feat: add admin api client (server-side)` | `lib/admin-api.ts` — 封装 `WORKER_API_URL` + `ADMIN_API_KEY`（Key B），注入 Admin JWT，通用 GET/POST/PATCH/DELETE，统一错误处理 `AdminApiError` | ✅ L1: 请求构造 + 错误解析 |
+| 6.1.2 | `feat: add admin api proxy helpers` | `lib/admin-proxy.ts` — `createProxyHandler()` 工厂函数：读 Google OAuth session → 构造 headers（ADMIN_API_KEY + Admin JWT）→ 转发 → 透传响应 | ✅ L1: header 注入 + 错误透传 |
 | 6.1.3 | `feat: add stats api route` | `app/api/admin/stats/route.ts` — 第一个代理端点，验证全链路通畅 | ✅ L1: 代理转发 |
 
 ---
@@ -1179,7 +1186,7 @@ interface AdminConfirmDialogProps {
 
 | # | Commit | 内容 | 测试 |
 |---|--------|------|------|
-| 6.11.1 | `refactor: strengthen admin layout guard` | 强化 `(admin)/layout.tsx` — 调用 `resolveAdminFromSession()` 做角色验证 | ✅ L1: 角色组合 |
+| 6.11.1 | `refactor: strengthen admin layout guard` | 强化 `(admin)/layout.tsx` — 调用 `resolveAdminFromSession()` 验证 Google OAuth session + Google ID 白名单 | ✅ L1: 白名单验证 |
 | 6.11.2 | `chore: remove deprecated admin content module` | 删除 `admin/content/page.tsx`、`content-moderation.ts`、`admin-content-actions.tsx`、`admin-content-filters.tsx` | — |
 | 6.11.3 | `chore: remove mock repo dependency from admin` | 清理 admin 代码中所有 `createRepositories()` 调用，确保全部走 adminApiClient | — |
 
@@ -1212,8 +1219,8 @@ interface AdminConfirmDialogProps {
 | `components/layout/admin-layout.tsx` | 响应式 shell |
 | `components/user-avatar.tsx` | 头像组件 |
 | `components/ui/*` | shadcn/ui 原子组件 |
-| `lib/admin-guard.ts` | `resolveAdminFromSession()` |
-| `proxy.ts` | 路由分类 + admin 角色守卫 |
+| `lib/admin-guard.ts` | `resolveAdminFromSession()` — 改为验证 Google ID 白名单 |
+| `proxy.ts` | 路由分类 + admin Google OAuth 守卫 |
 | `@ellie/types` buildForumTree() | 版块树构建纯函数 |
 
 ### 重建（保留文件路径，重写内容）

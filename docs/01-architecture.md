@@ -16,13 +16,13 @@ Ellie 是一个将 Discuz! X3.4 论坛数据迁移到 Cloudflare 平台并重建
                                     │ D1 binding
                          ┌──────────▼───────────┐
                          │   Worker API (唯一入口) │  ← 所有增删改查必须经过 Worker
-                         │  X-API-Key + JWT auth  │
+                         │  双 Key + JWT/OAuth    │
                          └─┬──────────┬────────┬─┘
                            │          │        │
               ┌────────────▼┐  ┌──────▼─────┐ ┌▼────────────┐
               │  CLI 客户端  │  │  Web 前端  │ │  Admin 后台  │
               │  (Rust TUI)  │  │  (Next.js) │ │  (Next.js)  │
-              │   只读/调试   │  │   论坛页面  │ │   管理功能   │
+              │  Key A/只读   │  │ Key A/论坛  │ │ Key B/Google │
               └──────────────┘  └────────────┘ └─────────────┘
                  独立发布            同一个 Next.js 项目
 ```
@@ -31,15 +31,15 @@ Ellie 是一个将 Discuz! X3.4 论坛数据迁移到 Cloudflare 平台并重建
 
 - **D1 数据库**：所有论坛数据存储在 Cloudflare D1（SQLite 兼容）
 - **Worker API**：唯一的数据访问入口，所有前端项目通过 HTTP 调用 Worker 读写数据
-- **认证模型**：开发初期使用 API Key 连接，后续升级为 API Key + JWT 双层认证
+- **认证模型**：双 Key 隔离 — Key A（`API_KEY`）守护公开/论坛端点，Key B（`ADMIN_API_KEY`）守护管理端点。论坛用户 JWT + Google OAuth Admin JWT 双认证体系完全独立
 
 ### 前端项目（共三个）
 
 | 项目 | 技术栈 | 说明 | 部署 |
 |------|--------|------|------|
-| **CLI 客户端** | Rust / ratatui | 只读 TUI 工具，通过 API Key 读取数据，主要用于调试，可独立发布 | 独立二进制 |
-| **Admin 管理后台** | Next.js | 论坛完整管理功能（用户/内容/版块管理） | 同一 Next.js 项目 |
-| **Web 论坛前端** | Next.js | 基于网页的论坛浏览、发帖、回帖 | 同一 Next.js 项目 |
+| **CLI 客户端** | Rust / ratatui | 只读 TUI 工具，通过 Key A 读取数据，登录可选，可独立发布 | 独立二进制 |
+| **Admin 管理后台** | Next.js | 论坛完整管理功能（用户/内容/版块管理），Key B + Google OAuth | 同一 Next.js 项目 |
+| **Web 论坛前端** | Next.js | 基于网页的论坛浏览、发帖、回帖，Key A + 论坛用户 JWT | 同一 Next.js 项目 |
 
 > Admin 和论坛前端在同一个 Next.js 项目中（`apps/web/`），通过路由分区（`/admin/*` vs `/`）。
 

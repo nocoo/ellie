@@ -29,15 +29,17 @@ Base URL: https://ellie.worker.hexly.ai
 
 所有请求需经过两层认证：
 
-**Layer 1 — API Key（必须）**
+**Layer 1 — API Key A（必须）**
 
 每个请求（除 `GET /api/live`）必须携带 `X-API-Key` header：
 
 ```
-X-API-Key: <client-credential>
+X-API-Key: <API_KEY>
 ```
 
-API Key 是**公开的客户端凭证**（类似移动 App 的 API Key），随 CLI 发行包一起分发。它的作用是基本的访问控制——区分"经过授权的客户端"与"任意爬虫/扫描器"，而非机密保护。任何拥有 CLI 的用户都能看到这个值，这是预期行为。
+API Key A 是**公开的客户端凭证**（类似移动 App 的 API Key），随 CLI 发行包一起分发。它的作用是基本的访问控制——区分"经过授权的客户端"与"任意爬虫/扫描器"，而非机密保护。任何拥有 CLI 的用户都能看到这个值，这是预期行为。
+
+> **注意**：CLI 使用的是 Key A（`API_KEY`），只能访问 `/api/v1/*` 端点。Admin Console 使用另一组 Key B（`ADMIN_API_KEY`），与 CLI 无关。
 
 **Layer 2 — JWT Token（可选，登录后获取）**
 
@@ -48,13 +50,13 @@ API Key 是**公开的客户端凭证**（类似移动 App 的 API Key），随 
 ```
 启动 CLI
   │
-  ├─ API Key 内置于 CLI 发行包，自动注入所有请求
+  ├─ API Key A 内置于 CLI 发行包，自动注入所有请求
   │
-  ├─ 有已保存的 JWT？
+  ├─ 有已保存的论坛用户 JWT？
   │   ├─ 未过期 → 自动附加到请求
   │   └─ 已过期 → 清除本地 token，提示用户重新登录
   │
-  └─ 无 JWT → 匿名模式（仅 API Key 认证）
+  └─ 无 JWT → 匿名模式（仅 Key A 认证，只读浏览）
 ```
 
 > **注意**：Worker 登录接口会返回 `refreshToken`（存储在 KV，30 天有效），但当前 Worker **尚未实现** `POST /api/v1/auth/refresh` 端点。CLI 暂不使用 refreshToken 续期，JWT 过期后要求用户重新登录。后续 Worker 实现 refresh 端点后再启用静默续期。
@@ -85,9 +87,9 @@ X-API-Key: <key>
 ```json
 {
   "apiUrl": "https://ellie.worker.hexly.ai",
-  "apiKey": "<client-credential, shipped with CLI>",
+  "apiKey": "<API_KEY, Key A — shipped with CLI>",
   "auth": {
-    "token": "<JWT>",
+    "token": "<论坛用户 JWT>",
     "user": {
       "userId": 123,
       "username": "alice",

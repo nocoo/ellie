@@ -130,9 +130,10 @@ ellie/
 ```
 
 Worker 提供：
-- `/api/v1/*` — 公开 API（论坛列表、主题、帖子、用户）
-- `/api/admin/*` — 管理 API（需认证）
-- CORS、限流、认证中间件
+- `/api/v1/*` — 公开 API + 论坛用户认证（Key A 体系）
+- `/api/v1/moderation/*` — 版主操作（Key A + 论坛 JWT + role check）
+- `/api/admin/*` — 管理 API（Key B + Admin JWT）
+- CORS、限流、双 Key 认证中间件
 
 
 ---
@@ -199,20 +200,19 @@ function useXxxViewModel(params) {
 
 ## 认证方案
 
-### 演进路径
+### 双体系认证
 
 ```
-当前阶段（原型）:
-  Browser → Next.js API Routes → NextAuth Credentials → JWT cookie
-  Auth source of truth: NextAuth（Mock 用户数据）
-
-Phase 2（Worker 就绪后）:
-  Browser → Next.js proxy → Worker API → JWT + KV session
+论坛前端（Web + CLI）:
+  Browser/CLI → Key A → Worker /api/v1/* → 论坛用户 JWT（可选/按需）
   Auth source of truth: Worker（D1 用户表）
-  NextAuth 完全移除
+
+Admin 后台:
+  Browser → Key B → Worker /api/admin/* → Admin JWT（Google OAuth 签发）
+  Auth source of truth: Google OAuth + ADMIN_GOOGLE_IDS 白名单
 ```
 
-**当前阶段只有一个 auth source：NextAuth。** 不存在两套认证并存的情况。
+**论坛前端**使用 Key A + 论坛用户 JWT。**Admin 后台**使用 Key B + Google OAuth Admin JWT。两套体系完全独立。
 
 ### 路由守卫（Proxy）
 
@@ -228,25 +228,26 @@ Next.js 16 使用 `proxy.ts` 替代 `middleware.ts`：
   /login
   /api/v1/** (读操作)
 
-认证路由（需登录）:
+认证路由（需论坛用户 JWT）:
   /threads/new
   /api/v1/** (写操作 — 在 route handler 中检查)
+  /api/v1/moderation/** (版主操作 — 需 role ∈ {1,2,3})
 
-管理路由（需 role ∈ {Admin, SuperMod}）:
-  /admin/**
-  /api/admin/**
+管理路由（需 Google OAuth Admin session）:
+  /admin/**           → 重定向到 /admin/login 如未认证
+  /api/admin/**       → 返回 403 如未认证
 ```
 
 ### API 路由边界
 
 | 前缀 | 用途 | 认证 |
 |------|------|------|
-| `/api/v1/forums` | 版块列表、详情 | 公开 |
-| `/api/v1/threads` | 帖子列表、详情、发帖 | 读公开，写需登录 |
-| `/api/v1/posts` | 回复列表、发回复 | 读公开，写需登录 |
-| `/api/v1/users` | 用户资料 | 公开 |
-| `/api/v1/moderation` | 版主操作 | role ∈ {1, 2, 3} |
-| `/api/admin/*` | 管理后台 | role ∈ {1, 2} |
+| `/api/v1/forums` | 版块列表、详情 | Key A（公开） |
+| `/api/v1/threads` | 帖子列表、详情、发帖 | Key A，写需论坛 JWT |
+| `/api/v1/posts` | 回复列表、发回复 | Key A，写需论坛 JWT |
+| `/api/v1/users` | 用户资料 | Key A（公开） |
+| `/api/v1/moderation` | 版主操作 | Key A + 论坛 JWT（role ∈ {1, 2, 3}） |
+| `/api/admin/*` | 管理后台 | Key B + Admin JWT（Google OAuth） |
 
 ---
 
