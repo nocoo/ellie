@@ -7,6 +7,8 @@ export interface Env {
 	ENVIRONMENT: string;
 	JWT_SECRET: string;
 	KV: KVNamespace;
+	/** Comma-separated CORS allowed origins (wrangler [vars]) */
+	ALLOWED_ORIGINS?: string;
 }
 
 export interface CFRequest extends Request {
