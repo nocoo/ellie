@@ -42,7 +42,7 @@ const postConfig: EntityConfig = {
 		},
 	],
 	canDelete: true,
-	beforeDelete: async (_id, existing, _user, _env, origin) => {
+	beforeDelete: async (_id, existing, _env, origin) => {
 		if ((existing as { is_first: number }).is_first === 1) {
 			return errorResponse(
 				"CANNOT_DELETE_FIRST_POST",
@@ -55,7 +55,7 @@ const postConfig: EntityConfig = {
 		}
 		return undefined;
 	},
-	afterDelete: async (_id, existing, _user, env) => {
+	afterDelete: async (_id, existing, env) => {
 		const row = existing as { thread_id: number; forum_id: number; author_id: number };
 		await env.DB.batch([
 			env.DB.prepare("UPDATE threads SET replies = replies - 1 WHERE id = ?").bind(row.thread_id),
@@ -92,7 +92,7 @@ export const remove = withEntityAuth(postConfig, createRemoveHandler(postConfig)
 const MAX_BATCH_SIZE = 100;
 
 /** #35 POST /api/admin/posts/batch-delete — Batch delete posts, skip first posts */
-export const batchDelete = withEntityAuth(postConfig, async (request, env, _user) => {
+export const batchDelete = withEntityAuth(postConfig, async (request, env) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	let body: Record<string, unknown>;

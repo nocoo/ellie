@@ -8,7 +8,7 @@ import {
 	reorder,
 	update,
 } from "../../../../src/handlers/admin/forum";
-import { createJwtForRole, createMockDb, makeD1ForumRow, makeEnv } from "../../../helpers";
+import { createMockDb, makeD1ForumRow, makeEnv } from "../../../helpers";
 
 describe("admin forum handlers", () => {
 	const adminEnv = (db: D1Database) => makeEnv({ DB: db });
@@ -26,13 +26,7 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
-			const res = await list(
-				new Request("https://api.example.com/api/admin/forums", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
-				adminEnv(db),
-			);
+			const res = await list(new Request("https://api.example.com/api/admin/forums"), adminEnv(db));
 			const body = await res.json();
 
 			expect(res.status).toBe(200);
@@ -43,35 +37,11 @@ describe("admin forum handlers", () => {
 
 		it("should return empty array when no forums", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
-			const res = await list(
-				new Request("https://api.example.com/api/admin/forums", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
-				adminEnv(db),
-			);
+			const res = await list(new Request("https://api.example.com/api/admin/forums"), adminEnv(db));
 			const body = await res.json();
 
 			expect(res.status).toBe(200);
 			expect(body.data).toEqual([]);
-		});
-
-		it("should require auth (no token → 401)", async () => {
-			const { db } = createMockDb();
-			const res = await list(new Request("https://api.example.com/api/admin/forums"), adminEnv(db));
-			expect(res.status).toBe(401);
-		});
-
-		it("should reject regular user (role 0 → 403)", async () => {
-			const token = await createJwtForRole(0);
-			const { db } = createMockDb();
-			const res = await list(
-				new Request("https://api.example.com/api/admin/forums", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
-				adminEnv(db),
-			);
-			expect(res.status).toBe(403);
 		});
 
 		it("should map D1 rows to camelCase", async () => {
@@ -83,13 +53,7 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
-			const res = await list(
-				new Request("https://api.example.com/api/admin/forums", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
-				adminEnv(db),
-			);
+			const res = await list(new Request("https://api.example.com/api/admin/forums"), adminEnv(db));
 			const body = await res.json();
 
 			expect(body.data[0].parentId).toBe(2);
@@ -107,11 +71,8 @@ describe("admin forum handlers", () => {
 				firstResults: { "SELECT * FROM forums WHERE id": forumRow },
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await getById(
-				new Request("https://api.example.com/api/admin/forums/42", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
+				new Request("https://api.example.com/api/admin/forums/42"),
 				adminEnv(db),
 			);
 			const body = await res.json();
@@ -123,11 +84,8 @@ describe("admin forum handlers", () => {
 
 		it("should return 404 for non-existent forum", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await getById(
-				new Request("https://api.example.com/api/admin/forums/999", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
+				new Request("https://api.example.com/api/admin/forums/999"),
 				adminEnv(db),
 			);
 
@@ -138,26 +96,14 @@ describe("admin forum handlers", () => {
 
 		it("should return 400 for invalid ID", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await getById(
-				new Request("https://api.example.com/api/admin/forums/abc", {
-					headers: { Authorization: `Bearer ${token}` },
-				}),
+				new Request("https://api.example.com/api/admin/forums/abc"),
 				adminEnv(db),
 			);
 
 			expect(res.status).toBe(400);
 			const body = await res.json();
 			expect(body.error.code).toBe("INVALID_REQUEST");
-		});
-
-		it("should require auth", async () => {
-			const { db } = createMockDb();
-			const res = await getById(
-				new Request("https://api.example.com/api/admin/forums/42"),
-				adminEnv(db),
-			);
-			expect(res.status).toBe(401);
 		});
 	});
 
@@ -173,11 +119,10 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await create(
 				new Request("https://api.example.com/api/admin/forums", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
 						name: "New Forum",
 						description: "A new forum",
@@ -212,11 +157,10 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await create(
 				new Request("https://api.example.com/api/admin/forums", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ name: "Minimal" }),
 				}),
 				adminEnv(db),
@@ -231,11 +175,10 @@ describe("admin forum handlers", () => {
 
 		it("should return 400 when name is missing", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await create(
 				new Request("https://api.example.com/api/admin/forums", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({}),
 				}),
 				adminEnv(db),
@@ -248,11 +191,10 @@ describe("admin forum handlers", () => {
 
 		it("should return 400 when name is empty/whitespace", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await create(
 				new Request("https://api.example.com/api/admin/forums", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ name: "   " }),
 				}),
 				adminEnv(db),
@@ -263,11 +205,10 @@ describe("admin forum handlers", () => {
 
 		it("should return 400 when name exceeds 100 chars", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await create(
 				new Request("https://api.example.com/api/admin/forums", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ name: "a".repeat(101) }),
 				}),
 				adminEnv(db),
@@ -278,11 +219,10 @@ describe("admin forum handlers", () => {
 
 		it("should return 400 for invalid type", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await create(
 				new Request("https://api.example.com/api/admin/forums", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ name: "Test", type: "invalid" }),
 				}),
 				adminEnv(db),
@@ -295,11 +235,10 @@ describe("admin forum handlers", () => {
 
 		it("should return 400 for invalid status", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await create(
 				new Request("https://api.example.com/api/admin/forums", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ name: "Test", status: 5 }),
 				}),
 				adminEnv(db),
@@ -315,11 +254,10 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await create(
 				new Request("https://api.example.com/api/admin/forums", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ name: "Test", parentId: 999 }),
 				}),
 				adminEnv(db),
@@ -332,11 +270,10 @@ describe("admin forum handlers", () => {
 
 		it("should return 400 for malformed JSON", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await create(
 				new Request("https://api.example.com/api/admin/forums", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: "not json",
 				}),
 				adminEnv(db),
@@ -355,11 +292,10 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			await create(
 				new Request("https://api.example.com/api/admin/forums", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ name: "New" }),
 				}),
 				adminEnv(db),
@@ -382,16 +318,14 @@ describe("admin forum handlers", () => {
 		it("should update forum with partial fields", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					// fetchRowFull for existence check + fetchRow for re-read after update
 					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42, name: "Updated Name" }),
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/forums/42", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ name: "Updated Name", status: 0 }),
 				}),
 				adminEnv(db),
@@ -408,14 +342,12 @@ describe("admin forum handlers", () => {
 		});
 
 		it("should return 404 for non-existent forum", async () => {
-			// fetchRowFull returns null → 404
 			const { db } = createMockDb();
 
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/forums/999", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ name: "New" }),
 				}),
 				adminEnv(db),
@@ -431,11 +363,10 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/forums/42", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({}),
 				}),
 				adminEnv(db),
@@ -453,11 +384,10 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/forums/42", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ type: "bad" }),
 				}),
 				adminEnv(db),
@@ -473,11 +403,10 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/forums/42", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ name: "" }),
 				}),
 				adminEnv(db),
@@ -493,11 +422,10 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/forums/42", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ name: "a".repeat(101) }),
 				}),
 				adminEnv(db),
@@ -515,11 +443,10 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/forums/42", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ status: 9 }),
 				}),
 				adminEnv(db),
@@ -537,11 +464,10 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/forums/42", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ description: "updated" }),
 				}),
 				adminEnv(db),
@@ -559,11 +485,10 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/forums/42", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ icon: "new-icon.png" }),
 				}),
 				adminEnv(db),
@@ -581,11 +506,10 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/forums/42", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ displayOrder: 5 }),
 				}),
 				adminEnv(db),
@@ -603,11 +527,10 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/forums/42", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ parentId: 2 }),
 				}),
 				adminEnv(db),
@@ -625,11 +548,10 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/forums/42", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ type: "sub" }),
 				}),
 				adminEnv(db),
@@ -642,11 +564,10 @@ describe("admin forum handlers", () => {
 
 		it("should reject invalid forum ID (non-numeric)", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/forums/abc", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ name: "Test" }),
 				}),
 				adminEnv(db),
@@ -659,11 +580,10 @@ describe("admin forum handlers", () => {
 
 		it("should reject malformed JSON", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await update(
 				new Request("https://api.example.com/api/admin/forums/42", {
 					method: "PATCH",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: "not json",
 				}),
 				adminEnv(db),
@@ -686,11 +606,9 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await remove(
 				new Request("https://api.example.com/api/admin/forums/42", {
 					method: "DELETE",
-					headers: { Authorization: `Bearer ${token}` },
 				}),
 				adminEnv(db),
 			);
@@ -712,11 +630,9 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await remove(
 				new Request("https://api.example.com/api/admin/forums/42", {
 					method: "DELETE",
-					headers: { Authorization: `Bearer ${token}` },
 				}),
 				adminEnv(db),
 			);
@@ -735,12 +651,10 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await remove(
 				new Request("https://api.example.com/api/admin/forums/42", {
 					method: "DELETE",
 					headers: {
-						Authorization: `Bearer ${token}`,
 						Origin: "http://localhost:3000",
 					},
 				}),
@@ -754,11 +668,9 @@ describe("admin forum handlers", () => {
 		it("should return 404 for non-existent forum", async () => {
 			const { db } = createMockDb();
 
-			const token = await createJwtForRole(1);
 			const res = await remove(
 				new Request("https://api.example.com/api/admin/forums/999", {
 					method: "DELETE",
-					headers: { Authorization: `Bearer ${token}` },
 				}),
 				adminEnv(db),
 			);
@@ -768,11 +680,9 @@ describe("admin forum handlers", () => {
 
 		it("should return 400 for invalid ID", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await remove(
 				new Request("https://api.example.com/api/admin/forums/abc", {
 					method: "DELETE",
-					headers: { Authorization: `Bearer ${token}` },
 				}),
 				adminEnv(db),
 			);
@@ -794,11 +704,10 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await merge(
 				new Request("https://api.example.com/api/admin/forums/10/merge", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ targetForumId: 20 }),
 				}),
 				adminEnv(db),
@@ -818,11 +727,10 @@ describe("admin forum handlers", () => {
 
 		it("should return 400 when targetForumId is missing", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await merge(
 				new Request("https://api.example.com/api/admin/forums/10/merge", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({}),
 				}),
 				adminEnv(db),
@@ -835,11 +743,10 @@ describe("admin forum handlers", () => {
 
 		it("should return 400 when targetForumId is not a number", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await merge(
 				new Request("https://api.example.com/api/admin/forums/10/merge", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ targetForumId: "abc" }),
 				}),
 				adminEnv(db),
@@ -852,11 +759,10 @@ describe("admin forum handlers", () => {
 
 		it("should reject self-merge (source === target)", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await merge(
 				new Request("https://api.example.com/api/admin/forums/10/merge", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ targetForumId: 10 }),
 				}),
 				adminEnv(db),
@@ -874,11 +780,10 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await merge(
 				new Request("https://api.example.com/api/admin/forums/999/merge", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ targetForumId: 20 }),
 				}),
 				adminEnv(db),
@@ -897,11 +802,10 @@ describe("admin forum handlers", () => {
 				},
 			});
 
-			const token = await createJwtForRole(1);
 			const res = await merge(
 				new Request("https://api.example.com/api/admin/forums/10/merge", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ targetForumId: 20 }),
 				}),
 				adminEnv(db),
@@ -914,11 +818,10 @@ describe("admin forum handlers", () => {
 
 		it("should return 400 for invalid source ID (non-numeric)", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await merge(
 				new Request("https://api.example.com/api/admin/forums/abc/merge", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ targetForumId: 20 }),
 				}),
 				adminEnv(db),
@@ -931,11 +834,10 @@ describe("admin forum handlers", () => {
 
 		it("should return 400 for malformed JSON", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await merge(
 				new Request("https://api.example.com/api/admin/forums/10/merge", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: "not json",
 				}),
 				adminEnv(db),
@@ -952,11 +854,10 @@ describe("admin forum handlers", () => {
 	describe("reorder", () => {
 		it("should batch reorder forums", async () => {
 			const { db, batchCalls } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await reorder(
 				new Request("https://api.example.com/api/admin/forums/reorder", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
 						orders: [
 							{ id: 1, displayOrder: 0 },
@@ -978,11 +879,10 @@ describe("admin forum handlers", () => {
 
 		it("should return 400 for empty orders array", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await reorder(
 				new Request("https://api.example.com/api/admin/forums/reorder", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ orders: [] }),
 				}),
 				adminEnv(db),
@@ -995,11 +895,10 @@ describe("admin forum handlers", () => {
 
 		it("should return 400 when orders is missing", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await reorder(
 				new Request("https://api.example.com/api/admin/forums/reorder", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({}),
 				}),
 				adminEnv(db),
@@ -1012,11 +911,10 @@ describe("admin forum handlers", () => {
 
 		it("should return 400 when order item has invalid shape", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await reorder(
 				new Request("https://api.example.com/api/admin/forums/reorder", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
 						orders: [{ id: "abc", displayOrder: 0 }],
 					}),
@@ -1031,11 +929,10 @@ describe("admin forum handlers", () => {
 
 		it("should return 400 when order item missing displayOrder", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await reorder(
 				new Request("https://api.example.com/api/admin/forums/reorder", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
 						orders: [{ id: 1 }],
 					}),
@@ -1048,7 +945,6 @@ describe("admin forum handlers", () => {
 
 		it("should return 400 when exceeding max reorder items (200)", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const orders = Array.from({ length: 201 }, (_, i) => ({
 				id: i + 1,
 				displayOrder: i,
@@ -1056,7 +952,7 @@ describe("admin forum handlers", () => {
 			const res = await reorder(
 				new Request("https://api.example.com/api/admin/forums/reorder", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ orders }),
 				}),
 				adminEnv(db),
@@ -1069,11 +965,10 @@ describe("admin forum handlers", () => {
 
 		it("should return 400 for malformed JSON", async () => {
 			const { db } = createMockDb();
-			const token = await createJwtForRole(1);
 			const res = await reorder(
 				new Request("https://api.example.com/api/admin/forums/reorder", {
 					method: "POST",
-					headers: { Authorization: `Bearer ${token}` },
+					headers: { "Content-Type": "application/json" },
 					body: "not json",
 				}),
 				adminEnv(db),

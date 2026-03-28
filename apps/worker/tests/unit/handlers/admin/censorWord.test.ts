@@ -8,7 +8,7 @@ import {
 	test as testEndpoint,
 	update,
 } from "../../../../src/handlers/admin/censorWord";
-import { createAdminRequest, createJwtForRole, createMockDb, makeEnv } from "../../../helpers";
+import { createAdminRequest, createMockDb, makeEnv } from "../../../helpers";
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -29,28 +29,6 @@ function makeCensorWordRow(overrides?: Record<string, unknown>) {
 
 describe("admin censorWord handlers", () => {
 	describe("list", () => {
-		it("should require auth", async () => {
-			const { db } = createMockDb({});
-			const env = makeEnv({ DB: db });
-
-			const response = await list(
-				new Request("https://api.example.com/api/admin/censor-words"),
-				env,
-			);
-
-			expect(response.status).toBe(401);
-		});
-
-		it("should reject non-admin users", async () => {
-			const { db } = createMockDb({});
-			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/censor-words", undefined, 0);
-
-			const response = await list(request, env);
-
-			expect(response.status).toBe(403);
-		});
-
 		it("should return paginated results", async () => {
 			const rows = [makeCensorWordRow({ id: 1 }), makeCensorWordRow({ id: 2, find: "evilword" })];
 			const { db } = createMockDb({
@@ -58,7 +36,7 @@ describe("admin censorWord handlers", () => {
 				allResults: { "SELECT * FROM censor_words": rows },
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/censor-words");
+			const request = createAdminRequest("GET", "/api/admin/censor-words");
 
 			const response = await list(request, env);
 
@@ -75,7 +53,7 @@ describe("admin censorWord handlers", () => {
 				allResults: { "SELECT * FROM censor_words": [makeCensorWordRow()] },
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/censor-words?find=bad");
+			const request = createAdminRequest("GET", "/api/admin/censor-words?find=bad");
 
 			const response = await list(request, env);
 
@@ -91,7 +69,7 @@ describe("admin censorWord handlers", () => {
 				allResults: { "SELECT * FROM censor_words": [makeCensorWordRow()] },
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/censor-words?action=replace");
+			const request = createAdminRequest("GET", "/api/admin/censor-words?action=replace");
 
 			const response = await list(request, env);
 
@@ -111,7 +89,7 @@ describe("admin censorWord handlers", () => {
 				firstResults: { "SELECT * FROM censor_words WHERE id": row },
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/censor-words/5");
+			const request = createAdminRequest("GET", "/api/admin/censor-words/5");
 
 			const response = await getById(request, env);
 
@@ -125,7 +103,7 @@ describe("admin censorWord handlers", () => {
 		it("should return 404 for non-existent word", async () => {
 			const { db } = createMockDb({});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("GET", "/api/admin/censor-words/999");
+			const request = createAdminRequest("GET", "/api/admin/censor-words/999");
 
 			const response = await getById(request, env);
 
@@ -141,12 +119,11 @@ describe("admin censorWord handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT id FROM censor_words WHERE find": null, // no duplicate
-					"SELECT username FROM users WHERE id": { username: "admin" },
 					"SELECT * FROM censor_words WHERE id": row, // re-fetch after INSERT
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("POST", "/api/admin/censor-words", {
+			const request = createAdminRequest("POST", "/api/admin/censor-words", {
 				find: "badword",
 				replacement: "***",
 				action: "replace",
@@ -164,7 +141,7 @@ describe("admin censorWord handlers", () => {
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("POST", "/api/admin/censor-words", {
+			const request = createAdminRequest("POST", "/api/admin/censor-words", {
 				find: "badword",
 			});
 
@@ -183,13 +160,11 @@ describe("admin censorWord handlers", () => {
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const token = await createJwtForRole(1);
 			const response = await create(
 				new Request("https://api.example.com/api/admin/censor-words", {
 					method: "POST",
 					headers: {
 						"X-API-Key": "test-api-key",
-						Authorization: `Bearer ${token}`,
 						"Content-Type": "application/json",
 						Origin: "http://localhost:3000",
 					},
@@ -206,11 +181,10 @@ describe("admin censorWord handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT id FROM censor_words WHERE find": null,
-					"SELECT username FROM users WHERE id": { username: "admin" },
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("POST", "/api/admin/censor-words", {
+			const request = createAdminRequest("POST", "/api/admin/censor-words", {
 				find: "/[invalid(/",
 				action: "replace",
 			});
@@ -223,17 +197,16 @@ describe("admin censorWord handlers", () => {
 			expect(error.code).toBe("CENSOR_WORD_INVALID");
 		});
 
-		it("should auto-fill admin_id and admin_name", async () => {
-			const row = makeCensorWordRow({ find: "newword", admin_name: "superadmin" });
+		it("should auto-fill admin_id and admin_name as System", async () => {
+			const row = makeCensorWordRow({ find: "newword", admin_name: "System" });
 			const { db, calls } = createMockDb({
 				firstResults: {
 					"SELECT id FROM censor_words WHERE find": null,
-					"SELECT username FROM users WHERE id": { username: "superadmin" },
 					"SELECT * FROM censor_words WHERE id": row,
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("POST", "/api/admin/censor-words", {
+			const request = createAdminRequest("POST", "/api/admin/censor-words", {
 				find: "newword",
 				action: "replace",
 			});
@@ -243,7 +216,7 @@ describe("admin censorWord handlers", () => {
 			expect(response.status).toBe(201);
 			const insertCall = calls.find((c) => c.sql.includes("INSERT"));
 			expect(insertCall).toBeDefined();
-			expect(insertCall?.params).toContain("superadmin");
+			expect(insertCall?.params).toContain("System");
 		});
 
 		it("should clear replacement when action is ban", async () => {
@@ -251,12 +224,11 @@ describe("admin censorWord handlers", () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
 					"SELECT id FROM censor_words WHERE find": null,
-					"SELECT username FROM users WHERE id": { username: "admin" },
 					"SELECT * FROM censor_words WHERE id": row,
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("POST", "/api/admin/censor-words", {
+			const request = createAdminRequest("POST", "/api/admin/censor-words", {
 				find: "banme",
 				replacement: "should-be-cleared",
 				action: "ban",
@@ -285,7 +257,7 @@ describe("admin censorWord handlers", () => {
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("PATCH", "/api/admin/censor-words/3", {
+			const request = createAdminRequest("PATCH", "/api/admin/censor-words/3", {
 				replacement: "****",
 				action: "replace",
 			});
@@ -304,7 +276,7 @@ describe("admin censorWord handlers", () => {
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("PATCH", "/api/admin/censor-words/3", {
+			const request = createAdminRequest("PATCH", "/api/admin/censor-words/3", {
 				find: "/[broken(/",
 			});
 
@@ -325,7 +297,7 @@ describe("admin censorWord handlers", () => {
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("PATCH", "/api/admin/censor-words/3", {
+			const request = createAdminRequest("PATCH", "/api/admin/censor-words/3", {
 				find: "existing",
 			});
 
@@ -345,7 +317,7 @@ describe("admin censorWord handlers", () => {
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("PATCH", "/api/admin/censor-words/3", {
+			const request = createAdminRequest("PATCH", "/api/admin/censor-words/3", {
 				action: "ban",
 			});
 
@@ -367,7 +339,7 @@ describe("admin censorWord handlers", () => {
 				firstResults: { "SELECT * FROM censor_words WHERE id": makeCensorWordRow({ id: 7 }) },
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("DELETE", "/api/admin/censor-words/7");
+			const request = createAdminRequest("DELETE", "/api/admin/censor-words/7");
 
 			const response = await remove(request, env);
 
@@ -381,7 +353,7 @@ describe("admin censorWord handlers", () => {
 		it("should return 404 for non-existent word", async () => {
 			const { db } = createMockDb({});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("DELETE", "/api/admin/censor-words/999");
+			const request = createAdminRequest("DELETE", "/api/admin/censor-words/999");
 
 			const response = await remove(request, env);
 
@@ -397,7 +369,7 @@ describe("admin censorWord handlers", () => {
 				firstResults: { "SELECT * FROM censor_words WHERE id": makeCensorWordRow() },
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("POST", "/api/admin/censor-words/batch-delete", {
+			const request = createAdminRequest("POST", "/api/admin/censor-words/batch-delete", {
 				ids: [1, 2, 3],
 			});
 
@@ -412,7 +384,7 @@ describe("admin censorWord handlers", () => {
 		it("should reject empty ids array", async () => {
 			const { db } = createMockDb({});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("POST", "/api/admin/censor-words/batch-delete", {
+			const request = createAdminRequest("POST", "/api/admin/censor-words/batch-delete", {
 				ids: [],
 			});
 
@@ -434,7 +406,7 @@ describe("admin censorWord handlers", () => {
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("POST", "/api/admin/censor-words/test", {
+			const request = createAdminRequest("POST", "/api/admin/censor-words/test", {
 				content: "this contains a badword in it",
 			});
 
@@ -458,7 +430,7 @@ describe("admin censorWord handlers", () => {
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("POST", "/api/admin/censor-words/test", {
+			const request = createAdminRequest("POST", "/api/admin/censor-words/test", {
 				content: "this is clean content",
 			});
 
@@ -473,7 +445,7 @@ describe("admin censorWord handlers", () => {
 		it("should require non-empty content string", async () => {
 			const { db } = createMockDb({});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("POST", "/api/admin/censor-words/test", {
+			const request = createAdminRequest("POST", "/api/admin/censor-words/test", {
 				content: "",
 			});
 
@@ -488,7 +460,7 @@ describe("admin censorWord handlers", () => {
 		it("should reject missing content field", async () => {
 			const { db } = createMockDb({});
 			const env = makeEnv({ DB: db });
-			const request = await createAdminRequest("POST", "/api/admin/censor-words/test", {});
+			const request = createAdminRequest("POST", "/api/admin/censor-words/test", {});
 
 			const response = await testEndpoint(request, env);
 

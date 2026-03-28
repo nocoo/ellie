@@ -8,7 +8,6 @@ import {
 	createRemoveHandler,
 	createUpdateHandler,
 } from "../../../src/lib/crud";
-import type { AuthUser } from "../../../src/middleware/auth";
 import { createMockDb, makeEnv } from "../../helpers";
 
 // ─── Test fixtures ─────────────────────────────────────────
@@ -56,8 +55,6 @@ function makeTestConfig(overrides?: Partial<EntityConfig>): EntityConfig {
 	};
 }
 
-const testUser: AuthUser = { userId: 1, role: 3 };
-
 const testRow = { id: 1, name: "Item One", some_value: 42 };
 
 function makeRequest(path: string, opts?: RequestInit): Request {
@@ -83,7 +80,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig());
 
-		const res = await handler(makeRequest("/api/admin/test-items"), env, testUser);
+		const res = await handler(makeRequest("/api/admin/test-items"), env);
 		const body = await res.json();
 
 		expect(res.status).toBe(200);
@@ -101,7 +98,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig());
 
-		const res = await handler(makeRequest("/api/admin/test-items?page=3&limit=10"), env, testUser);
+		const res = await handler(makeRequest("/api/admin/test-items?page=3&limit=10"), env);
 		const body = await res.json();
 
 		expect(res.status).toBe(200);
@@ -122,7 +119,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig());
 
-		const res = await handler(makeRequest("/api/admin/test-items?page=1&limit=999"), env, testUser);
+		const res = await handler(makeRequest("/api/admin/test-items?page=1&limit=999"), env);
 		const body = await res.json();
 
 		expect(body.meta.limit).toBe(100);
@@ -136,7 +133,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig());
 
-		const res = await handler(makeRequest("/api/admin/test-items?page=1&limit=0"), env, testUser);
+		const res = await handler(makeRequest("/api/admin/test-items?page=1&limit=0"), env);
 		const body = await res.json();
 
 		expect(body.meta.limit).toBe(1);
@@ -147,7 +144,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig());
 
-		const res = await handler(makeRequest("/api/admin/test-items?page=0"), env, testUser);
+		const res = await handler(makeRequest("/api/admin/test-items?page=0"), env);
 
 		expect(res.status).toBe(400);
 		const body = await res.json();
@@ -159,7 +156,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig());
 
-		const res = await handler(makeRequest("/api/admin/test-items?page=abc"), env, testUser);
+		const res = await handler(makeRequest("/api/admin/test-items?page=abc"), env);
 
 		expect(res.status).toBe(400);
 		const body = await res.json();
@@ -173,7 +170,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig({ listPaginated: false }));
 
-		const res = await handler(makeRequest("/api/admin/test-items"), env, testUser);
+		const res = await handler(makeRequest("/api/admin/test-items"), env);
 		const body = await res.json();
 
 		expect(res.status).toBe(200);
@@ -191,7 +188,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig());
 
-		const res = await handler(makeRequest("/api/admin/test-items"), env, testUser);
+		const res = await handler(makeRequest("/api/admin/test-items"), env);
 		const body = await res.json();
 
 		expect(body.data).toEqual([]);
@@ -206,7 +203,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig());
 
-		await handler(makeRequest("/api/admin/test-items?name=foo"), env, testUser);
+		await handler(makeRequest("/api/admin/test-items?name=foo"), env);
 
 		const countCall = calls.find((c) => c.sql.includes("COUNT"));
 		expect(countCall?.sql).toContain("WHERE name LIKE ?");
@@ -221,7 +218,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig());
 
-		await handler(makeRequest("/api/admin/test-items?status=2"), env, testUser);
+		await handler(makeRequest("/api/admin/test-items?status=2"), env);
 
 		const countCall = calls.find((c) => c.sql.includes("COUNT"));
 		expect(countCall?.sql).toContain("WHERE status = ?");
@@ -236,7 +233,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig());
 
-		await handler(makeRequest("/api/admin/test-items?status=abc"), env, testUser);
+		await handler(makeRequest("/api/admin/test-items?status=abc"), env);
 
 		const countCall = calls.find((c) => c.sql.includes("COUNT"));
 		expect(countCall?.sql).not.toContain("WHERE");
@@ -250,7 +247,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig());
 
-		await handler(makeRequest("/api/admin/test-items?active=true"), env, testUser);
+		await handler(makeRequest("/api/admin/test-items?active=true"), env);
 
 		const countCall = calls.find((c) => c.sql.includes("COUNT"));
 		expect(countCall?.sql).toContain("WHERE active = 1");
@@ -264,7 +261,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig());
 
-		await handler(makeRequest("/api/admin/test-items?active=1"), env, testUser);
+		await handler(makeRequest("/api/admin/test-items?active=1"), env);
 
 		const countCall = calls.find((c) => c.sql.includes("COUNT"));
 		expect(countCall?.sql).toContain("WHERE active = 1");
@@ -278,7 +275,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig());
 
-		await handler(makeRequest("/api/admin/test-items?active=false"), env, testUser);
+		await handler(makeRequest("/api/admin/test-items?active=false"), env);
 
 		const countCall = calls.find((c) => c.sql.includes("COUNT"));
 		expect(countCall?.sql).toContain("WHERE active = 0");
@@ -292,7 +289,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig());
 
-		await handler(makeRequest("/api/admin/test-items?active=0"), env, testUser);
+		await handler(makeRequest("/api/admin/test-items?active=0"), env);
 
 		const countCall = calls.find((c) => c.sql.includes("COUNT"));
 		expect(countCall?.sql).toContain("WHERE active = 0");
@@ -306,7 +303,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig());
 
-		await handler(makeRequest("/api/admin/test-items?active=maybe"), env, testUser);
+		await handler(makeRequest("/api/admin/test-items?active=maybe"), env);
 
 		const countCall = calls.find((c) => c.sql.includes("COUNT"));
 		expect(countCall?.sql).not.toContain("WHERE");
@@ -320,7 +317,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig());
 
-		await handler(makeRequest("/api/admin/test-items?name="), env, testUser);
+		await handler(makeRequest("/api/admin/test-items?name="), env);
 
 		const countCall = calls.find((c) => c.sql.includes("COUNT"));
 		expect(countCall?.sql).not.toContain("WHERE");
@@ -334,7 +331,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig());
 
-		await handler(makeRequest("/api/admin/test-items?name=foo&status=1"), env, testUser);
+		await handler(makeRequest("/api/admin/test-items?name=foo&status=1"), env);
 
 		const countCall = calls.find((c) => c.sql.includes("COUNT"));
 		expect(countCall?.sql).toContain("WHERE name LIKE ? AND status = ?");
@@ -348,7 +345,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig({ listSort: "name ASC" }));
 
-		await handler(makeRequest("/api/admin/test-items"), env, testUser);
+		await handler(makeRequest("/api/admin/test-items"), env);
 
 		const selectCall = calls.find((c) => c.sql.includes("ORDER BY"));
 		expect(selectCall?.sql).toContain("ORDER BY name ASC");
@@ -362,7 +359,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig());
 
-		await handler(makeRequest("/api/admin/test-items"), env, testUser);
+		await handler(makeRequest("/api/admin/test-items"), env);
 
 		const selectCall = calls.find((c) => c.sql.includes("ORDER BY"));
 		expect(selectCall?.sql).toContain("ORDER BY id DESC");
@@ -379,7 +376,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(config);
 
-		await handler(makeRequest("/api/admin/test-items?code=ABC"), env, testUser);
+		await handler(makeRequest("/api/admin/test-items?code=ABC"), env);
 
 		const countCall = calls.find((c) => c.sql.includes("COUNT"));
 		expect(countCall?.sql).toContain("WHERE code = ?");
@@ -395,7 +392,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(config);
 
-		const res = await handler(makeRequest("/api/admin/test-items"), env, testUser);
+		const res = await handler(makeRequest("/api/admin/test-items"), env);
 		expect(res.status).toBe(200);
 	});
 
@@ -407,7 +404,7 @@ describe("createListHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createListHandler(makeTestConfig());
 
-		const res = await handler(makeRequest("/api/admin/test-items"), env, testUser);
+		const res = await handler(makeRequest("/api/admin/test-items"), env);
 		const body = await res.json();
 
 		expect(body.meta.total).toBe(0);
@@ -424,7 +421,7 @@ describe("createListHandler", () => {
 		const req = new Request("https://api.example.com/api/admin/test-items", {
 			headers: { Origin: "http://localhost:3000" },
 		});
-		const res = await handler(req, env, testUser);
+		const res = await handler(req, env);
 
 		expect(res.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
 	});
@@ -440,7 +437,7 @@ describe("createGetByIdHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createGetByIdHandler(makeTestConfig());
 
-		const res = await handler(makeRequest("/api/admin/test-items/1"), env, testUser);
+		const res = await handler(makeRequest("/api/admin/test-items/1"), env);
 		const body = await res.json();
 
 		expect(res.status).toBe(200);
@@ -452,7 +449,7 @@ describe("createGetByIdHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createGetByIdHandler(makeTestConfig());
 
-		const res = await handler(makeRequest("/api/admin/test-items/999"), env, testUser);
+		const res = await handler(makeRequest("/api/admin/test-items/999"), env);
 
 		expect(res.status).toBe(404);
 		const body = await res.json();
@@ -464,7 +461,7 @@ describe("createGetByIdHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createGetByIdHandler(makeTestConfig({ notFoundCode: undefined }));
 
-		const res = await handler(makeRequest("/api/admin/test-items/999"), env, testUser);
+		const res = await handler(makeRequest("/api/admin/test-items/999"), env);
 
 		expect(res.status).toBe(404);
 		const body = await res.json();
@@ -476,7 +473,7 @@ describe("createGetByIdHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createGetByIdHandler(makeTestConfig());
 
-		const res = await handler(makeRequest("/api/admin/test-items/abc"), env, testUser);
+		const res = await handler(makeRequest("/api/admin/test-items/abc"), env);
 
 		expect(res.status).toBe(400);
 		const body = await res.json();
@@ -507,7 +504,6 @@ describe("createCreateHandler", () => {
 		const res = await handler(
 			makeJsonRequest("/api/admin/test-items", { name: "New Item", value: 5 }),
 			env,
-			testUser,
 		);
 		const body = await res.json();
 
@@ -531,7 +527,7 @@ describe("createCreateHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createCreateHandler(makeTestConfig());
 
-		await handler(makeJsonRequest("/api/admin/test-items", { name: "Defaults" }), env, testUser);
+		await handler(makeJsonRequest("/api/admin/test-items", { name: "Defaults" }), env);
 
 		const insertCall = calls.find((c) => c.sql.includes("INSERT"));
 		expect(insertCall).toBeDefined();
@@ -544,11 +540,7 @@ describe("createCreateHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createCreateHandler(makeTestConfig());
 
-		const res = await handler(
-			makeJsonRequest("/api/admin/test-items", { value: 5 }),
-			env,
-			testUser,
-		);
+		const res = await handler(makeJsonRequest("/api/admin/test-items", { value: 5 }), env);
 
 		expect(res.status).toBe(400);
 		const body = await res.json();
@@ -564,7 +556,6 @@ describe("createCreateHandler", () => {
 		const res = await handler(
 			makeJsonRequest("/api/admin/test-items", { name: "", value: 5 }),
 			env,
-			testUser,
 		);
 
 		expect(res.status).toBe(400);
@@ -580,7 +571,6 @@ describe("createCreateHandler", () => {
 		const res = await handler(
 			makeJsonRequest("/api/admin/test-items", { name: null, value: 5 }),
 			env,
-			testUser,
 		);
 
 		expect(res.status).toBe(400);
@@ -593,11 +583,7 @@ describe("createCreateHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createCreateHandler(makeTestConfig());
 
-		const res = await handler(
-			makeJsonRequest("/api/admin/test-items", { name: 12345 }),
-			env,
-			testUser,
-		);
+		const res = await handler(makeJsonRequest("/api/admin/test-items", { name: 12345 }), env);
 
 		expect(res.status).toBe(400);
 		const body = await res.json();
@@ -615,7 +601,7 @@ describe("createCreateHandler", () => {
 			headers: { "Content-Type": "application/json" },
 			body: "not-json{{{",
 		});
-		const res = await handler(req, env, testUser);
+		const res = await handler(req, env);
 
 		expect(res.status).toBe(400);
 		const body = await res.json();
@@ -628,11 +614,7 @@ describe("createCreateHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createCreateHandler(makeTestConfig({ createFields: undefined }));
 
-		const res = await handler(
-			makeJsonRequest("/api/admin/test-items", { name: "Test" }),
-			env,
-			testUser,
-		);
+		const res = await handler(makeJsonRequest("/api/admin/test-items", { name: "Test" }), env);
 
 		expect(res.status).toBe(500);
 		const body = await res.json();
@@ -649,11 +631,7 @@ describe("createCreateHandler", () => {
 		});
 		const handler = createCreateHandler(makeTestConfig({ beforeCreate }));
 
-		const res = await handler(
-			makeJsonRequest("/api/admin/test-items", { name: "Test" }),
-			env,
-			testUser,
-		);
+		const res = await handler(makeJsonRequest("/api/admin/test-items", { name: "Test" }), env);
 
 		expect(res.status).toBe(403);
 		expect(beforeCreate).toHaveBeenCalledTimes(1);
@@ -676,17 +654,13 @@ describe("createCreateHandler", () => {
 		const beforeCreate = mock(async () => undefined);
 		const handler = createCreateHandler(makeTestConfig({ beforeCreate }));
 
-		const res = await handler(
-			makeJsonRequest("/api/admin/test-items", { name: "Hooked" }),
-			env,
-			testUser,
-		);
+		const res = await handler(makeJsonRequest("/api/admin/test-items", { name: "Hooked" }), env);
 
 		expect(res.status).toBe(201);
 		expect(beforeCreate).toHaveBeenCalledTimes(1);
 	});
 
-	it("should call afterCreate hook with new id, data, user, env", async () => {
+	it("should call afterCreate hook with new id, data, env", async () => {
 		const afterCreate = mock(async () => {});
 		const { db } = createMockDb({
 			runResults: {
@@ -703,17 +677,12 @@ describe("createCreateHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createCreateHandler(makeTestConfig({ afterCreate }));
 
-		await handler(
-			makeJsonRequest("/api/admin/test-items", { name: "After", value: 7 }),
-			env,
-			testUser,
-		);
+		await handler(makeJsonRequest("/api/admin/test-items", { name: "After", value: 7 }), env);
 
 		expect(afterCreate).toHaveBeenCalledTimes(1);
-		const [id, data, user, envArg] = afterCreate.mock.calls[0];
+		const [id, data, envArg] = afterCreate.mock.calls[0];
 		expect(id).toBe(30);
 		expect(data).toEqual({ name: "After", some_value: 7 });
-		expect(user).toBe(testUser);
 		expect(envArg).toBe(env);
 	});
 
@@ -734,7 +703,7 @@ describe("createCreateHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createCreateHandler(makeTestConfig({ afterCreate }));
 
-		await handler(makeJsonRequest("/api/admin/test-items", { name: "Zero" }), env, testUser);
+		await handler(makeJsonRequest("/api/admin/test-items", { name: "Zero" }), env);
 
 		expect(afterCreate).not.toHaveBeenCalled();
 	});
@@ -760,7 +729,6 @@ describe("createUpdateHandler", () => {
 		const res = await handler(
 			makeJsonRequest("/api/admin/test-items/1", { name: "Updated" }, "PATCH"),
 			env,
-			testUser,
 		);
 		const body = await res.json();
 
@@ -776,7 +744,6 @@ describe("createUpdateHandler", () => {
 		const res = await handler(
 			makeJsonRequest("/api/admin/test-items/999", { name: "Nope" }, "PATCH"),
 			env,
-			testUser,
 		);
 
 		expect(res.status).toBe(404);
@@ -793,11 +760,7 @@ describe("createUpdateHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createUpdateHandler(makeTestConfig());
 
-		const res = await handler(
-			makeJsonRequest("/api/admin/test-items/1", {}, "PATCH"),
-			env,
-			testUser,
-		);
+		const res = await handler(makeJsonRequest("/api/admin/test-items/1", {}, "PATCH"), env);
 
 		expect(res.status).toBe(400);
 		const body = await res.json();
@@ -817,7 +780,6 @@ describe("createUpdateHandler", () => {
 		const res = await handler(
 			makeJsonRequest("/api/admin/test-items/1", { name: 999 }, "PATCH"),
 			env,
-			testUser,
 		);
 
 		expect(res.status).toBe(400);
@@ -833,7 +795,6 @@ describe("createUpdateHandler", () => {
 		const res = await handler(
 			makeJsonRequest("/api/admin/test-items/abc", { name: "X" }, "PATCH"),
 			env,
-			testUser,
 		);
 
 		expect(res.status).toBe(400);
@@ -851,7 +812,7 @@ describe("createUpdateHandler", () => {
 			headers: { "Content-Type": "application/json" },
 			body: "bad{json",
 		});
-		const res = await handler(req, env, testUser);
+		const res = await handler(req, env);
 
 		expect(res.status).toBe(400);
 		const body = await res.json();
@@ -866,7 +827,6 @@ describe("createUpdateHandler", () => {
 		const res = await handler(
 			makeJsonRequest("/api/admin/test-items/1", { name: "X" }, "PATCH"),
 			env,
-			testUser,
 		);
 
 		expect(res.status).toBe(500);
@@ -891,16 +851,14 @@ describe("createUpdateHandler", () => {
 		const res = await handler(
 			makeJsonRequest("/api/admin/test-items/1", { name: "New" }, "PATCH"),
 			env,
-			testUser,
 		);
 
 		expect(res.status).toBe(409);
 		expect(beforeUpdate).toHaveBeenCalledTimes(1);
-		const [id, data, existing, user, envArg] = beforeUpdate.mock.calls[0];
+		const [id, data, existing, envArg] = beforeUpdate.mock.calls[0];
 		expect(id).toBe(1);
 		expect(data).toEqual({ name: "New" });
 		expect(existing).toEqual({ id: 1, name: "Old", some_value: 10 });
-		expect(user).toBe(testUser);
 		expect(envArg).toBe(env);
 	});
 
@@ -922,7 +880,6 @@ describe("createUpdateHandler", () => {
 		const res = await handler(
 			makeJsonRequest("/api/admin/test-items/1", { name: "Updated" }, "PATCH"),
 			env,
-			testUser,
 		);
 
 		expect(res.status).toBe(200);
@@ -943,18 +900,13 @@ describe("createUpdateHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createUpdateHandler(makeTestConfig({ afterUpdate }));
 
-		await handler(
-			makeJsonRequest("/api/admin/test-items/1", { name: "New" }, "PATCH"),
-			env,
-			testUser,
-		);
+		await handler(makeJsonRequest("/api/admin/test-items/1", { name: "New" }, "PATCH"), env);
 
 		expect(afterUpdate).toHaveBeenCalledTimes(1);
-		const [id, data, existing, user, envArg] = afterUpdate.mock.calls[0];
+		const [id, data, existing, envArg] = afterUpdate.mock.calls[0];
 		expect(id).toBe(1);
 		expect(data).toEqual({ name: "New" });
 		expect(existing).toEqual({ id: 1, name: "Old", some_value: 10 });
-		expect(user).toBe(testUser);
 		expect(envArg).toBe(env);
 	});
 });
@@ -971,11 +923,7 @@ describe("createRemoveHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createRemoveHandler(makeTestConfig());
 
-		const res = await handler(
-			makeRequest("/api/admin/test-items/1", { method: "DELETE" }),
-			env,
-			testUser,
-		);
+		const res = await handler(makeRequest("/api/admin/test-items/1", { method: "DELETE" }), env);
 		const body = await res.json();
 
 		expect(res.status).toBe(200);
@@ -987,11 +935,7 @@ describe("createRemoveHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createRemoveHandler(makeTestConfig());
 
-		const res = await handler(
-			makeRequest("/api/admin/test-items/999", { method: "DELETE" }),
-			env,
-			testUser,
-		);
+		const res = await handler(makeRequest("/api/admin/test-items/999", { method: "DELETE" }), env);
 
 		expect(res.status).toBe(404);
 		const body = await res.json();
@@ -1003,11 +947,7 @@ describe("createRemoveHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createRemoveHandler(makeTestConfig());
 
-		const res = await handler(
-			makeRequest("/api/admin/test-items/abc", { method: "DELETE" }),
-			env,
-			testUser,
-		);
+		const res = await handler(makeRequest("/api/admin/test-items/abc", { method: "DELETE" }), env);
 
 		expect(res.status).toBe(400);
 		const body = await res.json();
@@ -1019,11 +959,7 @@ describe("createRemoveHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createRemoveHandler(makeTestConfig({ canDelete: false }));
 
-		const res = await handler(
-			makeRequest("/api/admin/test-items/1", { method: "DELETE" }),
-			env,
-			testUser,
-		);
+		const res = await handler(makeRequest("/api/admin/test-items/1", { method: "DELETE" }), env);
 
 		expect(res.status).toBe(403);
 		const body = await res.json();
@@ -1046,11 +982,7 @@ describe("createRemoveHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createRemoveHandler(makeTestConfig({ beforeDelete }));
 
-		const res = await handler(
-			makeRequest("/api/admin/test-items/1", { method: "DELETE" }),
-			env,
-			testUser,
-		);
+		const res = await handler(makeRequest("/api/admin/test-items/1", { method: "DELETE" }), env);
 
 		expect(res.status).toBe(409);
 		expect(beforeDelete).toHaveBeenCalledTimes(1);
@@ -1066,11 +998,7 @@ describe("createRemoveHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createRemoveHandler(makeTestConfig({ beforeDelete }));
 
-		const res = await handler(
-			makeRequest("/api/admin/test-items/1", { method: "DELETE" }),
-			env,
-			testUser,
-		);
+		const res = await handler(makeRequest("/api/admin/test-items/1", { method: "DELETE" }), env);
 
 		expect(res.status).toBe(200);
 		expect(beforeDelete).toHaveBeenCalledTimes(1);
@@ -1087,13 +1015,12 @@ describe("createRemoveHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createRemoveHandler(makeTestConfig({ afterDelete }));
 
-		await handler(makeRequest("/api/admin/test-items/1", { method: "DELETE" }), env, testUser);
+		await handler(makeRequest("/api/admin/test-items/1", { method: "DELETE" }), env);
 
 		expect(afterDelete).toHaveBeenCalledTimes(1);
-		const [id, existingArg, user, envArg] = afterDelete.mock.calls[0];
+		const [id, existingArg, envArg] = afterDelete.mock.calls[0];
 		expect(id).toBe(1);
 		expect(existingArg).toEqual(existing);
-		expect(user).toBe(testUser);
 		expect(envArg).toBe(env);
 	});
 
@@ -1102,11 +1029,7 @@ describe("createRemoveHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createRemoveHandler(makeTestConfig({ notFoundCode: undefined }));
 
-		const res = await handler(
-			makeRequest("/api/admin/test-items/999", { method: "DELETE" }),
-			env,
-			testUser,
-		);
+		const res = await handler(makeRequest("/api/admin/test-items/999", { method: "DELETE" }), env);
 
 		expect(res.status).toBe(404);
 		const body = await res.json();
@@ -1129,7 +1052,6 @@ describe("createBatchDeleteHandler", () => {
 		const res = await handler(
 			makeJsonRequest("/api/admin/test-items/batch-delete", { ids: [1, 2, 3] }),
 			env,
-			testUser,
 		);
 		const body = await res.json();
 
@@ -1146,7 +1068,6 @@ describe("createBatchDeleteHandler", () => {
 		const res = await handler(
 			makeJsonRequest("/api/admin/test-items/batch-delete", { ids: [] }),
 			env,
-			testUser,
 		);
 
 		expect(res.status).toBe(400);
@@ -1163,7 +1084,6 @@ describe("createBatchDeleteHandler", () => {
 		const res = await handler(
 			makeJsonRequest("/api/admin/test-items/batch-delete", { ids: "not-array" }),
 			env,
-			testUser,
 		);
 
 		expect(res.status).toBe(400);
@@ -1176,11 +1096,7 @@ describe("createBatchDeleteHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createBatchDeleteHandler(makeTestConfig());
 
-		const res = await handler(
-			makeJsonRequest("/api/admin/test-items/batch-delete", {}),
-			env,
-			testUser,
-		);
+		const res = await handler(makeJsonRequest("/api/admin/test-items/batch-delete", {}), env);
 
 		expect(res.status).toBe(400);
 		const body = await res.json();
@@ -1195,7 +1111,6 @@ describe("createBatchDeleteHandler", () => {
 		const res = await handler(
 			makeJsonRequest("/api/admin/test-items/batch-delete", { ids: [1, 2, 3, 4, 5, 6] }),
 			env,
-			testUser,
 		);
 
 		expect(res.status).toBe(400);
@@ -1217,7 +1132,6 @@ describe("createBatchDeleteHandler", () => {
 		const res = await handler(
 			makeJsonRequest("/api/admin/test-items/batch-delete", { ids: [1, 2, 3, 4, 5, 6] }),
 			env,
-			testUser,
 		);
 
 		expect(res.status).toBe(200);
@@ -1231,7 +1145,6 @@ describe("createBatchDeleteHandler", () => {
 		const res = await handler(
 			makeJsonRequest("/api/admin/test-items/batch-delete", { ids: ["abc", "def", "xyz"] }),
 			env,
-			testUser,
 		);
 
 		expect(res.status).toBe(400);
@@ -1252,7 +1165,6 @@ describe("createBatchDeleteHandler", () => {
 		const res = await handler(
 			makeJsonRequest("/api/admin/test-items/batch-delete", { ids: [1, "abc", 3] }),
 			env,
-			testUser,
 		);
 		const body = await res.json();
 
@@ -1292,7 +1204,6 @@ describe("createBatchDeleteHandler", () => {
 		const res = await handler(
 			makeJsonRequest("/api/admin/test-items/batch-delete", { ids: [1, 2] }),
 			env,
-			testUser,
 		);
 		const body = await res.json();
 
@@ -1321,7 +1232,6 @@ describe("createBatchDeleteHandler", () => {
 		const res = await handler(
 			makeJsonRequest("/api/admin/test-items/batch-delete", { ids: [1, 2, 3] }),
 			env,
-			testUser,
 		);
 		const body = await res.json();
 
@@ -1341,11 +1251,7 @@ describe("createBatchDeleteHandler", () => {
 		const env = makeEnv({ DB: db });
 		const handler = createBatchDeleteHandler(makeTestConfig({ afterDelete }));
 
-		await handler(
-			makeJsonRequest("/api/admin/test-items/batch-delete", { ids: [1, 2] }),
-			env,
-			testUser,
-		);
+		await handler(makeJsonRequest("/api/admin/test-items/batch-delete", { ids: [1, 2] }), env);
 
 		expect(afterDelete).toHaveBeenCalledTimes(2);
 	});
@@ -1360,7 +1266,7 @@ describe("createBatchDeleteHandler", () => {
 			headers: { "Content-Type": "application/json" },
 			body: "not-json",
 		});
-		const res = await handler(req, env, testUser);
+		const res = await handler(req, env);
 
 		expect(res.status).toBe(400);
 		const body = await res.json();
@@ -1379,7 +1285,6 @@ describe("createBatchDeleteHandler", () => {
 		const res = await handler(
 			makeJsonRequest("/api/admin/test-items/batch-delete", { ids: ["1", "2"] }),
 			env,
-			testUser,
 		);
 
 		expect(res.status).toBe(200);

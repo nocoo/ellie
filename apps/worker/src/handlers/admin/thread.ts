@@ -15,7 +15,7 @@ import { parseIdFromPath } from "../../lib/parseId";
 import { recalcForumMetadata } from "../../lib/recalcMetadata";
 import { jsonResponse } from "../../lib/response";
 import { batchDecrementUserPosts, decrementUserThreads } from "../../lib/userCounters";
-import type { AuthUser } from "../../middleware/auth";
+
 import { errorResponse } from "../../middleware/error";
 
 // ─── Entity config ───────────────────────────────────────────────
@@ -101,7 +101,7 @@ const threadConfig: EntityConfig = {
 
 	// ─── Lifecycle hooks ─────────────────────────────────────────
 
-	async beforeUpdate(_id, data, _existing, _user, env, origin) {
+	async beforeUpdate(_id, data, _existing, env, origin) {
 		// Validate target forum exists when moving
 		if (data.forum_id !== undefined) {
 			const targetForum = await env.DB.prepare("SELECT id FROM forums WHERE id = ?")
@@ -114,7 +114,7 @@ const threadConfig: EntityConfig = {
 		return undefined;
 	},
 
-	async afterUpdate(id, data, existing, _user, env) {
+	async afterUpdate(id, data, existing, env) {
 		// Move side effects: update posts' forum_id and adjust forum counts
 		if (data.forum_id !== undefined && data.forum_id !== existing.forum_id) {
 			const oldForumId = existing.forum_id as number;
@@ -138,7 +138,7 @@ const threadConfig: EntityConfig = {
 		}
 	},
 
-	async afterDelete(id, existing, _user, env) {
+	async afterDelete(id, existing, env) {
 		const forumId = existing.forum_id as number;
 		const authorId = existing.author_id as number;
 
@@ -196,7 +196,7 @@ export const update = withEntityAuth(threadConfig, createUpdateHandler(threadCon
 
 export const remove = withEntityAuth(
 	threadConfig,
-	async (request: Request, env: Env, _user: AuthUser): Promise<Response> => {
+	async (request: Request, env: Env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 		const id = parseIdFromPath(request);
 		if (id === null) {
@@ -265,7 +265,7 @@ const MAX_BATCH_SIZE = 100;
 
 export const batchMove = withEntityAuth(
 	threadConfig,
-	async (request: Request, env: Env, _user: AuthUser): Promise<Response> => {
+	async (request: Request, env: Env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 
 		let body: Record<string, unknown>;

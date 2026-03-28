@@ -14,7 +14,7 @@ import {
 import type { Env } from "../../lib/env";
 import { toIpBan } from "../../lib/mappers";
 import { jsonResponse, paginatedResponse } from "../../lib/response";
-import type { AuthUser } from "../../middleware/auth";
+
 import { errorResponse } from "../../middleware/error";
 
 // ─── Column list ──────────────────────────────────────────────────
@@ -95,7 +95,7 @@ const ipBanConfig: EntityConfig = {
 	batchLimit: 100,
 
 	// #49 beforeCreate: duplicate check, self-ban check, auto-fill admin fields
-	beforeCreate: async (data, user, env, origin) => {
+	beforeCreate: async (data, env, origin) => {
 		// Check duplicate IP
 		const existing = await env.DB.prepare("SELECT id FROM ip_bans WHERE ip = ?")
 			.bind(data.ip)
@@ -104,12 +104,9 @@ const ipBanConfig: EntityConfig = {
 			return errorResponse("IP_BAN_DUPLICATE", 409, undefined, origin);
 		}
 
-		// Auto-fill admin_id and admin_name
-		data.admin_id = user.userId;
-		const adminRow = await env.DB.prepare("SELECT username FROM users WHERE id = ?")
-			.bind(user.userId)
-			.first<{ username: string }>();
-		data.admin_name = adminRow?.username ?? "Unknown";
+		// Auto-fill admin fields (no user context in worker)
+		data.admin_id = 0;
+		data.admin_name = "System";
 
 		// Auto-fill created_at
 		data.created_at = Math.floor(Date.now() / 1000);
@@ -203,7 +200,7 @@ function ruleSpecificity(ruleIp: string): number {
 
 export const list = withEntityAuth(
 	ipBanConfig,
-	async (request: Request, env: Env, _user: AuthUser): Promise<Response> => {
+	async (request: Request, env: Env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 		const url = new URL(request.url);
 
@@ -267,7 +264,7 @@ const crudCreate = createCreateHandler(ipBanConfig);
 
 export const create = withEntityAuth(
 	ipBanConfig,
-	async (request: Request, env: Env, user: AuthUser): Promise<Response> => {
+	async (request: Request, env: Env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 
 		// Clone body to peek at the IP for self-ban check
@@ -288,7 +285,7 @@ export const create = withEntityAuth(
 			return errorResponse("IP_BAN_SELF", 400, undefined, origin);
 		}
 
-		return crudCreate(request, env, user);
+		return crudCreate(request, env);
 	},
 );
 
@@ -308,7 +305,7 @@ export const batchDelete = withEntityAuth(ipBanConfig, createBatchDeleteHandler(
 
 export const checkIp = withEntityAuth(
 	ipBanConfig,
-	async (request: Request, env: Env, _user: AuthUser): Promise<Response> => {
+	async (request: Request, env: Env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 		const url = new URL(request.url);
 

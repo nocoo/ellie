@@ -3,8 +3,6 @@ import { withEntityAuth } from "../../lib/adminHelpers";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { jsonResponse } from "../../lib/response";
-import type { AuthUser } from "../../middleware/auth";
-
 const statsConfig: EntityConfig = {
 	table: "",
 	entityName: "STATS",
@@ -13,7 +11,7 @@ const statsConfig: EntityConfig = {
 	mapper: (row) => row,
 };
 
-async function getStats(request: Request, env: Env, _user: AuthUser): Promise<Response> {
+async function getStats(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const todayUtc = Math.floor(Date.now() / 1000 / 86400) * 86400;
 
