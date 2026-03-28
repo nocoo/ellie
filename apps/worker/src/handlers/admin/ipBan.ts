@@ -95,13 +95,13 @@ const ipBanConfig: EntityConfig = {
 	batchLimit: 100,
 
 	// #49 beforeCreate: duplicate check, self-ban check, auto-fill admin fields
-	beforeCreate: async (data, user, env) => {
+	beforeCreate: async (data, user, env, origin) => {
 		// Check duplicate IP
 		const existing = await env.DB.prepare("SELECT id FROM ip_bans WHERE ip = ?")
 			.bind(data.ip)
 			.first();
 		if (existing) {
-			return errorResponse("IP_BAN_DUPLICATE", 409);
+			return errorResponse("IP_BAN_DUPLICATE", 409, undefined, origin);
 		}
 
 		// Auto-fill admin_id and admin_name

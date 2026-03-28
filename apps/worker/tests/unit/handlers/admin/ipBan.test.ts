@@ -184,6 +184,32 @@ describe("admin ipBan handlers", () => {
 			expect(error.code).toBe("IP_BAN_DUPLICATE");
 		});
 
+		it("should include CORS headers in beforeCreate hook error", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT id FROM ip_bans WHERE ip": { id: 1 },
+				},
+			});
+			const env = makeEnv({ DB: db });
+			const token = await createJwtForRole(1);
+			const response = await create(
+				new Request("https://api.example.com/api/admin/ip-bans", {
+					method: "POST",
+					headers: {
+						"X-API-Key": "test-api-key",
+						Authorization: `Bearer ${token}`,
+						"Content-Type": "application/json",
+						Origin: "http://localhost:3000",
+					},
+					body: JSON.stringify({ ip: "10.0.0.1" }),
+				}),
+				env,
+			);
+
+			expect(response.status).toBe(409);
+			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
+		});
+
 		it("should reject self-ban when CF-Connecting-IP matches", async () => {
 			const { db } = createMockDb({
 				firstResults: { "SELECT id FROM ip_bans WHERE ip": null },

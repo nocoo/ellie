@@ -69,12 +69,18 @@ export interface EntityConfig {
 	notFoundCode?: string;
 
 	// ─── Lifecycle hooks ───────────────────────────────────
-	beforeCreate?: (data: Record<string, unknown>, user: AuthUser, env: Env) => Promise<HookResult>;
+	beforeCreate?: (
+		data: Record<string, unknown>,
+		user: AuthUser,
+		env: Env,
+		origin?: string,
+	) => Promise<HookResult>;
 	afterCreate?: (
 		id: number,
 		data: Record<string, unknown>,
 		user: AuthUser,
 		env: Env,
+		origin?: string,
 	) => Promise<void>;
 	beforeUpdate?: (
 		id: number,
@@ -82,6 +88,7 @@ export interface EntityConfig {
 		existing: Record<string, unknown>,
 		user: AuthUser,
 		env: Env,
+		origin?: string,
 	) => Promise<HookResult>;
 	afterUpdate?: (
 		id: number,
@@ -89,18 +96,21 @@ export interface EntityConfig {
 		existing: Record<string, unknown>,
 		user: AuthUser,
 		env: Env,
+		origin?: string,
 	) => Promise<void>;
 	beforeDelete?: (
 		id: number,
 		existing: Record<string, unknown>,
 		user: AuthUser,
 		env: Env,
+		origin?: string,
 	) => Promise<HookResult>;
 	afterDelete?: (
 		id: number,
 		existing: Record<string, unknown>,
 		user: AuthUser,
 		env: Env,
+		origin?: string,
 	) => Promise<void>;
 }
 
@@ -306,7 +316,7 @@ export function createCreateHandler(config: EntityConfig) {
 		const { data } = fieldResult;
 
 		if (config.beforeCreate) {
-			const hookResult = await config.beforeCreate(data, user, env);
+			const hookResult = await config.beforeCreate(data, user, env, origin);
 			if (hookResult instanceof Response) return hookResult;
 		}
 
@@ -318,7 +328,7 @@ export function createCreateHandler(config: EntityConfig) {
 			.run();
 
 		const newId = result.meta.last_row_id;
-		if (config.afterCreate && newId) await config.afterCreate(newId, data, user, env);
+		if (config.afterCreate && newId) await config.afterCreate(newId, data, user, env, origin);
 
 		const row = await fetchRow(env, config.table, config.columns, newId);
 		return jsonResponse(config.mapper(row as Record<string, unknown>), origin, undefined, 201);
@@ -352,6 +362,7 @@ export function createUpdateHandler(config: EntityConfig) {
 				existing as Record<string, unknown>,
 				user,
 				env,
+				origin,
 			);
 			if (hookResult instanceof Response) return hookResult;
 		}
@@ -362,7 +373,7 @@ export function createUpdateHandler(config: EntityConfig) {
 			.run();
 
 		if (config.afterUpdate)
-			await config.afterUpdate(id, data, existing as Record<string, unknown>, user, env);
+			await config.afterUpdate(id, data, existing as Record<string, unknown>, user, env, origin);
 
 		const row = await fetchRow(env, config.table, config.columns, id);
 		return jsonResponse(config.mapper(row as Record<string, unknown>), origin);
@@ -394,13 +405,14 @@ export function createRemoveHandler(config: EntityConfig) {
 				existing as Record<string, unknown>,
 				user,
 				env,
+				origin,
 			);
 			if (hookResult instanceof Response) return hookResult;
 		}
 
 		await env.DB.prepare(`DELETE FROM ${config.table} WHERE id = ?`).bind(id).run();
 		if (config.afterDelete)
-			await config.afterDelete(id, existing as Record<string, unknown>, user, env);
+			await config.afterDelete(id, existing as Record<string, unknown>, user, env, origin);
 
 		return jsonResponse({ deleted: true, id }, origin);
 	};
@@ -455,13 +467,14 @@ export function createBatchDeleteHandler(config: EntityConfig) {
 					existing as Record<string, unknown>,
 					user,
 					env,
+					origin,
 				);
 				if (hookResult instanceof Response) continue;
 			}
 
 			await env.DB.prepare(`DELETE FROM ${config.table} WHERE id = ?`).bind(id).run();
 			if (config.afterDelete)
-				await config.afterDelete(id, existing as Record<string, unknown>, user, env);
+				await config.afterDelete(id, existing as Record<string, unknown>, user, env, origin);
 			count++;
 		}
 

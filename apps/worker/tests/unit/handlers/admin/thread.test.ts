@@ -413,6 +413,33 @@ describe("admin thread handlers", () => {
 			expect(body.error.details.message).toBe("Target forum not found");
 		});
 
+		it("should include CORS headers in beforeUpdate hook error", async () => {
+			const threadRow = makeD1ThreadRow({ id: 42, forum_id: 5 });
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM threads WHERE id": threadRow,
+				},
+			});
+
+			const token = await createJwtForRole(1);
+			const res = await update(
+				new Request("https://api.example.com/api/admin/threads/42", {
+					method: "PATCH",
+					headers: {
+						"X-API-Key": "test-api-key",
+						Authorization: `Bearer ${token}`,
+						"Content-Type": "application/json",
+						Origin: "http://localhost:3000",
+					},
+					body: JSON.stringify({ forumId: 999 }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			expect(res.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
+		});
+
 		it("should skip afterUpdate batch when forumId unchanged", async () => {
 			const threadRow = makeD1ThreadRow({ id: 42, forum_id: 5, replies: 10 });
 			const updatedRow = makeD1ThreadRow({ id: 42, forum_id: 5, subject: "Updated", replies: 10 });

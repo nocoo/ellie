@@ -40,11 +40,16 @@ const postConfig: EntityConfig = {
 		},
 	],
 	canDelete: true,
-	beforeDelete: async (_id, existing, _user, _env) => {
+	beforeDelete: async (_id, existing, _user, _env, origin) => {
 		if ((existing as { is_first: number }).is_first === 1) {
-			return errorResponse("CANNOT_DELETE_FIRST_POST", 400, {
-				message: "Cannot delete the first post — delete the thread instead",
-			});
+			return errorResponse(
+				"CANNOT_DELETE_FIRST_POST",
+				400,
+				{
+					message: "Cannot delete the first post — delete the thread instead",
+				},
+				origin,
+			);
 		}
 		return undefined;
 	},

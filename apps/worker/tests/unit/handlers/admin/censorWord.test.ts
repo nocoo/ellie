@@ -8,7 +8,7 @@ import {
 	test as testEndpoint,
 	update,
 } from "../../../../src/handlers/admin/censorWord";
-import { createAdminRequest, createMockDb, makeEnv } from "../../../helpers";
+import { createAdminRequest, createJwtForRole, createMockDb, makeEnv } from "../../../helpers";
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -174,6 +174,32 @@ describe("admin censorWord handlers", () => {
 			const body = (await response.json()) as Record<string, unknown>;
 			const error = body.error as Record<string, unknown>;
 			expect(error.code).toBe("CENSOR_WORD_DUPLICATE");
+		});
+
+		it("should include CORS headers in beforeCreate hook error", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT id FROM censor_words WHERE find": { id: 1 },
+				},
+			});
+			const env = makeEnv({ DB: db });
+			const token = await createJwtForRole(1);
+			const response = await create(
+				new Request("https://api.example.com/api/admin/censor-words", {
+					method: "POST",
+					headers: {
+						"X-API-Key": "test-api-key",
+						Authorization: `Bearer ${token}`,
+						"Content-Type": "application/json",
+						Origin: "http://localhost:3000",
+					},
+					body: JSON.stringify({ find: "badword" }),
+				}),
+				env,
+			);
+
+			expect(response.status).toBe(409);
+			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
 		});
 
 		it("should validate regex syntax in find", async () => {

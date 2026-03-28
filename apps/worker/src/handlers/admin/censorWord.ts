@@ -127,8 +127,7 @@ const censorWordConfig: EntityConfig = {
 
 	// ─── Lifecycle hooks ─────────────────────────────────────
 
-	async beforeCreate(data, user, env) {
-		const origin = undefined;
+	async beforeCreate(data, user, env, origin) {
 		const find = data.find as string;
 
 		// Validate regex syntax
@@ -152,8 +151,7 @@ const censorWordConfig: EntityConfig = {
 		data.admin_name = adminRow?.username ?? "Unknown";
 	},
 
-	async beforeUpdate(id, data, existing, _user, env) {
-		const origin = undefined;
+	async beforeUpdate(id, data, existing, _user, env, origin) {
 		const find = (data.find as string | undefined) ?? (existing.find as string);
 
 		// Validate regex syntax if find is being changed

@@ -727,6 +727,30 @@ describe("admin forum handlers", () => {
 			expect(body.error.details.threadCount).toBe(5);
 		});
 
+		it("should include CORS headers in hook error response", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+					"SELECT COUNT(*) as cnt FROM threads": { cnt: 5 },
+				},
+			});
+
+			const token = await createJwtForRole(1);
+			const res = await remove(
+				new Request("https://api.example.com/api/admin/forums/42", {
+					method: "DELETE",
+					headers: {
+						Authorization: `Bearer ${token}`,
+						Origin: "http://localhost:3000",
+					},
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(409);
+			expect(res.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
+		});
+
 		it("should return 404 for non-existent forum", async () => {
 			const { db } = createMockDb();
 
