@@ -11,19 +11,15 @@ describe("user handlers", () => {
 		KV: {} as KVNamespace,
 	};
 
-	/** D1 row (snake_case) as it would come from SELECT with specific columns */
+	/** D1 row (snake_case) as it would come from SELECT with specific PublicUser columns */
 	const makeD1UserRow = (overrides?: Record<string, unknown>) => ({
 		id: 123,
 		username: "testuser",
-		email: "test@example.com",
 		avatar: "avatar.png",
-		status: 0,
 		role: 1,
 		reg_date: 1711540800,
-		last_login: 1711544400,
 		threads: 10,
 		posts: 50,
-		credits: 100,
 		...overrides,
 	});
 
@@ -43,18 +39,23 @@ describe("user handlers", () => {
 			expect(response.status).toBe(200);
 			const data = await response.json();
 
-			// Verify camelCase mapping
+			// Verify camelCase mapping — PublicUser model
 			expect(data.data.id).toBe(123);
 			expect(data.data.username).toBe("testuser");
 			expect(data.data.regDate).toBe(1711540800);
-			expect(data.data.lastLogin).toBe(1711544400);
 			expect(data.data.threads).toBe(10);
 			expect(data.data.posts).toBe(50);
-			expect(data.data.credits).toBe(100);
+			expect(data.data.avatar).toBe("avatar.png");
+			expect(data.data.role).toBe(1);
+
+			// PublicUser should NOT contain sensitive fields
+			expect(data.data.email).toBeUndefined();
+			expect(data.data.status).toBeUndefined();
+			expect(data.data.lastLogin).toBeUndefined();
+			expect(data.data.credits).toBeUndefined();
 
 			// No snake_case leaks
 			expect(data.data.reg_date).toBeUndefined();
-			expect(data.data.last_login).toBeUndefined();
 
 			// Metadata
 			expect(data.meta.timestamp).toBeDefined();
@@ -96,11 +97,14 @@ describe("user handlers", () => {
 			const sql = prepareSpy.mock.calls[0][0] as string;
 			// Should NOT use SELECT *
 			expect(sql).not.toContain("SELECT *");
-			// Should explicitly list columns
+			// Should explicitly list PublicUser columns
 			expect(sql).toContain("id");
 			expect(sql).toContain("username");
-			expect(sql).toContain("email");
-			// Should NOT contain password columns
+			expect(sql).toContain("avatar");
+			expect(sql).toContain("role");
+			expect(sql).toContain("reg_date");
+			// Should NOT contain sensitive columns
+			expect(sql).not.toContain("email");
 			expect(sql).not.toContain("password_hash");
 			expect(sql).not.toContain("password_salt");
 		});

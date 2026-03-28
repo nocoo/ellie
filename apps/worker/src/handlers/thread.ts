@@ -1,4 +1,5 @@
 // Thread handlers for Cloudflare Worker
+import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
 import { toThread } from "../lib/mappers";
 import { jsonResponse } from "../lib/response";
@@ -183,7 +184,7 @@ export const create = withAuth(async (request, env, user) => {
 
 	const forumId = typeof body.forumId === "number" ? body.forumId : undefined;
 	const subject = typeof body.subject === "string" ? body.subject : undefined;
-	const content = typeof body.content === "string" ? body.content : undefined;
+	let content = typeof body.content === "string" ? body.content : undefined;
 
 	if (typeof forumId !== "number" || Number.isNaN(forumId)) {
 		return errorResponse("INVALID_BODY", 400, { message: "forumId is required (number)" }, origin);
@@ -203,20 +204,37 @@ export const create = withAuth(async (request, env, user) => {
 		return errorResponse("INVALID_BODY", 400, { message: "content is required" }, origin);
 	}
 
+	// Censor word check — subject + content
+	const subjectCheck = await applyCensorFilter(subject.trim(), env);
+	if (subjectCheck.banned) {
+		return errorResponse("CONTENT_BANNED", 403, undefined, origin);
+	}
+	const contentCheck = await applyCensorFilter(content.trim(), env);
+	if (contentCheck.banned) {
+		return errorResponse("CONTENT_BANNED", 403, undefined, origin);
+	}
+	const filteredSubject = subjectCheck.content;
+	content = contentCheck.content;
+
 	// Validate forum exists
 	const forum = await env.DB.prepare("SELECT id FROM forums WHERE id = ?").bind(forumId).first();
 	if (!forum) {
 		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
 	}
 
+	// Fetch author name from users table
+	const authorRow = await env.DB.prepare("SELECT username FROM users WHERE id = ?")
+		.bind(user.userId)
+		.first<{ username: string }>();
+	const authorName = authorRow?.username ?? `user_${user.userId}`;
+
 	const now = Math.floor(Date.now() / 1000);
-	const authorName = `user_${user.userId}`; // TODO: fetch from users table
 
 	// Step 1: Insert thread
 	const threadResult = await env.DB.prepare(
 		"INSERT INTO threads (forum_id, author_id, author_name, subject, created_at, last_post_at, last_poster, replies, views, closed, sticky, digest) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0)",
 	)
-		.bind(forumId, user.userId, authorName, subject.trim(), now, now, authorName)
+		.bind(forumId, user.userId, authorName, filteredSubject, now, now, authorName)
 		.run();
 
 	const threadId = threadResult.meta.last_row_id;
@@ -225,7 +243,7 @@ export const create = withAuth(async (request, env, user) => {
 	await env.DB.batch([
 		env.DB.prepare(
 			"INSERT INTO posts (thread_id, forum_id, author_id, author_name, content, created_at, is_first, position) VALUES (?, ?, ?, ?, ?, ?, 1, 1)",
-		).bind(threadId, forumId, user.userId, authorName, content.trim(), now),
+		).bind(threadId, forumId, user.userId, authorName, content, now),
 		env.DB.prepare(
 			"UPDATE forums SET threads = threads + 1, posts = posts + 1, last_thread_id = ?, last_post_at = ?, last_poster = ? WHERE id = ?",
 		).bind(threadId, now, authorName, forumId),
