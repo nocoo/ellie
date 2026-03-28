@@ -103,7 +103,8 @@ pub enum ForumType {
 pub struct User {
 	pub id: u64,
 	pub username: String,
-	pub email: String,
+	#[serde(default)]
+	pub email: Option<String>,
 	pub avatar: String,
 	pub status: UserStatus,
 	pub role: UserRole,
@@ -323,6 +324,26 @@ mod tests {
 		assert_eq!(user.username, "alice");
 		assert_eq!(user.role, UserRole::Admin);
 		assert_eq!(user.status, UserStatus::Active);
+		assert_eq!(user.email, Some("alice@example.com".to_string()));
+	}
+
+	#[test]
+	fn deserialize_user_without_email() {
+		let json = r#"{
+			"id": 123,
+			"username": "alice",
+			"avatar": "default.png",
+			"status": 0,
+			"role": 1,
+			"regDate": 1609459200,
+			"lastLogin": 1700000000,
+			"threads": 42,
+			"posts": 256,
+			"credits": 1000
+		}"#;
+		let user: User = serde_json::from_str(json).unwrap();
+		assert_eq!(user.username, "alice");
+		assert_eq!(user.email, None);
 	}
 
 	#[test]
