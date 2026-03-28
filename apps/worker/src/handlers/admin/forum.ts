@@ -1,44 +1,44 @@
 // Admin forum handlers — CRUD framework + custom merge/reorder endpoints
-import { ForumType } from "@ellie/types"
-import { withEntityAuth } from "../../lib/adminHelpers"
-import type { EntityConfig } from "../../lib/crud"
+import { ForumType } from "@ellie/types";
+import { withEntityAuth } from "../../lib/adminHelpers";
+import type { EntityConfig } from "../../lib/crud";
 import {
 	createCreateHandler,
 	createGetByIdHandler,
 	createListHandler,
 	createRemoveHandler,
 	createUpdateHandler,
-} from "../../lib/crud"
-import type { Env } from "../../lib/env"
-import { toForum } from "../../lib/mappers"
-import { parsePathSegment } from "../../lib/parseId"
-import { jsonResponse } from "../../lib/response"
-import type { AuthUser } from "../../middleware/auth"
-import { errorResponse } from "../../middleware/error"
+} from "../../lib/crud";
+import type { Env } from "../../lib/env";
+import { toForum } from "../../lib/mappers";
+import { parsePathSegment } from "../../lib/parseId";
+import { jsonResponse } from "../../lib/response";
+import type { AuthUser } from "../../middleware/auth";
+import { errorResponse } from "../../middleware/error";
 
 // ─── Validation helpers ──────────────────────────────────────────
 
-const VALID_FORUM_TYPES = new Set(Object.values(ForumType))
-const MAX_REORDER_ITEMS = 200
+const VALID_FORUM_TYPES = new Set(Object.values(ForumType));
+const MAX_REORDER_ITEMS = 200;
 
 function validateName(value: unknown): string | null {
-	if (typeof value !== "string" || value.trim().length === 0) return "name is required"
-	if (value.length > 100) return "name must be at most 100 characters"
-	return null
+	if (typeof value !== "string" || value.trim().length === 0) return "name is required";
+	if (value.length > 100) return "name must be at most 100 characters";
+	return null;
 }
 
 function validateType(value: unknown): string | null {
 	if (typeof value !== "string" || !VALID_FORUM_TYPES.has(value as ForumType)) {
-		return "Invalid type"
+		return "Invalid type";
 	}
-	return null
+	return null;
 }
 
 function validateStatus(value: unknown): string | null {
 	if (typeof value !== "number" || (value !== 0 && value !== 1)) {
-		return "status must be 0 or 1"
+		return "status must be 0 or 1";
 	}
-	return null
+	return null;
 }
 
 // ─── Entity config ───────────────────────────────────────────────
@@ -130,58 +130,53 @@ const forumConfig: EntityConfig = {
 	// ─── Lifecycle hooks ─────────────────────────────────────
 
 	async beforeCreate(data, _user, env) {
-		const origin = undefined
-		const parentId = (data.parent_id as number) ?? 0
+		const origin = undefined;
+		const parentId = (data.parent_id as number) ?? 0;
 		if (parentId !== 0) {
 			const parent = await env.DB.prepare("SELECT id FROM forums WHERE id = ?")
 				.bind(parentId)
-				.first()
+				.first();
 			if (!parent) {
-				return errorResponse("INVALID_BODY", 400, { message: "Parent forum not found" }, origin)
+				return errorResponse("INVALID_BODY", 400, { message: "Parent forum not found" }, origin);
 			}
 		}
 		// Initialize counter columns for new forums
-		data.threads = 0
-		data.posts = 0
-		data.last_thread_id = 0
-		data.last_post_at = 0
-		data.last_poster = ""
+		data.threads = 0;
+		data.posts = 0;
+		data.last_thread_id = 0;
+		data.last_post_at = 0;
+		data.last_poster = "";
 	},
 
 	async beforeDelete(id, _existing, _user, env) {
-		const origin = undefined
+		const origin = undefined;
 		const countResult = await env.DB.prepare(
 			"SELECT COUNT(*) as cnt FROM threads WHERE forum_id = ?",
 		)
 			.bind(id)
-			.first<{ cnt: number }>()
+			.first<{ cnt: number }>();
 		if (countResult && countResult.cnt > 0) {
-			return errorResponse(
-				"FORUM_HAS_THREADS",
-				409,
-				{ threadCount: countResult.cnt },
-				origin,
-			)
+			return errorResponse("FORUM_HAS_THREADS", 409, { threadCount: countResult.cnt }, origin);
 		}
 	},
-}
+};
 
 // ─── CRUD handlers (factory-generated) ───────────────────────────
 
 /** #18 GET /api/admin/forums */
-export const list = withEntityAuth(forumConfig, createListHandler(forumConfig))
+export const list = withEntityAuth(forumConfig, createListHandler(forumConfig));
 
 /** #19 GET /api/admin/forums/:id */
-export const getById = withEntityAuth(forumConfig, createGetByIdHandler(forumConfig))
+export const getById = withEntityAuth(forumConfig, createGetByIdHandler(forumConfig));
 
 /** #20 POST /api/admin/forums */
-export const create = withEntityAuth(forumConfig, createCreateHandler(forumConfig))
+export const create = withEntityAuth(forumConfig, createCreateHandler(forumConfig));
 
 /** #21 PATCH /api/admin/forums/:id */
-export const update = withEntityAuth(forumConfig, createUpdateHandler(forumConfig))
+export const update = withEntityAuth(forumConfig, createUpdateHandler(forumConfig));
 
 /** #22 DELETE /api/admin/forums/:id */
-export const remove = withEntityAuth(forumConfig, createRemoveHandler(forumConfig))
+export const remove = withEntityAuth(forumConfig, createRemoveHandler(forumConfig));
 
 // ─── Custom endpoints ────────────────────────────────────────────
 
@@ -189,34 +184,24 @@ export const remove = withEntityAuth(forumConfig, createRemoveHandler(forumConfi
 export const merge = withEntityAuth(
 	forumConfig,
 	async (request: Request, env: Env, _user: AuthUser): Promise<Response> => {
-		const origin = request.headers.get("Origin") ?? undefined
+		const origin = request.headers.get("Origin") ?? undefined;
 
 		// Parse source forum ID from path: /api/admin/forums/:id/merge
-		const sourceId = parsePathSegment(request, 1)
+		const sourceId = parsePathSegment(request, 1);
 		if (sourceId === null) {
-			return errorResponse(
-				"INVALID_REQUEST",
-				400,
-				{ message: "Invalid forum ID" },
-				origin,
-			)
+			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid forum ID" }, origin);
 		}
 
-		let body: Record<string, unknown>
+		let body: Record<string, unknown>;
 		try {
-			body = (await request.json()) as Record<string, unknown>
+			body = (await request.json()) as Record<string, unknown>;
 		} catch {
-			return errorResponse("INVALID_BODY", 400, { message: "Invalid JSON body" }, origin)
+			return errorResponse("INVALID_BODY", 400, { message: "Invalid JSON body" }, origin);
 		}
 
-		const targetForumId = body.targetForumId
+		const targetForumId = body.targetForumId;
 		if (typeof targetForumId !== "number") {
-			return errorResponse(
-				"INVALID_BODY",
-				400,
-				{ message: "targetForumId is required" },
-				origin,
-			)
+			return errorResponse("INVALID_BODY", 400, { message: "targetForumId is required" }, origin);
 		}
 
 		if (sourceId === targetForumId) {
@@ -225,28 +210,21 @@ export const merge = withEntityAuth(
 				400,
 				{ message: "Cannot merge a forum into itself" },
 				origin,
-			)
+			);
 		}
 
 		// Verify source forum exists
-		const source = await env.DB.prepare("SELECT * FROM forums WHERE id = ?")
-			.bind(sourceId)
-			.first()
+		const source = await env.DB.prepare("SELECT * FROM forums WHERE id = ?").bind(sourceId).first();
 		if (!source) {
-			return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin)
+			return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
 		}
 
 		// Verify target forum exists
 		const target = await env.DB.prepare("SELECT id FROM forums WHERE id = ?")
 			.bind(targetForumId)
-			.first()
+			.first();
 		if (!target) {
-			return errorResponse(
-				"INVALID_BODY",
-				400,
-				{ message: "Target forum not found" },
-				origin,
-			)
+			return errorResponse("INVALID_BODY", 400, { message: "Target forum not found" }, origin);
 		}
 
 		// Count threads and posts to move
@@ -254,15 +232,13 @@ export const merge = withEntityAuth(
 			"SELECT COUNT(*) as cnt FROM threads WHERE forum_id = ?",
 		)
 			.bind(sourceId)
-			.first<{ cnt: number }>()
-		const postCount = await env.DB.prepare(
-			"SELECT COUNT(*) as cnt FROM posts WHERE forum_id = ?",
-		)
+			.first<{ cnt: number }>();
+		const postCount = await env.DB.prepare("SELECT COUNT(*) as cnt FROM posts WHERE forum_id = ?")
 			.bind(sourceId)
-			.first<{ cnt: number }>()
+			.first<{ cnt: number }>();
 
-		const threadsMoved = threadCount?.cnt ?? 0
-		const postsMoved = postCount?.cnt ?? 0
+		const threadsMoved = threadCount?.cnt ?? 0;
+		const postsMoved = postCount?.cnt ?? 0;
 
 		// Batch: move threads, move posts, update target counts, delete source
 		const statements: D1PreparedStatement[] = [
@@ -278,9 +254,9 @@ export const merge = withEntityAuth(
 				"UPDATE forums SET threads = threads + ?, posts = posts + ? WHERE id = ?",
 			).bind(threadsMoved, postsMoved, targetForumId),
 			env.DB.prepare("DELETE FROM forums WHERE id = ?").bind(sourceId),
-		]
+		];
 
-		await env.DB.batch(statements)
+		await env.DB.batch(statements);
 
 		return jsonResponse(
 			{
@@ -291,31 +267,31 @@ export const merge = withEntityAuth(
 				postsMoved,
 			},
 			origin,
-		)
+		);
 	},
-)
+);
 
 /** #24 POST /api/admin/forums/reorder — Batch reorder forums */
 export const reorder = withEntityAuth(
 	forumConfig,
 	async (request: Request, env: Env, _user: AuthUser): Promise<Response> => {
-		const origin = request.headers.get("Origin") ?? undefined
+		const origin = request.headers.get("Origin") ?? undefined;
 
-		let body: Record<string, unknown>
+		let body: Record<string, unknown>;
 		try {
-			body = (await request.json()) as Record<string, unknown>
+			body = (await request.json()) as Record<string, unknown>;
 		} catch {
-			return errorResponse("INVALID_BODY", 400, { message: "Invalid JSON body" }, origin)
+			return errorResponse("INVALID_BODY", 400, { message: "Invalid JSON body" }, origin);
 		}
 
-		const orders = body.orders
+		const orders = body.orders;
 		if (!Array.isArray(orders) || orders.length === 0) {
 			return errorResponse(
 				"INVALID_BODY",
 				400,
 				{ message: "orders must be a non-empty array" },
 				origin,
-			)
+			);
 		}
 
 		if (orders.length > MAX_REORDER_ITEMS) {
@@ -324,7 +300,7 @@ export const reorder = withEntityAuth(
 				400,
 				{ message: `Maximum ${MAX_REORDER_ITEMS} items per batch` },
 				origin,
-			)
+			);
 		}
 
 		// Validate each order entry
@@ -340,7 +316,7 @@ export const reorder = withEntityAuth(
 					400,
 					{ message: "Each order must have numeric id and displayOrder" },
 					origin,
-				)
+				);
 			}
 		}
 
@@ -349,10 +325,10 @@ export const reorder = withEntityAuth(
 				item.displayOrder,
 				item.id,
 			),
-		)
+		);
 
-		await env.DB.batch(statements)
+		await env.DB.batch(statements);
 
-		return jsonResponse({ updated: true, count: orders.length }, origin)
+		return jsonResponse({ updated: true, count: orders.length }, origin);
 	},
-)
+);

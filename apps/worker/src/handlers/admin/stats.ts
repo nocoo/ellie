@@ -13,11 +13,7 @@ const statsConfig: EntityConfig = {
 	mapper: (row) => row,
 };
 
-async function getStats(
-	request: Request,
-	env: Env,
-	_user: AuthUser,
-): Promise<Response> {
+async function getStats(request: Request, env: Env, _user: AuthUser): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const todayUtc = Math.floor(Date.now() / 1000 / 86400) * 86400;
 
@@ -33,8 +29,7 @@ async function getStats(
 		env.DB.prepare("SELECT COUNT(*) AS cnt FROM forums WHERE status = 0"),
 	]);
 
-	const count = (i: number) =>
-		(results[i].results[0] as Record<string, number>).cnt;
+	const count = (i: number) => (results[i].results[0] as Record<string, number>).cnt;
 
 	return jsonResponse(
 		{
