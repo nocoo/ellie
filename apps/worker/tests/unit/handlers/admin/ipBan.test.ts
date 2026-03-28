@@ -209,6 +209,56 @@ describe("admin ipBan handlers", () => {
 			expect(error.code).toBe("IP_BAN_SELF");
 		});
 
+		it("should reject self-ban via CIDR range covering own IP", async () => {
+			const { db } = createMockDb({
+				firstResults: { "SELECT id FROM ip_bans WHERE ip": null },
+			});
+			const env = makeEnv({ DB: db });
+			const jwt = await createJwtForRole(1);
+			const request = new Request("https://api.example.com/api/admin/ip-bans", {
+				method: "POST",
+				headers: {
+					"X-API-Key": "test-api-key",
+					Authorization: `Bearer ${jwt}`,
+					"Content-Type": "application/json",
+					"CF-Connecting-IP": "192.168.1.50",
+				},
+				body: JSON.stringify({ ip: "192.168.1.0/24" }),
+			});
+
+			const response = await create(request, env);
+
+			expect(response.status).toBe(400);
+			const body = (await response.json()) as Record<string, unknown>;
+			const error = body.error as Record<string, unknown>;
+			expect(error.code).toBe("IP_BAN_SELF");
+		});
+
+		it("should reject self-ban via wildcard pattern covering own IP", async () => {
+			const { db } = createMockDb({
+				firstResults: { "SELECT id FROM ip_bans WHERE ip": null },
+			});
+			const env = makeEnv({ DB: db });
+			const jwt = await createJwtForRole(1);
+			const request = new Request("https://api.example.com/api/admin/ip-bans", {
+				method: "POST",
+				headers: {
+					"X-API-Key": "test-api-key",
+					Authorization: `Bearer ${jwt}`,
+					"Content-Type": "application/json",
+					"CF-Connecting-IP": "10.0.5.6",
+				},
+				body: JSON.stringify({ ip: "10.0.*.*" }),
+			});
+
+			const response = await create(request, env);
+
+			expect(response.status).toBe(400);
+			const body = (await response.json()) as Record<string, unknown>;
+			const error = body.error as Record<string, unknown>;
+			expect(error.code).toBe("IP_BAN_SELF");
+		});
+
 		it("should auto-fill admin_id, admin_name, and created_at", async () => {
 			const row = makeIpBanRow({ ip: "172.16.0.1", admin_name: "superadmin" });
 			const { db, calls } = createMockDb({
