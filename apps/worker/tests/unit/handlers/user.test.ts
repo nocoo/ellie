@@ -11,15 +11,18 @@ describe("user handlers", () => {
 		KV: {} as KVNamespace,
 	};
 
-	/** D1 row (snake_case) as it would come from SELECT with specific PublicUser columns */
+	/** D1 row (snake_case) as it would come from SELECT with PublicUser columns (no email) */
 	const makeD1UserRow = (overrides?: Record<string, unknown>) => ({
 		id: 123,
 		username: "testuser",
 		avatar: "avatar.png",
+		status: 0,
 		role: 1,
 		reg_date: 1711540800,
+		last_login: 1711600000,
 		threads: 10,
 		posts: 50,
+		credits: 100,
 		...overrides,
 	});
 
@@ -39,20 +42,20 @@ describe("user handlers", () => {
 			expect(response.status).toBe(200);
 			const data = await response.json();
 
-			// Verify camelCase mapping — PublicUser model
+			// Verify camelCase mapping — PublicUser model (all fields except email)
 			expect(data.data.id).toBe(123);
 			expect(data.data.username).toBe("testuser");
+			expect(data.data.avatar).toBe("avatar.png");
+			expect(data.data.status).toBe(0);
+			expect(data.data.role).toBe(1);
 			expect(data.data.regDate).toBe(1711540800);
+			expect(data.data.lastLogin).toBe(1711600000);
 			expect(data.data.threads).toBe(10);
 			expect(data.data.posts).toBe(50);
-			expect(data.data.avatar).toBe("avatar.png");
-			expect(data.data.role).toBe(1);
+			expect(data.data.credits).toBe(100);
 
-			// PublicUser should NOT contain sensitive fields
+			// PublicUser should NOT contain email
 			expect(data.data.email).toBeUndefined();
-			expect(data.data.status).toBeUndefined();
-			expect(data.data.lastLogin).toBeUndefined();
-			expect(data.data.credits).toBeUndefined();
 
 			// No snake_case leaks
 			expect(data.data.reg_date).toBeUndefined();
@@ -101,8 +104,13 @@ describe("user handlers", () => {
 			expect(sql).toContain("id");
 			expect(sql).toContain("username");
 			expect(sql).toContain("avatar");
+			expect(sql).toContain("status");
 			expect(sql).toContain("role");
 			expect(sql).toContain("reg_date");
+			expect(sql).toContain("last_login");
+			expect(sql).toContain("threads");
+			expect(sql).toContain("posts");
+			expect(sql).toContain("credits");
 			// Should NOT contain sensitive columns
 			expect(sql).not.toContain("email");
 			expect(sql).not.toContain("password_hash");

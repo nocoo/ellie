@@ -242,18 +242,19 @@ export function toCensorWord(row: Record<string, unknown>): CensorWord {
  * Maps a D1 user row to PublicUser (no sensitive fields).
  * For public GET /api/v1/users/:id
  */
-export function toPublicUser(
-	row: Record<string, unknown>,
-): Pick<User, "id" | "username" | "avatar" | "role" | "regDate" | "threads" | "posts"> {
+export function toPublicUser(row: Record<string, unknown>): Omit<User, "email"> {
 	const r = row as unknown as D1UserRow;
 	return {
 		id: r.id,
 		username: r.username,
 		avatar: r.avatar,
+		status: r.status,
 		role: r.role,
 		regDate: r.reg_date,
+		lastLogin: r.last_login,
 		threads: r.threads,
 		posts: r.posts,
+		credits: r.credits,
 	};
 }
 
