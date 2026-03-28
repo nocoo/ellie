@@ -1,4 +1,5 @@
 // Post handlers for Cloudflare Worker
+import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
 import { toPost } from "../lib/mappers";
 import { jsonResponse } from "../lib/response";
@@ -152,7 +153,7 @@ export const create = withAuth(async (request, env, user) => {
 	}
 
 	const threadId = typeof body.threadId === "number" ? body.threadId : undefined;
-	const content = typeof body.content === "string" ? body.content : undefined;
+	let content = typeof body.content === "string" ? body.content : undefined;
 
 	if (typeof threadId !== "number" || Number.isNaN(threadId)) {
 		return errorResponse("INVALID_BODY", 400, { message: "threadId is required (number)" }, origin);
@@ -160,6 +161,13 @@ export const create = withAuth(async (request, env, user) => {
 	if (!content || content.trim().length === 0) {
 		return errorResponse("INVALID_BODY", 400, { message: "content is required" }, origin);
 	}
+
+	// Censor word check
+	const censorResult = await applyCensorFilter(content.trim(), env);
+	if (censorResult.banned) {
+		return errorResponse("CONTENT_BANNED", 403, undefined, origin);
+	}
+	content = censorResult.content;
 
 	// Validate thread exists and is not closed
 	const thread = await env.DB.prepare("SELECT id, forum_id, closed FROM threads WHERE id = ?")
@@ -180,14 +188,19 @@ export const create = withAuth(async (request, env, user) => {
 		.first<{ maxPos: number | null }>();
 	const nextPosition = (posResult?.maxPos ?? 0) + 1;
 
+	// Fetch author name from users table
+	const authorRow = await env.DB.prepare("SELECT username FROM users WHERE id = ?")
+		.bind(user.userId)
+		.first<{ username: string }>();
+	const authorName = authorRow?.username ?? `user_${user.userId}`;
+
 	const now = Math.floor(Date.now() / 1000);
-	const authorName = `user_${user.userId}`;
 
 	// Insert post
 	const postResult = await env.DB.prepare(
 		"INSERT INTO posts (thread_id, forum_id, author_id, author_name, content, created_at, is_first, position) VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
 	)
-		.bind(threadId, thread.forum_id, user.userId, authorName, content.trim(), now, nextPosition)
+		.bind(threadId, thread.forum_id, user.userId, authorName, content, now, nextPosition)
 		.run();
 
 	const postId = postResult.meta.last_row_id;
