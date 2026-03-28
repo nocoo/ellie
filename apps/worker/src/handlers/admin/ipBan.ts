@@ -259,7 +259,7 @@ export const create = withEntityAuth(
 			request.headers.get("CF-Connecting-IP") ??
 			request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ??
 			null;
-		if (requestIp && typeof body.ip === "string" && body.ip === requestIp) {
+		if (requestIp && typeof body.ip === "string" && ipMatchesRule(requestIp, body.ip)) {
 			return errorResponse("IP_BAN_SELF", 400, undefined, origin);
 		}
 
