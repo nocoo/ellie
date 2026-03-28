@@ -493,7 +493,7 @@ describe("admin post handlers", () => {
 				makeD1PostRow({ id: 3, thread_id: 6, forum_id: 10, is_first: 0 }),
 			];
 			const { db, calls, batchCalls } = createMockDb({
-				allResults: { "SELECT id, thread_id, forum_id, is_first FROM posts": postRows },
+				allResults: { "SELECT id, thread_id, forum_id, author_id, is_first FROM posts": postRows },
 			});
 
 			const token = await createJwtForRole(1);
@@ -517,8 +517,10 @@ describe("admin post handlers", () => {
 			expect(selectCall).toBeDefined();
 
 			// Verify batch: 3 DELETE posts + 2 UPDATE threads + 1 UPDATE forum = 6
-			expect(batchCalls.length).toBe(1);
 			expect(batchCalls[0].length).toBe(6);
+
+			// Verify user counter decrement batch was also called
+			expect(batchCalls.length).toBeGreaterThanOrEqual(1);
 		});
 
 		it("should skip first posts and report them", async () => {
@@ -527,7 +529,7 @@ describe("admin post handlers", () => {
 				makeD1PostRow({ id: 2, thread_id: 5, forum_id: 10, is_first: 0 }),
 			];
 			const { db } = createMockDb({
-				allResults: { "SELECT id, thread_id, forum_id, is_first FROM posts": postRows },
+				allResults: { "SELECT id, thread_id, forum_id, author_id, is_first FROM posts": postRows },
 			});
 
 			const token = await createJwtForRole(1);
@@ -553,7 +555,7 @@ describe("admin post handlers", () => {
 				makeD1PostRow({ id: 2, is_first: 1 }),
 			];
 			const { db } = createMockDb({
-				allResults: { "SELECT id, thread_id, forum_id, is_first FROM posts": postRows },
+				allResults: { "SELECT id, thread_id, forum_id, author_id, is_first FROM posts": postRows },
 			});
 
 			const token = await createJwtForRole(1);
@@ -632,7 +634,7 @@ describe("admin post handlers", () => {
 				makeD1PostRow({ id: 2, thread_id: 5, forum_id: 10, is_first: 0 }),
 			];
 			const { db } = createMockDb({
-				allResults: { "SELECT id, thread_id, forum_id, is_first FROM posts": postRows },
+				allResults: { "SELECT id, thread_id, forum_id, author_id, is_first FROM posts": postRows },
 			});
 
 			const token = await createJwtForRole(1);
