@@ -9,8 +9,8 @@ import { Geist } from "next/font/google";
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-	title: "Ellie — 同济网论坛",
-	description: "同济网社区论坛",
+	title: "Ellie Admin",
+	description: "Ellie admin console",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
