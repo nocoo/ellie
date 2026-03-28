@@ -29,6 +29,8 @@ fn default_theme() -> String {
 #[serde(rename_all = "camelCase")]
 pub struct AuthConfig {
 	pub token: String,
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub refresh_token: Option<String>,
 	pub user: LoggedUser,
 }
 
@@ -131,8 +133,12 @@ impl Config {
 	}
 
 	/// Update the auth section after login.
-	pub fn set_auth(&mut self, token: String, user: LoggedUser) {
-		self.auth = Some(AuthConfig { token, user });
+	pub fn set_auth(&mut self, token: String, refresh_token: Option<String>, user: LoggedUser) {
+		self.auth = Some(AuthConfig {
+			token,
+			refresh_token,
+			user,
+		});
 	}
 
 	/// Clear auth state on logout or token expiry.
@@ -148,6 +154,13 @@ impl Config {
 	/// Get the current username, if authenticated.
 	pub fn username(&self) -> Option<&str> {
 		self.auth.as_ref().map(|a| a.user.username.as_str())
+	}
+
+	/// Get the current refresh token, if authenticated.
+	pub fn refresh_token(&self) -> Option<&str> {
+		self.auth
+			.as_ref()
+			.and_then(|a| a.refresh_token.as_deref())
 	}
 }
 
@@ -189,6 +202,7 @@ mod tests {
 		config.theme = "dracula".to_string();
 		config.set_auth(
 			"jwt-token".to_string(),
+			Some("refresh-token".to_string()),
 			LoggedUser {
 				user_id: 1,
 				username: "alice".to_string(),
@@ -220,6 +234,7 @@ mod tests {
 
 		config.set_auth(
 			"token".to_string(),
+			None,
 			LoggedUser {
 				user_id: 1,
 				username: "bob".to_string(),
@@ -315,5 +330,64 @@ mod tests {
 		});
 		assert_eq!(config.api_key, "from-file");
 		assert_eq!(config.api_url, "http://from-file");
+	}
+
+	#[test]
+	fn refresh_token_persisted_and_loaded() {
+		let dir = TempDir::new().unwrap();
+		let path = temp_config_path(&dir);
+
+		let mut config = Config::default_config();
+		config.set_auth(
+			"jwt".to_string(),
+			Some("refresh-tok".to_string()),
+			LoggedUser {
+				user_id: 1,
+				username: "alice".to_string(),
+				role: UserRole::User,
+			},
+		);
+		config.write(Some(&path)).unwrap();
+
+		let loaded = Config::load(Some(&path));
+		assert_eq!(loaded.refresh_token(), Some("refresh-tok"));
+	}
+
+	#[test]
+	fn refresh_token_none_when_not_set() {
+		let mut config = Config::default_config();
+		config.set_auth(
+			"jwt".to_string(),
+			None,
+			LoggedUser {
+				user_id: 1,
+				username: "bob".to_string(),
+				role: UserRole::User,
+			},
+		);
+		assert_eq!(config.refresh_token(), None);
+	}
+
+	#[test]
+	fn refresh_token_none_when_not_authenticated() {
+		let config = Config::default_config();
+		assert_eq!(config.refresh_token(), None);
+	}
+
+	#[test]
+	fn backward_compat_config_without_refresh_token() {
+		// Old config files may not have refreshToken field
+		let json = r#"{
+			"apiUrl": "http://localhost:8787",
+			"apiKey": "key",
+			"auth": {
+				"token": "old-jwt",
+				"user": { "userId": 1, "username": "alice", "role": 0 }
+			}
+		}"#;
+		let config: Config = serde_json::from_str(json).unwrap();
+		assert!(config.is_authenticated());
+		assert_eq!(config.refresh_token(), None);
+		assert_eq!(config.username(), Some("alice"));
 	}
 }

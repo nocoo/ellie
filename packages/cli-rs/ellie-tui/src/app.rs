@@ -290,6 +290,9 @@ impl App {
 		let mut client = ApiClient::new(config.api_url.clone(), config.api_key.clone());
 		if let Some(auth) = &config.auth {
 			client.set_token(Some(auth.token.clone()));
+			if let Some(ref rt) = auth.refresh_token {
+				client.set_refresh_token(Some(rt.clone()));
+			}
 		}
 		Self {
 			should_quit: false,
