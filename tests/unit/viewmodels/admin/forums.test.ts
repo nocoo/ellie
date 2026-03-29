@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import {
-	buildForumSearchParams,
+	type ReorderItem,
 	createForum,
 	deleteForum,
 	fetchForum,
@@ -37,39 +37,19 @@ afterEach(() => {
 	globalThis.fetch = originalFetch;
 });
 
-describe("buildForumSearchParams", () => {
-	it("includes present values", () => {
-		const params = buildForumSearchParams({ page: 1, limit: 50, search: "general" });
-		expect(params.page).toBe(1);
-		expect(params.search).toBe("general");
-	});
-
-	it("omits empty and null values", () => {
-		const params = buildForumSearchParams({ search: "", status: undefined });
-		expect(params.search).toBeUndefined();
-		expect(params.status).toBeUndefined();
-	});
-
-	it("includes status filter", () => {
-		const params = buildForumSearchParams({ status: -1 });
-		expect(params.status).toBe(-1);
-	});
-});
-
 describe("statusLabel", () => {
-	it("maps status values", () => {
-		expect(statusLabel(0)).toBe("Active");
-		expect(statusLabel(-1)).toBe("Hidden");
+	it("maps status values (Worker: 0=hidden, 1=active)", () => {
 		expect(statusLabel(1)).toBe("Active");
+		expect(statusLabel(0)).toBe("Hidden");
+		expect(statusLabel(99)).toBe("Unknown");
 	});
 });
 
 describe("fetchForums", () => {
-	it("calls GET /api/admin/forums with params", async () => {
-		await fetchForums({ page: 2, search: "general" });
+	it("calls GET /api/admin/forums", async () => {
+		await fetchForums();
 		const [url] = mockFetchFn.mock.calls[0] as [string];
 		expect(url).toContain("/api/admin/forums");
-		expect(url).toContain("search=general");
 	});
 });
 
@@ -87,15 +67,15 @@ describe("createForum", () => {
 	it("calls POST /api/admin/forums", async () => {
 		mockFetchFn.mockImplementation(() =>
 			Promise.resolve(
-				mockJsonResponse({ data: { id: 10, name: "New Forum", order: 1 }, meta: {} }),
+				mockJsonResponse({ data: { id: 10, name: "New Forum", displayOrder: 1 }, meta: {} }),
 			),
 		);
-		const forum = await createForum({ name: "New Forum", order: 1 });
+		const forum = await createForum({ name: "New Forum", displayOrder: 1 });
 		expect(forum.name).toBe("New Forum");
 		const [url, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
 		expect(url).toContain("/api/admin/forums");
 		expect(opts.method).toBe("POST");
-		expect(opts.body).toBe(JSON.stringify({ name: "New Forum", order: 1 }));
+		expect(opts.body).toBe(JSON.stringify({ name: "New Forum", displayOrder: 1 }));
 	});
 });
 
@@ -125,7 +105,7 @@ describe("deleteForum", () => {
 });
 
 describe("mergeForums", () => {
-	it("calls POST /api/admin/forums/:id/merge", async () => {
+	it("calls POST /api/admin/forums/:id/merge with targetForumId", async () => {
 		mockFetchFn.mockImplementation(() =>
 			Promise.resolve(mockJsonResponse({ data: { merged: true, movedThreads: 15 }, meta: {} })),
 		);
@@ -135,20 +115,25 @@ describe("mergeForums", () => {
 		const [url, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
 		expect(url).toContain("/api/admin/forums/3/merge");
 		expect(opts.method).toBe("POST");
-		expect(opts.body).toBe(JSON.stringify({ targetId: 7 }));
+		expect(opts.body).toBe(JSON.stringify({ targetForumId: 7 }));
 	});
 });
 
 describe("reorderForums", () => {
-	it("calls POST /api/admin/forums/reorder", async () => {
+	it("calls POST /api/admin/forums/reorder with orders array", async () => {
 		mockFetchFn.mockImplementation(() =>
 			Promise.resolve(mockJsonResponse({ data: { reordered: true }, meta: {} })),
 		);
-		const result = await reorderForums([3, 1, 2]);
+		const orders: ReorderItem[] = [
+			{ id: 3, displayOrder: 0 },
+			{ id: 1, displayOrder: 1 },
+			{ id: 2, displayOrder: 2 },
+		];
+		const result = await reorderForums(orders);
 		expect(result.reordered).toBe(true);
 		const [url, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
 		expect(url).toContain("/api/admin/forums/reorder");
 		expect(opts.method).toBe("POST");
-		expect(opts.body).toBe(JSON.stringify({ ids: [3, 1, 2] }));
+		expect(opts.body).toBe(JSON.stringify({ orders }));
 	});
 });

@@ -24,10 +24,7 @@ import { useCallback, useEffect, useState } from "react";
 // Filter definitions
 // ---------------------------------------------------------------------------
 
-const FILTERS: FilterDef[] = [
-	{ key: "ip", label: "Search IP...", type: "search" },
-	{ key: "reason", label: "Search reason...", type: "search" },
-];
+const FILTERS: FilterDef[] = [{ key: "ip", label: "Search IP...", type: "search" }];
 
 const BATCH_ACTIONS: BatchAction[] = [
 	{ key: "delete", label: "Delete Selected", variant: "destructive" },
@@ -48,7 +45,6 @@ export default function IpBansPage() {
 	const [loading, setLoading] = useState(true);
 	const [filters, setFilters] = useState<Record<string, string>>({
 		ip: "",
-		reason: "",
 	});
 	const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
 
@@ -84,7 +80,6 @@ export default function IpBansPage() {
 				params.set("page", String(page));
 				params.set("limit", String(pagination.limit));
 				if (filters.ip) params.set("ip", filters.ip);
-				if (filters.reason) params.set("reason", filters.reason);
 
 				const res = await fetch(`/api/admin/ip-bans?${params.toString()}`);
 				const json = await res.json();
@@ -115,7 +110,7 @@ export default function IpBansPage() {
 	}, []);
 
 	const handleClearFilters = useCallback(() => {
-		setFilters({ ip: "", reason: "" });
+		setFilters({ ip: "" });
 	}, []);
 
 	// ---------------------------------------------------------------------------

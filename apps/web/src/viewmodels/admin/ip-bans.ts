@@ -15,7 +15,7 @@ export interface IpBan {
 
 export interface IpBanFilters {
 	ip?: string;
-	reason?: string;
+	expired?: boolean;
 	page?: number;
 	limit?: number;
 }
@@ -53,7 +53,7 @@ export function buildIpBanSearchParams(
 		page: filters.page,
 		limit: filters.limit,
 		ip: filters.ip || undefined,
-		reason: filters.reason || undefined,
+		expired: filters.expired ?? undefined,
 	};
 }
 

@@ -49,9 +49,9 @@ describe("buildIpBanSearchParams", () => {
 	});
 
 	it("omits empty and undefined values", () => {
-		const params = buildIpBanSearchParams({ ip: "", reason: undefined });
+		const params = buildIpBanSearchParams({ ip: "", expired: undefined });
 		expect(params.ip).toBeUndefined();
-		expect(params.reason).toBeUndefined();
+		expect(params.expired).toBeUndefined();
 	});
 });
 

@@ -75,7 +75,7 @@ export default function CensorWordsPage() {
 				const params = new URLSearchParams();
 				params.set("page", String(page));
 				params.set("limit", String(pagination.limit));
-				if (filters.search) params.set("word", filters.search);
+				if (filters.search) params.set("find", filters.search);
 
 				const res = await fetch(`/api/admin/censor-words?${params.toString()}`);
 				const json = await res.json();

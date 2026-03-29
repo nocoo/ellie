@@ -30,14 +30,34 @@ export function getAllowedOrigins(): string[] {
 }
 
 /**
+ * Extract the origin tuple (scheme + host + port) from a URL string.
+ * Returns null if the URL is invalid.
+ */
+function extractOrigin(urlStr: string): string | null {
+	try {
+		const url = new URL(urlStr);
+		return url.origin;
+	} catch {
+		return null;
+	}
+}
+
+/**
  * Validate that the request Origin/Referer matches an allowed origin.
  * Only checked for non-GET/HEAD methods.
+ * Uses exact origin tuple comparison (scheme + host + port) to prevent
+ * prefix-based attacks (e.g. "https://ellie.dev.hexly.ai.evil.com").
  * Exported for testing.
  */
 export function validateOrigin(request: Request): boolean {
-	const origin = request.headers.get("Origin") || request.headers.get("Referer");
+	const raw = request.headers.get("Origin") || request.headers.get("Referer");
+	if (!raw) return false;
+	const origin = extractOrigin(raw);
 	if (!origin) return false;
-	return getAllowedOrigins().some((allowed) => origin.startsWith(allowed));
+	return getAllowedOrigins().some((allowed) => {
+		const allowedOrigin = extractOrigin(allowed);
+		return allowedOrigin !== null && origin === allowedOrigin;
+	});
 }
 
 // ---------------------------------------------------------------------------

@@ -19,7 +19,6 @@ export interface PostFilters {
 	authorId?: number;
 	authorName?: string;
 	content?: string;
-	first?: number;
 	page?: number;
 	limit?: number;
 }
@@ -51,7 +50,6 @@ export function buildPostSearchParams(
 		authorId: filters.authorId ?? undefined,
 		authorName: filters.authorName || undefined,
 		content: filters.content || undefined,
-		first: filters.first ?? undefined,
 	};
 }
 

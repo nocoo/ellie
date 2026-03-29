@@ -12,8 +12,8 @@ export interface CensorWord {
 }
 
 export interface CensorWordFilters {
-	word?: string;
-	replacement?: string;
+	find?: string;
+	action?: string;
 	page?: number;
 	limit?: number;
 }
@@ -49,8 +49,8 @@ export function buildCensorWordSearchParams(
 	return {
 		page: filters.page,
 		limit: filters.limit,
-		word: filters.word || undefined,
-		replacement: filters.replacement || undefined,
+		find: filters.find || undefined,
+		action: filters.action || undefined,
 	};
 }
 

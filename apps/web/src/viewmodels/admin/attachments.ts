@@ -17,9 +17,10 @@ export interface Attachment {
 }
 
 export interface AttachmentFilters {
-	filename?: string;
+	postId?: number;
 	threadId?: number;
 	authorId?: number;
+	isImage?: boolean;
 	page?: number;
 	limit?: number;
 }
@@ -42,9 +43,10 @@ export function buildAttachmentSearchParams(
 	return {
 		page: filters.page,
 		limit: filters.limit,
-		filename: filters.filename || undefined,
+		postId: filters.postId ?? undefined,
 		threadId: filters.threadId ?? undefined,
 		authorId: filters.authorId ?? undefined,
+		isImage: filters.isImage ?? undefined,
 	};
 }
 
