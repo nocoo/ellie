@@ -24,6 +24,7 @@ import {
 	updateThread,
 } from "@/viewmodels/admin/threads";
 import { MoreHorizontal } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------
@@ -192,7 +193,14 @@ export default function ThreadsPage() {
 		{
 			key: "subject",
 			header: "Subject",
-			cell: (row) => <span className="font-medium">{row.subject}</span>,
+			cell: (row) => (
+				<Link
+					href={`/admin/threads/${row.id}`}
+					className="font-medium text-foreground hover:underline"
+				>
+					{row.subject}
+				</Link>
+			),
 		},
 		{ key: "author", header: "Author", cell: (row) => row.authorName },
 		{

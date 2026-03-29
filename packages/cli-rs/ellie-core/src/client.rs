@@ -443,9 +443,11 @@ mod tests {
 		// No refresh token set
 		let result = client.refresh();
 		assert!(result.is_err());
-		assert!(result
-			.unwrap_err()
-			.to_string()
-			.contains("no refresh token available"));
+		assert!(
+			result
+				.unwrap_err()
+				.to_string()
+				.contains("no refresh token available")
+		);
 	}
 }

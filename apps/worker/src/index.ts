@@ -186,7 +186,10 @@ export default {
 				return await (await import("./handlers/admin/post")).remove(request, env);
 			}
 
-			// ── D. User (Admin) #36-#42 ─────────────────────
+			// ── D. User (Admin) #36-#43 ─────────────────────
+			if (path === "/api/admin/users/batch" && request.method === "GET") {
+				return await (await import("./handlers/admin/user")).batchFetch(request, env);
+			}
 			if (path === "/api/admin/users/batch-status" && request.method === "POST") {
 				return await (await import("./handlers/admin/user")).batchStatus(request, env);
 			}

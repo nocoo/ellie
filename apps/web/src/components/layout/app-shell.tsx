@@ -6,6 +6,7 @@ import { breadcrumbsFromPathname } from "@/lib/navigation";
 import { Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
+import { BreadcrumbOverrideProvider, useBreadcrumbOverrideValue } from "./breadcrumb-context";
 import { Breadcrumbs } from "./breadcrumbs";
 import { Sidebar } from "./sidebar";
 import { SidebarProvider, useSidebar } from "./sidebar-context";
@@ -42,6 +43,13 @@ function AppShellInner({ children }: AppShellProps) {
 	}, [mobileOpen]);
 
 	const breadcrumbs = breadcrumbsFromPathname(pathname);
+	const breadcrumbOverride = useBreadcrumbOverrideValue();
+
+	// If a page sets a dynamic breadcrumb override, replace the last segment's label
+	if (breadcrumbOverride && breadcrumbs.length > 0) {
+		const last = breadcrumbs[breadcrumbs.length - 1];
+		breadcrumbs[breadcrumbs.length - 1] = { ...last, label: breadcrumbOverride };
+	}
 
 	return (
 		<div className="flex min-h-screen w-full bg-background">
@@ -97,7 +105,9 @@ function AppShellInner({ children }: AppShellProps) {
 export function AppShell({ children }: AppShellProps) {
 	return (
 		<SidebarProvider>
-			<AppShellInner>{children}</AppShellInner>
+			<BreadcrumbOverrideProvider>
+				<AppShellInner>{children}</AppShellInner>
+			</BreadcrumbOverrideProvider>
 		</SidebarProvider>
 	);
 }
