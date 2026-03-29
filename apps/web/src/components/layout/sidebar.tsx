@@ -208,7 +208,7 @@ export function Sidebar() {
 						<div className="py-3 flex justify-center w-full">
 							<Tooltip>
 								<TooltipTrigger
-									onClick={() => signOut({ callbackUrl: "/login" })}
+									onClick={() => signOut({ callbackUrl: "/admin/login" })}
 									className="cursor-pointer"
 								>
 									<Avatar className="h-9 w-9">
@@ -267,7 +267,7 @@ export function Sidebar() {
 								</div>
 								<Tooltip>
 									<TooltipTrigger
-										onClick={() => signOut({ callbackUrl: "/login" })}
+										onClick={() => signOut({ callbackUrl: "/admin/login" })}
 										aria-label="Sign out"
 										className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
 									>

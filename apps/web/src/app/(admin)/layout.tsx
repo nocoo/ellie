@@ -9,7 +9,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 	const admin = resolveAdmin(session);
 
 	if (!admin) {
-		redirect("/login");
+		redirect("/admin/login");
 	}
 
 	return <AppShell>{children}</AppShell>;

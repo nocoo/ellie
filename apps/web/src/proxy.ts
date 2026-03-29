@@ -5,10 +5,10 @@
  *
  * Route protection tiers:
  * 1. Public routes: /, /forums/*, /threads/*, /users/*, /digest, /search,
- *    /login, /api/auth/* — no auth required.
+ *    /login, /admin/login, /api/auth/* — no auth required.
  * 2. Forum auth routes: /threads/new — requires forum credentials session.
- * 3. Admin routes: /admin/* — requires Google OAuth session + email ∈ ADMIN_EMAILS.
- * 4. API routes: /api/* (except /api/auth/*) — NOT handled by proxy (matcher excludes them);
+ * 3. Admin routes: /admin/* (except /admin/login) — requires Google OAuth + ADMIN_EMAILS.
+ * 4. API routes: /api/* (except /api/auth/*) — NOT handled by proxy;
  *    auth guard is in route handlers or lib/admin-proxy.ts instead.
  */
 
@@ -24,7 +24,8 @@ import type { NextRequest } from "next/server";
 /** Routes that require no authentication at all. */
 export function isPublicRoute(pathname: string): boolean {
 	// Auth endpoints
-	if (pathname === "/login" || pathname.startsWith("/api/auth")) return true;
+	if (pathname === "/login" || pathname === "/admin/login") return true;
+	if (pathname.startsWith("/api/auth")) return true;
 
 	// Forum public pages
 	if (pathname === "/") return true;
@@ -46,8 +47,9 @@ export function isForumAuthRoute(pathname: string): boolean {
 	return pathname === "/threads/new";
 }
 
-/** Check if a pathname is an admin page route (not API). */
+/** Check if a pathname is an admin page route (not API, not admin login). */
 export function isAdminRoute(pathname: string): boolean {
+	if (pathname === "/admin/login") return false;
 	return pathname === "/admin" || pathname.startsWith("/admin/");
 }
 
@@ -55,18 +57,19 @@ export function isAdminRoute(pathname: string): boolean {
  * Determine the proxy action for the given request state.
  *
  * Returns:
- * - "next"              -> allow through
- * - "redirect:/admin"   -> redirect to admin (logged-in admin on login page)
- * - "redirect:/login"   -> redirect to login (unauthenticated or non-admin user)
+ * - "next"                    -> allow through
+ * - "redirect:/admin"         -> redirect to admin dashboard
+ * - "redirect:/login"         -> redirect to forum login
+ * - "redirect:/admin/login"   -> redirect to admin login
  */
 export function resolveProxyAction(
 	pathname: string,
 	isLoggedIn: boolean,
 	email?: string | null,
-): "next" | "redirect:/admin" | "redirect:/login" {
+): "next" | "redirect:/admin" | "redirect:/login" | "redirect:/admin/login" {
 	if (isPublicRoute(pathname)) {
-		// Authenticated admin on login page -> redirect to admin
-		if (pathname === "/login" && isLoggedIn && isAdmin(email)) return "redirect:/admin";
+		// Authenticated admin on admin login page -> redirect to admin dashboard
+		if (pathname === "/admin/login" && isLoggedIn && isAdmin(email)) return "redirect:/admin";
 		return "next";
 	}
 
@@ -75,11 +78,15 @@ export function resolveProxyAction(
 		return isLoggedIn ? "next" : "redirect:/login";
 	}
 
-	// Not logged in -> redirect to login
-	if (!isLoggedIn) return "redirect:/login";
-
 	// Admin page routes require admin whitelist check
-	if (isAdminRoute(pathname) && !isAdmin(email)) return "redirect:/login";
+	if (isAdminRoute(pathname)) {
+		if (!isLoggedIn) return "redirect:/admin/login";
+		if (!isAdmin(email)) return "redirect:/admin/login";
+		return "next";
+	}
+
+	// Other non-public routes: require login
+	if (!isLoggedIn) return "redirect:/login";
 
 	return "next";
 }
@@ -108,7 +115,7 @@ export async function proxy(request: NextRequest) {
 		const action = resolveProxyAction(req.nextUrl.pathname, !!req.auth, req.auth?.user?.email);
 
 		if (action === "next") return NextResponse.next();
-		const target = action === "redirect:/admin" ? "/admin" : "/login";
+		const target = action.replace("redirect:", "");
 		return NextResponse.redirect(buildRedirectUrl(req, target));
 	});
 

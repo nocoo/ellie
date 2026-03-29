@@ -66,7 +66,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth(async () => ({
 		session: sessionCallback,
 	},
 	pages: {
-		signIn: "/login",
-		error: "/login",
+		signIn: "/admin/login",
+		error: "/admin/login",
 	},
 }));
