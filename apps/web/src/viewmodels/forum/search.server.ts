@@ -1,13 +1,16 @@
 // viewmodels/forum/search.server.ts — Server-only data loader for search
-// Ref: 04d §Search — calls ThreadRepository.search with resolved params
+// Worker v1 has no search endpoint. Returns empty results for now.
 
-import {
-	type PaginatedResult,
-	type ThreadSearchParams,
-	createRepositories,
-} from "@ellie/repositories";
 import type { Thread } from "@ellie/types";
-import { type SearchType, buildSearchParams, resolveSearchType } from "./search";
+import { type SearchType, resolveSearchType } from "./search";
+
+/** Matches PaginatedResult shape from @ellie/repositories */
+interface PaginatedResult<T> {
+	items: T[];
+	nextCursor: string | null;
+	prevCursor: string | null;
+	total: number;
+}
 
 export interface SearchData {
 	query: string;
@@ -25,23 +28,10 @@ export async function loadSearchResults(params: {
 	const query = params.query?.trim() ?? "";
 	const searchType = resolveSearchType(params.type);
 
-	if (query.length === 0) {
-		return {
-			query,
-			searchType,
-			results: { items: [], nextCursor: null, prevCursor: null, total: 0 },
-		};
-	}
-
-	const repos = createRepositories();
-	const searchParams: ThreadSearchParams = {
-		...buildSearchParams(searchType, query),
-		cursor: params.cursor,
-		direction: params.direction ?? "forward",
-		limit: params.limit ?? 20,
+	// Worker v1 has no search endpoint — always return empty results.
+	return {
+		query,
+		searchType,
+		results: { items: [], nextCursor: null, prevCursor: null, total: 0 },
 	};
-
-	const results = (await repos.threads.search(searchParams)) as PaginatedResult<Thread>;
-
-	return { query, searchType, results };
 }

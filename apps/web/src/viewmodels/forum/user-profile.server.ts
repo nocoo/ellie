@@ -1,9 +1,18 @@
 // viewmodels/forum/user-profile.server.ts — Server-only data loader for user profile
-// Ref: 04d §UserProfile — user info + per-tab thread/post history
+// Calls Worker API (GET /api/v1/users/:id).
+// Worker v1 has no authorId filter on threads/posts, so history tabs return empty.
 
-import { type PaginatedResult, createRepositories } from "@ellie/repositories";
-import type { Post, Thread, User } from "@ellie/types";
+import { forumApi, publicUserToUser } from "@/lib/forum-api";
+import type { Post, PublicUser, Thread, User } from "@ellie/types";
 import { type ProfileTab, resolveTab } from "./user-profile";
+
+/** Matches PaginatedResult shape from @ellie/repositories */
+interface PaginatedResult<T> {
+	items: T[];
+	nextCursor: string | null;
+	prevCursor: string | null;
+	total: number;
+}
 
 export interface UserProfileData {
 	user: User;
@@ -11,6 +20,8 @@ export interface UserProfileData {
 	threads: PaginatedResult<Thread>;
 	posts: PaginatedResult<Post>;
 }
+
+const EMPTY_PAGE = { items: [], nextCursor: null, prevCursor: null, total: 0 };
 
 export async function loadUserProfile(params: {
 	userId: number;
@@ -20,36 +31,17 @@ export async function loadUserProfile(params: {
 	direction?: "forward" | "backward";
 	limit?: number;
 }): Promise<UserProfileData> {
-	const repos = createRepositories();
-	const limit = params.limit ?? 20;
-	const direction = params.direction ?? "forward";
 	const tab = resolveTab(params.tab);
 
-	const user = await repos.users.getById(params.userId);
-	if (!user) {
-		throw new Error("User not found");
-	}
+	const { data: publicUser } = await forumApi.get<PublicUser>(`/api/v1/users/${params.userId}`);
+	const user = publicUserToUser(publicUser);
 
-	// Parallel load both tabs' data
-	const [threadResult, postResult] = await Promise.all([
-		repos.threads.list({
-			authorId: params.userId,
-			cursor: params.threadCursor,
-			direction,
-			limit,
-		}) as Promise<PaginatedResult<Thread>>,
-		repos.posts.list({
-			authorId: params.userId,
-			cursor: params.postCursor,
-			direction,
-			limit,
-		}) as Promise<PaginatedResult<Post>>,
-	]);
-
+	// Worker v1 does not support authorId filter on threads/posts.
+	// Return empty paginated results — thread/post history is unavailable.
 	return {
 		user,
 		tab,
-		threads: threadResult,
-		posts: postResult,
+		threads: EMPTY_PAGE as PaginatedResult<Thread>,
+		posts: EMPTY_PAGE as PaginatedResult<Post>,
 	};
 }

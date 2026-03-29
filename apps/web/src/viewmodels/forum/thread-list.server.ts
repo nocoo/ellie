@@ -1,8 +1,14 @@
 // viewmodels/forum/thread-list.server.ts — Server-only data loader for thread list
-// Calls repositories directly (mock phase). Phase 2 replaces with Worker API.
+// Calls Worker API (GET /api/v1/forums + GET /api/v1/threads).
 
-import { type PaginatedResult, createRepositories } from "@ellie/repositories";
-import { type ForumTreeNode, type Thread, buildForumTree, filterVisibleForums } from "@ellie/types";
+import { forumApi } from "@/lib/forum-api";
+import {
+	type Forum,
+	type ForumTreeNode,
+	type Thread,
+	buildForumTree,
+	filterVisibleForums,
+} from "@ellie/types";
 import { type ThreadDisplayItem, type ThreadSort, enrichThreads } from "./thread-list";
 
 export interface ThreadListData {
@@ -21,30 +27,27 @@ export async function loadThreadList(params: {
 	direction?: "forward" | "backward";
 	limit?: number;
 }): Promise<ThreadListData> {
-	const repos = createRepositories();
+	// Parallel fetch: forum tree + threads
+	const [forumsRes, threadsRes] = await Promise.all([
+		forumApi.getAll<Forum>("/api/v1/forums"),
+		forumApi.getCursor<Thread>("/api/v1/threads", {
+			forumId: params.forumId,
+			limit: params.limit ?? 20,
+			cursor: params.cursor,
+		}),
+	]);
 
-	// Load forum info
-	const allForums = await repos.forums.listAll();
-	const tree = buildForumTree(allForums);
+	// Build forum tree and find current forum
+	const tree = buildForumTree(forumsRes.data);
 	const visible = tree.map(filterVisibleForums).filter((n): n is ForumTreeNode => n !== null);
 	const forum = findNodeById(visible, params.forumId);
 
-	// Load threads
-	const result: PaginatedResult<Thread> = await repos.threads.list({
-		forumId: params.forumId,
-		sort: params.sort ?? "latest",
-		digest: params.digestOnly || undefined,
-		cursor: params.cursor,
-		direction: params.direction,
-		limit: params.limit ?? 20,
-	});
-
 	return {
 		forum,
-		items: enrichThreads(result.items),
-		nextCursor: result.nextCursor,
-		prevCursor: result.prevCursor,
-		total: result.total,
+		items: enrichThreads(threadsRes.data),
+		nextCursor: threadsRes.meta.nextCursor,
+		prevCursor: null, // Worker v1 does not support backward pagination
+		total: threadsRes.data.length,
 	};
 }
 
