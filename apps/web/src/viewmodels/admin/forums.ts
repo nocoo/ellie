@@ -10,35 +10,33 @@ export interface Forum {
 	description: string;
 	threads: number;
 	posts: number;
-	order: number;
+	displayOrder: number;
 	status: number;
 	createdAt: string;
-}
-
-export interface ForumFilters {
-	search?: string;
-	status?: number | null;
-	page?: number;
-	limit?: number;
 }
 
 export interface ForumCreate {
 	name: string;
 	description?: string;
-	order?: number;
+	displayOrder?: number;
 	status?: number;
 }
 
 export interface ForumUpdate {
 	name?: string;
 	description?: string;
-	order?: number;
+	displayOrder?: number;
 	status?: number;
 }
 
 export interface MergeResult {
 	merged: boolean;
 	movedThreads: number;
+}
+
+export interface ReorderItem {
+	id: number;
+	displayOrder: number;
 }
 
 export interface ReorderResult {
@@ -53,25 +51,15 @@ export interface DeleteResult {
 // Pure helpers (exported for testing)
 // ---------------------------------------------------------------------------
 
-/** Build search params from ForumFilters, omitting empty values. */
-export function buildForumSearchParams(
-	filters: ForumFilters,
-): Record<string, string | number | boolean | undefined | null> {
-	return {
-		page: filters.page,
-		limit: filters.limit,
-		search: filters.search || undefined,
-		status: filters.status ?? undefined,
-	};
-}
-
-/** Map forum status number to display label. */
+/** Map forum status number to display label. Worker uses 0=hidden, 1=active. */
 export function statusLabel(status: number): string {
 	switch (status) {
-		case -1:
+		case 0:
 			return "Hidden";
-		default:
+		case 1:
 			return "Active";
+		default:
+			return "Unknown";
 	}
 }
 
@@ -79,8 +67,8 @@ export function statusLabel(status: number): string {
 // API functions
 // ---------------------------------------------------------------------------
 
-export async function fetchForums(filters: ForumFilters): Promise<PaginatedResponse<Forum>> {
-	return apiClient.getList<Forum>("/api/admin/forums", buildForumSearchParams(filters));
+export async function fetchForums(): Promise<PaginatedResponse<Forum>> {
+	return apiClient.getList<Forum>("/api/admin/forums");
 }
 
 export async function fetchForum(id: number): Promise<Forum> {
@@ -103,14 +91,14 @@ export async function deleteForum(id: number): Promise<DeleteResult> {
 	return res.data;
 }
 
-export async function mergeForums(sourceId: number, targetId: number): Promise<MergeResult> {
+export async function mergeForums(sourceId: number, targetForumId: number): Promise<MergeResult> {
 	const res = await apiClient.post<MergeResult>(`/api/admin/forums/${sourceId}/merge`, {
-		targetId,
+		targetForumId,
 	});
 	return res.data;
 }
 
-export async function reorderForums(ids: number[]): Promise<ReorderResult> {
-	const res = await apiClient.post<ReorderResult>("/api/admin/forums/reorder", { ids });
+export async function reorderForums(orders: ReorderItem[]): Promise<ReorderResult> {
+	const res = await apiClient.post<ReorderResult>("/api/admin/forums/reorder", { orders });
 	return res.data;
 }

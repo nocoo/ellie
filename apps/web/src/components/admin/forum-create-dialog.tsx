@@ -29,8 +29,8 @@ export interface ForumCreateDialogProps {
 // ---------------------------------------------------------------------------
 
 const STATUS_OPTIONS = [
-	{ value: 0, label: "Active" },
-	{ value: -1, label: "Hidden" },
+	{ value: 1, label: "Active" },
+	{ value: 0, label: "Hidden" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -45,23 +45,23 @@ export function ForumCreateDialog({
 }: ForumCreateDialogProps) {
 	const [name, setName] = useState("");
 	const [description, setDescription] = useState("");
-	const [order, setOrder] = useState(0);
-	const [status, setStatus] = useState(0);
+	const [displayOrder, setDisplayOrder] = useState(0);
+	const [status, setStatus] = useState(1);
 
 	// Reset form when dialog opens
 	useEffect(() => {
 		if (open) {
 			setName("");
 			setDescription("");
-			setOrder(0);
-			setStatus(0);
+			setDisplayOrder(0);
+			setStatus(1);
 		}
 	}, [open]);
 
 	const handleSave = useCallback(() => {
 		if (!name.trim() || loading) return;
-		onSave({ name: name.trim(), description: description.trim(), order, status });
-	}, [name, description, order, status, loading, onSave]);
+		onSave({ name: name.trim(), description: description.trim(), displayOrder, status });
+	}, [name, description, displayOrder, status, loading, onSave]);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -100,8 +100,8 @@ export function ForumCreateDialog({
 							<Input
 								id="create-order"
 								type="number"
-								value={order}
-								onChange={(e) => setOrder(Number(e.target.value))}
+								value={displayOrder}
+								onChange={(e) => setDisplayOrder(Number(e.target.value))}
 								min={0}
 							/>
 						</div>

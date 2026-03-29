@@ -36,15 +36,20 @@ afterEach(() => {
 
 describe("buildAttachmentSearchParams", () => {
 	it("includes present values", () => {
-		const params = buildAttachmentSearchParams({ page: 1, limit: 20, filename: "photo" });
+		const params = buildAttachmentSearchParams({ page: 1, limit: 20, postId: 5 });
 		expect(params.page).toBe(1);
-		expect(params.filename).toBe("photo");
+		expect(params.postId).toBe(5);
 	});
 
 	it("omits empty and null values", () => {
-		const params = buildAttachmentSearchParams({ filename: "", threadId: undefined });
-		expect(params.filename).toBeUndefined();
+		const params = buildAttachmentSearchParams({ postId: undefined, threadId: undefined });
+		expect(params.postId).toBeUndefined();
 		expect(params.threadId).toBeUndefined();
+	});
+
+	it("includes isImage filter", () => {
+		const params = buildAttachmentSearchParams({ isImage: true });
+		expect(params.isImage).toBe(true);
 	});
 });
 
@@ -74,10 +79,10 @@ describe("formatFileSize", () => {
 
 describe("fetchAttachments", () => {
 	it("calls GET /api/admin/attachments with params", async () => {
-		await fetchAttachments({ page: 2, filename: "doc" });
+		await fetchAttachments({ page: 2, threadId: 10 });
 		const [url] = mockFetchFn.mock.calls[0] as [string];
 		expect(url).toContain("/api/admin/attachments");
-		expect(url).toContain("filename=doc");
+		expect(url).toContain("threadId=10");
 	});
 });
 

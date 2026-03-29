@@ -20,6 +20,7 @@ import {
 	type ForumUpdate,
 	createForum,
 	deleteForum,
+	fetchForums,
 	mergeForums,
 	statusLabel,
 	updateForum,
@@ -38,8 +39,8 @@ const FILTERS: FilterDef[] = [
 		label: "Status",
 		type: "select",
 		options: [
-			{ value: "0", label: "Active" },
-			{ value: "-1", label: "Hidden" },
+			{ value: "1", label: "Active" },
+			{ value: "0", label: "Hidden" },
 		],
 	},
 ];
@@ -49,7 +50,7 @@ const FILTERS: FilterDef[] = [
 // ---------------------------------------------------------------------------
 
 function statusVariant(status: number): "default" | "secondary" {
-	return status === -1 ? "secondary" : "default";
+	return status === 0 ? "secondary" : "default";
 }
 
 // ---------------------------------------------------------------------------
@@ -88,30 +89,34 @@ export default function ForumsPage() {
 	const [editingId, setEditingId] = useState<number | null>(null);
 	const [editName, setEditName] = useState("");
 	const [editDescription, setEditDescription] = useState("");
-	const [editOrder, setEditOrder] = useState(0);
+	const [editDisplayOrder, setEditDisplayOrder] = useState(0);
 
 	// -----------------------------------------------------------------------
 	// Data fetching
 	// -----------------------------------------------------------------------
 
 	const fetchData = useCallback(
-		async (page = 1) => {
+		async (_page = 1) => {
 			setLoading(true);
 			try {
-				const params = new URLSearchParams();
-				params.set("page", String(page));
-				params.set("limit", String(pagination.limit));
-				if (filters.search) params.set("search", filters.search);
-				if (filters.status) params.set("status", filters.status);
-
-				const res = await fetch(`/api/admin/forums?${params.toString()}`);
-				const json = await res.json();
-				setData(json.data ?? []);
+				const result = await fetchForums();
+				// Client-side filtering (Worker returns all forums, no server filter params)
+				let filtered = result.data;
+				if (filters.search) {
+					const q = filters.search.toLowerCase();
+					filtered = filtered.filter(
+						(f) => f.name.toLowerCase().includes(q) || f.description.toLowerCase().includes(q),
+					);
+				}
+				if (filters.status) {
+					filtered = filtered.filter((f) => f.status === Number(filters.status));
+				}
+				setData(filtered);
 				setPagination({
-					page: json.meta?.page ?? page,
-					pages: json.meta?.pages ?? 0,
-					total: json.meta?.total ?? 0,
-					limit: json.meta?.limit ?? 50,
+					page: 1,
+					pages: 1,
+					total: filtered.length,
+					limit: filtered.length || 50,
 				});
 			} catch {
 				setData([]);
@@ -119,7 +124,7 @@ export default function ForumsPage() {
 				setLoading(false);
 			}
 		},
-		[filters, pagination.limit],
+		[filters],
 	);
 
 	useEffect(() => {
@@ -158,7 +163,7 @@ export default function ForumsPage() {
 		setEditingId(forum.id);
 		setEditName(forum.name);
 		setEditDescription(forum.description);
-		setEditOrder(forum.order);
+		setEditDisplayOrder(forum.displayOrder);
 	}, []);
 
 	const cancelEdit = useCallback(() => {
@@ -170,18 +175,18 @@ export default function ForumsPage() {
 			const update: ForumUpdate = {
 				name: editName.trim(),
 				description: editDescription.trim(),
-				order: editOrder,
+				displayOrder: editDisplayOrder,
 			};
 			await updateForum(id, update);
 			setEditingId(null);
 			fetchData(pagination.page);
 		},
-		[editName, editDescription, editOrder, fetchData, pagination.page],
+		[editName, editDescription, editDisplayOrder, fetchData, pagination.page],
 	);
 
 	const handleToggleStatus = useCallback(
 		async (forum: Forum) => {
-			await updateForum(forum.id, { status: forum.status === 0 ? -1 : 0 });
+			await updateForum(forum.id, { status: forum.status === 1 ? 0 : 1 });
 			fetchData(pagination.page);
 		},
 		[fetchData, pagination.page],
@@ -271,19 +276,19 @@ export default function ForumsPage() {
 			className: "text-right",
 		},
 		{
-			key: "order",
+			key: "displayOrder",
 			header: "Order",
 			cell: (row) =>
 				editingId === row.id ? (
 					<input
 						type="number"
-						value={editOrder}
-						onChange={(e) => setEditOrder(Number(e.target.value))}
+						value={editDisplayOrder}
+						onChange={(e) => setEditDisplayOrder(Number(e.target.value))}
 						className="h-8 w-16 rounded-md border border-input bg-background px-2 text-sm text-right"
 						min={0}
 					/>
 				) : (
-					row.order
+					row.displayOrder
 				),
 			className: "text-right",
 		},
@@ -317,7 +322,7 @@ export default function ForumsPage() {
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem onClick={() => startEdit(row)}>Edit</DropdownMenuItem>
 							<DropdownMenuItem onClick={() => handleToggleStatus(row)}>
-								{row.status === 0 ? "Hide" : "Show"}
+								{row.status === 1 ? "Hide" : "Show"}
 							</DropdownMenuItem>
 							<DropdownMenuItem onClick={() => setMergeSource(row)}>Merge</DropdownMenuItem>
 							{row.threads === 0 && (

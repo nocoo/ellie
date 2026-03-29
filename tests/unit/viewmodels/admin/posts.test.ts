@@ -46,16 +46,6 @@ describe("buildPostSearchParams", () => {
 		expect(params.authorName).toBeUndefined();
 		expect(params.threadId).toBeUndefined();
 	});
-
-	it("includes first filter when set", () => {
-		const params = buildPostSearchParams({ first: 1 });
-		expect(params.first).toBe(1);
-	});
-
-	it("omits first filter when undefined", () => {
-		const params = buildPostSearchParams({});
-		expect(params.first).toBeUndefined();
-	});
 });
 
 describe("fetchPosts", () => {

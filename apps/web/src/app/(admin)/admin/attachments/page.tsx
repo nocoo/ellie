@@ -65,7 +65,6 @@ export default function AttachmentsPage() {
 				const params = new URLSearchParams();
 				params.set("page", String(page));
 				params.set("limit", String(pagination.limit));
-				if (filters.search) params.set("filename", filters.search);
 
 				const res = await fetch(`/api/admin/attachments?${params.toString()}`);
 				const json = await res.json();
@@ -82,7 +81,7 @@ export default function AttachmentsPage() {
 				setLoading(false);
 			}
 		},
-		[filters, pagination.limit],
+		[pagination.limit],
 	);
 
 	useEffect(() => {

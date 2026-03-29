@@ -107,12 +107,24 @@ describe("validateOrigin", () => {
 	it("returns false for partial origin match (prefix attack)", () => {
 		const req = new Request("http://localhost/api/admin/users", {
 			method: "POST",
-			// "https://ellie.dev.hexly.ai.evil.com" should NOT match
-			// because startsWith("https://ellie.dev.hexly.ai") is true
-			// but this is considered acceptable — Origin header is the full origin
-			// not a URL with path, so in practice this doesn't happen.
-			// Testing a completely different domain:
 			headers: { Origin: "https://not-ellie.dev.hexly.ai" },
+		});
+		expect(validateOrigin(req)).toBe(false);
+	});
+
+	it("returns false for subdomain prefix attack", () => {
+		// "https://ellie.dev.hexly.ai.evil.com" must NOT match "https://ellie.dev.hexly.ai"
+		const req = new Request("http://localhost/api/admin/users", {
+			method: "POST",
+			headers: { Origin: "https://ellie.dev.hexly.ai.evil.com" },
+		});
+		expect(validateOrigin(req)).toBe(false);
+	});
+
+	it("returns false for invalid Origin header", () => {
+		const req = new Request("http://localhost/api/admin/users", {
+			method: "POST",
+			headers: { Origin: "not-a-valid-url" },
 		});
 		expect(validateOrigin(req)).toBe(false);
 	});

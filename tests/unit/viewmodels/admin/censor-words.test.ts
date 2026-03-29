@@ -39,15 +39,15 @@ afterEach(() => {
 
 describe("buildCensorWordSearchParams", () => {
 	it("includes present values", () => {
-		const params = buildCensorWordSearchParams({ page: 1, limit: 20, word: "bad" });
+		const params = buildCensorWordSearchParams({ page: 1, limit: 20, find: "bad" });
 		expect(params.page).toBe(1);
-		expect(params.word).toBe("bad");
+		expect(params.find).toBe("bad");
 	});
 
 	it("omits empty and undefined values", () => {
-		const params = buildCensorWordSearchParams({ word: "", replacement: undefined });
-		expect(params.word).toBeUndefined();
-		expect(params.replacement).toBeUndefined();
+		const params = buildCensorWordSearchParams({ find: "", action: undefined });
+		expect(params.find).toBeUndefined();
+		expect(params.action).toBeUndefined();
 	});
 });
 
@@ -63,10 +63,10 @@ describe("replacementDisplay", () => {
 
 describe("fetchCensorWords", () => {
 	it("calls GET /api/admin/censor-words with params", async () => {
-		await fetchCensorWords({ page: 2, word: "test" });
+		await fetchCensorWords({ page: 2, find: "test" });
 		const [url] = mockFetchFn.mock.calls[0] as [string];
 		expect(url).toContain("/api/admin/censor-words");
-		expect(url).toContain("word=test");
+		expect(url).toContain("find=test");
 	});
 });
 

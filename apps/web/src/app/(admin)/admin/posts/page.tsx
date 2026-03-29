@@ -28,18 +28,7 @@ import { useCallback, useEffect, useState } from "react";
 // Filter definitions
 // ---------------------------------------------------------------------------
 
-const FILTERS: FilterDef[] = [
-	{ key: "search", label: "Search content...", type: "search" },
-	{
-		key: "first",
-		label: "Post Type",
-		type: "select",
-		options: [
-			{ value: "1", label: "First Post" },
-			{ value: "0", label: "Reply" },
-		],
-	},
-];
+const FILTERS: FilterDef[] = [{ key: "search", label: "Search content...", type: "search" }];
 
 const BATCH_ACTIONS: BatchAction[] = [
 	{ key: "delete", label: "Delete Selected", variant: "destructive" },
@@ -60,7 +49,6 @@ export default function PostsPage() {
 	const [loading, setLoading] = useState(true);
 	const [filters, setFilters] = useState<Record<string, string>>({
 		search: "",
-		first: "",
 	});
 	const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
 
@@ -83,7 +71,6 @@ export default function PostsPage() {
 				params.set("page", String(page));
 				params.set("limit", String(pagination.limit));
 				if (filters.search) params.set("content", filters.search);
-				if (filters.first) params.set("first", filters.first);
 
 				const res = await fetch(`/api/admin/posts?${params.toString()}`);
 				const json = await res.json();
@@ -114,7 +101,7 @@ export default function PostsPage() {
 	}, []);
 
 	const handleClearFilters = useCallback(() => {
-		setFilters({ search: "", first: "" });
+		setFilters({ search: "" });
 	}, []);
 
 	const handleEditSave = useCallback(
