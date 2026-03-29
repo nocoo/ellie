@@ -412,8 +412,7 @@ mod tests {
 
 	#[test]
 	fn list_state_jump_top_and_bottom() {
-		let mut ls = ListState::default();
-		ls.selected_row = 5;
+		let mut ls = ListState { selected_row: 5, ..Default::default() };
 		ls.jump_top();
 		assert_eq!(ls.selected_row, 0);
 
@@ -445,8 +444,7 @@ mod tests {
 
 	#[test]
 	fn list_state_page_up() {
-		let mut ls = ListState::default();
-		ls.selected_row = 15;
+		let mut ls = ListState { selected_row: 15, ..Default::default() };
 		ls.page_up(5);
 		assert_eq!(ls.selected_row, 10);
 		ls.page_up(5);
@@ -464,8 +462,7 @@ mod tests {
 
 	#[test]
 	fn list_state_selected_index_no_filter() {
-		let mut ls = ListState::default();
-		ls.selected_row = 3;
+		let ls = ListState { selected_row: 3, ..Default::default() };
 		assert_eq!(ls.selected_index(), 3);
 	}
 
@@ -482,17 +479,21 @@ mod tests {
 
 	#[test]
 	fn list_state_selected_index_with_filter() {
-		let mut ls = ListState::default();
-		ls.filtered_indices = vec![2, 5, 8];
-		ls.selected_row = 1;
+		let ls = ListState {
+			filtered_indices: vec![2, 5, 8],
+			selected_row: 1,
+			..Default::default()
+		};
 		assert_eq!(ls.selected_index(), 5);
 	}
 
 	#[test]
 	fn list_state_clear_search() {
-		let mut ls = ListState::default();
-		ls.search_query = "test".to_string();
-		ls.filtered_indices = vec![1, 2, 3];
+		let mut ls = ListState {
+			search_query: "test".to_string(),
+			filtered_indices: vec![1, 2, 3],
+			..Default::default()
+		};
 		ls.clear_search();
 		assert!(ls.search_query.is_empty());
 		assert!(ls.filtered_indices.is_empty());
@@ -500,8 +501,7 @@ mod tests {
 
 	#[test]
 	fn list_state_filter_clamps_selection() {
-		let mut ls = ListState::default();
-		ls.selected_row = 5;
+		let mut ls = ListState { selected_row: 5, ..Default::default() };
 		let items = vec!["apple", "banana"];
 		ls.search_query = "x".to_string(); // nothing matches
 		ls.apply_filter(&items, |item, q| item.contains(q));
@@ -534,11 +534,12 @@ mod tests {
 
 	#[test]
 	fn login_form_reset() {
-		let mut form = LoginFormState::default();
-		form.username = "alice".to_string();
-		form.password = "secret".to_string();
-		form.focus = 1;
-		form.error = Some("bad".to_string());
+		let mut form = LoginFormState {
+			username: "alice".to_string(),
+			password: "secret".to_string(),
+			focus: 1,
+			error: Some("bad".to_string()),
+		};
 		form.reset();
 		assert!(form.username.is_empty());
 		assert!(form.password.is_empty());

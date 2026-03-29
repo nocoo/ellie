@@ -2,7 +2,16 @@
 // Each mapper explicitly selects and renames fields, preventing
 // accidental exposure of sensitive or internal columns.
 
-import type { Attachment, CensorWord, Forum, IpBan, Post, Thread, User } from "@ellie/types";
+import type {
+	Attachment,
+	CensorWord,
+	Forum,
+	IpBan,
+	Post,
+	PublicUser,
+	Thread,
+	User,
+} from "@ellie/types";
 
 /** D1 row shape for users table */
 interface D1UserRow {
@@ -242,19 +251,16 @@ export function toCensorWord(row: Record<string, unknown>): CensorWord {
  * Maps a D1 user row to PublicUser (no sensitive fields).
  * For public GET /api/v1/users/:id
  */
-export function toPublicUser(row: Record<string, unknown>): Omit<User, "email"> {
+export function toPublicUser(row: Record<string, unknown>): PublicUser {
 	const r = row as unknown as D1UserRow;
 	return {
 		id: r.id,
 		username: r.username,
 		avatar: r.avatar,
-		status: r.status,
 		role: r.role,
 		regDate: r.reg_date,
-		lastLogin: r.last_login,
 		threads: r.threads,
 		posts: r.posts,
-		credits: r.credits,
 	};
 }
 

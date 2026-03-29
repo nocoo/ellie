@@ -5,6 +5,7 @@ export * from "./types";
 
 // ─── Entity Interfaces ───────────────────────────────────────
 export type {
+	PublicUser,
 	User,
 	Forum,
 	Thread,

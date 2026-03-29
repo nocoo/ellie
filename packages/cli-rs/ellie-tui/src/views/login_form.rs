@@ -130,8 +130,7 @@ mod tests {
 		let backend = TestBackend::new(80, 24);
 		let mut terminal = Terminal::new(backend).unwrap();
 		let tc = Theme::Default.colors();
-		let mut form = LoginFormState::default();
-		form.username = "alice".to_string();
+		let form = LoginFormState { username: "alice".to_string(), ..Default::default() };
 		terminal.draw(|f| draw(f, &form, &tc)).unwrap();
 		let text = buf_text(&terminal);
 		assert!(text.contains("Login"));
@@ -144,8 +143,7 @@ mod tests {
 		let backend = TestBackend::new(80, 24);
 		let mut terminal = Terminal::new(backend).unwrap();
 		let tc = Theme::Default.colors();
-		let mut form = LoginFormState::default();
-		form.error = Some("bad credentials".to_string());
+		let form = LoginFormState { error: Some("bad credentials".to_string()), ..Default::default() };
 		terminal.draw(|f| draw(f, &form, &tc)).unwrap();
 		let text = buf_text(&terminal);
 		assert!(text.contains("bad credentials"));

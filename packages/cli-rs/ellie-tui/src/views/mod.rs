@@ -285,9 +285,11 @@ mod tests {
 	#[test]
 	fn visible_items_with_filter() {
 		let items = vec![10, 20, 30, 40];
-		let mut ls = ListState::default();
-		ls.search_query = "x".to_string();
-		ls.filtered_indices = vec![1, 3];
+		let ls = ListState {
+			search_query: "x".to_string(),
+			filtered_indices: vec![1, 3],
+			..Default::default()
+		};
 		let result: Vec<_> = visible_items(&items, &ls).collect();
 		assert_eq!(result, vec![&20, &40]);
 	}

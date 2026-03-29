@@ -35,6 +35,17 @@ export enum ForumType {
 
 // ─── Entity Interfaces ──────────────────────────────────
 
+/** Public-facing user profile — excludes email, status, lastLogin, credits */
+export interface PublicUser {
+	id: number;
+	username: string;
+	avatar: string;
+	role: UserRole;
+	regDate: number;
+	threads: number;
+	posts: number;
+}
+
 /** Maps to Doc02 users table — 1.14M rows */
 export interface User {
 	id: number;
