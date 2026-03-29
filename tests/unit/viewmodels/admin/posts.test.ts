@@ -60,17 +60,17 @@ describe("fetchPosts", () => {
 describe("fetchPost", () => {
 	it("calls GET /api/admin/posts/:id", async () => {
 		mockFetchFn.mockImplementation(() =>
-			Promise.resolve(mockJsonResponse({ data: { pid: 10, content: "Test post" }, meta: {} })),
+			Promise.resolve(mockJsonResponse({ data: { id: 10, content: "Test post" }, meta: {} })),
 		);
 		const post = await fetchPost(10);
-		expect(post.pid).toBe(10);
+		expect(post.id).toBe(10);
 	});
 });
 
 describe("updatePost", () => {
 	it("calls PATCH /api/admin/posts/:id", async () => {
 		mockFetchFn.mockImplementation(() =>
-			Promise.resolve(mockJsonResponse({ data: { pid: 10, content: "Updated" }, meta: {} })),
+			Promise.resolve(mockJsonResponse({ data: { id: 10, content: "Updated" }, meta: {} })),
 		);
 		await updatePost(10, { content: "Updated" });
 		const [url, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];

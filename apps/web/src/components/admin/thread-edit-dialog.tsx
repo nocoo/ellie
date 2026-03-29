@@ -54,7 +54,7 @@ export function ThreadEditDialog({
 
 	const handleSave = useCallback(() => {
 		if (!thread || loading) return;
-		onSave(thread.tid, { subject, sticky, digest, closed, highlight });
+		onSave(thread.id, { subject, sticky, digest, closed, highlight });
 	}, [thread, loading, onSave, subject, sticky, digest, closed, highlight]);
 
 	return (

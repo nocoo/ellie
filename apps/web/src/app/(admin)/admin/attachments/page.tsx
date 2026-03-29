@@ -94,7 +94,7 @@ export default function AttachmentsPage() {
 				onConfirm: async () => {
 					setConfirmLoading(true);
 					try {
-						await deleteAttachment(attachment.aid);
+						await deleteAttachment(attachment.id);
 						setConfirmDialog((d) => ({ ...d, open: false }));
 						fetchData(pagination.page);
 					} finally {
@@ -128,15 +128,14 @@ export default function AttachmentsPage() {
 		{
 			key: "size",
 			header: "Size",
-			cell: (row) => formatFileSize(row.filesize),
+			cell: (row) => formatFileSize(row.fileSize),
 			className: "text-right",
 		},
-		{ key: "author", header: "Author", cell: (row) => row.authorName },
-		{ key: "thread", header: "Thread", cell: (row) => row.threadSubject },
+		{ key: "thread", header: "Thread", cell: (row) => `#${row.threadId}` },
 		{
 			key: "created",
 			header: "Created",
-			cell: (row) => new Date(row.createdAt).toLocaleDateString(),
+			cell: (row) => new Date(row.createdAt * 1000).toLocaleDateString(),
 		},
 		{
 			key: "actions",
@@ -172,7 +171,7 @@ export default function AttachmentsPage() {
 				<AdminDataTable
 					columns={columns}
 					data={data}
-					getRowId={(r) => r.aid}
+					getRowId={(r) => r.id}
 					selectable
 					selectedIds={selectedIds}
 					onSelectionChange={setSelectedIds}

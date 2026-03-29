@@ -5,7 +5,7 @@ import { type PaginatedResponse, apiClient } from "@/lib/api-client";
 // ---------------------------------------------------------------------------
 
 export interface Thread {
-	tid: number;
+	id: number;
 	subject: string;
 	forumId: number;
 	authorId: number;
@@ -16,8 +16,8 @@ export interface Thread {
 	closed: number;
 	digest: number;
 	highlight: number;
-	lastPostAt: string | null;
-	createdAt: string;
+	lastPostAt: number;
+	createdAt: number;
 }
 
 export interface ThreadFilters {
