@@ -1138,10 +1138,10 @@ interface AdminConfirmDialogProps {
 
 | # | Commit | 内容 | 测试 | 状态 |
 |---|--------|------|------|------|
-| 6.1.1 | `refactor: strengthen proxy and layout guard with admin whitelist` | 1) `proxy.ts` — 对 `/admin/*` 页面路由增加 `resolveAdmin(session)` 验证 email ∈ ADMIN_EMAILS，不通过则重定向 `/login`（注意：`/api/admin/*` 不经过 proxy，其 auth guard 由 6.1.3 的 `createProxyHandler()` 负责）；2) `(admin)/layout.tsx` — 从 Server Component 调用 `auth()` + `resolveAdmin(session)` 验证 email 白名单，不通过则 `redirect("/login")` | ✅ L1: proxy 白名单拒绝 + layout 重定向 | 🔲 |
-| 6.1.2 | `feat: add admin api client (server-side)` | `lib/admin-api.ts` — 封装 `WORKER_API_URL` + `ADMIN_API_KEY`（Key B），自动注入 `X-API-Key` header，通用 GET/POST/PATCH/DELETE，统一错误处理 `AdminApiError`，解析 `{ data, meta }` 信封 | ✅ L1: 请求构造 + 错误解析 | 🔲 |
-| 6.1.3 | `feat: add admin api proxy helpers` | `lib/admin-proxy.ts` — `createProxyHandler()` 工厂函数：读 Google OAuth session → `resolveAdmin()` 验证 email ∈ ADMIN_EMAILS → 构造 headers → 转发 → 透传响应。含 CSRF Origin 校验 | ✅ L1: header 注入 + 错误透传 + CSRF 拒绝 | 🔲 |
-| 6.1.4 | `feat: add stats api route` | `app/api/admin/stats/route.ts` — 第一个代理端点，验证全链路通畅（auth → proxy → Worker → 响应） | ✅ L1: 代理转发 | 🔲 |
+| 6.1.1 | `refactor: strengthen proxy and layout guard with admin whitelist` | 1) `proxy.ts` — 对 `/admin/*` 页面路由增加 `resolveAdmin(session)` 验证 email ∈ ADMIN_EMAILS，不通过则重定向 `/login`（注意：`/api/admin/*` 不经过 proxy，其 auth guard 由 6.1.3 的 `createProxyHandler()` 负责）；2) `(admin)/layout.tsx` — 从 Server Component 调用 `auth()` + `resolveAdmin(session)` 验证 email 白名单，不通过则 `redirect("/login")` | ✅ L1: proxy 白名单拒绝 + layout 重定向 | ✅ |
+| 6.1.2 | `feat: add admin api client (server-side)` | `lib/admin-api.ts` — 封装 `WORKER_API_URL` + `ADMIN_API_KEY`（Key B），自动注入 `X-API-Key` header，通用 GET/POST/PATCH/DELETE，统一错误处理 `AdminApiError`，解析 `{ data, meta }` 信封 | ✅ L1: 请求构造 + 错误解析 | ✅ |
+| 6.1.3 | `feat: add admin api proxy helpers` | `lib/admin-proxy.ts` — `createProxyHandler()` 工厂函数：读 Google OAuth session → `resolveAdmin()` 验证 email ∈ ADMIN_EMAILS → 构造 headers → 转发 → 透传响应。含 CSRF Origin 校验 | ✅ L1: header 注入 + 错误透传 + CSRF 拒绝 | ✅ |
+| 6.1.4 | `feat: add stats api route` | `app/api/admin/stats/route.ts` — 第一个代理端点，验证全链路通畅（auth → proxy → Worker → 响应） | ✅ L1: 代理转发 | ✅ |
 
 ---
 
@@ -1151,10 +1151,10 @@ interface AdminConfirmDialogProps {
 
 | # | Commit | 内容 | 测试 | 状态 |
 |---|--------|------|------|------|
-| 6.2.1 | `feat: add admin data table component` | `components/admin/admin-data-table.tsx` — 通用表格（列定义 + 行选择 + 空状态） | ✅ L1: 列渲染 + 选择状态 | 🔲 |
-| 6.2.2 | `feat: add admin pagination, filters, batch bar, and confirm dialog` | `admin-pagination.tsx`（offset 分页）+ `admin-filters.tsx`（search/select/toggle）+ `admin-batch-bar.tsx`（浮动栏）+ `admin-confirm-dialog.tsx`（危险操作确认，含 requireInput） | ✅ L1: 分页计算 + URL 驱动 | 🔲 |
-| 6.2.3 | `refactor: expand sidebar nav to 8 items with grouped sections` | 更新 `lib/navigation.ts`（Dashboard + 内容管理 5 项 + 安全管理 2 项）+ 更新 `sidebar.tsx` ICON_MAP（+MessageSquare, Paperclip, ShieldBan, Filter）+ 更新 `ROUTE_LABELS`（+threads, posts, attachments, ip-bans, censor-words） | ✅ L1: 导航项 + active 状态 + 面包屑 | 🔲 |
-| 6.2.4 | `feat: add stat-card component` | `components/admin/stat-card.tsx` — 独立统计卡片（label + value + 可选 sub-items 列表） | ✅ L1: 渲染 | 🔲 |
+| 6.2.1 | `feat: add admin data table component` | `components/admin/admin-data-table.tsx` — 通用表格（列定义 + 行选择 + 空状态） | ✅ L1: 列渲染 + 选择状态 | ✅ |
+| 6.2.2 | `feat: add admin pagination, filters, batch bar, and confirm dialog` | `admin-pagination.tsx`（offset 分页）+ `admin-filters.tsx`（search/select/toggle）+ `admin-batch-bar.tsx`（浮动栏）+ `admin-confirm-dialog.tsx`（危险操作确认，含 requireInput） | ✅ L1: 分页计算 + URL 驱动 | ✅ |
+| 6.2.3 | `refactor: expand sidebar nav to 8 items with grouped sections` | 更新 `lib/navigation.ts`（Dashboard + 内容管理 5 项 + 安全管理 2 项）+ 更新 `sidebar.tsx` ICON_MAP（+MessageSquare, Paperclip, ShieldBan, Filter）+ 更新 `ROUTE_LABELS`（+threads, posts, attachments, ip-bans, censor-words） | ✅ L1: 导航项 + active 状态 + 面包屑 | ✅ |
+| 6.2.4 | `feat: add stat-card component` | `components/admin/stat-card.tsx` — 独立统计卡片（label + value + 可选 sub-items 列表） | ✅ L1: 渲染 | ✅ |
 
 ---
 
@@ -1164,7 +1164,7 @@ interface AdminConfirmDialogProps {
 
 | # | Commit | 内容 | 测试 | 状态 |
 |---|--------|------|------|------|
-| 6.3.1 | `feat: rewrite dashboard with stats endpoint` | `viewmodels/admin/dashboard.ts`（`fetchDashboardStats()` 调用 adminApiClient）+ 重写 `admin/page.tsx`（4 StatCards + 2 Detail Cards + Quick Links） | ✅ L1: fetchDashboardStats 解析 | 🔲 |
+| 6.3.1 | `feat: rewrite dashboard with stats endpoint` | `viewmodels/admin/dashboard.ts`（`fetchDashboardStats()` 调用 adminApiClient）+ 重写 `admin/page.tsx`（4 StatCards + 2 Detail Cards + Quick Links） | ✅ L1: fetchDashboardStats 解析 | ✅ |
 
 ---
 
@@ -1174,9 +1174,9 @@ interface AdminConfirmDialogProps {
 
 | # | Commit | 内容 | 测试 | 状态 |
 |---|--------|------|------|------|
-| 6.4.1 | `feat: add user admin api routes` | `app/api/admin/users/route.ts`（GET list）+ `[id]/route.ts`（GET/PATCH）+ `[id]/ban/route.ts`（POST）+ `[id]/nuke/route.ts`（POST）+ `batch-status/route.ts`（POST）+ `batch-role/route.ts`（POST） | ✅ L1: 代理转发 | 🔲 |
-| 6.4.2 | `feat: add user management viewmodel` | `viewmodels/admin/users.ts` — fetchUsers, fetchUser, updateUser, banUser, nukeUser, batchSetStatus, batchSetRole（共 7 函数） | ✅ L1: 全函数 | 🔲 |
-| 6.4.3 | `feat: add user management page and components` | 重写 `admin/users/page.tsx`（AdminDataTable + AdminPagination + AdminFilters + AdminBatchBar）+ `components/admin/user-edit-dialog.tsx`（编辑弹窗 6 字段） | ✅ L1: 组件渲染 | 🔲 |
+| 6.4.1 | `feat: add user admin api routes` | `app/api/admin/users/route.ts`（GET list）+ `[id]/route.ts`（GET/PATCH）+ `[id]/ban/route.ts`（POST）+ `[id]/nuke/route.ts`（POST）+ `batch-status/route.ts`（POST）+ `batch-role/route.ts`（POST） | ✅ L1: 代理转发 | ✅ |
+| 6.4.2 | `feat: add user management viewmodel` | `viewmodels/admin/users.ts` — fetchUsers, fetchUser, updateUser, banUser, nukeUser, batchSetStatus, batchSetRole（共 7 函数） | ✅ L1: 全函数 | ✅ |
+| 6.4.3 | `feat: add user management page and components` | 重写 `admin/users/page.tsx`（AdminDataTable + AdminPagination + AdminFilters + AdminBatchBar）+ `components/admin/user-edit-dialog.tsx`（编辑弹窗 6 字段） | ✅ L1: 组件渲染 | ✅ |
 
 ---
 
@@ -1186,8 +1186,8 @@ interface AdminConfirmDialogProps {
 
 | # | Commit | 内容 | 测试 | 状态 |
 |---|--------|------|------|------|
-| 6.5.1 | `feat: add thread admin api routes` | `app/api/admin/threads/route.ts`（GET list）+ `[id]/route.ts`（GET/PATCH/DELETE）+ `batch-delete/route.ts`（POST）+ `batch-move/route.ts`（POST） | ✅ L1: 代理转发 | 🔲 |
-| 6.5.2 | `feat: add thread management viewmodel and page` | `viewmodels/admin/threads.ts`（6 函数）+ `admin/threads/page.tsx`（8 筛选器、批量删除/移动）+ `components/admin/thread-edit-dialog.tsx` | ✅ L1: VM 函数 + 组件渲染 | 🔲 |
+| 6.5.1 | `feat: add thread admin api routes` | `app/api/admin/threads/route.ts`（GET list）+ `[id]/route.ts`（GET/PATCH/DELETE）+ `batch-delete/route.ts`（POST）+ `batch-move/route.ts`（POST） | ✅ L1: 代理转发 | ✅ |
+| 6.5.2 | `feat: add thread management viewmodel and page` | `viewmodels/admin/threads.ts`（6 函数）+ `admin/threads/page.tsx`（8 筛选器、批量删除/移动）+ `components/admin/thread-edit-dialog.tsx` | ✅ L1: VM 函数 + 组件渲染 | ✅ |
 
 ---
 
@@ -1197,8 +1197,8 @@ interface AdminConfirmDialogProps {
 
 | # | Commit | 内容 | 测试 | 状态 |
 |---|--------|------|------|------|
-| 6.6.1 | `feat: add post admin api routes` | `app/api/admin/posts/route.ts`（GET list）+ `[id]/route.ts`（GET/PATCH/DELETE）+ `batch-delete/route.ts`（POST） | ✅ L1: 代理转发 | 🔲 |
-| 6.6.2 | `feat: add post management viewmodel and page` | `viewmodels/admin/posts.ts`（5 函数）+ `admin/posts/page.tsx`（4 筛选器、批量删除含 skipped 提示）+ `components/admin/post-edit-dialog.tsx` | ✅ L1: VM 函数 + 组件渲染 | 🔲 |
+| 6.6.1 | `feat: add post admin api routes` | `app/api/admin/posts/route.ts`（GET list）+ `[id]/route.ts`（GET/PATCH/DELETE）+ `batch-delete/route.ts`（POST） | ✅ L1: 代理转发 | ✅ |
+| 6.6.2 | `feat: add post management viewmodel and page` | `viewmodels/admin/posts.ts`（5 函数）+ `admin/posts/page.tsx`（4 筛选器、批量删除含 skipped 提示）+ `components/admin/post-edit-dialog.tsx` | ✅ L1: VM 函数 + 组件渲染 | ✅ |
 
 > 删除旧 `admin/content/page.tsx`（拆分为 threads + posts）。
 
@@ -1210,9 +1210,9 @@ interface AdminConfirmDialogProps {
 
 | # | Commit | 内容 | 测试 | 状态 |
 |---|--------|------|------|------|
-| 6.7.1 | `feat: add forum admin api routes` | `app/api/admin/forums/route.ts`（GET list / POST create）+ `[id]/route.ts`（GET/PATCH/DELETE）+ `[id]/merge/route.ts`（POST）+ `reorder/route.ts`（POST） | ✅ L1: 代理转发 | 🔲 |
-| 6.7.2 | `feat: add forum management viewmodel` | `viewmodels/admin/forums.ts` — fetchForums, fetchForum, createForum, updateForum, deleteForum, mergeForums, reorderForums（共 7 函数） | ✅ L1: 全函数 | 🔲 |
-| 6.7.3 | `feat: add forum management page and components` | 重写 `admin/forums/page.tsx`（树形视图）+ `components/admin/forum-create-dialog.tsx` + `forum-merge-dialog.tsx`，支持 create / edit / delete / merge / reorder / hide / show | ✅ L1: 组件渲染 | 🔲 |
+| 6.7.1 | `feat: add forum admin api routes` | `app/api/admin/forums/route.ts`（GET list / POST create）+ `[id]/route.ts`（GET/PATCH/DELETE）+ `[id]/merge/route.ts`（POST）+ `reorder/route.ts`（POST） | ✅ L1: 代理转发 | ✅ |
+| 6.7.2 | `feat: add forum management viewmodel` | `viewmodels/admin/forums.ts` — fetchForums, fetchForum, createForum, updateForum, deleteForum, mergeForums, reorderForums（共 7 函数） | ✅ L1: 全函数 | ✅ |
+| 6.7.3 | `feat: add forum management page and components` | 重写 `admin/forums/page.tsx`（树形视图）+ `components/admin/forum-create-dialog.tsx` + `forum-merge-dialog.tsx`，支持 create / edit / delete / merge / reorder / hide / show | ✅ L1: 组件渲染 | ✅ |
 
 ---
 
@@ -1222,8 +1222,8 @@ interface AdminConfirmDialogProps {
 
 | # | Commit | 内容 | 测试 | 状态 |
 |---|--------|------|------|------|
-| 6.8.1 | `feat: add attachment admin api routes` | `app/api/admin/attachments/route.ts`（GET list）+ `[id]/route.ts`（GET/DELETE）+ `batch-delete/route.ts`（POST） | ✅ L1: 代理转发 | 🔲 |
-| 6.8.2 | `feat: add attachment management viewmodel and page` | `viewmodels/admin/attachments.ts`（4 函数）+ `admin/attachments/page.tsx`（4 筛选器、批量删除） | ✅ L1: VM 函数 + 组件渲染 | 🔲 |
+| 6.8.1 | `feat: add attachment admin api routes` | `app/api/admin/attachments/route.ts`（GET list）+ `[id]/route.ts`（GET/DELETE）+ `batch-delete/route.ts`（POST） | ✅ L1: 代理转发 | ✅ |
+| 6.8.2 | `feat: add attachment management viewmodel and page` | `viewmodels/admin/attachments.ts`（4 函数）+ `admin/attachments/page.tsx`（4 筛选器、批量删除） | ✅ L1: VM 函数 + 组件渲染 | ✅ |
 
 ---
 
@@ -1233,8 +1233,8 @@ IP 封禁管理模块。Worker 端点 7 个，含 IP 检测工具。
 
 | # | Commit | 内容 | 测试 | 状态 |
 |---|--------|------|------|------|
-| 6.9.1 | `feat: add ip-ban admin api routes` | `app/api/admin/ip-bans/route.ts`（GET list / POST create）+ `[id]/route.ts`（GET/PATCH/DELETE）+ `batch-delete/route.ts`（POST）+ `check-ip/route.ts`（GET） | ✅ L1: 代理转发 | 🔲 |
-| 6.9.2 | `feat: add ip-ban management viewmodel and page` | `viewmodels/admin/ip-bans.ts`（7 函数含 checkIp）+ `admin/ip-bans/page.tsx`（含 IP 检测工具 UI）+ `components/admin/ip-ban-create-dialog.tsx` | ✅ L1: VM 函数 + 组件渲染 | 🔲 |
+| 6.9.1 | `feat: add ip-ban admin api routes` | `app/api/admin/ip-bans/route.ts`（GET list / POST create）+ `[id]/route.ts`（GET/PATCH/DELETE）+ `batch-delete/route.ts`（POST）+ `check-ip/route.ts`（GET） | ✅ L1: 代理转发 | ✅ |
+| 6.9.2 | `feat: add ip-ban management viewmodel and page` | `viewmodels/admin/ip-bans.ts`（7 函数含 checkIp）+ `admin/ip-bans/page.tsx`（含 IP 检测工具 UI）+ `components/admin/ip-ban-create-dialog.tsx` | ✅ L1: VM 函数 + 组件渲染 | ✅ |
 
 ---
 
@@ -1244,8 +1244,8 @@ IP 封禁管理模块。Worker 端点 7 个，含 IP 检测工具。
 
 | # | Commit | 内容 | 测试 | 状态 |
 |---|--------|------|------|------|
-| 6.10.1 | `feat: add censor-word admin api routes` | `app/api/admin/censor-words/route.ts`（GET list / POST create）+ `[id]/route.ts`（GET/PATCH/DELETE）+ `batch-delete/route.ts`（POST）+ `test/route.ts`（POST） | ✅ L1: 代理转发 | 🔲 |
-| 6.10.2 | `feat: add censor-word management viewmodel and page` | `viewmodels/admin/censor-words.ts`（7 函数含 testContent）+ `admin/censor-words/page.tsx`（含内容测试工具 UI）+ `components/admin/censor-word-create-dialog.tsx` | ✅ L1: VM 函数 + 组件渲染 | 🔲 |
+| 6.10.1 | `feat: add censor-word admin api routes` | `app/api/admin/censor-words/route.ts`（GET list / POST create）+ `[id]/route.ts`（GET/PATCH/DELETE）+ `batch-delete/route.ts`（POST）+ `test/route.ts`（POST） | ✅ L1: 代理转发 | ✅ |
+| 6.10.2 | `feat: add censor-word management viewmodel and page` | `viewmodels/admin/censor-words.ts`（7 函数含 testContent）+ `admin/censor-words/page.tsx`（含内容测试工具 UI）+ `components/admin/censor-word-create-dialog.tsx` | ✅ L1: VM 函数 + 组件渲染 | ✅ |
 
 ---
 
@@ -1255,8 +1255,8 @@ IP 封禁管理模块。Worker 端点 7 个，含 IP 检测工具。
 
 | # | Commit | 内容 | 测试 | 状态 |
 |---|--------|------|------|------|
-| 6.11.1 | `chore: remove deprecated content page stub` | 删除 `admin/content/page.tsx`（已被 threads + posts 替代） | — | 🔲 |
-| 6.11.2 | `chore: final cleanup and verify all admin endpoints covered` | 验证 44/44 Worker admin 端点全覆盖，清理未使用的 import，更新文档 | — | 🔲 |
+| 6.11.1 | `chore: remove deprecated content page stub` | 删除 `admin/content/page.tsx`（已被 threads + posts 替代） | — | ✅ |
+| 6.11.2 | `chore: final cleanup and verify all admin endpoints covered` | 验证 44/44 Worker admin 端点全覆盖，清理未使用的 import，更新文档 | — | ✅ |
 
 ---
 
@@ -1265,17 +1265,17 @@ IP 封禁管理模块。Worker 端点 7 个，含 IP 检测工具。
 | Step | 主题 | 提交数 | 累计 | 状态 |
 |------|------|--------|------|------|
 | 0.x | 骨架搭建（auth/layout/login） | 9 | 9 | ✅ 已完成 |
-| 6.1 | 权限守卫 + API 代理基础 | 4 | 13 | 🔲 |
-| 6.2 | 共享组件 + 侧边栏 | 4 | 17 | 🔲 |
-| 6.3 | Dashboard | 1 | 18 | 🔲 |
-| 6.4 | Users | 3 | 21 | 🔲 |
-| 6.5 | Threads | 2 | 23 | 🔲 |
-| 6.6 | Posts | 2 | 25 | 🔲 |
-| 6.7 | Forums | 3 | 28 | 🔲 |
-| 6.8 | Attachments | 2 | 30 | 🔲 |
-| 6.9 | IP Bans | 2 | 32 | 🔲 |
-| 6.10 | Censor Words | 2 | 34 | 🔲 |
-| 6.11 | 收尾 | 2 | **36** | 🔲 |
+| 6.1 | 权限守卫 + API 代理基础 | 4 | 13 | ✅ 已完成 |
+| 6.2 | 共享组件 + 侧边栏 | 4 | 17 | ✅ 已完成 |
+| 6.3 | Dashboard | 1 | 18 | ✅ 已完成 |
+| 6.4 | Users | 3 | 21 | ✅ 已完成 |
+| 6.5 | Threads | 2 | 23 | ✅ 已完成 |
+| 6.6 | Posts | 2 | 25 | ✅ 已完成 |
+| 6.7 | Forums | 3 | 28 | ✅ 已完成 |
+| 6.8 | Attachments | 2 | 30 | ✅ 已完成 |
+| 6.9 | IP Bans | 2 | 32 | ✅ 已完成 |
+| 6.10 | Censor Words | 2 | 34 | ✅ 已完成 |
+| 6.11 | 收尾 | 2 | **36** | ✅ 已完成 |
 
 > 骨架 9 commits（已完成）+ 功能 27 commits（待实现）= 总计 36 commits。
 
