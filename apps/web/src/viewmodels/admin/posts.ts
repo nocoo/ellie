@@ -5,13 +5,13 @@ import { type PaginatedResponse, apiClient } from "@/lib/api-client";
 // ---------------------------------------------------------------------------
 
 export interface Post {
-	pid: number;
-	tid: number;
+	id: number;
+	threadId: number;
 	content: string;
 	authorId: number;
 	authorName: string;
-	first: number;
-	createdAt: string;
+	isFirst: boolean;
+	createdAt: number;
 }
 
 export interface PostFilters {

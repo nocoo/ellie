@@ -89,10 +89,10 @@ describe("fetchAttachments", () => {
 describe("fetchAttachment", () => {
 	it("calls GET /api/admin/attachments/:id", async () => {
 		mockFetchFn.mockImplementation(() =>
-			Promise.resolve(mockJsonResponse({ data: { aid: 10, filename: "test.png" }, meta: {} })),
+			Promise.resolve(mockJsonResponse({ data: { id: 10, filename: "test.png" }, meta: {} })),
 		);
 		const attachment = await fetchAttachment(10);
-		expect(attachment.aid).toBe(10);
+		expect(attachment.id).toBe(10);
 	});
 });
 

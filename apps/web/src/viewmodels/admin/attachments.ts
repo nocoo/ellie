@@ -5,15 +5,17 @@ import { type PaginatedResponse, apiClient } from "@/lib/api-client";
 // ---------------------------------------------------------------------------
 
 export interface Attachment {
-	aid: number;
+	id: number;
+	postId: number;
 	filename: string;
-	filesize: number;
-	filetype: string;
+	filePath: string;
+	fileSize: number;
+	isImage: boolean;
+	hasThumb: boolean;
+	downloads: number;
 	authorId: number;
-	authorName: string;
 	threadId: number;
-	threadSubject: string;
-	createdAt: string;
+	createdAt: number;
 }
 
 export interface AttachmentFilters {

@@ -128,7 +128,7 @@ export default function PostsPage() {
 				onConfirm: async () => {
 					setConfirmLoading(true);
 					try {
-						await deletePost(post.pid);
+						await deletePost(post.id);
 						setConfirmDialog((d) => ({ ...d, open: false }));
 						fetchData(pagination.page);
 					} finally {
@@ -163,17 +163,17 @@ export default function PostsPage() {
 		{
 			key: "thread",
 			header: "Thread",
-			cell: (row) => `#${row.tid}`,
+			cell: (row) => `#${row.threadId}`,
 		},
 		{
 			key: "first",
 			header: "First Post",
-			cell: (row) => (row.first ? <Badge variant="default">First</Badge> : null),
+			cell: (row) => (row.isFirst ? <Badge variant="default">First</Badge> : null),
 		},
 		{
 			key: "createdAt",
 			header: "Created",
-			cell: (row) => new Date(row.createdAt).toLocaleDateString(),
+			cell: (row) => new Date(row.createdAt * 1000).toLocaleDateString(),
 		},
 		{
 			key: "actions",
@@ -192,7 +192,7 @@ export default function PostsPage() {
 						<DropdownMenuItem
 							onClick={() => handleDelete(row)}
 							className="text-destructive"
-							disabled={row.first === 1}
+							disabled={row.isFirst}
 						>
 							Delete
 						</DropdownMenuItem>
@@ -221,7 +221,7 @@ export default function PostsPage() {
 				<AdminDataTable
 					columns={columns}
 					data={data}
-					getRowId={(r) => r.pid}
+					getRowId={(r) => r.id}
 					selectable
 					selectedIds={selectedIds}
 					onSelectionChange={setSelectedIds}

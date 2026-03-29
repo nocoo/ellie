@@ -81,17 +81,17 @@ describe("fetchThreads", () => {
 describe("fetchThread", () => {
 	it("calls GET /api/admin/threads/:id", async () => {
 		mockFetchFn.mockImplementation(() =>
-			Promise.resolve(mockJsonResponse({ data: { tid: 10, subject: "Test" }, meta: {} })),
+			Promise.resolve(mockJsonResponse({ data: { id: 10, subject: "Test" }, meta: {} })),
 		);
 		const thread = await fetchThread(10);
-		expect(thread.tid).toBe(10);
+		expect(thread.id).toBe(10);
 	});
 });
 
 describe("updateThread", () => {
 	it("calls PATCH /api/admin/threads/:id", async () => {
 		mockFetchFn.mockImplementation(() =>
-			Promise.resolve(mockJsonResponse({ data: { tid: 10, sticky: 1 }, meta: {} })),
+			Promise.resolve(mockJsonResponse({ data: { id: 10, sticky: 1 }, meta: {} })),
 		);
 		await updateThread(10, { sticky: 1 });
 		const [url, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];

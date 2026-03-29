@@ -45,7 +45,7 @@ export function PostEditDialog({
 
 	const handleSave = useCallback(() => {
 		if (!post || loading) return;
-		onSave(post.pid, { content });
+		onSave(post.id, { content });
 	}, [post, loading, onSave, content]);
 
 	return (

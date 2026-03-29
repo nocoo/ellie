@@ -155,7 +155,7 @@ export default function ThreadsPage() {
 				onConfirm: async () => {
 					setConfirmLoading(true);
 					try {
-						await deleteThread(thread.tid);
+						await deleteThread(thread.id);
 						setConfirmDialog((d) => ({ ...d, open: false }));
 						fetchData(pagination.page);
 					} finally {
@@ -169,7 +169,7 @@ export default function ThreadsPage() {
 
 	const handleToggleClose = useCallback(
 		async (thread: Thread) => {
-			await updateThread(thread.tid, { closed: thread.closed ? 0 : 1 });
+			await updateThread(thread.id, { closed: thread.closed ? 0 : 1 });
 			fetchData(pagination.page);
 		},
 		[fetchData, pagination.page],
@@ -221,7 +221,7 @@ export default function ThreadsPage() {
 		{
 			key: "lastPost",
 			header: "Last Post",
-			cell: (row) => (row.lastPostAt ? new Date(row.lastPostAt).toLocaleDateString() : "—"),
+			cell: (row) => (row.lastPostAt ? new Date(row.lastPostAt * 1000).toLocaleDateString() : "—"),
 		},
 		{
 			key: "actions",
@@ -268,7 +268,7 @@ export default function ThreadsPage() {
 				<AdminDataTable
 					columns={columns}
 					data={data}
-					getRowId={(r) => r.tid}
+					getRowId={(r) => r.id}
 					selectable
 					selectedIds={selectedIds}
 					onSelectionChange={setSelectedIds}
