@@ -1,4 +1,4 @@
-import { type PaginatedResponse, adminApi } from "@/lib/admin-api";
+import { type PaginatedResponse, apiClient } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -80,37 +80,37 @@ export function statusLabel(status: number): string {
 // ---------------------------------------------------------------------------
 
 export async function fetchForums(filters: ForumFilters): Promise<PaginatedResponse<Forum>> {
-	return adminApi.getList<Forum>("/api/admin/forums", buildForumSearchParams(filters));
+	return apiClient.getList<Forum>("/api/admin/forums", buildForumSearchParams(filters));
 }
 
 export async function fetchForum(id: number): Promise<Forum> {
-	const res = await adminApi.get<Forum>(`/api/admin/forums/${id}`);
+	const res = await apiClient.get<Forum>(`/api/admin/forums/${id}`);
 	return res.data;
 }
 
 export async function createForum(data: ForumCreate): Promise<Forum> {
-	const res = await adminApi.post<Forum>("/api/admin/forums", data);
+	const res = await apiClient.post<Forum>("/api/admin/forums", data);
 	return res.data;
 }
 
 export async function updateForum(id: number, data: ForumUpdate): Promise<Forum> {
-	const res = await adminApi.patch<Forum>(`/api/admin/forums/${id}`, data);
+	const res = await apiClient.patch<Forum>(`/api/admin/forums/${id}`, data);
 	return res.data;
 }
 
 export async function deleteForum(id: number): Promise<DeleteResult> {
-	const res = await adminApi.delete<DeleteResult>(`/api/admin/forums/${id}`);
+	const res = await apiClient.delete<DeleteResult>(`/api/admin/forums/${id}`);
 	return res.data;
 }
 
 export async function mergeForums(sourceId: number, targetId: number): Promise<MergeResult> {
-	const res = await adminApi.post<MergeResult>(`/api/admin/forums/${sourceId}/merge`, {
+	const res = await apiClient.post<MergeResult>(`/api/admin/forums/${sourceId}/merge`, {
 		targetId,
 	});
 	return res.data;
 }
 
 export async function reorderForums(ids: number[]): Promise<ReorderResult> {
-	const res = await adminApi.post<ReorderResult>("/api/admin/forums/reorder", { ids });
+	const res = await apiClient.post<ReorderResult>("/api/admin/forums/reorder", { ids });
 	return res.data;
 }

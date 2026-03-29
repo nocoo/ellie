@@ -1,4 +1,4 @@
-import { type PaginatedResponse, adminApi } from "@/lib/admin-api";
+import { type PaginatedResponse, apiClient } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -60,25 +60,25 @@ export function buildPostSearchParams(
 // ---------------------------------------------------------------------------
 
 export async function fetchPosts(filters: PostFilters): Promise<PaginatedResponse<Post>> {
-	return adminApi.getList<Post>("/api/admin/posts", buildPostSearchParams(filters));
+	return apiClient.getList<Post>("/api/admin/posts", buildPostSearchParams(filters));
 }
 
 export async function fetchPost(id: number): Promise<Post> {
-	const res = await adminApi.get<Post>(`/api/admin/posts/${id}`);
+	const res = await apiClient.get<Post>(`/api/admin/posts/${id}`);
 	return res.data;
 }
 
 export async function updatePost(id: number, data: PostUpdate): Promise<Post> {
-	const res = await adminApi.patch<Post>(`/api/admin/posts/${id}`, data);
+	const res = await apiClient.patch<Post>(`/api/admin/posts/${id}`, data);
 	return res.data;
 }
 
 export async function deletePost(id: number): Promise<DeleteResult> {
-	const res = await adminApi.delete<DeleteResult>(`/api/admin/posts/${id}`);
+	const res = await apiClient.delete<DeleteResult>(`/api/admin/posts/${id}`);
 	return res.data;
 }
 
 export async function batchDeletePosts(ids: number[]): Promise<BatchResult> {
-	const res = await adminApi.post<BatchResult>("/api/admin/posts/batch-delete", { ids });
+	const res = await apiClient.post<BatchResult>("/api/admin/posts/batch-delete", { ids });
 	return res.data;
 }

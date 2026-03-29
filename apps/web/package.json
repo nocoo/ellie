@@ -39,6 +39,7 @@
 		"@types/node": "^22",
 		"@types/react": "^19",
 		"@types/react-dom": "^19",
+		"server-only": "^0.0.1",
 		"typescript": "^5.9"
 	},
 	"trustedDependencies": ["@biomejs/biome"],

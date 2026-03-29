@@ -1,9 +1,6 @@
 import { StatCard } from "@/components/admin/stat-card";
-import {
-	type DashboardStats,
-	activeForums,
-	fetchDashboardStats,
-} from "@/viewmodels/admin/dashboard";
+import { type DashboardStats, activeForums } from "@/viewmodels/admin/dashboard";
+import { fetchDashboardStats } from "@/viewmodels/admin/dashboard.server";
 import { FileText, MessageSquare, MessagesSquare, Users } from "lucide-react";
 import Link from "next/link";
 

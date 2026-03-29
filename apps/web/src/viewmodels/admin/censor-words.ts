@@ -1,4 +1,4 @@
-import { type PaginatedResponse, adminApi } from "@/lib/admin-api";
+import { type PaginatedResponse, apiClient } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,37 +66,37 @@ export function replacementDisplay(replacement: string): string {
 export async function fetchCensorWords(
 	filters: CensorWordFilters,
 ): Promise<PaginatedResponse<CensorWord>> {
-	return adminApi.getList<CensorWord>(
+	return apiClient.getList<CensorWord>(
 		"/api/admin/censor-words",
 		buildCensorWordSearchParams(filters),
 	);
 }
 
 export async function fetchCensorWord(id: number): Promise<CensorWord> {
-	const res = await adminApi.get<CensorWord>(`/api/admin/censor-words/${id}`);
+	const res = await apiClient.get<CensorWord>(`/api/admin/censor-words/${id}`);
 	return res.data;
 }
 
 export async function createCensorWord(data: CensorWordCreate): Promise<CensorWord> {
-	const res = await adminApi.post<CensorWord>("/api/admin/censor-words", data);
+	const res = await apiClient.post<CensorWord>("/api/admin/censor-words", data);
 	return res.data;
 }
 
 export async function updateCensorWord(id: number, data: CensorWordUpdate): Promise<CensorWord> {
-	const res = await adminApi.patch<CensorWord>(`/api/admin/censor-words/${id}`, data);
+	const res = await apiClient.patch<CensorWord>(`/api/admin/censor-words/${id}`, data);
 	return res.data;
 }
 
 export async function deleteCensorWord(id: number): Promise<void> {
-	await adminApi.delete(`/api/admin/censor-words/${id}`);
+	await apiClient.delete(`/api/admin/censor-words/${id}`);
 }
 
 export async function batchDeleteCensorWords(ids: number[]): Promise<BatchResult> {
-	const res = await adminApi.post<BatchResult>("/api/admin/censor-words/batch-delete", { ids });
+	const res = await apiClient.post<BatchResult>("/api/admin/censor-words/batch-delete", { ids });
 	return res.data;
 }
 
 export async function testContent(content: string): Promise<TestContentResult> {
-	const res = await adminApi.post<TestContentResult>("/api/admin/censor-words/test", { content });
+	const res = await apiClient.post<TestContentResult>("/api/admin/censor-words/test", { content });
 	return res.data;
 }

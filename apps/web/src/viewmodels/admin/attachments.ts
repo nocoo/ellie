@@ -1,4 +1,4 @@
-import { type PaginatedResponse, adminApi } from "@/lib/admin-api";
+import { type PaginatedResponse, apiClient } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -63,23 +63,23 @@ export function formatFileSize(bytes: number): string {
 export async function fetchAttachments(
 	filters: AttachmentFilters,
 ): Promise<PaginatedResponse<Attachment>> {
-	return adminApi.getList<Attachment>(
+	return apiClient.getList<Attachment>(
 		"/api/admin/attachments",
 		buildAttachmentSearchParams(filters),
 	);
 }
 
 export async function fetchAttachment(id: number): Promise<Attachment> {
-	const res = await adminApi.get<Attachment>(`/api/admin/attachments/${id}`);
+	const res = await apiClient.get<Attachment>(`/api/admin/attachments/${id}`);
 	return res.data;
 }
 
 export async function deleteAttachment(id: number): Promise<DeleteResult> {
-	const res = await adminApi.delete<DeleteResult>(`/api/admin/attachments/${id}`);
+	const res = await apiClient.delete<DeleteResult>(`/api/admin/attachments/${id}`);
 	return res.data;
 }
 
 export async function batchDeleteAttachments(ids: number[]): Promise<BatchResult> {
-	const res = await adminApi.post<BatchResult>("/api/admin/attachments/batch-delete", { ids });
+	const res = await apiClient.post<BatchResult>("/api/admin/attachments/batch-delete", { ids });
 	return res.data;
 }
