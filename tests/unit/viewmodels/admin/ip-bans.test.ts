@@ -60,8 +60,9 @@ describe("formatExpiry", () => {
 		expect(formatExpiry(null)).toBe("Never");
 	});
 
-	it("returns a formatted string for a date", () => {
-		const result = formatExpiry("2026-12-31T23:59:59Z");
+	it("returns a formatted string for a Unix timestamp", () => {
+		// 2026-12-31T23:59:59Z = 1798761599
+		const result = formatExpiry(1798761599);
 		expect(result).toBeTruthy();
 		expect(result).not.toBe("Never");
 	});

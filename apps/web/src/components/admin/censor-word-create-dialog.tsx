@@ -10,7 +10,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { CensorWord, CensorWordUpdate } from "@/viewmodels/admin/censor-words";
+import type {
+	CensorWord,
+	CensorWordCreate,
+	CensorWordUpdate,
+} from "@/viewmodels/admin/censor-words";
 import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------
@@ -23,7 +27,7 @@ export interface CensorWordCreateDialogProps {
 	/** When non-null the dialog is in "edit" mode. */
 	censorWord: CensorWord | null;
 	loading?: boolean;
-	onSave: (data: { word: string; replacement?: string }) => void;
+	onSave: (data: CensorWordCreate) => void;
 	onUpdate: (id: number, data: CensorWordUpdate) => void;
 }
 
@@ -39,41 +43,47 @@ export function CensorWordCreateDialog({
 	onSave,
 	onUpdate,
 }: CensorWordCreateDialogProps) {
-	const [word, setWord] = useState("");
+	const [find, setFind] = useState("");
 	const [replacement, setReplacement] = useState("");
+	const [action, setAction] = useState<"ban" | "replace">("replace");
 
 	const isEdit = censorWord !== null;
 
 	useEffect(() => {
 		if (censorWord) {
-			setWord(censorWord.word);
+			setFind(censorWord.find);
 			setReplacement(censorWord.replacement);
+			setAction(censorWord.action);
 		} else {
-			setWord("");
+			setFind("");
 			setReplacement("");
+			setAction("replace");
 		}
 	}, [censorWord]);
 
 	const handleSave = useCallback(() => {
-		if (loading || !word.trim()) return;
+		if (loading || !find.trim()) return;
 		if (isEdit && censorWord) {
 			onUpdate(censorWord.id, {
-				word: word.trim(),
+				find: find.trim(),
 				replacement: replacement.trim() || undefined,
+				action,
 			});
 		} else {
 			onSave({
-				word: word.trim(),
+				find: find.trim(),
 				replacement: replacement.trim() || undefined,
+				action,
 			});
 		}
-	}, [loading, word, replacement, isEdit, censorWord, onSave, onUpdate]);
+	}, [loading, find, replacement, action, isEdit, censorWord, onSave, onUpdate]);
 
 	const handleOpenChange = useCallback(
 		(nextOpen: boolean) => {
 			if (!nextOpen) {
-				setWord("");
+				setFind("");
 				setReplacement("");
+				setAction("replace");
 			}
 			onOpenChange(nextOpen);
 		},
@@ -89,14 +99,30 @@ export function CensorWordCreateDialog({
 
 				<div className="grid gap-4 py-4">
 					<div className="grid gap-2">
-						<Label htmlFor="cw-word">Word</Label>
+						<Label htmlFor="cw-find">Word / Pattern</Label>
 						<Input
-							id="cw-word"
-							value={word}
-							onChange={(e) => setWord(e.target.value)}
+							id="cw-find"
+							value={find}
+							onChange={(e) => setFind(e.target.value)}
 							placeholder="Enter word to censor"
 							maxLength={200}
 						/>
+					</div>
+
+					<div className="grid gap-2">
+						<Label htmlFor="cw-action">Action</Label>
+						<select
+							id="cw-action"
+							value={action}
+							onChange={(e) => setAction(e.target.value as "ban" | "replace")}
+							className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+						>
+							<option value="replace">Replace</option>
+							<option value="ban">Ban</option>
+						</select>
+						<p className="text-xs text-muted-foreground">
+							Replace: swap the word with the replacement. Ban: block the post entirely.
+						</p>
 					</div>
 
 					<div className="grid gap-2">
@@ -105,11 +131,14 @@ export function CensorWordCreateDialog({
 							id="cw-replacement"
 							value={replacement}
 							onChange={(e) => setReplacement(e.target.value)}
-							placeholder="*** (default)"
+							placeholder="** (default)"
 							maxLength={200}
+							disabled={action === "ban"}
 						/>
 						<p className="text-xs text-muted-foreground">
-							Leave empty to use the default replacement (***).
+							{action === "ban"
+								? "Not applicable when action is Ban."
+								: "Leave empty to use the default replacement (**)."}
 						</p>
 					</div>
 				</div>
@@ -118,7 +147,7 @@ export function CensorWordCreateDialog({
 					<Button variant="outline" onClick={() => handleOpenChange(false)} disabled={loading}>
 						Cancel
 					</Button>
-					<Button onClick={handleSave} disabled={loading || !word.trim()}>
+					<Button onClick={handleSave} disabled={loading || !find.trim()}>
 						{loading ? "Saving..." : isEdit ? "Save Changes" : "Add Word"}
 					</Button>
 				</DialogFooter>

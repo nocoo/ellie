@@ -31,10 +31,10 @@ export interface IpBanCreateDialogProps {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Convert an ISO datetime string to the `datetime-local` input value format. */
-function toDatetimeLocal(iso: string | null): string {
-	if (!iso) return "";
-	const d = new Date(iso);
+/** Convert a Unix timestamp (seconds) to the `datetime-local` input value format. */
+function toDatetimeLocal(ts: number | null): string {
+	if (!ts) return "";
+	const d = new Date(ts * 1000);
 	// yyyy-MM-ddTHH:mm
 	const pad = (n: number) => String(n).padStart(2, "0");
 	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -74,13 +74,13 @@ export function IpBanCreateDialog({
 	const handleSave = useCallback(() => {
 		if (loading) return;
 		if (isEdit && ipBan && onUpdate) {
-			const data: IpBanUpdate = { ip, reason: reason || undefined };
-			data.expiresAt = expiresAt ? new Date(expiresAt).toISOString() : null;
+			const data: IpBanUpdate = { reason: reason || undefined };
+			data.expiresAt = expiresAt ? Math.floor(new Date(expiresAt).getTime() / 1000) : null;
 			onUpdate(ipBan.id, data);
 		} else if (onCreate) {
 			const data: IpBanCreate = { ip };
 			if (reason) data.reason = reason;
-			if (expiresAt) data.expiresAt = new Date(expiresAt).toISOString();
+			if (expiresAt) data.expiresAt = Math.floor(new Date(expiresAt).getTime() / 1000);
 			onCreate(data);
 		}
 	}, [loading, isEdit, ipBan, ip, reason, expiresAt, onCreate, onUpdate]);

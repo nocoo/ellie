@@ -8,9 +8,10 @@ export interface IpBan {
 	id: number;
 	ip: string;
 	reason: string;
-	createdBy: string;
-	expiresAt: string | null;
-	createdAt: string;
+	adminId: number;
+	adminName: string;
+	expiresAt: number | null;
+	createdAt: number;
 }
 
 export interface IpBanFilters {
@@ -23,13 +24,12 @@ export interface IpBanFilters {
 export interface IpBanCreate {
 	ip: string;
 	reason?: string;
-	expiresAt?: string;
+	expiresAt?: number | null;
 }
 
 export interface IpBanUpdate {
-	ip?: string;
 	reason?: string;
-	expiresAt?: string | null;
+	expiresAt?: number | null;
 }
 
 export interface IpCheckResult {
@@ -58,9 +58,9 @@ export function buildIpBanSearchParams(
 }
 
 /** Format an expiration date for display. Returns "Never" when null. */
-export function formatExpiry(expiresAt: string | null): string {
+export function formatExpiry(expiresAt: number | null): string {
 	if (!expiresAt) return "Never";
-	return new Date(expiresAt).toLocaleString();
+	return new Date(expiresAt * 1000).toLocaleString();
 }
 
 // ---------------------------------------------------------------------------
