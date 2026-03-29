@@ -74,7 +74,7 @@ export function UserEditDialog({
 
 	const handleSave = useCallback(() => {
 		if (!user || loading) return;
-		onSave(user.uid, {
+		onSave(user.id, {
 			username,
 			email,
 			avatar,

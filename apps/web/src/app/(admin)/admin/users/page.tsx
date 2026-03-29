@@ -195,7 +195,7 @@ export default function UsersPage() {
 				onConfirm: async () => {
 					setConfirmLoading(true);
 					try {
-						await banUser(user.uid, deleteContent);
+						await banUser(user.id, deleteContent);
 						setConfirmDialog((d) => ({ ...d, open: false }));
 						fetchData(pagination.page);
 					} finally {
@@ -218,7 +218,7 @@ export default function UsersPage() {
 				onConfirm: async () => {
 					setConfirmLoading(true);
 					try {
-						await nukeUser(user.uid);
+						await nukeUser(user.id);
 						setConfirmDialog((d) => ({ ...d, open: false }));
 						fetchData(pagination.page);
 					} finally {
@@ -232,7 +232,7 @@ export default function UsersPage() {
 
 	const handleUnban = useCallback(
 		async (user: User) => {
-			await updateUser(user.uid, { status: 0 });
+			await updateUser(user.id, { status: 0 });
 			fetchData(pagination.page);
 		},
 		[fetchData, pagination.page],
@@ -292,7 +292,7 @@ export default function UsersPage() {
 			key: "registered",
 			header: "Registered",
 			cell: (row) => {
-				const date = new Date(row.regDate);
+				const date = new Date(row.regDate * 1000);
 				return date.toLocaleDateString();
 			},
 		},
@@ -353,7 +353,7 @@ export default function UsersPage() {
 				<AdminDataTable
 					columns={columns}
 					data={data}
-					getRowId={(r) => r.uid}
+					getRowId={(r) => r.id}
 					selectable
 					selectedIds={selectedIds}
 					onSelectionChange={setSelectedIds}
