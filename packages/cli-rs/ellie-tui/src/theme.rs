@@ -26,8 +26,8 @@ impl Theme {
 				fg: Color::Reset,
 				muted: Color::DarkGray,
 				border: Color::DarkGray,
-				accent: Color::Cyan,
-				highlight: Color::Blue,
+				accent: Color::Rgb(1, 102, 153),    // #016699
+				highlight: Color::Rgb(2, 160, 230), // #02a0e6 (lighter variant)
 				highlight_bg: Color::DarkGray,
 				error: Color::Red,
 				sticky: Color::Yellow,
@@ -70,7 +70,7 @@ mod tests {
 		let c = Theme::Default.colors();
 		assert_eq!(c.bg, Color::Reset);
 		assert_eq!(c.fg, Color::Reset);
-		assert_eq!(c.accent, Color::Cyan);
+		assert_eq!(c.accent, Color::Rgb(1, 102, 153));
 		assert_eq!(c.error, Color::Red);
 		assert_eq!(c.highlight_bg, Color::DarkGray);
 	}
