@@ -223,7 +223,7 @@
 | 4.5.3 | `feat: add user management viewmodel + page` | useUserManagementViewModel + UserTable + admin/users/page.tsx | ✅ L1 ≥90%: filter/search/ban/unban/roleChange |
 | 4.5.4 | `feat: add thread management viewmodel + page` | useThreadManagementViewModel + ThreadTable + admin/threads/page.tsx | ✅ L1 ≥90%: filter/delete/move/sticky/digest |
 | 4.5.5 | `feat: add forum management viewmodel + page` | useForumManagementViewModel + ForumTree + admin/forums/page.tsx | ✅ L1 ≥90%: tree/edit/hide/order |
-| 4.5.6 | `feat: add admin auth guard` | (admin)/layout.tsx 权限检查 + resolveAdminFromSession()（验证 Google OAuth session + ADMIN_GOOGLE_IDS 白名单） | ✅ L1: 有效 session/无效 session/不在白名单 |
+| 4.5.6 | `feat: add admin auth guard` | (admin)/layout.tsx 权限检查 + resolveAdmin(session)（验证 Google OAuth session + ADMIN_EMAILS 白名单） | ✅ L1: 有效 session/无效 session/不在白名单 |
 
 > **4.5 结束时**：Admin 后台功能完整，ViewModel L1 ≥90%。
 >

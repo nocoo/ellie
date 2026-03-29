@@ -208,7 +208,7 @@ function useXxxViewModel(params) {
   Auth source of truth: Worker（D1 用户表）
 
 Admin 后台:
-  Browser → HttpOnly cookie → Next.js Server → 验证 Google OAuth session + ADMIN_GOOGLE_IDS
+  Browser → HttpOnly cookie → Next.js Server → 验证 Google OAuth session + ADMIN_EMAILS
   Next.js Server → Key B → Worker /api/admin/*（仅 Key B，无额外认证）
   Auth source of truth: Next.js（Google OAuth + 白名单），Worker 仅信任 Key B
 ```
@@ -235,7 +235,7 @@ Next.js 16 使用 `proxy.ts` 替代 `middleware.ts`：
   /api/v1/moderation/** (版主操作 — 需 role ∈ {1,2,3})
 
 管理路由（需 Google OAuth Admin session）:
-  /admin/**           → 重定向到 /admin/login 如未认证
+  /admin/**           → 重定向到 /login 如未认证
   /api/admin/**       → 返回 403 如未认证
 ```
 
@@ -500,7 +500,7 @@ Phase 2 隔离三重验证：
 | `feat: add user management viewmodel + page` | useUserManagementViewModel + UserTable + admin/users/page.tsx | L1 ≥90%: 筛选/搜索/ban/unban/roleChange |
 | `feat: add thread management viewmodel + page` | useThreadManagementViewModel + ThreadTable + admin/threads/page.tsx | L1 ≥90%: 筛选/删除/移动/置顶/精华 |
 | `feat: add forum management viewmodel + page` | useForumManagementViewModel + ForumTree + admin/forums/page.tsx | L1 ≥90%: 树构建/编辑/隐藏/排序 |
-| `feat: add admin auth guard` | (admin)/layout.tsx 权限检查 + resolveAdminFromSession()（验证 Google OAuth session + ADMIN_GOOGLE_IDS 白名单） | L1: 有效 session/无效 session/不在白名单 |
+| `feat: add admin auth guard` | (admin)/layout.tsx 权限检查 + resolveAdmin(session)（验证 Google OAuth session + ADMIN_EMAILS 白名单） | L1: 有效 session/无效 session/不在白名单 |
 
 ### Step 6：论坛前端 + ViewModel L1 ≥90%
 

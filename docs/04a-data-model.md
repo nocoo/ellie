@@ -193,7 +193,7 @@ export interface Attachment {
 | 版主操作（置顶/加精/关闭/移动/删除） | ❌ | ✅ 所辖版块 | ✅ 所有版块 | ✅ |
 | 访问管理后台 `/admin` | ❌ | ❌ | ❌ | ❌ |
 
-> **Admin Console 独立于论坛用户体系**：管理后台通过 Google OAuth + `ADMIN_GOOGLE_IDS` 白名单认证，与论坛用户角色无关。上表中"版主操作"指论坛前端 `/api/v1/moderation/*` 端点，走 Key A + 论坛 JWT。
+> **Admin Console 独立于论坛用户体系**：管理后台通过 Google OAuth + `ADMIN_EMAILS` 白名单认证，与论坛用户角色无关。上表中"版主操作"指论坛前端 `/api/v1/moderation/*` 端点，走 Key A + 论坛 JWT。
 
 ### 权限纯函数
 
