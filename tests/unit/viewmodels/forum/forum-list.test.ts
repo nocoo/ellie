@@ -134,6 +134,19 @@ describe("buildVisibleTree", () => {
 		expect(tree[0]?.name).toBe("Group B");
 		expect(tree[1]?.name).toBe("Group A");
 	});
+
+	it("skips self-referencing nodes (id === parentId) to prevent infinite recursion", () => {
+		const forums = [
+			makeGroup(1, { name: "Group A" }),
+			makeForumItem(10, 1, { name: "Forum A" }),
+			makeForum({ id: 0, parentId: 0, name: "Self-ref", status: -1 }),
+		];
+
+		const tree = buildVisibleTree(forums);
+		// Self-referencing node is skipped entirely
+		expect(tree.length).toBe(1);
+		expect(tree[0]?.name).toBe("Group A");
+	});
 });
 
 // ---------------------------------------------------------------------------

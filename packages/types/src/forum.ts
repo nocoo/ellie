@@ -15,10 +15,11 @@ export interface ForumTreeNode extends Forum {
  * Sorted by displayOrder within each level.
  */
 export function buildForumTree(forums: Forum[]): ForumTreeNode[] {
-	// Group forums by parentId
+	// Group forums by parentId (skip self-referencing nodes to prevent infinite recursion)
 	const childrenMap = new Map<number, ForumTreeNode[]>();
 
 	for (const forum of forums) {
+		if (forum.id === forum.parentId) continue; // skip self-referencing nodes
 		const node: ForumTreeNode = { ...forum, children: [] };
 		const siblings = childrenMap.get(forum.parentId);
 		if (siblings) {
