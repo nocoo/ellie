@@ -243,14 +243,14 @@ export default function IpBansPage() {
 		{
 			key: "createdBy",
 			header: "Created By",
-			cell: (row) => row.createdBy,
+			cell: (row) => row.adminName,
 		},
 		{
 			key: "expiresAt",
 			header: "Expires At",
 			cell: (row) => {
 				if (!row.expiresAt) return <Badge variant="secondary">Permanent</Badge>;
-				const expired = new Date(row.expiresAt) < new Date();
+				const expired = row.expiresAt * 1000 < Date.now();
 				return (
 					<span className={expired ? "text-muted-foreground line-through" : ""}>
 						{formatExpiry(row.expiresAt)}
@@ -261,7 +261,7 @@ export default function IpBansPage() {
 		{
 			key: "createdAt",
 			header: "Created At",
-			cell: (row) => new Date(row.createdAt).toLocaleDateString(),
+			cell: (row) => new Date(row.createdAt * 1000).toLocaleDateString(),
 		},
 		{
 			key: "actions",

@@ -6,9 +6,12 @@ import { type PaginatedResponse, apiClient } from "@/lib/api-client";
 
 export interface CensorWord {
 	id: number;
-	word: string;
+	find: string;
 	replacement: string;
-	createdAt: string;
+	action: "ban" | "replace";
+	adminId: number;
+	adminName: string;
+	createdAt: number;
 }
 
 export interface CensorWordFilters {
@@ -19,13 +22,15 @@ export interface CensorWordFilters {
 }
 
 export interface CensorWordCreate {
-	word: string;
+	find: string;
 	replacement?: string;
+	action?: "ban" | "replace";
 }
 
 export interface CensorWordUpdate {
-	word?: string;
+	find?: string;
 	replacement?: string;
+	action?: "ban" | "replace";
 }
 
 export interface BatchResult {
@@ -57,6 +62,11 @@ export function buildCensorWordSearchParams(
 /** Return a display-friendly replacement string. */
 export function replacementDisplay(replacement: string): string {
 	return replacement || "***";
+}
+
+/** Return a display label for censor word action. */
+export function actionLabel(action: "ban" | "replace"): string {
+	return action === "ban" ? "Ban" : "Replace";
 }
 
 // ---------------------------------------------------------------------------

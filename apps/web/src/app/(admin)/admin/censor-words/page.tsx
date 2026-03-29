@@ -6,6 +6,7 @@ import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-ta
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { CensorWordCreateDialog } from "@/components/admin/censor-word-create-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -15,8 +16,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
 	type CensorWord,
+	type CensorWordCreate,
 	type CensorWordUpdate,
 	type TestContentResult,
+	actionLabel,
 	batchDeleteCensorWords,
 	deleteCensorWord,
 	replacementDisplay,
@@ -110,7 +113,7 @@ export default function CensorWordsPage() {
 	}, []);
 
 	const handleCreate = useCallback(
-		async (data: { word: string; replacement?: string }) => {
+		async (data: CensorWordCreate) => {
 			setDialogLoading(true);
 			try {
 				const res = await fetch("/api/admin/censor-words", {
@@ -148,7 +151,7 @@ export default function CensorWordsPage() {
 			setConfirmDialog({
 				open: true,
 				title: "Delete Censor Word",
-				description: `Delete the censor word "${cw.word}"? This cannot be undone.`,
+				description: `Delete the censor word "${cw.find}"? This cannot be undone.`,
 				variant: "destructive",
 				onConfirm: async () => {
 					setConfirmLoading(true);
@@ -199,9 +202,9 @@ export default function CensorWordsPage() {
 
 	const columns: ColumnDef<CensorWord>[] = [
 		{
-			key: "word",
+			key: "find",
 			header: "Word",
-			cell: (row) => <span className="font-medium">{row.word}</span>,
+			cell: (row) => <span className="font-medium">{row.find}</span>,
 		},
 		{
 			key: "replacement",
@@ -211,9 +214,18 @@ export default function CensorWordsPage() {
 			),
 		},
 		{
+			key: "action",
+			header: "Action",
+			cell: (row) => (
+				<Badge variant={row.action === "ban" ? "destructive" : "outline"}>
+					{actionLabel(row.action)}
+				</Badge>
+			),
+		},
+		{
 			key: "createdAt",
 			header: "Created At",
-			cell: (row) => new Date(row.createdAt).toLocaleDateString(),
+			cell: (row) => new Date(row.createdAt * 1000).toLocaleDateString(),
 		},
 		{
 			key: "actions",

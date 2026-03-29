@@ -3,7 +3,6 @@
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
-import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,8 +24,6 @@ import { useCallback, useEffect, useState } from "react";
 // Filter definitions
 // ---------------------------------------------------------------------------
 
-const FILTERS: FilterDef[] = [{ key: "search", label: "Search attachments...", type: "search" }];
-
 const BATCH_ACTIONS: BatchAction[] = [
 	{ key: "delete", label: "Delete Selected", variant: "destructive" },
 ];
@@ -44,9 +41,6 @@ export default function AttachmentsPage() {
 		limit: 20,
 	});
 	const [loading, setLoading] = useState(true);
-	const [filters, setFilters] = useState<Record<string, string>>({
-		search: "",
-	});
 	const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
 
 	const [confirmDialog, setConfirmDialog] = useState<{
@@ -89,14 +83,6 @@ export default function AttachmentsPage() {
 	}, [fetchData]);
 
 	const handlePageChange = useCallback((page: number) => fetchData(page), [fetchData]);
-
-	const handleFilterChange = useCallback((key: string, value: string) => {
-		setFilters((prev) => ({ ...prev, [key]: value }));
-	}, []);
-
-	const handleClearFilters = useCallback(() => {
-		setFilters({ search: "" });
-	}, []);
 
 	const handleDelete = useCallback(
 		(attachment: Attachment) => {
@@ -181,13 +167,6 @@ export default function AttachmentsPage() {
 				<h1 className="text-2xl font-semibold text-foreground">Attachments</h1>
 				<p className="mt-1 text-sm text-muted-foreground">Manage file attachments.</p>
 			</div>
-
-			<AdminFilters
-				filters={FILTERS}
-				values={filters}
-				onFilterChange={handleFilterChange}
-				onClearAll={handleClearFilters}
-			/>
 
 			<div className="rounded-xl border bg-card">
 				<AdminDataTable

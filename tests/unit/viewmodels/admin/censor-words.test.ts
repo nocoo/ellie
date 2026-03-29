@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import {
+	actionLabel,
 	batchDeleteCensorWords,
 	buildCensorWordSearchParams,
 	createCensorWord,
@@ -61,6 +62,16 @@ describe("replacementDisplay", () => {
 	});
 });
 
+describe("actionLabel", () => {
+	it("returns Ban for ban action", () => {
+		expect(actionLabel("ban")).toBe("Ban");
+	});
+
+	it("returns Replace for replace action", () => {
+		expect(actionLabel("replace")).toBe("Replace");
+	});
+});
+
 describe("fetchCensorWords", () => {
 	it("calls GET /api/admin/censor-words with params", async () => {
 		await fetchCensorWords({ page: 2, find: "test" });
@@ -74,12 +85,15 @@ describe("fetchCensorWord", () => {
 	it("calls GET /api/admin/censor-words/:id", async () => {
 		mockFetchFn.mockImplementation(() =>
 			Promise.resolve(
-				mockJsonResponse({ data: { id: 5, word: "bad", replacement: "***" }, meta: {} }),
+				mockJsonResponse({
+					data: { id: 5, find: "bad", replacement: "***", action: "replace" },
+					meta: {},
+				}),
 			),
 		);
 		const cw = await fetchCensorWord(5);
 		expect(cw.id).toBe(5);
-		expect(cw.word).toBe("bad");
+		expect(cw.find).toBe("bad");
 	});
 });
 
@@ -87,15 +101,18 @@ describe("createCensorWord", () => {
 	it("calls POST /api/admin/censor-words", async () => {
 		mockFetchFn.mockImplementation(() =>
 			Promise.resolve(
-				mockJsonResponse({ data: { id: 10, word: "bad", replacement: "***" }, meta: {} }),
+				mockJsonResponse({
+					data: { id: 10, find: "bad", replacement: "***", action: "replace" },
+					meta: {},
+				}),
 			),
 		);
-		const cw = await createCensorWord({ word: "bad" });
+		const cw = await createCensorWord({ find: "bad" });
 		expect(cw.id).toBe(10);
 		const [url, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
 		expect(url).toContain("/api/admin/censor-words");
 		expect(opts.method).toBe("POST");
-		expect(opts.body).toBe(JSON.stringify({ word: "bad" }));
+		expect(opts.body).toBe(JSON.stringify({ find: "bad" }));
 	});
 });
 
@@ -103,7 +120,10 @@ describe("updateCensorWord", () => {
 	it("calls PATCH /api/admin/censor-words/:id", async () => {
 		mockFetchFn.mockImplementation(() =>
 			Promise.resolve(
-				mockJsonResponse({ data: { id: 5, word: "bad", replacement: "---" }, meta: {} }),
+				mockJsonResponse({
+					data: { id: 5, find: "bad", replacement: "---", action: "replace" },
+					meta: {},
+				}),
 			),
 		);
 		await updateCensorWord(5, { replacement: "---" });
