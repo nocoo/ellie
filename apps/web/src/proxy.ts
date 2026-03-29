@@ -1,12 +1,17 @@
 /**
- * Proxy — simplified auth guard for admin-only console.
+ * Proxy — auth guard for admin-only console.
  *
  * Uses Next.js 16 proxy convention (replaces middleware.ts).
- * Public routes: /login, /api/auth/*
- * Everything else requires authentication.
+ *
+ * Route protection:
+ * - Public routes: /login, /api/auth/*  (no auth required)
+ * - /admin/* page routes: requires Google OAuth session + email ∈ ADMIN_EMAILS
+ * - /api/admin/* API routes: NOT handled by proxy (matcher excludes them);
+ *   auth guard is in lib/admin-proxy.ts createProxyHandler() instead.
  */
 
 import { auth } from "@/auth";
+import { isAdmin } from "@/lib/admin";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -19,24 +24,36 @@ export function isPublicRoute(pathname: string): boolean {
 	return pathname === "/login" || pathname.startsWith("/api/auth");
 }
 
+/** Check if a pathname is an admin page route (not API). */
+export function isAdminRoute(pathname: string): boolean {
+	return pathname === "/admin" || pathname.startsWith("/admin/");
+}
+
 /**
  * Determine the proxy action for the given request state.
  *
  * Returns:
  * - "next"              -> allow through
- * - "redirect:/admin"   -> redirect to admin (logged-in user on login page)
- * - "redirect:/login"   -> redirect to login (unauthenticated user)
+ * - "redirect:/admin"   -> redirect to admin (logged-in admin on login page)
+ * - "redirect:/login"   -> redirect to login (unauthenticated or non-admin user)
  */
 export function resolveProxyAction(
 	pathname: string,
 	isLoggedIn: boolean,
+	email?: string | null,
 ): "next" | "redirect:/admin" | "redirect:/login" {
 	if (isPublicRoute(pathname)) {
-		// Authenticated user on login page -> redirect to admin
-		if (pathname === "/login" && isLoggedIn) return "redirect:/admin";
+		// Authenticated admin on login page -> redirect to admin
+		if (pathname === "/login" && isLoggedIn && isAdmin(email)) return "redirect:/admin";
 		return "next";
 	}
+
+	// Not logged in -> redirect to login
 	if (!isLoggedIn) return "redirect:/login";
+
+	// Admin page routes require admin whitelist check
+	if (isAdminRoute(pathname) && !isAdmin(email)) return "redirect:/login";
+
 	return "next";
 }
 
@@ -61,7 +78,7 @@ export function buildRedirectUrl(req: NextRequest, pathname: string): URL {
 
 export async function proxy(request: NextRequest) {
 	const authHandler = await auth((req) => {
-		const action = resolveProxyAction(req.nextUrl.pathname, !!req.auth);
+		const action = resolveProxyAction(req.nextUrl.pathname, !!req.auth, req.auth?.user?.email);
 
 		if (action === "next") return NextResponse.next();
 		const target = action === "redirect:/admin" ? "/admin" : "/login";
