@@ -927,16 +927,18 @@ export async function testContent(content: string): Promise<TestResult> {}
 
 三层守卫，层层递进：
 
-> **当前状态**：骨架阶段仅实现了 `isAdmin(email)` + `resolveAdmin(session)` 函数和基本的 `proxy.ts` 登录检查。但 `proxy.ts` 仅检查 `isLoggedIn`（未验证 email 白名单），`layout.tsx` 也没有 auth guard。完整的三层守卫需在 6.1.1 中补齐。
+> **当前状态**：骨架阶段仅实现了 `isAdmin(email)` + `resolveAdmin(session)` 函数和基本的 `proxy.ts` 登录检查。但 `proxy.ts` 仅检查 `isLoggedIn`（未验证 email 白名单），`layout.tsx` 也没有 auth guard。proxy + layout 守卫需在 6.1.1 中补齐，API 路由守卫由 6.1.3 的 `createProxyHandler()` 统一处理。
 
-### 4.1 路由层（proxy.ts）
+### 4.1 路由层（proxy.ts）— 仅页面路由
 
 ```typescript
-// 沿用现有 proxy.ts classifyRoute()
-// /admin/* 和 /api/admin/* → "admin" 级别
-// 要求 NextAuth Google OAuth session 有效 + email ∈ ADMIN_EMAILS
-// 不满足 → 页面重定向到 /login 或 API 返回 403
+// proxy.ts 仅保护页面路由（/admin/*），不保护 API 路由
+// matcher 排除了 /api/* （除 /api/auth/*），所以 /api/admin/* 不经过 proxy
+// /admin/* → 要求 NextAuth Google OAuth session 有效 + email ∈ ADMIN_EMAILS
+// 不满足 → 重定向到 /login
 ```
+
+> **设计决策**：`proxy.ts` matcher 已排除 `/api/*`（`api/(?!auth)`），`/api/admin/*` 路由不经过 proxy。API 路由的 auth guard 完全由 `lib/admin-proxy.ts` 的 `createProxyHandler()` 负责（§4.3）。这是正确的职责分离——proxy 对 API 路由做 redirect 语义不当（应返回 401/403 JSON），且 `createProxyHandler()` 已内置完整的 session + email 白名单验证。
 
 ### 4.2 页面层（layout.tsx）
 
@@ -1136,7 +1138,7 @@ interface AdminConfirmDialogProps {
 
 | # | Commit | 内容 | 测试 | 状态 |
 |---|--------|------|------|------|
-| 6.1.1 | `refactor: strengthen proxy and layout guard with admin whitelist` | 1) `proxy.ts` — 对 `/admin/*` 和 `/api/admin/*` 路由增加 `resolveAdmin(session)` 验证 email ∈ ADMIN_EMAILS，不通过则重定向 `/login` 或返回 403；2) `(admin)/layout.tsx` — 从 Server Component 调用 `auth()` + `resolveAdmin(session)` 验证 email 白名单，不通过则 `redirect("/login")` | ✅ L1: proxy 白名单拒绝 + layout 重定向 | 🔲 |
+| 6.1.1 | `refactor: strengthen proxy and layout guard with admin whitelist` | 1) `proxy.ts` — 对 `/admin/*` 页面路由增加 `resolveAdmin(session)` 验证 email ∈ ADMIN_EMAILS，不通过则重定向 `/login`（注意：`/api/admin/*` 不经过 proxy，其 auth guard 由 6.1.3 的 `createProxyHandler()` 负责）；2) `(admin)/layout.tsx` — 从 Server Component 调用 `auth()` + `resolveAdmin(session)` 验证 email 白名单，不通过则 `redirect("/login")` | ✅ L1: proxy 白名单拒绝 + layout 重定向 | 🔲 |
 | 6.1.2 | `feat: add admin api client (server-side)` | `lib/admin-api.ts` — 封装 `WORKER_API_URL` + `ADMIN_API_KEY`（Key B），自动注入 `X-API-Key` header，通用 GET/POST/PATCH/DELETE，统一错误处理 `AdminApiError`，解析 `{ data, meta }` 信封 | ✅ L1: 请求构造 + 错误解析 | 🔲 |
 | 6.1.3 | `feat: add admin api proxy helpers` | `lib/admin-proxy.ts` — `createProxyHandler()` 工厂函数：读 Google OAuth session → `resolveAdmin()` 验证 email ∈ ADMIN_EMAILS → 构造 headers → 转发 → 透传响应。含 CSRF Origin 校验 | ✅ L1: header 注入 + 错误透传 + CSRF 拒绝 | 🔲 |
 | 6.1.4 | `feat: add stats api route` | `app/api/admin/stats/route.ts` — 第一个代理端点，验证全链路通畅（auth → proxy → Worker → 响应） | ✅ L1: 代理转发 | 🔲 |
@@ -1151,7 +1153,7 @@ interface AdminConfirmDialogProps {
 |---|--------|------|------|------|
 | 6.2.1 | `feat: add admin data table component` | `components/admin/admin-data-table.tsx` — 通用表格（列定义 + 行选择 + 空状态） | ✅ L1: 列渲染 + 选择状态 | 🔲 |
 | 6.2.2 | `feat: add admin pagination, filters, batch bar, and confirm dialog` | `admin-pagination.tsx`（offset 分页）+ `admin-filters.tsx`（search/select/toggle）+ `admin-batch-bar.tsx`（浮动栏）+ `admin-confirm-dialog.tsx`（危险操作确认，含 requireInput） | ✅ L1: 分页计算 + URL 驱动 | 🔲 |
-| 6.2.3 | `refactor: expand sidebar nav to 9 items with grouped sections` | 更新 `lib/navigation.ts`（Overview + 内容管理 5 项 + 安全管理 2 项）+ 更新 `sidebar.tsx` ICON_MAP（+MessageSquare, Paperclip, ShieldBan, Filter）+ 更新 `ROUTE_LABELS`（+threads, posts, attachments, ip-bans, censor-words） | ✅ L1: 导航项 + active 状态 + 面包屑 | 🔲 |
+| 6.2.3 | `refactor: expand sidebar nav to 8 items with grouped sections` | 更新 `lib/navigation.ts`（Dashboard + 内容管理 5 项 + 安全管理 2 项）+ 更新 `sidebar.tsx` ICON_MAP（+MessageSquare, Paperclip, ShieldBan, Filter）+ 更新 `ROUTE_LABELS`（+threads, posts, attachments, ip-bans, censor-words） | ✅ L1: 导航项 + active 状态 + 面包屑 | 🔲 |
 | 6.2.4 | `feat: add stat-card component` | `components/admin/stat-card.tsx` — 独立统计卡片（label + value + 可选 sub-items 列表） | ✅ L1: 渲染 | 🔲 |
 
 ---
@@ -1302,7 +1304,7 @@ IP 封禁管理模块。Worker 端点 7 个，含 IP 检测工具。
 
 | 文件 | 变更 |
 |------|------|
-| `src/lib/navigation.ts` | 从 4 项扩展到 9 项（+Threads/Posts/Attachments/IP Bans/Censor Words），分组改为 Overview/内容管理/安全管理 |
+| `src/lib/navigation.ts` | 从 4 项扩展到 8 项（+Threads/Posts/Attachments/IP Bans/Censor Words），分组改为 Dashboard/内容管理/安全管理 |
 | `src/components/layout/sidebar.tsx` | ICON_MAP 增加新图标（MessageSquare, Paperclip, ShieldBan, Filter） |
 | `src/app/(admin)/layout.tsx` | 添加服务端 auth guard — `auth()` + `resolveAdmin()` + redirect（6.1.1） |
 
