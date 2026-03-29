@@ -1,13 +1,15 @@
 /**
- * Proxy — auth guard for admin-only console.
+ * Proxy — auth guard for forum + admin console.
  *
  * Uses Next.js 16 proxy convention (replaces middleware.ts).
  *
- * Route protection:
- * - Public routes: /login, /api/auth/*  (no auth required)
- * - /admin/* page routes: requires Google OAuth session + email ∈ ADMIN_EMAILS
- * - /api/admin/* API routes: NOT handled by proxy (matcher excludes them);
- *   auth guard is in lib/admin-proxy.ts createProxyHandler() instead.
+ * Route protection tiers:
+ * 1. Public routes: /, /forums/*, /threads/*, /users/*, /digest, /search,
+ *    /login, /api/auth/* — no auth required.
+ * 2. Forum auth routes: /threads/new — requires forum credentials session.
+ * 3. Admin routes: /admin/* — requires Google OAuth session + email ∈ ADMIN_EMAILS.
+ * 4. API routes: /api/* (except /api/auth/*) — NOT handled by proxy (matcher excludes them);
+ *    auth guard is in route handlers or lib/admin-proxy.ts instead.
  */
 
 import { auth } from "@/auth";
@@ -19,9 +21,29 @@ import type { NextRequest } from "next/server";
 // Pure functions (exported for testing)
 // ---------------------------------------------------------------------------
 
-/** Routes that are always public (no auth required). */
+/** Routes that require no authentication at all. */
 export function isPublicRoute(pathname: string): boolean {
-	return pathname === "/login" || pathname.startsWith("/api/auth");
+	// Auth endpoints
+	if (pathname === "/login" || pathname.startsWith("/api/auth")) return true;
+
+	// Forum public pages
+	if (pathname === "/") return true;
+	if (pathname === "/digest" || pathname === "/search") return true;
+	if (pathname.startsWith("/forums/") || pathname === "/forums") return true;
+	if (pathname.startsWith("/users/") || pathname === "/users") return true;
+
+	// Thread pages are public except /threads/new
+	if (pathname.startsWith("/threads/")) {
+		return pathname !== "/threads/new";
+	}
+	if (pathname === "/threads") return true;
+
+	return false;
+}
+
+/** Routes that require forum user authentication (credentials). */
+export function isForumAuthRoute(pathname: string): boolean {
+	return pathname === "/threads/new";
 }
 
 /** Check if a pathname is an admin page route (not API). */
@@ -46,6 +68,11 @@ export function resolveProxyAction(
 		// Authenticated admin on login page -> redirect to admin
 		if (pathname === "/login" && isLoggedIn && isAdmin(email)) return "redirect:/admin";
 		return "next";
+	}
+
+	// Forum auth routes: require any session (credentials or OAuth)
+	if (isForumAuthRoute(pathname)) {
+		return isLoggedIn ? "next" : "redirect:/login";
 	}
 
 	// Not logged in -> redirect to login
