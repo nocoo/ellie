@@ -5,16 +5,17 @@ import { type PaginatedResponse, apiClient } from "@/lib/api-client";
 // ---------------------------------------------------------------------------
 
 export interface User {
-	uid: number;
+	id: number;
 	username: string;
 	email: string;
 	avatar: string;
 	role: number;
 	status: number;
+	threads: number;
 	posts: number;
 	credits: number;
-	regDate: string;
-	lastVisit: string | null;
+	regDate: number;
+	lastLogin: number;
 }
 
 export interface UserFilters {

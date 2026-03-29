@@ -21,7 +21,7 @@ beforeEach(() => {
 	mockFetchFn = mock(() =>
 		Promise.resolve(
 			mockJsonResponse({
-				data: [{ uid: 1, username: "alice" }],
+				data: [{ id: 1, username: "alice" }],
 				meta: { timestamp: 1711612800000, requestId: "r1", total: 1, page: 1, limit: 20, pages: 1 },
 			}),
 		),
@@ -51,7 +51,7 @@ describe("users api proxy", () => {
 		mockFetchFn.mockImplementation(() =>
 			Promise.resolve(
 				mockJsonResponse({
-					data: { uid: 42, username: "bob" },
+					data: { id: 42, username: "bob" },
 					meta: { timestamp: 1711612800000, requestId: "r2" },
 				}),
 			),
@@ -64,12 +64,12 @@ describe("users api proxy", () => {
 		expect(url).toContain("/api/admin/users/42");
 		expect(proxied.status).toBe(200);
 		const body = await proxied.json();
-		expect(body.data.uid).toBe(42);
+		expect(body.data.id).toBe(42);
 	});
 
 	it("PATCH /api/admin/users/:id sends body", async () => {
 		mockFetchFn.mockImplementation(() =>
-			Promise.resolve(mockJsonResponse({ data: { uid: 42, role: 1 }, meta: {} })),
+			Promise.resolve(mockJsonResponse({ data: { id: 42, role: 1 }, meta: {} })),
 		);
 
 		const res = await adminApi.raw("PATCH", "/api/admin/users/42", { role: 1 });

@@ -110,14 +110,14 @@ describe("fetchUser", () => {
 		mockFetchFn.mockImplementation(() =>
 			Promise.resolve(
 				mockJsonResponse({
-					data: { uid: 42, username: "alice" },
+					data: { id: 42, username: "alice" },
 					meta: { timestamp: 1711612800000, requestId: "r1" },
 				}),
 			),
 		);
 
 		const user = await fetchUser(42);
-		expect(user.uid).toBe(42);
+		expect(user.id).toBe(42);
 		expect(user.username).toBe("alice");
 
 		const [url] = mockFetchFn.mock.calls[0] as [string];
@@ -130,7 +130,7 @@ describe("updateUser", () => {
 		mockFetchFn.mockImplementation(() =>
 			Promise.resolve(
 				mockJsonResponse({
-					data: { uid: 42, role: 1 },
+					data: { id: 42, role: 1 },
 					meta: { timestamp: 1711612800000, requestId: "r1" },
 				}),
 			),
