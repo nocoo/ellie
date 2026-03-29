@@ -8,11 +8,15 @@ import { cn } from "@/lib/utils";
 import {
 	ChevronUp,
 	FileText,
+	Filter,
 	LayoutDashboard,
 	LogOut,
+	MessageSquare,
 	MessagesSquare,
 	PanelLeft,
+	Paperclip,
 	Settings,
+	ShieldBan,
 	Users,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
@@ -30,7 +34,11 @@ const ICON_MAP: Record<string, ElementType> = {
 	Settings,
 	Users,
 	FileText,
+	MessageSquare,
 	MessagesSquare,
+	Paperclip,
+	ShieldBan,
+	Filter,
 };
 
 interface NavItem {

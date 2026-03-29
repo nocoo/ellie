@@ -33,12 +33,22 @@ export const NAV_GROUPS: NavGroupDef[] = [
 		items: [{ href: "/admin", label: "Dashboard", icon: "LayoutDashboard" }],
 	},
 	{
-		label: "Management",
+		label: "Content Management",
 		defaultOpen: true,
 		items: [
 			{ href: "/admin/users", label: "Users", icon: "Users" },
-			{ href: "/admin/content", label: "Content", icon: "FileText" },
+			{ href: "/admin/threads", label: "Threads", icon: "FileText" },
+			{ href: "/admin/posts", label: "Posts", icon: "MessageSquare" },
 			{ href: "/admin/forums", label: "Forums", icon: "MessagesSquare" },
+			{ href: "/admin/attachments", label: "Attachments", icon: "Paperclip" },
+		],
+	},
+	{
+		label: "Security",
+		defaultOpen: true,
+		items: [
+			{ href: "/admin/ip-bans", label: "IP Bans", icon: "ShieldBan" },
+			{ href: "/admin/censor-words", label: "Censor Words", icon: "Filter" },
 		],
 	},
 ];
@@ -50,8 +60,12 @@ export const NAV_GROUPS: NavGroupDef[] = [
 export const ROUTE_LABELS: Record<string, string> = {
 	admin: "Dashboard",
 	users: "Users",
-	content: "Content",
+	threads: "Threads",
+	posts: "Posts",
 	forums: "Forums",
+	attachments: "Attachments",
+	"ip-bans": "IP Bans",
+	"censor-words": "Censor Words",
 };
 
 /**
