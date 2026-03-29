@@ -1,8 +1,8 @@
 # 07 — API 接口参考手册
 
-> 基于实际代码的完整 API 文档。公开端点 17 个 + 管理端点 44 个 = 共 61 个。
+> 基于实际代码的完整 API 文档。公开端点 22 个 + 管理端点 45 个 = 共 67 个。
 >
-> **最后更新**：2026-03-28
+> **最后更新**：2026-03-29
 
 ---
 
@@ -24,16 +24,17 @@
   - [11. 用户（公开）](#11-用户公开)
   - [12-15. 认证](#12-15-认证)
   - [16-17. 用户自助服务](#16-17-用户自助服务)
-- [管理端点（#18-#61）](#管理端点1861)
+  - [18-22. 版主操作](#18-22-版主操作)
+- [管理端点（#23-#67）](#管理端点2367)
   - [实体总览](#实体总览)
-  - [A. Forum 版块（Admin）— #18-#24](#a-forum-版块admin-1824)
-  - [B. Thread 主题（Admin）— #25-#30](#b-thread-主题admin-2530)
-  - [C. Post 帖子（Admin）— #31-#35](#c-post-帖子admin-3135)
-  - [D. User 用户（Admin）— #36-#42](#d-user-用户admin-3642)
-  - [E. Attachment 附件（Admin）— #43-#46](#e-attachment-附件admin-4346)
-  - [F. IpBan IP 封禁（Admin）— #47-#53](#f-ipban-ip-封禁admin-4753)
-  - [G. CensorWord 敏感词（Admin）— #54-#60](#g-censorword-敏感词admin-5460)
-  - [H. Stats 站点统计（Admin）— #61](#h-stats-站点统计admin-61)
+  - [A. Forum 版块（Admin）— #23-#29](#a-forum-版块admin-2329)
+  - [B. Thread 主题（Admin）— #30-#35](#b-thread-主题admin-3035)
+  - [C. Post 帖子（Admin）— #36-#40](#c-post-帖子admin-3640)
+  - [D. User 用户（Admin）— #41-#48](#d-user-用户admin-4148)
+  - [E. Attachment 附件（Admin）— #49-#52](#e-attachment-附件admin-4952)
+  - [F. IpBan IP 封禁（Admin）— #53-#59](#f-ipban-ip-封禁admin-5359)
+  - [G. CensorWord 敏感词（Admin）— #60-#66](#g-censorword-敏感词admin-6066)
+  - [H. Stats 站点统计（Admin）— #67](#h-stats-站点统计admin-67)
 - [附录](#附录)
   - [测试原则](#测试原则)
 
@@ -156,8 +157,6 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 |--------|----------|------|
 | `INVALID_REQUEST` | 400 | 请求参数无效 |
 | `INVALID_BODY` | 400 | 请求体无效或缺少必填字段 |
-| `SELF_BAN` | 400 | 不能封禁自己 |
-| `SELF_ROLE_CHANGE` | 400 | 不能修改自己的角色 |
 | `CANNOT_DELETE_FIRST_POST` | 400 | 不能删除主楼帖子，请删除整个主题 |
 | `BATCH_LIMIT_EXCEEDED` | 400 | 批量操作超过上限 |
 | `INVALID_CREDENTIALS` | 401 | 用户名或密码错误 |
@@ -1099,7 +1098,209 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 ---
 
 
-## 管理端点（#18-#61）
+### 18-22. 版主操作
+
+> **认证要求**：所有版主端点使用 **Key A + 论坛 JWT**，JWT 内 `role` 必须为 `1`（管理员）、`2`（超级版主）或 `3`（版主）。
+>
+> **中间件**：`moderationMiddleware` — 先验证 JWT 有效性，再检查角色权限。
+
+#### #18 `PATCH /api/v1/moderation/threads/:id/sticky`
+
+设置主题置顶级别。
+
+| 属性 | 值 |
+|------|---|
+| 认证 | Key A + JWT（`withModerator`） |
+| 路径参数 | `id` — 主题 ID（整数） |
+
+**请求体（JSON）：**
+
+| 字段 | 类型 | 必填 | 约束 |
+|------|------|------|------|
+| `level` | string | 是 | `"none"` / `"forum"` / `"global"` |
+
+**成功响应（200）：**
+```json
+{
+  "data": { "id": 100, "sticky": 1 },
+  "meta": { "timestamp": 1711612800000, "requestId": "..." }
+}
+```
+
+> `level` 映射：`none` → `0`、`forum` → `1`、`global` → `2`。
+
+**错误响应：**
+
+| 错误码 | 状态 | 触发条件 |
+|--------|------|---------|
+| `UNAUTHORIZED` / `TOKEN_EXPIRED` | 401 | JWT 无效或过期 |
+| `FORBIDDEN_MOD_ONLY` | 403 | 角色不满足版主要求 |
+| `INVALID_REQUEST` | 400 | 主题 ID 无效 |
+| `INVALID_BODY` | 400 | JSON 解析失败或 `level` 值不合法 |
+| `THREAD_NOT_FOUND` | 404 | 主题不存在 |
+
+---
+
+#### #19 `PATCH /api/v1/moderation/threads/:id/digest`
+
+设置主题精华级别。
+
+| 属性 | 值 |
+|------|---|
+| 认证 | Key A + JWT（`withModerator`） |
+| 路径参数 | `id` — 主题 ID（整数） |
+
+**请求体（JSON）：**
+
+| 字段 | 类型 | 必填 | 约束 |
+|------|------|------|------|
+| `level` | number | 是 | 整数，0-3 |
+
+**成功响应（200）：**
+```json
+{
+  "data": { "id": 100, "digest": 2 },
+  "meta": { "timestamp": 1711612800000, "requestId": "..." }
+}
+```
+
+**错误响应：**
+
+| 错误码 | 状态 | 触发条件 |
+|--------|------|---------|
+| `UNAUTHORIZED` / `TOKEN_EXPIRED` | 401 | JWT 无效或过期 |
+| `FORBIDDEN_MOD_ONLY` | 403 | 角色不满足版主要求 |
+| `INVALID_REQUEST` | 400 | 主题 ID 无效 |
+| `INVALID_BODY` | 400 | JSON 解析失败或 `level` 不是 0-3 整数 |
+| `THREAD_NOT_FOUND` | 404 | 主题不存在 |
+
+---
+
+#### #20 `PATCH /api/v1/moderation/threads/:id/close`
+
+关闭或重新开放主题。
+
+| 属性 | 值 |
+|------|---|
+| 认证 | Key A + JWT（`withModerator`） |
+| 路径参数 | `id` — 主题 ID（整数） |
+
+**请求体（JSON）：**
+
+| 字段 | 类型 | 必填 | 约束 |
+|------|------|------|------|
+| `closed` | boolean | 是 | `true` 关闭、`false` 开放 |
+
+**成功响应（200）：**
+```json
+{
+  "data": { "id": 100, "closed": 1 },
+  "meta": { "timestamp": 1711612800000, "requestId": "..." }
+}
+```
+
+> `closed` 值在数据库中存储为整数：`true` → `1`、`false` → `0`。
+
+**错误响应：**
+
+| 错误码 | 状态 | 触发条件 |
+|--------|------|---------|
+| `UNAUTHORIZED` / `TOKEN_EXPIRED` | 401 | JWT 无效或过期 |
+| `FORBIDDEN_MOD_ONLY` | 403 | 角色不满足版主要求 |
+| `INVALID_REQUEST` | 400 | 主题 ID 无效 |
+| `INVALID_BODY` | 400 | JSON 解析失败或 `closed` 不是 boolean |
+| `THREAD_NOT_FOUND` | 404 | 主题不存在 |
+
+---
+
+#### #21 `PATCH /api/v1/moderation/threads/:id/move`
+
+移动主题到另一个版块。
+
+| 属性 | 值 |
+|------|---|
+| 认证 | Key A + JWT（`withModerator`） |
+| 路径参数 | `id` — 主题 ID（整数） |
+
+**请求体（JSON）：**
+
+| 字段 | 类型 | 必填 | 约束 |
+|------|------|------|------|
+| `targetForumId` | number | 是 | 正整数，目标版块必须存在 |
+
+**成功响应（200）— 已移动：**
+```json
+{
+  "data": { "id": 100, "forumId": 5, "moved": true },
+  "meta": { "timestamp": 1711612800000, "requestId": "..." }
+}
+```
+
+**成功响应（200）— 目标与当前相同，未移动：**
+```json
+{
+  "data": { "id": 100, "forumId": 5, "moved": false },
+  "meta": { "timestamp": 1711612800000, "requestId": "..." }
+}
+```
+
+**副作用（仅当实际移动时）：**
+- 更新主题和所有帖子的 `forum_id`
+- 原版块计数递减（`threads-1`, `posts-N`）
+- 目标版块计数递增（`threads+1`, `posts+N`）
+- 重新计算两个版块的 `lastThreadId`、`lastPostAt`、`lastPoster`
+
+**错误响应：**
+
+| 错误码 | 状态 | 触发条件 |
+|--------|------|---------|
+| `UNAUTHORIZED` / `TOKEN_EXPIRED` | 401 | JWT 无效或过期 |
+| `FORBIDDEN_MOD_ONLY` | 403 | 角色不满足版主要求 |
+| `INVALID_REQUEST` | 400 | 主题 ID 无效 |
+| `INVALID_BODY` | 400 | JSON 解析失败或 `targetForumId` 不是正整数 |
+| `THREAD_NOT_FOUND` | 404 | 主题不存在 |
+| `INVALID_BODY` | 400 | 目标版块不存在（`"Target forum not found"`） |
+
+---
+
+#### #22 `DELETE /api/v1/moderation/posts/:id`
+
+删除帖子（版主操作）。不能删除主楼帖子。
+
+| 属性 | 值 |
+|------|---|
+| 认证 | Key A + JWT（`withModerator`） |
+| 路径参数 | `id` — 帖子 ID（整数） |
+
+**成功响应（200）：**
+```json
+{
+  "data": { "deleted": true, "id": 500 },
+  "meta": { "timestamp": 1711612800000, "requestId": "..." }
+}
+```
+
+**副作用：**
+- 删除帖子记录
+- 主题 `replies-1`
+- 版块 `posts-1`
+- 帖子作者 `posts-1`
+- 重新计算版块的 `lastThreadId`、`lastPostAt`、`lastPoster`
+
+**错误响应：**
+
+| 错误码 | 状态 | 触发条件 |
+|--------|------|---------|
+| `UNAUTHORIZED` / `TOKEN_EXPIRED` | 401 | JWT 无效或过期 |
+| `FORBIDDEN_MOD_ONLY` | 403 | 角色不满足版主要求 |
+| `INVALID_REQUEST` | 400 | 帖子 ID 无效 |
+| `POST_NOT_FOUND` | 404 | 帖子不存在 |
+| `CANNOT_DELETE_FIRST_POST` | 400 | 不能删除主楼帖子，请删除整个主题 |
+
+---
+
+
+## 管理端点（#23-#67）
 
 > 管理 API 按**实体**组织。每个实体遵循统一的 CRUD 模式，特殊操作作为实体的扩展端点。
 >
@@ -1122,20 +1323,20 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 | 实体 | 表名 | 认证 | 端点 | CRUD | 特殊操作 |
 |------|------|------|------|------|----------|
-| **Forum** | `forums` | Key B | #18-#24 | L·R·C·U·D | merge, reorder |
-| **Thread** | `threads` | Key B | #25-#30 | L·R·U·D | batch-delete, batch-move |
-| **Post** | `posts` | Key B | #31-#35 | L·R·U·D | batch-delete |
-| **User** | `users` | Key B | #36-#42 | L·R·U | ban, nuke, batch-status, batch-role |
-| **Attachment** | `attachments` | Key B | #43-#46 | L·R·D | batch-delete |
-| **IpBan** | `ip_bans` | Key B | #47-#53 | L·R·C·U·D | check-ip, batch-delete |
-| **CensorWord** | `censor_words` | Key B | #54-#60 | L·R·C·U·D | test, batch-delete |
-| **Stats** | *(聚合)* | Key B | #61 | R | — |
+| **Forum** | `forums` | Key B | #23-#29 | L·R·C·U·D | merge, reorder |
+| **Thread** | `threads` | Key B | #30-#35 | L·R·U·D | batch-delete, batch-move |
+| **Post** | `posts` | Key B | #36-#40 | L·R·U·D | batch-delete |
+| **User** | `users` | Key B | #41-#48 | L·R·U | ban, nuke, batch-status, batch-role, batch-fetch |
+| **Attachment** | `attachments` | Key B | #49-#52 | L·R·D | batch-delete |
+| **IpBan** | `ip_bans` | Key B | #53-#59 | L·R·C·U·D | check-ip, batch-delete |
+| **CensorWord** | `censor_words` | Key B | #60-#66 | L·R·C·U·D | test, batch-delete |
+| **Stats** | *(聚合)* | Key B | #67 | R | — |
 
 ---
 
-### A. Forum 版块（Admin）— #18-#24
+### A. Forum 版块（Admin）— #23-#29
 
-#### #18 `GET /api/admin/forums`
+#### #23 `GET /api/admin/forums`
 
 获取全部版块列表（含隐藏版块）。
 
@@ -1148,7 +1349,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #19 `GET /api/admin/forums/:id`
+#### #24 `GET /api/admin/forums/:id`
 
 获取单个版块详情。
 
@@ -1159,7 +1360,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #20 `POST /api/admin/forums`
+#### #25 `POST /api/admin/forums`
 
 创建新版块。
 
@@ -1183,7 +1384,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #21 `PATCH /api/admin/forums/:id`
+#### #26 `PATCH /api/admin/forums/:id`
 
 更新版块属性。
 
@@ -1197,7 +1398,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #22 `DELETE /api/admin/forums/:id`
+#### #27 `DELETE /api/admin/forums/:id`
 
 删除版块。**拒绝删除仍包含主题的版块**。
 
@@ -1208,7 +1409,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #23 `POST /api/admin/forums/:id/merge`
+#### #28 `POST /api/admin/forums/:id/merge`
 
 将源版块合并到目标版块 — 移动所有主题和帖子，然后删除源版块。
 
@@ -1235,7 +1436,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #24 `POST /api/admin/forums/reorder`
+#### #29 `POST /api/admin/forums/reorder`
 
 批量调整版块排序。
 
@@ -1249,9 +1450,9 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-### B. Thread 主题（Admin）— #25-#30
+### B. Thread 主题（Admin）— #30-#35
 
-#### #25 `GET /api/admin/threads`
+#### #30 `GET /api/admin/threads`
 
 获取主题列表（偏移分页）。
 
@@ -1275,13 +1476,13 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #26 `GET /api/admin/threads/:id`
+#### #31 `GET /api/admin/threads/:id`
 
 获取单个主题详情。
 
 ---
 
-#### #27 `PATCH /api/admin/threads/:id`
+#### #32 `PATCH /api/admin/threads/:id`
 
 更新主题属性。**统一的属性修改端点** — 合并了置顶、精华、关闭、高亮、移动、标题编辑。
 
@@ -1311,7 +1512,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #28 `DELETE /api/admin/threads/:id`
+#### #33 `DELETE /api/admin/threads/:id`
 
 删除主题及其所有帖子。
 
@@ -1321,7 +1522,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #29 `POST /api/admin/threads/batch-delete`
+#### #34 `POST /api/admin/threads/batch-delete`
 
 批量删除主题。
 
@@ -1331,7 +1532,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #30 `POST /api/admin/threads/batch-move`
+#### #35 `POST /api/admin/threads/batch-move`
 
 批量移动主题到指定版块。
 
@@ -1339,13 +1540,13 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 **成功响应（200）**：`{ data: { moved: true, count, forumId } }`
 
-**副作用**：对每个主题执行与 #27（forumId 字段）相同的 move 逻辑。
+**副作用**：对每个主题执行与 #32（forumId 字段）相同的 move 逻辑。
 
 ---
 
-### C. Post 帖子（Admin）— #31-#35
+### C. Post 帖子（Admin）— #36-#40
 
-#### #31 `GET /api/admin/posts`
+#### #36 `GET /api/admin/posts`
 
 获取帖子列表（偏移分页）。
 
@@ -1362,16 +1563,17 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 | `authorId` | integer | 精确 |
 | `authorName` | string | LIKE |
 | `content` | string | LIKE |
+| `sort` | string | 排序：`position_asc`（楼层升序）。默认 `id DESC` |
 
 ---
 
-#### #32 `GET /api/admin/posts/:id`
+#### #37 `GET /api/admin/posts/:id`
 
 获取单个帖子详情。
 
 ---
 
-#### #33 `PATCH /api/admin/posts/:id`
+#### #38 `PATCH /api/admin/posts/:id`
 
 编辑帖子内容。
 
@@ -1385,7 +1587,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #34 `DELETE /api/admin/posts/:id`
+#### #39 `DELETE /api/admin/posts/:id`
 
 删除帖子。**不能删除主楼**（`is_first=1`）。
 
@@ -1397,7 +1599,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #35 `POST /api/admin/posts/batch-delete`
+#### #40 `POST /api/admin/posts/batch-delete`
 
 批量删除帖子。
 
@@ -1409,9 +1611,11 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-### D. User 用户（Admin）— #36-#42
+### D. User 用户（Admin）— #41-#48
 
-#### #36 `GET /api/admin/users`
+> **认证说明**：Admin 端点仅通过 Key B 验证，Worker 不感知操作者身份，因此无自操作保护。如需防止误操作（如封禁自己），应在 Next.js 代理层实现。
+
+#### #41 `GET /api/admin/users`
 
 获取用户列表（偏移分页）。
 
@@ -1431,13 +1635,13 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #37 `GET /api/admin/users/:id`
+#### #42 `GET /api/admin/users/:id`
 
 获取单个用户详情。
 
 ---
 
-#### #38 `PATCH /api/admin/users/:id`
+#### #43 `PATCH /api/admin/users/:id`
 
 更新用户属性。**统一的属性修改端点** — 合并了 status/role/credits/profile 编辑。
 
@@ -1452,26 +1656,22 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 | `username` | string | 非空，≤ 50 字符，不能重名 | 用户名 |
 | `email` | string | 含 `@`，≤ 255 字符 | 邮箱 |
 | `avatar` | string | — | 头像 |
-| `status` | number | 0, -1, -2 | 状态（⚠️ 自保护） |
-| `role` | number | 0-3 | 角色（⚠️ 自保护） |
+| `status` | number | 0, -1, -2 | 状态 |
+| `role` | number | 0-3 | 角色 |
 | `credits` | number | 整数 | 积分（直接设置绝对值） |
 
 至少提供一个字段。
-
-**自保护**：当 body 包含 `status` 或 `role` 时，不能修改自己 — 返回 `SELF_BAN`(400) 或 `SELF_ROLE_CHANGE`(400)。
 
 **成功响应（200）**：`{ data: AdminUser, meta }`
 
 | 错误码 | 状态 | 触发条件 |
 |--------|------|---------|
-| `SELF_BAN` | 400 | 试图修改自己的 status |
-| `SELF_ROLE_CHANGE` | 400 | 试图修改自己的 role |
 | `USERNAME_TAKEN` | 409 | 用户名已被占用 |
 | `USER_NOT_FOUND` | 404 | 用户不存在 |
 
 ---
 
-#### #39 `POST /api/admin/users/:id/ban`
+#### #44 `POST /api/admin/users/:id/ban`
 
 封禁用户（可选删除其所有内容）。
 
@@ -1493,11 +1693,11 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 - 删除用户在其他主题的回复
 - 递减受影响主题/版块的计数
 
-**错误**：`SELF_BAN`(400)、`USER_NOT_FOUND`(404)
+**错误**：`USER_NOT_FOUND`(404)
 
 ---
 
-#### #40 `POST /api/admin/users/:id/nuke`
+#### #45 `POST /api/admin/users/:id/nuke`
 
 核弹操作 — 封禁 + 删除所有内容 + 清零积分。
 
@@ -1512,7 +1712,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #41 `POST /api/admin/users/batch-status`
+#### #46 `POST /api/admin/users/batch-status`
 
 批量设置用户状态。
 
@@ -1520,11 +1720,9 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 **成功响应（200）**：`{ data: { updated: true, count } }`
 
-> 自保护：自动排除当前操作者 ID。
-
 ---
 
-#### #42 `POST /api/admin/users/batch-role`
+#### #47 `POST /api/admin/users/batch-role`
 
 批量设置用户角色。
 
@@ -1532,13 +1730,31 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 **成功响应（200）**：`{ data: { updated: true, count } }`
 
-> 自保护：自动排除当前操作者 ID。
+---
+
+#### #48 `GET /api/admin/users/batch`
+
+批量获取用户信息。
+
+| 属性 | 值 |
+|------|---|
+| 认证 | Key B |
+
+**查询参数：**
+
+| 参数 | 类型 | 必填 | 约束 |
+|------|------|------|------|
+| `ids` | string | 是 | 逗号分隔的用户 ID（如 `1,2,3`），最多 100 个 |
+
+**成功响应（200）**：`{ data: AdminUser[], meta }`
+
+> 返回 AdminUser 数组，不存在的 ID 静默忽略。
 
 ---
 
-### E. Attachment 附件（Admin）— #43-#46
+### E. Attachment 附件（Admin）— #49-#52
 
-#### #43 `GET /api/admin/attachments`
+#### #49 `GET /api/admin/attachments`
 
 获取附件列表（偏移分页）。
 
@@ -1558,13 +1774,13 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #44 `GET /api/admin/attachments/:id`
+#### #50 `GET /api/admin/attachments/:id`
 
 获取单个附件详情。
 
 ---
 
-#### #45 `DELETE /api/admin/attachments/:id`
+#### #51 `DELETE /api/admin/attachments/:id`
 
 删除附件元数据记录。
 
@@ -1572,7 +1788,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #46 `POST /api/admin/attachments/batch-delete`
+#### #52 `POST /api/admin/attachments/batch-delete`
 
 批量删除附件元数据。
 
@@ -1582,7 +1798,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-### F. IpBan IP 封禁（Admin）— #47-#53
+### F. IpBan IP 封禁（Admin）— #53-#59
 
 > **需要新建表**：
 > ```sql
@@ -1598,7 +1814,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 > CREATE UNIQUE INDEX IF NOT EXISTS idx_ip_bans_ip ON ip_bans(ip);
 > ```
 
-#### #47 `GET /api/admin/ip-bans`
+#### #53 `GET /api/admin/ip-bans`
 
 获取 IP 封禁列表（偏移分页）。
 
@@ -1616,13 +1832,13 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #48 `GET /api/admin/ip-bans/:id`
+#### #54 `GET /api/admin/ip-bans/:id`
 
 获取单条 IP 封禁详情。
 
 ---
 
-#### #49 `POST /api/admin/ip-bans`
+#### #55 `POST /api/admin/ip-bans`
 
 添加 IP 封禁规则。
 
@@ -1640,7 +1856,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #50 `PATCH /api/admin/ip-bans/:id`
+#### #56 `PATCH /api/admin/ip-bans/:id`
 
 修改封禁规则。
 
@@ -1648,13 +1864,13 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #51 `DELETE /api/admin/ip-bans/:id`
+#### #57 `DELETE /api/admin/ip-bans/:id`
 
 删除封禁规则（解封）。
 
 ---
 
-#### #52 `POST /api/admin/ip-bans/batch-delete`
+#### #58 `POST /api/admin/ip-bans/batch-delete`
 
 批量删除 IP 封禁规则（批量解封）。
 
@@ -1664,7 +1880,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #53 `GET /api/admin/ip-bans/check-ip`
+#### #59 `GET /api/admin/ip-bans/check-ip`
 
 检查指定 IP 是否命中封禁规则。
 
@@ -1678,7 +1894,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-### G. CensorWord 敏感词（Admin）— #54-#60
+### G. CensorWord 敏感词（Admin）— #60-#66
 
 > **需要新建表**：
 > ```sql
@@ -1700,7 +1916,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 >
 > **运行时集成**：`POST /api/v1/threads`（#6）和 `POST /api/v1/posts`（#9）发帖前自动检查。
 
-#### #54 `GET /api/admin/censor-words`
+#### #60 `GET /api/admin/censor-words`
 
 获取敏感词列表（偏移分页）。
 
@@ -1718,13 +1934,13 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #55 `GET /api/admin/censor-words/:id`
+#### #61 `GET /api/admin/censor-words/:id`
 
 获取单条敏感词详情。
 
 ---
 
-#### #56 `POST /api/admin/censor-words`
+#### #62 `POST /api/admin/censor-words`
 
 添加敏感词规则。
 
@@ -1742,7 +1958,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #57 `PATCH /api/admin/censor-words/:id`
+#### #63 `PATCH /api/admin/censor-words/:id`
 
 修改敏感词规则。
 
@@ -1752,13 +1968,13 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #58 `DELETE /api/admin/censor-words/:id`
+#### #64 `DELETE /api/admin/censor-words/:id`
 
 删除敏感词规则。
 
 ---
 
-#### #59 `POST /api/admin/censor-words/batch-delete`
+#### #65 `POST /api/admin/censor-words/batch-delete`
 
 批量删除敏感词规则。
 
@@ -1768,7 +1984,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-#### #60 `POST /api/admin/censor-words/test`
+#### #66 `POST /api/admin/censor-words/test`
 
 测试文本命中情况（不执行实际过滤）。
 
@@ -1819,9 +2035,9 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 
 ---
 
-### H. Stats 站点统计（Admin）— #61
+### H. Stats 站点统计（Admin）— #67
 
-#### #61 `GET /api/admin/stats`
+#### #67 `GET /api/admin/stats`
 
 获取站点统计概览（Dashboard 数据）。
 
@@ -1888,13 +2104,9 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 }
 ```
 
-#### 当前实现偏差
-
-> 当前路由器代码（`index.ts`）的 404/500 兜底使用了 `{ error: string }` 简写格式，尚未通过 `errorResponse()` 函数生成。重构时需替换为上述文档协议格式，使客户端错误拦截器只需处理一种结构。
-
 ### 接口总览表
 
-#### 公开端点（#1-#17）
+#### 公开端点（#1-#22）
 
 | # | 方法 | 路径 | 认证 | 分页 |
 |---|------|------|------|------|
@@ -1915,57 +2127,63 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 | 15 | `GET` | `/api/v1/auth/me` | Key A + 论坛 JWT | — |
 | 16 | `PATCH` | `/api/v1/users/me` | Key A + 论坛 JWT | — |
 | 17 | `POST` | `/api/v1/users/me/password` | Key A + 论坛 JWT | — |
+| 18 | `PATCH` | `/api/v1/moderation/threads/:id/sticky` | Key A + 论坛 JWT (Mod+) | — |
+| 19 | `PATCH` | `/api/v1/moderation/threads/:id/digest` | Key A + 论坛 JWT (Mod+) | — |
+| 20 | `PATCH` | `/api/v1/moderation/threads/:id/close` | Key A + 论坛 JWT (Mod+) | — |
+| 21 | `PATCH` | `/api/v1/moderation/threads/:id/move` | Key A + 论坛 JWT (Mod+) | — |
+| 22 | `DELETE` | `/api/v1/moderation/posts/:id` | Key A + 论坛 JWT (Mod+) | — |
 
-#### 管理端点（#18-#61）— 按实体分组
+#### 管理端点（#23-#67）— 按实体分组
 
 | # | 方法 | 路径 | 实体 | 认证 | 操作 |
 |---|------|------|------|------|------|
-| 18 | `GET` | `/api/admin/forums` | Forum | Key B | list |
-| 19 | `GET` | `/api/admin/forums/:id` | Forum | Key B | get |
-| 20 | `POST` | `/api/admin/forums` | Forum | Key B | create |
-| 21 | `PATCH` | `/api/admin/forums/:id` | Forum | Key B | update |
-| 22 | `DELETE` | `/api/admin/forums/:id` | Forum | Key B | delete |
-| 23 | `POST` | `/api/admin/forums/:id/merge` | Forum | Key B | merge |
-| 24 | `POST` | `/api/admin/forums/reorder` | Forum | Key B | reorder |
-| 25 | `GET` | `/api/admin/threads` | Thread | Key B | list |
-| 26 | `GET` | `/api/admin/threads/:id` | Thread | Key B | get |
-| 27 | `PATCH` | `/api/admin/threads/:id` | Thread | Key B | update *(含 sticky/digest/close/highlight/move)* |
-| 28 | `DELETE` | `/api/admin/threads/:id` | Thread | Key B | delete |
-| 29 | `POST` | `/api/admin/threads/batch-delete` | Thread | Key B | batch-delete |
-| 30 | `POST` | `/api/admin/threads/batch-move` | Thread | Key B | batch-move |
-| 31 | `GET` | `/api/admin/posts` | Post | Key B | list |
-| 32 | `GET` | `/api/admin/posts/:id` | Post | Key B | get |
-| 33 | `PATCH` | `/api/admin/posts/:id` | Post | Key B | update |
-| 34 | `DELETE` | `/api/admin/posts/:id` | Post | Key B | delete |
-| 35 | `POST` | `/api/admin/posts/batch-delete` | Post | Key B | batch-delete |
-| 36 | `GET` | `/api/admin/users` | User | Key B | list |
-| 37 | `GET` | `/api/admin/users/:id` | User | Key B | get |
-| 38 | `PATCH` | `/api/admin/users/:id` | User | Key B | update *(含 status/role/credits/profile)* |
-| 39 | `POST` | `/api/admin/users/:id/ban` | User | Key B | ban |
-| 40 | `POST` | `/api/admin/users/:id/nuke` | User | Key B | nuke |
-| 41 | `POST` | `/api/admin/users/batch-status` | User | Key B | batch-status |
-| 42 | `POST` | `/api/admin/users/batch-role` | User | Key B | batch-role |
-| 43 | `GET` | `/api/admin/attachments` | Attachment | Key B | list |
-| 44 | `GET` | `/api/admin/attachments/:id` | Attachment | Key B | get |
-| 45 | `DELETE` | `/api/admin/attachments/:id` | Attachment | Key B | delete |
-| 46 | `POST` | `/api/admin/attachments/batch-delete` | Attachment | Key B | batch-delete |
-| 47 | `GET` | `/api/admin/ip-bans` | IpBan | Key B | list |
-| 48 | `GET` | `/api/admin/ip-bans/:id` | IpBan | Key B | get |
-| 49 | `POST` | `/api/admin/ip-bans` | IpBan | Key B | create |
-| 50 | `PATCH` | `/api/admin/ip-bans/:id` | IpBan | Key B | update |
-| 51 | `DELETE` | `/api/admin/ip-bans/:id` | IpBan | Key B | delete |
-| 52 | `POST` | `/api/admin/ip-bans/batch-delete` | IpBan | Key B | batch-delete |
-| 53 | `GET` | `/api/admin/ip-bans/check-ip` | IpBan | Key B | check |
-| 54 | `GET` | `/api/admin/censor-words` | CensorWord | Key B | list |
-| 55 | `GET` | `/api/admin/censor-words/:id` | CensorWord | Key B | get |
-| 56 | `POST` | `/api/admin/censor-words` | CensorWord | Key B | create |
-| 57 | `PATCH` | `/api/admin/censor-words/:id` | CensorWord | Key B | update |
-| 58 | `DELETE` | `/api/admin/censor-words/:id` | CensorWord | Key B | delete |
-| 59 | `POST` | `/api/admin/censor-words/batch-delete` | CensorWord | Key B | batch-delete |
-| 60 | `POST` | `/api/admin/censor-words/test` | CensorWord | Key B | test |
-| 61 | `GET` | `/api/admin/stats` | Stats | Key B | get |
+| 23 | `GET` | `/api/admin/forums` | Forum | Key B | list |
+| 24 | `GET` | `/api/admin/forums/:id` | Forum | Key B | get |
+| 25 | `POST` | `/api/admin/forums` | Forum | Key B | create |
+| 26 | `PATCH` | `/api/admin/forums/:id` | Forum | Key B | update |
+| 27 | `DELETE` | `/api/admin/forums/:id` | Forum | Key B | delete |
+| 28 | `POST` | `/api/admin/forums/:id/merge` | Forum | Key B | merge |
+| 29 | `POST` | `/api/admin/forums/reorder` | Forum | Key B | reorder |
+| 30 | `GET` | `/api/admin/threads` | Thread | Key B | list |
+| 31 | `GET` | `/api/admin/threads/:id` | Thread | Key B | get |
+| 32 | `PATCH` | `/api/admin/threads/:id` | Thread | Key B | update *(含 sticky/digest/close/highlight/move)* |
+| 33 | `DELETE` | `/api/admin/threads/:id` | Thread | Key B | delete |
+| 34 | `POST` | `/api/admin/threads/batch-delete` | Thread | Key B | batch-delete |
+| 35 | `POST` | `/api/admin/threads/batch-move` | Thread | Key B | batch-move |
+| 36 | `GET` | `/api/admin/posts` | Post | Key B | list |
+| 37 | `GET` | `/api/admin/posts/:id` | Post | Key B | get |
+| 38 | `PATCH` | `/api/admin/posts/:id` | Post | Key B | update |
+| 39 | `DELETE` | `/api/admin/posts/:id` | Post | Key B | delete |
+| 40 | `POST` | `/api/admin/posts/batch-delete` | Post | Key B | batch-delete |
+| 41 | `GET` | `/api/admin/users` | User | Key B | list |
+| 42 | `GET` | `/api/admin/users/:id` | User | Key B | get |
+| 43 | `PATCH` | `/api/admin/users/:id` | User | Key B | update *(含 status/role/credits/profile)* |
+| 44 | `POST` | `/api/admin/users/:id/ban` | User | Key B | ban |
+| 45 | `POST` | `/api/admin/users/:id/nuke` | User | Key B | nuke |
+| 46 | `POST` | `/api/admin/users/batch-status` | User | Key B | batch-status |
+| 47 | `POST` | `/api/admin/users/batch-role` | User | Key B | batch-role |
+| 48 | `GET` | `/api/admin/users/batch` | User | Key B | batch-fetch |
+| 49 | `GET` | `/api/admin/attachments` | Attachment | Key B | list |
+| 50 | `GET` | `/api/admin/attachments/:id` | Attachment | Key B | get |
+| 51 | `DELETE` | `/api/admin/attachments/:id` | Attachment | Key B | delete |
+| 52 | `POST` | `/api/admin/attachments/batch-delete` | Attachment | Key B | batch-delete |
+| 53 | `GET` | `/api/admin/ip-bans` | IpBan | Key B | list |
+| 54 | `GET` | `/api/admin/ip-bans/:id` | IpBan | Key B | get |
+| 55 | `POST` | `/api/admin/ip-bans` | IpBan | Key B | create |
+| 56 | `PATCH` | `/api/admin/ip-bans/:id` | IpBan | Key B | update |
+| 57 | `DELETE` | `/api/admin/ip-bans/:id` | IpBan | Key B | delete |
+| 58 | `POST` | `/api/admin/ip-bans/batch-delete` | IpBan | Key B | batch-delete |
+| 59 | `GET` | `/api/admin/ip-bans/check-ip` | IpBan | Key B | check |
+| 60 | `GET` | `/api/admin/censor-words` | CensorWord | Key B | list |
+| 61 | `GET` | `/api/admin/censor-words/:id` | CensorWord | Key B | get |
+| 62 | `POST` | `/api/admin/censor-words` | CensorWord | Key B | create |
+| 63 | `PATCH` | `/api/admin/censor-words/:id` | CensorWord | Key B | update |
+| 64 | `DELETE` | `/api/admin/censor-words/:id` | CensorWord | Key B | delete |
+| 65 | `POST` | `/api/admin/censor-words/batch-delete` | CensorWord | Key B | batch-delete |
+| 66 | `POST` | `/api/admin/censor-words/test` | CensorWord | Key B | test |
+| 67 | `GET` | `/api/admin/stats` | Stats | Key B | get |
 
-**共计：61 个端点** = 17 公开（Key A）+ 44 管理（Key B）
+**共计：67 个端点** = 22 公开（Key A）+ 45 管理（Key B）
 
 ### 测试原则
 
