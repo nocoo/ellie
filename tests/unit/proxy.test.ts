@@ -11,8 +11,12 @@ import {
 // ---------------------------------------------------------------------------
 
 describe("isPublicRoute", () => {
-	it("marks /login as public", () => {
+	it("marks /login as public (forum login)", () => {
 		expect(isPublicRoute("/login")).toBe(true);
+	});
+
+	it("marks /admin/login as public (admin login)", () => {
+		expect(isPublicRoute("/admin/login")).toBe(true);
 	});
 
 	it("marks /api/auth paths as public", () => {
@@ -104,6 +108,10 @@ describe("isAdminRoute", () => {
 		expect(isAdminRoute("/admin/forums")).toBe(true);
 	});
 
+	it("returns false for /admin/login (admin login is public)", () => {
+		expect(isAdminRoute("/admin/login")).toBe(false);
+	});
+
 	it("returns false for /login", () => {
 		expect(isAdminRoute("/login")).toBe(false);
 	});
@@ -118,7 +126,7 @@ describe("isAdminRoute", () => {
 });
 
 // ---------------------------------------------------------------------------
-// resolveProxyAction — with admin whitelist
+// resolveProxyAction
 // ---------------------------------------------------------------------------
 
 describe("resolveProxyAction", () => {
@@ -134,8 +142,13 @@ describe("resolveProxyAction", () => {
 		}
 	});
 
+	// -----------------------------------------------------------------------
+	// Public routes
+	// -----------------------------------------------------------------------
+
 	it("allows public routes for unauthenticated users", () => {
 		expect(resolveProxyAction("/login", false)).toBe("next");
+		expect(resolveProxyAction("/admin/login", false)).toBe("next");
 		expect(resolveProxyAction("/api/auth/signin", false)).toBe("next");
 	});
 
@@ -143,47 +156,55 @@ describe("resolveProxyAction", () => {
 		expect(resolveProxyAction("/api/auth/session", true, NON_ADMIN_EMAIL)).toBe("next");
 	});
 
-	it("redirects authenticated admin on /login to /admin", () => {
+	it("allows public API auth routes for authenticated admin", () => {
 		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
-		expect(resolveProxyAction("/login", true, ADMIN_EMAIL)).toBe("redirect:/admin");
+		expect(resolveProxyAction("/api/auth/session", true, ADMIN_EMAIL)).toBe("next");
 	});
 
-	it("does NOT redirect authenticated non-admin on /login to /admin", () => {
+	// -----------------------------------------------------------------------
+	// Admin login page redirect
+	// -----------------------------------------------------------------------
+
+	it("redirects authenticated admin on /admin/login to /admin", () => {
 		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
-		expect(resolveProxyAction("/login", true, NON_ADMIN_EMAIL)).toBe("next");
+		expect(resolveProxyAction("/admin/login", true, ADMIN_EMAIL)).toBe("redirect:/admin");
 	});
 
-	it("does NOT redirect authenticated user without email on /login", () => {
+	it("does NOT redirect authenticated non-admin on /admin/login", () => {
 		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
-		expect(resolveProxyAction("/login", true, null)).toBe("next");
-		expect(resolveProxyAction("/login", true, undefined)).toBe("next");
+		expect(resolveProxyAction("/admin/login", true, NON_ADMIN_EMAIL)).toBe("next");
 	});
 
-	it("redirects unauthenticated user on admin route to /login", () => {
-		expect(resolveProxyAction("/admin", false)).toBe("redirect:/login");
-		expect(resolveProxyAction("/admin/users", false)).toBe("redirect:/login");
+	it("does NOT redirect authenticated user without email on /admin/login", () => {
+		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
+		expect(resolveProxyAction("/admin/login", true, null)).toBe("next");
+		expect(resolveProxyAction("/admin/login", true, undefined)).toBe("next");
 	});
 
-	it("redirects authenticated non-admin on admin route to /login", () => {
-		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
-		expect(resolveProxyAction("/admin", true, NON_ADMIN_EMAIL)).toBe("redirect:/login");
-		expect(resolveProxyAction("/admin/users", true, NON_ADMIN_EMAIL)).toBe("redirect:/login");
+	// -----------------------------------------------------------------------
+	// Admin routes -> /admin/login
+	// -----------------------------------------------------------------------
+
+	it("redirects unauthenticated user on admin route to /admin/login", () => {
+		expect(resolveProxyAction("/admin", false)).toBe("redirect:/admin/login");
+		expect(resolveProxyAction("/admin/users", false)).toBe("redirect:/admin/login");
 	});
 
-	it("redirects authenticated user without email on admin route to /login", () => {
+	it("redirects authenticated non-admin on admin route to /admin/login", () => {
 		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
-		expect(resolveProxyAction("/admin", true, null)).toBe("redirect:/login");
+		expect(resolveProxyAction("/admin", true, NON_ADMIN_EMAIL)).toBe("redirect:/admin/login");
+		expect(resolveProxyAction("/admin/users", true, NON_ADMIN_EMAIL)).toBe("redirect:/admin/login");
+	});
+
+	it("redirects authenticated user without email on admin route to /admin/login", () => {
+		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
+		expect(resolveProxyAction("/admin", true, null)).toBe("redirect:/admin/login");
 	});
 
 	it("allows authenticated admin on admin route", () => {
 		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
 		expect(resolveProxyAction("/admin", true, ADMIN_EMAIL)).toBe("next");
 		expect(resolveProxyAction("/admin/users", true, ADMIN_EMAIL)).toBe("next");
-	});
-
-	it("allows public API auth routes for authenticated admin", () => {
-		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
-		expect(resolveProxyAction("/api/auth/session", true, ADMIN_EMAIL)).toBe("next");
 	});
 
 	// -----------------------------------------------------------------------
