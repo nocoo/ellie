@@ -83,9 +83,9 @@
 |------|--------|----------|
 | **API Key B** | `X-API-Key: <ADMIN_API_KEY>` | `/api/admin/*` 所有端点 |
 
-Worker 对管理端点仅验证 Key B，不验证调用者身份。Admin 身份认证（Google OAuth + `ADMIN_GOOGLE_IDS` 白名单）在 Next.js 服务端完成，Worker 无感知。
+Worker 对管理端点仅验证 Key B，不验证调用者身份。Admin 身份认证（Google OAuth + `ADMIN_EMAILS` 白名单）在 Next.js 服务端完成，Worker 无感知。
 
-> Admin 身份由 Next.js 服务端的 `ADMIN_GOOGLE_IDS` 环境变量白名单定义，与论坛用户完全独立。所有 Admin 全权相等，不分级。
+> Admin 身份由 Next.js 服务端的 `ADMIN_EMAILS` 环境变量白名单定义，与论坛用户完全独立。所有 Admin 全权相等，不分级。
 
 #### 管理端点统一认证
 
