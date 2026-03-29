@@ -22,14 +22,15 @@ function timeAgo(timestamp: number): string {
 
 export function ForumCard({ forum }: ForumCardProps) {
 	return (
-		<Link
-			href={`/forums/${forum.id}`}
-			className="block rounded-[10px] bg-secondary p-4 transition-colors hover:bg-accent"
-		>
+		<div className="relative rounded-[10px] bg-secondary p-4 transition-colors hover:bg-accent">
 			<div className="flex items-start gap-3">
 				{forum.icon && <span className="mt-0.5 text-lg shrink-0">{forum.icon}</span>}
 				<div className="min-w-0 flex-1">
-					<h3 className="text-sm font-semibold text-foreground">{forum.name}</h3>
+					<h3 className="text-sm font-semibold text-foreground">
+						<Link href={`/forums/${forum.id}`} className="after:absolute after:inset-0">
+							{forum.name}
+						</Link>
+					</h3>
 					{forum.description && (
 						<p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{forum.description}</p>
 					)}
@@ -43,13 +44,12 @@ export function ForumCard({ forum }: ForumCardProps) {
 						</p>
 					)}
 					{forum.children.length > 0 && (
-						<div className="mt-2 flex flex-wrap gap-2">
+						<div className="relative z-10 mt-2 flex flex-wrap gap-2">
 							{forum.children.map((sub) => (
 								<Link
 									key={sub.id}
 									href={`/forums/${sub.id}`}
 									className="text-xs text-primary hover:underline"
-									onClick={(e) => e.stopPropagation()}
 								>
 									{sub.name}
 								</Link>
@@ -58,6 +58,6 @@ export function ForumCard({ forum }: ForumCardProps) {
 					)}
 				</div>
 			</div>
-		</Link>
+		</div>
 	);
 }
