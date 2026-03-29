@@ -61,20 +61,20 @@ function LoginContent() {
 	return (
 		<div className="relative flex min-h-screen flex-col bg-background overflow-hidden">
 			<div className="flex flex-1 items-center justify-center p-4">
-				{/* Radial glow — oklch-safe: use fixed neutral tones instead of hsl(var()) */}
+				{/* Radial glow */}
 				<div
 					className="pointer-events-none absolute inset-0"
 					style={{
 						background: [
 							"radial-gradient(ellipse 70% 55% at 50% 50%,",
-							"oklch(0.5 0 0 / 0.06) 0%,",
-							"oklch(0.5 0 0 / 0.055) 10%,",
-							"oklch(0.5 0 0 / 0.045) 20%,",
-							"oklch(0.5 0 0 / 0.035) 32%,",
-							"oklch(0.5 0 0 / 0.025) 45%,",
-							"oklch(0.5 0 0 / 0.015) 58%,",
-							"oklch(0.5 0 0 / 0.008) 72%,",
-							"oklch(0.5 0 0 / 0.003) 86%,",
+							"hsl(var(--foreground) / 0.045) 0%,",
+							"hsl(var(--foreground) / 0.04) 10%,",
+							"hsl(var(--foreground) / 0.032) 20%,",
+							"hsl(var(--foreground) / 0.025) 32%,",
+							"hsl(var(--foreground) / 0.018) 45%,",
+							"hsl(var(--foreground) / 0.011) 58%,",
+							"hsl(var(--foreground) / 0.006) 72%,",
+							"hsl(var(--foreground) / 0.002) 86%,",
 							"transparent 100%)",
 						].join(" "),
 					}}

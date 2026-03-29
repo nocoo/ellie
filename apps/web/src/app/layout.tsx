@@ -4,9 +4,10 @@ import "./tailwind.css";
 import { Providers } from "@/components/providers";
 import { themeInitScript } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
-import { Geist } from "next/font/google";
+import { DM_Sans, Inter } from "next/font/google";
 
-const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-dm-sans" });
 
 export const metadata: Metadata = {
 	title: "Ellie Admin",
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
 	return (
-		<html lang="zh-CN" className={cn("font-sans", geist.variable)} suppressHydrationWarning>
+		<html lang="zh-CN" className={cn(inter.variable, dmSans.variable)} suppressHydrationWarning>
 			<head>
 				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: FOUC prevention must be inline script */}
 				<script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
