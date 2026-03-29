@@ -1,4 +1,4 @@
-import { type PaginatedResponse, adminApi } from "@/lib/admin-api";
+import { type PaginatedResponse, apiClient } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -99,35 +99,35 @@ export function statusLabel(status: number): string {
 // ---------------------------------------------------------------------------
 
 export async function fetchUsers(filters: UserFilters): Promise<PaginatedResponse<User>> {
-	return adminApi.getList<User>("/api/admin/users", buildUserSearchParams(filters));
+	return apiClient.getList<User>("/api/admin/users", buildUserSearchParams(filters));
 }
 
 export async function fetchUser(id: number): Promise<User> {
-	const res = await adminApi.get<User>(`/api/admin/users/${id}`);
+	const res = await apiClient.get<User>(`/api/admin/users/${id}`);
 	return res.data;
 }
 
 export async function updateUser(id: number, data: UserUpdate): Promise<User> {
-	const res = await adminApi.patch<User>(`/api/admin/users/${id}`, data);
+	const res = await apiClient.patch<User>(`/api/admin/users/${id}`, data);
 	return res.data;
 }
 
 export async function banUser(id: number, deleteContent?: boolean): Promise<BanResult> {
-	const res = await adminApi.post<BanResult>(`/api/admin/users/${id}/ban`, { deleteContent });
+	const res = await apiClient.post<BanResult>(`/api/admin/users/${id}/ban`, { deleteContent });
 	return res.data;
 }
 
 export async function nukeUser(id: number): Promise<NukeResult> {
-	const res = await adminApi.post<NukeResult>(`/api/admin/users/${id}/nuke`);
+	const res = await apiClient.post<NukeResult>(`/api/admin/users/${id}/nuke`);
 	return res.data;
 }
 
 export async function batchSetStatus(ids: number[], status: number): Promise<BatchResult> {
-	const res = await adminApi.post<BatchResult>("/api/admin/users/batch-status", { ids, status });
+	const res = await apiClient.post<BatchResult>("/api/admin/users/batch-status", { ids, status });
 	return res.data;
 }
 
 export async function batchSetRole(ids: number[], role: number): Promise<BatchResult> {
-	const res = await adminApi.post<BatchResult>("/api/admin/users/batch-role", { ids, role });
+	const res = await apiClient.post<BatchResult>("/api/admin/users/batch-role", { ids, role });
 	return res.data;
 }

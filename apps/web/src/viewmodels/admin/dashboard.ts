@@ -1,4 +1,7 @@
-import { adminApi } from "@/lib/admin-api";
+/**
+ * Dashboard types and pure helpers.
+ * Client-safe — no server-only imports.
+ */
 
 // ---------------------------------------------------------------------------
 // Types
@@ -9,15 +12,6 @@ export interface DashboardStats {
 	threads: { total: number; today: number };
 	posts: { total: number; today: number };
 	forums: { total: number; hidden: number };
-}
-
-// ---------------------------------------------------------------------------
-// Data fetching
-// ---------------------------------------------------------------------------
-
-export async function fetchDashboardStats(): Promise<DashboardStats> {
-	const res = await adminApi.get<DashboardStats>("/api/admin/stats");
-	return res.data;
 }
 
 // ---------------------------------------------------------------------------

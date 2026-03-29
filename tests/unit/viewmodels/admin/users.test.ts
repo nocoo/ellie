@@ -13,7 +13,6 @@ import {
 } from "../../../../apps/web/src/viewmodels/admin/users";
 
 const originalFetch = globalThis.fetch;
-const originalEnv = { ...process.env };
 let mockFetchFn: ReturnType<typeof mock>;
 
 function mockJsonResponse(data: unknown, status = 200) {
@@ -24,9 +23,6 @@ function mockJsonResponse(data: unknown, status = 200) {
 }
 
 beforeEach(() => {
-	process.env.WORKER_API_URL = "https://worker.example.com";
-	process.env.ADMIN_API_KEY = "test-key-b";
-
 	mockFetchFn = mock(() =>
 		Promise.resolve(
 			mockJsonResponse({
@@ -40,8 +36,6 @@ beforeEach(() => {
 
 afterEach(() => {
 	globalThis.fetch = originalFetch;
-	process.env.WORKER_API_URL = originalEnv.WORKER_API_URL;
-	process.env.ADMIN_API_KEY = originalEnv.ADMIN_API_KEY;
 });
 
 // ---------------------------------------------------------------------------

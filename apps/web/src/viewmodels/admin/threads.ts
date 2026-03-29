@@ -1,4 +1,4 @@
-import { type PaginatedResponse, adminApi } from "@/lib/admin-api";
+import { type PaginatedResponse, apiClient } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -107,30 +107,30 @@ export function digestLabel(level: number): string {
 // ---------------------------------------------------------------------------
 
 export async function fetchThreads(filters: ThreadFilters): Promise<PaginatedResponse<Thread>> {
-	return adminApi.getList<Thread>("/api/admin/threads", buildThreadSearchParams(filters));
+	return apiClient.getList<Thread>("/api/admin/threads", buildThreadSearchParams(filters));
 }
 
 export async function fetchThread(id: number): Promise<Thread> {
-	const res = await adminApi.get<Thread>(`/api/admin/threads/${id}`);
+	const res = await apiClient.get<Thread>(`/api/admin/threads/${id}`);
 	return res.data;
 }
 
 export async function updateThread(id: number, data: ThreadUpdate): Promise<Thread> {
-	const res = await adminApi.patch<Thread>(`/api/admin/threads/${id}`, data);
+	const res = await apiClient.patch<Thread>(`/api/admin/threads/${id}`, data);
 	return res.data;
 }
 
 export async function deleteThread(id: number): Promise<DeleteResult> {
-	const res = await adminApi.delete<DeleteResult>(`/api/admin/threads/${id}`);
+	const res = await apiClient.delete<DeleteResult>(`/api/admin/threads/${id}`);
 	return res.data;
 }
 
 export async function batchDeleteThreads(ids: number[]): Promise<BatchResult> {
-	const res = await adminApi.post<BatchResult>("/api/admin/threads/batch-delete", { ids });
+	const res = await apiClient.post<BatchResult>("/api/admin/threads/batch-delete", { ids });
 	return res.data;
 }
 
 export async function batchMoveThreads(ids: number[], forumId: number): Promise<MoveResult> {
-	const res = await adminApi.post<MoveResult>("/api/admin/threads/batch-move", { ids, forumId });
+	const res = await apiClient.post<MoveResult>("/api/admin/threads/batch-move", { ids, forumId });
 	return res.data;
 }
