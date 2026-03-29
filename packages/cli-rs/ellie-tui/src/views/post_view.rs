@@ -43,8 +43,7 @@ pub fn draw(
 	// Scrollbar on the right when content overflows
 	let total_lines = total_content_lines(posts, area.width as usize);
 	if total_lines > area.height as usize {
-		let mut scrollbar_state =
-			ScrollbarState::new(total_lines).position(scroll_offset as usize);
+		let mut scrollbar_state = ScrollbarState::new(total_lines).position(scroll_offset as usize);
 		frame.render_stateful_widget(
 			Scrollbar::new(ScrollbarOrientation::VerticalRight)
 				.begin_symbol(Some("↑"))
@@ -142,10 +141,7 @@ fn build_post_lines<'a>(posts: &[Post], width: usize, tc: &'a ThemeColors) -> Ve
 				title_truncated,
 				Style::default().fg(tc.accent).add_modifier(Modifier::BOLD),
 			),
-			Span::styled(
-				format!("{title_padding} │"),
-				Style::default().fg(tc.border),
-			),
+			Span::styled(format!("{title_padding} │"), Style::default().fg(tc.border)),
 		]));
 
 		// Content lines: "│ " + text + padding + " │"
@@ -304,7 +300,11 @@ mod tests {
 
 	#[test]
 	fn total_content_line_counts_multi_line() {
-		let post = dummy_post(1, 1, "A long post that spans multiple lines naturally with\nnewlines");
+		let post = dummy_post(
+			1,
+			1,
+			"A long post that spans multiple lines naturally with\nnewlines",
+		);
 		let count = total_content_lines(&[post], 40);
 		// Should account for the newline in content
 		// 4 border lines + 2+ content lines = 6+ total
@@ -313,20 +313,14 @@ mod tests {
 
 	#[test]
 	fn post_index_at_scroll_finds_first_post() {
-		let posts = vec![
-			dummy_post(1, 1, "First"),
-			dummy_post(2, 2, "Second"),
-		];
+		let posts = vec![dummy_post(1, 1, "First"), dummy_post(2, 2, "Second")];
 		// Scroll offset 0 should be in first post
 		assert_eq!(post_index_at_scroll(&posts, 0, 80), 0);
 	}
 
 	#[test]
 	fn post_index_at_scroll_clamps_to_last() {
-		let posts = vec![
-			dummy_post(1, 1, "First"),
-			dummy_post(2, 2, "Second"),
-		];
+		let posts = vec![dummy_post(1, 1, "First"), dummy_post(2, 2, "Second")];
 		// Large offset should clamp to last post
 		assert_eq!(post_index_at_scroll(&posts, 999, 80), 1);
 	}

@@ -355,6 +355,51 @@ export const nuke = withEntityAuth(
 	},
 );
 
+// ─── #43 GET /api/admin/users/batch?ids=1,2,3 ───────────────────────────────
+
+const MAX_BATCH_FETCH = 100;
+
+export const batchFetch = withEntityAuth(
+	userConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined;
+		const url = new URL(request.url);
+		const raw = url.searchParams.get("ids");
+		if (!raw) {
+			return errorResponse("INVALID_REQUEST", 400, { message: "ids query param required" }, origin);
+		}
+
+		const ids = raw
+			.split(",")
+			.map((s) => Number.parseInt(s.trim(), 10))
+			.filter((n) => !Number.isNaN(n));
+
+		if (ids.length === 0) {
+			return jsonResponse([], origin);
+		}
+		if (ids.length > MAX_BATCH_FETCH) {
+			return errorResponse(
+				"BATCH_LIMIT_EXCEEDED",
+				400,
+				{ message: `Maximum ${MAX_BATCH_FETCH} IDs per request` },
+				origin,
+			);
+		}
+
+		const placeholders = ids.map(() => "?").join(",");
+		const result = await env.DB.prepare(
+			`SELECT ${USER_COLUMNS} FROM users WHERE id IN (${placeholders})`,
+		)
+			.bind(...ids)
+			.all();
+
+		return jsonResponse(
+			result.results.map((r) => toUser(r as Record<string, unknown>)),
+			origin,
+		);
+	},
+);
+
 // ─── #41 POST /api/admin/users/batch-status ──────────────────────────────────
 
 const MAX_BATCH_SIZE = 100;

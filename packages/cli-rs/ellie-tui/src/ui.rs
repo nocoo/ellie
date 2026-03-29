@@ -86,9 +86,7 @@ fn draw_content(frame: &mut Frame, area: Rect, app: &mut App, tc: &crate::theme:
 		ViewState::Threads { table_state, .. } => {
 			views::thread_list::draw(frame, inner, &app.threads, table_state, app.loading, tc);
 		}
-		ViewState::Posts {
-			scroll_offset, ..
-		} => {
+		ViewState::Posts { scroll_offset, .. } => {
 			views::post_view::draw(frame, inner, &app.posts, *scroll_offset, app.loading, tc);
 		}
 		ViewState::User { user_id } => {

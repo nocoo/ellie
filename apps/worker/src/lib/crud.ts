@@ -53,6 +53,8 @@ export interface EntityConfig {
 	filters?: FilterDef[];
 	/** Sort order for list (default: "id DESC") */
 	listSort?: string;
+	/** Allowed client-requested sort orders: param value → SQL ORDER BY clause */
+	allowedSorts?: Record<string, string>;
 	/** Whether list uses pagination (default: true) */
 	listPaginated?: boolean;
 	/** Fields for create */
@@ -229,7 +231,12 @@ export function createListHandler(config: EntityConfig) {
 		const origin = getOrigin(request);
 		const url = new URL(request.url);
 		const { whereClause, params } = buildWhereClause(config.filters, url);
-		const sort = config.listSort ?? "id DESC";
+		const defaultSort = config.listSort ?? "id DESC";
+
+		// Allow client-requested sort if declared in allowedSorts
+		const sortParam = url.searchParams.get("sort");
+		const sort =
+			sortParam && config.allowedSorts?.[sortParam] ? config.allowedSorts[sortParam] : defaultSort;
 
 		if (config.listPaginated === false) {
 			const result = await env.DB.prepare(

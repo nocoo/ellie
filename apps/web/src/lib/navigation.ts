@@ -38,7 +38,6 @@ export const NAV_GROUPS: NavGroupDef[] = [
 		items: [
 			{ href: "/admin/users", label: "Users", icon: "Users" },
 			{ href: "/admin/threads", label: "Threads", icon: "FileText" },
-			{ href: "/admin/posts", label: "Posts", icon: "MessageSquare" },
 			{ href: "/admin/forums", label: "Forums", icon: "MessagesSquare" },
 			{ href: "/admin/attachments", label: "Attachments", icon: "Paperclip" },
 		],

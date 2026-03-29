@@ -31,6 +31,9 @@ const postConfig: EntityConfig = {
 		{ param: "authorName", column: "author_name", type: "like" },
 		{ param: "content", column: "content", type: "like" },
 	],
+	allowedSorts: {
+		position_asc: "position ASC",
+	},
 	updateFields: [
 		{
 			name: "content",

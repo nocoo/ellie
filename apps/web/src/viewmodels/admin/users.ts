@@ -132,3 +132,9 @@ export async function batchSetRole(ids: number[], role: number): Promise<BatchRe
 	const res = await apiClient.post<BatchResult>("/api/admin/users/batch-role", { ids, role });
 	return res.data;
 }
+
+export async function fetchUsersByIds(ids: number[]): Promise<User[]> {
+	if (ids.length === 0) return [];
+	const res = await apiClient.get<User[]>("/api/admin/users/batch", { ids: ids.join(",") });
+	return res.data;
+}

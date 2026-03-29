@@ -121,6 +121,38 @@ describe("admin post handlers", () => {
 			const body = await res.json();
 			expect(body.error.details.message).toBe("Invalid page number");
 		});
+
+		it("should sort by position ASC when sort=position_asc", async () => {
+			const { db, calls } = createMockDb({
+				allResults: { "FROM posts": [makeD1PostRow({ id: 1, position: 1 })] },
+				firstResults: { "SELECT COUNT": { total: 1 } },
+			});
+
+			const res = await list(
+				new Request("https://api.example.com/api/admin/posts?threadId=5&sort=position_asc"),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(200);
+			const orderCall = calls.find((c) => c.sql.includes("ORDER BY"));
+			expect(orderCall?.sql).toContain("position ASC");
+		});
+
+		it("should use default sort when sort param is invalid", async () => {
+			const { db, calls } = createMockDb({
+				allResults: { "FROM posts": [] },
+				firstResults: { "SELECT COUNT": { total: 0 } },
+			});
+
+			const res = await list(
+				new Request("https://api.example.com/api/admin/posts?sort=invalid_sort"),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(200);
+			const orderCall = calls.find((c) => c.sql.includes("ORDER BY"));
+			expect(orderCall?.sql).toContain("id DESC");
+		});
 	});
 
 	// ─── getById ──────────────────────────────────────────────────

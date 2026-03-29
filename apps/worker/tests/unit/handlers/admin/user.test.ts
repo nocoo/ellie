@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
 	ban,
+	batchFetch,
 	batchRole,
 	batchStatus,
 	getById,
@@ -542,6 +543,97 @@ describe("admin user handlers", () => {
 			const res = await nuke(request, adminEnv(db));
 
 			expect(res.status).toBe(400);
+		});
+	});
+
+	// ─── batchFetch ──────────────────────────────────────────
+
+	describe("batchFetch", () => {
+		it("should return users matching provided IDs", async () => {
+			const { db } = createMockDb({
+				allResults: {
+					"FROM users WHERE id IN": [makeD1UserRow({ id: 10 }), makeD1UserRow({ id: 20 })],
+				},
+			});
+
+			const res = await batchFetch(
+				createAdminRequest("GET", "/api/admin/users/batch?ids=10,20"),
+				adminEnv(db),
+			);
+			const body = await res.json();
+
+			expect(res.status).toBe(200);
+			expect(body.data).toHaveLength(2);
+		});
+
+		it("should return empty array for no matching IDs", async () => {
+			const { db } = createMockDb({
+				allResults: { "FROM users WHERE id IN": [] },
+			});
+
+			const res = await batchFetch(
+				createAdminRequest("GET", "/api/admin/users/batch?ids=999"),
+				adminEnv(db),
+			);
+			const body = await res.json();
+
+			expect(res.status).toBe(200);
+			expect(body.data).toEqual([]);
+		});
+
+		it("should return 400 when ids param is missing", async () => {
+			const { db } = createMockDb();
+
+			const res = await batchFetch(
+				createAdminRequest("GET", "/api/admin/users/batch"),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("ids query param required");
+		});
+
+		it("should return empty array for non-numeric IDs", async () => {
+			const { db } = createMockDb();
+
+			const res = await batchFetch(
+				createAdminRequest("GET", "/api/admin/users/batch?ids=abc,def"),
+				adminEnv(db),
+			);
+			const body = await res.json();
+
+			expect(res.status).toBe(200);
+			expect(body.data).toEqual([]);
+		});
+
+		it("should reject batch exceeding 100 IDs", async () => {
+			const { db } = createMockDb();
+			const ids = Array.from({ length: 101 }, (_, i) => i + 1).join(",");
+
+			const res = await batchFetch(
+				createAdminRequest("GET", `/api/admin/users/batch?ids=${ids}`),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.code).toBe("BATCH_LIMIT_EXCEEDED");
+		});
+
+		it("should pass correct SQL with IN clause", async () => {
+			const { db, calls } = createMockDb({
+				allResults: { "FROM users WHERE id IN": [makeD1UserRow({ id: 5 })] },
+			});
+
+			await batchFetch(
+				createAdminRequest("GET", "/api/admin/users/batch?ids=5,10,15"),
+				adminEnv(db),
+			);
+
+			const inCall = calls.find((c) => c.sql.includes("IN"));
+			expect(inCall?.sql).toContain("SELECT");
+			expect(inCall?.params).toEqual([5, 10, 15]);
 		});
 	});
 

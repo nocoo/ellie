@@ -7,10 +7,12 @@ import { type PaginatedResponse, apiClient } from "@/lib/api-client";
 export interface Post {
 	id: number;
 	threadId: number;
+	forumId: number;
 	content: string;
 	authorId: number;
 	authorName: string;
 	isFirst: boolean;
+	position: number;
 	createdAt: number;
 }
 
@@ -19,6 +21,7 @@ export interface PostFilters {
 	authorId?: number;
 	authorName?: string;
 	content?: string;
+	sort?: string;
 	page?: number;
 	limit?: number;
 }
@@ -50,6 +53,7 @@ export function buildPostSearchParams(
 		authorId: filters.authorId ?? undefined,
 		authorName: filters.authorName || undefined,
 		content: filters.content || undefined,
+		sort: filters.sort || undefined,
 	};
 }
 

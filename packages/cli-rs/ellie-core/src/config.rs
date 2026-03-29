@@ -158,9 +158,7 @@ impl Config {
 
 	/// Get the current refresh token, if authenticated.
 	pub fn refresh_token(&self) -> Option<&str> {
-		self.auth
-			.as_ref()
-			.and_then(|a| a.refresh_token.as_deref())
+		self.auth.as_ref().and_then(|a| a.refresh_token.as_deref())
 	}
 }
 

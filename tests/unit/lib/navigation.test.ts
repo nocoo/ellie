@@ -11,9 +11,9 @@ describe("NAV_GROUPS", () => {
 		expect(NAV_GROUPS.map((g) => g.label)).toEqual(["Overview", "Content Management", "Security"]);
 	});
 
-	it("has 8 total nav items", () => {
+	it("has 7 total nav items", () => {
 		const total = NAV_GROUPS.reduce((sum, g) => sum + g.items.length, 0);
-		expect(total).toBe(8);
+		expect(total).toBe(7);
 	});
 
 	it("each group has items with required fields", () => {
@@ -35,11 +35,11 @@ describe("NAV_GROUPS", () => {
 		expect(dashboard?.label).toBe("Dashboard");
 	});
 
-	it("Content Management has Users, Threads, Posts, Forums, Attachments", () => {
+	it("Content Management has Users, Threads, Forums, Attachments", () => {
 		const contentGroup = NAV_GROUPS.find((g) => g.label === "Content Management");
 		expect(contentGroup).toBeTruthy();
 		const labels = contentGroup?.items.map((i) => i.label);
-		expect(labels).toEqual(["Users", "Threads", "Posts", "Forums", "Attachments"]);
+		expect(labels).toEqual(["Users", "Threads", "Forums", "Attachments"]);
 	});
 
 	it("Security has IP Bans, Censor Words", () => {
