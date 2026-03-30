@@ -1,7 +1,7 @@
 // components/forum/forum-group.tsx — Forum group card with adaptive layout
-// ≤10 children → wide rows (divide-y), >10 children → 2-col grid
+// Classic style: solid border, dashed row dividers, tinted header bar
+// ≤10 children → wide rows, >10 children → 2-col grid
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ForumTreeNode } from "@ellie/types";
 import { ForumCard } from "./forum-card";
 import { SafeHtml } from "./safe-html";
@@ -17,28 +17,34 @@ export function ForumGroup({ group }: ForumGroupProps) {
 	const useGrid = group.children.length > GRID_THRESHOLD;
 
 	return (
-		<Card>
-			<CardHeader className="pb-0">
-				<CardTitle className="text-sm">{group.name}</CardTitle>
+		<div className="overflow-hidden rounded-md border border-border bg-card">
+			{/* Group header — tinted bar */}
+			<div className="flex items-center gap-2 border-b border-border bg-muted/60 px-4 py-2">
+				<h2 className="text-sm font-semibold text-primary">{group.name}</h2>
 				{group.description && (
-					<SafeHtml html={group.description} className="text-xs text-muted-foreground" as="p" />
+					<SafeHtml html={group.description} className="text-xs text-muted-foreground" />
 				)}
-			</CardHeader>
-			<CardContent className="pt-0">
-				{useGrid ? (
-					<div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:gap-x-px sm:border-t border-border/50 [&>*:nth-child(-n+2)]:sm:border-t-0 [&>*]:sm:border-b [&>*]:sm:border-border/50">
-						{group.children.map((forum) => (
-							<ForumCard key={forum.id} forum={forum} layout="grid" />
-						))}
-					</div>
-				) : (
-					<div className="divide-y divide-border/50">
-						{group.children.map((forum) => (
-							<ForumCard key={forum.id} forum={forum} layout="wide" />
-						))}
-					</div>
-				)}
-			</CardContent>
-		</Card>
+			</div>
+
+			{/* Forum list */}
+			{useGrid ? (
+				<div className="grid grid-cols-1 sm:grid-cols-2">
+					{group.children.map((forum, i) => (
+						<div
+							key={forum.id}
+							className={`${i > 1 ? "border-t border-dashed border-border/60" : ""} ${i % 2 === 1 ? "sm:border-l sm:border-dashed sm:border-border/60" : ""} ${i === 1 ? "max-sm:border-t max-sm:border-dashed max-sm:border-border/60" : ""}`}
+						>
+							<ForumCard forum={forum} layout="grid" />
+						</div>
+					))}
+				</div>
+			) : (
+				<div className="divide-y divide-dashed divide-border/60">
+					{group.children.map((forum) => (
+						<ForumCard key={forum.id} forum={forum} layout="wide" />
+					))}
+				</div>
+			)}
+		</div>
 	);
 }
