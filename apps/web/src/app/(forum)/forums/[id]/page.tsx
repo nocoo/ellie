@@ -1,37 +1,37 @@
-// Ref: 04f §6 — RSC page, Discuz classic thread list layout
+// Ref: 04f §6 — RSC page, Discuz classic thread list layout with page-number pagination
 
-import { KeysetPagination } from "@/components/forum/keyset-pagination";
+import { PagePagination } from "@/components/forum/page-pagination";
 import { SafeHtml } from "@/components/forum/safe-html";
 import { ThreadItem } from "@/components/forum/thread-item";
 import { ThreadListHeader } from "@/components/forum/thread-list-header";
 import { Card, CardContent } from "@/components/ui/card";
-import { type ThreadListData, loadThreadList } from "@/viewmodels/forum/thread-list.server";
+import {
+	type ThreadListPagedData,
+	loadThreadListPaged,
+} from "@/viewmodels/forum/thread-list.server";
 
 interface ForumThreadsPageProps {
 	params: Promise<{ id: string }>;
-	searchParams: Promise<{ cursor?: string }>;
+	searchParams: Promise<{ page?: string }>;
 }
 
 export default async function ForumThreadsPage({ params, searchParams }: ForumThreadsPageProps) {
 	const { id } = await params;
 	const sp = await searchParams;
 	const forumId = Number.parseInt(id, 10);
+	const page = sp.page ? Math.max(1, Number.parseInt(sp.page, 10) || 1) : 1;
 
-	let data: ThreadListData;
+	let data: ThreadListPagedData;
 	let error: string | null = null;
 
 	try {
-		data = await loadThreadList({
-			forumId,
-			cursor: sp.cursor,
-		});
+		data = await loadThreadListPaged({ forumId, page });
 	} catch (e) {
 		error = e instanceof Error ? e.message : "Failed to load threads";
-		data = { forum: null, items: [], nextCursor: null, prevCursor: null, total: 0 };
+		data = { forum: null, items: [], page: 1, pages: 1, total: 0, limit: 100 };
 	}
 
-	const prevHref = data.prevCursor ? `/forums/${forumId}?cursor=${data.prevCursor}` : null;
-	const nextHref = data.nextCursor ? `/forums/${forumId}?cursor=${data.nextCursor}` : null;
+	const basePath = `/forums/${forumId}`;
 
 	return (
 		<div className="space-y-4">
@@ -54,7 +54,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 			)}
 
 			{/* Top pagination */}
-			<KeysetPagination total={data.total} prevHref={prevHref} nextHref={nextHref} />
+			<PagePagination page={data.page} pages={data.pages} total={data.total} basePath={basePath} />
 
 			{/* Thread list card */}
 			<Card>
@@ -74,7 +74,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 			</Card>
 
 			{/* Bottom pagination */}
-			<KeysetPagination total={data.total} prevHref={prevHref} nextHref={nextHref} />
+			<PagePagination page={data.page} pages={data.pages} total={data.total} basePath={basePath} />
 		</div>
 	);
 }

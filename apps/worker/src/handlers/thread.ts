@@ -2,7 +2,7 @@
 import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
 import { toThread } from "../lib/mappers";
-import { jsonResponse } from "../lib/response";
+import { jsonResponse, paginatedResponse } from "../lib/response";
 import { withAuth } from "../lib/routeHelpers";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
@@ -49,20 +49,14 @@ interface D1ThreadRow {
 	last_post_at: number;
 }
 
-/** GET /api/v1/threads - List threads with keyset pagination */
+/** GET /api/v1/threads - List threads with keyset or offset pagination */
 export async function list(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const forumId = url.searchParams.get("forumId");
 	const limitParam = url.searchParams.get("limit");
 	const cursorStr = url.searchParams.get("cursor");
-
-	// Clamp limit to [1, 100], defaulting to 100
-	const DEFAULT_PAGE_SIZE = 100;
-	const MAX_PAGE_SIZE = 100;
-	const limitNum = limitParam ? Number.parseInt(limitParam, 10) : undefined;
-	const clampedLimit =
-		limitNum === undefined || limitNum <= 0 ? DEFAULT_PAGE_SIZE : Math.min(limitNum, MAX_PAGE_SIZE);
+	const pageParam = url.searchParams.get("page");
 
 	if (!forumId) {
 		return errorResponse("INVALID_REQUEST", 400, { message: "forumId is required" }, origin);
@@ -73,6 +67,40 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid forumId" }, origin);
 	}
 
+	// Clamp limit to [1, 100], defaulting to 100
+	const DEFAULT_PAGE_SIZE = 100;
+	const MAX_PAGE_SIZE = 100;
+	const limitNum = limitParam ? Number.parseInt(limitParam, 10) : undefined;
+	const clampedLimit =
+		limitNum === undefined || limitNum <= 0 ? DEFAULT_PAGE_SIZE : Math.min(limitNum, MAX_PAGE_SIZE);
+
+	// -------------------------------------------------------------------
+	// Branch: offset pagination (when ?page= is present and no ?cursor=)
+	// -------------------------------------------------------------------
+	if (pageParam && !cursorStr) {
+		const page = Math.max(1, Number.parseInt(pageParam, 10) || 1);
+		const offset = (page - 1) * clampedLimit;
+
+		const [countResult, dataResult] = await Promise.all([
+			env.DB.prepare("SELECT COUNT(*) as total FROM threads WHERE forum_id = ?")
+				.bind(forumIdNum)
+				.first<{ total: number }>(),
+			env.DB.prepare(
+				"SELECT * FROM threads WHERE forum_id = ? ORDER BY sticky DESC, last_post_at DESC, id DESC LIMIT ? OFFSET ?",
+			)
+				.bind(forumIdNum, clampedLimit, offset)
+				.all(),
+		]);
+
+		const total = countResult?.total ?? 0;
+		const threads = dataResult.results.map((row) => toThread(row as Record<string, unknown>));
+
+		return paginatedResponse(threads, total, page, clampedLimit, origin);
+	}
+
+	// -------------------------------------------------------------------
+	// Branch: keyset cursor pagination (default / backward-compatible)
+	// -------------------------------------------------------------------
 	const cursor = cursorStr ? decodeThreadCursor(cursorStr) : null;
 
 	let result: D1Result;

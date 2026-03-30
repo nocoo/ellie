@@ -19,6 +19,15 @@ export interface ThreadListData {
 	total: number;
 }
 
+export interface ThreadListPagedData {
+	forum: ForumTreeNode | null;
+	items: ThreadDisplayItem[];
+	page: number;
+	pages: number;
+	total: number;
+	limit: number;
+}
+
 export async function loadThreadList(params: {
 	forumId: number;
 	sort?: ThreadSort;
@@ -48,6 +57,39 @@ export async function loadThreadList(params: {
 		nextCursor: threadsRes.meta.nextCursor,
 		prevCursor: null, // Worker v1 does not support backward pagination
 		total: forum?.threads ?? threadsRes.data.length,
+	};
+}
+
+export async function loadThreadListPaged(params: {
+	forumId: number;
+	page?: number;
+	limit?: number;
+}): Promise<ThreadListPagedData> {
+	const page = params.page ?? 1;
+	const limit = params.limit ?? 100;
+
+	// Parallel fetch: forum tree + threads (offset pagination)
+	const [forumsRes, threadsRes] = await Promise.all([
+		forumApi.getAll<Forum>("/api/v1/forums"),
+		forumApi.getPage<Thread>("/api/v1/threads", {
+			forumId: params.forumId,
+			page,
+			limit,
+		}),
+	]);
+
+	// Build forum tree and find current forum
+	const tree = buildForumTree(forumsRes.data);
+	const visible = tree.map(filterVisibleForums).filter((n): n is ForumTreeNode => n !== null);
+	const forum = findNodeById(visible, params.forumId);
+
+	return {
+		forum,
+		items: enrichThreads(threadsRes.data),
+		page: threadsRes.meta.page,
+		pages: threadsRes.meta.pages,
+		total: threadsRes.meta.total,
+		limit: threadsRes.meta.limit,
 	};
 }
 
