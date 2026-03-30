@@ -25,7 +25,7 @@ describe("getAllowedOrigins", () => {
 	it("always includes localhost dev ports", () => {
 		process.env.AUTH_URL = undefined;
 		const origins = getAllowedOrigins();
-		expect(origins).toContain("http://localhost:7047");
+		expect(origins).toContain("http://localhost:7031");
 		expect(origins).toContain("http://localhost:3000");
 	});
 
@@ -84,7 +84,7 @@ describe("validateOrigin", () => {
 	it("returns true for localhost dev origin", () => {
 		const req = new Request("http://localhost/api/admin/users", {
 			method: "POST",
-			headers: { Origin: "http://localhost:7047" },
+			headers: { Origin: "http://localhost:7031" },
 		});
 		expect(validateOrigin(req)).toBe(true);
 	});
