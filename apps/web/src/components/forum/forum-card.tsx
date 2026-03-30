@@ -33,9 +33,7 @@ export function ForumCard({ forum }: ForumCardProps) {
 						{forum.name}
 					</Link>
 					{forum.description && (
-						<span className="hidden lg:inline text-xs text-muted-foreground truncate">
-							{forum.description}
-						</span>
+						<span className="text-xs text-muted-foreground truncate">{forum.description}</span>
 					)}
 					{forum.children.length > 0 && (
 						<span className="relative z-10 hidden sm:inline-flex gap-1.5">
