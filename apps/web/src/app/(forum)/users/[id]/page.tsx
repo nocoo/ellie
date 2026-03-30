@@ -1,15 +1,15 @@
-// Ref: 04f §8 — Card-wrapped profile header + Link-based tabs + empty state
+// Ref: 04f §8 — Modern profile layout: hero + stats + tabbed content
 
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { formatStat, formatTime } from "@/viewmodels/forum/thread-list";
 import {
 	PROFILE_TABS,
-	buildProfileStats,
 	formatUserRole,
-	formatUserStatus,
+	getUserRoleBadgeVariant,
 } from "@/viewmodels/forum/user-profile";
 import { type UserProfileData, loadUserProfile } from "@/viewmodels/forum/user-profile.server";
 import { getThreadBadges } from "@ellie/types";
@@ -50,89 +50,99 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 		);
 	}
 
-	const stats = buildProfileStats(data.user);
 	const activeData = data.tab === "threads" ? data.threads : data.posts;
 
 	return (
-		<Card>
-			{/* Profile header */}
-			<CardHeader className="pb-0">
-				<div className="flex items-start gap-3">
-					<Avatar className="h-12 w-12">
-						<AvatarFallback className="text-sm">
+		<div className="space-y-4">
+			{/* Hero: avatar + identity */}
+			<Card className="p-5">
+				<div className="flex items-center gap-4">
+					<Avatar className="h-16 w-16">
+						{data.user.avatar ? (
+							<AvatarImage src={data.user.avatar} alt={data.user.username} />
+						) : null}
+						<AvatarFallback className="text-lg">
 							{data.user.username.slice(0, 2).toUpperCase()}
 						</AvatarFallback>
 					</Avatar>
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-2 flex-wrap">
-							<h1 className="text-base font-semibold text-foreground">{data.user.username}</h1>
-							<span className="text-xs text-muted-foreground">
-								{formatUserRole(data.user.role)} · {formatUserStatus(data.user.status)}
-							</span>
+							<h1 className="text-xl font-semibold text-foreground">{data.user.username}</h1>
+							<Badge variant={getUserRoleBadgeVariant(data.user.role)}>
+								{formatUserRole(data.user.role)}
+							</Badge>
 						</div>
-						<div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-							<span>注册: {formatTime(data.user.regDate)}</span>
+						<div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+							<span>UID: {data.user.id}</span>
 							<span>·</span>
-							<span>最后登录: {formatTime(data.user.lastLogin)}</span>
-						</div>
-						<div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-							<span>发帖 {formatStat(stats.threads)}</span>
-							<span>·</span>
-							<span>回帖 {formatStat(stats.posts)}</span>
-							<span>·</span>
-							<span>积分 {formatStat(stats.credits)}</span>
+							<span>注册于 {formatTime(data.user.regDate)}</span>
 						</div>
 					</div>
 				</div>
-			</CardHeader>
+			</Card>
 
-			{/* Tabs (Link-based for RSC) */}
-			<div className="flex items-center gap-1 border-b px-4 mt-3">
-				{PROFILE_TABS.map((t) => {
-					const active = data.tab === t.key;
-					return active ? (
-						<span
-							key={t.key}
-							className="inline-flex h-8 items-center border-b-2 border-primary px-2 text-xs font-medium text-foreground"
-						>
-							{t.label}
-						</span>
-					) : (
-						<Link
-							key={t.key}
-							href={`/users/${userId}?tab=${t.key}`}
-							className="inline-flex h-8 items-center border-b-2 border-transparent px-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-						>
-							{t.label}
-						</Link>
-					);
-				})}
+			{/* Stats */}
+			<div className="grid grid-cols-2 gap-4">
+				<Card className="p-4 text-center">
+					<p className="text-2xl font-semibold text-foreground">{formatStat(data.user.threads)}</p>
+					<p className="mt-1 text-xs text-muted-foreground">主题数</p>
+				</Card>
+				<Card className="p-4 text-center">
+					<p className="text-2xl font-semibold text-foreground">{formatStat(data.user.posts)}</p>
+					<p className="mt-1 text-xs text-muted-foreground">回帖数</p>
+				</Card>
 			</div>
 
-			{/* Tab content */}
-			<CardContent className="pt-3">
-				{data.tab === "threads" ? (
-					<ThreadsTab threads={data.threads} userId={userId} />
-				) : (
-					<PostsTab posts={data.posts} userId={userId} />
-				)}
+			{/* Tabs + content */}
+			<Card>
+				{/* Tabs (Link-based for RSC) */}
+				<div className="flex items-center gap-1 border-b px-4">
+					{PROFILE_TABS.map((t) => {
+						const active = data.tab === t.key;
+						return active ? (
+							<span
+								key={t.key}
+								className="inline-flex h-8 items-center border-b-2 border-primary px-2 text-xs font-medium text-foreground"
+							>
+								{t.label}
+							</span>
+						) : (
+							<Link
+								key={t.key}
+								href={`/users/${userId}?tab=${t.key}`}
+								className="inline-flex h-8 items-center border-b-2 border-transparent px-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+							>
+								{t.label}
+							</Link>
+						);
+					})}
+				</div>
 
-				{/* Pagination */}
-				<KeysetPagination
-					total={activeData.total}
-					prevHref={
-						activeData.prevCursor
-							? `/users/${userId}?tab=${data.tab}&cursor=${activeData.prevCursor}&direction=backward`
-							: null
-					}
-					nextHref={
-						activeData.nextCursor
-							? `/users/${userId}?tab=${data.tab}&cursor=${activeData.nextCursor}`
-							: null
-					}
-				/>
-			</CardContent>
-		</Card>
+				{/* Tab content */}
+				<CardContent className="pt-3">
+					{data.tab === "threads" ? (
+						<ThreadsTab threads={data.threads} userId={userId} />
+					) : (
+						<PostsTab posts={data.posts} userId={userId} />
+					)}
+
+					{/* Pagination */}
+					<KeysetPagination
+						total={activeData.total}
+						prevHref={
+							activeData.prevCursor
+								? `/users/${userId}?tab=${data.tab}&cursor=${activeData.prevCursor}&direction=backward`
+								: null
+						}
+						nextHref={
+							activeData.nextCursor
+								? `/users/${userId}?tab=${data.tab}&cursor=${activeData.nextCursor}`
+								: null
+						}
+					/>
+				</CardContent>
+			</Card>
+		</div>
 	);
 }
 
