@@ -34,6 +34,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 		data = await loadUserProfile({
 			userId,
 			tab: sp.tab,
+			cursor: sp.cursor,
 			direction: sp.direction === "backward" ? "backward" : "forward",
 		});
 	} catch (e) {

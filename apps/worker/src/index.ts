@@ -64,6 +64,12 @@ export default {
 			if (path.match(/^\/api\/v1\/users\/\d+$/) && request.method === "GET") {
 				return await (await import("./handlers/user")).getById(request, env);
 			}
+			if (path.match(/^\/api\/v1\/users\/\d+\/threads$/) && request.method === "GET") {
+				return await (await import("./handlers/user")).listThreads(request, env);
+			}
+			if (path.match(/^\/api\/v1\/users\/\d+\/posts$/) && request.method === "GET") {
+				return await (await import("./handlers/user")).listPosts(request, env);
+			}
 
 			// ── Auth routes (#12-#15) ────────────────────────
 			if (path === "/api/v1/auth/login" && request.method === "POST") {
