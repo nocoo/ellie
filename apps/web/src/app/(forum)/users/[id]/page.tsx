@@ -5,7 +5,7 @@ import { ThreadBadgeList } from "@/components/forum/thread-badge";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { buildUserBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import { formatStat, formatTime } from "@/viewmodels/forum/thread-list";
 import {
@@ -43,11 +43,13 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 
 	if (error || !data) {
 		return (
-			<Card className="p-8 text-center">
-				<p className="text-sm text-destructive">{error ?? "用户不存在"}</p>
-				<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
-					返回首页
-				</Link>
+			<Card size="sm">
+				<CardContent className="text-center py-4">
+					<p className="text-sm text-destructive">{error ?? "用户不存在"}</p>
+					<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
+						返回首页
+					</Link>
+				</CardContent>
 			</Card>
 		);
 	}
@@ -63,71 +65,81 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 			</div>
 
 			{/* Hero: avatar + identity */}
-			<Card className="p-5">
-				<div className="flex items-center gap-4">
-					<Avatar className="h-16 w-16">
-						{data.user.avatar ? (
-							<AvatarImage src={data.user.avatar} alt={data.user.username} />
-						) : null}
-						<AvatarFallback className="text-lg">
-							{data.user.username.slice(0, 2).toUpperCase()}
-						</AvatarFallback>
-					</Avatar>
-					<div className="min-w-0 flex-1">
-						<div className="flex items-center gap-2 flex-wrap">
-							<h1 className="text-xl font-semibold text-foreground">{data.user.username}</h1>
-							<Badge variant={getUserRoleBadgeVariant(data.user.role)}>
-								{formatUserRole(data.user.role)}
-							</Badge>
-						</div>
-						<div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-							<span>UID: {data.user.id}</span>
-							<span>·</span>
-							<span>注册于 {formatTime(data.user.regDate)}</span>
+			<Card size="sm">
+				<CardContent>
+					<div className="flex items-center gap-4">
+						<Avatar className="h-16 w-16">
+							{data.user.avatar ? (
+								<AvatarImage src={data.user.avatar} alt={data.user.username} />
+							) : null}
+							<AvatarFallback className="text-lg">
+								{data.user.username.slice(0, 2).toUpperCase()}
+							</AvatarFallback>
+						</Avatar>
+						<div className="min-w-0 flex-1">
+							<div className="flex items-center gap-2 flex-wrap">
+								<h1 className="text-xl font-semibold text-foreground">{data.user.username}</h1>
+								<Badge variant={getUserRoleBadgeVariant(data.user.role)}>
+									{formatUserRole(data.user.role)}
+								</Badge>
+							</div>
+							<div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+								<span>UID: {data.user.id}</span>
+								<span>·</span>
+								<span>注册于 {formatTime(data.user.regDate)}</span>
+							</div>
 						</div>
 					</div>
-				</div>
+				</CardContent>
 			</Card>
 
 			{/* Stats */}
 			<div className="grid grid-cols-2 gap-4">
-				<Card className="p-4 text-center">
-					<p className="text-2xl font-semibold text-foreground">{formatStat(data.user.threads)}</p>
-					<p className="mt-1 text-xs text-muted-foreground">主题数</p>
+				<Card size="sm">
+					<CardContent className="text-center">
+						<p className="text-2xl font-semibold text-foreground">
+							{formatStat(data.user.threads)}
+						</p>
+						<p className="mt-1 text-xs text-muted-foreground">主题数</p>
+					</CardContent>
 				</Card>
-				<Card className="p-4 text-center">
-					<p className="text-2xl font-semibold text-foreground">{formatStat(data.user.posts)}</p>
-					<p className="mt-1 text-xs text-muted-foreground">回帖数</p>
+				<Card size="sm">
+					<CardContent className="text-center">
+						<p className="text-2xl font-semibold text-foreground">{formatStat(data.user.posts)}</p>
+						<p className="mt-1 text-xs text-muted-foreground">回帖数</p>
+					</CardContent>
 				</Card>
 			</div>
 
 			{/* Tabs + content */}
-			<Card>
+			<Card size="sm">
 				{/* Tabs (Link-based for RSC) */}
-				<div className="flex items-center gap-1 border-b px-4">
-					{PROFILE_TABS.map((t) => {
-						const active = data.tab === t.key;
-						return active ? (
-							<span
-								key={t.key}
-								className="inline-flex h-8 items-center border-b-2 border-primary px-2 text-xs font-medium text-foreground"
-							>
-								{t.label}
-							</span>
-						) : (
-							<Link
-								key={t.key}
-								href={`/users/${userId}?tab=${t.key}`}
-								className="inline-flex h-8 items-center border-b-2 border-transparent px-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-							>
-								{t.label}
-							</Link>
-						);
-					})}
-				</div>
+				<CardHeader className="border-b">
+					<div className="flex items-center gap-1">
+						{PROFILE_TABS.map((t) => {
+							const active = data.tab === t.key;
+							return active ? (
+								<span
+									key={t.key}
+									className="inline-flex h-8 items-center border-b-2 border-primary px-2 text-xs font-medium text-foreground"
+								>
+									{t.label}
+								</span>
+							) : (
+								<Link
+									key={t.key}
+									href={`/users/${userId}?tab=${t.key}`}
+									className="inline-flex h-8 items-center border-b-2 border-transparent px-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+								>
+									{t.label}
+								</Link>
+							);
+						})}
+					</div>
+				</CardHeader>
 
 				{/* Tab content */}
-				<CardContent className="pt-3">
+				<CardContent>
 					{data.tab === "threads" ? (
 						<ThreadsTab threads={data.threads} userId={userId} />
 					) : (
