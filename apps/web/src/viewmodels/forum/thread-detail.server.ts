@@ -2,7 +2,7 @@
 // Calls Worker API (GET /api/v1/threads/:id + GET /api/v1/posts + GET /api/v1/posts/:id/attachments + GET /api/v1/users/:id).
 
 import { forumApi, publicUserToUser } from "@/lib/forum-api";
-import type { Attachment, Post, PublicUser, Thread, User } from "@ellie/types";
+import type { Attachment, Forum, Post, PublicUser, Thread, User } from "@ellie/types";
 import {
 	type EnrichedPost,
 	enrichPosts,
@@ -12,6 +12,7 @@ import {
 
 export interface ThreadDetailData {
 	thread: Thread;
+	forums: Forum[];
 	posts: EnrichedPost[];
 	nextCursor: string | null;
 	prevCursor: string | null;
@@ -24,14 +25,15 @@ export async function loadThreadDetail(params: {
 	direction?: "forward" | "backward";
 	limit?: number;
 }): Promise<ThreadDetailData> {
-	// Parallel fetch: thread + posts
-	const [threadRes, postsRes] = await Promise.all([
+	// Parallel fetch: thread + posts + forums
+	const [threadRes, postsRes, forumsRes] = await Promise.all([
 		forumApi.get<Thread>(`/api/v1/threads/${params.threadId}`),
 		forumApi.getCursor<Post>("/api/v1/posts", {
 			threadId: params.threadId,
 			limit: params.limit ?? 20,
 			cursor: params.cursor,
 		}),
+		forumApi.getAll<Forum>("/api/v1/forums"),
 	]);
 
 	const thread = threadRes.data;
@@ -68,6 +70,7 @@ export async function loadThreadDetail(params: {
 
 	return {
 		thread,
+		forums: forumsRes.data,
 		posts,
 		nextCursor: postsRes.meta.nextCursor,
 		prevCursor: null, // Worker v1 does not support backward pagination

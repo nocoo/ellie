@@ -2,9 +2,11 @@
 
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { buildUserBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import { formatStat, formatTime } from "@/viewmodels/forum/thread-list";
 import {
 	PROFILE_TABS,
@@ -51,9 +53,15 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 	}
 
 	const activeData = data.tab === "threads" ? data.threads : data.posts;
+	const breadcrumbs = buildUserBreadcrumbs(data.user.username);
 
 	return (
 		<div className="space-y-4">
+			{/* Breadcrumbs */}
+			<div className="py-2">
+				<Breadcrumbs items={breadcrumbs} />
+			</div>
+
 			{/* Hero: avatar + identity */}
 			<Card className="p-5">
 				<div className="flex items-center gap-4">

@@ -17,7 +17,7 @@ export type {
 
 // ─── Forum ───────────────────────────────────────────────────
 export type { ForumTreeNode } from "./forum";
-export { buildForumTree, filterVisibleForums } from "./forum";
+export { buildForumTree, filterVisibleForums, findForumAncestors } from "./forum";
 
 // ─── Thread ──────────────────────────────────────────────────
 export type { ThreadBadge, HighlightStyle } from "./thread";

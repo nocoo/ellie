@@ -49,6 +49,30 @@ export function buildForumTree(forums: Forum[]): ForumTreeNode[] {
 	return roots;
 }
 
+// ─── Ancestor Chain ────────────────────────────────────
+
+/**
+ * Walk up the parentId chain from `forumId` and return the ancestor path.
+ * Returns [root, ..., parent, self] (top-level → current).
+ * Returns empty array if `forumId` is not found.
+ */
+export function findForumAncestors(forums: Forum[], forumId: number): Forum[] {
+	const byId = new Map<number, Forum>();
+	for (const f of forums) byId.set(f.id, f);
+
+	const ancestors: Forum[] = [];
+	let current = byId.get(forumId);
+
+	while (current) {
+		ancestors.push(current);
+		if (current.parentId === 0 || current.parentId === current.id) break;
+		current = byId.get(current.parentId);
+	}
+
+	ancestors.reverse();
+	return ancestors;
+}
+
 // ─── Visibility Filter ──────────────────────────────────
 
 /**

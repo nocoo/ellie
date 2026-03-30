@@ -21,6 +21,7 @@ export interface ThreadListData {
 
 export interface ThreadListPagedData {
 	forum: ForumTreeNode | null;
+	forums: Forum[];
 	items: ThreadDisplayItem[];
 	page: number;
 	pages: number;
@@ -85,6 +86,7 @@ export async function loadThreadListPaged(params: {
 
 	return {
 		forum,
+		forums: forumsRes.data,
 		items: enrichThreads(threadsRes.data),
 		page: threadsRes.meta.page ?? page,
 		pages: threadsRes.meta.pages ?? 1,
