@@ -68,7 +68,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 			<PagePagination page={data.page} pages={data.pages} total={data.total} basePath={basePath} />
 
 			{/* Thread list card */}
-			<Card>
+			<Card className="py-0">
 				<CardContent className="p-0">
 					<ThreadListHeader />
 
