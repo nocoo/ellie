@@ -30,22 +30,24 @@ export default async function DigestPage({ searchParams }: DigestPageProps) {
 
 	if (error || !data) {
 		return (
-			<Card className="p-8 text-center">
-				<p className="text-sm text-destructive">{error ?? "加载出错"}</p>
-				<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
-					返回首页
-				</Link>
+			<Card size="sm">
+				<CardContent className="text-center py-4">
+					<p className="text-sm text-destructive">{error ?? "加载出错"}</p>
+					<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
+						返回首页
+					</Link>
+				</CardContent>
 			</Card>
 		);
 	}
 
 	return (
-		<Card>
-			<CardHeader className="pb-0">
+		<Card size="sm">
+			<CardHeader>
 				<CardTitle className="text-base">精华帖</CardTitle>
 			</CardHeader>
 
-			<CardContent className="pt-3">
+			<CardContent>
 				{data.results.items.length === 0 ? (
 					<div className="py-8 text-center text-sm text-muted-foreground">暂无精华帖</div>
 				) : (

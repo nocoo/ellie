@@ -40,22 +40,24 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
 	if (error || !data) {
 		return (
-			<Card className="p-8 text-center">
-				<p className="text-sm text-destructive">{error ?? "搜索出错"}</p>
-				<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
-					返回首页
-				</Link>
+			<Card size="sm">
+				<CardContent className="text-center py-4">
+					<p className="text-sm text-destructive">{error ?? "搜索出错"}</p>
+					<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
+						返回首页
+					</Link>
+				</CardContent>
 			</Card>
 		);
 	}
 
 	return (
-		<Card>
-			<CardHeader className="pb-0">
+		<Card size="sm">
+			<CardHeader>
 				<CardTitle className="text-base">搜索</CardTitle>
 			</CardHeader>
 
-			<CardContent className="pt-3 space-y-3">
+			<CardContent className="space-y-3">
 				{/* Search form */}
 				<form className="flex gap-2" action="/search" method="get">
 					<Input

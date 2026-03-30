@@ -45,11 +45,13 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 
 	if (error || !data.thread) {
 		return (
-			<Card className="p-8 text-center">
-				<p className="text-sm text-destructive">{error ?? "帖子不存在"}</p>
-				<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
-					返回首页
-				</Link>
+			<Card size="sm">
+				<CardContent className="text-center py-4">
+					<p className="text-sm text-destructive">{error ?? "帖子不存在"}</p>
+					<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
+						返回首页
+					</Link>
+				</CardContent>
 			</Card>
 		);
 	}
@@ -72,7 +74,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 
 			{/* Thread header (simplified — views/replies now in first post sidebar) */}
 			<Card size="sm">
-				<CardContent className="pt-3">
+				<CardContent>
 					<div className="flex items-center gap-2 flex-wrap">
 						<ThreadBadgeList badges={badges} />
 						<h1 className="text-base font-semibold text-foreground">{data.thread.subject}</h1>
@@ -112,7 +114,11 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 			})}
 
 			{data.posts.length === 0 && (
-				<Card className="p-8 text-center text-sm text-muted-foreground">暂无回复</Card>
+				<Card size="sm">
+					<CardContent className="text-center py-4 text-sm text-muted-foreground">
+						暂无回复
+					</CardContent>
+				</Card>
 			)}
 
 			{/* Pagination */}

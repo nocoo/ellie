@@ -71,10 +71,10 @@ function LoginForm() {
 
 					{/* Login card */}
 					<Card>
-						<CardHeader className="pb-0">
+						<CardHeader>
 							<CardTitle className="text-base text-center">登录</CardTitle>
 						</CardHeader>
-						<CardContent className="pt-4">
+						<CardContent>
 							<form onSubmit={handleSubmit} className="space-y-4">
 								{/* Error */}
 								{error && (

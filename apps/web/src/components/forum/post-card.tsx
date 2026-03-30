@@ -1,11 +1,12 @@
 // components/forum/post-card.tsx — Discuz classic two-column post card
 // Desktop: left sidebar (user info) + vertical separator + right content
 // Mobile: compact header row + content
+// Uses a plain styled div (not Card) because two-column layout requires
+// its own padding management that conflicts with Card's built-in padding.
 
 import { PostContent } from "@/components/forum/post-content";
 import { PostSidebar } from "@/components/forum/post-sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { type EnrichedPost, floorLabel } from "@/viewmodels/forum/thread-detail";
 import { formatTime } from "@/viewmodels/forum/thread-list";
@@ -26,7 +27,7 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 	const isFirst = post.isFirst || post.position === 1;
 
 	return (
-		<Card size="sm" className="overflow-hidden !py-0 !gap-0">
+		<div className="overflow-hidden rounded-xl bg-card text-sm text-card-foreground ring-1 ring-foreground/10">
 			{/* Desktop: two-column layout */}
 			<div className="hidden md:flex flex-row">
 				<PostSidebar
@@ -64,9 +65,8 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 					</span>
 				</div>
 
-				{/* Content (reuse PostContent, no meta bar duplication needed for mobile) */}
 				<PostContent post={post} isFirst={isFirst} threadDigest={threadDigest} />
 			</div>
-		</Card>
+		</div>
 	);
 }
