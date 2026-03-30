@@ -1,5 +1,10 @@
 // components/forum/thread-list.tsx — Thread list container with sort/filter controls
 // Ref: 04d §版块帖子列表 — sort tabs + digest filter + pagination
+//
+// @deprecated Forum frontend no longer uses this client component.
+// Forums/[id]/page.tsx is RSC and drives sort/pagination via searchParams + <Link>.
+// This file is preserved for potential admin-side usage.
+// See 04f §6 for the new approach.
 
 import { Button } from "@/components/ui/button";
 import type { ThreadDisplayItem, ThreadSort } from "@/viewmodels/forum/thread-list";
