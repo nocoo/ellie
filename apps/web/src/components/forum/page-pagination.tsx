@@ -117,8 +117,9 @@ export function PagePagination({ page, pages, total, basePath, className }: Page
 							key={item}
 							variant={item === page ? "default" : "outline"}
 							size="xs"
-							nativeButton={item !== page}
-							{...(item !== page ? { render: <Link href={href(item)} /> } : { disabled: true })}
+							{...(item === page
+								? { nativeButton: true, disabled: true }
+								: { nativeButton: false, render: <Link href={href(item)} /> })}
 						>
 							{item}
 						</Button>
