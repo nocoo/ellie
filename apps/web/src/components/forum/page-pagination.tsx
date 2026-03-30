@@ -143,7 +143,7 @@ export function PagePagination({ page, pages, total, basePath, className }: Page
 			</div>
 
 			<div className="flex items-center gap-3">
-				<span className="text-xs text-muted-foreground">共 {total.toLocaleString()} 条</span>
+				<span className="text-xs text-muted-foreground">共 {(total ?? 0).toLocaleString()} 条</span>
 				<JumpToPage basePath={basePath} pages={pages} />
 			</div>
 		</div>
