@@ -1,6 +1,7 @@
-// components/forum/forum-group.tsx — Forum group section
-// Ref: 04d §ForumGroup — Group title + child ForumCard list
+// components/forum/forum-group.tsx — Forum group card with dense rows
+// Ref: 04f §5 — Card/CardHeader/CardContent + divide-y row list
 
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ForumTreeNode } from "@ellie/types";
 import { ForumCard } from "./forum-card";
 
@@ -10,16 +11,20 @@ interface ForumGroupProps {
 
 export function ForumGroup({ group }: ForumGroupProps) {
 	return (
-		<section className="rounded-[14px] bg-card p-6">
-			<h2 className="text-base font-semibold text-foreground">{group.name}</h2>
-			{group.description && (
-				<p className="mt-0.5 text-xs text-muted-foreground">{group.description}</p>
-			)}
-			<div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-				{group.children.map((forum) => (
-					<ForumCard key={forum.id} forum={forum} />
-				))}
-			</div>
-		</section>
+		<Card>
+			<CardHeader className="pb-0">
+				<CardTitle className="text-sm">{group.name}</CardTitle>
+				{group.description && (
+					<CardDescription className="text-xs">{group.description}</CardDescription>
+				)}
+			</CardHeader>
+			<CardContent className="pt-0">
+				<div className="divide-y divide-border/50">
+					{group.children.map((forum) => (
+						<ForumCard key={forum.id} forum={forum} />
+					))}
+				</div>
+			</CardContent>
+		</Card>
 	);
 }

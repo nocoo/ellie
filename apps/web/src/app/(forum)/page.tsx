@@ -13,12 +13,7 @@ export default async function ForumHomePage() {
 	}
 
 	return (
-		<div className="space-y-6">
-			<div>
-				<h1 className="text-2xl font-semibold text-foreground">论坛首页</h1>
-				<p className="mt-1 text-sm text-muted-foreground">浏览所有版块，参与讨论</p>
-			</div>
-
+		<div className="space-y-4">
 			{error && (
 				<div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
 					{error}
@@ -30,7 +25,7 @@ export default async function ForumHomePage() {
 			))}
 
 			{!error && tree.length === 0 && (
-				<div className="rounded-[14px] bg-card p-8 text-center text-sm text-muted-foreground">
+				<div className="rounded-xl bg-card p-8 text-center text-sm text-muted-foreground ring-1 ring-foreground/10">
 					暂无版块
 				</div>
 			)}
