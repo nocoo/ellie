@@ -4,6 +4,7 @@
 import { formatCount } from "@/viewmodels/forum/forum-list";
 import type { ForumTreeNode } from "@ellie/types";
 import Link from "next/link";
+import { SafeHtml } from "./safe-html";
 
 interface ForumCardProps {
 	forum: ForumTreeNode;
@@ -33,7 +34,7 @@ export function ForumCard({ forum }: ForumCardProps) {
 						{forum.name}
 					</Link>
 					{forum.description && (
-						<span className="text-xs text-muted-foreground truncate">{forum.description}</span>
+						<SafeHtml html={forum.description} className="text-xs text-muted-foreground truncate" />
 					)}
 					{forum.children.length > 0 && (
 						<span className="relative z-10 hidden sm:inline-flex gap-1.5">
