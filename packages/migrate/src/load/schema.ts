@@ -37,7 +37,8 @@ export const TABLE_DDL: string[] = [
   last_login    INTEGER NOT NULL DEFAULT 0,
   threads       INTEGER NOT NULL DEFAULT 0,
   posts         INTEGER NOT NULL DEFAULT 0,
-  credits       INTEGER NOT NULL DEFAULT 0
+  credits       INTEGER NOT NULL DEFAULT 0,
+  signature     TEXT    NOT NULL DEFAULT ''
 )`,
 
 	`CREATE TABLE IF NOT EXISTS threads (
@@ -142,6 +143,7 @@ export const TABLE_COLUMNS: Record<TableName, string[]> = {
 		"threads",
 		"posts",
 		"credits",
+		"signature",
 	],
 	threads: [
 		"id",

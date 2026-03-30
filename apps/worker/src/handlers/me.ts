@@ -7,7 +7,7 @@ import { errorResponse } from "../middleware/error";
 
 /** Explicit column list — never SELECT * to avoid leaking sensitive fields */
 const USER_COLUMNS =
-	"id, username, email, avatar, status, role, reg_date, last_login, threads, posts, credits";
+	"id, username, email, avatar, status, role, reg_date, last_login, threads, posts, credits, signature";
 
 /** PATCH /api/v1/users/me — Update own profile (avatar, email) */
 export const updateProfile = withAuth(async (request, env, user) => {

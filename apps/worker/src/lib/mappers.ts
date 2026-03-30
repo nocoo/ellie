@@ -26,6 +26,7 @@ interface D1UserRow {
 	threads: number;
 	posts: number;
 	credits: number;
+	signature: string;
 	// Sensitive fields (never exposed):
 	// password_hash, password_salt
 }
@@ -101,6 +102,7 @@ export function toUser(row: Record<string, unknown>): User {
 		threads: r.threads,
 		posts: r.posts,
 		credits: r.credits,
+		signature: r.signature,
 	};
 }
 
@@ -264,6 +266,7 @@ export function toPublicUser(row: Record<string, unknown>): PublicUser {
 		threads: r.threads,
 		posts: r.posts,
 		credits: r.credits,
+		signature: r.signature,
 	};
 }
 

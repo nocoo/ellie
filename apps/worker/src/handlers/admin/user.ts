@@ -13,7 +13,7 @@ import { errorResponse } from "../../middleware/error";
 // ─── Column list (never SELECT * — excludes password_hash, password_salt) ────
 
 const USER_COLUMNS =
-	"id, username, email, avatar, status, role, reg_date, last_login, threads, posts, credits";
+	"id, username, email, avatar, status, role, reg_date, last_login, threads, posts, credits, signature";
 
 // ─── Entity config ───────────────────────────────────────────────────────────
 

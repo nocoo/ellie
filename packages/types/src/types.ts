@@ -45,6 +45,7 @@ export interface PublicUser {
 	threads: number;
 	posts: number;
 	credits: number;
+	signature: string;
 }
 
 /** Maps to Doc02 users table — 1.14M rows */
@@ -60,6 +61,7 @@ export interface User {
 	threads: number;
 	posts: number;
 	credits: number;
+	signature: string;
 }
 
 /** Maps to Doc02 forums table — 213 rows */

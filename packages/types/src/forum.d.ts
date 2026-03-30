@@ -9,7 +9,14 @@ export interface ForumTreeNode extends Forum {
  */
 export declare function buildForumTree(forums: Forum[]): ForumTreeNode[];
 /**
- * Filter a tree node: remove hidden forums (status=0) and their descendants.
- * Returns true if this node (or any of its children) is visible.
+ * Walk up the parentId chain from `forumId` and return the ancestor path.
+ * Returns [root, ..., parent, self] (top-level → current).
+ * Returns empty array if `forumId` is not found.
+ */
+export declare function findForumAncestors(forums: Forum[], forumId: number): Forum[];
+/**
+ * Filter a tree node: remove invisible forums and their descendants.
+ * - status=0: hidden (admin-hidden)
+ * - status=-1: deleted (migrated placeholder)
  */
 export declare function filterVisibleForums(node: ForumTreeNode): ForumTreeNode | null;

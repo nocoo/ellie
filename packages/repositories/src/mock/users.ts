@@ -17,6 +17,7 @@ export const MOCK_USERS: User[] = [
 		threads: 1250,
 		posts: 8900,
 		credits: 99999,
+		signature: "",
 	},
 	{
 		id: 2,
@@ -30,6 +31,7 @@ export const MOCK_USERS: User[] = [
 		threads: 890,
 		posts: 6700,
 		credits: 50000,
+		signature: "",
 	},
 	{
 		id: 3,
@@ -43,6 +45,7 @@ export const MOCK_USERS: User[] = [
 		threads: 450,
 		posts: 3200,
 		credits: 25000,
+		signature: "",
 	},
 	{
 		id: 10,
@@ -56,6 +59,7 @@ export const MOCK_USERS: User[] = [
 		threads: 120,
 		posts: 890,
 		credits: 5000,
+		signature: "",
 	},
 	{
 		id: 11,
@@ -69,6 +73,7 @@ export const MOCK_USERS: User[] = [
 		threads: 45,
 		posts: 320,
 		credits: 1500,
+		signature: "",
 	},
 	{
 		id: 12,
@@ -82,6 +87,7 @@ export const MOCK_USERS: User[] = [
 		threads: 5,
 		posts: 12,
 		credits: 100,
+		signature: "",
 	},
 	{
 		id: 13,
@@ -95,5 +101,6 @@ export const MOCK_USERS: User[] = [
 		threads: 200,
 		posts: 1500,
 		credits: 8000,
+		signature: "",
 	},
 ];

@@ -38,7 +38,12 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 					threadReplies={threadReplies}
 				/>
 				<Separator orientation="vertical" />
-				<PostContent post={post} isFirst={isFirst} threadDigest={threadDigest} />
+				<PostContent
+					post={post}
+					isFirst={isFirst}
+					threadDigest={threadDigest}
+					author={post.author}
+				/>
 			</div>
 
 			{/* Mobile: compact single-column layout */}
@@ -73,7 +78,12 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 					</span>
 				</div>
 
-				<PostContent post={post} isFirst={isFirst} threadDigest={threadDigest} />
+				<PostContent
+					post={post}
+					isFirst={isFirst}
+					threadDigest={threadDigest}
+					author={post.author}
+				/>
 			</div>
 		</div>
 	);
