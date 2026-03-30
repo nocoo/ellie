@@ -24,6 +24,18 @@ export declare enum ForumType {
 	Forum = "forum",
 	Sub = "sub",
 }
+/** Public-facing user profile — excludes email, status, lastLogin */
+export interface PublicUser {
+	id: number;
+	username: string;
+	avatar: string;
+	role: UserRole;
+	regDate: number;
+	threads: number;
+	posts: number;
+	credits: number;
+	signature: string;
+}
 /** Maps to Doc02 users table — 1.14M rows */
 export interface User {
 	id: number;
@@ -37,6 +49,7 @@ export interface User {
 	threads: number;
 	posts: number;
 	credits: number;
+	signature: string;
 }
 /** Maps to Doc02 forums table — 213 rows */
 export interface Forum {
@@ -53,6 +66,7 @@ export interface Forum {
 	lastThreadId: number;
 	lastPostAt: number;
 	lastPoster: string;
+	lastThreadSubject: string;
 }
 /** Maps to Doc02 threads table — 790K rows */
 export interface Thread {
@@ -98,5 +112,25 @@ export interface Attachment {
 	width: number;
 	hasThumb: boolean;
 	downloads: number;
+	createdAt: number;
+}
+/** Maps to ip_bans table — IP ban management */
+export interface IpBan {
+	id: number;
+	ip: string;
+	adminId: number;
+	adminName: string;
+	reason: string;
+	expiresAt: number | null;
+	createdAt: number;
+}
+/** Maps to censor_words table — content filtering rules */
+export interface CensorWord {
+	id: number;
+	find: string;
+	replacement: string;
+	action: "ban" | "replace";
+	adminId: number;
+	adminName: string;
 	createdAt: number;
 }

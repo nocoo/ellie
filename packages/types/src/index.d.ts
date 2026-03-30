@@ -1,7 +1,7 @@
 export * from "./types";
-export type { User, Forum, Thread, Post, Attachment } from "./types";
+export type { PublicUser, User, Forum, Thread, Post, Attachment, IpBan, CensorWord } from "./types";
 export type { ForumTreeNode } from "./forum";
-export { buildForumTree, filterVisibleForums } from "./forum";
+export { buildForumTree, filterVisibleForums, findForumAncestors } from "./forum";
 export type { ThreadBadge, HighlightStyle } from "./thread";
 export { getThreadBadges, decodeHighlight } from "./thread";
 export type { CursorPayload } from "./pagination";

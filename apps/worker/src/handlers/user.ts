@@ -6,7 +6,8 @@ import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
 /** Explicit PublicUser columns — never SELECT * to avoid leaking sensitive fields */
-const PUBLIC_USER_COLUMNS = "id, username, avatar, role, reg_date, threads, posts, credits";
+const PUBLIC_USER_COLUMNS =
+	"id, username, avatar, role, reg_date, threads, posts, credits, signature";
 
 /** Default/max page sizes for user history endpoints */
 const DEFAULT_HISTORY_LIMIT = 20;

@@ -68,7 +68,7 @@ describe("D1 row mappers", () => {
 			expect("password_salt" in user).toBe(false);
 		});
 
-		it("should output exactly 11 fields", () => {
+		it("should output exactly 12 fields", () => {
 			const row = {
 				id: 1,
 				username: "alice",
@@ -81,10 +81,11 @@ describe("D1 row mappers", () => {
 				threads: 0,
 				posts: 0,
 				credits: 0,
+				signature: "",
 			};
 
 			const user = toUser(row);
-			expect(Object.keys(user)).toHaveLength(11);
+			expect(Object.keys(user)).toHaveLength(12);
 		});
 	});
 
@@ -353,7 +354,7 @@ describe("D1 row mappers", () => {
 			expect("password_hash" in user).toBe(false);
 		});
 
-		it("should output exactly 8 fields", () => {
+		it("should output exactly 9 fields", () => {
 			const row = {
 				id: 1,
 				username: "alice",
@@ -363,10 +364,11 @@ describe("D1 row mappers", () => {
 				threads: 0,
 				posts: 0,
 				credits: 0,
+				signature: "",
 			};
 
 			const user = toPublicUser(row);
-			expect(Object.keys(user)).toHaveLength(8);
+			expect(Object.keys(user)).toHaveLength(9);
 		});
 	});
 

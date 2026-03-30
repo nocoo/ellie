@@ -134,7 +134,7 @@ export async function login(request: Request, env: Env): Promise<Response> {
 
 /** Explicit column list — never SELECT * to avoid leaking sensitive fields */
 const USER_COLUMNS =
-	"id, username, email, avatar, status, role, reg_date, last_login, threads, posts, credits";
+	"id, username, email, avatar, status, role, reg_date, last_login, threads, posts, credits, signature";
 
 /** POST /api/v1/auth/refresh - Exchange refresh token for new JWT + rotated refresh token */
 export async function refresh(request: Request, env: Env): Promise<Response> {

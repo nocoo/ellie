@@ -8,14 +8,16 @@ import {
 	formatDateTime,
 	formatFileSize,
 } from "@/viewmodels/forum/thread-detail";
+import type { User } from "@ellie/types";
 
 interface PostContentProps {
 	post: EnrichedPost;
 	isFirst: boolean;
 	threadDigest?: number;
+	author?: User | null;
 }
 
-export function PostContent({ post, isFirst, threadDigest }: PostContentProps) {
+export function PostContent({ post, isFirst, threadDigest, author }: PostContentProps) {
 	return (
 		<div className="flex-1 min-w-0 p-3">
 			{/* Top meta bar */}
@@ -65,6 +67,16 @@ export function PostContent({ post, isFirst, threadDigest }: PostContentProps) {
 							)}
 						</div>
 					))}
+				</div>
+			)}
+
+			{/* Author signature */}
+			{author?.signature && (
+				<div className="mt-4 pt-2 border-t border-dashed border-border/50">
+					<div
+						className="text-xs text-muted-foreground prose prose-sm max-w-none [&>*]:text-muted-foreground [&>*]:text-xs"
+						dangerouslySetInnerHTML={{ __html: author.signature }}
+					/>
 				</div>
 			)}
 		</div>
