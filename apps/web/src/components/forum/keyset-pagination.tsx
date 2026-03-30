@@ -9,6 +9,7 @@ interface KeysetPaginationProps {
 	totalLabel?: string;
 	prevHref: string | null;
 	nextHref: string | null;
+	className?: string;
 }
 
 export function KeysetPagination({
@@ -16,9 +17,10 @@ export function KeysetPagination({
 	totalLabel = "条",
 	prevHref,
 	nextHref,
+	className,
 }: KeysetPaginationProps) {
 	return (
-		<div className="flex items-center justify-between py-2">
+		<div className={className ?? "flex items-center justify-between py-2"}>
 			<span className="text-xs text-muted-foreground">
 				共 {total.toLocaleString()} {totalLabel}
 			</span>

@@ -32,7 +32,7 @@ export async function loadThreadList(params: {
 		forumApi.getAll<Forum>("/api/v1/forums"),
 		forumApi.getCursor<Thread>("/api/v1/threads", {
 			forumId: params.forumId,
-			limit: params.limit ?? 20,
+			limit: params.limit ?? 100,
 			cursor: params.cursor,
 		}),
 	]);
@@ -47,7 +47,7 @@ export async function loadThreadList(params: {
 		items: enrichThreads(threadsRes.data),
 		nextCursor: threadsRes.meta.nextCursor,
 		prevCursor: null, // Worker v1 does not support backward pagination
-		total: threadsRes.data.length,
+		total: forum?.threads ?? threadsRes.data.length,
 	};
 }
 

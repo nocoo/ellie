@@ -63,20 +63,6 @@ export function highlightStyle(
 }
 
 /**
- * Sort label for display.
- */
-export function sortLabel(sort: ThreadSort): string {
-	switch (sort) {
-		case "latest":
-			return "最新回复";
-		case "newest":
-			return "最新发布";
-		case "hot":
-			return "热门";
-	}
-}
-
-/**
  * Format a timestamp for display (relative or absolute).
  */
 export function formatTime(timestamp: number): string {
