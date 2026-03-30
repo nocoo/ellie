@@ -1,13 +1,14 @@
-// Ref: 04f §7 — Card-wrapped header + inline-author PostCards + KeysetPagination
+// Ref: 04f §7 — Discuz classic two-column layout with mod action bar
 
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
+import { ModActionBar } from "@/components/forum/mod-action-bar";
 import { PostCard } from "@/components/forum/post-card";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Card, CardContent } from "@/components/ui/card";
 import { buildThreadBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import { type ThreadDetailData, loadThreadDetail } from "@/viewmodels/forum/thread-detail.server";
-import { formatStat, formatTime } from "@/viewmodels/forum/thread-list";
+import { formatTime } from "@/viewmodels/forum/thread-list";
 import { type Thread, findForumAncestors, getThreadBadges } from "@ellie/types";
 import Link from "next/link";
 
@@ -66,7 +67,10 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 				</div>
 			)}
 
-			{/* Thread header */}
+			{/* Mod action bar */}
+			<ModActionBar />
+
+			{/* Thread header (simplified — views/replies now in first post sidebar) */}
 			<Card size="sm">
 				<CardContent className="pt-3">
 					<div className="flex items-center gap-2 flex-wrap">
@@ -89,18 +93,23 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 						</Link>
 						<span>·</span>
 						<span>{formatTime(data.thread.createdAt)}</span>
-						<span>·</span>
-						<span>{formatStat(data.thread.views)} 浏览</span>
-						<span>·</span>
-						<span>{formatStat(data.thread.replies)} 回复</span>
 					</div>
 				</CardContent>
 			</Card>
 
 			{/* Posts */}
-			{data.posts.map((post) => (
-				<PostCard key={post.id} post={post} />
-			))}
+			{data.posts.map((post) => {
+				const isFirst = post.isFirst || post.position === 1;
+				return (
+					<PostCard
+						key={post.id}
+						post={post}
+						threadViews={isFirst ? data.thread.views : undefined}
+						threadReplies={isFirst ? data.thread.replies : undefined}
+						threadDigest={isFirst ? data.thread.digest : undefined}
+					/>
+				);
+			})}
 
 			{data.posts.length === 0 && (
 				<Card className="p-8 text-center text-sm text-muted-foreground">暂无回复</Card>
