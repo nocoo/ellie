@@ -16,6 +16,10 @@ import {
 	type AttachmentIndexData,
 	type MemberCountData,
 	type MemberData,
+	type MemberFieldForumData,
+	type ProfileData,
+	type StatusData,
+	type UsergroupData,
 	extractAttachment,
 	extractForum,
 	extractPost,
@@ -23,7 +27,12 @@ import {
 	extractUser,
 	parseAttachmentIndex,
 	parseMemberCountRow,
+	parseMemberFieldForumRow,
 	parseMemberRow,
+	parseProfileRow,
+	parseStatusRow,
+	parseThreadTypeRow,
+	parseUsergroupRow,
 } from "./extract/extractors";
 import { type ParsedRow, parseDumpFile } from "./extract/parser";
 import { BatchLoader } from "./load/batch-insert";
@@ -90,6 +99,7 @@ export async function migrateUsers(
 	log("=== Users ===");
 	const mainDump = `${sourceDir}/main_small.sql.gz`;
 	const ucDump = `${sourceDir}/ucenter.sql.gz`;
+	const extraDump = `${sourceDir}/user_extra.sql.gz`;
 
 	log("  Parsing pre_common_member...");
 	const memberMap = new Map<number, MemberData>();
@@ -114,14 +124,106 @@ export async function migrateUsers(
 	log("  Parsing pre_common_member_count...");
 	const countMap = new Map<number, MemberCountData>();
 	try {
-		await parseDumpFile(mainDump, "pre_common_member_count", (row) => {
+		await parseDumpFile(extraDump, "pre_common_member_count", (row) => {
 			const { uid, data } = parseMemberCountRow(row);
 			countMap.set(uid, data);
 		});
 	} catch {
-		// Table may not exist in the dump — that's OK
+		// Table may not exist — that's OK
 	}
 	log(`  Collected ${countMap.size} member count records`);
+
+	log("  Parsing pre_common_member_count_archive...");
+	try {
+		await parseDumpFile(extraDump, "pre_common_member_count_archive", (row) => {
+			const { uid, data } = parseMemberCountRow(row);
+			if (!countMap.has(uid)) countMap.set(uid, data);
+		});
+	} catch {
+		// Table may not exist — that's OK
+	}
+	log(`  Total member count records: ${countMap.size}`);
+
+	log("  Parsing pre_common_usergroup...");
+	const usergroupMap = new Map<number, UsergroupData>();
+	try {
+		await parseDumpFile(extraDump, "pre_common_usergroup", (row) => {
+			const { groupid, data } = parseUsergroupRow(row);
+			usergroupMap.set(groupid, data);
+		});
+	} catch {
+		// Table may not exist — that's OK
+	}
+	log(`  Collected ${usergroupMap.size} usergroup records`);
+
+	log("  Parsing pre_common_member_field_forum...");
+	const fieldForumMap = new Map<number, MemberFieldForumData>();
+	try {
+		await parseDumpFile(extraDump, "pre_common_member_field_forum", (row) => {
+			const { uid, data } = parseMemberFieldForumRow(row);
+			fieldForumMap.set(uid, data);
+		});
+	} catch {
+		// Table may not exist — that's OK
+	}
+	log(`  Collected ${fieldForumMap.size} field_forum records`);
+
+	log("  Parsing pre_common_member_field_forum_archive...");
+	try {
+		await parseDumpFile(extraDump, "pre_common_member_field_forum_archive", (row) => {
+			const { uid, data } = parseMemberFieldForumRow(row);
+			if (!fieldForumMap.has(uid)) fieldForumMap.set(uid, data);
+		});
+	} catch {
+		// Table may not exist — that's OK
+	}
+	log(`  Total field_forum records: ${fieldForumMap.size}`);
+
+	log("  Parsing pre_common_member_profile...");
+	const profileMap = new Map<number, ProfileData>();
+	try {
+		await parseDumpFile(extraDump, "pre_common_member_profile", (row) => {
+			const { uid, data } = parseProfileRow(row);
+			profileMap.set(uid, data);
+		});
+	} catch {
+		// Table may not exist — that's OK
+	}
+	log(`  Collected ${profileMap.size} profile records`);
+
+	log("  Parsing pre_common_member_profile_archive...");
+	try {
+		await parseDumpFile(extraDump, "pre_common_member_profile_archive", (row) => {
+			const { uid, data } = parseProfileRow(row);
+			if (!profileMap.has(uid)) profileMap.set(uid, data);
+		});
+	} catch {
+		// Table may not exist — that's OK
+	}
+	log(`  Total profile records: ${profileMap.size}`);
+
+	log("  Parsing pre_common_member_status...");
+	const statusMap = new Map<number, StatusData>();
+	try {
+		await parseDumpFile(extraDump, "pre_common_member_status", (row) => {
+			const { uid, data } = parseStatusRow(row);
+			statusMap.set(uid, data);
+		});
+	} catch {
+		// Table may not exist — that's OK
+	}
+	log(`  Collected ${statusMap.size} status records`);
+
+	log("  Parsing pre_common_member_status_archive...");
+	try {
+		await parseDumpFile(extraDump, "pre_common_member_status_archive", (row) => {
+			const { uid, data } = parseStatusRow(row);
+			if (!statusMap.has(uid)) statusMap.set(uid, data);
+		});
+	} catch {
+		// Table may not exist — that's OK
+	}
+	log(`  Total status records: ${statusMap.size}`);
 
 	log("  Parsing uc_members...");
 	const inserter = loader.createStreamInserter("users");
@@ -132,7 +234,16 @@ export async function migrateUsers(
 		const member = memberMap.get(uid) ?? archiveMap.get(uid) ?? null;
 		const isArchived = !memberMap.has(uid) && archiveMap.has(uid);
 		const counts = countMap.get(uid) ?? null;
-		const record = extractUser(row, member, counts, isArchived);
+
+		// Look up usergroup via member's groupid
+		const ug = member?.groupid ? (usergroupMap.get(member.groupid) ?? null) : null;
+
+		const record = extractUser(row, member, counts, isArchived, {
+			fieldForum: fieldForumMap.get(uid) ?? null,
+			profile: profileMap.get(uid) ?? null,
+			status: statusMap.get(uid) ?? null,
+			usergroup: ug,
+		});
 		inserter.add(record);
 		userIds.add(uid);
 	});
@@ -157,6 +268,21 @@ export async function migrateThreads(
 }> {
 	log("=== Threads ===");
 	const dumpFile = `${sourceDir}/thread.sql.gz`;
+	const extraDump = `${sourceDir}/user_extra.sql.gz`;
+
+	// Build threadTypeMap from user_extra dump
+	log("  Parsing pre_forum_threadtype...");
+	const threadTypeMap = new Map<number, string>();
+	try {
+		await parseDumpFile(extraDump, "pre_forum_threadtype", (row) => {
+			const { typeid, name } = parseThreadTypeRow(row);
+			if (typeid > 0 && name) threadTypeMap.set(typeid, name);
+		});
+	} catch {
+		// Table may not exist — that's OK
+	}
+	log(`  Collected ${threadTypeMap.size} thread type records`);
+
 	const inserter = loader.createStreamInserter("threads");
 	const threadIds = new Set<number>();
 	const missingForumIds = new Set<number>();
@@ -164,7 +290,7 @@ export async function migrateThreads(
 	let skipped = 0;
 
 	await parseDumpFile(dumpFile, "pre_forum_thread", (row) => {
-		const record = extractThread(row);
+		const record = extractThread(row, threadTypeMap);
 		if (record) {
 			inserter.add(record);
 			threadIds.add(record.id as number);
@@ -203,6 +329,7 @@ export async function migrateThreads(
 				last_thread_id: 0,
 				last_post_at: 0,
 				last_poster: "",
+				last_thread_subject: "",
 			});
 			forumIds.add(fid);
 		}
@@ -229,6 +356,25 @@ export async function migrateThreads(
 				threads: 0,
 				posts: 0,
 				credits: 0,
+				signature: "",
+				group_title: "",
+				group_stars: 0,
+				group_color: "",
+				custom_title: "",
+				digest_posts: 0,
+				ol_time: 0,
+				gender: 0,
+				birth_year: 0,
+				birth_month: 0,
+				birth_day: 0,
+				reside_province: "",
+				reside_city: "",
+				graduate_school: "",
+				bio: "",
+				interest: "",
+				qq: "",
+				site: "",
+				last_activity: 0,
 			});
 			userIds.add(uid);
 		}
@@ -415,6 +561,7 @@ export async function migrateAttachments(
 				highlight: 0,
 				recommends: 0,
 				post_table_id: 0,
+				type_name: "",
 			});
 			threadIds.add(tid);
 		}
