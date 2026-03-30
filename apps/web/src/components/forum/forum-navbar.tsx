@@ -75,7 +75,7 @@ export function ForumNavbar() {
 	const [open, setOpen] = useState(false);
 
 	return (
-		<nav className="sticky top-0 z-40 flex h-12 items-center border-b border-border bg-card px-4">
+		<nav className="sticky top-0 z-40 flex h-12 items-center border-b border-border bg-card">
 			<div className="width-container flex w-full items-center justify-between !py-0">
 				{/* Left: Logo + nav links */}
 				<div className="flex items-center gap-6">
