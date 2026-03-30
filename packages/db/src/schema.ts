@@ -35,7 +35,25 @@ export const TABLES = {
 			threads INTEGER NOT NULL DEFAULT 0,
 			posts INTEGER NOT NULL DEFAULT 0,
 			credits INTEGER NOT NULL DEFAULT 0,
-			signature TEXT NOT NULL DEFAULT ''
+			signature TEXT NOT NULL DEFAULT '',
+			group_title TEXT NOT NULL DEFAULT '',
+			group_stars INTEGER NOT NULL DEFAULT 0,
+			group_color TEXT NOT NULL DEFAULT '',
+			custom_title TEXT NOT NULL DEFAULT '',
+			digest_posts INTEGER NOT NULL DEFAULT 0,
+			ol_time INTEGER NOT NULL DEFAULT 0,
+			gender INTEGER NOT NULL DEFAULT 0,
+			birth_year INTEGER NOT NULL DEFAULT 0,
+			birth_month INTEGER NOT NULL DEFAULT 0,
+			birth_day INTEGER NOT NULL DEFAULT 0,
+			reside_province TEXT NOT NULL DEFAULT '',
+			reside_city TEXT NOT NULL DEFAULT '',
+			graduate_school TEXT NOT NULL DEFAULT '',
+			bio TEXT NOT NULL DEFAULT '',
+			interest TEXT NOT NULL DEFAULT '',
+			qq TEXT NOT NULL DEFAULT '',
+			site TEXT NOT NULL DEFAULT '',
+			last_activity INTEGER NOT NULL DEFAULT 0
 		);
 	`,
 
@@ -57,7 +75,8 @@ export const TABLES = {
 			special INTEGER NOT NULL DEFAULT 0,
 			highlight INTEGER NOT NULL DEFAULT 0,
 			recommends INTEGER NOT NULL DEFAULT 0,
-			post_table_id INTEGER NOT NULL DEFAULT 0
+			post_table_id INTEGER NOT NULL DEFAULT 0,
+			type_name TEXT NOT NULL DEFAULT ''
 		);
 	`,
 
