@@ -34,7 +34,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 	const basePath = `/forums/${forumId}`;
 
 	return (
-		<div className="space-y-4">
+		<div className="space-y-2">
 			{/* Forum header */}
 			{data.forum && (
 				<div>
