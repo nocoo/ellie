@@ -484,72 +484,72 @@ interface KeysetPaginationProps {
 
 ## 实施阶段
 
-### Phase 0：基础设施
+### Phase 0：基础设施 ✅
 
-| 步骤 | 文件 | 依赖 |
-|------|------|------|
-| 0.1 | 创建 `src/hooks/use-width-mode.ts` | 无 |
-| 0.2 | 创建 `src/components/width-toggle.tsx` | 0.1 |
-| 0.3 | 修改 `src/app/layout.tsx`（加 script） | 0.1 |
-| 0.4 | 创建 `src/components/forum/keyset-pagination.tsx` | 无 |
-| 0.5 | 修改 `src/app/tailwind.css`（加 CSS 变量） | 无 |
+| 步骤 | 文件 | 依赖 | 状态 |
+|------|------|------|------|
+| 0.1 | 创建 `src/hooks/use-width-mode.ts` | 无 | ✅ |
+| 0.2 | 创建 `src/components/width-toggle.tsx` | 0.1 | ✅ |
+| 0.3 | 修改 `src/app/layout.tsx`（加 script） | 0.1 | ✅ |
+| 0.4 | 创建 `src/components/forum/keyset-pagination.tsx` | 无 | ✅ |
+| 0.5 | 修改 `src/app/tailwind.css`（加 CSS 变量） | 无 | ✅ |
 
-**原子提交**：`feat(web): add width mode toggle and shared pagination`
+**原子提交**：`feat(web): add width mode toggle and shared pagination` ✅ `72895ba`
 
-### Phase 1：布局层
+### Phase 1：布局层 ✅
 
-| 步骤 | 文件 | 依赖 |
-|------|------|------|
-| 1.1 | 重写 `forum-navbar.tsx` | 0.1, 0.2 |
-| 1.2 | 废弃 `top-bar.tsx` | 1.1 |
-| 1.3 | 重写 `forum-breadcrumbs.tsx` | 无 |
-| 1.4 | 重写 `forum-layout.tsx` | 0.1, 1.1, 1.3 |
-| 1.5 | 重写 `site-footer.tsx` | 无 |
+| 步骤 | 文件 | 依赖 | 状态 |
+|------|------|------|------|
+| 1.1 | 重写 `forum-navbar.tsx` | 0.1, 0.2 | ✅ |
+| 1.2 | 废弃 `top-bar.tsx` | 1.1 | ✅ |
+| 1.3 | 重写 `forum-breadcrumbs.tsx` | 无 | ✅ |
+| 1.4 | 重写 `forum-layout.tsx` | 0.1, 1.1, 1.3 | ✅ |
+| 1.5 | 重写 `site-footer.tsx` | 无 | ✅ |
 
-**原子提交**：`refactor(web): merge topbar into navbar, width-aware layout`
+**原子提交**：`refactor(web): merge topbar into navbar, width-aware layout` ✅ `f0850b4`
 
-### Phase 2：首页
+### Phase 2：首页 ✅
 
-| 步骤 | 文件 | 依赖 |
-|------|------|------|
-| 2.1 | 重写 `forum-card.tsx` | 无 |
-| 2.2 | 重写 `forum-group.tsx` | 2.1 |
-| 2.3 | 重写 `(forum)/page.tsx` | 2.2 |
+| 步骤 | 文件 | 依赖 | 状态 |
+|------|------|------|------|
+| 2.1 | 重写 `forum-card.tsx` | 无 | ✅ |
+| 2.2 | 重写 `forum-group.tsx` | 2.1 | ✅ |
+| 2.3 | 重写 `(forum)/page.tsx` | 2.2 | ✅ |
 
-**原子提交**：`refactor(web): redesign forum home with dense card rows`
+**原子提交**：`refactor(web): redesign forum home with dense card rows` ✅ `e98fcbb`
 
-### Phase 3：帖子列表页
+### Phase 3：帖子列表页 ✅
 
-| 步骤 | 文件 | 依赖 |
-|------|------|------|
-| 3.1 | 微调 `thread-badge.tsx` | 无 |
-| 3.2 | 重写 `thread-item.tsx` | 3.1 |
-| 3.3 | 废弃标记 `thread-list.tsx`（添加 @deprecated 注释） | 无 |
-| 3.4 | 重写 `forums/[id]/page.tsx`（RSC 内联 ThreadItem + KeysetPagination） | 3.2, 0.4 |
+| 步骤 | 文件 | 依赖 | 状态 |
+|------|------|------|------|
+| 3.1 | 微调 `thread-badge.tsx` | 无 | ✅ |
+| 3.2 | 重写 `thread-item.tsx` | 3.1 | ✅ |
+| 3.3 | 废弃标记 `thread-list.tsx`（添加 @deprecated 注释） | 无 | ✅ 已在 Phase 6 删除 |
+| 3.4 | 重写 `forums/[id]/page.tsx`（RSC 内联 ThreadItem + KeysetPagination） | 3.2, 0.4 | ✅ |
 
-**原子提交**：`refactor(web): redesign thread list with single-line rows`
+**原子提交**：`refactor(web): redesign thread list with single-line rows` ✅ `a95eee0`
 
-### Phase 4：帖子详情页
+### Phase 4：帖子详情页 ✅
 
-| 步骤 | 文件 | 依赖 |
-|------|------|------|
-| 4.1 | 重写 `post-card.tsx` | 无 |
-| 4.2 | 轻改 `post-editor.tsx` | 无 |
-| 4.3 | 重写 `threads/[id]/page.tsx` | 4.1, 0.4 |
+| 步骤 | 文件 | 依赖 | 状态 |
+|------|------|------|------|
+| 4.1 | 重写 `post-card.tsx` | 无 | ✅ |
+| 4.2 | 轻改 `post-editor.tsx` | 无 | ✅ |
+| 4.3 | 重写 `threads/[id]/page.tsx` | 4.1, 0.4 | ✅ |
 
-**原子提交**：`refactor(web): redesign thread detail with inline author`
+**原子提交**：`refactor(web): redesign thread detail with inline author` ✅ `a1c279f`
 
-### Phase 5：其余页面
+### Phase 5：其余页面 ✅
 
-| 步骤 | 文件 | 依赖 |
-|------|------|------|
-| 5.1 | 轻改 `user-card.tsx` | 无 |
-| 5.2 | 重写 `users/[id]/page.tsx` | 5.1, 0.4 |
-| 5.3 | 重写 `search/page.tsx` | 0.4 |
-| 5.4 | 重写 `digest/page.tsx` | 0.4 |
-| 5.5 | 轻改 `login/page.tsx` | 无 |
+| 步骤 | 文件 | 依赖 | 状态 |
+|------|------|------|------|
+| 5.1 | 轻改 `user-card.tsx` | 无 | ✅ |
+| 5.2 | 重写 `users/[id]/page.tsx` | 5.1, 0.4 | ✅ |
+| 5.3 | 重写 `search/page.tsx` | 0.4 | ✅ |
+| 5.4 | 重写 `digest/page.tsx` | 0.4 | ✅ |
+| 5.5 | 轻改 `login/page.tsx` | 无 | ✅ |
 
-**原子提交**：`refactor(web): redesign user/search/digest/login pages`
+**原子提交**：`refactor(web): redesign user/search/digest/login pages` ✅ `f220beb`
 
 ### Phase 6：验证
 
