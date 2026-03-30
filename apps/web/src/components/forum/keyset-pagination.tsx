@@ -24,7 +24,12 @@ export function KeysetPagination({
 			</span>
 			<div className="flex items-center gap-2">
 				{prevHref ? (
-					<Button variant="outline" size="xs" render={<Link href={prevHref} />}>
+					<Button
+						variant="outline"
+						size="xs"
+						nativeButton={false}
+						render={<Link href={prevHref} />}
+					>
 						← 上一页
 					</Button>
 				) : (
@@ -33,7 +38,12 @@ export function KeysetPagination({
 					</Button>
 				)}
 				{nextHref ? (
-					<Button variant="outline" size="xs" render={<Link href={nextHref} />}>
+					<Button
+						variant="outline"
+						size="xs"
+						nativeButton={false}
+						render={<Link href={nextHref} />}
+					>
 						下一页 →
 					</Button>
 				) : (
