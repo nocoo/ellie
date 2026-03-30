@@ -39,6 +39,7 @@ export function makeD1ForumRow(overrides?: Record<string, unknown>) {
 		last_thread_id: 42,
 		last_post_at: 1711540800,
 		last_poster: "alice",
+		last_thread_subject: "Latest Thread",
 		...overrides,
 	};
 }

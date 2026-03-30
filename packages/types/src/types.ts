@@ -77,6 +77,7 @@ export interface Forum {
 	lastThreadId: number;
 	lastPostAt: number;
 	lastPoster: string;
+	lastThreadSubject: string;
 }
 
 /** Maps to Doc02 threads table — 790K rows */

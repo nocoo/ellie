@@ -26,6 +26,7 @@ describe("forum handlers", () => {
 		last_thread_id: 42,
 		last_post_at: 1711540800,
 		last_poster: "alice",
+		last_thread_subject: "Latest Thread",
 		...overrides,
 	});
 
@@ -58,6 +59,7 @@ describe("forum handlers", () => {
 					lastThreadId: 42,
 					lastPostAt: 1711540800,
 					lastPoster: "alice",
+					lastThreadSubject: "Latest Thread",
 				},
 			]);
 			expect(data.meta.timestamp).toBeDefined();

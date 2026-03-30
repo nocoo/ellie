@@ -20,6 +20,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 0,
 		lastPostAt: 0,
 		lastPoster: "",
+		lastThreadSubject: "",
 	},
 	{
 		id: 10,
@@ -35,6 +36,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 50001,
 		lastPostAt: 1711612800,
 		lastPoster: "zhangsan",
+		lastThreadSubject: "同济大学2026年春季招生公告",
 	},
 	{
 		id: 11,
@@ -50,6 +52,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 50002,
 		lastPostAt: 1711609200,
 		lastPoster: "lisi",
+		lastThreadSubject: "高等数学期末复习资料分享",
 	},
 	{
 		id: 110,
@@ -65,6 +68,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 50003,
 		lastPostAt: 1711605600,
 		lastPoster: "zhangsan",
+		lastThreadSubject: "2026考研数学真题解析",
 	},
 	{
 		id: 12,
@@ -80,6 +84,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 50004,
 		lastPostAt: 1711602000,
 		lastPoster: "admin",
+		lastThreadSubject: "出MacBook Pro 2024款",
 	},
 
 	// ─── Group 2: 技术讨论 ──────────────────────────────
@@ -97,6 +102,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 0,
 		lastPostAt: 0,
 		lastPoster: "",
+		lastThreadSubject: "",
 	},
 	{
 		id: 20,
@@ -112,6 +118,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 50010,
 		lastPostAt: 1711612800,
 		lastPoster: "mod_tech",
+		lastThreadSubject: "Rust异步编程最佳实践",
 	},
 	{
 		id: 21,
@@ -127,6 +134,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 50011,
 		lastPostAt: 1711598400,
 		lastPoster: "lisi",
+		lastThreadSubject: "推荐一个好用的CLI工具",
 	},
 
 	// ─── Group 3: 站务管理 ──────────────────────────────
@@ -144,6 +152,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 0,
 		lastPostAt: 0,
 		lastPoster: "",
+		lastThreadSubject: "",
 	},
 	{
 		id: 30,
@@ -159,6 +168,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 50020,
 		lastPostAt: 1711526400,
 		lastPoster: "admin",
+		lastThreadSubject: "论坛升级维护公告",
 	},
 	{
 		id: 31,
@@ -174,6 +184,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 50021,
 		lastPostAt: 1711440000,
 		lastPoster: "zhangsan",
+		lastThreadSubject: "建议增加夜间模式",
 	},
 
 	// Hidden forum for testing
@@ -191,5 +202,6 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 0,
 		lastPostAt: 0,
 		lastPoster: "",
+		lastThreadSubject: "",
 	},
 ];

@@ -273,8 +273,8 @@ export const create = withAuth(async (request, env, user) => {
 			"INSERT INTO posts (thread_id, forum_id, author_id, author_name, content, created_at, is_first, position) VALUES (?, ?, ?, ?, ?, ?, 1, 1)",
 		).bind(threadId, forumId, user.userId, authorName, content, now),
 		env.DB.prepare(
-			"UPDATE forums SET threads = threads + 1, posts = posts + 1, last_thread_id = ?, last_post_at = ?, last_poster = ? WHERE id = ?",
-		).bind(threadId, now, authorName, forumId),
+			"UPDATE forums SET threads = threads + 1, posts = posts + 1, last_thread_id = ?, last_post_at = ?, last_poster = ?, last_thread_subject = ? WHERE id = ?",
+		).bind(threadId, now, authorName, filteredSubject, forumId),
 		env.DB.prepare("UPDATE users SET threads = threads + 1, posts = posts + 1 WHERE id = ?").bind(
 			user.userId,
 		),

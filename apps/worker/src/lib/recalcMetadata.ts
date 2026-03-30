@@ -12,18 +12,19 @@ import type { Env } from "./env";
 export async function recalcForumMetadata(env: Env, forumId: number): Promise<void> {
 	// Find the most recently active thread in this forum
 	const lastThread = await env.DB.prepare(
-		"SELECT id, last_post_at, last_poster FROM threads WHERE forum_id = ? ORDER BY last_post_at DESC LIMIT 1",
+		"SELECT id, subject, last_post_at, last_poster FROM threads WHERE forum_id = ? ORDER BY last_post_at DESC LIMIT 1",
 	)
 		.bind(forumId)
-		.first<{ id: number; last_post_at: number; last_poster: string }>();
+		.first<{ id: number; subject: string; last_post_at: number; last_poster: string }>();
 
 	await env.DB.prepare(
-		"UPDATE forums SET last_thread_id = ?, last_post_at = ?, last_poster = ? WHERE id = ?",
+		"UPDATE forums SET last_thread_id = ?, last_post_at = ?, last_poster = ?, last_thread_subject = ? WHERE id = ?",
 	)
 		.bind(
 			lastThread?.id ?? 0,
 			lastThread?.last_post_at ?? 0,
 			lastThread?.last_poster ?? "",
+			lastThread?.subject ?? "",
 			forumId,
 		)
 		.run();
