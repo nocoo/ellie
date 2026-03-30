@@ -3,6 +3,7 @@ import {
 	buildProfileStats,
 	formatUserRole,
 	formatUserStatus,
+	getUserRoleBadgeVariant,
 	resolveTab,
 } from "../../../../apps/web/src/viewmodels/forum/user-profile";
 import { UserRole, UserStatus } from "../../../../packages/types/src/types";
@@ -81,6 +82,28 @@ describe("buildProfileStats", () => {
 		const user = makeUser({ id: 1, threads: 5, posts: 30, credits: 200 });
 		const stats = buildProfileStats(user);
 		expect(stats).toEqual({ threads: 5, posts: 30, credits: 200 });
+	});
+});
+
+// ---------------------------------------------------------------------------
+// getUserRoleBadgeVariant
+// ---------------------------------------------------------------------------
+
+describe("getUserRoleBadgeVariant", () => {
+	it("returns destructive for Admin", () => {
+		expect(getUserRoleBadgeVariant(UserRole.Admin)).toBe("destructive");
+	});
+
+	it("returns default for SuperMod", () => {
+		expect(getUserRoleBadgeVariant(UserRole.SuperMod)).toBe("default");
+	});
+
+	it("returns secondary for Mod", () => {
+		expect(getUserRoleBadgeVariant(UserRole.Mod)).toBe("secondary");
+	});
+
+	it("returns outline for User", () => {
+		expect(getUserRoleBadgeVariant(UserRole.User)).toBe("outline");
 	});
 });
 

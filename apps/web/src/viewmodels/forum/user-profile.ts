@@ -38,6 +38,22 @@ export function formatUserRole(role: UserRole): string {
 	}
 }
 
+/** Map user role to badge variant for colored display. */
+export function getUserRoleBadgeVariant(
+	role: UserRole,
+): "default" | "secondary" | "destructive" | "outline" {
+	switch (role) {
+		case UserRole.Admin:
+			return "destructive";
+		case UserRole.SuperMod:
+			return "default";
+		case UserRole.Mod:
+			return "secondary";
+		default:
+			return "outline";
+	}
+}
+
 /** Format user status to display label. */
 export function formatUserStatus(status: UserStatus): string {
 	switch (status) {
