@@ -198,7 +198,7 @@ export function PostEditor({
 	const charCount = editor?.storage.characterCount;
 
 	return (
-		<div className="rounded-[10px] border bg-card overflow-hidden">
+		<div className="rounded-xl bg-card ring-1 ring-foreground/10 overflow-hidden">
 			{/* Subject (thread mode only) */}
 			{subject !== undefined && onSubjectChange && (
 				<div className="border-b px-3 py-2">
@@ -217,7 +217,7 @@ export function PostEditor({
 			{editor && !disabled && <Toolbar editor={editor} />}
 
 			{/* Editor area */}
-			<EditorContent editor={editor} className="tiptap-content min-h-[160px] px-3 py-2 text-sm" />
+			<EditorContent editor={editor} className="tiptap-content min-h-[120px] px-3 py-2 text-sm" />
 
 			{/* Footer */}
 			<div className="flex items-center justify-between border-t px-3 py-2">

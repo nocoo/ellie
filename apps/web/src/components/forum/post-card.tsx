@@ -1,7 +1,8 @@
-// components/forum/post-card.tsx — Single post card (floor display)
-// Ref: 04d §PostCard — author sidebar + content + attachments + floor number
+// components/forum/post-card.tsx — Post card with inline author header
+// Ref: 04f §7 — removed 120px sidebar, author info as compact header row
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Card, CardContent } from "@/components/ui/card";
 import { type EnrichedPost, floorLabel, formatFileSize } from "@/viewmodels/forum/thread-detail";
 import { formatTime } from "@/viewmodels/forum/thread-list";
 import Link from "next/link";
@@ -18,45 +19,32 @@ export function PostCard({ post }: PostCardProps) {
 	const isFirst = post.isFirst || post.position === 1;
 
 	return (
-		<div className="flex gap-4 rounded-[10px] bg-secondary p-4">
-			{/* Author sidebar */}
-			<div className="hidden sm:flex flex-col items-center gap-2 w-[120px] shrink-0">
-				<Link href={`/users/${post.authorId}`}>
-					<Avatar className="h-12 w-12">
-						<AvatarFallback className="text-xs">
-							{post.author ? authorInitials(post.author.username) : "?"}
-						</AvatarFallback>
-					</Avatar>
-				</Link>
-				<Link
-					href={`/users/${post.authorId}`}
-					className="text-xs font-medium text-foreground hover:text-primary transition-colors text-center"
-				>
-					{post.author?.username ?? "未知用户"}
-				</Link>
-				{post.author && (
-					<span className="text-[10px] text-muted-foreground">
-						帖子 {post.author.posts.toLocaleString()}
-					</span>
-				)}
-			</div>
-
-			{/* Content area */}
-			<div className="min-w-0 flex-1">
-				{/* Mobile author row */}
-				<div className="sm:hidden flex items-center gap-2 mb-2">
+		<Card size="sm">
+			<CardContent className="pt-3">
+				{/* Author + meta header */}
+				<div className="flex items-center gap-2 pb-2 border-b border-border/50">
+					<Link href={`/users/${post.authorId}`}>
+						<Avatar className="h-6 w-6">
+							<AvatarFallback className="text-[10px]">
+								{post.author ? authorInitials(post.author.username) : "?"}
+							</AvatarFallback>
+						</Avatar>
+					</Link>
 					<Link
 						href={`/users/${post.authorId}`}
-						className="text-xs font-medium text-foreground hover:text-primary"
+						className="text-sm font-medium text-foreground hover:text-primary transition-colors"
 					>
 						{post.author?.username ?? "未知用户"}
 					</Link>
-				</div>
-
-				{/* Post header */}
-				<div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-					<span>{formatTime(post.createdAt)}</span>
-					<span className="font-medium">{floorLabel(post.position, isFirst)}</span>
+					<span className="text-xs text-muted-foreground">{formatTime(post.createdAt)}</span>
+					{post.author && (
+						<span className="hidden sm:inline text-[10px] text-muted-foreground">
+							帖子 {post.author.posts.toLocaleString()}
+						</span>
+					)}
+					<span className="ml-auto text-xs font-medium text-muted-foreground">
+						{floorLabel(post.position, isFirst)}
+					</span>
 				</div>
 
 				{/* Post content */}
@@ -67,7 +55,7 @@ export function PostCard({ post }: PostCardProps) {
 
 				{/* Attachments */}
 				{post.attachments.length > 0 && (
-					<div className="mt-4 space-y-2">
+					<div className="mt-3 space-y-1.5">
 						{post.attachments.map((att) => (
 							<div
 								key={att.id}
@@ -94,7 +82,7 @@ export function PostCard({ post }: PostCardProps) {
 						))}
 					</div>
 				)}
-			</div>
-		</div>
+			</CardContent>
+		</Card>
 	);
 }
