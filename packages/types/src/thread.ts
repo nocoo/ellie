@@ -21,9 +21,18 @@ const SPECIAL_BADGES: Record<number, { label: string; variant: ThreadBadge["vari
 	5: { label: "辩论", variant: "default" },
 };
 
-/** Compute display badges for a thread (sticky, digest, closed, special). */
+/** Compute display badges for a thread (typeName, sticky, digest, closed, special). */
 export function getThreadBadges(thread: Thread): ThreadBadge[] {
 	const badges: ThreadBadge[] = [];
+
+	// Type classification badge (shown first, before sticky/digest)
+	if (thread.typeName) {
+		badges.push({
+			type: "typeName",
+			label: thread.typeName,
+			variant: "secondary",
+		});
+	}
 
 	// Sticky badges (mutually exclusive levels)
 	if (thread.sticky === StickyLevel.Global)

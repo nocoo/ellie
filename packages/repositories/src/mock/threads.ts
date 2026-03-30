@@ -23,6 +23,7 @@ export const MOCK_THREADS: Thread[] = [
 		special: 0,
 		highlight: 0xff0000 | (1 << 24), // red + bold
 		recommends: 32,
+		typeName: "",
 	},
 	{
 		id: 50005,
@@ -41,6 +42,7 @@ export const MOCK_THREADS: Thread[] = [
 		special: 4, // 活动
 		highlight: 0,
 		recommends: 8,
+		typeName: "",
 	},
 	{
 		id: 50006,
@@ -59,6 +61,7 @@ export const MOCK_THREADS: Thread[] = [
 		special: 0,
 		highlight: 0,
 		recommends: 15,
+		typeName: "",
 	},
 
 	// Forum 11 — 学习交流
@@ -79,6 +82,7 @@ export const MOCK_THREADS: Thread[] = [
 		special: 0,
 		highlight: 0x336699 | (1 << 24) | (1 << 25), // brand blue + bold + italic
 		recommends: 67,
+		typeName: "",
 	},
 	{
 		id: 50007,
@@ -97,6 +101,7 @@ export const MOCK_THREADS: Thread[] = [
 		special: 0,
 		highlight: 0,
 		recommends: 23,
+		typeName: "求助",
 	},
 
 	// Forum 20 — 编程开发
@@ -117,6 +122,7 @@ export const MOCK_THREADS: Thread[] = [
 		special: 0,
 		highlight: 0,
 		recommends: 19,
+		typeName: "",
 	},
 	{
 		id: 50012,
@@ -135,6 +141,7 @@ export const MOCK_THREADS: Thread[] = [
 		special: 0,
 		highlight: 0,
 		recommends: 2,
+		typeName: "求助",
 	},
 
 	// Closed thread
@@ -155,6 +162,7 @@ export const MOCK_THREADS: Thread[] = [
 		special: 0,
 		highlight: 0,
 		recommends: -3,
+		typeName: "",
 	},
 
 	// Special type threads
@@ -175,6 +183,7 @@ export const MOCK_THREADS: Thread[] = [
 		special: 1, // 投票
 		highlight: 0,
 		recommends: 25,
+		typeName: "",
 	},
 	{
 		id: 50021,
@@ -193,5 +202,6 @@ export const MOCK_THREADS: Thread[] = [
 		special: 2, // 交易
 		highlight: 0,
 		recommends: 1,
+		typeName: "",
 	},
 ];
