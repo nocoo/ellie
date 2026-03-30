@@ -3,10 +3,12 @@
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
 import { PostCard } from "@/components/forum/post-card";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Card, CardContent } from "@/components/ui/card";
+import { buildThreadBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import { type ThreadDetailData, loadThreadDetail } from "@/viewmodels/forum/thread-detail.server";
 import { formatStat, formatTime } from "@/viewmodels/forum/thread-list";
-import { type Thread, getThreadBadges } from "@ellie/types";
+import { type Thread, findForumAncestors, getThreadBadges } from "@ellie/types";
 import Link from "next/link";
 
 interface ThreadDetailPageProps {
@@ -32,6 +34,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 		error = e instanceof Error ? e.message : "Failed to load thread";
 		data = {
 			thread: null as unknown as Thread,
+			forums: [],
 			posts: [],
 			nextCursor: null,
 			prevCursor: null,
@@ -51,9 +54,18 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 	}
 
 	const badges = getThreadBadges(data.thread);
+	const ancestors = findForumAncestors(data.forums, data.thread.forumId);
+	const breadcrumbs = buildThreadBreadcrumbs(ancestors, data.thread.subject);
 
 	return (
 		<div className="space-y-3">
+			{/* Breadcrumbs */}
+			{breadcrumbs.length > 1 && (
+				<div className="py-2">
+					<Breadcrumbs items={breadcrumbs} />
+				</div>
+			)}
+
 			{/* Thread header */}
 			<Card size="sm">
 				<CardContent className="pt-3">

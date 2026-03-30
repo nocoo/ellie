@@ -4,11 +4,14 @@ import { PagePagination } from "@/components/forum/page-pagination";
 import { SafeHtml } from "@/components/forum/safe-html";
 import { ThreadItem } from "@/components/forum/thread-item";
 import { ThreadListHeader } from "@/components/forum/thread-list-header";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Card, CardContent } from "@/components/ui/card";
+import { buildForumBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import {
 	type ThreadListPagedData,
 	loadThreadListPaged,
 } from "@/viewmodels/forum/thread-list.server";
+import { findForumAncestors } from "@ellie/types";
 
 interface ForumThreadsPageProps {
 	params: Promise<{ id: string }>;
@@ -28,13 +31,21 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 		data = await loadThreadListPaged({ forumId, page });
 	} catch (e) {
 		error = e instanceof Error ? e.message : "Failed to load threads";
-		data = { forum: null, items: [], page: 1, pages: 1, total: 0, limit: 100 };
+		data = { forum: null, forums: [], items: [], page: 1, pages: 1, total: 0, limit: 100 };
 	}
 
 	const basePath = `/forums/${forumId}`;
+	const ancestors = findForumAncestors(data.forums, forumId);
+	const breadcrumbs = buildForumBreadcrumbs(ancestors);
 
 	return (
 		<div className="space-y-2">
+			{/* Breadcrumbs */}
+			{breadcrumbs.length > 1 && (
+				<div className="py-2">
+					<Breadcrumbs items={breadcrumbs} />
+				</div>
+			)}
 			{/* Forum header */}
 			{data.forum && (
 				<div>

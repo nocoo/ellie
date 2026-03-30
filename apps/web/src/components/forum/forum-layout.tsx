@@ -1,10 +1,9 @@
 // components/forum/forum-layout.tsx — Forum layout shell
-// Ref: 04f §3 — single navbar + width-container + inline breadcrumbs + compact footer
+// Ref: 04f §3 — single navbar + width-container + compact footer
 
 "use client";
 
 import type { ReactNode } from "react";
-import { ForumBreadcrumbs } from "./forum-breadcrumbs";
 import { ForumNavbar } from "./forum-navbar";
 import { SiteFooter } from "./site-footer";
 
@@ -18,7 +17,6 @@ export function ForumLayoutShell({ children }: ForumLayoutShellProps) {
 			<ForumNavbar />
 			<main className="flex-1">
 				<div className="width-container">
-					<ForumBreadcrumbs />
 					<div className="py-4">{children}</div>
 				</div>
 			</main>
