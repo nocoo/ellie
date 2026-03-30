@@ -1,5 +1,5 @@
-// components/forum/thread-item.tsx — Single-line dense thread row
-// Ref: 04f §6 — badges + title + author/time + stats on one line
+// components/forum/thread-item.tsx — Discuz classic 4-column table row
+// Columns: Subject | Author | Replies/Views | Last Post
 
 import {
 	type ThreadDisplayItem,
@@ -18,25 +18,44 @@ export function ThreadItem({ item }: ThreadItemProps) {
 	const { thread, badges, highlight: hl } = item;
 
 	return (
-		<div className="flex items-center gap-2 py-1.5 border-b border-border/50 last:border-0 transition-colors hover:bg-accent/50">
-			{badges.length > 0 && <ThreadBadgeList badges={badges} />}
-			<Link
-				href={`/threads/${thread.id}`}
-				className="min-w-0 flex-1 truncate text-sm text-foreground hover:text-primary transition-colors"
-				style={highlightStyle(hl)}
-			>
-				{thread.subject}
-			</Link>
-			<div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground shrink-0">
-				<Link href={`/users/${thread.authorId}`} className="hover:text-primary transition-colors">
+		<div className="flex items-center border-b border-border/50 last:border-0 transition-colors hover:bg-accent/50">
+			{/* Column 1: Subject (flex) */}
+			<div className="min-w-0 flex-1 flex items-center gap-2 py-2 px-3">
+				{badges.length > 0 && <ThreadBadgeList badges={badges} />}
+				<Link
+					href={`/threads/${thread.id}`}
+					className="min-w-0 flex-1 truncate text-sm text-foreground hover:text-primary transition-colors"
+					style={highlightStyle(hl)}
+				>
+					{thread.subject}
+				</Link>
+			</div>
+
+			{/* Column 2: Author (fixed) */}
+			<div className="hidden sm:flex flex-col items-center justify-center w-[100px] shrink-0 py-2 text-center">
+				<Link
+					href={`/users/${thread.authorId}`}
+					className="text-xs text-foreground hover:text-primary transition-colors truncate max-w-full"
+				>
 					{thread.authorName}
 				</Link>
-				<span>·</span>
-				<span>{formatTime(thread.createdAt)}</span>
+				<span className="text-[11px] text-muted-foreground">{formatTime(thread.createdAt)}</span>
 			</div>
-			<div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0 tabular-nums">
-				<span>{formatStat(thread.views)} 览</span>
-				<span>{formatStat(thread.replies)} 回</span>
+
+			{/* Column 3: Replies / Views (fixed) */}
+			<div className="hidden sm:flex flex-col items-center justify-center w-[80px] shrink-0 py-2 text-center tabular-nums">
+				<span className="text-xs text-foreground">{formatStat(thread.replies)}</span>
+				<span className="text-[11px] text-muted-foreground">{formatStat(thread.views)}</span>
+			</div>
+
+			{/* Column 4: Last Post (fixed) */}
+			<div className="hidden sm:flex flex-col items-center justify-center w-[120px] shrink-0 py-2 text-center">
+				<span className="text-xs text-foreground truncate max-w-full">
+					{thread.lastPoster || "-"}
+				</span>
+				<span className="text-[11px] text-muted-foreground">
+					{thread.lastPostAt ? formatTime(thread.lastPostAt) : "-"}
+				</span>
 			</div>
 		</div>
 	);

@@ -4,7 +4,6 @@ import {
 	formatStat,
 	formatTime,
 	highlightStyle,
-	sortLabel,
 } from "../../../../apps/web/src/viewmodels/forum/thread-list";
 import { decodeHighlight } from "../../../../packages/types/src/thread";
 import type { Thread } from "../../../../packages/types/src/types";
@@ -132,18 +131,6 @@ describe("highlightStyle", () => {
 	it("returns undefined for highlight with no properties", () => {
 		// highlight with all zeros but somehow non-null (shouldn't happen from decodeHighlight)
 		expect(highlightStyle(null)).toBeUndefined();
-	});
-});
-
-// ---------------------------------------------------------------------------
-// sortLabel
-// ---------------------------------------------------------------------------
-
-describe("sortLabel", () => {
-	it("returns correct labels", () => {
-		expect(sortLabel("latest")).toBe("最新回复");
-		expect(sortLabel("newest")).toBe("最新发布");
-		expect(sortLabel("hot")).toBe("热门");
 	});
 });
 
