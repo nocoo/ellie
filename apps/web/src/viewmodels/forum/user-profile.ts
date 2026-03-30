@@ -82,3 +82,51 @@ export function resolveTab(raw: string | undefined): ProfileTab {
 	if (raw === "posts") return "posts";
 	return "threads";
 }
+
+// ---------------------------------------------------------------------------
+// Profile info formatting
+// ---------------------------------------------------------------------------
+
+/** Format gender number to display label. */
+export function formatGender(gender: number): string | null {
+	switch (gender) {
+		case 1:
+			return "男";
+		case 2:
+			return "女";
+		default:
+			return null;
+	}
+}
+
+/** Format birthday from year/month/day. Returns null if all zeroes. */
+export function formatBirthday(year: number, month: number, day: number): string | null {
+	if (year === 0 && month === 0 && day === 0) return null;
+	const parts: string[] = [];
+	if (year > 0) parts.push(`${year}年`);
+	if (month > 0) parts.push(`${month}月`);
+	if (day > 0) parts.push(`${day}日`);
+	return parts.join("") || null;
+}
+
+/** Format location from province/city. Returns null if both empty. */
+export function formatLocation(province: string, city: string): string | null {
+	const p = province.trim();
+	const c = city.trim();
+	if (!p && !c) return null;
+	if (p && c) return `${p} ${c}`;
+	return p || c;
+}
+
+/** Format online time in hours to a human-readable string. */
+export function formatOlTime(hours: number): string | null {
+	if (hours <= 0) return null;
+	return `${hours.toLocaleString()} 小时`;
+}
+
+/** Format Unix timestamp to relative or absolute date. */
+export function formatLastActivity(timestamp: number): string | null {
+	if (timestamp <= 0) return null;
+	const date = new Date(timestamp * 1000);
+	return date.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
+}
