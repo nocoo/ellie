@@ -86,10 +86,10 @@ export async function loadThreadListPaged(params: {
 	return {
 		forum,
 		items: enrichThreads(threadsRes.data),
-		page: threadsRes.meta.page,
-		pages: threadsRes.meta.pages,
-		total: threadsRes.meta.total,
-		limit: threadsRes.meta.limit,
+		page: threadsRes.meta.page ?? page,
+		pages: threadsRes.meta.pages ?? 1,
+		total: threadsRes.meta.total ?? 0,
+		limit: threadsRes.meta.limit ?? limit,
 	};
 }
 
