@@ -79,7 +79,6 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 						</Link>
 					</div>
 					<div>注册时间: {formatDate(author.regDate)}</div>
-					<div>精华: 0</div>
 				</div>
 			)}
 

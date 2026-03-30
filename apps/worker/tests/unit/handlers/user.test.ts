@@ -20,6 +20,7 @@ describe("user handlers", () => {
 		reg_date: 1711540800,
 		threads: 10,
 		posts: 50,
+		credits: 100,
 		...overrides,
 	});
 
@@ -39,7 +40,7 @@ describe("user handlers", () => {
 			expect(response.status).toBe(200);
 			const data = await response.json();
 
-			// Verify camelCase mapping — PublicUser model (7 fields only)
+			// Verify camelCase mapping — PublicUser model (8 fields)
 			expect(data.data.id).toBe(123);
 			expect(data.data.username).toBe("testuser");
 			expect(data.data.avatar).toBe("avatar.png");
@@ -47,12 +48,12 @@ describe("user handlers", () => {
 			expect(data.data.regDate).toBe(1711540800);
 			expect(data.data.threads).toBe(10);
 			expect(data.data.posts).toBe(50);
+			expect(data.data.credits).toBe(100);
 
 			// PublicUser should NOT contain sensitive fields
 			expect(data.data.email).toBeUndefined();
 			expect(data.data.status).toBeUndefined();
 			expect(data.data.lastLogin).toBeUndefined();
-			expect(data.data.credits).toBeUndefined();
 
 			// No snake_case leaks
 			expect(data.data.reg_date).toBeUndefined();
@@ -105,11 +106,11 @@ describe("user handlers", () => {
 			expect(sql).toContain("reg_date");
 			expect(sql).toContain("threads");
 			expect(sql).toContain("posts");
+			expect(sql).toContain("credits");
 			// Should NOT contain sensitive columns
 			expect(sql).not.toContain("email");
 			expect(sql).not.toContain("status");
 			expect(sql).not.toContain("last_login");
-			expect(sql).not.toContain("credits");
 			expect(sql).not.toContain("password_hash");
 			expect(sql).not.toContain("password_salt");
 		});
