@@ -26,7 +26,7 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 	const isFirst = post.isFirst || post.position === 1;
 
 	return (
-		<Card size="sm" className="overflow-hidden">
+		<Card size="sm" className="overflow-hidden !py-0 !gap-0">
 			{/* Desktop: two-column layout */}
 			<div className="hidden md:flex flex-row">
 				<PostSidebar
