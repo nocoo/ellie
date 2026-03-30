@@ -27,6 +27,24 @@ interface D1UserRow {
 	posts: number;
 	credits: number;
 	signature: string;
+	group_title: string;
+	group_stars: number;
+	group_color: string;
+	custom_title: string;
+	digest_posts: number;
+	ol_time: number;
+	gender: number;
+	birth_year: number;
+	birth_month: number;
+	birth_day: number;
+	reside_province: string;
+	reside_city: string;
+	graduate_school: string;
+	bio: string;
+	interest: string;
+	qq: string;
+	site: string;
+	last_activity: number;
 	// Sensitive fields (never exposed):
 	// password_hash, password_salt
 }
@@ -67,6 +85,7 @@ interface D1ThreadRow {
 	special: number;
 	highlight: number;
 	recommends: number;
+	type_name: string;
 	// Internal field (never exposed):
 	// post_table_id
 }
@@ -103,6 +122,24 @@ export function toUser(row: Record<string, unknown>): User {
 		posts: r.posts,
 		credits: r.credits,
 		signature: r.signature,
+		groupTitle: r.group_title,
+		groupStars: r.group_stars,
+		groupColor: r.group_color,
+		customTitle: r.custom_title,
+		digestPosts: r.digest_posts,
+		olTime: r.ol_time,
+		gender: r.gender,
+		birthYear: r.birth_year,
+		birthMonth: r.birth_month,
+		birthDay: r.birth_day,
+		resideProvince: r.reside_province,
+		resideCity: r.reside_city,
+		graduateSchool: r.graduate_school,
+		bio: r.bio,
+		interest: r.interest,
+		qq: r.qq,
+		site: r.site,
+		lastActivity: r.last_activity,
 	};
 }
 
@@ -147,6 +184,7 @@ export function toThread(row: Record<string, unknown>): Thread {
 		special: r.special,
 		highlight: r.highlight,
 		recommends: r.recommends,
+		typeName: r.type_name,
 	};
 }
 
@@ -267,6 +305,13 @@ export function toPublicUser(row: Record<string, unknown>): PublicUser {
 		posts: r.posts,
 		credits: r.credits,
 		signature: r.signature,
+		groupTitle: r.group_title,
+		groupStars: r.group_stars,
+		groupColor: r.group_color,
+		customTitle: r.custom_title,
+		digestPosts: r.digest_posts,
+		olTime: r.ol_time,
+		lastActivity: r.last_activity,
 	};
 }
 

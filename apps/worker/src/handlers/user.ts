@@ -7,7 +7,7 @@ import { errorResponse } from "../middleware/error";
 
 /** Explicit PublicUser columns — never SELECT * to avoid leaking sensitive fields */
 const PUBLIC_USER_COLUMNS =
-	"id, username, avatar, role, reg_date, threads, posts, credits, signature";
+	"id, username, avatar, role, reg_date, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, last_activity";
 
 /** Default/max page sizes for user history endpoints */
 const DEFAULT_HISTORY_LIMIT = 20;
