@@ -17,7 +17,7 @@ interface PostContentProps {
 
 export function PostContent({ post, isFirst, threadDigest }: PostContentProps) {
 	return (
-		<div className="flex-1 min-w-0 py-3 px-3 md:px-4">
+		<div className="flex-1 min-w-0 p-3">
 			{/* Top meta bar */}
 			<div className="flex items-center gap-2 pb-2 border-b border-border/50 text-xs text-muted-foreground">
 				<span>发表于 {formatDateTime(post.createdAt)}</span>

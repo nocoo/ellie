@@ -23,10 +23,10 @@ function authorInitials(name: string): string {
 
 export function PostSidebar({ author, isFirst, threadViews, threadReplies }: PostSidebarProps) {
 	return (
-		<div className="hidden md:flex w-44 shrink-0 flex-col items-center gap-2 py-3 px-2 text-center">
+		<div className="hidden md:flex w-40 shrink-0 flex-col items-center gap-1.5 p-3 text-center">
 			{/* First-post header: views / replies */}
 			{isFirst && threadViews !== undefined && threadReplies !== undefined && (
-				<div className="w-full rounded bg-muted/50 px-2 py-1 text-xs text-muted-foreground">
+				<div className="w-full rounded bg-muted/50 px-2 py-0.5 text-[10px] text-muted-foreground">
 					查看: {formatStat(threadViews)} | 回复: {formatStat(threadReplies)}
 				</div>
 			)}
@@ -35,18 +35,18 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 			{author ? (
 				<Link
 					href={`/users/${author.id}`}
-					className="text-sm font-medium text-primary hover:underline"
+					className="text-xs font-medium text-primary hover:underline"
 				>
 					{author.username}
 				</Link>
 			) : (
-				<span className="text-sm text-muted-foreground">未知用户</span>
+				<span className="text-xs text-muted-foreground">未知用户</span>
 			)}
 
-			{/* Avatar 80x80 */}
+			{/* Avatar 60x60 */}
 			<Link href={author ? `/users/${author.id}` : "#"}>
-				<Avatar className="h-20 w-20 rounded">
-					<AvatarFallback className="text-xl rounded">
+				<Avatar className="h-15 w-15 rounded">
+					<AvatarFallback className="text-base rounded">
 						{author ? authorInitials(author.username) : "?"}
 					</AvatarFallback>
 				</Avatar>
@@ -59,11 +59,11 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 				</Badge>
 			)}
 
-			<Separator className="my-1" />
+			<Separator />
 
 			{/* Stats grid */}
 			{author && (
-				<div className="grid w-full grid-cols-3 gap-1 text-[10px] text-muted-foreground">
+				<div className="grid w-full grid-cols-3 gap-0.5 text-[10px] text-muted-foreground">
 					<div>
 						<div className="font-medium text-foreground">{author.threads.toLocaleString()}</div>
 						<div>主题</div>
@@ -89,9 +89,7 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 
 			{/* Message placeholder link */}
 			{author && (
-				<span className="mt-1 text-[10px] text-primary cursor-pointer hover:underline">
-					[发消息]
-				</span>
+				<span className="text-[10px] text-primary cursor-pointer hover:underline">[发消息]</span>
 			)}
 		</div>
 	);
