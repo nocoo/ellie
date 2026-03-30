@@ -1,6 +1,7 @@
 // Ref: 04f §6 — RSC page, inline ThreadItem + KeysetPagination
 
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
+import { SafeHtml } from "@/components/forum/safe-html";
 import { ThreadItem } from "@/components/forum/thread-item";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { sortLabel } from "@/viewmodels/forum/thread-list";
@@ -41,7 +42,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 						<div className="flex items-center gap-4 text-xs text-muted-foreground">
 							{data.forum.description && (
 								<>
-									<span>{data.forum.description}</span>
+									<SafeHtml html={data.forum.description} />
 									<span>·</span>
 								</>
 							)}
