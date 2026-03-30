@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import "./tailwind.css";
 import { Providers } from "@/components/providers";
 import { themeInitScript } from "@/hooks/use-theme";
+import { widthModeInitScript } from "@/hooks/use-width-mode";
 import { cn } from "@/lib/utils";
 import { DM_Sans, Inter } from "next/font/google";
 
@@ -20,6 +21,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 			<head>
 				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: FOUC prevention must be inline script */}
 				<script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: width mode must be set before first paint */}
+				<script dangerouslySetInnerHTML={{ __html: widthModeInitScript }} />
 			</head>
 			<body>
 				<Providers>{children}</Providers>
