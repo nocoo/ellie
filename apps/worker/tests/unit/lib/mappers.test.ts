@@ -104,6 +104,7 @@ describe("D1 row mappers", () => {
 				last_thread_id: 42,
 				last_post_at: 1711540800,
 				last_poster: "bob",
+				last_thread_subject: "Hello World",
 			};
 
 			const forum = toForum(row);
@@ -113,9 +114,10 @@ describe("D1 row mappers", () => {
 			expect(forum.lastThreadId).toBe(42);
 			expect(forum.lastPostAt).toBe(1711540800);
 			expect(forum.lastPoster).toBe("bob");
+			expect(forum.lastThreadSubject).toBe("Hello World");
 		});
 
-		it("should output exactly 13 fields", () => {
+		it("should output exactly 14 fields", () => {
 			const row = {
 				id: 1,
 				parent_id: 0,
@@ -130,10 +132,11 @@ describe("D1 row mappers", () => {
 				last_thread_id: 0,
 				last_post_at: 0,
 				last_poster: "",
+				last_thread_subject: "",
 			};
 
 			const forum = toForum(row);
-			expect(Object.keys(forum)).toHaveLength(13);
+			expect(Object.keys(forum)).toHaveLength(14);
 		});
 	});
 

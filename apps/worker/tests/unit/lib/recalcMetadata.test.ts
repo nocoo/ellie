@@ -7,8 +7,9 @@ describe("recalcMetadata", () => {
 		it("should update forum with latest thread info", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"SELECT id, last_post_at, last_poster FROM threads": {
+					"SELECT id, subject, last_post_at, last_poster FROM threads": {
 						id: 42,
+						subject: "Latest thread",
 						last_post_at: 1700000000,
 						last_poster: "alice",
 					},
@@ -20,13 +21,13 @@ describe("recalcMetadata", () => {
 
 			const updateCall = calls.find((c) => c.sql.includes("UPDATE forums SET last_thread_id"));
 			expect(updateCall).toBeDefined();
-			expect(updateCall?.params).toEqual([42, 1700000000, "alice", 1]);
+			expect(updateCall?.params).toEqual([42, 1700000000, "alice", "Latest thread", 1]);
 		});
 
 		it("should reset forum metadata when no threads remain", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"SELECT id, last_post_at, last_poster FROM threads": null,
+					"SELECT id, subject, last_post_at, last_poster FROM threads": null,
 				},
 			});
 			const env = makeEnv({ DB: db });
@@ -35,7 +36,7 @@ describe("recalcMetadata", () => {
 
 			const updateCall = calls.find((c) => c.sql.includes("UPDATE forums SET last_thread_id"));
 			expect(updateCall).toBeDefined();
-			expect(updateCall?.params).toEqual([0, 0, "", 5]);
+			expect(updateCall?.params).toEqual([0, 0, "", "", 5]);
 		});
 	});
 

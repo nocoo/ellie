@@ -45,6 +45,7 @@ interface D1ForumRow {
 	last_thread_id: number;
 	last_post_at: number;
 	last_poster: string;
+	last_thread_subject: string;
 }
 
 /** D1 row shape for threads table */
@@ -120,6 +121,7 @@ export function toForum(row: Record<string, unknown>): Forum {
 		lastThreadId: r.last_thread_id,
 		lastPostAt: r.last_post_at,
 		lastPoster: r.last_poster,
+		lastThreadSubject: r.last_thread_subject,
 	};
 }
 

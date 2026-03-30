@@ -48,12 +48,14 @@ export function parseLastPost(lastpost: string | null): {
 	lastThreadId: number;
 	lastPostAt: number;
 	lastPoster: string;
+	lastThreadSubject: string;
 } {
-	if (!lastpost) return { lastThreadId: 0, lastPostAt: 0, lastPoster: "" };
+	if (!lastpost) return { lastThreadId: 0, lastPostAt: 0, lastPoster: "", lastThreadSubject: "" };
 
 	const parts = lastpost.split("\t");
 	return {
 		lastThreadId: Number.parseInt(parts[0] ?? "0", 10) || 0,
+		lastThreadSubject: parts[1] ?? "",
 		lastPostAt: Number.parseInt(parts[2] ?? "0", 10) || 0,
 		lastPoster: parts[3] ?? "",
 	};
@@ -88,6 +90,7 @@ export function extractForum(
 		last_thread_id: lastpost.lastThreadId,
 		last_post_at: lastpost.lastPostAt,
 		last_poster: lastpost.lastPoster,
+		last_thread_subject: lastpost.lastThreadSubject,
 	};
 }
 

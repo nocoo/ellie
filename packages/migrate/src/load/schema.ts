@@ -20,7 +20,8 @@ export const TABLE_DDL: string[] = [
   status          INTEGER NOT NULL DEFAULT 1,
   last_thread_id  INTEGER NOT NULL DEFAULT 0,
   last_post_at    INTEGER NOT NULL DEFAULT 0,
-  last_poster     TEXT    NOT NULL DEFAULT ''
+  last_poster     TEXT    NOT NULL DEFAULT '',
+  last_thread_subject TEXT NOT NULL DEFAULT ''
 )`,
 
 	`CREATE TABLE IF NOT EXISTS users (
@@ -125,6 +126,7 @@ export const TABLE_COLUMNS: Record<TableName, string[]> = {
 		"last_thread_id",
 		"last_post_at",
 		"last_poster",
+		"last_thread_subject",
 	],
 	users: [
 		"id",
