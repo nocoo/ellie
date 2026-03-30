@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
-import { getById } from "../../../src/handlers/user";
+import { getById, listPosts, listThreads } from "../../../src/handlers/user";
 import type { Env } from "../../../src/lib/env";
 
 describe("user handlers", () => {
@@ -189,6 +189,152 @@ describe("user handlers", () => {
 			);
 
 			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
+		});
+	});
+
+	describe("listThreads", () => {
+		const makeD1ThreadRows = () => [
+			{
+				id: 100,
+				forum_id: 1,
+				author_id: 123,
+				author_name: "testuser",
+				subject: "Thread One",
+				created_at: 1711540800,
+				last_post_at: 1711544400,
+				last_poster: "bob",
+				replies: 5,
+				views: 100,
+				closed: 0,
+				sticky: 0,
+				digest: 0,
+				special: 0,
+				highlight: 0,
+				recommends: 0,
+				post_table_id: 1,
+			},
+		];
+
+		it("should return threads for a valid user", async () => {
+			const rows = makeD1ThreadRows();
+			const allSpy = mock(() => Promise.resolve({ results: rows }));
+			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await listThreads(
+				new Request("https://example.com/api/v1/users/123/threads"),
+				env,
+			);
+
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.data).toHaveLength(1);
+			expect(data.data[0].id).toBe(100);
+			expect(data.data[0].subject).toBe("Thread One");
+			expect(data.data[0].forumId).toBe(1);
+			expect(data.meta.nextCursor).toBeNull(); // only 1 result, limit 20
+		});
+
+		it("should return empty array when user has no threads", async () => {
+			const allSpy = mock(() => Promise.resolve({ results: [] }));
+			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await listThreads(
+				new Request("https://example.com/api/v1/users/999/threads"),
+				env,
+			);
+
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.data).toEqual([]);
+			expect(data.meta.nextCursor).toBeNull();
+		});
+
+		it("should use keyset WHERE clause when cursor is provided", async () => {
+			const allSpy = mock(() => Promise.resolve({ results: [] }));
+			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const cursor = btoa(JSON.stringify({ createdAt: 1711540800, id: 100 }));
+			await listThreads(
+				new Request(`https://example.com/api/v1/users/123/threads?cursor=${cursor}`),
+				env,
+			);
+
+			const sql = prepareSpy.mock.calls[0][0] as string;
+			expect(sql).toContain("created_at < ?");
+		});
+
+		it("should parse userId from URL path", async () => {
+			const allSpy = mock(() => Promise.resolve({ results: [] }));
+			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			await listThreads(new Request("https://example.com/api/v1/users/456/threads"), env);
+
+			// First bind param should be the userId
+			expect(bindSpy.mock.calls[0][0]).toBe(456);
+		});
+	});
+
+	describe("listPosts", () => {
+		it("should return posts for a valid user", async () => {
+			const rows = [
+				{
+					id: 200,
+					thread_id: 10,
+					forum_id: 1,
+					author_id: 123,
+					author_name: "testuser",
+					content: "<p>Hello</p>",
+					created_at: 1711540800,
+					is_first: 0,
+					position: 2,
+				},
+			];
+			const allSpy = mock(() => Promise.resolve({ results: rows }));
+			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await listPosts(
+				new Request("https://example.com/api/v1/users/123/posts"),
+				env,
+			);
+
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.data).toHaveLength(1);
+			expect(data.data[0].id).toBe(200);
+			expect(data.data[0].threadId).toBe(10);
+			expect(data.data[0].content).toBe("<p>Hello</p>");
+		});
+
+		it("should return empty array when user has no posts", async () => {
+			const allSpy = mock(() => Promise.resolve({ results: [] }));
+			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await listPosts(
+				new Request("https://example.com/api/v1/users/999/posts"),
+				env,
+			);
+
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.data).toEqual([]);
 		});
 	});
 });
