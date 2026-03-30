@@ -52,11 +52,12 @@ export function buildForumTree(forums: Forum[]): ForumTreeNode[] {
 // ─── Visibility Filter ──────────────────────────────────
 
 /**
- * Filter a tree node: remove hidden forums (status=0) and their descendants.
- * Returns true if this node (or any of its children) is visible.
+ * Filter a tree node: remove invisible forums and their descendants.
+ * - status=0: hidden (admin-hidden)
+ * - status=-1: deleted (migrated placeholder)
  */
 export function filterVisibleForums(node: ForumTreeNode): ForumTreeNode | null {
-	if (node.status === 0) return null;
+	if (node.status <= 0) return null;
 
 	const visibleChildren: ForumTreeNode[] = [];
 	for (const child of node.children) {
