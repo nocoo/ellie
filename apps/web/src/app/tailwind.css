@@ -138,7 +138,7 @@
 	--foreground: 0 0% 12%;
 
 	/* L1 content panel */
-	--card: 220 14% 97%;
+	--card: 0 0% 100%;
 	--card-foreground: 0 0% 12%;
 
 	/* L2 inner cards */
