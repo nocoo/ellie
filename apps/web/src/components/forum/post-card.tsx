@@ -1,88 +1,72 @@
-// components/forum/post-card.tsx — Post card with inline author header
-// Ref: 04f §7 — removed 120px sidebar, author info as compact header row
+// components/forum/post-card.tsx — Discuz classic two-column post card
+// Desktop: left sidebar (user info) + vertical separator + right content
+// Mobile: compact header row + content
 
+import { PostContent } from "@/components/forum/post-content";
+import { PostSidebar } from "@/components/forum/post-sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Card, CardContent } from "@/components/ui/card";
-import { type EnrichedPost, floorLabel, formatFileSize } from "@/viewmodels/forum/thread-detail";
+import { Card } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { type EnrichedPost, floorLabel } from "@/viewmodels/forum/thread-detail";
 import { formatTime } from "@/viewmodels/forum/thread-list";
 import Link from "next/link";
 
 interface PostCardProps {
 	post: EnrichedPost;
+	threadViews?: number;
+	threadReplies?: number;
+	threadDigest?: number;
 }
 
 function authorInitials(name: string): string {
 	return name.slice(0, 2).toUpperCase();
 }
 
-export function PostCard({ post }: PostCardProps) {
+export function PostCard({ post, threadViews, threadReplies, threadDigest }: PostCardProps) {
 	const isFirst = post.isFirst || post.position === 1;
 
 	return (
-		<Card size="sm">
-			<CardContent className="pt-3">
-				{/* Author + meta header */}
-				<div className="flex items-center gap-2 pb-2 border-b border-border/50">
+		<Card size="sm" className="overflow-hidden">
+			{/* Desktop: two-column layout */}
+			<div className="hidden md:flex flex-row">
+				<PostSidebar
+					author={post.author}
+					isFirst={isFirst}
+					threadViews={threadViews}
+					threadReplies={threadReplies}
+				/>
+				<Separator orientation="vertical" />
+				<PostContent post={post} isFirst={isFirst} threadDigest={threadDigest} />
+			</div>
+
+			{/* Mobile: compact single-column layout */}
+			<div className="md:hidden">
+				{/* Compact header row */}
+				<div className="flex items-center gap-2 px-3 pt-3 pb-2 border-b border-border/50">
 					<Link href={`/users/${post.authorId}`}>
-						<Avatar className="h-6 w-6">
-							<AvatarFallback className="text-[10px]">
+						<Avatar className="h-8 w-8">
+							<AvatarFallback className="text-xs">
 								{post.author ? authorInitials(post.author.username) : "?"}
 							</AvatarFallback>
 						</Avatar>
 					</Link>
-					<Link
-						href={`/users/${post.authorId}`}
-						className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-					>
-						{post.author?.username ?? "未知用户"}
-					</Link>
-					<span className="text-xs text-muted-foreground">{formatTime(post.createdAt)}</span>
-					{post.author && (
-						<span className="hidden sm:inline text-[10px] text-muted-foreground">
-							帖子 {post.author.posts.toLocaleString()}
-						</span>
-					)}
-					<span className="ml-auto text-xs font-medium text-muted-foreground">
+					<div className="flex flex-col min-w-0">
+						<Link
+							href={`/users/${post.authorId}`}
+							className="text-sm font-medium text-foreground hover:text-primary transition-colors truncate"
+						>
+							{post.author?.username ?? "未知用户"}
+						</Link>
+						<span className="text-[10px] text-muted-foreground">{formatTime(post.createdAt)}</span>
+					</div>
+					<span className="ml-auto text-xs font-medium text-muted-foreground shrink-0">
 						{floorLabel(post.position, isFirst)}
 					</span>
 				</div>
 
-				{/* Post content */}
-				<div
-					className="mt-3 prose prose-sm max-w-none text-foreground"
-					dangerouslySetInnerHTML={{ __html: post.content }}
-				/>
-
-				{/* Attachments */}
-				{post.attachments.length > 0 && (
-					<div className="mt-3 space-y-1.5">
-						{post.attachments.map((att) => (
-							<div
-								key={att.id}
-								className="flex items-center gap-2 rounded-lg bg-background p-2 text-xs"
-							>
-								{att.isImage ? (
-									<a href={att.filePath} target="_blank" rel="noopener noreferrer">
-										<img
-											src={att.hasThumb ? `${att.filePath}.thumb.jpg` : att.filePath}
-											alt={att.filename}
-											className="max-h-20 rounded"
-										/>
-									</a>
-								) : (
-									<>
-										<span className="text-muted-foreground">📎</span>
-										<span className="truncate">{att.filename}</span>
-										<span className="text-muted-foreground shrink-0">
-											{formatFileSize(att.fileSize)}
-										</span>
-									</>
-								)}
-							</div>
-						))}
-					</div>
-				)}
-			</CardContent>
+				{/* Content (reuse PostContent, no meta bar duplication needed for mobile) */}
+				<PostContent post={post} isFirst={isFirst} threadDigest={threadDigest} />
+			</div>
 		</Card>
 	);
 }

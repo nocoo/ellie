@@ -93,3 +93,18 @@ export function formatFileSize(bytes: number): string {
 	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
 	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+/** Absolute date "2003-7-14" (no zero-padding, Chinese locale style). */
+export function formatDate(timestamp: number): string {
+	if (timestamp === 0) return "";
+	const d = new Date(timestamp * 1000);
+	return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+/** Absolute date-time "2013-5-19 23:40" (no zero-padding). */
+export function formatDateTime(timestamp: number): string {
+	if (timestamp === 0) return "";
+	const d = new Date(timestamp * 1000);
+	const m = d.getMinutes().toString().padStart(2, "0");
+	return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()} ${d.getHours()}:${m}`;
+}

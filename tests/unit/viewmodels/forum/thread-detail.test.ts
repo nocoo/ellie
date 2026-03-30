@@ -2,6 +2,8 @@ import { describe, expect, it } from "bun:test";
 import {
 	enrichPosts,
 	floorLabel,
+	formatDate,
+	formatDateTime,
 	formatFileSize,
 	groupAttachmentsByPostId,
 	uniqueAuthorIds,
@@ -182,5 +184,54 @@ describe("formatFileSize", () => {
 	it("formats megabytes", () => {
 		expect(formatFileSize(1048576)).toBe("1.0 MB");
 		expect(formatFileSize(2621440)).toBe("2.5 MB");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// formatDate
+// ---------------------------------------------------------------------------
+
+describe("formatDate", () => {
+	it("returns empty string for zero timestamp", () => {
+		expect(formatDate(0)).toBe("");
+	});
+
+	it("formats timestamp to absolute date without zero-padding", () => {
+		// 2003-07-14 00:00:00 UTC
+		const ts = new Date(2003, 6, 14).getTime() / 1000;
+		expect(formatDate(ts)).toBe("2003-7-14");
+	});
+
+	it("formats single-digit month and day", () => {
+		// 2020-01-05 00:00:00
+		const ts = new Date(2020, 0, 5).getTime() / 1000;
+		expect(formatDate(ts)).toBe("2020-1-5");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// formatDateTime
+// ---------------------------------------------------------------------------
+
+describe("formatDateTime", () => {
+	it("returns empty string for zero timestamp", () => {
+		expect(formatDateTime(0)).toBe("");
+	});
+
+	it("formats timestamp to absolute date-time with zero-padded minutes", () => {
+		// 2013-05-19 23:40:00
+		const ts = new Date(2013, 4, 19, 23, 40).getTime() / 1000;
+		expect(formatDateTime(ts)).toBe("2013-5-19 23:40");
+	});
+
+	it("zero-pads single-digit minutes", () => {
+		// 2023-12-01 9:05:00
+		const ts = new Date(2023, 11, 1, 9, 5).getTime() / 1000;
+		expect(formatDateTime(ts)).toBe("2023-12-1 9:05");
+	});
+
+	it("formats midnight correctly", () => {
+		const ts = new Date(2026, 0, 1, 0, 0).getTime() / 1000;
+		expect(formatDateTime(ts)).toBe("2026-1-1 0:00");
 	});
 });

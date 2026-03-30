@@ -52,7 +52,7 @@
 			}
 		},
 		{
-			"include": ["src/components/forum/post-card.tsx"],
+			"include": ["src/components/forum/post-content.tsx"],
 			"linter": {
 				"rules": {
 					"security": {
