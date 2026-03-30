@@ -24,7 +24,7 @@ import type { NextRequest } from "next/server";
  * Exported for testing.
  */
 export function getAllowedOrigins(): string[] {
-	return [process.env.AUTH_URL, "http://localhost:7047", "http://localhost:3000"].filter(
+	return [process.env.AUTH_URL, "http://localhost:7031", "http://localhost:3000"].filter(
 		Boolean,
 	) as string[];
 }
