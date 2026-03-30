@@ -1,5 +1,5 @@
-// components/forum/forum-breadcrumbs.tsx — Forum breadcrumb bar
-// Ref: 04d §Breadcrumbs — Home > Group > Forum > Thread
+// components/forum/forum-breadcrumbs.tsx — Inline forum breadcrumbs
+// Ref: 04f §3 — removed dedicated h-10 bar, now inline within content container
 
 "use client";
 
@@ -15,10 +15,8 @@ export function ForumBreadcrumbs() {
 	if (items.length <= 1) return null;
 
 	return (
-		<div className="h-10 flex items-center bg-background px-4">
-			<div className="mx-auto w-full max-w-[1200px]">
-				<Breadcrumbs items={items} />
-			</div>
+		<div className="py-2">
+			<Breadcrumbs items={items} />
 		</div>
 	);
 }
