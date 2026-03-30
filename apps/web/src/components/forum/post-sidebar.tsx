@@ -1,9 +1,10 @@
 // components/forum/post-sidebar.tsx — Discuz-style left sidebar for desktop
 // Desktop only (hidden md:flex), left-aligned layout matching classic Discuz
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { getAvatarUrl } from "@/lib/avatar";
 import { formatDate } from "@/viewmodels/forum/thread-detail";
 import { formatUserRole, getUserRoleBadgeVariant } from "@/viewmodels/forum/user-profile";
 import type { User } from "@ellie/types";
@@ -37,8 +38,15 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 
 			{/* Avatar */}
 			<Link href={author ? `/users/${author.id}` : "#"} className="mt-1">
-				<Avatar className="h-20 w-20 rounded">
-					<AvatarFallback className="text-xl rounded">
+				<Avatar className="h-20 w-20 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
+					{author && (
+						<AvatarImage
+							src={getAvatarUrl(author.id, "big")}
+							alt={author.username}
+							className="rounded-sm"
+						/>
+					)}
+					<AvatarFallback className="text-xl rounded-sm">
 						{author ? authorInitials(author.username) : "?"}
 					</AvatarFallback>
 				</Avatar>
