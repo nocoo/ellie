@@ -1,6 +1,12 @@
 "use client";
 
+// Ref: 04f §11 — Login page with shadcn Card/Input/Button/Label
+
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { canSubmitLogin, loginErrorMessage } from "@/viewmodels/forum/auth";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
@@ -55,69 +61,66 @@ function LoginForm() {
 
 				<div className="w-full max-w-sm">
 					{/* Logo */}
-					<div className="mb-8 text-center">
-						<div className="mx-auto h-16 w-16 rounded-full bg-primary flex items-center justify-center">
-							<span className="text-2xl font-bold text-primary-foreground">E</span>
+					<div className="mb-6 text-center">
+						<div className="mx-auto h-14 w-14 rounded-full bg-primary flex items-center justify-center">
+							<span className="text-xl font-bold text-primary-foreground">E</span>
 						</div>
-						<h1 className="mt-4 text-xl font-semibold text-foreground">Ellie</h1>
+						<h1 className="mt-3 text-lg font-semibold text-foreground">Ellie</h1>
 						<p className="mt-1 text-sm text-muted-foreground">登录论坛</p>
 					</div>
 
-					{/* Login form */}
-					<form onSubmit={handleSubmit} className="space-y-4">
-						{/* Error */}
-						{error && (
-							<div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive text-center">
-								{error}
-							</div>
-						)}
+					{/* Login card */}
+					<Card>
+						<CardHeader className="pb-0">
+							<CardTitle className="text-base text-center">登录</CardTitle>
+						</CardHeader>
+						<CardContent className="pt-4">
+							<form onSubmit={handleSubmit} className="space-y-4">
+								{/* Error */}
+								{error && (
+									<div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive text-center">
+										{error}
+									</div>
+								)}
 
-						{/* Username */}
-						<div className="space-y-1.5">
-							<label htmlFor="username" className="text-sm font-medium text-foreground">
-								用户名
-							</label>
-							<input
-								id="username"
-								type="text"
-								value={username}
-								onChange={(e) => setUsername(e.target.value)}
-								placeholder="请输入用户名"
-								disabled={loading}
-								autoComplete="username"
-								className="h-10 w-full rounded-lg border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-							/>
-						</div>
+								{/* Username */}
+								<div className="space-y-1.5">
+									<Label htmlFor="username">用户名</Label>
+									<Input
+										id="username"
+										type="text"
+										value={username}
+										onChange={(e) => setUsername(e.target.value)}
+										placeholder="请输入用户名"
+										disabled={loading}
+										autoComplete="username"
+									/>
+								</div>
 
-						{/* Password */}
-						<div className="space-y-1.5">
-							<label htmlFor="password" className="text-sm font-medium text-foreground">
-								密码
-							</label>
-							<input
-								id="password"
-								type="password"
-								value={password}
-								onChange={(e) => setPassword(e.target.value)}
-								placeholder="请输入密码"
-								disabled={loading}
-								autoComplete="current-password"
-								className="h-10 w-full rounded-lg border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-							/>
-						</div>
+								{/* Password */}
+								<div className="space-y-1.5">
+									<Label htmlFor="password">密码</Label>
+									<Input
+										id="password"
+										type="password"
+										value={password}
+										onChange={(e) => setPassword(e.target.value)}
+										placeholder="请输入密码"
+										disabled={loading}
+										autoComplete="current-password"
+									/>
+								</div>
 
-						{/* Submit */}
-						<button
-							type="submit"
-							disabled={!canSubmit || loading}
-							className="h-10 w-full rounded-lg bg-primary text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-						>
-							{loading ? "登录中..." : "登录"}
-						</button>
-					</form>
+								{/* Submit */}
+								<Button type="submit" disabled={!canSubmit || loading} className="w-full">
+									{loading ? "登录中..." : "登录"}
+								</Button>
+							</form>
+						</CardContent>
+					</Card>
 
 					{/* Footer */}
-					<p className="mt-6 text-center text-xs text-muted-foreground">没有账号？联系管理员</p>
+					<p className="mt-4 text-center text-xs text-muted-foreground">没有账号？联系管理员</p>
 				</div>
 			</div>
 		</div>
