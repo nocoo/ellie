@@ -17,11 +17,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
 	return (
 		<html lang="zh-CN" className={cn(inter.variable, dmSans.variable)} suppressHydrationWarning>
-			<head>
-				{/* FOUC prevention: theme + width-mode applied before first paint */}
-				<Script src="/init.js" strategy="beforeInteractive" />
-			</head>
 			<body>
+				{/* FOUC prevention: theme + width-mode applied before first paint.
+				    Placed in <body> to avoid Next.js 16 script-in-head warning (#83326).
+				    beforeInteractive still guarantees execution before hydration. */}
+				<Script src="/init.js" strategy="beforeInteractive" />
 				<Providers>{children}</Providers>
 			</body>
 		</html>
