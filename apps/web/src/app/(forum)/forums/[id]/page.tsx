@@ -1,15 +1,26 @@
-import { type ThreadSort, sortLabel } from "@/viewmodels/forum/thread-list";
+// Ref: 04f §6 — RSC page, inline ThreadItem + KeysetPagination, sort via searchParams
+
+import { KeysetPagination } from "@/components/forum/keyset-pagination";
+import { ThreadItem } from "@/components/forum/thread-item";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { ThreadSort } from "@/viewmodels/forum/thread-list";
+import { sortLabel } from "@/viewmodels/forum/thread-list";
 import { type ThreadListData, loadThreadList } from "@/viewmodels/forum/thread-list.server";
+import Link from "next/link";
 
 interface ForumThreadsPageProps {
 	params: Promise<{ id: string }>;
 	searchParams: Promise<{ sort?: string; digest?: string; cursor?: string }>;
 }
 
+const SORT_OPTIONS: ThreadSort[] = ["latest", "newest", "hot"];
+
 export default async function ForumThreadsPage({ params, searchParams }: ForumThreadsPageProps) {
 	const { id } = await params;
 	const sp = await searchParams;
 	const forumId = Number.parseInt(id, 10);
+	const currentSort = (sp.sort as ThreadSort) || "latest";
+	const digestOnly = sp.digest === "1";
 
 	let data: ThreadListData;
 	let error: string | null = null;
@@ -17,8 +28,8 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 	try {
 		data = await loadThreadList({
 			forumId,
-			sort: (sp.sort as ThreadSort) || "latest",
-			digestOnly: sp.digest === "1",
+			sort: currentSort,
+			digestOnly,
 			cursor: sp.cursor,
 		});
 	} catch (e) {
@@ -27,19 +38,26 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 	}
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-4">
 			{/* Forum header */}
 			{data.forum && (
-				<div className="rounded-[14px] bg-card p-6">
-					<h1 className="text-xl font-semibold text-foreground">{data.forum.name}</h1>
-					{data.forum.description && (
-						<p className="mt-1 text-sm text-muted-foreground">{data.forum.description}</p>
-					)}
-					<div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-						<span>帖子 {data.forum.threads.toLocaleString()}</span>
-						<span>回帖 {data.forum.posts.toLocaleString()}</span>
-					</div>
-				</div>
+				<Card size="sm">
+					<CardHeader className="pb-0">
+						<CardTitle>{data.forum.name}</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div className="flex items-center gap-4 text-xs text-muted-foreground">
+							{data.forum.description && (
+								<>
+									<span>{data.forum.description}</span>
+									<span>·</span>
+								</>
+							)}
+							<span>帖子 {data.forum.threads.toLocaleString()}</span>
+							<span>回帖 {data.forum.posts.toLocaleString()}</span>
+						</div>
+					</CardContent>
+				</Card>
 			)}
 
 			{error && (
@@ -48,51 +66,65 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 				</div>
 			)}
 
-			{/* Placeholder: thread list with sort/filter UI */}
-			<div className="rounded-[14px] bg-card p-6">
-				<div className="flex items-center justify-between gap-2 mb-4">
-					<div className="flex items-center gap-1 text-sm">
-						<span className="font-medium text-muted-foreground">排序:</span>
-						{(["latest", "newest", "hot"] as const).map((s) => (
-							<span
-								key={s}
-								className={`px-2 py-1 rounded text-xs cursor-pointer transition-colors ${
-									(sp.sort as ThreadSort) === s || (!sp.sort && s === "latest")
-										? "bg-primary text-primary-foreground"
-										: "text-muted-foreground hover:bg-muted"
-								}`}
-							>
-								{sortLabel(s)}
-							</span>
-						))}
+			{/* Thread list card */}
+			<Card>
+				<CardContent className="pt-4">
+					{/* Sort + Filter bar */}
+					<div className="flex items-center justify-between gap-2 pb-3 border-b border-border/50">
+						<div className="flex items-center gap-1">
+							{SORT_OPTIONS.map((option) => (
+								<Link
+									key={option}
+									href={`/forums/${forumId}?sort=${option}${digestOnly ? "&digest=1" : ""}`}
+									className={`inline-flex h-6 items-center rounded-md px-2 text-xs font-medium transition-colors ${
+										currentSort === option
+											? "bg-primary text-primary-foreground"
+											: "text-muted-foreground hover:bg-muted hover:text-foreground"
+									}`}
+								>
+									{sortLabel(option)}
+								</Link>
+							))}
+						</div>
+						<Link
+							href={`/forums/${forumId}?sort=${currentSort}${digestOnly ? "" : "&digest=1"}`}
+							className={`inline-flex h-6 items-center rounded-md px-2 text-xs font-medium transition-colors ${
+								digestOnly
+									? "bg-primary text-primary-foreground"
+									: "text-muted-foreground hover:bg-muted hover:text-foreground"
+							}`}
+						>
+							只看精华
+						</Link>
 					</div>
-				</div>
 
-				{data.items.length === 0 ? (
-					<div className="py-8 text-center text-sm text-muted-foreground">暂无帖子</div>
-				) : (
-					<div className="space-y-2">
-						{data.items.map((item) => (
-							<a
-								key={item.thread.id}
-								href={`/threads/${item.thread.id}`}
-								className="block rounded-lg bg-secondary p-3 transition-colors hover:bg-accent"
-							>
-								<div className="flex items-center gap-2">
-									<span className="text-sm font-medium text-foreground">{item.thread.subject}</span>
-								</div>
-								<div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-									<span>{item.thread.authorName}</span>
-									<span>·</span>
-									<span>{item.thread.replies} 回复</span>
-									<span>·</span>
-									<span>{item.thread.views} 浏览</span>
-								</div>
-							</a>
-						))}
-					</div>
-				)}
-			</div>
+					{/* Thread rows */}
+					{data.items.length === 0 ? (
+						<div className="py-8 text-center text-sm text-muted-foreground">暂无帖子</div>
+					) : (
+						<div className="mt-1">
+							{data.items.map((item) => (
+								<ThreadItem key={item.thread.id} item={item} />
+							))}
+						</div>
+					)}
+
+					{/* Pagination */}
+					<KeysetPagination
+						total={data.total}
+						prevHref={
+							data.prevCursor
+								? `/forums/${forumId}?sort=${currentSort}&cursor=${data.prevCursor}${digestOnly ? "&digest=1" : ""}`
+								: null
+						}
+						nextHref={
+							data.nextCursor
+								? `/forums/${forumId}?sort=${currentSort}&cursor=${data.nextCursor}${digestOnly ? "&digest=1" : ""}`
+								: null
+						}
+					/>
+				</CardContent>
+			</Card>
 		</div>
 	);
 }
