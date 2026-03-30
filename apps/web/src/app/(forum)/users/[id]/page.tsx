@@ -6,6 +6,7 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { getAvatarUrl } from "@/lib/avatar";
 import { buildUserBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import { formatStat, formatTime } from "@/viewmodels/forum/thread-list";
 import {
@@ -69,11 +70,13 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 			<Card size="sm">
 				<CardContent>
 					<div className="flex items-center gap-4">
-						<Avatar className="h-16 w-16">
-							{data.user.avatar ? (
-								<AvatarImage src={data.user.avatar} alt={data.user.username} />
-							) : null}
-							<AvatarFallback className="text-lg">
+						<Avatar className="h-16 w-16 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
+							<AvatarImage
+								src={getAvatarUrl(data.user.id, "middle")}
+								alt={data.user.username}
+								className="rounded-sm"
+							/>
+							<AvatarFallback className="text-lg rounded-sm">
 								{data.user.username.slice(0, 2).toUpperCase()}
 							</AvatarFallback>
 						</Avatar>

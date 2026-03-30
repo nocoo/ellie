@@ -6,8 +6,9 @@
 
 import { PostContent } from "@/components/forum/post-content";
 import { PostSidebar } from "@/components/forum/post-sidebar";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { getAvatarUrl } from "@/lib/avatar";
 import { type EnrichedPost, floorLabel } from "@/viewmodels/forum/thread-detail";
 import { formatTime } from "@/viewmodels/forum/thread-list";
 import Link from "next/link";
@@ -45,8 +46,15 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 				{/* Compact header row */}
 				<div className="flex items-center gap-2 px-3 pt-3 pb-2 border-b border-border/50">
 					<Link href={`/users/${post.authorId}`}>
-						<Avatar className="h-8 w-8">
-							<AvatarFallback className="text-xs">
+						<Avatar className="h-8 w-8 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
+							{post.author && (
+								<AvatarImage
+									src={getAvatarUrl(post.authorId, "small")}
+									alt={post.author.username}
+									className="rounded-sm"
+								/>
+							)}
+							<AvatarFallback className="text-xs rounded-sm">
 								{post.author ? authorInitials(post.author.username) : "?"}
 							</AvatarFallback>
 						</Avatar>
