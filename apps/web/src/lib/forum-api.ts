@@ -216,8 +216,8 @@ export const forumApi = {
 // ---------------------------------------------------------------------------
 
 /**
- * Map Worker's PublicUser (8 fields) to frontend User (11 fields).
- * Private fields are filled with safe defaults.
+ * Map Worker's PublicUser to frontend User.
+ * PublicUser fields are spread; User-only fields filled with safe defaults.
  */
 export function publicUserToUser(pu: PublicUser): User {
 	return {
@@ -225,5 +225,16 @@ export function publicUserToUser(pu: PublicUser): User {
 		email: "",
 		status: UserStatus.Active,
 		lastLogin: 0,
+		gender: 0,
+		birthYear: 0,
+		birthMonth: 0,
+		birthDay: 0,
+		resideProvince: "",
+		resideCity: "",
+		graduateSchool: "",
+		bio: "",
+		interest: "",
+		qq: "",
+		site: "",
 	};
 }
