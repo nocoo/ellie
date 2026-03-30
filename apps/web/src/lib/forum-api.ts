@@ -77,6 +77,18 @@ export interface CursorPaginatedResponse<T> {
 	meta: CursorMeta;
 }
 
+export interface PageMeta extends ApiMeta {
+	total: number;
+	page: number;
+	limit: number;
+	pages: number;
+}
+
+export interface PagePaginatedResponse<T> {
+	data: T[];
+	meta: PageMeta;
+}
+
 // ---------------------------------------------------------------------------
 // Core request function
 // ---------------------------------------------------------------------------
@@ -177,6 +189,18 @@ export const forumApi = {
 				...(result.meta as ApiMeta),
 				nextCursor: (result.meta as CursorMeta).nextCursor ?? null,
 			},
+		};
+	},
+
+	/** GET list with offset pagination: { data: T[], meta: { total, page, limit, pages } } */
+	async getPage<T>(
+		path: string,
+		searchParams?: Record<string, string | number | boolean | undefined | null>,
+	): Promise<PagePaginatedResponse<T>> {
+		const result = await request<T[]>({ method: "GET", path, searchParams });
+		return {
+			data: result.data,
+			meta: result.meta as PageMeta,
 		};
 	},
 
