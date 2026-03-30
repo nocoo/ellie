@@ -72,6 +72,11 @@
 	--color-heatmap-green-3: hsl(var(--heatmap-green-3));
 	--color-heatmap-green-4: hsl(var(--heatmap-green-4));
 
+	/* Forum semantic color tokens — Ref: 04f §1 */
+	--color-forum-group: hsl(var(--forum-group-bg));
+	--color-forum-item: hsl(var(--forum-item-bg));
+	--color-forum-item-hover: hsl(var(--forum-item-hover));
+
 	/* Radius tokens */
 	--radius-card: 14px;
 	--radius-widget: 10px;
@@ -195,6 +200,18 @@
 	--heatmap-green-2: 142 55% 65%;
 	--heatmap-green-3: 142 60% 45%;
 	--heatmap-green-4: 142 65% 30%;
+
+	/* Forum semantic tokens — aliases into L0/L1/L2 for future theme overrides — Ref: 04f §1 */
+	--forum-group-bg: var(--card);
+	--forum-item-bg: var(--secondary);
+	--forum-item-hover: var(--accent);
+	--forum-header-bg: var(--card);
+	--forum-nav-bg: var(--card);
+	--forum-nav-border: var(--border);
+
+	/* Content width tokens — Ref: 04f §2 */
+	--content-max-width: 1200px;
+	--content-px: 1rem;
 }
 
 .dark {
@@ -282,4 +299,27 @@
  */
 @utility font-display {
 	font-family: var(--font-dm-sans), "DM Sans", system-ui, sans-serif;
+}
+
+/*
+ * Width mode — CSS-driven via data-width-mode attribute on <html>
+ * Ref: 04f §2 — avoids hydration mismatch by not depending on React state for className
+ */
+.width-container {
+	max-width: var(--content-max-width);
+	margin-left: auto;
+	margin-right: auto;
+	padding-left: var(--content-px);
+	padding-right: var(--content-px);
+}
+:root[data-width-mode="full"] .width-container {
+	max-width: none;
+	padding-left: 1rem;
+	padding-right: 1rem;
+}
+@media (min-width: 768px) {
+	:root[data-width-mode="full"] .width-container {
+		padding-left: 2rem;
+		padding-right: 2rem;
+	}
 }

@@ -26,6 +26,7 @@ D1 数据库 → Worker API（唯一入口） → CLI 客户端 (Rust TUI, Key A
 | 04c | [管理后台](./04c-admin-console.md) | Admin 布局、仪表盘/用户管理/内容审核/版块管理 |
 | 04d | [论坛前端](./04d-forum-frontend.md) | 论坛布局、核心页面、分页策略、搜索、发帖回帖 |
 | 04e | [高级功能](./04e-advanced-features.md) | 特殊帖子类型、富文本编辑器、表情系统、全文搜索、私信 |
+| 04f | [论坛前端 UI 重写](./04f-forum-ui-redesign.md) | UI 重写设计：卡片化布局、纵向节约、宽度切换、响应式、6 阶段实施 |
 
 ### Worker API（数据访问层）
 
