@@ -23,6 +23,25 @@ describe("D1 row mappers", () => {
 				threads: 10,
 				posts: 50,
 				credits: 100,
+				signature: "",
+				group_title: "管理员",
+				group_stars: 9,
+				group_color: "#FF0000",
+				custom_title: "站长",
+				digest_posts: 5,
+				ol_time: 1000,
+				gender: 1,
+				birth_year: 1990,
+				birth_month: 6,
+				birth_day: 15,
+				reside_province: "上海",
+				reside_city: "杨浦",
+				graduate_school: "同济大学",
+				bio: "管理员简介",
+				interest: "编程",
+				qq: "12345678",
+				site: "https://example.com",
+				last_activity: 1711540800,
 			};
 
 			const user = toUser(row);
@@ -39,6 +58,25 @@ describe("D1 row mappers", () => {
 				threads: 10,
 				posts: 50,
 				credits: 100,
+				signature: "",
+				groupTitle: "管理员",
+				groupStars: 9,
+				groupColor: "#FF0000",
+				customTitle: "站长",
+				digestPosts: 5,
+				olTime: 1000,
+				gender: 1,
+				birthYear: 1990,
+				birthMonth: 6,
+				birthDay: 15,
+				resideProvince: "上海",
+				resideCity: "杨浦",
+				graduateSchool: "同济大学",
+				bio: "管理员简介",
+				interest: "编程",
+				qq: "12345678",
+				site: "https://example.com",
+				lastActivity: 1711540800,
 			});
 		});
 
@@ -55,6 +93,25 @@ describe("D1 row mappers", () => {
 				threads: 10,
 				posts: 50,
 				credits: 100,
+				signature: "",
+				group_title: "",
+				group_stars: 0,
+				group_color: "",
+				custom_title: "",
+				digest_posts: 0,
+				ol_time: 0,
+				gender: 0,
+				birth_year: 0,
+				birth_month: 0,
+				birth_day: 0,
+				reside_province: "",
+				reside_city: "",
+				graduate_school: "",
+				bio: "",
+				interest: "",
+				qq: "",
+				site: "",
+				last_activity: 0,
 				password_hash: "secret_hash",
 				password_salt: "secret_salt",
 			};
@@ -68,7 +125,7 @@ describe("D1 row mappers", () => {
 			expect("password_salt" in user).toBe(false);
 		});
 
-		it("should output exactly 12 fields", () => {
+		it("should output exactly 30 fields", () => {
 			const row = {
 				id: 1,
 				username: "alice",
@@ -82,10 +139,28 @@ describe("D1 row mappers", () => {
 				posts: 0,
 				credits: 0,
 				signature: "",
+				group_title: "",
+				group_stars: 0,
+				group_color: "",
+				custom_title: "",
+				digest_posts: 0,
+				ol_time: 0,
+				gender: 0,
+				birth_year: 0,
+				birth_month: 0,
+				birth_day: 0,
+				reside_province: "",
+				reside_city: "",
+				graduate_school: "",
+				bio: "",
+				interest: "",
+				qq: "",
+				site: "",
+				last_activity: 0,
 			};
 
 			const user = toUser(row);
-			expect(Object.keys(user)).toHaveLength(12);
+			expect(Object.keys(user)).toHaveLength(30);
 		});
 	});
 
@@ -161,6 +236,7 @@ describe("D1 row mappers", () => {
 				highlight: 0,
 				recommends: 3,
 				post_table_id: 1, // internal — must be stripped
+				type_name: "求助",
 			};
 
 			const thread = toThread(row);
@@ -171,6 +247,7 @@ describe("D1 row mappers", () => {
 			expect(thread.createdAt).toBe(1711540800);
 			expect(thread.lastPostAt).toBe(1711544400);
 			expect(thread.lastPoster).toBe("bob");
+			expect(thread.typeName).toBe("求助");
 		});
 
 		it("should strip post_table_id (internal field)", () => {
@@ -192,6 +269,7 @@ describe("D1 row mappers", () => {
 				highlight: 0,
 				recommends: 0,
 				post_table_id: 5,
+				type_name: "",
 			};
 
 			const thread = toThread(row);
@@ -199,7 +277,7 @@ describe("D1 row mappers", () => {
 			expect("post_table_id" in thread).toBe(false);
 		});
 
-		it("should output exactly 16 fields", () => {
+		it("should output exactly 17 fields", () => {
 			const row = {
 				id: 1,
 				forum_id: 0,
@@ -217,10 +295,11 @@ describe("D1 row mappers", () => {
 				special: 0,
 				highlight: 0,
 				recommends: 0,
+				type_name: "",
 			};
 
 			const thread = toThread(row);
-			expect(Object.keys(thread)).toHaveLength(16);
+			expect(Object.keys(thread)).toHaveLength(17);
 		});
 	});
 
@@ -311,6 +390,14 @@ describe("D1 row mappers", () => {
 				threads: 10,
 				posts: 50,
 				credits: 100,
+				signature: "",
+				group_title: "管理员",
+				group_stars: 9,
+				group_color: "#FF0000",
+				custom_title: "站长",
+				digest_posts: 5,
+				ol_time: 1000,
+				last_activity: 1711540800,
 			};
 
 			const user = toPublicUser(row);
@@ -324,6 +411,14 @@ describe("D1 row mappers", () => {
 				threads: 10,
 				posts: 50,
 				credits: 100,
+				signature: "",
+				groupTitle: "管理员",
+				groupStars: 9,
+				groupColor: "#FF0000",
+				customTitle: "站长",
+				digestPosts: 5,
+				olTime: 1000,
+				lastActivity: 1711540800,
 			});
 		});
 
@@ -337,6 +432,14 @@ describe("D1 row mappers", () => {
 				threads: 10,
 				posts: 50,
 				credits: 100,
+				signature: "",
+				group_title: "",
+				group_stars: 0,
+				group_color: "",
+				custom_title: "",
+				digest_posts: 0,
+				ol_time: 0,
+				last_activity: 0,
 				email: "alice@example.com",
 				status: 0,
 				last_login: 1711544400,
@@ -354,7 +457,7 @@ describe("D1 row mappers", () => {
 			expect("password_hash" in user).toBe(false);
 		});
 
-		it("should output exactly 9 fields", () => {
+		it("should output exactly 16 fields", () => {
 			const row = {
 				id: 1,
 				username: "alice",
@@ -365,10 +468,17 @@ describe("D1 row mappers", () => {
 				posts: 0,
 				credits: 0,
 				signature: "",
+				group_title: "",
+				group_stars: 0,
+				group_color: "",
+				custom_title: "",
+				digest_posts: 0,
+				ol_time: 0,
+				last_activity: 0,
 			};
 
 			const user = toPublicUser(row);
-			expect(Object.keys(user)).toHaveLength(9);
+			expect(Object.keys(user)).toHaveLength(16);
 		});
 	});
 
