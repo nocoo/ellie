@@ -21,6 +21,12 @@ function authorInitials(name: string): string {
 	return name.slice(0, 2).toUpperCase();
 }
 
+/** Render ★ characters for group star count. */
+function renderStars(count: number): string {
+	if (count <= 0) return "";
+	return "★".repeat(Math.min(count, 10));
+}
+
 export function PostSidebar({ author, isFirst, threadViews, threadReplies }: PostSidebarProps) {
 	return (
 		<div className="hidden md:flex w-44 shrink-0 flex-col items-start gap-1 p-3">
@@ -80,6 +86,29 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 							{formatUserRole(author.role)}
 						</Badge>
 					</div>
+
+					{/* Group title + stars */}
+					{author.groupTitle && (
+						<div>
+							<span
+								className="font-medium"
+								style={author.groupColor ? { color: author.groupColor } : undefined}
+							>
+								{author.groupTitle}
+							</span>
+							{author.groupStars > 0 && (
+								<span className="ml-0.5 text-amber-500 text-[10px]">
+									{renderStars(author.groupStars)}
+								</span>
+							)}
+						</div>
+					)}
+
+					{/* Custom title */}
+					{author.customTitle && (
+						<div className="text-muted-foreground italic">{author.customTitle}</div>
+					)}
+
 					<div>
 						UID:{" "}
 						<Link href={`/users/${author.id}`} className="text-primary hover:underline">
@@ -87,6 +116,12 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 						</Link>
 					</div>
 					<div>注册时间: {formatDate(author.regDate)}</div>
+
+					{/* Online time */}
+					{author.olTime > 0 && <div>在线: {author.olTime.toLocaleString()} 小时</div>}
+
+					{/* Digest posts */}
+					{author.digestPosts > 0 && <div>精华: {author.digestPosts}</div>}
 				</div>
 			)}
 
