@@ -128,6 +128,7 @@ export function createMockThreadRepository(store: MockDataStore): ThreadReposito
 				special: 0,
 				highlight: 0,
 				recommends: 0,
+				typeName: "",
 			};
 			store.threads.push(thread);
 
