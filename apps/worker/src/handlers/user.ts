@@ -5,7 +5,7 @@ import { jsonResponse } from "../lib/response";
 import { errorResponse } from "../middleware/error";
 
 /** Explicit PublicUser columns — never SELECT * to avoid leaking sensitive fields */
-const PUBLIC_USER_COLUMNS = "id, username, avatar, role, reg_date, threads, posts";
+const PUBLIC_USER_COLUMNS = "id, username, avatar, role, reg_date, threads, posts, credits";
 
 /** GET /api/v1/users/:id - Get user public profile */
 export async function getById(request: Request, env: Env): Promise<Response> {

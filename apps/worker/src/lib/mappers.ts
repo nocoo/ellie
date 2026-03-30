@@ -261,6 +261,7 @@ export function toPublicUser(row: Record<string, unknown>): PublicUser {
 		regDate: r.reg_date,
 		threads: r.threads,
 		posts: r.posts,
+		credits: r.credits,
 	};
 }
 

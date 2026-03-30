@@ -94,7 +94,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 			</Card>
 
 			{/* Stats */}
-			<div className="grid grid-cols-2 gap-4">
+			<div className="grid grid-cols-3 gap-4">
 				<Card size="sm">
 					<CardContent className="text-center">
 						<p className="text-2xl font-semibold text-foreground">
@@ -107,6 +107,14 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 					<CardContent className="text-center">
 						<p className="text-2xl font-semibold text-foreground">{formatStat(data.user.posts)}</p>
 						<p className="mt-1 text-xs text-muted-foreground">回帖数</p>
+					</CardContent>
+				</Card>
+				<Card size="sm">
+					<CardContent className="text-center">
+						<p className="text-2xl font-semibold text-foreground">
+							{formatStat(data.user.credits)}
+						</p>
+						<p className="mt-1 text-xs text-muted-foreground">积分</p>
 					</CardContent>
 				</Card>
 			</div>

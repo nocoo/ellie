@@ -1,5 +1,12 @@
 import { describe, expect, it } from "bun:test";
-import { toAttachment, toForum, toPost, toThread, toUser } from "../../../src/lib/mappers";
+import {
+	toAttachment,
+	toForum,
+	toPost,
+	toPublicUser,
+	toThread,
+	toUser,
+} from "../../../src/lib/mappers";
 
 describe("D1 row mappers", () => {
 	describe("toUser", () => {
@@ -286,6 +293,77 @@ describe("D1 row mappers", () => {
 
 			const post = toPost(row);
 			expect(Object.keys(post)).toHaveLength(9);
+		});
+	});
+
+	describe("toPublicUser", () => {
+		it("should map snake_case D1 row to camelCase PublicUser", () => {
+			const row = {
+				id: 1,
+				username: "alice",
+				avatar: "avatar.png",
+				role: 1,
+				reg_date: 1711540800,
+				threads: 10,
+				posts: 50,
+				credits: 100,
+			};
+
+			const user = toPublicUser(row);
+
+			expect(user).toEqual({
+				id: 1,
+				username: "alice",
+				avatar: "avatar.png",
+				role: 1,
+				regDate: 1711540800,
+				threads: 10,
+				posts: 50,
+				credits: 100,
+			});
+		});
+
+		it("should not include sensitive fields even if present in row", () => {
+			const row = {
+				id: 1,
+				username: "alice",
+				avatar: "avatar.png",
+				role: 1,
+				reg_date: 1711540800,
+				threads: 10,
+				posts: 50,
+				credits: 100,
+				email: "alice@example.com",
+				status: 0,
+				last_login: 1711544400,
+				password_hash: "secret_hash",
+				password_salt: "secret_salt",
+			};
+
+			const user = toPublicUser(row);
+
+			expect("email" in user).toBe(false);
+			expect("status" in user).toBe(false);
+			expect("lastLogin" in user).toBe(false);
+			expect("last_login" in user).toBe(false);
+			expect("passwordHash" in user).toBe(false);
+			expect("password_hash" in user).toBe(false);
+		});
+
+		it("should output exactly 8 fields", () => {
+			const row = {
+				id: 1,
+				username: "alice",
+				avatar: "",
+				role: 0,
+				reg_date: 0,
+				threads: 0,
+				posts: 0,
+				credits: 0,
+			};
+
+			const user = toPublicUser(row);
+			expect(Object.keys(user)).toHaveLength(8);
 		});
 	});
 
