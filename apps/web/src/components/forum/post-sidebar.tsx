@@ -9,6 +9,7 @@ import { formatDate } from "@/viewmodels/forum/thread-detail";
 import { formatUserRole, getUserRoleBadgeVariant } from "@/viewmodels/forum/user-profile";
 import type { User } from "@ellie/types";
 import Link from "next/link";
+import { UserAvatar } from "./user-avatar";
 
 interface PostSidebarProps {
 	author: User | null;
@@ -42,11 +43,10 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 			<Link href={author ? `/users/${author.id}` : "#"} className="mt-1">
 				{author ? (
 					<div className="bg-white p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)]">
-						<img
+						<UserAvatar
 							src={getAvatarUrl(author.id, "big")}
 							alt={author.username}
 							className="block max-w-[140px] w-auto h-auto"
-							loading="lazy"
 						/>
 					</div>
 				) : (
