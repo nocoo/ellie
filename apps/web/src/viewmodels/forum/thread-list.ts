@@ -51,12 +51,13 @@ export function enrichThreads(threads: Thread[]): ThreadDisplayItem[] {
 
 /**
  * Build highlight inline style from decoded HighlightStyle.
+ * Returns a plain record (no React dependency) suitable for `style` prop.
  */
 export function highlightStyle(
 	hl: ReturnType<typeof decodeHighlight>,
-): React.CSSProperties | undefined {
+): Record<string, string> | undefined {
 	if (!hl) return undefined;
-	const style: React.CSSProperties = {};
+	const style: Record<string, string> = {};
 	if (hl.color) style.color = hl.color;
 	if (hl.bold) style.fontWeight = "bold";
 	if (hl.italic) style.fontStyle = "italic";
