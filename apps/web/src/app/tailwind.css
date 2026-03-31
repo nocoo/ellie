@@ -333,6 +333,18 @@
  * Width mode — CSS-driven via data-width-mode attribute on <html>
  * Ref: 04f §2 — avoids hydration mismatch by not depending on React state for className
  */
+
+/*
+ * Inline smiley images (Discuz legacy smiley codes rendered as <img>)
+ */
+img.smiley {
+	display: inline;
+	height: 1.2em;
+	width: auto;
+	vertical-align: text-bottom;
+	margin: 0 1px;
+}
+
 .width-container {
 	max-width: var(--content-max-width);
 	margin-left: auto;
