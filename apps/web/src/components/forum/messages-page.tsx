@@ -1,0 +1,336 @@
+// components/forum/messages-page.tsx — Discuz-style 站内消息 page layout
+// Two-column layout: notification sidebar (left) + message list (right).
+// Layout only — no real data fetching or actions.
+
+"use client";
+
+import { UserAvatar } from "@/components/forum/user-avatar";
+import { Breadcrumbs, type BreadcrumbItem } from "@/components/layout/breadcrumbs";
+import { Button } from "@/components/ui/button";
+import { getAvatarUrl } from "@/lib/avatar";
+import { cn } from "@/lib/utils";
+import {
+	type MessageItem,
+	type MessagesPageViewModel,
+	type NotifMenuItem,
+	buildMessagesPageViewModel,
+} from "@/viewmodels/forum/messages";
+import {
+	Bell,
+	FileText,
+	Grid3X3,
+	Mail,
+	Search,
+	Users,
+	Wrench,
+} from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
+
+interface MessagesPageProps {
+	breadcrumbs: BreadcrumbItem[];
+	vm?: MessagesPageViewModel;
+}
+
+// ---------------------------------------------------------------------------
+// Icon resolver for sidebar items
+// ---------------------------------------------------------------------------
+
+const SIDEBAR_ICONS: Record<NotifMenuItem["icon"], React.ElementType> = {
+	mail: Mail,
+	"file-text": FileText,
+	users: Users,
+	bell: Bell,
+	wrench: Wrench,
+	grid: Grid3X3,
+};
+
+// ---------------------------------------------------------------------------
+// Left sidebar: Notification menu
+// ---------------------------------------------------------------------------
+
+function NotifSidebar({
+	items,
+	activeItem,
+	onItemChange,
+}: {
+	items: NotifMenuItem[];
+	activeItem: string;
+	onItemChange: (v: string) => void;
+}) {
+	return (
+		<aside className="w-[160px] flex-shrink-0">
+			<h2 className="text-[16px] font-bold text-foreground mb-3">通知</h2>
+			<nav className="flex flex-col gap-0.5">
+				{items.map((item) => {
+					const Icon = SIDEBAR_ICONS[item.icon];
+					const isActive = item.value === activeItem;
+
+					return (
+						<button
+							key={item.value}
+							type="button"
+							onClick={() => onItemChange(item.value)}
+							className={cn(
+								"flex items-center gap-2 rounded-sm px-3 py-2 text-[13px] transition-colors text-left",
+								isActive
+									? "text-primary font-bold"
+									: "text-dz-topbar-link hover:text-foreground",
+							)}
+						>
+							<Icon className="h-4 w-4 flex-shrink-0" />
+							<span>{item.label}</span>
+							{item.badge !== undefined && (
+								<span
+									className={cn(
+										"text-[12px]",
+										isActive
+											? "text-primary font-bold"
+											: "text-dz-stats-text",
+									)}
+								>
+									({item.badge})
+								</span>
+							)}
+						</button>
+					);
+				})}
+			</nav>
+		</aside>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Message tabs header (私人消息 | 公共消息 | [发送消息] + 短消息设置)
+// ---------------------------------------------------------------------------
+
+function MessageTabsHeader({
+	vm,
+	activeTab,
+	onTabChange,
+}: {
+	vm: MessagesPageViewModel;
+	activeTab: string;
+	onTabChange: (v: string) => void;
+}) {
+	return (
+		<div className="flex items-center justify-between border-b border-border pb-0">
+			<div className="flex items-end">
+				{vm.tabs.map((tab) => {
+					if (tab.isAction) {
+						return (
+							<Button
+								key={tab.value}
+								size="sm"
+								className="ml-2 mb-1 px-4 text-[13px]"
+							>
+								{tab.label}
+							</Button>
+						);
+					}
+
+					const isActive = tab.value === activeTab;
+					return (
+						<button
+							key={tab.value}
+							type="button"
+							onClick={() => onTabChange(tab.value)}
+							className={cn(
+								"px-4 py-2 text-[13px] font-medium transition-colors border border-border -mb-px",
+								isActive
+									? "bg-card text-foreground border-b-card"
+									: "bg-muted text-dz-stats-text hover:text-foreground border-b-border",
+							)}
+						>
+							{tab.label}
+						</button>
+					);
+				})}
+			</div>
+			<Link
+				href="#"
+				className="text-[13px] text-dz-stats-text hover:text-primary transition-colors mb-1"
+			>
+				短消息设置
+			</Link>
+		</div>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Unread banner
+// ---------------------------------------------------------------------------
+
+function UnreadBanner({ count }: { count: number }) {
+	if (count === 0) return null;
+
+	return (
+		<div className="rounded-sm border border-dz-reminder-text/30 bg-dz-reminder-text/5 px-4 py-2.5 mt-3">
+			<Link
+				href="#"
+				className="text-[13px] text-primary hover:underline"
+			>
+				💡 点击这里查看{" "}
+				<span className="font-bold text-primary">{count}</span>{" "}
+				条未读消息
+			</Link>
+		</div>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Single message row
+// ---------------------------------------------------------------------------
+
+function MessageRow({ message }: { message: MessageItem }) {
+	const isIncoming = message.direction === "incoming";
+
+	return (
+		<div className="flex gap-3 border-b border-border py-4 last:border-b-0">
+			{/* Checkbox */}
+			<div className="flex items-start pt-1">
+				<input
+					type="checkbox"
+					className="h-3.5 w-3.5 rounded border-border accent-primary"
+				/>
+			</div>
+
+			{/* Avatar */}
+			<div className="flex-shrink-0">
+				<UserAvatar
+					src={getAvatarUrl(message.peerUid, "middle")}
+					alt={message.peerUsername}
+					className="h-[48px] w-[48px] rounded"
+				/>
+			</div>
+
+			{/* Content */}
+			<div className="flex-1 min-w-0">
+				{/* Header: "username 对 您 说：" or "您 对 username 说：" */}
+				<div className="text-[13px]">
+					{isIncoming ? (
+						<>
+							<Link
+								href={`/users/${message.peerUid}`}
+								className="font-bold text-foreground hover:text-primary"
+							>
+								{message.peerUsername}
+							</Link>
+							<span className="text-dz-stats-text"> 对 </span>
+							<span className="font-bold text-foreground">您</span>
+							<span className="text-dz-stats-text"> 说：</span>
+						</>
+					) : (
+						<>
+							<span className="font-bold text-foreground">您</span>
+							<span className="text-dz-stats-text"> 对 </span>
+							<Link
+								href={`/users/${message.peerUid}`}
+								className="font-bold text-foreground hover:text-primary"
+							>
+								{message.peerUsername}
+							</Link>
+							<span className="text-dz-stats-text"> 说：</span>
+						</>
+					)}
+				</div>
+
+				{/* Preview */}
+				<p className="mt-1 text-[13px] text-foreground leading-relaxed line-clamp-2">
+					{message.preview}
+				</p>
+
+				{/* Footer: date + stats + reply */}
+				<div className="mt-1.5 flex items-center justify-between text-[12px] text-dz-stats-text">
+					<span>{message.date}</span>
+					<div className="flex items-center gap-0">
+						<span>共{message.totalMessages}条</span>
+						<span className="mx-1.5">
+							<Search className="inline h-3 w-3" />
+						</span>
+						<span className="text-dz-topbar-separator mx-1">|</span>
+						<Link
+							href="#"
+							className="text-primary hover:underline"
+						>
+							回复
+						</Link>
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Message list
+// ---------------------------------------------------------------------------
+
+function MessageList({ messages }: { messages: MessageItem[] }) {
+	if (messages.length === 0) {
+		return (
+			<div className="py-12 text-center text-[13px] text-dz-stats-text">
+				暂无消息
+			</div>
+		);
+	}
+
+	return (
+		<div className="mt-2">
+			{messages.map((msg) => (
+				<MessageRow key={msg.id} message={msg} />
+			))}
+		</div>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Main export: MessagesPage
+// ---------------------------------------------------------------------------
+
+export function MessagesPage({ breadcrumbs, vm }: MessagesPageProps) {
+	const viewModel = vm ?? buildMessagesPageViewModel();
+	const [activeSidebar, setActiveSidebar] = useState("messages");
+	const [activeTab, setActiveTab] = useState("private");
+
+	return (
+		<div className="space-y-2">
+			{/* Breadcrumbs */}
+			{breadcrumbs.length > 1 && (
+				<div className="py-2">
+					<Breadcrumbs items={breadcrumbs} />
+				</div>
+			)}
+
+			{/* Two-column layout */}
+			<div className="flex gap-4">
+				{/* Left sidebar */}
+				<NotifSidebar
+					items={viewModel.sidebarItems}
+					activeItem={activeSidebar}
+					onItemChange={setActiveSidebar}
+				/>
+
+				{/* Right content area */}
+				<div className="flex-1 min-w-0">
+					{/* Tabs header */}
+					<MessageTabsHeader
+						vm={viewModel}
+						activeTab={activeTab}
+						onTabChange={setActiveTab}
+					/>
+
+					{/* Unread banner */}
+					<UnreadBanner count={viewModel.unreadCount} />
+
+					{/* Message list */}
+					<MessageList messages={viewModel.messages} />
+				</div>
+			</div>
+		</div>
+	);
+}
