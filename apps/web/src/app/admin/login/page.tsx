@@ -86,7 +86,7 @@ function LoginContent() {
 				<div className="flex flex-col items-center">
 					{/* Badge card — bank card flipped vertical: 54/86 */}
 					<div
-						className="relative w-72 overflow-hidden rounded-2xl bg-card flex flex-col ring-1 ring-black/[0.08] dark:ring-white/[0.06]"
+						className="relative w-72 overflow-hidden rounded-lg bg-card flex flex-col ring-1 ring-black/[0.08] dark:ring-white/[0.06]"
 						style={{
 							boxShadow: [
 								"0 1px 2px rgba(0,0,0,0.06)",
@@ -154,7 +154,7 @@ function LoginContent() {
 							<button
 								type="button"
 								onClick={handleGoogleLogin}
-								className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-secondary px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent cursor-pointer"
+								className="flex w-full items-center justify-center gap-2.5 rounded-lg bg-secondary px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent cursor-pointer"
 							>
 								<GoogleIcon />
 								使用 Google 登录

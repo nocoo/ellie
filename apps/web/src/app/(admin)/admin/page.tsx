@@ -82,7 +82,7 @@ export default async function DashboardPage() {
 						/>
 
 						{/* Quick Links */}
-						<div className="rounded-xl border bg-card p-5">
+						<div className="rounded-lg border bg-card p-5">
 							<p className="text-sm font-medium text-muted-foreground">快捷入口</p>
 							<ul className="mt-3 space-y-2">
 								{QUICK_LINKS.map((link) => (
