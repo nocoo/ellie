@@ -26,6 +26,7 @@ function authorInitials(name: string): string {
 
 export function PostCard({ post, threadViews, threadReplies, threadDigest }: PostCardProps) {
 	const isFirst = post.isFirst || post.position === 1;
+	const signature = post.author?.signature;
 
 	return (
 		<div className="overflow-hidden rounded-xl bg-card text-sm text-card-foreground ring-1 ring-foreground/10">
@@ -38,12 +39,7 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 					threadReplies={threadReplies}
 				/>
 				<Separator orientation="vertical" />
-				<PostContent
-					post={post}
-					isFirst={isFirst}
-					threadDigest={threadDigest}
-					author={post.author}
-				/>
+				<PostContent post={post} isFirst={isFirst} threadDigest={threadDigest} />
 			</div>
 
 			{/* Mobile: compact single-column layout */}
@@ -78,13 +74,18 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 					</span>
 				</div>
 
-				<PostContent
-					post={post}
-					isFirst={isFirst}
-					threadDigest={threadDigest}
-					author={post.author}
-				/>
+				<PostContent post={post} isFirst={isFirst} threadDigest={threadDigest} />
 			</div>
+
+			{/* Signature — full-width bottom, outside the two-column layout */}
+			{signature && (
+				<div className="border-t border-dashed border-border/50 px-3 py-2">
+					<div
+						className="text-xs text-muted-foreground prose prose-sm max-w-none [&>*]:text-muted-foreground [&>*]:text-xs"
+						dangerouslySetInnerHTML={{ __html: signature }}
+					/>
+				</div>
+			)}
 		</div>
 	);
 }
