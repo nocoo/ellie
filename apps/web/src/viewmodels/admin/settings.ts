@@ -38,7 +38,15 @@ export interface SettingGroupDef {
 	title: string;
 	description: string;
 	prefix: string;
+	/** Custom render mode for the group; omit for default field grid */
+	renderType?: "nav-links";
 	fields: SettingFieldDef[];
+}
+
+/** A single navigation link item stored in the header_links JSON array */
+export interface NavLinkItem {
+	label: string;
+	url: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -66,9 +74,24 @@ export const SETTING_GROUPS: SettingGroupDef[] = [
 			{ key: "general.og.title", label: "og:title", placeholder: "站点标题" },
 			{ key: "general.og.description", label: "og:description", placeholder: "站点描述" },
 			{ key: "general.og.site_name", label: "og:site_name", placeholder: "站点名称" },
-			{ key: "general.og.image", label: "og:image", inputType: "url", placeholder: "https://example.com/og.png" },
-			{ key: "general.og.url", label: "og:url", inputType: "url", placeholder: "https://example.com" },
-			{ key: "general.og.twitter_card", label: "twitter:card", placeholder: "summary", hint: "summary / summary_large_image" },
+			{
+				key: "general.og.image",
+				label: "og:image",
+				inputType: "url",
+				placeholder: "https://example.com/og.png",
+			},
+			{
+				key: "general.og.url",
+				label: "og:url",
+				inputType: "url",
+				placeholder: "https://example.com",
+			},
+			{
+				key: "general.og.twitter_card",
+				label: "twitter:card",
+				placeholder: "summary",
+				hint: "summary / summary_large_image",
+			},
 			{ key: "general.og.twitter_site", label: "twitter:site", placeholder: "@handle" },
 		],
 	},
@@ -77,11 +100,36 @@ export const SETTING_GROUPS: SettingGroupDef[] = [
 		description: "配置列表分页大小和内容长度限制",
 		prefix: "general.pagination",
 		fields: [
-			{ key: "general.pagination.threads_per_page", label: "版块主题每页数", inputType: "number", placeholder: "100" },
-			{ key: "general.pagination.posts_per_page", label: "帖子回帖每页数", inputType: "number", placeholder: "20" },
-			{ key: "general.pagination.user_history_per_page", label: "用户历史每页数", inputType: "number", placeholder: "20" },
-			{ key: "general.pagination.max_post_length", label: "帖子最大字数", inputType: "number", placeholder: "50000" },
-			{ key: "general.pagination.admin_page_size", label: "管理列表每页数", inputType: "number", placeholder: "20" },
+			{
+				key: "general.pagination.threads_per_page",
+				label: "版块主题每页数",
+				inputType: "number",
+				placeholder: "100",
+			},
+			{
+				key: "general.pagination.posts_per_page",
+				label: "帖子回帖每页数",
+				inputType: "number",
+				placeholder: "20",
+			},
+			{
+				key: "general.pagination.user_history_per_page",
+				label: "用户历史每页数",
+				inputType: "number",
+				placeholder: "20",
+			},
+			{
+				key: "general.pagination.max_post_length",
+				label: "帖子最大字数",
+				inputType: "number",
+				placeholder: "50000",
+			},
+			{
+				key: "general.pagination.admin_page_size",
+				label: "管理列表每页数",
+				inputType: "number",
+				placeholder: "20",
+			},
 		],
 	},
 	{
@@ -97,6 +145,13 @@ export const SETTING_GROUPS: SettingGroupDef[] = [
 				hint: "不含尾部斜杠",
 			},
 		],
+	},
+	{
+		title: "导航配置",
+		description: "配置首页顶部快捷导航栏目，拖拽调整顺序",
+		prefix: "general.navigation",
+		renderType: "nav-links",
+		fields: [{ key: "general.navigation.header_links", label: "顶部导航" }],
 	},
 ];
 
@@ -139,9 +194,7 @@ export function getChangedSettings(
 /**
  * Update settings via BFF proxy (client-side only).
  */
-export async function updateSettings(
-	payload: SettingsUpdatePayload,
-): Promise<{ updated: number }> {
+export async function updateSettings(payload: SettingsUpdatePayload): Promise<{ updated: number }> {
 	const res = await apiClient.put<{ updated: number }>("/api/admin/settings", payload);
 	return res.data;
 }
