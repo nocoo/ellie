@@ -11,7 +11,7 @@ import {
 	type HeaderViewModel,
 	buildHeaderViewModel,
 } from "@/viewmodels/forum/header";
-import { Bell, ChevronDown, Home, Search } from "lucide-react";
+import { Bell, ChevronDown, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -164,68 +164,48 @@ function NavBar({ vm }: { vm: HeaderViewModel }) {
 }
 
 // ---------------------------------------------------------------------------
-// Layer 3: Search bar + hot keywords
+// Layer 3: Search + Stats bar (combined)
 // ---------------------------------------------------------------------------
 
-function SearchBar() {
-	return (
-		<div className="bg-dz-topbar-bg">
-			<div className="width-container flex items-center gap-3 !py-2 h-[44px]">
-				{/* Search input group */}
-				<div className="flex items-center">
-					<input
-						type="text"
-						placeholder="请输入搜索内容"
-						className="h-[30px] w-[280px] rounded-l border border-r-0 border-dz-search-border bg-dz-search-bg px-3 text-[13px] text-foreground placeholder:text-dz-hot-text outline-none focus:border-primary"
-					/>
-					<select className="h-[30px] border border-r-0 border-dz-search-border bg-dz-search-bg px-2 text-[13px] text-dz-hot-text outline-none appearance-auto">
-						<option>帖子</option>
-						<option>用户</option>
-					</select>
-					<button
-						type="button"
-						className="flex h-[30px] w-[30px] items-center justify-center rounded-r bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-					>
-						<Search className="h-4 w-4" />
-					</button>
-				</div>
-			</div>
-		</div>
-	);
-}
-
-// ---------------------------------------------------------------------------
-// Layer 4: Breadcrumb bar
-// ---------------------------------------------------------------------------
-
-function BreadcrumbBar() {
-	return (
-		<div className="bg-dz-topbar-bg">
-			<div className="width-container flex items-center !py-2 h-[36px]">
-				{/* Breadcrumb path */}
-				<div className="flex items-center gap-1.5 text-[13px] text-dz-breadcrumb-text">
-					<Home className="h-3.5 w-3.5" />
-					<span className="text-dz-breadcrumb-text">›</span>
-					<Link href="/" className="hover:text-primary transition-colors">
-						同济网论坛
-					</Link>
-				</div>
-			</div>
-		</div>
-	);
-}
-
-// ---------------------------------------------------------------------------
-// Layer 5: Stats bar — today/yesterday/threads/members/newest member
-// ---------------------------------------------------------------------------
-
-function StatsBar({ vm }: { vm: HeaderViewModel }) {
+function SearchStatsBar({ vm }: { vm: HeaderViewModel }) {
 	const s = vm.stats;
 
 	return (
 		<div className="bg-dz-topbar-bg">
-			<div className="width-container flex items-center !py-2 h-[36px]">
-				{/* Stats */}
+			<div className="width-container flex items-center justify-between !py-2 h-[44px]">
+				{/* Left: Modern search input with / shortcut */}
+				<div className="relative w-[320px]">
+					<Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+					<input
+						type="search"
+						placeholder="搜索帖子、用户..."
+						className="h-8 w-full rounded-lg border border-input bg-transparent pl-9 pr-10 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+						onKeyDown={(e) => {
+							if (e.key === "Enter") {
+								// TODO: implement search navigation
+							}
+						}}
+						ref={(el) => {
+							if (!el) return;
+							const handler = (e: KeyboardEvent) => {
+								if (e.key === "/" && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
+									e.preventDefault();
+									el.focus();
+								}
+							};
+							// Attach once — stored on element to avoid duplicates
+							if (!(el as unknown as Record<string, boolean>).__slashBound) {
+								(el as unknown as Record<string, boolean>).__slashBound = true;
+								document.addEventListener("keydown", handler);
+							}
+						}}
+					/>
+					<kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 flex h-5 items-center rounded border border-border bg-muted px-1.5 text-[10px] font-medium text-muted-foreground">
+						/
+					</kbd>
+				</div>
+
+				{/* Right: Stats — numbers only */}
 				<div className="flex items-center gap-0 text-[12px] text-dz-stats-text">
 					<span>今日: </span>
 					<span className="font-bold text-foreground">{s.todayPosts}</span>
@@ -238,11 +218,6 @@ function StatsBar({ vm }: { vm: HeaderViewModel }) {
 					<StatSep />
 					<span>会员: </span>
 					<span className="font-bold text-foreground">{s.totalMembers}</span>
-					<StatSep />
-					<span>欢迎新会员: </span>
-					<Link href="#" className="text-primary hover:underline">
-						{s.newestMember}
-					</Link>
 				</div>
 			</div>
 		</div>
@@ -318,9 +293,7 @@ export function ForumHeader({ vm }: ForumHeaderProps) {
 		<header>
 			<TopBar vm={viewModel} />
 			<NavBar vm={viewModel} />
-			<SearchBar />
-			<BreadcrumbBar />
-			<StatsBar vm={viewModel} />
+			<SearchStatsBar vm={viewModel} />
 		</header>
 	);
 }
