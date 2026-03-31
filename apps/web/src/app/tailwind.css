@@ -85,6 +85,20 @@
 	--color-forum-header-to: hsl(var(--forum-header-to));
 	--color-forum-accent: hsl(var(--forum-accent));
 
+	/* Classic Discuz header color tokens */
+	--color-dz-nav-bg: hsl(var(--dz-nav-bg));
+	--color-dz-nav-hover: hsl(var(--dz-nav-hover));
+	--color-dz-nav-text: hsl(var(--dz-nav-text));
+	--color-dz-topbar-bg: hsl(var(--dz-topbar-bg));
+	--color-dz-topbar-link: hsl(var(--dz-topbar-link));
+	--color-dz-topbar-separator: hsl(var(--dz-topbar-separator));
+	--color-dz-search-bg: hsl(var(--dz-search-bg));
+	--color-dz-search-border: hsl(var(--dz-search-border));
+	--color-dz-hot-text: hsl(var(--dz-hot-text));
+	--color-dz-stats-text: hsl(var(--dz-stats-text));
+	--color-dz-breadcrumb-text: hsl(var(--dz-breadcrumb-text));
+	--color-dz-reminder-text: hsl(var(--dz-reminder-text));
+
 	/* Minimum readable font size — replaces text-[9/10/11px] */
 	--font-size-2xs: 0.6875rem;
 	--font-size-2xs--line-height: 1rem;
@@ -232,6 +246,20 @@
 	--forum-header-from: 207 26% 91%;
 	--forum-header-to: 0 0% 97%;
 	--forum-accent: 27 81% 49%;
+
+	/* Classic Discuz header tokens — light mode */
+	--dz-nav-bg: 211 76% 45%;
+	--dz-nav-hover: 211 76% 38%;
+	--dz-nav-text: 0 0% 100%;
+	--dz-topbar-bg: 0 0% 100%;
+	--dz-topbar-link: 0 0% 35%;
+	--dz-topbar-separator: 0 0% 80%;
+	--dz-search-bg: 0 0% 97%;
+	--dz-search-border: 0 0% 85%;
+	--dz-hot-text: 0 0% 35%;
+	--dz-stats-text: 0 0% 50%;
+	--dz-breadcrumb-text: 0 0% 50%;
+	--dz-reminder-text: 27 90% 50%;
 }
 
 .dark {
@@ -307,6 +335,20 @@
 	--forum-header-from: 210 10% 15%;
 	--forum-header-to: 210 10% 12%;
 	--forum-accent: 27 81% 59%;
+
+	/* Classic Discuz header tokens — dark mode */
+	--dz-nav-bg: 211 60% 30%;
+	--dz-nav-hover: 211 60% 25%;
+	--dz-nav-text: 0 0% 90%;
+	--dz-topbar-bg: 0 0% 10.6%;
+	--dz-topbar-link: 0 0% 65%;
+	--dz-topbar-separator: 0 0% 25%;
+	--dz-search-bg: 0 0% 12%;
+	--dz-search-border: 0 0% 20%;
+	--dz-hot-text: 0 0% 55%;
+	--dz-stats-text: 0 0% 48%;
+	--dz-breadcrumb-text: 0 0% 48%;
+	--dz-reminder-text: 27 90% 60%;
 }
 
 /*
