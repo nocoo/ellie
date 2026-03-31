@@ -46,9 +46,9 @@ function roleBadgeVariant(role: number): "default" | "secondary" | "destructive"
 function statusIndicator(status: number): string | null {
 	switch (status) {
 		case -1:
-			return "Banned";
+			return "已封禁";
 		case -2:
-			return "Archived";
+			return "已归档";
 		default:
 			return null;
 	}
@@ -67,7 +67,7 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 			<div className="flex items-center justify-between border-b bg-muted/30 px-4 py-2">
 				<div className="flex items-center gap-2 text-sm text-muted-foreground">
 					<span className="font-mono font-medium text-foreground">#{post.position}</span>
-					{post.isFirst && <Badge variant="default">OP</Badge>}
+					{post.isFirst && <Badge variant="default">楼主</Badge>}
 					<span>{formatDate(post.createdAt)}</span>
 				</div>
 				<DropdownMenu>
@@ -81,7 +81,7 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 					<DropdownMenuContent align="end">
 						<DropdownMenuItem onClick={() => onEdit(post)}>
 							<Pencil className="mr-2 h-4 w-4" />
-							Edit
+							编辑
 						</DropdownMenuItem>
 						<DropdownMenuItem
 							onClick={() => onDelete(post)}
@@ -89,7 +89,7 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 							disabled={post.isFirst}
 						>
 							<Trash2 className="mr-2 h-4 w-4" />
-							{post.isFirst ? "Can't delete OP" : "Delete"}
+							{post.isFirst ? "无法删除楼主帖" : "删除"}
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
@@ -135,9 +135,9 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 						{/* Stats */}
 						{author && (
 							<div className="flex flex-row md:flex-col gap-2 md:gap-0.5 text-xs text-muted-foreground mt-1">
-								<span>Posts: {author.posts.toLocaleString()}</span>
-								<span>Threads: {author.threads.toLocaleString()}</span>
-								<span>Joined: {new Date(author.regDate * 1000).toLocaleDateString()}</span>
+								<span>帖子: {author.posts.toLocaleString()}</span>
+								<span>主题: {author.threads.toLocaleString()}</span>
+								<span>注册: {new Date(author.regDate * 1000).toLocaleDateString()}</span>
 							</div>
 						)}
 

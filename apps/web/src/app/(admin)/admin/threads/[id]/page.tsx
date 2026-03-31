@@ -59,7 +59,7 @@ export default function ThreadDetailPage() {
 	const fetchData = useCallback(
 		async (page = 1) => {
 			if (Number.isNaN(threadId)) {
-				setError("Invalid thread ID");
+				setError("无效的主题 ID");
 				setLoading(false);
 				return;
 			}
@@ -69,7 +69,7 @@ export default function ThreadDetailPage() {
 				const result = await loadThreadDetail(threadId, page);
 				setData(result);
 			} catch (e) {
-				setError(e instanceof Error ? e.message : "Failed to load thread");
+				setError(e instanceof Error ? e.message : "主题加载失败");
 			} finally {
 				setLoading(false);
 			}
@@ -102,8 +102,8 @@ export default function ThreadDetailPage() {
 		if (!data) return;
 		setConfirmDialog({
 			open: true,
-			title: "Delete Thread",
-			description: `Delete "${data.thread.subject}" and all its posts? This cannot be undone.`,
+			title: "删除主题",
+			description: `删除主题「${data.thread.subject}」及其所有帖子？此操作不可撤销。`,
 			variant: "destructive",
 			onConfirm: async () => {
 				setConfirmLoading(true);
@@ -138,8 +138,8 @@ export default function ThreadDetailPage() {
 			if (post.isFirst) return;
 			setConfirmDialog({
 				open: true,
-				title: "Delete Post",
-				description: `Delete post #${post.position} by ${post.authorName}? This cannot be undone.`,
+				title: "删除帖子",
+				description: `删除 ${post.authorName} 的第 ${post.position} 楼帖子？此操作不可撤销。`,
 				variant: "destructive",
 				onConfirm: async () => {
 					setConfirmLoading(true);
@@ -171,7 +171,7 @@ export default function ThreadDetailPage() {
 			<div className="space-y-4">
 				<Button variant="ghost" size="sm" onClick={() => router.push("/admin/threads")}>
 					<ArrowLeft className="mr-2 h-4 w-4" />
-					Back to Threads
+					返回主题列表
 				</Button>
 				<div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
 					{error}
@@ -195,7 +195,7 @@ export default function ThreadDetailPage() {
 			{/* Back button */}
 			<Button variant="ghost" size="sm" onClick={() => router.push("/admin/threads")}>
 				<ArrowLeft className="mr-2 h-4 w-4" />
-				Back to Threads
+				返回主题列表
 			</Button>
 
 			{/* Thread header */}
@@ -206,17 +206,17 @@ export default function ThreadDetailPage() {
 							{thread.subject}
 						</h1>
 						<div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-							<span>by {thread.authorName}</span>
+							<span>作者: {thread.authorName}</span>
 							<span>·</span>
 							<span>{new Date(thread.createdAt * 1000).toLocaleString()}</span>
 							<span>·</span>
-							<span>{thread.replies} replies</span>
+							<span>{thread.replies} 回复</span>
 							<span>·</span>
-							<span>{thread.views.toLocaleString()} views</span>
+							<span>{thread.views.toLocaleString()} 浏览</span>
 						</div>
 						<div className="flex flex-wrap gap-1.5">
 							{thread.sticky > 0 && <Badge variant="default">{stickyLabel(thread.sticky)}</Badge>}
-							{thread.closed > 0 && <Badge variant="secondary">Closed</Badge>}
+							{thread.closed > 0 && <Badge variant="secondary">已锁定</Badge>}
 							{thread.digest > 0 && <Badge variant="outline">{digestLabel(thread.digest)}</Badge>}
 						</div>
 					</div>
@@ -224,11 +224,11 @@ export default function ThreadDetailPage() {
 					<div className="flex gap-2 shrink-0">
 						<Button variant="outline" size="sm" onClick={() => setEditThread(true)}>
 							<Pencil className="mr-2 h-4 w-4" />
-							Edit
+							编辑
 						</Button>
 						<Button variant="destructive" size="sm" onClick={handleDeleteThread}>
 							<Trash2 className="mr-2 h-4 w-4" />
-							Delete
+							删除
 						</Button>
 					</div>
 				</div>
