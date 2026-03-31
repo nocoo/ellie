@@ -7,13 +7,7 @@ import { forumApi, publicUserToUser } from "@/lib/forum-api";
 import type { Post, PublicUser, Thread, User } from "@ellie/types";
 import { type ProfileTab, resolveTab } from "./user-profile";
 
-/** Matches PaginatedResult shape from @ellie/repositories */
-interface PaginatedResult<T> {
-	items: T[];
-	nextCursor: string | null;
-	prevCursor: string | null;
-	total: number;
-}
+import { type PaginatedResult, emptyPage } from "@/viewmodels/shared/pagination";
 
 export interface UserProfileData {
 	user: User;
@@ -22,7 +16,6 @@ export interface UserProfileData {
 	posts: PaginatedResult<Post>;
 }
 
-const EMPTY_PAGE = { items: [], nextCursor: null, prevCursor: null, total: 0 };
 const HISTORY_LIMIT = 20;
 
 export async function loadUserProfile(params: {
@@ -38,8 +31,8 @@ export async function loadUserProfile(params: {
 	const { data: publicUser } = await forumApi.get<PublicUser>(`/api/v1/users/${params.userId}`);
 	const user = publicUserToUser(publicUser);
 
-	let threads: PaginatedResult<Thread> = EMPTY_PAGE as PaginatedResult<Thread>;
-	let posts: PaginatedResult<Post> = EMPTY_PAGE as PaginatedResult<Post>;
+	let threads: PaginatedResult<Thread> = emptyPage();
+	let posts: PaginatedResult<Post> = emptyPage();
 
 	if (tab === "threads") {
 		const res = await forumApi.getCursor<Thread>(`/api/v1/users/${params.userId}/threads`, {
