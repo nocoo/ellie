@@ -61,12 +61,12 @@ export function ThreadEditDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
-					<DialogTitle>Edit Thread</DialogTitle>
+					<DialogTitle>编辑主题</DialogTitle>
 				</DialogHeader>
 
 				<div className="grid gap-4 py-4">
 					<div className="grid gap-2">
-						<Label htmlFor="edit-subject">Subject</Label>
+						<Label htmlFor="edit-subject">标题</Label>
 						<Input
 							id="edit-subject"
 							value={subject}
@@ -77,52 +77,52 @@ export function ThreadEditDialog({
 
 					<div className="grid grid-cols-2 gap-4">
 						<div className="grid gap-2">
-							<Label htmlFor="edit-sticky">Sticky</Label>
+							<Label htmlFor="edit-sticky">置顶</Label>
 							<select
 								id="edit-sticky"
 								value={sticky}
 								onChange={(e) => setSticky(Number(e.target.value))}
 								className="h-9 rounded-md border border-input bg-background px-3 text-sm"
 							>
-								<option value={0}>None</option>
-								<option value={1}>Forum Sticky</option>
-								<option value={2}>Global Sticky</option>
-								<option value={3}>Super Sticky</option>
+								<option value={0}>无</option>
+								<option value={1}>版块置顶</option>
+								<option value={2}>全局置顶</option>
+								<option value={3}>分类置顶</option>
 							</select>
 						</div>
 
 						<div className="grid gap-2">
-							<Label htmlFor="edit-digest">Digest</Label>
+							<Label htmlFor="edit-digest">精华</Label>
 							<select
 								id="edit-digest"
 								value={digest}
 								onChange={(e) => setDigest(Number(e.target.value))}
 								className="h-9 rounded-md border border-input bg-background px-3 text-sm"
 							>
-								<option value={0}>None</option>
-								<option value={1}>Digest I</option>
-								<option value={2}>Digest II</option>
-								<option value={3}>Digest III</option>
+								<option value={0}>无</option>
+								<option value={1}>精华 I</option>
+								<option value={2}>精华 II</option>
+								<option value={3}>精华 III</option>
 							</select>
 						</div>
 					</div>
 
 					<div className="grid grid-cols-2 gap-4">
 						<div className="grid gap-2">
-							<Label htmlFor="edit-closed">Closed</Label>
+							<Label htmlFor="edit-closed">已锁定</Label>
 							<select
 								id="edit-closed"
 								value={closed}
 								onChange={(e) => setClosed(Number(e.target.value))}
 								className="h-9 rounded-md border border-input bg-background px-3 text-sm"
 							>
-								<option value={0}>Open</option>
-								<option value={1}>Closed</option>
+								<option value={0}>开放</option>
+								<option value={1}>已锁定</option>
 							</select>
 						</div>
 
 						<div className="grid gap-2">
-							<Label htmlFor="edit-highlight">Highlight</Label>
+							<Label htmlFor="edit-highlight">高亮</Label>
 							<Input
 								id="edit-highlight"
 								type="number"
@@ -136,10 +136,10 @@ export function ThreadEditDialog({
 
 				<DialogFooter>
 					<Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-						Cancel
+						取消
 					</Button>
 					<Button onClick={handleSave} disabled={loading}>
-						{loading ? "Saving..." : "Save Changes"}
+						{loading ? "保存中..." : "保存更改"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

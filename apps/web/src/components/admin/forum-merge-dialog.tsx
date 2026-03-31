@@ -62,31 +62,30 @@ export function ForumMergeDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
-					<DialogTitle>Merge Forum</DialogTitle>
+					<DialogTitle>合并版块</DialogTitle>
 					<DialogDescription>
-						Move all threads from &ldquo;{source?.name}&rdquo; into another forum. The source forum
-						will be deleted after merging.
+						将来源版块的所有主题移至目标版块，合并后来源版块将被删除。
 					</DialogDescription>
 				</DialogHeader>
 
 				<div className="grid gap-4 py-4">
 					<div className="grid gap-2">
-						<Label htmlFor="merge-source">Source</Label>
+						<Label htmlFor="merge-source">来源版块</Label>
 						<Input id="merge-source" value={source?.name ?? ""} disabled />
 					</div>
 
 					<div className="grid gap-2">
-						<Label htmlFor="merge-target">Target Forum</Label>
+						<Label htmlFor="merge-target">目标版块</Label>
 						<select
 							id="merge-target"
 							value={targetId ?? ""}
 							onChange={(e) => setTargetId(e.target.value ? Number(e.target.value) : null)}
 							className="h-9 rounded-md border border-input bg-background px-3 text-sm"
 						>
-							<option value="">Select target forum...</option>
+							<option value="">选择目标版块...</option>
 							{targetOptions.map((f) => (
 								<option key={f.id} value={f.id}>
-									{f.name} ({f.threads} threads)
+									{f.name} ({f.threads} 个主题)
 								</option>
 							))}
 						</select>
@@ -95,14 +94,14 @@ export function ForumMergeDialog({
 
 				<DialogFooter>
 					<Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-						Cancel
+						取消
 					</Button>
 					<Button
 						variant="destructive"
 						onClick={handleMerge}
 						disabled={targetId === null || loading}
 					>
-						{loading ? "Merging..." : "Merge Forum"}
+						{loading ? "合并中..." : "合并版块"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

@@ -33,14 +33,14 @@ import { useCallback, useEffect, useState } from "react";
 // ---------------------------------------------------------------------------
 
 const FILTERS: FilterDef[] = [
-	{ key: "search", label: "Search forums...", type: "search" },
+	{ key: "search", label: "搜索版块...", type: "search" },
 	{
 		key: "status",
-		label: "Status",
+		label: "状态",
 		type: "select",
 		options: [
-			{ value: "1", label: "Active" },
-			{ value: "0", label: "Hidden" },
+			{ value: "1", label: "正常" },
+			{ value: "0", label: "隐藏" },
 		],
 	},
 ];
@@ -196,8 +196,8 @@ export default function ForumsPage() {
 		(forum: Forum) => {
 			setConfirmDialog({
 				open: true,
-				title: "Delete Forum",
-				description: `Delete "${forum.name}"? This forum must have 0 threads.`,
+				title: "删除版块",
+				description: `删除版块「${forum.name}」？该版块必须没有主题。`,
 				variant: "destructive",
 				onConfirm: async () => {
 					setConfirmLoading(true);
@@ -235,7 +235,7 @@ export default function ForumsPage() {
 	const columns: ColumnDef<Forum>[] = [
 		{
 			key: "name",
-			header: "Name",
+			header: "名称",
 			cell: (row) =>
 				editingId === row.id ? (
 					<input
@@ -250,7 +250,7 @@ export default function ForumsPage() {
 		},
 		{
 			key: "description",
-			header: "Description",
+			header: "描述",
 			cell: (row) =>
 				editingId === row.id ? (
 					<input
@@ -265,19 +265,19 @@ export default function ForumsPage() {
 		},
 		{
 			key: "threads",
-			header: "Threads",
+			header: "主题",
 			cell: (row) => row.threads.toLocaleString(),
 			className: "text-right",
 		},
 		{
 			key: "posts",
-			header: "Posts",
+			header: "帖子",
 			cell: (row) => row.posts.toLocaleString(),
 			className: "text-right",
 		},
 		{
 			key: "displayOrder",
-			header: "Order",
+			header: "排序",
 			cell: (row) =>
 				editingId === row.id ? (
 					<input
@@ -294,7 +294,7 @@ export default function ForumsPage() {
 		},
 		{
 			key: "status",
-			header: "Status",
+			header: "状态",
 			cell: (row) => <Badge variant={statusVariant(row.status)}>{statusLabel(row.status)}</Badge>,
 		},
 		{
@@ -304,10 +304,10 @@ export default function ForumsPage() {
 				editingId === row.id ? (
 					<div className="flex gap-1">
 						<Button size="sm" variant="ghost" onClick={() => saveEdit(row.id)}>
-							Save
+							保存
 						</Button>
 						<Button size="sm" variant="ghost" onClick={cancelEdit}>
-							Cancel
+							取消
 						</Button>
 					</div>
 				) : (
@@ -320,14 +320,14 @@ export default function ForumsPage() {
 							}
 						/>
 						<DropdownMenuContent align="end">
-							<DropdownMenuItem onClick={() => startEdit(row)}>Edit</DropdownMenuItem>
+							<DropdownMenuItem onClick={() => startEdit(row)}>编辑</DropdownMenuItem>
 							<DropdownMenuItem onClick={() => handleToggleStatus(row)}>
-								{row.status === 1 ? "Hide" : "Show"}
+								{row.status === 1 ? "隐藏" : "显示"}
 							</DropdownMenuItem>
-							<DropdownMenuItem onClick={() => setMergeSource(row)}>Merge</DropdownMenuItem>
+							<DropdownMenuItem onClick={() => setMergeSource(row)}>合并</DropdownMenuItem>
 							{row.threads === 0 && (
 								<DropdownMenuItem onClick={() => handleDelete(row)} className="text-destructive">
-									Delete
+									删除
 								</DropdownMenuItem>
 							)}
 						</DropdownMenuContent>
@@ -345,12 +345,12 @@ export default function ForumsPage() {
 		<div className="space-y-4">
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="text-2xl font-semibold text-foreground">Forums</h1>
-					<p className="mt-1 text-sm text-muted-foreground">Manage forum categories.</p>
+					<h1 className="text-2xl font-semibold text-foreground">版块</h1>
+					<p className="mt-1 text-sm text-muted-foreground">管理版块分类</p>
 				</div>
 				<Button onClick={() => setCreateOpen(true)}>
 					<Plus className="mr-2 h-4 w-4" />
-					Create Forum
+					创建版块
 				</Button>
 			</div>
 
@@ -367,7 +367,7 @@ export default function ForumsPage() {
 					data={data}
 					getRowId={(r) => r.id}
 					loading={loading}
-					emptyMessage="No forums found"
+					emptyMessage="暂无版块"
 				/>
 				<AdminPagination pagination={pagination} onPageChange={handlePageChange} />
 			</div>
