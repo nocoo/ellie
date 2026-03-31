@@ -61,7 +61,7 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 								/>
 							)}
 							<AvatarFallback className="text-xs rounded-sm bg-[#F0F0F0]">
-								<UserRound className="h-5 w-5 text-[#BBB]" strokeWidth={1.2} />
+								<UserRound className="h-5 w-5 text-forum-text-muted" strokeWidth={1.2} />
 							</AvatarFallback>
 						</Avatar>
 					</Link>
@@ -72,9 +72,9 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 						>
 							{post.author?.username ?? "未知用户"}
 						</Link>
-						<span className="text-[11px] text-[#999]">{formatTime(post.createdAt)}</span>
+						<span className="text-[11px] text-forum-text-muted">{formatTime(post.createdAt)}</span>
 					</div>
-					<span className="ml-auto text-xs font-medium text-[#666] shrink-0">
+					<span className="ml-auto text-xs font-medium text-muted-foreground shrink-0">
 						{floorLabel(post.position, isFirst)}
 						<sup className="text-[11px]">#</sup>
 					</span>

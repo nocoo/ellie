@@ -32,7 +32,7 @@ export function PostContent({ post, isFirst, threadDigest, author, actionBar }: 
 		<div className="flex-1 min-w-0 flex flex-col" suppressHydrationWarning>
 			<div className="p-3 flex flex-col flex-1" suppressHydrationWarning>
 				{/* Top meta bar — dashed bottom border */}
-				<div className="flex items-center gap-2 pb-2 border-b border-dashed border-border text-xs text-[#666]">
+				<div className="flex items-center gap-2 pb-2 border-b border-dashed border-border text-xs text-muted-foreground">
 					<SquarePen className="h-3.5 w-3.5 text-[#6BB5D8]" />
 					<span>发表于 {formatDateTime(post.createdAt)}</span>
 					<span className="text-border">|</span>
@@ -46,7 +46,7 @@ export function PostContent({ post, isFirst, threadDigest, author, actionBar }: 
 					)}
 
 					{/* Floor — right-aligned with superscript # */}
-					<span className="ml-auto font-medium text-[#666]">
+					<span className="ml-auto font-medium text-muted-foreground">
 						{floorLabel(post.position, isFirst)}
 						<sup className="text-[11px]">#</sup>
 					</span>
@@ -79,9 +79,9 @@ export function PostContent({ post, isFirst, threadDigest, author, actionBar }: 
 									</a>
 								) : (
 									<>
-										<span className="text-[#999]">📎</span>
+										<span className="text-forum-text-muted">📎</span>
 										<span className="truncate">{att.filename}</span>
-										<span className="text-[#999] shrink-0">{formatFileSize(att.fileSize)}</span>
+										<span className="text-forum-text-muted shrink-0">{formatFileSize(att.fileSize)}</span>
 									</>
 								)}
 							</div>
@@ -96,7 +96,7 @@ export function PostContent({ post, isFirst, threadDigest, author, actionBar }: 
 				{author?.signature && (
 					<div className="mt-4 pt-2 border-t border-dashed border-border">
 						<article
-							className="text-xs text-[#999] prose prose-sm max-w-none [&>*]:text-[#999] [&>*]:text-xs"
+							className="text-xs text-forum-text-muted prose prose-sm max-w-none [&>*]:text-forum-text-muted [&>*]:text-xs"
 							suppressHydrationWarning
 						>
 							<div
