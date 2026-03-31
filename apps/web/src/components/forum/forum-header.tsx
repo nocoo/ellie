@@ -31,7 +31,7 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 	const user = vm.user;
 
 	return (
-		<div className="bg-dz-topbar-bg border-b border-border">
+		<div className="bg-dz-topbar-bg">
 			<div className="width-container flex items-center justify-between !py-0 h-[90px]">
 				{/* Left: Logo */}
 				<Link href="/" className="flex-shrink-0">
@@ -167,9 +167,9 @@ function NavBar({ vm }: { vm: HeaderViewModel }) {
 // Layer 3: Search bar + hot keywords
 // ---------------------------------------------------------------------------
 
-function SearchBar({ vm }: { vm: HeaderViewModel }) {
+function SearchBar() {
 	return (
-		<div className="bg-dz-topbar-bg border-b border-border">
+		<div className="bg-dz-topbar-bg">
 			<div className="width-container flex items-center gap-3 !py-2 h-[44px]">
 				{/* Search input group */}
 				<div className="flex items-center">
@@ -189,23 +189,6 @@ function SearchBar({ vm }: { vm: HeaderViewModel }) {
 						<Search className="h-4 w-4" />
 					</button>
 				</div>
-
-				{/* Hot keywords */}
-				<div className="flex items-center gap-0 text-[13px] flex-wrap overflow-hidden">
-					<span className="font-bold text-foreground mr-1">热搜：</span>
-					{vm.hotKeywords.map((kw, i) => (
-						<Link
-							key={kw.label}
-							href={kw.href}
-							className={cn(
-								"text-dz-hot-text hover:text-primary transition-colors whitespace-nowrap",
-								i > 0 && "ml-2",
-							)}
-						>
-							{kw.label}
-						</Link>
-					))}
-				</div>
 			</div>
 		</div>
 	);
@@ -217,9 +200,9 @@ function SearchBar({ vm }: { vm: HeaderViewModel }) {
 
 function BreadcrumbBar() {
 	return (
-		<div className="bg-dz-topbar-bg border-b border-border">
-			<div className="width-container flex items-center justify-between !py-2 h-[36px]">
-				{/* Left: breadcrumb path */}
+		<div className="bg-dz-topbar-bg">
+			<div className="width-container flex items-center !py-2 h-[36px]">
+				{/* Breadcrumb path */}
 				<div className="flex items-center gap-1.5 text-[13px] text-dz-breadcrumb-text">
 					<Home className="h-3.5 w-3.5" />
 					<span className="text-dz-breadcrumb-text">›</span>
@@ -227,17 +210,6 @@ function BreadcrumbBar() {
 						同济网论坛
 					</Link>
 				</div>
-
-				{/* Right: announcement link */}
-				<Link
-					href="#"
-					className="text-[13px] text-primary font-bold hover:underline"
-				>
-					【大一生活】＝ 同济大学新生第一站
-					<span className="text-dz-breadcrumb-text font-normal ml-2">
-						(2009-7-26)
-					</span>
-				</Link>
 			</div>
 		</div>
 	);
@@ -251,9 +223,9 @@ function StatsBar({ vm }: { vm: HeaderViewModel }) {
 	const s = vm.stats;
 
 	return (
-		<div className="bg-dz-topbar-bg border-b border-border">
-			<div className="width-container flex items-center justify-between !py-2 h-[36px]">
-				{/* Left: stats */}
+		<div className="bg-dz-topbar-bg">
+			<div className="width-container flex items-center !py-2 h-[36px]">
+				{/* Stats */}
 				<div className="flex items-center gap-0 text-[12px] text-dz-stats-text">
 					<span>今日: </span>
 					<span className="font-bold text-foreground">{s.todayPosts}</span>
@@ -270,23 +242,6 @@ function StatsBar({ vm }: { vm: HeaderViewModel }) {
 					<span>欢迎新会员: </span>
 					<Link href="#" className="text-primary hover:underline">
 						{s.newestMember}
-					</Link>
-				</div>
-
-				{/* Right: quick links */}
-				<div className="flex items-center gap-0 text-[12px]">
-					<Link
-						href="#"
-						className="text-dz-stats-text hover:text-primary transition-colors"
-					>
-						我的帖子
-					</Link>
-					<StatSep />
-					<Link
-						href="#"
-						className="text-dz-stats-text hover:text-primary transition-colors"
-					>
-						最新回复
 					</Link>
 				</div>
 			</div>
@@ -360,10 +315,10 @@ export function ForumHeader({ vm }: ForumHeaderProps) {
 	const viewModel = vm ?? buildHeaderViewModel();
 
 	return (
-		<header className="sticky top-0 z-40">
+		<header>
 			<TopBar vm={viewModel} />
 			<NavBar vm={viewModel} />
-			<SearchBar vm={viewModel} />
+			<SearchBar />
 			<BreadcrumbBar />
 			<StatsBar vm={viewModel} />
 		</header>
