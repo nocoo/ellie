@@ -1,0 +1,127 @@
+/**
+ * Forum header ViewModel — pure types & placeholder data.
+ *
+ * Defines the data contract for the classic Discuz-style forum header.
+ * All numeric placeholders use 777 until wired to real API data.
+ */
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+/** Current user info displayed in the top bar */
+export interface HeaderUserInfo {
+	username: string;
+	uid: number;
+	/** User group display name, e.g. "管理员" */
+	groupTitle: string;
+	/** Credit/point score */
+	credits: number;
+	/** Unread reminder/notification count */
+	reminderCount: number;
+}
+
+/** A single navigation tab in the blue category bar */
+export interface HeaderNavTab {
+	label: string;
+	href: string;
+	/** Whether this tab is currently active */
+	active?: boolean;
+}
+
+/** A hot search keyword shown next to the search bar */
+export interface HotKeyword {
+	label: string;
+	href: string;
+}
+
+/** Site statistics shown at the bottom of the header */
+export interface HeaderStats {
+	todayPosts: number;
+	yesterdayPosts: number;
+	totalThreads: number;
+	totalMembers: number;
+	newestMember: string;
+}
+
+/** Aggregated header data consumed by header components */
+export interface HeaderViewModel {
+	user: HeaderUserInfo | null;
+	navTabs: HeaderNavTab[];
+	hotKeywords: HotKeyword[];
+	stats: HeaderStats;
+}
+
+// ---------------------------------------------------------------------------
+// Navigation tabs — matches original forum category order
+// ---------------------------------------------------------------------------
+
+export const HEADER_NAV_TABS: HeaderNavTab[] = [
+	{ label: "同济网论坛", href: "/" },
+	{ label: "就业实习", href: "/forums/2" },
+	{ label: "导读", href: "/digest" },
+	{ label: "考研", href: "/forums/3" },
+	{ label: "嘉定新风", href: "/forums/4" },
+	{ label: "同济闲话", href: "/forums/5" },
+	{ label: "情感空间", href: "/forums/6" },
+	{ label: "鹊桥", href: "/forums/7" },
+	{ label: "竞猜", href: "/forums/8" },
+	{ label: "签到", href: "/forums/9" },
+	{ label: "道具", href: "/forums/10" },
+];
+
+// ---------------------------------------------------------------------------
+// Hot search keywords (static placeholder list)
+// ---------------------------------------------------------------------------
+
+export const HOT_KEYWORDS: HotKeyword[] = [
+	{ label: "空调", href: "/search?q=空调" },
+	{ label: "自行车", href: "/search?q=自行车" },
+	{ label: "租房", href: "/search?q=租房" },
+	{ label: "短租", href: "/search?q=短租" },
+	{ label: "同济新村", href: "/search?q=同济新村" },
+	{ label: "上海大众", href: "/search?q=上海大众" },
+	{ label: "电视机", href: "/search?q=电视机" },
+	{ label: "上城名都", href: "/search?q=上城名都" },
+	{ label: "吉他", href: "/search?q=吉他" },
+	{ label: "搬家", href: "/search?q=搬家" },
+	{ label: "智齿", href: "/search?q=智齿" },
+	{ label: "拔牙", href: "/search?q=拔牙" },
+	{ label: "健身房", href: "/search?q=健身房" },
+];
+
+// ---------------------------------------------------------------------------
+// Placeholder data (all numbers → 777)
+// ---------------------------------------------------------------------------
+
+export const PLACEHOLDER_USER: HeaderUserInfo = {
+	username: "CS",
+	uid: 777,
+	groupTitle: "管理员",
+	credits: 777,
+	reminderCount: 777,
+};
+
+export const PLACEHOLDER_STATS: HeaderStats = {
+	todayPosts: 777,
+	yesterdayPosts: 777,
+	totalThreads: 777,
+	totalMembers: 777,
+	newestMember: "lpojjjzz",
+};
+
+// ---------------------------------------------------------------------------
+// Build the full view model
+// ---------------------------------------------------------------------------
+
+export function buildHeaderViewModel(
+	user: HeaderUserInfo | null = PLACEHOLDER_USER,
+	stats: HeaderStats = PLACEHOLDER_STATS,
+): HeaderViewModel {
+	return {
+		user,
+		navTabs: HEADER_NAV_TABS,
+		hotKeywords: HOT_KEYWORDS,
+		stats,
+	};
+}

@@ -1,30 +1,92 @@
-// components/forum/site-footer.tsx — Compact forum site footer
-// Ref: 04f §3 — removed inner max-w container, reduced padding
+// components/forum/site-footer.tsx — Global Discuz-style site footer
+// Shared across ALL pages. Shows the powered-by line, copyright, and quick links.
+// The friend-links / online-stats section above is homepage-only (see home-footer.tsx).
 
+import { cn } from "@/lib/utils";
+import {
+	type GlobalFooterViewModel,
+	buildGlobalFooterViewModel,
+} from "@/viewmodels/forum/footer";
+import { Shield } from "lucide-react";
 import Link from "next/link";
 
-export function SiteFooter() {
-	const year = new Date().getFullYear();
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
+
+interface SiteFooterProps {
+	vm?: GlobalFooterViewModel;
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+export function SiteFooter({ vm }: SiteFooterProps) {
+	const m = vm ?? buildGlobalFooterViewModel();
 
 	return (
-		<footer className="border-t border-border bg-background py-4 mt-auto">
-			<div className="text-center text-xs text-muted-foreground">
-				<p>
-					&copy; {year} 同济网 &middot; Powered by{" "}
-					<Link href="/" className="hover:text-foreground transition-colors">
-						Ellie
+		<footer className="mt-auto border-t border-border bg-background">
+			{/* Row 1: Powered by + quick links + ICP + shield icon */}
+			<div className="width-container flex items-center justify-between !py-2">
+				{/* Left: Powered by */}
+				<div className="text-[12px] text-dz-stats-text">
+					Powered by{" "}
+					<Link href="#" className="font-bold text-foreground hover:underline">
+						{m.poweredBy}
 					</Link>
-				</p>
-				<p className="mt-1">
-					<Link href="/privacy" className="hover:text-foreground transition-colors">
-						隐私政策
+				</div>
+
+				{/* Center: quick links + ICP */}
+				<div className="flex items-center gap-0 text-[12px]">
+					{m.quickLinks.map((link, i) => (
+						<span key={link.label} className="flex items-center">
+							{i > 0 && <FooterSep />}
+							<Link
+								href={link.href}
+								className={cn(
+									"text-dz-stats-text hover:text-primary transition-colors",
+									i === 0 && "text-primary",
+								)}
+							>
+								{link.label}
+							</Link>
+						</span>
+					))}
+					<FooterSep />
+					<Link href="#" className="font-bold text-foreground hover:underline">
+						同济网（{m.icpNumber}）
 					</Link>
-					{" · "}
-					<Link href="/terms" className="hover:text-foreground transition-colors">
-						使用条款
-					</Link>
-				</p>
+				</div>
+
+				{/* Right: shield icon */}
+				<Shield className="h-5 w-5 text-primary" />
+			</div>
+
+			{/* Row 2: Copyright + timestamp */}
+			<div className="width-container flex items-center justify-between !py-2 border-t border-border">
+				{/* Left: copyright */}
+				<div className="text-[12px] text-dz-stats-text">
+					&copy; {m.copyrightYears} {m.copyrightHolder}
+				</div>
+
+				{/* Right: timestamp + query stats */}
+				<div className="text-[12px] text-dz-stats-text">
+					GMT+8, {new Date().toISOString().slice(0, 10)}{" "}
+					{new Date().toTimeString().slice(0, 5)} , Processed in 0.043491
+					second(s), 777 queries .
+				</div>
 			</div>
 		</footer>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Utility
+// ---------------------------------------------------------------------------
+
+function FooterSep() {
+	return (
+		<span className="mx-1.5 text-dz-topbar-separator select-none">|</span>
 	);
 }
