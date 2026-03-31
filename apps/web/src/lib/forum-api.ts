@@ -98,6 +98,7 @@ interface RequestOptions {
 	path: string;
 	body?: unknown;
 	searchParams?: Record<string, string | number | boolean | undefined | null>;
+	bearerToken?: string;
 }
 
 async function request<T>(
@@ -116,6 +117,10 @@ async function request<T>(
 	const headers: Record<string, string> = {
 		"X-API-Key": getApiKey(),
 	};
+
+	if (opts.bearerToken) {
+		headers.Authorization = `Bearer ${opts.bearerToken}`;
+	}
 
 	if (opts.body !== undefined) {
 		headers["Content-Type"] = "application/json";
@@ -207,6 +212,18 @@ export const forumApi = {
 	/** POST: { data: T, meta } */
 	async post<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {
 		const result = await request<T>({ method: "POST", path, body });
+		return { data: result.data, meta: result.meta as ApiMeta };
+	},
+
+	/** POST with Bearer token (authenticated Worker API call) */
+	async postAuth<T>(path: string, body: unknown, bearerToken: string): Promise<ApiResponse<T>> {
+		const result = await request<T>({ method: "POST", path, body, bearerToken });
+		return { data: result.data, meta: result.meta as ApiMeta };
+	},
+
+	/** DELETE with Bearer token (authenticated Worker API call) */
+	async deleteAuth<T>(path: string, body: unknown, bearerToken: string): Promise<ApiResponse<T>> {
+		const result = await request<T>({ method: "DELETE", path, body, bearerToken });
 		return { data: result.data, meta: result.meta as ApiMeta };
 	},
 };
