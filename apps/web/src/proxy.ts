@@ -67,10 +67,20 @@ export function resolveProxyAction(
 	isLoggedIn: boolean,
 	email?: string | null,
 	provider?: string | null,
-): "next" | "redirect:/admin" | "redirect:/login" | "redirect:/admin/login" {
+): "next" | "redirect:/" | "redirect:/admin" | "redirect:/login" | "redirect:/admin/login" {
 	if (isPublicRoute(pathname)) {
 		// Authenticated admin on admin login page -> redirect to admin dashboard
 		if (pathname === "/admin/login" && isLoggedIn && isAdmin(email)) return "redirect:/admin";
+
+		// Credentials users already have a forum session — redirect away from auth pages
+		if (
+			(pathname === "/login" || pathname === "/register") &&
+			isLoggedIn &&
+			provider === "credentials"
+		) {
+			return "redirect:/";
+		}
+
 		return "next";
 	}
 

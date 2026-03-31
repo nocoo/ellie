@@ -258,4 +258,45 @@ describe("resolveProxyAction", () => {
 		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
 		expect(resolveProxyAction("/threads/new", true, ADMIN_EMAIL, "credentials")).toBe("next");
 	});
+
+	// -----------------------------------------------------------------------
+	// Credentials user redirect from /login and /register
+	// -----------------------------------------------------------------------
+
+	it("redirects credentials user on /login to /", () => {
+		expect(resolveProxyAction("/login", true, NON_ADMIN_EMAIL, "credentials")).toBe("redirect:/");
+	});
+
+	it("redirects credentials user on /register to /", () => {
+		expect(resolveProxyAction("/register", true, NON_ADMIN_EMAIL, "credentials")).toBe(
+			"redirect:/",
+		);
+	});
+
+	it("allows Google OAuth user on /login (needs forum account)", () => {
+		expect(resolveProxyAction("/login", true, NON_ADMIN_EMAIL, "google")).toBe("next");
+	});
+
+	it("allows Google OAuth user on /register (needs forum account)", () => {
+		expect(resolveProxyAction("/register", true, NON_ADMIN_EMAIL, "google")).toBe("next");
+	});
+
+	it("allows unauthenticated user on /login", () => {
+		expect(resolveProxyAction("/login", false)).toBe("next");
+	});
+
+	it("allows unauthenticated user on /register", () => {
+		expect(resolveProxyAction("/register", false)).toBe("next");
+	});
+
+	it("does not redirect credentials user on other public routes like /forums", () => {
+		expect(resolveProxyAction("/forums", true, NON_ADMIN_EMAIL, "credentials")).toBe("next");
+		expect(resolveProxyAction("/", true, NON_ADMIN_EMAIL, "credentials")).toBe("next");
+		expect(resolveProxyAction("/threads/123", true, NON_ADMIN_EMAIL, "credentials")).toBe("next");
+	});
+
+	it("admin redirect on /admin/login still works", () => {
+		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
+		expect(resolveProxyAction("/admin/login", true, ADMIN_EMAIL)).toBe("redirect:/admin");
+	});
 });
