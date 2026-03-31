@@ -87,8 +87,14 @@
 
 	/* Classic Discuz header color tokens */
 	--color-dz-nav-bg: hsl(var(--dz-nav-bg));
+	--color-dz-nav-mid: hsl(var(--dz-nav-mid));
+	--color-dz-nav-edge: hsl(var(--dz-nav-edge));
+	--color-dz-nav-highlight: hsl(var(--dz-nav-highlight));
+	--color-dz-nav-shadow: hsl(var(--dz-nav-shadow));
+	--color-dz-nav-drop: hsl(var(--dz-nav-drop));
 	--color-dz-nav-hover: hsl(var(--dz-nav-hover));
 	--color-dz-nav-text: hsl(var(--dz-nav-text));
+	--color-dz-nav-text-muted: hsl(var(--dz-nav-text-muted));
 	--color-dz-topbar-bg: hsl(var(--dz-topbar-bg));
 	--color-dz-topbar-link: hsl(var(--dz-topbar-link));
 	--color-dz-topbar-separator: hsl(var(--dz-topbar-separator));
@@ -248,9 +254,15 @@
 	--forum-accent: 27 81% 49%;
 
 	/* Classic Discuz header tokens — light mode */
-	--dz-nav-bg: 211 76% 45%;
-	--dz-nav-hover: 211 76% 38%;
-	--dz-nav-text: 0 0% 100%;
+	--dz-nav-bg: 38 35% 88%;
+	--dz-nav-mid: 38 30% 82%;
+	--dz-nav-edge: 38 25% 76%;
+	--dz-nav-highlight: 40 50% 96%;
+	--dz-nav-shadow: 38 20% 68%;
+	--dz-nav-drop: 38 20% 50%;
+	--dz-nav-text: 25 60% 25%;
+	--dz-nav-text-muted: 25 40% 40%;
+	--dz-nav-hover: 38 30% 78%;
 	--dz-topbar-bg: 0 0% 100%;
 	--dz-topbar-link: 0 0% 35%;
 	--dz-topbar-separator: 0 0% 80%;
@@ -337,9 +349,15 @@
 	--forum-accent: 27 81% 59%;
 
 	/* Classic Discuz header tokens — dark mode */
-	--dz-nav-bg: 211 60% 30%;
-	--dz-nav-hover: 211 60% 25%;
-	--dz-nav-text: 0 0% 90%;
+	--dz-nav-bg: 30 15% 18%;
+	--dz-nav-mid: 30 12% 15%;
+	--dz-nav-edge: 30 10% 12%;
+	--dz-nav-highlight: 30 15% 22%;
+	--dz-nav-shadow: 30 10% 10%;
+	--dz-nav-drop: 30 10% 8%;
+	--dz-nav-text: 35 30% 80%;
+	--dz-nav-text-muted: 35 15% 55%;
+	--dz-nav-hover: 30 12% 22%;
 	--dz-topbar-bg: 0 0% 10.6%;
 	--dz-topbar-link: 0 0% 65%;
 	--dz-topbar-separator: 0 0% 25%;
@@ -376,6 +394,23 @@
  */
 @utility font-display {
 	font-family: var(--font-dm-sans), "DM Sans", system-ui, sans-serif;
+}
+
+/*
+ * Book-spine navigation bar — parchment gradient with convex highlight
+ * Uses --dz-nav-* tokens so it auto-adapts to dark mode.
+ */
+.nav-bookspine {
+	background: linear-gradient(
+		180deg,
+		hsl(var(--dz-nav-bg)) 0%,
+		hsl(var(--dz-nav-mid)) 60%,
+		hsl(var(--dz-nav-edge)) 100%
+	);
+	box-shadow:
+		inset 0 1px 0 hsl(var(--dz-nav-highlight)),
+		inset 0 -2px 3px hsl(var(--dz-nav-shadow) / 0.4),
+		0 2px 4px hsl(var(--dz-nav-drop) / 0.15);
 }
 
 /*
