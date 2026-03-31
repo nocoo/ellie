@@ -10,7 +10,7 @@ import {
 	uniqueAuthorIds,
 } from "./thread-detail";
 
-export interface ThreadDetailData {
+export interface ThreadDetailPageData {
 	thread: Thread;
 	forums: Forum[];
 	posts: EnrichedPost[];
@@ -24,7 +24,7 @@ export async function loadThreadDetail(params: {
 	cursor?: string;
 	direction?: "forward" | "backward";
 	limit?: number;
-}): Promise<ThreadDetailData> {
+}): Promise<ThreadDetailPageData> {
 	// Parallel fetch: thread + posts + forums
 	const [threadRes, postsRes, forumsRes] = await Promise.all([
 		forumApi.get<Thread>(`/api/v1/threads/${params.threadId}`),

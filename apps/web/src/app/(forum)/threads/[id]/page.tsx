@@ -7,7 +7,7 @@ import { ThreadBadgeList } from "@/components/forum/thread-badge";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Card, CardContent } from "@/components/ui/card";
 import { buildThreadBreadcrumbs } from "@/lib/forum-breadcrumbs";
-import { type ThreadDetailData, loadThreadDetail } from "@/viewmodels/forum/thread-detail.server";
+import { type ThreadDetailPageData, loadThreadDetail } from "@/viewmodels/forum/thread-detail.server";
 import { formatTime } from "@/viewmodels/forum/thread-list";
 import { type Thread, findForumAncestors, getThreadBadges } from "@ellie/types";
 import Link from "next/link";
@@ -22,7 +22,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 	const sp = await searchParams;
 	const threadId = Number.parseInt(id, 10);
 
-	let data: ThreadDetailData;
+	let data: ThreadDetailPageData;
 	let error: string | null = null;
 
 	try {
