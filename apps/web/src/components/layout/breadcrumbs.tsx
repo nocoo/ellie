@@ -1,10 +1,8 @@
+import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 
-export interface BreadcrumbItem {
-	label: string;
-	href?: string;
-}
+export type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 
 interface BreadcrumbsProps {
 	items: BreadcrumbItem[];

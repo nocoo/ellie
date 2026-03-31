@@ -1,7 +1,7 @@
 // lib/forum-breadcrumbs.ts — Server-side breadcrumb builders
 // Pure functions, no React dependency.
 
-import type { BreadcrumbItem } from "@/components/layout/breadcrumbs";
+import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import type { Forum } from "@ellie/types";
 
 const HOME: BreadcrumbItem = { label: "首页", href: "/" };
