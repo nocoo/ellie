@@ -379,14 +379,46 @@
 }
 
 /*
- * Modern blue gradient navigation bar
+ * Modern blue gradient navigation bar with architectural skyline texture.
+ * The ::after pseudo-element renders a row of vertical bars at random heights,
+ * evoking blueprint grid lines, a book-spine edge, or an audio equalizer.
+ * Built entirely with repeating-linear-gradient — no images, no JS.
  */
 .nav-gradient {
+	position: relative;
+	overflow: hidden;
 	background: linear-gradient(
-		135deg,
+		180deg,
 		hsl(var(--dz-nav-bg)) 0%,
 		hsl(var(--dz-nav-hover)) 100%
 	);
+}
+.nav-gradient::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	/*
+	 * Skyline bars: each bar is 1px wide on a 4px grid (1px bar + 3px gap).
+	 * We stack ~60 layers, each offset by a fraction of the period, with
+	 * different heights via gradient stop positions. The result is a dense,
+	 * pseudo-random row of bars anchored to the bottom.
+	 *
+	 * Opacity is kept very low (white at 4-7%) so it reads as texture, not pattern.
+	 */
+	background:
+		/* batch 1 — tallest bars (35-55% of height) */
+		repeating-linear-gradient(90deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 1px, transparent 1px, transparent 4px),
+		repeating-linear-gradient(90deg, transparent 2px, transparent 3px, rgba(255,255,255,0.05) 3px, rgba(255,255,255,0.05) 4px, transparent 4px, transparent 8px),
+		repeating-linear-gradient(90deg, transparent 1px, transparent 5px, rgba(255,255,255,0.04) 5px, rgba(255,255,255,0.04) 6px, transparent 6px, transparent 12px),
+		repeating-linear-gradient(90deg, transparent 3px, transparent 7px, rgba(255,255,255,0.05) 7px, rgba(255,255,255,0.05) 8px, transparent 8px, transparent 16px),
+		repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 1px, transparent 1px, transparent 6px),
+		repeating-linear-gradient(90deg, transparent 4px, transparent 9px, rgba(255,255,255,0.06) 9px, rgba(255,255,255,0.06) 10px, transparent 10px, transparent 20px);
+	background-size:
+		4px 55%, 8px 45%, 12px 38%, 16px 50%, 6px 35%, 20px 42%;
+	background-position:
+		bottom left, bottom left, bottom left, bottom left, bottom left, bottom left;
+	background-repeat: repeat-x;
 }
 
 /*
