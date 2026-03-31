@@ -21,9 +21,14 @@ function parseModerators(moderators: string): string[] {
 		.filter(Boolean);
 }
 
-/** Forum icon — consistent gray box/cube style */
-function ForumIcon() {
-	return <Box className="h-7 w-7 text-[#BBB] shrink-0" strokeWidth={1.2} />;
+/** Forum icon — green when active, gray when inactive */
+function ForumIcon({ hasActivity = false }: { hasActivity?: boolean }) {
+	return (
+		<Box
+			className={`h-7 w-7 shrink-0 ${hasActivity ? "text-[#7BAA3C]" : "text-[#BBB]"}`}
+			strokeWidth={1.2}
+		/>
+	);
 }
 
 /** Format unix timestamp to YYYY-M-D HH:mm */
@@ -44,7 +49,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 		<div className="relative flex items-start gap-3 px-4 py-3.5 transition-colors hover:bg-[#F8F8F8]">
 			{/* Icon */}
 			<div className="mt-0.5 shrink-0">
-				<ForumIcon />
+				<ForumIcon hasActivity={forum.todayThreads > 0} />
 			</div>
 
 			{/* Left: name + description + sub-forums + moderators */}
@@ -136,7 +141,7 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 		<div className="relative flex items-start gap-2.5 px-4 py-3 transition-colors hover:bg-[#F8F8F8]">
 			{/* Icon */}
 			<div className="mt-0.5 shrink-0">
-				<ForumIcon />
+				<ForumIcon hasActivity={forum.todayThreads > 0} />
 			</div>
 
 			<div className="min-w-0 flex-1">
