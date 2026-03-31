@@ -89,6 +89,12 @@ export default {
 			if (path === "/api/v1/auth/me" && request.method === "GET") {
 				return await (await import("./handlers/auth")).me(request, env);
 			}
+			if (path === "/api/v1/auth/register" && request.method === "POST") {
+				return await (await import("./handlers/auth")).register(request, env);
+			}
+			if (path === "/api/v1/auth/check-username" && request.method === "GET") {
+				return await (await import("./handlers/auth")).checkUsername(request, env);
+			}
 
 			// ── Authenticated routes (#6, #9) ────────────────
 			if (path === "/api/v1/threads" && request.method === "POST") {
