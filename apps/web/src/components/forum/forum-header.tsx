@@ -9,7 +9,6 @@ import { getAvatarUrl } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
 import {
 	type HeaderViewModel,
-	buildHeaderViewModel,
 } from "@/viewmodels/forum/header";
 import { Bell, ChevronDown, Home, Search } from "lucide-react";
 import Link from "next/link";
@@ -20,7 +19,7 @@ import { usePathname } from "next/navigation";
 // ---------------------------------------------------------------------------
 
 interface ForumHeaderProps {
-	vm?: HeaderViewModel;
+	vm: HeaderViewModel;
 }
 
 // ---------------------------------------------------------------------------
@@ -357,15 +356,13 @@ function UserLinkIcon({ className }: { className?: string }) {
 // ---------------------------------------------------------------------------
 
 export function ForumHeader({ vm }: ForumHeaderProps) {
-	const viewModel = vm ?? buildHeaderViewModel();
-
 	return (
 		<header className="sticky top-0 z-40">
-			<TopBar vm={viewModel} />
-			<NavBar vm={viewModel} />
-			<SearchBar vm={viewModel} />
+			<TopBar vm={vm} />
+			<NavBar vm={vm} />
+			<SearchBar vm={vm} />
 			<BreadcrumbBar />
-			<StatsBar vm={viewModel} />
+			<StatsBar vm={vm} />
 		</header>
 	);
 }

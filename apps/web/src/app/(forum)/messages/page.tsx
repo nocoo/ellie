@@ -2,10 +2,11 @@
 // Server Component shell that renders the client messages page.
 
 import { MessagesPage } from "@/components/forum/messages-page";
-import { buildMessagesBreadcrumbs } from "@/viewmodels/forum/messages";
+import { buildMessagesBreadcrumbs, buildMessagesPageViewModel } from "@/viewmodels/forum/messages";
 
 export default function MessagesRoute() {
 	const breadcrumbs = buildMessagesBreadcrumbs();
+	const vm = buildMessagesPageViewModel();
 
-	return <MessagesPage breadcrumbs={breadcrumbs} />;
+	return <MessagesPage breadcrumbs={breadcrumbs} vm={vm} />;
 }
