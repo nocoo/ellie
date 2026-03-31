@@ -70,13 +70,13 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 				{forum.description && (
 					<SafeHtml
 						html={forum.description}
-						className="mt-0.5 block text-xs text-[#888] leading-relaxed line-clamp-1"
+						className="mt-0.5 block text-xs text-[#888] leading-5 line-clamp-1"
 					/>
 				)}
 
 				{/* Sub-forums */}
 				{forum.children.length > 0 && (
-					<div className="relative z-10 mt-0.5 flex items-center gap-1 flex-wrap">
+					<div className="relative z-10 mt-0.5 flex items-baseline gap-1 flex-wrap leading-5">
 						<span className="text-xs text-[#888]">子版面:</span>
 						{forum.children.map((sub, i) => (
 							<span key={sub.id}>
@@ -91,12 +91,14 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 
 				{/* Moderators */}
 				{mods.length > 0 && (
-					<div className="relative z-10 mt-0.5 flex items-center gap-1 flex-wrap">
+					<div className="relative z-10 mt-0.5 flex items-baseline gap-1 flex-wrap leading-5">
 						<span className="text-xs text-[#888]">版主:</span>
 						{mods.map((name, i) => (
 							<span key={name}>
 								{i > 0 && <span className="text-xs text-[#888]">, </span>}
-								<span className="text-xs text-[#2E6B9A]">{name}</span>
+								<span className="text-xs text-[#2E6B9A] hover:underline cursor-pointer">
+									{name}
+								</span>
 							</span>
 						))}
 					</div>
@@ -121,8 +123,11 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 					>
 						{forum.lastThreadSubject || "最新帖子"}
 					</Link>
-					<span className="mt-0.5">
-						{formatDate(forum.lastPostAt)} {forum.lastPoster}
+					<span className="mt-0.5 leading-5">
+						{formatDate(forum.lastPostAt)}{" "}
+						<span className="text-[#2E6B9A] hover:underline cursor-pointer">
+							{forum.lastPoster}
+						</span>
 					</span>
 				</div>
 			)}
@@ -159,18 +164,18 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 						</span>
 					)}
 				</div>
-				<div className="mt-0.5 text-xs text-[#888] tabular-nums">
+				<div className="mt-0.5 text-xs text-[#888] tabular-nums leading-5">
 					主题: {formatCount(forum.threads)}, 帖数: {formatCount(forum.posts)}
 				</div>
 
 				{/* Moderators */}
 				{mods.length > 0 && (
-					<div className="mt-0.5 text-xs text-[#888]">
+					<div className="mt-0.5 text-xs text-[#888] leading-5">
 						版主:{" "}
 						{mods.map((name, i) => (
 							<span key={name}>
 								{i > 0 && ", "}
-								<span className="text-[#2E6B9A]">{name}</span>
+								<span className="text-[#2E6B9A] hover:underline cursor-pointer">{name}</span>
 							</span>
 						))}
 					</div>
@@ -178,14 +183,17 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 
 				{/* Last post preview */}
 				{forum.lastPostAt > 0 && (
-					<div className="mt-1 text-xs text-[#888] truncate">
+					<div className="mt-1 text-xs text-[#888] truncate leading-5">
 						<Link
 							href={`/threads/${forum.lastThreadId}`}
 							className="relative z-10 text-[#2E6B9A] hover:underline"
 						>
 							{forum.lastThreadSubject || "最新帖子"}
 						</Link>{" "}
-						{formatDate(forum.lastPostAt)} {forum.lastPoster}
+						{formatDate(forum.lastPostAt)}{" "}
+						<span className="text-[#2E6B9A] hover:underline cursor-pointer">
+							{forum.lastPoster}
+						</span>
 					</div>
 				)}
 			</div>
