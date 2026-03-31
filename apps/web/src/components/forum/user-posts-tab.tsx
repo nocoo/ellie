@@ -1,0 +1,38 @@
+// components/forum/user-posts-tab.tsx — Posts tab for user profile page
+
+import { formatTime } from "@/viewmodels/forum/thread-list";
+import type { UserProfileData } from "@/viewmodels/forum/user-profile.server";
+import Link from "next/link";
+
+export function UserPostsTab({
+	posts,
+}: {
+	posts: UserProfileData["posts"];
+}) {
+	if (posts.items.length === 0) {
+		return (
+			<div className="py-8 text-center text-sm text-muted-foreground">
+				暂无回复（Worker v1 尚不支持按用户查询历史）
+			</div>
+		);
+	}
+
+	return (
+		<div className="divide-y divide-border/50">
+			{posts.items.map((post) => (
+				<div key={post.id} className="py-2">
+					<Link
+						href={`/threads/${post.threadId}`}
+						className="text-xs text-muted-foreground hover:text-primary transition-colors"
+					>
+						回复帖子 #{post.threadId}
+					</Link>
+					<p className="mt-0.5 text-sm text-foreground line-clamp-2">
+						{post.content.replace(/<[^>]*>/g, "").slice(0, 200)}
+					</p>
+					<span className="text-xs text-muted-foreground">{formatTime(post.createdAt)}</span>
+				</div>
+			))}
+		</div>
+	);
+}
