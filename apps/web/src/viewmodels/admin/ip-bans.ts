@@ -57,9 +57,9 @@ export function buildIpBanSearchParams(
 	};
 }
 
-/** Format an expiration date for display. Returns "Never" when null. */
+/** Format an expiration date for display. Returns "永不过期" when null. */
 export function formatExpiry(expiresAt: number | null): string {
-	if (!expiresAt) return "Never";
+	if (!expiresAt) return "永不过期";
 	return new Date(expiresAt * 1000).toLocaleString();
 }
 
