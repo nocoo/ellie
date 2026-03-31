@@ -358,6 +358,13 @@
 	* {
 		@apply border-border;
 	}
+	html {
+		@apply bg-background;
+		color-scheme: light;
+	}
+	html.dark {
+		color-scheme: dark;
+	}
 	body {
 		@apply bg-background text-foreground;
 		font-family: var(--font-inter), "Inter", system-ui, -apple-system, sans-serif;
