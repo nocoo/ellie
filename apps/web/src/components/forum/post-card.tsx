@@ -1,16 +1,19 @@
 // components/forum/post-card.tsx — Discuz classic two-column post card
-// Desktop: left sidebar (user info) + vertical separator + right content
+// Desktop: left sidebar (user info) + vertical border + right content + action bar
 // Mobile: compact header row + content
-// Uses a plain styled div (not Card) because two-column layout requires
-// its own padding management that conflicts with Card's built-in padding.
+// Flat 1px solid border, no border-radius, cards stack with border-collapse.
+//
+// PostActionBar is passed as a prop into PostContent (not rendered as a sibling)
+// to avoid hydration mismatches caused by unclosed HTML tags in post content.
 
+import { PostActionBar } from "@/components/forum/post-action-bar";
 import { PostContent } from "@/components/forum/post-content";
 import { PostSidebar } from "@/components/forum/post-sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
 import { getAvatarUrl } from "@/lib/avatar";
 import { type EnrichedPost, floorLabel } from "@/viewmodels/forum/thread-detail";
 import { formatTime } from "@/viewmodels/forum/thread-list";
+import { UserRound } from "lucide-react";
 import Link from "next/link";
 
 interface PostCardProps {
@@ -20,36 +23,34 @@ interface PostCardProps {
 	threadDigest?: number;
 }
 
-function authorInitials(name: string): string {
-	return name.slice(0, 2).toUpperCase();
-}
+const actionBar = <PostActionBar />;
 
 export function PostCard({ post, threadViews, threadReplies, threadDigest }: PostCardProps) {
 	const isFirst = post.isFirst || post.position === 1;
 
 	return (
-		<div className="overflow-hidden rounded-xl bg-card text-sm text-card-foreground ring-1 ring-foreground/10">
+		<div className="border border-border bg-card -mt-px first:mt-0">
 			{/* Desktop: two-column layout */}
-			<div className="hidden md:flex flex-row">
+			<div className="hidden md:flex">
 				<PostSidebar
 					author={post.author}
 					isFirst={isFirst}
 					threadViews={threadViews}
 					threadReplies={threadReplies}
 				/>
-				<Separator orientation="vertical" />
 				<PostContent
 					post={post}
 					isFirst={isFirst}
 					threadDigest={threadDigest}
 					author={post.author}
+					actionBar={actionBar}
 				/>
 			</div>
 
 			{/* Mobile: compact single-column layout */}
 			<div className="md:hidden">
 				{/* Compact header row */}
-				<div className="flex items-center gap-2 px-3 pt-3 pb-2 border-b border-border/50">
+				<div className="flex items-center gap-2 px-3 pt-3 pb-2 border-b border-dashed border-border">
 					<Link href={`/users/${post.authorId}`}>
 						<Avatar className="h-8 w-8 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
 							{post.author && (
@@ -59,22 +60,23 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 									className="rounded-sm"
 								/>
 							)}
-							<AvatarFallback className="text-xs rounded-sm">
-								{post.author ? authorInitials(post.author.username) : "?"}
+							<AvatarFallback className="text-xs rounded-sm bg-muted">
+								<UserRound className="h-5 w-5 text-forum-text-muted" strokeWidth={1.2} />
 							</AvatarFallback>
 						</Avatar>
 					</Link>
 					<div className="flex flex-col min-w-0">
 						<Link
 							href={`/users/${post.authorId}`}
-							className="text-sm font-medium text-foreground hover:text-primary transition-colors truncate"
+							className="text-sm font-medium text-forum-link hover:underline truncate"
 						>
 							{post.author?.username ?? "未知用户"}
 						</Link>
-						<span className="text-[10px] text-muted-foreground">{formatTime(post.createdAt)}</span>
+						<span className="text-2xs text-forum-text-muted">{formatTime(post.createdAt)}</span>
 					</div>
 					<span className="ml-auto text-xs font-medium text-muted-foreground shrink-0">
 						{floorLabel(post.position, isFirst)}
+						<sup className="text-2xs">#</sup>
 					</span>
 				</div>
 
@@ -83,6 +85,7 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 					isFirst={isFirst}
 					threadDigest={threadDigest}
 					author={post.author}
+					actionBar={actionBar}
 				/>
 			</div>
 		</div>

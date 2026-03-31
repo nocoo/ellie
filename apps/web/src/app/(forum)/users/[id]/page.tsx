@@ -21,6 +21,7 @@ import {
 } from "@/viewmodels/forum/user-profile";
 import { type UserProfileData, loadUserProfile } from "@/viewmodels/forum/user-profile.server";
 import { getThreadBadges } from "@ellie/types";
+import { UserRound } from "lucide-react";
 import Link from "next/link";
 
 interface UserProfilePageProps {
@@ -81,8 +82,8 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 								alt={data.user.username}
 								className="rounded-sm"
 							/>
-							<AvatarFallback className="text-lg rounded-sm">
-								{data.user.username.slice(0, 2).toUpperCase()}
+							<AvatarFallback className="text-lg rounded-sm bg-muted">
+								<UserRound className="h-10 w-10 text-forum-text-muted" strokeWidth={1.2} />
 							</AvatarFallback>
 						</Avatar>
 						<div className="min-w-0 flex-1">

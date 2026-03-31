@@ -1,14 +1,13 @@
-// components/forum/post-sidebar.tsx — Discuz-style left sidebar for desktop
-// Desktop only (hidden md:flex), left-aligned layout matching classic Discuz
+// components/forum/post-sidebar.tsx — Discuz classic left sidebar for desktop
+// Light blue background, bordered stats grid, group/level, credits, mod row.
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { getAvatarUrl } from "@/lib/avatar";
 import { formatDate } from "@/viewmodels/forum/thread-detail";
-import { formatUserRole, getUserRoleBadgeVariant } from "@/viewmodels/forum/user-profile";
 import type { User } from "@ellie/types";
+import { Mail } from "lucide-react";
 import Link from "next/link";
+import { UserAvatar } from "./user-avatar";
 
 interface PostSidebarProps {
 	author: User | null;
@@ -17,36 +16,29 @@ interface PostSidebarProps {
 	threadReplies?: number;
 }
 
-/** Render ★ characters for group star count. */
-function renderStars(count: number): string {
-	if (count <= 0) return "";
-	return "★".repeat(Math.min(count, 10));
-}
-
 export function PostSidebar({ author, isFirst, threadViews, threadReplies }: PostSidebarProps) {
 	return (
-		<div className="hidden md:flex w-48 shrink-0 flex-col items-start gap-1.5 p-4">
-			{/* Username — bold, left-aligned */}
+		<div className="w-[200px] shrink-0 bg-forum-sidebar-bg border-r border-border p-4 flex flex-col items-center gap-1.5">
+			{/* Username — bold, link color */}
 			{author ? (
 				<Link
 					href={`/users/${author.id}`}
-					className="text-sm font-bold text-foreground hover:text-primary transition-colors"
+					className="text-sm font-bold text-forum-link hover:underline"
 				>
 					{author.username}
 				</Link>
 			) : (
-				<span className="text-sm text-muted-foreground">未知用户</span>
+				<span className="text-sm text-forum-text-muted">未知用户</span>
 			)}
 
-			{/* Avatar — photo-frame style: no rounding, original aspect ratio, white border */}
+			{/* Avatar — photo-frame: white padding + shadow */}
 			<Link href={author ? `/users/${author.id}` : "#"} className="mt-1">
 				{author ? (
-					<div className="bg-white p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)]">
-						<img
+					<div className="bg-card p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)]">
+						<UserAvatar
 							src={getAvatarUrl(author.id, "big")}
 							alt={author.username}
 							className="block max-w-[140px] w-auto h-auto"
-							loading="lazy"
 						/>
 					</div>
 				) : (
@@ -56,36 +48,28 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 				)}
 			</Link>
 
-			{/* Stats grid — centered 3-col with dividers */}
+			{/* Stats grid — 3 columns with vertical dividers, no border */}
 			{author && (
-				<div className="mt-2 grid w-full grid-cols-3 text-center text-[10px] text-muted-foreground divide-x divide-border">
-					<div className="px-1">
-						<div className="font-medium text-primary">{author.threads.toLocaleString()}</div>
-						<div>主题</div>
+				<div className="mt-2 grid w-full grid-cols-3 text-center text-2xs divide-x divide-border">
+					<div className="py-1 px-0.5">
+						<div className="font-medium text-forum-link">{author.threads.toLocaleString()}</div>
+						<div className="text-forum-text-muted">主题</div>
 					</div>
-					<div className="px-1">
-						<div className="font-medium text-primary">{author.posts.toLocaleString()}</div>
-						<div>帖子</div>
+					<div className="py-1 px-0.5">
+						<div className="font-medium text-forum-link">{author.posts.toLocaleString()}</div>
+						<div className="text-forum-text-muted">帖子</div>
 					</div>
-					<div className="px-1">
-						<div className="font-medium text-primary">{author.credits.toLocaleString()}</div>
-						<div>积分</div>
+					<div className="py-1 px-0.5">
+						<div className="font-medium text-forum-link">{author.credits.toLocaleString()}</div>
+						<div className="text-forum-text-muted">积分</div>
 					</div>
 				</div>
 			)}
 
-			<Separator className="my-1" />
-
-			{/* Detail rows — left-aligned */}
+			{/* Detail rows */}
 			{author && (
-				<div className="space-y-1 text-xs text-muted-foreground">
-					<div>
-						<Badge variant={getUserRoleBadgeVariant(author.role)} className="text-[10px]">
-							{formatUserRole(author.role)}
-						</Badge>
-					</div>
-
-					{/* Group title + stars */}
+				<div className="w-full space-y-1 text-xs text-muted-foreground mt-1">
+					{/* Group title + level */}
 					{author.groupTitle && (
 						<div>
 							<span
@@ -95,24 +79,26 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 								{author.groupTitle}
 							</span>
 							{author.groupStars > 0 && (
-								<span className="ml-0.5 text-amber-500 text-[10px]">
-									{renderStars(author.groupStars)}
-								</span>
+								<span className="ml-1 text-muted-foreground">Lv.{author.groupStars}</span>
 							)}
 						</div>
 					)}
 
 					{/* Custom title */}
-					{author.customTitle && (
-						<div className="text-muted-foreground italic">{author.customTitle}</div>
-					)}
+					{author.customTitle && <div className="text-forum-text-muted italic">{author.customTitle}</div>}
 
+					{/* UID */}
 					<div>
 						UID:{" "}
-						<Link href={`/users/${author.id}`} className="text-primary hover:underline">
+						<Link href={`/users/${author.id}`} className="text-forum-link hover:underline">
 							{author.id}
 						</Link>
 					</div>
+
+					{/* Credits */}
+					<div>同钱: {author.credits.toLocaleString()}</div>
+
+					{/* Registration date */}
 					<div>注册时间: {formatDate(author.regDate)}</div>
 
 					{/* Online time */}
@@ -123,16 +109,30 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 				</div>
 			)}
 
-			{/* First-post stats */}
+			{/* First-post thread stats */}
 			{isFirst && threadViews !== undefined && threadReplies !== undefined && (
-				<div className="text-xs text-muted-foreground">
+				<div className="text-xs text-muted-foreground self-start">
 					查看: {threadViews.toLocaleString()} / 回复: {threadReplies.toLocaleString()}
 				</div>
 			)}
 
-			{/* Message link */}
+			{/* Send message link */}
 			{author && (
-				<span className="mt-1 text-xs text-primary cursor-pointer hover:underline">发消息</span>
+				<span className="flex items-center gap-1 text-xs text-forum-link cursor-pointer hover:underline mt-1 self-start">
+					<Mail className="h-3.5 w-3.5" />
+					发消息
+				</span>
+			)}
+
+			{/* Mod action row */}
+			{author && (
+				<div className="flex items-center gap-2 text-2xs text-forum-text-muted mt-2 flex-wrap self-start">
+					<span className="hover:text-forum-link cursor-pointer">IP</span>
+					<span className="hover:text-forum-link cursor-pointer">编辑</span>
+					<span className="hover:text-forum-link cursor-pointer">禁止</span>
+					<span className="hover:text-forum-link cursor-pointer">帖子</span>
+					<span className="hover:text-forum-link cursor-pointer">清理</span>
+				</div>
 			)}
 		</div>
 	);
