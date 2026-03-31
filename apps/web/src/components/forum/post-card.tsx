@@ -29,7 +29,7 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 	const isFirst = post.isFirst || post.position === 1;
 
 	return (
-		<div className="border border-[#CFCFCF] bg-white -mt-px first:mt-0">
+		<div className="border border-border bg-white -mt-px first:mt-0">
 			{/* Desktop: two-column layout */}
 			<div className="hidden md:flex">
 				<PostSidebar
@@ -50,7 +50,7 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 			{/* Mobile: compact single-column layout */}
 			<div className="md:hidden">
 				{/* Compact header row */}
-				<div className="flex items-center gap-2 px-3 pt-3 pb-2 border-b border-dashed border-[#CCC]">
+				<div className="flex items-center gap-2 px-3 pt-3 pb-2 border-b border-dashed border-border">
 					<Link href={`/users/${post.authorId}`}>
 						<Avatar className="h-8 w-8 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
 							{post.author && (
@@ -68,7 +68,7 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 					<div className="flex flex-col min-w-0">
 						<Link
 							href={`/users/${post.authorId}`}
-							className="text-sm font-medium text-[#3672A0] hover:underline truncate"
+							className="text-sm font-medium text-forum-link hover:underline truncate"
 						>
 							{post.author?.username ?? "未知用户"}
 						</Link>

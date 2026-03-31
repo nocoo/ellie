@@ -32,11 +32,11 @@ export function PostContent({ post, isFirst, threadDigest, author, actionBar }: 
 		<div className="flex-1 min-w-0 flex flex-col" suppressHydrationWarning>
 			<div className="p-3 flex flex-col flex-1" suppressHydrationWarning>
 				{/* Top meta bar — dashed bottom border */}
-				<div className="flex items-center gap-2 pb-2 border-b border-dashed border-[#CCC] text-xs text-[#666]">
+				<div className="flex items-center gap-2 pb-2 border-b border-dashed border-border text-xs text-[#666]">
 					<SquarePen className="h-3.5 w-3.5 text-[#6BB5D8]" />
 					<span>发表于 {formatDateTime(post.createdAt)}</span>
-					<span className="text-[#CCC]">|</span>
-					<span className="text-[#3672A0] hover:underline cursor-pointer">只看该作者</span>
+					<span className="text-border">|</span>
+					<span className="text-forum-link hover:underline cursor-pointer">只看该作者</span>
 
 					{/* Digest badge — only first post when digest > 0 */}
 					{isFirst && threadDigest !== undefined && threadDigest > 0 && (
@@ -94,7 +94,7 @@ export function PostContent({ post, isFirst, threadDigest, author, actionBar }: 
 
 				{/* Author signature — dashed top border, also isolated */}
 				{author?.signature && (
-					<div className="mt-4 pt-2 border-t border-dashed border-[#CCC]">
+					<div className="mt-4 pt-2 border-t border-dashed border-border">
 						<article
 							className="text-xs text-[#999] prose prose-sm max-w-none [&>*]:text-[#999] [&>*]:text-xs"
 							suppressHydrationWarning

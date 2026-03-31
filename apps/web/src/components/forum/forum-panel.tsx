@@ -20,7 +20,7 @@ export function ForumPanel({ forums, layout = "auto" }: ForumPanelProps) {
 
 	if (resolved === "wide") {
 		return (
-			<div className="divide-y divide-dashed divide-[#DDD]">
+			<div className="divide-y divide-dashed divide-border">
 				{forums.map((forum) => (
 					<ForumCard key={forum.id} forum={forum} layout="wide" />
 				))}
@@ -36,14 +36,14 @@ export function ForumPanel({ forums, layout = "auto" }: ForumPanelProps) {
 			{forums.map((forum, i) => (
 				<div
 					key={forum.id}
-					className={`${i > 1 ? "border-t border-dashed border-[#DDD]" : ""} ${i % 2 === 1 ? "sm:border-l sm:border-dashed sm:border-[#DDD]" : ""} ${i === 1 ? "max-sm:border-t max-sm:border-dashed max-sm:border-[#DDD]" : ""}`}
+					className={`${i > 1 ? "border-t border-dashed border-border" : ""} ${i % 2 === 1 ? "sm:border-l sm:border-dashed sm:border-border" : ""} ${i === 1 ? "max-sm:border-t max-sm:border-dashed max-sm:border-border" : ""}`}
 				>
 					<ForumCard forum={forum} layout="grid" />
 				</div>
 			))}
 			{/* Placeholder cell for odd count — completes grid border lines */}
 			{isOdd && (
-				<div className="hidden sm:block border-t border-dashed border-[#DDD] sm:border-l sm:border-dashed sm:border-[#DDD]" />
+				<div className="hidden sm:block border-t border-dashed border-border sm:border-l sm:border-dashed sm:border-border" />
 			)}
 		</div>
 	);
