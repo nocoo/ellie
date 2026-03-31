@@ -81,7 +81,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 					{/* Sub-forums above thread list */}
 					{data.forum && data.forum.children.length > 0 && (
 						<div className="overflow-hidden rounded-sm border border-[#CFCFCF] bg-white">
-							<ForumPanel forums={data.forum.children} layout="grid" />
+							<ForumPanel forums={data.forum.children} layout="auto" />
 						</div>
 					)}
 
