@@ -24,7 +24,7 @@ export declare enum ForumType {
 	Forum = "forum",
 	Sub = "sub",
 }
-/** Public-facing user profile — excludes email, status, lastLogin */
+/** Public-facing user profile — excludes email, status, lastLogin, personal details */
 export interface PublicUser {
 	id: number;
 	username: string;
@@ -35,6 +35,13 @@ export interface PublicUser {
 	posts: number;
 	credits: number;
 	signature: string;
+	groupTitle: string;
+	groupStars: number;
+	groupColor: string;
+	customTitle: string;
+	digestPosts: number;
+	olTime: number;
+	lastActivity: number;
 }
 /** Maps to Doc02 users table — 1.14M rows */
 export interface User {
@@ -50,6 +57,24 @@ export interface User {
 	posts: number;
 	credits: number;
 	signature: string;
+	groupTitle: string;
+	groupStars: number;
+	groupColor: string;
+	customTitle: string;
+	digestPosts: number;
+	olTime: number;
+	gender: number;
+	birthYear: number;
+	birthMonth: number;
+	birthDay: number;
+	resideProvince: string;
+	resideCity: string;
+	graduateSchool: string;
+	bio: string;
+	interest: string;
+	qq: string;
+	site: string;
+	lastActivity: number;
 }
 /** Maps to Doc02 forums table — 213 rows */
 export interface Forum {
@@ -63,6 +88,7 @@ export interface Forum {
 	posts: number;
 	type: ForumType;
 	status: number;
+	moderators: string;
 	lastThreadId: number;
 	lastPostAt: number;
 	lastPoster: string;
@@ -86,6 +112,7 @@ export interface Thread {
 	special: number;
 	highlight: number;
 	recommends: number;
+	typeName: string;
 }
 /** Maps to Doc02 posts table — 9.4M rows */
 export interface Post {

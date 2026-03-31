@@ -69,13 +69,20 @@ export async function migrateForums(loader: BatchLoader, sourceDir: string): Pro
 	const dumpFile = `${sourceDir}/main_small.sql.gz`;
 
 	log("  Parsing pre_forum_forumfield...");
-	const forumFields = new Map<number, { description: string; icon: string }>();
+	const forumFields = new Map<number, { description: string; icon: string; moderators: string }>();
 	await parseDumpFile(dumpFile, "pre_forum_forumfield", (row) => {
-		// forumfield columns verified from DDL: fid=0, description=1, password=2, icon=3
+		// forumfield columns verified from DDL: fid=0, description=1, password=2, icon=3, ...moderators=8
 		const fid = Number(row[0]);
 		const description = row[1] ?? "";
 		const icon = row[3] ?? "";
-		forumFields.set(fid, { description, icon });
+		const rawMods = row[8] ?? "";
+		// Moderators are tab-separated in DZ; normalize to comma-separated
+		const moderators = rawMods
+			.split("\t")
+			.map((s) => s.trim())
+			.filter(Boolean)
+			.join(", ");
+		forumFields.set(fid, { description, icon, moderators });
 	});
 	log(`  Collected ${forumFields.size} forum field records`);
 
@@ -326,6 +333,7 @@ export async function migrateThreads(
 				posts: 0,
 				type: "forum",
 				status: -1, // Placeholder status
+				moderators: "",
 				last_thread_id: 0,
 				last_post_at: 0,
 				last_poster: "",

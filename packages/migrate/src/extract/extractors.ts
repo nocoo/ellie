@@ -67,7 +67,7 @@ export function parseLastPost(lastpost: string | null): {
  */
 export function extractForum(
 	row: ParsedRow,
-	forumFields: Map<number, { description: string; icon: string }>,
+	forumFields: Map<number, { description: string; icon: string; moderators: string }>,
 ): RowRecord | null {
 	const fid = Number(row[FORUM_COLS.fid]);
 	if (!fid) return null; // Skip corrupt/undefined rows
@@ -87,6 +87,7 @@ export function extractForum(
 		posts: Number(row[FORUM_COLS.posts]) || 0,
 		type: row[FORUM_COLS.type] ?? "forum",
 		status,
+		moderators: fields?.moderators ?? "",
 		last_thread_id: lastpost.lastThreadId,
 		last_post_at: lastpost.lastPostAt,
 		last_poster: lastpost.lastPoster,

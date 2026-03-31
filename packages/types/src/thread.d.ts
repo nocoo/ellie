@@ -4,7 +4,7 @@ export interface ThreadBadge {
 	label: string;
 	variant: "destructive" | "warning" | "default" | "success" | "secondary";
 }
-/** Compute display badges for a thread (sticky, digest, closed, special). */
+/** Compute display badges for a thread (typeName, sticky, digest, closed, special). */
 export declare function getThreadBadges(thread: Thread): ThreadBadge[];
 export interface HighlightStyle {
 	color: string | null;
