@@ -61,6 +61,7 @@ interface D1ForumRow {
 	posts: number;
 	type: string;
 	status: number;
+	moderators: string;
 	last_thread_id: number;
 	last_post_at: number;
 	last_poster: string;
@@ -157,6 +158,7 @@ export function toForum(row: Record<string, unknown>): Forum {
 		posts: r.posts,
 		type: r.type as Forum["type"],
 		status: r.status,
+		moderators: r.moderators,
 		lastThreadId: r.last_thread_id,
 		lastPostAt: r.last_post_at,
 		lastPoster: r.last_poster,

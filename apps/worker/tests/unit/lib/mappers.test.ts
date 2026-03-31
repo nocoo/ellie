@@ -177,6 +177,7 @@ describe("D1 row mappers", () => {
 				posts: 100,
 				type: "forum",
 				status: 0,
+				moderators: "alice, bob",
 				last_thread_id: 42,
 				last_post_at: 1711540800,
 				last_poster: "bob",
@@ -187,13 +188,14 @@ describe("D1 row mappers", () => {
 
 			expect(forum.parentId).toBe(0);
 			expect(forum.displayOrder).toBe(1);
+			expect(forum.moderators).toBe("alice, bob");
 			expect(forum.lastThreadId).toBe(42);
 			expect(forum.lastPostAt).toBe(1711540800);
 			expect(forum.lastPoster).toBe("bob");
 			expect(forum.lastThreadSubject).toBe("Hello World");
 		});
 
-		it("should output exactly 14 fields", () => {
+		it("should output exactly 15 fields", () => {
 			const row = {
 				id: 1,
 				parent_id: 0,
@@ -205,6 +207,7 @@ describe("D1 row mappers", () => {
 				posts: 0,
 				type: "forum",
 				status: 0,
+				moderators: "",
 				last_thread_id: 0,
 				last_post_at: 0,
 				last_poster: "",
@@ -212,7 +215,7 @@ describe("D1 row mappers", () => {
 			};
 
 			const forum = toForum(row);
-			expect(Object.keys(forum)).toHaveLength(14);
+			expect(Object.keys(forum)).toHaveLength(15);
 		});
 	});
 

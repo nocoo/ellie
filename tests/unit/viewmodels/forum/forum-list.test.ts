@@ -22,9 +22,11 @@ function makeForum(overrides: Partial<Forum> & { id: number }): Forum {
 		posts: 0,
 		type: ForumType.Forum,
 		status: 1,
+		moderators: "",
 		lastThreadId: 0,
 		lastPostAt: 0,
 		lastPoster: "",
+		lastThreadSubject: "",
 		...overrides,
 	};
 }

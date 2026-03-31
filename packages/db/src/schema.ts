@@ -13,6 +13,7 @@ export const TABLES = {
 			posts INTEGER NOT NULL DEFAULT 0,
 			type TEXT NOT NULL DEFAULT 'forum',
 			status INTEGER NOT NULL DEFAULT 1,
+			moderators TEXT NOT NULL DEFAULT '',
 			last_thread_id INTEGER NOT NULL DEFAULT 0,
 			last_post_at INTEGER NOT NULL DEFAULT 0,
 			last_poster TEXT NOT NULL DEFAULT '',
