@@ -66,26 +66,26 @@ describe("buildUserSearchParams", () => {
 
 describe("roleLabel", () => {
 	it("maps known roles", () => {
-		expect(roleLabel(0)).toBe("Member");
-		expect(roleLabel(1)).toBe("Admin");
-		expect(roleLabel(2)).toBe("SuperMod");
-		expect(roleLabel(3)).toBe("Mod");
+		expect(roleLabel(0)).toBe("会员");
+		expect(roleLabel(1)).toBe("管理员");
+		expect(roleLabel(2)).toBe("超级版主");
+		expect(roleLabel(3)).toBe("版主");
 	});
 
 	it("defaults to Member for unknown", () => {
-		expect(roleLabel(99)).toBe("Member");
+		expect(roleLabel(99)).toBe("会员");
 	});
 });
 
 describe("statusLabel", () => {
 	it("maps known statuses", () => {
-		expect(statusLabel(0)).toBe("Active");
-		expect(statusLabel(-1)).toBe("Banned");
-		expect(statusLabel(-2)).toBe("Archived");
+		expect(statusLabel(0)).toBe("正常");
+		expect(statusLabel(-1)).toBe("已封禁");
+		expect(statusLabel(-2)).toBe("已归档");
 	});
 
 	it("defaults to Active for unknown", () => {
-		expect(statusLabel(5)).toBe("Active");
+		expect(statusLabel(5)).toBe("正常");
 	});
 });
 

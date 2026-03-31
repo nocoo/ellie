@@ -64,11 +64,11 @@ describe("replacementDisplay", () => {
 
 describe("actionLabel", () => {
 	it("returns Ban for ban action", () => {
-		expect(actionLabel("ban")).toBe("Ban");
+		expect(actionLabel("ban")).toBe("禁止发布");
 	});
 
 	it("returns Replace for replace action", () => {
-		expect(actionLabel("replace")).toBe("Replace");
+		expect(actionLabel("replace")).toBe("替换");
 	});
 });
 

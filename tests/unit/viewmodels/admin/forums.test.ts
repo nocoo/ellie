@@ -39,9 +39,9 @@ afterEach(() => {
 
 describe("statusLabel", () => {
 	it("maps status values (Worker: 0=hidden, 1=active)", () => {
-		expect(statusLabel(1)).toBe("Active");
-		expect(statusLabel(0)).toBe("Hidden");
-		expect(statusLabel(99)).toBe("Unknown");
+		expect(statusLabel(1)).toBe("正常");
+		expect(statusLabel(0)).toBe("隐藏");
+		expect(statusLabel(99)).toBe("未知");
 	});
 });
 
