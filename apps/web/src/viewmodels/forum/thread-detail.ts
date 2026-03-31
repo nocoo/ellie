@@ -12,6 +12,7 @@ import {
 	type getThreadBadges,
 } from "@ellie/types";
 import type { User } from "@ellie/types";
+import { replaceSmileyCodesWithImages } from "@/lib/smiley";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -63,12 +64,18 @@ export function enrichPosts(
 	currentUser: User | null,
 	forumId: number,
 ): EnrichedPost[] {
-	return posts.map((post) => ({
-		...post,
-		author: authorMap.get(post.authorId) ?? null,
-		attachments: attachmentMap.get(post.id) ?? [],
-		canDelete: canDeletePost(currentUser, post, forumId),
-	}));
+	return posts.map((post) => {
+		const author = authorMap.get(post.authorId) ?? null;
+		return {
+			...post,
+			content: replaceSmileyCodesWithImages(post.content),
+			author: author
+				? { ...author, signature: replaceSmileyCodesWithImages(author.signature ?? "") }
+				: null,
+			attachments: attachmentMap.get(post.id) ?? [],
+			canDelete: canDeletePost(currentUser, post, forumId),
+		};
+	});
 }
 
 /** Check if a user can reply to a thread. */
