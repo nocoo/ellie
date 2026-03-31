@@ -78,6 +78,13 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 			) : (
 				/* Regular forum — thread list */
 				<>
+					{/* Sub-forums above thread list */}
+					{data.forum && data.forum.children.length > 0 && (
+						<div className="overflow-hidden rounded-sm border border-[#CFCFCF] bg-white">
+							<ForumPanel forums={data.forum.children} layout="grid" />
+						</div>
+					)}
+
 					<PagePagination
 						page={data.page}
 						pages={data.pages}
