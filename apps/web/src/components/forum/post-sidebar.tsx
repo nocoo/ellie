@@ -48,18 +48,18 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 				)}
 			</Link>
 
-			{/* Stats grid — 3 bordered cells */}
+			{/* Stats grid — 3 columns with vertical dividers, no border */}
 			{author && (
-				<div className="mt-2 grid w-full grid-cols-3 text-center text-[10px]">
-					<div className="border border-[#CFCFCF] py-1 px-0.5">
+				<div className="mt-2 grid w-full grid-cols-3 text-center text-[11px] divide-x divide-[#CFCFCF]">
+					<div className="py-1 px-0.5">
 						<div className="font-medium text-[#3672A0]">{author.threads.toLocaleString()}</div>
 						<div className="text-[#999]">主题</div>
 					</div>
-					<div className="border border-[#CFCFCF] border-l-0 py-1 px-0.5">
+					<div className="py-1 px-0.5">
 						<div className="font-medium text-[#3672A0]">{author.posts.toLocaleString()}</div>
 						<div className="text-[#999]">帖子</div>
 					</div>
-					<div className="border border-[#CFCFCF] border-l-0 py-1 px-0.5">
+					<div className="py-1 px-0.5">
 						<div className="font-medium text-[#3672A0]">{author.credits.toLocaleString()}</div>
 						<div className="text-[#999]">积分</div>
 					</div>
@@ -128,7 +128,7 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 
 			{/* Mod action row */}
 			{author && (
-				<div className="flex items-center gap-2 text-[10px] text-[#999] mt-2 flex-wrap justify-center">
+				<div className="flex items-center gap-2 text-[11px] text-[#999] mt-2 flex-wrap justify-center">
 					<span className="hover:text-[#3672A0] cursor-pointer">IP</span>
 					<span className="hover:text-[#3672A0] cursor-pointer">编辑</span>
 					<span className="hover:text-[#3672A0] cursor-pointer">禁止</span>
