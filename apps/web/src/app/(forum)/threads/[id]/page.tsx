@@ -10,6 +10,7 @@ import { buildThreadBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import { type ThreadDetailPageData, loadThreadDetail } from "@/viewmodels/forum/thread-detail.server";
 import { formatTime } from "@/viewmodels/forum/thread-list";
 import { type Thread, findForumAncestors, getThreadBadges } from "@ellie/types";
+import { parseIntParam } from "@/viewmodels/shared/params";
 import Link from "next/link";
 
 interface ThreadDetailPageProps {
@@ -20,7 +21,7 @@ interface ThreadDetailPageProps {
 export default async function ThreadDetailPage({ params, searchParams }: ThreadDetailPageProps) {
 	const { id } = await params;
 	const sp = await searchParams;
-	const threadId = Number.parseInt(id, 10);
+	const threadId = parseIntParam(id);
 
 	let data: ThreadDetailPageData;
 	let error: string | null = null;
