@@ -54,18 +54,18 @@ describe("buildThreadSearchParams", () => {
 describe("stickyLabel", () => {
 	it("maps sticky levels", () => {
 		expect(stickyLabel(0)).toBe("");
-		expect(stickyLabel(1)).toBe("Forum Sticky");
-		expect(stickyLabel(2)).toBe("Global Sticky");
-		expect(stickyLabel(3)).toBe("Super Sticky");
+		expect(stickyLabel(1)).toBe("版块置顶");
+		expect(stickyLabel(2)).toBe("全局置顶");
+		expect(stickyLabel(3)).toBe("分类置顶");
 	});
 });
 
 describe("digestLabel", () => {
 	it("maps digest levels", () => {
 		expect(digestLabel(0)).toBe("");
-		expect(digestLabel(1)).toBe("Digest I");
-		expect(digestLabel(2)).toBe("Digest II");
-		expect(digestLabel(3)).toBe("Digest III");
+		expect(digestLabel(1)).toBe("精华 I");
+		expect(digestLabel(2)).toBe("精华 II");
+		expect(digestLabel(3)).toBe("精华 III");
 	});
 });
 

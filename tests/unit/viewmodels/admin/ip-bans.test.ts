@@ -57,7 +57,7 @@ describe("buildIpBanSearchParams", () => {
 
 describe("formatExpiry", () => {
 	it("returns 'Never' for null", () => {
-		expect(formatExpiry(null)).toBe("Never");
+		expect(formatExpiry(null)).toBe("永不过期");
 	});
 
 	it("returns a formatted string for a Unix timestamp", () => {
