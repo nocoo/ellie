@@ -3,15 +3,8 @@
 
 import "server-only";
 
+import type { PaginatedResult } from "@/viewmodels/shared/pagination";
 import type { Thread } from "@ellie/types";
-
-/** Matches PaginatedResult shape from @ellie/repositories */
-interface PaginatedResult<T> {
-	items: T[];
-	nextCursor: string | null;
-	prevCursor: string | null;
-	total: number;
-}
 
 export interface DigestData {
 	results: PaginatedResult<Thread>;
