@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { buildThreadBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import { type ThreadDetailPageData, loadThreadDetail } from "@/viewmodels/forum/thread-detail.server";
 import { formatTime } from "@/viewmodels/forum/thread-list";
-import { type Thread, findForumAncestors, getThreadBadges } from "@ellie/types";
+import { findForumAncestors, getThreadBadges } from "@ellie/types";
 import { parseIntParam } from "@/viewmodels/shared/params";
 import Link from "next/link";
 
@@ -35,7 +35,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 	} catch (e) {
 		error = e instanceof Error ? e.message : "Failed to load thread";
 		data = {
-			thread: null as unknown as Thread,
+			thread: null,
 			forums: [],
 			posts: [],
 			nextCursor: null,
