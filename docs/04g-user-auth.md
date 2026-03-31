@@ -40,11 +40,11 @@
 
 | 组件 | 状态 | 说明 |
 |------|------|------|
-| NextAuth Credentials Provider | ❌ 未实现 | `auth.ts` 只有 Google Provider |
-| NextAuth session 扩展 (论坛字段) | ❌ 未实现 | session.user 只有 Google 字段 |
-| Worker JWT 存储 & 透传 | ❌ 未实现 | 前端无法调用需认证的 Worker API |
-| 注册端点 | ❌ 不存在 | Worker 无 `POST /api/v1/auth/register` |
-| 注册页面 | ❌ 不存在 | 前端无 `/register` 路由 |
+| NextAuth Credentials Provider | ✅ 已实现 | `auth.ts` 双 provider (Google + Credentials) |
+| NextAuth session 扩展 (论坛字段) | ✅ 已实现 | session.user 包含 provider/role/id/name |
+| Worker JWT 存储 & 透传 | ✅ 已实现 | getToken(cookie) + authFetch() 兜底刷新 |
+| 注册端点 | ✅ 已实现 | Worker `POST /api/v1/auth/register` |
+| 注册页面 | ✅ 已实现 | 前端 `/register` 路由 |
 
 ---
 
@@ -1042,35 +1042,35 @@ export async function proxy(request: NextRequest) {
 
 ### Phase 1 — 登录打通
 
-| 步骤 | 内容 | 预估 |
-|------|------|------|
-| 1.1 | NextAuth Credentials Provider + signIn/JWT/Session callback 扩展（§2） | 中 |
-| 1.2 | 类型声明 `next-auth.d.ts`（§2.4） | 小 |
-| 1.3 | `getToken()` 方式获取 Worker JWT 工具函数 + authFetch 兜底（§3.2） | 中 |
-| 1.4 | `forum-api.ts` 扩展 `postAuth` 方法（§3.3） | 小 |
-| 1.5 | `SessionGuard` 组件 + forum layout 挂载（§5.3） | 小 |
-| 1.6 | 登录页底部注册链接（§5.2） | 小 |
-| 1.7 | proxy.ts provider 判定修复（§8.1 变更 2） | 小 |
-| 1.8 | 端到端验证：登录 → session → 发帖调用 | 测试 |
+| 步骤 | 内容 | 预估 | 状态 |
+|------|------|------|------|
+| 1.1 | NextAuth Credentials Provider + signIn/JWT/Session callback 扩展（§2） | 中 | ✅ C1+C2 |
+| 1.2 | 类型声明 `next-auth.d.ts`（§2.4） | 小 | ✅ C1 |
+| 1.3 | `getToken()` 方式获取 Worker JWT 工具函数 + authFetch 兜底（§3.2） | 中 | ✅ C3 |
+| 1.4 | `forum-api.ts` 扩展 `postAuth` 方法（§3.3） | 小 | ✅ C3 |
+| 1.5 | `SessionGuard` 组件 + forum layout 挂载（§5.3） | 小 | ✅ C4 |
+| 1.6 | 登录页底部注册链接（§5.2） | 小 | ✅ C4 |
+| 1.7 | proxy.ts provider 判定修复（§8.1 变更 2） | 小 | ✅ C5 |
+| 1.8 | 端到端验证：登录 → session → 发帖调用 | 测试 | ⏭️ 需 Playwright |
 
 ### Phase 2 — 注册
 
-| 步骤 | 内容 | 预估 |
-|------|------|------|
-| 2.1 | Worker `POST /api/v1/auth/register` 端点 + UNIQUE 约束兜底（§1） | 中 |
-| 2.2 | Worker `GET /api/v1/auth/check-username` 端点（§6） | 小 |
-| 2.3 | Next.js API Route 代理 `/api/auth/check-username`（§3.5） | 小 |
-| 2.4 | 注册 ViewModel（§4.4） | 小 |
-| 2.5 | 注册页面 `/register`（§4） | 中 |
-| 2.6 | proxy.ts 新增 `/register` 公开路由（§8.1 变更 1） | 小 |
-| 2.7 | IP 频率限制（§1.7） | 小 |
+| 步骤 | 内容 | 预估 | 状态 |
+|------|------|------|------|
+| 2.1 | Worker `POST /api/v1/auth/register` 端点 + UNIQUE 约束兜底（§1） | 中 | ✅ C7 |
+| 2.2 | Worker `GET /api/v1/auth/check-username` 端点（§6） | 小 | ✅ C7 |
+| 2.3 | Next.js API Route 代理 `/api/auth/check-username`（§3.5） | 小 | ✅ C8 |
+| 2.4 | 注册 ViewModel（§4.4） | 小 | ✅ C8 |
+| 2.5 | 注册页面 `/register`（§4） | 中 | ✅ C9 |
+| 2.6 | proxy.ts 新增 `/register` 公开路由（§8.1 变更 1） | 小 | ✅ C9 |
+| 2.7 | IP 频率限制（§1.7） | 小 | ✅ C7 |
 
 ### Phase 3 — 健壮性
 
-| 步骤 | 内容 | 预估 |
-|------|------|------|
-| 3.1 | Worker JWT 自动刷新完整测试（§2.2 refresh 逻辑） | 中 |
-| 3.2 | 长时间未访问 → refresh 失败 → 自动登出 E2E 测试 | 测试 |
+| 步骤 | 内容 | 预估 | 状态 |
+|------|------|------|------|
+| 3.1 | Worker JWT 自动刷新完整测试（§2.2 refresh 逻辑） | 中 | ✅ C10 |
+| 3.2 | 长时间未访问 → refresh 失败 → 自动登出 E2E 测试 | 测试 | ⏭️ 需 Playwright |
 
 ---
 
