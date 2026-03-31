@@ -5,6 +5,7 @@ import { withEntityAuth } from "../../lib/adminHelpers";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { jsonResponse } from "../../lib/response";
+import { errorResponse } from "../../middleware/error";
 import {
 	type SettingsDetailMap,
 	getSettingsDetailed,
@@ -96,27 +97,22 @@ async function bulkUpdateSettings(request: Request, env: Env): Promise<Response>
 	try {
 		body = (await request.json()) as Record<string, string>;
 	} catch {
-		return jsonResponse({ error: "INVALID_JSON" }, origin, undefined, 400);
+		return errorResponse("INVALID_JSON", 400, undefined, origin);
 	}
 
 	if (!body || typeof body !== "object" || Array.isArray(body)) {
-		return jsonResponse({ error: "INVALID_BODY" }, origin, undefined, 400);
+		return errorResponse("INVALID_BODY", 400, undefined, origin);
 	}
 
 	const entries = Object.entries(body);
 	if (entries.length === 0) {
-		return jsonResponse({ error: "EMPTY_PAYLOAD" }, origin, undefined, 400);
+		return errorResponse("EMPTY_PAYLOAD", 400, undefined, origin);
 	}
 
 	// Validate keys against whitelist
 	const unknownKeys = entries.filter(([key]) => !ALLOWED_KEYS.has(key)).map(([key]) => key);
 	if (unknownKeys.length > 0) {
-		return jsonResponse(
-			{ error: "UNKNOWN_KEYS", keys: unknownKeys },
-			origin,
-			undefined,
-			400,
-		);
+		return errorResponse("UNKNOWN_KEYS", 400, { keys: unknownKeys }, origin);
 	}
 
 	// Validate number keys are positive
@@ -124,12 +120,7 @@ async function bulkUpdateSettings(request: Request, env: Env): Promise<Response>
 		if (NUMBER_KEYS.has(key)) {
 			const num = Number(value);
 			if (Number.isNaN(num) || num <= 0) {
-				return jsonResponse(
-					{ error: "INVALID_NUMBER", key, value },
-					origin,
-					undefined,
-					400,
-				);
+				return errorResponse("INVALID_NUMBER", 400, { key, value }, origin);
 			}
 		}
 	}

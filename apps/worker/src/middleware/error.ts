@@ -68,6 +68,10 @@ function getStatusMessage(code: string): string {
 		CENSOR_WORD_DUPLICATE: "Censor word rule already exists",
 		CENSOR_WORD_INVALID: "Censor word rule is invalid (too short or bad regex syntax)",
 		CONTENT_BANNED: "Content contains banned words",
+		INVALID_JSON: "Request body is not valid JSON",
+		EMPTY_PAYLOAD: "Request body must contain at least one entry",
+		UNKNOWN_KEYS: "Request contains unrecognized setting keys",
+		INVALID_NUMBER: "Numeric setting value must be a positive number",
 	};
 
 	return messages[code] || "An error occurred";
