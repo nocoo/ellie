@@ -6,6 +6,7 @@
 
 import type { ForumTreeNode } from "@ellie/types";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { ForumPanel } from "./forum-panel";
 import { SafeHtml } from "./safe-html";
@@ -29,7 +30,15 @@ export function ForumGroup({ group }: ForumGroupProps) {
 				onClick={() => setCollapsed((prev) => !prev)}
 				className="flex w-full items-center gap-2 border-b border-[#CFCFCF] bg-gradient-to-r from-[#E8EEF2] to-[#F6F7F8] px-4 py-2 text-left cursor-pointer"
 			>
-				<h2 className="text-sm font-semibold text-[#2E6B9A]">{group.name}</h2>
+				<h2 className="text-sm font-semibold text-[#2E6B9A]">
+					<Link
+						href={`/forums/${group.id}`}
+						onClick={(e) => e.stopPropagation()}
+						className="hover:underline"
+					>
+						{group.name}
+					</Link>
+				</h2>
 				{group.description && <SafeHtml html={group.description} className="text-xs text-[#999]" />}
 				{collapsed ? (
 					<ChevronRight className="ml-auto h-4 w-4 text-[#AAA] shrink-0" />
