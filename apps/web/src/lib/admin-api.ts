@@ -26,11 +26,25 @@ function getApiKey(): string {
 }
 
 // ---------------------------------------------------------------------------
-// Error type (imported from shared module, re-exported for backward compatibility)
+// Error type (thin subclass keeps instanceof / .name distinct from ForumApiError)
 // ---------------------------------------------------------------------------
 
-import { ApiError as AdminApiError, type ApiErrorData as AdminApiErrorData } from "./api-error";
-export { AdminApiError, type AdminApiErrorData };
+import { ApiError, type ApiErrorData } from "./api-error";
+
+export type AdminApiErrorData = ApiErrorData;
+
+export class AdminApiError extends ApiError {
+	constructor(status: number, data: ApiErrorData);
+	constructor(status: number, code: string, message: string);
+	constructor(status: number, dataOrCode: ApiErrorData | string, message?: string) {
+		if (typeof dataOrCode === "string") {
+			super(status, dataOrCode, message!);
+		} else {
+			super(status, dataOrCode);
+		}
+		this.name = "AdminApiError";
+	}
+}
 
 // ---------------------------------------------------------------------------
 // Response types
