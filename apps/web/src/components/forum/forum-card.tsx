@@ -25,7 +25,7 @@ function parseModerators(moderators: string): string[] {
 function ForumIcon({ hasActivity = false }: { hasActivity?: boolean }) {
 	return (
 		<Box
-			className={`h-7 w-7 shrink-0 ${hasActivity ? "text-[#7BAA3C]" : "text-[#BBB]"}`}
+			className={`h-7 w-7 shrink-0 ${hasActivity ? "text-[#7BAA3C]" : "text-forum-text-muted"}`}
 			strokeWidth={1.2}
 		/>
 	);
@@ -57,7 +57,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 				<div className="flex items-baseline gap-1.5">
 					<Link
 						href={`/forums/${forum.id}`}
-						className="text-sm font-bold text-[#333] hover:text-[#C00] transition-colors"
+						className="text-sm font-bold text-foreground hover:text-[#C00] transition-colors"
 					>
 						{forum.name}
 					</Link>
@@ -70,17 +70,17 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 				{forum.description && (
 					<SafeHtml
 						html={forum.description}
-						className="mt-0.5 block text-xs text-[#888] leading-5 line-clamp-1"
+						className="mt-0.5 block text-xs text-muted-foreground leading-5 line-clamp-1"
 					/>
 				)}
 
 				{/* Sub-forums */}
 				{forum.children.length > 0 && (
 					<div className="relative z-10 mt-0.5 flex items-baseline gap-1 flex-wrap leading-5">
-						<span className="text-xs text-[#888]">子版面:</span>
+						<span className="text-xs text-muted-foreground">子版面:</span>
 						{forum.children.map((sub, i) => (
 							<span key={sub.id}>
-								{i > 0 && <span className="text-xs text-[#888]">, </span>}
+								{i > 0 && <span className="text-xs text-muted-foreground">, </span>}
 								<Link href={`/forums/${sub.id}`} className="text-xs text-forum-link hover:underline">
 									{sub.name}
 								</Link>
@@ -92,10 +92,10 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 				{/* Moderators */}
 				{mods.length > 0 && (
 					<div className="relative z-10 mt-0.5 flex items-baseline gap-1 flex-wrap leading-5">
-						<span className="text-xs text-[#888]">版主:</span>
+						<span className="text-xs text-muted-foreground">版主:</span>
 						{mods.map((name, i) => (
 							<span key={name}>
-								{i > 0 && <span className="text-xs text-[#888]">, </span>}
+								{i > 0 && <span className="text-xs text-muted-foreground">, </span>}
 								<span className="text-xs text-forum-link hover:underline cursor-pointer">
 									{name}
 								</span>
@@ -106,9 +106,9 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 			</div>
 
 			{/* Middle: stats — "帖数 / 回帖" */}
-			<div className="hidden sm:flex flex-col items-end text-xs text-[#888] shrink-0 tabular-nums min-w-[80px]">
+			<div className="hidden sm:flex flex-col items-end text-xs text-muted-foreground shrink-0 tabular-nums min-w-[80px]">
 				<span>
-					<span className="text-[#555] font-medium">{formatCount(forum.threads)}</span>
+					<span className="text-foreground font-medium">{formatCount(forum.threads)}</span>
 					{" / "}
 					{formatCount(forum.posts)}
 				</span>
@@ -116,7 +116,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 
 			{/* Right: last post info */}
 			{forum.lastPostAt > 0 && (
-				<div className="hidden md:flex flex-col items-end text-xs text-[#888] shrink-0 min-w-[200px]">
+				<div className="hidden md:flex flex-col items-end text-xs text-muted-foreground shrink-0 min-w-[200px]">
 					<Link
 						href={`/threads/${forum.lastThreadId}`}
 						className="relative z-10 text-forum-link hover:underline truncate max-w-[200px]"
@@ -154,7 +154,7 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 				<div className="flex items-baseline gap-1.5 flex-wrap">
 					<Link
 						href={`/forums/${forum.id}`}
-						className="text-sm font-bold text-[#333] hover:text-[#C00] transition-colors"
+						className="text-sm font-bold text-foreground hover:text-[#C00] transition-colors"
 					>
 						{forum.name}
 					</Link>
@@ -164,13 +164,13 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 						</span>
 					)}
 				</div>
-				<div className="mt-0.5 text-xs text-[#888] tabular-nums leading-5">
+				<div className="mt-0.5 text-xs text-muted-foreground tabular-nums leading-5">
 					主题: {formatCount(forum.threads)}, 帖数: {formatCount(forum.posts)}
 				</div>
 
 				{/* Moderators */}
 				{mods.length > 0 && (
-					<div className="mt-0.5 text-xs text-[#888] leading-5">
+					<div className="mt-0.5 text-xs text-muted-foreground leading-5">
 						版主:{" "}
 						{mods.map((name, i) => (
 							<span key={name}>
@@ -183,7 +183,7 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 
 				{/* Last post preview */}
 				{forum.lastPostAt > 0 && (
-					<div className="mt-1 text-xs text-[#888] truncate leading-5">
+					<div className="mt-1 text-xs text-muted-foreground truncate leading-5">
 						<Link
 							href={`/threads/${forum.lastThreadId}`}
 							className="relative z-10 text-forum-link hover:underline"

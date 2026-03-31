@@ -83,7 +83,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 								className="rounded-sm"
 							/>
 							<AvatarFallback className="text-lg rounded-sm bg-[#F0F0F0]">
-								<UserRound className="h-10 w-10 text-[#BBB]" strokeWidth={1.2} />
+								<UserRound className="h-10 w-10 text-forum-text-muted" strokeWidth={1.2} />
 							</AvatarFallback>
 						</Avatar>
 						<div className="min-w-0 flex-1">

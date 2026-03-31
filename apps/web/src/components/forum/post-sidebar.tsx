@@ -28,7 +28,7 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 					{author.username}
 				</Link>
 			) : (
-				<span className="text-sm text-[#999]">未知用户</span>
+				<span className="text-sm text-forum-text-muted">未知用户</span>
 			)}
 
 			{/* Avatar — photo-frame: white padding + shadow */}
@@ -53,22 +53,22 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 				<div className="mt-2 grid w-full grid-cols-3 text-center text-[11px] divide-x divide-border">
 					<div className="py-1 px-0.5">
 						<div className="font-medium text-forum-link">{author.threads.toLocaleString()}</div>
-						<div className="text-[#999]">主题</div>
+						<div className="text-forum-text-muted">主题</div>
 					</div>
 					<div className="py-1 px-0.5">
 						<div className="font-medium text-forum-link">{author.posts.toLocaleString()}</div>
-						<div className="text-[#999]">帖子</div>
+						<div className="text-forum-text-muted">帖子</div>
 					</div>
 					<div className="py-1 px-0.5">
 						<div className="font-medium text-forum-link">{author.credits.toLocaleString()}</div>
-						<div className="text-[#999]">积分</div>
+						<div className="text-forum-text-muted">积分</div>
 					</div>
 				</div>
 			)}
 
 			{/* Detail rows */}
 			{author && (
-				<div className="w-full space-y-1 text-xs text-[#666] mt-1">
+				<div className="w-full space-y-1 text-xs text-muted-foreground mt-1">
 					{/* Group title + level */}
 					{author.groupTitle && (
 						<div>
@@ -79,13 +79,13 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 								{author.groupTitle}
 							</span>
 							{author.groupStars > 0 && (
-								<span className="ml-1 text-[#666]">Lv.{author.groupStars}</span>
+								<span className="ml-1 text-muted-foreground">Lv.{author.groupStars}</span>
 							)}
 						</div>
 					)}
 
 					{/* Custom title */}
-					{author.customTitle && <div className="text-[#999] italic">{author.customTitle}</div>}
+					{author.customTitle && <div className="text-forum-text-muted italic">{author.customTitle}</div>}
 
 					{/* UID */}
 					<div>
@@ -111,7 +111,7 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 
 			{/* First-post thread stats */}
 			{isFirst && threadViews !== undefined && threadReplies !== undefined && (
-				<div className="text-xs text-[#666] self-start">
+				<div className="text-xs text-muted-foreground self-start">
 					查看: {threadViews.toLocaleString()} / 回复: {threadReplies.toLocaleString()}
 				</div>
 			)}
@@ -126,7 +126,7 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 
 			{/* Mod action row */}
 			{author && (
-				<div className="flex items-center gap-2 text-[11px] text-[#999] mt-2 flex-wrap self-start">
+				<div className="flex items-center gap-2 text-[11px] text-forum-text-muted mt-2 flex-wrap self-start">
 					<span className="hover:text-forum-link cursor-pointer">IP</span>
 					<span className="hover:text-forum-link cursor-pointer">编辑</span>
 					<span className="hover:text-forum-link cursor-pointer">禁止</span>

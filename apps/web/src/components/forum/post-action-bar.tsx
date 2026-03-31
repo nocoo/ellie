@@ -14,7 +14,7 @@ function ActionBtn({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
 	return (
 		<button
 			type="button"
-			className="flex items-center gap-0.5 text-[#999] hover:text-forum-link transition-colors cursor-pointer"
+			className="flex items-center gap-0.5 text-forum-text-muted hover:text-forum-link transition-colors cursor-pointer"
 		>
 			<Icon className="h-3.5 w-3.5" />
 			<span>{label}</span>
@@ -24,7 +24,7 @@ function ActionBtn({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
 
 export function PostActionBar() {
 	return (
-		<div className="flex items-center border-t border-dashed border-border px-3 py-2 text-xs text-[#999]">
+		<div className="flex items-center border-t border-dashed border-border px-3 py-2 text-xs text-forum-text-muted">
 			{/* Left action buttons */}
 			<div className="flex items-center gap-4">
 				<ActionBtn icon={MessageCircleMore} label="点评" />
