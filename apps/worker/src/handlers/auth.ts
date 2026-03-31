@@ -1,4 +1,5 @@
 // Auth handlers for Cloudflare Worker
+import { checkCensorWords } from "../lib/censor";
 import type { Env } from "../lib/env";
 import { createJwt } from "../lib/jwt";
 import { toUser } from "../lib/mappers";
@@ -247,3 +248,156 @@ export const me = withAuth(async (request, env, user) => {
 
 	return jsonResponse(toUser(row as Record<string, unknown>), origin);
 });
+
+// ---------------------------------------------------------------------------
+// Registration
+// ---------------------------------------------------------------------------
+
+/** Validate username format: 2-15 chars, Chinese/English/digits/underscore */
+const USERNAME_REGEX = /^[\u4e00-\u9fa5a-zA-Z0-9_]{2,15}$/;
+
+/** Validate email format (loose) */
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+interface RegisterInput {
+	username: string;
+	password: string;
+	email?: string;
+}
+
+/** POST /api/v1/auth/register - Register a new forum user */
+export async function register(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+	try {
+		const body = (await request.json()) as RegisterInput;
+		const username = typeof body.username === "string" ? body.username.trim() : "";
+		const password = typeof body.password === "string" ? body.password : "";
+		const email = typeof body.email === "string" ? body.email.trim() : "";
+
+		// ── Input validation ──
+		if (!username || !USERNAME_REGEX.test(username)) {
+			return errorResponse("INVALID_USERNAME", 400, undefined, origin);
+		}
+
+		if (!password || password.length < 6) {
+			return errorResponse("INVALID_PASSWORD", 400, undefined, origin);
+		}
+
+		if (email && !EMAIL_REGEX.test(email)) {
+			return errorResponse("INVALID_EMAIL", 400, undefined, origin);
+		}
+
+		// ── Censor word check on username ──
+		const censorResult = await checkCensorWords(username, env);
+		if (censorResult.matched && censorResult.action === "ban") {
+			return errorResponse("USERNAME_BANNED", 400, undefined, origin);
+		}
+
+		// ── IP rate limiting: max 3 registrations per hour ──
+		const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+		const rateLimitKey = `reg-ip:${ip}`;
+		const currentCount = Number.parseInt((await env.KV.get(rateLimitKey)) ?? "0", 10);
+		if (currentCount >= 3) {
+			return errorResponse("RATE_LIMITED", 429, undefined, origin);
+		}
+
+		// ── Hash password (PBKDF2-SHA256) ──
+		const passwordHash = await hashPassword(password);
+		const now = Math.floor(Date.now() / 1000);
+
+		// ── Insert user (UNIQUE constraint safety net) ──
+		try {
+			await env.DB.prepare(
+				`INSERT INTO users (
+					username, email, password_hash, password_salt,
+					status, role, reg_date, last_login, last_activity,
+					group_title, group_stars
+				) VALUES (?, ?, ?, '', 0, 0, ?, ?, ?, '新手上路', 0)`,
+			)
+				.bind(username, email, passwordHash, now, now, now)
+				.run();
+		} catch (e: unknown) {
+			if (e instanceof Error && e.message.includes("UNIQUE constraint")) {
+				return errorResponse("USERNAME_TAKEN", 409, undefined, origin);
+			}
+			throw e;
+		}
+
+		// ── Get inserted user ID ──
+		const inserted = await env.DB.prepare("SELECT id FROM users WHERE username = ?")
+			.bind(username)
+			.first();
+
+		if (!inserted) {
+			return errorResponse("INTERNAL_ERROR", 500, undefined, origin);
+		}
+
+		const userId = (inserted as { id: number }).id;
+
+		// ── Issue JWT + refresh token (same as login) ──
+		const exp = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+		const token = await createJwt({ userId, role: 0, exp }, env.JWT_SECRET);
+
+		const refreshToken = crypto.randomUUID();
+		await env.KV.put(`refresh:${refreshToken}`, String(userId), {
+			expirationTtl: 30 * 24 * 60 * 60,
+		});
+
+		// ── Increment IP rate limit counter ──
+		await env.KV.put(rateLimitKey, String(currentCount + 1), {
+			expirationTtl: 3600,
+		});
+
+		return new Response(
+			JSON.stringify({
+				data: {
+					token,
+					refreshToken,
+					user: { userId, username, role: 0 } satisfies AuthUser,
+				},
+				meta: {
+					timestamp: Date.now(),
+					requestId: crypto.randomUUID(),
+				},
+			}),
+			{
+				status: 201,
+				headers: {
+					...corsHeaders(origin),
+					"Content-Type": "application/json",
+				},
+			},
+		);
+	} catch {
+		return errorResponse("INTERNAL_ERROR", 500, undefined, origin);
+	}
+}
+
+/** GET /api/v1/auth/check-username - Check username availability */
+export async function checkUsername(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+	const url = new URL(request.url);
+	const username = url.searchParams.get("username")?.trim() ?? "";
+
+	// Format validation
+	if (!username || !USERNAME_REGEX.test(username)) {
+		return jsonResponse({ available: false, reason: "invalid" }, origin);
+	}
+
+	// Censor word check
+	const censorResult = await checkCensorWords(username, env);
+	if (censorResult.matched && censorResult.action === "ban") {
+		return jsonResponse({ available: false, reason: "banned" }, origin);
+	}
+
+	// Database uniqueness check
+	const existing = await env.DB.prepare("SELECT 1 FROM users WHERE username = ?")
+		.bind(username)
+		.first();
+
+	if (existing) {
+		return jsonResponse({ available: false, reason: "taken" }, origin);
+	}
+
+	return jsonResponse({ available: true }, origin);
+}
