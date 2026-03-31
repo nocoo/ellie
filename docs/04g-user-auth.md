@@ -578,12 +578,17 @@ export async function authFetch<T>(
 }
 ```
 
-**限制**：`authFetch` 中 refresh 获得的新 token **无法写回 NextAuth cookie**（Server Action 中无法安全地写 httpOnly cookie）。这意味着：
-- 本次请求成功 ✅
-- 下次页面导航时，proxy 层的 jwt callback 会尝试用 cookie 中**旧的** refreshToken 再次 refresh
-- 如果 Worker 的 refresh token rotation 已使旧 token 失效 → refresh 失败 → `session.error = "RefreshTokenExpired"` → SessionGuard 触发登出
+**限制 — 仅能救一次**：
 
-这是可接受的降级行为：长时间不操作是极端场景，用户最多在下次导航时被要求重新登录。
+`authFetch` 中 refresh 获得的新 token **无法写回 NextAuth cookie**（Server Action 中无法安全地写 httpOnly cookie）。cookie 中仍然保留**旧的**过期 workerJwt 和旧的 workerRefreshToken。后果：
+
+| 场景 | 结果 |
+|------|------|
+| 第 1 次写操作 | ✅ authFetch 用旧 JWT → TOKEN_EXPIRED → refresh 成功 → 重试成功 |
+| **同页面第 2 次写操作** | ❌ authFetch 再次读到旧 cookie → 旧 JWT 仍过期 → TOKEN_EXPIRED → 用旧 refreshToken refresh → **失败**（rotation 已使旧 token 失效）→ 返回 `NOT_AUTHENTICATED` |
+| 下次页面导航 | ❌ proxy 层 jwt callback 用旧 refreshToken refresh → 失败 → `session.error = "RefreshTokenExpired"` → SessionGuard 登出 |
+
+**前端处理**：当 Server Action 返回 `NOT_AUTHENTICATED` 时，前端应提示用户"登录已过期，请重新登录"并 redirect 到 `/login`（或调用 `signOut()`）。这是**预期行为**，不是 bug——长开页面超过 7 天是极端场景，提示重登是合理的 UX。
 
 ### §3.3 forum-api.ts 扩展
 
@@ -925,10 +930,12 @@ Server Action 中获取 workerJwt:
 Server Action 中 workerJwt 已过期（长开页面场景）:
   → authFetch() 调用 Worker API → Worker 返回 TOKEN_EXPIRED (401)
   → authFetch() 用 cookie 中的 refreshToken 调用 Worker refresh 端点
-  → 获取新 token → 重试原请求 → 成功 ✅
+  → 获取新 token → 重试原请求 → 第 1 次成功 ✅
   → 新 token 无法写回 NextAuth cookie（Server Action 不能写 httpOnly cookie）
-  → 下次页面导航时 proxy 层 jwt callback 尝试 refresh
-    → 旧 refreshToken 可能已 rotation 失效 → session.error → 重登
+  → cookie 仍保留旧的过期 JWT 和旧 refreshToken
+  → 同页面第 2 次写操作：再次读到旧 cookie → TOKEN_EXPIRED → refresh 失败（rotation）→ NOT_AUTHENTICATED ❌
+  → 页面导航：proxy 层用旧 refreshToken → 失败 → session.error → SessionGuard 登出 ❌
+  → 前端收到 NOT_AUTHENTICATED → 提示重新登录
 ```
 
 ### §7.3 登出
