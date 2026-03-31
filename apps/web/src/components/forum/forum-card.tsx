@@ -3,7 +3,7 @@
 
 import { formatCount } from "@/viewmodels/forum/forum-list";
 import type { ForumTreeNode } from "@ellie/types";
-import { BookOpen, Briefcase, GraduationCap, MessageSquareText, Users } from "lucide-react";
+import { Box } from "lucide-react";
 import Link from "next/link";
 import { SafeHtml } from "./safe-html";
 
@@ -12,26 +12,18 @@ interface ForumCardProps {
 	layout?: "wide" | "grid";
 }
 
-/** Pick a default lucide icon based on forum icon field or fallback */
-function ForumIcon({ icon }: { icon: string }) {
-	// If a custom emoji icon is set, use it
-	if (icon && /\p{Emoji}/u.test(icon)) {
-		return <span className="text-lg leading-none">{icon}</span>;
-	}
-	// Default: use a lucide icon based on rough heuristics
-	const iconClass = "h-8 w-8 text-muted-foreground/40";
-	switch (icon) {
-		case "book":
-			return <BookOpen className={iconClass} />;
-		case "work":
-			return <Briefcase className={iconClass} />;
-		case "edu":
-			return <GraduationCap className={iconClass} />;
-		case "community":
-			return <Users className={iconClass} />;
-		default:
-			return <MessageSquareText className={iconClass} />;
-	}
+/** Parse comma-separated moderator names into array */
+function parseModerators(moderators: string): string[] {
+	if (!moderators) return [];
+	return moderators
+		.split(",")
+		.map((s) => s.trim())
+		.filter(Boolean);
+}
+
+/** Forum icon — consistent gray box/cube style */
+function ForumIcon() {
+	return <Box className="h-7 w-7 text-[#BBB] shrink-0" strokeWidth={1.2} />;
 }
 
 /** Format unix timestamp to YYYY-M-D HH:mm */
@@ -46,24 +38,26 @@ function formatDate(timestamp: number): string {
 // ---------------------------------------------------------------------------
 
 function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
+	const mods = parseModerators(forum.moderators);
+
 	return (
-		<div className="relative flex items-start gap-3 px-4 py-3.5 transition-colors hover:bg-accent/30">
+		<div className="relative flex items-start gap-3 px-4 py-3.5 transition-colors hover:bg-[#F8F8F8]">
 			{/* Icon */}
 			<div className="mt-0.5 shrink-0">
-				<ForumIcon icon={forum.icon} />
+				<ForumIcon />
 			</div>
 
-			{/* Left: name + description + moderators/sub-forums */}
+			{/* Left: name + description + sub-forums + moderators */}
 			<div className="min-w-0 flex-1">
 				<div className="flex items-baseline gap-1.5">
 					<Link
 						href={`/forums/${forum.id}`}
-						className="text-sm font-bold text-primary hover:underline transition-colors"
+						className="text-sm font-bold text-[#333] hover:text-[#C00] transition-colors"
 					>
 						{forum.name}
 					</Link>
-					{forum.children.length > 0 && (
-						<span className="text-xs text-orange-500 font-medium">
+					{forum.threads > 0 && (
+						<span className="text-xs text-[#E67C13] font-medium">
 							({formatCount(forum.threads)})
 						</span>
 					)}
@@ -71,18 +65,33 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 				{forum.description && (
 					<SafeHtml
 						html={forum.description}
-						className="mt-0.5 block text-xs text-muted-foreground leading-relaxed line-clamp-1"
+						className="mt-0.5 block text-xs text-[#888] leading-relaxed line-clamp-1"
 					/>
 				)}
+
+				{/* Sub-forums */}
 				{forum.children.length > 0 && (
 					<div className="relative z-10 mt-0.5 flex items-center gap-1 flex-wrap">
-						<span className="text-xs text-muted-foreground">版主:</span>
+						<span className="text-xs text-[#888]">子版面:</span>
 						{forum.children.map((sub, i) => (
 							<span key={sub.id}>
-								{i > 0 && <span className="text-xs text-muted-foreground">, </span>}
-								<Link href={`/forums/${sub.id}`} className="text-xs text-primary hover:underline">
+								{i > 0 && <span className="text-xs text-[#888]">, </span>}
+								<Link href={`/forums/${sub.id}`} className="text-xs text-[#2E6B9A] hover:underline">
 									{sub.name}
 								</Link>
+							</span>
+						))}
+					</div>
+				)}
+
+				{/* Moderators */}
+				{mods.length > 0 && (
+					<div className="relative z-10 mt-0.5 flex items-center gap-1 flex-wrap">
+						<span className="text-xs text-[#888]">版主:</span>
+						{mods.map((name, i) => (
+							<span key={name}>
+								{i > 0 && <span className="text-xs text-[#888]">, </span>}
+								<span className="text-xs text-[#2E6B9A]">{name}</span>
 							</span>
 						))}
 					</div>
@@ -90,9 +99,9 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 			</div>
 
 			{/* Middle: stats — "帖数 / 回帖" */}
-			<div className="hidden sm:flex flex-col items-end text-xs text-muted-foreground shrink-0 tabular-nums min-w-[80px]">
+			<div className="hidden sm:flex flex-col items-end text-xs text-[#888] shrink-0 tabular-nums min-w-[80px]">
 				<span>
-					<span className="text-foreground font-medium">{formatCount(forum.threads)}</span>
+					<span className="text-[#555] font-medium">{formatCount(forum.threads)}</span>
 					{" / "}
 					{formatCount(forum.posts)}
 				</span>
@@ -100,10 +109,10 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 
 			{/* Right: last post info */}
 			{forum.lastPostAt > 0 && (
-				<div className="hidden md:flex flex-col items-end text-xs text-muted-foreground shrink-0 min-w-[200px]">
+				<div className="hidden md:flex flex-col items-end text-xs text-[#888] shrink-0 min-w-[200px]">
 					<Link
 						href={`/threads/${forum.lastThreadId}`}
-						className="relative z-10 text-primary hover:underline truncate max-w-[200px]"
+						className="relative z-10 text-[#2E6B9A] hover:underline truncate max-w-[200px]"
 					>
 						{forum.lastThreadSubject || "最新帖子"}
 					</Link>
@@ -121,11 +130,13 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 // ---------------------------------------------------------------------------
 
 function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
+	const mods = parseModerators(forum.moderators);
+
 	return (
-		<div className="relative flex items-start gap-2.5 px-4 py-3 transition-colors hover:bg-accent/30">
+		<div className="relative flex items-start gap-2.5 px-4 py-3 transition-colors hover:bg-[#F8F8F8]">
 			{/* Icon */}
 			<div className="mt-0.5 shrink-0">
-				<ForumIcon icon={forum.icon} />
+				<ForumIcon />
 			</div>
 
 			<div className="min-w-0 flex-1">
@@ -133,24 +144,39 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 				<div className="flex items-baseline gap-1.5 flex-wrap">
 					<Link
 						href={`/forums/${forum.id}`}
-						className="text-sm font-bold text-primary hover:underline transition-colors"
+						className="text-sm font-bold text-[#333] hover:text-[#C00] transition-colors"
 					>
 						{forum.name}
 					</Link>
-					{forum.children.length > 0 && (
-						<span className="text-xs text-orange-500 font-medium">({forum.children.length})</span>
+					{forum.threads > 0 && (
+						<span className="text-xs text-[#E67C13] font-medium">
+							({formatCount(forum.threads)})
+						</span>
 					)}
 				</div>
-				<div className="mt-0.5 text-xs text-muted-foreground tabular-nums">
+				<div className="mt-0.5 text-xs text-[#888] tabular-nums">
 					主题: {formatCount(forum.threads)}, 帖数: {formatCount(forum.posts)}
 				</div>
 
+				{/* Moderators */}
+				{mods.length > 0 && (
+					<div className="mt-0.5 text-xs text-[#888]">
+						版主:{" "}
+						{mods.map((name, i) => (
+							<span key={name}>
+								{i > 0 && ", "}
+								<span className="text-[#2E6B9A]">{name}</span>
+							</span>
+						))}
+					</div>
+				)}
+
 				{/* Last post preview */}
 				{forum.lastPostAt > 0 && (
-					<div className="mt-1 text-xs text-muted-foreground truncate">
+					<div className="mt-1 text-xs text-[#888] truncate">
 						<Link
 							href={`/threads/${forum.lastThreadId}`}
-							className="relative z-10 text-primary hover:underline"
+							className="relative z-10 text-[#2E6B9A] hover:underline"
 						>
 							{forum.lastThreadSubject || "最新帖子"}
 						</Link>{" "}
