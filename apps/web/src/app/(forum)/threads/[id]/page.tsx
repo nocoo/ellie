@@ -6,10 +6,9 @@ import { PostCard } from "@/components/forum/post-card";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Card, CardContent } from "@/components/ui/card";
-import { buildThreadBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import { type ThreadDetailPageData, loadThreadDetail } from "@/viewmodels/forum/thread-detail.server";
 import { formatTime } from "@/viewmodels/forum/thread-list";
-import { findForumAncestors, getThreadBadges } from "@ellie/types";
+import { getThreadBadges } from "@ellie/types";
 import { parseIntParam } from "@/viewmodels/shared/params";
 import Link from "next/link";
 
@@ -41,6 +40,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 			nextCursor: null,
 			prevCursor: null,
 			total: 0,
+			breadcrumbs: [],
 		};
 	}
 
@@ -58,15 +58,13 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 	}
 
 	const badges = getThreadBadges(data.thread);
-	const ancestors = findForumAncestors(data.forums, data.thread.forumId);
-	const breadcrumbs = buildThreadBreadcrumbs(ancestors, data.thread.subject);
 
 	return (
 		<div className="space-y-3">
 			{/* Breadcrumbs */}
-			{breadcrumbs.length > 1 && (
+			{data.breadcrumbs.length > 1 && (
 				<div className="py-2">
-					<Breadcrumbs items={breadcrumbs} />
+					<Breadcrumbs items={data.breadcrumbs} />
 				</div>
 			)}
 

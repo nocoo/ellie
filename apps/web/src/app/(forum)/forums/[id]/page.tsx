@@ -7,12 +7,11 @@ import { ThreadItem } from "@/components/forum/thread-item";
 import { ThreadListHeader } from "@/components/forum/thread-list-header";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Card, CardContent } from "@/components/ui/card";
-import { buildForumBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import {
 	type ThreadListPagedData,
 	loadThreadListPaged,
 } from "@/viewmodels/forum/thread-list.server";
-import { ForumType, findForumAncestors } from "@ellie/types";
+import { ForumType } from "@ellie/types";
 import { parseIntParam, parsePageParam } from "@/viewmodels/shared/params";
 
 interface ForumThreadsPageProps {
@@ -33,20 +32,18 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 		data = await loadThreadListPaged({ forumId, page });
 	} catch (e) {
 		error = e instanceof Error ? e.message : "Failed to load threads";
-		data = { forum: null, forums: [], items: [], page: 1, pages: 1, total: 0, limit: 100 };
+		data = { forum: null, forums: [], items: [], page: 1, pages: 1, total: 0, limit: 100, breadcrumbs: [] };
 	}
 
 	const basePath = `/forums/${forumId}`;
-	const ancestors = findForumAncestors(data.forums, forumId);
-	const breadcrumbs = buildForumBreadcrumbs(ancestors);
 	const isGroup = data.forum?.type === ForumType.Group;
 
 	return (
 		<div className="space-y-2">
 			{/* Breadcrumbs */}
-			{breadcrumbs.length > 1 && (
+			{data.breadcrumbs.length > 1 && (
 				<div className="py-2">
-					<Breadcrumbs items={breadcrumbs} />
+					<Breadcrumbs items={data.breadcrumbs} />
 				</div>
 			)}
 			{/* Forum header */}
