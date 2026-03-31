@@ -5,7 +5,7 @@
 
 import "server-only";
 
-import type { BreadcrumbItem } from "@/components/layout/breadcrumbs";
+import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import { forumApi } from "@/lib/forum-api";
 import type { Forum } from "@ellie/types";
 import { buildNewThreadBreadcrumbs } from "./new-thread";

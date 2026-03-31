@@ -6,7 +6,7 @@
  * All numeric placeholders use 777.
  */
 
-import type { BreadcrumbItem } from "@/components/layout/breadcrumbs";
+import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 
 // ---------------------------------------------------------------------------
 // Types
