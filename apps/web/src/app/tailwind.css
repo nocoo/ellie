@@ -133,8 +133,8 @@
  * Primary: Deep Teal #016699
  */
 :root {
-	/* L0 body */
-	--background: 220 14% 94%;
+	/* L0 body — white background for clean forum look */
+	--background: 0 0% 100%;
 	--foreground: 0 0% 12%;
 
 	/* L1 content panel */
@@ -152,10 +152,10 @@
 	--primary: 200 99% 30%;
 	--primary-foreground: 0 0% 100%;
 
-	--muted: 220 14% 92%;
+	--muted: 220 14% 96%;
 	--muted-foreground: 0 0% 45%;
 
-	--accent: 220 14% 92%;
+	--accent: 220 14% 96%;
 	--accent-foreground: 0 0% 12%;
 
 	--destructive: 0 72% 51%;
