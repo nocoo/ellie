@@ -3,6 +3,7 @@
 
 import { getStaticImageUrl } from "@/lib/cdn";
 import { formatCount } from "@/viewmodels/forum/forum-list";
+import { formatDateTime } from "@/viewmodels/shared/formatting";
 import type { ForumTreeNode } from "@ellie/types";
 import Link from "next/link";
 import { SafeHtml } from "./safe-html";
@@ -28,13 +29,6 @@ function ForumIcon({ hasActivity = false }: { hasActivity?: boolean }) {
 		// biome-ignore lint/nursery/noImgElement: intentional pixel-art GIF from CDN
 		<img src={src} alt="" className="h-7 w-auto shrink-0" aria-hidden="true" />
 	);
-}
-
-/** Format unix timestamp to YYYY-M-D HH:mm */
-function formatDate(timestamp: number): string {
-	if (timestamp === 0) return "";
-	const d = new Date(timestamp * 1000);
-	return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -126,7 +120,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 						{forum.lastThreadSubject || "最新帖子"}
 					</Link>
 					<span className="mt-0.5 leading-5">
-						{formatDate(forum.lastPostAt)}{" "}
+						{formatDateTime(forum.lastPostAt)}{" "}
 						<span className="text-forum-link hover:underline cursor-pointer">
 							{forum.lastPoster}
 						</span>
@@ -192,7 +186,7 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 						>
 							{forum.lastThreadSubject || "最新帖子"}
 						</Link>{" "}
-						{formatDate(forum.lastPostAt)}{" "}
+						{formatDateTime(forum.lastPostAt)}{" "}
 						<span className="text-forum-link hover:underline cursor-pointer">
 							{forum.lastPoster}
 						</span>

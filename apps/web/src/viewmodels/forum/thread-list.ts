@@ -2,6 +2,7 @@
 // Ref: 04d §版块帖子列表 — sorting, filtering, keyset pagination, badges
 
 import { type Thread, decodeHighlight, getThreadBadges } from "@ellie/types";
+import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -64,16 +65,10 @@ export function highlightStyle(
 
 /**
  * Format a timestamp for display (relative or absolute).
+ * @deprecated Use formatRelativeTime from @/viewmodels/shared/formatting directly.
  */
 export function formatTime(timestamp: number): string {
-	if (timestamp === 0) return "";
-	const now = Date.now() / 1000;
-	const diff = now - timestamp;
-	if (diff < 60) return "刚刚";
-	if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`;
-	if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`;
-	if (diff < 2592000) return `${Math.floor(diff / 86400)} 天前`;
-	return new Date(timestamp * 1000).toLocaleDateString("zh-CN");
+	return formatRelativeTime(timestamp);
 }
 
 /**
