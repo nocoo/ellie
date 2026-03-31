@@ -1,9 +1,9 @@
 // components/forum/forum-card.tsx — Forum card with two layout variants
 // "wide" = full-width row (学习与学术区 style), "grid" = compact cell in 2-col grid (社团与爱好区 style)
 
+import { getStaticImageUrl } from "@/lib/cdn";
 import { formatCount } from "@/viewmodels/forum/forum-list";
 import type { ForumTreeNode } from "@ellie/types";
-import { Box } from "lucide-react";
 import Link from "next/link";
 import { SafeHtml } from "./safe-html";
 
@@ -21,13 +21,12 @@ function parseModerators(moderators: string): string[] {
 		.filter(Boolean);
 }
 
-/** Forum icon — green when active, gray when inactive */
+/** Forum icon — Discuz original: forum_new.gif when active, forum.gif when idle */
 function ForumIcon({ hasActivity = false }: { hasActivity?: boolean }) {
+	const src = getStaticImageUrl(hasActivity ? "forum_new.gif" : "forum.gif");
 	return (
-		<Box
-			className={`h-7 w-7 shrink-0 ${hasActivity ? "text-success" : "text-forum-text-muted"}`}
-			strokeWidth={1.2}
-		/>
+		// biome-ignore lint/nursery/noImgElement: intentional pixel-art GIF from CDN
+		<img src={src} alt="" className="h-7 w-auto shrink-0" aria-hidden="true" />
 	);
 }
 
@@ -81,7 +80,10 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 						{forum.children.map((sub, i) => (
 							<span key={sub.id}>
 								{i > 0 && <span className="text-xs text-muted-foreground">, </span>}
-								<Link href={`/forums/${sub.id}`} className="text-xs text-forum-link hover:underline">
+								<Link
+									href={`/forums/${sub.id}`}
+									className="text-xs text-forum-link hover:underline"
+								>
 									{sub.name}
 								</Link>
 							</span>
