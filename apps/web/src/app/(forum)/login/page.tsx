@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { canSubmitLogin, loginErrorMessage } from "@/viewmodels/forum/auth";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
@@ -120,7 +121,12 @@ function LoginForm() {
 					</Card>
 
 					{/* Footer */}
-					<p className="mt-4 text-center text-xs text-muted-foreground">没有账号？联系管理员</p>
+					<p className="mt-4 text-center text-xs text-muted-foreground">
+						没有账号？
+						<Link href="/register" className="text-primary hover:underline">
+							注册
+						</Link>
+					</p>
 				</div>
 			</div>
 		</div>
