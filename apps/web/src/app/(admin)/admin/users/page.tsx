@@ -32,26 +32,26 @@ import { useCallback, useEffect, useState } from "react";
 // ---------------------------------------------------------------------------
 
 const FILTERS: FilterDef[] = [
-	{ key: "search", label: "Search users...", type: "search" },
+	{ key: "search", label: "搜索用户...", type: "search" },
 	{
 		key: "status",
-		label: "Status",
+		label: "状态",
 		type: "select",
 		options: [
-			{ value: "0", label: "Active" },
-			{ value: "-1", label: "Banned" },
-			{ value: "-2", label: "Archived" },
+			{ value: "0", label: "正常" },
+			{ value: "-1", label: "已封禁" },
+			{ value: "-2", label: "已归档" },
 		],
 	},
 	{
 		key: "role",
-		label: "Role",
+		label: "角色",
 		type: "select",
 		options: [
-			{ value: "0", label: "Member" },
-			{ value: "1", label: "Admin" },
-			{ value: "2", label: "SuperMod" },
-			{ value: "3", label: "Mod" },
+			{ value: "0", label: "会员" },
+			{ value: "1", label: "管理员" },
+			{ value: "2", label: "超级版主" },
+			{ value: "3", label: "版主" },
 		],
 	},
 ];
@@ -61,8 +61,8 @@ const FILTERS: FilterDef[] = [
 // ---------------------------------------------------------------------------
 
 const BATCH_ACTIONS: BatchAction[] = [
-	{ key: "ban", label: "Ban Selected", variant: "destructive" },
-	{ key: "activate", label: "Activate Selected" },
+	{ key: "ban", label: "批量封禁", variant: "destructive" },
+	{ key: "activate", label: "批量激活" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -187,10 +187,10 @@ export default function UsersPage() {
 		(user: User, deleteContent = false) => {
 			setConfirmDialog({
 				open: true,
-				title: deleteContent ? "Ban & Delete Content" : "Ban User",
+				title: deleteContent ? "封禁并删除内容" : "封禁用户",
 				description: deleteContent
-					? `Ban ${user.username} and delete all their content? This cannot be undone.`
-					: `Ban ${user.username}? They will no longer be able to access the forum.`,
+					? `封禁 ${user.username} 并删除其所有内容？此操作不可撤销。`
+					: `确定封禁 ${user.username}？封禁后该用户将无法访问论坛。`,
 				variant: "destructive",
 				onConfirm: async () => {
 					setConfirmLoading(true);
@@ -211,8 +211,8 @@ export default function UsersPage() {
 		(user: User) => {
 			setConfirmDialog({
 				open: true,
-				title: "Nuke User",
-				description: `This will ban ${user.username}, delete all their content, and reset credits to 0. This cannot be undone.`,
+				title: "彻底清除用户",
+				description: `此操作将封禁 ${user.username}，删除其所有内容，并将积分重置为 0。此操作不可撤销。`,
 				variant: "destructive",
 				requireInput: user.username,
 				onConfirm: async () => {
@@ -261,7 +261,7 @@ export default function UsersPage() {
 	const columns: ColumnDef<User>[] = [
 		{
 			key: "user",
-			header: "User",
+			header: "用户",
 			cell: (row) => (
 				<div className="flex items-center gap-2">
 					<div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
@@ -271,26 +271,26 @@ export default function UsersPage() {
 				</div>
 			),
 		},
-		{ key: "email", header: "Email", cell: (row) => row.email },
+		{ key: "email", header: "邮箱", cell: (row) => row.email },
 		{
 			key: "role",
-			header: "Role",
+			header: "角色",
 			cell: (row) => <Badge variant="outline">{roleLabel(row.role)}</Badge>,
 		},
 		{
 			key: "status",
-			header: "Status",
+			header: "状态",
 			cell: (row) => <Badge variant={statusVariant(row.status)}>{statusLabel(row.status)}</Badge>,
 		},
 		{
 			key: "posts",
-			header: "Posts",
+			header: "帖子",
 			cell: (row) => row.posts.toLocaleString(),
 			className: "text-right",
 		},
 		{
 			key: "registered",
-			header: "Registered",
+			header: "注册时间",
 			cell: (row) => {
 				const date = new Date(row.regDate * 1000);
 				return date.toLocaleDateString();
@@ -309,20 +309,20 @@ export default function UsersPage() {
 						}
 					/>
 					<DropdownMenuContent align="end">
-						<DropdownMenuItem onClick={() => setEditUser(row)}>Edit</DropdownMenuItem>
+						<DropdownMenuItem onClick={() => setEditUser(row)}>编辑</DropdownMenuItem>
 						{row.status !== -1 && (
 							<>
-								<DropdownMenuItem onClick={() => handleBan(row)}>Ban</DropdownMenuItem>
+								<DropdownMenuItem onClick={() => handleBan(row)}>封禁</DropdownMenuItem>
 								<DropdownMenuItem onClick={() => handleBan(row, true)} className="text-destructive">
-									Ban + Delete Content
+									封禁并删除内容
 								</DropdownMenuItem>
 							</>
 						)}
 						{row.status === -1 && (
-							<DropdownMenuItem onClick={() => handleUnban(row)}>Unban</DropdownMenuItem>
+							<DropdownMenuItem onClick={() => handleUnban(row)}>解除封禁</DropdownMenuItem>
 						)}
 						<DropdownMenuItem onClick={() => handleNuke(row)} className="text-destructive">
-							Nuke
+							彻底清除
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
@@ -338,8 +338,8 @@ export default function UsersPage() {
 	return (
 		<div className="space-y-4">
 			<div>
-				<h1 className="text-2xl font-semibold text-foreground">Users</h1>
-				<p className="mt-1 text-sm text-muted-foreground">Manage forum users and permissions.</p>
+				<h1 className="text-2xl font-semibold text-foreground">用户</h1>
+				<p className="mt-1 text-sm text-muted-foreground">管理论坛用户及权限</p>
 			</div>
 
 			<AdminFilters
@@ -358,7 +358,7 @@ export default function UsersPage() {
 					selectedIds={selectedIds}
 					onSelectionChange={setSelectedIds}
 					loading={loading}
-					emptyMessage="No users found"
+					emptyMessage="暂无用户"
 				/>
 				<AdminPagination pagination={pagination} onPageChange={handlePageChange} />
 			</div>
