@@ -110,7 +110,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 
 			{hasActiveFilters && onClearAll && (
 				<Button variant="ghost" size="sm" className="h-9" onClick={onClearAll}>
-					Clear all
+					清除筛选
 				</Button>
 			)}
 		</div>
