@@ -28,26 +28,32 @@ export interface NavGroupDef {
 
 export const NAV_GROUPS: NavGroupDef[] = [
 	{
-		label: "Overview",
+		label: "概览",
 		defaultOpen: true,
-		items: [{ href: "/admin", label: "Dashboard", icon: "LayoutDashboard" }],
+		items: [{ href: "/admin", label: "仪表盘", icon: "LayoutDashboard" }],
 	},
 	{
-		label: "Content Management",
+		label: "内容管理",
 		defaultOpen: true,
 		items: [
-			{ href: "/admin/users", label: "Users", icon: "Users" },
-			{ href: "/admin/threads", label: "Threads", icon: "FileText" },
-			{ href: "/admin/forums", label: "Forums", icon: "MessagesSquare" },
-			{ href: "/admin/attachments", label: "Attachments", icon: "Paperclip" },
+			{ href: "/admin/users", label: "用户", icon: "Users" },
+			{ href: "/admin/threads", label: "主题", icon: "FileText" },
+			{ href: "/admin/forums", label: "版块", icon: "MessagesSquare" },
+			{ href: "/admin/attachments", label: "附件", icon: "Paperclip" },
 		],
 	},
 	{
-		label: "Security",
+		label: "安全管理",
 		defaultOpen: true,
 		items: [
-			{ href: "/admin/ip-bans", label: "IP Bans", icon: "ShieldBan" },
-			{ href: "/admin/censor-words", label: "Censor Words", icon: "Filter" },
+			{ href: "/admin/ip-bans", label: "IP 封禁", icon: "ShieldBan" },
+			{ href: "/admin/censor-words", label: "敏感词", icon: "Filter" },
+		],
+	},
+	{
+		label: "设置",
+		items: [
+			{ href: "/admin/settings", label: "通用设置", icon: "Settings" },
 		],
 	},
 ];
@@ -57,14 +63,15 @@ export const NAV_GROUPS: NavGroupDef[] = [
 // ---------------------------------------------------------------------------
 
 export const ROUTE_LABELS: Record<string, string> = {
-	admin: "Dashboard",
-	users: "Users",
-	threads: "Threads",
-	posts: "Posts",
-	forums: "Forums",
-	attachments: "Attachments",
-	"ip-bans": "IP Bans",
-	"censor-words": "Censor Words",
+	admin: "仪表盘",
+	users: "用户",
+	threads: "主题",
+	posts: "帖子",
+	forums: "版块",
+	attachments: "附件",
+	"ip-bans": "IP 封禁",
+	"censor-words": "敏感词",
+	settings: "通用设置",
 };
 
 /**
@@ -76,7 +83,7 @@ const NON_NAVIGABLE_SEGMENTS = new Set(["admin"]);
 
 export function breadcrumbsFromPathname(pathname: string) {
 	const segments = pathname.split("/").filter(Boolean);
-	const items: { label: string; href?: string }[] = [{ label: "Home", href: "/admin" }];
+	const items: { label: string; href?: string }[] = [{ label: "首页", href: "/admin" }];
 
 	let href = "";
 	for (let i = 0; i < segments.length; i++) {

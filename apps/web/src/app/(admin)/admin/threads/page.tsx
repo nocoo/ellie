@@ -32,30 +32,30 @@ import { useCallback, useEffect, useState } from "react";
 // ---------------------------------------------------------------------------
 
 const FILTERS: FilterDef[] = [
-	{ key: "search", label: "Search threads...", type: "search" },
+	{ key: "search", label: "搜索主题...", type: "search" },
 	{
 		key: "sticky",
-		label: "Sticky",
+		label: "置顶",
 		type: "select",
 		options: [
-			{ value: "1", label: "Forum Sticky" },
-			{ value: "2", label: "Global Sticky" },
-			{ value: "3", label: "Super Sticky" },
+			{ value: "1", label: "版块置顶" },
+			{ value: "2", label: "全局置顶" },
+			{ value: "3", label: "分类置顶" },
 		],
 	},
 	{
 		key: "closed",
-		label: "Closed",
+		label: "已锁定",
 		type: "select",
 		options: [
-			{ value: "0", label: "Open" },
-			{ value: "1", label: "Closed" },
+			{ value: "0", label: "开放" },
+			{ value: "1", label: "已锁定" },
 		],
 	},
 ];
 
 const BATCH_ACTIONS: BatchAction[] = [
-	{ key: "delete", label: "Delete Selected", variant: "destructive" },
+	{ key: "delete", label: "批量删除", variant: "destructive" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -150,8 +150,8 @@ export default function ThreadsPage() {
 		(thread: Thread) => {
 			setConfirmDialog({
 				open: true,
-				title: "Delete Thread",
-				description: `Delete "${thread.subject}" and all its replies? This cannot be undone.`,
+				title: "删除主题",
+				description: `删除主题「${thread.subject}」及其所有回复？此操作不可撤销。`,
 				variant: "destructive",
 				onConfirm: async () => {
 					setConfirmLoading(true);
@@ -192,7 +192,7 @@ export default function ThreadsPage() {
 	const columns: ColumnDef<Thread>[] = [
 		{
 			key: "subject",
-			header: "Subject",
+			header: "标题",
 			cell: (row) => (
 				<Link
 					href={`/admin/threads/${row.id}`}
@@ -202,33 +202,33 @@ export default function ThreadsPage() {
 				</Link>
 			),
 		},
-		{ key: "author", header: "Author", cell: (row) => row.authorName },
+		{ key: "author", header: "作者", cell: (row) => row.authorName },
 		{
 			key: "replies",
-			header: "Replies",
+			header: "回复",
 			cell: (row) => row.replies.toLocaleString(),
 			className: "text-right",
 		},
 		{
 			key: "views",
-			header: "Views",
+			header: "浏览",
 			cell: (row) => row.views.toLocaleString(),
 			className: "text-right",
 		},
 		{
 			key: "status",
-			header: "Status",
+			header: "状态",
 			cell: (row) => (
 				<div className="flex gap-1">
 					{row.sticky > 0 && <Badge variant="default">{stickyLabel(row.sticky)}</Badge>}
-					{row.closed > 0 && <Badge variant="secondary">Closed</Badge>}
+					{row.closed > 0 && <Badge variant="secondary">已锁定</Badge>}
 					{row.digest > 0 && <Badge variant="outline">{digestLabel(row.digest)}</Badge>}
 				</div>
 			),
 		},
 		{
 			key: "lastPost",
-			header: "Last Post",
+			header: "最后回复",
 			cell: (row) => (row.lastPostAt ? new Date(row.lastPostAt * 1000).toLocaleDateString() : "—"),
 		},
 		{
@@ -244,12 +244,12 @@ export default function ThreadsPage() {
 						}
 					/>
 					<DropdownMenuContent align="end">
-						<DropdownMenuItem onClick={() => setEditThread(row)}>Edit</DropdownMenuItem>
+						<DropdownMenuItem onClick={() => setEditThread(row)}>编辑</DropdownMenuItem>
 						<DropdownMenuItem onClick={() => handleToggleClose(row)}>
-							{row.closed ? "Reopen" : "Close"}
+							{row.closed ? "解锁" : "锁定"}
 						</DropdownMenuItem>
 						<DropdownMenuItem onClick={() => handleDelete(row)} className="text-destructive">
-							Delete
+							删除
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
@@ -261,8 +261,8 @@ export default function ThreadsPage() {
 	return (
 		<div className="space-y-4">
 			<div>
-				<h1 className="text-2xl font-semibold text-foreground">Threads</h1>
-				<p className="mt-1 text-sm text-muted-foreground">Manage forum threads.</p>
+				<h1 className="text-2xl font-semibold text-foreground">主题</h1>
+				<p className="mt-1 text-sm text-muted-foreground">管理论坛主题</p>
 			</div>
 
 			<AdminFilters
@@ -281,7 +281,7 @@ export default function ThreadsPage() {
 					selectedIds={selectedIds}
 					onSelectionChange={setSelectedIds}
 					loading={loading}
-					emptyMessage="No threads found"
+					emptyMessage="暂无主题"
 				/>
 				<AdminPagination pagination={pagination} onPageChange={handlePageChange} />
 			</div>

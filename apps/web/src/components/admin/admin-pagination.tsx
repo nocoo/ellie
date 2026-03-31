@@ -71,7 +71,7 @@ export function AdminPagination({ pagination, onPageChange }: AdminPaginationPro
 	return (
 		<div className="flex items-center justify-between px-2 py-3">
 			<p className="text-sm text-muted-foreground">
-				{computeItemRange(page, limit, total)} of {total.toLocaleString()}
+				{computeItemRange(page, limit, total)} / {total.toLocaleString()}
 			</p>
 			<div className="flex items-center gap-1">
 				<Button
@@ -79,7 +79,7 @@ export function AdminPagination({ pagination, onPageChange }: AdminPaginationPro
 					size="icon"
 					disabled={page <= 1}
 					onClick={() => onPageChange(1)}
-					aria-label="First page"
+					aria-label="首页"
 				>
 					<ChevronsLeft className="h-4 w-4" />
 				</Button>
@@ -88,7 +88,7 @@ export function AdminPagination({ pagination, onPageChange }: AdminPaginationPro
 					size="icon"
 					disabled={page <= 1}
 					onClick={() => onPageChange(page - 1)}
-					aria-label="Previous page"
+					aria-label="上一页"
 				>
 					<ChevronLeft className="h-4 w-4" />
 				</Button>
@@ -99,7 +99,7 @@ export function AdminPagination({ pagination, onPageChange }: AdminPaginationPro
 						size="icon"
 						className="h-8 w-8"
 						onClick={() => onPageChange(p)}
-						aria-label={`Page ${p}`}
+						aria-label={`第 ${p} 页`}
 						aria-current={p === page ? "page" : undefined}
 					>
 						{p}
@@ -110,7 +110,7 @@ export function AdminPagination({ pagination, onPageChange }: AdminPaginationPro
 					size="icon"
 					disabled={page >= pages}
 					onClick={() => onPageChange(page + 1)}
-					aria-label="Next page"
+					aria-label="下一页"
 				>
 					<ChevronRight className="h-4 w-4" />
 				</Button>
@@ -119,7 +119,7 @@ export function AdminPagination({ pagination, onPageChange }: AdminPaginationPro
 					size="icon"
 					disabled={page >= pages}
 					onClick={() => onPageChange(pages)}
-					aria-label="Last page"
+					aria-label="末页"
 				>
 					<ChevronsRight className="h-4 w-4" />
 				</Button>

@@ -109,7 +109,7 @@ function LoginContent() {
 											"inset 0 1.5px 3px rgba(0,0,0,0.35), inset 0 -0.5px 1px rgba(255,255,255,0.1)",
 									}}
 								/>
-								<span className="text-sm font-semibold text-primary-foreground">Ellie Admin</span>
+								<span className="text-sm font-semibold text-primary-foreground">Ellie 管理后台</span>
 								<span className="text-2xs font-medium uppercase tracking-widest text-primary-foreground/60">
 									v0.1
 								</span>
@@ -132,15 +132,15 @@ function LoginContent() {
 								<span className="text-3xl font-bold text-primary">E</span>
 							</div>
 
-							<p className="mt-5 text-lg font-semibold text-foreground">Admin Console</p>
-							<p className="mt-1 text-xs text-muted-foreground">Sign in to manage the forum</p>
+							<p className="mt-5 text-lg font-semibold text-foreground">管理控制台</p>
+							<p className="mt-1 text-xs text-muted-foreground">登录以管理论坛</p>
 
 							{/* Error message */}
 							{error && (
 								<div className="mt-3 w-full rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive text-center">
 									{error === "AccessDenied"
-										? "Your account is not authorized to access this application."
-										: "Sign in failed. Please try again."}
+										? "您的账号无权访问此应用。"
+										: "登录失败，请重试。"}
 								</div>
 							)}
 
@@ -157,17 +157,17 @@ function LoginContent() {
 								className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-secondary px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent cursor-pointer"
 							>
 								<GoogleIcon />
-								Sign in with Google
+								使用 Google 登录
 							</button>
 
 							{/* Terms */}
 							<p className="mt-3 text-center text-2xs leading-relaxed text-muted-foreground/60">
-								By signing in you agree to our{" "}
+								登录即表示您同意我们的{" "}
 								<a
 									href="/privacy"
 									className="underline hover:text-muted-foreground transition-colors"
 								>
-									privacy policy
+									隐私政策
 								</a>
 							</p>
 						</div>
@@ -176,7 +176,7 @@ function LoginContent() {
 						<div className="mt-auto flex items-center justify-center border-t border-border bg-secondary/50 py-2.5">
 							<div className="flex items-center gap-1.5">
 								<div className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-								<span className="text-2xs text-muted-foreground">Secure Auth</span>
+								<span className="text-2xs text-muted-foreground">安全认证</span>
 							</div>
 						</div>
 					</div>
@@ -191,7 +191,7 @@ export default function LoginPage() {
 		<Suspense
 			fallback={
 				<div className="flex min-h-screen items-center justify-center">
-					<p className="text-muted-foreground">Loading...</p>
+					<p className="text-muted-foreground">加载中...</p>
 				</div>
 			}
 		>
