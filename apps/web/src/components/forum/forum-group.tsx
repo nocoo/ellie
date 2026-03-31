@@ -23,12 +23,12 @@ export function ForumGroup({ group }: ForumGroupProps) {
 	const [collapsed, setCollapsed] = useState(false);
 
 	return (
-		<div className="overflow-hidden rounded-sm border border-border bg-white">
+		<div className="overflow-hidden rounded-sm border border-border bg-card">
 			{/* Group header — gradient bar matching classic Discuz style */}
 			<button
 				type="button"
 				onClick={() => setCollapsed((prev) => !prev)}
-				className="flex w-full items-center gap-2 border-b border-border bg-gradient-to-r from-[#E8EEF2] to-[#F6F7F8] px-4 py-2 text-left cursor-pointer"
+				className="flex w-full items-center gap-2 border-b border-border bg-gradient-to-r from-forum-header-from to-forum-header-to px-4 py-2 text-left cursor-pointer"
 			>
 				<h2 className="text-sm font-semibold text-forum-link">
 					<Link

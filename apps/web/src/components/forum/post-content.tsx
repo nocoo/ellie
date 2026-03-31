@@ -33,7 +33,7 @@ export function PostContent({ post, isFirst, threadDigest, author, actionBar }: 
 			<div className="p-3 flex flex-col flex-1" suppressHydrationWarning>
 				{/* Top meta bar — dashed bottom border */}
 				<div className="flex items-center gap-2 pb-2 border-b border-dashed border-border text-xs text-muted-foreground">
-					<SquarePen className="h-3.5 w-3.5 text-[#6BB5D8]" />
+					<SquarePen className="h-3.5 w-3.5 text-primary" />
 					<span>发表于 {formatDateTime(post.createdAt)}</span>
 					<span className="text-border">|</span>
 					<span className="text-forum-link hover:underline cursor-pointer">只看该作者</span>

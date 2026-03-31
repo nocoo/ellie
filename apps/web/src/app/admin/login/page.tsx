@@ -128,7 +128,7 @@ function LoginContent() {
 						{/* Badge content */}
 						<div className="flex flex-1 flex-col items-center px-6 pt-6 pb-5">
 							{/* Logo placeholder */}
-							<div className="h-24 w-24 overflow-hidden rounded-full bg-secondary dark:bg-[#171717] ring-1 ring-border flex items-center justify-center">
+							<div className="h-24 w-24 overflow-hidden rounded-full bg-secondary dark:bg-background ring-1 ring-border flex items-center justify-center">
 								<span className="text-3xl font-bold text-primary">E</span>
 							</div>
 
