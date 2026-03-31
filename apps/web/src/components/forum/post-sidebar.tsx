@@ -71,7 +71,7 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 				<div className="w-full space-y-1 text-xs text-[#666] mt-1">
 					{/* Group title + level */}
 					{author.groupTitle && (
-						<div className="text-center">
+						<div>
 							<span
 								className="font-medium"
 								style={author.groupColor ? { color: author.groupColor } : undefined}
@@ -85,9 +85,7 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 					)}
 
 					{/* Custom title */}
-					{author.customTitle && (
-						<div className="text-center text-[#999] italic">{author.customTitle}</div>
-					)}
+					{author.customTitle && <div className="text-[#999] italic">{author.customTitle}</div>}
 
 					{/* UID */}
 					<div>
@@ -113,14 +111,14 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 
 			{/* First-post thread stats */}
 			{isFirst && threadViews !== undefined && threadReplies !== undefined && (
-				<div className="text-xs text-[#666]">
+				<div className="text-xs text-[#666] self-start">
 					查看: {threadViews.toLocaleString()} / 回复: {threadReplies.toLocaleString()}
 				</div>
 			)}
 
 			{/* Send message link */}
 			{author && (
-				<span className="flex items-center gap-1 text-xs text-[#3672A0] cursor-pointer hover:underline mt-1">
+				<span className="flex items-center gap-1 text-xs text-[#3672A0] cursor-pointer hover:underline mt-1 self-start">
 					<Mail className="h-3.5 w-3.5" />
 					发消息
 				</span>
@@ -128,7 +126,7 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 
 			{/* Mod action row */}
 			{author && (
-				<div className="flex items-center gap-2 text-[11px] text-[#999] mt-2 flex-wrap justify-center">
+				<div className="flex items-center gap-2 text-[11px] text-[#999] mt-2 flex-wrap self-start">
 					<span className="hover:text-[#3672A0] cursor-pointer">IP</span>
 					<span className="hover:text-[#3672A0] cursor-pointer">编辑</span>
 					<span className="hover:text-[#3672A0] cursor-pointer">禁止</span>
