@@ -1,5 +1,5 @@
 // Ellie API Worker — Cloudflare Worker with D1 + KV
-// 66 endpoints: 17 public + 5 moderation + 44 admin
+// 69 endpoints: 18 public + 5 moderation + 46 admin
 import type { CFRequest, Env } from "./lib/env";
 import { validateApiKey } from "./middleware/apiKey";
 import { configureAllowedOrigins, corsHeaders } from "./middleware/cors";
@@ -69,6 +69,11 @@ export default {
 			}
 			if (path.match(/^\/api\/v1\/users\/\d+\/posts$/) && request.method === "GET") {
 				return await (await import("./handlers/user")).listPosts(request, env);
+			}
+
+			// ── #12b Public settings (Key A, read-only) ─────
+			if (path === "/api/v1/settings" && request.method === "GET") {
+				return await (await import("./handlers/settings")).list(request, env);
 			}
 
 			// ── Auth routes (#12-#15) ────────────────────────
@@ -281,6 +286,14 @@ export default {
 			// ── H. Stats (Admin) #61 ────────────────────────
 			if (path === "/api/admin/stats" && request.method === "GET") {
 				return await (await import("./handlers/admin/stats")).handleStats(request, env);
+			}
+
+			// ── I. Settings (Admin) #62-#63 ─────────────────
+			if (path === "/api/admin/settings" && request.method === "GET") {
+				return await (await import("./handlers/admin/settings")).list(request, env);
+			}
+			if (path === "/api/admin/settings" && request.method === "PUT") {
+				return await (await import("./handlers/admin/settings")).bulkUpdate(request, env);
 			}
 
 			// ── 404 — Not Found ─────────────────────────────
