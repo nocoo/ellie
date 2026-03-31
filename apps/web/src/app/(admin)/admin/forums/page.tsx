@@ -361,7 +361,7 @@ export default function ForumsPage() {
 				onClearAll={handleClearFilters}
 			/>
 
-			<div className="rounded-xl border bg-card">
+			<div className="rounded-lg border bg-card">
 				<AdminDataTable
 					columns={columns}
 					data={data}

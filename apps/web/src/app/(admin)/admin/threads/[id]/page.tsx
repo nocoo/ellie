@@ -173,7 +173,7 @@ export default function ThreadDetailPage() {
 					<ArrowLeft className="mr-2 h-4 w-4" />
 					返回主题列表
 				</Button>
-				<div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
+				<div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
 					{error}
 				</div>
 			</div>
@@ -199,7 +199,7 @@ export default function ThreadDetailPage() {
 			</Button>
 
 			{/* Thread header */}
-			<div className="rounded-xl border bg-card p-4 md:p-6">
+			<div className="rounded-lg border bg-card p-4 md:p-6">
 				<div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
 					<div className="space-y-2 min-w-0">
 						<h1 className="text-xl md:text-2xl font-semibold text-foreground break-words">
@@ -243,7 +243,7 @@ export default function ThreadDetailPage() {
 
 			{/* Pagination */}
 			{pagination.pages > 1 && (
-				<div className="rounded-xl border bg-card">
+				<div className="rounded-lg border bg-card">
 					<AdminPagination pagination={paginationInfo} onPageChange={handlePageChange} />
 				</div>
 			)}
