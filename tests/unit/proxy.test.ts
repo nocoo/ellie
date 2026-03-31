@@ -234,12 +234,24 @@ describe("resolveProxyAction", () => {
 		expect(resolveProxyAction("/threads/new", false)).toBe("redirect:/login");
 	});
 
-	it("allows authenticated user on /threads/new", () => {
-		expect(resolveProxyAction("/threads/new", true, NON_ADMIN_EMAIL)).toBe("next");
+	it("allows authenticated credentials user on /threads/new", () => {
+		expect(resolveProxyAction("/threads/new", true, NON_ADMIN_EMAIL, "credentials")).toBe("next");
 	});
 
-	it("allows authenticated admin on /threads/new", () => {
+	it("redirects Google OAuth user on /threads/new to /login (no Worker JWT)", () => {
+		expect(resolveProxyAction("/threads/new", true, ADMIN_EMAIL, "google")).toBe("redirect:/login");
+	});
+
+	it("redirects user without provider on /threads/new to /login", () => {
+		expect(resolveProxyAction("/threads/new", true, NON_ADMIN_EMAIL)).toBe("redirect:/login");
+		expect(resolveProxyAction("/threads/new", true, NON_ADMIN_EMAIL, null)).toBe("redirect:/login");
+		expect(resolveProxyAction("/threads/new", true, NON_ADMIN_EMAIL, undefined)).toBe(
+			"redirect:/login",
+		);
+	});
+
+	it("allows authenticated credentials admin on /threads/new", () => {
 		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
-		expect(resolveProxyAction("/threads/new", true, ADMIN_EMAIL)).toBe("next");
+		expect(resolveProxyAction("/threads/new", true, ADMIN_EMAIL, "credentials")).toBe("next");
 	});
 });
