@@ -9,10 +9,10 @@ import Link from "next/link";
 // ---------------------------------------------------------------------------
 
 const QUICK_LINKS = [
-	{ href: "/admin/users", label: "Manage Users" },
-	{ href: "/admin/forums", label: "Manage Forums" },
-	{ href: "/admin/ip-bans", label: "IP Bans" },
-	{ href: "/admin/censor-words", label: "Censor Words" },
+	{ href: "/admin/users", label: "管理用户" },
+	{ href: "/admin/forums", label: "管理版块" },
+	{ href: "/admin/ip-bans", label: "IP 封禁" },
+	{ href: "/admin/censor-words", label: "敏感词" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -26,14 +26,14 @@ export default async function DashboardPage() {
 	try {
 		stats = await fetchDashboardStats();
 	} catch (e) {
-		error = e instanceof Error ? e.message : "Failed to load dashboard stats";
+		error = e instanceof Error ? e.message : "仪表盘数据加载失败";
 	}
 
 	return (
 		<div className="space-y-6">
 			<div>
-				<h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
-				<p className="mt-1 text-sm text-muted-foreground">Overview of your forum at a glance.</p>
+				<h1 className="text-2xl font-semibold text-foreground">仪表盘</h1>
+				<p className="mt-1 text-sm text-muted-foreground">论坛数据一览</p>
 			</div>
 
 			{error && (
@@ -46,44 +46,44 @@ export default async function DashboardPage() {
 				<>
 					{/* Stats Cards — 4 columns */}
 					<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-						<StatCard label="Total Users" value={stats.users.total} icon={Users} />
-						<StatCard label="Total Threads" value={stats.threads.total} icon={FileText} />
-						<StatCard label="Posts Today" value={stats.posts.today} icon={MessageSquare} />
-						<StatCard label="Active Forums" value={activeForums(stats)} icon={MessagesSquare} />
+						<StatCard label="用户总数" value={stats.users.total} icon={Users} />
+						<StatCard label="主题总数" value={stats.threads.total} icon={FileText} />
+						<StatCard label="今日发帖" value={stats.posts.today} icon={MessageSquare} />
+						<StatCard label="活跃版块" value={activeForums(stats)} icon={MessagesSquare} />
 					</div>
 
 					{/* Detail Cards — 2x2 grid */}
 					<div className="grid gap-4 sm:grid-cols-2">
 						<StatCard
-							label="Users"
+							label="用户"
 							value={stats.users.total}
 							icon={Users}
 							subItems={[
-								{ label: "Today", value: stats.users.today },
-								{ label: "Banned", value: stats.users.banned },
+								{ label: "今日", value: stats.users.today },
+								{ label: "已封禁", value: stats.users.banned },
 							]}
 						/>
 						<StatCard
-							label="Content"
+							label="内容"
 							value={stats.threads.total + stats.posts.total}
 							icon={FileText}
 							subItems={[
-								{ label: "Threads", value: stats.threads.total },
-								{ label: "Threads Today", value: stats.threads.today },
-								{ label: "Posts", value: stats.posts.total },
-								{ label: "Posts Today", value: stats.posts.today },
+								{ label: "主题", value: stats.threads.total },
+								{ label: "今日主题", value: stats.threads.today },
+								{ label: "帖子", value: stats.posts.total },
+								{ label: "今日帖子", value: stats.posts.today },
 							]}
 						/>
 						<StatCard
-							label="Forums"
+							label="版块"
 							value={stats.forums.total}
 							icon={MessagesSquare}
-							subItems={[{ label: "Hidden", value: stats.forums.hidden }]}
+							subItems={[{ label: "隐藏", value: stats.forums.hidden }]}
 						/>
 
 						{/* Quick Links */}
 						<div className="rounded-xl border bg-card p-5">
-							<p className="text-sm font-medium text-muted-foreground">Quick Links</p>
+							<p className="text-sm font-medium text-muted-foreground">快捷入口</p>
 							<ul className="mt-3 space-y-2">
 								{QUICK_LINKS.map((link) => (
 									<li key={link.href}>

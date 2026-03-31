@@ -52,12 +52,12 @@ export function PostEditDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="sm:max-w-lg">
 				<DialogHeader>
-					<DialogTitle>Edit Post</DialogTitle>
+					<DialogTitle>编辑帖子</DialogTitle>
 				</DialogHeader>
 
 				<div className="grid gap-4 py-4">
 					<div className="grid gap-2">
-						<Label htmlFor="edit-content">Content</Label>
+						<Label htmlFor="edit-content">内容</Label>
 						<textarea
 							id="edit-content"
 							value={content}
@@ -70,10 +70,10 @@ export function PostEditDialog({
 
 				<DialogFooter>
 					<Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-						Cancel
+						取消
 					</Button>
 					<Button onClick={handleSave} disabled={loading}>
-						{loading ? "Saving..." : "Save Changes"}
+						{loading ? "保存中..." : "保存更改"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

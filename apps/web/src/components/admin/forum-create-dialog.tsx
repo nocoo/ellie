@@ -29,8 +29,8 @@ export interface ForumCreateDialogProps {
 // ---------------------------------------------------------------------------
 
 const STATUS_OPTIONS = [
-	{ value: 1, label: "Active" },
-	{ value: 0, label: "Hidden" },
+	{ value: 1, label: "正常" },
+	{ value: 0, label: "隐藏" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -67,36 +67,36 @@ export function ForumCreateDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
-					<DialogTitle>Create Forum</DialogTitle>
+					<DialogTitle>创建版块</DialogTitle>
 				</DialogHeader>
 
 				<div className="grid gap-4 py-4">
 					<div className="grid gap-2">
-						<Label htmlFor="create-name">Name</Label>
+						<Label htmlFor="create-name">名称</Label>
 						<Input
 							id="create-name"
 							value={name}
 							onChange={(e) => setName(e.target.value)}
 							maxLength={100}
-							placeholder="Forum name"
+							placeholder="版块名称"
 						/>
 					</div>
 
 					<div className="grid gap-2">
-						<Label htmlFor="create-description">Description</Label>
+						<Label htmlFor="create-description">描述</Label>
 						<textarea
 							id="create-description"
 							value={description}
 							onChange={(e) => setDescription(e.target.value)}
 							className="min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-							placeholder="Forum description"
+							placeholder="版块描述"
 							maxLength={500}
 						/>
 					</div>
 
 					<div className="grid grid-cols-2 gap-4">
 						<div className="grid gap-2">
-							<Label htmlFor="create-order">Order</Label>
+							<Label htmlFor="create-order">排序</Label>
 							<Input
 								id="create-order"
 								type="number"
@@ -107,7 +107,7 @@ export function ForumCreateDialog({
 						</div>
 
 						<div className="grid gap-2">
-							<Label htmlFor="create-status">Status</Label>
+							<Label htmlFor="create-status">状态</Label>
 							<select
 								id="create-status"
 								value={status}
@@ -126,10 +126,10 @@ export function ForumCreateDialog({
 
 				<DialogFooter>
 					<Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-						Cancel
+						取消
 					</Button>
 					<Button onClick={handleSave} disabled={!name.trim() || loading}>
-						{loading ? "Creating..." : "Create Forum"}
+						{loading ? "创建中..." : "创建版块"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

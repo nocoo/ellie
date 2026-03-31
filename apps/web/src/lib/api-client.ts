@@ -144,6 +144,11 @@ export const apiClient = {
 		return { data: result.data, meta: result.meta as ApiMeta };
 	},
 
+	async put<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
+		const result = await request<T>("PUT", path, { body });
+		return { data: result.data, meta: result.meta as ApiMeta };
+	},
+
 	async delete<T = void>(path: string): Promise<ApiResponse<T>> {
 		const result = await request<T>("DELETE", path);
 		return { data: result.data, meta: result.meta as ApiMeta };

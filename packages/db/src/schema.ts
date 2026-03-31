@@ -135,6 +135,17 @@ export const TABLES = {
 			created_at INTEGER NOT NULL
 		);
 	`,
+
+	settings: `
+		CREATE TABLE IF NOT EXISTS settings (
+			id    INTEGER PRIMARY KEY AUTOINCREMENT,
+			key   TEXT NOT NULL UNIQUE,
+			value TEXT NOT NULL DEFAULT '',
+			type  TEXT NOT NULL DEFAULT 'string'
+			      CHECK(type IN ('string', 'number', 'boolean', 'json')),
+			updated_at INTEGER NOT NULL DEFAULT 0
+		);
+	`,
 };
 
 export const INDEXES = {
@@ -167,4 +178,6 @@ export const INDEXES = {
 	ip_bans: ["CREATE UNIQUE INDEX IF NOT EXISTS idx_ip_bans_ip ON ip_bans(ip);"],
 
 	censor_words: ["CREATE UNIQUE INDEX IF NOT EXISTS idx_censor_words_find ON censor_words(find);"],
+
+	settings: ["CREATE UNIQUE INDEX IF NOT EXISTS idx_settings_key ON settings(key);"],
 };

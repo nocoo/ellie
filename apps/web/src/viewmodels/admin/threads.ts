@@ -79,11 +79,11 @@ export function buildThreadSearchParams(
 export function stickyLabel(level: number): string {
 	switch (level) {
 		case 1:
-			return "Forum Sticky";
+			return "版块置顶";
 		case 2:
-			return "Global Sticky";
+			return "全局置顶";
 		case 3:
-			return "Super Sticky";
+			return "分类置顶";
 		default:
 			return "";
 	}
@@ -92,11 +92,11 @@ export function stickyLabel(level: number): string {
 export function digestLabel(level: number): string {
 	switch (level) {
 		case 1:
-			return "Digest I";
+			return "精华 I";
 		case 2:
-			return "Digest II";
+			return "精华 II";
 		case 3:
-			return "Digest III";
+			return "精华 III";
 		default:
 			return "";
 	}

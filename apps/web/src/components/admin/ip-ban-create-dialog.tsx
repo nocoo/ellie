@@ -89,51 +89,51 @@ export function IpBanCreateDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
-					<DialogTitle>{isEdit ? "Edit IP Ban" : "Create IP Ban"}</DialogTitle>
+					<DialogTitle>{isEdit ? "编辑 IP 封禁" : "创建 IP 封禁"}</DialogTitle>
 				</DialogHeader>
 
 				<div className="grid gap-4 py-4">
 					<div className="grid gap-2">
-						<Label htmlFor="ipban-ip">IP / Range</Label>
+						<Label htmlFor="ipban-ip">IP / 范围</Label>
 						<Input
 							id="ipban-ip"
 							value={ip}
 							onChange={(e) => setIp(e.target.value)}
-							placeholder="192.168.1.1 or 10.0.0.0/24"
+							placeholder="如 192.168.1.1 或 10.0.0.0/24"
 							required
 						/>
 					</div>
 
 					<div className="grid gap-2">
-						<Label htmlFor="ipban-reason">Reason</Label>
+						<Label htmlFor="ipban-reason">原因</Label>
 						<textarea
 							id="ipban-reason"
 							value={reason}
 							onChange={(e) => setReason(e.target.value)}
-							placeholder="Optional reason for the ban"
+							placeholder="封禁原因（选填）"
 							rows={3}
 							className="rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 						/>
 					</div>
 
 					<div className="grid gap-2">
-						<Label htmlFor="ipban-expires">Expires At</Label>
+						<Label htmlFor="ipban-expires">过期时间</Label>
 						<Input
 							id="ipban-expires"
 							type="datetime-local"
 							value={expiresAt}
 							onChange={(e) => setExpiresAt(e.target.value)}
 						/>
-						<p className="text-xs text-muted-foreground">Leave empty for a permanent ban.</p>
+						<p className="text-xs text-muted-foreground">留空表示永久封禁。</p>
 					</div>
 				</div>
 
 				<DialogFooter>
 					<Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-						Cancel
+						取消
 					</Button>
 					<Button onClick={handleSave} disabled={loading || !ip.trim()}>
-						{loading ? "Saving..." : isEdit ? "Save Changes" : "Create Ban"}
+						{loading ? "保存中..." : isEdit ? "保存更改" : "创建封禁"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

@@ -57,7 +57,7 @@ export function AdminDataTable<T>({
 	onSelectionChange,
 	selectable = false,
 	loading = false,
-	emptyMessage = "No data found",
+	emptyMessage = "暂无数据",
 }: AdminDataTableProps<T>) {
 	const allIds = useMemo(() => data.map(getRowId), [data, getRowId]);
 
@@ -91,7 +91,7 @@ export function AdminDataTable<T>({
 	if (loading) {
 		return (
 			<div className="flex items-center justify-center py-12">
-				<p className="text-sm text-muted-foreground">Loading...</p>
+				<p className="text-sm text-muted-foreground">加载中...</p>
 			</div>
 		);
 	}
@@ -115,7 +115,7 @@ export function AdminDataTable<T>({
 								checked={allSelected}
 								indeterminate={someSelected}
 								onCheckedChange={toggleAll}
-								aria-label="Select all rows"
+								aria-label="全选"
 							/>
 						</TableHead>
 					)}
@@ -137,7 +137,7 @@ export function AdminDataTable<T>({
 									<Checkbox
 										checked={isSelected}
 										onCheckedChange={() => toggleRow(id)}
-										aria-label={`Select row ${id}`}
+										aria-label={`选择行 ${id}`}
 									/>
 								</TableCell>
 							)}
