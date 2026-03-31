@@ -1,6 +1,8 @@
 // viewmodels/forum/thread-list.server.ts — Server-only data loader for thread list
 // Calls Worker API (GET /api/v1/forums + GET /api/v1/threads).
 
+import "server-only";
+
 import { forumApi } from "@/lib/forum-api";
 import {
 	type Forum,

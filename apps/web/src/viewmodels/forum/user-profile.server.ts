@@ -1,6 +1,8 @@
 // viewmodels/forum/user-profile.server.ts — Server-only data loader for user profile
 // Calls Worker API (GET /api/v1/users/:id, /users/:id/threads, /users/:id/posts).
 
+import "server-only";
+
 import { forumApi, publicUserToUser } from "@/lib/forum-api";
 import type { Post, PublicUser, Thread, User } from "@ellie/types";
 import { type ProfileTab, resolveTab } from "./user-profile";

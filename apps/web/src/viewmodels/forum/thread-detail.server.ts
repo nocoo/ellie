@@ -1,6 +1,8 @@
 // viewmodels/forum/thread-detail.server.ts — Server-only data loader for thread detail
 // Calls Worker API (GET /api/v1/threads/:id + GET /api/v1/posts + GET /api/v1/posts/:id/attachments + GET /api/v1/users/:id).
 
+import "server-only";
+
 import { forumApi, publicUserToUser } from "@/lib/forum-api";
 import type { Attachment, Forum, Post, PublicUser, Thread, User } from "@ellie/types";
 import {

@@ -1,6 +1,8 @@
 // viewmodels/forum/search.server.ts — Server-only data loader for search
 // Worker v1 has no search endpoint. Returns empty results for now.
 
+import "server-only";
+
 import type { Thread } from "@ellie/types";
 import { type SearchType, resolveSearchType } from "./search";
 
