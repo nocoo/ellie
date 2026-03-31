@@ -55,11 +55,11 @@ export interface DeleteResult {
 export function statusLabel(status: number): string {
 	switch (status) {
 		case 0:
-			return "Hidden";
+			return "隐藏";
 		case 1:
-			return "Active";
+			return "正常";
 		default:
-			return "Unknown";
+			return "未知";
 	}
 }
 
