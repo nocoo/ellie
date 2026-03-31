@@ -43,8 +43,8 @@ export function AdminConfirmDialog({
 	description,
 	requireInput,
 	inputPlaceholder,
-	confirmLabel = "Confirm",
-	cancelLabel = "Cancel",
+	confirmLabel = "确认",
+	cancelLabel = "取消",
 	variant = "default",
 	loading = false,
 	onConfirm,
@@ -78,8 +78,8 @@ export function AdminConfirmDialog({
 				{requireInput && (
 					<div className="py-2">
 						<p className="mb-2 text-sm text-muted-foreground">
-							Type <span className="font-mono font-semibold text-foreground">{requireInput}</span>{" "}
-							to confirm:
+							输入 <span className="font-mono font-semibold text-foreground">{requireInput}</span>{" "}
+							以确认：
 						</p>
 						<Input
 							value={inputValue}
@@ -95,7 +95,7 @@ export function AdminConfirmDialog({
 						{cancelLabel}
 					</Button>
 					<Button variant={variant} onClick={handleConfirm} disabled={!canConfirm || loading}>
-						{loading ? "Processing..." : confirmLabel}
+						{loading ? "处理中..." : confirmLabel}
 					</Button>
 				</DialogFooter>
 			</DialogContent>
