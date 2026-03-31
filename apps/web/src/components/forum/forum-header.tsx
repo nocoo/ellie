@@ -1,6 +1,6 @@
-// components/forum/forum-header.tsx — Classic Discuz-style multi-layer forum header
+// components/forum/forum-header.tsx — Forum header
 // Layout only — no real data fetching, all numbers are 777 placeholders.
-// Structure: TopBar → NavBar → SearchBar → BreadcrumbBar → StatsBar
+// Structure: TopBar → NavBar → SearchStatsBar
 
 "use client";
 
@@ -11,7 +11,7 @@ import {
 	type HeaderViewModel,
 	buildHeaderViewModel,
 } from "@/viewmodels/forum/header";
-import { Bell, ChevronDown, Search } from "lucide-react";
+import { ChevronDown, LogOut, Mail, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -44,69 +44,65 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 
 				{/* Right: User info area */}
 				{user ? (
-					<div className="flex items-center gap-3">
-						{/* User links row */}
-						<div className="text-right">
-							{/* Top row: user links */}
-							<div className="flex items-center justify-end gap-0 text-[13px] flex-wrap">
-								<UserLinkIcon className="text-primary" />
-								<TopBarLink href={`/users/${user.uid}`} className="font-bold text-primary">
+					<div className="flex items-center gap-4">
+						{/* Meta: username, group, uid, credits */}
+						<div className="text-right space-y-0.5">
+							<div className="flex items-center justify-end gap-2">
+								<Link
+									href={`/users/${user.uid}`}
+									className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+								>
 									{user.username}
-								</TopBarLink>
-								<TopBarSep />
-								<TopBarLink href="#">
-									我的
-									<ChevronDown className="inline h-3 w-3 ml-0.5" />
-								</TopBarLink>
-								<TopBarSep />
-								<TopBarLink href="#">设置</TopBarLink>
-								<TopBarSep />
-								<TopBarLink href="#">消息</TopBarLink>
-								<TopBarSep />
-								<span className="inline-flex items-center gap-0.5">
-									<Bell className="h-3 w-3 text-dz-reminder-text" />
-									<TopBarLink href="#" className="font-bold text-dz-reminder-text">
-										提醒({user.reminderCount})
-									</TopBarLink>
+								</Link>
+								<span className="text-xs text-muted-foreground">
+									UID: {user.uid}
 								</span>
-								<TopBarSep className="mx-2" />
-								<TopBarLink href="#">门户管理</TopBarLink>
-								<TopBarSep />
-								<TopBarLink href="#">管理中心</TopBarLink>
-								<TopBarSep />
-								<TopBarLink href="#">退出</TopBarLink>
 							</div>
-							{/* Bottom row: credits + group */}
-							<div className="flex items-center justify-end gap-3 text-[12px] text-dz-topbar-link mt-1">
-								<span>
-									积分: {user.credits}
-									<ChevronDown className="inline h-3 w-3 ml-0.5" />
-								</span>
-								<span>
-									用户组: {user.groupTitle}
-									<ChevronDown className="inline h-3 w-3 ml-0.5" />
-								</span>
+							<div className="flex items-center justify-end gap-3 text-xs text-muted-foreground">
+								<span>{user.groupTitle}</span>
+								<span>积分 {user.credits}</span>
 							</div>
 						</div>
+
 						{/* Avatar */}
-						<UserAvatar
-							src={getAvatarUrl(user.uid, "middle")}
-							alt={user.username}
-							className="h-[50px] w-[50px] rounded-sm"
-						/>
+						<Link href={`/users/${user.uid}`}>
+							<UserAvatar
+								src={getAvatarUrl(user.uid, "middle")}
+								alt={user.username}
+								className="h-10 w-10 rounded-sm"
+							/>
+						</Link>
+
+						{/* Action icons */}
+						<div className="flex items-center gap-1">
+							<Link
+								href="/messages"
+								className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+								title="站内信"
+							>
+								<Mail className="h-4 w-4" />
+							</Link>
+							<button
+								type="button"
+								className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+								title="退出登录"
+							>
+								<LogOut className="h-4 w-4" />
+							</button>
+						</div>
 					</div>
 				) : (
-					<div className="flex items-center gap-2 text-[13px]">
+					<div className="flex items-center gap-3 text-sm">
 						<Link
 							href="/login"
-							className="text-primary font-medium hover:underline"
+							className="font-medium text-primary hover:text-primary/80 transition-colors"
 						>
 							登录
 						</Link>
-						<TopBarSep />
+						<span className="text-border">|</span>
 						<Link
 							href="/login"
-							className="text-dz-topbar-link hover:underline"
+							className="text-muted-foreground hover:text-foreground transition-colors"
 						>
 							注册
 						</Link>
@@ -228,57 +224,9 @@ function SearchStatsBar({ vm }: { vm: HeaderViewModel }) {
 // Utility sub-components
 // ---------------------------------------------------------------------------
 
-function TopBarLink({
-	href,
-	className,
-	children,
-}: {
-	href: string;
-	className?: string;
-	children: React.ReactNode;
-}) {
-	return (
-		<Link
-			href={href}
-			className={cn(
-				"text-dz-topbar-link hover:text-primary transition-colors",
-				className,
-			)}
-		>
-			{children}
-		</Link>
-	);
-}
-
-function TopBarSep({ className }: { className?: string }) {
-	return (
-		<span className={cn("mx-1 text-dz-topbar-separator select-none", className)}>
-			|
-		</span>
-	);
-}
-
 function StatSep() {
 	return (
 		<span className="mx-1.5 text-dz-topbar-separator select-none">|</span>
-	);
-}
-
-function UserLinkIcon({ className }: { className?: string }) {
-	return (
-		<svg
-			className={cn("h-3.5 w-3.5 mr-1", className)}
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth={2}
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<title>User</title>
-			<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-			<circle cx="12" cy="7" r="4" />
-		</svg>
 	);
 }
 
