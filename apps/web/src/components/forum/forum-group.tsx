@@ -7,7 +7,7 @@
 import type { ForumTreeNode } from "@ellie/types";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
-import { ForumCard } from "./forum-card";
+import { ForumPanel } from "./forum-panel";
 import { SafeHtml } from "./safe-html";
 
 /** Threshold: groups with more children than this use grid layout */
@@ -18,7 +18,7 @@ interface ForumGroupProps {
 }
 
 export function ForumGroup({ group }: ForumGroupProps) {
-	const useGrid = group.children.length > GRID_THRESHOLD;
+	const layout = group.children.length > GRID_THRESHOLD ? "grid" : "wide";
 	const [collapsed, setCollapsed] = useState(false);
 
 	return (
@@ -38,26 +38,8 @@ export function ForumGroup({ group }: ForumGroupProps) {
 				)}
 			</button>
 
-			{/* Forum list — collapsible */}
-			{!collapsed &&
-				(useGrid ? (
-					<div className="grid grid-cols-1 sm:grid-cols-2">
-						{group.children.map((forum, i) => (
-							<div
-								key={forum.id}
-								className={`${i > 1 ? "border-t border-dashed border-[#DDD]" : ""} ${i % 2 === 1 ? "sm:border-l sm:border-dashed sm:border-[#DDD]" : ""} ${i === 1 ? "max-sm:border-t max-sm:border-dashed max-sm:border-[#DDD]" : ""}`}
-							>
-								<ForumCard forum={forum} layout="grid" />
-							</div>
-						))}
-					</div>
-				) : (
-					<div className="divide-y divide-dashed divide-[#DDD]">
-						{group.children.map((forum) => (
-							<ForumCard key={forum.id} forum={forum} layout="wide" />
-						))}
-					</div>
-				))}
+			{/* Forum list — collapsible, delegated to ForumPanel */}
+			{!collapsed && <ForumPanel forums={group.children} layout={layout} />}
 		</div>
 	);
 }
