@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { getAvatarUrl } from "@/lib/avatar";
 import { type EnrichedPost, floorLabel } from "@/viewmodels/forum/thread-detail";
 import { formatTime } from "@/viewmodels/forum/thread-list";
+import { UserRound } from "lucide-react";
 import Link from "next/link";
 
 interface PostCardProps {
@@ -18,10 +19,6 @@ interface PostCardProps {
 	threadViews?: number;
 	threadReplies?: number;
 	threadDigest?: number;
-}
-
-function authorInitials(name: string): string {
-	return name.slice(0, 2).toUpperCase();
 }
 
 export function PostCard({ post, threadViews, threadReplies, threadDigest }: PostCardProps) {
@@ -59,8 +56,8 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 									className="rounded-sm"
 								/>
 							)}
-							<AvatarFallback className="text-xs rounded-sm">
-								{post.author ? authorInitials(post.author.username) : "?"}
+							<AvatarFallback className="text-xs rounded-sm bg-[#F0F0F0]">
+								<UserRound className="h-5 w-5 text-[#BBB]" strokeWidth={1.2} />
 							</AvatarFallback>
 						</Avatar>
 					</Link>
