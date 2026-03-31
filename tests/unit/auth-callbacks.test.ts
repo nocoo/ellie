@@ -1,9 +1,10 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import type { Account, Profile, Session, User } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import {
 	decodeJwtExp,
 	jwtCallback,
+	refreshWorkerToken,
 	sessionCallback,
 	signInCallback,
 } from "../../apps/web/src/auth";
@@ -321,5 +322,351 @@ describe("signInCallback", () => {
 	it("Null account: returns true", () => {
 		const user = { id: "42", name: "user" } as User;
 		expect(signInCallback({ user })).toBe(true);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// refreshWorkerToken
+// ---------------------------------------------------------------------------
+
+describe("refreshWorkerToken", () => {
+	const originalFetch = globalThis.fetch;
+	const originalEnv = { ...process.env };
+
+	beforeEach(() => {
+		process.env.WORKER_API_URL = "https://worker.example.com";
+		process.env.FORUM_API_KEY = "test-api-key";
+	});
+
+	afterEach(() => {
+		globalThis.fetch = originalFetch;
+		process.env.WORKER_API_URL = originalEnv.WORKER_API_URL;
+		process.env.FORUM_API_KEY = originalEnv.FORUM_API_KEY;
+	});
+
+	it("returns null for null refreshToken", async () => {
+		expect(await refreshWorkerToken(null)).toBeNull();
+	});
+
+	it("returns null for undefined refreshToken", async () => {
+		expect(await refreshWorkerToken(undefined)).toBeNull();
+	});
+
+	it("returns null for empty string refreshToken", async () => {
+		expect(await refreshWorkerToken("")).toBeNull();
+	});
+
+	it("returns null when WORKER_API_URL is not set", async () => {
+		process.env.WORKER_API_URL = "";
+		expect(await refreshWorkerToken("some-token")).toBeNull();
+	});
+
+	it("returns null when FORUM_API_KEY is not set", async () => {
+		process.env.FORUM_API_KEY = "";
+		expect(await refreshWorkerToken("some-token")).toBeNull();
+	});
+
+	it("returns new token pair on successful refresh", async () => {
+		const mockFetch = mock(() =>
+			Promise.resolve(
+				new Response(
+					JSON.stringify({
+						data: { token: "new-jwt", refreshToken: "new-refresh" },
+					}),
+					{ status: 200, headers: { "Content-Type": "application/json" } },
+				),
+			),
+		);
+		globalThis.fetch = mockFetch as typeof globalThis.fetch;
+
+		const result = await refreshWorkerToken("old-refresh-token");
+
+		expect(result).toEqual({ token: "new-jwt", refreshToken: "new-refresh" });
+		expect(mockFetch).toHaveBeenCalledTimes(1);
+
+		// Verify request shape
+		const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+		expect(url).toBe("https://worker.example.com/api/v1/auth/refresh");
+		expect(options.method).toBe("POST");
+		expect(options.headers).toEqual({
+			"Content-Type": "application/json",
+			"X-API-Key": "test-api-key",
+		});
+		expect(JSON.parse(options.body as string)).toEqual({ refreshToken: "old-refresh-token" });
+	});
+
+	it("returns null when Worker responds with non-200", async () => {
+		globalThis.fetch = mock(() =>
+			Promise.resolve(new Response("{}", { status: 401 })),
+		) as typeof globalThis.fetch;
+
+		expect(await refreshWorkerToken("bad-token")).toBeNull();
+	});
+
+	it("returns null when response body lacks data.token", async () => {
+		globalThis.fetch = mock(() =>
+			Promise.resolve(
+				new Response(JSON.stringify({ data: { refreshToken: "new-r" } }), {
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				}),
+			),
+		) as typeof globalThis.fetch;
+
+		expect(await refreshWorkerToken("some-token")).toBeNull();
+	});
+
+	it("returns null when response body lacks data.refreshToken", async () => {
+		globalThis.fetch = mock(() =>
+			Promise.resolve(
+				new Response(JSON.stringify({ data: { token: "new-jwt" } }), {
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				}),
+			),
+		) as typeof globalThis.fetch;
+
+		expect(await refreshWorkerToken("some-token")).toBeNull();
+	});
+
+	it("returns null when response body has no data field", async () => {
+		globalThis.fetch = mock(() =>
+			Promise.resolve(
+				new Response(JSON.stringify({ error: "something" }), {
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				}),
+			),
+		) as typeof globalThis.fetch;
+
+		expect(await refreshWorkerToken("some-token")).toBeNull();
+	});
+
+	it("returns null on network error (fetch throws)", async () => {
+		globalThis.fetch = mock(() =>
+			Promise.reject(new Error("Network error")),
+		) as typeof globalThis.fetch;
+
+		expect(await refreshWorkerToken("some-token")).toBeNull();
+	});
+
+	it("strips trailing slashes from WORKER_API_URL", async () => {
+		process.env.WORKER_API_URL = "https://worker.example.com///";
+		const mockFetch = mock(() =>
+			Promise.resolve(
+				new Response(JSON.stringify({ data: { token: "t", refreshToken: "r" } }), {
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				}),
+			),
+		);
+		globalThis.fetch = mockFetch as typeof globalThis.fetch;
+
+		await refreshWorkerToken("tok");
+		const [url] = mockFetch.mock.calls[0] as [string, RequestInit];
+		expect(url).toBe("https://worker.example.com/api/v1/auth/refresh");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// jwtCallback — refresh integration (mocked fetch)
+// ---------------------------------------------------------------------------
+
+describe("jwtCallback refresh path", () => {
+	const originalFetch = globalThis.fetch;
+	const originalEnv = { ...process.env };
+
+	beforeEach(() => {
+		process.env.WORKER_API_URL = "https://worker.example.com";
+		process.env.FORUM_API_KEY = "test-api-key";
+	});
+
+	afterEach(() => {
+		globalThis.fetch = originalFetch;
+		process.env.WORKER_API_URL = originalEnv.WORKER_API_URL;
+		process.env.FORUM_API_KEY = originalEnv.FORUM_API_KEY;
+	});
+
+	it("successfully refreshes token when within 5-min buffer", async () => {
+		const newExp = Math.floor(Date.now() / 1000) + 7 * 24 * 3600;
+		const newJwt = makeJwtString(newExp);
+
+		globalThis.fetch = mock(() =>
+			Promise.resolve(
+				new Response(
+					JSON.stringify({
+						data: { token: newJwt, refreshToken: "refreshed-rt" },
+					}),
+					{ status: 200, headers: { "Content-Type": "application/json" } },
+				),
+			),
+		) as typeof globalThis.fetch;
+
+		const nearExpiry = Math.floor(Date.now() / 1000) + 120; // 2 minutes
+		const token: JWT = {
+			provider: "credentials",
+			sub: "42",
+			name: "user",
+			workerJwt: "old-jwt",
+			workerRefreshToken: "old-refresh",
+			workerJwtExp: nearExpiry,
+			role: 0,
+		};
+
+		const result = jwtCallback({ token });
+		expect(result).toBeInstanceOf(Promise);
+
+		const resolved = (await result) as JWT;
+		expect(resolved.workerJwt).toBe(newJwt);
+		expect(resolved.workerRefreshToken).toBe("refreshed-rt");
+		expect(resolved.workerJwtExp).toBe(newExp);
+		expect(resolved.error).toBeUndefined();
+	});
+
+	it("sets error when refresh fails (non-200)", async () => {
+		globalThis.fetch = mock(() =>
+			Promise.resolve(new Response("{}", { status: 401 })),
+		) as typeof globalThis.fetch;
+
+		const nearExpiry = Math.floor(Date.now() / 1000) + 60;
+		const token: JWT = {
+			provider: "credentials",
+			sub: "42",
+			workerJwt: "old-jwt",
+			workerRefreshToken: "old-refresh",
+			workerJwtExp: nearExpiry,
+			role: 0,
+		};
+
+		const result = (await jwtCallback({ token })) as JWT;
+		expect(result.error).toBe("RefreshTokenExpired");
+		// Original fields preserved (minus error)
+		expect(result.workerJwt).toBe("old-jwt");
+		expect(result.workerRefreshToken).toBe("old-refresh");
+	});
+
+	it("sets error when refresh returns incomplete data", async () => {
+		globalThis.fetch = mock(() =>
+			Promise.resolve(
+				new Response(JSON.stringify({ data: { token: "new-jwt" } }), {
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				}),
+			),
+		) as typeof globalThis.fetch;
+
+		const nearExpiry = Math.floor(Date.now() / 1000) + 60;
+		const token: JWT = {
+			provider: "credentials",
+			sub: "42",
+			workerJwt: "old-jwt",
+			workerRefreshToken: "old-refresh",
+			workerJwtExp: nearExpiry,
+			role: 0,
+		};
+
+		const result = (await jwtCallback({ token })) as JWT;
+		expect(result.error).toBe("RefreshTokenExpired");
+	});
+
+	it("sets error when network fails during refresh", async () => {
+		globalThis.fetch = mock(() =>
+			Promise.reject(new Error("Network error")),
+		) as typeof globalThis.fetch;
+
+		const nearExpiry = Math.floor(Date.now() / 1000) + 60;
+		const token: JWT = {
+			provider: "credentials",
+			sub: "42",
+			workerJwt: "old-jwt",
+			workerRefreshToken: "old-refresh",
+			workerJwtExp: nearExpiry,
+			role: 0,
+		};
+
+		const result = (await jwtCallback({ token })) as JWT;
+		expect(result.error).toBe("RefreshTokenExpired");
+	});
+
+	it("does not refresh when expiry is beyond buffer (> 5 min)", () => {
+		const farFuture = Math.floor(Date.now() / 1000) + 600; // exactly 10 min
+		const token: JWT = {
+			provider: "credentials",
+			sub: "42",
+			workerJwt: "valid-jwt",
+			workerRefreshToken: "valid-refresh",
+			workerJwtExp: farFuture,
+			role: 0,
+		};
+
+		const result = jwtCallback({ token });
+		// Synchronous return = no refresh triggered
+		expect(result).not.toBeInstanceOf(Promise);
+		expect((result as JWT).error).toBeUndefined();
+	});
+
+	it("does not refresh Google OAuth tokens regardless of any expiry field", () => {
+		const token: JWT = {
+			provider: "google",
+			sub: "g-123",
+			email: "admin@example.com",
+			workerJwtExp: 0, // Would trigger refresh if it were credentials
+		};
+
+		const result = jwtCallback({ token });
+		expect(result).not.toBeInstanceOf(Promise);
+		expect((result as JWT).provider).toBe("google");
+	});
+
+	it("does not refresh when workerRefreshToken is missing", async () => {
+		process.env.WORKER_API_URL = "https://worker.example.com";
+		process.env.FORUM_API_KEY = "test-key";
+
+		const nearExpiry = Math.floor(Date.now() / 1000) + 60;
+		const token: JWT = {
+			provider: "credentials",
+			sub: "42",
+			workerJwt: "old-jwt",
+			workerRefreshToken: undefined,
+			workerJwtExp: nearExpiry,
+			role: 0,
+		};
+
+		const result = jwtCallback({ token });
+		expect(result).toBeInstanceOf(Promise);
+
+		const resolved = (await result) as JWT;
+		// refreshWorkerToken(undefined) returns null → error state
+		expect(resolved.error).toBe("RefreshTokenExpired");
+	});
+
+	it("preserves role and sub after successful refresh", async () => {
+		const newExp = Math.floor(Date.now() / 1000) + 86400;
+		const newJwt = makeJwtString(newExp);
+
+		globalThis.fetch = mock(() =>
+			Promise.resolve(
+				new Response(JSON.stringify({ data: { token: newJwt, refreshToken: "new-rt" } }), {
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				}),
+			),
+		) as typeof globalThis.fetch;
+
+		const token: JWT = {
+			provider: "credentials",
+			sub: "99",
+			name: "superuser",
+			workerJwt: "old",
+			workerRefreshToken: "old-rt",
+			workerJwtExp: Math.floor(Date.now() / 1000) + 60,
+			role: 2,
+		};
+
+		const result = (await jwtCallback({ token })) as JWT;
+		expect(result.sub).toBe("99");
+		expect(result.name).toBe("superuser");
+		expect(result.role).toBe(2);
+		expect(result.provider).toBe("credentials");
 	});
 });

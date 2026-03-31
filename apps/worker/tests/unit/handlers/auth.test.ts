@@ -590,6 +590,78 @@ describe("auth handlers", () => {
 			const body = await response.json();
 			expect(body.error.code).toBe("INTERNAL_ERROR");
 		});
+
+		it("should reject empty string refreshToken", async () => {
+			const kvStore = new Map<string, string>();
+			const env = refreshEnv(kvStore, null);
+
+			const response = await refresh(createRefreshRequest({ refreshToken: "" }), env);
+
+			expect(response.status).toBe(400);
+			const body = await response.json();
+			expect(body.error.code).toBe("INVALID_REQUEST");
+		});
+
+		it("should reject non-string refreshToken", async () => {
+			const kvStore = new Map<string, string>();
+			const env = refreshEnv(kvStore, null);
+
+			const response = await refresh(createRefreshRequest({ refreshToken: 12345 }), env);
+
+			expect(response.status).toBe(400);
+			const body = await response.json();
+			expect(body.error.code).toBe("INVALID_REQUEST");
+		});
+
+		it("should include CORS headers on success", async () => {
+			const kvStore = new Map<string, string>([["refresh:token-x", "1"]]);
+			const env = refreshEnv(kvStore, { id: 1, username: "corsuser", role: 0, status: 0 });
+
+			const response = await refresh(createRefreshRequest({ refreshToken: "token-x" }), env);
+
+			expect(response.status).toBe(200);
+			expect(response.headers.get("Content-Type")).toBe("application/json");
+			expect(response.headers.get("Access-Control-Allow-Methods")).toBe(
+				"GET, POST, PATCH, DELETE, OPTIONS",
+			);
+		});
+
+		it("should include meta fields in successful response", async () => {
+			const kvStore = new Map<string, string>([["refresh:token-m", "5"]]);
+			const env = refreshEnv(kvStore, { id: 5, username: "metauser", role: 0, status: 0 });
+
+			const response = await refresh(createRefreshRequest({ refreshToken: "token-m" }), env);
+
+			expect(response.status).toBe(200);
+			const body = await response.json();
+			expect(body.meta.timestamp).toBeDefined();
+			expect(typeof body.meta.timestamp).toBe("number");
+			expect(body.meta.requestId).toBeDefined();
+			expect(typeof body.meta.requestId).toBe("string");
+		});
+
+		it("should generate a valid JWT in refresh response", async () => {
+			const kvStore = new Map<string, string>([["refresh:token-j", "10"]]);
+			const env = refreshEnv(kvStore, { id: 10, username: "jwtrefresh", role: 1, status: 0 });
+
+			const response = await refresh(createRefreshRequest({ refreshToken: "token-j" }), env);
+
+			expect(response.status).toBe(200);
+			const body = await response.json();
+			const token = body.data.token as string;
+
+			// JWT should have 3 parts
+			const parts = token.split(".");
+			expect(parts).toHaveLength(3);
+
+			// Decode and verify payload
+			const payloadB64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+			const padded = payloadB64 + "=".repeat((4 - (payloadB64.length % 4)) % 4);
+			const payload = JSON.parse(atob(padded));
+			expect(payload.userId).toBe(10);
+			expect(payload.role).toBe(1);
+			expect(payload.exp).toBeDefined();
+		});
 	});
 
 	describe("logout", () => {
