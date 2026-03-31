@@ -24,7 +24,7 @@ export function UserAvatar({ src, alt, className, iconClassName }: UserAvatarPro
 
 	if (failed) {
 		return (
-			<div className={`flex items-center justify-center bg-[#F0F0F0] ${className ?? ""}`}>
+			<div className={`flex items-center justify-center bg-muted ${className ?? ""}`}>
 				<UserRound className={`text-forum-text-muted ${iconClassName ?? "h-2/3 w-2/3"}`} strokeWidth={1.2} />
 			</div>
 		);

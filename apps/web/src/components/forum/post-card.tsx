@@ -29,7 +29,7 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 	const isFirst = post.isFirst || post.position === 1;
 
 	return (
-		<div className="border border-border bg-white -mt-px first:mt-0">
+		<div className="border border-border bg-card -mt-px first:mt-0">
 			{/* Desktop: two-column layout */}
 			<div className="hidden md:flex">
 				<PostSidebar
@@ -60,7 +60,7 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 									className="rounded-sm"
 								/>
 							)}
-							<AvatarFallback className="text-xs rounded-sm bg-[#F0F0F0]">
+							<AvatarFallback className="text-xs rounded-sm bg-muted">
 								<UserRound className="h-5 w-5 text-forum-text-muted" strokeWidth={1.2} />
 							</AvatarFallback>
 						</Avatar>

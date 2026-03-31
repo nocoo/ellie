@@ -18,7 +18,7 @@ interface PostSidebarProps {
 
 export function PostSidebar({ author, isFirst, threadViews, threadReplies }: PostSidebarProps) {
 	return (
-		<div className="w-[200px] shrink-0 bg-[#F5F8FA] border-r border-border p-4 flex flex-col items-center gap-1.5">
+		<div className="w-[200px] shrink-0 bg-forum-sidebar-bg border-r border-border p-4 flex flex-col items-center gap-1.5">
 			{/* Username — bold, link color */}
 			{author ? (
 				<Link
@@ -34,7 +34,7 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 			{/* Avatar — photo-frame: white padding + shadow */}
 			<Link href={author ? `/users/${author.id}` : "#"} className="mt-1">
 				{author ? (
-					<div className="bg-white p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)]">
+					<div className="bg-card p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)]">
 						<UserAvatar
 							src={getAvatarUrl(author.id, "big")}
 							alt={author.username}

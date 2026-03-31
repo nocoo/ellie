@@ -25,7 +25,7 @@ function parseModerators(moderators: string): string[] {
 function ForumIcon({ hasActivity = false }: { hasActivity?: boolean }) {
 	return (
 		<Box
-			className={`h-7 w-7 shrink-0 ${hasActivity ? "text-[#7BAA3C]" : "text-forum-text-muted"}`}
+			className={`h-7 w-7 shrink-0 ${hasActivity ? "text-success" : "text-forum-text-muted"}`}
 			strokeWidth={1.2}
 		/>
 	);
@@ -46,7 +46,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 	const mods = parseModerators(forum.moderators);
 
 	return (
-		<div className="relative flex items-start gap-3 px-4 py-3.5 transition-colors hover:bg-[#F8F8F8]">
+		<div className="relative flex items-start gap-3 px-4 py-3.5 transition-colors hover:bg-accent">
 			{/* Icon */}
 			<div className="mt-0.5 shrink-0">
 				<ForumIcon hasActivity={forum.todayThreads > 0} />
@@ -57,12 +57,12 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 				<div className="flex items-baseline gap-1.5">
 					<Link
 						href={`/forums/${forum.id}`}
-						className="text-sm font-bold text-foreground hover:text-[#C00] transition-colors"
+						className="text-sm font-bold text-foreground hover:text-destructive transition-colors"
 					>
 						{forum.name}
 					</Link>
 					{forum.todayThreads > 0 && (
-						<span className="text-xs text-[#E67C13] font-medium">
+						<span className="text-xs text-forum-accent font-medium">
 							({formatCount(forum.todayThreads)})
 						</span>
 					)}
@@ -143,7 +143,7 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 	const mods = parseModerators(forum.moderators);
 
 	return (
-		<div className="relative flex items-start gap-2.5 px-4 py-3 transition-colors hover:bg-[#F8F8F8]">
+		<div className="relative flex items-start gap-2.5 px-4 py-3 transition-colors hover:bg-accent">
 			{/* Icon */}
 			<div className="mt-0.5 shrink-0">
 				<ForumIcon hasActivity={forum.todayThreads > 0} />
@@ -154,12 +154,12 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 				<div className="flex items-baseline gap-1.5 flex-wrap">
 					<Link
 						href={`/forums/${forum.id}`}
-						className="text-sm font-bold text-foreground hover:text-[#C00] transition-colors"
+						className="text-sm font-bold text-foreground hover:text-destructive transition-colors"
 					>
 						{forum.name}
 					</Link>
 					{forum.todayThreads > 0 && (
-						<span className="text-xs text-[#E67C13] font-medium">
+						<span className="text-xs text-forum-accent font-medium">
 							({formatCount(forum.todayThreads)})
 						</span>
 					)}
