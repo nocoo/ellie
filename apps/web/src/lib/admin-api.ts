@@ -26,28 +26,11 @@ function getApiKey(): string {
 }
 
 // ---------------------------------------------------------------------------
-// Error type
+// Error type (imported from shared module, re-exported for backward compatibility)
 // ---------------------------------------------------------------------------
 
-export interface AdminApiErrorData {
-	code: string;
-	message: string;
-	details?: Record<string, unknown>;
-}
-
-export class AdminApiError extends Error {
-	readonly status: number;
-	readonly code: string;
-	readonly details?: Record<string, unknown>;
-
-	constructor(status: number, data: AdminApiErrorData) {
-		super(data.message);
-		this.name = "AdminApiError";
-		this.status = status;
-		this.code = data.code;
-		this.details = data.details;
-	}
-}
+import { ApiError as AdminApiError, type ApiErrorData as AdminApiErrorData } from "./api-error";
+export { AdminApiError, type AdminApiErrorData };
 
 // ---------------------------------------------------------------------------
 // Response types

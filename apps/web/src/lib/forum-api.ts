@@ -31,28 +31,11 @@ function getApiKey(): string {
 }
 
 // ---------------------------------------------------------------------------
-// Error type
+// Error type (imported from shared module, re-exported for backward compatibility)
 // ---------------------------------------------------------------------------
 
-export interface ForumApiErrorData {
-	code: string;
-	message: string;
-	details?: Record<string, unknown>;
-}
-
-export class ForumApiError extends Error {
-	readonly status: number;
-	readonly code: string;
-	readonly details?: Record<string, unknown>;
-
-	constructor(status: number, data: ForumApiErrorData) {
-		super(data.message);
-		this.name = "ForumApiError";
-		this.status = status;
-		this.code = data.code;
-		this.details = data.details;
-	}
-}
+import { ApiError as ForumApiError, type ApiErrorData as ForumApiErrorData } from "./api-error";
+export { ForumApiError, type ForumApiErrorData };
 
 // ---------------------------------------------------------------------------
 // Response types (v1 endpoints use keyset cursor, not offset)
