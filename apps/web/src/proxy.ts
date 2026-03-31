@@ -24,7 +24,7 @@ import type { NextRequest } from "next/server";
 /** Routes that require no authentication at all. */
 export function isPublicRoute(pathname: string): boolean {
 	// Auth endpoints
-	if (pathname === "/login" || pathname === "/admin/login") return true;
+	if (pathname === "/login" || pathname === "/admin/login" || pathname === "/register") return true;
 	if (pathname.startsWith("/api/auth")) return true;
 
 	// Forum public pages

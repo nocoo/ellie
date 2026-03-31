@@ -56,6 +56,10 @@ describe("isPublicRoute", () => {
 		expect(isPublicRoute("/search")).toBe(true);
 	});
 
+	it("marks /register as public", () => {
+		expect(isPublicRoute("/register")).toBe(true);
+	});
+
 	it("marks /admin as non-public", () => {
 		expect(isPublicRoute("/admin")).toBe(false);
 	});
