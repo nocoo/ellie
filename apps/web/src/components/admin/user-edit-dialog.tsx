@@ -30,16 +30,16 @@ export interface UserEditDialogProps {
 // ---------------------------------------------------------------------------
 
 const STATUS_OPTIONS = [
-	{ value: 0, label: "Active" },
-	{ value: -1, label: "Banned" },
-	{ value: -2, label: "Archived" },
+	{ value: 0, label: "正常" },
+	{ value: -1, label: "已封禁" },
+	{ value: -2, label: "已归档" },
 ];
 
 const ROLE_OPTIONS = [
-	{ value: 0, label: "Member" },
-	{ value: 1, label: "Admin" },
-	{ value: 2, label: "SuperMod" },
-	{ value: 3, label: "Mod" },
+	{ value: 0, label: "会员" },
+	{ value: 1, label: "管理员" },
+	{ value: 2, label: "超级版主" },
+	{ value: 3, label: "版主" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -88,12 +88,12 @@ export function UserEditDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
-					<DialogTitle>Edit User</DialogTitle>
+					<DialogTitle>编辑用户</DialogTitle>
 				</DialogHeader>
 
 				<div className="grid gap-4 py-4">
 					<div className="grid gap-2">
-						<Label htmlFor="edit-username">Username</Label>
+						<Label htmlFor="edit-username">用户名</Label>
 						<Input
 							id="edit-username"
 							value={username}
@@ -103,7 +103,7 @@ export function UserEditDialog({
 					</div>
 
 					<div className="grid gap-2">
-						<Label htmlFor="edit-email">Email</Label>
+						<Label htmlFor="edit-email">邮箱</Label>
 						<Input
 							id="edit-email"
 							type="email"
@@ -114,7 +114,7 @@ export function UserEditDialog({
 					</div>
 
 					<div className="grid gap-2">
-						<Label htmlFor="edit-avatar">Avatar URL</Label>
+						<Label htmlFor="edit-avatar">头像链接</Label>
 						<Input
 							id="edit-avatar"
 							value={avatar}
@@ -125,7 +125,7 @@ export function UserEditDialog({
 
 					<div className="grid grid-cols-2 gap-4">
 						<div className="grid gap-2">
-							<Label htmlFor="edit-status">Status</Label>
+							<Label htmlFor="edit-status">状态</Label>
 							<select
 								id="edit-status"
 								value={status}
@@ -141,7 +141,7 @@ export function UserEditDialog({
 						</div>
 
 						<div className="grid gap-2">
-							<Label htmlFor="edit-role">Role</Label>
+							<Label htmlFor="edit-role">角色</Label>
 							<select
 								id="edit-role"
 								value={role}
@@ -158,7 +158,7 @@ export function UserEditDialog({
 					</div>
 
 					<div className="grid gap-2">
-						<Label htmlFor="edit-credits">Credits</Label>
+						<Label htmlFor="edit-credits">积分</Label>
 						<Input
 							id="edit-credits"
 							type="number"
@@ -170,10 +170,10 @@ export function UserEditDialog({
 
 				<DialogFooter>
 					<Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-						Cancel
+						取消
 					</Button>
 					<Button onClick={handleSave} disabled={loading}>
-						{loading ? "Saving..." : "Save Changes"}
+						{loading ? "保存中..." : "保存更改"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>
