@@ -31,11 +31,25 @@ function getApiKey(): string {
 }
 
 // ---------------------------------------------------------------------------
-// Error type (imported from shared module, re-exported for backward compatibility)
+// Error type (thin subclass keeps instanceof / .name distinct from AdminApiError)
 // ---------------------------------------------------------------------------
 
-import { ApiError as ForumApiError, type ApiErrorData as ForumApiErrorData } from "./api-error";
-export { ForumApiError, type ForumApiErrorData };
+import { ApiError, type ApiErrorData } from "./api-error";
+
+export type ForumApiErrorData = ApiErrorData;
+
+export class ForumApiError extends ApiError {
+	constructor(status: number, data: ApiErrorData);
+	constructor(status: number, code: string, message: string);
+	constructor(status: number, dataOrCode: ApiErrorData | string, message?: string) {
+		if (typeof dataOrCode === "string") {
+			super(status, dataOrCode, message!);
+		} else {
+			super(status, dataOrCode);
+		}
+		this.name = "ForumApiError";
+	}
+}
 
 // ---------------------------------------------------------------------------
 // Response types (v1 endpoints use keyset cursor, not offset)
