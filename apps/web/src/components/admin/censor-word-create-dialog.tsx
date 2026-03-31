@@ -94,61 +94,60 @@ export function CensorWordCreateDialog({
 		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
-					<DialogTitle>{isEdit ? "Edit Censor Word" : "Add Censor Word"}</DialogTitle>
+					<DialogTitle>{isEdit ? "编辑敏感词" : "添加敏感词"}</DialogTitle>
 				</DialogHeader>
 
 				<div className="grid gap-4 py-4">
 					<div className="grid gap-2">
-						<Label htmlFor="cw-find">Word / Pattern</Label>
+						<Label htmlFor="cw-find">词语 / 正则</Label>
 						<Input
 							id="cw-find"
 							value={find}
 							onChange={(e) => setFind(e.target.value)}
-							placeholder="Enter word to censor"
+							placeholder="输入要过滤的词语"
 							maxLength={200}
 						/>
 					</div>
 
 					<div className="grid gap-2">
-						<Label htmlFor="cw-action">Action</Label>
+						<Label htmlFor="cw-action">动作</Label>
 						<select
 							id="cw-action"
 							value={action}
 							onChange={(e) => setAction(e.target.value as "ban" | "replace")}
 							className="h-9 rounded-md border border-input bg-background px-3 text-sm"
 						>
-							<option value="replace">Replace</option>
-							<option value="ban">Ban</option>
+							<option value="replace">替换</option>
+							<option value="ban">禁止发布</option>
 						</select>
 						<p className="text-xs text-muted-foreground">
-							Replace: swap the word with the replacement. Ban: block the post entirely.
+							替换：将词语替换为指定内容。禁止发布：直接拦截帖子。
 						</p>
 					</div>
 
 					<div className="grid gap-2">
-						<Label htmlFor="cw-replacement">Replacement</Label>
+						<Label htmlFor="cw-replacement">替换内容</Label>
 						<Input
 							id="cw-replacement"
 							value={replacement}
 							onChange={(e) => setReplacement(e.target.value)}
-							placeholder="** (default)"
+							placeholder="**（默认）"
 							maxLength={200}
 							disabled={action === "ban"}
 						/>
 						<p className="text-xs text-muted-foreground">
 							{action === "ban"
-								? "Not applicable when action is Ban."
-								: "Leave empty to use the default replacement (**)."}
-						</p>
+								? "动作为"禁止发布"时不适用。"
+								: "留空则使用默认替换内容（**）。"}						</p>
 					</div>
 				</div>
 
 				<DialogFooter>
 					<Button variant="outline" onClick={() => handleOpenChange(false)} disabled={loading}>
-						Cancel
+						取消
 					</Button>
 					<Button onClick={handleSave} disabled={loading || !find.trim()}>
-						{loading ? "Saving..." : isEdit ? "Save Changes" : "Add Word"}
+						{loading ? "保存中..." : isEdit ? "保存更改" : "添加敏感词"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

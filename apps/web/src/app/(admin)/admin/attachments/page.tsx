@@ -25,7 +25,7 @@ import { useCallback, useEffect, useState } from "react";
 // ---------------------------------------------------------------------------
 
 const BATCH_ACTIONS: BatchAction[] = [
-	{ key: "delete", label: "Delete Selected", variant: "destructive" },
+	{ key: "delete", label: "批量删除", variant: "destructive" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -88,8 +88,8 @@ export default function AttachmentsPage() {
 		(attachment: Attachment) => {
 			setConfirmDialog({
 				open: true,
-				title: "Delete Attachment",
-				description: `Delete "${attachment.filename}"? This cannot be undone.`,
+				title: "删除附件",
+				description: `删除附件「${attachment.filename}」？此操作不可撤销。`,
 				variant: "destructive",
 				onConfirm: async () => {
 					setConfirmLoading(true);
@@ -122,19 +122,19 @@ export default function AttachmentsPage() {
 	const columns: ColumnDef<Attachment>[] = [
 		{
 			key: "filename",
-			header: "Filename",
+			header: "文件名",
 			cell: (row) => <span className="font-medium">{row.filename}</span>,
 		},
 		{
 			key: "size",
-			header: "Size",
+			header: "大小",
 			cell: (row) => formatFileSize(row.fileSize),
 			className: "text-right",
 		},
-		{ key: "thread", header: "Thread", cell: (row) => `#${row.threadId}` },
+		{ key: "thread", header: "所属主题", cell: (row) => `#${row.threadId}` },
 		{
 			key: "created",
-			header: "Created",
+			header: "创建时间",
 			cell: (row) => new Date(row.createdAt * 1000).toLocaleDateString(),
 		},
 		{
@@ -151,7 +151,7 @@ export default function AttachmentsPage() {
 					/>
 					<DropdownMenuContent align="end">
 						<DropdownMenuItem onClick={() => handleDelete(row)} className="text-destructive">
-							Delete
+							删除
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
@@ -163,8 +163,8 @@ export default function AttachmentsPage() {
 	return (
 		<div className="space-y-4">
 			<div>
-				<h1 className="text-2xl font-semibold text-foreground">Attachments</h1>
-				<p className="mt-1 text-sm text-muted-foreground">Manage file attachments.</p>
+				<h1 className="text-2xl font-semibold text-foreground">附件</h1>
+				<p className="mt-1 text-sm text-muted-foreground">管理文件附件</p>
 			</div>
 
 			<div className="rounded-xl border bg-card">
@@ -176,7 +176,7 @@ export default function AttachmentsPage() {
 					selectedIds={selectedIds}
 					onSelectionChange={setSelectedIds}
 					loading={loading}
-					emptyMessage="No attachments found"
+					emptyMessage="暂无附件"
 				/>
 				<AdminPagination pagination={pagination} onPageChange={handlePageChange} />
 			</div>

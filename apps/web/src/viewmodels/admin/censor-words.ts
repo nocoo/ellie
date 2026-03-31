@@ -66,7 +66,7 @@ export function replacementDisplay(replacement: string): string {
 
 /** Return a display label for censor word action. */
 export function actionLabel(action: "ban" | "replace"): string {
-	return action === "ban" ? "Ban" : "Replace";
+	return action === "ban" ? "禁止发布" : "替换";
 }
 
 // ---------------------------------------------------------------------------

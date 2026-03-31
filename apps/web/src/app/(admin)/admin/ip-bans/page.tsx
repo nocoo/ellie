@@ -24,10 +24,10 @@ import { useCallback, useEffect, useState } from "react";
 // Filter definitions
 // ---------------------------------------------------------------------------
 
-const FILTERS: FilterDef[] = [{ key: "ip", label: "Search IP...", type: "search" }];
+const FILTERS: FilterDef[] = [{ key: "ip", label: "搜索 IP...", type: "search" }];
 
 const BATCH_ACTIONS: BatchAction[] = [
-	{ key: "delete", label: "Delete Selected", variant: "destructive" },
+	{ key: "delete", label: "批量删除", variant: "destructive" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -165,8 +165,8 @@ export default function IpBansPage() {
 		(ban: IpBan) => {
 			setConfirmDialog({
 				open: true,
-				title: "Delete IP Ban",
-				description: `Remove the ban on "${ban.ip}"? This cannot be undone.`,
+				title: "删除 IP 封禁",
+				description: `移除对 ${ban.ip} 的封禁？此操作不可撤销。`,
 				variant: "destructive",
 				onConfirm: async () => {
 					setConfirmLoading(true);
@@ -232,24 +232,24 @@ export default function IpBansPage() {
 	const columns: ColumnDef<IpBan>[] = [
 		{
 			key: "ip",
-			header: "IP / Range",
+			header: "IP / 范围",
 			cell: (row) => <span className="font-mono text-sm">{row.ip}</span>,
 		},
 		{
 			key: "reason",
-			header: "Reason",
+			header: "原因",
 			cell: (row) => row.reason || <span className="text-muted-foreground">—</span>,
 		},
 		{
 			key: "createdBy",
-			header: "Created By",
+			header: "创建者",
 			cell: (row) => row.adminName,
 		},
 		{
 			key: "expiresAt",
-			header: "Expires At",
+			header: "过期时间",
 			cell: (row) => {
-				if (!row.expiresAt) return <Badge variant="secondary">Permanent</Badge>;
+				if (!row.expiresAt) return <Badge variant="secondary">永久</Badge>;
 				const expired = row.expiresAt * 1000 < Date.now();
 				return (
 					<span className={expired ? "text-muted-foreground line-through" : ""}>
@@ -260,7 +260,7 @@ export default function IpBansPage() {
 		},
 		{
 			key: "createdAt",
-			header: "Created At",
+			header: "创建时间",
 			cell: (row) => new Date(row.createdAt * 1000).toLocaleDateString(),
 		},
 		{
@@ -276,9 +276,9 @@ export default function IpBansPage() {
 						}
 					/>
 					<DropdownMenuContent align="end">
-						<DropdownMenuItem onClick={() => setEditBan(row)}>Edit</DropdownMenuItem>
+						<DropdownMenuItem onClick={() => setEditBan(row)}>编辑</DropdownMenuItem>
 						<DropdownMenuItem onClick={() => handleDelete(row)} className="text-destructive">
-							Delete
+							删除
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
@@ -295,21 +295,21 @@ export default function IpBansPage() {
 		<div className="space-y-4">
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="text-2xl font-semibold text-foreground">IP Bans</h1>
-					<p className="mt-1 text-sm text-muted-foreground">Manage IP address bans.</p>
+					<h1 className="text-2xl font-semibold text-foreground">IP 封禁</h1>
+					<p className="mt-1 text-sm text-muted-foreground">管理 IP 地址封禁</p>
 				</div>
 				<Button onClick={() => setCreateDialogOpen(true)}>
 					<Plus className="mr-2 h-4 w-4" />
-					Add Ban
+					添加封禁
 				</Button>
 			</div>
 
 			{/* IP Check Tool */}
 			<div className="rounded-xl border bg-card p-4">
-				<h2 className="mb-2 text-sm font-medium text-foreground">Check IP Address</h2>
+				<h2 className="mb-2 text-sm font-medium text-foreground">IP 地址检测</h2>
 				<div className="flex items-center gap-2">
 					<Input
-						placeholder="Enter IP address to check..."
+						placeholder="输入要检测的 IP 地址..."
 						value={checkIpValue}
 						onChange={(e) => setCheckIpValue(e.target.value)}
 						onKeyDown={(e) => e.key === "Enter" && handleCheckIp()}
@@ -322,24 +322,24 @@ export default function IpBansPage() {
 						disabled={checkLoading || !checkIpValue.trim()}
 					>
 						<Search className="mr-2 h-4 w-4" />
-						{checkLoading ? "Checking..." : "Check"}
+						{checkLoading ? "检测中..." : "检测"}
 					</Button>
 				</div>
 				{checkResult && (
 					<div className="mt-3">
 						{checkResult.banned ? (
 							<div className="space-y-1">
-								<Badge variant="destructive">Banned</Badge>
+								<Badge variant="destructive">已封禁</Badge>
 								{checkResult.matchingBans?.map((ban) => (
 									<p key={ban.id} className="text-sm text-muted-foreground">
-										Matched rule <span className="font-mono">{ban.ip}</span>
+										匹配规则 <span className="font-mono">{ban.ip}</span>
 										{ban.reason ? ` — ${ban.reason}` : ""}
-										{ban.expiresAt ? ` (expires ${formatExpiry(ban.expiresAt)})` : " (permanent)"}
+										{ban.expiresAt ? ` (过期时间 ${formatExpiry(ban.expiresAt)})` : " (永久)"}
 									</p>
 								))}
 							</div>
 						) : (
-							<Badge variant="outline">Not Banned</Badge>
+							<Badge variant="outline">未封禁</Badge>
 						)}
 					</div>
 				)}
@@ -361,7 +361,7 @@ export default function IpBansPage() {
 					selectedIds={selectedIds}
 					onSelectionChange={setSelectedIds}
 					loading={loading}
-					emptyMessage="No IP bans found"
+					emptyMessage="暂无 IP 封禁记录"
 				/>
 				<AdminPagination pagination={pagination} onPageChange={handlePageChange} />
 			</div>

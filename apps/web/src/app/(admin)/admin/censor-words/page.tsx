@@ -32,10 +32,10 @@ import { useCallback, useEffect, useState } from "react";
 // Filter definitions
 // ---------------------------------------------------------------------------
 
-const FILTERS: FilterDef[] = [{ key: "search", label: "Search words...", type: "search" }];
+const FILTERS: FilterDef[] = [{ key: "search", label: "搜索敏感词...", type: "search" }];
 
 const BATCH_ACTIONS: BatchAction[] = [
-	{ key: "delete", label: "Delete Selected", variant: "destructive" },
+	{ key: "delete", label: "批量删除", variant: "destructive" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -150,8 +150,8 @@ export default function CensorWordsPage() {
 		(cw: CensorWord) => {
 			setConfirmDialog({
 				open: true,
-				title: "Delete Censor Word",
-				description: `Delete the censor word "${cw.find}"? This cannot be undone.`,
+				title: "删除敏感词",
+				description: `删除敏感词「${cw.find}」？此操作不可撤销。`,
 				variant: "destructive",
 				onConfirm: async () => {
 					setConfirmLoading(true);
@@ -203,19 +203,19 @@ export default function CensorWordsPage() {
 	const columns: ColumnDef<CensorWord>[] = [
 		{
 			key: "find",
-			header: "Word",
+			header: "词语",
 			cell: (row) => <span className="font-medium">{row.find}</span>,
 		},
 		{
 			key: "replacement",
-			header: "Replacement",
+			header: "替换内容",
 			cell: (row) => (
 				<span className="text-muted-foreground">{replacementDisplay(row.replacement)}</span>
 			),
 		},
 		{
 			key: "action",
-			header: "Action",
+			header: "动作",
 			cell: (row) => (
 				<Badge variant={row.action === "ban" ? "destructive" : "outline"}>
 					{actionLabel(row.action)}
@@ -224,7 +224,7 @@ export default function CensorWordsPage() {
 		},
 		{
 			key: "createdAt",
-			header: "Created At",
+			header: "创建时间",
 			cell: (row) => new Date(row.createdAt * 1000).toLocaleDateString(),
 		},
 		{
@@ -240,9 +240,9 @@ export default function CensorWordsPage() {
 						}
 					/>
 					<DropdownMenuContent align="end">
-						<DropdownMenuItem onClick={() => setEditWord(row)}>Edit</DropdownMenuItem>
+						<DropdownMenuItem onClick={() => setEditWord(row)}>编辑</DropdownMenuItem>
 						<DropdownMenuItem onClick={() => handleDelete(row)} className="text-destructive">
-							Delete
+							删除
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
@@ -255,12 +255,12 @@ export default function CensorWordsPage() {
 		<div className="space-y-4">
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="text-2xl font-semibold text-foreground">Censor Words</h1>
-					<p className="mt-1 text-sm text-muted-foreground">Manage word censorship filters.</p>
+					<h1 className="text-2xl font-semibold text-foreground">敏感词</h1>
+					<p className="mt-1 text-sm text-muted-foreground">管理敏感词过滤规则</p>
 				</div>
 				<Button onClick={() => setCreateDialogOpen(true)}>
 					<Plus className="mr-2 h-4 w-4" />
-					Add Word
+					添加敏感词
 				</Button>
 			</div>
 
@@ -280,7 +280,7 @@ export default function CensorWordsPage() {
 					selectedIds={selectedIds}
 					onSelectionChange={setSelectedIds}
 					loading={loading}
-					emptyMessage="No censor words found"
+					emptyMessage="暂无敏感词"
 				/>
 				<AdminPagination pagination={pagination} onPageChange={handlePageChange} />
 			</div>
@@ -294,29 +294,29 @@ export default function CensorWordsPage() {
 
 			{/* Content Test Tool */}
 			<div className="rounded-xl border bg-card p-4">
-				<h2 className="mb-3 text-lg font-medium text-foreground">Test Content</h2>
+				<h2 className="mb-3 text-lg font-medium text-foreground">内容测试</h2>
 				<p className="mb-3 text-sm text-muted-foreground">
-					Test how content will be censored against the current word list.
+					测试内容将如何被当前敏感词列表过滤。
 				</p>
 				<div className="space-y-3">
 					<textarea
 						value={testInput}
 						onChange={(e) => setTestInput(e.target.value)}
-						placeholder="Enter content to test..."
+						placeholder="输入要测试的内容..."
 						rows={3}
 						className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 					/>
 					<Button onClick={handleTestContent} disabled={testLoading || !testInput.trim()}>
-						{testLoading ? "Testing..." : "Test"}
+						{testLoading ? "测试中..." : "测试"}
 					</Button>
 					{testResult && (
 						<div className="rounded-md border bg-muted/50 p-3 text-sm">
 							<p className="mb-1">
-								<span className="font-medium">Censored:</span> {testResult.censored}
+								<span className="font-medium">过滤结果:</span> {testResult.censored}
 							</p>
 							{testResult.matches.length > 0 && (
 								<p className="text-muted-foreground">
-									<span className="font-medium">Matches:</span> {testResult.matches.join(", ")}
+									<span className="font-medium">匹配词语:</span> {testResult.matches.join(", ")}
 								</p>
 							)}
 						</div>
