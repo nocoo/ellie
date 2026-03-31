@@ -4,15 +4,13 @@
 
 "use client";
 
+import { GRID_THRESHOLD } from "@/viewmodels/forum/forum-list";
 import type { ForumTreeNode } from "@ellie/types";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { ForumPanel } from "./forum-panel";
 import { SafeHtml } from "./safe-html";
-
-/** Threshold: groups with more children than this use grid layout */
-const GRID_THRESHOLD = 10;
 
 interface ForumGroupProps {
 	group: ForumTreeNode;

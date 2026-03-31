@@ -2,7 +2,7 @@
 // "wide" = full-width row (学习与学术区 style), "grid" = compact cell in 2-col grid (社团与爱好区 style)
 
 import { getStaticImageUrl } from "@/lib/cdn";
-import { formatCount } from "@/viewmodels/forum/forum-list";
+import { formatCount, parseModerators } from "@/viewmodels/forum/forum-list";
 import { formatDateTime } from "@/viewmodels/shared/formatting";
 import type { ForumTreeNode } from "@ellie/types";
 import Link from "next/link";
@@ -11,15 +11,6 @@ import { SafeHtml } from "./safe-html";
 interface ForumCardProps {
 	forum: ForumTreeNode;
 	layout?: "wide" | "grid";
-}
-
-/** Parse comma-separated moderator names into array */
-function parseModerators(moderators: string): string[] {
-	if (!moderators) return [];
-	return moderators
-		.split(",")
-		.map((s) => s.trim())
-		.filter(Boolean);
 }
 
 /** Forum icon — Discuz original: forum_new.gif when active, forum.gif when idle */

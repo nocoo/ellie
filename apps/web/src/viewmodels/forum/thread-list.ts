@@ -1,7 +1,8 @@
 // viewmodels/forum/thread-list.ts — Thread list ViewModel
 // Ref: 04d §版块帖子列表 — sorting, filtering, keyset pagination, badges
 
-import { type Thread, decodeHighlight, getThreadBadges } from "@ellie/types";
+import { type Thread, StickyLevel, decodeHighlight, getThreadBadges } from "@ellie/types";
+import { getStaticImageUrl } from "@/lib/cdn";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 
 // ---------------------------------------------------------------------------
@@ -78,4 +79,20 @@ export function formatStat(n: number): string {
 	if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
 	if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
 	return String(n);
+}
+
+/**
+ * Resolve the classic Discuz folder/pin icon for a thread row.
+ * Returns a CDN URL for the appropriate GIF icon.
+ */
+export function getThreadIconSrc(thread: {
+	closed: number;
+	special: number;
+	sticky: StickyLevel;
+}): string {
+	if (thread.closed === 1) return getStaticImageUrl("folder_lock.gif");
+	if (thread.special === 1) return getStaticImageUrl("pollsmall.gif");
+	if (thread.sticky >= StickyLevel.Forum)
+		return getStaticImageUrl(`pin_${Math.min(thread.sticky, 3)}.gif`);
+	return getStaticImageUrl("folder_common.gif");
 }

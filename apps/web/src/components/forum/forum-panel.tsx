@@ -4,6 +4,7 @@
 // - "grid": 2-col grid with dashed borders (includes odd-count placeholder)
 // - "auto": wide if ≤10 forums, grid if >10
 
+import { GRID_THRESHOLD } from "@/viewmodels/forum/forum-list";
 import type { ForumTreeNode } from "@ellie/types";
 import { ForumCard } from "./forum-card";
 
@@ -11,9 +12,6 @@ interface ForumPanelProps {
 	forums: ForumTreeNode[];
 	layout?: "auto" | "wide" | "grid";
 }
-
-/** Threshold: more children than this use grid layout (matches ForumGroup) */
-const GRID_THRESHOLD = 10;
 
 export function ForumPanel({ forums, layout = "auto" }: ForumPanelProps) {
 	const resolved = layout === "auto" ? (forums.length <= GRID_THRESHOLD ? "wide" : "grid") : layout;
