@@ -321,7 +321,7 @@ describe("checkUsername", () => {
 				"SELECT id, find": [{ id: 1, find: "badname", replacement: "**", action: "ban" }],
 			},
 		});
-		const env = makeEnv({ DB: db });
+		const env = makeEnv({ DB: db, KV: createMockKV() });
 		const res = await checkUsername(createCheckUsernameRequest("badname"), env);
 		const body = (await res.json()) as { data: { available: boolean; reason?: string } };
 		expect(body.data.available).toBe(false);
@@ -333,7 +333,7 @@ describe("checkUsername", () => {
 			allResults: { "SELECT id, find": [] },
 			firstResults: { "SELECT 1 FROM users": { 1: 1 } },
 		});
-		const env = makeEnv({ DB: db });
+		const env = makeEnv({ DB: db, KV: createMockKV() });
 		const res = await checkUsername(createCheckUsernameRequest("takenuser"), env);
 		const body = (await res.json()) as { data: { available: boolean; reason?: string } };
 		expect(body.data.available).toBe(false);
@@ -344,9 +344,113 @@ describe("checkUsername", () => {
 		const { db } = createMockDb({
 			allResults: { "SELECT id, find": [] },
 		});
-		const env = makeEnv({ DB: db });
+		const env = makeEnv({ DB: db, KV: createMockKV() });
 		const res = await checkUsername(createCheckUsernameRequest("newuser"), env);
 		const body = (await res.json()) as { data: { available: boolean } };
 		expect(body.data.available).toBe(true);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// checkUsername rate limit
+// ---------------------------------------------------------------------------
+
+function createCheckUsernameRequestWithIP(username: string, ip?: string) {
+	const headers: Record<string, string> = {};
+	if (ip) headers["CF-Connecting-IP"] = ip;
+	return new Request(
+		`https://example.com/api/v1/auth/check-username?username=${encodeURIComponent(username)}`,
+		{ method: "GET", headers },
+	);
+}
+
+describe("checkUsername rate limit", () => {
+	it("allows request with no prior calls and increments counter", async () => {
+		const { db } = createMockDb({ allResults: { "SELECT id, find": [] } });
+		const putCalls: Array<{ key: string; value: string; opts?: unknown }> = [];
+		const kv = createMockKV({ putCalls });
+		const env = makeEnv({ DB: db, KV: kv });
+
+		const res = await checkUsername(createCheckUsernameRequestWithIP("newuser", "10.0.0.1"), env);
+		expect(res.status).not.toBe(429);
+		const ratePut = putCalls.find((c) => c.key === "chk-usr-ip:10.0.0.1");
+		expect(ratePut).toBeDefined();
+		expect(ratePut?.value).toBe("1");
+		expect(ratePut?.opts).toEqual({ expirationTtl: 60 });
+	});
+
+	it("allows request at count=29 and increments to 30", async () => {
+		const { db } = createMockDb({ allResults: { "SELECT id, find": [] } });
+		const putCalls: Array<{ key: string; value: string; opts?: unknown }> = [];
+		const kv = createMockKV({ get: { "chk-usr-ip:10.0.0.1": "29" }, putCalls });
+		const env = makeEnv({ DB: db, KV: kv });
+
+		const res = await checkUsername(createCheckUsernameRequestWithIP("newuser", "10.0.0.1"), env);
+		expect(res.status).not.toBe(429);
+		const ratePut = putCalls.find((c) => c.key === "chk-usr-ip:10.0.0.1");
+		expect(ratePut?.value).toBe("30");
+	});
+
+	it("rejects request at count=30 with RATE_LIMITED 429", async () => {
+		const { db } = createMockDb({ allResults: { "SELECT id, find": [] } });
+		const putCalls: Array<{ key: string; value: string; opts?: unknown }> = [];
+		const kv = createMockKV({ get: { "chk-usr-ip:10.0.0.1": "30" }, putCalls });
+		const env = makeEnv({ DB: db, KV: kv });
+
+		const res = await checkUsername(createCheckUsernameRequestWithIP("newuser", "10.0.0.1"), env);
+		expect(res.status).toBe(429);
+		const body = (await res.json()) as { error: { code: string } };
+		expect(body.error.code).toBe("RATE_LIMITED");
+		// KV.put should NOT be called when rate limited
+		const ratePut = putCalls.find((c) => c.key === "chk-usr-ip:10.0.0.1");
+		expect(ratePut).toBeUndefined();
+	});
+
+	it("rejects request at count=99 with RATE_LIMITED 429", async () => {
+		const { db } = createMockDb({ allResults: { "SELECT id, find": [] } });
+		const kv = createMockKV({ get: { "chk-usr-ip:10.0.0.1": "99" } });
+		const env = makeEnv({ DB: db, KV: kv });
+
+		const res = await checkUsername(createCheckUsernameRequestWithIP("newuser", "10.0.0.1"), env);
+		expect(res.status).toBe(429);
+	});
+
+	it("counts independently per IP", async () => {
+		const { db } = createMockDb({ allResults: { "SELECT id, find": [] } });
+		const kv = createMockKV({
+			get: { "chk-usr-ip:10.0.0.1": "30", "chk-usr-ip:10.0.0.2": "5" },
+		});
+		const env = makeEnv({ DB: db, KV: kv });
+
+		// IP A is rate limited
+		const resA = await checkUsername(createCheckUsernameRequestWithIP("newuser", "10.0.0.1"), env);
+		expect(resA.status).toBe(429);
+
+		// IP B still allowed
+		const resB = await checkUsername(createCheckUsernameRequestWithIP("newuser", "10.0.0.2"), env);
+		expect(resB.status).not.toBe(429);
+	});
+
+	it("falls back to 'unknown' when CF-Connecting-IP header is missing", async () => {
+		const { db } = createMockDb({ allResults: { "SELECT id, find": [] } });
+		const putCalls: Array<{ key: string; value: string; opts?: unknown }> = [];
+		const kv = createMockKV({ putCalls });
+		const env = makeEnv({ DB: db, KV: kv });
+
+		const res = await checkUsername(createCheckUsernameRequestWithIP("newuser"), env);
+		expect(res.status).not.toBe(429);
+		const ratePut = putCalls.find((c) => c.key === "chk-usr-ip:unknown");
+		expect(ratePut).toBeDefined();
+	});
+
+	it("does not consume rate limit quota for missing username param", async () => {
+		const putCalls: Array<{ key: string; value: string; opts?: unknown }> = [];
+		const kv = createMockKV({ putCalls });
+		const env = makeEnv({ KV: kv });
+
+		const res = await checkUsername(createCheckUsernameRequestWithIP("", "10.0.0.1"), env);
+		expect(res.status).not.toBe(429);
+		const ratePut = putCalls.find((c) => c.key.startsWith("chk-usr-ip:"));
+		expect(ratePut).toBeUndefined();
 	});
 });
