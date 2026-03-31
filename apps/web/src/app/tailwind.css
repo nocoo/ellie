@@ -379,6 +379,17 @@
 }
 
 /*
+ * Modern blue gradient navigation bar
+ */
+.nav-gradient {
+	background: linear-gradient(
+		135deg,
+		hsl(var(--dz-nav-bg)) 0%,
+		hsl(var(--dz-nav-hover)) 100%
+	);
+}
+
+/*
  * Width mode — CSS-driven via data-width-mode attribute on <html>
  * Ref: 04f §2 — avoids hydration mismatch by not depending on React state for className
  */
