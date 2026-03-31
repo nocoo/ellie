@@ -13,7 +13,6 @@ import {
 	type MessageItem,
 	type MessagesPageViewModel,
 	type NotifMenuItem,
-	buildMessagesPageViewModel,
 } from "@/viewmodels/forum/messages";
 import {
 	Bell,
@@ -33,7 +32,7 @@ import { useState } from "react";
 
 interface MessagesPageProps {
 	breadcrumbs: BreadcrumbItem[];
-	vm?: MessagesPageViewModel;
+	vm: MessagesPageViewModel;
 }
 
 // ---------------------------------------------------------------------------
@@ -293,7 +292,6 @@ function MessageList({ messages }: { messages: MessageItem[] }) {
 // ---------------------------------------------------------------------------
 
 export function MessagesPage({ breadcrumbs, vm }: MessagesPageProps) {
-	const viewModel = vm ?? buildMessagesPageViewModel();
 	const [activeSidebar, setActiveSidebar] = useState("messages");
 	const [activeTab, setActiveTab] = useState("private");
 
@@ -310,7 +308,7 @@ export function MessagesPage({ breadcrumbs, vm }: MessagesPageProps) {
 			<div className="flex gap-4">
 				{/* Left sidebar */}
 				<NotifSidebar
-					items={viewModel.sidebarItems}
+					items={vm.sidebarItems}
 					activeItem={activeSidebar}
 					onItemChange={setActiveSidebar}
 				/>
@@ -319,16 +317,16 @@ export function MessagesPage({ breadcrumbs, vm }: MessagesPageProps) {
 				<div className="flex-1 min-w-0">
 					{/* Tabs header */}
 					<MessageTabsHeader
-						vm={viewModel}
+						vm={vm}
 						activeTab={activeTab}
 						onTabChange={setActiveTab}
 					/>
 
 					{/* Unread banner */}
-					<UnreadBanner count={viewModel.unreadCount} />
+					<UnreadBanner count={vm.unreadCount} />
 
 					{/* Message list */}
-					<MessageList messages={viewModel.messages} />
+					<MessageList messages={vm.messages} />
 				</div>
 			</div>
 		</div>

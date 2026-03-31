@@ -6,7 +6,6 @@
 
 import {
 	type HomeFooterViewModel,
-	buildHomeFooterViewModel,
 } from "@/viewmodels/forum/footer";
 import { Settings } from "lucide-react";
 import Link from "next/link";
@@ -16,7 +15,7 @@ import Link from "next/link";
 // ---------------------------------------------------------------------------
 
 interface HomeFooterProps {
-	vm?: HomeFooterViewModel;
+	vm: HomeFooterViewModel;
 }
 
 // ---------------------------------------------------------------------------
@@ -104,13 +103,11 @@ function FriendLinksGrid({ vm }: { vm: HomeFooterViewModel }) {
 // ---------------------------------------------------------------------------
 
 export function HomeFooter({ vm }: HomeFooterProps) {
-	const viewModel = vm ?? buildHomeFooterViewModel();
-
 	return (
 		<section className="space-y-3">
-			<OnlineStatsBar vm={viewModel} />
+			<OnlineStatsBar vm={vm} />
 			<FriendLinksHeader />
-			<FriendLinksGrid vm={viewModel} />
+			<FriendLinksGrid vm={vm} />
 		</section>
 	);
 }

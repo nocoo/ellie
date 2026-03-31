@@ -1,5 +1,6 @@
 import { ForumGroup } from "@/components/forum/forum-group";
 import { HomeFooter } from "@/components/forum/home-footer";
+import { buildHomeFooterViewModel } from "@/viewmodels/forum/footer";
 import { loadForumList } from "@/viewmodels/forum/forum-list.server";
 import type { ForumTreeNode } from "@ellie/types";
 
@@ -32,7 +33,7 @@ export default async function ForumHomePage() {
 			)}
 
 			{/* Homepage-only footer: online stats + friend links */}
-			<HomeFooter />
+			<HomeFooter vm={buildHomeFooterViewModel()} />
 		</div>
 	);
 }
