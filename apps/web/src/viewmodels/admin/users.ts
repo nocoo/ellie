@@ -73,13 +73,13 @@ export function buildUserSearchParams(
 export function roleLabel(role: number): string {
 	switch (role) {
 		case 1:
-			return "Admin";
+			return "管理员";
 		case 2:
-			return "SuperMod";
+			return "超级版主";
 		case 3:
-			return "Mod";
+			return "版主";
 		default:
-			return "Member";
+			return "会员";
 	}
 }
 
@@ -87,11 +87,11 @@ export function roleLabel(role: number): string {
 export function statusLabel(status: number): string {
 	switch (status) {
 		case -1:
-			return "Banned";
+			return "已封禁";
 		case -2:
-			return "Archived";
+			return "已归档";
 		default:
-			return "Active";
+			return "正常";
 	}
 }
 
