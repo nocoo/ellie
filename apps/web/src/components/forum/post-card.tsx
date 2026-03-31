@@ -72,11 +72,11 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 						>
 							{post.author?.username ?? "未知用户"}
 						</Link>
-						<span className="text-[10px] text-[#999]">{formatTime(post.createdAt)}</span>
+						<span className="text-[11px] text-[#999]">{formatTime(post.createdAt)}</span>
 					</div>
 					<span className="ml-auto text-xs font-medium text-[#666] shrink-0">
 						{floorLabel(post.position, isFirst)}
-						<sup className="text-[10px]">#</sup>
+						<sup className="text-[11px]">#</sup>
 					</span>
 				</div>
 
