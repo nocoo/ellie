@@ -422,12 +422,12 @@ export default async function SettingsPage() {
 
 | Step | 任务 | 关键文件 |
 |------|------|---------|
-| 1 | DB schema + migration | `packages/db/src/schema.ts`, `apps/worker/migrations/0007_create_settings.sql` |
-| 2 | KV 缓存辅助模块 | `apps/worker/src/lib/settings.ts` |
-| 3 | Worker 管理端点 + 公共端点 + 路由注册 | `handlers/admin/settings.ts`, `handlers/settings.ts`, `index.ts` |
-| 4 | BFF 写入代理 + apiClient.put | `app/api/admin/settings/route.ts`, `api-client.ts` |
-| 5 | ViewModel（types + server reader + client writer） | `viewmodels/admin/settings.ts`, `viewmodels/admin/settings.server.ts` |
-| 6 | 导航 + Server Page + Client Form | `navigation.ts`, `settings/page.tsx`, `components/admin/settings-form.tsx` |
+| 1 | DB schema + migration | `packages/db/src/schema.ts`, `apps/worker/migrations/0007_create_settings.sql` | ✅ 5799418 |
+| 2 | KV 缓存辅助模块 | `apps/worker/src/lib/settings.ts` | ✅ 3357aa6 |
+| 3 | Worker 管理端点 + 公共端点 + 路由注册 | `handlers/admin/settings.ts`, `handlers/settings.ts`, `index.ts` | ✅ 8b8e410 |
+| 4 | BFF 写入代理 + apiClient.put | `app/api/admin/settings/route.ts`, `api-client.ts` | ✅ c352b92 |
+| 5 | ViewModel（types + server reader + client writer） | `viewmodels/admin/settings.ts`, `viewmodels/admin/settings.server.ts` | ✅ 8bf44ed |
+| 6 | 导航 + Server Page + Client Form | `navigation.ts`, `settings/page.tsx`, `components/admin/settings-form.tsx` | ✅ 8bf44ed |
 
 ```
 Step 1 → Step 2 → Step 3 → Step 4 ─┐
