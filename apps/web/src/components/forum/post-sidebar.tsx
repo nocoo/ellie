@@ -50,7 +50,7 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 
 			{/* Stats grid — 3 columns with vertical dividers, no border */}
 			{author && (
-				<div className="mt-2 grid w-full grid-cols-3 text-center text-[11px] divide-x divide-border">
+				<div className="mt-2 grid w-full grid-cols-3 text-center text-2xs divide-x divide-border">
 					<div className="py-1 px-0.5">
 						<div className="font-medium text-forum-link">{author.threads.toLocaleString()}</div>
 						<div className="text-forum-text-muted">主题</div>
@@ -126,7 +126,7 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 
 			{/* Mod action row */}
 			{author && (
-				<div className="flex items-center gap-2 text-[11px] text-forum-text-muted mt-2 flex-wrap self-start">
+				<div className="flex items-center gap-2 text-2xs text-forum-text-muted mt-2 flex-wrap self-start">
 					<span className="hover:text-forum-link cursor-pointer">IP</span>
 					<span className="hover:text-forum-link cursor-pointer">编辑</span>
 					<span className="hover:text-forum-link cursor-pointer">禁止</span>
