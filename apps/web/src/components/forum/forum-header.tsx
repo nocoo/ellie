@@ -11,7 +11,7 @@ import {
 	type HeaderViewModel,
 	buildHeaderViewModel,
 } from "@/viewmodels/forum/header";
-import { LogOut, Mail, Search } from "lucide-react";
+import { ChevronDown, LogOut, Mail, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -114,38 +114,46 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 }
 
 // ---------------------------------------------------------------------------
-// Layer 2: Navigation bar — book-spine style with parchment tones
+// Layer 2: Navigation bar — blue background with category tabs
 // ---------------------------------------------------------------------------
 
 function NavBar({ vm }: { vm: HeaderViewModel }) {
 	const pathname = usePathname();
 
 	return (
-		<div className="nav-bookspine relative">
-			{/* Top highlight — convex book spine reflection */}
-			<div className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-dz-nav-highlight" />
-			<div className="width-container flex items-center !py-0 h-[40px]">
-				{vm.navTabs.map((tab) => {
-					const isActive =
-						tab.href === "/"
-							? pathname === "/"
-							: pathname.startsWith(tab.href);
+		<div className="bg-dz-nav-bg">
+			<div className="width-container flex items-center justify-between !py-0 h-[40px]">
+				{/* Nav tabs */}
+				<div className="flex items-center h-full">
+					{vm.navTabs.map((tab) => {
+						const isActive =
+							tab.href === "/"
+								? pathname === "/"
+								: pathname.startsWith(tab.href);
 
-					return (
-						<Link
-							key={tab.href}
-							href={tab.href}
-							className={cn(
-								"h-full flex items-center px-4 text-[14px] font-medium transition-colors",
-								isActive
-									? "text-dz-nav-text"
-									: "text-dz-nav-text-muted hover:text-dz-nav-text",
-							)}
-						>
-							{tab.label}
-						</Link>
-					);
-				})}
+						return (
+							<Link
+								key={tab.href}
+								href={tab.href}
+								className={cn(
+									"h-full flex items-center px-4 text-[14px] font-bold text-dz-nav-text transition-colors hover:bg-dz-nav-hover",
+									isActive && "bg-dz-nav-hover",
+								)}
+							>
+								{tab.label}
+							</Link>
+						);
+					})}
+				</div>
+
+				{/* Quick nav dropdown */}
+				<button
+					type="button"
+					className="flex items-center gap-1 rounded px-3 py-1 text-[13px] text-dz-nav-text bg-dz-nav-hover hover:bg-dz-nav-hover/80 transition-colors"
+				>
+					快捷导航
+					<ChevronDown className="h-3.5 w-3.5" />
+				</button>
 			</div>
 		</div>
 	);
