@@ -2,6 +2,9 @@
 // Desktop: left sidebar (user info) + vertical border + right content + action bar
 // Mobile: compact header row + content
 // Flat 1px solid border, no border-radius, cards stack with border-collapse.
+//
+// PostActionBar is passed as a prop into PostContent (not rendered as a sibling)
+// to avoid hydration mismatches caused by unclosed HTML tags in post content.
 
 import { PostActionBar } from "@/components/forum/post-action-bar";
 import { PostContent } from "@/components/forum/post-content";
@@ -20,6 +23,8 @@ interface PostCardProps {
 	threadDigest?: number;
 }
 
+const actionBar = <PostActionBar />;
+
 export function PostCard({ post, threadViews, threadReplies, threadDigest }: PostCardProps) {
 	const isFirst = post.isFirst || post.position === 1;
 
@@ -33,15 +38,13 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 					threadViews={threadViews}
 					threadReplies={threadReplies}
 				/>
-				<div className="flex-1 min-w-0 flex flex-col">
-					<PostContent
-						post={post}
-						isFirst={isFirst}
-						threadDigest={threadDigest}
-						author={post.author}
-					/>
-					<PostActionBar />
-				</div>
+				<PostContent
+					post={post}
+					isFirst={isFirst}
+					threadDigest={threadDigest}
+					author={post.author}
+					actionBar={actionBar}
+				/>
 			</div>
 
 			{/* Mobile: compact single-column layout */}
@@ -82,8 +85,8 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 					isFirst={isFirst}
 					threadDigest={threadDigest}
 					author={post.author}
+					actionBar={actionBar}
 				/>
-				<PostActionBar />
 			</div>
 		</div>
 	);
