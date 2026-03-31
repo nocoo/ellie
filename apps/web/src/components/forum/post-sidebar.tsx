@@ -1,7 +1,7 @@
 // components/forum/post-sidebar.tsx — Discuz-style left sidebar for desktop
 // Desktop only (hidden md:flex), left-aligned layout matching classic Discuz
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { getAvatarUrl } from "@/lib/avatar";
@@ -17,10 +17,6 @@ interface PostSidebarProps {
 	threadReplies?: number;
 }
 
-function authorInitials(name: string): string {
-	return name.slice(0, 2).toUpperCase();
-}
-
 /** Render ★ characters for group star count. */
 function renderStars(count: number): string {
 	if (count <= 0) return "";
@@ -29,7 +25,7 @@ function renderStars(count: number): string {
 
 export function PostSidebar({ author, isFirst, threadViews, threadReplies }: PostSidebarProps) {
 	return (
-		<div className="hidden md:flex w-44 shrink-0 flex-col items-start gap-1 p-3">
+		<div className="hidden md:flex w-48 shrink-0 flex-col items-start gap-1.5 p-4">
 			{/* Username — bold, left-aligned */}
 			{author ? (
 				<Link
@@ -42,25 +38,27 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 				<span className="text-sm text-muted-foreground">未知用户</span>
 			)}
 
-			{/* Avatar */}
+			{/* Avatar — photo-frame style: no rounding, original aspect ratio, white border */}
 			<Link href={author ? `/users/${author.id}` : "#"} className="mt-1">
-				<Avatar className="h-20 w-20 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
-					{author && (
-						<AvatarImage
+				{author ? (
+					<div className="bg-white p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)]">
+						<img
 							src={getAvatarUrl(author.id, "big")}
 							alt={author.username}
-							className="rounded-sm"
+							className="block max-w-[140px] w-auto h-auto"
+							loading="lazy"
 						/>
-					)}
-					<AvatarFallback className="text-xl rounded-sm">
-						{author ? authorInitials(author.username) : "?"}
-					</AvatarFallback>
-				</Avatar>
+					</div>
+				) : (
+					<Avatar className="h-20 w-20 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
+						<AvatarFallback className="text-xl rounded-sm">?</AvatarFallback>
+					</Avatar>
+				)}
 			</Link>
 
 			{/* Stats grid — centered 3-col with dividers */}
 			{author && (
-				<div className="mt-1.5 grid w-full grid-cols-3 text-center text-[10px] text-muted-foreground divide-x divide-border">
+				<div className="mt-2 grid w-full grid-cols-3 text-center text-[10px] text-muted-foreground divide-x divide-border">
 					<div className="px-1">
 						<div className="font-medium text-primary">{author.threads.toLocaleString()}</div>
 						<div>主题</div>
@@ -76,11 +74,11 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 				</div>
 			)}
 
-			<Separator className="my-0.5" />
+			<Separator className="my-1" />
 
 			{/* Detail rows — left-aligned */}
 			{author && (
-				<div className="space-y-0.5 text-xs text-muted-foreground">
+				<div className="space-y-1 text-xs text-muted-foreground">
 					<div>
 						<Badge variant={getUserRoleBadgeVariant(author.role)} className="text-[10px]">
 							{formatUserRole(author.role)}
@@ -134,7 +132,7 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 
 			{/* Message link */}
 			{author && (
-				<span className="mt-0.5 text-xs text-primary cursor-pointer hover:underline">发消息</span>
+				<span className="mt-1 text-xs text-primary cursor-pointer hover:underline">发消息</span>
 			)}
 		</div>
 	);
