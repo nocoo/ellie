@@ -13,7 +13,7 @@ import {
 } from "./thread-detail";
 
 export interface ThreadDetailPageData {
-	thread: Thread;
+	thread: Thread | null;
 	forums: Forum[];
 	posts: EnrichedPost[];
 	nextCursor: string | null;
