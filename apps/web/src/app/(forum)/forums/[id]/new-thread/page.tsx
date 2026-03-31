@@ -3,6 +3,7 @@
 
 import { NewThreadForm } from "@/components/forum/new-thread-form";
 import { loadNewThreadPageData } from "@/viewmodels/forum/new-thread.server";
+import { parseIntParam } from "@/viewmodels/shared/params";
 
 interface NewThreadPageProps {
 	params: Promise<{ id: string }>;
@@ -10,7 +11,7 @@ interface NewThreadPageProps {
 
 export default async function NewThreadPage({ params }: NewThreadPageProps) {
 	const { id } = await params;
-	const forumId = Number.parseInt(id, 10);
+	const forumId = parseIntParam(id);
 
 	let breadcrumbs = [{ label: "首页", href: "/" }, { label: "发表帖子" }];
 

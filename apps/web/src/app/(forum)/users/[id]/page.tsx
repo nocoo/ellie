@@ -21,6 +21,7 @@ import {
 } from "@/viewmodels/forum/user-profile";
 import { type UserProfileData, loadUserProfile } from "@/viewmodels/forum/user-profile.server";
 import { getThreadBadges } from "@ellie/types";
+import { parseIntParam } from "@/viewmodels/shared/params";
 import { UserRound } from "lucide-react";
 import Link from "next/link";
 
@@ -32,7 +33,7 @@ interface UserProfilePageProps {
 export default async function UserProfilePage({ params, searchParams }: UserProfilePageProps) {
 	const { id } = await params;
 	const sp = await searchParams;
-	const userId = Number.parseInt(id, 10);
+	const userId = parseIntParam(id);
 
 	let data: UserProfileData;
 	let error: string | null = null;

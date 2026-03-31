@@ -13,6 +13,7 @@ import {
 	loadThreadListPaged,
 } from "@/viewmodels/forum/thread-list.server";
 import { ForumType, findForumAncestors } from "@ellie/types";
+import { parseIntParam, parsePageParam } from "@/viewmodels/shared/params";
 
 interface ForumThreadsPageProps {
 	params: Promise<{ id: string }>;
@@ -22,8 +23,8 @@ interface ForumThreadsPageProps {
 export default async function ForumThreadsPage({ params, searchParams }: ForumThreadsPageProps) {
 	const { id } = await params;
 	const sp = await searchParams;
-	const forumId = Number.parseInt(id, 10);
-	const page = sp.page ? Math.max(1, Number.parseInt(sp.page, 10) || 1) : 1;
+	const forumId = parseIntParam(id);
+	const page = parsePageParam(sp.page);
 
 	let data: ThreadListPagedData;
 	let error: string | null = null;
