@@ -11,6 +11,7 @@
 import NextAuth from "next-auth";
 import type { Account, Profile, Session, User } from "next-auth";
 import type { JWT } from "next-auth/jwt";
+import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 
 // ---------------------------------------------------------------------------
@@ -189,7 +190,7 @@ export function signInCallback({
 	account,
 }: {
 	user: User;
-	account: Account | null;
+	account?: Account | null;
 }): boolean {
 	if (account?.provider === "credentials" && user.banned) {
 		return false; // → NextAuth throws AccessDenied
@@ -203,7 +204,58 @@ export function signInCallback({
 
 export const { handlers, auth, signIn, signOut } = NextAuth(async () => ({
 	trustHost: true,
-	providers: [Google],
+	providers: [
+		Google,
+		Credentials({
+			credentials: {
+				username: { label: "Username", type: "text" },
+				password: { label: "Password", type: "password" },
+			},
+			async authorize(credentials) {
+				const workerUrl = getWorkerUrl();
+				const apiKey = getForumApiKey();
+				if (!workerUrl || !apiKey) return null;
+
+				const res = await fetch(`${workerUrl}/api/v1/auth/login`, {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						"X-API-Key": apiKey,
+					},
+					body: JSON.stringify({
+						username: credentials.username,
+						password: credentials.password,
+					}),
+				});
+
+				if (!res.ok) {
+					const body = await res.json().catch(() => ({}));
+					const code = (body as Record<string, Record<string, unknown>>)?.error?.code;
+					if (code === "USER_BANNED") {
+						// Sentinel for signIn callback (§2.5)
+						return { id: "banned", name: "", banned: true };
+					}
+					return null; // → CredentialsSignin
+				}
+
+				const { data } = (await res.json()) as {
+					data: {
+						token: string;
+						refreshToken: string;
+						user: { userId: number; username: string; role: number };
+					};
+				};
+
+				return {
+					id: String(data.user.userId),
+					name: data.user.username,
+					workerJwt: data.token,
+					workerRefreshToken: data.refreshToken,
+					role: data.user.role,
+				};
+			},
+		}),
+	],
 	session: {
 		strategy: "jwt" as const,
 		maxAge: 30 * 24 * 60 * 60, // 30 days — align with refresh token TTL

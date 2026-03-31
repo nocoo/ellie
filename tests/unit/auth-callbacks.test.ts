@@ -1,12 +1,12 @@
-import { describe, expect, it, mock, beforeEach } from "bun:test";
+import { describe, expect, it } from "bun:test";
+import type { Account, Profile, Session, User } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 import {
 	decodeJwtExp,
 	jwtCallback,
 	sessionCallback,
 	signInCallback,
 } from "../../apps/web/src/auth";
-import type { Account, Profile, User } from "next-auth";
-import type { JWT } from "next-auth/jwt";
 
 // ---------------------------------------------------------------------------
 // decodeJwtExp
@@ -214,7 +214,7 @@ describe("jwtCallback", () => {
 
 describe("sessionCallback", () => {
 	it("Credentials provider: exposes id, name, provider, role — no workerJwt", () => {
-		const session = { user: {} } as any;
+		const session = { user: {} } as unknown as Session;
 		const token: JWT = {
 			provider: "credentials",
 			sub: "42",
@@ -231,11 +231,11 @@ describe("sessionCallback", () => {
 			role: 0,
 		});
 		// workerJwt must NOT leak to session
-		expect((result.user as any).workerJwt).toBeUndefined();
+		expect((result.user as Record<string, unknown>).workerJwt).toBeUndefined();
 	});
 
 	it("Credentials provider with error: sets session.error", () => {
-		const session = { user: {} } as any;
+		const session = { user: {} } as unknown as Session;
 		const token: JWT = {
 			provider: "credentials",
 			sub: "42",
@@ -249,7 +249,7 @@ describe("sessionCallback", () => {
 	});
 
 	it("Credentials provider without error: session.error is undefined", () => {
-		const session = { user: {} } as any;
+		const session = { user: {} } as unknown as Session;
 		const token: JWT = {
 			provider: "credentials",
 			sub: "42",
@@ -262,7 +262,7 @@ describe("sessionCallback", () => {
 	});
 
 	it("Google provider: exposes id, email, name, image, provider", () => {
-		const session = { user: { id: "", email: "", name: "", image: "" } } as any;
+		const session = { user: { id: "", email: "", name: "", image: "" } } as unknown as Session;
 		const token: JWT = {
 			provider: "google",
 			sub: "g-123",
@@ -280,7 +280,7 @@ describe("sessionCallback", () => {
 	});
 
 	it("Google provider without existing user fields: still sets provider", () => {
-		const session = { user: {} } as any;
+		const session = { user: {} } as unknown as Session;
 		const token: JWT = {
 			provider: "google",
 			sub: "g-456",
@@ -320,6 +320,6 @@ describe("signInCallback", () => {
 
 	it("Null account: returns true", () => {
 		const user = { id: "42", name: "user" } as User;
-		expect(signInCallback({ user, account: null })).toBe(true);
+		expect(signInCallback({ user })).toBe(true);
 	});
 });
