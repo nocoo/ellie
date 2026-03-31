@@ -2,7 +2,7 @@
 // Renders ForumTreeNode[] in two modes:
 // - "wide": full-width rows with dashed dividers
 // - "grid": 2-col grid with dashed borders (includes odd-count placeholder)
-// - "auto": wide if ≤2 forums, grid if >2
+// - "auto": wide if ≤10 forums, grid if >10
 
 import type { ForumTreeNode } from "@ellie/types";
 import { ForumCard } from "./forum-card";
@@ -12,8 +12,11 @@ interface ForumPanelProps {
 	layout?: "auto" | "wide" | "grid";
 }
 
+/** Threshold: more children than this use grid layout (matches ForumGroup) */
+const GRID_THRESHOLD = 10;
+
 export function ForumPanel({ forums, layout = "auto" }: ForumPanelProps) {
-	const resolved = layout === "auto" ? (forums.length <= 2 ? "wide" : "grid") : layout;
+	const resolved = layout === "auto" ? (forums.length <= GRID_THRESHOLD ? "wide" : "grid") : layout;
 
 	if (resolved === "wide") {
 		return (
