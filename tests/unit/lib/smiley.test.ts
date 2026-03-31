@@ -2,11 +2,37 @@ import { describe, expect, test } from "bun:test";
 import {
 	replaceSmileyCodesWithImages,
 	NAMED_SMILEY_SET,
+	NAMED_SMILEYS,
 	coolmonkeyFilename,
 	comcomFilename,
+	escapeAttr,
 } from "@/lib/smiley";
 
 const CDN = "https://t.no.mt/static/image/smiley";
+
+// ── escapeAttr ─────────────────────────────────────────────────────
+
+describe("escapeAttr", () => {
+	test("escapes double quotes", () => {
+		expect(escapeAttr('a"b')).toBe("a&quot;b");
+	});
+
+	test("escapes angle brackets", () => {
+		expect(escapeAttr("<script>")).toBe("&lt;script&gt;");
+	});
+
+	test("escapes ampersands", () => {
+		expect(escapeAttr("a&b")).toBe("a&amp;b");
+	});
+
+	test("handles combined special chars", () => {
+		expect(escapeAttr('"<>&')).toBe("&quot;&lt;&gt;&amp;");
+	});
+
+	test("leaves normal text unchanged", () => {
+		expect(escapeAttr(":smile:")).toBe(":smile:");
+	});
+});
 
 // ── Helper internals ───────────────────────────────────────────────
 
@@ -28,6 +54,11 @@ describe("coolmonkeyFilename", () => {
 		expect(coolmonkeyFilename(149)).toBeNull();
 		expect(coolmonkeyFilename(0)).toBeNull();
 	});
+
+	test("returns null for non-integer IDs", () => {
+		expect(coolmonkeyFilename(133.5)).toBeNull();
+		expect(coolmonkeyFilename(NaN)).toBeNull();
+	});
 });
 
 describe("comcomFilename", () => {
@@ -47,18 +78,41 @@ describe("comcomFilename", () => {
 		expect(comcomFilename(148)).toBeNull();
 		expect(comcomFilename(173)).toBeNull();
 	});
+
+	test("returns null for non-integer IDs", () => {
+		expect(comcomFilename(149.9)).toBeNull();
+		expect(comcomFilename(NaN)).toBeNull();
+	});
 });
 
 // ── Named code mapping ─────────────────────────────────────────────
 
 describe("NAMED_SMILEY_SET", () => {
-	test("contains 24 named codes", () => {
-		expect(NAMED_SMILEY_SET.size).toBe(24);
+	test("contains 32 named codes", () => {
+		expect(NAMED_SMILEY_SET.size).toBe(32);
 	});
 
-	test("contains expected codes", () => {
-		for (const name of ["smile", "cry", "victory", "lol", "kiss"]) {
+	test("contains original 24 codes", () => {
+		for (const name of ["smile", "cry", "victory", "lol", "kiss", "biggrin", "mad", "tongue"]) {
 			expect(NAMED_SMILEY_SET.has(name)).toBe(true);
+		}
+	});
+
+	test("contains newly added codes (cool, w00t, wink, angry, etc.)", () => {
+		for (const name of ["cool", "w00t", "wink", "angry", "crazy", "dozingoff", "laugh", "rolleyes"]) {
+			expect(NAMED_SMILEY_SET.has(name)).toBe(true);
+		}
+	});
+
+	test("all values end with .gif", () => {
+		for (const file of Object.values(NAMED_SMILEYS)) {
+			expect(file).toMatch(/\.gif$/);
+		}
+	});
+
+	test("all values contain only safe filename chars", () => {
+		for (const file of Object.values(NAMED_SMILEYS)) {
+			expect(file).toMatch(/^[a-z0-9]+\.gif$/);
 		}
 	});
 });
@@ -81,7 +135,7 @@ describe("replaceSmileyCodesWithImages", () => {
 		expect(replaceSmileyCodesWithImages(html)).toBe(html);
 	});
 
-	// ── Named codes ─────────────────────────────────────────────────
+	// ── Named codes — alphanumeric ──────────────────────────────────
 
 	test("replaces :smile: with default/smile.gif img", () => {
 		const result = replaceSmileyCodesWithImages("Hello :smile: world");
@@ -93,6 +147,33 @@ describe("replaceSmileyCodesWithImages", () => {
 	test("replaces :cry: with default/cry.gif img", () => {
 		const result = replaceSmileyCodesWithImages(":cry:");
 		expect(result).toBe(`<img src="${CDN}/default/cry.gif" alt=":cry:" class="smiley" />`);
+	});
+
+	test("replaces :w00t: (alphanumeric name) with default/w00t.gif", () => {
+		const result = replaceSmileyCodesWithImages(":w00t:");
+		expect(result).toBe(`<img src="${CDN}/default/w00t.gif" alt=":w00t:" class="smiley" />`);
+	});
+
+	test("replaces :cool: with default/cool.gif", () => {
+		const result = replaceSmileyCodesWithImages(":cool:");
+		expect(result).toBe(`<img src="${CDN}/default/cool.gif" alt=":cool:" class="smiley" />`);
+	});
+
+	test("replaces :wink: with default/wink.gif", () => {
+		const result = replaceSmileyCodesWithImages(":wink:");
+		expect(result).toBe(`<img src="${CDN}/default/wink.gif" alt=":wink:" class="smiley" />`);
+	});
+
+	test("replaces :angry: with default/angry.gif", () => {
+		const result = replaceSmileyCodesWithImages(":angry:");
+		expect(result).toBe(`<img src="${CDN}/default/angry.gif" alt=":angry:" class="smiley" />`);
+	});
+
+	test("replaces :rolleyes: with default/rolleyes.gif", () => {
+		const result = replaceSmileyCodesWithImages(":rolleyes:");
+		expect(result).toBe(
+			`<img src="${CDN}/default/rolleyes.gif" alt=":rolleyes:" class="smiley" />`,
+		);
 	});
 
 	test("replaces multiple named codes", () => {
@@ -175,6 +256,35 @@ describe("replaceSmileyCodesWithImages", () => {
 		expect(replaceSmileyCodesWithImages(css)).toBe(css);
 	});
 
+	test("does not replace colons around pure numbers", () => {
+		expect(replaceSmileyCodesWithImages(":123:")).toBe(":123:");
+	});
+
+	// ── Injection prevention ────────────────────────────────────────
+
+	test("escapes HTML in alt attribute for crafted coolmonkey code", () => {
+		// A {:2_NNN:} code can't actually contain injection since the regex
+		// only captures \d{1,4}, but verify the alt is properly escaped
+		const result = replaceSmileyCodesWithImages("{:2_133:}");
+		expect(result).toContain('alt="{:2_133:}"');
+		expect(result).not.toContain("<script>");
+	});
+
+	test("does not process overly long named codes (ReDoS prevention)", () => {
+		// Named codes are capped at 20 chars — this 25-char string should pass through
+		const longCode = `:${"a".repeat(25)}:`;
+		expect(replaceSmileyCodesWithImages(longCode)).toBe(longCode);
+	});
+
+	test("does not match named code with uppercase", () => {
+		// Regex only matches lowercase + digits
+		expect(replaceSmileyCodesWithImages(":SMILE:")).toBe(":SMILE:");
+	});
+
+	test("does not match named code with underscores", () => {
+		expect(replaceSmileyCodesWithImages(":foo_bar:")).toBe(":foo_bar:");
+	});
+
 	// ── Mixed content ───────────────────────────────────────────────
 
 	test("handles mixed HTML and multiple smiley code types", () => {
@@ -197,12 +307,33 @@ describe("replaceSmileyCodesWithImages", () => {
 		expect(result).toContain("coolmonkey/08.gif");
 	});
 
+	test("handles all three new named codes in one string", () => {
+		const input = "Check :cool: and :w00t: also :wink: here";
+		const result = replaceSmileyCodesWithImages(input);
+
+		expect(result).toContain("cool.gif");
+		expect(result).toContain("w00t.gif");
+		expect(result).toContain("wink.gif");
+	});
+
 	// ── Regex statefulness guard ────────────────────────────────────
 
 	test("produces consistent results on repeated calls", () => {
-		const input = ":smile: {:2_133:}";
+		const input = ":smile: {:2_133:} :w00t:";
 		const r1 = replaceSmileyCodesWithImages(input);
 		const r2 = replaceSmileyCodesWithImages(input);
 		expect(r1).toBe(r2);
+	});
+
+	// ── Comprehensive: all 32 named codes resolve to img ────────────
+
+	test("every named smiley code in the mapping produces an <img>", () => {
+		for (const name of NAMED_SMILEY_SET) {
+			const input = `:${name}:`;
+			const result = replaceSmileyCodesWithImages(input);
+			expect(result).toContain("<img ");
+			expect(result).toContain(`default/${name}`);
+			expect(result).toContain('class="smiley"');
+		}
 	});
 });
