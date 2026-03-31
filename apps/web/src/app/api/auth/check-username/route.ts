@@ -1,0 +1,26 @@
+/**
+ * Next.js API Route — proxies check-username to Worker with Key A.
+ *
+ * Ref: docs/04g-user-auth.md §6
+ */
+
+import { forumApi } from "@/lib/forum-api";
+import { NextResponse } from "next/server";
+
+export async function GET(request: Request) {
+	const url = new URL(request.url);
+	const username = url.searchParams.get("username");
+	if (!username) {
+		return NextResponse.json({ available: false, reason: "invalid" });
+	}
+
+	try {
+		const result = await forumApi.get<{ available: boolean; reason?: string }>(
+			"/api/v1/auth/check-username",
+			{ username },
+		);
+		return NextResponse.json(result.data);
+	} catch {
+		return NextResponse.json({ available: false, reason: "error" }, { status: 500 });
+	}
+}
