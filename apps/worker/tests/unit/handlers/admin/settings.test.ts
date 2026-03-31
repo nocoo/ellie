@@ -128,9 +128,9 @@ describe("admin settings handler", () => {
 
 			expect(response.status).toBe(400);
 			const body = (await response.json()) as Record<string, unknown>;
-			const data = body.data as Record<string, unknown>;
-			expect(data.error).toBe("UNKNOWN_KEYS");
-			expect(data.keys).toEqual(["unknown.key"]);
+			const error = body.error as Record<string, unknown>;
+			expect(error.code).toBe("UNKNOWN_KEYS");
+			expect(error.details).toEqual({ keys: ["unknown.key"] });
 		});
 
 		it("should reject non-positive number values with 400", async () => {
@@ -145,8 +145,8 @@ describe("admin settings handler", () => {
 
 			expect(response.status).toBe(400);
 			const body = (await response.json()) as Record<string, unknown>;
-			const data = body.data as Record<string, unknown>;
-			expect(data.error).toBe("INVALID_NUMBER");
+			const error = body.error as Record<string, unknown>;
+			expect(error.code).toBe("INVALID_NUMBER");
 		});
 
 		it("should reject zero for number keys", async () => {
@@ -174,8 +174,8 @@ describe("admin settings handler", () => {
 
 			expect(response.status).toBe(400);
 			const body = (await response.json()) as Record<string, unknown>;
-			const data = body.data as Record<string, unknown>;
-			expect(data.error).toBe("INVALID_NUMBER");
+			const error = body.error as Record<string, unknown>;
+			expect(error.code).toBe("INVALID_NUMBER");
 		});
 
 		it("should reject empty payload with 400", async () => {
@@ -188,8 +188,8 @@ describe("admin settings handler", () => {
 
 			expect(response.status).toBe(400);
 			const body = (await response.json()) as Record<string, unknown>;
-			const data = body.data as Record<string, unknown>;
-			expect(data.error).toBe("EMPTY_PAYLOAD");
+			const error = body.error as Record<string, unknown>;
+			expect(error.code).toBe("EMPTY_PAYLOAD");
 		});
 
 		it("should reject invalid JSON body", async () => {

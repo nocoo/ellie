@@ -139,14 +139,35 @@ interface FieldInputProps {
 }
 
 function FieldInput({ field, value, onChange }: FieldInputProps) {
-	const inputType = field.inputType === "number" ? "number" : "text";
+	// textarea gets a dedicated element
+	if (field.inputType === "textarea") {
+		return (
+			<div className="space-y-1.5 sm:col-span-2">
+				<Label htmlFor={field.key}>{field.label}</Label>
+				<textarea
+					id={field.key}
+					value={value}
+					placeholder={field.placeholder}
+					onChange={(e) => onChange(field.key, e.target.value)}
+					rows={3}
+					className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+				/>
+				{field.hint && (
+					<p className="text-xs text-muted-foreground">{field.hint}</p>
+				)}
+			</div>
+		);
+	}
+
+	// Map inputType to HTML input type: number, url, or text
+	const htmlType = field.inputType === "number" ? "number" : field.inputType === "url" ? "url" : "text";
 
 	return (
 		<div className="space-y-1.5">
 			<Label htmlFor={field.key}>{field.label}</Label>
 			<Input
 				id={field.key}
-				type={inputType}
+				type={htmlType}
 				value={value}
 				placeholder={field.placeholder}
 				onChange={(e) => onChange(field.key, e.target.value)}
