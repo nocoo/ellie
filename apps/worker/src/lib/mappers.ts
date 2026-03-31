@@ -159,6 +159,7 @@ export function toForum(row: Record<string, unknown>): Forum {
 		type: r.type as Forum["type"],
 		status: r.status,
 		moderators: r.moderators,
+		todayThreads: 0, // Computed at query time, not stored in D1
 		lastThreadId: r.last_thread_id,
 		lastPostAt: r.last_post_at,
 		lastPoster: r.last_poster,
