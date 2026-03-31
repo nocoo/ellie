@@ -48,7 +48,7 @@ export function PostContent({ post, isFirst, threadDigest, author, actionBar }: 
 					{/* Floor — right-aligned with superscript # */}
 					<span className="ml-auto font-medium text-muted-foreground">
 						{floorLabel(post.position, isFirst)}
-						<sup className="text-[11px]">#</sup>
+						<sup className="text-2xs">#</sup>
 					</span>
 				</div>
 
