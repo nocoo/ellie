@@ -56,9 +56,9 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 					>
 						{forum.name}
 					</Link>
-					{forum.threads > 0 && (
+					{forum.todayThreads > 0 && (
 						<span className="text-xs text-[#E67C13] font-medium">
-							({formatCount(forum.threads)})
+							({formatCount(forum.todayThreads)})
 						</span>
 					)}
 				</div>
@@ -148,9 +148,9 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 					>
 						{forum.name}
 					</Link>
-					{forum.threads > 0 && (
+					{forum.todayThreads > 0 && (
 						<span className="text-xs text-[#E67C13] font-medium">
-							({formatCount(forum.threads)})
+							({formatCount(forum.todayThreads)})
 						</span>
 					)}
 				</div>

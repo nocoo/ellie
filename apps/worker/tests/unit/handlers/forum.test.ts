@@ -5,6 +5,7 @@ import type { Env } from "../../../src/lib/env";
 describe("forum handlers", () => {
 	const mockEnv: Env = {
 		API_KEY: "test-api-key",
+		ADMIN_API_KEY: "test-admin-api-key",
 		DB: {} as D1Database,
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret",
@@ -32,13 +33,28 @@ describe("forum handlers", () => {
 	});
 
 	describe("list", () => {
+		/** Helper: creates a mock DB where prepare() returns different results based on SQL */
+		function createListMockDb(forumRows: unknown[], countRows: unknown[] = []) {
+			return {
+				prepare: mock((sql: string) => {
+					if (sql.includes("SELECT * FROM forums")) {
+						return {
+							all: mock(() => Promise.resolve({ results: forumRows })),
+						};
+					}
+					// Thread count query
+					return {
+						bind: mock(() => ({
+							all: mock(() => Promise.resolve({ results: countRows })),
+						})),
+					};
+				}),
+			} as unknown as D1Database;
+		}
+
 		it("should map D1 snake_case rows to camelCase Forum objects", async () => {
 			const d1Row = makeD1ForumRow();
-			const db = {
-				prepare: mock(() => ({
-					all: mock(() => Promise.resolve({ results: [d1Row] })),
-				})),
-			} as unknown as D1Database;
+			const db = createListMockDb([d1Row], [{ forum_id: 1, cnt: 3 }]);
 
 			const env = { ...mockEnv, DB: db };
 			const response = await list(new Request("https://example.com/api/v1/forums"), env);
@@ -58,6 +74,7 @@ describe("forum handlers", () => {
 					type: "forum",
 					status: 0,
 					moderators: "",
+					todayThreads: 3,
 					lastThreadId: 42,
 					lastPostAt: 1711540800,
 					lastPoster: "alice",
@@ -68,25 +85,27 @@ describe("forum handlers", () => {
 			expect(data.meta.requestId).toBeDefined();
 		});
 
-		it("should call DB with correct query", async () => {
-			const prepareSpy = mock(() => ({
-				all: mock(() => Promise.resolve({ results: [] })),
-			}));
+		it("should set todayThreads to 0 when no recent threads", async () => {
+			const d1Row = makeD1ForumRow({ id: 5 });
+			const db = createListMockDb([d1Row], []);
 
-			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+			const response = await list(new Request("https://example.com/api/v1/forums"), env);
+
+			const data = await response.json();
+			expect(data.data[0].todayThreads).toBe(0);
+		});
+
+		it("should call DB with correct forum query", async () => {
+			const db = createListMockDb([]);
 			const env = { ...mockEnv, DB: db };
 			await list(new Request("https://example.com/api/v1/forums"), env);
 
-			expect(prepareSpy).toHaveBeenCalledWith("SELECT * FROM forums ORDER BY display_order");
+			expect(db.prepare).toHaveBeenCalledWith("SELECT * FROM forums ORDER BY display_order");
 		});
 
 		it("should return JSON content type", async () => {
-			const db = {
-				prepare: mock(() => ({
-					all: mock(() => Promise.resolve({ results: [] })),
-				})),
-			} as unknown as D1Database;
-
+			const db = createListMockDb([]);
 			const env = { ...mockEnv, DB: db };
 			const response = await list(new Request("https://example.com/api/v1/forums"), env);
 
@@ -94,12 +113,7 @@ describe("forum handlers", () => {
 		});
 
 		it("should include CORS headers with origin", async () => {
-			const db = {
-				prepare: mock(() => ({
-					all: mock(() => Promise.resolve({ results: [] })),
-				})),
-			} as unknown as D1Database;
-
+			const db = createListMockDb([]);
 			const env = { ...mockEnv, DB: db };
 			const response = await list(
 				new Request("https://example.com/api/v1/forums", {
@@ -115,12 +129,7 @@ describe("forum handlers", () => {
 		});
 
 		it("should return empty array when no forums exist", async () => {
-			const db = {
-				prepare: mock(() => ({
-					all: mock(() => Promise.resolve({ results: [] })),
-				})),
-			} as unknown as D1Database;
-
+			const db = createListMockDb([]);
 			const env = { ...mockEnv, DB: db };
 			const response = await list(new Request("https://example.com/api/v1/forums"), env);
 
@@ -130,15 +139,30 @@ describe("forum handlers", () => {
 	});
 
 	describe("getById", () => {
+		/** Helper: creates a mock DB for getById which has two prepare() calls */
+		function createGetByIdMockDb(forumRow: unknown | null, todayCount = 0) {
+			return {
+				prepare: mock((sql: string) => {
+					if (sql.includes("SELECT * FROM forums WHERE id")) {
+						return {
+							bind: mock(() => ({
+								first: mock(() => Promise.resolve(forumRow)),
+							})),
+						};
+					}
+					// Thread count query
+					return {
+						bind: mock(() => ({
+							first: mock(() => Promise.resolve({ cnt: todayCount })),
+						})),
+					};
+				}),
+			} as unknown as D1Database;
+		}
+
 		it("should map D1 row to camelCase Forum when found", async () => {
 			const d1Row = makeD1ForumRow({ id: 1 });
-			const db = {
-				prepare: mock(() => ({
-					bind: mock(() => ({
-						first: mock(() => Promise.resolve(d1Row)),
-					})),
-				})),
-			} as unknown as D1Database;
+			const db = createGetByIdMockDb(d1Row, 7);
 
 			const env = { ...mockEnv, DB: db };
 			const response = await getById(new Request("https://example.com/api/v1/forums/1"), env);
@@ -150,19 +174,14 @@ describe("forum handlers", () => {
 			expect(data.data.lastThreadId).toBe(42);
 			expect(data.data.lastPostAt).toBe(1711540800);
 			expect(data.data.lastPoster).toBe("alice");
+			expect(data.data.todayThreads).toBe(7);
 			// Ensure no snake_case keys leak through
 			expect(data.data.parent_id).toBeUndefined();
 			expect(data.data.display_order).toBeUndefined();
 		});
 
 		it("should return 404 with CORS headers when forum not found", async () => {
-			const db = {
-				prepare: mock(() => ({
-					bind: mock(() => ({
-						first: mock(() => Promise.resolve(null)),
-					})),
-				})),
-			} as unknown as D1Database;
+			const db = createGetByIdMockDb(null);
 
 			const env = { ...mockEnv, DB: db };
 			const response = await getById(
@@ -188,7 +207,16 @@ describe("forum handlers", () => {
 			}));
 
 			const db = {
-				prepare: mock(() => ({ bind: bindSpy })),
+				prepare: mock((sql: string) => {
+					if (sql.includes("SELECT * FROM forums WHERE id")) {
+						return { bind: bindSpy };
+					}
+					return {
+						bind: mock(() => ({
+							first: mock(() => Promise.resolve({ cnt: 0 })),
+						})),
+					};
+				}),
 			} as unknown as D1Database;
 
 			const env = { ...mockEnv, DB: db };
@@ -198,13 +226,7 @@ describe("forum handlers", () => {
 		});
 
 		it("should handle non-numeric ID gracefully", async () => {
-			const db = {
-				prepare: mock(() => ({
-					bind: mock(() => ({
-						first: mock(() => Promise.resolve(null)),
-					})),
-				})),
-			} as unknown as D1Database;
+			const db = createGetByIdMockDb(null);
 
 			const env = { ...mockEnv, DB: db };
 			const response = await getById(new Request("https://example.com/api/v1/forums/abc"), env);

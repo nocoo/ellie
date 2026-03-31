@@ -195,7 +195,7 @@ describe("D1 row mappers", () => {
 			expect(forum.lastThreadSubject).toBe("Hello World");
 		});
 
-		it("should output exactly 15 fields", () => {
+		it("should output exactly 16 fields", () => {
 			const row = {
 				id: 1,
 				parent_id: 0,
@@ -215,7 +215,7 @@ describe("D1 row mappers", () => {
 			};
 
 			const forum = toForum(row);
-			expect(Object.keys(forum)).toHaveLength(15);
+			expect(Object.keys(forum)).toHaveLength(16);
 		});
 	});
 

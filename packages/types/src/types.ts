@@ -102,6 +102,7 @@ export interface Forum {
 	type: ForumType;
 	status: number;
 	moderators: string;
+	todayThreads: number;
 	lastThreadId: number;
 	lastPostAt: number;
 	lastPoster: string;
