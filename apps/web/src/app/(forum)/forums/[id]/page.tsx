@@ -1,5 +1,6 @@
 // Ref: 04f §6 — RSC page, Discuz classic thread list layout with page-number pagination
 
+import { ForumPanel } from "@/components/forum/forum-panel";
 import { PagePagination } from "@/components/forum/page-pagination";
 import { SafeHtml } from "@/components/forum/safe-html";
 import { ThreadItem } from "@/components/forum/thread-item";
@@ -11,7 +12,7 @@ import {
 	type ThreadListPagedData,
 	loadThreadListPaged,
 } from "@/viewmodels/forum/thread-list.server";
-import { findForumAncestors } from "@ellie/types";
+import { ForumType, findForumAncestors } from "@ellie/types";
 
 interface ForumThreadsPageProps {
 	params: Promise<{ id: string }>;
@@ -37,6 +38,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 	const basePath = `/forums/${forumId}`;
 	const ancestors = findForumAncestors(data.forums, forumId);
 	const breadcrumbs = buildForumBreadcrumbs(ancestors);
+	const isGroup = data.forum?.type === ForumType.Group;
 
 	return (
 		<div className="space-y-2">
@@ -52,8 +54,12 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 					<h1 className="text-lg font-semibold">{data.forum.name}</h1>
 					<div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
 						{data.forum.description && <SafeHtml html={data.forum.description} />}
-						<span>帖子 {data.forum.threads.toLocaleString()}</span>
-						<span>回帖 {data.forum.posts.toLocaleString()}</span>
+						{!isGroup && (
+							<>
+								<span>帖子 {data.forum.threads.toLocaleString()}</span>
+								<span>回帖 {data.forum.posts.toLocaleString()}</span>
+							</>
+						)}
 					</div>
 				</div>
 			)}
@@ -64,28 +70,45 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 				</div>
 			)}
 
-			{/* Top pagination */}
-			<PagePagination page={data.page} pages={data.pages} total={data.total} basePath={basePath} />
+			{isGroup && data.forum ? (
+				/* Group forum — render children as forum cards instead of thread list */
+				<div className="overflow-hidden rounded-sm border border-[#CFCFCF] bg-white">
+					<ForumPanel forums={data.forum.children} layout="auto" />
+				</div>
+			) : (
+				/* Regular forum — thread list */
+				<>
+					<PagePagination
+						page={data.page}
+						pages={data.pages}
+						total={data.total}
+						basePath={basePath}
+					/>
 
-			{/* Thread list card */}
-			<Card className="py-0">
-				<CardContent className="p-0">
-					<ThreadListHeader />
+					<Card className="py-0">
+						<CardContent className="p-0">
+							<ThreadListHeader />
 
-					{data.items.length === 0 ? (
-						<div className="py-8 text-center text-sm text-muted-foreground">暂无帖子</div>
-					) : (
-						<div>
-							{data.items.map((item) => (
-								<ThreadItem key={item.thread.id} item={item} />
-							))}
-						</div>
-					)}
-				</CardContent>
-			</Card>
+							{data.items.length === 0 ? (
+								<div className="py-8 text-center text-sm text-muted-foreground">暂无帖子</div>
+							) : (
+								<div>
+									{data.items.map((item) => (
+										<ThreadItem key={item.thread.id} item={item} />
+									))}
+								</div>
+							)}
+						</CardContent>
+					</Card>
 
-			{/* Bottom pagination */}
-			<PagePagination page={data.page} pages={data.pages} total={data.total} basePath={basePath} />
+					<PagePagination
+						page={data.page}
+						pages={data.pages}
+						total={data.total}
+						basePath={basePath}
+					/>
+				</>
+			)}
 		</div>
 	);
 }
