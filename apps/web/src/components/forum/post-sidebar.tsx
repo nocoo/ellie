@@ -18,12 +18,12 @@ interface PostSidebarProps {
 
 export function PostSidebar({ author, isFirst, threadViews, threadReplies }: PostSidebarProps) {
 	return (
-		<div className="w-[200px] shrink-0 bg-[#F5F8FA] border-r border-[#CFCFCF] p-4 flex flex-col items-center gap-1.5">
+		<div className="w-[200px] shrink-0 bg-[#F5F8FA] border-r border-border p-4 flex flex-col items-center gap-1.5">
 			{/* Username — bold, link color */}
 			{author ? (
 				<Link
 					href={`/users/${author.id}`}
-					className="text-sm font-bold text-[#3672A0] hover:underline"
+					className="text-sm font-bold text-forum-link hover:underline"
 				>
 					{author.username}
 				</Link>
@@ -50,17 +50,17 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 
 			{/* Stats grid — 3 columns with vertical dividers, no border */}
 			{author && (
-				<div className="mt-2 grid w-full grid-cols-3 text-center text-[11px] divide-x divide-[#CFCFCF]">
+				<div className="mt-2 grid w-full grid-cols-3 text-center text-[11px] divide-x divide-border">
 					<div className="py-1 px-0.5">
-						<div className="font-medium text-[#3672A0]">{author.threads.toLocaleString()}</div>
+						<div className="font-medium text-forum-link">{author.threads.toLocaleString()}</div>
 						<div className="text-[#999]">主题</div>
 					</div>
 					<div className="py-1 px-0.5">
-						<div className="font-medium text-[#3672A0]">{author.posts.toLocaleString()}</div>
+						<div className="font-medium text-forum-link">{author.posts.toLocaleString()}</div>
 						<div className="text-[#999]">帖子</div>
 					</div>
 					<div className="py-1 px-0.5">
-						<div className="font-medium text-[#3672A0]">{author.credits.toLocaleString()}</div>
+						<div className="font-medium text-forum-link">{author.credits.toLocaleString()}</div>
 						<div className="text-[#999]">积分</div>
 					</div>
 				</div>
@@ -90,7 +90,7 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 					{/* UID */}
 					<div>
 						UID:{" "}
-						<Link href={`/users/${author.id}`} className="text-[#3672A0] hover:underline">
+						<Link href={`/users/${author.id}`} className="text-forum-link hover:underline">
 							{author.id}
 						</Link>
 					</div>
@@ -118,7 +118,7 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 
 			{/* Send message link */}
 			{author && (
-				<span className="flex items-center gap-1 text-xs text-[#3672A0] cursor-pointer hover:underline mt-1 self-start">
+				<span className="flex items-center gap-1 text-xs text-forum-link cursor-pointer hover:underline mt-1 self-start">
 					<Mail className="h-3.5 w-3.5" />
 					发消息
 				</span>
@@ -127,11 +127,11 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 			{/* Mod action row */}
 			{author && (
 				<div className="flex items-center gap-2 text-[11px] text-[#999] mt-2 flex-wrap self-start">
-					<span className="hover:text-[#3672A0] cursor-pointer">IP</span>
-					<span className="hover:text-[#3672A0] cursor-pointer">编辑</span>
-					<span className="hover:text-[#3672A0] cursor-pointer">禁止</span>
-					<span className="hover:text-[#3672A0] cursor-pointer">帖子</span>
-					<span className="hover:text-[#3672A0] cursor-pointer">清理</span>
+					<span className="hover:text-forum-link cursor-pointer">IP</span>
+					<span className="hover:text-forum-link cursor-pointer">编辑</span>
+					<span className="hover:text-forum-link cursor-pointer">禁止</span>
+					<span className="hover:text-forum-link cursor-pointer">帖子</span>
+					<span className="hover:text-forum-link cursor-pointer">清理</span>
 				</div>
 			)}
 		</div>

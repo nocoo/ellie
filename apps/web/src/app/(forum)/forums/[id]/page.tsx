@@ -72,7 +72,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 
 			{isGroup && data.forum ? (
 				/* Group forum — render children as forum cards instead of thread list */
-				<div className="overflow-hidden rounded-sm border border-[#CFCFCF] bg-white">
+				<div className="overflow-hidden rounded-sm border border-border bg-white">
 					<ForumPanel forums={data.forum.children} layout="auto" />
 				</div>
 			) : (
@@ -80,7 +80,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 				<>
 					{/* Sub-forums above thread list */}
 					{data.forum && data.forum.children.length > 0 && (
-						<div className="overflow-hidden rounded-sm border border-[#CFCFCF] bg-white">
+						<div className="overflow-hidden rounded-sm border border-border bg-white">
 							<ForumPanel forums={data.forum.children} layout="auto" />
 						</div>
 					)}

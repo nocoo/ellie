@@ -14,7 +14,7 @@ function ActionBtn({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
 	return (
 		<button
 			type="button"
-			className="flex items-center gap-0.5 text-[#999] hover:text-[#3672A0] transition-colors cursor-pointer"
+			className="flex items-center gap-0.5 text-[#999] hover:text-forum-link transition-colors cursor-pointer"
 		>
 			<Icon className="h-3.5 w-3.5" />
 			<span>{label}</span>
@@ -24,7 +24,7 @@ function ActionBtn({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
 
 export function PostActionBar() {
 	return (
-		<div className="flex items-center border-t border-dashed border-[#CCC] px-3 py-2 text-xs text-[#999]">
+		<div className="flex items-center border-t border-dashed border-border px-3 py-2 text-xs text-[#999]">
 			{/* Left action buttons */}
 			<div className="flex items-center gap-4">
 				<ActionBtn icon={MessageCircleMore} label="点评" />
@@ -36,9 +36,9 @@ export function PostActionBar() {
 
 			{/* Right action links */}
 			<div className="ml-auto flex items-center gap-4">
-				<span className="hover:text-[#3672A0] transition-colors cursor-pointer">评分</span>
-				<span className="hover:text-[#3672A0] transition-colors cursor-pointer">举报</span>
-				<span className="hover:text-[#3672A0] transition-colors cursor-pointer">管理</span>
+				<span className="hover:text-forum-link transition-colors cursor-pointer">评分</span>
+				<span className="hover:text-forum-link transition-colors cursor-pointer">举报</span>
+				<span className="hover:text-forum-link transition-colors cursor-pointer">管理</span>
 			</div>
 		</div>
 	);

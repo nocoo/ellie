@@ -81,7 +81,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 						{forum.children.map((sub, i) => (
 							<span key={sub.id}>
 								{i > 0 && <span className="text-xs text-[#888]">, </span>}
-								<Link href={`/forums/${sub.id}`} className="text-xs text-[#2E6B9A] hover:underline">
+								<Link href={`/forums/${sub.id}`} className="text-xs text-forum-link hover:underline">
 									{sub.name}
 								</Link>
 							</span>
@@ -96,7 +96,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 						{mods.map((name, i) => (
 							<span key={name}>
 								{i > 0 && <span className="text-xs text-[#888]">, </span>}
-								<span className="text-xs text-[#2E6B9A] hover:underline cursor-pointer">
+								<span className="text-xs text-forum-link hover:underline cursor-pointer">
 									{name}
 								</span>
 							</span>
@@ -119,13 +119,13 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 				<div className="hidden md:flex flex-col items-end text-xs text-[#888] shrink-0 min-w-[200px]">
 					<Link
 						href={`/threads/${forum.lastThreadId}`}
-						className="relative z-10 text-[#2E6B9A] hover:underline truncate max-w-[200px]"
+						className="relative z-10 text-forum-link hover:underline truncate max-w-[200px]"
 					>
 						{forum.lastThreadSubject || "最新帖子"}
 					</Link>
 					<span className="mt-0.5 leading-5">
 						{formatDate(forum.lastPostAt)}{" "}
-						<span className="text-[#2E6B9A] hover:underline cursor-pointer">
+						<span className="text-forum-link hover:underline cursor-pointer">
 							{forum.lastPoster}
 						</span>
 					</span>
@@ -175,7 +175,7 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 						{mods.map((name, i) => (
 							<span key={name}>
 								{i > 0 && ", "}
-								<span className="text-[#2E6B9A] hover:underline cursor-pointer">{name}</span>
+								<span className="text-forum-link hover:underline cursor-pointer">{name}</span>
 							</span>
 						))}
 					</div>
@@ -186,12 +186,12 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 					<div className="mt-1 text-xs text-[#888] truncate leading-5">
 						<Link
 							href={`/threads/${forum.lastThreadId}`}
-							className="relative z-10 text-[#2E6B9A] hover:underline"
+							className="relative z-10 text-forum-link hover:underline"
 						>
 							{forum.lastThreadSubject || "最新帖子"}
 						</Link>{" "}
 						{formatDate(forum.lastPostAt)}{" "}
-						<span className="text-[#2E6B9A] hover:underline cursor-pointer">
+						<span className="text-forum-link hover:underline cursor-pointer">
 							{forum.lastPoster}
 						</span>
 					</div>
