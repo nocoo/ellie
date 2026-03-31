@@ -6,14 +6,14 @@ import {
 } from "../../../apps/web/src/lib/navigation";
 
 describe("NAV_GROUPS", () => {
-	it("has 3 groups: Overview, Content Management, Security", () => {
-		expect(NAV_GROUPS.length).toBe(3);
-		expect(NAV_GROUPS.map((g) => g.label)).toEqual(["Overview", "Content Management", "Security"]);
+	it("has 4 groups", () => {
+		expect(NAV_GROUPS.length).toBe(4);
+		expect(NAV_GROUPS.map((g) => g.label)).toEqual(["概览", "内容管理", "安全管理", "设置"]);
 	});
 
-	it("has 7 total nav items", () => {
+	it("has 8 total nav items", () => {
 		const total = NAV_GROUPS.reduce((sum, g) => sum + g.items.length, 0);
-		expect(total).toBe(7);
+		expect(total).toBe(8);
 	});
 
 	it("each group has items with required fields", () => {
@@ -32,46 +32,57 @@ describe("NAV_GROUPS", () => {
 		const firstGroup = NAV_GROUPS[0];
 		const dashboard = firstGroup?.items.find((i) => i.href === "/admin");
 		expect(dashboard).toBeTruthy();
-		expect(dashboard?.label).toBe("Dashboard");
+		expect(dashboard?.label).toBe("仪表盘");
 	});
 
-	it("Content Management has Users, Threads, Forums, Attachments", () => {
-		const contentGroup = NAV_GROUPS.find((g) => g.label === "Content Management");
+	it("content management group has correct items", () => {
+		const contentGroup = NAV_GROUPS.find((g) => g.label === "内容管理");
 		expect(contentGroup).toBeTruthy();
 		const labels = contentGroup?.items.map((i) => i.label);
-		expect(labels).toEqual(["Users", "Threads", "Forums", "Attachments"]);
+		expect(labels).toEqual(["用户", "主题", "版块", "附件"]);
 	});
 
-	it("Security has IP Bans, Censor Words", () => {
-		const securityGroup = NAV_GROUPS.find((g) => g.label === "Security");
+	it("security group has correct items", () => {
+		const securityGroup = NAV_GROUPS.find((g) => g.label === "安全管理");
 		expect(securityGroup).toBeTruthy();
 		const labels = securityGroup?.items.map((i) => i.label);
-		expect(labels).toEqual(["IP Bans", "Censor Words"]);
+		expect(labels).toEqual(["IP 封禁", "敏感词"]);
 	});
 
-	it("all groups default to open", () => {
-		for (const group of NAV_GROUPS) {
-			expect(group.defaultOpen).toBe(true);
-		}
+	it("settings group has general settings", () => {
+		const settingsGroup = NAV_GROUPS.find((g) => g.label === "设置");
+		expect(settingsGroup).toBeTruthy();
+		const labels = settingsGroup?.items.map((i) => i.label);
+		expect(labels).toEqual(["通用设置"]);
+		expect(settingsGroup?.items[0]?.icon).toBe("Settings");
+	});
+
+	it("first three groups default to open, settings group does not", () => {
+		expect(NAV_GROUPS[0]?.defaultOpen).toBe(true);
+		expect(NAV_GROUPS[1]?.defaultOpen).toBe(true);
+		expect(NAV_GROUPS[2]?.defaultOpen).toBe(true);
+		// Settings group doesn't set defaultOpen
+		expect(NAV_GROUPS[3]?.defaultOpen).toBeUndefined();
 	});
 });
 
 describe("ROUTE_LABELS", () => {
 	it("has label for admin", () => {
-		expect(ROUTE_LABELS.admin).toBe("Dashboard");
+		expect(ROUTE_LABELS.admin).toBe("仪表盘");
 	});
 
 	it("has label for users", () => {
-		expect(ROUTE_LABELS.users).toBe("Users");
+		expect(ROUTE_LABELS.users).toBe("用户");
 	});
 
 	it("has labels for all entity routes", () => {
-		expect(ROUTE_LABELS.threads).toBe("Threads");
-		expect(ROUTE_LABELS.posts).toBe("Posts");
-		expect(ROUTE_LABELS.forums).toBe("Forums");
-		expect(ROUTE_LABELS.attachments).toBe("Attachments");
-		expect(ROUTE_LABELS["ip-bans"]).toBe("IP Bans");
-		expect(ROUTE_LABELS["censor-words"]).toBe("Censor Words");
+		expect(ROUTE_LABELS.threads).toBe("主题");
+		expect(ROUTE_LABELS.posts).toBe("帖子");
+		expect(ROUTE_LABELS.forums).toBe("版块");
+		expect(ROUTE_LABELS.attachments).toBe("附件");
+		expect(ROUTE_LABELS["ip-bans"]).toBe("IP 封禁");
+		expect(ROUTE_LABELS["censor-words"]).toBe("敏感词");
+		expect(ROUTE_LABELS.settings).toBe("通用设置");
 	});
 
 	it("does not have legacy content label", () => {
@@ -80,44 +91,53 @@ describe("ROUTE_LABELS", () => {
 });
 
 describe("breadcrumbsFromPathname", () => {
-	it("returns Home for /admin", () => {
+	it("returns home for /admin", () => {
 		const items = breadcrumbsFromPathname("/admin");
-		expect(items).toEqual([{ label: "Home", href: "/admin" }, { label: "Dashboard" }]);
+		expect(items).toEqual([{ label: "首页", href: "/admin" }, { label: "仪表盘" }]);
 	});
 
 	it("returns breadcrumb trail for /admin/users", () => {
 		const items = breadcrumbsFromPathname("/admin/users");
 		expect(items).toEqual([
-			{ label: "Home", href: "/admin" },
-			{ label: "Dashboard" }, // admin is non-navigable
-			{ label: "Users" },
+			{ label: "首页", href: "/admin" },
+			{ label: "仪表盘" }, // admin is non-navigable
+			{ label: "用户" },
 		]);
 	});
 
 	it("returns breadcrumb trail for /admin/threads", () => {
 		const items = breadcrumbsFromPathname("/admin/threads");
 		expect(items).toEqual([
-			{ label: "Home", href: "/admin" },
-			{ label: "Dashboard" },
-			{ label: "Threads" },
+			{ label: "首页", href: "/admin" },
+			{ label: "仪表盘" },
+			{ label: "主题" },
 		]);
 	});
 
 	it("returns breadcrumb trail for /admin/ip-bans", () => {
 		const items = breadcrumbsFromPathname("/admin/ip-bans");
 		expect(items).toEqual([
-			{ label: "Home", href: "/admin" },
-			{ label: "Dashboard" },
-			{ label: "IP Bans" },
+			{ label: "首页", href: "/admin" },
+			{ label: "仪表盘" },
+			{ label: "IP 封禁" },
 		]);
 	});
 
 	it("returns breadcrumb trail for /admin/censor-words", () => {
 		const items = breadcrumbsFromPathname("/admin/censor-words");
 		expect(items).toEqual([
-			{ label: "Home", href: "/admin" },
-			{ label: "Dashboard" },
-			{ label: "Censor Words" },
+			{ label: "首页", href: "/admin" },
+			{ label: "仪表盘" },
+			{ label: "敏感词" },
+		]);
+	});
+
+	it("returns breadcrumb trail for /admin/settings", () => {
+		const items = breadcrumbsFromPathname("/admin/settings");
+		expect(items).toEqual([
+			{ label: "首页", href: "/admin" },
+			{ label: "仪表盘" },
+			{ label: "通用设置" },
 		]);
 	});
 

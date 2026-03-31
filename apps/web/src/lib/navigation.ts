@@ -50,6 +50,12 @@ export const NAV_GROUPS: NavGroupDef[] = [
 			{ href: "/admin/censor-words", label: "敏感词", icon: "Filter" },
 		],
 	},
+	{
+		label: "设置",
+		items: [
+			{ href: "/admin/settings", label: "通用设置", icon: "Settings" },
+		],
+	},
 ];
 
 // ---------------------------------------------------------------------------
@@ -65,6 +71,7 @@ export const ROUTE_LABELS: Record<string, string> = {
 	attachments: "附件",
 	"ip-bans": "IP 封禁",
 	"censor-words": "敏感词",
+	settings: "通用设置",
 };
 
 /**
