@@ -66,6 +66,7 @@ export function resolveProxyAction(
 	pathname: string,
 	isLoggedIn: boolean,
 	email?: string | null,
+	provider?: string | null,
 ): "next" | "redirect:/admin" | "redirect:/login" | "redirect:/admin/login" {
 	if (isPublicRoute(pathname)) {
 		// Authenticated admin on admin login page -> redirect to admin dashboard
@@ -73,9 +74,10 @@ export function resolveProxyAction(
 		return "next";
 	}
 
-	// Forum auth routes: require any session (credentials or OAuth)
+	// Forum auth routes: require credentials provider (Google OAuth users have no Worker JWT)
 	if (isForumAuthRoute(pathname)) {
-		return isLoggedIn ? "next" : "redirect:/login";
+		if (!isLoggedIn || provider !== "credentials") return "redirect:/login";
+		return "next";
 	}
 
 	// Admin page routes require admin whitelist check
@@ -112,7 +114,16 @@ export function buildRedirectUrl(req: NextRequest, pathname: string): URL {
 
 export async function proxy(request: NextRequest) {
 	const authHandler = await auth((req) => {
-		const action = resolveProxyAction(req.nextUrl.pathname, !!req.auth, req.auth?.user?.email);
+		const session = req.auth;
+		// Extract provider from augmented session type
+		// In proxy context, req.auth is the decoded session which includes our custom fields
+		const provider = session?.user ? (session.user as { provider?: string }).provider : undefined;
+		const action = resolveProxyAction(
+			req.nextUrl.pathname,
+			!!session,
+			session?.user?.email,
+			provider,
+		);
 
 		if (action === "next") return NextResponse.next();
 		const target = action.replace("redirect:", "");
