@@ -13,7 +13,7 @@ interface ForumLayoutShellProps {
 
 export function ForumLayoutShell({ children }: ForumLayoutShellProps) {
 	return (
-		<div className="flex min-h-screen flex-col bg-background">
+		<div className="flex min-h-dvh flex-col bg-background">
 			<ForumHeader />
 			<main className="flex-1">
 				<div className="width-container">
