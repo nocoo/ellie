@@ -379,14 +379,23 @@ export async function checkUsername(request: Request, env: Env): Promise<Respons
 	const url = new URL(request.url);
 	const username = url.searchParams.get("username")?.trim() ?? "";
 
-	// Format validation
+	// Format validation (no rate-limit cost for missing/invalid param)
 	if (!username || !USERNAME_REGEX.test(username)) {
 		return jsonResponse({ available: false, reason: "invalid" }, origin);
+	}
+
+	// ── IP rate limiting: max 30 checks per minute ──
+	const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+	const rateLimitKey = `chk-usr-ip:${ip}`;
+	const currentCount = Number.parseInt((await env.KV.get(rateLimitKey)) ?? "0", 10);
+	if (currentCount >= 30) {
+		return errorResponse("RATE_LIMITED", 429, undefined, origin);
 	}
 
 	// Censor word check
 	const censorResult = await checkCensorWords(username, env);
 	if (censorResult.matched && censorResult.action === "ban") {
+		await env.KV.put(rateLimitKey, String(currentCount + 1), { expirationTtl: 60 });
 		return jsonResponse({ available: false, reason: "banned" }, origin);
 	}
 
@@ -396,8 +405,10 @@ export async function checkUsername(request: Request, env: Env): Promise<Respons
 		.first();
 
 	if (existing) {
+		await env.KV.put(rateLimitKey, String(currentCount + 1), { expirationTtl: 60 });
 		return jsonResponse({ available: false, reason: "taken" }, origin);
 	}
 
+	await env.KV.put(rateLimitKey, String(currentCount + 1), { expirationTtl: 60 });
 	return jsonResponse({ available: true }, origin);
 }
