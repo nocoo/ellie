@@ -1,0 +1,34 @@
+# OSV-Scanner configuration
+# Ignore vulnerabilities in transitive dependencies pinned by upstream packages
+# that cannot be updated without breaking changes.
+
+[[IgnoredVulns]]
+# cookie@0.6.0 — pinned by @auth/core@0.34.3
+id = "GHSA-pxg6-pf52-xh8x"
+reason = "Pinned by @auth/core@0.34.3; no compatible fix available"
+
+[[IgnoredVulns]]
+# esbuild@0.17.19 — pinned by wrangler@3.x
+id = "GHSA-67mh-4wv8-2f99"
+reason = "Pinned by wrangler@3.x (exact version requirement)"
+
+[[IgnoredVulns]]
+# undici@5.29.0 — pinned by miniflare/wrangler@3.x
+id = "GHSA-2mjp-6q6p-2qxm"
+reason = "Pinned by miniflare/wrangler@3.x; requires undici ^5.28.5"
+
+[[IgnoredVulns]]
+id = "GHSA-4992-7rv2-5pvq"
+reason = "Pinned by miniflare/wrangler@3.x; requires undici ^5.28.5"
+
+[[IgnoredVulns]]
+id = "GHSA-g9mf-h72j-4rw9"
+reason = "Pinned by miniflare/wrangler@3.x; requires undici ^5.28.5"
+
+[[IgnoredVulns]]
+id = "GHSA-v9p9-hfj2-hcw8"
+reason = "Pinned by miniflare/wrangler@3.x; requires undici ^5.28.5"
+
+[[IgnoredVulns]]
+id = "GHSA-vrm6-8vpv-qv8q"
+reason = "Pinned by miniflare/wrangler@3.x; requires undici ^5.28.5"
