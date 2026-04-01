@@ -134,8 +134,8 @@ function LoginContent() {
 								<span className="text-3xl font-bold text-primary">E</span>
 							</div>
 
-							<p className="mt-5 text-lg font-semibold text-foreground">管理控制台</p>
-							<p className="mt-1 text-xs text-muted-foreground">登录以管理论坛</p>
+							<p className="mt-5 text-2xl font-semibold text-foreground">管理控制台</p>
+							<p className="mt-1 text-sm text-muted-foreground">登录以管理论坛</p>
 
 							{/* Error message */}
 							{error && (
@@ -154,7 +154,7 @@ function LoginContent() {
 							<button
 								type="button"
 								onClick={handleGoogleLogin}
-								className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-secondary px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent cursor-pointer"
+								className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-secondary px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent cursor-pointer"
 							>
 								<GoogleIcon />
 								使用 Google 登录
