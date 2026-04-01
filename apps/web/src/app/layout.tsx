@@ -41,12 +41,11 @@ const fouc_prevention_script = `
 export default function RootLayout({ children }: { children: ReactNode }) {
 	return (
 		<html lang="zh-CN" className={cn(inter.variable, dmSans.variable)} suppressHydrationWarning>
-			<head>
+			<head />
+			<body>
 				<Script id="fouc-prevention" strategy="beforeInteractive">
 					{fouc_prevention_script}
 				</Script>
-			</head>
-			<body>
 				<Providers>{children}</Providers>
 			</body>
 		</html>
