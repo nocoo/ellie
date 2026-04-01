@@ -545,33 +545,798 @@ export function formatOlTime(minutes: number): string | null {
 
 ## 9. 实施计划
 
-| Phase | 任务 | 复杂度 | 依赖 |
-|-------|------|--------|------|
-| 1.1 | 创建 `onlineMiddleware`，写入 KV | 中 | - |
-| 1.2 | 创建 `activityMiddleware`，更新 `last_activity` + `ol_time` | 中 | - |
-| 1.3 | 创建 Cron handler `aggregateOnlineStats` | 中 | 1.1 |
-| 1.4 | 创建 `GET /api/v1/stats/online` API | 低 | 1.3 |
-| 2.1 | 前端 `fetchOnlineStats()` 函数 | 低 | 1.4 |
-| 2.2 | Footer 组件集成在线统计 | 低 | 2.1 |
-| 3.1 | L1 单元测试：middleware、cron、handler | 中 | 1.* |
-| 3.2 | L2 集成测试：端到端在线统计流程 | 中 | 2.* |
+### 9.1 原子化提交计划
 
-### 9.1 提交计划
+每个提交独立可验证，包含对应的测试。
+
+#### Commit 1: 在线追踪 Middleware
 
 ```
 feat(worker): add online tracking middleware
-feat(worker): add activity tracking middleware  
-feat(worker): add online stats cron aggregation
-feat(worker): add stats api endpoint
-feat(web): integrate online stats in footer
-test(worker): add online stats tests
+
+Add middleware to track online users via KV with TTL.
+- Write online:{userId} key on each authenticated request
+- Store user info (uid, username, ip, page, timestamp)
+- TTL 15 minutes for automatic expiration
+- Async write via waitUntil to not block response
+
+Files:
+  apps/worker/src/middleware/online.ts
+  apps/worker/src/types.ts (KV binding)
+  apps/worker/tests/unit/middleware/online.test.ts
+```
+
+**变更文件：**
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `apps/worker/src/middleware/online.ts` | 新增 | onlineMiddleware 实现 |
+| `apps/worker/src/types.ts` | 修改 | 添加 KV binding 类型 |
+| `apps/worker/wrangler.toml` | 修改 | 添加 KV namespace 绑定 |
+| `apps/worker/tests/unit/middleware/online.test.ts` | 新增 | L1 单元测试 |
+
+**验证命令：**
+```bash
+bun test apps/worker/tests/unit/middleware/online.test.ts
 ```
 
 ---
 
-## 10. 性能考量
+#### Commit 2: 活动时长追踪 Middleware
 
-### 10.1 KV 操作成本
+```
+feat(worker): add activity tracking middleware
+
+Add middleware to update user activity and accumulate online time.
+- Update last_activity timestamp on each request
+- Calculate and add ol_time based on activity gap
+- Skip accumulation if gap > 30 minutes (session break)
+- Throttle updates to max once per minute via KV
+
+Files:
+  apps/worker/src/middleware/activity.ts
+  apps/worker/tests/unit/middleware/activity.test.ts
+```
+
+**变更文件：**
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `apps/worker/src/middleware/activity.ts` | 新增 | activityMiddleware 实现 |
+| `apps/worker/tests/unit/middleware/activity.test.ts` | 新增 | L1 单元测试 |
+
+**验证命令：**
+```bash
+bun test apps/worker/tests/unit/middleware/activity.test.ts
+```
+
+---
+
+#### Commit 3: Cron 聚合任务
+
+```
+feat(worker): add online stats cron aggregation
+
+Add scheduled handler to aggregate online statistics.
+- List all online:* keys from KV
+- Count total online users
+- Update peak if current count exceeds historical peak
+- Persist peak to D1 settings table
+- Cache current count in KV with 5min TTL
+
+Files:
+  apps/worker/src/cron/online-stats.ts
+  apps/worker/src/index.ts (scheduled export)
+  apps/worker/wrangler.toml (cron trigger)
+  apps/worker/tests/unit/cron/online-stats.test.ts
+```
+
+**变更文件：**
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `apps/worker/src/cron/online-stats.ts` | 新增 | aggregateOnlineStats 实现 |
+| `apps/worker/src/index.ts` | 修改 | 添加 scheduled export |
+| `apps/worker/wrangler.toml` | 修改 | 添加 cron trigger 配置 |
+| `apps/worker/tests/unit/cron/online-stats.test.ts` | 新增 | L1 单元测试 |
+
+**验证命令：**
+```bash
+bun test apps/worker/tests/unit/cron/online-stats.test.ts
+```
+
+---
+
+#### Commit 4: Stats API 端点
+
+```
+feat(worker): add stats api endpoint
+
+Add GET /api/v1/stats/online endpoint for online statistics.
+- Return current online count from KV cache
+- Return historical peak from KV/D1
+- Fallback to zero if no data available
+
+Files:
+  apps/worker/src/handlers/stats.ts
+  apps/worker/src/index.ts (route registration)
+  apps/worker/tests/unit/handlers/stats.test.ts
+```
+
+**变更文件：**
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `apps/worker/src/handlers/stats.ts` | 新增 | statsRoutes handler |
+| `apps/worker/src/index.ts` | 修改 | 注册 /api/v1/stats 路由 |
+| `apps/worker/tests/unit/handlers/stats.test.ts` | 新增 | L1 单元测试 |
+
+**验证命令：**
+```bash
+bun test apps/worker/tests/unit/handlers/stats.test.ts
+```
+
+---
+
+#### Commit 5: 集成 Middleware 到请求链
+
+```
+feat(worker): integrate online tracking in request chain
+
+Wire online and activity middleware into the request chain.
+- Apply to authenticated API routes
+- Ensure non-blocking via waitUntil
+
+Files:
+  apps/worker/src/index.ts (middleware chain)
+  apps/worker/tests/integration/online-tracking.test.ts
+```
+
+**变更文件：**
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `apps/worker/src/index.ts` | 修改 | 集成 middleware 到路由链 |
+| `apps/worker/tests/integration/online-tracking.test.ts` | 新增 | L2 集成测试 |
+
+**验证命令：**
+```bash
+bun test apps/worker/tests/integration/online-tracking.test.ts
+```
+
+---
+
+#### Commit 6: 前端 ViewModel 集成
+
+```
+feat(web): add online stats fetcher in footer viewmodel
+
+Add fetchOnlineStats function to retrieve online statistics.
+- Fetch from /api/v1/stats/online
+- Return DEFAULT_ONLINE_STATS on error
+- Update buildHomeFooterViewModel to use real data
+
+Files:
+  apps/web/src/viewmodels/forum/footer.ts
+  apps/web/src/viewmodels/forum/footer.server.ts
+  tests/unit/viewmodels/forum/footer.test.ts
+```
+
+**变更文件：**
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `apps/web/src/viewmodels/forum/footer.ts` | 修改 | 添加 fetchOnlineStats |
+| `apps/web/src/viewmodels/forum/footer.server.ts` | 修改 | 调用 fetchOnlineStats |
+| `tests/unit/viewmodels/forum/footer.test.ts` | 修改 | 更新测试 |
+
+**验证命令：**
+```bash
+bun test tests/unit/viewmodels/forum/footer.test.ts
+```
+
+---
+
+#### Commit 7: 首页 Footer 展示在线统计
+
+```
+feat(web): display online stats in homepage footer
+
+Update HomeFooter component to show online statistics.
+- Display current online count
+- Display historical peak with date
+- Graceful degradation when data unavailable
+
+Files:
+  apps/web/src/components/forum/home-footer.tsx
+  tests/unit/components/forum/home-footer.test.tsx
+```
+
+**变更文件：**
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `apps/web/src/components/forum/home-footer.tsx` | 修改 | 渲染在线统计 |
+| `tests/unit/components/forum/home-footer.test.tsx` | 新增 | 组件测试 |
+
+**验证命令：**
+```bash
+bun test tests/unit/components/forum/home-footer.test.tsx
+```
+
+---
+
+### 9.2 提交依赖图
+
+```
+[1] online middleware ─────┐
+                           ├──▶ [5] integrate middleware ──▶ [6] frontend viewmodel ──▶ [7] footer UI
+[2] activity middleware ───┘                                         │
+                                                                      │
+[3] cron aggregation ──────▶ [4] stats API ───────────────────────────┘
+```
+
+### 9.3 质量门禁
+
+每个提交必须通过以下检查：
+
+| Gate | 命令 | 说明 |
+|------|------|------|
+| G1 Typecheck | `bun run typecheck` | TypeScript 类型检查 |
+| L1 Unit Tests | `bun test <相关文件>` | 单元测试通过 |
+| G2 Security | `gitleaks detect --no-banner` | 无敏感信息泄露 |
+
+完整流程验证：
+```bash
+bun run typecheck && bun test apps/worker && bun test tests/unit/
+```
+
+---
+
+## 10. 测试设计
+
+### 10.1 测试层级概览
+
+| 层级 | 范围 | 工具 | 文件 |
+|------|------|------|------|
+| L1 | 单元测试 | Bun test + mock | `apps/worker/tests/unit/**` |
+| L2 | 集成测试 | Bun test + miniflare | `apps/worker/tests/integration/**` |
+| L3 | E2E 测试 | Playwright | `tests/e2e/**` |
+
+### 10.2 L1 单元测试
+
+#### 10.2.1 Online Middleware 测试
+
+```typescript
+// apps/worker/tests/unit/middleware/online.test.ts
+
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { onlineMiddleware } from "../../../src/middleware/online";
+
+describe("onlineMiddleware", () => {
+  let mockContext: any;
+  let mockKV: any;
+  let mockNext: any;
+
+  beforeEach(() => {
+    mockKV = {
+      put: vi.fn().mockResolvedValue(undefined),
+    };
+    mockNext = vi.fn().mockResolvedValue(undefined);
+    mockContext = {
+      env: { KV: mockKV },
+      req: {
+        url: "https://example.com/forums/1",
+        header: vi.fn().mockReturnValue("1.2.3.4"),
+      },
+      res: { status: 200 },
+      get: vi.fn((key: string) => {
+        if (key === "userId") return 123;
+        if (key === "username") return "testuser";
+        return undefined;
+      }),
+      executionCtx: {
+        waitUntil: vi.fn((p: Promise<any>) => p),
+      },
+    };
+  });
+
+  it("should call next middleware", async () => {
+    await onlineMiddleware(mockContext, mockNext);
+    expect(mockNext).toHaveBeenCalledOnce();
+  });
+
+  it("should write online key for authenticated user", async () => {
+    await onlineMiddleware(mockContext, mockNext);
+    
+    expect(mockKV.put).toHaveBeenCalledWith(
+      "online:123",
+      expect.stringContaining('"uid":123'),
+      { expirationTtl: 900 }
+    );
+  });
+
+  it("should skip KV write for error responses", async () => {
+    mockContext.res.status = 401;
+    await onlineMiddleware(mockContext, mockNext);
+    
+    expect(mockKV.put).not.toHaveBeenCalled();
+  });
+
+  it("should skip KV write for unauthenticated requests", async () => {
+    mockContext.get = vi.fn().mockReturnValue(undefined);
+    await onlineMiddleware(mockContext, mockNext);
+    
+    expect(mockKV.put).not.toHaveBeenCalled();
+  });
+
+  it("should include correct data in KV value", async () => {
+    await onlineMiddleware(mockContext, mockNext);
+    
+    const putCall = mockKV.put.mock.calls[0];
+    const value = JSON.parse(putCall[1]);
+    
+    expect(value).toMatchObject({
+      uid: 123,
+      username: "testuser",
+      ip: "1.2.3.4",
+      page: "/forums/1",
+    });
+    expect(value.ts).toBeTypeOf("number");
+  });
+});
+```
+
+#### 10.2.2 Activity Middleware 测试
+
+```typescript
+// apps/worker/tests/unit/middleware/activity.test.ts
+
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { activityMiddleware } from "../../../src/middleware/activity";
+
+describe("activityMiddleware", () => {
+  let mockContext: any;
+  let mockDB: any;
+  let mockKV: any;
+  const NOW = 1711900800; // 固定时间戳
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW * 1000);
+
+    mockDB = {
+      prepare: vi.fn().mockReturnThis(),
+      bind: vi.fn().mockReturnThis(),
+      first: vi.fn(),
+      run: vi.fn().mockResolvedValue({ success: true }),
+    };
+    mockKV = {
+      get: vi.fn().mockResolvedValue(null),
+      put: vi.fn().mockResolvedValue(undefined),
+    };
+    mockContext = {
+      env: { DB: mockDB, KV: mockKV },
+      res: { status: 200 },
+      get: vi.fn((key: string) => (key === "userId" ? 123 : undefined)),
+      executionCtx: {
+        waitUntil: vi.fn((p: Promise<any>) => p),
+      },
+    };
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("should skip for unauthenticated requests", async () => {
+    mockContext.get = vi.fn().mockReturnValue(undefined);
+    await activityMiddleware(mockContext, vi.fn());
+    
+    expect(mockDB.prepare).not.toHaveBeenCalled();
+  });
+
+  it("should skip for error responses", async () => {
+    mockContext.res.status = 500;
+    await activityMiddleware(mockContext, vi.fn());
+    
+    expect(mockDB.prepare).not.toHaveBeenCalled();
+  });
+
+  it("should update last_activity without adding ol_time for first activity", async () => {
+    mockDB.first.mockResolvedValue({ last_activity: 0, ol_time: 0 });
+    
+    await activityMiddleware(mockContext, vi.fn());
+    
+    expect(mockDB.prepare).toHaveBeenCalledWith(
+      expect.stringContaining("UPDATE users SET last_activity")
+    );
+    // gap > 30 minutes (from 0), should add 0 minutes
+    expect(mockDB.bind).toHaveBeenCalledWith(NOW, 0, 123);
+  });
+
+  it("should accumulate ol_time for activity within 30 minutes", async () => {
+    const lastActivity = NOW - 600; // 10 分钟前
+    mockDB.first.mockResolvedValue({ last_activity: lastActivity, ol_time: 100 });
+    
+    await activityMiddleware(mockContext, vi.fn());
+    
+    // gap = 600 秒 = 10 分钟，应累加 10 分钟
+    expect(mockDB.bind).toHaveBeenCalledWith(NOW, 10, 123);
+  });
+
+  it("should not accumulate ol_time for activity gap > 30 minutes", async () => {
+    const lastActivity = NOW - 3600; // 1 小时前
+    mockDB.first.mockResolvedValue({ last_activity: lastActivity, ol_time: 100 });
+    
+    await activityMiddleware(mockContext, vi.fn());
+    
+    // gap > 30 minutes, should add 0 minutes
+    expect(mockDB.bind).toHaveBeenCalledWith(NOW, 0, 123);
+  });
+
+  it("should respect throttle (skip if updated within 1 minute)", async () => {
+    mockKV.get.mockResolvedValue(String(NOW - 30)); // 30 秒前更新过
+    
+    await activityMiddleware(mockContext, vi.fn());
+    
+    expect(mockDB.prepare).not.toHaveBeenCalled();
+  });
+});
+```
+
+#### 10.2.3 Cron Aggregation 测试
+
+```typescript
+// apps/worker/tests/unit/cron/online-stats.test.ts
+
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { aggregateOnlineStats } from "../../../src/cron/online-stats";
+
+describe("aggregateOnlineStats", () => {
+  let mockEnv: any;
+  const NOW = 1711900800;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW * 1000);
+
+    mockEnv = {
+      KV: {
+        list: vi.fn(),
+        get: vi.fn(),
+        put: vi.fn().mockResolvedValue(undefined),
+      },
+      DB: {
+        prepare: vi.fn().mockReturnThis(),
+        bind: vi.fn().mockReturnThis(),
+        run: vi.fn().mockResolvedValue({ success: true }),
+        batch: vi.fn().mockResolvedValue([]),
+      },
+    };
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("should count online users from KV list", async () => {
+    mockEnv.KV.list.mockResolvedValue({
+      keys: [{ name: "online:1" }, { name: "online:2" }, { name: "online:3" }],
+      list_complete: true,
+    });
+    mockEnv.KV.get.mockResolvedValue(null); // no existing peak
+
+    await aggregateOnlineStats(mockEnv);
+
+    expect(mockEnv.KV.put).toHaveBeenCalledWith(
+      "stats:online_count",
+      "3",
+      { expirationTtl: 300 }
+    );
+  });
+
+  it("should handle pagination for large user counts", async () => {
+    mockEnv.KV.list
+      .mockResolvedValueOnce({
+        keys: Array(1000).fill({ name: "online:x" }),
+        list_complete: false,
+        cursor: "cursor1",
+      })
+      .mockResolvedValueOnce({
+        keys: Array(500).fill({ name: "online:x" }),
+        list_complete: true,
+      });
+    mockEnv.KV.get.mockResolvedValue(null);
+
+    await aggregateOnlineStats(mockEnv);
+
+    expect(mockEnv.KV.put).toHaveBeenCalledWith(
+      "stats:online_count",
+      "1500",
+      expect.any(Object)
+    );
+  });
+
+  it("should update peak when current count exceeds historical", async () => {
+    mockEnv.KV.list.mockResolvedValue({
+      keys: Array(100).fill({ name: "online:x" }),
+      list_complete: true,
+    });
+    mockEnv.KV.get.mockResolvedValue({ count: 50, date: "2026-03-01" });
+
+    await aggregateOnlineStats(mockEnv);
+
+    expect(mockEnv.KV.put).toHaveBeenCalledWith(
+      "stats:online_peak",
+      expect.stringContaining('"count":100')
+    );
+    expect(mockEnv.DB.batch).toHaveBeenCalled();
+  });
+
+  it("should not update peak when current count is lower", async () => {
+    mockEnv.KV.list.mockResolvedValue({
+      keys: Array(30).fill({ name: "online:x" }),
+      list_complete: true,
+    });
+    mockEnv.KV.get.mockResolvedValue({ count: 50, date: "2026-03-01" });
+
+    await aggregateOnlineStats(mockEnv);
+
+    // Should update count but not peak
+    expect(mockEnv.KV.put).toHaveBeenCalledTimes(1);
+    expect(mockEnv.KV.put).toHaveBeenCalledWith(
+      "stats:online_count",
+      "30",
+      expect.any(Object)
+    );
+  });
+});
+```
+
+#### 10.2.4 Stats Handler 测试
+
+```typescript
+// apps/worker/tests/unit/handlers/stats.test.ts
+
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { statsRoutes } from "../../../src/handlers/stats";
+import { Hono } from "hono";
+
+describe("GET /api/v1/stats/online", () => {
+  let app: Hono;
+  let mockKV: any;
+
+  beforeEach(() => {
+    mockKV = {
+      get: vi.fn(),
+    };
+    
+    app = new Hono();
+    app.route("/api/v1/stats", statsRoutes);
+  });
+
+  const request = (path: string) =>
+    app.request(path, {}, { KV: mockKV });
+
+  it("should return online stats from KV cache", async () => {
+    mockKV.get
+      .mockResolvedValueOnce("123") // stats:online_count
+      .mockResolvedValueOnce({ count: 456, date: "2026-04-01" }); // stats:online_peak
+
+    const res = await request("/api/v1/stats/online");
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body).toEqual({
+      online: { total: 123, members: 123, guests: 0 },
+      peak: { count: 456, date: "2026-04-01" },
+    });
+  });
+
+  it("should return zeros when no cache data", async () => {
+    mockKV.get.mockResolvedValue(null);
+
+    const res = await request("/api/v1/stats/online");
+    const body = await res.json();
+
+    expect(body).toEqual({
+      online: { total: 0, members: 0, guests: 0 },
+      peak: { count: 0, date: "" },
+    });
+  });
+});
+```
+
+### 10.3 L2 集成测试
+
+```typescript
+// apps/worker/tests/integration/online-tracking.test.ts
+
+import { describe, expect, it, beforeAll, afterAll } from "vitest";
+import { unstable_dev } from "wrangler";
+import type { UnstableDevWorker } from "wrangler";
+
+describe("Online Tracking Integration", () => {
+  let worker: UnstableDevWorker;
+
+  beforeAll(async () => {
+    worker = await unstable_dev("src/index.ts", {
+      experimental: { disableExperimentalWarning: true },
+    });
+  });
+
+  afterAll(async () => {
+    await worker.stop();
+  });
+
+  it("should track authenticated user as online", async () => {
+    // 1. 登录获取 JWT
+    const loginRes = await worker.fetch("/api/v1/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: "testuser", password: "testpass" }),
+    });
+    const { accessToken } = await loginRes.json();
+
+    // 2. 发起认证请求
+    await worker.fetch("/api/v1/forums", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    // 3. 触发 cron 聚合
+    // Note: 在真实测试中需要等待或手动触发 cron
+    
+    // 4. 检查统计结果
+    const statsRes = await worker.fetch("/api/v1/stats/online");
+    const stats = await statsRes.json();
+
+    expect(stats.online.total).toBeGreaterThanOrEqual(1);
+  });
+
+  it("should accumulate online time for active user", async () => {
+    // 1. 获取用户初始 ol_time
+    const user1 = await getUserProfile(worker, "testuser");
+    const initialOlTime = user1.olTime;
+
+    // 2. 模拟多次活动（间隔 > 1 分钟）
+    // Note: 在真实测试中需要 mock 时间或使用真实等待
+
+    // 3. 检查 ol_time 增加
+    const user2 = await getUserProfile(worker, "testuser");
+    expect(user2.olTime).toBeGreaterThanOrEqual(initialOlTime);
+  });
+});
+
+async function getUserProfile(worker: UnstableDevWorker, username: string) {
+  const res = await worker.fetch(`/api/v1/users/by-name/${username}`);
+  return res.json();
+}
+```
+
+### 10.4 L3 E2E 测试
+
+```typescript
+// tests/e2e/online-stats.spec.ts
+
+import { test, expect } from "@playwright/test";
+
+test.describe("Online Statistics", () => {
+  test("should display online count on homepage", async ({ page }) => {
+    await page.goto("/");
+    
+    // 等待 footer 加载
+    const footer = page.locator(".home-footer");
+    await expect(footer).toBeVisible();
+
+    // 检查在线统计区域存在
+    const onlineStats = footer.locator(".online-stats");
+    await expect(onlineStats).toBeVisible();
+
+    // 检查显示格式
+    await expect(onlineStats).toContainText(/当前在线.*\d+.*人/);
+  });
+
+  test("should display peak when available", async ({ page }) => {
+    await page.goto("/");
+    
+    const peakText = page.locator(".online-stats .peak");
+    
+    // 峰值可能不存在（新系统），检查格式正确即可
+    const peakContent = await peakText.textContent();
+    if (peakContent) {
+      expect(peakContent).toMatch(/历史最高.*\d+.*人/);
+    }
+  });
+
+  test("should show user online time in profile", async ({ page }) => {
+    // 登录
+    await page.goto("/login");
+    await page.fill('input[name="username"]', "testuser");
+    await page.fill('input[name="password"]', "testpass");
+    await page.click('button[type="submit"]');
+
+    // 访问个人资料
+    await page.goto("/users/testuser");
+
+    // 检查在线时长显示
+    const olTimeRow = page.locator("dt:has-text('在线时间') + dd");
+    await expect(olTimeRow).toBeVisible();
+    
+    // 格式可能是 "X 小时 Y 分钟" 或 "暂无记录"
+    const text = await olTimeRow.textContent();
+    expect(text).toMatch(/(小时|分钟|暂无记录)/);
+  });
+});
+```
+
+### 10.5 测试数据准备
+
+```typescript
+// apps/worker/tests/fixtures/online.ts
+
+export const MOCK_ONLINE_USERS = [
+  { uid: 1, username: "admin", ip: "10.0.0.1", page: "/admin", ts: 1711900000 },
+  { uid: 2, username: "moderator", ip: "10.0.0.2", page: "/forums/1", ts: 1711900100 },
+  { uid: 3, username: "user1", ip: "10.0.0.3", page: "/threads/123", ts: 1711900200 },
+];
+
+export const MOCK_PEAK_DATA = {
+  count: 256,
+  date: "2026-03-15",
+  timestamp: 1710460800,
+};
+
+export function createMockKV(users = MOCK_ONLINE_USERS, peak = MOCK_PEAK_DATA) {
+  const store = new Map<string, string>();
+  
+  // 填充在线用户
+  for (const user of users) {
+    store.set(`online:${user.uid}`, JSON.stringify(user));
+  }
+  
+  // 填充统计缓存
+  store.set("stats:online_count", String(users.length));
+  store.set("stats:online_peak", JSON.stringify(peak));
+
+  return {
+    get: async (key: string, type?: string) => {
+      const value = store.get(key);
+      if (!value) return null;
+      return type === "json" ? JSON.parse(value) : value;
+    },
+    put: async (key: string, value: string) => {
+      store.set(key, value);
+    },
+    list: async ({ prefix, cursor, limit }: any) => {
+      const keys = Array.from(store.keys())
+        .filter((k) => k.startsWith(prefix))
+        .map((name) => ({ name }));
+      return { keys, list_complete: true };
+    },
+  };
+}
+```
+
+### 10.6 测试覆盖率目标
+
+| 模块 | 行覆盖率 | 分支覆盖率 |
+|------|---------|-----------|
+| `middleware/online.ts` | ≥90% | ≥85% |
+| `middleware/activity.ts` | ≥90% | ≥85% |
+| `cron/online-stats.ts` | ≥85% | ≥80% |
+| `handlers/stats.ts` | ≥95% | ≥90% |
+
+运行覆盖率报告：
+```bash
+bun test --coverage apps/worker/tests/unit/
+```
+
+---
+
+## 11. 性能考量
+
+### 11.1 KV 操作成本
 
 | 操作 | 频率 | 成本影响 |
 |------|------|---------|
@@ -579,7 +1344,7 @@ test(worker): add online stats tests
 | List online:* | 每 5 分钟 | 低（单次操作） |
 | 读取 stats:* | 每次首页加载 | 极低（读取便宜） |
 
-### 10.2 D1 写入优化
+### 11.2 D1 写入优化
 
 活动时长更新的写入可能频繁，优化策略：
 1. **批量更新**：使用 `waitUntil` 异步执行，不阻塞响应
@@ -597,7 +1362,7 @@ await c.env.KV.put(`activity_throttle:${userId}`, String(now), { expirationTtl: 
 
 ---
 
-## 11. 未来扩展
+## 12. 未来扩展
 
 | 功能 | 说明 | 优先级 |
 |------|------|--------|
@@ -609,7 +1374,7 @@ await c.env.KV.put(`activity_throttle:${userId}`, String(now), { expirationTtl: 
 
 ---
 
-## 12. 参考
+## 13. 参考
 
 - Discuz X3.4 源码：`source/class/discuz/discuz_session.php`
 - Cloudflare KV 文档：https://developers.cloudflare.com/kv/
