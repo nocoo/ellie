@@ -6,10 +6,10 @@ import { PostCard } from "@/components/forum/post-card";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Card, CardContent } from "@/components/ui/card";
-import { buildThreadBreadcrumbs } from "@/lib/forum-breadcrumbs";
-import { type ThreadDetailData, loadThreadDetail } from "@/viewmodels/forum/thread-detail.server";
+import { type ThreadDetailPageData, loadThreadDetail } from "@/viewmodels/forum/thread-detail.server";
 import { formatTime } from "@/viewmodels/forum/thread-list";
-import { type Thread, findForumAncestors, getThreadBadges } from "@ellie/types";
+import { getThreadBadges } from "@ellie/types";
+import { parseIntParam } from "@/viewmodels/shared/params";
 import Link from "next/link";
 
 interface ThreadDetailPageProps {
@@ -20,9 +20,22 @@ interface ThreadDetailPageProps {
 export default async function ThreadDetailPage({ params, searchParams }: ThreadDetailPageProps) {
 	const { id } = await params;
 	const sp = await searchParams;
-	const threadId = Number.parseInt(id, 10);
+	const threadId = parseIntParam(id);
 
-	let data: ThreadDetailData;
+	if (threadId == null) {
+		return (
+			<Card size="sm">
+				<CardContent className="text-center py-4">
+					<p className="text-sm text-destructive">无效的帖子 ID</p>
+					<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
+						返回首页
+					</Link>
+				</CardContent>
+			</Card>
+		);
+	}
+
+	let data: ThreadDetailPageData;
 	let error: string | null = null;
 
 	try {
@@ -34,12 +47,13 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 	} catch (e) {
 		error = e instanceof Error ? e.message : "Failed to load thread";
 		data = {
-			thread: null as unknown as Thread,
+			thread: null,
 			forums: [],
 			posts: [],
 			nextCursor: null,
 			prevCursor: null,
 			total: 0,
+			breadcrumbs: [],
 		};
 	}
 
@@ -56,16 +70,16 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 		);
 	}
 
-	const badges = getThreadBadges(data.thread);
-	const ancestors = findForumAncestors(data.forums, data.thread.forumId);
-	const breadcrumbs = buildThreadBreadcrumbs(ancestors, data.thread.subject);
+	const thread = data.thread;
+
+	const badges = getThreadBadges(thread);
 
 	return (
 		<div className="space-y-3">
 			{/* Breadcrumbs */}
-			{breadcrumbs.length > 1 && (
+			{data.breadcrumbs.length > 1 && (
 				<div className="py-2">
-					<Breadcrumbs items={breadcrumbs} />
+					<Breadcrumbs items={data.breadcrumbs} />
 				</div>
 			)}
 
@@ -77,24 +91,24 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 				<CardContent>
 					<div className="flex items-center gap-2 flex-wrap">
 						<ThreadBadgeList badges={badges} />
-						<h1 className="text-base font-semibold text-foreground">{data.thread.subject}</h1>
+						<h1 className="text-base font-semibold text-foreground">{thread.subject}</h1>
 					</div>
 					<div className="mt-1.5 flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
 						<Link
-							href={`/forums/${data.thread.forumId}`}
+							href={`/forums/${thread.forumId}`}
 							className="hover:text-primary transition-colors"
 						>
 							版块
 						</Link>
 						<span>·</span>
 						<Link
-							href={`/users/${data.thread.authorId}`}
+							href={`/users/${thread.authorId}`}
 							className="hover:text-primary transition-colors"
 						>
-							{data.thread.authorName}
+							{thread.authorName}
 						</Link>
 						<span>·</span>
-						<span>{formatTime(data.thread.createdAt)}</span>
+						<span>{formatTime(thread.createdAt)}</span>
 					</div>
 				</CardContent>
 			</Card>
@@ -106,9 +120,9 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 					<PostCard
 						key={post.id}
 						post={post}
-						threadViews={isFirst ? data.thread.views : undefined}
-						threadReplies={isFirst ? data.thread.replies : undefined}
-						threadDigest={isFirst ? data.thread.digest : undefined}
+						threadViews={isFirst ? thread.views : undefined}
+						threadReplies={isFirst ? thread.replies : undefined}
+						threadDigest={isFirst ? thread.digest : undefined}
 					/>
 				);
 			})}

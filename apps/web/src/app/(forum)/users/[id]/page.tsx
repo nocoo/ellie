@@ -1,7 +1,9 @@
 // Ref: 04f §8 — Modern profile layout: hero + stats + tabbed content
 
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
-import { ThreadBadgeList } from "@/components/forum/thread-badge";
+import { UserInfoCard } from "@/components/forum/user-info-card";
+import { UserPostsTab } from "@/components/forum/user-posts-tab";
+import { UserThreadsTab } from "@/components/forum/user-threads-tab";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -11,16 +13,11 @@ import { buildUserBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import { formatStat, formatTime } from "@/viewmodels/forum/thread-list";
 import {
 	PROFILE_TABS,
-	formatBirthday,
-	formatGender,
-	formatLastActivity,
-	formatLocation,
-	formatOlTime,
 	formatUserRole,
 	getUserRoleBadgeVariant,
 } from "@/viewmodels/forum/user-profile";
 import { type UserProfileData, loadUserProfile } from "@/viewmodels/forum/user-profile.server";
-import { getThreadBadges } from "@ellie/types";
+import { parseIntParam } from "@/viewmodels/shared/params";
 import { UserRound } from "lucide-react";
 import Link from "next/link";
 
@@ -32,7 +29,20 @@ interface UserProfilePageProps {
 export default async function UserProfilePage({ params, searchParams }: UserProfilePageProps) {
 	const { id } = await params;
 	const sp = await searchParams;
-	const userId = Number.parseInt(id, 10);
+	const userId = parseIntParam(id);
+
+	if (userId == null) {
+		return (
+			<Card size="sm">
+				<CardContent className="text-center py-4">
+					<p className="text-sm text-destructive">无效的用户 ID</p>
+					<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
+						返回首页
+					</Link>
+				</CardContent>
+			</Card>
+		);
+	}
 
 	let data: UserProfileData;
 	let error: string | null = null;
@@ -162,9 +172,9 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 				{/* Tab content */}
 				<CardContent>
 					{data.tab === "threads" ? (
-						<ThreadsTab threads={data.threads} userId={userId} />
+						<UserThreadsTab threads={data.threads} />
 					) : (
-						<PostsTab posts={data.posts} userId={userId} />
+						<UserPostsTab posts={data.posts} />
 					)}
 
 					{/* Pagination */}
@@ -184,192 +194,5 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 				</CardContent>
 			</Card>
 		</div>
-	);
-}
-
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
-
-function ThreadsTab({
-	threads,
-	userId: _userId,
-}: {
-	threads: UserProfileData["threads"];
-	userId: number;
-}) {
-	if (threads.items.length === 0) {
-		return (
-			<div className="py-8 text-center text-sm text-muted-foreground">
-				暂无发帖（Worker v1 尚不支持按用户查询历史）
-			</div>
-		);
-	}
-
-	return (
-		<div className="divide-y divide-border/50">
-			{threads.items.map((thread) => {
-				const badges = getThreadBadges(thread);
-				return (
-					<div key={thread.id} className="flex items-center gap-2 py-1.5">
-						{badges.length > 0 && <ThreadBadgeList badges={badges} />}
-						<Link
-							href={`/threads/${thread.id}`}
-							className="min-w-0 flex-1 truncate text-sm text-foreground hover:text-primary transition-colors"
-						>
-							{thread.subject}
-						</Link>
-						<span className="text-xs text-muted-foreground shrink-0">
-							{formatTime(thread.lastPostAt ?? thread.createdAt)}
-						</span>
-					</div>
-				);
-			})}
-		</div>
-	);
-}
-
-function PostsTab({
-	posts,
-	userId: _userId,
-}: {
-	posts: UserProfileData["posts"];
-	userId: number;
-}) {
-	if (posts.items.length === 0) {
-		return (
-			<div className="py-8 text-center text-sm text-muted-foreground">
-				暂无回复（Worker v1 尚不支持按用户查询历史）
-			</div>
-		);
-	}
-
-	return (
-		<div className="divide-y divide-border/50">
-			{posts.items.map((post) => (
-				<div key={post.id} className="py-2">
-					<Link
-						href={`/threads/${post.threadId}`}
-						className="text-xs text-muted-foreground hover:text-primary transition-colors"
-					>
-						回复帖子 #{post.threadId}
-					</Link>
-					<p className="mt-0.5 text-sm text-foreground line-clamp-2">
-						{post.content.replace(/<[^>]*>/g, "").slice(0, 200)}
-					</p>
-					<span className="text-xs text-muted-foreground">{formatTime(post.createdAt)}</span>
-				</div>
-			))}
-		</div>
-	);
-}
-
-// ---------------------------------------------------------------------------
-// Personal info card — shows non-empty profile fields
-// ---------------------------------------------------------------------------
-
-function UserInfoCard({ user }: { user: UserProfileData["user"] }) {
-	const gender = formatGender(user.gender);
-	const birthday = formatBirthday(user.birthYear, user.birthMonth, user.birthDay);
-	const location = formatLocation(user.resideProvince, user.resideCity);
-	const olTime = formatOlTime(user.olTime);
-	const lastActive = formatLastActivity(user.lastActivity);
-
-	// Collect all info rows — only show card if at least one field has data
-	const infoRows: { label: string; value: string }[] = [];
-	if (gender) infoRows.push({ label: "性别", value: gender });
-	if (birthday) infoRows.push({ label: "生日", value: birthday });
-	if (location) infoRows.push({ label: "居住地", value: location });
-	if (user.graduateSchool) infoRows.push({ label: "毕业学校", value: user.graduateSchool });
-	if (user.qq) infoRows.push({ label: "QQ", value: user.qq });
-	if (user.site) infoRows.push({ label: "个人网站", value: user.site });
-	if (olTime) infoRows.push({ label: "在线时间", value: olTime });
-	if (lastActive) infoRows.push({ label: "最后活动", value: lastActive });
-	if (user.digestPosts > 0) infoRows.push({ label: "精华帖", value: String(user.digestPosts) });
-
-	if (
-		infoRows.length === 0 &&
-		!user.bio &&
-		!user.interest &&
-		!user.groupTitle &&
-		!user.customTitle
-	) {
-		return null;
-	}
-
-	return (
-		<Card size="sm">
-			<CardHeader className="border-b">
-				<h2 className="text-sm font-medium text-foreground">个人信息</h2>
-			</CardHeader>
-			<CardContent>
-				<div className="space-y-3">
-					{/* Group title + custom title */}
-					{(user.groupTitle || user.customTitle) && (
-						<div className="flex items-center gap-2 flex-wrap text-sm">
-							{user.groupTitle && (
-								<Badge
-									variant="outline"
-									style={
-										user.groupColor
-											? { borderColor: user.groupColor, color: user.groupColor }
-											: undefined
-									}
-								>
-									{user.groupTitle}
-									{user.groupStars > 0 && (
-										<span className="ml-1 text-amber-500">
-											{"★".repeat(Math.min(user.groupStars, 10))}
-										</span>
-									)}
-								</Badge>
-							)}
-							{user.customTitle && (
-								<span className="text-muted-foreground italic text-xs">{user.customTitle}</span>
-							)}
-						</div>
-					)}
-
-					{/* Info grid */}
-					{infoRows.length > 0 && (
-						<div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
-							{infoRows.map((row) => (
-								<div key={row.label} className="flex items-baseline gap-2">
-									<span className="text-muted-foreground text-xs shrink-0">{row.label}</span>
-									{row.label === "个人网站" ? (
-										<a
-											href={row.value.startsWith("http") ? row.value : `https://${row.value}`}
-											target="_blank"
-											rel="noopener noreferrer"
-											className="text-primary hover:underline truncate text-xs"
-										>
-											{row.value}
-										</a>
-									) : (
-										<span className="text-foreground truncate text-xs">{row.value}</span>
-									)}
-								</div>
-							))}
-						</div>
-					)}
-
-					{/* Bio */}
-					{user.bio && (
-						<div>
-							<p className="text-xs text-muted-foreground mb-0.5">个人简介</p>
-							<p className="text-sm text-foreground">{user.bio}</p>
-						</div>
-					)}
-
-					{/* Interest */}
-					{user.interest && (
-						<div>
-							<p className="text-xs text-muted-foreground mb-0.5">兴趣爱好</p>
-							<p className="text-sm text-foreground">{user.interest}</p>
-						</div>
-					)}
-				</div>
-			</CardContent>
-		</Card>
 	);
 }

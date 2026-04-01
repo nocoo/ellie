@@ -1,16 +1,12 @@
 // viewmodels/forum/search.server.ts — Server-only data loader for search
 // Worker v1 has no search endpoint. Returns empty results for now.
 
+import "server-only";
+
 import type { Thread } from "@ellie/types";
 import { type SearchType, resolveSearchType } from "./search";
 
-/** Matches PaginatedResult shape from @ellie/repositories */
-interface PaginatedResult<T> {
-	items: T[];
-	nextCursor: string | null;
-	prevCursor: string | null;
-	total: number;
-}
+import type { PaginatedResult } from "@/viewmodels/shared/pagination";
 
 export interface SearchData {
 	query: string;

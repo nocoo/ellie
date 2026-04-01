@@ -1,6 +1,8 @@
 // viewmodels/forum/forum-list.server.ts — Server-only data loader for forum list
 // Calls Worker API (GET /api/v1/forums).
 
+import "server-only";
+
 import { forumApi } from "@/lib/forum-api";
 import type { Forum, ForumTreeNode } from "@ellie/types";
 import { buildVisibleTree } from "./forum-list";

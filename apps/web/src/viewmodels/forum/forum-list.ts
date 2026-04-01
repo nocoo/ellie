@@ -48,6 +48,24 @@ export function formatCount(n: number): string {
 }
 
 /**
+ * Parse comma-separated moderator names into an array.
+ * Trims whitespace and filters out empty strings.
+ */
+export function parseModerators(moderators: string): string[] {
+	if (!moderators) return [];
+	return moderators
+		.split(",")
+		.map((s) => s.trim())
+		.filter(Boolean);
+}
+
+/**
+ * Threshold for switching between wide (row) and grid layout.
+ * Groups with more children than this use 2-col grid layout.
+ */
+export const GRID_THRESHOLD = 10;
+
+/**
  * Compute total stats for a forum node (self + children).
  */
 export function totalStats(node: ForumTreeNode): { threads: number; posts: number } {

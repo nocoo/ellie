@@ -1,15 +1,10 @@
 // viewmodels/forum/digest.server.ts — Server-only data loader for digest page
 // Worker v1 has no digest filter on thread list. Returns empty results for now.
 
-import type { Thread } from "@ellie/types";
+import "server-only";
 
-/** Matches PaginatedResult shape from @ellie/repositories */
-interface PaginatedResult<T> {
-	items: T[];
-	nextCursor: string | null;
-	prevCursor: string | null;
-	total: number;
-}
+import type { PaginatedResult } from "@/viewmodels/shared/pagination";
+import type { Thread } from "@ellie/types";
 
 export interface DigestData {
 	results: PaginatedResult<Thread>;
