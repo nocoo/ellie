@@ -55,7 +55,7 @@ function NotifSidebar({
 }) {
 	return (
 		<aside className="w-[160px] flex-shrink-0">
-			<h2 className="text-[16px] font-bold text-foreground mb-3">通知</h2>
+			<h2 className="text-base font-bold text-foreground mb-3">通知</h2>
 			<nav className="flex flex-col gap-0.5">
 				{items.map((item) => {
 					const Icon = SIDEBAR_ICONS[item.icon];
@@ -67,8 +67,8 @@ function NotifSidebar({
 							type="button"
 							onClick={() => onItemChange(item.value)}
 							className={cn(
-								"flex items-center gap-2 rounded-sm px-3 py-2 text-[13px] transition-colors text-left",
-								isActive ? "text-primary font-bold" : "text-dz-topbar-link hover:text-foreground",
+								"flex items-center gap-2 rounded-sm px-3 py-2 text-sm transition-colors text-left",
+								isActive ? "text-primary font-bold" : "text-muted-foreground hover:text-foreground",
 							)}
 						>
 							<Icon className="h-4 w-4 flex-shrink-0" />
@@ -76,8 +76,8 @@ function NotifSidebar({
 							{item.badge !== undefined && (
 								<span
 									className={cn(
-										"text-[12px]",
-										isActive ? "text-primary font-bold" : "text-dz-stats-text",
+										"text-xs",
+										isActive ? "text-primary font-bold" : "text-muted-foreground",
 									)}
 								>
 									({item.badge})
@@ -110,7 +110,7 @@ function MessageTabsHeader({
 				{vm.tabs.map((tab) => {
 					if (tab.isAction) {
 						return (
-							<Button key={tab.value} size="sm" className="ml-2 mb-1 px-4 text-[13px]">
+							<Button key={tab.value} size="sm" className="ml-2 mb-1 px-4 text-sm">
 								{tab.label}
 							</Button>
 						);
@@ -123,10 +123,10 @@ function MessageTabsHeader({
 							type="button"
 							onClick={() => onTabChange(tab.value)}
 							className={cn(
-								"px-4 py-2 text-[13px] font-medium transition-colors border border-border -mb-px",
+								"px-4 py-2 text-sm font-medium transition-colors border border-border -mb-px",
 								isActive
 									? "bg-card text-foreground border-b-card"
-									: "bg-muted text-dz-stats-text hover:text-foreground border-b-border",
+									: "bg-muted text-muted-foreground hover:text-foreground border-b-border",
 							)}
 						>
 							{tab.label}
@@ -136,7 +136,7 @@ function MessageTabsHeader({
 			</div>
 			<Link
 				href="#"
-				className="text-[13px] text-dz-stats-text hover:text-primary transition-colors mb-1"
+				className="text-sm text-muted-foreground hover:text-primary transition-colors mb-1"
 			>
 				短消息设置
 			</Link>
@@ -153,7 +153,7 @@ function UnreadBanner({ count }: { count: number }) {
 
 	return (
 		<div className="rounded-sm border border-dz-reminder-text/30 bg-dz-reminder-text/5 px-4 py-2.5 mt-3">
-			<Link href="#" className="text-[13px] text-primary hover:underline">
+			<Link href="#" className="text-sm text-primary hover:underline">
 				💡 点击这里查看 <span className="font-bold text-primary">{count}</span> 条未读消息
 			</Link>
 		</div>
@@ -186,7 +186,7 @@ function MessageRow({ message }: { message: MessageItem }) {
 			{/* Content */}
 			<div className="flex-1 min-w-0">
 				{/* Header: "username 对 您 说：" or "您 对 username 说：" */}
-				<div className="text-[13px]">
+				<div className="text-sm">
 					{isIncoming ? (
 						<>
 							<Link
@@ -195,39 +195,39 @@ function MessageRow({ message }: { message: MessageItem }) {
 							>
 								{message.peerUsername}
 							</Link>
-							<span className="text-dz-stats-text"> 对 </span>
+							<span className="text-muted-foreground"> 对 </span>
 							<span className="font-bold text-foreground">您</span>
-							<span className="text-dz-stats-text"> 说：</span>
+							<span className="text-muted-foreground"> 说：</span>
 						</>
 					) : (
 						<>
 							<span className="font-bold text-foreground">您</span>
-							<span className="text-dz-stats-text"> 对 </span>
+							<span className="text-muted-foreground"> 对 </span>
 							<Link
 								href={`/users/${message.peerUid}`}
 								className="font-bold text-foreground hover:text-primary"
 							>
 								{message.peerUsername}
 							</Link>
-							<span className="text-dz-stats-text"> 说：</span>
+							<span className="text-muted-foreground"> 说：</span>
 						</>
 					)}
 				</div>
 
 				{/* Preview */}
-				<p className="mt-1 text-[13px] text-foreground leading-relaxed line-clamp-2">
+				<p className="mt-1 text-sm text-foreground leading-relaxed line-clamp-2">
 					{message.preview}
 				</p>
 
 				{/* Footer: date + stats + reply */}
-				<div className="mt-1.5 flex items-center justify-between text-[12px] text-dz-stats-text">
+				<div className="mt-1.5 flex items-center justify-between text-xs text-muted-foreground">
 					<span>{message.date}</span>
 					<div className="flex items-center gap-0">
 						<span>共{message.totalMessages}条</span>
 						<span className="mx-1.5">
 							<Search className="inline h-3 w-3" />
 						</span>
-						<span className="text-dz-topbar-separator mx-1">|</span>
+						<span className="text-border mx-1">|</span>
 						<Link href="#" className="text-primary hover:underline">
 							回复
 						</Link>
@@ -244,7 +244,7 @@ function MessageRow({ message }: { message: MessageItem }) {
 
 function MessageList({ messages }: { messages: MessageItem[] }) {
 	if (messages.length === 0) {
-		return <div className="py-12 text-center text-[13px] text-dz-stats-text">暂无消息</div>;
+		return <div className="py-12 text-center text-sm text-muted-foreground">暂无消息</div>;
 	}
 
 	return (

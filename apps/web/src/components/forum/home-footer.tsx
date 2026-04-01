@@ -26,13 +26,13 @@ function OnlineStatsBar({ vm }: { vm: HomeFooterViewModel }) {
 
 	return (
 		<div className="flex items-center justify-between rounded-sm border-l-[3px] border-l-green-500 bg-card px-4 py-2.5">
-			<p className="text-[13px] text-foreground">
+			<p className="text-sm text-foreground">
 				在线会员 - 总计 <span className="font-bold">{s.totalOnline}</span> 人在线 - 最高记录是{" "}
 				<span className="font-bold">{s.peakOnline}</span> 于 {s.peakDate}.
 			</p>
 			<button
 				type="button"
-				className="text-dz-stats-text hover:text-foreground transition-colors"
+				className="text-muted-foreground hover:text-foreground transition-colors"
 				aria-label="Settings"
 			>
 				<Settings className="h-4 w-4" />
@@ -52,10 +52,10 @@ function FriendLinksHeader() {
 			<ForumLogo height={31} />
 			{/* Text */}
 			<div>
-				<p className="text-[14px] font-bold text-foreground">
+				<p className="text-sm font-bold text-foreground">
 					同济大学-同济网-Tongji.Net-欢迎交换友情链接
 				</p>
-				<p className="mt-0.5 text-[12px] text-dz-stats-text">
+				<p className="mt-0.5 text-xs text-muted-foreground">
 					欢迎与我们交换链接，请在加上同济网论坛链接后发信给我们，链接文字： 同济大学同济网论坛
 				</p>
 			</div>
@@ -70,19 +70,19 @@ function FriendLinksHeader() {
 function FriendLinksGrid({ vm }: { vm: HomeFooterViewModel }) {
 	return (
 		<div className="rounded-sm border border-border bg-card px-4 py-3">
-			<div className="flex flex-wrap gap-x-6 gap-y-1.5 text-[13px]">
+			<div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
 				{vm.friendLinks.map((link) => (
 					<Link
 						key={link.label}
 						href={link.href}
-						className="text-dz-stats-text hover:text-primary transition-colors whitespace-nowrap"
+						className="text-muted-foreground hover:text-primary transition-colors whitespace-nowrap"
 					>
 						{link.label}
 					</Link>
 				))}
 				<Link
 					href="#"
-					className="text-dz-stats-text hover:text-primary transition-colors whitespace-nowrap"
+					className="text-muted-foreground hover:text-primary transition-colors whitespace-nowrap"
 				>
 					[更多友情链接]
 				</Link>
