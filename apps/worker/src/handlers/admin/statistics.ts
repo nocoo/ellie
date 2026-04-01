@@ -17,6 +17,10 @@ const statsConfig: EntityConfig = {
 	notFoundCode: "NOT_FOUND",
 };
 
+// D1 has a limit of 999 parameters per query
+const MAX_PARAMS = 500;
+const BATCH_SIZE = 500;
+
 // ─── POST /api/admin/statistics/recalc-forums ────────────────────────────────
 // Recalculate all forum counters: threads, posts, last_thread_id, etc.
 
@@ -123,8 +127,7 @@ export const recalcThreads = withEntityAuth(
 		}
 
 		// Optional: limit to specific forum
-		const forumId =
-			typeof body.forumId === "number" && body.forumId > 0 ? body.forumId : null;
+		const forumId = typeof body.forumId === "number" && body.forumId > 0 ? body.forumId : null;
 
 		// Get threads to update
 		let threads: D1Result;
@@ -135,9 +138,7 @@ export const recalcThreads = withEntityAuth(
 				.bind(forumId)
 				.all();
 		} else {
-			threads = await env.DB.prepare(
-				"SELECT id, created_at, author_name FROM threads",
-			).all();
+			threads = await env.DB.prepare("SELECT id, created_at, author_name FROM threads").all();
 		}
 
 		const threadData = threads.results as Array<{
@@ -150,15 +151,11 @@ export const recalcThreads = withEntityAuth(
 			return jsonResponse({ updated: 0 }, origin);
 		}
 
-		// Get reply counts per thread (excluding first post)
-		const threadIds = threadData.map((t) => t.id);
-		const placeholders = threadIds.map(() => "?").join(",");
-
+		// Build maps using full table scans (no WHERE IN limitation)
+		// Get reply counts per thread (count - 1 for excluding first post)
 		const replyCounts = await env.DB.prepare(
-			`SELECT thread_id, COUNT(*) - 1 as cnt FROM posts WHERE thread_id IN (${placeholders}) GROUP BY thread_id`,
-		)
-			.bind(...threadIds)
-			.all();
+			"SELECT thread_id, COUNT(*) - 1 as cnt FROM posts GROUP BY thread_id",
+		).all();
 		const replyMap = new Map(
 			replyCounts.results.map((r) => [
 				(r as { thread_id: number }).thread_id,
@@ -166,19 +163,16 @@ export const recalcThreads = withEntityAuth(
 			]),
 		);
 
-		// Get last post info per thread
+		// Get last post info per thread using a subquery
 		const lastPosts = await env.DB.prepare(`
 			SELECT p1.thread_id, p1.created_at, p1.author_name
 			FROM posts p1
 			INNER JOIN (
 				SELECT thread_id, MAX(created_at) as max_created_at
 				FROM posts
-				WHERE thread_id IN (${placeholders})
 				GROUP BY thread_id
 			) p2 ON p1.thread_id = p2.thread_id AND p1.created_at = p2.max_created_at
-		`)
-			.bind(...threadIds)
-			.all();
+		`).all();
 		const lastPostMap = new Map(
 			lastPosts.results.map((r) => [
 				(r as { thread_id: number }).thread_id,
@@ -203,15 +197,93 @@ export const recalcThreads = withEntityAuth(
 		});
 
 		// D1 batch has a limit, chunk if needed
-		const BATCH_SIZE = 500;
 		for (let i = 0; i < statements.length; i += BATCH_SIZE) {
 			await env.DB.batch(statements.slice(i, i + BATCH_SIZE));
 		}
 
-		return jsonResponse({ updated: threadData.length, forumId }, origin);
+		return jsonResponse({ updated: threadData.length }, origin);
 	},
 );
 
 // ─── POST /api/admin/statistics/recalc-users ─────────────────────────────────
-// Re-export from user.ts for convenience (already implemented there)
-export { batchRecalcCounters as recalcUsers } from "./user";
+// Recalculate all user counters: threads, posts, digest_posts.
+
+export const recalcUsers = withEntityAuth(
+	statsConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined;
+
+		let body: Record<string, unknown> = {};
+		try {
+			const text = await request.text();
+			if (text) body = JSON.parse(text) as Record<string, unknown>;
+		} catch {
+			// Empty body is fine
+		}
+
+		// Get user IDs to update
+		let userIds: number[];
+		if (Array.isArray(body.ids) && body.ids.length > 0) {
+			userIds = body.ids.map((id) => Number(id)).filter((id) => !Number.isNaN(id));
+		} else {
+			// Get all active users
+			const result = await env.DB.prepare("SELECT id FROM users WHERE status >= 0").all();
+			userIds = result.results.map((r) => (r as { id: number }).id);
+		}
+
+		if (userIds.length === 0) {
+			return jsonResponse({ updated: 0 }, origin);
+		}
+
+		// Build maps using full table scans (avoids WHERE IN parameter limits)
+		// Get thread counts per user
+		const threadCounts = await env.DB.prepare(
+			"SELECT author_id, COUNT(*) as cnt FROM threads GROUP BY author_id",
+		).all();
+		const threadMap = new Map(
+			threadCounts.results.map((r) => [
+				(r as { author_id: number }).author_id,
+				(r as { cnt: number }).cnt,
+			]),
+		);
+
+		// Get post counts per user
+		const postCounts = await env.DB.prepare(
+			"SELECT author_id, COUNT(*) as cnt FROM posts GROUP BY author_id",
+		).all();
+		const postMap = new Map(
+			postCounts.results.map((r) => [
+				(r as { author_id: number }).author_id,
+				(r as { cnt: number }).cnt,
+			]),
+		);
+
+		// Get digest counts per user
+		const digestCounts = await env.DB.prepare(
+			"SELECT author_id, COUNT(*) as cnt FROM threads WHERE digest > 0 GROUP BY author_id",
+		).all();
+		const digestMap = new Map(
+			digestCounts.results.map((r) => [
+				(r as { author_id: number }).author_id,
+				(r as { cnt: number }).cnt,
+			]),
+		);
+
+		// Batch update all users
+		const statements = userIds.map((uid) =>
+			env.DB.prepare("UPDATE users SET threads = ?, posts = ?, digest_posts = ? WHERE id = ?").bind(
+				threadMap.get(uid) ?? 0,
+				postMap.get(uid) ?? 0,
+				digestMap.get(uid) ?? 0,
+				uid,
+			),
+		);
+
+		// D1 batch has a limit, chunk if needed
+		for (let i = 0; i < statements.length; i += BATCH_SIZE) {
+			await env.DB.batch(statements.slice(i, i + BATCH_SIZE));
+		}
+
+		return jsonResponse({ updated: userIds.length }, origin);
+	},
+);
