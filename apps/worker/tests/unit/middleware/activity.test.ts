@@ -105,7 +105,8 @@ describe("trackActivity", () => {
 			expect(kvPut).toHaveBeenCalledWith(`activity_throttle:456`, String(NOW), { expirationTtl: 120 });
 
 			// Should update user with 0 additional minutes (first activity, gap > threshold)
-			expect(updateBind).toHaveBeenCalledWith(NOW, 0, 456);
+			// Now includes optimistic lock: bind(now, addMinutes, userId, old_last_activity)
+			expect(updateBind).toHaveBeenCalledWith(NOW, 0, 456, 0);
 		} finally {
 			Date.now = originalNow;
 		}
@@ -128,7 +129,8 @@ describe("trackActivity", () => {
 			await Promise.all(waitUntilPromises);
 
 			// gap = 600 seconds = 10 minutes, should add 10 minutes
-			expect(updateBind).toHaveBeenCalledWith(NOW, 10, 789);
+			// bind(now, addMinutes, userId, old_last_activity)
+			expect(updateBind).toHaveBeenCalledWith(NOW, 10, 789, lastActivity);
 		} finally {
 			Date.now = originalNow;
 		}
@@ -151,7 +153,8 @@ describe("trackActivity", () => {
 			await Promise.all(waitUntilPromises);
 
 			// gap > 30 minutes, should add 0 minutes (session break)
-			expect(updateBind).toHaveBeenCalledWith(NOW, 0, 111);
+			// bind(now, addMinutes, userId, old_last_activity)
+			expect(updateBind).toHaveBeenCalledWith(NOW, 0, 111, lastActivity);
 		} finally {
 			Date.now = originalNow;
 		}
@@ -199,7 +202,39 @@ describe("trackActivity", () => {
 			await Promise.all(waitUntilPromises);
 
 			// gap = 30 seconds < 60, should add 0 minutes
-			expect(updateBind).toHaveBeenCalledWith(NOW, 0, 222);
+			// bind(now, addMinutes, userId, old_last_activity)
+			expect(updateBind).toHaveBeenCalledWith(NOW, 0, 222, lastActivity);
+		} finally {
+			Date.now = originalNow;
+		}
+	});
+
+	it("should use optimistic locking to prevent concurrent overwrites", async () => {
+		// This test verifies the SQL includes the WHERE clause for optimistic locking
+		const lastActivity = NOW - 120; // 2 minutes ago
+		const { env, dbPrepare, updateBind } = createMockEnv({
+			throttleValue: null,
+			userData: { last_activity: lastActivity, ol_time: 50 },
+		});
+		const { ctx, waitUntilPromises } = createMockCtx();
+		const user = { userId: 333, role: 0 };
+
+		const originalNow = Date.now;
+		Date.now = () => NOW * 1000;
+
+		try {
+			await trackActivity(env, ctx, user);
+			await Promise.all(waitUntilPromises);
+
+			// Verify UPDATE SQL includes optimistic lock (WHERE last_activity = ?)
+			const updateCall = dbPrepare.mock.calls.find(
+				(call) => typeof call[0] === "string" && call[0].includes("UPDATE"),
+			);
+			expect(updateCall).toBeDefined();
+			expect(updateCall![0]).toContain("AND last_activity = ?");
+
+			// Verify bind includes old last_activity as 4th parameter
+			expect(updateBind).toHaveBeenCalledWith(NOW, 2, 333, lastActivity);
 		} finally {
 			Date.now = originalNow;
 		}

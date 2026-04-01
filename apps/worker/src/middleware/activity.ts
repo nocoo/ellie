@@ -13,7 +13,12 @@ const THROTTLE_SECONDS = 60; // Throttle: max once per minute per user
  * - Skip if updated within THROTTLE_SECONDS (via KV throttle key)
  * - Fetch user's last_activity and ol_time from D1
  * - If gap < ACTIVITY_THRESHOLD and gap >= 60s, add floor(gap/60) minutes to ol_time
- * - Update last_activity to now
+ * - Update last_activity to now (with optimistic locking to prevent concurrent overwrites)
+ *
+ * Concurrency safety:
+ * - Uses optimistic locking: UPDATE ... WHERE last_activity = <old_value>
+ * - If concurrent requests race, only one will match the WHERE clause
+ * - KV throttle provides first line of defense (most duplicates filtered)
  *
  * @param env - Worker environment
  * @param ctx - Execution context for waitUntil
@@ -43,14 +48,17 @@ export async function trackActivity(env: Env, ctx: ExecutionContext, user: AuthU
 	// - Otherwise add 0 (first activity or session break)
 	const addMinutes = gap < ACTIVITY_THRESHOLD && gap >= 60 ? Math.floor(gap / 60) : 0;
 
-	// Async writes: throttle marker + user update
+	// Async writes: throttle marker + user update with optimistic locking
 	ctx.waitUntil(
 		Promise.all([
 			// Set throttle marker (TTL slightly longer than throttle period)
 			env.KV.put(throttleKey, String(now), { expirationTtl: 120 }),
-			// Update user's last_activity and ol_time
-			env.DB.prepare("UPDATE users SET last_activity = ?, ol_time = ol_time + ? WHERE id = ?")
-				.bind(now, addMinutes, user.userId)
+			// Update user's last_activity and ol_time — optimistic lock on last_activity
+			// If concurrent request already updated, this WHERE won't match (0 rows affected)
+			env.DB.prepare(
+				"UPDATE users SET last_activity = ?, ol_time = ol_time + ? WHERE id = ? AND last_activity = ?",
+			)
+				.bind(now, addMinutes, user.userId, userData.last_activity)
 				.run(),
 		]),
 	);
