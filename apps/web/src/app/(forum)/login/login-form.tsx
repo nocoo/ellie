@@ -2,6 +2,7 @@
 
 // Ref: 04f §11 — Login page with shadcn Card/Input/Button/Label
 
+import { ForumLogo } from "@/components/forum/forum-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,11 +64,10 @@ function LoginFormInner() {
 				<div className="w-full max-w-sm">
 					{/* Logo */}
 					<div className="mb-6 text-center">
-						<div className="mx-auto h-14 w-14 rounded-full bg-primary flex items-center justify-center">
-							<span className="text-xl font-bold text-primary-foreground">E</span>
+						<div className="mx-auto flex items-center justify-center">
+							<ForumLogo height={56} />
 						</div>
-						<h1 className="mt-3 text-lg font-semibold text-foreground">Ellie</h1>
-						<p className="mt-1 text-sm text-muted-foreground">登录论坛</p>
+						<p className="mt-3 text-sm text-muted-foreground">登录论坛</p>
 					</div>
 
 					{/* Login card */}

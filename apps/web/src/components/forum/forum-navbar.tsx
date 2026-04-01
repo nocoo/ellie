@@ -4,6 +4,7 @@
 
 "use client";
 
+import { ForumLogo } from "@/components/forum/forum-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -80,7 +81,7 @@ export function ForumNavbar() {
 				{/* Left: Logo + nav links */}
 				<div className="flex items-center gap-6">
 					<Link href="/" className="flex items-center gap-2">
-						<span className="text-lg font-bold font-display text-primary">Ellie</span>
+						<ForumLogo height={24} />
 					</Link>
 
 					{/* Desktop nav */}
@@ -107,8 +108,8 @@ export function ForumNavbar() {
 								<Menu className="h-5 w-5" />
 							</SheetTrigger>
 							<SheetContent side="right" className="w-64">
-								<SheetTitle className="text-lg font-display font-bold text-primary">
-									Ellie
+								<SheetTitle className="flex items-center">
+									<ForumLogo height={24} />
 								</SheetTitle>
 								<nav className="mt-6 flex flex-col gap-4">
 									<NavLinks onClick={() => setOpen(false)} />
