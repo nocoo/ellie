@@ -317,7 +317,7 @@ export default function AttachmentsPage() {
 		page: 1,
 		pages: 0,
 		total: 0,
-		limit: 24,
+		limit: 100,
 	});
 	const [loading, setLoading] = useState(true);
 	const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
