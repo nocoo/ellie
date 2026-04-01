@@ -23,6 +23,7 @@ import {
 	stickyLabel,
 	updateThread,
 } from "@/viewmodels/admin/threads";
+import { formatNumber } from "@/viewmodels/shared/formatting";
 import { MoreHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -204,13 +205,13 @@ export default function ThreadsPage() {
 		{
 			key: "replies",
 			header: "回复",
-			cell: (row) => row.replies.toLocaleString(),
+			cell: (row) => formatNumber(row.replies),
 			className: "text-right",
 		},
 		{
 			key: "views",
 			header: "浏览",
-			cell: (row) => row.views.toLocaleString(),
+			cell: (row) => formatNumber(row.views),
 			className: "text-right",
 		},
 		{
