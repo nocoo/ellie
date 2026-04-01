@@ -1,17 +1,42 @@
 // Ellie API Worker — Cloudflare Worker with D1 + KV
 // 70 endpoints: 19 public + 5 moderation + 46 admin
 import type { CFRequest, Env } from "./lib/env";
+import { aggregateOnlineStats } from "./lib/online-stats";
+import { trackActivity } from "./middleware/activity";
 import { validateApiKey } from "./middleware/apiKey";
+import { authMiddleware } from "./middleware/auth";
 import { configureAllowedOrigins, corsHeaders } from "./middleware/cors";
 import { errorResponse } from "./middleware/error";
+import { trackOnline } from "./middleware/online";
 
 // ─── Router ───────────────────────────────────────────────────────
 
 export type { CFRequest, Env };
 
+/**
+ * Try to track authenticated user activity.
+ * Only triggers if Authorization header is valid — non-blocking via waitUntil.
+ */
+async function tryTrackAuth(
+	request: CFRequest,
+	env: Env,
+	ctx: ExecutionContext,
+): Promise<void> {
+	// Skip if no Authorization header
+	const authHeader = request.headers.get("Authorization");
+	if (!authHeader?.startsWith("Bearer ")) return;
+
+	// Try to authenticate — if successful, trigger tracking
+	const authResult = await authMiddleware(request, env);
+	if (!(authResult instanceof Response)) {
+		trackOnline(request, env, ctx, authResult.user);
+		trackActivity(env, ctx, authResult.user);
+	}
+}
+
 export default {
 	// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: flat router if-chain is intentionally sequential
-	async fetch(request: CFRequest, env: Env): Promise<Response> {
+	async fetch(request: CFRequest, env: Env, ctx: ExecutionContext): Promise<Response> {
 		const url = new URL(request.url);
 		const path = url.pathname;
 		const origin = request.headers.get("Origin") ?? undefined;
@@ -38,6 +63,10 @@ export default {
 			// API Key gate — all routes below require a valid X-API-Key header
 			const apiKeyError = validateApiKey(request, env, origin);
 			if (apiKeyError) return apiKeyError;
+
+			// Track authenticated user activity (non-blocking)
+			// Runs in background via waitUntil — doesn't affect response latency
+			ctx.waitUntil(tryTrackAuth(request, env, ctx));
 
 			// ── Public routes (#2-#11) ───────────────────────
 			if (path === "/api/v1/forums" && request.method === "GET") {
@@ -328,5 +357,10 @@ export default {
 				origin,
 			);
 		}
+	},
+
+	/** Scheduled handler — runs every 5 minutes to aggregate online stats */
+	async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+		ctx.waitUntil(aggregateOnlineStats(env));
 	},
 };
