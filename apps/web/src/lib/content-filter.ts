@@ -178,6 +178,40 @@ function cleanupCETagParser(html: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Legacy URL rewriting
+// ---------------------------------------------------------------------------
+
+// Old Discuz smiley/image URLs that need to be rewritten to CDN
+const LEGACY_SMILEY_URLS = [
+	"http://bbs.tongji.net/images/smiles/",
+	"https://bbs.tongji.net/images/smiles/",
+	"http://bbs.tongji.net/images/common/",
+	"https://bbs.tongji.net/images/common/",
+];
+
+const CDN_SMILEY_BASE = "https://t.no.mt/static/image/smiley/default/";
+const CDN_COMMON_BASE = "https://t.no.mt/static/image/common/";
+
+/**
+ * Rewrite legacy Discuz image URLs to CDN.
+ * Handles old bbs.tongji.net URLs that are no longer accessible.
+ */
+function rewriteLegacyUrls(html: string): string {
+	let result = html;
+
+	// Rewrite smiley URLs
+	for (const oldUrl of LEGACY_SMILEY_URLS) {
+		if (oldUrl.includes("/smiles/")) {
+			result = result.split(oldUrl).join(CDN_SMILEY_BASE);
+		} else if (oldUrl.includes("/common/")) {
+			result = result.split(oldUrl).join(CDN_COMMON_BASE);
+		}
+	}
+
+	return result;
+}
+
+// ---------------------------------------------------------------------------
 // Utility functions
 // ---------------------------------------------------------------------------
 
@@ -199,10 +233,11 @@ function escapeHtml(str: string): string {
  * Apply all content transformations for display.
  *
  * Pipeline order:
- * 1. Edit notices (before BBCode cleanup to avoid orphan tag issues)
- * 2. Legacy BBCode cleanup
- * 3. CETagParser cleanup
- * 4. Smiley codes
+ * 1. Legacy URL rewriting (fix old bbs.tongji.net image URLs)
+ * 2. Edit notices (before BBCode cleanup to avoid orphan tag issues)
+ * 3. Legacy BBCode cleanup
+ * 4. CETagParser cleanup
+ * 5. Smiley codes
  *
  * @param content - Raw HTML content from database
  * @returns Transformed HTML ready for rendering
@@ -212,16 +247,19 @@ export function filterContent(content: string): string {
 
 	let result = content;
 
-	// 1. Transform edit notices first
+	// 1. Rewrite legacy URLs first (before any other processing)
+	result = rewriteLegacyUrls(result);
+
+	// 2. Transform edit notices
 	result = transformEditNotices(result);
 
-	// 2. Clean up legacy BBCode
+	// 3. Clean up legacy BBCode
 	result = cleanupLegacyBBCode(result);
 
-	// 3. Clean up CETagParser artifacts
+	// 4. Clean up CETagParser artifacts
 	result = cleanupCETagParser(result);
 
-	// 4. Replace smiley codes with images
+	// 5. Replace smiley codes with images
 	result = replaceSmileyCodesWithImages(result);
 
 	return result;
@@ -232,6 +270,7 @@ export {
 	transformEditNotices,
 	cleanupLegacyBBCode,
 	cleanupCETagParser,
+	rewriteLegacyUrls,
 	escapeHtml,
 	RE_EDIT_NOTICE,
 	RE_FLY,

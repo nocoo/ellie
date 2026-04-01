@@ -3,6 +3,7 @@ import {
 	cleanupCETagParser,
 	cleanupLegacyBBCode,
 	filterContent,
+	rewriteLegacyUrls,
 	transformEditNotices,
 } from "../../../apps/web/src/lib/content-filter";
 
@@ -248,6 +249,46 @@ describe("cleanupCETagParser", () => {
 			"&lt;!-- CETagParser ~color=#9932CC\r\n&lt;font color=&quot;#9932CC&quot;&gt;紫色";
 		const result = cleanupCETagParser(input);
 		expect(result).toBe("紫色");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// rewriteLegacyUrls
+// ---------------------------------------------------------------------------
+
+describe("rewriteLegacyUrls", () => {
+	it("rewrites http://bbs.tongji.net/images/smiles/ to CDN", () => {
+		const input = '<img src="http://bbs.tongji.net/images/smiles/tounge_smile.gif">';
+		const result = rewriteLegacyUrls(input);
+		expect(result).toBe(
+			'<img src="https://t.no.mt/static/image/smiley/default/tounge_smile.gif">',
+		);
+	});
+
+	it("rewrites https://bbs.tongji.net/images/smiles/ to CDN", () => {
+		const input = '<img src="https://bbs.tongji.net/images/smiles/smile.gif">';
+		const result = rewriteLegacyUrls(input);
+		expect(result).toBe('<img src="https://t.no.mt/static/image/smiley/default/smile.gif">');
+	});
+
+	it("rewrites /images/common/ to CDN common path", () => {
+		const input = '<img src="http://bbs.tongji.net/images/common/back.gif">';
+		const result = rewriteLegacyUrls(input);
+		expect(result).toBe('<img src="https://t.no.mt/static/image/common/back.gif">');
+	});
+
+	it("handles multiple URLs in same content", () => {
+		const input =
+			'<img src="http://bbs.tongji.net/images/smiles/a.gif"> text <img src="http://bbs.tongji.net/images/smiles/b.gif">';
+		const result = rewriteLegacyUrls(input);
+		expect(result).toContain("https://t.no.mt/static/image/smiley/default/a.gif");
+		expect(result).toContain("https://t.no.mt/static/image/smiley/default/b.gif");
+	});
+
+	it("leaves other URLs unchanged", () => {
+		const input = '<img src="https://example.com/image.gif">';
+		const result = rewriteLegacyUrls(input);
+		expect(result).toBe(input);
 	});
 });
 
