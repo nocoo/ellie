@@ -45,7 +45,7 @@ export async function loadUserProfile(params: {
 			items: res.data,
 			nextCursor: res.meta.nextCursor,
 			prevCursor: params.cursor ?? null,
-			total: 0, // keyset pagination doesn't provide total
+			total: user.threads,
 		};
 	} else if (tab === "posts") {
 		const res = await forumApi.getCursor<Post>(`/api/v1/users/${params.userId}/posts`, {
@@ -56,7 +56,7 @@ export async function loadUserProfile(params: {
 			items: res.data,
 			nextCursor: res.meta.nextCursor,
 			prevCursor: params.cursor ?? null,
-			total: 0,
+			total: user.posts,
 		};
 	} else if (tab === "digest") {
 		try {
