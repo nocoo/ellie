@@ -7,6 +7,9 @@
  * - Global: powered-by, copyright, site links (below the divider)
  */
 
+import type { SettingsMap } from "./settings.server";
+import { getArr, getStr } from "./settings.server";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -38,6 +41,7 @@ export interface HomeFooterViewModel {
 
 /** Global footer section data (shared across all pages) */
 export interface GlobalFooterViewModel {
+	siteName: string;
 	quickLinks: FooterQuickLink[];
 	icpNumber: string;
 	poweredBy: string;
@@ -55,7 +59,7 @@ export const DEFAULT_ONLINE_STATS: OnlineStats = {
 	peakDate: "",
 };
 
-export const FRIEND_LINKS: FriendLink[] = [
+const DEFAULT_FRIEND_LINKS: FriendLink[] = [
 	{ label: "旺旺英语", href: "#" },
 	{ label: "沪江英语论坛", href: "#" },
 	{ label: "蓝色理想", href: "#" },
@@ -100,20 +104,28 @@ export const FOOTER_QUICK_LINKS: FooterQuickLink[] = [
 // ---------------------------------------------------------------------------
 
 export function buildHomeFooterViewModel(
+	settings: SettingsMap,
 	onlineStats: OnlineStats = DEFAULT_ONLINE_STATS,
 ): HomeFooterViewModel {
+	const friendLinks = getArr<{ label: string; url: string }>(
+		settings, "general.navigation.friend_links", [],
+	);
+
 	return {
 		onlineStats,
-		friendLinks: FRIEND_LINKS,
+		friendLinks: friendLinks.length > 0
+			? friendLinks.map((link) => ({ label: link.label, href: link.url }))
+			: DEFAULT_FRIEND_LINKS,
 	};
 }
 
-export function buildGlobalFooterViewModel(): GlobalFooterViewModel {
+export function buildGlobalFooterViewModel(settings: SettingsMap): GlobalFooterViewModel {
 	return {
+		siteName: getStr(settings, "general.site.name", "Ellie"),
 		quickLinks: FOOTER_QUICK_LINKS,
 		icpNumber: "沪ICP备05003615号",
-		poweredBy: "Discuz! X3.2",
+		poweredBy: getStr(settings, "general.site.powered_by", "Discuz! X3.2"),
 		copyrightYears: "2001-2013",
-		copyrightHolder: "Comsenz Inc.",
+		copyrightHolder: getStr(settings, "general.site.copyright", "Comsenz Inc."),
 	};
 }
