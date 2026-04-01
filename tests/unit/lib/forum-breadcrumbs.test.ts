@@ -130,21 +130,21 @@ describe("findForumAncestors", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildForumBreadcrumbs", () => {
-	it("returns only 首页 for empty ancestors", () => {
-		expect(buildForumBreadcrumbs([])).toEqual([{ label: "首页", href: "/" }]);
+	it("returns only home item for empty ancestors", () => {
+		expect(buildForumBreadcrumbs([])).toEqual([{ label: "同济网论坛", href: "/", icon: "home" }]);
 	});
 
-	it("returns [首页, forum] for root forum", () => {
+	it("returns [home, forum] for root forum", () => {
 		const ancestors = findForumAncestors(FORUMS, 1);
 		const items = buildForumBreadcrumbs(ancestors);
-		expect(items).toEqual([{ label: "首页", href: "/" }, { label: "技术分区" }]);
+		expect(items).toEqual([{ label: "同济网论坛", href: "/", icon: "home" }, { label: "技术分区" }]);
 	});
 
-	it("returns [首页, root→href, child] for depth-1 forum", () => {
+	it("returns [home, root→href, child] for depth-1 forum", () => {
 		const ancestors = findForumAncestors(FORUMS, 10);
 		const items = buildForumBreadcrumbs(ancestors);
 		expect(items).toEqual([
-			{ label: "首页", href: "/" },
+			{ label: "同济网论坛", href: "/", icon: "home" },
 			{ label: "技术分区", href: "/forums/1" },
 			{ label: "前端开发" },
 		]);
@@ -172,16 +172,16 @@ describe("buildForumBreadcrumbs", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildThreadBreadcrumbs", () => {
-	it("returns [首页, subject] when ancestors are empty", () => {
+	it("returns [home, subject] when ancestors are empty", () => {
 		const items = buildThreadBreadcrumbs([], "Test Thread");
-		expect(items).toEqual([{ label: "首页", href: "/" }, { label: "Test Thread" }]);
+		expect(items).toEqual([{ label: "同济网论坛", href: "/", icon: "home" }, { label: "Test Thread" }]);
 	});
 
 	it("all forum ancestors have href, thread subject does not", () => {
 		const ancestors = findForumAncestors(FORUMS, 100);
 		const items = buildThreadBreadcrumbs(ancestors, "React Hooks 教程");
 		expect(items).toEqual([
-			{ label: "首页", href: "/" },
+			{ label: "同济网论坛", href: "/", icon: "home" },
 			{ label: "技术分区", href: "/forums/1" },
 			{ label: "前端开发", href: "/forums/10" },
 			{ label: "React", href: "/forums/100" },
@@ -202,9 +202,9 @@ describe("buildThreadBreadcrumbs", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildUserBreadcrumbs", () => {
-	it("returns [首页, 用户, username]", () => {
+	it("returns [home, 用户, username]", () => {
 		const items = buildUserBreadcrumbs("alice");
-		expect(items).toEqual([{ label: "首页", href: "/" }, { label: "用户" }, { label: "alice" }]);
+		expect(items).toEqual([{ label: "同济网论坛", href: "/", icon: "home" }, { label: "用户" }, { label: "alice" }]);
 	});
 
 	it("用户 item has no href", () => {

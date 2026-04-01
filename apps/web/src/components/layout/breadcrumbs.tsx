@@ -1,5 +1,5 @@
 import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Home } from "lucide-react";
 import Link from "next/link";
 
 export type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
@@ -15,7 +15,11 @@ export function Breadcrumbs({ items }: BreadcrumbsProps) {
 				<span key={item.label} className="flex items-center gap-1">
 					{index > 0 && <ChevronRight className="h-3 w-3" />}
 					{item.href ? (
-						<Link href={item.href} className="hover:text-foreground transition-colors">
+						<Link
+							href={item.href}
+							className="flex items-center gap-1 hover:text-foreground transition-colors"
+						>
+							{item.icon === "home" && <Home className="h-3.5 w-3.5" />}
 							{item.label}
 						</Link>
 					) : (

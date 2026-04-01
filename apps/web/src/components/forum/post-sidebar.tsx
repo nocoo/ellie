@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getAvatarUrl } from "@/lib/avatar";
 import { formatDate } from "@/viewmodels/forum/thread-detail";
 import type { User } from "@ellie/types";
-import { Mail } from "lucide-react";
+import { Mail, Shield } from "lucide-react";
 import Link from "next/link";
 import { UserAvatar } from "./user-avatar";
 
@@ -38,12 +38,12 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 						<UserAvatar
 							src={getAvatarUrl(author.id, "big")}
 							alt={author.username}
-							className="block max-w-[140px] w-auto h-auto"
+							className="block w-[160px] h-auto"
 						/>
 					</div>
 				) : (
-					<Avatar className="h-20 w-20 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
-						<AvatarFallback className="text-xl rounded-sm">?</AvatarFallback>
+					<Avatar className="h-[160px] w-[160px] rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
+						<AvatarFallback className="text-3xl rounded-sm">?</AvatarFallback>
 					</Avatar>
 				)}
 			</Link>
@@ -53,87 +53,121 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 				<div className="mt-2 grid w-full grid-cols-3 text-center text-2xs divide-x divide-border">
 					<div className="py-1 px-0.5">
 						<div className="font-medium text-forum-link">{author.threads.toLocaleString()}</div>
-						<div className="text-forum-text-muted">主题</div>
+						<div className="text-[12px] text-forum-text-muted">主题</div>
 					</div>
 					<div className="py-1 px-0.5">
 						<div className="font-medium text-forum-link">{author.posts.toLocaleString()}</div>
-						<div className="text-forum-text-muted">帖子</div>
+						<div className="text-[12px] text-forum-text-muted">帖子</div>
 					</div>
 					<div className="py-1 px-0.5">
 						<div className="font-medium text-forum-link">{author.credits.toLocaleString()}</div>
-						<div className="text-forum-text-muted">积分</div>
+						<div className="text-[12px] text-forum-text-muted">积分</div>
 					</div>
 				</div>
 			)}
 
-			{/* Detail rows */}
+			{/* Detail rows — aligned label:value pairs */}
 			{author && (
 				<div className="w-full space-y-1 text-xs text-muted-foreground mt-1">
 					{/* Group title + level */}
 					{author.groupTitle && (
-						<div>
+						<div className="flex items-baseline justify-between gap-1">
+							<span className="shrink-0 text-forum-text-muted">头衔:</span>
 							<span
-								className="font-medium"
+								className="font-medium text-right"
 								style={author.groupColor ? { color: author.groupColor } : undefined}
 							>
 								{author.groupTitle}
 							</span>
-							{author.groupStars > 0 && (
-								<span className="ml-1 text-muted-foreground">Lv.{author.groupStars}</span>
-							)}
+						</div>
+					)}
+
+					{/* Level */}
+					{author.groupStars > 0 && (
+						<div className="flex items-baseline justify-between gap-1">
+							<span className="shrink-0 text-forum-text-muted">等级:</span>
+							<span>Lv.{author.groupStars}</span>
 						</div>
 					)}
 
 					{/* Custom title */}
 					{author.customTitle && (
-						<div className="text-forum-text-muted italic">{author.customTitle}</div>
+						<div className="flex items-baseline justify-between gap-1">
+							<span className="shrink-0 text-forum-text-muted">自定义:</span>
+							<span className="italic text-right truncate">{author.customTitle}</span>
+						</div>
 					)}
 
 					{/* UID */}
-					<div>
-						UID:{" "}
+					<div className="flex items-baseline justify-between gap-1">
+						<span className="shrink-0 text-forum-text-muted">UID:</span>
 						<Link href={`/users/${author.id}`} className="text-forum-link hover:underline">
 							{author.id}
 						</Link>
 					</div>
 
 					{/* Credits */}
-					<div>同钱: {author.credits.toLocaleString()}</div>
+					<div className="flex items-baseline justify-between gap-1">
+						<span className="shrink-0 text-forum-text-muted">同钱:</span>
+						<span>{author.credits.toLocaleString()}</span>
+					</div>
 
 					{/* Registration date */}
-					<div>注册时间: {formatDate(author.regDate)}</div>
+					<div className="flex items-baseline justify-between gap-1">
+						<span className="shrink-0 text-forum-text-muted">注册:</span>
+						<span>{formatDate(author.regDate)}</span>
+					</div>
 
 					{/* Online time */}
-					{author.olTime > 0 && <div>在线: {author.olTime.toLocaleString()} 小时</div>}
+					{author.olTime > 0 && (
+						<div className="flex items-baseline justify-between gap-1">
+							<span className="shrink-0 text-forum-text-muted">在线:</span>
+							<span>{author.olTime.toLocaleString()} 小时</span>
+						</div>
+					)}
 
 					{/* Digest posts */}
-					{author.digestPosts > 0 && <div>精华: {author.digestPosts}</div>}
+					{author.digestPosts > 0 && (
+						<div className="flex items-baseline justify-between gap-1">
+							<span className="shrink-0 text-forum-text-muted">精华:</span>
+							<span>{author.digestPosts}</span>
+						</div>
+					)}
+
+					{/* Thread stats — first post only */}
+					{isFirst && threadViews !== undefined && (
+						<div className="flex items-baseline justify-between gap-1">
+							<span className="shrink-0 text-forum-text-muted">查看:</span>
+							<span>{threadViews.toLocaleString()}</span>
+						</div>
+					)}
+					{isFirst && threadReplies !== undefined && (
+						<div className="flex items-baseline justify-between gap-1">
+							<span className="shrink-0 text-forum-text-muted">回复:</span>
+							<span>{threadReplies.toLocaleString()}</span>
+						</div>
+					)}
 				</div>
 			)}
 
-			{/* First-post thread stats */}
-			{isFirst && threadViews !== undefined && threadReplies !== undefined && (
-				<div className="text-xs text-muted-foreground self-start">
-					查看: {threadViews.toLocaleString()} / 回复: {threadReplies.toLocaleString()}
-				</div>
-			)}
-
-			{/* Send message link */}
+			{/* Message + Mod actions — single row */}
 			{author && (
-				<span className="flex items-center gap-1 text-xs text-forum-link cursor-pointer hover:underline mt-1 self-start">
-					<Mail className="h-3.5 w-3.5" />
-					发消息
-				</span>
-			)}
-
-			{/* Mod action row */}
-			{author && (
-				<div className="flex items-center gap-2 text-2xs text-forum-text-muted mt-2 flex-wrap self-start">
-					<span className="hover:text-forum-link cursor-pointer">IP</span>
-					<span className="hover:text-forum-link cursor-pointer">编辑</span>
-					<span className="hover:text-forum-link cursor-pointer">禁止</span>
-					<span className="hover:text-forum-link cursor-pointer">帖子</span>
-					<span className="hover:text-forum-link cursor-pointer">清理</span>
+				<div className="flex items-center gap-3 mt-1 self-start">
+					<Link
+						href={`/messages?to=${author.id}`}
+						className="flex items-center gap-1 text-xs text-forum-link hover:underline"
+					>
+						<Mail className="h-3.5 w-3.5" />
+						发消息
+					</Link>
+					<button
+						type="button"
+						className="flex items-center gap-1 text-xs text-forum-link hover:underline cursor-pointer transition-colors"
+						title="管理操作 (IP / 编辑 / 禁止 / 帖子 / 清理)"
+					>
+						<Shield className="h-3.5 w-3.5" />
+						管理
+					</button>
 				</div>
 			)}
 		</div>

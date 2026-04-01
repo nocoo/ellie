@@ -62,7 +62,7 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 	const { author } = post;
 
 	return (
-		<div className="rounded-xl border bg-card overflow-hidden">
+		<div className="rounded-lg border bg-card overflow-hidden">
 			{/* Floor header */}
 			<div className="flex items-center justify-between border-b bg-muted/30 px-4 py-2">
 				<div className="flex items-center gap-2 text-sm text-muted-foreground">

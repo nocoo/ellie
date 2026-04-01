@@ -9,4 +9,6 @@
 export interface BreadcrumbItem {
 	label: string;
 	href?: string;
+	/** Render a Home icon instead of the label text */
+	icon?: "home";
 }

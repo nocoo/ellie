@@ -165,7 +165,7 @@ export default function AttachmentsPage() {
 				<p className="mt-1 text-sm text-muted-foreground">管理文件附件</p>
 			</div>
 
-			<div className="rounded-xl border bg-card">
+			<div className="rounded-lg border bg-card">
 				<AdminDataTable
 					columns={columns}
 					data={data}

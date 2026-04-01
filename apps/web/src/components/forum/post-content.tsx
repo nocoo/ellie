@@ -35,8 +35,6 @@ export function PostContent({ post, isFirst, threadDigest, author, actionBar }: 
 				<div className="flex items-center gap-2 pb-2 border-b border-dashed border-border text-xs text-muted-foreground">
 					<SquarePen className="h-3.5 w-3.5 text-primary" />
 					<span>发表于 {formatDateTime(post.createdAt)}</span>
-					<span className="text-border">|</span>
-					<span className="text-forum-link hover:underline cursor-pointer">只看该作者</span>
 
 					{/* Digest badge — only first post when digest > 0 */}
 					{isFirst && threadDigest !== undefined && threadDigest > 0 && (

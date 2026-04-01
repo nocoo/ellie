@@ -1,10 +1,8 @@
-// components/forum/site-footer.tsx — Global Discuz-style site footer
-// Shared across ALL pages. Shows the powered-by line, copyright, and quick links.
-// The friend-links / online-stats section above is homepage-only (see home-footer.tsx).
+// components/forum/site-footer.tsx — Breathable site footer with background art
+// Layout: top padding for "breathing space" → content row → background image
+// Background image swaps between light/dark mode via CSS class visibility.
 
-import { cn } from "@/lib/utils";
 import type { GlobalFooterViewModel } from "@/viewmodels/forum/footer";
-import { Shield } from "lucide-react";
 import Link from "next/link";
 
 // ---------------------------------------------------------------------------
@@ -16,69 +14,90 @@ interface SiteFooterProps {
 }
 
 // ---------------------------------------------------------------------------
+// Background image URLs — light & dark variants
+// ---------------------------------------------------------------------------
+
+const BG_LIGHT = "https://t.no.mt/ellie/bg_footer_light_01.jpg";
+const BG_DARK = "https://t.no.mt/ellie/bg_footer_dark_01.jpg";
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export function SiteFooter({ vm }: SiteFooterProps) {
 	return (
-		<footer className="mt-auto border-t border-border bg-background">
-			{/* Row 1: Powered by + quick links + ICP + shield icon */}
-			<div className="width-container flex items-center justify-between !py-2">
-				{/* Left: Powered by */}
-				<div className="text-[12px] text-dz-stats-text">
-					Powered by{" "}
-					<Link href="#" className="font-bold text-foreground hover:underline">
-						{vm.poweredBy}
-					</Link>
-				</div>
+		<footer className="relative mt-16 overflow-hidden">
+			{/* ── Content area ── */}
+			<div className="width-container relative z-10 pb-8">
+				<div className="grid grid-cols-1 gap-8 sm:grid-cols-12">
+					{/* Left column: branding + copyright */}
+					<div className="sm:col-span-5">
+						<div className="mb-6">
+							<span className="text-lg font-bold tracking-tight text-foreground font-display">
+								同济网 TONGJI.NET
+							</span>
+						</div>
+						<p className="text-sm text-muted-foreground leading-relaxed">
+							&copy; 2002-{new Date().getFullYear()} TONGJI.NET, All rights reserved.
+						</p>
+					</div>
 
-				{/* Center: quick links + ICP */}
-				<div className="flex items-center gap-0 text-[12px]">
-					{vm.quickLinks.map((link, i) => (
-						<span key={link.label} className="flex items-center">
-							{i > 0 && <FooterSep />}
-							<Link
-								href={link.href}
-								className={cn(
-									"text-dz-stats-text hover:text-primary transition-colors",
-									i === 0 && "text-primary",
-								)}
-							>
-								{link.label}
-							</Link>
-						</span>
-					))}
-					<FooterSep />
-					<Link href="#" className="font-bold text-foreground hover:underline">
-						同济网（{vm.icpNumber}）
-					</Link>
-				</div>
+					{/* Center column: Navigation */}
+					<div className="sm:col-span-3 sm:col-start-7">
+						<h3 className="mb-4 text-sm font-medium text-muted-foreground">导航</h3>
+						<ul className="space-y-2.5">
+							{vm.quickLinks
+								.filter((l) => !l.href.startsWith("mailto:"))
+								.slice(0, 4)
+								.map((link) => (
+									<li key={link.label}>
+										<Link
+											href={link.href}
+											className="text-sm text-foreground hover:text-primary transition-colors"
+										>
+											{link.label}
+										</Link>
+									</li>
+								))}
+						</ul>
+					</div>
 
-				{/* Right: shield icon */}
-				<Shield className="h-5 w-5 text-primary" />
+					{/* Right column: Contact */}
+					<div className="sm:col-span-3 sm:col-start-10">
+						<h3 className="mb-4 text-sm font-medium text-muted-foreground">联系我们</h3>
+						<ul className="space-y-2.5">
+							<li>
+								<Link
+									href="mailto:hi@tongji.net"
+									className="text-sm text-foreground hover:text-primary transition-colors"
+								>
+									hi@tongji.net
+								</Link>
+							</li>
+							{vm.quickLinks.slice(4).map((link) => (
+								<li key={link.label}>
+									<Link
+										href={link.href}
+										className="text-sm text-foreground hover:text-primary transition-colors"
+									>
+										{link.label}
+									</Link>
+								</li>
+							))}
+						</ul>
+					</div>
+				</div>
 			</div>
 
-			{/* Row 2: Copyright + timestamp */}
-			<div className="width-container flex items-center justify-between !py-2 border-t border-border">
-				{/* Left: copyright */}
-				<div className="text-[12px] text-dz-stats-text">
-					&copy; {vm.copyrightYears} {vm.copyrightHolder}
-				</div>
-
-				{/* Right: timestamp + query stats */}
-				<div className="text-[12px] text-dz-stats-text">
-					GMT+8, {new Date().toISOString().slice(0, 10)} {new Date().toTimeString().slice(0, 5)} ,
-					Processed in 0.043491 second(s), 777 queries .
+			{/* ── Background image — 125% content width and centered ── */}
+			<div className="width-container relative -mt-16 -top-[250px] mb-[-250px]">
+				<div className="mx-[-12.5%]">
+					{/* Light mode image */}
+					<img src={BG_LIGHT} alt="" aria-hidden="true" className="w-full dark:hidden" />
+					{/* Dark mode image */}
+					<img src={BG_DARK} alt="" aria-hidden="true" className="w-full hidden dark:block" />
 				</div>
 			</div>
 		</footer>
 	);
-}
-
-// ---------------------------------------------------------------------------
-// Utility
-// ---------------------------------------------------------------------------
-
-function FooterSep() {
-	return <span className="mx-1.5 text-dz-topbar-separator select-none">|</span>;
 }
