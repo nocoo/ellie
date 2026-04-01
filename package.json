@@ -3,20 +3,21 @@
 	"version": "0.1.0",
 	"private": true,
 	"type": "module",
+	"workspaces": ["apps/*", "packages/*"],
 	"scripts": {
-		"dev": "pnpm --filter web dev",
-		"build": "pnpm --filter web build",
-		"start": "pnpm --filter web start",
-		"migrate": "pnpm --filter migrate start",
-		"cli": "pnpm --filter cli start",
-		"worker:dev": "pnpm --filter worker dev",
-		"worker:deploy": "pnpm --filter worker deploy",
+		"dev": "bun run --filter web dev",
+		"build": "bun run --filter web build",
+		"start": "bun run --filter web start",
+		"migrate": "bun run --filter migrate start",
+		"cli": "bun run --filter cli start",
+		"worker:dev": "bun run --filter '@ellie/worker' dev",
+		"worker:deploy": "bun run --filter '@ellie/worker' deploy",
 		"tui": "bun --bun run scripts/tui.ts",
-		"test": "pnpm -r test",
-		"test:unit": "pnpm -r --filter '!**/e2e' run test:unit",
-		"test:integration": "pnpm -r run test:integration",
-		"test:e2e": "pnpm --filter web run test:e2e",
-		"typecheck": "pnpm -r exec tsc --noEmit",
+		"test": "bun run --filter '*' test",
+		"test:unit": "bun run --filter '*' test:unit",
+		"test:integration": "bun run --filter '*' test:integration",
+		"test:e2e": "bun run --filter web test:e2e",
+		"typecheck": "bun run --filter '*' typecheck",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",
@@ -41,7 +42,7 @@
 	"trustedDependencies": ["@biomejs/biome"],
 	"engines": {
 		"node": ">=22",
-		"pnpm": ">=9"
+		"bun": ">=1.0"
 	},
 	"lint-staged": {
 		"*.{ts,tsx,js,jsx,json,css,md}": ["biome check --no-errors-on-unmatched"]

@@ -9,7 +9,7 @@ dist/
 .next/
 
 # Bun
-bun.lock
+bun.lockb
 
 # Migration output
 output/
