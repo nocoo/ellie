@@ -412,7 +412,10 @@ mod tests {
 
 	#[test]
 	fn list_state_jump_top_and_bottom() {
-		let mut ls = ListState { selected_row: 5, ..Default::default() };
+		let mut ls = ListState {
+			selected_row: 5,
+			..Default::default()
+		};
 		ls.jump_top();
 		assert_eq!(ls.selected_row, 0);
 
@@ -444,7 +447,10 @@ mod tests {
 
 	#[test]
 	fn list_state_page_up() {
-		let mut ls = ListState { selected_row: 15, ..Default::default() };
+		let mut ls = ListState {
+			selected_row: 15,
+			..Default::default()
+		};
 		ls.page_up(5);
 		assert_eq!(ls.selected_row, 10);
 		ls.page_up(5);
@@ -462,7 +468,10 @@ mod tests {
 
 	#[test]
 	fn list_state_selected_index_no_filter() {
-		let ls = ListState { selected_row: 3, ..Default::default() };
+		let ls = ListState {
+			selected_row: 3,
+			..Default::default()
+		};
 		assert_eq!(ls.selected_index(), 3);
 	}
 
@@ -501,7 +510,10 @@ mod tests {
 
 	#[test]
 	fn list_state_filter_clamps_selection() {
-		let mut ls = ListState { selected_row: 5, ..Default::default() };
+		let mut ls = ListState {
+			selected_row: 5,
+			..Default::default()
+		};
 		let items = vec!["apple", "banana"];
 		ls.search_query = "x".to_string(); // nothing matches
 		ls.apply_filter(&items, |item, q| item.contains(q));
