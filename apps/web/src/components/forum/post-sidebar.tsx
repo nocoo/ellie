@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getAvatarUrl } from "@/lib/avatar";
 import { formatDate } from "@/viewmodels/forum/thread-detail";
 import type { User } from "@ellie/types";
-import { Mail } from "lucide-react";
+import { Shield } from "lucide-react";
 import Link from "next/link";
 import { UserAvatar } from "./user-avatar";
 
@@ -143,23 +143,16 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 				</div>
 			)}
 
-			{/* Send message link */}
+			{/* Mod action button — visible to admins/mods */}
 			{author && (
-				<span className="flex items-center gap-1 text-xs text-forum-link cursor-pointer hover:underline mt-1 self-start">
-					<Mail className="h-3.5 w-3.5" />
-					发消息
-				</span>
-			)}
-
-			{/* Mod action row */}
-			{author && (
-				<div className="flex items-center gap-2 text-2xs text-forum-text-muted mt-2 flex-wrap self-start">
-					<span className="hover:text-forum-link cursor-pointer">IP</span>
-					<span className="hover:text-forum-link cursor-pointer">编辑</span>
-					<span className="hover:text-forum-link cursor-pointer">禁止</span>
-					<span className="hover:text-forum-link cursor-pointer">帖子</span>
-					<span className="hover:text-forum-link cursor-pointer">清理</span>
-				</div>
+				<button
+					type="button"
+					className="flex items-center gap-1 text-xs text-forum-text-muted hover:text-forum-link cursor-pointer mt-2 self-start transition-colors"
+					title="管理操作 (IP / 编辑 / 禁止 / 帖子 / 清理 / 发消息)"
+				>
+					<Shield className="h-3.5 w-3.5" />
+					管理
+				</button>
 			)}
 		</div>
 	);
