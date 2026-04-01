@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getAvatarUrl } from "@/lib/avatar";
 import { formatDate } from "@/viewmodels/forum/thread-detail";
 import type { User } from "@ellie/types";
-import { Shield } from "lucide-react";
+import { Mail, Shield } from "lucide-react";
 import Link from "next/link";
 import { UserAvatar } from "./user-avatar";
 
@@ -38,7 +38,7 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 						<UserAvatar
 							src={getAvatarUrl(author.id, "big")}
 							alt={author.username}
-							className="block max-w-[140px] w-auto h-auto"
+							className="block w-[160px] h-auto"
 						/>
 					</div>
 				) : (
@@ -133,14 +133,32 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 							<span>{author.digestPosts}</span>
 						</div>
 					)}
+
+					{/* Thread stats — first post only */}
+					{isFirst && threadViews !== undefined && (
+						<div className="flex items-baseline justify-between gap-1">
+							<span className="shrink-0 text-forum-text-muted">查看:</span>
+							<span>{threadViews.toLocaleString()}</span>
+						</div>
+					)}
+					{isFirst && threadReplies !== undefined && (
+						<div className="flex items-baseline justify-between gap-1">
+							<span className="shrink-0 text-forum-text-muted">回复:</span>
+							<span>{threadReplies.toLocaleString()}</span>
+						</div>
+					)}
 				</div>
 			)}
 
-			{/* First-post thread stats */}
-			{isFirst && threadViews !== undefined && threadReplies !== undefined && (
-				<div className="text-xs text-muted-foreground self-start">
-					查看: {threadViews.toLocaleString()} / 回复: {threadReplies.toLocaleString()}
-				</div>
+			{/* Send message link */}
+			{author && (
+				<Link
+					href={`/messages?to=${author.id}`}
+					className="flex items-center gap-1 text-xs text-forum-link hover:underline mt-1 self-start"
+				>
+					<Mail className="h-3.5 w-3.5" />
+					发消息
+				</Link>
 			)}
 
 			{/* Mod action button — visible to admins/mods */}
