@@ -1,7 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
 	DEFAULT_STATS,
-	HEADER_NAV_TABS,
 	HOT_KEYWORDS,
 	type HeaderStats,
 	type HeaderUserInfo,
@@ -13,8 +12,10 @@ import {
 // ---------------------------------------------------------------------------
 
 describe("buildHeaderViewModel", () => {
-	it("returns null user and zero stats when called with no args", () => {
-		const vm = buildHeaderViewModel();
+	const emptySettings = {};
+
+	it("returns null user and zero stats when called with empty settings", () => {
+		const vm = buildHeaderViewModel(emptySettings);
 		expect(vm.user).toBeNull();
 		expect(vm.stats.todayPosts).toBe(0);
 		expect(vm.stats.yesterdayPosts).toBe(0);
@@ -31,7 +32,7 @@ describe("buildHeaderViewModel", () => {
 			credits: 500,
 			reminderCount: 3,
 		};
-		const vm = buildHeaderViewModel(user);
+		const vm = buildHeaderViewModel(emptySettings, user);
 		expect(vm.user).toEqual(user);
 	});
 
@@ -43,16 +44,42 @@ describe("buildHeaderViewModel", () => {
 			totalMembers: 1234,
 			newestMember: "bob",
 		};
-		const vm = buildHeaderViewModel(null, stats);
+		const vm = buildHeaderViewModel(emptySettings, null, stats);
 		expect(vm.stats).toEqual(stats);
 	});
 
 	it("always includes navTabs and hotKeywords", () => {
-		const vm = buildHeaderViewModel();
-		expect(vm.navTabs).toBe(HEADER_NAV_TABS);
-		expect(vm.hotKeywords).toBe(HOT_KEYWORDS);
+		const vm = buildHeaderViewModel(emptySettings);
 		expect(vm.navTabs.length).toBeGreaterThan(0);
+		expect(vm.hotKeywords).toBe(HOT_KEYWORDS);
 		expect(vm.hotKeywords.length).toBeGreaterThan(0);
+	});
+
+	it("uses custom navTabs from settings when provided", () => {
+		const settings = {
+			"general.navigation.header_links": [
+				{ label: "Home", url: "/" },
+				{ label: "About", url: "/about" },
+			],
+		};
+		const vm = buildHeaderViewModel(settings);
+		expect(vm.navTabs).toEqual([
+			{ label: "Home", href: "/" },
+			{ label: "About", href: "/about" },
+		]);
+	});
+
+	it("includes avatarCdnBase from settings", () => {
+		const settings = {
+			"general.assets.avatar_cdn_base": "https://cdn.example.com/avatars",
+		};
+		const vm = buildHeaderViewModel(settings);
+		expect(vm.avatarCdnBase).toBe("https://cdn.example.com/avatars");
+	});
+
+	it("uses default avatarCdnBase when not in settings", () => {
+		const vm = buildHeaderViewModel(emptySettings);
+		expect(vm.avatarCdnBase).toBe("https://t.no.mt/avatar");
 	});
 });
 

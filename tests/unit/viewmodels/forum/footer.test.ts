@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
 	DEFAULT_ONLINE_STATS,
-	FRIEND_LINKS,
+	FOOTER_QUICK_LINKS,
 	type OnlineStats,
 	buildGlobalFooterViewModel,
 	buildHomeFooterViewModel,
@@ -12,8 +12,10 @@ import {
 // ---------------------------------------------------------------------------
 
 describe("buildHomeFooterViewModel", () => {
-	it("returns default zero stats when called with no args", () => {
-		const vm = buildHomeFooterViewModel();
+	const emptySettings = {};
+
+	it("returns default zero stats when called with empty settings", () => {
+		const vm = buildHomeFooterViewModel(emptySettings);
 		expect(vm.onlineStats.totalOnline).toBe(0);
 		expect(vm.onlineStats.peakOnline).toBe(0);
 		expect(vm.onlineStats.peakDate).toBe("");
@@ -25,14 +27,27 @@ describe("buildHomeFooterViewModel", () => {
 			peakOnline: 999,
 			peakDate: "2024-01-15",
 		};
-		const vm = buildHomeFooterViewModel(stats);
+		const vm = buildHomeFooterViewModel(emptySettings, stats);
 		expect(vm.onlineStats).toEqual(stats);
 	});
 
-	it("always includes friend links", () => {
-		const vm = buildHomeFooterViewModel();
-		expect(vm.friendLinks).toBe(FRIEND_LINKS);
+	it("includes default friend links when not in settings", () => {
+		const vm = buildHomeFooterViewModel(emptySettings);
 		expect(vm.friendLinks.length).toBeGreaterThan(0);
+	});
+
+	it("uses custom friend links from settings when provided", () => {
+		const settings = {
+			"general.navigation.friend_links": [
+				{ label: "Link A", url: "https://a.com" },
+				{ label: "Link B", url: "https://b.com" },
+			],
+		};
+		const vm = buildHomeFooterViewModel(settings);
+		expect(vm.friendLinks).toEqual([
+			{ label: "Link A", href: "https://a.com" },
+			{ label: "Link B", href: "https://b.com" },
+		]);
 	});
 });
 
@@ -41,11 +56,27 @@ describe("buildHomeFooterViewModel", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildGlobalFooterViewModel", () => {
+	const emptySettings = {};
+
 	it("returns footer with quick links and copyright", () => {
-		const vm = buildGlobalFooterViewModel();
+		const vm = buildGlobalFooterViewModel(emptySettings);
+		expect(vm.quickLinks).toBe(FOOTER_QUICK_LINKS);
 		expect(vm.quickLinks.length).toBeGreaterThan(0);
 		expect(vm.icpNumber).toBeTruthy();
 		expect(vm.copyrightHolder).toBeTruthy();
+	});
+
+	it("uses siteName from settings", () => {
+		const settings = {
+			"general.site.name": "My Forum",
+		};
+		const vm = buildGlobalFooterViewModel(settings);
+		expect(vm.siteName).toBe("My Forum");
+	});
+
+	it("uses default siteName when not in settings", () => {
+		const vm = buildGlobalFooterViewModel(emptySettings);
+		expect(vm.siteName).toBe("Ellie");
 	});
 });
 
