@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { getAvatarUrl } from "@/lib/avatar";
+import { getStaticImageUrl } from "@/lib/cdn";
 import { buildUserBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import { formatStat, formatTime } from "@/viewmodels/forum/thread-list";
 import {
@@ -18,7 +19,6 @@ import {
 } from "@/viewmodels/forum/user-profile";
 import { type UserProfileData, loadUserProfile } from "@/viewmodels/forum/user-profile.server";
 import { parseIntParam } from "@/viewmodels/shared/params";
-import { UserRound } from "lucide-react";
 import Link from "next/link";
 
 interface UserProfilePageProps {
@@ -92,8 +92,8 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 								alt={data.user.username}
 								className="rounded-sm"
 							/>
-							<AvatarFallback className="text-lg rounded-sm bg-muted">
-								<UserRound className="h-10 w-10 text-forum-text-muted" strokeWidth={1.2} />
+							<AvatarFallback className="text-lg rounded-sm bg-muted p-0 overflow-hidden">
+								<img src={getStaticImageUrl("tavatar.gif")} alt="" className="h-full w-full object-cover" />
 							</AvatarFallback>
 						</Avatar>
 						<div className="min-w-0 flex-1">
