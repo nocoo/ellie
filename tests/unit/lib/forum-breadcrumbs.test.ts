@@ -137,7 +137,10 @@ describe("buildForumBreadcrumbs", () => {
 	it("returns [home, forum] for root forum", () => {
 		const ancestors = findForumAncestors(FORUMS, 1);
 		const items = buildForumBreadcrumbs(ancestors);
-		expect(items).toEqual([{ label: "同济网论坛", href: "/", icon: "home" }, { label: "技术分区" }]);
+		expect(items).toEqual([
+			{ label: "同济网论坛", href: "/", icon: "home" },
+			{ label: "技术分区" },
+		]);
 	});
 
 	it("returns [home, root→href, child] for depth-1 forum", () => {
@@ -174,7 +177,10 @@ describe("buildForumBreadcrumbs", () => {
 describe("buildThreadBreadcrumbs", () => {
 	it("returns [home, subject] when ancestors are empty", () => {
 		const items = buildThreadBreadcrumbs([], "Test Thread");
-		expect(items).toEqual([{ label: "同济网论坛", href: "/", icon: "home" }, { label: "Test Thread" }]);
+		expect(items).toEqual([
+			{ label: "同济网论坛", href: "/", icon: "home" },
+			{ label: "Test Thread" },
+		]);
 	});
 
 	it("all forum ancestors have href, thread subject does not", () => {
@@ -204,7 +210,11 @@ describe("buildThreadBreadcrumbs", () => {
 describe("buildUserBreadcrumbs", () => {
 	it("returns [home, 用户, username]", () => {
 		const items = buildUserBreadcrumbs("alice");
-		expect(items).toEqual([{ label: "同济网论坛", href: "/", icon: "home" }, { label: "用户" }, { label: "alice" }]);
+		expect(items).toEqual([
+			{ label: "同济网论坛", href: "/", icon: "home" },
+			{ label: "用户" },
+			{ label: "alice" },
+		]);
 	});
 
 	it("用户 item has no href", () => {

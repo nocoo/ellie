@@ -49,6 +49,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 			<head>
 				{/* Inline script in <head> prevents FOUC by setting .dark + color-scheme
 				    before the browser's first paint. Must NOT be an external script. */}
+				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: inline script must run in <head> before first paint to prevent FOUC */}
 				<script dangerouslySetInnerHTML={{ __html: fouc_prevention_script }} />
 			</head>
 			<body>
