@@ -5,6 +5,7 @@ import {
 	comcomFilename,
 	coolmonkeyFilename,
 	escapeAttr,
+	numberedFilename,
 	replaceSmileyCodesWithImages,
 } from "@/lib/smiley";
 
@@ -88,8 +89,8 @@ describe("comcomFilename", () => {
 // ── Named code mapping ─────────────────────────────────────────────
 
 describe("NAMED_SMILEY_SET", () => {
-	test("contains 32 named codes", () => {
-		expect(NAMED_SMILEY_SET.size).toBe(32);
+	test("contains at least 35 named codes (32 original + extras)", () => {
+		expect(NAMED_SMILEY_SET.size).toBeGreaterThanOrEqual(35);
 	});
 
 	test("contains original 24 codes", () => {
@@ -113,6 +114,12 @@ describe("NAMED_SMILEY_SET", () => {
 		}
 	});
 
+	test("contains Discuz common codes (unhappy, bigsmile, ico29)", () => {
+		for (const name of ["unhappy", "bigsmile", "ico29"]) {
+			expect(NAMED_SMILEY_SET.has(name)).toBe(true);
+		}
+	});
+
 	test("all values end with .gif", () => {
 		for (const file of Object.values(NAMED_SMILEYS)) {
 			expect(file).toMatch(/\.gif$/);
@@ -123,6 +130,33 @@ describe("NAMED_SMILEY_SET", () => {
 		for (const file of Object.values(NAMED_SMILEYS)) {
 			expect(file).toMatch(/^[a-z0-9]+\.gif$/);
 		}
+	});
+});
+
+// ── numberedFilename ─────────────────────────────────────────────────
+
+describe("numberedFilename", () => {
+	test("maps 1 → 1.gif", () => {
+		expect(numberedFilename(1)).toBe("1.gif");
+	});
+
+	test("maps 16 → 16.gif", () => {
+		expect(numberedFilename(16)).toBe("16.gif");
+	});
+
+	test("maps 8 → 8.gif", () => {
+		expect(numberedFilename(8)).toBe("8.gif");
+	});
+
+	test("returns null for out-of-range IDs", () => {
+		expect(numberedFilename(0)).toBeNull();
+		expect(numberedFilename(17)).toBeNull();
+		expect(numberedFilename(-1)).toBeNull();
+	});
+
+	test("returns null for non-integer IDs", () => {
+		expect(numberedFilename(1.5)).toBeNull();
+		expect(numberedFilename(Number.NaN)).toBeNull();
 	});
 });
 
@@ -185,6 +219,25 @@ describe("replaceSmileyCodesWithImages", () => {
 		);
 	});
 
+	test("replaces :ico29: with default/ico29.gif", () => {
+		const result = replaceSmileyCodesWithImages(":ico29:");
+		expect(result).toBe(`<img src="${CDN}/default/ico29.gif" alt=":ico29:" class="smiley" />`);
+	});
+
+	test("replaces :unhappy: with default/unhappy.gif", () => {
+		const result = replaceSmileyCodesWithImages(":unhappy:");
+		expect(result).toBe(
+			`<img src="${CDN}/default/unhappy.gif" alt=":unhappy:" class="smiley" />`,
+		);
+	});
+
+	test("replaces :bigsmile: with default/bigsmile.gif", () => {
+		const result = replaceSmileyCodesWithImages(":bigsmile:");
+		expect(result).toBe(
+			`<img src="${CDN}/default/bigsmile.gif" alt=":bigsmile:" class="smiley" />`,
+		);
+	});
+
 	test("replaces multiple named codes", () => {
 		const result = replaceSmileyCodesWithImages(":smile::victory:");
 		expect(result).toContain("smile.gif");
@@ -193,6 +246,26 @@ describe("replaceSmileyCodesWithImages", () => {
 
 	test("leaves unknown named codes unchanged", () => {
 		expect(replaceSmileyCodesWithImages(":unknown:")).toBe(":unknown:");
+	});
+
+	// ── Numbered :N: codes ─────────────────────────────────────────────
+
+	test("replaces :1: with default/1.gif", () => {
+		const result = replaceSmileyCodesWithImages(":1:");
+		expect(result).toBe(`<img src="${CDN}/default/1.gif" alt=":1:" class="smiley" />`);
+	});
+
+	test("replaces :16: with default/16.gif", () => {
+		const result = replaceSmileyCodesWithImages(":16:");
+		expect(result).toBe(`<img src="${CDN}/default/16.gif" alt=":16:" class="smiley" />`);
+	});
+
+	test("leaves :17: unchanged (out of range)", () => {
+		expect(replaceSmileyCodesWithImages(":17:")).toBe(":17:");
+	});
+
+	test("leaves :0: unchanged (out of range)", () => {
+		expect(replaceSmileyCodesWithImages(":0:")).toBe(":0:");
 	});
 
 	// ── Coolmonkey {:2_NNN:} ────────────────────────────────────────
@@ -259,8 +332,9 @@ describe("replaceSmileyCodesWithImages", () => {
 		expect(replaceSmileyCodesWithImages(css)).toBe(css);
 	});
 
-	test("does not replace colons around pure numbers", () => {
+	test("does not replace colons around pure numbers outside valid range", () => {
 		expect(replaceSmileyCodesWithImages(":123:")).toBe(":123:");
+		expect(replaceSmileyCodesWithImages(":99:")).toBe(":99:");
 	});
 
 	// ── Injection prevention ────────────────────────────────────────
