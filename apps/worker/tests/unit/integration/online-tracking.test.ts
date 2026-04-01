@@ -28,7 +28,7 @@ const canRunIntegration = (() => {
 describe.skipIf(!canRunIntegration)("online tracking integration", () => {
 	// Dynamic import to avoid parse-time errors in isolated environments
 	const getWorker = async () => (await import("../../../src/index")).default;
-	const getSignJwt = async () => (await import("../../../src/lib/jwt")).signJwt;
+	const getSignJwt = async () => (await import("../../../src/lib/jwt")).createJwt;
 
 	const TEST_API_KEY = "test-api-key";
 	const JWT_SECRET = "test-secret";
@@ -119,9 +119,9 @@ describe.skipIf(!canRunIntegration)("online tracking integration", () => {
 
 	/** Create a valid JWT for testing */
 	async function createTestJwt(userId: number, role: number) {
-		const signJwt = await getSignJwt();
+		const createJwt = await getSignJwt();
 		const exp = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
-		return signJwt({ userId, role, exp }, JWT_SECRET);
+		return createJwt({ userId, role, exp }, JWT_SECRET);
 	}
 
 	it("should trigger online tracking for authenticated requests", async () => {

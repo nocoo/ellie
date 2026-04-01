@@ -468,6 +468,7 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 					}),
 				),
 				env,
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(500);
@@ -515,6 +516,7 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 					}),
 				),
 				env,
+				makeCtx(),
 			);
 
 			// Handler succeeds (KV.delete is fire-and-forget)
