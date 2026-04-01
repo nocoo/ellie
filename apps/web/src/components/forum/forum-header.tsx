@@ -113,7 +113,7 @@ function NavBar({ vm }: { vm: HeaderViewModel }) {
 
 	return (
 		<div className="nav-gradient">
-			<div className="width-container flex items-center !py-0 h-[48px]">
+			<div className="width-container flex items-center !py-0 h-[40px]">
 				{vm.navTabs.map((tab) => {
 					const isActive = tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
 
@@ -122,8 +122,8 @@ function NavBar({ vm }: { vm: HeaderViewModel }) {
 							key={tab.href}
 							href={tab.href}
 							className={cn(
-								"h-full flex items-center px-4 text-[14px] font-bold text-white/90 transition-colors hover:bg-white/10",
-								isActive && "bg-white/10 text-white",
+								"h-full flex items-center px-4 text-[14px] font-bold text-dz-nav-text transition-colors hover:bg-white/10",
+								isActive && "bg-white/10",
 							)}
 						>
 							{tab.label}
