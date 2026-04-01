@@ -11,47 +11,52 @@
 import { getSmileyUrl } from "./cdn";
 
 // ---------------------------------------------------------------------------
-// Named smiley codes → default/*.gif  (includes Discuz common smileys)
+// Named smiley codes → default/*.gif
+// All files verified to exist on CDN (https://t.no.mt/static/image/smiley/default/)
 // ---------------------------------------------------------------------------
 
 const NAMED_SMILEYS: Record<string, string> = {
-	// Original 32 smileys
-	smile: "smile.gif",
+	// Core emoticons
+	angry: "angry.gif",
 	biggrin: "biggrin.gif",
-	cry: "cry.gif",
-	sweat: "sweat.gif",
-	huffy: "huffy.gif",
-	curse: "curse.gif",
-	shy: "shy.gif",
-	lol: "lol.gif",
-	funk: "funk.gif",
-	loveliness: "loveliness.gif",
-	handshake: "handshake.gif",
-	victory: "victory.gif",
-	time: "time.gif",
-	kiss: "kiss.gif",
-	hug: "hug.gif",
-	titter: "titter.gif",
+	bigsmile: "bigsmile.gif",
 	call: "call.gif",
+	cool: "cool.gif",
+	crazy: "crazy.gif",
+	cry: "cry.gif",
+	curse: "curse.gif",
 	dizzy: "dizzy.gif",
-	shutup: "shutup.gif",
-	sleepy: "sleepy.gif",
+	dozingoff: "dozingoff.gif",
+	funk: "funk.gif",
+	handshake: "handshake.gif",
+	hug: "hug.gif",
+	huffy: "huffy.gif",
+	kiss: "kiss.gif",
+	laugh: "laugh.gif",
+	lol: "lol.gif",
+	loveliness: "loveliness.gif",
 	mad: "mad.gif",
-	tongue: "tongue.gif",
+	rolleyes: "rolleyes.gif",
 	sad: "sad.gif",
 	shocked: "shocked.gif",
-	cool: "cool.gif",
+	shutup: "shutup.gif",
+	shy: "shy.gif",
+	sleepy: "sleepy.gif",
+	smile: "smile.gif",
+	sweat: "sweat.gif",
+	time: "time.gif",
+	titter: "titter.gif",
+	tongue: "tongue.gif",
+	tounge: "tounge.gif", // Common misspelling, exists as separate file
+	unhappy: "unhappy.gif",
+	victory: "victory.gif",
 	w00t: "w00t.gif",
 	wink: "wink.gif",
-	angry: "angry.gif",
-	crazy: "crazy.gif",
-	dozingoff: "dozingoff.gif",
-	laugh: "laugh.gif",
-	rolleyes: "rolleyes.gif",
-	// Additional Discuz common smileys
-	unhappy: "unhappy.gif",
-	bigsmile: "bigsmile.gif",
-	// ico series (Discuz common set) — ico29 is confirmed on CDN
+	// Discuz smile_ variants
+	smile_blush: "smile_blush.gif",
+	smile_cool: "smile_cool.gif",
+	smile_shy: "smile_shy.gif",
+	// Discuz ico series
 	ico29: "ico29.gif",
 };
 
@@ -98,10 +103,10 @@ const RE_COMCOM = /\{:3_(\d{1,4}):\}/g;
 // Negative lookbehind avoids matching inside {:...:} patterns.
 const RE_NUMBERED = /(?<!\{):(\d{1,2}):(?!\})/g;
 
-// :name: — named codes (lowercase + digits, e.g. :w00t:, :smile:, :ico29:)
+// :name: — named codes (lowercase + digits + underscores, e.g. :w00t:, :smile_blush:)
 // Negative lookbehind avoids matching inside {:...:} patterns.
 // Length capped at 20 to prevent ReDoS on adversarial input.
-const RE_NAMED = /(?<!\{):([a-z][a-z0-9]{0,19}):(?!\})/g;
+const RE_NAMED = /(?<!\{):([a-z][a-z0-9_]{0,19}):(?!\})/g;
 
 // ---------------------------------------------------------------------------
 // Numbered smiley validation (1.gif to 16.gif in default directory)
