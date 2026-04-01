@@ -16,9 +16,7 @@ interface ForumCardProps {
 /** Forum icon — Discuz original: forum_new.gif when active, forum.gif when idle */
 function ForumIcon({ hasActivity = false }: { hasActivity?: boolean }) {
 	const src = getStaticImageUrl(hasActivity ? "forum_new.gif" : "forum.gif");
-	return (
-		<img src={src} alt="" className="h-7 w-auto shrink-0" aria-hidden="true" />
-	);
+	return <img src={src} alt="" className="h-7 w-auto shrink-0" aria-hidden="true" />;
 }
 
 // ---------------------------------------------------------------------------

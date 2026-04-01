@@ -46,7 +46,7 @@ describe("SETTING_GROUPS", () => {
 	it("all pagination fields should have inputType 'number'", () => {
 		const paginationGroup = SETTING_GROUPS.find((g) => g.prefix === "general.pagination");
 		expect(paginationGroup).toBeDefined();
-		for (const field of paginationGroup!.fields) {
+		for (const field of paginationGroup?.fields ?? []) {
 			expect(field.inputType).toBe("number");
 		}
 	});
