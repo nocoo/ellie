@@ -9,49 +9,72 @@ import type { User } from "@ellie/types";
 import { Mail, Shield } from "lucide-react";
 import Link from "next/link";
 import { UserAvatar } from "./user-avatar";
+import { UserPopover } from "./user-popover";
 
 interface PostSidebarProps {
 	author: User | null;
 	isFirst: boolean;
 	threadViews?: number;
 	threadReplies?: number;
+	canModerate?: boolean;
+	/** Current viewer's role for popover permission checks */
+	viewerRole?: number;
+	/** Current viewer's user ID */
+	viewerUserId?: number | null;
 }
 
-export function PostSidebar({ author, isFirst, threadViews, threadReplies }: PostSidebarProps) {
+export function PostSidebar({
+	author,
+	isFirst,
+	threadViews,
+	threadReplies,
+	canModerate,
+	viewerRole = 0,
+	viewerUserId = null,
+}: PostSidebarProps) {
 	return (
 		<div className="w-[200px] shrink-0 bg-forum-sidebar-bg border-r border-border p-4 flex flex-col items-center gap-1.5">
 			{/* Username — bold, link color */}
 			{author ? (
-				<Link
-					href={`/users/${author.id}`}
-					className="text-sm font-bold text-forum-link hover:underline"
+				<UserPopover
+					userId={author.id}
+					viewerRole={viewerRole}
+					viewerUserId={viewerUserId}
+					align="start"
 				>
-					{author.username}
-				</Link>
+					<span className="text-sm font-bold text-forum-link hover:underline cursor-pointer">
+						{author.username}
+					</span>
+				</UserPopover>
 			) : (
 				<span className="text-sm text-forum-text-muted">未知用户</span>
 			)}
 
 			{/* Avatar — photo-frame: white padding + shadow */}
-			<Link href={author ? `/users/${author.id}` : "#"} className="mt-1">
-				{author ? (
-					<div className="bg-card p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)]">
+			{author ? (
+				<UserPopover
+					userId={author.id}
+					viewerRole={viewerRole}
+					viewerUserId={viewerUserId}
+					align="start"
+				>
+					<div className="mt-1 bg-card p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)] cursor-pointer">
 						<UserAvatar
 							src={getAvatarUrl(author.id, "big")}
 							alt={author.username}
 							className="block w-[160px] h-auto"
 						/>
 					</div>
-				) : (
-					<div className="bg-card p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)]">
-						<img
-							src={getStaticImageUrl("tavatar.gif")}
-							alt="默认头像"
-							className="block w-[160px] h-auto"
-						/>
-					</div>
-				)}
-			</Link>
+				</UserPopover>
+			) : (
+				<div className="mt-1 bg-card p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)]">
+					<img
+						src={getStaticImageUrl("tavatar.gif")}
+						alt="默认头像"
+						className="block w-[160px] h-auto"
+					/>
+				</div>
+			)}
 
 			{/* Stats grid — 3 columns with vertical dividers, no border */}
 			{author && (
@@ -165,14 +188,16 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 						<Mail className="h-3.5 w-3.5" />
 						发消息
 					</Link>
-					<button
-						type="button"
-						className="flex items-center gap-1 text-xs text-forum-link hover:underline cursor-pointer transition-colors"
-						title="管理操作 (IP / 编辑 / 禁止 / 帖子 / 清理)"
-					>
-						<Shield className="h-3.5 w-3.5" />
-						管理
-					</button>
+					{canModerate && (
+						<button
+							type="button"
+							className="flex items-center gap-1 text-xs text-forum-link hover:underline cursor-pointer transition-colors"
+							title="管理操作 (IP / 编辑 / 禁止 / 帖子 / 清理)"
+						>
+							<Shield className="h-3.5 w-3.5" />
+							管理
+						</button>
+					)}
 				</div>
 			)}
 		</div>

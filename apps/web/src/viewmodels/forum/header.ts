@@ -21,6 +21,8 @@ export interface HeaderUserInfo {
 	credits: number;
 	/** Unread reminder/notification count */
 	reminderCount: number;
+	/** User role (0=user, 1=admin, 2=supermod, 3=mod) */
+	role: number;
 }
 
 /** A single navigation tab in the blue category bar */
@@ -115,14 +117,21 @@ export function buildHeaderViewModel(
 	stats: HeaderStats = DEFAULT_STATS,
 ): HeaderViewModel {
 	const headerLinks = getArr<{ label: string; url: string }>(
-		settings, "general.navigation.header_links", [],
+		settings,
+		"general.navigation.header_links",
+		[],
 	);
 
-	const navTabs: HeaderNavTab[] = headerLinks.length > 0
-		? headerLinks.map((link) => ({ label: link.label, href: link.url }))
-		: DEFAULT_NAV_TABS;
+	const navTabs: HeaderNavTab[] =
+		headerLinks.length > 0
+			? headerLinks.map((link) => ({ label: link.label, href: link.url }))
+			: DEFAULT_NAV_TABS;
 
-	const avatarCdnBase = getStr(settings, "general.assets.avatar_cdn_base", "https://t.no.mt/avatar");
+	const avatarCdnBase = getStr(
+		settings,
+		"general.assets.avatar_cdn_base",
+		"https://t.no.mt/avatar",
+	);
 
 	return {
 		user,

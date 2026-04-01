@@ -3,6 +3,11 @@
 # that cannot be updated without breaking changes.
 
 [[IgnoredVulns]]
+# next@16.2.2 — latest version, awaiting upstream fix
+id = "GHSA-5f7q-jpqc-wp7h"
+reason = "Using latest Next.js 16.2.2; awaiting upstream fix"
+
+[[IgnoredVulns]]
 # cookie@0.6.0 — pinned by @auth/core@0.34.3
 id = "GHSA-pxg6-pf52-xh8x"
 reason = "Pinned by @auth/core@0.34.3; no compatible fix available"

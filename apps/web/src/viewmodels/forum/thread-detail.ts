@@ -7,7 +7,11 @@ import {
 	type Post,
 	type Thread,
 	canDeletePost,
+	canDeleteThread,
+	canEditPost,
+	canManageThread,
 	canModerate,
+	canMoveThread,
 	canReplyToThread,
 	type decodeHighlight,
 	type getThreadBadges,
@@ -22,6 +26,7 @@ export interface EnrichedPost extends Post {
 	author: User | null;
 	attachments: Attachment[];
 	canDelete: boolean;
+	canEdit: boolean;
 }
 
 export interface ThreadDetailData {
@@ -34,6 +39,12 @@ export interface ThreadDetailData {
 	total: number;
 	canReply: boolean;
 	canModerateForum: boolean;
+	/** Can manage thread (sticky/highlight/digest/close) */
+	canManageThread: boolean;
+	/** Can move thread to another forum (SuperMod/Admin only) */
+	canMoveThread: boolean;
+	/** Can delete thread (SuperMod/Admin or author) */
+	canDeleteThread: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -62,18 +73,17 @@ export function enrichPosts(
 	authorMap: Map<number, User>,
 	attachmentMap: Map<number, Attachment[]>,
 	currentUser: User | null,
-	forumId: number,
+	forum: { moderators: string },
 ): EnrichedPost[] {
 	return posts.map((post) => {
 		const author = authorMap.get(post.authorId) ?? null;
 		return {
 			...post,
 			content: filterContent(post.content),
-			author: author
-				? { ...author, signature: filterContent(author.signature ?? "") }
-				: null,
+			author: author ? { ...author, signature: filterContent(author.signature ?? "") } : null,
 			attachments: attachmentMap.get(post.id) ?? [],
-			canDelete: canDeletePost(currentUser, post, forumId),
+			canDelete: canDeletePost(currentUser, post, forum),
+			canEdit: canEditPost(currentUser, post, forum),
 		};
 	});
 }
@@ -84,8 +94,27 @@ export function checkCanReply(user: User | null, thread: Thread): boolean {
 }
 
 /** Check if a user can moderate in a forum. */
-export function checkCanModerate(user: User | null, forumId: number): boolean {
-	return canModerate(user, forumId);
+export function checkCanModerate(user: User | null, forum: { moderators: string }): boolean {
+	return canModerate(user, forum);
+}
+
+/** Check if a user can manage thread (sticky/highlight/digest/close). */
+export function checkCanManageThread(user: User | null, forum: { moderators: string }): boolean {
+	return canManageThread(user, forum);
+}
+
+/** Check if a user can move thread (SuperMod/Admin only). */
+export function checkCanMoveThread(user: User | null): boolean {
+	return canMoveThread(user);
+}
+
+/** Check if a user can delete thread (SuperMod/Admin or author). */
+export function checkCanDeleteThread(
+	user: User | null,
+	thread: { authorId: number },
+	forum: { moderators: string },
+): boolean {
+	return canDeleteThread(user, thread, forum);
 }
 
 /** Get the floor number display text. */
