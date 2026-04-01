@@ -1,8 +1,7 @@
 /**
- * Forum header ViewModel — pure types & placeholder data.
+ * Forum header ViewModel — pure types & data builders.
  *
  * Defines the data contract for the classic Discuz-style forum header.
- * All numeric placeholders use 777 until wired to real API data.
  */
 
 // ---------------------------------------------------------------------------
@@ -91,23 +90,15 @@ export const HOT_KEYWORDS: HotKeyword[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Placeholder data (all numbers → 777)
+// Default stats (shown when API data is unavailable)
 // ---------------------------------------------------------------------------
 
-export const PLACEHOLDER_USER: HeaderUserInfo = {
-	username: "CS",
-	uid: 777,
-	groupTitle: "管理员",
-	credits: 777,
-	reminderCount: 777,
-};
-
-export const PLACEHOLDER_STATS: HeaderStats = {
-	todayPosts: 777,
-	yesterdayPosts: 777,
-	totalThreads: 777,
-	totalMembers: 777,
-	newestMember: "lpojjjzz",
+export const DEFAULT_STATS: HeaderStats = {
+	todayPosts: 0,
+	yesterdayPosts: 0,
+	totalThreads: 0,
+	totalMembers: 0,
+	newestMember: "",
 };
 
 // ---------------------------------------------------------------------------
@@ -115,8 +106,8 @@ export const PLACEHOLDER_STATS: HeaderStats = {
 // ---------------------------------------------------------------------------
 
 export function buildHeaderViewModel(
-	user: HeaderUserInfo | null = PLACEHOLDER_USER,
-	stats: HeaderStats = PLACEHOLDER_STATS,
+	user: HeaderUserInfo | null = null,
+	stats: HeaderStats = DEFAULT_STATS,
 ): HeaderViewModel {
 	return {
 		user,
