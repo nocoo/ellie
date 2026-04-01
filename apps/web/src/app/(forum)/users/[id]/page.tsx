@@ -131,28 +131,34 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 
 			{/* Stats */}
 			<div className="grid grid-cols-4 gap-4">
-				<Card size="sm">
-					<CardContent className="text-center">
-						<p className="text-2xl font-semibold text-foreground">
-							{formatStat(data.user.threads)}
-						</p>
-						<p className="mt-1 text-xs text-muted-foreground">主题数</p>
-					</CardContent>
-				</Card>
-				<Card size="sm">
-					<CardContent className="text-center">
-						<p className="text-2xl font-semibold text-foreground">{formatStat(data.user.posts)}</p>
-						<p className="mt-1 text-xs text-muted-foreground">回帖数</p>
-					</CardContent>
-				</Card>
-				<Card size="sm">
-					<CardContent className="text-center">
-						<p className="text-2xl font-semibold text-foreground">
-							{formatStat(data.user.digestPosts)}
-						</p>
-						<p className="mt-1 text-xs text-muted-foreground">精华帖</p>
-					</CardContent>
-				</Card>
+				<Link href={`/users/${userId}?tab=threads`}>
+					<Card size="sm" className="hover:border-primary/50 transition-colors cursor-pointer">
+						<CardContent className="text-center">
+							<p className="text-2xl font-semibold text-foreground">
+								{formatStat(data.user.threads)}
+							</p>
+							<p className="mt-1 text-xs text-muted-foreground">主题数</p>
+						</CardContent>
+					</Card>
+				</Link>
+				<Link href={`/users/${userId}?tab=posts`}>
+					<Card size="sm" className="hover:border-primary/50 transition-colors cursor-pointer">
+						<CardContent className="text-center">
+							<p className="text-2xl font-semibold text-foreground">{formatStat(data.user.posts)}</p>
+							<p className="mt-1 text-xs text-muted-foreground">回帖数</p>
+						</CardContent>
+					</Card>
+				</Link>
+				<Link href={`/users/${userId}?tab=digest`}>
+					<Card size="sm" className="hover:border-primary/50 transition-colors cursor-pointer">
+						<CardContent className="text-center">
+							<p className="text-2xl font-semibold text-foreground">
+								{formatStat(data.user.digestPosts)}
+							</p>
+							<p className="mt-1 text-xs text-muted-foreground">精华帖</p>
+						</CardContent>
+					</Card>
+				</Link>
 				<Card size="sm">
 					<CardContent className="text-center">
 						<p className="text-2xl font-semibold text-foreground">
