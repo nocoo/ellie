@@ -150,27 +150,25 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 				</div>
 			)}
 
-			{/* Send message link */}
+			{/* Message + Mod actions — single row */}
 			{author && (
-				<Link
-					href={`/messages?to=${author.id}`}
-					className="flex items-center gap-1 text-xs text-forum-link hover:underline mt-1 self-start"
-				>
-					<Mail className="h-3.5 w-3.5" />
-					发消息
-				</Link>
-			)}
-
-			{/* Mod action button — visible to admins/mods */}
-			{author && (
-				<button
-					type="button"
-					className="flex items-center gap-1 text-xs text-forum-text-muted hover:text-forum-link cursor-pointer mt-2 self-start transition-colors"
-					title="管理操作 (IP / 编辑 / 禁止 / 帖子 / 清理 / 发消息)"
-				>
-					<Shield className="h-3.5 w-3.5" />
-					管理
-				</button>
+				<div className="flex items-center gap-3 mt-1 self-start">
+					<Link
+						href={`/messages?to=${author.id}`}
+						className="flex items-center gap-1 text-xs text-forum-link hover:underline"
+					>
+						<Mail className="h-3.5 w-3.5" />
+						发消息
+					</Link>
+					<button
+						type="button"
+						className="flex items-center gap-1 text-xs text-forum-link hover:underline cursor-pointer transition-colors"
+						title="管理操作 (IP / 编辑 / 禁止 / 帖子 / 清理)"
+					>
+						<Shield className="h-3.5 w-3.5" />
+						管理
+					</button>
+				</div>
 			)}
 		</div>
 	);
