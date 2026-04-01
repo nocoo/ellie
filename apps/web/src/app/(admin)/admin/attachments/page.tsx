@@ -104,6 +104,18 @@ function AttachmentGridItem({
 			<div
 				className="aspect-square bg-secondary/50 flex items-center justify-center cursor-pointer relative overflow-hidden"
 				onClick={attachment.isImage ? onPreview : undefined}
+				onKeyDown={
+					attachment.isImage
+						? (e) => {
+								if (e.key === "Enter" || e.key === " ") {
+									e.preventDefault();
+									onPreview();
+								}
+							}
+						: undefined
+				}
+				role={attachment.isImage ? "button" : undefined}
+				tabIndex={attachment.isImage ? 0 : undefined}
 			>
 				{imageUrl ? (
 					<img
@@ -225,6 +237,18 @@ function AttachmentListItem({
 					attachment.isImage && "cursor-pointer",
 				)}
 				onClick={attachment.isImage ? onPreview : undefined}
+				onKeyDown={
+					attachment.isImage
+						? (e) => {
+								if (e.key === "Enter" || e.key === " ") {
+									e.preventDefault();
+									onPreview();
+								}
+							}
+						: undefined
+				}
+				role={attachment.isImage ? "button" : undefined}
+				tabIndex={attachment.isImage ? 0 : undefined}
 			>
 				{imageUrl ? (
 					<img
@@ -555,9 +579,7 @@ export default function AttachmentsPage() {
 							onCheckedChange={handleSelectAll}
 						/>
 						<span className="text-sm text-muted-foreground">
-							{selectedIds.size > 0
-								? `已选择 ${selectedIds.size} 项`
-								: `共 ${data.length} 项`}
+							{selectedIds.size > 0 ? `已选择 ${selectedIds.size} 项` : `共 ${data.length} 项`}
 						</span>
 					</div>
 				)}
