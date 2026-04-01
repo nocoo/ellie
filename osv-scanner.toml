@@ -32,3 +32,10 @@ reason = "Pinned by miniflare/wrangler@3.x; requires undici ^5.28.5"
 [[IgnoredVulns]]
 id = "GHSA-vrm6-8vpv-qv8q"
 reason = "Pinned by miniflare/wrangler@3.x; requires undici ^5.28.5"
+
+[[IgnoredVulns]]
+# next@16.2.2 — PPR DoS vulnerability, but fixed in 16.1.5+
+# OSV database has incorrect range that includes 16.2.x
+# See: https://osv.dev/GHSA-5f7q-jpqc-wp7h (fix range: 16.1.5)
+id = "GHSA-5f7q-jpqc-wp7h"
+reason = "False positive: Next.js 16.2.2 already includes fix (fixed in 16.1.5)"
