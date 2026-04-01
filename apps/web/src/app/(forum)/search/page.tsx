@@ -10,9 +10,15 @@ import { type SearchData, loadSearchResults } from "@/viewmodels/forum/search.se
 import { formatStat, formatTime } from "@/viewmodels/forum/thread-list";
 import { getThreadBadges } from "@ellie/types";
 import Link from "next/link";
+import type { Metadata } from "next";
 
 interface SearchPageProps {
 	searchParams: Promise<{ q?: string; type?: string; cursor?: string; direction?: string }>;
+}
+
+export async function generateMetadata({ searchParams }: SearchPageProps): Promise<Metadata> {
+	const sp = await searchParams;
+	return { title: sp.q ? `搜索: ${sp.q}` : "搜索" };
 }
 
 const SEARCH_TYPES: { key: SearchType; label: string }[] = [

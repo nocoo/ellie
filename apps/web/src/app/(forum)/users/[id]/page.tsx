@@ -20,10 +20,23 @@ import { type UserProfileData, loadUserProfile } from "@/viewmodels/forum/user-p
 import { parseIntParam } from "@/viewmodels/shared/params";
 import { UserRound } from "lucide-react";
 import Link from "next/link";
+import type { Metadata } from "next";
 
 interface UserProfilePageProps {
 	params: Promise<{ id: string }>;
 	searchParams: Promise<{ tab?: string; cursor?: string; direction?: string }>;
+}
+
+export async function generateMetadata({ params }: UserProfilePageProps): Promise<Metadata> {
+	const { id } = await params;
+	const userId = parseIntParam(id);
+	if (userId == null) return { title: "用户" };
+	try {
+		const data = await loadUserProfile({ userId });
+		return { title: `${data.user.username}的个人资料` };
+	} catch {
+		return { title: "用户" };
+	}
 }
 
 export default async function UserProfilePage({ params, searchParams }: UserProfilePageProps) {
