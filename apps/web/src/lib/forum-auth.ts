@@ -37,7 +37,7 @@ function getAuthSecret(): string {
 async function getSessionToken() {
 	const headerStore = await headers();
 	const isSecure =
-		process.env.NODE_ENV === "production" || process.env.NEXTAUTH_URL?.startsWith("https://");
+		process.env.NODE_ENV === "production" || process.env.AUTH_URL?.startsWith("https://");
 	const cookiePrefix = isSecure ? "__Secure-" : "";
 	return getToken({
 		req: { headers: headerStore },
