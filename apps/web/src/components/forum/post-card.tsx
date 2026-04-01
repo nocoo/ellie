@@ -13,6 +13,7 @@ import { PostContent } from "@/components/forum/post-content";
 import { PostEditDialog } from "@/components/forum/post-edit-dialog";
 import { PostSidebar } from "@/components/forum/post-sidebar";
 import { ThreadModMenu } from "@/components/forum/thread-mod-menu";
+import { UserPopover } from "@/components/forum/user-popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ApiError } from "@/lib/api-client";
 import { getAvatarUrl } from "@/lib/avatar";
@@ -41,6 +42,8 @@ interface PostCardProps {
 	/** Can delete thread (SuperMod/Admin or author) */
 	canDeleteThread: boolean;
 	currentUserId: number | null;
+	/** Current viewer's role for popover permission checks */
+	currentUserRole?: number;
 	isFirstPost: boolean;
 	threadId: number;
 	forumId: number;
@@ -60,6 +63,7 @@ export function PostCard({
 	canMoveThread,
 	canDeleteThread,
 	currentUserId,
+	currentUserRole = 0,
 	isFirstPost,
 	threadId,
 	forumId,
@@ -142,6 +146,8 @@ export function PostCard({
 					threadViews={threadViews}
 					threadReplies={threadReplies}
 					canModerate={canModerate}
+					viewerRole={currentUserRole}
+					viewerUserId={currentUserId}
 				/>
 				<PostContent
 					post={post}
@@ -156,8 +162,13 @@ export function PostCard({
 			<div className="md:hidden">
 				{/* Compact header row */}
 				<div className="flex items-center gap-2 px-3 pt-3 pb-2 border-b border-dashed border-border">
-					<Link href={`/users/${post.authorId}`}>
-						<Avatar className="h-8 w-8 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
+					<UserPopover
+						userId={post.authorId}
+						viewerRole={currentUserRole}
+						viewerUserId={currentUserId}
+						disabled={!post.author}
+					>
+						<Avatar className="h-8 w-8 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)] cursor-pointer">
 							{post.author && (
 								<AvatarImage
 									src={getAvatarUrl(post.authorId, "small")}
@@ -173,14 +184,18 @@ export function PostCard({
 								/>
 							</AvatarFallback>
 						</Avatar>
-					</Link>
+					</UserPopover>
 					<div className="flex flex-col min-w-0">
-						<Link
-							href={`/users/${post.authorId}`}
-							className="text-sm font-medium text-forum-link hover:underline truncate"
+						<UserPopover
+							userId={post.authorId}
+							viewerRole={currentUserRole}
+							viewerUserId={currentUserId}
+							disabled={!post.author}
 						>
-							{post.author?.username ?? "未知用户"}
-						</Link>
+							<span className="text-sm font-medium text-forum-link hover:underline truncate cursor-pointer">
+								{post.author?.username ?? "未知用户"}
+							</span>
+						</UserPopover>
 						<span className="text-2xs text-forum-text-muted">{formatTime(post.createdAt)}</span>
 					</div>
 					<span className="ml-auto text-xs font-medium text-muted-foreground shrink-0">

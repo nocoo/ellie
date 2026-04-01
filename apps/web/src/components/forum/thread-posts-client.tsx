@@ -18,6 +18,8 @@ interface ThreadPostsClientProps {
 	/** Can delete thread (SuperMod/Admin or author) */
 	canDeleteThread: boolean;
 	currentUserId: number | null;
+	/** Current viewer's role for popover permission checks */
+	currentUserRole?: number;
 }
 
 export function ThreadPostsClient({
@@ -28,6 +30,7 @@ export function ThreadPostsClient({
 	canMoveThread,
 	canDeleteThread,
 	currentUserId,
+	currentUserRole = 0,
 }: ThreadPostsClientProps) {
 	const [replyOpen, setReplyOpen] = useState(false);
 	const [quotedPost, setQuotedPost] = useState<{
@@ -75,6 +78,7 @@ export function ThreadPostsClient({
 						canMoveThread={canMoveThread}
 						canDeleteThread={canDeleteThread}
 						currentUserId={currentUserId}
+						currentUserRole={currentUserRole}
 						isFirstPost={isFirst}
 						threadId={thread.id}
 						forumId={thread.forumId}
