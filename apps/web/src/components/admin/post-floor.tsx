@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { EnrichedPost } from "@/viewmodels/admin/thread-detail";
 import { roleLabel } from "@/viewmodels/admin/users";
+import { formatNumber } from "@/viewmodels/shared/formatting";
 import { MoreHorizontal, Pencil, Shield, Trash2 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -137,8 +138,8 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 						{/* Stats */}
 						{author && (
 							<div className="flex flex-row md:flex-col gap-2 md:gap-0.5 text-xs text-muted-foreground mt-1">
-								<span>帖子: {author.posts.toLocaleString()}</span>
-								<span>主题: {author.threads.toLocaleString()}</span>
+								<span>帖子: {formatNumber(author.posts)}</span>
+								<span>主题: {formatNumber(author.threads)}</span>
 								<span>注册: {new Date(author.regDate * 1000).toLocaleDateString()}</span>
 							</div>
 						)}

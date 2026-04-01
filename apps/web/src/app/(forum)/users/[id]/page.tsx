@@ -1,6 +1,7 @@
 // Ref: 04f §8 — Modern profile layout: hero + stats + tabbed content
 
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
+import { UserDigestTab } from "@/components/forum/user-digest-tab";
 import { UserInfoCard } from "@/components/forum/user-info-card";
 import { UserPostsTab } from "@/components/forum/user-posts-tab";
 import { UserThreadsTab } from "@/components/forum/user-threads-tab";
@@ -86,7 +87,8 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 		);
 	}
 
-	const activeData = data.tab === "threads" ? data.threads : data.posts;
+	const activeData =
+		data.tab === "threads" ? data.threads : data.tab === "posts" ? data.posts : data.digest;
 	const breadcrumbs = buildUserBreadcrumbs(data.user.username);
 
 	return (
@@ -128,7 +130,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 			</Card>
 
 			{/* Stats */}
-			<div className="grid grid-cols-3 gap-4">
+			<div className="grid grid-cols-4 gap-4">
 				<Card size="sm">
 					<CardContent className="text-center">
 						<p className="text-2xl font-semibold text-foreground">
@@ -141,6 +143,14 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 					<CardContent className="text-center">
 						<p className="text-2xl font-semibold text-foreground">{formatStat(data.user.posts)}</p>
 						<p className="mt-1 text-xs text-muted-foreground">回帖数</p>
+					</CardContent>
+				</Card>
+				<Card size="sm">
+					<CardContent className="text-center">
+						<p className="text-2xl font-semibold text-foreground">
+							{formatStat(data.user.digestPosts)}
+						</p>
+						<p className="mt-1 text-xs text-muted-foreground">精华帖</p>
 					</CardContent>
 				</Card>
 				<Card size="sm">
@@ -163,12 +173,17 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 					<div className="flex items-center gap-1">
 						{PROFILE_TABS.map((t) => {
 							const active = data.tab === t.key;
+							// Show digest count in tab label if user has digest posts
+							const label =
+								t.key === "digest" && data.user.digestPosts > 0
+									? `${t.label} (${data.user.digestPosts})`
+									: t.label;
 							return active ? (
 								<span
 									key={t.key}
 									className="inline-flex h-8 items-center border-b-2 border-primary px-2 text-xs font-medium text-foreground"
 								>
-									{t.label}
+									{label}
 								</span>
 							) : (
 								<Link
@@ -176,7 +191,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 									href={`/users/${userId}?tab=${t.key}`}
 									className="inline-flex h-8 items-center border-b-2 border-transparent px-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
 								>
-									{t.label}
+									{label}
 								</Link>
 							);
 						})}
@@ -187,8 +202,10 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 				<CardContent>
 					{data.tab === "threads" ? (
 						<UserThreadsTab threads={data.threads} />
-					) : (
+					) : data.tab === "posts" ? (
 						<UserPostsTab posts={data.posts} />
+					) : (
+						<UserDigestTab digest={data.digest} />
 					)}
 
 					{/* Pagination */}

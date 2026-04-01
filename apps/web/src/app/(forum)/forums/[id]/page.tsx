@@ -14,8 +14,8 @@ import {
 import { getForumTitle } from "@/viewmodels/forum/title.server";
 import { parseIntParam, parsePageParam } from "@/viewmodels/shared/params";
 import { ForumType } from "@ellie/types";
-import Link from "next/link";
 import type { Metadata } from "next";
+import Link from "next/link";
 
 interface ForumThreadsPageProps {
 	params: Promise<{ id: string }>;

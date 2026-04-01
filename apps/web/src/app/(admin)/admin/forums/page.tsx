@@ -30,6 +30,7 @@ import {
 	typeLabel,
 	updateForum,
 } from "@/viewmodels/admin/forums";
+import { formatNumber } from "@/viewmodels/shared/formatting";
 import {
 	ChevronRight,
 	FolderOpen,

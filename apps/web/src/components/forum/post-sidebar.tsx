@@ -4,6 +4,7 @@
 import { getAvatarUrl } from "@/lib/avatar";
 import { getStaticImageUrl } from "@/lib/cdn";
 import { formatDate } from "@/viewmodels/forum/thread-detail";
+import { formatNumber } from "@/viewmodels/shared/formatting";
 import type { User } from "@ellie/types";
 import { Mail, Shield } from "lucide-react";
 import Link from "next/link";
@@ -56,15 +57,15 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 			{author && (
 				<div className="mt-2 grid w-full grid-cols-3 text-center text-2xs divide-x divide-border">
 					<div className="py-1 px-0.5">
-						<div className="font-medium text-forum-link">{author.threads.toLocaleString()}</div>
+						<div className="font-medium text-forum-link">{formatNumber(author.threads)}</div>
 						<div className="text-[12px] text-forum-text-muted">主题</div>
 					</div>
 					<div className="py-1 px-0.5">
-						<div className="font-medium text-forum-link">{author.posts.toLocaleString()}</div>
+						<div className="font-medium text-forum-link">{formatNumber(author.posts)}</div>
 						<div className="text-[12px] text-forum-text-muted">帖子</div>
 					</div>
 					<div className="py-1 px-0.5">
-						<div className="font-medium text-forum-link">{author.credits.toLocaleString()}</div>
+						<div className="font-medium text-forum-link">{formatNumber(author.credits)}</div>
 						<div className="text-[12px] text-forum-text-muted">积分</div>
 					</div>
 				</div>
@@ -113,7 +114,7 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 					{/* Credits */}
 					<div className="flex items-baseline justify-between gap-1">
 						<span className="shrink-0 text-forum-text-muted">同钱:</span>
-						<span>{author.credits.toLocaleString()}</span>
+						<span>{formatNumber(author.credits)}</span>
 					</div>
 
 					{/* Registration date */}
@@ -126,7 +127,7 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 					{author.olTime > 0 && (
 						<div className="flex items-baseline justify-between gap-1">
 							<span className="shrink-0 text-forum-text-muted">在线:</span>
-							<span>{author.olTime.toLocaleString()} 小时</span>
+							<span>{formatNumber(author.olTime)} 小时</span>
 						</div>
 					)}
 
@@ -134,7 +135,7 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 					{author.digestPosts > 0 && (
 						<div className="flex items-baseline justify-between gap-1">
 							<span className="shrink-0 text-forum-text-muted">精华:</span>
-							<span>{author.digestPosts}</span>
+							<span>{formatNumber(author.digestPosts)}</span>
 						</div>
 					)}
 
@@ -142,13 +143,13 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 					{isFirst && threadViews !== undefined && (
 						<div className="flex items-baseline justify-between gap-1">
 							<span className="shrink-0 text-forum-text-muted">查看:</span>
-							<span>{threadViews.toLocaleString()}</span>
+							<span>{formatNumber(threadViews)}</span>
 						</div>
 					)}
 					{isFirst && threadReplies !== undefined && (
 						<div className="flex items-baseline justify-between gap-1">
 							<span className="shrink-0 text-forum-text-muted">回复:</span>
-							<span>{threadReplies.toLocaleString()}</span>
+							<span>{formatNumber(threadReplies)}</span>
 						</div>
 					)}
 				</div>

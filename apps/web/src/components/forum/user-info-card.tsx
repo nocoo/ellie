@@ -29,7 +29,6 @@ export function UserInfoCard({ user }: { user: UserProfileData["user"] }) {
 	if (user.site) infoRows.push({ label: "个人网站", value: user.site });
 	if (olTime) infoRows.push({ label: "在线时间", value: olTime });
 	if (lastActive) infoRows.push({ label: "最后活动", value: lastActive });
-	if (user.digestPosts > 0) infoRows.push({ label: "精华帖", value: String(user.digestPosts) });
 
 	if (
 		infoRows.length === 0 &&
