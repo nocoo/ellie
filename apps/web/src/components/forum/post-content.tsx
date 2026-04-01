@@ -93,10 +93,10 @@ export function PostContent({ post, isFirst, threadDigest, author, actionBar }: 
 				{/* Spacer pushes signature to bottom when sidebar is taller */}
 				<div className="flex-1" />
 
-				{/* Author signature — sigline.gif separator, right-aligned */}
+				{/* Author signature — sigline.gif separator, left-aligned */}
 				{author?.signature && (
 					<div className="mt-4">
-						<div className="flex justify-end">
+						<div className="flex justify-start">
 							<img
 								src={getStaticImageUrl("sigline.gif")}
 								alt=""

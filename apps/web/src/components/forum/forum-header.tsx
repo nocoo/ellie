@@ -9,6 +9,7 @@ import { getAvatarUrl } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
 import type { HeaderViewModel } from "@/viewmodels/forum/header";
 import { LogOut, Mail, Search } from "lucide-react";
+import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -75,6 +76,7 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 							</Link>
 							<button
 								type="button"
+								onClick={() => signOut({ callbackUrl: "/" })}
 								className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
 								title="退出登录"
 							>
