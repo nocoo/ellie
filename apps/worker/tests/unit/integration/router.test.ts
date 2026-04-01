@@ -1,12 +1,38 @@
 import { describe, expect, it, mock } from "bun:test";
-import worker from "../../../src/index";
-import type { CFRequest, Env } from "../../../src/lib/env";
 
 /**
  * Route-level integration tests that call worker.fetch() directly,
  * proving the router dispatches to the correct handlers.
+ *
+ * NOTE: These tests require the full monorepo environment to run because
+ * they import the worker module which depends on @ellie/types.
+ * Run from repo root: `bun test apps/worker/tests/unit/integration/router.test.ts`
  */
-describe("worker router integration", () => {
+
+// Skip in isolated worktree environments where @ellie/types is unavailable
+const canRunIntegration = (() => {
+	try {
+		require.resolve("@ellie/types");
+		return true;
+	} catch {
+		return false;
+	}
+})();
+
+describe.skipIf(!canRunIntegration)("worker router integration", () => {
+	// Dynamic import to avoid parse-time errors in isolated environments
+	const getWorker = async () => (await import("../../../src/index")).default;
+
+	type CFRequest = Request;
+	interface Env {
+		API_KEY: string;
+		ADMIN_API_KEY: string;
+		DB: D1Database;
+		ENVIRONMENT: string;
+		JWT_SECRET: string;
+		KV: KVNamespace;
+	}
+
 	const TEST_API_KEY = "test-api-key";
 	const TEST_ADMIN_API_KEY = "test-admin-api-key";
 
@@ -29,8 +55,15 @@ describe("worker router integration", () => {
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret",
 		KV: {
+			get: mock(() => Promise.resolve(null)),
 			put: mock(() => Promise.resolve()),
 		} as unknown as KVNamespace,
+	});
+
+	/** Create a mock ExecutionContext */
+	const makeCtx = (): ExecutionContext => ({
+		waitUntil: mock(() => {}),
+		passThroughOnException: mock(() => {}),
 	});
 
 	const makeRequest = (url: string, init?: RequestInit): CFRequest =>
@@ -58,9 +91,10 @@ describe("worker router integration", () => {
 
 	describe("API Key validation", () => {
 		it("should return 401 without X-API-Key header", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/forums"),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(401);
@@ -69,22 +103,24 @@ describe("worker router integration", () => {
 		});
 
 		it("should return 401 with wrong X-API-Key", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/forums", {
 					headers: { "X-API-Key": "wrong-key" },
 				}),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(401);
 		});
 
 		it("should include CORS headers on 401 response", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/forums", {
 					headers: { Origin: "https://ellie.nocoo.cloud" },
 				}),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(401);
@@ -98,27 +134,29 @@ describe("worker router integration", () => {
 				})),
 			});
 
-			const response = await worker.fetch(makeRequest("https://api.example.com/api/live"), env);
+			const response = await (await getWorker()).fetch(makeRequest("https://api.example.com/api/live"), env, makeCtx());
 
 			expect(response.status).toBe(200);
 		});
 
 		it("should NOT require API key for OPTIONS preflight", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/forums", {
 					method: "OPTIONS",
 					headers: { Origin: "https://ellie.nocoo.cloud" },
 				}),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(204);
 		});
 
 		it("should pass with valid X-API-Key", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/forums", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(200);
@@ -129,7 +167,7 @@ describe("worker router integration", () => {
 
 	describe("CORS preflight", () => {
 		it("should respond 204 to OPTIONS with origin", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/forums", {
 					method: "OPTIONS",
 					headers: {
@@ -137,6 +175,7 @@ describe("worker router integration", () => {
 					},
 				}),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(204);
@@ -148,12 +187,13 @@ describe("worker router integration", () => {
 		});
 
 		it("should not set Allow-Origin for disallowed origin", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/forums", {
 					method: "OPTIONS",
 					headers: { Origin: "https://evil.com" },
 				}),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(204);
@@ -171,7 +211,7 @@ describe("worker router integration", () => {
 				})),
 			});
 
-			const response = await worker.fetch(makeRequest("https://api.example.com/api/live"), env);
+			const response = await (await getWorker()).fetch(makeRequest("https://api.example.com/api/live"), env, makeCtx());
 
 			expect(response.status).toBe(200);
 			const data = await response.json();
@@ -185,11 +225,12 @@ describe("worker router integration", () => {
 				})),
 			});
 
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/live", {
 					headers: { Origin: "https://ellie.nocoo.cloud" },
 				}),
 				env,
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(200);
@@ -201,9 +242,10 @@ describe("worker router integration", () => {
 
 	describe("GET /api/v1/forums", () => {
 		it("should route to forum list handler", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/forums", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(200);
@@ -214,9 +256,10 @@ describe("worker router integration", () => {
 
 	describe("GET /api/v1/forums/:id", () => {
 		it("should route to forum getById handler", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/forums/1", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			// 404 because mock returns null
@@ -230,9 +273,10 @@ describe("worker router integration", () => {
 
 	describe("GET /api/v1/threads", () => {
 		it("should route to thread list handler (requires forumId)", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/threads?forumId=1", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(200);
@@ -241,9 +285,10 @@ describe("worker router integration", () => {
 		});
 
 		it("should return 400 without forumId", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/threads", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(400);
@@ -252,9 +297,10 @@ describe("worker router integration", () => {
 
 	describe("GET /api/v1/threads/:id", () => {
 		it("should route to thread getById handler", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/threads/1", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(404);
@@ -267,9 +313,10 @@ describe("worker router integration", () => {
 
 	describe("GET /api/v1/posts", () => {
 		it("should route to post list handler (requires threadId)", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/posts?threadId=1", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(200);
@@ -280,9 +327,10 @@ describe("worker router integration", () => {
 
 	describe("GET /api/v1/posts/:id", () => {
 		it("should route to post getById handler", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/posts/1", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(404);
@@ -295,9 +343,10 @@ describe("worker router integration", () => {
 
 	describe("GET /api/v1/users/:id", () => {
 		it("should route to user getById handler", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/users/1", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(404);
@@ -310,7 +359,7 @@ describe("worker router integration", () => {
 
 	describe("POST /api/v1/auth/login", () => {
 		it("should route to auth login handler", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest(
 					"https://api.example.com/api/v1/auth/login",
 					withApiKey({
@@ -325,6 +374,7 @@ describe("worker router integration", () => {
 					}),
 				),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			// Should reach the handler (401 because user not found in mock DB)
@@ -334,9 +384,10 @@ describe("worker router integration", () => {
 		});
 
 		it("should NOT match GET /api/v1/auth/login", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/auth/login", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(404);
@@ -349,9 +400,10 @@ describe("worker router integration", () => {
 
 	describe("Admin Forum routes", () => {
 		it("GET /api/admin/forums should reject Key A (401)", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/admin/forums", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 			expect(response.status).toBe(401);
 		});
@@ -361,7 +413,7 @@ describe("worker router integration", () => {
 
 	describe("unknown routes", () => {
 		it("should return 404 with CORS headers for unknown paths", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest(
 					"https://api.example.com/api/v1/unknown",
 					withApiKey({
@@ -371,6 +423,7 @@ describe("worker router integration", () => {
 					}),
 				),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(404);
@@ -378,9 +431,10 @@ describe("worker router integration", () => {
 		});
 
 		it("should return 404 for wrong HTTP method", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/forums", withApiKey({ method: "DELETE" })),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(404);
@@ -404,7 +458,7 @@ describe("worker router integration", () => {
 				})),
 			});
 
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest(
 					"https://api.example.com/api/v1/forums",
 					withApiKey({
@@ -429,7 +483,7 @@ describe("worker router integration", () => {
 
 	describe("Auth routes (refresh, logout, me)", () => {
 		it("POST /api/v1/auth/refresh should reach handler", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest(
 					"https://api.example.com/api/v1/auth/refresh",
 					withApiKey({
@@ -439,6 +493,7 @@ describe("worker router integration", () => {
 					}),
 				),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			// Handler will reject due to missing/invalid refresh token
@@ -450,7 +505,7 @@ describe("worker router integration", () => {
 			// Add KV.delete for logout handler
 			(env.KV as unknown as Record<string, unknown>).delete = mock(() => Promise.resolve());
 
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest(
 					"https://api.example.com/api/v1/auth/logout",
 					withApiKey({
@@ -467,9 +522,10 @@ describe("worker router integration", () => {
 		});
 
 		it("GET /api/v1/auth/me should require auth (401)", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/auth/me", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(401);
@@ -478,18 +534,20 @@ describe("worker router integration", () => {
 
 	describe("Authenticated write routes", () => {
 		it("POST /api/v1/threads should require auth (401)", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/threads", withApiKey({ method: "POST" })),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(401);
 		});
 
 		it("POST /api/v1/posts should require auth (401)", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/posts", withApiKey({ method: "POST" })),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(401);
@@ -498,21 +556,23 @@ describe("worker router integration", () => {
 
 	describe("User self-service routes", () => {
 		it("PATCH /api/v1/users/me should require auth (401)", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/users/me", withApiKey({ method: "PATCH" })),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(401);
 		});
 
 		it("POST /api/v1/users/me/password should require auth (401)", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest(
 					"https://api.example.com/api/v1/users/me/password",
 					withApiKey({ method: "POST" }),
 				),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(401);
@@ -521,9 +581,10 @@ describe("worker router integration", () => {
 
 	describe("Attachment routes", () => {
 		it("GET /api/v1/posts/:id/attachments should route to handler", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/posts/1/attachments", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(200);
@@ -537,56 +598,61 @@ describe("worker router integration", () => {
 
 	describe("Moderation routes", () => {
 		it("PATCH /api/v1/moderation/threads/:id/sticky should require auth (401)", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest(
 					"https://api.example.com/api/v1/moderation/threads/1/sticky",
 					withApiKey({ method: "PATCH" }),
 				),
 				makeEnv(),
+				makeCtx(),
 			);
 			expect(response.status).toBe(401);
 		});
 
 		it("PATCH /api/v1/moderation/threads/:id/digest should require auth (401)", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest(
 					"https://api.example.com/api/v1/moderation/threads/1/digest",
 					withApiKey({ method: "PATCH" }),
 				),
 				makeEnv(),
+				makeCtx(),
 			);
 			expect(response.status).toBe(401);
 		});
 
 		it("PATCH /api/v1/moderation/threads/:id/close should require auth (401)", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest(
 					"https://api.example.com/api/v1/moderation/threads/1/close",
 					withApiKey({ method: "PATCH" }),
 				),
 				makeEnv(),
+				makeCtx(),
 			);
 			expect(response.status).toBe(401);
 		});
 
 		it("PATCH /api/v1/moderation/threads/:id/move should require auth (401)", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest(
 					"https://api.example.com/api/v1/moderation/threads/1/move",
 					withApiKey({ method: "PATCH" }),
 				),
 				makeEnv(),
+				makeCtx(),
 			);
 			expect(response.status).toBe(401);
 		});
 
 		it("DELETE /api/v1/moderation/posts/:id should require auth (401)", async () => {
-			const response = await worker.fetch(
+			const response = await (await getWorker()).fetch(
 				makeRequest(
 					"https://api.example.com/api/v1/moderation/posts/1",
 					withApiKey({ method: "DELETE" }),
 				),
 				makeEnv(),
+				makeCtx(),
 			);
 			expect(response.status).toBe(401);
 		});

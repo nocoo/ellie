@@ -39,24 +39,34 @@ export async function stats(request: CFRequest, env: Env): Promise<Response> {
 
 	const { todayStart, yesterdayStart, yesterdayEnd } = dayBoundaries();
 
-	const results = await env.DB.batch([
-		// 0: today's posts
-		env.DB.prepare("SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ?").bind(todayStart),
-		// 1: yesterday's posts
-		env.DB.prepare("SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ? AND created_at < ?").bind(
-			yesterdayStart,
-			yesterdayEnd,
-		),
-		// 2: total threads
-		env.DB.prepare("SELECT COUNT(*) AS cnt FROM threads"),
-		// 3: total members
-		env.DB.prepare("SELECT COUNT(*) AS cnt FROM users"),
-		// 4: newest member
-		env.DB.prepare("SELECT username FROM users ORDER BY reg_date DESC LIMIT 1"),
+	// Parallel fetch: D1 batch + KV online stats
+	const [dbResults, onlineCount, peakData] = await Promise.all([
+		env.DB.batch([
+			// 0: today's posts
+			env.DB.prepare("SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ?").bind(todayStart),
+			// 1: yesterday's posts
+			env.DB.prepare("SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ? AND created_at < ?").bind(
+				yesterdayStart,
+				yesterdayEnd,
+			),
+			// 2: total threads
+			env.DB.prepare("SELECT COUNT(*) AS cnt FROM threads"),
+			// 3: total members
+			env.DB.prepare("SELECT COUNT(*) AS cnt FROM users"),
+			// 4: newest member
+			env.DB.prepare("SELECT username FROM users ORDER BY reg_date DESC LIMIT 1"),
+		]),
+		// Current online count (aggregated by cron)
+		env.KV.get("stats:online_count"),
+		// Historical peak (no TTL)
+		env.KV.get("stats:online_peak", "json") as Promise<{
+			count: number;
+			date: string;
+		} | null>,
 	]);
 
-	const count = (i: number) => (results[i].results[0] as Record<string, number>).cnt;
-	const newestRow = results[4].results[0] as Record<string, string> | undefined;
+	const count = (i: number) => (dbResults[i].results[0] as Record<string, number>).cnt;
+	const newestRow = dbResults[4].results[0] as Record<string, string> | undefined;
 
 	const data: PublicStats = {
 		todayPosts: count(0),
@@ -64,10 +74,10 @@ export async function stats(request: CFRequest, env: Env): Promise<Response> {
 		totalThreads: count(2),
 		totalMembers: count(3),
 		newestMember: newestRow?.username ?? "",
-		// Online stats — placeholder until tracking mechanism is built
-		totalOnline: 0,
-		peakOnline: 0,
-		peakDate: "",
+		// Online stats from KV (populated by cron aggregation)
+		totalOnline: onlineCount ? Number.parseInt(onlineCount, 10) : 0,
+		peakOnline: peakData?.count ?? 0,
+		peakDate: peakData?.date ?? "",
 	};
 
 	// Write to KV cache (fire-and-forget)
