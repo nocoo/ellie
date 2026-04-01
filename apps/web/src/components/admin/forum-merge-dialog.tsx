@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { Forum } from "@/viewmodels/admin/forums";
+import { typeLabel } from "@/viewmodels/admin/forums";
 import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------
@@ -51,7 +52,16 @@ export function ForumMergeDialog({
 		}
 	}, [sourceId]);
 
-	const targetOptions = forums.filter((f) => source && f.id !== source.id);
+	// Only allow merging forums of the same type or into parent types
+	const targetOptions = forums.filter((f) => {
+		if (!source) return false;
+		if (f.id === source.id) return false;
+		// Can merge into same type or parent type
+		if (source.type === "sub") return f.type === "sub" || f.type === "forum";
+		if (source.type === "forum") return f.type === "forum" || f.type === "group";
+		if (source.type === "group") return f.type === "group";
+		return true;
+	});
 
 	const handleMerge = useCallback(() => {
 		if (!source || targetId === null || loading) return;
@@ -71,7 +81,11 @@ export function ForumMergeDialog({
 				<div className="grid gap-4 py-4">
 					<div className="grid gap-2">
 						<Label htmlFor="merge-source">来源版块</Label>
-						<Input id="merge-source" value={source?.name ?? ""} disabled />
+						<Input
+							id="merge-source"
+							value={source ? `${source.name} (${typeLabel(source.type)})` : ""}
+							disabled
+						/>
 					</div>
 
 					<div className="grid gap-2">
@@ -85,11 +99,18 @@ export function ForumMergeDialog({
 							<option value="">选择目标版块...</option>
 							{targetOptions.map((f) => (
 								<option key={f.id} value={f.id}>
-									{f.name} ({f.threads} 个主题)
+									[{typeLabel(f.type)}] {f.name} ({f.threads} 个主题)
 								</option>
 							))}
 						</select>
 					</div>
+
+					{source && source.threads > 0 && (
+						<div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3 text-sm text-amber-600 dark:text-amber-400">
+							此版块包含 <strong>{source.threads}</strong> 个主题和{" "}
+							<strong>{source.posts}</strong> 个帖子，合并后将全部转移到目标版块。
+						</div>
+					)}
 				</div>
 
 				<DialogFooter>

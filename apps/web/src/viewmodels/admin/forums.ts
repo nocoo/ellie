@@ -4,15 +4,31 @@ import { type PaginatedResponse, apiClient } from "@/lib/api-client";
 // Types
 // ---------------------------------------------------------------------------
 
+/** Forum type — group (分区), forum (版块), sub (子版块) */
+export type ForumType = "group" | "forum" | "sub";
+
 export interface Forum {
 	id: number;
+	parentId: number;
 	name: string;
 	description: string;
+	icon: string;
+	displayOrder: number;
 	threads: number;
 	posts: number;
-	displayOrder: number;
+	type: ForumType;
 	status: number;
-	createdAt: string;
+	moderators: string;
+	lastThreadId: number;
+	lastPostAt: number;
+	lastPoster: string;
+	lastThreadSubject: string;
+}
+
+/** Tree node extends Forum with computed children */
+export interface ForumTreeNode extends Forum {
+	children: ForumTreeNode[];
+	depth: number;
 }
 
 export interface ForumCreate {
@@ -20,6 +36,9 @@ export interface ForumCreate {
 	description?: string;
 	displayOrder?: number;
 	status?: number;
+	type?: ForumType;
+	parentId?: number;
+	icon?: string;
 }
 
 export interface ForumUpdate {
@@ -27,6 +46,9 @@ export interface ForumUpdate {
 	description?: string;
 	displayOrder?: number;
 	status?: number;
+	type?: ForumType;
+	parentId?: number;
+	icon?: string;
 }
 
 export interface MergeResult {
@@ -61,6 +83,76 @@ export function statusLabel(status: number): string {
 		default:
 			return "未知";
 	}
+}
+
+/** Map forum type to display label */
+export function typeLabel(type: ForumType): string {
+	switch (type) {
+		case "group":
+			return "分区";
+		case "forum":
+			return "版块";
+		case "sub":
+			return "子版块";
+		default:
+			return "未知";
+	}
+}
+
+/** Build a tree structure from flat forum list */
+export function buildForumTree(forums: Forum[]): ForumTreeNode[] {
+	const nodeMap = new Map<number, ForumTreeNode>();
+	const roots: ForumTreeNode[] = [];
+
+	// Create nodes
+	for (const forum of forums) {
+		nodeMap.set(forum.id, { ...forum, children: [], depth: 0 });
+	}
+
+	// Build tree
+	for (const forum of forums) {
+		const node = nodeMap.get(forum.id);
+		if (!node) continue;
+
+		if (forum.parentId === 0) {
+			node.depth = 0;
+			roots.push(node);
+		} else {
+			const parent = nodeMap.get(forum.parentId);
+			if (parent) {
+				node.depth = parent.depth + 1;
+				parent.children.push(node);
+			} else {
+				// Orphan node, treat as root
+				node.depth = 0;
+				roots.push(node);
+			}
+		}
+	}
+
+	// Sort children by displayOrder
+	const sortNodes = (nodes: ForumTreeNode[]) => {
+		nodes.sort((a, b) => a.displayOrder - b.displayOrder);
+		for (const node of nodes) {
+			sortNodes(node.children);
+		}
+	};
+	sortNodes(roots);
+
+	return roots;
+}
+
+/** Flatten tree to list with depth info for rendering */
+export function flattenForumTree(nodes: ForumTreeNode[]): ForumTreeNode[] {
+	const result: ForumTreeNode[] = [];
+	const traverse = (list: ForumTreeNode[]) => {
+		for (const node of list) {
+			result.push(node);
+			traverse(node.children);
+		}
+	};
+	traverse(nodes);
+	return result;
 }
 
 // ---------------------------------------------------------------------------
