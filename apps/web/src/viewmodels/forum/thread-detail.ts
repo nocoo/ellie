@@ -71,9 +71,7 @@ export function enrichPosts(
 		return {
 			...post,
 			content: filterContent(post.content),
-			author: author
-				? { ...author, signature: filterContent(author.signature ?? "") }
-				: null,
+			author: author ? { ...author, signature: filterContent(author.signature ?? "") } : null,
 			attachments: attachmentMap.get(post.id) ?? [],
 			canDelete: canDeletePost(currentUser, post, forum),
 			canEdit: canEditPost(currentUser, post, forum),

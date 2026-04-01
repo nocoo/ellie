@@ -14,8 +14,8 @@ import { formatTime } from "@/viewmodels/forum/thread-list";
 import { getThreadTitle } from "@/viewmodels/forum/title.server";
 import { parseIntParam } from "@/viewmodels/shared/params";
 import { getThreadBadges } from "@ellie/types";
-import Link from "next/link";
 import type { Metadata } from "next";
+import Link from "next/link";
 
 interface ThreadDetailPageProps {
 	params: Promise<{ id: string }>;
