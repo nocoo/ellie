@@ -2,8 +2,8 @@
 
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
 import { ModActionBar } from "@/components/forum/mod-action-bar";
-import { PostCard } from "@/components/forum/post-card";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
+import { ThreadPostsClient } from "@/components/forum/thread-posts-client";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -129,19 +129,8 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 				</CardContent>
 			</Card>
 
-			{/* Posts */}
-			{data.posts.map((post) => {
-				const isFirst = post.isFirst || post.position === 1;
-				return (
-					<PostCard
-						key={post.id}
-						post={post}
-						threadViews={isFirst ? thread.views : undefined}
-						threadReplies={isFirst ? thread.replies : undefined}
-						threadDigest={isFirst ? thread.digest : undefined}
-					/>
-				);
-			})}
+			{/* Posts - rendered via client component for reply dialog */}
+			<ThreadPostsClient thread={thread} posts={data.posts} />
 
 			{data.posts.length === 0 && (
 				<Card size="sm">
