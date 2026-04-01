@@ -579,7 +579,7 @@ export default function AttachmentsPage() {
 
 				{/* Grid view */}
 				{!loading && data.length > 0 && viewMode === "grid" && (
-					<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 p-4">
+					<div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-12 2xl:grid-cols-[repeat(16,minmax(0,1fr))] gap-3 p-4">
 						{data.map((attachment) => (
 							<AttachmentGridItem
 								key={attachment.id}
