@@ -89,17 +89,17 @@ describe("comcomFilename", () => {
 // ── Named code mapping ─────────────────────────────────────────────
 
 describe("NAMED_SMILEY_SET", () => {
-	test("contains at least 35 named codes (32 original + extras)", () => {
-		expect(NAMED_SMILEY_SET.size).toBeGreaterThanOrEqual(35);
+	test("contains at least 39 named codes", () => {
+		expect(NAMED_SMILEY_SET.size).toBeGreaterThanOrEqual(39);
 	});
 
-	test("contains original 24 codes", () => {
+	test("contains core emoticon codes", () => {
 		for (const name of ["smile", "cry", "victory", "lol", "kiss", "biggrin", "mad", "tongue"]) {
 			expect(NAMED_SMILEY_SET.has(name)).toBe(true);
 		}
 	});
 
-	test("contains newly added codes (cool, w00t, wink, angry, etc.)", () => {
+	test("contains extended codes (cool, w00t, wink, angry, etc.)", () => {
 		for (const name of [
 			"cool",
 			"w00t",
@@ -114,8 +114,14 @@ describe("NAMED_SMILEY_SET", () => {
 		}
 	});
 
-	test("contains Discuz common codes (unhappy, bigsmile, ico29)", () => {
-		for (const name of ["unhappy", "bigsmile", "ico29"]) {
+	test("contains Discuz common codes (unhappy, bigsmile, ico29, tounge)", () => {
+		for (const name of ["unhappy", "bigsmile", "ico29", "tounge"]) {
+			expect(NAMED_SMILEY_SET.has(name)).toBe(true);
+		}
+	});
+
+	test("contains smile_ variants with underscores", () => {
+		for (const name of ["smile_blush", "smile_cool", "smile_shy"]) {
 			expect(NAMED_SMILEY_SET.has(name)).toBe(true);
 		}
 	});
@@ -128,7 +134,7 @@ describe("NAMED_SMILEY_SET", () => {
 
 	test("all values contain only safe filename chars", () => {
 		for (const file of Object.values(NAMED_SMILEYS)) {
-			expect(file).toMatch(/^[a-z0-9]+\.gif$/);
+			expect(file).toMatch(/^[a-z0-9_]+\.gif$/);
 		}
 	});
 });
@@ -235,6 +241,25 @@ describe("replaceSmileyCodesWithImages", () => {
 		const result = replaceSmileyCodesWithImages(":bigsmile:");
 		expect(result).toBe(
 			`<img src="${CDN}/default/bigsmile.gif" alt=":bigsmile:" class="smiley" />`,
+		);
+	});
+
+	test("replaces :tounge: (common misspelling) with default/tounge.gif", () => {
+		const result = replaceSmileyCodesWithImages(":tounge:");
+		expect(result).toBe(`<img src="${CDN}/default/tounge.gif" alt=":tounge:" class="smiley" />`);
+	});
+
+	test("replaces :smile_blush: (underscore variant) with default/smile_blush.gif", () => {
+		const result = replaceSmileyCodesWithImages(":smile_blush:");
+		expect(result).toBe(
+			`<img src="${CDN}/default/smile_blush.gif" alt=":smile_blush:" class="smiley" />`,
+		);
+	});
+
+	test("replaces :smile_cool: with default/smile_cool.gif", () => {
+		const result = replaceSmileyCodesWithImages(":smile_cool:");
+		expect(result).toBe(
+			`<img src="${CDN}/default/smile_cool.gif" alt=":smile_cool:" class="smiley" />`,
 		);
 	});
 
@@ -358,7 +383,8 @@ describe("replaceSmileyCodesWithImages", () => {
 		expect(replaceSmileyCodesWithImages(":SMILE:")).toBe(":SMILE:");
 	});
 
-	test("does not match named code with underscores", () => {
+	test("leaves unknown underscore codes unchanged", () => {
+		// Underscores are allowed but :foo_bar: isn't in our whitelist
 		expect(replaceSmileyCodesWithImages(":foo_bar:")).toBe(":foo_bar:");
 	});
 
