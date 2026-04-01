@@ -25,6 +25,7 @@ import {
 	statusLabel,
 	updateForum,
 } from "@/viewmodels/admin/forums";
+import { formatNumber } from "@/viewmodels/shared/formatting";
 import { MoreHorizontal, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -266,13 +267,13 @@ export default function ForumsPage() {
 		{
 			key: "threads",
 			header: "主题",
-			cell: (row) => row.threads.toLocaleString(),
+			cell: (row) => formatNumber(row.threads),
 			className: "text-right",
 		},
 		{
 			key: "posts",
 			header: "帖子",
-			cell: (row) => row.posts.toLocaleString(),
+			cell: (row) => formatNumber(row.posts),
 			className: "text-right",
 		},
 		{

@@ -5,6 +5,7 @@
 
 import { ForumLogo } from "@/components/forum/forum-logo";
 import { UserAvatar } from "@/components/forum/user-avatar";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { getAvatarUrl } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
 import type { HeaderViewModel } from "@/viewmodels/forum/header";
@@ -67,6 +68,7 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 
 						{/* Action icons */}
 						<div className="flex items-center gap-1">
+							<ThemeToggle />
 							<Link
 								href="/messages"
 								className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
@@ -86,6 +88,7 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 					</div>
 				) : (
 					<div className="flex items-center gap-3 text-sm">
+						<ThemeToggle />
 						<Link href="/login" className="font-medium text-primary hover:text-primary/80 transition-colors">
 							登录
 						</Link>

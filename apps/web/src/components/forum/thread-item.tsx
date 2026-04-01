@@ -41,7 +41,7 @@ export function ThreadItem({ item }: ThreadItemProps) {
 			<div className="hidden sm:flex flex-col items-center justify-center w-[100px] shrink-0 py-2 text-center">
 				<Link
 					href={`/users/${thread.authorId}`}
-					className="text-xs text-foreground hover:text-primary transition-colors truncate max-w-full"
+					className="text-2xs text-foreground hover:text-primary transition-colors truncate max-w-full"
 				>
 					{thread.authorName}
 				</Link>
@@ -50,13 +50,13 @@ export function ThreadItem({ item }: ThreadItemProps) {
 
 			{/* Column 3: Replies / Views (fixed) */}
 			<div className="hidden sm:flex flex-col items-center justify-center w-[80px] shrink-0 py-2 text-center tabular-nums">
-				<span className="text-xs text-foreground">{formatStat(thread.replies)}</span>
+				<span className="text-2xs text-foreground">{formatStat(thread.replies)}</span>
 				<span className="text-2xs text-muted-foreground">{formatStat(thread.views)}</span>
 			</div>
 
 			{/* Column 4: Last Post (fixed) */}
 			<div className="hidden sm:flex flex-col items-center justify-center w-[120px] shrink-0 py-2 text-center">
-				<span className="text-xs text-foreground truncate max-w-full">
+				<span className="text-2xs text-foreground truncate max-w-full">
 					{thread.lastPoster || "-"}
 				</span>
 				<span className="text-2xs text-muted-foreground">

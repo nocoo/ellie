@@ -6,8 +6,10 @@
 import { NewThreadDialog } from "@/components/forum/new-thread-dialog";
 import { SafeHtml } from "@/components/forum/safe-html";
 import { Button } from "@/components/ui/button";
+import { formatNumber } from "@/viewmodels/shared/formatting";
 import type { Forum } from "@ellie/types";
 import { PenLine } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 interface ForumHeaderClientProps {
@@ -27,8 +29,14 @@ export function ForumHeaderClient({ forum, isGroup }: ForumHeaderClientProps) {
 						{forum.description && <SafeHtml html={forum.description} />}
 						{!isGroup && (
 							<>
-								<span>帖子 {forum.threads.toLocaleString()}</span>
-								<span>回帖 {forum.posts.toLocaleString()}</span>
+								<span>帖子 {formatNumber(forum.threads)}</span>
+								<span>回帖 {formatNumber(forum.posts)}</span>
+								<Link
+									href="/digest"
+									className="text-success hover:text-success/80 transition-colors"
+								>
+									精华帖
+								</Link>
 							</>
 						)}
 					</div>

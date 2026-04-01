@@ -24,6 +24,7 @@ import {
 	statusLabel,
 	updateUser,
 } from "@/viewmodels/admin/users";
+import { formatNumber } from "@/viewmodels/shared/formatting";
 import { MoreHorizontal } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -285,7 +286,7 @@ export default function UsersPage() {
 		{
 			key: "posts",
 			header: "帖子",
-			cell: (row) => row.posts.toLocaleString(),
+			cell: (row) => formatNumber(row.posts),
 			className: "text-right",
 		},
 		{

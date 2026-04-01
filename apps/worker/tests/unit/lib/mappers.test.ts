@@ -460,7 +460,7 @@ describe("D1 row mappers", () => {
 			expect("password_hash" in user).toBe(false);
 		});
 
-		it("should output exactly 16 fields", () => {
+		it("should output exactly 27 fields", () => {
 			const row = {
 				id: 1,
 				username: "alice",
@@ -478,10 +478,21 @@ describe("D1 row mappers", () => {
 				digest_posts: 0,
 				ol_time: 0,
 				last_activity: 0,
+				gender: 0,
+				birth_year: 0,
+				birth_month: 0,
+				birth_day: 0,
+				reside_province: "",
+				reside_city: "",
+				graduate_school: "",
+				bio: "",
+				interest: "",
+				qq: "",
+				site: "",
 			};
 
 			const user = toPublicUser(row);
-			expect(Object.keys(user)).toHaveLength(16);
+			expect(Object.keys(user)).toHaveLength(27);
 		});
 	});
 

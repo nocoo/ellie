@@ -22,6 +22,7 @@ import {
 	stickyLabel,
 	updateThread,
 } from "@/viewmodels/admin/threads";
+import { formatNumber } from "@/viewmodels/shared/formatting";
 import { ArrowLeft, Loader2, Pencil, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -210,9 +211,9 @@ export default function ThreadDetailPage() {
 							<span>·</span>
 							<span>{new Date(thread.createdAt * 1000).toLocaleString()}</span>
 							<span>·</span>
-							<span>{thread.replies} 回复</span>
+							<span>{formatNumber(thread.replies)} 回复</span>
 							<span>·</span>
-							<span>{thread.views.toLocaleString()} 浏览</span>
+							<span>{formatNumber(thread.views)} 浏览</span>
 						</div>
 						<div className="flex flex-wrap gap-1.5">
 							{thread.sticky > 0 && <Badge variant="default">{stickyLabel(thread.sticky)}</Badge>}
