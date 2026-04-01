@@ -103,12 +103,12 @@
 	--font-size-2xs: 0.6875rem;
 	--font-size-2xs--line-height: 1rem;
 
-	/* Radius tokens — 2px base, subtle & uniform */
-	--radius-card: 2px;
-	--radius-widget: 2px;
+	/* Radius tokens — basalt design system */
+	--radius-card: 14px;
+	--radius-widget: 10px;
 	--radius-lg: var(--radius);
-	--radius-md: var(--radius);
-	--radius-sm: var(--radius);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-sm: calc(var(--radius) - 4px);
 
 	/* Animations */
 	--animate-accordion-down: accordion-down 0.2s ease-out;

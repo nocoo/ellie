@@ -99,7 +99,7 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
 
 			{/* Setting groups */}
 			{SETTING_GROUPS.map((group) => (
-				<div key={group.prefix} className="rounded-lg border bg-card p-6">
+				<div key={group.prefix} className="rounded-xl border bg-card p-6">
 					<h2 className="text-base font-semibold text-foreground">{group.title}</h2>
 					<p className="mt-1 text-sm text-muted-foreground">{group.description}</p>
 

@@ -269,7 +269,7 @@ export default function CensorWordsPage() {
 				onClearAll={handleClearFilters}
 			/>
 
-			<div className="rounded-lg border bg-card">
+			<div className="rounded-xl border bg-card">
 				<AdminDataTable
 					columns={columns}
 					data={data}
@@ -291,7 +291,7 @@ export default function CensorWordsPage() {
 			/>
 
 			{/* Content Test Tool */}
-			<div className="rounded-lg border bg-card p-4">
+			<div className="rounded-xl border bg-card p-4">
 				<h2 className="mb-3 text-lg font-medium text-foreground">内容测试</h2>
 				<p className="mb-3 text-sm text-muted-foreground">测试内容将如何被当前敏感词列表过滤。</p>
 				<div className="space-y-3">
