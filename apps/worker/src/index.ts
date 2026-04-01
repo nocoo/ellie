@@ -1,5 +1,5 @@
 // Ellie API Worker — Cloudflare Worker with D1 + KV
-// 69 endpoints: 18 public + 5 moderation + 46 admin
+// 70 endpoints: 19 public + 5 moderation + 46 admin
 import type { CFRequest, Env } from "./lib/env";
 import { validateApiKey } from "./middleware/apiKey";
 import { configureAllowedOrigins, corsHeaders } from "./middleware/cors";
@@ -71,7 +71,12 @@ export default {
 				return await (await import("./handlers/user")).listPosts(request, env);
 			}
 
-			// ── #12b Public settings (Key A, read-only) ─────
+			// ── #12b Public stats (Key A, read-only, KV-cached) ─
+			if (path === "/api/v1/stats" && request.method === "GET") {
+				return await (await import("./handlers/stats")).stats(request, env);
+			}
+
+			// ── #12c Public settings (Key A, read-only) ─────
 			if (path === "/api/v1/settings" && request.method === "GET") {
 				return await (await import("./handlers/settings")).list(request, env);
 			}
