@@ -1,8 +1,4 @@
 "use client";
-
-// Client wrapper for thread detail page
-// Manages reply dialog state and provides onReply callbacks to post cards
-
 import { PostCard } from "@/components/forum/post-card";
 import { ReplyDialog } from "@/components/forum/reply-dialog";
 import { Button } from "@/components/ui/button";
@@ -14,31 +10,47 @@ import { useCallback, useState } from "react";
 interface ThreadPostsClientProps {
 	thread: Thread;
 	posts: EnrichedPost[];
+	canModerateForum: boolean;
+	/** Can manage thread (sticky/highlight/digest/close) */
+	canManageThread: boolean;
+	/** Can move thread (SuperMod/Admin only) */
+	canMoveThread: boolean;
+	/** Can delete thread (SuperMod/Admin or author) */
+	canDeleteThread: boolean;
+	currentUserId: number | null;
+	/** Current viewer's role for popover permission checks */
+	currentUserRole?: number;
 }
 
-export function ThreadPostsClient({ thread, posts }: ThreadPostsClientProps) {
+export function ThreadPostsClient({
+	thread,
+	posts,
+	canModerateForum,
+	canManageThread,
+	canMoveThread,
+	canDeleteThread,
+	currentUserId,
+	currentUserRole = 0,
+}: ThreadPostsClientProps) {
 	const [replyOpen, setReplyOpen] = useState(false);
 	const [quotedPost, setQuotedPost] = useState<{
 		content: string;
 		author: string;
 	} | null>(null);
 
-	const handleReply = useCallback(
-		(post?: EnrichedPost) => {
-			if (post) {
-				// Quote reply - extract plain text for quote
-				const plainText = post.content.replace(/<[^>]*>/g, "").slice(0, 200);
-				setQuotedPost({
-					content: plainText + (post.content.length > 200 ? "..." : ""),
-					author: post.author?.username ?? "匿名",
-				});
-			} else {
-				setQuotedPost(null);
-			}
-			setReplyOpen(true);
-		},
-		[],
-	);
+	const handleReply = useCallback((post?: EnrichedPost) => {
+		if (post) {
+			// Quote reply - extract plain text for quote
+			const plainText = post.content.replace(/<[^>]*>/g, "").slice(0, 200);
+			setQuotedPost({
+				content: plainText + (post.content.length > 200 ? "..." : ""),
+				author: post.author?.username ?? "匿名",
+			});
+		} else {
+			setQuotedPost(null);
+		}
+		setReplyOpen(true);
+	}, []);
 
 	const handleQuickReply = useCallback(() => {
 		setQuotedPost(null);
@@ -57,7 +69,19 @@ export function ThreadPostsClient({ thread, posts }: ThreadPostsClientProps) {
 						threadViews={isFirst ? thread.views : undefined}
 						threadReplies={isFirst ? thread.replies : undefined}
 						threadDigest={isFirst ? thread.digest : undefined}
+						threadSticky={isFirst ? thread.sticky : undefined}
+						threadHighlight={isFirst ? thread.highlight : undefined}
+						threadClosed={thread.closed === 1}
 						onReply={() => handleReply(post)}
+						canModerate={canModerateForum}
+						canManageThread={canManageThread}
+						canMoveThread={canMoveThread}
+						canDeleteThread={canDeleteThread}
+						currentUserId={currentUserId}
+						currentUserRole={currentUserRole}
+						isFirstPost={isFirst}
+						threadId={thread.id}
+						forumId={thread.forumId}
 					/>
 				);
 			})}

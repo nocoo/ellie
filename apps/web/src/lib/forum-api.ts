@@ -239,5 +239,7 @@ export function publicUserToUser(pu: PublicUser): User {
 		email: "",
 		status: UserStatus.Active,
 		lastLogin: 0,
+		regIp: "",
+		lastIp: "",
 	};
 }

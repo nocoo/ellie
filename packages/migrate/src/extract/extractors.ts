@@ -161,6 +161,8 @@ const PROFILE_COLS = {
 /** Column indices for pre_common_member_status INSERT VALUES. */
 const STATUS_COLS = {
 	uid: 0,
+	regip: 1,
+	lastip: 2,
 	lastactivity: 5,
 } as const;
 
@@ -221,6 +223,8 @@ export interface ProfileData {
 /** Data from pre_common_member_status for one user. */
 export interface StatusData {
 	lastactivity: number;
+	regip: string;
+	lastip: string;
 }
 
 /** Data from pre_common_usergroup for one group. */
@@ -299,6 +303,8 @@ export function parseStatusRow(row: ParsedRow): { uid: number; data: StatusData 
 		uid: Number(row[STATUS_COLS.uid]),
 		data: {
 			lastactivity: Number(row[STATUS_COLS.lastactivity]) || 0,
+			regip: row[STATUS_COLS.regip] ?? "",
+			lastip: row[STATUS_COLS.lastip] ?? "",
 		},
 	};
 }
@@ -398,6 +404,8 @@ export function extractUser(
 		ol_time: counts?.oltime ?? 0,
 		...buildProfileFields(extras?.profile),
 		last_activity: extras?.status?.lastactivity ?? 0,
+		reg_ip: extras?.status?.regip ?? "",
+		last_ip: extras?.status?.lastip ?? "",
 	};
 }
 

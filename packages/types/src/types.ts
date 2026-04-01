@@ -99,6 +99,8 @@ export interface User {
 	qq: string;
 	site: string;
 	lastActivity: number;
+	regIp: string;
+	lastIp: string;
 }
 
 /** Maps to Doc02 forums table — 213 rows */

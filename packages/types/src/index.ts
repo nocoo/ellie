@@ -41,5 +41,9 @@ export {
 	canModerate,
 	canAccessAdmin,
 	canManageUsers,
+	canEditPost,
 	canDeletePost,
+	canDeleteThread,
+	canManageThread,
+	canMoveThread,
 } from "./permission";
