@@ -4,16 +4,50 @@ import { getCurrentForumUser } from "@/lib/forum-auth";
 import { forumApi } from "@/lib/forum-api";
 import { buildGlobalFooterViewModel } from "@/viewmodels/forum/footer";
 import { type HeaderStats, type HeaderUserInfo, buildHeaderViewModel } from "@/viewmodels/forum/header";
+import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 import type { SiteStats } from "@/viewmodels/forum/stats.server";
 import type { PublicUser } from "@ellie/types";
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-export default async function ForumLayout({ children }: { children: ReactNode }) {
-	// Fetch stats and user in parallel
-	const [stats, currentUser] = await Promise.all([loadStats(), loadCurrentUser()]);
+export async function generateMetadata(): Promise<Metadata> {
+	const settings = await fetchPublicSettings();
+	const siteName = getStr(settings, "general.site.name", "Ellie");
+	const subtitle = getStr(settings, "general.site.subtitle", "");
 
-	const headerVm = buildHeaderViewModel(currentUser, stats);
-	const footerVm = buildGlobalFooterViewModel();
+	const suffix = subtitle ? `${siteName} - ${subtitle}` : siteName;
+
+	return {
+		title: {
+			template: `%s - ${suffix}`,
+			default: suffix,
+		},
+		description: getStr(settings, "general.og.description", ""),
+		openGraph: {
+			title: getStr(settings, "general.og.title", "") || undefined,
+			description: getStr(settings, "general.og.description", "") || undefined,
+			siteName: getStr(settings, "general.og.site_name", "") || undefined,
+			images: getStr(settings, "general.og.image", "")
+				? [getStr(settings, "general.og.image", "")]
+				: undefined,
+			url: getStr(settings, "general.og.url", "") || undefined,
+		},
+		twitter: {
+			card: getStr(settings, "general.og.twitter_card", "summary") as "summary",
+			site: getStr(settings, "general.og.twitter_site", "") || undefined,
+		},
+	};
+}
+
+export default async function ForumLayout({ children }: { children: ReactNode }) {
+	const [settings, stats, currentUser] = await Promise.all([
+		fetchPublicSettings(),
+		loadStats(),
+		loadCurrentUser(),
+	]);
+
+	const headerVm = buildHeaderViewModel(settings, currentUser, stats);
+	const footerVm = buildGlobalFooterViewModel(settings);
 
 	return (
 		<ForumLayoutShell headerVm={headerVm} footerVm={footerVm}>

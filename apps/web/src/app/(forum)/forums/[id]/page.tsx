@@ -11,13 +11,26 @@ import {
 	type ThreadListPagedData,
 	loadThreadListPaged,
 } from "@/viewmodels/forum/thread-list.server";
+import { getForumTitle } from "@/viewmodels/forum/title.server";
 import { parseIntParam, parsePageParam } from "@/viewmodels/shared/params";
 import { ForumType } from "@ellie/types";
 import Link from "next/link";
+import type { Metadata } from "next";
 
 interface ForumThreadsPageProps {
 	params: Promise<{ id: string }>;
 	searchParams: Promise<{ page?: string }>;
+}
+
+export async function generateMetadata({ params }: ForumThreadsPageProps): Promise<Metadata> {
+	const { id } = await params;
+	const forumId = parseIntParam(id);
+	if (forumId == null) return { title: "版块" };
+	try {
+		return { title: await getForumTitle(forumId) };
+	} catch {
+		return { title: "版块" };
+	}
 }
 
 export default async function ForumThreadsPage({ params, searchParams }: ForumThreadsPageProps) {

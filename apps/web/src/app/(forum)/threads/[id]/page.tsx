@@ -11,13 +11,26 @@ import {
 	loadThreadDetail,
 } from "@/viewmodels/forum/thread-detail.server";
 import { formatTime } from "@/viewmodels/forum/thread-list";
+import { getThreadTitle } from "@/viewmodels/forum/title.server";
 import { parseIntParam } from "@/viewmodels/shared/params";
 import { getThreadBadges } from "@ellie/types";
 import Link from "next/link";
+import type { Metadata } from "next";
 
 interface ThreadDetailPageProps {
 	params: Promise<{ id: string }>;
 	searchParams: Promise<{ cursor?: string; direction?: string }>;
+}
+
+export async function generateMetadata({ params }: ThreadDetailPageProps): Promise<Metadata> {
+	const { id } = await params;
+	const threadId = parseIntParam(id);
+	if (threadId == null) return { title: "帖子" };
+	try {
+		return { title: await getThreadTitle(threadId) };
+	} catch {
+		return { title: "帖子" };
+	}
 }
 
 export default async function ThreadDetailPage({ params, searchParams }: ThreadDetailPageProps) {

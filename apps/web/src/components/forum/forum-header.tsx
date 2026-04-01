@@ -61,7 +61,7 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 						{/* Avatar */}
 						<Link href={`/users/${user.uid}`}>
 							<UserAvatar
-								src={getAvatarUrl(user.uid, "middle")}
+								src={getAvatarUrl(user.uid, "middle", vm.avatarCdnBase)}
 								alt={user.username}
 								className="h-10 w-10 rounded-sm"
 							/>

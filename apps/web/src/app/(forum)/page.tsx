@@ -1,6 +1,7 @@
 import { ForumGroup } from "@/components/forum/forum-group";
 import { HomeFooter } from "@/components/forum/home-footer";
 import { buildHomeFooterViewModel } from "@/viewmodels/forum/footer";
+import { fetchPublicSettings } from "@/viewmodels/forum/settings.server";
 import { loadForumList } from "@/viewmodels/forum/forum-list.server";
 import { loadSiteStats } from "@/viewmodels/forum/stats.server";
 import type { ForumTreeNode } from "@ellie/types";
@@ -9,8 +10,18 @@ export default async function ForumHomePage() {
 	let tree: ForumTreeNode[] = [];
 	let error: string | null = null;
 
-	// Fetch forum list and online stats in parallel
-	const [forumResult, statsResult] = await Promise.allSettled([loadForumList(), loadSiteStats()]);
+	// Fetch forum list, online stats, and settings in parallel
+	const [forumResult, statsResult, settings] = await Promise.all([
+		loadForumList().then(
+			(r) => ({ status: "fulfilled" as const, value: r }),
+			(r) => ({ status: "rejected" as const, reason: r }),
+		),
+		loadSiteStats().then(
+			(r) => ({ status: "fulfilled" as const, value: r }),
+			() => ({ status: "rejected" as const, reason: null }),
+		),
+		fetchPublicSettings(),
+	]);
 
 	if (forumResult.status === "fulfilled") {
 		tree = forumResult.value;
@@ -47,7 +58,7 @@ export default async function ForumHomePage() {
 			)}
 
 			{/* Homepage-only footer: online stats + friend links */}
-			<HomeFooter vm={buildHomeFooterViewModel(onlineStats)} />
+			<HomeFooter vm={buildHomeFooterViewModel(settings, onlineStats)} />
 		</div>
 	);
 }
