@@ -11,6 +11,15 @@ Discuz X3.4 的在线统计功能包括：
 
 Ellie 需要在 Cloudflare Workers + D1 + KV 架构下重新实现这些功能。
 
+### 范围裁剪
+
+本期实现 **仅统计登录用户**，不含游客。原因：
+- 游客无稳定标识（IP 共享、动态变化）
+- 基于 fingerprint 的方案复杂且不可靠
+- KV key 数量会随游客暴增，成本不可控
+
+游客统计作为 P2 扩展项，后续可通过 CF Analytics 或采样估算实现。
+
 ---
 
 ## 1. 原 Discuz 实现分析
@@ -153,11 +162,12 @@ Footer 组件已预留位置，但目前使用默认值（全 0）。
 │  ┌─────────────────────────────────────────────────────┐       │
 │  │  KV: stats:online_count = 123                        │       │
 │  │  KV: stats:online_peak  = { count: 456, date: "..." }│       │
-│  │  D1: settings (general.stats.online_*)               │       │
 │  └─────────────────────────────────────────────────────┘       │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+> **注意**：峰值数据仅存储在 KV（永不过期），不进入 D1 settings 表。这是纯展示数据，非配置项。
 
 ---
 
@@ -168,15 +178,13 @@ Footer 组件已预留位置，但目前使用默认值（全 0）。
 #### 在线用户 Key
 
 ```
-Key:   online:{userId}           // 登录用户
-       online:guest:{sessionId}  // 游客（可选）
+Key:   online:{userId}           // 仅登录用户
 
 Value: {
-  "uid": 12345,                  // 用户 ID（游客为 0）
-  "username": "张三",            // 用户名（游客为空）
+  "uid": 12345,                  // 用户 ID
+  "username": "张三",            // 用户名
   "ip": "1.2.3.4",               // IP 地址
   "page": "/forums/1",           // 当前页面
-  "ua": "Mozilla/5.0...",        // User-Agent（可选）
   "ts": 1711900800               // 写入时间戳
 }
 
@@ -187,7 +195,7 @@ TTL:   900 秒（15 分钟）
 
 ```
 Key:   stats:online_count
-Value: "123"                     // 当前在线人数
+Value: "123"                     // 当前在线人数（登录用户）
 TTL:   300 秒（5 分钟）
 
 Key:   stats:online_peak
@@ -196,22 +204,16 @@ Value: {
   "date": "2026-04-01",
   "timestamp": 1711900800
 }
-TTL:   无（永久）
+TTL:   无（永久，KV 不设置 expirationTtl）
 ```
 
-### 4.2 D1 Settings 存储
+> **存储决策**：峰值数据仅用 KV 持久化，不进入 D1 `settings` 表。原因：
+> - 峰值是统计快照，非用户可配置项
+> - 避免污染 settings 白名单体系
+> - KV 无 TTL 的 key 永久保留，足够可靠
+> - 若 KV 丢失，峰值从 0 重新累积，可接受
 
-将峰值数据持久化到 `settings` 表：
-
-```sql
--- 插入峰值记录
-INSERT OR REPLACE INTO settings (key, value, type, updated_at)
-VALUES 
-  ('general.stats.online_peak_count', '456', 'number', 1711900800),
-  ('general.stats.online_peak_date', '2026-04-01', 'string', 1711900800);
-```
-
-### 4.3 用户表字段（已存在）
+### 4.2 用户表字段（已存在）
 
 ```sql
 -- users 表已有字段
@@ -223,26 +225,33 @@ last_activity  INTEGER NOT NULL DEFAULT 0   -- 最后活动时间戳
 
 ## 5. API 设计
 
-### 5.1 在线统计 API
+### 5.1 扩展现有 Stats API
+
+复用现有 `GET /api/v1/stats` 端点（`apps/web/src/viewmodels/forum/stats.server.ts` 已调用），在返回值中增加 `online` 字段：
 
 ```
-GET /api/v1/stats/online
+GET /api/v1/stats
 
 Response 200:
 {
-  "online": {
-    "total": 123,           // 当前在线总人数
-    "members": 45,          // 登录用户数
-    "guests": 78            // 游客数（可选）
-  },
-  "peak": {
-    "count": 456,           // 历史峰值
-    "date": "2026-04-01"    // 峰值日期
+  "users": 12345,           // 总用户数（已有）
+  "threads": 6789,          // 总主题数（已有）
+  "posts": 45678,           // 总帖子数（已有）
+  "newestUser": {...},      // 最新注册用户（已有）
+  "online": {               // 新增
+    "total": 123,           // 当前在线人数（登录用户）
+    "peak": 456,            // 历史峰值
+    "peakDate": "2026-04-01"// 峰值日期
   }
 }
 ```
 
-### 5.2 在线用户列表（可选扩展）
+> **设计决策**：扩展现有 `/api/v1/stats` 而非新建 `/api/v1/stats/online`。
+> - 首页已通过 `loadSiteStats()` 调用此 API
+> - 减少网络请求，一次获取所有统计
+> - 与现有 `OnlineStats` 类型对齐
+
+### 5.2 在线用户列表（P2 扩展）
 
 ```
 GET /api/v1/stats/online/users?limit=50
@@ -312,6 +321,7 @@ import type { Context, Next } from "hono";
 import type { Bindings } from "../types";
 
 const ACTIVITY_THRESHOLD = 1800; // 30 分钟内视为连续活动
+const THROTTLE_SECONDS = 60;     // 节流：每分钟最多更新一次
 
 export async function activityMiddleware(c: Context<{ Bindings: Bindings }>, next: Next) {
   await next();
@@ -321,6 +331,13 @@ export async function activityMiddleware(c: Context<{ Bindings: Bindings }>, nex
 
   try {
     const now = Math.floor(Date.now() / 1000);
+    
+    // 节流检查：1 分钟内已更新过则跳过
+    const throttleKey = `activity_throttle:${userId}`;
+    const lastUpdate = await c.env.KV.get(throttleKey);
+    if (lastUpdate && now - parseInt(lastUpdate, 10) < THROTTLE_SECONDS) {
+      return; // 跳过本次更新
+    }
     
     // 获取用户当前 last_activity
     const user = await c.env.DB.prepare(
@@ -337,17 +354,25 @@ export async function activityMiddleware(c: Context<{ Bindings: Bindings }>, nex
       ? Math.floor(gap / 60) 
       : 0;
     
-    // 更新 last_activity 和 ol_time
+    // 异步执行：更新节流标记 + 更新用户数据
     c.executionCtx.waitUntil(
-      c.env.DB.prepare(
-        "UPDATE users SET last_activity = ?, ol_time = ol_time + ? WHERE id = ?"
-      ).bind(now, addMinutes, userId).run()
+      Promise.all([
+        // 设置节流标记（TTL 2 分钟，比节流周期略长）
+        c.env.KV.put(throttleKey, String(now), { expirationTtl: 120 }),
+        // 更新 last_activity 和 ol_time
+        c.env.DB.prepare(
+          "UPDATE users SET last_activity = ?, ol_time = ol_time + ? WHERE id = ?"
+        ).bind(now, addMinutes, userId).run(),
+      ])
     );
   } catch (e) {
     console.error("Activity tracking error:", e);
   }
 }
 ```
+
+> **节流策略**：使用 KV 存储上次更新时间，1 分钟内的重复请求直接跳过。
+> 这将 D1 写入频率从"每次请求"降至"每用户每分钟最多 1 次"。
 
 ### 6.3 Cron：统计在线人数
 
@@ -385,18 +410,9 @@ export async function aggregateOnlineStats(env: Bindings): Promise<void> {
       timestamp: now,
     };
     
-    // 更新 KV
+    // 仅更新 KV（永久保留，无 TTL）
+    // 不写入 D1 settings —— 峰值是统计数据，非配置项
     await env.KV.put("stats:online_peak", JSON.stringify(newPeak));
-    
-    // 持久化到 D1
-    await env.DB.batch([
-      env.DB.prepare(
-        "INSERT OR REPLACE INTO settings (key, value, type, updated_at) VALUES (?, ?, 'number', ?)"
-      ).bind("general.stats.online_peak_count", String(totalCount), now),
-      env.DB.prepare(
-        "INSERT OR REPLACE INTO settings (key, value, type, updated_at) VALUES (?, ?, 'string', ?)"
-      ).bind("general.stats.online_peak_date", newPeak.date, now),
-    ]);
   }
 }
 ```
@@ -424,78 +440,123 @@ export default {
 };
 ```
 
-### 6.5 Stats Handler
+### 6.5 扩展现有 Stats Handler
+
+在现有 `apps/worker/src/handlers/stats.ts` 中增加在线统计字段：
 
 ```typescript
-// apps/worker/src/handlers/stats.ts
+// apps/worker/src/handlers/stats.ts（修改现有文件）
 
-import { Hono } from "hono";
-import type { Bindings } from "../types";
-
-const app = new Hono<{ Bindings: Bindings }>();
-
-app.get("/online", async (c) => {
-  // 从 KV 读取缓存的统计数据
-  const [countStr, peakData] = await Promise.all([
-    c.env.KV.get("stats:online_count"),
-    c.env.KV.get("stats:online_peak", "json") as Promise<{
-      count: number;
-      date: string;
-    } | null>,
+app.get("/", async (c) => {
+  // 现有统计查询...
+  const [userStats, threadStats, postStats, newestUser, onlineData] = await Promise.all([
+    // ... 现有查询
+    
+    // 新增：从 KV 读取在线统计
+    Promise.all([
+      c.env.KV.get("stats:online_count"),
+      c.env.KV.get("stats:online_peak", "json") as Promise<{
+        count: number;
+        date: string;
+      } | null>,
+    ]),
   ]);
-  
-  const total = countStr ? parseInt(countStr, 10) : 0;
-  
+
+  const [countStr, peakData] = onlineData;
+  const onlineCount = countStr ? parseInt(countStr, 10) : 0;
+
   return c.json({
+    users: userStats.count,
+    threads: threadStats.count,
+    posts: postStats.count,
+    newestUser: newestUser ? mapUserRow(newestUser) : null,
+    // 新增在线统计字段
     online: {
-      total,
-      members: total,  // TODO: 区分登录用户和游客
-      guests: 0,
+      total: onlineCount,
+      peak: peakData?.count ?? 0,
+      peakDate: peakData?.date ?? "",
     },
-    peak: peakData || { count: 0, date: "" },
   });
 });
-
-export { app as statsRoutes };
 ```
+
+> **注意**：修改现有 handler，不新建路由。前端 `loadSiteStats()` 无需改动调用方式。
 
 ---
 
 ## 7. 前端集成
 
-### 7.1 ViewModel 更新
+### 7.1 现有数据流
+
+首页已有完整的统计数据获取链路：
+
+```
+apps/web/src/app/(forum)/page.tsx
+  └─ loadSiteStats()                    // 并行调用
+      └─ apps/web/src/viewmodels/forum/stats.server.ts
+          └─ GET /api/v1/stats          // Worker API
+              └─ 返回 { users, threads, posts, newestUser, online }
+```
+
+`buildHomeFooterViewModel()` 已接收 `onlineStats` 参数（由页面层传入），无需改动。
+
+### 7.2 需修改的文件
+
+#### stats.server.ts — 解析新字段
 
 ```typescript
-// apps/web/src/viewmodels/forum/footer.ts
+// apps/web/src/viewmodels/forum/stats.server.ts（修改现有）
 
-export async function fetchOnlineStats(): Promise<OnlineStats> {
-  try {
-    const res = await fetch("/api/v1/stats/online");
-    if (!res.ok) return DEFAULT_ONLINE_STATS;
-    
-    const data = await res.json();
-    return {
-      totalOnline: data.online.total,
-      peakOnline: data.peak.count,
-      peakDate: data.peak.date,
-    };
-  } catch {
-    return DEFAULT_ONLINE_STATS;
-  }
-}
-
-export async function buildHomeFooterViewModel(
-  settings: SettingsMap,
-): Promise<HomeFooterViewModel> {
-  const onlineStats = await fetchOnlineStats();
-  // ... rest of implementation
+export async function loadSiteStats(): Promise<SiteStats> {
+  const res = await fetch(`${API_BASE}/stats`);
+  const data = await res.json();
+  
+  return {
+    users: data.users,
+    threads: data.threads,
+    posts: data.posts,
+    newestUser: data.newestUser,
+    // 新增：解析在线统计
+    online: {
+      totalOnline: data.online?.total ?? 0,
+      peakOnline: data.online?.peak ?? 0,
+      peakDate: data.online?.peakDate ?? "",
+    },
+  };
 }
 ```
 
-### 7.2 首页 Footer 展示
+#### types.ts — 扩展类型定义
+
+```typescript
+// apps/web/src/viewmodels/forum/stats.server.ts 或 types
+
+export interface SiteStats {
+  users: number;
+  threads: number;
+  posts: number;
+  newestUser: UserSummary | null;
+  online: OnlineStats;  // 新增
+}
+```
+
+### 7.3 页面层（已有，无需改动）
+
+```typescript
+// apps/web/src/app/(forum)/page.tsx（现有代码，无需修改）
+
+const [settings, siteStats] = await Promise.all([
+  fetchPublicSettings(),
+  loadSiteStats(),
+]);
+
+const homeFooter = buildHomeFooterViewModel(settings, siteStats.online);
+```
+
+### 7.4 Footer 组件展示
 
 ```tsx
-// apps/web/src/components/forum/home-footer.tsx
+// apps/web/src/components/forum/home-footer.tsx（修改现有）
 
 <div className="online-stats">
   <p>
@@ -618,11 +679,11 @@ bun test apps/worker/tests/unit/middleware/activity.test.ts
 feat(worker): add online stats cron aggregation
 
 Add scheduled handler to aggregate online statistics.
-- List all online:* keys from KV
+- List all online:* keys from KV (paginated)
 - Count total online users
-- Update peak if current count exceeds historical peak
-- Persist peak to D1 settings table
+- Update peak in KV if current count exceeds historical
 - Cache current count in KV with 5min TTL
+- No D1 writes — peak stored only in KV (permanent)
 
 Files:
   apps/worker/src/cron/online-stats.ts
@@ -647,29 +708,28 @@ bun test apps/worker/tests/unit/cron/online-stats.test.ts
 
 ---
 
-#### Commit 4: Stats API 端点
+#### Commit 4: 扩展 Stats API
 
 ```
-feat(worker): add stats api endpoint
+feat(worker): extend stats api with online statistics
 
-Add GET /api/v1/stats/online endpoint for online statistics.
-- Return current online count from KV cache
-- Return historical peak from KV/D1
+Add online statistics to existing GET /api/v1/stats endpoint.
+- Read current online count from KV cache
+- Read historical peak from KV (permanent key)
+- Return { online: { total, peak, peakDate } } in response
 - Fallback to zero if no data available
 
 Files:
-  apps/worker/src/handlers/stats.ts
-  apps/worker/src/index.ts (route registration)
-  apps/worker/tests/unit/handlers/stats.test.ts
+  apps/worker/src/handlers/stats.ts (modify existing)
+  apps/worker/tests/unit/handlers/stats.test.ts (extend)
 ```
 
 **变更文件：**
 
 | 文件 | 操作 | 说明 |
 |------|------|------|
-| `apps/worker/src/handlers/stats.ts` | 新增 | statsRoutes handler |
-| `apps/worker/src/index.ts` | 修改 | 注册 /api/v1/stats 路由 |
-| `apps/worker/tests/unit/handlers/stats.test.ts` | 新增 | L1 单元测试 |
+| `apps/worker/src/handlers/stats.ts` | 修改 | 在现有 handler 中增加 online 字段 |
+| `apps/worker/tests/unit/handlers/stats.test.ts` | 修改 | 扩展测试用例 |
 
 **验证命令：**
 ```bash
@@ -706,33 +766,31 @@ bun test apps/worker/tests/integration/online-tracking.test.ts
 
 ---
 
-#### Commit 6: 前端 ViewModel 集成
+#### Commit 6: 前端类型与数据解析
 
 ```
-feat(web): add online stats fetcher in footer viewmodel
+feat(web): extend stats types and parser for online data
 
-Add fetchOnlineStats function to retrieve online statistics.
-- Fetch from /api/v1/stats/online
-- Return DEFAULT_ONLINE_STATS on error
-- Update buildHomeFooterViewModel to use real data
+Update stats.server.ts to parse online statistics from API.
+- Add online field to SiteStats interface
+- Parse { total, peak, peakDate } from API response
+- Existing loadSiteStats() call unchanged
 
 Files:
-  apps/web/src/viewmodels/forum/footer.ts
-  apps/web/src/viewmodels/forum/footer.server.ts
-  tests/unit/viewmodels/forum/footer.test.ts
+  apps/web/src/viewmodels/forum/stats.server.ts
+  tests/unit/viewmodels/forum/stats.test.ts
 ```
 
 **变更文件：**
 
 | 文件 | 操作 | 说明 |
 |------|------|------|
-| `apps/web/src/viewmodels/forum/footer.ts` | 修改 | 添加 fetchOnlineStats |
-| `apps/web/src/viewmodels/forum/footer.server.ts` | 修改 | 调用 fetchOnlineStats |
-| `tests/unit/viewmodels/forum/footer.test.ts` | 修改 | 更新测试 |
+| `apps/web/src/viewmodels/forum/stats.server.ts` | 修改 | 解析 online 字段 |
+| `tests/unit/viewmodels/forum/stats.test.ts` | 修改 | 扩展测试 |
 
 **验证命令：**
 ```bash
-bun test tests/unit/viewmodels/forum/footer.test.ts
+bun test tests/unit/viewmodels/forum/stats.test.ts
 ```
 
 ---
@@ -1071,7 +1129,8 @@ describe("aggregateOnlineStats", () => {
       "stats:online_peak",
       expect.stringContaining('"count":100')
     );
-    expect(mockEnv.DB.batch).toHaveBeenCalled();
+    // 不写 D1 — 峰值仅存 KV
+    expect(mockEnv.DB.batch).not.toHaveBeenCalled();
   });
 
   it("should not update peak when current count is lower", async () => {
@@ -1097,54 +1156,58 @@ describe("aggregateOnlineStats", () => {
 #### 10.2.4 Stats Handler 测试
 
 ```typescript
-// apps/worker/tests/unit/handlers/stats.test.ts
+// apps/worker/tests/unit/handlers/stats.test.ts（扩展现有测试）
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { statsRoutes } from "../../../src/handlers/stats";
-import { Hono } from "hono";
 
-describe("GET /api/v1/stats/online", () => {
-  let app: Hono;
+describe("GET /api/v1/stats — online field", () => {
   let mockKV: any;
+  let mockDB: any;
 
   beforeEach(() => {
     mockKV = {
       get: vi.fn(),
     };
-    
-    app = new Hono();
-    app.route("/api/v1/stats", statsRoutes);
+    mockDB = {
+      prepare: vi.fn().mockReturnThis(),
+      bind: vi.fn().mockReturnThis(),
+      first: vi.fn(),
+    };
   });
 
-  const request = (path: string) =>
-    app.request(path, {}, { KV: mockKV });
-
-  it("should return online stats from KV cache", async () => {
+  it("should include online stats from KV cache", async () => {
+    // 模拟现有统计查询...
+    mockDB.first.mockResolvedValue({ count: 100 });
+    
     mockKV.get
       .mockResolvedValueOnce("123") // stats:online_count
       .mockResolvedValueOnce({ count: 456, date: "2026-04-01" }); // stats:online_peak
 
-    const res = await request("/api/v1/stats/online");
-    const body = await res.json();
+    // 调用 handler...
+    const body = { /* response */ };
 
-    expect(res.status).toBe(200);
-    expect(body).toEqual({
-      online: { total: 123, members: 123, guests: 0 },
-      peak: { count: 456, date: "2026-04-01" },
+    expect(body.online).toEqual({
+      total: 123,
+      peak: 456,
+      peakDate: "2026-04-01",
     });
   });
 
-  it("should return zeros when no cache data", async () => {
+  it("should return zeros for online when no KV data", async () => {
+    mockDB.first.mockResolvedValue({ count: 100 });
     mockKV.get.mockResolvedValue(null);
 
-    const res = await request("/api/v1/stats/online");
-    const body = await res.json();
+    // 调用 handler...
+    const body = { /* response */ };
 
-    expect(body).toEqual({
-      online: { total: 0, members: 0, guests: 0 },
-      peak: { count: 0, date: "" },
+    expect(body.online).toEqual({
+      total: 0,
+      peak: 0,
+      peakDate: "",
     });
   });
+});
+```
 });
 ```
 
