@@ -53,59 +53,86 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 				<div className="mt-2 grid w-full grid-cols-3 text-center text-2xs divide-x divide-border">
 					<div className="py-1 px-0.5">
 						<div className="font-medium text-forum-link">{author.threads.toLocaleString()}</div>
-						<div className="text-forum-text-muted">主题</div>
+						<div className="text-[12px] text-forum-text-muted">主题</div>
 					</div>
 					<div className="py-1 px-0.5">
 						<div className="font-medium text-forum-link">{author.posts.toLocaleString()}</div>
-						<div className="text-forum-text-muted">帖子</div>
+						<div className="text-[12px] text-forum-text-muted">帖子</div>
 					</div>
 					<div className="py-1 px-0.5">
 						<div className="font-medium text-forum-link">{author.credits.toLocaleString()}</div>
-						<div className="text-forum-text-muted">积分</div>
+						<div className="text-[12px] text-forum-text-muted">积分</div>
 					</div>
 				</div>
 			)}
 
-			{/* Detail rows */}
+			{/* Detail rows — aligned label:value pairs */}
 			{author && (
 				<div className="w-full space-y-1 text-xs text-muted-foreground mt-1">
 					{/* Group title + level */}
 					{author.groupTitle && (
-						<div>
+						<div className="flex items-baseline justify-between gap-1">
+							<span className="shrink-0 text-forum-text-muted">头衔:</span>
 							<span
-								className="font-medium"
+								className="font-medium text-right"
 								style={author.groupColor ? { color: author.groupColor } : undefined}
 							>
 								{author.groupTitle}
 							</span>
-							{author.groupStars > 0 && (
-								<span className="ml-1 text-muted-foreground">Lv.{author.groupStars}</span>
-							)}
+						</div>
+					)}
+
+					{/* Level */}
+					{author.groupStars > 0 && (
+						<div className="flex items-baseline justify-between gap-1">
+							<span className="shrink-0 text-forum-text-muted">等级:</span>
+							<span>Lv.{author.groupStars}</span>
 						</div>
 					)}
 
 					{/* Custom title */}
-					{author.customTitle && <div className="text-forum-text-muted italic">{author.customTitle}</div>}
+					{author.customTitle && (
+						<div className="flex items-baseline justify-between gap-1">
+							<span className="shrink-0 text-forum-text-muted">自定义:</span>
+							<span className="italic text-right truncate">{author.customTitle}</span>
+						</div>
+					)}
 
 					{/* UID */}
-					<div>
-						UID:{" "}
+					<div className="flex items-baseline justify-between gap-1">
+						<span className="shrink-0 text-forum-text-muted">UID:</span>
 						<Link href={`/users/${author.id}`} className="text-forum-link hover:underline">
 							{author.id}
 						</Link>
 					</div>
 
 					{/* Credits */}
-					<div>同钱: {author.credits.toLocaleString()}</div>
+					<div className="flex items-baseline justify-between gap-1">
+						<span className="shrink-0 text-forum-text-muted">同钱:</span>
+						<span>{author.credits.toLocaleString()}</span>
+					</div>
 
 					{/* Registration date */}
-					<div>注册时间: {formatDate(author.regDate)}</div>
+					<div className="flex items-baseline justify-between gap-1">
+						<span className="shrink-0 text-forum-text-muted">注册:</span>
+						<span>{formatDate(author.regDate)}</span>
+					</div>
 
 					{/* Online time */}
-					{author.olTime > 0 && <div>在线: {author.olTime.toLocaleString()} 小时</div>}
+					{author.olTime > 0 && (
+						<div className="flex items-baseline justify-between gap-1">
+							<span className="shrink-0 text-forum-text-muted">在线:</span>
+							<span>{author.olTime.toLocaleString()} 小时</span>
+						</div>
+					)}
 
 					{/* Digest posts */}
-					{author.digestPosts > 0 && <div>精华: {author.digestPosts}</div>}
+					{author.digestPosts > 0 && (
+						<div className="flex items-baseline justify-between gap-1">
+							<span className="shrink-0 text-forum-text-muted">精华:</span>
+							<span>{author.digestPosts}</span>
+						</div>
+					)}
 				</div>
 			)}
 
