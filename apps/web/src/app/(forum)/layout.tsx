@@ -1,9 +1,13 @@
 import { ForumLayoutShell } from "@/components/forum/forum-layout";
 import { SessionGuard } from "@/components/forum/session-guard";
-import { getCurrentForumUser } from "@/lib/forum-auth";
 import { forumApi } from "@/lib/forum-api";
+import { getCurrentForumUser } from "@/lib/forum-auth";
 import { buildGlobalFooterViewModel } from "@/viewmodels/forum/footer";
-import { type HeaderStats, type HeaderUserInfo, buildHeaderViewModel } from "@/viewmodels/forum/header";
+import {
+	type HeaderStats,
+	type HeaderUserInfo,
+	buildHeaderViewModel,
+} from "@/viewmodels/forum/header";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 import type { SiteStats } from "@/viewmodels/forum/stats.server";
 import type { PublicUser } from "@ellie/types";
@@ -95,6 +99,7 @@ async function loadCurrentUser(): Promise<HeaderUserInfo | null> {
 			groupTitle: user.groupTitle,
 			credits: user.credits,
 			reminderCount: 0, // TODO: wire when messaging system is built
+			role: user.role,
 		};
 	} catch {
 		return null;

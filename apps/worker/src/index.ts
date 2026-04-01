@@ -17,11 +17,7 @@ export type { CFRequest, Env };
  * Try to track authenticated user activity.
  * Only triggers if Authorization header is valid — non-blocking via waitUntil.
  */
-async function tryTrackAuth(
-	request: CFRequest,
-	env: Env,
-	ctx: ExecutionContext,
-): Promise<void> {
+async function tryTrackAuth(request: CFRequest, env: Env, ctx: ExecutionContext): Promise<void> {
 	// Skip if no Authorization header
 	const authHeader = request.headers.get("Authorization");
 	if (!authHeader?.startsWith("Bearer ")) return;
@@ -179,8 +175,31 @@ export default {
 			if (path.match(/^\/api\/v1\/moderation\/threads\/\d+\/move$/) && request.method === "PATCH") {
 				return await (await import("./handlers/moderation")).moveThread(request, env);
 			}
+			if (
+				path.match(/^\/api\/v1\/moderation\/threads\/\d+\/highlight$/) &&
+				request.method === "PATCH"
+			) {
+				return await (await import("./handlers/moderation")).setHighlight(request, env);
+			}
+			if (path.match(/^\/api\/v1\/moderation\/threads\/\d+$/) && request.method === "DELETE") {
+				return await (await import("./handlers/moderation")).deleteThread(request, env);
+			}
 			if (path.match(/^\/api\/v1\/moderation\/posts\/\d+$/) && request.method === "DELETE") {
 				return await (await import("./handlers/moderation")).deletePost(request, env);
+			}
+			if (path.match(/^\/api\/v1\/moderation\/posts\/\d+$/) && request.method === "PATCH") {
+				return await (await import("./handlers/moderation")).editPost(request, env);
+			}
+
+			// ── User self-service content management ─────────
+			if (path.match(/^\/api\/v1\/me\/posts\/\d+$/) && request.method === "DELETE") {
+				return await (await import("./handlers/user-content")).deleteMyPost(request, env);
+			}
+			if (path.match(/^\/api\/v1\/me\/threads\/\d+$/) && request.method === "DELETE") {
+				return await (await import("./handlers/user-content")).deleteMyThread(request, env);
+			}
+			if (path.match(/^\/api\/v1\/me\/posts\/\d+$/) && request.method === "PATCH") {
+				return await (await import("./handlers/user-content")).editMyPost(request, env);
 			}
 
 			// ══════════════════════════════════════════════════

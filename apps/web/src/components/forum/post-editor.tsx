@@ -10,7 +10,7 @@ import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import { type Editor, EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { useCallback } from "react";
+import { forwardRef, useCallback, useImperativeHandle } from "react";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -26,6 +26,12 @@ export interface PostEditorProps {
 	onSubjectChange?: (v: string) => void;
 	submitting?: boolean;
 	canSubmit?: boolean;
+	/** Hide the built-in footer (character count + submit button) */
+	hideFooter?: boolean;
+}
+
+export interface PostEditorRef {
+	getHTML: () => string;
 }
 
 // ---------------------------------------------------------------------------
@@ -166,17 +172,21 @@ function Toolbar({ editor }: { editor: Editor }) {
 
 const MAX_LENGTH = 50000;
 
-export function PostEditor({
-	initialContent,
-	onSubmit,
-	placeholder = "输入内容...",
-	maxLength = MAX_LENGTH,
-	disabled = false,
-	subject,
-	onSubjectChange,
-	submitting = false,
-	canSubmit: canSubmitProp = true,
-}: PostEditorProps) {
+export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function PostEditor(
+	{
+		initialContent,
+		onSubmit,
+		placeholder = "输入内容...",
+		maxLength = MAX_LENGTH,
+		disabled = false,
+		subject,
+		onSubjectChange,
+		submitting = false,
+		canSubmit: canSubmitProp = true,
+		hideFooter = false,
+	},
+	ref,
+) {
 	const editor = useEditor({
 		immediatelyRender: false,
 		extensions: [
@@ -190,6 +200,15 @@ export function PostEditor({
 		content: initialContent ?? "",
 		editable: !disabled,
 	});
+
+	// Expose getHTML method via ref
+	useImperativeHandle(
+		ref,
+		() => ({
+			getHTML: () => editor?.getHTML() ?? "",
+		}),
+		[editor],
+	);
 
 	const handleSubmit = useCallback(() => {
 		if (!editor || disabled || submitting) return;
@@ -218,21 +237,26 @@ export function PostEditor({
 			{editor && !disabled && <Toolbar editor={editor} />}
 
 			{/* Editor area */}
-			<EditorContent editor={editor} className="tiptap-content min-h-[120px] px-3 py-2 text-sm" />
+			<EditorContent
+				editor={editor}
+				className="tiptap-content min-h-[180px] px-3 py-2 text-sm"
+			/>
 
 			{/* Footer */}
-			<div className="flex items-center justify-between border-t px-3 py-2">
-				<span className="text-xs text-muted-foreground">
-					{charCount?.characters() ?? 0} / {maxLength}
-				</span>
-				<Button
-					size="sm"
-					onClick={handleSubmit}
-					disabled={disabled || submitting || !canSubmitProp}
-				>
-					{submitting ? "提交中..." : "提交"}
-				</Button>
-			</div>
+			{!hideFooter && (
+				<div className="flex items-center justify-between border-t px-3 py-2">
+					<span className="text-xs text-muted-foreground">
+						{charCount?.characters() ?? 0} / {maxLength}
+					</span>
+					<Button
+						size="sm"
+						onClick={handleSubmit}
+						disabled={disabled || submitting || !canSubmitProp}
+					>
+						{submitting ? "提交中..." : "提交"}
+					</Button>
+				</div>
+			)}
 		</div>
 	);
-}
+});
