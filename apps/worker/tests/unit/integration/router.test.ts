@@ -29,8 +29,15 @@ describe("worker router integration", () => {
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret",
 		KV: {
+			get: mock(() => Promise.resolve(null)),
 			put: mock(() => Promise.resolve()),
 		} as unknown as KVNamespace,
+	});
+
+	/** Create a mock ExecutionContext */
+	const makeCtx = (): ExecutionContext => ({
+		waitUntil: mock(() => {}),
+		passThroughOnException: mock(() => {}),
 	});
 
 	const makeRequest = (url: string, init?: RequestInit): CFRequest =>
@@ -61,6 +68,7 @@ describe("worker router integration", () => {
 			const response = await worker.fetch(
 				makeRequest("https://api.example.com/api/v1/forums"),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(401);
@@ -74,6 +82,7 @@ describe("worker router integration", () => {
 					headers: { "X-API-Key": "wrong-key" },
 				}),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(401);
@@ -85,6 +94,7 @@ describe("worker router integration", () => {
 					headers: { Origin: "https://ellie.nocoo.cloud" },
 				}),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(401);
@@ -98,7 +108,7 @@ describe("worker router integration", () => {
 				})),
 			});
 
-			const response = await worker.fetch(makeRequest("https://api.example.com/api/live"), env);
+			const response = await worker.fetch(makeRequest("https://api.example.com/api/live"), env, makeCtx());
 
 			expect(response.status).toBe(200);
 		});
@@ -110,6 +120,7 @@ describe("worker router integration", () => {
 					headers: { Origin: "https://ellie.nocoo.cloud" },
 				}),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(204);
@@ -119,6 +130,7 @@ describe("worker router integration", () => {
 			const response = await worker.fetch(
 				makeRequest("https://api.example.com/api/v1/forums", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(200);
@@ -137,6 +149,7 @@ describe("worker router integration", () => {
 					},
 				}),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(204);
@@ -154,6 +167,7 @@ describe("worker router integration", () => {
 					headers: { Origin: "https://evil.com" },
 				}),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(204);
@@ -171,7 +185,7 @@ describe("worker router integration", () => {
 				})),
 			});
 
-			const response = await worker.fetch(makeRequest("https://api.example.com/api/live"), env);
+			const response = await worker.fetch(makeRequest("https://api.example.com/api/live"), env, makeCtx());
 
 			expect(response.status).toBe(200);
 			const data = await response.json();
@@ -204,6 +218,7 @@ describe("worker router integration", () => {
 			const response = await worker.fetch(
 				makeRequest("https://api.example.com/api/v1/forums", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(200);
@@ -217,6 +232,7 @@ describe("worker router integration", () => {
 			const response = await worker.fetch(
 				makeRequest("https://api.example.com/api/v1/forums/1", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			// 404 because mock returns null
@@ -233,6 +249,7 @@ describe("worker router integration", () => {
 			const response = await worker.fetch(
 				makeRequest("https://api.example.com/api/v1/threads?forumId=1", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(200);
@@ -244,6 +261,7 @@ describe("worker router integration", () => {
 			const response = await worker.fetch(
 				makeRequest("https://api.example.com/api/v1/threads", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(400);
@@ -255,6 +273,7 @@ describe("worker router integration", () => {
 			const response = await worker.fetch(
 				makeRequest("https://api.example.com/api/v1/threads/1", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(404);
@@ -270,6 +289,7 @@ describe("worker router integration", () => {
 			const response = await worker.fetch(
 				makeRequest("https://api.example.com/api/v1/posts?threadId=1", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(200);
@@ -283,6 +303,7 @@ describe("worker router integration", () => {
 			const response = await worker.fetch(
 				makeRequest("https://api.example.com/api/v1/posts/1", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(404);
@@ -298,6 +319,7 @@ describe("worker router integration", () => {
 			const response = await worker.fetch(
 				makeRequest("https://api.example.com/api/v1/users/1", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(404);
@@ -325,6 +347,7 @@ describe("worker router integration", () => {
 					}),
 				),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			// Should reach the handler (401 because user not found in mock DB)
@@ -337,6 +360,7 @@ describe("worker router integration", () => {
 			const response = await worker.fetch(
 				makeRequest("https://api.example.com/api/v1/auth/login", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(404);
@@ -352,6 +376,7 @@ describe("worker router integration", () => {
 			const response = await worker.fetch(
 				makeRequest("https://api.example.com/api/admin/forums", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 			expect(response.status).toBe(401);
 		});
@@ -371,6 +396,7 @@ describe("worker router integration", () => {
 					}),
 				),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(404);
@@ -381,6 +407,7 @@ describe("worker router integration", () => {
 			const response = await worker.fetch(
 				makeRequest("https://api.example.com/api/v1/forums", withApiKey({ method: "DELETE" })),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(404);
@@ -439,6 +466,7 @@ describe("worker router integration", () => {
 					}),
 				),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			// Handler will reject due to missing/invalid refresh token
@@ -470,6 +498,7 @@ describe("worker router integration", () => {
 			const response = await worker.fetch(
 				makeRequest("https://api.example.com/api/v1/auth/me", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(401);
@@ -481,6 +510,7 @@ describe("worker router integration", () => {
 			const response = await worker.fetch(
 				makeRequest("https://api.example.com/api/v1/threads", withApiKey({ method: "POST" })),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(401);
@@ -490,6 +520,7 @@ describe("worker router integration", () => {
 			const response = await worker.fetch(
 				makeRequest("https://api.example.com/api/v1/posts", withApiKey({ method: "POST" })),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(401);
@@ -501,6 +532,7 @@ describe("worker router integration", () => {
 			const response = await worker.fetch(
 				makeRequest("https://api.example.com/api/v1/users/me", withApiKey({ method: "PATCH" })),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(401);
@@ -513,6 +545,7 @@ describe("worker router integration", () => {
 					withApiKey({ method: "POST" }),
 				),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(401);
@@ -524,6 +557,7 @@ describe("worker router integration", () => {
 			const response = await worker.fetch(
 				makeRequest("https://api.example.com/api/v1/posts/1/attachments", withApiKey()),
 				makeEnv(),
+				makeCtx(),
 			);
 
 			expect(response.status).toBe(200);
@@ -543,6 +577,7 @@ describe("worker router integration", () => {
 					withApiKey({ method: "PATCH" }),
 				),
 				makeEnv(),
+				makeCtx(),
 			);
 			expect(response.status).toBe(401);
 		});
@@ -554,6 +589,7 @@ describe("worker router integration", () => {
 					withApiKey({ method: "PATCH" }),
 				),
 				makeEnv(),
+				makeCtx(),
 			);
 			expect(response.status).toBe(401);
 		});
@@ -565,6 +601,7 @@ describe("worker router integration", () => {
 					withApiKey({ method: "PATCH" }),
 				),
 				makeEnv(),
+				makeCtx(),
 			);
 			expect(response.status).toBe(401);
 		});
@@ -576,6 +613,7 @@ describe("worker router integration", () => {
 					withApiKey({ method: "PATCH" }),
 				),
 				makeEnv(),
+				makeCtx(),
 			);
 			expect(response.status).toBe(401);
 		});
@@ -587,6 +625,7 @@ describe("worker router integration", () => {
 					withApiKey({ method: "DELETE" }),
 				),
 				makeEnv(),
+				makeCtx(),
 			);
 			expect(response.status).toBe(401);
 		});
