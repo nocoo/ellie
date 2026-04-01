@@ -1,5 +1,4 @@
 // components/forum/forum-header.tsx — Forum header
-// Layout only — no real data fetching, all numbers are 777 placeholders.
 // Structure: TopBar → NavBar → SearchStatsBar
 
 "use client";
