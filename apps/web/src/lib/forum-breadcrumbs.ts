@@ -4,7 +4,7 @@
 import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import type { Forum } from "@ellie/types";
 
-const HOME: BreadcrumbItem = { label: "首页", href: "/" };
+const HOME: BreadcrumbItem = { label: "同济网论坛", href: "/", icon: "home" };
 
 /**
  * Build breadcrumbs for a forum page.

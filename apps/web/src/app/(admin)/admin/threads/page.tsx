@@ -270,7 +270,7 @@ export default function ThreadsPage() {
 				onClearAll={handleClearFilters}
 			/>
 
-			<div className="rounded-xl border bg-card">
+			<div className="rounded-lg border bg-card">
 				<AdminDataTable
 					columns={columns}
 					data={data}

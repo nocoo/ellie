@@ -27,7 +27,7 @@ export default async function ForumHomePage() {
 			))}
 
 			{!error && tree.length === 0 && (
-				<div className="rounded-xl bg-card p-8 text-center text-sm text-muted-foreground ring-1 ring-foreground/10">
+				<div className="rounded-lg bg-card p-8 text-center text-sm text-muted-foreground ring-1 ring-foreground/10">
 					暂无版块
 				</div>
 			)}

@@ -45,6 +45,7 @@ function resolveTheme(theme: Theme): "light" | "dark" {
 function applyTheme(resolved: "light" | "dark") {
 	const root = document.documentElement;
 	root.classList.toggle("dark", resolved === "dark");
+	root.style.colorScheme = resolved;
 }
 
 // ─── Hook ──────────────────────────────────────────────────────
@@ -91,15 +92,20 @@ export function useTheme() {
 // ─── FOUC prevention script (inline in <head>) ────────────────
 
 /**
- * Inline script to prevent FOUC. Must be inserted in <head> before any CSS.
- * Reads localStorage and sets .dark class immediately.
+ * Inline script to prevent FOUC. Kept in sync with layout.tsx's inline script.
+ * Sets .dark class and color-scheme property immediately.
  */
 export const themeInitScript = `
 (function(){
   try {
     var t = localStorage.getItem('${STORAGE_KEY}');
     var d = t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme:dark)').matches);
-    if (d) document.documentElement.classList.add('dark');
+    if (d) {
+      document.documentElement.classList.add('dark');
+      document.documentElement.style.colorScheme = 'dark';
+    } else {
+      document.documentElement.style.colorScheme = 'light';
+    }
   } catch(e) {}
 })();
 `.trim();

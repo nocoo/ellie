@@ -17,7 +17,7 @@ interface ForumLayoutShellProps {
 
 export function ForumLayoutShell({ headerVm, footerVm, children }: ForumLayoutShellProps) {
 	return (
-		<div className="flex min-h-screen flex-col bg-background">
+		<div className="flex min-h-dvh flex-col bg-background">
 			<ForumHeader vm={headerVm} />
 			<main className="flex-1">
 				<div className="width-container">
