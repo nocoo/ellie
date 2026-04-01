@@ -6,10 +6,13 @@ import { PostCard } from "@/components/forum/post-card";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Card, CardContent } from "@/components/ui/card";
-import { type ThreadDetailPageData, loadThreadDetail } from "@/viewmodels/forum/thread-detail.server";
+import {
+	type ThreadDetailPageData,
+	loadThreadDetail,
+} from "@/viewmodels/forum/thread-detail.server";
 import { formatTime } from "@/viewmodels/forum/thread-list";
-import { getThreadBadges } from "@ellie/types";
 import { parseIntParam } from "@/viewmodels/shared/params";
+import { getThreadBadges } from "@ellie/types";
 import Link from "next/link";
 
 interface ThreadDetailPageProps {
