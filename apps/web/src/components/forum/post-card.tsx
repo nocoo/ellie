@@ -11,9 +11,9 @@ import { PostContent } from "@/components/forum/post-content";
 import { PostSidebar } from "@/components/forum/post-sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getAvatarUrl } from "@/lib/avatar";
+import { getStaticImageUrl } from "@/lib/cdn";
 import { type EnrichedPost, floorLabel } from "@/viewmodels/forum/thread-detail";
 import { formatTime } from "@/viewmodels/forum/thread-list";
-import { UserRound } from "lucide-react";
 import Link from "next/link";
 
 interface PostCardProps {
@@ -60,8 +60,8 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 									className="rounded-sm"
 								/>
 							)}
-							<AvatarFallback className="text-xs rounded-sm bg-muted">
-								<UserRound className="h-5 w-5 text-forum-text-muted" strokeWidth={1.2} />
+							<AvatarFallback className="text-xs rounded-sm bg-muted p-0 overflow-hidden">
+								<img src={getStaticImageUrl("tavatar.gif")} alt="" className="h-full w-full object-cover" />
 							</AvatarFallback>
 						</Avatar>
 					</Link>
