@@ -1,8 +1,8 @@
 // components/forum/post-sidebar.tsx — Discuz classic left sidebar for desktop
 // Light blue background, bordered stats grid, group/level, credits, mod row.
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getAvatarUrl } from "@/lib/avatar";
+import { getStaticImageUrl } from "@/lib/cdn";
 import { formatDate } from "@/viewmodels/forum/thread-detail";
 import type { User } from "@ellie/types";
 import { Mail, Shield } from "lucide-react";
@@ -42,9 +42,13 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 						/>
 					</div>
 				) : (
-					<Avatar className="h-[160px] w-[160px] rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
-						<AvatarFallback className="text-3xl rounded-sm">?</AvatarFallback>
-					</Avatar>
+					<div className="bg-card p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)]">
+						<img
+							src={getStaticImageUrl("tavatar.gif")}
+							alt="默认头像"
+							className="block w-[160px] h-auto"
+						/>
+					</div>
 				)}
 			</Link>
 

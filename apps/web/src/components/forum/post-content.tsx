@@ -8,6 +8,7 @@
 // suppressHydrationWarning prevents that.
 
 import { Badge } from "@/components/ui/badge";
+import { getStaticImageUrl } from "@/lib/cdn";
 import {
 	type EnrichedPost,
 	floorLabel,
@@ -92,9 +93,17 @@ export function PostContent({ post, isFirst, threadDigest, author, actionBar }: 
 				{/* Spacer pushes signature to bottom when sidebar is taller */}
 				<div className="flex-1" />
 
-				{/* Author signature — dashed top border, also isolated */}
+				{/* Author signature — sigline.gif separator, right-aligned */}
 				{author?.signature && (
-					<div className="mt-4 pt-2 border-t border-dashed border-border">
+					<div className="mt-4">
+						<div className="flex justify-end">
+							<img
+								src={getStaticImageUrl("sigline.gif")}
+								alt=""
+								className="h-auto w-auto max-w-full"
+								aria-hidden="true"
+							/>
+						</div>
 						<article
 							className="text-xs text-forum-text-muted prose prose-sm max-w-none [&>*]:text-forum-text-muted [&>*]:text-xs"
 							suppressHydrationWarning

@@ -474,6 +474,33 @@ img.smiley {
 	margin: 0 1px;
 }
 
+/*
+ * Discuz quote block — quote.gif as left-side decoration.
+ * DZ HTML structure: <div class="quote"><blockquote>...</blockquote></div>
+ */
+div.quote {
+	border: 1px solid hsl(var(--border));
+	background: hsl(var(--muted));
+	padding: 0.75rem;
+	margin: 0.75rem 0;
+	border-radius: 2px;
+}
+div.quote blockquote {
+	margin: 0;
+	padding: 0;
+	border: none;
+	background: transparent;
+	font-size: 0.8125rem;
+	line-height: 1.6;
+	color: hsl(var(--muted-foreground));
+}
+div.quote::before {
+	content: url("https://t.no.mt/static/image/common/quote.gif");
+	display: block;
+	margin-bottom: 0.5rem;
+	height: 16px;
+}
+
 .width-container {
 	max-width: var(--content-max-width);
 	margin-left: auto;
