@@ -112,13 +112,13 @@ function LoginContent() {
 								<span className="text-sm font-semibold text-primary-foreground">
 									Ellie 管理后台
 								</span>
-								<span className="text-2xs font-medium uppercase tracking-widest text-primary-foreground/60">
+								<span className="text-[10px] font-medium uppercase tracking-widest text-primary-foreground/60">
 									v0.1
 								</span>
 							</div>
 							{/* Barcode row */}
 							<div className="mt-3 flex items-center justify-between">
-								<span className="text-2xs font-mono text-primary-foreground/40 tracking-wider">
+								<span className="text-[9px] font-mono text-primary-foreground/40 tracking-wider">
 									ID {year}-{today.slice(4)}
 								</span>
 								<div className="h-6">
@@ -134,8 +134,8 @@ function LoginContent() {
 								<span className="text-3xl font-bold text-primary">E</span>
 							</div>
 
-							<p className="mt-5 text-2xl font-semibold text-foreground">管理控制台</p>
-							<p className="mt-1 text-sm text-muted-foreground">登录以管理论坛</p>
+							<p className="mt-5 text-lg font-semibold text-foreground">管理控制台</p>
+							<p className="mt-1 text-xs text-muted-foreground">登录以管理论坛</p>
 
 							{/* Error message */}
 							{error && (
@@ -161,7 +161,7 @@ function LoginContent() {
 							</button>
 
 							{/* Terms */}
-							<p className="mt-3 text-center text-2xs leading-relaxed text-muted-foreground/60">
+							<p className="mt-3 text-center text-[10px] leading-relaxed text-muted-foreground/60">
 								登录即表示您同意我们的{" "}
 								<a
 									href="/privacy"
@@ -176,7 +176,7 @@ function LoginContent() {
 						<div className="mt-auto flex items-center justify-center border-t border-border bg-secondary/50 py-2.5">
 							<div className="flex items-center gap-1.5">
 								<div className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-								<span className="text-2xs text-muted-foreground">安全认证</span>
+								<span className="text-[10px] text-muted-foreground">安全认证</span>
 							</div>
 						</div>
 					</div>
