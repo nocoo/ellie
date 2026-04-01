@@ -1,25 +1,12 @@
-// Discuz UCHome/UCenter UID-based avatar path algorithm.
-// Avatars are served from CDN — the DB `avatar` field (R2 key) is NOT used.
-
-const DEFAULT_CDN_BASE = "https://t.no.mt/avatar";
+// Avatar URL helper — proxied through Next.js API to hide CDN and handle fallback
 
 export type AvatarSize = "big" | "middle" | "small";
 
 /**
- * Compute the CDN avatar URL for a given UID.
- *
- * Algorithm: zero-pad UID to 9 digits, split into AAA/BB/CC/DD segments.
- * Example: UID 12345 -> "000/01/23/45_avatar_big.jpg"
+ * Get the avatar URL for a given UID.
+ * Uses the /api/avatar/:uid proxy which handles fallback server-side.
  */
-export function getAvatarUrl(
-	uid: number,
-	size: AvatarSize = "big",
-	cdnBase: string = DEFAULT_CDN_BASE,
-): string {
-	const padded = uid.toString().padStart(9, "0");
-	const dir1 = padded.slice(0, 3);
-	const dir2 = padded.slice(3, 5);
-	const dir3 = padded.slice(5, 7);
-	const file = padded.slice(7, 9);
-	return `${cdnBase}/${dir1}/${dir2}/${dir3}/${file}_avatar_${size}.jpg`;
+export function getAvatarUrl(uid: number, size: AvatarSize = "big"): string {
+	const params = size !== "big" ? `?size=${size}` : "";
+	return `/api/avatar/${uid}${params}`;
 }
