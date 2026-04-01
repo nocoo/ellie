@@ -57,7 +57,9 @@ export const TABLE_DDL: string[] = [
   interest      TEXT    NOT NULL DEFAULT '',
   qq            TEXT    NOT NULL DEFAULT '',
   site          TEXT    NOT NULL DEFAULT '',
-  last_activity INTEGER NOT NULL DEFAULT 0
+  last_activity INTEGER NOT NULL DEFAULT 0,
+  reg_ip        TEXT    NOT NULL DEFAULT '',
+  last_ip       TEXT    NOT NULL DEFAULT ''
 )`,
 
 	`CREATE TABLE IF NOT EXISTS threads (
@@ -183,6 +185,8 @@ export const TABLE_COLUMNS: Record<TableName, string[]> = {
 		"qq",
 		"site",
 		"last_activity",
+		"reg_ip",
+		"last_ip",
 	],
 	threads: [
 		"id",

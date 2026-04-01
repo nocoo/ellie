@@ -7,8 +7,11 @@ import {
 	type Post,
 	type Thread,
 	canDeletePost,
+	canDeleteThread,
 	canEditPost,
+	canManageThread,
 	canModerate,
+	canMoveThread,
 	canReplyToThread,
 	type decodeHighlight,
 	type getThreadBadges,
@@ -36,6 +39,12 @@ export interface ThreadDetailData {
 	total: number;
 	canReply: boolean;
 	canModerateForum: boolean;
+	/** Can manage thread (sticky/highlight/digest/close) */
+	canManageThread: boolean;
+	/** Can move thread to another forum (SuperMod/Admin only) */
+	canMoveThread: boolean;
+	/** Can delete thread (SuperMod/Admin or author) */
+	canDeleteThread: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -87,6 +96,25 @@ export function checkCanReply(user: User | null, thread: Thread): boolean {
 /** Check if a user can moderate in a forum. */
 export function checkCanModerate(user: User | null, forum: { moderators: string }): boolean {
 	return canModerate(user, forum);
+}
+
+/** Check if a user can manage thread (sticky/highlight/digest/close). */
+export function checkCanManageThread(user: User | null, forum: { moderators: string }): boolean {
+	return canManageThread(user, forum);
+}
+
+/** Check if a user can move thread (SuperMod/Admin only). */
+export function checkCanMoveThread(user: User | null): boolean {
+	return canMoveThread(user);
+}
+
+/** Check if a user can delete thread (SuperMod/Admin or author). */
+export function checkCanDeleteThread(
+	user: User | null,
+	thread: { authorId: number },
+	forum: { moderators: string },
+): boolean {
+	return canDeleteThread(user, thread, forum);
 }
 
 /** Get the floor number display text. */

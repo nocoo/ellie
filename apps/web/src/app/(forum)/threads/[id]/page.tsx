@@ -72,6 +72,9 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 			total: 0,
 			breadcrumbs: [],
 			canModerateForum: false,
+			canManageThread: false,
+			canMoveThread: false,
+			canDeleteThread: false,
 			currentUser: null,
 		};
 	}
@@ -139,6 +142,9 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 					thread={thread}
 					posts={data.posts}
 					canModerateForum={data.canModerateForum}
+					canManageThread={data.canManageThread}
+					canMoveThread={data.canMoveThread}
+					canDeleteThread={data.canDeleteThread}
 					currentUserId={data.currentUser?.id ?? null}
 				/>
 			</ModProvider>

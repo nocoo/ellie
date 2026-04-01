@@ -77,13 +77,55 @@ export function canEditPost(user: User | null, post: Post, forum: { moderators: 
 	return canModerate(user, forum);
 }
 
-/** Can user delete this post? Authors can delete their own; mods can delete any. */
-export function canDeletePost(
-	user: User | null,
-	post: Post,
-	forum: { moderators: string },
-): boolean {
+/**
+ * Can user delete this post?
+ * - Author: can delete own posts
+ * - Admin/SuperMod: can delete any post
+ * - Mod: CANNOT delete posts (per permission matrix)
+ */
+export function canDeletePost(user: User | null, post: Post, _forum: { moderators: string }): boolean {
 	if (!user) return false;
 	if (user.id === post.authorId) return true;
+	// Only Admin/SuperMod can delete others' posts — Mod cannot
+	return user.role === UserRole.Admin || user.role === UserRole.SuperMod;
+}
+
+// ─── Thread-level Permissions ────────────────────────────────────
+
+/**
+ * Can user delete this thread?
+ * - Author: can delete own threads
+ * - Admin/SuperMod: can delete any thread
+ * - Mod: CANNOT delete threads (per permission matrix)
+ */
+export function canDeleteThread(
+	user: User | null,
+	thread: { authorId: number },
+	_forum: { moderators: string },
+): boolean {
+	if (!user) return false;
+	if (user.id === thread.authorId) return true;
+	// Only Admin/SuperMod can delete others' threads — Mod cannot
+	return user.role === UserRole.Admin || user.role === UserRole.SuperMod;
+}
+
+/**
+ * Can user perform thread management (sticky/highlight/digest/close)?
+ * - Admin/SuperMod: all forums
+ * - Mod: only forums where user is in moderators list
+ * - User: no
+ */
+export function canManageThread(user: User | null, forum: { moderators: string }): boolean {
 	return canModerate(user, forum);
+}
+
+/**
+ * Can user move thread to another forum?
+ * - Admin/SuperMod: yes
+ * - Mod: no (per permission matrix)
+ * - User: no
+ */
+export function canMoveThread(user: User | null): boolean {
+	if (!user) return false;
+	return user.role === UserRole.Admin || user.role === UserRole.SuperMod;
 }

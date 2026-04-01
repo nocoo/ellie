@@ -11,6 +11,12 @@ interface ThreadPostsClientProps {
 	thread: Thread;
 	posts: EnrichedPost[];
 	canModerateForum: boolean;
+	/** Can manage thread (sticky/highlight/digest/close) */
+	canManageThread: boolean;
+	/** Can move thread (SuperMod/Admin only) */
+	canMoveThread: boolean;
+	/** Can delete thread (SuperMod/Admin or author) */
+	canDeleteThread: boolean;
 	currentUserId: number | null;
 }
 
@@ -18,6 +24,9 @@ export function ThreadPostsClient({
 	thread,
 	posts,
 	canModerateForum,
+	canManageThread,
+	canMoveThread,
+	canDeleteThread,
 	currentUserId,
 }: ThreadPostsClientProps) {
 	const [replyOpen, setReplyOpen] = useState(false);
@@ -57,8 +66,14 @@ export function ThreadPostsClient({
 						threadViews={isFirst ? thread.views : undefined}
 						threadReplies={isFirst ? thread.replies : undefined}
 						threadDigest={isFirst ? thread.digest : undefined}
+						threadSticky={isFirst ? thread.sticky : undefined}
+						threadHighlight={isFirst ? thread.highlight : undefined}
+						threadClosed={thread.closed === 1}
 						onReply={() => handleReply(post)}
 						canModerate={canModerateForum}
+						canManageThread={canManageThread}
+						canMoveThread={canMoveThread}
+						canDeleteThread={canDeleteThread}
 						currentUserId={currentUserId}
 						isFirstPost={isFirst}
 						threadId={thread.id}
