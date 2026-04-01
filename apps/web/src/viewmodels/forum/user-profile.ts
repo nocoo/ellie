@@ -113,9 +113,9 @@ export function formatBirthday(year: number, month: number, day: number): string
 }
 
 /** Format location from province/city. Returns null if both empty. */
-export function formatLocation(province: string, city: string): string | null {
-	const p = province.trim();
-	const c = city.trim();
+export function formatLocation(province: string | undefined | null, city: string | undefined | null): string | null {
+	const p = (province ?? "").trim();
+	const c = (city ?? "").trim();
 	if (!p && !c) return null;
 	if (p && c) return `${p} ${c}`;
 	return p || c;
