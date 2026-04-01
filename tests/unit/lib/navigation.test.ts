@@ -82,7 +82,8 @@ describe("ROUTE_LABELS", () => {
 		expect(ROUTE_LABELS.attachments).toBe("附件");
 		expect(ROUTE_LABELS["ip-bans"]).toBe("IP 封禁");
 		expect(ROUTE_LABELS["censor-words"]).toBe("敏感词");
-		expect(ROUTE_LABELS.settings).toBe("通用设置");
+		expect(ROUTE_LABELS.settings).toBe("设置");
+		expect(ROUTE_LABELS.general).toBe("通用设置");
 	});
 
 	it("does not have legacy content label", () => {
@@ -132,11 +133,12 @@ describe("breadcrumbsFromPathname", () => {
 		]);
 	});
 
-	it("returns breadcrumb trail for /admin/settings", () => {
-		const items = breadcrumbsFromPathname("/admin/settings");
+	it("returns breadcrumb trail for /admin/settings/general", () => {
+		const items = breadcrumbsFromPathname("/admin/settings/general");
 		expect(items).toEqual([
 			{ label: "首页", href: "/admin" },
 			{ label: "仪表盘" },
+			{ label: "设置", href: "/admin/settings" },
 			{ label: "通用设置" },
 		]);
 	});
