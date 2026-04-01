@@ -43,9 +43,24 @@ function makeStatsDb(counts: number[], newestUsername = "newbie") {
 	} as unknown as D1Database;
 }
 
-function makeKv(cachedValue?: string) {
+function makeKv(options?: {
+	cachedValue?: string;
+	onlineCount?: string;
+	peakData?: { count: number; date: string } | null;
+}) {
 	return {
-		get: mock(async () => cachedValue ?? null),
+		get: mock(async (key: string, type?: string) => {
+			if (key === "public-stats") {
+				return options?.cachedValue ?? null;
+			}
+			if (key === "stats:online_count") {
+				return options?.onlineCount ?? null;
+			}
+			if (key === "stats:online_peak" && type === "json") {
+				return options?.peakData ?? null;
+			}
+			return null;
+		}),
 		put: mock(async () => {}),
 		delete: mock(async () => {}),
 	} as unknown as KVNamespace;
@@ -109,7 +124,7 @@ describe("public stats handler", () => {
 				peakDate: "",
 			};
 			const db = makeStatsDb([0, 0, 0, 0]);
-			const kv = makeKv(JSON.stringify(cachedStats));
+			const kv = makeKv({ cachedValue: JSON.stringify(cachedStats) });
 			const env = makeEnv({ DB: db, KV: kv });
 			const request = createRequest();
 
@@ -174,6 +189,39 @@ describe("public stats handler", () => {
 
 			// Should use batch (1 call) instead of individual queries
 			expect(db.batch).toHaveBeenCalledTimes(1);
+		});
+
+		it("should return online stats from KV", async () => {
+			const db = makeStatsDb([0, 0, 0, 0]);
+			const kv = makeKv({
+				onlineCount: "42",
+				peakData: { count: 100, date: "2024-03-31" },
+			});
+			const env = makeEnv({ DB: db, KV: kv });
+			const request = createRequest();
+
+			const response = await stats(request, env);
+
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as { data: PublicStats };
+			expect(body.data.totalOnline).toBe(42);
+			expect(body.data.peakOnline).toBe(100);
+			expect(body.data.peakDate).toBe("2024-03-31");
+		});
+
+		it("should return 0 for online stats when KV has no data", async () => {
+			const db = makeStatsDb([0, 0, 0, 0]);
+			const kv = makeKv({ onlineCount: undefined, peakData: null });
+			const env = makeEnv({ DB: db, KV: kv });
+			const request = createRequest();
+
+			const response = await stats(request, env);
+
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as { data: PublicStats };
+			expect(body.data.totalOnline).toBe(0);
+			expect(body.data.peakOnline).toBe(0);
+			expect(body.data.peakDate).toBe("");
 		});
 	});
 });
