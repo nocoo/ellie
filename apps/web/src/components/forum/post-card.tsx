@@ -21,12 +21,19 @@ interface PostCardProps {
 	threadViews?: number;
 	threadReplies?: number;
 	threadDigest?: number;
+	onReply?: () => void;
 }
 
-const actionBar = <PostActionBar />;
-
-export function PostCard({ post, threadViews, threadReplies, threadDigest }: PostCardProps) {
+export function PostCard({
+	post,
+	threadViews,
+	threadReplies,
+	threadDigest,
+	onReply,
+}: PostCardProps) {
 	const isFirst = post.isFirst || post.position === 1;
+
+	const actionBar = <PostActionBar onReply={onReply} />;
 
 	return (
 		<div className="border border-border bg-card -mt-px first:mt-0">
@@ -61,7 +68,11 @@ export function PostCard({ post, threadViews, threadReplies, threadDigest }: Pos
 								/>
 							)}
 							<AvatarFallback className="text-xs rounded-sm bg-muted p-0 overflow-hidden">
-								<img src={getStaticImageUrl("tavatar.gif")} alt="" className="h-full w-full object-cover" />
+								<img
+									src={getStaticImageUrl("tavatar.gif")}
+									alt=""
+									className="h-full w-full object-cover"
+								/>
 							</AvatarFallback>
 						</Avatar>
 					</Link>

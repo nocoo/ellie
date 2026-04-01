@@ -1,5 +1,4 @@
 // components/forum/post-action-bar.tsx — Discuz classic post-level action footer
-// Stub buttons with icons — no functionality, pure UI matching the reference layout.
 
 import {
 	type LucideIcon,
@@ -10,10 +9,17 @@ import {
 	ThumbsUp,
 } from "lucide-react";
 
-function ActionBtn({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+interface ActionBtnProps {
+	icon: LucideIcon;
+	label: string;
+	onClick?: () => void;
+}
+
+function ActionBtn({ icon: Icon, label, onClick }: ActionBtnProps) {
 	return (
 		<button
 			type="button"
+			onClick={onClick}
 			className="flex items-center gap-0.5 text-forum-text-muted hover:text-forum-link transition-colors cursor-pointer"
 		>
 			<Icon className="h-3.5 w-3.5" />
@@ -22,13 +28,17 @@ function ActionBtn({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
 	);
 }
 
-export function PostActionBar() {
+interface PostActionBarProps {
+	onReply?: () => void;
+}
+
+export function PostActionBar({ onReply }: PostActionBarProps) {
 	return (
 		<div className="flex items-center border-t border-dashed border-border px-3 py-2 text-xs text-forum-text-muted">
 			{/* Left action buttons */}
 			<div className="flex items-center gap-4">
 				<ActionBtn icon={MessageCircleMore} label="点评" />
-				<ActionBtn icon={Reply} label="回复" />
+				<ActionBtn icon={Reply} label="回复" onClick={onReply} />
 				<ActionBtn icon={Pencil} label="编辑" />
 				<ActionBtn icon={ThumbsUp} label="支持" />
 				<ActionBtn icon={ThumbsDown} label="反对" />
