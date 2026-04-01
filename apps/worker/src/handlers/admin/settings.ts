@@ -5,12 +5,8 @@ import { withEntityAuth } from "../../lib/adminHelpers";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { jsonResponse } from "../../lib/response";
+import { type SettingsDetailMap, getSettingsDetailed, upsertSettings } from "../../lib/settings";
 import { errorResponse } from "../../middleware/error";
-import {
-	type SettingsDetailMap,
-	getSettingsDetailed,
-	upsertSettings,
-} from "../../lib/settings";
 
 // ─── Config (for withEntityAuth pattern consistency) ─────────
 
@@ -47,6 +43,9 @@ const ALLOWED_KEYS = new Set([
 	"general.pagination.admin_page_size",
 	// general.assets
 	"general.assets.avatar_cdn_base",
+	// general.navigation
+	"general.navigation.header_links",
+	"general.navigation.friend_links",
 ]);
 
 /** Keys that must have positive numeric values */
@@ -57,6 +56,28 @@ const NUMBER_KEYS = new Set([
 	"general.pagination.max_post_length",
 	"general.pagination.admin_page_size",
 ]);
+
+/** Keys that must be valid JSON with specific structure */
+const JSON_KEYS = new Set(["general.navigation.header_links", "general.navigation.friend_links"]);
+
+/**
+ * Validate that a value is a JSON array of { label: string, url: string } objects.
+ */
+function isValidNavLinksJson(value: string): boolean {
+	try {
+		const parsed = JSON.parse(value);
+		if (!Array.isArray(parsed)) return false;
+		return parsed.every(
+			(item: unknown) =>
+				typeof item === "object" &&
+				item !== null &&
+				typeof (item as Record<string, unknown>).label === "string" &&
+				typeof (item as Record<string, unknown>).url === "string",
+		);
+	} catch {
+		return false;
+	}
+}
 
 // ─── Handlers ───────────────────────────────────────────────
 
@@ -121,6 +142,15 @@ async function bulkUpdateSettings(request: Request, env: Env): Promise<Response>
 			const num = Number(value);
 			if (Number.isNaN(num) || num <= 0) {
 				return errorResponse("INVALID_NUMBER", 400, { key, value }, origin);
+			}
+		}
+	}
+
+	// Validate JSON keys have correct structure
+	for (const [key, value] of entries) {
+		if (JSON_KEYS.has(key)) {
+			if (!isValidNavLinksJson(value)) {
+				return errorResponse("INVALID_JSON_VALUE", 400, { key }, origin);
 			}
 		}
 	}

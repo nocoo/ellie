@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+	SETTING_GROUPS,
 	type SettingFieldDef,
 	type SettingsDetailMap,
-	SETTING_GROUPS,
 	getChangedSettings,
 	toFormValues,
 	updateSettings,
@@ -74,20 +74,11 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
 		<div className="space-y-6">
 			{/* Action bar */}
 			<div className="flex items-center justify-end gap-2">
-				<Button
-					variant="outline"
-					size="sm"
-					onClick={handleReset}
-					disabled={!dirty || saving}
-				>
+				<Button variant="outline" size="sm" onClick={handleReset} disabled={!dirty || saving}>
 					<RotateCcw className="mr-1 h-3.5 w-3.5" />
 					重置
 				</Button>
-				<Button
-					size="sm"
-					onClick={handleSave}
-					disabled={!dirty || saving}
-				>
+				<Button size="sm" onClick={handleSave} disabled={!dirty || saving}>
 					<Save className="mr-1 h-3.5 w-3.5" />
 					{saving ? "保存中..." : "保存"}
 				</Button>
@@ -152,15 +143,14 @@ function FieldInput({ field, value, onChange }: FieldInputProps) {
 					rows={3}
 					className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
 				/>
-				{field.hint && (
-					<p className="text-xs text-muted-foreground">{field.hint}</p>
-				)}
+				{field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
 			</div>
 		);
 	}
 
 	// Map inputType to HTML input type: number, url, or text
-	const htmlType = field.inputType === "number" ? "number" : field.inputType === "url" ? "url" : "text";
+	const htmlType =
+		field.inputType === "number" ? "number" : field.inputType === "url" ? "url" : "text";
 
 	return (
 		<div className="space-y-1.5">
@@ -173,9 +163,7 @@ function FieldInput({ field, value, onChange }: FieldInputProps) {
 				onChange={(e) => onChange(field.key, e.target.value)}
 				min={field.inputType === "number" ? 1 : undefined}
 			/>
-			{field.hint && (
-				<p className="text-xs text-muted-foreground">{field.hint}</p>
-			)}
+			{field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
 		</div>
 	);
 }

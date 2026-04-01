@@ -10,9 +10,11 @@ import {
 	FileText,
 	Filter,
 	LayoutDashboard,
+	Link as LinkIcon,
 	LogOut,
 	MessageSquare,
 	MessagesSquare,
+	Navigation,
 	PanelLeft,
 	Paperclip,
 	Settings,
@@ -39,6 +41,8 @@ const ICON_MAP: Record<string, ElementType> = {
 	Paperclip,
 	ShieldBan,
 	Filter,
+	Navigation,
+	Link: LinkIcon,
 };
 
 interface NavItem {
