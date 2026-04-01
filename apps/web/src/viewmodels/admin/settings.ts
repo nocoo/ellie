@@ -38,8 +38,6 @@ export interface SettingGroupDef {
 	title: string;
 	description: string;
 	prefix: string;
-	/** Custom render mode for the group; omit for default field grid */
-	renderType?: "nav-links";
 	fields: SettingFieldDef[];
 }
 
@@ -145,13 +143,6 @@ export const SETTING_GROUPS: SettingGroupDef[] = [
 				hint: "不含尾部斜杠",
 			},
 		],
-	},
-	{
-		title: "导航配置",
-		description: "配置首页顶部快捷导航栏目，拖拽调整顺序",
-		prefix: "general.navigation",
-		renderType: "nav-links",
-		fields: [{ key: "general.navigation.header_links", label: "顶部导航" }],
 	},
 ];
 

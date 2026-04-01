@@ -14,7 +14,6 @@ import {
 import { RotateCcw, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
-import { NavLinksEditor } from "./nav-links-editor";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -104,27 +103,16 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
 					<h2 className="text-base font-semibold text-foreground">{group.title}</h2>
 					<p className="mt-1 text-sm text-muted-foreground">{group.description}</p>
 
-					{group.renderType === "nav-links" ? (
-						group.fields.map((field) => (
-							<NavLinksEditor
+					<div className="mt-4 grid gap-4 sm:grid-cols-2">
+						{group.fields.map((field) => (
+							<FieldInput
 								key={field.key}
-								settingKey={field.key}
-								value={formValues[field.key] ?? "[]"}
+								field={field}
+								value={formValues[field.key] ?? ""}
 								onChange={handleChange}
 							/>
-						))
-					) : (
-						<div className="mt-4 grid gap-4 sm:grid-cols-2">
-							{group.fields.map((field) => (
-								<FieldInput
-									key={field.key}
-									field={field}
-									value={formValues[field.key] ?? ""}
-									onChange={handleChange}
-								/>
-							))}
-						</div>
-					)}
+						))}
+					</div>
 				</div>
 			))}
 		</div>

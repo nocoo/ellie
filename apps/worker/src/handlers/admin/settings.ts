@@ -45,6 +45,7 @@ const ALLOWED_KEYS = new Set([
 	"general.assets.avatar_cdn_base",
 	// general.navigation
 	"general.navigation.header_links",
+	"general.navigation.friend_links",
 ]);
 
 /** Keys that must have positive numeric values */
@@ -57,7 +58,7 @@ const NUMBER_KEYS = new Set([
 ]);
 
 /** Keys that must be valid JSON with specific structure */
-const JSON_KEYS = new Set(["general.navigation.header_links"]);
+const JSON_KEYS = new Set(["general.navigation.header_links", "general.navigation.friend_links"]);
 
 /**
  * Validate that a value is a JSON array of { label: string, url: string } objects.
