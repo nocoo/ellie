@@ -21,7 +21,6 @@ import { getStaticImageUrl } from "@/lib/cdn";
 import { deleteMyPost, deletePost } from "@/lib/moderation-api";
 import { type EnrichedPost, floorLabel } from "@/viewmodels/forum/thread-detail";
 import { formatTime } from "@/viewmodels/forum/thread-list";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
@@ -79,7 +78,7 @@ export function PostCard({
 
 	// Edit dialog state
 	const [editDialogOpen, setEditDialogOpen] = useState(false);
-	const [deleting, setDeleting] = useState(false);
+	const [_deleting, setDeleting] = useState(false);
 
 	const handleEdit = useCallback(() => {
 		setEditDialogOpen(true);

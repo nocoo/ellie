@@ -21,7 +21,6 @@ import {
 	ExternalLink,
 	Loader2,
 	Mail,
-	MessageSquare,
 	Shield,
 	Star,
 	User as UserIcon,
@@ -138,6 +137,7 @@ export function UserPopover({
 	}, [open, data, fetchUser]);
 
 	// Reset data when userId changes
+	// biome-ignore lint/correctness/useExhaustiveDependencies: userId is intentionally a dependency to reset state
 	useEffect(() => {
 		setData(null);
 		setError(null);
