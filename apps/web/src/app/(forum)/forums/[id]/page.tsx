@@ -1,8 +1,8 @@
 // Ref: 04f §6 — RSC page, Discuz classic thread list layout with page-number pagination
 
+import { ForumHeaderClient } from "@/components/forum/forum-header-client";
 import { ForumPanel } from "@/components/forum/forum-panel";
 import { PagePagination } from "@/components/forum/page-pagination";
-import { SafeHtml } from "@/components/forum/safe-html";
 import { ThreadItem } from "@/components/forum/thread-item";
 import { ThreadListHeader } from "@/components/forum/thread-list-header";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
@@ -13,7 +13,6 @@ import {
 } from "@/viewmodels/forum/thread-list.server";
 import { getForumTitle } from "@/viewmodels/forum/title.server";
 import { parseIntParam, parsePageParam } from "@/viewmodels/shared/params";
-import { formatNumber } from "@/viewmodels/shared/formatting";
 import { ForumType } from "@ellie/types";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -83,27 +82,8 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 					<Breadcrumbs items={data.breadcrumbs} />
 				</div>
 			)}
-			{/* Forum header */}
-			{data.forum && (
-				<div>
-					<h1 className="text-lg font-semibold">{data.forum.name}</h1>
-					<div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
-						{data.forum.description && <SafeHtml html={data.forum.description} />}
-						{!isGroup && (
-							<>
-								<span>帖子 {formatNumber(data.forum.threads)}</span>
-								<span>回帖 {formatNumber(data.forum.posts)}</span>
-								<Link
-									href="/digest"
-									className="text-success hover:text-success/80 transition-colors"
-								>
-									精华帖
-								</Link>
-							</>
-						)}
-					</div>
-				</div>
-			)}
+			{/* Forum header with new thread button */}
+			{data.forum && <ForumHeaderClient forum={data.forum} isGroup={isGroup} />}
 
 			{error && (
 				<div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
