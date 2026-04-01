@@ -76,7 +76,8 @@ export default function StatisticsPage() {
 				body: task.body ? JSON.stringify(task.body) : undefined,
 			});
 			const json = await res.json();
-			setResults((prev) => ({ ...prev, [task.key]: json }));
+			// API returns { data: { updated: ... }, meta: { ... } }
+			setResults((prev) => ({ ...prev, [task.key]: json.data ?? json }));
 		} catch {
 			setResults((prev) => ({ ...prev, [task.key]: { updated: -1 } }));
 		} finally {
