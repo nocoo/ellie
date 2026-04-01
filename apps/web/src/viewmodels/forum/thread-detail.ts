@@ -1,7 +1,7 @@
 // viewmodels/forum/thread-detail.ts — Thread detail ViewModel
 // Ref: 04d §帖子详情 — enriched posts, attachment grouping, permissions
 
-import { replaceSmileyCodesWithImages } from "@/lib/smiley";
+import { filterContent } from "@/lib/content-filter";
 import {
 	type Attachment,
 	type Post,
@@ -68,9 +68,9 @@ export function enrichPosts(
 		const author = authorMap.get(post.authorId) ?? null;
 		return {
 			...post,
-			content: replaceSmileyCodesWithImages(post.content),
+			content: filterContent(post.content),
 			author: author
-				? { ...author, signature: replaceSmileyCodesWithImages(author.signature ?? "") }
+				? { ...author, signature: filterContent(author.signature ?? "") }
 				: null,
 			attachments: attachmentMap.get(post.id) ?? [],
 			canDelete: canDeletePost(currentUser, post, forumId),

@@ -1,7 +1,7 @@
 // Smiley code → CDN image replacement (display-time only, no data mutation).
 //
 // Discuz migrations left raw smiley codes in post content (e.g. {:2_139:},
-// {:3_154:}, :smile:, :w00t:). This module converts them to <img> tags
+// {:3_154:}, :smile:, :w00t:, :ico29:). This module converts them to <img> tags
 // pointing at the R2-hosted GIF files.
 //
 // Security: all outputs are built from a closed whitelist of filenames and
@@ -11,10 +11,11 @@
 import { getSmileyUrl } from "./cdn";
 
 // ---------------------------------------------------------------------------
-// Named smiley codes → default/*.gif  (32 confirmed on CDN)
+// Named smiley codes → default/*.gif  (includes Discuz common smileys)
 // ---------------------------------------------------------------------------
 
 const NAMED_SMILEYS: Record<string, string> = {
+	// Original 32 smileys
 	smile: "smile.gif",
 	biggrin: "biggrin.gif",
 	cry: "cry.gif",
@@ -47,6 +48,11 @@ const NAMED_SMILEYS: Record<string, string> = {
 	dozingoff: "dozingoff.gif",
 	laugh: "laugh.gif",
 	rolleyes: "rolleyes.gif",
+	// Additional Discuz common smileys
+	unhappy: "unhappy.gif",
+	bigsmile: "bigsmile.gif",
+	// ico series (Discuz common set) — ico29 is confirmed on CDN
+	ico29: "ico29.gif",
 };
 
 // Build Set for O(1) lookups
@@ -88,10 +94,28 @@ const RE_COOLMONKEY = /\{:2_(\d{1,4}):\}/g;
 // {:3_NNN:} — comcom (1-4 digit IDs only)
 const RE_COMCOM = /\{:3_(\d{1,4}):\}/g;
 
-// :name: — named codes (lowercase + digits, e.g. :w00t:, :smile:)
+// :N: — numbered smileys in default directory (1-16 confirmed on CDN)
+// Negative lookbehind avoids matching inside {:...:} patterns.
+const RE_NUMBERED = /(?<!\{):(\d{1,2}):(?!\})/g;
+
+// :name: — named codes (lowercase + digits, e.g. :w00t:, :smile:, :ico29:)
 // Negative lookbehind avoids matching inside {:...:} patterns.
 // Length capped at 20 to prevent ReDoS on adversarial input.
-const RE_NAMED = /(?<!\{):([a-z0-9]{1,20}):(?!\})/g;
+const RE_NAMED = /(?<!\{):([a-z][a-z0-9]{0,19}):(?!\})/g;
+
+// ---------------------------------------------------------------------------
+// Numbered smiley validation (1.gif to 16.gif in default directory)
+// ---------------------------------------------------------------------------
+
+const NUMBERED_SMILEY_MIN = 1;
+const NUMBERED_SMILEY_MAX = 16;
+
+function numberedFilename(num: number): string | null {
+	if (!Number.isInteger(num) || num < NUMBERED_SMILEY_MIN || num > NUMBERED_SMILEY_MAX) {
+		return null;
+	}
+	return `${num}.gif`;
+}
 
 // ---------------------------------------------------------------------------
 // Injection-safe HTML builder
@@ -126,7 +150,8 @@ function smileyImg(dir: string, file: string, code: string): string {
  * Handles:
  * - `{:2_NNN:}` → coolmonkey pack (IDs 133–148)
  * - `{:3_NNN:}` → comcom pack (IDs 149–172)
- * - `:name:` → default pack (32 named codes, e.g. :smile:, :w00t:, :cool:)
+ * - `:N:` → default pack numbered smileys (1–16)
+ * - `:name:` → default pack named codes (e.g. :smile:, :w00t:, :ico29:)
  *
  * Unrecognized codes ({:soso_eNNN:}, {:soso__LONG:}, unknown names) are left
  * as-is — no data is mutated, this is display-time only.
@@ -148,7 +173,13 @@ export function replaceSmileyCodesWithImages(html: string): string {
 		return file ? smileyImg("comcom", file, match) : match;
 	});
 
-	// 3. Named :word:
+	// 3. Numbered :N: (1-16)
+	result = result.replace(RE_NUMBERED, (match, numStr) => {
+		const file = numberedFilename(Number(numStr));
+		return file ? smileyImg("default", file, match) : match;
+	});
+
+	// 4. Named :word: (includes :ico29:, :unhappy:, etc.)
 	result = result.replace(RE_NAMED, (match, name) => {
 		const file = NAMED_SMILEYS[name];
 		return file ? smileyImg("default", file, match) : match;
@@ -158,4 +189,11 @@ export function replaceSmileyCodesWithImages(html: string): string {
 }
 
 // Export internals for testing
-export { NAMED_SMILEY_SET, NAMED_SMILEYS, coolmonkeyFilename, comcomFilename, escapeAttr };
+export {
+	NAMED_SMILEY_SET,
+	NAMED_SMILEYS,
+	coolmonkeyFilename,
+	comcomFilename,
+	numberedFilename,
+	escapeAttr,
+};

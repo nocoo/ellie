@@ -542,3 +542,23 @@ div.quote::before {
 		padding-right: 2rem;
 	}
 }
+
+/*
+ * Discuz content filter styles — edit notices, hidden content placeholders
+ */
+.dz-edit-notice {
+	text-align: center;
+	font-size: 0.75rem;
+	color: hsl(var(--muted-foreground));
+	margin-bottom: 0.75rem;
+	font-style: italic;
+}
+.dz-hidden-content {
+	text-align: center;
+	font-size: 0.8125rem;
+	color: hsl(var(--muted-foreground));
+	background: hsl(var(--muted));
+	padding: 0.5rem 1rem;
+	border-radius: 4px;
+	margin: 0.5rem 0;
+}
