@@ -3,6 +3,7 @@
 
 import { Button } from "@/components/ui/button";
 import { generatePageNumbers } from "@/viewmodels/shared/pagination";
+import { formatNumber } from "@/viewmodels/shared/formatting";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { JumpToPage } from "./jump-to-page";
@@ -92,7 +93,7 @@ export function PagePagination({ page, pages, total, basePath, className }: Page
 			</div>
 
 			<div className="flex items-center gap-3">
-				<span className="text-xs text-muted-foreground">共 {(total ?? 0).toLocaleString()} 条</span>
+				<span className="text-xs text-muted-foreground">共 {formatNumber(total ?? 0)} 条</span>
 				<JumpToPage basePath={basePath} pages={pages} />
 			</div>
 		</div>

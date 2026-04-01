@@ -13,9 +13,10 @@ import {
 } from "@/viewmodels/forum/thread-list.server";
 import { getForumTitle } from "@/viewmodels/forum/title.server";
 import { parseIntParam, parsePageParam } from "@/viewmodels/shared/params";
+import { formatNumber } from "@/viewmodels/shared/formatting";
 import { ForumType } from "@ellie/types";
-import Link from "next/link";
 import type { Metadata } from "next";
+import Link from "next/link";
 
 interface ForumThreadsPageProps {
 	params: Promise<{ id: string }>;
@@ -90,8 +91,8 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 						{data.forum.description && <SafeHtml html={data.forum.description} />}
 						{!isGroup && (
 							<>
-								<span>帖子 {data.forum.threads.toLocaleString()}</span>
-								<span>回帖 {data.forum.posts.toLocaleString()}</span>
+								<span>帖子 {formatNumber(data.forum.threads)}</span>
+								<span>回帖 {formatNumber(data.forum.posts)}</span>
 								<Link
 									href="/digest"
 									className="text-success hover:text-success/80 transition-colors"
