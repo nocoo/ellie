@@ -7,7 +7,7 @@ import { errorResponse } from "../middleware/error";
 
 /** Explicit PublicUser columns — never SELECT * to avoid leaking sensitive fields */
 const PUBLIC_USER_COLUMNS =
-	"id, username, avatar, role, reg_date, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, last_activity";
+	"id, username, avatar, role, reg_date, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, last_activity, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site";
 
 /** Default/max page sizes for user history endpoints */
 const DEFAULT_HISTORY_LIMIT = 20;
@@ -167,6 +167,54 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 	return new Response(
 		JSON.stringify({
 			data: posts,
+			meta: { timestamp: Date.now(), requestId: crypto.randomUUID(), nextCursor },
+		}),
+		{ headers: { ...corsHeaders(origin), "Content-Type": "application/json" } },
+	);
+}
+
+/** GET /api/v1/users/:id/digest - List user's digest threads with keyset pagination */
+export async function listDigest(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+	const url = new URL(request.url);
+	const userId = parseUserIdFromParent(url);
+
+	if (Number.isNaN(userId) || userId <= 0) {
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid userId" }, origin);
+	}
+
+	const clampedLimit = clampLimit(url.searchParams.get("limit"));
+	const cursorStr = url.searchParams.get("cursor");
+	const cursor = cursorStr ? decodeHistoryCursor(cursorStr) : null;
+
+	let result: D1Result;
+	if (cursor) {
+		result = await env.DB.prepare(
+			`SELECT * FROM threads WHERE author_id = ? AND digest > 0
+			 AND (created_at < ? OR (created_at = ? AND id < ?))
+			 ORDER BY created_at DESC, id DESC LIMIT ?`,
+		)
+			.bind(userId, cursor.createdAt, cursor.createdAt, cursor.id, clampedLimit)
+			.all();
+	} else {
+		result = await env.DB.prepare(
+			"SELECT * FROM threads WHERE author_id = ? AND digest > 0 ORDER BY created_at DESC, id DESC LIMIT ?",
+		)
+			.bind(userId, clampedLimit)
+			.all();
+	}
+
+	const threads = result.results.map((row) => toThread(row as Record<string, unknown>));
+
+	let nextCursor: string | null = null;
+	if (threads.length === clampedLimit && threads.length > 0) {
+		const last = threads[threads.length - 1];
+		nextCursor = encodeHistoryCursor({ createdAt: last.createdAt, id: last.id });
+	}
+
+	return new Response(
+		JSON.stringify({
+			data: threads,
 			meta: { timestamp: Date.now(), requestId: crypto.randomUUID(), nextCursor },
 		}),
 		{ headers: { ...corsHeaders(origin), "Content-Type": "application/json" } },

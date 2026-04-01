@@ -438,46 +438,51 @@
 }
 
 /*
- * Navigation bar — blue gradient with architectural blueprint grid.
- * Two grid layers via ::after: 12px major squares + 3px minor subdivisions.
+ * Navigation bar — blue gradient (grid pattern moved to page background)
  */
 .nav-gradient {
-	position: relative;
-	overflow: hidden;
 	background: linear-gradient(180deg, hsl(var(--dz-nav-bg)) 0%, hsl(var(--dz-nav-hover)) 100%);
 }
-.nav-gradient::after {
+
+/*
+ * Page background — subtle blueprint grid pattern.
+ * Light mode: faint gray lines; Dark mode: faint white lines.
+ */
+body::before {
 	content: "";
-	position: absolute;
+	position: fixed;
 	inset: 0;
 	pointer-events: none;
+	z-index: -1;
 	background: repeating-linear-gradient(
 			0deg,
-			rgba(255, 255, 255, 0.1) 0px,
-			rgba(255, 255, 255, 0.1) 1px,
+			rgba(0, 0, 0, 0.03) 0px,
+			rgba(0, 0, 0, 0.03) 1px,
 			transparent 1px,
-			transparent 12px
+			transparent 24px
 		),
 		repeating-linear-gradient(
 			90deg,
-			rgba(255, 255, 255, 0.1) 0px,
-			rgba(255, 255, 255, 0.1) 1px,
+			rgba(0, 0, 0, 0.03) 0px,
+			rgba(0, 0, 0, 0.03) 1px,
 			transparent 1px,
-			transparent 12px
-		),
-		repeating-linear-gradient(
+			transparent 24px
+		);
+}
+.dark body::before {
+	background: repeating-linear-gradient(
 			0deg,
-			rgba(255, 255, 255, 0.04) 0px,
-			rgba(255, 255, 255, 0.04) 1px,
+			rgba(255, 255, 255, 0.02) 0px,
+			rgba(255, 255, 255, 0.02) 1px,
 			transparent 1px,
-			transparent 3px
+			transparent 24px
 		),
 		repeating-linear-gradient(
 			90deg,
-			rgba(255, 255, 255, 0.04) 0px,
-			rgba(255, 255, 255, 0.04) 1px,
+			rgba(255, 255, 255, 0.02) 0px,
+			rgba(255, 255, 255, 0.02) 1px,
 			transparent 1px,
-			transparent 3px
+			transparent 24px
 		);
 }
 

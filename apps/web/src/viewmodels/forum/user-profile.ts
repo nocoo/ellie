@@ -8,7 +8,7 @@ import { type User, UserRole, UserStatus } from "@ellie/types";
 // Types
 // ---------------------------------------------------------------------------
 
-export type ProfileTab = "threads" | "posts";
+export type ProfileTab = "threads" | "posts" | "digest";
 
 export interface ProfileStats {
 	threads: number;
@@ -19,6 +19,7 @@ export interface ProfileStats {
 export const PROFILE_TABS: { key: ProfileTab; label: string }[] = [
 	{ key: "threads", label: "发帖历史" },
 	{ key: "posts", label: "回帖历史" },
+	{ key: "digest", label: "精华帖" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -81,6 +82,7 @@ export function buildProfileStats(user: User): ProfileStats {
 /** Resolve profile tab from URL search param value. */
 export function resolveTab(raw: string | undefined): ProfileTab {
 	if (raw === "posts") return "posts";
+	if (raw === "digest") return "digest";
 	return "threads";
 }
 

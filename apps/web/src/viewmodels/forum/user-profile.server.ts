@@ -1,5 +1,5 @@
 // viewmodels/forum/user-profile.server.ts — Server-only data loader for user profile
-// Calls Worker API (GET /api/v1/users/:id, /users/:id/threads, /users/:id/posts).
+// Calls Worker API (GET /api/v1/users/:id, /users/:id/threads, /users/:id/posts, /users/:id/digest).
 
 import "server-only";
 
@@ -14,6 +14,7 @@ export interface UserProfileData {
 	tab: ProfileTab;
 	threads: PaginatedResult<Thread>;
 	posts: PaginatedResult<Post>;
+	digest: PaginatedResult<Thread>;
 }
 
 const HISTORY_LIMIT = 20;
@@ -33,6 +34,7 @@ export async function loadUserProfile(params: {
 
 	let threads: PaginatedResult<Thread> = emptyPage();
 	let posts: PaginatedResult<Post> = emptyPage();
+	let digest: PaginatedResult<Thread> = emptyPage();
 
 	if (tab === "threads") {
 		const res = await forumApi.getCursor<Thread>(`/api/v1/users/${params.userId}/threads`, {
@@ -45,7 +47,7 @@ export async function loadUserProfile(params: {
 			prevCursor: params.cursor ?? null,
 			total: 0, // keyset pagination doesn't provide total
 		};
-	} else {
+	} else if (tab === "posts") {
 		const res = await forumApi.getCursor<Post>(`/api/v1/users/${params.userId}/posts`, {
 			limit,
 			cursor: params.cursor,
@@ -56,7 +58,18 @@ export async function loadUserProfile(params: {
 			prevCursor: params.cursor ?? null,
 			total: 0,
 		};
+	} else if (tab === "digest") {
+		const res = await forumApi.getCursor<Thread>(`/api/v1/users/${params.userId}/digest`, {
+			limit,
+			cursor: params.cursor,
+		});
+		digest = {
+			items: res.data,
+			nextCursor: res.meta.nextCursor,
+			prevCursor: params.cursor ?? null,
+			total: user.digestPosts,
+		};
 	}
 
-	return { user, tab, threads, posts };
+	return { user, tab, threads, posts, digest };
 }

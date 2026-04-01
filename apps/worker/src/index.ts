@@ -70,6 +70,17 @@ export default {
 			if (path.match(/^\/api\/v1\/users\/\d+\/posts$/) && request.method === "GET") {
 				return await (await import("./handlers/user")).listPosts(request, env);
 			}
+			if (path.match(/^\/api\/v1\/users\/\d+\/digest$/) && request.method === "GET") {
+				return await (await import("./handlers/user")).listDigest(request, env);
+			}
+
+			// ── Digest routes (global featured threads) ─────────
+			if (path === "/api/v1/digest" && request.method === "GET") {
+				return await (await import("./handlers/digest")).list(request, env);
+			}
+			if (path === "/api/v1/digest/stats" && request.method === "GET") {
+				return await (await import("./handlers/digest")).stats(request, env);
+			}
 
 			// ── #12b Public stats (Key A, read-only, KV-cached) ─
 			if (path === "/api/v1/stats" && request.method === "GET") {
