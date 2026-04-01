@@ -438,28 +438,14 @@
 }
 
 /*
- * Header — architectural blueprint grid texture.
- * Blue gradient base with engineering-paper grid overlay (::after)
- * and edge vignette (::before). Covers TopBar + NavBar + SearchStatsBar.
+ * Navigation bar — blue gradient with architectural blueprint grid.
+ * Two grid layers via ::after: 12px major squares + 3px minor subdivisions.
  */
 .nav-gradient {
 	position: relative;
 	overflow: hidden;
 	background: linear-gradient(180deg, hsl(var(--dz-nav-bg)) 0%, hsl(var(--dz-nav-hover)) 100%);
 }
-/* Edge vignette — 20% black fading 100px inward from all edges */
-.nav-gradient::before {
-	content: "";
-	position: absolute;
-	inset: 0;
-	pointer-events: none;
-	z-index: 1;
-	background: linear-gradient(to right, rgba(0, 0, 0, 0.2) 0px, transparent 100px),
-		linear-gradient(to left, rgba(0, 0, 0, 0.2) 0px, transparent 100px),
-		linear-gradient(to bottom, rgba(0, 0, 0, 0.2) 0px, transparent 100px),
-		linear-gradient(to top, rgba(0, 0, 0, 0.2) 0px, transparent 100px);
-}
-/* Blueprint grid — 12px major + 3px minor subdivisions */
 .nav-gradient::after {
 	content: "";
 	position: absolute;
