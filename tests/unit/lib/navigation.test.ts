@@ -6,14 +6,20 @@ import {
 } from "../../../apps/web/src/lib/navigation";
 
 describe("NAV_GROUPS", () => {
-	it("has 4 groups", () => {
-		expect(NAV_GROUPS.length).toBe(4);
-		expect(NAV_GROUPS.map((g) => g.label)).toEqual(["概览", "内容管理", "安全管理", "设置"]);
+	it("has 5 groups", () => {
+		expect(NAV_GROUPS.length).toBe(5);
+		expect(NAV_GROUPS.map((g) => g.label)).toEqual([
+			"概览",
+			"内容管理",
+			"数据统计",
+			"安全管理",
+			"设置",
+		]);
 	});
 
-	it("has 10 total nav items", () => {
+	it("has 11 total nav items", () => {
 		const total = NAV_GROUPS.reduce((sum, g) => sum + g.items.length, 0);
-		expect(total).toBe(10);
+		expect(total).toBe(11);
 	});
 
 	it("each group has items with required fields", () => {
@@ -42,6 +48,13 @@ describe("NAV_GROUPS", () => {
 		expect(labels).toEqual(["用户", "主题", "版块", "附件"]);
 	});
 
+	it("statistics group has correct items", () => {
+		const statsGroup = NAV_GROUPS.find((g) => g.label === "数据统计");
+		expect(statsGroup).toBeTruthy();
+		const labels = statsGroup?.items.map((i) => i.label);
+		expect(labels).toEqual(["统计计算"]);
+	});
+
 	it("security group has correct items", () => {
 		const securityGroup = NAV_GROUPS.find((g) => g.label === "安全管理");
 		expect(securityGroup).toBeTruthy();
@@ -57,12 +70,13 @@ describe("NAV_GROUPS", () => {
 		expect(settingsGroup?.items[0]?.icon).toBe("Settings");
 	});
 
-	it("first three groups default to open, settings group does not", () => {
+	it("first four groups default to open, settings group does not", () => {
 		expect(NAV_GROUPS[0]?.defaultOpen).toBe(true);
 		expect(NAV_GROUPS[1]?.defaultOpen).toBe(true);
 		expect(NAV_GROUPS[2]?.defaultOpen).toBe(true);
+		expect(NAV_GROUPS[3]?.defaultOpen).toBe(true);
 		// Settings group doesn't set defaultOpen
-		expect(NAV_GROUPS[3]?.defaultOpen).toBeUndefined();
+		expect(NAV_GROUPS[4]?.defaultOpen).toBeUndefined();
 	});
 });
 

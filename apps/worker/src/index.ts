@@ -280,7 +280,18 @@ export default {
 				return await (await import("./handlers/admin/user")).update(request, env);
 			}
 
-			// ── E. Attachment (Admin) #43-#46 ────────────────
+			// ── E. Statistics (Admin) ────────────────────────
+			if (path === "/api/admin/statistics/recalc-forums" && request.method === "POST") {
+				return await (await import("./handlers/admin/statistics")).recalcForums(request, env);
+			}
+			if (path === "/api/admin/statistics/recalc-threads" && request.method === "POST") {
+				return await (await import("./handlers/admin/statistics")).recalcThreads(request, env);
+			}
+			if (path === "/api/admin/statistics/recalc-users" && request.method === "POST") {
+				return await (await import("./handlers/admin/statistics")).recalcUsers(request, env);
+			}
+
+			// ── F. Attachment (Admin) #43-#46 ────────────────
 			if (path === "/api/admin/attachments/batch-delete" && request.method === "POST") {
 				return await (await import("./handlers/admin/attachment")).batchDelete(request, env);
 			}
