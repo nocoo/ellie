@@ -17,6 +17,7 @@ import {
 	getUserRoleBadgeVariant,
 } from "@/viewmodels/forum/user-profile";
 import { type UserProfileData, loadUserProfile } from "@/viewmodels/forum/user-profile.server";
+import { getUserTitle } from "@/viewmodels/forum/title.server";
 import { parseIntParam } from "@/viewmodels/shared/params";
 import { UserRound } from "lucide-react";
 import Link from "next/link";
@@ -32,8 +33,8 @@ export async function generateMetadata({ params }: UserProfilePageProps): Promis
 	const userId = parseIntParam(id);
 	if (userId == null) return { title: "用户" };
 	try {
-		const data = await loadUserProfile({ userId });
-		return { title: `${data.user.username}的个人资料` };
+		const username = await getUserTitle(userId);
+		return { title: `${username}的个人资料` };
 	} catch {
 		return { title: "用户" };
 	}

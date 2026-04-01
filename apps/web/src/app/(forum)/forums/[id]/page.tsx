@@ -11,6 +11,7 @@ import {
 	type ThreadListPagedData,
 	loadThreadListPaged,
 } from "@/viewmodels/forum/thread-list.server";
+import { getForumTitle } from "@/viewmodels/forum/title.server";
 import { parseIntParam, parsePageParam } from "@/viewmodels/shared/params";
 import { ForumType } from "@ellie/types";
 import Link from "next/link";
@@ -26,8 +27,7 @@ export async function generateMetadata({ params }: ForumThreadsPageProps): Promi
 	const forumId = parseIntParam(id);
 	if (forumId == null) return { title: "版块" };
 	try {
-		const data = await loadThreadListPaged({ forumId });
-		return { title: data.forum?.name ?? "版块" };
+		return { title: await getForumTitle(forumId) };
 	} catch {
 		return { title: "版块" };
 	}

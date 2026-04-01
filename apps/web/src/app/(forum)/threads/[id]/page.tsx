@@ -11,6 +11,7 @@ import {
 	loadThreadDetail,
 } from "@/viewmodels/forum/thread-detail.server";
 import { formatTime } from "@/viewmodels/forum/thread-list";
+import { getThreadTitle } from "@/viewmodels/forum/title.server";
 import { parseIntParam } from "@/viewmodels/shared/params";
 import { getThreadBadges } from "@ellie/types";
 import Link from "next/link";
@@ -26,8 +27,7 @@ export async function generateMetadata({ params }: ThreadDetailPageProps): Promi
 	const threadId = parseIntParam(id);
 	if (threadId == null) return { title: "帖子" };
 	try {
-		const data = await loadThreadDetail({ threadId });
-		return { title: data.thread?.subject ?? "帖子" };
+		return { title: await getThreadTitle(threadId) };
 	} catch {
 		return { title: "帖子" };
 	}
