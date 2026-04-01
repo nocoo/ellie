@@ -1,9 +1,4 @@
 "use client";
-
-// Client wrapper for thread detail page
-// Manages reply dialog state and provides onReply callbacks to post cards
-
-import { ModActionBar } from "@/components/forum/mod-action-bar";
 import { PostCard } from "@/components/forum/post-card";
 import { ReplyDialog } from "@/components/forum/reply-dialog";
 import { Button } from "@/components/ui/button";
@@ -31,22 +26,19 @@ export function ThreadPostsClient({
 		author: string;
 	} | null>(null);
 
-	const handleReply = useCallback(
-		(post?: EnrichedPost) => {
-			if (post) {
-				// Quote reply - extract plain text for quote
-				const plainText = post.content.replace(/<[^>]*>/g, "").slice(0, 200);
-				setQuotedPost({
-					content: plainText + (post.content.length > 200 ? "..." : ""),
-					author: post.author?.username ?? "匿名",
-				});
-			} else {
-				setQuotedPost(null);
-			}
-			setReplyOpen(true);
-		},
-		[],
-	);
+	const handleReply = useCallback((post?: EnrichedPost) => {
+		if (post) {
+			// Quote reply - extract plain text for quote
+			const plainText = post.content.replace(/<[^>]*>/g, "").slice(0, 200);
+			setQuotedPost({
+				content: plainText + (post.content.length > 200 ? "..." : ""),
+				author: post.author?.username ?? "匿名",
+			});
+		} else {
+			setQuotedPost(null);
+		}
+		setReplyOpen(true);
+	}, []);
 
 	const handleQuickReply = useCallback(() => {
 		setQuotedPost(null);

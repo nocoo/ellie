@@ -71,11 +71,7 @@ export function canManageUsers(user: User | null): boolean {
 // ─── Post-level Permissions ──────────────────────────────────────
 
 /** Can user edit this post? Authors can edit their own; mods can edit any in their forum. */
-export function canEditPost(
-	user: User | null,
-	post: Post,
-	forum: { moderators: string },
-): boolean {
+export function canEditPost(user: User | null, post: Post, forum: { moderators: string }): boolean {
 	if (!user) return false;
 	if (user.id === post.authorId) return true;
 	return canModerate(user, forum);

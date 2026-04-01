@@ -4,8 +4,8 @@
 import "server-only";
 
 import { forumApi, publicUserToUser } from "@/lib/forum-api";
-import { buildThreadBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import { getCurrentForumUser } from "@/lib/forum-auth";
+import { buildThreadBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import {
 	type Attachment,
@@ -14,10 +14,10 @@ import {
 	type PublicUser,
 	type Thread,
 	type User,
-	UserRole,
+	type UserRole,
 	UserStatus,
-	findForumAncestors,
 	canModerate,
+	findForumAncestors,
 } from "@ellie/types";
 import {
 	type EnrichedPost,

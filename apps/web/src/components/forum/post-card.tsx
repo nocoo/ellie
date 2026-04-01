@@ -37,7 +37,7 @@ export function PostCard({
 	threadDigest,
 	onReply,
 	canModerate,
-	currentUserId,
+	currentUserId: _currentUserId,
 	isFirstPost,
 	threadId,
 	forumId,
@@ -51,9 +51,7 @@ export function PostCard({
 		<>
 			<PostActionBar onReply={onReply} canModerate={canModerate} canEdit={canEdit} />
 			{/* Mod action bar: only on first post, only for moderators */}
-			{isFirstPost && canModerate && (
-				<ModActionBar forumId={forumId} threadId={threadId} />
-			)}
+			{isFirstPost && canModerate && <ModActionBar forumId={forumId} threadId={threadId} />}
 		</>
 	);
 
