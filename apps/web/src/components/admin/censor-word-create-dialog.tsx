@@ -136,9 +136,7 @@ export function CensorWordCreateDialog({
 							disabled={action === "ban"}
 						/>
 						<p className="text-xs text-muted-foreground">
-							{action === "ban"
-								? "动作为“禁止发布”时不适用。"
-								: "留空则使用默认替换内容（**）。"}
+							{action === "ban" ? "动作为“禁止发布”时不适用。" : "留空则使用默认替换内容（**）。"}
 						</p>
 					</div>
 				</div>

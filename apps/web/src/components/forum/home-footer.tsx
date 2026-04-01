@@ -4,9 +4,7 @@
 // 2. Friend links header (logo + description)
 // 3. Friend links grid
 
-import {
-	type HomeFooterViewModel,
-} from "@/viewmodels/forum/footer";
+import type { HomeFooterViewModel } from "@/viewmodels/forum/footer";
 import { Settings } from "lucide-react";
 import Link from "next/link";
 
@@ -28,8 +26,7 @@ function OnlineStatsBar({ vm }: { vm: HomeFooterViewModel }) {
 	return (
 		<div className="flex items-center justify-between rounded-sm border-l-[3px] border-l-green-500 bg-card px-4 py-2.5">
 			<p className="text-[13px] text-foreground">
-				在线会员 - 总计{" "}
-				<span className="font-bold">{s.totalOnline}</span> 人在线 - 最高记录是{" "}
+				在线会员 - 总计 <span className="font-bold">{s.totalOnline}</span> 人在线 - 最高记录是{" "}
 				<span className="font-bold">{s.peakOnline}</span> 于 {s.peakDate}.
 			</p>
 			<button
@@ -62,8 +59,7 @@ function FriendLinksHeader() {
 					同济大学-同济网-Tongji.Net-欢迎交换友情链接
 				</p>
 				<p className="mt-0.5 text-[12px] text-dz-stats-text">
-					欢迎与我们交换链接，请在加上同济网论坛链接后发信给我们，链接文字：
-					同济大学同济网论坛
+					欢迎与我们交换链接，请在加上同济网论坛链接后发信给我们，链接文字： 同济大学同济网论坛
 				</p>
 			</div>
 		</div>

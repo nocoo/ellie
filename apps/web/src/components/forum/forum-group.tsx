@@ -37,7 +37,9 @@ export function ForumGroup({ group }: ForumGroupProps) {
 						{group.name}
 					</Link>
 				</h2>
-				{group.description && <SafeHtml html={group.description} className="text-xs text-forum-text-muted" />}
+				{group.description && (
+					<SafeHtml html={group.description} className="text-xs text-forum-text-muted" />
+				)}
 				{collapsed ? (
 					<ChevronRight className="ml-auto h-4 w-4 text-forum-text-muted shrink-0" />
 				) : (

@@ -2,7 +2,7 @@
 // Server component with Link-based page buttons + client JumpToPage island
 
 import { Button } from "@/components/ui/button";
-import { type PageItem, generatePageNumbers } from "@/viewmodels/shared/pagination";
+import { generatePageNumbers } from "@/viewmodels/shared/pagination";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { JumpToPage } from "./jump-to-page";

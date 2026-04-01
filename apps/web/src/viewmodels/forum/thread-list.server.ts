@@ -3,8 +3,8 @@
 
 import "server-only";
 
-import { buildForumBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import { forumApi } from "@/lib/forum-api";
+import { buildForumBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import {
 	type Forum,

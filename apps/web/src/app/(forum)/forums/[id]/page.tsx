@@ -11,9 +11,9 @@ import {
 	type ThreadListPagedData,
 	loadThreadListPaged,
 } from "@/viewmodels/forum/thread-list.server";
+import { parseIntParam, parsePageParam } from "@/viewmodels/shared/params";
 import { ForumType } from "@ellie/types";
 import Link from "next/link";
-import { parseIntParam, parsePageParam } from "@/viewmodels/shared/params";
 
 interface ForumThreadsPageProps {
 	params: Promise<{ id: string }>;
@@ -46,7 +46,16 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 		data = await loadThreadListPaged({ forumId, page });
 	} catch (e) {
 		error = e instanceof Error ? e.message : "Failed to load threads";
-		data = { forum: null, forums: [], items: [], page: 1, pages: 1, total: 0, limit: 100, breadcrumbs: [] };
+		data = {
+			forum: null,
+			forums: [],
+			items: [],
+			page: 1,
+			pages: 1,
+			total: 0,
+			limit: 100,
+			breadcrumbs: [],
+		};
 	}
 
 	const basePath = `/forums/${forumId}`;

@@ -12,10 +12,10 @@ let mockFetchFn: ReturnType<typeof mock>;
 function mockSuccess(data: unknown) {
 	mockFetchFn = mock(() =>
 		Promise.resolve(
-			new Response(
-				JSON.stringify({ data, meta: { timestamp: 1, requestId: "r1" } }),
-				{ status: 200, headers: { "Content-Type": "application/json" } },
-			),
+			new Response(JSON.stringify({ data, meta: { timestamp: 1, requestId: "r1" } }), {
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			}),
 		),
 	);
 	globalThis.fetch = mockFetchFn as typeof fetch;
@@ -66,9 +66,7 @@ describe("apiClient", () => {
 			);
 			globalThis.fetch = mockFetchFn as typeof fetch;
 
-			await expect(
-				apiClient.put("/api/admin/settings", { "bad.key": "v" }),
-			).rejects.toThrow();
+			await expect(apiClient.put("/api/admin/settings", { "bad.key": "v" })).rejects.toThrow();
 		});
 	});
 

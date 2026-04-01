@@ -24,9 +24,7 @@ import { useCallback, useEffect, useState } from "react";
 // Filter definitions
 // ---------------------------------------------------------------------------
 
-const BATCH_ACTIONS: BatchAction[] = [
-	{ key: "delete", label: "批量删除", variant: "destructive" },
-];
+const BATCH_ACTIONS: BatchAction[] = [{ key: "delete", label: "批量删除", variant: "destructive" }];
 
 // ---------------------------------------------------------------------------
 // Page component

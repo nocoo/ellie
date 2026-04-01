@@ -7,6 +7,7 @@ node_modules/
 # Build output
 dist/
 .next/
+*.tsbuildinfo
 
 # Bun
 bun.lockb
@@ -15,6 +16,8 @@ bun.lockb
 output/
 *.db
 *.sqlite
+*.sqlite-shm
+*.sqlite-wal
 
 # Logs
 *.log
@@ -32,3 +35,10 @@ target/
 *.so
 *.dylib
 *.dll
+
+# Wrangler
+.wrangler/
+
+# Tools
+.claude/
+.superset/

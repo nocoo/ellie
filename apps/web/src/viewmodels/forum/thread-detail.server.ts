@@ -3,10 +3,18 @@
 
 import "server-only";
 
-import { buildThreadBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import { forumApi, publicUserToUser } from "@/lib/forum-api";
+import { buildThreadBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
-import { type Attachment, type Forum, type Post, type PublicUser, type Thread, type User, findForumAncestors } from "@ellie/types";
+import {
+	type Attachment,
+	type Forum,
+	type Post,
+	type PublicUser,
+	type Thread,
+	type User,
+	findForumAncestors,
+} from "@ellie/types";
 import {
 	type EnrichedPost,
 	enrichPosts,

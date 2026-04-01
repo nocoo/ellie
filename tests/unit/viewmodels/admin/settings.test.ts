@@ -52,9 +52,7 @@ describe("SETTING_GROUPS", () => {
 	});
 
 	it("URL fields should have inputType 'url'", () => {
-		const urlFields = SETTING_GROUPS.flatMap((g) => g.fields).filter(
-			(f) => f.inputType === "url",
-		);
+		const urlFields = SETTING_GROUPS.flatMap((g) => g.fields).filter((f) => f.inputType === "url");
 		expect(urlFields.length).toBeGreaterThan(0);
 		for (const field of urlFields) {
 			expect(field.key).toMatch(/\.(image|url|avatar_cdn_base)$/);

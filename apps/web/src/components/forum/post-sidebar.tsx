@@ -85,7 +85,9 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 					)}
 
 					{/* Custom title */}
-					{author.customTitle && <div className="text-forum-text-muted italic">{author.customTitle}</div>}
+					{author.customTitle && (
+						<div className="text-forum-text-muted italic">{author.customTitle}</div>
+					)}
 
 					{/* UID */}
 					<div>

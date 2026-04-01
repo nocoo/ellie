@@ -5,7 +5,7 @@
 "use client";
 
 import { PostEditor } from "@/components/forum/post-editor";
-import { Breadcrumbs, type BreadcrumbItem } from "@/components/layout/breadcrumbs";
+import { type BreadcrumbItem, Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -84,8 +84,7 @@ function SubjectInput({
 				className="h-[34px] flex-1 rounded border border-dz-search-border text-[13px]"
 			/>
 			<span className="whitespace-nowrap text-[13px] text-dz-stats-text">
-				还可输入 <span className="font-bold text-foreground">{remaining}</span>{" "}
-				个字符
+				还可输入 <span className="font-bold text-foreground">{remaining}</span> 个字符
 			</span>
 		</div>
 	);
@@ -101,12 +100,8 @@ function EditorToolbar() {
 			{EDITOR_TOOL_ACTIONS.map((action, i) => (
 				<span key={action.label} className="flex items-center">
 					{/* Separator: use | between groups, space within */}
-					{i > 0 && i !== 2 && i !== 4 && (
-						<span className="mx-1">{" "}</span>
-					)}
-					{(i === 2 || i === 4) && (
-						<span className="mx-1.5 text-dz-topbar-separator">|</span>
-					)}
+					{i > 0 && i !== 2 && i !== 4 && <span className="mx-1"> </span>}
+					{(i === 2 || i === 4) && <span className="mx-1.5 text-dz-topbar-separator">|</span>}
 					{action.isAction ? (
 						<button
 							type="button"
@@ -156,11 +151,7 @@ function SubmitRow() {
 				<Button size="default" className="px-4 text-[13px]">
 					发表帖子
 				</Button>
-				<Button
-					variant="outline"
-					size="default"
-					className="px-4 text-[13px]"
-				>
+				<Button variant="outline" size="default" className="px-4 text-[13px]">
 					保存草稿
 				</Button>
 

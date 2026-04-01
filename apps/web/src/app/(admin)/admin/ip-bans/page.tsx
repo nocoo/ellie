@@ -26,9 +26,7 @@ import { useCallback, useEffect, useState } from "react";
 
 const FILTERS: FilterDef[] = [{ key: "ip", label: "搜索 IP...", type: "search" }];
 
-const BATCH_ACTIONS: BatchAction[] = [
-	{ key: "delete", label: "批量删除", variant: "destructive" },
-];
+const BATCH_ACTIONS: BatchAction[] = [{ key: "delete", label: "批量删除", variant: "destructive" }];
 
 // ---------------------------------------------------------------------------
 // Page component

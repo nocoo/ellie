@@ -81,7 +81,9 @@ export function PostContent({ post, isFirst, threadDigest, author, actionBar }: 
 									<>
 										<span className="text-forum-text-muted">📎</span>
 										<span className="truncate">{att.filename}</span>
-										<span className="text-forum-text-muted shrink-0">{formatFileSize(att.fileSize)}</span>
+										<span className="text-forum-text-muted shrink-0">
+											{formatFileSize(att.fileSize)}
+										</span>
 									</>
 								)}
 							</div>

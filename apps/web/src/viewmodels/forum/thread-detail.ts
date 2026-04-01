@@ -1,6 +1,7 @@
 // viewmodels/forum/thread-detail.ts — Thread detail ViewModel
 // Ref: 04d §帖子详情 — enriched posts, attachment grouping, permissions
 
+import { replaceSmileyCodesWithImages } from "@/lib/smiley";
 import {
 	type Attachment,
 	type Post,
@@ -12,7 +13,6 @@ import {
 	type getThreadBadges,
 } from "@ellie/types";
 import type { User } from "@ellie/types";
-import { replaceSmileyCodesWithImages } from "@/lib/smiley";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -103,4 +103,3 @@ export function formatFileSize(bytes: number): string {
 
 // Re-export shared date formatters used by thread-detail views
 export { formatDate, formatDateTime } from "@/viewmodels/shared/formatting";
-

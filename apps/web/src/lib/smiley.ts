@@ -99,7 +99,11 @@ const RE_NAMED = /(?<!\{):([a-z0-9]{1,20}):(?!\})/g;
 
 /** Escape HTML special chars in alt text to prevent attribute injection. */
 function escapeAttr(s: string): string {
-	return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+	return s
+		.replace(/&/g, "&amp;")
+		.replace(/"/g, "&quot;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;");
 }
 
 /**

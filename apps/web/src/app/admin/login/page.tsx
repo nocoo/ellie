@@ -109,7 +109,9 @@ function LoginContent() {
 											"inset 0 1.5px 3px rgba(0,0,0,0.35), inset 0 -0.5px 1px rgba(255,255,255,0.1)",
 									}}
 								/>
-								<span className="text-sm font-semibold text-primary-foreground">Ellie 管理后台</span>
+								<span className="text-sm font-semibold text-primary-foreground">
+									Ellie 管理后台
+								</span>
 								<span className="text-2xs font-medium uppercase tracking-widest text-primary-foreground/60">
 									v0.1
 								</span>
@@ -138,9 +140,7 @@ function LoginContent() {
 							{/* Error message */}
 							{error && (
 								<div className="mt-3 w-full rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive text-center">
-									{error === "AccessDenied"
-										? "您的账号无权访问此应用。"
-										: "登录失败，请重试。"}
+									{error === "AccessDenied" ? "您的账号无权访问此应用。" : "登录失败，请重试。"}
 								</div>
 							)}
 
