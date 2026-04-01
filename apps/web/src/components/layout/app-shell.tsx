@@ -52,7 +52,7 @@ function AppShellInner({ children }: AppShellProps) {
 	}
 
 	return (
-		<div className="flex min-h-screen w-full bg-background">
+		<div className="flex min-h-screen w-full bg-background" data-area="admin">
 			{/* Desktop sidebar */}
 			{!isMobile && <Sidebar />}
 
