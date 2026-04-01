@@ -59,16 +59,21 @@ export async function loadUserProfile(params: {
 			total: 0,
 		};
 	} else if (tab === "digest") {
-		const res = await forumApi.getCursor<Thread>(`/api/v1/users/${params.userId}/digest`, {
-			limit,
-			cursor: params.cursor,
-		});
-		digest = {
-			items: res.data,
-			nextCursor: res.meta.nextCursor,
-			prevCursor: params.cursor ?? null,
-			total: user.digestPosts,
-		};
+		try {
+			const res = await forumApi.getCursor<Thread>(`/api/v1/users/${params.userId}/digest`, {
+				limit,
+				cursor: params.cursor,
+			});
+			digest = {
+				items: res.data,
+				nextCursor: res.meta.nextCursor,
+				prevCursor: params.cursor ?? null,
+				total: user.digestPosts,
+			};
+		} catch {
+			// If digest API fails (e.g., user has no digest posts), return empty result
+			digest = { items: [], nextCursor: null, prevCursor: null, total: 0 };
+		}
 	}
 
 	return { user, tab, threads, posts, digest };
