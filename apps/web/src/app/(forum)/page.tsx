@@ -1,6 +1,7 @@
 import { ForumGroup } from "@/components/forum/forum-group";
 import { HomeFooter } from "@/components/forum/home-footer";
 import { buildHomeFooterViewModel } from "@/viewmodels/forum/footer";
+import { fetchPublicSettings } from "@/viewmodels/forum/settings.server";
 import { loadForumList } from "@/viewmodels/forum/forum-list.server";
 import type { ForumTreeNode } from "@ellie/types";
 
@@ -13,6 +14,8 @@ export default async function ForumHomePage() {
 	} catch (e) {
 		error = e instanceof Error ? e.message : "Failed to load forums";
 	}
+
+	const settings = await fetchPublicSettings();
 
 	return (
 		<div className="space-y-4">
@@ -33,7 +36,7 @@ export default async function ForumHomePage() {
 			)}
 
 			{/* Homepage-only footer: online stats + friend links */}
-			<HomeFooter vm={buildHomeFooterViewModel()} />
+			<HomeFooter vm={buildHomeFooterViewModel(settings)} />
 		</div>
 	);
 }

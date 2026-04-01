@@ -3,6 +3,9 @@
 
 import { MessagesPage } from "@/components/forum/messages-page";
 import { buildMessagesBreadcrumbs, buildMessagesPageViewModel } from "@/viewmodels/forum/messages";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "消息" };
 
 export default function MessagesRoute() {
 	const breadcrumbs = buildMessagesBreadcrumbs();

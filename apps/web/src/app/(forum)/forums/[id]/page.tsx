@@ -14,10 +14,23 @@ import {
 import { parseIntParam, parsePageParam } from "@/viewmodels/shared/params";
 import { ForumType } from "@ellie/types";
 import Link from "next/link";
+import type { Metadata } from "next";
 
 interface ForumThreadsPageProps {
 	params: Promise<{ id: string }>;
 	searchParams: Promise<{ page?: string }>;
+}
+
+export async function generateMetadata({ params }: ForumThreadsPageProps): Promise<Metadata> {
+	const { id } = await params;
+	const forumId = parseIntParam(id);
+	if (forumId == null) return { title: "版块" };
+	try {
+		const data = await loadThreadListPaged({ forumId });
+		return { title: data.forum?.name ?? "版块" };
+	} catch {
+		return { title: "版块" };
+	}
 }
 
 export default async function ForumThreadsPage({ params, searchParams }: ForumThreadsPageProps) {

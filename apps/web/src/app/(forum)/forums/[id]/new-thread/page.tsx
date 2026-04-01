@@ -6,9 +6,22 @@ import { Card, CardContent } from "@/components/ui/card";
 import { loadNewThreadPageData } from "@/viewmodels/forum/new-thread.server";
 import { parseIntParam } from "@/viewmodels/shared/params";
 import Link from "next/link";
+import type { Metadata } from "next";
 
 interface NewThreadPageProps {
 	params: Promise<{ id: string }>;
+}
+
+export async function generateMetadata({ params }: NewThreadPageProps): Promise<Metadata> {
+	const { id } = await params;
+	const forumId = parseIntParam(id);
+	if (forumId == null) return { title: "发表帖子" };
+	try {
+		const data = await loadNewThreadPageData(forumId);
+		return { title: `发表帖子 - ${data.forumName}` };
+	} catch {
+		return { title: "发表帖子" };
+	}
 }
 
 export default async function NewThreadPage({ params }: NewThreadPageProps) {

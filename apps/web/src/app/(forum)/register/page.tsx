@@ -1,6 +1,9 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 import RegisterForm from "./register-form";
+
+export const metadata: Metadata = { title: "注册" };
 
 /** Server component — redirect credentials users who already have a session. */
 export default async function ForumRegisterPage() {

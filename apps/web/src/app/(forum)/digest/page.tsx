@@ -7,6 +7,9 @@ import { type DigestData, loadDigestList } from "@/viewmodels/forum/digest.serve
 import { formatStat, formatTime } from "@/viewmodels/forum/thread-list";
 import { getThreadBadges } from "@ellie/types";
 import Link from "next/link";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "精华帖" };
 
 interface DigestPageProps {
 	searchParams: Promise<{ cursor?: string; direction?: string }>;
