@@ -53,7 +53,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
 	{
 		label: "设置",
 		items: [
-			{ href: "/admin/settings", label: "通用设置", icon: "Settings" },
+			{ href: "/admin/settings/general", label: "通用设置", icon: "Settings" },
 			{ href: "/admin/settings/nav-links", label: "顶部导航", icon: "Navigation" },
 			{ href: "/admin/settings/friend-links", label: "友情链接", icon: "Link" },
 		],
@@ -73,7 +73,8 @@ export const ROUTE_LABELS: Record<string, string> = {
 	attachments: "附件",
 	"ip-bans": "IP 封禁",
 	"censor-words": "敏感词",
-	settings: "通用设置",
+	settings: "设置",
+	general: "通用设置",
 	"nav-links": "顶部导航",
 	"friend-links": "友情链接",
 };
