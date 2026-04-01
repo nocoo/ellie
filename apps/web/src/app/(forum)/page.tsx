@@ -3,19 +3,41 @@ import { HomeFooter } from "@/components/forum/home-footer";
 import { buildHomeFooterViewModel } from "@/viewmodels/forum/footer";
 import { fetchPublicSettings } from "@/viewmodels/forum/settings.server";
 import { loadForumList } from "@/viewmodels/forum/forum-list.server";
+import { loadSiteStats } from "@/viewmodels/forum/stats.server";
 import type { ForumTreeNode } from "@ellie/types";
 
 export default async function ForumHomePage() {
 	let tree: ForumTreeNode[] = [];
 	let error: string | null = null;
 
-	try {
-		tree = await loadForumList();
-	} catch (e) {
-		error = e instanceof Error ? e.message : "Failed to load forums";
+	// Fetch forum list, online stats, and settings in parallel
+	const [forumResult, statsResult, settings] = await Promise.all([
+		loadForumList().then(
+			(r) => ({ status: "fulfilled" as const, value: r }),
+			(r) => ({ status: "rejected" as const, reason: r }),
+		),
+		loadSiteStats().then(
+			(r) => ({ status: "fulfilled" as const, value: r }),
+			() => ({ status: "rejected" as const, reason: null }),
+		),
+		fetchPublicSettings(),
+	]);
+
+	if (forumResult.status === "fulfilled") {
+		tree = forumResult.value;
+	} else {
+		error = forumResult.reason instanceof Error ? forumResult.reason.message : "Failed to load forums";
 	}
 
-	const settings = await fetchPublicSettings();
+	// Build footer with real online stats (graceful fallback on failure)
+	const onlineStats =
+		statsResult.status === "fulfilled"
+			? {
+					totalOnline: statsResult.value.totalOnline,
+					peakOnline: statsResult.value.peakOnline,
+					peakDate: statsResult.value.peakDate,
+				}
+			: undefined;
 
 	return (
 		<div className="space-y-4">
@@ -36,7 +58,7 @@ export default async function ForumHomePage() {
 			)}
 
 			{/* Homepage-only footer: online stats + friend links */}
-			<HomeFooter vm={buildHomeFooterViewModel(settings)} />
+			<HomeFooter vm={buildHomeFooterViewModel(settings, onlineStats)} />
 		</div>
 	);
 }

@@ -1,8 +1,12 @@
 import { ForumLayoutShell } from "@/components/forum/forum-layout";
 import { SessionGuard } from "@/components/forum/session-guard";
-import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
+import { getCurrentForumUser } from "@/lib/forum-auth";
+import { forumApi } from "@/lib/forum-api";
 import { buildGlobalFooterViewModel } from "@/viewmodels/forum/footer";
-import { buildHeaderViewModel } from "@/viewmodels/forum/header";
+import { type HeaderStats, type HeaderUserInfo, buildHeaderViewModel } from "@/viewmodels/forum/header";
+import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
+import type { SiteStats } from "@/viewmodels/forum/stats.server";
+import type { PublicUser } from "@ellie/types";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
@@ -36,9 +40,13 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function ForumLayout({ children }: { children: ReactNode }) {
-	const settings = await fetchPublicSettings();
+	const [settings, stats, currentUser] = await Promise.all([
+		fetchPublicSettings(),
+		loadStats(),
+		loadCurrentUser(),
+	]);
 
-	const headerVm = buildHeaderViewModel(settings);
+	const headerVm = buildHeaderViewModel(settings, currentUser, stats);
 	const footerVm = buildGlobalFooterViewModel(settings);
 
 	return (
@@ -47,4 +55,48 @@ export default async function ForumLayout({ children }: { children: ReactNode })
 			{children}
 		</ForumLayoutShell>
 	);
+}
+
+/** Load site-wide stats from Worker API. Returns defaults on failure. */
+async function loadStats(): Promise<HeaderStats> {
+	try {
+		const { data } = await forumApi.get<SiteStats>("/api/v1/stats");
+		return {
+			todayPosts: data.todayPosts,
+			yesterdayPosts: data.yesterdayPosts,
+			totalThreads: data.totalThreads,
+			totalMembers: data.totalMembers,
+			newestMember: data.newestMember,
+		};
+	} catch {
+		// Graceful degradation — show zeroes instead of crashing
+		return {
+			todayPosts: 0,
+			yesterdayPosts: 0,
+			totalThreads: 0,
+			totalMembers: 0,
+			newestMember: "",
+		};
+	}
+}
+
+/** Load current user info from NextAuth session + Worker API. */
+async function loadCurrentUser(): Promise<HeaderUserInfo | null> {
+	try {
+		const forumUser = await getCurrentForumUser();
+		if (!forumUser) return null;
+
+		// Fetch full user profile for credits and group info
+		const { data: user } = await forumApi.get<PublicUser>(`/api/v1/users/${forumUser.userId}`);
+
+		return {
+			username: user.username,
+			uid: user.id,
+			groupTitle: user.groupTitle,
+			credits: user.credits,
+			reminderCount: 0, // TODO: wire when messaging system is built
+		};
+	} catch {
+		return null;
+	}
 }

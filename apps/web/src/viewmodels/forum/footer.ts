@@ -1,12 +1,10 @@
 /**
- * Forum footer ViewModel — pure types & placeholder data.
+ * Forum footer ViewModel — pure types & data builders.
  *
  * Defines the data contract for the classic Discuz-style forum footer.
  * Split into two sections:
  * - Home-only: online stats, friend links (above the divider)
  * - Global: powered-by, copyright, site links (below the divider)
- *
- * All numeric placeholders use 777.
  */
 
 import type { SettingsMap } from "./settings.server";
@@ -52,13 +50,13 @@ export interface GlobalFooterViewModel {
 }
 
 // ---------------------------------------------------------------------------
-// Placeholder data — all numbers → 777
+// Default online stats (shown when real data is unavailable)
 // ---------------------------------------------------------------------------
 
-export const PLACEHOLDER_ONLINE_STATS: OnlineStats = {
-	totalOnline: 777,
-	peakOnline: 777,
-	peakDate: "2011-9-29",
+export const DEFAULT_ONLINE_STATS: OnlineStats = {
+	totalOnline: 0,
+	peakOnline: 0,
+	peakDate: "",
 };
 
 const DEFAULT_FRIEND_LINKS: FriendLink[] = [
@@ -105,13 +103,16 @@ export const FOOTER_QUICK_LINKS: FooterQuickLink[] = [
 // Build view models
 // ---------------------------------------------------------------------------
 
-export function buildHomeFooterViewModel(settings: SettingsMap): HomeFooterViewModel {
+export function buildHomeFooterViewModel(
+	settings: SettingsMap,
+	onlineStats: OnlineStats = DEFAULT_ONLINE_STATS,
+): HomeFooterViewModel {
 	const friendLinks = getArr<{ label: string; url: string }>(
 		settings, "general.navigation.friend_links", [],
 	);
 
 	return {
-		onlineStats: PLACEHOLDER_ONLINE_STATS,
+		onlineStats,
 		friendLinks: friendLinks.length > 0
 			? friendLinks.map((link) => ({ label: link.label, href: link.url }))
 			: DEFAULT_FRIEND_LINKS,
