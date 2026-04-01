@@ -34,11 +34,11 @@ export function SiteFooter({ vm }: SiteFooterProps) {
 					<div className="sm:col-span-5">
 						<div className="mb-6">
 							<span className="text-lg font-bold tracking-tight text-foreground font-display">
-								同济网 TONGJI.NET
+								{vm.siteName}
 							</span>
 						</div>
 						<p className="text-sm text-muted-foreground leading-relaxed">
-							&copy; 2002-{new Date().getFullYear()} TONGJI.NET, All rights reserved.
+							&copy; {vm.copyrightYears} {vm.copyrightHolder}, All rights reserved.
 						</p>
 					</div>
 
