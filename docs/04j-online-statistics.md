@@ -271,40 +271,31 @@ Response 200:
 ```typescript
 // apps/worker/src/middleware/online.ts
 
-import type { Context, Next } from "hono";
-import type { Bindings } from "../types";
+import type { CFRequest, Env } from "../lib/env";
+import type { AuthUser } from "./auth";
 
 const ONLINE_TTL = 900; // 15 minutes
 
-export async function onlineMiddleware(c: Context<{ Bindings: Bindings }>, next: Next) {
-  // 先执行后续处理
-  await next();
+/**
+ * Track authenticated user as online in KV.
+ * Call after successful auth, uses waitUntil for non-blocking write.
+ */
+export function trackOnline(
+  request: CFRequest,
+  env: Env,
+  ctx: ExecutionContext,
+  user: AuthUser,
+): void {
+  const key = `online:${user.userId}`;
+  const value = JSON.stringify({
+    uid: user.userId,
+    ip: request.headers.get("CF-Connecting-IP") || "",
+    page: new URL(request.url).pathname,
+    ts: Math.floor(Date.now() / 1000),
+  });
 
-  // 仅在成功响应时记录
-  if (c.res.status >= 400) return;
-
-  try {
-    const userId = c.get("userId");  // 从 JWT 或 session 获取
-    const key = userId ? `online:${userId}` : null;
-    
-    if (key) {
-      const value = JSON.stringify({
-        uid: userId,
-        username: c.get("username") || "",
-        ip: c.req.header("CF-Connecting-IP") || "",
-        page: new URL(c.req.url).pathname,
-        ts: Math.floor(Date.now() / 1000),
-      });
-      
-      // 异步写入，不阻塞响应
-      c.executionCtx.waitUntil(
-        c.env.KV.put(key, value, { expirationTtl: ONLINE_TTL })
-      );
-    }
-  } catch (e) {
-    // 静默失败，不影响主流程
-    console.error("Online tracking error:", e);
-  }
+  // Async write, non-blocking
+  ctx.waitUntil(env.KV.put(key, value, { expirationTtl: ONLINE_TTL }));
 }
 ```
 
@@ -313,57 +304,54 @@ export async function onlineMiddleware(c: Context<{ Bindings: Bindings }>, next:
 ```typescript
 // apps/worker/src/middleware/activity.ts
 
-import type { Context, Next } from "hono";
-import type { Bindings } from "../types";
+import type { Env } from "../lib/env";
+import type { AuthUser } from "./auth";
 
 const ACTIVITY_THRESHOLD = 1800; // 30 分钟内视为连续活动
 const THROTTLE_SECONDS = 60;     // 节流：每分钟最多更新一次
 
-export async function activityMiddleware(c: Context<{ Bindings: Bindings }>, next: Next) {
-  await next();
+/**
+ * Update user activity and accumulate online time.
+ * Call after successful auth, uses waitUntil for non-blocking writes.
+ */
+export async function trackActivity(
+  env: Env,
+  ctx: ExecutionContext,
+  user: AuthUser,
+): Promise<void> {
+  const now = Math.floor(Date.now() / 1000);
+  const throttleKey = `activity_throttle:${user.userId}`;
 
-  const userId = c.get("userId");
-  if (!userId || c.res.status >= 400) return;
-
-  try {
-    const now = Math.floor(Date.now() / 1000);
-    
-    // 节流检查：1 分钟内已更新过则跳过
-    const throttleKey = `activity_throttle:${userId}`;
-    const lastUpdate = await c.env.KV.get(throttleKey);
-    if (lastUpdate && now - parseInt(lastUpdate, 10) < THROTTLE_SECONDS) {
-      return; // 跳过本次更新
-    }
-    
-    // 获取用户当前 last_activity
-    const user = await c.env.DB.prepare(
-      "SELECT last_activity, ol_time FROM users WHERE id = ?"
-    ).bind(userId).first<{ last_activity: number; ol_time: number }>();
-    
-    if (!user) return;
-    
-    const gap = now - user.last_activity;
-    
-    // 计算要累加的分钟数
-    // 如果距上次活动超过阈值，不累加（视为离开后重新上线）
-    const addMinutes = gap < ACTIVITY_THRESHOLD && gap >= 60 
-      ? Math.floor(gap / 60) 
-      : 0;
-    
-    // 异步执行：更新节流标记 + 更新用户数据
-    c.executionCtx.waitUntil(
-      Promise.all([
-        // 设置节流标记（TTL 2 分钟，比节流周期略长）
-        c.env.KV.put(throttleKey, String(now), { expirationTtl: 120 }),
-        // 更新 last_activity 和 ol_time
-        c.env.DB.prepare(
-          "UPDATE users SET last_activity = ?, ol_time = ol_time + ? WHERE id = ?"
-        ).bind(now, addMinutes, userId).run(),
-      ])
-    );
-  } catch (e) {
-    console.error("Activity tracking error:", e);
+  // 节流检查：1 分钟内已更新过则跳过
+  const lastUpdate = await env.KV.get(throttleKey);
+  if (lastUpdate && now - parseInt(lastUpdate, 10) < THROTTLE_SECONDS) {
+    return;
   }
+
+  // 获取用户当前 last_activity
+  const userData = await env.DB.prepare(
+    "SELECT last_activity, ol_time FROM users WHERE id = ?"
+  ).bind(user.userId).first<{ last_activity: number; ol_time: number }>();
+
+  if (!userData) return;
+
+  const gap = now - userData.last_activity;
+
+  // 计算要累加的分钟数
+  // 如果距上次活动超过阈值，不累加（视为离开后重新上线）
+  const addMinutes = gap < ACTIVITY_THRESHOLD && gap >= 60
+    ? Math.floor(gap / 60)
+    : 0;
+
+  // 异步执行：更新节流标记 + 更新用户数据
+  ctx.waitUntil(
+    Promise.all([
+      env.KV.put(throttleKey, String(now), { expirationTtl: 120 }),
+      env.DB.prepare(
+        "UPDATE users SET last_activity = ?, ol_time = ol_time + ? WHERE id = ?"
+      ).bind(now, addMinutes, user.userId).run(),
+    ])
+  );
 }
 ```
 
@@ -375,9 +363,9 @@ export async function activityMiddleware(c: Context<{ Bindings: Bindings }>, nex
 ```typescript
 // apps/worker/src/lib/online-stats.ts
 
-import type { Bindings } from "../types";
+import type { Env } from "./env";
 
-export async function aggregateOnlineStats(env: Bindings): Promise<void> {
+export async function aggregateOnlineStats(env: Env): Promise<void> {
   const now = Math.floor(Date.now() / 1000);
   let totalCount = 0;
   let cursor: string | undefined;
@@ -423,14 +411,17 @@ crons = ["*/5 * * * *"]  # 每 5 分钟执行一次
 ```
 
 ```typescript
-// apps/worker/src/index.ts
+// apps/worker/src/index.ts（添加 scheduled export）
+
+import { aggregateOnlineStats } from "./lib/online-stats";
+import type { CFRequest, Env } from "./lib/env";
 
 export default {
-  async fetch(request: Request, env: Bindings, ctx: ExecutionContext) {
+  async fetch(request: CFRequest, env: Env): Promise<Response> {
     // ... existing fetch handler
   },
-  
-  async scheduled(event: ScheduledEvent, env: Bindings, ctx: ExecutionContext) {
+
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil(aggregateOnlineStats(env));
   },
 };
