@@ -92,6 +92,12 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 							<>
 								<span>帖子 {data.forum.threads.toLocaleString()}</span>
 								<span>回帖 {data.forum.posts.toLocaleString()}</span>
+								<Link
+									href="/digest"
+									className="text-success hover:text-success/80 transition-colors"
+								>
+									精华帖
+								</Link>
 							</>
 						)}
 					</div>

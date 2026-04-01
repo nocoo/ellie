@@ -239,16 +239,5 @@ export function publicUserToUser(pu: PublicUser): User {
 		email: "",
 		status: UserStatus.Active,
 		lastLogin: 0,
-		gender: 0,
-		birthYear: 0,
-		birthMonth: 0,
-		birthDay: 0,
-		resideProvince: "",
-		resideCity: "",
-		graduateSchool: "",
-		bio: "",
-		interest: "",
-		qq: "",
-		site: "",
 	};
 }

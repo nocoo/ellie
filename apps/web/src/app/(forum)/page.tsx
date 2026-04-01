@@ -1,8 +1,10 @@
+import { DigestShowcase } from "@/components/forum/digest-showcase";
 import { ForumGroup } from "@/components/forum/forum-group";
 import { HomeFooter } from "@/components/forum/home-footer";
+import { loadDigestList } from "@/viewmodels/forum/digest.server";
 import { buildHomeFooterViewModel } from "@/viewmodels/forum/footer";
-import { fetchPublicSettings } from "@/viewmodels/forum/settings.server";
 import { loadForumList } from "@/viewmodels/forum/forum-list.server";
+import { fetchPublicSettings } from "@/viewmodels/forum/settings.server";
 import { loadSiteStats } from "@/viewmodels/forum/stats.server";
 import type { ForumTreeNode } from "@ellie/types";
 
@@ -10,13 +12,17 @@ export default async function ForumHomePage() {
 	let tree: ForumTreeNode[] = [];
 	let error: string | null = null;
 
-	// Fetch forum list, online stats, and settings in parallel
-	const [forumResult, statsResult, settings] = await Promise.all([
+	// Fetch forum list, online stats, digest threads, and settings in parallel
+	const [forumResult, statsResult, digestResult, settings] = await Promise.all([
 		loadForumList().then(
 			(r) => ({ status: "fulfilled" as const, value: r }),
 			(r) => ({ status: "rejected" as const, reason: r }),
 		),
 		loadSiteStats().then(
+			(r) => ({ status: "fulfilled" as const, value: r }),
+			() => ({ status: "rejected" as const, reason: null }),
+		),
+		loadDigestList({ limit: 8 }).then(
 			(r) => ({ status: "fulfilled" as const, value: r }),
 			() => ({ status: "rejected" as const, reason: null }),
 		),
@@ -26,7 +32,8 @@ export default async function ForumHomePage() {
 	if (forumResult.status === "fulfilled") {
 		tree = forumResult.value;
 	} else {
-		error = forumResult.reason instanceof Error ? forumResult.reason.message : "Failed to load forums";
+		error =
+			forumResult.reason instanceof Error ? forumResult.reason.message : "Failed to load forums";
 	}
 
 	// Build footer with real online stats (graceful fallback on failure)
@@ -38,6 +45,10 @@ export default async function ForumHomePage() {
 					peakDate: statsResult.value.peakDate,
 				}
 			: undefined;
+
+	// Digest threads for showcase (graceful fallback)
+	const digestThreads = digestResult.status === "fulfilled" ? digestResult.value.results.items : [];
+	const digestTotal = digestResult.status === "fulfilled" ? digestResult.value.stats.total : 0;
 
 	return (
 		<div className="space-y-4">
@@ -56,6 +67,9 @@ export default async function ForumHomePage() {
 					暂无版块
 				</div>
 			)}
+
+			{/* Digest showcase */}
+			<DigestShowcase threads={digestThreads} total={digestTotal} />
 
 			{/* Homepage-only footer: online stats + friend links */}
 			<HomeFooter vm={buildHomeFooterViewModel(settings, onlineStats)} />

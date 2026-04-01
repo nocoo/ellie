@@ -315,6 +315,18 @@ export function toPublicUser(row: Record<string, unknown>): PublicUser {
 		digestPosts: r.digest_posts,
 		olTime: r.ol_time,
 		lastActivity: r.last_activity,
+		// Personal profile fields (public)
+		gender: r.gender,
+		birthYear: r.birth_year,
+		birthMonth: r.birth_month,
+		birthDay: r.birth_day,
+		resideProvince: r.reside_province,
+		resideCity: r.reside_city,
+		graduateSchool: r.graduate_school,
+		bio: r.bio,
+		interest: r.interest,
+		qq: r.qq,
+		site: r.site,
 	};
 }
 
