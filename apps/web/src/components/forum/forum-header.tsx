@@ -5,6 +5,7 @@
 
 import { ForumLogo } from "@/components/forum/forum-logo";
 import { UserAvatar } from "@/components/forum/user-avatar";
+import { UserPopover } from "@/components/forum/user-popover";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getAvatarUrl } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
@@ -43,12 +44,17 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 						{/* Meta: username, group, uid, credits */}
 						<div className="text-right space-y-0.5">
 							<div className="flex items-center justify-end gap-2">
-								<Link
-									href={`/users/${user.uid}`}
-									className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+								<UserPopover
+									userId={user.uid}
+									viewerRole={user.role}
+									viewerUserId={user.uid}
+									side="bottom"
+									align="end"
 								>
-									{user.username}
-								</Link>
+									<span className="text-sm font-medium text-foreground hover:text-primary transition-colors cursor-pointer">
+										{user.username}
+									</span>
+								</UserPopover>
 								<span className="text-xs text-muted-foreground">UID: {user.uid}</span>
 							</div>
 							<div className="flex items-center justify-end gap-3 text-xs text-muted-foreground">
@@ -58,13 +64,19 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 						</div>
 
 						{/* Avatar */}
-						<Link href={`/users/${user.uid}`}>
+						<UserPopover
+							userId={user.uid}
+							viewerRole={user.role}
+							viewerUserId={user.uid}
+							side="bottom"
+							align="end"
+						>
 							<UserAvatar
 								src={getAvatarUrl(user.uid, "middle", vm.avatarCdnBase)}
 								alt={user.username}
-								className="h-10 w-10 rounded-sm"
+								className="h-10 w-10 rounded-sm cursor-pointer"
 							/>
-						</Link>
+						</UserPopover>
 
 						{/* Action icons */}
 						<div className="flex items-center gap-1">
@@ -89,11 +101,17 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 				) : (
 					<div className="flex items-center gap-3 text-sm">
 						<ThemeToggle />
-						<Link href="/login" className="font-medium text-primary hover:text-primary/80 transition-colors">
+						<Link
+							href="/login"
+							className="font-medium text-primary hover:text-primary/80 transition-colors"
+						>
 							登录
 						</Link>
 						<span className="text-border">|</span>
-						<Link href="/login" className="text-muted-foreground hover:text-foreground transition-colors">
+						<Link
+							href="/login"
+							className="text-muted-foreground hover:text-foreground transition-colors"
+						>
 							注册
 						</Link>
 					</div>

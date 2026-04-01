@@ -146,6 +146,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 					canMoveThread={data.canMoveThread}
 					canDeleteThread={data.canDeleteThread}
 					currentUserId={data.currentUser?.id ?? null}
+					currentUserRole={data.currentUser?.role ?? 0}
 				/>
 			</ModProvider>
 
