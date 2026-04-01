@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { getAvatarUrl } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
 import type { HeaderViewModel } from "@/viewmodels/forum/header";
+import { formatNumber } from "@/viewmodels/shared/formatting";
 import { LogOut, Mail, Search } from "lucide-react";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
@@ -183,16 +184,16 @@ function SearchStatsBar({ vm }: { vm: HeaderViewModel }) {
 				{/* Right: Stats — numbers only */}
 				<div className="flex items-center gap-0 text-[12px] text-dz-stats-text">
 					<span>今日: </span>
-					<span className="font-bold text-foreground">{s.todayPosts}</span>
+					<span className="font-bold text-foreground">{formatNumber(s.todayPosts)}</span>
 					<StatSep />
 					<span>昨日: </span>
-					<span className="font-bold text-foreground">{s.yesterdayPosts}</span>
+					<span className="font-bold text-foreground">{formatNumber(s.yesterdayPosts)}</span>
 					<StatSep />
 					<span>帖子: </span>
-					<span className="font-bold text-foreground">{s.totalThreads}</span>
+					<span className="font-bold text-foreground">{formatNumber(s.totalThreads)}</span>
 					<StatSep />
 					<span>会员: </span>
-					<span className="font-bold text-foreground">{s.totalMembers}</span>
+					<span className="font-bold text-foreground">{formatNumber(s.totalMembers)}</span>
 				</div>
 			</div>
 		</div>
