@@ -438,185 +438,50 @@
 }
 
 /*
- * Navigation bar with city skyline silhouette texture.
- * Pure CSS — no images, no JS. Multiple repeating-linear-gradient layers
- * at varying widths and heights simulate an urban skyline viewed from a
- * distance. Colors use dark grays matching the logo body color, with a
- * gradient from darker (left) to slightly lighter (right) for depth.
- *
- * Light mode: dark gray bars on a mid-gray base.
- * Dark mode: uses CSS variables for adjusted tones.
+ * Navigation bar — architectural blueprint grid texture.
+ * Blue gradient base with a subtle engineering-paper grid overlay
+ * via ::after. Two grid layers: coarse (major) and fine (minor),
+ * reminiscent of technical drawing paper or CAD blueprints.
  */
 .nav-gradient {
 	position: relative;
 	overflow: hidden;
-	background: hsl(0 0% 28%);
+	background: linear-gradient(180deg, hsl(var(--dz-nav-bg)) 0%, hsl(var(--dz-nav-hover)) 100%);
 }
 .nav-gradient::after {
 	content: "";
 	position: absolute;
 	inset: 0;
 	pointer-events: none;
-	/*
-	 * City skyline: bars of varying widths (2–6px) on irregular grids.
-	 * Multiple layers with different heights create tall towers, mid-rise
-	 * buildings, and low structures. Darker grays in front, lighter behind.
-	 */
-	/* Layer 1 — tallest towers, darkest (foreground buildings) */
+	/* Major grid — 20px squares, slightly brighter lines */
 	background: repeating-linear-gradient(
-			90deg,
-			rgba(0, 0, 0, 0.55) 0px,
-			rgba(0, 0, 0, 0.55) 4px,
-			transparent 4px,
-			transparent 18px
+			0deg,
+			rgba(255, 255, 255, 0.1) 0px,
+			rgba(255, 255, 255, 0.1) 1px,
+			transparent 1px,
+			transparent 20px
 		),
-		/* Layer 2 — tall buildings, dark */
 		repeating-linear-gradient(
 			90deg,
-			transparent 6px,
-			transparent 10px,
-			rgba(0, 0, 0, 0.45) 10px,
-			rgba(0, 0, 0, 0.45) 14px,
-			transparent 14px,
-			transparent 30px
+			rgba(255, 255, 255, 0.1) 0px,
+			rgba(255, 255, 255, 0.1) 1px,
+			transparent 1px,
+			transparent 20px
+		), /* Minor grid — 5px subdivisions, faint lines */
+		repeating-linear-gradient(
+			0deg,
+			rgba(255, 255, 255, 0.04) 0px,
+			rgba(255, 255, 255, 0.04) 1px,
+			transparent 1px,
+			transparent 5px
 		),
-		/* Layer 3 — mid-rise, medium gray */
 		repeating-linear-gradient(
 			90deg,
-			transparent 3px,
-			transparent 8px,
-			rgba(0, 0, 0, 0.35) 8px,
-			rgba(0, 0, 0, 0.35) 11px,
-			transparent 11px,
-			transparent 22px
-		),
-		/* Layer 4 — mid towers, offset pattern */
-		repeating-linear-gradient(
-			90deg,
-			rgba(0, 0, 0, 0.40) 0px,
-			rgba(0, 0, 0, 0.40) 3px,
-			transparent 3px,
-			transparent 14px
-		),
-		/* Layer 5 — wide blocks (commercial buildings) */
-		repeating-linear-gradient(
-			90deg,
-			transparent 5px,
-			transparent 16px,
-			rgba(0, 0, 0, 0.30) 16px,
-			rgba(0, 0, 0, 0.30) 22px,
-			transparent 22px,
-			transparent 36px
-		),
-		/* Layer 6 — short wide base buildings */
-		repeating-linear-gradient(
-			90deg,
-			transparent 2px,
-			transparent 7px,
-			rgba(0, 0, 0, 0.25) 7px,
-			rgba(0, 0, 0, 0.25) 13px,
-			transparent 13px,
-			transparent 24px
-		),
-		/* Layer 7 — thin spires / antennas */
-		repeating-linear-gradient(
-			90deg,
-			transparent 8px,
-			transparent 20px,
-			rgba(0, 0, 0, 0.50) 20px,
-			rgba(0, 0, 0, 0.50) 22px,
-			transparent 22px,
-			transparent 40px
-		),
-		/* Layer 8 — background fill to ensure enough dark area for white text */
-		repeating-linear-gradient(
-			90deg,
-			rgba(0, 0, 0, 0.20) 0px,
-			rgba(0, 0, 0, 0.20) 5px,
-			transparent 5px,
-			transparent 10px
+			rgba(255, 255, 255, 0.04) 0px,
+			rgba(255, 255, 255, 0.04) 1px,
+			transparent 1px,
+			transparent 5px
 		);
-	background-size: 18px 85%, 30px 65%, 22px 50%, 14px 72%, 36px 40%, 24px 30%, 40px 90%, 10px 55%;
-	background-position: bottom left, bottom left, bottom left, bottom left, bottom left, bottom left,
-		bottom left, bottom left;
-	background-repeat: repeat-x;
-}
-.dark .nav-gradient {
-	background: hsl(0 0% 14%);
-}
-.dark .nav-gradient::after {
-	/* Layer 1 */ /* Layer 2 */ /* Layer 3 */ /* Layer 4 */
-	/* Layer 5 */ /* Layer 6 */ /* Layer 7 */ /* Layer 8 */
-	background: repeating-linear-gradient(
-			90deg,
-			rgba(255, 255, 255, 0.08) 0px,
-			rgba(255, 255, 255, 0.08) 4px,
-			transparent 4px,
-			transparent 18px
-		),
-		repeating-linear-gradient(
-			90deg,
-			transparent 6px,
-			transparent 10px,
-			rgba(255, 255, 255, 0.06) 10px,
-			rgba(255, 255, 255, 0.06) 14px,
-			transparent 14px,
-			transparent 30px
-		),
-		repeating-linear-gradient(
-			90deg,
-			transparent 3px,
-			transparent 8px,
-			rgba(255, 255, 255, 0.05) 8px,
-			rgba(255, 255, 255, 0.05) 11px,
-			transparent 11px,
-			transparent 22px
-		),
-		repeating-linear-gradient(
-			90deg,
-			rgba(255, 255, 255, 0.06) 0px,
-			rgba(255, 255, 255, 0.06) 3px,
-			transparent 3px,
-			transparent 14px
-		),
-		repeating-linear-gradient(
-			90deg,
-			transparent 5px,
-			transparent 16px,
-			rgba(255, 255, 255, 0.04) 16px,
-			rgba(255, 255, 255, 0.04) 22px,
-			transparent 22px,
-			transparent 36px
-		),
-		repeating-linear-gradient(
-			90deg,
-			transparent 2px,
-			transparent 7px,
-			rgba(255, 255, 255, 0.03) 7px,
-			rgba(255, 255, 255, 0.03) 13px,
-			transparent 13px,
-			transparent 24px
-		),
-		repeating-linear-gradient(
-			90deg,
-			transparent 8px,
-			transparent 20px,
-			rgba(255, 255, 255, 0.07) 20px,
-			rgba(255, 255, 255, 0.07) 22px,
-			transparent 22px,
-			transparent 40px
-		),
-		repeating-linear-gradient(
-			90deg,
-			rgba(255, 255, 255, 0.03) 0px,
-			rgba(255, 255, 255, 0.03) 5px,
-			transparent 5px,
-			transparent 10px
-		);
-	background-size: 18px 85%, 30px 65%, 22px 50%, 14px 72%, 36px 40%, 24px 30%, 40px 90%, 10px 55%;
-	background-position: bottom left, bottom left, bottom left, bottom left, bottom left, bottom left,
-		bottom left, bottom left;
-	background-repeat: repeat-x;
 }
 
 /*
