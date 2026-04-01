@@ -33,10 +33,10 @@ export function SiteFooter({ vm }: SiteFooterProps) {
 				<div className="grid grid-cols-1 gap-8 sm:grid-cols-12">
 					{/* Left column: branding + copyright */}
 					<div className="sm:col-span-5">
-						<div className="mb-6">
-							<ForumLogo height={28} />
+						<div className="mb-3">
+							<ForumLogo height={70} />
 						</div>
-						<p className="text-sm text-muted-foreground leading-relaxed">
+						<p className="text-xs text-muted-foreground leading-relaxed">
 							&copy; {vm.copyrightYears} {vm.copyrightHolder}, All rights reserved.
 						</p>
 						<p className="mt-1 text-xs text-muted-foreground">
