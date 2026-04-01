@@ -30,16 +30,18 @@ function ActionBtn({ icon: Icon, label, onClick }: ActionBtnProps) {
 
 interface PostActionBarProps {
 	onReply?: () => void;
+	canModerate?: boolean;
+	canEdit?: boolean;
 }
 
-export function PostActionBar({ onReply }: PostActionBarProps) {
+export function PostActionBar({ onReply, canModerate, canEdit }: PostActionBarProps) {
 	return (
 		<div className="flex items-center border-t border-dashed border-border px-3 py-2 text-xs text-forum-text-muted">
 			{/* Left action buttons */}
 			<div className="flex items-center gap-4">
 				<ActionBtn icon={MessageCircleMore} label="点评" />
 				<ActionBtn icon={Reply} label="回复" onClick={onReply} />
-				<ActionBtn icon={Pencil} label="编辑" />
+				{canEdit && <ActionBtn icon={Pencil} label="编辑" />}
 				<ActionBtn icon={ThumbsUp} label="支持" />
 				<ActionBtn icon={ThumbsDown} label="反对" />
 			</div>
@@ -48,7 +50,9 @@ export function PostActionBar({ onReply }: PostActionBarProps) {
 			<div className="ml-auto flex items-center gap-4">
 				<span className="hover:text-forum-link transition-colors cursor-pointer">评分</span>
 				<span className="hover:text-forum-link transition-colors cursor-pointer">举报</span>
-				<span className="hover:text-forum-link transition-colors cursor-pointer">管理</span>
+				{canModerate && (
+					<span className="hover:text-forum-link transition-colors cursor-pointer">管理</span>
+				)}
 			</div>
 		</div>
 	);

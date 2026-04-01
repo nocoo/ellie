@@ -15,9 +15,16 @@ interface PostSidebarProps {
 	isFirst: boolean;
 	threadViews?: number;
 	threadReplies?: number;
+	canModerate?: boolean;
 }
 
-export function PostSidebar({ author, isFirst, threadViews, threadReplies }: PostSidebarProps) {
+export function PostSidebar({
+	author,
+	isFirst,
+	threadViews,
+	threadReplies,
+	canModerate,
+}: PostSidebarProps) {
 	return (
 		<div className="w-[200px] shrink-0 bg-forum-sidebar-bg border-r border-border p-4 flex flex-col items-center gap-1.5">
 			{/* Username — bold, link color */}
@@ -165,14 +172,16 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 						<Mail className="h-3.5 w-3.5" />
 						发消息
 					</Link>
-					<button
-						type="button"
-						className="flex items-center gap-1 text-xs text-forum-link hover:underline cursor-pointer transition-colors"
-						title="管理操作 (IP / 编辑 / 禁止 / 帖子 / 清理)"
-					>
-						<Shield className="h-3.5 w-3.5" />
-						管理
-					</button>
+					{canModerate && (
+						<button
+							type="button"
+							className="flex items-center gap-1 text-xs text-forum-link hover:underline cursor-pointer transition-colors"
+							title="管理操作 (IP / 编辑 / 禁止 / 帖子 / 清理)"
+						>
+							<Shield className="h-3.5 w-3.5" />
+							管理
+						</button>
+					)}
 				</div>
 			)}
 		</div>
