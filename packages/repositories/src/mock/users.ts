@@ -36,6 +36,8 @@ export const MOCK_USERS: User[] = [
 		qq: "12345678",
 		site: "https://tongji.net",
 		lastActivity: 1711612800,
+		regIp: "192.168.1.1",
+		lastIp: "192.168.1.1",
 	},
 	{
 		id: 2,
@@ -68,6 +70,8 @@ export const MOCK_USERS: User[] = [
 		qq: "",
 		site: "",
 		lastActivity: 1711526400,
+		regIp: "",
+		lastIp: "",
 	},
 	{
 		id: 3,
@@ -100,6 +104,8 @@ export const MOCK_USERS: User[] = [
 		qq: "",
 		site: "",
 		lastActivity: 1711440000,
+		regIp: "",
+		lastIp: "",
 	},
 	{
 		id: 10,
@@ -132,6 +138,8 @@ export const MOCK_USERS: User[] = [
 		qq: "87654321",
 		site: "",
 		lastActivity: 1711353600,
+		regIp: "",
+		lastIp: "",
 	},
 	{
 		id: 11,
@@ -164,6 +172,8 @@ export const MOCK_USERS: User[] = [
 		qq: "",
 		site: "",
 		lastActivity: 1711267200,
+		regIp: "",
+		lastIp: "",
 	},
 	{
 		id: 12,
@@ -196,6 +206,8 @@ export const MOCK_USERS: User[] = [
 		qq: "",
 		site: "",
 		lastActivity: 1609459200,
+		regIp: "",
+		lastIp: "",
 	},
 	{
 		id: 13,
@@ -228,5 +240,7 @@ export const MOCK_USERS: User[] = [
 		qq: "",
 		site: "",
 		lastActivity: 1451606400,
+		regIp: "",
+		lastIp: "",
 	},
 ];

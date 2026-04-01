@@ -1,7 +1,7 @@
 // Ref: 04f §7 — Discuz classic two-column layout with mod action bar
 
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
-import { ModActionBar } from "@/components/forum/mod-action-bar";
+import { ModProvider } from "@/components/forum/mod-context";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
 import { ThreadPostsClient } from "@/components/forum/thread-posts-client";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
@@ -14,8 +14,8 @@ import { formatTime } from "@/viewmodels/forum/thread-list";
 import { getThreadTitle } from "@/viewmodels/forum/title.server";
 import { parseIntParam } from "@/viewmodels/shared/params";
 import { getThreadBadges } from "@ellie/types";
-import Link from "next/link";
 import type { Metadata } from "next";
+import Link from "next/link";
 
 interface ThreadDetailPageProps {
 	params: Promise<{ id: string }>;
@@ -64,12 +64,18 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 		error = e instanceof Error ? e.message : "Failed to load thread";
 		data = {
 			thread: null,
+			forum: null,
 			forums: [],
 			posts: [],
 			nextCursor: null,
 			prevCursor: null,
 			total: 0,
 			breadcrumbs: [],
+			canModerateForum: false,
+			canManageThread: false,
+			canMoveThread: false,
+			canDeleteThread: false,
+			currentUser: null,
 		};
 	}
 
@@ -99,9 +105,6 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 				</div>
 			)}
 
-			{/* Mod action bar */}
-			<ModActionBar />
-
 			{/* Thread header (simplified — views/replies now in first post sidebar) */}
 			<Card size="sm">
 				<CardContent>
@@ -129,8 +132,23 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 				</CardContent>
 			</Card>
 
-			{/* Posts - rendered via client component for reply dialog */}
-			<ThreadPostsClient thread={thread} posts={data.posts} />
+			{/* Posts - wrapped in ModProvider for permission context */}
+			<ModProvider
+				canModerate={data.canModerateForum}
+				forumId={thread.forumId}
+				threadId={thread.id}
+			>
+				<ThreadPostsClient
+					thread={thread}
+					posts={data.posts}
+					canModerateForum={data.canModerateForum}
+					canManageThread={data.canManageThread}
+					canMoveThread={data.canMoveThread}
+					canDeleteThread={data.canDeleteThread}
+					currentUserId={data.currentUser?.id ?? null}
+					currentUserRole={data.currentUser?.role ?? 0}
+				/>
+			</ModProvider>
 
 			{data.posts.length === 0 && (
 				<Card size="sm">
