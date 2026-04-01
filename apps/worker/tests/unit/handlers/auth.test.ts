@@ -214,15 +214,12 @@ describe("auth handlers", () => {
 		});
 
 		it("should successfully login with Discuz password and trigger silent upgrade", async () => {
-			// Pre-computed: md5(md5("password123")) + "abcdef"
+			// Pre-computed: md5(md5("password123") + "abcdef")
 			// md5("password123") = "482c811da5d5b4bc6d497ffa98491e38"
-			// md5("482c811da5d5b4bc6d497ffa98491e38") = "a82a4f1e40e1dcbac1e37d7c5e3a8b27"
-			// We need md5("a82a4f1e40e1dcbac1e37d7c5e3a8b27" + "abcdef")
-			// Let's compute this using the actual function
+			// md5("482c811da5d5b4bc6d497ffa98491e38" + "abcdef") = "4647298d7796457723792f5cde82e0c8"
 			const { MD5 } = await import("crypto-js");
-			const firstMd5 = MD5("password123").toString();
-			const doubleMd5 = MD5(firstMd5).toString();
-			const finalHash = MD5(`${doubleMd5}abcdef`).toString();
+			const innerMd5 = MD5("password123").toString();
+			const finalHash = MD5(`${innerMd5}abcdef`).toString();
 
 			const user = {
 				id: 10,

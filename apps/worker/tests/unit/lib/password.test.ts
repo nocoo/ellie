@@ -4,9 +4,8 @@ import { hashPassword, verifyDiscuzPassword, verifyPassword } from "../../../src
 describe("verifyDiscuzPassword", () => {
 	// Known test vectors: md5(md5("password123") + "abcdef")
 	// md5("password123") = "482c811da5d5b4bc6d497ffa98491e38"
-	// md5("482c811da5d5b4bc6d497ffa98491e38") = "9df7a7314e3884b26222e2ccd834aa24"
-	// md5("9df7a7314e3884b26222e2ccd834aa24" + "abcdef") = "4c6a9695dc570a264013cfdd0c772a38"
-	const validHash = "4c6a9695dc570a264013cfdd0c772a38";
+	// md5("482c811da5d5b4bc6d497ffa98491e38" + "abcdef") = "4647298d7796457723792f5cde82e0c8"
+	const validHash = "4647298d7796457723792f5cde82e0c8";
 	const salt = "abcdef";
 
 	it("should verify correct Discuz password", async () => {

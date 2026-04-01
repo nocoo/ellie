@@ -17,9 +17,8 @@ export async function verifyDiscuzPassword(
 	storedHash: string,
 	salt: string,
 ): Promise<boolean> {
-	const firstMd5 = MD5(input).toString();
-	const doubleMd5 = MD5(firstMd5).toString();
-	const finalHash = MD5(doubleMd5 + salt).toString();
+	const innerMd5 = MD5(input).toString();
+	const finalHash = MD5(innerMd5 + salt).toString();
 	return finalHash === storedHash;
 }
 
