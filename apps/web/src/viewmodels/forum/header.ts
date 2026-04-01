@@ -5,6 +5,9 @@
  * All numeric placeholders use 777 until wired to real API data.
  */
 
+import type { SettingsMap } from "./settings.server";
+import { getArr, getStr } from "./settings.server";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -50,13 +53,14 @@ export interface HeaderViewModel {
 	navTabs: HeaderNavTab[];
 	hotKeywords: HotKeyword[];
 	stats: HeaderStats;
+	avatarCdnBase: string;
 }
 
 // ---------------------------------------------------------------------------
-// Navigation tabs — matches original forum category order
+// Navigation tabs — fallback default when settings unavailable
 // ---------------------------------------------------------------------------
 
-export const HEADER_NAV_TABS: HeaderNavTab[] = [
+const DEFAULT_NAV_TABS: HeaderNavTab[] = [
 	{ label: "同济网论坛", href: "/" },
 	{ label: "就业实习", href: "/forums/2" },
 	{ label: "导读", href: "/digest" },
@@ -115,13 +119,25 @@ export const PLACEHOLDER_STATS: HeaderStats = {
 // ---------------------------------------------------------------------------
 
 export function buildHeaderViewModel(
+	settings: SettingsMap,
 	user: HeaderUserInfo | null = PLACEHOLDER_USER,
 	stats: HeaderStats = PLACEHOLDER_STATS,
 ): HeaderViewModel {
+	const headerLinks = getArr<{ label: string; url: string }>(
+		settings, "general.navigation.header_links", [],
+	);
+
+	const navTabs: HeaderNavTab[] = headerLinks.length > 0
+		? headerLinks.map((link) => ({ label: link.label, href: link.url }))
+		: DEFAULT_NAV_TABS;
+
+	const avatarCdnBase = getStr(settings, "general.assets.avatar_cdn_base", "https://t.no.mt/avatar");
+
 	return {
 		user,
-		navTabs: HEADER_NAV_TABS,
+		navTabs,
 		hotKeywords: HOT_KEYWORDS,
 		stats,
+		avatarCdnBase,
 	};
 }
