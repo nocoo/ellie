@@ -58,15 +58,15 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 				<div className="mt-2 grid w-full grid-cols-3 text-center text-2xs divide-x divide-border">
 					<div className="py-1 px-0.5">
 						<div className="font-medium text-forum-link">{formatNumber(author.threads)}</div>
-						<div className="text-[12px] text-forum-text-muted">主题</div>
+						<div className="text-xs text-muted-foreground">主题</div>
 					</div>
 					<div className="py-1 px-0.5">
 						<div className="font-medium text-forum-link">{formatNumber(author.posts)}</div>
-						<div className="text-[12px] text-forum-text-muted">帖子</div>
+						<div className="text-xs text-muted-foreground">帖子</div>
 					</div>
 					<div className="py-1 px-0.5">
 						<div className="font-medium text-forum-link">{formatNumber(author.credits)}</div>
-						<div className="text-[12px] text-forum-text-muted">积分</div>
+						<div className="text-xs text-muted-foreground">积分</div>
 					</div>
 				</div>
 			)}

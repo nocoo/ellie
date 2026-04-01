@@ -61,7 +61,7 @@ export function UserInfoCard({ user }: { user: UserProfileData["user"] }) {
 								>
 									{user.groupTitle}
 									{user.groupStars > 0 && (
-										<span className="ml-1 text-amber-500">
+										<span className="ml-1 text-forum-accent">
 											{"★".repeat(Math.min(user.groupStars, 10))}
 										</span>
 									)}

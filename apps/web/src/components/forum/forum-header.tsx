@@ -122,7 +122,7 @@ function NavBar({ vm }: { vm: HeaderViewModel }) {
 							key={tab.href}
 							href={tab.href}
 							className={cn(
-								"h-full flex items-center px-4 text-[14px] font-bold text-dz-nav-text transition-colors hover:bg-white/10",
+								"h-full flex items-center px-4 text-sm font-bold text-dz-nav-text transition-colors hover:bg-white/10",
 								isActive && "bg-white/10",
 							)}
 						>
@@ -176,13 +176,13 @@ function SearchStatsBar({ vm }: { vm: HeaderViewModel }) {
 							}
 						}}
 					/>
-					<kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 flex h-5 items-center rounded border border-border bg-muted px-1.5 text-[10px] font-medium text-muted-foreground">
+					<kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 flex h-5 items-center rounded border border-border bg-muted px-1.5 text-2xs font-medium text-muted-foreground">
 						/
 					</kbd>
 				</div>
 
 				{/* Right: Stats — numbers only */}
-				<div className="flex items-center gap-0 text-[12px] text-dz-stats-text">
+				<div className="flex items-center gap-0 text-xs text-muted-foreground">
 					<span>今日: </span>
 					<span className="font-bold text-foreground">{formatNumber(s.todayPosts)}</span>
 					<StatSep />
@@ -205,7 +205,7 @@ function SearchStatsBar({ vm }: { vm: HeaderViewModel }) {
 // ---------------------------------------------------------------------------
 
 function StatSep() {
-	return <span className="mx-1.5 text-dz-topbar-separator select-none">|</span>;
+	return <span className="mx-1.5 text-border select-none">|</span>;
 }
 
 // ---------------------------------------------------------------------------

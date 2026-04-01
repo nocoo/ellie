@@ -48,10 +48,10 @@ function PostTypeTabs({
 						type="button"
 						onClick={() => onTabChange(tab.value)}
 						className={cn(
-							"px-4 py-2 text-[13px] font-medium transition-colors border border-border -mb-px",
+							"px-4 py-2 text-sm font-medium transition-colors border border-border -mb-px",
 							isActive
 								? "bg-card text-foreground border-b-card"
-								: "bg-muted text-dz-stats-text hover:text-foreground border-b-border",
+								: "bg-muted text-muted-foreground hover:text-foreground border-b-border",
 						)}
 					>
 						{tab.label}
@@ -81,9 +81,9 @@ function SubjectInput({
 				value={value}
 				onChange={(e) => onChange(e.target.value.slice(0, SUBJECT_MAX_LENGTH))}
 				placeholder=""
-				className="h-[34px] flex-1 rounded border border-dz-search-border text-[13px]"
+				className="h-[34px] flex-1 rounded border border-input text-sm"
 			/>
-			<span className="whitespace-nowrap text-[13px] text-dz-stats-text">
+			<span className="whitespace-nowrap text-sm text-muted-foreground">
 				还可输入 <span className="font-bold text-foreground">{remaining}</span> 个字符
 			</span>
 		</div>
@@ -96,16 +96,16 @@ function SubjectInput({
 
 function EditorToolbar() {
 	return (
-		<div className="flex items-center justify-end gap-0 border-t border-border px-3 py-1.5 text-[12px] text-dz-stats-text">
+		<div className="flex items-center justify-end gap-0 border-t border-border px-3 py-1.5 text-xs text-muted-foreground">
 			{EDITOR_TOOL_ACTIONS.map((action, i) => (
 				<span key={action.label} className="flex items-center">
 					{/* Separator: use | between groups, space within */}
 					{i > 0 && i !== 2 && i !== 4 && <span className="mx-1"> </span>}
-					{(i === 2 || i === 4) && <span className="mx-1.5 text-dz-topbar-separator">|</span>}
+					{(i === 2 || i === 4) && <span className="mx-1.5 text-border">|</span>}
 					{action.isAction ? (
 						<button
 							type="button"
-							className="text-dz-stats-text hover:text-primary transition-colors"
+							className="text-muted-foreground hover:text-primary transition-colors"
 						>
 							{action.label}
 						</button>
@@ -129,7 +129,7 @@ function ExtraOptionsRow() {
 				<label
 					key={opt.value}
 					htmlFor={`extra-opt-${opt.value}`}
-					className="flex items-center gap-1.5 text-[13px] text-foreground cursor-pointer"
+					className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer"
 				>
 					<input
 						id={`extra-opt-${opt.value}`}
@@ -156,15 +156,15 @@ function SubmitRow() {
 	return (
 		<div className="flex items-center justify-between">
 			<div className="flex items-center gap-2">
-				<Button size="default" className="px-4 text-[13px]">
+				<Button size="default" className="px-4 text-sm">
 					发表帖子
 				</Button>
-				<Button variant="outline" size="default" className="px-4 text-[13px]">
+				<Button variant="outline" size="default" className="px-4 text-sm">
 					保存草稿
 				</Button>
 
-				<span className="ml-2 text-[13px] text-dz-stats-text">来自群组：</span>
-				<select className="h-[30px] rounded border border-dz-search-border bg-card px-2 text-[13px] text-dz-stats-text outline-none">
+				<span className="ml-2 text-sm text-muted-foreground">来自群组：</span>
+				<select className="h-[30px] rounded border border-input bg-card px-2 text-sm text-muted-foreground outline-none">
 					{GROUP_OPTIONS.map((g) => (
 						<option key={g.value} value={g.value}>
 							{g.label}
@@ -175,7 +175,7 @@ function SubmitRow() {
 
 			<button
 				type="button"
-				className="text-[13px] text-dz-stats-text hover:text-primary transition-colors"
+				className="text-sm text-muted-foreground hover:text-primary transition-colors"
 			>
 				本版积分规则
 			</button>

@@ -77,9 +77,9 @@
 	--color-forum-item: hsl(var(--forum-item-bg));
 	--color-forum-item-hover: hsl(var(--forum-item-hover));
 
-	/* Forum design tokens — consolidate ~100 hardcoded hex colors */
-	--color-forum-link: hsl(var(--forum-link));
-	--color-forum-text-muted: hsl(var(--forum-text-muted));
+	/* Forum design tokens — consolidated to primary/muted system colors */
+	--color-forum-link: hsl(var(--primary));
+	--color-forum-text-muted: hsl(var(--muted-foreground));
 	--color-forum-sidebar-bg: hsl(var(--forum-sidebar-bg));
 	--color-forum-header-from: hsl(var(--forum-header-from));
 	--color-forum-header-to: hsl(var(--forum-header-to));
@@ -240,8 +240,8 @@
 	--content-px: 1rem;
 
 	/* Forum design tokens — light mode */
-	--forum-link: 202 50% 42%;
-	--forum-text-muted: 0 0% 60%;
+	--forum-link: var(--primary);
+	--forum-text-muted: var(--muted-foreground);
 	--forum-sidebar-bg: 204 33% 97%;
 	--forum-header-from: 207 26% 91%;
 	--forum-header-to: 0 0% 97%;
@@ -329,8 +329,8 @@
 	--heatmap-green-4: 142 60% 58%;
 
 	/* Forum design tokens — dark mode */
-	--forum-link: 202 50% 65%;
-	--forum-text-muted: 0 0% 42%;
+	--forum-link: var(--primary);
+	--forum-text-muted: var(--muted-foreground);
 	--forum-sidebar-bg: 210 10% 13%;
 	--forum-header-from: 210 10% 15%;
 	--forum-header-to: 210 10% 12%;
