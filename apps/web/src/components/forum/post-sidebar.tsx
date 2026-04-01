@@ -42,8 +42,8 @@ export function PostSidebar({ author, isFirst, threadViews, threadReplies }: Pos
 						/>
 					</div>
 				) : (
-					<Avatar className="h-20 w-20 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
-						<AvatarFallback className="text-xl rounded-sm">?</AvatarFallback>
+					<Avatar className="h-[160px] w-[160px] rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
+						<AvatarFallback className="text-3xl rounded-sm">?</AvatarFallback>
 					</Avatar>
 				)}
 			</Link>
