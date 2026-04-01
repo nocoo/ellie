@@ -128,8 +128,16 @@ function ExtraOptionsRow() {
 			{EXTRA_OPTIONS.map((opt) => (
 				<label
 					key={opt.value}
+					htmlFor={`extra-opt-${opt.value}`}
 					className="flex items-center gap-1.5 text-[13px] text-foreground cursor-pointer"
 				>
+					<input
+						id={`extra-opt-${opt.value}`}
+						type="radio"
+						name="extra-option"
+						value={opt.value}
+						className="sr-only"
+					/>
 					<span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-border bg-card">
 						<span className="h-1.5 w-1.5 rounded-full" />
 					</span>
@@ -179,7 +187,7 @@ function SubmitRow() {
 // Main export: NewThreadForm
 // ---------------------------------------------------------------------------
 
-export function NewThreadForm({ breadcrumbs, forumId }: NewThreadFormProps) {
+export function NewThreadForm({ breadcrumbs, forumId: _forumId }: NewThreadFormProps) {
 	const [activeTab, setActiveTab] = useState("thread");
 	const [subject, setSubject] = useState("");
 
