@@ -54,7 +54,7 @@ export function PostContent({ post, isFirst, threadDigest, author, actionBar }: 
 				{/* Post HTML content — isolated in <article> so unclosed tags
 				   cannot escape into sibling React nodes. */}
 				<article
-					className="mt-3 prose prose-sm max-w-none text-foreground [&>*:first-child]:mt-0"
+					className="mt-3 prose prose-sm max-w-none text-foreground whitespace-pre-line [&>*:first-child]:mt-0"
 					suppressHydrationWarning
 				>
 					<div dangerouslySetInnerHTML={{ __html: post.content }} suppressHydrationWarning />
