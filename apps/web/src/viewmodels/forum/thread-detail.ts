@@ -7,6 +7,7 @@ import {
 	type Post,
 	type Thread,
 	canDeletePost,
+	canEditPost,
 	canModerate,
 	canReplyToThread,
 	type decodeHighlight,
@@ -22,6 +23,7 @@ export interface EnrichedPost extends Post {
 	author: User | null;
 	attachments: Attachment[];
 	canDelete: boolean;
+	canEdit: boolean;
 }
 
 export interface ThreadDetailData {
@@ -62,7 +64,7 @@ export function enrichPosts(
 	authorMap: Map<number, User>,
 	attachmentMap: Map<number, Attachment[]>,
 	currentUser: User | null,
-	forumId: number,
+	forum: { moderators: string },
 ): EnrichedPost[] {
 	return posts.map((post) => {
 		const author = authorMap.get(post.authorId) ?? null;
@@ -73,7 +75,8 @@ export function enrichPosts(
 				? { ...author, signature: filterContent(author.signature ?? "") }
 				: null,
 			attachments: attachmentMap.get(post.id) ?? [],
-			canDelete: canDeletePost(currentUser, post, forumId),
+			canDelete: canDeletePost(currentUser, post, forum),
+			canEdit: canEditPost(currentUser, post, forum),
 		};
 	});
 }
@@ -84,8 +87,8 @@ export function checkCanReply(user: User | null, thread: Thread): boolean {
 }
 
 /** Check if a user can moderate in a forum. */
-export function checkCanModerate(user: User | null, forumId: number): boolean {
-	return canModerate(user, forumId);
+export function checkCanModerate(user: User | null, forum: { moderators: string }): boolean {
+	return canModerate(user, forum);
 }
 
 /** Get the floor number display text. */

@@ -3,6 +3,7 @@
 // Client wrapper for thread detail page
 // Manages reply dialog state and provides onReply callbacks to post cards
 
+import { ModActionBar } from "@/components/forum/mod-action-bar";
 import { PostCard } from "@/components/forum/post-card";
 import { ReplyDialog } from "@/components/forum/reply-dialog";
 import { Button } from "@/components/ui/button";
@@ -14,9 +15,16 @@ import { useCallback, useState } from "react";
 interface ThreadPostsClientProps {
 	thread: Thread;
 	posts: EnrichedPost[];
+	canModerateForum: boolean;
+	currentUserId: number | null;
 }
 
-export function ThreadPostsClient({ thread, posts }: ThreadPostsClientProps) {
+export function ThreadPostsClient({
+	thread,
+	posts,
+	canModerateForum,
+	currentUserId,
+}: ThreadPostsClientProps) {
 	const [replyOpen, setReplyOpen] = useState(false);
 	const [quotedPost, setQuotedPost] = useState<{
 		content: string;
@@ -58,6 +66,11 @@ export function ThreadPostsClient({ thread, posts }: ThreadPostsClientProps) {
 						threadReplies={isFirst ? thread.replies : undefined}
 						threadDigest={isFirst ? thread.digest : undefined}
 						onReply={() => handleReply(post)}
+						canModerate={canModerateForum}
+						currentUserId={currentUserId}
+						isFirstPost={isFirst}
+						threadId={thread.id}
+						forumId={thread.forumId}
 					/>
 				);
 			})}

@@ -5,6 +5,7 @@ import "server-only";
 
 import { forumApi, publicUserToUser } from "@/lib/forum-api";
 import { buildThreadBreadcrumbs } from "@/lib/forum-breadcrumbs";
+import { getCurrentForumUser } from "@/lib/forum-auth";
 import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import {
 	type Attachment,
@@ -13,7 +14,10 @@ import {
 	type PublicUser,
 	type Thread,
 	type User,
+	UserRole,
+	UserStatus,
 	findForumAncestors,
+	canModerate,
 } from "@ellie/types";
 import {
 	type EnrichedPost,
@@ -24,12 +28,17 @@ import {
 
 export interface ThreadDetailPageData {
 	thread: Thread | null;
+	forum: Forum | null;
 	forums: Forum[];
 	posts: EnrichedPost[];
 	nextCursor: string | null;
 	prevCursor: string | null;
 	total: number;
 	breadcrumbs: BreadcrumbItem[];
+	/** Whether current user can moderate this forum */
+	canModerateForum: boolean;
+	/** Current user info (for permission checks in client components) */
+	currentUser: User | null;
 }
 
 export async function loadThreadDetail(params: {
@@ -38,6 +47,9 @@ export async function loadThreadDetail(params: {
 	direction?: "forward" | "backward";
 	limit?: number;
 }): Promise<ThreadDetailPageData> {
+	// Fetch current user session
+	const sessionUser = await getCurrentForumUser();
+
 	// Parallel fetch: thread + posts + forums
 	const [threadRes, postsRes, forumsRes] = await Promise.all([
 		forumApi.get<Thread>(`/api/v1/threads/${params.threadId}`),
@@ -50,6 +62,48 @@ export async function loadThreadDetail(params: {
 	]);
 
 	const thread = threadRes.data;
+	const forum = forumsRes.data.find((f) => f.id === thread.forumId) ?? null;
+
+	// Build current user object for permission checks
+	let currentUser: User | null = null;
+	if (sessionUser) {
+		currentUser = {
+			id: sessionUser.userId,
+			username: sessionUser.username,
+			role: sessionUser.role as UserRole,
+			// Fill in required User fields with defaults (not used for permission checks)
+			email: "",
+			avatar: "",
+			status: UserStatus.Active,
+			regDate: 0,
+			lastLogin: 0,
+			threads: 0,
+			posts: 0,
+			credits: 0,
+			signature: "",
+			groupTitle: "",
+			groupStars: 0,
+			groupColor: "",
+			customTitle: "",
+			digestPosts: 0,
+			olTime: 0,
+			lastActivity: 0,
+			gender: 0,
+			birthYear: 0,
+			birthMonth: 0,
+			birthDay: 0,
+			resideProvince: "",
+			resideCity: "",
+			graduateSchool: "",
+			bio: "",
+			interest: "",
+			qq: "",
+			site: "",
+		};
+	}
+
+	// Check moderation permission
+	const canModerateForum = forum ? canModerate(currentUser, forum) : false;
 
 	// Fetch attachments per post (Worker only supports per-post, not per-thread)
 	const attachmentResults = await Promise.all(
@@ -79,7 +133,13 @@ export async function loadThreadDetail(params: {
 
 	// Group attachments by postId and enrich posts
 	const attachmentMap = groupAttachmentsByPostId(allAttachments);
-	const posts = enrichPosts(postsRes.data, authorMap, attachmentMap, null, thread.forumId);
+	const posts = enrichPosts(
+		postsRes.data,
+		authorMap,
+		attachmentMap,
+		currentUser,
+		forum ?? { moderators: "" },
+	);
 
 	// Build breadcrumbs from forum ancestors
 	const ancestors = findForumAncestors(forumsRes.data, thread.forumId);
@@ -87,11 +147,14 @@ export async function loadThreadDetail(params: {
 
 	return {
 		thread,
+		forum,
 		forums: forumsRes.data,
 		posts,
 		nextCursor: postsRes.meta.nextCursor,
 		prevCursor: null, // Worker v1 does not support backward pagination
 		total: postsRes.data.length,
 		breadcrumbs,
+		canModerateForum,
+		currentUser,
 	};
 }

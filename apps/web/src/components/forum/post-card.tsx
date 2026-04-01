@@ -6,6 +6,7 @@
 // PostActionBar is passed as a prop into PostContent (not rendered as a sibling)
 // to avoid hydration mismatches caused by unclosed HTML tags in post content.
 
+import { ModActionBar } from "@/components/forum/mod-action-bar";
 import { PostActionBar } from "@/components/forum/post-action-bar";
 import { PostContent } from "@/components/forum/post-content";
 import { PostSidebar } from "@/components/forum/post-sidebar";
@@ -22,6 +23,11 @@ interface PostCardProps {
 	threadReplies?: number;
 	threadDigest?: number;
 	onReply?: () => void;
+	canModerate: boolean;
+	currentUserId: number | null;
+	isFirstPost: boolean;
+	threadId: number;
+	forumId: number;
 }
 
 export function PostCard({
@@ -30,10 +36,26 @@ export function PostCard({
 	threadReplies,
 	threadDigest,
 	onReply,
+	canModerate,
+	currentUserId,
+	isFirstPost,
+	threadId,
+	forumId,
 }: PostCardProps) {
 	const isFirst = post.isFirst || post.position === 1;
 
-	const actionBar = <PostActionBar onReply={onReply} />;
+	// Can edit: author or moderator
+	const canEdit = post.canEdit;
+
+	const actionBar = (
+		<>
+			<PostActionBar onReply={onReply} canModerate={canModerate} canEdit={canEdit} />
+			{/* Mod action bar: only on first post, only for moderators */}
+			{isFirstPost && canModerate && (
+				<ModActionBar forumId={forumId} threadId={threadId} />
+			)}
+		</>
+	);
 
 	return (
 		<div className="border border-border bg-card -mt-px first:mt-0">
@@ -44,6 +66,7 @@ export function PostCard({
 					isFirst={isFirst}
 					threadViews={threadViews}
 					threadReplies={threadReplies}
+					canModerate={canModerate}
 				/>
 				<PostContent
 					post={post}
