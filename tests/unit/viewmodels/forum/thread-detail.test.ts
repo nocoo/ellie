@@ -227,11 +227,11 @@ describe("formatDateTime", () => {
 	it("zero-pads single-digit minutes", () => {
 		// 2023-12-01 9:05:00
 		const ts = new Date(2023, 11, 1, 9, 5).getTime() / 1000;
-		expect(formatDateTime(ts)).toBe("2023-12-1 9:05");
+		expect(formatDateTime(ts)).toBe("2023-12-1 09:05");
 	});
 
 	it("formats midnight correctly", () => {
 		const ts = new Date(2026, 0, 1, 0, 0).getTime() / 1000;
-		expect(formatDateTime(ts)).toBe("2026-1-1 0:00");
+		expect(formatDateTime(ts)).toBe("2026-1-1 00:00");
 	});
 });
