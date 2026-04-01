@@ -12,6 +12,7 @@ import {
 	loadThreadListPaged,
 } from "@/viewmodels/forum/thread-list.server";
 import { ForumType } from "@ellie/types";
+import Link from "next/link";
 import { parseIntParam, parsePageParam } from "@/viewmodels/shared/params";
 
 interface ForumThreadsPageProps {
@@ -24,6 +25,19 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 	const sp = await searchParams;
 	const forumId = parseIntParam(id);
 	const page = parsePageParam(sp.page);
+
+	if (forumId == null) {
+		return (
+			<Card size="sm">
+				<CardContent className="text-center py-4">
+					<p className="text-sm text-destructive">无效的版块 ID</p>
+					<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
+						返回首页
+					</Link>
+				</CardContent>
+			</Card>
+		);
+	}
 
 	let data: ThreadListPagedData;
 	let error: string | null = null;

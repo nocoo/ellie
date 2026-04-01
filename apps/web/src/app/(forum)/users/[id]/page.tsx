@@ -31,6 +31,19 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 	const sp = await searchParams;
 	const userId = parseIntParam(id);
 
+	if (userId == null) {
+		return (
+			<Card size="sm">
+				<CardContent className="text-center py-4">
+					<p className="text-sm text-destructive">无效的用户 ID</p>
+					<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
+						返回首页
+					</Link>
+				</CardContent>
+			</Card>
+		);
+	}
+
 	let data: UserProfileData;
 	let error: string | null = null;
 

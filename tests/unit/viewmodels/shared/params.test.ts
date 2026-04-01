@@ -13,25 +13,20 @@ describe("parseIntParam", () => {
 		expect(parseIntParam("42")).toBe(42);
 	});
 
-	it("returns fallback for undefined", () => {
-		expect(parseIntParam(undefined)).toBe(0);
+	it("returns null for undefined", () => {
+		expect(parseIntParam(undefined)).toBeNull();
 	});
 
-	it("returns fallback for null", () => {
-		expect(parseIntParam(null)).toBe(0);
+	it("returns null for null", () => {
+		expect(parseIntParam(null)).toBeNull();
 	});
 
-	it("returns fallback for empty string", () => {
-		expect(parseIntParam("")).toBe(0);
+	it("returns null for empty string", () => {
+		expect(parseIntParam("")).toBeNull();
 	});
 
-	it("returns fallback for non-numeric string", () => {
-		expect(parseIntParam("abc")).toBe(0);
-	});
-
-	it("uses custom fallback", () => {
-		expect(parseIntParam("abc", 99)).toBe(99);
-		expect(parseIntParam(undefined, 5)).toBe(5);
+	it("returns null for non-numeric string", () => {
+		expect(parseIntParam("abc")).toBeNull();
 	});
 
 	it("parses negative numbers", () => {
@@ -40,6 +35,10 @@ describe("parseIntParam", () => {
 
 	it("truncates decimal strings", () => {
 		expect(parseIntParam("3.7")).toBe(3);
+	});
+
+	it("parses zero", () => {
+		expect(parseIntParam("0")).toBe(0);
 	});
 });
 
