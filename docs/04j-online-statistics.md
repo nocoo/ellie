@@ -373,7 +373,7 @@ export async function activityMiddleware(c: Context<{ Bindings: Bindings }>, nex
 ### 6.3 Cron：统计在线人数
 
 ```typescript
-// apps/worker/src/cron/online-stats.ts
+// apps/worker/src/lib/online-stats.ts
 
 import type { Bindings } from "../types";
 
@@ -588,9 +588,8 @@ Add middleware to track online users via KV with TTL.
 - Async write via waitUntil to not block response
 
 Files:
-  apps/worker/src/middleware/online.ts
-  apps/worker/src/types.ts (KV binding)
-  apps/worker/tests/unit/middleware/online.test.ts
+  apps/worker/src/middleware/online.ts (new)
+  apps/worker/tests/unit/middleware/online.test.ts (new)
 ```
 
 **变更文件：**
@@ -598,9 +597,10 @@ Files:
 | 文件 | 操作 | 说明 |
 |------|------|------|
 | `apps/worker/src/middleware/online.ts` | 新增 | onlineMiddleware 实现 |
-| `apps/worker/src/types.ts` | 修改 | 添加 KV binding 类型 |
-| `apps/worker/wrangler.toml` | 修改 | 添加 KV namespace 绑定 |
+| `apps/worker/wrangler.toml` | 修改 | 确认 KV namespace 绑定（已存在） |
 | `apps/worker/tests/unit/middleware/online.test.ts` | 新增 | L1 单元测试 |
+
+> **注**：类型定义在 `apps/worker/src/lib/env.ts`，`Env.KV` 已存在，无需修改。
 
 **验证命令：**
 ```bash
@@ -652,24 +652,26 @@ Add scheduled handler to aggregate online statistics.
 - No D1 writes — peak stored only in KV (permanent)
 
 Files:
-  apps/worker/src/cron/online-stats.ts
-  apps/worker/src/index.ts (scheduled export)
-  apps/worker/wrangler.toml (cron trigger)
-  apps/worker/tests/unit/cron/online-stats.test.ts
+  apps/worker/src/lib/online-stats.ts (new)
+  apps/worker/src/index.ts (add scheduled export)
+  apps/worker/wrangler.toml (add cron trigger)
+  apps/worker/tests/unit/lib/online-stats.test.ts (new)
 ```
 
 **变更文件：**
 
 | 文件 | 操作 | 说明 |
 |------|------|------|
-| `apps/worker/src/cron/online-stats.ts` | 新增 | aggregateOnlineStats 实现 |
-| `apps/worker/src/index.ts` | 修改 | 添加 scheduled export |
-| `apps/worker/wrangler.toml` | 修改 | 添加 cron trigger 配置 |
-| `apps/worker/tests/unit/cron/online-stats.test.ts` | 新增 | L1 单元测试 |
+| `apps/worker/src/lib/online-stats.ts` | 新增 | aggregateOnlineStats 函数 |
+| `apps/worker/src/index.ts` | 修改 | 添加 scheduled export 调用 aggregateOnlineStats |
+| `apps/worker/wrangler.toml` | 修改 | 添加 `[triggers] crons` 配置 |
+| `apps/worker/tests/unit/lib/online-stats.test.ts` | 新增 | L1 单元测试 |
+
+> **目录决策**：Cron 逻辑放入 `lib/online-stats.ts` 而非新建 `cron/` 目录，与现有 lib 结构保持一致。
 
 **验证命令：**
 ```bash
-bun test apps/worker/tests/unit/cron/online-stats.test.ts
+bun test apps/worker/tests/unit/lib/online-stats.test.ts
 ```
 
 ---
@@ -714,8 +716,8 @@ Wire online and activity middleware into the request chain.
 - Ensure non-blocking via waitUntil
 
 Files:
-  apps/worker/src/index.ts (middleware chain)
-  apps/worker/tests/integration/online-tracking.test.ts
+  apps/worker/src/index.ts (modify)
+  apps/worker/tests/unit/integration/online-tracking.test.ts (new)
 ```
 
 **变更文件：**
@@ -723,11 +725,13 @@ Files:
 | 文件 | 操作 | 说明 |
 |------|------|------|
 | `apps/worker/src/index.ts` | 修改 | 集成 middleware 到路由链 |
-| `apps/worker/tests/integration/online-tracking.test.ts` | 新增 | L2 集成测试 |
+| `apps/worker/tests/unit/integration/online-tracking.test.ts` | 新增 | L2 集成测试 |
+
+> **测试目录**：使用现有的 `tests/unit/integration/` 目录（已有 `router.test.ts`），而非新建 `tests/integration/`。
 
 **验证命令：**
 ```bash
-bun test apps/worker/tests/integration/online-tracking.test.ts
+bun test apps/worker/tests/unit/integration/online-tracking.test.ts
 ```
 
 ---
@@ -768,7 +772,7 @@ bun run typecheck && bun test apps/worker && bun test tests/unit/
 | 层级 | 范围 | 工具 | 文件 |
 |------|------|------|------|
 | L1 | 单元测试 | Bun test + mock | `apps/worker/tests/unit/**` |
-| L2 | 集成测试 | Bun test + miniflare | `apps/worker/tests/integration/**` |
+| L2 | 集成测试 | Bun test + miniflare | `apps/worker/tests/unit/integration/**` |
 | L3 | E2E 测试 | Playwright | `tests/e2e/**` |
 
 ### 10.2 L1 单元测试
@@ -956,10 +960,10 @@ describe("activityMiddleware", () => {
 #### 10.2.3 Cron Aggregation 测试
 
 ```typescript
-// apps/worker/tests/unit/cron/online-stats.test.ts
+// apps/worker/tests/unit/lib/online-stats.test.ts
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { aggregateOnlineStats } from "../../../src/cron/online-stats";
+import { aggregateOnlineStats } from "../../../src/lib/online-stats";
 
 describe("aggregateOnlineStats", () => {
   let mockEnv: any;
@@ -1140,7 +1144,7 @@ describe("GET /api/v1/stats — online fields", () => {
 ### 10.3 L2 集成测试
 
 ```typescript
-// apps/worker/tests/integration/online-tracking.test.ts
+// apps/worker/tests/unit/integration/online-tracking.test.ts
 
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import { unstable_dev } from "wrangler";
