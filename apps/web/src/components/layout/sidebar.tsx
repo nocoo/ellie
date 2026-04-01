@@ -6,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { NAV_GROUPS, type NavGroupDef } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import {
+	Calculator,
 	ChevronUp,
 	FileText,
 	Filter,
@@ -32,6 +33,7 @@ import { useSidebar } from "./sidebar-context";
 // ---------------------------------------------------------------------------
 
 const ICON_MAP: Record<string, ElementType> = {
+	Calculator,
 	LayoutDashboard,
 	Settings,
 	Users,
