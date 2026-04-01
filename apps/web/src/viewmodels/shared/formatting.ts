@@ -1,6 +1,32 @@
-// viewmodels/shared/formatting.ts — Unified date/time formatting utilities
-// Single source of truth for timestamp display across forum pages.
-// All functions accept Unix epoch seconds (not milliseconds).
+// viewmodels/shared/formatting.ts — Unified date/time/number formatting utilities
+// Single source of truth for timestamp and number display across forum pages.
+// All timestamp functions accept Unix epoch seconds (not milliseconds).
+
+// ---------------------------------------------------------------------------
+// Number formatters
+// ---------------------------------------------------------------------------
+
+/**
+ * Format number with thousand separators: 1234567 → "1,234,567".
+ * Uses locale-aware formatting for consistent display.
+ */
+export function formatNumber(n: number): string {
+	return n.toLocaleString("zh-CN");
+}
+
+/**
+ * Format count with compact notation for large numbers.
+ * - < 10000: "1,234" (with thousand separator)
+ * - >= 10000: "1.2万"
+ * - >= 1000 && < 10000: "1.2K" (optional, kept for backward compat)
+ *
+ * Use formatNumber() for full precision display.
+ */
+export function formatCompactNumber(n: number): string {
+	if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
+	if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+	return n.toLocaleString("zh-CN");
+}
 
 // ---------------------------------------------------------------------------
 // Absolute formatters

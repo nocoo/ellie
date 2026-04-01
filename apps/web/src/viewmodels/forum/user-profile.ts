@@ -1,14 +1,14 @@
 // viewmodels/forum/user-profile.ts — User profile pure logic
 // Ref: 04d §UserProfile — formatting helpers, tab types
 
-import { formatLocaleDate } from "@/viewmodels/shared/formatting";
+import { formatLocaleDate, formatNumber } from "@/viewmodels/shared/formatting";
 import { type User, UserRole, UserStatus } from "@ellie/types";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export type ProfileTab = "threads" | "posts";
+export type ProfileTab = "threads" | "posts" | "digest";
 
 export interface ProfileStats {
 	threads: number;
@@ -19,6 +19,7 @@ export interface ProfileStats {
 export const PROFILE_TABS: { key: ProfileTab; label: string }[] = [
 	{ key: "threads", label: "发帖历史" },
 	{ key: "posts", label: "回帖历史" },
+	{ key: "digest", label: "精华帖" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -81,6 +82,7 @@ export function buildProfileStats(user: User): ProfileStats {
 /** Resolve profile tab from URL search param value. */
 export function resolveTab(raw: string | undefined): ProfileTab {
 	if (raw === "posts") return "posts";
+	if (raw === "digest") return "digest";
 	return "threads";
 }
 
@@ -122,7 +124,7 @@ export function formatLocation(province: string, city: string): string | null {
 /** Format online time in hours to a human-readable string. */
 export function formatOlTime(hours: number): string | null {
 	if (hours <= 0) return null;
-	return `${hours.toLocaleString()} 小时`;
+	return `${formatNumber(hours)} 小时`;
 }
 
 /** Format Unix timestamp to relative or absolute date. */

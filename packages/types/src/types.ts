@@ -35,7 +35,7 @@ export enum ForumType {
 
 // ─── Entity Interfaces ──────────────────────────────────
 
-/** Public-facing user profile — excludes email, status, lastLogin, personal details */
+/** Public-facing user profile — excludes email, status, lastLogin, password */
 export interface PublicUser {
 	id: number;
 	username: string;
@@ -53,6 +53,18 @@ export interface PublicUser {
 	digestPosts: number;
 	olTime: number;
 	lastActivity: number;
+	// Personal profile fields (public)
+	gender: number;
+	birthYear: number;
+	birthMonth: number;
+	birthDay: number;
+	resideProvince: string;
+	resideCity: string;
+	graduateSchool: string;
+	bio: string;
+	interest: string;
+	qq: string;
+	site: string;
 }
 
 /** Maps to Doc02 users table — 1.14M rows */

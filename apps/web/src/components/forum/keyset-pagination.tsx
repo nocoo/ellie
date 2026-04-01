@@ -2,6 +2,7 @@
 // Ref: 04f §4 — extracted from 5 duplicated PageLink implementations
 
 import { Button } from "@/components/ui/button";
+import { formatNumber } from "@/viewmodels/shared/formatting";
 import Link from "next/link";
 
 interface KeysetPaginationProps {
@@ -22,7 +23,7 @@ export function KeysetPagination({
 	return (
 		<div className={className ?? "flex items-center justify-between py-2"}>
 			<span className="text-xs text-muted-foreground">
-				共 {total.toLocaleString()} {totalLabel}
+				共 {formatNumber(total)} {totalLabel}
 			</span>
 			<div className="flex items-center gap-2">
 				{prevHref ? (

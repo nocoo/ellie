@@ -2,7 +2,7 @@
 // Ref: 04d §版块帖子列表 — sorting, filtering, keyset pagination, badges
 
 import { getStaticImageUrl } from "@/lib/cdn";
-import { formatRelativeTime } from "@/viewmodels/shared/formatting";
+import { formatCompactNumber, formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { StickyLevel, type Thread, decodeHighlight, getThreadBadges } from "@ellie/types";
 
 // ---------------------------------------------------------------------------
@@ -74,12 +74,11 @@ export function formatTime(timestamp: number): string {
 }
 
 /**
- * Format view/reply counts for display.
+ * Format view/reply counts for display (compact notation).
+ * @deprecated Use formatCompactNumber from @/viewmodels/shared/formatting directly.
  */
 export function formatStat(n: number): string {
-	if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
-	if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
-	return String(n);
+	return formatCompactNumber(n);
 }
 
 /**
