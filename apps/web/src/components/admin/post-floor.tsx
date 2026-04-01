@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { EnrichedPost } from "@/viewmodels/admin/thread-detail";
 import { roleLabel } from "@/viewmodels/admin/users";
-import { MoreHorizontal, Pencil, Shield, Trash2, UserCircle } from "lucide-react";
+import { MoreHorizontal, Pencil, Shield, Trash2 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -106,9 +106,11 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 							className="h-12 w-12 md:h-16 md:w-16 rounded-full object-cover"
 						/>
 					) : (
-						<div className="flex h-12 w-12 md:h-16 md:w-16 items-center justify-center rounded-full bg-muted">
-							<UserCircle className="h-8 w-8 md:h-10 md:w-10 text-muted-foreground" />
-						</div>
+						<img
+							src="/static/image/common/tavatar.gif"
+							alt="默认头像"
+							className="h-12 w-12 md:h-16 md:w-16 rounded-full object-cover bg-muted"
+						/>
 					)}
 
 					<div className="flex flex-col items-start md:items-center gap-1 min-w-0">
