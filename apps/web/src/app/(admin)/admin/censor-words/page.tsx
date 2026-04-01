@@ -34,9 +34,7 @@ import { useCallback, useEffect, useState } from "react";
 
 const FILTERS: FilterDef[] = [{ key: "search", label: "搜索敏感词...", type: "search" }];
 
-const BATCH_ACTIONS: BatchAction[] = [
-	{ key: "delete", label: "批量删除", variant: "destructive" },
-];
+const BATCH_ACTIONS: BatchAction[] = [{ key: "delete", label: "批量删除", variant: "destructive" }];
 
 // ---------------------------------------------------------------------------
 // Page component
@@ -295,9 +293,7 @@ export default function CensorWordsPage() {
 			{/* Content Test Tool */}
 			<div className="rounded-xl border bg-card p-4">
 				<h2 className="mb-3 text-lg font-medium text-foreground">内容测试</h2>
-				<p className="mb-3 text-sm text-muted-foreground">
-					测试内容将如何被当前敏感词列表过滤。
-				</p>
+				<p className="mb-3 text-sm text-muted-foreground">测试内容将如何被当前敏感词列表过滤。</p>
 				<div className="space-y-3">
 					<textarea
 						value={testInput}

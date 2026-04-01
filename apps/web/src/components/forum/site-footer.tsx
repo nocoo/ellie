@@ -3,9 +3,7 @@
 // The friend-links / online-stats section above is homepage-only (see home-footer.tsx).
 
 import { cn } from "@/lib/utils";
-import {
-	type GlobalFooterViewModel,
-} from "@/viewmodels/forum/footer";
+import type { GlobalFooterViewModel } from "@/viewmodels/forum/footer";
 import { Shield } from "lucide-react";
 import Link from "next/link";
 
@@ -69,9 +67,8 @@ export function SiteFooter({ vm }: SiteFooterProps) {
 
 				{/* Right: timestamp + query stats */}
 				<div className="text-[12px] text-dz-stats-text">
-					GMT+8, {new Date().toISOString().slice(0, 10)}{" "}
-					{new Date().toTimeString().slice(0, 5)} , Processed in 0.043491
-					second(s), 777 queries .
+					GMT+8, {new Date().toISOString().slice(0, 10)} {new Date().toTimeString().slice(0, 5)} ,
+					Processed in 0.043491 second(s), 777 queries .
 				</div>
 			</div>
 		</footer>
@@ -83,7 +80,5 @@ export function SiteFooter({ vm }: SiteFooterProps) {
 // ---------------------------------------------------------------------------
 
 function FooterSep() {
-	return (
-		<span className="mx-1.5 text-dz-topbar-separator select-none">|</span>
-	);
+	return <span className="mx-1.5 text-dz-topbar-separator select-none">|</span>;
 }

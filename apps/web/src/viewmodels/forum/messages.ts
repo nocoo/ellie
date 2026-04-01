@@ -198,9 +198,5 @@ export function buildMessagesPageViewModel(): MessagesPageViewModel {
 // ---------------------------------------------------------------------------
 
 export function buildMessagesBreadcrumbs(): BreadcrumbItem[] {
-	return [
-		{ label: "首页", href: "/" },
-		{ label: "通知", href: "/messages" },
-		{ label: "消息" },
-	];
+	return [{ label: "首页", href: "/" }, { label: "通知", href: "/messages" }, { label: "消息" }];
 }

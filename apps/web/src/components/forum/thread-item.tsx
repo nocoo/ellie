@@ -22,7 +22,6 @@ export function ThreadItem({ item }: ThreadItemProps) {
 		<div className="flex items-center border-b border-border/50 last:border-0 transition-colors hover:bg-accent/50">
 			{/* Icon column */}
 			<div className="flex items-center justify-center w-[28px] shrink-0 pl-2">
-				{/* biome-ignore lint/nursery/noImgElement: intentional pixel-art GIF from CDN */}
 				<img src={getThreadIconSrc(thread)} alt="" className="h-4 w-auto" aria-hidden="true" />
 			</div>
 

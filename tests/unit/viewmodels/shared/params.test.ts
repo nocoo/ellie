@@ -1,8 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-	parseIntParam,
-	parsePageParam,
-} from "../../../../apps/web/src/viewmodels/shared/params";
+import { parseIntParam, parsePageParam } from "../../../../apps/web/src/viewmodels/shared/params";
 
 // ---------------------------------------------------------------------------
 // parseIntParam

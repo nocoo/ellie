@@ -7,9 +7,7 @@
 import { UserAvatar } from "@/components/forum/user-avatar";
 import { getAvatarUrl } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
-import {
-	type HeaderViewModel,
-} from "@/viewmodels/forum/header";
+import type { HeaderViewModel } from "@/viewmodels/forum/header";
 import { Bell, ChevronDown, Home, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -96,17 +94,11 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 					</div>
 				) : (
 					<div className="flex items-center gap-2 text-[13px]">
-						<Link
-							href="/login"
-							className="text-primary font-medium hover:underline"
-						>
+						<Link href="/login" className="text-primary font-medium hover:underline">
 							登录
 						</Link>
 						<TopBarSep />
-						<Link
-							href="/login"
-							className="text-dz-topbar-link hover:underline"
-						>
+						<Link href="/login" className="text-dz-topbar-link hover:underline">
 							注册
 						</Link>
 					</div>
@@ -129,10 +121,7 @@ function NavBar({ vm }: { vm: HeaderViewModel }) {
 				{/* Nav tabs */}
 				<div className="flex items-center h-full">
 					{vm.navTabs.map((tab) => {
-						const isActive =
-							tab.href === "/"
-								? pathname === "/"
-								: pathname.startsWith(tab.href);
+						const isActive = tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
 
 						return (
 							<Link
@@ -228,14 +217,9 @@ function BreadcrumbBar() {
 				</div>
 
 				{/* Right: announcement link */}
-				<Link
-					href="#"
-					className="text-[13px] text-primary font-bold hover:underline"
-				>
+				<Link href="#" className="text-[13px] text-primary font-bold hover:underline">
 					【大一生活】＝ 同济大学新生第一站
-					<span className="text-dz-breadcrumb-text font-normal ml-2">
-						(2009-7-26)
-					</span>
+					<span className="text-dz-breadcrumb-text font-normal ml-2">(2009-7-26)</span>
 				</Link>
 			</div>
 		</div>
@@ -274,17 +258,11 @@ function StatsBar({ vm }: { vm: HeaderViewModel }) {
 
 				{/* Right: quick links */}
 				<div className="flex items-center gap-0 text-[12px]">
-					<Link
-						href="#"
-						className="text-dz-stats-text hover:text-primary transition-colors"
-					>
+					<Link href="#" className="text-dz-stats-text hover:text-primary transition-colors">
 						我的帖子
 					</Link>
 					<StatSep />
-					<Link
-						href="#"
-						className="text-dz-stats-text hover:text-primary transition-colors"
-					>
+					<Link href="#" className="text-dz-stats-text hover:text-primary transition-colors">
 						最新回复
 					</Link>
 				</div>
@@ -309,10 +287,7 @@ function TopBarLink({
 	return (
 		<Link
 			href={href}
-			className={cn(
-				"text-dz-topbar-link hover:text-primary transition-colors",
-				className,
-			)}
+			className={cn("text-dz-topbar-link hover:text-primary transition-colors", className)}
 		>
 			{children}
 		</Link>
@@ -320,17 +295,11 @@ function TopBarLink({
 }
 
 function TopBarSep({ className }: { className?: string }) {
-	return (
-		<span className={cn("mx-1 text-dz-topbar-separator select-none", className)}>
-			|
-		</span>
-	);
+	return <span className={cn("mx-1 text-dz-topbar-separator select-none", className)}>|</span>;
 }
 
 function StatSep() {
-	return (
-		<span className="mx-1.5 text-dz-topbar-separator select-none">|</span>
-	);
+	return <span className="mx-1.5 text-dz-topbar-separator select-none">|</span>;
 }
 
 function UserLinkIcon({ className }: { className?: string }) {

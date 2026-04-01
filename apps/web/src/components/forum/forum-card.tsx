@@ -17,7 +17,6 @@ interface ForumCardProps {
 function ForumIcon({ hasActivity = false }: { hasActivity?: boolean }) {
 	const src = getStaticImageUrl(hasActivity ? "forum_new.gif" : "forum.gif");
 	return (
-		// biome-ignore lint/nursery/noImgElement: intentional pixel-art GIF from CDN
 		<img src={src} alt="" className="h-7 w-auto shrink-0" aria-hidden="true" />
 	);
 }

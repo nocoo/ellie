@@ -58,9 +58,7 @@ export const EXTRA_OPTIONS: ExtraOption[] = [
 	{ value: "tags", label: "主题标签" },
 ];
 
-export const GROUP_OPTIONS: GroupOption[] = [
-	{ value: "", label: "选择我的群组" },
-];
+export const GROUP_OPTIONS: GroupOption[] = [{ value: "", label: "选择我的群组" }];
 
 export const EDITOR_TOOL_ACTIONS: EditorToolAction[] = [
 	{ label: "30 秒后保存", isAction: false },
@@ -83,9 +81,7 @@ export const SUBJECT_MAX_LENGTH = 80;
  * Build breadcrumbs for the new-thread page.
  * → [首页, ...forum ancestors with href, current forum with href, 发表帖子]
  */
-export function buildNewThreadBreadcrumbs(
-	ancestors: Forum[],
-): BreadcrumbItem[] {
+export function buildNewThreadBreadcrumbs(ancestors: Forum[]): BreadcrumbItem[] {
 	const HOME: BreadcrumbItem = { label: "首页", href: "/" };
 	const items: BreadcrumbItem[] = [HOME];
 	for (const forum of ancestors) {

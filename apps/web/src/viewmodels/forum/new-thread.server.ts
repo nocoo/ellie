@@ -5,8 +5,8 @@
 
 import "server-only";
 
-import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import { forumApi } from "@/lib/forum-api";
+import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import type { Forum } from "@ellie/types";
 import { buildNewThreadBreadcrumbs } from "./new-thread";
 
@@ -20,9 +20,7 @@ export interface NewThreadPageData {
  * Load data required to render the new-thread page shell.
  * Only fetches forum ancestors for breadcrumbs — no thread data needed.
  */
-export async function loadNewThreadPageData(
-	forumId: number,
-): Promise<NewThreadPageData> {
+export async function loadNewThreadPageData(forumId: number): Promise<NewThreadPageData> {
 	const { data: forums } = await forumApi.get<Forum[]>("/api/v1/forums");
 	const { findForumAncestors } = await import("@ellie/types");
 	const ancestors = findForumAncestors(forums, forumId);

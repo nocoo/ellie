@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import {
-	replaceSmileyCodesWithImages,
-	NAMED_SMILEY_SET,
 	NAMED_SMILEYS,
-	coolmonkeyFilename,
+	NAMED_SMILEY_SET,
 	comcomFilename,
+	coolmonkeyFilename,
 	escapeAttr,
+	replaceSmileyCodesWithImages,
 } from "@/lib/smiley";
 
 const CDN = "https://t.no.mt/static/image/smiley";
@@ -57,7 +57,7 @@ describe("coolmonkeyFilename", () => {
 
 	test("returns null for non-integer IDs", () => {
 		expect(coolmonkeyFilename(133.5)).toBeNull();
-		expect(coolmonkeyFilename(NaN)).toBeNull();
+		expect(coolmonkeyFilename(Number.NaN)).toBeNull();
 	});
 });
 
@@ -81,7 +81,7 @@ describe("comcomFilename", () => {
 
 	test("returns null for non-integer IDs", () => {
 		expect(comcomFilename(149.9)).toBeNull();
-		expect(comcomFilename(NaN)).toBeNull();
+		expect(comcomFilename(Number.NaN)).toBeNull();
 	});
 });
 
@@ -99,7 +99,16 @@ describe("NAMED_SMILEY_SET", () => {
 	});
 
 	test("contains newly added codes (cool, w00t, wink, angry, etc.)", () => {
-		for (const name of ["cool", "w00t", "wink", "angry", "crazy", "dozingoff", "laugh", "rolleyes"]) {
+		for (const name of [
+			"cool",
+			"w00t",
+			"wink",
+			"angry",
+			"crazy",
+			"dozingoff",
+			"laugh",
+			"rolleyes",
+		]) {
 			expect(NAMED_SMILEY_SET.has(name)).toBe(true);
 		}
 	});
@@ -197,9 +206,7 @@ describe("replaceSmileyCodesWithImages", () => {
 
 	test("replaces {:2_148:} with coolmonkey/16.gif", () => {
 		const result = replaceSmileyCodesWithImages("{:2_148:}");
-		expect(result).toBe(
-			`<img src="${CDN}/coolmonkey/16.gif" alt="{:2_148:}" class="smiley" />`,
-		);
+		expect(result).toBe(`<img src="${CDN}/coolmonkey/16.gif" alt="{:2_148:}" class="smiley" />`);
 	});
 
 	test("leaves out-of-range coolmonkey IDs unchanged", () => {
@@ -211,16 +218,12 @@ describe("replaceSmileyCodesWithImages", () => {
 
 	test("replaces {:3_149:} with comcom/1.gif", () => {
 		const result = replaceSmileyCodesWithImages("{:3_149:}");
-		expect(result).toBe(
-			`<img src="${CDN}/comcom/1.gif" alt="{:3_149:}" class="smiley" />`,
-		);
+		expect(result).toBe(`<img src="${CDN}/comcom/1.gif" alt="{:3_149:}" class="smiley" />`);
 	});
 
 	test("replaces {:3_172:} with comcom/24.gif", () => {
 		const result = replaceSmileyCodesWithImages("{:3_172:}");
-		expect(result).toBe(
-			`<img src="${CDN}/comcom/24.gif" alt="{:3_172:}" class="smiley" />`,
-		);
+		expect(result).toBe(`<img src="${CDN}/comcom/24.gif" alt="{:3_172:}" class="smiley" />`);
 	});
 
 	test("leaves out-of-range comcom IDs unchanged", () => {
@@ -288,7 +291,7 @@ describe("replaceSmileyCodesWithImages", () => {
 	// ── Mixed content ───────────────────────────────────────────────
 
 	test("handles mixed HTML and multiple smiley code types", () => {
-		const input = '<p>Hello {:2_135:} world :smile: and {:3_150:} end</p>';
+		const input = "<p>Hello {:2_135:} world :smile: and {:3_150:} end</p>";
 		const result = replaceSmileyCodesWithImages(input);
 
 		expect(result).toContain("coolmonkey/03.gif");
