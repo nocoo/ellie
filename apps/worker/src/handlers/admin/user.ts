@@ -504,3 +504,145 @@ export const batchRole = withEntityAuth(
 		return jsonResponse({ updated: true, count: ids.length }, origin);
 	},
 );
+
+// ─── POST /api/admin/users/:id/recalc-counters ──────────────────────────────
+// Recalculate a user's threads/posts/digest_posts counts from actual data.
+
+export const recalcCounters = withEntityAuth(
+	userConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined;
+		const id = parsePathSegment(request, 1); // /api/admin/users/:id/recalc-counters
+		if (id === null) {
+			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
+		}
+
+		// Verify user exists
+		const user = await env.DB.prepare("SELECT id FROM users WHERE id = ?").bind(id).first();
+		if (!user) {
+			return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
+		}
+
+		// Count threads authored by user
+		const threadsRow = await env.DB.prepare(
+			"SELECT COUNT(*) as cnt FROM threads WHERE author_id = ?",
+		)
+			.bind(id)
+			.first<{ cnt: number }>();
+
+		// Count posts authored by user
+		const postsRow = await env.DB.prepare("SELECT COUNT(*) as cnt FROM posts WHERE author_id = ?")
+			.bind(id)
+			.first<{ cnt: number }>();
+
+		// Count digest threads authored by user
+		const digestRow = await env.DB.prepare(
+			"SELECT COUNT(*) as cnt FROM threads WHERE author_id = ? AND digest > 0",
+		)
+			.bind(id)
+			.first<{ cnt: number }>();
+
+		const threads = threadsRow?.cnt ?? 0;
+		const posts = postsRow?.cnt ?? 0;
+		const digestPosts = digestRow?.cnt ?? 0;
+
+		// Update user counters
+		await env.DB.prepare(
+			"UPDATE users SET threads = ?, posts = ?, digest_posts = ? WHERE id = ?",
+		)
+			.bind(threads, posts, digestPosts, id)
+			.run();
+
+		return jsonResponse({ id, threads, posts, digestPosts }, origin);
+	},
+);
+
+// ─── POST /api/admin/users/batch-recalc-counters ────────────────────────────
+// Batch recalculate counters for multiple users (or all users if ids omitted).
+
+const MAX_BATCH_RECALC = 1000;
+
+export const batchRecalcCounters = withEntityAuth(
+	userConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined;
+
+		let body: Record<string, unknown> = {};
+		try {
+			const text = await request.text();
+			if (text) body = JSON.parse(text) as Record<string, unknown>;
+		} catch {
+			return errorResponse("INVALID_BODY", 400, undefined, origin);
+		}
+
+		let userIds: number[];
+
+		if (Array.isArray(body.ids) && body.ids.length > 0) {
+			// Specific user IDs provided
+			userIds = body.ids.map((id) => Number(id)).filter((id) => !Number.isNaN(id));
+			if (userIds.length > MAX_BATCH_RECALC) {
+				return errorResponse(
+					"BATCH_LIMIT_EXCEEDED",
+					400,
+					{ message: `Maximum ${MAX_BATCH_RECALC} users per batch` },
+					origin,
+				);
+			}
+		} else {
+			// No IDs provided - get all active user IDs (status >= 0)
+			const result = await env.DB.prepare(
+				`SELECT id FROM users WHERE status >= 0 LIMIT ${MAX_BATCH_RECALC}`,
+			).all();
+			userIds = result.results.map((r) => (r as { id: number }).id);
+		}
+
+		if (userIds.length === 0) {
+			return jsonResponse({ updated: 0 }, origin);
+		}
+
+		// Batch recalculate: for each user, compute counts and update
+		// Using a single query with GROUP BY for efficiency
+		const placeholders = userIds.map(() => "?").join(",");
+
+		// Get thread counts per user
+		const threadCounts = await env.DB.prepare(
+			`SELECT author_id, COUNT(*) as cnt FROM threads WHERE author_id IN (${placeholders}) GROUP BY author_id`,
+		)
+			.bind(...userIds)
+			.all();
+		const threadMap = new Map(
+			threadCounts.results.map((r) => [(r as { author_id: number }).author_id, (r as { cnt: number }).cnt]),
+		);
+
+		// Get post counts per user
+		const postCounts = await env.DB.prepare(
+			`SELECT author_id, COUNT(*) as cnt FROM posts WHERE author_id IN (${placeholders}) GROUP BY author_id`,
+		)
+			.bind(...userIds)
+			.all();
+		const postMap = new Map(
+			postCounts.results.map((r) => [(r as { author_id: number }).author_id, (r as { cnt: number }).cnt]),
+		);
+
+		// Get digest counts per user
+		const digestCounts = await env.DB.prepare(
+			`SELECT author_id, COUNT(*) as cnt FROM threads WHERE author_id IN (${placeholders}) AND digest > 0 GROUP BY author_id`,
+		)
+			.bind(...userIds)
+			.all();
+		const digestMap = new Map(
+			digestCounts.results.map((r) => [(r as { author_id: number }).author_id, (r as { cnt: number }).cnt]),
+		);
+
+		// Batch update all users
+		const statements = userIds.map((uid) =>
+			env.DB.prepare(
+				"UPDATE users SET threads = ?, posts = ?, digest_posts = ? WHERE id = ?",
+			).bind(threadMap.get(uid) ?? 0, postMap.get(uid) ?? 0, digestMap.get(uid) ?? 0, uid),
+		);
+
+		await env.DB.batch(statements);
+
+		return jsonResponse({ updated: userIds.length }, origin);
+	},
+);

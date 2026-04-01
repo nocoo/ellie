@@ -258,6 +258,9 @@ export default {
 			if (path === "/api/admin/users/batch-role" && request.method === "POST") {
 				return await (await import("./handlers/admin/user")).batchRole(request, env);
 			}
+			if (path === "/api/admin/users/batch-recalc-counters" && request.method === "POST") {
+				return await (await import("./handlers/admin/user")).batchRecalcCounters(request, env);
+			}
 			if (path === "/api/admin/users" && request.method === "GET") {
 				return await (await import("./handlers/admin/user")).list(request, env);
 			}
@@ -266,6 +269,9 @@ export default {
 			}
 			if (path.match(/^\/api\/admin\/users\/\d+\/nuke$/) && request.method === "POST") {
 				return await (await import("./handlers/admin/user")).nuke(request, env);
+			}
+			if (path.match(/^\/api\/admin\/users\/\d+\/recalc-counters$/) && request.method === "POST") {
+				return await (await import("./handlers/admin/user")).recalcCounters(request, env);
 			}
 			if (path.match(/^\/api\/admin\/users\/\d+$/) && request.method === "GET") {
 				return await (await import("./handlers/admin/user")).getById(request, env);
