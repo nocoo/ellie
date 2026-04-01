@@ -6,24 +6,40 @@
 // PostActionBar is passed as a prop into PostContent (not rendered as a sibling)
 // to avoid hydration mismatches caused by unclosed HTML tags in post content.
 
-import { ModActionBar } from "@/components/forum/mod-action-bar";
+"use client";
+
 import { PostActionBar } from "@/components/forum/post-action-bar";
 import { PostContent } from "@/components/forum/post-content";
+import { PostEditDialog } from "@/components/forum/post-edit-dialog";
 import { PostSidebar } from "@/components/forum/post-sidebar";
+import { ThreadModMenu } from "@/components/forum/thread-mod-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ApiError } from "@/lib/api-client";
 import { getAvatarUrl } from "@/lib/avatar";
 import { getStaticImageUrl } from "@/lib/cdn";
+import { deleteMyPost, deletePost } from "@/lib/moderation-api";
 import { type EnrichedPost, floorLabel } from "@/viewmodels/forum/thread-detail";
 import { formatTime } from "@/viewmodels/forum/thread-list";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useCallback, useState } from "react";
 
 interface PostCardProps {
 	post: EnrichedPost;
 	threadViews?: number;
 	threadReplies?: number;
 	threadDigest?: number;
+	threadSticky?: number;
+	threadHighlight?: number;
+	threadClosed?: boolean;
 	onReply?: () => void;
 	canModerate: boolean;
+	/** Can manage thread (sticky/highlight/digest/close) */
+	canManageThread: boolean;
+	/** Can move thread (SuperMod/Admin only) */
+	canMoveThread: boolean;
+	/** Can delete thread (SuperMod/Admin or author) */
+	canDeleteThread: boolean;
 	currentUserId: number | null;
 	isFirstPost: boolean;
 	threadId: number;
@@ -35,23 +51,84 @@ export function PostCard({
 	threadViews,
 	threadReplies,
 	threadDigest,
+	threadSticky,
+	threadHighlight,
+	threadClosed,
 	onReply,
 	canModerate,
-	currentUserId: _currentUserId,
+	canManageThread,
+	canMoveThread,
+	canDeleteThread,
+	currentUserId,
 	isFirstPost,
 	threadId,
 	forumId,
 }: PostCardProps) {
+	const router = useRouter();
 	const isFirst = post.isFirst || post.position === 1;
+	const isOwnPost = currentUserId !== null && post.authorId === currentUserId;
 
 	// Can edit: author or moderator
 	const canEdit = post.canEdit;
+	// Can delete: author or SuperMod/Admin (per permission model)
+	const canDelete = post.canDelete;
+
+	// Edit dialog state
+	const [editDialogOpen, setEditDialogOpen] = useState(false);
+	const [deleting, setDeleting] = useState(false);
+
+	const handleEdit = useCallback(() => {
+		setEditDialogOpen(true);
+	}, []);
+
+	const handleDelete = useCallback(async () => {
+		if (!confirm("确定要删除这条回复吗？此操作无法撤销。")) {
+			return;
+		}
+
+		setDeleting(true);
+		try {
+			// Use user self-service API if own post, otherwise moderation API
+			if (isOwnPost) {
+				await deleteMyPost(post.id);
+			} else if (canModerate) {
+				await deletePost(post.id);
+			}
+			router.refresh();
+		} catch (err) {
+			const message = err instanceof ApiError ? err.message : "删除失败";
+			alert(message);
+		} finally {
+			setDeleting(false);
+		}
+	}, [post.id, isOwnPost, canModerate, router]);
 
 	const actionBar = (
 		<>
-			<PostActionBar onReply={onReply} canModerate={canModerate} canEdit={canEdit} />
-			{/* Mod action bar: only on first post, only for moderators */}
-			{isFirstPost && canModerate && <ModActionBar forumId={forumId} threadId={threadId} />}
+			<PostActionBar
+				onReply={onReply}
+				onEdit={canEdit ? handleEdit : undefined}
+				onDelete={canDelete && !isFirst ? handleDelete : undefined}
+				canEdit={canEdit}
+				canDelete={canDelete && !isFirst}
+			/>
+			{/* Thread mod menu: only on first post, for users with any management permission */}
+			{isFirstPost && (canManageThread || canMoveThread || canDeleteThread) && (
+				<div className="flex items-center gap-2 border-t border-dashed border-border bg-muted/30 px-3 py-1.5">
+					<span className="text-xs text-muted-foreground">管理操作</span>
+					<ThreadModMenu
+						threadId={threadId}
+						forumId={forumId}
+						sticky={threadSticky ?? 0}
+						digest={threadDigest ?? 0}
+						highlight={threadHighlight ?? 0}
+						closed={threadClosed ?? false}
+						canManageThread={canManageThread}
+						canMoveThread={canMoveThread}
+						canDeleteThread={canDeleteThread}
+					/>
+				</div>
+			)}
 		</>
 	);
 
@@ -120,6 +197,16 @@ export function PostCard({
 					actionBar={actionBar}
 				/>
 			</div>
+
+			{/* Edit dialog */}
+			<PostEditDialog
+				open={editDialogOpen}
+				onOpenChange={setEditDialogOpen}
+				postId={post.id}
+				currentContent={post.content}
+				isOwnPost={isOwnPost}
+				canModerate={canModerate}
+			/>
 		</div>
 	);
 }

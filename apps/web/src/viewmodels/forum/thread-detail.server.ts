@@ -16,7 +16,10 @@ import {
 	type User,
 	type UserRole,
 	UserStatus,
+	canDeleteThread,
+	canManageThread,
 	canModerate,
+	canMoveThread,
 	findForumAncestors,
 } from "@ellie/types";
 import {
@@ -37,6 +40,12 @@ export interface ThreadDetailPageData {
 	breadcrumbs: BreadcrumbItem[];
 	/** Whether current user can moderate this forum */
 	canModerateForum: boolean;
+	/** Can manage thread (sticky/highlight/digest/close) */
+	canManageThread: boolean;
+	/** Can move thread to another forum (SuperMod/Admin only) */
+	canMoveThread: boolean;
+	/** Can delete thread (SuperMod/Admin or author) */
+	canDeleteThread: boolean;
 	/** Current user info (for permission checks in client components) */
 	currentUser: User | null;
 }
@@ -99,11 +108,16 @@ export async function loadThreadDetail(params: {
 			interest: "",
 			qq: "",
 			site: "",
+			regIp: "",
+			lastIp: "",
 		};
 	}
 
-	// Check moderation permission
+	// Check moderation permissions
 	const canModerateForum = forum ? canModerate(currentUser, forum) : false;
+	const canManage = forum ? canManageThread(currentUser, forum) : false;
+	const canMove = canMoveThread(currentUser);
+	const canDelete = forum ? canDeleteThread(currentUser, thread, forum) : false;
 
 	// Fetch attachments per post (Worker only supports per-post, not per-thread)
 	const attachmentResults = await Promise.all(
@@ -155,6 +169,9 @@ export async function loadThreadDetail(params: {
 		total: postsRes.data.length,
 		breadcrumbs,
 		canModerateForum,
+		canManageThread: canManage,
+		canMoveThread: canMove,
+		canDeleteThread: canDelete,
 		currentUser,
 	};
 }
