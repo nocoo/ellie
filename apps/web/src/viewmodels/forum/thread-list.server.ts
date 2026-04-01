@@ -1,13 +1,18 @@
 // viewmodels/forum/thread-list.server.ts — Server-only data loader for thread list
 // Calls Worker API (GET /api/v1/forums + GET /api/v1/threads).
 
+import "server-only";
+
+import { buildForumBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import { forumApi } from "@/lib/forum-api";
+import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import {
 	type Forum,
 	type ForumTreeNode,
 	type Thread,
 	buildForumTree,
 	filterVisibleForums,
+	findForumAncestors,
 } from "@ellie/types";
 import { type ThreadDisplayItem, type ThreadSort, enrichThreads } from "./thread-list";
 
@@ -27,6 +32,7 @@ export interface ThreadListPagedData {
 	pages: number;
 	total: number;
 	limit: number;
+	breadcrumbs: BreadcrumbItem[];
 }
 
 export async function loadThreadList(params: {
@@ -84,6 +90,10 @@ export async function loadThreadListPaged(params: {
 	const visible = tree.map(filterVisibleForums).filter((n): n is ForumTreeNode => n !== null);
 	const forum = findNodeById(visible, params.forumId);
 
+	// Build breadcrumbs from forum ancestors
+	const ancestors = findForumAncestors(forumsRes.data, params.forumId);
+	const breadcrumbs = buildForumBreadcrumbs(ancestors);
+
 	return {
 		forum,
 		forums: forumsRes.data,
@@ -92,6 +102,7 @@ export async function loadThreadListPaged(params: {
 		pages: threadsRes.meta.pages ?? 1,
 		total: threadsRes.meta.total ?? 0,
 		limit: threadsRes.meta.limit ?? limit,
+		breadcrumbs,
 	};
 }
 

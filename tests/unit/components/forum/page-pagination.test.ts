@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { generatePageNumbers } from "../../../../apps/web/src/components/forum/page-pagination";
+import { generatePageNumbers } from "../../../../apps/web/src/viewmodels/shared/pagination";
 
 // ---------------------------------------------------------------------------
 // generatePageNumbers

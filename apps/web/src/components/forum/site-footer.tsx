@@ -5,7 +5,6 @@
 import { cn } from "@/lib/utils";
 import {
 	type GlobalFooterViewModel,
-	buildGlobalFooterViewModel,
 } from "@/viewmodels/forum/footer";
 import { Shield } from "lucide-react";
 import Link from "next/link";
@@ -15,7 +14,7 @@ import Link from "next/link";
 // ---------------------------------------------------------------------------
 
 interface SiteFooterProps {
-	vm?: GlobalFooterViewModel;
+	vm: GlobalFooterViewModel;
 }
 
 // ---------------------------------------------------------------------------
@@ -23,8 +22,6 @@ interface SiteFooterProps {
 // ---------------------------------------------------------------------------
 
 export function SiteFooter({ vm }: SiteFooterProps) {
-	const m = vm ?? buildGlobalFooterViewModel();
-
 	return (
 		<footer className="mt-auto border-t border-border bg-background">
 			{/* Row 1: Powered by + quick links + ICP + shield icon */}
@@ -33,13 +30,13 @@ export function SiteFooter({ vm }: SiteFooterProps) {
 				<div className="text-[12px] text-dz-stats-text">
 					Powered by{" "}
 					<Link href="#" className="font-bold text-foreground hover:underline">
-						{m.poweredBy}
+						{vm.poweredBy}
 					</Link>
 				</div>
 
 				{/* Center: quick links + ICP */}
 				<div className="flex items-center gap-0 text-[12px]">
-					{m.quickLinks.map((link, i) => (
+					{vm.quickLinks.map((link, i) => (
 						<span key={link.label} className="flex items-center">
 							{i > 0 && <FooterSep />}
 							<Link
@@ -55,7 +52,7 @@ export function SiteFooter({ vm }: SiteFooterProps) {
 					))}
 					<FooterSep />
 					<Link href="#" className="font-bold text-foreground hover:underline">
-						同济网（{m.icpNumber}）
+						同济网（{vm.icpNumber}）
 					</Link>
 				</div>
 
@@ -67,7 +64,7 @@ export function SiteFooter({ vm }: SiteFooterProps) {
 			<div className="width-container flex items-center justify-between !py-2 border-t border-border">
 				{/* Left: copyright */}
 				<div className="text-[12px] text-dz-stats-text">
-					&copy; {m.copyrightYears} {m.copyrightHolder}
+					&copy; {vm.copyrightYears} {vm.copyrightHolder}
 				</div>
 
 				{/* Right: timestamp + query stats */}

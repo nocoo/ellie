@@ -1,29 +1,15 @@
 // components/forum/thread-item.tsx — Discuz classic 4-column table row
 // Columns: Icon | Subject | Author | Replies/Views | Last Post
 
-import { getStaticImageUrl } from "@/lib/cdn";
 import {
 	type ThreadDisplayItem,
 	formatStat,
 	formatTime,
+	getThreadIconSrc,
 	highlightStyle,
 } from "@/viewmodels/forum/thread-list";
-import { StickyLevel } from "@ellie/types";
 import Link from "next/link";
 import { ThreadBadgeList } from "./thread-badge";
-
-/** Resolve the classic Discuz folder/pin icon for a thread row. */
-function getThreadIconSrc(thread: {
-	closed: number;
-	special: number;
-	sticky: StickyLevel;
-}): string {
-	if (thread.closed === 1) return getStaticImageUrl("folder_lock.gif");
-	if (thread.special === 1) return getStaticImageUrl("pollsmall.gif");
-	if (thread.sticky >= StickyLevel.Forum)
-		return getStaticImageUrl(`pin_${Math.min(thread.sticky, 3)}.gif`);
-	return getStaticImageUrl("folder_common.gif");
-}
 
 interface ThreadItemProps {
 	item: ThreadDisplayItem;

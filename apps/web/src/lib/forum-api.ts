@@ -31,26 +31,23 @@ function getApiKey(): string {
 }
 
 // ---------------------------------------------------------------------------
-// Error type
+// Error type (thin subclass keeps instanceof / .name distinct from AdminApiError)
 // ---------------------------------------------------------------------------
 
-export interface ForumApiErrorData {
-	code: string;
-	message: string;
-	details?: Record<string, unknown>;
-}
+import { ApiError, type ApiErrorData } from "./api-error";
 
-export class ForumApiError extends Error {
-	readonly status: number;
-	readonly code: string;
-	readonly details?: Record<string, unknown>;
+export type ForumApiErrorData = ApiErrorData;
 
-	constructor(status: number, data: ForumApiErrorData) {
-		super(data.message);
+export class ForumApiError extends ApiError {
+	constructor(status: number, data: ApiErrorData);
+	constructor(status: number, code: string, message: string);
+	constructor(status: number, dataOrCode: ApiErrorData | string, message?: string) {
+		if (typeof dataOrCode === "string") {
+			super(status, dataOrCode, message!);
+		} else {
+			super(status, dataOrCode);
+		}
 		this.name = "ForumApiError";
-		this.status = status;
-		this.code = data.code;
-		this.details = data.details;
 	}
 }
 

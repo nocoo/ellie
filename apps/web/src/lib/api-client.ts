@@ -7,20 +7,11 @@
  */
 
 // ---------------------------------------------------------------------------
-// Error type
+// Error type (imported from shared module, re-exported for backward compatibility)
 // ---------------------------------------------------------------------------
 
-export class ApiError extends Error {
-	readonly status: number;
-	readonly code: string;
-
-	constructor(status: number, code: string, message: string) {
-		super(message);
-		this.name = "ApiError";
-		this.status = status;
-		this.code = code;
-	}
-}
+import { ApiError } from "./api-error";
+export { ApiError };
 
 // ---------------------------------------------------------------------------
 // Response types

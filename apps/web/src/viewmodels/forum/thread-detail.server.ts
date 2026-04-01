@@ -1,8 +1,12 @@
 // viewmodels/forum/thread-detail.server.ts — Server-only data loader for thread detail
 // Calls Worker API (GET /api/v1/threads/:id + GET /api/v1/posts + GET /api/v1/posts/:id/attachments + GET /api/v1/users/:id).
 
+import "server-only";
+
+import { buildThreadBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import { forumApi, publicUserToUser } from "@/lib/forum-api";
-import type { Attachment, Forum, Post, PublicUser, Thread, User } from "@ellie/types";
+import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
+import { type Attachment, type Forum, type Post, type PublicUser, type Thread, type User, findForumAncestors } from "@ellie/types";
 import {
 	type EnrichedPost,
 	enrichPosts,
@@ -10,13 +14,14 @@ import {
 	uniqueAuthorIds,
 } from "./thread-detail";
 
-export interface ThreadDetailData {
-	thread: Thread;
+export interface ThreadDetailPageData {
+	thread: Thread | null;
 	forums: Forum[];
 	posts: EnrichedPost[];
 	nextCursor: string | null;
 	prevCursor: string | null;
 	total: number;
+	breadcrumbs: BreadcrumbItem[];
 }
 
 export async function loadThreadDetail(params: {
@@ -24,7 +29,7 @@ export async function loadThreadDetail(params: {
 	cursor?: string;
 	direction?: "forward" | "backward";
 	limit?: number;
-}): Promise<ThreadDetailData> {
+}): Promise<ThreadDetailPageData> {
 	// Parallel fetch: thread + posts + forums
 	const [threadRes, postsRes, forumsRes] = await Promise.all([
 		forumApi.get<Thread>(`/api/v1/threads/${params.threadId}`),
@@ -68,6 +73,10 @@ export async function loadThreadDetail(params: {
 	const attachmentMap = groupAttachmentsByPostId(allAttachments);
 	const posts = enrichPosts(postsRes.data, authorMap, attachmentMap, null, thread.forumId);
 
+	// Build breadcrumbs from forum ancestors
+	const ancestors = findForumAncestors(forumsRes.data, thread.forumId);
+	const breadcrumbs = buildThreadBreadcrumbs(ancestors, thread.subject);
+
 	return {
 		thread,
 		forums: forumsRes.data,
@@ -75,5 +84,6 @@ export async function loadThreadDetail(params: {
 		nextCursor: postsRes.meta.nextCursor,
 		prevCursor: null, // Worker v1 does not support backward pagination
 		total: postsRes.data.length,
+		breadcrumbs,
 	};
 }

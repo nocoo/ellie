@@ -31,7 +31,20 @@ export function canSubmit(mode: EditorMode, subject: string, content: string): b
 // Submit
 // ---------------------------------------------------------------------------
 
-/** Submit a new thread or reply via the repository layer. */
+/**
+ * Submit a new thread or reply via the repository layer.
+ *
+ * @deprecated This function directly accesses `@ellie/repositories` (D1 bindings),
+ * bypassing the HTTP API layer that all other data access uses. It cannot work in
+ * production because the client-side `createRepositories()` call requires D1 database
+ * bindings that are unavailable in the browser environment.
+ *
+ * Pending migration to HTTP API layer after 04g (user authentication / JWT) is
+ * completed. At that point, this should be replaced by a server action calling
+ * `forumApi.post()` with proper JWT authentication.
+ *
+ * See: docs/04i §1.3
+ */
 export async function submitPost(
 	repos: Repositories,
 	mode: EditorMode,

@@ -5,7 +5,7 @@
  * Layout only — no real submission logic (see post-editor.ts for that).
  */
 
-import type { BreadcrumbItem } from "@/components/layout/breadcrumbs";
+import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import type { Forum } from "@ellie/types";
 
 // ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@
 // Ref: 04d §UserProfile — formatting helpers, tab types
 
 import { type User, UserRole, UserStatus } from "@ellie/types";
+import { formatLocaleDate } from "@/viewmodels/shared/formatting";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -126,7 +127,5 @@ export function formatOlTime(hours: number): string | null {
 
 /** Format Unix timestamp to relative or absolute date. */
 export function formatLastActivity(timestamp: number): string | null {
-	if (timestamp <= 0) return null;
-	const date = new Date(timestamp * 1000);
-	return date.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
+	return formatLocaleDate(timestamp);
 }
