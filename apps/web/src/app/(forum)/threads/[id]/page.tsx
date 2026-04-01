@@ -22,6 +22,19 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 	const sp = await searchParams;
 	const threadId = parseIntParam(id);
 
+	if (threadId == null) {
+		return (
+			<Card size="sm">
+				<CardContent className="text-center py-4">
+					<p className="text-sm text-destructive">无效的帖子 ID</p>
+					<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
+						返回首页
+					</Link>
+				</CardContent>
+			</Card>
+		);
+	}
+
 	let data: ThreadDetailPageData;
 	let error: string | null = null;
 
