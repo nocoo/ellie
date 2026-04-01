@@ -303,7 +303,7 @@ export default function IpBansPage() {
 			</div>
 
 			{/* IP Check Tool */}
-			<div className="rounded-lg border bg-card p-4">
+			<div className="rounded-xl border bg-card p-4">
 				<h2 className="mb-2 text-sm font-medium text-foreground">IP 地址检测</h2>
 				<div className="flex items-center gap-2">
 					<Input
@@ -350,7 +350,7 @@ export default function IpBansPage() {
 				onClearAll={handleClearFilters}
 			/>
 
-			<div className="rounded-lg border bg-card">
+			<div className="rounded-xl border bg-card">
 				<AdminDataTable
 					columns={columns}
 					data={data}
