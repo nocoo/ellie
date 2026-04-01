@@ -1,3 +1,4 @@
+import { formatNumber } from "@/viewmodels/shared/formatting";
 import type { ElementType } from "react";
 
 // ---------------------------------------------------------------------------
@@ -28,7 +29,7 @@ export function StatCard({ label, value, icon: Icon, subItems }: StatCardProps) 
 				{Icon && <Icon className="h-4 w-4 text-muted-foreground/60" strokeWidth={1.5} />}
 			</div>
 			<p className="mt-2 text-2xl font-semibold text-foreground">
-				{typeof value === "number" ? value.toLocaleString() : value}
+				{typeof value === "number" ? formatNumber(value) : value}
 			</p>
 			{subItems && subItems.length > 0 && (
 				<ul className="mt-3 space-y-1 border-t pt-3">
@@ -36,7 +37,7 @@ export function StatCard({ label, value, icon: Icon, subItems }: StatCardProps) 
 						<li key={item.label} className="flex items-center justify-between text-sm">
 							<span className="text-muted-foreground">{item.label}</span>
 							<span className="font-medium text-foreground">
-								{typeof item.value === "number" ? item.value.toLocaleString() : item.value}
+								{typeof item.value === "number" ? formatNumber(item.value) : item.value}
 							</span>
 						</li>
 					))}

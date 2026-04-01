@@ -1,7 +1,7 @@
 // viewmodels/forum/user-profile.ts — User profile pure logic
 // Ref: 04d §UserProfile — formatting helpers, tab types
 
-import { formatLocaleDate } from "@/viewmodels/shared/formatting";
+import { formatLocaleDate, formatNumber } from "@/viewmodels/shared/formatting";
 import { type User, UserRole, UserStatus } from "@ellie/types";
 
 // ---------------------------------------------------------------------------
@@ -124,7 +124,7 @@ export function formatLocation(province: string, city: string): string | null {
 /** Format online time in hours to a human-readable string. */
 export function formatOlTime(hours: number): string | null {
 	if (hours <= 0) return null;
-	return `${hours.toLocaleString()} 小时`;
+	return `${formatNumber(hours)} 小时`;
 }
 
 /** Format Unix timestamp to relative or absolute date. */

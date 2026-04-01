@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { formatNumber } from "@/viewmodels/shared/formatting";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -71,7 +72,7 @@ export function AdminPagination({ pagination, onPageChange }: AdminPaginationPro
 	return (
 		<div className="flex items-center justify-between px-2 py-3">
 			<p className="text-sm text-muted-foreground">
-				{computeItemRange(page, limit, total)} / {total.toLocaleString()}
+				{computeItemRange(page, limit, total)} / {formatNumber(total)}
 			</p>
 			<div className="flex items-center gap-1">
 				<Button
