@@ -1,0 +1,30 @@
+// components/forum/forum-logo.tsx — Shared forum logo with light/dark mode support
+// Uses two external images that swap via CSS dark: variant.
+
+interface ForumLogoProps {
+	/** Height in pixels. Width scales proportionally via w-auto. */
+	height: number;
+	className?: string;
+}
+
+const LOGO_LIGHT = "https://t.no.mt/ellie/Logo-light.jpg";
+const LOGO_DARK = "https://t.no.mt/ellie/Logo-dark.jpg";
+
+export function ForumLogo({ height, className = "" }: ForumLogoProps) {
+	return (
+		<>
+			<img
+				src={LOGO_LIGHT}
+				alt="Ellie"
+				style={{ height }}
+				className={`w-auto dark:hidden ${className}`}
+			/>
+			<img
+				src={LOGO_DARK}
+				alt="Ellie"
+				style={{ height }}
+				className={`hidden w-auto dark:block ${className}`}
+			/>
+		</>
+	);
+}

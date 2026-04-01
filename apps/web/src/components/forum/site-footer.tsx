@@ -2,6 +2,7 @@
 // Layout: top padding for "breathing space" → content row → background image
 // Background image swaps between light/dark mode via CSS class visibility.
 
+import { ForumLogo } from "@/components/forum/forum-logo";
 import type { GlobalFooterViewModel } from "@/viewmodels/forum/footer";
 import Link from "next/link";
 
@@ -33,9 +34,7 @@ export function SiteFooter({ vm }: SiteFooterProps) {
 					{/* Left column: branding + copyright */}
 					<div className="sm:col-span-5">
 						<div className="mb-6">
-							<span className="text-lg font-bold tracking-tight text-foreground font-display">
-								{vm.siteName}
-							</span>
+							<ForumLogo height={28} />
 						</div>
 						<p className="text-sm text-muted-foreground leading-relaxed">
 							&copy; {vm.copyrightYears} {vm.copyrightHolder}, All rights reserved.

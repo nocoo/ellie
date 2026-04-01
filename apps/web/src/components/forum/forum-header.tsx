@@ -3,6 +3,7 @@
 
 "use client";
 
+import { ForumLogo } from "@/components/forum/forum-logo";
 import { UserAvatar } from "@/components/forum/user-avatar";
 import { getAvatarUrl } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
@@ -31,11 +32,7 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 			<div className="width-container flex items-center justify-between !py-0 h-[90px]">
 				{/* Left: Logo */}
 				<Link href="/" className="flex-shrink-0">
-					<img
-						src="https://t.no.mt/static/image/common/logo.png"
-						alt="同济网 bbs.tongji.net"
-						className="h-[70px] w-auto"
-					/>
+					<ForumLogo height={70} />
 				</Link>
 
 				{/* Right: User info area */}

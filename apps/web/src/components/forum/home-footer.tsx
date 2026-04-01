@@ -4,6 +4,7 @@
 // 2. Friend links header (logo + description)
 // 3. Friend links grid
 
+import { ForumLogo } from "@/components/forum/forum-logo";
 import type { HomeFooterViewModel } from "@/viewmodels/forum/footer";
 import { Settings } from "lucide-react";
 import Link from "next/link";
@@ -48,11 +49,7 @@ function FriendLinksHeader() {
 	return (
 		<div className="flex items-start gap-3 rounded-sm border border-border bg-card px-4 py-3">
 			{/* Logo */}
-			<img
-				src="https://t.no.mt/static/image/common/logo_88_31.gif"
-				alt="同济网"
-				className="h-[31px] w-[88px] flex-shrink-0 mt-0.5"
-			/>
+			<ForumLogo height={31} />
 			{/* Text */}
 			<div>
 				<p className="text-[14px] font-bold text-foreground">
