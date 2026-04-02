@@ -70,7 +70,13 @@ export const FEATURE_GROUPS: FeatureGroupDef[] = [
 				key: "features.access.maintenance_mode",
 				label: "站点维护模式",
 				inputType: "switch",
-				hint: "开启后，普通用户将看到维护页面，管理员仍可访问",
+				hint: "开启后，普通用户将看到维护页面",
+			},
+			{
+				key: "features.access.maintenance_admin_bypass",
+				label: "管理员绕过维护模式",
+				inputType: "switch",
+				hint: "开启后，已登录的管理员可以正常访问站点",
 			},
 			{
 				key: "features.access.maintenance_message",
@@ -143,9 +149,10 @@ export const FEATURE_GROUPS: FeatureGroupDef[] = [
 // ---------------------------------------------------------------------------
 
 export const FEATURE_DEFAULTS: Record<string, string> = {
-	// Access control - default: allow anonymous, maintenance off
+	// Access control - default: allow anonymous, maintenance off, admin bypass off
 	"features.access.require_login": "false",
 	"features.access.maintenance_mode": "false",
+	"features.access.maintenance_admin_bypass": "false",
 	"features.access.maintenance_message": "系统维护中，请稍后再试...",
 	// Content features - default: all enabled
 	"features.content.allow_new_thread": "true",

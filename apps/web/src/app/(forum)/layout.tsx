@@ -48,16 +48,26 @@ export default async function ForumLayout({ children }: { children: ReactNode })
 	// First, fetch settings to check maintenance mode
 	const settings = await fetchPublicSettings();
 	const isMaintenanceMode = getBool(settings, "features.access.maintenance_mode", false);
+	const adminBypass = getBool(settings, "features.access.maintenance_admin_bypass", false);
 
-	// If maintenance mode is on, show maintenance page immediately
-	// (skip loading stats/user which would fail with 503 anyway)
+	// If maintenance mode is on, check if admin bypass is enabled
 	if (isMaintenanceMode) {
-		const message = getStr(
-			settings,
-			"features.access.maintenance_message",
-			"系统维护中，请稍后再试...",
-		);
-		return <MaintenancePage message={message} />;
+		let canBypass = false;
+
+		if (adminBypass) {
+			// Check if current user is admin
+			const currentUser = await loadCurrentUser();
+			canBypass = currentUser?.role === 1; // role 1 = admin
+		}
+
+		if (!canBypass) {
+			const message = getStr(
+				settings,
+				"features.access.maintenance_message",
+				"系统维护中，请稍后再试...",
+			);
+			return <MaintenancePage message={message} />;
+		}
 	}
 
 	// Normal mode — load all data
