@@ -66,16 +66,16 @@ export default {
 
 			// ── Public routes (#2-#11) ───────────────────────
 			if (path === "/api/v1/forums" && request.method === "GET") {
-				return await (await import("./handlers/forum")).list(request, env);
+				return await (await import("./handlers/forum")).list(request, env, ctx);
 			}
 			if (path.match(/^\/api\/v1\/forums\/\d+$/) && request.method === "GET") {
-				return await (await import("./handlers/forum")).getById(request, env);
+				return await (await import("./handlers/forum")).getById(request, env, ctx);
 			}
 			if (path === "/api/v1/threads" && request.method === "GET") {
-				return await (await import("./handlers/thread")).list(request, env);
+				return await (await import("./handlers/thread")).list(request, env, ctx);
 			}
 			if (path.match(/^\/api\/v1\/threads\/\d+$/) && request.method === "GET") {
-				return await (await import("./handlers/thread")).getById(request, env);
+				return await (await import("./handlers/thread")).getById(request, env, ctx);
 			}
 			if (path === "/api/v1/posts" && request.method === "GET") {
 				return await (await import("./handlers/post")).list(request, env);

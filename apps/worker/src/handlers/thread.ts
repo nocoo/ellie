@@ -1,9 +1,11 @@
 // Thread handlers for Cloudflare Worker
+import type { Thread } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
-import { toThread } from "../lib/mappers";
+import { enrichThreadsWithUserCache, enrichThreadWithUserCache, toThread } from "../lib/mappers";
 import { jsonResponse, paginatedResponse } from "../lib/response";
 import { withAuth } from "../lib/routeHelpers";
+import { getUserProfiles } from "../lib/user-cache";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
@@ -50,7 +52,11 @@ interface D1ThreadRow {
 }
 
 /** GET /api/v1/threads - List threads with keyset or offset pagination */
-export async function list(request: Request, env: Env): Promise<Response> {
+export async function list(
+	request: Request,
+	env: Env,
+	ctx: ExecutionContext,
+): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const forumId = url.searchParams.get("forumId");
@@ -93,7 +99,12 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		]);
 
 		const total = countResult?.total ?? 0;
-		const threads = dataResult.results.map((row) => toThread(row as Record<string, unknown>));
+		let threads: Thread[] = dataResult.results.map((row) =>
+			toThread(row as Record<string, unknown>),
+		);
+
+		// Enrich with user cache
+		threads = await enrichThreadsWithUserCacheFromList(threads, env, ctx);
 
 		return paginatedResponse(threads, total, page, clampedLimit, origin);
 	}
@@ -131,7 +142,10 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	}
 
 	// Map D1 snake_case rows to camelCase Thread type
-	const threads = result.results.map((row) => toThread(row as Record<string, unknown>));
+	let threads: Thread[] = result.results.map((row) => toThread(row as Record<string, unknown>));
+
+	// Enrich with user cache
+	threads = await enrichThreadsWithUserCacheFromList(threads, env, ctx);
 
 	// Generate next cursor from raw D1 row (snake_case) — NOT from mapped Thread
 	let nextCursor: string | null = null;
@@ -164,8 +178,30 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	);
 }
 
+/** Helper to enrich threads with user cache */
+async function enrichThreadsWithUserCacheFromList(
+	threads: Thread[],
+	env: Env,
+	ctx: ExecutionContext,
+): Promise<Thread[]> {
+	// Collect all user IDs (authors and last posters)
+	const userIds = new Set<number>();
+	for (const thread of threads) {
+		if (thread.authorId > 0) userIds.add(thread.authorId);
+		if (thread.lastPosterId > 0) userIds.add(thread.lastPosterId);
+	}
+	if (userIds.size === 0) return threads;
+
+	const userCache = await getUserProfiles(env, ctx, [...userIds]);
+	return enrichThreadsWithUserCache(threads, userCache);
+}
+
 /** GET /api/v1/threads/:id - Get thread by ID (and increment view count) */
-export async function getById(request: Request, env: Env): Promise<Response> {
+export async function getById(
+	request: Request,
+	env: Env,
+	ctx: ExecutionContext,
+): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const pathParts = url.pathname.split("/");
@@ -182,9 +218,18 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 	// Fire-and-forget: increment view count (don't await)
 	void env.DB.prepare("UPDATE threads SET views = views + 1 WHERE id = ?").bind(id).run();
 
+	let thread = toThread(result as Record<string, unknown>);
+
+	// Enrich with user cache
+	const userIds = [thread.authorId, thread.lastPosterId].filter((id) => id > 0);
+	if (userIds.length > 0) {
+		const userCache = await getUserProfiles(env, ctx, userIds);
+		thread = enrichThreadWithUserCache(thread, userCache);
+	}
+
 	return new Response(
 		JSON.stringify({
-			data: toThread(result as Record<string, unknown>),
+			data: thread,
 			meta: {
 				timestamp: Date.now(),
 				requestId: crypto.randomUUID(),
