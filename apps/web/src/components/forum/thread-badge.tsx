@@ -7,17 +7,26 @@ import type { VariantProps } from "class-variance-authority";
 
 type BadgeVariant = NonNullable<VariantProps<typeof Badge>["variant"]>;
 
-/** Map model badge variant to shadcn Badge variant. */
+/**
+ * Map model badge variant to shadcn Badge variant.
+ *
+ * Model variants → UI variants:
+ * - destructive → destructive (red, global sticky)
+ * - warning → warning (amber, category sticky / trade / bounty)
+ * - success → success (green, digest)
+ * - secondary → muted (gray, closed / typeName)
+ * - default → default (primary blue, forum sticky / vote / activity / debate)
+ */
 function toBadgeVariant(variant: ThreadBadge["variant"]): BadgeVariant {
 	switch (variant) {
 		case "destructive":
 			return "destructive";
 		case "warning":
-			return "outline";
+			return "warning";
 		case "success":
-			return "secondary";
+			return "success";
 		case "secondary":
-			return "ghost";
+			return "muted";
 		default:
 			return "default";
 	}
