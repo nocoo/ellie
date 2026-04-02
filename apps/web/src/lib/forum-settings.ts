@@ -14,6 +14,7 @@ import { forumApi } from "./forum-api";
 
 export interface ForumSettings {
 	pageSize: number;
+	postsPerPage: number;
 	maxPostLength: number;
 }
 
@@ -26,6 +27,7 @@ interface SettingsResponse {
 // ---------------------------------------------------------------------------
 
 const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_POSTS_PER_PAGE = 20;
 const DEFAULT_MAX_POST_LENGTH = 50000;
 
 // ---------------------------------------------------------------------------
@@ -42,12 +44,17 @@ export const getForumSettings = cache(async (): Promise<ForumSettings> => {
 
 		return {
 			pageSize: parseNumber(data["general.pagination.page_size"], DEFAULT_PAGE_SIZE),
-			maxPostLength: parseNumber(data["general.pagination.max_post_length"], DEFAULT_MAX_POST_LENGTH),
+			postsPerPage: parseNumber(data["general.pagination.posts_per_page"], DEFAULT_POSTS_PER_PAGE),
+			maxPostLength: parseNumber(
+				data["general.pagination.max_post_length"],
+				DEFAULT_MAX_POST_LENGTH,
+			),
 		};
 	} catch {
 		// Fallback to defaults if settings fetch fails
 		return {
 			pageSize: DEFAULT_PAGE_SIZE,
+			postsPerPage: DEFAULT_POSTS_PER_PAGE,
 			maxPostLength: DEFAULT_MAX_POST_LENGTH,
 		};
 	}
@@ -59,6 +66,14 @@ export const getForumSettings = cache(async (): Promise<ForumSettings> => {
 export async function getPageSize(): Promise<number> {
 	const settings = await getForumSettings();
 	return settings.pageSize;
+}
+
+/**
+ * Get posts per page setting for thread detail pages.
+ */
+export async function getPostsPerPage(): Promise<number> {
+	const settings = await getForumSettings();
+	return settings.postsPerPage;
 }
 
 // ---------------------------------------------------------------------------

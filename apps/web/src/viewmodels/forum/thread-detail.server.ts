@@ -6,7 +6,7 @@ import "server-only";
 import { forumApi, publicUserToUser } from "@/lib/forum-api";
 import { getCurrentForumUser } from "@/lib/forum-auth";
 import { buildThreadBreadcrumbs } from "@/lib/forum-breadcrumbs";
-import { getPageSize } from "@/lib/forum-settings";
+import { getPostsPerPage } from "@/lib/forum-settings";
 import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import {
 	type Attachment,
@@ -57,11 +57,8 @@ export async function loadThreadDetail(params: {
 	direction?: "forward" | "backward";
 	limit?: number;
 }): Promise<ThreadDetailPageData> {
-	// Fetch current user session and page size setting
-	const [sessionUser, defaultLimit] = await Promise.all([
-		getCurrentForumUser(),
-		getPageSize(),
-	]);
+	// Fetch current user session and posts per page setting
+	const [sessionUser, defaultLimit] = await Promise.all([getCurrentForumUser(), getPostsPerPage()]);
 
 	// Parallel fetch: thread + posts + forums
 	const [threadRes, postsRes, forumsRes] = await Promise.all([

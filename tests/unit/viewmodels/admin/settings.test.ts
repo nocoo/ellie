@@ -15,9 +15,9 @@ describe("SETTING_GROUPS", () => {
 		expect(SETTING_GROUPS).toHaveLength(3);
 	});
 
-	it("should define 14 total fields across all groups", () => {
+	it("should define 15 total fields across all groups", () => {
 		const totalFields = SETTING_GROUPS.reduce((sum, g) => sum + g.fields.length, 0);
-		expect(totalFields).toBe(14);
+		expect(totalFields).toBe(15);
 	});
 
 	it("should have correct group titles", () => {

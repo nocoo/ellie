@@ -147,6 +147,12 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 					canDeleteThread={data.canDeleteThread}
 					currentUserId={data.currentUser?.id ?? null}
 					currentUserRole={data.currentUser?.role ?? 0}
+					prevHref={
+						data.prevCursor
+							? `/threads/${threadId}?cursor=${data.prevCursor}&direction=backward`
+							: null
+					}
+					nextHref={data.nextCursor ? `/threads/${threadId}?cursor=${data.nextCursor}` : null}
 				/>
 			</ModProvider>
 
