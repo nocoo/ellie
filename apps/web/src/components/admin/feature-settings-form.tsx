@@ -199,5 +199,26 @@ function FeatureFieldInput({ field, value, onChange, disabled }: FeatureFieldInp
 		);
 	}
 
+	if (field.inputType === "text") {
+		return (
+			<div className={cn("rounded-lg border p-4", disabled && "opacity-50")}>
+				<div className="space-y-2">
+					<Label htmlFor={field.key} className="font-medium">
+						{field.label}
+					</Label>
+					<Input
+						id={field.key}
+						type="text"
+						value={value}
+						placeholder={field.placeholder}
+						onChange={(e) => onChange(field.key, e.target.value)}
+						disabled={disabled}
+					/>
+					{field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
+				</div>
+			</div>
+		);
+	}
+
 	return null;
 }

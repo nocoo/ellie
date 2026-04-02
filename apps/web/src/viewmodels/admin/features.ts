@@ -22,7 +22,7 @@ export type SettingsUpdatePayload = Record<string, string>;
 // Field definition types
 // ---------------------------------------------------------------------------
 
-export type FeatureFieldInputType = "switch" | "number" | "checkbox-group";
+export type FeatureFieldInputType = "switch" | "number" | "checkbox-group" | "text";
 
 export interface FeatureFieldDef {
 	/** DB settings.key, e.g. "features.access.require_login" */
@@ -65,6 +65,39 @@ export const FEATURE_GROUPS: FeatureGroupDef[] = [
 				label: "强制登录访问",
 				inputType: "switch",
 				hint: "开启后，所有页面都需要登录才能访问。关闭则允许匿名浏览。",
+			},
+			{
+				key: "features.access.maintenance_mode",
+				label: "站点维护模式",
+				inputType: "switch",
+				hint: "开启后，普通用户将看到维护页面，管理员仍可访问",
+			},
+			{
+				key: "features.access.maintenance_message",
+				label: "维护提示信息",
+				inputType: "text",
+				placeholder: "系统维护中，请稍后再试...",
+				hint: "显示给用户的维护提示文字",
+			},
+		],
+	},
+	{
+		id: "content",
+		title: "内容功能",
+		description: "控制用户发布内容的功能",
+		prefix: "features.content",
+		fields: [
+			{
+				key: "features.content.allow_new_thread",
+				label: "允许发表新帖",
+				inputType: "switch",
+				hint: "关闭后用户将无法发表新主题",
+			},
+			{
+				key: "features.content.allow_reply",
+				label: "允许回复",
+				inputType: "switch",
+				hint: "关闭后用户将无法回复帖子",
 			},
 		],
 	},
@@ -110,8 +143,13 @@ export const FEATURE_GROUPS: FeatureGroupDef[] = [
 // ---------------------------------------------------------------------------
 
 export const FEATURE_DEFAULTS: Record<string, string> = {
-	// Access control - default: allow anonymous
+	// Access control - default: allow anonymous, maintenance off
 	"features.access.require_login": "false",
+	"features.access.maintenance_mode": "false",
+	"features.access.maintenance_message": "系统维护中，请稍后再试...",
+	// Content features - default: all enabled
+	"features.content.allow_new_thread": "true",
+	"features.content.allow_reply": "true",
 	// Posting restrictions - default: enabled with basic restrictions
 	"features.posting.enabled": "true",
 	"features.posting.min_registration_days": "1",
