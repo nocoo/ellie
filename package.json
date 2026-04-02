@@ -16,7 +16,7 @@
 		"test": "bun run --filter '*' test",
 		"test:unit": "bun run --filter '*' test:unit",
 		"test:integration": "bun run --filter '*' test:integration",
-		"test:e2e": "bun run --filter web test:e2e",
+		"test:e2e": "bunx playwright test -c playwright.config.ts",
 		"typecheck": "bun run --filter '*' typecheck",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",

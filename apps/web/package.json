@@ -10,7 +10,7 @@
 		"test:unit": "bun test --preload ../../tests/unit/preload.ts ../../tests/unit/",
 		"test:integration": "bun test --preload ../../tests/integration/preload.ts ../../tests/integration/",
 		"test:coverage": "bun test --coverage ../../tests/unit/",
-		"test:e2e": "bunx playwright test",
+		"test:e2e": "bunx playwright test -c ../../playwright.config.ts",
 		"typecheck": "tsc --noEmit",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
