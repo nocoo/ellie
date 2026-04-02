@@ -599,44 +599,44 @@ export interface Thread {
 
 ## 实施计划
 
-### Phase 1: 数据库改动 + 写路径
+### Phase 1: 数据库改动 + 写路径 ✅
 
-| 步骤 | 内容 | 原子提交 |
-|------|------|----------|
-| 1.1 | 创建迁移脚本添加 `last_poster_id` 字段 | `db: add last_poster_id columns` |
-| 1.2 | 更新 `packages/db/src/schema.ts` | 同上 |
-| 1.3 | 更新 `packages/types` 类型定义 | `types: add lastPosterId fields` |
-| 1.4 | 更新 `thread.ts` create() 写入 `last_poster_id` | `worker: thread create writes last_poster_id` |
-| 1.5 | 更新 `post.ts` create() 写入 `last_poster_id` | `worker: post create writes last_poster_id` |
-| 1.6 | 更新 `recalcMetadata.ts` 维护 `last_poster_id` | `worker: recalcMetadata maintains last_poster_id` |
-| 1.7 | 更新 `recalcForums`/`recalcThreads` 填充 ID | `worker: statistics recalc fills last_poster_id` |
-| 1.8 | 部署 Worker + 执行迁移 + 运行重算 | — |
+| 步骤 | 内容 | 状态 |
+|------|------|------|
+| 1.1 | 创建迁移脚本添加 `last_poster_id` 字段 | ✅ |
+| 1.2 | 更新 `packages/db/src/schema.ts` | ✅ |
+| 1.3 | 更新 `packages/types` 类型定义 | ✅ |
+| 1.4 | 更新 `thread.ts` create() 写入 `last_poster_id` | ✅ |
+| 1.5 | 更新 `post.ts` create() 写入 `last_poster_id` | ✅ |
+| 1.6 | 更新 `recalcMetadata.ts` 维护 `last_poster_id` | ✅ |
+| 1.7 | 更新 `recalcForums`/`recalcThreads` 填充 ID | ✅ |
+| 1.8 | 部署 Worker + 执行迁移 + 运行重算 | ✅ (forums done, threads partial) |
 
-### Phase 2: KV 缓存层 + 读路径
+### Phase 2: KV 缓存层 + 读路径 ✅
 
-| 步骤 | 内容 | 原子提交 |
-|------|------|----------|
-| 2.1 | 实现 `user-cache.ts` 缓存模块 | `worker: add user-cache.ts` |
-| 2.2 | 更新 `forum.ts` list() 使用 KV | `worker: forum list uses KV cache` |
-| 2.3 | 更新 `thread.ts` list()/getById() 使用 KV | `worker: thread handlers use KV cache` |
-| 2.4 | 更新 mappers 支持新字段 | `worker: mappers support new fields` |
-| 2.5 | 部署 + 测试 | — |
+| 步骤 | 内容 | 状态 |
+|------|------|------|
+| 2.1 | 实现 `user-cache.ts` 缓存模块 | ✅ |
+| 2.2 | 更新 `forum.ts` list() 使用 KV | ✅ |
+| 2.3 | 更新 `thread.ts` list()/getById() 使用 KV | ✅ |
+| 2.4 | 更新 mappers 支持新字段 | ✅ |
+| 2.5 | 部署 + 测试 | ✅ |
 
-### Phase 3: 缓存失效
+### Phase 3: 缓存失效 ✅
 
-| 步骤 | 内容 | 原子提交 |
-|------|------|----------|
-| 3.1 | `admin/user.ts` 添加 afterUpdate 失效缓存 | `worker: invalidate cache on user update` |
-| 3.2 | `me.ts` 头像更新后失效缓存 | `worker: invalidate cache on avatar change` |
-| 3.3 | 部署 + 测试 | — |
+| 步骤 | 内容 | 状态 |
+|------|------|------|
+| 3.1 | `admin/user.ts` 添加 afterUpdate 失效缓存 | ✅ |
+| 3.2 | `me.ts` 头像更新后失效缓存 | ✅ |
+| 3.3 | 部署 + 测试 | ✅ |
 
-### Phase 4: 前端适配
+### Phase 4: 前端适配 ✅
 
-| 步骤 | 内容 | 原子提交 |
-|------|------|----------|
-| 4.1 | `forum-card.tsx` 使用 `UserPopover` | `web: forum-card uses UserPopover` |
-| 4.2 | `thread-item.tsx` 使用 `UserPopover` | `web: thread-item uses UserPopover` |
-| 4.3 | `threads/[id]/page.tsx` 使用 `UserPopover` | `web: thread detail uses UserPopover` |
+| 步骤 | 内容 | 状态 |
+|------|------|------|
+| 4.1 | `forum-card.tsx` 使用 `UserPopover` | ✅ |
+| 4.2 | `thread-item.tsx` 使用 `UserPopover` | ✅ |
+| 4.3 | `threads/[id]/page.tsx` 使用 `UserPopover` | ⏳ (data ready, UI unchanged) |
 
 ### Phase 5: 清理（可选，待稳定后）
 
