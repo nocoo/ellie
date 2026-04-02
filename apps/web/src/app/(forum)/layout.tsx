@@ -45,17 +45,13 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function ForumLayout({ children }: { children: ReactNode }) {
-	const [settings, stats, currentUser] = await Promise.all([
-		fetchPublicSettings(),
-		loadStats(),
-		loadCurrentUser(),
-	]);
-
-	// Check maintenance mode — allow admins to bypass
+	// First, fetch settings to check maintenance mode
+	const settings = await fetchPublicSettings();
 	const isMaintenanceMode = getBool(settings, "features.access.maintenance_mode", false);
-	const isAdmin = currentUser?.role === 1; // role 1 = admin
 
-	if (isMaintenanceMode && !isAdmin) {
+	// If maintenance mode is on, show maintenance page immediately
+	// (skip loading stats/user which would fail with 503 anyway)
+	if (isMaintenanceMode) {
 		const message = getStr(
 			settings,
 			"features.access.maintenance_message",
@@ -63,6 +59,9 @@ export default async function ForumLayout({ children }: { children: ReactNode })
 		);
 		return <MaintenancePage message={message} />;
 	}
+
+	// Normal mode — load all data
+	const [stats, currentUser] = await Promise.all([loadStats(), loadCurrentUser()]);
 
 	const headerVm = buildHeaderViewModel(settings, currentUser, stats);
 	const footerVm = buildGlobalFooterViewModel(settings);
