@@ -302,6 +302,39 @@ describe("resolveProxyAction", () => {
 	});
 
 	// -----------------------------------------------------------------------
+	// require_login feature flag
+	// -----------------------------------------------------------------------
+
+	it("allows unauthenticated user on public routes when requireLogin is false", () => {
+		expect(resolveProxyAction("/", false, null, null, false)).toBe("next");
+		expect(resolveProxyAction("/forums/10", false, null, null, false)).toBe("next");
+		expect(resolveProxyAction("/threads/123", false, null, null, false)).toBe("next");
+	});
+
+	it("redirects unauthenticated user on public routes when requireLogin is true", () => {
+		expect(resolveProxyAction("/", false, null, null, true)).toBe("redirect:/login");
+		expect(resolveProxyAction("/forums/10", false, null, null, true)).toBe("redirect:/login");
+		expect(resolveProxyAction("/threads/123", false, null, null, true)).toBe("redirect:/login");
+		expect(resolveProxyAction("/digest", false, null, null, true)).toBe("redirect:/login");
+		expect(resolveProxyAction("/search", false, null, null, true)).toBe("redirect:/login");
+	});
+
+	it("allows authenticated user on public routes when requireLogin is true", () => {
+		expect(resolveProxyAction("/", true, NON_ADMIN_EMAIL, "credentials", true)).toBe("next");
+		expect(resolveProxyAction("/forums/10", true, NON_ADMIN_EMAIL, "credentials", true)).toBe("next");
+		expect(resolveProxyAction("/threads/123", true, NON_ADMIN_EMAIL, "credentials", true)).toBe(
+			"next",
+		);
+	});
+
+	it("always allows login pages even when requireLogin is true", () => {
+		expect(resolveProxyAction("/login", false, null, null, true)).toBe("next");
+		expect(resolveProxyAction("/register", false, null, null, true)).toBe("next");
+		expect(resolveProxyAction("/admin/login", false, null, null, true)).toBe("next");
+		expect(resolveProxyAction("/api/auth/signin", false, null, null, true)).toBe("next");
+	});
+
+	// -----------------------------------------------------------------------
 	// Non-public, non-admin, non-forum-auth routes (catch-all)
 	// -----------------------------------------------------------------------
 
