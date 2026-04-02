@@ -261,6 +261,11 @@ export function UserPopover({
 						{/* Detail rows */}
 						<div className="px-4 py-3 space-y-2">
 							<DetailRow
+								icon={<UserIcon className="h-3.5 w-3.5" />}
+								label="UID"
+								value={String(user.id)}
+							/>
+							<DetailRow
 								icon={<Calendar className="h-3.5 w-3.5" />}
 								label="注册时间"
 								value={formatDate(user.regDate)}
@@ -270,13 +275,11 @@ export function UserPopover({
 								label="最后活动"
 								value={formatLastActive(user.lastActivity)}
 							/>
-							{user.olTime > 0 && (
-								<DetailRow
-									icon={<Star className="h-3.5 w-3.5" />}
-									label="在线时长"
-									value={`${formatNumber(user.olTime)} 小时`}
-								/>
-							)}
+							<DetailRow
+								icon={<Star className="h-3.5 w-3.5" />}
+								label="在线时长"
+								value={`${formatNumber(user.olTime)} 小时`}
+							/>
 
 							{/* Bio preview */}
 							{user.bio && (
@@ -294,10 +297,6 @@ export function UserPopover({
 									管理员信息
 								</p>
 								<div className="space-y-1.5 text-xs">
-									<div className="flex justify-between">
-										<span className="text-muted-foreground">UID</span>
-										<span className="font-mono text-foreground">{user.id}</span>
-									</div>
 									{user.qq && (
 										<div className="flex justify-between">
 											<span className="text-muted-foreground">QQ</span>
@@ -332,7 +331,7 @@ export function UserPopover({
 										className="inline-flex items-center justify-center h-6 px-2 rounded-lg text-xs font-medium gap-1 hover:bg-muted transition-colors"
 									>
 										<Mail className="h-3.5 w-3.5" />
-										私信
+										发消息
 									</Link>
 								)}
 
