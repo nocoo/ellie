@@ -17,6 +17,7 @@ export const TABLES = {
 			last_thread_id INTEGER NOT NULL DEFAULT 0,
 			last_post_at INTEGER NOT NULL DEFAULT 0,
 			last_poster TEXT NOT NULL DEFAULT '',
+			last_poster_id INTEGER NOT NULL DEFAULT 0,
 			last_thread_subject TEXT NOT NULL DEFAULT ''
 		);
 	`,
@@ -68,6 +69,7 @@ export const TABLES = {
 			created_at INTEGER NOT NULL,
 			last_post_at INTEGER NOT NULL,
 			last_poster TEXT NOT NULL,
+			last_poster_id INTEGER NOT NULL DEFAULT 0,
 			replies INTEGER NOT NULL DEFAULT 0,
 			views INTEGER NOT NULL DEFAULT 0,
 			closed INTEGER NOT NULL DEFAULT 0,
@@ -152,6 +154,7 @@ export const INDEXES = {
 	forums: [
 		"CREATE INDEX IF NOT EXISTS idx_forums_parent ON forums(parent_id);",
 		"CREATE INDEX IF NOT EXISTS idx_forums_display_order ON forums(display_order);",
+		"CREATE INDEX IF NOT EXISTS idx_forums_last_poster_id ON forums(last_poster_id);",
 	],
 
 	users: [
@@ -163,6 +166,7 @@ export const INDEXES = {
 		"CREATE INDEX IF NOT EXISTS idx_threads_forum ON threads(forum_id, last_post_at DESC);",
 		"CREATE INDEX IF NOT EXISTS idx_threads_author ON threads(author_id);",
 		"CREATE INDEX IF NOT EXISTS idx_threads_latest ON threads(last_post_at DESC);",
+		"CREATE INDEX IF NOT EXISTS idx_threads_last_poster_id ON threads(last_poster_id);",
 	],
 
 	posts: [
