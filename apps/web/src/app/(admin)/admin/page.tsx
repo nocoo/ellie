@@ -37,7 +37,7 @@ export default async function DashboardPage() {
 			</div>
 
 			{error && (
-				<div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+				<div className="rounded-[var(--radius-card,14px)] bg-destructive/10 p-4 text-sm text-destructive">
 					{error}
 				</div>
 			)}
@@ -82,8 +82,8 @@ export default async function DashboardPage() {
 						/>
 
 						{/* Quick Links */}
-						<div className="rounded-xl border bg-card p-5">
-							<p className="text-sm font-medium text-muted-foreground">快捷入口</p>
+						<div className="rounded-[var(--radius-card,14px)] bg-secondary p-4 md:p-5">
+							<p className="text-xs md:text-sm text-muted-foreground">快捷入口</p>
 							<ul className="mt-3 space-y-2">
 								{QUICK_LINKS.map((link) => (
 									<li key={link.href}>
