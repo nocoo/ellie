@@ -13,6 +13,8 @@ export const TABLES = {
 			posts INTEGER NOT NULL DEFAULT 0,
 			type TEXT NOT NULL DEFAULT 'forum',
 			status INTEGER NOT NULL DEFAULT 1,
+			visibility TEXT NOT NULL DEFAULT 'public'
+				CHECK(visibility IN ('public', 'members', 'staff', 'admin')),
 			moderators TEXT NOT NULL DEFAULT '',
 			moderator_ids TEXT NOT NULL DEFAULT '',
 			last_thread_id INTEGER NOT NULL DEFAULT 0,
@@ -156,6 +158,7 @@ export const INDEXES = {
 		"CREATE INDEX IF NOT EXISTS idx_forums_parent ON forums(parent_id);",
 		"CREATE INDEX IF NOT EXISTS idx_forums_display_order ON forums(display_order);",
 		"CREATE INDEX IF NOT EXISTS idx_forums_last_poster_id ON forums(last_poster_id);",
+		"CREATE INDEX IF NOT EXISTS idx_forums_visibility ON forums(visibility);",
 	],
 
 	users: [

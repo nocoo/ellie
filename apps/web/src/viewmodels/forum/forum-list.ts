@@ -1,7 +1,13 @@
 // viewmodels/forum/forum-list.ts — Forum list ViewModel
 // Ref: 04d §论坛首页 — Group → Forum → Sub tree, visibility filter
 
-import { type Forum, type ForumTreeNode, buildForumTree, filterVisibleForums } from "@ellie/types";
+import {
+	type Forum,
+	type ForumTreeNode,
+	type VisibilityContext,
+	buildForumTree,
+	filterVisibleForums,
+} from "@ellie/types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -20,10 +26,13 @@ export interface ForumListState {
 /**
  * Build the visible forum tree from a flat forum list.
  * - Filters out invisible forums (status<=0, status=3) and their descendants.
+ * - Filters based on user role and visibility settings.
  */
-export function buildVisibleTree(forums: Forum[]): ForumTreeNode[] {
+export function buildVisibleTree(forums: Forum[], ctx?: VisibilityContext): ForumTreeNode[] {
 	const tree = buildForumTree(forums);
-	return tree.map(filterVisibleForums).filter((n): n is ForumTreeNode => n !== null);
+	return tree
+		.map((node) => filterVisibleForums(node, ctx))
+		.filter((n): n is ForumTreeNode => n !== null);
 }
 
 /**

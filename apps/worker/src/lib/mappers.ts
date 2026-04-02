@@ -63,6 +63,7 @@ interface D1ForumRow {
 	posts: number;
 	type: string;
 	status: number;
+	visibility: string;
 	moderators: string;
 	moderator_ids: string;
 	last_thread_id: number;
@@ -165,6 +166,7 @@ export function toForum(row: Record<string, unknown>): Forum {
 		posts: r.posts,
 		type: r.type as Forum["type"],
 		status: r.status,
+		visibility: (r.visibility || "public") as Forum["visibility"],
 		moderators: r.moderators,
 		moderatorList: [], // Will be populated from JOIN or separate query
 		todayThreads: 0, // Computed at query time, not stored in D1

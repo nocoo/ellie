@@ -8,6 +8,7 @@ export type {
 	PublicUser,
 	User,
 	Forum,
+	ForumVisibility,
 	Thread,
 	Post,
 	Attachment,
@@ -16,8 +17,13 @@ export type {
 } from "./types";
 
 // ─── Forum ───────────────────────────────────────────────────
-export type { ForumTreeNode } from "./forum";
-export { buildForumTree, filterVisibleForums, findForumAncestors } from "./forum";
+export type { ForumTreeNode, VisibilityContext } from "./forum";
+export {
+	buildForumTree,
+	filterVisibleForums,
+	findForumAncestors,
+	canViewForum as canViewForumVisibility,
+} from "./forum";
 
 // ─── Thread ──────────────────────────────────────────────────
 export type { ThreadBadge, HighlightStyle } from "./thread";

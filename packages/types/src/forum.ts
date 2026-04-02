@@ -1,7 +1,8 @@
 // models/forum.ts — Forum model pure functions
 // Ref: 04c §ForumManagement (buildForumTree), 04d §ForumList (filterVisibleForums)
 
-import type { Forum } from "./types";
+import type { Forum, ForumVisibility } from "./types";
+import { UserRole } from "./types";
 
 // ─── Forum Tree ─────────────────────────────────────────
 
@@ -76,18 +77,66 @@ export function findForumAncestors(forums: Forum[], forumId: number): Forum[] {
 // ─── Visibility Filter ──────────────────────────────────
 
 /**
+ * User context for visibility filtering.
+ * role: UserRole enum value (0=User, 1=Admin, 2=SuperMod, 3=Mod)
+ * isLoggedIn: whether the user is authenticated
+ */
+export interface VisibilityContext {
+	isLoggedIn: boolean;
+	role: UserRole;
+}
+
+/**
+ * Check if user can view a forum based on its visibility setting.
+ * - public: everyone
+ * - members: logged in users only
+ * - staff: mods, super mods, and admins
+ * - admin: admins only
+ */
+export function canViewForum(visibility: ForumVisibility, ctx: VisibilityContext): boolean {
+	switch (visibility) {
+		case "public":
+			return true;
+		case "members":
+			return ctx.isLoggedIn;
+		case "staff":
+			return ctx.role === UserRole.Admin || ctx.role === UserRole.SuperMod || ctx.role === UserRole.Mod;
+		case "admin":
+			return ctx.role === UserRole.Admin;
+		default:
+			return true;
+	}
+}
+
+/**
  * Filter a tree node: remove invisible forums and their descendants.
+ * Checks both status and visibility.
+ *
+ * Status filtering:
  * - status=0: hidden (admin-hidden)
  * - status=-1: deleted (migrated placeholder)
  * - status=2: paused forums (暂停版面)
  * - status=3: QQ group forums (migrated from Discuz UCHome) — hidden by default
+ *
+ * Visibility filtering:
+ * - public: everyone can see
+ * - members: only logged-in users
+ * - staff: only mods/super mods/admins
+ * - admin: only admins
  */
-export function filterVisibleForums(node: ForumTreeNode): ForumTreeNode | null {
+export function filterVisibleForums(
+	node: ForumTreeNode,
+	ctx: VisibilityContext = { isLoggedIn: false, role: UserRole.User },
+): ForumTreeNode | null {
+	// Status-based filtering
 	if (node.status <= 0 || node.status === 2 || node.status === 3) return null;
+
+	// Visibility-based filtering
+	if (!canViewForum(node.visibility, ctx)) return null;
 
 	const visibleChildren: ForumTreeNode[] = [];
 	for (const child of node.children) {
-		const filtered = filterVisibleForums(child);
+		const filtered = filterVisibleForums(child, ctx);
 		if (filtered) visibleChildren.push(filtered);
 	}
 
