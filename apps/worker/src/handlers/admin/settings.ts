@@ -37,6 +37,7 @@ const ALLOWED_KEYS = new Set([
 	"general.og.twitter_site",
 	// general.pagination
 	"general.pagination.page_size",
+	"general.pagination.posts_per_page",
 	"general.pagination.max_post_length",
 	// general.navigation
 	"general.navigation.header_links",
@@ -56,7 +57,11 @@ const ALLOWED_KEYS = new Set([
 ]);
 
 /** Keys that must have positive numeric values */
-const NUMBER_KEYS = new Set(["general.pagination.page_size", "general.pagination.max_post_length"]);
+const NUMBER_KEYS = new Set([
+	"general.pagination.page_size",
+	"general.pagination.posts_per_page",
+	"general.pagination.max_post_length",
+]);
 
 /** Keys that must have non-negative numeric values (0 allowed) */
 const NUMBER_KEYS_ALLOW_ZERO = new Set(["features.posting.min_registration_days"]);

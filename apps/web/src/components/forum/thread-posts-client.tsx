@@ -1,10 +1,9 @@
 "use client";
+import { FloatingActions } from "@/components/forum/floating-actions";
 import { PostCard } from "@/components/forum/post-card";
 import { ReplyDialog } from "@/components/forum/reply-dialog";
-import { Button } from "@/components/ui/button";
 import type { EnrichedPost } from "@/viewmodels/forum/thread-detail";
 import type { Thread } from "@ellie/types";
-import { MessageSquarePlus } from "lucide-react";
 import { useCallback, useState } from "react";
 
 interface ThreadPostsClientProps {
@@ -20,6 +19,10 @@ interface ThreadPostsClientProps {
 	currentUserId: number | null;
 	/** Current viewer's role for popover permission checks */
 	currentUserRole?: number;
+	/** Previous page URL for pagination */
+	prevHref?: string | null;
+	/** Next page URL for pagination */
+	nextHref?: string | null;
 }
 
 export function ThreadPostsClient({
@@ -31,6 +34,8 @@ export function ThreadPostsClient({
 	canDeleteThread,
 	currentUserId,
 	currentUserRole = 0,
+	prevHref,
+	nextHref,
 }: ThreadPostsClientProps) {
 	const [replyOpen, setReplyOpen] = useState(false);
 	const [quotedPost, setQuotedPost] = useState<{
@@ -86,19 +91,14 @@ export function ThreadPostsClient({
 				);
 			})}
 
-			{/* Floating reply button (mobile-friendly quick reply) */}
-			{!thread.closed && (
-				<div className="fixed bottom-6 right-6 z-40">
-					<Button
-						onClick={handleQuickReply}
-						size="lg"
-						className="rounded-full h-14 w-14 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-xl hover:shadow-2xl transition-all duration-200 hover:scale-105"
-					>
-						<MessageSquarePlus className="h-6 w-6" />
-						<span className="sr-only">快速回复</span>
-					</Button>
-				</div>
-			)}
+			{/* Floating actions: scroll to top, reply button, keyboard hints */}
+			<FloatingActions
+				showReply={thread.closed !== 1}
+				onReply={handleQuickReply}
+				prevHref={prevHref}
+				nextHref={nextHref}
+				backHref={`/forums/${thread.forumId}`}
+			/>
 
 			{/* Reply Dialog */}
 			<ReplyDialog

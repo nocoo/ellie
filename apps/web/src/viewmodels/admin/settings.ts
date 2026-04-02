@@ -103,7 +103,14 @@ export const SETTING_GROUPS: SettingGroupDef[] = [
 				label: "列表每页数量",
 				inputType: "number",
 				placeholder: "20",
-				hint: "适用于所有列表（前台、管理后台）",
+				hint: "适用于论坛列表、帖子列表等",
+			},
+			{
+				key: "general.pagination.posts_per_page",
+				label: "帖子每页回帖数",
+				inputType: "number",
+				placeholder: "20",
+				hint: "帖子详情页每页显示的回帖数量",
 			},
 			{
 				key: "general.pagination.max_post_length",
