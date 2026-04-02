@@ -10,6 +10,7 @@ export default defineConfig({
 	testDir: "tests/e2e",
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 2 : 0,
+	// Global workers setting: 1 in CI, parallel locally for stateless tests
 	workers: process.env.CI ? 1 : undefined,
 	reporter: "html",
 
@@ -33,7 +34,8 @@ export default defineConfig({
 		{
 			name: "stateful",
 			testMatch: /\/(thread|post)\.spec\.ts/,
-			fullyParallel: false, // Sequential to avoid race conditions
+			fullyParallel: false,
+			dependencies: ["stateless"], // Run after stateless completes
 			use: { ...devices["Desktop Chrome"] },
 		},
 	],

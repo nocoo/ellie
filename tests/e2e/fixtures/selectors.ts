@@ -76,8 +76,8 @@ export const USER = {
 	avatar: 'img[alt*="avatar"], .avatar',
 	/** Stats cards container */
 	statsCards: '[data-testid="stats-cards"]',
-	/** Tab navigation */
-	tabNav: '[role="tablist"]',
+	/** Tab navigation - plain div.flex, not ARIA tablist */
+	tabNav: "div.flex.items-center.gap-1",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -86,9 +86,9 @@ export const USER = {
 
 export const SEARCH = {
 	/** Search input field */
-	input: 'input[placeholder*="搜索"], input[type="search"]',
+	input: 'input[name="q"], input[placeholder*="搜索"], input[type="search"]',
 	/** Search submit button */
 	submitButton: 'button:has-text("搜索")',
-	/** Search type tabs (only visible after query) */
-	typeTabs: '[role="tablist"]',
+	/** Search type tabs container (not ARIA tablist, just div.flex) */
+	typeTabs: ".flex.items-center.gap-1.border-b",
 } as const;

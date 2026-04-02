@@ -44,9 +44,11 @@ export class UserPage {
 		return this.page.locator('a[href*="tab=posts"]');
 	}
 
-	/** Tab navigation */
+	/** Tab navigation - plain div.flex, not role="tablist" */
 	get tabNav() {
-		return this.page.locator(USER.tabNav);
+		return this.page.locator("div.flex.items-center.gap-1").filter({
+			has: this.page.locator('a[href*="tab="], span'),
+		});
 	}
 
 	/** Threads tab */

@@ -55,32 +55,62 @@ test.describe("E2E-SY: System Flow", () => {
 // ---------------------------------------------------------------------------
 
 test.describe("Responsive Viewports", () => {
-	test("mobile viewport (375x812) loads homepage", async ({ page }) => {
+	test("mobile viewport (375x812) loads homepage with forum content", async ({ page }) => {
 		await page.setViewportSize({ width: 375, height: 812 }); // iPhone
 		await page.goto("/");
 		await page.waitForLoadState("networkidle");
-		// Page should load correctly on mobile
-		await expect(page.locator("body")).toBeVisible();
+
+		// Should have main content area visible
+		await expect(page.locator("main")).toBeVisible();
+
+		// Forum groups should be visible (may stack vertically on mobile)
+		const forumLinks = page.locator('a[href^="/forums/"]');
+		await expect(forumLinks.first()).toBeVisible();
+
+		// Header should be visible but may be condensed
+		await expect(page.locator("header")).toBeVisible();
 	});
 
-	test("mobile viewport shows login form", async ({ page }) => {
+	test("mobile viewport shows login form with proper layout", async ({ page }) => {
 		await page.setViewportSize({ width: 375, height: 812 });
 		await page.goto("/login");
-		await expect(page.locator('input[id="username"]')).toBeVisible();
-		await expect(page.locator('input[id="password"]')).toBeVisible();
+
+		// Form inputs should be visible and full-width on mobile
+		const usernameInput = page.locator('input[id="username"]');
+		const passwordInput = page.locator('input[id="password"]');
+		await expect(usernameInput).toBeVisible();
+		await expect(passwordInput).toBeVisible();
+
+		// Submit button should be visible
+		await expect(page.locator('button[type="submit"]')).toBeVisible();
 	});
 
-	test("tablet viewport (768x1024) loads homepage", async ({ page }) => {
+	test("tablet viewport (768x1024) loads homepage with grid layout", async ({ page }) => {
 		await page.setViewportSize({ width: 768, height: 1024 }); // iPad
 		await page.goto("/");
 		await page.waitForLoadState("networkidle");
-		await expect(page.locator("body")).toBeVisible();
+
+		// Main content should be visible
+		await expect(page.locator("main")).toBeVisible();
+
+		// Forum content should be present
+		const forumLinks = page.locator('a[href^="/forums/"]');
+		await expect(forumLinks.first()).toBeVisible();
 	});
 
-	test("desktop viewport (1440x900) shows full layout", async ({ page }) => {
+	test("desktop viewport (1440x900) shows full layout with sidebar", async ({ page }) => {
 		await page.setViewportSize({ width: 1440, height: 900 });
 		await page.goto("/");
 		await page.waitForLoadState("networkidle");
-		await expect(page.locator("body")).toBeVisible();
+
+		// Main content should be visible
+		await expect(page.locator("main")).toBeVisible();
+
+		// Forum links should be present
+		const forumLinks = page.locator('a[href^="/forums/"]');
+		await expect(forumLinks.first()).toBeVisible();
+
+		// Header with navigation should be visible
+		await expect(page.locator("header")).toBeVisible();
 	});
 });

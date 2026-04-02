@@ -22,9 +22,12 @@ export class ForumPage {
 		return this.page.locator(FORUM.newThreadButton);
 	}
 
-	/** Thread list container */
+	/** Thread list container - inside Card > CardContent */
 	get threadList() {
-		return this.page.locator('[data-testid="thread-list"], [class*="divide-y"]');
+		// Real DOM: Card > CardContent > div containing ThreadItems
+		return this.page.locator('[class*="CardContent"] > div, .p-0 > div').filter({
+			has: this.page.locator('a[href^="/threads/"]'),
+		});
 	}
 
 	/** Individual thread items */
@@ -32,9 +35,9 @@ export class ForumPage {
 		return this.page.locator('a[href^="/threads/"]');
 	}
 
-	/** Breadcrumbs navigation */
+	/** Breadcrumbs navigation - plain nav without aria-label */
 	get breadcrumbs() {
-		return this.page.locator('nav[aria-label="breadcrumb"]');
+		return this.page.locator("nav.flex.items-center.gap-1");
 	}
 
 	/** Empty state message */
