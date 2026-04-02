@@ -394,14 +394,14 @@ div.quote::before {
 	-webkit-backdrop-filter: blur(8px);
 }
 .glass-panel {
-	background: rgba(255, 255, 255, 0.88);
+	background: rgba(255, 255, 255, 0.95);
 	backdrop-filter: blur(20px) saturate(1.4);
 	-webkit-backdrop-filter: blur(20px) saturate(1.4);
 	border: 1px solid rgba(255, 255, 255, 0.3);
 	box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
 }
 .dark .glass-panel {
-	background: rgba(23, 23, 23, 0.88);
+	background: rgba(23, 23, 23, 0.95);
 	border: 1px solid rgba(255, 255, 255, 0.1);
 	box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
