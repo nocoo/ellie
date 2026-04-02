@@ -22,35 +22,46 @@ export function ForumHeaderClient({ forum, isGroup }: ForumHeaderClientProps) {
 
 	return (
 		<>
-			<div className="flex items-start justify-between gap-4">
-				<div className="min-w-0 flex-1">
-					<h1 className="text-lg font-semibold">{forum.name}</h1>
-					<div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground flex-wrap">
-						{forum.description && <SafeHtml html={forum.description} />}
-						{!isGroup && (
-							<>
-								<span>帖子 {formatNumber(forum.threads)}</span>
-								<span>回帖 {formatNumber(forum.posts)}</span>
-								<Link
-									href="/digest"
-									className="text-success hover:text-success/80 transition-colors"
-								>
-									精华帖
-								</Link>
-							</>
-						)}
-					</div>
+			<div className="rounded-sm border border-border bg-card p-4">
+				{/* Top: Forum name + New thread button */}
+				<div className="flex items-center justify-between gap-4">
+					<h1 className="text-lg font-semibold text-foreground">{forum.name}</h1>
+					{!isGroup && (
+						<Button
+							onClick={() => setDialogOpen(true)}
+							className="shrink-0 gap-2 bg-primary hover:bg-primary/90"
+						>
+							<PenLine className="h-4 w-4" />
+							发表新帖
+						</Button>
+					)}
 				</div>
 
-				{/* New thread button - only for regular forums, not groups */}
+				{/* Description */}
+				{forum.description && (
+					<SafeHtml
+						html={forum.description}
+						className="mt-2 text-sm text-muted-foreground leading-relaxed"
+					/>
+				)}
+
+				{/* Stats row */}
 				{!isGroup && (
-					<Button
-						onClick={() => setDialogOpen(true)}
-						className="shrink-0 gap-2 bg-primary hover:bg-primary/90"
-					>
-						<PenLine className="h-4 w-4" />
-						发表新帖
-					</Button>
+					<div className="mt-3 pt-3 border-t border-border/50 flex items-center gap-6 text-sm">
+						<span className="text-muted-foreground">
+							帖子{" "}
+							<span className="font-medium text-foreground">{formatNumber(forum.threads)}</span>
+						</span>
+						<span className="text-muted-foreground">
+							回帖 <span className="font-medium text-foreground">{formatNumber(forum.posts)}</span>
+						</span>
+						<Link
+							href="/digest"
+							className="text-success hover:text-success/80 transition-colors font-medium"
+						>
+							精华帖
+						</Link>
+					</div>
 				)}
 			</div>
 

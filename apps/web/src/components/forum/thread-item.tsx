@@ -40,12 +40,12 @@ export function ThreadItem({ item }: ThreadItemProps) {
 				</Link>
 			</div>
 
-			{/* Column 2: Author (fixed) */}
+			{/* Column 2: Author (fixed) - primary info */}
 			<div className="hidden sm:flex flex-col items-center justify-center w-[100px] shrink-0 py-2 text-center">
 				<UserPopover userId={thread.authorId}>
 					<Link
 						href={`/users/${thread.authorId}`}
-						className="text-2xs text-foreground hover:text-primary transition-colors truncate max-w-full"
+						className="text-2xs text-foreground font-medium hover:text-primary transition-colors truncate max-w-full"
 					>
 						{thread.authorName}
 					</Link>
@@ -53,22 +53,25 @@ export function ThreadItem({ item }: ThreadItemProps) {
 				<span className="text-2xs text-muted-foreground">{formatTime(thread.createdAt)}</span>
 			</div>
 
-			{/* Column 3: Replies / Views (fixed) */}
+			{/* Column 3: Replies / Views (fixed) - replies primary, views secondary */}
 			<div className="hidden sm:flex flex-col items-center justify-center w-[80px] shrink-0 py-2 text-center tabular-nums">
-				<span className="text-2xs text-foreground">{formatStat(thread.replies)}</span>
+				<span className="text-2xs text-foreground font-medium">{formatStat(thread.replies)}</span>
 				<span className="text-2xs text-muted-foreground">{formatStat(thread.views)}</span>
 			</div>
 
-			{/* Column 4: Last Post (fixed) */}
+			{/* Column 4: Last Post (fixed) - author primary, time secondary */}
 			<div className="hidden sm:flex flex-col items-center justify-center w-[120px] shrink-0 py-2 text-center">
 				{thread.lastPosterId > 0 ? (
 					<UserPopover userId={thread.lastPosterId}>
-						<span className="text-2xs text-foreground truncate max-w-full cursor-pointer hover:text-primary transition-colors">
+						<Link
+							href={`/users/${thread.lastPosterId}`}
+							className="text-2xs text-foreground font-medium truncate max-w-full hover:text-primary transition-colors"
+						>
 							{thread.lastPoster || "-"}
-						</span>
+						</Link>
 					</UserPopover>
 				) : (
-					<span className="text-2xs text-foreground truncate max-w-full">
+					<span className="text-2xs text-muted-foreground truncate max-w-full">
 						{thread.lastPoster || "-"}
 					</span>
 				)}

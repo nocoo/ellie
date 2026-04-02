@@ -2,8 +2,8 @@
 // Server component with Link-based page buttons + client JumpToPage island
 
 import { Button } from "@/components/ui/button";
-import { generatePageNumbers } from "@/viewmodels/shared/pagination";
 import { formatNumber } from "@/viewmodels/shared/formatting";
+import { generatePageNumbers } from "@/viewmodels/shared/pagination";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { JumpToPage } from "./jump-to-page";
@@ -66,6 +66,7 @@ export function PagePagination({ page, pages, total, basePath, className }: Page
 							key={item}
 							variant={item === page ? "default" : "outline"}
 							size="xs"
+							className={item === page ? "bg-primary text-primary-foreground" : undefined}
 							{...(item === page
 								? { nativeButton: true, disabled: true }
 								: { nativeButton: false, render: <Link href={href(item)} /> })}
