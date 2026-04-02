@@ -3,6 +3,7 @@ import { toUser } from "../lib/mappers";
 import { hashPassword, verifyDiscuzPassword, verifyPassword } from "../lib/password";
 import { jsonResponse } from "../lib/response";
 import { withAuth } from "../lib/routeHelpers";
+import { invalidateUserCache } from "../lib/user-cache";
 import { errorResponse } from "../middleware/error";
 
 /** Explicit column list — never SELECT * to avoid leaking sensitive fields */
@@ -55,6 +56,11 @@ export const updateProfile = withAuth(async (request, env, user) => {
 	await env.DB.prepare(`UPDATE users SET ${setClauses.join(", ")} WHERE id = ?`)
 		.bind(...params)
 		.run();
+
+	// Invalidate user cache if avatar was changed (it's a cached field)
+	if (avatar !== undefined) {
+		await invalidateUserCache(env, user.userId);
+	}
 
 	// Fetch updated user
 	const row = await env.DB.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`)

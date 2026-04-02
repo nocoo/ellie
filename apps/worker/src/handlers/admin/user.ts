@@ -6,6 +6,7 @@ import { toUser } from "../../lib/mappers";
 import { parsePathSegment } from "../../lib/parseId";
 import { recalcForumMetadata, recalcThreadMetadata } from "../../lib/recalcMetadata";
 import { jsonResponse } from "../../lib/response";
+import { invalidateUserCache } from "../../lib/user-cache";
 import { batchDecrementUserPosts } from "../../lib/userCounters";
 // Admin user handlers (#36-#42) — CRUD framework + custom actions
 import { errorResponse } from "../../middleware/error";
@@ -106,6 +107,16 @@ const userConfig: EntityConfig = {
 		}
 
 		return undefined;
+	},
+
+	// #38 afterUpdate: invalidate user cache if username/avatar/role changed
+	afterUpdate: async (id, data, _existing, env, _origin) => {
+		// Check if any cached field was updated
+		const cacheFields = ["username", "avatar", "role"];
+		const needsInvalidation = cacheFields.some((field) => data[field] !== undefined);
+		if (needsInvalidation) {
+			await invalidateUserCache(env, id);
+		}
 	},
 };
 
