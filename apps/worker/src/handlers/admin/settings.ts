@@ -46,6 +46,7 @@ const ALLOWED_KEYS = new Set([
 	"features.access.require_login",
 	"features.access.maintenance_mode",
 	"features.access.maintenance_message",
+	"features.access.maintenance_admin_bypass",
 	// features.content — content controls
 	"features.content.allow_new_thread",
 	"features.content.allow_reply",
@@ -70,6 +71,7 @@ const NUMBER_KEYS_ALLOW_ZERO = new Set(["features.posting.min_registration_days"
 const BOOLEAN_KEYS = new Set([
 	"features.access.require_login",
 	"features.access.maintenance_mode",
+	"features.access.maintenance_admin_bypass",
 	"features.content.allow_new_thread",
 	"features.content.allow_reply",
 	"features.posting.enabled",
