@@ -3,6 +3,7 @@
 // Ref: docs/04g-user-auth.md §4 — Registration page
 
 import { registerUser } from "@/actions/auth";
+import { CapWidget } from "@/components/cap-widget";
 import { ForumLogo } from "@/components/forum/forum-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,8 @@ import {
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+
+const CAP_API_ENDPOINT = process.env.NEXT_PUBLIC_CAP_API_ENDPOINT ?? "";
 
 // ---------------------------------------------------------------------------
 // Username availability status
@@ -94,12 +97,14 @@ function RegisterFormInner() {
 	const [password, setPassword] = useState("");
 	const [confirmPassword, setConfirmPassword] = useState("");
 	const [email, setEmail] = useState("");
+	const [capToken, setCapToken] = useState("");
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
 
+	const capEnabled = Boolean(CAP_API_ENDPOINT);
 	const formState = { username, password, confirmPassword, email };
-	const canSubmit = canSubmitRegister(formState);
+	const canSubmit = canSubmitRegister(formState) && (!capEnabled || capToken);
 	const strength = passwordStrength(password);
 	const usernameError = username.trim() ? validateUsername(username) : null;
 	const emailError = email.trim() ? validateEmail(email) : null;
@@ -270,6 +275,17 @@ function RegisterFormInner() {
 									/>
 									{emailError && <p className="text-xs text-destructive">{emailError}</p>}
 								</div>
+
+								{/* Cap CAPTCHA */}
+								{capEnabled && (
+									<div className="flex justify-center">
+										<CapWidget
+											apiEndpoint={CAP_API_ENDPOINT}
+											onSolve={setCapToken}
+											onError={() => setCapToken("")}
+										/>
+									</div>
+								)}
 
 								{/* Submit */}
 								<Button type="submit" disabled={!canSubmit || loading} className="w-full">

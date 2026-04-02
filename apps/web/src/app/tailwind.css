@@ -417,6 +417,21 @@ div.quote::before {
 }
 
 /* ==========================================================================
+   Cap.js CAPTCHA Widget Theming
+   ========================================================================== */
+cap-widget {
+	--cap-background: hsl(var(--card));
+	--cap-border-color: hsl(var(--border));
+	--cap-border-radius: var(--radius);
+	--cap-spinner-color: hsl(var(--primary));
+	--cap-font: var(--font-sans), system-ui, sans-serif;
+}
+.dark cap-widget {
+	--cap-background: hsl(var(--card));
+	--cap-border-color: hsl(var(--border));
+}
+
+/* ==========================================================================
    Background Pattern
    ========================================================================== */
 body::before {
