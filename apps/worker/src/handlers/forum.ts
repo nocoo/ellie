@@ -1,13 +1,18 @@
 import type { Forum } from "@ellie/types";
 import type { Env } from "../lib/env";
-import { toForum } from "../lib/mappers";
+import { enrichForumsWithUserCache, enrichForumWithUserCache, toForum } from "../lib/mappers";
+import { getUserProfiles } from "../lib/user-cache";
 
 // Forum handlers for Cloudflare Worker
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
 /** GET /api/v1/forums - List all forums (no pagination) */
-export async function list(request: Request, env: Env): Promise<Response> {
+export async function list(
+	request: Request,
+	env: Env,
+	ctx: ExecutionContext,
+): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	// Run both queries in parallel: all forums + per-forum thread count in last 24h
@@ -28,11 +33,18 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		todayMap.set(row.forum_id, row.cnt);
 	}
 
-	const forums: Forum[] = forumResult.results.map((row) => {
+	let forums: Forum[] = forumResult.results.map((row) => {
 		const forum = toForum(row as Record<string, unknown>);
 		forum.todayThreads = todayMap.get(forum.id) ?? 0;
 		return forum;
 	});
+
+	// Enrich with user cache for lastPoster info
+	const lastPosterIds = forums.map((f) => f.lastPosterId).filter((id) => id > 0);
+	if (lastPosterIds.length > 0) {
+		const userCache = await getUserProfiles(env, ctx, lastPosterIds);
+		forums = enrichForumsWithUserCache(forums, userCache);
+	}
 
 	return new Response(
 		JSON.stringify({
@@ -52,7 +64,11 @@ export async function list(request: Request, env: Env): Promise<Response> {
 }
 
 /** GET /api/v1/forums/:id - Get forum by ID */
-export async function getById(request: Request, env: Env): Promise<Response> {
+export async function getById(
+	request: Request,
+	env: Env,
+	ctx: ExecutionContext,
+): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const pathParts = url.pathname.split("/");
@@ -66,7 +82,7 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
 	}
 
-	const forum = toForum(result as Record<string, unknown>);
+	let forum = toForum(result as Record<string, unknown>);
 
 	// Count threads in last 24h for this forum
 	const cutoff24h = Math.floor(Date.now() / 1000) - 86400;
@@ -76,6 +92,12 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 		.bind(id, cutoff24h)
 		.first<{ cnt: number }>();
 	forum.todayThreads = countResult?.cnt ?? 0;
+
+	// Enrich with user cache for lastPoster info
+	if (forum.lastPosterId > 0) {
+		const userCache = await getUserProfiles(env, ctx, [forum.lastPosterId]);
+		forum = enrichForumWithUserCache(forum, userCache);
+	}
 
 	return new Response(
 		JSON.stringify({

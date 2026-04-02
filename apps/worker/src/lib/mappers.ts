@@ -67,6 +67,7 @@ interface D1ForumRow {
 	last_thread_id: number;
 	last_post_at: number;
 	last_poster: string;
+	last_poster_id: number;
 	last_thread_subject: string;
 }
 
@@ -80,6 +81,7 @@ interface D1ThreadRow {
 	created_at: number;
 	last_post_at: number;
 	last_poster: string;
+	last_poster_id: number;
 	replies: number;
 	views: number;
 	closed: number;
@@ -167,6 +169,8 @@ export function toForum(row: Record<string, unknown>): Forum {
 		lastThreadId: r.last_thread_id,
 		lastPostAt: r.last_post_at,
 		lastPoster: r.last_poster,
+		lastPosterId: r.last_poster_id ?? 0,
+		lastPosterAvatar: "", // Will be populated from KV cache
 		lastThreadSubject: r.last_thread_subject,
 	};
 }
@@ -179,10 +183,13 @@ export function toThread(row: Record<string, unknown>): Thread {
 		forumId: r.forum_id,
 		authorId: r.author_id,
 		authorName: r.author_name,
+		authorAvatar: "", // Will be populated from KV cache
 		subject: r.subject,
 		createdAt: r.created_at,
 		lastPostAt: r.last_post_at,
 		lastPoster: r.last_poster,
+		lastPosterId: r.last_poster_id ?? 0,
+		lastPosterAvatar: "", // Will be populated from KV cache
 		replies: r.replies,
 		views: r.views,
 		closed: r.closed,
@@ -341,3 +348,87 @@ export function toPublicUser(row: Record<string, unknown>): PublicUser {
 export function toSelfUser(row: Record<string, unknown>): User {
 	return toUser(row);
 }
+
+// ─── User Cache Enhanced Mappers ──────────────────────────────────────────────
+// These functions enrich Forum/Thread with user info from KV cache
+
+import type { UserMiniProfile } from "./user-cache";
+
+/**
+ * Enrich forums with user info from KV cache.
+ * Populates lastPosterAvatar from the user cache.
+ */
+export function enrichForumsWithUserCache(
+	forums: Forum[],
+	userCache: Map<number, UserMiniProfile>,
+): Forum[] {
+	return forums.map((forum) => {
+		const user = userCache.get(forum.lastPosterId);
+		if (user) {
+			return {
+				...forum,
+				lastPoster: user.username, // Use cached username (may be updated)
+				lastPosterAvatar: user.avatar,
+			};
+		}
+		return forum;
+	});
+}
+
+/**
+ * Enrich threads with user info from KV cache.
+ * Populates authorAvatar and lastPosterAvatar from the user cache.
+ */
+export function enrichThreadsWithUserCache(
+	threads: Thread[],
+	userCache: Map<number, UserMiniProfile>,
+): Thread[] {
+	return threads.map((thread) => {
+		const author = userCache.get(thread.authorId);
+		const lastPoster = userCache.get(thread.lastPosterId);
+		return {
+			...thread,
+			authorName: author?.username ?? thread.authorName,
+			authorAvatar: author?.avatar ?? "",
+			lastPoster: lastPoster?.username ?? thread.lastPoster,
+			lastPosterAvatar: lastPoster?.avatar ?? "",
+		};
+	});
+}
+
+/**
+ * Enrich a single forum with user info from KV cache.
+ */
+export function enrichForumWithUserCache(
+	forum: Forum,
+	userCache: Map<number, UserMiniProfile>,
+): Forum {
+	const user = userCache.get(forum.lastPosterId);
+	if (user) {
+		return {
+			...forum,
+			lastPoster: user.username,
+			lastPosterAvatar: user.avatar,
+		};
+	}
+	return forum;
+}
+
+/**
+ * Enrich a single thread with user info from KV cache.
+ */
+export function enrichThreadWithUserCache(
+	thread: Thread,
+	userCache: Map<number, UserMiniProfile>,
+): Thread {
+	const author = userCache.get(thread.authorId);
+	const lastPoster = userCache.get(thread.lastPosterId);
+	return {
+		...thread,
+		authorName: author?.username ?? thread.authorName,
+		authorAvatar: author?.avatar ?? "",
+		lastPoster: lastPoster?.username ?? thread.lastPoster,
+		lastPosterAvatar: lastPoster?.avatar ?? "",
+	};
+}
+
