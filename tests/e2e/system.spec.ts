@@ -30,7 +30,7 @@ test.describe("E2E-SY: System Flow", () => {
 
 		// Click to cycle to next state
 		await themeToggle.first().click();
-		await page.waitForTimeout(100); // Wait for state update
+		await expect(themeToggle.first()).not.toHaveAttribute("aria-label", initialLabel ?? "");
 
 		// Should have changed
 		const secondLabel = await themeToggle.first().getAttribute("aria-label");
@@ -38,18 +38,15 @@ test.describe("E2E-SY: System Flow", () => {
 
 		// Click again to cycle
 		await themeToggle.first().click();
-		await page.waitForTimeout(100);
+		await expect(themeToggle.first()).not.toHaveAttribute("aria-label", secondLabel ?? "");
 
 		const thirdLabel = await themeToggle.first().getAttribute("aria-label");
 		expect(thirdLabel).not.toBe(secondLabel);
 
 		// Click again to cycle back
 		await themeToggle.first().click();
-		await page.waitForTimeout(100);
-
-		const fourthLabel = await themeToggle.first().getAttribute("aria-label");
-		// After 3 clicks, should be back to initial state
-		expect(fourthLabel).toBe(initialLabel);
+		await expect(themeToggle.first()).toHaveAttribute("aria-label", initialLabel ?? "");
+		// After 3 clicks, should be back to initial state (verified above)
 	});
 });
 

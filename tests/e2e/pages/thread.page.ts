@@ -2,6 +2,7 @@
 // Ref: docs/e2e-test-design.md §Page Object Corrections
 
 import type { Page } from "@playwright/test";
+import { DIALOG, THREAD } from "../fixtures/selectors";
 
 export class ThreadPage {
 	constructor(private page: Page) {}
@@ -23,7 +24,7 @@ export class ThreadPage {
 
 	/** Post cards */
 	get postCards() {
-		return this.page.locator('[class*="bg-card"]').filter({ has: this.page.locator(".prose") });
+		return this.page.locator(THREAD.postCard).filter({ has: this.page.locator(THREAD.postContent) });
 	}
 
 	/** Author info in post sidebar */
@@ -33,12 +34,12 @@ export class ThreadPage {
 
 	/** Reply button in floating actions or post bar */
 	get replyButton() {
-		return this.page.getByRole("button", { name: /回复/ }).first();
+		return this.page.locator(THREAD.replyButton).first();
 	}
 
 	/** Reply dialog */
 	get replyDialog() {
-		return this.page.locator('[role="dialog"]');
+		return this.page.locator(DIALOG.overlay);
 	}
 
 	/** Reply dialog title */

@@ -2,6 +2,7 @@
 // Ref: docs/e2e-test-design.md §E2E-NV-04
 
 import type { Page } from "@playwright/test";
+import { USER } from "../fixtures/selectors";
 
 export class UserPage {
 	constructor(private page: Page) {}
@@ -13,7 +14,7 @@ export class UserPage {
 
 	/** User avatar image */
 	get avatar() {
-		return this.page.locator(".h-16.w-16 img, .avatar img").first();
+		return this.page.locator(USER.avatar).first();
 	}
 
 	/** Username heading */
@@ -28,7 +29,7 @@ export class UserPage {
 
 	/** Stats cards (threads/posts/digest/credits) */
 	get statsCards() {
-		return this.page.locator(".grid-cols-4 > a, .grid-cols-4 > div").filter({
+		return this.page.locator('[data-testid="stats-cards"] > a, [data-testid="stats-cards"] > div, .grid-cols-4 > a, .grid-cols-4 > div').filter({
 			has: this.page.locator("p.text-2xl"),
 		});
 	}
@@ -45,9 +46,7 @@ export class UserPage {
 
 	/** Tab navigation */
 	get tabNav() {
-		return this.page.locator(".border-b .flex").filter({
-			has: this.page.locator("a, span"),
-		});
+		return this.page.locator(USER.tabNav);
 	}
 
 	/** Threads tab */

@@ -2,6 +2,7 @@
 // Ref: docs/e2e-test-design.md §E2E-AU specs
 
 import type { Page } from "@playwright/test";
+import { FORM } from "../fixtures/selectors";
 
 export class LoginPage {
 	constructor(private page: Page) {}
@@ -13,22 +14,22 @@ export class LoginPage {
 
 	/** Username input field */
 	get usernameInput() {
-		return this.page.locator('input[id="username"]');
+		return this.page.locator(FORM.usernameInput);
 	}
 
 	/** Password input field */
 	get passwordInput() {
-		return this.page.locator('input[id="password"]');
+		return this.page.locator(FORM.passwordInput);
 	}
 
 	/** Submit button */
 	get submitButton() {
-		return this.page.locator('button[type="submit"]');
+		return this.page.locator(FORM.submitButton);
 	}
 
 	/** Error message display */
 	get errorMessage() {
-		return this.page.locator(".text-destructive");
+		return this.page.locator('[data-testid="error-message"], .text-destructive');
 	}
 
 	/** Fill username field */
@@ -52,7 +53,10 @@ export class LoginPage {
 		await this.submitButton.click();
 	}
 
-	/** Login with given credentials and wait for redirect */
+	/**
+	 * Login with given credentials and wait for redirect
+	 * @deprecated Use the `loginAs` fixture from fixtures/base.ts instead
+	 */
 	async login(username: string, password: string) {
 		await this.fillCredentials(username, password);
 		await this.submit();

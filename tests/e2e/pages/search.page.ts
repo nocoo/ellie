@@ -2,6 +2,7 @@
 // Ref: docs/e2e-test-design.md §E2E-SE specs
 
 import type { Page } from "@playwright/test";
+import { SEARCH } from "../fixtures/selectors";
 
 export class SearchPage {
 	constructor(private page: Page) {}
@@ -13,7 +14,7 @@ export class SearchPage {
 
 	/** Search input field */
 	get searchInput() {
-		return this.page.locator('input[name="q"]');
+		return this.page.locator(SEARCH.input);
 	}
 
 	/** Search submit button */
@@ -23,22 +24,22 @@ export class SearchPage {
 
 	/** Search type tabs (only visible after query) */
 	get typeTabs() {
-		return this.page.locator(".border-b .flex");
+		return this.page.locator(SEARCH.typeTabs);
 	}
 
 	/** Title search tab */
 	get titleTab() {
-		return this.page.locator("text=按标题搜索");
+		return this.page.getByRole("tab", { name: /标题/ });
 	}
 
 	/** Author search tab */
 	get authorTab() {
-		return this.page.locator("text=按作者搜索");
+		return this.page.getByRole("tab", { name: /作者/ });
 	}
 
 	/** Search results list */
 	get results() {
-		return this.page.locator(".divide-y a[href^='/threads/']");
+		return this.page.locator('[data-testid="search-results"] a[href^="/threads/"], .divide-y a[href^="/threads/"]');
 	}
 
 	/** No results message */

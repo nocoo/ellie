@@ -77,11 +77,8 @@ test.describe("E2E-PO: Post Flow", () => {
 		// Dialog should close
 		await expect(dialog).not.toBeVisible({ timeout: 15000 });
 
-		// Page should refresh and show new reply
-		// Wait for potential router refresh
-		await page.waitForLoadState("networkidle");
-
-		// Our reply should appear in the page
-		await expect(page.locator(`text=${uniqueReply}`)).toBeVisible({ timeout: 10000 });
+		// Our reply should appear in the page (wait for content, not networkidle)
+		const replyLocator = page.locator(`text=${uniqueReply}`);
+		await expect(replyLocator).toBeVisible({ timeout: 10000 });
 	});
 });

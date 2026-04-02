@@ -3,6 +3,7 @@
 
 import { expect, test } from "./fixtures/base";
 import { LoginPage } from "./pages/login.page";
+import { FORM } from "./fixtures/selectors";
 
 test.describe("E2E-AU: Auth Flow", () => {
 	/**
@@ -51,12 +52,9 @@ test.describe("E2E-AU: Auth Flow", () => {
 	 * Then I should be redirected to /
 	 * And I should see my username in navbar
 	 */
-	test("E2E-AU-03: login success redirects to home", async ({ page }) => {
-		const loginPage = new LoginPage(page);
-		await loginPage.goto();
-
+	test("E2E-AU-03: login success redirects to home", async ({ page, loginAs }) => {
 		// Login with valid credentials (mock auth: password === username)
-		await loginPage.login("admin", "admin");
+		await loginAs("admin");
 
 		// Should be redirected away from login page
 		await expect(page).not.toHaveURL(/\/login/);
@@ -70,5 +68,44 @@ test.describe("E2E-AU: Auth Flow", () => {
 			'[data-testid="user-menu"], [aria-label*="user"], text=admin',
 		);
 		await expect(userIndicator.first()).toBeVisible({ timeout: 10000 });
+	});
+
+	/**
+	 * E2E-AU-04: Login Failure Shows Error
+	 * Given I am on /login
+	 * When I submit invalid credentials
+	 * Then I should see error message
+	 * And I should remain on login page
+	 */
+	test("E2E-AU-04: login failure shows error message", async ({ page }) => {
+		const loginPage = new LoginPage(page);
+		await loginPage.goto();
+
+		// Fill invalid credentials
+		await loginPage.fillCredentials("invalid_user", "wrong_password");
+		await loginPage.submit();
+
+		// Should remain on login page
+		await expect(page).toHaveURL(/\/login/);
+
+		// Should show error message (wait for API response)
+		await expect(loginPage.errorMessage).toBeVisible({ timeout: 5000 });
+	});
+
+	/**
+	 * E2E-AU-05: Logged-in user redirected from login page
+	 * Given I am logged in
+	 * When I navigate to /login
+	 * Then I should be redirected away
+	 */
+	test("E2E-AU-05: logged-in user redirected from login page", async ({ page, loginAs }) => {
+		// Login first
+		await loginAs("admin");
+
+		// Try to navigate to login page
+		await page.goto("/login");
+
+		// Should be redirected away from login page
+		await expect(page).not.toHaveURL(/\/login/, { timeout: 5000 });
 	});
 });
