@@ -3,6 +3,7 @@ import {
 	enrichThreads,
 	formatStat,
 	formatTime,
+	getThreadIconSrc,
 	highlightStyle,
 } from "../../../../apps/web/src/viewmodels/forum/thread-list";
 import { decodeHighlight } from "../../../../packages/types/src/thread";
@@ -18,10 +19,13 @@ function makeThread(overrides: Partial<Thread> & { id: number }): Thread {
 		forumId: 10,
 		authorId: 1,
 		authorName: "testuser",
+		authorAvatar: "",
 		subject: "Test thread",
 		createdAt: 1711600000,
 		lastPostAt: 1711610000,
 		lastPoster: "testuser",
+		lastPosterId: 1,
+		lastPosterAvatar: "",
 		replies: 0,
 		views: 100,
 		closed: 0,
@@ -30,6 +34,7 @@ function makeThread(overrides: Partial<Thread> & { id: number }): Thread {
 		special: 0,
 		highlight: 0,
 		recommends: 0,
+		typeName: "",
 		...overrides,
 	};
 }
@@ -85,6 +90,13 @@ describe("enrichThreads", () => {
 		expect(items[0]?.highlight).toBeTruthy();
 		expect(items[0]?.highlight?.color).toBe("#0000ff");
 	});
+
+	it("enriches multiple threads", () => {
+		const threads = [makeThread({ id: 1 }), makeThread({ id: 2, digest: 1 })];
+		const items = enrichThreads(threads);
+		expect(items).toHaveLength(2);
+		expect(items[1]?.thread.id).toBe(2);
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -132,6 +144,14 @@ describe("highlightStyle", () => {
 		// highlight with all zeros but somehow non-null (shouldn't happen from decodeHighlight)
 		expect(highlightStyle(null)).toBeUndefined();
 	});
+
+	it("returns undefined for highlight with only bold/italic flags but no actual visual properties applied", () => {
+		// If decodeHighlight returns a non-null object but with all empty/null visual props,
+		// highlightStyle returns undefined because Object.keys(style).length === 0
+		// This covers the edge case: non-null hl but no color, bold, italic, or underline
+		const hl = { color: null, bold: false, italic: false, underline: false };
+		expect(highlightStyle(hl as ReturnType<typeof decodeHighlight>)).toBeUndefined();
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -177,5 +197,192 @@ describe("formatStat", () => {
 		expect(formatStat(10000)).toBe("1.0万");
 		expect(formatStat(12345)).toBe("1.2万");
 		expect(formatStat(85000)).toBe("8.5万");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// getThreadIconSrc
+// ---------------------------------------------------------------------------
+
+describe("getThreadIconSrc", () => {
+	it("returns lock icon for closed thread", () => {
+		const result = getThreadIconSrc({
+			closed: 1,
+			special: 0,
+			sticky: StickyLevel.None,
+			digest: 0,
+			lastPostAt: Date.now() / 1000,
+		});
+		expect(result).toContain("folder_lock.gif");
+	});
+
+	it("returns poll icon for special=1 thread", () => {
+		const result = getThreadIconSrc({
+			closed: 0,
+			special: 1,
+			sticky: StickyLevel.None,
+			digest: 0,
+			lastPostAt: Date.now() / 1000,
+		});
+		expect(result).toContain("pollsmall.gif");
+	});
+
+	it("returns pin icon for forum-level sticky", () => {
+		const result = getThreadIconSrc({
+			closed: 0,
+			special: 0,
+			sticky: StickyLevel.Forum,
+			digest: 0,
+			lastPostAt: Date.now() / 1000,
+		});
+		expect(result).toContain("pin_1.gif");
+	});
+
+	it("returns pin icon for global sticky", () => {
+		const result = getThreadIconSrc({
+			closed: 0,
+			special: 0,
+			sticky: StickyLevel.Global,
+			digest: 0,
+			lastPostAt: Date.now() / 1000,
+		});
+		expect(result).toContain("pin_2.gif");
+	});
+
+	it("returns pin icon for category sticky (level 3)", () => {
+		const result = getThreadIconSrc({
+			closed: 0,
+			special: 0,
+			sticky: StickyLevel.Category,
+			digest: 0,
+			lastPostAt: Date.now() / 1000,
+		});
+		expect(result).toContain("pin_3.gif");
+	});
+
+	it("caps sticky level at 3 for pin icon filename", () => {
+		const result = getThreadIconSrc({
+			closed: 0,
+			special: 0,
+			sticky: 5 as StickyLevel, // Higher than max
+			digest: 0,
+			lastPostAt: Date.now() / 1000,
+		});
+		// Math.min(sticky, 3) = 3
+		expect(result).toContain("pin_3.gif");
+	});
+
+	it("returns digest icon for digest level 1", () => {
+		const result = getThreadIconSrc({
+			closed: 0,
+			special: 0,
+			sticky: StickyLevel.None,
+			digest: 1,
+			lastPostAt: Date.now() / 1000,
+		});
+		expect(result).toContain("digest_1.gif");
+	});
+
+	it("returns digest icon for digest level 3", () => {
+		const result = getThreadIconSrc({
+			closed: 0,
+			special: 0,
+			sticky: StickyLevel.None,
+			digest: 3,
+			lastPostAt: Date.now() / 1000,
+		});
+		expect(result).toContain("digest_3.gif");
+	});
+
+	it("caps digest level at 3 for digest icon filename", () => {
+		const result = getThreadIconSrc({
+			closed: 0,
+			special: 0,
+			sticky: StickyLevel.None,
+			digest: 5,
+			lastPostAt: Date.now() / 1000,
+		});
+		// Math.min(digest, 3) = 3
+		expect(result).toContain("digest_3.gif");
+	});
+
+	it("returns folder_new for thread with recent reply (within 24 hours)", () => {
+		const now = Math.floor(Date.now() / 1000);
+		const result = getThreadIconSrc({
+			closed: 0,
+			special: 0,
+			sticky: StickyLevel.None,
+			digest: 0,
+			lastPostAt: now - 100,
+		});
+		expect(result).toContain("folder_new.gif");
+	});
+
+	it("returns folder_common for old thread (no recent reply)", () => {
+		const now = Math.floor(Date.now() / 1000);
+		const result = getThreadIconSrc({
+			closed: 0,
+			special: 0,
+			sticky: StickyLevel.None,
+			digest: 0,
+			lastPostAt: now - 100000,
+		});
+		expect(result).toContain("folder_common.gif");
+	});
+
+	it("prioritizes closed over all other states", () => {
+		const result = getThreadIconSrc({
+			closed: 1,
+			special: 1,
+			sticky: StickyLevel.Global,
+			digest: 3,
+			lastPostAt: Date.now() / 1000,
+		});
+		expect(result).toContain("folder_lock.gif");
+	});
+
+	it("prioritizes special over sticky/digest/recent", () => {
+		const result = getThreadIconSrc({
+			closed: 0,
+			special: 1,
+			sticky: StickyLevel.Global,
+			digest: 3,
+			lastPostAt: Date.now() / 1000,
+		});
+		expect(result).toContain("pollsmall.gif");
+	});
+
+	it("prioritizes sticky over digest/recent", () => {
+		const result = getThreadIconSrc({
+			closed: 0,
+			special: 0,
+			sticky: StickyLevel.Forum,
+			digest: 2,
+			lastPostAt: Date.now() / 1000,
+		});
+		expect(result).toContain("pin_1.gif");
+	});
+
+	it("prioritizes digest over recent/old", () => {
+		const now = Math.floor(Date.now() / 1000);
+		const result = getThreadIconSrc({
+			closed: 0,
+			special: 0,
+			sticky: StickyLevel.None,
+			digest: 2,
+			lastPostAt: now - 100000,
+		});
+		expect(result).toContain("digest_2.gif");
+	});
+
+	it("returns CDN URLs", () => {
+		const result = getThreadIconSrc({
+			closed: 0,
+			special: 0,
+			sticky: StickyLevel.None,
+			digest: 0,
+			lastPostAt: 0,
+		});
+		expect(result).toContain("https://t.no.mt/static/image/common/");
 	});
 });

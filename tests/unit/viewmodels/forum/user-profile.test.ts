@@ -1,6 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import {
+	PROFILE_TABS,
 	buildProfileStats,
+	formatBirthday,
+	formatGender,
+	formatLastActivity,
+	formatLocation,
+	formatOlTime,
 	formatUserRole,
 	formatUserStatus,
 	getUserRoleBadgeVariant,
@@ -25,6 +31,27 @@ function makeUser(overrides: Partial<User> & { id: number }): User {
 		threads: 10,
 		posts: 50,
 		credits: 100,
+		signature: "",
+		groupTitle: "",
+		groupStars: 0,
+		groupColor: "",
+		customTitle: "",
+		digestPosts: 0,
+		olTime: 0,
+		gender: 0,
+		birthYear: 0,
+		birthMonth: 0,
+		birthDay: 0,
+		resideProvince: "",
+		resideCity: "",
+		graduateSchool: "",
+		bio: "",
+		interest: "",
+		qq: "",
+		site: "",
+		lastActivity: 0,
+		regIp: "",
+		lastIp: "",
 		...overrides,
 	};
 }
@@ -83,6 +110,12 @@ describe("buildProfileStats", () => {
 		const stats = buildProfileStats(user);
 		expect(stats).toEqual({ threads: 5, posts: 30, credits: 200 });
 	});
+
+	it("handles zero values", () => {
+		const user = makeUser({ id: 1, threads: 0, posts: 0, credits: 0 });
+		const stats = buildProfileStats(user);
+		expect(stats).toEqual({ threads: 0, posts: 0, credits: 0 });
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -124,7 +157,173 @@ describe("resolveTab", () => {
 		expect(resolveTab("posts")).toBe("posts");
 	});
 
+	it("resolves digest tab", () => {
+		expect(resolveTab("digest")).toBe("digest");
+	});
+
 	it("treats unknown values as threads", () => {
 		expect(resolveTab("invalid")).toBe("threads");
+	});
+
+	it("treats empty string as threads", () => {
+		expect(resolveTab("")).toBe("threads");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// PROFILE_TABS
+// ---------------------------------------------------------------------------
+
+describe("PROFILE_TABS", () => {
+	it("has 3 tabs", () => {
+		expect(PROFILE_TABS).toHaveLength(3);
+	});
+
+	it("has correct keys", () => {
+		const keys = PROFILE_TABS.map((t) => t.key);
+		expect(keys).toEqual(["threads", "posts", "digest"]);
+	});
+
+	it("has labels for all tabs", () => {
+		for (const tab of PROFILE_TABS) {
+			expect(tab.label).toBeTruthy();
+		}
+	});
+});
+
+// ---------------------------------------------------------------------------
+// formatGender
+// ---------------------------------------------------------------------------
+
+describe("formatGender", () => {
+	it("returns 男 for 1", () => {
+		expect(formatGender(1)).toBe("男");
+	});
+
+	it("returns 女 for 2", () => {
+		expect(formatGender(2)).toBe("女");
+	});
+
+	it("returns null for 0", () => {
+		expect(formatGender(0)).toBeNull();
+	});
+
+	it("returns null for unknown value", () => {
+		expect(formatGender(99)).toBeNull();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// formatBirthday
+// ---------------------------------------------------------------------------
+
+describe("formatBirthday", () => {
+	it("returns null when all zero", () => {
+		expect(formatBirthday(0, 0, 0)).toBeNull();
+	});
+
+	it("formats full birthday", () => {
+		expect(formatBirthday(2000, 6, 15)).toBe("2000年6月15日");
+	});
+
+	it("formats year and month only", () => {
+		expect(formatBirthday(2000, 6, 0)).toBe("2000年6月");
+	});
+
+	it("formats year only", () => {
+		expect(formatBirthday(2000, 0, 0)).toBe("2000年");
+	});
+
+	it("formats month and day only", () => {
+		expect(formatBirthday(0, 6, 15)).toBe("6月15日");
+	});
+
+	it("formats month only", () => {
+		expect(formatBirthday(0, 6, 0)).toBe("6月");
+	});
+
+	it("formats day only", () => {
+		expect(formatBirthday(0, 0, 15)).toBe("15日");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// formatLocation
+// ---------------------------------------------------------------------------
+
+describe("formatLocation", () => {
+	it("returns null when both empty", () => {
+		expect(formatLocation(undefined, undefined)).toBeNull();
+		expect(formatLocation(null, null)).toBeNull();
+		expect(formatLocation("", "")).toBeNull();
+	});
+
+	it("returns province only when city is empty", () => {
+		expect(formatLocation("Shanghai", undefined)).toBe("Shanghai");
+		expect(formatLocation("Shanghai", "")).toBe("Shanghai");
+		expect(formatLocation("Shanghai", null)).toBe("Shanghai");
+	});
+
+	it("returns city only when province is empty", () => {
+		expect(formatLocation(undefined, "Pudong")).toBe("Pudong");
+		expect(formatLocation("", "Pudong")).toBe("Pudong");
+		expect(formatLocation(null, "Pudong")).toBe("Pudong");
+	});
+
+	it("returns province and city together", () => {
+		expect(formatLocation("Shanghai", "Pudong")).toBe("Shanghai Pudong");
+	});
+
+	it("trims whitespace", () => {
+		expect(formatLocation("  Shanghai  ", "  Pudong  ")).toBe("Shanghai Pudong");
+	});
+
+	it("trims and returns non-empty province", () => {
+		expect(formatLocation("  Shanghai  ", "")).toBe("Shanghai");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// formatOlTime
+// ---------------------------------------------------------------------------
+
+describe("formatOlTime", () => {
+	it("returns null for zero", () => {
+		expect(formatOlTime(0)).toBeNull();
+	});
+
+	it("returns null for negative", () => {
+		expect(formatOlTime(-5)).toBeNull();
+	});
+
+	it("formats hours with locale number", () => {
+		const result = formatOlTime(100);
+		expect(result).toContain("小时");
+	});
+
+	it("formats large hours with separators", () => {
+		const result = formatOlTime(12345);
+		expect(result).toContain("小时");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// formatLastActivity
+// ---------------------------------------------------------------------------
+
+describe("formatLastActivity", () => {
+	it("returns null for zero timestamp", () => {
+		expect(formatLastActivity(0)).toBeNull();
+	});
+
+	it("returns null for negative timestamp", () => {
+		expect(formatLastActivity(-1)).toBeNull();
+	});
+
+	it("returns formatted date for valid timestamp", () => {
+		const ts = new Date("2024-06-15T00:00:00Z").getTime() / 1000;
+		const result = formatLastActivity(ts);
+		expect(result).not.toBeNull();
+		expect(typeof result).toBe("string");
 	});
 });
