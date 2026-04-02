@@ -36,13 +36,6 @@ export default defineConfig({
 			fullyParallel: false, // Sequential to avoid race conditions
 			use: { ...devices["Desktop Chrome"] },
 		},
-		// Legacy tests (to be migrated)
-		{
-			name: "legacy",
-			testMatch: /\/(critical-path|functional-flows|theme-responsive|admin-path)\.spec\.ts/,
-			fullyParallel: true,
-			use: { ...devices["Desktop Chrome"] },
-		},
 	],
 
 	webServer: {
