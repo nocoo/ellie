@@ -1,6 +1,6 @@
 # Ellie E2E Test Design (L3)
 
-> Version: 2.3 | Date: 2026-04-02
+> Version: 2.4 | Date: 2026-04-02
 > Ref: 6 维质量体系 L3 System/E2E
 
 ## Overview
@@ -28,9 +28,11 @@
 
 | 环境 | 端口 | 用途 |
 |------|------|------|
-| Dev | 3000 | 本地开发 |
-| API E2E (L2) | 13000 | Worker API 测试 |
-| Browser E2E (L3) | 23000 | Playwright 测试 |
+| Dev | 7031 | 本地开发 |
+| API E2E (L2) | 17031 | Worker API 测试 |
+| Browser E2E (L3) | 27031 | Playwright 测试 |
+
+> 规则：E2E = dev+10000，BDD = dev+20000（见 Memory 端口分配总表）
 
 ---
 
@@ -574,13 +576,13 @@ async function cycleTheme(page: Page, times: number) {
 
 | # | Commit | Status |
 |---|--------|--------|
-| 1 | Fixtures & Config | ⬜ |
-| 2 | Page Objects | ⬜ |
-| 3 | Navigation Spec | ⬜ |
-| 4 | Auth Spec | ⬜ |
-| 5 | Thread & Post Specs | ⬜ |
-| 6 | Search & System Specs | ⬜ |
-| 7 | Legacy Migration | ⬜ |
+| 1 | Fixtures & Config | ✅ |
+| 2 | Page Objects | ✅ |
+| 3 | Navigation Spec | ✅ |
+| 4 | Auth Spec | ✅ |
+| 5 | Thread & Post Specs | ✅ |
+| 6 | Search & System Specs | ✅ |
+| 7 | Legacy Migration | ✅ |
 
 **Current scope: 16 tests in 7 commits**
 
