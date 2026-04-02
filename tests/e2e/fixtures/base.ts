@@ -3,6 +3,7 @@
 // Pattern: surety project Page Object Model
 
 import { test as base, type Page } from "@playwright/test";
+import { FORM } from "./selectors";
 
 // ---------------------------------------------------------------------------
 // Custom fixtures
@@ -28,10 +29,10 @@ export const test = base.extend<TestFixtures>({
 	loginAs: async ({ page }, use) => {
 		const loginAs = async (username: string) => {
 			await page.goto("/login");
-			await page.fill('input[id="username"]', username);
+			await page.fill(FORM.usernameInput, username);
 			// Mock auth rule: password === username
-			await page.fill('input[id="password"]', username);
-			await page.click('button[type="submit"]');
+			await page.fill(FORM.passwordInput, username);
+			await page.click(FORM.submitButton);
 			// Wait for redirect away from login page
 			await page.waitForURL((url) => !url.pathname.includes("/login"), {
 				timeout: 10000,

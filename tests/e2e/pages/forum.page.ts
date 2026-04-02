@@ -2,6 +2,7 @@
 // Ref: docs/e2e-test-design.md §Page Object Corrections
 
 import type { Page } from "@playwright/test";
+import { DIALOG, FORUM } from "../fixtures/selectors";
 
 export class ForumPage {
 	constructor(private page: Page) {}
@@ -18,12 +19,12 @@ export class ForumPage {
 
 	/** New thread button - text is "发表新帖" */
 	get newThreadButton() {
-		return this.page.getByRole("button", { name: "发表新帖" });
+		return this.page.locator(FORUM.newThreadButton);
 	}
 
 	/** Thread list container */
 	get threadList() {
-		return this.page.locator('[class*="divide-y"]');
+		return this.page.locator('[data-testid="thread-list"], [class*="divide-y"]');
 	}
 
 	/** Individual thread items */
@@ -44,6 +45,6 @@ export class ForumPage {
 	/** Click new thread button and wait for dialog */
 	async clickNewThread() {
 		await this.newThreadButton.click();
-		await this.page.waitForSelector('[role="dialog"]');
+		await this.page.locator(DIALOG.overlay).waitFor({ state: "visible" });
 	}
 }

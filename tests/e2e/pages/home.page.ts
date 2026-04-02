@@ -2,6 +2,7 @@
 // Ref: docs/e2e-test-design.md §Page Object Corrections
 
 import type { Page } from "@playwright/test";
+import { NAV } from "../fixtures/selectors";
 
 export class HomePage {
 	constructor(private page: Page) {}
@@ -11,9 +12,14 @@ export class HomePage {
 		await this.page.waitForLoadState("networkidle");
 	}
 
+	/** Site logo */
+	get logo() {
+		return this.page.locator(NAV.logo);
+	}
+
 	/** Forum group containers */
 	get forumGroups() {
-		return this.page.locator(".space-y-4 > div").filter({ has: this.page.locator("h2") });
+		return this.page.locator('[data-testid="forum-groups"] > div, .space-y-4 > div').filter({ has: this.page.locator("h2") });
 	}
 
 	/** Digest showcase section */
