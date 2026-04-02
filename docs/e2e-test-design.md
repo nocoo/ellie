@@ -1,6 +1,6 @@
 # Ellie E2E Test Design (L3)
 
-> Version: 2.2 | Date: 2026-04-02
+> Version: 2.3 | Date: 2026-04-02
 > Ref: 6 维质量体系 L3 System/E2E
 
 ## Overview
@@ -88,20 +88,33 @@ test.describe.serial("Thread CRUD", () => {
 
 ```typescript
 // tests/e2e/auth.setup.ts — Playwright setup fixture
-import { test as setup, expect } from "@playwright/test";
+import { test as setup } from "@playwright/test";
+import fs from "fs";
 
 const ADMIN_AUTH_FILE = ".auth/admin.json";
 
 setup("authenticate as admin", async ({ page }) => {
-  // This requires manual OAuth completion once, then reuses state
+  // Skip if auth state already exists and is recent (< 7 days)
+  if (fs.existsSync(ADMIN_AUTH_FILE)) {
+    const stats = fs.statSync(ADMIN_AUTH_FILE);
+    const ageMs = Date.now() - stats.mtimeMs;
+    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+    if (ageMs < sevenDays) {
+      console.log("Reusing existing admin auth state");
+      return;  // Skip — state is still valid
+    }
+  }
+  
+  // First run or expired: require manual OAuth
+  console.log("Admin auth state missing or expired. Manual OAuth required.");
+  console.log("Complete Google OAuth in the browser window...");
+  
   await page.goto("/admin/login");
+  await page.waitForURL("/admin", { timeout: 120_000 });  // Wait for manual completion
   
-  // Wait for manual OAuth flow completion (first run only)
-  // Subsequent runs reuse the saved state
-  await page.waitForURL("/admin", { timeout: 60_000 });
-  
-  // Save signed-in state
+  // Save signed-in state for reuse
   await page.context().storageState({ path: ADMIN_AUTH_FILE });
+  console.log("Admin auth state saved to", ADMIN_AUTH_FILE);
 });
 
 // playwright.config.ts
@@ -121,6 +134,9 @@ export default defineConfig({
   ],
 });
 ```
+
+**首次运行**: 需要在浏览器中手动完成 Google OAuth。
+**后续运行**: 自动跳过，复用已存在的 `.auth/admin.json`（7 天内有效）。
 
 **解决方案 B: E2E Bypass Mode (CI 环境)**
 
