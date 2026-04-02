@@ -38,9 +38,6 @@ const ALLOWED_KEYS = new Set([
 	// general.pagination
 	"general.pagination.page_size",
 	"general.pagination.max_post_length",
-	"general.pagination.admin_page_size",
-	// general.assets
-	"general.assets.avatar_cdn_base",
 	// general.navigation
 	"general.navigation.header_links",
 	"general.navigation.friend_links",
@@ -59,11 +56,7 @@ const ALLOWED_KEYS = new Set([
 ]);
 
 /** Keys that must have positive numeric values */
-const NUMBER_KEYS = new Set([
-	"general.pagination.page_size",
-	"general.pagination.max_post_length",
-	"general.pagination.admin_page_size",
-]);
+const NUMBER_KEYS = new Set(["general.pagination.page_size", "general.pagination.max_post_length"]);
 
 /** Keys that must have non-negative numeric values (0 allowed) */
 const NUMBER_KEYS_ALLOW_ZERO = new Set(["features.posting.min_registration_days"]);
