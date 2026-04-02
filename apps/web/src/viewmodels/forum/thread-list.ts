@@ -96,8 +96,7 @@ export function getThreadIconSrc(thread: {
 	if (thread.special === 1) return getStaticImageUrl("pollsmall.gif");
 	if (thread.sticky >= StickyLevel.Forum)
 		return getStaticImageUrl(`pin_${Math.min(thread.sticky, 3)}.gif`);
-	if (thread.digest > 0)
-		return getStaticImageUrl(`digest_${Math.min(thread.digest, 3)}.gif`);
+	if (thread.digest > 0) return getStaticImageUrl(`digest_${Math.min(thread.digest, 3)}.gif`);
 	// folder_new: last reply within 24 hours
 	const oneDayAgo = Math.floor(Date.now() / 1000) - 86400;
 	if (thread.lastPostAt > oneDayAgo) return getStaticImageUrl("folder_new.gif");

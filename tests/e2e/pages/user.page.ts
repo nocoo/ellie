@@ -29,9 +29,13 @@ export class UserPage {
 
 	/** Stats cards (threads/posts/digest/credits) */
 	get statsCards() {
-		return this.page.locator('[data-testid="stats-cards"] > a, [data-testid="stats-cards"] > div, .grid-cols-4 > a, .grid-cols-4 > div').filter({
-			has: this.page.locator("p.text-2xl"),
-		});
+		return this.page
+			.locator(
+				'[data-testid="stats-cards"] > a, [data-testid="stats-cards"] > div, .grid-cols-4 > a, .grid-cols-4 > div',
+			)
+			.filter({
+				has: this.page.locator("p.text-2xl"),
+			});
 	}
 
 	/** Threads count card */

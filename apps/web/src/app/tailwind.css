@@ -209,9 +209,9 @@
    ========================================================================== */
 [data-area="admin"] {
 	/* Surfaces: L0 → L1 → L2 (warmer gray, following B-5 spec) */
-	--background: 220 14% 94%;  /* L0: page base */
-	--card: 220 14% 97%;        /* L1: floating island */
-	--secondary: 0 0% 100%;     /* L2: inner cards (pure white) */
+	--background: 220 14% 94%; /* L0: page base */
+	--card: 220 14% 97%; /* L1: floating island */
+	--secondary: 0 0% 100%; /* L2: inner cards (pure white) */
 	/* Cyan primary instead of teal */
 	--primary: 186 72% 38%;
 	--ring: 186 72% 38%;
@@ -228,14 +228,14 @@
 
 .dark [data-area="admin"] {
 	/* Surfaces: L0 → L1 → L2 (following B-5 spec) */
-	--background: 0 0% 9%;      /* L0: #171717 */
-	--card: 0 0% 10.6%;         /* L1: #1b1b1b */
-	--secondary: 0 0% 12.2%;    /* L2: #1f1f1f */
+	--background: 0 0% 9%; /* L0: #171717 */
+	--card: 0 0% 10.6%; /* L1: #1b1b1b */
+	--secondary: 0 0% 12.2%; /* L2: #1f1f1f */
 	/* Blue primary for dark admin */
 	--primary: 217 91% 60%;
 	--ring: 217 91% 60%;
 	/* L3: interactive controls */
-	--input: 0 0% 18%;          /* #2e2e2e */
+	--input: 0 0% 18%; /* #2e2e2e */
 }
 
 /* ==========================================================================

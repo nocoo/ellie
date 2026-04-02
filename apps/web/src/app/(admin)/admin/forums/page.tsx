@@ -30,7 +30,6 @@ import {
 	typeLabel,
 	updateForum,
 } from "@/viewmodels/admin/forums";
-import { formatNumber } from "@/viewmodels/shared/formatting";
 import {
 	ChevronRight,
 	FolderOpen,
@@ -104,12 +103,7 @@ function TreeConnector({ depth, isLast }: { depth: number; isLast: boolean }) {
 					{i === depth - 1 ? (
 						// Last connector with branch line
 						<div className="absolute left-3 top-0 h-full">
-							<div
-								className={cn(
-									"absolute left-0 w-px bg-border",
-									isLast ? "h-1/2" : "h-full",
-								)}
-							/>
+							<div className={cn("absolute left-0 w-px bg-border", isLast ? "h-1/2" : "h-full")} />
 							<div className="absolute left-0 top-1/2 h-px w-3 bg-border" />
 						</div>
 					) : (
@@ -135,14 +129,7 @@ interface ForumRowProps {
 	onDelete: (forum: Forum) => void;
 }
 
-function ForumRow({
-	node,
-	isLast,
-	onEdit,
-	onToggleStatus,
-	onMerge,
-	onDelete,
-}: ForumRowProps) {
+function ForumRow({ node, isLast, onEdit, onToggleStatus, onMerge, onDelete }: ForumRowProps) {
 	const hasChildren = node.children.length > 0;
 
 	return (
@@ -455,7 +442,12 @@ export default function ForumsPage() {
 					<div className="flex flex-col items-center justify-center py-12">
 						<SquareStack className="h-10 w-10 text-muted-foreground/50" />
 						<p className="mt-3 text-sm text-muted-foreground">暂无版块</p>
-						<Button variant="outline" size="sm" className="mt-4" onClick={() => setCreateOpen(true)}>
+						<Button
+							variant="outline"
+							size="sm"
+							className="mt-4"
+							onClick={() => setCreateOpen(true)}
+						>
 							<Plus className="mr-2 h-4 w-4" />
 							创建第一个分区
 						</Button>

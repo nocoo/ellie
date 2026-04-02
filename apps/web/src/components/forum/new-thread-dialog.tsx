@@ -224,11 +224,13 @@ export function NewThreadDialog({ open, onOpenChange, forumId, forumName }: NewT
 						{/* Footer */}
 						<div className="px-5 py-4 border-t border-border/50 bg-muted/30">
 							<div className="flex items-center justify-between">
-								<p className="text-xs text-muted-foreground">
-									支持富文本编辑，可插入链接和表情
-								</p>
+								<p className="text-xs text-muted-foreground">支持富文本编辑，可插入链接和表情</p>
 								<div className="flex items-center gap-2">
-									<Button variant="ghost" onClick={() => handleOpenChange(false)} disabled={submitting}>
+									<Button
+										variant="ghost"
+										onClick={() => handleOpenChange(false)}
+										disabled={submitting}
+									>
 										取消
 									</Button>
 									<Button

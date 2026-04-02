@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { Forum } from "@ellie/types";
-import { buildForumTree, type ForumTreeNode } from "@ellie/types";
+import { type ForumTreeNode, buildForumTree } from "@ellie/types";
 import { ArrowRight, Folder, FolderOpen } from "lucide-react";
 import { useEffect, useState } from "react";
 

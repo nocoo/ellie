@@ -558,9 +558,7 @@ export const recalcCounters = withEntityAuth(
 		const digestPosts = digestRow?.cnt ?? 0;
 
 		// Update user counters
-		await env.DB.prepare(
-			"UPDATE users SET threads = ?, posts = ?, digest_posts = ? WHERE id = ?",
-		)
+		await env.DB.prepare("UPDATE users SET threads = ?, posts = ?, digest_posts = ? WHERE id = ?")
 			.bind(threads, posts, digestPosts, id)
 			.run();
 
@@ -622,7 +620,10 @@ export const batchRecalcCounters = withEntityAuth(
 			.bind(...userIds)
 			.all();
 		const threadMap = new Map(
-			threadCounts.results.map((r) => [(r as { author_id: number }).author_id, (r as { cnt: number }).cnt]),
+			threadCounts.results.map((r) => [
+				(r as { author_id: number }).author_id,
+				(r as { cnt: number }).cnt,
+			]),
 		);
 
 		// Get post counts per user
@@ -632,7 +633,10 @@ export const batchRecalcCounters = withEntityAuth(
 			.bind(...userIds)
 			.all();
 		const postMap = new Map(
-			postCounts.results.map((r) => [(r as { author_id: number }).author_id, (r as { cnt: number }).cnt]),
+			postCounts.results.map((r) => [
+				(r as { author_id: number }).author_id,
+				(r as { cnt: number }).cnt,
+			]),
 		);
 
 		// Get digest counts per user
@@ -642,14 +646,20 @@ export const batchRecalcCounters = withEntityAuth(
 			.bind(...userIds)
 			.all();
 		const digestMap = new Map(
-			digestCounts.results.map((r) => [(r as { author_id: number }).author_id, (r as { cnt: number }).cnt]),
+			digestCounts.results.map((r) => [
+				(r as { author_id: number }).author_id,
+				(r as { cnt: number }).cnt,
+			]),
 		);
 
 		// Batch update all users
 		const statements = userIds.map((uid) =>
-			env.DB.prepare(
-				"UPDATE users SET threads = ?, posts = ?, digest_posts = ? WHERE id = ?",
-			).bind(threadMap.get(uid) ?? 0, postMap.get(uid) ?? 0, digestMap.get(uid) ?? 0, uid),
+			env.DB.prepare("UPDATE users SET threads = ?, posts = ?, digest_posts = ? WHERE id = ?").bind(
+				threadMap.get(uid) ?? 0,
+				postMap.get(uid) ?? 0,
+				digestMap.get(uid) ?? 0,
+				uid,
+			),
 		);
 
 		await env.DB.batch(statements);

@@ -102,7 +102,9 @@ describe("trackActivity", () => {
 			await Promise.all(waitUntilPromises);
 
 			// Should set throttle marker
-			expect(kvPut).toHaveBeenCalledWith(`activity_throttle:456`, String(NOW), { expirationTtl: 120 });
+			expect(kvPut).toHaveBeenCalledWith(`activity_throttle:456`, String(NOW), {
+				expirationTtl: 120,
+			});
 
 			// Should update user with 0 additional minutes (first activity, gap > threshold)
 			// Now includes optimistic lock: bind(now, addMinutes, userId, old_last_activity)

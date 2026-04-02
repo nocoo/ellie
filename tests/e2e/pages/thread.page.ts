@@ -24,7 +24,9 @@ export class ThreadPage {
 
 	/** Post cards */
 	get postCards() {
-		return this.page.locator(THREAD.postCard).filter({ has: this.page.locator(THREAD.postContent) });
+		return this.page
+			.locator(THREAD.postCard)
+			.filter({ has: this.page.locator(THREAD.postContent) });
 	}
 
 	/** Author info in post sidebar */

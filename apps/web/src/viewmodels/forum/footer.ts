@@ -108,14 +108,17 @@ export function buildHomeFooterViewModel(
 	onlineStats: OnlineStats = DEFAULT_ONLINE_STATS,
 ): HomeFooterViewModel {
 	const friendLinks = getArr<{ label: string; url: string }>(
-		settings, "general.navigation.friend_links", [],
+		settings,
+		"general.navigation.friend_links",
+		[],
 	);
 
 	return {
 		onlineStats,
-		friendLinks: friendLinks.length > 0
-			? friendLinks.map((link) => ({ label: link.label, href: link.url }))
-			: DEFAULT_FRIEND_LINKS,
+		friendLinks:
+			friendLinks.length > 0
+				? friendLinks.map((link) => ({ label: link.label, href: link.url }))
+				: DEFAULT_FRIEND_LINKS,
 	};
 }
 

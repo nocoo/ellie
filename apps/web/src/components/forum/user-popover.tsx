@@ -80,7 +80,9 @@ function formatLastActive(timestamp: number): string {
 	return formatDate(timestamp);
 }
 
-function getRoleBadge(role: UserRole): { label: string; variant: "default" | "secondary" | "outline" } | null {
+function getRoleBadge(
+	role: UserRole,
+): { label: string; variant: "default" | "secondary" | "outline" } | null {
 	switch (role) {
 		case 1:
 			return { label: "管理员", variant: "default" };
@@ -156,10 +158,7 @@ export function UserPopover({
 			<PopoverContent
 				side={side}
 				align={align}
-				className={cn(
-					"w-[320px] p-0 overflow-hidden",
-					"glass-panel",
-				)}
+				className={cn("w-[320px] p-0 overflow-hidden", "glass-panel")}
 			>
 				{/* Loading state */}
 				{loading && (

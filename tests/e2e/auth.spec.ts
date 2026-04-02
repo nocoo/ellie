@@ -3,7 +3,6 @@
 
 import { expect, test } from "./fixtures/base";
 import { LoginPage } from "./pages/login.page";
-import { FORM } from "./fixtures/selectors";
 
 test.describe("E2E-AU: Auth Flow", () => {
 	/**

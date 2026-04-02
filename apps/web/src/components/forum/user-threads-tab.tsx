@@ -12,11 +12,7 @@ export function UserThreadsTab({
 	threads: UserProfileData["threads"];
 }) {
 	if (threads.items.length === 0) {
-		return (
-			<div className="py-8 text-center text-sm text-muted-foreground">
-				暂无发帖记录
-			</div>
-		);
+		return <div className="py-8 text-center text-sm text-muted-foreground">暂无发帖记录</div>;
 	}
 
 	return (

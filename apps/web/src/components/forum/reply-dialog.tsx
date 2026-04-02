@@ -195,7 +195,11 @@ export function ReplyDialog({
 							<div className="flex items-center justify-between">
 								<p className="text-xs text-muted-foreground">按 Ctrl+Enter 快速发送</p>
 								<div className="flex items-center gap-2">
-									<Button variant="ghost" onClick={() => handleOpenChange(false)} disabled={submitting}>
+									<Button
+										variant="ghost"
+										onClick={() => handleOpenChange(false)}
+										disabled={submitting}
+									>
 										取消
 									</Button>
 									<Button

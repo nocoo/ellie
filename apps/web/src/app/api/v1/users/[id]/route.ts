@@ -8,10 +8,7 @@ import { forumApi } from "@/lib/forum-api";
 import type { PublicUser } from "@ellie/types";
 import { NextResponse } from "next/server";
 
-export async function GET(
-	_request: Request,
-	context: { params: Promise<{ id: string }> },
-) {
+export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
 	const { id } = await context.params;
 	const userId = Number.parseInt(id, 10);
 

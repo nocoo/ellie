@@ -5,8 +5,8 @@ import { NewThreadForm } from "@/components/forum/new-thread-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { loadNewThreadPageData } from "@/viewmodels/forum/new-thread.server";
 import { parseIntParam } from "@/viewmodels/shared/params";
-import Link from "next/link";
 import type { Metadata } from "next";
+import Link from "next/link";
 
 interface NewThreadPageProps {
 	params: Promise<{ id: string }>;

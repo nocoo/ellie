@@ -4,8 +4,8 @@
 // Allows admin paths to bypass maintenance check
 
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
-import { MaintenancePage } from "./maintenance-page";
 import { usePathname } from "next/navigation";
+import { MaintenancePage } from "./maintenance-page";
 
 const ALLOWED_PATHS = ["/admin", "/api", "/login", "/_next"];
 

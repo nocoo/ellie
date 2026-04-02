@@ -232,9 +232,7 @@ describe("replaceSmileyCodesWithImages", () => {
 
 	test("replaces :unhappy: with default/unhappy.gif", () => {
 		const result = replaceSmileyCodesWithImages(":unhappy:");
-		expect(result).toBe(
-			`<img src="${CDN}/default/unhappy.gif" alt=":unhappy:" class="smiley" />`,
-		);
+		expect(result).toBe(`<img src="${CDN}/default/unhappy.gif" alt=":unhappy:" class="smiley" />`);
 	});
 
 	test("replaces :bigsmile: with default/bigsmile.gif", () => {

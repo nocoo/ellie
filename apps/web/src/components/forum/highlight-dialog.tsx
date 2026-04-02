@@ -109,9 +109,7 @@ export function HighlightDialog({
 									onClick={() => setSelectedColor(item.color)}
 									title={item.label}
 								>
-									{item.color === null && (
-										<span className="text-xs text-muted-foreground">无</span>
-									)}
+									{item.color === null && <span className="text-xs text-muted-foreground">无</span>}
 								</button>
 							))}
 						</div>

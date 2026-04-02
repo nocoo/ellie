@@ -39,7 +39,7 @@ describe("transformEditNotices", () => {
 	});
 
 	it("escapes HTML in username to prevent XSS", () => {
-		const input = '[i=s] 本帖最后由 <script>alert(1)</script> 于 2024-1-1 00:00 编辑 </em>';
+		const input = "[i=s] 本帖最后由 <script>alert(1)</script> 于 2024-1-1 00:00 编辑 </em>";
 		const result = transformEditNotices(input);
 		expect(result).not.toContain("<script>");
 		expect(result).toContain("&lt;script&gt;");
@@ -260,9 +260,7 @@ describe("rewriteLegacyUrls", () => {
 	it("rewrites http://bbs.tongji.net/images/smiles/ to CDN", () => {
 		const input = '<img src="http://bbs.tongji.net/images/smiles/tounge_smile.gif">';
 		const result = rewriteLegacyUrls(input);
-		expect(result).toBe(
-			'<img src="https://t.no.mt/static/image/smiley/default/tounge_smile.gif">',
-		);
+		expect(result).toBe('<img src="https://t.no.mt/static/image/smiley/default/tounge_smile.gif">');
 	});
 
 	it("rewrites https://bbs.tongji.net/images/smiles/ to CDN", () => {
@@ -385,8 +383,7 @@ describe("filterContent", () => {
 
 describe("security", () => {
 	it("escapes HTML in edit notice username", () => {
-		const input =
-			'[i=s] 本帖最后由 <img src=x onerror=alert(1)> 于 2024-1-1 00:00 编辑 </em>';
+		const input = "[i=s] 本帖最后由 <img src=x onerror=alert(1)> 于 2024-1-1 00:00 编辑 </em>";
 		const result = filterContent(input);
 		// The angle brackets should be escaped, preventing XSS
 		expect(result).toContain("&lt;img");
@@ -408,7 +405,7 @@ describe("security", () => {
 	});
 
 	it("handles valid align BBCode safely", () => {
-		const input = '[align=center]<script>alert(1)</script>[/align]';
+		const input = "[align=center]<script>alert(1)</script>[/align]";
 		const result = filterContent(input);
 		// Valid BBCode is processed, but the script inside is preserved
 		// (Discuz migration data is trusted — we're not sanitizing all HTML)

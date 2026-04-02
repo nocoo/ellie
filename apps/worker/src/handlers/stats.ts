@@ -45,10 +45,9 @@ export async function stats(request: CFRequest, env: Env): Promise<Response> {
 			// 0: today's posts
 			env.DB.prepare("SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ?").bind(todayStart),
 			// 1: yesterday's posts
-			env.DB.prepare("SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ? AND created_at < ?").bind(
-				yesterdayStart,
-				yesterdayEnd,
-			),
+			env.DB.prepare(
+				"SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ? AND created_at < ?",
+			).bind(yesterdayStart, yesterdayEnd),
 			// 2: total threads
 			env.DB.prepare("SELECT COUNT(*) AS cnt FROM threads"),
 			// 3: total members

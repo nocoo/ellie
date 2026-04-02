@@ -69,7 +69,10 @@ describe.skipIf(!canRunIntegration)("online tracking integration", () => {
 							return {
 								bind: mock(() => ({
 									first: mock(() =>
-										Promise.resolve({ last_activity: Math.floor(Date.now() / 1000) - 120, ol_time: 10 }),
+										Promise.resolve({
+											last_activity: Math.floor(Date.now() / 1000) - 120,
+											ol_time: 10,
+										}),
 									),
 								})),
 							};

@@ -126,9 +126,7 @@ export function Lightbox({ images, initialIndex = 0, open, onClose }: LightboxPr
 							{currentIndex + 1} / {images.length}
 						</span>
 					)}
-					{currentImage?.title && (
-						<span className="ml-3 text-white/70">{currentImage.title}</span>
-					)}
+					{currentImage?.title && <span className="ml-3 text-white/70">{currentImage.title}</span>}
 				</div>
 				<div className="flex items-center gap-2">
 					<button
@@ -255,11 +253,7 @@ export function Lightbox({ images, initialIndex = 0, open, onClose }: LightboxPr
 										: "border-transparent hover:border-white/50",
 								)}
 							>
-								<img
-									src={img.src}
-									alt=""
-									className="w-full h-full object-cover"
-								/>
+								<img src={img.src} alt="" className="w-full h-full object-cover" />
 							</button>
 						))}
 					</div>

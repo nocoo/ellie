@@ -1,13 +1,12 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
-import { makeEnv } from "../../helpers";
+import { describe, expect, it, mock } from "bun:test";
 import {
-	type SettingsDetailMap,
 	type SettingsMap,
 	getSetting,
 	getSettings,
 	getSettingsDetailed,
 	upsertSettings,
 } from "../../../src/lib/settings";
+import { makeEnv } from "../../helpers";
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -15,11 +14,26 @@ const SAMPLE_ROWS = [
 	{ key: "general.site.name", value: "Ellie", type: "string", updated_at: 1700000000 },
 	{ key: "general.pagination.posts_per_page", value: "20", type: "number", updated_at: 1700000000 },
 	{ key: "general.og.title", value: "", type: "string", updated_at: 1700000000 },
-	{ key: "general.assets.avatar_cdn_base", value: "https://t.no.mt/avatar", type: "string", updated_at: 1700000000 },
+	{
+		key: "general.assets.avatar_cdn_base",
+		value: "https://t.no.mt/avatar",
+		type: "string",
+		updated_at: 1700000000,
+	},
 ];
 
-const BOOLEAN_ROW = { key: "feature.enabled", value: "true", type: "boolean", updated_at: 1700000000 };
-const JSON_ROW = { key: "config.extra", value: '{"foo":"bar"}', type: "json", updated_at: 1700000000 };
+const BOOLEAN_ROW = {
+	key: "feature.enabled",
+	value: "true",
+	type: "boolean",
+	updated_at: 1700000000,
+};
+const JSON_ROW = {
+	key: "config.extra",
+	value: '{"foo":"bar"}',
+	type: "json",
+	updated_at: 1700000000,
+};
 const BAD_NUMBER_ROW = { key: "bad.number", value: "abc", type: "number", updated_at: 1700000000 };
 const BAD_JSON_ROW = { key: "bad.json", value: "not-json", type: "json", updated_at: 1700000000 };
 
@@ -39,9 +53,7 @@ function makeDbMock(rows: Record<string, unknown>[] = SAMPLE_ROWS) {
 				run: mock(async () => ({ success: true })),
 			})),
 		})),
-		batch: mock(async (stmts: unknown[]) =>
-			stmts.map(() => ({ success: true, results: [] })),
-		),
+		batch: mock(async (stmts: unknown[]) => stmts.map(() => ({ success: true, results: [] }))),
 	} as unknown as D1Database;
 }
 
@@ -82,11 +94,9 @@ describe("settings cache helper", () => {
 			// Should have read from DB
 			expect(db.prepare).toHaveBeenCalled();
 			// Should backfill KV with TTL
-			expect(kv.put).toHaveBeenCalledWith(
-				"settings:all",
-				expect.any(String),
-				{ expirationTtl: 86400 },
-			);
+			expect(kv.put).toHaveBeenCalledWith("settings:all", expect.any(String), {
+				expirationTtl: 86400,
+			});
 		});
 
 		it("should parse boolean type correctly", async () => {
@@ -247,9 +257,7 @@ describe("settings cache helper", () => {
 					all: mock(async () => ({ results: [] })),
 					bind: preparedBindMock,
 				})),
-				batch: mock(async (stmts: unknown[]) =>
-					stmts.map(() => ({ success: true, results: [] })),
-				),
+				batch: mock(async (stmts: unknown[]) => stmts.map(() => ({ success: true, results: [] }))),
 			} as unknown as D1Database;
 			const env = makeEnv({ KV: kv, DB: db });
 

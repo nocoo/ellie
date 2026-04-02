@@ -9,8 +9,8 @@ import type { SearchType } from "@/viewmodels/forum/search";
 import { type SearchData, loadSearchResults } from "@/viewmodels/forum/search.server";
 import { formatStat, formatTime } from "@/viewmodels/forum/thread-list";
 import { getThreadBadges } from "@ellie/types";
-import Link from "next/link";
 import type { Metadata } from "next";
+import Link from "next/link";
 
 interface SearchPageProps {
 	searchParams: Promise<{ q?: string; type?: string; cursor?: string; direction?: string }>;

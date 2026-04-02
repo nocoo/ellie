@@ -1,6 +1,6 @@
-import { describe, expect, it, mock, spyOn } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
 import type { Env } from "../../../src/lib/env";
-import { trackOnline, type OnlineUserData } from "../../../src/middleware/online";
+import { type OnlineUserData, trackOnline } from "../../../src/middleware/online";
 
 describe("trackOnline", () => {
 	const createMockEnv = () => {

@@ -358,7 +358,9 @@ export async function deleteThread(request: Request, env: Env): Promise<Response
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid thread ID" }, origin);
 	}
 
-	const thread = await env.DB.prepare("SELECT id, forum_id, author_id, replies FROM threads WHERE id = ?")
+	const thread = await env.DB.prepare(
+		"SELECT id, forum_id, author_id, replies FROM threads WHERE id = ?",
+	)
 		.bind(id)
 		.first<{ id: number; forum_id: number; author_id: number; replies: number }>();
 
@@ -420,7 +422,12 @@ export async function editPost(request: Request, env: Env): Promise<Response> {
 
 	const { content } = body;
 	if (typeof content !== "string" || content.trim().length === 0) {
-		return errorResponse("INVALID_BODY", 400, { message: "content must be a non-empty string" }, origin);
+		return errorResponse(
+			"INVALID_BODY",
+			400,
+			{ message: "content must be a non-empty string" },
+			origin,
+		);
 	}
 
 	const post = await env.DB.prepare("SELECT id FROM posts WHERE id = ?").bind(id).first();

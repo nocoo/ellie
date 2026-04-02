@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
-import { redirect } from "next/navigation";
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import RegisterForm from "./register-form";
 
 export const metadata: Metadata = { title: "注册" };

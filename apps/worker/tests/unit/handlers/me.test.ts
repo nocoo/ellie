@@ -2,7 +2,13 @@ import { describe, expect, it } from "bun:test";
 import { changePassword, updateProfile } from "../../../src/handlers/me";
 import type { Env } from "../../../src/lib/env";
 import { hashPassword } from "../../../src/lib/password";
-import { TEST_JWT_SECRET, createJwtForRole, createMockDb, createMockKV, makeD1UserRow } from "../../helpers";
+import {
+	TEST_JWT_SECRET,
+	createJwtForRole,
+	createMockDb,
+	createMockKV,
+	makeD1UserRow,
+} from "../../helpers";
 
 describe("user self-service handlers", () => {
 	const mockEnv: Env = {

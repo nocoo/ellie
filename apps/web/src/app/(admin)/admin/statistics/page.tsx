@@ -143,9 +143,7 @@ export default function StatisticsPage() {
 									</Button>
 									{hasResult && (
 										<span className="text-xs text-muted-foreground">
-											{result.updated === -1
-												? "执行失败"
-												: `已更新 ${result.updated} 条记录`}
+											{result.updated === -1 ? "执行失败" : `已更新 ${result.updated} 条记录`}
 										</span>
 									)}
 								</div>
@@ -161,10 +159,12 @@ export default function StatisticsPage() {
 				</CardHeader>
 				<CardContent className="text-sm text-muted-foreground space-y-2">
 					<p>
-						<strong>版块统计</strong>：计算每个版块的主题数量、帖子数量，以及最后发帖信息（最后主题 ID、最后发帖时间、最后发帖人）。
+						<strong>版块统计</strong>：计算每个版块的主题数量、帖子数量，以及最后发帖信息（最后主题
+						ID、最后发帖时间、最后发帖人）。
 					</p>
 					<p>
-						<strong>主题统计</strong>：计算每个主题的回复数量，以及最后回复信息（最后回复时间、最后回复人）。
+						<strong>主题统计</strong>
+						：计算每个主题的回复数量，以及最后回复信息（最后回复时间、最后回复人）。
 					</p>
 					<p>
 						<strong>用户统计</strong>：计算每个用户的发帖数、回帖数和精华帖数。

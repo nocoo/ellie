@@ -3,8 +3,8 @@
 // SmileyPanel — tabbed smiley picker for PostEditor
 // Displays traditional forum smileys from CDN (default, coolmonkey, comcom packs)
 
-import { cn } from "@/lib/utils";
 import { SMILEY_PACKS, getSmileyImageUrl } from "@/lib/smiley";
+import { cn } from "@/lib/utils";
 import { useState } from "react";
 
 const TABS = [
