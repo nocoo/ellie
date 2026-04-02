@@ -106,7 +106,7 @@ export function LinkListSettings({
 			)}
 
 			{/* Link editor card */}
-			<div className="rounded-xl border bg-card p-6">
+			<div className="rounded-[var(--radius-card,14px)] bg-secondary p-4 md:p-6">
 				<NavLinksEditor settingKey={settingKey} value={currentValue} onChange={handleChange} />
 			</div>
 		</div>
