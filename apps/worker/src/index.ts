@@ -7,6 +7,7 @@ import { validateApiKey } from "./middleware/apiKey";
 import { authMiddleware } from "./middleware/auth";
 import { configureAllowedOrigins, corsHeaders } from "./middleware/cors";
 import { errorResponse } from "./middleware/error";
+import { checkMaintenance } from "./middleware/maintenance";
 import { trackOnline } from "./middleware/online";
 
 // ─── Router ───────────────────────────────────────────────────────
@@ -59,6 +60,10 @@ export default {
 			// API Key gate — all routes below require a valid X-API-Key header
 			const apiKeyError = validateApiKey(request, env, origin);
 			if (apiKeyError) return apiKeyError;
+
+			// Maintenance mode gate — blocks public requests when enabled
+			const maintenanceError = await checkMaintenance(request, env, origin);
+			if (maintenanceError) return maintenanceError;
 
 			// Track authenticated user activity (non-blocking)
 			// Runs in background via waitUntil — doesn't affect response latency

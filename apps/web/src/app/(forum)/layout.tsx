@@ -1,4 +1,5 @@
 import { ForumLayoutShell } from "@/components/forum/forum-layout";
+import { MaintenancePage } from "@/components/maintenance-page";
 import { SessionGuard } from "@/components/forum/session-guard";
 import { forumApi } from "@/lib/forum-api";
 import { getCurrentForumUser } from "@/lib/forum-auth";
@@ -8,7 +9,7 @@ import {
 	type HeaderUserInfo,
 	buildHeaderViewModel,
 } from "@/viewmodels/forum/header";
-import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
+import { fetchPublicSettings, getBool, getStr } from "@/viewmodels/forum/settings.server";
 import type { SiteStats } from "@/viewmodels/forum/stats.server";
 import type { PublicUser } from "@ellie/types";
 import type { Metadata } from "next";
@@ -49,6 +50,19 @@ export default async function ForumLayout({ children }: { children: ReactNode })
 		loadStats(),
 		loadCurrentUser(),
 	]);
+
+	// Check maintenance mode — allow admins to bypass
+	const isMaintenanceMode = getBool(settings, "features.access.maintenance_mode", false);
+	const isAdmin = currentUser?.role === 1; // role 1 = admin
+
+	if (isMaintenanceMode && !isAdmin) {
+		const message = getStr(
+			settings,
+			"features.access.maintenance_message",
+			"系统维护中，请稍后再试...",
+		);
+		return <MaintenancePage message={message} />;
+	}
 
 	const headerVm = buildHeaderViewModel(settings, currentUser, stats);
 	const footerVm = buildGlobalFooterViewModel(settings);
