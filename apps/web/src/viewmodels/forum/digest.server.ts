@@ -4,6 +4,7 @@
 import "server-only";
 
 import { forumApi } from "@/lib/forum-api";
+import { getPageSize } from "@/lib/forum-settings";
 import type { PaginatedResult } from "@/viewmodels/shared/pagination";
 import type { Thread } from "@ellie/types";
 
@@ -19,15 +20,15 @@ export interface DigestData {
 	stats: DigestStats;
 }
 
-const DIGEST_LIMIT = 20;
-
 export async function loadDigestList(params: {
 	cursor?: string;
 	direction?: "forward" | "backward";
 	limit?: number;
 	forumId?: number;
 }): Promise<DigestData> {
-	const limit = params.limit ?? DIGEST_LIMIT;
+	// Get page size from settings
+	const defaultLimit = await getPageSize();
+	const limit = params.limit ?? defaultLimit;
 
 	// Fetch digest threads and stats in parallel
 	const [threadsRes, statsRes] = await Promise.all([

@@ -11,7 +11,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import { forumApi } from "@/lib/forum-api";
 import { cn } from "@/lib/utils";
 import type { Forum } from "@ellie/types";
 import { buildForumTree, type ForumTreeNode } from "@ellie/types";
@@ -42,11 +41,11 @@ export function MoveDialog({
 	useEffect(() => {
 		if (open) {
 			setLoadingForums(true);
-			forumApi
-				.getAll<Forum>("/api/v1/forums")
-				.then((res) => {
-					setForums(res.data);
-					setTree(buildForumTree(res.data));
+			fetch("/api/v1/forums")
+				.then((res) => res.json())
+				.then((json: { data: Forum[] }) => {
+					setForums(json.data);
+					setTree(buildForumTree(json.data));
 				})
 				.catch(() => {
 					// Ignore errors

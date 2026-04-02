@@ -5,6 +5,7 @@ import "server-only";
 
 import { forumApi } from "@/lib/forum-api";
 import { buildForumBreadcrumbs } from "@/lib/forum-breadcrumbs";
+import { getPageSize } from "@/lib/forum-settings";
 import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import {
 	type Forum,
@@ -43,12 +44,15 @@ export async function loadThreadList(params: {
 	direction?: "forward" | "backward";
 	limit?: number;
 }): Promise<ThreadListData> {
+	// Get page size from settings
+	const defaultLimit = await getPageSize();
+
 	// Parallel fetch: forum tree + threads
 	const [forumsRes, threadsRes] = await Promise.all([
 		forumApi.getAll<Forum>("/api/v1/forums"),
 		forumApi.getCursor<Thread>("/api/v1/threads", {
 			forumId: params.forumId,
-			limit: params.limit ?? 100,
+			limit: params.limit ?? defaultLimit,
 			cursor: params.cursor,
 		}),
 	]);
@@ -73,7 +77,9 @@ export async function loadThreadListPaged(params: {
 	limit?: number;
 }): Promise<ThreadListPagedData> {
 	const page = params.page ?? 1;
-	const limit = params.limit ?? 100;
+	// Get page size from settings
+	const defaultLimit = await getPageSize();
+	const limit = params.limit ?? defaultLimit;
 
 	// Parallel fetch: forum tree + threads (offset pagination)
 	const [forumsRes, threadsRes] = await Promise.all([
