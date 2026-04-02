@@ -1,6 +1,6 @@
 import type { Forum } from "@ellie/types";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
-import { enrichForumsWithUserCache, enrichForumWithUserCache, toForum } from "../lib/mappers";
+import { enrichForumWithUserCache, enrichForumsWithUserCache, toForum } from "../lib/mappers";
 import { getUserProfiles } from "../lib/user-cache";
 
 // Forum handlers for Cloudflare Worker
@@ -8,11 +8,7 @@ import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
 /** GET /api/v1/forums - List all forums (no pagination) */
-export async function list(
-	request: Request,
-	env: Env,
-	ctx: ExecutionContext,
-): Promise<Response> {
+export async function list(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	// Run both queries in parallel: all forums + per-forum thread count in last 24h

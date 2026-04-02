@@ -27,7 +27,11 @@ describe("thread handlers", () => {
 
 	describe("list", () => {
 		it("should require forumId parameter", async () => {
-			const response = await list(new Request("https://example.com/api/v1/threads"), mockEnv, getCtx());
+			const response = await list(
+				new Request("https://example.com/api/v1/threads"),
+				mockEnv,
+				getCtx(),
+			);
 
 			expect(response.status).toBe(400);
 			const data = await response.json();
@@ -56,15 +60,27 @@ describe("thread handlers", () => {
 			const env = { ...mockEnv, DB: db };
 
 			// Test limit > 100
-			await list(new Request("https://example.com/api/v1/threads?forumId=1&limit=200"), env, getCtx());
+			await list(
+				new Request("https://example.com/api/v1/threads?forumId=1&limit=200"),
+				env,
+				getCtx(),
+			);
 			expect(bindSpy).toHaveBeenLastCalledWith(expect.any(Number), 100);
 
 			// Test limit within range
-			await list(new Request("https://example.com/api/v1/threads?forumId=1&limit=100"), env, getCtx());
+			await list(
+				new Request("https://example.com/api/v1/threads?forumId=1&limit=100"),
+				env,
+				getCtx(),
+			);
 			expect(bindSpy).toHaveBeenLastCalledWith(expect.any(Number), 100);
 
 			// Test limit < 1
-			await list(new Request("https://example.com/api/v1/threads?forumId=1&limit=0"), env, getCtx());
+			await list(
+				new Request("https://example.com/api/v1/threads?forumId=1&limit=0"),
+				env,
+				getCtx(),
+			);
 			expect(bindSpy).toHaveBeenLastCalledWith(expect.any(Number), 100); // default
 		});
 
@@ -114,12 +130,8 @@ describe("thread handlers", () => {
 
 			await list(new Request("https://example.com/api/v1/threads?forumId=1"), env, getCtx());
 
-			expect(prepareSpy).toHaveBeenCalledWith(
-				expect.stringContaining("ORDER BY"),
-			);
-			expect(prepareSpy).toHaveBeenCalledWith(
-				expect.stringContaining("LEFT JOIN users"),
-			);
+			expect(prepareSpy).toHaveBeenCalledWith(expect.stringContaining("ORDER BY"));
+			expect(prepareSpy).toHaveBeenCalledWith(expect.stringContaining("LEFT JOIN users"));
 			expect(bindSpy).toHaveBeenCalledWith(1, 100);
 		});
 
@@ -223,7 +235,11 @@ describe("thread handlers", () => {
 			} as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
-			const response = await list(new Request("https://example.com/api/v1/threads?forumId=1"), env, getCtx());
+			const response = await list(
+				new Request("https://example.com/api/v1/threads?forumId=1"),
+				env,
+				getCtx(),
+			);
 
 			const data = await response.json();
 			expect(data.meta.timestamp).toBeDefined();
@@ -297,7 +313,11 @@ describe("thread handlers", () => {
 			} as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
-			await list(new Request("https://example.com/api/v1/threads?forumId=1&limit=30"), env, getCtx());
+			await list(
+				new Request("https://example.com/api/v1/threads?forumId=1&limit=30"),
+				env,
+				getCtx(),
+			);
 
 			expect(bindSpy).toHaveBeenCalledWith(1, 30);
 		});
@@ -376,7 +396,11 @@ describe("thread handlers", () => {
 			const db = createGetByIdMockDb(d1Row);
 			const env = { ...mockEnv, DB: db };
 
-			const response = await getById(new Request("https://example.com/api/v1/threads/123"), env, getCtx());
+			const response = await getById(
+				new Request("https://example.com/api/v1/threads/123"),
+				env,
+				getCtx(),
+			);
 
 			expect(response.status).toBe(200);
 			const data = await response.json();
@@ -394,7 +418,11 @@ describe("thread handlers", () => {
 			const db = createGetByIdMockDb(null);
 			const env = { ...mockEnv, DB: db };
 
-			const response = await getById(new Request("https://example.com/api/v1/threads/999"), env, getCtx());
+			const response = await getById(
+				new Request("https://example.com/api/v1/threads/999"),
+				env,
+				getCtx(),
+			);
 
 			expect(response.status).toBe(404);
 			const data = await response.json();
@@ -432,7 +460,11 @@ describe("thread handlers", () => {
 			const db = createGetByIdMockDb(d1Row);
 			const env = { ...mockEnv, DB: db };
 
-			const response = await getById(new Request("https://example.com/api/v1/threads/42"), env, getCtx());
+			const response = await getById(
+				new Request("https://example.com/api/v1/threads/42"),
+				env,
+				getCtx(),
+			);
 
 			// Should still return 200 despite UPDATE failure
 			expect(response.status).toBe(200);
