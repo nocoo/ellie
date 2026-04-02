@@ -1,7 +1,9 @@
 // Maintenance mode middleware — blocks public requests when maintenance mode is enabled
-// Allows: admin routes, auth routes, settings endpoint, health check
+// Allows: admin routes, auth routes, settings endpoint, health check, forum admins
 
+import { UserRole } from "@ellie/types";
 import type { Env } from "../lib/env";
+import { isTokenExpired, verifyJwt } from "../lib/jwt";
 import { getSetting } from "../lib/settings";
 import { errorResponse } from "./error";
 
@@ -36,6 +38,16 @@ export async function checkMaintenance(
 		return null;
 	}
 
+	// Check if admin bypass is enabled
+	const adminBypass = await getSetting(env, "features.access.maintenance_admin_bypass", false);
+	if (adminBypass) {
+		// Check if user is a forum admin (role = 1) via JWT
+		const isForumAdmin = await checkForumAdmin(request, env);
+		if (isForumAdmin) {
+			return null;
+		}
+	}
+
 	// Get custom maintenance message
 	const message = await getSetting(
 		env,
@@ -44,4 +56,31 @@ export async function checkMaintenance(
 	);
 
 	return errorResponse("MAINTENANCE_MODE", 503, { message }, origin);
+}
+
+/**
+ * Check if request has a valid JWT with admin role.
+ */
+async function checkForumAdmin(request: Request, env: Env): Promise<boolean> {
+	const authHeader = request.headers.get("Authorization");
+	if (!authHeader?.startsWith("Bearer ")) {
+		return false;
+	}
+
+	try {
+		const token = authHeader.slice(7);
+		const payload = (await verifyJwt(token, env.JWT_SECRET)) as {
+			userId: number;
+			role: number;
+			exp: number;
+		};
+
+		if (isTokenExpired(payload)) {
+			return false;
+		}
+
+		return payload.role === UserRole.Admin;
+	} catch {
+		return false;
+	}
 }
