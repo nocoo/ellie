@@ -446,11 +446,13 @@ describe("useTheme — useEffect for system preference", () => {
 
 describe("useTheme — external store subscribe", () => {
 	it("subscribe returns unsubscribe function", () => {
+			useTheme();
 		const unsub = capturedSubscribe?.(() => {});
 		expect(typeof unsub).toBe("function");
 	});
 
 	it("subscribe adds listener and unsubscribe removes it", () => {
+			useTheme();
 		const listener = mock(() => {});
 		const unsub = capturedSubscribe?.(listener);
 
@@ -467,6 +469,7 @@ describe("useTheme — external store subscribe", () => {
 	});
 
 	it("multiple subscribers all get notified", () => {
+			useTheme();
 		const listener1 = mock(() => {});
 		const listener2 = mock(() => {});
 		capturedSubscribe?.(listener1);

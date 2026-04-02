@@ -28,6 +28,7 @@ function createMatchMediaMock() {
 beforeEach(() => {
 	matchMediaHandlers = [];
 	matchMediaMatches = false;
+	capturedSetIsMobileCalls = [];
 
 	savedGlobals.matchMedia = globalThis.matchMedia;
 	savedGlobals.window = globalThis.window;
@@ -47,6 +48,7 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 let capturedSetIsMobile: ((value: boolean) => void) | null = null;
+let capturedSetIsMobileCalls: boolean[] = [];
 let capturedUseEffectCleanup: (() => void) | null = null;
 let currentState = false;
 
@@ -55,6 +57,7 @@ mock.module("react", () => ({
 		currentState = typeof initial === "function" ? (initial as () => boolean)() : initial;
 		capturedSetIsMobile = (value: boolean) => {
 			currentState = value;
+			capturedSetIsMobileCalls.push(value);
 		};
 		return [currentState, capturedSetIsMobile];
 	},

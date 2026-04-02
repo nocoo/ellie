@@ -156,6 +156,15 @@ describe("user-cache", () => {
 			expect(result.size).toBe(1);
 			expect(result.get(3)?.username).toBe("charlie");
 			expect(ctx._waitUntilPromises.length).toBeGreaterThan(0);
+
+			// Await the background cache write and verify KV contents
+			await Promise.all(ctx._waitUntilPromises);
+			const cached = (await kv.get("user:mini:3", "json")) as Record<string, unknown>;
+			expect(cached).not.toBeNull();
+			expect(cached.username).toBe("charlie");
+			expect(cached.avatar).toBe("charlie.png");
+			expect(cached.role).toBe(0);
+			expect(cached.groupTitle).toBe("Member");
 		});
 
 		it("should deduplicate user IDs", async () => {
