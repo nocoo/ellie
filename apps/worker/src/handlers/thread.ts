@@ -258,23 +258,23 @@ export const create = withAuth(async (request, env, user) => {
 
 	const now = Math.floor(Date.now() / 1000);
 
-	// Step 1: Insert thread
+	// Step 1: Insert thread (with last_poster_id for user cache)
 	const threadResult = await env.DB.prepare(
-		"INSERT INTO threads (forum_id, author_id, author_name, subject, created_at, last_post_at, last_poster, replies, views, closed, sticky, digest) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0)",
+		"INSERT INTO threads (forum_id, author_id, author_name, subject, created_at, last_post_at, last_poster, last_poster_id, replies, views, closed, sticky, digest) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0)",
 	)
-		.bind(forumId, user.userId, authorName, filteredSubject, now, now, authorName)
+		.bind(forumId, user.userId, authorName, filteredSubject, now, now, authorName, user.userId)
 		.run();
 
 	const threadId = threadResult.meta.last_row_id;
 
-	// Step 2: Batch insert first post + update counts
+	// Step 2: Batch insert first post + update counts (with last_poster_id)
 	await env.DB.batch([
 		env.DB.prepare(
 			"INSERT INTO posts (thread_id, forum_id, author_id, author_name, content, created_at, is_first, position) VALUES (?, ?, ?, ?, ?, ?, 1, 1)",
 		).bind(threadId, forumId, user.userId, authorName, content, now),
 		env.DB.prepare(
-			"UPDATE forums SET threads = threads + 1, posts = posts + 1, last_thread_id = ?, last_post_at = ?, last_poster = ?, last_thread_subject = ? WHERE id = ?",
-		).bind(threadId, now, authorName, filteredSubject, forumId),
+			"UPDATE forums SET threads = threads + 1, posts = posts + 1, last_thread_id = ?, last_post_at = ?, last_poster = ?, last_poster_id = ?, last_thread_subject = ? WHERE id = ?",
+		).bind(threadId, now, authorName, user.userId, filteredSubject, forumId),
 		env.DB.prepare("UPDATE users SET threads = threads + 1, posts = posts + 1 WHERE id = ?").bind(
 			user.userId,
 		),

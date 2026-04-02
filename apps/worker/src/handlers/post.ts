@@ -205,14 +205,14 @@ export const create = withAuth(async (request, env, user) => {
 
 	const postId = postResult.meta.last_row_id;
 
-	// Batch update counts
+	// Batch update counts (with last_poster_id)
 	await env.DB.batch([
 		env.DB.prepare(
-			"UPDATE threads SET replies = replies + 1, last_post_at = ?, last_poster = ? WHERE id = ?",
-		).bind(now, authorName, threadId),
+			"UPDATE threads SET replies = replies + 1, last_post_at = ?, last_poster = ?, last_poster_id = ? WHERE id = ?",
+		).bind(now, authorName, user.userId, threadId),
 		env.DB.prepare(
-			"UPDATE forums SET posts = posts + 1, last_post_at = ?, last_poster = ? WHERE id = ?",
-		).bind(now, authorName, thread.forum_id),
+			"UPDATE forums SET posts = posts + 1, last_post_at = ?, last_poster = ?, last_poster_id = ? WHERE id = ?",
+		).bind(now, authorName, user.userId, thread.forum_id),
 		env.DB.prepare("UPDATE users SET posts = posts + 1 WHERE id = ?").bind(user.userId),
 	]);
 
