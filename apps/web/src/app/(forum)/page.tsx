@@ -58,6 +58,9 @@ export default async function ForumHomePage() {
 				</div>
 			)}
 
+			{/* Digest showcase — at the top */}
+			<DigestShowcase threads={digestThreads} total={digestTotal} />
+
 			{tree.map((group) => (
 				<ForumGroup key={group.id} group={group} />
 			))}
@@ -67,9 +70,6 @@ export default async function ForumHomePage() {
 					暂无版块
 				</div>
 			)}
-
-			{/* Digest showcase */}
-			<DigestShowcase threads={digestThreads} total={digestTotal} />
 
 			{/* Homepage-only footer: online stats + friend links */}
 			<HomeFooter vm={buildHomeFooterViewModel(settings, onlineStats)} />
