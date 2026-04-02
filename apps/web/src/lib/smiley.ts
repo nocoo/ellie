@@ -202,3 +202,47 @@ export {
 	numberedFilename,
 	escapeAttr,
 };
+
+// ---------------------------------------------------------------------------
+// Smiley pack data for UI display (SmileyPanel)
+// ---------------------------------------------------------------------------
+
+export interface SmileyItem {
+	code: string;
+	file: string;
+}
+
+export const SMILEY_PACKS: Record<string, SmileyItem[]> = {
+	default: [
+		// Named smileys (commonly used)
+		{ code: ":smile:", file: "smile.gif" },
+		{ code: ":biggrin:", file: "biggrin.gif" },
+		{ code: ":cry:", file: "cry.gif" },
+		{ code: ":angry:", file: "angry.gif" },
+		{ code: ":cool:", file: "cool.gif" },
+		{ code: ":shy:", file: "shy.gif" },
+		{ code: ":tongue:", file: "tongue.gif" },
+		{ code: ":lol:", file: "lol.gif" },
+		{ code: ":kiss:", file: "kiss.gif" },
+		{ code: ":huffy:", file: "huffy.gif" },
+		{ code: ":sad:", file: "sad.gif" },
+		{ code: ":sleepy:", file: "sleepy.gif" },
+		// Numbered 1-16
+		...Array.from({ length: 16 }, (_, i) => ({
+			code: `:${i + 1}:`,
+			file: `${i + 1}.gif`,
+		})),
+	],
+	coolmonkey: Array.from({ length: 16 }, (_, i) => ({
+		code: `{:2_${COOLMONKEY_ID_START + i}:}`,
+		file: `${String(i + 1).padStart(2, "0")}.gif`,
+	})),
+	comcom: Array.from({ length: 24 }, (_, i) => ({
+		code: `{:3_${COMCOM_ID_START + i}:}`,
+		file: `${i + 1}.gif`,
+	})),
+};
+
+export function getSmileyImageUrl(pack: string, file: string): string {
+	return getSmileyUrl(pack, file);
+}
