@@ -61,7 +61,7 @@ export const recalcForums = withEntityAuth(
 
 		// Get last thread info per forum (most recent by last_post_at)
 		const lastThreads = await env.DB.prepare(`
-			SELECT t1.forum_id, t1.id, t1.subject, t1.last_post_at, t1.last_poster
+			SELECT t1.forum_id, t1.id, t1.subject, t1.last_post_at, t1.last_poster, t1.last_poster_id
 			FROM threads t1
 			INNER JOIN (
 				SELECT forum_id, MAX(last_post_at) as max_last_post_at
@@ -77,6 +77,7 @@ export const recalcForums = withEntityAuth(
 					subject: string;
 					last_post_at: number;
 					last_poster: string;
+					last_poster_id: number;
 				},
 			]),
 		);
@@ -91,6 +92,7 @@ export const recalcForums = withEntityAuth(
 					last_thread_id = ?,
 					last_post_at = ?,
 					last_poster = ?,
+					last_poster_id = ?,
 					last_thread_subject = ?
 				WHERE id = ?
 			`).bind(
@@ -99,6 +101,7 @@ export const recalcForums = withEntityAuth(
 				lastThread?.id ?? 0,
 				lastThread?.last_post_at ?? 0,
 				lastThread?.last_poster ?? "",
+				lastThread?.last_poster_id ?? 0,
 				lastThread?.subject ?? "",
 				fid,
 			);
@@ -133,18 +136,19 @@ export const recalcThreads = withEntityAuth(
 		let threads: D1Result;
 		if (forumId) {
 			threads = await env.DB.prepare(
-				"SELECT id, created_at, author_name FROM threads WHERE forum_id = ?",
+				"SELECT id, created_at, author_name, author_id FROM threads WHERE forum_id = ?",
 			)
 				.bind(forumId)
 				.all();
 		} else {
-			threads = await env.DB.prepare("SELECT id, created_at, author_name FROM threads").all();
+			threads = await env.DB.prepare("SELECT id, created_at, author_name, author_id FROM threads").all();
 		}
 
 		const threadData = threads.results as Array<{
 			id: number;
 			created_at: number;
 			author_name: string;
+			author_id: number;
 		}>;
 
 		if (threadData.length === 0) {
@@ -165,7 +169,7 @@ export const recalcThreads = withEntityAuth(
 
 		// Get last post info per thread using a subquery
 		const lastPosts = await env.DB.prepare(`
-			SELECT p1.thread_id, p1.created_at, p1.author_name
+			SELECT p1.thread_id, p1.created_at, p1.author_name, p1.author_id
 			FROM posts p1
 			INNER JOIN (
 				SELECT thread_id, MAX(created_at) as max_created_at
@@ -176,7 +180,7 @@ export const recalcThreads = withEntityAuth(
 		const lastPostMap = new Map(
 			lastPosts.results.map((r) => [
 				(r as { thread_id: number }).thread_id,
-				r as { created_at: number; author_name: string },
+				r as { created_at: number; author_name: string; author_id: number },
 			]),
 		);
 
@@ -186,14 +190,16 @@ export const recalcThreads = withEntityAuth(
 			// If no posts, fall back to thread's own creation info
 			const lastPostAt = lastPost?.created_at ?? thread.created_at;
 			const lastPoster = lastPost?.author_name ?? thread.author_name;
+			const lastPosterId = lastPost?.author_id ?? thread.author_id;
 
 			return env.DB.prepare(`
 				UPDATE threads SET
 					replies = ?,
 					last_post_at = ?,
-					last_poster = ?
+					last_poster = ?,
+					last_poster_id = ?
 				WHERE id = ?
-			`).bind(replyMap.get(thread.id) ?? 0, lastPostAt, lastPoster, thread.id);
+			`).bind(replyMap.get(thread.id) ?? 0, lastPostAt, lastPoster, lastPosterId, thread.id);
 		});
 
 		// D1 batch has a limit, chunk if needed
