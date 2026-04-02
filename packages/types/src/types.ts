@@ -120,6 +120,8 @@ export interface Forum {
 	lastThreadId: number;
 	lastPostAt: number;
 	lastPoster: string;
+	lastPosterId: number;
+	lastPosterAvatar: string;
 	lastThreadSubject: string;
 }
 
@@ -129,10 +131,13 @@ export interface Thread {
 	forumId: number;
 	authorId: number;
 	authorName: string;
+	authorAvatar: string;
 	subject: string;
 	createdAt: number;
 	lastPostAt: number;
 	lastPoster: string;
+	lastPosterId: number;
+	lastPosterAvatar: string;
 	replies: number;
 	views: number;
 	closed: number;
