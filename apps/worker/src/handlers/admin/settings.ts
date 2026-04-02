@@ -44,6 +44,13 @@ const ALLOWED_KEYS = new Set([
 	// general.navigation
 	"general.navigation.header_links",
 	"general.navigation.friend_links",
+	// features.access — access control
+	"features.access.require_login",
+	// features.posting — new user posting restrictions
+	"features.posting.enabled",
+	"features.posting.min_registration_days",
+	"features.posting.require_email_verified",
+	"features.posting.require_avatar",
 ]);
 
 /** Keys that must have positive numeric values */
@@ -51,6 +58,17 @@ const NUMBER_KEYS = new Set([
 	"general.pagination.page_size",
 	"general.pagination.max_post_length",
 	"general.pagination.admin_page_size",
+]);
+
+/** Keys that must have non-negative numeric values (0 allowed) */
+const NUMBER_KEYS_ALLOW_ZERO = new Set(["features.posting.min_registration_days"]);
+
+/** Keys that must be "true" or "false" */
+const BOOLEAN_KEYS = new Set([
+	"features.access.require_login",
+	"features.posting.enabled",
+	"features.posting.require_email_verified",
+	"features.posting.require_avatar",
 ]);
 
 /** Keys that must be valid JSON with specific structure */
@@ -73,6 +91,62 @@ function isValidNavLinksJson(value: string): boolean {
 	} catch {
 		return false;
 	}
+}
+
+// ─── Validation helpers ─────────────────────────────────────
+
+type ValidationResult =
+	| { valid: true }
+	| { valid: false; error: string; details?: Record<string, unknown> };
+
+function validateEntries(entries: [string, string][]): ValidationResult {
+	// Validate keys against whitelist
+	const unknownKeys = entries.filter(([key]) => !ALLOWED_KEYS.has(key)).map(([key]) => key);
+	if (unknownKeys.length > 0) {
+		return { valid: false, error: "UNKNOWN_KEYS", details: { keys: unknownKeys } };
+	}
+
+	// Validate all entry values
+	for (const [key, value] of entries) {
+		const result = validateEntryValue(key, value);
+		if (!result.valid) return result;
+	}
+
+	return { valid: true };
+}
+
+function validateEntryValue(key: string, value: string): ValidationResult {
+	// Validate positive number keys
+	if (NUMBER_KEYS.has(key)) {
+		const num = Number(value);
+		if (Number.isNaN(num) || num <= 0) {
+			return { valid: false, error: "INVALID_NUMBER", details: { key, value } };
+		}
+	}
+
+	// Validate non-negative number keys
+	if (NUMBER_KEYS_ALLOW_ZERO.has(key)) {
+		const num = Number(value);
+		if (Number.isNaN(num) || num < 0 || !Number.isInteger(num)) {
+			return { valid: false, error: "INVALID_NUMBER", details: { key, value } };
+		}
+	}
+
+	// Validate boolean keys
+	if (BOOLEAN_KEYS.has(key)) {
+		if (value !== "true" && value !== "false") {
+			return { valid: false, error: "INVALID_BOOLEAN", details: { key, value } };
+		}
+	}
+
+	// Validate JSON keys
+	if (JSON_KEYS.has(key)) {
+		if (!isValidNavLinksJson(value)) {
+			return { valid: false, error: "INVALID_JSON_VALUE", details: { key } };
+		}
+	}
+
+	return { valid: true };
 }
 
 // ─── Handlers ───────────────────────────────────────────────
@@ -126,29 +200,10 @@ async function bulkUpdateSettings(request: Request, env: Env): Promise<Response>
 		return errorResponse("EMPTY_PAYLOAD", 400, undefined, origin);
 	}
 
-	// Validate keys against whitelist
-	const unknownKeys = entries.filter(([key]) => !ALLOWED_KEYS.has(key)).map(([key]) => key);
-	if (unknownKeys.length > 0) {
-		return errorResponse("UNKNOWN_KEYS", 400, { keys: unknownKeys }, origin);
-	}
-
-	// Validate number keys are positive
-	for (const [key, value] of entries) {
-		if (NUMBER_KEYS.has(key)) {
-			const num = Number(value);
-			if (Number.isNaN(num) || num <= 0) {
-				return errorResponse("INVALID_NUMBER", 400, { key, value }, origin);
-			}
-		}
-	}
-
-	// Validate JSON keys have correct structure
-	for (const [key, value] of entries) {
-		if (JSON_KEYS.has(key)) {
-			if (!isValidNavLinksJson(value)) {
-				return errorResponse("INVALID_JSON_VALUE", 400, { key }, origin);
-			}
-		}
+	// Validate all entries
+	const validation = validateEntries(entries);
+	if (!validation.valid) {
+		return errorResponse(validation.error, 400, validation.details, origin);
 	}
 
 	// Convert entries to Record<string, string>

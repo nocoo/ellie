@@ -20,6 +20,7 @@ import {
 	Paperclip,
 	Settings,
 	ShieldBan,
+	ToggleLeft,
 	Users,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
@@ -36,6 +37,7 @@ const ICON_MAP: Record<string, ElementType> = {
 	Calculator,
 	LayoutDashboard,
 	Settings,
+	ToggleLeft,
 	Users,
 	FileText,
 	MessageSquare,
