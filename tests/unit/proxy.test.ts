@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import {
+	buildRedirectUrl,
 	isAdminRoute,
 	isForumAuthRoute,
 	isPublicRoute,
@@ -298,5 +299,80 @@ describe("resolveProxyAction", () => {
 	it("admin redirect on /admin/login still works", () => {
 		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
 		expect(resolveProxyAction("/admin/login", true, ADMIN_EMAIL)).toBe("redirect:/admin");
+	});
+
+	// -----------------------------------------------------------------------
+	// Non-public, non-admin, non-forum-auth routes (catch-all)
+	// -----------------------------------------------------------------------
+
+	it("redirects unauthenticated user on unknown non-public route to /login", () => {
+		expect(resolveProxyAction("/some-unknown-route", false)).toBe("redirect:/login");
+	});
+
+	it("allows authenticated user on unknown non-public route", () => {
+		expect(resolveProxyAction("/some-unknown-route", true, NON_ADMIN_EMAIL)).toBe("next");
+	});
+
+	// -----------------------------------------------------------------------
+	// Edge: logged-in user without provider on /login and /register
+	// -----------------------------------------------------------------------
+
+	it("does not redirect logged-in user with no provider on /login", () => {
+		expect(resolveProxyAction("/login", true, NON_ADMIN_EMAIL, undefined)).toBe("next");
+	});
+
+	it("does not redirect logged-in user with no provider on /register", () => {
+		expect(resolveProxyAction("/register", true, NON_ADMIN_EMAIL, undefined)).toBe("next");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// buildRedirectUrl
+// ---------------------------------------------------------------------------
+
+describe("buildRedirectUrl", () => {
+	function makeMockRequest(url: string, headers?: Record<string, string>) {
+		return {
+			headers: {
+				get(name: string) {
+					return headers?.[name] ?? null;
+				},
+			},
+			nextUrl: {
+				origin: new URL(url).origin,
+			},
+		} as Parameters<typeof buildRedirectUrl>[0];
+	}
+
+	it("uses x-forwarded-host and x-forwarded-proto when available", () => {
+		const req = makeMockRequest("https://app.example.com/path", {
+			"x-forwarded-host": "proxy.example.com",
+			"x-forwarded-proto": "https",
+		});
+		const result = buildRedirectUrl(req, "/admin");
+		expect(result.href).toBe("https://proxy.example.com/admin");
+	});
+
+	it("uses x-forwarded-host with http proto when x-forwarded-proto is missing", () => {
+		const req = makeMockRequest("https://app.example.com/path", {
+			"x-forwarded-host": "proxy.example.com",
+		});
+		const result = buildRedirectUrl(req, "/admin");
+		expect(result.href).toBe("https://proxy.example.com/admin");
+	});
+
+	it("falls back to request origin when no forwarded headers", () => {
+		const req = makeMockRequest("https://app.example.com/path");
+		const result = buildRedirectUrl(req, "/login");
+		expect(result.href).toBe("https://app.example.com/login");
+	});
+
+	it("handles custom x-forwarded-proto value", () => {
+		const req = makeMockRequest("https://app.example.com/path", {
+			"x-forwarded-host": "proxy.example.com",
+			"x-forwarded-proto": "http",
+		});
+		const result = buildRedirectUrl(req, "/admin/login");
+		expect(result.href).toBe("http://proxy.example.com/admin/login");
 	});
 });

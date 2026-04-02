@@ -191,7 +191,7 @@ describe("jwtCallback", () => {
 		const result = jwtCallback({ token });
 		expect(result).toBeInstanceOf(Promise);
 
-		// The actual refresh will fail (no mock fetch) → should set error
+		// The actual refresh will fail (no mock fetch) -> should set error
 		const resolved = await result;
 		expect((resolved as JWT).error).toBe("RefreshTokenExpired");
 	});
@@ -214,7 +214,7 @@ describe("jwtCallback", () => {
 // ---------------------------------------------------------------------------
 
 describe("sessionCallback", () => {
-	it("Credentials provider: exposes id, name, provider, role — no workerJwt", () => {
+	it("Credentials provider: exposes id, name, provider, role -- no workerJwt", () => {
 		const session = { user: {} } as unknown as Session;
 		const token: JWT = {
 			provider: "credentials",
@@ -469,7 +469,7 @@ describe("refreshWorkerToken", () => {
 });
 
 // ---------------------------------------------------------------------------
-// jwtCallback — refresh integration (mocked fetch)
+// jwtCallback -- refresh integration (mocked fetch)
 // ---------------------------------------------------------------------------
 
 describe("jwtCallback refresh path", () => {
@@ -636,7 +636,7 @@ describe("jwtCallback refresh path", () => {
 		expect(result).toBeInstanceOf(Promise);
 
 		const resolved = (await result) as JWT;
-		// refreshWorkerToken(undefined) returns null → error state
+		// refreshWorkerToken(undefined) returns null -> error state
 		expect(resolved.error).toBe("RefreshTokenExpired");
 	});
 
@@ -668,5 +668,134 @@ describe("jwtCallback refresh path", () => {
 		expect(result.name).toBe("superuser");
 		expect(result.role).toBe(2);
 		expect(result.provider).toBe("credentials");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// jwtCallback -- uncovered branches
+// ---------------------------------------------------------------------------
+
+describe("jwtCallback uncovered branches", () => {
+	it("Google OAuth with missing profile fields: defaults to undefined", () => {
+		const token: JWT = { sub: "existing" };
+		const account = { provider: "google" } as Account;
+		const profile: Profile = {}; // No sub, email, name, picture
+
+		const result = jwtCallback({ token, account, profile });
+		expect(result).toEqual({
+			sub: undefined,
+			email: undefined,
+			name: undefined,
+			picture: undefined,
+			provider: "google",
+		});
+	});
+
+	it("Google OAuth with undefined profile: defaults to undefined", () => {
+		const token: JWT = { sub: "existing" };
+		const account = { provider: "google" } as Account;
+
+		const result = jwtCallback({ token, account, profile: undefined });
+		expect(result).toEqual({
+			sub: undefined,
+			email: undefined,
+			name: undefined,
+			picture: undefined,
+			provider: "google",
+		});
+	});
+
+	it("Credentials first login with undefined user.name: sets name to undefined", () => {
+		const exp = Math.floor(Date.now() / 1000) + 3600;
+		const jwtString = makeJwtString(exp);
+		const token: JWT = {};
+		const user: User = {
+			id: "42",
+			workerJwt: jwtString,
+			workerRefreshToken: "refresh-abc",
+			role: 0,
+		};
+		const account = { provider: "credentials" } as Account;
+
+		const result = jwtCallback({ token, user, account });
+		expect((result as JWT).name).toBeUndefined();
+		expect((result as JWT).sub).toBe("42");
+	});
+
+	it("Credentials first login without account: falls through to expiry check", () => {
+		const farFuture = Math.floor(Date.now() / 1000) + 86400;
+		const token: JWT = {
+			provider: "credentials",
+			workerJwt: "jwt",
+			workerRefreshToken: "rt",
+			workerJwtExp: farFuture,
+			role: 0,
+		};
+		const user: User = { id: "42", name: "user" };
+
+		// No account -> falls through Google and Credentials-first-login branches
+		const result = jwtCallback({ token, user, account: undefined });
+		expect(result).toEqual(token);
+	});
+
+	it("Token with no provider but workerJwtExp: returns unchanged (not credentials)", () => {
+		const farFuture = Math.floor(Date.now() / 1000) + 86400;
+		const token: JWT = {
+			workerJwt: "jwt",
+			workerRefreshToken: "rt",
+			workerJwtExp: farFuture,
+		};
+
+		const result = jwtCallback({ token });
+		// provider is undefined, so expiry check branch is not entered
+		expect(result).toEqual(token);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// sessionCallback -- uncovered branches
+// ---------------------------------------------------------------------------
+
+describe("sessionCallback uncovered branches", () => {
+	it("Credentials with missing token fields: defaults to empty strings", () => {
+		const session = { user: {} } as unknown as Session;
+		const token: JWT = {
+			provider: "credentials",
+			// sub, name, role are all missing
+		};
+
+		const result = sessionCallback({ session, token });
+		expect(result.user.id).toBe("");
+		expect(result.user.name).toBe("");
+		expect(result.user.role).toBeUndefined();
+	});
+
+	it("Google provider with missing token fields: uses defaults", () => {
+		const session = { user: {} } as unknown as Session;
+		const token: JWT = {
+			provider: "google",
+			// sub, email, name, picture missing
+		};
+
+		const result = sessionCallback({ session, token });
+		expect(result.user.provider).toBe("google");
+		expect(result.user.id).toBe("");
+		expect(result.user.email).toBe("");
+		expect(result.user.name).toBe("");
+		expect(result.user.image).toBeUndefined();
+	});
+
+	it("Google provider with picture set: maps to image", () => {
+		const session = { user: { id: "", email: "", name: "", image: "" } } as unknown as Session;
+		const token: JWT = {
+			provider: "google",
+			sub: "g-1",
+			email: "a@b.com",
+			name: "Admin",
+			picture: "https://img.test/a.png",
+		};
+
+		const result = sessionCallback({ session, token });
+		expect(result.user.image).toBe("https://img.test/a.png");
 	});
 });
