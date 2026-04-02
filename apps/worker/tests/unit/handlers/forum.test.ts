@@ -15,7 +15,7 @@ describe("forum handlers", () => {
 		USE_KV_USER_CACHE: "false",
 	};
 
-	const mockCtx = createMockCtx();
+	const _mockCtx = createMockCtx();
 
 	/** Full D1 row (snake_case) matching the real forums table + JOIN result */
 	const makeD1ForumRow = (overrides?: Record<string, unknown>) => ({
@@ -255,7 +255,11 @@ describe("forum handlers", () => {
 
 			const env = { ...mockEnv, DB: db };
 			const ctx = createMockCtx();
-			const response = await getById(new Request("https://example.com/api/v1/forums/abc"), env, ctx);
+			const response = await getById(
+				new Request("https://example.com/api/v1/forums/abc"),
+				env,
+				ctx,
+			);
 
 			expect(response.status).toBe(404);
 		});

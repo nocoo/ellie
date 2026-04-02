@@ -2,7 +2,7 @@
 import type { Thread } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
-import { enrichThreadsWithUserCache, enrichThreadWithUserCache, toThread } from "../lib/mappers";
+import { enrichThreadWithUserCache, enrichThreadsWithUserCache, toThread } from "../lib/mappers";
 import { jsonResponse, paginatedResponse } from "../lib/response";
 import { withAuth } from "../lib/routeHelpers";
 import { getUserProfiles } from "../lib/user-cache";
@@ -51,12 +51,45 @@ interface D1ThreadRow {
 	last_post_at: number;
 }
 
+/** Map D1 rows to Thread objects with optional avatar enrichment */
+function mapThreadRows(results: unknown[], useKvCache: boolean): Thread[] {
+	return results.map((row) => {
+		const r = row as Record<string, unknown>;
+		const thread = toThread(r);
+		// If JOIN approach, populate avatars directly from query result
+		if (!useKvCache) {
+			thread.authorAvatar = (r.author_avatar as string) ?? "";
+			thread.lastPosterAvatar = (r.last_poster_avatar as string) ?? "";
+		}
+		return thread;
+	});
+}
+
+/** Get thread list query based on cache strategy */
+function getThreadListQuery(useKvCache: boolean, withCursor: boolean): string {
+	const selectFields = useKvCache
+		? "*"
+		: "t.*, author.avatar AS author_avatar, lp.avatar AS last_poster_avatar";
+	const fromClause = useKvCache
+		? "threads"
+		: "threads t LEFT JOIN users author ON t.author_id = author.id LEFT JOIN users lp ON t.last_poster_id = lp.id";
+	const tablePrefix = useKvCache ? "" : "t.";
+	const whereClause = useKvCache ? "forum_id = ?" : "t.forum_id = ?";
+
+	if (withCursor) {
+		const cursorCondition = `(${tablePrefix}sticky < ? OR (${tablePrefix}sticky = ? AND (${tablePrefix}last_post_at < ? OR (${tablePrefix}last_post_at = ? AND ${tablePrefix}id < ?))))`;
+		return `SELECT ${selectFields} FROM ${fromClause} WHERE ${whereClause} AND ${cursorCondition} ORDER BY ${tablePrefix}sticky DESC, ${tablePrefix}last_post_at DESC, ${tablePrefix}id DESC LIMIT ?`;
+	}
+	return `SELECT ${selectFields} FROM ${fromClause} WHERE ${whereClause} ORDER BY ${tablePrefix}sticky DESC, ${tablePrefix}last_post_at DESC, ${tablePrefix}id DESC LIMIT ?`;
+}
+
+/** Get thread list query with OFFSET for page-based pagination */
+function getThreadListQueryWithOffset(useKvCache: boolean): string {
+	return `${getThreadListQuery(useKvCache, false).slice(0, -1)} OFFSET ?`;
+}
+
 /** GET /api/v1/threads - List threads with keyset or offset pagination */
-export async function list(
-	request: Request,
-	env: Env,
-	ctx: ExecutionContext,
-): Promise<Response> {
+export async function list(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const forumId = url.searchParams.get("forumId");
@@ -89,39 +122,17 @@ export async function list(
 		const page = Math.max(1, Number.parseInt(pageParam, 10) || 1);
 		const offset = (page - 1) * clampedLimit;
 
-		// Choose query based on cache strategy
-		const dataQuery = useKvCache
-			? "SELECT * FROM threads WHERE forum_id = ? ORDER BY sticky DESC, last_post_at DESC, id DESC LIMIT ? OFFSET ?"
-			: `SELECT t.*,
-			          author.avatar AS author_avatar,
-			          lp.avatar AS last_poster_avatar
-			   FROM threads t
-			   LEFT JOIN users author ON t.author_id = author.id
-			   LEFT JOIN users lp ON t.last_poster_id = lp.id
-			   WHERE t.forum_id = ?
-			   ORDER BY t.sticky DESC, t.last_post_at DESC, t.id DESC
-			   LIMIT ? OFFSET ?`;
-
 		const [countResult, dataResult] = await Promise.all([
 			env.DB.prepare("SELECT COUNT(*) as total FROM threads WHERE forum_id = ?")
 				.bind(forumIdNum)
 				.first<{ total: number }>(),
-			env.DB.prepare(dataQuery)
+			env.DB.prepare(getThreadListQueryWithOffset(useKvCache))
 				.bind(forumIdNum, clampedLimit, offset)
 				.all(),
 		]);
 
 		const total = countResult?.total ?? 0;
-		let threads: Thread[] = dataResult.results.map((row) => {
-			const r = row as Record<string, unknown>;
-			const thread = toThread(r);
-			// If JOIN approach, populate avatars directly from query result
-			if (!useKvCache) {
-				thread.authorAvatar = (r.author_avatar as string) ?? "";
-				thread.lastPosterAvatar = (r.last_poster_avatar as string) ?? "";
-			}
-			return thread;
-		});
+		let threads = mapThreadRows(dataResult.results, useKvCache);
 
 		// Enrich with KV user cache (only if enabled)
 		if (useKvCache) {
@@ -135,64 +146,24 @@ export async function list(
 	// Branch: keyset cursor pagination (default / backward-compatible)
 	// -------------------------------------------------------------------
 	const cursor = cursorStr ? decodeThreadCursor(cursorStr) : null;
+	const query = getThreadListQuery(useKvCache, cursor !== null);
 
-	let result: D1Result;
-	if (cursor) {
-		// Keyset pagination with optional JOIN
-		const baseQuery = useKvCache
-			? `SELECT * FROM threads WHERE forum_id = ? AND
-			   (sticky < ? OR (sticky = ? AND (last_post_at < ? OR (last_post_at = ? AND id < ?))))
-			   ORDER BY sticky DESC, last_post_at DESC, id DESC LIMIT ?`
-			: `SELECT t.*,
-			          author.avatar AS author_avatar,
-			          lp.avatar AS last_poster_avatar
-			   FROM threads t
-			   LEFT JOIN users author ON t.author_id = author.id
-			   LEFT JOIN users lp ON t.last_poster_id = lp.id
-			   WHERE t.forum_id = ? AND
-			   (t.sticky < ? OR (t.sticky = ? AND (t.last_post_at < ? OR (t.last_post_at = ? AND t.id < ?))))
-			   ORDER BY t.sticky DESC, t.last_post_at DESC, t.id DESC LIMIT ?`;
-
-		result = await env.DB.prepare(baseQuery)
-			.bind(
-				forumIdNum,
-				cursor.sticky,
-				cursor.sticky,
-				cursor.lastPostAt,
-				cursor.lastPostAt,
-				cursor.id,
-				clampedLimit,
-			)
-			.all();
-	} else {
-		// First page with optional JOIN
-		const baseQuery = useKvCache
-			? "SELECT * FROM threads WHERE forum_id = ? ORDER BY sticky DESC, last_post_at DESC, id DESC LIMIT ?"
-			: `SELECT t.*,
-			          author.avatar AS author_avatar,
-			          lp.avatar AS last_poster_avatar
-			   FROM threads t
-			   LEFT JOIN users author ON t.author_id = author.id
-			   LEFT JOIN users lp ON t.last_poster_id = lp.id
-			   WHERE t.forum_id = ?
-			   ORDER BY t.sticky DESC, t.last_post_at DESC, t.id DESC LIMIT ?`;
-
-		result = await env.DB.prepare(baseQuery)
-			.bind(forumIdNum, clampedLimit)
-			.all();
-	}
+	const result: D1Result = cursor
+		? await env.DB.prepare(query)
+				.bind(
+					forumIdNum,
+					cursor.sticky,
+					cursor.sticky,
+					cursor.lastPostAt,
+					cursor.lastPostAt,
+					cursor.id,
+					clampedLimit,
+				)
+				.all()
+		: await env.DB.prepare(query).bind(forumIdNum, clampedLimit).all();
 
 	// Map D1 snake_case rows to camelCase Thread type
-	let threads: Thread[] = result.results.map((row) => {
-		const r = row as Record<string, unknown>;
-		const thread = toThread(r);
-		// If JOIN approach, populate avatars directly from query result
-		if (!useKvCache) {
-			thread.authorAvatar = (r.author_avatar as string) ?? "";
-			thread.lastPosterAvatar = (r.last_poster_avatar as string) ?? "";
-		}
-		return thread;
-	});
+	let threads = mapThreadRows(result.results, useKvCache);
 
 	// Enrich with KV user cache (only if enabled)
 	if (useKvCache) {
