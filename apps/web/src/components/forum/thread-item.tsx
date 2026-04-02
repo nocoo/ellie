@@ -43,12 +43,9 @@ export function ThreadItem({ item }: ThreadItemProps) {
 			{/* Column 2: Author (fixed) - primary info */}
 			<div className="hidden sm:flex flex-col items-center justify-center w-[100px] shrink-0 py-2 text-center">
 				<UserPopover userId={thread.authorId}>
-					<Link
-						href={`/users/${thread.authorId}`}
-						className="text-2xs text-foreground font-medium hover:text-primary transition-colors truncate max-w-full"
-					>
+					<span className="text-2xs text-foreground font-medium hover:text-primary transition-colors truncate max-w-full cursor-pointer">
 						{thread.authorName}
-					</Link>
+					</span>
 				</UserPopover>
 				<span className="text-2xs text-muted-foreground">{formatTime(thread.createdAt)}</span>
 			</div>
@@ -63,12 +60,9 @@ export function ThreadItem({ item }: ThreadItemProps) {
 			<div className="hidden sm:flex flex-col items-center justify-center w-[120px] shrink-0 py-2 text-center">
 				{thread.lastPosterId > 0 ? (
 					<UserPopover userId={thread.lastPosterId}>
-						<Link
-							href={`/users/${thread.lastPosterId}`}
-							className="text-2xs text-foreground font-medium truncate max-w-full hover:text-primary transition-colors"
-						>
+						<span className="text-2xs text-foreground font-medium truncate max-w-full hover:text-primary transition-colors cursor-pointer">
 							{thread.lastPoster || "-"}
-						</Link>
+						</span>
 					</UserPopover>
 				) : (
 					<span className="text-2xs text-muted-foreground truncate max-w-full">
