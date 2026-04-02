@@ -1,3 +1,5 @@
+"use client";
+
 // components/forum/thread-item.tsx — Discuz classic 4-column table row
 // Columns: Icon | Subject | Author | Replies/Views | Last Post
 
@@ -10,6 +12,7 @@ import {
 } from "@/viewmodels/forum/thread-list";
 import Link from "next/link";
 import { ThreadBadgeList } from "./thread-badge";
+import { UserPopover } from "./user-popover";
 
 interface ThreadItemProps {
 	item: ThreadDisplayItem;
@@ -39,12 +42,14 @@ export function ThreadItem({ item }: ThreadItemProps) {
 
 			{/* Column 2: Author (fixed) */}
 			<div className="hidden sm:flex flex-col items-center justify-center w-[100px] shrink-0 py-2 text-center">
-				<Link
-					href={`/users/${thread.authorId}`}
-					className="text-2xs text-foreground hover:text-primary transition-colors truncate max-w-full"
-				>
-					{thread.authorName}
-				</Link>
+				<UserPopover userId={thread.authorId}>
+					<Link
+						href={`/users/${thread.authorId}`}
+						className="text-2xs text-foreground hover:text-primary transition-colors truncate max-w-full"
+					>
+						{thread.authorName}
+					</Link>
+				</UserPopover>
 				<span className="text-2xs text-muted-foreground">{formatTime(thread.createdAt)}</span>
 			</div>
 
@@ -56,9 +61,17 @@ export function ThreadItem({ item }: ThreadItemProps) {
 
 			{/* Column 4: Last Post (fixed) */}
 			<div className="hidden sm:flex flex-col items-center justify-center w-[120px] shrink-0 py-2 text-center">
-				<span className="text-2xs text-foreground truncate max-w-full">
-					{thread.lastPoster || "-"}
-				</span>
+				{thread.lastPosterId > 0 ? (
+					<UserPopover userId={thread.lastPosterId}>
+						<span className="text-2xs text-foreground truncate max-w-full cursor-pointer hover:text-primary transition-colors">
+							{thread.lastPoster || "-"}
+						</span>
+					</UserPopover>
+				) : (
+					<span className="text-2xs text-foreground truncate max-w-full">
+						{thread.lastPoster || "-"}
+					</span>
+				)}
 				<span className="text-2xs text-muted-foreground">
 					{thread.lastPostAt ? formatTime(thread.lastPostAt) : "-"}
 				</span>

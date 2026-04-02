@@ -1,3 +1,5 @@
+"use client";
+
 // components/forum/forum-card.tsx — Forum card with two layout variants
 // "wide" = full-width row (学习与学术区 style), "grid" = compact cell in 2-col grid (社团与爱好区 style)
 
@@ -7,6 +9,7 @@ import { formatDateTime } from "@/viewmodels/shared/formatting";
 import type { ForumTreeNode } from "@ellie/types";
 import Link from "next/link";
 import { SafeHtml } from "./safe-html";
+import { UserPopover } from "./user-popover";
 
 interface ForumCardProps {
 	forum: ForumTreeNode;
@@ -109,9 +112,15 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 					</Link>
 					<span className="mt-0.5 leading-5">
 						{formatDateTime(forum.lastPostAt)}{" "}
-						<span className="text-forum-link hover:underline cursor-pointer">
-							{forum.lastPoster}
-						</span>
+						{forum.lastPosterId > 0 ? (
+							<UserPopover userId={forum.lastPosterId}>
+								<span className="text-forum-link hover:underline cursor-pointer">
+									{forum.lastPoster}
+								</span>
+							</UserPopover>
+						) : (
+							<span className="text-forum-link">{forum.lastPoster}</span>
+						)}
 					</span>
 				</div>
 			)}
@@ -175,9 +184,15 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 							{forum.lastThreadSubject || "最新帖子"}
 						</Link>{" "}
 						{formatDateTime(forum.lastPostAt)}{" "}
-						<span className="text-forum-link hover:underline cursor-pointer">
-							{forum.lastPoster}
-						</span>
+						{forum.lastPosterId > 0 ? (
+							<UserPopover userId={forum.lastPosterId}>
+								<span className="text-forum-link hover:underline cursor-pointer">
+									{forum.lastPoster}
+								</span>
+							</UserPopover>
+						) : (
+							<span className="text-forum-link">{forum.lastPoster}</span>
+						)}
 					</div>
 				)}
 			</div>
