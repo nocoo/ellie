@@ -75,20 +75,36 @@
 }
 
 @keyframes accordion-down {
-	from { height: 0; }
-	to { height: var(--radix-accordion-content-height); }
+	from {
+		height: 0;
+	}
+	to {
+		height: var(--radix-accordion-content-height);
+	}
 }
 @keyframes accordion-up {
-	from { height: var(--radix-accordion-content-height); }
-	to { height: 0; }
+	from {
+		height: var(--radix-accordion-content-height);
+	}
+	to {
+		height: 0;
+	}
 }
 @keyframes collapsible-down {
-	from { height: 0; }
-	to { height: var(--radix-collapsible-content-height); }
+	from {
+		height: 0;
+	}
+	to {
+		height: var(--radix-collapsible-content-height);
+	}
 }
 @keyframes collapsible-up {
-	from { height: var(--radix-collapsible-content-height); }
-	to { height: 0; }
+	from {
+		height: var(--radix-collapsible-content-height);
+	}
+	to {
+		height: 0;
+	}
 }
 
 /* ==========================================================================
@@ -215,9 +231,16 @@
    Base Styles
    ========================================================================== */
 @layer base {
-	* { @apply border-border; }
-	html { @apply bg-background; color-scheme: light; }
-	html.dark { color-scheme: dark; }
+	* {
+		@apply border-border;
+	}
+	html {
+		@apply bg-background;
+		color-scheme: light;
+	}
+	html.dark {
+		color-scheme: dark;
+	}
 	body {
 		@apply bg-background text-foreground;
 		font-family: var(--font-inter), "Inter", system-ui, -apple-system, sans-serif;
@@ -233,7 +256,23 @@
 
 /* Navigation gradient */
 .nav-gradient {
-	background: linear-gradient(180deg, hsl(var(--dz-nav-bg)) 0%, hsl(var(--dz-nav-hover)) 100%);
+	position: relative;
+	background-image: url("https://t.no.mt/ellie/bg-menu-light.jpg");
+	background-size: auto 100%;
+	background-repeat: repeat-x;
+	background-position: center;
+}
+.nav-gradient::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(
+		to top,
+		rgba(0, 0, 0, 0.4) 0%,
+		rgba(0, 0, 0, 0.1) 50%,
+		transparent 100%
+	);
+	pointer-events: none;
 }
 
 /* Content container */
@@ -247,7 +286,9 @@
 	padding-inline: 1rem;
 }
 @media (min-width: 768px) {
-	:root[data-width-mode="full"] .width-container { padding-inline: 2rem; }
+	:root[data-width-mode="full"] .width-container {
+		padding-inline: 2rem;
+	}
 }
 
 /* ==========================================================================
@@ -335,12 +376,10 @@ body::before {
 	inset: 0;
 	pointer-events: none;
 	z-index: -1;
-	background:
-		repeating-linear-gradient(0deg, rgba(0,0,0,0.03) 0 1px, transparent 1px 24px),
-		repeating-linear-gradient(90deg, rgba(0,0,0,0.03) 0 1px, transparent 1px 24px);
+	background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.03) 0 1px, transparent 1px 24px),
+		repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.03) 0 1px, transparent 1px 24px);
 }
 .dark body::before {
-	background:
-		repeating-linear-gradient(0deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 24px),
-		repeating-linear-gradient(90deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 24px);
+	background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 24px),
+		repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 24px);
 }
