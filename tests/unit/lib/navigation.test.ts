@@ -17,9 +17,9 @@ describe("NAV_GROUPS", () => {
 		]);
 	});
 
-	it("has 11 total nav items", () => {
+	it("has 12 total nav items", () => {
 		const total = NAV_GROUPS.reduce((sum, g) => sum + g.items.length, 0);
-		expect(total).toBe(11);
+		expect(total).toBe(12);
 	});
 
 	it("each group has items with required fields", () => {
@@ -62,12 +62,13 @@ describe("NAV_GROUPS", () => {
 		expect(labels).toEqual(["IP 封禁", "敏感词"]);
 	});
 
-	it("settings group has general settings, nav links, and friend links", () => {
+	it("settings group has general settings, feature settings, nav links, and friend links", () => {
 		const settingsGroup = NAV_GROUPS.find((g) => g.label === "设置");
 		expect(settingsGroup).toBeTruthy();
 		const labels = settingsGroup?.items.map((i) => i.label);
-		expect(labels).toEqual(["通用设置", "顶部导航", "友情链接"]);
+		expect(labels).toEqual(["通用设置", "功能设置", "顶部导航", "友情链接"]);
 		expect(settingsGroup?.items[0]?.icon).toBe("Settings");
+		expect(settingsGroup?.items[1]?.icon).toBe("ToggleLeft");
 	});
 
 	it("first four groups default to open, settings group does not", () => {
