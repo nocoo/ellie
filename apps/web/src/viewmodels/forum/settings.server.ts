@@ -40,6 +40,18 @@ export function getNum(
 	return fallback;
 }
 
+export function getBool(
+	settings: SettingsMap,
+	key: string,
+	fallback: boolean,
+): boolean {
+	const v = settings[key];
+	if (typeof v === "boolean") return v;
+	if (v === "true") return true;
+	if (v === "false") return false;
+	return fallback;
+}
+
 export function getArr<T>(
 	settings: SettingsMap,
 	key: string,
