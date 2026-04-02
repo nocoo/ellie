@@ -699,3 +699,70 @@ export interface Thread {
 | 用户名可点击 | ❌ 无法跳转 | ✅ 可跳转到用户主页 |
 | 查询性能 | N/A | KV < 10ms，批量并发 |
 | 存储成本 | 冗余存储用户名 | 只存 ID（更小） |
+
+---
+
+## 运行时配置
+
+### 缓存策略开关
+
+支持两种用户信息解析策略，通过环境变量 `USE_KV_USER_CACHE` 控制：
+
+```bash
+# wrangler.toml [vars] 或 Worker 环境变量
+USE_KV_USER_CACHE = "false"  # 默认：使用 SQL JOIN
+USE_KV_USER_CACHE = "true"   # 启用 KV 缓存
+```
+
+| 策略 | 值 | 说明 |
+|------|------|------|
+| **JOIN 方法** | `"false"` (默认) | 使用 SQL LEFT JOIN 从 users 表获取头像等信息 |
+| **KV 缓存** | `"true"` | 使用 KV 缓存批量获取用户信息，缓存未命中时回退到 DB |
+
+### JOIN 方法（当前默认）
+
+```sql
+-- Forum list
+SELECT f.*, u.avatar AS last_poster_avatar
+FROM forums f
+LEFT JOIN users u ON f.last_poster_id = u.id
+
+-- Thread list
+SELECT t.*,
+       author.avatar AS author_avatar,
+       lp.avatar AS last_poster_avatar
+FROM threads t
+LEFT JOIN users author ON t.author_id = author.id
+LEFT JOIN users lp ON t.last_poster_id = lp.id
+```
+
+**优点**：
+- 实现简单，数据实时一致
+- 无需额外缓存维护
+- 单次查询完成，减少 KV 读取成本
+
+**缺点**：
+- 每次查询都需要 JOIN
+- 复杂查询可能影响 D1 性能
+
+### KV 缓存方法
+
+详见上方"KV 缓存结构"章节。
+
+**优点**：
+- KV 读取极快（<10ms）
+- 批量获取多用户信息高效
+- 减轻数据库压力
+
+**缺点**：
+- 需要维护缓存一致性
+- 用户改名后需要等待缓存失效（或手动失效）
+- 增加 KV 存储成本
+
+### 切换策略
+
+1. **切换到 KV 缓存**：设置 `USE_KV_USER_CACHE="true"`，重新部署
+2. **切换回 JOIN**：设置 `USE_KV_USER_CACHE="false"` 或删除该变量，重新部署
+
+代码中两种方法的实现都保留，可随时切换。
+

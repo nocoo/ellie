@@ -78,6 +78,8 @@ export function makeD1ForumRow(overrides?: Record<string, unknown>) {
 		last_poster: "alice",
 		last_poster_id: 10,
 		last_thread_subject: "Latest Thread",
+		// JOIN result field (for JOIN approach)
+		last_poster_avatar: "",
 		...overrides,
 	};
 }
@@ -101,7 +103,11 @@ export function makeD1ThreadRow(overrides?: Record<string, unknown>) {
 		special: 0,
 		highlight: 0,
 		recommends: 0,
+		type_name: "",
 		post_table_id: 1, // internal field — should NOT appear in output
+		// JOIN result fields (for JOIN approach)
+		author_avatar: "",
+		last_poster_avatar: "",
 		...overrides,
 	};
 }

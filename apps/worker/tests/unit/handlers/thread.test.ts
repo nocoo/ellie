@@ -18,6 +18,8 @@ describe("thread handlers", () => {
 		ENVIRONMENT: "test",
 		JWT_SECRET: TEST_JWT_SECRET,
 		KV: createMockKV(),
+		// Disable KV cache - use JOIN approach (default behavior)
+		USE_KV_USER_CACHE: "false",
 	};
 
 	// Create fresh ctx for each test
@@ -100,7 +102,7 @@ describe("thread handlers", () => {
 			expect(thread.author_id).toBeUndefined();
 		});
 
-		it("should query threads without cursor on first page", async () => {
+		it("should query threads with JOIN on first page", async () => {
 			const d1Row = makeD1ThreadRow();
 			const allSpy = mock(() => Promise.resolve({ results: [d1Row] }));
 			const bindSpy = mock((..._args: unknown[]) => ({
@@ -113,7 +115,10 @@ describe("thread handlers", () => {
 			await list(new Request("https://example.com/api/v1/threads?forumId=1"), env, getCtx());
 
 			expect(prepareSpy).toHaveBeenCalledWith(
-				expect.stringContaining("ORDER BY sticky DESC, last_post_at DESC"),
+				expect.stringContaining("ORDER BY"),
+			);
+			expect(prepareSpy).toHaveBeenCalledWith(
+				expect.stringContaining("LEFT JOIN users"),
 			);
 			expect(bindSpy).toHaveBeenCalledWith(1, 100);
 		});
@@ -339,19 +344,11 @@ describe("thread handlers", () => {
 		function createGetByIdMockDb(threadRow: unknown | null) {
 			return {
 				prepare: mock((sql: string) => {
-					// Thread query
-					if (sql.includes("SELECT * FROM threads WHERE id")) {
+					// Thread query (with or without JOIN)
+					if (sql.includes("FROM threads") && sql.includes("WHERE")) {
 						return {
 							bind: mock((..._args: unknown[]) => ({
 								first: mock(() => Promise.resolve(threadRow)),
-							})),
-						};
-					}
-					// User cache query
-					if (sql.includes("SELECT id, username, avatar")) {
-						return {
-							bind: mock((..._args: unknown[]) => ({
-								all: mock(() => Promise.resolve({ results: [] })),
 							})),
 						};
 					}
