@@ -11,28 +11,23 @@ import {
 // ---------------------------------------------------------------------------
 
 describe("SETTING_GROUPS", () => {
-	it("should have exactly 4 groups", () => {
-		expect(SETTING_GROUPS).toHaveLength(4);
+	it("should have exactly 3 groups", () => {
+		expect(SETTING_GROUPS).toHaveLength(3);
 	});
 
-	it("should define 16 total fields across all groups", () => {
+	it("should define 14 total fields across all groups", () => {
 		const totalFields = SETTING_GROUPS.reduce((sum, g) => sum + g.fields.length, 0);
-		expect(totalFields).toBe(16);
+		expect(totalFields).toBe(14);
 	});
 
 	it("should have correct group titles", () => {
 		const titles = SETTING_GROUPS.map((g) => g.title);
-		expect(titles).toEqual(["站点品牌", "OG 社交媒体元数据", "分页与限制", "资源配置"]);
+		expect(titles).toEqual(["站点品牌", "OG 社交媒体元数据", "分页与限制"]);
 	});
 
 	it("should have correct group prefixes", () => {
 		const prefixes = SETTING_GROUPS.map((g) => g.prefix);
-		expect(prefixes).toEqual([
-			"general.site",
-			"general.og",
-			"general.pagination",
-			"general.assets",
-		]);
+		expect(prefixes).toEqual(["general.site", "general.og", "general.pagination"]);
 	});
 
 	it("all fields should have keys matching their group prefix", () => {
@@ -55,7 +50,7 @@ describe("SETTING_GROUPS", () => {
 		const urlFields = SETTING_GROUPS.flatMap((g) => g.fields).filter((f) => f.inputType === "url");
 		expect(urlFields.length).toBeGreaterThan(0);
 		for (const field of urlFields) {
-			expect(field.key).toMatch(/\.(image|url|avatar_cdn_base)$/);
+			expect(field.key).toMatch(/\.(image|url)$/);
 		}
 	});
 

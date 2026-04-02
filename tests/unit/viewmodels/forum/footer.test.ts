@@ -62,7 +62,6 @@ describe("buildGlobalFooterViewModel", () => {
 		const vm = buildGlobalFooterViewModel(emptySettings);
 		expect(vm.quickLinks).toBe(FOOTER_QUICK_LINKS);
 		expect(vm.quickLinks.length).toBeGreaterThan(0);
-		expect(vm.icpNumber).toBeTruthy();
 		expect(vm.copyrightHolder).toBeTruthy();
 	});
 

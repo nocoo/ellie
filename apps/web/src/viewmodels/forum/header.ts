@@ -5,7 +5,7 @@
  */
 
 import type { SettingsMap } from "./settings.server";
-import { getArr, getStr } from "./settings.server";
+import { getArr } from "./settings.server";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,7 +54,6 @@ export interface HeaderViewModel {
 	navTabs: HeaderNavTab[];
 	hotKeywords: HotKeyword[];
 	stats: HeaderStats;
-	avatarCdnBase: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -127,17 +126,10 @@ export function buildHeaderViewModel(
 			? headerLinks.map((link) => ({ label: link.label, href: link.url }))
 			: DEFAULT_NAV_TABS;
 
-	const avatarCdnBase = getStr(
-		settings,
-		"general.assets.avatar_cdn_base",
-		"https://t.no.mt/avatar",
-	);
-
 	return {
 		user,
 		navTabs,
 		hotKeywords: HOT_KEYWORDS,
 		stats,
-		avatarCdnBase,
 	};
 }

@@ -68,19 +68,6 @@ describe("buildHeaderViewModel", () => {
 			{ label: "About", href: "/about" },
 		]);
 	});
-
-	it("includes avatarCdnBase from settings", () => {
-		const settings = {
-			"general.assets.avatar_cdn_base": "https://cdn.example.com/avatars",
-		};
-		const vm = buildHeaderViewModel(settings);
-		expect(vm.avatarCdnBase).toBe("https://cdn.example.com/avatars");
-	});
-
-	it("uses default avatarCdnBase when not in settings", () => {
-		const vm = buildHeaderViewModel(emptySettings);
-		expect(vm.avatarCdnBase).toBe("https://t.no.mt/avatar");
-	});
 });
 
 // ---------------------------------------------------------------------------
