@@ -1,11 +1,25 @@
 # Ellie E2E Test Design (L3)
 
-> Version: 1.0 | Date: 2026-04-02
+> Version: 1.1 | Date: 2026-04-02
 > Ref: 6 维质量体系 L3 System/E2E
 
 ## Overview
 
 本文档定义论坛前端 E2E 测试覆盖方案，确保 100% 主要用户流程覆盖。
+
+### S 级项目经验吸收
+
+从同仓库 S 级项目中提取的最佳实践：
+
+| 项目 | 模式 | 吸收点 |
+|------|------|--------|
+| **surety** | Page Object Model | 每个页面一个 `*.page.ts`，封装 selectors 和 actions |
+| **surety** | Custom fixtures | `fixtures/base.ts` 扩展 test，提供 `navigateTo` helper |
+| **surety** | Data-driven navigation | 路由数组 + for-loop 生成测试 |
+| **gecko** | BDD 目录分离 | `__tests__/bdd/` 独立于单元测试 |
+| **gecko** | API seeding | 测试前通过 API 注入数据，确保可重复 |
+| **dove** | Skeleton-aware assertions | `skeleton.or(content)` 处理加载态竞争 |
+| **dove** | Sidebar navigation test | 完整点击验证每个导航项 |
 
 ### Quality System Context
 
@@ -659,3 +673,367 @@ bunx playwright test --headed
 | `functional-flows.spec.ts` | Split to `thread.spec.ts`, `search.spec.ts`, `admin.spec.ts` |
 | `admin-path.spec.ts` | Merge to `admin.spec.ts` |
 | `theme-responsive.spec.ts` | Move to `system.spec.ts` |
+
+---
+
+## Atomic Commit Plan
+
+基于 S 级项目经验，按原子化提交实施 E2E 测试基础设施。
+
+### Commit 1: Infrastructure Setup
+
+**Scope:** 测试基础设施搭建
+
+```
+tests/e2e/
+├── fixtures/
+│   └── base.ts           # Custom test fixtures
+├── pages/
+│   └── .gitkeep          # Page Object placeholder
+└── helpers/
+    └── selectors.ts      # Common selectors
+```
+
+**Files:**
+- `tests/e2e/fixtures/base.ts` — 扩展 Playwright test，添加 `navigateTo`, `loginAs` fixtures
+- `tests/e2e/helpers/selectors.ts` — 共享 selectors（sheet, dialog, table-row）
+- `playwright.config.ts` — 更新配置（locale: zh-CN, screenshot: only-on-failure）
+
+**Commit message:**
+```
+test(e2e): add custom fixtures and selector helpers
+
+- Add base.ts with navigateTo and loginAs fixtures
+- Add selectors.ts for common UI patterns (sheet, dialog)
+- Update playwright.config with locale and screenshot settings
+
+Ref: surety fixtures pattern
+```
+
+---
+
+### Commit 2: Page Objects - Forum
+
+**Scope:** 论坛核心页面的 Page Object
+
+**Files:**
+- `tests/e2e/pages/home.page.ts` — 首页（forum cards, digest showcase）
+- `tests/e2e/pages/forum.page.ts` — 版块页（thread list, sort controls, pagination）
+- `tests/e2e/pages/thread.page.ts` — 帖子页（posts, reply form, mod menu）
+
+**Pattern (from surety):**
+```typescript
+// pages/forum.page.ts
+export class ForumPage {
+  constructor(private page: Page) {}
+
+  async goto(forumId: number) {
+    await this.page.goto(`/forums/${forumId}`);
+    await this.page.waitForLoadState("networkidle");
+  }
+
+  get heading() { return this.page.getByRole("heading", { level: 1 }); }
+  get threadList() { return this.page.locator("[data-testid='thread-list']"); }
+  get sortNewest() { return this.page.getByRole("button", { name: "最新回复" }); }
+  get newThreadBtn() { return this.page.getByRole("button", { name: "发新帖" }); }
+
+  threadRow(subject: string) {
+    return this.page.locator("a", { hasText: subject });
+  }
+}
+```
+
+**Commit message:**
+```
+test(e2e): add page objects for forum core pages
+
+- home.page.ts: forum cards, digest showcase
+- forum.page.ts: thread list, sort, pagination
+- thread.page.ts: posts, reply form, mod actions
+
+Ref: surety POM pattern
+```
+
+---
+
+### Commit 3: Page Objects - Auth & User
+
+**Scope:** 认证和用户相关页面
+
+**Files:**
+- `tests/e2e/pages/login.page.ts` — 登录页（form fields, submit）
+- `tests/e2e/pages/register.page.ts` — 注册页（form, CAPTCHA placeholder）
+- `tests/e2e/pages/user.page.ts` — 用户资料页（avatar, stats, tabs）
+
+**Commit message:**
+```
+test(e2e): add page objects for auth and user pages
+
+- login.page.ts: credentials form
+- register.page.ts: registration form
+- user.page.ts: profile stats and tabs
+```
+
+---
+
+### Commit 4: Page Objects - Admin
+
+**Scope:** 管理后台页面
+
+**Files:**
+- `tests/e2e/pages/admin/dashboard.page.ts`
+- `tests/e2e/pages/admin/users.page.ts`
+- `tests/e2e/pages/admin/threads.page.ts`
+- `tests/e2e/pages/admin/forums.page.ts`
+- `tests/e2e/pages/admin/settings.page.ts`
+
+**Commit message:**
+```
+test(e2e): add page objects for admin pages
+
+- dashboard, users, threads, forums, settings
+- Encapsulate admin table operations (ban, delete, edit)
+```
+
+---
+
+### Commit 5: Navigation Spec (E2E-NV-*)
+
+**Scope:** 实现 6 个导航测试
+
+**Files:**
+- `tests/e2e/navigation.spec.ts`
+
+**Tests:**
+- E2E-NV-01: Homepage → Forum → Thread
+- E2E-NV-02: Breadcrumb navigation
+- E2E-NV-03: User profile link
+- E2E-NV-04: Digest page
+- E2E-NV-05: Page pagination
+- E2E-NV-06: Keyset pagination
+
+**Pattern (from gecko):**
+```typescript
+const routes = [
+  { path: "/", heading: "首页" },
+  { path: "/digest", heading: "精华帖" },
+  { path: "/search", heading: "搜索" },
+];
+
+for (const route of routes) {
+  test(`navigates to ${route.heading}`, async ({ navigateTo, page }) => {
+    await navigateTo(route.path);
+    await expect(page.getByRole("heading", { name: route.heading })).toBeVisible();
+  });
+}
+```
+
+**Commit message:**
+```
+test(e2e): implement navigation specs (E2E-NV-*)
+
+- 6 navigation tests covering core user flows
+- Data-driven route verification
+- Breadcrumb and pagination tests
+```
+
+---
+
+### Commit 6: Auth Spec (E2E-AU-*)
+
+**Scope:** 实现 5 个认证测试
+
+**Files:**
+- `tests/e2e/auth.spec.ts`
+
+**Tests:**
+- E2E-AU-01: Registration (placeholder for CAPTCHA)
+- E2E-AU-02: Login
+- E2E-AU-03: Logout
+- E2E-AU-04: Session guard
+- E2E-AU-05: Form validation
+
+**Commit message:**
+```
+test(e2e): implement auth specs (E2E-AU-*)
+
+- Login/logout flow tests
+- Session guard for protected routes
+- Form validation states
+```
+
+---
+
+### Commit 7: Thread & Post Specs (E2E-TH-*, E2E-PO-*)
+
+**Scope:** 实现 8 个帖子相关测试
+
+**Files:**
+- `tests/e2e/thread.spec.ts`
+- `tests/e2e/post.spec.ts`
+
+**Tests:**
+- E2E-TH-01~04: Thread CRUD and controls
+- E2E-PO-01~04: Reply and post operations
+
+**Commit message:**
+```
+test(e2e): implement thread and post specs
+
+- Thread creation and sort controls
+- Reply submission and edit
+- Post content rendering verification
+```
+
+---
+
+### Commit 8: Moderation Spec (E2E-MO-*)
+
+**Scope:** 实现 7 个版主操作测试
+
+**Files:**
+- `tests/e2e/moderation.spec.ts`
+
+**Tests:**
+- E2E-MO-01~07: Sticky, digest, highlight, move, delete
+
+**Commit message:**
+```
+test(e2e): implement moderation specs (E2E-MO-*)
+
+- Moderator actions: sticky, digest, highlight
+- Thread move and delete flows
+- Post moderation operations
+```
+
+---
+
+### Commit 9: Search & User Specs (E2E-SE-*, E2E-US-*)
+
+**Scope:** 实现 7 个搜索和用户测试
+
+**Files:**
+- `tests/e2e/search.spec.ts`
+- `tests/e2e/user.spec.ts`
+
+**Tests:**
+- E2E-SE-01~03: Search by title/author, pagination
+- E2E-US-01~04: Profile view, tabs, edit
+
+**Commit message:**
+```
+test(e2e): implement search and user profile specs
+
+- Search by title and author
+- User profile tabs and stats
+- Profile edit flow
+```
+
+---
+
+### Commit 10: Admin Spec (E2E-AD-*)
+
+**Scope:** 实现 8 个管理后台测试
+
+**Files:**
+- `tests/e2e/admin.spec.ts`
+
+**Tests:**
+- E2E-AD-01~08: Dashboard, user management, settings
+
+**Commit message:**
+```
+test(e2e): implement admin specs (E2E-AD-*)
+
+- Admin dashboard stats
+- User ban/unban operations
+- Forum and settings management
+```
+
+---
+
+### Commit 11: System Spec (E2E-SY-*)
+
+**Scope:** 实现 4 个系统功能测试
+
+**Files:**
+- `tests/e2e/system.spec.ts`
+
+**Tests:**
+- E2E-SY-01~02: Maintenance mode
+- E2E-SY-03: Theme toggle
+- E2E-SY-04: Responsive layout
+
+**Commit message:**
+```
+test(e2e): implement system specs (E2E-SY-*)
+
+- Maintenance mode with admin bypass
+- Theme toggle persistence
+- Responsive layout verification
+```
+
+---
+
+### Commit 12: Migrate Existing Tests
+
+**Scope:** 迁移并清理旧测试文件
+
+**Actions:**
+1. 将 `critical-path.spec.ts` 内容合并到 `navigation.spec.ts`, `auth.spec.ts`
+2. 将 `functional-flows.spec.ts` 内容合并到相应 specs
+3. 将 `admin-path.spec.ts` 合并到 `admin.spec.ts`
+4. 将 `theme-responsive.spec.ts` 合并到 `system.spec.ts`
+5. 删除旧文件
+
+**Commit message:**
+```
+test(e2e): migrate legacy test files to new structure
+
+- Merge critical-path, functional-flows, admin-path, theme-responsive
+- Remove deprecated test files
+- All specs now follow consistent POM pattern
+```
+
+---
+
+### Commit 13: CI Integration & Documentation
+
+**Scope:** CI 集成和文档更新
+
+**Files:**
+- `.github/workflows/e2e.yml` (if using GitHub Actions)
+- `CLAUDE.md` — 更新 Quality Gates 说明
+- `docs/e2e-test-design.md` — 标记完成状态
+
+**Commit message:**
+```
+docs: finalize E2E test implementation
+
+- Add CI workflow for E2E tests
+- Update quality gates in CLAUDE.md
+- Mark E2E design document as implemented
+```
+
+---
+
+## Implementation Checklist
+
+| # | Commit | Files | Status |
+|---|--------|-------|--------|
+| 1 | Infrastructure | fixtures/base.ts, helpers/selectors.ts | ⬜ |
+| 2 | POM Forum | pages/{home,forum,thread}.page.ts | ⬜ |
+| 3 | POM Auth/User | pages/{login,register,user}.page.ts | ⬜ |
+| 4 | POM Admin | pages/admin/*.page.ts | ⬜ |
+| 5 | Navigation | navigation.spec.ts | ⬜ |
+| 6 | Auth | auth.spec.ts | ⬜ |
+| 7 | Thread/Post | thread.spec.ts, post.spec.ts | ⬜ |
+| 8 | Moderation | moderation.spec.ts | ⬜ |
+| 9 | Search/User | search.spec.ts, user.spec.ts | ⬜ |
+| 10 | Admin | admin.spec.ts | ⬜ |
+| 11 | System | system.spec.ts | ⬜ |
+| 12 | Migration | Delete legacy files | ⬜ |
+| 13 | CI & Docs | Workflow, CLAUDE.md | ⬜ |
+
+**Total: 13 atomic commits**
+
