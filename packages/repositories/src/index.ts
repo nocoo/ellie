@@ -59,3 +59,11 @@ export function createRepositories(): Repositories {
 
 // Export types
 export * from "./types";
+
+// Export mock building blocks for unit testing
+export { createMockDataStore, type MockDataStore } from "./mock/store";
+export { createMockAttachmentRepository } from "./attachment.repository";
+export { createMockForumRepository } from "./forum.repository";
+export { createMockPostRepository } from "./post.repository";
+export { createMockThreadRepository } from "./thread.repository";
+export { createMockUserRepository } from "./user.repository";

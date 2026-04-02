@@ -6,6 +6,8 @@
       "name": "ellie",
       "devDependencies": {
         "@biomejs/biome": "^1.9.0",
+        "@ellie/repositories": "workspace:*",
+        "@ellie/types": "workspace:*",
         "@emoji-mart/data": "^1.2.1",
         "@emoji-mart/react": "^1.1.1",
         "@playwright/test": "^1.58.2",
