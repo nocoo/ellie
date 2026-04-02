@@ -11,6 +11,7 @@ import {
 	type Forum,
 	type ForumTreeNode,
 	type Thread,
+	type VisibilityContext,
 	buildForumTree,
 	filterVisibleForums,
 	findForumAncestors,
@@ -59,7 +60,9 @@ export async function loadThreadList(params: {
 
 	// Build forum tree and find current forum
 	const tree = buildForumTree(forumsRes.data);
-	const visible = tree.map(filterVisibleForums).filter((n): n is ForumTreeNode => n !== null);
+	const visible = tree
+		.map((node) => filterVisibleForums(node))
+		.filter((n): n is ForumTreeNode => n !== null);
 	const forum = findNodeById(visible, params.forumId);
 
 	return {
@@ -93,7 +96,9 @@ export async function loadThreadListPaged(params: {
 
 	// Build forum tree and find current forum
 	const tree = buildForumTree(forumsRes.data);
-	const visible = tree.map(filterVisibleForums).filter((n): n is ForumTreeNode => n !== null);
+	const visible = tree
+		.map((node) => filterVisibleForums(node))
+		.filter((n): n is ForumTreeNode => n !== null);
 	const forum = findNodeById(visible, params.forumId);
 
 	// Build breadcrumbs from forum ancestors

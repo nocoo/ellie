@@ -20,7 +20,10 @@ function parseModerators(moderators: string): string[] {
 
 // ─── Forum Visibility ────────────────────────────────────────────
 
-/** Can user view this forum? Hidden forums (status=0) are invisible. */
+/**
+ * Can user view this forum based on status only?
+ * @deprecated Use canViewForumVisibility from forum.ts for full visibility check
+ */
 export function canViewForum(_user: User | null, forum: Forum): boolean {
 	return forum.status !== 0;
 }

@@ -109,6 +109,9 @@ export interface ModeratorInfo {
 	name: string;
 }
 
+/** Forum visibility level */
+export type ForumVisibility = "public" | "members" | "staff" | "admin";
+
 /** Maps to Doc02 forums table — 213 rows */
 export interface Forum {
 	id: number;
@@ -121,6 +124,7 @@ export interface Forum {
 	posts: number;
 	type: ForumType;
 	status: number;
+	visibility: ForumVisibility;
 	moderators: string;
 	moderatorList: ModeratorInfo[];
 	todayThreads: number;

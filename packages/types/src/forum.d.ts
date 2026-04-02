@@ -18,5 +18,7 @@ export declare function findForumAncestors(forums: Forum[], forumId: number): Fo
  * Filter a tree node: remove invisible forums and their descendants.
  * - status=0: hidden (admin-hidden)
  * - status=-1: deleted (migrated placeholder)
+ * - status=2: paused forums (暂停版面)
+ * - status=3: QQ group forums (migrated from Discuz UCHome) — hidden by default
  */
 export declare function filterVisibleForums(node: ForumTreeNode): ForumTreeNode | null;
