@@ -1,50 +1,59 @@
 {
-	"name": "ellie-monorepo",
-	"version": "0.1.0",
-	"private": true,
-	"type": "module",
-	"workspaces": ["apps/*", "packages/*"],
-	"scripts": {
-		"dev": "bun run --filter web dev",
-		"build": "bun run --filter web build",
-		"start": "bun run --filter web start",
-		"migrate": "bun run --filter migrate start",
-		"cli": "bun run --filter cli start",
-		"worker:dev": "bun run --filter '@ellie/worker' dev",
-		"worker:deploy": "bun run --filter '@ellie/worker' deploy",
-		"tui": "bun --bun run scripts/tui.ts",
-		"test": "bun run --filter '*' test",
-		"test:unit": "bun run --filter '*' test:unit",
-		"test:integration": "bun run --filter '*' test:integration",
-		"test:e2e": "bun run --filter web test:e2e",
-		"typecheck": "bun run --filter '*' typecheck",
-		"lint": "biome check .",
-		"lint:fix": "biome check --write .",
-		"format": "biome format --write .",
-		"prepare": "husky"
-	},
-	"devDependencies": {
-		"@biomejs/biome": "^1.9.0",
-		"@emoji-mart/data": "^1.2.1",
-		"@emoji-mart/react": "^1.1.1",
-		"@playwright/test": "^1.58.2",
-		"@tiptap/extension-character-count": "^3.21.0",
-		"@tiptap/extension-link": "^3.21.0",
-		"@tiptap/extension-placeholder": "^3.21.0",
-		"@tiptap/react": "^3.21.0",
-		"@tiptap/starter-kit": "^3.21.0",
-		"@types/bun": "^1.2.0",
-		"@types/node": "^22",
-		"husky": "^9.1.7",
-		"lint-staged": "^16.4.0",
-		"typescript": "^5.9"
-	},
-	"trustedDependencies": ["@biomejs/biome"],
-	"engines": {
-		"node": ">=22",
-		"bun": ">=1.0"
-	},
-	"lint-staged": {
-		"*.{ts,tsx,js,jsx,json,css,md}": ["biome check --no-errors-on-unmatched"]
-	}
+  "name": "ellie-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter web dev",
+    "build": "bun run --filter web build",
+    "start": "bun run --filter web start",
+    "migrate": "bun run --filter migrate start",
+    "cli": "bun run --filter cli start",
+    "worker:dev": "bun run --filter '@ellie/worker' dev",
+    "worker:deploy": "bun run --filter '@ellie/worker' deploy",
+    "tui": "bun --bun run scripts/tui.ts",
+    "test": "bun run --filter '*' test",
+    "test:unit": "bun run --filter '*' test:unit",
+    "test:integration": "bun run --filter '*' test:integration",
+    "test:e2e": "bun run --filter web test:e2e",
+    "typecheck": "bun run --filter '*' typecheck",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.0",
+    "@emoji-mart/data": "^1.2.1",
+    "@emoji-mart/react": "^1.1.1",
+    "@playwright/test": "^1.58.2",
+    "@tiptap/extension-character-count": "^3.21.0",
+    "@tiptap/extension-link": "^3.21.0",
+    "@tiptap/extension-placeholder": "^3.21.0",
+    "@tiptap/react": "^3.21.0",
+    "@tiptap/starter-kit": "^3.21.0",
+    "@types/bun": "^1.2.0",
+    "@types/node": "^22",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "typescript": "^5.9",
+    "@ellie/repositories": "workspace:*",
+    "@ellie/types": "workspace:*"
+  },
+  "trustedDependencies": [
+    "@biomejs/biome"
+  ],
+  "engines": {
+    "node": ">=22",
+    "bun": ">=1.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json,css,md}": [
+      "biome check --no-errors-on-unmatched"
+    ]
+  }
 }
