@@ -22,6 +22,8 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 0,
 		lastPostAt: 0,
 		lastPoster: "",
+		lastPosterId: 0,
+		lastPosterAvatar: "",
 		lastThreadSubject: "",
 	},
 	{
@@ -40,6 +42,8 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 50001,
 		lastPostAt: 1711612800,
 		lastPoster: "zhangsan",
+		lastPosterId: 10,
+		lastPosterAvatar: "",
 		lastThreadSubject: "同济大学2026年春季招生公告",
 	},
 	{
@@ -58,6 +62,8 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 50002,
 		lastPostAt: 1711609200,
 		lastPoster: "lisi",
+		lastPosterId: 11,
+		lastPosterAvatar: "",
 		lastThreadSubject: "高等数学期末复习资料分享",
 	},
 	{
@@ -76,6 +82,8 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 50003,
 		lastPostAt: 1711605600,
 		lastPoster: "zhangsan",
+		lastPosterId: 10,
+		lastPosterAvatar: "",
 		lastThreadSubject: "2026考研数学真题解析",
 	},
 	{
@@ -94,6 +102,8 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 50004,
 		lastPostAt: 1711602000,
 		lastPoster: "admin",
+		lastPosterId: 1,
+		lastPosterAvatar: "",
 		lastThreadSubject: "出MacBook Pro 2024款",
 	},
 
@@ -114,6 +124,8 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 0,
 		lastPostAt: 0,
 		lastPoster: "",
+		lastPosterId: 0,
+		lastPosterAvatar: "",
 		lastThreadSubject: "",
 	},
 	{
@@ -132,6 +144,8 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 50010,
 		lastPostAt: 1711612800,
 		lastPoster: "mod_tech",
+		lastPosterId: 3,
+		lastPosterAvatar: "",
 		lastThreadSubject: "Rust异步编程最佳实践",
 	},
 	{
@@ -150,6 +164,8 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 50011,
 		lastPostAt: 1711598400,
 		lastPoster: "lisi",
+		lastPosterId: 11,
+		lastPosterAvatar: "",
 		lastThreadSubject: "推荐一个好用的CLI工具",
 	},
 
@@ -170,6 +186,8 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 0,
 		lastPostAt: 0,
 		lastPoster: "",
+		lastPosterId: 0,
+		lastPosterAvatar: "",
 		lastThreadSubject: "",
 	},
 	{
@@ -188,6 +206,8 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 50020,
 		lastPostAt: 1711526400,
 		lastPoster: "admin",
+		lastPosterId: 1,
+		lastPosterAvatar: "",
 		lastThreadSubject: "论坛升级维护公告",
 	},
 	{
@@ -206,6 +226,8 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 50021,
 		lastPostAt: 1711440000,
 		lastPoster: "zhangsan",
+		lastPosterId: 10,
+		lastPosterAvatar: "",
 		lastThreadSubject: "建议增加夜间模式",
 	},
 
@@ -226,6 +248,8 @@ export const MOCK_FORUMS: Forum[] = [
 		lastThreadId: 0,
 		lastPostAt: 0,
 		lastPoster: "",
+		lastPosterId: 0,
+		lastPosterAvatar: "",
 		lastThreadSubject: "",
 	},
 ];
