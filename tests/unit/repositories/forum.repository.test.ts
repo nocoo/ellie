@@ -28,8 +28,8 @@ describe("createMockForumRepository", () => {
 		it("returns forum by id", async () => {
 			const forum = await repo.getById(10);
 			expect(forum).not.toBeNull();
-			expect(forum!.id).toBe(10);
-			expect(forum!.name).toBe("校园新闻");
+			expect(forum?.id).toBe(10);
+			expect(forum?.name).toBe("校园新闻");
 		});
 
 		it("returns null for non-existent id", async () => {
@@ -40,7 +40,7 @@ describe("createMockForumRepository", () => {
 		it("returns the hidden forum by id", async () => {
 			const forum = await repo.getById(99);
 			expect(forum).not.toBeNull();
-			expect(forum!.status).toBe(0);
+			expect(forum?.status).toBe(0);
 		});
 	});
 
@@ -53,7 +53,7 @@ describe("createMockForumRepository", () => {
 
 			await freshRepo.update(10, { name: "新名称" });
 			const forum = await freshRepo.getById(10);
-			expect(forum!.name).toBe("新名称");
+			expect(forum?.name).toBe("新名称");
 		});
 
 		it("updates description", async () => {
@@ -62,7 +62,7 @@ describe("createMockForumRepository", () => {
 
 			await freshRepo.update(10, { description: "新描述" });
 			const forum = await freshRepo.getById(10);
-			expect(forum!.description).toBe("新描述");
+			expect(forum?.description).toBe("新描述");
 		});
 
 		it("updates icon", async () => {
@@ -71,7 +71,7 @@ describe("createMockForumRepository", () => {
 
 			await freshRepo.update(10, { icon: "star" });
 			const forum = await freshRepo.getById(10);
-			expect(forum!.icon).toBe("star");
+			expect(forum?.icon).toBe("star");
 		});
 
 		it("updates status", async () => {
@@ -80,7 +80,7 @@ describe("createMockForumRepository", () => {
 
 			await freshRepo.update(10, { status: 0 });
 			const forum = await freshRepo.getById(10);
-			expect(forum!.status).toBe(0);
+			expect(forum?.status).toBe(0);
 		});
 
 		it("updates displayOrder", async () => {
@@ -89,20 +89,26 @@ describe("createMockForumRepository", () => {
 
 			await freshRepo.update(10, { displayOrder: 42 });
 			const forum = await freshRepo.getById(10);
-			expect(forum!.displayOrder).toBe(42);
+			expect(forum?.displayOrder).toBe(42);
 		});
 
 		it("updates multiple fields at once", async () => {
 			const freshStore = createMockDataStore();
 			const freshRepo = createMockForumRepository(freshStore);
 
-			await freshRepo.update(10, { name: "A", description: "B", icon: "C", status: 0, displayOrder: 99 });
+			await freshRepo.update(10, {
+				name: "A",
+				description: "B",
+				icon: "C",
+				status: 0,
+				displayOrder: 99,
+			});
 			const forum = await freshRepo.getById(10);
-			expect(forum!.name).toBe("A");
-			expect(forum!.description).toBe("B");
-			expect(forum!.icon).toBe("C");
-			expect(forum!.status).toBe(0);
-			expect(forum!.displayOrder).toBe(99);
+			expect(forum?.name).toBe("A");
+			expect(forum?.description).toBe("B");
+			expect(forum?.icon).toBe("C");
+			expect(forum?.status).toBe(0);
+			expect(forum?.displayOrder).toBe(99);
 		});
 
 		it("does not modify fields that are undefined in input", async () => {
@@ -112,9 +118,9 @@ describe("createMockForumRepository", () => {
 			const before = await freshRepo.getById(10);
 			await freshRepo.update(10, { name: "Changed" });
 			const after = await freshRepo.getById(10);
-			expect(after!.name).toBe("Changed");
-			expect(after!.description).toBe(before!.description);
-			expect(after!.icon).toBe(before!.icon);
+			expect(after?.name).toBe("Changed");
+			expect(after?.description).toBe(before?.description);
+			expect(after?.icon).toBe(before?.icon);
 		});
 
 		it("throws when forum not found", async () => {

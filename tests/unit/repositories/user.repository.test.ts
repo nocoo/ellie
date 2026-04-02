@@ -1,8 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { encodeCursor } from "@ellie/types";
-import { UserRole, UserStatus } from "@ellie/types";
 import { createMockDataStore } from "@ellie/repositories";
 import { createMockUserRepository } from "@ellie/repositories";
+import { UserRole, UserStatus } from "@ellie/types";
 
 describe("createMockUserRepository", () => {
 	const store = createMockDataStore();
@@ -82,7 +81,9 @@ describe("createMockUserRepository", () => {
 				status: UserStatus.Active,
 				role: UserRole.User,
 			});
-			expect(result.items.every((u) => u.status === UserStatus.Active && u.role === UserRole.User)).toBe(true);
+			expect(
+				result.items.every((u) => u.status === UserStatus.Active && u.role === UserRole.User),
+			).toBe(true);
 		});
 
 		it("respects limit param", async () => {
@@ -145,7 +146,6 @@ describe("createMockUserRepository", () => {
 			const page2 = await repo.list({ limit: 2, cursor: page1.nextCursor! });
 			expect(page2.prevCursor).not.toBeNull();
 		});
-
 	});
 
 	// ─── getById ───────────────────────────────────────────
@@ -154,8 +154,8 @@ describe("createMockUserRepository", () => {
 		it("returns user by id", async () => {
 			const user = await repo.getById(1);
 			expect(user).not.toBeNull();
-			expect(user!.id).toBe(1);
-			expect(user!.username).toBe("admin");
+			expect(user?.id).toBe(1);
+			expect(user?.username).toBe("admin");
 		});
 
 		it("returns null for non-existent id", async () => {
@@ -173,7 +173,7 @@ describe("createMockUserRepository", () => {
 
 			await freshRepo.setStatus(10, UserStatus.Banned);
 			const user = await freshRepo.getById(10);
-			expect(user!.status).toBe(UserStatus.Banned);
+			expect(user?.status).toBe(UserStatus.Banned);
 		});
 
 		it("throws when user not found", async () => {
@@ -190,7 +190,7 @@ describe("createMockUserRepository", () => {
 
 			await freshRepo.setRole(10, UserRole.Admin);
 			const user = await freshRepo.getById(10);
-			expect(user!.role).toBe(UserRole.Admin);
+			expect(user?.role).toBe(UserRole.Admin);
 		});
 
 		it("throws when user not found", async () => {
