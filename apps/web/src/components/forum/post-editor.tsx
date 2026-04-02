@@ -4,6 +4,7 @@
 // Ref: 04e §RichTextEditor — toolbar + editor + character count
 
 import { EmojiPicker } from "@/components/forum/emoji-picker";
+import { SmileyPanel } from "@/components/forum/smiley-panel";
 import { Button } from "@/components/ui/button";
 import CharacterCount from "@tiptap/extension-character-count";
 import Link from "@tiptap/extension-link";
@@ -241,6 +242,15 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 				editor={editor}
 				className="tiptap-content min-h-[180px] px-3 py-2 text-sm"
 			/>
+
+			{/* Smiley panel - traditional forum smileys */}
+			{editor && !disabled && (
+				<SmileyPanel
+					onSelect={(code) => {
+						editor.chain().focus().insertContent(`${code} `).run();
+					}}
+				/>
+			)}
 
 			{/* Footer */}
 			{!hideFooter && (
