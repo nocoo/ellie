@@ -24,17 +24,19 @@ export class SearchPage {
 
 	/** Search type tabs (only visible after query) */
 	get typeTabs() {
-		return this.page.locator(SEARCH.typeTabs);
+		// Real DOM: div.flex with span/Link, not role="tablist"
+		return this.page.locator(".flex.items-center.gap-1.border-b");
 	}
 
 	/** Title search tab */
 	get titleTab() {
-		return this.page.getByRole("tab", { name: /标题/ });
+		// Active: span, Inactive: Link - match by text content
+		return this.page.locator('span:has-text("按标题搜索"), a:has-text("按标题搜索")');
 	}
 
 	/** Author search tab */
 	get authorTab() {
-		return this.page.getByRole("tab", { name: /作者/ });
+		return this.page.locator('span:has-text("按作者搜索"), a:has-text("按作者搜索")');
 	}
 
 	/** Search results list */

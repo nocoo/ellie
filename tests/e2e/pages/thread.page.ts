@@ -17,9 +17,9 @@ export class ThreadPage {
 		return this.page.locator("h1");
 	}
 
-	/** Breadcrumbs navigation */
+	/** Breadcrumbs navigation - plain nav without aria-label */
 	get breadcrumbs() {
-		return this.page.locator('nav[aria-label="breadcrumb"]');
+		return this.page.locator("nav.flex.items-center.gap-1");
 	}
 
 	/** Post cards */

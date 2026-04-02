@@ -5,6 +5,13 @@ import { expect, test } from "./fixtures/base";
 import { ForumPage } from "./pages/forum.page";
 import { ThreadPage } from "./pages/thread.page";
 
+// Stateful tests must run serially to avoid race conditions
+test.describe.configure({ mode: "serial" });
+
+// TODO: Implement seed reset before stateful tests
+// Currently relying on fixed seed data (/forums/10, /threads/50001)
+// See docs/e2e-test-design.md §Stateful tests for the reset pattern
+
 test.describe("E2E-TH: Thread Flow", () => {
 	/**
 	 * E2E-TH-01: View Thread Detail
