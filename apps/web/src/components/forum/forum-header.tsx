@@ -7,6 +7,7 @@ import { ForumLogo } from "@/components/forum/forum-logo";
 import { UserAvatar } from "@/components/forum/user-avatar";
 import { UserPopover } from "@/components/forum/user-popover";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { WidthToggle } from "@/components/width-toggle";
 import { getAvatarUrl } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
 import type { HeaderViewModel } from "@/viewmodels/forum/header";
@@ -81,6 +82,7 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 
 						{/* Action icons */}
 						<div className="flex items-center gap-1">
+							<WidthToggle />
 							<ThemeToggle />
 							<Link
 								href="/messages"
@@ -101,6 +103,7 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 					</div>
 				) : (
 					<div className="flex items-center gap-3 text-sm">
+						<WidthToggle />
 						<ThemeToggle />
 						<Link
 							href="/login"

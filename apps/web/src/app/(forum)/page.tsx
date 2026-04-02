@@ -6,7 +6,17 @@ import { buildHomeFooterViewModel } from "@/viewmodels/forum/footer";
 import { loadForumList } from "@/viewmodels/forum/forum-list.server";
 import { fetchPublicSettings } from "@/viewmodels/forum/settings.server";
 import { loadSiteStats } from "@/viewmodels/forum/stats.server";
-import type { ForumTreeNode } from "@ellie/types";
+import type { ForumTreeNode, Thread } from "@ellie/types";
+
+/** Shuffle array using Fisher-Yates algorithm and return first n items */
+function shuffleAndTake<T>(arr: T[], n: number): T[] {
+	const shuffled = [...arr];
+	for (let i = shuffled.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+	}
+	return shuffled.slice(0, n);
+}
 
 export default async function ForumHomePage() {
 	let tree: ForumTreeNode[] = [];
@@ -22,7 +32,7 @@ export default async function ForumHomePage() {
 			(r) => ({ status: "fulfilled" as const, value: r }),
 			() => ({ status: "rejected" as const, reason: null }),
 		),
-		loadDigestList({ limit: 8 }).then(
+		loadDigestList({ limit: 20 }).then(
 			(r) => ({ status: "fulfilled" as const, value: r }),
 			() => ({ status: "rejected" as const, reason: null }),
 		),
@@ -46,8 +56,10 @@ export default async function ForumHomePage() {
 				}
 			: undefined;
 
-	// Digest threads for showcase (graceful fallback)
-	const digestThreads = digestResult.status === "fulfilled" ? digestResult.value.results.items : [];
+	// Digest threads for showcase — randomly pick 5 from recent digests
+	const allDigestThreads =
+		digestResult.status === "fulfilled" ? digestResult.value.results.items : [];
+	const digestThreads = shuffleAndTake(allDigestThreads, 5);
 	const digestTotal = digestResult.status === "fulfilled" ? digestResult.value.stats.total : 0;
 
 	return (

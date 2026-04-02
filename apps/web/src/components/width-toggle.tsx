@@ -1,28 +1,39 @@
-// components/width-toggle.tsx — Width mode toggle button
-// Ref: 04f §2 — mirrors theme-toggle.tsx pattern
+// components/width-toggle.tsx — Toggle between fixed and full-width layout
+// Uses data-width-mode attribute on <html> element
 
 "use client";
 
-import { type WidthMode, useWidthMode } from "@/hooks/use-width-mode";
 import { Maximize2, Minimize2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "./ui/button";
 
-const ICONS: Record<WidthMode, typeof Maximize2> = {
-	centered: Maximize2,
-	full: Minimize2,
-};
+type WidthMode = "fixed" | "full";
 
-const LABELS: Record<WidthMode, string> = {
-	centered: "切换宽屏模式",
-	full: "切换居中模式",
-};
+const STORAGE_KEY = "ellie-width-mode";
 
 export function WidthToggle() {
-	const { mode, toggleMode } = useWidthMode();
-	const Icon = ICONS[mode];
+	const [mode, setMode] = useState<WidthMode>("fixed");
+
+	// Initialize from localStorage and apply to DOM
+	useEffect(() => {
+		const stored = localStorage.getItem(STORAGE_KEY) as WidthMode | null;
+		const initial = stored === "full" ? "full" : "fixed";
+		setMode(initial);
+		document.documentElement.dataset.widthMode = initial;
+	}, []);
+
+	const toggleMode = useCallback(() => {
+		const next = mode === "fixed" ? "full" : "fixed";
+		setMode(next);
+		localStorage.setItem(STORAGE_KEY, next);
+		document.documentElement.dataset.widthMode = next;
+	}, [mode]);
+
+	const Icon = mode === "fixed" ? Maximize2 : Minimize2;
+	const label = mode === "fixed" ? "切换全屏宽度" : "切换固定宽度";
 
 	return (
-		<Button variant="ghost" size="icon-sm" onClick={toggleMode} aria-label={LABELS[mode]}>
+		<Button variant="ghost" size="icon" onClick={toggleMode} aria-label={label} title={label}>
 			<Icon className="h-4 w-4" />
 		</Button>
 	);
