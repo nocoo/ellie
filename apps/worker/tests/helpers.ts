@@ -10,6 +10,42 @@ export const TEST_JWT_SECRET = "test-secret-key-for-jwt-hs256";
 
 // ─── Env Factory ───────────────────────────────────────────
 
+/**
+ * Create a mock KVNamespace for testing.
+ * Returns a simple in-memory store with get/put/delete methods.
+ */
+export function createMockKV(initialData: Record<string, string> = {}) {
+	const store = new Map<string, string>(Object.entries(initialData));
+	return {
+		get: mock(async (key: string) => store.get(key) ?? null),
+		put: mock(async (key: string, value: string) => {
+			store.set(key, value);
+		}),
+		delete: mock(async (key: string) => {
+			store.delete(key);
+		}),
+		getWithMetadata: mock(async (key: string) => ({
+			value: store.get(key) ?? null,
+			metadata: null,
+		})),
+	} as unknown as KVNamespace;
+}
+
+/**
+ * Create a mock ExecutionContext for testing.
+ * waitUntil() is a no-op that collects promises for inspection.
+ */
+export function createMockCtx() {
+	const waitUntilPromises: Promise<unknown>[] = [];
+	return {
+		waitUntil: mock((promise: Promise<unknown>) => {
+			waitUntilPromises.push(promise);
+		}),
+		passThroughOnException: mock(() => {}),
+		_waitUntilPromises: waitUntilPromises,
+	} as unknown as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
+}
+
 export function makeEnv(overrides?: Partial<Env>): Env {
 	return {
 		API_KEY: TEST_API_KEY,
@@ -17,7 +53,7 @@ export function makeEnv(overrides?: Partial<Env>): Env {
 		DB: {} as D1Database,
 		ENVIRONMENT: "test",
 		JWT_SECRET: TEST_JWT_SECRET,
-		KV: {} as KVNamespace,
+		KV: createMockKV(),
 		...overrides,
 	};
 }
@@ -40,6 +76,7 @@ export function makeD1ForumRow(overrides?: Record<string, unknown>) {
 		last_thread_id: 42,
 		last_post_at: 1711540800,
 		last_poster: "alice",
+		last_poster_id: 10,
 		last_thread_subject: "Latest Thread",
 		...overrides,
 	};
@@ -55,6 +92,7 @@ export function makeD1ThreadRow(overrides?: Record<string, unknown>) {
 		created_at: 1711540800,
 		last_post_at: 1711544400,
 		last_poster: "bob",
+		last_poster_id: 20,
 		replies: 5,
 		views: 100,
 		closed: 0,

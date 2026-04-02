@@ -1,6 +1,7 @@
 import { describe, expect, it, mock } from "bun:test";
 import { live } from "../../../src/handlers/live";
 import type { Env } from "../../../src/lib/env";
+import { createMockKV } from "../../helpers";
 
 describe("live handler", () => {
 	const baseEnv: Env = {
@@ -8,7 +9,7 @@ describe("live handler", () => {
 		DB: {} as D1Database,
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret",
-		KV: {} as KVNamespace,
+		KV: createMockKV(),
 	};
 
 	const makeRequest = () => new Request("https://example.com/api/live");

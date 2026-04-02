@@ -197,7 +197,7 @@ describe("D1 row mappers", () => {
 			expect(forum.lastThreadSubject).toBe("Hello World");
 		});
 
-		it("should output exactly 16 fields", () => {
+		it("should output exactly 18 fields", () => {
 			const row = {
 				id: 1,
 				parent_id: 0,
@@ -213,11 +213,12 @@ describe("D1 row mappers", () => {
 				last_thread_id: 0,
 				last_post_at: 0,
 				last_poster: "",
+				last_poster_id: 0,
 				last_thread_subject: "",
 			};
 
 			const forum = toForum(row);
-			expect(Object.keys(forum)).toHaveLength(16);
+			expect(Object.keys(forum)).toHaveLength(18);
 		});
 	});
 
@@ -282,7 +283,7 @@ describe("D1 row mappers", () => {
 			expect("post_table_id" in thread).toBe(false);
 		});
 
-		it("should output exactly 17 fields", () => {
+		it("should output exactly 20 fields", () => {
 			const row = {
 				id: 1,
 				forum_id: 0,
@@ -292,6 +293,7 @@ describe("D1 row mappers", () => {
 				created_at: 0,
 				last_post_at: 0,
 				last_poster: "",
+				last_poster_id: 0,
 				replies: 0,
 				views: 0,
 				closed: 0,
@@ -304,7 +306,7 @@ describe("D1 row mappers", () => {
 			};
 
 			const thread = toThread(row);
-			expect(Object.keys(thread)).toHaveLength(17);
+			expect(Object.keys(thread)).toHaveLength(20);
 		});
 	});
 

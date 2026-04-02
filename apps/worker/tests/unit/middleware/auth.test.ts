@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import type { Env } from "../../../src/lib/env";
 import { createJwt } from "../../../src/lib/jwt";
 import { authMiddleware, moderationMiddleware } from "../../../src/middleware/auth";
+import { createMockKV } from "../../helpers";
 
 describe("authMiddleware", () => {
 	const mockEnv: Env = {
@@ -10,7 +11,7 @@ describe("authMiddleware", () => {
 		DB: {} as D1Database,
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret-key-for-jwt-hs256",
-		KV: {} as KVNamespace,
+		KV: createMockKV(),
 	};
 
 	it("should return 401 when Authorization header is missing", async () => {
@@ -200,7 +201,7 @@ describe("moderationMiddleware", () => {
 		DB: {} as D1Database,
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret-key-for-jwt-hs256",
-		KV: {} as KVNamespace,
+		KV: createMockKV(),
 	};
 
 	it("should return 401 when no Authorization header", async () => {

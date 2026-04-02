@@ -138,7 +138,7 @@ describe("admin settings handler", () => {
 			const kv = makeKv();
 			const env = makeEnv({ DB: db, KV: kv });
 			const request = createAdminRequest("PUT", "/api/admin/settings", {
-				"general.pagination.posts_per_page": "-5",
+				"general.pagination.page_size": "-5",
 			});
 
 			const response = await bulkUpdate(request, env);
@@ -154,7 +154,7 @@ describe("admin settings handler", () => {
 			const kv = makeKv();
 			const env = makeEnv({ DB: db, KV: kv });
 			const request = createAdminRequest("PUT", "/api/admin/settings", {
-				"general.pagination.posts_per_page": "0",
+				"general.pagination.page_size": "0",
 			});
 
 			const response = await bulkUpdate(request, env);
@@ -167,7 +167,7 @@ describe("admin settings handler", () => {
 			const kv = makeKv();
 			const env = makeEnv({ DB: db, KV: kv });
 			const request = createAdminRequest("PUT", "/api/admin/settings", {
-				"general.pagination.posts_per_page": "abc",
+				"general.pagination.page_size": "abc",
 			});
 
 			const response = await bulkUpdate(request, env);
@@ -217,7 +217,7 @@ describe("admin settings handler", () => {
 			const request = createAdminRequest("PUT", "/api/admin/settings", {
 				"general.site.name": "New Name",
 				"general.site.subtitle": "New Subtitle",
-				"general.pagination.posts_per_page": "30",
+				"general.pagination.page_size": "30",
 			});
 
 			const response = await bulkUpdate(request, env);

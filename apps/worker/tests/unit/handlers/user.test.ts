@@ -1,6 +1,7 @@
 import { describe, expect, it, mock } from "bun:test";
 import { getById, listPosts, listThreads } from "../../../src/handlers/user";
 import type { Env } from "../../../src/lib/env";
+import { createMockKV } from "../../helpers";
 
 describe("user handlers", () => {
 	const mockEnv: Env = {
@@ -8,7 +9,7 @@ describe("user handlers", () => {
 		DB: {} as D1Database,
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret",
-		KV: {} as KVNamespace,
+		KV: createMockKV(),
 	};
 
 	/** D1 row (snake_case) as it would come from SELECT with PublicUser columns */

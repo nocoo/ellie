@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import type { Env } from "../../../src/lib/env";
 import { validateApiKey } from "../../../src/middleware/apiKey";
+import { createMockKV } from "../../helpers";
 
 describe("validateApiKey", () => {
 	const mockEnv: Env = {
@@ -9,7 +10,7 @@ describe("validateApiKey", () => {
 		DB: {} as D1Database,
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret",
-		KV: {} as KVNamespace,
+		KV: createMockKV(),
 	};
 
 	// ── Key A for /api/v1/* ──────────────────────────────
