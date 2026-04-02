@@ -1,0 +1,136 @@
+// tests/e2e/navigation.spec.ts — E2E-NV Navigation Flow Tests
+// Ref: docs/e2e-test-design.md §E2E-NV: Navigation Flow (6 specs)
+
+import { expect, test } from "./fixtures/base";
+import { ForumPage } from "./pages/forum.page";
+import { HomePage } from "./pages/home.page";
+import { SearchPage } from "./pages/search.page";
+import { ThreadPage } from "./pages/thread.page";
+import { UserPage } from "./pages/user.page";
+
+test.describe("E2E-NV: Navigation Flow", () => {
+	/**
+	 * E2E-NV-01: Homepage Loads
+	 * Given I navigate to /
+	 * Then I should see forum groups
+	 * And I should see digest showcase
+	 * And I should see home footer
+	 */
+	test("E2E-NV-01: homepage loads with forum groups and digest", async ({ page }) => {
+		const homePage = new HomePage(page);
+		await homePage.goto();
+
+		// Should see at least one forum group (or empty state)
+		const isLoaded = await homePage.isLoaded();
+		expect(isLoaded).toBe(true);
+
+		// Should see digest showcase link
+		await expect(homePage.digestShowcase).toBeVisible();
+	});
+
+	/**
+	 * E2E-NV-02: Forum Page Loads
+	 * Given I navigate to /forums/10
+	 * Then I should see forum heading
+	 * And I should see "发表新帖" button
+	 * And I should see thread list
+	 */
+	test("E2E-NV-02: forum page loads with heading and thread list", async ({ page }) => {
+		const forumPage = new ForumPage(page);
+		await forumPage.goto(10);
+
+		// Should have forum heading
+		await expect(forumPage.heading).toBeVisible();
+
+		// Should have new thread button with correct text
+		await expect(forumPage.newThreadButton).toBeVisible();
+
+		// Should have thread list (or empty state)
+		const hasThreads = await forumPage.threadList.isVisible().catch(() => false);
+		const hasEmpty = await forumPage.emptyState.isVisible().catch(() => false);
+		expect(hasThreads || hasEmpty).toBe(true);
+	});
+
+	/**
+	 * E2E-NV-03: Thread Page Loads
+	 * Given I navigate to /threads/50001
+	 * Then I should see thread title
+	 * And I should see post cards
+	 * And I should see breadcrumbs
+	 */
+	test("E2E-NV-03: thread page loads with title and posts", async ({ page }) => {
+		const threadPage = new ThreadPage(page);
+		await threadPage.goto(50001);
+
+		// Should have thread title heading
+		await expect(threadPage.heading).toBeVisible();
+
+		// Should have breadcrumbs
+		await expect(threadPage.breadcrumbs).toBeVisible();
+
+		// Should have at least one post card
+		await expect(threadPage.postCards.first()).toBeVisible();
+	});
+
+	/**
+	 * E2E-NV-04: User Profile Loads
+	 * Given I navigate to /users/1
+	 * Then I should see user avatar
+	 * And I should see stats cards (threads/posts/credits)
+	 * And I should see tab navigation
+	 */
+	test("E2E-NV-04: user profile loads with avatar and stats", async ({ page }) => {
+		const userPage = new UserPage(page);
+		await userPage.goto(1);
+
+		// Should have username heading
+		await expect(userPage.username).toBeVisible();
+
+		// Should have stats cards (4 cards: threads, posts, digest, credits)
+		await expect(userPage.statsCards).toHaveCount(4);
+
+		// Should have tab navigation
+		await expect(userPage.tabNav).toBeVisible();
+	});
+
+	/**
+	 * E2E-NV-05: Digest Page Loads
+	 * Given I navigate to /digest
+	 * Then I should see "精华帖列表" heading
+	 * And I should see digest statistics
+	 */
+	test("E2E-NV-05: digest page loads with heading and stats", async ({ page }) => {
+		await page.goto("/digest");
+		await page.waitForLoadState("networkidle");
+
+		// Should have "精华帖列表" heading
+		await expect(page.locator("text=精华帖列表")).toBeVisible();
+
+		// Should have stats cards (4 cards: total, level1, level2, level3)
+		const statsCards = page.locator(".grid-cols-4 > div").filter({
+			has: page.locator("p.text-2xl"),
+		});
+		await expect(statsCards).toHaveCount(4);
+	});
+
+	/**
+	 * E2E-NV-06: Search Page Loads
+	 * Given I navigate to /search
+	 * Then I should see search input
+	 * And I should see "搜索" button
+	 * Note: Search type tabs only appear AFTER a query is submitted
+	 */
+	test("E2E-NV-06: search page loads with input and button", async ({ page }) => {
+		const searchPage = new SearchPage(page);
+		await searchPage.goto();
+
+		// Should have search input
+		await expect(searchPage.searchInput).toBeVisible();
+
+		// Should have search button
+		await expect(searchPage.searchButton).toBeVisible();
+
+		// Should show empty state prompt (no tabs before query)
+		await expect(searchPage.emptyPrompt).toBeVisible();
+	});
+});
