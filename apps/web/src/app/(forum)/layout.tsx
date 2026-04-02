@@ -1,6 +1,7 @@
 import { ForumLayoutShell } from "@/components/forum/forum-layout";
 import { MaintenancePage } from "@/components/maintenance-page";
 import { SessionGuard } from "@/components/forum/session-guard";
+import { isAdmin } from "@/lib/admin";
 import { forumApi } from "@/lib/forum-api";
 import { getCurrentForumUser } from "@/lib/forum-auth";
 import { buildGlobalFooterViewModel } from "@/viewmodels/forum/footer";
@@ -12,6 +13,7 @@ import {
 import { fetchPublicSettings, getBool, getStr } from "@/viewmodels/forum/settings.server";
 import type { SiteStats } from "@/viewmodels/forum/stats.server";
 import type { PublicUser } from "@ellie/types";
+import { auth } from "@/auth";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
@@ -55,9 +57,9 @@ export default async function ForumLayout({ children }: { children: ReactNode })
 		let canBypass = false;
 
 		if (adminBypass) {
-			// Check if current user is admin
-			const currentUser = await loadCurrentUser();
-			canBypass = currentUser?.role === 1; // role 1 = admin
+			// Check if current user is a backend admin (Google OAuth + ADMIN_EMAILS)
+			const session = await auth();
+			canBypass = isAdmin(session?.user?.email);
 		}
 
 		if (!canBypass) {
