@@ -63,9 +63,9 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 	const { author } = post;
 
 	return (
-		<div className="rounded-xl border bg-card overflow-hidden">
+		<div className="rounded-[var(--radius-card,14px)] bg-secondary overflow-hidden">
 			{/* Floor header */}
-			<div className="flex items-center justify-between border-b bg-muted/30 px-4 py-2">
+			<div className="flex items-center justify-between border-b border-border/50 bg-muted/30 px-4 py-2">
 				<div className="flex items-center gap-2 text-sm text-muted-foreground">
 					<span className="font-mono font-medium text-foreground">#{post.position}</span>
 					{post.isFirst && <Badge variant="default">楼主</Badge>}

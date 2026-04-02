@@ -84,7 +84,7 @@ function SortableRow({ item, onUpdate, onDelete }: SortableRowProps) {
 		<div
 			ref={setNodeRef}
 			style={style}
-			className="flex items-center gap-2 rounded-lg border bg-background p-2"
+			className="flex items-center gap-2 rounded-lg bg-card p-2"
 		>
 			<button
 				type="button"

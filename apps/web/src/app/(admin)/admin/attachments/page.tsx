@@ -87,7 +87,7 @@ function AttachmentGridItem({
 	return (
 		<div
 			className={cn(
-				"group relative rounded-lg border bg-card overflow-hidden transition-all hover:shadow-md",
+				"group relative rounded-[var(--radius-card,14px)] bg-secondary overflow-hidden transition-all hover:shadow-md",
 				selected && "ring-2 ring-primary",
 			)}
 		>
@@ -530,7 +530,7 @@ export default function AttachmentsPage() {
 				</div>
 				<div className="flex items-center gap-2">
 					{/* View mode toggle */}
-					<div className="flex items-center rounded-lg border bg-card p-1">
+					<div className="flex items-center rounded-lg bg-secondary p-1">
 						<button
 							type="button"
 							onClick={() => setViewMode("grid")}
