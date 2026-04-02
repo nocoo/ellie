@@ -5,11 +5,14 @@
  *
  * Route protection tiers:
  * 1. Public routes: /, /forums/*, /threads/*, /users/*, /digest, /search,
- *    /login, /admin/login, /api/auth/* — no auth required.
+ *    /login, /admin/login, /api/auth/* — no auth required (unless require_login is enabled).
  * 2. Forum auth routes: /threads/new — requires forum credentials session.
  * 3. Admin routes: /admin/* (except /admin/login) — requires Google OAuth + ADMIN_EMAILS.
  * 4. API routes: /api/* (except /api/auth/*) — NOT handled by proxy;
  *    auth guard is in route handlers or lib/admin-proxy.ts instead.
+ *
+ * Feature flag: features.access.require_login
+ * When enabled, all public forum routes require authentication.
  */
 
 import { auth } from "@/auth";
@@ -21,11 +24,18 @@ import type { NextRequest } from "next/server";
 // Pure functions (exported for testing)
 // ---------------------------------------------------------------------------
 
-/** Routes that require no authentication at all. */
-export function isPublicRoute(pathname: string): boolean {
-	// Auth endpoints
+/** Routes that are always public (auth pages, API, static assets). */
+function isAlwaysPublicRoute(pathname: string): boolean {
+	// Auth endpoints are always accessible
 	if (pathname === "/login" || pathname === "/admin/login" || pathname === "/register") return true;
 	if (pathname.startsWith("/api/auth")) return true;
+	return false;
+}
+
+/** Routes that are public unless require_login is enabled. */
+export function isPublicRoute(pathname: string): boolean {
+	// Always-public routes
+	if (isAlwaysPublicRoute(pathname)) return true;
 
 	// Forum public pages
 	if (pathname === "/") return true;
@@ -61,14 +71,18 @@ export function isAdminRoute(pathname: string): boolean {
  * - "redirect:/admin"         -> redirect to admin dashboard
  * - "redirect:/login"         -> redirect to forum login
  * - "redirect:/admin/login"   -> redirect to admin login
+ *
+ * @param requireLogin - When true, all forum public routes require authentication
  */
 export function resolveProxyAction(
 	pathname: string,
 	isLoggedIn: boolean,
 	email?: string | null,
 	provider?: string | null,
+	requireLogin = false,
 ): "next" | "redirect:/" | "redirect:/admin" | "redirect:/login" | "redirect:/admin/login" {
-	if (isPublicRoute(pathname)) {
+	// Always-public routes (login, register, api/auth) are never blocked
+	if (isAlwaysPublicRoute(pathname)) {
 		// Authenticated admin on admin login page -> redirect to admin dashboard
 		if (pathname === "/admin/login" && isLoggedIn && isAdmin(email)) return "redirect:/admin";
 
@@ -81,6 +95,15 @@ export function resolveProxyAction(
 			return "redirect:/";
 		}
 
+		return "next";
+	}
+
+	// If require_login is enabled, all forum content requires authentication
+	if (requireLogin && isPublicRoute(pathname) && !isLoggedIn) {
+		return "redirect:/login";
+	}
+
+	if (isPublicRoute(pathname)) {
 		return "next";
 	}
 
@@ -104,6 +127,36 @@ export function resolveProxyAction(
 }
 
 // ---------------------------------------------------------------------------
+// Settings cache for require_login flag
+// ---------------------------------------------------------------------------
+
+let requireLoginCache: boolean | null = null;
+let requireLoginCacheExpiry = 0;
+const CACHE_TTL = 60000; // 1 minute
+
+async function getRequireLogin(origin: string): Promise<boolean> {
+	// Return cached value if still valid
+	if (requireLoginCache !== null && Date.now() < requireLoginCacheExpiry) {
+		return requireLoginCache;
+	}
+
+	try {
+		// Fetch from internal API (Key A doesn't need auth for public settings)
+		const res = await fetch(`${origin}/api/v1/settings?key=features.access.require_login`, {
+			cache: "no-store",
+		});
+		if (!res.ok) return false;
+		const data = await res.json();
+		requireLoginCache = data["features.access.require_login"] === "true";
+		requireLoginCacheExpiry = Date.now() + CACHE_TTL;
+		return requireLoginCache;
+	} catch {
+		// On error, default to false (don't block access)
+		return false;
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Build redirect URL respecting reverse proxy headers
 // ---------------------------------------------------------------------------
 
@@ -123,6 +176,9 @@ export function buildRedirectUrl(req: NextRequest, pathname: string): URL {
 // ---------------------------------------------------------------------------
 
 export async function proxy(request: NextRequest) {
+	// Fetch require_login setting (cached)
+	const requireLogin = await getRequireLogin(request.nextUrl.origin);
+
 	const authHandler = await auth((req) => {
 		const session = req.auth;
 		// Extract provider from augmented session type
@@ -133,6 +189,7 @@ export async function proxy(request: NextRequest) {
 			!!session,
 			session?.user?.email,
 			provider,
+			requireLogin,
 		);
 
 		if (action === "next") return NextResponse.next();
