@@ -86,7 +86,11 @@ export function canEditPost(user: User | null, post: Post, forum: { moderators: 
  * - Admin/SuperMod: can delete any post
  * - Mod: CANNOT delete posts (per permission matrix)
  */
-export function canDeletePost(user: User | null, post: Post, _forum: { moderators: string }): boolean {
+export function canDeletePost(
+	user: User | null,
+	post: Post,
+	_forum: { moderators: string },
+): boolean {
 	if (!user) return false;
 	if (user.id === post.authorId) return true;
 	// Only Admin/SuperMod can delete others' posts — Mod cannot

@@ -121,7 +121,9 @@ async function main() {
 		}
 
 		if (ids.length === 0) {
-			console.warn(`⚠️ Forum ${forum.id}: no valid moderator IDs found for "${forum.moderators.slice(0, 50)}..."`);
+			console.warn(
+				`⚠️ Forum ${forum.id}: no valid moderator IDs found for "${forum.moderators.slice(0, 50)}..."`,
+			);
 			skipped++;
 			continue;
 		}
@@ -135,7 +137,8 @@ async function main() {
 		}
 
 		// Update the forum
-		const displayModerators = forum.moderators.length > 50 ? `${forum.moderators.slice(0, 50)}...` : forum.moderators;
+		const displayModerators =
+			forum.moderators.length > 50 ? `${forum.moderators.slice(0, 50)}...` : forum.moderators;
 		console.log(`📝 Forum ${forum.id}: "${displayModerators}" -> [${moderatorIds}]`);
 		await execD1(`UPDATE forums SET moderator_ids = '${moderatorIds}' WHERE id = ${forum.id}`);
 		updated++;

@@ -134,7 +134,11 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 				})),
 			});
 
-			const response = await (await getWorker()).fetch(makeRequest("https://api.example.com/api/live"), env, makeCtx());
+			const response = await (await getWorker()).fetch(
+				makeRequest("https://api.example.com/api/live"),
+				env,
+				makeCtx(),
+			);
 
 			expect(response.status).toBe(200);
 		});
@@ -211,7 +215,11 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 				})),
 			});
 
-			const response = await (await getWorker()).fetch(makeRequest("https://api.example.com/api/live"), env, makeCtx());
+			const response = await (await getWorker()).fetch(
+				makeRequest("https://api.example.com/api/live"),
+				env,
+				makeCtx(),
+			);
 
 			expect(response.status).toBe(200);
 			const data = await response.json();

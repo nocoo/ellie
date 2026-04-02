@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
-import { list, bulkUpdate } from "../../../../src/handlers/admin/settings";
+import { bulkUpdate, list } from "../../../../src/handlers/admin/settings";
 import { createAdminRequest, makeEnv } from "../../../helpers";
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -18,9 +18,7 @@ function makeSettingsDb(rows = SAMPLE_ROWS) {
 				run: mock(async () => ({ success: true })),
 			})),
 		})),
-		batch: mock(async (stmts: unknown[]) =>
-			stmts.map(() => ({ success: true, results: [] })),
-		),
+		batch: mock(async (stmts: unknown[]) => stmts.map(() => ({ success: true, results: [] }))),
 	} as unknown as D1Database;
 }
 

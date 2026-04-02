@@ -444,4 +444,3 @@ export function enrichThreadWithUserCache(
 		lastPosterAvatar: lastPoster?.avatar ?? "",
 	};
 }
-

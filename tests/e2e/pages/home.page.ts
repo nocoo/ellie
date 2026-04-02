@@ -19,7 +19,9 @@ export class HomePage {
 
 	/** Forum group containers */
 	get forumGroups() {
-		return this.page.locator('[data-testid="forum-groups"] > div, .space-y-4 > div').filter({ has: this.page.locator("h2") });
+		return this.page
+			.locator('[data-testid="forum-groups"] > div, .space-y-4 > div')
+			.filter({ has: this.page.locator("h2") });
 	}
 
 	/** Digest showcase section */
@@ -35,8 +37,14 @@ export class HomePage {
 	/** Check if page loaded successfully */
 	async isLoaded() {
 		// Wait for at least one forum group or the "no forums" message
-		const hasGroups = await this.forumGroups.first().isVisible().catch(() => false);
-		const hasEmpty = await this.page.locator("text=暂无版块").isVisible().catch(() => false);
+		const hasGroups = await this.forumGroups
+			.first()
+			.isVisible()
+			.catch(() => false);
+		const hasEmpty = await this.page
+			.locator("text=暂无版块")
+			.isVisible()
+			.catch(() => false);
 		return hasGroups || hasEmpty;
 	}
 }

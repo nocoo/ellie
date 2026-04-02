@@ -16,7 +16,8 @@ import { replaceSmileyCodesWithImages } from "./smiley";
 
 // Pattern: [i=s] 本帖最后由 XXX 于 YYYY-M-D HH:MM 编辑 </em>
 // Also handles: [i=s] 本帖最后由 XXX 于 YYYY-M-D HH:MM 编辑 [/i]
-const RE_EDIT_NOTICE = /\[i=s\]\s*本帖最后由\s+(.+?)\s+于\s+(\d{4}-\d{1,2}-\d{1,2}\s+\d{1,2}:\d{2})\s+编辑\s*(?:<\/em>|\[\/i\])?/g;
+const RE_EDIT_NOTICE =
+	/\[i=s\]\s*本帖最后由\s+(.+?)\s+于\s+(\d{4}-\d{1,2}-\d{1,2}\s+\d{1,2}:\d{2})\s+编辑\s*(?:<\/em>|\[\/i\])?/g;
 
 /**
  * Transform Discuz edit notices into styled HTML.
@@ -118,7 +119,10 @@ function cleanupLegacyBBCode(html: string): string {
 	result = result.replace(RE_HIDE, '<div class="dz-hidden-content">[隐藏内容]</div>');
 
 	// Transform [hide=N] to placeholder with credit info
-	result = result.replace(RE_HIDE_CREDITS, '<div class="dz-hidden-content">[需要积分查看的隐藏内容]</div>');
+	result = result.replace(
+		RE_HIDE_CREDITS,
+		'<div class="dz-hidden-content">[需要积分查看的隐藏内容]</div>',
+	);
 
 	// Strip [p] paragraph tags, keep content
 	result = result.replace(RE_PARAGRAPH, "$2");
@@ -147,7 +151,8 @@ function cleanupLegacyBBCode(html: string): string {
 
 // <!-- CETagParser ~color=#XXX followed by <font color="..."> — legacy color markup
 // Note: These are HTML-encoded in the database, matching &lt; and &gt;
-const RE_CETAGPARSER_COLOR = /&lt;!--\s*CETagParser\s+~color=[^-]*\r?\n?&lt;font\s+color=&quot;[^&]*&quot;&gt;/gi;
+const RE_CETAGPARSER_COLOR =
+	/&lt;!--\s*CETagParser\s+~color=[^-]*\r?\n?&lt;font\s+color=&quot;[^&]*&quot;&gt;/gi;
 
 // <!-- CETagParser ~/color followed by </font> — closing color tag
 const RE_CETAGPARSER_COLOR_CLOSE = /&lt;!--\s*CETagParser\s+~\/color\r?\n?&lt;\/font&gt;/gi;

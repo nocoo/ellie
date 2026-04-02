@@ -46,7 +46,12 @@ export async function deleteMyPost(request: Request, env: Env): Promise<Response
 
 	// User can only delete their own posts
 	if (post.author_id !== user.userId) {
-		return errorResponse("FORBIDDEN", 403, { message: "You can only delete your own posts" }, origin);
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "You can only delete your own posts" },
+			origin,
+		);
 	}
 
 	// Cannot delete the first post — must delete the thread instead

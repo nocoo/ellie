@@ -107,8 +107,8 @@ export function ForumMergeDialog({
 
 					{source && source.threads > 0 && (
 						<div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3 text-sm text-amber-600 dark:text-amber-400">
-							此版块包含 <strong>{source.threads}</strong> 个主题和{" "}
-							<strong>{source.posts}</strong> 个帖子，合并后将全部转移到目标版块。
+							此版块包含 <strong>{source.threads}</strong> 个主题和 <strong>{source.posts}</strong>{" "}
+							个帖子，合并后将全部转移到目标版块。
 						</div>
 					)}
 				</div>

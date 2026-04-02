@@ -30,7 +30,10 @@ export interface HighlightOptions {
 	underline?: boolean;
 }
 
-export async function setThreadHighlight(threadId: number, options: HighlightOptions): Promise<void> {
+export async function setThreadHighlight(
+	threadId: number,
+	options: HighlightOptions,
+): Promise<void> {
 	await apiClient.patch(`/api/v1/moderation/threads/${threadId}/highlight`, options);
 }
 

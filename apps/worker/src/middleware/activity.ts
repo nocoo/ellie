@@ -24,7 +24,11 @@ const THROTTLE_SECONDS = 60; // Throttle: max once per minute per user
  * @param ctx - Execution context for waitUntil
  * @param user - Authenticated user
  */
-export async function trackActivity(env: Env, ctx: ExecutionContext, user: AuthUser): Promise<void> {
+export async function trackActivity(
+	env: Env,
+	ctx: ExecutionContext,
+	user: AuthUser,
+): Promise<void> {
 	const now = Math.floor(Date.now() / 1000);
 	const throttleKey = `activity_throttle:${user.userId}`;
 

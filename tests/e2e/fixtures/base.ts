@@ -2,7 +2,7 @@
 // Ref: docs/e2e-test-design.md §Fixtures
 // Pattern: surety project Page Object Model
 
-import { test as base, type Page } from "@playwright/test";
+import { type Page, test as base } from "@playwright/test";
 import { FORM } from "./selectors";
 
 // ---------------------------------------------------------------------------
@@ -56,7 +56,7 @@ export async function waitForSkeletonOrContent(
 	page: Page,
 	skeletonSelector: string,
 	contentSelector: string,
-	timeout = 10000
+	timeout = 10000,
 ): Promise<void> {
 	const skeleton = page.locator(skeletonSelector);
 	const content = page.locator(contentSelector);

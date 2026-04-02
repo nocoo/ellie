@@ -22,16 +22,7 @@ import {
 	setThreadHighlight,
 	setThreadSticky,
 } from "@/lib/moderation-api";
-import {
-	ArrowRight,
-	Highlighter,
-	Lock,
-	LockOpen,
-	Pin,
-	Settings,
-	Star,
-	Trash2,
-} from "lucide-react";
+import { ArrowRight, Highlighter, Lock, LockOpen, Pin, Settings, Star, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { DigestDialog } from "./digest-dialog";

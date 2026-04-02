@@ -13,16 +13,16 @@ import { getAvatarUrl } from "@/lib/avatar";
 import { getStaticImageUrl } from "@/lib/cdn";
 import { buildUserBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import { formatStat, formatTime } from "@/viewmodels/forum/thread-list";
+import { getUserTitle } from "@/viewmodels/forum/title.server";
 import {
 	PROFILE_TABS,
 	formatUserRole,
 	getUserRoleBadgeVariant,
 } from "@/viewmodels/forum/user-profile";
 import { type UserProfileData, loadUserProfile } from "@/viewmodels/forum/user-profile.server";
-import { getUserTitle } from "@/viewmodels/forum/title.server";
 import { parseIntParam } from "@/viewmodels/shared/params";
-import Link from "next/link";
 import type { Metadata } from "next";
+import Link from "next/link";
 
 interface UserProfilePageProps {
 	params: Promise<{ id: string }>;
@@ -109,7 +109,11 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 								className="rounded-sm"
 							/>
 							<AvatarFallback className="text-lg rounded-sm bg-muted p-0 overflow-hidden">
-								<img src={getStaticImageUrl("tavatar.gif")} alt="" className="h-full w-full object-cover" />
+								<img
+									src={getStaticImageUrl("tavatar.gif")}
+									alt=""
+									className="h-full w-full object-cover"
+								/>
 							</AvatarFallback>
 						</Avatar>
 						<div className="min-w-0 flex-1">
@@ -144,7 +148,9 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 				<Link href={`/users/${userId}?tab=posts`}>
 					<Card size="sm" className="hover:border-primary/50 transition-colors cursor-pointer">
 						<CardContent className="text-center">
-							<p className="text-2xl font-semibold text-foreground">{formatStat(data.user.posts)}</p>
+							<p className="text-2xl font-semibold text-foreground">
+								{formatStat(data.user.posts)}
+							</p>
 							<p className="mt-1 text-xs text-muted-foreground">回帖数</p>
 						</CardContent>
 					</Card>

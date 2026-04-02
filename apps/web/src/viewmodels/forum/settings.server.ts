@@ -15,22 +15,14 @@ export async function fetchPublicSettings(): Promise<SettingsMap> {
 
 /* ── Typed accessor helpers ── */
 
-export function getStr(
-	settings: SettingsMap,
-	key: string,
-	fallback: string,
-): string {
+export function getStr(settings: SettingsMap, key: string, fallback: string): string {
 	const v = settings[key];
 	if (typeof v === "string") return v;
 	if (v !== undefined && v !== null) return String(v);
 	return fallback;
 }
 
-export function getNum(
-	settings: SettingsMap,
-	key: string,
-	fallback: number,
-): number {
+export function getNum(settings: SettingsMap, key: string, fallback: number): number {
 	const v = settings[key];
 	if (typeof v === "number") return v;
 	if (typeof v === "string") {
@@ -40,11 +32,7 @@ export function getNum(
 	return fallback;
 }
 
-export function getBool(
-	settings: SettingsMap,
-	key: string,
-	fallback: boolean,
-): boolean {
+export function getBool(settings: SettingsMap, key: string, fallback: boolean): boolean {
 	const v = settings[key];
 	if (typeof v === "boolean") return v;
 	if (v === "true") return true;
@@ -52,11 +40,7 @@ export function getBool(
 	return fallback;
 }
 
-export function getArr<T>(
-	settings: SettingsMap,
-	key: string,
-	fallback: T[],
-): T[] {
+export function getArr<T>(settings: SettingsMap, key: string, fallback: T[]): T[] {
 	const v = settings[key];
 	if (Array.isArray(v)) return v as T[];
 	return fallback;

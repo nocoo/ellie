@@ -1,6 +1,6 @@
 import type { Forum } from "./types";
 export interface ForumTreeNode extends Forum {
-    children: ForumTreeNode[];
+	children: ForumTreeNode[];
 }
 /**
  * Build a tree from flat Forum[] array.

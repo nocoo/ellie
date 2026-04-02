@@ -153,9 +153,7 @@ export function ForumEditDialog({
 					{/* Parent selector (only for forum/sub) */}
 					{type !== "group" && validParents.length > 0 && (
 						<div className="grid gap-2">
-							<Label htmlFor="edit-parent">
-								上级{type === "forum" ? "分区" : "版块"}
-							</Label>
+							<Label htmlFor="edit-parent">上级{type === "forum" ? "分区" : "版块"}</Label>
 							<select
 								id="edit-parent"
 								value={parentId}

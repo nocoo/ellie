@@ -100,7 +100,9 @@ export function canViewForum(visibility: ForumVisibility, ctx: VisibilityContext
 		case "members":
 			return ctx.isLoggedIn;
 		case "staff":
-			return ctx.role === UserRole.Admin || ctx.role === UserRole.SuperMod || ctx.role === UserRole.Mod;
+			return (
+				ctx.role === UserRole.Admin || ctx.role === UserRole.SuperMod || ctx.role === UserRole.Mod
+			);
 		case "admin":
 			return ctx.role === UserRole.Admin;
 		default:

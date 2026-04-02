@@ -2,7 +2,6 @@
 import type { Env } from "../lib/env";
 import { toThread } from "../lib/mappers";
 import { corsHeaders } from "../middleware/cors";
-import { errorResponse } from "../middleware/error";
 
 /** Digest cursor payload for keyset pagination */
 interface DigestCursorPayload {

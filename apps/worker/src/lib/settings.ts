@@ -118,10 +118,7 @@ export async function getSettingsDetailed(env: Env): Promise<SettingsDetailMap> 
  * Only UPDATE existing keys — INSERT of new keys is not allowed.
  * Uses D1 batch() for atomic execution.
  */
-export async function upsertSettings(
-	env: Env,
-	entries: Record<string, string>,
-): Promise<void> {
+export async function upsertSettings(env: Env, entries: Record<string, string>): Promise<void> {
 	const keys = Object.keys(entries);
 	if (keys.length === 0) return;
 

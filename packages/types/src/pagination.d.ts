@@ -1,7 +1,7 @@
 /** Cursor payload — the actual data encoded inside a cursor string */
 export interface CursorPayload {
-    sortValue: number;
-    id: number;
+	sortValue: number;
+	id: number;
 }
 /**
  * Encode a cursor payload into an opaque string.

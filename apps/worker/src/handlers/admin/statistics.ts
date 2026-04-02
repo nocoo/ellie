@@ -141,7 +141,9 @@ export const recalcThreads = withEntityAuth(
 				.bind(forumId)
 				.all();
 		} else {
-			threads = await env.DB.prepare("SELECT id, created_at, author_name, author_id FROM threads").all();
+			threads = await env.DB.prepare(
+				"SELECT id, created_at, author_name, author_id FROM threads",
+			).all();
 		}
 
 		const threadData = threads.results as Array<{

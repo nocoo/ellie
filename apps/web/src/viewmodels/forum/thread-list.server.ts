@@ -11,7 +11,6 @@ import {
 	type Forum,
 	type ForumTreeNode,
 	type Thread,
-	type VisibilityContext,
 	buildForumTree,
 	filterVisibleForums,
 	findForumAncestors,

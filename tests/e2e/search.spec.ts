@@ -24,7 +24,10 @@ test.describe("E2E-SE: Search Flow", () => {
 		await expect(page).toHaveURL(/q=/);
 
 		// Should show results or no results message
-		const hasResults = await searchPage.results.first().isVisible().catch(() => false);
+		const hasResults = await searchPage.results
+			.first()
+			.isVisible()
+			.catch(() => false);
 		const hasNoResults = await searchPage.noResults.isVisible().catch(() => false);
 		expect(hasResults || hasNoResults).toBe(true);
 
@@ -57,7 +60,10 @@ test.describe("E2E-SE: Search Flow", () => {
 		await expect(page).toHaveURL(/type=author/);
 
 		// Should still show results or no results
-		const hasResults = await searchPage.results.first().isVisible().catch(() => false);
+		const hasResults = await searchPage.results
+			.first()
+			.isVisible()
+			.catch(() => false);
 		const hasNoResults = await searchPage.noResults.isVisible().catch(() => false);
 		expect(hasResults || hasNoResults).toBe(true);
 	});

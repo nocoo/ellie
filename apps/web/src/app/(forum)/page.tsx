@@ -6,7 +6,7 @@ import { buildHomeFooterViewModel } from "@/viewmodels/forum/footer";
 import { loadForumList } from "@/viewmodels/forum/forum-list.server";
 import { fetchPublicSettings } from "@/viewmodels/forum/settings.server";
 import { loadSiteStats } from "@/viewmodels/forum/stats.server";
-import type { ForumTreeNode, Thread } from "@ellie/types";
+import type { ForumTreeNode } from "@ellie/types";
 
 /** Shuffle array using Fisher-Yates algorithm and return first n items */
 function shuffleAndTake<T>(arr: T[], n: number): T[] {

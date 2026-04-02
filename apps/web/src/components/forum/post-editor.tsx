@@ -238,10 +238,7 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 			{editor && !disabled && <Toolbar editor={editor} />}
 
 			{/* Editor area */}
-			<EditorContent
-				editor={editor}
-				className="tiptap-content min-h-[180px] px-3 py-2 text-sm"
-			/>
+			<EditorContent editor={editor} className="tiptap-content min-h-[180px] px-3 py-2 text-sm" />
 
 			{/* Smiley panel - traditional forum smileys */}
 			{editor && !disabled && (
