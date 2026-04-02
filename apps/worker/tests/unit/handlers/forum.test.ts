@@ -11,11 +11,13 @@ describe("forum handlers", () => {
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret",
 		KV: createMockKV(),
+		// Disable KV cache - use JOIN approach (default behavior)
+		USE_KV_USER_CACHE: "false",
 	};
 
 	const mockCtx = createMockCtx();
 
-	/** Full D1 row (snake_case) matching the real forums table */
+	/** Full D1 row (snake_case) matching the real forums table + JOIN result */
 	const makeD1ForumRow = (overrides?: Record<string, unknown>) => ({
 		id: 1,
 		parent_id: 0,
@@ -33,6 +35,8 @@ describe("forum handlers", () => {
 		last_poster: "alice",
 		last_poster_id: 10,
 		last_thread_subject: "Latest Thread",
+		// JOIN result: user avatar
+		last_poster_avatar: "",
 		...overrides,
 	});
 
@@ -41,7 +45,8 @@ describe("forum handlers", () => {
 		function createListMockDb(forumRows: unknown[], countRows: unknown[] = []) {
 			return {
 				prepare: mock((sql: string) => {
-					if (sql.includes("SELECT * FROM forums")) {
+					// Forum query (with or without JOIN)
+					if (sql.includes("FROM forums")) {
 						return {
 							all: mock(() => Promise.resolve({ results: forumRows })),
 						};
@@ -104,13 +109,14 @@ describe("forum handlers", () => {
 			expect(data.data[0].todayThreads).toBe(0);
 		});
 
-		it("should call DB with correct forum query", async () => {
+		it("should call DB with JOIN forum query", async () => {
 			const db = createListMockDb([]);
 			const env = { ...mockEnv, DB: db };
 			const ctx = createMockCtx();
 			await list(new Request("https://example.com/api/v1/forums"), env, ctx);
 
-			expect(db.prepare).toHaveBeenCalledWith("SELECT * FROM forums ORDER BY display_order");
+			expect(db.prepare).toHaveBeenCalledWith(expect.stringContaining("FROM forums"));
+			expect(db.prepare).toHaveBeenCalledWith(expect.stringContaining("LEFT JOIN users"));
 		});
 
 		it("should return JSON content type", async () => {
@@ -156,18 +162,11 @@ describe("forum handlers", () => {
 		function createGetByIdMockDb(forumRow: unknown | null, todayCount = 0) {
 			return {
 				prepare: mock((sql: string) => {
-					if (sql.includes("SELECT * FROM forums WHERE id")) {
+					// Forum query (with or without JOIN)
+					if (sql.includes("FROM forums") && sql.includes("WHERE")) {
 						return {
 							bind: mock(() => ({
 								first: mock(() => Promise.resolve(forumRow)),
-							})),
-						};
-					}
-					// User cache query
-					if (sql.includes("SELECT id, username, avatar")) {
-						return {
-							bind: mock(() => ({
-								all: mock(() => Promise.resolve({ results: [] })),
 							})),
 						};
 					}
@@ -232,16 +231,9 @@ describe("forum handlers", () => {
 
 			const db = {
 				prepare: mock((sql: string) => {
-					if (sql.includes("SELECT * FROM forums WHERE id")) {
+					// Forum query (with or without JOIN)
+					if (sql.includes("FROM forums") && sql.includes("WHERE")) {
 						return { bind: bindSpy };
-					}
-					// User cache query
-					if (sql.includes("SELECT id, username, avatar")) {
-						return {
-							bind: mock(() => ({
-								all: mock(() => Promise.resolve({ results: [] })),
-							})),
-						};
 					}
 					return {
 						bind: mock(() => ({

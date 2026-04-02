@@ -1,5 +1,5 @@
 import type { Forum } from "@ellie/types";
-import type { Env } from "../lib/env";
+import { type Env, isKvUserCacheEnabled } from "../lib/env";
 import { enrichForumsWithUserCache, enrichForumWithUserCache, toForum } from "../lib/mappers";
 import { getUserProfiles } from "../lib/user-cache";
 
@@ -18,8 +18,18 @@ export async function list(
 	// Run both queries in parallel: all forums + per-forum thread count in last 24h
 	const cutoff24h = Math.floor(Date.now() / 1000) - 86400;
 
+	const useKvCache = isKvUserCacheEnabled(env);
+
+	// Choose query based on cache strategy
+	const forumQuery = useKvCache
+		? "SELECT * FROM forums ORDER BY display_order"
+		: `SELECT f.*, u.avatar AS last_poster_avatar
+		   FROM forums f
+		   LEFT JOIN users u ON f.last_poster_id = u.id
+		   ORDER BY f.display_order`;
+
 	const [forumResult, countResult] = await Promise.all([
-		env.DB.prepare("SELECT * FROM forums ORDER BY display_order").all(),
+		env.DB.prepare(forumQuery).all(),
 		env.DB.prepare(
 			"SELECT forum_id, COUNT(*) AS cnt FROM threads WHERE created_at >= ? GROUP BY forum_id",
 		)
@@ -34,16 +44,23 @@ export async function list(
 	}
 
 	let forums: Forum[] = forumResult.results.map((row) => {
-		const forum = toForum(row as Record<string, unknown>);
+		const r = row as Record<string, unknown>;
+		const forum = toForum(r);
 		forum.todayThreads = todayMap.get(forum.id) ?? 0;
+		// If JOIN approach, populate avatar directly from query result
+		if (!useKvCache && r.last_poster_avatar !== undefined) {
+			forum.lastPosterAvatar = (r.last_poster_avatar as string) ?? "";
+		}
 		return forum;
 	});
 
-	// Enrich with user cache for lastPoster info
-	const lastPosterIds = forums.map((f) => f.lastPosterId).filter((id) => id > 0);
-	if (lastPosterIds.length > 0) {
-		const userCache = await getUserProfiles(env, ctx, lastPosterIds);
-		forums = enrichForumsWithUserCache(forums, userCache);
+	// Enrich with KV user cache (only if enabled)
+	if (useKvCache) {
+		const lastPosterIds = forums.map((f) => f.lastPosterId).filter((id) => id > 0);
+		if (lastPosterIds.length > 0) {
+			const userCache = await getUserProfiles(env, ctx, lastPosterIds);
+			forums = enrichForumsWithUserCache(forums, userCache);
+		}
 	}
 
 	return new Response(
@@ -75,14 +92,29 @@ export async function getById(
 	const idStr = pathParts[pathParts.length - 1];
 	const id = Number.parseInt(idStr ?? "0", 10);
 
-	const stmt = env.DB.prepare("SELECT * FROM forums WHERE id = ?");
-	const result = await stmt.bind(id).first();
+	const useKvCache = isKvUserCacheEnabled(env);
+
+	// Choose query based on cache strategy
+	const forumQuery = useKvCache
+		? "SELECT * FROM forums WHERE id = ?"
+		: `SELECT f.*, u.avatar AS last_poster_avatar
+		   FROM forums f
+		   LEFT JOIN users u ON f.last_poster_id = u.id
+		   WHERE f.id = ?`;
+
+	const result = await env.DB.prepare(forumQuery).bind(id).first();
 
 	if (!result) {
 		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
 	}
 
-	let forum = toForum(result as Record<string, unknown>);
+	const r = result as Record<string, unknown>;
+	let forum = toForum(r);
+
+	// If JOIN approach, populate avatar directly from query result
+	if (!useKvCache && r.last_poster_avatar !== undefined) {
+		forum.lastPosterAvatar = (r.last_poster_avatar as string) ?? "";
+	}
 
 	// Count threads in last 24h for this forum
 	const cutoff24h = Math.floor(Date.now() / 1000) - 86400;
@@ -93,8 +125,8 @@ export async function getById(
 		.first<{ cnt: number }>();
 	forum.todayThreads = countResult?.cnt ?? 0;
 
-	// Enrich with user cache for lastPoster info
-	if (forum.lastPosterId > 0) {
+	// Enrich with KV user cache (only if enabled)
+	if (useKvCache && forum.lastPosterId > 0) {
 		const userCache = await getUserProfiles(env, ctx, [forum.lastPosterId]);
 		forum = enrichForumWithUserCache(forum, userCache);
 	}

@@ -1,7 +1,7 @@
 // Thread handlers for Cloudflare Worker
 import type { Thread } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
-import type { Env } from "../lib/env";
+import { type Env, isKvUserCacheEnabled } from "../lib/env";
 import { enrichThreadsWithUserCache, enrichThreadWithUserCache, toThread } from "../lib/mappers";
 import { jsonResponse, paginatedResponse } from "../lib/response";
 import { withAuth } from "../lib/routeHelpers";
@@ -80,6 +80,8 @@ export async function list(
 	const clampedLimit =
 		limitNum === undefined || limitNum <= 0 ? DEFAULT_PAGE_SIZE : Math.min(limitNum, MAX_PAGE_SIZE);
 
+	const useKvCache = isKvUserCacheEnabled(env);
+
 	// -------------------------------------------------------------------
 	// Branch: offset pagination (when ?page= is present and no ?cursor=)
 	// -------------------------------------------------------------------
@@ -87,24 +89,44 @@ export async function list(
 		const page = Math.max(1, Number.parseInt(pageParam, 10) || 1);
 		const offset = (page - 1) * clampedLimit;
 
+		// Choose query based on cache strategy
+		const dataQuery = useKvCache
+			? "SELECT * FROM threads WHERE forum_id = ? ORDER BY sticky DESC, last_post_at DESC, id DESC LIMIT ? OFFSET ?"
+			: `SELECT t.*,
+			          author.avatar AS author_avatar,
+			          lp.avatar AS last_poster_avatar
+			   FROM threads t
+			   LEFT JOIN users author ON t.author_id = author.id
+			   LEFT JOIN users lp ON t.last_poster_id = lp.id
+			   WHERE t.forum_id = ?
+			   ORDER BY t.sticky DESC, t.last_post_at DESC, t.id DESC
+			   LIMIT ? OFFSET ?`;
+
 		const [countResult, dataResult] = await Promise.all([
 			env.DB.prepare("SELECT COUNT(*) as total FROM threads WHERE forum_id = ?")
 				.bind(forumIdNum)
 				.first<{ total: number }>(),
-			env.DB.prepare(
-				"SELECT * FROM threads WHERE forum_id = ? ORDER BY sticky DESC, last_post_at DESC, id DESC LIMIT ? OFFSET ?",
-			)
+			env.DB.prepare(dataQuery)
 				.bind(forumIdNum, clampedLimit, offset)
 				.all(),
 		]);
 
 		const total = countResult?.total ?? 0;
-		let threads: Thread[] = dataResult.results.map((row) =>
-			toThread(row as Record<string, unknown>),
-		);
+		let threads: Thread[] = dataResult.results.map((row) => {
+			const r = row as Record<string, unknown>;
+			const thread = toThread(r);
+			// If JOIN approach, populate avatars directly from query result
+			if (!useKvCache) {
+				thread.authorAvatar = (r.author_avatar as string) ?? "";
+				thread.lastPosterAvatar = (r.last_poster_avatar as string) ?? "";
+			}
+			return thread;
+		});
 
-		// Enrich with user cache
-		threads = await enrichThreadsWithUserCacheFromList(threads, env, ctx);
+		// Enrich with KV user cache (only if enabled)
+		if (useKvCache) {
+			threads = await enrichThreadsWithUserCacheFromList(threads, env, ctx);
+		}
 
 		return paginatedResponse(threads, total, page, clampedLimit, origin);
 	}
@@ -116,13 +138,22 @@ export async function list(
 
 	let result: D1Result;
 	if (cursor) {
-		// Keyset pagination: WHERE forum_id = ? AND (sticky < ? OR (sticky = ? AND (last_post_at < ? OR (last_post_at = ? AND id < ?))))
-		const stmt = env.DB.prepare(
-			`SELECT * FROM threads WHERE forum_id = ? AND
-			 (sticky < ? OR (sticky = ? AND (last_post_at < ? OR (last_post_at = ? AND id < ?))))
-			 ORDER BY sticky DESC, last_post_at DESC, id DESC LIMIT ?`,
-		);
-		result = await stmt
+		// Keyset pagination with optional JOIN
+		const baseQuery = useKvCache
+			? `SELECT * FROM threads WHERE forum_id = ? AND
+			   (sticky < ? OR (sticky = ? AND (last_post_at < ? OR (last_post_at = ? AND id < ?))))
+			   ORDER BY sticky DESC, last_post_at DESC, id DESC LIMIT ?`
+			: `SELECT t.*,
+			          author.avatar AS author_avatar,
+			          lp.avatar AS last_poster_avatar
+			   FROM threads t
+			   LEFT JOIN users author ON t.author_id = author.id
+			   LEFT JOIN users lp ON t.last_poster_id = lp.id
+			   WHERE t.forum_id = ? AND
+			   (t.sticky < ? OR (t.sticky = ? AND (t.last_post_at < ? OR (t.last_post_at = ? AND t.id < ?))))
+			   ORDER BY t.sticky DESC, t.last_post_at DESC, t.id DESC LIMIT ?`;
+
+		result = await env.DB.prepare(baseQuery)
 			.bind(
 				forumIdNum,
 				cursor.sticky,
@@ -134,18 +165,39 @@ export async function list(
 			)
 			.all();
 	} else {
-		// First page
-		const stmt = env.DB.prepare(
-			"SELECT * FROM threads WHERE forum_id = ? ORDER BY sticky DESC, last_post_at DESC, id DESC LIMIT ?",
-		);
-		result = await stmt.bind(forumIdNum, clampedLimit).all();
+		// First page with optional JOIN
+		const baseQuery = useKvCache
+			? "SELECT * FROM threads WHERE forum_id = ? ORDER BY sticky DESC, last_post_at DESC, id DESC LIMIT ?"
+			: `SELECT t.*,
+			          author.avatar AS author_avatar,
+			          lp.avatar AS last_poster_avatar
+			   FROM threads t
+			   LEFT JOIN users author ON t.author_id = author.id
+			   LEFT JOIN users lp ON t.last_poster_id = lp.id
+			   WHERE t.forum_id = ?
+			   ORDER BY t.sticky DESC, t.last_post_at DESC, t.id DESC LIMIT ?`;
+
+		result = await env.DB.prepare(baseQuery)
+			.bind(forumIdNum, clampedLimit)
+			.all();
 	}
 
 	// Map D1 snake_case rows to camelCase Thread type
-	let threads: Thread[] = result.results.map((row) => toThread(row as Record<string, unknown>));
+	let threads: Thread[] = result.results.map((row) => {
+		const r = row as Record<string, unknown>;
+		const thread = toThread(r);
+		// If JOIN approach, populate avatars directly from query result
+		if (!useKvCache) {
+			thread.authorAvatar = (r.author_avatar as string) ?? "";
+			thread.lastPosterAvatar = (r.last_poster_avatar as string) ?? "";
+		}
+		return thread;
+	});
 
-	// Enrich with user cache
-	threads = await enrichThreadsWithUserCacheFromList(threads, env, ctx);
+	// Enrich with KV user cache (only if enabled)
+	if (useKvCache) {
+		threads = await enrichThreadsWithUserCacheFromList(threads, env, ctx);
+	}
 
 	// Generate next cursor from raw D1 row (snake_case) — NOT from mapped Thread
 	let nextCursor: string | null = null;
@@ -178,7 +230,7 @@ export async function list(
 	);
 }
 
-/** Helper to enrich threads with user cache */
+/** Helper to enrich threads with user cache (only used when KV cache is enabled) */
 async function enrichThreadsWithUserCacheFromList(
 	threads: Thread[],
 	env: Env,
@@ -208,8 +260,20 @@ export async function getById(
 	const idStr = pathParts[pathParts.length - 1];
 	const id = Number.parseInt(idStr ?? "0", 10);
 
-	const stmt = env.DB.prepare("SELECT * FROM threads WHERE id = ?");
-	const result = await stmt.bind(id).first();
+	const useKvCache = isKvUserCacheEnabled(env);
+
+	// Choose query based on cache strategy
+	const threadQuery = useKvCache
+		? "SELECT * FROM threads WHERE id = ?"
+		: `SELECT t.*,
+		          author.avatar AS author_avatar,
+		          lp.avatar AS last_poster_avatar
+		   FROM threads t
+		   LEFT JOIN users author ON t.author_id = author.id
+		   LEFT JOIN users lp ON t.last_poster_id = lp.id
+		   WHERE t.id = ?`;
+
+	const result = await env.DB.prepare(threadQuery).bind(id).first();
 
 	if (!result) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
@@ -218,13 +282,22 @@ export async function getById(
 	// Fire-and-forget: increment view count (don't await)
 	void env.DB.prepare("UPDATE threads SET views = views + 1 WHERE id = ?").bind(id).run();
 
-	let thread = toThread(result as Record<string, unknown>);
+	const r = result as Record<string, unknown>;
+	let thread = toThread(r);
 
-	// Enrich with user cache
-	const userIds = [thread.authorId, thread.lastPosterId].filter((id) => id > 0);
-	if (userIds.length > 0) {
-		const userCache = await getUserProfiles(env, ctx, userIds);
-		thread = enrichThreadWithUserCache(thread, userCache);
+	// If JOIN approach, populate avatars directly from query result
+	if (!useKvCache) {
+		thread.authorAvatar = (r.author_avatar as string) ?? "";
+		thread.lastPosterAvatar = (r.last_poster_avatar as string) ?? "";
+	}
+
+	// Enrich with KV user cache (only if enabled)
+	if (useKvCache) {
+		const userIds = [thread.authorId, thread.lastPosterId].filter((uid) => uid > 0);
+		if (userIds.length > 0) {
+			const userCache = await getUserProfiles(env, ctx, userIds);
+			thread = enrichThreadWithUserCache(thread, userCache);
+		}
 	}
 
 	return new Response(
