@@ -259,7 +259,6 @@
 	position: relative;
 	max-width: var(--content-max-width);
 	margin-inline: auto;
-	border-radius: 0 0 var(--radius) var(--radius);
 	overflow: hidden;
 	background-image: url("https://t.no.mt/ellie/bg-menu-light2.jpg");
 	background-size: auto 100%;
