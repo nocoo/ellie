@@ -1,8 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { encodeCursor } from "@ellie/types";
-import { StickyLevel } from "@ellie/types";
 import { createMockDataStore } from "@ellie/repositories";
 import { createMockThreadRepository } from "@ellie/repositories";
+import { StickyLevel } from "@ellie/types";
 
 describe("createMockThreadRepository", () => {
 	// ─── list ──────────────────────────────────────────────
@@ -182,7 +181,9 @@ describe("createMockThreadRepository", () => {
 			const store = createMockDataStore();
 			const repo = createMockThreadRepository(store);
 			const result = await repo.search({ titlePrefix: "2024", authorName: "admin" });
-			expect(result.items.every((t) => t.subject.startsWith("2024") && t.authorName === "admin")).toBe(true);
+			expect(
+				result.items.every((t) => t.subject.startsWith("2024") && t.authorName === "admin"),
+			).toBe(true);
 		});
 
 		it("returns empty when no matches", async () => {
@@ -248,8 +249,8 @@ describe("createMockThreadRepository", () => {
 			const repo = createMockThreadRepository(store);
 			const thread = await repo.getById(50001);
 			expect(thread).not.toBeNull();
-			expect(thread!.id).toBe(50001);
-			expect(thread!.subject).toBe("2024年同济大学招生简章发布");
+			expect(thread?.id).toBe(50001);
+			expect(thread?.subject).toBe("2024年同济大学招生简章发布");
 		});
 
 		it("returns null for non-existent id", async () => {
@@ -331,7 +332,7 @@ describe("createMockThreadRepository", () => {
 
 			await repo.setSticky(50006, StickyLevel.Global);
 			const thread = await repo.getById(50006);
-			expect(thread!.sticky).toBe(StickyLevel.Global);
+			expect(thread?.sticky).toBe(StickyLevel.Global);
 		});
 
 		it("sets sticky to None", async () => {
@@ -340,7 +341,7 @@ describe("createMockThreadRepository", () => {
 
 			await repo.setSticky(50001, StickyLevel.None);
 			const thread = await repo.getById(50001);
-			expect(thread!.sticky).toBe(StickyLevel.None);
+			expect(thread?.sticky).toBe(StickyLevel.None);
 		});
 
 		it("throws when thread not found", async () => {
@@ -359,7 +360,7 @@ describe("createMockThreadRepository", () => {
 
 			await repo.setDigest(50006, 3);
 			const thread = await repo.getById(50006);
-			expect(thread!.digest).toBe(3);
+			expect(thread?.digest).toBe(3);
 		});
 
 		it("sets digest to 0", async () => {
@@ -368,7 +369,7 @@ describe("createMockThreadRepository", () => {
 
 			await repo.setDigest(50002, 0);
 			const thread = await repo.getById(50002);
-			expect(thread!.digest).toBe(0);
+			expect(thread?.digest).toBe(0);
 		});
 
 		it("throws when thread not found", async () => {
@@ -387,7 +388,7 @@ describe("createMockThreadRepository", () => {
 
 			await repo.setClosed(50006, true);
 			const thread = await repo.getById(50006);
-			expect(thread!.closed).toBe(1);
+			expect(thread?.closed).toBe(1);
 		});
 
 		it("reopens a closed thread", async () => {
@@ -396,7 +397,7 @@ describe("createMockThreadRepository", () => {
 
 			await repo.setClosed(50015, false);
 			const thread = await repo.getById(50015);
-			expect(thread!.closed).toBe(0);
+			expect(thread?.closed).toBe(0);
 		});
 
 		it("throws when thread not found", async () => {
@@ -418,7 +419,7 @@ describe("createMockThreadRepository", () => {
 			await repo.move(threadId, 20);
 
 			const thread = await repo.getById(threadId);
-			expect(thread!.forumId).toBe(20);
+			expect(thread?.forumId).toBe(20);
 
 			// All posts should have the new forumId
 			for (const post of store.posts.filter((p) => p.threadId === threadId)) {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { encodeCursor } from "@ellie/types";
 import { createMockDataStore } from "@ellie/repositories";
 import { createMockPostRepository } from "@ellie/repositories";
 import { createMockThreadRepository } from "@ellie/repositories";
+import { encodeCursor } from "@ellie/types";
 
 describe("createMockPostRepository", () => {
 	// ─── list ──────────────────────────────────────────────
@@ -154,7 +154,7 @@ describe("createMockPostRepository", () => {
 			const threadRepo = createMockThreadRepository(store);
 
 			const threadBefore = await threadRepo.getById(50001);
-			const repliesBefore = threadBefore!.replies;
+			const repliesBefore = threadBefore?.replies;
 
 			await postRepo.create({
 				threadId: 50001,
@@ -164,7 +164,7 @@ describe("createMockPostRepository", () => {
 			});
 
 			const threadAfter = await threadRepo.getById(50001);
-			expect(threadAfter!.replies).toBe(repliesBefore + 1);
+			expect(threadAfter?.replies).toBe(repliesBefore + 1);
 		});
 
 		it("updates thread lastPoster and lastPostAt", async () => {
@@ -180,7 +180,7 @@ describe("createMockPostRepository", () => {
 			});
 
 			const thread = await threadRepo.getById(50001);
-			expect(thread!.lastPoster).toBe("lisi");
+			expect(thread?.lastPoster).toBe("lisi");
 		});
 
 		it("resolves forumId to 0 when thread not found", async () => {
@@ -217,12 +217,12 @@ describe("createMockPostRepository", () => {
 			const threadRepo = createMockThreadRepository(store);
 
 			const threadBefore = await threadRepo.getById(50001);
-			const repliesBefore = threadBefore!.replies;
+			const repliesBefore = threadBefore?.replies;
 
 			await postRepo.delete(100002); // non-first post in thread 50001
 
 			const threadAfter = await threadRepo.getById(50001);
-			expect(threadAfter!.replies).toBe(repliesBefore - 1);
+			expect(threadAfter?.replies).toBe(repliesBefore - 1);
 		});
 
 		it("does not decrement replies when deleting first post", async () => {
@@ -231,12 +231,12 @@ describe("createMockPostRepository", () => {
 			const threadRepo = createMockThreadRepository(store);
 
 			const threadBefore = await threadRepo.getById(50001);
-			const repliesBefore = threadBefore!.replies;
+			const repliesBefore = threadBefore?.replies;
 
 			await postRepo.delete(100001); // isFirst=true
 
 			const threadAfter = await threadRepo.getById(50001);
-			expect(threadAfter!.replies).toBe(repliesBefore);
+			expect(threadAfter?.replies).toBe(repliesBefore);
 		});
 
 		it("recalculates lastPostAt and lastPoster after deleting a post", async () => {
@@ -252,8 +252,8 @@ describe("createMockPostRepository", () => {
 			const remaining = store.posts
 				.filter((p) => p.threadId === 50001)
 				.sort((a, b) => b.position - a.position);
-			expect(thread!.lastPostAt).toBe(remaining[0].createdAt);
-			expect(thread!.lastPoster).toBe(remaining[0].authorName);
+			expect(thread?.lastPostAt).toBe(remaining[0].createdAt);
+			expect(thread?.lastPoster).toBe(remaining[0].authorName);
 		});
 
 		it("throws when post not found", async () => {
