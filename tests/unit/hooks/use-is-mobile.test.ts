@@ -166,12 +166,22 @@ describe("useIsMobile", () => {
 		expect(getIsMobile()).toBe(true);
 	});
 
-	it("matchMedia event handler receives MediaQueryListEvent", () => {
+	it("matchMedia event handler correctly updates state based on event.matches", () => {
+		matchMediaMatches = false;
 		useIsMobile();
 
+		// Simulate device becoming mobile
 		for (const handler of matchMediaHandlers) {
 			handler({ matches: true });
 		}
-		expect(true).toBe(true);
+		expect(capturedSetIsMobileCalls).toContain(true);
+		expect(currentState).toBe(true);
+
+		// Simulate device becoming desktop
+		for (const handler of matchMediaHandlers) {
+			handler({ matches: false });
+		}
+		expect(capturedSetIsMobileCalls).toContain(false);
+		expect(currentState).toBe(false);
 	});
 });
