@@ -266,6 +266,16 @@
 	background-repeat: repeat-x;
 	background-position: center;
 }
+:root[data-width-mode="full"] .nav-gradient {
+	max-width: none;
+	margin-inline: 1rem;
+	border-radius: calc(var(--radius) - 2px);
+}
+@media (min-width: 768px) {
+	:root[data-width-mode="full"] .nav-gradient {
+		margin-inline: 2rem;
+	}
+}
 .nav-gradient::before {
 	content: "";
 	position: absolute;
