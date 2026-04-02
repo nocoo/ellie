@@ -350,7 +350,7 @@ export default function UsersPage() {
 				onClearAll={handleClearFilters}
 			/>
 
-			<div className="rounded-xl border bg-card">
+			<div className="rounded-xl bg-secondary p-1 overflow-x-auto">
 				<AdminDataTable
 					columns={columns}
 					data={data}

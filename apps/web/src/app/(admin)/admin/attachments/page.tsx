@@ -570,7 +570,7 @@ export default function AttachmentsPage() {
 			/>
 
 			{/* Content */}
-			<div className="rounded-xl border bg-card overflow-hidden">
+			<div className="rounded-xl bg-secondary p-1 overflow-x-auto overflow-hidden">
 				{/* Select all header */}
 				{data.length > 0 && (
 					<div className="flex items-center gap-3 px-4 py-2.5 border-b bg-secondary/30">
