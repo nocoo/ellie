@@ -10,8 +10,9 @@ export default defineConfig({
 	testDir: "tests/e2e",
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 2 : 0,
-	// Global workers setting: 1 in CI, parallel locally for stateless tests
-	workers: process.env.CI ? 1 : undefined,
+	// Force single worker to ensure stateful tests (thread/post) never run concurrently
+	// This prevents cross-file race conditions when creating threads/posts
+	workers: 1,
 	reporter: "html",
 
 	use: {
@@ -22,13 +23,13 @@ export default defineConfig({
 	},
 
 	// ---------------------------------------------------------------------------
-	// Projects: stateless (parallel) vs stateful (sequential)
+	// Projects: stateless (parallel within file) vs stateful (sequential)
 	// ---------------------------------------------------------------------------
 	projects: [
 		{
 			name: "stateless",
 			testMatch: /\/(navigation|auth|search|system)\.spec\.ts/,
-			fullyParallel: true,
+			fullyParallel: true, // Tests within same file can run in parallel
 			use: { ...devices["Desktop Chrome"] },
 		},
 		{
