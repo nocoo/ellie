@@ -2,6 +2,7 @@
 
 // Ref: 04f §11 — Login page with shadcn Card/Input/Button/Label
 
+import { CapWidget } from "@/components/cap-widget";
 import { ForumLogo } from "@/components/forum/forum-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
+const CAP_API_ENDPOINT = process.env.NEXT_PUBLIC_CAP_API_ENDPOINT ?? "";
+
 function LoginFormInner() {
 	const searchParams = useSearchParams();
 	const callbackUrl = searchParams.get("redirect") ?? "/";
@@ -20,10 +23,12 @@ function LoginFormInner() {
 
 	const [username, setUsername] = useState("");
 	const [password, setPassword] = useState("");
+	const [capToken, setCapToken] = useState("");
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(loginErrorMessage(errorFromUrl));
 
-	const canSubmit = canSubmitLogin(username, password);
+	const capEnabled = Boolean(CAP_API_ENDPOINT);
+	const canSubmit = canSubmitLogin(username, password) && (!capEnabled || capToken);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -111,6 +116,17 @@ function LoginFormInner() {
 										autoComplete="current-password"
 									/>
 								</div>
+
+								{/* Cap CAPTCHA */}
+								{capEnabled && (
+									<div className="flex justify-center">
+										<CapWidget
+											apiEndpoint={CAP_API_ENDPOINT}
+											onSolve={setCapToken}
+											onError={() => setCapToken("")}
+										/>
+									</div>
+								)}
 
 								{/* Submit */}
 								<Button type="submit" disabled={!canSubmit || loading} className="w-full">

@@ -1,0 +1,70 @@
+"use client";
+
+// Cap.js CAPTCHA widget wrapper for React
+// https://github.com/tiagozip/cap
+
+import React, { useEffect, useRef, useState } from "react";
+
+// Import cap widget (registers custom element)
+import "@cap.js/widget";
+
+interface CapWidgetProps {
+	/** Cap API endpoint URL (e.g., https://cap.example.com/site-key/) */
+	apiEndpoint: string;
+	/** Callback when captcha is solved */
+	onSolve?: (token: string) => void;
+	/** Callback on error */
+	onError?: (message: string) => void;
+	/** Additional class names */
+	className?: string;
+}
+
+export function CapWidget({ apiEndpoint, onSolve, onError, className }: CapWidgetProps) {
+	const widgetRef = useRef<HTMLElement>(null);
+	const [mounted, setMounted] = useState(false);
+
+	// Only render on client
+	useEffect(() => {
+		setMounted(true);
+	}, []);
+
+	// Attach event listeners
+	useEffect(() => {
+		const widget = widgetRef.current;
+		if (!widget) return;
+
+		const handleSolve = (e: Event) => {
+			const detail = (e as CustomEvent<{ token: string }>).detail;
+			onSolve?.(detail.token);
+		};
+
+		const handleError = (e: Event) => {
+			const detail = (e as CustomEvent<{ message: string }>).detail;
+			onError?.(detail.message);
+		};
+
+		widget.addEventListener("solve", handleSolve);
+		widget.addEventListener("error", handleError);
+
+		return () => {
+			widget.removeEventListener("solve", handleSolve);
+			widget.removeEventListener("error", handleError);
+		};
+	}, [onSolve, onError]);
+
+	if (!mounted) {
+		// SSR placeholder
+		return <div className={className} style={{ height: 50 }} />;
+	}
+
+	// Use React.createElement for custom element to bypass JSX type checking
+	return React.createElement("cap-widget", {
+		ref: widgetRef,
+		"data-cap-api-endpoint": apiEndpoint,
+		"data-cap-i18n-initial-state": "点击验证",
+		"data-cap-i18n-verifying-label": "验证中...",
+		"data-cap-i18n-solved-label": "验证成功",
+		"data-cap-i18n-error-label": "验证失败",
+		className,
+	});
+}
