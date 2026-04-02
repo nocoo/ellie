@@ -1,6 +1,7 @@
 import { describe, expect, it, mock } from "bun:test";
 import { getById, list } from "../../../src/handlers/forum";
 import type { Env } from "../../../src/lib/env";
+import { createMockCtx, createMockKV } from "../../helpers";
 
 describe("forum handlers", () => {
 	const mockEnv: Env = {
@@ -9,8 +10,10 @@ describe("forum handlers", () => {
 		DB: {} as D1Database,
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret",
-		KV: {} as KVNamespace,
+		KV: createMockKV(),
 	};
+
+	const mockCtx = createMockCtx();
 
 	/** Full D1 row (snake_case) matching the real forums table */
 	const makeD1ForumRow = (overrides?: Record<string, unknown>) => ({
@@ -28,6 +31,7 @@ describe("forum handlers", () => {
 		last_thread_id: 42,
 		last_post_at: 1711540800,
 		last_poster: "alice",
+		last_poster_id: 10,
 		last_thread_subject: "Latest Thread",
 		...overrides,
 	});
@@ -57,7 +61,8 @@ describe("forum handlers", () => {
 			const db = createListMockDb([d1Row], [{ forum_id: 1, cnt: 3 }]);
 
 			const env = { ...mockEnv, DB: db };
-			const response = await list(new Request("https://example.com/api/v1/forums"), env);
+			const ctx = createMockCtx();
+			const response = await list(new Request("https://example.com/api/v1/forums"), env, ctx);
 
 			expect(response.status).toBe(200);
 			const data = await response.json();
@@ -78,6 +83,8 @@ describe("forum handlers", () => {
 					lastThreadId: 42,
 					lastPostAt: 1711540800,
 					lastPoster: "alice",
+					lastPosterId: 10,
+					lastPosterAvatar: "",
 					lastThreadSubject: "Latest Thread",
 				},
 			]);
@@ -90,7 +97,8 @@ describe("forum handlers", () => {
 			const db = createListMockDb([d1Row], []);
 
 			const env = { ...mockEnv, DB: db };
-			const response = await list(new Request("https://example.com/api/v1/forums"), env);
+			const ctx = createMockCtx();
+			const response = await list(new Request("https://example.com/api/v1/forums"), env, ctx);
 
 			const data = await response.json();
 			expect(data.data[0].todayThreads).toBe(0);
@@ -99,7 +107,8 @@ describe("forum handlers", () => {
 		it("should call DB with correct forum query", async () => {
 			const db = createListMockDb([]);
 			const env = { ...mockEnv, DB: db };
-			await list(new Request("https://example.com/api/v1/forums"), env);
+			const ctx = createMockCtx();
+			await list(new Request("https://example.com/api/v1/forums"), env, ctx);
 
 			expect(db.prepare).toHaveBeenCalledWith("SELECT * FROM forums ORDER BY display_order");
 		});
@@ -107,7 +116,8 @@ describe("forum handlers", () => {
 		it("should return JSON content type", async () => {
 			const db = createListMockDb([]);
 			const env = { ...mockEnv, DB: db };
-			const response = await list(new Request("https://example.com/api/v1/forums"), env);
+			const ctx = createMockCtx();
+			const response = await list(new Request("https://example.com/api/v1/forums"), env, ctx);
 
 			expect(response.headers.get("Content-Type")).toBe("application/json");
 		});
@@ -115,11 +125,13 @@ describe("forum handlers", () => {
 		it("should include CORS headers with origin", async () => {
 			const db = createListMockDb([]);
 			const env = { ...mockEnv, DB: db };
+			const ctx = createMockCtx();
 			const response = await list(
 				new Request("https://example.com/api/v1/forums", {
 					headers: { Origin: "https://ellie.nocoo.cloud" },
 				}),
 				env,
+				ctx,
 			);
 
 			expect(response.headers.get("Access-Control-Allow-Methods")).toBe(
@@ -131,7 +143,8 @@ describe("forum handlers", () => {
 		it("should return empty array when no forums exist", async () => {
 			const db = createListMockDb([]);
 			const env = { ...mockEnv, DB: db };
-			const response = await list(new Request("https://example.com/api/v1/forums"), env);
+			const ctx = createMockCtx();
+			const response = await list(new Request("https://example.com/api/v1/forums"), env, ctx);
 
 			const data = await response.json();
 			expect(data.data).toEqual([]);
@@ -139,7 +152,7 @@ describe("forum handlers", () => {
 	});
 
 	describe("getById", () => {
-		/** Helper: creates a mock DB for getById which has two prepare() calls */
+		/** Helper: creates a mock DB for getById which has multiple prepare() calls */
 		function createGetByIdMockDb(forumRow: unknown | null, todayCount = 0) {
 			return {
 				prepare: mock((sql: string) => {
@@ -147,6 +160,14 @@ describe("forum handlers", () => {
 						return {
 							bind: mock(() => ({
 								first: mock(() => Promise.resolve(forumRow)),
+							})),
+						};
+					}
+					// User cache query
+					if (sql.includes("SELECT id, username, avatar")) {
+						return {
+							bind: mock(() => ({
+								all: mock(() => Promise.resolve({ results: [] })),
 							})),
 						};
 					}
@@ -165,7 +186,8 @@ describe("forum handlers", () => {
 			const db = createGetByIdMockDb(d1Row, 7);
 
 			const env = { ...mockEnv, DB: db };
-			const response = await getById(new Request("https://example.com/api/v1/forums/1"), env);
+			const ctx = createMockCtx();
+			const response = await getById(new Request("https://example.com/api/v1/forums/1"), env, ctx);
 
 			expect(response.status).toBe(200);
 			const data = await response.json();
@@ -184,6 +206,7 @@ describe("forum handlers", () => {
 			const db = createGetByIdMockDb(null);
 
 			const env = { ...mockEnv, DB: db };
+			const ctx = createMockCtx();
 			const response = await getById(
 				new Request("https://example.com/api/v1/forums/999", {
 					headers: {
@@ -191,6 +214,7 @@ describe("forum handlers", () => {
 					},
 				}),
 				env,
+				ctx,
 			);
 
 			expect(response.status).toBe(404);
@@ -211,6 +235,14 @@ describe("forum handlers", () => {
 					if (sql.includes("SELECT * FROM forums WHERE id")) {
 						return { bind: bindSpy };
 					}
+					// User cache query
+					if (sql.includes("SELECT id, username, avatar")) {
+						return {
+							bind: mock(() => ({
+								all: mock(() => Promise.resolve({ results: [] })),
+							})),
+						};
+					}
 					return {
 						bind: mock(() => ({
 							first: mock(() => Promise.resolve({ cnt: 0 })),
@@ -220,7 +252,8 @@ describe("forum handlers", () => {
 			} as unknown as D1Database;
 
 			const env = { ...mockEnv, DB: db };
-			await getById(new Request("https://example.com/api/v1/forums/123"), env);
+			const ctx = createMockCtx();
+			await getById(new Request("https://example.com/api/v1/forums/123"), env, ctx);
 
 			expect(bindSpy).toHaveBeenCalledWith(123);
 		});
@@ -229,7 +262,8 @@ describe("forum handlers", () => {
 			const db = createGetByIdMockDb(null);
 
 			const env = { ...mockEnv, DB: db };
-			const response = await getById(new Request("https://example.com/api/v1/forums/abc"), env);
+			const ctx = createMockCtx();
+			const response = await getById(new Request("https://example.com/api/v1/forums/abc"), env, ctx);
 
 			expect(response.status).toBe(404);
 		});

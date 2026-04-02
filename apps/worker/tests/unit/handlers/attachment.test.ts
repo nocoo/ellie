@@ -1,7 +1,7 @@
 import { describe, expect, it, mock } from "bun:test";
 import { listByPost } from "../../../src/handlers/attachment";
 import type { Env } from "../../../src/lib/env";
-import { TEST_JWT_SECRET, makeD1AttachmentRow } from "../../helpers";
+import { TEST_JWT_SECRET, createMockKV, makeD1AttachmentRow } from "../../helpers";
 
 describe("attachment handlers", () => {
 	const mockEnv: Env = {
@@ -9,7 +9,7 @@ describe("attachment handlers", () => {
 		DB: {} as D1Database,
 		ENVIRONMENT: "test",
 		JWT_SECRET: TEST_JWT_SECRET,
-		KV: {} as KVNamespace,
+		KV: createMockKV(),
 	};
 
 	describe("listByPost", () => {

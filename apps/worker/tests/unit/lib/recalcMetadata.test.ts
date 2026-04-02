@@ -7,11 +7,12 @@ describe("recalcMetadata", () => {
 		it("should update forum with latest thread info", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"SELECT id, subject, last_post_at, last_poster FROM threads": {
+					"SELECT id, subject, last_post_at, last_poster, last_poster_id FROM threads": {
 						id: 42,
 						subject: "Latest thread",
 						last_post_at: 1700000000,
 						last_poster: "alice",
+						last_poster_id: 10,
 					},
 				},
 			});
@@ -21,13 +22,13 @@ describe("recalcMetadata", () => {
 
 			const updateCall = calls.find((c) => c.sql.includes("UPDATE forums SET last_thread_id"));
 			expect(updateCall).toBeDefined();
-			expect(updateCall?.params).toEqual([42, 1700000000, "alice", "Latest thread", 1]);
+			expect(updateCall?.params).toEqual([42, 1700000000, "alice", 10, "Latest thread", 1]);
 		});
 
 		it("should reset forum metadata when no threads remain", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"SELECT id, subject, last_post_at, last_poster FROM threads": null,
+					"SELECT id, subject, last_post_at, last_poster, last_poster_id FROM threads": null,
 				},
 			});
 			const env = makeEnv({ DB: db });
@@ -36,7 +37,7 @@ describe("recalcMetadata", () => {
 
 			const updateCall = calls.find((c) => c.sql.includes("UPDATE forums SET last_thread_id"));
 			expect(updateCall).toBeDefined();
-			expect(updateCall?.params).toEqual([0, 0, "", "", 5]);
+			expect(updateCall?.params).toEqual([0, 0, "", 0, "", 5]);
 		});
 	});
 
@@ -44,9 +45,10 @@ describe("recalcMetadata", () => {
 		it("should update thread with latest post info", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"SELECT created_at, author_name FROM posts": {
+					"SELECT created_at, author_name, author_id FROM posts": {
 						created_at: 1700000000,
 						author_name: "bob",
+						author_id: 20,
 					},
 				},
 			});
@@ -58,7 +60,7 @@ describe("recalcMetadata", () => {
 				(c) => c.sql.includes("UPDATE threads SET last_post_at") && c.params.includes(10),
 			);
 			expect(updateCall).toBeDefined();
-			expect(updateCall?.params).toEqual([1700000000, "bob", 10]);
+			expect(updateCall?.params).toEqual([1700000000, "bob", 20, 10]);
 		});
 
 		it("should fall back to thread creation info when no posts remain", async () => {
@@ -92,6 +94,7 @@ describe("recalcMetadata", () => {
 									Promise.resolve({
 										created_at: 1600000000,
 										author_name: "original_author",
+										author_id: 30,
 									}),
 							};
 						},
@@ -117,7 +120,7 @@ describe("recalcMetadata", () => {
 
 			const updateCall = calls.find((c) => c.sql.includes("UPDATE threads SET last_post_at"));
 			expect(updateCall).toBeDefined();
-			expect(updateCall?.params).toEqual([1600000000, "original_author", 20]);
+			expect(updateCall?.params).toEqual([1600000000, "original_author", 30, 20]);
 		});
 	});
 });

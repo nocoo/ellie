@@ -5,6 +5,7 @@ import {
 	TEST_JWT_SECRET,
 	createJwtForRole,
 	createMockDb,
+	createMockKV,
 	makeD1PostRow,
 	makeD1ThreadRow,
 } from "../../helpers";
@@ -15,7 +16,7 @@ describe("post handlers", () => {
 		DB: {} as D1Database,
 		ENVIRONMENT: "test",
 		JWT_SECRET: TEST_JWT_SECRET,
-		KV: {} as KVNamespace,
+		KV: createMockKV(),
 	};
 
 	describe("list", () => {
