@@ -1,7 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import {
+	GRID_THRESHOLD,
 	buildVisibleTree,
 	formatCount,
+	parseModerators,
 	totalStats,
 } from "../../../../apps/web/src/viewmodels/forum/forum-list";
 import type { Forum } from "../../../../packages/types/src/types";
@@ -210,5 +212,50 @@ describe("totalStats", () => {
 			children: [mid],
 		};
 		expect(totalStats(root)).toEqual({ threads: 10, posts: 50 });
+	});
+
+	it("handles node with zero stats", () => {
+		const node = {
+			...makeForumItem(10, 0, { threads: 0, posts: 0 }),
+			children: [],
+		};
+		expect(totalStats(node)).toEqual({ threads: 0, posts: 0 });
+	});
+});
+
+// ---------------------------------------------------------------------------
+// parseModerators
+// ---------------------------------------------------------------------------
+
+describe("parseModerators", () => {
+	it("returns empty array for empty string", () => {
+		expect(parseModerators("")).toEqual([]);
+	});
+
+	it("parses single moderator", () => {
+		expect(parseModerators("alice")).toEqual(["alice"]);
+	});
+
+	it("parses comma-separated moderators", () => {
+		expect(parseModerators("alice,bob,charlie")).toEqual(["alice", "bob", "charlie"]);
+	});
+
+	it("trims whitespace around moderator names", () => {
+		expect(parseModerators(" alice , bob , charlie ")).toEqual(["alice", "bob", "charlie"]);
+	});
+
+	it("filters out empty strings from trailing commas", () => {
+		expect(parseModerators("alice,,bob,")).toEqual(["alice", "bob"]);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// GRID_THRESHOLD
+// ---------------------------------------------------------------------------
+
+describe("GRID_THRESHOLD", () => {
+	it("is a number constant", () => {
+		expect(typeof GRID_THRESHOLD).toBe("number");
+		expect(GRID_THRESHOLD).toBe(10);
 	});
 });

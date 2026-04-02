@@ -1,10 +1,38 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import {
 	SETTING_GROUPS,
 	type SettingsDetailMap,
+	type SettingsUpdatePayload,
 	getChangedSettings,
 	toFormValues,
+	updateSettings,
 } from "../../../../apps/web/src/viewmodels/admin/settings";
+
+const originalFetch = globalThis.fetch;
+let mockFetchFn: ReturnType<typeof mock>;
+
+function mockJsonResponse(data: unknown, status = 200) {
+	return new Response(JSON.stringify(data), {
+		status,
+		headers: { "Content-Type": "application/json" },
+	});
+}
+
+beforeEach(() => {
+	mockFetchFn = mock(() =>
+		Promise.resolve(
+			mockJsonResponse({
+				data: { updated: 3 },
+				meta: { timestamp: 1711612800000, requestId: "r1" },
+			}),
+		),
+	);
+	globalThis.fetch = mockFetchFn as typeof fetch;
+});
+
+afterEach(() => {
+	globalThis.fetch = originalFetch;
+});
 
 // ---------------------------------------------------------------------------
 // SETTING_GROUPS structure tests
@@ -59,6 +87,20 @@ describe("SETTING_GROUPS", () => {
 		const uniqueKeys = new Set(allKeys);
 		expect(allKeys.length).toBe(uniqueKeys.size);
 	});
+
+	it("all fields should have labels", () => {
+		for (const group of SETTING_GROUPS) {
+			for (const field of group.fields) {
+				expect(field.label).toBeTruthy();
+			}
+		}
+	});
+
+	it("all groups should have descriptions", () => {
+		for (const group of SETTING_GROUPS) {
+			expect(group.description).toBeTruthy();
+		}
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -92,6 +134,17 @@ describe("toFormValues", () => {
 		const result = toFormValues(settings);
 
 		expect(result["general.og.title"]).toBe("");
+	});
+
+	it("should handle multiple entries", () => {
+		const settings: SettingsDetailMap = {
+			"general.site.name": { value: "Ellie", type: "string", updatedAt: 1700000000 },
+			"general.site.subtitle": { value: "Test", type: "string", updatedAt: 1700000000 },
+			"general.og.title": { value: "OG Title", type: "string", updatedAt: 1700000000 },
+		};
+
+		const result = toFormValues(settings);
+		expect(Object.keys(result)).toHaveLength(3);
 	});
 });
 
@@ -131,5 +184,39 @@ describe("getChangedSettings", () => {
 		const result = getChangedSettings(current, saved);
 
 		expect(result).toEqual({ b: "new" });
+	});
+
+	it("should not include keys that exist in saved but not current", () => {
+		const current = { a: "1" };
+		const saved = { a: "1", b: "2" };
+
+		const result = getChangedSettings(current, saved);
+
+		expect(result).toEqual({});
+	});
+
+	it("should handle both current and saved being empty", () => {
+		expect(getChangedSettings({}, {})).toEqual({});
+	});
+});
+
+// ---------------------------------------------------------------------------
+// updateSettings
+// ---------------------------------------------------------------------------
+
+describe("updateSettings", () => {
+	it("calls PUT /api/admin/settings with payload", async () => {
+		const payload: SettingsUpdatePayload = {
+			"general.site.name": "New Name",
+			"general.site.subtitle": "New Subtitle",
+		};
+
+		const result = await updateSettings(payload);
+		expect(result.updated).toBe(3);
+
+		const [url, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+		expect(url).toContain("/api/admin/settings");
+		expect(opts.method).toBe("PUT");
+		expect(JSON.parse(opts.body as string)).toEqual(payload);
 	});
 });
