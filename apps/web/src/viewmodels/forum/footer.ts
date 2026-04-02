@@ -123,7 +123,7 @@ export function buildGlobalFooterViewModel(settings: SettingsMap): GlobalFooterV
 	return {
 		siteName: getStr(settings, "general.site.name", "Ellie"),
 		quickLinks: FOOTER_QUICK_LINKS,
-		icpNumber: "沪ICP备05003615号",
+		icpNumber: getStr(settings, "general.site.icp_number", ""),
 		poweredBy: getStr(settings, "general.site.powered_by", "Discuz! X3.2"),
 		copyrightYears: "2001-2013",
 		copyrightHolder: getStr(settings, "general.site.copyright", "Comsenz Inc."),

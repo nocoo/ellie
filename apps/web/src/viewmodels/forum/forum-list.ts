@@ -18,26 +18,12 @@ export interface ForumListState {
 // ---------------------------------------------------------------------------
 
 /**
- * Forum statuses that should sink to the bottom of the group list.
- * status=3: QQ group forums (migrated from Discuz UCHome).
- */
-const DEMOTED_STATUSES = new Set([3]);
-
-/**
  * Build the visible forum tree from a flat forum list.
- * - Filters out invisible forums (status<=0) and their descendants.
- * - Demotes groups with specific statuses (e.g. QQ群) to the bottom.
+ * - Filters out invisible forums (status<=0, status=3) and their descendants.
  */
 export function buildVisibleTree(forums: Forum[]): ForumTreeNode[] {
 	const tree = buildForumTree(forums);
-	const visible = tree.map(filterVisibleForums).filter((n): n is ForumTreeNode => n !== null);
-
-	// Stable sort: normal groups first (in original order), demoted groups last
-	return visible.sort((a, b) => {
-		const aDemoted = DEMOTED_STATUSES.has(a.status) ? 1 : 0;
-		const bDemoted = DEMOTED_STATUSES.has(b.status) ? 1 : 0;
-		return aDemoted - bDemoted;
-	});
+	return tree.map(filterVisibleForums).filter((n): n is ForumTreeNode => n !== null);
 }
 
 /**

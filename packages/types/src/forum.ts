@@ -79,9 +79,10 @@ export function findForumAncestors(forums: Forum[], forumId: number): Forum[] {
  * Filter a tree node: remove invisible forums and their descendants.
  * - status=0: hidden (admin-hidden)
  * - status=-1: deleted (migrated placeholder)
+ * - status=3: QQ group forums (migrated from Discuz UCHome) — hidden by default
  */
 export function filterVisibleForums(node: ForumTreeNode): ForumTreeNode | null {
-	if (node.status <= 0) return null;
+	if (node.status <= 0 || node.status === 3) return null;
 
 	const visibleChildren: ForumTreeNode[] = [];
 	for (const child of node.children) {
