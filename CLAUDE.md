@@ -45,13 +45,52 @@ npx wrangler dev -c apps/worker/wrangler.toml
 3. `apiKey` in `~/.config/ellie/config.json`
 4. Build-time `ELLIE_DEFAULT_API_KEY` (injected in release builds)
 
+## NPM Scripts (root package.json)
+
+### Development
+
+| Script | Description |
+|--------|-------------|
+| `bun run dev` | Start Next.js dev server (port 7031) |
+| `bun run build` | Build Next.js for production |
+| `bun run start` | Start production server |
+| `bun run worker:dev` | Start Cloudflare Worker locally |
+| `bun run worker:deploy` | Deploy Worker to production |
+| `bun run migrate` | Run database migrations |
+| `bun run cli` | Run legacy TS CLI |
+| `bun run tui` | Launch Rust TUI (via scripts/tui.ts) |
+
+### Testing (6-dimensional quality system)
+
+| Script | Description | Test Count |
+|--------|-------------|------------|
+| `bun run test` | Run all L1 tests (unit + worker) | ~3069 |
+| `bun run test:unit` | L1 unit tests (`tests/unit/`) | ~2202 |
+| `bun run test:unit:worker` | L1 worker tests (`apps/worker/`) | ~867 |
+| `bun run test:integration` | L2 integration tests (requires worker running) | ~52 |
+| `bun run test:e2e` | L3 E2E tests (Playwright) | 22 |
+| `bun run test:coverage` | L1 unit tests with coverage report | - |
+
+**Port Convention:**
+- Dev: 7031
+- L2 Integration: 17031 (dev + 10000)
+- L3 E2E: 27031 (dev + 20000)
+
+### Code Quality
+
+| Script | Description |
+|--------|-------------|
+| `bun run typecheck` | TypeScript type checking (all packages) |
+| `bun run lint` | Biome linting |
+| `bun run lint:fix` | Biome lint with auto-fix |
+| `bun run format` | Biome format |
+
 ## Quality Gates (pre-push)
 
 | Gate | Command |
 |------|---------|
 | G1 typecheck | `bun run typecheck` |
-| L1 web tests | `bun test tests/unit/` |
-| L1 worker tests | `bun test apps/worker` |
+| L1 all tests | `bun run test` |
 | G2 dependency scan | `osv-scanner scan --lockfile bun.lock` |
 | G2 secret detection | `gitleaks detect --no-banner` |
 | Rust L1 | `cargo test --workspace` (in `packages/cli-rs`) |
