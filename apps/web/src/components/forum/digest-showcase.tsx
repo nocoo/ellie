@@ -39,7 +39,8 @@ export function DigestShowcase({ threads, total }: DigestShowcaseProps) {
 			<CardContent>
 				<div className="divide-y divide-border/50">
 					{threads.map((thread) => {
-						const badges = getThreadBadges(thread);
+						// Only show digest badge in this showcase
+						const badges = getThreadBadges(thread).filter((b) => b.type === "digest");
 						return (
 							<div
 								key={thread.id}
