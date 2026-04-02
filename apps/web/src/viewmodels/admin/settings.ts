@@ -99,22 +99,11 @@ export const SETTING_GROUPS: SettingGroupDef[] = [
 		prefix: "general.pagination",
 		fields: [
 			{
-				key: "general.pagination.threads_per_page",
-				label: "版块主题每页数",
-				inputType: "number",
-				placeholder: "100",
-			},
-			{
-				key: "general.pagination.posts_per_page",
-				label: "帖子回帖每页数",
+				key: "general.pagination.page_size",
+				label: "列表每页数量",
 				inputType: "number",
 				placeholder: "20",
-			},
-			{
-				key: "general.pagination.user_history_per_page",
-				label: "用户历史每页数",
-				inputType: "number",
-				placeholder: "20",
+				hint: "适用于所有前台列表（主题、回帖、用户历史等）",
 			},
 			{
 				key: "general.pagination.max_post_length",

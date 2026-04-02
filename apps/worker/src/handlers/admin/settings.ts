@@ -36,9 +36,7 @@ const ALLOWED_KEYS = new Set([
 	"general.og.twitter_card",
 	"general.og.twitter_site",
 	// general.pagination
-	"general.pagination.threads_per_page",
-	"general.pagination.posts_per_page",
-	"general.pagination.user_history_per_page",
+	"general.pagination.page_size",
 	"general.pagination.max_post_length",
 	"general.pagination.admin_page_size",
 	// general.assets
@@ -50,9 +48,7 @@ const ALLOWED_KEYS = new Set([
 
 /** Keys that must have positive numeric values */
 const NUMBER_KEYS = new Set([
-	"general.pagination.threads_per_page",
-	"general.pagination.posts_per_page",
-	"general.pagination.user_history_per_page",
+	"general.pagination.page_size",
 	"general.pagination.max_post_length",
 	"general.pagination.admin_page_size",
 ]);

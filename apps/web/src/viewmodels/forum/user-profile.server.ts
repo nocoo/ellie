@@ -4,6 +4,7 @@
 import "server-only";
 
 import { forumApi, publicUserToUser } from "@/lib/forum-api";
+import { getPageSize } from "@/lib/forum-settings";
 import type { Post, PublicUser, Thread, User } from "@ellie/types";
 import { type ProfileTab, resolveTab } from "./user-profile";
 
@@ -17,8 +18,6 @@ export interface UserProfileData {
 	digest: PaginatedResult<Thread>;
 }
 
-const HISTORY_LIMIT = 20;
-
 export async function loadUserProfile(params: {
 	userId: number;
 	tab?: string;
@@ -27,7 +26,9 @@ export async function loadUserProfile(params: {
 	limit?: number;
 }): Promise<UserProfileData> {
 	const tab = resolveTab(params.tab);
-	const limit = params.limit ?? HISTORY_LIMIT;
+	// Get page size from settings
+	const defaultLimit = await getPageSize();
+	const limit = params.limit ?? defaultLimit;
 
 	const { data: publicUser } = await forumApi.get<PublicUser>(`/api/v1/users/${params.userId}`);
 	const user = publicUserToUser(publicUser);
