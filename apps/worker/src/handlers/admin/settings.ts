@@ -46,6 +46,11 @@ const ALLOWED_KEYS = new Set([
 	"general.navigation.friend_links",
 	// features.access — access control
 	"features.access.require_login",
+	"features.access.maintenance_mode",
+	"features.access.maintenance_message",
+	// features.content — content controls
+	"features.content.allow_new_thread",
+	"features.content.allow_reply",
 	// features.posting — new user posting restrictions
 	"features.posting.enabled",
 	"features.posting.min_registration_days",
@@ -66,6 +71,9 @@ const NUMBER_KEYS_ALLOW_ZERO = new Set(["features.posting.min_registration_days"
 /** Keys that must be "true" or "false" */
 const BOOLEAN_KEYS = new Set([
 	"features.access.require_login",
+	"features.access.maintenance_mode",
+	"features.content.allow_new_thread",
+	"features.content.allow_reply",
 	"features.posting.enabled",
 	"features.posting.require_email_verified",
 	"features.posting.require_avatar",
