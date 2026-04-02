@@ -64,6 +64,7 @@ interface D1ForumRow {
 	type: string;
 	status: number;
 	moderators: string;
+	moderator_ids: string;
 	last_thread_id: number;
 	last_post_at: number;
 	last_poster: string;
@@ -165,6 +166,7 @@ export function toForum(row: Record<string, unknown>): Forum {
 		type: r.type as Forum["type"],
 		status: r.status,
 		moderators: r.moderators,
+		moderatorList: [], // Will be populated from JOIN or separate query
 		todayThreads: 0, // Computed at query time, not stored in D1
 		lastThreadId: r.last_thread_id,
 		lastPostAt: r.last_post_at,
@@ -173,6 +175,15 @@ export function toForum(row: Record<string, unknown>): Forum {
 		lastPosterAvatar: "", // Will be populated from KV cache
 		lastThreadSubject: r.last_thread_subject,
 	};
+}
+
+/** Parse moderator_ids string (comma-separated) into number array */
+export function parseModeratorIds(moderatorIds: string): number[] {
+	if (!moderatorIds) return [];
+	return moderatorIds
+		.split(",")
+		.map((s) => Number.parseInt(s.trim(), 10))
+		.filter((id) => !Number.isNaN(id) && id > 0);
 }
 
 /** Maps a D1 thread row to the frontend Thread type. Strips post_table_id. */

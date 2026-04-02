@@ -103,6 +103,12 @@ export interface User {
 	lastIp: string;
 }
 
+/** Moderator info for display */
+export interface ModeratorInfo {
+	id: number;
+	name: string;
+}
+
 /** Maps to Doc02 forums table — 213 rows */
 export interface Forum {
 	id: number;
@@ -116,6 +122,7 @@ export interface Forum {
 	type: ForumType;
 	status: number;
 	moderators: string;
+	moderatorList: ModeratorInfo[];
 	todayThreads: number;
 	lastThreadId: number;
 	lastPostAt: number;

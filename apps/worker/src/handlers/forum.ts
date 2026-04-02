@@ -1,11 +1,50 @@
-import type { Forum } from "@ellie/types";
+import type { Forum, ModeratorInfo } from "@ellie/types";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
-import { enrichForumWithUserCache, enrichForumsWithUserCache, toForum } from "../lib/mappers";
+import {
+	enrichForumWithUserCache,
+	enrichForumsWithUserCache,
+	parseModeratorIds,
+	toForum,
+} from "../lib/mappers";
 import { getUserProfiles } from "../lib/user-cache";
 
 // Forum handlers for Cloudflare Worker
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
+
+/** Fetch moderator names by IDs in a single query */
+async function fetchModeratorNames(
+	db: D1Database,
+	moderatorIds: number[],
+): Promise<Map<number, string>> {
+	if (moderatorIds.length === 0) return new Map();
+
+	const placeholders = moderatorIds.map(() => "?").join(",");
+	const result = await db
+		.prepare(`SELECT id, username FROM users WHERE id IN (${placeholders})`)
+		.bind(...moderatorIds)
+		.all<{ id: number; username: string }>();
+
+	const map = new Map<number, string>();
+	for (const row of result.results) {
+		map.set(row.id, row.username);
+	}
+	return map;
+}
+
+/** Build moderatorList from moderator_ids string and name map */
+function buildModeratorList(
+	moderatorIdsStr: string,
+	nameMap: Map<number, string>,
+): ModeratorInfo[] {
+	const ids = parseModeratorIds(moderatorIdsStr);
+	return ids
+		.map((id) => {
+			const name = nameMap.get(id);
+			return name ? { id, name } : null;
+		})
+		.filter((m): m is ModeratorInfo => m !== null);
+}
 
 /** GET /api/v1/forums - List all forums (no pagination) */
 export async function list(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -48,6 +87,26 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 			forum.lastPosterAvatar = (r.last_poster_avatar as string) ?? "";
 		}
 		return forum;
+	});
+
+	// Collect all moderator IDs and fetch their names
+	const allModeratorIds = new Set<number>();
+	for (const row of forumResult.results) {
+		const moderatorIdsStr = (row as Record<string, unknown>).moderator_ids as string;
+		for (const id of parseModeratorIds(moderatorIdsStr ?? "")) {
+			allModeratorIds.add(id);
+		}
+	}
+	const moderatorNameMap = await fetchModeratorNames(env.DB, [...allModeratorIds]);
+
+	// Populate moderatorList for each forum
+	forums = forums.map((forum, i) => {
+		const moderatorIdsStr = (forumResult.results[i] as Record<string, unknown>)
+			.moderator_ids as string;
+		return {
+			...forum,
+			moderatorList: buildModeratorList(moderatorIdsStr ?? "", moderatorNameMap),
+		};
 	});
 
 	// Enrich with KV user cache (only if enabled)
@@ -110,6 +169,14 @@ export async function getById(
 	// If JOIN approach, populate avatar directly from query result
 	if (!useKvCache && r.last_poster_avatar !== undefined) {
 		forum.lastPosterAvatar = (r.last_poster_avatar as string) ?? "";
+	}
+
+	// Populate moderatorList
+	const moderatorIdsStr = r.moderator_ids as string;
+	const moderatorIds = parseModeratorIds(moderatorIdsStr ?? "");
+	if (moderatorIds.length > 0) {
+		const moderatorNameMap = await fetchModeratorNames(env.DB, moderatorIds);
+		forum.moderatorList = buildModeratorList(moderatorIdsStr ?? "", moderatorNameMap);
 	}
 
 	// Count threads in last 24h for this forum

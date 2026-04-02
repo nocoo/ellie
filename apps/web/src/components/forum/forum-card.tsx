@@ -4,7 +4,7 @@
 // "wide" = full-width row (学习与学术区 style), "grid" = compact cell in 2-col grid (社团与爱好区 style)
 
 import { getStaticImageUrl } from "@/lib/cdn";
-import { formatCount, parseModerators } from "@/viewmodels/forum/forum-list";
+import { formatCount } from "@/viewmodels/forum/forum-list";
 import { formatDateTime } from "@/viewmodels/shared/formatting";
 import type { ForumTreeNode } from "@ellie/types";
 import Link from "next/link";
@@ -27,7 +27,7 @@ function ForumIcon({ hasActivity = false }: { hasActivity?: boolean }) {
 // ---------------------------------------------------------------------------
 
 function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
-	const mods = parseModerators(forum.moderators);
+	const mods = forum.moderatorList ?? [];
 
 	return (
 		<div className="relative flex items-start gap-3 px-4 py-3.5 transition-colors hover:bg-accent">
@@ -80,12 +80,14 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 				{mods.length > 0 && (
 					<div className="relative z-10 mt-0.5 flex items-baseline gap-1 flex-wrap leading-5">
 						<span className="text-sm text-muted-foreground">版主:</span>
-						{mods.map((name, i) => (
-							<span key={name}>
+						{mods.map((mod, i) => (
+							<span key={mod.id}>
 								{i > 0 && <span className="text-sm text-muted-foreground">, </span>}
-								<span className="text-sm text-forum-link hover:underline cursor-pointer">
-									{name}
-								</span>
+								<UserPopover userId={mod.id}>
+									<span className="text-sm text-forum-link hover:underline cursor-pointer">
+										{mod.name}
+									</span>
+								</UserPopover>
 							</span>
 						))}
 					</div>
@@ -133,7 +135,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 // ---------------------------------------------------------------------------
 
 function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
-	const mods = parseModerators(forum.moderators);
+	const mods = forum.moderatorList ?? [];
 
 	return (
 		<div className="relative flex items-start gap-2.5 px-4 py-3 transition-colors hover:bg-accent">
@@ -165,10 +167,12 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 				{mods.length > 0 && (
 					<div className="mt-0.5 text-sm text-muted-foreground leading-5">
 						版主:{" "}
-						{mods.map((name, i) => (
-							<span key={name}>
+						{mods.map((mod, i) => (
+							<span key={mod.id}>
 								{i > 0 && ", "}
-								<span className="text-forum-link hover:underline cursor-pointer">{name}</span>
+								<UserPopover userId={mod.id}>
+									<span className="text-forum-link hover:underline cursor-pointer">{mod.name}</span>
+								</UserPopover>
 							</span>
 						))}
 					</div>
