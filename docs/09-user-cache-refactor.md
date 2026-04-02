@@ -134,8 +134,9 @@ CREATE INDEX IF NOT EXISTS idx_threads_last_poster_id ON threads(last_poster_id)
 |------|------|
 | `packages/db/src/schema.ts` | 添加 `last_poster_id` 字段定义 |
 | `packages/types/src/types.ts` | 添加 `lastPosterId` 字段到 `Forum`/`Thread` 类型 |
-| `apps/worker/src/handlers/forum.ts` | 查询时使用 KV 批量获取用户信息 |
-| `apps/worker/src/handlers/thread.ts` | **list()** 查询时使用 KV 批量获取用户信息；**getById()** 使用 KV 获取 authorName |
+| `apps/worker/src/index.ts` | **关键**：修改路由调用，将 `ctx` 传入需要 KV 的 handler（forum.list, thread.list, thread.getById 等） |
+| `apps/worker/src/handlers/forum.ts` | **list()** 签名改为 `(request, env, ctx)`，使用 KV 批量获取用户信息 |
+| `apps/worker/src/handlers/thread.ts` | **list()** 和 **getById()** 签名改为 `(request, env, ctx)`，使用 KV 获取用户信息 |
 | `apps/worker/src/lib/mappers.ts` | 更新 mapper 支持新字段 |
 
 ### 3. 修改文件 — 写路径（关键！）
@@ -151,7 +152,7 @@ CREATE INDEX IF NOT EXISTS idx_threads_last_poster_id ON threads(last_poster_id)
 
 | 文件 | 改动 |
 |------|------|
-| `apps/worker/src/handlers/admin/user.ts` | **update()** 添加 afterUpdate 钩子，用户名/头像/角色变更时失效缓存 |
+| `apps/worker/src/handlers/admin/user.ts` | **update()** 添加 afterUpdate 钩子，用户名/头像/角色变更时失效缓存（注意：当前 updateFields 不支持 group_title/group_color/group_stars） |
 | `apps/worker/src/handlers/me.ts` | 头像更新成功后失效缓存 |
 
 ---
@@ -367,6 +368,19 @@ export async function recalcThreadMetadata(env: Env, threadId: number): Promise<
 
 ### 读路径改动 — forum.ts list()
 
+**注意**：需要同步修改 `index.ts`，将 `ctx` 传入这些 handler。
+
+```typescript
+// apps/worker/src/index.ts - 修改路由调用
+if (path === "/api/v1/forums" && request.method === "GET") {
+  return await (await import("./handlers/forum")).list(request, env, ctx);
+}
+if (path.match(/^\/api\/v1\/threads\/\d+$/) && request.method === "GET") {
+  return await (await import("./handlers/thread")).getById(request, env, ctx);
+}
+// ... 其他需要 ctx 的路由同理
+```
+
 ```typescript
 // apps/worker/src/handlers/forum.ts - list()
 
@@ -426,16 +440,25 @@ export async function getById(request: Request, env: Env, ctx: ExecutionContext)
 
 ### 缓存失效 — admin/user.ts afterUpdate
 
+框架的 `afterUpdate` 签名是 `(id, data, existing, env, origin)`：
+
 ```typescript
 // apps/worker/src/handlers/admin/user.ts
 
 const userConfig: EntityConfig = {
   // ... existing config
   
-  // 添加 afterUpdate 钩子
-  afterUpdate: async (env: Env, id: number, data: Record<string, unknown>) => {
-    // 如果更新了影响缓存的字段，失效缓存
-    const cacheFields = ["username", "avatar", "role", "group_title", "group_color", "group_stars"];
+  // 添加 afterUpdate 钩子（注意签名顺序）
+  afterUpdate: async (
+    id: number,
+    data: Record<string, unknown>,
+    _existing: Record<string, unknown>,
+    env: Env,
+    _origin?: string,
+  ) => {
+    // 当前可修改的影响缓存的字段：username, avatar, role
+    // 注意：group_title/group_color/group_stars 当前不在 updateFields 中
+    const cacheFields = ["username", "avatar", "role"];
     const shouldInvalidate = cacheFields.some((field) => field in data);
     
     if (shouldInvalidate) {
@@ -445,6 +468,8 @@ const userConfig: EntityConfig = {
   },
 };
 ```
+
+> **注意**：当前 `admin/user.ts` 的 `updateFields` 不支持 `group_title`、`group_color`、`group_stars` 字段。如果未来需要管理端修改用户组样式，需要先添加这些 updateFields，然后在 afterUpdate 的 cacheFields 中加入它们。
 
 ### 缓存失效 — me.ts
 
