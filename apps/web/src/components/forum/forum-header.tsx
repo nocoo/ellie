@@ -131,7 +131,7 @@ function NavBar({ vm }: { vm: HeaderViewModel }) {
 
 	return (
 		<div className="nav-gradient">
-			<div className="width-container relative z-10 flex items-center !py-0 h-[40px]">
+			<div className="relative z-10 flex items-center px-4 h-[40px]">
 				{vm.navTabs.map((tab) => {
 					const isActive = tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
 
