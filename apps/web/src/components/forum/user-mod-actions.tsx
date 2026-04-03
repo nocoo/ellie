@@ -24,6 +24,7 @@ import {
 import { apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { Ban, Loader2, Shield, Trash2, VolumeX } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------
@@ -117,6 +118,7 @@ export function UserModActions({
 	onActionComplete,
 	className,
 }: UserModActionsProps) {
+	const router = useRouter();
 	// Can manage users (Admin or SuperMod only)
 	const canManageUsers = viewerRole >= 1 && viewerRole <= 2;
 
@@ -151,7 +153,16 @@ export function UserModActions({
 		try {
 			await apiClient.post(config.endpoint(userId), {});
 			setModActionMessage({ type: "success", text: `${config.title}成功` });
-			// Refresh status
+
+			// For nuke action, redirect to home page after a short delay
+			if (modAction === "nuke") {
+				setTimeout(() => {
+					router.push("/");
+				}, 1000);
+				return;
+			}
+
+			// Refresh status for other actions
 			setUserStatus(null);
 			await fetchUserStatus();
 			onActionComplete?.();
@@ -164,7 +175,7 @@ export function UserModActions({
 			setModActionLoading(false);
 			setModAction(null);
 		}
-	}, [modAction, userId, fetchUserStatus, onActionComplete]);
+	}, [modAction, userId, fetchUserStatus, onActionComplete, router]);
 
 	// Fetch status on mount
 	useEffect(() => {
