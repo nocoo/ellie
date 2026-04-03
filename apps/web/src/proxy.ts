@@ -162,11 +162,14 @@ async function getRequireLogin(): Promise<boolean> {
 	}
 
 	try {
-		// Fetch directly from Worker API (not from Next.js origin)
-		const res = await fetch(`${workerUrl}/api/v1/settings?key=features.access.require_login`, {
-			headers: { "X-API-Key": apiKey },
-			cache: "no-store",
-		});
+		// Fetch directly from Worker API using prefix filter
+		const res = await fetch(
+			`${workerUrl}/api/v1/settings?prefix=features.access.require_login`,
+			{
+				headers: { "X-API-Key": apiKey },
+				cache: "no-store",
+			},
+		);
 		if (!res.ok) return false;
 		const data = await res.json();
 		// API returns typed values: boolean true, not string "true"
