@@ -7,6 +7,7 @@
  * - Global: powered-by, copyright, site links (below the divider)
  */
 
+import { VERSION_DISPLAY } from "@ellie/types";
 import type { SettingsMap } from "./settings.server";
 import { getArr, getStr } from "./settings.server";
 
@@ -45,6 +46,7 @@ export interface GlobalFooterViewModel {
 	quickLinks: FooterQuickLink[];
 	icpNumber: string;
 	poweredBy: string;
+	version: string;
 	copyrightYears: string;
 	copyrightHolder: string;
 }
@@ -128,6 +130,7 @@ export function buildGlobalFooterViewModel(settings: SettingsMap): GlobalFooterV
 		quickLinks: FOOTER_QUICK_LINKS,
 		icpNumber: getStr(settings, "general.site.icp_number", ""),
 		poweredBy: getStr(settings, "general.site.powered_by", "Discuz! X3.2"),
+		version: VERSION_DISPLAY,
 		copyrightYears: "2001-2013",
 		copyrightHolder: getStr(settings, "general.site.copyright", "Comsenz Inc."),
 	};

@@ -39,7 +39,10 @@ export function SiteFooter({ vm }: SiteFooterProps) {
 						<p className="text-xs text-muted-foreground leading-relaxed">
 							&copy; {vm.copyrightYears} {vm.copyrightHolder}, All rights reserved.
 						</p>
-						<p className="mt-1 text-xs text-muted-foreground">{vm.poweredBy}</p>
+						<p className="mt-1 text-xs text-muted-foreground">
+							{vm.poweredBy}{" "}
+							<span className="font-mono">{vm.version}</span>
+						</p>
 						{vm.icpNumber && <p className="mt-1 text-xs text-muted-foreground">{vm.icpNumber}</p>}
 					</div>
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { VERSION_DISPLAY } from "@ellie/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Collapsible, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -239,6 +240,9 @@ export function Sidebar() {
 								<div className="flex items-center gap-3">
 									<span className="text-lg font-bold text-primary">E</span>
 									<span className="text-base font-semibold text-foreground">Ellie 管理后台</span>
+									<span className="rounded-full bg-muted px-2 py-0.5 text-xs font-mono text-muted-foreground">
+										{VERSION_DISPLAY}
+									</span>
 								</div>
 								<button
 									type="button"
