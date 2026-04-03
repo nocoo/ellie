@@ -149,7 +149,6 @@ export function PostCard({
 					isFirst={isFirst}
 					threadViews={threadViews}
 					threadReplies={threadReplies}
-					canModerate={canModerate}
 					viewerRole={currentUserRole}
 					viewerUserId={currentUserId}
 				/>
