@@ -4,7 +4,13 @@
 
 ## Overview
 
-The admin console is a standalone management interface at `/admin/*` that provides comprehensive control over all forum entities. Only users with `role = 1` (Admin) can access the backend.
+The admin console is a standalone management interface at `/admin/*` that provides comprehensive control over all forum entities.
+
+**Access Control Model:**
+- Admin status is determined by `ADMIN_EMAILS` environment variable (comma-separated email whitelist)
+- Authentication via Google OAuth + NextAuth session
+- All admins in whitelist have equal full permissions (no role hierarchy in admin console)
+- This is independent of forum user roles (role=1/2/3 in users table)
 
 **Key Principles:**
 - Complete visibility: admins can see all data across all forums
@@ -16,7 +22,7 @@ The admin console is a standalone management interface at `/admin/*` that provid
 ## Architecture
 
 ```
-/admin/login          → Admin authentication
+/admin/login          → Admin authentication (Google OAuth)
 /admin                → Dashboard
 /admin/users          → User management
 /admin/threads        → Thread management
@@ -28,6 +34,36 @@ The admin console is a standalone management interface at `/admin/*` that provid
 /admin/censor-words   → Sensitive word filtering
 /admin/settings/*     → System settings
 ```
+
+### Authentication Flow
+
+```
+Browser → Next.js Admin Layout
+            ↓
+         resolveAdmin(session)  ← Checks session.user.email against ADMIN_EMAILS
+            ↓
+         If not admin → redirect to /admin/login
+            ↓
+         Admin API Routes (/api/admin/*) → Session check + ADMIN_EMAILS check
+            ↓
+         Worker API (/api/admin/*) ← Uses Key B (ADMIN_API_KEY)
+            ↓
+         D1 Database
+```
+
+**Important:** Worker does NOT validate admin identity. It trusts requests with Key B unconditionally. All authorization happens at the Next.js layer.
+
+### Key Files
+
+| Layer | Files |
+|-------|-------|
+| Auth Check | `apps/web/src/lib/admin.ts` - `isAdmin()`, `resolveAdmin()` |
+| Layout Guard | `apps/web/src/app/(admin)/layout.tsx` - redirects non-admins |
+| API Proxy | `apps/web/src/lib/admin-proxy.ts` - session validation |
+| Admin Pages | `apps/web/src/app/(admin)/admin/**/*.tsx` |
+| Admin API Routes | `apps/web/src/app/api/admin/**/*.ts` |
+| Worker Handlers | `apps/worker/src/handlers/admin/*.ts` |
+| Viewmodels | `apps/web/src/viewmodels/admin/*.ts` |
 
 ---
 
@@ -147,37 +183,35 @@ The admin console is a standalone management interface at `/admin/*` that provid
 
 ---
 
-## API Architecture
-
-### Authentication
-- Admin login via `/admin/login` using NextAuth
-- Layout-level auth check via `resolveAdmin(session)`
-- Non-admins redirected to login page
-
-### API Layer
-```
-Browser → Next.js API Routes (/api/admin/*) → Cloudflare Worker → D1
-```
-
-- All admin API routes use Key B for authentication
-- Worker validates admin role before processing requests
-
-### Key Files
-- Admin pages: `apps/web/src/app/(admin)/admin/**/*.tsx`
-- Admin API routes: `apps/web/src/app/api/admin/**/*.ts`
-- Worker handlers: `apps/worker/src/handlers/admin/*.ts`
-- Viewmodels: `apps/web/src/viewmodels/admin/*.ts`
-
----
-
 ## Quality Assurance
 
-### Test Coverage
-| Level | Scope | Status |
-|-------|-------|--------|
-| L1 Unit | Handler logic, viewmodel functions | ✅ ~800 tests |
-| L2 Integration | API route → Worker → D1 | ✅ ~50 tests |
-| L3 E2E | Full admin workflows | Partial |
+### Test Status
+
+| Level | Scope | Status | Notes |
+|-------|-------|--------|-------|
+| L1 Unit | Handler logic, viewmodel functions | ✅ Passing | ~800 tests in `apps/worker/tests/` and `tests/unit/` |
+| L2 Integration | API route → Worker → D1 | ⚠️ Stale | `tests/integration/admin.test.ts` tests non-existent endpoints (e.g., `GET /api/admin/content`) |
+| L3 E2E | Full admin workflows | ❌ Not implemented | Needs Playwright scenarios |
+
+**Known Issues:**
+- `tests/integration/admin.test.ts` references deprecated API structure:
+  - Tests `GET /api/admin/content` (doesn't exist, should be `GET /api/admin/threads`)
+  - Tests `POST /api/admin/users` with `{ action: "ban" }` (actual API uses `POST /api/admin/users/:id/ban`)
+- These tests need to be rewritten to match current API
+
+### Test Improvement Plan
+
+1. **Rewrite L2 tests** to match actual API endpoints:
+   - `GET /api/admin/users` ✓ (exists)
+   - `GET /api/admin/threads` (not `/content`)
+   - `PATCH /api/admin/users/:id`
+   - `POST /api/admin/users/:id/ban`
+   - `POST /api/admin/users/:id/nuke`
+
+2. **Add L3 E2E tests** for critical workflows:
+   - Admin login flow
+   - User ban workflow
+   - Forum management
 
 ### Commit Guidelines
 - Each feature as atomic commit
@@ -189,8 +223,16 @@ Browser → Next.js API Routes (/api/admin/*) → Cloudflare Worker → D1
 
 ## Security Considerations
 
-1. **Access Control**: All admin routes protected at layout level
+1. **Access Control**: 
+   - Admin status via `ADMIN_EMAILS` environment variable (Next.js side)
+   - Layout-level redirect for non-admins
+   - API route session validation before proxying to Worker
+   - Worker trusts Key B unconditionally (no identity check)
+
 2. **CSRF Protection**: NextAuth handles session tokens
+
 3. **Input Validation**: All inputs validated at Worker level
-4. **Audit Trail**: Planned for future implementation
+
+4. **Audit Trail**: Planned for future implementation (see §7)
+
 5. **Dangerous Actions**: Always require confirmation dialogs
