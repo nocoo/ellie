@@ -16,6 +16,7 @@ import {
 	canEditPost,
 	canModerate,
 	canMoveThread,
+	canAccessAdmin,
 } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { parseIdFromPath, parsePathSegment } from "../lib/parseId";
@@ -25,7 +26,7 @@ import {
 	getThreadForPermission,
 	getUserForPermission,
 } from "../lib/permissionHelpers";
-import { recalcForumMetadata } from "../lib/recalcMetadata";
+import { recalcForumMetadata, recalcThreadMetadata } from "../lib/recalcMetadata";
 import { jsonResponse } from "../lib/response";
 import {
 	batchDecrementUserPosts,
@@ -662,4 +663,523 @@ export async function editPost(request: Request, env: Env): Promise<Response> {
 	await env.DB.prepare("UPDATE posts SET content = ? WHERE id = ?").bind(content.trim(), id).run();
 
 	return jsonResponse({ id, updated: true }, origin);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// User Moderation (Admin/SuperMod only)
+// ═══════════════════════════════════════════════════════════════════
+
+// ─── GET /api/v1/moderation/users/:id/ip-records ─────────────────
+
+export async function getUserIpRecords(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+	const authResult = await moderationMiddleware(request, env);
+	if (authResult instanceof Response) return authResult;
+
+	const userId = parsePathSegment(request, 1);
+	if (userId === null) {
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
+	}
+
+	// Permission check: Admin/SuperMod only
+	const user = await getUserForPermission(env, authResult.user.userId);
+	if (!user) {
+		return errorResponse("INTERNAL_ERROR", 500, { message: "Failed to fetch user data" }, origin);
+	}
+
+	if (!canAccessAdmin(user)) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "Only Admin or SuperMod can view IP records" },
+			origin,
+		);
+	}
+
+	// Get target user
+	const targetUser = await env.DB.prepare("SELECT id, username FROM users WHERE id = ?")
+		.bind(userId)
+		.first<{ id: number; username: string }>();
+
+	if (!targetUser) {
+		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
+	}
+
+	// Get IP records from posts (last 50 unique IPs)
+	// Note: This assumes IP is stored in a column - if not, return empty array
+	const ipRecords = await env.DB.prepare(
+		`SELECT DISTINCT ip, MAX(created_at) as last_seen
+		 FROM posts
+		 WHERE author_id = ? AND ip IS NOT NULL AND ip != ''
+		 GROUP BY ip
+		 ORDER BY last_seen DESC
+		 LIMIT 50`,
+	)
+		.bind(userId)
+		.all<{ ip: string; last_seen: number }>();
+
+	return jsonResponse(
+		{
+			userId: targetUser.id,
+			username: targetUser.username,
+			ipRecords: ipRecords.results.map((r) => ({
+				ip: r.ip,
+				lastSeen: r.last_seen,
+			})),
+		},
+		origin,
+	);
+}
+
+// ─── POST /api/v1/moderation/users/:id/mute ──────────────────────
+
+export async function muteUser(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+	const authResult = await moderationMiddleware(request, env);
+	if (authResult instanceof Response) return authResult;
+
+	const userId = parsePathSegment(request, 1);
+	if (userId === null) {
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
+	}
+
+	// Permission check: Admin/SuperMod only
+	const user = await getUserForPermission(env, authResult.user.userId);
+	if (!user) {
+		return errorResponse("INTERNAL_ERROR", 500, { message: "Failed to fetch user data" }, origin);
+	}
+
+	if (!canAccessAdmin(user)) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "Only Admin or SuperMod can mute users" },
+			origin,
+		);
+	}
+
+	// Get target user
+	const targetUser = await env.DB.prepare("SELECT id, username, status, role FROM users WHERE id = ?")
+		.bind(userId)
+		.first<{ id: number; username: string; status: number; role: number }>();
+
+	if (!targetUser) {
+		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
+	}
+
+	// Cannot mute admins or supermods
+	if (targetUser.role === 1 || targetUser.role === 2) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "Cannot mute Admin or SuperMod users" },
+			origin,
+		);
+	}
+
+	// Parse optional body for duration
+	let body: Record<string, unknown> = {};
+	try {
+		body = (await request.json()) as Record<string, unknown>;
+	} catch {
+		// No body is fine
+	}
+
+	// Mute = set status to -2 (Archived/Muted)
+	// Note: duration is informational only - actual unmute would be a separate action
+	await env.DB.prepare("UPDATE users SET status = -2 WHERE id = ?").bind(userId).run();
+
+	return jsonResponse(
+		{
+			muted: true,
+			userId: targetUser.id,
+			username: targetUser.username,
+			duration: body.duration ?? null,
+		},
+		origin,
+	);
+}
+
+// ─── POST /api/v1/moderation/users/:id/unmute ────────────────────
+
+export async function unmuteUser(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+	const authResult = await moderationMiddleware(request, env);
+	if (authResult instanceof Response) return authResult;
+
+	const userId = parsePathSegment(request, 1);
+	if (userId === null) {
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
+	}
+
+	// Permission check: Admin/SuperMod only
+	const user = await getUserForPermission(env, authResult.user.userId);
+	if (!user) {
+		return errorResponse("INTERNAL_ERROR", 500, { message: "Failed to fetch user data" }, origin);
+	}
+
+	if (!canAccessAdmin(user)) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "Only Admin or SuperMod can unmute users" },
+			origin,
+		);
+	}
+
+	// Get target user
+	const targetUser = await env.DB.prepare("SELECT id, username, status FROM users WHERE id = ?")
+		.bind(userId)
+		.first<{ id: number; username: string; status: number }>();
+
+	if (!targetUser) {
+		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
+	}
+
+	// Only unmute if currently muted (-2)
+	if (targetUser.status !== -2) {
+		return errorResponse(
+			"INVALID_REQUEST",
+			400,
+			{ message: "User is not currently muted" },
+			origin,
+		);
+	}
+
+	// Unmute = set status back to 0 (Active)
+	await env.DB.prepare("UPDATE users SET status = 0 WHERE id = ?").bind(userId).run();
+
+	return jsonResponse(
+		{
+			unmuted: true,
+			userId: targetUser.id,
+			username: targetUser.username,
+		},
+		origin,
+	);
+}
+
+// ─── POST /api/v1/moderation/users/:id/ban ───────────────────────
+
+export async function banUser(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+	const authResult = await moderationMiddleware(request, env);
+	if (authResult instanceof Response) return authResult;
+
+	const userId = parsePathSegment(request, 1);
+	if (userId === null) {
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
+	}
+
+	// Permission check: Admin/SuperMod only
+	const user = await getUserForPermission(env, authResult.user.userId);
+	if (!user) {
+		return errorResponse("INTERNAL_ERROR", 500, { message: "Failed to fetch user data" }, origin);
+	}
+
+	if (!canAccessAdmin(user)) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "Only Admin or SuperMod can ban users" },
+			origin,
+		);
+	}
+
+	// Get target user
+	const targetUser = await env.DB.prepare("SELECT id, username, status, role FROM users WHERE id = ?")
+		.bind(userId)
+		.first<{ id: number; username: string; status: number; role: number }>();
+
+	if (!targetUser) {
+		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
+	}
+
+	// Cannot ban admins or supermods
+	if (targetUser.role === 1 || targetUser.role === 2) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "Cannot ban Admin or SuperMod users" },
+			origin,
+		);
+	}
+
+	// Ban = set status to -1
+	await env.DB.prepare("UPDATE users SET status = -1 WHERE id = ?").bind(userId).run();
+
+	return jsonResponse(
+		{
+			banned: true,
+			userId: targetUser.id,
+			username: targetUser.username,
+		},
+		origin,
+	);
+}
+
+// ─── POST /api/v1/moderation/users/:id/unban ─────────────────────
+
+export async function unbanUser(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+	const authResult = await moderationMiddleware(request, env);
+	if (authResult instanceof Response) return authResult;
+
+	const userId = parsePathSegment(request, 1);
+	if (userId === null) {
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
+	}
+
+	// Permission check: Admin/SuperMod only
+	const user = await getUserForPermission(env, authResult.user.userId);
+	if (!user) {
+		return errorResponse("INTERNAL_ERROR", 500, { message: "Failed to fetch user data" }, origin);
+	}
+
+	if (!canAccessAdmin(user)) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "Only Admin or SuperMod can unban users" },
+			origin,
+		);
+	}
+
+	// Get target user
+	const targetUser = await env.DB.prepare("SELECT id, username, status FROM users WHERE id = ?")
+		.bind(userId)
+		.first<{ id: number; username: string; status: number }>();
+
+	if (!targetUser) {
+		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
+	}
+
+	// Only unban if currently banned (-1)
+	if (targetUser.status !== -1) {
+		return errorResponse(
+			"INVALID_REQUEST",
+			400,
+			{ message: "User is not currently banned" },
+			origin,
+		);
+	}
+
+	// Unban = set status back to 0 (Active)
+	await env.DB.prepare("UPDATE users SET status = 0 WHERE id = ?").bind(userId).run();
+
+	return jsonResponse(
+		{
+			unbanned: true,
+			userId: targetUser.id,
+			username: targetUser.username,
+		},
+		origin,
+	);
+}
+
+// ─── POST /api/v1/moderation/users/:id/nuke ──────────────────────
+
+export async function nukeUser(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+	const authResult = await moderationMiddleware(request, env);
+	if (authResult instanceof Response) return authResult;
+
+	const userId = parsePathSegment(request, 1);
+	if (userId === null) {
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
+	}
+
+	// Permission check: Admin/SuperMod only
+	const user = await getUserForPermission(env, authResult.user.userId);
+	if (!user) {
+		return errorResponse("INTERNAL_ERROR", 500, { message: "Failed to fetch user data" }, origin);
+	}
+
+	if (!canAccessAdmin(user)) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "Only Admin or SuperMod can nuke users" },
+			origin,
+		);
+	}
+
+	// Get target user
+	const targetUser = await env.DB.prepare("SELECT id, username, status, role FROM users WHERE id = ?")
+		.bind(userId)
+		.first<{ id: number; username: string; status: number; role: number }>();
+
+	if (!targetUser) {
+		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
+	}
+
+	// Cannot nuke admins or supermods
+	if (targetUser.role === 1 || targetUser.role === 2) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "Cannot nuke Admin or SuperMod users" },
+			origin,
+		);
+	}
+
+	// Delete all user content (same logic as admin nuke)
+	const result = await deleteUserContent(env, userId);
+
+	// Update user: ban + zero all counters + zero credits
+	await env.DB.prepare(
+		"UPDATE users SET status = -1, threads = 0, posts = 0, credits = 0 WHERE id = ?",
+	)
+		.bind(userId)
+		.run();
+
+	return jsonResponse(
+		{
+			nuked: true,
+			userId: targetUser.id,
+			username: targetUser.username,
+			threadsDeleted: result.threadsDeleted,
+			postsDeleted: result.postsDeleted,
+		},
+		origin,
+	);
+}
+
+// ─── Content deletion helper (from admin/user.ts) ────────────────
+
+interface ContentDeletionResult {
+	threadsDeleted: number;
+	postsDeleted: number;
+}
+
+async function deleteUserContent(env: Env, userId: number): Promise<ContentDeletionResult> {
+	// 1. Get user's threads to calculate forum impact
+	const threads = await env.DB.prepare(
+		"SELECT id, forum_id, replies FROM threads WHERE author_id = ?",
+	)
+		.bind(userId)
+		.all();
+	const threadRows = threads.results as { id: number; forum_id: number; replies: number }[];
+
+	// 2. Group forum impact from user's threads (thread count + all posts in those threads)
+	const forumThreadCounts = new Map<number, number>();
+	const forumPostCounts = new Map<number, number>();
+	for (const t of threadRows) {
+		forumThreadCounts.set(t.forum_id, (forumThreadCounts.get(t.forum_id) ?? 0) + 1);
+		forumPostCounts.set(t.forum_id, (forumPostCounts.get(t.forum_id) ?? 0) + t.replies + 1);
+	}
+
+	// 3. Count standalone posts (replies in other users' threads) grouped by forum
+	const standalonePosts = await env.DB.prepare(
+		"SELECT forum_id, COUNT(*) as cnt FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?) GROUP BY forum_id",
+	)
+		.bind(userId, userId)
+		.all();
+	const standaloneRows = standalonePosts.results as { forum_id: number; cnt: number }[];
+
+	// 4. Standalone post counts grouped by thread (for reply counter updates)
+	const standaloneThreadUpdates = await env.DB.prepare(
+		"SELECT thread_id, COUNT(*) as cnt FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?) GROUP BY thread_id",
+	)
+		.bind(userId, userId)
+		.all();
+	const standaloneThreadRows = standaloneThreadUpdates.results as {
+		thread_id: number;
+		cnt: number;
+	}[];
+
+	// 5. Collateral damage: other users' posts in the user's threads
+	const collateralAuthorCounts = new Map<number, number>();
+	if (threadRows.length > 0) {
+		const threadIds = threadRows.map((t) => t.id);
+		const placeholders = threadIds.map(() => "?").join(",");
+		const collateralPosts = await env.DB.prepare(
+			`SELECT author_id, COUNT(*) as cnt FROM posts WHERE thread_id IN (${placeholders}) AND author_id != ? GROUP BY author_id`,
+		)
+			.bind(...threadIds, userId)
+			.all();
+		for (const row of collateralPosts.results as { author_id: number; cnt: number }[]) {
+			collateralAuthorCounts.set(row.author_id, row.cnt);
+		}
+	}
+
+	// Build batch
+	const statements: D1PreparedStatement[] = [];
+
+	// Delete all posts in user's threads (cascade)
+	for (const t of threadRows) {
+		statements.push(env.DB.prepare("DELETE FROM posts WHERE thread_id = ?").bind(t.id));
+	}
+
+	// Delete user's threads
+	for (const t of threadRows) {
+		statements.push(env.DB.prepare("DELETE FROM threads WHERE id = ?").bind(t.id));
+	}
+
+	// Delete user's standalone posts (replies in other threads)
+	statements.push(
+		env.DB.prepare(
+			"DELETE FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?)",
+		).bind(userId, userId),
+	);
+
+	// Update thread reply counts for affected threads
+	for (const row of standaloneThreadRows) {
+		statements.push(
+			env.DB.prepare("UPDATE threads SET replies = replies - ? WHERE id = ?").bind(
+				row.cnt,
+				row.thread_id,
+			),
+		);
+	}
+
+	// Update forum counts for deleted threads
+	for (const [forumId, threadCount] of forumThreadCounts) {
+		const postCount = forumPostCounts.get(forumId) ?? 0;
+		statements.push(
+			env.DB.prepare(
+				"UPDATE forums SET threads = threads - ?, posts = posts - ? WHERE id = ?",
+			).bind(threadCount, postCount, forumId),
+		);
+	}
+
+	// Update forum counts for standalone posts
+	for (const row of standaloneRows) {
+		statements.push(
+			env.DB.prepare("UPDATE forums SET posts = posts - ? WHERE id = ?").bind(row.cnt, row.forum_id),
+		);
+	}
+
+	if (statements.length > 0) {
+		await env.DB.batch(statements);
+	}
+
+	// Recalc metadata for all affected forums and threads
+	const allAffectedForumIds = new Set<number>();
+	for (const forumId of forumThreadCounts.keys()) {
+		allAffectedForumIds.add(forumId);
+	}
+	for (const row of standaloneRows) {
+		allAffectedForumIds.add(row.forum_id);
+	}
+	for (const forumId of allAffectedForumIds) {
+		await recalcForumMetadata(env, forumId);
+	}
+
+	// Recalc thread metadata for threads that had posts deleted
+	for (const row of standaloneThreadRows) {
+		await recalcThreadMetadata(env, row.thread_id);
+	}
+
+	// Decrement collateral authors' post counts
+	await batchDecrementUserPosts(env, collateralAuthorCounts);
+
+	const totalPostsDeleted =
+		threadRows.reduce((sum, t) => sum + t.replies + 1, 0) +
+		standaloneRows.reduce((sum, r) => sum + r.cnt, 0);
+
+	return {
+		threadsDeleted: threadRows.length,
+		postsDeleted: totalPostsDeleted,
+	};
 }

@@ -1,10 +1,15 @@
 import { describe, expect, it } from "bun:test";
 import {
+	banUser,
 	deletePost,
 	moveThread,
+	muteUser,
+	nukeUser,
 	setClose,
 	setDigest,
 	setSticky,
+	unbanUser,
+	unmuteUser,
 } from "../../../src/handlers/moderation";
 import { createJwt } from "../../../src/lib/jwt";
 import { TEST_JWT_SECRET, createMockDb, makeEnv } from "../../helpers";
@@ -624,5 +629,315 @@ describe("DELETE /api/v1/moderation/posts/:id", () => {
 		const data = await res.json();
 		expect(data.data.deleted).toBe(true);
 		expect(batchCalls.length).toBe(1);
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// User Moderation Tests
+// ═══════════════════════════════════════════════════════════════════
+
+// Helper for user moderation requests
+function userModRequest(method: string, path: string, token: string, body?: unknown): Request {
+	return new Request(`https://api.example.com${path}`, {
+		method,
+		headers: {
+			Authorization: `Bearer ${token}`,
+			"Content-Type": "application/json",
+		},
+		...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+	});
+}
+
+// ─── muteUser ──────────────────────────────────────────────────
+
+describe("POST /api/v1/moderation/users/:id/mute", () => {
+	it("should return 403 for regular user", async () => {
+		const token = await makeModToken(0);
+		const { db } = createMockDb();
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("POST", "/api/v1/moderation/users/10/mute", token);
+		const res = await muteUser(req, env);
+		expect(res.status).toBe(403);
+	});
+
+	it("should return 403 for Mod (only Admin/SuperMod can mute)", async () => {
+		const token = await makeModToken(3, 2);
+		const { db } = createMockDb({
+			firstResults: {
+				...mockUser(2, 3, "moduser"),
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("POST", "/api/v1/moderation/users/10/mute", token);
+		const res = await muteUser(req, env);
+		expect(res.status).toBe(403);
+		const data = await res.json();
+		expect(data.error.details.message).toBe("Only Admin or SuperMod can mute users");
+	});
+
+	it("should return 404 when target user not found", async () => {
+		const token = await makeModToken(1);
+		const { db } = createMockDb({
+			firstResults: {
+				...mockUser(1, 1, "admin"),
+				// Target user query returns null
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("POST", "/api/v1/moderation/users/999/mute", token);
+		const res = await muteUser(req, env);
+		expect(res.status).toBe(404);
+	});
+
+	it("should return 403 when trying to mute Admin", async () => {
+		const token = await makeModToken(1);
+		const { db } = createMockDb({
+			firstResults: {
+				...mockUser(1, 1, "admin"),
+				"SELECT id, username, status, role FROM users": { id: 10, username: "otheradmin", status: 0, role: 1 },
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("POST", "/api/v1/moderation/users/10/mute", token);
+		const res = await muteUser(req, env);
+		expect(res.status).toBe(403);
+		const data = await res.json();
+		expect(data.error.details.message).toBe("Cannot mute Admin or SuperMod users");
+	});
+
+	it("should mute regular user successfully", async () => {
+		const token = await makeModToken(1);
+		const { db, calls } = createMockDb({
+			firstResults: {
+				...mockUser(1, 1, "admin"),
+				"SELECT id, username, status, role FROM users": { id: 10, username: "baduser", status: 0, role: 0 },
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("POST", "/api/v1/moderation/users/10/mute", token);
+		const res = await muteUser(req, env);
+		expect(res.status).toBe(200);
+		const data = await res.json();
+		expect(data.data.muted).toBe(true);
+		expect(data.data.userId).toBe(10);
+
+		// Verify UPDATE was called with status = -2
+		const updateCall = calls.find((c) => c.sql.includes("UPDATE users SET status = -2"));
+		expect(updateCall).toBeDefined();
+	});
+
+	it("should allow SuperMod to mute users", async () => {
+		const token = await makeModToken(2);
+		const { db } = createMockDb({
+			firstResults: {
+				...mockUser(1, 2, "supermod"),
+				"SELECT id, username, status, role FROM users": { id: 10, username: "baduser", status: 0, role: 0 },
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("POST", "/api/v1/moderation/users/10/mute", token);
+		const res = await muteUser(req, env);
+		expect(res.status).toBe(200);
+	});
+});
+
+// ─── unmuteUser ────────────────────────────────────────────────
+
+describe("POST /api/v1/moderation/users/:id/unmute", () => {
+	it("should return 403 for Mod", async () => {
+		const token = await makeModToken(3, 2);
+		const { db } = createMockDb({
+			firstResults: {
+				...mockUser(2, 3, "moduser"),
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("POST", "/api/v1/moderation/users/10/unmute", token);
+		const res = await unmuteUser(req, env);
+		expect(res.status).toBe(403);
+	});
+
+	it("should return 400 when user is not muted", async () => {
+		const token = await makeModToken(1);
+		const { db } = createMockDb({
+			firstResults: {
+				...mockUser(1, 1, "admin"),
+				"SELECT id, username, status FROM users": { id: 10, username: "normaluser", status: 0 },
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("POST", "/api/v1/moderation/users/10/unmute", token);
+		const res = await unmuteUser(req, env);
+		expect(res.status).toBe(400);
+		const data = await res.json();
+		expect(data.error.details.message).toBe("User is not currently muted");
+	});
+
+	it("should unmute muted user successfully", async () => {
+		const token = await makeModToken(1);
+		const { db, calls } = createMockDb({
+			firstResults: {
+				...mockUser(1, 1, "admin"),
+				"SELECT id, username, status FROM users": { id: 10, username: "muteduser", status: -2 },
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("POST", "/api/v1/moderation/users/10/unmute", token);
+		const res = await unmuteUser(req, env);
+		expect(res.status).toBe(200);
+		const data = await res.json();
+		expect(data.data.unmuted).toBe(true);
+
+		// Verify UPDATE was called with status = 0
+		const updateCall = calls.find((c) => c.sql.includes("UPDATE users SET status = 0"));
+		expect(updateCall).toBeDefined();
+	});
+});
+
+// ─── banUser ───────────────────────────────────────────────────
+
+describe("POST /api/v1/moderation/users/:id/ban", () => {
+	it("should return 403 for Mod", async () => {
+		const token = await makeModToken(3, 2);
+		const { db } = createMockDb({
+			firstResults: {
+				...mockUser(2, 3, "moduser"),
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("POST", "/api/v1/moderation/users/10/ban", token);
+		const res = await banUser(req, env);
+		expect(res.status).toBe(403);
+	});
+
+	it("should return 403 when trying to ban SuperMod", async () => {
+		const token = await makeModToken(1);
+		const { db } = createMockDb({
+			firstResults: {
+				...mockUser(1, 1, "admin"),
+				"SELECT id, username, status, role FROM users": { id: 10, username: "supermod", status: 0, role: 2 },
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("POST", "/api/v1/moderation/users/10/ban", token);
+		const res = await banUser(req, env);
+		expect(res.status).toBe(403);
+	});
+
+	it("should ban regular user successfully", async () => {
+		const token = await makeModToken(1);
+		const { db, calls } = createMockDb({
+			firstResults: {
+				...mockUser(1, 1, "admin"),
+				"SELECT id, username, status, role FROM users": { id: 10, username: "baduser", status: 0, role: 0 },
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("POST", "/api/v1/moderation/users/10/ban", token);
+		const res = await banUser(req, env);
+		expect(res.status).toBe(200);
+		const data = await res.json();
+		expect(data.data.banned).toBe(true);
+
+		// Verify UPDATE was called with status = -1
+		const updateCall = calls.find((c) => c.sql.includes("UPDATE users SET status = -1"));
+		expect(updateCall).toBeDefined();
+	});
+});
+
+// ─── unbanUser ─────────────────────────────────────────────────
+
+describe("POST /api/v1/moderation/users/:id/unban", () => {
+	it("should return 400 when user is not banned", async () => {
+		const token = await makeModToken(1);
+		const { db } = createMockDb({
+			firstResults: {
+				...mockUser(1, 1, "admin"),
+				"SELECT id, username, status FROM users": { id: 10, username: "normaluser", status: 0 },
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("POST", "/api/v1/moderation/users/10/unban", token);
+		const res = await unbanUser(req, env);
+		expect(res.status).toBe(400);
+	});
+
+	it("should unban banned user successfully", async () => {
+		const token = await makeModToken(1);
+		const { db, calls } = createMockDb({
+			firstResults: {
+				...mockUser(1, 1, "admin"),
+				"SELECT id, username, status FROM users": { id: 10, username: "banneduser", status: -1 },
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("POST", "/api/v1/moderation/users/10/unban", token);
+		const res = await unbanUser(req, env);
+		expect(res.status).toBe(200);
+		const data = await res.json();
+		expect(data.data.unbanned).toBe(true);
+
+		// Verify UPDATE was called with status = 0
+		const updateCall = calls.find((c) => c.sql.includes("UPDATE users SET status = 0"));
+		expect(updateCall).toBeDefined();
+	});
+});
+
+// ─── nukeUser ──────────────────────────────────────────────────
+
+describe("POST /api/v1/moderation/users/:id/nuke", () => {
+	it("should return 403 for Mod", async () => {
+		const token = await makeModToken(3, 2);
+		const { db } = createMockDb({
+			firstResults: {
+				...mockUser(2, 3, "moduser"),
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("POST", "/api/v1/moderation/users/10/nuke", token);
+		const res = await nukeUser(req, env);
+		expect(res.status).toBe(403);
+	});
+
+	it("should return 403 when trying to nuke Admin", async () => {
+		const token = await makeModToken(2); // SuperMod
+		const { db } = createMockDb({
+			firstResults: {
+				...mockUser(1, 2, "supermod"),
+				"SELECT id, username, status, role FROM users": { id: 10, username: "admin", status: 0, role: 1 },
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("POST", "/api/v1/moderation/users/10/nuke", token);
+		const res = await nukeUser(req, env);
+		expect(res.status).toBe(403);
+	});
+
+	it("should nuke regular user successfully", async () => {
+		const token = await makeModToken(1);
+		const { db, calls } = createMockDb({
+			firstResults: {
+				...mockUser(1, 1, "admin"),
+				"SELECT id, username, status, role FROM users": { id: 10, username: "spammer", status: 0, role: 0 },
+			},
+			allResults: {
+				"SELECT id, forum_id, replies FROM threads WHERE author_id": [],
+				"SELECT forum_id, COUNT": [],
+				"SELECT thread_id, COUNT": [],
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("POST", "/api/v1/moderation/users/10/nuke", token);
+		const res = await nukeUser(req, env);
+		expect(res.status).toBe(200);
+		const data = await res.json();
+		expect(data.data.nuked).toBe(true);
+		expect(data.data.userId).toBe(10);
+
+		// Verify the final UPDATE was called
+		const updateCall = calls.find((c) =>
+			c.sql.includes("UPDATE users SET status = -1, threads = 0, posts = 0, credits = 0"),
+		);
+		expect(updateCall).toBeDefined();
 	});
 });
