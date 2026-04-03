@@ -29,12 +29,11 @@ export class UserPage {
 
 	/** Stats cards (threads/posts/digest/credits) */
 	get statsCards() {
+		// Stats are in .grid-cols-4 with p.text-lg inside
 		return this.page
-			.locator(
-				'[data-testid="stats-cards"] > a, [data-testid="stats-cards"] > div, .grid-cols-4 > a, .grid-cols-4 > div',
-			)
+			.locator(".grid-cols-4 > a, .grid-cols-4 > div")
 			.filter({
-				has: this.page.locator("p.text-2xl"),
+				has: this.page.locator("p.text-lg"),
 			});
 	}
 

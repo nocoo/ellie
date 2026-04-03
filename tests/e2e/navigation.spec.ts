@@ -1,5 +1,8 @@
 // tests/e2e/navigation.spec.ts — E2E-NV Navigation Flow Tests
 // Ref: docs/e2e-test-design.md §E2E-NV: Navigation Flow (6 specs)
+//
+// Note: Production has require_login enabled, so we need to authenticate
+// before accessing most pages. The tests use loginAs fixture.
 
 import { expect, test } from "./fixtures/base";
 import { ForumPage } from "./pages/forum.page";
@@ -11,12 +14,15 @@ import { UserPage } from "./pages/user.page";
 test.describe("E2E-NV: Navigation Flow", () => {
 	/**
 	 * E2E-NV-01: Homepage Loads
-	 * Given I navigate to /
+	 * Given I am logged in and navigate to /
 	 * Then I should see forum groups
 	 * And I should see digest showcase
 	 * And I should see home footer
 	 */
-	test("E2E-NV-01: homepage loads with forum groups and digest", async ({ page }) => {
+	test("E2E-NV-01: homepage loads with forum groups and digest", async ({ page, loginAs }) => {
+		// Login first (require_login is enabled in production)
+		await loginAs("e2etest");
+
 		const homePage = new HomePage(page);
 		await homePage.goto();
 
@@ -30,14 +36,16 @@ test.describe("E2E-NV: Navigation Flow", () => {
 
 	/**
 	 * E2E-NV-02: Forum Page Loads
-	 * Given I navigate to /forums/10
+	 * Given I am logged in and navigate to /forums/114 (同济闲话)
 	 * Then I should see forum heading
 	 * And I should see "发表新帖" button
 	 * And I should see thread list
 	 */
-	test("E2E-NV-02: forum page loads with heading and thread list", async ({ page }) => {
+	test("E2E-NV-02: forum page loads with heading and thread list", async ({ page, loginAs }) => {
+		await loginAs("e2etest");
+
 		const forumPage = new ForumPage(page);
-		await forumPage.goto(10);
+		await forumPage.goto(114); // Use a real forum with threads
 
 		// Should have forum heading
 		await expect(forumPage.heading).toBeVisible();
@@ -53,14 +61,16 @@ test.describe("E2E-NV: Navigation Flow", () => {
 
 	/**
 	 * E2E-NV-03: Thread Page Loads
-	 * Given I navigate to /threads/50001
+	 * Given I am logged in and navigate to /threads/662174
 	 * Then I should see thread title
 	 * And I should see post cards
 	 * And I should see breadcrumbs
 	 */
-	test("E2E-NV-03: thread page loads with title and posts", async ({ page }) => {
+	test("E2E-NV-03: thread page loads with title and posts", async ({ page, loginAs }) => {
+		await loginAs("e2etest");
+
 		const threadPage = new ThreadPage(page);
-		await threadPage.goto(50001);
+		await threadPage.goto(662174); // Use a real thread ID
 
 		// Should have thread title heading
 		await expect(threadPage.heading).toBeVisible();
@@ -74,14 +84,16 @@ test.describe("E2E-NV: Navigation Flow", () => {
 
 	/**
 	 * E2E-NV-04: User Profile Loads
-	 * Given I navigate to /users/1
+	 * Given I am logged in and navigate to /users/64495 (CS)
 	 * Then I should see user avatar
 	 * And I should see stats cards (threads/posts/credits)
 	 * And I should see tab navigation
 	 */
-	test("E2E-NV-04: user profile loads with avatar and stats", async ({ page }) => {
+	test("E2E-NV-04: user profile loads with avatar and stats", async ({ page, loginAs }) => {
+		await loginAs("e2etest");
+
 		const userPage = new UserPage(page);
-		await userPage.goto(1);
+		await userPage.goto(64495); // Use a real active user ID
 
 		// Should have username heading
 		await expect(userPage.username).toBeVisible();
@@ -95,11 +107,13 @@ test.describe("E2E-NV: Navigation Flow", () => {
 
 	/**
 	 * E2E-NV-05: Digest Page Loads
-	 * Given I navigate to /digest
+	 * Given I am logged in and navigate to /digest
 	 * Then I should see "精华帖列表" heading
 	 * And I should see digest statistics
 	 */
-	test("E2E-NV-05: digest page loads with heading and stats", async ({ page }) => {
+	test("E2E-NV-05: digest page loads with heading and stats", async ({ page, loginAs }) => {
+		await loginAs("e2etest");
+
 		await page.goto("/digest");
 		await page.waitForLoadState("networkidle");
 
@@ -115,12 +129,14 @@ test.describe("E2E-NV: Navigation Flow", () => {
 
 	/**
 	 * E2E-NV-06: Search Page Loads
-	 * Given I navigate to /search
+	 * Given I am logged in and navigate to /search
 	 * Then I should see search input
 	 * And I should see "搜索" button
 	 * Note: Search type tabs only appear AFTER a query is submitted
 	 */
-	test("E2E-NV-06: search page loads with input and button", async ({ page }) => {
+	test("E2E-NV-06: search page loads with input and button", async ({ page, loginAs }) => {
+		await loginAs("e2etest");
+
 		const searchPage = new SearchPage(page);
 		await searchPage.goto();
 
