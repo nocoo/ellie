@@ -110,13 +110,12 @@ function LoginFormInner() {
 
 						{/* Cap CAPTCHA */}
 						{capEnabled && (
-							<div className="flex justify-center py-1">
-								<CapWidget
-									apiEndpoint={CAP_API_ENDPOINT}
-									onSolve={setCapToken}
-									onError={() => setCapToken("")}
-								/>
-							</div>
+							<CapWidget
+								apiEndpoint={CAP_API_ENDPOINT}
+								onSolve={setCapToken}
+								onError={() => setCapToken("")}
+								className="cap-widget-full"
+							/>
 						)}
 
 						{/* Submit */}
