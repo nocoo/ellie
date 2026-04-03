@@ -1,13 +1,10 @@
 "use client";
 
-// Ref: docs/04g-user-auth.md §4 — Registration page
-
 import { registerUser } from "@/actions/auth";
 import { CapWidget } from "@/components/cap-widget";
 import { ForumLogo } from "@/components/forum/forum-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -175,133 +172,134 @@ function RegisterFormInner() {
 	};
 
 	return (
-		<div className="relative flex min-h-screen flex-col bg-background overflow-hidden">
-			<div className="flex flex-1 items-center justify-center p-4">
-				{/* Top-right controls */}
-				<div className="absolute top-4 right-4 z-10 flex items-center gap-1">
-					<ThemeToggle />
-				</div>
+		<div className="relative flex min-h-screen flex-col bg-background">
+			{/* Theme toggle */}
+			<div className="absolute top-4 right-4 z-10">
+				<ThemeToggle />
+			</div>
 
-				<div className="w-full max-w-sm">
+			{/* Centered content */}
+			<div className="flex flex-1 items-center justify-center p-4">
+				<div className="w-full max-w-[340px]">
 					{/* Logo */}
-					<div className="mb-6 text-center">
-						<div className="mx-auto flex items-center justify-center">
-							<ForumLogo height={56} />
-						</div>
-						<p className="mt-3 text-sm text-muted-foreground">注册新账号</p>
+					<div className="mb-8 flex justify-center">
+						<ForumLogo height={48} />
 					</div>
 
-					{/* Register card */}
-					<Card>
-						<CardHeader>
-							<CardTitle className="text-base text-center">注册</CardTitle>
-						</CardHeader>
-						<CardContent>
-							<form onSubmit={handleSubmit} className="space-y-4">
-								{/* Error */}
-								{error && (
-									<div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive text-center">
-										{error}
-									</div>
-								)}
+					{/* Form */}
+					<form onSubmit={handleSubmit} className="space-y-4">
+						{/* Error */}
+						{error && (
+							<div className="rounded-lg bg-destructive/10 px-3 py-2.5 text-sm text-destructive text-center">
+								{error}
+							</div>
+						)}
 
-								{/* Username */}
-								<div className="space-y-1.5">
-									<Label htmlFor="username">用户名</Label>
-									<Input
-										id="username"
-										type="text"
-										value={username}
-										onChange={(e) => setUsername(e.target.value)}
-										placeholder="2-15 个字符"
-										disabled={loading}
-										autoComplete="username"
-									/>
-									{usernameError && username.trim() && (
-										<p className="text-xs text-destructive">{usernameError}</p>
-									)}
-									{!usernameError && usernameStatusText(usernameStatus) && (
-										<p className={`text-xs ${usernameStatusColor(usernameStatus)}`}>
-											{usernameStatusText(usernameStatus)}
-										</p>
-									)}
-								</div>
+						{/* Username */}
+						<div className="space-y-2">
+							<Label htmlFor="username">用户名</Label>
+							<Input
+								id="username"
+								type="text"
+								value={username}
+								onChange={(e) => setUsername(e.target.value)}
+								placeholder="2-15 个字符"
+								disabled={loading}
+								autoComplete="username"
+								className="h-11"
+							/>
+							{usernameError && username.trim() && (
+								<p className="text-xs text-destructive">{usernameError}</p>
+							)}
+							{!usernameError && usernameStatusText(usernameStatus) && (
+								<p className={`text-xs ${usernameStatusColor(usernameStatus)}`}>
+									{usernameStatusText(usernameStatus)}
+								</p>
+							)}
+						</div>
 
-								{/* Password */}
-								<div className="space-y-1.5">
-									<Label htmlFor="password">密码</Label>
-									<Input
-										id="password"
-										type="password"
-										value={password}
-										onChange={(e) => setPassword(e.target.value)}
-										placeholder="至少 6 个字符"
-										disabled={loading}
-										autoComplete="new-password"
-									/>
-									<StrengthBar strength={strength} />
-								</div>
+						{/* Password */}
+						<div className="space-y-2">
+							<Label htmlFor="password">密码</Label>
+							<Input
+								id="password"
+								type="password"
+								value={password}
+								onChange={(e) => setPassword(e.target.value)}
+								placeholder="至少 6 个字符"
+								disabled={loading}
+								autoComplete="new-password"
+								className="h-11"
+							/>
+							<StrengthBar strength={strength} />
+						</div>
 
-								{/* Confirm Password */}
-								<div className="space-y-1.5">
-									<Label htmlFor="confirmPassword">确认密码</Label>
-									<Input
-										id="confirmPassword"
-										type="password"
-										value={confirmPassword}
-										onChange={(e) => setConfirmPassword(e.target.value)}
-										placeholder="再次输入密码"
-										disabled={loading}
-										autoComplete="new-password"
-									/>
-									{passwordMismatch && (
-										<p className="text-xs text-destructive">两次输入的密码不一致</p>
-									)}
-								</div>
+						{/* Confirm Password */}
+						<div className="space-y-2">
+							<Label htmlFor="confirmPassword">确认密码</Label>
+							<Input
+								id="confirmPassword"
+								type="password"
+								value={confirmPassword}
+								onChange={(e) => setConfirmPassword(e.target.value)}
+								placeholder="再次输入密码"
+								disabled={loading}
+								autoComplete="new-password"
+								className="h-11"
+							/>
+							{passwordMismatch && (
+								<p className="text-xs text-destructive">两次输入的密码不一致</p>
+							)}
+						</div>
 
-								{/* Email */}
-								<div className="space-y-1.5">
-									<Label htmlFor="email">
-										邮箱 <span className="text-muted-foreground">(选填)</span>
-									</Label>
-									<Input
-										id="email"
-										type="email"
-										value={email}
-										onChange={(e) => setEmail(e.target.value)}
-										placeholder="your@email.com"
-										disabled={loading}
-										autoComplete="email"
-									/>
-									{emailError && <p className="text-xs text-destructive">{emailError}</p>}
-								</div>
+						{/* Email */}
+						<div className="space-y-2">
+							<Label htmlFor="email">
+								邮箱 <span className="text-muted-foreground">(选填)</span>
+							</Label>
+							<Input
+								id="email"
+								type="email"
+								value={email}
+								onChange={(e) => setEmail(e.target.value)}
+								placeholder="your@email.com"
+								disabled={loading}
+								autoComplete="email"
+								className="h-11"
+							/>
+							{emailError && <p className="text-xs text-destructive">{emailError}</p>}
+						</div>
 
-								{/* Cap CAPTCHA */}
-								{capEnabled && (
-									<div className="flex justify-center">
-										<CapWidget
-											apiEndpoint={CAP_API_ENDPOINT}
-											onSolve={setCapToken}
-											onError={() => setCapToken("")}
-										/>
-									</div>
-								)}
+						{/* Cap CAPTCHA */}
+						{capEnabled && (
+							<div className="flex justify-center py-1">
+								<CapWidget
+									apiEndpoint={CAP_API_ENDPOINT}
+									onSolve={setCapToken}
+									onError={() => setCapToken("")}
+								/>
+							</div>
+						)}
 
-								{/* Submit */}
-								<Button type="submit" disabled={!canSubmit || loading} className="w-full">
-									{loading ? "注册中..." : "注册"}
-								</Button>
-							</form>
-						</CardContent>
-					</Card>
+						{/* Submit */}
+						<Button type="submit" disabled={!canSubmit || loading} className="w-full h-11">
+							{loading ? "注册中..." : "创建账号"}
+						</Button>
+					</form>
 
-					{/* Footer */}
-					<p className="mt-4 text-center text-xs text-muted-foreground">
-						已有账号？
-						<Link href="/login" className="text-primary hover:underline">
-							登录
-						</Link>
-					</p>
+					{/* Divider */}
+					<div className="my-6 flex items-center gap-3">
+						<div className="h-px flex-1 bg-border" />
+						<span className="text-xs text-muted-foreground">或</span>
+						<div className="h-px flex-1 bg-border" />
+					</div>
+
+					{/* Login link */}
+					<Link href="/login" className="block">
+						<Button variant="outline" className="w-full h-11">
+							已有账号，去登录
+						</Button>
+					</Link>
 				</div>
 			</div>
 		</div>
