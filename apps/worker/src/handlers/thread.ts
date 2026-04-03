@@ -85,7 +85,8 @@ function getThreadListQuery(useKvCache: boolean, withCursor: boolean): string {
 
 /** Get thread list query with OFFSET for page-based pagination */
 function getThreadListQueryWithOffset(useKvCache: boolean): string {
-	return `${getThreadListQuery(useKvCache, false).slice(0, -1)} OFFSET ?`;
+	// Base query ends with "LIMIT ?", append " OFFSET ?" to get "LIMIT ? OFFSET ?"
+	return `${getThreadListQuery(useKvCache, false)} OFFSET ?`;
 }
 
 /** GET /api/v1/threads - List threads with keyset or offset pagination */
