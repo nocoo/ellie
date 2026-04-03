@@ -148,11 +148,12 @@ Browser → Next.js Admin Layout
 
 **Implementation Plan:**
 1. Create staff management UI showing all users with role > 0
-2. Add role assignment dialog with forum scope for moderators
-3. Integrate with existing `users` table role field
-4. Add `forum_moderators` junction table for per-forum mod assignment
-5. L1 tests: role validation, permission boundary tests
-6. L2 tests: role change and access verification
+2. Add role assignment dialog
+3. Add forum moderator assignment UI (edits `forums.moderators` / `moderator_ids` fields)
+4. L1 tests: role validation, permission boundary tests
+5. L2 tests: role change and access verification
+
+**Note:** Per-forum moderator assignment uses existing `forums.moderators` (usernames) and `forums.moderator_ids` fields, NOT a separate junction table.
 
 ### 9. Announcements 📋 Planned
 
