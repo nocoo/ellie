@@ -15,6 +15,47 @@ Monorepo with Bun (TypeScript) + Rust:
 | `packages/cli` | Legacy TS CLI (deprecated) |
 | `packages/migrate` | Migration tooling |
 
+## API Architecture (IMPORTANT)
+
+**Full documentation:** `docs/api-architecture.md`
+
+### Three-Layer Model
+
+```
+Browser → Next.js API Routes → Cloudflare Worker → D1/KV
+         (proxy layer)        (backend)
+```
+
+### Key Rules
+
+1. **Browser NEVER calls Worker directly** — always goes through Next.js proxy routes
+2. **API Keys are server-side only** — never exposed to browser
+3. **Every browser API call needs a Next.js route** — missing routes cause "Unexpected token '<'" errors
+
+### API Clients
+
+| Client | Location | Use Case |
+|--------|----------|----------|
+| `apiClient` | `lib/api-client.ts` | Browser → Next.js routes |
+| `forumApi` | `lib/forum-api.ts` | Server → Worker (Key A) |
+| `adminApi` | `lib/admin-api.ts` | Server → Worker (Key B) |
+| `authFetch/authPatch` | `lib/forum-auth.ts` | Server → Worker (Key A + JWT) |
+
+### Adding New Endpoints
+
+1. **Worker handler:** `apps/worker/src/handlers/*.ts`
+2. **Worker router:** `apps/worker/src/index.ts`
+3. **Next.js proxy (if browser needs it):** `apps/web/src/app/api/v1/*/route.ts`
+4. **Use correct client:** `forumApi` for server, `apiClient` for browser
+
+### Common Mistakes
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `Unexpected token '<'` | Missing Next.js proxy route | Create `/api/v1/*/route.ts` |
+| `UNAUTHORIZED` | Wrong API key | Check Key A vs Key B routing |
+| `import error` | Using server-only client in browser | Use `apiClient` instead |
+
 ## Secrets & Environment
 
 **Single source of truth:** `/.dev.vars` (root directory)
@@ -99,4 +140,14 @@ npx wrangler dev -c apps/worker/wrangler.toml
 
 ## Retrospective
 
-(Record mistakes and lessons learned here)
+### 2026-04-03: API Proxy Routes Missing
+- **Issue:** `/api/v1/settings` called by `useFeatureFlags` hook returned HTML 404 instead of JSON
+- **Cause:** Next.js proxy route didn't exist; browser received HTML error page
+- **Fix:** Created `apps/web/src/app/api/v1/settings/route.ts` to proxy to Worker
+- **Lesson:** Every browser API endpoint must have a corresponding Next.js route
+
+### 2026-04-03: SQL Syntax Error in Offset Pagination  
+- **Issue:** `LIMIT  OFFSET ?` (missing LIMIT parameter) caused SQLite syntax error
+- **Cause:** `getThreadListQueryWithOffset` used `.slice(0, -1)` incorrectly
+- **Fix:** Changed to append ` OFFSET ?` without slicing
+- **Lesson:** Always test SQL query string generation
