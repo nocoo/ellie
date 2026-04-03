@@ -180,7 +180,7 @@ function RegisterFormInner() {
 
 			{/* Centered content */}
 			<div className="flex flex-1 items-center justify-center p-4">
-				<div className="w-full max-w-[340px]">
+				<div className="w-full max-w-[260px]">
 					{/* Logo */}
 					<div className="mb-8 flex justify-center">
 						<ForumLogo height={48} />
