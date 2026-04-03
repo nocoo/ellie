@@ -16,11 +16,11 @@ Frontend moderation provides in-context management capabilities directly within 
 
 **⚠️ IMPORTANT - Current Implementation Gap:**
 
-The permission matrix above is the **intended design**. However, the current Worker implementation (`moderationMiddleware`) only checks "is role > 0" and does NOT enforce:
+The permission matrix above is the **intended design** per `@ellie/types/permission.ts`. However, the Worker implementation (`moderationMiddleware`) only checks "is role > 0" and does NOT enforce:
 - Forum scope for moderators (Mod can currently operate on any forum)
-- Action-level restrictions (e.g., move should be SuperMod+ only)
+- Action-level restrictions per the shared permission functions
 
-This means a Moderator can currently perform actions outside their assigned forums. **Backend permission refinement is needed.**
+This means a Moderator can currently bypass the permission model defined in `@ellie/types`. **Backend must be updated to call the shared permission functions.**
 
 **Key Principles:**
 - Management actions appear in-context (not separate pages)
@@ -245,52 +245,77 @@ if (user.role === UserRole.User) {
 }
 ```
 
-This allows ANY non-User role to perform ANY moderation action.
+This allows ANY non-User role to perform ANY moderation action, bypassing the permission model in `@ellie/types/permission.ts`.
+
+### Existing Data Model (forums.moderators)
+
+The forum moderator assignment already exists in the schema:
+
+```sql
+-- packages/db/src/schema.ts
+moderators TEXT NOT NULL DEFAULT '',      -- comma-separated usernames
+moderator_ids TEXT NOT NULL DEFAULT '',   -- comma-separated user IDs
+```
+
+And the shared permission function already uses it:
+
+```typescript
+// packages/types/src/permission.ts
+export function canModerate(user: User | null, forum: { moderators: string }): boolean {
+  if (!user) return false;
+  if (user.role === UserRole.Admin || user.role === UserRole.SuperMod) return true;
+  if (user.role === UserRole.Mod) {
+    const mods = parseModerators(forum.moderators);
+    return mods.includes(user.username);
+  }
+  return false;
+}
+```
 
 ### Required Changes
 
-1. **Add forum scope check for Moderators:**
-   - Need `forum_moderators` junction table: `user_id`, `forum_id`
-   - Thread operations must validate `thread.forum_id` is in moderator's scope
-   - SuperMod/Admin bypass scope check
+**Do NOT create a new `forum_moderators` junction table.** Use the existing `forums.moderators` / `moderator_ids` fields.
 
-2. **Add action-level permissions:**
-   - `moveThread`: SuperMod+ only
-   - User management: Admin/SuperMod only
-   - Thread management: Mod+ (within scope)
+1. **Update Worker handlers to use shared permission functions:**
+   - Import `canModerate`, `canDeletePost`, `canDeleteThread`, `canMoveThread` from `@ellie/types`
+   - Fetch forum data and call permission functions before executing actions
 
-3. **Implementation approach:**
+2. **Implementation example:**
    ```typescript
-   // Per-handler permission check
-   async function checkThreadPermission(env, userId, role, threadId, action) {
-     if (role === UserRole.Admin || role === UserRole.SuperMod) {
-       return true; // Full access
+   // In moderation handler
+   import { canModerate, canDeleteThread } from "@ellie/types";
+   
+   export async function deleteThread(request: Request, env: Env) {
+     const authResult = await moderationMiddleware(request, env);
+     if (authResult instanceof Response) return authResult;
+     
+     const thread = await getThread(env, threadId);
+     const forum = await getForum(env, thread.forum_id);
+     const user = await getUser(env, authResult.user.userId);
+     
+     if (!canDeleteThread(user, thread, forum)) {
+       return errorResponse("FORBIDDEN", 403);
      }
-     if (role === UserRole.Mod) {
-       // Check if thread's forum is in mod's assigned forums
-       const thread = await getThread(env, threadId);
-       const isMod = await isForumModerator(env, userId, thread.forum_id);
-       if (!isMod) return false;
-       // Check action-level permission
-       if (action === 'move') return false; // Mods can't move
-       return true;
-     }
-     return false;
+     // ... proceed with deletion
    }
    ```
+
+3. **Roadmap item:** Update frontend display logic that depends on these permission functions (already in use via thread-detail viewmodel)
 
 ---
 
 ## Implementation Roadmap
 
-### Phase 1: Backend Permission Fix (High Priority)
+### Phase 1: Backend Permission Enforcement (High Priority)
 
-| Task | Status |
-|------|--------|
-| Add `forum_moderators` table | 📋 TODO |
-| Create per-action permission checks | 📋 TODO |
-| Update moderation handlers to use checks | 📋 TODO |
-| L1 tests: permission boundary tests | 📋 TODO |
+| Task | Status | Notes |
+|------|--------|-------|
+| Update Worker handlers to import `@ellie/types` permission functions | 📋 TODO | Use existing `canModerate`, `canDeletePost`, etc. |
+| Add forum data fetch in moderation handlers | 📋 TODO | Need forum.moderators for scope check |
+| Add user data fetch in moderation handlers | 📋 TODO | Need full User object for permission check |
+| L1 tests: permission boundary tests | 📋 TODO | Test Mod out-of-scope rejection |
+
+**Note:** Do NOT create new `forum_moderators` table. Use existing `forums.moderators` field.
 
 ### Phase 2: User Moderation (Medium Priority)
 
@@ -311,7 +336,9 @@ This allows ANY non-User role to perform ANY moderation action.
 
 ---
 
-## Permission Matrix (Target State)
+## Permission Matrix (Per @ellie/types)
+
+This is the **authoritative** permission model defined in `packages/types/src/permission.ts`:
 
 | Action | Admin | SuperMod | Mod (in scope) | Mod (out of scope) | User |
 |--------|-------|----------|----------------|-------------------|------|
@@ -320,9 +347,9 @@ This allows ANY non-User role to perform ANY moderation action.
 | Digest thread | ✅ | ✅ | ✅ | ❌ | ❌ |
 | Lock thread | ✅ | ✅ | ✅ | ❌ | ❌ |
 | Move thread | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Delete thread | ✅ | ✅ | ✅ | ❌ | Own* |
+| Delete thread | ✅ | ✅ | ❌ | ❌ | Own* |
 | Edit any post | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Delete any post | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Delete any post | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Edit own post | ✅ | ✅ | ✅ | ✅ | ✅* |
 | Delete own post | ✅ | ✅ | ✅ | ✅ | ✅* |
 | View user IP | ✅ | ✅ | ❌ | ❌ | ❌ |
@@ -331,6 +358,11 @@ This allows ANY non-User role to perform ANY moderation action.
 | Ban + delete | ✅ | ✅ | ❌ | ❌ | ❌ |
 
 \* Within time limit, if not locked
+
+**Key constraint from permission.ts:**
+- `canDeletePost`: Author OR Admin/SuperMod only — **Mod CANNOT delete others' posts**
+- `canDeleteThread`: Author OR Admin/SuperMod only — **Mod CANNOT delete others' threads**
+- `canMoveThread`: Admin/SuperMod only — **Mod CANNOT move threads**
 
 ---
 
