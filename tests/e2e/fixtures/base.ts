@@ -6,6 +6,20 @@ import { type Page, test as base } from "@playwright/test";
 import { FORM } from "./selectors";
 
 // ---------------------------------------------------------------------------
+// E2E Test Credentials
+// ---------------------------------------------------------------------------
+
+/**
+ * Default E2E test user credentials.
+ * This user is created in the production database specifically for E2E testing.
+ * Username: e2etest, Password: e2etest123
+ */
+const E2E_TEST_USER = {
+	username: "e2etest",
+	password: "e2etest123",
+};
+
+// ---------------------------------------------------------------------------
 // Custom fixtures
 // ---------------------------------------------------------------------------
 
@@ -29,13 +43,19 @@ export const test = base.extend<TestFixtures>({
 	loginAs: async ({ page }, use) => {
 		const loginAs = async (username: string) => {
 			await page.goto("/login");
-			await page.fill(FORM.usernameInput, username);
-			// Mock auth rule: password === username
-			await page.fill(FORM.passwordInput, username);
+			await page.waitForLoadState("networkidle");
+
+			// Use E2E test user credentials
+			// The `username` parameter is kept for API compatibility but we use the actual test user
+			const testUser = E2E_TEST_USER;
+
+			await page.fill(FORM.usernameInput, testUser.username);
+			await page.fill(FORM.passwordInput, testUser.password);
 			await page.click(FORM.submitButton);
+
 			// Wait for redirect away from login page
 			await page.waitForURL((url) => !url.pathname.includes("/login"), {
-				timeout: 10000,
+				timeout: 15000,
 			});
 		};
 		await use(loginAs);

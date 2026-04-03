@@ -52,8 +52,8 @@ test.describe("E2E-AU: Auth Flow", () => {
 	 * And I should see my username in navbar
 	 */
 	test("E2E-AU-03: login success redirects to home", async ({ page, loginAs }) => {
-		// Login with valid credentials (mock auth: password === username)
-		await loginAs("admin");
+		// Login with valid credentials (uses e2etest user)
+		await loginAs("e2etest");
 
 		// Should be redirected away from login page
 		await expect(page).not.toHaveURL(/\/login/);
@@ -61,11 +61,11 @@ test.describe("E2E-AU: Auth Flow", () => {
 		// Should be on homepage or callback URL
 		expect(page.url()).toMatch(/\//);
 
-		// Should see username in page (user dropdown or avatar)
-		// Note: The exact selector depends on navbar implementation
-		const userIndicator = page.locator(
-			'[data-testid="user-menu"], [aria-label*="user"], text=admin',
-		);
+		// Should see username in page (user dropdown or text containing username)
+		// Try multiple selectors for flexibility
+		const userIndicator = page
+			.locator('[data-testid="user-menu"]')
+			.or(page.getByText("e2etest"));
 		await expect(userIndicator.first()).toBeVisible({ timeout: 10000 });
 	});
 
@@ -98,8 +98,8 @@ test.describe("E2E-AU: Auth Flow", () => {
 	 * Then I should be redirected away
 	 */
 	test("E2E-AU-05: logged-in user redirected from login page", async ({ page, loginAs }) => {
-		// Login first
-		await loginAs("admin");
+		// Login first (uses e2etest user)
+		await loginAs("e2etest");
 
 		// Try to navigate to login page
 		await page.goto("/login");
