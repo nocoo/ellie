@@ -6,7 +6,7 @@ import { getStaticImageUrl } from "@/lib/cdn";
 import { formatDate } from "@/viewmodels/forum/thread-detail";
 import { formatNumber } from "@/viewmodels/shared/formatting";
 import type { User } from "@ellie/types";
-import { Mail, Shield } from "lucide-react";
+import { Mail } from "lucide-react";
 import Link from "next/link";
 import { UserAvatar } from "./user-avatar";
 import { UserPopover } from "./user-popover";
@@ -16,7 +16,6 @@ interface PostSidebarProps {
 	isFirst: boolean;
 	threadViews?: number;
 	threadReplies?: number;
-	canModerate?: boolean;
 	/** Current viewer's role for popover permission checks */
 	viewerRole?: number;
 	/** Current viewer's user ID */
@@ -28,7 +27,6 @@ export function PostSidebar({
 	isFirst,
 	threadViews,
 	threadReplies,
-	canModerate,
 	viewerRole = 0,
 	viewerUserId = null,
 }: PostSidebarProps) {
@@ -178,7 +176,7 @@ export function PostSidebar({
 				</div>
 			)}
 
-			{/* Message + Mod actions — single row */}
+			{/* Message link */}
 			{author && (
 				<div className="flex items-center gap-3 mt-1 self-start">
 					<Link
@@ -188,16 +186,6 @@ export function PostSidebar({
 						<Mail className="h-3.5 w-3.5" />
 						发消息
 					</Link>
-					{canModerate && (
-						<button
-							type="button"
-							className="flex items-center gap-1 text-xs text-forum-link hover:underline cursor-pointer transition-colors"
-							title="管理操作 (IP / 编辑 / 禁止 / 帖子 / 清理)"
-						>
-							<Shield className="h-3.5 w-3.5" />
-							管理
-						</button>
-					)}
 				</div>
 			)}
 		</div>
