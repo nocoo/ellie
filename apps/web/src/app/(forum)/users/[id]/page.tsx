@@ -109,9 +109,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 				<Link href={`/users/${userId}?tab=posts`}>
 					<Card size="sm" className="hover:border-primary/50 transition-colors cursor-pointer">
 						<CardContent className="text-center">
-							<p className="text-lg font-semibold text-foreground">
-								{formatStat(data.user.posts)}
-							</p>
+							<p className="text-lg font-semibold text-foreground">{formatStat(data.user.posts)}</p>
 							<p className="mt-1 text-xs text-muted-foreground">回帖数</p>
 						</CardContent>
 					</Card>
@@ -128,9 +126,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 				</Link>
 				<Card size="sm">
 					<CardContent className="text-center">
-						<p className="text-lg font-semibold text-foreground">
-							{formatStat(data.user.credits)}
-						</p>
+						<p className="text-lg font-semibold text-foreground">{formatStat(data.user.credits)}</p>
 						<p className="mt-1 text-xs text-muted-foreground">积分</p>
 					</CardContent>
 				</Card>

@@ -11,7 +11,7 @@ const USER_COLUMNS =
 	"id, username, email, avatar, status, role, reg_date, last_login, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, last_activity";
 
 /** Max lengths for text fields */
-const MAX_LENGTHS = {
+const MAX_LENGTHS: Record<string, number> = {
 	email: 255,
 	avatar: 500,
 	resideProvince: 50,
@@ -24,6 +24,61 @@ const MAX_LENGTHS = {
 	signature: 1000,
 };
 
+/** Field name to error message mapping */
+const LENGTH_ERRORS: Record<string, string> = {
+	resideProvince: "Province name too long",
+	resideCity: "City name too long",
+	graduateSchool: "School name too long",
+	bio: "Bio too long",
+	interest: "Interest too long",
+	qq: "QQ too long",
+	site: "Site URL too long",
+	signature: "Signature too long",
+};
+
+/** Field name to DB column mapping */
+const DB_COLUMNS: Record<string, string> = {
+	email: "email",
+	avatar: "avatar",
+	gender: "gender",
+	birthYear: "birth_year",
+	birthMonth: "birth_month",
+	birthDay: "birth_day",
+	resideProvince: "reside_province",
+	resideCity: "reside_city",
+	graduateSchool: "graduate_school",
+	bio: "bio",
+	interest: "interest",
+	qq: "qq",
+	site: "site",
+	signature: "signature",
+};
+
+/** Extract string field from body */
+function extractString(body: Record<string, unknown>, key: string): string | undefined {
+	const val = body[key];
+	return typeof val === "string" ? val.trim() : undefined;
+}
+
+/** Extract number field from body */
+function extractNumber(body: Record<string, unknown>, key: string): number | undefined {
+	const val = body[key];
+	return typeof val === "number" ? val : undefined;
+}
+
+/** Validate string length */
+function validateLength(
+	value: string | undefined,
+	key: string,
+	origin: string | undefined,
+): Response | null {
+	const max = MAX_LENGTHS[key];
+	if (value !== undefined && max !== undefined && value.length > max) {
+		return errorResponse("INVALID_BODY", 400, { message: LENGTH_ERRORS[key] }, origin);
+	}
+	return null;
+}
+
 /** PATCH /api/v1/users/me — Update own profile */
 export const updateProfile = withAuth(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
@@ -35,46 +90,46 @@ export const updateProfile = withAuth(async (request, env, user) => {
 		return errorResponse("INVALID_BODY", 400, undefined, origin);
 	}
 
-	// Extract and validate fields
-	const email = typeof body.email === "string" ? body.email.trim() : undefined;
-	const avatar = typeof body.avatar === "string" ? body.avatar.trim() : undefined;
-	const gender = typeof body.gender === "number" ? body.gender : undefined;
-	const birthYear = typeof body.birthYear === "number" ? body.birthYear : undefined;
-	const birthMonth = typeof body.birthMonth === "number" ? body.birthMonth : undefined;
-	const birthDay = typeof body.birthDay === "number" ? body.birthDay : undefined;
-	const resideProvince =
-		typeof body.resideProvince === "string" ? body.resideProvince.trim() : undefined;
-	const resideCity = typeof body.resideCity === "string" ? body.resideCity.trim() : undefined;
-	const graduateSchool =
-		typeof body.graduateSchool === "string" ? body.graduateSchool.trim() : undefined;
-	const bio = typeof body.bio === "string" ? body.bio.trim() : undefined;
-	const interest = typeof body.interest === "string" ? body.interest.trim() : undefined;
-	const qq = typeof body.qq === "string" ? body.qq.trim() : undefined;
-	const site = typeof body.site === "string" ? body.site.trim() : undefined;
-	const signature = typeof body.signature === "string" ? body.signature.trim() : undefined;
+	// Extract fields
+	const email = extractString(body, "email");
+	const avatar = extractString(body, "avatar");
+	const gender = extractNumber(body, "gender");
+	const birthYear = extractNumber(body, "birthYear");
+	const birthMonth = extractNumber(body, "birthMonth");
+	const birthDay = extractNumber(body, "birthDay");
+	const resideProvince = extractString(body, "resideProvince");
+	const resideCity = extractString(body, "resideCity");
+	const graduateSchool = extractString(body, "graduateSchool");
+	const bio = extractString(body, "bio");
+	const interest = extractString(body, "interest");
+	const qq = extractString(body, "qq");
+	const site = extractString(body, "site");
+	const signature = extractString(body, "signature");
+
+	// Collect all fields for presence check
+	const fields: Record<string, unknown> = {
+		email,
+		avatar,
+		gender,
+		birthYear,
+		birthMonth,
+		birthDay,
+		resideProvince,
+		resideCity,
+		graduateSchool,
+		bio,
+		interest,
+		qq,
+		site,
+		signature,
+	};
 
 	// Check at least one field provided
-	const hasAnyField =
-		email !== undefined ||
-		avatar !== undefined ||
-		gender !== undefined ||
-		birthYear !== undefined ||
-		birthMonth !== undefined ||
-		birthDay !== undefined ||
-		resideProvince !== undefined ||
-		resideCity !== undefined ||
-		graduateSchool !== undefined ||
-		bio !== undefined ||
-		interest !== undefined ||
-		qq !== undefined ||
-		site !== undefined ||
-		signature !== undefined;
-
-	if (!hasAnyField) {
+	if (!Object.values(fields).some((v) => v !== undefined)) {
 		return errorResponse("INVALID_BODY", 400, { message: "At least one field required" }, origin);
 	}
 
-	// Validate email format if provided
+	// Validate email format
 	if (email !== undefined) {
 		if (email.length === 0 || !email.includes("@") || email.length > MAX_LENGTHS.email) {
 			return errorResponse("INVALID_BODY", 400, { message: "Invalid email format" }, origin);
@@ -98,90 +153,20 @@ export const updateProfile = withAuth(async (request, env, user) => {
 	}
 
 	// Validate string lengths
-	if (resideProvince !== undefined && resideProvince.length > MAX_LENGTHS.resideProvince) {
-		return errorResponse("INVALID_BODY", 400, { message: "Province name too long" }, origin);
-	}
-	if (resideCity !== undefined && resideCity.length > MAX_LENGTHS.resideCity) {
-		return errorResponse("INVALID_BODY", 400, { message: "City name too long" }, origin);
-	}
-	if (graduateSchool !== undefined && graduateSchool.length > MAX_LENGTHS.graduateSchool) {
-		return errorResponse("INVALID_BODY", 400, { message: "School name too long" }, origin);
-	}
-	if (bio !== undefined && bio.length > MAX_LENGTHS.bio) {
-		return errorResponse("INVALID_BODY", 400, { message: "Bio too long" }, origin);
-	}
-	if (interest !== undefined && interest.length > MAX_LENGTHS.interest) {
-		return errorResponse("INVALID_BODY", 400, { message: "Interest too long" }, origin);
-	}
-	if (qq !== undefined && qq.length > MAX_LENGTHS.qq) {
-		return errorResponse("INVALID_BODY", 400, { message: "QQ too long" }, origin);
-	}
-	if (site !== undefined && site.length > MAX_LENGTHS.site) {
-		return errorResponse("INVALID_BODY", 400, { message: "Site URL too long" }, origin);
-	}
-	if (signature !== undefined && signature.length > MAX_LENGTHS.signature) {
-		return errorResponse("INVALID_BODY", 400, { message: "Signature too long" }, origin);
+	for (const key of Object.keys(LENGTH_ERRORS)) {
+		const err = validateLength(fields[key] as string | undefined, key, origin);
+		if (err) return err;
 	}
 
 	// Build dynamic SET clause
 	const setClauses: string[] = [];
 	const params: unknown[] = [];
 
-	if (email !== undefined) {
-		setClauses.push("email = ?");
-		params.push(email);
-	}
-	if (avatar !== undefined) {
-		setClauses.push("avatar = ?");
-		params.push(avatar);
-	}
-	if (gender !== undefined) {
-		setClauses.push("gender = ?");
-		params.push(gender);
-	}
-	if (birthYear !== undefined) {
-		setClauses.push("birth_year = ?");
-		params.push(birthYear);
-	}
-	if (birthMonth !== undefined) {
-		setClauses.push("birth_month = ?");
-		params.push(birthMonth);
-	}
-	if (birthDay !== undefined) {
-		setClauses.push("birth_day = ?");
-		params.push(birthDay);
-	}
-	if (resideProvince !== undefined) {
-		setClauses.push("reside_province = ?");
-		params.push(resideProvince);
-	}
-	if (resideCity !== undefined) {
-		setClauses.push("reside_city = ?");
-		params.push(resideCity);
-	}
-	if (graduateSchool !== undefined) {
-		setClauses.push("graduate_school = ?");
-		params.push(graduateSchool);
-	}
-	if (bio !== undefined) {
-		setClauses.push("bio = ?");
-		params.push(bio);
-	}
-	if (interest !== undefined) {
-		setClauses.push("interest = ?");
-		params.push(interest);
-	}
-	if (qq !== undefined) {
-		setClauses.push("qq = ?");
-		params.push(qq);
-	}
-	if (site !== undefined) {
-		setClauses.push("site = ?");
-		params.push(site);
-	}
-	if (signature !== undefined) {
-		setClauses.push("signature = ?");
-		params.push(signature);
+	for (const [key, value] of Object.entries(fields)) {
+		if (value !== undefined && DB_COLUMNS[key]) {
+			setClauses.push(`${DB_COLUMNS[key]} = ?`);
+			params.push(value);
+		}
 	}
 
 	params.push(user.userId);

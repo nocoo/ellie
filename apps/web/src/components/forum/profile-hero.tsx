@@ -90,9 +90,7 @@ export function ProfileHero({ user }: ProfileHeroProps) {
 				</CardContent>
 			</Card>
 
-			{isOwnProfile && (
-				<ProfileEditDialog open={editOpen} onOpenChange={setEditOpen} user={user} />
-			)}
+			{isOwnProfile && <ProfileEditDialog open={editOpen} onOpenChange={setEditOpen} user={user} />}
 		</>
 	);
 }
