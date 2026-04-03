@@ -206,7 +206,7 @@ describe("D1 row mappers", () => {
 			expect(forum.lastThreadSubject).toBe("Hello World");
 		});
 
-		it("should output exactly 19 fields", () => {
+		it("should output exactly 20 fields", () => {
 			const row = {
 				id: 1,
 				parent_id: 0,
@@ -218,6 +218,7 @@ describe("D1 row mappers", () => {
 				posts: 0,
 				type: "forum",
 				status: 0,
+				visibility: "public",
 				moderators: "",
 				moderator_ids: "",
 				last_thread_id: 0,
@@ -228,7 +229,7 @@ describe("D1 row mappers", () => {
 			};
 
 			const forum = toForum(row);
-			expect(Object.keys(forum)).toHaveLength(19);
+			expect(Object.keys(forum)).toHaveLength(20);
 		});
 	});
 

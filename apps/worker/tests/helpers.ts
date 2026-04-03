@@ -72,6 +72,7 @@ export function makeD1ForumRow(overrides?: Record<string, unknown>) {
 		posts: 100,
 		type: "forum",
 		status: 1,
+		visibility: "public",
 		moderators: "",
 		last_thread_id: 42,
 		last_post_at: 1711540800,
