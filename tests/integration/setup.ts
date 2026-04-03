@@ -56,6 +56,26 @@ export async function apiPost(
 }
 
 /**
+ * Make a JSON PATCH request to the dev server.
+ * Includes default auth headers (X-Mock-Uid) so proxy allows the request.
+ */
+export async function apiPatch(
+	path: string,
+	body: Record<string, unknown>,
+	headers?: Record<string, string>,
+): Promise<Response> {
+	return fetch(`${BASE_URL}${path}`, {
+		method: "PATCH",
+		headers: {
+			"Content-Type": "application/json",
+			...DEFAULT_AUTH_HEADERS,
+			...headers,
+		},
+		body: JSON.stringify(body),
+	});
+}
+
+/**
  * Make a DELETE request to the dev server.
  * Includes default auth headers (X-Mock-Uid) so proxy allows the request.
  */
