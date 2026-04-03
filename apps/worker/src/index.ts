@@ -1,5 +1,5 @@
 // Ellie API Worker — Cloudflare Worker with D1 + KV
-// 70 endpoints: 19 public + 5 moderation + 46 admin
+// 84 endpoints: 19 public + 5 moderation + 60 admin
 import type { CFRequest, Env } from "./lib/env";
 import { aggregateOnlineStats } from "./lib/online-stats";
 import { trackActivity } from "./middleware/activity";
@@ -314,6 +314,9 @@ export default {
 			if (path === "/api/admin/users/batch-recalc-counters" && request.method === "POST") {
 				return await (await import("./handlers/admin/user")).batchRecalcCounters(request, env);
 			}
+			if (path === "/api/admin/users/staff" && request.method === "GET") {
+				return await (await import("./handlers/admin/user")).listStaff(request, env);
+			}
 			if (path === "/api/admin/users" && request.method === "GET") {
 				return await (await import("./handlers/admin/user")).list(request, env);
 			}
@@ -415,6 +418,48 @@ export default {
 			}
 			if (path === "/api/admin/settings" && request.method === "PUT") {
 				return await (await import("./handlers/admin/settings")).bulkUpdate(request, env);
+			}
+
+			// ── J. Reports (Admin) §6 ───────────────────────
+			if (path === "/api/admin/reports/batch-delete" && request.method === "POST") {
+				return await (await import("./handlers/admin/report")).batchDelete(request, env);
+			}
+			if (path === "/api/admin/reports" && request.method === "GET") {
+				return await (await import("./handlers/admin/report")).list(request, env);
+			}
+			if (path.match(/^\/api\/admin\/reports\/\d+$/) && request.method === "GET") {
+				return await (await import("./handlers/admin/report")).getById(request, env);
+			}
+			if (path.match(/^\/api\/admin\/reports\/\d+$/) && request.method === "PATCH") {
+				return await (await import("./handlers/admin/report")).update(request, env);
+			}
+
+			// ── K. Admin Logs (Admin) §7 ────────────────────
+			if (path === "/api/admin/admin-logs" && request.method === "GET") {
+				return await (await import("./handlers/admin/adminLog")).list(request, env);
+			}
+			if (path.match(/^\/api\/admin\/admin-logs\/\d+$/) && request.method === "GET") {
+				return await (await import("./handlers/admin/adminLog")).getById(request, env);
+			}
+
+			// ── L. Announcements (Admin) §9 ─────────────────
+			if (path === "/api/admin/announcements/batch-delete" && request.method === "POST") {
+				return await (await import("./handlers/admin/announcement")).batchDelete(request, env);
+			}
+			if (path === "/api/admin/announcements" && request.method === "GET") {
+				return await (await import("./handlers/admin/announcement")).list(request, env);
+			}
+			if (path === "/api/admin/announcements" && request.method === "POST") {
+				return await (await import("./handlers/admin/announcement")).create(request, env);
+			}
+			if (path.match(/^\/api\/admin\/announcements\/\d+$/) && request.method === "GET") {
+				return await (await import("./handlers/admin/announcement")).getById(request, env);
+			}
+			if (path.match(/^\/api\/admin\/announcements\/\d+$/) && request.method === "PATCH") {
+				return await (await import("./handlers/admin/announcement")).update(request, env);
+			}
+			if (path.match(/^\/api\/admin\/announcements\/\d+$/) && request.method === "DELETE") {
+				return await (await import("./handlers/admin/announcement")).remove(request, env);
 			}
 
 			// ── 404 — Not Found ─────────────────────────────
