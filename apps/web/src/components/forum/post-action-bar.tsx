@@ -1,5 +1,6 @@
 // components/forum/post-action-bar.tsx — Simplified post-level action footer
-// Only three actions: Reply, Edit, Delete
+// Layout: User actions (left) | Mod/Author actions (right)
+// Per doc 11-frontend-moderation.md §2.1
 
 import type { LucideIcon } from "lucide-react";
 import { Pencil, Reply, Trash2 } from "lucide-react";
@@ -43,16 +44,24 @@ export function PostActionBar({
 	canEdit,
 	canDelete,
 }: PostActionBarProps) {
+	const hasModActions = canEdit || canDelete;
+
 	return (
-		<div className="flex items-center border-t border-dashed border-border px-3 py-2 text-xs text-forum-text-muted">
-			{/* Left action buttons */}
+		<div className="flex items-center justify-between border-t border-dashed border-border px-3 py-2 text-xs text-forum-text-muted">
+			{/* Left: User actions */}
 			<div className="flex items-center gap-4">
 				<ActionBtn icon={Reply} label="回复" onClick={onReply} />
-				{canEdit && <ActionBtn icon={Pencil} label="编辑" onClick={onEdit} />}
-				{canDelete && (
-					<ActionBtn icon={Trash2} label="删除" onClick={onDelete} variant="destructive" />
-				)}
 			</div>
+
+			{/* Right: Mod/Author actions */}
+			{hasModActions && (
+				<div className="flex items-center gap-4">
+					{canEdit && <ActionBtn icon={Pencil} label="编辑" onClick={onEdit} />}
+					{canDelete && (
+						<ActionBtn icon={Trash2} label="删除" onClick={onDelete} variant="destructive" />
+					)}
+				</div>
+			)}
 		</div>
 	);
 }
