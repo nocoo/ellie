@@ -15,7 +15,9 @@ const LOGO_DARK = "https://t.no.mt/ellie/Logo-dark.jpg";
 export function ForumLogo({ height, className = "", variant = "auto" }: ForumLogoProps) {
 	// Force light variant (dark logo for light backgrounds)
 	if (variant === "light") {
-		return <img src={LOGO_LIGHT} alt="Ellie" style={{ height }} className={`w-auto ${className}`} />;
+		return (
+			<img src={LOGO_LIGHT} alt="Ellie" style={{ height }} className={`w-auto ${className}`} />
+		);
 	}
 
 	// Force dark variant (light logo for dark backgrounds)
