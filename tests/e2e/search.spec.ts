@@ -13,7 +13,11 @@ test.describe("E2E-SE: Search Flow", () => {
 	 * Then URL should contain ?q=测试
 	 * And I should see results or "未找到" message
 	 */
-	test("E2E-SE-01: search by title updates URL and shows results", async ({ page }) => {
+	test("E2E-SE-01: search by title updates URL and shows results", async ({
+		page,
+		loginAs,
+	}) => {
+		await loginAs("e2etest");
 		const searchPage = new SearchPage(page);
 		await searchPage.goto();
 
@@ -43,7 +47,8 @@ test.describe("E2E-SE: Search Flow", () => {
 	 * Then URL should contain ?type=author
 	 * And results should update
 	 */
-	test("E2E-SE-02: switch search type updates URL", async ({ page }) => {
+	test("E2E-SE-02: switch search type updates URL", async ({ page, loginAs }) => {
+		await loginAs("e2etest");
 		const searchPage = new SearchPage(page);
 		await searchPage.goto();
 

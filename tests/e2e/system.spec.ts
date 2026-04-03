@@ -55,7 +55,11 @@ test.describe("E2E-SY: System Flow", () => {
 // ---------------------------------------------------------------------------
 
 test.describe("Responsive Viewports", () => {
-	test("mobile viewport (375x812) loads homepage with forum content", async ({ page }) => {
+	test("mobile viewport (375x812) loads homepage with forum content", async ({
+		page,
+		loginAs,
+	}) => {
+		await loginAs("e2etest");
 		await page.setViewportSize({ width: 375, height: 812 }); // iPhone
 		await page.goto("/");
 		await page.waitForLoadState("networkidle");
@@ -85,7 +89,11 @@ test.describe("Responsive Viewports", () => {
 		await expect(page.locator('button[type="submit"]')).toBeVisible();
 	});
 
-	test("tablet viewport (768x1024) loads homepage with grid layout", async ({ page }) => {
+	test("tablet viewport (768x1024) loads homepage with grid layout", async ({
+		page,
+		loginAs,
+	}) => {
+		await loginAs("e2etest");
 		await page.setViewportSize({ width: 768, height: 1024 }); // iPad
 		await page.goto("/");
 		await page.waitForLoadState("networkidle");
@@ -98,7 +106,11 @@ test.describe("Responsive Viewports", () => {
 		await expect(forumLinks.first()).toBeVisible();
 	});
 
-	test("desktop viewport (1440x900) shows full layout with sidebar", async ({ page }) => {
+	test("desktop viewport (1440x900) shows full layout with sidebar", async ({
+		page,
+		loginAs,
+	}) => {
+		await loginAs("e2etest");
 		await page.setViewportSize({ width: 1440, height: 900 });
 		await page.goto("/");
 		await page.waitForLoadState("networkidle");
