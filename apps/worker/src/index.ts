@@ -196,6 +196,29 @@ export default {
 				return await (await import("./handlers/moderation")).editPost(request, env);
 			}
 
+			// ── User moderation routes (Key A + JWT + Admin/SuperMod) ─
+			if (
+				path.match(/^\/api\/v1\/moderation\/users\/\d+\/ip-records$/) &&
+				request.method === "GET"
+			) {
+				return await (await import("./handlers/moderation")).getUserIpRecords(request, env);
+			}
+			if (path.match(/^\/api\/v1\/moderation\/users\/\d+\/mute$/) && request.method === "POST") {
+				return await (await import("./handlers/moderation")).muteUser(request, env);
+			}
+			if (path.match(/^\/api\/v1\/moderation\/users\/\d+\/unmute$/) && request.method === "POST") {
+				return await (await import("./handlers/moderation")).unmuteUser(request, env);
+			}
+			if (path.match(/^\/api\/v1\/moderation\/users\/\d+\/ban$/) && request.method === "POST") {
+				return await (await import("./handlers/moderation")).banUser(request, env);
+			}
+			if (path.match(/^\/api\/v1\/moderation\/users\/\d+\/unban$/) && request.method === "POST") {
+				return await (await import("./handlers/moderation")).unbanUser(request, env);
+			}
+			if (path.match(/^\/api\/v1\/moderation\/users\/\d+\/nuke$/) && request.method === "POST") {
+				return await (await import("./handlers/moderation")).nukeUser(request, env);
+			}
+
 			// ── User self-service content management ─────────
 			if (path.match(/^\/api\/v1\/me\/posts\/\d+$/) && request.method === "DELETE") {
 				return await (await import("./handlers/user-content")).deleteMyPost(request, env);
