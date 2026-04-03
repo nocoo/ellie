@@ -23,7 +23,6 @@ D1 数据库 → Worker API（唯一入口） → CLI 客户端 (Rust TUI, Key A
 | 04 | [Web 应用（索引）](./04-application.md) | 执行入口、编号提交计划、质量演进时间线 |
 | 04a | [MVVM 与数据结构](./04a-data-model.md) | TypeScript 类型、权限模型、Repository 接口、内容格式规约 |
 | 04b | [前端架构选型](./04b-frontend-architecture.md) | 技术栈、项目结构、MVVM 分层、设计系统、认证方案 |
-| 04c | [管理后台](./04c-admin-console.md) | Admin 布局、仪表盘/用户管理/内容审核/版块管理 |
 | 04d | [论坛前端](./04d-forum-frontend.md) | 论坛布局、核心页面、分页策略、搜索、发帖回帖 |
 | 04e | [高级功能](./04e-advanced-features.md) | 特殊帖子类型、富文本编辑器、表情系统、全文搜索、私信 |
 | 04f | [论坛前端 UI 重写](./04f-forum-ui-redesign.md) | UI 重写设计：卡片化布局、纵向节约、宽度切换、响应式、6 阶段实施 |
@@ -52,3 +51,15 @@ D1 数据库 → Worker API（唯一入口） → CLI 客户端 (Rust TUI, Key A
 |------|------|------|
 | 08 | [通用设置](./08-general-settings.md) | settings 表设计、KV 缓存策略、管理/公共 API 端点、前端设置页面 |
 | 09 | [用户信息缓存重构](./09-user-cache-refactor.md) | 数据库规范化（ID 代替 Name）、KV 用户缓存、批量查询、缓存失效策略 |
+
+### 管理功能
+
+| 编号 | 文档 | 内容 |
+|------|------|------|
+| 10 | [管理后台](./10-admin-console.md) | Admin Console 完整功能：仪表盘、内容管理、安全管理、设置；待实现：举报、日志、权限、公告 |
+| 11 | [前台管理](./11-frontend-moderation.md) | 版主/超版/用户前台管理功能：帖子管理、回帖管理、用户管理；入口位置、权限矩阵 |
+
+### 已归档文档
+
+旧版设计文档已移至 `docs/archive/`：
+- `04c-admin-console.md` → 已由 `10-admin-console.md` 替代
