@@ -151,6 +151,54 @@ export const TABLES = {
 			updated_at INTEGER NOT NULL DEFAULT 0
 		);
 	`,
+
+	reports: `
+		CREATE TABLE IF NOT EXISTS reports (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			type TEXT NOT NULL CHECK(type IN ('thread', 'post', 'user')),
+			target_id INTEGER NOT NULL,
+			reporter_id INTEGER NOT NULL,
+			reporter_name TEXT NOT NULL DEFAULT '',
+			reason TEXT NOT NULL DEFAULT '',
+			status TEXT NOT NULL DEFAULT 'pending'
+			       CHECK(status IN ('pending', 'resolved', 'dismissed')),
+			handler_id INTEGER,
+			handler_name TEXT NOT NULL DEFAULT '',
+			handled_at INTEGER,
+			created_at INTEGER NOT NULL
+		);
+	`,
+
+	admin_logs: `
+		CREATE TABLE IF NOT EXISTS admin_logs (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			admin_id INTEGER NOT NULL,
+			admin_name TEXT NOT NULL DEFAULT '',
+			action TEXT NOT NULL,
+			target_type TEXT NOT NULL DEFAULT '',
+			target_id INTEGER,
+			details TEXT NOT NULL DEFAULT '',
+			ip TEXT NOT NULL DEFAULT '',
+			created_at INTEGER NOT NULL
+		);
+	`,
+
+	announcements: `
+		CREATE TABLE IF NOT EXISTS announcements (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			title TEXT NOT NULL,
+			content TEXT NOT NULL DEFAULT '',
+			forum_ids TEXT NOT NULL DEFAULT '',
+			sticky INTEGER NOT NULL DEFAULT 0,
+			start_at INTEGER,
+			end_at INTEGER,
+			status INTEGER NOT NULL DEFAULT 1,
+			author_id INTEGER NOT NULL,
+			author_name TEXT NOT NULL DEFAULT '',
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL DEFAULT 0
+		);
+	`,
 };
 
 export const INDEXES = {
@@ -188,4 +236,25 @@ export const INDEXES = {
 	censor_words: ["CREATE UNIQUE INDEX IF NOT EXISTS idx_censor_words_find ON censor_words(find);"],
 
 	settings: ["CREATE UNIQUE INDEX IF NOT EXISTS idx_settings_key ON settings(key);"],
+
+	reports: [
+		"CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);",
+		"CREATE INDEX IF NOT EXISTS idx_reports_type ON reports(type);",
+		"CREATE INDEX IF NOT EXISTS idx_reports_target ON reports(type, target_id);",
+		"CREATE INDEX IF NOT EXISTS idx_reports_reporter ON reports(reporter_id);",
+		"CREATE INDEX IF NOT EXISTS idx_reports_created ON reports(created_at DESC);",
+	],
+
+	admin_logs: [
+		"CREATE INDEX IF NOT EXISTS idx_admin_logs_admin ON admin_logs(admin_id);",
+		"CREATE INDEX IF NOT EXISTS idx_admin_logs_action ON admin_logs(action);",
+		"CREATE INDEX IF NOT EXISTS idx_admin_logs_target ON admin_logs(target_type, target_id);",
+		"CREATE INDEX IF NOT EXISTS idx_admin_logs_created ON admin_logs(created_at DESC);",
+	],
+
+	announcements: [
+		"CREATE INDEX IF NOT EXISTS idx_announcements_status ON announcements(status);",
+		"CREATE INDEX IF NOT EXISTS idx_announcements_dates ON announcements(start_at, end_at);",
+		"CREATE INDEX IF NOT EXISTS idx_announcements_sticky ON announcements(sticky DESC, created_at DESC);",
+	],
 };
