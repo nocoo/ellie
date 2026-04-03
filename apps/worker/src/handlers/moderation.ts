@@ -718,6 +718,15 @@ export async function getUserStatus(request: Request, env: Env): Promise<Respons
 
 // ─── GET /api/v1/moderation/users/:id/ip-records ─────────────────
 
+/**
+ * Get user's IP records (Admin/SuperMod only).
+ *
+ * NOTE: The current database schema does not include IP columns in posts or users tables.
+ * This endpoint returns an empty array until IP tracking is implemented.
+ * Future implementation should add:
+ * - posts.ip column for tracking post IP addresses
+ * - users.reg_ip and users.last_ip columns for registration/last login IP
+ */
 export async function getUserIpRecords(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const authResult = await moderationMiddleware(request, env);
@@ -752,27 +761,14 @@ export async function getUserIpRecords(request: Request, env: Env): Promise<Resp
 		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
 	}
 
-	// Get IP records from posts (last 50 unique IPs)
-	// Note: This assumes IP is stored in a column - if not, return empty array
-	const ipRecords = await env.DB.prepare(
-		`SELECT DISTINCT ip, MAX(created_at) as last_seen
-		 FROM posts
-		 WHERE author_id = ? AND ip IS NOT NULL AND ip != ''
-		 GROUP BY ip
-		 ORDER BY last_seen DESC
-		 LIMIT 50`,
-	)
-		.bind(userId)
-		.all<{ ip: string; last_seen: number }>();
-
+	// NOTE: Database schema does not currently include IP columns.
+	// Return empty array with a message indicating the feature is not yet available.
 	return jsonResponse(
 		{
 			userId: targetUser.id,
 			username: targetUser.username,
-			ipRecords: ipRecords.results.map((r) => ({
-				ip: r.ip,
-				lastSeen: r.last_seen,
-			})),
+			ipRecords: [],
+			message: "IP tracking is not currently enabled in this installation.",
 		},
 		origin,
 	);
@@ -1093,6 +1089,7 @@ export async function nukeUser(request: Request, env: Env): Promise<Response> {
 			username: targetUser.username,
 			threadsDeleted: result.threadsDeleted,
 			postsDeleted: result.postsDeleted,
+			attachmentsDeleted: result.attachmentsDeleted,
 		},
 		origin,
 	);
@@ -1103,9 +1100,22 @@ export async function nukeUser(request: Request, env: Env): Promise<Response> {
 interface ContentDeletionResult {
 	threadsDeleted: number;
 	postsDeleted: number;
+	attachmentsDeleted: number;
 }
 
 async function deleteUserContent(env: Env, userId: number): Promise<ContentDeletionResult> {
+	// 0. Delete all attachments by the user first
+	// This includes attachments in their own threads and in other users' threads
+	const attachmentCount = await env.DB.prepare(
+		"SELECT COUNT(*) as cnt FROM attachments WHERE author_id = ?",
+	)
+		.bind(userId)
+		.first<{ cnt: number }>();
+	const attachmentsDeleted = attachmentCount?.cnt ?? 0;
+
+	// Delete attachments
+	await env.DB.prepare("DELETE FROM attachments WHERE author_id = ?").bind(userId).run();
+
 	// 1. Get user's threads to calculate forum impact
 	const threads = await env.DB.prepare(
 		"SELECT id, forum_id, replies FROM threads WHERE author_id = ?",
@@ -1237,5 +1247,6 @@ async function deleteUserContent(env: Env, userId: number): Promise<ContentDelet
 	return {
 		threadsDeleted: threadRows.length,
 		postsDeleted: totalPostsDeleted,
+		attachmentsDeleted,
 	};
 }

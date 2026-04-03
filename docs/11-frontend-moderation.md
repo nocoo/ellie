@@ -191,7 +191,10 @@ All user moderation actions require **confirmation dialog** before API call.
 | Entry | User popover, User profile page |
 | Who can use | Admin, Super Moderator |
 | Action | Show modal with IP history |
-| API needed | `GET /api/v1/moderation/users/:id/ip-records` |
+| API | `GET /api/v1/moderation/users/:id/ip-records` |
+| **Status** | ⚠️ API exists but returns empty array - database schema has no IP columns |
+
+**Note:** The current database schema does not include IP tracking columns in posts or users tables. The API endpoint exists and is properly permission-gated, but will return an empty array until IP tracking is implemented. UI entry points are disabled until the feature is complete.
 
 #### 4.2 Mute User (禁止发言)
 
