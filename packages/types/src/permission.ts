@@ -4,6 +4,21 @@
 import type { Forum, Post, Thread, User } from "./types";
 import { UserRole, UserStatus } from "./types";
 
+// ─── Type Aliases for Permission Checks ──────────────────────────
+// These allow passing partial User objects with only the fields needed for permission checks
+
+/** Minimal user data needed for permission checks */
+export type PermissionUser = Pick<User, "id" | "username" | "role" | "status">;
+
+/** Minimal forum data needed for permission checks */
+export type PermissionForum = Pick<Forum, "moderators">;
+
+/** Minimal post data needed for permission checks */
+export type PermissionPost = Pick<Post, "id" | "authorId">;
+
+/** Minimal thread data needed for permission checks */
+export type PermissionThread = Pick<Thread, "id" | "authorId" | "closed">;
+
 // ─── Internal Helpers ────────────────────────────────────────────
 
 /**
@@ -24,18 +39,18 @@ function parseModerators(moderators: string): string[] {
  * Can user view this forum based on status only?
  * @deprecated Use canViewForumVisibility from forum.ts for full visibility check
  */
-export function canViewForum(_user: User | null, forum: Forum): boolean {
+export function canViewForum(_user: PermissionUser | null, forum: Forum): boolean {
 	return forum.status !== 0;
 }
 
 /** Can user create a new thread in this forum? */
-export function canCreateThread(user: User | null, _forum: Forum): boolean {
+export function canCreateThread(user: PermissionUser | null, _forum: Forum): boolean {
 	if (!user) return false;
 	return user.status === UserStatus.Active;
 }
 
 /** Can user reply to this thread? */
-export function canReplyToThread(user: User | null, thread: Thread): boolean {
+export function canReplyToThread(user: PermissionUser | null, thread: PermissionThread): boolean {
 	if (!user) return false;
 	if (user.status !== UserStatus.Active) return false;
 	return thread.closed === 0;
@@ -49,7 +64,7 @@ export function canReplyToThread(user: User | null, thread: Thread): boolean {
  * - Mod: only forums where user.username is in forum.moderators
  * - User: no
  */
-export function canModerate(user: User | null, forum: { moderators: string }): boolean {
+export function canModerate(user: PermissionUser | null, forum: PermissionForum): boolean {
 	if (!user) return false;
 	if (user.role === UserRole.Admin || user.role === UserRole.SuperMod) return true;
 	if (user.role === UserRole.Mod) {
@@ -60,13 +75,13 @@ export function canModerate(user: User | null, forum: { moderators: string }): b
 }
 
 /** Can user access the admin console (/admin)? */
-export function canAccessAdmin(user: User | null): boolean {
+export function canAccessAdmin(user: PermissionUser | null): boolean {
 	if (!user) return false;
 	return user.role === UserRole.Admin || user.role === UserRole.SuperMod;
 }
 
 /** Can user manage other users (ban/role change)? Admin only. */
-export function canManageUsers(user: User | null): boolean {
+export function canManageUsers(user: PermissionUser | null): boolean {
 	if (!user) return false;
 	return user.role === UserRole.Admin;
 }
@@ -74,7 +89,11 @@ export function canManageUsers(user: User | null): boolean {
 // ─── Post-level Permissions ──────────────────────────────────────
 
 /** Can user edit this post? Authors can edit their own; mods can edit any in their forum. */
-export function canEditPost(user: User | null, post: Post, forum: { moderators: string }): boolean {
+export function canEditPost(
+	user: PermissionUser | null,
+	post: PermissionPost,
+	forum: PermissionForum,
+): boolean {
 	if (!user) return false;
 	if (user.id === post.authorId) return true;
 	return canModerate(user, forum);
@@ -87,9 +106,9 @@ export function canEditPost(user: User | null, post: Post, forum: { moderators: 
  * - Mod: CANNOT delete posts (per permission matrix)
  */
 export function canDeletePost(
-	user: User | null,
-	post: Post,
-	_forum: { moderators: string },
+	user: PermissionUser | null,
+	post: PermissionPost,
+	_forum: PermissionForum,
 ): boolean {
 	if (!user) return false;
 	if (user.id === post.authorId) return true;
@@ -106,9 +125,9 @@ export function canDeletePost(
  * - Mod: CANNOT delete threads (per permission matrix)
  */
 export function canDeleteThread(
-	user: User | null,
+	user: PermissionUser | null,
 	thread: { authorId: number },
-	_forum: { moderators: string },
+	_forum: PermissionForum,
 ): boolean {
 	if (!user) return false;
 	if (user.id === thread.authorId) return true;
@@ -122,7 +141,7 @@ export function canDeleteThread(
  * - Mod: only forums where user is in moderators list
  * - User: no
  */
-export function canManageThread(user: User | null, forum: { moderators: string }): boolean {
+export function canManageThread(user: PermissionUser | null, forum: PermissionForum): boolean {
 	return canModerate(user, forum);
 }
 
@@ -132,7 +151,7 @@ export function canManageThread(user: User | null, forum: { moderators: string }
  * - Mod: no (per permission matrix)
  * - User: no
  */
-export function canMoveThread(user: User | null): boolean {
+export function canMoveThread(user: PermissionUser | null): boolean {
 	if (!user) return false;
 	return user.role === UserRole.Admin || user.role === UserRole.SuperMod;
 }
