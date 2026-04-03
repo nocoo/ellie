@@ -63,20 +63,6 @@ function mockThread(threadId = 1, forumId = 1, authorId = 10) {
 	};
 }
 
-/** Mock data for post permission check (reserved for future editPost/deleteThread tests) */
-// biome-ignore lint/correctness/noUnusedVariables: Reserved for future use
-function _mockPost(postId = 1, authorId = 10, forumId = 1, threadId = 1, isFirst = 0) {
-	return {
-		"SELECT id, author_id, forum_id, thread_id, is_first FROM posts": {
-			id: postId,
-			author_id: authorId,
-			forum_id: forumId,
-			thread_id: threadId,
-			is_first: isFirst,
-		},
-	};
-}
-
 // ─── setSticky ──────────────────────────────────────────────────
 
 describe("PATCH /api/v1/moderation/threads/:id/sticky", () => {
@@ -694,7 +680,12 @@ describe("POST /api/v1/moderation/users/:id/mute", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				...mockUser(1, 1, "admin"),
-				"SELECT id, username, status, role FROM users": { id: 10, username: "otheradmin", status: 0, role: 1 },
+				"SELECT id, username, status, role FROM users": {
+					id: 10,
+					username: "otheradmin",
+					status: 0,
+					role: 1,
+				},
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -710,7 +701,12 @@ describe("POST /api/v1/moderation/users/:id/mute", () => {
 		const { db, calls } = createMockDb({
 			firstResults: {
 				...mockUser(1, 1, "admin"),
-				"SELECT id, username, status, role FROM users": { id: 10, username: "baduser", status: 0, role: 0 },
+				"SELECT id, username, status, role FROM users": {
+					id: 10,
+					username: "baduser",
+					status: 0,
+					role: 0,
+				},
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -731,7 +727,12 @@ describe("POST /api/v1/moderation/users/:id/mute", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				...mockUser(1, 2, "supermod"),
-				"SELECT id, username, status, role FROM users": { id: 10, username: "baduser", status: 0, role: 0 },
+				"SELECT id, username, status, role FROM users": {
+					id: 10,
+					username: "baduser",
+					status: 0,
+					role: 0,
+				},
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -815,7 +816,12 @@ describe("POST /api/v1/moderation/users/:id/ban", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				...mockUser(1, 1, "admin"),
-				"SELECT id, username, status, role FROM users": { id: 10, username: "supermod", status: 0, role: 2 },
+				"SELECT id, username, status, role FROM users": {
+					id: 10,
+					username: "supermod",
+					status: 0,
+					role: 2,
+				},
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -829,7 +835,12 @@ describe("POST /api/v1/moderation/users/:id/ban", () => {
 		const { db, calls } = createMockDb({
 			firstResults: {
 				...mockUser(1, 1, "admin"),
-				"SELECT id, username, status, role FROM users": { id: 10, username: "baduser", status: 0, role: 0 },
+				"SELECT id, username, status, role FROM users": {
+					id: 10,
+					username: "baduser",
+					status: 0,
+					role: 0,
+				},
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -904,7 +915,12 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				...mockUser(1, 2, "supermod"),
-				"SELECT id, username, status, role FROM users": { id: 10, username: "admin", status: 0, role: 1 },
+				"SELECT id, username, status, role FROM users": {
+					id: 10,
+					username: "admin",
+					status: 0,
+					role: 1,
+				},
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -918,7 +934,12 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 		const { db, calls } = createMockDb({
 			firstResults: {
 				...mockUser(1, 1, "admin"),
-				"SELECT id, username, status, role FROM users": { id: 10, username: "spammer", status: 0, role: 0 },
+				"SELECT id, username, status, role FROM users": {
+					id: 10,
+					username: "spammer",
+					status: 0,
+					role: 0,
+				},
 			},
 			allResults: {
 				"SELECT id, forum_id, replies FROM threads WHERE author_id": [],
@@ -939,5 +960,82 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 			c.sql.includes("UPDATE users SET status = -1, threads = 0, posts = 0, credits = 0"),
 		);
 		expect(updateCall).toBeDefined();
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// getUserStatus tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+import { getUserStatus } from "../../../src/handlers/moderation";
+
+describe("GET /api/v1/moderation/users/:id/status", () => {
+	it("should return 403 for Mod", async () => {
+		const token = await makeModToken(3, 2);
+		const { db } = createMockDb({
+			firstResults: {
+				...mockUser(2, 3, "moduser"),
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("GET", "/api/v1/moderation/users/10/status", token);
+		const res = await getUserStatus(req, env);
+		expect(res.status).toBe(403);
+	});
+
+	it("should return 404 when target user not found", async () => {
+		const token = await makeModToken(1);
+		const { db } = createMockDb({
+			firstResults: {
+				...mockUser(1, 1, "admin"),
+				// Target user query returns null
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("GET", "/api/v1/moderation/users/999/status", token);
+		const res = await getUserStatus(req, env);
+		expect(res.status).toBe(404);
+	});
+
+	it("should return user status for Admin", async () => {
+		const token = await makeModToken(1);
+		const { db } = createMockDb({
+			firstResults: {
+				...mockUser(1, 1, "admin"),
+				"SELECT id, username, status FROM users": {
+					id: 10,
+					username: "targetuser",
+					status: -2, // muted
+				},
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("GET", "/api/v1/moderation/users/10/status", token);
+		const res = await getUserStatus(req, env);
+		expect(res.status).toBe(200);
+		const data = await res.json();
+		expect(data.data.userId).toBe(10);
+		expect(data.data.username).toBe("targetuser");
+		expect(data.data.status).toBe(-2);
+	});
+
+	it("should return user status for SuperMod", async () => {
+		const token = await makeModToken(2);
+		const { db } = createMockDb({
+			firstResults: {
+				...mockUser(1, 2, "supermod"),
+				"SELECT id, username, status FROM users": {
+					id: 10,
+					username: "banneduser",
+					status: -1, // banned
+				},
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("GET", "/api/v1/moderation/users/10/status", token);
+		const res = await getUserStatus(req, env);
+		expect(res.status).toBe(200);
+		const data = await res.json();
+		expect(data.data.status).toBe(-1);
 	});
 });

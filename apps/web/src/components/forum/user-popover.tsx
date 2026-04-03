@@ -8,6 +8,21 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { apiClient } from "@/lib/api-client";
 import { getAvatarUrl } from "@/lib/avatar";
@@ -15,15 +30,19 @@ import { cn } from "@/lib/utils";
 import { formatNumber } from "@/viewmodels/shared/formatting";
 import type { PublicUser, UserRole } from "@ellie/types";
 import {
+	Ban,
 	Calendar,
 	ChevronRight,
 	Clock,
 	ExternalLink,
+	Globe,
 	Loader2,
 	Mail,
 	Shield,
 	Star,
+	Trash2,
 	User as UserIcon,
+	VolumeX,
 } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -55,6 +74,9 @@ interface UserPopoverData {
 	user: PublicUser;
 	isOnline?: boolean;
 }
+
+/** Moderation action type for confirmation dialog */
+type ModAction = "mute" | "ban" | "nuke" | "unmute" | "unban" | null;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -95,6 +117,64 @@ function getRoleBadge(
 	}
 }
 
+/** Check if user is muted (status = -2) */
+function isMuted(status: number | null): boolean {
+	return status === -2;
+}
+
+/** Check if user is banned (status = -1) */
+function isBanned(status: number | null): boolean {
+	return status === -1;
+}
+
+/** Mod action configuration */
+const MOD_ACTION_CONFIG: Record<
+	Exclude<ModAction, null>,
+	{
+		title: string;
+		description: (username: string) => string;
+		confirmText: string;
+		variant: "default" | "destructive";
+		endpoint: (userId: number) => string;
+	}
+> = {
+	mute: {
+		title: "禁止发言",
+		description: (u) => `确定禁止 ${u} 发言？禁言后该用户将无法发帖和回复。`,
+		confirmText: "禁言",
+		variant: "default",
+		endpoint: (id) => `/api/v1/moderation/users/${id}/mute`,
+	},
+	unmute: {
+		title: "解除禁言",
+		description: (u) => `确定解除 ${u} 的禁言？该用户将恢复发帖权限。`,
+		confirmText: "解除禁言",
+		variant: "default",
+		endpoint: (id) => `/api/v1/moderation/users/${id}/unmute`,
+	},
+	ban: {
+		title: "封禁用户",
+		description: (u) => `确定封禁 ${u}？封禁后该用户将无法访问论坛。`,
+		confirmText: "封禁",
+		variant: "destructive",
+		endpoint: (id) => `/api/v1/moderation/users/${id}/ban`,
+	},
+	unban: {
+		title: "解除封禁",
+		description: (u) => `确定解除 ${u} 的封禁？该用户将恢复论坛访问权限。`,
+		confirmText: "解除封禁",
+		variant: "default",
+		endpoint: (id) => `/api/v1/moderation/users/${id}/unban`,
+	},
+	nuke: {
+		title: "封禁并删除内容",
+		description: (u) => `确定封禁 ${u} 并删除其所有内容？此操作不可撤销！`,
+		confirmText: "封禁并删除",
+		variant: "destructive",
+		endpoint: (id) => `/api/v1/moderation/users/${id}/nuke`,
+	},
+};
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -113,8 +193,20 @@ export function UserPopover({
 	const [data, setData] = useState<UserPopoverData | null>(null);
 	const [error, setError] = useState<string | null>(null);
 
+	// Mod action states
+	const [modAction, setModAction] = useState<ModAction>(null);
+	const [modActionLoading, setModActionLoading] = useState(false);
+	const [modActionMessage, setModActionMessage] = useState<{
+		type: "success" | "error";
+		text: string;
+	} | null>(null);
+
+	// User status for moderation (fetched separately for admins)
+	const [userStatus, setUserStatus] = useState<number | null>(null);
+
 	const isAdmin = viewerRole >= 1 && viewerRole <= 2;
-	const isMod = viewerRole >= 1 && viewerRole <= 3;
+	// Can manage users (Admin or SuperMod only)
+	const canManageUsers = viewerRole >= 1 && viewerRole <= 2;
 	const isSelf = viewerUserId === userId;
 
 	const fetchUser = useCallback(async () => {
@@ -131,6 +223,44 @@ export function UserPopover({
 		}
 	}, [userId, data?.user.id]);
 
+	// Fetch user status for moderation (Admin/SuperMod only)
+	const fetchUserStatus = useCallback(async () => {
+		if (!canManageUsers || isSelf) return;
+		try {
+			const res = await apiClient.get<{ status: number }>(
+				`/api/v1/moderation/users/${userId}/status`,
+			);
+			setUserStatus(res.data.status);
+		} catch {
+			// Silently ignore - status badge won't show
+			setUserStatus(null);
+		}
+	}, [userId, canManageUsers, isSelf]);
+
+	// Execute mod action
+	const executeModAction = useCallback(async () => {
+		if (!modAction || !data?.user) return;
+		const config = MOD_ACTION_CONFIG[modAction];
+		setModActionLoading(true);
+		setModActionMessage(null);
+		try {
+			await apiClient.post(config.endpoint(userId), {});
+			setModActionMessage({ type: "success", text: `${config.title}成功` });
+			// Refresh user data and status
+			setData(null);
+			setUserStatus(null);
+			await Promise.all([fetchUser(), fetchUserStatus()]);
+		} catch (err) {
+			setModActionMessage({
+				type: "error",
+				text: `${config.title}失败: ${err instanceof Error ? err.message : "请稍后重试"}`,
+			});
+		} finally {
+			setModActionLoading(false);
+			setModAction(null);
+		}
+	}, [modAction, userId, data?.user, fetchUser, fetchUserStatus]);
+
 	// Fetch user data when popover opens
 	useEffect(() => {
 		if (open && !data) {
@@ -138,11 +268,20 @@ export function UserPopover({
 		}
 	}, [open, data, fetchUser]);
 
+	// Fetch user status when popover opens and user data is loaded (for admins)
+	useEffect(() => {
+		if (open && data && canManageUsers && !isSelf && userStatus === null) {
+			fetchUserStatus();
+		}
+	}, [open, data, canManageUsers, isSelf, userStatus, fetchUserStatus]);
+
 	// Reset data when userId changes
 	// biome-ignore lint/correctness/useExhaustiveDependencies: userId is intentionally a dependency to reset state
 	useEffect(() => {
 		setData(null);
 		setError(null);
+		setUserStatus(null);
+		setModActionMessage(null);
 	}, [userId]);
 
 	if (disabled) {
@@ -151,6 +290,8 @@ export function UserPopover({
 
 	const user = data?.user;
 	const roleBadge = user ? getRoleBadge(user.role) : null;
+	const userIsMuted = isMuted(userStatus);
+	const userIsBanned = isBanned(userStatus);
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -244,6 +385,22 @@ export function UserPopover({
 												{user.customTitle}
 											</p>
 										)}
+
+										{/* User status badge */}
+										{(userIsMuted || userIsBanned) && (
+											<div className="mt-1">
+												{userIsBanned && (
+													<Badge variant="destructive" className="text-2xs">
+														已封禁
+													</Badge>
+												)}
+												{userIsMuted && !userIsBanned && (
+													<Badge variant="outline" className="text-2xs text-orange-500 border-orange-500">
+														已禁言
+													</Badge>
+												)}
+											</div>
+										)}
 									</div>
 								</div>
 							</div>
@@ -334,17 +491,77 @@ export function UserPopover({
 									</Link>
 								)}
 
-								{/* Mod actions */}
-								{isMod && !isSelf && (
-									<Button
-										variant="ghost"
-										size="xs"
-										className="text-xs gap-1 text-muted-foreground"
-										title="管理操作"
-									>
-										<Shield className="h-3.5 w-3.5" />
-										管理
-									</Button>
+								{/* Mod actions dropdown */}
+								{canManageUsers && !isSelf && (
+									<DropdownMenu>
+										<DropdownMenuTrigger
+											render={
+												<Button
+													variant="ghost"
+													size="xs"
+													className="text-xs gap-1 text-muted-foreground"
+													title="管理操作"
+												>
+													<Shield className="h-3.5 w-3.5" />
+													管理
+												</Button>
+											}
+										/>
+										<DropdownMenuContent align="start" side="top" className="min-w-[160px]">
+											{/* View IP records */}
+											<DropdownMenuItem
+												onClick={() => {
+													setOpen(false);
+													window.location.href = `/admin/users/${user.id}/ip-records`;
+												}}
+											>
+												<Globe className="h-4 w-4" />
+												查看 IP 记录
+											</DropdownMenuItem>
+											<DropdownMenuSeparator />
+											{/* Mute/Unmute */}
+											{userIsMuted ? (
+												<DropdownMenuItem onClick={() => setModAction("unmute")}>
+													<VolumeX className="h-4 w-4" />
+													解除禁言
+												</DropdownMenuItem>
+											) : (
+												<DropdownMenuItem
+													onClick={() => setModAction("mute")}
+													disabled={userIsBanned}
+												>
+													<VolumeX className="h-4 w-4" />
+													禁止发言
+												</DropdownMenuItem>
+											)}
+											<DropdownMenuSeparator />
+											{/* Ban/Unban */}
+											{userIsBanned ? (
+												<DropdownMenuItem onClick={() => setModAction("unban")}>
+													<Ban className="h-4 w-4" />
+													解除封禁
+												</DropdownMenuItem>
+											) : (
+												<DropdownMenuItem
+													variant="destructive"
+													onClick={() => setModAction("ban")}
+												>
+													<Ban className="h-4 w-4" />
+													封禁用户
+												</DropdownMenuItem>
+											)}
+											{/* Nuke (only when not already banned) */}
+											{!userIsBanned && (
+												<DropdownMenuItem
+													variant="destructive"
+													onClick={() => setModAction("nuke")}
+												>
+													<Trash2 className="h-4 w-4" />
+													封禁并删除内容
+												</DropdownMenuItem>
+											)}
+										</DropdownMenuContent>
+									</DropdownMenu>
 								)}
 							</div>
 
@@ -358,6 +575,49 @@ export function UserPopover({
 								<ChevronRight className="h-3.5 w-3.5" />
 							</Link>
 						</div>
+
+						{/* Mod action confirmation dialog */}
+						{modAction && (
+							<Dialog open={!!modAction} onOpenChange={(open) => !open && setModAction(null)}>
+								<DialogContent showCloseButton={false} className="sm:max-w-[400px]">
+									<DialogHeader>
+										<DialogTitle>{MOD_ACTION_CONFIG[modAction].title}</DialogTitle>
+										<DialogDescription>
+											{MOD_ACTION_CONFIG[modAction].description(user.username)}
+										</DialogDescription>
+									</DialogHeader>
+									{modActionMessage && (
+										<div
+											className={cn(
+												"text-sm px-3 py-2 rounded-md",
+												modActionMessage.type === "success"
+													? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+													: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+											)}
+										>
+											{modActionMessage.text}
+										</div>
+									)}
+									<DialogFooter className="gap-2 sm:gap-0">
+										<Button
+											variant="outline"
+											disabled={modActionLoading}
+											onClick={() => setModAction(null)}
+										>
+											取消
+										</Button>
+										<Button
+											variant={MOD_ACTION_CONFIG[modAction].variant}
+											onClick={executeModAction}
+											disabled={modActionLoading}
+										>
+											{modActionLoading && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+											{MOD_ACTION_CONFIG[modAction].confirmText}
+										</Button>
+									</DialogFooter>
+								</DialogContent>
+							</Dialog>
+						)}
 					</>
 				)}
 			</PopoverContent>

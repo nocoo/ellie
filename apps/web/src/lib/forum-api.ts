@@ -206,6 +206,16 @@ export const forumApi = {
 		};
 	},
 
+	/** GET with Bearer token (authenticated Worker API call) */
+	async getAuth<T>(
+		path: string,
+		bearerToken: string,
+		searchParams?: Record<string, string | number | boolean | undefined | null>,
+	): Promise<ApiResponse<T>> {
+		const result = await request<T>({ method: "GET", path, searchParams, bearerToken });
+		return { data: result.data, meta: result.meta as ApiMeta };
+	},
+
 	/** POST: { data: T, meta } */
 	async post<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {
 		const result = await request<T>({ method: "POST", path, body });
