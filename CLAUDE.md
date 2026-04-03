@@ -47,12 +47,16 @@ Browser → Next.js API Routes → Cloudflare Worker → D1/KV
 2. **Worker router:** `apps/worker/src/index.ts`
 3. **Next.js proxy (if browser needs it):** `apps/web/src/app/api/v1/*/route.ts`
 4. **Use correct client:** `forumApi` for server, `apiClient` for browser
+5. **Deploy Worker:** `bun run worker:deploy` (remind user after Worker changes!)
+6. **Update docs:** Keep `docs/api-architecture.md` and relevant feature docs in sync
 
 ### Common Mistakes
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | `Unexpected token '<'` | Missing Next.js proxy route | Create `/api/v1/*/route.ts` |
+| `404` on new API | Worker not deployed | Run `bun run worker:deploy` |
+| `404` on browser API call | Missing Next.js proxy | Add proxy route for the endpoint |
 | `UNAUTHORIZED` | Wrong API key | Check Key A vs Key B routing |
 | `import error` | Using server-only client in browser | Use `apiClient` instead |
 
@@ -139,6 +143,16 @@ npx wrangler dev -c apps/worker/wrangler.toml
 | Rust G2 | `osv-scanner scan --lockfile Cargo.lock` |
 
 ## Retrospective
+
+### 2026-04-03: Worker + Next.js Proxy Sync Issues
+- **Issue:** User moderation actions (mute/ban/nuke) returned 404 errors
+- **Cause:** Worker API endpoints existed but Next.js proxy routes were missing; also Worker wasn't deployed
+- **Fix:** Created all missing proxy routes in `apps/web/src/app/api/v1/moderation/`
+- **Lessons:**
+  1. **Always create proxy routes together with Worker endpoints** — browser calls go through Next.js
+  2. **After modifying Worker code, remind user to deploy** — `bun run worker:deploy`
+  3. **Check both layers when debugging 404s** — Worker route + Next.js proxy route
+  4. **Keep docs in sync** — update relevant docs when adding new API endpoints
 
 ### 2026-04-03: API Proxy Routes Missing
 - **Issue:** `/api/v1/settings` called by `useFeatureFlags` hook returned HTML 404 instead of JSON
