@@ -190,24 +190,26 @@ Browser → Next.js Admin Layout
 
 | Level | Scope | Status | Notes |
 |-------|-------|--------|-------|
-| L1 Unit | Handler logic, viewmodel functions | ✅ Passing | ~800 tests in `apps/worker/tests/` and `tests/unit/` |
-| L2 Integration | API route → Worker → D1 | ⚠️ Stale | `tests/integration/admin.test.ts` tests non-existent endpoints (e.g., `GET /api/admin/content`) |
+| L1 Unit | Handler logic, viewmodel functions | ✅ Passing | ~900 tests in `apps/worker/tests/` and `tests/unit/` |
+| L2 Integration | API route → Worker → D1 | ✅ Rewritten | `tests/integration/admin.test.ts` updated to match actual endpoints |
 | L3 E2E | Full admin workflows | ❌ Not implemented | Needs Playwright scenarios |
 
 **Known Issues:**
-- `tests/integration/admin.test.ts` references deprecated API structure:
-  - Tests `GET /api/admin/content` (doesn't exist, should be `GET /api/admin/threads`)
-  - Tests `POST /api/admin/users` with `{ action: "ban" }` (actual API uses `POST /api/admin/users/:id/ban`)
-- These tests need to be rewritten to match current API
+- None — L2 tests have been updated to match current API structure
 
 ### Test Improvement Plan
 
-1. **Rewrite L2 tests** to match actual API endpoints:
-   - `GET /api/admin/users` ✓ (exists)
-   - `GET /api/admin/threads` (not `/content`)
-   - `PATCH /api/admin/users/:id`
-   - `POST /api/admin/users/:id/ban`
-   - `POST /api/admin/users/:id/nuke`
+1. **L2 tests rewritten** ✅ to match actual API endpoints:
+   - `GET /api/admin/users` ✅
+   - `GET /api/admin/threads` ✅ (not `/content`)
+   - `PATCH /api/admin/users/:id` ✅
+   - `POST /api/admin/users/:id/ban` ✅
+   - `GET /api/admin/stats` ✅
+   - `GET /api/admin/forums` ✅
+   - `GET /api/admin/attachments` ✅
+   - `GET /api/admin/ip-bans` ✅
+   - `GET /api/admin/censor-words` ✅
+   - `GET /api/admin/settings` ✅
 
 2. **Add L3 E2E tests** for critical workflows:
    - Admin login flow
