@@ -436,20 +436,10 @@ cap-widget {
 	--cap-border-radius: var(--radius);
 	--cap-spinner-color: hsl(var(--primary));
 	--cap-font: var(--font-sans), system-ui, sans-serif;
-	--cap-color: hsl(var(--foreground));
 }
 .dark cap-widget {
 	--cap-background: hsl(var(--card));
 	--cap-border-color: hsl(var(--border));
-}
-/* Full-width variant for auth forms */
-cap-widget.cap-widget-full {
-	--cap-widget-width: 100%;
-	--cap-widget-height: 44px;
-	--cap-widget-padding: 16px;
-	--cap-checkbox-size: 22px;
-	display: block;
-	width: 100%;
 }
 
 /* ==========================================================================
