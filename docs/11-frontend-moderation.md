@@ -233,23 +233,38 @@ All user moderation actions require **confirmation dialog** before API call.
 
 ---
 
-## Backend Permission Refinement Needed
+## Backend Permission Enforcement ✅ Complete
 
-### Current State (Problem)
+### Previous State (Problem - RESOLVED)
 
-`apps/worker/src/middleware/auth.ts`:
-```typescript
-// Mod (3), SuperMod (2), Admin (1) can perform moderation actions
-if (user.role === UserRole.User) {
-  return errorResponse("FORBIDDEN_MOD_ONLY", 403);
-}
-```
+The `moderationMiddleware` only checked "is role > 0", allowing ANY mod to operate on ANY forum without scope enforcement.
 
-This allows ANY non-User role to perform ANY moderation action, bypassing the permission model in `@ellie/types/permission.ts`.
+### Solution Implemented
+
+All moderation handlers now use the shared permission functions from `@ellie/types/permission.ts`:
+
+| Handler | Permission Function | Notes |
+|---------|-------------------|-------|
+| `setSticky` | `canModerate()` | Requires forum scope for Mods |
+| `setDigest` | `canModerate()` | Requires forum scope for Mods |
+| `setClose` | `canModerate()` | Requires forum scope for Mods |
+| `setHighlight` | `canModerate()` | Requires forum scope for Mods |
+| `moveThread` | `canMoveThread()` | Admin/SuperMod only |
+| `deleteThread` | `canDeleteThread()` | Author OR Admin/SuperMod |
+| `deletePost` | `canDeletePost()` | Author OR Admin/SuperMod |
+| `editPost` | `canEditPost()` | Author OR Mod in scope |
+
+### Helper Functions
+
+`apps/worker/src/lib/permissionHelpers.ts` provides:
+- `getUserForPermission()` - fetches minimal user data for permission checks
+- `getForumForPermission()` - fetches forum with moderators field
+- `getThreadForPermission()` - fetches thread with forum_id
+- `getPostForPermission()` - fetches post with author_id, forum_id
 
 ### Existing Data Model (forums.moderators)
 
-The forum moderator assignment already exists in the schema:
+The forum moderator assignment uses existing schema fields:
 
 ```sql
 -- packages/db/src/schema.ts
@@ -257,11 +272,11 @@ moderators TEXT NOT NULL DEFAULT '',      -- comma-separated usernames
 moderator_ids TEXT NOT NULL DEFAULT '',   -- comma-separated user IDs
 ```
 
-And the shared permission function already uses it:
+The shared permission functions use this:
 
 ```typescript
 // packages/types/src/permission.ts
-export function canModerate(user: User | null, forum: { moderators: string }): boolean {
+export function canModerate(user: PermissionUser | null, forum: PermissionForum): boolean {
   if (!user) return false;
   if (user.role === UserRole.Admin || user.role === UserRole.SuperMod) return true;
   if (user.role === UserRole.Mod) {
@@ -272,50 +287,26 @@ export function canModerate(user: User | null, forum: { moderators: string }): b
 }
 ```
 
-### Required Changes
-
-**Do NOT create a new `forum_moderators` junction table.** Use the existing `forums.moderators` / `moderator_ids` fields.
-
-1. **Update Worker handlers to use shared permission functions:**
-   - Import `canModerate`, `canDeletePost`, `canDeleteThread`, `canMoveThread` from `@ellie/types`
-   - Fetch forum data and call permission functions before executing actions
-
-2. **Implementation example:**
-   ```typescript
-   // In moderation handler
-   import { canModerate, canDeleteThread } from "@ellie/types";
-   
-   export async function deleteThread(request: Request, env: Env) {
-     const authResult = await moderationMiddleware(request, env);
-     if (authResult instanceof Response) return authResult;
-     
-     const thread = await getThread(env, threadId);
-     const forum = await getForum(env, thread.forum_id);
-     const user = await getUser(env, authResult.user.userId);
-     
-     if (!canDeleteThread(user, thread, forum)) {
-       return errorResponse("FORBIDDEN", 403);
-     }
-     // ... proceed with deletion
-   }
-   ```
-
-3. **Roadmap item:** Update frontend display logic that depends on these permission functions (already in use via thread-detail viewmodel)
-
 ---
 
 ## Implementation Roadmap
 
-### Phase 1: Backend Permission Enforcement (High Priority)
+### Phase 1: Backend Permission Enforcement ✅ Complete
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Update Worker handlers to import `@ellie/types` permission functions | 📋 TODO | Use existing `canModerate`, `canDeletePost`, etc. |
-| Add forum data fetch in moderation handlers | 📋 TODO | Need forum.moderators for scope check |
-| Add user data fetch in moderation handlers | 📋 TODO | Need full User object for permission check |
-| L1 tests: permission boundary tests | 📋 TODO | Test Mod out-of-scope rejection |
+| Update Worker handlers to import `@ellie/types` permission functions | ✅ Done | All handlers now use permission functions |
+| Add forum data fetch in moderation handlers | ✅ Done | `permissionHelpers.ts` provides helpers |
+| Add user data fetch in moderation handlers | ✅ Done | `getUserForPermission()`, `getForumForPermission()` |
+| L1 tests: permission boundary tests | ✅ Done | Tests cover Mod scope restrictions |
 
-**Note:** Do NOT create new `forum_moderators` table. Use existing `forums.moderators` field.
+**Commit:** `feat(mod): enforce permission checks in moderation handlers`
+
+**Implementation Details:**
+- Created `apps/worker/src/lib/permissionHelpers.ts` with helper functions
+- Updated all handlers in `moderation.ts` to use `canModerate`, `canMoveThread`, `canDeletePost`, `canDeleteThread`, `canEditPost`
+- Updated `@ellie/types/permission.ts` to use `PermissionUser`/`PermissionForum` partial types for efficiency
+- Tests updated with permission mocks including scope boundary tests
 
 ### Phase 2: User Moderation (Medium Priority)
 
@@ -372,7 +363,7 @@ This is the **authoritative** permission model defined in `packages/types/src/pe
 
 | Level | Scope | Status | Notes |
 |-------|-------|--------|-------|
-| L1 Unit | Permission checks, UI rendering | ⚠️ Partial | Need permission boundary tests |
+| L1 Unit | Permission checks, UI rendering | ✅ Passing | 872 worker tests, permission boundary tests added |
 | L2 Integration | Moderation API flows | ⚠️ Stale | `tests/integration/moderation.test.ts` tests `POST /api/v1/moderation` which doesn't exist |
 | L3 E2E | Full moderation workflows | ❌ Not implemented | |
 
