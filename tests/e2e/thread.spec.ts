@@ -20,9 +20,13 @@ test.describe("E2E-TH: Thread Flow", () => {
 	 * And I should see author info
 	 * And I should see post content
 	 */
-	test("E2E-TH-01: view thread detail shows subject and posts", async ({ page }) => {
+	test("E2E-TH-01: view thread detail shows subject and posts", async ({
+		page,
+		loginAs,
+	}) => {
+		await loginAs("e2etest");
 		const threadPage = new ThreadPage(page);
-		await threadPage.goto(50001);
+		await threadPage.goto(662174);
 
 		// Should have thread subject heading
 		await expect(threadPage.heading).toBeVisible();
@@ -37,7 +41,7 @@ test.describe("E2E-TH: Thread Flow", () => {
 		await expect(firstPost).toBeVisible();
 
 		// Post should have prose content
-		const postContent = firstPost.locator(".prose");
+		const postContent = firstPost.locator(".prose").first();
 		await expect(postContent).toBeVisible();
 	});
 
@@ -60,7 +64,7 @@ test.describe("E2E-TH: Thread Flow", () => {
 
 		// Go to forum page
 		const forumPage = new ForumPage(page);
-		await forumPage.goto(10);
+		await forumPage.goto(114);
 
 		// Click new thread button
 		await forumPage.clickNewThread();

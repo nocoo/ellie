@@ -19,9 +19,13 @@ test.describe("E2E-PO: Post Flow", () => {
 	 * And each post should have author sidebar
 	 * And each post should have content area
 	 */
-	test("E2E-PO-01: view posts shows cards with author and content", async ({ page }) => {
+	test("E2E-PO-01: view posts shows cards with author and content", async ({
+		page,
+		loginAs,
+	}) => {
+		await loginAs("e2etest");
 		const threadPage = new ThreadPage(page);
-		await threadPage.goto(50001);
+		await threadPage.goto(662174);
 
 		// Should have at least one post card
 		const postCards = threadPage.postCards;
@@ -33,7 +37,7 @@ test.describe("E2E-PO: Post Flow", () => {
 		await expect(authorLink.first()).toBeVisible();
 
 		// Check first post has content
-		const content = firstPost.locator(".prose");
+		const content = firstPost.locator(".prose").first();
 		await expect(content).toBeVisible();
 	});
 
@@ -56,7 +60,7 @@ test.describe("E2E-PO: Post Flow", () => {
 
 		// Go to thread page
 		const threadPage = new ThreadPage(page);
-		await threadPage.goto(50001);
+		await threadPage.goto(662174);
 
 		// Count existing posts
 		const initialCount = await threadPage.postCards.count();
