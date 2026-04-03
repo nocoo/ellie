@@ -348,8 +348,19 @@ export function canModerate(user: PermissionUser | null, forum: PermissionForum)
 
 | Task | Status |
 |------|--------|
-| Post action bar left/right separation | 📋 Optional |
+| Post action bar left/right separation | ✅ Done |
 | Evaluate thread mod menu placement | 📋 Optional |
+
+**Phase 3 Commit:** `refactor(mod): PostActionBar left/right layout separation`
+
+**Layout Change:**
+```
+┌─────────────────────────────────────────────────┐
+│ [Reply]                    [Edit] [Delete]      │
+│   ↑                              ↑              │
+│ User actions               Mod/Author actions   │
+└─────────────────────────────────────────────────┘
+```
 
 ---
 
