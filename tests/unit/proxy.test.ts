@@ -321,7 +321,9 @@ describe("resolveProxyAction", () => {
 
 	it("allows authenticated user on public routes when requireLogin is true", () => {
 		expect(resolveProxyAction("/", true, NON_ADMIN_EMAIL, "credentials", true)).toBe("next");
-		expect(resolveProxyAction("/forums/10", true, NON_ADMIN_EMAIL, "credentials", true)).toBe("next");
+		expect(resolveProxyAction("/forums/10", true, NON_ADMIN_EMAIL, "credentials", true)).toBe(
+			"next",
+		);
 		expect(resolveProxyAction("/threads/123", true, NON_ADMIN_EMAIL, "credentials", true)).toBe(
 			"next",
 		);
