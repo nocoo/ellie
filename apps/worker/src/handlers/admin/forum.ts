@@ -92,6 +92,28 @@ const forumConfig: EntityConfig = {
 			default: 1,
 			validate: validateStatus,
 		},
+		{
+			name: "visibility",
+			column: "visibility",
+			default: "public",
+			validate: (v) => {
+				if (typeof v !== "string") return "visibility must be a string";
+				if (!["public", "members", "staff", "admin"].includes(v)) {
+					return "visibility must be public, members, staff, or admin";
+				}
+				return null;
+			},
+		},
+		{
+			name: "moderators",
+			column: "moderators",
+			default: "",
+		},
+		{
+			name: "moderatorIds",
+			column: "moderator_ids",
+			default: "",
+		},
 	],
 	updateFields: [
 		{
@@ -124,6 +146,38 @@ const forumConfig: EntityConfig = {
 		{
 			name: "parentId",
 			column: "parent_id",
+		},
+		{
+			name: "moderators",
+			column: "moderators",
+			validate: (v) => {
+				if (typeof v !== "string") return "moderators must be a string";
+				if (v.length > 1000) return "moderators must be at most 1000 characters";
+				return null;
+			},
+		},
+		{
+			name: "moderatorIds",
+			column: "moderator_ids",
+			validate: (v) => {
+				if (typeof v !== "string") return "moderatorIds must be a string";
+				// Format: comma-separated IDs like "1,2,3"
+				if (v !== "" && !/^\d+(,\d+)*$/.test(v)) {
+					return "moderatorIds must be comma-separated IDs";
+				}
+				return null;
+			},
+		},
+		{
+			name: "visibility",
+			column: "visibility",
+			validate: (v) => {
+				if (typeof v !== "string") return "visibility must be a string";
+				if (!["public", "members", "staff", "admin"].includes(v)) {
+					return "visibility must be public, members, staff, or admin";
+				}
+				return null;
+			},
 		},
 	],
 	canDelete: true,

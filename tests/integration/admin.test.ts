@@ -312,3 +312,165 @@ describe("L2: GET /api/admin/settings", () => {
 		expect(json.data).toBeDefined();
 	});
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Reports Management (§6)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("L2: GET /api/admin/reports", () => {
+	test("returns report list for admin", async () => {
+		const response = await adminGet("/api/admin/reports", 1);
+		expect(response.status).toBe(200);
+		const json = await response.json();
+		expect(Array.isArray(json.data)).toBe(true);
+		expect(json.meta).toHaveProperty("total");
+	});
+
+	test("returns 403 for non-admin", async () => {
+		const response = await adminGet("/api/admin/reports", 3);
+		expect(response.status).toBe(403);
+	});
+
+	test("supports status filter", async () => {
+		const response = await adminGet("/api/admin/reports?status=pending", 1);
+		expect(response.status).toBe(200);
+	});
+
+	test("supports type filter", async () => {
+		const response = await adminGet("/api/admin/reports?type=thread", 1);
+		expect(response.status).toBe(200);
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Admin Logs (§7)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("L2: GET /api/admin/admin-logs", () => {
+	test("returns admin log list for admin", async () => {
+		const response = await adminGet("/api/admin/admin-logs", 1);
+		expect(response.status).toBe(200);
+		const json = await response.json();
+		expect(Array.isArray(json.data)).toBe(true);
+		expect(json.meta).toHaveProperty("total");
+	});
+
+	test("returns 403 for non-admin", async () => {
+		const response = await adminGet("/api/admin/admin-logs", 3);
+		expect(response.status).toBe(403);
+	});
+
+	test("supports action filter", async () => {
+		const response = await adminGet("/api/admin/admin-logs?action=ban", 1);
+		expect(response.status).toBe(200);
+	});
+
+	test("supports adminId filter", async () => {
+		const response = await adminGet("/api/admin/admin-logs?adminId=1", 1);
+		expect(response.status).toBe(200);
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Announcements (§9)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("L2: GET /api/admin/announcements", () => {
+	test("returns announcement list for admin", async () => {
+		const response = await adminGet("/api/admin/announcements", 1);
+		expect(response.status).toBe(200);
+		const json = await response.json();
+		expect(Array.isArray(json.data)).toBe(true);
+		expect(json.meta).toHaveProperty("total");
+	});
+
+	test("returns 403 for non-admin", async () => {
+		const response = await adminGet("/api/admin/announcements", 3);
+		expect(response.status).toBe(403);
+	});
+
+	test("supports status filter", async () => {
+		const response = await adminGet("/api/admin/announcements?status=1", 1);
+		expect(response.status).toBe(200);
+	});
+
+	test("supports active filter", async () => {
+		const response = await adminGet("/api/admin/announcements?active=true", 1);
+		expect(response.status).toBe(200);
+	});
+});
+
+describe("L2: POST /api/admin/announcements", () => {
+	test("creates announcement for admin", async () => {
+		const response = await adminPost(
+			"/api/admin/announcements",
+			{
+				title: "L2 Test Announcement",
+				content: "This is a test announcement from L2 tests",
+			},
+			1,
+		);
+		expect(response.status).toBe(200);
+		const json = await response.json();
+		expect(json.data).toHaveProperty("id");
+		expect(json.data.title).toBe("L2 Test Announcement");
+	});
+
+	test("returns 400 for missing title", async () => {
+		const response = await adminPost(
+			"/api/admin/announcements",
+			{ content: "No title provided" },
+			1,
+		);
+		expect(response.status).toBe(400);
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Staff Management (§8)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("L2: GET /api/admin/users/staff", () => {
+	test("returns staff user list for admin", async () => {
+		const response = await adminGet("/api/admin/users/staff", 1);
+		expect(response.status).toBe(200);
+		const json = await response.json();
+		expect(Array.isArray(json.data)).toBe(true);
+		// All returned users should have role > 0
+		for (const user of json.data) {
+			expect(user.role).toBeGreaterThan(0);
+		}
+	});
+
+	test("returns 403 for non-admin", async () => {
+		const response = await adminGet("/api/admin/users/staff", 3);
+		expect(response.status).toBe(403);
+	});
+});
+
+describe("L2: POST /api/admin/users/batch-role", () => {
+	test("updates roles for admin", async () => {
+		// Get a non-admin user first
+		const listResponse = await adminGet("/api/admin/users?role=0&limit=1", 1);
+		const { data: users } = await listResponse.json();
+		if (users.length === 0) return;
+
+		const response = await adminPost(
+			"/api/admin/users/batch-role",
+			{ ids: [users[0].id], role: 0 },
+			1,
+		);
+		expect(response.status).toBe(200);
+		const json = await response.json();
+		expect(json.data).toHaveProperty("updated");
+	});
+
+	test("returns 400 for invalid role", async () => {
+		const response = await adminPost(
+			"/api/admin/users/batch-role",
+			{ ids: [1], role: 5 },
+			1,
+		);
+		expect(response.status).toBe(400);
+	});
+});

@@ -667,3 +667,25 @@ export const batchRecalcCounters = withEntityAuth(
 		return jsonResponse({ updated: userIds.length }, origin);
 	},
 );
+
+// ─── GET /api/admin/users/staff ─────────────────────────────────────────────
+// List all staff users (role > 0: Moderator, SuperMod, Admin).
+// Returns simplified list sorted by role (Admin first) then username.
+
+export const listStaff = withEntityAuth(
+	userConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined;
+
+		// role: 0=User, 1=Admin, 2=SuperMod, 3=Moderator
+		// Staff = role > 0
+		const result = await env.DB.prepare(
+			`SELECT ${USER_COLUMNS} FROM users WHERE role > 0 ORDER BY role ASC, username ASC`,
+		).all();
+
+		return jsonResponse(
+			result.results.map((r) => toUser(r as Record<string, unknown>)),
+			origin,
+		);
+	},
+);
