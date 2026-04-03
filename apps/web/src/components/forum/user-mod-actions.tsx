@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
-import { Ban, Globe, Loader2, Shield, Trash2, VolumeX } from "lucide-react";
+import { Ban, Loader2, Shield, Trash2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------
@@ -203,7 +203,7 @@ export function UserModActions({
 					}
 				/>
 				<DropdownMenuContent align="end" className="min-w-[160px]">
-					{/* View IP records */}
+					{/* IP records feature - disabled until IP tracking is implemented in database
 					<DropdownMenuItem
 						onClick={() => {
 							window.location.href = `/admin/users/${userId}/ip-records`;
@@ -213,6 +213,7 @@ export function UserModActions({
 						查看 IP 记录
 					</DropdownMenuItem>
 					<DropdownMenuSeparator />
+					*/}
 					{/* Mute/Unmute */}
 					{userIsMuted ? (
 						<DropdownMenuItem onClick={() => setModAction("unmute")}>

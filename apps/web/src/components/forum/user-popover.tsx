@@ -35,7 +35,6 @@ import {
 	ChevronRight,
 	Clock,
 	ExternalLink,
-	Globe,
 	Loader2,
 	Mail,
 	Shield,
@@ -508,7 +507,7 @@ export function UserPopover({
 											}
 										/>
 										<DropdownMenuContent align="start" side="top" className="min-w-[160px]">
-											{/* View IP records */}
+											{/* IP records feature - disabled until IP tracking is implemented in database
 											<DropdownMenuItem
 												onClick={() => {
 													setOpen(false);
@@ -519,6 +518,7 @@ export function UserPopover({
 												查看 IP 记录
 											</DropdownMenuItem>
 											<DropdownMenuSeparator />
+											*/}
 											{/* Mute/Unmute */}
 											{userIsMuted ? (
 												<DropdownMenuItem onClick={() => setModAction("unmute")}>
