@@ -2,9 +2,29 @@
 // Endpoints: PATCH sticky, PATCH digest, PATCH close, PATCH move, PATCH highlight,
 //            DELETE post, DELETE thread, PATCH post (edit)
 // These are forum-frontend operations used by moderators, NOT admin console operations.
+//
+// Permission enforcement uses @ellie/types functions:
+// - canModerate: for thread management (sticky, digest, close, highlight)
+// - canMoveThread: for moving threads (Admin/SuperMod only)
+// - canDeleteThread: for deleting threads (Author or Admin/SuperMod)
+// - canDeletePost: for deleting posts (Author or Admin/SuperMod)
+// - canEditPost: for editing posts (Author or Mod in scope)
 
+import {
+	canDeletePost,
+	canDeleteThread,
+	canEditPost,
+	canModerate,
+	canMoveThread,
+} from "@ellie/types";
 import type { Env } from "../lib/env";
 import { parseIdFromPath, parsePathSegment } from "../lib/parseId";
+import {
+	getForumForPermission,
+	getPostForPermission,
+	getThreadForPermission,
+	getUserForPermission,
+} from "../lib/permissionHelpers";
 import { recalcForumMetadata } from "../lib/recalcMetadata";
 import { jsonResponse } from "../lib/response";
 import {
@@ -35,8 +55,8 @@ export async function setSticky(request: Request, env: Env): Promise<Response> {
 	const authResult = await moderationMiddleware(request, env);
 	if (authResult instanceof Response) return authResult;
 
-	const id = parseThreadIdFromModPath(request);
-	if (id === null) {
+	const threadId = parseThreadIdFromModPath(request);
+	if (threadId === null) {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid thread ID" }, origin);
 	}
 
@@ -57,15 +77,42 @@ export async function setSticky(request: Request, env: Env): Promise<Response> {
 		);
 	}
 
-	const thread = await env.DB.prepare("SELECT id FROM threads WHERE id = ?").bind(id).first();
+	// Fetch thread to get forum_id
+	const thread = await getThreadForPermission(env, threadId);
 	if (!thread) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
 
-	const stickyValue = STICKY_MAP[level];
-	await env.DB.prepare("UPDATE threads SET sticky = ? WHERE id = ?").bind(stickyValue, id).run();
+	// Permission check: canModerate requires forum scope for Mods
+	const [user, forum] = await Promise.all([
+		getUserForPermission(env, authResult.user.userId),
+		getForumForPermission(env, thread.forumId),
+	]);
 
-	return jsonResponse({ id, sticky: stickyValue }, origin);
+	if (!user || !forum) {
+		return errorResponse(
+			"INTERNAL_ERROR",
+			500,
+			{ message: "Failed to fetch permission data" },
+			origin,
+		);
+	}
+
+	if (!canModerate(user, forum)) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "No permission to moderate this forum" },
+			origin,
+		);
+	}
+
+	const stickyValue = STICKY_MAP[level];
+	await env.DB.prepare("UPDATE threads SET sticky = ? WHERE id = ?")
+		.bind(stickyValue, threadId)
+		.run();
+
+	return jsonResponse({ id: threadId, sticky: stickyValue }, origin);
 }
 
 // ─── PATCH /api/v1/moderation/threads/:id/digest ─────────────────
@@ -75,8 +122,8 @@ export async function setDigest(request: Request, env: Env): Promise<Response> {
 	const authResult = await moderationMiddleware(request, env);
 	if (authResult instanceof Response) return authResult;
 
-	const id = parseThreadIdFromModPath(request);
-	if (id === null) {
+	const threadId = parseThreadIdFromModPath(request);
+	if (threadId === null) {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid thread ID" }, origin);
 	}
 
@@ -92,14 +139,39 @@ export async function setDigest(request: Request, env: Env): Promise<Response> {
 		return errorResponse("INVALID_BODY", 400, { message: "level must be 0, 1, 2, or 3" }, origin);
 	}
 
-	const thread = await env.DB.prepare("SELECT id FROM threads WHERE id = ?").bind(id).first();
+	// Fetch thread to get forum_id
+	const thread = await getThreadForPermission(env, threadId);
 	if (!thread) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
 
-	await env.DB.prepare("UPDATE threads SET digest = ? WHERE id = ?").bind(level, id).run();
+	// Permission check: canModerate requires forum scope for Mods
+	const [user, forum] = await Promise.all([
+		getUserForPermission(env, authResult.user.userId),
+		getForumForPermission(env, thread.forumId),
+	]);
 
-	return jsonResponse({ id, digest: level }, origin);
+	if (!user || !forum) {
+		return errorResponse(
+			"INTERNAL_ERROR",
+			500,
+			{ message: "Failed to fetch permission data" },
+			origin,
+		);
+	}
+
+	if (!canModerate(user, forum)) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "No permission to moderate this forum" },
+			origin,
+		);
+	}
+
+	await env.DB.prepare("UPDATE threads SET digest = ? WHERE id = ?").bind(level, threadId).run();
+
+	return jsonResponse({ id: threadId, digest: level }, origin);
 }
 
 // ─── PATCH /api/v1/moderation/threads/:id/close ──────────────────
@@ -109,8 +181,8 @@ export async function setClose(request: Request, env: Env): Promise<Response> {
 	const authResult = await moderationMiddleware(request, env);
 	if (authResult instanceof Response) return authResult;
 
-	const id = parseThreadIdFromModPath(request);
-	if (id === null) {
+	const threadId = parseThreadIdFromModPath(request);
+	if (threadId === null) {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid thread ID" }, origin);
 	}
 
@@ -126,15 +198,42 @@ export async function setClose(request: Request, env: Env): Promise<Response> {
 		return errorResponse("INVALID_BODY", 400, { message: "closed must be a boolean" }, origin);
 	}
 
-	const thread = await env.DB.prepare("SELECT id FROM threads WHERE id = ?").bind(id).first();
+	// Fetch thread to get forum_id
+	const thread = await getThreadForPermission(env, threadId);
 	if (!thread) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
 
-	const closedValue = closed ? 1 : 0;
-	await env.DB.prepare("UPDATE threads SET closed = ? WHERE id = ?").bind(closedValue, id).run();
+	// Permission check: canModerate requires forum scope for Mods
+	const [user, forum] = await Promise.all([
+		getUserForPermission(env, authResult.user.userId),
+		getForumForPermission(env, thread.forumId),
+	]);
 
-	return jsonResponse({ id, closed: closedValue }, origin);
+	if (!user || !forum) {
+		return errorResponse(
+			"INTERNAL_ERROR",
+			500,
+			{ message: "Failed to fetch permission data" },
+			origin,
+		);
+	}
+
+	if (!canModerate(user, forum)) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "No permission to moderate this forum" },
+			origin,
+		);
+	}
+
+	const closedValue = closed ? 1 : 0;
+	await env.DB.prepare("UPDATE threads SET closed = ? WHERE id = ?")
+		.bind(closedValue, threadId)
+		.run();
+
+	return jsonResponse({ id: threadId, closed: closedValue }, origin);
 }
 
 // ─── PATCH /api/v1/moderation/threads/:id/move ───────────────────
@@ -162,6 +261,21 @@ export async function moveThread(request: Request, env: Env): Promise<Response> 
 			"INVALID_BODY",
 			400,
 			{ message: "targetForumId must be a positive integer" },
+			origin,
+		);
+	}
+
+	// Permission check: canMoveThread requires Admin/SuperMod (Mods cannot move threads)
+	const user = await getUserForPermission(env, authResult.user.userId);
+	if (!user) {
+		return errorResponse("INTERNAL_ERROR", 500, { message: "Failed to fetch user data" }, origin);
+	}
+
+	if (!canMoveThread(user)) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "Only Admin or SuperMod can move threads" },
 			origin,
 		);
 	}
@@ -247,6 +361,36 @@ export async function deletePost(request: Request, env: Env): Promise<Response> 
 		);
 	}
 
+	// Permission check: canDeletePost - Author OR Admin/SuperMod only (Mod CANNOT delete others' posts)
+	const [user, forum] = await Promise.all([
+		getUserForPermission(env, authResult.user.userId),
+		getForumForPermission(env, post.forum_id),
+	]);
+
+	if (!user || !forum) {
+		return errorResponse(
+			"INTERNAL_ERROR",
+			500,
+			{ message: "Failed to fetch permission data" },
+			origin,
+		);
+	}
+
+	// Build post object for permission check
+	const postForPermission = {
+		id: post.id,
+		authorId: post.author_id,
+	};
+
+	if (!canDeletePost(user, postForPermission, forum)) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "No permission to delete this post" },
+			origin,
+		);
+	}
+
 	// Delete post, decrement thread replies and forum post count
 	await env.DB.batch([
 		env.DB.prepare("DELETE FROM posts WHERE id = ?").bind(id),
@@ -327,9 +471,34 @@ export async function setHighlight(request: Request, env: Env): Promise<Response
 		}
 	}
 
-	const thread = await env.DB.prepare("SELECT id FROM threads WHERE id = ?").bind(id).first();
+	// Fetch thread to get forum_id
+	const thread = await getThreadForPermission(env, id);
 	if (!thread) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
+	}
+
+	// Permission check: canModerate requires forum scope for Mods
+	const [user, forum] = await Promise.all([
+		getUserForPermission(env, authResult.user.userId),
+		getForumForPermission(env, thread.forumId),
+	]);
+
+	if (!user || !forum) {
+		return errorResponse(
+			"INTERNAL_ERROR",
+			500,
+			{ message: "Failed to fetch permission data" },
+			origin,
+		);
+	}
+
+	if (!canModerate(user, forum)) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "No permission to moderate this forum" },
+			origin,
+		);
 	}
 
 	const highlightValue = encodeHighlight(
@@ -366,6 +535,36 @@ export async function deleteThread(request: Request, env: Env): Promise<Response
 
 	if (!thread) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
+	}
+
+	// Permission check: canDeleteThread - Author OR Admin/SuperMod only (Mod CANNOT delete others' threads)
+	const [user, forum] = await Promise.all([
+		getUserForPermission(env, authResult.user.userId),
+		getForumForPermission(env, thread.forum_id),
+	]);
+
+	if (!user || !forum) {
+		return errorResponse(
+			"INTERNAL_ERROR",
+			500,
+			{ message: "Failed to fetch permission data" },
+			origin,
+		);
+	}
+
+	// Convert thread to the expected type for permission check
+	const threadForPermission = {
+		id: thread.id,
+		authorId: thread.author_id,
+	};
+
+	if (!canDeleteThread(user, threadForPermission, forum)) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "No permission to delete this thread" },
+			origin,
+		);
 	}
 
 	// Count posts per author for user counter updates
@@ -430,9 +629,34 @@ export async function editPost(request: Request, env: Env): Promise<Response> {
 		);
 	}
 
-	const post = await env.DB.prepare("SELECT id FROM posts WHERE id = ?").bind(id).first();
+	const post = await getPostForPermission(env, id);
 	if (!post) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
+	}
+
+	// Permission check: canEditPost - Author OR Mod in scope
+	const [user, forum] = await Promise.all([
+		getUserForPermission(env, authResult.user.userId),
+		getForumForPermission(env, post.forumId),
+	]);
+
+	if (!user || !forum) {
+		return errorResponse(
+			"INTERNAL_ERROR",
+			500,
+			{ message: "Failed to fetch permission data" },
+			origin,
+		);
+	}
+
+	// Build post object for permission check
+	const postForPermission = {
+		id: post.id,
+		authorId: post.authorId,
+	};
+
+	if (!canEditPost(user, postForPermission, forum)) {
+		return errorResponse("FORBIDDEN", 403, { message: "No permission to edit this post" }, origin);
 	}
 
 	await env.DB.prepare("UPDATE posts SET content = ? WHERE id = ?").bind(content.trim(), id).run();

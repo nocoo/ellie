@@ -43,6 +43,12 @@ export {
 } from "./pagination";
 
 // ─── Permission ───────────────────────────────────────────────
+export type {
+	PermissionUser,
+	PermissionForum,
+	PermissionPost,
+	PermissionThread,
+} from "./permission";
 export {
 	canViewForum,
 	canCreateThread,

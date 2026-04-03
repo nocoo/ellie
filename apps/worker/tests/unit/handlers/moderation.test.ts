@@ -26,6 +26,52 @@ function modRequest(method: string, path: string, token: string, body?: unknown)
 	});
 }
 
+// ─── Permission Mock Data ─────────────────────────────────────────
+// These helper functions create the mock data needed for permission checks
+
+/** Mock data for user permission check */
+function mockUser(userId = 1, role = 1, username = "admin") {
+	return {
+		"SELECT id, username, role, status FROM users": { id: userId, username, role, status: 0 },
+	};
+}
+
+/** Mock data for forum permission check */
+function mockForum(forumId = 1, moderators = "") {
+	return {
+		"SELECT id, moderators, moderator_ids FROM forums": {
+			id: forumId,
+			moderators,
+			moderator_ids: "",
+		},
+	};
+}
+
+/** Mock data for thread permission check */
+function mockThread(threadId = 1, forumId = 1, authorId = 10) {
+	return {
+		"SELECT id, forum_id, author_id FROM threads": {
+			id: threadId,
+			forum_id: forumId,
+			author_id: authorId,
+		},
+	};
+}
+
+/** Mock data for post permission check (reserved for future editPost/deleteThread tests) */
+// biome-ignore lint/correctness/noUnusedVariables: Reserved for future use
+function _mockPost(postId = 1, authorId = 10, forumId = 1, threadId = 1, isFirst = 0) {
+	return {
+		"SELECT id, author_id, forum_id, thread_id, is_first FROM posts": {
+			id: postId,
+			author_id: authorId,
+			forum_id: forumId,
+			thread_id: threadId,
+			is_first: isFirst,
+		},
+	};
+}
+
 // ─── setSticky ──────────────────────────────────────────────────
 
 describe("PATCH /api/v1/moderation/threads/:id/sticky", () => {
@@ -74,9 +120,13 @@ describe("PATCH /api/v1/moderation/threads/:id/sticky", () => {
 	});
 
 	it("should set sticky to forum (level 1) for Admin", async () => {
-		const token = await makeModToken(1);
+		const token = await makeModToken(1); // Admin
 		const { db, calls } = createMockDb({
-			firstResults: { "SELECT id FROM threads WHERE id": { id: 1 } },
+			firstResults: {
+				...mockThread(1, 1, 10),
+				...mockUser(1, 1, "admin"),
+				...mockForum(1, ""),
+			},
 		});
 		const env = makeEnv({ DB: db });
 		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/sticky", token, {
@@ -93,10 +143,14 @@ describe("PATCH /api/v1/moderation/threads/:id/sticky", () => {
 		expect(updateCall?.params).toEqual([1, 1]);
 	});
 
-	it("should set sticky to global (level 2) for Mod", async () => {
-		const token = await makeModToken(3);
+	it("should set sticky to global (level 2) for Mod in scope", async () => {
+		const token = await makeModToken(3, 2); // Mod, userId=2
 		const { db } = createMockDb({
-			firstResults: { "SELECT id FROM threads WHERE id": { id: 5 } },
+			firstResults: {
+				...mockThread(5, 1, 10),
+				...mockUser(2, 3, "moduser"),
+				...mockForum(1, "moduser,othermod"), // moduser is in moderators list
+			},
 		});
 		const env = makeEnv({ DB: db });
 		const req = modRequest("PATCH", "/api/v1/moderation/threads/5/sticky", token, {
@@ -108,10 +162,31 @@ describe("PATCH /api/v1/moderation/threads/:id/sticky", () => {
 		expect(data.data.sticky).toBe(2);
 	});
 
-	it("should set sticky to none (level 0)", async () => {
-		const token = await makeModToken(2);
+	it("should return 403 for Mod out of scope", async () => {
+		const token = await makeModToken(3, 2); // Mod, userId=2
 		const { db } = createMockDb({
-			firstResults: { "SELECT id FROM threads WHERE id": { id: 1 } },
+			firstResults: {
+				...mockThread(5, 1, 10),
+				...mockUser(2, 3, "moduser"),
+				...mockForum(1, "othermod"), // moduser NOT in moderators list
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = modRequest("PATCH", "/api/v1/moderation/threads/5/sticky", token, {
+			level: "global",
+		});
+		const res = await setSticky(req, env);
+		expect(res.status).toBe(403);
+	});
+
+	it("should set sticky to none (level 0)", async () => {
+		const token = await makeModToken(2); // SuperMod
+		const { db } = createMockDb({
+			firstResults: {
+				...mockThread(1, 1, 10),
+				...mockUser(1, 2, "supermod"),
+				...mockForum(1, ""),
+			},
 		});
 		const env = makeEnv({ DB: db });
 		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/sticky", token, {
@@ -181,10 +256,14 @@ describe("PATCH /api/v1/moderation/threads/:id/digest", () => {
 		expect(res.status).toBe(404);
 	});
 
-	it("should set digest level for Mod", async () => {
-		const token = await makeModToken(3);
+	it("should set digest level for Mod in scope", async () => {
+		const token = await makeModToken(3, 2); // Mod, userId=2
 		const { db, calls } = createMockDb({
-			firstResults: { "SELECT id FROM threads WHERE id": { id: 1 } },
+			firstResults: {
+				...mockThread(1, 1, 10),
+				...mockUser(2, 3, "moduser"),
+				...mockForum(1, "moduser"),
+			},
 		});
 		const env = makeEnv({ DB: db });
 		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/digest", token, { level: 2 });
@@ -232,9 +311,13 @@ describe("PATCH /api/v1/moderation/threads/:id/close", () => {
 	});
 
 	it("should close thread (closed=true → 1)", async () => {
-		const token = await makeModToken(2);
+		const token = await makeModToken(2); // SuperMod
 		const { db, calls } = createMockDb({
-			firstResults: { "SELECT id FROM threads WHERE id": { id: 1 } },
+			firstResults: {
+				...mockThread(1, 1, 10),
+				...mockUser(1, 2, "supermod"),
+				...mockForum(1, ""),
+			},
 		});
 		const env = makeEnv({ DB: db });
 		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/close", token, { closed: true });
@@ -248,9 +331,13 @@ describe("PATCH /api/v1/moderation/threads/:id/close", () => {
 	});
 
 	it("should reopen thread (closed=false → 0)", async () => {
-		const token = await makeModToken(1);
+		const token = await makeModToken(1); // Admin
 		const { db } = createMockDb({
-			firstResults: { "SELECT id FROM threads WHERE id": { id: 3 } },
+			firstResults: {
+				...mockThread(3, 1, 10),
+				...mockUser(1, 1, "admin"),
+				...mockForum(1, ""),
+			},
 		});
 		const env = makeEnv({ DB: db });
 		const req = modRequest("PATCH", "/api/v1/moderation/threads/3/close", token, { closed: false });
@@ -275,6 +362,23 @@ describe("PATCH /api/v1/moderation/threads/:id/move", () => {
 		expect(res.status).toBe(403);
 	});
 
+	it("should return 403 for Mod (Mods cannot move threads)", async () => {
+		const token = await makeModToken(3, 2); // Mod
+		const { db } = createMockDb({
+			firstResults: {
+				...mockUser(2, 3, "moduser"),
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/move", token, {
+			targetForumId: 2,
+		});
+		const res = await moveThread(req, env);
+		expect(res.status).toBe(403);
+		const data = await res.json();
+		expect(data.error.details.message).toBe("Only Admin or SuperMod can move threads");
+	});
+
 	it("should return 400 for invalid targetForumId", async () => {
 		const token = await makeModToken(1);
 		const { db } = createMockDb();
@@ -288,7 +392,11 @@ describe("PATCH /api/v1/moderation/threads/:id/move", () => {
 
 	it("should return 404 when thread not found", async () => {
 		const token = await makeModToken(1);
-		const { db } = createMockDb();
+		const { db } = createMockDb({
+			firstResults: {
+				...mockUser(1, 1, "admin"),
+			},
+		});
 		const env = makeEnv({ DB: db });
 		const req = modRequest("PATCH", "/api/v1/moderation/threads/999/move", token, {
 			targetForumId: 2,
@@ -301,6 +409,7 @@ describe("PATCH /api/v1/moderation/threads/:id/move", () => {
 		const token = await makeModToken(1);
 		const { db } = createMockDb({
 			firstResults: {
+				...mockUser(1, 1, "admin"),
 				"SELECT id, forum_id, replies FROM threads": { id: 1, forum_id: 2, replies: 5 },
 			},
 		});
@@ -318,6 +427,7 @@ describe("PATCH /api/v1/moderation/threads/:id/move", () => {
 		const token = await makeModToken(1);
 		const { db } = createMockDb({
 			firstResults: {
+				...mockUser(1, 1, "admin"),
 				"SELECT id, forum_id, replies FROM threads": { id: 1, forum_id: 1, replies: 3 },
 				// "SELECT id FROM forums" returns null (not found)
 			},
@@ -332,10 +442,11 @@ describe("PATCH /api/v1/moderation/threads/:id/move", () => {
 		expect(data.error.details.message).toBe("Target forum not found");
 	});
 
-	it("should move thread and return moved=true", async () => {
+	it("should move thread and return moved=true for Admin", async () => {
 		const token = await makeModToken(1);
 		const { db, batchCalls } = createMockDb({
 			firstResults: {
+				...mockUser(1, 1, "admin"),
 				"SELECT id, forum_id, replies FROM threads": { id: 1, forum_id: 1, replies: 5 },
 				"SELECT id FROM forums WHERE id": { id: 2 },
 			},
@@ -351,6 +462,25 @@ describe("PATCH /api/v1/moderation/threads/:id/move", () => {
 		expect(data.data.forumId).toBe(2);
 		// batch should have been called with 4 statements
 		expect(batchCalls.length).toBe(1);
+	});
+
+	it("should move thread for SuperMod", async () => {
+		const token = await makeModToken(2);
+		const { db } = createMockDb({
+			firstResults: {
+				...mockUser(1, 2, "supermod"),
+				"SELECT id, forum_id, replies FROM threads": { id: 1, forum_id: 1, replies: 5 },
+				"SELECT id FROM forums WHERE id": { id: 2 },
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/move", token, {
+			targetForumId: 2,
+		});
+		const res = await moveThread(req, env);
+		expect(res.status).toBe(200);
+		const data = await res.json();
+		expect(data.data.moved).toBe(true);
 	});
 });
 
@@ -414,8 +544,8 @@ describe("DELETE /api/v1/moderation/posts/:id", () => {
 		expect(data.error.code).toBe("CANNOT_DELETE_FIRST_POST");
 	});
 
-	it("should delete non-first post and return success", async () => {
-		const token = await makeModToken(3); // Mod role
+	it("should delete non-first post for Admin", async () => {
+		const token = await makeModToken(1); // Admin role
 		const { db, batchCalls } = createMockDb({
 			firstResults: {
 				"SELECT id, thread_id, forum_id, author_id, is_first FROM posts": {
@@ -425,6 +555,8 @@ describe("DELETE /api/v1/moderation/posts/:id", () => {
 					author_id: 10,
 					is_first: 0,
 				},
+				...mockUser(1, 1, "admin"),
+				...mockForum(1, ""),
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -438,6 +570,59 @@ describe("DELETE /api/v1/moderation/posts/:id", () => {
 		expect(data.data.deleted).toBe(true);
 		expect(data.data.id).toBe(5);
 		// batch should have DELETE + two UPDATE statements
+		expect(batchCalls.length).toBe(1);
+	});
+
+	it("should return 403 for Mod trying to delete others' post (Mods CANNOT delete)", async () => {
+		const token = await makeModToken(3, 2); // Mod role, userId=2
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT id, thread_id, forum_id, author_id, is_first FROM posts": {
+					id: 5,
+					thread_id: 1,
+					forum_id: 1,
+					author_id: 10, // Different from userId=2
+					is_first: 0,
+				},
+				...mockUser(2, 3, "moduser"),
+				...mockForum(1, "moduser"), // Even though Mod is in scope
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = new Request("https://api.example.com/api/v1/moderation/posts/5", {
+			method: "DELETE",
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const res = await deletePost(req, env);
+		expect(res.status).toBe(403);
+		const data = await res.json();
+		expect(data.error.details.message).toBe("No permission to delete this post");
+	});
+
+	it("should allow author to delete their own post", async () => {
+		const token = await makeModToken(3, 10); // Mod role, userId=10 (same as author)
+		const { db, batchCalls } = createMockDb({
+			firstResults: {
+				"SELECT id, thread_id, forum_id, author_id, is_first FROM posts": {
+					id: 5,
+					thread_id: 1,
+					forum_id: 1,
+					author_id: 10, // Same as userId=10
+					is_first: 0,
+				},
+				...mockUser(10, 3, "moduser"),
+				...mockForum(1, ""),
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = new Request("https://api.example.com/api/v1/moderation/posts/5", {
+			method: "DELETE",
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const res = await deletePost(req, env);
+		expect(res.status).toBe(200);
+		const data = await res.json();
+		expect(data.data.deleted).toBe(true);
 		expect(batchCalls.length).toBe(1);
 	});
 });
