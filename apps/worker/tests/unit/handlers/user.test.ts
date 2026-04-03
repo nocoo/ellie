@@ -108,9 +108,10 @@ describe("user handlers", () => {
 			expect(sql).toContain("threads");
 			expect(sql).toContain("posts");
 			expect(sql).toContain("credits");
-			// Should NOT contain sensitive columns
+			// status is queried to check for banned users, but not returned
+			expect(sql).toContain("status");
+			// Should NOT contain other sensitive columns
 			expect(sql).not.toContain("email");
-			expect(sql).not.toContain("status");
 			expect(sql).not.toContain("last_login");
 			expect(sql).not.toContain("password_hash");
 			expect(sql).not.toContain("password_salt");
@@ -138,6 +139,30 @@ describe("user handlers", () => {
 			const data = await response.json();
 			expect(data.error.code).toBe("USER_NOT_FOUND");
 			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("https://ellie.nocoo.cloud");
+		});
+
+		it("should return 404 for banned users (status = -1)", async () => {
+			const d1Row = makeD1UserRow({ id: 123, status: -1 });
+			const firstSpy = mock(() => Promise.resolve(d1Row));
+			const bindSpy = mock((..._args: unknown[]) => ({
+				first: firstSpy,
+			}));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await getById(
+				new Request("https://example.com/api/v1/users/123", {
+					headers: {
+						Origin: "https://ellie.nocoo.cloud",
+					},
+				}),
+				env,
+			);
+
+			expect(response.status).toBe(404);
+			const data = await response.json();
+			expect(data.error.code).toBe("USER_NOT_FOUND");
 		});
 
 		it("should parse user ID from URL", async () => {

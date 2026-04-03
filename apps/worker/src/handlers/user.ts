@@ -66,15 +66,22 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 	const idStr = pathParts[pathParts.length - 1];
 	const id = Number.parseInt(idStr ?? "0", 10);
 
-	const result = await env.DB.prepare(`SELECT ${PUBLIC_USER_COLUMNS} FROM users WHERE id = ?`)
+	const result = await env.DB.prepare(
+		`SELECT ${PUBLIC_USER_COLUMNS}, status FROM users WHERE id = ?`,
+	)
 		.bind(id)
-		.first();
+		.first<Record<string, unknown>>();
 
 	if (!result) {
 		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
 	}
 
-	return jsonResponse(toPublicUser(result as Record<string, unknown>), origin);
+	// Return 404 for banned users (status = -1)
+	if (result.status === -1) {
+		return errorResponse("USER_NOT_FOUND", 404, { message: "该用户已被封禁" }, origin);
+	}
+
+	return jsonResponse(toPublicUser(result), origin);
 }
 
 /** GET /api/v1/users/:id/threads - List user's threads with keyset pagination */
