@@ -1,5 +1,99 @@
 # 数据迁移
 
+## Magic Number 字段映射 (Discuz X3.4 → Ellie)
+
+本节列出所有从 Discuz 迁移而来的 magic number 字段及其含义。这些值源自 Discuz X3.4 源码分析，在 `packages/types/src/types.ts` 中有对应的 TypeScript 枚举定义。
+
+### forums.status
+
+| DZ 值 | Ellie 枚举 | 含义 |
+|-------|-----------|------|
+| -1 | `ForumStatus.Placeholder` | 占位记录（FK 完整性，原版块已删除）|
+| 0 | `ForumStatus.Hidden` | 隐藏/关闭（不显示在版块列表）|
+| 1 | `ForumStatus.Normal` | 正常（活跃版块）|
+| 2 | `ForumStatus.Paused` | 暂停（临时关闭发帖）|
+| 3 | `ForumStatus.QQGroup` | QQ群组（特殊类型，用于QQ群集成）|
+
+### forums.type
+
+| DZ 值 | Ellie 枚举 | 含义 |
+|-------|-----------|------|
+| "group" | `ForumType.Group` | 分类/组头 |
+| "forum" | `ForumType.Forum` | 普通版块 |
+| "sub" | `ForumType.Sub` | 子版块 |
+
+### threads.sticky (DZ: displayorder)
+
+| DZ 值 | Ellie 枚举 | 含义 |
+|-------|-----------|------|
+| -99 | `StickyLevel.Placeholder` | 占位记录（FK 完整性，原主题已删除）|
+| -4 | `StickyLevel.Draft` | 草稿（已保存但未发布）|
+| -3 | `StickyLevel.Ignored` | 忽略/隐藏（被版主手动隐藏）|
+| -2 | `StickyLevel.Moderating` | 待审核 |
+| -1 | `StickyLevel.RecycleBin` | 回收站 |
+| 0 | `StickyLevel.None` | 普通（无置顶）|
+| 1 | `StickyLevel.Forum` | 版块置顶 |
+| 2 | `StickyLevel.Global` | 全站置顶 |
+| 3 | `StickyLevel.Category` | 分类置顶 |
+
+### threads.closed
+
+| DZ 值 | Ellie 枚举 | 含义 |
+|-------|-----------|------|
+| 0 | `ThreadClosedState.Open` | 开放回复 |
+| 1 | `ThreadClosedState.Closed` | 已锁定 |
+| >1 | - | 已合并到 tid=closed 值的主题 |
+
+### threads.digest (精华级别)
+
+| DZ 值 | Ellie 枚举 | 含义 |
+|-------|-----------|------|
+| 0 | `DigestLevel.None` | 非精华 |
+| 1 | `DigestLevel.Level1` | 精华 ★ |
+| 2 | `DigestLevel.Level2` | 精华 ★★ |
+| 3 | `DigestLevel.Level3` | 精华 ★★★ |
+
+### posts.invisible
+
+| DZ 值 | Ellie 枚举 | 含义 |
+|-------|-----------|------|
+| -5 | `PostVisibility.DeletedByUser` | 用户自删（软删除）|
+| -3 | `PostVisibility.Draft` | 草稿（已保存但未发布）|
+| -2 | `PostVisibility.AwaitingReview` | 等待版主审核 |
+| -1 | `PostVisibility.DeletedByMod` | 版主删除 |
+| 0 | `PostVisibility.Visible` | 可见（正常帖子）|
+| 1 | `PostVisibility.PendingReview` | 待审核（等待批准）|
+
+### users.role (DZ: adminid)
+
+| DZ 值 | Ellie 枚举 | 含义 |
+|-------|-----------|------|
+| -1 | - | 特殊/系统账户（DZ 扩展值，直接透传）|
+| 0 | `UserRole.User` | 普通用户 |
+| 1 | `UserRole.Admin` | 管理员（完整系统权限）|
+| 2 | `UserRole.SuperMod` | 超级版主（全站版主权限）|
+| 3 | `UserRole.Mod` | 版块版主 |
+| 7 | - | 特殊管理员（DZ 扩展值，含义不明，直接透传）|
+
+### users.status
+
+| DZ 值 | Ellie 枚举 | 含义 |
+|-------|-----------|------|
+| -3 | `UserStatus.Placeholder` | 占位记录（FK 完整性，原用户已删除）|
+| -2 | `UserStatus.Archived` | 归档（历史数据，不可登录）|
+| -1 | `UserStatus.Banned` | 封禁（账户已禁用）|
+| 0 | `UserStatus.Active` | 活跃（正常账户）|
+
+### users.gender
+
+| DZ 值 | Ellie 枚举 | 含义 |
+|-------|-----------|------|
+| 0 | `Gender.Unset` | 未设置/未知 |
+| 1 | `Gender.Male` | 男 |
+| 2 | `Gender.Female` | 女 |
+
+---
+
 ## 核心原则
 
 **完整保留数据，不丢弃任何内容。**
