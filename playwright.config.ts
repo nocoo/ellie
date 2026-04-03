@@ -42,7 +42,7 @@ export default defineConfig({
 	],
 
 	webServer: {
-		command: `AUTH_SECRET=e2e-test-secret-key-at-least-32-characters bun run dev --port ${PORT}`,
+		command: `AUTH_SECRET=e2e-test-secret-key-at-least-32-characters NEXT_PUBLIC_CAP_API_ENDPOINT= bun run dev --port ${PORT}`,
 		url: BASE_URL,
 		reuseExistingServer: !process.env.CI,
 		timeout: 60_000,
