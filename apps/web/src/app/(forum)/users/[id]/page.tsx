@@ -1,24 +1,17 @@
 // Ref: 04f §8 — Modern profile layout: hero + stats + tabbed content
 
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
+import { ProfileHero } from "@/components/forum/profile-hero";
 import { UserDigestTab } from "@/components/forum/user-digest-tab";
 import { UserInfoCard } from "@/components/forum/user-info-card";
 import { UserPostsTab } from "@/components/forum/user-posts-tab";
 import { UserThreadsTab } from "@/components/forum/user-threads-tab";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { getAvatarUrl } from "@/lib/avatar";
-import { getStaticImageUrl } from "@/lib/cdn";
 import { buildUserBreadcrumbs } from "@/lib/forum-breadcrumbs";
-import { formatStat, formatTime } from "@/viewmodels/forum/thread-list";
+import { formatStat } from "@/viewmodels/forum/thread-list";
 import { getUserTitle } from "@/viewmodels/forum/title.server";
-import {
-	PROFILE_TABS,
-	formatUserRole,
-	getUserRoleBadgeVariant,
-} from "@/viewmodels/forum/user-profile";
+import { PROFILE_TABS } from "@/viewmodels/forum/user-profile";
 import { type UserProfileData, loadUserProfile } from "@/viewmodels/forum/user-profile.server";
 import { parseIntParam } from "@/viewmodels/shared/params";
 import type { Metadata } from "next";
@@ -98,47 +91,15 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 				<Breadcrumbs items={breadcrumbs} />
 			</div>
 
-			{/* Hero: avatar + identity */}
-			<Card size="sm">
-				<CardContent>
-					<div className="flex items-center gap-4">
-						<Avatar className="h-16 w-16 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
-							<AvatarImage
-								src={getAvatarUrl(data.user.id, "middle")}
-								alt={data.user.username}
-								className="rounded-sm"
-							/>
-							<AvatarFallback className="text-lg rounded-sm bg-muted p-0 overflow-hidden">
-								<img
-									src={getStaticImageUrl("tavatar.gif")}
-									alt=""
-									className="h-full w-full object-cover"
-								/>
-							</AvatarFallback>
-						</Avatar>
-						<div className="min-w-0 flex-1">
-							<div className="flex items-center gap-2 flex-wrap">
-								<h1 className="text-xl font-semibold text-foreground">{data.user.username}</h1>
-								<Badge variant={getUserRoleBadgeVariant(data.user.role)}>
-									{formatUserRole(data.user.role)}
-								</Badge>
-							</div>
-							<div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-								<span>UID: {data.user.id}</span>
-								<span>·</span>
-								<span>注册于 {formatTime(data.user.regDate)}</span>
-							</div>
-						</div>
-					</div>
-				</CardContent>
-			</Card>
+			{/* Hero: avatar + identity + edit button */}
+			<ProfileHero user={data.user} />
 
 			{/* Stats */}
-			<div className="grid grid-cols-4 gap-4">
+			<div className="grid grid-cols-4 gap-2">
 				<Link href={`/users/${userId}?tab=threads`}>
 					<Card size="sm" className="hover:border-primary/50 transition-colors cursor-pointer">
 						<CardContent className="text-center">
-							<p className="text-2xl font-semibold text-foreground">
+							<p className="text-lg font-semibold text-foreground">
 								{formatStat(data.user.threads)}
 							</p>
 							<p className="mt-1 text-xs text-muted-foreground">主题数</p>
@@ -148,7 +109,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 				<Link href={`/users/${userId}?tab=posts`}>
 					<Card size="sm" className="hover:border-primary/50 transition-colors cursor-pointer">
 						<CardContent className="text-center">
-							<p className="text-2xl font-semibold text-foreground">
+							<p className="text-lg font-semibold text-foreground">
 								{formatStat(data.user.posts)}
 							</p>
 							<p className="mt-1 text-xs text-muted-foreground">回帖数</p>
@@ -158,7 +119,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 				<Link href={`/users/${userId}?tab=digest`}>
 					<Card size="sm" className="hover:border-primary/50 transition-colors cursor-pointer">
 						<CardContent className="text-center">
-							<p className="text-2xl font-semibold text-foreground">
+							<p className="text-lg font-semibold text-foreground">
 								{formatStat(data.user.digestPosts)}
 							</p>
 							<p className="mt-1 text-xs text-muted-foreground">精华帖</p>
@@ -167,7 +128,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 				</Link>
 				<Card size="sm">
 					<CardContent className="text-center">
-						<p className="text-2xl font-semibold text-foreground">
+						<p className="text-lg font-semibold text-foreground">
 							{formatStat(data.user.credits)}
 						</p>
 						<p className="mt-1 text-xs text-muted-foreground">积分</p>

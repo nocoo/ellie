@@ -10,7 +10,21 @@ import { errorResponse } from "../middleware/error";
 const USER_COLUMNS =
 	"id, username, email, avatar, status, role, reg_date, last_login, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, last_activity";
 
-/** PATCH /api/v1/users/me — Update own profile (avatar, email) */
+/** Max lengths for text fields */
+const MAX_LENGTHS = {
+	email: 255,
+	avatar: 500,
+	resideProvince: 50,
+	resideCity: 50,
+	graduateSchool: 100,
+	bio: 500,
+	interest: 500,
+	qq: 20,
+	site: 200,
+	signature: 1000,
+};
+
+/** PATCH /api/v1/users/me — Update own profile */
 export const updateProfile = withAuth(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
@@ -21,28 +35,98 @@ export const updateProfile = withAuth(async (request, env, user) => {
 		return errorResponse("INVALID_BODY", 400, undefined, origin);
 	}
 
+	// Extract and validate fields
 	const email = typeof body.email === "string" ? body.email.trim() : undefined;
 	const avatar = typeof body.avatar === "string" ? body.avatar.trim() : undefined;
+	const gender = typeof body.gender === "number" ? body.gender : undefined;
+	const birthYear = typeof body.birthYear === "number" ? body.birthYear : undefined;
+	const birthMonth = typeof body.birthMonth === "number" ? body.birthMonth : undefined;
+	const birthDay = typeof body.birthDay === "number" ? body.birthDay : undefined;
+	const resideProvince =
+		typeof body.resideProvince === "string" ? body.resideProvince.trim() : undefined;
+	const resideCity = typeof body.resideCity === "string" ? body.resideCity.trim() : undefined;
+	const graduateSchool =
+		typeof body.graduateSchool === "string" ? body.graduateSchool.trim() : undefined;
+	const bio = typeof body.bio === "string" ? body.bio.trim() : undefined;
+	const interest = typeof body.interest === "string" ? body.interest.trim() : undefined;
+	const qq = typeof body.qq === "string" ? body.qq.trim() : undefined;
+	const site = typeof body.site === "string" ? body.site.trim() : undefined;
+	const signature = typeof body.signature === "string" ? body.signature.trim() : undefined;
 
-	if (email === undefined && avatar === undefined) {
-		return errorResponse(
-			"INVALID_BODY",
-			400,
-			{ message: "At least one field required (email, avatar)" },
-			origin,
-		);
+	// Check at least one field provided
+	const hasAnyField =
+		email !== undefined ||
+		avatar !== undefined ||
+		gender !== undefined ||
+		birthYear !== undefined ||
+		birthMonth !== undefined ||
+		birthDay !== undefined ||
+		resideProvince !== undefined ||
+		resideCity !== undefined ||
+		graduateSchool !== undefined ||
+		bio !== undefined ||
+		interest !== undefined ||
+		qq !== undefined ||
+		site !== undefined ||
+		signature !== undefined;
+
+	if (!hasAnyField) {
+		return errorResponse("INVALID_BODY", 400, { message: "At least one field required" }, origin);
 	}
 
 	// Validate email format if provided
 	if (email !== undefined) {
-		if (email.length === 0 || !email.includes("@") || email.length > 255) {
+		if (email.length === 0 || !email.includes("@") || email.length > MAX_LENGTHS.email) {
 			return errorResponse("INVALID_BODY", 400, { message: "Invalid email format" }, origin);
 		}
+	}
+
+	// Validate gender (0 = not set, 1 = male, 2 = female)
+	if (gender !== undefined && (gender < 0 || gender > 2)) {
+		return errorResponse("INVALID_BODY", 400, { message: "Invalid gender value" }, origin);
+	}
+
+	// Validate birthday fields
+	if (birthYear !== undefined && (birthYear < 0 || birthYear > 2100)) {
+		return errorResponse("INVALID_BODY", 400, { message: "Invalid birth year" }, origin);
+	}
+	if (birthMonth !== undefined && (birthMonth < 0 || birthMonth > 12)) {
+		return errorResponse("INVALID_BODY", 400, { message: "Invalid birth month" }, origin);
+	}
+	if (birthDay !== undefined && (birthDay < 0 || birthDay > 31)) {
+		return errorResponse("INVALID_BODY", 400, { message: "Invalid birth day" }, origin);
+	}
+
+	// Validate string lengths
+	if (resideProvince !== undefined && resideProvince.length > MAX_LENGTHS.resideProvince) {
+		return errorResponse("INVALID_BODY", 400, { message: "Province name too long" }, origin);
+	}
+	if (resideCity !== undefined && resideCity.length > MAX_LENGTHS.resideCity) {
+		return errorResponse("INVALID_BODY", 400, { message: "City name too long" }, origin);
+	}
+	if (graduateSchool !== undefined && graduateSchool.length > MAX_LENGTHS.graduateSchool) {
+		return errorResponse("INVALID_BODY", 400, { message: "School name too long" }, origin);
+	}
+	if (bio !== undefined && bio.length > MAX_LENGTHS.bio) {
+		return errorResponse("INVALID_BODY", 400, { message: "Bio too long" }, origin);
+	}
+	if (interest !== undefined && interest.length > MAX_LENGTHS.interest) {
+		return errorResponse("INVALID_BODY", 400, { message: "Interest too long" }, origin);
+	}
+	if (qq !== undefined && qq.length > MAX_LENGTHS.qq) {
+		return errorResponse("INVALID_BODY", 400, { message: "QQ too long" }, origin);
+	}
+	if (site !== undefined && site.length > MAX_LENGTHS.site) {
+		return errorResponse("INVALID_BODY", 400, { message: "Site URL too long" }, origin);
+	}
+	if (signature !== undefined && signature.length > MAX_LENGTHS.signature) {
+		return errorResponse("INVALID_BODY", 400, { message: "Signature too long" }, origin);
 	}
 
 	// Build dynamic SET clause
 	const setClauses: string[] = [];
 	const params: unknown[] = [];
+
 	if (email !== undefined) {
 		setClauses.push("email = ?");
 		params.push(email);
@@ -51,6 +135,55 @@ export const updateProfile = withAuth(async (request, env, user) => {
 		setClauses.push("avatar = ?");
 		params.push(avatar);
 	}
+	if (gender !== undefined) {
+		setClauses.push("gender = ?");
+		params.push(gender);
+	}
+	if (birthYear !== undefined) {
+		setClauses.push("birth_year = ?");
+		params.push(birthYear);
+	}
+	if (birthMonth !== undefined) {
+		setClauses.push("birth_month = ?");
+		params.push(birthMonth);
+	}
+	if (birthDay !== undefined) {
+		setClauses.push("birth_day = ?");
+		params.push(birthDay);
+	}
+	if (resideProvince !== undefined) {
+		setClauses.push("reside_province = ?");
+		params.push(resideProvince);
+	}
+	if (resideCity !== undefined) {
+		setClauses.push("reside_city = ?");
+		params.push(resideCity);
+	}
+	if (graduateSchool !== undefined) {
+		setClauses.push("graduate_school = ?");
+		params.push(graduateSchool);
+	}
+	if (bio !== undefined) {
+		setClauses.push("bio = ?");
+		params.push(bio);
+	}
+	if (interest !== undefined) {
+		setClauses.push("interest = ?");
+		params.push(interest);
+	}
+	if (qq !== undefined) {
+		setClauses.push("qq = ?");
+		params.push(qq);
+	}
+	if (site !== undefined) {
+		setClauses.push("site = ?");
+		params.push(site);
+	}
+	if (signature !== undefined) {
+		setClauses.push("signature = ?");
+		params.push(signature);
+	}
+
 	params.push(user.userId);
 
 	await env.DB.prepare(`UPDATE users SET ${setClauses.join(", ")} WHERE id = ?`)
