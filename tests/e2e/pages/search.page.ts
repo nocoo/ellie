@@ -2,7 +2,6 @@
 // Ref: docs/e2e-test-design.md §E2E-SE specs
 
 import type { Page } from "@playwright/test";
-import { SEARCH } from "../fixtures/selectors";
 
 export class SearchPage {
 	constructor(private page: Page) {}
@@ -12,14 +11,16 @@ export class SearchPage {
 		await this.page.waitForLoadState("networkidle");
 	}
 
-	/** Search input field */
+	/** Search input field - specifically the one in the main content (name="q") */
 	get searchInput() {
-		return this.page.locator(SEARCH.input);
+		// Target the main search input, not the header search box
+		return this.page.locator('main input[name="q"]');
 	}
 
 	/** Search submit button */
 	get searchButton() {
-		return this.page.getByRole("button", { name: "搜索" });
+		// Target the button inside main content
+		return this.page.locator("main").getByRole("button", { name: "搜索" });
 	}
 
 	/** Search type tabs (only visible after query) */
