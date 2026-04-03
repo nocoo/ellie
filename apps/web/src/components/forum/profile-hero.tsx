@@ -2,6 +2,7 @@
 
 // Profile hero section with edit button for own profile
 // Displays user identity and optional edit functionality
+// Includes mod actions for Admin/SuperMod users
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -13,8 +14,10 @@ import { formatTime } from "@/viewmodels/forum/thread-list";
 import { formatUserRole, getUserRoleBadgeVariant } from "@/viewmodels/forum/user-profile";
 import { Pencil } from "lucide-react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ProfileEditDialog } from "./profile-edit-dialog";
+import { UserModActions } from "./user-mod-actions";
 
 interface ProfileHeroProps {
 	user: {
@@ -38,10 +41,13 @@ interface ProfileHeroProps {
 
 export function ProfileHero({ user }: ProfileHeroProps) {
 	const { data: session } = useSession();
+	const router = useRouter();
 	const [editOpen, setEditOpen] = useState(false);
 
 	// Check if viewing own profile
 	const isOwnProfile = session?.user?.id === String(user.id);
+	// Viewer's role (from session)
+	const viewerRole = session?.user?.role ?? 0;
 
 	return (
 		<>
@@ -75,17 +81,30 @@ export function ProfileHero({ user }: ProfileHeroProps) {
 								<span>注册于 {formatTime(user.regDate)}</span>
 							</div>
 						</div>
-						{isOwnProfile && (
-							<Button
-								variant="outline"
+						<div className="flex items-center gap-2 shrink-0">
+							{/* Edit profile button (own profile only) */}
+							{isOwnProfile && (
+								<Button
+									variant="outline"
+									size="sm"
+									className="gap-1.5"
+									onClick={() => setEditOpen(true)}
+								>
+									<Pencil className="h-3.5 w-3.5" />
+									<span className="hidden sm:inline">编辑资料</span>
+								</Button>
+							)}
+							{/* Mod actions (Admin/SuperMod only, not own profile) */}
+							<UserModActions
+								userId={user.id}
+								username={user.username}
+								viewerRole={viewerRole}
+								isSelf={isOwnProfile}
+								variant="button"
 								size="sm"
-								className="gap-1.5 shrink-0"
-								onClick={() => setEditOpen(true)}
-							>
-								<Pencil className="h-3.5 w-3.5" />
-								<span className="hidden sm:inline">编辑资料</span>
-							</Button>
-						)}
+								onActionComplete={() => router.refresh()}
+							/>
+						</div>
 					</div>
 				</CardContent>
 			</Card>
