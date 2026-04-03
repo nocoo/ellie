@@ -134,20 +134,42 @@ let requireLoginCache: boolean | null = null;
 let requireLoginCacheExpiry = 0;
 const CACHE_TTL = 60000; // 1 minute
 
-async function getRequireLogin(origin: string): Promise<boolean> {
+function getWorkerUrl(): string {
+	const url = process.env.WORKER_API_URL;
+	if (!url) {
+		// Fallback: disable require_login if Worker URL not configured
+		return "";
+	}
+	return url.replace(/\/+$/, "");
+}
+
+function getApiKey(): string {
+	return process.env.FORUM_API_KEY || "";
+}
+
+async function getRequireLogin(): Promise<boolean> {
 	// Return cached value if still valid
 	if (requireLoginCache !== null && Date.now() < requireLoginCacheExpiry) {
 		return requireLoginCache;
 	}
 
+	const workerUrl = getWorkerUrl();
+	const apiKey = getApiKey();
+
+	// If Worker not configured, disable require_login
+	if (!workerUrl || !apiKey) {
+		return false;
+	}
+
 	try {
-		// Fetch from internal API (Key A doesn't need auth for public settings)
-		const res = await fetch(`${origin}/api/v1/settings?key=features.access.require_login`, {
+		// Fetch directly from Worker API (not from Next.js origin)
+		const res = await fetch(`${workerUrl}/api/v1/settings?key=features.access.require_login`, {
+			headers: { "X-API-Key": apiKey },
 			cache: "no-store",
 		});
 		if (!res.ok) return false;
 		const data = await res.json();
-		requireLoginCache = data["features.access.require_login"] === "true";
+		requireLoginCache = data.data?.["features.access.require_login"] === "true";
 		requireLoginCacheExpiry = Date.now() + CACHE_TTL;
 		return requireLoginCache;
 	} catch {
@@ -176,8 +198,8 @@ export function buildRedirectUrl(req: NextRequest, pathname: string): URL {
 // ---------------------------------------------------------------------------
 
 export async function proxy(request: NextRequest) {
-	// Fetch require_login setting (cached)
-	const requireLogin = await getRequireLogin(request.nextUrl.origin);
+	// Fetch require_login setting (cached, from Worker API)
+	const requireLogin = await getRequireLogin();
 
 	const authHandler = await auth((req) => {
 		const session = req.auth;
