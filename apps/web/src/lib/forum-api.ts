@@ -218,6 +218,12 @@ export const forumApi = {
 		return { data: result.data, meta: result.meta as ApiMeta };
 	},
 
+	/** PATCH with Bearer token (authenticated Worker API call) */
+	async patchAuth<T>(path: string, body: unknown, bearerToken: string): Promise<ApiResponse<T>> {
+		const result = await request<T>({ method: "PATCH", path, body, bearerToken });
+		return { data: result.data, meta: result.meta as ApiMeta };
+	},
+
 	/** DELETE with Bearer token (authenticated Worker API call) */
 	async deleteAuth<T>(path: string, body: unknown, bearerToken: string): Promise<ApiResponse<T>> {
 		const result = await request<T>({ method: "DELETE", path, body, bearerToken });
