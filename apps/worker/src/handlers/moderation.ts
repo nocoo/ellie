@@ -669,6 +669,53 @@ export async function editPost(request: Request, env: Env): Promise<Response> {
 // User Moderation (Admin/SuperMod only)
 // ═══════════════════════════════════════════════════════════════════
 
+// ─── GET /api/v1/moderation/users/:id/status ────────────────────────
+
+/** Get user status for moderation (Admin/SuperMod only) */
+export async function getUserStatus(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+	const authResult = await moderationMiddleware(request, env);
+	if (authResult instanceof Response) return authResult;
+
+	const userId = parsePathSegment(request, 1);
+	if (userId === null) {
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
+	}
+
+	// Permission check: Admin/SuperMod only
+	const user = await getUserForPermission(env, authResult.user.userId);
+	if (!user) {
+		return errorResponse("INTERNAL_ERROR", 500, { message: "Failed to fetch user data" }, origin);
+	}
+
+	if (!canAccessAdmin(user)) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "Only Admin or SuperMod can view user status" },
+			origin,
+		);
+	}
+
+	// Get target user status
+	const targetUser = await env.DB.prepare("SELECT id, username, status FROM users WHERE id = ?")
+		.bind(userId)
+		.first<{ id: number; username: string; status: number }>();
+
+	if (!targetUser) {
+		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
+	}
+
+	return jsonResponse(
+		{
+			userId: targetUser.id,
+			username: targetUser.username,
+			status: targetUser.status,
+		},
+		origin,
+	);
+}
+
 // ─── GET /api/v1/moderation/users/:id/ip-records ─────────────────
 
 export async function getUserIpRecords(request: Request, env: Env): Promise<Response> {
@@ -759,7 +806,9 @@ export async function muteUser(request: Request, env: Env): Promise<Response> {
 	}
 
 	// Get target user
-	const targetUser = await env.DB.prepare("SELECT id, username, status, role FROM users WHERE id = ?")
+	const targetUser = await env.DB.prepare(
+		"SELECT id, username, status, role FROM users WHERE id = ?",
+	)
 		.bind(userId)
 		.first<{ id: number; username: string; status: number; role: number }>();
 
@@ -887,7 +936,9 @@ export async function banUser(request: Request, env: Env): Promise<Response> {
 	}
 
 	// Get target user
-	const targetUser = await env.DB.prepare("SELECT id, username, status, role FROM users WHERE id = ?")
+	const targetUser = await env.DB.prepare(
+		"SELECT id, username, status, role FROM users WHERE id = ?",
+	)
 		.bind(userId)
 		.first<{ id: number; username: string; status: number; role: number }>();
 
@@ -1005,7 +1056,9 @@ export async function nukeUser(request: Request, env: Env): Promise<Response> {
 	}
 
 	// Get target user
-	const targetUser = await env.DB.prepare("SELECT id, username, status, role FROM users WHERE id = ?")
+	const targetUser = await env.DB.prepare(
+		"SELECT id, username, status, role FROM users WHERE id = ?",
+	)
 		.bind(userId)
 		.first<{ id: number; username: string; status: number; role: number }>();
 
@@ -1146,7 +1199,10 @@ async function deleteUserContent(env: Env, userId: number): Promise<ContentDelet
 	// Update forum counts for standalone posts
 	for (const row of standaloneRows) {
 		statements.push(
-			env.DB.prepare("UPDATE forums SET posts = posts - ? WHERE id = ?").bind(row.cnt, row.forum_id),
+			env.DB.prepare("UPDATE forums SET posts = posts - ? WHERE id = ?").bind(
+				row.cnt,
+				row.forum_id,
+			),
 		);
 	}
 

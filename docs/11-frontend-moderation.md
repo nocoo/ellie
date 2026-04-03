@@ -312,11 +312,21 @@ export function canModerate(user: PermissionUser | null, forum: PermissionForum)
 
 | Task | Status |
 |------|--------|
+| Create mute/ban/nuke APIs | ✅ Done |
 | Implement user popover mod dropdown | 📋 TODO |
 | Add profile page mod panel | 📋 TODO |
 | Create user ban confirmation dialogs | 📋 TODO |
 | Implement IP record viewer | 📋 TODO |
-| Create mute/ban/nuke APIs | 📋 TODO |
+
+**Phase 2.1 Commit:** `feat(mod): add user moderation APIs (mute/ban/nuke)`
+
+**API Endpoints Implemented:**
+- `GET /api/v1/moderation/users/:id/ip-records` - View IP history (Admin/SuperMod only)
+- `POST /api/v1/moderation/users/:id/mute` - Mute user (Admin/SuperMod only)
+- `POST /api/v1/moderation/users/:id/unmute` - Unmute user (Admin/SuperMod only)
+- `POST /api/v1/moderation/users/:id/ban` - Ban user (Admin/SuperMod only)
+- `POST /api/v1/moderation/users/:id/unban` - Unban user (Admin/SuperMod only)
+- `POST /api/v1/moderation/users/:id/nuke` - Ban + delete all content (Admin/SuperMod only)
 
 ### Phase 3: UI Polish (Low Priority)
 

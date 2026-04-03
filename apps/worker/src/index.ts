@@ -198,6 +198,12 @@ export default {
 
 			// ── User moderation routes (Key A + JWT + Admin/SuperMod) ─
 			if (
+				path.match(/^\/api\/v1\/moderation\/users\/\d+\/status$/) &&
+				request.method === "GET"
+			) {
+				return await (await import("./handlers/moderation")).getUserStatus(request, env);
+			}
+			if (
 				path.match(/^\/api\/v1\/moderation\/users\/\d+\/ip-records$/) &&
 				request.method === "GET"
 			) {
