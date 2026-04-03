@@ -1,5 +1,8 @@
 // @ellie/types — Shared type definitions for Ellie monorepo
 
+// ─── Version ────────────────────────────────────────────────
+export { VERSION, VERSION_DISPLAY } from "./version";
+
 // ─── Enums ───────────────────────────────────────────────────
 export * from "./types";
 

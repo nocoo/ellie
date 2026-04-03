@@ -61,7 +61,6 @@ export const SETTING_GROUPS: SettingGroupDef[] = [
 			{ key: "general.site.subtitle", label: "站点描述", placeholder: "Ellie admin console" },
 			{ key: "general.site.copyright", label: "版权持有者", placeholder: "同济网" },
 			{ key: "general.site.powered_by", label: "页脚署名", placeholder: "Powered by Ellie" },
-			{ key: "general.site.version", label: "版本号", placeholder: "v0.1" },
 		],
 	},
 	{
