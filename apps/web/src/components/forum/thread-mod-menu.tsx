@@ -1,16 +1,8 @@
 "use client";
 
-// components/forum/thread-mod-menu.tsx — Thread moderation dropdown menu
-// Positioned at the bottom of the first post for users with moderation permissions
+// components/forum/thread-mod-menu.tsx — Thread moderation action bar
+// Flat inline buttons positioned at the bottom of the first post
 
-import { Button } from "@/components/ui/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { ApiError } from "@/lib/api-client";
 import {
 	type HighlightOptions,
@@ -22,13 +14,18 @@ import {
 	setThreadHighlight,
 	setThreadSticky,
 } from "@/lib/moderation-api";
-import { ArrowRight, Highlighter, Lock, LockOpen, Pin, Settings, Star, Trash2 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { ArrowRight, Highlighter, Lock, LockOpen, Pin, Star, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { DigestDialog } from "./digest-dialog";
 import { HighlightDialog } from "./highlight-dialog";
 import { MoveDialog } from "./move-dialog";
 import { StickyDialog } from "./sticky-dialog";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface ThreadModMenuProps {
 	threadId: number;
@@ -48,6 +45,40 @@ interface ThreadModMenuProps {
 	/** Can user delete thread? (SuperMod/Admin or author) */
 	canDeleteThread: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Action Button
+// ---------------------------------------------------------------------------
+
+interface ActionBtnProps {
+	icon: LucideIcon;
+	label: string;
+	onClick?: () => void;
+	disabled?: boolean;
+	variant?: "default" | "destructive";
+}
+
+function ActionBtn({ icon: Icon, label, onClick, disabled, variant = "default" }: ActionBtnProps) {
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			disabled={disabled}
+			className={`flex items-center gap-0.5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+				variant === "destructive"
+					? "text-destructive/70 hover:text-destructive"
+					: "text-forum-text-muted hover:text-forum-link"
+			}`}
+		>
+			<Icon className="h-3.5 w-3.5" />
+			<span>{label}</span>
+		</button>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 export function ThreadModMenu({
 	threadId,
@@ -175,65 +206,56 @@ export function ThreadModMenu({
 
 	return (
 		<>
-			<DropdownMenu>
-				<DropdownMenuTrigger
-					render={
-						<Button size="sm" variant="outline" disabled={loading} className="gap-1">
-							<Settings className="h-3.5 w-3.5" />
-							<span>管理</span>
-						</Button>
-					}
-				/>
-				<DropdownMenuContent align="end" className="min-w-[140px]">
-					{canManageThread && (
-						<>
-							<DropdownMenuItem onClick={() => setStickyDialogOpen(true)}>
-								<Pin className="h-4 w-4" />
-								置顶...
-							</DropdownMenuItem>
-							<DropdownMenuItem onClick={() => setHighlightDialogOpen(true)}>
-								<Highlighter className="h-4 w-4" />
-								高亮...
-							</DropdownMenuItem>
-							<DropdownMenuItem onClick={() => setDigestDialogOpen(true)}>
-								<Star className="h-4 w-4" />
-								精华...
-							</DropdownMenuItem>
-							<DropdownMenuItem onClick={handleToggleClose} disabled={loading}>
-								{closed ? (
-									<>
-										<LockOpen className="h-4 w-4" />
-										解锁主题
-									</>
-								) : (
-									<>
-										<Lock className="h-4 w-4" />
-										关闭主题
-									</>
-								)}
-							</DropdownMenuItem>
-						</>
-					)}
-					{canMoveThread && (
-						<DropdownMenuItem onClick={() => setMoveDialogOpen(true)}>
-							<ArrowRight className="h-4 w-4" />
-							移动...
-						</DropdownMenuItem>
-					)}
-					{canDeleteThread && (
-						<>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem variant="destructive" onClick={handleDelete} disabled={loading}>
-								<Trash2 className="h-4 w-4" />
-								删除主题
-							</DropdownMenuItem>
-						</>
-					)}
-				</DropdownMenuContent>
-			</DropdownMenu>
-
-			{/* Error display */}
-			{error && <span className="text-xs text-destructive ml-2">{error}</span>}
+			{/* Flat action bar */}
+			<div className="flex items-center gap-4 text-xs">
+				{canManageThread && (
+					<>
+						<ActionBtn
+							icon={Pin}
+							label="置顶"
+							onClick={() => setStickyDialogOpen(true)}
+							disabled={loading}
+						/>
+						<ActionBtn
+							icon={Highlighter}
+							label="高亮"
+							onClick={() => setHighlightDialogOpen(true)}
+							disabled={loading}
+						/>
+						<ActionBtn
+							icon={Star}
+							label="精华"
+							onClick={() => setDigestDialogOpen(true)}
+							disabled={loading}
+						/>
+						<ActionBtn
+							icon={closed ? LockOpen : Lock}
+							label={closed ? "解锁" : "关闭"}
+							onClick={handleToggleClose}
+							disabled={loading}
+						/>
+					</>
+				)}
+				{canMoveThread && (
+					<ActionBtn
+						icon={ArrowRight}
+						label="移动"
+						onClick={() => setMoveDialogOpen(true)}
+						disabled={loading}
+					/>
+				)}
+				{canDeleteThread && (
+					<ActionBtn
+						icon={Trash2}
+						label="删除"
+						onClick={handleDelete}
+						disabled={loading}
+						variant="destructive"
+					/>
+				)}
+				{/* Error display */}
+				{error && <span className="text-destructive">{error}</span>}
+			</div>
 
 			{/* Dialogs */}
 			<StickyDialog
