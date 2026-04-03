@@ -92,11 +92,11 @@ function StrengthBar({ strength }: { strength: PasswordStrength }) {
 	}[strength];
 
 	return (
-		<div className="mt-1 space-y-0.5">
+		<div className="mt-1.5 space-y-1">
 			<div className="h-1 w-full rounded-full bg-muted">
 				<div className={`h-full rounded-full transition-all ${config.width} ${config.color}`} />
 			</div>
-			<p className="text-[10px] text-muted-foreground">密码强度：{config.label}</p>
+			<p className="text-xs text-muted-foreground">密码强度：{config.label}</p>
 		</div>
 	);
 }
@@ -190,6 +190,8 @@ function RegisterFormInner() {
 		}
 	};
 
+	const year = new Date().getFullYear();
+
 	return (
 		<div className="relative flex min-h-screen flex-col bg-background overflow-hidden">
 			{/* Radial glow */}
@@ -220,7 +222,7 @@ function RegisterFormInner() {
 			<div className="flex flex-1 items-center justify-center p-4">
 				{/* Badge card */}
 				<div
-					className="relative w-72 overflow-hidden rounded-2xl bg-card flex flex-col ring-1 ring-black/[0.08] dark:ring-white/[0.06]"
+					className="relative w-[308px] overflow-hidden rounded-2xl bg-card flex flex-col ring-1 ring-black/[0.08] dark:ring-white/[0.06]"
 					style={{
 						boxShadow: [
 							"0 1px 2px rgba(0,0,0,0.06)",
@@ -232,32 +234,47 @@ function RegisterFormInner() {
 						].join(", "),
 					}}
 				>
-					{/* Header strip */}
+					{/* Header strip with decorations */}
 					<div className="bg-primary px-5 py-3">
 						<div className="flex items-center justify-between">
-							<ForumLogo height={24} variant="dark" />
-							<div className="h-5">
+							{/* Punch hole */}
+							<div
+								className="h-3 w-6 rounded-full bg-background/80"
+								style={{
+									boxShadow:
+										"inset 0 1px 2px rgba(0,0,0,0.35), inset 0 -0.5px 1px rgba(255,255,255,0.1)",
+								}}
+							/>
+							<span className="text-xs font-medium text-primary-foreground/60 tracking-wider">
+								{year}
+							</span>
+							<div className="h-4">
 								<Barcode />
 							</div>
 						</div>
 					</div>
 
 					{/* Form content */}
-					<div className="flex flex-1 flex-col px-5 pt-5 pb-4">
-						<p className="text-base font-semibold text-foreground text-center">加入我们</p>
-						<p className="mt-1 text-xs text-muted-foreground text-center">创建您的账号</p>
+					<div className="flex flex-1 flex-col px-6 pt-6 pb-5">
+						{/* Logo */}
+						<div className="flex justify-center mb-4">
+							<ForumLogo height={40} />
+						</div>
 
-						<form onSubmit={handleSubmit} className="mt-4 space-y-3">
+						<p className="text-lg font-semibold text-foreground text-center">加入我们</p>
+						<p className="mt-1 text-sm text-muted-foreground text-center">创建您的账号</p>
+
+						<form onSubmit={handleSubmit} className="mt-5 space-y-4">
 							{/* Error */}
 							{error && (
-								<div className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive text-center">
+								<div className="rounded-lg bg-destructive/10 px-3 py-2.5 text-sm text-destructive text-center">
 									{error}
 								</div>
 							)}
 
 							{/* Username */}
-							<div className="space-y-1.5">
-								<Label htmlFor="username" className="text-xs">
+							<div className="space-y-2">
+								<Label htmlFor="username" className="text-sm">
 									用户名
 								</Label>
 								<Input
@@ -268,21 +285,21 @@ function RegisterFormInner() {
 									placeholder="2-15 个字符"
 									disabled={loading}
 									autoComplete="username"
-									className="h-9 text-sm"
+									className="h-[58px] text-base"
 								/>
 								{usernameError && username.trim() && (
-									<p className="text-[10px] text-destructive">{usernameError}</p>
+									<p className="text-xs text-destructive">{usernameError}</p>
 								)}
 								{!usernameError && usernameStatusText(usernameStatus) && (
-									<p className={`text-[10px] ${usernameStatusColor(usernameStatus)}`}>
+									<p className={`text-xs ${usernameStatusColor(usernameStatus)}`}>
 										{usernameStatusText(usernameStatus)}
 									</p>
 								)}
 							</div>
 
 							{/* Password */}
-							<div className="space-y-1.5">
-								<Label htmlFor="password" className="text-xs">
+							<div className="space-y-2">
+								<Label htmlFor="password" className="text-sm">
 									密码
 								</Label>
 								<Input
@@ -293,14 +310,14 @@ function RegisterFormInner() {
 									placeholder="至少 6 个字符"
 									disabled={loading}
 									autoComplete="new-password"
-									className="h-9 text-sm"
+									className="h-[58px] text-base"
 								/>
 								<StrengthBar strength={strength} />
 							</div>
 
 							{/* Confirm Password */}
-							<div className="space-y-1.5">
-								<Label htmlFor="confirmPassword" className="text-xs">
+							<div className="space-y-2">
+								<Label htmlFor="confirmPassword" className="text-sm">
 									确认密码
 								</Label>
 								<Input
@@ -311,16 +328,16 @@ function RegisterFormInner() {
 									placeholder="再次输入密码"
 									disabled={loading}
 									autoComplete="new-password"
-									className="h-9 text-sm"
+									className="h-[58px] text-base"
 								/>
 								{passwordMismatch && (
-									<p className="text-[10px] text-destructive">两次输入的密码不一致</p>
+									<p className="text-xs text-destructive">两次输入的密码不一致</p>
 								)}
 							</div>
 
 							{/* Email */}
-							<div className="space-y-1.5">
-								<Label htmlFor="email" className="text-xs">
+							<div className="space-y-2">
+								<Label htmlFor="email" className="text-sm">
 									邮箱 <span className="text-muted-foreground">(选填)</span>
 								</Label>
 								<Input
@@ -331,14 +348,14 @@ function RegisterFormInner() {
 									placeholder="your@email.com"
 									disabled={loading}
 									autoComplete="email"
-									className="h-9 text-sm"
+									className="h-[58px] text-base"
 								/>
-								{emailError && <p className="text-[10px] text-destructive">{emailError}</p>}
+								{emailError && <p className="text-xs text-destructive">{emailError}</p>}
 							</div>
 
 							{/* Cap CAPTCHA */}
 							{capEnabled && (
-								<div className="flex justify-center py-1">
+								<div className="flex justify-center">
 									<CapWidget
 										apiEndpoint={CAP_API_ENDPOINT}
 										onSolve={setCapToken}
@@ -348,28 +365,32 @@ function RegisterFormInner() {
 							)}
 
 							{/* Submit */}
-							<Button type="submit" disabled={!canSubmit || loading} className="w-full h-9 text-sm">
+							<Button
+								type="submit"
+								disabled={!canSubmit || loading}
+								className="w-full h-[58px] text-base"
+							>
 								{loading ? "注册中..." : "创建账号"}
 							</Button>
 						</form>
 
 						{/* Divider */}
-						<div className="my-4 flex items-center gap-3">
+						<div className="my-5 flex items-center gap-3">
 							<div className="h-px flex-1 bg-border" />
-							<span className="text-[10px] text-muted-foreground">或</span>
+							<span className="text-xs text-muted-foreground">或</span>
 							<div className="h-px flex-1 bg-border" />
 						</div>
 
 						{/* Login link */}
 						<Link href="/login" className="block">
-							<Button variant="outline" className="w-full h-9 text-sm">
+							<Button variant="outline" className="w-full h-[58px] text-base">
 								已有账号，去登录
 							</Button>
 						</Link>
 					</div>
 
 					{/* Footer strip */}
-					<div className="flex items-center justify-center border-t border-border bg-secondary/50 py-2">
+					<div className="flex items-center justify-center border-t border-border bg-secondary/50 py-2.5">
 						<div className="flex items-center gap-1.5">
 							<div className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
 							<span className="text-[10px] text-muted-foreground">安全连接</span>
