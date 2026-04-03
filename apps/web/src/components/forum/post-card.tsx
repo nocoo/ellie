@@ -15,6 +15,7 @@ import { PostSidebar } from "@/components/forum/post-sidebar";
 import { ThreadModMenu } from "@/components/forum/thread-mod-menu";
 import { UserPopover } from "@/components/forum/user-popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ApiError } from "@/lib/api-client";
 import { getAvatarUrl } from "@/lib/avatar";
 import { getStaticImageUrl } from "@/lib/cdn";
@@ -78,18 +79,22 @@ export function PostCard({
 
 	// Edit dialog state
 	const [editDialogOpen, setEditDialogOpen] = useState(false);
-	const [_deleting, setDeleting] = useState(false);
+	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+	const [deleting, setDeleting] = useState(false);
+	const [deleteError, setDeleteError] = useState<string | null>(null);
 
 	const handleEdit = useCallback(() => {
 		setEditDialogOpen(true);
 	}, []);
 
-	const handleDelete = useCallback(async () => {
-		if (!confirm("确定要删除这条回复吗？此操作无法撤销。")) {
-			return;
-		}
+	const handleDeleteClick = useCallback(() => {
+		setDeleteError(null);
+		setDeleteDialogOpen(true);
+	}, []);
 
+	const handleDeleteConfirm = useCallback(async () => {
 		setDeleting(true);
+		setDeleteError(null);
 		try {
 			// Use user self-service API if own post, otherwise moderation API
 			if (isOwnPost) {
@@ -97,10 +102,10 @@ export function PostCard({
 			} else if (canModerate) {
 				await deletePost(post.id);
 			}
+			setDeleteDialogOpen(false);
 			router.refresh();
 		} catch (err) {
-			const message = err instanceof ApiError ? err.message : "删除失败";
-			alert(message);
+			setDeleteError(err instanceof ApiError ? err.message : "删除失败");
 		} finally {
 			setDeleting(false);
 		}
@@ -111,7 +116,7 @@ export function PostCard({
 			<PostActionBar
 				onReply={onReply}
 				onEdit={canEdit ? handleEdit : undefined}
-				onDelete={canDelete && !isFirst ? handleDelete : undefined}
+				onDelete={canDelete && !isFirst ? handleDeleteClick : undefined}
 				canEdit={canEdit}
 				canDelete={canDelete && !isFirst}
 			/>
@@ -220,6 +225,18 @@ export function PostCard({
 				currentContent={post.content}
 				isOwnPost={isOwnPost}
 				canModerate={canModerate}
+			/>
+
+			{/* Delete confirmation dialog */}
+			<ConfirmDialog
+				open={deleteDialogOpen}
+				onOpenChange={setDeleteDialogOpen}
+				title="删除回复"
+				description={deleteError ?? "确定要删除这条回复吗？此操作无法撤销。"}
+				confirmText="删除"
+				variant="destructive"
+				loading={deleting}
+				onConfirm={handleDeleteConfirm}
 			/>
 		</div>
 	);

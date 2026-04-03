@@ -3,6 +3,7 @@
 // components/forum/thread-mod-menu.tsx — Thread moderation action bar
 // Flat inline buttons positioned at the bottom of the first post
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ApiError } from "@/lib/api-client";
 import {
 	type HighlightOptions,
@@ -100,6 +101,7 @@ export function ThreadModMenu({
 	const [highlightDialogOpen, setHighlightDialogOpen] = useState(false);
 	const [digestDialogOpen, setDigestDialogOpen] = useState(false);
 	const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
 	const handleToggleClose = useCallback(async () => {
 		setLoading(true);
@@ -182,15 +184,17 @@ export function ThreadModMenu({
 		[threadId, router],
 	);
 
-	const handleDelete = useCallback(async () => {
-		if (!confirm("确定要删除这个主题吗？此操作无法撤销，所有回复将被一同删除。")) {
-			return;
-		}
+	const handleDeleteClick = useCallback(() => {
+		setError(null);
+		setDeleteDialogOpen(true);
+	}, []);
 
+	const handleDeleteConfirm = useCallback(async () => {
 		setLoading(true);
 		setError(null);
 		try {
 			await deleteThread(threadId);
+			setDeleteDialogOpen(false);
 			// Navigate back to forum after deletion
 			router.push(`/forums/${forumId}`);
 		} catch (err) {
@@ -248,7 +252,7 @@ export function ThreadModMenu({
 					<ActionBtn
 						icon={Trash2}
 						label="删除"
-						onClick={handleDelete}
+						onClick={handleDeleteClick}
 						disabled={loading}
 						variant="destructive"
 					/>
@@ -285,6 +289,16 @@ export function ThreadModMenu({
 				currentForumId={forumId}
 				onConfirm={handleMove}
 				loading={loading}
+			/>
+			<ConfirmDialog
+				open={deleteDialogOpen}
+				onOpenChange={setDeleteDialogOpen}
+				title="删除主题"
+				description={error ?? "确定要删除这个主题吗？此操作无法撤销，所有回复将被一同删除。"}
+				confirmText="删除"
+				variant="destructive"
+				loading={loading}
+				onConfirm={handleDeleteConfirm}
 			/>
 		</>
 	);
