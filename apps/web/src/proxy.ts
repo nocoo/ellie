@@ -169,7 +169,9 @@ async function getRequireLogin(): Promise<boolean> {
 		});
 		if (!res.ok) return false;
 		const data = await res.json();
-		requireLoginCache = data.data?.["features.access.require_login"] === "true";
+		// API returns typed values: boolean true, not string "true"
+		const value = data.data?.["features.access.require_login"];
+		requireLoginCache = value === true || value === "true";
 		requireLoginCacheExpiry = Date.now() + CACHE_TTL;
 		return requireLoginCache;
 	} catch {
