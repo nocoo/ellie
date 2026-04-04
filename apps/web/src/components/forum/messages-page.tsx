@@ -3,6 +3,7 @@
 
 "use client";
 
+import { ComposeMessageDialog } from "@/components/forum/compose-message-dialog";
 import { UserAvatar } from "@/components/forum/user-avatar";
 import { type BreadcrumbItem, Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,7 @@ import {
 	fetchMessages,
 	fetchUnreadCount,
 } from "@/viewmodels/forum/messages";
-import { Mail, MoreHorizontal, Send, Trash2 } from "lucide-react";
+import { Mail, Send, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -299,7 +300,11 @@ function MessageList({
 // Main export: MessagesPageClient
 // ---------------------------------------------------------------------------
 
-export function MessagesPageClient({ breadcrumbs, initialBox = "inbox", initialTo }: MessagesPageClientProps) {
+export function MessagesPageClient({
+	breadcrumbs,
+	initialBox = "inbox",
+	initialTo,
+}: MessagesPageClientProps) {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 
@@ -310,6 +315,12 @@ export function MessagesPageClient({ breadcrumbs, initialBox = "inbox", initialT
 	const [unreadCount, setUnreadCount] = useState(0);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+
+	// Compose dialog state
+	const [isComposeOpen, setIsComposeOpen] = useState(false);
+	const [composeRecipient, setComposeRecipient] = useState<
+		{ id: number; username: string } | undefined
+	>(undefined);
 
 	// Fetch messages
 	const loadMessages = useCallback(
@@ -372,15 +383,31 @@ export function MessagesPageClient({ breadcrumbs, initialBox = "inbox", initialT
 	};
 
 	// Handle compose
-	const handleCompose = () => {
-		// Open compose dialog - for now, redirect to compose with query param
-		const toParam = searchParams.get("to");
-		if (toParam) {
-			// TODO: Open compose dialog with pre-filled recipient
+	const handleCompose = useCallback(() => {
+		// Reset recipient before opening
+		setComposeRecipient(undefined);
+		setIsComposeOpen(true);
+	}, []);
+
+	// Handle message sent success
+	const handleMessageSent = useCallback(() => {
+		// Refresh message list if in outbox
+		if (activeBox === "outbox") {
+			loadMessages("outbox");
 		}
-		// For now, just alert - compose dialog will be implemented in Step 12
-		alert("写站内信功能即将上线");
-	};
+	}, [activeBox, loadMessages]);
+
+	// Auto-open compose dialog with ?to=N parameter
+	useEffect(() => {
+		if (initialTo) {
+			// We have a recipient ID but not the username, so just open the dialog
+			// The dialog will need to be populated - for now just open it
+			setComposeRecipient({ id: initialTo, username: "" });
+			setIsComposeOpen(true);
+			// Clear the URL parameter
+			router.replace("/messages", { scroll: false });
+		}
+	}, [initialTo, router]);
 
 	// Handle delete
 	const handleDelete = async (id: number) => {
@@ -452,6 +479,14 @@ export function MessagesPageClient({ breadcrumbs, initialBox = "inbox", initialT
 					/>
 				</div>
 			</div>
+
+			{/* Compose message dialog */}
+			<ComposeMessageDialog
+				open={isComposeOpen}
+				onOpenChange={setIsComposeOpen}
+				initialRecipient={composeRecipient}
+				onSuccess={handleMessageSent}
+			/>
 		</div>
 	);
 }
