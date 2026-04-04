@@ -34,7 +34,7 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 	const user = vm.user;
 
 	return (
-		<div className="bg-dz-topbar-bg">
+		<div>
 			<div className="width-container flex items-center justify-between !py-0 h-[90px]">
 				{/* Left: Logo */}
 				<Link href="/" className="flex-shrink-0">
@@ -159,7 +159,7 @@ function SearchStatsBar({ vm }: { vm: HeaderViewModel }) {
 	const s = vm.stats;
 
 	return (
-		<div className="bg-dz-topbar-bg">
+		<div>
 			<div className="width-container flex items-center justify-between !py-2 h-[44px]">
 				{/* Left: Modern search input with / shortcut */}
 				<div className="relative w-[320px]">
