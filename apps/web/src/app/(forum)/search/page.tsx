@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { SearchType } from "@/viewmodels/forum/search";
 import { type SearchData, loadSearchResults } from "@/viewmodels/forum/search.server";
-import { formatStat, formatTime } from "@/viewmodels/forum/thread-list";
+import { formatCompactNumber, formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { getThreadBadges } from "@ellie/types";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -128,11 +128,11 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 											<div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground shrink-0">
 												<span>{thread.authorName}</span>
 												<span>·</span>
-												<span>{formatTime(thread.lastPostAt ?? thread.createdAt)}</span>
+												<span>{formatRelativeTime(thread.lastPostAt ?? thread.createdAt)}</span>
 											</div>
 											<div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0 tabular-nums">
-												<span>{formatStat(thread.views)} 览</span>
-												<span>{formatStat(thread.replies)} 回</span>
+												<span>{formatCompactNumber(thread.views)} 览</span>
+												<span>{formatCompactNumber(thread.replies)} 回</span>
 											</div>
 										</div>
 									);

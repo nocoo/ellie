@@ -5,11 +5,10 @@
 
 import {
 	type ThreadDisplayItem,
-	formatStat,
-	formatTime,
 	getThreadIconSrc,
 	highlightStyle,
 } from "@/viewmodels/forum/thread-list";
+import { formatCompactNumber, formatRelativeTime } from "@/viewmodels/shared/formatting";
 import Link from "next/link";
 import { ThreadBadgeList } from "./thread-badge";
 import { UserPopover } from "./user-popover";
@@ -47,13 +46,13 @@ export function ThreadItem({ item }: ThreadItemProps) {
 						{thread.authorName}
 					</span>
 				</UserPopover>
-				<span className="text-2xs text-muted-foreground">{formatTime(thread.createdAt)}</span>
+				<span className="text-2xs text-muted-foreground">{formatRelativeTime(thread.createdAt)}</span>
 			</div>
 
 			{/* Column 3: Replies / Views (fixed) - replies primary, views secondary */}
 			<div className="hidden sm:flex flex-col items-center justify-center w-[80px] shrink-0 py-2 text-center tabular-nums">
-				<span className="text-2xs text-foreground font-medium">{formatStat(thread.replies)}</span>
-				<span className="text-2xs text-muted-foreground">{formatStat(thread.views)}</span>
+				<span className="text-2xs text-foreground font-medium">{formatCompactNumber(thread.replies)}</span>
+				<span className="text-2xs text-muted-foreground">{formatCompactNumber(thread.views)}</span>
 			</div>
 
 			{/* Column 4: Last Post (fixed) - author primary, time secondary */}
@@ -70,7 +69,7 @@ export function ThreadItem({ item }: ThreadItemProps) {
 					</span>
 				)}
 				<span className="text-2xs text-muted-foreground">
-					{thread.lastPostAt ? formatTime(thread.lastPostAt) : "-"}
+					{thread.lastPostAt ? formatRelativeTime(thread.lastPostAt) : "-"}
 				</span>
 			</div>
 		</div>

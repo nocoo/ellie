@@ -10,7 +10,7 @@ import {
 	type ThreadDetailPageData,
 	loadThreadDetail,
 } from "@/viewmodels/forum/thread-detail.server";
-import { formatTime } from "@/viewmodels/forum/thread-list";
+import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { getThreadTitle } from "@/viewmodels/forum/title.server";
 import { parseIntParam } from "@/viewmodels/shared/params";
 import { getThreadBadges } from "@ellie/types";
@@ -127,7 +127,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 							{thread.authorName}
 						</Link>
 						<span>·</span>
-						<span>{formatTime(thread.createdAt)}</span>
+						<span>{formatRelativeTime(thread.createdAt)}</span>
 					</div>
 				</CardContent>
 			</Card>

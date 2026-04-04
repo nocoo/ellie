@@ -1,7 +1,7 @@
 // components/forum/user-threads-tab.tsx — Threads tab for user profile page
 
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
-import { formatTime } from "@/viewmodels/forum/thread-list";
+import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import type { UserProfileData } from "@/viewmodels/forum/user-profile.server";
 import { getThreadBadges } from "@ellie/types";
 import Link from "next/link";
@@ -29,7 +29,7 @@ export function UserThreadsTab({
 							{thread.subject}
 						</Link>
 						<span className="text-xs text-muted-foreground shrink-0">
-							{formatTime(thread.lastPostAt ?? thread.createdAt)}
+							{formatRelativeTime(thread.lastPostAt ?? thread.createdAt)}
 						</span>
 					</div>
 				);
