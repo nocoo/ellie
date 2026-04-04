@@ -71,6 +71,13 @@ export async function getCurrentForumUser(): Promise<{
 	};
 }
 
+/** Get current session provider, or null if not logged in */
+export async function getSessionProvider(): Promise<string | null> {
+	const token = await getSessionToken();
+	if (!token) return null;
+	return (token.provider as string) ?? null;
+}
+
 /**
  * Call authenticated Worker API with TOKEN_EXPIRED one-shot retry.
  *
