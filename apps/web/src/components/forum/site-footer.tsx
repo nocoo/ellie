@@ -1,6 +1,6 @@
 // components/forum/site-footer.tsx — Breathable site footer with background art
 // Layout: top padding for "breathing space" → content row → background image
-// Background image swaps between light/dark mode via CSS class visibility.
+// Background image swaps via CSS variable controlled by .dark class.
 
 import { ForumLogo } from "@/components/forum/forum-logo";
 import type { GlobalFooterViewModel } from "@/viewmodels/forum/footer";
@@ -93,13 +93,22 @@ export function SiteFooter({ vm }: SiteFooterProps) {
 			</div>
 
 			{/* ── Background image — 125% content width and centered ── */}
-			{/* Uses <picture> with prefers-color-scheme to download only the needed image */}
+			{/* Uses CSS background-image with .dark class to sync with site theme toggle */}
+			{/* Browser only downloads the image for the current theme */}
 			<div className="width-container relative -mt-16 -top-[250px] mb-[-250px]">
 				<div className="mx-[-12.5%]">
-					<picture>
-						<source srcSet={BG_DARK} media="(prefers-color-scheme: dark)" />
-						<img src={BG_LIGHT} alt="" aria-hidden="true" className="w-full" />
-					</picture>
+					<div
+						role="img"
+						aria-hidden="true"
+						className="w-full aspect-[1920/600] bg-cover bg-center bg-no-repeat"
+						style={
+							{
+								"--bg-light": `url(${BG_LIGHT})`,
+								"--bg-dark": `url(${BG_DARK})`,
+								backgroundImage: "var(--bg-light)",
+							} as React.CSSProperties
+						}
+					/>
 				</div>
 			</div>
 		</footer>
