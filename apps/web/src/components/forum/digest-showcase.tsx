@@ -15,8 +15,23 @@ interface DigestShowcaseProps {
 }
 
 export function DigestShowcase({ threads, total }: DigestShowcaseProps) {
+	// Empty state: show a friendly message instead of disappearing
 	if (threads.length === 0) {
-		return null;
+		return (
+			<Card size="sm">
+				<CardHeader className="flex flex-row items-center justify-between">
+					<div className="flex items-center gap-2">
+						<Award className="h-5 w-5 text-muted-foreground" />
+						<CardTitle className="text-base">精华推荐</CardTitle>
+					</div>
+				</CardHeader>
+				<CardContent>
+					<p className="text-sm text-muted-foreground py-4 text-center">
+						暂无精华帖子，优质内容将在这里展示
+					</p>
+				</CardContent>
+			</Card>
+		);
 	}
 
 	return (
