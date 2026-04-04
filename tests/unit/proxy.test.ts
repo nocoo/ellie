@@ -3,9 +3,15 @@ import {
 	buildRedirectUrl,
 	isAdminRoute,
 	isForumAuthRoute,
+	isMessagesRoute,
 	isPublicRoute,
 	resolveProxyAction,
 } from "../../apps/web/src/proxy";
+
+/** Helper to create a URL object for testing resolveProxyAction */
+function makeUrl(pathname: string, search = ""): URL {
+	return new URL(`${pathname}${search}`, "https://example.com");
+}
 
 // ---------------------------------------------------------------------------
 // isPublicRoute
@@ -97,6 +103,32 @@ describe("isForumAuthRoute", () => {
 });
 
 // ---------------------------------------------------------------------------
+// isMessagesRoute
+// ---------------------------------------------------------------------------
+
+describe("isMessagesRoute", () => {
+	it("returns true for /messages", () => {
+		expect(isMessagesRoute("/messages")).toBe(true);
+	});
+
+	it("returns true for /messages/123", () => {
+		expect(isMessagesRoute("/messages/123")).toBe(true);
+	});
+
+	it("returns false for /", () => {
+		expect(isMessagesRoute("/")).toBe(false);
+	});
+
+	it("returns false for /admin", () => {
+		expect(isMessagesRoute("/admin")).toBe(false);
+	});
+
+	it("returns false for /threads/new", () => {
+		expect(isMessagesRoute("/threads/new")).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
 // isAdminRoute
 // ---------------------------------------------------------------------------
 
@@ -152,18 +184,18 @@ describe("resolveProxyAction", () => {
 	// -----------------------------------------------------------------------
 
 	it("allows public routes for unauthenticated users", () => {
-		expect(resolveProxyAction("/login", false)).toBe("next");
-		expect(resolveProxyAction("/admin/login", false)).toBe("next");
-		expect(resolveProxyAction("/api/auth/signin", false)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/login"), false)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/admin/login"), false)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/api/auth/signin"), false)).toBe("next");
 	});
 
 	it("allows public routes for authenticated non-admin users", () => {
-		expect(resolveProxyAction("/api/auth/session", true, NON_ADMIN_EMAIL)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/api/auth/session"), true, NON_ADMIN_EMAIL)).toBe("next");
 	});
 
 	it("allows public API auth routes for authenticated admin", () => {
 		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
-		expect(resolveProxyAction("/api/auth/session", true, ADMIN_EMAIL)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/api/auth/session"), true, ADMIN_EMAIL)).toBe("next");
 	});
 
 	// -----------------------------------------------------------------------
@@ -172,18 +204,18 @@ describe("resolveProxyAction", () => {
 
 	it("redirects authenticated admin on /admin/login to /admin", () => {
 		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
-		expect(resolveProxyAction("/admin/login", true, ADMIN_EMAIL)).toBe("redirect:/admin");
+		expect(resolveProxyAction(makeUrl("/admin/login"), true, ADMIN_EMAIL)).toBe("redirect:/admin");
 	});
 
 	it("does NOT redirect authenticated non-admin on /admin/login", () => {
 		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
-		expect(resolveProxyAction("/admin/login", true, NON_ADMIN_EMAIL)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/admin/login"), true, NON_ADMIN_EMAIL)).toBe("next");
 	});
 
 	it("does NOT redirect authenticated user without email on /admin/login", () => {
 		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
-		expect(resolveProxyAction("/admin/login", true, null)).toBe("next");
-		expect(resolveProxyAction("/admin/login", true, undefined)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/admin/login"), true, null)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/admin/login"), true, undefined)).toBe("next");
 	});
 
 	// -----------------------------------------------------------------------
@@ -191,25 +223,27 @@ describe("resolveProxyAction", () => {
 	// -----------------------------------------------------------------------
 
 	it("redirects unauthenticated user on admin route to /admin/login", () => {
-		expect(resolveProxyAction("/admin", false)).toBe("redirect:/admin/login");
-		expect(resolveProxyAction("/admin/users", false)).toBe("redirect:/admin/login");
+		expect(resolveProxyAction(makeUrl("/admin"), false)).toBe("redirect:/admin/login");
+		expect(resolveProxyAction(makeUrl("/admin/users"), false)).toBe("redirect:/admin/login");
 	});
 
 	it("redirects authenticated non-admin on admin route to /admin/login", () => {
 		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
-		expect(resolveProxyAction("/admin", true, NON_ADMIN_EMAIL)).toBe("redirect:/admin/login");
-		expect(resolveProxyAction("/admin/users", true, NON_ADMIN_EMAIL)).toBe("redirect:/admin/login");
+		expect(resolveProxyAction(makeUrl("/admin"), true, NON_ADMIN_EMAIL)).toBe("redirect:/admin/login");
+		expect(resolveProxyAction(makeUrl("/admin/users"), true, NON_ADMIN_EMAIL)).toBe(
+			"redirect:/admin/login",
+		);
 	});
 
 	it("redirects authenticated user without email on admin route to /admin/login", () => {
 		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
-		expect(resolveProxyAction("/admin", true, null)).toBe("redirect:/admin/login");
+		expect(resolveProxyAction(makeUrl("/admin"), true, null)).toBe("redirect:/admin/login");
 	});
 
 	it("allows authenticated admin on admin route", () => {
 		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
-		expect(resolveProxyAction("/admin", true, ADMIN_EMAIL)).toBe("next");
-		expect(resolveProxyAction("/admin/users", true, ADMIN_EMAIL)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/admin"), true, ADMIN_EMAIL)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/admin/users"), true, ADMIN_EMAIL)).toBe("next");
 	});
 
 	// -----------------------------------------------------------------------
@@ -217,18 +251,18 @@ describe("resolveProxyAction", () => {
 	// -----------------------------------------------------------------------
 
 	it("allows unauthenticated users on forum public routes", () => {
-		expect(resolveProxyAction("/", false)).toBe("next");
-		expect(resolveProxyAction("/forums/10", false)).toBe("next");
-		expect(resolveProxyAction("/threads/123", false)).toBe("next");
-		expect(resolveProxyAction("/users/42", false)).toBe("next");
-		expect(resolveProxyAction("/digest", false)).toBe("next");
-		expect(resolveProxyAction("/search", false)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/"), false)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/forums/10"), false)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/threads/123"), false)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/users/42"), false)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/digest"), false)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/search"), false)).toBe("next");
 	});
 
 	it("allows authenticated users on forum public routes", () => {
-		expect(resolveProxyAction("/", true, NON_ADMIN_EMAIL)).toBe("next");
-		expect(resolveProxyAction("/forums/10", true, NON_ADMIN_EMAIL)).toBe("next");
-		expect(resolveProxyAction("/threads/123", true, NON_ADMIN_EMAIL)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/"), true, NON_ADMIN_EMAIL)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/forums/10"), true, NON_ADMIN_EMAIL)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/threads/123"), true, NON_ADMIN_EMAIL)).toBe("next");
 	});
 
 	// -----------------------------------------------------------------------
@@ -236,28 +270,68 @@ describe("resolveProxyAction", () => {
 	// -----------------------------------------------------------------------
 
 	it("redirects unauthenticated user on /threads/new to /login", () => {
-		expect(resolveProxyAction("/threads/new", false)).toBe("redirect:/login");
+		expect(resolveProxyAction(makeUrl("/threads/new"), false)).toBe("redirect:/login");
 	});
 
 	it("allows authenticated credentials user on /threads/new", () => {
-		expect(resolveProxyAction("/threads/new", true, NON_ADMIN_EMAIL, "credentials")).toBe("next");
+		expect(resolveProxyAction(makeUrl("/threads/new"), true, NON_ADMIN_EMAIL, "credentials")).toBe(
+			"next",
+		);
 	});
 
 	it("redirects Google OAuth user on /threads/new to /login (no Worker JWT)", () => {
-		expect(resolveProxyAction("/threads/new", true, ADMIN_EMAIL, "google")).toBe("redirect:/login");
+		expect(resolveProxyAction(makeUrl("/threads/new"), true, ADMIN_EMAIL, "google")).toBe(
+			"redirect:/login",
+		);
 	});
 
 	it("redirects user without provider on /threads/new to /login", () => {
-		expect(resolveProxyAction("/threads/new", true, NON_ADMIN_EMAIL)).toBe("redirect:/login");
-		expect(resolveProxyAction("/threads/new", true, NON_ADMIN_EMAIL, null)).toBe("redirect:/login");
-		expect(resolveProxyAction("/threads/new", true, NON_ADMIN_EMAIL, undefined)).toBe(
+		expect(resolveProxyAction(makeUrl("/threads/new"), true, NON_ADMIN_EMAIL)).toBe("redirect:/login");
+		expect(resolveProxyAction(makeUrl("/threads/new"), true, NON_ADMIN_EMAIL, null)).toBe(
+			"redirect:/login",
+		);
+		expect(resolveProxyAction(makeUrl("/threads/new"), true, NON_ADMIN_EMAIL, undefined)).toBe(
 			"redirect:/login",
 		);
 	});
 
 	it("allows authenticated credentials admin on /threads/new", () => {
 		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
-		expect(resolveProxyAction("/threads/new", true, ADMIN_EMAIL, "credentials")).toBe("next");
+		expect(resolveProxyAction(makeUrl("/threads/new"), true, ADMIN_EMAIL, "credentials")).toBe("next");
+	});
+
+	// -----------------------------------------------------------------------
+	// Messages routes (special handling)
+	// -----------------------------------------------------------------------
+
+	it("redirects unauthenticated user on /messages to /login with redirect param", () => {
+		const result = resolveProxyAction(makeUrl("/messages"), false);
+		expect(result).toBe("redirect:/login?redirect=%2Fmessages");
+	});
+
+	it("redirects unauthenticated user on /messages with query to /login preserving query", () => {
+		const result = resolveProxyAction(makeUrl("/messages", "?to=123"), false);
+		expect(result).toBe("redirect:/login?redirect=%2Fmessages%3Fto%3D123");
+	});
+
+	it("allows Google OAuth user on /messages (layout shows notice)", () => {
+		expect(resolveProxyAction(makeUrl("/messages"), true, NON_ADMIN_EMAIL, "google")).toBe("next");
+	});
+
+	it("allows credentials user on /messages", () => {
+		expect(resolveProxyAction(makeUrl("/messages"), true, NON_ADMIN_EMAIL, "credentials")).toBe(
+			"next",
+		);
+	});
+
+	it("allows Google OAuth user on /messages/123 (layout shows notice)", () => {
+		expect(resolveProxyAction(makeUrl("/messages/123"), true, NON_ADMIN_EMAIL, "google")).toBe("next");
+	});
+
+	it("allows credentials user on /messages/123", () => {
+		expect(resolveProxyAction(makeUrl("/messages/123"), true, NON_ADMIN_EMAIL, "credentials")).toBe(
+			"next",
+		);
 	});
 
 	// -----------------------------------------------------------------------
@@ -265,40 +339,44 @@ describe("resolveProxyAction", () => {
 	// -----------------------------------------------------------------------
 
 	it("redirects credentials user on /login to /", () => {
-		expect(resolveProxyAction("/login", true, NON_ADMIN_EMAIL, "credentials")).toBe("redirect:/");
+		expect(resolveProxyAction(makeUrl("/login"), true, NON_ADMIN_EMAIL, "credentials")).toBe(
+			"redirect:/",
+		);
 	});
 
 	it("redirects credentials user on /register to /", () => {
-		expect(resolveProxyAction("/register", true, NON_ADMIN_EMAIL, "credentials")).toBe(
+		expect(resolveProxyAction(makeUrl("/register"), true, NON_ADMIN_EMAIL, "credentials")).toBe(
 			"redirect:/",
 		);
 	});
 
 	it("allows Google OAuth user on /login (needs forum account)", () => {
-		expect(resolveProxyAction("/login", true, NON_ADMIN_EMAIL, "google")).toBe("next");
+		expect(resolveProxyAction(makeUrl("/login"), true, NON_ADMIN_EMAIL, "google")).toBe("next");
 	});
 
 	it("allows Google OAuth user on /register (needs forum account)", () => {
-		expect(resolveProxyAction("/register", true, NON_ADMIN_EMAIL, "google")).toBe("next");
+		expect(resolveProxyAction(makeUrl("/register"), true, NON_ADMIN_EMAIL, "google")).toBe("next");
 	});
 
 	it("allows unauthenticated user on /login", () => {
-		expect(resolveProxyAction("/login", false)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/login"), false)).toBe("next");
 	});
 
 	it("allows unauthenticated user on /register", () => {
-		expect(resolveProxyAction("/register", false)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/register"), false)).toBe("next");
 	});
 
 	it("does not redirect credentials user on other public routes like /forums", () => {
-		expect(resolveProxyAction("/forums", true, NON_ADMIN_EMAIL, "credentials")).toBe("next");
-		expect(resolveProxyAction("/", true, NON_ADMIN_EMAIL, "credentials")).toBe("next");
-		expect(resolveProxyAction("/threads/123", true, NON_ADMIN_EMAIL, "credentials")).toBe("next");
+		expect(resolveProxyAction(makeUrl("/forums"), true, NON_ADMIN_EMAIL, "credentials")).toBe("next");
+		expect(resolveProxyAction(makeUrl("/"), true, NON_ADMIN_EMAIL, "credentials")).toBe("next");
+		expect(resolveProxyAction(makeUrl("/threads/123"), true, NON_ADMIN_EMAIL, "credentials")).toBe(
+			"next",
+		);
 	});
 
 	it("admin redirect on /admin/login still works", () => {
 		process.env.ADMIN_EMAILS = ADMIN_EMAIL;
-		expect(resolveProxyAction("/admin/login", true, ADMIN_EMAIL)).toBe("redirect:/admin");
+		expect(resolveProxyAction(makeUrl("/admin/login"), true, ADMIN_EMAIL)).toBe("redirect:/admin");
 	});
 
 	// -----------------------------------------------------------------------
@@ -306,34 +384,36 @@ describe("resolveProxyAction", () => {
 	// -----------------------------------------------------------------------
 
 	it("allows unauthenticated user on public routes when requireLogin is false", () => {
-		expect(resolveProxyAction("/", false, null, null, false)).toBe("next");
-		expect(resolveProxyAction("/forums/10", false, null, null, false)).toBe("next");
-		expect(resolveProxyAction("/threads/123", false, null, null, false)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/"), false, null, null, false)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/forums/10"), false, null, null, false)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/threads/123"), false, null, null, false)).toBe("next");
 	});
 
 	it("redirects unauthenticated user on public routes when requireLogin is true", () => {
-		expect(resolveProxyAction("/", false, null, null, true)).toBe("redirect:/login");
-		expect(resolveProxyAction("/forums/10", false, null, null, true)).toBe("redirect:/login");
-		expect(resolveProxyAction("/threads/123", false, null, null, true)).toBe("redirect:/login");
-		expect(resolveProxyAction("/digest", false, null, null, true)).toBe("redirect:/login");
-		expect(resolveProxyAction("/search", false, null, null, true)).toBe("redirect:/login");
+		expect(resolveProxyAction(makeUrl("/"), false, null, null, true)).toBe("redirect:/login");
+		expect(resolveProxyAction(makeUrl("/forums/10"), false, null, null, true)).toBe("redirect:/login");
+		expect(resolveProxyAction(makeUrl("/threads/123"), false, null, null, true)).toBe(
+			"redirect:/login",
+		);
+		expect(resolveProxyAction(makeUrl("/digest"), false, null, null, true)).toBe("redirect:/login");
+		expect(resolveProxyAction(makeUrl("/search"), false, null, null, true)).toBe("redirect:/login");
 	});
 
 	it("allows authenticated user on public routes when requireLogin is true", () => {
-		expect(resolveProxyAction("/", true, NON_ADMIN_EMAIL, "credentials", true)).toBe("next");
-		expect(resolveProxyAction("/forums/10", true, NON_ADMIN_EMAIL, "credentials", true)).toBe(
+		expect(resolveProxyAction(makeUrl("/"), true, NON_ADMIN_EMAIL, "credentials", true)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/forums/10"), true, NON_ADMIN_EMAIL, "credentials", true)).toBe(
 			"next",
 		);
-		expect(resolveProxyAction("/threads/123", true, NON_ADMIN_EMAIL, "credentials", true)).toBe(
-			"next",
-		);
+		expect(
+			resolveProxyAction(makeUrl("/threads/123"), true, NON_ADMIN_EMAIL, "credentials", true),
+		).toBe("next");
 	});
 
 	it("always allows login pages even when requireLogin is true", () => {
-		expect(resolveProxyAction("/login", false, null, null, true)).toBe("next");
-		expect(resolveProxyAction("/register", false, null, null, true)).toBe("next");
-		expect(resolveProxyAction("/admin/login", false, null, null, true)).toBe("next");
-		expect(resolveProxyAction("/api/auth/signin", false, null, null, true)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/login"), false, null, null, true)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/register"), false, null, null, true)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/admin/login"), false, null, null, true)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/api/auth/signin"), false, null, null, true)).toBe("next");
 	});
 
 	// -----------------------------------------------------------------------
@@ -341,11 +421,11 @@ describe("resolveProxyAction", () => {
 	// -----------------------------------------------------------------------
 
 	it("redirects unauthenticated user on unknown non-public route to /login", () => {
-		expect(resolveProxyAction("/some-unknown-route", false)).toBe("redirect:/login");
+		expect(resolveProxyAction(makeUrl("/some-unknown-route"), false)).toBe("redirect:/login");
 	});
 
 	it("allows authenticated user on unknown non-public route", () => {
-		expect(resolveProxyAction("/some-unknown-route", true, NON_ADMIN_EMAIL)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/some-unknown-route"), true, NON_ADMIN_EMAIL)).toBe("next");
 	});
 
 	// -----------------------------------------------------------------------
@@ -353,11 +433,11 @@ describe("resolveProxyAction", () => {
 	// -----------------------------------------------------------------------
 
 	it("does not redirect logged-in user with no provider on /login", () => {
-		expect(resolveProxyAction("/login", true, NON_ADMIN_EMAIL, undefined)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/login"), true, NON_ADMIN_EMAIL, undefined)).toBe("next");
 	});
 
 	it("does not redirect logged-in user with no provider on /register", () => {
-		expect(resolveProxyAction("/register", true, NON_ADMIN_EMAIL, undefined)).toBe("next");
+		expect(resolveProxyAction(makeUrl("/register"), true, NON_ADMIN_EMAIL, undefined)).toBe("next");
 	});
 });
 
