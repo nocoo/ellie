@@ -1,7 +1,8 @@
 "use client";
 
-// Reply dialog with glass-morphism styling
+// Reply dialog with glass-morphism styling (View layer)
 // Opens as a modal overlay, contains a simplified PostEditor for replies
+// MVVM: This is the View layer. State and logic are in useReplySubmit hook.
 
 import { PostEditor } from "@/components/forum/post-editor";
 import { Button } from "@/components/ui/button";
@@ -13,11 +14,10 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
-import { ApiError, apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { buildQuotedContent, useReplySubmit } from "@/viewmodels/forum/use-reply-submit";
 import { AlertCircle, MessageSquare, Send, XCircle } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useCallback, useRef, useState } from "react";
+import { useRef } from "react";
 
 interface ReplyDialogProps {
 	open: boolean;
@@ -29,13 +29,6 @@ interface ReplyDialogProps {
 	quotedAuthor?: string;
 }
 
-const ERROR_MESSAGES: Record<string, string> = {
-	UNAUTHORIZED: "请先登录后再回复",
-	THREAD_CLOSED: "该主题已关闭，无法回复",
-	CONTENT_BANNED: "内容包含违禁词，请修改后重试",
-	RATE_LIMITED: "操作过于频繁，请稍后再试",
-};
-
 export function ReplyDialog({
 	open,
 	onOpenChange,
@@ -44,53 +37,22 @@ export function ReplyDialog({
 	quotedContent,
 	quotedAuthor,
 }: ReplyDialogProps) {
-	const router = useRouter();
 	const { canReply } = useFeatureFlags();
-	const [submitting, setSubmitting] = useState(false);
-	const [error, setError] = useState<string | null>(null);
 	const editorRef = useRef<{ getHTML: () => string } | null>(null);
 
+	// Use ViewModel hook for reply submission
+	const { state, actions } = useReplySubmit({
+		threadId,
+		onSuccess: () => onOpenChange(false),
+	});
+
 	// Build initial content with quote if provided
-	const initialContent =
-		quotedContent && quotedAuthor
-			? `<blockquote><p><strong>${quotedAuthor}</strong> 说：</p>${quotedContent}</blockquote><p></p>`
-			: "";
-
-	const handleSubmit = useCallback(
-		async (html: string) => {
-			// Basic validation
-			const strippedContent = html.replace(/<[^>]*>/g, "").trim();
-			if (strippedContent.length < 2) {
-				setError("内容太短，请输入更多内容");
-				return;
-			}
-
-			setSubmitting(true);
-			setError(null);
-
-			try {
-				await apiClient.post("/api/v1/posts", {
-					threadId,
-					content: html,
-				});
-
-				onOpenChange(false);
-				router.refresh();
-			} catch (err) {
-				const code = err instanceof ApiError ? err.code : "UNKNOWN";
-				const message = ERROR_MESSAGES[code] ?? "回复失败，请稍后重试";
-				setError(message);
-			} finally {
-				setSubmitting(false);
-			}
-		},
-		[threadId, onOpenChange, router],
-	);
+	const initialContent = buildQuotedContent(quotedContent, quotedAuthor);
 
 	// Reset error when dialog closes
 	const handleOpenChange = (open: boolean) => {
 		if (!open) {
-			setError(null);
+			actions.clearError();
 		}
 		onOpenChange(open);
 	};
@@ -157,10 +119,10 @@ export function ReplyDialog({
 						</DialogHeader>
 
 						{/* Error display */}
-						{error && (
+						{state.error && (
 							<div className="mx-5 mt-4 flex items-start gap-3 rounded-lg bg-destructive/10 border border-destructive/30 p-3">
 								<AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-								<p className="text-sm text-destructive">{error}</p>
+								<p className="text-sm text-destructive">{state.error}</p>
 							</div>
 						)}
 
@@ -180,11 +142,11 @@ export function ReplyDialog({
 								<PostEditor
 									ref={editorRef}
 									initialContent={initialContent}
-									onSubmit={handleSubmit}
+									onSubmit={actions.handleSubmit}
 									placeholder="写下你的回复..."
 									maxLength={10000}
-									submitting={submitting}
-									canSubmit={!submitting}
+									submitting={state.submitting}
+									canSubmit={!state.submitting}
 									hideFooter
 								/>
 							</div>
@@ -198,20 +160,20 @@ export function ReplyDialog({
 									<Button
 										variant="ghost"
 										onClick={() => handleOpenChange(false)}
-										disabled={submitting}
+										disabled={state.submitting}
 									>
 										取消
 									</Button>
 									<Button
 										onClick={() => {
 											const html = editorRef.current?.getHTML() ?? "";
-											handleSubmit(html);
+											actions.handleSubmit(html);
 										}}
-										disabled={submitting}
+										disabled={state.submitting}
 										className="gap-2"
 									>
 										<Send className="h-4 w-4" />
-										{submitting ? "发送中..." : "发送回复"}
+										{state.submitting ? "发送中..." : "发送回复"}
 									</Button>
 								</div>
 							</div>
