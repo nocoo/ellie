@@ -10,6 +10,7 @@ import { getAvatarUrl } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
 import { ApiError, type Message, deleteMessage, fetchMessage } from "@/viewmodels/forum/messages";
 import { ArrowLeft, Loader2, Reply, Trash2 } from "lucide-react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -44,6 +45,10 @@ function formatMessageDate(timestamp: number): string {
 
 export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailClientProps) {
 	const router = useRouter();
+	const { data: session } = useSession();
+
+	// Get current user ID from session
+	const currentUserId = session?.user?.id ? Number.parseInt(session.user.id, 10) : null;
 
 	// State
 	const [message, setMessage] = useState<Message | null>(null);
@@ -99,10 +104,17 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 		}
 	};
 
-	// Handle reply
+	// Handle reply - reply to the other party in the conversation
 	const handleReply = () => {
 		if (!message) return;
-		setReplyRecipient({ id: message.senderId, username: message.senderName });
+
+		// If I'm the sender, reply to the receiver; otherwise reply to the sender
+		const isSender = currentUserId === message.senderId;
+		if (isSender) {
+			setReplyRecipient({ id: message.receiverId, username: message.receiverName });
+		} else {
+			setReplyRecipient({ id: message.senderId, username: message.senderName });
+		}
 		setIsReplyOpen(true);
 	};
 
