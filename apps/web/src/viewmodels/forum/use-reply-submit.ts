@@ -1,0 +1,184 @@
+// viewmodels/forum/use-reply-submit.ts — ViewModel for reply submission
+// MVVM Pattern: Encapsulates all reply submission state and logic.
+
+"use client";
+
+import { ApiError, apiClient } from "@/lib/api-client";
+import { getErrorMessage } from "@/lib/error-messages";
+import { useRouter } from "next/navigation";
+import { useCallback, useState } from "react";
+
+/**
+ * Reply submission state returned by useReplySubmit
+ */
+export interface ReplySubmitState {
+	/** Submission in progress */
+	submitting: boolean;
+	/** Error message (null if no error) */
+	error: string | null;
+}
+
+/**
+ * Reply submission callbacks returned by useReplySubmit
+ */
+export interface ReplySubmitCallbacks {
+	/** Submit the reply */
+	handleSubmit: (html: string) => Promise<void>;
+	/** Clear error state */
+	clearError: () => void;
+}
+
+/**
+ * Combined return type for useReplySubmit
+ */
+export interface UseReplySubmitReturn {
+	state: ReplySubmitState;
+	actions: ReplySubmitCallbacks;
+}
+
+/**
+ * Options for useReplySubmit hook
+ */
+export interface UseReplySubmitOptions {
+	/** Thread ID to reply to */
+	threadId: number;
+	/** Callback after successful submission (defaults to router.refresh) */
+	onSuccess?: () => void;
+	/** Minimum content length (default: 2) */
+	minContentLength?: number;
+}
+
+/**
+ * Validation result for reply content
+ */
+export interface ContentValidationResult {
+	valid: boolean;
+	error?: string;
+}
+
+/**
+ * Validate reply content before submission.
+ * Pure function for testability.
+ */
+export function validateReplyContent(
+	html: string,
+	minLength: number = 2,
+): ContentValidationResult {
+	const strippedContent = stripHtmlTags(html).trim();
+	if (strippedContent.length < minLength) {
+		return { valid: false, error: "内容太短，请输入更多内容" };
+	}
+	return { valid: true };
+}
+
+/**
+ * Strip HTML tags from content.
+ * Pure function for content length validation.
+ */
+export function stripHtmlTags(html: string): string {
+	return html.replace(/<[^>]*>/g, "");
+}
+
+/**
+ * Build quoted content HTML for reply.
+ * Pure function for generating quote blocks.
+ */
+export function buildQuotedContent(
+	quotedContent: string | undefined,
+	quotedAuthor: string | undefined,
+): string {
+	if (!quotedContent || !quotedAuthor) {
+		return "";
+	}
+	return `<blockquote><p><strong>${quotedAuthor}</strong> 说：</p>${quotedContent}</blockquote><p></p>`;
+}
+
+/**
+ * Submit a reply to the API.
+ * Extracted for testability and reuse.
+ */
+export async function submitReply(
+	threadId: number,
+	content: string,
+): Promise<void> {
+	await apiClient.post("/api/v1/posts", {
+		threadId,
+		content,
+	});
+}
+
+/**
+ * ViewModel hook for reply submission.
+ * Encapsulates validation, submission state, error handling, and API calls.
+ *
+ * @example
+ * ```tsx
+ * const { state, actions } = useReplySubmit({
+ *   threadId: 123,
+ *   onSuccess: () => onOpenChange(false),
+ * });
+ *
+ * return (
+ *   <>
+ *     {state.error && <ErrorMessage>{state.error}</ErrorMessage>}
+ *     <PostEditor onSubmit={actions.handleSubmit} submitting={state.submitting} />
+ *   </>
+ * );
+ * ```
+ */
+export function useReplySubmit({
+	threadId,
+	onSuccess,
+	minContentLength = 2,
+}: UseReplySubmitOptions): UseReplySubmitReturn {
+	const router = useRouter();
+
+	// Submission state
+	const [submitting, setSubmitting] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+
+	const clearError = useCallback(() => {
+		setError(null);
+	}, []);
+
+	const handleSubmit = useCallback(
+		async (html: string) => {
+			// Validate content
+			const validation = validateReplyContent(html, minContentLength);
+			if (!validation.valid) {
+				setError(validation.error ?? "内容验证失败");
+				return;
+			}
+
+			setSubmitting(true);
+			setError(null);
+
+			try {
+				await submitReply(threadId, html);
+
+				if (onSuccess) {
+					onSuccess();
+				}
+				router.refresh();
+			} catch (err) {
+				const code = err instanceof ApiError ? err.code : undefined;
+				const message = getErrorMessage(code, "reply");
+				setError(message);
+			} finally {
+				setSubmitting(false);
+			}
+		},
+		[threadId, minContentLength, onSuccess, router],
+	);
+
+	return {
+		state: {
+			submitting,
+			error,
+		},
+		actions: {
+			handleSubmit,
+			clearError,
+		},
+	};
+}
