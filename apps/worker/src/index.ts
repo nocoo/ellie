@@ -170,6 +170,9 @@ export default {
 			if (path === "/api/v1/messages/unread-count" && request.method === "GET") {
 				return await (await import("./handlers/message")).unreadCount(request, env);
 			}
+			if (path === "/api/v1/messages/mark-all-read" && request.method === "POST") {
+				return await (await import("./handlers/message")).markAllRead(request, env);
+			}
 			if (path.match(/^\/api\/v1\/messages\/\d+$/) && request.method === "GET") {
 				return await (await import("./handlers/message")).getById(request, env);
 			}

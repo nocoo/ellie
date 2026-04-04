@@ -16,8 +16,9 @@ import {
 	deleteMessage,
 	fetchMessages,
 	fetchUnreadCount,
+	markAllMessagesRead,
 } from "@/viewmodels/forum/messages";
-import { Mail, Send, Trash2 } from "lucide-react";
+import { CheckCheck, Mail, PenLine, Send, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -94,17 +95,69 @@ function MessagesSidebar({
 }
 
 // ---------------------------------------------------------------------------
-// Header with box tabs and compose button
+// Header section with title, compose button, and mark all read
+// ---------------------------------------------------------------------------
+
+function MessagesHeaderSection({
+	activeBox,
+	unreadCount,
+	onCompose,
+	onMarkAllRead,
+	isMarkingAllRead,
+}: {
+	activeBox: "inbox" | "outbox";
+	unreadCount: number;
+	onCompose: () => void;
+	onMarkAllRead: () => void;
+	isMarkingAllRead: boolean;
+}) {
+	const title = activeBox === "inbox" ? "收信箱" : "发信箱";
+
+	return (
+		<div className="rounded-sm border border-border bg-card p-4">
+			<div className="flex items-center justify-between gap-4">
+				<h1 className="text-lg font-semibold text-foreground">{title}</h1>
+				<div className="flex items-center gap-2">
+					{activeBox === "inbox" && unreadCount > 0 && (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={onMarkAllRead}
+							disabled={isMarkingAllRead}
+							className="gap-2"
+						>
+							<CheckCheck className="h-4 w-4" />
+							{isMarkingAllRead ? "处理中..." : "全部已读"}
+						</Button>
+					)}
+					<Button
+						onClick={onCompose}
+						className="shrink-0 gap-2 bg-primary hover:bg-primary/90"
+					>
+						<PenLine className="h-4 w-4" />
+						写站内信
+					</Button>
+				</div>
+			</div>
+			{activeBox === "inbox" && unreadCount > 0 && (
+				<div className="mt-3 pt-3 border-t border-border/50 text-sm text-muted-foreground">
+					您有 <span className="font-bold text-primary">{unreadCount}</span> 条未读站内信
+				</div>
+			)}
+		</div>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Header with box tabs (moved compose button to header section)
 // ---------------------------------------------------------------------------
 
 function MessagesHeader({
 	activeBox,
 	onBoxChange,
-	onCompose,
 }: {
 	activeBox: "inbox" | "outbox";
 	onBoxChange: (v: "inbox" | "outbox") => void;
-	onCompose: () => void;
 }) {
 	const tabs = [
 		{ value: "inbox" as const, label: "收信箱" },
@@ -112,7 +165,7 @@ function MessagesHeader({
 	];
 
 	return (
-		<div className="flex items-center justify-between border-b border-border pb-0">
+		<div className="flex items-center border-b border-border pb-0">
 			<div className="flex items-end">
 				{tabs.map((tab) => {
 					const isActive = tab.value === activeBox;
@@ -132,26 +185,7 @@ function MessagesHeader({
 						</button>
 					);
 				})}
-				<Button size="sm" className="ml-2 mb-1 px-4 text-sm" onClick={onCompose}>
-					写站内信
-				</Button>
 			</div>
-		</div>
-	);
-}
-
-// ---------------------------------------------------------------------------
-// Unread banner
-// ---------------------------------------------------------------------------
-
-function UnreadBanner({ count }: { count: number }) {
-	if (count === 0) return null;
-
-	return (
-		<div className="rounded-sm border border-dz-reminder-text/30 bg-dz-reminder-text/5 px-4 py-2.5 mt-3">
-			<span className="text-sm text-foreground">
-				💡 您有 <span className="font-bold text-primary">{count}</span> 条未读站内信
-			</span>
 		</div>
 	);
 }
@@ -315,6 +349,7 @@ export function MessagesPageClient({
 	const [unreadCount, setUnreadCount] = useState(0);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
 
 	// Compose dialog state
 	const [isComposeOpen, setIsComposeOpen] = useState(false);
@@ -432,6 +467,25 @@ export function MessagesPageClient({
 		}
 	};
 
+	// Handle mark all read
+	const handleMarkAllRead = async () => {
+		setIsMarkingAllRead(true);
+		try {
+			await markAllMessagesRead();
+			// Update local state to mark all messages as read
+			setMessages((prev) => prev.map((m) => ({ ...m, isRead: true })));
+			setUnreadCount(0);
+		} catch (err) {
+			if (err instanceof ApiError) {
+				alert(err.message);
+			} else {
+				alert("操作失败，请重试");
+			}
+		} finally {
+			setIsMarkingAllRead(false);
+		}
+	};
+
 	return (
 		<div className="space-y-2">
 			{/* Breadcrumbs */}
@@ -440,6 +494,15 @@ export function MessagesPageClient({
 					<Breadcrumbs items={breadcrumbs} />
 				</div>
 			)}
+
+			{/* Header section with title and compose button */}
+			<MessagesHeaderSection
+				activeBox={activeBox}
+				unreadCount={unreadCount}
+				onCompose={handleCompose}
+				onMarkAllRead={handleMarkAllRead}
+				isMarkingAllRead={isMarkingAllRead}
+			/>
 
 			{/* Two-column layout */}
 			<div className="flex gap-4">
@@ -454,10 +517,7 @@ export function MessagesPageClient({
 				{/* Right content area */}
 				<div className="flex-1 min-w-0">
 					{/* Header with tabs */}
-					<MessagesHeader activeBox={activeBox} onBoxChange={handleBoxChange} onCompose={handleCompose} />
-
-					{/* Unread banner (inbox only) */}
-					{activeBox === "inbox" && <UnreadBanner count={unreadCount} />}
+					<MessagesHeader activeBox={activeBox} onBoxChange={handleBoxChange} />
 
 					{/* Error message */}
 					{error && (
