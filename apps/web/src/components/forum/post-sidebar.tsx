@@ -31,7 +31,7 @@ export function PostSidebar({
 	viewerUserId = null,
 }: PostSidebarProps) {
 	return (
-		<div className="w-[200px] shrink-0 bg-forum-sidebar-bg border-r border-border p-4 flex flex-col items-center gap-1.5">
+		<div className="w-[160px] lg:w-[200px] shrink-0 bg-forum-sidebar-bg border-r border-border p-3 lg:p-4 flex flex-col items-center gap-1.5">
 			{/* Username — bold, link color */}
 			{author ? (
 				<UserPopover
@@ -56,20 +56,20 @@ export function PostSidebar({
 					viewerUserId={viewerUserId}
 					align="start"
 				>
-					<div className="mt-1 bg-card p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)] cursor-pointer">
+					<div className="mt-1 bg-card p-1 lg:p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)] cursor-pointer">
 						<UserAvatar
 							src={getAvatarUrl(author.id, "big")}
 							alt={author.username}
-							className="block w-[160px] h-auto"
+							className="block w-[120px] lg:w-[160px] h-auto"
 						/>
 					</div>
 				</UserPopover>
 			) : (
-				<div className="mt-1 bg-card p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)]">
+				<div className="mt-1 bg-card p-1 lg:p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)]">
 					<img
 						src={getStaticImageUrl("tavatar.gif")}
 						alt="默认头像"
-						className="block w-[160px] h-auto"
+						className="block w-[120px] lg:w-[160px] h-auto"
 					/>
 				</div>
 			)}
