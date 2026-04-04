@@ -253,7 +253,7 @@ export const create = withAuth(async (request, env, user) => {
 	}
 
 	const receiverId = typeof body.receiverId === "number" ? body.receiverId : undefined;
-	const subject = typeof body.subject === "string" ? body.subject.trim() : "";
+	let subject = typeof body.subject === "string" ? body.subject.trim() : "";
 	let content = typeof body.content === "string" ? body.content.trim() : "";
 
 	// Validation
@@ -310,6 +310,7 @@ export const create = withAuth(async (request, env, user) => {
 		if (subjectCheck.banned) {
 			return errorResponse("CONTENT_BANNED", 403, undefined, origin);
 		}
+		subject = subjectCheck.content;
 	}
 
 	const contentCheck = await applyCensorFilter(content, env);

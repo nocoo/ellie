@@ -19,7 +19,7 @@ import {
 } from "@/viewmodels/forum/messages";
 import { Mail, Send, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------
@@ -29,7 +29,8 @@ import { useCallback, useEffect, useState } from "react";
 interface MessagesPageClientProps {
 	breadcrumbs: BreadcrumbItem[];
 	initialBox?: "inbox" | "outbox";
-	initialTo?: number; // Pre-fill compose dialog with this user ID
+	/** Pre-filled recipient for compose dialog (from ?to=N URL parameter) */
+	initialRecipient?: { id: number; username: string };
 }
 
 // ---------------------------------------------------------------------------
@@ -303,10 +304,9 @@ function MessageList({
 export function MessagesPageClient({
 	breadcrumbs,
 	initialBox = "inbox",
-	initialTo,
+	initialRecipient,
 }: MessagesPageClientProps) {
 	const router = useRouter();
-	const searchParams = useSearchParams();
 
 	// State
 	const [activeBox, setActiveBox] = useState<"inbox" | "outbox">(initialBox);
@@ -397,17 +397,15 @@ export function MessagesPageClient({
 		}
 	}, [activeBox, loadMessages]);
 
-	// Auto-open compose dialog with ?to=N parameter
+	// Auto-open compose dialog with pre-filled recipient from ?to=N parameter
 	useEffect(() => {
-		if (initialTo) {
-			// We have a recipient ID but not the username, so just open the dialog
-			// The dialog will need to be populated - for now just open it
-			setComposeRecipient({ id: initialTo, username: "" });
+		if (initialRecipient) {
+			setComposeRecipient(initialRecipient);
 			setIsComposeOpen(true);
 			// Clear the URL parameter
 			router.replace("/messages", { scroll: false });
 		}
-	}, [initialTo, router]);
+	}, [initialRecipient, router]);
 
 	// Handle delete
 	const handleDelete = async (id: number) => {
