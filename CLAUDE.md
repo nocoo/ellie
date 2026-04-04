@@ -165,3 +165,12 @@ npx wrangler dev -c apps/worker/wrangler.toml
 - **Cause:** `getThreadListQueryWithOffset` used `.slice(0, -1)` incorrectly
 - **Fix:** Changed to append ` OFFSET ?` without slicing
 - **Lesson:** Always test SQL query string generation
+
+### 2026-04-05: D1 Schema Not Deployed
+- **Issue:** 站内信页面报 "Internal server error"，实际是 `D1_ERROR: no such table: messages`
+- **Cause:** Worker handler 引用了 `messages` 表，但没有创建对应的 migration
+- **Fix:** 创建 `0022_create_messages.sql` 并运行 `wrangler d1 migrations apply`
+- **Lessons:**
+  1. **新增 Worker handler 涉及新表时，必须同时创建 migration**
+  2. **D1 migration 命令:** `cd apps/worker && npx wrangler d1 migrations apply tongjinet-db --remote -c wrangler.toml`
+  3. **部署检查清单:** Worker 代码改动 → `bun run worker:deploy`；D1 schema 改动 → 运行 migration

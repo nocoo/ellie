@@ -4,7 +4,17 @@ import { ForumApiError, forumApi } from "@/lib/forum-api";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
-	const jwt = await getWorkerJwt();
+	let jwt: string | null;
+	try {
+		jwt = await getWorkerJwt();
+	} catch (err) {
+		console.error("[messages/route] getWorkerJwt error:", err);
+		return NextResponse.json(
+			{ error: { code: "INTERNAL_ERROR", message: "Failed to get session" } },
+			{ status: 500 },
+		);
+	}
+
 	if (!jwt) {
 		return NextResponse.json(
 			{ error: { code: "NOT_AUTHENTICATED", message: "Not authenticated" } },
@@ -21,6 +31,7 @@ export async function GET(request: Request) {
 		);
 		return NextResponse.json(result);
 	} catch (err) {
+		console.error("[messages/route] forumApi.getAuth error:", err);
 		if (err instanceof ForumApiError) {
 			return NextResponse.json({ error: { code: err.code, message: err.message } }, { status: err.status });
 		}
@@ -32,7 +43,17 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-	const jwt = await getWorkerJwt();
+	let jwt: string | null;
+	try {
+		jwt = await getWorkerJwt();
+	} catch (err) {
+		console.error("[messages/route] getWorkerJwt error:", err);
+		return NextResponse.json(
+			{ error: { code: "INTERNAL_ERROR", message: "Failed to get session" } },
+			{ status: 500 },
+		);
+	}
+
 	if (!jwt) {
 		return NextResponse.json(
 			{ error: { code: "NOT_AUTHENTICATED", message: "Not authenticated" } },
@@ -45,6 +66,7 @@ export async function POST(request: Request) {
 		const result = await forumApi.postAuth<unknown>("/api/v1/messages", body, jwt);
 		return NextResponse.json(result, { status: 201 });
 	} catch (err) {
+		console.error("[messages/route] forumApi.postAuth error:", err);
 		if (err instanceof ForumApiError) {
 			return NextResponse.json({ error: { code: err.code, message: err.message } }, { status: err.status });
 		}
