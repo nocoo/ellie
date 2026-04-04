@@ -93,12 +93,13 @@ export function SiteFooter({ vm }: SiteFooterProps) {
 			</div>
 
 			{/* ── Background image — 125% content width and centered ── */}
+			{/* Uses <picture> with prefers-color-scheme to download only the needed image */}
 			<div className="width-container relative -mt-16 -top-[250px] mb-[-250px]">
 				<div className="mx-[-12.5%]">
-					{/* Light mode image */}
-					<img src={BG_LIGHT} alt="" aria-hidden="true" className="w-full dark:hidden" />
-					{/* Dark mode image */}
-					<img src={BG_DARK} alt="" aria-hidden="true" className="w-full hidden dark:block" />
+					<picture>
+						<source srcSet={BG_DARK} media="(prefers-color-scheme: dark)" />
+						<img src={BG_LIGHT} alt="" aria-hidden="true" className="w-full" />
+					</picture>
 				</div>
 			</div>
 		</footer>
