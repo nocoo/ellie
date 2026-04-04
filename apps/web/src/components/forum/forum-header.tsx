@@ -4,6 +4,7 @@
 "use client";
 
 import { ForumLogo } from "@/components/forum/forum-logo";
+import { MessageBadgeIcon } from "@/components/forum/message-badge-icon";
 import { UserAvatar } from "@/components/forum/user-avatar";
 import { UserPopover } from "@/components/forum/user-popover";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -12,7 +13,7 @@ import { getAvatarUrl } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
 import type { HeaderViewModel } from "@/viewmodels/forum/header";
 import { formatNumber } from "@/viewmodels/shared/formatting";
-import { LogOut, Mail, Search } from "lucide-react";
+import { LogOut, Search } from "lucide-react";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -84,13 +85,7 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 						<div className="flex items-center gap-1">
 							<WidthToggle />
 							<ThemeToggle />
-							<Link
-								href="/messages"
-								className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-								title="站内信"
-							>
-								<Mail className="h-4 w-4" />
-							</Link>
+							<MessageBadgeIcon />
 							<button
 								type="button"
 								onClick={() => signOut({ callbackUrl: "/" })}
