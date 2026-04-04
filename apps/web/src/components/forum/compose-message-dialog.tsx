@@ -234,7 +234,7 @@ export function ComposeMessageDialog({
 		}
 
 		if (!content.trim()) {
-			setError("请输入消息内容");
+			setError("请输入站内信内容");
 			return;
 		}
 
@@ -301,7 +301,7 @@ export function ComposeMessageDialog({
 							id="subject"
 							value={subject}
 							onChange={(e) => setSubject(e.target.value)}
-							placeholder="消息主题..."
+							placeholder="主题..."
 							maxLength={100}
 							disabled={isSending}
 						/>
@@ -314,7 +314,7 @@ export function ComposeMessageDialog({
 							id="content"
 							value={content}
 							onChange={(e) => setContent(e.target.value)}
-							placeholder="输入消息内容..."
+							placeholder="输入站内信内容..."
 							rows={6}
 							maxLength={10000}
 							disabled={isSending}

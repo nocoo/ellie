@@ -184,7 +184,7 @@ export function PostSidebar({
 						className="flex items-center gap-1 text-xs text-forum-link hover:underline"
 					>
 						<Mail className="h-3.5 w-3.5" />
-						发消息
+						发站内信
 					</Link>
 				</div>
 			)}

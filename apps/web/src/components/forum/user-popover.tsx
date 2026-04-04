@@ -486,7 +486,7 @@ export function UserPopover({
 										className="inline-flex items-center justify-center h-6 px-2 rounded-lg text-xs font-medium gap-1 hover:bg-muted transition-colors"
 									>
 										<Mail className="h-3.5 w-3.5" />
-										发消息
+										发站内信
 									</Link>
 								)}
 
