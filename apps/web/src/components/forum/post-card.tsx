@@ -1,10 +1,12 @@
-// components/forum/post-card.tsx — Discuz classic two-column post card
+// components/forum/post-card.tsx — Discuz classic two-column post card (View layer)
 // Desktop: left sidebar (user info) + vertical border + right content + action bar
 // Mobile: compact header row + content
 // Flat 1px solid border, no border-radius, cards stack with border-collapse.
 //
 // PostActionBar is passed as a prop into PostContent (not rendered as a sibling)
 // to avoid hydration mismatches caused by unclosed HTML tags in post content.
+//
+// MVVM: This is the View layer. State and logic are in usePostActions hook.
 
 "use client";
 
@@ -16,14 +18,11 @@ import { ThreadModMenu } from "@/components/forum/thread-mod-menu";
 import { UserPopover } from "@/components/forum/user-popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { ApiError } from "@/lib/api-client";
 import { getAvatarUrl } from "@/lib/avatar";
 import { getStaticImageUrl } from "@/lib/cdn";
-import { deleteMyPost, deletePost } from "@/lib/moderation-api";
 import { type EnrichedPost, floorLabel } from "@/viewmodels/forum/thread-detail";
 import { formatTime } from "@/viewmodels/forum/thread-list";
-import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { usePostActions } from "@/viewmodels/forum/use-post-actions";
 
 interface PostCardProps {
 	post: EnrichedPost;
@@ -68,7 +67,6 @@ export function PostCard({
 	threadId,
 	forumId,
 }: PostCardProps) {
-	const router = useRouter();
 	const isFirst = post.isFirst || post.position === 1;
 	const isOwnPost = currentUserId !== null && post.authorId === currentUserId;
 
@@ -77,46 +75,19 @@ export function PostCard({
 	// Can delete: author or SuperMod/Admin (per permission model)
 	const canDelete = post.canDelete;
 
-	// Edit dialog state
-	const [editDialogOpen, setEditDialogOpen] = useState(false);
-	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-	const [deleting, setDeleting] = useState(false);
-	const [deleteError, setDeleteError] = useState<string | null>(null);
-
-	const handleEdit = useCallback(() => {
-		setEditDialogOpen(true);
-	}, []);
-
-	const handleDeleteClick = useCallback(() => {
-		setDeleteError(null);
-		setDeleteDialogOpen(true);
-	}, []);
-
-	const handleDeleteConfirm = useCallback(async () => {
-		setDeleting(true);
-		setDeleteError(null);
-		try {
-			// Use user self-service API if own post, otherwise moderation API
-			if (isOwnPost) {
-				await deleteMyPost(post.id);
-			} else if (canModerate) {
-				await deletePost(post.id);
-			}
-			setDeleteDialogOpen(false);
-			router.refresh();
-		} catch (err) {
-			setDeleteError(err instanceof ApiError ? err.message : "删除失败");
-		} finally {
-			setDeleting(false);
-		}
-	}, [post.id, isOwnPost, canModerate, router]);
+	// Use ViewModel hook for post actions
+	const { state, actions } = usePostActions({
+		postId: post.id,
+		isOwnPost,
+		canModerate,
+	});
 
 	const actionBar = (
 		<>
 			<PostActionBar
 				onReply={onReply}
-				onEdit={canEdit ? handleEdit : undefined}
-				onDelete={canDelete && !isFirst ? handleDeleteClick : undefined}
+				onEdit={canEdit ? actions.handleEdit : undefined}
+				onDelete={canDelete && !isFirst ? actions.handleDeleteClick : undefined}
 				canEdit={canEdit}
 				canDelete={canDelete && !isFirst}
 			/>
@@ -218,8 +189,8 @@ export function PostCard({
 
 			{/* Edit dialog */}
 			<PostEditDialog
-				open={editDialogOpen}
-				onOpenChange={setEditDialogOpen}
+				open={state.editDialogOpen}
+				onOpenChange={actions.handleEditClose}
 				postId={post.id}
 				currentContent={post.content}
 				isOwnPost={isOwnPost}
@@ -228,14 +199,14 @@ export function PostCard({
 
 			{/* Delete confirmation dialog */}
 			<ConfirmDialog
-				open={deleteDialogOpen}
-				onOpenChange={setDeleteDialogOpen}
+				open={state.deleteDialogOpen}
+				onOpenChange={actions.handleDeleteClose}
 				title="删除回复"
-				description={deleteError ?? "确定要删除这条回复吗？此操作无法撤销。"}
+				description={state.deleteError ?? "确定要删除这条回复吗？此操作无法撤销。"}
 				confirmText="删除"
 				variant="destructive"
-				loading={deleting}
-				onConfirm={handleDeleteConfirm}
+				loading={state.deleting}
+				onConfirm={actions.handleDeleteConfirm}
 			/>
 		</div>
 	);
