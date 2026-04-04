@@ -13,6 +13,10 @@ const PUBLIC_USER_COLUMNS =
 const DEFAULT_HISTORY_LIMIT = 20;
 const MAX_HISTORY_LIMIT = 50;
 
+/** Default/max limits for user search */
+const DEFAULT_SEARCH_LIMIT = 10;
+const MAX_SEARCH_LIMIT = 20;
+
 // ─── Cursor helpers ──────────────────────────────────────────
 
 interface UserHistoryCursor {
@@ -226,4 +230,53 @@ export async function listDigest(request: Request, env: Env): Promise<Response> 
 		}),
 		{ headers: { ...corsHeaders(origin), "Content-Type": "application/json" } },
 	);
+}
+
+/**
+ * GET /api/v1/users/search - Search users by username prefix
+ *
+ * Used for autocomplete in private messaging compose dialog.
+ * Only returns normal users (status >= 0).
+ *
+ * Query params:
+ * - q: search keyword (required, min 2 chars)
+ * - limit: max results (default 10, max 20)
+ */
+export async function search(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+	const url = new URL(request.url);
+
+	const query = url.searchParams.get("q")?.trim();
+	if (!query || query.length < 2) {
+		return errorResponse(
+			"INVALID_REQUEST",
+			400,
+			{ message: "Search query must be at least 2 characters" },
+			origin,
+		);
+	}
+
+	// Clamp limit
+	const limitParam = url.searchParams.get("limit");
+	const limitNum = limitParam ? Number.parseInt(limitParam, 10) : undefined;
+	const clampedLimit =
+		limitNum === undefined || limitNum <= 0
+			? DEFAULT_SEARCH_LIMIT
+			: Math.min(limitNum, MAX_SEARCH_LIMIT);
+
+	// Prefix match on username, only normal users (status >= 0)
+	// Escape special LIKE characters
+	const escapedQuery = query.replace(/[%_\\]/g, "\\$&");
+	const result = await env.DB.prepare(
+		"SELECT id, username FROM users WHERE username LIKE ? ESCAPE '\\' AND status >= 0 ORDER BY username LIMIT ?",
+	)
+		.bind(`${escapedQuery}%`, clampedLimit)
+		.all<{ id: number; username: string }>();
+
+	const users = result.results.map((row) => ({
+		id: row.id,
+		username: row.username,
+	}));
+
+	return jsonResponse(users, origin);
 }
