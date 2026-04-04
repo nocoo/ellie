@@ -1,7 +1,8 @@
 "use client";
 
-// Profile edit dialog for users to update their own profile
+// Profile edit dialog for users to update their own profile (View layer)
 // Opens as a modal overlay with form fields
+// MVVM: This is the View layer. State and logic are in useProfileEdit hook.
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,12 +15,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { ApiError, apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
-import type { User } from "@ellie/types";
+import { GENDER_OPTIONS, useProfileEdit } from "@/viewmodels/forum/use-profile-edit";
 import { AlertCircle, Save, User as UserIcon, X } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -45,112 +43,21 @@ export interface ProfileEditDialogProps {
 }
 
 // ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const GENDER_OPTIONS = [
-	{ value: 0, label: "未设置" },
-	{ value: 1, label: "男" },
-	{ value: 2, label: "女" },
-];
-
-const ERROR_MESSAGES: Record<string, string> = {
-	NOT_AUTHENTICATED: "请先登录",
-	INVALID_BODY: "输入数据有误，请检查后重试",
-};
-
-// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialogProps) {
-	const router = useRouter();
-	const [submitting, setSubmitting] = useState(false);
-	const [error, setError] = useState<string | null>(null);
-
-	// Form state
-	const [gender, setGender] = useState(0);
-	const [birthYear, setBirthYear] = useState(0);
-	const [birthMonth, setBirthMonth] = useState(0);
-	const [birthDay, setBirthDay] = useState(0);
-	const [resideProvince, setResideProvince] = useState("");
-	const [resideCity, setResideCity] = useState("");
-	const [graduateSchool, setGraduateSchool] = useState("");
-	const [bio, setBio] = useState("");
-	const [interest, setInterest] = useState("");
-	const [qq, setQq] = useState("");
-	const [site, setSite] = useState("");
-
-	// Sync form when user changes or dialog opens
-	useEffect(() => {
-		if (open && user) {
-			setGender(user.gender);
-			setBirthYear(user.birthYear);
-			setBirthMonth(user.birthMonth);
-			setBirthDay(user.birthDay);
-			setResideProvince(user.resideProvince);
-			setResideCity(user.resideCity);
-			setGraduateSchool(user.graduateSchool);
-			setBio(user.bio);
-			setInterest(user.interest);
-			setQq(user.qq);
-			setSite(user.site);
-			setError(null);
-		}
-	}, [open, user]);
-
-	const handleSave = useCallback(async () => {
-		if (submitting) return;
-
-		setSubmitting(true);
-		setError(null);
-
-		try {
-			await apiClient.patch<User>("/api/v1/users/me", {
-				gender,
-				birthYear: birthYear || 0,
-				birthMonth: birthMonth || 0,
-				birthDay: birthDay || 0,
-				resideProvince,
-				resideCity,
-				graduateSchool,
-				bio,
-				interest,
-				qq,
-				site,
-			});
-
-			onOpenChange(false);
-			router.refresh();
-		} catch (err) {
-			const code = err instanceof ApiError ? err.code : "UNKNOWN";
-			const message =
-				ERROR_MESSAGES[code] ?? (err instanceof ApiError ? err.message : "保存失败，请稍后重试");
-			setError(message);
-		} finally {
-			setSubmitting(false);
-		}
-	}, [
-		submitting,
-		gender,
-		birthYear,
-		birthMonth,
-		birthDay,
-		resideProvince,
-		resideCity,
-		graduateSchool,
-		bio,
-		interest,
-		qq,
-		site,
-		onOpenChange,
-		router,
-	]);
+	// Use ViewModel hook for profile editing
+	const { state, actions } = useProfileEdit({
+		initialData: user,
+		open,
+		onSuccess: () => onOpenChange(false),
+	});
 
 	// Reset error when dialog closes
 	const handleOpenChange = (open: boolean) => {
 		if (!open) {
-			setError(null);
+			actions.clearError();
 		}
 		onOpenChange(open);
 	};
@@ -181,7 +88,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 							variant="ghost"
 							size="icon-sm"
 							onClick={() => handleOpenChange(false)}
-							disabled={submitting}
+							disabled={state.submitting}
 							className="text-muted-foreground hover:text-foreground"
 						>
 							<span className="sr-only">关闭</span>
@@ -191,10 +98,10 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 				</DialogHeader>
 
 				{/* Error display */}
-				{error && (
+				{state.error && (
 					<div className="mx-5 mt-4 flex items-start gap-3 rounded-lg bg-destructive/10 border border-destructive/30 p-3">
 						<AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-						<p className="text-sm text-destructive">{error}</p>
+						<p className="text-sm text-destructive">{state.error}</p>
 					</div>
 				)}
 
@@ -212,10 +119,10 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 								<Label htmlFor="edit-gender">性别</Label>
 								<Select
 									id="edit-gender"
-									value={gender}
-									onChange={(e) => setGender(Number(e.target.value))}
+									value={state.form.gender}
+									onChange={(e) => actions.setField("gender", Number(e.target.value))}
 									options={GENDER_OPTIONS}
-									disabled={submitting}
+									disabled={state.submitting}
 								/>
 							</div>
 
@@ -225,29 +132,29 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 									<Input
 										type="number"
 										placeholder="年"
-										value={birthYear || ""}
-										onChange={(e) => setBirthYear(Number(e.target.value) || 0)}
+										value={state.form.birthYear || ""}
+										onChange={(e) => actions.setField("birthYear", Number(e.target.value) || 0)}
 										min={1900}
 										max={2100}
-										disabled={submitting}
+										disabled={state.submitting}
 									/>
 									<Input
 										type="number"
 										placeholder="月"
-										value={birthMonth || ""}
-										onChange={(e) => setBirthMonth(Number(e.target.value) || 0)}
+										value={state.form.birthMonth || ""}
+										onChange={(e) => actions.setField("birthMonth", Number(e.target.value) || 0)}
 										min={1}
 										max={12}
-										disabled={submitting}
+										disabled={state.submitting}
 									/>
 									<Input
 										type="number"
 										placeholder="日"
-										value={birthDay || ""}
-										onChange={(e) => setBirthDay(Number(e.target.value) || 0)}
+										value={state.form.birthDay || ""}
+										onChange={(e) => actions.setField("birthDay", Number(e.target.value) || 0)}
 										min={1}
 										max={31}
-										disabled={submitting}
+										disabled={state.submitting}
 									/>
 								</div>
 							</div>
@@ -266,22 +173,22 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 								<Label htmlFor="edit-province">省份</Label>
 								<Input
 									id="edit-province"
-									value={resideProvince}
-									onChange={(e) => setResideProvince(e.target.value)}
+									value={state.form.resideProvince}
+									onChange={(e) => actions.setField("resideProvince", e.target.value)}
 									maxLength={50}
 									placeholder="如：北京"
-									disabled={submitting}
+									disabled={state.submitting}
 								/>
 							</div>
 							<div className="grid gap-2">
 								<Label htmlFor="edit-city">城市</Label>
 								<Input
 									id="edit-city"
-									value={resideCity}
-									onChange={(e) => setResideCity(e.target.value)}
+									value={state.form.resideCity}
+									onChange={(e) => actions.setField("resideCity", e.target.value)}
 									maxLength={50}
 									placeholder="如：朝阳区"
-									disabled={submitting}
+									disabled={state.submitting}
 								/>
 							</div>
 						</div>
@@ -298,11 +205,11 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 							<Label htmlFor="edit-school">毕业学校</Label>
 							<Input
 								id="edit-school"
-								value={graduateSchool}
-								onChange={(e) => setGraduateSchool(e.target.value)}
+								value={state.form.graduateSchool}
+								onChange={(e) => actions.setField("graduateSchool", e.target.value)}
 								maxLength={100}
 								placeholder="学校名称"
-								disabled={submitting}
+								disabled={state.submitting}
 							/>
 						</div>
 					</div>
@@ -319,22 +226,22 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 								<Label htmlFor="edit-qq">QQ</Label>
 								<Input
 									id="edit-qq"
-									value={qq}
-									onChange={(e) => setQq(e.target.value)}
+									value={state.form.qq}
+									onChange={(e) => actions.setField("qq", e.target.value)}
 									maxLength={20}
 									placeholder="QQ 号码"
-									disabled={submitting}
+									disabled={state.submitting}
 								/>
 							</div>
 							<div className="grid gap-2">
 								<Label htmlFor="edit-site">个人网站</Label>
 								<Input
 									id="edit-site"
-									value={site}
-									onChange={(e) => setSite(e.target.value)}
+									value={state.form.site}
+									onChange={(e) => actions.setField("site", e.target.value)}
 									maxLength={200}
 									placeholder="https://..."
-									disabled={submitting}
+									disabled={state.submitting}
 								/>
 							</div>
 						</div>
@@ -352,11 +259,11 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 								<Label htmlFor="edit-bio">简介</Label>
 								<textarea
 									id="edit-bio"
-									value={bio}
-									onChange={(e) => setBio(e.target.value)}
+									value={state.form.bio}
+									onChange={(e) => actions.setField("bio", e.target.value)}
 									maxLength={500}
 									placeholder="介绍一下自己..."
-									disabled={submitting}
+									disabled={state.submitting}
 									rows={3}
 									className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 dark:bg-input/30 resize-none"
 								/>
@@ -365,11 +272,11 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 								<Label htmlFor="edit-interest">兴趣爱好</Label>
 								<textarea
 									id="edit-interest"
-									value={interest}
-									onChange={(e) => setInterest(e.target.value)}
+									value={state.form.interest}
+									onChange={(e) => actions.setField("interest", e.target.value)}
 									maxLength={500}
 									placeholder="你喜欢什么..."
-									disabled={submitting}
+									disabled={state.submitting}
 									rows={3}
 									className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 dark:bg-input/30 resize-none"
 								/>
@@ -381,12 +288,12 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 				{/* Footer */}
 				<div className="px-5 py-4 border-t border-border/50 bg-muted/30">
 					<div className="flex items-center justify-end gap-2">
-						<Button variant="ghost" onClick={() => handleOpenChange(false)} disabled={submitting}>
+						<Button variant="ghost" onClick={() => handleOpenChange(false)} disabled={state.submitting}>
 							取消
 						</Button>
-						<Button onClick={handleSave} disabled={submitting} className="gap-2">
+						<Button onClick={actions.handleSave} disabled={state.submitting} className="gap-2">
 							<Save className="h-4 w-4" />
-							{submitting ? "保存中..." : "保存更改"}
+							{state.submitting ? "保存中..." : "保存更改"}
 						</Button>
 					</div>
 				</div>
