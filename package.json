@@ -50,5 +50,8 @@
 	},
 	"lint-staged": {
 		"*.{ts,tsx,js,jsx,json,css,md}": ["biome check --no-errors-on-unmatched"]
+	},
+	"dependencies": {
+		"defu": "^6.1.6"
 	}
 }
