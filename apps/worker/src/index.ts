@@ -104,6 +104,11 @@ export default {
 				return await (await import("./handlers/user")).listDigest(request, env);
 			}
 
+			// ── #75 User search (Key A, no JWT) ─────────────
+			if (path === "/api/v1/users/search" && request.method === "GET") {
+				return await (await import("./handlers/user")).search(request, env);
+			}
+
 			// ── Digest routes (global featured threads) ─────────
 			if (path === "/api/v1/digest" && request.method === "GET") {
 				return await (await import("./handlers/digest")).list(request, env);
@@ -156,6 +161,23 @@ export default {
 			}
 			if (path === "/api/v1/users/me/password" && request.method === "POST") {
 				return await (await import("./handlers/me")).changePassword(request, env);
+			}
+
+			// ── Private messaging routes (#70-#74) ──────────
+			if (path === "/api/v1/messages" && request.method === "GET") {
+				return await (await import("./handlers/message")).list(request, env);
+			}
+			if (path === "/api/v1/messages/unread-count" && request.method === "GET") {
+				return await (await import("./handlers/message")).unreadCount(request, env);
+			}
+			if (path.match(/^\/api\/v1\/messages\/\d+$/) && request.method === "GET") {
+				return await (await import("./handlers/message")).getById(request, env);
+			}
+			if (path === "/api/v1/messages" && request.method === "POST") {
+				return await (await import("./handlers/message")).create(request, env);
+			}
+			if (path.match(/^\/api\/v1\/messages\/\d+$/) && request.method === "DELETE") {
+				return await (await import("./handlers/message")).remove(request, env);
 			}
 
 			// ── Moderation routes (Key A + JWT + role check) ─
