@@ -147,6 +147,13 @@ export async function deleteMessage(id: number): Promise<void> {
 }
 
 /**
+ * Mark all inbox messages as read.
+ */
+export async function markAllMessagesRead(): Promise<void> {
+	await apiClient.post("/api/v1/messages/mark-all-read", {});
+}
+
+/**
  * Search users by username prefix (for autocomplete).
  */
 export async function searchUsers(query: string, limit = 10): Promise<UserSearchResult[]> {

@@ -348,6 +348,24 @@ export const create = withAuth(async (request, env, user) => {
 /**
  * DELETE /api/v1/messages/:id - Delete a message (soft delete)
  */
+/**
+ * POST /api/v1/messages/mark-all-read - Mark all inbox messages as read
+ */
+export const markAllRead = withAuth(async (request, env, user) => {
+	const origin = request.headers.get("Origin") ?? undefined;
+
+	await env.DB.prepare(
+		"UPDATE messages SET is_read = 1 WHERE receiver_id = ? AND is_read = 0 AND receiver_deleted = 0",
+	)
+		.bind(user.userId)
+		.run();
+
+	return jsonResponse({ success: true }, origin);
+});
+
+/**
+ * DELETE /api/v1/messages/:id - Delete a message (soft delete)
+ */
 export const remove = withAuth(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
