@@ -4,10 +4,9 @@
 import { errorResponse } from "../middleware/error";
 import type { Env } from "./env";
 
-/** User info needed for posting permission check */
+/** User info needed for posting permission check (from AuthUser) */
 export interface PostingUser {
 	userId: number;
-	status: number;
 	role: number;
 }
 
