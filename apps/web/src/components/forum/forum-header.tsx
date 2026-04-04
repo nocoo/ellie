@@ -167,6 +167,7 @@ function SearchStatsBar({ vm }: { vm: HeaderViewModel }) {
 					<input
 						type="search"
 						placeholder="搜索帖子、用户..."
+						aria-label="搜索帖子和用户"
 						className="h-8 w-full rounded-lg border border-input bg-transparent pl-9 pr-10 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
 						onKeyDown={(e) => {
 							if (e.key === "Enter") {
