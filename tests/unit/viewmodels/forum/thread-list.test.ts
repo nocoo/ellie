@@ -1,8 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
 	enrichThreads,
-	formatStat,
-	formatTime,
 	getThreadIconSrc,
 	highlightStyle,
 } from "../../../../apps/web/src/viewmodels/forum/thread-list";
@@ -151,52 +149,6 @@ describe("highlightStyle", () => {
 		// This covers the edge case: non-null hl but no color, bold, italic, or underline
 		const hl = { color: null, bold: false, italic: false, underline: false };
 		expect(highlightStyle(hl as ReturnType<typeof decodeHighlight>)).toBeUndefined();
-	});
-});
-
-// ---------------------------------------------------------------------------
-// formatTime
-// ---------------------------------------------------------------------------
-
-describe("formatTime", () => {
-	it("returns empty string for zero timestamp", () => {
-		expect(formatTime(0)).toBe("");
-	});
-
-	it("formats recent time as relative", () => {
-		const now = Date.now() / 1000;
-		expect(formatTime(now - 30)).toBe("刚刚");
-		expect(formatTime(now - 120)).toBe("2 分钟前");
-	});
-
-	it("formats older dates as date string", () => {
-		// 40 days ago — should show a localized date, not relative time
-		const now = Date.now() / 1000;
-		const result = formatTime(now - 40 * 86400);
-		expect(result).toContain("/");
-	});
-});
-
-// ---------------------------------------------------------------------------
-// formatStat
-// ---------------------------------------------------------------------------
-
-describe("formatStat", () => {
-	it("formats small numbers as-is", () => {
-		expect(formatStat(0)).toBe("0");
-		expect(formatStat(42)).toBe("42");
-		expect(formatStat(999)).toBe("999");
-	});
-
-	it("formats thousands with K suffix", () => {
-		expect(formatStat(1000)).toBe("1.0K");
-		expect(formatStat(5600)).toBe("5.6K");
-	});
-
-	it("formats ten-thousands with 万 suffix", () => {
-		expect(formatStat(10000)).toBe("1.0万");
-		expect(formatStat(12345)).toBe("1.2万");
-		expect(formatStat(85000)).toBe("8.5万");
 	});
 });
 
