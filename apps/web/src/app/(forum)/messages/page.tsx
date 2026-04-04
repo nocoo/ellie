@@ -1,15 +1,27 @@
-// Route: /messages — Discuz-style 站内消息 (notifications & PMs) page
+// Route: /messages — Discuz-style 站内信 (private messaging) page
 // Server Component shell that renders the client messages page.
 
-import { MessagesPage } from "@/components/forum/messages-page";
-import { buildMessagesBreadcrumbs, buildMessagesPageViewModel } from "@/viewmodels/forum/messages";
+import { MessagesPageClient } from "@/components/forum/messages-page";
+import { buildMessagesBreadcrumbs } from "@/viewmodels/forum/messages";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "消息" };
+export const metadata: Metadata = { title: "站内信" };
 
-export default function MessagesRoute() {
+interface MessagesRouteProps {
+	searchParams: Promise<{ box?: string; to?: string }>;
+}
+
+export default async function MessagesRoute({ searchParams }: MessagesRouteProps) {
+	const params = await searchParams;
 	const breadcrumbs = buildMessagesBreadcrumbs();
-	const vm = buildMessagesPageViewModel();
+	const initialBox = params.box === "outbox" ? "outbox" : "inbox";
+	const initialTo = params.to ? Number.parseInt(params.to, 10) : undefined;
 
-	return <MessagesPage breadcrumbs={breadcrumbs} vm={vm} />;
+	return (
+		<MessagesPageClient
+			breadcrumbs={breadcrumbs}
+			initialBox={initialBox}
+			initialTo={initialTo && !Number.isNaN(initialTo) ? initialTo : undefined}
+		/>
+	);
 }
