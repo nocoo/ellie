@@ -57,6 +57,11 @@ export function isForumAuthRoute(pathname: string): boolean {
 	return pathname === "/threads/new";
 }
 
+/** Routes that require credentials login but allow Google OAuth users to reach layout for notice. */
+export function isMessagesRoute(pathname: string): boolean {
+	return pathname === "/messages" || pathname.startsWith("/messages/");
+}
+
 /** Check if a pathname is an admin page route (not API, not admin login). */
 export function isAdminRoute(pathname: string): boolean {
 	if (pathname === "/admin/login") return false;
@@ -71,16 +76,20 @@ export function isAdminRoute(pathname: string): boolean {
  * - "redirect:/admin"         -> redirect to admin dashboard
  * - "redirect:/login"         -> redirect to forum login
  * - "redirect:/admin/login"   -> redirect to admin login
+ * - "redirect:/login?redirect=..." -> redirect with return URL
  *
+ * @param nextUrl - Full URL object (for building redirect params)
  * @param requireLogin - When true, all forum public routes require authentication
  */
 export function resolveProxyAction(
-	pathname: string,
+	nextUrl: URL,
 	isLoggedIn: boolean,
 	email?: string | null,
 	provider?: string | null,
 	requireLogin = false,
-): "next" | "redirect:/" | "redirect:/admin" | "redirect:/login" | "redirect:/admin/login" {
+): string {
+	const pathname = nextUrl.pathname;
+
 	// Always-public routes (login, register, api/auth) are never blocked
 	if (isAlwaysPublicRoute(pathname)) {
 		// Authenticated admin on admin login page -> redirect to admin dashboard
@@ -104,6 +113,18 @@ export function resolveProxyAction(
 	}
 
 	if (isPublicRoute(pathname)) {
+		return "next";
+	}
+
+	// Messages routes: special handling - Google OAuth users reach layout for notice
+	if (isMessagesRoute(pathname)) {
+		if (!isLoggedIn) {
+			// Not logged in → redirect to login with return URL
+			const target = pathname + nextUrl.search;
+			return `redirect:/login?redirect=${encodeURIComponent(target)}`;
+		}
+		// Google OAuth users pass through → layout will show CredentialsOnlyNotice
+		// Credentials users pass through → normal rendering
 		return "next";
 	}
 
@@ -209,7 +230,7 @@ export async function proxy(request: NextRequest) {
 		// In proxy context, req.auth is the decoded session which includes our custom fields
 		const provider = session?.user ? (session.user as { provider?: string }).provider : undefined;
 		const action = resolveProxyAction(
-			req.nextUrl.pathname,
+			req.nextUrl,
 			!!session,
 			session?.user?.email,
 			provider,
