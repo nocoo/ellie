@@ -1,7 +1,8 @@
 "use client";
 
-// New thread dialog with glass-morphism styling
+// New thread dialog with glass-morphism styling (View layer)
 // Opens as a modal overlay for creating new forum threads
+// MVVM: This is the View layer. State and logic are in useThreadSubmit hook.
 
 import { PostEditor } from "@/components/forum/post-editor";
 import { Button } from "@/components/ui/button";
@@ -13,11 +14,10 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
-import { ApiError, apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { useThreadSubmit } from "@/viewmodels/forum/use-thread-submit";
 import { AlertCircle, PenLine, Send, XCircle } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useCallback, useRef, useState } from "react";
+import { useRef } from "react";
 
 interface NewThreadDialogProps {
 	open: boolean;
@@ -26,86 +26,20 @@ interface NewThreadDialogProps {
 	forumName: string;
 }
 
-const ERROR_MESSAGES: Record<string, string> = {
-	UNAUTHORIZED: "请先登录后再发帖",
-	FORUM_CLOSED: "该版块已关闭，无法发帖",
-	CONTENT_BANNED: "内容包含违禁词，请修改后重试",
-	RATE_LIMITED: "操作过于频繁，请稍后再试",
-};
-
-interface CreateThreadResponse {
-	id: number;
-}
-
 export function NewThreadDialog({ open, onOpenChange, forumId, forumName }: NewThreadDialogProps) {
-	const router = useRouter();
 	const { canCreateThread } = useFeatureFlags();
-	const [subject, setSubject] = useState("");
-	const [submitting, setSubmitting] = useState(false);
-	const [error, setError] = useState<string | null>(null);
 	const editorRef = useRef<{ getHTML: () => string } | null>(null);
 
-	// Validation
-	const subjectTooShort = subject.trim().length > 0 && subject.trim().length < 4;
-	const subjectTooLong = subject.trim().length > 100;
-	const subjectError = subjectTooShort
-		? "标题至少需要4个字符"
-		: subjectTooLong
-			? "标题不能超过100个字符"
-			: null;
-
-	const canSubmit = subject.trim().length >= 4 && subject.trim().length <= 100 && !submitting;
-
-	const handleSubmit = useCallback(
-		async (html: string) => {
-			// Validate subject
-			if (subject.trim().length < 4) {
-				setError("请输入标题（至少4个字符）");
-				return;
-			}
-
-			// Validate content
-			const strippedContent = html.replace(/<[^>]*>/g, "").trim();
-			if (strippedContent.length < 10) {
-				setError("内容太短，请输入更多内容（至少10个字符）");
-				return;
-			}
-
-			setSubmitting(true);
-			setError(null);
-
-			try {
-				const response = await apiClient.post<CreateThreadResponse>("/api/v1/threads", {
-					forumId,
-					subject: subject.trim(),
-					content: html,
-				});
-
-				onOpenChange(false);
-				setSubject("");
-
-				// Navigate to the new thread
-				if (response.data?.id) {
-					router.push(`/threads/${response.data.id}`);
-				} else {
-					router.refresh();
-				}
-			} catch (err) {
-				const code = err instanceof ApiError ? err.code : "UNKNOWN";
-				const message = ERROR_MESSAGES[code] ?? "发帖失败，请稍后重试";
-				setError(message);
-			} finally {
-				setSubmitting(false);
-			}
-		},
-		[forumId, subject, onOpenChange, router],
-	);
+	// Use ViewModel hook for thread submission
+	const { state, actions, validation } = useThreadSubmit({
+		forumId,
+		onSuccess: () => onOpenChange(false),
+	});
 
 	// Reset state when dialog closes
 	const handleOpenChange = (open: boolean) => {
 		if (!open) {
-			setSubject("");
-			setError(null);
+			actions.reset();
 		}
 		onOpenChange(open);
 	};
@@ -172,10 +106,10 @@ export function NewThreadDialog({ open, onOpenChange, forumId, forumName }: NewT
 						</DialogHeader>
 
 						{/* Error display */}
-						{error && (
+						{state.error && (
 							<div className="mx-5 mt-4 flex items-start gap-3 rounded-lg bg-destructive/10 border border-destructive/30 p-3">
 								<AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-								<p className="text-sm text-destructive">{error}</p>
+								<p className="text-sm text-destructive">{state.error}</p>
 							</div>
 						)}
 
@@ -184,26 +118,28 @@ export function NewThreadDialog({ open, onOpenChange, forumId, forumName }: NewT
 							<div className="relative">
 								<input
 									type="text"
-									value={subject}
-									onChange={(e) => setSubject(e.target.value)}
+									value={state.subject}
+									onChange={(e) => actions.setSubject(e.target.value)}
 									placeholder="输入帖子标题..."
-									disabled={submitting}
+									disabled={state.submitting}
 									maxLength={100}
 									className={cn(
 										"w-full h-11 rounded-lg border bg-card/50 px-4 text-base font-medium",
 										"placeholder:text-muted-foreground/60 outline-none transition-colors",
 										"focus:border-primary focus:ring-2 focus:ring-primary/20",
 										"disabled:opacity-50 disabled:cursor-not-allowed",
-										subjectError
+										validation.subjectError
 											? "border-destructive focus:border-destructive focus:ring-destructive/20"
 											: "border-border/60",
 									)}
 								/>
 								<span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-									{subject.length}/100
+									{state.subject.length}/100
 								</span>
 							</div>
-							{subjectError && <p className="mt-1.5 text-xs text-destructive">{subjectError}</p>}
+							{validation.subjectError && (
+								<p className="mt-1.5 text-xs text-destructive">{validation.subjectError}</p>
+							)}
 						</div>
 
 						{/* Editor area */}
@@ -211,11 +147,11 @@ export function NewThreadDialog({ open, onOpenChange, forumId, forumName }: NewT
 							<div className="rounded-lg border border-border/60 bg-card/50 overflow-hidden">
 								<PostEditor
 									ref={editorRef}
-									onSubmit={handleSubmit}
+									onSubmit={actions.handleSubmit}
 									placeholder="写下你的帖子内容..."
 									maxLength={50000}
-									submitting={submitting}
-									canSubmit={canSubmit}
+									submitting={state.submitting}
+									canSubmit={validation.canSubmit}
 									hideFooter
 								/>
 							</div>
@@ -229,20 +165,20 @@ export function NewThreadDialog({ open, onOpenChange, forumId, forumName }: NewT
 									<Button
 										variant="ghost"
 										onClick={() => handleOpenChange(false)}
-										disabled={submitting}
+										disabled={state.submitting}
 									>
 										取消
 									</Button>
 									<Button
 										onClick={() => {
 											const html = editorRef.current?.getHTML() ?? "";
-											handleSubmit(html);
+											actions.handleSubmit(html);
 										}}
-										disabled={!canSubmit}
+										disabled={!validation.canSubmit}
 										className="gap-2"
 									>
 										<Send className="h-4 w-4" />
-										{submitting ? "发布中..." : "发布帖子"}
+										{state.submitting ? "发布中..." : "发布帖子"}
 									</Button>
 								</div>
 							</div>
