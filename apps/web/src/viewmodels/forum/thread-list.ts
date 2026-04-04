@@ -2,7 +2,6 @@
 // Ref: 04d §版块帖子列表 — sorting, filtering, keyset pagination, badges
 
 import { getStaticImageUrl } from "@/lib/cdn";
-import { formatCompactNumber, formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { StickyLevel, type Thread, decodeHighlight, getThreadBadges } from "@ellie/types";
 
 // ---------------------------------------------------------------------------
@@ -63,22 +62,6 @@ export function highlightStyle(
 	if (hl.italic) style.fontStyle = "italic";
 	if (hl.underline) style.textDecoration = "underline";
 	return Object.keys(style).length > 0 ? style : undefined;
-}
-
-/**
- * Format a timestamp for display (relative or absolute).
- * @deprecated Use formatRelativeTime from @/viewmodels/shared/formatting directly.
- */
-export function formatTime(timestamp: number): string {
-	return formatRelativeTime(timestamp);
-}
-
-/**
- * Format view/reply counts for display (compact notation).
- * @deprecated Use formatCompactNumber from @/viewmodels/shared/formatting directly.
- */
-export function formatStat(n: number): string {
-	return formatCompactNumber(n);
 }
 
 /**

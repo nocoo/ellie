@@ -21,7 +21,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { getAvatarUrl } from "@/lib/avatar";
 import { getStaticImageUrl } from "@/lib/cdn";
 import { type EnrichedPost, floorLabel } from "@/viewmodels/forum/thread-detail";
-import { formatTime } from "@/viewmodels/forum/thread-list";
+import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { usePostActions } from "@/viewmodels/forum/use-post-actions";
 
 interface PostCardProps {
@@ -170,7 +170,7 @@ export function PostCard({
 								{post.author?.username ?? "未知用户"}
 							</span>
 						</UserPopover>
-						<span className="text-2xs text-forum-text-muted">{formatTime(post.createdAt)}</span>
+						<span className="text-2xs text-forum-text-muted">{formatRelativeTime(post.createdAt)}</span>
 					</div>
 					<span className="ml-auto text-xs font-medium text-muted-foreground shrink-0">
 						{floorLabel(post.position, isFirst)}

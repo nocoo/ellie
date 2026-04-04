@@ -3,7 +3,7 @@
 
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatTime } from "@/viewmodels/forum/thread-list";
+import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import type { Thread } from "@ellie/types";
 import { getThreadBadges } from "@ellie/types";
 import { Award, ChevronRight } from "lucide-react";
@@ -61,7 +61,7 @@ export function DigestShowcase({ threads, total }: DigestShowcaseProps) {
 										{thread.authorName}
 									</Link>
 									<span>·</span>
-									<span>{formatTime(thread.createdAt)}</span>
+									<span>{formatRelativeTime(thread.createdAt)}</span>
 								</div>
 							</div>
 						);

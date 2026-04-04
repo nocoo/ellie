@@ -1,7 +1,7 @@
 // components/forum/user-digest-tab.tsx — Digest threads tab for user profile page
 
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
-import { formatStat, formatTime } from "@/viewmodels/forum/thread-list";
+import { formatCompactNumber, formatRelativeTime } from "@/viewmodels/shared/formatting";
 import type { UserProfileData } from "@/viewmodels/forum/user-profile.server";
 import { getThreadBadges } from "@ellie/types";
 import Link from "next/link";
@@ -29,11 +29,11 @@ export function UserDigestTab({
 							{thread.subject}
 						</Link>
 						<div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0 tabular-nums">
-							<span>{formatStat(thread.views)} 览</span>
-							<span>{formatStat(thread.replies)} 回</span>
+							<span>{formatCompactNumber(thread.views)} 览</span>
+							<span>{formatCompactNumber(thread.replies)} 回</span>
 						</div>
 						<span className="text-xs text-muted-foreground shrink-0">
-							{formatTime(thread.createdAt)}
+							{formatRelativeTime(thread.createdAt)}
 						</span>
 					</div>
 				);

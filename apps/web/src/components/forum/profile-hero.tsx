@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getAvatarUrl } from "@/lib/avatar";
 import { getStaticImageUrl } from "@/lib/cdn";
-import { formatTime } from "@/viewmodels/forum/thread-list";
+import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { formatUserRole, getUserRoleBadgeVariant } from "@/viewmodels/forum/user-profile";
 import { Pencil } from "lucide-react";
 import { useSession } from "next-auth/react";
@@ -78,7 +78,7 @@ export function ProfileHero({ user }: ProfileHeroProps) {
 							<div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
 								<span>UID: {user.id}</span>
 								<span>·</span>
-								<span>注册于 {formatTime(user.regDate)}</span>
+								<span>注册于 {formatRelativeTime(user.regDate)}</span>
 							</div>
 						</div>
 						<div className="flex items-center gap-2 shrink-0">

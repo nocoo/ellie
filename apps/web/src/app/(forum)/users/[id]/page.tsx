@@ -9,7 +9,7 @@ import { UserThreadsTab } from "@/components/forum/user-threads-tab";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { buildUserBreadcrumbs } from "@/lib/forum-breadcrumbs";
-import { formatStat } from "@/viewmodels/forum/thread-list";
+import { formatCompactNumber } from "@/viewmodels/shared/formatting";
 import { getUserTitle } from "@/viewmodels/forum/title.server";
 import { PROFILE_TABS } from "@/viewmodels/forum/user-profile";
 import { type UserProfileData, loadUserProfile } from "@/viewmodels/forum/user-profile.server";
@@ -100,7 +100,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 					<Card size="sm" className="hover:border-primary/50 transition-colors cursor-pointer">
 						<CardContent className="text-center">
 							<p className="text-lg font-semibold text-foreground">
-								{formatStat(data.user.threads)}
+								{formatCompactNumber(data.user.threads)}
 							</p>
 							<p className="mt-1 text-xs text-muted-foreground">主题数</p>
 						</CardContent>
@@ -109,7 +109,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 				<Link href={`/users/${userId}?tab=posts`}>
 					<Card size="sm" className="hover:border-primary/50 transition-colors cursor-pointer">
 						<CardContent className="text-center">
-							<p className="text-lg font-semibold text-foreground">{formatStat(data.user.posts)}</p>
+							<p className="text-lg font-semibold text-foreground">{formatCompactNumber(data.user.posts)}</p>
 							<p className="mt-1 text-xs text-muted-foreground">回帖数</p>
 						</CardContent>
 					</Card>
@@ -118,7 +118,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 					<Card size="sm" className="hover:border-primary/50 transition-colors cursor-pointer">
 						<CardContent className="text-center">
 							<p className="text-lg font-semibold text-foreground">
-								{formatStat(data.user.digestPosts)}
+								{formatCompactNumber(data.user.digestPosts)}
 							</p>
 							<p className="mt-1 text-xs text-muted-foreground">精华帖</p>
 						</CardContent>
@@ -126,7 +126,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 				</Link>
 				<Card size="sm">
 					<CardContent className="text-center">
-						<p className="text-lg font-semibold text-foreground">{formatStat(data.user.credits)}</p>
+						<p className="text-lg font-semibold text-foreground">{formatCompactNumber(data.user.credits)}</p>
 						<p className="mt-1 text-xs text-muted-foreground">积分</p>
 					</CardContent>
 				</Card>

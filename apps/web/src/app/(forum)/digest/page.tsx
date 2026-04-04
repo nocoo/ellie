@@ -6,7 +6,7 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { digestLabel } from "@/viewmodels/forum/digest";
 import { type DigestData, loadDigestList } from "@/viewmodels/forum/digest.server";
-import { formatStat, formatTime } from "@/viewmodels/forum/thread-list";
+import { formatCompactNumber, formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { getThreadBadges } from "@ellie/types";
 import { Award } from "lucide-react";
 import type { Metadata } from "next";
@@ -62,14 +62,14 @@ export default async function DigestPage({ searchParams }: DigestPageProps) {
 			<div className="grid grid-cols-4 gap-4">
 				<Card size="sm">
 					<CardContent className="text-center">
-						<p className="text-2xl font-semibold text-foreground">{formatStat(data.stats.total)}</p>
+						<p className="text-2xl font-semibold text-foreground">{formatCompactNumber(data.stats.total)}</p>
 						<p className="mt-1 text-xs text-muted-foreground">全部精华</p>
 					</CardContent>
 				</Card>
 				<Card size="sm">
 					<CardContent className="text-center">
 						<p className="text-2xl font-semibold text-foreground">
-							{formatStat(data.stats.level1)}
+							{formatCompactNumber(data.stats.level1)}
 						</p>
 						<p className="mt-1 text-xs text-muted-foreground">{digestLabel(1)}</p>
 					</CardContent>
@@ -77,7 +77,7 @@ export default async function DigestPage({ searchParams }: DigestPageProps) {
 				<Card size="sm">
 					<CardContent className="text-center">
 						<p className="text-2xl font-semibold text-foreground">
-							{formatStat(data.stats.level2)}
+							{formatCompactNumber(data.stats.level2)}
 						</p>
 						<p className="mt-1 text-xs text-muted-foreground">{digestLabel(2)}</p>
 					</CardContent>
@@ -85,7 +85,7 @@ export default async function DigestPage({ searchParams }: DigestPageProps) {
 				<Card size="sm">
 					<CardContent className="text-center">
 						<p className="text-2xl font-semibold text-foreground">
-							{formatStat(data.stats.level3)}
+							{formatCompactNumber(data.stats.level3)}
 						</p>
 						<p className="mt-1 text-xs text-muted-foreground">{digestLabel(3)}</p>
 					</CardContent>
@@ -125,11 +125,11 @@ export default async function DigestPage({ searchParams }: DigestPageProps) {
 												{thread.authorName}
 											</Link>
 											<span>·</span>
-											<span>{formatTime(thread.lastPostAt ?? thread.createdAt)}</span>
+											<span>{formatRelativeTime(thread.lastPostAt ?? thread.createdAt)}</span>
 										</div>
 										<div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0 tabular-nums">
-											<span>{formatStat(thread.views)} 览</span>
-											<span>{formatStat(thread.replies)} 回</span>
+											<span>{formatCompactNumber(thread.views)} 览</span>
+											<span>{formatCompactNumber(thread.replies)} 回</span>
 										</div>
 									</div>
 								);

@@ -1,6 +1,6 @@
 // components/forum/user-posts-tab.tsx — Posts tab for user profile page
 
-import { formatTime } from "@/viewmodels/forum/thread-list";
+import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import type { UserProfileData } from "@/viewmodels/forum/user-profile.server";
 import Link from "next/link";
 
@@ -30,7 +30,7 @@ export function UserPostsTab({
 					<p className="mt-0.5 text-sm text-foreground line-clamp-2">
 						{post.content.replace(/<[^>]*>/g, "").slice(0, 200)}
 					</p>
-					<span className="text-xs text-muted-foreground">{formatTime(post.createdAt)}</span>
+					<span className="text-xs text-muted-foreground">{formatRelativeTime(post.createdAt)}</span>
 				</div>
 			))}
 		</div>
