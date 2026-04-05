@@ -1,8 +1,20 @@
 # 13 — 举报功能
 
-> 用户举报帖子的前端入口、用户端 API、管理后台列表与处理界面。
+> 用户举报**帖子**的前端入口、用户端 API、管理后台列表与处理界面。
 >
 > **前置依赖**：02（数据库设计，reports 表已存在）、05（Worker API）、10（管理后台）
+
+---
+
+## 0. 设计决策
+
+| # | 问题 | 决策 | 说明 |
+|---|------|------|------|
+| 1 | 本期范围 | **只做 post 举报** | thread/user 举报留后续迭代 |
+| 2 | details 存储 | **拼进 reason** | `reason = "垃圾广告: 补充说明..."` |
+| 3 | 跳转元数据 | **联表查** | Admin API 查询时 JOIN posts/threads 补齐 thread_id |
+| 4 | 单条删除 | **用 batch-delete** | 前端传 `[id]` 单元素数组 |
+| 5 | 处理人身份 | **前端传** | Next.js proxy 从 session 取 admin 信息带入请求 |
 
 ---
 
@@ -13,7 +25,7 @@
 | 组件 | 状态 | 说明 |
 |------|------|------|
 | `reports` 表 | ✅ 已存在 | schema.ts 已定义 |
-| Admin API | ✅ 已存在 | `/api/admin/reports` 的 list/getById/update/batchDelete |
+| Admin API | ⚠️ 需改造 | 需联表补齐 thread_id 用于跳转 |
 | 用户端举报 API | ❌ 缺失 | 无 `/api/v1/reports` 端点 |
 | 前端举报入口 | ❌ 缺失 | 帖子操作栏无举报按钮 |
 | Admin 举报管理页 | ❌ 缺失 | 无 `/admin/reports` 页面 |
@@ -22,11 +34,12 @@
 
 | 功能 | 说明 |
 |------|------|
-| 用户举报 API | 创建举报（POST `/api/v1/reports`） |
+| 用户举报 API | 创建举报（POST `/api/v1/reports`），仅支持 `type=post` |
 | 帖子举报入口 | 帖子操作栏右侧添加"举报"按钮 |
-| 举报弹窗 | 选择举报理由 + 可选补充说明 |
-| Admin 举报列表 | 查看所有举报，按状态/类型筛选 |
-| Admin 举报处理 | 标记已处理/驳回，跳转查看被举报内容 |
+| 举报弹窗 | 选择举报理由 + 可选补充说明（拼入 reason） |
+| Admin API 改造 | 联表查询补齐 thread_id |
+| Admin 举报列表 | 查看所有举报，按状态筛选 |
+| Admin 举报处理 | 标记已处理/驳回，跳转查看被举报帖子 |
 
 ---
 
@@ -55,12 +68,12 @@ CREATE TABLE IF NOT EXISTS reports (
 
 | 字段 | 说明 |
 |------|------|
-| `type` | 举报类型：`thread`/`post`/`user` |
-| `target_id` | 被举报对象 ID |
+| `type` | 举报类型：本期只支持 `post` |
+| `target_id` | 被举报帖子 ID（posts.id） |
 | `reporter_id` | 举报人 UID |
-| `reason` | 举报理由（预设 + 自定义说明） |
+| `reason` | 举报理由，格式：`预设理由` 或 `预设理由: 补充说明` |
 | `status` | `pending`=待处理，`resolved`=已处理，`dismissed`=已驳回 |
-| `handler_id/name` | 处理人信息 |
+| `handler_id/name` | 处理人信息（由前端从 session 传入） |
 | `handled_at` | 处理时间 |
 
 ---
@@ -76,13 +89,13 @@ CREATE TABLE IF NOT EXISTS reports (
 | 1 | 已登录 | JWT 鉴权 |
 | 2 | 账号状态正常 | `users.status >= 0` |
 | 3 | 符合新用户限制 | 复用 `checkPostingPermission()` |
-| 4 | 不能举报自己 | `target.author_id != reporter_id` |
-| 5 | 目标存在 | 被举报的帖子/主题/用户存在 |
+| 4 | 不能举报自己的帖子 | `post.author_id != reporter_id` |
+| 5 | 帖子存在 | 被举报的帖子存在 |
 
 ### 3.2 重复举报限制
 
-- 同一用户对同一目标，24 小时内只能举报一次
-- 检查：`SELECT 1 FROM reports WHERE reporter_id=? AND type=? AND target_id=? AND created_at > ?`
+- 同一用户对同一帖子，24 小时内只能举报一次
+- 检查：`SELECT 1 FROM reports WHERE reporter_id=? AND type='post' AND target_id=? AND created_at > ?`
 
 ---
 
@@ -92,7 +105,7 @@ CREATE TABLE IF NOT EXISTS reports (
 
 | # | Method | Path | Handler | 说明 |
 |---|--------|------|---------|------|
-| #75 | `POST` | `/api/v1/reports` | `create` | 提交举报 |
+| #75 | `POST` | `/api/v1/reports` | `create` | 提交帖子举报 |
 
 ### 4.2 #75 POST /api/v1/reports
 
@@ -113,10 +126,15 @@ CREATE TABLE IF NOT EXISTS reports (
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `type` | string | ✅ | `thread`/`post`/`user` |
-| `targetId` | number | ✅ | 被举报对象 ID |
-| `reason` | string | ✅ | 举报理由（预设值或自定义） |
+| `type` | string | ✅ | 本期只接受 `post` |
+| `targetId` | number | ✅ | 被举报帖子 ID |
+| `reason` | string | ✅ | 举报理由（预设值） |
 | `details` | string | ❌ | 补充说明，最长 500 字符 |
+
+**存储逻辑**：
+
+- 如果有 details：`reason = "${reason}: ${details}"`
+- 如果无 details：`reason = "${reason}"`
 
 **预设举报理由**：
 
@@ -139,7 +157,7 @@ const REPORT_REASONS = [
     "id": 1,
     "type": "post",
     "targetId": 12345,
-    "reason": "垃圾广告",
+    "reason": "垃圾广告: 这个帖子包含大量广告链接",
     "createdAt": 1712345678
   }
 }
@@ -151,26 +169,40 @@ const REPORT_REASONS = [
 |------|------|------|
 | `UNAUTHORIZED` | 401 | 未登录 |
 | `FORBIDDEN` | 403 | 无权限（新用户限制等） |
-| `INVALID_REQUEST` | 400 | 参数错误 |
-| `TARGET_NOT_FOUND` | 404 | 举报目标不存在 |
-| `CANNOT_REPORT_SELF` | 400 | 不能举报自己的内容 |
+| `INVALID_REQUEST` | 400 | 参数错误或 type 不是 post |
+| `TARGET_NOT_FOUND` | 404 | 举报的帖子不存在 |
+| `CANNOT_REPORT_SELF` | 400 | 不能举报自己的帖子 |
 | `DUPLICATE_REPORT` | 400 | 24 小时内重复举报 |
 
-### 4.3 Admin 端点（已存在）
+### 4.3 Admin 端点
 
 | # | Method | Path | Handler | 状态 |
 |---|--------|------|---------|------|
-| #35 | `GET` | `/api/admin/reports` | `list` | ✅ 已有 |
-| #36 | `GET` | `/api/admin/reports/:id` | `getById` | ✅ 已有 |
+| #35 | `GET` | `/api/admin/reports` | `list` | ⚠️ 需改造 |
+| #36 | `GET` | `/api/admin/reports/:id` | `getById` | ⚠️ 需改造 |
 | #37 | `PATCH` | `/api/admin/reports/:id` | `update` | ✅ 已有 |
 | #38 | `POST` | `/api/admin/reports/batch-delete` | `batchDelete` | ✅ 已有 |
+
+**改造内容**：list 和 getById 需联表查询，返回 `threadId` 用于跳转：
+
+```sql
+SELECT r.*, p.thread_id
+FROM reports r
+LEFT JOIN posts p ON r.type = 'post' AND r.target_id = p.id
+```
+
+**返回字段新增**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `threadId` | number \| null | 帖子所属主题 ID，用于跳转 `/threads/{threadId}#post-{targetId}` |
 
 ### 4.4 文件位置
 
 | 文件 | 说明 |
 |------|------|
 | `apps/worker/src/handlers/report.ts` | 新建，用户端 create handler |
-| `apps/worker/src/handlers/admin/report.ts` | 已存在，无需修改 |
+| `apps/worker/src/handlers/admin/report.ts` | 改造 list/getById 联表查询 |
 
 ### 4.5 路由注册
 
@@ -198,10 +230,12 @@ Messages routes (#70-#74)
 | `/api/admin/reports/[id]` | GET, PATCH | Worker `/api/admin/reports/:id` |
 | `/api/admin/reports/batch-delete` | POST | Worker `/api/admin/reports/batch-delete` |
 
+**PATCH 处理人信息**：Next.js proxy 从 session 获取当前 admin 用户，自动补齐 `handlerId` 和 `handlerName` 字段。
+
 **文件**：
 - `apps/web/src/app/api/v1/reports/route.ts` — POST
 - `apps/web/src/app/api/admin/reports/route.ts` — GET
-- `apps/web/src/app/api/admin/reports/[id]/route.ts` — GET, PATCH
+- `apps/web/src/app/api/admin/reports/[id]/route.ts` — GET, PATCH（补齐处理人）
 - `apps/web/src/app/api/admin/reports/batch-delete/route.ts` — POST
 
 ### 5.2 ViewModel
@@ -218,11 +252,11 @@ Messages routes (#70-#74)
 
 | 导出 | 说明 |
 |------|------|
-| `Report` | 举报记录类型 |
+| `Report` | 举报记录类型（含 threadId） |
 | `ReportListParams` | 列表查询参数 |
 | `fetchReports(params)` | 获取举报列表 |
 | `updateReportStatus(id, status)` | 更新举报状态 |
-| `batchDeleteReports(ids)` | 批量删除 |
+| `batchDeleteReports(ids)` | 批量删除（单条删除传 `[id]`） |
 
 ---
 
@@ -315,18 +349,18 @@ interface PostActionBarProps {
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  举报管理                                                    │
-│  处理用户举报的内容                                          │
+│  处理用户举报的帖子                                          │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
-│  筛选: [全部状态 ▼] [全部类型 ▼]        [搜索...]   [刷新]  │
+│  筛选: [全部状态 ▼]                              [刷新]     │
 │                                                              │
-├──────┬────────┬────────┬──────────┬────────┬────────┬───────┤
-│  ☐  │ ID     │ 类型   │ 举报对象  │ 举报人  │ 理由   │ 状态  │
-├──────┼────────┼────────┼──────────┼────────┼────────┼───────┤
-│  ☐  │ 1      │ 帖子   │ #12345   │ alice  │ 垃圾广告│ 待处理│
-│  ☐  │ 2      │ 主题   │ #67890   │ bob    │ 人身攻击│ 已处理│
-│  ☐  │ 3      │ 帖子   │ #11111   │ carol  │ 违规内容│ 已驳回│
-└──────┴────────┴────────┴──────────┴────────┴────────┴───────┘
+├──────┬────────┬──────────┬────────┬────────────────┬───────┤
+│  ☐  │ ID     │ 举报帖子  │ 举报人  │ 理由           │ 状态  │
+├──────┼────────┼──────────┼────────┼────────────────┼───────┤
+│  ☐  │ 1      │ #12345   │ alice  │ 垃圾广告       │ 待处理│
+│  ☐  │ 2      │ #67890   │ bob    │ 人身攻击: ...  │ 已处理│
+│  ☐  │ 3      │ #11111   │ carol  │ 违规内容       │ 已驳回│
+└──────┴────────┴──────────┴────────┴────────────────┴───────┘
 │                                                              │
 │  [批量删除]                              < 1 2 3 ... 10 >   │
 └─────────────────────────────────────────────────────────────┘
@@ -336,14 +370,13 @@ interface PostActionBarProps {
 
 | 列 | 说明 |
 |----|------|
-| 类型 | `帖子`/`主题`/`用户` |
-| 举报对象 | 可点击，跳转到被举报内容 |
+| 举报帖子 | `#target_id`，可点击跳转到 `/threads/{threadId}#post-{targetId}` |
 | 举报人 | 可点击，跳转到用户页 |
+| 理由 | 显示 reason 字段（含补充说明时截断显示） |
 | 状态 | 待处理（黄）/已处理（绿）/已驳回（灰） |
 
 **筛选项**：
 - 状态：全部 / 待处理 / 已处理 / 已驳回
-- 类型：全部 / 帖子 / 主题 / 用户
 
 ### 7.3 举报详情/处理
 
@@ -354,28 +387,25 @@ interface PostActionBarProps {
 │  举报详情 #1                                [×] │
 ├─────────────────────────────────────────────────┤
 │                                                 │
-│  举报类型：帖子                                 │
-│  被举报内容：帖子 #12345 [查看 →]              │
+│  被举报帖子：#12345 [查看 →]                   │
 │  举报人：alice (UID: 100)  [查看 →]            │
-│  举报理由：垃圾广告                             │
-│  补充说明：这个帖子包含大量广告链接...          │
+│  举报理由：垃圾广告: 这个帖子包含大量广告链接   │
 │  举报时间：2024-04-04 10:30:00                 │
 │                                                 │
 │  当前状态：待处理                               │
 │                                                 │
-│           [标记已处理]  [驳回举报]  [删除]      │
+│              [标记已处理]  [驳回举报]  [删除]   │
 └─────────────────────────────────────────────────┘
 ```
 
 **操作按钮**：
 - **标记已处理**：设置 status=resolved
 - **驳回举报**：设置 status=dismissed
-- **删除**：删除举报记录（不影响被举报内容）
+- **删除**：调用 batch-delete 传 `[id]`
 
 **跳转链接**：
-- 帖子：`/threads/{thread_id}#post-{post_id}`
-- 主题：`/threads/{thread_id}`
-- 用户：`/users/{user_id}`
+- 帖子：`/threads/{threadId}#post-{targetId}`（threadId 从 API 返回）
+- 用户：`/users/{reporterId}`
 
 ### 7.4 文件结构
 
@@ -399,20 +429,23 @@ apps/web/src/
 |------|------|---------|
 | 1 | Worker 用户举报 handler | `apps/worker/src/handlers/report.ts` |
 | 2 | Worker 路由注册 | `apps/worker/src/index.ts` |
-| 3 | Next.js proxy routes | `apps/web/src/app/api/v1/reports/route.ts` |
-| 4 | 用户端 ViewModel | `apps/web/src/viewmodels/forum/report.ts` |
-| 5 | 举报弹窗组件 | `apps/web/src/components/forum/report-dialog.tsx` |
-| 6 | PostActionBar 改造 | `post-action-bar.tsx`, `post-card.tsx` |
-| 7 | Admin proxy routes | `apps/web/src/app/api/admin/reports/` |
-| 8 | Admin ViewModel | `apps/web/src/viewmodels/admin/reports.ts` |
-| 9 | Admin 导航配置 | `apps/web/src/lib/navigation.ts` |
-| 10 | Admin 举报列表页 | `apps/web/src/app/(admin)/admin/reports/page.tsx` |
-| 11 | Admin 表格组件 | `apps/web/src/components/admin/reports-table.tsx` |
+| 3 | Admin handler 改造（联表查 threadId） | `apps/worker/src/handlers/admin/report.ts` |
+| 4 | Next.js proxy routes（用户端） | `apps/web/src/app/api/v1/reports/route.ts` |
+| 5 | Next.js proxy routes（Admin，补齐处理人） | `apps/web/src/app/api/admin/reports/` |
+| 6 | 用户端 ViewModel | `apps/web/src/viewmodels/forum/report.ts` |
+| 7 | 举报弹窗组件 | `apps/web/src/components/forum/report-dialog.tsx` |
+| 8 | PostActionBar 改造 | `post-action-bar.tsx`, `post-card.tsx` |
+| 9 | Admin ViewModel | `apps/web/src/viewmodels/admin/reports.ts` |
+| 10 | Admin 导航配置 | `apps/web/src/lib/navigation.ts` |
+| 11 | Admin 举报列表页 | `apps/web/src/app/(admin)/admin/reports/page.tsx` |
+| 12 | Admin 表格组件 | `apps/web/src/components/admin/reports-table.tsx` |
 
 ```
-Step 1 → Step 2 → Step 3 → Step 4 → Step 5 → Step 6
-                    ↓
-            Step 7 → Step 8 → Step 9 → Step 10 → Step 11
+Step 1 → Step 2 → Step 3 → Step 4 → Step 5
+                              ↓
+                    Step 6 → Step 7 → Step 8
+                              ↓
+                    Step 9 → Step 10 → Step 11 → Step 12
 ```
 
 ---
@@ -426,22 +459,23 @@ Step 1 → Step 2 → Step 3 → Step 4 → Step 5 → Step 6
 - [ ] 举报按钮：自己的帖子不显示举报按钮
 - [ ] 举报弹窗：必须选择理由才能提交
 - [ ] 举报提交：成功后显示提示信息
+- [ ] 举报提交：reason 含补充说明时格式正确（`理由: 说明`）
 - [ ] 重复举报：24 小时内重复举报显示友好提示
 - [ ] 权限限制：新用户限制生效
 - [ ] 权限限制：封禁/禁言用户无法举报
+- [ ] 类型限制：只接受 type=post
 
 ### 管理后台
 
 - [ ] 导航：显示"举报管理"入口
 - [ ] 列表：正确显示所有举报记录
+- [ ] 列表：显示 threadId 用于跳转
 - [ ] 筛选：状态筛选正常工作
-- [ ] 筛选：类型筛选正常工作
 - [ ] 分页：分页正常工作
 - [ ] 详情：点击可查看举报详情
-- [ ] 跳转：点击举报对象可跳转到内容页
-- [ ] 处理：标记已处理/驳回正常工作
-- [ ] 删除：单条删除正常
-- [ ] 批量：批量删除正常
+- [ ] 跳转：点击举报帖子可跳转到 `/threads/{threadId}#post-{targetId}`
+- [ ] 处理：标记已处理/驳回正常，处理人信息正确记录
+- [ ] 删除：调用 batch-delete 传 `[id]` 正常
 
 ### 通用
 
@@ -455,8 +489,9 @@ Step 1 → Step 2 → Step 3 → Step 4 → Step 5 → Step 6
 
 | 功能 | 说明 |
 |------|------|
+| 主题举报 | 支持举报主题（入口、API、后台） |
+| 用户举报 | 支持直接举报用户（不依赖具体帖子） |
 | 举报通知 | 举报提交后通知管理员（站内信/邮件） |
-| 一键处理 | 处理举报时可选直接删除被举报内容 |
+| 一键处理 | 处理举报时可选直接删除被举报帖子 |
 | 举报统计 | Dashboard 显示待处理举报数量 |
 | 举报历史 | 用户个人中心查看自己的举报记录 |
-| 用户举报 | 支持直接举报用户（不依赖具体帖子） |
