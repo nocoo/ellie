@@ -4,8 +4,8 @@
 "use client";
 
 import { ComposeMessageDialog } from "@/components/forum/compose-message-dialog";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { type BreadcrumbItem, Breadcrumbs } from "@/components/layout/breadcrumbs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { getAvatarUrl } from "@/lib/avatar";
 import { getStaticImageUrl } from "@/lib/cdn";
@@ -115,13 +115,19 @@ function MessagesHeaderSection({
 	onMarkAllRead: () => void;
 	isMarkingAllRead: boolean;
 }) {
-	const title = activeBox === "inbox" ? "收信箱" : "发信箱";
-
 	return (
-		<div className="rounded-sm border border-border bg-card p-4">
-			<div className="flex items-center justify-between gap-4">
-				<h1 className="text-lg font-semibold text-foreground">{title}</h1>
-				<div className="flex items-center gap-2">
+		<div className="rounded-sm border border-border bg-gradient-to-br from-cyan-500/5 via-background to-teal-500/5 p-4">
+			<div className="flex items-start gap-4">
+				{/* Icon and title */}
+				<div className="flex-1 min-w-0">
+					<div className="flex items-center gap-2">
+						<Mail className="h-6 w-6 text-cyan-500 shrink-0" />
+						<h1 className="text-lg font-semibold text-foreground">站内信</h1>
+					</div>
+					<p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">私信沟通，畅所欲言</p>
+				</div>
+				{/* Actions */}
+				<div className="flex items-center gap-2 shrink-0">
 					{activeBox === "inbox" && unreadCount > 0 && (
 						<Button
 							variant="outline"
