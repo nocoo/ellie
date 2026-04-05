@@ -1,6 +1,7 @@
 // Ref: 04f §10 — Digest page: hero + tabs filter + card list + pagination
 
 import { DigestCard } from "@/components/forum/digest-card";
+import { DigestFiltersClient } from "@/components/forum/digest-filters";
 import { DigestHero } from "@/components/forum/digest-hero";
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
@@ -42,7 +43,13 @@ function FilterTab({
 }
 
 interface DigestPageProps {
-	searchParams: Promise<{ cursor?: string; direction?: string; level?: string }>;
+	searchParams: Promise<{
+		cursor?: string;
+		direction?: string;
+		level?: string;
+		year?: string;
+		forum?: string;
+	}>;
 }
 
 export default async function DigestPage({ searchParams }: DigestPageProps) {
@@ -52,6 +59,14 @@ export default async function DigestPage({ searchParams }: DigestPageProps) {
 	const level = sp.level ? Number.parseInt(sp.level, 10) : 0;
 	const validLevel = level >= 1 && level <= 3 ? level : undefined;
 
+	// Parse year filter
+	const year = sp.year ? Number.parseInt(sp.year, 10) : undefined;
+	const validYear = year && !Number.isNaN(year) ? year : undefined;
+
+	// Parse forum filter
+	const forumId = sp.forum ? Number.parseInt(sp.forum, 10) : undefined;
+	const validForumId = forumId && !Number.isNaN(forumId) ? forumId : undefined;
+
 	let data: DigestData;
 	let error: string | null = null;
 
@@ -60,6 +75,8 @@ export default async function DigestPage({ searchParams }: DigestPageProps) {
 			cursor: sp.cursor,
 			direction: sp.direction === "backward" ? "backward" : "forward",
 			level: validLevel,
+			year: validYear,
+			forumId: validForumId,
 		});
 	} catch (e) {
 		error = e instanceof Error ? e.message : "加载失败";
@@ -84,14 +101,31 @@ export default async function DigestPage({ searchParams }: DigestPageProps) {
 		{ label: "精华帖", href: "/digest" },
 	];
 
-	// Build pagination URLs with level preserved
+	// Build pagination URLs with all filters preserved
 	const buildUrl = (cursor: string, direction?: string) => {
 		const params = new URLSearchParams();
 		params.set("cursor", cursor);
 		if (direction) params.set("direction", direction);
 		if (validLevel) params.set("level", String(validLevel));
+		if (validYear) params.set("year", String(validYear));
+		if (validForumId) params.set("forum", String(validForumId));
 		return `/digest?${params.toString()}`;
 	};
+
+	// Build level tab URLs with year/forum preserved
+	const buildLevelUrl = (lvl?: number) => {
+		const params = new URLSearchParams();
+		if (lvl) params.set("level", String(lvl));
+		if (validYear) params.set("year", String(validYear));
+		if (validForumId) params.set("forum", String(validForumId));
+		const qs = params.toString();
+		return qs ? `/digest?${qs}` : "/digest";
+	};
+
+	// Find current forum name for display
+	const currentForumName = validForumId
+		? data.filters.forums.find((f) => f.id === validForumId)?.name
+		: undefined;
 
 	return (
 		<div className="space-y-4">
@@ -112,19 +146,29 @@ export default async function DigestPage({ searchParams }: DigestPageProps) {
 				<CardContent className="pt-3">
 					{/* Filter tabs (server-rendered links) */}
 					<div className="flex items-center gap-1 mb-4 border-b border-border pb-px">
-						<FilterTab href="/digest" active={!validLevel}>
+						<FilterTab href={buildLevelUrl()} active={!validLevel}>
 							全部 ({data.stats.total})
 						</FilterTab>
-						<FilterTab href="/digest?level=1" active={validLevel === 1}>
+						<FilterTab href={buildLevelUrl(1)} active={validLevel === 1}>
 							{digestLabel(1)} ({data.stats.level1})
 						</FilterTab>
-						<FilterTab href="/digest?level=2" active={validLevel === 2}>
+						<FilterTab href={buildLevelUrl(2)} active={validLevel === 2}>
 							{digestLabel(2)} ({data.stats.level2})
 						</FilterTab>
-						<FilterTab href="/digest?level=3" active={validLevel === 3}>
+						<FilterTab href={buildLevelUrl(3)} active={validLevel === 3}>
 							{digestLabel(3)} ({data.stats.level3})
 						</FilterTab>
 					</div>
+
+					{/* Year and Forum filters */}
+					<DigestFiltersClient
+						years={data.filters.years}
+						forums={data.filters.forums}
+						currentYear={validYear}
+						currentForumId={validForumId}
+						currentForumName={currentForumName}
+						currentLevel={validLevel}
+					/>
 
 					{/* Thread list */}
 					{data.results.items.length === 0 ? (

@@ -1,5 +1,5 @@
 // viewmodels/forum/digest.server.ts — Server-only data loader for digest page
-// Calls Worker API: GET /api/v1/digest, GET /api/v1/digest/stats
+// Calls Worker API: GET /api/v1/digest, GET /api/v1/digest/stats, GET /api/v1/digest/filters
 
 import "server-only";
 
@@ -15,9 +15,21 @@ export interface DigestStats {
 	level3: number;
 }
 
+export interface DigestFilterForum {
+	id: number;
+	name: string;
+	digestCount: number;
+}
+
+export interface DigestFilters {
+	years: number[];
+	forums: DigestFilterForum[];
+}
+
 export interface DigestData {
 	results: PaginatedResult<Thread>;
 	stats: DigestStats;
+	filters: DigestFilters;
 }
 
 export async function loadDigestList(params: {
@@ -26,6 +38,7 @@ export async function loadDigestList(params: {
 	limit?: number;
 	forumId?: number;
 	level?: number; // Filter by digest level (1, 2, or 3)
+	year?: number; // Filter by year
 }): Promise<DigestData> {
 	// Get page size from settings
 	const defaultLimit = await getPageSize();
@@ -40,11 +53,15 @@ export async function loadDigestList(params: {
 	if (params.level && params.level >= 1 && params.level <= 3) {
 		queryParams.level = params.level;
 	}
+	if (params.year) {
+		queryParams.year = params.year;
+	}
 
-	// Fetch digest threads and stats in parallel
-	const [threadsRes, statsRes] = await Promise.all([
+	// Fetch digest threads, stats, and filters in parallel
+	const [threadsRes, statsRes, filtersRes] = await Promise.all([
 		forumApi.getCursor<Thread>("/api/v1/digest", queryParams),
 		forumApi.get<DigestStats>("/api/v1/digest/stats"),
+		forumApi.get<DigestFilters>("/api/v1/digest/filters"),
 	]);
 
 	return {
@@ -55,5 +72,6 @@ export async function loadDigestList(params: {
 			total: statsRes.data.total,
 		},
 		stats: statsRes.data,
+		filters: filtersRes.data,
 	};
 }

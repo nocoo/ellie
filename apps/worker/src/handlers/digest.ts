@@ -55,6 +55,36 @@ function clampLimit(limitParam: string | null): number {
 	return n === undefined || n <= 0 ? DEFAULT_LIMIT : Math.min(n, MAX_LIMIT);
 }
 
+/** Build WHERE clause conditions for digest query */
+function buildDigestConditions(params: {
+	forumId: number | null;
+	level: number | null;
+	year: number | null;
+}): { conditions: string[]; bindings: (string | number)[] } {
+	const conditions: string[] = ["digest > 0"];
+	const bindings: (string | number)[] = [];
+
+	if (params.forumId && !Number.isNaN(params.forumId)) {
+		conditions.push("forum_id = ?");
+		bindings.push(params.forumId);
+	}
+
+	if (params.level && params.level >= 1 && params.level <= 3) {
+		conditions.push("digest = ?");
+		bindings.push(params.level);
+	}
+
+	if (params.year && !Number.isNaN(params.year)) {
+		// Filter by year based on created_at timestamp
+		const startOfYear = Math.floor(new Date(`${params.year}-01-01T00:00:00Z`).getTime() / 1000);
+		const endOfYear = Math.floor(new Date(`${params.year + 1}-01-01T00:00:00Z`).getTime() / 1000);
+		conditions.push("created_at >= ? AND created_at < ?");
+		bindings.push(startOfYear, endOfYear);
+	}
+
+	return { conditions, bindings };
+}
+
 /** GET /api/v1/digest - List digest threads (all forums, keyset pagination) */
 export async function list(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
@@ -64,60 +94,47 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	const cursorStr = url.searchParams.get("cursor");
 	const cursor = cursorStr ? decodeDigestCursor(cursorStr) : null;
 
-	// Optional forumId filter
+	// Optional filters
 	const forumIdParam = url.searchParams.get("forumId");
 	const forumId = forumIdParam ? Number.parseInt(forumIdParam, 10) : null;
+
+	const levelParam = url.searchParams.get("level");
+	const level = levelParam ? Number.parseInt(levelParam, 10) : null;
+
+	const yearParam = url.searchParams.get("year");
+	const year = yearParam ? Number.parseInt(yearParam, 10) : null;
+
+	const { conditions, bindings } = buildDigestConditions({ forumId, level, year });
 
 	let result: D1Result;
 	if (cursor) {
 		// Keyset pagination: ORDER BY digest DESC, last_post_at DESC, id DESC
-		if (forumId && !Number.isNaN(forumId)) {
-			result = await env.DB.prepare(
-				`SELECT * FROM threads WHERE digest > 0 AND forum_id = ?
-				 AND (digest < ? OR (digest = ? AND (last_post_at < ? OR (last_post_at = ? AND id < ?))))
-				 ORDER BY digest DESC, last_post_at DESC, id DESC LIMIT ?`,
-			)
-				.bind(
-					forumId,
-					cursor.digest,
-					cursor.digest,
-					cursor.lastPostAt,
-					cursor.lastPostAt,
-					cursor.id,
-					clampedLimit,
-				)
-				.all();
-		} else {
-			result = await env.DB.prepare(
-				`SELECT * FROM threads WHERE digest > 0
-				 AND (digest < ? OR (digest = ? AND (last_post_at < ? OR (last_post_at = ? AND id < ?))))
-				 ORDER BY digest DESC, last_post_at DESC, id DESC LIMIT ?`,
-			)
-				.bind(
-					cursor.digest,
-					cursor.digest,
-					cursor.lastPostAt,
-					cursor.lastPostAt,
-					cursor.id,
-					clampedLimit,
-				)
-				.all();
-		}
+		const cursorCondition =
+			"(digest < ? OR (digest = ? AND (last_post_at < ? OR (last_post_at = ? AND id < ?))))";
+		const whereClause = [...conditions, cursorCondition].join(" AND ");
+		const cursorBindings = [
+			cursor.digest,
+			cursor.digest,
+			cursor.lastPostAt,
+			cursor.lastPostAt,
+			cursor.id,
+		];
+
+		result = await env.DB.prepare(
+			`SELECT * FROM threads WHERE ${whereClause}
+			 ORDER BY digest DESC, last_post_at DESC, id DESC LIMIT ?`,
+		)
+			.bind(...bindings, ...cursorBindings, clampedLimit)
+			.all();
 	} else {
 		// First page
-		if (forumId && !Number.isNaN(forumId)) {
-			result = await env.DB.prepare(
-				"SELECT * FROM threads WHERE digest > 0 AND forum_id = ? ORDER BY digest DESC, last_post_at DESC, id DESC LIMIT ?",
-			)
-				.bind(forumId, clampedLimit)
-				.all();
-		} else {
-			result = await env.DB.prepare(
-				"SELECT * FROM threads WHERE digest > 0 ORDER BY digest DESC, last_post_at DESC, id DESC LIMIT ?",
-			)
-				.bind(clampedLimit)
-				.all();
-		}
+		const whereClause = conditions.join(" AND ");
+		result = await env.DB.prepare(
+			`SELECT * FROM threads WHERE ${whereClause}
+			 ORDER BY digest DESC, last_post_at DESC, id DESC LIMIT ?`,
+		)
+			.bind(...bindings, clampedLimit)
+			.all();
 	}
 
 	const threads = result.results.map((row) => toThread(row as Record<string, unknown>));
@@ -165,6 +182,44 @@ export async function stats(request: Request, env: Env): Promise<Response> {
 				level2: result?.level2 ?? 0,
 				level3: result?.level3 ?? 0,
 			},
+			meta: { timestamp: Date.now(), requestId: crypto.randomUUID() },
+		}),
+		{ headers: { ...corsHeaders(origin), "Content-Type": "application/json" } },
+	);
+}
+
+/** GET /api/v1/digest/filters - Get available filter options (years and forums with digest threads) */
+export async function filters(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+
+	// Get distinct years from digest threads
+	const yearsResult = await env.DB.prepare(
+		`SELECT DISTINCT strftime('%Y', created_at, 'unixepoch') as year
+		 FROM threads WHERE digest > 0
+		 ORDER BY year DESC`,
+	).all<{ year: string }>();
+
+	const years = yearsResult.results.map((r) => Number.parseInt(r.year, 10)).filter((y) => !Number.isNaN(y));
+
+	// Get forums that have digest threads (with count)
+	const forumsResult = await env.DB.prepare(
+		`SELECT f.id, f.name, COUNT(t.id) as digest_count
+		 FROM threads t
+		 JOIN forums f ON t.forum_id = f.id
+		 WHERE t.digest > 0
+		 GROUP BY f.id, f.name
+		 ORDER BY f.name`,
+	).all<{ id: number; name: string; digest_count: number }>();
+
+	const forums = forumsResult.results.map((r) => ({
+		id: r.id,
+		name: r.name,
+		digestCount: r.digest_count,
+	}));
+
+	return new Response(
+		JSON.stringify({
+			data: { years, forums },
 			meta: { timestamp: Date.now(), requestId: crypto.randomUUID() },
 		}),
 		{ headers: { ...corsHeaders(origin), "Content-Type": "application/json" } },

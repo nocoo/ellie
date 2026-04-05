@@ -116,6 +116,9 @@ export default {
 			if (path === "/api/v1/digest/stats" && request.method === "GET") {
 				return await (await import("./handlers/digest")).stats(request, env);
 			}
+			if (path === "/api/v1/digest/filters" && request.method === "GET") {
+				return await (await import("./handlers/digest")).filters(request, env);
+			}
 
 			// ── #12b Public stats (Key A, read-only, KV-cached) ─
 			if (path === "/api/v1/stats" && request.method === "GET") {
@@ -222,10 +225,7 @@ export default {
 			}
 
 			// ── User moderation routes (Key A + JWT + Admin/SuperMod) ─
-			if (
-				path.match(/^\/api\/v1\/moderation\/users\/\d+\/status$/) &&
-				request.method === "GET"
-			) {
+			if (path.match(/^\/api\/v1\/moderation\/users\/\d+\/status$/) && request.method === "GET") {
 				return await (await import("./handlers/moderation")).getUserStatus(request, env);
 			}
 			if (
