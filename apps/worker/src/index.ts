@@ -186,6 +186,14 @@ export default {
 				return await (await import("./handlers/message")).remove(request, env);
 			}
 
+			// ── Report routes (#75-#76) ──────────────────────
+			if (path === "/api/v1/reports" && request.method === "POST") {
+				return await (await import("./handlers/report")).create(request, env);
+			}
+			if (path === "/api/v1/posting-permission" && request.method === "GET") {
+				return await (await import("./handlers/report")).checkPermission(request, env);
+			}
+
 			// ── Moderation routes (Key A + JWT + role check) ─
 			if (
 				path.match(/^\/api\/v1\/moderation\/threads\/\d+\/sticky$/) &&
