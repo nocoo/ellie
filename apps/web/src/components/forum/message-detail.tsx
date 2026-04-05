@@ -3,10 +3,11 @@
 "use client";
 
 import { ComposeMessageDialog } from "@/components/forum/compose-message-dialog";
-import { UserAvatar } from "@/components/forum/user-avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { type BreadcrumbItem, Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { getAvatarUrl } from "@/lib/avatar";
+import { getStaticImageUrl } from "@/lib/cdn";
 import { cn } from "@/lib/utils";
 import { ApiError, type Message, deleteMessage, fetchMessage } from "@/viewmodels/forum/messages";
 import { ArrowLeft, Loader2, Reply, Trash2 } from "lucide-react";
@@ -58,9 +59,9 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 
 	// Reply dialog state
 	const [isReplyOpen, setIsReplyOpen] = useState(false);
-	const [replyRecipient, setReplyRecipient] = useState<{ id: number; username: string } | undefined>(
-		undefined,
-	);
+	const [replyRecipient, setReplyRecipient] = useState<
+		{ id: number; username: string } | undefined
+	>(undefined);
 
 	// Load message
 	const loadMessage = useCallback(async () => {
@@ -133,7 +134,12 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 		return (
 			<div className="py-12 text-center">
 				<p className="text-sm text-destructive">{error}</p>
-				<Button variant="outline" size="sm" className="mt-4" onClick={() => router.push("/messages")}>
+				<Button
+					variant="outline"
+					size="sm"
+					className="mt-4"
+					onClick={() => router.push("/messages")}
+				>
 					返回列表
 				</Button>
 			</div>
@@ -143,9 +149,7 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 	// No message
 	if (!message) {
 		return (
-			<div className="py-12 text-center text-sm text-muted-foreground">
-				站内信不存在或已被删除
-			</div>
+			<div className="py-12 text-center text-sm text-muted-foreground">站内信不存在或已被删除</div>
 		);
 	}
 
@@ -175,11 +179,20 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 				<div className="flex items-start justify-between border-b border-border pb-4">
 					<div className="flex items-start gap-3">
 						<Link href={`/users/${message.senderId}`}>
-							<UserAvatar
-								src={getAvatarUrl(message.senderId, "middle")}
-								alt={message.senderName}
-								className="h-12 w-12 rounded"
-							/>
+							<Avatar className="h-12 w-12 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.1)]">
+								<AvatarImage
+									src={getAvatarUrl(message.senderId, "middle")}
+									alt={message.senderName}
+									className="rounded-sm"
+								/>
+								<AvatarFallback className="rounded-sm bg-muted p-0 overflow-hidden">
+									<img
+										src={getStaticImageUrl("tavatar.gif")}
+										alt=""
+										className="h-full w-full object-cover"
+									/>
+								</AvatarFallback>
+							</Avatar>
 						</Link>
 						<div>
 							<div className="flex items-center gap-2">
