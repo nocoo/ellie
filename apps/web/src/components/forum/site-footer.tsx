@@ -18,8 +18,8 @@ interface SiteFooterProps {
 // Background image URLs — light & dark variants
 // ---------------------------------------------------------------------------
 
-const BG_LIGHT = "https://t.no.mt/ellie/bg_footer_light_01.jpg";
-const BG_DARK = "https://t.no.mt/ellie/bg_footer_dark_01.jpg";
+const BG_LIGHT = "https://t.no.mt/ellie/Bg-shanghai-light.png";
+const BG_DARK = "https://t.no.mt/ellie/Bg-shanghai-dark.png";
 
 // ---------------------------------------------------------------------------
 // Component
