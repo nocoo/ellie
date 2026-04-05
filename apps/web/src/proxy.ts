@@ -13,9 +13,14 @@
  *
  * Feature flag: features.access.require_login
  * When enabled, all public forum routes require authentication.
+ *
+ * Auth separation:
+ * - Forum users: auth.ts (Credentials provider, cookie: authjs.session-token)
+ * - Admin users: auth-admin.ts (Google OAuth, cookie: authjs.admin-session-token)
  */
 
 import { auth } from "@/auth";
+import { adminAuth } from "@/auth-admin";
 import { isAdmin } from "@/lib/admin";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
@@ -28,7 +33,7 @@ import type { NextRequest } from "next/server";
 function isAlwaysPublicRoute(pathname: string): boolean {
 	// Auth endpoints are always accessible
 	if (pathname === "/login" || pathname === "/admin/login" || pathname === "/register") return true;
-	if (pathname.startsWith("/api/auth")) return true;
+	if (pathname.startsWith("/api/auth") || pathname.startsWith("/api/admin-auth")) return true;
 	return false;
 }
 
@@ -79,28 +84,27 @@ export function isAdminRoute(pathname: string): boolean {
  * - "redirect:/login?redirect=..." -> redirect with return URL
  *
  * @param nextUrl - Full URL object (for building redirect params)
+ * @param forumSession - Forum user session (Credentials provider)
+ * @param adminSession - Admin session (Google OAuth)
  * @param requireLogin - When true, all forum public routes require authentication
  */
 export function resolveProxyAction(
 	nextUrl: URL,
-	isLoggedIn: boolean,
-	email?: string | null,
-	provider?: string | null,
+	forumSession: { user?: { name?: string | null } } | null,
+	adminSession: { user?: { email?: string | null } } | null,
 	requireLogin = false,
 ): string {
 	const pathname = nextUrl.pathname;
+	const isForumLoggedIn = !!forumSession?.user;
+	const isAdminLoggedIn = !!adminSession?.user && isAdmin(adminSession.user.email);
 
 	// Always-public routes (login, register, api/auth) are never blocked
 	if (isAlwaysPublicRoute(pathname)) {
 		// Authenticated admin on admin login page -> redirect to admin dashboard
-		if (pathname === "/admin/login" && isLoggedIn && isAdmin(email)) return "redirect:/admin";
+		if (pathname === "/admin/login" && isAdminLoggedIn) return "redirect:/admin";
 
 		// Credentials users already have a forum session — redirect away from auth pages
-		if (
-			(pathname === "/login" || pathname === "/register") &&
-			isLoggedIn &&
-			provider === "credentials"
-		) {
+		if ((pathname === "/login" || pathname === "/register") && isForumLoggedIn) {
 			return "redirect:/";
 		}
 
@@ -108,7 +112,7 @@ export function resolveProxyAction(
 	}
 
 	// If require_login is enabled, all forum content requires authentication
-	if (requireLogin && isPublicRoute(pathname) && !isLoggedIn) {
+	if (requireLogin && isPublicRoute(pathname) && !isForumLoggedIn) {
 		return "redirect:/login";
 	}
 
@@ -116,33 +120,30 @@ export function resolveProxyAction(
 		return "next";
 	}
 
-	// Messages routes: special handling - Google OAuth users reach layout for notice
+	// Messages routes: special handling - require forum login
 	if (isMessagesRoute(pathname)) {
-		if (!isLoggedIn) {
+		if (!isForumLoggedIn) {
 			// Not logged in → redirect to login with return URL
 			const target = pathname + nextUrl.search;
 			return `redirect:/login?redirect=${encodeURIComponent(target)}`;
 		}
-		// Google OAuth users pass through → layout will show CredentialsOnlyNotice
-		// Credentials users pass through → normal rendering
 		return "next";
 	}
 
-	// Forum auth routes: require credentials provider (Google OAuth users have no Worker JWT)
+	// Forum auth routes: require forum credentials session
 	if (isForumAuthRoute(pathname)) {
-		if (!isLoggedIn || provider !== "credentials") return "redirect:/login";
+		if (!isForumLoggedIn) return "redirect:/login";
 		return "next";
 	}
 
-	// Admin page routes require admin whitelist check
+	// Admin page routes require admin session (separate from forum)
 	if (isAdminRoute(pathname)) {
-		if (!isLoggedIn) return "redirect:/admin/login";
-		if (!isAdmin(email)) return "redirect:/admin/login";
+		if (!isAdminLoggedIn) return "redirect:/admin/login";
 		return "next";
 	}
 
-	// Other non-public routes: require login
-	if (!isLoggedIn) return "redirect:/login";
+	// Other non-public routes: require forum login
+	if (!isForumLoggedIn) return "redirect:/login";
 
 	return "next";
 }
@@ -224,25 +225,14 @@ export async function proxy(request: NextRequest) {
 	// Fetch require_login setting (cached, from Worker API)
 	const requireLogin = await getRequireLogin();
 
-	const authHandler = await auth((req) => {
-		const session = req.auth;
-		// Extract provider from augmented session type
-		// In proxy context, req.auth is the decoded session which includes our custom fields
-		const provider = session?.user ? (session.user as { provider?: string }).provider : undefined;
-		const action = resolveProxyAction(
-			req.nextUrl,
-			!!session,
-			session?.user?.email,
-			provider,
-			requireLogin,
-		);
+	// Get both sessions in parallel
+	const [forumSession, adminSession] = await Promise.all([auth(), adminAuth()]);
 
-		if (action === "next") return NextResponse.next();
-		const target = action.replace("redirect:", "");
-		return NextResponse.redirect(buildRedirectUrl(req, target));
-	});
+	const action = resolveProxyAction(request.nextUrl, forumSession, adminSession, requireLogin);
 
-	return authHandler(request, {} as never);
+	if (action === "next") return NextResponse.next();
+	const target = action.replace("redirect:", "");
+	return NextResponse.redirect(buildRedirectUrl(request, target));
 }
 
 export const config = {

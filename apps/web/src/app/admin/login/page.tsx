@@ -55,7 +55,8 @@ function LoginContent() {
 	const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
 
 	const handleGoogleLogin = () => {
-		signIn("google", { callbackUrl: "/admin" });
+		// Use the admin auth basePath
+		signIn("google", { callbackUrl: "/admin" }, { basePath: "/api/admin-auth" });
 	};
 
 	return (

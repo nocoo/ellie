@@ -1,18 +1,16 @@
 /**
- * Auth.js v5 configuration for Ellie.
+ * Auth.js v5 configuration for Ellie Forum.
  *
- * Dual-provider setup:
- * - Google OAuth  → admin console
- * - Credentials   → forum users (username/password → Worker JWT)
+ * Forum user authentication using Credentials provider (username/password → Worker JWT).
+ * Admin authentication is handled separately by auth-admin.ts.
  *
  * Ref: docs/04g-user-auth.md §2
  */
 
 import NextAuth from "next-auth";
-import type { Account, Profile, Session, User } from "next-auth";
+import type { Account, Session, User } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import Credentials from "next-auth/providers/credentials";
-import Google from "next-auth/providers/google";
 
 // ---------------------------------------------------------------------------
 // Environment helpers (only accessed at runtime, server-side)
@@ -88,28 +86,16 @@ export async function refreshWorkerToken(
 // Exported callbacks (pure functions, testable in isolation)
 // ---------------------------------------------------------------------------
 
-/** JWT callback — handles both Google OAuth and Credentials providers. */
+/** JWT callback — handles Credentials provider login and token refresh. */
 export function jwtCallback({
 	token,
 	user,
 	account,
-	profile,
 }: {
 	token: JWT;
 	user?: User;
 	account?: Account | null;
-	profile?: Profile;
 }): JWT | Promise<JWT> {
-	// ── Google OAuth (admin) ──
-	if (account?.provider === "google") {
-		token.sub = profile?.sub ?? undefined;
-		token.email = profile?.email ?? undefined;
-		token.name = profile?.name ?? undefined;
-		token.picture = (profile?.picture as string) ?? undefined;
-		token.provider = "google";
-		return token;
-	}
-
 	// ── Credentials first login ──
 	if (account?.provider === "credentials" && user) {
 		// Skip banned sentinel (signIn callback will reject)
@@ -161,25 +147,14 @@ export function sessionCallback({
 	session: Session;
 	token: JWT;
 }): Session {
-	if (token.provider === "credentials") {
-		session.user = {
-			id: token.sub ?? "",
-			name: token.name ?? "",
-			provider: "credentials",
-			role: token.role,
-		};
-		if (token.error) {
-			session.error = token.error;
-		}
-	} else {
-		// Google OAuth — preserve existing behavior
-		if (session.user) {
-			session.user.id = token.sub ?? "";
-			session.user.email = token.email ?? "";
-			session.user.name = token.name ?? "";
-			session.user.image = token.picture as string | undefined;
-		}
-		session.user.provider = "google";
+	session.user = {
+		id: token.sub ?? "",
+		name: token.name ?? "",
+		provider: "credentials",
+		role: token.role,
+	};
+	if (token.error) {
+		session.error = token.error;
 	}
 	return session;
 }
@@ -205,7 +180,6 @@ export function signInCallback({
 export const { handlers, auth, signIn, signOut } = NextAuth(async () => ({
 	trustHost: true,
 	providers: [
-		Google,
 		Credentials({
 			credentials: {
 				username: { label: "Username", type: "text" },
@@ -266,7 +240,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth(async () => ({
 		session: sessionCallback,
 	},
 	pages: {
-		signIn: "/admin/login",
-		error: "/admin/login",
+		signIn: "/login",
+		error: "/login",
 	},
 }));

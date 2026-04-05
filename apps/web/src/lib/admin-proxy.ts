@@ -4,12 +4,12 @@
  * createProxyHandler() is a factory that produces Next.js API Route handlers.
  * Each handler:
  *   1. Validates CSRF origin (non-GET only)
- *   2. Verifies admin session (auth() + resolveAdmin())
+ *   2. Verifies admin session (adminAuth() + resolveAdmin())
  *   3. Forwards the request to the Worker via adminApi
  *   4. Returns the Worker response as-is
  */
 
-import { auth } from "@/auth";
+import { adminAuth } from "@/auth-admin";
 import { type AdminInfo, resolveAdmin } from "@/lib/admin";
 import { adminApi } from "@/lib/admin-api";
 import { NextResponse } from "next/server";
@@ -114,7 +114,7 @@ export function createProxyHandler(handler: ProxyHandlerFn): NextRouteHandler {
 		}
 
 		// 2. Auth + admin whitelist check
-		const session = await auth();
+		const session = await adminAuth();
 		const admin = resolveAdmin(session);
 		if (!admin) {
 			return jsonError(401, "UNAUTHORIZED", "Admin authentication required");
