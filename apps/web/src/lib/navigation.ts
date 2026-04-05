@@ -51,7 +51,8 @@ export const NAV_GROUPS: NavGroupDef[] = [
 		label: "安全管理",
 		defaultOpen: true,
 		items: [
-			{ href: "/admin/ip-bans", label: "IP 封禁", icon: "ShieldBan" },
+			{ href: "/admin/reports", label: "举报管理", icon: "Flag" },
+				{ href: "/admin/ip-bans", label: "IP 封禁", icon: "ShieldBan" },
 			{ href: "/admin/censor-words", label: "敏感词", icon: "Filter" },
 		],
 	},
@@ -78,6 +79,7 @@ export const ROUTE_LABELS: Record<string, string> = {
 	forums: "版块",
 	attachments: "附件",
 	statistics: "统计计算",
+	reports: "举报管理",
 	"ip-bans": "IP 封禁",
 	"censor-words": "敏感词",
 	settings: "设置",
