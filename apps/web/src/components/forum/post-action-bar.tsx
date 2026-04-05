@@ -3,7 +3,7 @@
 // Per doc 11-frontend-moderation.md §2.1
 
 import type { LucideIcon } from "lucide-react";
-import { Pencil, Reply, Trash2 } from "lucide-react";
+import { Flag, Pencil, Reply, Trash2 } from "lucide-react";
 
 interface ActionBtnProps {
 	icon: LucideIcon;
@@ -33,18 +33,22 @@ interface PostActionBarProps {
 	onReply?: () => void;
 	onEdit?: () => void;
 	onDelete?: () => void;
+	onReport?: () => void;
 	canEdit?: boolean;
 	canDelete?: boolean;
+	canReport?: boolean;
 }
 
 export function PostActionBar({
 	onReply,
 	onEdit,
 	onDelete,
+	onReport,
 	canEdit,
 	canDelete,
+	canReport,
 }: PostActionBarProps) {
-	const hasModActions = canEdit || canDelete;
+	const hasModActions = canEdit || canDelete || canReport;
 
 	return (
 		<div className="flex items-center justify-between border-t border-dashed border-border px-3 py-2 text-xs text-forum-text-muted">
@@ -53,13 +57,14 @@ export function PostActionBar({
 				<ActionBtn icon={Reply} label="回复" onClick={onReply} />
 			</div>
 
-			{/* Right: Mod/Author actions */}
+			{/* Right: Mod/Author actions + Report */}
 			{hasModActions && (
 				<div className="flex items-center gap-4">
 					{canEdit && <ActionBtn icon={Pencil} label="编辑" onClick={onEdit} />}
 					{canDelete && (
 						<ActionBtn icon={Trash2} label="删除" onClick={onDelete} variant="destructive" />
 					)}
+					{canReport && <ActionBtn icon={Flag} label="举报" onClick={onReport} />}
 				</div>
 			)}
 		</div>

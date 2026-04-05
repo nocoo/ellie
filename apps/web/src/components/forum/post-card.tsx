@@ -14,15 +14,17 @@ import { PostActionBar } from "@/components/forum/post-action-bar";
 import { PostContent } from "@/components/forum/post-content";
 import { PostEditDialog } from "@/components/forum/post-edit-dialog";
 import { PostSidebar } from "@/components/forum/post-sidebar";
+import { ReportDialog } from "@/components/forum/report-dialog";
 import { ThreadModMenu } from "@/components/forum/thread-mod-menu";
-import { UserPopover } from "@/components/forum/user-popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { getAvatarUrl } from "@/lib/avatar";
 import { getStaticImageUrl } from "@/lib/cdn";
 import { type EnrichedPost, floorLabel } from "@/viewmodels/forum/thread-detail";
-import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { usePostActions } from "@/viewmodels/forum/use-post-actions";
+import { formatRelativeTime } from "@/viewmodels/shared/formatting";
+import Link from "next/link";
+import { useState } from "react";
 
 interface PostCardProps {
 	post: EnrichedPost;
@@ -41,8 +43,6 @@ interface PostCardProps {
 	/** Can delete thread (SuperMod/Admin or author) */
 	canDeleteThread: boolean;
 	currentUserId: number | null;
-	/** Current viewer's role for popover permission checks */
-	currentUserRole?: number;
 	isFirstPost: boolean;
 	threadId: number;
 	forumId: number;
@@ -62,7 +62,6 @@ export function PostCard({
 	canMoveThread,
 	canDeleteThread,
 	currentUserId,
-	currentUserRole = 0,
 	isFirstPost,
 	threadId,
 	forumId,
@@ -82,14 +81,21 @@ export function PostCard({
 		canModerate,
 	});
 
+	// Report dialog state
+	const [reportDialogOpen, setReportDialogOpen] = useState(false);
+	// Can report: logged in and not own post
+	const canReport = currentUserId !== null && !isOwnPost;
+
 	const actionBar = (
 		<>
 			<PostActionBar
 				onReply={onReply}
 				onEdit={canEdit ? actions.handleEdit : undefined}
 				onDelete={canDelete && !isFirst ? actions.handleDeleteClick : undefined}
+				onReport={canReport ? () => setReportDialogOpen(true) : undefined}
 				canEdit={canEdit}
 				canDelete={canDelete && !isFirst}
+				canReport={canReport}
 			/>
 			{/* Thread mod menu: only on first post, for users with any management permission */}
 			{isFirstPost && (canManageThread || canMoveThread || canDeleteThread) && (
@@ -120,8 +126,6 @@ export function PostCard({
 					isFirst={isFirst}
 					threadViews={threadViews}
 					threadReplies={threadReplies}
-					viewerRole={currentUserRole}
-					viewerUserId={currentUserId}
 				/>
 				<PostContent
 					post={post}
@@ -136,20 +140,25 @@ export function PostCard({
 			<div className="md:hidden">
 				{/* Compact header row */}
 				<div className="flex items-center gap-2 px-3 pt-3 pb-2 border-b border-dashed border-border">
-					<UserPopover
-						userId={post.authorId}
-						viewerRole={currentUserRole}
-						viewerUserId={currentUserId}
-						disabled={!post.author}
-					>
-						<Avatar className="h-8 w-8 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)] cursor-pointer">
-							{post.author && (
+					{post.author ? (
+						<Link href={`/users/${post.authorId}`}>
+							<Avatar className="h-8 w-8 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
 								<AvatarImage
 									src={getAvatarUrl(post.authorId, "small")}
 									alt={post.author.username}
 									className="rounded-sm"
 								/>
-							)}
+								<AvatarFallback className="text-xs rounded-sm bg-muted p-0 overflow-hidden">
+									<img
+										src={getStaticImageUrl("tavatar.gif")}
+										alt=""
+										className="h-full w-full object-cover"
+									/>
+								</AvatarFallback>
+							</Avatar>
+						</Link>
+					) : (
+						<Avatar className="h-8 w-8 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
 							<AvatarFallback className="text-xs rounded-sm bg-muted p-0 overflow-hidden">
 								<img
 									src={getStaticImageUrl("tavatar.gif")}
@@ -158,19 +167,21 @@ export function PostCard({
 								/>
 							</AvatarFallback>
 						</Avatar>
-					</UserPopover>
+					)}
 					<div className="flex flex-col min-w-0">
-						<UserPopover
-							userId={post.authorId}
-							viewerRole={currentUserRole}
-							viewerUserId={currentUserId}
-							disabled={!post.author}
-						>
-							<span className="text-sm font-medium text-forum-link hover:underline truncate cursor-pointer">
-								{post.author?.username ?? "未知用户"}
-							</span>
-						</UserPopover>
-						<span className="text-2xs text-forum-text-muted">{formatRelativeTime(post.createdAt)}</span>
+						{post.author ? (
+							<Link
+								href={`/users/${post.authorId}`}
+								className="text-sm font-medium text-forum-link hover:underline truncate"
+							>
+								{post.author.username}
+							</Link>
+						) : (
+							<span className="text-sm font-medium text-forum-text-muted truncate">未知用户</span>
+						)}
+						<span className="text-2xs text-forum-text-muted">
+							{formatRelativeTime(post.createdAt)}
+						</span>
 					</div>
 					<span className="ml-auto text-xs font-medium text-muted-foreground shrink-0">
 						{floorLabel(post.position, isFirst)}
@@ -207,6 +218,13 @@ export function PostCard({
 				variant="destructive"
 				loading={state.deleting}
 				onConfirm={actions.handleDeleteConfirm}
+			/>
+
+			{/* Report dialog */}
+			<ReportDialog
+				open={reportDialogOpen}
+				onOpenChange={setReportDialogOpen}
+				postId={post.id}
 			/>
 		</div>
 	);
