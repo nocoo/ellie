@@ -35,8 +35,9 @@
 | 功能 | 说明 |
 |------|------|
 | 用户举报 API | 创建举报（POST `/api/v1/reports`），仅支持 `type=post` |
+| 发帖权限检查 API | 新增 GET `/api/v1/posting-permission`，前端用于弹窗 Step 1 |
 | 帖子举报入口 | 帖子操作栏右侧添加"举报"按钮 |
-| 举报弹窗 | 选择举报理由 + 可选补充说明（拼入 reason） |
+| 举报弹窗 | 三步校验：权限检查 → Turnstile → 选择预设理由 |
 | Admin API 改造 | 联表查询补齐 thread_id |
 | Admin 举报列表 | 查看所有举报，按状态筛选 |
 | Admin 举报处理 | 标记已处理/驳回，跳转查看被举报帖子 |
@@ -92,7 +93,7 @@ CREATE TABLE IF NOT EXISTS reports (
 | 3 | 能够发帖 | 复用 `checkPostingPermission()` |
 | 4 | 不能举报自己的帖子 | `post.author_id != reporter_id` |
 | 5 | 帖子存在 | 被举报的帖子存在 |
-| 6 | Turnstile 验证通过 | 请求必须携带有效 `cf-turnstile-response` |
+| 6 | Turnstile 验证通过 | 请求必须携带有效 `turnstileToken` |
 
 ### 3.2 举报流程（前端门槛）
 
@@ -169,6 +170,7 @@ CREATE TABLE IF NOT EXISTS reports (
 | # | Method | Path | Handler | 说明 |
 |---|--------|------|---------|------|
 | #75 | `POST` | `/api/v1/reports` | `create` | 提交帖子举报 |
+| #76 | `GET` | `/api/v1/posting-permission` | `checkPermission` | 检查发帖权限（举报弹窗 Step 1） |
 
 ### 4.2 #75 POST /api/v1/reports
 
@@ -233,7 +235,40 @@ const REPORT_REASONS = [
 | `CANNOT_REPORT_SELF` | 400 | 不能举报自己的帖子 |
 | `DUPLICATE_REPORT` | 400 | 24 小时内重复举报 |
 
-### 4.3 Admin 端点
+### 4.3 #76 GET /api/v1/posting-permission
+
+**鉴权**：JWT（Key A）
+
+**用途**：前端举报弹窗 Step 1 调用，检查当前用户是否有发帖权限。
+
+**响应**：200 OK
+
+```json
+{
+  "data": {
+    "allowed": true
+  }
+}
+```
+
+或（无权限时）：
+
+```json
+{
+  "data": {
+    "allowed": false,
+    "reason": "您的账号注册未满 24 小时，暂时无法操作"
+  }
+}
+```
+
+**错误码**：
+
+| 错误 | HTTP | 说明 |
+|------|------|------|
+| `UNAUTHORIZED` | 401 | 未登录 |
+
+### 4.4 Admin 端点
 
 | # | Method | Path | Handler | 状态 |
 |---|--------|------|---------|------|
@@ -256,21 +291,22 @@ LEFT JOIN posts p ON r.type = 'post' AND r.target_id = p.id
 |------|------|------|
 | `threadId` | number \| null | 帖子所属主题 ID，用于跳转 `/threads/{threadId}#post-{targetId}` |
 
-### 4.4 文件位置
+### 4.5 文件位置
 
 | 文件 | 说明 |
 |------|------|
-| `apps/worker/src/handlers/report.ts` | 新建，用户端 create handler |
+| `apps/worker/src/handlers/report.ts` | 新建，用户端 create + checkPermission handler |
 | `apps/worker/src/handlers/admin/report.ts` | 改造 list/getById 联表查询 |
 
-### 4.5 路由注册
+### 4.6 路由注册
 
 在 `apps/worker/src/index.ts` 中：
 
 ```
 Auth routes (#12-#15)
   ↓
-#75  POST   /api/v1/reports   ← 新增
+#75  POST   /api/v1/reports              ← 新增
+#76  GET    /api/v1/posting-permission   ← 新增
   ↓
 Messages routes (#70-#74)
   ...
@@ -285,6 +321,7 @@ Messages routes (#70-#74)
 | Next.js Route | 方法 | 代理到 |
 |---------------|------|--------|
 | `/api/v1/reports` | POST | Worker `/api/v1/reports` |
+| `/api/v1/posting-permission` | GET | Worker `/api/v1/posting-permission` |
 | `/api/admin/reports` | GET | Worker `/api/admin/reports` |
 | `/api/admin/reports/[id]` | GET, PATCH | Worker `/api/admin/reports/:id` |
 | `/api/admin/reports/batch-delete` | POST | Worker `/api/admin/reports/batch-delete` |
@@ -293,6 +330,7 @@ Messages routes (#70-#74)
 
 **文件**：
 - `apps/web/src/app/api/v1/reports/route.ts` — POST
+- `apps/web/src/app/api/v1/posting-permission/route.ts` — GET（新增）
 - `apps/web/src/app/api/admin/reports/route.ts` — GET
 - `apps/web/src/app/api/admin/reports/[id]/route.ts` — GET, PATCH（补齐处理人）
 - `apps/web/src/app/api/admin/reports/batch-delete/route.ts` — POST
@@ -527,10 +565,10 @@ apps/web/src/
 
 | Step | 任务 | 关键文件 |
 |------|------|---------|
-| 1 | Worker 用户举报 handler | `apps/worker/src/handlers/report.ts` |
+| 1 | Worker 用户举报 handler（含 posting-permission） | `apps/worker/src/handlers/report.ts` |
 | 2 | Worker 路由注册 | `apps/worker/src/index.ts` |
 | 3 | Admin handler 改造（联表查 threadId） | `apps/worker/src/handlers/admin/report.ts` |
-| 4 | Next.js proxy routes（用户端） | `apps/web/src/app/api/v1/reports/route.ts` |
+| 4 | Next.js proxy routes（用户端，含 posting-permission） | `apps/web/src/app/api/v1/reports/`, `posting-permission/` |
 | 5 | Next.js proxy routes（Admin，补齐处理人） | `apps/web/src/app/api/admin/reports/` |
 | 6 | 用户端 ViewModel | `apps/web/src/viewmodels/forum/report.ts` |
 | 7 | 举报弹窗组件 | `apps/web/src/components/forum/report-dialog.tsx` |
