@@ -158,9 +158,13 @@ export const checkPermission = withAuth(async (request, env, user) => {
 	}
 
 	// Extract reason from error response
-	// The error response is a Response object, we need to extract the message
-	const errorBody = await permissionResult.error.clone().json() as { error?: { message?: string } };
-	const reason = errorBody?.error?.message ?? "您暂时无法操作";
+	// Error structure: { error: { code, message, details?: { message } } }
+	// The Chinese reason is in details.message, not error.message
+	const errorBody = (await permissionResult.error.clone().json()) as {
+		error?: { message?: string; details?: { message?: string } };
+	};
+	const reason =
+		errorBody?.error?.details?.message ?? errorBody?.error?.message ?? "您暂时无法操作";
 
 	return jsonResponse({ allowed: false, reason }, origin);
 });

@@ -26,16 +26,17 @@ export type ReportReason = (typeof REPORT_REASONS)[number];
 // Types
 // ---------------------------------------------------------------------------
 
-/** Report submission payload */
+/** Report submission payload (frontend-friendly, converted to API format) */
 export interface ReportPayload {
 	postId: number;
 	reason: ReportReason;
 }
 
-/** Report submission result */
+/** Report submission result (from API) */
 export interface ReportResult {
 	id: number;
-	postId: number;
+	type: "post";
+	targetId: number;
 	reason: string;
 	createdAt: number;
 }
@@ -68,9 +69,16 @@ export async function checkReportPermission(): Promise<ReportPermission> {
 
 /**
  * Submit a report for a post.
+ * Converts frontend payload (postId) to API format (type + targetId).
  */
 export async function submitReport(payload: ReportPayload): Promise<ReportResult> {
-	const result = await apiClient.post<ReportResult>("/api/v1/reports", payload);
+	// Convert frontend payload to API contract
+	const apiPayload = {
+		type: "post" as const,
+		targetId: payload.postId,
+		reason: payload.reason,
+	};
+	const result = await apiClient.post<ReportResult>("/api/v1/reports", apiPayload);
 	return result.data;
 }
 

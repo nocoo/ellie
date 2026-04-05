@@ -21,6 +21,7 @@ import { useUsersAdmin } from "@/viewmodels/admin/use-users-admin";
 import { type User, roleLabel, statusLabel } from "@/viewmodels/admin/users";
 import { formatNumber } from "@/viewmodels/shared/formatting";
 import { MoreHorizontal } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 
 // ---------------------------------------------------------------------------
 // Filter definitions
@@ -80,8 +81,14 @@ function statusVariant(status: number): "default" | "destructive" | "secondary" 
 // ---------------------------------------------------------------------------
 
 export default function UsersPage() {
+	// Read initial search from URL query params
+	const searchParams = useSearchParams();
+	const initialSearch = searchParams.get("search") ?? "";
+
 	// Use ViewModel hook for all state and logic
-	const { state, actions } = useUsersAdmin();
+	const { state, actions } = useUsersAdmin({
+		initialFilters: initialSearch ? { search: initialSearch } : undefined,
+	});
 
 	// -----------------------------------------------------------------------
 	// Column definitions

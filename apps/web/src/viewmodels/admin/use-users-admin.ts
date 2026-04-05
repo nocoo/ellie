@@ -3,7 +3,6 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import {
 	type User,
 	type UserUpdate,
@@ -12,6 +11,7 @@ import {
 	nukeUser,
 	updateUser,
 } from "@/viewmodels/admin/users";
+import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -119,6 +119,8 @@ export interface UseUsersAdminReturn {
 export interface UseUsersAdminOptions {
 	/** Initial page size (default: 20) */
 	initialPageSize?: number;
+	/** Initial filter values (default: all empty) */
+	initialFilters?: Partial<UserFilters>;
 }
 
 // ---------------------------------------------------------------------------
@@ -209,7 +211,7 @@ export function parseUsersResponse(
  * ```
  */
 export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdminReturn {
-	const { initialPageSize = 20 } = options;
+	const { initialPageSize = 20, initialFilters } = options;
 
 	// Data state
 	const [data, setData] = useState<User[]>([]);
@@ -218,7 +220,17 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 		limit: initialPageSize,
 	});
 	const [loading, setLoading] = useState(true);
-	const [filters, setFilters] = useState<UserFilters>(DEFAULT_FILTERS);
+	const [filters, setFilters] = useState<UserFilters>(() => {
+		// Merge initial filters, filtering out undefined values
+		if (!initialFilters) return DEFAULT_FILTERS;
+		const merged = { ...DEFAULT_FILTERS };
+		for (const [key, value] of Object.entries(initialFilters)) {
+			if (value !== undefined) {
+				merged[key] = value;
+			}
+		}
+		return merged;
+	});
 	const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
 
 	// Dialog states

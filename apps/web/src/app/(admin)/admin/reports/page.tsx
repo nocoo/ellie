@@ -213,7 +213,10 @@ export default function ReportsPage() {
 			key: "reporterName",
 			header: "举报人",
 			cell: (row) => (
-				<Link href={`/admin/users?id=${row.reporterId}`} className="text-primary hover:underline">
+				<Link
+					href={`/admin/users?search=${encodeURIComponent(row.reporterName)}`}
+					className="text-primary hover:underline"
+				>
 					{row.reporterName}
 				</Link>
 			),
