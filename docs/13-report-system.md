@@ -15,6 +15,7 @@
 | 3 | 跳转元数据 | **联表查** | Admin API 查询时 JOIN posts/threads 补齐 thread_id |
 | 4 | 单条删除 | **用 batch-delete** | 前端传 `[id]` 单元素数组 |
 | 5 | 处理人身份 | **只记录 name** | handler_id 固定为 0，handler_name 从 session 取 |
+| 6 | 人机验证 | **复用 Cap.js** | 使用现有 CapWidget 组件，前端校验通过后提交 |
 
 ---
 
@@ -93,7 +94,8 @@ CREATE TABLE IF NOT EXISTS reports (
 | 3 | 能够发帖 | 复用 `checkPostingPermission()` |
 | 4 | 不能举报自己的帖子 | `post.author_id != reporter_id` |
 | 5 | 帖子存在 | 被举报的帖子存在 |
-| 6 | Turnstile 验证通过 | 请求必须携带有效 `turnstileToken` |
+
+**注意**：Cap.js 验证仅在前端进行（与登录/注册一致），后端不校验 capToken。
 
 ### 3.2 举报流程（前端门槛）
 
@@ -116,7 +118,7 @@ CREATE TABLE IF NOT EXISTS reports (
 | Step | 校验项 | 失败处理 |
 |------|--------|----------|
 | 1 | 发帖权限检查 | 显示具体限制原因（新用户/禁言等），禁用后续步骤 |
-| 2 | Turnstile 人机验证 | 显示验证组件，通过后继续 |
+| 2 | Cap.js 人机验证 | 显示 CapWidget，通过后继续；未配置则跳过 |
 | 3 | 选择举报理由 | 必须选择一个预设理由才能提交 |
 
 **弹窗 UI**：
@@ -133,7 +135,7 @@ CREATE TABLE IF NOT EXISTS reports (
 │                                                 │
 │  Step 2: 人机验证                               │
 │  ┌─────────────────────────────────────────┐   │
-│  │ [    Turnstile 验证组件    ]            │   │
+│  │ [      CapWidget 验证组件      ]        │   │
 │  └─────────────────────────────────────────┘   │
 │                                                 │
 │  Step 3: 选择举报理由                           │
@@ -174,7 +176,7 @@ CREATE TABLE IF NOT EXISTS reports (
 
 ### 4.2 #75 POST /api/v1/reports
 
-**鉴权**：JWT（Key A）+ Turnstile
+**鉴权**：JWT（Key A）
 
 **请求体**：
 
@@ -182,8 +184,7 @@ CREATE TABLE IF NOT EXISTS reports (
 {
   "type": "post",
   "targetId": 12345,
-  "reason": "垃圾广告",
-  "turnstileToken": "xxx"
+  "reason": "垃圾广告"
 }
 ```
 
@@ -194,7 +195,8 @@ CREATE TABLE IF NOT EXISTS reports (
 | `type` | string | ✅ | 本期只接受 `post` |
 | `targetId` | number | ✅ | 被举报帖子 ID |
 | `reason` | string | ✅ | 必须是预设值之一 |
-| `turnstileToken` | string | ✅ | Turnstile 验证 token |
+
+**注意**：Cap.js 验证在前端完成，后端不校验（与登录/注册行为一致）。
 
 **预设举报理由**：
 
@@ -230,7 +232,6 @@ const REPORT_REASONS = [
 | `UNAUTHORIZED` | 401 | 未登录 |
 | `FORBIDDEN` | 403 | 无权限（无法发帖） |
 | `INVALID_REQUEST` | 400 | 参数错误、type 不是 post、reason 不在预设列表 |
-| `TURNSTILE_FAILED` | 400 | Turnstile 验证失败 |
 | `TARGET_NOT_FOUND` | 404 | 举报的帖子不存在 |
 | `CANNOT_REPORT_SELF` | 400 | 不能举报自己的帖子 |
 | `DUPLICATE_REPORT` | 400 | 24 小时内重复举报 |
@@ -342,7 +343,7 @@ Messages routes (#70-#74)
 | 导出 | 说明 |
 |------|------|
 | `REPORT_REASONS` | 预设举报理由常量 |
-| `ReportPayload` | 举报请求类型（含 turnstileToken） |
+| `ReportPayload` | 举报请求类型 |
 | `checkReportPermission()` | 检查发帖权限 |
 | `submitReport(payload)` | 提交举报 |
 
@@ -388,11 +389,12 @@ Messages routes (#70-#74)
 - ✓ 通过 → 显示绿色勾，进入 Step 2
 - ✗ 失败 → 显示红色叉和具体原因，禁用后续步骤
 
-**Step 2: Turnstile 验证**
+**Step 2: Cap.js 验证**
 
-显示 Turnstile 组件：
+显示 CapWidget 组件（复用 `NEXT_PUBLIC_CAP_API_ENDPOINT`）：
 - ✓ 通过 → 显示绿色勾，进入 Step 3
 - ✗ 失败 → 显示重试按钮
+- 如果 `CAP_API_ENDPOINT` 未配置，自动跳过此步
 
 **Step 3: 选择理由**
 
@@ -408,7 +410,7 @@ Messages routes (#70-#74)
 │                                                 │
 │  ✓ 权限检查通过                                │
 │                                                 │
-│  ✓ 人机验证通过                                │
+│  ✓ Cap.js 验证通过                             │
 │                                                 │
 │  请选择举报理由：                               │
 │                                                 │
@@ -597,11 +599,10 @@ Step 1 → Step 2 → Step 3 → Step 4 → Step 5
 - [ ] 举报按钮：自己的帖子不显示举报按钮
 - [ ] 举报弹窗 Step 1：权限检查（发帖权限）
 - [ ] 举报弹窗 Step 1：新用户/禁言用户显示具体限制原因
-- [ ] 举报弹窗 Step 2：Turnstile 验证
+- [ ] 举报弹窗 Step 2：Cap.js 验证（未配置则跳过）
 - [ ] 举报弹窗 Step 3：必须选择预设理由才能提交
 - [ ] 举报提交：成功后显示提示信息
 - [ ] 举报提交：reason 必须是预设值之一
-- [ ] 举报提交：turnstileToken 必填
 - [ ] 重复举报：24 小时内重复举报显示友好提示
 - [ ] 类型限制：只接受 type=post
 
