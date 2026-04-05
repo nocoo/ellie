@@ -13,10 +13,34 @@ const WORKER_PORT = 8787;
 const WORKER_URL = `http://localhost:${WORKER_PORT}`;
 const STARTUP_TIMEOUT = 30_000; // 30s max for server startup
 
-/** API Keys — must match .dev.vars */
-export const API_KEY_A = process.env.FORUM_API_KEY || "test-api-key";
-export const API_KEY_B = process.env.ADMIN_API_KEY || "test-admin-api-key";
-export const JWT_SECRET = process.env.JWT_SECRET || "test-secret-key-for-jwt-hs256";
+/**
+ * Get API Key A (public API) from environment.
+ * Must be a function to support late binding after preload sets process.env.
+ */
+export function getApiKeyA(): string {
+	return process.env.API_KEY || "test-api-key";
+}
+
+/**
+ * Get API Key B (admin API) from environment.
+ */
+export function getApiKeyB(): string {
+	return process.env.ADMIN_API_KEY || "test-admin-api-key";
+}
+
+/**
+ * Get JWT secret from environment.
+ */
+export function getJwtSecret(): string {
+	return process.env.JWT_SECRET || "test-secret-key-for-jwt-hs256";
+}
+
+/** @deprecated Use getApiKeyA() instead — this may have stale value if preload hasn't run */
+export const API_KEY_A = "DEPRECATED_USE_getApiKeyA";
+/** @deprecated Use getApiKeyB() instead */
+export const API_KEY_B = "DEPRECATED_USE_getApiKeyB";
+/** @deprecated Use getJwtSecret() instead */
+export const JWT_SECRET = "DEPRECATED_USE_getJwtSecret";
 
 let workerProcess: Subprocess | null = null;
 
@@ -33,50 +57,63 @@ export function getWorkerUrl(): string {
 
 /**
  * Create a JWT token for testing authenticated endpoints.
- * Replicates the logic from apps/worker/src/lib/jwt.ts
+ * Must match apps/worker/src/lib/jwt.ts exactly.
  */
 export async function createTestJwt(
 	userId: number,
 	role: number,
 	expiresInSec = 3600,
 ): Promise<string> {
+	const now = Math.floor(Date.now() / 1000);
 	const header = { alg: "HS256", typ: "JWT" };
 	const payload = {
 		userId,
 		role,
-		exp: Math.floor(Date.now() / 1000) + expiresInSec,
+		exp: now + expiresInSec,
+		iat: now,
 	};
 
+	const encodedHeader = base64UrlEncode(JSON.stringify(header));
+	const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+
+	const data = `${encodedHeader}.${encodedPayload}`;
+	const signature = await sign(data, getJwtSecret());
+	const encodedSignature = base64UrlEncode(signature);
+
+	return `${data}.${encodedSignature}`;
+}
+
+/**
+ * Signs data using HMAC-SHA256 (matches Worker implementation).
+ */
+async function sign(data: string, secret: string): Promise<Uint8Array> {
 	const encoder = new TextEncoder();
-	const headerB64 = btoa(JSON.stringify(header))
-		.replace(/=/g, "")
-		.replace(/\+/g, "-")
-		.replace(/\//g, "_");
-	const payloadB64 = btoa(JSON.stringify(payload))
-		.replace(/=/g, "")
-		.replace(/\+/g, "-")
-		.replace(/\//g, "_");
 
 	const key = await crypto.subtle.importKey(
 		"raw",
-		encoder.encode(JWT_SECRET),
+		encoder.encode(secret),
 		{ name: "HMAC", hash: "SHA-256" },
 		false,
 		["sign"],
 	);
 
-	const signature = await crypto.subtle.sign(
-		"HMAC",
-		key,
-		encoder.encode(`${headerB64}.${payloadB64}`),
-	);
+	const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(data));
+	return new Uint8Array(signature);
+}
 
-	const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
-		.replace(/=/g, "")
-		.replace(/\+/g, "-")
-		.replace(/\//g, "_");
+/**
+ * Encodes a string or bytes to base64url format (matches Worker implementation).
+ */
+function base64UrlEncode(input: string | Uint8Array): string {
+	let bytes: Uint8Array;
+	if (typeof input === "string") {
+		bytes = new TextEncoder().encode(input);
+	} else {
+		bytes = input;
+	}
 
-	return `${headerB64}.${payloadB64}.${signatureB64}`;
+	const base64 = btoa(String.fromCharCode(...bytes));
+	return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
 
 // ─── Worker Fetch Utilities ────────────────────────────────────
@@ -88,7 +125,7 @@ export async function workerFetch(path: string, init?: RequestInit): Promise<Res
 	return fetch(`${WORKER_URL}${path}`, {
 		...init,
 		headers: {
-			"X-API-Key": API_KEY_A,
+			"X-API-Key": getApiKeyA(),
 			...init?.headers,
 		},
 	});
@@ -105,7 +142,7 @@ export async function workerAuthFetch(
 	return fetch(`${WORKER_URL}${path}`, {
 		...init,
 		headers: {
-			"X-API-Key": API_KEY_A,
+			"X-API-Key": getApiKeyA(),
 			Authorization: `Bearer ${jwt}`,
 			...init?.headers,
 		},
@@ -121,7 +158,7 @@ export async function workerPost(
 	jwt?: string,
 ): Promise<Response> {
 	const headers: Record<string, string> = {
-		"X-API-Key": API_KEY_A,
+		"X-API-Key": getApiKeyA(),
 		"Content-Type": "application/json",
 	};
 	if (jwt) headers.Authorization = `Bearer ${jwt}`;
@@ -142,7 +179,7 @@ export async function workerPatch(
 	jwt?: string,
 ): Promise<Response> {
 	const headers: Record<string, string> = {
-		"X-API-Key": API_KEY_A,
+		"X-API-Key": getApiKeyA(),
 		"Content-Type": "application/json",
 	};
 	if (jwt) headers.Authorization = `Bearer ${jwt}`;
@@ -159,7 +196,7 @@ export async function workerPatch(
  */
 export async function workerDelete(path: string, jwt?: string): Promise<Response> {
 	const headers: Record<string, string> = {
-		"X-API-Key": API_KEY_A,
+		"X-API-Key": getApiKeyA(),
 	};
 	if (jwt) headers.Authorization = `Bearer ${jwt}`;
 
@@ -178,7 +215,7 @@ export async function adminFetch(path: string, init?: RequestInit): Promise<Resp
 	return fetch(`${WORKER_URL}${path}`, {
 		...init,
 		headers: {
-			"X-API-Key": API_KEY_B,
+			"X-API-Key": getApiKeyB(),
 			...init?.headers,
 		},
 	});
@@ -198,7 +235,7 @@ export async function adminPost(path: string, body: Record<string, unknown>): Pr
 	return fetch(`${WORKER_URL}${path}`, {
 		method: "POST",
 		headers: {
-			"X-API-Key": API_KEY_B,
+			"X-API-Key": getApiKeyB(),
 			"Content-Type": "application/json",
 		},
 		body: JSON.stringify(body),
@@ -212,7 +249,7 @@ export async function adminPatch(path: string, body: Record<string, unknown>): P
 	return fetch(`${WORKER_URL}${path}`, {
 		method: "PATCH",
 		headers: {
-			"X-API-Key": API_KEY_B,
+			"X-API-Key": getApiKeyB(),
 			"Content-Type": "application/json",
 		},
 		body: JSON.stringify(body),
@@ -226,7 +263,7 @@ export async function adminPut(path: string, body: Record<string, unknown>): Pro
 	return fetch(`${WORKER_URL}${path}`, {
 		method: "PUT",
 		headers: {
-			"X-API-Key": API_KEY_B,
+			"X-API-Key": getApiKeyB(),
 			"Content-Type": "application/json",
 		},
 		body: JSON.stringify(body),
@@ -240,7 +277,7 @@ export async function adminDelete(path: string): Promise<Response> {
 	return fetch(`${WORKER_URL}${path}`, {
 		method: "DELETE",
 		headers: {
-			"X-API-Key": API_KEY_B,
+			"X-API-Key": getApiKeyB(),
 		},
 	});
 }
@@ -282,16 +319,27 @@ export async function startWorker(): Promise<void> {
 		// Port not in use — we need to start the Worker
 	}
 
-	console.log(`[L2] Starting Worker on port ${WORKER_PORT}...`);
+	console.log(`[L2] Starting Worker on port ${WORKER_PORT} (env=test, remote D1)...`);
 	workerProcess = spawn(
-		["npx", "wrangler", "dev", "-c", "apps/worker/wrangler.toml", "--port", String(WORKER_PORT)],
+		[
+			"npx",
+			"wrangler",
+			"dev",
+			"-c",
+			"apps/worker/wrangler.toml",
+			"--env",
+			"test",
+			"--remote",
+			"--port",
+			String(WORKER_PORT),
+		],
 		{
 			cwd: process.cwd(),
 			stdout: "ignore",
 			stderr: "ignore",
 			env: {
 				...process.env,
-				NODE_ENV: "development",
+				NODE_ENV: "test",
 			},
 		},
 	);
@@ -333,7 +381,7 @@ export async function apiPost(
 		method: "POST",
 		headers: {
 			"Content-Type": "application/json",
-			"X-API-Key": API_KEY_A,
+			"X-API-Key": getApiKeyA(),
 			...headers,
 		},
 		body: JSON.stringify(body),
@@ -350,7 +398,7 @@ export async function apiPatch(
 		method: "PATCH",
 		headers: {
 			"Content-Type": "application/json",
-			"X-API-Key": API_KEY_A,
+			"X-API-Key": getApiKeyA(),
 			...headers,
 		},
 		body: JSON.stringify(body),
@@ -362,15 +410,20 @@ export async function apiDelete(path: string, headers?: Record<string, string>):
 	return fetch(`${WORKER_URL}${path}`, {
 		method: "DELETE",
 		headers: {
-			"X-API-Key": API_KEY_A,
+			"X-API-Key": getApiKeyA(),
 			...headers,
 		},
 	});
 }
 
 /** @deprecated No longer needed — Worker tests use real JWT */
+export function getDefaultAuthHeaders(): Record<string, string> {
+	return { "X-API-Key": getApiKeyA() };
+}
+
+/** @deprecated Use getDefaultAuthHeaders() instead */
 export const DEFAULT_AUTH_HEADERS: Record<string, string> = {
-	"X-API-Key": API_KEY_A,
+	"X-API-Key": "DEPRECATED_USE_getDefaultAuthHeaders",
 };
 
 /** @deprecated Use startWorker() instead */

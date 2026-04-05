@@ -10,6 +10,7 @@ database_id = "2b4bbcda-6a08-45bf-bbde-badfa4d73c8f"
 [[kv_namespaces]]
 binding = "KV"
 id = "9506856500c34ceb82ab989063962a6d"
+preview_id = "490227e961174fd38c6c14530a4ee3ee"
 
 [vars]
 ENVIRONMENT = "production"
@@ -17,3 +18,25 @@ ALLOWED_ORIGINS = "https://ellie.nocoo.cloud,https://ellie.worker.hexly.ai"
 
 [triggers]
 crons = ["*/5 * * * *"]
+
+# ─── Test Environment ───────────────────────────────────────────
+# D1 Isolation: L2/L3 tests MUST use [env.test] to avoid touching production data.
+# Run with: wrangler dev --env test --remote
+# Ref: 6DQ D1 维度 — 测试资源物理隔离
+
+[env.test]
+name = "ellie-test"
+
+[[env.test.d1_databases]]
+binding = "DB"
+database_name = "tongjinet-db-test"
+database_id = "940c7758-0a9e-44b2-aeb5-745fa3143371"
+
+[[env.test.kv_namespaces]]
+binding = "KV"
+id = "490227e961174fd38c6c14530a4ee3ee"
+preview_id = "490227e961174fd38c6c14530a4ee3ee"
+
+[env.test.vars]
+ENVIRONMENT = "test"
+ALLOWED_ORIGINS = "*"

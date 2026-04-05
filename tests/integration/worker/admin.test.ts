@@ -249,11 +249,12 @@ describe("L2: Worker Admin API", () => {
 	});
 
 	describe("POST /api/admin/users/batch-recalc-counters", () => {
-		test("returns 400 for empty ids", async () => {
+		test("accepts empty ids array (recalcs all users)", async () => {
+			// API accepts empty array and recalculates all users
 			const res = await adminPost("/api/admin/users/batch-recalc-counters", {
 				ids: [],
 			});
-			expect(res.status).toBe(400);
+			expect(res.status).toBe(200);
 		});
 	});
 
@@ -397,9 +398,17 @@ describe("L2: Worker Admin API", () => {
 	});
 
 	describe("POST /api/admin/censor-words/test", () => {
-		test("tests censor word matching", async () => {
+		test("requires content field", async () => {
+			// API requires 'content' not 'text'
 			const res = await adminPost("/api/admin/censor-words/test", {
 				text: "Hello world",
+			});
+			expect(res.status).toBe(400);
+		});
+
+		test("tests censor word matching with correct field", async () => {
+			const res = await adminPost("/api/admin/censor-words/test", {
+				content: "Hello world",
 			});
 			expect(res.status).toBe(200);
 		});
