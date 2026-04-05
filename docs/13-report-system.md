@@ -11,10 +11,10 @@
 | # | 问题 | 决策 | 说明 |
 |---|------|------|------|
 | 1 | 本期范围 | **只做 post 举报** | thread/user 举报留后续迭代 |
-| 2 | details 存储 | **拼进 reason** | `reason = "垃圾广告: 补充说明..."` |
+| 2 | 举报理由 | **只允许预设值** | 不支持自定义补充说明，避免结构化数据丢失 |
 | 3 | 跳转元数据 | **联表查** | Admin API 查询时 JOIN posts/threads 补齐 thread_id |
 | 4 | 单条删除 | **用 batch-delete** | 前端传 `[id]` 单元素数组 |
-| 5 | 处理人身份 | **前端传** | Next.js proxy 从 session 取 admin 信息带入请求 |
+| 5 | 处理人身份 | **只记录 name** | handler_id 固定为 0，handler_name 从 session 取 |
 
 ---
 
@@ -71,9 +71,10 @@ CREATE TABLE IF NOT EXISTS reports (
 | `type` | 举报类型：本期只支持 `post` |
 | `target_id` | 被举报帖子 ID（posts.id） |
 | `reporter_id` | 举报人 UID |
-| `reason` | 举报理由，格式：`预设理由` 或 `预设理由: 补充说明` |
+| `reason` | 举报理由（预设值，不支持自定义） |
 | `status` | `pending`=待处理，`resolved`=已处理，`dismissed`=已驳回 |
-| `handler_id/name` | 处理人信息（由前端从 session 传入） |
+| `handler_id` | 固定为 0（admin 无数值 ID） |
+| `handler_name` | 处理人名称（从 admin session 取） |
 | `handled_at` | 处理时间 |
 
 ---
@@ -117,8 +118,7 @@ CREATE TABLE IF NOT EXISTS reports (
 {
   "type": "post",
   "targetId": 12345,
-  "reason": "垃圾广告",
-  "details": "可选的补充说明"
+  "reason": "垃圾广告"
 }
 ```
 
@@ -128,13 +128,7 @@ CREATE TABLE IF NOT EXISTS reports (
 |------|------|------|------|
 | `type` | string | ✅ | 本期只接受 `post` |
 | `targetId` | number | ✅ | 被举报帖子 ID |
-| `reason` | string | ✅ | 举报理由（预设值） |
-| `details` | string | ❌ | 补充说明，最长 500 字符 |
-
-**存储逻辑**：
-
-- 如果有 details：`reason = "${reason}: ${details}"`
-- 如果无 details：`reason = "${reason}"`
+| `reason` | string | ✅ | 必须是预设值之一 |
 
 **预设举报理由**：
 
@@ -146,7 +140,7 @@ const REPORT_REASONS = [
   "虚假信息",
   "侵权内容",
   "其他"
-];
+] as const;
 ```
 
 **响应**：201 Created
@@ -157,7 +151,7 @@ const REPORT_REASONS = [
     "id": 1,
     "type": "post",
     "targetId": 12345,
-    "reason": "垃圾广告: 这个帖子包含大量广告链接",
+    "reason": "垃圾广告",
     "createdAt": 1712345678
   }
 }
@@ -169,7 +163,7 @@ const REPORT_REASONS = [
 |------|------|------|
 | `UNAUTHORIZED` | 401 | 未登录 |
 | `FORBIDDEN` | 403 | 无权限（新用户限制等） |
-| `INVALID_REQUEST` | 400 | 参数错误或 type 不是 post |
+| `INVALID_REQUEST` | 400 | 参数错误、type 不是 post、reason 不在预设列表 |
 | `TARGET_NOT_FOUND` | 404 | 举报的帖子不存在 |
 | `CANNOT_REPORT_SELF` | 400 | 不能举报自己的帖子 |
 | `DUPLICATE_REPORT` | 400 | 24 小时内重复举报 |
@@ -230,7 +224,7 @@ Messages routes (#70-#74)
 | `/api/admin/reports/[id]` | GET, PATCH | Worker `/api/admin/reports/:id` |
 | `/api/admin/reports/batch-delete` | POST | Worker `/api/admin/reports/batch-delete` |
 
-**PATCH 处理人信息**：Next.js proxy 从 session 获取当前 admin 用户，自动补齐 `handlerId` 和 `handlerName` 字段。
+**PATCH 处理人信息**：Next.js proxy 从 session 获取当前 admin 名称，自动补齐 `handlerName` 字段（`handlerId` 固定为 0）。
 
 **文件**：
 - `apps/web/src/app/api/v1/reports/route.ts` — POST
@@ -336,7 +330,13 @@ interface PostActionBarProps {
 
 **文件**：`apps/web/src/lib/navigation.ts`
 
-在"安全管理"组追加：
+1. 在 `ROUTE_LABELS` 追加：
+
+```ts
+reports: "举报管理",
+```
+
+2. 在 `NAV_GROUPS`"安全管理"组追加：
 
 ```ts
 { href: "/admin/reports", label: "举报管理", icon: "Flag" }
@@ -358,7 +358,7 @@ interface PostActionBarProps {
 │  ☐  │ ID     │ 举报帖子  │ 举报人  │ 理由           │ 状态  │
 ├──────┼────────┼──────────┼────────┼────────────────┼───────┤
 │  ☐  │ 1      │ #12345   │ alice  │ 垃圾广告       │ 待处理│
-│  ☐  │ 2      │ #67890   │ bob    │ 人身攻击: ...  │ 已处理│
+│  ☐  │ 2      │ #67890   │ bob    │ 人身攻击       │ 已处理│
 │  ☐  │ 3      │ #11111   │ carol  │ 违规内容       │ 已驳回│
 └──────┴────────┴──────────┴────────┴────────────────┴───────┘
 │                                                              │
@@ -372,7 +372,7 @@ interface PostActionBarProps {
 |----|------|
 | 举报帖子 | `#target_id`，可点击跳转到 `/threads/{threadId}#post-{targetId}` |
 | 举报人 | 可点击，跳转到用户页 |
-| 理由 | 显示 reason 字段（含补充说明时截断显示） |
+| 理由 | 显示 reason 字段（预设值） |
 | 状态 | 待处理（黄）/已处理（绿）/已驳回（灰） |
 
 **筛选项**：
@@ -389,7 +389,7 @@ interface PostActionBarProps {
 │                                                 │
 │  被举报帖子：#12345 [查看 →]                   │
 │  举报人：alice (UID: 100)  [查看 →]            │
-│  举报理由：垃圾广告: 这个帖子包含大量广告链接   │
+│  举报理由：垃圾广告                             │
 │  举报时间：2024-04-04 10:30:00                 │
 │                                                 │
 │  当前状态：待处理                               │
@@ -459,7 +459,7 @@ Step 1 → Step 2 → Step 3 → Step 4 → Step 5
 - [ ] 举报按钮：自己的帖子不显示举报按钮
 - [ ] 举报弹窗：必须选择理由才能提交
 - [ ] 举报提交：成功后显示提示信息
-- [ ] 举报提交：reason 含补充说明时格式正确（`理由: 说明`）
+- [ ] 举报提交：reason 必须是预设值之一
 - [ ] 重复举报：24 小时内重复举报显示友好提示
 - [ ] 权限限制：新用户限制生效
 - [ ] 权限限制：封禁/禁言用户无法举报
@@ -474,7 +474,7 @@ Step 1 → Step 2 → Step 3 → Step 4 → Step 5
 - [ ] 分页：分页正常工作
 - [ ] 详情：点击可查看举报详情
 - [ ] 跳转：点击举报帖子可跳转到 `/threads/{threadId}#post-{targetId}`
-- [ ] 处理：标记已处理/驳回正常，处理人信息正确记录
+- [ ] 处理：标记已处理/驳回正常，handler_name 正确记录
 - [ ] 删除：调用 batch-delete 传 `[id]` 正常
 
 ### 通用
