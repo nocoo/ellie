@@ -130,7 +130,7 @@ export default async function DigestPage({ searchParams }: DigestPageProps) {
 					{data.results.items.length === 0 ? (
 						<div className="py-8 text-center text-sm text-muted-foreground">暂无精华帖</div>
 					) : (
-						<div className="space-y-2">
+						<div>
 							{data.results.items.map((thread) => {
 								const badges = getThreadBadges(thread);
 								return <DigestCard key={thread.id} thread={thread} badges={badges} />;
