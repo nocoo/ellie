@@ -9,8 +9,8 @@ interface ForumLogoProps {
 	variant?: "auto" | "light" | "dark";
 }
 
-const LOGO_LIGHT = "https://t.no.mt/ellie/Logo-light.jpg";
-const LOGO_DARK = "https://t.no.mt/ellie/Logo-dark.jpg";
+const LOGO_LIGHT = "https://t.no.mt/ellie/Logo-light-2.png";
+const LOGO_DARK = "https://t.no.mt/ellie/Logo-dark-2.png";
 
 export function ForumLogo({ height, className = "", variant = "auto" }: ForumLogoProps) {
 	// Force light variant (dark logo for light backgrounds)
