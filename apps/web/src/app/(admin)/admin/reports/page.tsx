@@ -86,6 +86,8 @@ export default function ReportsPage() {
 	const fetchData = useCallback(
 		async (page = 1) => {
 			setLoading(true);
+			// Clear selection when data changes to prevent cross-page/filter batch operations
+			setSelectedIds(new Set());
 			try {
 				const result = await fetchReports({
 					page,
