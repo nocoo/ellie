@@ -76,6 +76,8 @@ export function canSubmitRegister(state: RegisterFormState): boolean {
 export function registerErrorMessage(errorCode: string | null | undefined): string | null {
 	if (!errorCode) return null;
 	switch (errorCode) {
+		case "REGISTRATION_DISABLED":
+			return "系统暂不开放注册";
 		case "USERNAME_TAKEN":
 			return "该用户名已被注册";
 		case "USERNAME_BANNED":

@@ -120,6 +120,7 @@ describe("register", () => {
 	it("rejects invalid email format → INVALID_EMAIL 400", async () => {
 		const { db } = createMockDb({
 			allResults: { "SELECT id, find": [] },
+			firstResults: { "SELECT value FROM settings": { value: "true" } },
 		});
 		const env = makeEnv({ DB: db, KV: createMockKV() });
 		const res = await register(
@@ -138,7 +139,10 @@ describe("register", () => {
 	it("accepts empty email (optional)", async () => {
 		const { db } = createMockDb({
 			allResults: { "SELECT id, find": [] },
-			firstResults: { "SELECT id FROM users": { id: 999 } },
+			firstResults: {
+				"SELECT value FROM settings": { value: "true" },
+				"SELECT id FROM users": { id: 999 },
+			},
 		});
 		const env = makeEnv({ DB: db, KV: createMockKV() });
 		const res = await register(
@@ -152,7 +156,10 @@ describe("register", () => {
 	it("accepts Chinese + English + digits + underscore username", async () => {
 		const { db } = createMockDb({
 			allResults: { "SELECT id, find": [] },
-			firstResults: { "SELECT id FROM users": { id: 999 } },
+			firstResults: {
+				"SELECT value FROM settings": { value: "true" },
+				"SELECT id FROM users": { id: 999 },
+			},
 		});
 		const env = makeEnv({ DB: db, KV: createMockKV() });
 		const res = await register(
@@ -169,6 +176,7 @@ describe("register", () => {
 			allResults: {
 				"SELECT id, find": [{ id: 1, find: "badword", replacement: "**", action: "ban" }],
 			},
+			firstResults: { "SELECT value FROM settings": { value: "true" } },
 		});
 		const env = makeEnv({ DB: db, KV: createMockKV() });
 		const res = await register(
@@ -185,7 +193,10 @@ describe("register", () => {
 	it("allows registration when under IP limit", async () => {
 		const { db } = createMockDb({
 			allResults: { "SELECT id, find": [] },
-			firstResults: { "SELECT id FROM users": { id: 999 } },
+			firstResults: {
+				"SELECT value FROM settings": { value: "true" },
+				"SELECT id FROM users": { id: 999 },
+			},
 		});
 		const kv = createMockKV({ get: { "reg-ip:1.2.3.4": "2" } });
 		const env = makeEnv({ DB: db, KV: kv });
@@ -199,6 +210,7 @@ describe("register", () => {
 	it("rejects registration when IP limit reached → RATE_LIMITED 429", async () => {
 		const { db } = createMockDb({
 			allResults: { "SELECT id, find": [] },
+			firstResults: { "SELECT value FROM settings": { value: "true" } },
 		});
 		const kv = createMockKV({ get: { "reg-ip:1.2.3.4": "3" } });
 		const env = makeEnv({ DB: db, KV: kv });
@@ -216,7 +228,10 @@ describe("register", () => {
 	it("creates user and returns JWT + refreshToken on success → 201", async () => {
 		const { db } = createMockDb({
 			allResults: { "SELECT id, find": [] },
-			firstResults: { "SELECT id FROM users": { id: 42 } },
+			firstResults: {
+				"SELECT value FROM settings": { value: "true" },
+				"SELECT id FROM users": { id: 42 },
+			},
 		});
 		const putCalls: Array<{ key: string; value: string; opts?: unknown }> = [];
 		const kv = createMockKV({ putCalls });
@@ -251,6 +266,53 @@ describe("register", () => {
 		expect(ratePut?.value).toBe("1");
 	});
 
+	// ── Registration disabled ──
+
+	it("rejects registration when disabled → REGISTRATION_DISABLED 403", async () => {
+		const { db } = createMockDb({
+			allResults: { "SELECT id, find": [] },
+			firstResults: { "SELECT value FROM settings": { value: "false" } },
+		});
+		const env = makeEnv({ DB: db, KV: createMockKV() });
+		const res = await register(
+			createRegisterRequest({ username: "validuser", password: "123456" }),
+			env,
+		);
+		expect(res.status).toBe(403);
+		const body = (await res.json()) as { error: { code: string } };
+		expect(body.error.code).toBe("REGISTRATION_DISABLED");
+	});
+
+	it("allows registration when setting is true", async () => {
+		const { db } = createMockDb({
+			allResults: { "SELECT id, find": [] },
+			firstResults: {
+				"SELECT value FROM settings": { value: "true" },
+				"SELECT id FROM users": { id: 999 },
+			},
+		});
+		const env = makeEnv({ DB: db, KV: createMockKV() });
+		const res = await register(
+			createRegisterRequest({ username: "validuser", password: "123456" }),
+			env,
+		);
+		expect(res.status).toBe(201);
+	});
+
+	it("allows registration when setting does not exist (default true)", async () => {
+		const { db } = createMockDb({
+			allResults: { "SELECT id, find": [] },
+			// No settings result = defaults to allowing registration
+			firstResults: { "SELECT id FROM users": { id: 999 } },
+		});
+		const env = makeEnv({ DB: db, KV: createMockKV() });
+		const res = await register(
+			createRegisterRequest({ username: "validuser", password: "123456" }),
+			env,
+		);
+		expect(res.status).toBe(201);
+	});
+
 	// ── UNIQUE constraint ──
 
 	it("returns USERNAME_TAKEN 409 on UNIQUE constraint violation", async () => {
@@ -263,7 +325,11 @@ describe("register", () => {
 					}
 					return { success: true, meta: { last_row_id: 1, changes: 1 } };
 				});
-				const firstMock = mock(async () => null);
+				const firstMock = mock(async () => {
+					// Return "true" for registration setting to allow registration
+					if (sql.includes("settings")) return { value: "true" };
+					return null;
+				});
 				const allMock = mock(async () => {
 					if (sql.includes("censor_words")) return { results: [] };
 					return { results: [] };

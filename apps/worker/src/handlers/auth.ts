@@ -274,7 +274,7 @@ export async function register(request: Request, env: Env): Promise<Response> {
 		const password = typeof body.password === "string" ? body.password : "";
 		const email = typeof body.email === "string" ? body.email.trim() : "";
 
-		// ── Input validation ──
+		// ── Input validation (before any DB calls for efficiency) ──
 		if (!username || !USERNAME_REGEX.test(username)) {
 			return errorResponse("INVALID_USERNAME", 400, undefined, origin);
 		}
@@ -285,6 +285,17 @@ export async function register(request: Request, env: Env): Promise<Response> {
 
 		if (email && !EMAIL_REGEX.test(email)) {
 			return errorResponse("INVALID_EMAIL", 400, undefined, origin);
+		}
+
+		// ── Check if registration is allowed ──
+		const registrationSetting = await env.DB.prepare(
+			"SELECT value FROM settings WHERE key = 'features.registration.allow_new_user'",
+		).first<{ value: string }>();
+
+		// Default to true if setting doesn't exist
+		const allowRegistration = registrationSetting?.value !== "false";
+		if (!allowRegistration) {
+			return errorResponse("REGISTRATION_DISABLED", 403, undefined, origin);
 		}
 
 		// ── Censor word check on username ──
