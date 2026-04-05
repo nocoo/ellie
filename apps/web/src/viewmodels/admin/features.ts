@@ -88,6 +88,20 @@ export const FEATURE_GROUPS: FeatureGroupDef[] = [
 		],
 	},
 	{
+		id: "registration",
+		title: "用户注册",
+		description: "控制新用户注册功能",
+		prefix: "features.registration",
+		fields: [
+			{
+				key: "features.registration.allow_new_user",
+				label: "允许新用户注册",
+				inputType: "switch",
+				hint: "关闭后，新用户将无法注册账号。仅管理员可手动添加用户。",
+			},
+		],
+	},
+	{
 		id: "content",
 		title: "内容功能",
 		description: "控制用户发布内容的功能",
@@ -154,6 +168,8 @@ export const FEATURE_DEFAULTS: Record<string, string> = {
 	"features.access.maintenance_mode": "false",
 	"features.access.maintenance_admin_bypass": "false",
 	"features.access.maintenance_message": "系统维护中，请稍后再试...",
+	// Registration - default: allow new users
+	"features.registration.allow_new_user": "true",
 	// Content features - default: all enabled
 	"features.content.allow_new_thread": "true",
 	"features.content.allow_reply": "true",
