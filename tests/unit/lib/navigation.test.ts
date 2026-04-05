@@ -17,9 +17,9 @@ describe("NAV_GROUPS", () => {
 		]);
 	});
 
-	it("has 12 total nav items", () => {
+	it("has 13 total nav items", () => {
 		const total = NAV_GROUPS.reduce((sum, g) => sum + g.items.length, 0);
-		expect(total).toBe(12);
+		expect(total).toBe(13);
 	});
 
 	it("each group has items with required fields", () => {
@@ -59,7 +59,7 @@ describe("NAV_GROUPS", () => {
 		const securityGroup = NAV_GROUPS.find((g) => g.label === "安全管理");
 		expect(securityGroup).toBeTruthy();
 		const labels = securityGroup?.items.map((i) => i.label);
-		expect(labels).toEqual(["IP 封禁", "敏感词"]);
+		expect(labels).toEqual(["举报管理", "IP 封禁", "敏感词"]);
 	});
 
 	it("settings group has general settings, feature settings, nav links, and friend links", () => {
