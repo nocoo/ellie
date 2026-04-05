@@ -154,7 +154,7 @@ function LoginContent() {
 							<button
 								type="button"
 								onClick={handleGoogleLogin}
-								className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-secondary px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent cursor-pointer"
+								className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-muted px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent cursor-pointer"
 							>
 								<GoogleIcon />
 								使用 Google 登录
