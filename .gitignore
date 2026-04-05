@@ -42,3 +42,7 @@ target/
 # Tools
 .claude/
 .superset/
+# Data import files (may contain real user data)
+scripts/*-import.sql
+scripts/*-data.sql
+**/import-*.sql
