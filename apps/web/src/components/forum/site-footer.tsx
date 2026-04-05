@@ -95,12 +95,12 @@ export function SiteFooter({ vm }: SiteFooterProps) {
 			{/* ── Background image — 125% content width and centered ── */}
 			{/* Uses CSS background-image with .dark class to sync with site theme toggle */}
 			{/* Browser only downloads the image for the current theme */}
-			<div className="width-container relative -mt-16 -top-[250px] mb-[-250px]">
+			<div className="width-container relative -mt-16 -top-[300px] mb-[-300px]">
 				<div className="mx-[-12.5%]">
 					<div
 						role="img"
 						aria-hidden="true"
-						className="w-full aspect-[1920/600] bg-cover bg-center bg-no-repeat"
+						className="w-full aspect-[1200/600] bg-contain bg-bottom bg-no-repeat"
 						style={
 							{
 								"--bg-light": `url(${BG_LIGHT})`,
