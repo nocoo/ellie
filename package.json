@@ -19,6 +19,7 @@
 		"test:integration": "bun test --preload tests/integration/preload.ts tests/integration/",
 		"test:integration:worker": "bun test --preload tests/integration/preload.ts tests/integration/worker/",
 		"test:integration:proxy": "bun test tests/integration/proxy/",
+		"verify:test-db": "bun run scripts/verify-test-db.ts",
 		"test:e2e": "bunx playwright test -c playwright.config.ts",
 		"test:coverage": "bun test --coverage tests/unit/",
 		"typecheck": "bun run --filter '*' typecheck",

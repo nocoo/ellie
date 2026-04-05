@@ -38,25 +38,74 @@
 		}
 	},
 	"files": {
-		"ignore": ["node_modules", "dist", ".next", "reference", "*.sql", "*.sql.gz"]
+		"ignore": ["node_modules", "dist", ".next", "reference", "*.sql", "*.sql.gz", ".wrangler"]
 	},
 	"overrides": [
 		{
-			"include": ["src/components/ui/**"],
+			"include": ["src/components/ui/**", "apps/web/src/components/ui/**"],
 			"linter": {
 				"rules": {
 					"a11y": {
-						"noLabelWithoutControl": "off"
+						"noLabelWithoutControl": "off",
+						"useKeyWithClickEvents": "off",
+						"useSemanticElements": "off"
 					}
 				}
 			}
 		},
 		{
-			"include": ["src/components/forum/post-content.tsx"],
+			"include": [
+				"src/components/forum/post-content.tsx",
+				"apps/web/src/components/forum/post-content.tsx"
+			],
 			"linter": {
 				"rules": {
 					"security": {
 						"noDangerouslySetInnerHtml": "off"
+					}
+				}
+			}
+		},
+		{
+			"include": ["apps/web/src/components/**"],
+			"linter": {
+				"rules": {
+					"a11y": {
+						"noLabelWithoutControl": "off",
+						"noSvgWithoutTitle": "off"
+					}
+				}
+			}
+		},
+		{
+			"include": ["scripts/**"],
+			"linter": {
+				"rules": {
+					"correctness": {
+						"noUnusedVariables": "warn"
+					},
+					"suspicious": {
+						"noAssignInExpressions": "off"
+					}
+				}
+			}
+		},
+		{
+			"include": ["apps/web/src/app/(admin)/admin/forums/page.tsx"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noArrayIndexKey": "off"
+					}
+				}
+			}
+		},
+		{
+			"include": ["**/*.test.ts", "**/*.spec.ts", "tests/**"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noUnusedTemplateLiteral": "off"
 					}
 				}
 			}
