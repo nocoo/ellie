@@ -4,10 +4,7 @@
 
 import { withEntityAuth } from "../../lib/adminHelpers";
 import type { EntityConfig } from "../../lib/crud";
-import {
-	createBatchDeleteHandler,
-	createGetByIdHandler,
-} from "../../lib/crud";
+import { createBatchDeleteHandler } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { jsonResponse, paginatedResponse } from "../../lib/response";
 
@@ -18,7 +15,18 @@ import { errorResponse } from "../../middleware/error";
 const REPORT_COLUMNS = `
 	id, type, target_id, reporter_id, reporter_name,
 	reason, status, handler_id, handler_name, handled_at, created_at
-`.replace(/\s+/g, " ").trim();
+`
+	.replace(/\s+/g, " ")
+	.trim();
+
+// Columns for JOIN query (includes thread_id from posts)
+const REPORT_JOIN_COLUMNS = `
+	r.id, r.type, r.target_id, r.reporter_id, r.reporter_name,
+	r.reason, r.status, r.handler_id, r.handler_name, r.handled_at, r.created_at,
+	p.thread_id
+`
+	.replace(/\s+/g, " ")
+	.trim();
 
 // ─── Mapper ───────────────────────────────────────────────────────
 
@@ -35,6 +43,14 @@ function toReport(row: Record<string, unknown>) {
 		handlerName: row.handler_name as string,
 		handledAt: row.handled_at as number | null,
 		createdAt: row.created_at as number,
+	};
+}
+
+/** Mapper for JOIN query result (includes threadId) */
+function toReportWithThread(row: Record<string, unknown>) {
+	return {
+		...toReport(row),
+		threadId: (row.thread_id as number | null) ?? null,
 	};
 }
 
@@ -77,6 +93,7 @@ const reportConfig: EntityConfig = {
 
 // ─── GET /api/admin/reports ───────────────────────────────────────
 // Custom list handler: supports status, type, reporterId filters.
+// JOIN with posts to get thread_id for navigation.
 
 export const list = withEntityAuth(
 	reportConfig,
@@ -90,14 +107,14 @@ export const list = withEntityAuth(
 		// Filter: status
 		const statusFilter = url.searchParams.get("status");
 		if (statusFilter && ["pending", "resolved", "dismissed"].includes(statusFilter)) {
-			conditions.push("status = ?");
+			conditions.push("r.status = ?");
 			params.push(statusFilter);
 		}
 
 		// Filter: type
 		const typeFilter = url.searchParams.get("type");
 		if (typeFilter && ["thread", "post", "user"].includes(typeFilter)) {
-			conditions.push("type = ?");
+			conditions.push("r.type = ?");
 			params.push(typeFilter);
 		}
 
@@ -106,7 +123,7 @@ export const list = withEntityAuth(
 		if (reporterIdFilter) {
 			const reporterId = Number.parseInt(reporterIdFilter, 10);
 			if (!Number.isNaN(reporterId)) {
-				conditions.push("reporter_id = ?");
+				conditions.push("r.reporter_id = ?");
 				params.push(reporterId);
 			}
 		}
@@ -123,18 +140,24 @@ export const list = withEntityAuth(
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid page number" }, origin);
 		}
 
-		const countResult = await env.DB.prepare(`SELECT COUNT(*) as total FROM reports ${whereClause}`)
+		const countResult = await env.DB.prepare(`SELECT COUNT(*) as total FROM reports r ${whereClause}`)
 			.bind(...params)
 			.first<{ total: number }>();
 
+		// JOIN with posts to get thread_id
 		const result = await env.DB.prepare(
-			`SELECT ${REPORT_COLUMNS} FROM reports ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+			`SELECT ${REPORT_JOIN_COLUMNS}
+			 FROM reports r
+			 LEFT JOIN posts p ON r.type = 'post' AND r.target_id = p.id
+			 ${whereClause}
+			 ORDER BY r.created_at DESC
+			 LIMIT ? OFFSET ?`,
 		)
 			.bind(...params, limit, (page - 1) * limit)
 			.all();
 
 		return paginatedResponse(
-			result.results.map((r) => toReport(r as Record<string, unknown>)),
+			result.results.map((r) => toReportWithThread(r as Record<string, unknown>)),
 			countResult?.total ?? 0,
 			page,
 			limit,
@@ -144,8 +167,35 @@ export const list = withEntityAuth(
 );
 
 // ─── GET /api/admin/reports/:id ──────────────────────────────────
+// Custom handler with JOIN to get thread_id
 
-export const getById = withEntityAuth(reportConfig, createGetByIdHandler(reportConfig));
+export const getById = withEntityAuth(
+	reportConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined;
+		const url = new URL(request.url);
+		const id = url.pathname.split("/").pop();
+
+		if (!id || Number.isNaN(Number.parseInt(id, 10))) {
+			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid report ID" }, origin);
+		}
+
+		const result = await env.DB.prepare(
+			`SELECT ${REPORT_JOIN_COLUMNS}
+			 FROM reports r
+			 LEFT JOIN posts p ON r.type = 'post' AND r.target_id = p.id
+			 WHERE r.id = ?`,
+		)
+			.bind(id)
+			.first();
+
+		if (!result) {
+			return errorResponse("REPORT_NOT_FOUND", 404, undefined, origin);
+		}
+
+		return jsonResponse(toReportWithThread(result as Record<string, unknown>), origin);
+	},
+);
 
 // ─── PATCH /api/admin/reports/:id ────────────────────────────────
 // Custom update handler to set handler_id, handler_name, handled_at when resolving/dismissing.
