@@ -8,7 +8,7 @@ import { SafeHtml } from "@/components/forum/safe-html";
 import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/viewmodels/shared/formatting";
 import type { Forum } from "@ellie/types";
-import { PenLine } from "lucide-react";
+import { Award, PenLine } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -55,12 +55,15 @@ export function ForumHeaderClient({ forum, isGroup }: ForumHeaderClientProps) {
 						<span className="text-muted-foreground">
 							回帖 <span className="font-medium text-foreground">{formatNumber(forum.posts)}</span>
 						</span>
-						<Link
-							href="/digest"
-							className="text-success hover:text-success/80 transition-colors font-medium"
+						<Button
+							size="sm"
+							className="bg-success hover:bg-success/90 text-white gap-1.5"
+							nativeButton={false}
+							render={<Link href="/digest" />}
 						>
+							<Award className="h-4 w-4" />
 							精华帖
-						</Link>
+						</Button>
 					</div>
 				)}
 			</div>

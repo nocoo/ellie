@@ -2,11 +2,12 @@
 // Shows recent digest threads with a link to full digest page
 
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import type { Thread } from "@ellie/types";
 import { getThreadBadges } from "@ellie/types";
-import { Award, ChevronRight } from "lucide-react";
+import { Award } from "lucide-react";
 import Link from "next/link";
 
 interface DigestShowcaseProps {
@@ -42,13 +43,15 @@ export function DigestShowcase({ threads, total }: DigestShowcaseProps) {
 					<CardTitle className="text-base">精华推荐</CardTitle>
 					<span className="text-xs text-muted-foreground">共 {total} 篇</span>
 				</div>
-				<Link
-					href="/digest"
-					className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+				<Button
+					size="sm"
+					className="bg-success hover:bg-success/90 text-white gap-1.5"
+					nativeButton={false}
+					render={<Link href="/digest" />}
 				>
-					查看全部
-					<ChevronRight className="h-3 w-3" />
-				</Link>
+					<Award className="h-4 w-4" />
+					精华帖
+				</Button>
 			</CardHeader>
 
 			<CardContent>
