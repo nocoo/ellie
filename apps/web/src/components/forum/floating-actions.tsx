@@ -96,54 +96,54 @@ export function FloatingActions({
 	}, [router, prevHref, nextHref, backHref]);
 
 	return (
-		<div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3">
-			{/* Keyboard shortcuts hint */}
-			<div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card/90 backdrop-blur border border-border/50 shadow-lg text-2xs text-muted-foreground">
-				{prevHref && (
-					<span className="flex items-center gap-1">
-						<kbd className="px-1.5 py-0.5 rounded bg-muted font-mono">[</kbd>
-						<span>上页</span>
-					</span>
-				)}
-				{nextHref && (
-					<span className="flex items-center gap-1">
-						<kbd className="px-1.5 py-0.5 rounded bg-muted font-mono">]</kbd>
-						<span>下页</span>
-					</span>
-				)}
-				{backHref && (
-					<span className="flex items-center gap-1">
-						<kbd className="px-1.5 py-0.5 rounded bg-muted font-mono">Esc</kbd>
-						<span>返回</span>
-					</span>
-				)}
-			</div>
-
+		<div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
 			{/* Action buttons */}
 			<div className="flex flex-col gap-2">
-				{/* Scroll to top */}
-				<Button
-					onClick={scrollToTop}
-					size="lg"
-					className={cn(
-						"rounded-full h-12 w-12 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-xl hover:shadow-2xl transition-all duration-200 hover:scale-105",
-						!showScrollTop && "opacity-0 pointer-events-none translate-y-4",
-					)}
-					aria-label="回到顶部"
-				>
-					<Rocket className="h-5 w-5" />
-				</Button>
-
 				{/* Reply button */}
 				{showReply && onReply && (
 					<Button
 						onClick={onReply}
-						size="lg"
-						className="rounded-full h-14 w-14 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-xl hover:shadow-2xl transition-all duration-200 hover:scale-105"
+						size="icon"
+						className="rounded-full h-10 w-10 bg-card hover:bg-accent text-foreground border border-border shadow-lg hover:shadow-xl transition-all duration-200"
 						aria-label="快速回复"
 					>
-						<MessageSquarePlus className="h-6 w-6" />
+						<MessageSquarePlus className="h-4 w-4" />
 					</Button>
+				)}
+
+				{/* Scroll to top */}
+				<Button
+					onClick={scrollToTop}
+					size="icon"
+					className={cn(
+						"rounded-full h-10 w-10 bg-card hover:bg-accent text-foreground border border-border shadow-lg hover:shadow-xl transition-all duration-200",
+						!showScrollTop && "opacity-0 pointer-events-none translate-y-2",
+					)}
+					aria-label="回到顶部"
+				>
+					<Rocket className="h-4 w-4" />
+				</Button>
+			</div>
+
+			{/* Keyboard shortcuts hint - below buttons, smaller text */}
+			<div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-md bg-card/80 backdrop-blur border border-border/50 shadow-md text-[10px] text-muted-foreground">
+				{prevHref && (
+					<span className="flex items-center gap-0.5">
+						<kbd className="px-1 py-0.5 rounded bg-muted font-mono text-[9px]">[</kbd>
+						<span>上页</span>
+					</span>
+				)}
+				{nextHref && (
+					<span className="flex items-center gap-0.5">
+						<kbd className="px-1 py-0.5 rounded bg-muted font-mono text-[9px]">]</kbd>
+						<span>下页</span>
+					</span>
+				)}
+				{backHref && (
+					<span className="flex items-center gap-0.5">
+						<kbd className="px-1 py-0.5 rounded bg-muted font-mono text-[9px]">Esc</kbd>
+						<span>返回</span>
+					</span>
 				)}
 			</div>
 		</div>
