@@ -38,7 +38,7 @@
 | 用户举报 API | 创建举报（POST `/api/v1/reports`），仅支持 `type=post` |
 | 发帖权限检查 API | 新增 GET `/api/v1/posting-permission`，前端用于弹窗 Step 1 |
 | 帖子举报入口 | 帖子操作栏右侧添加"举报"按钮 |
-| 举报弹窗 | 三步校验：权限检查 → Turnstile → 选择预设理由 |
+| 举报弹窗 | 三步校验：权限检查 → Cap.js 验证 → 选择预设理由 |
 | Admin API 改造 | 联表查询补齐 thread_id |
 | Admin 举报列表 | 查看所有举报，按状态筛选 |
 | Admin 举报处理 | 标记已处理/驳回，跳转查看被举报帖子 |
@@ -154,7 +154,7 @@ CREATE TABLE IF NOT EXISTS reports (
 
 **提交按钮状态**：
 - 权限检查失败 → 禁用，显示原因
-- Turnstile 未通过 → 禁用
+- Cap.js 未通过 → 禁用（未配置时跳过此检查）
 - 未选择理由 → 禁用
 - 全部通过 → 可点击
 
@@ -394,7 +394,7 @@ Messages routes (#70-#74)
 显示 CapWidget 组件（复用 `NEXT_PUBLIC_CAP_API_ENDPOINT`）：
 - ✓ 通过 → 显示绿色勾，进入 Step 3
 - ✗ 失败 → 显示重试按钮
-- 如果 `CAP_API_ENDPOINT` 未配置，自动跳过此步
+- 如果 `NEXT_PUBLIC_CAP_API_ENDPOINT` 未配置，自动跳过此步
 
 **Step 3: 选择理由**
 
@@ -442,7 +442,7 @@ Messages routes (#70-#74)
 
 **提交按钮状态**：
 - 权限检查失败 → 不显示提交按钮
-- Turnstile 未通过 → 禁用
+- Cap.js 未通过 → 禁用（未配置时跳过此检查）
 - 未选择理由 → 禁用
 - 全部通过 → 可点击
 
