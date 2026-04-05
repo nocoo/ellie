@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
-import type { Account, Profile, Session, User } from "next-auth";
+import type { Account, Session, User } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import {
 	decodeJwtExp,
@@ -77,26 +77,6 @@ function makeJwtString(exp: number): string {
 // ---------------------------------------------------------------------------
 
 describe("jwtCallback", () => {
-	it("Google OAuth: sets provider, sub, email, name, picture", () => {
-		const token: JWT = {};
-		const account = { provider: "google" } as Account;
-		const profile: Profile = {
-			sub: "google-123",
-			email: "admin@example.com",
-			name: "Admin User",
-			picture: "https://img.example.com/pic.jpg",
-		};
-
-		const result = jwtCallback({ token, account, profile });
-		expect(result).toEqual({
-			sub: "google-123",
-			email: "admin@example.com",
-			name: "Admin User",
-			picture: "https://img.example.com/pic.jpg",
-			provider: "google",
-		});
-	});
-
 	it("Credentials first login: stores workerJwt, refreshToken, exp, role, provider", () => {
 		const token: JWT = {};
 		const exp = Math.floor(Date.now() / 1000) + 3600;
@@ -144,17 +124,6 @@ describe("jwtCallback", () => {
 			workerRefreshToken: "some-refresh",
 			workerJwtExp: farFuture,
 			role: 0,
-		};
-
-		const result = jwtCallback({ token });
-		expect(result).toEqual(token);
-	});
-
-	it("Non-credentials subsequent request: returns token unchanged", () => {
-		const token: JWT = {
-			provider: "google",
-			sub: "g-123",
-			email: "admin@example.com",
 		};
 
 		const result = jwtCallback({ token });
@@ -261,36 +230,6 @@ describe("sessionCallback", () => {
 		const result = sessionCallback({ session, token });
 		expect(result.error).toBeUndefined();
 	});
-
-	it("Google provider: exposes id, email, name, image, provider", () => {
-		const session = { user: { id: "", email: "", name: "", image: "" } } as unknown as Session;
-		const token: JWT = {
-			provider: "google",
-			sub: "g-123",
-			email: "admin@example.com",
-			name: "Admin",
-			picture: "https://img.example.com/pic.jpg",
-		};
-
-		const result = sessionCallback({ session, token });
-		expect(result.user.id).toBe("g-123");
-		expect(result.user.email).toBe("admin@example.com");
-		expect(result.user.name).toBe("Admin");
-		expect(result.user.image).toBe("https://img.example.com/pic.jpg");
-		expect(result.user.provider).toBe("google");
-	});
-
-	it("Google provider without existing user fields: still sets provider", () => {
-		const session = { user: {} } as unknown as Session;
-		const token: JWT = {
-			provider: "google",
-			sub: "g-456",
-		};
-
-		const result = sessionCallback({ session, token });
-		expect(result.user.provider).toBe("google");
-		expect(result.user.id).toBe("g-456");
-	});
 });
 
 // ---------------------------------------------------------------------------
@@ -308,13 +247,6 @@ describe("signInCallback", () => {
 	it("Credentials + normal user: returns true", () => {
 		const user = { id: "42", name: "forumuser" } as User;
 		const account = { provider: "credentials" } as Account;
-
-		expect(signInCallback({ user, account })).toBe(true);
-	});
-
-	it("Google provider: returns true", () => {
-		const user = { id: "g-123", name: "Admin" } as User;
-		const account = { provider: "google" } as Account;
 
 		expect(signInCallback({ user, account })).toBe(true);
 	});
@@ -605,19 +537,6 @@ describe("jwtCallback refresh path", () => {
 		expect((result as JWT).error).toBeUndefined();
 	});
 
-	it("does not refresh Google OAuth tokens regardless of any expiry field", () => {
-		const token: JWT = {
-			provider: "google",
-			sub: "g-123",
-			email: "admin@example.com",
-			workerJwtExp: 0, // Would trigger refresh if it were credentials
-		};
-
-		const result = jwtCallback({ token });
-		expect(result).not.toBeInstanceOf(Promise);
-		expect((result as JWT).provider).toBe("google");
-	});
-
 	it("does not refresh when workerRefreshToken is missing", async () => {
 		process.env.WORKER_API_URL = "https://worker.example.com";
 		process.env.FORUM_API_KEY = "test-key";
@@ -676,35 +595,6 @@ describe("jwtCallback refresh path", () => {
 // ---------------------------------------------------------------------------
 
 describe("jwtCallback uncovered branches", () => {
-	it("Google OAuth with missing profile fields: defaults to undefined", () => {
-		const token: JWT = { sub: "existing" };
-		const account = { provider: "google" } as Account;
-		const profile: Profile = {}; // No sub, email, name, picture
-
-		const result = jwtCallback({ token, account, profile });
-		expect(result).toEqual({
-			sub: undefined,
-			email: undefined,
-			name: undefined,
-			picture: undefined,
-			provider: "google",
-		});
-	});
-
-	it("Google OAuth with undefined profile: defaults to undefined", () => {
-		const token: JWT = { sub: "existing" };
-		const account = { provider: "google" } as Account;
-
-		const result = jwtCallback({ token, account, profile: undefined });
-		expect(result).toEqual({
-			sub: undefined,
-			email: undefined,
-			name: undefined,
-			picture: undefined,
-			provider: "google",
-		});
-	});
-
 	it("Credentials first login with undefined user.name: sets name to undefined", () => {
 		const exp = Math.floor(Date.now() / 1000) + 3600;
 		const jwtString = makeJwtString(exp);
@@ -733,7 +623,7 @@ describe("jwtCallback uncovered branches", () => {
 		};
 		const user: User = { id: "42", name: "user" };
 
-		// No account -> falls through Google and Credentials-first-login branches
+		// No account -> falls through Credentials-first-login branch
 		const result = jwtCallback({ token, user, account: undefined });
 		expect(result).toEqual(token);
 	});
@@ -768,34 +658,5 @@ describe("sessionCallback uncovered branches", () => {
 		expect(result.user.id).toBe("");
 		expect(result.user.name).toBe("");
 		expect(result.user.role).toBeUndefined();
-	});
-
-	it("Google provider with missing token fields: uses defaults", () => {
-		const session = { user: {} } as unknown as Session;
-		const token: JWT = {
-			provider: "google",
-			// sub, email, name, picture missing
-		};
-
-		const result = sessionCallback({ session, token });
-		expect(result.user.provider).toBe("google");
-		expect(result.user.id).toBe("");
-		expect(result.user.email).toBe("");
-		expect(result.user.name).toBe("");
-		expect(result.user.image).toBeUndefined();
-	});
-
-	it("Google provider with picture set: maps to image", () => {
-		const session = { user: { id: "", email: "", name: "", image: "" } } as unknown as Session;
-		const token: JWT = {
-			provider: "google",
-			sub: "g-1",
-			email: "a@b.com",
-			name: "Admin",
-			picture: "https://img.test/a.png",
-		};
-
-		const result = sessionCallback({ session, token });
-		expect(result.user.image).toBe("https://img.test/a.png");
 	});
 });

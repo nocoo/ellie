@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { adminAuth } from "@/auth-admin";
 import { AppShell } from "@/components/layout/app-shell";
 import { resolveAdmin } from "@/lib/admin";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
@@ -13,7 +13,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
-	const session = await auth();
+	const session = await adminAuth();
 	const admin = resolveAdmin(session);
 
 	if (!admin) {

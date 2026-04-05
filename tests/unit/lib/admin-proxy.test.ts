@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
-// Mock @/auth before importing the module under test.
-// auth() calls Next.js headers() which requires a request scope.
-mock.module("@/auth", () => ({
-	auth: () => Promise.resolve(null),
+// Mock @/auth-admin before importing the module under test.
+// adminAuth() calls Next.js headers() which requires a request scope.
+mock.module("@/auth-admin", () => ({
+	adminAuth: () => Promise.resolve(null),
 }));
 
 // Mock @/lib/admin — resolveAdmin reads session which is null from mocked auth
