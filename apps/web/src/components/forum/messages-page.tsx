@@ -4,10 +4,11 @@
 "use client";
 
 import { ComposeMessageDialog } from "@/components/forum/compose-message-dialog";
-import { UserAvatar } from "@/components/forum/user-avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { type BreadcrumbItem, Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { getAvatarUrl } from "@/lib/avatar";
+import { getStaticImageUrl } from "@/lib/cdn";
 import { cn } from "@/lib/utils";
 import type { MessageListItem, SidebarItem } from "@/viewmodels/forum/messages";
 import {
@@ -81,7 +82,10 @@ function MessagesSidebar({
 							<span>{item.label}</span>
 							{badge !== undefined && (
 								<span
-									className={cn("text-xs", isActive ? "text-primary font-bold" : "text-muted-foreground")}
+									className={cn(
+										"text-xs",
+										isActive ? "text-primary font-bold" : "text-muted-foreground",
+									)}
 								>
 									({badge})
 								</span>
@@ -130,10 +134,7 @@ function MessagesHeaderSection({
 							{isMarkingAllRead ? "处理中..." : "全部已读"}
 						</Button>
 					)}
-					<Button
-						onClick={onCompose}
-						className="shrink-0 gap-2 bg-primary hover:bg-primary/90"
-					>
+					<Button onClick={onCompose} className="shrink-0 gap-2 bg-primary hover:bg-primary/90">
 						<PenLine className="h-4 w-4" />
 						写站内信
 					</Button>
@@ -223,11 +224,29 @@ function MessageRow({
 	const peerName = isInbox ? message.senderName : message.receiverName;
 
 	return (
-		<div className={cn("flex gap-3 border-b border-border py-4 last:border-b-0", !message.isRead && isInbox && "bg-muted/30")}>
+		<div
+			className={cn(
+				"flex gap-3 border-b border-border py-4 last:border-b-0",
+				!message.isRead && isInbox && "bg-muted/30",
+			)}
+		>
 			{/* Avatar */}
 			<div className="flex-shrink-0">
 				<Link href={`/users/${peerId}`}>
-					<UserAvatar src={getAvatarUrl(peerId, "middle")} alt={peerName} className="h-[48px] w-[48px] rounded" />
+					<Avatar className="h-12 w-12 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.1)]">
+						<AvatarImage
+							src={getAvatarUrl(peerId, "middle")}
+							alt={peerName}
+							className="rounded-sm"
+						/>
+						<AvatarFallback className="rounded-sm bg-muted p-0 overflow-hidden">
+							<img
+								src={getStaticImageUrl("tavatar.gif")}
+								alt=""
+								className="h-full w-full object-cover"
+							/>
+						</AvatarFallback>
+					</Avatar>
 				</Link>
 			</div>
 
@@ -237,7 +256,10 @@ function MessageRow({
 				<div className="text-sm">
 					{isInbox ? (
 						<>
-							<Link href={`/users/${peerId}`} className="font-bold text-foreground hover:text-primary">
+							<Link
+								href={`/users/${peerId}`}
+								className="font-bold text-foreground hover:text-primary"
+							>
 								{peerName}
 							</Link>
 							<span className="text-muted-foreground"> 发来：</span>
@@ -245,20 +267,28 @@ function MessageRow({
 					) : (
 						<>
 							<span className="text-muted-foreground">发送给 </span>
-							<Link href={`/users/${peerId}`} className="font-bold text-foreground hover:text-primary">
+							<Link
+								href={`/users/${peerId}`}
+								className="font-bold text-foreground hover:text-primary"
+							>
 								{peerName}
 							</Link>
 							<span className="text-muted-foreground">：</span>
 						</>
 					)}
-					{message.subject && <span className="font-medium text-foreground ml-1">{message.subject}</span>}
+					{message.subject && (
+						<span className="font-medium text-foreground ml-1">{message.subject}</span>
+					)}
 					{!message.isRead && isInbox && (
 						<span className="ml-2 inline-block h-2 w-2 rounded-full bg-red-500" title="未读" />
 					)}
 				</div>
 
 				{/* Preview */}
-				<Link href={`/messages/${message.id}`} className="block mt-1 text-sm text-muted-foreground leading-relaxed line-clamp-2 hover:text-foreground">
+				<Link
+					href={`/messages/${message.id}`}
+					className="block mt-1 text-sm text-muted-foreground leading-relaxed line-clamp-2 hover:text-foreground"
+				>
 					{message.preview}
 				</Link>
 
@@ -358,36 +388,33 @@ export function MessagesPageClient({
 	>(undefined);
 
 	// Fetch messages
-	const loadMessages = useCallback(
-		async (box: "inbox" | "outbox", nextCursor?: string) => {
-			setIsLoading(true);
-			setError(null);
+	const loadMessages = useCallback(async (box: "inbox" | "outbox", nextCursor?: string) => {
+		setIsLoading(true);
+		setError(null);
 
-			try {
-				const result = await fetchMessages(box, nextCursor);
+		try {
+			const result = await fetchMessages(box, nextCursor);
 
-				if (nextCursor) {
-					setMessages((prev) => [...prev, ...result.messages]);
-				} else {
-					setMessages(result.messages);
-				}
-				setCursor(result.nextCursor);
-
-				if (result.unreadCount !== undefined) {
-					setUnreadCount(result.unreadCount);
-				}
-			} catch (err) {
-				if (err instanceof ApiError) {
-					setError(err.message);
-				} else {
-					setError("加载失败，请重试");
-				}
-			} finally {
-				setIsLoading(false);
+			if (nextCursor) {
+				setMessages((prev) => [...prev, ...result.messages]);
+			} else {
+				setMessages(result.messages);
 			}
-		},
-		[],
-	);
+			setCursor(result.nextCursor);
+
+			if (result.unreadCount !== undefined) {
+				setUnreadCount(result.unreadCount);
+			}
+		} catch (err) {
+			if (err instanceof ApiError) {
+				setError(err.message);
+			} else {
+				setError("加载失败，请重试");
+			}
+		} finally {
+			setIsLoading(false);
+		}
+	}, []);
 
 	// Fetch unread count separately (for outbox view)
 	const loadUnreadCount = useCallback(async () => {
