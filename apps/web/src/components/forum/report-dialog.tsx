@@ -21,7 +21,7 @@ import {
 	submitReport,
 } from "@/viewmodels/forum/report";
 import { AlertCircle, CheckCircle2, CircleDot, Flag, Loader2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const CAP_API_ENDPOINT = process.env.NEXT_PUBLIC_CAP_API_ENDPOINT ?? "";
 
@@ -51,10 +51,30 @@ export function ReportDialog({ open, onOpenChange, postId, onSuccess }: ReportDi
 	const [submitting, setSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState(false);
+	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	// Cleanup timer on unmount or when dialog closes
+	useEffect(() => {
+		if (!open && closeTimerRef.current) {
+			clearTimeout(closeTimerRef.current);
+			closeTimerRef.current = null;
+		}
+		return () => {
+			if (closeTimerRef.current) {
+				clearTimeout(closeTimerRef.current);
+				closeTimerRef.current = null;
+			}
+		};
+	}, [open]);
 
 	// Reset state when dialog opens
 	useEffect(() => {
 		if (open) {
+			// Clear any pending close timer when reopening
+			if (closeTimerRef.current) {
+				clearTimeout(closeTimerRef.current);
+				closeTimerRef.current = null;
+			}
 			setStep({
 				permission: "pending",
 				captcha: CAP_API_ENDPOINT ? "pending" : "skipped",
@@ -123,7 +143,7 @@ export function ReportDialog({ open, onOpenChange, postId, onSuccess }: ReportDi
 			setSuccess(true);
 			onSuccess?.();
 			// Auto-close after showing success message
-			setTimeout(() => {
+			closeTimerRef.current = setTimeout(() => {
 				onOpenChange(false);
 			}, 1500);
 		} catch (err) {
