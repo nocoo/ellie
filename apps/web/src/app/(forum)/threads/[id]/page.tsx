@@ -10,8 +10,8 @@ import {
 	type ThreadDetailPageData,
 	loadThreadDetail,
 } from "@/viewmodels/forum/thread-detail.server";
-import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { getThreadTitle } from "@/viewmodels/forum/title.server";
+import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { parseIntParam } from "@/viewmodels/shared/params";
 import { getThreadBadges } from "@ellie/types";
 import type { Metadata } from "next";
@@ -106,7 +106,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 			)}
 
 			{/* Thread header (simplified — views/replies now in first post sidebar) */}
-			<Card size="sm">
+			<Card size="sm" className="bg-gradient-to-br from-slate-500/5 via-background to-zinc-500/5">
 				<CardContent>
 					<div className="flex items-center gap-2 flex-wrap">
 						<ThreadBadgeList badges={badges} />
@@ -146,7 +146,6 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 					canMoveThread={data.canMoveThread}
 					canDeleteThread={data.canDeleteThread}
 					currentUserId={data.currentUser?.id ?? null}
-					currentUserRole={data.currentUser?.role ?? 0}
 					prevHref={
 						data.prevCursor
 							? `/threads/${threadId}?cursor=${data.prevCursor}&direction=backward`

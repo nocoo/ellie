@@ -10,9 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getAvatarUrl } from "@/lib/avatar";
 import { getStaticImageUrl } from "@/lib/cdn";
-import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { formatUserRole, getUserRoleBadgeVariant } from "@/viewmodels/forum/user-profile";
-import { Pencil } from "lucide-react";
+import { formatRelativeTime } from "@/viewmodels/shared/formatting";
+import { Pencil, User } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -51,7 +51,7 @@ export function ProfileHero({ user }: ProfileHeroProps) {
 
 	return (
 		<>
-			<Card size="sm">
+			<Card size="sm" className="bg-gradient-to-br from-orange-500/5 via-background to-rose-500/5">
 				<CardContent>
 					<div className="flex items-center gap-4">
 						<Avatar className="h-12 w-12 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
@@ -70,6 +70,7 @@ export function ProfileHero({ user }: ProfileHeroProps) {
 						</Avatar>
 						<div className="min-w-0 flex-1">
 							<div className="flex items-center gap-2 flex-wrap">
+								<User className="h-5 w-5 text-orange-500 shrink-0" />
 								<h1 className="text-base font-semibold text-foreground">{user.username}</h1>
 								<Badge variant={getUserRoleBadgeVariant(user.role)}>
 									{formatUserRole(user.role)}

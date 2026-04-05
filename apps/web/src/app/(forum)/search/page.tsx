@@ -1,7 +1,9 @@
 // Ref: 04f §9 — Single Card: search form + type tabs + results + pagination
 
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
+import { SearchHero } from "@/components/forum/search-hero";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -57,108 +59,122 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 		);
 	}
 
+	const breadcrumbs = [
+		{ label: "首页", href: "/" },
+		{ label: "搜索", href: "/search" },
+	];
+
 	return (
-		<Card size="sm">
-			<CardHeader>
-				<CardTitle className="text-base">搜索</CardTitle>
-			</CardHeader>
+		<div className="space-y-4">
+			<div className="py-2">
+				<Breadcrumbs items={breadcrumbs} />
+			</div>
 
-			<CardContent className="space-y-3">
-				{/* Search form */}
-				<form className="flex gap-2" action="/search" method="get">
-					<Input
-						type="text"
-						name="q"
-						defaultValue={data.query}
-						placeholder="搜索..."
-						className="h-8 flex-1"
-					/>
-					<input type="hidden" name="type" value={data.searchType} />
-					<Button type="submit" size="sm">
-						搜索
-					</Button>
-				</form>
+			{/* Hero section */}
+			<SearchHero />
 
-				{/* Search type tabs */}
-				{data.query && (
-					<div className="flex items-center gap-1 border-b">
-						{SEARCH_TYPES.map((t) => {
-							const active = data.searchType === t.key;
-							return active ? (
-								<span
-									key={t.key}
-									className="inline-flex h-7 items-center border-b-2 border-primary px-2 text-xs font-medium text-foreground"
-								>
-									{t.label}
-								</span>
-							) : (
-								<Link
-									key={t.key}
-									href={`/search?q=${encodeURIComponent(data.query)}&type=${t.key}`}
-									className="inline-flex h-7 items-center border-b-2 border-transparent px-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-								>
-									{t.label}
-								</Link>
-							);
-						})}
-					</div>
-				)}
+			<Card size="sm">
+				<CardHeader>
+					<CardTitle className="text-base">搜索帖子</CardTitle>
+				</CardHeader>
 
-				{/* Results */}
-				{data.query ? (
-					<>
-						{data.results.items.length === 0 ? (
-							<div className="py-8 text-center text-sm text-muted-foreground">未找到相关结果</div>
-						) : (
-							<div className="divide-y divide-border/50">
-								{data.results.items.map((thread) => {
-									const badges = getThreadBadges(thread);
-									return (
-										<div
-											key={thread.id}
-											className="flex items-center gap-2 py-1.5 transition-colors hover:bg-accent/50"
-										>
-											{badges.length > 0 && <ThreadBadgeList badges={badges} />}
-											<Link
-												href={`/threads/${thread.id}`}
-												className="min-w-0 flex-1 truncate text-sm text-foreground hover:text-primary transition-colors"
-											>
-												{thread.subject}
-											</Link>
-											<div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground shrink-0">
-												<span>{thread.authorName}</span>
-												<span>·</span>
-												<span>{formatRelativeTime(thread.lastPostAt ?? thread.createdAt)}</span>
-											</div>
-											<div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0 tabular-nums">
-												<span>{formatCompactNumber(thread.views)} 览</span>
-												<span>{formatCompactNumber(thread.replies)} 回</span>
-											</div>
-										</div>
-									);
-								})}
-							</div>
-						)}
-
-						<KeysetPagination
-							total={data.results.total}
-							totalLabel="条结果"
-							prevHref={
-								data.results.prevCursor
-									? `/search?q=${encodeURIComponent(data.query)}&type=${data.searchType}&cursor=${data.results.prevCursor}&direction=backward`
-									: null
-							}
-							nextHref={
-								data.results.nextCursor
-									? `/search?q=${encodeURIComponent(data.query)}&type=${data.searchType}&cursor=${data.results.nextCursor}`
-									: null
-							}
+				<CardContent className="space-y-3">
+					{/* Search form */}
+					<form className="flex gap-2" action="/search" method="get">
+						<Input
+							type="text"
+							name="q"
+							defaultValue={data.query}
+							placeholder="搜索..."
+							className="h-8 flex-1"
 						/>
-					</>
-				) : (
-					<div className="py-8 text-center text-sm text-muted-foreground">输入关键词开始搜索</div>
-				)}
-			</CardContent>
-		</Card>
+						<input type="hidden" name="type" value={data.searchType} />
+						<Button type="submit" size="sm">
+							搜索
+						</Button>
+					</form>
+
+					{/* Search type tabs */}
+					{data.query && (
+						<div className="flex items-center gap-1 border-b">
+							{SEARCH_TYPES.map((t) => {
+								const active = data.searchType === t.key;
+								return active ? (
+									<span
+										key={t.key}
+										className="inline-flex h-7 items-center border-b-2 border-primary px-2 text-xs font-medium text-foreground"
+									>
+										{t.label}
+									</span>
+								) : (
+									<Link
+										key={t.key}
+										href={`/search?q=${encodeURIComponent(data.query)}&type=${t.key}`}
+										className="inline-flex h-7 items-center border-b-2 border-transparent px-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+									>
+										{t.label}
+									</Link>
+								);
+							})}
+						</div>
+					)}
+
+					{/* Results */}
+					{data.query ? (
+						<>
+							{data.results.items.length === 0 ? (
+								<div className="py-8 text-center text-sm text-muted-foreground">未找到相关结果</div>
+							) : (
+								<div className="divide-y divide-border/50">
+									{data.results.items.map((thread) => {
+										const badges = getThreadBadges(thread);
+										return (
+											<div
+												key={thread.id}
+												className="flex items-center gap-2 py-1.5 transition-colors hover:bg-accent/50"
+											>
+												{badges.length > 0 && <ThreadBadgeList badges={badges} />}
+												<Link
+													href={`/threads/${thread.id}`}
+													className="min-w-0 flex-1 truncate text-sm text-foreground hover:text-primary transition-colors"
+												>
+													{thread.subject}
+												</Link>
+												<div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+													<span>{thread.authorName}</span>
+													<span>·</span>
+													<span>{formatRelativeTime(thread.lastPostAt ?? thread.createdAt)}</span>
+												</div>
+												<div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0 tabular-nums">
+													<span>{formatCompactNumber(thread.views)} 览</span>
+													<span>{formatCompactNumber(thread.replies)} 回</span>
+												</div>
+											</div>
+										);
+									})}
+								</div>
+							)}
+
+							<KeysetPagination
+								total={data.results.total}
+								totalLabel="条结果"
+								prevHref={
+									data.results.prevCursor
+										? `/search?q=${encodeURIComponent(data.query)}&type=${data.searchType}&cursor=${data.results.prevCursor}&direction=backward`
+										: null
+								}
+								nextHref={
+									data.results.nextCursor
+										? `/search?q=${encodeURIComponent(data.query)}&type=${data.searchType}&cursor=${data.results.nextCursor}`
+										: null
+								}
+							/>
+						</>
+					) : (
+						<div className="py-8 text-center text-sm text-muted-foreground">输入关键词开始搜索</div>
+					)}
+				</CardContent>
+			</Card>
+		</div>
 	);
 }
