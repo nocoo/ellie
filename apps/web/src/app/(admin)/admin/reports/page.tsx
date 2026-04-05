@@ -8,6 +8,14 @@ import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-p
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
@@ -15,15 +23,15 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-	type Report,
 	REPORT_STATUS_OPTIONS,
+	type Report,
 	STATUS_COLORS,
 	STATUS_LABELS,
 	batchDeleteReports,
 	fetchReports,
 	updateReportStatus,
 } from "@/viewmodels/admin/reports";
-import { ExternalLink, MoreHorizontal, RefreshCw } from "lucide-react";
+import { ExternalLink, Eye, MoreHorizontal, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -67,6 +75,9 @@ export default function ReportsPage() {
 		onConfirm: () => void;
 	}>({ open: false, title: "", description: "", variant: "default", onConfirm: () => {} });
 	const [confirmLoading, setConfirmLoading] = useState(false);
+
+	// Detail dialog state
+	const [detailReport, setDetailReport] = useState<Report | null>(null);
 
 	// ---------------------------------------------------------------------------
 	// Data fetching
@@ -120,11 +131,15 @@ export default function ReportsPage() {
 			try {
 				await updateReportStatus(report.id, newStatus);
 				fetchData(pagination.page);
+				// Close detail dialog if open
+				if (detailReport?.id === report.id) {
+					setDetailReport(null);
+				}
 			} catch {
 				// Error handling already done in updateReportStatus
 			}
 		},
-		[fetchData, pagination.page],
+		[fetchData, pagination.page, detailReport],
 	);
 
 	// ---------------------------------------------------------------------------
@@ -144,13 +159,17 @@ export default function ReportsPage() {
 						await batchDeleteReports([report.id]);
 						setConfirmDialog((d) => ({ ...d, open: false }));
 						fetchData(pagination.page);
+						// Close detail dialog if open
+						if (detailReport?.id === report.id) {
+							setDetailReport(null);
+						}
 					} finally {
 						setConfirmLoading(false);
 					}
 				},
 			});
 		},
-		[fetchData, pagination.page],
+		[fetchData, pagination.page, detailReport],
 	);
 
 	// ---------------------------------------------------------------------------
@@ -179,6 +198,10 @@ export default function ReportsPage() {
 		return `/threads/${report.threadId}#post-${report.targetId}`;
 	};
 
+	const formatDateTime = (timestamp: number) => {
+		return new Date(timestamp * 1000).toLocaleString("zh-CN");
+	};
+
 	// ---------------------------------------------------------------------------
 	// Column definitions
 	// ---------------------------------------------------------------------------
@@ -187,7 +210,15 @@ export default function ReportsPage() {
 		{
 			key: "id",
 			header: "ID",
-			cell: (row) => <span className="text-muted-foreground">#{row.id}</span>,
+			cell: (row) => (
+				<button
+					type="button"
+					onClick={() => setDetailReport(row)}
+					className="text-muted-foreground hover:text-primary hover:underline cursor-pointer"
+				>
+					#{row.id}
+				</button>
+			),
 			className: "w-16",
 		},
 		{
@@ -229,7 +260,7 @@ export default function ReportsPage() {
 		{
 			key: "createdAt",
 			header: "举报时间",
-			cell: (row) => new Date(row.createdAt * 1000).toLocaleString("zh-CN"),
+			cell: (row) => formatDateTime(row.createdAt),
 		},
 		{
 			key: "status",
@@ -262,16 +293,22 @@ export default function ReportsPage() {
 						}
 					/>
 					<DropdownMenuContent align="end">
+						<DropdownMenuItem onClick={() => setDetailReport(row)}>
+							<Eye className="h-4 w-4 mr-2" />
+							查看详情
+						</DropdownMenuItem>
 						{getPostLink(row) && (
-							<>
-								<DropdownMenuItem
-									onClick={() => window.open(getPostLink(row)!, "_blank")}
-								>
-									查看帖子
-								</DropdownMenuItem>
-								<DropdownMenuSeparator />
-							</>
+							<DropdownMenuItem
+								onClick={() => {
+									const link = getPostLink(row);
+									if (link) window.open(link, "_blank");
+								}}
+							>
+								<ExternalLink className="h-4 w-4 mr-2" />
+								查看帖子
+							</DropdownMenuItem>
 						)}
+						<DropdownMenuSeparator />
 						{row.status === "pending" && (
 							<>
 								<DropdownMenuItem onClick={() => handleStatusChange(row, "resolved")}>
@@ -347,6 +384,105 @@ export default function ReportsPage() {
 				loading={confirmLoading}
 				onConfirm={confirmDialog.onConfirm}
 			/>
+
+			{/* Detail dialog */}
+			<Dialog open={detailReport !== null} onOpenChange={(open) => !open && setDetailReport(null)}>
+				<DialogContent className="sm:max-w-lg">
+					<DialogHeader>
+						<DialogTitle>举报详情 #{detailReport?.id}</DialogTitle>
+						<DialogDescription>查看举报的详细信息</DialogDescription>
+					</DialogHeader>
+					{detailReport && (
+						<div className="space-y-4 py-2">
+							<div className="grid grid-cols-[100px_1fr] gap-2 text-sm">
+								<span className="text-muted-foreground">被举报帖子</span>
+								<span>
+									{getPostLink(detailReport) ? (
+										<Link
+											href={getPostLink(detailReport) ?? ""}
+											target="_blank"
+											className="text-primary hover:underline inline-flex items-center gap-1"
+										>
+											#{detailReport.targetId}
+											<ExternalLink className="h-3 w-3" />
+										</Link>
+									) : (
+										<span>#{detailReport.targetId}</span>
+									)}
+								</span>
+
+								<span className="text-muted-foreground">举报人</span>
+								<span>
+									<Link
+										href={`/admin/users?search=${encodeURIComponent(detailReport.reporterName)}`}
+										className="text-primary hover:underline"
+									>
+										{detailReport.reporterName}
+									</Link>
+									<span className="text-muted-foreground ml-1">
+										(UID: {detailReport.reporterId})
+									</span>
+								</span>
+
+								<span className="text-muted-foreground">举报理由</span>
+								<span>{detailReport.reason}</span>
+
+								<span className="text-muted-foreground">举报时间</span>
+								<span>{formatDateTime(detailReport.createdAt)}</span>
+
+								<span className="text-muted-foreground">当前状态</span>
+								<span>
+									<Badge
+										className={`${STATUS_COLORS[detailReport.status].bg} ${STATUS_COLORS[detailReport.status].text}`}
+									>
+										{STATUS_LABELS[detailReport.status]}
+									</Badge>
+								</span>
+
+								{detailReport.handlerName && (
+									<>
+										<span className="text-muted-foreground">处理人</span>
+										<span>{detailReport.handlerName}</span>
+									</>
+								)}
+
+								{detailReport.handledAt && (
+									<>
+										<span className="text-muted-foreground">处理时间</span>
+										<span>{formatDateTime(detailReport.handledAt)}</span>
+									</>
+								)}
+							</div>
+						</div>
+					)}
+					<DialogFooter className="gap-2 sm:gap-0">
+						{detailReport?.status === "pending" && (
+							<>
+								<Button
+									variant="outline"
+									onClick={() => handleStatusChange(detailReport, "dismissed")}
+								>
+									驳回举报
+								</Button>
+								<Button onClick={() => handleStatusChange(detailReport, "resolved")}>
+									标记已处理
+								</Button>
+							</>
+						)}
+						{detailReport?.status !== "pending" && (
+							<Button variant="outline" onClick={() => setDetailReport(null)}>
+								关闭
+							</Button>
+						)}
+						<Button
+							variant="destructive"
+							onClick={() => detailReport && handleDelete(detailReport)}
+						>
+							删除
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }

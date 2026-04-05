@@ -50,6 +50,7 @@ export function ReportDialog({ open, onOpenChange, postId, onSuccess }: ReportDi
 	});
 	const [submitting, setSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [success, setSuccess] = useState(false);
 
 	// Reset state when dialog opens
 	useEffect(() => {
@@ -61,6 +62,7 @@ export function ReportDialog({ open, onOpenChange, postId, onSuccess }: ReportDi
 			});
 			setSubmitting(false);
 			setError(null);
+			setSuccess(false);
 		}
 	}, [open]);
 
@@ -117,9 +119,13 @@ export function ReportDialog({ open, onOpenChange, postId, onSuccess }: ReportDi
 		setError(null);
 
 		try {
-			await submitReport({ postId, reason: step.reason! });
-			onOpenChange(false);
+			await submitReport({ postId, reason: step.reason as ReportReason });
+			setSuccess(true);
 			onSuccess?.();
+			// Auto-close after showing success message
+			setTimeout(() => {
+				onOpenChange(false);
+			}, 1500);
 		} catch (err) {
 			if (err instanceof ApiError) {
 				// Handle specific error codes (match Worker error codes)
@@ -142,7 +148,7 @@ export function ReportDialog({ open, onOpenChange, postId, onSuccess }: ReportDi
 
 	// Step indicator helper
 	const getStepIcon = (
-		stepName: Step,
+		_stepName: Step,
 		state: "pending" | "loading" | "passed" | "failed" | "skipped",
 	) => {
 		if (state === "loading") {
@@ -252,6 +258,14 @@ export function ReportDialog({ open, onOpenChange, postId, onSuccess }: ReportDi
 								</div>
 							</div>
 						)}
+
+					{/* Success message */}
+					{success && (
+						<div className="flex items-center gap-2 p-3 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 text-sm">
+							<CheckCircle2 className="h-4 w-4 shrink-0" />
+							<span>举报提交成功，感谢您的反馈</span>
+						</div>
+					)}
 
 					{/* Error message */}
 					{error && (
