@@ -34,6 +34,7 @@ describe("user self-service handlers", () => {
 			const updatedUser = makeD1UserRow({ id: 42, email: "new@example.com" });
 			const { db } = createMockDb({
 				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"SELECT id, username, email": updatedUser,
 				},
 			});
@@ -57,6 +58,7 @@ describe("user self-service handlers", () => {
 			const updatedUser = makeD1UserRow({ id: 42, avatar: "new-avatar.png" });
 			const { db } = createMockDb({
 				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"SELECT id, username, email": updatedUser,
 				},
 			});
@@ -77,7 +79,11 @@ describe("user self-service handlers", () => {
 
 		it("should require at least one field", async () => {
 			const token = await createJwtForRole(0, 42);
-			const { db } = createMockDb({});
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+				},
+			});
 
 			const response = await updateProfile(
 				new Request("https://example.com/api/v1/users/me", {
@@ -95,7 +101,11 @@ describe("user self-service handlers", () => {
 
 		it("should reject invalid email format", async () => {
 			const token = await createJwtForRole(0, 42);
-			const { db } = createMockDb({});
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+				},
+			});
 
 			const response = await updateProfile(
 				new Request("https://example.com/api/v1/users/me", {
@@ -113,7 +123,11 @@ describe("user self-service handlers", () => {
 
 		it("should reject empty email", async () => {
 			const token = await createJwtForRole(0, 42);
-			const { db } = createMockDb({});
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+				},
+			});
 
 			const response = await updateProfile(
 				new Request("https://example.com/api/v1/users/me", {
@@ -129,7 +143,11 @@ describe("user self-service handlers", () => {
 
 		it("should handle malformed JSON", async () => {
 			const token = await createJwtForRole(0, 42);
-			const { db } = createMockDb({});
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+				},
+			});
 
 			const response = await updateProfile(
 				new Request("https://example.com/api/v1/users/me", {
@@ -149,6 +167,7 @@ describe("user self-service handlers", () => {
 			const token = await createJwtForRole(0, 42);
 			const { db } = createMockDb({
 				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"SELECT id, username, email": null, // user vanished between auth and SELECT
 				},
 			});
@@ -180,7 +199,11 @@ describe("user self-service handlers", () => {
 
 		it("should require oldPassword and newPassword", async () => {
 			const token = await createJwtForRole(0, 42);
-			const { db } = createMockDb({});
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+				},
+			});
 
 			const response = await changePassword(
 				new Request("https://example.com/api/v1/users/me/password", {
@@ -198,7 +221,11 @@ describe("user self-service handlers", () => {
 
 		it("should reject short newPassword", async () => {
 			const token = await createJwtForRole(0, 42);
-			const { db } = createMockDb({});
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+				},
+			});
 
 			const response = await changePassword(
 				new Request("https://example.com/api/v1/users/me/password", {
@@ -219,6 +246,7 @@ describe("user self-service handlers", () => {
 			const storedHash = await hashPassword("correct_password");
 			const { db } = createMockDb({
 				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"SELECT password_hash": { password_hash: storedHash, password_salt: "" },
 				},
 			});
@@ -242,6 +270,7 @@ describe("user self-service handlers", () => {
 			const storedHash = await hashPassword("old_password");
 			const { db, calls } = createMockDb({
 				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"SELECT password_hash": { password_hash: storedHash, password_salt: "" },
 				},
 			});
@@ -266,7 +295,11 @@ describe("user self-service handlers", () => {
 
 		it("should handle malformed JSON", async () => {
 			const token = await createJwtForRole(0, 42);
-			const { db } = createMockDb({});
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+				},
+			});
 
 			const response = await changePassword(
 				new Request("https://example.com/api/v1/users/me/password", {
@@ -286,6 +319,7 @@ describe("user self-service handlers", () => {
 			const token = await createJwtForRole(0, 42);
 			const { db } = createMockDb({
 				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"SELECT password_hash": null, // user vanished between auth and SELECT
 				},
 			});

@@ -1,9 +1,52 @@
 // User handlers for Cloudflare Worker
+import { UserRole } from "@ellie/types";
+import type { VisibilityContext } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { toPost, toPublicUser, toThread } from "../lib/mappers";
 import { jsonResponse } from "../lib/response";
+import { type AuthUser, optionalAuthVerified } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
+
+/** Build visibility context from optional user */
+function buildVisibilityContext(user: AuthUser | null): VisibilityContext {
+	return {
+		isLoggedIn: user !== null,
+		role: user !== null ? user.role : UserRole.User,
+	};
+}
+
+/**
+ * Build SQL WHERE clause for forum visibility filtering.
+ * Only includes forums that are:
+ * - Active (status = 1)
+ * - Visible to the current user based on their role
+ */
+function buildForumVisibilityFilter(visCtx: VisibilityContext): string {
+	// Always filter out hidden/deleted/paused/QQ forums
+	const statusFilter = "f.status = 1";
+
+	// Visibility filter based on user context
+	// public: everyone, members: logged in, staff: mod+, admin: admin only
+	const visibilityConditions: string[] = ["f.visibility = 'public'"];
+
+	if (visCtx.isLoggedIn) {
+		visibilityConditions.push("f.visibility = 'members'");
+	}
+	// Staff: Mod (3), SuperMod (2), Admin (1)
+	if (
+		visCtx.role === UserRole.Mod ||
+		visCtx.role === UserRole.SuperMod ||
+		visCtx.role === UserRole.Admin
+	) {
+		visibilityConditions.push("f.visibility = 'staff'");
+	}
+	if (visCtx.role === UserRole.Admin) {
+		visibilityConditions.push("f.visibility = 'admin'");
+	}
+
+	return `${statusFilter} AND (${visibilityConditions.join(" OR ")})`;
+}
 
 /** Explicit PublicUser columns — never SELECT * to avoid leaking sensitive fields */
 const PUBLIC_USER_COLUMNS =
@@ -98,6 +141,11 @@ export async function listThreads(request: Request, env: Env): Promise<Response>
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid userId" }, origin);
 	}
 
+	// Get user auth for visibility filtering (verified against DB)
+	const user = await optionalAuthVerified(request, env);
+	const visCtx = buildVisibilityContext(user);
+	const forumFilter = buildForumVisibilityFilter(visCtx);
+
 	const clampedLimit = clampLimit(url.searchParams.get("limit"));
 	const cursorStr = url.searchParams.get("cursor");
 	const cursor = cursorStr ? decodeHistoryCursor(cursorStr) : null;
@@ -105,15 +153,20 @@ export async function listThreads(request: Request, env: Env): Promise<Response>
 	let result: D1Result;
 	if (cursor) {
 		result = await env.DB.prepare(
-			`SELECT * FROM threads WHERE author_id = ?
-			 AND (created_at < ? OR (created_at = ? AND id < ?))
-			 ORDER BY created_at DESC, id DESC LIMIT ?`,
+			`SELECT t.* FROM threads t
+			 INNER JOIN forums f ON t.forum_id = f.id
+			 WHERE t.author_id = ? AND ${forumFilter}
+			 AND (t.created_at < ? OR (t.created_at = ? AND t.id < ?))
+			 ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
 		)
 			.bind(userId, cursor.createdAt, cursor.createdAt, cursor.id, clampedLimit)
 			.all();
 	} else {
 		result = await env.DB.prepare(
-			"SELECT * FROM threads WHERE author_id = ? ORDER BY created_at DESC, id DESC LIMIT ?",
+			`SELECT t.* FROM threads t
+			 INNER JOIN forums f ON t.forum_id = f.id
+			 WHERE t.author_id = ? AND ${forumFilter}
+			 ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
 		)
 			.bind(userId, clampedLimit)
 			.all();
@@ -146,6 +199,11 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid userId" }, origin);
 	}
 
+	// Get user auth for visibility filtering (verified against DB)
+	const user = await optionalAuthVerified(request, env);
+	const visCtx = buildVisibilityContext(user);
+	const forumFilter = buildForumVisibilityFilter(visCtx);
+
 	const clampedLimit = clampLimit(url.searchParams.get("limit"));
 	const cursorStr = url.searchParams.get("cursor");
 	const cursor = cursorStr ? decodeHistoryCursor(cursorStr) : null;
@@ -153,15 +211,22 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 	let result: D1Result;
 	if (cursor) {
 		result = await env.DB.prepare(
-			`SELECT * FROM posts WHERE author_id = ?
-			 AND (created_at < ? OR (created_at = ? AND id < ?))
-			 ORDER BY created_at DESC, id DESC LIMIT ?`,
+			`SELECT p.* FROM posts p
+			 INNER JOIN threads t ON p.thread_id = t.id
+			 INNER JOIN forums f ON t.forum_id = f.id
+			 WHERE p.author_id = ? AND ${forumFilter}
+			 AND (p.created_at < ? OR (p.created_at = ? AND p.id < ?))
+			 ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
 		)
 			.bind(userId, cursor.createdAt, cursor.createdAt, cursor.id, clampedLimit)
 			.all();
 	} else {
 		result = await env.DB.prepare(
-			"SELECT * FROM posts WHERE author_id = ? ORDER BY created_at DESC, id DESC LIMIT ?",
+			`SELECT p.* FROM posts p
+			 INNER JOIN threads t ON p.thread_id = t.id
+			 INNER JOIN forums f ON t.forum_id = f.id
+			 WHERE p.author_id = ? AND ${forumFilter}
+			 ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
 		)
 			.bind(userId, clampedLimit)
 			.all();
@@ -194,6 +259,11 @@ export async function listDigest(request: Request, env: Env): Promise<Response> 
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid userId" }, origin);
 	}
 
+	// Get user auth for visibility filtering (verified against DB)
+	const user = await optionalAuthVerified(request, env);
+	const visCtx = buildVisibilityContext(user);
+	const forumFilter = buildForumVisibilityFilter(visCtx);
+
 	const clampedLimit = clampLimit(url.searchParams.get("limit"));
 	const cursorStr = url.searchParams.get("cursor");
 	const cursor = cursorStr ? decodeHistoryCursor(cursorStr) : null;
@@ -201,15 +271,20 @@ export async function listDigest(request: Request, env: Env): Promise<Response> 
 	let result: D1Result;
 	if (cursor) {
 		result = await env.DB.prepare(
-			`SELECT * FROM threads WHERE author_id = ? AND digest > 0
-			 AND (created_at < ? OR (created_at = ? AND id < ?))
-			 ORDER BY created_at DESC, id DESC LIMIT ?`,
+			`SELECT t.* FROM threads t
+			 INNER JOIN forums f ON t.forum_id = f.id
+			 WHERE t.author_id = ? AND t.digest > 0 AND ${forumFilter}
+			 AND (t.created_at < ? OR (t.created_at = ? AND t.id < ?))
+			 ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
 		)
 			.bind(userId, cursor.createdAt, cursor.createdAt, cursor.id, clampedLimit)
 			.all();
 	} else {
 		result = await env.DB.prepare(
-			"SELECT * FROM threads WHERE author_id = ? AND digest > 0 ORDER BY created_at DESC, id DESC LIMIT ?",
+			`SELECT t.* FROM threads t
+			 INNER JOIN forums f ON t.forum_id = f.id
+			 WHERE t.author_id = ? AND t.digest > 0 AND ${forumFilter}
+			 ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
 		)
 			.bind(userId, clampedLimit)
 			.all();

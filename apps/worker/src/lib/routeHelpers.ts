@@ -1,9 +1,9 @@
-// Route helper wrappers — withAuth / withAdmin / withModerator
+// Route helper wrappers — withAuth / withAuthVerified / withAdmin / withModerator
 // Eliminates auth boilerplate from every admin handler.
 
 import { UserRole } from "@ellie/types";
 import type { AuthUser } from "../middleware/auth";
-import { authMiddleware } from "../middleware/auth";
+import { authMiddleware, authMiddlewareVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 import type { Env } from "./env";
 
@@ -17,10 +17,28 @@ export type AuthenticatedHandler = (
 /**
  * Wrap a handler with JWT authentication.
  * The inner handler receives the authenticated AuthUser.
+ *
+ * NOTE: This version trusts JWT claims without database verification.
+ * For sensitive endpoints, use withAuthVerified instead.
  */
 export function withAuth(handler: AuthenticatedHandler) {
 	return async (request: Request, env: Env): Promise<Response> => {
 		const authResult = await authMiddleware(request, env);
+		if (authResult instanceof Response) return authResult;
+		return handler(request, env, authResult.user);
+	};
+}
+
+/**
+ * Wrap a handler with JWT authentication + database verification.
+ * Verifies current status and role from database before calling handler.
+ * Banned users are rejected even if their JWT is still valid.
+ *
+ * Use this for sensitive endpoints (messages, profile edit, password change, content deletion).
+ */
+export function withAuthVerified(handler: AuthenticatedHandler) {
+	return async (request: Request, env: Env): Promise<Response> => {
+		const authResult = await authMiddlewareVerified(request, env);
 		if (authResult instanceof Response) return authResult;
 		return handler(request, env, authResult.user);
 	};

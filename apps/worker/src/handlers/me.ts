@@ -2,7 +2,7 @@
 import { toUser } from "../lib/mappers";
 import { hashPassword, verifyDiscuzPassword, verifyPassword } from "../lib/password";
 import { jsonResponse } from "../lib/response";
-import { withAuth } from "../lib/routeHelpers";
+import { withAuthVerified } from "../lib/routeHelpers";
 import { invalidateUserCache } from "../lib/user-cache";
 import { errorResponse } from "../middleware/error";
 
@@ -79,17 +79,16 @@ function validateLength(
 	return null;
 }
 
-/** PATCH /api/v1/users/me — Update own profile */
-export const updateProfile = withAuth(async (request, env, user) => {
-	const origin = request.headers.get("Origin") ?? undefined;
+/** Validation result - either success with fields or error response */
+type ValidationResult =
+	| { success: true; fields: Record<string, unknown> }
+	| { success: false; error: Response };
 
-	let body: Record<string, unknown>;
-	try {
-		body = (await request.json()) as Record<string, unknown>;
-	} catch {
-		return errorResponse("INVALID_BODY", 400, undefined, origin);
-	}
-
+/** Validate all profile fields and return collected fields or error */
+function validateProfileFields(
+	body: Record<string, unknown>,
+	origin: string | undefined,
+): ValidationResult {
 	// Extract fields
 	const email = extractString(body, "email");
 	const avatar = extractString(body, "avatar");
@@ -106,7 +105,6 @@ export const updateProfile = withAuth(async (request, env, user) => {
 	const site = extractString(body, "site");
 	const signature = extractString(body, "signature");
 
-	// Collect all fields for presence check
 	const fields: Record<string, unknown> = {
 		email,
 		avatar,
@@ -126,37 +124,76 @@ export const updateProfile = withAuth(async (request, env, user) => {
 
 	// Check at least one field provided
 	if (!Object.values(fields).some((v) => v !== undefined)) {
-		return errorResponse("INVALID_BODY", 400, { message: "At least one field required" }, origin);
+		return {
+			success: false,
+			error: errorResponse("INVALID_BODY", 400, { message: "At least one field required" }, origin),
+		};
 	}
 
 	// Validate email format
 	if (email !== undefined) {
 		if (email.length === 0 || !email.includes("@") || email.length > MAX_LENGTHS.email) {
-			return errorResponse("INVALID_BODY", 400, { message: "Invalid email format" }, origin);
+			return {
+				success: false,
+				error: errorResponse("INVALID_BODY", 400, { message: "Invalid email format" }, origin),
+			};
 		}
 	}
 
 	// Validate gender (0 = not set, 1 = male, 2 = female)
 	if (gender !== undefined && (gender < 0 || gender > 2)) {
-		return errorResponse("INVALID_BODY", 400, { message: "Invalid gender value" }, origin);
+		return {
+			success: false,
+			error: errorResponse("INVALID_BODY", 400, { message: "Invalid gender value" }, origin),
+		};
 	}
 
 	// Validate birthday fields
 	if (birthYear !== undefined && (birthYear < 0 || birthYear > 2100)) {
-		return errorResponse("INVALID_BODY", 400, { message: "Invalid birth year" }, origin);
+		return {
+			success: false,
+			error: errorResponse("INVALID_BODY", 400, { message: "Invalid birth year" }, origin),
+		};
 	}
 	if (birthMonth !== undefined && (birthMonth < 0 || birthMonth > 12)) {
-		return errorResponse("INVALID_BODY", 400, { message: "Invalid birth month" }, origin);
+		return {
+			success: false,
+			error: errorResponse("INVALID_BODY", 400, { message: "Invalid birth month" }, origin),
+		};
 	}
 	if (birthDay !== undefined && (birthDay < 0 || birthDay > 31)) {
-		return errorResponse("INVALID_BODY", 400, { message: "Invalid birth day" }, origin);
+		return {
+			success: false,
+			error: errorResponse("INVALID_BODY", 400, { message: "Invalid birth day" }, origin),
+		};
 	}
 
 	// Validate string lengths
 	for (const key of Object.keys(LENGTH_ERRORS)) {
 		const err = validateLength(fields[key] as string | undefined, key, origin);
-		if (err) return err;
+		if (err) return { success: false, error: err };
 	}
+
+	return { success: true, fields };
+}
+
+/** PATCH /api/v1/users/me — Update own profile */
+export const updateProfile = withAuthVerified(async (request, env, user) => {
+	const origin = request.headers.get("Origin") ?? undefined;
+
+	let body: Record<string, unknown>;
+	try {
+		body = (await request.json()) as Record<string, unknown>;
+	} catch {
+		return errorResponse("INVALID_BODY", 400, undefined, origin);
+	}
+
+	// Validate all fields
+	const validation = validateProfileFields(body, origin);
+	if (!validation.success) {
+		return validation.error;
+	}
+	const { fields } = validation;
 
 	// Build dynamic SET clause
 	const setClauses: string[] = [];
@@ -176,7 +213,7 @@ export const updateProfile = withAuth(async (request, env, user) => {
 		.run();
 
 	// Invalidate user cache if avatar was changed (it's a cached field)
-	if (avatar !== undefined) {
+	if (fields.avatar !== undefined) {
 		await invalidateUserCache(env, user.userId);
 	}
 
@@ -193,7 +230,7 @@ export const updateProfile = withAuth(async (request, env, user) => {
 });
 
 /** POST /api/v1/users/me/password — Change own password */
-export const changePassword = withAuth(async (request, env, user) => {
+export const changePassword = withAuthVerified(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	let body: Record<string, unknown>;

@@ -95,6 +95,9 @@ export async function optionalAuthVerified(request: Request, env: Env): Promise<
  * JWT authentication middleware.
  * Verifies JWT token from Authorization header and returns authenticated user.
  *
+ * NOTE: This version trusts JWT claims without database verification.
+ * For endpoints where banned users should be blocked, use authMiddlewareVerified.
+ *
  * @param request - Incoming request
  * @param env - Worker environment
  * @returns Either { user: AuthUser } or error Response
@@ -123,6 +126,63 @@ export async function authMiddleware(
 			user: {
 				userId: payload.userId,
 				role: payload.role,
+			},
+		};
+	} catch {
+		return errorResponse("INVALID_TOKEN", 401);
+	}
+}
+
+/**
+ * JWT authentication middleware with database verification.
+ * Like authMiddleware, but verifies current status and role from database.
+ * Banned users are rejected even if their JWT is still valid.
+ *
+ * Use this for sensitive endpoints (messages, profile edit, password change, content deletion).
+ *
+ * @param request - Incoming request
+ * @param env - Worker environment
+ * @returns Either { user: AuthUser } with verified role, or error Response
+ */
+export async function authMiddlewareVerified(
+	request: Request,
+	env: Env,
+): Promise<{ user: AuthUser } | Response> {
+	const authHeader = request.headers.get("Authorization");
+
+	if (!authHeader?.startsWith("Bearer ")) {
+		return errorResponse("UNAUTHORIZED", 401);
+	}
+
+	const token = authHeader.slice(7);
+
+	try {
+		const payload = (await verifyJwt(token, env.JWT_SECRET)) as JwtPayload;
+
+		// Check expiration
+		if (isTokenExpired(payload)) {
+			return errorResponse("TOKEN_EXPIRED", 401);
+		}
+
+		// Verify current status and role from database
+		const dbUser = await env.DB.prepare("SELECT role, status FROM users WHERE id = ?")
+			.bind(payload.userId)
+			.first<{ role: number; status: number }>();
+
+		if (!dbUser) {
+			return errorResponse("USER_NOT_FOUND", 404);
+		}
+
+		// Reject banned users
+		if (dbUser.status !== 0) {
+			return errorResponse("USER_BANNED", 403);
+		}
+
+		// Return user with verified role from database
+		return {
+			user: {
+				userId: payload.userId,
+				role: dbUser.role,
 			},
 		};
 	} catch {

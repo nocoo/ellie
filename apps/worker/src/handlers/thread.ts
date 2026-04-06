@@ -137,7 +137,12 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
 	}
 	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
-		return errorResponse("FORBIDDEN", 403, { message: "You don't have access to this forum" }, origin);
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "You don't have access to this forum" },
+			origin,
+		);
 	}
 
 	// Clamp limit to [1, 100], defaulting to 100
@@ -299,7 +304,12 @@ export async function getById(
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
 	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
-		return errorResponse("FORBIDDEN", 403, { message: "You don't have access to this thread" }, origin);
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "You don't have access to this thread" },
+			origin,
+		);
 	}
 
 	// Fire-and-forget: increment view count (don't await)
@@ -390,10 +400,27 @@ export const create = withAuth(async (request, env, user) => {
 	const filteredSubject = subjectCheck.content;
 	content = contentCheck.content;
 
-	// Validate forum exists
-	const forum = await env.DB.prepare("SELECT id FROM forums WHERE id = ?").bind(forumId).first();
-	if (!forum) {
+	// Validate forum exists and check visibility
+	const forum = await env.DB.prepare("SELECT id, status, visibility FROM forums WHERE id = ?")
+		.bind(forumId)
+		.first<{ id: number; status: number; visibility: string }>();
+
+	if (!forum || forum.status <= 0 || forum.status === 2 || forum.status === 3) {
 		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
+	}
+
+	// Check if user can post to this forum (visibility check)
+	const visCtx: VisibilityContext = {
+		isLoggedIn: true,
+		role: user.role,
+	};
+	if (!canViewForumVisibility(forum.visibility as ForumVisibility, visCtx)) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "You don't have access to post in this forum" },
+			origin,
+		);
 	}
 
 	// Fetch author name from users table

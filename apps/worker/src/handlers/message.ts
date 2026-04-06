@@ -2,10 +2,9 @@
 // Ref: docs/12-private-messages.md §4
 
 import { applyCensorFilter } from "../lib/censor";
-import type { Env } from "../lib/env";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
-import { withAuth } from "../lib/routeHelpers";
+import { withAuthVerified } from "../lib/routeHelpers";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
@@ -66,7 +65,10 @@ interface MessageRow {
 // ─── Mapper ──────────────────────────────────────────────────
 
 function toMessageListItem(row: MessageRow) {
-	const preview = row.content.length > PREVIEW_LENGTH ? `${row.content.slice(0, PREVIEW_LENGTH)}...` : row.content;
+	const preview =
+		row.content.length > PREVIEW_LENGTH
+			? `${row.content.slice(0, PREVIEW_LENGTH)}...`
+			: row.content;
 	return {
 		id: row.id,
 		senderId: row.sender_id,
@@ -104,14 +106,15 @@ function toMessageDetail(row: MessageRow) {
  * - limit: page size (default 20, max 100)
  * - cursor: pagination cursor
  */
-export const list = withAuth(async (request, env, user) => {
+export const list = withAuthVerified(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 
 	const box = url.searchParams.get("box") === "outbox" ? "outbox" : "inbox";
 	const limitParam = url.searchParams.get("limit");
 	const limitNum = limitParam ? Number.parseInt(limitParam, 10) : undefined;
-	const clampedLimit = limitNum === undefined || limitNum <= 0 ? DEFAULT_LIMIT : Math.min(limitNum, MAX_LIMIT);
+	const clampedLimit =
+		limitNum === undefined || limitNum <= 0 ? DEFAULT_LIMIT : Math.min(limitNum, MAX_LIMIT);
 
 	const cursorStr = url.searchParams.get("cursor");
 	const cursor = cursorStr ? decodeMessageCursor(cursorStr) : null;
@@ -139,7 +142,9 @@ export const list = withAuth(async (request, env, user) => {
 		bindings = [user.userId, clampedLimit];
 	}
 
-	const result = await env.DB.prepare(query).bind(...bindings).all<MessageRow>();
+	const result = await env.DB.prepare(query)
+		.bind(...bindings)
+		.all<MessageRow>();
 	const messages = result.results.map(toMessageListItem);
 
 	// Generate next cursor
@@ -177,7 +182,7 @@ export const list = withAuth(async (request, env, user) => {
 /**
  * GET /api/v1/messages/unread-count - Get unread message count
  */
-export const unreadCount = withAuth(async (request, env, user) => {
+export const unreadCount = withAuthVerified(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	const result = await env.DB.prepare(
@@ -193,7 +198,7 @@ export const unreadCount = withAuth(async (request, env, user) => {
  * GET /api/v1/messages/:id - Get message detail
  * Also marks the message as read if the viewer is the receiver.
  */
-export const getById = withAuth(async (request, env, user) => {
+export const getById = withAuthVerified(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const pathParts = url.pathname.split("/");
@@ -204,7 +209,9 @@ export const getById = withAuth(async (request, env, user) => {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid message ID" }, origin);
 	}
 
-	const row = await env.DB.prepare("SELECT * FROM messages WHERE id = ?").bind(id).first<MessageRow>();
+	const row = await env.DB.prepare("SELECT * FROM messages WHERE id = ?")
+		.bind(id)
+		.first<MessageRow>();
 
 	if (!row) {
 		return errorResponse("MESSAGE_NOT_FOUND", 404, undefined, origin);
@@ -235,7 +242,7 @@ export const getById = withAuth(async (request, env, user) => {
 /**
  * POST /api/v1/messages - Send a new message
  */
-export const create = withAuth(async (request, env, user) => {
+export const create = withAuthVerified(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	// Check posting permission
@@ -285,7 +292,12 @@ export const create = withAuth(async (request, env, user) => {
 
 	// Cannot send to self
 	if (receiverId === user.userId) {
-		return errorResponse("INVALID_REQUEST", 400, { message: "Cannot send message to yourself" }, origin);
+		return errorResponse(
+			"INVALID_REQUEST",
+			400,
+			{ message: "Cannot send message to yourself" },
+			origin,
+		);
 	}
 
 	// Check receiver exists and is not banned
@@ -351,7 +363,7 @@ export const create = withAuth(async (request, env, user) => {
 /**
  * POST /api/v1/messages/mark-all-read - Mark all inbox messages as read
  */
-export const markAllRead = withAuth(async (request, env, user) => {
+export const markAllRead = withAuthVerified(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	await env.DB.prepare(
@@ -366,7 +378,7 @@ export const markAllRead = withAuth(async (request, env, user) => {
 /**
  * DELETE /api/v1/messages/:id - Delete a message (soft delete)
  */
-export const remove = withAuth(async (request, env, user) => {
+export const remove = withAuthVerified(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const pathParts = url.pathname.split("/");
@@ -377,9 +389,16 @@ export const remove = withAuth(async (request, env, user) => {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid message ID" }, origin);
 	}
 
-	const row = await env.DB.prepare("SELECT sender_id, receiver_id, sender_deleted, receiver_deleted FROM messages WHERE id = ?")
+	const row = await env.DB.prepare(
+		"SELECT sender_id, receiver_id, sender_deleted, receiver_deleted FROM messages WHERE id = ?",
+	)
 		.bind(id)
-		.first<{ sender_id: number; receiver_id: number; sender_deleted: number; receiver_deleted: number }>();
+		.first<{
+			sender_id: number;
+			receiver_id: number;
+			sender_deleted: number;
+			receiver_deleted: number;
+		}>();
 
 	if (!row) {
 		return errorResponse("MESSAGE_NOT_FOUND", 404, undefined, origin);
