@@ -219,7 +219,7 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 	const charCount = editor?.storage.characterCount;
 
 	return (
-		<div className="rounded-lg bg-card ring-1 ring-foreground/10 overflow-hidden">
+		<div className="rounded-lg bg-card ring-1 ring-border overflow-hidden">
 			{/* Subject (thread mode only) */}
 			{subject !== undefined && onSubjectChange && (
 				<div className="border-b px-3 py-2">
