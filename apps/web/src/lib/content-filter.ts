@@ -231,6 +231,7 @@ function rewriteLegacyUrls(html: string): string {
 /**
  * Whitelist of allowed HTML tags for user content.
  * Covers common formatting, images, links, and legacy Discuz elements.
+ * NOTE: iframe, video, audio removed for security (embedding, tracking risks)
  */
 const ALLOWED_TAGS = [
 	// Text formatting
@@ -277,14 +278,7 @@ const ALLOWED_TAGS = [
 	"blockquote",
 	"pre",
 	"code",
-	// Media
-	"video",
-	"audio",
-	"source",
-	"iframe",
 	// Other
-	"article",
-	"section",
 	"figure",
 	"figcaption",
 	"font",
@@ -294,12 +288,12 @@ const ALLOWED_TAGS = [
 /**
  * Whitelist of allowed HTML attributes.
  * Security-critical: no event handlers (onclick, onerror, etc.)
+ * NOTE: style attribute removed to prevent CSS-based attacks
  */
 const ALLOWED_ATTR = [
-	// Global
+	// Global (no style - prevents CSS injection)
 	"class",
 	"id",
-	"style",
 	"title",
 	"lang",
 	"dir",
@@ -317,13 +311,6 @@ const ALLOWED_ATTR = [
 	"colspan",
 	"rowspan",
 	"scope",
-	// Media
-	"controls",
-	"autoplay",
-	"loop",
-	"muted",
-	"poster",
-	"type",
 	// Legacy Discuz
 	"color",
 	"size",

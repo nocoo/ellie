@@ -20,6 +20,9 @@ export interface AuthUser {
  * Does NOT reject requests without auth, returns null instead.
  * Used for endpoints that have different behavior for logged-in users.
  *
+ * NOTE: This function trusts JWT claims without database verification.
+ * For visibility checks that need current role/status, use optionalAuthVerified instead.
+ *
  * @param request - Incoming request
  * @param env - Worker environment
  * @returns AuthUser if valid token, null otherwise
@@ -37,6 +40,52 @@ export async function optionalAuth(request: Request, env: Env): Promise<AuthUser
 			return null;
 		}
 		return { userId: payload.userId, role: payload.role };
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Optional JWT authentication with database verification.
+ * Like optionalAuth, but verifies current role and status from database.
+ * Banned users are treated as not logged in (returns null).
+ * Role is taken from database, not JWT claims.
+ *
+ * Use this for visibility checks where stale JWT claims could leak restricted content.
+ *
+ * @param request - Incoming request
+ * @param env - Worker environment
+ * @returns AuthUser with verified role if valid and not banned, null otherwise
+ */
+export async function optionalAuthVerified(request: Request, env: Env): Promise<AuthUser | null> {
+	const authHeader = request.headers.get("Authorization");
+	if (!authHeader?.startsWith("Bearer ")) {
+		return null;
+	}
+
+	const token = authHeader.slice(7);
+	try {
+		const payload = (await verifyJwt(token, env.JWT_SECRET)) as JwtPayload;
+		if (isTokenExpired(payload)) {
+			return null;
+		}
+
+		// Verify current status and role from database
+		const dbUser = await env.DB.prepare("SELECT role, status FROM users WHERE id = ?")
+			.bind(payload.userId)
+			.first<{ role: number; status: number }>();
+
+		if (!dbUser) {
+			return null; // User no longer exists
+		}
+
+		// Banned users (status !== 0) are treated as not logged in
+		if (dbUser.status !== 0) {
+			return null;
+		}
+
+		// Return user with verified role from database
+		return { userId: payload.userId, role: dbUser.role };
 	} catch {
 		return null;
 	}

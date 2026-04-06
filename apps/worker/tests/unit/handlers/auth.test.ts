@@ -128,7 +128,7 @@ describe("auth handlers", () => {
 					get: mock((key: string) => {
 						// No lockout yet, but 5 attempts reached
 						if (key.startsWith("login-lockout-")) return Promise.resolve(null);
-						if (key.startsWith("login-ip:") || key.startsWith("login-user:")) {
+						if (key.startsWith("login-ip:")) {
 							return Promise.resolve("5"); // 5 attempts already
 						}
 						return Promise.resolve(null);
@@ -148,11 +148,11 @@ describe("auth handlers", () => {
 			expect(data.error.code).toBe("RATE_LIMITED");
 			expect(data.error.details?.message).toContain("24 hours");
 
-			// Verify lockout keys were set with 24h TTL
+			// Verify lockout key was set with 24h TTL (IP only, no user lockout)
 			const lockoutCalls = kvPutSpy.mock.calls.filter(
 				(call) => (call as string[])[0]?.startsWith("login-lockout-"),
 			);
-			expect(lockoutCalls.length).toBe(2); // IP and user lockout
+			expect(lockoutCalls.length).toBe(1); // IP lockout only
 		});
 
 		it("should return 403 for banned users", async () => {
