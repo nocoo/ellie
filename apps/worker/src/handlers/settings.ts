@@ -8,13 +8,24 @@ import { type SettingsMap, getSettings } from "../lib/settings";
 
 /**
  * Prefixes that are safe to expose publicly.
- * Operational/security settings (features.*, etc.) are NOT included.
+ *
+ * SECURITY: Only include prefixes that don't leak sensitive operational info.
+ * - features.access.*: Access control flags (require_login, maintenance_mode)
+ *   These must be public so the frontend can enforce access restrictions.
+ * - features.content.*: Content creation toggles (allow_new_thread, allow_reply)
+ *   These control UI visibility, not security.
+ *
+ * NOT included (sensitive):
+ * - features.registration.*: Leaks registration policy
+ * - features.posting.*: Leaks anti-spam/quality thresholds
  */
 const PUBLIC_SAFE_PREFIXES = [
 	"general.site.", // Site name, subtitle, copyright
 	"general.og.", // Open Graph metadata
 	"general.pagination.", // Pagination settings
 	"general.navigation.", // Header/footer links
+	"features.access.", // Access control (require_login, maintenance_mode, etc.)
+	"features.content.", // Content creation toggles (allow_new_thread, allow_reply)
 ];
 
 /**

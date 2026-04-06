@@ -8,6 +8,13 @@ const SAMPLE_ROWS = [
 	{ key: "general.site.name", value: "Ellie", type: "string", updated_at: 1700000000 },
 	{ key: "general.pagination.posts_per_page", value: "20", type: "number", updated_at: 1700000000 },
 	{ key: "general.og.title", value: "", type: "string", updated_at: 1700000000 },
+	// Public features (access control and content toggles)
+	{ key: "features.access.require_login", value: "true", type: "boolean", updated_at: 1700000000 },
+	{ key: "features.access.maintenance_mode", value: "false", type: "boolean", updated_at: 1700000000 },
+	{ key: "features.content.allow_new_thread", value: "true", type: "boolean", updated_at: 1700000000 },
+	// Sensitive features (should NOT be exposed publicly)
+	{ key: "features.registration.allow_new_user", value: "true", type: "boolean", updated_at: 1700000000 },
+	{ key: "features.posting.min_registration_days", value: "7", type: "number", updated_at: 1700000000 },
 ];
 
 function makeSettingsDb(rows = SAMPLE_ROWS) {
@@ -109,6 +116,71 @@ describe("public settings handler", () => {
 			const body = (await response.json()) as Record<string, unknown>;
 			const data = body.data as Record<string, unknown>;
 
+			expect(Object.keys(data)).toHaveLength(0);
+		});
+
+		it("should expose features.access.* settings (public access control)", async () => {
+			const db = makeSettingsDb();
+			const kv = makeKv();
+			const env = makeEnv({ DB: db, KV: kv });
+			const request = createPublicRequest("GET", "/api/v1/settings?prefix=features.access");
+
+			const response = await list(request, env);
+
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as Record<string, unknown>;
+			const data = body.data as Record<string, unknown>;
+
+			expect(data["features.access.require_login"]).toBe(true);
+			expect(data["features.access.maintenance_mode"]).toBe(false);
+		});
+
+		it("should expose features.content.* settings (public content toggles)", async () => {
+			const db = makeSettingsDb();
+			const kv = makeKv();
+			const env = makeEnv({ DB: db, KV: kv });
+			const request = createPublicRequest("GET", "/api/v1/settings?prefix=features.content");
+
+			const response = await list(request, env);
+
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as Record<string, unknown>;
+			const data = body.data as Record<string, unknown>;
+
+			expect(data["features.content.allow_new_thread"]).toBe(true);
+		});
+
+		it("should NOT expose features.registration.* settings (sensitive)", async () => {
+			const db = makeSettingsDb();
+			const kv = makeKv();
+			const env = makeEnv({ DB: db, KV: kv });
+			const request = createPublicRequest("GET", "/api/v1/settings?prefix=features.registration");
+
+			const response = await list(request, env);
+
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as Record<string, unknown>;
+			const data = body.data as Record<string, unknown>;
+
+			// Should NOT contain registration settings
+			expect(data["features.registration.allow_new_user"]).toBeUndefined();
+			expect(Object.keys(data)).toHaveLength(0);
+		});
+
+		it("should NOT expose features.posting.* settings (sensitive)", async () => {
+			const db = makeSettingsDb();
+			const kv = makeKv();
+			const env = makeEnv({ DB: db, KV: kv });
+			const request = createPublicRequest("GET", "/api/v1/settings?prefix=features.posting");
+
+			const response = await list(request, env);
+
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as Record<string, unknown>;
+			const data = body.data as Record<string, unknown>;
+
+			// Should NOT contain posting threshold settings
+			expect(data["features.posting.min_registration_days"]).toBeUndefined();
 			expect(Object.keys(data)).toHaveLength(0);
 		});
 	});
