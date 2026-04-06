@@ -52,7 +52,7 @@ export const {
 	providers: [Google],
 	session: {
 		strategy: "jwt",
-		maxAge: 7 * 24 * 60 * 60, // 7 days for admin sessions
+		maxAge: 24 * 60 * 60, // 24 hours for admin sessions (reduced from 7 days for security)
 	},
 	callbacks: {
 		jwt: jwtCallback,

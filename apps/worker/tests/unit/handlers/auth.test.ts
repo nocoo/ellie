@@ -47,6 +47,7 @@ describe("auth handlers", () => {
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret-key-for-jwt-hs256",
 		KV: {
+			get: mock(() => Promise.resolve(null)), // No rate limit hit
 			put: mock(() => Promise.resolve()),
 		} as unknown as KVNamespace,
 	};
@@ -184,7 +185,7 @@ describe("auth handlers", () => {
 			const env = {
 				...mockEnv,
 				DB: db,
-				KV: { put: kvPutSpy } as unknown as KVNamespace,
+				KV: { get: mock(() => Promise.resolve(null)), put: kvPutSpy } as unknown as KVNamespace,
 			};
 
 			const response = await login(createLoginRequest({ username: "testuser", password }), env);
@@ -247,7 +248,7 @@ describe("auth handlers", () => {
 			const env = {
 				...mockEnv,
 				DB: db,
-				KV: { put: kvPutSpy } as unknown as KVNamespace,
+				KV: { get: mock(() => Promise.resolve(null)), put: kvPutSpy } as unknown as KVNamespace,
 			};
 
 			const response = await login(
@@ -320,7 +321,7 @@ describe("auth handlers", () => {
 			const env = {
 				...mockEnv,
 				DB: db,
-				KV: { put: kvPutSpy } as unknown as KVNamespace,
+				KV: { get: mock(() => Promise.resolve(null)), put: kvPutSpy } as unknown as KVNamespace,
 			};
 
 			await login(createLoginRequest({ username: "kvuser", password }), env);
@@ -365,7 +366,7 @@ describe("auth handlers", () => {
 			const env = {
 				...mockEnv,
 				DB: db,
-				KV: { put: mock(() => Promise.resolve()) } as unknown as KVNamespace,
+				KV: { get: mock(() => Promise.resolve(null)), put: mock(() => Promise.resolve()) } as unknown as KVNamespace,
 			};
 
 			await login(createLoginRequest({ username: "loginuser", password }), env);
@@ -403,7 +404,7 @@ describe("auth handlers", () => {
 			const env = {
 				...mockEnv,
 				DB: db,
-				KV: { put: mock(() => Promise.resolve()) } as unknown as KVNamespace,
+				KV: { get: mock(() => Promise.resolve(null)), put: mock(() => Promise.resolve()) } as unknown as KVNamespace,
 			};
 
 			const response = await login(createLoginRequest({ username: "jwtuser", password }), env);
@@ -453,7 +454,7 @@ describe("auth handlers", () => {
 			const env = {
 				...mockEnv,
 				DB: db,
-				KV: { put: mock(() => Promise.resolve()) } as unknown as KVNamespace,
+				KV: { get: mock(() => Promise.resolve(null)), put: mock(() => Promise.resolve()) } as unknown as KVNamespace,
 			};
 
 			const response = await login(createLoginRequest({ username: "corsuser", password }), env);

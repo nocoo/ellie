@@ -58,6 +58,9 @@ export async function authMiddleware(
  * Moderation middleware — JWT auth + role check for /api/v1/moderation/* endpoints.
  * Requires any non-User role: Admin (1), SuperMod (2), or Mod (3).
  * Used by forum moderators in the web frontend (Key A + JWT).
+ *
+ * IMPORTANT: This middleware performs a database lookup to verify the user's current role,
+ * preventing privilege escalation from cached JWT claims after role demotion.
  */
 export async function moderationMiddleware(
 	request: Request,
@@ -67,10 +70,30 @@ export async function moderationMiddleware(
 	if (authResult instanceof Response) return authResult;
 
 	const { user } = authResult;
+
+	// Verify current role from database (not just JWT claims)
+	// This prevents demoted users from using cached JWT privileges
+	const dbUser = await env.DB.prepare("SELECT role, status FROM users WHERE id = ?")
+		.bind(user.userId)
+		.first<{ role: number; status: number }>();
+
+	if (!dbUser) {
+		return errorResponse("USER_NOT_FOUND", 404);
+	}
+
+	// Check if user is banned
+	if (dbUser.status !== 0) {
+		return errorResponse("USER_BANNED", 403);
+	}
+
+	// Use database role instead of JWT claim
+	const currentRole = dbUser.role;
+
 	// Mod (3), SuperMod (2), Admin (1) can perform moderation actions
-	if (user.role === UserRole.User) {
+	if (currentRole === UserRole.User) {
 		return errorResponse("FORBIDDEN_MOD_ONLY", 403);
 	}
 
-	return { user };
+	// Return user with verified role from database
+	return { user: { userId: user.userId, role: currentRole } };
 }
