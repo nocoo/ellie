@@ -1,5 +1,5 @@
 // Thread handlers for Cloudflare Worker
-import { type Thread, UserRole, canViewForumVisibility } from "@ellie/types";
+import { type Thread, canViewForumVisibility } from "@ellie/types";
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
@@ -8,19 +8,10 @@ import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse, paginatedResponse } from "../lib/response";
 import { withAuthVerified } from "../lib/routeHelpers";
 import { getUserProfiles } from "../lib/user-cache";
+import { THREAD_VISIBLE, buildVisibilityContext, threadVisible } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
-
-/**
- * Build visibility context from optional user auth.
- */
-function buildVisibilityContext(user: { userId: number; role: number } | null): VisibilityContext {
-	return {
-		isLoggedIn: user !== null,
-		role: user?.role ?? UserRole.User,
-	};
-}
 
 /** Thread cursor payload for keyset pagination */
 interface ThreadCursorPayload {
@@ -87,10 +78,10 @@ function getThreadListQuery(useKvCache: boolean, withCursor: boolean): string {
 		? "threads"
 		: "threads t LEFT JOIN users author ON t.author_id = author.id LEFT JOIN users lp ON t.last_poster_id = lp.id";
 	const tablePrefix = useKvCache ? "" : "t.";
-	// Only show visible threads (sticky >= 0), exclude hidden/deleted/placeholder
+	// Only show visible threads, exclude hidden/deleted/placeholder
 	const whereClause = useKvCache
-		? "forum_id = ? AND sticky >= 0"
-		: "t.forum_id = ? AND t.sticky >= 0";
+		? `forum_id = ? AND ${THREAD_VISIBLE}`
+		: `t.forum_id = ? AND ${threadVisible("t")}`;
 
 	if (withCursor) {
 		const cursorCondition = `(${tablePrefix}sticky < ? OR (${tablePrefix}sticky = ? AND (${tablePrefix}last_post_at < ? OR (${tablePrefix}last_post_at = ? AND ${tablePrefix}id < ?))))`;
@@ -165,7 +156,9 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		const offset = (page - 1) * clampedLimit;
 
 		const [countResult, dataResult] = await Promise.all([
-			env.DB.prepare("SELECT COUNT(*) as total FROM threads WHERE forum_id = ? AND sticky >= 0")
+			env.DB.prepare(
+				`SELECT COUNT(*) as total FROM threads WHERE forum_id = ? AND ${THREAD_VISIBLE}`,
+			)
 				.bind(forumIdNum)
 				.first<{ total: number }>(),
 			env.DB.prepare(getThreadListQueryWithOffset(useKvCache))
@@ -278,14 +271,14 @@ export async function getById(
 	// Choose query based on cache strategy (include forum_id for visibility check)
 	// Only return visible threads (sticky >= 0)
 	const threadQuery = useKvCache
-		? "SELECT * FROM threads WHERE id = ? AND sticky >= 0"
+		? `SELECT * FROM threads WHERE id = ? AND ${THREAD_VISIBLE}`
 		: `SELECT t.*,
 		          author.avatar AS author_avatar,
 		          lp.avatar AS last_poster_avatar
 		   FROM threads t
 		   LEFT JOIN users author ON t.author_id = author.id
 		   LEFT JOIN users lp ON t.last_poster_id = lp.id
-		   WHERE t.id = ? AND t.sticky >= 0`;
+		   WHERE t.id = ? AND ${threadVisible("t")}`;
 
 	const result = await env.DB.prepare(threadQuery).bind(id).first();
 

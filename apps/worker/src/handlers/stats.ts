@@ -5,6 +5,7 @@
 
 import type { CFRequest, Env } from "../lib/env";
 import { jsonResponse } from "../lib/response";
+import { POST_VISIBLE, THREAD_VISIBLE, USER_ACTIVE } from "../lib/visibility";
 
 const CACHE_KEY = "public-stats";
 const CACHE_TTL_SECONDS = 60;
@@ -49,19 +50,19 @@ export async function stats(request: CFRequest, env: Env): Promise<Response> {
 		env.DB.batch([
 			// 0: today's visible posts
 			env.DB.prepare(
-				"SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ? AND invisible = 0",
+				`SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ? AND ${POST_VISIBLE}`,
 			).bind(todayStart),
 			// 1: yesterday's visible posts
 			env.DB.prepare(
-				"SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ? AND created_at < ? AND invisible = 0",
+				`SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ? AND created_at < ? AND ${POST_VISIBLE}`,
 			).bind(yesterdayStart, yesterdayEnd),
 			// 2: total visible threads
-			env.DB.prepare("SELECT COUNT(*) AS cnt FROM threads WHERE sticky >= 0"),
+			env.DB.prepare(`SELECT COUNT(*) AS cnt FROM threads WHERE ${THREAD_VISIBLE}`),
 			// 3: total normal members (excludes banned/placeholder/archived users)
-			env.DB.prepare("SELECT COUNT(*) AS cnt FROM users WHERE status >= 0"),
+			env.DB.prepare(`SELECT COUNT(*) AS cnt FROM users WHERE ${USER_ACTIVE}`),
 			// 4: newest normal member (excludes banned/placeholder users)
 			env.DB.prepare(
-				"SELECT username FROM users WHERE status >= 0 ORDER BY reg_date DESC LIMIT 1",
+				`SELECT username FROM users WHERE ${USER_ACTIVE} ORDER BY reg_date DESC LIMIT 1`,
 			),
 		]),
 		// Current online count (aggregated by cron)

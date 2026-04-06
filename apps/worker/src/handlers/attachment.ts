@@ -1,19 +1,12 @@
 // Attachment handlers for Cloudflare Worker (public)
-import { UserRole, canViewForumVisibility } from "@ellie/types";
-import type { ForumVisibility, VisibilityContext } from "@ellie/types";
+import { canViewForumVisibility } from "@ellie/types";
+import type { ForumVisibility } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { toAttachment } from "../lib/mappers";
-import { type AuthUser, optionalAuthVerified } from "../middleware/auth";
+import { buildVisibilityContext } from "../lib/visibility";
+import { optionalAuthVerified } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
-
-/** Build visibility context from optional user */
-function buildVisibilityContext(user: AuthUser | null): VisibilityContext {
-	return {
-		isLoggedIn: user !== null,
-		role: user?.role ?? UserRole.User,
-	};
-}
 
 /** GET /api/v1/posts/:id/attachments - List attachments for a post */
 export async function listByPost(request: Request, env: Env): Promise<Response> {

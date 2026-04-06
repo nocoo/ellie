@@ -1,43 +1,13 @@
-// Digest (featured threads) handlers for Cloudflare Worker
-import { UserRole, canViewForumVisibility } from "@ellie/types";
-import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { toThread } from "../lib/mappers";
-import { type AuthUser, optionalAuthVerified } from "../middleware/auth";
+import {
+	FORUM_ACTIVE,
+	buildForumVisibilityFilter,
+	buildVisibilityContext,
+	threadVisible,
+} from "../lib/visibility";
+import { optionalAuthVerified } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
-
-/** Build visibility context from optional user */
-function buildVisibilityContext(user: AuthUser | null): VisibilityContext {
-	return {
-		isLoggedIn: user !== null,
-		role: user?.role ?? UserRole.User,
-	};
-}
-
-/**
- * Build SQL WHERE clause for forum visibility filtering.
- * Only includes forums that are visible to the current user based on their role.
- */
-function buildForumVisibilityFilter(visCtx: VisibilityContext): string {
-	// Visibility filter based on user context
-	const visibilityConditions: string[] = ["f.visibility = 'public'"];
-
-	if (visCtx.isLoggedIn) {
-		visibilityConditions.push("f.visibility = 'members'");
-	}
-	if (
-		visCtx.role === UserRole.Mod ||
-		visCtx.role === UserRole.SuperMod ||
-		visCtx.role === UserRole.Admin
-	) {
-		visibilityConditions.push("f.visibility = 'staff'");
-	}
-	if (visCtx.role === UserRole.Admin) {
-		visibilityConditions.push("f.visibility = 'admin'");
-	}
-
-	return `(${visibilityConditions.join(" OR ")})`;
-}
 
 /** Digest cursor payload for keyset pagination */
 interface DigestCursorPayload {
@@ -98,7 +68,7 @@ function buildDigestConditions(params: {
 	year: number | null;
 }): { conditions: string[]; bindings: (string | number)[] } {
 	// Only include visible threads (sticky >= 0), exclude hidden/deleted/placeholder
-	const conditions: string[] = ["t.digest > 0", "t.sticky >= 0"];
+	const conditions: string[] = ["t.digest > 0", threadVisible("t")];
 	const bindings: (string | number)[] = [];
 
 	if (params.forumId && !Number.isNaN(params.forumId)) {
@@ -149,7 +119,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	const { conditions, bindings } = buildDigestConditions({ forumId, level, year });
 
 	// Add forum visibility filter (status = 1 for active, and visibility check)
-	const fullConditions = [...conditions, "f.status = 1", forumFilter];
+	const fullConditions = [...conditions, FORUM_ACTIVE.replace("status", "f.status"), forumFilter];
 
 	let result: D1Result;
 	if (cursor) {
@@ -228,7 +198,7 @@ export async function stats(request: Request, env: Env): Promise<Response> {
 			SUM(CASE WHEN t.digest = 3 THEN 1 ELSE 0 END) as level3
 		 FROM threads t
 		 INNER JOIN forums f ON t.forum_id = f.id
-		 WHERE t.digest > 0 AND t.sticky >= 0 AND f.status = 1 AND ${forumFilter}`,
+		 WHERE t.digest > 0 AND ${threadVisible("t")} AND ${FORUM_ACTIVE.replace("status", "f.status")} AND ${forumFilter}`,
 	).first<{ total: number; level1: number; level2: number; level3: number }>();
 
 	return new Response(
@@ -259,7 +229,7 @@ export async function filters(request: Request, env: Env): Promise<Response> {
 		`SELECT DISTINCT strftime('%Y', t.created_at, 'unixepoch') as year
 		 FROM threads t
 		 INNER JOIN forums f ON t.forum_id = f.id
-		 WHERE t.digest > 0 AND t.sticky >= 0 AND f.status = 1 AND ${forumFilter}
+		 WHERE t.digest > 0 AND ${threadVisible("t")} AND ${FORUM_ACTIVE.replace("status", "f.status")} AND ${forumFilter}
 		 ORDER BY year DESC`,
 	).all<{ year: string }>();
 
@@ -272,7 +242,7 @@ export async function filters(request: Request, env: Env): Promise<Response> {
 		`SELECT f.id, f.name, COUNT(t.id) as digest_count
 		 FROM threads t
 		 INNER JOIN forums f ON t.forum_id = f.id
-		 WHERE t.digest > 0 AND t.sticky >= 0 AND f.status = 1 AND ${forumFilter}
+		 WHERE t.digest > 0 AND ${threadVisible("t")} AND ${FORUM_ACTIVE.replace("status", "f.status")} AND ${forumFilter}
 		 GROUP BY f.id, f.name
 		 ORDER BY f.name`,
 	).all<{ id: number; name: string; digest_count: number }>();
