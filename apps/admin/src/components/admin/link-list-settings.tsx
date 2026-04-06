@@ -1,7 +1,7 @@
 "use client";
 
-import { Button } from "@ellie/ui";
 import { updateSettings } from "@/viewmodels/admin/settings";
+import { Button } from "@ellie/ui";
 import { RotateCcw, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";

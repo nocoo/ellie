@@ -1,11 +1,11 @@
 "use client";
 
+import { NAV_GROUPS, type NavGroupDef } from "@/lib/navigation";
+import { VERSION_DISPLAY } from "@ellie/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@ellie/ui";
 import { Collapsible, CollapsibleTrigger } from "@ellie/ui";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@ellie/ui";
-import { NAV_GROUPS, type NavGroupDef } from "@/lib/navigation";
 import { cn } from "@ellie/ui/utils";
-import { VERSION_DISPLAY } from "@ellie/types";
 import {
 	Calculator,
 	ChevronUp,

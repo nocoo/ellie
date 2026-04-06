@@ -4,8 +4,8 @@
 "use client";
 
 import { type Theme, useTheme } from "@/hooks/use-theme";
-import { Monitor, Moon, Sun } from "lucide-react";
 import { Button } from "@ellie/ui";
+import { Monitor, Moon, Sun } from "lucide-react";
 
 const ICONS: Record<Theme, typeof Sun> = {
 	light: Sun,

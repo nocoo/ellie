@@ -1,7 +1,5 @@
 "use client";
 
-import { Button, Checkbox, Input, Label } from "@ellie/ui";
-import { cn } from "@ellie/ui/utils";
 import {
 	FEATURE_GROUPS,
 	type FeatureFieldDef,
@@ -10,6 +8,8 @@ import {
 	toFormValues,
 	updateSettings,
 } from "@/viewmodels/admin/features";
+import { Button, Checkbox, Input, Label } from "@ellie/ui";
+import { cn } from "@ellie/ui/utils";
 import { RotateCcw, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";

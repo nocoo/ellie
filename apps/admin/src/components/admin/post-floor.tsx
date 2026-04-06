@@ -1,5 +1,8 @@
 "use client";
 
+import type { EnrichedPost } from "@/viewmodels/admin/thread-detail";
+import { roleLabel } from "@/viewmodels/admin/users";
+import { formatNumber } from "@ellie/shared";
 import { Badge } from "@ellie/ui";
 import { Button } from "@ellie/ui";
 import {
@@ -8,9 +11,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@ellie/ui";
-import type { EnrichedPost } from "@/viewmodels/admin/thread-detail";
-import { roleLabel } from "@/viewmodels/admin/users";
-import { formatNumber } from "@ellie/shared";
 import { MoreHorizontal, Pencil, Shield, Trash2 } from "lucide-react";
 
 // ---------------------------------------------------------------------------

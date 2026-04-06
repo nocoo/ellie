@@ -6,6 +6,8 @@ import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-ta
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { IpBanCreateDialog } from "@/components/admin/ip-ban-create-dialog";
+import type { IpBan, IpBanCreate, IpBanUpdate, IpCheckResult } from "@/viewmodels/admin/ip-bans";
+import { formatExpiry } from "@/viewmodels/admin/ip-bans";
 import { Badge } from "@ellie/ui";
 import { Button } from "@ellie/ui";
 import {
@@ -15,8 +17,6 @@ import {
 	DropdownMenuTrigger,
 } from "@ellie/ui";
 import { Input } from "@ellie/ui";
-import type { IpBan, IpBanCreate, IpBanUpdate, IpCheckResult } from "@/viewmodels/admin/ip-bans";
-import { formatExpiry } from "@/viewmodels/admin/ip-bans";
 import { MoreHorizontal, Plus, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 

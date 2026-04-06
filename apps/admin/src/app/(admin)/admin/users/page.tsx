@@ -9,6 +9,9 @@ import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-ta
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminPagination } from "@/components/admin/admin-pagination";
 import { UserEditDialog } from "@/components/admin/user-edit-dialog";
+import { useUsersAdmin } from "@/viewmodels/admin/use-users-admin";
+import { type User, roleLabel, statusLabel } from "@/viewmodels/admin/users";
+import { formatNumber } from "@ellie/shared";
 import { Badge } from "@ellie/ui";
 import { Button } from "@ellie/ui";
 import {
@@ -17,9 +20,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@ellie/ui";
-import { useUsersAdmin } from "@/viewmodels/admin/use-users-admin";
-import { type User, roleLabel, statusLabel } from "@/viewmodels/admin/users";
-import { formatNumber } from "@ellie/shared";
 import { MoreHorizontal } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 

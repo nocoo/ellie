@@ -1,15 +1,9 @@
 "use client";
 
-import { Button } from "@ellie/ui";
-import {
-	Dialog,
-	DialogContent,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@ellie/ui";
-import { Label } from "@ellie/ui";
 import type { Post, PostUpdate } from "@/viewmodels/admin/posts";
+import { Button } from "@ellie/ui";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@ellie/ui";
+import { Label } from "@ellie/ui";
 import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------

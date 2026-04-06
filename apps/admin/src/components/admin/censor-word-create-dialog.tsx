@@ -1,20 +1,14 @@
 "use client";
 
-import { Button } from "@ellie/ui";
-import {
-	Dialog,
-	DialogContent,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@ellie/ui";
-import { Input } from "@ellie/ui";
-import { Label } from "@ellie/ui";
 import type {
 	CensorWord,
 	CensorWordCreate,
 	CensorWordUpdate,
 } from "@/viewmodels/admin/censor-words";
+import { Button } from "@ellie/ui";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@ellie/ui";
+import { Input } from "@ellie/ui";
+import { Label } from "@ellie/ui";
 import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------
