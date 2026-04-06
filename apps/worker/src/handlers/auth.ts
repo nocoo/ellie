@@ -10,11 +10,31 @@ import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
 /**
- * Get client IP from CF-Connecting-IP header.
- * Returns null if header is missing (should reject request to prevent rate limit bypass).
+ * Get client IP from request headers.
+ * Priority order:
+ * 1. CF-Connecting-IP - Cloudflare sets this for direct requests to Worker
+ * 2. X-Real-IP - Next.js proxy forwards this from the original client
+ * 3. X-Forwarded-For (first IP) - Fallback for other proxies
+ *
+ * Returns null if no valid IP found (should reject request to prevent rate limit bypass).
  */
 function getClientIP(request: Request): string | null {
-	return request.headers.get("CF-Connecting-IP");
+	// Direct Cloudflare access
+	const cfIP = request.headers.get("CF-Connecting-IP");
+	if (cfIP) return cfIP;
+
+	// Next.js proxy forwarding client IP
+	const realIP = request.headers.get("X-Real-IP");
+	if (realIP) return realIP;
+
+	// Fallback: X-Forwarded-For (first IP in chain)
+	const xff = request.headers.get("X-Forwarded-For");
+	if (xff) {
+		const firstIP = xff.split(",")[0]?.trim();
+		if (firstIP) return firstIP;
+	}
+
+	return null;
 }
 
 interface LoginInput {
