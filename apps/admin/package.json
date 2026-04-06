@@ -6,6 +6,7 @@
 		"dev": "next dev --turbopack -p 7032",
 		"build": "next build",
 		"start": "next start -p 7032",
+		"test": "bun test tests/",
 		"typecheck": "tsc --noEmit",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
