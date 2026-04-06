@@ -1,6 +1,7 @@
 // Public stats handler — GET /api/v1/stats
 // Returns site-wide statistics for the forum header/footer.
 // Cached in KV for 60 seconds to avoid repeated COUNT queries.
+// Only counts visible content (posts.invisible = 0, threads.sticky >= 0, users.status >= 0)
 
 import type { CFRequest, Env } from "../lib/env";
 import { jsonResponse } from "../lib/response";
@@ -40,20 +41,28 @@ export async function stats(request: CFRequest, env: Env): Promise<Response> {
 	const { todayStart, yesterdayStart, yesterdayEnd } = dayBoundaries();
 
 	// Parallel fetch: D1 batch + KV online stats
+	// Only count visible content:
+	// - posts.invisible = 0 (visible posts only)
+	// - threads.sticky >= 0 (visible threads only)
+	// - users.status >= 0 (normal users only, excludes banned/placeholder)
 	const [dbResults, onlineCount, peakData] = await Promise.all([
 		env.DB.batch([
-			// 0: today's posts
-			env.DB.prepare("SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ?").bind(todayStart),
-			// 1: yesterday's posts
+			// 0: today's visible posts
 			env.DB.prepare(
-				"SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ? AND created_at < ?",
+				"SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ? AND invisible = 0",
+			).bind(todayStart),
+			// 1: yesterday's visible posts
+			env.DB.prepare(
+				"SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ? AND created_at < ? AND invisible = 0",
 			).bind(yesterdayStart, yesterdayEnd),
-			// 2: total threads
-			env.DB.prepare("SELECT COUNT(*) AS cnt FROM threads"),
-			// 3: total members
-			env.DB.prepare("SELECT COUNT(*) AS cnt FROM users"),
-			// 4: newest member
-			env.DB.prepare("SELECT username FROM users ORDER BY reg_date DESC LIMIT 1"),
+			// 2: total visible threads
+			env.DB.prepare("SELECT COUNT(*) AS cnt FROM threads WHERE sticky >= 0"),
+			// 3: total normal members (excludes banned/placeholder/archived users)
+			env.DB.prepare("SELECT COUNT(*) AS cnt FROM users WHERE status >= 0"),
+			// 4: newest normal member (excludes banned/placeholder users)
+			env.DB.prepare(
+				"SELECT username FROM users WHERE status >= 0 ORDER BY reg_date DESC LIMIT 1",
+			),
 		]),
 		// Current online count (aggregated by cron)
 		env.KV.get("stats:online_count"),
