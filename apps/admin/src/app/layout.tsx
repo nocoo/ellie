@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import type { ReactNode } from "react";
 import "./tailwind.css";
 import { Providers } from "@/components/providers";
@@ -15,31 +14,18 @@ export const metadata: Metadata = {
 };
 
 /**
- * Inline FOUC-prevention script — runs before any paint.
+ * Inline FOUC-prevention script — must run synchronously before first paint.
+ * Using dangerouslySetInnerHTML in <head> ensures it runs before body renders.
  */
-const fouc_prevention_script = `
-(function(){
-  try{
-    var t=localStorage.getItem("theme");
-    var d=t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme:dark)").matches);
-    if(d){
-      document.documentElement.classList.add("dark");
-      document.documentElement.style.colorScheme="dark";
-    }else{
-      document.documentElement.style.colorScheme="light";
-    }
-  }catch(e){}
-})();
-`;
+const foucPreventionScript = `(function(){try{var t=localStorage.getItem("theme");var d=t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme:dark)").matches);if(d){document.documentElement.classList.add("dark");document.documentElement.style.colorScheme="dark"}else{document.documentElement.style.colorScheme="light"}}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
 	return (
 		<html lang="zh-CN" className={cn(inter.variable, dmSans.variable)} suppressHydrationWarning>
-			<head />
+			<head>
+				<script dangerouslySetInnerHTML={{ __html: foucPreventionScript }} />
+			</head>
 			<body>
-				<Script id="fouc-prevention" strategy="beforeInteractive">
-					{fouc_prevention_script}
-				</Script>
 				<Providers>{children}</Providers>
 			</body>
 		</html>
