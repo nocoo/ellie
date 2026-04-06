@@ -11,21 +11,24 @@ export interface PostingUser {
 }
 
 /** Posting permission check result */
-export type PostingPermissionResult =
-	| { allowed: true }
-	| { allowed: false; error: Response };
+export type PostingPermissionResult = { allowed: true } | { allowed: false; error: Response };
+
+/** Content type for permission check */
+export type ContentType = "thread" | "reply" | "message";
 
 /**
- * Get posting restriction settings from DB (features.posting.* keys).
+ * Get posting restriction settings from DB (features.posting.* and features.content.* keys).
  * Returns defaults if settings are not found.
  */
 async function getPostingSettings(env: Env): Promise<{
 	enabled: boolean;
 	minRegistrationDays: number;
 	requireAvatar: boolean;
+	allowNewThread: boolean;
+	allowReply: boolean;
 }> {
 	const result = await env.DB.prepare(
-		"SELECT key, value FROM settings WHERE key LIKE 'features.posting.%'",
+		"SELECT key, value FROM settings WHERE key LIKE 'features.posting.%' OR key LIKE 'features.content.%'",
 	).all<{ key: string; value: string }>();
 
 	const settings: Record<string, string> = {};
@@ -40,6 +43,9 @@ async function getPostingSettings(env: Env): Promise<{
 			10,
 		),
 		requireAvatar: settings["features.posting.require_avatar"] === "true",
+		// Default to true if not set (allow by default)
+		allowNewThread: settings["features.content.allow_new_thread"] !== "false",
+		allowReply: settings["features.content.allow_reply"] !== "false",
 	};
 }
 
@@ -48,19 +54,22 @@ async function getPostingSettings(env: Env): Promise<{
  *
  * Checks:
  * 1. User status >= 0 (not banned/muted)
- * 2. If posting restrictions enabled:
+ * 2. Global content switches (allow_new_thread, allow_reply) - staff bypass
+ * 3. If posting restrictions enabled:
  *    - Registration days >= min_registration_days
  *    - Avatar required → user must have avatar set
  *
  * @param env - Cloudflare Worker environment
  * @param user - User info from auth token
  * @param origin - Request origin for CORS headers
+ * @param contentType - Type of content being created (thread, reply, message)
  * @returns Promise<PostingPermissionResult>
  */
 export async function checkPostingPermission(
 	env: Env,
 	user: PostingUser,
 	origin?: string,
+	contentType: ContentType = "message",
 ): Promise<PostingPermissionResult> {
 	// Fetch user details from DB to check status, avatar, reg_date
 	const userRow = await env.DB.prepare(
@@ -79,58 +88,76 @@ export async function checkPostingPermission(
 	// Check 1: User status (banned = -1, muted = -2)
 	if (userRow.status < 0) {
 		const message =
-			userRow.status === -1
-				? "您的账号已被封禁，无法发送内容"
-				: "您的账号已被禁言，无法发送内容";
+			userRow.status === -1 ? "您的账号已被封禁，无法发送内容" : "您的账号已被禁言，无法发送内容";
 		return {
 			allowed: false,
 			error: errorResponse("FORBIDDEN", 403, { message }, origin),
 		};
 	}
 
-	// Check 2: Posting restrictions (skip for staff: role >= 1)
+	// Get settings once for all checks
+	const settings = await getPostingSettings(env);
+
+	// Check 2: Global content switches (staff bypass: role >= 1 means Mod+)
 	if (userRow.role < 1) {
-		const settings = await getPostingSettings(env);
+		if (contentType === "thread" && !settings.allowNewThread) {
+			return {
+				allowed: false,
+				error: errorResponse(
+					"CONTENT_DISABLED",
+					403,
+					{ message: "发布新主题功能已暂停" },
+					origin,
+				),
+			};
+		}
+		if (contentType === "reply" && !settings.allowReply) {
+			return {
+				allowed: false,
+				error: errorResponse("CONTENT_DISABLED", 403, { message: "回复功能已暂停" }, origin),
+			};
+		}
+	}
 
-		if (settings.enabled) {
-			// Check registration days
-			if (settings.minRegistrationDays > 0) {
-				const nowSeconds = Math.floor(Date.now() / 1000);
-				const registrationDays = Math.floor((nowSeconds - userRow.reg_date) / 86400);
+	// Check 3: Posting restrictions (skip for staff: role >= 1)
+	if (userRow.role < 1 && settings.enabled) {
+		// Check registration days
+		if (settings.minRegistrationDays > 0) {
+			const nowSeconds = Math.floor(Date.now() / 1000);
+			const registrationDays = Math.floor((nowSeconds - userRow.reg_date) / 86400);
 
-				if (registrationDays < settings.minRegistrationDays) {
-					return {
-						allowed: false,
-						error: errorResponse(
-							"POSTING_RESTRICTION",
-							403,
-							{
-								message: `您的账号注册不满 ${settings.minRegistrationDays} 天，暂时无法发送内容`,
-								code: "MIN_REGISTRATION_DAYS",
-								required: settings.minRegistrationDays,
-								current: registrationDays,
-							},
-							origin,
-						),
-					};
-				}
-			}
-
-			// Check avatar requirement
-			if (settings.requireAvatar && !userRow.avatar) {
+			if (registrationDays < settings.minRegistrationDays) {
 				return {
 					allowed: false,
 					error: errorResponse(
 						"POSTING_RESTRICTION",
 						403,
 						{
-							message: "您需要设置头像后才能发送内容",
-							code: "REQUIRE_AVATAR",
+							message: `您的账号注册不满 ${settings.minRegistrationDays} 天，暂时无法发送内容`,
+							code: "MIN_REGISTRATION_DAYS",
+							required: settings.minRegistrationDays,
+							current: registrationDays,
 						},
 						origin,
 					),
 				};
 			}
+		}
+
+		// Check avatar requirement
+		if (settings.requireAvatar && !userRow.avatar) {
+			return {
+				allowed: false,
+				error: errorResponse(
+					"POSTING_RESTRICTION",
+					403,
+					{
+						message: "您需要设置头像后才能发送内容",
+						code: "REQUIRE_AVATAR",
+					},
+					origin,
+				),
+			};
 		}
 	}
 

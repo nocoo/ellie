@@ -9,6 +9,14 @@ import { withAuthVerified } from "../lib/routeHelpers";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
+/**
+ * Get client IP from CF-Connecting-IP header.
+ * Returns null if header is missing (should reject request to prevent rate limit bypass).
+ */
+function getClientIP(request: Request): string | null {
+	return request.headers.get("CF-Connecting-IP");
+}
+
 interface LoginInput {
 	username: string;
 	password: string;
@@ -37,7 +45,10 @@ export async function login(request: Request, env: Env): Promise<Response> {
 
 		// ── Rate limiting: 5 attempts per hour per IP, lockout 24h after 5 consecutive failures ──
 		// NOTE: Only IP-based rate limiting to prevent DoS via username lockout attacks
-		const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+		const ip = getClientIP(request);
+		if (!ip) {
+			return errorResponse("INVALID_REQUEST", 400, { message: "Missing client IP" }, origin);
+		}
 
 		// Check for 24-hour lockout first
 		const ipLockoutKey = `login-lockout-ip:${ip}`;
@@ -345,7 +356,10 @@ export async function register(request: Request, env: Env): Promise<Response> {
 		}
 
 		// ── IP rate limiting: max 3 registrations per hour ──
-		const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+		const ip = getClientIP(request);
+		if (!ip) {
+			return errorResponse("INVALID_REQUEST", 400, { message: "Missing client IP" }, origin);
+		}
 		const rateLimitKey = `reg-ip:${ip}`;
 		const currentCount = Number.parseInt((await env.KV.get(rateLimitKey)) ?? "0", 10);
 		if (currentCount >= 3) {
@@ -436,7 +450,10 @@ export async function checkUsername(request: Request, env: Env): Promise<Respons
 	}
 
 	// ── IP rate limiting: max 30 checks per minute ──
-	const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+	const ip = getClientIP(request);
+	if (!ip) {
+		return errorResponse("INVALID_REQUEST", 400, { message: "Missing client IP" }, origin);
+	}
 	const rateLimitKey = `chk-usr-ip:${ip}`;
 	const currentCount = Number.parseInt((await env.KV.get(rateLimitKey)) ?? "0", 10);
 	if (currentCount >= 30) {

@@ -348,11 +348,19 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 			// Need to mock thread and forum lookups for visibility checks
 			const env = makeEnv({
 				prepare: mock((sql: string) => {
-					// Thread lookup query
+					// Thread lookup query - get forum_id
 					if (sql.includes("SELECT forum_id FROM threads")) {
 						return {
 							bind: mock(() => ({
 								first: mock(() => Promise.resolve({ forum_id: 1 })),
+							})),
+						};
+					}
+					// Thread lookup query - also need sticky check for newer code
+					if (sql.includes("SELECT") && sql.includes("threads") && sql.includes("WHERE id")) {
+						return {
+							bind: mock(() => ({
+								first: mock(() => Promise.resolve({ forum_id: 1, sticky: 0 })),
 							})),
 						};
 					}
@@ -427,6 +435,7 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 						method: "POST",
 						headers: {
 							"Content-Type": "application/json",
+							"CF-Connecting-IP": "127.0.0.1",
 						},
 						body: JSON.stringify({
 							username: "test",
@@ -644,9 +653,54 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 
 	describe("Attachment routes", () => {
 		it("GET /api/v1/posts/:id/attachments should route to handler", async () => {
+			// Need to mock post, thread, and forum lookups for visibility checks
+			const env = makeEnv({
+				prepare: mock((sql: string) => {
+					// Post lookup query - get thread_id
+					if (sql.includes("SELECT") && sql.includes("posts") && sql.includes("WHERE id")) {
+						return {
+							bind: mock(() => ({
+								first: mock(() => Promise.resolve({ thread_id: 1, invisible: 0 })),
+							})),
+						};
+					}
+					// Thread lookup query - get forum_id
+					if (sql.includes("SELECT") && sql.includes("threads") && sql.includes("WHERE id")) {
+						return {
+							bind: mock(() => ({
+								first: mock(() => Promise.resolve({ forum_id: 1, sticky: 0 })),
+							})),
+						};
+					}
+					// Forum visibility check query
+					if (sql.includes("SELECT status, visibility FROM forums")) {
+						return {
+							bind: mock(() => ({
+								first: mock(() => Promise.resolve({ status: 1, visibility: "public" })),
+							})),
+						};
+					}
+					// Attachment list query
+					if (sql.includes("SELECT * FROM attachments")) {
+						return {
+							bind: mock(() => ({
+								all: mock(() => Promise.resolve({ results: [] })),
+							})),
+						};
+					}
+					// Default
+					return {
+						all: mock(() => Promise.resolve({ results: [] })),
+						bind: mock(() => ({
+							first: mock(() => Promise.resolve(null)),
+							all: mock(() => Promise.resolve({ results: [] })),
+						})),
+					};
+				}),
+			});
 			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/posts/1/attachments", withApiKey()),
-				makeEnv(),
+				env,
 				makeCtx(),
 			);
 
