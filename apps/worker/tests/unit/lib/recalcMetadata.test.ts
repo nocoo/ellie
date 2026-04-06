@@ -4,10 +4,11 @@ import { createMockDb, makeEnv } from "../../helpers";
 
 describe("recalcMetadata", () => {
 	describe("recalcForumMetadata", () => {
-		it("should update forum with latest thread info", async () => {
+		it("should update forum with latest visible thread info", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"SELECT id, subject, last_post_at, last_poster, last_poster_id FROM threads": {
+					// Match query that includes visibility filter
+					"SELECT id, subject, last_post_at, last_poster, last_poster_id": {
 						id: 42,
 						subject: "Latest thread",
 						last_post_at: 1700000000,
@@ -20,15 +21,21 @@ describe("recalcMetadata", () => {
 
 			await recalcForumMetadata(env, 1);
 
+			// Verify the SELECT query includes visibility filter
+			const selectCall = calls.find(
+				(c) => c.sql.includes("SELECT id, subject") && c.sql.includes("FROM threads"),
+			);
+			expect(selectCall?.sql).toContain("sticky >= 0");
+
 			const updateCall = calls.find((c) => c.sql.includes("UPDATE forums SET last_thread_id"));
 			expect(updateCall).toBeDefined();
 			expect(updateCall?.params).toEqual([42, 1700000000, "alice", 10, "Latest thread", 1]);
 		});
 
-		it("should reset forum metadata when no threads remain", async () => {
+		it("should reset forum metadata when no visible threads remain", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"SELECT id, subject, last_post_at, last_poster, last_poster_id FROM threads": null,
+					"SELECT id, subject, last_post_at, last_poster, last_poster_id": null,
 				},
 			});
 			const env = makeEnv({ DB: db });
@@ -39,13 +46,27 @@ describe("recalcMetadata", () => {
 			expect(updateCall).toBeDefined();
 			expect(updateCall?.params).toEqual([0, 0, "", 0, "", 5]);
 		});
+
+		it("should only consider visible threads (sticky >= 0)", async () => {
+			const { db, calls } = createMockDb({});
+			const env = makeEnv({ DB: db });
+
+			await recalcForumMetadata(env, 1);
+
+			// The SQL should filter out hidden threads (sticky < 0)
+			const selectCall = calls.find(
+				(c) => c.sql.includes("FROM threads") && c.sql.includes("WHERE"),
+			);
+			expect(selectCall?.sql).toContain("sticky >= 0");
+		});
 	});
 
 	describe("recalcThreadMetadata", () => {
-		it("should update thread with latest post info", async () => {
+		it("should update thread with latest visible post info", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"SELECT created_at, author_name, author_id FROM posts": {
+					// Match the SELECT query - uses a substring that will match
+					"SELECT created_at, author_name, author_id": {
 						created_at: 1700000000,
 						author_name: "bob",
 						author_id: 20,
@@ -56,6 +77,12 @@ describe("recalcMetadata", () => {
 
 			await recalcThreadMetadata(env, 10);
 
+			// Verify the SELECT query includes visibility filter
+			const selectCall = calls.find(
+				(c) => c.sql.includes("SELECT created_at") && c.sql.includes("FROM posts"),
+			);
+			expect(selectCall?.sql).toContain("invisible = 0");
+
 			const updateCall = calls.find(
 				(c) => c.sql.includes("UPDATE threads SET last_post_at") && c.params.includes(10),
 			);
@@ -63,8 +90,8 @@ describe("recalcMetadata", () => {
 			expect(updateCall?.params).toEqual([1700000000, "bob", 20, 10]);
 		});
 
-		it("should fall back to thread creation info when no posts remain", async () => {
-			// First call: SELECT from posts — returns null
+		it("should fall back to thread creation info when no visible posts remain", async () => {
+			// First call: SELECT from posts — returns null (no visible posts)
 			// Second call: SELECT from threads — returns thread info
 			let postCallDone = false;
 			const { db, calls } = createMockDb({});
@@ -84,7 +111,7 @@ describe("recalcMetadata", () => {
 						},
 					};
 				}
-				if (sql.includes("FROM threads")) {
+				if (sql.includes("FROM threads") && sql.includes("SELECT created_at")) {
 					calls.push({ sql, params: [] });
 					return {
 						bind: (...params: unknown[]) => {
@@ -121,6 +148,19 @@ describe("recalcMetadata", () => {
 			const updateCall = calls.find((c) => c.sql.includes("UPDATE threads SET last_post_at"));
 			expect(updateCall).toBeDefined();
 			expect(updateCall?.params).toEqual([1600000000, "original_author", 30, 20]);
+		});
+
+		it("should only consider visible posts (invisible = 0)", async () => {
+			const { db, calls } = createMockDb({});
+			const env = makeEnv({ DB: db });
+
+			await recalcThreadMetadata(env, 10);
+
+			// The SQL should filter out hidden posts (invisible != 0)
+			const selectCall = calls.find(
+				(c) => c.sql.includes("FROM posts") && c.sql.includes("WHERE"),
+			);
+			expect(selectCall?.sql).toContain("invisible = 0");
 		});
 	});
 });
