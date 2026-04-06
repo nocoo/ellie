@@ -8,7 +8,7 @@
 // suppressHydrationWarning prevents that.
 
 import { Badge } from "@/components/ui/badge";
-import { getStaticImageUrl } from "@/lib/cdn";
+import { getAttachmentUrl, getAttachmentThumbUrl, getStaticImageUrl } from "@/lib/cdn";
 import {
 	type EnrichedPost,
 	floorLabel,
@@ -63,30 +63,30 @@ export function PostContent({ post, isFirst, threadDigest, author, actionBar }: 
 				{/* Attachments */}
 				{post.attachments.length > 0 && (
 					<div className="mt-3 space-y-1.5">
-						{post.attachments.map((att) => (
-							<div
-								key={att.id}
-								className="flex items-center gap-2 rounded-lg bg-background p-2 text-xs"
-							>
-								{att.isImage ? (
-									<a href={att.filePath} target="_blank" rel="noopener noreferrer">
-										<img
-											src={att.hasThumb ? `${att.filePath}.thumb.jpg` : att.filePath}
-											alt={att.filename}
-											className="max-h-20 rounded"
-										/>
-									</a>
-								) : (
-									<>
-										<span className="text-forum-text-muted">📎</span>
-										<span className="truncate">{att.filename}</span>
-										<span className="text-forum-text-muted shrink-0">
-											{formatFileSize(att.fileSize)}
-										</span>
-									</>
-								)}
-							</div>
-						))}
+						{post.attachments.map((att) => {
+							const attachmentUrl = getAttachmentUrl(att.filePath);
+							const thumbUrl = att.hasThumb ? getAttachmentThumbUrl(att.filePath) : attachmentUrl;
+							return (
+								<div
+									key={att.id}
+									className="flex items-center gap-2 rounded-lg bg-background p-2 text-xs"
+								>
+									{att.isImage ? (
+										<a href={attachmentUrl} target="_blank" rel="noopener noreferrer">
+											<img src={thumbUrl} alt={att.filename} className="max-h-20 rounded" />
+										</a>
+									) : (
+										<>
+											<span className="text-forum-text-muted">📎</span>
+											<span className="truncate">{att.filename}</span>
+											<span className="text-forum-text-muted shrink-0">
+												{formatFileSize(att.fileSize)}
+											</span>
+										</>
+									)}
+								</div>
+							);
+						})}
 					</div>
 				)}
 

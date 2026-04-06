@@ -12,14 +12,50 @@ export function getSmileyUrl(directory: string, filename: string): string {
 	return `${CDN_BASE}/static/image/smiley/${directory}/${filename}`;
 }
 
-/** Attachment URL — filePath is the relative path stored in DB */
+/**
+ * Attachment URL — filePath is the relative path stored in DB.
+ * Security: Only allows paths from CDN_BASE. External URLs, javascript:, data:, etc. are rejected.
+ */
 export function getAttachmentUrl(filePath: string): string {
-	// filePath might already be absolute or relative
-	if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
-		return filePath;
+	// Reject empty or whitespace-only paths
+	if (!filePath || !filePath.trim()) {
+		return `${CDN_BASE}/`;
 	}
-	// Ensure leading slash
-	const path = filePath.startsWith("/") ? filePath : `/${filePath}`;
+
+	// Reject dangerous protocols (javascript:, data:, vbscript:, etc.)
+	const lowerPath = filePath.toLowerCase().trim();
+	if (
+		lowerPath.startsWith("javascript:") ||
+		lowerPath.startsWith("data:") ||
+		lowerPath.startsWith("vbscript:") ||
+		lowerPath.startsWith("file:")
+	) {
+		return `${CDN_BASE}/`;
+	}
+
+	// If it's an absolute URL, only allow if it's from our CDN
+	if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
+		try {
+			const url = new URL(filePath);
+			const cdnUrl = new URL(CDN_BASE);
+			// Only allow URLs from the same host as CDN_BASE
+			if (url.host === cdnUrl.host) {
+				return filePath;
+			}
+		} catch {
+			// Invalid URL, fall through to CDN path
+		}
+		// External URL detected - return safe fallback
+		return `${CDN_BASE}/`;
+	}
+
+	// Relative path - prepend CDN base
+	// Sanitize: remove any ../ attempts and ensure single leading slash
+	const sanitizedPath = filePath
+		.replace(/\.\.\//g, "") // Remove directory traversal
+		.replace(/^\/+/, "/"); // Ensure single leading slash
+
+	const path = sanitizedPath.startsWith("/") ? sanitizedPath : `/${sanitizedPath}`;
 	return `${CDN_BASE}${path}`;
 }
 

@@ -42,15 +42,38 @@ describe("forum handlers", () => {
 		...overrides,
 	});
 
+	/** Visible last thread row for fetchVisibleLastThreads query result */
+	const makeVisibleLastThreadRow = (forumId: number, overrides?: Record<string, unknown>) => ({
+		forum_id: forumId,
+		thread_id: 42,
+		subject: "Latest Thread",
+		last_post_at: 1711540800,
+		last_poster_id: 10,
+		last_poster: "alice",
+		...overrides,
+	});
+
 	describe("list", () => {
 		/** Helper: creates a mock DB where prepare() returns different results based on SQL */
-		function createListMockDb(forumRows: unknown[], countRows: unknown[] = []) {
+		function createListMockDb(
+			forumRows: unknown[],
+			countRows: unknown[] = [],
+			visibleLastThreadRows: unknown[] = [],
+		) {
 			return {
 				prepare: mock((sql: string) => {
 					// Forum query (with or without JOIN)
-					if (sql.includes("FROM forums")) {
+					if (sql.includes("FROM forums") && !sql.includes("FROM threads")) {
 						return {
 							all: mock(() => Promise.resolve({ results: forumRows })),
+						};
+					}
+					// Visible last threads query (window function)
+					if (sql.includes("ROW_NUMBER() OVER") && sql.includes("FROM threads")) {
+						return {
+							bind: mock(() => ({
+								all: mock(() => Promise.resolve({ results: visibleLastThreadRows })),
+							})),
 						};
 					}
 					// Thread count query
@@ -65,7 +88,8 @@ describe("forum handlers", () => {
 
 		it("should map D1 snake_case rows to camelCase Forum objects", async () => {
 			const d1Row = makeD1ForumRow();
-			const db = createListMockDb([d1Row], [{ forum_id: 1, cnt: 3 }]);
+			const visibleRow = makeVisibleLastThreadRow(1);
+			const db = createListMockDb([d1Row], [{ forum_id: 1, cnt: 3 }], [visibleRow]);
 
 			const env = { ...mockEnv, DB: db };
 			const ctx = createMockCtx();
@@ -103,7 +127,8 @@ describe("forum handlers", () => {
 
 		it("should set todayThreads to 0 when no recent threads", async () => {
 			const d1Row = makeD1ForumRow({ id: 5 });
-			const db = createListMockDb([d1Row], []);
+			const visibleRow = makeVisibleLastThreadRow(5);
+			const db = createListMockDb([d1Row], [], [visibleRow]);
 
 			const env = { ...mockEnv, DB: db };
 			const ctx = createMockCtx();
@@ -114,7 +139,7 @@ describe("forum handlers", () => {
 		});
 
 		it("should call DB with JOIN forum query", async () => {
-			const db = createListMockDb([]);
+			const db = createListMockDb([], [], []);
 			const env = { ...mockEnv, DB: db };
 			const ctx = createMockCtx();
 			await list(new Request("https://example.com/api/v1/forums"), env, ctx);
@@ -124,7 +149,7 @@ describe("forum handlers", () => {
 		});
 
 		it("should return JSON content type", async () => {
-			const db = createListMockDb([]);
+			const db = createListMockDb([], [], []);
 			const env = { ...mockEnv, DB: db };
 			const ctx = createMockCtx();
 			const response = await list(new Request("https://example.com/api/v1/forums"), env, ctx);
@@ -133,7 +158,7 @@ describe("forum handlers", () => {
 		});
 
 		it("should include CORS headers with origin", async () => {
-			const db = createListMockDb([]);
+			const db = createListMockDb([], [], []);
 			const env = { ...mockEnv, DB: db };
 			const ctx = createMockCtx();
 			const response = await list(
@@ -151,7 +176,7 @@ describe("forum handlers", () => {
 		});
 
 		it("should return empty array when no forums exist", async () => {
-			const db = createListMockDb([]);
+			const db = createListMockDb([], [], []);
 			const env = { ...mockEnv, DB: db };
 			const ctx = createMockCtx();
 			const response = await list(new Request("https://example.com/api/v1/forums"), env, ctx);
@@ -163,14 +188,35 @@ describe("forum handlers", () => {
 
 	describe("getById", () => {
 		/** Helper: creates a mock DB for getById which has multiple prepare() calls */
-		function createGetByIdMockDb(forumRow: unknown | null, todayCount = 0) {
+		function createGetByIdMockDb(
+			forumRow: unknown | null,
+			todayCount = 0,
+			visibleLastThreadRow?: unknown,
+		) {
+			const forumId = forumRow ? (forumRow as { id: number }).id : 1;
+			// Default visible thread row based on forum row data
+			const defaultVisibleRow = forumRow
+				? makeVisibleLastThreadRow(forumId)
+				: null;
+			const visibleRow = visibleLastThreadRow ?? defaultVisibleRow;
+
 			return {
 				prepare: mock((sql: string) => {
 					// Forum query (with or without JOIN)
-					if (sql.includes("FROM forums") && sql.includes("WHERE")) {
+					if (sql.includes("FROM forums") && sql.includes("WHERE") && !sql.includes("ROW_NUMBER")) {
 						return {
 							bind: mock(() => ({
 								first: mock(() => Promise.resolve(forumRow)),
+							})),
+						};
+					}
+					// Visible last threads query (window function)
+					if (sql.includes("ROW_NUMBER() OVER") && sql.includes("FROM threads")) {
+						return {
+							bind: mock(() => ({
+								all: mock(() =>
+									Promise.resolve({ results: visibleRow ? [visibleRow] : [] }),
+								),
 							})),
 						};
 					}
@@ -229,15 +275,23 @@ describe("forum handlers", () => {
 
 		it("should parse forum ID from URL", async () => {
 			const d1Row = makeD1ForumRow({ id: 123 });
+			const visibleRow = makeVisibleLastThreadRow(123);
 			const bindSpy = mock(() => ({
 				first: mock(() => Promise.resolve(d1Row)),
+			}));
+			const visibleBindSpy = mock(() => ({
+				all: mock(() => Promise.resolve({ results: [visibleRow] })),
 			}));
 
 			const db = {
 				prepare: mock((sql: string) => {
 					// Forum query (with or without JOIN)
-					if (sql.includes("FROM forums") && sql.includes("WHERE")) {
+					if (sql.includes("FROM forums") && sql.includes("WHERE") && !sql.includes("ROW_NUMBER")) {
 						return { bind: bindSpy };
+					}
+					// Visible last threads query
+					if (sql.includes("ROW_NUMBER() OVER")) {
+						return { bind: visibleBindSpy };
 					}
 					return {
 						bind: mock(() => ({

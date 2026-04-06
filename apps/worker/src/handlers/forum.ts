@@ -44,6 +44,72 @@ async function fetchModeratorNames(
 	return map;
 }
 
+/** Visible last thread info for a forum */
+interface VisibleLastThread {
+	forumId: number;
+	threadId: number;
+	subject: string;
+	lastPostAt: number;
+	lastPosterId: number;
+	lastPoster: string;
+}
+
+/**
+ * Fetch the most recent visible thread for each forum.
+ * Returns a map of forum_id -> visible last thread info.
+ * Only includes threads with sticky >= 0 (visible).
+ */
+async function fetchVisibleLastThreads(
+	db: D1Database,
+	forumIds: number[],
+): Promise<Map<number, VisibleLastThread>> {
+	if (forumIds.length === 0) return new Map();
+
+	// Use a window function to get the most recent visible thread per forum
+	// This is more efficient than N separate queries
+	const placeholders = forumIds.map(() => "?").join(",");
+	const result = await db
+		.prepare(
+			`WITH ranked AS (
+				SELECT
+					forum_id,
+					id as thread_id,
+					subject,
+					last_post_at,
+					last_poster_id,
+					last_poster,
+					ROW_NUMBER() OVER (PARTITION BY forum_id ORDER BY last_post_at DESC) as rn
+				FROM threads
+				WHERE forum_id IN (${placeholders}) AND sticky >= 0
+			)
+			SELECT forum_id, thread_id, subject, last_post_at, last_poster_id, last_poster
+			FROM ranked
+			WHERE rn = 1`,
+		)
+		.bind(...forumIds)
+		.all<{
+			forum_id: number;
+			thread_id: number;
+			subject: string;
+			last_post_at: number;
+			last_poster_id: number;
+			last_poster: string;
+		}>();
+
+	const map = new Map<number, VisibleLastThread>();
+	for (const row of result.results) {
+		map.set(row.forum_id, {
+			forumId: row.forum_id,
+			threadId: row.thread_id,
+			subject: row.subject,
+			lastPostAt: row.last_post_at,
+			lastPosterId: row.last_poster_id,
+			lastPoster: row.last_poster,
+		});
+	}
+	return map;
+}
+
 /** Build moderatorList from moderator_ids string and name map */
 function buildModeratorList(
 	moderatorIdsStr: string,
@@ -123,6 +189,34 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		return {
 			...forum,
 			moderatorList: buildModeratorList(moderatorIdsStr ?? "", moderatorNameMap),
+		};
+	});
+
+	// Replace forum last thread metadata with visible thread data
+	// This prevents leaking hidden/deleted thread subjects and posters
+	const forumIds = forums.map((f) => f.id);
+	const visibleLastThreads = await fetchVisibleLastThreads(env.DB, forumIds);
+	forums = forums.map((forum) => {
+		const visible = visibleLastThreads.get(forum.id);
+		if (visible) {
+			return {
+				...forum,
+				lastThreadId: visible.threadId,
+				lastThreadSubject: visible.subject,
+				lastPostAt: visible.lastPostAt,
+				lastPosterId: visible.lastPosterId,
+				lastPoster: visible.lastPoster,
+			};
+		}
+		// No visible threads in this forum - clear the metadata
+		return {
+			...forum,
+			lastThreadId: 0,
+			lastThreadSubject: "",
+			lastPostAt: 0,
+			lastPosterId: 0,
+			lastPoster: "",
+			lastPosterAvatar: "",
 		};
 	});
 
@@ -222,10 +316,30 @@ export async function getById(
 		forum.moderatorList = buildModeratorList(moderatorIdsStr ?? "", moderatorNameMap);
 	}
 
-	// Count threads in last 24h for this forum
+	// Replace forum last thread metadata with visible thread data
+	// This prevents leaking hidden/deleted thread subjects and posters
+	const visibleLastThreads = await fetchVisibleLastThreads(env.DB, [id]);
+	const visible = visibleLastThreads.get(id);
+	if (visible) {
+		forum.lastThreadId = visible.threadId;
+		forum.lastThreadSubject = visible.subject;
+		forum.lastPostAt = visible.lastPostAt;
+		forum.lastPosterId = visible.lastPosterId;
+		forum.lastPoster = visible.lastPoster;
+	} else {
+		// No visible threads in this forum - clear the metadata
+		forum.lastThreadId = 0;
+		forum.lastThreadSubject = "";
+		forum.lastPostAt = 0;
+		forum.lastPosterId = 0;
+		forum.lastPoster = "";
+		forum.lastPosterAvatar = "";
+	}
+
+	// Count threads in last 24h for this forum (only visible threads: sticky >= 0)
 	const cutoff24h = Math.floor(Date.now() / 1000) - 86400;
 	const countResult = await env.DB.prepare(
-		"SELECT COUNT(*) AS cnt FROM threads WHERE forum_id = ? AND created_at >= ?",
+		"SELECT COUNT(*) AS cnt FROM threads WHERE forum_id = ? AND created_at >= ? AND sticky >= 0",
 	)
 		.bind(id, cutoff24h)
 		.first<{ cnt: number }>();
