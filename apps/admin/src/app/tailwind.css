@@ -1,0 +1,529 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Design System: Minimal CSS Variables
+ *
+ * Colors (3 text + 3 semantic):
+ *   - foreground/muted-foreground/primary (text)
+ *   - success/destructive/accent (semantic)
+ *
+ * Font sizes (4):
+ *   - text-2xs (11px) / text-xs (12px) / text-sm (14px) / text-base (16px)
+ */
+
+@theme inline {
+	/* Core semantic colors */
+	--color-background: hsl(var(--background));
+	--color-foreground: hsl(var(--foreground));
+	--color-card: hsl(var(--card));
+	--color-card-foreground: hsl(var(--card-foreground));
+	--color-primary: hsl(var(--primary));
+	--color-primary-foreground: hsl(var(--primary-foreground));
+	--color-secondary: hsl(var(--secondary));
+	--color-secondary-foreground: hsl(var(--secondary-foreground));
+	--color-muted: hsl(var(--muted));
+	--color-muted-foreground: hsl(var(--muted-foreground));
+	--color-accent: hsl(var(--accent));
+	--color-accent-foreground: hsl(var(--accent-foreground));
+	--color-destructive: hsl(var(--destructive));
+	--color-destructive-foreground: hsl(var(--destructive-foreground));
+	--color-success: hsl(var(--success));
+	--color-success-foreground: hsl(var(--success-foreground));
+	--color-popover: hsl(var(--popover));
+	--color-popover-foreground: hsl(var(--popover-foreground));
+	--color-border: hsl(var(--border));
+	--color-input: hsl(var(--input));
+	--color-ring: hsl(var(--ring));
+
+	/* Badge */
+	--color-badge-red: hsl(var(--badge-red));
+	--color-badge-red-foreground: hsl(var(--badge-red-foreground));
+
+	/* Forum-specific (only what's actually used) */
+	--color-forum-sidebar-bg: hsl(var(--forum-sidebar-bg));
+	--color-forum-header-from: hsl(var(--forum-header-from));
+	--color-forum-header-to: hsl(var(--forum-header-to));
+	--color-forum-accent: hsl(var(--forum-accent));
+	/* Aliases to core colors for backwards compatibility */
+	--color-forum-link: hsl(var(--primary));
+	--color-forum-text-muted: hsl(var(--muted-foreground));
+
+	/* Discuz header (only what's actually used) */
+	--color-dz-nav-bg: hsl(var(--dz-nav-bg));
+	--color-dz-nav-hover: hsl(var(--dz-nav-hover));
+	--color-dz-nav-text: hsl(var(--dz-nav-text));
+	--color-dz-topbar-bg: hsl(var(--dz-topbar-bg));
+	--color-dz-reminder-text: hsl(var(--dz-reminder-text));
+
+	/* Typography */
+	--font-size-2xs: 0.6875rem;
+	--font-size-2xs--line-height: 1rem;
+
+	/* Radius */
+	--radius-lg: var(--radius);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-sm: calc(var(--radius) - 4px);
+
+	/* Animations */
+	--animate-accordion-down: accordion-down 0.2s ease-out;
+	--animate-accordion-up: accordion-up 0.2s ease-out;
+	--animate-collapsible-down: collapsible-down 0.2s ease-out;
+	--animate-collapsible-up: collapsible-up 0.2s ease-out;
+}
+
+@keyframes accordion-down {
+	from {
+		height: 0;
+	}
+	to {
+		height: var(--radix-accordion-content-height);
+	}
+}
+@keyframes accordion-up {
+	from {
+		height: var(--radix-accordion-content-height);
+	}
+	to {
+		height: 0;
+	}
+}
+@keyframes collapsible-down {
+	from {
+		height: 0;
+	}
+	to {
+		height: var(--radix-collapsible-content-height);
+	}
+}
+@keyframes collapsible-up {
+	from {
+		height: var(--radix-collapsible-content-height);
+	}
+	to {
+		height: 0;
+	}
+}
+
+/* ==========================================================================
+   Light Mode (default)
+   ========================================================================== */
+:root {
+	/* Surfaces: L0 body → L1 card → L2 secondary */
+	--background: 0 0% 100%;
+	--foreground: 0 0% 12%;
+	--card: 0 0% 100%;
+	--card-foreground: 0 0% 12%;
+	--secondary: 0 0% 100%;
+	--secondary-foreground: 0 0% 12%;
+	--popover: 0 0% 100%;
+	--popover-foreground: 0 0% 12%;
+
+	/* Primary: Deep Teal #016699 */
+	--primary: 200 99% 30%;
+	--primary-foreground: 0 0% 100%;
+
+	/* UI states */
+	--muted: 220 14% 96%;
+	--muted-foreground: 0 0% 45%;
+	--accent: 220 14% 96%;
+	--accent-foreground: 0 0% 12%;
+	--destructive: 0 72% 51%;
+	--destructive-foreground: 0 0% 100%;
+	--success: 142 71% 45%;
+	--success-foreground: 0 0% 100%;
+	--badge-red: 340 82% 55%;
+	--badge-red-foreground: 0 0% 100%;
+
+	/* Borders & inputs */
+	--border: 220 13% 88%;
+	--input: 220 13% 88%;
+	--ring: 200 99% 30%;
+	--radius: 0.625rem;
+
+	/* Forum-specific */
+	--forum-sidebar-bg: 204 33% 97%;
+	--forum-header-from: 207 26% 91%;
+	--forum-header-to: 0 0% 97%;
+	--forum-accent: 27 81% 49%;
+
+	/* Discuz header */
+	--dz-nav-bg: 211 76% 45%;
+	--dz-nav-hover: 211 76% 38%;
+	--dz-nav-text: 0 0% 100%;
+	--dz-topbar-bg: 0 0% 100%;
+	--dz-reminder-text: 27 90% 50%;
+
+	/* Layout */
+	--content-max-width: 1200px;
+	--content-px: 1rem;
+}
+
+/* ==========================================================================
+   Dark Mode
+   ========================================================================== */
+.dark {
+	/* Surfaces: L0 #171717 → L1 #1b1b1b → L2 #1f1f1f */
+	--background: 0 0% 9%;
+	--foreground: 0 0% 93%;
+	--card: 0 0% 10.6%;
+	--card-foreground: 0 0% 93%;
+	--secondary: 0 0% 12.2%;
+	--secondary-foreground: 0 0% 93%;
+	--popover: 0 0% 10.6%;
+	--popover-foreground: 0 0% 93%;
+
+	/* Primary: brighter for dark bg */
+	--primary: 200 99% 45%;
+	--primary-foreground: 0 0% 100%;
+
+	/* UI states */
+	--muted: 0 0% 12.2%;
+	--muted-foreground: 0 0% 48%;
+	--accent: 0 0% 14%;
+	--accent-foreground: 0 0% 93%;
+
+	/* Borders & inputs */
+	--border: 0 0% 16%;
+	--input: 0 0% 12%;
+	--ring: 200 99% 45%;
+
+	/* Forum-specific */
+	--forum-sidebar-bg: 210 10% 13%;
+	--forum-header-from: 210 10% 15%;
+	--forum-header-to: 210 10% 12%;
+	--forum-accent: 27 81% 59%;
+
+	/* Discuz header */
+	--dz-nav-bg: 211 60% 30%;
+	--dz-nav-hover: 211 60% 25%;
+	--dz-nav-text: 0 0% 90%;
+	--dz-topbar-bg: 0 0% 10.6%;
+	--dz-reminder-text: 27 90% 60%;
+}
+
+/* ==========================================================================
+   Admin Panel Overrides
+   ========================================================================== */
+[data-area="admin"] {
+	/* Surfaces: L0 → L1 → L2 (warmer gray, following B-5 spec) */
+	--background: 220 14% 94%; /* L0: page base */
+	--card: 220 14% 97%; /* L1: floating island */
+	--secondary: 0 0% 100%; /* L2: inner cards (pure white) */
+	/* Cyan primary instead of teal */
+	--primary: 186 72% 38%;
+	--ring: 186 72% 38%;
+	/* Stronger muted for hover states */
+	--muted: 220 14% 92%;
+	--accent: 220 14% 92%;
+	/* L3: interactive controls */
+	--input: 220 13% 88%;
+	/* Larger radius */
+	--radius: 0.75rem;
+	--radius-card: 14px;
+	--radius-widget: 10px;
+}
+
+.dark [data-area="admin"] {
+	/* Surfaces: L0 → L1 → L2 (following B-5 spec) */
+	--background: 0 0% 9%; /* L0: #171717 */
+	--card: 0 0% 10.6%; /* L1: #1b1b1b */
+	--secondary: 0 0% 12.2%; /* L2: #1f1f1f */
+	/* Blue primary for dark admin */
+	--primary: 217 91% 60%;
+	--ring: 217 91% 60%;
+	/* L3: interactive controls */
+	--input: 0 0% 18%; /* #2e2e2e */
+}
+
+/* ==========================================================================
+   Base Styles
+   ========================================================================== */
+@layer base {
+	* {
+		@apply border-border;
+	}
+	html {
+		@apply bg-background;
+		color-scheme: light;
+	}
+	html.dark {
+		color-scheme: dark;
+	}
+	body {
+		@apply bg-background text-foreground;
+		font-family: var(--font-inter), "Inter", system-ui, -apple-system, sans-serif;
+	}
+}
+
+/* ==========================================================================
+   Utilities
+   ========================================================================== */
+@utility font-display {
+	font-family: var(--font-dm-sans), "DM Sans", system-ui, sans-serif;
+}
+
+/* Navigation gradient */
+.nav-gradient {
+	position: relative;
+	max-width: var(--content-max-width);
+	margin-inline: auto;
+	border-radius: calc(var(--radius) - 2px);
+	overflow: hidden;
+	background-image: url("https://t.no.mt/ellie/bg-menu-light2.jpg");
+	background-size: auto 100%;
+	background-repeat: repeat-x;
+	background-position: center;
+}
+:root[data-width-mode="full"] .nav-gradient {
+	max-width: none;
+	margin-inline: 1rem;
+	border-radius: calc(var(--radius) - 2px);
+}
+@media (min-width: 768px) {
+	:root[data-width-mode="full"] .nav-gradient {
+		margin-inline: 2rem;
+	}
+}
+.nav-gradient::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(
+		to bottom,
+		rgba(27, 106, 201, 0.8) 0%,
+		rgba(27, 106, 201, 0.6) 50%,
+		rgba(27, 106, 201, 0.35) 100%
+	);
+	backdrop-filter: blur(4px);
+	-webkit-backdrop-filter: blur(4px);
+	pointer-events: none;
+}
+.nav-gradient::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(
+		to top,
+		rgba(0, 0, 0, 0.35) 0%,
+		rgba(0, 0, 0, 0.1) 40%,
+		transparent 100%
+	);
+	pointer-events: none;
+}
+/* Dark mode overlay */
+.dark .nav-gradient::before {
+	background: linear-gradient(
+		to bottom,
+		rgba(15, 30, 60, 0.85) 0%,
+		rgba(15, 30, 60, 0.6) 50%,
+		rgba(15, 30, 60, 0.3) 100%
+	);
+}
+.dark .nav-gradient::after {
+	background: linear-gradient(
+		to top,
+		rgba(0, 0, 0, 0.5) 0%,
+		rgba(0, 0, 0, 0.2) 40%,
+		transparent 100%
+	);
+}
+/* Nav text shadow for better readability */
+.nav-gradient a {
+	text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 0 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Content container */
+.width-container {
+	max-width: var(--content-max-width);
+	margin-inline: auto;
+	padding-inline: var(--content-px);
+}
+:root[data-width-mode="full"] .width-container {
+	max-width: none;
+	padding-inline: 1rem;
+}
+@media (min-width: 768px) {
+	:root[data-width-mode="full"] .width-container {
+		padding-inline: 2rem;
+	}
+}
+
+/* ==========================================================================
+   Discuz Legacy Styles
+   ========================================================================== */
+
+/* Inline smileys */
+img.smiley {
+	display: inline;
+	height: 1.2em;
+	width: auto;
+	vertical-align: text-bottom;
+	margin: 0 1px;
+}
+
+/* Quote blocks */
+div.quote {
+	border: 1px solid hsl(var(--border));
+	background: hsl(var(--muted));
+	padding: 0.75rem;
+	margin: 0.75rem 0;
+	border-radius: var(--radius);
+}
+div.quote blockquote {
+	margin: 0;
+	padding: 0;
+	border: none;
+	background: transparent;
+	font-size: 0.8125rem;
+	line-height: 1.6;
+	color: hsl(var(--muted-foreground));
+}
+div.quote::before {
+	content: url("https://t.no.mt/static/image/common/quote.gif");
+	display: block;
+	margin-bottom: 0.5rem;
+	height: 16px;
+}
+
+/* Edit notices & hidden content */
+.dz-edit-notice {
+	text-align: center;
+	font-size: 0.75rem;
+	color: hsl(var(--muted-foreground));
+	margin-bottom: 0.75rem;
+	font-style: italic;
+}
+.dz-hidden-content {
+	text-align: center;
+	font-size: 0.8125rem;
+	color: hsl(var(--muted-foreground));
+	background: hsl(var(--muted));
+	padding: 0.5rem 1rem;
+	border-radius: 4px;
+	margin: 0.5rem 0;
+}
+
+/* ==========================================================================
+   Glass Morphism (Modals)
+   ========================================================================== */
+.glass-overlay {
+	background: rgba(0, 0, 0, 0.3);
+	backdrop-filter: blur(8px);
+	-webkit-backdrop-filter: blur(8px);
+}
+.glass-panel {
+	background: rgba(255, 255, 255, 0.95);
+	backdrop-filter: blur(20px) saturate(1.4);
+	-webkit-backdrop-filter: blur(20px) saturate(1.4);
+	border: 1px solid rgba(255, 255, 255, 0.3);
+	box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+.dark .glass-panel {
+	background: rgba(23, 23, 23, 0.95);
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+/* ==========================================================================
+   Cap.js CAPTCHA Widget Theming
+   ========================================================================== */
+cap-widget {
+	--cap-background: hsl(var(--card));
+	--cap-border-color: hsl(var(--border));
+	--cap-border-radius: var(--radius);
+	--cap-spinner-color: hsl(var(--primary));
+	--cap-font: var(--font-sans), system-ui, sans-serif;
+}
+.dark cap-widget {
+	--cap-background: hsl(var(--card));
+	--cap-border-color: hsl(var(--border));
+}
+
+/* ==========================================================================
+   Background Pattern
+   ========================================================================== */
+body::before {
+	content: "";
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	z-index: -1;
+	background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.03) 0 1px, transparent 1px 24px),
+		repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.03) 0 1px, transparent 1px 24px);
+}
+.dark body::before {
+	background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 24px),
+		repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 24px);
+}
+
+/* ==========================================================================
+   Footer Background Image (theme-aware)
+   ========================================================================== */
+/* Switch background-image based on .dark class */
+.dark [style*="--bg-dark"] {
+	background-image: var(--bg-dark) !important;
+}
+
+/* ==========================================================================
+   Forum Quote Block (new editor)
+   ========================================================================== */
+.forum-quote {
+	position: relative;
+	margin: 1rem 0;
+	padding: 0.75rem 0.75rem 0.75rem 1rem;
+	background: hsl(var(--muted) / 0.5);
+	border-left: 4px solid hsl(var(--primary) / 0.6);
+	border-radius: 0 var(--radius) var(--radius) 0;
+}
+.forum-quote .quote-header {
+	font-size: 0.8125rem;
+	color: hsl(var(--muted-foreground));
+	margin-bottom: 0.5rem;
+}
+.forum-quote .quote-header strong {
+	color: hsl(var(--foreground));
+}
+
+/* ==========================================================================
+   Tiptap Editor Styles
+   ========================================================================== */
+/* Make editor fill container height */
+.tiptap-content {
+	display: flex;
+	flex-direction: column;
+}
+.tiptap-content .tiptap {
+	flex: 1;
+	outline: none;
+	min-height: 100%;
+}
+.tiptap-content .tiptap.ProseMirror {
+	height: 100%;
+	min-height: inherit;
+}
+.tiptap-content .tiptap p.is-editor-empty:first-child::before {
+	color: hsl(var(--muted-foreground));
+	content: attr(data-placeholder);
+	float: left;
+	height: 0;
+	pointer-events: none;
+}
+/* Quote blocks in editor */
+.tiptap-content .forum-quote {
+	margin: 1rem 0;
+}
+.tiptap-content blockquote {
+	position: relative;
+	margin: 1rem 0;
+	padding: 0.75rem 0.75rem 0.75rem 1rem;
+	background: hsl(var(--muted) / 0.5);
+	border-left: 4px solid hsl(var(--primary) / 0.6);
+	border-radius: 0 var(--radius) var(--radius) 0;
+	font-style: normal;
+}
+.tiptap-content blockquote p:last-child {
+	margin-bottom: 0;
+}
