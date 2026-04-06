@@ -34,9 +34,19 @@ function modRequest(method: string, path: string, token: string, body?: unknown)
 // ─── Permission Mock Data ─────────────────────────────────────────
 // These helper functions create the mock data needed for permission checks
 
-/** Mock data for user permission check */
+/** Mock data for moderationMiddleware DB role verification only (minimal) */
+function mockAuthUser(role = 1, status = 0) {
+	return {
+		"SELECT role, status FROM users WHERE id": { role, status },
+	};
+}
+
+/** Mock data for user permission check (supports both middleware auth and permission helper queries) */
 function mockUser(userId = 1, role = 1, username = "admin") {
 	return {
+		// For moderationMiddleware DB role verification
+		"SELECT role, status FROM users WHERE id": { role, status: 0 },
+		// For getUserForPermission
 		"SELECT id, username, role, status FROM users": { id: userId, username, role, status: 0 },
 	};
 }
@@ -77,7 +87,9 @@ describe("PATCH /api/v1/moderation/threads/:id/sticky", () => {
 
 	it("should return 403 for regular user (role 0)", async () => {
 		const token = await makeModToken(0);
-		const { db } = createMockDb();
+		const { db } = createMockDb({
+			firstResults: { ...mockAuthUser(0) }, // DB confirms role 0
+		});
 		const env = makeEnv({ DB: db });
 		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/sticky", token, {
 			level: "forum",
@@ -88,7 +100,9 @@ describe("PATCH /api/v1/moderation/threads/:id/sticky", () => {
 
 	it("should return 400 for invalid level", async () => {
 		const token = await makeModToken(1);
-		const { db } = createMockDb();
+		const { db } = createMockDb({
+			firstResults: { ...mockAuthUser(1) }, // DB confirms Admin role
+		});
 		const env = makeEnv({ DB: db });
 		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/sticky", token, {
 			level: "invalid",
@@ -101,7 +115,9 @@ describe("PATCH /api/v1/moderation/threads/:id/sticky", () => {
 
 	it("should return 404 when thread not found", async () => {
 		const token = await makeModToken(1);
-		const { db } = createMockDb(); // default returns null for first()
+		const { db } = createMockDb({
+			firstResults: { ...mockAuthUser(1) }, // DB confirms Admin role, but no thread
+		});
 		const env = makeEnv({ DB: db });
 		const req = modRequest("PATCH", "/api/v1/moderation/threads/999/sticky", token, {
 			level: "forum",
@@ -191,7 +207,9 @@ describe("PATCH /api/v1/moderation/threads/:id/sticky", () => {
 
 	it("should return 400 for invalid JSON body", async () => {
 		const token = await makeModToken(1);
-		const { db } = createMockDb();
+		const { db } = createMockDb({
+			firstResults: { ...mockAuthUser(1) },
+		});
 		const env = makeEnv({ DB: db });
 		const req = new Request("https://api.example.com/api/v1/moderation/threads/1/sticky", {
 			method: "PATCH",
@@ -211,7 +229,9 @@ describe("PATCH /api/v1/moderation/threads/:id/sticky", () => {
 describe("PATCH /api/v1/moderation/threads/:id/digest", () => {
 	it("should return 403 for regular user", async () => {
 		const token = await makeModToken(0);
-		const { db } = createMockDb();
+		const { db } = createMockDb({
+			firstResults: { ...mockAuthUser(0) },
+		});
 		const env = makeEnv({ DB: db });
 		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/digest", token, { level: 1 });
 		const res = await setDigest(req, env);
@@ -220,7 +240,9 @@ describe("PATCH /api/v1/moderation/threads/:id/digest", () => {
 
 	it("should return 400 for non-integer level", async () => {
 		const token = await makeModToken(1);
-		const { db } = createMockDb();
+		const { db } = createMockDb({
+			firstResults: { ...mockAuthUser(1) },
+		});
 		const env = makeEnv({ DB: db });
 		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/digest", token, {
 			level: "high",
@@ -231,7 +253,9 @@ describe("PATCH /api/v1/moderation/threads/:id/digest", () => {
 
 	it("should return 400 for out-of-range level", async () => {
 		const token = await makeModToken(1);
-		const { db } = createMockDb();
+		const { db } = createMockDb({
+			firstResults: { ...mockAuthUser(1) },
+		});
 		const env = makeEnv({ DB: db });
 		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/digest", token, { level: 5 });
 		const res = await setDigest(req, env);
@@ -240,7 +264,9 @@ describe("PATCH /api/v1/moderation/threads/:id/digest", () => {
 
 	it("should return 404 when thread not found", async () => {
 		const token = await makeModToken(1);
-		const { db } = createMockDb();
+		const { db } = createMockDb({
+			firstResults: { ...mockAuthUser(1) },
+		});
 		const env = makeEnv({ DB: db });
 		const req = modRequest("PATCH", "/api/v1/moderation/threads/999/digest", token, { level: 2 });
 		const res = await setDigest(req, env);
@@ -274,7 +300,9 @@ describe("PATCH /api/v1/moderation/threads/:id/digest", () => {
 describe("PATCH /api/v1/moderation/threads/:id/close", () => {
 	it("should return 403 for regular user", async () => {
 		const token = await makeModToken(0);
-		const { db } = createMockDb();
+		const { db } = createMockDb({
+			firstResults: { ...mockAuthUser(0) },
+		});
 		const env = makeEnv({ DB: db });
 		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/close", token, { closed: true });
 		const res = await setClose(req, env);
@@ -283,7 +311,9 @@ describe("PATCH /api/v1/moderation/threads/:id/close", () => {
 
 	it("should return 400 when closed is not boolean", async () => {
 		const token = await makeModToken(1);
-		const { db } = createMockDb();
+		const { db } = createMockDb({
+			firstResults: { ...mockAuthUser(1) },
+		});
 		const env = makeEnv({ DB: db });
 		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/close", token, { closed: 1 });
 		const res = await setClose(req, env);
@@ -292,7 +322,9 @@ describe("PATCH /api/v1/moderation/threads/:id/close", () => {
 
 	it("should return 404 when thread not found", async () => {
 		const token = await makeModToken(1);
-		const { db } = createMockDb();
+		const { db } = createMockDb({
+			firstResults: { ...mockAuthUser(1) },
+		});
 		const env = makeEnv({ DB: db });
 		const req = modRequest("PATCH", "/api/v1/moderation/threads/999/close", token, {
 			closed: true,
@@ -344,7 +376,9 @@ describe("PATCH /api/v1/moderation/threads/:id/close", () => {
 describe("PATCH /api/v1/moderation/threads/:id/move", () => {
 	it("should return 403 for regular user", async () => {
 		const token = await makeModToken(0);
-		const { db } = createMockDb();
+		const { db } = createMockDb({
+			firstResults: { ...mockAuthUser(0) },
+		});
 		const env = makeEnv({ DB: db });
 		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/move", token, {
 			targetForumId: 2,
@@ -372,7 +406,9 @@ describe("PATCH /api/v1/moderation/threads/:id/move", () => {
 
 	it("should return 400 for invalid targetForumId", async () => {
 		const token = await makeModToken(1);
-		const { db } = createMockDb();
+		const { db } = createMockDb({
+			firstResults: { ...mockAuthUser(1) },
+		});
 		const env = makeEnv({ DB: db });
 		const req = modRequest("PATCH", "/api/v1/moderation/threads/1/move", token, {
 			targetForumId: "abc",
@@ -489,7 +525,9 @@ describe("DELETE /api/v1/moderation/posts/:id", () => {
 
 	it("should return 403 for regular user", async () => {
 		const token = await makeModToken(0);
-		const { db } = createMockDb();
+		const { db } = createMockDb({
+			firstResults: { ...mockAuthUser(0) },
+		});
 		const env = makeEnv({ DB: db });
 		const req = new Request("https://api.example.com/api/v1/moderation/posts/1", {
 			method: "DELETE",
@@ -501,7 +539,9 @@ describe("DELETE /api/v1/moderation/posts/:id", () => {
 
 	it("should return 404 when post not found", async () => {
 		const token = await makeModToken(1);
-		const { db } = createMockDb();
+		const { db } = createMockDb({
+			firstResults: { ...mockAuthUser(1) },
+		});
 		const env = makeEnv({ DB: db });
 		const req = new Request("https://api.example.com/api/v1/moderation/posts/999", {
 			method: "DELETE",
@@ -515,6 +555,7 @@ describe("DELETE /api/v1/moderation/posts/:id", () => {
 		const token = await makeModToken(1);
 		const { db } = createMockDb({
 			firstResults: {
+				...mockAuthUser(1),
 				"SELECT id, thread_id, forum_id, author_id, is_first FROM posts": {
 					id: 1,
 					thread_id: 1,
@@ -639,7 +680,9 @@ function userModRequest(method: string, path: string, token: string, body?: unkn
 describe("POST /api/v1/moderation/users/:id/mute", () => {
 	it("should return 403 for regular user", async () => {
 		const token = await makeModToken(0);
-		const { db } = createMockDb();
+		const { db } = createMockDb({
+			firstResults: { ...mockAuthUser(0) },
+		});
 		const env = makeEnv({ DB: db });
 		const req = userModRequest("POST", "/api/v1/moderation/users/10/mute", token);
 		const res = await muteUser(req, env);

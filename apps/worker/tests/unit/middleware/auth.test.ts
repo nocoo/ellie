@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import type { Env } from "../../../src/lib/env";
 import { createJwt } from "../../../src/lib/jwt";
 import { authMiddleware, moderationMiddleware } from "../../../src/middleware/auth";
-import { createMockKV } from "../../helpers";
+import { createMockDb, createMockKV } from "../../helpers";
 
 describe("authMiddleware", () => {
 	const mockEnv: Env = {
@@ -195,16 +195,25 @@ describe("authMiddleware", () => {
 });
 
 describe("moderationMiddleware", () => {
-	const mockEnv: Env = {
-		API_KEY: "test-api-key",
-		ADMIN_API_KEY: "test-admin-api-key",
-		DB: {} as D1Database,
-		ENVIRONMENT: "test",
-		JWT_SECRET: "test-secret-key-for-jwt-hs256",
-		KV: createMockKV(),
-	};
+	/** Create a mock env with DB that returns specified user role/status */
+	function createModMockEnv(dbUser: { role: number; status: number } | null): Env {
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status FROM users": dbUser,
+			},
+		});
+		return {
+			API_KEY: "test-api-key",
+			ADMIN_API_KEY: "test-admin-api-key",
+			DB: db,
+			ENVIRONMENT: "test",
+			JWT_SECRET: "test-secret-key-for-jwt-hs256",
+			KV: createMockKV(),
+		};
+	}
 
 	it("should return 401 when no Authorization header", async () => {
+		const mockEnv = createModMockEnv({ role: 1, status: 0 });
 		const request = new Request("https://example.com/api/v1/moderation/threads/1/sticky");
 		const result = await moderationMiddleware(request, mockEnv);
 		expect(result).toBeInstanceOf(Response);
@@ -212,6 +221,7 @@ describe("moderationMiddleware", () => {
 	});
 
 	it("should return 403 for regular user (role 0)", async () => {
+		const mockEnv = createModMockEnv({ role: 0, status: 0 }); // DB returns role 0
 		const token = await createJwt(
 			{ userId: 1, role: 0, exp: Math.floor(Date.now() / 1000) + 3600 },
 			mockEnv.JWT_SECRET,
@@ -229,6 +239,7 @@ describe("moderationMiddleware", () => {
 	});
 
 	it("should allow Admin (role 1)", async () => {
+		const mockEnv = createModMockEnv({ role: 1, status: 0 }); // DB returns role 1
 		const token = await createJwt(
 			{ userId: 1, role: 1, exp: Math.floor(Date.now() / 1000) + 3600 },
 			mockEnv.JWT_SECRET,
@@ -244,6 +255,7 @@ describe("moderationMiddleware", () => {
 	});
 
 	it("should allow SuperMod (role 2)", async () => {
+		const mockEnv = createModMockEnv({ role: 2, status: 0 }); // DB returns role 2
 		const token = await createJwt(
 			{ userId: 2, role: 2, exp: Math.floor(Date.now() / 1000) + 3600 },
 			mockEnv.JWT_SECRET,
@@ -259,6 +271,7 @@ describe("moderationMiddleware", () => {
 	});
 
 	it("should allow Mod (role 3)", async () => {
+		const mockEnv = createModMockEnv({ role: 3, status: 0 }); // DB returns role 3
 		const token = await createJwt(
 			{ userId: 3, role: 3, exp: Math.floor(Date.now() / 1000) + 3600 },
 			mockEnv.JWT_SECRET,
@@ -274,6 +287,7 @@ describe("moderationMiddleware", () => {
 	});
 
 	it("should return 401 for expired token", async () => {
+		const mockEnv = createModMockEnv({ role: 1, status: 0 });
 		const token = await createJwt(
 			{ userId: 1, role: 1, exp: Math.floor(Date.now() / 1000) - 3600 },
 			mockEnv.JWT_SECRET,
@@ -285,5 +299,52 @@ describe("moderationMiddleware", () => {
 		const result = await moderationMiddleware(request, mockEnv);
 		expect(result).toBeInstanceOf(Response);
 		expect((result as Response).status).toBe(401);
+	});
+
+	it("should return 404 when user not found in DB", async () => {
+		const mockEnv = createModMockEnv(null); // DB returns null
+		const token = await createJwt(
+			{ userId: 999, role: 1, exp: Math.floor(Date.now() / 1000) + 3600 },
+			mockEnv.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/moderation/threads/1/sticky", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+
+		const result = await moderationMiddleware(request, mockEnv);
+		expect(result).toBeInstanceOf(Response);
+		expect((result as Response).status).toBe(404);
+	});
+
+	it("should return 403 when user is banned (status != 0)", async () => {
+		const mockEnv = createModMockEnv({ role: 1, status: 1 }); // DB returns banned user
+		const token = await createJwt(
+			{ userId: 1, role: 1, exp: Math.floor(Date.now() / 1000) + 3600 },
+			mockEnv.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/moderation/threads/1/sticky", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+
+		const result = await moderationMiddleware(request, mockEnv);
+		expect(result).toBeInstanceOf(Response);
+		expect((result as Response).status).toBe(403);
+	});
+
+	it("should use DB role instead of JWT role (prevents privilege escalation)", async () => {
+		// JWT claims role 1 (Admin), but DB says role 0 (User)
+		const mockEnv = createModMockEnv({ role: 0, status: 0 });
+		const token = await createJwt(
+			{ userId: 1, role: 1, exp: Math.floor(Date.now() / 1000) + 3600 }, // JWT says Admin
+			mockEnv.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/moderation/threads/1/sticky", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+
+		const result = await moderationMiddleware(request, mockEnv);
+		expect(result).toBeInstanceOf(Response);
+		const response = result as Response;
+		expect(response.status).toBe(403); // Should be denied based on DB role
 	});
 });

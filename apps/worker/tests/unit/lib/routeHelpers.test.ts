@@ -2,7 +2,7 @@ import { describe, expect, it, mock } from "bun:test";
 import { UserRole } from "@ellie/types";
 import { withAdmin, withAuth, withModerator } from "../../../src/lib/routeHelpers";
 import type { AuthUser } from "../../../src/middleware/auth";
-import { createJwtForRole, makeEnv } from "../../helpers";
+import { createJwtForRole, createMockDb, makeEnv } from "../../helpers";
 
 describe("withAuth", () => {
 	const env = makeEnv();
@@ -54,9 +54,16 @@ describe("withAuth", () => {
 });
 
 describe("withAdmin", () => {
-	const env = makeEnv();
+	/** Create env with mock DB returning specified user */
+	function makeEnvWithDb(dbUser: { role: number; status: number } | null) {
+		const { db } = createMockDb({
+			firstResults: { "SELECT role, status FROM users": dbUser },
+		});
+		return makeEnv({ DB: db });
+	}
 
 	it("should return 401 when no token", async () => {
+		const env = makeEnvWithDb({ role: 1, status: 0 });
 		const handler = mock(async () => new Response("ok"));
 		const wrapped = withAdmin(handler);
 		const req = new Request("https://example.com/api/admin/test");
@@ -67,6 +74,7 @@ describe("withAdmin", () => {
 	});
 
 	it("should return 403 for regular user", async () => {
+		const env = makeEnvWithDb({ role: UserRole.User, status: 0 }); // DB returns User role
 		const handler = mock(async () => new Response("ok"));
 		const wrapped = withAdmin(handler);
 		const token = await createJwtForRole(UserRole.User);
@@ -82,6 +90,7 @@ describe("withAdmin", () => {
 	});
 
 	it("should return 403 for Mod", async () => {
+		const env = makeEnvWithDb({ role: UserRole.Mod, status: 0 }); // DB returns Mod role
 		const handler = mock(async () => new Response("ok"));
 		const wrapped = withAdmin(handler);
 		const token = await createJwtForRole(UserRole.Mod);
@@ -95,6 +104,7 @@ describe("withAdmin", () => {
 	});
 
 	it("should call handler for Admin", async () => {
+		const env = makeEnvWithDb({ role: UserRole.Admin, status: 0 }); // DB returns Admin role
 		const handler = mock(async () => new Response("ok"));
 		const wrapped = withAdmin(handler);
 		const token = await createJwtForRole(UserRole.Admin);
@@ -108,6 +118,7 @@ describe("withAdmin", () => {
 	});
 
 	it("should include CORS headers on 403 when origin is provided", async () => {
+		const env = makeEnvWithDb({ role: UserRole.User, status: 0 }); // DB returns User role
 		const handler = mock(async () => new Response("ok"));
 		const wrapped = withAdmin(handler);
 		const token = await createJwtForRole(UserRole.User);
@@ -122,12 +133,62 @@ describe("withAdmin", () => {
 		expect(res.status).toBe(403);
 		expect(res.headers.get("Access-Control-Allow-Origin")).toBe("https://ellie.nocoo.cloud");
 	});
+
+	it("should return 404 when user not found in DB", async () => {
+		const env = makeEnvWithDb(null); // DB returns null
+		const handler = mock(async () => new Response("ok"));
+		const wrapped = withAdmin(handler);
+		const token = await createJwtForRole(UserRole.Admin);
+		const req = new Request("https://example.com/api/admin/test", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const res = await wrapped(req, env);
+
+		expect(res.status).toBe(404);
+		expect(handler).not.toHaveBeenCalled();
+	});
+
+	it("should return 403 when user is banned", async () => {
+		const env = makeEnvWithDb({ role: UserRole.Admin, status: 1 }); // Banned user
+		const handler = mock(async () => new Response("ok"));
+		const wrapped = withAdmin(handler);
+		const token = await createJwtForRole(UserRole.Admin);
+		const req = new Request("https://example.com/api/admin/test", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const res = await wrapped(req, env);
+
+		expect(res.status).toBe(403);
+		expect(handler).not.toHaveBeenCalled();
+	});
+
+	it("should use DB role instead of JWT role (prevents privilege escalation)", async () => {
+		// JWT claims Admin, but DB says User
+		const env = makeEnvWithDb({ role: UserRole.User, status: 0 });
+		const handler = mock(async () => new Response("ok"));
+		const wrapped = withAdmin(handler);
+		const token = await createJwtForRole(UserRole.Admin); // JWT says Admin
+		const req = new Request("https://example.com/api/admin/test", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const res = await wrapped(req, env);
+
+		expect(res.status).toBe(403); // Should be denied based on DB role
+		expect(handler).not.toHaveBeenCalled();
+	});
 });
 
 describe("withModerator", () => {
-	const env = makeEnv();
+	/** Create env with mock DB returning specified user */
+	function makeEnvWithDb(dbUser: { role: number; status: number } | null) {
+		const { db } = createMockDb({
+			firstResults: { "SELECT role, status FROM users": dbUser },
+		});
+		return makeEnv({ DB: db });
+	}
 
 	it("should return 403 for regular user", async () => {
+		const env = makeEnvWithDb({ role: UserRole.User, status: 0 });
 		const handler = mock(async () => new Response("ok"));
 		const wrapped = withModerator(handler);
 		const token = await createJwtForRole(UserRole.User);
@@ -142,6 +203,7 @@ describe("withModerator", () => {
 	});
 
 	it("should call handler for Mod", async () => {
+		const env = makeEnvWithDb({ role: UserRole.Mod, status: 0 });
 		const handler = mock(async () => new Response("ok"));
 		const wrapped = withModerator(handler);
 		const token = await createJwtForRole(UserRole.Mod);
@@ -155,6 +217,7 @@ describe("withModerator", () => {
 	});
 
 	it("should call handler for SuperMod", async () => {
+		const env = makeEnvWithDb({ role: UserRole.SuperMod, status: 0 });
 		const handler = mock(async () => new Response("ok"));
 		const wrapped = withModerator(handler);
 		const token = await createJwtForRole(UserRole.SuperMod);
@@ -168,6 +231,7 @@ describe("withModerator", () => {
 	});
 
 	it("should call handler for Admin", async () => {
+		const env = makeEnvWithDb({ role: UserRole.Admin, status: 0 });
 		const handler = mock(async () => new Response("ok"));
 		const wrapped = withModerator(handler);
 		const token = await createJwtForRole(UserRole.Admin);
@@ -178,5 +242,20 @@ describe("withModerator", () => {
 
 		expect(res.status).toBe(200);
 		expect(handler).toHaveBeenCalledTimes(1);
+	});
+
+	it("should use DB role instead of JWT role (prevents privilege escalation)", async () => {
+		// JWT claims Mod, but DB says User
+		const env = makeEnvWithDb({ role: UserRole.User, status: 0 });
+		const handler = mock(async () => new Response("ok"));
+		const wrapped = withModerator(handler);
+		const token = await createJwtForRole(UserRole.Mod); // JWT says Mod
+		const req = new Request("https://example.com/api/admin/test", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const res = await wrapped(req, env);
+
+		expect(res.status).toBe(403); // Should be denied based on DB role
+		expect(handler).not.toHaveBeenCalled();
 	});
 });

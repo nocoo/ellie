@@ -35,6 +35,21 @@ export async function login(request: Request, env: Env): Promise<Response> {
 			);
 		}
 
+		// ── IP rate limiting: max 10 login attempts per 15 minutes ──
+		const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+		const ipRateLimitKey = `login-ip:${ip}`;
+		const ipAttempts = Number.parseInt((await env.KV.get(ipRateLimitKey)) ?? "0", 10);
+		if (ipAttempts >= 10) {
+			return errorResponse("RATE_LIMITED", 429, undefined, origin);
+		}
+
+		// ── Username-based rate limiting: max 5 attempts per 15 minutes per username ──
+		const userRateLimitKey = `login-user:${username.toLowerCase()}`;
+		const userAttempts = Number.parseInt((await env.KV.get(userRateLimitKey)) ?? "0", 10);
+		if (userAttempts >= 5) {
+			return errorResponse("RATE_LIMITED", 429, undefined, origin);
+		}
+
 		// Query user from D1
 		const stmt = env.DB.prepare(
 			"SELECT id, username, password_hash, password_salt, role, status FROM users WHERE username = ?",
@@ -42,6 +57,11 @@ export async function login(request: Request, env: Env): Promise<Response> {
 		const result = await stmt.bind(username).first();
 
 		if (!result) {
+			// Increment rate limit counters on invalid username (still count as failed attempt)
+			await Promise.all([
+				env.KV.put(ipRateLimitKey, String(ipAttempts + 1), { expirationTtl: 900 }),
+				env.KV.put(userRateLimitKey, String(userAttempts + 1), { expirationTtl: 900 }),
+			]);
 			return errorResponse("INVALID_CREDENTIALS", 401, undefined, origin);
 		}
 
@@ -70,6 +90,11 @@ export async function login(request: Request, env: Env): Promise<Response> {
 		}
 
 		if (!isValid) {
+			// Increment rate limit counters on failed password verification
+			await Promise.all([
+				env.KV.put(ipRateLimitKey, String(ipAttempts + 1), { expirationTtl: 900 }),
+				env.KV.put(userRateLimitKey, String(userAttempts + 1), { expirationTtl: 900 }),
+			]);
 			return errorResponse("INVALID_CREDENTIALS", 401, undefined, origin);
 		}
 
