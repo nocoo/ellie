@@ -73,8 +73,6 @@ function LoginFormInner() {
 		}
 	};
 
-	const year = new Date().getFullYear();
-
 	return (
 		<div className="relative flex min-h-screen flex-col bg-background overflow-hidden">
 			{/* Radial glow */}
@@ -129,7 +127,7 @@ function LoginFormInner() {
 								}}
 							/>
 							<span className="text-xs font-medium text-primary-foreground/60 tracking-wider">
-								{year}
+								Since 2002
 							</span>
 							<div className="h-4">
 								<Barcode />
@@ -140,14 +138,11 @@ function LoginFormInner() {
 					{/* Form content */}
 					<div className="flex flex-1 flex-col px-6 pt-6 pb-5">
 						{/* Logo */}
-						<div className="flex justify-center mb-4">
+						<div className="flex justify-center mb-6">
 							<ForumLogo height={40} />
 						</div>
 
-						<p className="text-lg font-semibold text-foreground text-center">欢迎回来</p>
-						<p className="mt-1 text-sm text-muted-foreground text-center">登录您的账号</p>
-
-						<form onSubmit={handleSubmit} className="mt-5 space-y-4">
+						<form onSubmit={handleSubmit} className="space-y-4">
 							{/* Error */}
 							{error && (
 								<div className="rounded-lg bg-destructive/10 px-3 py-2.5 text-sm text-destructive text-center">
