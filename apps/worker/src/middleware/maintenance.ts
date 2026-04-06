@@ -11,7 +11,11 @@ import { errorResponse } from "./error";
 const BYPASS_PREFIXES = [
 	"/api/live", // Health check
 	"/api/admin/", // Admin routes (require admin auth anyway)
-	"/api/v1/auth/", // Auth routes (login/logout/refresh)
+	"/api/v1/auth/login", // Login only
+	"/api/v1/auth/logout", // Logout
+	"/api/v1/auth/refresh", // Token refresh
+	"/api/v1/auth/me", // Current user check
+	// Note: /register and /check-username are NOT bypassed during maintenance
 	"/api/v1/settings", // Settings endpoint (needed to check maintenance status)
 ];
 
@@ -59,7 +63,9 @@ export async function checkMaintenance(
 }
 
 /**
- * Check if request has a valid JWT with admin role.
+ * Check if request has a valid JWT with admin role, verified against DB.
+ * Verifies both JWT validity AND current DB role/status to prevent
+ * demoted or banned admins from bypassing maintenance.
  */
 async function checkForumAdmin(request: Request, env: Env): Promise<boolean> {
 	const authHeader = request.headers.get("Authorization");
@@ -79,7 +85,23 @@ async function checkForumAdmin(request: Request, env: Env): Promise<boolean> {
 			return false;
 		}
 
-		return payload.role === UserRole.Admin;
+		// Quick check: JWT claims admin role
+		if (payload.role !== UserRole.Admin) {
+			return false;
+		}
+
+		// DB verification: confirm current role and status
+		// Prevents demoted/banned admins with old tokens from bypassing
+		const user = await env.DB.prepare("SELECT role, status FROM users WHERE id = ?")
+			.bind(payload.userId)
+			.first<{ role: number; status: number }>();
+
+		if (!user) {
+			return false;
+		}
+
+		// Must be active admin (status >= 0 means not banned/archived/placeholder)
+		return user.role === UserRole.Admin && user.status >= 0;
 	} catch {
 		return false;
 	}
