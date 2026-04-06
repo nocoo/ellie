@@ -1,7 +1,6 @@
 "use client";
 
 import { ThemeToggle } from "@/components/theme-toggle";
-import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -55,8 +54,11 @@ function LoginContent() {
 	const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
 
 	const handleGoogleLogin = () => {
-		// Use the admin auth basePath
-		signIn("google", { callbackUrl: "/admin" }, { basePath: "/api/admin-auth" });
+		// Manually construct the signin URL for admin auth
+		// next-auth/react's signIn doesn't reliably use basePath in v5
+		const signinUrl = new URL("/api/admin-auth/signin/google", window.location.origin);
+		signinUrl.searchParams.set("callbackUrl", "/admin");
+		window.location.href = signinUrl.toString();
 	};
 
 	return (
