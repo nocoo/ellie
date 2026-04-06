@@ -4,11 +4,20 @@
  * Used by ProfileEditDialog to update user profile.
  */
 
+import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { authPatch } from "@/lib/forum-auth";
 import type { User } from "@ellie/types";
 import { NextResponse } from "next/server";
 
 export async function PATCH(request: Request) {
+	// CSRF protection
+	if (isMutatingMethod(request.method) && !validateOrigin(request)) {
+		return NextResponse.json(
+			{ error: { code: "CSRF_REJECTED", message: "Origin not allowed" } },
+			{ status: 403 },
+		);
+	}
+
 	let body: Record<string, unknown>;
 	try {
 		body = (await request.json()) as Record<string, unknown>;

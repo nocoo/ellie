@@ -281,9 +281,33 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 
 	describe("GET /api/v1/threads", () => {
 		it("should route to thread list handler (requires forumId)", async () => {
+			// Need to mock forum lookup for checkForumPermission
+			const env = makeEnv({
+				prepare: mock((sql: string) => {
+					// Forum visibility check query
+					if (sql.includes("SELECT") && sql.includes("forums") && sql.includes("WHERE id")) {
+						return {
+							bind: mock(() => ({
+								first: mock(() => Promise.resolve({ id: 1, invisible: 0, password: null })),
+							})),
+						};
+					}
+					// Default: return empty results
+					return {
+						all: mock(() => Promise.resolve({ results: [] })),
+						bind: mock(() => ({
+							first: mock(() => Promise.resolve(null)),
+							all: mock(() => Promise.resolve({ results: [] })),
+							run: mock(() => Promise.resolve()),
+						})),
+						first: mock(() => Promise.resolve(null)),
+					};
+				}),
+			});
+
 			const response = await (await getWorker()).fetch(
 				makeRequest("https://api.example.com/api/v1/threads?forumId=1", withApiKey()),
-				makeEnv(),
+				env,
 				makeCtx(),
 			);
 

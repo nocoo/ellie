@@ -1,3 +1,4 @@
+import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { ForumApiError, forumApi } from "@/lib/forum-api";
 // Proxy route: POST /api/v1/threads
 // Browser → Next.js → Worker (create thread)
@@ -5,6 +6,14 @@ import { getWorkerJwt } from "@/lib/forum-auth";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
+	// CSRF protection
+	if (isMutatingMethod(request.method) && !validateOrigin(request)) {
+		return NextResponse.json(
+			{ error: { code: "CSRF_REJECTED", message: "Origin not allowed" } },
+			{ status: 403 },
+		);
+	}
+
 	let jwt: string | null;
 	try {
 		jwt = await getWorkerJwt();

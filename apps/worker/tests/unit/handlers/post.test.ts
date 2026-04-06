@@ -367,6 +367,10 @@ describe("post handlers", () => {
 						id: 1,
 						closed: 0,
 					}),
+					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+				},
+				allResults: {
+					"SELECT key, value FROM settings WHERE key LIKE": [],
 				},
 			});
 
@@ -386,7 +390,14 @@ describe("post handlers", () => {
 
 		it("should require valid threadId", async () => {
 			const token = await createJwtForRole(0, 1);
-			const { db } = createMockDb({});
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+				},
+				allResults: {
+					"SELECT key, value FROM settings WHERE key LIKE": [],
+				},
+			});
 
 			const response = await create(
 				new Request("https://example.com/api/v1/posts", {
@@ -405,7 +416,13 @@ describe("post handlers", () => {
 		it("should reject non-existent thread", async () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
-				firstResults: { "SELECT id, forum_id, closed FROM threads WHERE id": null },
+				firstResults: {
+					"SELECT id, forum_id, closed FROM threads WHERE id": null,
+					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+				},
+				allResults: {
+					"SELECT key, value FROM settings WHERE key LIKE": [],
+				},
 			});
 
 			const response = await create(
@@ -427,6 +444,10 @@ describe("post handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT id, forum_id, closed FROM threads WHERE id": { id: 1, forum_id: 10, closed: 1 },
+					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+				},
+				allResults: {
+					"SELECT key, value FROM settings WHERE key LIKE": [],
 				},
 			});
 
@@ -458,6 +479,10 @@ describe("post handlers", () => {
 					"SELECT id, forum_id, closed FROM threads WHERE id": { id: 1, forum_id: 10, closed: 0 },
 					"SELECT MAX(position)": { maxPos: 5 },
 					"SELECT * FROM posts WHERE id": createdPost,
+					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+				},
+				allResults: {
+					"SELECT key, value FROM settings WHERE key LIKE": [],
 				},
 				runResults: {
 					"INSERT INTO posts": { success: true, meta: { last_row_id: 50 } },
@@ -490,6 +515,10 @@ describe("post handlers", () => {
 					"SELECT id, forum_id, closed FROM threads WHERE id": { id: 1, forum_id: 10, closed: 0 },
 					"SELECT MAX(position)": { maxPos: 1 },
 					"SELECT * FROM posts WHERE id": createdPost,
+					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+				},
+				allResults: {
+					"SELECT key, value FROM settings WHERE key LIKE": [],
 				},
 				runResults: {
 					"INSERT INTO posts": { success: true, meta: { last_row_id: 50 } },
@@ -513,6 +542,10 @@ describe("post handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT id, forum_id, closed FROM threads WHERE id": { id: 1, forum_id: 10, closed: 0 },
+					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+				},
+				allResults: {
+					"SELECT key, value FROM settings WHERE key LIKE": [],
 				},
 			});
 
@@ -532,7 +565,14 @@ describe("post handlers", () => {
 
 		it("should handle malformed JSON", async () => {
 			const token = await createJwtForRole(0, 1);
-			const { db } = createMockDb({});
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+				},
+				allResults: {
+					"SELECT key, value FROM settings WHERE key LIKE": [],
+				},
+			});
 
 			const response = await create(
 				new Request("https://example.com/api/v1/posts", {

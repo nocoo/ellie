@@ -1,4 +1,5 @@
-import type { Forum, ModeratorInfo } from "@ellie/types";
+import { type Forum, type ModeratorInfo, UserRole, canViewForum } from "@ellie/types";
+import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
 import {
 	enrichForumWithUserCache,
@@ -9,8 +10,19 @@ import {
 import { getUserProfiles } from "../lib/user-cache";
 
 // Forum handlers for Cloudflare Worker
+import { optionalAuth } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
+
+/**
+ * Build visibility context from optional user auth.
+ */
+function buildVisibilityContext(user: { userId: number; role: number } | null): VisibilityContext {
+	return {
+		isLoggedIn: user !== null,
+		role: user?.role ?? UserRole.User,
+	};
+}
 
 /** Fetch moderator names by IDs in a single query */
 async function fetchModeratorNames(
@@ -49,6 +61,10 @@ function buildModeratorList(
 /** GET /api/v1/forums - List all forums (no pagination) */
 export async function list(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
+
+	// Get optional user auth for visibility filtering
+	const user = await optionalAuth(request, env);
+	const visCtx = buildVisibilityContext(user);
 
 	// Run both queries in parallel: all forums + per-forum thread count in last 24h
 	const cutoff24h = Math.floor(Date.now() / 1000) - 86400;
@@ -118,6 +134,15 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		}
 	}
 
+	// Filter by visibility: remove forums the user can't access
+	// Also filter by status: hide admin-hidden (0), deleted (-1), paused (2), QQ group (3)
+	forums = forums.filter((f) => {
+		// Status filter
+		if (f.status <= 0 || f.status === 2 || f.status === 3) return false;
+		// Visibility filter
+		return canViewForum(f.visibility as ForumVisibility, visCtx);
+	});
+
 	return new Response(
 		JSON.stringify({
 			data: forums,
@@ -147,6 +172,10 @@ export async function getById(
 	const idStr = pathParts[pathParts.length - 1];
 	const id = Number.parseInt(idStr ?? "0", 10);
 
+	// Get optional user auth for visibility filtering
+	const user = await optionalAuth(request, env);
+	const visCtx = buildVisibilityContext(user);
+
 	const useKvCache = isKvUserCacheEnabled(env);
 
 	// Choose query based on cache strategy
@@ -165,6 +194,14 @@ export async function getById(
 
 	const r = result as Record<string, unknown>;
 	let forum = toForum(r);
+
+	// Check status and visibility
+	if (forum.status <= 0 || forum.status === 2 || forum.status === 3) {
+		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
+	}
+	if (!canViewForum(forum.visibility as ForumVisibility, visCtx)) {
+		return errorResponse("FORBIDDEN", 403, { message: "You don't have access to this forum" }, origin);
+	}
 
 	// If JOIN approach, populate avatar directly from query result
 	if (!useKvCache && r.last_poster_avatar !== undefined) {

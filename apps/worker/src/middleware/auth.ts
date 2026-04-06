@@ -16,6 +16,33 @@ export interface AuthUser {
 }
 
 /**
+ * Optional JWT authentication — extracts user info if valid token present.
+ * Does NOT reject requests without auth, returns null instead.
+ * Used for endpoints that have different behavior for logged-in users.
+ *
+ * @param request - Incoming request
+ * @param env - Worker environment
+ * @returns AuthUser if valid token, null otherwise
+ */
+export async function optionalAuth(request: Request, env: Env): Promise<AuthUser | null> {
+	const authHeader = request.headers.get("Authorization");
+	if (!authHeader?.startsWith("Bearer ")) {
+		return null;
+	}
+
+	const token = authHeader.slice(7);
+	try {
+		const payload = (await verifyJwt(token, env.JWT_SECRET)) as JwtPayload;
+		if (isTokenExpired(payload)) {
+			return null;
+		}
+		return { userId: payload.userId, role: payload.role };
+	} catch {
+		return null;
+	}
+}
+
+/**
  * JWT authentication middleware.
  * Verifies JWT token from Authorization header and returns authenticated user.
  *

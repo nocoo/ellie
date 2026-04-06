@@ -2,6 +2,7 @@
 import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
 import { toPost } from "../lib/mappers";
+import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withAuth } from "../lib/routeHelpers";
 import { corsHeaders } from "../middleware/cors";
@@ -144,6 +145,12 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 /** POST /api/v1/posts - Reply to a thread (requires auth) */
 export const create = withAuth(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
+
+	// Check posting permission (banned, muted, registration days, avatar)
+	const permissionResult = await checkPostingPermission(env, user, origin);
+	if (!permissionResult.allowed) {
+		return permissionResult.error;
+	}
 
 	let body: Record<string, unknown>;
 	try {

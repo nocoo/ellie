@@ -4,11 +4,19 @@
 // 1. Smiley codes → <img> tags (delegated to smiley.ts)
 // 2. Edit notices → styled center-aligned text
 // 3. Legacy BBCode → HTML or stripped
+// 4. HTML sanitization (DOMPurify whitelist)
 //
-// Security: all transformations use closed whitelists or pattern matching.
-// No user input reaches HTML attributes without escaping.
+// Security: HTML is sanitized with DOMPurify whitelist before rendering.
+// All transformations use closed whitelists or pattern matching.
 
+import DOMPurify from "dompurify";
+import { parseHTML } from "linkedom";
 import { replaceSmileyCodesWithImages } from "./smiley";
+
+// Create a DOM environment for server-side DOMPurify
+const { window } = parseHTML("<!DOCTYPE html><html><body></body></html>");
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const purify = DOMPurify(window as any);
 
 // ---------------------------------------------------------------------------
 // Edit notice transformation
@@ -217,6 +225,136 @@ function rewriteLegacyUrls(html: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// HTML Sanitization (DOMPurify)
+// ---------------------------------------------------------------------------
+
+/**
+ * Whitelist of allowed HTML tags for user content.
+ * Covers common formatting, images, links, and legacy Discuz elements.
+ */
+const ALLOWED_TAGS = [
+	// Text formatting
+	"p",
+	"br",
+	"hr",
+	"span",
+	"div",
+	"strong",
+	"b",
+	"em",
+	"i",
+	"u",
+	"s",
+	"strike",
+	"del",
+	"ins",
+	"sub",
+	"sup",
+	"small",
+	"mark",
+	// Headings
+	"h1",
+	"h2",
+	"h3",
+	"h4",
+	"h5",
+	"h6",
+	// Lists
+	"ul",
+	"ol",
+	"li",
+	// Links and images
+	"a",
+	"img",
+	// Tables
+	"table",
+	"thead",
+	"tbody",
+	"tr",
+	"th",
+	"td",
+	// Quotes and code
+	"blockquote",
+	"pre",
+	"code",
+	// Media
+	"video",
+	"audio",
+	"source",
+	"iframe",
+	// Other
+	"article",
+	"section",
+	"figure",
+	"figcaption",
+	"font",
+	"center",
+];
+
+/**
+ * Whitelist of allowed HTML attributes.
+ * Security-critical: no event handlers (onclick, onerror, etc.)
+ */
+const ALLOWED_ATTR = [
+	// Global
+	"class",
+	"id",
+	"style",
+	"title",
+	"lang",
+	"dir",
+	// Links
+	"href",
+	"target",
+	"rel",
+	// Images
+	"src",
+	"alt",
+	"width",
+	"height",
+	"loading",
+	// Tables
+	"colspan",
+	"rowspan",
+	"scope",
+	// Media
+	"controls",
+	"autoplay",
+	"loop",
+	"muted",
+	"poster",
+	"type",
+	// Legacy Discuz
+	"color",
+	"size",
+	"face",
+	"align",
+	"valign",
+	"border",
+	"cellpadding",
+	"cellspacing",
+	"bgcolor",
+];
+
+/**
+ * Sanitize HTML content using DOMPurify whitelist.
+ * Removes all script tags, event handlers, and dangerous attributes.
+ */
+function sanitizeHtml(html: string): string {
+	return purify.sanitize(html, {
+		ALLOWED_TAGS,
+		ALLOWED_ATTR,
+		ALLOW_DATA_ATTR: false,
+		ALLOW_ARIA_ATTR: true,
+		// Force all links to open in new tab with noopener
+		ADD_ATTR: ["target", "rel"],
+		// Forbid javascript: and data: URLs in href/src
+		ALLOWED_URI_REGEXP:
+			/^(?:(?:https?|ftp|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
+	});
+}
+
+// ---------------------------------------------------------------------------
 // Utility functions
 // ---------------------------------------------------------------------------
 
@@ -238,33 +376,37 @@ function escapeHtml(str: string): string {
  * Apply all content transformations for display.
  *
  * Pipeline order:
- * 1. Legacy URL rewriting (fix old bbs.tongji.net image URLs)
- * 2. Edit notices (before BBCode cleanup to avoid orphan tag issues)
- * 3. Legacy BBCode cleanup
- * 4. CETagParser cleanup
- * 5. Smiley codes
+ * 1. HTML sanitization (DOMPurify whitelist — MUST BE FIRST)
+ * 2. Legacy URL rewriting (fix old bbs.tongji.net image URLs)
+ * 3. Edit notices (before BBCode cleanup to avoid orphan tag issues)
+ * 4. Legacy BBCode cleanup
+ * 5. CETagParser cleanup
+ * 6. Smiley codes
  *
  * @param content - Raw HTML content from database
- * @returns Transformed HTML ready for rendering
+ * @returns Transformed and sanitized HTML ready for rendering
  */
 export function filterContent(content: string): string {
 	if (!content) return content;
 
 	let result = content;
 
-	// 1. Rewrite legacy URLs first (before any other processing)
+	// 1. SECURITY: Sanitize HTML first to remove malicious scripts/attributes
+	result = sanitizeHtml(result);
+
+	// 2. Rewrite legacy URLs (fix old bbs.tongji.net image URLs)
 	result = rewriteLegacyUrls(result);
 
-	// 2. Transform edit notices
+	// 3. Transform edit notices
 	result = transformEditNotices(result);
 
-	// 3. Clean up legacy BBCode
+	// 4. Clean up legacy BBCode
 	result = cleanupLegacyBBCode(result);
 
-	// 4. Clean up CETagParser artifacts
+	// 5. Clean up CETagParser artifacts
 	result = cleanupCETagParser(result);
 
-	// 5. Replace smiley codes with images
+	// 6. Replace smiley codes with images
 	result = replaceSmileyCodesWithImages(result);
 
 	return result;
@@ -277,6 +419,7 @@ export {
 	cleanupCETagParser,
 	rewriteLegacyUrls,
 	escapeHtml,
+	sanitizeHtml,
 	RE_EDIT_NOTICE,
 	RE_FLY,
 	RE_ALIGN,
