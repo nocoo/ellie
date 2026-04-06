@@ -11,6 +11,19 @@ import type { JWT } from "next-auth/jwt";
 import Google from "next-auth/providers/google";
 
 // ---------------------------------------------------------------------------
+// Environment helpers
+// ---------------------------------------------------------------------------
+
+function getGoogleCredentials() {
+	const clientId = process.env.AUTH_GOOGLE_ID;
+	const clientSecret = process.env.AUTH_GOOGLE_SECRET;
+	if (!clientId || !clientSecret) {
+		throw new Error("Missing AUTH_GOOGLE_ID or AUTH_GOOGLE_SECRET environment variables");
+	}
+	return { clientId, clientSecret };
+}
+
+// ---------------------------------------------------------------------------
 // Callbacks
 // ---------------------------------------------------------------------------
 
@@ -42,12 +55,7 @@ function sessionCallback({ session, token }: { session: Session; token: JWT }): 
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
 	trustHost: true,
-	providers: [
-		Google({
-			clientId: process.env.AUTH_GOOGLE_ID,
-			clientSecret: process.env.AUTH_GOOGLE_SECRET,
-		}),
-	],
+	providers: [Google(getGoogleCredentials())],
 	session: {
 		strategy: "jwt",
 		maxAge: 24 * 60 * 60, // 24 hours for admin sessions
