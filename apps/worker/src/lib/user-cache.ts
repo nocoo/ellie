@@ -60,34 +60,38 @@ export async function getUserProfiles(
 		}
 	}
 
-	// DB fallback for cache misses
+	// DB fallback for cache misses (batched for SQLite 999 variable limit)
 	if (missedIds.length > 0) {
-		const placeholders = missedIds.map(() => "?").join(",");
-		const dbResult = await env.DB.prepare(
-			`SELECT id, username, avatar, role, group_title, group_color, group_stars
+		const BATCH_SIZE = 500;
+		for (let i = 0; i < missedIds.length; i += BATCH_SIZE) {
+			const batch = missedIds.slice(i, i + BATCH_SIZE);
+			const placeholders = batch.map(() => "?").join(",");
+			const dbResult = await env.DB.prepare(
+				`SELECT id, username, avatar, role, group_title, group_color, group_stars
        FROM users WHERE id IN (${placeholders})`,
-		)
-			.bind(...missedIds)
-			.all();
+			)
+				.bind(...batch)
+				.all();
 
-		for (const row of dbResult.results) {
-			const profile: UserMiniProfile = {
-				id: row.id as number,
-				username: row.username as string,
-				avatar: row.avatar as string,
-				role: row.role as number,
-				groupTitle: row.group_title as string,
-				groupColor: row.group_color as string,
-				groupStars: row.group_stars as number,
-			};
-			result.set(profile.id, profile);
+			for (const row of dbResult.results) {
+				const profile: UserMiniProfile = {
+					id: row.id as number,
+					username: row.username as string,
+					avatar: row.avatar as string,
+					role: row.role as number,
+					groupTitle: row.group_title as string,
+					groupColor: row.group_color as string,
+					groupStars: row.group_stars as number,
+				};
+				result.set(profile.id, profile);
 
-			// Non-blocking cache population
-			ctx.waitUntil(
-				env.KV.put(`${USER_CACHE_PREFIX}${profile.id}`, JSON.stringify(profile), {
-					expirationTtl: USER_CACHE_TTL,
-				}),
-			);
+				// Non-blocking cache population
+				ctx.waitUntil(
+					env.KV.put(`${USER_CACHE_PREFIX}${profile.id}`, JSON.stringify(profile), {
+						expirationTtl: USER_CACHE_TTL,
+					}),
+				);
+			}
 		}
 	}
 

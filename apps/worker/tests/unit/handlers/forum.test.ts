@@ -69,7 +69,7 @@ describe("forum handlers", () => {
 						};
 					}
 					// Visible last threads query (window function)
-					if (sql.includes("ROW_NUMBER() OVER") && sql.includes("FROM threads")) {
+					if (sql.includes("MAX(last_post_at)") && sql.includes("FROM threads")) {
 						return {
 							bind: mock(() => ({
 								all: mock(() => Promise.resolve({ results: visibleLastThreadRows })),
@@ -195,15 +195,13 @@ describe("forum handlers", () => {
 		) {
 			const forumId = forumRow ? (forumRow as { id: number }).id : 1;
 			// Default visible thread row based on forum row data
-			const defaultVisibleRow = forumRow
-				? makeVisibleLastThreadRow(forumId)
-				: null;
+			const defaultVisibleRow = forumRow ? makeVisibleLastThreadRow(forumId) : null;
 			const visibleRow = visibleLastThreadRow ?? defaultVisibleRow;
 
 			return {
 				prepare: mock((sql: string) => {
 					// Forum query (with or without JOIN)
-					if (sql.includes("FROM forums") && sql.includes("WHERE") && !sql.includes("ROW_NUMBER")) {
+					if (sql.includes("FROM forums") && sql.includes("WHERE") && !sql.includes("MAX(last_post_at)")) {
 						return {
 							bind: mock(() => ({
 								first: mock(() => Promise.resolve(forumRow)),
@@ -211,12 +209,10 @@ describe("forum handlers", () => {
 						};
 					}
 					// Visible last threads query (window function)
-					if (sql.includes("ROW_NUMBER() OVER") && sql.includes("FROM threads")) {
+					if (sql.includes("MAX(last_post_at)") && sql.includes("FROM threads")) {
 						return {
 							bind: mock(() => ({
-								all: mock(() =>
-									Promise.resolve({ results: visibleRow ? [visibleRow] : [] }),
-								),
+								all: mock(() => Promise.resolve({ results: visibleRow ? [visibleRow] : [] })),
 							})),
 						};
 					}
@@ -286,11 +282,11 @@ describe("forum handlers", () => {
 			const db = {
 				prepare: mock((sql: string) => {
 					// Forum query (with or without JOIN)
-					if (sql.includes("FROM forums") && sql.includes("WHERE") && !sql.includes("ROW_NUMBER")) {
+					if (sql.includes("FROM forums") && sql.includes("WHERE") && !sql.includes("MAX(last_post_at)")) {
 						return { bind: bindSpy };
 					}
-					// Visible last threads query
-					if (sql.includes("ROW_NUMBER() OVER")) {
+					// Visible last threads query (uses MAX subquery now)
+					if (sql.includes("MAX(last_post_at)")) {
 						return { bind: visibleBindSpy };
 					}
 					return {
