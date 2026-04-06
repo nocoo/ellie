@@ -123,9 +123,12 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
 	}
 
-	// Return 404 for banned users (status = -1)
-	if (result.status === -1) {
-		return errorResponse("USER_NOT_FOUND", 404, { message: "该用户已被封禁" }, origin);
+	// Return 404 for non-public users:
+	// status = -1: banned
+	// status = -2: archived (historical, cannot login)
+	// status = -3: placeholder (deleted user placeholder)
+	if ((result.status as number) < 0) {
+		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
 	}
 
 	return jsonResponse(toPublicUser(result), origin);
