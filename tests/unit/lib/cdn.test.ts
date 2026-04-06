@@ -61,12 +61,21 @@ describe("getAttachmentUrl", () => {
 		);
 	});
 
-	it("returns absolute http:// URL unchanged", () => {
-		expect(getAttachmentUrl("http://example.com/image.jpg")).toBe("http://example.com/image.jpg");
+	it("returns CDN fallback for external http:// URL (security)", () => {
+		// External URLs are rejected for security - returns safe fallback
+		expect(getAttachmentUrl("http://example.com/image.jpg")).toBe("https://t.no.mt/");
 	});
 
-	it("returns absolute https:// URL unchanged", () => {
-		expect(getAttachmentUrl("https://example.com/image.jpg")).toBe("https://example.com/image.jpg");
+	it("returns CDN fallback for external https:// URL (security)", () => {
+		// External URLs are rejected for security - returns safe fallback
+		expect(getAttachmentUrl("https://example.com/image.jpg")).toBe("https://t.no.mt/");
+	});
+
+	it("allows absolute URL from CDN host", () => {
+		// URLs from the same CDN host are allowed
+		expect(getAttachmentUrl("https://t.no.mt/forum/image.jpg")).toBe(
+			"https://t.no.mt/forum/image.jpg",
+		);
 	});
 
 	it("handles path with no directory separators", () => {
@@ -91,15 +100,17 @@ describe("getAttachmentThumbUrl", () => {
 		);
 	});
 
-	it("appends .thumb.jpg to absolute URL", () => {
+	it("returns CDN fallback with .thumb.jpg for external https URL (security)", () => {
+		// External URLs are rejected - returns safe fallback with thumb suffix
 		expect(getAttachmentThumbUrl("https://cdn.example.com/image.png")).toBe(
-			"https://cdn.example.com/image.png.thumb.jpg",
+			"https://t.no.mt/.thumb.jpg",
 		);
 	});
 
-	it("appends .thumb.jpg to absolute http URL", () => {
+	it("returns CDN fallback with .thumb.jpg for external http URL (security)", () => {
+		// External URLs are rejected - returns safe fallback with thumb suffix
 		expect(getAttachmentThumbUrl("http://cdn.example.com/img.gif")).toBe(
-			"http://cdn.example.com/img.gif.thumb.jpg",
+			"https://t.no.mt/.thumb.jpg",
 		);
 	});
 });
