@@ -1,52 +1,16 @@
-// User handlers for Cloudflare Worker
-import { UserRole } from "@ellie/types";
-import type { VisibilityContext } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { toPost, toPublicUser, toThread } from "../lib/mappers";
 import { jsonResponse } from "../lib/response";
-import { type AuthUser, optionalAuthVerified } from "../middleware/auth";
+import {
+	POST_VISIBLE,
+	USER_ACTIVE,
+	buildForumFilter,
+	buildVisibilityContext,
+	threadVisible,
+} from "../lib/visibility";
+import { optionalAuthVerified } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
-
-/** Build visibility context from optional user */
-function buildVisibilityContext(user: AuthUser | null): VisibilityContext {
-	return {
-		isLoggedIn: user !== null,
-		role: user !== null ? user.role : UserRole.User,
-	};
-}
-
-/**
- * Build SQL WHERE clause for forum visibility filtering.
- * Only includes forums that are:
- * - Active (status = 1)
- * - Visible to the current user based on their role
- */
-function buildForumVisibilityFilter(visCtx: VisibilityContext): string {
-	// Always filter out hidden/deleted/paused/QQ forums
-	const statusFilter = "f.status = 1";
-
-	// Visibility filter based on user context
-	// public: everyone, members: logged in, staff: mod+, admin: admin only
-	const visibilityConditions: string[] = ["f.visibility = 'public'"];
-
-	if (visCtx.isLoggedIn) {
-		visibilityConditions.push("f.visibility = 'members'");
-	}
-	// Staff: Mod (3), SuperMod (2), Admin (1)
-	if (
-		visCtx.role === UserRole.Mod ||
-		visCtx.role === UserRole.SuperMod ||
-		visCtx.role === UserRole.Admin
-	) {
-		visibilityConditions.push("f.visibility = 'staff'");
-	}
-	if (visCtx.role === UserRole.Admin) {
-		visibilityConditions.push("f.visibility = 'admin'");
-	}
-
-	return `${statusFilter} AND (${visibilityConditions.join(" OR ")})`;
-}
 
 /** Explicit PublicUser columns — never SELECT * to avoid leaking sensitive fields */
 const PUBLIC_USER_COLUMNS =
@@ -147,7 +111,7 @@ export async function listThreads(request: Request, env: Env): Promise<Response>
 	// Get user auth for visibility filtering (verified against DB)
 	const user = await optionalAuthVerified(request, env);
 	const visCtx = buildVisibilityContext(user);
-	const forumFilter = buildForumVisibilityFilter(visCtx);
+	const forumFilter = buildForumFilter(visCtx);
 
 	const clampedLimit = clampLimit(url.searchParams.get("limit"));
 	const cursorStr = url.searchParams.get("cursor");
@@ -158,7 +122,7 @@ export async function listThreads(request: Request, env: Env): Promise<Response>
 		result = await env.DB.prepare(
 			`SELECT t.* FROM threads t
 			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE t.author_id = ? AND t.sticky >= 0 AND ${forumFilter}
+			 WHERE t.author_id = ? AND ${threadVisible("t")} AND ${forumFilter}
 			 AND (t.created_at < ? OR (t.created_at = ? AND t.id < ?))
 			 ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
 		)
@@ -168,7 +132,7 @@ export async function listThreads(request: Request, env: Env): Promise<Response>
 		result = await env.DB.prepare(
 			`SELECT t.* FROM threads t
 			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE t.author_id = ? AND t.sticky >= 0 AND ${forumFilter}
+			 WHERE t.author_id = ? AND ${threadVisible("t")} AND ${forumFilter}
 			 ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
 		)
 			.bind(userId, clampedLimit)
@@ -205,7 +169,7 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 	// Get user auth for visibility filtering (verified against DB)
 	const user = await optionalAuthVerified(request, env);
 	const visCtx = buildVisibilityContext(user);
-	const forumFilter = buildForumVisibilityFilter(visCtx);
+	const forumFilter = buildForumFilter(visCtx);
 
 	const clampedLimit = clampLimit(url.searchParams.get("limit"));
 	const cursorStr = url.searchParams.get("cursor");
@@ -217,7 +181,7 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 			`SELECT p.* FROM posts p
 			 INNER JOIN threads t ON p.thread_id = t.id
 			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE p.author_id = ? AND p.invisible = 0 AND t.sticky >= 0 AND ${forumFilter}
+			 WHERE p.author_id = ? AND ${POST_VISIBLE.replace("invisible", "p.invisible")} AND ${threadVisible("t")} AND ${forumFilter}
 			 AND (p.created_at < ? OR (p.created_at = ? AND p.id < ?))
 			 ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
 		)
@@ -228,7 +192,7 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 			`SELECT p.* FROM posts p
 			 INNER JOIN threads t ON p.thread_id = t.id
 			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE p.author_id = ? AND p.invisible = 0 AND t.sticky >= 0 AND ${forumFilter}
+			 WHERE p.author_id = ? AND ${POST_VISIBLE.replace("invisible", "p.invisible")} AND ${threadVisible("t")} AND ${forumFilter}
 			 ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
 		)
 			.bind(userId, clampedLimit)
@@ -265,7 +229,7 @@ export async function listDigest(request: Request, env: Env): Promise<Response> 
 	// Get user auth for visibility filtering (verified against DB)
 	const user = await optionalAuthVerified(request, env);
 	const visCtx = buildVisibilityContext(user);
-	const forumFilter = buildForumVisibilityFilter(visCtx);
+	const forumFilter = buildForumFilter(visCtx);
 
 	const clampedLimit = clampLimit(url.searchParams.get("limit"));
 	const cursorStr = url.searchParams.get("cursor");
@@ -276,7 +240,7 @@ export async function listDigest(request: Request, env: Env): Promise<Response> 
 		result = await env.DB.prepare(
 			`SELECT t.* FROM threads t
 			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE t.author_id = ? AND t.digest > 0 AND t.sticky >= 0 AND ${forumFilter}
+			 WHERE t.author_id = ? AND t.digest > 0 AND ${threadVisible("t")} AND ${forumFilter}
 			 AND (t.created_at < ? OR (t.created_at = ? AND t.id < ?))
 			 ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
 		)
@@ -286,7 +250,7 @@ export async function listDigest(request: Request, env: Env): Promise<Response> 
 		result = await env.DB.prepare(
 			`SELECT t.* FROM threads t
 			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE t.author_id = ? AND t.digest > 0 AND t.sticky >= 0 AND ${forumFilter}
+			 WHERE t.author_id = ? AND t.digest > 0 AND ${threadVisible("t")} AND ${forumFilter}
 			 ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
 		)
 			.bind(userId, clampedLimit)
@@ -346,7 +310,7 @@ export async function search(request: Request, env: Env): Promise<Response> {
 	// Escape special LIKE characters
 	const escapedQuery = query.replace(/[%_\\]/g, "\\$&");
 	const result = await env.DB.prepare(
-		"SELECT id, username FROM users WHERE username LIKE ? ESCAPE '\\' AND status >= 0 ORDER BY username LIMIT ?",
+		`SELECT id, username FROM users WHERE username LIKE ? ESCAPE '\\' AND ${USER_ACTIVE} ORDER BY username LIMIT ?`,
 	)
 		.bind(`${escapedQuery}%`, clampedLimit)
 		.all<{ id: number; username: string }>();

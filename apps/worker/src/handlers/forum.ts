@@ -1,5 +1,5 @@
-import { type Forum, type ModeratorInfo, UserRole, canViewForumVisibility } from "@ellie/types";
-import type { ForumVisibility, VisibilityContext } from "@ellie/types";
+import { type Forum, type ModeratorInfo, canViewForumVisibility } from "@ellie/types";
+import type { ForumVisibility } from "@ellie/types";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
 import {
 	enrichForumWithUserCache,
@@ -8,21 +8,12 @@ import {
 	toForum,
 } from "../lib/mappers";
 import { getUserProfiles } from "../lib/user-cache";
+import { THREAD_VISIBLE, buildVisibilityContext } from "../lib/visibility";
 
 // Forum handlers for Cloudflare Worker
 import { optionalAuthVerified } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
-
-/**
- * Build visibility context from optional user auth.
- */
-function buildVisibilityContext(user: { userId: number; role: number } | null): VisibilityContext {
-	return {
-		isLoggedIn: user !== null,
-		role: user?.role ?? UserRole.User,
-	};
-}
 
 /** Fetch moderator names by IDs in a single query */
 async function fetchModeratorNames(
@@ -80,7 +71,7 @@ async function fetchVisibleLastThreads(
 					last_poster,
 					ROW_NUMBER() OVER (PARTITION BY forum_id ORDER BY last_post_at DESC) as rn
 				FROM threads
-				WHERE forum_id IN (${placeholders}) AND sticky >= 0
+				WHERE forum_id IN (${placeholders}) AND ${THREAD_VISIBLE}
 			)
 			SELECT forum_id, thread_id, subject, last_post_at, last_poster_id, last_poster
 			FROM ranked
@@ -149,7 +140,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		env.DB.prepare(forumQuery).all(),
 		// Only count visible threads (sticky >= 0) for today's count
 		env.DB.prepare(
-			"SELECT forum_id, COUNT(*) AS cnt FROM threads WHERE created_at >= ? AND sticky >= 0 GROUP BY forum_id",
+			`SELECT forum_id, COUNT(*) AS cnt FROM threads WHERE created_at >= ? AND ${THREAD_VISIBLE} GROUP BY forum_id`,
 		)
 			.bind(cutoff24h)
 			.all<{ forum_id: number; cnt: number }>(),
@@ -339,7 +330,7 @@ export async function getById(
 	// Count threads in last 24h for this forum (only visible threads: sticky >= 0)
 	const cutoff24h = Math.floor(Date.now() / 1000) - 86400;
 	const countResult = await env.DB.prepare(
-		"SELECT COUNT(*) AS cnt FROM threads WHERE forum_id = ? AND created_at >= ? AND sticky >= 0",
+		`SELECT COUNT(*) AS cnt FROM threads WHERE forum_id = ? AND created_at >= ? AND ${THREAD_VISIBLE}`,
 	)
 		.bind(id, cutoff24h)
 		.first<{ cnt: number }>();

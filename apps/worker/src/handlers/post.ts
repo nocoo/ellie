@@ -1,5 +1,5 @@
 // Post handlers for Cloudflare Worker
-import { UserRole, canViewForumVisibility } from "@ellie/types";
+import { canViewForumVisibility } from "@ellie/types";
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
@@ -7,17 +7,10 @@ import { toPost } from "../lib/mappers";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withAuthVerified } from "../lib/routeHelpers";
-import { type AuthUser, optionalAuthVerified } from "../middleware/auth";
+import { POST_VISIBLE, buildVisibilityContext } from "../lib/visibility";
+import { optionalAuthVerified } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
-
-/** Build visibility context from optional user */
-function buildVisibilityContext(user: AuthUser | null): VisibilityContext {
-	return {
-		isLoggedIn: user !== null,
-		role: user !== null ? user.role : UserRole.User,
-	};
-}
 
 /** Post cursor payload for keyset pagination */
 interface PostCursorPayload {
@@ -109,13 +102,13 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		// Position-based pagination: WHERE thread_id = ? AND position > ? ORDER BY position
 		// Only return visible posts (invisible = 0)
 		const stmt = env.DB.prepare(
-			"SELECT * FROM posts WHERE thread_id = ? AND invisible = 0 AND position > ? ORDER BY position LIMIT ?",
+			`SELECT * FROM posts WHERE thread_id = ? AND ${POST_VISIBLE} AND position > ? ORDER BY position LIMIT ?`,
 		);
 		result = await stmt.bind(threadIdNum, cursor.position, clampedLimit).all();
 	} else {
 		// First page - only return visible posts (invisible = 0)
 		const stmt = env.DB.prepare(
-			"SELECT * FROM posts WHERE thread_id = ? AND invisible = 0 ORDER BY position LIMIT ?",
+			`SELECT * FROM posts WHERE thread_id = ? AND ${POST_VISIBLE} ORDER BY position LIMIT ?`,
 		);
 		result = await stmt.bind(threadIdNum, clampedLimit).all();
 	}
@@ -161,7 +154,7 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 	const id = Number.parseInt(idStr ?? "0", 10);
 
 	// Only return visible posts (invisible = 0)
-	const stmt = env.DB.prepare("SELECT * FROM posts WHERE id = ? AND invisible = 0");
+	const stmt = env.DB.prepare(`SELECT * FROM posts WHERE id = ? AND ${POST_VISIBLE}`);
 	const result = await stmt.bind(id).first();
 
 	if (!result) {
