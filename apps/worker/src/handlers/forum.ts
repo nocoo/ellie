@@ -15,23 +15,30 @@ import { optionalAuthVerified } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
-/** Fetch moderator names by IDs in a single query */
+/** Fetch moderator names by IDs in a single query (batched for SQLite limits) */
 async function fetchModeratorNames(
 	db: D1Database,
 	moderatorIds: number[],
 ): Promise<Map<number, string>> {
 	if (moderatorIds.length === 0) return new Map();
 
-	const placeholders = moderatorIds.map(() => "?").join(",");
-	const result = await db
-		.prepare(`SELECT id, username FROM users WHERE id IN (${placeholders})`)
-		.bind(...moderatorIds)
-		.all<{ id: number; username: string }>();
-
 	const map = new Map<number, string>();
-	for (const row of result.results) {
-		map.set(row.id, row.username);
+
+	// SQLite has a limit of 999 variables, batch to stay safe
+	const BATCH_SIZE = 500;
+	for (let i = 0; i < moderatorIds.length; i += BATCH_SIZE) {
+		const batch = moderatorIds.slice(i, i + BATCH_SIZE);
+		const placeholders = batch.map(() => "?").join(",");
+		const result = await db
+			.prepare(`SELECT id, username FROM users WHERE id IN (${placeholders})`)
+			.bind(...batch)
+			.all<{ id: number; username: string }>();
+
+		for (const row of result.results) {
+			map.set(row.id, row.username);
+		}
 	}
+
 	return map;
 }
 
@@ -49,6 +56,8 @@ interface VisibleLastThread {
  * Fetch the most recent visible thread for each forum.
  * Returns a map of forum_id -> visible last thread info.
  * Only includes threads with sticky >= 0 (visible).
+ *
+ * Note: Batches queries to stay under SQLite's 999 variable limit.
  */
 async function fetchVisibleLastThreads(
 	db: D1Database,
@@ -56,49 +65,53 @@ async function fetchVisibleLastThreads(
 ): Promise<Map<number, VisibleLastThread>> {
 	if (forumIds.length === 0) return new Map();
 
-	// Use a window function to get the most recent visible thread per forum
-	// This is more efficient than N separate queries
-	const placeholders = forumIds.map(() => "?").join(",");
-	const result = await db
-		.prepare(
-			`WITH ranked AS (
-				SELECT
-					forum_id,
-					id as thread_id,
-					subject,
-					last_post_at,
-					last_poster_id,
-					last_poster,
-					ROW_NUMBER() OVER (PARTITION BY forum_id ORDER BY last_post_at DESC) as rn
-				FROM threads
-				WHERE forum_id IN (${placeholders}) AND ${THREAD_VISIBLE}
-			)
-			SELECT forum_id, thread_id, subject, last_post_at, last_poster_id, last_poster
-			FROM ranked
-			WHERE rn = 1`,
-		)
-		.bind(...forumIds)
-		.all<{
-			forum_id: number;
-			thread_id: number;
-			subject: string;
-			last_post_at: number;
-			last_poster_id: number;
-			last_poster: string;
-		}>();
+	const result = new Map<number, VisibleLastThread>();
 
-	const map = new Map<number, VisibleLastThread>();
-	for (const row of result.results) {
-		map.set(row.forum_id, {
-			forumId: row.forum_id,
-			threadId: row.thread_id,
-			subject: row.subject,
-			lastPostAt: row.last_post_at,
-			lastPosterId: row.last_poster_id,
-			lastPoster: row.last_poster,
-		});
+	// SQLite has a limit of 999 variables, batch to stay safe
+	const BATCH_SIZE = 100;
+	for (let i = 0; i < forumIds.length; i += BATCH_SIZE) {
+		const batch = forumIds.slice(i, i + BATCH_SIZE);
+		const placeholders = batch.map(() => "?").join(",");
+
+		// Use a simpler approach: join with a subquery that gets max last_post_at per forum
+		const batchResult = await db
+			.prepare(
+				`SELECT t.forum_id, t.id as thread_id, t.subject, t.last_post_at, t.last_poster_id, t.last_poster
+				 FROM threads t
+				 INNER JOIN (
+					 SELECT forum_id, MAX(last_post_at) as max_post_at
+					 FROM threads
+					 WHERE forum_id IN (${placeholders}) AND sticky >= 0
+					 GROUP BY forum_id
+				 ) sub ON t.forum_id = sub.forum_id AND t.last_post_at = sub.max_post_at
+				 WHERE t.sticky >= 0`,
+			)
+			.bind(...batch)
+			.all<{
+				forum_id: number;
+				thread_id: number;
+				subject: string;
+				last_post_at: number;
+				last_poster_id: number;
+				last_poster: string;
+			}>();
+
+		for (const row of batchResult.results) {
+			// Only keep first match if there are ties
+			if (!result.has(row.forum_id)) {
+				result.set(row.forum_id, {
+					forumId: row.forum_id,
+					threadId: row.thread_id,
+					subject: row.subject,
+					lastPostAt: row.last_post_at,
+					lastPosterId: row.last_poster_id,
+					lastPoster: row.last_poster,
+				});
+			}
+		}
 	}
-	return map;
+
+	return result;
 }
 
 /** Build moderatorList from moderator_ids string and name map */
