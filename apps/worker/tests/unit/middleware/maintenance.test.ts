@@ -1,12 +1,32 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
 import { UserRole } from "@ellie/types";
 import { createJwt } from "../../../src/lib/jwt";
 import { checkMaintenance } from "../../../src/middleware/maintenance";
 import { TEST_JWT_SECRET, createMockKV, makeEnv } from "../../helpers";
 
 describe("maintenance middleware", () => {
+	/** Create a mock DB that returns user with specified role and status */
+	function createMockDbWithUser(userId: number, role: number, status = 0) {
+		return {
+			prepare: mock((sql: string) => {
+				if (sql.includes("SELECT role, status FROM users")) {
+					return {
+						bind: mock(() => ({
+							first: mock(() => Promise.resolve({ role, status })),
+						})),
+					};
+				}
+				return {
+					bind: mock(() => ({
+						first: mock(() => Promise.resolve(null)),
+					})),
+				};
+			}),
+		} as unknown as D1Database;
+	}
+
 	/** Create an env where maintenance mode is ON */
-	function makeMaintenanceEnv(adminBypass = false) {
+	function makeMaintenanceEnv(adminBypass = false, dbUser?: { role: number; status?: number }) {
 		const kv = createMockKV({
 			"settings:all": JSON.stringify({
 				"features.access.maintenance_mode": true,
@@ -14,7 +34,10 @@ describe("maintenance middleware", () => {
 				"features.access.maintenance_message": "Under maintenance",
 			}),
 		});
-		return makeEnv({ KV: kv });
+		const db = dbUser
+			? createMockDbWithUser(1, dbUser.role, dbUser.status ?? 0)
+			: ({} as D1Database);
+		return makeEnv({ KV: kv, DB: db });
 	}
 
 	/** Create an env where maintenance mode is OFF */
@@ -44,11 +67,27 @@ describe("maintenance middleware", () => {
 			expect(result).toBeNull();
 		});
 
-		it("should allow /api/v1/auth/ paths regardless of maintenance mode", async () => {
+		it("should allow /api/v1/auth/login path regardless of maintenance mode", async () => {
 			const env = makeMaintenanceEnv();
 			const req = new Request("https://api.example.com/api/v1/auth/login");
 			const result = await checkMaintenance(req, env);
 			expect(result).toBeNull();
+		});
+
+		it("should block /api/v1/auth/register during maintenance mode", async () => {
+			const env = makeMaintenanceEnv();
+			const req = new Request("https://api.example.com/api/v1/auth/register");
+			const result = await checkMaintenance(req, env);
+			expect(result).not.toBeNull();
+			expect(result?.status).toBe(503);
+		});
+
+		it("should block /api/v1/auth/check-username during maintenance mode", async () => {
+			const env = makeMaintenanceEnv();
+			const req = new Request("https://api.example.com/api/v1/auth/check-username");
+			const result = await checkMaintenance(req, env);
+			expect(result).not.toBeNull();
+			expect(result?.status).toBe(503);
 		});
 
 		it("should allow /api/v1/settings path regardless of maintenance mode", async () => {
@@ -118,8 +157,9 @@ describe("maintenance middleware", () => {
 	// ─── Maintenance mode ON, admin bypass enabled ───────────
 
 	describe("maintenance mode ON, admin bypass enabled", () => {
-		it("should allow admin user with valid JWT", async () => {
-			const env = makeMaintenanceEnv(true);
+		it("should allow admin user with valid JWT and verified DB role", async () => {
+			// DB returns admin role and active status
+			const env = makeMaintenanceEnv(true, { role: UserRole.Admin, status: 0 });
 			const token = await createJwt(
 				{ userId: 1, role: UserRole.Admin, exp: Math.floor(Date.now() / 1000) + 3600 },
 				TEST_JWT_SECRET,
@@ -131,8 +171,38 @@ describe("maintenance middleware", () => {
 			expect(result).toBeNull();
 		});
 
+		it("should block demoted admin (JWT says admin but DB says user)", async () => {
+			// DB returns user role (demoted from admin)
+			const env = makeMaintenanceEnv(true, { role: UserRole.User, status: 0 });
+			const token = await createJwt(
+				{ userId: 1, role: UserRole.Admin, exp: Math.floor(Date.now() / 1000) + 3600 },
+				TEST_JWT_SECRET,
+			);
+			const req = new Request("https://api.example.com/api/v1/forums", {
+				headers: { Authorization: `Bearer ${token}` },
+			});
+			const result = await checkMaintenance(req, env);
+			expect(result).not.toBeNull();
+			expect(result?.status).toBe(503);
+		});
+
+		it("should block banned admin (admin role but negative status)", async () => {
+			// DB returns admin role but banned status
+			const env = makeMaintenanceEnv(true, { role: UserRole.Admin, status: -1 });
+			const token = await createJwt(
+				{ userId: 1, role: UserRole.Admin, exp: Math.floor(Date.now() / 1000) + 3600 },
+				TEST_JWT_SECRET,
+			);
+			const req = new Request("https://api.example.com/api/v1/forums", {
+				headers: { Authorization: `Bearer ${token}` },
+			});
+			const result = await checkMaintenance(req, env);
+			expect(result).not.toBeNull();
+			expect(result?.status).toBe(503);
+		});
+
 		it("should block regular user even with valid JWT", async () => {
-			const env = makeMaintenanceEnv(true);
+			const env = makeMaintenanceEnv(true, { role: UserRole.User, status: 0 });
 			const token = await createJwt(
 				{ userId: 2, role: UserRole.User, exp: Math.floor(Date.now() / 1000) + 3600 },
 				TEST_JWT_SECRET,
@@ -154,7 +224,7 @@ describe("maintenance middleware", () => {
 		});
 
 		it("should block request with expired JWT", async () => {
-			const env = makeMaintenanceEnv(true);
+			const env = makeMaintenanceEnv(true, { role: UserRole.Admin, status: 0 });
 			const token = await createJwt(
 				{ userId: 1, role: UserRole.Admin, exp: Math.floor(Date.now() / 1000) - 3600 },
 				TEST_JWT_SECRET,
