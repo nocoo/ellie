@@ -142,12 +142,8 @@ export const FEATURE_GROUPS: FeatureGroupDef[] = [
 				placeholder: "1",
 				hint: "用户注册满指定天数后才能发帖。设为 0 表示不限制。",
 			},
-			{
-				key: "features.posting.require_email_verified",
-				label: "要求邮箱验证",
-				inputType: "switch",
-				hint: "用户必须验证邮箱后才能发帖",
-			},
+			// Note: features.posting.require_email_verified is reserved for future use
+			// when email verification is implemented. Currently hidden from UI.
 			{
 				key: "features.posting.require_avatar",
 				label: "要求设置头像",
@@ -176,7 +172,7 @@ export const FEATURE_DEFAULTS: Record<string, string> = {
 	// Posting restrictions - default: enabled with basic restrictions
 	"features.posting.enabled": "true",
 	"features.posting.min_registration_days": "1",
-	"features.posting.require_email_verified": "false",
+	// Note: require_email_verified is reserved for future use, not exposed in UI
 	"features.posting.require_avatar": "true",
 };
 
