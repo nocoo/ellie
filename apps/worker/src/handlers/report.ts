@@ -1,8 +1,9 @@
-import { UserRole, canViewForumVisibility } from "@ellie/types";
+import { canViewForumVisibility } from "@ellie/types";
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withAuthVerified } from "../lib/routeHelpers";
+import { POST_VISIBLE, THREAD_VISIBLE } from "../lib/visibility";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
@@ -74,8 +75,11 @@ export const create = withAuthVerified(async (request, env, user) => {
 		return permissionResult.error;
 	}
 
-	// Check target post exists and get thread_id + author_id
-	const post = await env.DB.prepare("SELECT id, thread_id, author_id FROM posts WHERE id = ?")
+	// Check target post exists and is visible (invisible = 0)
+	// Also get thread_id + author_id for further checks
+	const post = await env.DB.prepare(
+		`SELECT id, thread_id, author_id FROM posts WHERE id = ? AND ${POST_VISIBLE}`,
+	)
 		.bind(targetId)
 		.first<{ id: number; thread_id: number; author_id: number }>();
 
@@ -83,8 +87,11 @@ export const create = withAuthVerified(async (request, env, user) => {
 		return errorResponse("TARGET_NOT_FOUND", 404, { message: "Post not found" }, origin);
 	}
 
-	// Check forum visibility - user must have access to the forum containing this post
-	const thread = await env.DB.prepare("SELECT forum_id FROM threads WHERE id = ?")
+	// Check thread exists and is visible (sticky >= 0)
+	// Hidden/deleted/placeholder threads should not allow reports
+	const thread = await env.DB.prepare(
+		`SELECT forum_id FROM threads WHERE id = ? AND ${THREAD_VISIBLE}`,
+	)
 		.bind(post.thread_id)
 		.first<{ forum_id: number }>();
 

@@ -79,7 +79,12 @@ describe("POST /api/v1/reports", () => {
 
 	it("should return 400 for invalid JSON body", async () => {
 		const token = await makeUserToken();
-		const env = makeEnv();
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+			},
+		});
+		const env = makeEnv({ DB: db });
 		const req = new Request("https://api.example.com/api/v1/reports", {
 			method: "POST",
 			headers: {
@@ -96,7 +101,12 @@ describe("POST /api/v1/reports", () => {
 
 	it("should return 400 for non-post type", async () => {
 		const token = await makeUserToken();
-		const env = makeEnv();
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+			},
+		});
+		const env = makeEnv({ DB: db });
 		const req = reportRequest("POST", "/api/v1/reports", token, {
 			type: "thread",
 			targetId: 1,
@@ -110,7 +120,12 @@ describe("POST /api/v1/reports", () => {
 
 	it("should return 400 for invalid targetId", async () => {
 		const token = await makeUserToken();
-		const env = makeEnv();
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+			},
+		});
+		const env = makeEnv({ DB: db });
 		const req = reportRequest("POST", "/api/v1/reports", token, {
 			type: "post",
 			targetId: "abc",
@@ -124,7 +139,12 @@ describe("POST /api/v1/reports", () => {
 
 	it("should return 400 for invalid reason", async () => {
 		const token = await makeUserToken();
-		const env = makeEnv();
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+			},
+		});
+		const env = makeEnv({ DB: db });
 		const req = reportRequest("POST", "/api/v1/reports", token, {
 			type: "post",
 			targetId: 1,
@@ -140,6 +160,7 @@ describe("POST /api/v1/reports", () => {
 		const token = await makeUserToken(1, 0);
 		const { db } = createMockDb({
 			firstResults: {
+				"SELECT role, status FROM users WHERE id": { role: 0, status: -1 },
 				"SELECT status, avatar, reg_date, role FROM users": {
 					status: -1,
 					avatar: "",
@@ -162,6 +183,7 @@ describe("POST /api/v1/reports", () => {
 		const token = await makeUserToken(1, 0);
 		const { db } = createMockDb({
 			firstResults: {
+				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 				"SELECT status, avatar, reg_date, role FROM users": {
 					status: 0,
 					avatar: "",
@@ -183,17 +205,78 @@ describe("POST /api/v1/reports", () => {
 		expect(data.error.code).toBe("TARGET_NOT_FOUND");
 	});
 
-	it("should return 400 when reporting own post", async () => {
+	it("should return 404 for invisible post (deleted/pending)", async () => {
 		const token = await makeUserToken(1, 0);
+		// The post query includes "invisible = 0", so invisible posts won't be found
 		const { db } = createMockDb({
 			firstResults: {
+				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 				"SELECT status, avatar, reg_date, role FROM users": {
 					status: 0,
 					avatar: "",
 					reg_date: 0,
 					role: 0,
 				},
-				"SELECT id, author_id FROM posts": { id: 1, author_id: 1 }, // Same as userId
+				// Post with invisible != 0 won't be returned by the query
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = reportRequest("POST", "/api/v1/reports", token, {
+			type: "post",
+			targetId: 1,
+			reason: "垃圾广告",
+		});
+		const res = await create(req, env);
+		expect(res.status).toBe(404);
+		const data = (await res.json()) as { error: { code: string } };
+		expect(data.error.code).toBe("TARGET_NOT_FOUND");
+	});
+
+	it("should return 404 for post in hidden thread (sticky < 0)", async () => {
+		const token = await makeUserToken(1, 0);
+		// Post exists but its thread has sticky < 0 (hidden/deleted/placeholder)
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+				"SELECT status, avatar, reg_date, role FROM users": {
+					status: 0,
+					avatar: "",
+					reg_date: 0,
+					role: 0,
+				},
+				"SELECT id, thread_id, author_id FROM posts": { id: 1, thread_id: 1, author_id: 2 },
+				// Thread query includes "sticky >= 0", so hidden threads won't be found
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = reportRequest("POST", "/api/v1/reports", token, {
+			type: "post",
+			targetId: 1,
+			reason: "垃圾广告",
+		});
+		const res = await create(req, env);
+		expect(res.status).toBe(404);
+		const data = (await res.json()) as { error: { code: string } };
+		expect(data.error.code).toBe("TARGET_NOT_FOUND");
+	});
+
+	it("should return 400 when reporting own post", async () => {
+		const token = await makeUserToken(1, 0);
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+				"SELECT status, avatar, reg_date, role FROM users": {
+					status: 0,
+					avatar: "",
+					reg_date: 0,
+					role: 0,
+				},
+				"SELECT id, thread_id, author_id FROM posts": { id: 1, thread_id: 1, author_id: 1 }, // Same as userId
+				"SELECT forum_id FROM threads": { forum_id: 1 },
+				"SELECT status, visibility FROM forums": { status: 1, visibility: "public" },
+			},
+			allResults: {
+				"SELECT key, value FROM settings": [],
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -212,14 +295,20 @@ describe("POST /api/v1/reports", () => {
 		const token = await makeUserToken(1, 0);
 		const { db } = createMockDb({
 			firstResults: {
+				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 				"SELECT status, avatar, reg_date, role FROM users": {
 					status: 0,
 					avatar: "",
 					reg_date: 0,
 					role: 0,
 				},
-				"SELECT id, author_id FROM posts": { id: 1, author_id: 2 },
+				"SELECT id, thread_id, author_id FROM posts": { id: 1, thread_id: 1, author_id: 2 },
+				"SELECT forum_id FROM threads": { forum_id: 1 },
+				"SELECT status, visibility FROM forums": { status: 1, visibility: "public" },
 				"SELECT 1 FROM reports WHERE reporter_id": { 1: 1 }, // Existing report
+			},
+			allResults: {
+				"SELECT key, value FROM settings": [],
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -238,15 +327,21 @@ describe("POST /api/v1/reports", () => {
 		const token = await makeUserToken(1, 0);
 		const { db } = createMockDb({
 			firstResults: {
+				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 				"SELECT status, avatar, reg_date, role FROM users": {
 					status: 0,
 					avatar: "",
 					reg_date: 0,
 					role: 0,
 				},
-				"SELECT id, author_id FROM posts": { id: 1, author_id: 2 },
-				// No existing report
+				"SELECT id, thread_id, author_id FROM posts": { id: 1, thread_id: 1, author_id: 2 },
+				"SELECT forum_id FROM threads": { forum_id: 1 },
+				"SELECT status, visibility FROM forums": { status: 1, visibility: "public" },
+				// No existing report (returns null by default)
 				"SELECT username FROM users": { username: "testuser" },
+			},
+			allResults: {
+				"SELECT key, value FROM settings": [],
 			},
 			runResults: {
 				"INSERT INTO reports": { success: true, meta: { last_row_id: 42, changes: 1 } },
@@ -281,6 +376,7 @@ describe("GET /api/v1/posting-permission", () => {
 		const token = await makeUserToken(1, 0);
 		const { db } = createMockDb({
 			firstResults: {
+				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 				"SELECT status, avatar, reg_date, role FROM users": {
 					status: 0,
 					avatar: "",
@@ -304,6 +400,7 @@ describe("GET /api/v1/posting-permission", () => {
 		const token = await makeUserToken(1, 0);
 		const { db } = createMockDb({
 			firstResults: {
+				"SELECT role, status FROM users WHERE id": { role: 0, status: -1 },
 				"SELECT status, avatar, reg_date, role FROM users": {
 					status: -1, // Banned
 					avatar: "",
@@ -315,16 +412,15 @@ describe("GET /api/v1/posting-permission", () => {
 		const env = makeEnv({ DB: db });
 		const req = reportRequest("GET", "/api/v1/posting-permission", token);
 		const res = await checkPermission(req, env);
-		expect(res.status).toBe(200);
-		const data = (await res.json()) as { data: { allowed: boolean; reason: string } };
-		expect(data.data.allowed).toBe(false);
-		expect(data.data.reason).toBeTruthy();
+		// withAuthVerified rejects banned users with 403 USER_BANNED
+		expect(res.status).toBe(403);
 	});
 
 	it("should return allowed: false with reason for muted user", async () => {
 		const token = await makeUserToken(1, 0);
 		const { db } = createMockDb({
 			firstResults: {
+				"SELECT role, status FROM users WHERE id": { role: 0, status: -2 },
 				"SELECT status, avatar, reg_date, role FROM users": {
 					status: -2, // Muted
 					avatar: "",
@@ -336,10 +432,8 @@ describe("GET /api/v1/posting-permission", () => {
 		const env = makeEnv({ DB: db });
 		const req = reportRequest("GET", "/api/v1/posting-permission", token);
 		const res = await checkPermission(req, env);
-		expect(res.status).toBe(200);
-		const data = (await res.json()) as { data: { allowed: boolean; reason: string } };
-		expect(data.data.allowed).toBe(false);
-		expect(data.data.reason).toBeTruthy();
+		// withAuthVerified rejects muted users with 403 USER_BANNED
+		expect(res.status).toBe(403);
 	});
 
 	it("should return allowed: false with reason for new user when restriction enabled", async () => {
@@ -347,6 +441,7 @@ describe("GET /api/v1/posting-permission", () => {
 		const now = Math.floor(Date.now() / 1000);
 		const { db } = createMockDb({
 			firstResults: {
+				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 				"SELECT status, avatar, reg_date, role FROM users": {
 					status: 0,
 					avatar: "",
