@@ -1,5 +1,5 @@
 // Thread handlers for Cloudflare Worker
-import { type Thread, UserRole, canViewForum } from "@ellie/types";
+import { type Thread, UserRole, canViewForumVisibility } from "@ellie/types";
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
@@ -136,7 +136,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 	if (forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
 		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
 	}
-	if (!canViewForum(forumRow.visibility as ForumVisibility, visCtx)) {
+	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
 		return errorResponse("FORBIDDEN", 403, { message: "You don't have access to this forum" }, origin);
 	}
 
@@ -298,7 +298,7 @@ export async function getById(
 	if (!forumRow || forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
-	if (!canViewForum(forumRow.visibility as ForumVisibility, visCtx)) {
+	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
 		return errorResponse("FORBIDDEN", 403, { message: "You don't have access to this thread" }, origin);
 	}
 

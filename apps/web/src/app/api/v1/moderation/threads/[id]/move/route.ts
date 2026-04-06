@@ -1,15 +1,20 @@
-import { getWorkerJwt } from "@/lib/forum-auth";
+import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { ForumApiError, forumApi } from "@/lib/forum-api";
+import { getWorkerJwt } from "@/lib/forum-auth";
 import { NextResponse } from "next/server";
 
 /**
  * PATCH /api/v1/moderation/threads/:id/move
  * Move thread to another forum (Mod+ only)
  */
-export async function PATCH(
-	request: Request,
-	{ params }: { params: Promise<{ id: string }> },
-) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+	if (isMutatingMethod(request.method) && !validateOrigin(request)) {
+		return NextResponse.json(
+			{ error: { code: "CSRF_REJECTED", message: "Origin not allowed" } },
+			{ status: 403 },
+		);
+	}
+
 	const { id } = await params;
 	const jwt = await getWorkerJwt();
 	if (!jwt) {

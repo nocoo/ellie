@@ -1,6 +1,7 @@
+import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
+import { ForumApiError, forumApi } from "@/lib/forum-api";
 // Proxy route: GET/DELETE /api/v1/messages/:id
 import { getWorkerJwt } from "@/lib/forum-auth";
-import { ForumApiError, forumApi } from "@/lib/forum-api";
 import { NextResponse } from "next/server";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -18,7 +19,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 		return NextResponse.json(result);
 	} catch (err) {
 		if (err instanceof ForumApiError) {
-			return NextResponse.json({ error: { code: err.code, message: err.message } }, { status: err.status });
+			return NextResponse.json(
+				{ error: { code: err.code, message: err.message } },
+				{ status: err.status },
+			);
 		}
 		return NextResponse.json(
 			{ error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
@@ -27,7 +31,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 	}
 }
 
-export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+	if (isMutatingMethod(request.method) && !validateOrigin(request)) {
+		return NextResponse.json(
+			{ error: { code: "CSRF_REJECTED", message: "Origin not allowed" } },
+			{ status: 403 },
+		);
+	}
+
 	const jwt = await getWorkerJwt();
 	if (!jwt) {
 		return NextResponse.json(
@@ -42,7 +53,10 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
 		return NextResponse.json(result);
 	} catch (err) {
 		if (err instanceof ForumApiError) {
-			return NextResponse.json({ error: { code: err.code, message: err.message } }, { status: err.status });
+			return NextResponse.json(
+				{ error: { code: err.code, message: err.message } },
+				{ status: err.status },
+			);
 		}
 		return NextResponse.json(
 			{ error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
