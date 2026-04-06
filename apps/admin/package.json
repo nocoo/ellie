@@ -1,0 +1,39 @@
+{
+	"name": "admin",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"dev": "next dev --turbopack -p 7032",
+		"build": "next build",
+		"start": "next start -p 7032",
+		"typecheck": "tsc --noEmit",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write .",
+		"format": "biome format --write ."
+	},
+	"dependencies": {
+		"@dnd-kit/core": "^6.3.1",
+		"@dnd-kit/sortable": "^10.0.0",
+		"@dnd-kit/utilities": "^3.2.2",
+		"@ellie/shared": "workspace:*",
+		"@ellie/types": "workspace:*",
+		"@ellie/ui": "workspace:*",
+		"@tailwindcss/postcss": "^4",
+		"lucide-react": "^1.7.0",
+		"next": "^16",
+		"next-auth": "^5.0.0-beta.30",
+		"react": "^19",
+		"react-dom": "^19",
+		"tailwind-merge": "^3.5.0",
+		"tailwindcss": "^4"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.0",
+		"@types/bun": "^1.2.0",
+		"@types/node": "^22",
+		"@types/react": "^19",
+		"@types/react-dom": "^19",
+		"typescript": "^5.9"
+	},
+	"trustedDependencies": ["@biomejs/biome"]
+}
