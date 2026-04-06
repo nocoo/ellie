@@ -155,7 +155,7 @@ export async function listThreads(request: Request, env: Env): Promise<Response>
 		result = await env.DB.prepare(
 			`SELECT t.* FROM threads t
 			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE t.author_id = ? AND ${forumFilter}
+			 WHERE t.author_id = ? AND t.sticky >= 0 AND ${forumFilter}
 			 AND (t.created_at < ? OR (t.created_at = ? AND t.id < ?))
 			 ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
 		)
@@ -165,7 +165,7 @@ export async function listThreads(request: Request, env: Env): Promise<Response>
 		result = await env.DB.prepare(
 			`SELECT t.* FROM threads t
 			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE t.author_id = ? AND ${forumFilter}
+			 WHERE t.author_id = ? AND t.sticky >= 0 AND ${forumFilter}
 			 ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
 		)
 			.bind(userId, clampedLimit)
@@ -214,7 +214,7 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 			`SELECT p.* FROM posts p
 			 INNER JOIN threads t ON p.thread_id = t.id
 			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE p.author_id = ? AND ${forumFilter}
+			 WHERE p.author_id = ? AND p.invisible = 0 AND t.sticky >= 0 AND ${forumFilter}
 			 AND (p.created_at < ? OR (p.created_at = ? AND p.id < ?))
 			 ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
 		)
@@ -225,7 +225,7 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 			`SELECT p.* FROM posts p
 			 INNER JOIN threads t ON p.thread_id = t.id
 			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE p.author_id = ? AND ${forumFilter}
+			 WHERE p.author_id = ? AND p.invisible = 0 AND t.sticky >= 0 AND ${forumFilter}
 			 ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
 		)
 			.bind(userId, clampedLimit)
@@ -273,7 +273,7 @@ export async function listDigest(request: Request, env: Env): Promise<Response> 
 		result = await env.DB.prepare(
 			`SELECT t.* FROM threads t
 			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE t.author_id = ? AND t.digest > 0 AND ${forumFilter}
+			 WHERE t.author_id = ? AND t.digest > 0 AND t.sticky >= 0 AND ${forumFilter}
 			 AND (t.created_at < ? OR (t.created_at = ? AND t.id < ?))
 			 ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
 		)
@@ -283,7 +283,7 @@ export async function listDigest(request: Request, env: Env): Promise<Response> 
 		result = await env.DB.prepare(
 			`SELECT t.* FROM threads t
 			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE t.author_id = ? AND t.digest > 0 AND ${forumFilter}
+			 WHERE t.author_id = ? AND t.digest > 0 AND t.sticky >= 0 AND ${forumFilter}
 			 ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
 		)
 			.bind(userId, clampedLimit)

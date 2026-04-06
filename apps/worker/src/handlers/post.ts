@@ -6,7 +6,7 @@ import type { Env } from "../lib/env";
 import { toPost } from "../lib/mappers";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
-import { withAuth } from "../lib/routeHelpers";
+import { withAuthVerified } from "../lib/routeHelpers";
 import { type AuthUser, optionalAuthVerified } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
@@ -69,12 +69,12 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	const user = await optionalAuthVerified(request, env);
 	const visCtx = buildVisibilityContext(user);
 
-	// Get forum info via thread
-	const threadRow = await env.DB.prepare("SELECT forum_id FROM threads WHERE id = ?")
+	// Get forum info via thread, also check thread is visible (sticky >= 0)
+	const threadRow = await env.DB.prepare("SELECT forum_id, sticky FROM threads WHERE id = ?")
 		.bind(threadIdNum)
-		.first<{ forum_id: number }>();
+		.first<{ forum_id: number; sticky: number }>();
 
-	if (!threadRow) {
+	if (!threadRow || threadRow.sticky < 0) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
 
@@ -107,14 +107,15 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	let result: D1Result;
 	if (cursor) {
 		// Position-based pagination: WHERE thread_id = ? AND position > ? ORDER BY position
+		// Only return visible posts (invisible = 0)
 		const stmt = env.DB.prepare(
-			"SELECT * FROM posts WHERE thread_id = ? AND position > ? ORDER BY position LIMIT ?",
+			"SELECT * FROM posts WHERE thread_id = ? AND invisible = 0 AND position > ? ORDER BY position LIMIT ?",
 		);
 		result = await stmt.bind(threadIdNum, cursor.position, clampedLimit).all();
 	} else {
-		// First page
+		// First page - only return visible posts (invisible = 0)
 		const stmt = env.DB.prepare(
-			"SELECT * FROM posts WHERE thread_id = ? ORDER BY position LIMIT ?",
+			"SELECT * FROM posts WHERE thread_id = ? AND invisible = 0 ORDER BY position LIMIT ?",
 		);
 		result = await stmt.bind(threadIdNum, clampedLimit).all();
 	}
@@ -159,7 +160,8 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 	const idStr = pathParts[pathParts.length - 1];
 	const id = Number.parseInt(idStr ?? "0", 10);
 
-	const stmt = env.DB.prepare("SELECT * FROM posts WHERE id = ?");
+	// Only return visible posts (invisible = 0)
+	const stmt = env.DB.prepare("SELECT * FROM posts WHERE id = ? AND invisible = 0");
 	const result = await stmt.bind(id).first();
 
 	if (!result) {
@@ -169,15 +171,15 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 	const postRow = result as Record<string, unknown>;
 	const threadId = postRow.thread_id as number;
 
-	// Check forum visibility before returning post (verified against DB)
+	// Check thread visibility (sticky >= 0) and forum visibility
 	const user = await optionalAuthVerified(request, env);
 	const visCtx = buildVisibilityContext(user);
 
-	const threadRow = await env.DB.prepare("SELECT forum_id FROM threads WHERE id = ?")
+	const threadRow = await env.DB.prepare("SELECT forum_id, sticky FROM threads WHERE id = ?")
 		.bind(threadId)
-		.first<{ forum_id: number }>();
+		.first<{ forum_id: number; sticky: number }>();
 
-	if (!threadRow) {
+	if (!threadRow || threadRow.sticky < 0) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
 
@@ -216,7 +218,7 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 }
 
 /** POST /api/v1/posts - Reply to a thread (requires auth) */
-export const create = withAuth(async (request, env, user) => {
+export const create = withAuthVerified(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	// Check posting permission (banned, muted, registration days, avatar)
