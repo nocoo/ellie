@@ -61,36 +61,7 @@ export const DEFAULT_ONLINE_STATS: OnlineStats = {
 	peakDate: "",
 };
 
-const DEFAULT_FRIEND_LINKS: FriendLink[] = [
-	{ label: "旺旺英语", href: "#" },
-	{ label: "沪江英语论坛", href: "#" },
-	{ label: "蓝色理想", href: "#" },
-	{ label: "苏州大学", href: "#" },
-	{ label: "上大自在居", href: "#" },
-	{ label: "传世私服", href: "#" },
-	{ label: "上海理工", href: "#" },
-	{ label: "松江大学城", href: "#" },
-	{ label: "东北大学论坛", href: "#" },
-	{ label: "IT世界网校园频", href: "#" },
-	{ label: "华工烟亭", href: "#" },
-	{ label: "土木工程网", href: "#" },
-	{ label: "华东理工大学论", href: "#" },
-	{ label: "浙江海洋碧海潮", href: "#" },
-	{ label: "地理中国", href: "#" },
-	{ label: "复旦相辉堂论坛", href: "#" },
-	{ label: "东华大学", href: "#" },
-	{ label: "华东师范大学", href: "#" },
-	{ label: "中央民族大学", href: "#" },
-	{ label: "东北大学研究生", href: "#" },
-	{ label: "传奇私服", href: "#" },
-	{ label: "电力学院论坛", href: "#" },
-	{ label: "中南林业科技大", href: "#" },
-	{ label: "同济大学浙江学", href: "#" },
-	{ label: "新博思考研网", href: "#" },
-	{ label: "西林论坛", href: "#" },
-	{ label: "西北政法大学", href: "#" },
-	{ label: "山东政法学院", href: "#" },
-];
+// No default friend links — must be configured via admin panel
 
 export const FOOTER_QUICK_LINKS: FooterQuickLink[] = [
 	{ label: "广告联系:hi@tongji.net", href: "mailto:hi@tongji.net" },
@@ -117,10 +88,7 @@ export function buildHomeFooterViewModel(
 
 	return {
 		onlineStats,
-		friendLinks:
-			friendLinks.length > 0
-				? friendLinks.map((link) => ({ label: link.label, href: link.url }))
-				: DEFAULT_FRIEND_LINKS,
+		friendLinks: friendLinks.map((link) => ({ label: link.label, href: link.url })),
 	};
 }
 

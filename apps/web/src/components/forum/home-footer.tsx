@@ -1,11 +1,11 @@
 // components/forum/home-footer.tsx — Homepage-only footer section
-// Shows above the global SiteFooter divider. Contains:
+// Shows above the global SiteFooter. Contains:
 // 1. Online member stats (green border bar)
-// 2. Friend links header (logo + description)
-// 3. Friend links grid
+// 2. Friend links section (header + grid) — only shown if links configured
 
 import { ForumLogo } from "@/components/forum/forum-logo";
 import type { HomeFooterViewModel } from "@/viewmodels/forum/footer";
+import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 
 // ---------------------------------------------------------------------------
@@ -34,50 +34,49 @@ function OnlineStatsBar({ vm }: { vm: HomeFooterViewModel }) {
 }
 
 // ---------------------------------------------------------------------------
-// Layer 2: Friend links header
+// Layer 2: Friend links section (header + grid)
 // ---------------------------------------------------------------------------
 
-function FriendLinksHeader() {
+function FriendLinksSection({ vm }: { vm: HomeFooterViewModel }) {
+	if (vm.friendLinks.length === 0) {
+		return null;
+	}
+
 	return (
-		<div className="flex items-start gap-3 rounded-sm border border-border bg-card px-4 py-3">
-			{/* Logo */}
-			<ForumLogo height={31} />
-			{/* Text */}
-			<div>
-				<p className="text-sm font-bold text-foreground">
-					同济大学-同济网-Tongji.Net-欢迎交换友情链接
-				</p>
-				<p className="mt-0.5 text-xs text-muted-foreground">
-					欢迎与我们交换链接，请在加上同济网论坛链接后发信给我们，链接文字： 同济大学同济网论坛
-				</p>
+		<div className="rounded-sm border border-border bg-card overflow-hidden">
+			{/* Header */}
+			<div className="flex items-center gap-3 border-b border-border bg-gradient-to-r from-forum-header-from to-forum-header-to px-4 py-3">
+				<ForumLogo height={28} />
+				<div className="flex-1 min-w-0">
+					<h3 className="text-sm font-bold text-foreground truncate">
+						友情链接
+					</h3>
+					<p className="text-xs text-muted-foreground truncate">
+						欢迎交换链接，请联系 hi@tongji.net
+					</p>
+				</div>
+				<ExternalLink className="h-4 w-4 text-muted-foreground/50 flex-shrink-0" />
 			</div>
-		</div>
-	);
-}
 
-// ---------------------------------------------------------------------------
-// Layer 3: Friend links grid
-// ---------------------------------------------------------------------------
-
-function FriendLinksGrid({ vm }: { vm: HomeFooterViewModel }) {
-	return (
-		<div className="rounded-sm border border-border bg-card px-4 py-3">
-			<div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
-				{vm.friendLinks.map((link) => (
-					<Link
-						key={link.label}
-						href={link.href}
-						className="text-muted-foreground hover:text-primary transition-colors whitespace-nowrap"
-					>
-						{link.label}
-					</Link>
-				))}
-				<Link
-					href="#"
-					className="text-muted-foreground hover:text-primary transition-colors whitespace-nowrap"
-				>
-					[更多友情链接]
-				</Link>
+			{/* Links grid */}
+			<div className="px-4 py-3">
+				<div className="flex flex-wrap gap-x-1.5 gap-y-1 text-sm">
+					{vm.friendLinks.map((link, idx) => (
+						<span key={link.label} className="inline-flex items-center">
+							<Link
+								href={link.href}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="text-muted-foreground hover:text-primary transition-colors"
+							>
+								{link.label}
+							</Link>
+							{idx < vm.friendLinks.length - 1 && (
+								<span className="text-border mx-1.5">|</span>
+							)}
+						</span>
+					))}
+				</div>
 			</div>
 		</div>
 	);
@@ -91,8 +90,7 @@ export function HomeFooter({ vm }: HomeFooterProps) {
 	return (
 		<section className="space-y-3">
 			<OnlineStatsBar vm={vm} />
-			<FriendLinksHeader />
-			<FriendLinksGrid vm={vm} />
+			<FriendLinksSection vm={vm} />
 		</section>
 	);
 }
