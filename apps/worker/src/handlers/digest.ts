@@ -1,7 +1,43 @@
 // Digest (featured threads) handlers for Cloudflare Worker
+import { UserRole, canViewForumVisibility } from "@ellie/types";
+import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { toThread } from "../lib/mappers";
+import { type AuthUser, optionalAuthVerified } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
+
+/** Build visibility context from optional user */
+function buildVisibilityContext(user: AuthUser | null): VisibilityContext {
+	return {
+		isLoggedIn: user !== null,
+		role: user?.role ?? UserRole.User,
+	};
+}
+
+/**
+ * Build SQL WHERE clause for forum visibility filtering.
+ * Only includes forums that are visible to the current user based on their role.
+ */
+function buildForumVisibilityFilter(visCtx: VisibilityContext): string {
+	// Visibility filter based on user context
+	const visibilityConditions: string[] = ["f.visibility = 'public'"];
+
+	if (visCtx.isLoggedIn) {
+		visibilityConditions.push("f.visibility = 'members'");
+	}
+	if (
+		visCtx.role === UserRole.Mod ||
+		visCtx.role === UserRole.SuperMod ||
+		visCtx.role === UserRole.Admin
+	) {
+		visibilityConditions.push("f.visibility = 'staff'");
+	}
+	if (visCtx.role === UserRole.Admin) {
+		visibilityConditions.push("f.visibility = 'admin'");
+	}
+
+	return `(${visibilityConditions.join(" OR ")})`;
+}
 
 /** Digest cursor payload for keyset pagination */
 interface DigestCursorPayload {
@@ -55,22 +91,23 @@ function clampLimit(limitParam: string | null): number {
 	return n === undefined || n <= 0 ? DEFAULT_LIMIT : Math.min(n, MAX_LIMIT);
 }
 
-/** Build WHERE clause conditions for digest query */
+/** Build WHERE clause conditions for digest query (thread conditions only) */
 function buildDigestConditions(params: {
 	forumId: number | null;
 	level: number | null;
 	year: number | null;
 }): { conditions: string[]; bindings: (string | number)[] } {
-	const conditions: string[] = ["digest > 0"];
+	// Only include visible threads (sticky >= 0), exclude hidden/deleted/placeholder
+	const conditions: string[] = ["t.digest > 0", "t.sticky >= 0"];
 	const bindings: (string | number)[] = [];
 
 	if (params.forumId && !Number.isNaN(params.forumId)) {
-		conditions.push("forum_id = ?");
+		conditions.push("t.forum_id = ?");
 		bindings.push(params.forumId);
 	}
 
 	if (params.level && params.level >= 1 && params.level <= 3) {
-		conditions.push("digest = ?");
+		conditions.push("t.digest = ?");
 		bindings.push(params.level);
 	}
 
@@ -78,7 +115,7 @@ function buildDigestConditions(params: {
 		// Filter by year based on created_at timestamp
 		const startOfYear = Math.floor(new Date(`${params.year}-01-01T00:00:00Z`).getTime() / 1000);
 		const endOfYear = Math.floor(new Date(`${params.year + 1}-01-01T00:00:00Z`).getTime() / 1000);
-		conditions.push("created_at >= ? AND created_at < ?");
+		conditions.push("t.created_at >= ? AND t.created_at < ?");
 		bindings.push(startOfYear, endOfYear);
 	}
 
@@ -89,6 +126,11 @@ function buildDigestConditions(params: {
 export async function list(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
+
+	// Get user auth for visibility filtering (verified against DB)
+	const user = await optionalAuthVerified(request, env);
+	const visCtx = buildVisibilityContext(user);
+	const forumFilter = buildForumVisibilityFilter(visCtx);
 
 	const clampedLimit = clampLimit(url.searchParams.get("limit"));
 	const cursorStr = url.searchParams.get("cursor");
@@ -106,12 +148,15 @@ export async function list(request: Request, env: Env): Promise<Response> {
 
 	const { conditions, bindings } = buildDigestConditions({ forumId, level, year });
 
+	// Add forum visibility filter (status = 1 for active, and visibility check)
+	const fullConditions = [...conditions, "f.status = 1", forumFilter];
+
 	let result: D1Result;
 	if (cursor) {
 		// Keyset pagination: ORDER BY digest DESC, last_post_at DESC, id DESC
 		const cursorCondition =
-			"(digest < ? OR (digest = ? AND (last_post_at < ? OR (last_post_at = ? AND id < ?))))";
-		const whereClause = [...conditions, cursorCondition].join(" AND ");
+			"(t.digest < ? OR (t.digest = ? AND (t.last_post_at < ? OR (t.last_post_at = ? AND t.id < ?))))";
+		const whereClause = [...fullConditions, cursorCondition].join(" AND ");
 		const cursorBindings = [
 			cursor.digest,
 			cursor.digest,
@@ -121,17 +166,21 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		];
 
 		result = await env.DB.prepare(
-			`SELECT * FROM threads WHERE ${whereClause}
-			 ORDER BY digest DESC, last_post_at DESC, id DESC LIMIT ?`,
+			`SELECT t.* FROM threads t
+			 INNER JOIN forums f ON t.forum_id = f.id
+			 WHERE ${whereClause}
+			 ORDER BY t.digest DESC, t.last_post_at DESC, t.id DESC LIMIT ?`,
 		)
 			.bind(...bindings, ...cursorBindings, clampedLimit)
 			.all();
 	} else {
 		// First page
-		const whereClause = conditions.join(" AND ");
+		const whereClause = fullConditions.join(" AND ");
 		result = await env.DB.prepare(
-			`SELECT * FROM threads WHERE ${whereClause}
-			 ORDER BY digest DESC, last_post_at DESC, id DESC LIMIT ?`,
+			`SELECT t.* FROM threads t
+			 INNER JOIN forums f ON t.forum_id = f.id
+			 WHERE ${whereClause}
+			 ORDER BY t.digest DESC, t.last_post_at DESC, t.id DESC LIMIT ?`,
 		)
 			.bind(...bindings, clampedLimit)
 			.all();
@@ -165,13 +214,21 @@ export async function list(request: Request, env: Env): Promise<Response> {
 export async function stats(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 
+	// Get user auth for visibility filtering (verified against DB)
+	const user = await optionalAuthVerified(request, env);
+	const visCtx = buildVisibilityContext(user);
+	const forumFilter = buildForumVisibilityFilter(visCtx);
+
+	// Only count visible threads (sticky >= 0) from visible forums (status = 1)
 	const result = await env.DB.prepare(
 		`SELECT
 			COUNT(*) as total,
-			SUM(CASE WHEN digest = 1 THEN 1 ELSE 0 END) as level1,
-			SUM(CASE WHEN digest = 2 THEN 1 ELSE 0 END) as level2,
-			SUM(CASE WHEN digest = 3 THEN 1 ELSE 0 END) as level3
-		 FROM threads WHERE digest > 0`,
+			SUM(CASE WHEN t.digest = 1 THEN 1 ELSE 0 END) as level1,
+			SUM(CASE WHEN t.digest = 2 THEN 1 ELSE 0 END) as level2,
+			SUM(CASE WHEN t.digest = 3 THEN 1 ELSE 0 END) as level3
+		 FROM threads t
+		 INNER JOIN forums f ON t.forum_id = f.id
+		 WHERE t.digest > 0 AND t.sticky >= 0 AND f.status = 1 AND ${forumFilter}`,
 	).first<{ total: number; level1: number; level2: number; level3: number }>();
 
 	return new Response(
@@ -192,21 +249,30 @@ export async function stats(request: Request, env: Env): Promise<Response> {
 export async function filters(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 
-	// Get distinct years from digest threads
+	// Get user auth for visibility filtering (verified against DB)
+	const user = await optionalAuthVerified(request, env);
+	const visCtx = buildVisibilityContext(user);
+	const forumFilter = buildForumVisibilityFilter(visCtx);
+
+	// Get distinct years from visible digest threads in visible forums
 	const yearsResult = await env.DB.prepare(
-		`SELECT DISTINCT strftime('%Y', created_at, 'unixepoch') as year
-		 FROM threads WHERE digest > 0
+		`SELECT DISTINCT strftime('%Y', t.created_at, 'unixepoch') as year
+		 FROM threads t
+		 INNER JOIN forums f ON t.forum_id = f.id
+		 WHERE t.digest > 0 AND t.sticky >= 0 AND f.status = 1 AND ${forumFilter}
 		 ORDER BY year DESC`,
 	).all<{ year: string }>();
 
-	const years = yearsResult.results.map((r) => Number.parseInt(r.year, 10)).filter((y) => !Number.isNaN(y));
+	const years = yearsResult.results
+		.map((r) => Number.parseInt(r.year, 10))
+		.filter((y) => !Number.isNaN(y));
 
-	// Get forums that have digest threads (with count)
+	// Get forums that have visible digest threads (with count)
 	const forumsResult = await env.DB.prepare(
 		`SELECT f.id, f.name, COUNT(t.id) as digest_count
 		 FROM threads t
-		 JOIN forums f ON t.forum_id = f.id
-		 WHERE t.digest > 0
+		 INNER JOIN forums f ON t.forum_id = f.id
+		 WHERE t.digest > 0 AND t.sticky >= 0 AND f.status = 1 AND ${forumFilter}
 		 GROUP BY f.id, f.name
 		 ORDER BY f.name`,
 	).all<{ id: number; name: string; digest_count: number }>();

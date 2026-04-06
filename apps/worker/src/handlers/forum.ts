@@ -1,9 +1,4 @@
-import {
-	type Forum,
-	type ModeratorInfo,
-	UserRole,
-	canViewForumVisibility,
-} from "@ellie/types";
+import { type Forum, type ModeratorInfo, UserRole, canViewForumVisibility } from "@ellie/types";
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
 import {
@@ -86,8 +81,9 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 
 	const [forumResult, countResult] = await Promise.all([
 		env.DB.prepare(forumQuery).all(),
+		// Only count visible threads (sticky >= 0) for today's count
 		env.DB.prepare(
-			"SELECT forum_id, COUNT(*) AS cnt FROM threads WHERE created_at >= ? GROUP BY forum_id",
+			"SELECT forum_id, COUNT(*) AS cnt FROM threads WHERE created_at >= ? AND sticky >= 0 GROUP BY forum_id",
 		)
 			.bind(cutoff24h)
 			.all<{ forum_id: number; cnt: number }>(),
@@ -205,7 +201,12 @@ export async function getById(
 		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
 	}
 	if (!canViewForumVisibility(forum.visibility as ForumVisibility, visCtx)) {
-		return errorResponse("FORBIDDEN", 403, { message: "You don't have access to this forum" }, origin);
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "You don't have access to this forum" },
+			origin,
+		);
 	}
 
 	// If JOIN approach, populate avatar directly from query result
