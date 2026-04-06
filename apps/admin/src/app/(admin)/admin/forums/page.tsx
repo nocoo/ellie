@@ -5,16 +5,6 @@ import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { ForumCreateDialog } from "@/components/admin/forum-create-dialog";
 import { ForumEditDialog } from "@/components/admin/forum-edit-dialog";
 import { ForumMergeDialog } from "@/components/admin/forum-merge-dialog";
-import { Badge } from "@ellie/ui";
-import { Button } from "@ellie/ui";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "@ellie/ui";
-import { cn } from "@ellie/ui/utils";
 import {
 	type Forum,
 	type ForumCreate,
@@ -30,6 +20,16 @@ import {
 	typeLabel,
 	updateForum,
 } from "@/viewmodels/admin/forums";
+import { Badge } from "@ellie/ui";
+import { Button } from "@ellie/ui";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@ellie/ui";
+import { cn } from "@ellie/ui/utils";
 import {
 	ChevronRight,
 	FolderOpen,

@@ -1,5 +1,7 @@
 "use client";
 
+import type { Forum } from "@/viewmodels/admin/forums";
+import { typeLabel } from "@/viewmodels/admin/forums";
 import { Button } from "@ellie/ui";
 import {
 	Dialog,
@@ -11,8 +13,6 @@ import {
 } from "@ellie/ui";
 import { Input } from "@ellie/ui";
 import { Label } from "@ellie/ui";
-import type { Forum } from "@/viewmodels/admin/forums";
-import { typeLabel } from "@/viewmodels/admin/forums";
 import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------

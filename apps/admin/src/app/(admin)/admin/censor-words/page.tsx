@@ -6,14 +6,6 @@ import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-ta
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { CensorWordCreateDialog } from "@/components/admin/censor-word-create-dialog";
-import { Badge } from "@ellie/ui";
-import { Button } from "@ellie/ui";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@ellie/ui";
 import {
 	type CensorWord,
 	type CensorWordCreate,
@@ -25,6 +17,14 @@ import {
 	replacementDisplay,
 	updateCensorWord,
 } from "@/viewmodels/admin/censor-words";
+import { Badge } from "@ellie/ui";
+import { Button } from "@ellie/ui";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@ellie/ui";
 import { MoreHorizontal, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 

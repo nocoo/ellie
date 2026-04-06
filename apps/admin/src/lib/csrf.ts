@@ -13,11 +13,9 @@
  * Includes production site and localhost development.
  */
 export function getAllowedOrigins(): string[] {
-	return [
-		process.env.AUTH_URL,
-		"http://localhost:7032",
-		"http://localhost:3000",
-	].filter(Boolean) as string[];
+	return [process.env.AUTH_URL, "http://localhost:7032", "http://localhost:3000"].filter(
+		Boolean,
+	) as string[];
 }
 
 /**

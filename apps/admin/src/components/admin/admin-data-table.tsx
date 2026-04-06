@@ -1,14 +1,7 @@
 "use client";
 
 import { Checkbox } from "@ellie/ui";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@ellie/ui";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@ellie/ui";
 import { useCallback, useMemo } from "react";
 
 // ---------------------------------------------------------------------------

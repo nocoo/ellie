@@ -6,14 +6,6 @@ import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-ta
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { ThreadEditDialog } from "@/components/admin/thread-edit-dialog";
-import { Badge } from "@ellie/ui";
-import { Button } from "@ellie/ui";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@ellie/ui";
 import {
 	type Thread,
 	type ThreadUpdate,
@@ -24,6 +16,14 @@ import {
 	updateThread,
 } from "@/viewmodels/admin/threads";
 import { formatNumber } from "@ellie/shared";
+import { Badge } from "@ellie/ui";
+import { Button } from "@ellie/ui";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@ellie/ui";
 import { MoreHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";

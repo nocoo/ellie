@@ -1,7 +1,7 @@
 "use client";
 
-import { Button } from "@ellie/ui";
 import { formatNumber } from "@ellie/shared";
+import { Button } from "@ellie/ui";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 
 // ---------------------------------------------------------------------------

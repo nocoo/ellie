@@ -1,16 +1,10 @@
 "use client";
 
+import type { Forum, ForumType, ForumUpdate } from "@/viewmodels/admin/forums";
 import { Button } from "@ellie/ui";
-import {
-	Dialog,
-	DialogContent,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@ellie/ui";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@ellie/ui";
 import { Input } from "@ellie/ui";
 import { Label } from "@ellie/ui";
-import type { Forum, ForumType, ForumUpdate } from "@/viewmodels/admin/forums";
 import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------
