@@ -1,4 +1,9 @@
-import { type Forum, type ModeratorInfo, UserRole, canViewForum } from "@ellie/types";
+import {
+	type Forum,
+	type ModeratorInfo,
+	UserRole,
+	canViewForumVisibility,
+} from "@ellie/types";
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
 import {
@@ -140,7 +145,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		// Status filter
 		if (f.status <= 0 || f.status === 2 || f.status === 3) return false;
 		// Visibility filter
-		return canViewForum(f.visibility as ForumVisibility, visCtx);
+		return canViewForumVisibility(f.visibility as ForumVisibility, visCtx);
 	});
 
 	return new Response(
@@ -199,7 +204,7 @@ export async function getById(
 	if (forum.status <= 0 || forum.status === 2 || forum.status === 3) {
 		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
 	}
-	if (!canViewForum(forum.visibility as ForumVisibility, visCtx)) {
+	if (!canViewForumVisibility(forum.visibility as ForumVisibility, visCtx)) {
 		return errorResponse("FORBIDDEN", 403, { message: "You don't have access to this forum" }, origin);
 	}
 

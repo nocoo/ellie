@@ -1,15 +1,20 @@
-import { getWorkerJwt } from "@/lib/forum-auth";
+import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { ForumApiError, forumApi } from "@/lib/forum-api";
+import { getWorkerJwt } from "@/lib/forum-auth";
 import { NextResponse } from "next/server";
 
 /**
  * POST /api/v1/moderation/users/:id/mute
  * Mute a user (Admin/SuperMod only)
  */
-export async function POST(
-	_request: Request,
-	{ params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+	if (isMutatingMethod(request.method) && !validateOrigin(request)) {
+		return NextResponse.json(
+			{ error: { code: "CSRF_REJECTED", message: "Origin not allowed" } },
+			{ status: 403 },
+		);
+	}
+
 	const { id } = await params;
 	const jwt = await getWorkerJwt();
 	if (!jwt) {

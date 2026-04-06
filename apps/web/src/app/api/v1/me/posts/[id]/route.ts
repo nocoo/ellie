@@ -1,15 +1,26 @@
-import { getWorkerJwt } from "@/lib/forum-auth";
+import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { ForumApiError, forumApi } from "@/lib/forum-api";
+import { getWorkerJwt } from "@/lib/forum-auth";
 import { NextResponse } from "next/server";
+
+function csrfCheck(request: Request) {
+	if (isMutatingMethod(request.method) && !validateOrigin(request)) {
+		return NextResponse.json(
+			{ error: { code: "CSRF_REJECTED", message: "Origin not allowed" } },
+			{ status: 403 },
+		);
+	}
+	return null;
+}
 
 /**
  * DELETE /api/v1/me/posts/:id
  * Delete own post (author only)
  */
-export async function DELETE(
-	_request: Request,
-	{ params }: { params: Promise<{ id: string }> },
-) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+	const csrfError = csrfCheck(request);
+	if (csrfError) return csrfError;
+
 	const { id } = await params;
 	const jwt = await getWorkerJwt();
 	if (!jwt) {
@@ -31,10 +42,10 @@ export async function DELETE(
  * PATCH /api/v1/me/posts/:id
  * Edit own post (author only)
  */
-export async function PATCH(
-	request: Request,
-	{ params }: { params: Promise<{ id: string }> },
-) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+	const csrfError = csrfCheck(request);
+	if (csrfError) return csrfError;
+
 	const { id } = await params;
 	const jwt = await getWorkerJwt();
 	if (!jwt) {
