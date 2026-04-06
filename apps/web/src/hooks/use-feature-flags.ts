@@ -3,8 +3,16 @@
 // useFeatureFlags — access feature flags from settings API
 // Used by components to check posting permissions and maintenance mode
 
-import { FEATURE_DEFAULTS } from "@/viewmodels/admin/features";
 import { useEffect, useState } from "react";
+
+// Feature defaults for forum (subset of all feature flags)
+const FEATURE_DEFAULTS: Record<string, string> = {
+	"features.content.allow_new_thread": "true",
+	"features.content.allow_reply": "true",
+	"features.access.maintenance_mode": "false",
+	"features.access.maintenance_message": "系统正在维护中，请稍后再试",
+	"features.access.require_login": "false",
+};
 
 interface FeatureFlags {
 	canCreateThread: boolean;

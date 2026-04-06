@@ -17,8 +17,6 @@ interface ThreadPostsClientProps {
 	/** Can delete thread (SuperMod/Admin or author) */
 	canDeleteThread: boolean;
 	currentUserId: number | null;
-	/** Current viewer's role for popover permission checks */
-	currentUserRole?: number;
 	/** Previous page URL for pagination */
 	prevHref?: string | null;
 	/** Next page URL for pagination */
@@ -33,7 +31,6 @@ export function ThreadPostsClient({
 	canMoveThread,
 	canDeleteThread,
 	currentUserId,
-	currentUserRole = 0,
 	prevHref,
 	nextHref,
 }: ThreadPostsClientProps) {
@@ -83,7 +80,6 @@ export function ThreadPostsClient({
 						canMoveThread={canMoveThread}
 						canDeleteThread={canDeleteThread}
 						currentUserId={currentUserId}
-						currentUserRole={currentUserRole}
 						isFirstPost={isFirst}
 						threadId={thread.id}
 						forumId={thread.forumId}
