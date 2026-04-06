@@ -1,19 +1,5 @@
-import { beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
-import {
-	executePostDelete,
-	executePostEdit,
-	getDeleteStrategy,
-} from "../../../../apps/web/src/viewmodels/forum/use-post-actions";
-
-// Mock the moderation API
-const mockDeleteMyPost = mock(() => Promise.resolve());
-const mockDeletePost = mock(() => Promise.resolve());
-const mockEditMyPost = mock(() => Promise.resolve());
-const mockEditPost = mock(() => Promise.resolve());
-
-// We need to mock at the module level for proper isolation
-// Note: In a real scenario, you might use dependency injection or
-// a more sophisticated mocking approach
+import { describe, expect, it } from "bun:test";
+import { getDeleteStrategy } from "../../../../apps/web/src/viewmodels/forum/use-post-actions";
 
 describe("use-post-actions pure functions", () => {
 	// -------------------------------------------------------------------------
