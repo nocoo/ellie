@@ -247,6 +247,47 @@ interface D1AttachmentRow {
 	created_at: number;
 }
 
+/**
+ * Sanitize attachment file path to prevent malicious URLs.
+ * Only allows relative paths or paths from trusted CDN.
+ * Returns empty string for dangerous/external URLs.
+ */
+function sanitizeFilePath(filePath: string): string {
+	if (!filePath || !filePath.trim()) {
+		return "";
+	}
+
+	const lowerPath = filePath.toLowerCase().trim();
+
+	// Reject dangerous protocols
+	if (
+		lowerPath.startsWith("javascript:") ||
+		lowerPath.startsWith("data:") ||
+		lowerPath.startsWith("vbscript:") ||
+		lowerPath.startsWith("file:")
+	) {
+		return "";
+	}
+
+	// Reject external URLs (http/https that aren't from our CDN)
+	if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
+		try {
+			const url = new URL(filePath);
+			// Only allow URLs from trusted CDN host
+			if (url.host === "t.no.mt") {
+				// Return just the path portion for consistency
+				return url.pathname;
+			}
+		} catch {
+			// Invalid URL
+		}
+		return "";
+	}
+
+	// Sanitize relative path: remove directory traversal attempts
+	return filePath.replace(/\.\.\//g, "").replace(/^\/+/, "/");
+}
+
 /** Maps a D1 attachment row to the frontend Attachment type. Converts booleans. */
 export function toAttachment(row: Record<string, unknown>): Attachment {
 	const r = row as unknown as D1AttachmentRow;
@@ -256,7 +297,7 @@ export function toAttachment(row: Record<string, unknown>): Attachment {
 		postId: r.post_id,
 		authorId: r.author_id,
 		filename: r.filename,
-		filePath: r.file_path,
+		filePath: sanitizeFilePath(r.file_path),
 		fileSize: r.file_size,
 		isImage: r.is_image === 1,
 		width: r.width,
