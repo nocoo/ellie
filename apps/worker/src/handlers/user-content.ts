@@ -12,14 +12,14 @@ import {
 	decrementUserPosts,
 	decrementUserThreads,
 } from "../lib/userCounters";
-import { authMiddleware } from "../middleware/auth";
+import { authMiddlewareVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 
 // ─── DELETE /api/v1/me/posts/:id ─────────────────────────────────
 
 export async function deleteMyPost(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
-	const authResult = await authMiddleware(request, env);
+	const authResult = await authMiddlewareVerified(request, env);
 	if (authResult instanceof Response) return authResult;
 
 	const { user } = authResult;
@@ -84,7 +84,7 @@ export async function deleteMyPost(request: Request, env: Env): Promise<Response
 
 export async function deleteMyThread(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
-	const authResult = await authMiddleware(request, env);
+	const authResult = await authMiddlewareVerified(request, env);
 	if (authResult instanceof Response) return authResult;
 
 	const { user } = authResult;
@@ -150,7 +150,7 @@ export async function deleteMyThread(request: Request, env: Env): Promise<Respon
 
 export async function editMyPost(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
-	const authResult = await authMiddleware(request, env);
+	const authResult = await authMiddlewareVerified(request, env);
 	if (authResult instanceof Response) return authResult;
 
 	const { user } = authResult;

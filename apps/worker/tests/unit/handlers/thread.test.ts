@@ -628,8 +628,13 @@ describe("thread handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT id FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
-					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
+					"SELECT status, avatar, reg_date, role FROM users": {
+						status: 0,
+						avatar: "",
+						reg_date: 0,
+						role: 0,
+					},
 				},
 				allResults: {
 					"SELECT key, value FROM settings WHERE key LIKE": [],
@@ -654,8 +659,13 @@ describe("thread handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT id FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
-					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
+					"SELECT status, avatar, reg_date, role FROM users": {
+						status: 0,
+						avatar: "",
+						reg_date: 0,
+						role: 0,
+					},
 				},
 				allResults: {
 					"SELECT key, value FROM settings WHERE key LIKE": [],
@@ -680,8 +690,13 @@ describe("thread handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT id FROM forums WHERE id": null,
-					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+					"FROM forums WHERE id": null,
+					"SELECT status, avatar, reg_date, role FROM users": {
+						status: 0,
+						avatar: "",
+						reg_date: 0,
+						role: 0,
+					},
 				},
 				allResults: {
 					"SELECT key, value FROM settings WHERE key LIKE": [],
@@ -707,8 +722,13 @@ describe("thread handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT id FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
-					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
+					"SELECT status, avatar, reg_date, role FROM users": {
+						status: 0,
+						avatar: "",
+						reg_date: 0,
+						role: 0,
+					},
 				},
 				allResults: {
 					"SELECT key, value FROM settings WHERE key LIKE": [],
@@ -738,9 +758,14 @@ describe("thread handlers", () => {
 			const createdThread = makeD1ThreadRow({ id: 100, forum_id: 1 });
 			const { db, batchCalls } = createMockDb({
 				firstResults: {
-					"SELECT id FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
+					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
 					"SELECT * FROM threads WHERE id": createdThread,
-					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+					"SELECT status, avatar, reg_date, role FROM users": {
+						status: 0,
+						avatar: "",
+						reg_date: 0,
+						role: 0,
+					},
 					"SELECT username FROM users": { username: "testuser" },
 				},
 				allResults: {
@@ -780,9 +805,14 @@ describe("thread handlers", () => {
 			const createdThread = makeD1ThreadRow({ id: 100 });
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT id FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
+					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
 					"SELECT * FROM threads WHERE id": createdThread,
-					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+					"SELECT status, avatar, reg_date, role FROM users": {
+						status: 0,
+						avatar: "",
+						reg_date: 0,
+						role: 0,
+					},
 					"SELECT username FROM users": { username: "testuser" },
 				},
 				allResults: {
@@ -815,8 +845,13 @@ describe("thread handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT id FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
-					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
+					"SELECT status, avatar, reg_date, role FROM users": {
+						status: 0,
+						avatar: "",
+						reg_date: 0,
+						role: 0,
+					},
 				},
 				allResults: {
 					"SELECT key, value FROM settings WHERE key LIKE": [],
@@ -841,8 +876,13 @@ describe("thread handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT id FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
-					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
+					"SELECT status, avatar, reg_date, role FROM users": {
+						status: 0,
+						avatar: "",
+						reg_date: 0,
+						role: 0,
+					},
 				},
 				allResults: {
 					"SELECT key, value FROM settings WHERE key LIKE": [],
@@ -867,8 +907,13 @@ describe("thread handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT id FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
-					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
+					"SELECT status, avatar, reg_date, role FROM users": {
+						status: 0,
+						avatar: "",
+						reg_date: 0,
+						role: 0,
+					},
 				},
 				allResults: {
 					"SELECT key, value FROM settings WHERE key LIKE": [],

@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { create, getById, list } from "../../../src/handlers/post";
 import type { Env } from "../../../src/lib/env";
 import {
@@ -40,36 +40,52 @@ describe("post handlers", () => {
 		});
 
 		it("should clamp limit to [1, 100]", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({
-				all: allSpy,
-			}));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT forum_id FROM threads WHERE id": { forum_id: 1 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				},
+				allResults: {
+					"SELECT * FROM posts WHERE thread_id": [],
+				},
+			});
 			const env = { ...mockEnv, DB: db };
 
 			// Test limit > 100
 			await list(new Request("https://example.com/api/v1/posts?threadId=1&limit=200"), env);
-			expect(bindSpy).toHaveBeenLastCalledWith(expect.any(Number), 100);
+			const call200 = calls.find(
+				(c) => c.sql.includes("SELECT * FROM posts") && c.params.includes(100),
+			);
+			expect(call200).toBeDefined();
 
 			// Test limit within range
+			calls.length = 0;
 			await list(new Request("https://example.com/api/v1/posts?threadId=1&limit=100"), env);
-			expect(bindSpy).toHaveBeenLastCalledWith(expect.any(Number), 100);
+			const call100 = calls.find(
+				(c) => c.sql.includes("SELECT * FROM posts") && c.params.includes(100),
+			);
+			expect(call100).toBeDefined();
 
-			// Test limit < 1
+			// Test limit < 1 (defaults to 100)
+			calls.length = 0;
 			await list(new Request("https://example.com/api/v1/posts?threadId=1&limit=0"), env);
-			expect(bindSpy).toHaveBeenLastCalledWith(expect.any(Number), 100); // default
+			const call0 = calls.find(
+				(c) => c.sql.includes("SELECT * FROM posts") && c.params.includes(100),
+			);
+			expect(call0).toBeDefined();
 		});
 
 		it("should map D1 snake_case rows to camelCase Post objects", async () => {
 			const d1Row = makeD1PostRow({ thread_id: 10, forum_id: 5, author_id: 100 });
-			const allSpy = mock(() => Promise.resolve({ results: [d1Row] }));
-			const bindSpy = mock((..._args: unknown[]) => ({
-				all: allSpy,
-			}));
-			const db = {
-				prepare: mock(() => ({ bind: bindSpy })),
-			} as unknown as D1Database;
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT forum_id FROM threads WHERE id": { forum_id: 5 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				},
+				allResults: {
+					"SELECT * FROM posts WHERE thread_id": [d1Row],
+				},
+			});
 			const env = { ...mockEnv, DB: db };
 
 			const response = await list(new Request("https://example.com/api/v1/posts?threadId=10"), env);
@@ -92,13 +108,15 @@ describe("post handlers", () => {
 
 		it("should convert is_first 0 to false", async () => {
 			const d1Row = makeD1PostRow({ is_first: 0 });
-			const allSpy = mock(() => Promise.resolve({ results: [d1Row] }));
-			const bindSpy = mock((..._args: unknown[]) => ({
-				all: allSpy,
-			}));
-			const db = {
-				prepare: mock(() => ({ bind: bindSpy })),
-			} as unknown as D1Database;
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT forum_id FROM threads WHERE id": { forum_id: 1 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				},
+				allResults: {
+					"SELECT * FROM posts WHERE thread_id": [d1Row],
+				},
+			});
 			const env = { ...mockEnv, DB: db };
 
 			const response = await list(new Request("https://example.com/api/v1/posts?threadId=10"), env);
@@ -109,28 +127,37 @@ describe("post handlers", () => {
 
 		it("should query posts without cursor on first page", async () => {
 			const d1Row = makeD1PostRow();
-			const allSpy = mock(() => Promise.resolve({ results: [d1Row] }));
-			const bindSpy = mock((..._args: unknown[]) => ({
-				all: allSpy,
-			}));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT forum_id FROM threads WHERE id": { forum_id: 1 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				},
+				allResults: {
+					"SELECT * FROM posts WHERE thread_id": [d1Row],
+				},
+			});
 			const env = { ...mockEnv, DB: db };
 
 			await list(new Request("https://example.com/api/v1/posts?threadId=1"), env);
 
-			expect(prepareSpy).toHaveBeenCalledWith(expect.stringContaining("ORDER BY position"));
-			expect(bindSpy).toHaveBeenCalledWith(1, 100);
+			const postsCall = calls.find(
+				(c) => c.sql.includes("SELECT * FROM posts") && c.sql.includes("ORDER BY position"),
+			);
+			expect(postsCall).toBeDefined();
+			expect(postsCall?.params).toEqual([1, 100]);
 		});
 
 		it("should decode and use cursor for pagination", async () => {
 			const cursor = btoa(JSON.stringify({ position: 100 }));
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({
-				all: allSpy,
-			}));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT forum_id FROM threads WHERE id": { forum_id: 1 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				},
+				allResults: {
+					"SELECT * FROM posts WHERE thread_id": [],
+				},
+			});
 			const env = { ...mockEnv, DB: db };
 
 			await list(
@@ -140,11 +167,11 @@ describe("post handlers", () => {
 				env,
 			);
 
-			expect(bindSpy).toHaveBeenCalledWith(
-				1, // threadId
-				100, // position
-				100, // limit
+			const postsCall = calls.find(
+				(c) => c.sql.includes("SELECT * FROM posts") && c.sql.includes("position >"),
 			);
+			expect(postsCall).toBeDefined();
+			expect(postsCall?.params).toEqual([1, 100, 100]); // threadId, position, limit
 		});
 
 		it("should generate valid next cursor that roundtrips correctly", async () => {
@@ -152,13 +179,15 @@ describe("post handlers", () => {
 				makeD1PostRow({ id: i + 1, position: i + 1 }),
 			);
 
-			const allSpy = mock(() => Promise.resolve({ results: posts }));
-			const bindSpy = mock((..._args: unknown[]) => ({
-				all: allSpy,
-			}));
-			const db = {
-				prepare: mock(() => ({ bind: bindSpy })),
-			} as unknown as D1Database;
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT forum_id FROM threads WHERE id": { forum_id: 1 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				},
+				allResults: {
+					"SELECT * FROM posts WHERE thread_id": posts,
+				},
+			});
 			const env = { ...mockEnv, DB: db };
 
 			const response = await list(
@@ -176,13 +205,15 @@ describe("post handlers", () => {
 
 		it("should not generate next cursor when results are less than limit", async () => {
 			const d1Row = makeD1PostRow();
-			const allSpy = mock(() => Promise.resolve({ results: [d1Row] }));
-			const bindSpy = mock((..._args: unknown[]) => ({
-				all: allSpy,
-			}));
-			const db = {
-				prepare: mock(() => ({ bind: bindSpy })),
-			} as unknown as D1Database;
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT forum_id FROM threads WHERE id": { forum_id: 1 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				},
+				allResults: {
+					"SELECT * FROM posts WHERE thread_id": [d1Row],
+				},
+			});
 			const env = { ...mockEnv, DB: db };
 
 			const response = await list(
@@ -196,12 +227,15 @@ describe("post handlers", () => {
 
 		it("should handle invalid cursor gracefully", async () => {
 			const invalidCursor = btoa(JSON.stringify({ wrong: "structure" }));
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({
-				all: allSpy,
-			}));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT forum_id FROM threads WHERE id": { forum_id: 1 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				},
+				allResults: {
+					"SELECT * FROM posts WHERE thread_id": [],
+				},
+			});
 			const env = { ...mockEnv, DB: db };
 
 			await list(
@@ -211,18 +245,23 @@ describe("post handlers", () => {
 				env,
 			);
 
-			// Should fall back to first page query
-			expect(prepareSpy).toHaveBeenCalledWith(expect.not.stringContaining("position >"));
+			// Should fall back to first page query (no "position >" in SQL)
+			const postsCall = calls.find((c) => c.sql.includes("SELECT * FROM posts"));
+			expect(postsCall).toBeDefined();
+			expect(postsCall?.sql).not.toContain("position >");
 		});
 
 		it("should handle malformed cursor (invalid base64)", async () => {
 			const malformedCursor = "not-valid-base64!!!";
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({
-				all: allSpy,
-			}));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT forum_id FROM threads WHERE id": { forum_id: 1 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				},
+				allResults: {
+					"SELECT * FROM posts WHERE thread_id": [],
+				},
+			});
 			const env = { ...mockEnv, DB: db };
 
 			await list(
@@ -232,18 +271,22 @@ describe("post handlers", () => {
 				env,
 			);
 
-			// Should fall back to first page query
-			expect(prepareSpy).toHaveBeenCalledWith(expect.not.stringContaining("position >"));
+			// Should fall back to first page query (no "position >" in SQL)
+			const postsCall = calls.find((c) => c.sql.includes("SELECT * FROM posts"));
+			expect(postsCall).toBeDefined();
+			expect(postsCall?.sql).not.toContain("position >");
 		});
 
 		it("should not generate next cursor when results are empty", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({
-				all: allSpy,
-			}));
-			const db = {
-				prepare: mock(() => ({ bind: bindSpy })),
-			} as unknown as D1Database;
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT forum_id FROM threads WHERE id": { forum_id: 1 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				},
+				allResults: {
+					"SELECT * FROM posts WHERE thread_id": [],
+				},
+			});
 			const env = { ...mockEnv, DB: db };
 
 			const response = await list(new Request("https://example.com/api/v1/posts?threadId=1"), env);
@@ -254,28 +297,33 @@ describe("post handlers", () => {
 		});
 
 		it("should use valid limit within range", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({
-				all: allSpy,
-			}));
-			const db = {
-				prepare: mock(() => ({ bind: bindSpy })),
-			} as unknown as D1Database;
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT forum_id FROM threads WHERE id": { forum_id: 1 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				},
+				allResults: {
+					"SELECT * FROM posts WHERE thread_id": [],
+				},
+			});
 			const env = { ...mockEnv, DB: db };
 
 			await list(new Request("https://example.com/api/v1/posts?threadId=1&limit=10"), env);
 
-			expect(bindSpy).toHaveBeenCalledWith(1, 10);
+			const postsCall = calls.find((c) => c.sql.includes("SELECT * FROM posts"));
+			expect(postsCall?.params).toEqual([1, 10]);
 		});
 
 		it("should include CORS headers with origin", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({
-				all: allSpy,
-			}));
-			const db = {
-				prepare: mock(() => ({ bind: bindSpy })),
-			} as unknown as D1Database;
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT forum_id FROM threads WHERE id": { forum_id: 1 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				},
+				allResults: {
+					"SELECT * FROM posts WHERE thread_id": [],
+				},
+			});
 			const env = { ...mockEnv, DB: db };
 
 			const response = await list(
@@ -294,12 +342,13 @@ describe("post handlers", () => {
 	describe("getById", () => {
 		it("should map D1 row to camelCase Post when found", async () => {
 			const d1Row = makeD1PostRow({ id: 123, thread_id: 10, forum_id: 5, is_first: 0 });
-			const firstSpy = mock(() => Promise.resolve(d1Row));
-			const bindSpy = mock((..._args: unknown[]) => ({
-				first: firstSpy,
-			}));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM posts WHERE id": d1Row,
+					"SELECT forum_id FROM threads WHERE id": { forum_id: 5 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				},
+			});
 			const env = { ...mockEnv, DB: db };
 
 			const response = await getById(new Request("https://example.com/api/v1/posts/123"), env);
@@ -316,12 +365,11 @@ describe("post handlers", () => {
 		});
 
 		it("should return 404 when post not found", async () => {
-			const firstSpy = mock(() => Promise.resolve(null));
-			const bindSpy = mock((..._args: unknown[]) => ({
-				first: firstSpy,
-			}));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM posts WHERE id": null,
+				},
+			});
 			const env = { ...mockEnv, DB: db };
 
 			const response = await getById(new Request("https://example.com/api/v1/posts/999"), env);
@@ -333,17 +381,19 @@ describe("post handlers", () => {
 
 		it("should parse post ID from URL", async () => {
 			const d1Row = makeD1PostRow({ id: 456 });
-			const firstSpy = mock(() => Promise.resolve(d1Row));
-			const bindSpy = mock((..._args: unknown[]) => ({
-				first: firstSpy,
-			}));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
-			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM posts WHERE id": d1Row,
+					"SELECT forum_id FROM threads WHERE id": { forum_id: 1 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				},
+			});
 			const env = { ...mockEnv, DB: db };
 
 			await getById(new Request("https://example.com/api/v1/posts/456"), env);
 
-			expect(bindSpy).toHaveBeenCalledWith(456);
+			const postCall = calls.find((c) => c.sql.includes("SELECT * FROM posts WHERE id"));
+			expect(postCall?.params).toEqual([456]);
 		});
 	});
 
@@ -367,7 +417,12 @@ describe("post handlers", () => {
 						id: 1,
 						closed: 0,
 					}),
-					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+					"SELECT status, avatar, reg_date, role FROM users": {
+						status: 0,
+						avatar: "",
+						reg_date: 0,
+						role: 0,
+					},
 				},
 				allResults: {
 					"SELECT key, value FROM settings WHERE key LIKE": [],
@@ -392,7 +447,12 @@ describe("post handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+					"SELECT status, avatar, reg_date, role FROM users": {
+						status: 0,
+						avatar: "",
+						reg_date: 0,
+						role: 0,
+					},
 				},
 				allResults: {
 					"SELECT key, value FROM settings WHERE key LIKE": [],
@@ -418,7 +478,12 @@ describe("post handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT id, forum_id, closed FROM threads WHERE id": null,
-					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+					"SELECT status, avatar, reg_date, role FROM users": {
+						status: 0,
+						avatar: "",
+						reg_date: 0,
+						role: 0,
+					},
 				},
 				allResults: {
 					"SELECT key, value FROM settings WHERE key LIKE": [],
@@ -444,7 +509,12 @@ describe("post handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT id, forum_id, closed FROM threads WHERE id": { id: 1, forum_id: 10, closed: 1 },
-					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+					"SELECT status, avatar, reg_date, role FROM users": {
+						status: 0,
+						avatar: "",
+						reg_date: 0,
+						role: 0,
+					},
 				},
 				allResults: {
 					"SELECT key, value FROM settings WHERE key LIKE": [],
@@ -477,9 +547,15 @@ describe("post handlers", () => {
 			const { db, batchCalls } = createMockDb({
 				firstResults: {
 					"SELECT id, forum_id, closed FROM threads WHERE id": { id: 1, forum_id: 10, closed: 0 },
+					"SELECT status, visibility FROM forums": { status: 1, visibility: "public" },
 					"SELECT MAX(position)": { maxPos: 5 },
 					"SELECT * FROM posts WHERE id": createdPost,
-					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+					"SELECT status, avatar, reg_date, role FROM users": {
+						status: 0,
+						avatar: "",
+						reg_date: 0,
+						role: 0,
+					},
 				},
 				allResults: {
 					"SELECT key, value FROM settings WHERE key LIKE": [],
@@ -513,9 +589,15 @@ describe("post handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT id, forum_id, closed FROM threads WHERE id": { id: 1, forum_id: 10, closed: 0 },
+					"SELECT status, visibility FROM forums": { status: 1, visibility: "public" },
 					"SELECT MAX(position)": { maxPos: 1 },
 					"SELECT * FROM posts WHERE id": createdPost,
-					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+					"SELECT status, avatar, reg_date, role FROM users": {
+						status: 0,
+						avatar: "",
+						reg_date: 0,
+						role: 0,
+					},
 				},
 				allResults: {
 					"SELECT key, value FROM settings WHERE key LIKE": [],
@@ -542,7 +624,13 @@ describe("post handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT id, forum_id, closed FROM threads WHERE id": { id: 1, forum_id: 10, closed: 0 },
-					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+					"SELECT status, visibility FROM forums": { status: 1, visibility: "public" },
+					"SELECT status, avatar, reg_date, role FROM users": {
+						status: 0,
+						avatar: "",
+						reg_date: 0,
+						role: 0,
+					},
 				},
 				allResults: {
 					"SELECT key, value FROM settings WHERE key LIKE": [],
@@ -567,7 +655,12 @@ describe("post handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT status, avatar, reg_date, role FROM users": { status: 0, avatar: "", reg_date: 0, role: 0 },
+					"SELECT status, avatar, reg_date, role FROM users": {
+						status: 0,
+						avatar: "",
+						reg_date: 0,
+						role: 0,
+					},
 				},
 				allResults: {
 					"SELECT key, value FROM settings WHERE key LIKE": [],

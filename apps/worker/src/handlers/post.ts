@@ -1,12 +1,23 @@
 // Post handlers for Cloudflare Worker
+import { UserRole, canViewForumVisibility } from "@ellie/types";
+import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
 import { toPost } from "../lib/mappers";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withAuth } from "../lib/routeHelpers";
+import { type AuthUser, optionalAuthVerified } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
+
+/** Build visibility context from optional user */
+function buildVisibilityContext(user: AuthUser | null): VisibilityContext {
+	return {
+		isLoggedIn: user !== null,
+		role: user !== null ? user.role : UserRole.User,
+	};
+}
 
 /** Post cursor payload for keyset pagination */
 interface PostCursorPayload {
@@ -45,13 +56,6 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	const limitParam = url.searchParams.get("limit");
 	const cursorStr = url.searchParams.get("cursor");
 
-	// Clamp limit to [1, 100], defaulting to 100
-	const DEFAULT_PAGE_SIZE = 100;
-	const MAX_PAGE_SIZE = 100;
-	const limitNum = limitParam ? Number.parseInt(limitParam, 10) : undefined;
-	const clampedLimit =
-		limitNum === undefined || limitNum <= 0 ? DEFAULT_PAGE_SIZE : Math.min(limitNum, MAX_PAGE_SIZE);
-
 	if (!threadId) {
 		return errorResponse("INVALID_REQUEST", 400, { message: "threadId is required" }, origin);
 	}
@@ -60,6 +64,43 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	if (Number.isNaN(threadIdNum)) {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid threadId" }, origin);
 	}
+
+	// Check forum visibility before listing posts (verified against DB)
+	const user = await optionalAuthVerified(request, env);
+	const visCtx = buildVisibilityContext(user);
+
+	// Get forum info via thread
+	const threadRow = await env.DB.prepare("SELECT forum_id FROM threads WHERE id = ?")
+		.bind(threadIdNum)
+		.first<{ forum_id: number }>();
+
+	if (!threadRow) {
+		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
+	}
+
+	const forumRow = await env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
+		.bind(threadRow.forum_id)
+		.first<{ status: number; visibility: string }>();
+
+	if (!forumRow || forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
+		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
+	}
+
+	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "You don't have access to this content" },
+			origin,
+		);
+	}
+
+	// Clamp limit to [1, 100], defaulting to 100
+	const DEFAULT_PAGE_SIZE = 100;
+	const MAX_PAGE_SIZE = 100;
+	const limitNum = limitParam ? Number.parseInt(limitParam, 10) : undefined;
+	const clampedLimit =
+		limitNum === undefined || limitNum <= 0 ? DEFAULT_PAGE_SIZE : Math.min(limitNum, MAX_PAGE_SIZE);
 
 	const cursor = cursorStr ? decodePostCursor(cursorStr) : null;
 
@@ -125,9 +166,41 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
 
+	const postRow = result as Record<string, unknown>;
+	const threadId = postRow.thread_id as number;
+
+	// Check forum visibility before returning post (verified against DB)
+	const user = await optionalAuthVerified(request, env);
+	const visCtx = buildVisibilityContext(user);
+
+	const threadRow = await env.DB.prepare("SELECT forum_id FROM threads WHERE id = ?")
+		.bind(threadId)
+		.first<{ forum_id: number }>();
+
+	if (!threadRow) {
+		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
+	}
+
+	const forumRow = await env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
+		.bind(threadRow.forum_id)
+		.first<{ status: number; visibility: string }>();
+
+	if (!forumRow || forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
+		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
+	}
+
+	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "You don't have access to this content" },
+			origin,
+		);
+	}
+
 	return new Response(
 		JSON.stringify({
-			data: toPost(result as Record<string, unknown>),
+			data: toPost(postRow),
 			meta: {
 				timestamp: Date.now(),
 				requestId: crypto.randomUUID(),
@@ -185,6 +258,28 @@ export const create = withAuth(async (request, env, user) => {
 	}
 	if (thread.closed === 1) {
 		return errorResponse("THREAD_CLOSED", 403, undefined, origin);
+	}
+
+	// Check forum visibility - user must have access to post in this forum
+	const forumRow = await env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
+		.bind(thread.forum_id)
+		.first<{ status: number; visibility: string }>();
+
+	if (!forumRow || forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
+		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
+	}
+
+	const visCtx: VisibilityContext = {
+		isLoggedIn: true,
+		role: user.role,
+	};
+	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "You don't have access to reply in this thread" },
+			origin,
+		);
 	}
 
 	// Get next position
