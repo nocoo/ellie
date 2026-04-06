@@ -35,39 +35,37 @@ export async function login(request: Request, env: Env): Promise<Response> {
 			);
 		}
 
-		// ── Rate limiting: 5 attempts per hour, lockout 24h after 5 consecutive failures ──
+		// ── Rate limiting: 5 attempts per hour per IP, lockout 24h after 5 consecutive failures ──
+		// NOTE: Only IP-based rate limiting to prevent DoS via username lockout attacks
 		const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
-		const userKey = username.toLowerCase();
 
 		// Check for 24-hour lockout first
 		const ipLockoutKey = `login-lockout-ip:${ip}`;
-		const userLockoutKey = `login-lockout-user:${userKey}`;
-		const [ipLocked, userLocked] = await Promise.all([
-			env.KV.get(ipLockoutKey),
-			env.KV.get(userLockoutKey),
-		]);
+		const ipLocked = await env.KV.get(ipLockoutKey);
 
-		if (ipLocked || userLocked) {
-			return errorResponse("RATE_LIMITED", 429, { message: "Too many failed attempts. Try again later." }, origin);
+		if (ipLocked) {
+			return errorResponse(
+				"RATE_LIMITED",
+				429,
+				{ message: "Too many failed attempts. Try again later." },
+				origin,
+			);
 		}
 
-		// Check hourly rate limit (5 attempts per hour)
+		// Check hourly rate limit (5 attempts per hour per IP)
 		const ipRateLimitKey = `login-ip:${ip}`;
-		const userRateLimitKey = `login-user:${userKey}`;
-		const [ipAttemptsStr, userAttemptsStr] = await Promise.all([
-			env.KV.get(ipRateLimitKey),
-			env.KV.get(userRateLimitKey),
-		]);
+		const ipAttemptsStr = await env.KV.get(ipRateLimitKey);
 		const ipAttempts = Number.parseInt(ipAttemptsStr ?? "0", 10);
-		const userAttempts = Number.parseInt(userAttemptsStr ?? "0", 10);
 
-		if (ipAttempts >= 5 || userAttempts >= 5) {
-			// Trigger 24-hour lockout
-			await Promise.all([
-				env.KV.put(ipLockoutKey, "1", { expirationTtl: 24 * 60 * 60 }),
-				env.KV.put(userLockoutKey, "1", { expirationTtl: 24 * 60 * 60 }),
-			]);
-			return errorResponse("RATE_LIMITED", 429, { message: "Too many failed attempts. Try again in 24 hours." }, origin);
+		if (ipAttempts >= 5) {
+			// Trigger 24-hour lockout for this IP
+			await env.KV.put(ipLockoutKey, "1", { expirationTtl: 24 * 60 * 60 });
+			return errorResponse(
+				"RATE_LIMITED",
+				429,
+				{ message: "Too many failed attempts. Try again in 24 hours." },
+				origin,
+			);
 		}
 
 		// Query user from D1
@@ -77,11 +75,8 @@ export async function login(request: Request, env: Env): Promise<Response> {
 		const result = await stmt.bind(username).first();
 
 		if (!result) {
-			// Increment rate limit counters on invalid username
-			await Promise.all([
-				env.KV.put(ipRateLimitKey, String(ipAttempts + 1), { expirationTtl: 3600 }),
-				env.KV.put(userRateLimitKey, String(userAttempts + 1), { expirationTtl: 3600 }),
-			]);
+			// Increment rate limit counter on invalid username
+			await env.KV.put(ipRateLimitKey, String(ipAttempts + 1), { expirationTtl: 3600 });
 			return errorResponse("INVALID_CREDENTIALS", 401, undefined, origin);
 		}
 
@@ -110,19 +105,13 @@ export async function login(request: Request, env: Env): Promise<Response> {
 		}
 
 		if (!isValid) {
-			// Increment rate limit counters on failed password verification
-			await Promise.all([
-				env.KV.put(ipRateLimitKey, String(ipAttempts + 1), { expirationTtl: 3600 }),
-				env.KV.put(userRateLimitKey, String(userAttempts + 1), { expirationTtl: 3600 }),
-			]);
+			// Increment rate limit counter on failed password verification
+			await env.KV.put(ipRateLimitKey, String(ipAttempts + 1), { expirationTtl: 3600 });
 			return errorResponse("INVALID_CREDENTIALS", 401, undefined, origin);
 		}
 
-		// Login successful — clear rate limit counters
-		await Promise.all([
-			env.KV.delete(ipRateLimitKey),
-			env.KV.delete(userRateLimitKey),
-		]);
+		// Login successful — clear rate limit counter
+		await env.KV.delete(ipRateLimitKey);
 
 		// Generate JWT token (7 days)
 		const exp = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;

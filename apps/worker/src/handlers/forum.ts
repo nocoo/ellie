@@ -15,7 +15,7 @@ import {
 import { getUserProfiles } from "../lib/user-cache";
 
 // Forum handlers for Cloudflare Worker
-import { optionalAuth } from "../middleware/auth";
+import { optionalAuthVerified } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
@@ -67,8 +67,8 @@ function buildModeratorList(
 export async function list(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 
-	// Get optional user auth for visibility filtering
-	const user = await optionalAuth(request, env);
+	// Get optional user auth for visibility filtering (verified against DB)
+	const user = await optionalAuthVerified(request, env);
 	const visCtx = buildVisibilityContext(user);
 
 	// Run both queries in parallel: all forums + per-forum thread count in last 24h
@@ -177,8 +177,8 @@ export async function getById(
 	const idStr = pathParts[pathParts.length - 1];
 	const id = Number.parseInt(idStr ?? "0", 10);
 
-	// Get optional user auth for visibility filtering
-	const user = await optionalAuth(request, env);
+	// Get optional user auth for visibility filtering (verified against DB)
+	const user = await optionalAuthVerified(request, env);
 	const visCtx = buildVisibilityContext(user);
 
 	const useKvCache = isKvUserCacheEnabled(env);

@@ -8,7 +8,7 @@ import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse, paginatedResponse } from "../lib/response";
 import { withAuth } from "../lib/routeHelpers";
 import { getUserProfiles } from "../lib/user-cache";
-import { optionalAuth } from "../middleware/auth";
+import { optionalAuthVerified } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
@@ -120,8 +120,8 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid forumId" }, origin);
 	}
 
-	// Check forum visibility before listing threads
-	const user = await optionalAuth(request, env);
+	// Check forum visibility before listing threads (verified against DB)
+	const user = await optionalAuthVerified(request, env);
 	const visCtx = buildVisibilityContext(user);
 
 	const forumRow = await env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
@@ -287,8 +287,8 @@ export async function getById(
 	const r = result as Record<string, unknown>;
 	const forumId = r.forum_id as number;
 
-	// Check forum visibility before returning thread
-	const user = await optionalAuth(request, env);
+	// Check forum visibility before returning thread (verified against DB)
+	const user = await optionalAuthVerified(request, env);
 	const visCtx = buildVisibilityContext(user);
 
 	const forumRow = await env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
