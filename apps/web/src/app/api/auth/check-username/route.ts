@@ -9,19 +9,25 @@ import { NextResponse } from "next/server";
 
 /**
  * Get client IP from request headers.
- * Priority: X-Forwarded-For (first IP) > X-Real-IP > fallback to empty string.
+ *
+ * On Vercel, x-real-ip is set by Vercel and contains the client's real IP.
+ * This header is NOT spoofable because Vercel overwrites any incoming value.
+ *
+ * We prioritize x-real-ip over x-forwarded-for because x-forwarded-for
+ * can contain multiple IPs and the first one could be spoofed by the client.
  */
 function getClientIP(request: Request): string {
-	// X-Forwarded-For may contain multiple IPs; take the first (client)
+	// Vercel sets x-real-ip to the real client IP (not spoofable)
+	const realIP = request.headers.get("x-real-ip");
+	if (realIP) return realIP;
+
+	// Fallback: x-forwarded-for (less reliable, first IP could be spoofed)
+	// Only used when not on Vercel (e.g., local development)
 	const xff = request.headers.get("x-forwarded-for");
 	if (xff) {
 		const firstIP = xff.split(",")[0]?.trim();
 		if (firstIP) return firstIP;
 	}
-
-	// Fallback to X-Real-IP
-	const realIP = request.headers.get("x-real-ip");
-	if (realIP) return realIP;
 
 	// If no IP found, return empty string (Worker will reject if needed)
 	return "";

@@ -11,29 +11,29 @@ import { errorResponse } from "../middleware/error";
 
 /**
  * Get client IP from request headers.
- * Priority order:
- * 1. CF-Connecting-IP - Cloudflare sets this for direct requests to Worker
- * 2. X-Real-IP - Next.js proxy forwards this from the original client
- * 3. X-Forwarded-For (first IP) - Fallback for other proxies
+ *
+ * Priority:
+ * 1. CF-Connecting-IP - Cloudflare sets this for direct requests to Worker (cannot be spoofed)
+ * 2. X-Real-IP - Next.js proxy forwards this from Vercel's x-real-ip header
+ *
+ * SECURITY: We do NOT trust X-Forwarded-For because it can be spoofed by clients.
+ * - CF-Connecting-IP is set by Cloudflare and cannot be spoofed
+ * - X-Real-IP is set by our Next.js proxy from Vercel's trusted x-real-ip
+ * - X-Forwarded-For can contain spoofed values prepended by malicious clients
  *
  * Returns null if no valid IP found (should reject request to prevent rate limit bypass).
  */
 function getClientIP(request: Request): string | null {
-	// Direct Cloudflare access
+	// Direct Cloudflare access - always trustworthy
 	const cfIP = request.headers.get("CF-Connecting-IP");
 	if (cfIP) return cfIP;
 
-	// Next.js proxy forwarding client IP
+	// Next.js proxy forwarding client IP from Vercel's x-real-ip
+	// This is set by our trusted server, not by the client
 	const realIP = request.headers.get("X-Real-IP");
 	if (realIP) return realIP;
 
-	// Fallback: X-Forwarded-For (first IP in chain)
-	const xff = request.headers.get("X-Forwarded-For");
-	if (xff) {
-		const firstIP = xff.split(",")[0]?.trim();
-		if (firstIP) return firstIP;
-	}
-
+	// Do NOT fall back to X-Forwarded-For as it can be spoofed
 	return null;
 }
 
