@@ -47,8 +47,9 @@ describe("auth handlers", () => {
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret-key-for-jwt-hs256",
 		KV: {
-			get: mock(() => Promise.resolve(null)), // No rate limit hit
+			get: mock(() => Promise.resolve(null)), // No rate limit hit / no lockout
 			put: mock(() => Promise.resolve()),
+			delete: mock(() => Promise.resolve()),
 		} as unknown as KVNamespace,
 	};
 
@@ -89,6 +90,69 @@ describe("auth handlers", () => {
 			expect(response.status).toBe(401);
 			const data = await response.json();
 			expect(data.error.code).toBe("INVALID_CREDENTIALS");
+		});
+
+		it("should return 429 when IP is locked out for 24 hours", async () => {
+			const { db } = createMockDb({ firstResult: null });
+			const env = {
+				...mockEnv,
+				DB: db,
+				KV: {
+					get: mock((key: string) => {
+						// Simulate IP lockout
+						if (key.startsWith("login-lockout-ip:")) return Promise.resolve("1");
+						return Promise.resolve(null);
+					}),
+					put: mock(() => Promise.resolve()),
+					delete: mock(() => Promise.resolve()),
+				} as unknown as KVNamespace,
+			};
+
+			const response = await login(
+				createLoginRequest({ username: "testuser", password: "pass" }),
+				env,
+			);
+
+			expect(response.status).toBe(429);
+			const data = await response.json();
+			expect(data.error.code).toBe("RATE_LIMITED");
+		});
+
+		it("should return 429 and trigger 24h lockout after 5 failed attempts", async () => {
+			const kvPutSpy = mock(() => Promise.resolve());
+			const { db } = createMockDb({ firstResult: null });
+			const env = {
+				...mockEnv,
+				DB: db,
+				KV: {
+					get: mock((key: string) => {
+						// No lockout yet, but 5 attempts reached
+						if (key.startsWith("login-lockout-")) return Promise.resolve(null);
+						if (key.startsWith("login-ip:") || key.startsWith("login-user:")) {
+							return Promise.resolve("5"); // 5 attempts already
+						}
+						return Promise.resolve(null);
+					}),
+					put: kvPutSpy,
+					delete: mock(() => Promise.resolve()),
+				} as unknown as KVNamespace,
+			};
+
+			const response = await login(
+				createLoginRequest({ username: "testuser", password: "wrong" }),
+				env,
+			);
+
+			expect(response.status).toBe(429);
+			const data = await response.json();
+			expect(data.error.code).toBe("RATE_LIMITED");
+			expect(data.error.details?.message).toContain("24 hours");
+
+			// Verify lockout keys were set with 24h TTL
+			const lockoutCalls = kvPutSpy.mock.calls.filter(
+				(call) => (call as string[])[0]?.startsWith("login-lockout-"),
+			);
+			expect(lockoutCalls.length).toBe(2); // IP and user lockout
 		});
 
 		it("should return 403 for banned users", async () => {
@@ -185,7 +249,11 @@ describe("auth handlers", () => {
 			const env = {
 				...mockEnv,
 				DB: db,
-				KV: { get: mock(() => Promise.resolve(null)), put: kvPutSpy } as unknown as KVNamespace,
+				KV: {
+					get: mock(() => Promise.resolve(null)),
+					put: kvPutSpy,
+					delete: mock(() => Promise.resolve()),
+				} as unknown as KVNamespace,
 			};
 
 			const response = await login(createLoginRequest({ username: "testuser", password }), env);
@@ -248,7 +316,11 @@ describe("auth handlers", () => {
 			const env = {
 				...mockEnv,
 				DB: db,
-				KV: { get: mock(() => Promise.resolve(null)), put: kvPutSpy } as unknown as KVNamespace,
+				KV: {
+					get: mock(() => Promise.resolve(null)),
+					put: kvPutSpy,
+					delete: mock(() => Promise.resolve()),
+				} as unknown as KVNamespace,
 			};
 
 			const response = await login(
@@ -321,7 +393,11 @@ describe("auth handlers", () => {
 			const env = {
 				...mockEnv,
 				DB: db,
-				KV: { get: mock(() => Promise.resolve(null)), put: kvPutSpy } as unknown as KVNamespace,
+				KV: {
+					get: mock(() => Promise.resolve(null)),
+					put: kvPutSpy,
+					delete: mock(() => Promise.resolve()),
+				} as unknown as KVNamespace,
 			};
 
 			await login(createLoginRequest({ username: "kvuser", password }), env);
@@ -366,7 +442,11 @@ describe("auth handlers", () => {
 			const env = {
 				...mockEnv,
 				DB: db,
-				KV: { get: mock(() => Promise.resolve(null)), put: mock(() => Promise.resolve()) } as unknown as KVNamespace,
+				KV: {
+					get: mock(() => Promise.resolve(null)),
+					put: mock(() => Promise.resolve()),
+					delete: mock(() => Promise.resolve()),
+				} as unknown as KVNamespace,
 			};
 
 			await login(createLoginRequest({ username: "loginuser", password }), env);
@@ -404,7 +484,11 @@ describe("auth handlers", () => {
 			const env = {
 				...mockEnv,
 				DB: db,
-				KV: { get: mock(() => Promise.resolve(null)), put: mock(() => Promise.resolve()) } as unknown as KVNamespace,
+				KV: {
+					get: mock(() => Promise.resolve(null)),
+					put: mock(() => Promise.resolve()),
+					delete: mock(() => Promise.resolve()),
+				} as unknown as KVNamespace,
 			};
 
 			const response = await login(createLoginRequest({ username: "jwtuser", password }), env);
@@ -454,7 +538,11 @@ describe("auth handlers", () => {
 			const env = {
 				...mockEnv,
 				DB: db,
-				KV: { get: mock(() => Promise.resolve(null)), put: mock(() => Promise.resolve()) } as unknown as KVNamespace,
+				KV: {
+					get: mock(() => Promise.resolve(null)),
+					put: mock(() => Promise.resolve()),
+					delete: mock(() => Promise.resolve()),
+				} as unknown as KVNamespace,
 			};
 
 			const response = await login(createLoginRequest({ username: "corsuser", password }), env);
