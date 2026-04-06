@@ -221,8 +221,8 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 export const create = withAuthVerified(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
-	// Check posting permission (banned, muted, registration days, avatar)
-	const permissionResult = await checkPostingPermission(env, user, origin);
+	// Check posting permission (banned, muted, registration days, avatar, content switch)
+	const permissionResult = await checkPostingPermission(env, user, origin, "reply");
 	if (!permissionResult.allowed) {
 		return permissionResult.error;
 	}

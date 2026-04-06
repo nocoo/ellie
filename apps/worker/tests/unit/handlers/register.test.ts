@@ -20,7 +20,7 @@ function createRegisterRequest(body: Record<string, unknown>) {
 function createCheckUsernameRequest(username: string) {
 	return new Request(
 		`https://example.com/api/v1/auth/check-username?username=${encodeURIComponent(username)}`,
-		{ method: "GET" },
+		{ method: "GET", headers: { "CF-Connecting-IP": "127.0.0.1" } },
 	);
 }
 
@@ -497,16 +497,19 @@ describe("checkUsername rate limit", () => {
 		expect(resB.status).not.toBe(429);
 	});
 
-	it("falls back to 'unknown' when CF-Connecting-IP header is missing", async () => {
+	it("returns 400 INVALID_REQUEST when CF-Connecting-IP header is missing", async () => {
 		const { db } = createMockDb({ allResults: { "SELECT id, find": [] } });
 		const putCalls: Array<{ key: string; value: string; opts?: unknown }> = [];
 		const kv = createMockKV({ putCalls });
 		const env = makeEnv({ DB: db, KV: kv });
 
 		const res = await checkUsername(createCheckUsernameRequestWithIP("newuser"), env);
-		expect(res.status).not.toBe(429);
-		const ratePut = putCalls.find((c) => c.key === "chk-usr-ip:unknown");
-		expect(ratePut).toBeDefined();
+		expect(res.status).toBe(400);
+		const body = (await res.json()) as {
+			error: { code: string; details?: { message?: string } };
+		};
+		expect(body.error.code).toBe("INVALID_REQUEST");
+		expect(body.error.details?.message).toBe("Missing client IP");
 	});
 
 	it("does not consume rate limit quota for missing username param", async () => {

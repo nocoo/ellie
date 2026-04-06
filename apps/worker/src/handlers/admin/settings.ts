@@ -41,6 +41,8 @@ const ALLOWED_KEYS = new Set([
 	// general.navigation
 	"general.navigation.header_links",
 	"general.navigation.friend_links",
+	// features.registration — registration control
+	"features.registration.allow_new_user",
 	// features.access — access control
 	"features.access.require_login",
 	"features.access.maintenance_mode",

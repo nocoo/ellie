@@ -36,7 +36,7 @@ function createLoginRequest(body: Record<string, unknown>) {
 	return new Request("https://example.com/api/v1/auth/login", {
 		method: "POST",
 		body: JSON.stringify(body),
-		headers: { "Content-Type": "application/json" },
+		headers: { "Content-Type": "application/json", "CF-Connecting-IP": "127.0.0.1" },
 	});
 }
 
@@ -149,8 +149,8 @@ describe("auth handlers", () => {
 			expect(data.error.details?.message).toContain("24 hours");
 
 			// Verify lockout key was set with 24h TTL (IP only, no user lockout)
-			const lockoutCalls = kvPutSpy.mock.calls.filter(
-				(call) => (call as string[])[0]?.startsWith("login-lockout-"),
+			const lockoutCalls = kvPutSpy.mock.calls.filter((call) =>
+				(call as string[])[0]?.startsWith("login-lockout-"),
 			);
 			expect(lockoutCalls.length).toBe(1); // IP lockout only
 		});
