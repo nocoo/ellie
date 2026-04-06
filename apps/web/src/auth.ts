@@ -10,6 +10,7 @@
 import NextAuth from "next-auth";
 import type { Account, Session, User } from "next-auth";
 import type { JWT } from "next-auth/jwt";
+import { headers } from "next/headers";
 import Credentials from "next-auth/providers/credentials";
 
 // ---------------------------------------------------------------------------
@@ -22,6 +23,28 @@ function getWorkerUrl(): string {
 
 function getForumApiKey(): string {
 	return process.env.FORUM_API_KEY ?? "";
+}
+
+/**
+ * Get client IP from request headers.
+ * Priority: X-Forwarded-For (first IP) > X-Real-IP > fallback to empty string.
+ */
+async function getClientIP(): Promise<string> {
+	const h = await headers();
+
+	// X-Forwarded-For may contain multiple IPs; take the first (client)
+	const xff = h.get("x-forwarded-for");
+	if (xff) {
+		const firstIP = xff.split(",")[0]?.trim();
+		if (firstIP) return firstIP;
+	}
+
+	// Fallback to X-Real-IP
+	const realIP = h.get("x-real-ip");
+	if (realIP) return realIP;
+
+	// If no IP found, return empty string (Worker will reject if needed)
+	return "";
 }
 
 // ---------------------------------------------------------------------------
@@ -190,11 +213,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth(async () => ({
 				const apiKey = getForumApiKey();
 				if (!workerUrl || !apiKey) return null;
 
+				// Forward client IP for Worker rate limiting
+				const clientIP = await getClientIP();
+
 				const res = await fetch(`${workerUrl}/api/v1/auth/login`, {
 					method: "POST",
 					headers: {
 						"Content-Type": "application/json",
 						"X-API-Key": apiKey,
+						"X-Real-IP": clientIP,
 					},
 					body: JSON.stringify({
 						username: credentials.username,

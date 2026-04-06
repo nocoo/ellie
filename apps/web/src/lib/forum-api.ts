@@ -43,7 +43,7 @@ export class ForumApiError extends ApiError {
 	constructor(status: number, code: string, message: string);
 	constructor(status: number, dataOrCode: ApiErrorData | string, message?: string) {
 		if (typeof dataOrCode === "string") {
-			super(status, dataOrCode, message!);
+			super(status, dataOrCode, message ?? "");
 		} else {
 			super(status, dataOrCode);
 		}
@@ -96,6 +96,8 @@ interface RequestOptions {
 	body?: unknown;
 	searchParams?: Record<string, string | number | boolean | undefined | null>;
 	bearerToken?: string;
+	/** Client IP to forward to Worker for rate limiting (X-Real-IP header) */
+	clientIP?: string;
 }
 
 async function request<T>(
@@ -117,6 +119,11 @@ async function request<T>(
 
 	if (opts.bearerToken) {
 		headers.Authorization = `Bearer ${opts.bearerToken}`;
+	}
+
+	// Forward client IP for rate limiting (Worker uses X-Real-IP as fallback)
+	if (opts.clientIP) {
+		headers["X-Real-IP"] = opts.clientIP;
 	}
 
 	if (opts.body !== undefined) {
@@ -219,6 +226,22 @@ export const forumApi = {
 	/** POST: { data: T, meta } */
 	async post<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {
 		const result = await request<T>({ method: "POST", path, body });
+		return { data: result.data, meta: result.meta as ApiMeta };
+	},
+
+	/** POST with client IP forwarding (for rate-limited endpoints like login/register) */
+	async postWithIP<T>(path: string, body: unknown, clientIP: string): Promise<ApiResponse<T>> {
+		const result = await request<T>({ method: "POST", path, body, clientIP });
+		return { data: result.data, meta: result.meta as ApiMeta };
+	},
+
+	/** GET with client IP forwarding (for rate-limited endpoints like check-username) */
+	async getWithIP<T>(
+		path: string,
+		searchParams: Record<string, string | number | boolean | undefined | null>,
+		clientIP: string,
+	): Promise<ApiResponse<T>> {
+		const result = await request<T>({ method: "GET", path, searchParams, clientIP });
 		return { data: result.data, meta: result.meta as ApiMeta };
 	},
 
