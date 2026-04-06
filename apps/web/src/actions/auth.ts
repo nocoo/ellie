@@ -16,11 +16,12 @@ import { ForumApiError, forumApi } from "@/lib/forum-api";
 /**
  * Get client IP from request headers.
  *
- * On Vercel, x-real-ip is set by Vercel and contains the client's real IP.
- * This header is NOT spoofable because Vercel overwrites any incoming value.
+ * SECURITY: Only trusts Vercel's x-real-ip header in production.
+ * x-forwarded-for is ONLY used in development mode for local testing
+ * convenience, as it can be spoofed by clients in production.
  *
- * We prioritize x-real-ip over x-forwarded-for because x-forwarded-for
- * can contain multiple IPs and the first one could be spoofed by the client.
+ * In production without x-real-ip, returns empty string so Worker
+ * rejects the request (prevents rate limit bypass).
  */
 async function getClientIP(): Promise<string> {
 	const h = await headers();
@@ -29,15 +30,17 @@ async function getClientIP(): Promise<string> {
 	const realIP = h.get("x-real-ip");
 	if (realIP) return realIP;
 
-	// Fallback: x-forwarded-for (less reliable, first IP could be spoofed)
-	// Only used when not on Vercel (e.g., local development)
-	const xff = h.get("x-forwarded-for");
-	if (xff) {
-		const firstIP = xff.split(",")[0]?.trim();
-		if (firstIP) return firstIP;
+	// SECURITY: Only allow x-forwarded-for fallback in development
+	// In production, this header can be spoofed by clients
+	if (process.env.NODE_ENV === "development") {
+		const xff = h.get("x-forwarded-for");
+		if (xff) {
+			const firstIP = xff.split(",")[0]?.trim();
+			if (firstIP) return firstIP;
+		}
 	}
 
-	// If no IP found, return empty string (Worker will reject if needed)
+	// No trusted IP found - Worker will reject rate-limited requests
 	return "";
 }
 
