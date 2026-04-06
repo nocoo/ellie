@@ -111,24 +111,24 @@
    Light Mode (default)
    ========================================================================== */
 :root {
-	/* Surfaces: L0 body → L1 card → L2 secondary */
-	--background: 0 0% 100%;
+	/* Surfaces: L0 → L1 → L2 (B-5 spec) */
+	--background: 220 14% 94%; /* L0: page base ~#EDEEF2 */
 	--foreground: 0 0% 12%;
-	--card: 0 0% 100%;
+	--card: 220 14% 97%; /* L1: floating island ~#F6F7F8 */
 	--card-foreground: 0 0% 12%;
-	--secondary: 0 0% 100%;
+	--secondary: 0 0% 100%; /* L2: inner cards (pure white) */
 	--secondary-foreground: 0 0% 12%;
 	--popover: 0 0% 100%;
 	--popover-foreground: 0 0% 12%;
 
-	/* Primary: Deep Teal #016699 */
-	--primary: 200 99% 30%;
+	/* Primary: Cyan (Admin theme) */
+	--primary: 186 72% 38%;
 	--primary-foreground: 0 0% 100%;
 
 	/* UI states */
-	--muted: 220 14% 96%;
+	--muted: 220 14% 90%; /* hover background */
 	--muted-foreground: 0 0% 45%;
-	--accent: 220 14% 96%;
+	--accent: 220 14% 88%; /* selected state */
 	--accent-foreground: 0 0% 12%;
 	--destructive: 0 72% 51%;
 	--destructive-foreground: 0 0% 100%;
@@ -137,11 +137,15 @@
 	--badge-red: 340 82% 55%;
 	--badge-red-foreground: 0 0% 100%;
 
-	/* Borders & inputs */
-	--border: 220 13% 88%;
+	/* Borders & inputs (L3) */
+	--border: 220 13% 88%; /* ~#E0E2E7 */
 	--input: 220 13% 88%;
-	--ring: 200 99% 30%;
-	--radius: 0.625rem;
+	--ring: 186 72% 38%;
+
+	/* Radius (B-5 spec) */
+	--radius: 0.75rem; /* 12px - shadcn standard */
+	--radius-card: 14px;
+	--radius-widget: 10px;
 
 	/* Forum-specific */
 	--forum-sidebar-bg: 204 33% 97%;
@@ -162,33 +166,33 @@
 }
 
 /* ==========================================================================
-   Dark Mode
+   Dark Mode (B-5 spec)
    ========================================================================== */
 .dark {
-	/* Surfaces: L0 #171717 → L1 #1b1b1b → L2 #1f1f1f */
-	--background: 0 0% 9%;
+	/* Surfaces: L0 → L1 → L2 */
+	--background: 0 0% 9%; /* L0: #171717 */
 	--foreground: 0 0% 93%;
-	--card: 0 0% 10.6%;
+	--card: 0 0% 10.6%; /* L1: #1b1b1b */
 	--card-foreground: 0 0% 93%;
-	--secondary: 0 0% 12.2%;
+	--secondary: 0 0% 12.2%; /* L2: #1f1f1f */
 	--secondary-foreground: 0 0% 93%;
 	--popover: 0 0% 10.6%;
 	--popover-foreground: 0 0% 93%;
 
-	/* Primary: brighter for dark bg */
-	--primary: 200 99% 45%;
+	/* Primary: Blue (brighter for dark bg) */
+	--primary: 217 91% 60%;
 	--primary-foreground: 0 0% 100%;
 
 	/* UI states */
-	--muted: 0 0% 12.2%;
-	--muted-foreground: 0 0% 48%;
-	--accent: 0 0% 14%;
+	--muted: 0 0% 14%; /* hover: #242424 */
+	--muted-foreground: 0 0% 55%;
+	--accent: 0 0% 16%; /* selected: #292929 */
 	--accent-foreground: 0 0% 93%;
 
-	/* Borders & inputs */
-	--border: 0 0% 16%;
-	--input: 0 0% 12%;
-	--ring: 200 99% 45%;
+	/* Borders & inputs (L3 per B-5) */
+	--border: 0 0% 16%; /* #292929 */
+	--input: 0 0% 18%; /* #2e2e2e */
+	--ring: 217 91% 60%;
 
 	/* Forum-specific */
 	--forum-sidebar-bg: 210 10% 13%;
@@ -205,38 +209,9 @@
 }
 
 /* ==========================================================================
-   Admin Panel Overrides
+   Admin Panel — inherits from root/dark, no overrides needed
+   [data-area="admin"] kept for future admin-specific customizations
    ========================================================================== */
-[data-area="admin"] {
-	/* Surfaces: L0 → L1 → L2 (warmer gray, following B-5 spec) */
-	--background: 220 14% 94%; /* L0: page base */
-	--card: 220 14% 97%; /* L1: floating island */
-	--secondary: 0 0% 100%; /* L2: inner cards (pure white) */
-	/* Cyan primary instead of teal */
-	--primary: 186 72% 38%;
-	--ring: 186 72% 38%;
-	/* Stronger muted for hover states */
-	--muted: 220 14% 92%;
-	--accent: 220 14% 92%;
-	/* L3: interactive controls */
-	--input: 220 13% 88%;
-	/* Larger radius */
-	--radius: 0.75rem;
-	--radius-card: 14px;
-	--radius-widget: 10px;
-}
-
-.dark [data-area="admin"] {
-	/* Surfaces: L0 → L1 → L2 (following B-5 spec) */
-	--background: 0 0% 9%; /* L0: #171717 */
-	--card: 0 0% 10.6%; /* L1: #1b1b1b */
-	--secondary: 0 0% 12.2%; /* L2: #1f1f1f */
-	/* Blue primary for dark admin */
-	--primary: 217 91% 60%;
-	--ring: 217 91% 60%;
-	/* L3: interactive controls */
-	--input: 0 0% 18%; /* #2e2e2e */
-}
 
 /* ==========================================================================
    Base Styles
