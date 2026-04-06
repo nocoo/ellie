@@ -54,7 +54,8 @@ const ALLOWED_KEYS = new Set([
 	// features.posting — new user posting restrictions
 	"features.posting.enabled",
 	"features.posting.min_registration_days",
-	"features.posting.require_email_verified",
+	// Note: features.posting.require_email_verified is reserved for future use
+	// when email verification is implemented. Not in whitelist to prevent false security.
 	"features.posting.require_avatar",
 ]);
 
@@ -76,7 +77,6 @@ const BOOLEAN_KEYS = new Set([
 	"features.content.allow_new_thread",
 	"features.content.allow_reply",
 	"features.posting.enabled",
-	"features.posting.require_email_verified",
 	"features.posting.require_avatar",
 ]);
 

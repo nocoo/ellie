@@ -13,5 +13,7 @@ INSERT OR IGNORE INTO settings (key, value, type, updated_at) VALUES ('features.
 -- features.posting — new user posting restrictions
 INSERT OR IGNORE INTO settings (key, value, type, updated_at) VALUES ('features.posting.enabled', 'true', 'boolean', strftime('%s','now'));
 INSERT OR IGNORE INTO settings (key, value, type, updated_at) VALUES ('features.posting.min_registration_days', '1', 'number', strftime('%s','now'));
+-- Note: require_email_verified is reserved for future use when email verification is implemented
+-- It is NOT enforced by the backend and should NOT be exposed in admin UI to avoid false security assumptions
 INSERT OR IGNORE INTO settings (key, value, type, updated_at) VALUES ('features.posting.require_email_verified', 'false', 'boolean', strftime('%s','now'));
 INSERT OR IGNORE INTO settings (key, value, type, updated_at) VALUES ('features.posting.require_avatar', 'true', 'boolean', strftime('%s','now'));
