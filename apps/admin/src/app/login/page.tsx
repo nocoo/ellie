@@ -3,6 +3,7 @@
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { signInWithGoogle } from "./actions";
 
 /** Static barcode decoration for the badge header. */
 const BARS: ReadonlyArray<{ id: string; width: number; opacity: number }> = [
@@ -52,13 +53,6 @@ function LoginContent() {
 
 	const year = new Date().getFullYear();
 	const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-
-	const handleGoogleLogin = () => {
-		// Use standard NextAuth signin URL
-		const signinUrl = new URL("/api/auth/signin/google", window.location.origin);
-		signinUrl.searchParams.set("callbackUrl", "/admin");
-		window.location.href = signinUrl.toString();
-	};
 
 	return (
 		<div className="relative flex min-h-screen flex-col bg-background overflow-hidden">
@@ -152,15 +146,16 @@ function LoginContent() {
 							{/* Spacing before action area */}
 							<div className="mt-5" />
 
-							{/* Google Sign-in button */}
-							<button
-								type="button"
-								onClick={handleGoogleLogin}
-								className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-muted px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent cursor-pointer"
-							>
-								<GoogleIcon />
-								使用 Google 登录
-							</button>
+							{/* Google Sign-in form using Server Action */}
+							<form action={signInWithGoogle}>
+								<button
+									type="submit"
+									className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-muted px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent cursor-pointer"
+								>
+									<GoogleIcon />
+									使用 Google 登录
+								</button>
+							</form>
 
 							{/* Terms */}
 							<p className="mt-3 text-center text-[10px] leading-relaxed text-muted-foreground/60">
