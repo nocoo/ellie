@@ -1,13 +1,26 @@
 // Thread handlers for Cloudflare Worker
-import type { Thread } from "@ellie/types";
+import { type Thread, UserRole, canViewForum } from "@ellie/types";
+import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
 import { enrichThreadWithUserCache, enrichThreadsWithUserCache, toThread } from "../lib/mappers";
+import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse, paginatedResponse } from "../lib/response";
 import { withAuth } from "../lib/routeHelpers";
 import { getUserProfiles } from "../lib/user-cache";
+import { optionalAuth } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
+
+/**
+ * Build visibility context from optional user auth.
+ */
+function buildVisibilityContext(user: { userId: number; role: number } | null): VisibilityContext {
+	return {
+		isLoggedIn: user !== null,
+		role: user?.role ?? UserRole.User,
+	};
+}
 
 /** Thread cursor payload for keyset pagination */
 interface ThreadCursorPayload {
@@ -105,6 +118,26 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 	const forumIdNum = Number.parseInt(forumId, 10);
 	if (Number.isNaN(forumIdNum)) {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid forumId" }, origin);
+	}
+
+	// Check forum visibility before listing threads
+	const user = await optionalAuth(request, env);
+	const visCtx = buildVisibilityContext(user);
+
+	const forumRow = await env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
+		.bind(forumIdNum)
+		.first<{ status: number; visibility: string }>();
+
+	if (!forumRow) {
+		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
+	}
+
+	// Filter by status and visibility
+	if (forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
+		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
+	}
+	if (!canViewForum(forumRow.visibility as ForumVisibility, visCtx)) {
+		return errorResponse("FORBIDDEN", 403, { message: "You don't have access to this forum" }, origin);
 	}
 
 	// Clamp limit to [1, 100], defaulting to 100
@@ -234,7 +267,7 @@ export async function getById(
 
 	const useKvCache = isKvUserCacheEnabled(env);
 
-	// Choose query based on cache strategy
+	// Choose query based on cache strategy (include forum_id for visibility check)
 	const threadQuery = useKvCache
 		? "SELECT * FROM threads WHERE id = ?"
 		: `SELECT t.*,
@@ -251,10 +284,27 @@ export async function getById(
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
 
+	const r = result as Record<string, unknown>;
+	const forumId = r.forum_id as number;
+
+	// Check forum visibility before returning thread
+	const user = await optionalAuth(request, env);
+	const visCtx = buildVisibilityContext(user);
+
+	const forumRow = await env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
+		.bind(forumId)
+		.first<{ status: number; visibility: string }>();
+
+	if (!forumRow || forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
+		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
+	}
+	if (!canViewForum(forumRow.visibility as ForumVisibility, visCtx)) {
+		return errorResponse("FORBIDDEN", 403, { message: "You don't have access to this thread" }, origin);
+	}
+
 	// Fire-and-forget: increment view count (don't await)
 	void env.DB.prepare("UPDATE threads SET views = views + 1 WHERE id = ?").bind(id).run();
 
-	const r = result as Record<string, unknown>;
 	let thread = toThread(r);
 
 	// If JOIN approach, populate avatars directly from query result
@@ -292,6 +342,12 @@ export async function getById(
 /** POST /api/v1/threads - Create a new thread (requires auth) */
 export const create = withAuth(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
+
+	// Check posting permission (banned, muted, registration days, avatar)
+	const permissionResult = await checkPostingPermission(env, user, origin);
+	if (!permissionResult.allowed) {
+		return permissionResult.error;
+	}
 
 	let body: Record<string, unknown>;
 	try {
