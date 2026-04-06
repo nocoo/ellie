@@ -5,7 +5,7 @@ import { createJwt } from "../lib/jwt";
 import { toUser } from "../lib/mappers";
 import { hashPassword, verifyDiscuzPassword, verifyPassword } from "../lib/password";
 import { jsonResponse } from "../lib/response";
-import { withAuth } from "../lib/routeHelpers";
+import { withAuthVerified } from "../lib/routeHelpers";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
@@ -275,7 +275,7 @@ export async function logout(request: Request, env: Env): Promise<Response> {
 }
 
 /** GET /api/v1/auth/me - Get current user profile */
-export const me = withAuth(async (request, env, user) => {
+export const me = withAuthVerified(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	const row = await env.DB.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`)

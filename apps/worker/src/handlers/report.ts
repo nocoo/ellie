@@ -1,10 +1,8 @@
-// User report handlers for Cloudflare Worker
-// Ref: docs/13-report-system.md §4
-
-import type { Env } from "../lib/env";
+import { UserRole, canViewForumVisibility } from "@ellie/types";
+import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
-import { withAuth } from "../lib/routeHelpers";
+import { withAuthVerified } from "../lib/routeHelpers";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
@@ -27,7 +25,7 @@ const DUPLICATE_REPORT_WINDOW = 24 * 60 * 60;
 // ─── #75 POST /api/v1/reports ────────────────────────────────
 // Submit a post report
 
-export const create = withAuth(async (request, env, user) => {
+export const create = withAuthVerified(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	// Parse body
@@ -76,12 +74,37 @@ export const create = withAuth(async (request, env, user) => {
 		return permissionResult.error;
 	}
 
-	// Check target post exists and get author_id
-	const post = await env.DB.prepare("SELECT id, author_id FROM posts WHERE id = ?")
+	// Check target post exists and get thread_id + author_id
+	const post = await env.DB.prepare("SELECT id, thread_id, author_id FROM posts WHERE id = ?")
 		.bind(targetId)
-		.first<{ id: number; author_id: number }>();
+		.first<{ id: number; thread_id: number; author_id: number }>();
 
 	if (!post) {
+		return errorResponse("TARGET_NOT_FOUND", 404, { message: "Post not found" }, origin);
+	}
+
+	// Check forum visibility - user must have access to the forum containing this post
+	const thread = await env.DB.prepare("SELECT forum_id FROM threads WHERE id = ?")
+		.bind(post.thread_id)
+		.first<{ forum_id: number }>();
+
+	if (!thread) {
+		return errorResponse("TARGET_NOT_FOUND", 404, { message: "Post not found" }, origin);
+	}
+
+	const forumRow = await env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
+		.bind(thread.forum_id)
+		.first<{ status: number; visibility: string }>();
+
+	if (!forumRow || forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
+		return errorResponse("TARGET_NOT_FOUND", 404, { message: "Post not found" }, origin);
+	}
+
+	const visCtx: VisibilityContext = {
+		isLoggedIn: true,
+		role: user.role,
+	};
+	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
 		return errorResponse("TARGET_NOT_FOUND", 404, { message: "Post not found" }, origin);
 	}
 
@@ -148,7 +171,7 @@ export const create = withAuth(async (request, env, user) => {
 // ─── #76 GET /api/v1/posting-permission ──────────────────────
 // Check if current user can post (for report dialog Step 1)
 
-export const checkPermission = withAuth(async (request, env, user) => {
+export const checkPermission = withAuthVerified(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	const permissionResult = await checkPostingPermission(env, user, origin);
