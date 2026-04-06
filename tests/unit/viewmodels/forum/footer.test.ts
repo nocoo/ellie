@@ -31,9 +31,9 @@ describe("buildHomeFooterViewModel", () => {
 		expect(vm.onlineStats).toEqual(stats);
 	});
 
-	it("includes default friend links when not in settings", () => {
+	it("returns empty friend links when not configured in settings", () => {
 		const vm = buildHomeFooterViewModel(emptySettings);
-		expect(vm.friendLinks.length).toBeGreaterThan(0);
+		expect(vm.friendLinks).toEqual([]);
 	});
 
 	it("uses custom friend links from settings when provided", () => {
