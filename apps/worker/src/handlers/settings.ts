@@ -24,6 +24,7 @@ const PUBLIC_SAFE_PREFIXES = [
 	"general.og.", // Open Graph metadata
 	"general.pagination.", // Pagination settings
 	"general.navigation.", // Header/footer links
+	"general.search.", // Search feature toggle (enabled/disabled)
 	"features.access.", // Access control (require_login, maintenance_mode, etc.)
 	"features.content.", // Content creation toggles (allow_new_thread, allow_reply)
 ];

@@ -4,7 +4,7 @@
 import "server-only";
 
 import type { PaginatedResult } from "@/viewmodels/shared/pagination";
-import { ForumApiError, forumApi } from "@/lib/forum-api";
+import { forumApi } from "@/lib/forum-api";
 import type { Thread } from "@ellie/types";
 
 export interface SearchData {
@@ -13,25 +13,26 @@ export interface SearchData {
 	disabled?: boolean; // true when search is disabled by admin
 }
 
+/** Settings map type for search-related keys */
+interface SettingsMap {
+	"general.search.enabled"?: boolean;
+}
+
 /**
- * Check if search feature is enabled by probing the API.
- * Returns true if enabled, false if disabled (FEATURE_DISABLED).
- * Throws on other errors (maintenance, network, etc).
+ * Check if search feature is enabled via settings endpoint.
+ * This is a lightweight check that reads from KV-cached settings,
+ * avoiding the overhead of a real FTS5 query.
  */
 async function isSearchEnabled(): Promise<boolean> {
 	try {
-		// Probe with minimal valid query
-		await forumApi.getCursor<Thread>("/api/v1/search/threads", {
-			q: "aa", // minimum 2 chars
-			limit: 1,
+		const response = await forumApi.get<SettingsMap>("/api/v1/settings", {
+			prefix: "general.search",
 		});
+		// Default to true if setting doesn't exist
+		return response.data["general.search.enabled"] !== false;
+	} catch {
+		// On error, assume search is enabled (fail open for availability)
 		return true;
-	} catch (err) {
-		if (err instanceof ForumApiError && err.code === "FEATURE_DISABLED") {
-			return false;
-		}
-		// Re-throw other errors (maintenance, network, etc)
-		throw err;
 	}
 }
 
