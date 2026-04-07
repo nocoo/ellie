@@ -1,5 +1,6 @@
 // tests/e2e/pages/search.page.ts — SearchPage Page Object
 // Ref: docs/e2e-test-design.md §E2E-SE specs
+// Note: Only title search is supported (FTS5). Author search was removed.
 
 import type { Page } from "@playwright/test";
 
@@ -23,23 +24,6 @@ export class SearchPage {
 		return this.page.locator("main").getByRole("button", { name: "搜索" });
 	}
 
-	/** Search type tabs (only visible after query) */
-	get typeTabs() {
-		// Real DOM: div.flex with span/Link, not role="tablist"
-		return this.page.locator(".flex.items-center.gap-1.border-b");
-	}
-
-	/** Title search tab */
-	get titleTab() {
-		// Active: span, Inactive: Link - match by text content
-		return this.page.locator('span:has-text("按标题搜索"), a:has-text("按标题搜索")');
-	}
-
-	/** Author search tab */
-	get authorTab() {
-		return this.page.locator('span:has-text("按作者搜索"), a:has-text("按作者搜索")');
-	}
-
 	/** Search results list */
 	get results() {
 		return this.page.locator(
@@ -61,18 +45,6 @@ export class SearchPage {
 	async search(query: string) {
 		await this.searchInput.fill(query);
 		await this.searchButton.click();
-		await this.page.waitForLoadState("networkidle");
-	}
-
-	/** Switch to author search */
-	async switchToAuthorSearch() {
-		await this.authorTab.click();
-		await this.page.waitForLoadState("networkidle");
-	}
-
-	/** Switch to title search */
-	async switchToTitleSearch() {
-		await this.titleTab.click();
 		await this.page.waitForLoadState("networkidle");
 	}
 }
