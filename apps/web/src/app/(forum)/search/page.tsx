@@ -1,4 +1,4 @@
-// Ref: 04f §9 — Single Card: search form + type tabs + results + pagination
+// Ref: 04f §9 — Single Card: search form + results + pagination
 
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
 import { SearchHero } from "@/components/forum/search-hero";
@@ -7,7 +7,6 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import type { SearchType } from "@/viewmodels/forum/search";
 import { type SearchData, loadSearchResults } from "@/viewmodels/forum/search.server";
 import { formatCompactNumber, formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { getThreadBadges } from "@ellie/types";
@@ -15,18 +14,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 interface SearchPageProps {
-	searchParams: Promise<{ q?: string; type?: string; cursor?: string; direction?: string }>;
+	searchParams: Promise<{ q?: string; cursor?: string }>;
 }
 
 export async function generateMetadata({ searchParams }: SearchPageProps): Promise<Metadata> {
 	const sp = await searchParams;
 	return { title: sp.q ? `搜索: ${sp.q}` : "搜索" };
 }
-
-const SEARCH_TYPES: { key: SearchType; label: string }[] = [
-	{ key: "title", label: "按标题搜索" },
-	{ key: "author", label: "按作者搜索" },
-];
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {
 	const sp = await searchParams;
@@ -37,9 +31,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 	try {
 		data = await loadSearchResults({
 			query: sp.q,
-			type: sp.type,
 			cursor: sp.cursor,
-			direction: sp.direction === "backward" ? "backward" : "forward",
 		});
 	} catch (e) {
 		error = e instanceof Error ? e.message : "搜索失败";
@@ -56,6 +48,23 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 					</Link>
 				</CardContent>
 			</Card>
+		);
+	}
+
+	// Search disabled by admin
+	if (data.disabled) {
+		return (
+			<div className="space-y-4">
+				<div className="py-2">
+					<Breadcrumbs items={[{ label: "首页", href: "/" }, { label: "搜索", href: "/search" }]} />
+				</div>
+				<SearchHero />
+				<Card size="sm">
+					<CardContent className="text-center py-8">
+						<p className="text-sm text-muted-foreground">搜索功能暂时关闭</p>
+					</CardContent>
+				</Card>
+			</div>
 		);
 	}
 
@@ -85,44 +94,22 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 							type="text"
 							name="q"
 							defaultValue={data.query}
-							placeholder="搜索..."
+							placeholder="输入关键词搜索..."
 							className="h-8 flex-1"
 						/>
-						<input type="hidden" name="type" value={data.searchType} />
 						<Button type="submit" size="sm">
 							搜索
 						</Button>
 					</form>
 
-					{/* Search type tabs */}
-					{data.query && (
-						<div className="flex items-center gap-1 border-b">
-							{SEARCH_TYPES.map((t) => {
-								const active = data.searchType === t.key;
-								return active ? (
-									<span
-										key={t.key}
-										className="inline-flex h-7 items-center border-b-2 border-primary px-2 text-xs font-medium text-foreground"
-									>
-										{t.label}
-									</span>
-								) : (
-									<Link
-										key={t.key}
-										href={`/search?q=${encodeURIComponent(data.query)}&type=${t.key}`}
-										className="inline-flex h-7 items-center border-b-2 border-transparent px-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-									>
-										{t.label}
-									</Link>
-								);
-							})}
-						</div>
-					)}
-
 					{/* Results */}
 					{data.query ? (
 						<>
-							{data.results.items.length === 0 ? (
+							{data.query.length < 2 ? (
+								<div className="py-8 text-center text-sm text-muted-foreground">
+									请输入至少 2 个字符
+								</div>
+							) : data.results.items.length === 0 ? (
 								<div className="py-8 text-center text-sm text-muted-foreground">未找到相关结果</div>
 							) : (
 								<div className="divide-y divide-border/50">
@@ -155,20 +142,18 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 								</div>
 							)}
 
-							<KeysetPagination
-								total={data.results.total}
-								totalLabel="条结果"
-								prevHref={
-									data.results.prevCursor
-										? `/search?q=${encodeURIComponent(data.query)}&type=${data.searchType}&cursor=${data.results.prevCursor}&direction=backward`
-										: null
-								}
-								nextHref={
-									data.results.nextCursor
-										? `/search?q=${encodeURIComponent(data.query)}&type=${data.searchType}&cursor=${data.results.nextCursor}`
-										: null
-								}
-							/>
+							{data.results.items.length > 0 && (
+								<KeysetPagination
+									total={data.results.total}
+									totalLabel="条结果"
+									prevHref={null}
+									nextHref={
+										data.results.nextCursor
+											? `/search?q=${encodeURIComponent(data.query)}&cursor=${data.results.nextCursor}`
+											: null
+									}
+								/>
+							)}
 						</>
 					) : (
 						<div className="py-8 text-center text-sm text-muted-foreground">输入关键词开始搜索</div>

@@ -240,6 +240,104 @@ describe("L2: Worker Public API", () => {
 		});
 	});
 
+	// ─── Search ────────────────────────────────────────────────────
+
+	describe("GET /api/v1/search/threads", () => {
+		test("returns 400 for missing query", async () => {
+			const res = await workerFetch("/api/v1/search/threads");
+			expect(res.status).toBe(400);
+			const data = await res.json();
+			expect(data.error.code).toBe("INVALID_REQUEST");
+		});
+
+		test("returns 400 for query less than 2 chars", async () => {
+			const res = await workerFetch("/api/v1/search/threads?q=a");
+			expect(res.status).toBe(400);
+		});
+
+		test("returns 200 with results for valid query", async () => {
+			// Search for common term likely to exist in test data
+			const res = await workerFetch("/api/v1/search/threads?q=test");
+			expect(res.status).toBe(200);
+			const data = await res.json();
+			expect(data).toHaveProperty("data");
+			expect(Array.isArray(data.data)).toBe(true);
+			expect(data.meta).toHaveProperty("total");
+			expect(typeof data.meta.total).toBe("number");
+		});
+
+		test("Chinese keywords work correctly", async () => {
+			// Test Chinese search capability
+			const res = await workerFetch("/api/v1/search/threads?q=测试");
+			expect(res.status).toBe(200);
+			const data = await res.json();
+			expect(Array.isArray(data.data)).toBe(true);
+		});
+
+		test("multi-keyword AND search", async () => {
+			// Space-separated keywords should perform AND search
+			const res = await workerFetch("/api/v1/search/threads?q=test%20post");
+			expect(res.status).toBe(200);
+			const data = await res.json();
+			expect(Array.isArray(data.data)).toBe(true);
+		});
+
+		test("respects limit parameter", async () => {
+			const res = await workerFetch("/api/v1/search/threads?q=test&limit=5");
+			expect(res.status).toBe(200);
+			const data = await res.json();
+			expect(data.data.length).toBeLessThanOrEqual(5);
+		});
+
+		test("pagination with cursor works", async () => {
+			// Get first page
+			const res1 = await workerFetch("/api/v1/search/threads?q=test&limit=1");
+			expect(res1.status).toBe(200);
+			const data1 = await res1.json();
+
+			// If there's a next cursor, test pagination
+			if (data1.meta.nextCursor) {
+				const cursor = encodeURIComponent(data1.meta.nextCursor);
+				const res2 = await workerFetch(`/api/v1/search/threads?q=test&limit=1&cursor=${cursor}`);
+				expect(res2.status).toBe(200);
+				const data2 = await res2.json();
+				expect(Array.isArray(data2.data)).toBe(true);
+			}
+		});
+
+		test("returns 400 for invalid cursor", async () => {
+			const res = await workerFetch("/api/v1/search/threads?q=test&cursor=invalid!!!");
+			expect(res.status).toBe(400);
+		});
+
+		test("response matches Thread type contract", async () => {
+			const res = await workerFetch("/api/v1/search/threads?q=test&limit=1");
+			expect(res.status).toBe(200);
+			const data = await res.json();
+
+			if (data.data.length > 0) {
+				const thread = data.data[0];
+				// Verify required Thread fields
+				expect(thread).toHaveProperty("id");
+				expect(thread).toHaveProperty("forumId");
+				expect(thread).toHaveProperty("authorId");
+				expect(thread).toHaveProperty("authorName");
+				expect(thread).toHaveProperty("subject");
+				expect(thread).toHaveProperty("createdAt");
+				expect(thread).toHaveProperty("lastPostAt");
+				expect(thread).toHaveProperty("replies");
+				expect(thread).toHaveProperty("views");
+				// Additional fields from Thread type
+				expect(thread).toHaveProperty("closed");
+				expect(thread).toHaveProperty("sticky");
+				expect(thread).toHaveProperty("digest");
+				expect(thread).toHaveProperty("special");
+				expect(thread).toHaveProperty("highlight");
+				expect(thread).toHaveProperty("recommends");
+			}
+		});
+	});
+
 	// ─── Health Check ──────────────────────────────────────────────
 
 	describe("GET /api/live", () => {
