@@ -17,11 +17,7 @@ export default async function MessageDetailRoute({ params }: MessageDetailRouteP
 	const breadcrumbs = buildMessagesBreadcrumbs();
 
 	if (Number.isNaN(messageId)) {
-		return (
-			<div className="py-12 text-center text-sm text-muted-foreground">
-				无效的站内信 ID
-			</div>
-		);
+		return <div className="py-12 text-center text-sm text-muted-foreground">无效的站内信 ID</div>;
 	}
 
 	return <MessageDetailClient messageId={messageId} breadcrumbs={breadcrumbs} />;

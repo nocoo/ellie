@@ -20,10 +20,7 @@ test.describe("E2E-TH: Thread Flow", () => {
 	 * And I should see author info
 	 * And I should see post content
 	 */
-	test("E2E-TH-01: view thread detail shows subject and posts", async ({
-		page,
-		loginAs,
-	}) => {
+	test("E2E-TH-01: view thread detail shows subject and posts", async ({ page, loginAs }) => {
 		await loginAs("e2etest");
 		const threadPage = new ThreadPage(page);
 		await threadPage.goto(662174);

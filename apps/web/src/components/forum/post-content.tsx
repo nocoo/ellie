@@ -8,7 +8,7 @@
 // suppressHydrationWarning prevents that.
 
 import { Badge } from "@/components/ui/badge";
-import { getAttachmentUrl, getAttachmentThumbUrl, getStaticImageUrl } from "@/lib/cdn";
+import { getAttachmentThumbUrl, getAttachmentUrl, getStaticImageUrl } from "@/lib/cdn";
 import {
 	type EnrichedPost,
 	floorLabel,

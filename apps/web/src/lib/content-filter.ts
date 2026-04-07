@@ -336,8 +336,7 @@ function sanitizeHtml(html: string): string {
 		// Force all links to open in new tab with noopener
 		ADD_ATTR: ["target", "rel"],
 		// Forbid javascript: and data: URLs in href/src
-		ALLOWED_URI_REGEXP:
-			/^(?:(?:https?|ftp|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
+		ALLOWED_URI_REGEXP: /^(?:(?:https?|ftp|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
 	});
 }
 

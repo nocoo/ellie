@@ -60,10 +60,7 @@ export interface ContentValidationResult {
  * Validate reply content before submission.
  * Pure function for testability.
  */
-export function validateReplyContent(
-	html: string,
-	minLength: number = 2,
-): ContentValidationResult {
+export function validateReplyContent(html: string, minLength = 2): ContentValidationResult {
 	const strippedContent = stripHtmlTags(html).trim();
 	if (strippedContent.length < minLength) {
 		return { valid: false, error: "内容太短，请输入更多内容" };
@@ -97,10 +94,7 @@ export function buildQuotedContent(
  * Submit a reply to the API.
  * Extracted for testability and reuse.
  */
-export async function submitReply(
-	threadId: number,
-	content: string,
-): Promise<void> {
+export async function submitReply(threadId: number, content: string): Promise<void> {
 	await apiClient.post("/api/v1/posts", {
 		threadId,
 		content,

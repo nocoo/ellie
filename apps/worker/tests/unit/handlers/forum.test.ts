@@ -201,7 +201,11 @@ describe("forum handlers", () => {
 			return {
 				prepare: mock((sql: string) => {
 					// Forum query (with or without JOIN)
-					if (sql.includes("FROM forums") && sql.includes("WHERE") && !sql.includes("MAX(last_post_at)")) {
+					if (
+						sql.includes("FROM forums") &&
+						sql.includes("WHERE") &&
+						!sql.includes("MAX(last_post_at)")
+					) {
 						return {
 							bind: mock(() => ({
 								first: mock(() => Promise.resolve(forumRow)),
@@ -282,7 +286,11 @@ describe("forum handlers", () => {
 			const db = {
 				prepare: mock((sql: string) => {
 					// Forum query (with or without JOIN)
-					if (sql.includes("FROM forums") && sql.includes("WHERE") && !sql.includes("MAX(last_post_at)")) {
+					if (
+						sql.includes("FROM forums") &&
+						sql.includes("WHERE") &&
+						!sql.includes("MAX(last_post_at)")
+					) {
 						return { bind: bindSpy };
 					}
 					// Visible last threads query (uses MAX subquery now)

@@ -288,7 +288,11 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 				{/* Footer */}
 				<div className="px-5 py-4 border-t border-border/50 bg-muted/30">
 					<div className="flex items-center justify-end gap-2">
-						<Button variant="ghost" onClick={() => handleOpenChange(false)} disabled={state.submitting}>
+						<Button
+							variant="ghost"
+							onClick={() => handleOpenChange(false)}
+							disabled={state.submitting}
+						>
 							取消
 						</Button>
 						<Button onClick={actions.handleSave} disabled={state.submitting} className="gap-2">

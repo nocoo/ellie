@@ -341,7 +341,13 @@ describe("post handlers", () => {
 
 	describe("getById", () => {
 		it("should map D1 row to camelCase Post when found", async () => {
-			const d1Row = makeD1PostRow({ id: 123, thread_id: 10, forum_id: 5, is_first: 0, invisible: 0 });
+			const d1Row = makeD1PostRow({
+				id: 123,
+				thread_id: 10,
+				forum_id: 5,
+				is_first: 0,
+				invisible: 0,
+			});
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT * FROM posts WHERE id": d1Row,

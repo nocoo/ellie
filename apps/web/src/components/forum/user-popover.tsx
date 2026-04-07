@@ -394,7 +394,10 @@ export function UserPopover({
 													</Badge>
 												)}
 												{userIsMuted && !userIsBanned && (
-													<Badge variant="outline" className="text-2xs text-orange-500 border-orange-500">
+													<Badge
+														variant="outline"
+														className="text-2xs text-orange-500 border-orange-500"
+													>
 														已禁言
 													</Badge>
 												)}
@@ -542,10 +545,7 @@ export function UserPopover({
 													解除封禁
 												</DropdownMenuItem>
 											) : (
-												<DropdownMenuItem
-													variant="destructive"
-													onClick={() => setModAction("ban")}
-												>
+												<DropdownMenuItem variant="destructive" onClick={() => setModAction("ban")}>
 													<Ban className="h-4 w-4" />
 													封禁用户
 												</DropdownMenuItem>

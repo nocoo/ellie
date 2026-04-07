@@ -4,7 +4,7 @@ import { aggregateOnlineStats } from "../../../src/lib/online-stats";
 
 describe("aggregateOnlineStats", () => {
 	const NOW = 1711900800; // Fixed timestamp for testing
-	const TODAY = "2024-03-31"; // Corresponding date
+	const _TODAY = "2024-03-31"; // Corresponding date
 
 	const createMockEnv = (options?: {
 		onlineKeys?: { name: string }[];

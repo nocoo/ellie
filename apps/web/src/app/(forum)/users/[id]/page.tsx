@@ -9,10 +9,10 @@ import { UserThreadsTab } from "@/components/forum/user-threads-tab";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { buildUserBreadcrumbs } from "@/lib/forum-breadcrumbs";
-import { formatCompactNumber } from "@/viewmodels/shared/formatting";
 import { getUserTitle } from "@/viewmodels/forum/title.server";
 import { PROFILE_TABS } from "@/viewmodels/forum/user-profile";
 import { type UserProfileData, loadUserProfile } from "@/viewmodels/forum/user-profile.server";
+import { formatCompactNumber } from "@/viewmodels/shared/formatting";
 import { parseIntParam } from "@/viewmodels/shared/params";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -109,7 +109,9 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 				<Link href={`/users/${userId}?tab=posts`}>
 					<Card size="sm" className="hover:border-primary/50 transition-colors cursor-pointer">
 						<CardContent className="text-center">
-							<p className="text-lg font-semibold text-foreground">{formatCompactNumber(data.user.posts)}</p>
+							<p className="text-lg font-semibold text-foreground">
+								{formatCompactNumber(data.user.posts)}
+							</p>
 							<p className="mt-1 text-xs text-muted-foreground">回帖数</p>
 						</CardContent>
 					</Card>
@@ -126,7 +128,9 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 				</Link>
 				<Card size="sm">
 					<CardContent className="text-center">
-						<p className="text-lg font-semibold text-foreground">{formatCompactNumber(data.user.credits)}</p>
+						<p className="text-lg font-semibold text-foreground">
+							{formatCompactNumber(data.user.credits)}
+						</p>
 						<p className="mt-1 text-xs text-muted-foreground">积分</p>
 					</CardContent>
 				</Card>

@@ -52,7 +52,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
 		defaultOpen: true,
 		items: [
 			{ href: "/admin/reports", label: "举报管理", icon: "Flag" },
-				{ href: "/admin/ip-bans", label: "IP 封禁", icon: "ShieldBan" },
+			{ href: "/admin/ip-bans", label: "IP 封禁", icon: "ShieldBan" },
 			{ href: "/admin/censor-words", label: "敏感词", icon: "Filter" },
 		],
 	},

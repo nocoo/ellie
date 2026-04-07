@@ -3,8 +3,8 @@
 "use client";
 
 import { ComposeMessageDialog } from "@/components/forum/compose-message-dialog";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { type BreadcrumbItem, Breadcrumbs } from "@/components/layout/breadcrumbs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { getAvatarUrl } from "@/lib/avatar";
 import { getStaticImageUrl } from "@/lib/cdn";

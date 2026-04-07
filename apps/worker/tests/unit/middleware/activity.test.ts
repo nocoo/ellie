@@ -87,7 +87,12 @@ describe("trackActivity", () => {
 	});
 
 	it("should update last_activity without adding ol_time for first activity", async () => {
-		const { env, kvPut, updateBind, dbRun } = createMockEnv({
+		const {
+			env,
+			kvPut,
+			updateBind,
+			dbRun: _dbRun,
+		} = createMockEnv({
 			throttleValue: null,
 			userData: { last_activity: 0, ol_time: 0 },
 		});
@@ -163,7 +168,13 @@ describe("trackActivity", () => {
 	});
 
 	it("should not update if user not found", async () => {
-		const { env, kvPut, dbRun, dbFirst, dbPrepare } = createMockEnv({
+		const {
+			env,
+			kvPut: _kvPut,
+			dbRun,
+			dbFirst,
+			dbPrepare,
+		} = createMockEnv({
 			throttleValue: null,
 			userData: null, // User not found
 		});

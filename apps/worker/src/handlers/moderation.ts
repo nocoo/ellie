@@ -11,12 +11,12 @@
 // - canEditPost: for editing posts (Author or Mod in scope)
 
 import {
+	canAccessAdmin,
 	canDeletePost,
 	canDeleteThread,
 	canEditPost,
 	canModerate,
 	canMoveThread,
-	canAccessAdmin,
 } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { parseIdFromPath, parsePathSegment } from "../lib/parseId";

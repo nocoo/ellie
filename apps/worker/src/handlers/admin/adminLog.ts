@@ -15,7 +15,9 @@ import { errorResponse } from "../../middleware/error";
 
 const ADMIN_LOG_COLUMNS = `
 	id, admin_id, admin_name, action, target_type, target_id, details, ip, created_at
-`.replace(/\s+/g, " ").trim();
+`
+	.replace(/\s+/g, " ")
+	.trim();
 
 // ─── Mapper ───────────────────────────────────────────────────────
 
@@ -133,7 +135,9 @@ export const list = withEntityAuth(
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid page number" }, origin);
 		}
 
-		const countResult = await env.DB.prepare(`SELECT COUNT(*) as total FROM admin_logs ${whereClause}`)
+		const countResult = await env.DB.prepare(
+			`SELECT COUNT(*) as total FROM admin_logs ${whereClause}`,
+		)
 			.bind(...params)
 			.first<{ total: number }>();
 

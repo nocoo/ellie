@@ -1,8 +1,8 @@
 // components/forum/user-digest-tab.tsx — Digest threads tab for user profile page
 
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
-import { formatCompactNumber, formatRelativeTime } from "@/viewmodels/shared/formatting";
 import type { UserProfileData } from "@/viewmodels/forum/user-profile.server";
+import { formatCompactNumber, formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { getThreadBadges } from "@ellie/types";
 import Link from "next/link";
 

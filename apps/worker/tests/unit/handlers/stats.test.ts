@@ -30,7 +30,7 @@ function makeStatsDb(counts: number[], newestUsername = "newbie") {
 	];
 
 	return {
-		prepare: mock((sql: string) => ({
+		prepare: mock((_sql: string) => ({
 			bind: mock(() => ({
 				all: mock(async () => {
 					// Not used by batch — included for completeness

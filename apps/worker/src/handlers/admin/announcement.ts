@@ -21,7 +21,9 @@ import { errorResponse } from "../../middleware/error";
 const ANNOUNCEMENT_COLUMNS = `
 	id, title, content, forum_ids, sticky, start_at, end_at,
 	status, author_id, author_name, created_at, updated_at
-`.replace(/\s+/g, " ").trim();
+`
+	.replace(/\s+/g, " ")
+	.trim();
 
 // ─── Mapper ───────────────────────────────────────────────────────
 
@@ -52,9 +54,7 @@ const announcementConfig: EntityConfig = {
 	mapper: toAnnouncement,
 	notFoundCode: "ANNOUNCEMENT_NOT_FOUND",
 
-	filters: [
-		{ param: "status", column: "status", type: "exact" },
-	],
+	filters: [{ param: "status", column: "status", type: "exact" }],
 	listSort: "sticky DESC, created_at DESC",
 
 	// Create fields
@@ -256,12 +256,14 @@ export const list = withEntityAuth(
 		if (forumIdFilter) {
 			// forum_ids is stored as comma-separated string like "1,2,3" or empty for all
 			// Empty forum_ids means announcement applies to all forums
-			conditions.push("(forum_ids = '' OR forum_ids LIKE ? OR forum_ids LIKE ? OR forum_ids LIKE ? OR forum_ids = ?)");
+			conditions.push(
+				"(forum_ids = '' OR forum_ids LIKE ? OR forum_ids LIKE ? OR forum_ids LIKE ? OR forum_ids = ?)",
+			);
 			params.push(
-				`${forumIdFilter},%`,    // starts with ID
-				`%,${forumIdFilter},%`,  // contains ID in middle
-				`%,${forumIdFilter}`,    // ends with ID
-				forumIdFilter,           // exact single ID
+				`${forumIdFilter},%`, // starts with ID
+				`%,${forumIdFilter},%`, // contains ID in middle
+				`%,${forumIdFilter}`, // ends with ID
+				forumIdFilter, // exact single ID
 			);
 		}
 
@@ -277,7 +279,9 @@ export const list = withEntityAuth(
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid page number" }, origin);
 		}
 
-		const countResult = await env.DB.prepare(`SELECT COUNT(*) as total FROM announcements ${whereClause}`)
+		const countResult = await env.DB.prepare(
+			`SELECT COUNT(*) as total FROM announcements ${whereClause}`,
+		)
 			.bind(...params)
 			.first<{ total: number }>();
 
@@ -315,4 +319,7 @@ export const remove = withEntityAuth(announcementConfig, createRemoveHandler(ann
 
 // ─── POST /api/admin/announcements/batch-delete ──────────────────
 
-export const batchDelete = withEntityAuth(announcementConfig, createBatchDeleteHandler(announcementConfig));
+export const batchDelete = withEntityAuth(
+	announcementConfig,
+	createBatchDeleteHandler(announcementConfig),
+);

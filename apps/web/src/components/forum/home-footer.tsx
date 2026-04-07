@@ -48,9 +48,7 @@ function FriendLinksSection({ vm }: { vm: HomeFooterViewModel }) {
 			<div className="flex items-center gap-3 border-b border-border bg-gradient-to-r from-forum-header-from to-forum-header-to px-4 py-3">
 				<ForumLogo height={28} />
 				<div className="flex-1 min-w-0">
-					<h3 className="text-sm font-bold text-foreground truncate">
-						友情链接
-					</h3>
+					<h3 className="text-sm font-bold text-foreground truncate">友情链接</h3>
 					<p className="text-xs text-muted-foreground truncate">
 						欢迎交换链接，请联系 hi@tongji.net
 					</p>
@@ -71,9 +69,7 @@ function FriendLinksSection({ vm }: { vm: HomeFooterViewModel }) {
 							>
 								{link.label}
 							</Link>
-							{idx < vm.friendLinks.length - 1 && (
-								<span className="text-border mx-1.5">|</span>
-							)}
+							{idx < vm.friendLinks.length - 1 && <span className="text-border mx-1.5">|</span>}
 						</span>
 					))}
 				</div>

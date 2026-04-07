@@ -41,12 +41,12 @@ export const test = base.extend<TestFixtures>({
 	},
 
 	loginAs: async ({ page }, use) => {
-		const loginAs = async (username: string) => {
+		const loginAs = async (_username: string) => {
 			await page.goto("/login");
 			await page.waitForLoadState("networkidle");
 
 			// Use E2E test user credentials
-			// The `username` parameter is kept for API compatibility but we use the actual test user
+			// The `_username` parameter is kept for API compatibility but we use the actual test user
 			const testUser = E2E_TEST_USER;
 
 			await page.fill(FORM.usernameInput, testUser.username);

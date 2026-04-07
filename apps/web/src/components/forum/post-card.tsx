@@ -221,11 +221,7 @@ export function PostCard({
 			/>
 
 			{/* Report dialog */}
-			<ReportDialog
-				open={reportDialogOpen}
-				onOpenChange={setReportDialogOpen}
-				postId={post.id}
-			/>
+			<ReportDialog open={reportDialogOpen} onOpenChange={setReportDialogOpen} postId={post.id} />
 		</div>
 	);
 }

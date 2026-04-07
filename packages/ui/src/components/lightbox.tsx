@@ -1,8 +1,8 @@
 "use client";
 
-import { cn } from "../lib/utils";
 import { ChevronLeft, ChevronRight, Download, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { cn } from "../lib/utils";
 
 export interface LightboxImage {
 	src: string;

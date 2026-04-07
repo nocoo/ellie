@@ -32,8 +32,7 @@ export default async function MessagesRoute({ searchParams }: MessagesRouteProps
 	const toId = params.to ? Number.parseInt(params.to, 10) : undefined;
 
 	// Fetch recipient info if ?to=N is provided
-	const initialRecipient =
-		toId && !Number.isNaN(toId) ? await getRecipientInfo(toId) : undefined;
+	const initialRecipient = toId && !Number.isNaN(toId) ? await getRecipientInfo(toId) : undefined;
 
 	return (
 		<MessagesPageClient

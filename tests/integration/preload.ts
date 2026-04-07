@@ -2,9 +2,9 @@
 // Automatically starts the Worker before any integration test runs.
 // Also loads environment variables from .dev.vars to match Worker config.
 
+import { afterAll, beforeAll } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterAll, beforeAll } from "bun:test";
 import { startWorker, stopWorker } from "./setup";
 
 // Load .dev.vars into process.env before tests run

@@ -130,9 +130,7 @@ export function canSubmitThread(
 	maxSubjectLength = 100,
 ): boolean {
 	const trimmed = subject.trim();
-	return (
-		trimmed.length >= minSubjectLength && trimmed.length <= maxSubjectLength && !submitting
-	);
+	return trimmed.length >= minSubjectLength && trimmed.length <= maxSubjectLength && !submitting;
 }
 
 /**
@@ -192,9 +190,10 @@ export function useThreadSubmit({
 
 	// Computed validation
 	const subjectValidation = validateSubject(subject, minSubjectLength, maxSubjectLength);
-	const subjectError = subject.trim().length > 0 && !subjectValidation.valid
-		? subjectValidation.error ?? null
-		: null;
+	const subjectError =
+		subject.trim().length > 0 && !subjectValidation.valid
+			? (subjectValidation.error ?? null)
+			: null;
 	const canSubmit = canSubmitThread(subject, submitting, minSubjectLength, maxSubjectLength);
 
 	// Actions
@@ -248,7 +247,16 @@ export function useThreadSubmit({
 				setSubmitting(false);
 			}
 		},
-		[forumId, subject, minSubjectLength, maxSubjectLength, minContentLength, onSuccess, reset, router],
+		[
+			forumId,
+			subject,
+			minSubjectLength,
+			maxSubjectLength,
+			minContentLength,
+			onSuccess,
+			reset,
+			router,
+		],
 	);
 
 	return {

@@ -19,10 +19,7 @@ test.describe("E2E-PO: Post Flow", () => {
 	 * And each post should have author sidebar
 	 * And each post should have content area
 	 */
-	test("E2E-PO-01: view posts shows cards with author and content", async ({
-		page,
-		loginAs,
-	}) => {
+	test("E2E-PO-01: view posts shows cards with author and content", async ({ page, loginAs }) => {
 		await loginAs("e2etest");
 		const threadPage = new ThreadPage(page);
 		await threadPage.goto(662174);
@@ -67,7 +64,7 @@ test.describe("E2E-PO: Post Flow", () => {
 		await threadPage.goto(662174);
 
 		// Count existing posts
-		const initialCount = await threadPage.postCards.count();
+		const _initialCount = await threadPage.postCards.count();
 
 		// Find and click reply button
 		// Could be in floating actions or post action bar

@@ -63,9 +63,7 @@ test.describe("E2E-AU: Auth Flow", () => {
 
 		// Should see username in page (user dropdown or text containing username)
 		// Try multiple selectors for flexibility
-		const userIndicator = page
-			.locator('[data-testid="user-menu"]')
-			.or(page.getByText("e2etest"));
+		const userIndicator = page.locator('[data-testid="user-menu"]').or(page.getByText("e2etest"));
 		await expect(userIndicator.first()).toBeVisible({ timeout: 10000 });
 	});
 

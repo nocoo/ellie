@@ -103,12 +103,7 @@ export async function checkPostingPermission(
 		if (contentType === "thread" && !settings.allowNewThread) {
 			return {
 				allowed: false,
-				error: errorResponse(
-					"CONTENT_DISABLED",
-					403,
-					{ message: "发布新主题功能已暂停" },
-					origin,
-				),
+				error: errorResponse("CONTENT_DISABLED", 403, { message: "发布新主题功能已暂停" }, origin),
 			};
 		}
 		if (contentType === "reply" && !settings.allowReply) {

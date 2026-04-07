@@ -18,7 +18,7 @@ const statsConfig: EntityConfig = {
 };
 
 // D1 has a limit of 999 parameters per query
-const MAX_PARAMS = 500;
+const _MAX_PARAMS = 500;
 const BATCH_SIZE = 500;
 
 // ─── POST /api/admin/statistics/recalc-forums ────────────────────────────────

@@ -1,28 +1,101 @@
-/** User role — maps to Doc02 users.role (from DZ adminid) */
+/**
+ * User role — maps to Doc02 users.role (from DZ adminid)
+ *
+ * DZ extended values (-1, 7) are passed through as-is for historical data.
+ * Application code should handle unknown values gracefully.
+ */
 export declare enum UserRole {
 	User = 0,
 	Admin = 1,
 	SuperMod = 2,
 	Mod = 3,
 }
-/** User status — maps to Doc02 users.status */
+/**
+ * User status — maps to Doc02 users.status
+ *
+ * Placeholder (-3) is used for FK integrity when the original user was deleted.
+ */
 export declare enum UserStatus {
+	Placeholder = -3, // FK integrity placeholder
+	Archived = -2, // Historical/archived account
+	Banned = -1, // Account disabled
 	Active = 0,
-	Banned = -1,
-	Archived = -2,
 }
-/** Sticky level — maps to Doc02 threads.sticky (from DZ displayorder) */
+/**
+ * Sticky level — maps to Doc02 threads.sticky (from DZ displayorder)
+ *
+ * Negative values indicate hidden/special states:
+ *   -99: Placeholder (FK integrity)
+ *    -4: Draft
+ *    -3: Ignored/hidden
+ *    -2: Pending moderation
+ *    -1: In recycle bin
+ */
 export declare enum StickyLevel {
-	None = 0,
-	Forum = 1,
-	Global = 2,
+	Placeholder = -99, // FK integrity placeholder
+	Draft = -4, // Saved but not published
+	Ignored = -3, // Hidden by moderator
+	Moderating = -2, // Pending review
+	RecycleBin = -1, // In recycle bin
+	None = 0, // Normal (no sticky)
+	Forum = 1, // Forum-level sticky
+	Global = 2, // Global sticky (all forums)
 	Category = 3,
 }
 /** Forum type — maps to Doc02 forums.type */
 export declare enum ForumType {
-	Group = "group",
-	Forum = "forum",
+	Group = "group", // Category/group header
+	Forum = "forum", // Normal forum board
 	Sub = "sub",
+}
+/**
+ * Forum status — maps to Doc02 forums.status
+ *
+ * Placeholder (-1) is used for FK integrity when the original forum was deleted.
+ */
+export declare enum ForumStatus {
+	Placeholder = -1, // FK integrity placeholder
+	Hidden = 0, // Disabled, not shown
+	Normal = 1, // Active forum
+	Paused = 2, // Temporarily closed for posting
+	QQGroup = 3,
+}
+/**
+ * Thread closed state — maps to Doc02 threads.closed
+ *
+ * Values > 1 indicate the thread was merged into another thread.
+ */
+export declare enum ThreadClosedState {
+	Open = 0, // Open for replies
+	Closed = 1,
+}
+/**
+ * Digest level — maps to Doc02 threads.digest (精华级别)
+ */
+export declare enum DigestLevel {
+	None = 0, // Not digest
+	Level1 = 1, // ★
+	Level2 = 2, // ★★
+	Level3 = 3,
+}
+/**
+ * Post visibility — maps to Doc02 posts.invisible
+ */
+export declare enum PostVisibility {
+	DeletedByUser = -5, // Soft delete by user
+	Draft = -3, // Saved but not published
+	AwaitingReview = -2, // Awaiting moderator review
+	DeletedByMod = -1, // Deleted by moderator
+	Visible = 0, // Normal visible post
+	PendingReview = 1,
+}
+/**
+ * User gender — maps to Doc02 users.gender
+ */
+export declare enum Gender {
+	Unset = 0,
+	Male = 1,
+	Female = 2,
 }
 /** Public-facing user profile — excludes email, status, lastLogin, password */
 export interface PublicUser {
@@ -94,6 +167,8 @@ export interface ModeratorInfo {
 	id: number;
 	name: string;
 }
+/** Forum visibility level */
+export type ForumVisibility = "public" | "members" | "staff" | "admin";
 /** Maps to Doc02 forums table — 213 rows */
 export interface Forum {
 	id: number;
@@ -106,6 +181,7 @@ export interface Forum {
 	posts: number;
 	type: ForumType;
 	status: number;
+	visibility: ForumVisibility;
 	moderators: string;
 	moderatorList: ModeratorInfo[];
 	todayThreads: number;
