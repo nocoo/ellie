@@ -112,8 +112,13 @@ describe("buildQuotedContent", () => {
 		const result = buildQuotedContent("<p>Original message</p>", "Alice");
 		expect(result).toContain("blockquote");
 		expect(result).toContain("Alice");
-		expect(result).toContain("说：");
+		expect(result).toContain("quote-header");
 		expect(result).toContain("<p>Original message</p>");
+	});
+
+	it("includes time when provided", () => {
+		const result = buildQuotedContent("<p>Message</p>", "Alice", "2026-4-7 12:30");
+		expect(result).toContain("发表于 2026-4-7 12:30");
 	});
 
 	it("returns empty string when quotedContent is undefined", () => {
