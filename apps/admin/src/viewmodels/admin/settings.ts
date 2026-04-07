@@ -29,7 +29,7 @@ export interface SettingFieldDef {
 	label: string;
 	placeholder?: string;
 	/** UI input control type (independent from DB type column) */
-	inputType?: "text" | "number" | "url" | "textarea";
+	inputType?: "text" | "number" | "url" | "textarea" | "switch";
 	/** Hint text below the field */
 	hint?: string;
 }
@@ -116,6 +116,19 @@ export const SETTING_GROUPS: SettingGroupDef[] = [
 				label: "帖子最大字数",
 				inputType: "number",
 				placeholder: "50000",
+			},
+		],
+	},
+	{
+		title: "功能开关",
+		description: "控制站点功能的启用/禁用状态",
+		prefix: "general.search",
+		fields: [
+			{
+				key: "general.search.enabled",
+				label: "启用搜索",
+				inputType: "switch",
+				hint: "关闭后，搜索页面将显示「搜索功能暂时关闭」",
 			},
 		],
 	},
