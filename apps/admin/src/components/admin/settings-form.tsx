@@ -9,6 +9,7 @@ import {
 	updateSettings,
 } from "@/viewmodels/admin/settings";
 import { Button } from "@ellie/ui";
+import { Checkbox } from "@ellie/ui";
 import { Input } from "@ellie/ui";
 import { Label } from "@ellie/ui";
 import { RotateCcw, Save } from "lucide-react";
@@ -133,6 +134,27 @@ interface FieldInputProps {
 }
 
 function FieldInput({ field, value, onChange }: FieldInputProps) {
+	// switch type uses checkbox
+	if (field.inputType === "switch") {
+		const checked = value === "true";
+		return (
+			<div className="flex items-start gap-3 rounded-lg border p-4 transition-colors sm:col-span-2">
+				<Checkbox
+					id={field.key}
+					checked={checked}
+					onCheckedChange={(newChecked) => onChange(field.key, newChecked ? "true" : "false")}
+					className="mt-0.5"
+				/>
+				<div className="flex-1 space-y-1">
+					<Label htmlFor={field.key} className="cursor-pointer font-medium">
+						{field.label}
+					</Label>
+					{field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
+				</div>
+			</div>
+		);
+	}
+
 	// textarea gets a dedicated element
 	if (field.inputType === "textarea") {
 		return (
