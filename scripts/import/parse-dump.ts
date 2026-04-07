@@ -14,8 +14,8 @@
  *   bun run scripts/import/parse-dump.ts reference/db/ucenter.sql.gz uc_members --limit 10
  */
 
-import { gunzipSync } from "zlib";
-import { readFileSync } from "fs";
+import { gunzipSync } from "node:zlib";
+import { readFileSync } from "node:fs";
 
 interface ParseOptions {
   limit?: number;
