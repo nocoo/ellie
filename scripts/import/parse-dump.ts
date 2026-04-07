@@ -66,7 +66,7 @@ export function parseMySQLDump(
 	// Note: Use [\s\S] instead of . to match across newlines, and use greedy matching until the final );
 	const insertRegex = new RegExp(
 		`INSERT INTO \`${tableName}\` VALUES\\s*([\\s\\S]+?)(?:;\\s*(?:INSERT|UNLOCK|/\\*|--)|;\\s*$)`,
-		"g"
+		"g",
 	);
 
 	const rows: unknown[][] = [];
