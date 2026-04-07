@@ -77,6 +77,7 @@ function getStatusMessage(code: string): string {
 		UNKNOWN_KEYS: "Request contains unrecognized setting keys",
 		INVALID_NUMBER: "Numeric setting value must be a positive number",
 		MAINTENANCE_MODE: "Site is under maintenance",
+		FEATURE_DISABLED: "Feature is currently disabled",
 	};
 
 	return messages[code] || "An error occurred";

@@ -109,6 +109,11 @@ export default {
 				return await (await import("./handlers/user")).search(request, env);
 			}
 
+			// ── Thread search (FTS5, Key A, optional JWT) ─────
+			if (path === "/api/v1/search/threads" && request.method === "GET") {
+				return await (await import("./handlers/search")).searchThreads(request, env, ctx);
+			}
+
 			// ── Digest routes (global featured threads) ─────────
 			if (path === "/api/v1/digest" && request.method === "GET") {
 				return await (await import("./handlers/digest")).list(request, env);
