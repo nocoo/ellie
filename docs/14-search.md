@@ -447,7 +447,7 @@ if (path === "/api/v1/search/threads" && method === "GET") {
 ```typescript
 import "server-only";
 
-import { ForumApiError, forumApi } from "@/lib/forum-api";
+import { forumApi } from "@/lib/forum-api";
 import type { PaginatedResult } from "@/viewmodels/shared/pagination";
 import type { Thread } from "@ellie/types";
 
@@ -457,25 +457,26 @@ export interface SearchData {
   disabled?: boolean; // true when search is disabled by admin
 }
 
+/** Settings map type for search-related keys */
+interface SettingsMap {
+  "general.search.enabled"?: boolean;
+}
+
 /**
- * Check if search feature is enabled by probing the API.
- * Returns true if enabled, false if disabled (FEATURE_DISABLED).
- * Throws on other errors (maintenance, network, etc).
+ * Check if search feature is enabled via settings endpoint.
+ * This is a lightweight check that reads from KV-cached settings,
+ * avoiding the overhead of a real FTS5 query.
  */
 async function isSearchEnabled(): Promise<boolean> {
   try {
-    // Probe with minimal valid query
-    await forumApi.getCursor<Thread>("/api/v1/search/threads", {
-      q: "aa", // minimum 2 chars
-      limit: 1,
+    const response = await forumApi.get<SettingsMap>("/api/v1/settings", {
+      prefix: "general.search",
     });
+    // Default to true if setting doesn't exist
+    return response.data["general.search.enabled"] !== false;
+  } catch {
+    // On error, assume search is enabled (fail open for availability)
     return true;
-  } catch (err) {
-    if (err instanceof ForumApiError && err.code === "FEATURE_DISABLED") {
-      return false;
-    }
-    // Re-throw other errors (maintenance, network, etc)
-    throw err;
   }
 }
 
@@ -734,6 +735,7 @@ npx wrangler d1 migrations apply tongjinet-db --remote -c apps/worker/wrangler.t
 | 4 | `feat(admin): add search enabled setting` | Admin UI 配置 | ✅ |
 | 5 | `docs: update API reference for search endpoint` | 文档更新（含 FEATURE_DISABLED 错误码）| ✅ |
 | 6 | `fix(search): correct error handling and sync E2E tests` | 检查 err.code 而非 status，页面加载时检测禁用状态，移除已废弃的作者搜索 E2E 测试 | ✅ |
+| 7 | `refactor(search): use settings endpoint for feature detection` | 改用轻量 settings 端点检测禁用状态，避免 FTS5 探测请求；添加 17 个单元测试 | ✅ |
 
 ---
 
