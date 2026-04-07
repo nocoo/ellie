@@ -57,7 +57,29 @@ CREATE TABLE users (
   last_login    INTEGER NOT NULL DEFAULT 0,
   threads       INTEGER NOT NULL DEFAULT 0,
   posts         INTEGER NOT NULL DEFAULT 0,
-  credits       INTEGER NOT NULL DEFAULT 0
+  credits       INTEGER NOT NULL DEFAULT 0,
+  -- Extended profile fields (added post-migration)
+  signature     TEXT    NOT NULL DEFAULT '',  -- User signature (DZ sightml)
+  group_title   TEXT    NOT NULL DEFAULT '',  -- User group display name
+  group_stars   INTEGER NOT NULL DEFAULT 0,   -- Star count for user group
+  group_color   TEXT    NOT NULL DEFAULT '',  -- User group color (hex)
+  custom_title  TEXT    NOT NULL DEFAULT '',  -- Custom user title
+  digest_posts  INTEGER NOT NULL DEFAULT 0,   -- Digest post count
+  ol_time       INTEGER NOT NULL DEFAULT 0,   -- Online time (seconds)
+  gender        INTEGER NOT NULL DEFAULT 0,   -- 0=unknown, 1=male, 2=female
+  birth_year    INTEGER NOT NULL DEFAULT 0,
+  birth_month   INTEGER NOT NULL DEFAULT 0,
+  birth_day     INTEGER NOT NULL DEFAULT 0,
+  reside_province TEXT  NOT NULL DEFAULT '',
+  reside_city   TEXT    NOT NULL DEFAULT '',
+  graduate_school TEXT  NOT NULL DEFAULT '',
+  bio           TEXT    NOT NULL DEFAULT '',  -- User biography
+  interest      TEXT    NOT NULL DEFAULT '',  -- User interests
+  qq            TEXT    NOT NULL DEFAULT '',  -- QQ number
+  site          TEXT    NOT NULL DEFAULT '',  -- Personal website
+  last_activity INTEGER NOT NULL DEFAULT 0,   -- Last activity timestamp
+  reg_ip        TEXT    NOT NULL DEFAULT '',  -- Registration IP
+  last_ip       TEXT    NOT NULL DEFAULT ''   -- Last login IP
 );
 ```
 
@@ -146,8 +168,18 @@ CREATE TABLE forums (
   status          INTEGER NOT NULL DEFAULT 1,   -- 0=hidden, 1=normal, 3=group, -1=placeholder
   last_thread_id  INTEGER NOT NULL DEFAULT 0,
   last_post_at    INTEGER NOT NULL DEFAULT 0,
-  last_poster     TEXT    NOT NULL DEFAULT ''
+  last_poster     TEXT    NOT NULL DEFAULT '',
+  -- Extended fields (added post-migration)
+  last_thread_subject TEXT NOT NULL DEFAULT '',  -- Last thread's subject for display
+  moderators      TEXT    NOT NULL DEFAULT '',   -- Tab-separated moderator usernames (DZ format)
+  last_poster_id  INTEGER NOT NULL DEFAULT 0,    -- Last poster user ID for profile link
+  moderator_ids   TEXT    NOT NULL DEFAULT '',   -- Comma-separated moderator user IDs
+  visibility      TEXT    NOT NULL DEFAULT 'public'
+    CHECK(visibility IN ('public', 'members', 'staff', 'admin'))  -- Access control
 );
+
+CREATE INDEX idx_forums_last_poster_id ON forums(last_poster_id);
+CREATE INDEX idx_forums_visibility ON forums(visibility);
 ```
 
 **字段映射：**
@@ -204,13 +236,17 @@ CREATE TABLE threads (
   special       INTEGER NOT NULL DEFAULT 0,
   highlight     INTEGER NOT NULL DEFAULT 0,
   recommends    INTEGER NOT NULL DEFAULT 0,
-  post_table_id INTEGER NOT NULL DEFAULT 0
+  post_table_id INTEGER NOT NULL DEFAULT 0,
+  -- Extended fields (added post-migration)
+  type_name     TEXT    NOT NULL DEFAULT '',   -- Thread type classification
+  last_poster_id INTEGER NOT NULL DEFAULT 0    -- Last poster user ID for profile link
 );
 
 CREATE INDEX idx_threads_forum ON threads(forum_id, sticky DESC, last_post_at DESC);
 CREATE INDEX idx_threads_author ON threads(author_id, created_at DESC);
 CREATE INDEX idx_threads_latest ON threads(last_post_at DESC);
 CREATE INDEX idx_threads_digest ON threads(digest, last_post_at DESC) WHERE digest > 0;
+CREATE INDEX idx_threads_last_poster_id ON threads(last_poster_id);
 ```
 
 **字段映射：**
@@ -444,6 +480,179 @@ WHERE a.tableid = 0;
 
 ---
 
+## 管理功能表
+
+以下表格用于论坛管理功能，非 Discuz 迁移数据，而是 Ellie 原生创建。
+
+### ip_bans
+
+IP 封禁管理。
+
+```sql
+CREATE TABLE ip_bans (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ip TEXT NOT NULL,               -- IP address or CIDR range
+  admin_id INTEGER NOT NULL,      -- Admin who created the ban
+  admin_name TEXT NOT NULL DEFAULT '',
+  reason TEXT NOT NULL DEFAULT '',
+  expires_at INTEGER,             -- NULL = permanent ban
+  created_at INTEGER NOT NULL
+);
+
+CREATE UNIQUE INDEX idx_ip_bans_ip ON ip_bans(ip);
+```
+
+### censor_words
+
+敏感词过滤。
+
+```sql
+CREATE TABLE censor_words (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  find TEXT NOT NULL,             -- Word/pattern to find
+  replacement TEXT NOT NULL DEFAULT '**',  -- Replacement text
+  action TEXT NOT NULL DEFAULT 'replace'
+    CHECK(action IN ('ban', 'replace')),  -- 'ban' = block post, 'replace' = censor
+  admin_id INTEGER NOT NULL,
+  admin_name TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL
+);
+
+CREATE UNIQUE INDEX idx_censor_words_find ON censor_words(find);
+```
+
+### settings
+
+站点配置键值存储。
+
+```sql
+CREATE TABLE settings (
+  id    INTEGER PRIMARY KEY AUTOINCREMENT,
+  key   TEXT NOT NULL UNIQUE,     -- Namespaced key (e.g., 'general.site.name')
+  value TEXT NOT NULL DEFAULT '', -- Value as string (parsed by type)
+  type  TEXT NOT NULL DEFAULT 'string'
+    CHECK(type IN ('string', 'number', 'boolean', 'json')),
+  updated_at INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE UNIQUE INDEX idx_settings_key ON settings(key);
+```
+
+**Settings 命名空间：**
+
+| Namespace | Description |
+|-----------|-------------|
+| `general.site.*` | 站点基本信息（名称、副标题、版权等） |
+| `general.og.*` | Open Graph 元标签 |
+| `general.pagination.*` | 分页设置 |
+| `general.assets.*` | 静态资源配置 |
+| `general.navigation.*` | 导航链接配置 |
+| `features.access.*` | 访问控制（登录要求、维护模式） |
+| `features.content.*` | 内容控制（发帖/回复开关） |
+| `features.posting.*` | 发帖限制（新用户限制） |
+| `features.registration.*` | 注册控制 |
+
+### reports
+
+用户举报管理。
+
+```sql
+CREATE TABLE reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  type TEXT NOT NULL CHECK(type IN ('thread', 'post', 'user')),
+  target_id INTEGER NOT NULL,     -- ID of reported thread/post/user
+  reporter_id INTEGER NOT NULL,
+  reporter_name TEXT NOT NULL DEFAULT '',
+  reason TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK(status IN ('pending', 'resolved', 'dismissed')),
+  handler_id INTEGER,             -- Admin who handled the report
+  handler_name TEXT NOT NULL DEFAULT '',
+  handled_at INTEGER,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX idx_reports_status ON reports(status);
+CREATE INDEX idx_reports_type ON reports(type);
+CREATE INDEX idx_reports_target ON reports(type, target_id);
+CREATE INDEX idx_reports_reporter ON reports(reporter_id);
+CREATE INDEX idx_reports_created ON reports(created_at DESC);
+```
+
+### admin_logs
+
+管理员操作审计日志。
+
+```sql
+CREATE TABLE admin_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  admin_id INTEGER NOT NULL,
+  admin_name TEXT NOT NULL DEFAULT '',
+  action TEXT NOT NULL,           -- Action type (e.g., 'ban_user', 'delete_thread')
+  target_type TEXT NOT NULL DEFAULT '',  -- 'user', 'thread', 'post', etc.
+  target_id INTEGER,
+  details TEXT NOT NULL DEFAULT '',  -- JSON or text description
+  ip TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX idx_admin_logs_admin ON admin_logs(admin_id);
+CREATE INDEX idx_admin_logs_action ON admin_logs(action);
+CREATE INDEX idx_admin_logs_target ON admin_logs(target_type, target_id);
+CREATE INDEX idx_admin_logs_created ON admin_logs(created_at DESC);
+```
+
+### announcements
+
+站点公告。
+
+```sql
+CREATE TABLE announcements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL DEFAULT '',  -- Markdown content
+  forum_ids TEXT NOT NULL DEFAULT '',  -- Comma-separated forum IDs, empty = all forums
+  sticky INTEGER NOT NULL DEFAULT 0,   -- Sort priority (higher = first)
+  start_at INTEGER,               -- NULL = immediately visible
+  end_at INTEGER,                 -- NULL = no expiration
+  status INTEGER NOT NULL DEFAULT 1,  -- 0=draft, 1=published
+  author_id INTEGER NOT NULL,
+  author_name TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX idx_announcements_status ON announcements(status);
+CREATE INDEX idx_announcements_dates ON announcements(start_at, end_at);
+CREATE INDEX idx_announcements_sticky ON announcements(sticky DESC, created_at DESC);
+```
+
+### messages
+
+站内私信。
+
+```sql
+CREATE TABLE messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  sender_id INTEGER NOT NULL,
+  sender_name TEXT NOT NULL,
+  receiver_id INTEGER NOT NULL,
+  receiver_name TEXT NOT NULL,
+  subject TEXT NOT NULL DEFAULT '',
+  content TEXT NOT NULL,          -- Message body (plain text or markdown)
+  is_read INTEGER NOT NULL DEFAULT 0,
+  sender_deleted INTEGER NOT NULL DEFAULT 0,    -- Soft delete for sender
+  receiver_deleted INTEGER NOT NULL DEFAULT 0,  -- Soft delete for receiver
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX idx_messages_receiver ON messages(receiver_id, receiver_deleted, created_at DESC);
+CREATE INDEX idx_messages_sender ON messages(sender_id, sender_deleted, created_at DESC);
+CREATE INDEX idx_messages_unread ON messages(receiver_id, is_read, receiver_deleted);
+```
+
+---
+
 ## 数据量（tongji.nocoo.cloud）
 
 | Table | Rows | Data Size | Compressed Dump |
@@ -526,15 +735,51 @@ CREATE INDEX idx_threads_forum  ON threads(forum_id, sticky DESC, last_post_at D
 CREATE INDEX idx_threads_author ON threads(author_id, created_at DESC);                -- user profile
 CREATE INDEX idx_threads_latest ON threads(last_post_at DESC);                         -- homepage
 CREATE INDEX idx_threads_digest ON threads(digest, last_post_at DESC) WHERE digest > 0; -- digest listing
+CREATE INDEX idx_threads_last_poster_id ON threads(last_poster_id);                    -- user profile link
 
 -- posts (9.5M rows, ~4.5 GB with indexes)
 CREATE INDEX idx_posts_thread ON posts(thread_id, position);
 CREATE INDEX idx_posts_author ON posts(author_id, created_at DESC);
-```
 
 -- attachments (78K rows, ~35 MB with indexes)
 CREATE INDEX idx_attachments_post   ON attachments(post_id);    -- post rendering
 CREATE INDEX idx_attachments_thread ON attachments(thread_id);  -- thread attachments
+
+-- forums
+CREATE INDEX idx_forums_last_poster_id ON forums(last_poster_id);
+CREATE INDEX idx_forums_visibility ON forums(visibility);
+
+-- ip_bans
+CREATE UNIQUE INDEX idx_ip_bans_ip ON ip_bans(ip);
+
+-- censor_words
+CREATE UNIQUE INDEX idx_censor_words_find ON censor_words(find);
+
+-- settings
+CREATE UNIQUE INDEX idx_settings_key ON settings(key);
+
+-- reports
+CREATE INDEX idx_reports_status ON reports(status);
+CREATE INDEX idx_reports_type ON reports(type);
+CREATE INDEX idx_reports_target ON reports(type, target_id);
+CREATE INDEX idx_reports_reporter ON reports(reporter_id);
+CREATE INDEX idx_reports_created ON reports(created_at DESC);
+
+-- admin_logs
+CREATE INDEX idx_admin_logs_admin ON admin_logs(admin_id);
+CREATE INDEX idx_admin_logs_action ON admin_logs(action);
+CREATE INDEX idx_admin_logs_target ON admin_logs(target_type, target_id);
+CREATE INDEX idx_admin_logs_created ON admin_logs(created_at DESC);
+
+-- announcements
+CREATE INDEX idx_announcements_status ON announcements(status);
+CREATE INDEX idx_announcements_dates ON announcements(start_at, end_at);
+CREATE INDEX idx_announcements_sticky ON announcements(sticky DESC, created_at DESC);
+
+-- messages
+CREATE INDEX idx_messages_receiver ON messages(receiver_id, receiver_deleted, created_at DESC);
+CREATE INDEX idx_messages_sender ON messages(sender_id, sender_deleted, created_at DESC);
+CREATE INDEX idx_messages_unread ON messages(receiver_id, is_read, receiver_deleted);
 
 -- users: UNIQUE(username) in CREATE TABLE already acts as an index
 ```

@@ -216,3 +216,58 @@ CREATE TABLE IF NOT EXISTS _test_marker (
 );
 
 INSERT OR REPLACE INTO _test_marker (key, value) VALUES ('env', 'test');
+
+-- ============================================================================
+-- Indexes
+-- ============================================================================
+
+-- Threads indexes
+CREATE INDEX IF NOT EXISTS idx_threads_forum ON threads(forum_id, sticky DESC, last_post_at DESC);
+CREATE INDEX IF NOT EXISTS idx_threads_author ON threads(author_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_threads_latest ON threads(last_post_at DESC);
+CREATE INDEX IF NOT EXISTS idx_threads_digest ON threads(digest, last_post_at DESC) WHERE digest > 0;
+CREATE INDEX IF NOT EXISTS idx_threads_last_poster_id ON threads(last_poster_id);
+
+-- Posts indexes
+CREATE INDEX IF NOT EXISTS idx_posts_thread ON posts(thread_id, position);
+CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_id, created_at DESC);
+
+-- Attachments indexes
+CREATE INDEX IF NOT EXISTS idx_attachments_post ON attachments(post_id);
+CREATE INDEX IF NOT EXISTS idx_attachments_thread ON attachments(thread_id);
+
+-- Forums indexes
+CREATE INDEX IF NOT EXISTS idx_forums_last_poster_id ON forums(last_poster_id);
+CREATE INDEX IF NOT EXISTS idx_forums_visibility ON forums(visibility);
+
+-- IP Bans indexes
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ip_bans_ip ON ip_bans(ip);
+
+-- Censor Words indexes
+CREATE UNIQUE INDEX IF NOT EXISTS idx_censor_words_find ON censor_words(find);
+
+-- Settings indexes
+CREATE UNIQUE INDEX IF NOT EXISTS idx_settings_key ON settings(key);
+
+-- Reports indexes
+CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+CREATE INDEX IF NOT EXISTS idx_reports_type ON reports(type);
+CREATE INDEX IF NOT EXISTS idx_reports_target ON reports(type, target_id);
+CREATE INDEX IF NOT EXISTS idx_reports_reporter ON reports(reporter_id);
+CREATE INDEX IF NOT EXISTS idx_reports_created ON reports(created_at DESC);
+
+-- Admin Logs indexes
+CREATE INDEX IF NOT EXISTS idx_admin_logs_admin ON admin_logs(admin_id);
+CREATE INDEX IF NOT EXISTS idx_admin_logs_action ON admin_logs(action);
+CREATE INDEX IF NOT EXISTS idx_admin_logs_target ON admin_logs(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_admin_logs_created ON admin_logs(created_at DESC);
+
+-- Announcements indexes
+CREATE INDEX IF NOT EXISTS idx_announcements_status ON announcements(status);
+CREATE INDEX IF NOT EXISTS idx_announcements_dates ON announcements(start_at, end_at);
+CREATE INDEX IF NOT EXISTS idx_announcements_sticky ON announcements(sticky DESC, created_at DESC);
+
+-- Messages indexes
+CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id, receiver_deleted, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id, sender_deleted, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(receiver_id, is_read, receiver_deleted);
