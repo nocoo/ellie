@@ -11,6 +11,7 @@
 "use client";
 
 import { PostActionBar } from "@/components/forum/post-action-bar";
+import { PostComments } from "@/components/forum/post-comments";
 import { PostContent } from "@/components/forum/post-content";
 import { PostEditDialog } from "@/components/forum/post-edit-dialog";
 import { PostSidebar } from "@/components/forum/post-sidebar";
@@ -83,19 +84,25 @@ export function PostCard({
 
 	// Report dialog state
 	const [reportDialogOpen, setReportDialogOpen] = useState(false);
+	// Comment dialog state
+	const [commentDialogOpen, setCommentDialogOpen] = useState(false);
 	// Can report: logged in and not own post
 	const canReport = currentUserId !== null && !isOwnPost;
+	// Can comment: logged in and thread not closed
+	const canComment = currentUserId !== null && !threadClosed;
 
 	const actionBar = (
 		<>
 			<PostActionBar
 				onReply={onReply}
+				onComment={canComment ? () => setCommentDialogOpen(true) : undefined}
 				onEdit={canEdit ? actions.handleEdit : undefined}
 				onDelete={canDelete && !isFirst ? actions.handleDeleteClick : undefined}
 				onReport={canReport ? () => setReportDialogOpen(true) : undefined}
 				canEdit={canEdit}
 				canDelete={canDelete && !isFirst}
 				canReport={canReport}
+				canComment={canComment}
 			/>
 			{/* Thread mod menu: only on first post, for users with any management permission */}
 			{isFirstPost && (canManageThread || canMoveThread || canDeleteThread) && (
@@ -127,13 +134,22 @@ export function PostCard({
 					threadViews={threadViews}
 					threadReplies={threadReplies}
 				/>
-				<PostContent
-					post={post}
-					isFirst={isFirst}
-					threadDigest={threadDigest}
-					author={post.author}
-					actionBar={actionBar}
-				/>
+				<div className="flex-1 min-w-0 flex flex-col">
+					<PostContent
+						post={post}
+						isFirst={isFirst}
+						threadDigest={threadDigest}
+						author={post.author}
+						actionBar={actionBar}
+					/>
+					<PostComments
+						postId={post.id}
+						threadClosed={threadClosed}
+						isLoggedIn={currentUserId !== null}
+						dialogOpen={commentDialogOpen}
+						onDialogOpenChange={setCommentDialogOpen}
+					/>
+				</div>
 			</div>
 
 			{/* Mobile: compact single-column layout */}
@@ -195,6 +211,13 @@ export function PostCard({
 					threadDigest={threadDigest}
 					author={post.author}
 					actionBar={actionBar}
+				/>
+				<PostComments
+					postId={post.id}
+					threadClosed={threadClosed}
+					isLoggedIn={currentUserId !== null}
+					dialogOpen={commentDialogOpen}
+					onDialogOpenChange={setCommentDialogOpen}
 				/>
 			</div>
 

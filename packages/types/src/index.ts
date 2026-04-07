@@ -14,6 +14,7 @@ export type {
 	ForumVisibility,
 	Thread,
 	Post,
+	PostComment,
 	Attachment,
 	IpBan,
 	CensorWord,

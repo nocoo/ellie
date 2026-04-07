@@ -79,15 +79,22 @@ export function stripHtmlTags(html: string): string {
 /**
  * Build quoted content HTML for reply.
  * Pure function for generating quote blocks.
+ * Uses div.quote structure matching Discuz migration format.
+ *
+ * @param quotedContent - The content being quoted
+ * @param quotedAuthor - Author name
+ * @param quotedTime - Optional post time (formatted string)
  */
 export function buildQuotedContent(
 	quotedContent: string | undefined,
 	quotedAuthor: string | undefined,
+	quotedTime?: string,
 ): string {
 	if (!quotedContent || !quotedAuthor) {
 		return "";
 	}
-	return `<blockquote><p><strong>${quotedAuthor}</strong> 说：</p>${quotedContent}</blockquote><p></p>`;
+	const timeStr = quotedTime ? ` 发表于 ${quotedTime}` : "";
+	return `<div class="quote"><span class="quote-header"><strong>${quotedAuthor}</strong>${timeStr}</span><blockquote>${quotedContent}</blockquote></div><p></p>`;
 }
 
 /**

@@ -156,6 +156,7 @@ const PROFILE_COLS = {
 	site: 39,
 	bio: 40,
 	interest: 41,
+	field1: 42, // Campus (所在校区)
 } as const;
 
 /** Column indices for pre_common_member_status INSERT VALUES. */
@@ -218,6 +219,7 @@ export interface ProfileData {
 	interest: string;
 	qq: string;
 	site: string;
+	campus: string;
 }
 
 /** Data from pre_common_member_status for one user. */
@@ -293,6 +295,7 @@ export function parseProfileRow(row: ParsedRow): { uid: number; data: ProfileDat
 			interest: row[PROFILE_COLS.interest] ?? "",
 			qq: row[PROFILE_COLS.qq] ?? "",
 			site: row[PROFILE_COLS.site] ?? "",
+			campus: row[PROFILE_COLS.field1] ?? "",
 		},
 	};
 }
@@ -350,6 +353,7 @@ function buildProfileFields(prof: ProfileData | null | undefined): Record<string
 		interest: prof?.interest ?? "",
 		qq: prof?.qq ?? "",
 		site: prof?.site ?? "",
+		campus: prof?.campus ?? "",
 	};
 }
 
@@ -658,5 +662,46 @@ export function extractAttachment(
 		has_thumb: Number(shardRow[ATTACH_SHARD_COLS.thumb]) || 0,
 		downloads: idx.downloads,
 		created_at: Number(shardRow[ATTACH_SHARD_COLS.dateline]) || 0,
+	};
+}
+
+// ─── Post Comments (点评) ──────────────────────────────────────────────────────
+
+/**
+ * Column indices for pre_forum_postcomment INSERT VALUES.
+ * id, tid, pid, author, authorid, dateline, comment, score, useip, port, rpid
+ */
+const POSTCOMMENT_COLS = {
+	id: 0,
+	tid: 1,
+	pid: 2,
+	author: 3,
+	authorid: 4,
+	dateline: 5,
+	comment: 6,
+	score: 7,
+	useip: 8,
+	// port: 9,
+	rpid: 10,
+} as const;
+
+/**
+ * Extract a post comment row.
+ */
+export function extractPostComment(row: ParsedRow): RowRecord | null {
+	const id = Number(row[POSTCOMMENT_COLS.id]);
+	if (!id) return null; // Skip corrupt rows
+
+	return {
+		id,
+		thread_id: Number(row[POSTCOMMENT_COLS.tid]),
+		post_id: Number(row[POSTCOMMENT_COLS.pid]),
+		author_id: Number(row[POSTCOMMENT_COLS.authorid]),
+		author_name: row[POSTCOMMENT_COLS.author] ?? "",
+		content: row[POSTCOMMENT_COLS.comment] ?? "",
+		score: Number(row[POSTCOMMENT_COLS.score]) || 0,
+		reply_post_id: Number(row[POSTCOMMENT_COLS.rpid]) || 0,
+		ip: row[POSTCOMMENT_COLS.useip] ?? "",
+		created_at: Number(row[POSTCOMMENT_COLS.dateline]) || 0,
 	};
 }

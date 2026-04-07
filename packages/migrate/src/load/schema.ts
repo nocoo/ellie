@@ -59,7 +59,8 @@ export const TABLE_DDL: string[] = [
   site          TEXT    NOT NULL DEFAULT '',
   last_activity INTEGER NOT NULL DEFAULT 0,
   reg_ip        TEXT    NOT NULL DEFAULT '',
-  last_ip       TEXT    NOT NULL DEFAULT ''
+  last_ip       TEXT    NOT NULL DEFAULT '',
+  campus        TEXT    NOT NULL DEFAULT ''
 )`,
 
 	`CREATE TABLE IF NOT EXISTS threads (
@@ -110,6 +111,19 @@ export const TABLE_DDL: string[] = [
   downloads   INTEGER NOT NULL DEFAULT 0,
   created_at  INTEGER NOT NULL DEFAULT 0
 )`,
+
+	`CREATE TABLE IF NOT EXISTS post_comments (
+  id            INTEGER PRIMARY KEY,
+  thread_id     INTEGER NOT NULL REFERENCES threads(id),
+  post_id       INTEGER NOT NULL REFERENCES posts(id),
+  author_id     INTEGER NOT NULL REFERENCES users(id),
+  author_name   TEXT    NOT NULL DEFAULT '',
+  content       TEXT    NOT NULL DEFAULT '',
+  score         INTEGER NOT NULL DEFAULT 0,
+  reply_post_id INTEGER NOT NULL DEFAULT 0,
+  ip            TEXT    NOT NULL DEFAULT '',
+  created_at    INTEGER NOT NULL DEFAULT 0
+)`,
 ];
 
 /** DDL statements to create all indexes. Applied after data load for performance. */
@@ -127,10 +141,15 @@ export const INDEX_DDL: string[] = [
 	// attachments indexes
 	"CREATE INDEX IF NOT EXISTS idx_attachments_post ON attachments(post_id)",
 	"CREATE INDEX IF NOT EXISTS idx_attachments_thread ON attachments(thread_id)",
+
+	// post_comments indexes
+	"CREATE INDEX IF NOT EXISTS idx_post_comments_post ON post_comments(post_id, created_at DESC)",
+	"CREATE INDEX IF NOT EXISTS idx_post_comments_thread ON post_comments(thread_id)",
+	"CREATE INDEX IF NOT EXISTS idx_post_comments_author ON post_comments(author_id)",
 ];
 
 /** Table names in FK dependency order (for migration). */
-export const TABLE_ORDER = ["forums", "users", "threads", "posts", "attachments"] as const;
+export const TABLE_ORDER = ["forums", "users", "threads", "posts", "attachments", "post_comments"] as const;
 export type TableName = (typeof TABLE_ORDER)[number];
 
 /** Column names for each table (in INSERT order). */
@@ -187,6 +206,7 @@ export const TABLE_COLUMNS: Record<TableName, string[]> = {
 		"last_activity",
 		"reg_ip",
 		"last_ip",
+		"campus",
 	],
 	threads: [
 		"id",
@@ -232,6 +252,18 @@ export const TABLE_COLUMNS: Record<TableName, string[]> = {
 		"width",
 		"has_thumb",
 		"downloads",
+		"created_at",
+	],
+	post_comments: [
+		"id",
+		"thread_id",
+		"post_id",
+		"author_id",
+		"author_name",
+		"content",
+		"score",
+		"reply_post_id",
+		"ip",
 		"created_at",
 	],
 };

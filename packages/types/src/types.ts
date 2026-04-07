@@ -358,3 +358,16 @@ export interface CensorWord {
 	adminName: string;
 	createdAt: number;
 }
+
+/** Maps to post_comments table — 点评 (short comments on posts) */
+export interface PostComment {
+	id: number;
+	threadId: number;
+	postId: number;
+	authorId: number;
+	authorName: string;
+	content: string;
+	score: number;
+	replyPostId: number;
+	createdAt: number;
+}

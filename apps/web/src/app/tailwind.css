@@ -297,8 +297,6 @@
 		rgba(27, 106, 201, 0.6) 50%,
 		rgba(27, 106, 201, 0.35) 100%
 	);
-	backdrop-filter: blur(4px);
-	-webkit-backdrop-filter: blur(4px);
 	pointer-events: none;
 }
 .nav-gradient::after {
@@ -364,28 +362,48 @@ img.smiley {
 	margin: 0 1px;
 }
 
-/* Quote blocks */
+/* Quote blocks - matches Discuz style */
 div.quote {
-	border: 1px solid hsl(var(--border));
-	background: hsl(var(--muted));
-	padding: 0.75rem;
+	overflow: hidden;
 	margin: 0.75rem 0;
+	padding: 0.75rem 1rem 0.75rem 2rem;
+	background: #f0f8ff url("https://t.no.mt/static/image/common/qa.gif") no-repeat 8px 8px;
+	border: 1px solid #d4e3f0;
 	border-radius: var(--radius);
+	position: relative;
+}
+div.quote::after {
+	content: "";
+	position: absolute;
+	right: 8px;
+	bottom: 8px;
+	width: 24px;
+	height: 20px;
+	background: url("https://t.no.mt/static/image/common/qz.gif") no-repeat 100% 100%;
 }
 div.quote blockquote {
 	margin: 0;
 	padding: 0;
+	padding-right: 24px;
 	border: none;
 	background: transparent;
 	font-size: 0.8125rem;
 	line-height: 1.6;
 	color: hsl(var(--muted-foreground));
 }
-div.quote::before {
-	content: url("https://t.no.mt/static/image/common/quote.gif");
+/* Quote header - author name and time */
+div.quote .quote-header {
 	display: block;
 	margin-bottom: 0.5rem;
-	height: 16px;
+	font-size: 0.8125rem;
+	color: #3b82f6;
+}
+div.quote .quote-header a {
+	color: #3b82f6;
+	text-decoration: none;
+}
+div.quote .quote-header a:hover {
+	text-decoration: underline;
 }
 
 /* Edit notices & hidden content */
@@ -434,12 +452,21 @@ cap-widget {
 	--cap-background: hsl(var(--card));
 	--cap-border-color: hsl(var(--border));
 	--cap-border-radius: var(--radius);
+	--cap-color: hsl(var(--foreground));
+	--cap-checkbox-background: hsl(var(--muted));
+	--cap-checkbox-border: 1px solid hsl(var(--border));
 	--cap-spinner-color: hsl(var(--primary));
+	--cap-spinner-background-color: hsl(var(--muted));
 	--cap-font: var(--font-sans), system-ui, sans-serif;
 }
 .dark cap-widget {
 	--cap-background: hsl(var(--card));
 	--cap-border-color: hsl(var(--border));
+	--cap-color: hsl(var(--foreground));
+	--cap-checkbox-background: hsl(var(--muted));
+	--cap-checkbox-border: 1px solid hsl(var(--border));
+	--cap-spinner-color: hsl(var(--primary));
+	--cap-spinner-background-color: hsl(var(--accent));
 }
 
 /* ==========================================================================

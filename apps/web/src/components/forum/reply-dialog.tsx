@@ -27,6 +27,7 @@ interface ReplyDialogProps {
 	/** Quoted content from another post */
 	quotedContent?: string;
 	quotedAuthor?: string;
+	quotedTime?: string;
 }
 
 export function ReplyDialog({
@@ -36,6 +37,7 @@ export function ReplyDialog({
 	threadSubject,
 	quotedContent,
 	quotedAuthor,
+	quotedTime,
 }: ReplyDialogProps) {
 	const { canReply } = useFeatureFlags();
 	const editorRef = useRef<{ getHTML: () => string } | null>(null);
@@ -47,7 +49,7 @@ export function ReplyDialog({
 	});
 
 	// Build initial content with quote if provided
-	const initialContent = buildQuotedContent(quotedContent, quotedAuthor);
+	const initialContent = buildQuotedContent(quotedContent, quotedAuthor, quotedTime);
 
 	// Reset error when dialog closes
 	const handleOpenChange = (open: boolean) => {

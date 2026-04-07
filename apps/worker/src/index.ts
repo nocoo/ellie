@@ -191,6 +191,14 @@ export default {
 				return await (await import("./handlers/message")).remove(request, env);
 			}
 
+			// ── Post comments (点评) routes ──────────────────
+			if (path === "/api/v1/post-comments" && request.method === "GET") {
+				return await (await import("./handlers/post-comment")).list(request, env);
+			}
+			if (path === "/api/v1/post-comments" && request.method === "POST") {
+				return await (await import("./handlers/post-comment")).create(request, env);
+			}
+
 			// ── Report routes (#75-#76) ──────────────────────
 			if (path === "/api/v1/reports" && request.method === "POST") {
 				return await (await import("./handlers/report")).create(request, env);
