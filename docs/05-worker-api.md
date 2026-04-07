@@ -221,6 +221,7 @@ const params = cursor
 | `NOT_FOUND` | 404 | 资源不存在 |
 | `RATE_LIMITED` | 429 | 请求过于频繁 |
 | `INTERNAL_ERROR` | 500 | 服务器错误 |
+| `FEATURE_DISABLED` | 503 | 功能已被管理员禁用 |
 
 ---
 

@@ -22,6 +22,7 @@
   - [7-9. 帖子（公开 + 认证）](#7-9-帖子公开--认证)
   - [10. 附件（公开）](#10-附件公开)
   - [11. 用户（公开）](#11-用户公开)
+  - [11b. 搜索（公开）](#11b-搜索公开)
   - [12-15. 认证](#12-15-认证)
   - [16-17. 用户自助服务](#16-17-用户自助服务)
   - [18-22. 版主操作](#18-22-版主操作)
@@ -185,6 +186,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 | `CENSOR_WORD_DUPLICATE` | 409 | 相同敏感词规则已存在 |
 | `CENSOR_WORD_INVALID` | 400 | 敏感词规则无效（过短或正则语法错误） |
 | `CONTENT_BANNED` | 403 | 内容包含禁止发布的敏感词 |
+| `FEATURE_DISABLED` | 503 | 功能已被管理员禁用 |
 | `INTERNAL_ERROR` | 500 | 服务器内部错误 |
 
 ### 数据实体结构
@@ -848,6 +850,98 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 | `USER_NOT_FOUND` | 404 | 用户不存在 |
 
 > **安全说明**：使用显式列名查询，绝不 `SELECT *`，确保 `password_hash`/`password_salt` 不泄露。
+
+---
+
+### 11b. 搜索（公开）
+
+#### `GET /api/v1/search/threads`
+
+全文搜索主题标题。使用 FTS5 索引，支持中文搜索和多关键词 AND 查询。
+
+| 属性 | 值 |
+|------|---|
+| 认证 | API Key（可选 JWT 获取更多版块可见性） |
+
+**查询参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `q` | string | 是 | 搜索关键词，最少 2 字符。空格分隔的多个关键词执行 AND 查询 |
+| `limit` | number | 否 | 返回数量，默认 20，最大 50 |
+| `cursor` | string | 否 | Base64 编码的分页游标（用于下一页） |
+
+**成功响应（200）：**
+
+```json
+{
+  "data": [
+    {
+      "id": 123456,
+      "forumId": 5,
+      "authorId": 1001,
+      "authorName": "张三",
+      "authorAvatar": "",
+      "subject": "同济大学2024届毕业典礼",
+      "createdAt": 1704067200,
+      "lastPostAt": 1704153600,
+      "lastPoster": "李四",
+      "lastPosterId": 1002,
+      "lastPosterAvatar": "",
+      "replies": 42,
+      "views": 1234,
+      "closed": 0,
+      "sticky": 0,
+      "digest": 0,
+      "special": 0,
+      "highlight": 0,
+      "recommends": 0,
+      "typeName": ""
+    }
+  ],
+  "meta": {
+    "timestamp": 1704240000000,
+    "requestId": "...",
+    "nextCursor": "eyJsYXN0UG9zdEF0IjoxNzA0MTUzNjAwLCJpZCI6MTIzNDU2fQ==",
+    "total": 183
+  }
+}
+```
+
+**响应字段说明：**
+
+- `data[]` — Thread 对象数组，按 `lastPostAt DESC` 排序
+- `meta.nextCursor` — 下一页游标，为 `null` 时表示没有更多结果
+- `meta.total` — 总匹配数（仅首页返回，翻页时为 0）
+
+**可见性过滤：**
+
+搜索结果遵循标准可见性规则：
+- 主题：`sticky >= 0`（排除隐藏/删除/占位主题）
+- 版块：`status = 1` 且用户有权访问的 visibility 级别
+- 匿名用户只能搜索到 `public` 版块的主题
+- 登录用户可搜索 `public` + `members` 版块
+- 版主/管理员可搜索 `staff`/`admin` 版块
+
+**错误响应：**
+
+| 错误码 | 状态 | 触发条件 |
+|--------|------|---------|
+| `INVALID_REQUEST` | 400 | 缺少 `q` 参数、查询少于 2 字符、或 cursor 格式无效 |
+| `FEATURE_DISABLED` | 503 | 搜索功能已被管理员禁用（`general.search.enabled = false`） |
+
+**使用示例：**
+
+```bash
+# 基本搜索
+curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=毕业"
+
+# 多关键词 AND 搜索
+curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=同济%20毕业"
+
+# 分页
+curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0..."
+```
 
 ---
 

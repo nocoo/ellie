@@ -705,13 +705,13 @@ npx wrangler d1 migrations apply tongjinet-db --remote -c apps/worker/wrangler.t
 
 ## 8. 原子提交计划
 
-| # | 提交信息 | 内容 |
-|---|----------|------|
-| 1 | `feat(db): add FTS5 index for thread search` | migration 文件（含 setting seed）|
-| 2 | `feat(worker): add search threads endpoint` | handler + route + L1 tests |
-| 3 | `feat(web): connect search page to FTS5 API` | viewmodel 修改 + 移除作者搜索 + 禁用态 UI + L2 tests |
-| 4 | `feat(admin): add search enabled setting` | Admin UI 配置 |
-| 5 | `docs: update API reference for search endpoint` | 文档更新（含 FEATURE_DISABLED 错误码）|
+| # | 提交信息 | 内容 | 状态 |
+|---|----------|------|------|
+| 1 | `feat(db): add FTS5 index for thread search` | migration 文件（含 setting seed）| ✅ |
+| 2 | `feat(worker): add search threads endpoint` | handler + route + L1 tests | ✅ |
+| 3 | `feat(web): connect search page to FTS5 API` | viewmodel 修改 + 移除作者搜索 + 禁用态 UI + L2 tests | ✅ |
+| 4 | `feat(admin): add search enabled setting` | Admin UI 配置 | ✅ |
+| 5 | `docs: update API reference for search endpoint` | 文档更新（含 FEATURE_DISABLED 错误码）| ✅ |
 
 ---
 
