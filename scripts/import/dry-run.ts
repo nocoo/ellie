@@ -18,10 +18,9 @@
  */
 
 import { $ } from "bun";
-import { existsSync } from "fs";
-import { gunzipSync } from "zlib";
-import { readFileSync, writeFileSync } from "fs";
-import { join } from "path";
+import { existsSync, readFileSync } from "node:fs";
+import { gunzipSync } from "node:zlib";
+import { join } from "node:path";
 
 // Configuration
 const CONFIG = {
