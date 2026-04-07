@@ -63,7 +63,11 @@ export function parseMySQLDump(
 	}
 
 	// Find INSERT INTO statements for this table
-	const insertRegex = new RegExp(`INSERT INTO \`${tableName}\` VALUES\\s*(.+?);`, "gs");
+	// Note: Use [\s\S] instead of . to match across newlines, and use greedy matching until the final );
+	const insertRegex = new RegExp(
+		`INSERT INTO \`${tableName}\` VALUES\\s*([\\s\\S]+?)(?:;\\s*(?:INSERT|UNLOCK|/\\*|--)|;\\s*$)`,
+		"g"
+	);
 
 	const rows: unknown[][] = [];
 	let skipped = 0;
