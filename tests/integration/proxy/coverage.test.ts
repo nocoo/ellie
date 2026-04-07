@@ -323,6 +323,7 @@ const ADMIN_ENDPOINTS = [
 ] as const;
 
 const API_ROUTES_DIR = resolve(process.cwd(), "apps/web/src/app/api");
+const ADMIN_ROUTES_DIR = resolve(process.cwd(), "apps/admin/src/app/api");
 
 describe("L2: Proxy Coverage — Browser Endpoints", () => {
 	// Group tests by unique file to avoid duplicate checks
@@ -358,7 +359,7 @@ describe("L2: Proxy Coverage — Admin Endpoints", () => {
 
 	for (const [file, { methods, path }] of uniqueFiles) {
 		test(`${methods.join("/")} ${path} → ${file} exists`, () => {
-			const fullPath = resolve(API_ROUTES_DIR, file);
+			const fullPath = resolve(ADMIN_ROUTES_DIR, file);
 			expect(existsSync(fullPath)).toBe(true);
 		});
 	}
@@ -382,7 +383,7 @@ describe("L2: Proxy Coverage Summary", () => {
 	test("all admin endpoints have proxy routes", () => {
 		const missing: string[] = [];
 		for (const ep of ADMIN_ENDPOINTS) {
-			const fullPath = resolve(API_ROUTES_DIR, ep.file);
+			const fullPath = resolve(ADMIN_ROUTES_DIR, ep.file);
 			if (!existsSync(fullPath)) {
 				missing.push(`${ep.method} ${ep.path}`);
 			}
