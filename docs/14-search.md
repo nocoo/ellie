@@ -448,13 +448,35 @@ if (path === "/api/v1/search/threads" && method === "GET") {
 import "server-only";
 
 import { ForumApiError, forumApi } from "@/lib/forum-api";
-import type { Thread } from "@ellie/types";
 import type { PaginatedResult } from "@/viewmodels/shared/pagination";
+import type { Thread } from "@ellie/types";
 
 export interface SearchData {
   query: string;
   results: PaginatedResult<Thread>;
   disabled?: boolean; // true when search is disabled by admin
+}
+
+/**
+ * Check if search feature is enabled by probing the API.
+ * Returns true if enabled, false if disabled (FEATURE_DISABLED).
+ * Throws on other errors (maintenance, network, etc).
+ */
+async function isSearchEnabled(): Promise<boolean> {
+  try {
+    // Probe with minimal valid query
+    await forumApi.getCursor<Thread>("/api/v1/search/threads", {
+      q: "aa", // minimum 2 chars
+      limit: 1,
+    });
+    return true;
+  } catch (err) {
+    if (err instanceof ForumApiError && err.code === "FEATURE_DISABLED") {
+      return false;
+    }
+    // Re-throw other errors (maintenance, network, etc)
+    throw err;
+  }
 }
 
 export async function loadSearchResults(params: {
@@ -465,6 +487,17 @@ export async function loadSearchResults(params: {
   const query = params.query?.trim() ?? "";
   const limit = params.limit ?? 20;
 
+  // Check if search is enabled first (for all requests, even empty queries)
+  // This ensures "搜索功能暂时关闭" shows on page load when disabled
+  const enabled = await isSearchEnabled();
+  if (!enabled) {
+    return {
+      query,
+      results: { items: [], nextCursor: null, prevCursor: null, total: 0 },
+      disabled: true,
+    };
+  }
+
   // Empty or too short query: return empty results (UI shows prompt)
   // Note: Worker returns 400 for < 2 chars, but we silently handle it in UI layer
   if (!query || query.length < 2) {
@@ -474,34 +507,22 @@ export async function loadSearchResults(params: {
     };
   }
 
-  try {
-    // Title search: call FTS5 API
-    const response = await forumApi.getCursor<Thread>("/api/v1/search/threads", {
-      q: query,
-      limit,
-      cursor: params.cursor,
-    });
+  // Title search: call FTS5 API
+  const response = await forumApi.getCursor<Thread>("/api/v1/search/threads", {
+    q: query,
+    limit,
+    cursor: params.cursor,
+  });
 
-    return {
-      query,
-      results: {
-        items: response.data,
-        nextCursor: response.meta.nextCursor,
-        prevCursor: null, // FTS5 keyset pagination is forward-only
-        total: (response.meta as { total?: number }).total ?? 0,
-      },
-    };
-  } catch (err) {
-    // Handle search disabled (503 FEATURE_DISABLED)
-    if (err instanceof ForumApiError && err.status === 503) {
-      return {
-        query,
-        results: { items: [], nextCursor: null, prevCursor: null, total: 0 },
-        disabled: true,
-      };
-    }
-    throw err;
-  }
+  return {
+    query,
+    results: {
+      items: response.data,
+      nextCursor: response.meta.nextCursor,
+      prevCursor: null, // FTS5 keyset pagination is forward-only
+      total: (response.meta as { total?: number }).total ?? 0,
+    },
+  };
 }
 ```
 
@@ -712,6 +733,7 @@ npx wrangler d1 migrations apply tongjinet-db --remote -c apps/worker/wrangler.t
 | 3 | `feat(web): connect search page to FTS5 API` | viewmodel 修改 + 移除作者搜索 + 禁用态 UI + L2 tests | ✅ |
 | 4 | `feat(admin): add search enabled setting` | Admin UI 配置 | ✅ |
 | 5 | `docs: update API reference for search endpoint` | 文档更新（含 FEATURE_DISABLED 错误码）| ✅ |
+| 6 | `fix(search): correct error handling and sync E2E tests` | 检查 err.code 而非 status，页面加载时检测禁用状态，移除已废弃的作者搜索 E2E 测试 | ✅ |
 
 ---
 
