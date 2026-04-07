@@ -38,15 +38,20 @@ export function ThreadPostsClient({
 	const [quotedPost, setQuotedPost] = useState<{
 		content: string;
 		author: string;
+		time: string;
 	} | null>(null);
 
 	const handleReply = useCallback((post?: EnrichedPost) => {
 		if (post) {
 			// Quote reply - extract plain text for quote
 			const plainText = post.content.replace(/<[^>]*>/g, "").slice(0, 200);
+			// Format time as YYYY-M-D HH:mm
+			const date = new Date(post.createdAt * 1000);
+			const timeStr = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 			setQuotedPost({
 				content: plainText + (post.content.length > 200 ? "..." : ""),
 				author: post.author?.username ?? "匿名",
+				time: timeStr,
 			});
 		} else {
 			setQuotedPost(null);
@@ -104,6 +109,7 @@ export function ThreadPostsClient({
 				threadSubject={thread.subject}
 				quotedContent={quotedPost?.content}
 				quotedAuthor={quotedPost?.author}
+				quotedTime={quotedPost?.time}
 			/>
 		</>
 	);

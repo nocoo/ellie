@@ -3,7 +3,7 @@
 // Per doc 11-frontend-moderation.md §2.1
 
 import type { LucideIcon } from "lucide-react";
-import { Flag, Pencil, Reply, Trash2 } from "lucide-react";
+import { Flag, MessageCircle, Pencil, Reply, Trash2 } from "lucide-react";
 
 interface ActionBtnProps {
 	icon: LucideIcon;
@@ -31,22 +31,26 @@ function ActionBtn({ icon: Icon, label, onClick, variant = "default" }: ActionBt
 
 interface PostActionBarProps {
 	onReply?: () => void;
+	onComment?: () => void;
 	onEdit?: () => void;
 	onDelete?: () => void;
 	onReport?: () => void;
 	canEdit?: boolean;
 	canDelete?: boolean;
 	canReport?: boolean;
+	canComment?: boolean;
 }
 
 export function PostActionBar({
 	onReply,
+	onComment,
 	onEdit,
 	onDelete,
 	onReport,
 	canEdit,
 	canDelete,
 	canReport,
+	canComment,
 }: PostActionBarProps) {
 	const hasModActions = canEdit || canDelete || canReport;
 
@@ -54,6 +58,7 @@ export function PostActionBar({
 		<div className="flex items-center justify-between border-t border-dashed border-border px-3 py-2 text-xs text-forum-text-muted">
 			{/* Left: User actions */}
 			<div className="flex items-center gap-4">
+				{canComment && <ActionBtn icon={MessageCircle} label="点评" onClick={onComment} />}
 				<ActionBtn icon={Reply} label="回复" onClick={onReply} />
 			</div>
 
