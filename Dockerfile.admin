@@ -43,8 +43,8 @@ FROM oven/bun:1 AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=7032
 ENV HOSTNAME=0.0.0.0
+# PORT is injected by Railway
 
 # Copy standalone build
 COPY --from=builder /app/apps/admin/.next/standalone ./
@@ -52,6 +52,6 @@ COPY --from=builder /app/apps/admin/.next/static ./apps/admin/.next/static
 # Copy public if exists (optional)
 RUN mkdir -p ./apps/admin/public
 
-EXPOSE 7032
+# EXPOSE not needed, Railway handles port mapping
 
 CMD ["bun", "apps/admin/server.js"]
