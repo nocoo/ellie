@@ -1,11 +1,20 @@
 # --- Stage 1: Install dependencies ---
 FROM oven/bun:1 AS deps
 WORKDIR /app
+
+# Copy all package.json files for workspace resolution
 COPY package.json bun.lock ./
 COPY apps/web/package.json ./apps/web/
+COPY apps/admin/package.json ./apps/admin/
+COPY apps/worker/package.json ./apps/worker/
 COPY packages/types/package.json ./packages/types/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/repositories/package.json ./packages/repositories/
+COPY packages/ui/package.json ./packages/ui/
+COPY packages/cli/package.json ./packages/cli/
+COPY packages/db/package.json ./packages/db/
+COPY packages/migrate/package.json ./packages/migrate/
+
 RUN bun install --frozen-lockfile
 
 # --- Stage 2: Build ---
@@ -13,6 +22,7 @@ FROM oven/bun:1 AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
 # Build only web (forum), need dummy env vars for Next.js static generation
 ENV WORKER_API_URL=http://placeholder
 ENV FORUM_API_KEY=placeholder
