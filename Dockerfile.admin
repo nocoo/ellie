@@ -13,6 +13,12 @@ FROM oven/bun:1 AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# Build only admin, need dummy env vars for Next.js static generation
+ENV WORKER_API_URL=http://placeholder
+ENV ADMIN_API_KEY=placeholder
+ENV AUTH_SECRET=placeholder
+ENV AUTH_GOOGLE_ID=placeholder
+ENV AUTH_GOOGLE_SECRET=placeholder
 RUN bun run build:admin
 
 # --- Stage 3: Runtime ---

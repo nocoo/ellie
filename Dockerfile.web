@@ -13,6 +13,10 @@ FROM oven/bun:1 AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# Build only web (forum), need dummy env vars for Next.js static generation
+ENV WORKER_API_URL=http://placeholder
+ENV FORUM_API_KEY=placeholder
+ENV AUTH_SECRET=placeholder
 RUN bun run build:forum
 
 # --- Stage 3: Runtime ---
