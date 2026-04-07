@@ -1,33 +1,40 @@
 import type { Forum, Post, Thread, User } from "./types";
-/** Can user view this forum? Hidden forums (status=0) are invisible. */
-export declare function canViewForum(_user: User | null, forum: Forum): boolean;
+/** Minimal user data needed for permission checks */
+export type PermissionUser = Pick<User, "id" | "username" | "role" | "status">;
+/** Minimal forum data needed for permission checks */
+export type PermissionForum = Pick<Forum, "moderators">;
+/** Minimal post data needed for permission checks */
+export type PermissionPost = Pick<Post, "id" | "authorId">;
+/** Minimal thread data needed for permission checks */
+export type PermissionThread = Pick<Thread, "id" | "authorId" | "closed">;
+/**
+ * Can user view this forum based on status only?
+ * @deprecated Use canViewForumVisibility from forum.ts for full visibility check
+ */
+export declare function canViewForum(_user: PermissionUser | null, forum: Forum): boolean;
 /** Can user create a new thread in this forum? */
-export declare function canCreateThread(user: User | null, _forum: Forum): boolean;
+export declare function canCreateThread(user: PermissionUser | null, _forum: Forum): boolean;
 /** Can user reply to this thread? */
-export declare function canReplyToThread(user: User | null, thread: Thread): boolean;
+export declare function canReplyToThread(
+	user: PermissionUser | null,
+	thread: PermissionThread,
+): boolean;
 /**
  * Can user perform moderation actions (sticky/digest/close/move/delete others' posts)?
  * - Admin / SuperMod: all forums
  * - Mod: only forums where user.username is in forum.moderators
  * - User: no
  */
-export declare function canModerate(
-	user: User | null,
-	forum: {
-		moderators: string;
-	},
-): boolean;
+export declare function canModerate(user: PermissionUser | null, forum: PermissionForum): boolean;
 /** Can user access the admin console (/admin)? */
-export declare function canAccessAdmin(user: User | null): boolean;
+export declare function canAccessAdmin(user: PermissionUser | null): boolean;
 /** Can user manage other users (ban/role change)? Admin only. */
-export declare function canManageUsers(user: User | null): boolean;
+export declare function canManageUsers(user: PermissionUser | null): boolean;
 /** Can user edit this post? Authors can edit their own; mods can edit any in their forum. */
 export declare function canEditPost(
-	user: User | null,
-	post: Post,
-	forum: {
-		moderators: string;
-	},
+	user: PermissionUser | null,
+	post: PermissionPost,
+	forum: PermissionForum,
 ): boolean;
 /**
  * Can user delete this post?
@@ -36,11 +43,9 @@ export declare function canEditPost(
  * - Mod: CANNOT delete posts (per permission matrix)
  */
 export declare function canDeletePost(
-	user: User | null,
-	post: Post,
-	_forum: {
-		moderators: string;
-	},
+	user: PermissionUser | null,
+	post: PermissionPost,
+	_forum: PermissionForum,
 ): boolean;
 /**
  * Can user delete this thread?
@@ -49,13 +54,11 @@ export declare function canDeletePost(
  * - Mod: CANNOT delete threads (per permission matrix)
  */
 export declare function canDeleteThread(
-	user: User | null,
+	user: PermissionUser | null,
 	thread: {
 		authorId: number;
 	},
-	_forum: {
-		moderators: string;
-	},
+	_forum: PermissionForum,
 ): boolean;
 /**
  * Can user perform thread management (sticky/highlight/digest/close)?
@@ -64,10 +67,8 @@ export declare function canDeleteThread(
  * - User: no
  */
 export declare function canManageThread(
-	user: User | null,
-	forum: {
-		moderators: string;
-	},
+	user: PermissionUser | null,
+	forum: PermissionForum,
 ): boolean;
 /**
  * Can user move thread to another forum?
@@ -75,4 +76,4 @@ export declare function canManageThread(
  * - Mod: no (per permission matrix)
  * - User: no
  */
-export declare function canMoveThread(user: User | null): boolean;
+export declare function canMoveThread(user: PermissionUser | null): boolean;

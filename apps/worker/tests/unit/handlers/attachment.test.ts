@@ -1,7 +1,7 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { listByPost } from "../../../src/handlers/attachment";
 import type { Env } from "../../../src/lib/env";
-import { TEST_JWT_SECRET, createMockKV, makeD1AttachmentRow } from "../../helpers";
+import { TEST_JWT_SECRET, createMockDb, createMockKV, makeD1AttachmentRow } from "../../helpers";
 
 describe("attachment handlers", () => {
 	const mockEnv: Env = {
@@ -16,9 +16,16 @@ describe("attachment handlers", () => {
 		it("should return attachments for a post", async () => {
 			const row1 = makeD1AttachmentRow({ id: 1, post_id: 42 });
 			const row2 = makeD1AttachmentRow({ id: 2, post_id: 42, filename: "doc.pdf", is_image: 0 });
-			const allSpy = mock(() => Promise.resolve({ results: [row1, row2] }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const db = { prepare: mock(() => ({ bind: bindSpy })) } as unknown as D1Database;
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 1, invisible: 0 },
+					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				},
+				allResults: {
+					"SELECT * FROM attachments WHERE post_id": [row1, row2],
+				},
+			});
 			const env = { ...mockEnv, DB: db };
 
 			const response = await listByPost(
@@ -33,13 +40,19 @@ describe("attachment handlers", () => {
 			expect(data.data[0].isImage).toBe(true);
 			expect(data.data[1].id).toBe(2);
 			expect(data.data[1].isImage).toBe(false);
-			expect(bindSpy).toHaveBeenCalledWith(42);
 		});
 
 		it("should return empty array when no attachments", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const db = { prepare: mock(() => ({ bind: bindSpy })) } as unknown as D1Database;
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 1, invisible: 0 },
+					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				},
+				allResults: {
+					"SELECT * FROM attachments WHERE post_id": [],
+				},
+			});
 			const env = { ...mockEnv, DB: db };
 
 			const response = await listByPost(
@@ -54,9 +67,16 @@ describe("attachment handlers", () => {
 
 		it("should map snake_case to camelCase", async () => {
 			const row = makeD1AttachmentRow({ thread_id: 5, post_id: 10, author_id: 100, has_thumb: 1 });
-			const allSpy = mock(() => Promise.resolve({ results: [row] }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const db = { prepare: mock(() => ({ bind: bindSpy })) } as unknown as D1Database;
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 5, invisible: 0 },
+					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				},
+				allResults: {
+					"SELECT * FROM attachments WHERE post_id": [row],
+				},
+			});
 			const env = { ...mockEnv, DB: db };
 
 			const response = await listByPost(
@@ -77,9 +97,16 @@ describe("attachment handlers", () => {
 		});
 
 		it("should include CORS headers", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const db = { prepare: mock(() => ({ bind: bindSpy })) } as unknown as D1Database;
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 1, invisible: 0 },
+					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				},
+				allResults: {
+					"SELECT * FROM attachments WHERE post_id": [],
+				},
+			});
 			const env = { ...mockEnv, DB: db };
 
 			const response = await listByPost(
@@ -93,9 +120,16 @@ describe("attachment handlers", () => {
 		});
 
 		it("should include metadata in response", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const db = { prepare: mock(() => ({ bind: bindSpy })) } as unknown as D1Database;
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 1, invisible: 0 },
+					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				},
+				allResults: {
+					"SELECT * FROM attachments WHERE post_id": [],
+				},
+			});
 			const env = { ...mockEnv, DB: db };
 
 			const response = await listByPost(

@@ -283,7 +283,11 @@ export function UserModActions({
 							</div>
 						)}
 						<DialogFooter className="gap-2 sm:gap-0">
-							<Button variant="outline" disabled={modActionLoading} onClick={() => setModAction(null)}>
+							<Button
+								variant="outline"
+								disabled={modActionLoading}
+								onClick={() => setModAction(null)}
+							>
 								取消
 							</Button>
 							<Button

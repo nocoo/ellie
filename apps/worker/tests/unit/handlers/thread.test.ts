@@ -628,6 +628,7 @@ describe("thread handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
 					"SELECT status, avatar, reg_date, role FROM users": {
 						status: 0,
@@ -659,6 +660,7 @@ describe("thread handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
 					"SELECT status, avatar, reg_date, role FROM users": {
 						status: 0,
@@ -690,6 +692,7 @@ describe("thread handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"FROM forums WHERE id": null,
 					"SELECT status, avatar, reg_date, role FROM users": {
 						status: 0,
@@ -722,6 +725,7 @@ describe("thread handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
 					"SELECT status, avatar, reg_date, role FROM users": {
 						status: 0,
@@ -758,6 +762,7 @@ describe("thread handlers", () => {
 			const createdThread = makeD1ThreadRow({ id: 100, forum_id: 1 });
 			const { db, batchCalls } = createMockDb({
 				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
 					"SELECT * FROM threads WHERE id": createdThread,
 					"SELECT status, avatar, reg_date, role FROM users": {
@@ -805,6 +810,7 @@ describe("thread handlers", () => {
 			const createdThread = makeD1ThreadRow({ id: 100 });
 			const { db } = createMockDb({
 				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
 					"SELECT * FROM threads WHERE id": createdThread,
 					"SELECT status, avatar, reg_date, role FROM users": {
@@ -845,6 +851,7 @@ describe("thread handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
 					"SELECT status, avatar, reg_date, role FROM users": {
 						status: 0,
@@ -876,6 +883,7 @@ describe("thread handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
 					"SELECT status, avatar, reg_date, role FROM users": {
 						status: 0,
@@ -907,6 +915,7 @@ describe("thread handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
+					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
 					"SELECT status, avatar, reg_date, role FROM users": {
 						status: 0,

@@ -10,11 +10,31 @@ const SAMPLE_ROWS = [
 	{ key: "general.og.title", value: "", type: "string", updated_at: 1700000000 },
 	// Public features (access control and content toggles)
 	{ key: "features.access.require_login", value: "true", type: "boolean", updated_at: 1700000000 },
-	{ key: "features.access.maintenance_mode", value: "false", type: "boolean", updated_at: 1700000000 },
-	{ key: "features.content.allow_new_thread", value: "true", type: "boolean", updated_at: 1700000000 },
+	{
+		key: "features.access.maintenance_mode",
+		value: "false",
+		type: "boolean",
+		updated_at: 1700000000,
+	},
+	{
+		key: "features.content.allow_new_thread",
+		value: "true",
+		type: "boolean",
+		updated_at: 1700000000,
+	},
 	// Sensitive features (should NOT be exposed publicly)
-	{ key: "features.registration.allow_new_user", value: "true", type: "boolean", updated_at: 1700000000 },
-	{ key: "features.posting.min_registration_days", value: "7", type: "number", updated_at: 1700000000 },
+	{
+		key: "features.registration.allow_new_user",
+		value: "true",
+		type: "boolean",
+		updated_at: 1700000000,
+	},
+	{
+		key: "features.posting.min_registration_days",
+		value: "7",
+		type: "number",
+		updated_at: 1700000000,
+	},
 ];
 
 function makeSettingsDb(rows = SAMPLE_ROWS) {

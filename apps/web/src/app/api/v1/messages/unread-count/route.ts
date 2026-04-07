@@ -1,6 +1,6 @@
+import { ForumApiError, forumApi } from "@/lib/forum-api";
 // Proxy route: GET /api/v1/messages/unread-count
 import { getWorkerJwt } from "@/lib/forum-auth";
-import { ForumApiError, forumApi } from "@/lib/forum-api";
 import { NextResponse } from "next/server";
 
 export async function GET() {
@@ -17,7 +17,10 @@ export async function GET() {
 		return NextResponse.json(result);
 	} catch (err) {
 		if (err instanceof ForumApiError) {
-			return NextResponse.json({ error: { code: err.code, message: err.message } }, { status: err.status });
+			return NextResponse.json(
+				{ error: { code: err.code, message: err.message } },
+				{ status: err.status },
+			);
 		}
 		return NextResponse.json(
 			{ error: { code: "INTERNAL_ERROR", message: "Internal server error" } },

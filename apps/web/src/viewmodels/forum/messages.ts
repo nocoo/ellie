@@ -4,7 +4,7 @@
  * Ref: docs/12-private-messages.md
  */
 
-import { apiClient, ApiError } from "@/lib/api-client";
+import { ApiError, apiClient } from "@/lib/api-client";
 import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 
 // ---------------------------------------------------------------------------
@@ -160,7 +160,10 @@ export async function searchUsers(query: string, limit = 10): Promise<UserSearch
 	if (!query || query.length < 2) return [];
 
 	try {
-		const result = await apiClient.get<UserSearchResult[]>("/api/v1/users/search", { q: query, limit });
+		const result = await apiClient.get<UserSearchResult[]>("/api/v1/users/search", {
+			q: query,
+			limit,
+		});
 		return result.data;
 	} catch (err) {
 		// Silently return empty array on error

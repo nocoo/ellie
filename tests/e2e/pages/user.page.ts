@@ -30,11 +30,9 @@ export class UserPage {
 	/** Stats cards (threads/posts/digest/credits) */
 	get statsCards() {
 		// Stats are in .grid-cols-4 with p.text-lg inside
-		return this.page
-			.locator(".grid-cols-4 > a, .grid-cols-4 > div")
-			.filter({
-				has: this.page.locator("p.text-lg"),
-			});
+		return this.page.locator(".grid-cols-4 > a, .grid-cols-4 > div").filter({
+			has: this.page.locator("p.text-lg"),
+		});
 	}
 
 	/** Threads count card */

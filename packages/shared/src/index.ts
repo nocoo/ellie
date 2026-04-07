@@ -5,7 +5,7 @@ export { ApiError } from "./api-error";
 export type { ApiErrorData } from "./api-error";
 
 // Viewmodels
-export { type BreadcrumbItem } from "./viewmodels/breadcrumbs";
+export type { BreadcrumbItem } from "./viewmodels/breadcrumbs";
 export {
 	formatNumber,
 	formatCompactNumber,

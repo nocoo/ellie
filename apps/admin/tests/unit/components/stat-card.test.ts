@@ -1,8 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type {
-	StatCardProps,
-	StatCardSubItem,
-} from "../../../src/components/admin/stat-card";
+import type { StatCardProps, StatCardSubItem } from "../../../src/components/admin/stat-card";
 
 // Since StatCard is a React component, we test the type contracts
 // and formatting logic that can be verified without a DOM renderer.

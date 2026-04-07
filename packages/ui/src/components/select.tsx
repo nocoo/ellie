@@ -1,8 +1,8 @@
 "use client";
 
-import { cn } from "../lib/utils";
 import { ChevronDownIcon } from "lucide-react";
 import type * as React from "react";
+import { cn } from "../lib/utils";
 
 interface SelectOption {
 	value: string | number;

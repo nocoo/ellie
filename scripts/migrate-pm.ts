@@ -51,22 +51,25 @@ WHERE p.delstatus = 0
 ORDER BY p.pmid
 '"`.text();
 
-	return result.trim().split("\n").map(line => {
-		const parts = line.split("\t");
-		return {
-			id: parseInt(parts[0]),
-			sender_id: parseInt(parts[1]),
-			sender_name: parts[2] || "unknown",
-			receiver_id: parseInt(parts[3]),
-			receiver_name: parts[4] || "unknown",
-			subject: parts[5] || "",
-			content: (parts[6] || "").replace(/\\n/g, "\n"),
-			is_read: parseInt(parts[7]) || 0,
-			sender_deleted: parseInt(parts[8]) || 0,
-			receiver_deleted: parseInt(parts[9]) || 0,
-			created_at: parseInt(parts[10]) || 0,
-		} as PmRow;
-	});
+	return result
+		.trim()
+		.split("\n")
+		.map((line) => {
+			const parts = line.split("\t");
+			return {
+				id: Number.parseInt(parts[0]),
+				sender_id: Number.parseInt(parts[1]),
+				sender_name: parts[2] || "unknown",
+				receiver_id: Number.parseInt(parts[3]),
+				receiver_name: parts[4] || "unknown",
+				subject: parts[5] || "",
+				content: (parts[6] || "").replace(/\\n/g, "\n"),
+				is_read: Number.parseInt(parts[7]) || 0,
+				sender_deleted: Number.parseInt(parts[8]) || 0,
+				receiver_deleted: Number.parseInt(parts[9]) || 0,
+				created_at: Number.parseInt(parts[10]) || 0,
+			} as PmRow;
+		});
 }
 
 async function importToD1(rows: PmRow[]) {
@@ -82,7 +85,7 @@ async function importToD1(rows: PmRow[]) {
 		const escapedReceiverName = row.receiver_name.replace(/'/g, "''");
 
 		sqlLines.push(
-			`INSERT INTO messages (id, sender_id, sender_name, receiver_id, receiver_name, subject, content, is_read, sender_deleted, receiver_deleted, created_at) VALUES (${row.id}, ${row.sender_id}, '${escapedSenderName}', ${row.receiver_id}, '${escapedReceiverName}', '${escapedSubject}', '${escapedContent}', ${row.is_read}, ${row.sender_deleted}, ${row.receiver_deleted}, ${row.created_at});`
+			`INSERT INTO messages (id, sender_id, sender_name, receiver_id, receiver_name, subject, content, is_read, sender_deleted, receiver_deleted, created_at) VALUES (${row.id}, ${row.sender_id}, '${escapedSenderName}', ${row.receiver_id}, '${escapedReceiverName}', '${escapedSubject}', '${escapedContent}', ${row.is_read}, ${row.sender_deleted}, ${row.receiver_deleted}, ${row.created_at});`,
 		);
 	}
 
@@ -130,7 +133,9 @@ async function main() {
 	// Preview first few rows
 	console.log("Preview (first 3 rows):");
 	for (const row of rows.slice(0, 3)) {
-		console.log(`  #${row.id}: ${row.sender_name} -> ${row.receiver_name}: ${row.subject || "(no subject)"}`);
+		console.log(
+			`  #${row.id}: ${row.sender_name} -> ${row.receiver_name}: ${row.subject || "(no subject)"}`,
+		);
 	}
 	console.log("");
 

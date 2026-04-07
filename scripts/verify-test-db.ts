@@ -53,7 +53,7 @@ async function main() {
 			console.log("   ⚠️  Worker not running or /api/live returned non-200");
 			console.log("   Skipping runtime checks (run with Worker active for full verification)");
 		} else {
-			const data = await res.json() as { environment?: string };
+			const data = (await res.json()) as { environment?: string };
 			if (data.environment !== "test") {
 				console.error(`   ❌ Worker ENVIRONMENT is "${data.environment}", expected "test"`);
 				console.error("   Make sure to start Worker with: wrangler dev --env test --remote");
@@ -75,7 +75,8 @@ async function main() {
 	// Direct D1 check via wrangler
 	console.log("3️⃣  Verifying _test_marker in remote D1...");
 	try {
-		const result = await $`npx wrangler d1 execute tongjinet-db-test --env test --remote -c apps/worker/wrangler.toml --command "SELECT value FROM _test_marker WHERE key='env'" --json`.quiet();
+		const result =
+			await $`npx wrangler d1 execute tongjinet-db-test --env test --remote -c apps/worker/wrangler.toml --command "SELECT value FROM _test_marker WHERE key='env'" --json`.quiet();
 		const output = JSON.parse(result.stdout.toString());
 		const value = output?.[0]?.results?.[0]?.value;
 

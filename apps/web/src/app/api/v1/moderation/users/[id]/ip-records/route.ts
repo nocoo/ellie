@@ -1,15 +1,12 @@
-import { getWorkerJwt } from "@/lib/forum-auth";
 import { ForumApiError, forumApi } from "@/lib/forum-api";
+import { getWorkerJwt } from "@/lib/forum-auth";
 import { NextResponse } from "next/server";
 
 /**
  * GET /api/v1/moderation/users/:id/ip-records
  * Get IP records for a user (Admin/SuperMod only)
  */
-export async function GET(
-	_request: Request,
-	{ params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
 	const { id } = await params;
 	const jwt = await getWorkerJwt();
 	if (!jwt) {

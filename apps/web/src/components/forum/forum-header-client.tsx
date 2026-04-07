@@ -54,7 +54,8 @@ export function ForumHeaderClient({ forum, isGroup }: ForumHeaderClientProps) {
 								<span className="font-medium text-foreground">{formatNumber(forum.threads)}</span>
 							</span>
 							<span className="text-muted-foreground">
-								回帖 <span className="font-medium text-foreground">{formatNumber(forum.posts)}</span>
+								回帖{" "}
+								<span className="font-medium text-foreground">{formatNumber(forum.posts)}</span>
 							</span>
 							<Button
 								size="sm"

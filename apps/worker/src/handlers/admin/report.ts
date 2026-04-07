@@ -140,7 +140,9 @@ export const list = withEntityAuth(
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid page number" }, origin);
 		}
 
-		const countResult = await env.DB.prepare(`SELECT COUNT(*) as total FROM reports r ${whereClause}`)
+		const countResult = await env.DB.prepare(
+			`SELECT COUNT(*) as total FROM reports r ${whereClause}`,
+		)
 			.bind(...params)
 			.first<{ total: number }>();
 

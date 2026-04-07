@@ -1,7 +1,23 @@
+export { VERSION, VERSION_DISPLAY } from "./version";
 export * from "./types";
-export type { PublicUser, User, Forum, Thread, Post, Attachment, IpBan, CensorWord } from "./types";
-export type { ForumTreeNode } from "./forum";
-export { buildForumTree, filterVisibleForums, findForumAncestors } from "./forum";
+export type {
+	PublicUser,
+	User,
+	Forum,
+	ForumVisibility,
+	Thread,
+	Post,
+	Attachment,
+	IpBan,
+	CensorWord,
+} from "./types";
+export type { ForumTreeNode, VisibilityContext } from "./forum";
+export {
+	buildForumTree,
+	filterVisibleForums,
+	findForumAncestors,
+	canViewForum as canViewForumVisibility,
+} from "./forum";
 export type { ThreadBadge, HighlightStyle } from "./thread";
 export { getThreadBadges, decodeHighlight } from "./thread";
 export type { CursorPayload } from "./pagination";
@@ -12,6 +28,12 @@ export {
 	MAX_PAGE_SIZE,
 	clampPageSize,
 } from "./pagination";
+export type {
+	PermissionUser,
+	PermissionForum,
+	PermissionPost,
+	PermissionThread,
+} from "./permission";
 export {
 	canViewForum,
 	canCreateThread,

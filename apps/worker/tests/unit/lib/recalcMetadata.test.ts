@@ -157,9 +157,7 @@ describe("recalcMetadata", () => {
 			await recalcThreadMetadata(env, 10);
 
 			// The SQL should filter out hidden posts (invisible != 0)
-			const selectCall = calls.find(
-				(c) => c.sql.includes("FROM posts") && c.sql.includes("WHERE"),
-			);
+			const selectCall = calls.find((c) => c.sql.includes("FROM posts") && c.sql.includes("WHERE"));
 			expect(selectCall?.sql).toContain("invisible = 0");
 		});
 	});

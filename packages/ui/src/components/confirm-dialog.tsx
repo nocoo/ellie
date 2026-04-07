@@ -3,6 +3,7 @@
 // components/ui/confirm-dialog.tsx — Reusable confirmation dialog
 // Replaces browser's native confirm() with a styled modal
 
+import { Loader2 } from "lucide-react";
 import { Button } from "./button";
 import {
 	Dialog,
@@ -12,7 +13,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "./dialog";
-import { Loader2 } from "lucide-react";
 
 interface ConfirmDialogProps {
 	/** Whether the dialog is open */

@@ -2,7 +2,6 @@
  * Auth.js v5 configuration for Ellie Forum.
  *
  * Forum user authentication using Credentials provider (username/password → Worker JWT).
- * Admin authentication is handled separately by auth-admin.ts.
  *
  * Ref: docs/04g-user-auth.md §2
  */
@@ -10,8 +9,8 @@
 import NextAuth from "next-auth";
 import type { Account, Session, User } from "next-auth";
 import type { JWT } from "next-auth/jwt";
-import { headers } from "next/headers";
 import Credentials from "next-auth/providers/credentials";
+import { headers } from "next/headers";
 
 // ---------------------------------------------------------------------------
 // Environment helpers (only accessed at runtime, server-side)
