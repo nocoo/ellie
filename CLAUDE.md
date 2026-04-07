@@ -112,9 +112,10 @@ npx wrangler dev -c apps/worker/wrangler.toml
 | `bun run test` | Run all L1 tests (unit + worker) | ~3069 |
 | `bun run test:unit` | L1 unit tests (`tests/unit/`) | ~2202 |
 | `bun run test:unit:worker` | L1 worker tests (`apps/worker/`) | ~867 |
-| `bun run test:integration` | L2 integration tests (requires worker running) | ~52 |
+| `bun run test:integration` | L2 integration tests (requires worker running) | ~164 |
 | `bun run test:e2e` | L3 E2E tests (Playwright) | 22 |
 | `bun run test:coverage` | L1 unit tests with coverage report | - |
+| `bun run verify:test-db` | D1 isolation verification | - |
 
 **Port Convention:**
 - Dev: 7031
@@ -138,11 +139,28 @@ npx wrangler dev -c apps/worker/wrangler.toml
 | L1 all tests | `bun run test` |
 | G2 dependency scan | `osv-scanner scan --lockfile bun.lock` |
 | G2 secret detection | `gitleaks detect --no-banner` |
+| D1 isolation | `bun run verify:test-db` |
 | Rust L1 | `cargo test --workspace` (in `packages/cli-rs`) |
 | Rust L2 | `cargo test --test integration -- --ignored` (requires `ELLIE_API_URL` + `ELLIE_API_KEY`) |
 | Rust G2 | `osv-scanner scan --lockfile Cargo.lock` |
 
 ## Retrospective
+
+### 2026-04-06: D1 Test Isolation Setup
+- **Issue:** L2 tests were failing because they couldn't connect to production D1 or used empty local D1
+- **Solution:** Created isolated test environment with separate D1 and KV instances
+- **Configuration:**
+  - Test D1: `tongjinet-db-test` (940c7758-0a9e-44b2-aeb5-745fa3143371)
+  - Test KV: `ellie-test-kv` (490227e961174fd38c6c14530a4ee3ee)
+  - wrangler.toml `[env.test]` section configures isolated resources
+  - `_test_marker` table with `env=test` for runtime verification
+- **Running L2 tests:**
+  1. `bun run verify:test-db` — verify D1 isolation
+  2. Worker auto-starts with `--env test --remote` via `tests/integration/preload.ts`
+- **Key files:**
+  - `apps/worker/wrangler.toml` — [env.test] configuration
+  - `scripts/verify-test-db.ts` — D1 isolation verification script
+  - `apps/worker/migrations/0000_init_schema.sql` — base schema for test DB
 
 ### 2026-04-03: Worker + Next.js Proxy Sync Issues
 - **Issue:** User moderation actions (mute/ban/nuke) returned 404 errors
