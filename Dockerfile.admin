@@ -20,8 +20,15 @@ RUN bun install --frozen-lockfile
 # --- Stage 2: Build ---
 FROM oven/bun:1 AS builder
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+
+# Copy source code first
 COPY . .
+
+# Copy node_modules from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+
+# Re-run install to link workspace packages properly
+RUN bun install --frozen-lockfile
 
 # Build only admin, need dummy env vars for Next.js static generation
 ENV WORKER_API_URL=http://placeholder
