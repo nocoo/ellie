@@ -161,9 +161,9 @@ describe("POST /api/v1/reports", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status FROM users WHERE id": { role: 0, status: -1 },
-				"SELECT status, avatar, reg_date, role FROM users": {
+				"SELECT status, has_avatar, reg_date, role FROM users": {
 					status: -1,
-					avatar: "",
+					has_avatar: 1,
 					reg_date: 0,
 					role: 0,
 				},
@@ -184,9 +184,9 @@ describe("POST /api/v1/reports", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
-				"SELECT status, avatar, reg_date, role FROM users": {
+				"SELECT status, has_avatar, reg_date, role FROM users": {
 					status: 0,
-					avatar: "",
+					has_avatar: 1,
 					reg_date: 0,
 					role: 0,
 				},
@@ -211,9 +211,9 @@ describe("POST /api/v1/reports", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
-				"SELECT status, avatar, reg_date, role FROM users": {
+				"SELECT status, has_avatar, reg_date, role FROM users": {
 					status: 0,
-					avatar: "",
+					has_avatar: 1,
 					reg_date: 0,
 					role: 0,
 				},
@@ -238,9 +238,9 @@ describe("POST /api/v1/reports", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
-				"SELECT status, avatar, reg_date, role FROM users": {
+				"SELECT status, has_avatar, reg_date, role FROM users": {
 					status: 0,
-					avatar: "",
+					has_avatar: 1,
 					reg_date: 0,
 					role: 0,
 				},
@@ -265,9 +265,9 @@ describe("POST /api/v1/reports", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
-				"SELECT status, avatar, reg_date, role FROM users": {
+				"SELECT status, has_avatar, reg_date, role FROM users": {
 					status: 0,
-					avatar: "",
+					has_avatar: 1,
 					reg_date: 0,
 					role: 0,
 				},
@@ -296,9 +296,9 @@ describe("POST /api/v1/reports", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
-				"SELECT status, avatar, reg_date, role FROM users": {
+				"SELECT status, has_avatar, reg_date, role FROM users": {
 					status: 0,
-					avatar: "",
+					has_avatar: 1,
 					reg_date: 0,
 					role: 0,
 				},
@@ -328,9 +328,9 @@ describe("POST /api/v1/reports", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
-				"SELECT status, avatar, reg_date, role FROM users": {
+				"SELECT status, has_avatar, reg_date, role FROM users": {
 					status: 0,
-					avatar: "",
+					has_avatar: 1,
 					reg_date: 0,
 					role: 0,
 				},
@@ -377,9 +377,9 @@ describe("GET /api/v1/posting-permission", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
-				"SELECT status, avatar, reg_date, role FROM users": {
+				"SELECT status, has_avatar, reg_date, role FROM users": {
 					status: 0,
-					avatar: "",
+					has_avatar: 1,
 					reg_date: 0,
 					role: 0,
 				},
@@ -401,9 +401,9 @@ describe("GET /api/v1/posting-permission", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status FROM users WHERE id": { role: 0, status: -1 },
-				"SELECT status, avatar, reg_date, role FROM users": {
+				"SELECT status, has_avatar, reg_date, role FROM users": {
 					status: -1, // Banned
-					avatar: "",
+					has_avatar: 1,
 					reg_date: 0,
 					role: 0,
 				},
@@ -421,9 +421,9 @@ describe("GET /api/v1/posting-permission", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status FROM users WHERE id": { role: 0, status: -2 },
-				"SELECT status, avatar, reg_date, role FROM users": {
+				"SELECT status, has_avatar, reg_date, role FROM users": {
 					status: -2, // Muted
-					avatar: "",
+					has_avatar: 1,
 					reg_date: 0,
 					role: 0,
 				},
@@ -442,9 +442,9 @@ describe("GET /api/v1/posting-permission", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
-				"SELECT status, avatar, reg_date, role FROM users": {
+				"SELECT status, has_avatar, reg_date, role FROM users": {
 					status: 0,
-					avatar: "",
+					has_avatar: 1,
 					reg_date: now, // Just registered
 					role: 0,
 				},

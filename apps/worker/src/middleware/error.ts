@@ -78,6 +78,12 @@ function getStatusMessage(code: string): string {
 		INVALID_NUMBER: "Numeric setting value must be a positive number",
 		MAINTENANCE_MODE: "Site is under maintenance",
 		FEATURE_DISABLED: "Feature is currently disabled",
+		// Upload errors
+		NO_FILE: "No file provided in request",
+		INVALID_PURPOSE: "Unknown upload purpose",
+		FILE_TOO_LARGE: "File size exceeds the allowed limit",
+		INVALID_FORMAT: "File format is not allowed",
+		UPLOAD_FAILED: "Failed to upload file",
 	};
 
 	return messages[code] || "An error occurred";

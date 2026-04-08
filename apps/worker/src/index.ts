@@ -1,5 +1,5 @@
 // Ellie API Worker — Cloudflare Worker with D1 + KV
-// 84 endpoints: 19 public + 5 moderation + 60 admin
+// 85 endpoints: 20 public + 5 moderation + 60 admin
 import type { CFRequest, Env } from "./lib/env";
 import { aggregateOnlineStats } from "./lib/online-stats";
 import { trackActivity } from "./middleware/activity";
@@ -205,6 +205,20 @@ export default {
 			}
 			if (path === "/api/v1/posting-permission" && request.method === "GET") {
 				return await (await import("./handlers/report")).checkPermission(request, env);
+			}
+
+			// ── Upload route (Key A + JWT verified) ──────────
+			if (path === "/api/v1/upload" && request.method === "POST") {
+				const { authMiddlewareVerified } = await import("./middleware/auth");
+				const authResult = await authMiddlewareVerified(request, env);
+				if (authResult instanceof Response) return authResult;
+				return await (await import("./lib/upload")).handleUpload(
+					request,
+					env,
+					ctx,
+					authResult.user.userId,
+					origin,
+				);
 			}
 
 			// ── Moderation routes (Key A + JWT + role check) ─
