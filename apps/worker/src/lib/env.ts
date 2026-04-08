@@ -7,6 +7,8 @@ export interface Env {
 	ENVIRONMENT: string;
 	JWT_SECRET: string;
 	KV: KVNamespace;
+	/** R2 bucket for avatar and attachment uploads */
+	R2: R2Bucket;
 	/** Comma-separated CORS allowed origins (wrangler [vars]) */
 	ALLOWED_ORIGINS?: string;
 	/**
