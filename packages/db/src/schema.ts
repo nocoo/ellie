@@ -58,7 +58,8 @@ export const TABLES = {
 			interest TEXT NOT NULL DEFAULT '',
 			qq TEXT NOT NULL DEFAULT '',
 			site TEXT NOT NULL DEFAULT '',
-			last_activity INTEGER NOT NULL DEFAULT 0
+			last_activity INTEGER NOT NULL DEFAULT 0,
+			has_avatar INTEGER NOT NULL DEFAULT 0
 		);
 	`,
 
