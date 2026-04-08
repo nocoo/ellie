@@ -79,7 +79,7 @@ The `avatar` field exists in the DB schema and is included in API responses (see
 
 1. `has_avatar` is the source of truth for posting permission
 2. `avatar` field in DB and API remains empty string (legacy, unused)
-3. Frontend uses `getAvatarUrl(uid)` helper to construct proxy URL `/api/avatar/{uid}`
+3. Frontend uses `getAvatarUrl(uid, size)` helper to construct proxy URL `/api/avatar/{uid}`
 4. Future: could repurpose DB `avatar` column for external avatar URL override
 
 **Current avatar field behavior in code:**
@@ -90,9 +90,9 @@ The `avatar` field exists in the DB schema and is included in API responses (see
 | `UserMiniProfile.avatar` (KV cache) | Empty string from DB | Cache mirrors DB value |
 | `PublicUser.avatar` (API response) | Empty string from DB | Frontend ignores this field |
 | `authorAvatar`, `lastPosterAvatar` | Empty string from cache | Frontend ignores these fields |
-| **Frontend display** | `getAvatarUrl(uid)` → `/api/avatar/{uid}` | Derives URL from UID, not from API response |
+| **Frontend display** | `getAvatarUrl(uid, size)` → `/api/avatar/{uid}` | Derives URL from UID, not from API response |
 
-**Key insight:** The frontend **never uses** the `avatar` field from API responses. It always constructs the avatar URL from the user ID via `getAvatarUrl(uid)`. This means:
+**Key insight:** The frontend **never uses** the `avatar` field from API responses. It always constructs the avatar URL from the user ID via `getAvatarUrl(uid, size)`. This means:
 
 - No Worker code changes needed for avatar display
 - The `avatar` field in API responses is vestigial
@@ -507,7 +507,12 @@ export async function POST(request: NextRequest) {
 
 ```typescript
 // apps/web/src/lib/avatar.ts
-export function getAvatarUrl(uid: number, cacheBust?: number): string {
+// Keep size param for backward compatibility (see "Avatar Serving Changes" section)
+export function getAvatarUrl(
+  uid: number,
+  size: AvatarSize = "big",  // Deprecated: kept for compat, ignored
+  cacheBust?: number
+): string {
   const params = cacheBust ? `?v=${cacheBust}` : '';
   return `/api/avatar/${uid}${params}`;
 }
@@ -515,7 +520,7 @@ export function getAvatarUrl(uid: number, cacheBust?: number): string {
 
 ```typescript
 // apps/web/src/app/api/avatar/[uid]/route.ts
-// Simplified: remove size parameter, always serve _avatar_big.jpg
+// Simplified: ignore size parameter, always serve _avatar_big.jpg
 // Add cache-busting: if ?v= present, set shorter cache or no-cache
 
 const CDN_BASE = 'https://t.no.mt/avatar';
@@ -785,8 +790,8 @@ If stricter freshness is needed, options include:
 | File | Action | Notes |
 |------|--------|-------|
 | `src/app/api/v1/upload/route.ts` | Create | Multipart proxy with X-API-Key + Content-Type |
-| `src/lib/avatar.ts` | Update | Remove size param, add cache-bust helper |
-| `src/app/api/avatar/[uid]/route.ts` | Update | Remove size, add cache-bust header handling |
+| `src/lib/avatar.ts` | Update | Add cacheBust param; keep size param for compat (deprecated, ignored) |
+| `src/app/api/avatar/[uid]/route.ts` | Update | Ignore size param, add cache-bust header handling |
 | `src/components/forum/avatar-upload.tsx` | Create | Drag-drop upload UI |
 | `src/components/forum/profile-edit-dialog.tsx` | Update | Add AvatarUpload component |
 
