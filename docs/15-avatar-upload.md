@@ -78,20 +78,25 @@ ALTER TABLE users ADD COLUMN has_avatar INTEGER NOT NULL DEFAULT 0;
 The `avatar` field exists in the DB schema and is included in API responses (see `07-api-reference.md`). Removing it would be a breaking change. Instead:
 
 1. `has_avatar` is the source of truth for posting permission
-2. `avatar` in API responses is populated with computed URL `/api/avatar/{uid}` (not stored in DB)
-3. `UserMiniProfile.avatar`, `authorAvatar`, `lastPosterAvatar` continue to use the computed URL
+2. `avatar` field in DB and API remains empty string (legacy, unused)
+3. Frontend uses `getAvatarUrl(uid)` helper to construct proxy URL `/api/avatar/{uid}`
 4. Future: could repurpose DB `avatar` column for external avatar URL override
 
 **Current avatar field behavior in code:**
 
-| Location | Behavior |
-|----------|----------|
-| `users.avatar` (DB) | Always empty string `''` |
-| `UserMiniProfile.avatar` (KV cache) | Computed URL or empty string |
-| `PublicUser.avatar` (API response) | Computed URL `/api/avatar/{uid}` |
-| `authorAvatar`, `lastPosterAvatar` (enriched lists) | Computed URL from cache |
+| Location | Current Behavior | Notes |
+|----------|------------------|-------|
+| `users.avatar` (DB column) | Empty string `''` | Legacy, not used for display |
+| `UserMiniProfile.avatar` (KV cache) | Empty string from DB | Cache mirrors DB value |
+| `PublicUser.avatar` (API response) | Empty string from DB | Frontend ignores this field |
+| `authorAvatar`, `lastPosterAvatar` | Empty string from cache | Frontend ignores these fields |
+| **Frontend display** | `getAvatarUrl(uid)` → `/api/avatar/{uid}` | Derives URL from UID, not from API response |
 
-**Note:** The current codebase stores empty string in `users.avatar` and derives display URLs from UID. This design continues — `has_avatar` is purely for permission checks, not display.
+**Key insight:** The frontend **never uses** the `avatar` field from API responses. It always constructs the avatar URL from the user ID via `getAvatarUrl(uid)`. This means:
+
+- No Worker code changes needed for avatar display
+- The `avatar` field in API responses is vestigial
+- Upload only needs to write to R2 and set `has_avatar = 1`
 
 **Posting permission change:**
 
@@ -108,10 +113,10 @@ if (settings.requireAvatar && !userRow.has_avatar) {
 
 **UserMiniProfile cache:**
 
-The cache stores `avatar: string` (computed URL like `/api/avatar/123`). Since avatars are served via this proxy URL (path derived from UID), the cache structure doesn't change. Upload handler:
+The cache stores `avatar: string` (currently empty string from DB). Since frontend derives avatar URLs from UID via `getAvatarUrl()`, the cache value is unused for display. Upload handler:
 1. Writes file to R2 at computed path
 2. Sets `has_avatar = 1` in DB
-3. Calls `invalidateUserCache(env, userId)` to clear stale cache
+3. Calls `invalidateUserCache(env, userId)` to clear stale cache (for username/role changes)
 4. Returns URL with `?v={timestamp}` for immediate client refresh
 
 ### Storage Structure
