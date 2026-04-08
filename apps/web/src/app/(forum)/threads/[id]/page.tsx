@@ -25,11 +25,11 @@ interface ThreadDetailPageProps {
 export async function generateMetadata({ params }: ThreadDetailPageProps): Promise<Metadata> {
 	const { id } = await params;
 	const threadId = parseIntParam(id);
-	if (threadId == null) return { title: "帖子" };
+	if (threadId == null) return { title: "主题" };
 	try {
 		return { title: await getThreadTitle(threadId) };
 	} catch {
-		return { title: "帖子" };
+		return { title: "主题" };
 	}
 }
 
@@ -42,7 +42,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 		return (
 			<Card size="sm">
 				<CardContent className="text-center py-4">
-					<p className="text-sm text-destructive">无效的帖子 ID</p>
+					<p className="text-sm text-destructive">无效的主题 ID</p>
 					<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
 						返回首页
 					</Link>
@@ -83,7 +83,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 		return (
 			<Card size="sm">
 				<CardContent className="text-center py-4">
-					<p className="text-sm text-destructive">{error ?? "帖子不存在"}</p>
+					<p className="text-sm text-destructive">{error ?? "主题不存在"}</p>
 					<Link href="/" className="mt-4 inline-block text-sm text-primary hover:underline">
 						返回首页
 					</Link>

@@ -13,7 +13,7 @@ export function SearchHero() {
 					<h1 className="text-lg font-semibold text-foreground">搜索</h1>
 				</div>
 				<p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
-					搜索论坛帖子和用户，快速找到你需要的内容
+					搜索论坛主题和用户，快速找到你需要的内容
 				</p>
 			</CardContent>
 		</Card>

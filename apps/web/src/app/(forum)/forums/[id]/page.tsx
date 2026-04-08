@@ -119,7 +119,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 							<ThreadListHeader />
 
 							{data.items.length === 0 ? (
-								<div className="py-8 text-center text-sm text-muted-foreground">暂无帖子</div>
+								<div className="py-8 text-center text-sm text-muted-foreground">暂无主题</div>
 							) : (
 								<div>
 									{data.items.map((item) => (

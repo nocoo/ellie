@@ -136,7 +136,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 								href={`/threads/${forum.lastThreadId}`}
 								className="relative z-10 text-forum-link hover:underline truncate max-w-[180px]"
 							>
-								{forum.lastThreadSubject || "最新帖子"}
+								{forum.lastThreadSubject || "最新主题"}
 							</Link>
 							<span className="mt-0.5 leading-5">
 								{formatDateTime(forum.lastPostAt)}{" "}
@@ -266,7 +266,7 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 							href={`/threads/${forum.lastThreadId}`}
 							className="relative z-10 text-forum-link hover:underline truncate"
 						>
-							{forum.lastThreadSubject || "最新帖子"}
+							{forum.lastThreadSubject || "最新主题"}
 						</Link>{" "}
 						<span className="shrink-0">{forum.lastPoster}</span>
 					</div>

@@ -50,7 +50,7 @@ export function ForumHeaderClient({ forum, isGroup }: ForumHeaderClientProps) {
 					{!isGroup && (
 						<div className="mt-3 pt-3 border-t border-border/50 flex items-center gap-6 text-sm">
 							<span className="text-muted-foreground">
-								帖子{" "}
+								主题{" "}
 								<span className="font-medium text-foreground">{formatNumber(forum.threads)}</span>
 							</span>
 							<span className="text-muted-foreground">

@@ -1,7 +1,7 @@
 /**
  * New-thread page ViewModel — pure types & placeholder data.
  *
- * Defines the data contract for the Discuz-style "发表帖子" page.
+ * Defines the data contract for the Discuz-style "发表主题" page.
  * Layout only — no real submission logic (see post-editor.ts for that).
  */
 
@@ -42,7 +42,7 @@ export interface EditorToolAction {
 // ---------------------------------------------------------------------------
 
 export const POST_TYPE_TABS: PostTypeTab[] = [
-	{ value: "thread", label: "发表帖子" },
+	{ value: "thread", label: "发表主题" },
 	{ value: "poll", label: "发起投票" },
 	{ value: "reward", label: "发布悬赏" },
 	{ value: "debate", label: "发起辩论" },
@@ -79,7 +79,7 @@ export const SUBJECT_MAX_LENGTH = 80;
 
 /**
  * Build breadcrumbs for the new-thread page.
- * → [首页, ...forum ancestors with href, current forum with href, 发表帖子]
+ * → [首页, ...forum ancestors with href, current forum with href, 发表主题]
  */
 export function buildNewThreadBreadcrumbs(ancestors: Forum[]): BreadcrumbItem[] {
 	const HOME: BreadcrumbItem = { label: "首页", href: "/" };
@@ -87,6 +87,6 @@ export function buildNewThreadBreadcrumbs(ancestors: Forum[]): BreadcrumbItem[] 
 	for (const forum of ancestors) {
 		items.push({ label: forum.name, href: `/forums/${forum.id}` });
 	}
-	items.push({ label: "发表帖子" });
+	items.push({ label: "发表主题" });
 	return items;
 }

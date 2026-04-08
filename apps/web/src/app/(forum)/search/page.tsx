@@ -84,7 +84,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
 			<Card size="sm">
 				<CardHeader>
-					<CardTitle className="text-base">搜索帖子</CardTitle>
+					<CardTitle className="text-base">搜索主题</CardTitle>
 				</CardHeader>
 
 				<CardContent className="space-y-3">

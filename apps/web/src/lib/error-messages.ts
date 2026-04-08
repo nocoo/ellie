@@ -75,7 +75,7 @@ export const DELETE_ERROR_MESSAGES: Record<string, string> = {
 	NOT_AUTHENTICATED: "请先登录",
 	FORBIDDEN: "没有删除权限",
 	NO_PERMISSION: "没有删除权限",
-	POST_NOT_FOUND: "帖子不存在或已被删除",
+	POST_NOT_FOUND: "回复不存在或已被删除",
 	THREAD_NOT_FOUND: "主题不存在或已被删除",
 };
 
@@ -87,7 +87,7 @@ export const EDIT_ERROR_MESSAGES: Record<string, string> = {
 	NOT_AUTHENTICATED: "请先登录",
 	FORBIDDEN: "没有编辑权限",
 	NO_PERMISSION: "没有编辑权限",
-	POST_NOT_FOUND: "帖子不存在或已被删除",
+	POST_NOT_FOUND: "回复不存在或已被删除",
 	CONTENT_BANNED: "内容包含违禁词，请修改后重试",
 };
 

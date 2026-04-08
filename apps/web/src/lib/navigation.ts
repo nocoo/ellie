@@ -75,7 +75,7 @@ export const ROUTE_LABELS: Record<string, string> = {
 	admin: "仪表盘",
 	users: "用户",
 	threads: "主题",
-	posts: "帖子",
+	posts: "回复",
 	forums: "版块",
 	attachments: "附件",
 	statistics: "统计计算",

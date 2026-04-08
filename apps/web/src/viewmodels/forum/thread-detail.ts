@@ -1,5 +1,5 @@
 // viewmodels/forum/thread-detail.ts — Thread detail ViewModel
-// Ref: 04d §帖子详情 — enriched posts, attachment grouping, permissions
+// Ref: 04d §主题详情 — enriched posts, attachment grouping, permissions
 
 import { filterContent } from "@/lib/content-filter";
 import {

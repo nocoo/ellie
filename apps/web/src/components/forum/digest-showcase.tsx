@@ -28,7 +28,7 @@ export function DigestShowcase({ threads, total }: DigestShowcaseProps) {
 				</CardHeader>
 				<CardContent>
 					<p className="text-sm text-muted-foreground py-4 text-center">
-						暂无精华帖子，优质内容将在这里展示
+						暂无精华主题，优质内容将在这里展示
 					</p>
 				</CardContent>
 			</Card>

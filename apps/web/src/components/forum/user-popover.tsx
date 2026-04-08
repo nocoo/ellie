@@ -411,7 +411,7 @@ export function UserPopover({
 						{/* Stats grid */}
 						<div className="grid grid-cols-4 gap-px bg-border/50 mx-4 rounded-lg overflow-hidden">
 							<StatItem label="主题" value={formatNumber(user.threads)} />
-							<StatItem label="帖子" value={formatNumber(user.posts)} />
+							<StatItem label="回复" value={formatNumber(user.posts)} />
 							<StatItem label="积分" value={formatNumber(user.credits)} />
 							<StatItem label="精华" value={formatNumber(user.digestPosts)} />
 						</div>

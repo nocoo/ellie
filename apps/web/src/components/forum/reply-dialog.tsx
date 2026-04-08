@@ -95,7 +95,7 @@ export function ReplyDialog({
 										<MessageSquare className="h-5 w-5 text-primary" />
 									</div>
 									<div className="min-w-0 flex-1">
-										<DialogTitle className="text-lg">回复帖子</DialogTitle>
+										<DialogTitle className="text-lg">回复主题</DialogTitle>
 										<DialogDescription className="text-xs mt-0.5 truncate max-w-[400px]">
 											回复：{threadSubject}
 										</DialogDescription>
