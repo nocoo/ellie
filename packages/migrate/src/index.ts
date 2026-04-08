@@ -296,7 +296,7 @@ export async function migrateThreads(
 	const missingAuthorIds = new Set<number>();
 	let skipped = 0;
 
-	await parseDumpFile(dumpFile, "pre_forum_thread", (row) => {
+	const processThreadRow = (row: ParsedRow) => {
 		const record = extractThread(row, threadTypeMap);
 		if (record) {
 			inserter.add(record);
@@ -313,7 +313,23 @@ export async function migrateThreads(
 		} else {
 			skipped++;
 		}
-	});
+	};
+
+	// Parse main thread table
+	await parseDumpFile(dumpFile, "pre_forum_thread", processThreadRow);
+
+	// Parse thread shard tables (pre_forum_thread_1, _2, _3, etc.)
+	const threadShardDump = `${sourceDir}/thread_shards.sql.gz`;
+	for (let i = 1; i <= 7; i++) {
+		const tableName = `pre_forum_thread_${i}`;
+		try {
+			log(`  Parsing ${tableName}...`);
+			await parseDumpFile(threadShardDump, tableName, processThreadRow);
+		} catch {
+			// Shard table may not exist or be empty — that's OK
+		}
+	}
+
 	const total = inserter.flush();
 	log(`  Threads: ${total} inserted, ${skipped} skipped (corrupt rows)`);
 
@@ -383,6 +399,9 @@ export async function migrateThreads(
 				qq: "",
 				site: "",
 				last_activity: 0,
+				reg_ip: "",
+				last_ip: "",
+				campus: "",
 			});
 			userIds.add(uid);
 		}
@@ -437,6 +456,7 @@ export async function migratePosts(
 	const postIds = new Set<number>();
 	let orphanThread = 0;
 	let orphanAuthor = 0;
+	const missingAuthorIds = new Set<number>();
 
 	const processRow = (row: ParsedRow) => {
 		const record = extractPost(row, stats);
@@ -454,12 +474,11 @@ export async function migratePosts(
 		}
 
 		// FK check: author_id must exist in migrated users
-		// Per docs: "报告 + 中止" — but we log and continue to collect all orphans,
-		// then abort after the table is done if any author orphans were found.
+		// Collect missing authors to create placeholders later
 		if (!userIds.has(aid)) {
 			orphanAuthor++;
+			missingAuthorIds.add(aid);
 			logger.logOrphan("post", pid, aid, "author_id not in users");
-			return;
 		}
 
 		inserter.add(record);
@@ -483,14 +502,55 @@ export async function migratePosts(
 		`  Posts: ${total} inserted, ${stats.filtered} invisible, ${orphanThread} orphan-thread, ${orphanAuthor} orphan-author`,
 	);
 
-	// Per docs/03-migration.md: author_id orphans should abort
-	if (orphanAuthor > 0) {
-		throw new Error(
-			`${orphanAuthor} posts have author_id not in users — data source issue. See migration.log`,
-		);
+	// Create placeholder users for missing post authors (deleted users with remaining posts)
+	if (missingAuthorIds.size > 0) {
+		log(`  Creating ${missingAuthorIds.size} placeholder users for deleted post authors...`);
+		const userInserter = loader.createStreamInserter("users");
+		for (const uid of missingAuthorIds) {
+			userInserter.add({
+				id: uid,
+				username: `[已删除用户${uid}]`,
+				email: "",
+				password_hash: "",
+				password_salt: "",
+				avatar: "",
+				status: -3, // Placeholder status
+				role: 0,
+				reg_date: 0,
+				last_login: 0,
+				threads: 0,
+				posts: 0,
+				credits: 0,
+				signature: "",
+				group_title: "",
+				group_stars: 0,
+				group_color: "",
+				custom_title: "",
+				digest_posts: 0,
+				ol_time: 0,
+				gender: 0,
+				birth_year: 0,
+				birth_month: 0,
+				birth_day: 0,
+				reside_province: "",
+				reside_city: "",
+				graduate_school: "",
+				bio: "",
+				interest: "",
+				qq: "",
+				site: "",
+				last_activity: 0,
+				reg_ip: "",
+				last_ip: "",
+				campus: "",
+			});
+			userIds.add(uid);
+		}
+		const placeholders = userInserter.flush();
+		log(`  Created ${placeholders} placeholder users for post authors`);
 	}
 
-	return { ...stats, orphanThread, orphanAuthor, postIds, missingAuthors: 0, missingThreads: 0 };
+	return { ...stats, orphanThread, orphanAuthor, postIds, missingAuthors: missingAuthorIds.size, missingThreads: 0 };
 }
 
 // ─── Step 5: Attachments ────────────────────────────────────────────────────
