@@ -1,4 +1,4 @@
-// components/forum/new-thread-form.tsx — Discuz-style "发表帖子" page layout
+// components/forum/new-thread-form.tsx — Discuz-style "发表主题" page layout
 // Layout only — submit actions are placeholder (功能暂缓).
 // Reuses the existing Tiptap PostEditor for the rich-text area.
 
@@ -28,7 +28,7 @@ interface NewThreadFormProps {
 }
 
 // ---------------------------------------------------------------------------
-// Layer 1: Post type tabs (发表帖子 | 发起投票 | ...)
+// Layer 1: Post type tabs (发表主题 | 发起投票 | ...)
 // ---------------------------------------------------------------------------
 
 function PostTypeTabs({
@@ -157,7 +157,7 @@ function SubmitRow() {
 		<div className="flex items-center justify-between">
 			<div className="flex items-center gap-2">
 				<Button size="default" className="px-4 text-sm">
-					发表帖子
+					发表主题
 				</Button>
 				<Button variant="outline" size="default" className="px-4 text-sm">
 					保存草稿
@@ -210,7 +210,7 @@ export function NewThreadForm({ breadcrumbs, forumId: _forumId }: NewThreadFormP
 			<PostEditor
 				initialContent=""
 				onSubmit={() => {}}
-				placeholder="输入帖子内容..."
+				placeholder="输入主题内容..."
 				subject={undefined}
 				canSubmit={false}
 			/>

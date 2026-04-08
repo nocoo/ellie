@@ -1,4 +1,4 @@
-// Route: /forums/[id]/new-thread — Discuz-style 发表帖子 page
+// Route: /forums/[id]/new-thread — Discuz-style 发表主题 page
 // Server Component shell that loads breadcrumb data, then renders the client form.
 
 import { NewThreadForm } from "@/components/forum/new-thread-form";
@@ -15,12 +15,12 @@ interface NewThreadPageProps {
 export async function generateMetadata({ params }: NewThreadPageProps): Promise<Metadata> {
 	const { id } = await params;
 	const forumId = parseIntParam(id);
-	if (forumId == null) return { title: "发表帖子" };
+	if (forumId == null) return { title: "发表主题" };
 	try {
 		const data = await loadNewThreadPageData(forumId);
-		return { title: `发表帖子 - ${data.forumName}` };
+		return { title: `发表主题 - ${data.forumName}` };
 	} catch {
-		return { title: "发表帖子" };
+		return { title: "发表主题" };
 	}
 }
 
@@ -41,7 +41,7 @@ export default async function NewThreadPage({ params }: NewThreadPageProps) {
 		);
 	}
 
-	let breadcrumbs = [{ label: "首页", href: "/" }, { label: "发表帖子" }];
+	let breadcrumbs = [{ label: "首页", href: "/" }, { label: "发表主题" }];
 
 	try {
 		const data = await loadNewThreadPageData(forumId);

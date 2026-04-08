@@ -150,11 +150,11 @@ export function ReportDialog({ open, onOpenChange, postId, onSuccess }: ReportDi
 			if (err instanceof ApiError) {
 				// Handle specific error codes (match Worker error codes)
 				if (err.code === "DUPLICATE_REPORT") {
-					setError("您已经举报过这个帖子了");
+					setError("您已经举报过这条回复了");
 				} else if (err.code === "CANNOT_REPORT_SELF") {
-					setError("不能举报自己的帖子");
+					setError("不能举报自己的回复");
 				} else if (err.code === "TARGET_NOT_FOUND") {
-					setError("帖子不存在");
+					setError("回复不存在");
 				} else {
 					setError(err.message || "提交失败，请重试");
 				}
@@ -205,7 +205,7 @@ export function ReportDialog({ open, onOpenChange, postId, onSuccess }: ReportDi
 							<p className="text-sm text-muted-foreground pl-6">正在检查...</p>
 						)}
 						{step.permission === "passed" && (
-							<p className="text-sm text-green-600 dark:text-green-400 pl-6">您有权限举报此帖子</p>
+							<p className="text-sm text-green-600 dark:text-green-400 pl-6">您有权限举报此回复</p>
 						)}
 						{step.permission === "failed" && (
 							<p className="text-sm text-destructive pl-6">{step.permissionError}</p>

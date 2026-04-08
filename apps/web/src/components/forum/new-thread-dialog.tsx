@@ -120,7 +120,7 @@ export function NewThreadDialog({ open, onOpenChange, forumId, forumName }: NewT
 									type="text"
 									value={state.subject}
 									onChange={(e) => actions.setSubject(e.target.value)}
-									placeholder="输入帖子标题..."
+									placeholder="输入主题标题..."
 									disabled={state.submitting}
 									maxLength={100}
 									className={cn(
@@ -148,7 +148,7 @@ export function NewThreadDialog({ open, onOpenChange, forumId, forumName }: NewT
 								<PostEditor
 									ref={editorRef}
 									onSubmit={actions.handleSubmit}
-									placeholder="写下你的帖子内容..."
+									placeholder="写下你的主题内容..."
 									maxLength={50000}
 									submitting={state.submitting}
 									canSubmit={validation.canSubmit}
@@ -178,7 +178,7 @@ export function NewThreadDialog({ open, onOpenChange, forumId, forumName }: NewT
 										className="gap-2"
 									>
 										<Send className="h-4 w-4" />
-										{state.submitting ? "发布中..." : "发布帖子"}
+										{state.submitting ? "发布中..." : "发布主题"}
 									</Button>
 								</div>
 							</div>

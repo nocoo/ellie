@@ -25,7 +25,7 @@ export function UserPostsTab({
 						href={`/threads/${post.threadId}`}
 						className="text-xs text-muted-foreground hover:text-primary transition-colors"
 					>
-						回复帖子 #{post.threadId}
+						回复主题 #{post.threadId}
 					</Link>
 					<p className="mt-0.5 text-sm text-foreground line-clamp-2">
 						{post.content.replace(/<[^>]*>/g, "").slice(0, 200)}

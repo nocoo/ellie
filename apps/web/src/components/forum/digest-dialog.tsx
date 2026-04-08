@@ -24,7 +24,7 @@ interface DigestDialogProps {
 }
 
 const DIGEST_OPTIONS = [
-	{ level: 0, label: "取消精华", description: "恢复普通帖子", stars: 0 },
+	{ level: 0, label: "取消精华", description: "恢复普通主题", stars: 0 },
 	{ level: 1, label: "一级精华", description: "普通精华帖", stars: 1 },
 	{ level: 2, label: "二级精华", description: "优质精华帖", stars: 2 },
 	{ level: 3, label: "三级精华", description: "顶级精华帖", stars: 3 },

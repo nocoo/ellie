@@ -89,9 +89,9 @@ export function PostEditDialog({
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
 						<Pencil className="h-5 w-5 text-primary" />
-						编辑帖子
+						编辑回复
 					</DialogTitle>
-					<DialogDescription>修改帖子内容</DialogDescription>
+					<DialogDescription>修改回复内容</DialogDescription>
 				</DialogHeader>
 
 				{/* Error display */}
@@ -106,7 +106,7 @@ export function PostEditDialog({
 					<PostEditor
 						initialContent={currentContent}
 						onSubmit={handleSubmit}
-						placeholder="编辑帖子内容..."
+						placeholder="编辑回复内容..."
 						maxLength={10000}
 						submitting={submitting}
 						canSubmit={!submitting}

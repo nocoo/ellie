@@ -83,7 +83,7 @@ export function PostSidebar({
 					</div>
 					<div className="py-1 px-0.5">
 						<div className="font-medium text-forum-link">{formatNumber(author.posts)}</div>
-						<div className="text-xs text-muted-foreground">帖子</div>
+						<div className="text-xs text-muted-foreground">回复</div>
 					</div>
 					<div className="py-1 px-0.5">
 						<div className="font-medium text-forum-link">{formatNumber(author.credits)}</div>
