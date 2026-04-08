@@ -249,6 +249,8 @@ export interface User {
 	lastActivity: number;
 	regIp: string;
 	lastIp: string;
+	/** Whether user has uploaded an avatar (determines posting permission) */
+	hasAvatar?: boolean;
 }
 
 /** Moderator info for display */
