@@ -254,7 +254,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 |------|------|------|
 | `id` | number | 用户 ID |
 | `username` | string | 用户名 |
-| `avatar` | string | 头像 URL（计算值：`/api/avatar/{id}`，非数据库存储） |
+| `avatar` | string | 头像（legacy 字段，返回空字符串；前端通过 `/api/avatar/{id}` 代理获取实际图片） |
 | `role` | number | 角色：`0` 普通、`1` 管理员、`2` 超级版主、`3` 版主 |
 | `regDate` | number | 注册时间（Unix 秒） |
 | `threads` | number | 发帖数 |
@@ -276,7 +276,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 | `id` | number | 用户 ID |
 | `username` | string | 用户名 |
 | `email` | string | 邮箱 |
-| `avatar` | string | 头像 URL（计算值：`/api/avatar/{id}`，非数据库存储） |
+| `avatar` | string | 头像（legacy 字段，返回空字符串；前端通过 `/api/avatar/{id}` 代理获取实际图片） |
 | `status` | number | 状态：`0` 正常、`-1` 封禁、`-2` 归档 |
 | `role` | number | 角色：`0` 普通、`1` 管理员、`2` 超级版主、`3` 版主 |
 | `regDate` | number | 注册时间（Unix 秒） |
