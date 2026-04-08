@@ -92,7 +92,7 @@ describe("ROUTE_LABELS", () => {
 
 	it("has labels for all entity routes", () => {
 		expect(ROUTE_LABELS.threads).toBe("主题");
-		expect(ROUTE_LABELS.posts).toBe("帖子");
+		expect(ROUTE_LABELS.posts).toBe("回复");
 		expect(ROUTE_LABELS.forums).toBe("版块");
 		expect(ROUTE_LABELS.attachments).toBe("附件");
 		expect(ROUTE_LABELS["ip-bans"]).toBe("IP 封禁");

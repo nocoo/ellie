@@ -63,7 +63,7 @@ describe("getErrorMessage", () => {
 		});
 
 		it("returns specific message for POST_NOT_FOUND", () => {
-			expect(getErrorMessage("POST_NOT_FOUND", "delete")).toBe("帖子不存在或已被删除");
+			expect(getErrorMessage("POST_NOT_FOUND", "delete")).toBe("回复不存在或已被删除");
 		});
 
 		it("returns default message for unknown code", () => {
