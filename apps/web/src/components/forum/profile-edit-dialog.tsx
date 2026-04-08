@@ -15,9 +15,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { getAvatarUrl } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
 import { GENDER_OPTIONS, useProfileEdit } from "@/viewmodels/forum/use-profile-edit";
 import { AlertCircle, Save, User as UserIcon, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { AvatarUpload } from "./avatar-upload";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -47,12 +50,20 @@ export interface ProfileEditDialogProps {
 // ---------------------------------------------------------------------------
 
 export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialogProps) {
+	const router = useRouter();
+
 	// Use ViewModel hook for profile editing
 	const { state, actions } = useProfileEdit({
 		initialData: user,
 		open,
 		onSuccess: () => onOpenChange(false),
 	});
+
+	// Handle avatar upload completion
+	const handleAvatarUploadComplete = () => {
+		// Refresh page to update all avatar instances
+		router.refresh();
+	};
 
 	// Reset error when dialog closes
 	const handleOpenChange = (open: boolean) => {
@@ -107,6 +118,19 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 
 				{/* Form */}
 				<div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+					{/* Avatar Section */}
+					<div className="space-y-4">
+						<h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+							<span className="h-1 w-1 rounded-full bg-primary" />
+							头像
+						</h3>
+						<AvatarUpload
+							currentUrl={getAvatarUrl(user.id)}
+							onUploadComplete={handleAvatarUploadComplete}
+							disabled={state.submitting}
+						/>
+					</div>
+
 					{/* Basic Info Section */}
 					<div className="space-y-4">
 						<h3 className="text-sm font-medium text-foreground flex items-center gap-2">
