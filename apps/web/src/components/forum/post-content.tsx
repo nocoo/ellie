@@ -26,9 +26,11 @@ interface PostContentProps {
 	author?: User | null;
 	/** Rendered after content & signature to avoid hydration issues with unclosed HTML. */
 	actionBar?: ReactNode;
+	/** Post comments section, rendered after action bar */
+	comments?: ReactNode;
 }
 
-export function PostContent({ post, isFirst, threadDigest, author, actionBar }: PostContentProps) {
+export function PostContent({ post, isFirst, threadDigest, author, actionBar, comments }: PostContentProps) {
 	return (
 		<div className="flex-1 min-w-0 flex flex-col" suppressHydrationWarning>
 			<div className="p-3 flex flex-col flex-1" suppressHydrationWarning>
@@ -121,6 +123,9 @@ export function PostContent({ post, isFirst, threadDigest, author, actionBar }: 
 			    Unclosed tags in dangerouslySetInnerHTML can cause the browser to
 			    absorb sibling DOM nodes during SSR HTML parsing. */}
 			{actionBar}
+
+			{/* Post comments section */}
+			{comments}
 		</div>
 	);
 }

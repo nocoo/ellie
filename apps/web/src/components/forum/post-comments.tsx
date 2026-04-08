@@ -15,11 +15,9 @@ import { Input } from "@/components/ui/input";
 import { apiClient } from "@/lib/api-client";
 import { getAvatarUrl } from "@/lib/avatar";
 import { getStaticImageUrl } from "@/lib/cdn";
-import { cn } from "@/lib/utils";
 import type { PostComment } from "@ellie/types";
 import { Loader2, MessageCircle, Send } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 interface PostCommentsProps {
@@ -35,7 +33,7 @@ interface CommentDialogProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	postId: number;
-	onSuccess: () => void;
+	onSuccess: (newComment: PostComment) => void;
 }
 
 function formatCommentTime(timestamp: number): string {
@@ -55,13 +53,13 @@ function CommentDialog({ open, onOpenChange, postId, onSuccess }: CommentDialogP
 		setError(null);
 
 		try {
-			await apiClient.post("/api/v1/post-comments", {
+			const response = await apiClient.post<PostComment>("/api/v1/post-comments", {
 				postId,
 				content: content.trim(),
 			});
 			setContent("");
 			onOpenChange(false);
-			onSuccess();
+			onSuccess(response.data);
 		} catch (err) {
 			setError("发送失败，请稍后重试");
 			console.error("[CommentDialog] submit error:", err);
@@ -129,7 +127,6 @@ function CommentDialog({ open, onOpenChange, postId, onSuccess }: CommentDialogP
 }
 
 export function PostComments({ postId, threadClosed, isLoggedIn, dialogOpen: externalDialogOpen, onDialogOpenChange }: PostCommentsProps) {
-	const router = useRouter();
 	const [comments, setComments] = useState<PostComment[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [internalDialogOpen, setInternalDialogOpen] = useState(false);
@@ -156,10 +153,12 @@ export function PostComments({ postId, threadClosed, isLoggedIn, dialogOpen: ext
 		fetchComments();
 	}, [fetchComments]);
 
-	const handleCommentSuccess = useCallback(() => {
-		fetchComments();
-		router.refresh();
-	}, [fetchComments, router]);
+	const handleCommentSuccess = useCallback((newComment: PostComment) => {
+		// Add new comment to list immediately (optimistic update)
+		setComments((prev) => [...prev, newComment]);
+		// Also expand to show the new comment if list was collapsed
+		setExpanded(true);
+	}, []);
 
 	// Don't render if no comments and can't add (closed or not logged in)
 	if (!loading && comments.length === 0 && (threadClosed || !isLoggedIn)) {
@@ -237,20 +236,19 @@ export function PostComments({ postId, threadClosed, isLoggedIn, dialogOpen: ext
 								</AvatarFallback>
 							</Avatar>
 						</Link>
-						<div className="flex-1 min-w-0">
-							<div className="flex items-baseline gap-2 flex-wrap">
-								<Link
-									href={`/users/${comment.authorId}`}
-									className="text-xs font-medium text-forum-link hover:underline"
-								>
-									{comment.authorName}
-								</Link>
-								<span className="text-xs text-forum-text break-all">
-									{comment.content}
-								</span>
-							</div>
-							<span className="text-2xs text-forum-text-muted">
-								发表于 {formatCommentTime(comment.createdAt)}
+						<div className="flex-1 min-w-0 text-xs">
+							<Link
+								href={`/users/${comment.authorId}`}
+								className="font-medium text-forum-link hover:underline"
+							>
+								{comment.authorName}
+							</Link>
+							<span className="mx-1 text-forum-text-muted">:</span>
+							<span className="text-forum-text break-all">
+								{comment.content}
+							</span>
+							<span className="ml-2 text-2xs text-forum-text-muted">
+								{formatCommentTime(comment.createdAt)}
 							</span>
 						</div>
 					</div>

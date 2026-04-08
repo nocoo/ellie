@@ -124,6 +124,16 @@ export function PostCard({
 		</>
 	);
 
+	const commentsSection = (
+		<PostComments
+			postId={post.id}
+			threadClosed={threadClosed}
+			isLoggedIn={currentUserId !== null}
+			dialogOpen={commentDialogOpen}
+			onDialogOpenChange={setCommentDialogOpen}
+		/>
+	);
+
 	return (
 		<div className="border border-border bg-card -mt-px first:mt-0">
 			{/* Desktop: two-column layout */}
@@ -141,13 +151,7 @@ export function PostCard({
 						threadDigest={threadDigest}
 						author={post.author}
 						actionBar={actionBar}
-					/>
-					<PostComments
-						postId={post.id}
-						threadClosed={threadClosed}
-						isLoggedIn={currentUserId !== null}
-						dialogOpen={commentDialogOpen}
-						onDialogOpenChange={setCommentDialogOpen}
+						comments={commentsSection}
 					/>
 				</div>
 			</div>
@@ -211,13 +215,7 @@ export function PostCard({
 					threadDigest={threadDigest}
 					author={post.author}
 					actionBar={actionBar}
-				/>
-				<PostComments
-					postId={post.id}
-					threadClosed={threadClosed}
-					isLoggedIn={currentUserId !== null}
-					dialogOpen={commentDialogOpen}
-					onDialogOpenChange={setCommentDialogOpen}
+					comments={commentsSection}
 				/>
 			</div>
 
