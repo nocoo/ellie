@@ -166,12 +166,15 @@ function SearchStatsBar({ vm }: { vm: HeaderViewModel }) {
 					<Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 					<input
 						type="search"
-						placeholder="搜索帖子、用户..."
-						aria-label="搜索帖子和用户"
+						placeholder="搜索主题、用户..."
+						aria-label="搜索主题和用户"
 						className="h-8 w-full rounded-lg border border-input bg-transparent pl-9 pr-10 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
 						onKeyDown={(e) => {
 							if (e.key === "Enter") {
-								// TODO: implement search navigation
+								const query = (e.target as HTMLInputElement).value.trim();
+								if (query.length >= 2) {
+									window.location.href = `/search?q=${encodeURIComponent(query)}`;
+								}
 							}
 						}}
 						ref={(el) => {
@@ -206,8 +209,11 @@ function SearchStatsBar({ vm }: { vm: HeaderViewModel }) {
 					<span>昨日: </span>
 					<span className="font-bold text-foreground">{formatNumber(s.yesterdayPosts)}</span>
 					<StatSep />
-					<span>帖子: </span>
+					<span>主题: </span>
 					<span className="font-bold text-foreground">{formatNumber(s.totalThreads)}</span>
+					<StatSep />
+					<span>回复: </span>
+					<span className="font-bold text-foreground">{formatNumber(s.totalPosts)}</span>
 					<StatSep />
 					<span>会员: </span>
 					<span className="font-bold text-foreground">{formatNumber(s.totalMembers)}</span>

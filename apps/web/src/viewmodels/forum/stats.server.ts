@@ -9,6 +9,7 @@ export interface SiteStats {
 	todayPosts: number;
 	yesterdayPosts: number;
 	totalThreads: number;
+	totalPosts: number;
 	totalMembers: number;
 	newestMember: string;
 	totalOnline: number;

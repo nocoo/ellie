@@ -23,9 +23,11 @@ function makeStatsDb(counts: number[], newestUsername = "newbie") {
 		{ results: [{ cnt: counts[1] ?? 0 }] },
 		// 2: totalThreads
 		{ results: [{ cnt: counts[2] ?? 0 }] },
-		// 3: totalMembers
+		// 3: totalPosts
 		{ results: [{ cnt: counts[3] ?? 0 }] },
-		// 4: newestMember
+		// 4: totalMembers
+		{ results: [{ cnt: counts[4] ?? 0 }] },
+		// 5: newestMember
 		{ results: newestUsername ? [{ username: newestUsername }] : [] },
 	];
 
@@ -71,7 +73,7 @@ function makeKv(options?: {
 describe("public stats handler", () => {
 	describe("GET /api/v1/stats", () => {
 		it("should return correct stats from DB when cache is empty", async () => {
-			const db = makeStatsDb([5, 12, 3000, 500], "latest_user");
+			const db = makeStatsDb([5, 12, 3000, 9000000, 500], "latest_user");
 			const kv = makeKv();
 			const env = makeEnv({ DB: db, KV: kv });
 			const request = createRequest();
@@ -85,6 +87,7 @@ describe("public stats handler", () => {
 			expect(data.todayPosts).toBe(5);
 			expect(data.yesterdayPosts).toBe(12);
 			expect(data.totalThreads).toBe(3000);
+			expect(data.totalPosts).toBe(9000000);
 			expect(data.totalMembers).toBe(500);
 			expect(data.newestMember).toBe("latest_user");
 			// Online stats return 0 (placeholder)
@@ -94,7 +97,7 @@ describe("public stats handler", () => {
 		});
 
 		it("should write result to KV cache after DB query", async () => {
-			const db = makeStatsDb([1, 2, 100, 50], "someone");
+			const db = makeStatsDb([1, 2, 100, 200, 50], "someone");
 			const kv = makeKv();
 			const env = makeEnv({ DB: db, KV: kv });
 			const request = createRequest();
@@ -117,13 +120,14 @@ describe("public stats handler", () => {
 				todayPosts: 99,
 				yesterdayPosts: 88,
 				totalThreads: 7777,
+				totalPosts: 5555,
 				totalMembers: 1234,
 				newestMember: "cached_user",
 				totalOnline: 0,
 				peakOnline: 0,
 				peakDate: "",
 			};
-			const db = makeStatsDb([0, 0, 0, 0]);
+			const db = makeStatsDb([0, 0, 0, 0, 0]);
 			const kv = makeKv({ cachedValue: JSON.stringify(cachedStats) });
 			const env = makeEnv({ DB: db, KV: kv });
 			const request = createRequest();
@@ -141,11 +145,12 @@ describe("public stats handler", () => {
 
 		it("should handle empty users table gracefully", async () => {
 			const stmts = [
-				{ results: [{ cnt: 0 }] },
-				{ results: [{ cnt: 0 }] },
-				{ results: [{ cnt: 0 }] },
-				{ results: [{ cnt: 0 }] },
-				{ results: [] }, // no users
+				{ results: [{ cnt: 0 }] }, // todayPosts
+				{ results: [{ cnt: 0 }] }, // yesterdayPosts
+				{ results: [{ cnt: 0 }] }, // totalThreads
+				{ results: [{ cnt: 0 }] }, // totalPosts
+				{ results: [{ cnt: 0 }] }, // totalMembers
+				{ results: [] }, // newestMember - no users
 			];
 			const db = {
 				prepare: mock(() => ({
@@ -166,7 +171,7 @@ describe("public stats handler", () => {
 		});
 
 		it("should include meta with timestamp and requestId", async () => {
-			const db = makeStatsDb([0, 0, 0, 0]);
+			const db = makeStatsDb([0, 0, 0, 0, 0]);
 			const kv = makeKv();
 			const env = makeEnv({ DB: db, KV: kv });
 			const request = createRequest();
@@ -180,7 +185,7 @@ describe("public stats handler", () => {
 		});
 
 		it("should use batch query for efficiency (single DB roundtrip)", async () => {
-			const db = makeStatsDb([1, 2, 3, 4]);
+			const db = makeStatsDb([1, 2, 3, 4, 5]);
 			const kv = makeKv();
 			const env = makeEnv({ DB: db, KV: kv });
 			const request = createRequest();
@@ -192,7 +197,7 @@ describe("public stats handler", () => {
 		});
 
 		it("should return online stats from KV", async () => {
-			const db = makeStatsDb([0, 0, 0, 0]);
+			const db = makeStatsDb([0, 0, 0, 0, 0]);
 			const kv = makeKv({
 				onlineCount: "42",
 				peakData: { count: 100, date: "2024-03-31" },
@@ -210,7 +215,7 @@ describe("public stats handler", () => {
 		});
 
 		it("should return 0 for online stats when KV has no data", async () => {
-			const db = makeStatsDb([0, 0, 0, 0]);
+			const db = makeStatsDb([0, 0, 0, 0, 0]);
 			const kv = makeKv({ onlineCount: undefined, peakData: null });
 			const env = makeEnv({ DB: db, KV: kv });
 			const request = createRequest();
