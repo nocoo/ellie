@@ -9,8 +9,10 @@
 /**
  * Format number with thousand separators: 1234567 → "1,234,567".
  * Uses locale-aware formatting for consistent display.
+ * Returns "0" for undefined/null/NaN values.
  */
-export function formatNumber(n: number): string {
+export function formatNumber(n: number | undefined | null): string {
+	if (n == null || Number.isNaN(n)) return "0";
 	return n.toLocaleString("zh-CN");
 }
 
