@@ -185,9 +185,9 @@ export function PostComments({ postId, threadClosed, isLoggedIn, dialogOpen: ext
 
 	return (
 		<div className="border-t border-dashed border-border">
-			{/* Header */}
-			<div className="flex items-center justify-between px-3 py-1.5 bg-amber-50/50">
-				<span className="text-xs text-amber-700 font-medium flex items-center gap-1">
+			{/* Header - theme-aware colors */}
+			<div className="flex items-center justify-between px-3 py-1.5 bg-muted/50">
+				<span className="text-xs text-muted-foreground font-medium flex items-center gap-1">
 					<MessageCircle className="h-3.5 w-3.5" />
 					点评
 				</span>
