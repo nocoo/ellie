@@ -131,6 +131,26 @@ npx wrangler dev -c apps/worker/wrangler.toml
 | `bun run lint:fix` | Biome lint with auto-fix |
 | `bun run format` | Biome format |
 
+### Version Management
+
+| Script | Description |
+|--------|-------------|
+| `bun run release` | Bump patch version (Z+1) |
+| `bun run release -- minor` | Bump minor version (Y+1) |
+| `bun run release -- major` | Bump major version (X+1) |
+| `bun run release -- 2.0.0` | Set specific version |
+| `bun run release -- --dry-run` | Preview changes without modifying |
+
+**Version locations (all updated by release script):**
+- Root `package.json` (single source of truth)
+- All workspace `package.json` files
+- `packages/types/src/version.ts` — exports `VERSION` and `VERSION_DISPLAY`
+- `packages/types/src/version.d.ts` — TypeScript declarations
+
+**Version display:**
+- Footer: `v1.0.0` (via `VERSION_DISPLAY`)
+- `/api/live`: returns `version` field
+
 ## Quality Gates (pre-push)
 
 | Gate | Command |
