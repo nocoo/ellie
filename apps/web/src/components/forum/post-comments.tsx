@@ -160,36 +160,22 @@ export function PostComments({ postId, threadClosed, isLoggedIn, dialogOpen: ext
 		setExpanded(true);
 	}, []);
 
-	// Don't render if no comments and can't add (closed or not logged in)
-	if (!loading && comments.length === 0 && (threadClosed || !isLoggedIn)) {
-		return null;
+	// Don't render anything if no comments
+	// The "点评" button is in PostActionBar, not here
+	if (!loading && comments.length === 0) {
+		return (
+			<CommentDialog
+				open={dialogOpen}
+				onOpenChange={setDialogOpen}
+				postId={postId}
+				onSuccess={handleCommentSuccess}
+			/>
+		);
 	}
 
 	// Show loading or empty state with add button
 	if (loading) {
 		return null; // Don't show loading state, just skip
-	}
-
-	// If no comments, just show the button (if allowed)
-	if (comments.length === 0) {
-		return (
-			<div className="border-t border-dashed border-border px-3 py-2">
-				<button
-					type="button"
-					onClick={() => setDialogOpen(true)}
-					className="flex items-center gap-1 text-xs text-forum-text-muted hover:text-forum-link transition-colors cursor-pointer"
-				>
-					<MessageCircle className="h-3.5 w-3.5" />
-					<span>点评</span>
-				</button>
-				<CommentDialog
-					open={dialogOpen}
-					onOpenChange={setDialogOpen}
-					postId={postId}
-					onSuccess={handleCommentSuccess}
-				/>
-			</div>
-		);
 	}
 
 	// Determine which comments to show
@@ -219,9 +205,9 @@ export function PostComments({ postId, threadClosed, isLoggedIn, dialogOpen: ext
 			{/* Comment list */}
 			<div className="divide-y divide-dashed divide-border">
 				{visibleComments.map((comment) => (
-					<div key={comment.id} className="px-3 py-2 flex items-start gap-2">
-						<Link href={`/users/${comment.authorId}`}>
-							<Avatar className="h-5 w-5 rounded-sm flex-shrink-0">
+					<div key={comment.id} className="px-3 py-1.5 flex items-center gap-2 text-xs">
+						<Link href={`/users/${comment.authorId}`} className="flex-shrink-0">
+							<Avatar className="h-5 w-5 rounded-sm">
 								<AvatarImage
 									src={getAvatarUrl(comment.authorId, "small")}
 									alt={comment.authorName}
@@ -236,21 +222,18 @@ export function PostComments({ postId, threadClosed, isLoggedIn, dialogOpen: ext
 								</AvatarFallback>
 							</Avatar>
 						</Link>
-						<div className="flex-1 min-w-0 text-xs">
-							<Link
-								href={`/users/${comment.authorId}`}
-								className="font-medium text-forum-link hover:underline"
-							>
-								{comment.authorName}
-							</Link>
-							<span className="mx-1 text-forum-text-muted">:</span>
-							<span className="text-forum-text break-all">
-								{comment.content}
-							</span>
-							<span className="ml-2 text-2xs text-forum-text-muted">
-								{formatCommentTime(comment.createdAt)}
-							</span>
-						</div>
+						<Link
+							href={`/users/${comment.authorId}`}
+							className="font-medium text-forum-link hover:underline flex-shrink-0"
+						>
+							{comment.authorName}
+						</Link>
+						<span className="text-forum-text break-all">
+							{comment.content}
+						</span>
+						<span className="text-2xs text-forum-text-muted flex-shrink-0 ml-auto">
+							{formatCommentTime(comment.createdAt)}
+						</span>
 					</div>
 				))}
 			</div>

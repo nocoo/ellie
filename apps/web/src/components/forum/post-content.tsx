@@ -119,13 +119,13 @@ export function PostContent({ post, isFirst, threadDigest, author, actionBar, co
 				)}
 			</div>
 
+			{/* Post comments section - above action bar */}
+			{comments}
+
 			{/* Action bar rendered INSIDE this component to avoid hydration issues.
 			    Unclosed tags in dangerouslySetInnerHTML can cause the browser to
 			    absorb sibling DOM nodes during SSR HTML parsing. */}
 			{actionBar}
-
-			{/* Post comments section */}
-			{comments}
 		</div>
 	);
 }
