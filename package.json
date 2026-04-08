@@ -1,6 +1,6 @@
 {
 	"name": "ellie-monorepo",
-	"version": "0.1.0",
+	"version": "1.0.0",
 	"private": true,
 	"type": "module",
 	"workspaces": ["apps/*", "packages/*"],
@@ -20,6 +20,7 @@
 		"worker:dev": "bun run --filter '@ellie/worker' dev",
 		"worker:deploy": "bun run --filter '@ellie/worker' deploy",
 		"tui": "bun --bun run scripts/tui.ts",
+		"release": "bun run scripts/release.ts",
 		"test": "bun test tests/unit/ && bun test apps/worker/ && bun test apps/admin/tests/",
 		"test:unit": "bun test tests/unit/",
 		"test:unit:worker": "bun test apps/worker/",
