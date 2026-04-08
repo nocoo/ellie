@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import type { ReactNode } from "react";
 import "./tailwind.css";
 import { Providers } from "@/components/providers";
@@ -25,7 +26,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 	return (
 		<html lang="zh-CN" className={cn(inter.variable, dmSans.variable)} suppressHydrationWarning>
 			<head>
-				<script dangerouslySetInnerHTML={{ __html: foucPreventionScript }} />
+				<Script id="fouc-prevention" strategy="beforeInteractive">
+					{foucPreventionScript}
+				</Script>
 			</head>
 			<body>
 				<Providers>{children}</Providers>
