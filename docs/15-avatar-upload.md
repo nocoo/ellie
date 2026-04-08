@@ -304,7 +304,7 @@ if (settings.requireAvatar && !userRow.has_avatar) {
 # apps/worker/wrangler.toml
 [[r2_buckets]]
 binding = "R2"
-bucket_name = "ellie-cdn"  # Verify actual bucket name
+bucket_name = "tongjinet"
 ```
 
 #### 1.2 Update Worker Env
