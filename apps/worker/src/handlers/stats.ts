@@ -14,6 +14,7 @@ export interface PublicStats {
 	todayPosts: number;
 	yesterdayPosts: number;
 	totalThreads: number;
+	totalPosts: number;
 	totalMembers: number;
 	newestMember: string;
 	totalOnline: number;
@@ -48,19 +49,21 @@ export async function stats(request: CFRequest, env: Env): Promise<Response> {
 	// - users.status >= 0 (normal users only, excludes banned/placeholder)
 	const [dbResults, onlineCount, peakData] = await Promise.all([
 		env.DB.batch([
-			// 0: today's visible posts
+			// 0: today's visible posts (replies)
 			env.DB.prepare(
 				`SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ? AND ${POST_VISIBLE}`,
 			).bind(todayStart),
-			// 1: yesterday's visible posts
+			// 1: yesterday's visible posts (replies)
 			env.DB.prepare(
 				`SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ? AND created_at < ? AND ${POST_VISIBLE}`,
 			).bind(yesterdayStart, yesterdayEnd),
 			// 2: total visible threads
 			env.DB.prepare(`SELECT COUNT(*) AS cnt FROM threads WHERE ${THREAD_VISIBLE}`),
-			// 3: total normal members (excludes banned/placeholder/archived users)
+			// 3: total visible posts (replies)
+			env.DB.prepare(`SELECT COUNT(*) AS cnt FROM posts WHERE ${POST_VISIBLE}`),
+			// 4: total normal members (excludes banned/placeholder/archived users)
 			env.DB.prepare(`SELECT COUNT(*) AS cnt FROM users WHERE ${USER_ACTIVE}`),
-			// 4: newest normal member (excludes banned/placeholder users)
+			// 5: newest normal member (excludes banned/placeholder users)
 			env.DB.prepare(
 				`SELECT username FROM users WHERE ${USER_ACTIVE} ORDER BY reg_date DESC LIMIT 1`,
 			),
@@ -75,13 +78,14 @@ export async function stats(request: CFRequest, env: Env): Promise<Response> {
 	]);
 
 	const count = (i: number) => (dbResults[i].results[0] as Record<string, number>).cnt;
-	const newestRow = dbResults[4].results[0] as Record<string, string> | undefined;
+	const newestRow = dbResults[5].results[0] as Record<string, string> | undefined;
 
 	const data: PublicStats = {
 		todayPosts: count(0),
 		yesterdayPosts: count(1),
 		totalThreads: count(2),
-		totalMembers: count(3),
+		totalPosts: count(3),
+		totalMembers: count(4),
 		newestMember: newestRow?.username ?? "",
 		// Online stats from KV (populated by cron aggregation)
 		totalOnline: onlineCount ? Number.parseInt(onlineCount, 10) : 0,

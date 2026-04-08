@@ -44,6 +44,7 @@ export interface HeaderStats {
 	todayPosts: number;
 	yesterdayPosts: number;
 	totalThreads: number;
+	totalPosts: number;
 	totalMembers: number;
 	newestMember: string;
 }
@@ -102,6 +103,7 @@ export const DEFAULT_STATS: HeaderStats = {
 	todayPosts: 0,
 	yesterdayPosts: 0,
 	totalThreads: 0,
+	totalPosts: 0,
 	totalMembers: 0,
 	newestMember: "",
 };

@@ -92,6 +92,7 @@ async function loadStats(): Promise<HeaderStats> {
 			todayPosts: data.todayPosts,
 			yesterdayPosts: data.yesterdayPosts,
 			totalThreads: data.totalThreads,
+			totalPosts: data.totalPosts,
 			totalMembers: data.totalMembers,
 			newestMember: data.newestMember,
 		};
@@ -101,6 +102,7 @@ async function loadStats(): Promise<HeaderStats> {
 			todayPosts: 0,
 			yesterdayPosts: 0,
 			totalThreads: 0,
+			totalPosts: 0,
 			totalMembers: 0,
 			newestMember: "",
 		};
