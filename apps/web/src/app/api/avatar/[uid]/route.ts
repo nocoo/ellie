@@ -1,24 +1,20 @@
 // Avatar proxy — hides CDN URL and handles fallback server-side
-// GET /api/avatar/:uid?size=big|middle|small
+// GET /api/avatar/:uid?v=timestamp (for cache busting after upload)
+// Note: ?size= is deprecated and ignored — always serves big avatar
 
 import { type NextRequest, NextResponse } from "next/server";
 
 const CDN_BASE = "https://t.no.mt/avatar";
 const FALLBACK_URL = "https://t.no.mt/static/image/common/tavatar.gif";
 
-type AvatarSize = "big" | "middle" | "small";
-
-function isValidSize(size: string | null): size is AvatarSize {
-	return size === "big" || size === "middle" || size === "small";
-}
-
-function computeAvatarPath(uid: number, size: AvatarSize): string {
+function computeAvatarPath(uid: number): string {
 	const padded = uid.toString().padStart(9, "0");
 	const dir1 = padded.slice(0, 3);
 	const dir2 = padded.slice(3, 5);
 	const dir3 = padded.slice(5, 7);
 	const file = padded.slice(7, 9);
-	return `${CDN_BASE}/${dir1}/${dir2}/${dir3}/${file}_avatar_${size}.jpg`;
+	// Always fetch big avatar — size parameter is deprecated
+	return `${CDN_BASE}/${dir1}/${dir2}/${dir3}/${file}_avatar_big.jpg`;
 }
 
 export async function GET(
@@ -32,10 +28,10 @@ export async function GET(
 		return NextResponse.redirect(FALLBACK_URL);
 	}
 
-	const sizeParam = request.nextUrl.searchParams.get("size");
-	const size: AvatarSize = isValidSize(sizeParam) ? sizeParam : "big";
+	// Check for cache-bust parameter
+	const hasVersionParam = request.nextUrl.searchParams.has("v");
 
-	const avatarUrl = computeAvatarPath(uid, size);
+	const avatarUrl = computeAvatarPath(uid);
 
 	try {
 		const response = await fetch(avatarUrl, {
@@ -60,11 +56,17 @@ export async function GET(
 		const imageData = await response.arrayBuffer();
 		const contentType = response.headers.get("Content-Type") || "image/jpeg";
 
+		// Use shorter cache when version param is present (fresh upload)
+		// Browser will re-request without ?v= on next page load
+		const cacheControl = hasVersionParam
+			? "public, max-age=0, must-revalidate" // Force revalidation for fresh uploads
+			: "public, max-age=604800"; // Cache avatars for 7 days
+
 		return new NextResponse(imageData, {
 			status: 200,
 			headers: {
 				"Content-Type": contentType,
-				"Cache-Control": "public, max-age=604800", // Cache avatars for 7 days
+				"Cache-Control": cacheControl,
 			},
 		});
 	} catch {
