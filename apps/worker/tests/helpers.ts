@@ -293,3 +293,44 @@ export function createMockDb(config?: {
 
 	return { db, calls, batchCalls };
 }
+
+/**
+ * Create a mock R2Bucket for testing.
+ * Provides basic put/get/delete methods with optional behavior overrides.
+ */
+export function createMockR2(config?: {
+	/** Throw error on put */
+	putError?: Error;
+	/** Stored objects (key -> ArrayBuffer) */
+	objects?: Map<string, ArrayBuffer>;
+}) {
+	const store = config?.objects ?? new Map<string, ArrayBuffer>();
+	const putCalls: { key: string; body: ArrayBuffer }[] = [];
+	return {
+		put: mock(async (key: string, body: ArrayBuffer | ReadableStream | string) => {
+			if (config?.putError) throw config.putError;
+			const buffer =
+				body instanceof ArrayBuffer ? body : new TextEncoder().encode(body as string).buffer;
+			store.set(key, buffer as ArrayBuffer);
+			putCalls.push({ key, body: buffer as ArrayBuffer });
+			return { key, size: (buffer as ArrayBuffer).byteLength };
+		}),
+		get: mock(async (key: string) => {
+			const data = store.get(key);
+			if (!data) return null;
+			return {
+				body: new ReadableStream({
+					start(controller) {
+						controller.enqueue(new Uint8Array(data));
+						controller.close();
+					},
+				}),
+				arrayBuffer: async () => data,
+			};
+		}),
+		delete: mock(async (key: string) => {
+			store.delete(key);
+		}),
+		_putCalls: putCalls,
+	} as unknown as R2Bucket & { _putCalls: { key: string; body: ArrayBuffer }[] };
+}
