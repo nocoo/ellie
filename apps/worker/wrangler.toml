@@ -12,6 +12,10 @@ binding = "KV"
 id = "9506856500c34ceb82ab989063962a6d"
 preview_id = "490227e961174fd38c6c14530a4ee3ee"
 
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "tongjinet"
+
 [vars]
 ENVIRONMENT = "production"
 ALLOWED_ORIGINS = "https://ellie.nocoo.cloud,https://ellie.worker.hexly.ai"
@@ -36,6 +40,10 @@ database_id = "940c7758-0a9e-44b2-aeb5-745fa3143371"
 binding = "KV"
 id = "490227e961174fd38c6c14530a4ee3ee"
 preview_id = "490227e961174fd38c6c14530a4ee3ee"
+
+[[env.test.r2_buckets]]
+binding = "R2"
+bucket_name = "tongjinet"
 
 [env.test.vars]
 ENVIRONMENT = "test"
