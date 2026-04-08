@@ -254,7 +254,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 |------|------|------|
 | `id` | number | 用户 ID |
 | `username` | string | 用户名 |
-| `avatar` | string | 头像 |
+| `avatar` | string | 头像 URL（计算值：`/api/avatar/{id}`，非数据库存储） |
 | `role` | number | 角色：`0` 普通、`1` 管理员、`2` 超级版主、`3` 版主 |
 | `regDate` | number | 注册时间（Unix 秒） |
 | `threads` | number | 发帖数 |
@@ -276,7 +276,7 @@ Key B 由 Next.js 服务端持有，浏览器不可见。
 | `id` | number | 用户 ID |
 | `username` | string | 用户名 |
 | `email` | string | 邮箱 |
-| `avatar` | string | 头像 |
+| `avatar` | string | 头像 URL（计算值：`/api/avatar/{id}`，非数据库存储） |
 | `status` | number | 状态：`0` 正常、`-1` 封禁、`-2` 归档 |
 | `role` | number | 角色：`0` 普通、`1` 管理员、`2` 超级版主、`3` 版主 |
 | `regDate` | number | 注册时间（Unix 秒） |
@@ -1112,7 +1112,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 
 #### #16 `PATCH /api/v1/users/me`
 
-更新自己的资料（头像、邮箱）。
+更新自己的资料（邮箱等）。头像通过 `POST /api/v1/upload` 上传，不支持直接 PATCH。
 
 | 属性 | 值 |
 |------|---|
@@ -1123,7 +1123,8 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
 | 字段 | 类型 | 必填 | 约束 |
 |------|------|------|------|
 | `email` | string | 否 | 必须包含 `@`，最多 255 字符，非空 |
-| `avatar` | string | 否 | — |
+
+> **注意**：头像不再通过此端点更新。请使用 `POST /api/v1/upload` 上传头像（见 docs/15-avatar-upload.md）。
 
 **成功响应（200）** — 返回 **SelfUser** 模型：
 ```json
@@ -1131,7 +1132,7 @@ curl -H "X-API-Key: $KEY" "https://api/v1/search/threads?q=test&cursor=eyJsYXN0.
   "data": {
     "id": 42,
     "username": "testuser",
-    "avatar": "https://...",
+    "avatar": "/api/avatar/42",
     "role": 0,
     "regDate": 1609459200,
     "threads": 15,

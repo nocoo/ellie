@@ -70,16 +70,28 @@ ALTER TABLE users ADD COLUMN has_avatar INTEGER NOT NULL DEFAULT 0;
 
 | Field | Type | Purpose |
 |-------|------|---------|
-| `avatar` | TEXT | Legacy field, currently unused (empty string). CDN path derived from UID, not stored. |
-| `has_avatar` | INTEGER | Flag for posting permission check: `1` = user has uploaded avatar, `0` = no avatar |
+| `avatar` | TEXT | Legacy field, kept for API compatibility. Always empty string in DB — actual avatar URL is derived from UID via `/api/avatar/:uid`. |
+| `has_avatar` | INTEGER | Source of truth for posting permission check: `1` = user has uploaded avatar, `0` = no avatar |
 
 **Why keep both?**
 
 The `avatar` field exists in the DB schema and is included in API responses (see `07-api-reference.md`). Removing it would be a breaking change. Instead:
 
 1. `has_avatar` is the source of truth for posting permission
-2. `avatar` remains in API responses but is semantically unused
-3. Future: could repurpose `avatar` for custom avatar URL (e.g., external avatars)
+2. `avatar` in API responses is populated with computed URL `/api/avatar/{uid}` (not stored in DB)
+3. `UserMiniProfile.avatar`, `authorAvatar`, `lastPosterAvatar` continue to use the computed URL
+4. Future: could repurpose DB `avatar` column for external avatar URL override
+
+**Current avatar field behavior in code:**
+
+| Location | Behavior |
+|----------|----------|
+| `users.avatar` (DB) | Always empty string `''` |
+| `UserMiniProfile.avatar` (KV cache) | Computed URL or empty string |
+| `PublicUser.avatar` (API response) | Computed URL `/api/avatar/{uid}` |
+| `authorAvatar`, `lastPosterAvatar` (enriched lists) | Computed URL from cache |
+
+**Note:** The current codebase stores empty string in `users.avatar` and derives display URLs from UID. This design continues — `has_avatar` is purely for permission checks, not display.
 
 **Posting permission change:**
 
@@ -96,7 +108,11 @@ if (settings.requireAvatar && !userRow.has_avatar) {
 
 **UserMiniProfile cache:**
 
-The cache stores `avatar: string` for display purposes. Since avatars are served via `/api/avatar/:uid` (path derived from UID), the cache doesn't need updating. Upload handler sets `has_avatar = 1` and invalidates cache; the avatar proxy always derives path from UID.
+The cache stores `avatar: string` (computed URL like `/api/avatar/123`). Since avatars are served via this proxy URL (path derived from UID), the cache structure doesn't change. Upload handler:
+1. Writes file to R2 at computed path
+2. Sets `has_avatar = 1` in DB
+3. Calls `invalidateUserCache(env, userId)` to clear stale cache
+4. Returns URL with `?v={timestamp}` for immediate client refresh
 
 ### Storage Structure
 
@@ -682,30 +698,50 @@ After upload, caches to invalidate:
 | Cache | Location | Invalidation | Guarantee |
 |-------|----------|--------------|-----------|
 | User mini profile | KV `user:mini:{id}` | `invalidateUserCache(env, userId)` in handler | ✅ Immediate |
-| Browser avatar cache | HTTP cache | `?v=timestamp` query param in response URL | ✅ Immediate (client-side) |
-| Next.js proxy cache | Edge/server cache | Default: no-cache on dynamic routes | ✅ Immediate |
+| Browser avatar cache | HTTP cache | `?v=timestamp` in client-side URL | ✅ Immediate |
+| Next.js proxy response | HTTP `Cache-Control` header | `no-cache` when `?v=` present | ✅ Immediate |
 | R2 object | `t.no.mt` bucket | PUT to same key replaces content | ✅ Immediate |
-| CDN edge cache | Cloudflare edge | Respects R2 origin headers; may cache up to 7 days | ⚠️ Eventually consistent |
+| CDN edge cache | Cloudflare edge (t.no.mt) | **NOT directly invalidated** — see below | ⚠️ Up to 7 days stale |
 
-**Cache behavior explained:**
+**How the cache layers work:**
 
-1. **Upload handler** returns `{ url: "/api/avatar/123" }` — client appends `?v={timestamp}` for immediate refresh
-2. **Avatar proxy** (`/api/avatar/:uid`) fetches from R2/CDN on each request (no server caching)
-3. **R2 PUT** overwrites the existing object at the same key — content is immediately updated
-4. **CDN edge** may serve stale content until cache expires (up to 7 days) for requests without `?v=`
+```
+Browser → /api/avatar/123?v=1712345678
+           │
+           ▼
+        Next.js proxy (reads ?v=, sets Cache-Control: no-cache)
+           │
+           ▼  (always requests fixed URL)
+        fetch("https://t.no.mt/avatar/000/00/01/23_avatar_big.jpg")
+           │
+           ▼
+        CDN edge (may serve cached response)
+           │
+           ▼
+        R2 origin (latest file)
+```
 
-**Why `?v=` works:**
+**Key insight:** The `?v=` parameter only affects the **browser → Next.js** hop. The Next.js proxy always requests the **same fixed URL** from CDN (`t.no.mt/avatar/...`), so `?v=` does NOT create a different CDN cache key.
 
-- Different query string = different cache key at CDN edge
-- Browser treats `?v=123` as a new resource, bypassing local cache
-- After initial page refresh, subsequent visits see updated avatar
+**What `?v=` actually does:**
 
-**What's NOT guaranteed:**
+1. **Browser level** — Different URL = different browser cache entry. Browser fetches fresh from Next.js.
+2. **Next.js level** — Proxy sees `?v=`, responds with `Cache-Control: no-cache`. Browser won't reuse this response.
+3. **CDN level** — Unchanged. CDN may still serve stale content until its cache expires or gets evicted.
 
-- Old cached URLs (without `?v=`) may show stale avatar at CDN edge
-- Users on other devices/browsers see updates after their local cache expires
+**Why this is acceptable:**
 
-**Acceptable tradeoff:** Avatar updates are visible immediately to the uploader (via `?v=`). Other users see updates within cache TTL (7 days max, typically faster due to edge eviction).
+- R2 PUT immediately updates the file at origin
+- CDN edge caches eventually expire (configured max-age or LRU eviction)
+- Most users see updates within minutes (CDN edge refresh), not days
+- The uploader sees immediate update via `?v=` + browser cache bypass
+
+**For guaranteed immediate CDN refresh (future enhancement):**
+
+If stricter freshness is needed, options include:
+1. Cloudflare Cache API purge via Worker (requires zone ID setup)
+2. Use unique path per upload (e.g., `/avatar/{uid}_{timestamp}.jpg`) — breaks caching benefits
+3. Accept eventual consistency (current approach)
 
 ## File Checklist
 
@@ -737,13 +773,14 @@ After upload, caches to invalidate:
 
 | File | Action | Notes |
 |------|--------|-------|
+| `packages/db/src/schema.ts` | Update | Add `has_avatar INTEGER NOT NULL DEFAULT 0` to users table (for fresh installs) |
 | `packages/types/src/types.ts` | Update | Add `hasAvatar?: boolean` to User interface (optional for backward compat) |
 
 ### Documentation
 
 | File | Action | Notes |
 |------|--------|-------|
-| `docs/07-api-reference.md` | Update | Add `POST /api/v1/upload` endpoint documentation |
+| `docs/07-api-reference.md` | Update | Add `POST /api/v1/upload` endpoint; update avatar field description; update `PATCH /users/me` (remove avatar from editable fields) |
 
 ### Scripts
 
@@ -847,7 +884,7 @@ describe('POST /api/v1/upload', () => {
 | File type spoofing | Validate MIME type; consider magic bytes check |
 | Path traversal | Generate paths server-side via `computeAvatarPath()` |
 | DoS via large uploads | Enforce 200 KB limit before processing |
-| Unauthorized upload | Require valid JWT via `requireAuth()` |
+| Unauthorized upload | Require valid JWT via `authMiddlewareVerified()` (verifies user status from DB) |
 | Overwrite others' avatar | Path derived from authenticated `userId` only |
 
 ## Migration Checklist
