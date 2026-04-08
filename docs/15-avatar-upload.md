@@ -228,23 +228,39 @@ Browser                Next.js Route              Worker               R2
 
 ### Avatar Serving Changes
 
-Current proxy supports `?size=big|middle|small` but we're removing size variants. Changes needed:
+Current proxy supports `?size=big|middle|small` but we're simplifying to single size. Changes needed:
 
-1. **Remove size parameter** — always serve single size
+1. **Deprecate size parameter** — keep for backward compatibility, but ignore it (always serve big)
 2. **Add cache-busting support** — accept `?v=timestamp` for immediate refresh after upload
-3. **Simplify path** — no `_avatar_${size}` suffix needed for new uploads
+3. **Simplify CDN path** — always fetch `_avatar_big.jpg`
 
 ```typescript
 // apps/web/src/lib/avatar.ts (updated)
-export function getAvatarUrl(uid: number, cacheBust?: number): string {
+// Keep size param for backward compatibility with existing 14 call sites
+// Size is now ignored — always returns big avatar
+export function getAvatarUrl(
+  uid: number,
+  size: AvatarSize = "big",  // Deprecated: kept for compat, ignored
+  cacheBust?: number
+): string {
   const params = cacheBust ? `?v=${cacheBust}` : '';
   return `/api/avatar/${uid}${params}`;
 }
 ```
 
+**Existing call sites (no changes needed):**
+- `digest-card.tsx` (2 calls)
+- `post-comments.tsx`, `messages-page.tsx`, `thread-item.tsx` (2 calls)
+- `post-sidebar.tsx`, `profile-hero.tsx`, `forum-header.tsx`
+- `user-popover.tsx`, `post-card.tsx`, `forum-card.tsx` (2 calls)
+- `message-detail.tsx`
+
+All existing `getAvatarUrl(id, "small"|"middle"|"big")` calls continue to work.
+
 ```typescript
 // apps/web/src/app/api/avatar/[uid]/route.ts (updated)
 // Remove size logic, always fetch _avatar_big.jpg
+// Accept but ignore ?size= param for backward compatibility
 // Pass through ?v= param for cache headers
 ```
 
