@@ -17,6 +17,24 @@ function computeAvatarPath(uid: number): string {
 	return `${CDN_BASE}/${dir1}/${dir2}/${dir3}/${file}_avatar_big.jpg`;
 }
 
+/**
+ * Get cache control header based on whether this is a cache-bust request.
+ * When ?v= is present (fresh upload), we never cache — even for fallback.
+ * This prevents caching the fallback GIF when CDN hasn't propagated the new avatar yet.
+ */
+function getCacheControl(hasVersionParam: boolean, isFallback: boolean): string {
+	if (hasVersionParam) {
+		// Fresh upload request — never cache, always revalidate
+		return "public, max-age=0, must-revalidate";
+	}
+	if (isFallback) {
+		// Normal fallback — cache for 1 day
+		return "public, max-age=86400";
+	}
+	// Normal avatar — cache for 7 days
+	return "public, max-age=604800";
+}
+
 export async function GET(
 	request: NextRequest,
 	{ params }: { params: Promise<{ uid: string }> },
@@ -48,7 +66,7 @@ export async function GET(
 				status: 200,
 				headers: {
 					"Content-Type": "image/gif",
-					"Cache-Control": "public, max-age=86400", // Cache fallback for 1 day
+					"Cache-Control": getCacheControl(hasVersionParam, true),
 				},
 			});
 		}
@@ -56,17 +74,11 @@ export async function GET(
 		const imageData = await response.arrayBuffer();
 		const contentType = response.headers.get("Content-Type") || "image/jpeg";
 
-		// Use shorter cache when version param is present (fresh upload)
-		// Browser will re-request without ?v= on next page load
-		const cacheControl = hasVersionParam
-			? "public, max-age=0, must-revalidate" // Force revalidation for fresh uploads
-			: "public, max-age=604800"; // Cache avatars for 7 days
-
 		return new NextResponse(imageData, {
 			status: 200,
 			headers: {
 				"Content-Type": contentType,
-				"Cache-Control": cacheControl,
+				"Cache-Control": getCacheControl(hasVersionParam, false),
 			},
 		});
 	} catch {
@@ -78,7 +90,7 @@ export async function GET(
 				status: 200,
 				headers: {
 					"Content-Type": "image/gif",
-					"Cache-Control": "public, max-age=86400",
+					"Cache-Control": getCacheControl(hasVersionParam, true),
 				},
 			});
 		} catch {
