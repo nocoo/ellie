@@ -2,11 +2,11 @@
 // Currently supports avatar uploads with validation and R2 storage
 
 import { errorResponse } from "../middleware/error";
-import { jsonResponse } from "./response";
 import { computeAvatarPath } from "./avatar-path";
-import { invalidateUserCache } from "./user-cache";
-import { UPLOAD_CONFIGS } from "./upload-config";
 import type { Env } from "./env";
+import { jsonResponse } from "./response";
+import { UPLOAD_CONFIGS } from "./upload-config";
+import { invalidateUserCache } from "./user-cache";
 
 /**
  * Handle file upload requests.
@@ -35,8 +35,8 @@ export async function handleUpload(
 	const file = formData.get("file") as File | null;
 	const purpose = formData.get("purpose") as string | null;
 
-	// Validate purpose
-	if (!purpose || !(purpose in UPLOAD_CONFIGS)) {
+	// Validate purpose — use Object.hasOwn to avoid prototype pollution
+	if (!purpose || !Object.hasOwn(UPLOAD_CONFIGS, purpose)) {
 		return errorResponse("INVALID_PURPOSE", 400, undefined, origin);
 	}
 
@@ -80,7 +80,7 @@ export async function handleUpload(
 
 	// Handle avatar upload
 	if (purpose === "avatar") {
-		return handleAvatarUpload(env, ctx, userId, arrayBuffer, origin);
+		return handleAvatarUpload(env, ctx, userId, arrayBuffer, file.type, origin);
 	}
 
 	// Future: handle other purposes
@@ -95,15 +95,16 @@ async function handleAvatarUpload(
 	ctx: ExecutionContext,
 	userId: number,
 	imageData: ArrayBuffer,
+	mimeType: string,
 	origin?: string,
 ): Promise<Response> {
 	// Generate R2 key path
 	const key = computeAvatarPath(userId);
 
 	try {
-		// Upload to R2
+		// Upload to R2 with original MIME type
 		await env.R2.put(key, imageData, {
-			httpMetadata: { contentType: "image/jpeg" },
+			httpMetadata: { contentType: mimeType },
 		});
 	} catch (err) {
 		return errorResponse(
