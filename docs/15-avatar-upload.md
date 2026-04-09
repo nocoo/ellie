@@ -725,9 +725,43 @@ After upload, caches to invalidate:
 |-------|----------|--------------|-----------|
 | User mini profile | KV `user:mini:{id}` | `invalidateUserCache(env, userId)` in handler | ✅ Immediate |
 | Browser avatar cache | HTTP cache | `?v=timestamp` in client-side URL | ✅ Immediate |
+| React components | AvatarContext | `updateVersion(userId)` propagates to all `TrackedUserAvatar` | ✅ Immediate |
 | Next.js proxy response | HTTP `Cache-Control` header | `no-cache` when `?v=` present | ✅ Immediate |
 | R2 object | `t.no.mt` bucket | PUT to same key replaces content | ✅ Immediate |
 | CDN edge cache | Cloudflare edge (t.no.mt) | **NOT directly invalidated** — see below | ⚠️ Up to 7 days stale |
+
+#### Avatar Context for Client-Side Updates
+
+To ensure all avatar instances update immediately after upload, we use React Context:
+
+```typescript
+// contexts/avatar-context.tsx
+export function AvatarProvider({ children }: { children: ReactNode }) { ... }
+export function useAvatarVersion() { ... }  // Get/update version for a UID
+export function useAvatarUrl(uid: number) { ... }  // Returns URL with version if set
+
+// components/forum/user-avatar.tsx
+export function UserAvatar({ src, alt, className }: UserAvatarProps) { ... }  // Simple img
+export function TrackedUserAvatar({ uid, username, size }: TrackedUserAvatarProps) { ... }  // Uses context
+```
+
+**Usage in profile-edit-dialog.tsx:**
+
+```typescript
+const { updateVersion } = useAvatarVersion();
+
+const handleAvatarUploadComplete = (newUrl: string) => {
+  // Extract version from URL and propagate to all avatar instances
+  const match = newUrl.match(/[?&]v=(\d+)/);
+  const version = match ? Number.parseInt(match[1], 10) : Date.now();
+  updateVersion(user.id, version);
+  router.refresh();  // Also refresh server-rendered content
+};
+```
+
+**Key components:**
+- `TrackedUserAvatar` — Use in places where the current user's avatar should update immediately (profile page)
+- `UserAvatar` — Use elsewhere (posts, threads) where eventual consistency via server refresh is acceptable
 
 **How the cache layers work:**
 
@@ -792,8 +826,12 @@ If stricter freshness is needed, options include:
 | `src/app/api/v1/upload/route.ts` | Create | Multipart proxy with X-API-Key + Content-Type |
 | `src/lib/avatar.ts` | Update | Add cacheBust param; keep size param for compat (deprecated, ignored) |
 | `src/app/api/avatar/[uid]/route.ts` | Update | Ignore size param, add cache-bust header handling |
+| `src/contexts/avatar-context.tsx` | Create | React Context for avatar version propagation |
 | `src/components/forum/avatar-upload.tsx` | Create | Drag-drop upload UI |
-| `src/components/forum/profile-edit-dialog.tsx` | Update | Add AvatarUpload component |
+| `src/components/forum/user-avatar.tsx` | Update | Add TrackedUserAvatar component using context |
+| `src/components/forum/profile-edit-dialog.tsx` | Update | Add AvatarUpload component, use TrackedUserAvatar |
+| `src/components/forum/profile-hero.tsx` | Update | Use TrackedUserAvatar for auto-updating avatar |
+| `src/components/providers.tsx` | Update | Add AvatarProvider to app providers |
 
 ### Packages
 

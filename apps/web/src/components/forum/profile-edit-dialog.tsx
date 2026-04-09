@@ -15,7 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { getAvatarUrl } from "@/lib/avatar";
+import { useAvatarUrl, useAvatarVersion } from "@/contexts/avatar-context";
 import { cn } from "@/lib/utils";
 import { GENDER_OPTIONS, useProfileEdit } from "@/viewmodels/forum/use-profile-edit";
 import { AlertCircle, Save, User as UserIcon, X } from "lucide-react";
@@ -51,6 +51,8 @@ export interface ProfileEditDialogProps {
 
 export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialogProps) {
 	const router = useRouter();
+	const { updateVersion } = useAvatarVersion();
+	const avatarUrl = useAvatarUrl(user.id);
 
 	// Use ViewModel hook for profile editing
 	const { state, actions } = useProfileEdit({
@@ -59,9 +61,13 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 		onSuccess: () => onOpenChange(false),
 	});
 
-	// Handle avatar upload completion
-	const handleAvatarUploadComplete = () => {
-		// Refresh page to update all avatar instances
+	// Handle avatar upload completion — update version context to propagate to all avatar instances
+	const handleAvatarUploadComplete = (newUrl: string) => {
+		// Extract version from URL (e.g., "/api/avatar/123?v=1712678400000")
+		const match = newUrl.match(/[?&]v=(\d+)/);
+		const version = match ? Number.parseInt(match[1], 10) : Date.now();
+		updateVersion(user.id, version);
+		// Also refresh page data for server-rendered content
 		router.refresh();
 	};
 
@@ -125,7 +131,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 							头像
 						</h3>
 						<AvatarUpload
-							currentUrl={getAvatarUrl(user.id)}
+							currentUrl={avatarUrl}
 							onUploadComplete={handleAvatarUploadComplete}
 							disabled={state.submitting}
 						/>

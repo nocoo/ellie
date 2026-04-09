@@ -4,12 +4,9 @@
 // Displays user identity and optional edit functionality
 // Includes mod actions for Admin/SuperMod users
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { getAvatarUrl } from "@/lib/avatar";
-import { getStaticImageUrl } from "@/lib/cdn";
 import { formatUserRole, getUserRoleBadgeVariant } from "@/viewmodels/forum/user-profile";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { Pencil, User } from "lucide-react";
@@ -17,6 +14,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ProfileEditDialog } from "./profile-edit-dialog";
+import { TrackedUserAvatar } from "./user-avatar";
 import { UserModActions } from "./user-mod-actions";
 
 interface ProfileHeroProps {
@@ -54,20 +52,7 @@ export function ProfileHero({ user }: ProfileHeroProps) {
 			<Card size="sm" className="bg-gradient-to-br from-orange-500/5 via-background to-rose-500/5">
 				<CardContent>
 					<div className="flex items-center gap-4">
-						<Avatar className="h-12 w-12 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
-							<AvatarImage
-								src={getAvatarUrl(user.id, "middle")}
-								alt={user.username}
-								className="rounded-sm"
-							/>
-							<AvatarFallback className="text-sm rounded-sm bg-muted p-0 overflow-hidden">
-								<img
-									src={getStaticImageUrl("tavatar.gif")}
-									alt=""
-									className="h-full w-full object-cover"
-								/>
-							</AvatarFallback>
-						</Avatar>
+						<TrackedUserAvatar uid={user.id} username={user.username} size="lg" />
 						<div className="min-w-0 flex-1">
 							<div className="flex items-center gap-2 flex-wrap">
 								<User className="h-5 w-5 text-orange-500 shrink-0" />
