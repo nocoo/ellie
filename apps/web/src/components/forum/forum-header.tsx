@@ -5,11 +5,10 @@
 
 import { ForumLogo } from "@/components/forum/forum-logo";
 import { MessageBadgeIcon } from "@/components/forum/message-badge-icon";
-import { UserAvatar } from "@/components/forum/user-avatar";
+import { TrackedUserAvatar } from "@/components/forum/user-avatar";
 import { UserPopover } from "@/components/forum/user-popover";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { WidthToggle } from "@/components/width-toggle";
-import { getAvatarUrl } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
 import type { HeaderViewModel } from "@/viewmodels/forum/header";
 import { formatNumber } from "@/viewmodels/shared/formatting";
@@ -74,10 +73,11 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 							side="bottom"
 							align="end"
 						>
-							<UserAvatar
-								src={getAvatarUrl(user.uid, "middle")}
-								alt={user.username}
-								className="h-10 w-10 rounded-sm cursor-pointer"
+							<TrackedUserAvatar
+								uid={user.uid}
+								username={user.username}
+								size="md"
+								className="cursor-pointer"
 							/>
 						</UserPopover>
 
