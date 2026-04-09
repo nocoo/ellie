@@ -14,29 +14,24 @@
  *   bun run scripts/backfill-avatar-flag.ts --dry-run
  *
  *   # Production (actually update database)
- *   bun run scripts/backfill-avatar-flag.ts --env production
+ *   bun run scripts/backfill-avatar-flag.ts
  *
- * Notes:
- * - Uses wrangler d1 and r2 CLI commands
- * - Processes in batches to avoid timeout
- * - Safe to run multiple times (idempotent)
+ * Note: This script must be run as a Cloudflare Worker script using wrangler,
+ * or manually via the Cloudflare dashboard. The script below generates SQL
+ * that can be executed via the D1 console.
+ *
+ * Alternative approach (recommended):
+ *   1. Export R2 object list via Cloudflare dashboard
+ *   2. Run this script locally to generate SQL
+ *   3. Execute SQL via D1 console or wrangler d1 execute
  */
-
-import { $ } from "bun";
-
-const R2_BUCKET = "tongjinet";
-const WRANGLER_CONFIG = "apps/worker/wrangler.toml";
-const BATCH_SIZE = 100;
 
 // Parse command line args
 const args = process.argv.slice(2);
 const isDryRun = args.includes("--dry-run");
-const env = args.find((a) => a.startsWith("--env="))?.split("=")[1] || "production";
 
 console.log("🔄 Avatar Flag Backfill Script\n");
-console.log(`   Mode: ${isDryRun ? "DRY RUN" : "PRODUCTION"}`);
-console.log(`   Environment: ${env}`);
-console.log(`   R2 Bucket: ${R2_BUCKET}`);
+console.log(`   Mode: ${isDryRun ? "DRY RUN" : "GENERATE SQL"}`);
 console.log("");
 
 /**
@@ -52,66 +47,77 @@ function extractUidFromKey(key: string): number | null {
 	return Number.parseInt(paddedUid, 10);
 }
 
-async function listAvatarKeys(): Promise<string[]> {
-	console.log("📂 Listing R2 objects with prefix 'avatar/'...");
+/**
+ * Generate SQL UPDATE statements for a batch of UIDs.
+ * Uses batched IN clauses to minimize statement count.
+ */
+function generateUpdateSql(uids: number[], batchSize = 100): string[] {
+	const statements: string[] = [];
 
-	try {
-		// Use wrangler r2 object list to get all avatar files
-		const result = await $`npx wrangler r2 object list ${R2_BUCKET} --prefix avatar/ -c ${WRANGLER_CONFIG}`.text();
-
-		// Parse JSON output
-		const objects = JSON.parse(result) as { key: string }[];
-		const avatarKeys = objects
-			.map((obj) => obj.key)
-			.filter((key) => key.endsWith("_avatar_big.jpg"));
-
-		console.log(`   Found ${avatarKeys.length} avatar files\n`);
-		return avatarKeys;
-	} catch (error) {
-		console.error("❌ Failed to list R2 objects:", error);
-		process.exit(1);
-	}
-}
-
-async function updateUserFlags(uids: number[]): Promise<void> {
-	if (uids.length === 0) {
-		console.log("✅ No users to update");
-		return;
+	for (let i = 0; i < uids.length; i += batchSize) {
+		const batch = uids.slice(i, i + batchSize);
+		const placeholders = batch.join(", ");
+		statements.push(`UPDATE users SET has_avatar = 1 WHERE id IN (${placeholders}) AND has_avatar = 0;`);
 	}
 
-	console.log(`📝 Updating has_avatar flag for ${uids.length} users...`);
-
-	if (isDryRun) {
-		console.log("   (Dry run - no changes made)");
-		console.log(`   Would update UIDs: ${uids.slice(0, 10).join(", ")}${uids.length > 10 ? "..." : ""}`);
-		return;
-	}
-
-	// Process in batches
-	for (let i = 0; i < uids.length; i += BATCH_SIZE) {
-		const batch = uids.slice(i, i + BATCH_SIZE);
-		const placeholders = batch.map(() => "?").join(",");
-		const sql = `UPDATE users SET has_avatar = 1 WHERE id IN (${placeholders}) AND has_avatar = 0`;
-
-		try {
-			// Use wrangler d1 execute
-			const envFlag = env === "production" ? "--remote" : `--env ${env}`;
-			await $`npx wrangler d1 execute tongjinet-db ${envFlag} -c ${WRANGLER_CONFIG} --command ${sql} -- ${batch.join(" ")}`.quiet();
-
-			console.log(`   ✓ Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(uids.length / BATCH_SIZE)}`);
-		} catch (error) {
-			console.error(`   ❌ Failed to update batch:`, error);
-		}
-	}
-
-	console.log("✅ Backfill complete\n");
+	return statements;
 }
 
 async function main() {
-	// Step 1: List all avatar files in R2
-	const avatarKeys = await listAvatarKeys();
+	// Check if we have an input file with R2 keys
+	const inputFile = args.find((a) => a.endsWith(".txt") || a.endsWith(".json"));
 
-	// Step 2: Extract UIDs from paths
+	if (!inputFile) {
+		console.log("📋 No input file provided. To use this script:");
+		console.log("");
+		console.log("   1. Export R2 object list from Cloudflare Dashboard:");
+		console.log("      - Go to R2 > tongjinet bucket");
+		console.log("      - List objects with prefix 'avatar/'");
+		console.log("      - Export to a text file (one key per line)");
+		console.log("");
+		console.log("   2. Run this script with the file:");
+		console.log("      bun run scripts/backfill-avatar-flag.ts avatar-keys.txt");
+		console.log("");
+		console.log("   3. Or use wrangler directly in a Worker:");
+		console.log("      - The R2 list API must be called from within a Worker");
+		console.log("      - See docs for R2 bucket.list() API usage");
+		console.log("");
+
+		// Generate example output
+		console.log("📝 Example: For UIDs 1, 12345, 999999:");
+		const exampleUids = [1, 12345, 999999];
+		const exampleSql = generateUpdateSql(exampleUids);
+		console.log("");
+		for (const sql of exampleSql) {
+			console.log(`   ${sql}`);
+		}
+		console.log("");
+		console.log("   Run via: npx wrangler d1 execute tongjinet-db --remote -c apps/worker/wrangler.toml --command '<SQL>'");
+
+		return;
+	}
+
+	// Read input file
+	console.log(`📂 Reading avatar keys from: ${inputFile}`);
+	const content = await Bun.file(inputFile).text();
+
+	let keys: string[];
+	if (inputFile.endsWith(".json")) {
+		// JSON format: array of { key: string } objects
+		const data = JSON.parse(content) as { key: string }[] | string[];
+		keys = data.map((item) => (typeof item === "string" ? item : item.key));
+	} else {
+		// Text format: one key per line
+		keys = content
+			.split("\n")
+			.map((line) => line.trim())
+			.filter((line) => line.length > 0);
+	}
+
+	// Filter to avatar keys and extract UIDs
+	const avatarKeys = keys.filter((key) => key.endsWith("_avatar_big.jpg"));
+	console.log(`   Found ${avatarKeys.length} avatar files\n`);
+
 	const uids: number[] = [];
 	for (const key of avatarKeys) {
 		const uid = extractUidFromKey(key);
@@ -120,16 +126,32 @@ async function main() {
 		}
 	}
 
-	console.log(`🔢 Extracted ${uids.length} valid UIDs from avatar paths\n`);
+	console.log(`🔢 Extracted ${uids.length} valid UIDs\n`);
 
-	// Step 3: Update database
-	await updateUserFlags(uids);
+	if (uids.length === 0) {
+		console.log("✅ No users to update");
+		return;
+	}
 
-	// Summary
-	console.log("📊 Summary:");
-	console.log(`   Total avatar files: ${avatarKeys.length}`);
-	console.log(`   Valid UIDs: ${uids.length}`);
-	console.log(`   Mode: ${isDryRun ? "DRY RUN (no changes)" : "PRODUCTION (updated)"}`);
+	// Generate SQL
+	const statements = generateUpdateSql(uids);
+
+	if (isDryRun) {
+		console.log("📝 Generated SQL (dry run):\n");
+		for (const sql of statements) {
+			console.log(sql);
+		}
+		console.log(`\n   Total: ${statements.length} statements for ${uids.length} users`);
+	} else {
+		// Write to output file
+		const outputFile = "backfill-avatar-flag.sql";
+		await Bun.write(outputFile, statements.join("\n"));
+		console.log(`✅ Generated SQL written to: ${outputFile}`);
+		console.log(`   Total: ${statements.length} statements for ${uids.length} users`);
+		console.log("");
+		console.log("   To execute:");
+		console.log(`   cat ${outputFile} | npx wrangler d1 execute tongjinet-db --remote -c apps/worker/wrangler.toml --file=${outputFile}`);
+	}
 }
 
 main().catch((err) => {

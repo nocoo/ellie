@@ -68,6 +68,36 @@ describe("handleUpload", () => {
 			expect(body.error.code).toBe("INVALID_PURPOSE");
 		});
 
+		it("should reject prototype pollution attempt (purpose=toString)", async () => {
+			const env = createEnv();
+			const ctx = createMockCtx();
+			const request = createMultipartRequest({
+				file: createJpegFile(1000),
+				purpose: "toString",
+			});
+
+			const response = await handleUpload(request, env, ctx, 42);
+
+			expect(response.status).toBe(400);
+			const body = await response.json();
+			expect(body.error.code).toBe("INVALID_PURPOSE");
+		});
+
+		it("should reject prototype pollution attempt (purpose=constructor)", async () => {
+			const env = createEnv();
+			const ctx = createMockCtx();
+			const request = createMultipartRequest({
+				file: createJpegFile(1000),
+				purpose: "constructor",
+			});
+
+			const response = await handleUpload(request, env, ctx, 42);
+
+			expect(response.status).toBe(400);
+			const body = await response.json();
+			expect(body.error.code).toBe("INVALID_PURPOSE");
+		});
+
 		it("should reject missing file", async () => {
 			const env = createEnv();
 			const ctx = createMockCtx();
@@ -167,9 +197,10 @@ describe("handleUpload", () => {
 			expect(body.data.url).toBe("/api/avatar/12345");
 			expect(body.data.size).toBe(5000);
 
-			// Verify R2 put was called with correct key
+			// Verify R2 put was called with correct key and MIME type
 			expect(r2._putCalls).toHaveLength(1);
 			expect(r2._putCalls[0].key).toBe("avatar/000/01/23/45_avatar_big.jpg");
+			expect(r2._putCalls[0].options?.httpMetadata?.contentType).toBe("image/jpeg");
 
 			// Verify DB update
 			const updateCall = calls.find((c) => c.sql.includes("UPDATE users SET has_avatar"));
@@ -177,7 +208,7 @@ describe("handleUpload", () => {
 			expect(updateCall?.params).toContain(12345);
 		});
 
-		it("should upload PNG to R2", async () => {
+		it("should upload PNG to R2 with correct MIME type", async () => {
 			const r2 = createMockR2();
 			const { db } = createMockDb();
 			const env = createEnv({ R2: r2, DB: db });
@@ -192,6 +223,8 @@ describe("handleUpload", () => {
 
 			expect(response.status).toBe(200);
 			expect(r2._putCalls).toHaveLength(1);
+			// PNG should be stored with image/png MIME type, not image/jpeg
+			expect(r2._putCalls[0].options?.httpMetadata?.contentType).toBe("image/png");
 		});
 
 		it("should accept file at exactly 200KB limit", async () => {
