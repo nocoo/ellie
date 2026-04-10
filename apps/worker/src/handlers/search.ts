@@ -7,11 +7,7 @@ import { isKvUserCacheEnabled } from "../lib/env";
 import { enrichThreadsWithUserCache, toThread } from "../lib/mappers";
 import { jsonResponse } from "../lib/response";
 import { getUserProfiles } from "../lib/user-cache";
-import {
-	buildForumFilter,
-	buildVisibilityContext,
-	threadVisible,
-} from "../lib/visibility";
+import { buildForumFilter, buildVisibilityContext, threadVisible } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 
@@ -105,8 +101,7 @@ export async function searchThreads(
 
 	const limitParam = url.searchParams.get("limit");
 	const limitNum = limitParam ? Number.parseInt(limitParam, 10) : 20;
-	const clampedLimit =
-		Number.isNaN(limitNum) || limitNum <= 0 ? 20 : Math.min(limitNum, 50);
+	const clampedLimit = Number.isNaN(limitNum) || limitNum <= 0 ? 20 : Math.min(limitNum, 50);
 
 	// 2. Parse cursor (base64 encoded)
 	const cursorStr = url.searchParams.get("cursor");
@@ -114,12 +109,7 @@ export async function searchThreads(
 	if (cursorStr) {
 		cursorPayload = decodeSearchCursor(cursorStr);
 		if (!cursorPayload) {
-			return errorResponse(
-				"INVALID_REQUEST",
-				400,
-				{ message: "Invalid cursor format" },
-				origin,
-			);
+			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid cursor format" }, origin);
 		}
 	}
 
@@ -160,7 +150,9 @@ export async function searchThreads(
 			]
 		: [ftsQuery, clampedLimit + 1];
 
-	const result = await env.DB.prepare(sql).bind(...params).all();
+	const result = await env.DB.prepare(sql)
+		.bind(...params)
+		.all();
 
 	// 5. Get total count (only on first page, for UI display)
 	// This is an optional/approximate value, not a guaranteed precise count
@@ -175,9 +167,7 @@ export async function searchThreads(
         AND ${threadVisible("t")}
         AND ${forumFilter}
     `;
-		const countResult = await env.DB.prepare(countSql)
-			.bind(ftsQuery)
-			.first<{ cnt: number }>();
+		const countResult = await env.DB.prepare(countSql).bind(ftsQuery).first<{ cnt: number }>();
 		total = countResult?.cnt ?? 0;
 	}
 
@@ -197,10 +187,7 @@ export async function searchThreads(
 			if (thread.authorId > 0) userIds.add(thread.authorId);
 			if (thread.lastPosterId > 0) userIds.add(thread.lastPosterId);
 		}
-		const userCache =
-			userIds.size > 0
-				? await getUserProfiles(env, ctx, [...userIds])
-				: new Map();
+		const userCache = userIds.size > 0 ? await getUserProfiles(env, ctx, [...userIds]) : new Map();
 		enrichedThreads = enrichThreadsWithUserCache(threads, userCache);
 	} else {
 		// KV cache disabled: accepted degradation for search results.
@@ -211,9 +198,7 @@ export async function searchThreads(
 	}
 
 	// Build next cursor
-	const lastItem = items[items.length - 1] as
-		| { last_post_at: number; id: number }
-		| undefined;
+	const lastItem = items[items.length - 1] as { last_post_at: number; id: number } | undefined;
 	const nextCursor =
 		hasMore && lastItem
 			? encodeSearchCursor({ lastPostAt: lastItem.last_post_at, id: lastItem.id })

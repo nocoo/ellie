@@ -550,7 +550,14 @@ export async function migratePosts(
 		log(`  Created ${placeholders} placeholder users for post authors`);
 	}
 
-	return { ...stats, orphanThread, orphanAuthor, postIds, missingAuthors: missingAuthorIds.size, missingThreads: 0 };
+	return {
+		...stats,
+		orphanThread,
+		orphanAuthor,
+		postIds,
+		missingAuthors: missingAuthorIds.size,
+		missingThreads: 0,
+	};
 }
 
 // ─── Step 5: Attachments ────────────────────────────────────────────────────

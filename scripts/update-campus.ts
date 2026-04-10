@@ -9,7 +9,6 @@
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import { createGunzip } from "node:zlib";
-import { Writable } from "node:stream";
 
 const PROFILE_DUMP = "reference/db/profile.sql.gz";
 
@@ -124,14 +123,14 @@ async function main() {
 	// Generate SQL file for D1
 	const sqlFile = "reference/db/update-campus.sql";
 	const statements = mappings.map(
-		(m) => `UPDATE users SET campus = '${m.campus.replace(/'/g, "''")}' WHERE id = ${m.uid};`
+		(m) => `UPDATE users SET campus = '${m.campus.replace(/'/g, "''")}' WHERE id = ${m.uid};`,
 	);
 
 	await Bun.write(sqlFile, statements.join("\n"));
 	console.log(`\nGenerated ${sqlFile} with ${statements.length} UPDATE statements`);
 	console.log("\nTo apply, run:");
 	console.log(
-		"  cd apps/worker && cat ../../reference/db/update-campus.sql | npx wrangler d1 execute tongjinet-db --remote -c wrangler.toml --file=-"
+		"  cd apps/worker && cat ../../reference/db/update-campus.sql | npx wrangler d1 execute tongjinet-db --remote -c wrangler.toml --file=-",
 	);
 }
 

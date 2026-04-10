@@ -149,7 +149,14 @@ export const INDEX_DDL: string[] = [
 ];
 
 /** Table names in FK dependency order (for migration). */
-export const TABLE_ORDER = ["forums", "users", "threads", "posts", "attachments", "post_comments"] as const;
+export const TABLE_ORDER = [
+	"forums",
+	"users",
+	"threads",
+	"posts",
+	"attachments",
+	"post_comments",
+] as const;
 export type TableName = (typeof TABLE_ORDER)[number];
 
 /** Column names for each table (in INSERT order). */

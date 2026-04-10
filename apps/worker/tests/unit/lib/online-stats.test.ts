@@ -94,7 +94,7 @@ describe("aggregateOnlineStats", () => {
 			const putCalls = kvPut.mock.calls;
 			const peakCall = putCalls.find((call) => call[0] === "stats:online_peak");
 			expect(peakCall).toBeDefined();
-			const peakData = JSON.parse(peakCall![1] as string);
+			const peakData = JSON.parse(peakCall?.[1] as string);
 			expect(peakData.count).toBe(2);
 			expect(peakData.timestamp).toBe(NOW);
 		} finally {
@@ -137,7 +137,7 @@ describe("aggregateOnlineStats", () => {
 			const putCalls = kvPut.mock.calls;
 			const peakCall = putCalls.find((call) => call[0] === "stats:online_peak");
 			expect(peakCall).toBeDefined();
-			const peakData = JSON.parse(peakCall![1] as string);
+			const peakData = JSON.parse(peakCall?.[1] as string);
 			expect(peakData.count).toBe(5);
 		} finally {
 			Date.now = originalNow;

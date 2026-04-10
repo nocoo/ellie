@@ -25,9 +25,7 @@ describe("avatar-proxy", () => {
 		});
 
 		test("generates correct path for UID 1", () => {
-			expect(computeAvatarCdnPath(1)).toBe(
-				"https://t.no.mt/avatar/000/00/00/01_avatar_big.jpg",
-			);
+			expect(computeAvatarCdnPath(1)).toBe("https://t.no.mt/avatar/000/00/00/01_avatar_big.jpg");
 		});
 
 		test("generates correct path for large UID", () => {
@@ -37,9 +35,7 @@ describe("avatar-proxy", () => {
 		});
 
 		test("handles UID 0", () => {
-			expect(computeAvatarCdnPath(0)).toBe(
-				"https://t.no.mt/avatar/000/00/00/00_avatar_big.jpg",
-			);
+			expect(computeAvatarCdnPath(0)).toBe("https://t.no.mt/avatar/000/00/00/00_avatar_big.jpg");
 		});
 	});
 

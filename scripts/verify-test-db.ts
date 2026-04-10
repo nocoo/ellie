@@ -67,7 +67,7 @@ async function main() {
 			// For now, we trust the binding + environment checks
 			console.log("   ✅ Test marker check skipped (covered by binding verification)\n");
 		}
-	} catch (error) {
+	} catch (_error) {
 		console.log("   ⚠️  Could not connect to Worker");
 		console.log("   Skipping runtime checks\n");
 	}
@@ -85,7 +85,7 @@ async function main() {
 			process.exit(1);
 		}
 		console.log("   ✅ _test_marker confirms test database\n");
-	} catch (error) {
+	} catch (_error) {
 		console.error("   ❌ Failed to query _test_marker table");
 		console.error("   Ensure test DB has _test_marker table with env='test'");
 		process.exit(1);

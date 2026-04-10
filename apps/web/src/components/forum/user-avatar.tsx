@@ -41,22 +41,21 @@ const sizeClasses = {
 	lg: "h-12 w-12",
 };
 
-export function TrackedUserAvatar({ uid, username, size = "md", className }: TrackedUserAvatarProps) {
+export function TrackedUserAvatar({
+	uid,
+	username,
+	size = "md",
+	className,
+}: TrackedUserAvatarProps) {
 	const avatarUrl = useAvatarUrl(uid);
 
 	return (
-		<Avatar className={cn(sizeClasses[size], "rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]", className)}>
-			<AvatarImage
-				src={avatarUrl}
-				alt={username ?? `User ${uid}`}
-				className="rounded-sm"
-			/>
+		<Avatar
+			className={cn(sizeClasses[size], "rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]", className)}
+		>
+			<AvatarImage src={avatarUrl} alt={username ?? `User ${uid}`} className="rounded-sm" />
 			<AvatarFallback className="text-sm rounded-sm bg-muted p-0 overflow-hidden">
-				<img
-					src={getStaticImageUrl("tavatar.gif")}
-					alt=""
-					className="h-full w-full object-cover"
-				/>
+				<img src={getStaticImageUrl("tavatar.gif")} alt="" className="h-full w-full object-cover" />
 			</AvatarFallback>
 		</Avatar>
 	);
