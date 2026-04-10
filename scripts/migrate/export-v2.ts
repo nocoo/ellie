@@ -15,6 +15,60 @@ mkdirSync(OUT_DIR, { recursive: true });
 
 const db = new Database(DB_PATH, { readonly: true });
 
+/**
+ * Handle control character at current position and update parts array.
+ * Returns true if a control character was handled.
+ */
+function handleControlChar(
+	ch: string,
+	current: string,
+	parts: string[],
+): { handled: boolean; newCurrent: string } {
+	if (ch === "\r") {
+		if (current) parts.push(`'${current}'`);
+		else if (parts.length === 0) parts.push("''");
+		parts.push("char(13)");
+		return { handled: true, newCurrent: "" };
+	}
+	if (ch === "\n") {
+		if (current) parts.push(`'${current}'`);
+		else if (parts.length === 0) parts.push("''");
+		parts.push("char(10)");
+		return { handled: true, newCurrent: "" };
+	}
+	return { handled: false, newCurrent: current + ch };
+}
+
+/**
+ * Finalize parts array after processing all characters.
+ */
+function finalizeParts(current: string, parts: string[]): void {
+	if (current) {
+		parts.push(`'${current}'`);
+	} else if (parts.length > 0) {
+		const lastPart = parts[parts.length - 1];
+		if (lastPart === "char(10)" || lastPart === "char(13)") {
+			parts.push("''");
+		}
+	}
+}
+
+/**
+ * Escape string containing newlines for single-line SQL.
+ */
+function escapeMultilineString(s: string): string {
+	const parts: string[] = [];
+	let current = "";
+
+	for (let i = 0; i < s.length; i++) {
+		const result = handleControlChar(s[i], current, parts);
+		current = result.newCurrent;
+	}
+
+	finalizeParts(current, parts);
+	return parts.join(" || ");
+}
+
 function sqlEscape(val: unknown): string {
 	if (val === null || val === undefined) return "NULL";
 	if (typeof val === "number") return String(val);
@@ -25,35 +79,7 @@ function sqlEscape(val: unknown): string {
 
 	// Check for control characters that would cause multi-line SQL
 	if (s.includes("\n") || s.includes("\r")) {
-		// Split on newlines and rejoin with char(10)/char(13) concatenation
-		// This ensures the INSERT stays on one line
-		const parts: string[] = [];
-		let current = "";
-		for (let i = 0; i < s.length; i++) {
-			const ch = s[i];
-			if (ch === "\r") {
-				if (current) parts.push(`'${current}'`);
-				else if (parts.length === 0) parts.push("''");
-				parts.push("char(13)");
-				current = "";
-			} else if (ch === "\n") {
-				if (current) parts.push(`'${current}'`);
-				else if (parts.length === 0) parts.push("''");
-				parts.push("char(10)");
-				current = "";
-			} else {
-				current += ch;
-			}
-		}
-		if (current) parts.push(`'${current}'`);
-		else if (
-			parts.length > 0 &&
-			(parts[parts.length - 1] === "char(10)" || parts[parts.length - 1] === "char(13)")
-		) {
-			parts.push("''");
-		}
-
-		return parts.join(" || ");
+		return escapeMultilineString(s);
 	}
 
 	return `'${s}'`;

@@ -7,6 +7,13 @@ export interface D1ClientConfig {
 	apiKey?: string;
 }
 
+// bun:sqlite Database type (simplified interface)
+interface BunSqliteDatabase {
+	exec(sql: string): void;
+	prepare(sql: string): unknown;
+	close(): void;
+}
+
 /**
  * D1 client wrapper for unified local/remote access.
  * Currently used by migration scripts for local SQLite access.
@@ -14,7 +21,7 @@ export interface D1ClientConfig {
  * NOTE: This package uses `bun:sqlite` and must be run with Bun.
  */
 export class D1Client {
-	private db: any;
+	private db: BunSqliteDatabase;
 
 	constructor(config: D1ClientConfig) {
 		if (!config.localDbPath) {

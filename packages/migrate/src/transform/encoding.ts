@@ -55,7 +55,7 @@ export function tryRepairGbk(text: string): string | null {
 		}
 
 		// Try to decode as GBK
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		// biome-ignore lint/suspicious/noExplicitAny: TextDecoder accepts 'gbk' at runtime but TS types don't include it
 		const decoder = new TextDecoder("gbk" as any, { fatal: true });
 		const repaired = decoder.decode(bytes);
 
