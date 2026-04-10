@@ -185,7 +185,9 @@ export const create = withAuthVerified(async (request, env, user) => {
 	}
 
 	// Check thread is not closed
-	const threadRow = await env.DB.prepare("SELECT closed, sticky, forum_id FROM threads WHERE id = ?")
+	const threadRow = await env.DB.prepare(
+		"SELECT closed, sticky, forum_id FROM threads WHERE id = ?",
+	)
 		.bind(postRow.thread_id)
 		.first<{ closed: number; sticky: number; forum_id: number }>();
 

@@ -118,7 +118,7 @@ impl ApiClient {
 					}
 					return Ok(resp.into_body().read_json()?);
 				}
-				Err(e) if attempt + 1 < MAX_RETRIES => {
+				Err(_e) if attempt + 1 < MAX_RETRIES => {
 					// Network error — retry with backoff
 					thread::sleep(backoff_duration(attempt));
 					continue;
@@ -151,7 +151,7 @@ impl ApiClient {
 					}
 					return Ok(resp.into_body().read_json()?);
 				}
-				Err(e) if attempt + 1 < MAX_RETRIES => {
+				Err(_e) if attempt + 1 < MAX_RETRIES => {
 					thread::sleep(backoff_duration(attempt));
 					continue;
 				}
