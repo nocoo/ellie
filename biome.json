@@ -51,7 +51,11 @@
 	},
 	"overrides": [
 		{
-			"include": ["src/components/ui/**", "apps/web/src/components/ui/**"],
+			"include": [
+				"src/components/ui/**",
+				"apps/web/src/components/ui/**",
+				"packages/ui/src/components/**"
+			],
 			"linter": {
 				"rules": {
 					"a11y": {
@@ -65,7 +69,8 @@
 		{
 			"include": [
 				"src/components/forum/post-content.tsx",
-				"apps/web/src/components/forum/post-content.tsx"
+				"apps/web/src/components/forum/post-content.tsx",
+				"apps/admin/src/app/layout.tsx"
 			],
 			"linter": {
 				"rules": {
@@ -100,7 +105,7 @@
 			}
 		},
 		{
-			"include": ["apps/web/src/app/(admin)/admin/forums/page.tsx"],
+			"include": ["apps/admin/src/app/(admin)/admin/forums/page.tsx"],
 			"linter": {
 				"rules": {
 					"suspicious": {
