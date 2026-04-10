@@ -10,20 +10,6 @@ import { optionalAuthVerified } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
-/** Post comment row from D1 */
-interface PostCommentRow {
-	id: number;
-	thread_id: number;
-	post_id: number;
-	author_id: number;
-	author_name: string;
-	content: string;
-	score: number;
-	reply_post_id: number;
-	ip: string;
-	created_at: number;
-}
-
 /** Map D1 row to API response format */
 function toPostComment(row: Record<string, unknown>) {
 	return {

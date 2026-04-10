@@ -31,6 +31,26 @@ export function Lightbox({ images, initialIndex = 0, open, onClose }: LightboxPr
 		}
 	}, [open, initialIndex]);
 
+	const goToPrev = useCallback(() => {
+		setCurrentIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+		setScale(1);
+		setLoading(true);
+	}, [images.length]);
+
+	const goToNext = useCallback(() => {
+		setCurrentIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+		setScale(1);
+		setLoading(true);
+	}, [images.length]);
+
+	const zoomIn = useCallback(() => {
+		setScale((prev) => Math.min(prev + 0.5, 4));
+	}, []);
+
+	const zoomOut = useCallback(() => {
+		setScale((prev) => Math.max(prev - 0.5, 0.5));
+	}, []);
+
 	// Keyboard navigation
 	useEffect(() => {
 		if (!open) return;
@@ -58,7 +78,7 @@ export function Lightbox({ images, initialIndex = 0, open, onClose }: LightboxPr
 
 		document.addEventListener("keydown", handleKeyDown);
 		return () => document.removeEventListener("keydown", handleKeyDown);
-	}, [open, currentIndex, images.length]);
+	}, [open, onClose, goToPrev, goToNext, zoomIn, zoomOut]);
 
 	// Prevent body scroll when open
 	useEffect(() => {
@@ -71,26 +91,6 @@ export function Lightbox({ images, initialIndex = 0, open, onClose }: LightboxPr
 			document.body.style.overflow = "";
 		};
 	}, [open]);
-
-	const goToPrev = useCallback(() => {
-		setCurrentIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
-		setScale(1);
-		setLoading(true);
-	}, [images.length]);
-
-	const goToNext = useCallback(() => {
-		setCurrentIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
-		setScale(1);
-		setLoading(true);
-	}, [images.length]);
-
-	const zoomIn = useCallback(() => {
-		setScale((prev) => Math.min(prev + 0.5, 4));
-	}, []);
-
-	const zoomOut = useCallback(() => {
-		setScale((prev) => Math.max(prev - 0.5, 0.5));
-	}, []);
 
 	const handleDownload = useCallback(() => {
 		const image = images[currentIndex];
