@@ -38,7 +38,16 @@
 		}
 	},
 	"files": {
-		"ignore": ["node_modules", "dist", ".next", "reference", "*.sql", "*.sql.gz", ".wrangler"]
+		"ignore": [
+			"node_modules",
+			"dist",
+			".next",
+			"reference",
+			"*.sql",
+			"*.sql.gz",
+			".wrangler",
+			"packages/cli-rs/target"
+		]
 	},
 	"overrides": [
 		{
