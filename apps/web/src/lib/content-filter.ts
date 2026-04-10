@@ -15,7 +15,7 @@ import { replaceSmileyCodesWithImages } from "./smiley";
 
 // Create a DOM environment for server-side DOMPurify
 const { window } = parseHTML("<!DOCTYPE html><html><body></body></html>");
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: DOMPurify requires Window-like from linkedom, but types don't match
 const purify = DOMPurify(window as any);
 
 // ---------------------------------------------------------------------------
