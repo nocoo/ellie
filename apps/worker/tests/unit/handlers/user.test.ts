@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
-import { getById, listPosts, listThreads } from "../../../src/handlers/user";
+import { getAvatarPath, getById, listPosts, listThreads } from "../../../src/handlers/user";
 import type { Env } from "../../../src/lib/env";
 import { createMockKV } from "../../helpers";
 
@@ -361,6 +361,89 @@ describe("user handlers", () => {
 			expect(response.status).toBe(200);
 			const data = await response.json();
 			expect(data.data).toEqual([]);
+		});
+	});
+
+	describe("getAvatarPath", () => {
+		it("should return avatarPath for user with GUID avatar", async () => {
+			const firstSpy = mock(() => Promise.resolve({ avatar_path: "avatars/abc123.jpg" }));
+			const bindSpy = mock((..._args: unknown[]) => ({ first: firstSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await getAvatarPath(
+				new Request("https://example.com/api/v1/users/123/avatar-path"),
+				env,
+			);
+
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.data.avatarPath).toBe("avatars/abc123.jpg");
+		});
+
+		it("should return empty avatarPath for user without GUID avatar", async () => {
+			const firstSpy = mock(() => Promise.resolve({ avatar_path: "" }));
+			const bindSpy = mock((..._args: unknown[]) => ({ first: firstSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await getAvatarPath(
+				new Request("https://example.com/api/v1/users/123/avatar-path"),
+				env,
+			);
+
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.data.avatarPath).toBe("");
+		});
+
+		it("should return 404 for non-existent user", async () => {
+			const firstSpy = mock(() => Promise.resolve(null));
+			const bindSpy = mock((..._args: unknown[]) => ({ first: firstSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await getAvatarPath(
+				new Request("https://example.com/api/v1/users/999/avatar-path"),
+				env,
+			);
+
+			expect(response.status).toBe(404);
+		});
+
+		it("should NOT check user status (return data even for banned users)", async () => {
+			// This is intentional — avatar proxy needs to display avatars for
+			// banned/archived users whose historical posts are still visible
+			const firstSpy = mock(() => Promise.resolve({ avatar_path: "avatars/banned-user.jpg" }));
+			const bindSpy = mock((..._args: unknown[]) => ({ first: firstSpy }));
+			const prepareSpy = mock((sql: string) => {
+				// Verify the query does NOT include status check
+				expect(sql).not.toContain("AND status");
+				return { bind: bindSpy };
+			});
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await getAvatarPath(
+				new Request("https://example.com/api/v1/users/123/avatar-path"),
+				env,
+			);
+
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.data.avatarPath).toBe("avatars/banned-user.jpg");
+		});
+
+		it("should return 400 for invalid userId", async () => {
+			const response = await getAvatarPath(
+				new Request("https://example.com/api/v1/users/abc/avatar-path"),
+				mockEnv,
+			);
+
+			expect(response.status).toBe(400);
 		});
 	});
 });

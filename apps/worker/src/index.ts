@@ -94,6 +94,9 @@ export default {
 			if (path.match(/^\/api\/v1\/users\/\d+$/) && request.method === "GET") {
 				return await (await import("./handlers/user")).getById(request, env);
 			}
+			if (path.match(/^\/api\/v1\/users\/\d+\/avatar-path$/) && request.method === "GET") {
+				return await (await import("./handlers/user")).getAvatarPath(request, env);
+			}
 			if (path.match(/^\/api\/v1\/users\/\d+\/threads$/) && request.method === "GET") {
 				return await (await import("./handlers/user")).listThreads(request, env);
 			}

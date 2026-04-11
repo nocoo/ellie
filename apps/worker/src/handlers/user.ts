@@ -98,6 +98,41 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 	return jsonResponse(toPublicUser(result), origin);
 }
 
+/**
+ * GET /api/v1/users/:id/avatar-path - Get user's avatar_path for avatar proxy
+ *
+ * Internal endpoint for avatar resolution. Does NOT check user status,
+ * allowing avatar display for banned/archived users whose historical posts
+ * are still visible.
+ *
+ * Returns:
+ * - { data: { avatarPath: "avatars/xxx.jpg" } } if user has GUID-based avatar
+ * - { data: { avatarPath: "" } } if user exists but no GUID avatar (use legacy path)
+ * - 404 if user doesn't exist at all
+ */
+export async function getAvatarPath(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+	const url = new URL(request.url);
+	const pathParts = url.pathname.split("/");
+	// Path: /api/v1/users/:id/avatar-path -> id is second-to-last
+	const idStr = pathParts[pathParts.length - 2];
+	const id = Number.parseInt(idStr ?? "0", 10);
+
+	if (Number.isNaN(id) || id <= 0) {
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid userId" }, origin);
+	}
+
+	const result = await env.DB.prepare("SELECT avatar_path FROM users WHERE id = ?")
+		.bind(id)
+		.first<{ avatar_path: string }>();
+
+	if (!result) {
+		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
+	}
+
+	return jsonResponse({ avatarPath: result.avatar_path ?? "" }, origin);
+}
+
 /** GET /api/v1/users/:id/threads - List user's threads with keyset pagination */
 export async function listThreads(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
