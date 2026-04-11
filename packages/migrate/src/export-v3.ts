@@ -135,7 +135,9 @@ while (true) {
 			attempts++;
 			if (attempts > 20) break; // safety valve
 		}
-		writer?.write(line!);
+		if (writer && line) {
+			writer.write(line);
+		}
 		currentRows++;
 		grandTotal++;
 	}

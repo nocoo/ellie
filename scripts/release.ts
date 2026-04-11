@@ -10,9 +10,9 @@
  *   bun run release -- --dry-run # preview only
  */
 
-import { $ } from "bun";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { $ } from "bun";
 
 const ROOT = join(import.meta.dir, "..");
 
@@ -136,12 +136,12 @@ async function main() {
 		console.log(`\n✅ Version updated to ${newVersion}`);
 		console.log("\nNext steps:");
 		console.log("  1. Review changes and update CHANGELOG.md");
-		console.log("  2. git add -A && git commit -m 'chore: release v" + newVersion + "'");
-		console.log("  3. git tag v" + newVersion);
+		console.log(`  2. git add -A && git commit -m 'chore: release v${newVersion}'`);
+		console.log(`  3. git tag v${newVersion}`);
 		console.log("  4. git push && git push --tags");
 		console.log("  5. bun run worker:deploy (if Worker changed)");
 	} else {
-		console.log(`\n✅ Dry run complete — no files modified`);
+		console.log("\n✅ Dry run complete — no files modified");
 	}
 }
 

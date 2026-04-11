@@ -301,112 +301,23 @@ export function UserPopover({
 				className={cn("w-[320px] p-0 overflow-hidden", "glass-panel")}
 			>
 				{/* Loading state */}
-				{loading && (
-					<div className="flex items-center justify-center py-12">
-						<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-					</div>
-				)}
+				{loading && <PopoverLoading />}
 
 				{/* Error state */}
-				{error && !loading && (
-					<div className="flex flex-col items-center justify-center py-8 px-4 text-center">
-						<UserIcon className="h-8 w-8 text-muted-foreground mb-2" />
-						<p className="text-sm text-muted-foreground">{error}</p>
-						<Button variant="ghost" size="sm" className="mt-2" onClick={fetchUser}>
-							重试
-						</Button>
-					</div>
-				)}
+				{error && !loading && <PopoverError error={error} onRetry={fetchUser} />}
 
 				{/* User data */}
 				{user && !loading && (
 					<>
 						{/* Header: Avatar + Name + Badges */}
-						<div className="relative">
-							{/* Background gradient */}
-							<div className="absolute inset-0 h-20 bg-gradient-to-b from-primary/10 to-transparent" />
-
-							<div className="relative px-4 pt-4 pb-3">
-								<div className="flex items-start gap-3">
-									{/* Avatar */}
-									<Link href={`/users/${user.id}`} onClick={() => setOpen(false)}>
-										<div className="bg-card p-1 rounded-lg shadow-md ring-1 ring-border/50">
-											<UserAvatar
-												src={getAvatarUrl(user.id, "middle")}
-												alt={user.username}
-												className="h-16 w-16 rounded-md"
-											/>
-										</div>
-									</Link>
-
-									{/* Info */}
-									<div className="flex-1 min-w-0 pt-1">
-										<div className="flex items-center gap-2 flex-wrap">
-											<Link
-												href={`/users/${user.id}`}
-												onClick={() => setOpen(false)}
-												className="text-base font-bold text-foreground hover:text-primary transition-colors truncate"
-											>
-												{user.username}
-											</Link>
-											{roleBadge && (
-												<Badge variant={roleBadge.variant} className="text-2xs">
-													{roleBadge.label}
-												</Badge>
-											)}
-											{isSelf && (
-												<Badge variant="outline" className="text-2xs">
-													我
-												</Badge>
-											)}
-										</div>
-
-										{/* Group title */}
-										{user.groupTitle && (
-											<div className="flex items-center gap-1.5 mt-1">
-												<span
-													className="text-xs font-medium"
-													style={user.groupColor ? { color: user.groupColor } : undefined}
-												>
-													{user.groupTitle}
-												</span>
-												{user.groupStars > 0 && (
-													<span className="text-amber-500 text-xs">
-														{"★".repeat(Math.min(user.groupStars, 5))}
-													</span>
-												)}
-											</div>
-										)}
-
-										{/* Custom title */}
-										{user.customTitle && (
-											<p className="text-xs text-muted-foreground italic mt-0.5 truncate">
-												{user.customTitle}
-											</p>
-										)}
-
-										{/* User status badge */}
-										{(userIsMuted || userIsBanned) && (
-											<div className="mt-1">
-												{userIsBanned && (
-													<Badge variant="destructive" className="text-2xs">
-														已封禁
-													</Badge>
-												)}
-												{userIsMuted && !userIsBanned && (
-													<Badge
-														variant="outline"
-														className="text-2xs text-orange-500 border-orange-500"
-													>
-														已禁言
-													</Badge>
-												)}
-											</div>
-										)}
-									</div>
-								</div>
-							</div>
-						</div>
+						<UserHeader
+							user={user}
+							roleBadge={roleBadge}
+							isSelf={isSelf}
+							userIsMuted={userIsMuted}
+							userIsBanned={userIsBanned}
+							onClose={() => setOpen(false)}
+						/>
 
 						{/* Stats grid */}
 						<div className="grid grid-cols-4 gap-px bg-border/50 mx-4 rounded-lg overflow-hidden">
@@ -448,36 +359,7 @@ export function UserPopover({
 						</div>
 
 						{/* Admin-only section */}
-						{isAdmin && (
-							<div className="px-4 py-2 border-t border-border/50 bg-muted/30">
-								<p className="text-2xs text-muted-foreground mb-2 flex items-center gap-1">
-									<Shield className="h-3 w-3" />
-									管理员信息
-								</p>
-								<div className="space-y-1.5 text-xs">
-									{user.qq && (
-										<div className="flex justify-between">
-											<span className="text-muted-foreground">QQ</span>
-											<span className="text-foreground">{user.qq}</span>
-										</div>
-									)}
-									{user.site && (
-										<div className="flex justify-between items-center">
-											<span className="text-muted-foreground">网站</span>
-											<a
-												href={user.site.startsWith("http") ? user.site : `https://${user.site}`}
-												target="_blank"
-												rel="noopener noreferrer"
-												className="text-primary hover:underline truncate max-w-[160px] flex items-center gap-1"
-											>
-												{user.site}
-												<ExternalLink className="h-3 w-3 shrink-0" />
-											</a>
-										</div>
-									)}
-								</div>
-							</div>
-						)}
+						{isAdmin && <AdminInfoSection user={user} />}
 
 						{/* Actions */}
 						<div className="px-4 py-3 border-t border-border/50 flex items-center justify-between gap-2">
@@ -495,73 +377,12 @@ export function UserPopover({
 
 								{/* Mod actions dropdown */}
 								{canManageUsers && !isSelf && (
-									<DropdownMenu>
-										<DropdownMenuTrigger
-											render={
-												<Button
-													variant="ghost"
-													size="xs"
-													className="text-xs gap-1 text-muted-foreground"
-													title="管理操作"
-												>
-													<Shield className="h-3.5 w-3.5" />
-													管理
-												</Button>
-											}
-										/>
-										<DropdownMenuContent align="start" side="top" className="min-w-[160px]">
-											{/* IP records feature - disabled until IP tracking is implemented in database
-											<DropdownMenuItem
-												onClick={() => {
-													setOpen(false);
-													window.location.href = `/admin/users/${user.id}/ip-records`;
-												}}
-											>
-												<Globe className="h-4 w-4" />
-												查看 IP 记录
-											</DropdownMenuItem>
-											<DropdownMenuSeparator />
-											*/}
-											{/* Mute/Unmute */}
-											{userIsMuted ? (
-												<DropdownMenuItem onClick={() => setModAction("unmute")}>
-													<VolumeX className="h-4 w-4" />
-													解除禁言
-												</DropdownMenuItem>
-											) : (
-												<DropdownMenuItem
-													onClick={() => setModAction("mute")}
-													disabled={userIsBanned}
-												>
-													<VolumeX className="h-4 w-4" />
-													禁止发言
-												</DropdownMenuItem>
-											)}
-											<DropdownMenuSeparator />
-											{/* Ban/Unban */}
-											{userIsBanned ? (
-												<DropdownMenuItem onClick={() => setModAction("unban")}>
-													<Ban className="h-4 w-4" />
-													解除封禁
-												</DropdownMenuItem>
-											) : (
-												<DropdownMenuItem variant="destructive" onClick={() => setModAction("ban")}>
-													<Ban className="h-4 w-4" />
-													封禁用户
-												</DropdownMenuItem>
-											)}
-											{/* Nuke (only when not already banned) */}
-											{!userIsBanned && (
-												<DropdownMenuItem
-													variant="destructive"
-													onClick={() => setModAction("nuke")}
-												>
-													<Trash2 className="h-4 w-4" />
-													封禁并删除内容
-												</DropdownMenuItem>
-											)}
-										</DropdownMenuContent>
-									</DropdownMenu>
+									<ModActionsDropdown
+										user={user}
+										userIsMuted={userIsMuted}
+										userIsBanned={userIsBanned}
+										onAction={setModAction}
+									/>
 								)}
 							</div>
 
@@ -578,45 +399,14 @@ export function UserPopover({
 
 						{/* Mod action confirmation dialog */}
 						{modAction && (
-							<Dialog open={!!modAction} onOpenChange={(open) => !open && setModAction(null)}>
-								<DialogContent showCloseButton={false} className="sm:max-w-[400px]">
-									<DialogHeader>
-										<DialogTitle>{MOD_ACTION_CONFIG[modAction].title}</DialogTitle>
-										<DialogDescription>
-											{MOD_ACTION_CONFIG[modAction].description(user.username)}
-										</DialogDescription>
-									</DialogHeader>
-									{modActionMessage && (
-										<div
-											className={cn(
-												"text-sm px-3 py-2 rounded-md",
-												modActionMessage.type === "success"
-													? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-													: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-											)}
-										>
-											{modActionMessage.text}
-										</div>
-									)}
-									<DialogFooter className="gap-2 sm:gap-0">
-										<Button
-											variant="outline"
-											disabled={modActionLoading}
-											onClick={() => setModAction(null)}
-										>
-											取消
-										</Button>
-										<Button
-											variant={MOD_ACTION_CONFIG[modAction].variant}
-											onClick={executeModAction}
-											disabled={modActionLoading}
-										>
-											{modActionLoading && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-											{MOD_ACTION_CONFIG[modAction].confirmText}
-										</Button>
-									</DialogFooter>
-								</DialogContent>
-							</Dialog>
+							<ModActionDialog
+								modAction={modAction}
+								username={user.username}
+								modActionMessage={modActionMessage}
+								modActionLoading={modActionLoading}
+								onClose={() => setModAction(null)}
+								onConfirm={executeModAction}
+							/>
 						)}
 					</>
 				)}
@@ -655,5 +445,290 @@ function DetailRow({
 			</span>
 			<span className="text-foreground">{value}</span>
 		</div>
+	);
+}
+
+/** Loading state for popover */
+function PopoverLoading() {
+	return (
+		<div className="flex items-center justify-center py-12">
+			<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+		</div>
+	);
+}
+
+/** Error state for popover */
+function PopoverError({ error, onRetry }: { error: string; onRetry: () => void }) {
+	return (
+		<div className="flex flex-col items-center justify-center py-8 px-4 text-center">
+			<UserIcon className="h-8 w-8 text-muted-foreground mb-2" />
+			<p className="text-sm text-muted-foreground">{error}</p>
+			<Button variant="ghost" size="sm" className="mt-2" onClick={onRetry}>
+				重试
+			</Button>
+		</div>
+	);
+}
+
+/** User header with avatar, name, badges */
+function UserHeader({
+	user,
+	roleBadge,
+	isSelf,
+	userIsMuted,
+	userIsBanned,
+	onClose,
+}: {
+	user: PublicUser;
+	roleBadge: { label: string; variant: "default" | "secondary" | "outline" } | null;
+	isSelf: boolean;
+	userIsMuted: boolean;
+	userIsBanned: boolean;
+	onClose: () => void;
+}) {
+	return (
+		<div className="relative">
+			{/* Background gradient */}
+			<div className="absolute inset-0 h-20 bg-gradient-to-b from-primary/10 to-transparent" />
+
+			<div className="relative px-4 pt-4 pb-3">
+				<div className="flex items-start gap-3">
+					{/* Avatar */}
+					<Link href={`/users/${user.id}`} onClick={onClose}>
+						<div className="bg-card p-1 rounded-lg shadow-md ring-1 ring-border/50">
+							<UserAvatar
+								src={getAvatarUrl(user.id, "middle")}
+								alt={user.username}
+								className="h-16 w-16 rounded-md"
+							/>
+						</div>
+					</Link>
+
+					{/* Info */}
+					<div className="flex-1 min-w-0 pt-1">
+						<div className="flex items-center gap-2 flex-wrap">
+							<Link
+								href={`/users/${user.id}`}
+								onClick={onClose}
+								className="text-base font-bold text-foreground hover:text-primary transition-colors truncate"
+							>
+								{user.username}
+							</Link>
+							{roleBadge && (
+								<Badge variant={roleBadge.variant} className="text-2xs">
+									{roleBadge.label}
+								</Badge>
+							)}
+							{isSelf && (
+								<Badge variant="outline" className="text-2xs">
+									我
+								</Badge>
+							)}
+						</div>
+
+						{/* Group title */}
+						{user.groupTitle && (
+							<div className="flex items-center gap-1.5 mt-1">
+								<span
+									className="text-xs font-medium"
+									style={user.groupColor ? { color: user.groupColor } : undefined}
+								>
+									{user.groupTitle}
+								</span>
+								{user.groupStars > 0 && (
+									<span className="text-amber-500 text-xs">
+										{"★".repeat(Math.min(user.groupStars, 5))}
+									</span>
+								)}
+							</div>
+						)}
+
+						{/* Custom title */}
+						{user.customTitle && (
+							<p className="text-xs text-muted-foreground italic mt-0.5 truncate">
+								{user.customTitle}
+							</p>
+						)}
+
+						{/* User status badge */}
+						<UserStatusBadges userIsMuted={userIsMuted} userIsBanned={userIsBanned} />
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+/** User status badges (banned/muted) */
+function UserStatusBadges({
+	userIsMuted,
+	userIsBanned,
+}: {
+	userIsMuted: boolean;
+	userIsBanned: boolean;
+}) {
+	if (!userIsMuted && !userIsBanned) return null;
+	return (
+		<div className="mt-1">
+			{userIsBanned && (
+				<Badge variant="destructive" className="text-2xs">
+					已封禁
+				</Badge>
+			)}
+			{userIsMuted && !userIsBanned && (
+				<Badge variant="outline" className="text-2xs text-orange-500 border-orange-500">
+					已禁言
+				</Badge>
+			)}
+		</div>
+	);
+}
+
+/** Admin-only info section */
+function AdminInfoSection({ user }: { user: PublicUser }) {
+	return (
+		<div className="px-4 py-2 border-t border-border/50 bg-muted/30">
+			<p className="text-2xs text-muted-foreground mb-2 flex items-center gap-1">
+				<Shield className="h-3 w-3" />
+				管理员信息
+			</p>
+			<div className="space-y-1.5 text-xs">
+				{user.qq && (
+					<div className="flex justify-between">
+						<span className="text-muted-foreground">QQ</span>
+						<span className="text-foreground">{user.qq}</span>
+					</div>
+				)}
+				{user.site && (
+					<div className="flex justify-between items-center">
+						<span className="text-muted-foreground">网站</span>
+						<a
+							href={user.site.startsWith("http") ? user.site : `https://${user.site}`}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="text-primary hover:underline truncate max-w-[160px] flex items-center gap-1"
+						>
+							{user.site}
+							<ExternalLink className="h-3 w-3 shrink-0" />
+						</a>
+					</div>
+				)}
+			</div>
+		</div>
+	);
+}
+
+/** Mod actions dropdown menu */
+function ModActionsDropdown({
+	user: _user,
+	userIsMuted,
+	userIsBanned,
+	onAction,
+}: {
+	user: PublicUser;
+	userIsMuted: boolean;
+	userIsBanned: boolean;
+	onAction: (action: ModAction) => void;
+}) {
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger
+				render={
+					<Button
+						variant="ghost"
+						size="xs"
+						className="text-xs gap-1 text-muted-foreground"
+						title="管理操作"
+					>
+						<Shield className="h-3.5 w-3.5" />
+						管理
+					</Button>
+				}
+			/>
+			<DropdownMenuContent align="start" side="top" className="min-w-[160px]">
+				{/* Mute/Unmute */}
+				{userIsMuted ? (
+					<DropdownMenuItem onClick={() => onAction("unmute")}>
+						<VolumeX className="h-4 w-4" />
+						解除禁言
+					</DropdownMenuItem>
+				) : (
+					<DropdownMenuItem onClick={() => onAction("mute")} disabled={userIsBanned}>
+						<VolumeX className="h-4 w-4" />
+						禁止发言
+					</DropdownMenuItem>
+				)}
+				<DropdownMenuSeparator />
+				{/* Ban/Unban */}
+				{userIsBanned ? (
+					<DropdownMenuItem onClick={() => onAction("unban")}>
+						<Ban className="h-4 w-4" />
+						解除封禁
+					</DropdownMenuItem>
+				) : (
+					<DropdownMenuItem variant="destructive" onClick={() => onAction("ban")}>
+						<Ban className="h-4 w-4" />
+						封禁用户
+					</DropdownMenuItem>
+				)}
+				{/* Nuke (only when not already banned) */}
+				{!userIsBanned && (
+					<DropdownMenuItem variant="destructive" onClick={() => onAction("nuke")}>
+						<Trash2 className="h-4 w-4" />
+						封禁并删除内容
+					</DropdownMenuItem>
+				)}
+			</DropdownMenuContent>
+		</DropdownMenu>
+	);
+}
+
+/** Mod action confirmation dialog */
+function ModActionDialog({
+	modAction,
+	username,
+	modActionMessage,
+	modActionLoading,
+	onClose,
+	onConfirm,
+}: {
+	modAction: Exclude<ModAction, null>;
+	username: string;
+	modActionMessage: { type: "success" | "error"; text: string } | null;
+	modActionLoading: boolean;
+	onClose: () => void;
+	onConfirm: () => void;
+}) {
+	const config = MOD_ACTION_CONFIG[modAction];
+	return (
+		<Dialog open onOpenChange={(open) => !open && onClose()}>
+			<DialogContent showCloseButton={false} className="sm:max-w-[400px]">
+				<DialogHeader>
+					<DialogTitle>{config.title}</DialogTitle>
+					<DialogDescription>{config.description(username)}</DialogDescription>
+				</DialogHeader>
+				{modActionMessage && (
+					<div
+						className={cn(
+							"text-sm px-3 py-2 rounded-md",
+							modActionMessage.type === "success"
+								? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+								: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+						)}
+					>
+						{modActionMessage.text}
+					</div>
+				)}
+				<DialogFooter className="gap-2 sm:gap-0">
+					<Button variant="outline" disabled={modActionLoading} onClick={onClose}>
+						取消
+					</Button>
+					<Button variant={config.variant} onClick={onConfirm} disabled={modActionLoading}>
+						{modActionLoading && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+						{config.confirmText}
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
 	);
 }

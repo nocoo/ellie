@@ -244,7 +244,7 @@ describe("trackActivity", () => {
 				(call) => typeof call[0] === "string" && call[0].includes("UPDATE"),
 			);
 			expect(updateCall).toBeDefined();
-			expect(updateCall![0]).toContain("AND last_activity = ?");
+			expect(updateCall?.[0]).toContain("AND last_activity = ?");
 
 			// Verify bind includes old last_activity as 4th parameter
 			expect(updateBind).toHaveBeenCalledWith(NOW, 2, 333, lastActivity);
