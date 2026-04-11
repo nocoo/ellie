@@ -73,7 +73,8 @@ describe("createMockPostRepository", () => {
 			const repo = createMockPostRepository(store);
 			const page1 = await repo.list({ threadId: 50001, limit: 1 });
 			if (page1.nextCursor) {
-				const page2 = await repo.list({ threadId: 50001, limit: 1, cursor: page1.nextCursor! });
+				const cursor1 = page1.nextCursor as string;
+				const page2 = await repo.list({ threadId: 50001, limit: 1, cursor: cursor1 });
 				expect(page2.items.length).toBeGreaterThan(0);
 				expect(page2.prevCursor).not.toBeNull();
 				// Ensure no overlap
@@ -86,14 +87,18 @@ describe("createMockPostRepository", () => {
 			const repo = createMockPostRepository(store);
 			const page1 = await repo.list({ threadId: 50001, limit: 1 });
 			if (page1.nextCursor) {
-				const page2 = await repo.list({ threadId: 50001, limit: 1, cursor: page1.nextCursor! });
-				const backPage = await repo.list({
-					threadId: 50001,
-					limit: 1,
-					cursor: page2.prevCursor!,
-					direction: "backward",
-				});
-				expect(backPage.items.length).toBeGreaterThan(0);
+				const cursor1 = page1.nextCursor as string;
+				const page2 = await repo.list({ threadId: 50001, limit: 1, cursor: cursor1 });
+				if (page2.prevCursor) {
+					const cursor2 = page2.prevCursor as string;
+					const backPage = await repo.list({
+						threadId: 50001,
+						limit: 1,
+						cursor: cursor2,
+						direction: "backward",
+					});
+					expect(backPage.items.length).toBeGreaterThan(0);
+				}
 			}
 		});
 

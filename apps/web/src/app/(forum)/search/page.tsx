@@ -56,7 +56,12 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 		return (
 			<div className="space-y-4">
 				<div className="py-2">
-					<Breadcrumbs items={[{ label: "首页", href: "/" }, { label: "搜索", href: "/search" }]} />
+					<Breadcrumbs
+						items={[
+							{ label: "首页", href: "/" },
+							{ label: "搜索", href: "/search" },
+						]}
+					/>
 				</div>
 				<SearchHero />
 				<Card size="sm">

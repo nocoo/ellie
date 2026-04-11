@@ -7,11 +7,7 @@ import { isKvUserCacheEnabled } from "../lib/env";
 import { enrichThreadsWithUserCache, toThread } from "../lib/mappers";
 import { jsonResponse } from "../lib/response";
 import { getUserProfiles } from "../lib/user-cache";
-import {
-	buildForumFilter,
-	buildVisibilityContext,
-	threadVisible,
-} from "../lib/visibility";
+import { buildForumFilter, buildVisibilityContext, threadVisible } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 
@@ -60,6 +56,90 @@ function buildFtsQuery(query: string): string {
 	return tokens.map((t) => `"${t.replace(/"/g, '""')}"`).join(" ");
 }
 
+/** Parse and validate limit parameter */
+function parseLimit(limitParam: string | null): number {
+	const limitNum = limitParam ? Number.parseInt(limitParam, 10) : 20;
+	return Number.isNaN(limitNum) || limitNum <= 0 ? 20 : Math.min(limitNum, 50);
+}
+
+/** Build search SQL query */
+function buildSearchSql(forumFilter: string, hasCursor: boolean): string {
+	const cursorCondition = hasCursor
+		? "AND (t.last_post_at < ? OR (t.last_post_at = ? AND t.id < ?))"
+		: "";
+
+	return `
+    SELECT t.*
+    FROM threads t
+    JOIN threads_fts fts ON fts.rowid = t.id
+    JOIN forums f ON t.forum_id = f.id
+    WHERE threads_fts MATCH ?
+      AND ${threadVisible("t")}
+      AND ${forumFilter}
+      ${cursorCondition}
+    ORDER BY t.last_post_at DESC, t.id DESC
+    LIMIT ?
+  `;
+}
+
+/** Build search params array */
+function buildSearchParams(
+	ftsQuery: string,
+	cursorPayload: SearchCursorPayload | null,
+	limit: number,
+): (string | number)[] {
+	if (cursorPayload) {
+		return [
+			ftsQuery,
+			cursorPayload.lastPostAt,
+			cursorPayload.lastPostAt,
+			cursorPayload.id,
+			limit + 1,
+		];
+	}
+	return [ftsQuery, limit + 1];
+}
+
+/** Get total count for first page (optional) */
+async function getSearchTotalCount(
+	env: Env,
+	ftsQuery: string,
+	forumFilter: string,
+): Promise<number> {
+	const countSql = `
+      SELECT COUNT(*) as cnt
+      FROM threads t
+      JOIN threads_fts fts ON fts.rowid = t.id
+      JOIN forums f ON t.forum_id = f.id
+      WHERE threads_fts MATCH ?
+        AND ${threadVisible("t")}
+        AND ${forumFilter}
+    `;
+	const countResult = await env.DB.prepare(countSql).bind(ftsQuery).first<{ cnt: number }>();
+	return countResult?.cnt ?? 0;
+}
+
+/** Enrich threads with user cache data */
+async function enrichWithUserCache(
+	env: Env,
+	ctx: ExecutionContext,
+	threads: Thread[],
+): Promise<Thread[]> {
+	if (!isKvUserCacheEnabled(env)) {
+		// KV cache disabled: accepted degradation for search results.
+		return threads;
+	}
+
+	// Collect user IDs and fetch from KV cache
+	const userIds = new Set<number>();
+	for (const thread of threads) {
+		if (thread.authorId > 0) userIds.add(thread.authorId);
+		if (thread.lastPosterId > 0) userIds.add(thread.lastPosterId);
+	}
+	const userCache = userIds.size > 0 ? await getUserProfiles(env, ctx, [...userIds]) : new Map();
+	return enrichThreadsWithUserCache(threads, userCache);
+}
+
 /**
  * GET /api/v1/search/threads - Search threads by title
  *
@@ -103,10 +183,7 @@ export async function searchThreads(
 		);
 	}
 
-	const limitParam = url.searchParams.get("limit");
-	const limitNum = limitParam ? Number.parseInt(limitParam, 10) : 20;
-	const clampedLimit =
-		Number.isNaN(limitNum) || limitNum <= 0 ? 20 : Math.min(limitNum, 50);
+	const clampedLimit = parseLimit(url.searchParams.get("limit"));
 
 	// 2. Parse cursor (base64 encoded)
 	const cursorStr = url.searchParams.get("cursor");
@@ -114,12 +191,7 @@ export async function searchThreads(
 	if (cursorStr) {
 		cursorPayload = decodeSearchCursor(cursorStr);
 		if (!cursorPayload) {
-			return errorResponse(
-				"INVALID_REQUEST",
-				400,
-				{ message: "Invalid cursor format" },
-				origin,
-			);
+			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid cursor format" }, origin);
 		}
 	}
 
@@ -129,57 +201,16 @@ export async function searchThreads(
 	const forumFilter = buildForumFilter(visCtx, "f");
 
 	// 4. Build search query with visibility filtering
-	// Join: threads_fts -> threads -> forums
-	// Filter: FTS match + thread visible + forum active + forum visibility
 	const ftsQuery = buildFtsQuery(query);
+	const sql = buildSearchSql(forumFilter, !!cursorPayload);
+	const params = buildSearchParams(ftsQuery, cursorPayload, clampedLimit);
 
-	const cursorCondition = cursorPayload
-		? "AND (t.last_post_at < ? OR (t.last_post_at = ? AND t.id < ?))"
-		: "";
-
-	const sql = `
-    SELECT t.*
-    FROM threads t
-    JOIN threads_fts fts ON fts.rowid = t.id
-    JOIN forums f ON t.forum_id = f.id
-    WHERE threads_fts MATCH ?
-      AND ${threadVisible("t")}
-      AND ${forumFilter}
-      ${cursorCondition}
-    ORDER BY t.last_post_at DESC, t.id DESC
-    LIMIT ?
-  `;
-
-	const params = cursorPayload
-		? [
-				ftsQuery,
-				cursorPayload.lastPostAt,
-				cursorPayload.lastPostAt,
-				cursorPayload.id,
-				clampedLimit + 1,
-			]
-		: [ftsQuery, clampedLimit + 1];
-
-	const result = await env.DB.prepare(sql).bind(...params).all();
+	const result = await env.DB.prepare(sql)
+		.bind(...params)
+		.all();
 
 	// 5. Get total count (only on first page, for UI display)
-	// This is an optional/approximate value, not a guaranteed precise count
-	let total = 0;
-	if (!cursorStr) {
-		const countSql = `
-      SELECT COUNT(*) as cnt
-      FROM threads t
-      JOIN threads_fts fts ON fts.rowid = t.id
-      JOIN forums f ON t.forum_id = f.id
-      WHERE threads_fts MATCH ?
-        AND ${threadVisible("t")}
-        AND ${forumFilter}
-    `;
-		const countResult = await env.DB.prepare(countSql)
-			.bind(ftsQuery)
-			.first<{ cnt: number }>();
-		total = countResult?.cnt ?? 0;
-	}
+	const total = cursorStr ? 0 : await getSearchTotalCount(env, ftsQuery, forumFilter);
 
 	// 6. Build response with pagination
 	const hasMore = result.results.length > clampedLimit;
@@ -188,32 +219,11 @@ export async function searchThreads(
 	// Map to Thread type using existing mapper
 	const threads = items.map((row) => toThread(row as Record<string, unknown>));
 
-	// 7. Enrich with user cache (avatars) - follow existing pattern
-	let enrichedThreads: Thread[];
-	if (isKvUserCacheEnabled(env)) {
-		// Collect user IDs and fetch from KV cache
-		const userIds = new Set<number>();
-		for (const thread of threads) {
-			if (thread.authorId > 0) userIds.add(thread.authorId);
-			if (thread.lastPosterId > 0) userIds.add(thread.lastPosterId);
-		}
-		const userCache =
-			userIds.size > 0
-				? await getUserProfiles(env, ctx, [...userIds])
-				: new Map();
-		enrichedThreads = enrichThreadsWithUserCache(threads, userCache);
-	} else {
-		// KV cache disabled: accepted degradation for search results.
-		// Thread list uses JOIN approach, but search query is already complex.
-		// First-phase decision: return threads without avatar enrichment.
-		// This is a known inconsistency with thread list page.
-		enrichedThreads = threads;
-	}
+	// 7. Enrich with user cache (avatars)
+	const enrichedThreads = await enrichWithUserCache(env, ctx, threads);
 
 	// Build next cursor
-	const lastItem = items[items.length - 1] as
-		| { last_post_at: number; id: number }
-		| undefined;
+	const lastItem = items[items.length - 1] as { last_post_at: number; id: number } | undefined;
 	const nextCursor =
 		hasMore && lastItem
 			? encodeSearchCursor({ lastPostAt: lastItem.last_post_at, id: lastItem.id })

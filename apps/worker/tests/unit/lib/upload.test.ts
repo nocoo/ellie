@@ -1,6 +1,6 @@
-import { describe, expect, it, mock } from "bun:test";
-import { handleUpload } from "../../../src/lib/upload";
+import { describe, expect, it } from "bun:test";
 import type { Env } from "../../../src/lib/env";
+import { handleUpload } from "../../../src/lib/upload";
 import { createMockCtx, createMockDb, createMockKV, createMockR2 } from "../../helpers";
 
 describe("handleUpload", () => {

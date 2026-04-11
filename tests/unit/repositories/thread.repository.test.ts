@@ -102,7 +102,10 @@ describe("createMockThreadRepository", () => {
 			const store = createMockDataStore();
 			const repo = createMockThreadRepository(store);
 			const page1 = await repo.list({ limit: 2 });
-			const page2 = await repo.list({ limit: 2, cursor: page1.nextCursor! });
+			expect(page1.nextCursor).not.toBeNull();
+			const cursor1 = page1.nextCursor as string;
+
+			const page2 = await repo.list({ limit: 2, cursor: cursor1 });
 			expect(page2.items.length).toBeGreaterThan(0);
 			const page1Ids = page1.items.map((t) => t.id);
 			const page2Ids = page2.items.map((t) => t.id);
@@ -113,11 +116,17 @@ describe("createMockThreadRepository", () => {
 			const store = createMockDataStore();
 			const repo = createMockThreadRepository(store);
 			const page1 = await repo.list({ limit: 2, sort: "newest" });
-			const page2 = await repo.list({ limit: 2, sort: "newest", cursor: page1.nextCursor! });
+			expect(page1.nextCursor).not.toBeNull();
+			const cursor1 = page1.nextCursor as string;
+
+			const page2 = await repo.list({ limit: 2, sort: "newest", cursor: cursor1 });
+			expect(page2.prevCursor).not.toBeNull();
+			const cursor2 = page2.prevCursor as string;
+
 			const backPage = await repo.list({
 				limit: 2,
 				sort: "newest",
-				cursor: page2.prevCursor!,
+				cursor: cursor2,
 				direction: "backward",
 			});
 			expect(backPage.items.length).toBeGreaterThan(0);
@@ -149,7 +158,10 @@ describe("createMockThreadRepository", () => {
 			const store = createMockDataStore();
 			const repo = createMockThreadRepository(store);
 			const page1 = await repo.list({ limit: 2 });
-			const page2 = await repo.list({ limit: 2, cursor: page1.nextCursor! });
+			expect(page1.nextCursor).not.toBeNull();
+			const cursor1 = page1.nextCursor as string;
+
+			const page2 = await repo.list({ limit: 2, cursor: cursor1 });
 			expect(page2.prevCursor).not.toBeNull();
 		});
 	});
@@ -209,10 +221,11 @@ describe("createMockThreadRepository", () => {
 			// Using empty titlePrefix is truthy, so it's allowed, but filters to subjects starting with ""
 			// which is all of them. authorName will narrow down.
 			if (page1.nextCursor) {
+				const cursor1 = page1.nextCursor as string;
 				const page2 = await repo.search({
 					authorName: "zhangsan",
 					limit: 1,
-					cursor: page1.nextCursor!,
+					cursor: cursor1,
 				});
 				expect(page2.items.length).toBeGreaterThan(0);
 			}
@@ -223,16 +236,18 @@ describe("createMockThreadRepository", () => {
 			const repo = createMockThreadRepository(store);
 			const page1 = await repo.search({ authorName: "zhangsan", limit: 1 });
 			if (page1.nextCursor) {
+				const cursor1 = page1.nextCursor as string;
 				const page2 = await repo.search({
 					authorName: "zhangsan",
 					limit: 1,
-					cursor: page1.nextCursor!,
+					cursor: cursor1,
 				});
 				if (page2.prevCursor) {
+					const cursor2 = page2.prevCursor as string;
 					const backPage = await repo.search({
 						authorName: "zhangsan",
 						limit: 1,
-						cursor: page2.prevCursor!,
+						cursor: cursor2,
 						direction: "backward",
 					});
 					expect(backPage.items.length).toBeGreaterThan(0);

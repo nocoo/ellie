@@ -24,8 +24,10 @@ export function createMockUserRepository(store: MockDataStore): UserRepository {
 			if (params.role !== undefined) filtered = filtered.filter((u) => u.role === params.role);
 			if (params.status !== undefined)
 				filtered = filtered.filter((u) => u.status === params.status);
-			if (params.lastLoginAfter !== undefined)
-				filtered = filtered.filter((u) => u.lastLogin >= params.lastLoginAfter!);
+			if (params.lastLoginAfter !== undefined) {
+				const lastLoginAfter = params.lastLoginAfter;
+				filtered = filtered.filter((u) => u.lastLogin >= lastLoginAfter);
+			}
 
 			const sort = params.sort ?? "newest";
 			const sortKey = getUserSortKey(sort);

@@ -57,7 +57,9 @@ function generateUpdateSql(uids: number[], batchSize = 100): string[] {
 	for (let i = 0; i < uids.length; i += batchSize) {
 		const batch = uids.slice(i, i + batchSize);
 		const placeholders = batch.join(", ");
-		statements.push(`UPDATE users SET has_avatar = 1 WHERE id IN (${placeholders}) AND has_avatar = 0;`);
+		statements.push(
+			`UPDATE users SET has_avatar = 1 WHERE id IN (${placeholders}) AND has_avatar = 0;`,
+		);
 	}
 
 	return statements;
@@ -92,7 +94,9 @@ async function main() {
 			console.log(`   ${sql}`);
 		}
 		console.log("");
-		console.log("   Run via: npx wrangler d1 execute tongjinet-db --remote -c apps/worker/wrangler.toml --command '<SQL>'");
+		console.log(
+			"   Run via: npx wrangler d1 execute tongjinet-db --remote -c apps/worker/wrangler.toml --command '<SQL>'",
+		);
 
 		return;
 	}
@@ -150,7 +154,9 @@ async function main() {
 		console.log(`   Total: ${statements.length} statements for ${uids.length} users`);
 		console.log("");
 		console.log("   To execute:");
-		console.log(`   cat ${outputFile} | npx wrangler d1 execute tongjinet-db --remote -c apps/worker/wrangler.toml --file=${outputFile}`);
+		console.log(
+			`   cat ${outputFile} | npx wrangler d1 execute tongjinet-db --remote -c apps/worker/wrangler.toml --file=${outputFile}`,
+		);
 	}
 }
 

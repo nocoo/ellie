@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
+import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 import * as forumApiModule from "../../../../apps/web/src/lib/forum-api";
 import { loadSearchResults } from "../../../../apps/web/src/viewmodels/forum/search.server";
 

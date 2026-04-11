@@ -22,7 +22,7 @@ export function AvatarUpload({ currentUrl, onUploadComplete, disabled }: AvatarU
 	const [error, setError] = useState<string | null>(null);
 	const [previewUrl, setPreviewUrl] = useState(currentUrl);
 
-	const validateFile = (file: File): string | null => {
+	const validateFile = useCallback((file: File): string | null => {
 		if (!ALLOWED_TYPES.includes(file.type)) {
 			return "仅支持 JPG 和 PNG 格式";
 		}
@@ -30,7 +30,7 @@ export function AvatarUpload({ currentUrl, onUploadComplete, disabled }: AvatarU
 			return `文件大小不能超过 ${MAX_SIZE_KB} KB`;
 		}
 		return null;
-	};
+	}, []);
 
 	const uploadFile = useCallback(
 		async (file: File) => {
@@ -72,7 +72,7 @@ export function AvatarUpload({ currentUrl, onUploadComplete, disabled }: AvatarU
 				setIsUploading(false);
 			}
 		},
-		[onUploadComplete],
+		[onUploadComplete, validateFile],
 	);
 
 	const handleDrop = (e: DragEvent<HTMLDivElement>) => {

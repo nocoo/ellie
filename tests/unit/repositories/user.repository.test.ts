@@ -22,9 +22,13 @@ describe("createMockUserRepository", () => {
 			const result = await repo.list({});
 			const ids = result.items.map((u) => u.id);
 			for (let i = 1; i < ids.length; i++) {
-				const prev = store.users.find((u) => u.id === ids[i - 1])!;
-				const curr = store.users.find((u) => u.id === ids[i])!;
-				expect(prev.regDate).toBeGreaterThanOrEqual(curr.regDate);
+				const prev = store.users.find((u) => u.id === ids[i - 1]);
+				const curr = store.users.find((u) => u.id === ids[i]);
+				expect(prev).toBeDefined();
+				expect(curr).toBeDefined();
+				expect((prev as NonNullable<typeof prev>).regDate).toBeGreaterThanOrEqual(
+					(curr as NonNullable<typeof curr>).regDate,
+				);
 			}
 		});
 
@@ -109,8 +113,9 @@ describe("createMockUserRepository", () => {
 		it("paginates forward using cursor", async () => {
 			const page1 = await repo.list({ limit: 2 });
 			expect(page1.nextCursor).not.toBeNull();
+			const cursor1 = page1.nextCursor as string;
 
-			const page2 = await repo.list({ limit: 2, cursor: page1.nextCursor! });
+			const page2 = await repo.list({ limit: 2, cursor: cursor1 });
 			expect(page2.items.length).toBe(2);
 			expect(page2.prevCursor).not.toBeNull();
 			// No overlap between pages
@@ -122,13 +127,18 @@ describe("createMockUserRepository", () => {
 		it("paginates backward using cursor", async () => {
 			// First get a forward cursor
 			const page1 = await repo.list({ limit: 2, sort: "newest" });
-			const page2 = await repo.list({ limit: 2, sort: "newest", cursor: page1.nextCursor! });
+			expect(page1.nextCursor).not.toBeNull();
+			const cursor1 = page1.nextCursor as string;
+
+			const page2 = await repo.list({ limit: 2, sort: "newest", cursor: cursor1 });
+			expect(page2.prevCursor).not.toBeNull();
+			const cursor2 = page2.prevCursor as string;
 
 			// Now go backward from page2's prevCursor
 			const backPage = await repo.list({
 				limit: 2,
 				sort: "newest",
-				cursor: page2.prevCursor!,
+				cursor: cursor2,
 				direction: "backward",
 			});
 			expect(backPage.items.length).toBeGreaterThan(0);
@@ -143,7 +153,10 @@ describe("createMockUserRepository", () => {
 
 		it("returns prevCursor when using cursor and items exist", async () => {
 			const page1 = await repo.list({ limit: 2 });
-			const page2 = await repo.list({ limit: 2, cursor: page1.nextCursor! });
+			expect(page1.nextCursor).not.toBeNull();
+			const cursor1 = page1.nextCursor as string;
+
+			const page2 = await repo.list({ limit: 2, cursor: cursor1 });
 			expect(page2.prevCursor).not.toBeNull();
 		});
 	});
