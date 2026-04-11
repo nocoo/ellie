@@ -25,13 +25,19 @@ function getApiKey(): string {
 	return key;
 }
 
+/** Result of fetching avatar path from Worker */
+type AvatarPathResult =
+	| { status: "found"; avatarPath: string } // User exists, avatarPath may be empty (use legacy)
+	| { status: "not_found" } // User doesn't exist
+	| { status: "error" }; // Network/API error — should not cache
+
 /**
  * Fetch user's avatar_path from Worker API.
- * Returns empty string if user not found or avatar_path not set.
+ * Uses internal endpoint that doesn't check user status.
  */
-async function getUserAvatarPath(uid: number): Promise<string> {
+async function getUserAvatarPath(uid: number): Promise<AvatarPathResult> {
 	try {
-		const res = await fetch(`${getWorkerUrl()}/api/v1/users/${uid}`, {
+		const res = await fetch(`${getWorkerUrl()}/api/v1/users/${uid}/avatar-path`, {
 			headers: {
 				"X-API-Key": getApiKey(),
 				"User-Agent": "Ellie/1.0",
@@ -39,14 +45,18 @@ async function getUserAvatarPath(uid: number): Promise<string> {
 			cache: "no-store",
 		});
 
+		if (res.status === 404) {
+			return { status: "not_found" };
+		}
+
 		if (!res.ok) {
-			return "";
+			return { status: "error" };
 		}
 
 		const json = (await res.json()) as { data?: { avatarPath?: string } };
-		return json.data?.avatarPath ?? "";
+		return { status: "found", avatarPath: json.data?.avatarPath ?? "" };
 	} catch {
-		return "";
+		return { status: "error" };
 	}
 }
 
@@ -65,10 +75,45 @@ export async function GET(
 	const hasVersionParam = request.nextUrl.searchParams.has("v");
 
 	// Get user's avatar_path from Worker API
-	const avatarPath = await getUserAvatarPath(uid);
+	const result = await getUserAvatarPath(uid);
+
+	// If API error, return fallback with short cache (5 min) to avoid caching errors for a day
+	if (result.status === "error") {
+		try {
+			const fallbackResponse = await fetch(FALLBACK_URL);
+			const fallbackData = await fallbackResponse.arrayBuffer();
+			return new NextResponse(fallbackData, {
+				status: 200,
+				headers: {
+					"Content-Type": "image/gif",
+					// Short cache for errors — retry in 5 minutes
+					"Cache-Control": "public, max-age=300",
+				},
+			});
+		} catch {
+			return new NextResponse("Avatar unavailable", { status: 503 });
+		}
+	}
+
+	// If user not found, return fallback with normal cache
+	if (result.status === "not_found") {
+		try {
+			const fallbackResponse = await fetch(FALLBACK_URL);
+			const fallbackData = await fallbackResponse.arrayBuffer();
+			return new NextResponse(fallbackData, {
+				status: 200,
+				headers: {
+					"Content-Type": "image/gif",
+					"Cache-Control": getCacheControl(hasVersionParam, true),
+				},
+			});
+		} catch {
+			return new NextResponse("Avatar unavailable", { status: 503 });
+		}
+	}
 
 	// Compute CDN URL based on avatar_path or fallback to legacy UID-based path
-	const avatarUrl = computeAvatarCdnPath(uid, avatarPath);
+	const avatarUrl = computeAvatarCdnPath(uid, result.avatarPath);
 
 	try {
 		const response = await fetch(avatarUrl, {
@@ -101,7 +146,7 @@ export async function GET(
 			},
 		});
 	} catch {
-		// Network error, return fallback
+		// Network error, return fallback with short cache
 		try {
 			const fallbackResponse = await fetch(FALLBACK_URL);
 			const fallbackData = await fallbackResponse.arrayBuffer();
@@ -109,7 +154,8 @@ export async function GET(
 				status: 200,
 				headers: {
 					"Content-Type": "image/gif",
-					"Cache-Control": getCacheControl(hasVersionParam, true),
+					// Short cache for network errors
+					"Cache-Control": "public, max-age=300",
 				},
 			});
 		} catch {
