@@ -39,7 +39,8 @@ Browser → /api/avatar/{uid}
            ▼
        Next.js proxy
            │
-           ├── GET /api/v1/users/{uid} → get avatar_path
+           ├── GET /api/v1/users/{uid}/avatar-path → get avatar_path
+           │   (internal endpoint, ignores user status)
            │
            ├── if avatar_path set → https://t.no.mt/{avatar_path}
            └── else → https://t.no.mt/avatar/{computed-from-uid}
@@ -48,14 +49,24 @@ Browser → /api/avatar/{uid}
        CDN/R2 → image
 ```
 
+**Cache behavior:**
+- Normal avatar: cache 7 days
+- Fallback (no avatar): cache 1 day
+- Fresh upload (?v=): no cache
+- API error: cache 5 minutes (prevents caching errors for a day)
+
 ### Posting Permission
 
 ```typescript
 // apps/worker/src/lib/postingPermission.ts
-if (settings.requireAvatar && !userRow.avatar_path) {
+// User has avatar if: avatar_path is set (new GUID system) OR has_avatar = 1 (legacy system)
+const hasAvatar = !!userRow.avatar_path || userRow.has_avatar === 1;
+if (settings.requireAvatar && !hasAvatar) {
   // Block posting if avatar required but not uploaded
 }
 ```
+
+**Important**: Legacy users with `has_avatar = 1` can still post even if they haven't uploaded in the new system. This ensures backward compatibility.
 
 ## Upload Flow
 
@@ -85,6 +96,7 @@ Browser → POST /api/v1/upload (multipart)
 | Upload handler | `apps/worker/src/lib/upload.ts` |
 | Upload config | `apps/worker/src/lib/upload-config.ts` |
 | Avatar proxy | `apps/web/src/app/api/avatar/[uid]/route.ts` |
+| Avatar path endpoint | `apps/worker/src/handlers/user.ts` (`getAvatarPath`) |
 | Avatar helpers | `apps/web/src/lib/avatar-proxy.ts` |
 | Upload UI | `apps/web/src/components/forum/avatar-upload.tsx` |
 | Posting permission | `apps/worker/src/lib/postingPermission.ts` |
