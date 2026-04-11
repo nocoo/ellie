@@ -25,6 +25,7 @@ describe("D1 row mappers", () => {
 				username: "alice",
 				email: "alice@example.com",
 				avatar: "avatar.png",
+				avatar_path: "avatars/abc123.jpg",
 				status: 0,
 				role: 1,
 				reg_date: 1711540800,
@@ -60,6 +61,7 @@ describe("D1 row mappers", () => {
 				username: "alice",
 				email: "alice@example.com",
 				avatar: "avatar.png",
+				avatarPath: "avatars/abc123.jpg",
 				status: 0,
 				role: 1,
 				regDate: 1711540800,
@@ -136,12 +138,13 @@ describe("D1 row mappers", () => {
 			expect("password_salt" in user).toBe(false);
 		});
 
-		it("should output exactly 30 fields", () => {
+		it("should output exactly 33 fields", () => {
 			const row = {
 				id: 1,
 				username: "alice",
 				email: "a@b.com",
 				avatar: "",
+				avatar_path: "",
 				status: 0,
 				role: 0,
 				reg_date: 0,
@@ -171,7 +174,7 @@ describe("D1 row mappers", () => {
 			};
 
 			const user = toUser(row);
-			expect(Object.keys(user)).toHaveLength(32);
+			expect(Object.keys(user)).toHaveLength(33);
 		});
 	});
 
@@ -403,6 +406,7 @@ describe("D1 row mappers", () => {
 				id: 1,
 				username: "alice",
 				avatar: "avatar.png",
+				avatar_path: "avatars/abc123.jpg",
 				role: 1,
 				reg_date: 1711540800,
 				threads: 10,
@@ -416,6 +420,17 @@ describe("D1 row mappers", () => {
 				digest_posts: 5,
 				ol_time: 1000,
 				last_activity: 1711540800,
+				gender: 1,
+				birth_year: 1990,
+				birth_month: 5,
+				birth_day: 15,
+				reside_province: "上海",
+				reside_city: "杨浦",
+				graduate_school: "同济大学",
+				bio: "Hello",
+				interest: "编程",
+				qq: "12345",
+				site: "https://example.com",
 			};
 
 			const user = toPublicUser(row);
@@ -424,6 +439,7 @@ describe("D1 row mappers", () => {
 				id: 1,
 				username: "alice",
 				avatar: "avatar.png",
+				avatarPath: "avatars/abc123.jpg",
 				role: 1,
 				regDate: 1711540800,
 				threads: 10,
@@ -437,6 +453,17 @@ describe("D1 row mappers", () => {
 				digestPosts: 5,
 				olTime: 1000,
 				lastActivity: 1711540800,
+				gender: 1,
+				birthYear: 1990,
+				birthMonth: 5,
+				birthDay: 15,
+				resideProvince: "上海",
+				resideCity: "杨浦",
+				graduateSchool: "同济大学",
+				bio: "Hello",
+				interest: "编程",
+				qq: "12345",
+				site: "https://example.com",
 			});
 		});
 
@@ -475,11 +502,12 @@ describe("D1 row mappers", () => {
 			expect("password_hash" in user).toBe(false);
 		});
 
-		it("should output exactly 27 fields", () => {
+		it("should output exactly 28 fields", () => {
 			const row = {
 				id: 1,
 				username: "alice",
 				avatar: "",
+				avatar_path: "",
 				role: 0,
 				reg_date: 0,
 				threads: 0,
@@ -507,7 +535,7 @@ describe("D1 row mappers", () => {
 			};
 
 			const user = toPublicUser(row);
-			expect(Object.keys(user)).toHaveLength(27);
+			expect(Object.keys(user)).toHaveLength(28);
 		});
 	});
 

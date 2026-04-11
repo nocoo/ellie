@@ -206,7 +206,7 @@ export async function login(request: Request, env: Env): Promise<Response> {
 
 /** Explicit column list — never SELECT * to avoid leaking sensitive fields */
 const USER_COLUMNS =
-	"id, username, email, avatar, status, role, reg_date, last_login, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, last_activity";
+	"id, username, email, avatar, avatar_path, status, role, reg_date, last_login, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, last_activity";
 
 /** POST /api/v1/auth/refresh - Exchange refresh token for new JWT + rotated refresh token */
 export async function refresh(request: Request, env: Env): Promise<Response> {
