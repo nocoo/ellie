@@ -84,6 +84,7 @@ export async function loadThreadDetail(params: {
 			// Fill in required User fields with defaults (not used for permission checks)
 			email: "",
 			avatar: "",
+			avatarPath: "",
 			status: UserStatus.Active,
 			regDate: 0,
 			lastLogin: 0,

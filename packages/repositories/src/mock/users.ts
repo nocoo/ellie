@@ -10,6 +10,7 @@ export const MOCK_USERS: User[] = [
 		username: "admin",
 		email: "admin@tongji.net",
 		avatar: "avatars/1.jpg",
+		avatarPath: "",
 		status: UserStatus.Active,
 		role: UserRole.Admin,
 		regDate: 1072915200, // 2004-01-01
@@ -44,6 +45,7 @@ export const MOCK_USERS: User[] = [
 		username: "supermod",
 		email: "supermod@tongji.net",
 		avatar: "avatars/2.jpg",
+		avatarPath: "",
 		status: UserStatus.Active,
 		role: UserRole.SuperMod,
 		regDate: 1104537600, // 2005-01-01
@@ -78,6 +80,7 @@ export const MOCK_USERS: User[] = [
 		username: "mod_tech",
 		email: "mod@tongji.net",
 		avatar: "",
+		avatarPath: "",
 		status: UserStatus.Active,
 		role: UserRole.Mod,
 		regDate: 1136073600, // 2006-01-01
@@ -112,6 +115,7 @@ export const MOCK_USERS: User[] = [
 		username: "zhangsan",
 		email: "zhangsan@example.com",
 		avatar: "avatars/10.jpg",
+		avatarPath: "",
 		status: UserStatus.Active,
 		role: UserRole.User,
 		regDate: 1262304000, // 2010-01-01
@@ -146,6 +150,7 @@ export const MOCK_USERS: User[] = [
 		username: "lisi",
 		email: "lisi@example.com",
 		avatar: "avatars/11.jpg",
+		avatarPath: "",
 		status: UserStatus.Active,
 		role: UserRole.User,
 		regDate: 1388534400, // 2014-01-01
@@ -180,6 +185,7 @@ export const MOCK_USERS: User[] = [
 		username: "wangwu",
 		email: "wangwu@example.com",
 		avatar: "",
+		avatarPath: "",
 		status: UserStatus.Banned,
 		role: UserRole.User,
 		regDate: 1420070400, // 2015-01-01
@@ -214,6 +220,7 @@ export const MOCK_USERS: User[] = [
 		username: "olduser",
 		email: "old@example.com",
 		avatar: "",
+		avatarPath: "",
 		status: UserStatus.Archived,
 		role: UserRole.User,
 		regDate: 1041379200, // 2003-01-01
