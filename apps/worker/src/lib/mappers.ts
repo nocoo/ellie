@@ -19,6 +19,7 @@ interface D1UserRow {
 	username: string;
 	email: string;
 	avatar: string;
+	avatar_path: string;
 	status: number;
 	role: number;
 	reg_date: number;
@@ -121,6 +122,7 @@ export function toUser(row: Record<string, unknown>): User {
 		username: r.username,
 		email: r.email,
 		avatar: r.avatar,
+		avatarPath: r.avatar_path ?? "",
 		status: r.status,
 		role: r.role,
 		regDate: r.reg_date,
@@ -367,6 +369,7 @@ export function toPublicUser(row: Record<string, unknown>): PublicUser {
 		id: r.id,
 		username: r.username,
 		avatar: r.avatar,
+		avatarPath: r.avatar_path ?? "",
 		role: r.role,
 		regDate: r.reg_date,
 		threads: r.threads,
