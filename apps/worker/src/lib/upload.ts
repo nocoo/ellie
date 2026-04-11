@@ -2,11 +2,23 @@
 // Currently supports avatar uploads with validation and R2 storage
 
 import { errorResponse } from "../middleware/error";
-import { computeAvatarPath } from "./avatar-path";
 import type { Env } from "./env";
 import { jsonResponse } from "./response";
 import { UPLOAD_CONFIGS } from "./upload-config";
 import { invalidateUserCache } from "./user-cache";
+
+/**
+ * Generate a GUID-based avatar path.
+ * Uses crypto.randomUUID() for unique filenames that bypass cache issues.
+ *
+ * @param mimeType - File MIME type to determine extension
+ * @returns R2 key path like "avatars/550e8400-e29b-41d4-a716-446655440000.jpg"
+ */
+export function generateAvatarPath(mimeType: string): string {
+	const uuid = crypto.randomUUID();
+	const ext = mimeType === "image/png" ? "png" : "jpg";
+	return `avatars/${uuid}.${ext}`;
+}
 
 /**
  * Handle file upload requests.
@@ -94,6 +106,7 @@ export async function handleUpload(
 
 /**
  * Handle avatar-specific upload logic.
+ * Generates a new GUID-based path for each upload to avoid cache issues.
  */
 async function handleAvatarUpload(
 	env: Env,
@@ -103,8 +116,8 @@ async function handleAvatarUpload(
 	mimeType: string,
 	origin?: string,
 ): Promise<Response> {
-	// Generate R2 key path
-	const key = computeAvatarPath(userId);
+	// Generate unique GUID-based path
+	const key = generateAvatarPath(mimeType);
 
 	try {
 		// Upload to R2 with original MIME type
@@ -120,8 +133,10 @@ async function handleAvatarUpload(
 		);
 	}
 
-	// Update user record — set has_avatar = 1
-	await env.DB.prepare("UPDATE users SET has_avatar = 1 WHERE id = ?").bind(userId).run();
+	// Update user record — set avatar_path and has_avatar = 1
+	await env.DB.prepare("UPDATE users SET avatar_path = ?, has_avatar = 1 WHERE id = ?")
+		.bind(key, userId)
+		.run();
 
 	// Invalidate user cache (non-blocking)
 	ctx.waitUntil(invalidateUserCache(env, userId));
@@ -129,6 +144,7 @@ async function handleAvatarUpload(
 	return jsonResponse(
 		{
 			url: `/api/avatar/${userId}`,
+			path: key,
 			size: imageData.byteLength,
 		},
 		origin,

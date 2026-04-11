@@ -1,7 +1,25 @@
 import { describe, expect, it } from "bun:test";
 import type { Env } from "../../../src/lib/env";
-import { handleUpload } from "../../../src/lib/upload";
+import { generateAvatarPath, handleUpload } from "../../../src/lib/upload";
 import { createMockCtx, createMockDb, createMockKV, createMockR2 } from "../../helpers";
+
+describe("generateAvatarPath", () => {
+	it("should generate GUID-based path for JPEG", () => {
+		const path = generateAvatarPath("image/jpeg");
+		expect(path).toMatch(/^avatars\/[a-f0-9-]+\.jpg$/);
+	});
+
+	it("should generate GUID-based path for PNG", () => {
+		const path = generateAvatarPath("image/png");
+		expect(path).toMatch(/^avatars\/[a-f0-9-]+\.png$/);
+	});
+
+	it("should generate unique paths on each call", () => {
+		const path1 = generateAvatarPath("image/jpeg");
+		const path2 = generateAvatarPath("image/jpeg");
+		expect(path1).not.toBe(path2);
+	});
+});
 
 describe("handleUpload", () => {
 	function createEnv(overrides?: Partial<Env>): Env {
@@ -179,7 +197,7 @@ describe("handleUpload", () => {
 	});
 
 	describe("avatar upload success", () => {
-		it("should upload JPEG to R2 and update database", async () => {
+		it("should upload JPEG to R2 with GUID path and update database", async () => {
 			const r2 = createMockR2();
 			const { db, calls } = createMockDb();
 			const env = createEnv({ R2: r2, DB: db });
@@ -196,19 +214,21 @@ describe("handleUpload", () => {
 			const body = await response.json();
 			expect(body.data.url).toBe("/api/avatar/12345");
 			expect(body.data.size).toBe(5000);
+			// path should be GUID-based
+			expect(body.data.path).toMatch(/^avatars\/[a-f0-9-]+\.jpg$/);
 
-			// Verify R2 put was called with correct key and MIME type
+			// Verify R2 put was called with GUID-based key
 			expect(r2._putCalls).toHaveLength(1);
-			expect(r2._putCalls[0].key).toBe("avatar/000/01/23/45_avatar_big.jpg");
+			expect(r2._putCalls[0].key).toMatch(/^avatars\/[a-f0-9-]+\.jpg$/);
 			expect(r2._putCalls[0].options?.httpMetadata?.contentType).toBe("image/jpeg");
 
-			// Verify DB update
-			const updateCall = calls.find((c) => c.sql.includes("UPDATE users SET has_avatar"));
+			// Verify DB update includes avatar_path
+			const updateCall = calls.find((c) => c.sql.includes("UPDATE users SET avatar_path"));
 			expect(updateCall).toBeDefined();
 			expect(updateCall?.params).toContain(12345);
 		});
 
-		it("should upload PNG to R2 with correct MIME type", async () => {
+		it("should upload PNG to R2 with correct MIME type and extension", async () => {
 			const r2 = createMockR2();
 			const { db } = createMockDb();
 			const env = createEnv({ R2: r2, DB: db });
@@ -222,8 +242,11 @@ describe("handleUpload", () => {
 			const response = await handleUpload(request, env, ctx, 42);
 
 			expect(response.status).toBe(200);
+			const body = await response.json();
+			expect(body.data.path).toMatch(/^avatars\/[a-f0-9-]+\.png$/);
+
 			expect(r2._putCalls).toHaveLength(1);
-			// PNG should be stored with image/png MIME type, not image/jpeg
+			expect(r2._putCalls[0].key).toMatch(/^avatars\/[a-f0-9-]+\.png$/);
 			expect(r2._putCalls[0].options?.httpMetadata?.contentType).toBe("image/png");
 		});
 
@@ -261,6 +284,31 @@ describe("handleUpload", () => {
 			// waitUntil should have been called for cache invalidation
 			expect(ctx._waitUntilPromises).toHaveLength(1);
 		});
+
+		it("should generate unique paths for consecutive uploads", async () => {
+			const r2 = createMockR2();
+			const { db } = createMockDb();
+			const env = createEnv({ R2: r2, DB: db });
+			const ctx = createMockCtx();
+			const file1 = createJpegFile(1000);
+			const file2 = createJpegFile(1000);
+
+			await handleUpload(
+				createMultipartRequest({ file: file1, purpose: "avatar" }),
+				env,
+				ctx,
+				42,
+			);
+			await handleUpload(
+				createMultipartRequest({ file: file2, purpose: "avatar" }),
+				env,
+				ctx,
+				42,
+			);
+
+			expect(r2._putCalls).toHaveLength(2);
+			expect(r2._putCalls[0].key).not.toBe(r2._putCalls[1].key);
+		});
 	});
 
 	describe("R2 error handling", () => {
@@ -281,40 +329,6 @@ describe("handleUpload", () => {
 			const body = await response.json();
 			expect(body.error.code).toBe("UPLOAD_FAILED");
 			expect(body.error.details.message).toBe("R2 connection failed");
-		});
-	});
-
-	describe("avatar path computation", () => {
-		it("should compute correct path for UID 1", async () => {
-			const r2 = createMockR2();
-			const { db } = createMockDb();
-			const env = createEnv({ R2: r2, DB: db });
-			const ctx = createMockCtx();
-			const file = createJpegFile(1000);
-			const request = createMultipartRequest({
-				file,
-				purpose: "avatar",
-			});
-
-			await handleUpload(request, env, ctx, 1);
-
-			expect(r2._putCalls[0].key).toBe("avatar/000/00/00/01_avatar_big.jpg");
-		});
-
-		it("should compute correct path for large UID", async () => {
-			const r2 = createMockR2();
-			const { db } = createMockDb();
-			const env = createEnv({ R2: r2, DB: db });
-			const ctx = createMockCtx();
-			const file = createJpegFile(1000);
-			const request = createMultipartRequest({
-				file,
-				purpose: "avatar",
-			});
-
-			await handleUpload(request, env, ctx, 123456789);
-
-			expect(r2._putCalls[0].key).toBe("avatar/123/45/67/89_avatar_big.jpg");
 		});
 	});
 });
