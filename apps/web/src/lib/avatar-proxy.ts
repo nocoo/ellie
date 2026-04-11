@@ -1,22 +1,38 @@
 // Avatar proxy helpers — used by /api/avatar/[uid]/route.ts
 
-export const CDN_BASE = "https://t.no.mt/avatar";
+export const CDN_BASE = "https://t.no.mt";
 export const FALLBACK_URL = "https://t.no.mt/static/image/common/tavatar.gif";
 
 /**
- * Compute the CDN path for an avatar given a user ID.
+ * Compute the legacy CDN path for an avatar given a user ID.
  * UID is zero-padded to 9 digits and split into directory structure.
+ * Used as fallback when user has no avatar_path set.
  *
- * @example computeAvatarCdnPath(12345) => "https://t.no.mt/avatar/000/01/23/45_avatar_big.jpg"
+ * @example computeLegacyAvatarCdnPath(12345) => "https://t.no.mt/avatar/000/01/23/45_avatar_big.jpg"
  */
-export function computeAvatarCdnPath(uid: number): string {
+export function computeLegacyAvatarCdnPath(uid: number): string {
 	const padded = uid.toString().padStart(9, "0");
 	const dir1 = padded.slice(0, 3);
 	const dir2 = padded.slice(3, 5);
 	const dir3 = padded.slice(5, 7);
 	const file = padded.slice(7, 9);
 	// Always fetch big avatar — size parameter is deprecated
-	return `${CDN_BASE}/${dir1}/${dir2}/${dir3}/${file}_avatar_big.jpg`;
+	return `${CDN_BASE}/avatar/${dir1}/${dir2}/${dir3}/${file}_avatar_big.jpg`;
+}
+
+/**
+ * Compute the CDN path for an avatar.
+ * If avatarPath is set (GUID-based), use it directly.
+ * Otherwise fallback to legacy UID-based path.
+ *
+ * @param uid - User ID (for legacy path computation)
+ * @param avatarPath - GUID-based path from DB, empty = use legacy
+ */
+export function computeAvatarCdnPath(uid: number, avatarPath?: string): string {
+	if (avatarPath) {
+		return `${CDN_BASE}/${avatarPath}`;
+	}
+	return computeLegacyAvatarCdnPath(uid);
 }
 
 /**

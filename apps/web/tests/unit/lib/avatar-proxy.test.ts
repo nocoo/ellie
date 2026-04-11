@@ -3,13 +3,14 @@ import {
 	CDN_BASE,
 	FALLBACK_URL,
 	computeAvatarCdnPath,
+	computeLegacyAvatarCdnPath,
 	getCacheControl,
 } from "../../../src/lib/avatar-proxy";
 
 describe("avatar-proxy", () => {
 	describe("constants", () => {
 		test("CDN_BASE points to t.no.mt", () => {
-			expect(CDN_BASE).toBe("https://t.no.mt/avatar");
+			expect(CDN_BASE).toBe("https://t.no.mt");
 		});
 
 		test("FALLBACK_URL points to default avatar GIF", () => {
@@ -17,25 +18,49 @@ describe("avatar-proxy", () => {
 		});
 	});
 
-	describe("computeAvatarCdnPath", () => {
+	describe("computeLegacyAvatarCdnPath", () => {
 		test("generates correct path for UID 12345", () => {
-			expect(computeAvatarCdnPath(12345)).toBe(
+			expect(computeLegacyAvatarCdnPath(12345)).toBe(
 				"https://t.no.mt/avatar/000/01/23/45_avatar_big.jpg",
 			);
 		});
 
 		test("generates correct path for UID 1", () => {
-			expect(computeAvatarCdnPath(1)).toBe("https://t.no.mt/avatar/000/00/00/01_avatar_big.jpg");
+			expect(computeLegacyAvatarCdnPath(1)).toBe(
+				"https://t.no.mt/avatar/000/00/00/01_avatar_big.jpg",
+			);
 		});
 
 		test("generates correct path for large UID", () => {
-			expect(computeAvatarCdnPath(123456789)).toBe(
+			expect(computeLegacyAvatarCdnPath(123456789)).toBe(
 				"https://t.no.mt/avatar/123/45/67/89_avatar_big.jpg",
 			);
 		});
 
 		test("handles UID 0", () => {
-			expect(computeAvatarCdnPath(0)).toBe("https://t.no.mt/avatar/000/00/00/00_avatar_big.jpg");
+			expect(computeLegacyAvatarCdnPath(0)).toBe(
+				"https://t.no.mt/avatar/000/00/00/00_avatar_big.jpg",
+			);
+		});
+	});
+
+	describe("computeAvatarCdnPath", () => {
+		test("uses avatarPath when provided", () => {
+			expect(computeAvatarCdnPath(12345, "avatars/abc123.jpg")).toBe(
+				"https://t.no.mt/avatars/abc123.jpg",
+			);
+		});
+
+		test("falls back to legacy path when avatarPath is empty", () => {
+			expect(computeAvatarCdnPath(12345, "")).toBe(
+				"https://t.no.mt/avatar/000/01/23/45_avatar_big.jpg",
+			);
+		});
+
+		test("falls back to legacy path when avatarPath is undefined", () => {
+			expect(computeAvatarCdnPath(12345)).toBe(
+				"https://t.no.mt/avatar/000/01/23/45_avatar_big.jpg",
+			);
 		});
 	});
 
