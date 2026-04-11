@@ -26,6 +26,10 @@ export async function GET(
 			headers: {
 				"User-Agent": "Ellie/1.0",
 			},
+			// Disable Next.js fetch cache — always get fresh avatar from CDN/R2
+			// This is critical for avatar updates: without it, Next.js caches the
+			// old avatar and ?v= cache-busting has no effect
+			cache: "no-store",
 		});
 
 		if (!response.ok) {
