@@ -71,12 +71,12 @@ export async function checkPostingPermission(
 	origin?: string,
 	contentType: ContentType = "message",
 ): Promise<PostingPermissionResult> {
-	// Fetch user details from DB to check status, avatar_path, reg_date
+	// Fetch user details from DB to check status, avatar (legacy + new), reg_date
 	const userRow = await env.DB.prepare(
-		"SELECT status, avatar_path, reg_date, role FROM users WHERE id = ?",
+		"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id = ?",
 	)
 		.bind(user.userId)
-		.first<{ status: number; avatar_path: string; reg_date: number; role: number }>();
+		.first<{ status: number; avatar_path: string; has_avatar: number; reg_date: number; role: number }>();
 
 	if (!userRow) {
 		return {
@@ -139,8 +139,10 @@ export async function checkPostingPermission(
 			}
 		}
 
-		// Check avatar requirement (avatar_path is the source of truth)
-		if (settings.requireAvatar && !userRow.avatar_path) {
+		// Check avatar requirement
+		// User has avatar if: avatar_path is set (new GUID system) OR has_avatar = 1 (legacy system)
+		const hasAvatar = !!userRow.avatar_path || userRow.has_avatar === 1;
+		if (settings.requireAvatar && !hasAvatar) {
 			return {
 				allowed: false,
 				error: errorResponse(
