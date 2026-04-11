@@ -630,9 +630,9 @@ describe("thread handlers", () => {
 				firstResults: {
 					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
-					"SELECT status, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
-						has_avatar: 1,
+						avatar_path: "avatars/test.jpg",
 						reg_date: 0,
 						role: 0,
 					},
@@ -662,9 +662,9 @@ describe("thread handlers", () => {
 				firstResults: {
 					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
-					"SELECT status, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
-						has_avatar: 1,
+						avatar_path: "avatars/test.jpg",
 						reg_date: 0,
 						role: 0,
 					},
@@ -694,9 +694,9 @@ describe("thread handlers", () => {
 				firstResults: {
 					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"FROM forums WHERE id": null,
-					"SELECT status, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
-						has_avatar: 1,
+						avatar_path: "avatars/test.jpg",
 						reg_date: 0,
 						role: 0,
 					},
@@ -727,9 +727,9 @@ describe("thread handlers", () => {
 				firstResults: {
 					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
-					"SELECT status, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
-						has_avatar: 1,
+						avatar_path: "avatars/test.jpg",
 						reg_date: 0,
 						role: 0,
 					},
@@ -765,9 +765,9 @@ describe("thread handlers", () => {
 					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
 					"SELECT * FROM threads WHERE id": createdThread,
-					"SELECT status, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
-						has_avatar: 1,
+						avatar_path: "avatars/test.jpg",
 						reg_date: 0,
 						role: 0,
 					},
@@ -813,9 +813,9 @@ describe("thread handlers", () => {
 					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
 					"SELECT * FROM threads WHERE id": createdThread,
-					"SELECT status, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
-						has_avatar: 1,
+						avatar_path: "avatars/test.jpg",
 						reg_date: 0,
 						role: 0,
 					},
@@ -853,9 +853,9 @@ describe("thread handlers", () => {
 				firstResults: {
 					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
-					"SELECT status, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
-						has_avatar: 1,
+						avatar_path: "avatars/test.jpg",
 						reg_date: 0,
 						role: 0,
 					},
@@ -885,9 +885,9 @@ describe("thread handlers", () => {
 				firstResults: {
 					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
-					"SELECT status, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
-						has_avatar: 1,
+						avatar_path: "avatars/test.jpg",
 						reg_date: 0,
 						role: 0,
 					},
@@ -917,9 +917,9 @@ describe("thread handlers", () => {
 				firstResults: {
 					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
-					"SELECT status, has_avatar, reg_date, role FROM users": {
+					"SELECT status, avatar_path, reg_date, role FROM users": {
 						status: 0,
-						has_avatar: 1,
+						avatar_path: "avatars/test.jpg",
 						reg_date: 0,
 						role: 0,
 					},
