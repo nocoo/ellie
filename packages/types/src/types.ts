@@ -188,6 +188,7 @@ export interface PublicUser {
 	id: number;
 	username: string;
 	avatar: string;
+	avatarPath: string; // GUID-based R2 path, empty = use legacy UID-based path
 	role: UserRole;
 	regDate: number;
 	threads: number;
@@ -221,6 +222,7 @@ export interface User {
 	username: string;
 	email: string;
 	avatar: string;
+	avatarPath: string; // GUID-based R2 path, empty = use legacy UID-based path
 	status: UserStatus;
 	role: UserRole;
 	regDate: number;
