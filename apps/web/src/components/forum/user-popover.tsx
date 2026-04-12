@@ -216,9 +216,10 @@ export function UserPopover({
 	const viewerRole = viewerRoleProp ?? session?.user?.role ?? 0;
 	const viewerUserId = viewerUserIdProp ?? (session?.user?.id ? Number.parseInt(session.user.id, 10) : null);
 
-	const isAdmin = viewerRole >= 1 && viewerRole <= 2;
-	// Can manage users (Admin or SuperMod only)
-	const canManageUsers = viewerRole >= 1 && viewerRole <= 2;
+	// Staff: Admin (1), SuperMod (2), Mod (3) — matches moderationMiddleware in Worker
+	const isStaff = viewerRole >= 1;
+	// Can manage users (all staff can perform moderation actions)
+	const canManageUsers = viewerRole >= 1;
 	const isSelf = viewerUserId === userId;
 
 	const fetchUser = useCallback(async () => {
@@ -371,8 +372,8 @@ export function UserPopover({
 							)}
 						</div>
 
-						{/* Admin-only section */}
-						{isAdmin && <AdminInfoSection user={user} />}
+						{/* Staff-only section (Admin, SuperMod, Mod) */}
+						{isStaff && <AdminInfoSection user={user} />}
 
 						{/* Actions */}
 						<div className="px-4 py-3 border-t border-border/50 flex items-center justify-between gap-2">
