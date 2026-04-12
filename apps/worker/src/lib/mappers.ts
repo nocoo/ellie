@@ -45,10 +45,8 @@ interface D1UserRow {
 	qq: string;
 	site: string;
 	last_activity: number;
-	reg_ip?: string;
-	last_ip?: string;
 	// Sensitive fields (never exposed):
-	// password_hash, password_salt
+	// password_hash, password_salt, reg_ip, last_ip
 }
 
 /** D1 row shape for forums table */
@@ -147,8 +145,6 @@ export function toUser(row: Record<string, unknown>): User {
 		qq: r.qq,
 		site: r.site,
 		lastActivity: r.last_activity,
-		regIp: r.reg_ip ?? "",
-		lastIp: r.last_ip ?? "",
 	};
 }
 
