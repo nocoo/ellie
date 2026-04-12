@@ -593,6 +593,18 @@ function AdminInfoSection({ user }: { user: PublicUser }) {
 				管理员信息
 			</p>
 			<div className="space-y-1.5 text-xs">
+				{user.regIp && (
+					<div className="flex justify-between">
+						<span className="text-muted-foreground">注册 IP</span>
+						<span className="text-foreground font-mono text-2xs">{user.regIp}</span>
+					</div>
+				)}
+				{user.lastIp && (
+					<div className="flex justify-between">
+						<span className="text-muted-foreground">最后 IP</span>
+						<span className="text-foreground font-mono text-2xs">{user.lastIp}</span>
+					</div>
+				)}
 				{user.qq && (
 					<div className="flex justify-between">
 						<span className="text-muted-foreground">QQ</span>

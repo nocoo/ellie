@@ -171,9 +171,9 @@ export async function login(request: Request, env: Env): Promise<Response> {
 				.run();
 		}
 
-		// Update last login time
-		await env.DB.prepare("UPDATE users SET last_login = ? WHERE id = ?")
-			.bind(Math.floor(Date.now() / 1000), user.id)
+		// Update last login time and IP
+		await env.DB.prepare("UPDATE users SET last_login = ?, last_ip = ? WHERE id = ?")
+			.bind(Math.floor(Date.now() / 1000), ip, user.id)
 			.run();
 
 		return new Response(
@@ -396,10 +396,10 @@ export async function register(request: Request, env: Env): Promise<Response> {
 				`INSERT INTO users (
 					username, email, password_hash, password_salt,
 					status, role, reg_date, last_login, last_activity,
-					group_title, group_stars
-				) VALUES (?, ?, ?, '', 0, 0, ?, ?, ?, '新手上路', 0)`,
+					group_title, group_stars, reg_ip, last_ip
+				) VALUES (?, ?, ?, '', 0, 0, ?, ?, ?, '新手上路', 0, ?, ?)`,
 			)
-				.bind(username, email, passwordHash, now, now, now)
+				.bind(username, email, passwordHash, now, now, now, ip, ip)
 				.run();
 		} catch (e: unknown) {
 			if (e instanceof Error && e.message.includes("UNIQUE constraint")) {

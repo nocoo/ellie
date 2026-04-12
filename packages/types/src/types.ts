@@ -213,6 +213,9 @@ export interface PublicUser {
 	interest: string;
 	qq: string;
 	site: string;
+	// Admin-only fields (populated only for admins/mods viewing the profile)
+	regIp?: string;
+	lastIp?: string;
 }
 
 /** Maps to Doc02 users table — 1.14M rows */
