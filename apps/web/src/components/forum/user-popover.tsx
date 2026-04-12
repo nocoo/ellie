@@ -497,7 +497,7 @@ function UserHeader({
 					<Link href={`/users/${user.id}`} onClick={onClose}>
 						<div className="bg-card p-1 rounded-lg shadow-md ring-1 ring-border/50">
 							<UserAvatar
-								src={getAvatarUrl(user.id, "middle")}
+								src={getAvatarUrl(user.id, "middle", user.avatarPath)}
 								alt={user.username}
 								className="h-16 w-16 rounded-md"
 							/>

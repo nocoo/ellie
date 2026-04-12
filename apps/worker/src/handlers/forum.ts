@@ -144,7 +144,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 	// Choose query based on cache strategy
 	const forumQuery = useKvCache
 		? "SELECT * FROM forums ORDER BY display_order"
-		: `SELECT f.*, u.avatar AS last_poster_avatar
+		: `SELECT f.*, u.avatar AS last_poster_avatar, u.avatar_path AS last_poster_avatar_path
 		   FROM forums f
 		   LEFT JOIN users u ON f.last_poster_id = u.id
 		   ORDER BY f.display_order`;
@@ -172,6 +172,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		// If JOIN approach, populate avatar directly from query result
 		if (!useKvCache && r.last_poster_avatar !== undefined) {
 			forum.lastPosterAvatar = (r.last_poster_avatar as string) ?? "";
+			forum.lastPosterAvatarPath = (r.last_poster_avatar_path as string) ?? "";
 		}
 		return forum;
 	});

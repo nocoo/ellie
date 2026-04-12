@@ -177,6 +177,7 @@ export function toForum(row: Record<string, unknown>): Forum {
 		lastPoster: r.last_poster,
 		lastPosterId: r.last_poster_id ?? 0,
 		lastPosterAvatar: "", // Will be populated from KV cache
+		lastPosterAvatarPath: "", // Will be populated from KV cache
 		lastThreadSubject: r.last_thread_subject,
 	};
 }
@@ -199,12 +200,14 @@ export function toThread(row: Record<string, unknown>): Thread {
 		authorId: r.author_id,
 		authorName: r.author_name,
 		authorAvatar: "", // Will be populated from KV cache
+		authorAvatarPath: "", // Will be populated from KV cache
 		subject: r.subject,
 		createdAt: r.created_at,
 		lastPostAt: r.last_post_at,
 		lastPoster: r.last_poster,
 		lastPosterId: r.last_poster_id ?? 0,
 		lastPosterAvatar: "", // Will be populated from KV cache
+		lastPosterAvatarPath: "", // Will be populated from KV cache
 		replies: r.replies,
 		views: r.views,
 		closed: r.closed,
@@ -426,6 +429,7 @@ export function enrichForumsWithUserCache(
 				...forum,
 				lastPoster: user.username, // Use cached username (may be updated)
 				lastPosterAvatar: user.avatar,
+				lastPosterAvatarPath: user.avatarPath,
 			};
 		}
 		return forum;
@@ -447,8 +451,10 @@ export function enrichThreadsWithUserCache(
 			...thread,
 			authorName: author?.username ?? thread.authorName,
 			authorAvatar: author?.avatar ?? "",
+			authorAvatarPath: author?.avatarPath ?? "",
 			lastPoster: lastPoster?.username ?? thread.lastPoster,
 			lastPosterAvatar: lastPoster?.avatar ?? "",
+			lastPosterAvatarPath: lastPoster?.avatarPath ?? "",
 		};
 	});
 }
@@ -466,6 +472,7 @@ export function enrichForumWithUserCache(
 			...forum,
 			lastPoster: user.username,
 			lastPosterAvatar: user.avatar,
+			lastPosterAvatarPath: user.avatarPath,
 		};
 	}
 	return forum;
@@ -484,7 +491,9 @@ export function enrichThreadWithUserCache(
 		...thread,
 		authorName: author?.username ?? thread.authorName,
 		authorAvatar: author?.avatar ?? "",
+		authorAvatarPath: author?.avatarPath ?? "",
 		lastPoster: lastPoster?.username ?? thread.lastPoster,
 		lastPosterAvatar: lastPoster?.avatar ?? "",
+		lastPosterAvatarPath: lastPoster?.avatarPath ?? "",
 	};
 }

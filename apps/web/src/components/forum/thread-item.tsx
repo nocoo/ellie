@@ -30,7 +30,7 @@ export function ThreadItem({ item }: ThreadItemProps) {
 					<Link href={`/users/${thread.authorId}`} className="shrink-0">
 						<Avatar size="sm" className="rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.1)]">
 							<AvatarImage
-								src={getAvatarUrl(thread.authorId, "small")}
+								src={getAvatarUrl(thread.authorId, "small", thread.authorAvatarPath)}
 								alt={thread.authorName}
 								className="rounded-sm"
 							/>
@@ -110,7 +110,7 @@ export function ThreadItem({ item }: ThreadItemProps) {
 					<Link href={`/users/${thread.authorId}`} className="shrink-0">
 						<Avatar size="sm" className="rounded-sm">
 							<AvatarImage
-								src={getAvatarUrl(thread.authorId, "small")}
+								src={getAvatarUrl(thread.authorId, "small", thread.authorAvatarPath)}
 								alt={thread.authorName}
 								className="rounded-sm"
 							/>

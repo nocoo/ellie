@@ -232,7 +232,7 @@ describe("D1 row mappers", () => {
 			};
 
 			const forum = toForum(row);
-			expect(Object.keys(forum)).toHaveLength(20);
+			expect(Object.keys(forum)).toHaveLength(21);
 		});
 	});
 
@@ -320,7 +320,7 @@ describe("D1 row mappers", () => {
 			};
 
 			const thread = toThread(row);
-			expect(Object.keys(thread)).toHaveLength(20);
+			expect(Object.keys(thread)).toHaveLength(22);
 		});
 	});
 

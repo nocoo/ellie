@@ -15,6 +15,7 @@ export interface UserMiniProfile {
 	id: number;
 	username: string;
 	avatar: string;
+	avatarPath: string;
 	role: number;
 	groupTitle: string;
 	groupColor: string;
@@ -67,7 +68,7 @@ export async function getUserProfiles(
 			const batch = missedIds.slice(i, i + BATCH_SIZE);
 			const placeholders = batch.map(() => "?").join(",");
 			const dbResult = await env.DB.prepare(
-				`SELECT id, username, avatar, role, group_title, group_color, group_stars
+				`SELECT id, username, avatar, avatar_path, role, group_title, group_color, group_stars
        FROM users WHERE id IN (${placeholders})`,
 			)
 				.bind(...batch)
@@ -78,6 +79,7 @@ export async function getUserProfiles(
 					id: row.id as number,
 					username: row.username as string,
 					avatar: row.avatar as string,
+					avatarPath: (row.avatar_path as string) ?? "",
 					role: row.role as number,
 					groupTitle: row.group_title as string,
 					groupColor: row.group_color as string,

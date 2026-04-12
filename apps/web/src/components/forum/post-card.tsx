@@ -164,7 +164,7 @@ export function PostCard({
 						<Link href={`/users/${post.authorId}`}>
 							<Avatar className="h-8 w-8 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
 								<AvatarImage
-									src={getAvatarUrl(post.authorId, "small")}
+									src={getAvatarUrl(post.authorId, "small", post.author?.avatarPath)}
 									alt={post.author.username}
 									className="rounded-sm"
 								/>
