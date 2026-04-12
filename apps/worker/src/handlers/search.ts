@@ -1,7 +1,7 @@
 // Search handlers for Cloudflare Worker
 // FTS5 full-text search on thread subjects
 
-import type { Thread } from "@ellie/types";
+import { type Thread, decodeGenericCursor, encodeGenericCursor } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { isKvUserCacheEnabled } from "../lib/env";
 import { enrichThreadsWithUserCache, toThread } from "../lib/mappers";
@@ -17,28 +17,9 @@ interface SearchCursorPayload {
 	id: number;
 }
 
-function encodeSearchCursor(payload: SearchCursorPayload): string {
-	return btoa(JSON.stringify(payload));
-}
-
-function decodeSearchCursor(cursor: string): SearchCursorPayload | null {
-	try {
-		const json = atob(cursor);
-		const parsed = JSON.parse(json) as unknown;
-		if (
-			typeof parsed === "object" &&
-			parsed !== null &&
-			"lastPostAt" in parsed &&
-			"id" in parsed &&
-			typeof (parsed as SearchCursorPayload).lastPostAt === "number" &&
-			typeof (parsed as SearchCursorPayload).id === "number"
-		) {
-			return parsed as SearchCursorPayload;
-		}
-		return null;
-	} catch {
-		return null;
-	}
+/** Validate search cursor payload shape */
+function isSearchCursor(p: Partial<SearchCursorPayload>): boolean {
+	return typeof p.lastPostAt === "number" && typeof p.id === "number";
 }
 
 /**
@@ -189,7 +170,7 @@ export async function searchThreads(
 	const cursorStr = url.searchParams.get("cursor");
 	let cursorPayload: SearchCursorPayload | null = null;
 	if (cursorStr) {
-		cursorPayload = decodeSearchCursor(cursorStr);
+		cursorPayload = decodeGenericCursor<SearchCursorPayload>(cursorStr, isSearchCursor);
 		if (!cursorPayload) {
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid cursor format" }, origin);
 		}
@@ -226,7 +207,10 @@ export async function searchThreads(
 	const lastItem = items[items.length - 1] as { last_post_at: number; id: number } | undefined;
 	const nextCursor =
 		hasMore && lastItem
-			? encodeSearchCursor({ lastPostAt: lastItem.last_post_at, id: lastItem.id })
+			? encodeGenericCursor<SearchCursorPayload>({
+					lastPostAt: lastItem.last_post_at,
+					id: lastItem.id,
+				})
 			: null;
 
 	return jsonResponse(enrichedThreads, origin, { nextCursor, total });

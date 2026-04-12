@@ -1,3 +1,4 @@
+import { decodeGenericCursor, encodeGenericCursor } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { toThread } from "../lib/mappers";
 import {
@@ -16,32 +17,11 @@ interface DigestCursorPayload {
 	id: number;
 }
 
-/** Encode digest cursor to base64 */
-function encodeDigestCursor(payload: DigestCursorPayload): string {
-	return btoa(JSON.stringify(payload));
-}
-
-/** Decode digest cursor from base64 */
-function decodeDigestCursor(cursor: string): DigestCursorPayload | null {
-	try {
-		const json = atob(cursor);
-		const parsed = JSON.parse(json) as unknown;
-		if (
-			typeof parsed === "object" &&
-			parsed !== null &&
-			"digest" in parsed &&
-			"lastPostAt" in parsed &&
-			"id" in parsed &&
-			typeof (parsed as DigestCursorPayload).digest === "number" &&
-			typeof (parsed as DigestCursorPayload).lastPostAt === "number" &&
-			typeof (parsed as DigestCursorPayload).id === "number"
-		) {
-			return parsed as DigestCursorPayload;
-		}
-		return null;
-	} catch {
-		return null;
-	}
+/** Validate digest cursor payload shape */
+function isDigestCursor(p: Partial<DigestCursorPayload>): boolean {
+	return (
+		typeof p.digest === "number" && typeof p.lastPostAt === "number" && typeof p.id === "number"
+	);
 }
 
 /** D1 row shape for cursor extraction (snake_case) */
@@ -104,7 +84,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 
 	const clampedLimit = clampLimit(url.searchParams.get("limit"));
 	const cursorStr = url.searchParams.get("cursor");
-	const cursor = cursorStr ? decodeDigestCursor(cursorStr) : null;
+	const cursor = cursorStr ? decodeGenericCursor<DigestCursorPayload>(cursorStr, isDigestCursor) : null;
 
 	// Optional filters
 	const forumIdParam = url.searchParams.get("forumId");
@@ -163,7 +143,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	if (threads.length === clampedLimit && threads.length > 0) {
 		const lastRawRow = result.results[result.results.length - 1] as unknown as D1DigestRow;
 		if (lastRawRow) {
-			nextCursor = encodeDigestCursor({
+			nextCursor = encodeGenericCursor<DigestCursorPayload>({
 				digest: lastRawRow.digest,
 				lastPostAt: lastRawRow.last_post_at,
 				id: lastRawRow.id,

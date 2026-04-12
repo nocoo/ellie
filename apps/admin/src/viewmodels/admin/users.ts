@@ -16,6 +16,8 @@ export interface User {
 	credits: number;
 	regDate: number;
 	lastLogin: number;
+	regIp?: string;
+	lastIp?: string;
 }
 
 export interface UserFilters {
