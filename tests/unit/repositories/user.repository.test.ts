@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { createMockDataStore } from "@ellie/repositories";
-import { createMockUserRepository } from "@ellie/repositories";
+import { createMockDataStore } from "@ellie/test-mocks";
+import { createMockUserRepository } from "@ellie/test-mocks";
 import { UserRole, UserStatus } from "@ellie/types";
 
 describe("createMockUserRepository", () => {

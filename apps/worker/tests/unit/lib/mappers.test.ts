@@ -88,8 +88,6 @@ describe("D1 row mappers", () => {
 				qq: "12345678",
 				site: "https://example.com",
 				lastActivity: 1711540800,
-				regIp: "",
-				lastIp: "",
 			});
 		});
 
@@ -138,7 +136,7 @@ describe("D1 row mappers", () => {
 			expect("password_salt" in user).toBe(false);
 		});
 
-		it("should output exactly 33 fields", () => {
+it("should output exactly 33 fields", () => {
 			const row = {
 				id: 1,
 				username: "alice",
@@ -171,6 +169,8 @@ describe("D1 row mappers", () => {
 				qq: "",
 				site: "",
 				last_activity: 0,
+				reg_ip: "1.2.3.4",
+				last_ip: "5.6.7.8",
 			};
 
 			const user = toUser(row);
