@@ -118,6 +118,7 @@ describe("forum handlers", () => {
 					lastPoster: "alice",
 					lastPosterId: 10,
 					lastPosterAvatar: "",
+					lastPosterAvatarPath: "",
 					lastThreadSubject: "Latest Thread",
 				},
 			]);

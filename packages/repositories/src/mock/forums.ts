@@ -26,6 +26,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPoster: "",
 		lastPosterId: 0,
 		lastPosterAvatar: "",
+		lastPosterAvatarPath: "",
 		lastThreadSubject: "",
 	},
 	{
@@ -48,6 +49,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPoster: "zhangsan",
 		lastPosterId: 10,
 		lastPosterAvatar: "",
+		lastPosterAvatarPath: "",
 		lastThreadSubject: "同济大学2026年春季招生公告",
 	},
 	{
@@ -70,6 +72,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPoster: "lisi",
 		lastPosterId: 11,
 		lastPosterAvatar: "",
+		lastPosterAvatarPath: "",
 		lastThreadSubject: "高等数学期末复习资料分享",
 	},
 	{
@@ -92,6 +95,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPoster: "zhangsan",
 		lastPosterId: 10,
 		lastPosterAvatar: "",
+		lastPosterAvatarPath: "",
 		lastThreadSubject: "2026考研数学真题解析",
 	},
 	{
@@ -114,6 +118,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPoster: "admin",
 		lastPosterId: 1,
 		lastPosterAvatar: "",
+		lastPosterAvatarPath: "",
 		lastThreadSubject: "出MacBook Pro 2024款",
 	},
 
@@ -138,6 +143,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPoster: "",
 		lastPosterId: 0,
 		lastPosterAvatar: "",
+		lastPosterAvatarPath: "",
 		lastThreadSubject: "",
 	},
 	{
@@ -160,6 +166,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPoster: "mod_tech",
 		lastPosterId: 3,
 		lastPosterAvatar: "",
+		lastPosterAvatarPath: "",
 		lastThreadSubject: "Rust异步编程最佳实践",
 	},
 	{
@@ -182,6 +189,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPoster: "lisi",
 		lastPosterId: 11,
 		lastPosterAvatar: "",
+		lastPosterAvatarPath: "",
 		lastThreadSubject: "推荐一个好用的CLI工具",
 	},
 
@@ -206,6 +214,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPoster: "",
 		lastPosterId: 0,
 		lastPosterAvatar: "",
+		lastPosterAvatarPath: "",
 		lastThreadSubject: "",
 	},
 	{
@@ -228,6 +237,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPoster: "admin",
 		lastPosterId: 1,
 		lastPosterAvatar: "",
+		lastPosterAvatarPath: "",
 		lastThreadSubject: "论坛升级维护公告",
 	},
 	{
@@ -250,6 +260,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPoster: "zhangsan",
 		lastPosterId: 10,
 		lastPosterAvatar: "",
+		lastPosterAvatarPath: "",
 		lastThreadSubject: "建议增加夜间模式",
 	},
 
@@ -274,6 +285,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPoster: "",
 		lastPosterId: 0,
 		lastPosterAvatar: "",
+		lastPosterAvatarPath: "",
 		lastThreadSubject: "",
 	},
 ];

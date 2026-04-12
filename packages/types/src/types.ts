@@ -285,6 +285,7 @@ export interface Forum {
 	lastPoster: string;
 	lastPosterId: number;
 	lastPosterAvatar: string;
+	lastPosterAvatarPath: string;
 	lastThreadSubject: string;
 }
 
@@ -295,12 +296,14 @@ export interface Thread {
 	authorId: number;
 	authorName: string;
 	authorAvatar: string;
+	authorAvatarPath: string;
 	subject: string;
 	createdAt: number;
 	lastPostAt: number;
 	lastPoster: string;
 	lastPosterId: number;
 	lastPosterAvatar: string;
+	lastPosterAvatarPath: string;
 	replies: number;
 	views: number;
 	closed: number;

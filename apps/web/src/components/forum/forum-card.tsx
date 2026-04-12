@@ -117,7 +117,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 							<Link href={`/users/${forum.lastPosterId}`} className="shrink-0">
 								<Avatar size="sm" className="rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.1)]">
 									<AvatarImage
-										src={getAvatarUrl(forum.lastPosterId, "small")}
+										src={getAvatarUrl(forum.lastPosterId, "small", forum.lastPosterAvatarPath)}
 										alt={forum.lastPoster}
 										className="rounded-sm"
 									/>
@@ -248,7 +248,7 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 							<Link href={`/users/${forum.lastPosterId}`} className="shrink-0">
 								<Avatar size="sm" className="rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.1)]">
 									<AvatarImage
-										src={getAvatarUrl(forum.lastPosterId, "small")}
+										src={getAvatarUrl(forum.lastPosterId, "small", forum.lastPosterAvatarPath)}
 										alt={forum.lastPoster}
 										className="rounded-sm"
 									/>

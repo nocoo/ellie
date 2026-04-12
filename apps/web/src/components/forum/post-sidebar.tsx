@@ -58,7 +58,7 @@ export function PostSidebar({
 				>
 					<div className="mt-1 bg-card p-1 lg:p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)] cursor-pointer">
 						<UserAvatar
-							src={getAvatarUrl(author.id, "big")}
+							src={getAvatarUrl(author.id, "big", author.avatarPath)}
 							alt={author.username}
 							className="block w-[120px] lg:w-[160px] h-auto"
 						/>

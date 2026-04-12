@@ -63,7 +63,9 @@ function mapThreadRows(results: unknown[], useKvCache: boolean): Thread[] {
 		// If JOIN approach, populate avatars directly from query result
 		if (!useKvCache) {
 			thread.authorAvatar = (r.author_avatar as string) ?? "";
+			thread.authorAvatarPath = (r.author_avatar_path as string) ?? "";
 			thread.lastPosterAvatar = (r.last_poster_avatar as string) ?? "";
+			thread.lastPosterAvatarPath = (r.last_poster_avatar_path as string) ?? "";
 		}
 		return thread;
 	});
@@ -73,7 +75,7 @@ function mapThreadRows(results: unknown[], useKvCache: boolean): Thread[] {
 function getThreadListQuery(useKvCache: boolean, withCursor: boolean): string {
 	const selectFields = useKvCache
 		? "*"
-		: "t.*, author.avatar AS author_avatar, lp.avatar AS last_poster_avatar";
+		: "t.*, author.avatar AS author_avatar, author.avatar_path AS author_avatar_path, lp.avatar AS last_poster_avatar, lp.avatar_path AS last_poster_avatar_path";
 	const fromClause = useKvCache
 		? "threads"
 		: "threads t LEFT JOIN users author ON t.author_id = author.id LEFT JOIN users lp ON t.last_poster_id = lp.id";
@@ -274,7 +276,9 @@ export async function getById(
 		? `SELECT * FROM threads WHERE id = ? AND ${THREAD_VISIBLE}`
 		: `SELECT t.*,
 		          author.avatar AS author_avatar,
-		          lp.avatar AS last_poster_avatar
+		          author.avatar_path AS author_avatar_path,
+		          lp.avatar AS last_poster_avatar,
+		          lp.avatar_path AS last_poster_avatar_path
 		   FROM threads t
 		   LEFT JOIN users author ON t.author_id = author.id
 		   LEFT JOIN users lp ON t.last_poster_id = lp.id
@@ -317,7 +321,9 @@ export async function getById(
 	// If JOIN approach, populate avatars directly from query result
 	if (!useKvCache) {
 		thread.authorAvatar = (r.author_avatar as string) ?? "";
+		thread.authorAvatarPath = (r.author_avatar_path as string) ?? "";
 		thread.lastPosterAvatar = (r.last_poster_avatar as string) ?? "";
+		thread.lastPosterAvatarPath = (r.last_poster_avatar_path as string) ?? "";
 	}
 
 	// Enrich with KV user cache (only if enabled)
