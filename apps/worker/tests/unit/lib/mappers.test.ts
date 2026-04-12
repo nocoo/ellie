@@ -134,7 +134,7 @@ describe("D1 row mappers", () => {
 			expect("password_salt" in user).toBe(false);
 		});
 
-		it("should output exactly 30 fields", () => {
+		it("should output exactly 32 fields", () => {
 			const row = {
 				id: 1,
 				username: "alice",
@@ -166,10 +166,12 @@ describe("D1 row mappers", () => {
 				qq: "",
 				site: "",
 				last_activity: 0,
+				reg_ip: "1.2.3.4",
+				last_ip: "5.6.7.8",
 			};
 
 			const user = toUser(row);
-			expect(Object.keys(user)).toHaveLength(30);
+			expect(Object.keys(user)).toHaveLength(32);
 		});
 	});
 
