@@ -43,6 +43,7 @@ import {
 	User as UserIcon,
 	VolumeX,
 } from "lucide-react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
@@ -57,9 +58,16 @@ interface UserPopoverProps {
 	userId: number;
 	/** Trigger element (avatar, username link, etc.) */
 	children: ReactNode;
-	/** Current viewer's role (0=user, 1=admin, 2=supermod, 3=mod) */
+	/**
+	 * Current viewer's role (0=user, 1=admin, 2=supermod, 3=mod).
+	 * @deprecated Prefer letting the component read from session internally.
+	 * Kept for backward compatibility with existing call sites.
+	 */
 	viewerRole?: number;
-	/** Current viewer's user ID (null if not logged in) */
+	/**
+	 * Current viewer's user ID (null if not logged in).
+	 * @deprecated Prefer letting the component read from session internally.
+	 */
 	viewerUserId?: number | null;
 	/** Side of the trigger to show popover */
 	side?: "top" | "bottom" | "left" | "right";
@@ -181,12 +189,13 @@ const MOD_ACTION_CONFIG: Record<
 export function UserPopover({
 	userId,
 	children,
-	viewerRole = 0,
-	viewerUserId = null,
+	viewerRole: viewerRoleProp,
+	viewerUserId: viewerUserIdProp,
 	side = "bottom",
 	align = "start",
 	disabled = false,
 }: UserPopoverProps) {
+	const { data: session } = useSession();
 	const [open, setOpen] = useState(false);
 	const [loading, setLoading] = useState(false);
 	const [data, setData] = useState<UserPopoverData | null>(null);
@@ -202,6 +211,10 @@ export function UserPopover({
 
 	// User status for moderation (fetched separately for admins)
 	const [userStatus, setUserStatus] = useState<number | null>(null);
+
+	// Resolve viewer identity: prefer props (for backward compat), fall back to session
+	const viewerRole = viewerRoleProp ?? session?.user?.role ?? 0;
+	const viewerUserId = viewerUserIdProp ?? (session?.user?.id ? Number.parseInt(session.user.id, 10) : null);
 
 	const isAdmin = viewerRole >= 1 && viewerRole <= 2;
 	// Can manage users (Admin or SuperMod only)
