@@ -1,4 +1,5 @@
-// @ellie/repositories — Repository interfaces and implementations
+// @ellie/test-mocks — Mock repository implementations for unit testing
+// NOTE: These are NOT used in production. Worker handlers use D1 directly.
 
 import { createMockAttachmentRepository } from "./attachment.repository";
 import { createMockForumRepository } from "./forum.repository";
