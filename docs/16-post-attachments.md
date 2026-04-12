@@ -11,6 +11,9 @@ Allow users to upload images while composing threads and replies via drag-and-dr
 | Max single file size | 1 MB |
 | Max total per post | 5 MB |
 | Max files per post | 9 |
+| Max active drafts per user | 20 |
+| Max draft storage per user | 20 MB |
+| Draft TTL | 6 hours |
 | Allowed formats | JPG, PNG, GIF, WebP |
 | Storage | R2 bucket `tongjinet` |
 | Folder | `attachments/` |
@@ -29,9 +32,9 @@ post_id     INTEGER NOT NULL REFERENCES posts(id),
 
 This blocks two-phase upload (upload before post exists).
 
-### Solution: Separate Draft Table
+### Solution: Separate Draft Table with Status
 
-New `draft_attachments` table for uploads during compose:
+New `draft_attachments` table with status tracking for safe promotion:
 
 ```sql
 -- Migration: 0028_create_draft_attachments.sql
@@ -42,19 +45,27 @@ CREATE TABLE IF NOT EXISTS draft_attachments (
   file_path   TEXT    NOT NULL,     -- R2 path: attachments/{uuid}.{ext}
   file_size   INTEGER NOT NULL DEFAULT 0,
   is_image    INTEGER NOT NULL DEFAULT 1,
+  status      INTEGER NOT NULL DEFAULT 0,  -- 0=pending, 1=claimed, 2=promoted
+  claimed_at  INTEGER,                      -- When claimed for promotion
   created_at  INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_draft_attachments_author ON draft_attachments(author_id);
 CREATE INDEX IF NOT EXISTS idx_draft_attachments_created ON draft_attachments(created_at);
+CREATE INDEX IF NOT EXISTS idx_draft_attachments_status ON draft_attachments(status, created_at);
 ```
+
+**Status values:**
+- `0` = pending (available for use)
+- `1` = claimed (locked for promotion, has `claimed_at` timestamp)
+- `2` = promoted (successfully moved to attachments, pending cleanup)
 
 **Note**: `width` is NOT extracted at upload time — the Worker only validates MIME/size. If needed later, image metadata extraction can be added as a future enhancement.
 
 **Lifecycle:**
-1. Upload → INSERT into `draft_attachments`
-2. Submit post → Atomic transaction (see below)
-3. Orphan cleanup → DELETE from `draft_attachments` WHERE `created_at < now - 24h`, also delete R2 files
+1. Upload → INSERT with `status=0`
+2. Submit post → Claim drafts (`status=1`), create post, promote to attachments (`status=2`)
+3. Cleanup → DELETE where `status=2` OR (`status IN (0,1)` AND too old)
 
 ### Existing `attachments` Table
 
@@ -92,96 +103,121 @@ User drags image → POST /api/v1/upload (purpose=attachment)
                     ▼
                Worker handleUpload()
                     │
+                    ├── Check draft quota (count ≤ 20, total ≤ 20MB)
                     ├── Validate: size ≤ 1MB, type allowed
                     ├── Generate path: attachments/{uuid}.{ext}
                     ├── PUT to R2
-                    └── INSERT INTO draft_attachments
+                    └── INSERT INTO draft_attachments (status=0)
                     │
                     ▼
                Response: { id, filePath, filename, fileSize }
 ```
 
-Phase 2: Atomic draft promotion on submit
+**Draft quota check (prevents abuse):**
+```typescript
+const quota = await env.DB.prepare(
+  "SELECT COUNT(*) as count, COALESCE(SUM(file_size), 0) as total FROM draft_attachments WHERE author_id = ? AND status = 0"
+).bind(user.userId).first<{ count: number; total: number }>();
 
-The critical change: draft promotion must be **atomic** and **single-use** to prevent race conditions and partial failures.
+if (quota.count >= 20) {
+  return errorResponse("DRAFT_QUOTA_EXCEEDED", 429, { message: "Too many pending uploads" });
+}
+if (quota.total + file.size > 20 * 1024 * 1024) {
+  return errorResponse("DRAFT_QUOTA_EXCEEDED", 429, { message: "Draft storage limit exceeded" });
+}
+```
+
+Phase 2: Safe draft promotion on submit
+
+The key insight: D1 `batch()` is transactional — if any statement fails, the entire batch rolls back. We use this to ensure atomicity.
 
 **For replies** (`POST /api/v1/posts`):
 
 ```typescript
-// 1. Validate drafts BEFORE creating post
-const drafts = await env.DB.prepare(
-  "SELECT * FROM draft_attachments WHERE id IN (?) AND author_id = ?"
-).bind(attachmentIds, user.userId).all();
+// 1. Validate and CLAIM drafts atomically
+const claimResult = await env.DB.prepare(
+  `UPDATE draft_attachments 
+   SET status = 1, claimed_at = ? 
+   WHERE id IN (SELECT value FROM json_each(?)) 
+     AND author_id = ? 
+     AND status = 0
+   RETURNING *`
+).bind(now, JSON.stringify(attachmentIds), user.userId).all();
 
-if (drafts.results.length !== attachmentIds.length) {
-  return errorResponse("INVALID_ATTACHMENTS", 400); // Some IDs invalid/already used
-}
-
-// Check total size
-const totalSize = drafts.results.reduce((sum, d) => sum + d.file_size, 0);
-if (totalSize > 5 * 1024 * 1024) {
-  return errorResponse("ATTACHMENTS_TOO_LARGE", 413);
-}
-
-// 2. Delete drafts FIRST (single-use guarantee via DELETE ... RETURNING)
-const deleted = await env.DB.prepare(
-  "DELETE FROM draft_attachments WHERE id IN (?) AND author_id = ? RETURNING *"
-).bind(attachmentIds, user.userId).all();
-
-if (deleted.results.length !== attachmentIds.length) {
-  // Race condition: another request already consumed some drafts
+if (claimResult.results.length !== attachmentIds.length) {
+  // Some IDs invalid, already claimed, or not owned by user
+  // Rollback any partial claims
+  await env.DB.prepare(
+    "UPDATE draft_attachments SET status = 0, claimed_at = NULL WHERE author_id = ? AND status = 1 AND claimed_at = ?"
+  ).bind(user.userId, now).run();
   return errorResponse("INVALID_ATTACHMENTS", 400);
 }
 
-// 3. Create post
+// Check total size
+const totalSize = claimResult.results.reduce((sum, d) => sum + d.file_size, 0);
+if (totalSize > 5 * 1024 * 1024) {
+  // Rollback claims
+  await env.DB.prepare(
+    "UPDATE draft_attachments SET status = 0, claimed_at = NULL WHERE id IN (SELECT value FROM json_each(?))"
+  ).bind(JSON.stringify(attachmentIds)).run();
+  return errorResponse("ATTACHMENTS_TOO_LARGE", 413);
+}
+
+// 2. Create post + promote attachments in single transaction
 const postResult = await env.DB.prepare(
   "INSERT INTO posts (...) VALUES (...)"
 ).bind(...).run();
 const postId = postResult.meta.last_row_id;
 
-// 4. Insert finalized attachments (from deleted draft data)
-const attachmentInserts = deleted.results.map(d =>
+// 3. Transactional batch: insert attachments + mark drafts as promoted + update counts
+await env.DB.batch([
+  // Insert into attachments
+  ...claimResult.results.map(d =>
+    env.DB.prepare(
+      "INSERT INTO attachments (thread_id, post_id, author_id, filename, file_path, file_size, is_image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    ).bind(threadId, postId, user.userId, d.filename, d.file_path, d.file_size, d.is_image, now)
+  ),
+  // Mark drafts as promoted (not deleted yet — cleanup job handles it)
   env.DB.prepare(
-    "INSERT INTO attachments (thread_id, post_id, author_id, filename, file_path, file_size, is_image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-  ).bind(threadId, postId, user.userId, d.filename, d.file_path, d.file_size, d.is_image, now)
-);
-await env.DB.batch(attachmentInserts);
+    "UPDATE draft_attachments SET status = 2 WHERE id IN (SELECT value FROM json_each(?))"
+  ).bind(JSON.stringify(attachmentIds)),
+  // Update thread/forum counts...
+]);
 ```
 
 **For thread creation** (`POST /api/v1/threads`):
 
-Current `thread.create()` uses `batch()` to insert thread + first post, but doesn't capture the post ID. Must restructure:
-
 ```typescript
-// 1. Validate drafts (same as above)
-// 2. Delete drafts with RETURNING (same as above)
+// 1. Claim and validate drafts (same as above)
 
-// 3. Insert thread FIRST (get thread_id)
+// 2. Insert thread FIRST (get thread_id)
 const threadResult = await env.DB.prepare(
   "INSERT INTO threads (...) VALUES (...)"
 ).bind(...).run();
 const threadId = threadResult.meta.last_row_id;
 
-// 4. Insert first post SEPARATELY (get post_id)
+// 3. Insert first post SEPARATELY (get post_id)
 const postResult = await env.DB.prepare(
   "INSERT INTO posts (thread_id, ...) VALUES (?, ...)"
 ).bind(threadId, ...).run();
 const postId = postResult.meta.last_row_id;
 
-// 5. Batch: update forum/user counts + insert attachments
+// 4. Transactional batch: insert attachments + mark promoted + update counts
 await env.DB.batch([
-  env.DB.prepare("UPDATE forums SET threads = threads + 1, ...").bind(...),
-  env.DB.prepare("UPDATE users SET threads = threads + 1, ...").bind(...),
-  ...deleted.results.map(d =>
+  ...claimResult.results.map(d =>
     env.DB.prepare("INSERT INTO attachments (...) VALUES (...)").bind(threadId, postId, ...)
   ),
+  env.DB.prepare("UPDATE draft_attachments SET status = 2 WHERE id IN (SELECT value FROM json_each(?))").bind(...),
+  env.DB.prepare("UPDATE forums SET threads = threads + 1, ...").bind(...),
+  env.DB.prepare("UPDATE users SET threads = threads + 1, ...").bind(...),
 ]);
 ```
 
 **Key invariants:**
-- `DELETE ... RETURNING` ensures single-use: if two requests race, only one gets the drafts
-- Drafts are deleted BEFORE post creation: if post insert fails, drafts are gone but R2 blobs remain (orphan cleanup handles this)
-- No transaction needed: D1 doesn't support multi-statement transactions, but the delete-first pattern prevents duplicate attachment linking
+- `status=1` (claimed) prevents double-use: only one request can claim pending drafts
+- `status=2` (promoted) marks successful promotion; R2 blobs are NOT orphans
+- If batch fails after claim, cleanup recovers: stale claims (status=1 with old claimed_at) get reset
+- D1 batch is transactional: partial insert failures roll back
 
 ### Why Two-Phase?
 
@@ -191,32 +227,53 @@ await env.DB.batch([
 4. **Validation**: Size/format errors shown immediately
 5. **Preview**: Show thumbnails before submit
 
-### Orphan Cleanup
+### Cleanup (Scheduled Handler)
 
-Draft attachments older than 24 hours are orphans. Also catches R2 blobs from failed post creations. Cleanup via scheduled Worker:
+Add to existing scheduled handler in `apps/worker/src/index.ts:541`:
 
 ```typescript
-// In scheduled handler (already exists for session cleanup)
-const orphans = await env.DB.prepare(
-  "SELECT id, file_path FROM draft_attachments WHERE created_at < ?"
-).bind(Date.now() / 1000 - 86400).all();
+async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+  ctx.waitUntil(aggregateOnlineStats(env));
+  ctx.waitUntil(cleanupDraftAttachments(env));  // NEW
+}
+```
 
-// Delete R2 blobs
-await deleteAttachmentBlobs(env, orphans.results.map(o => o.file_path));
+**Cleanup logic:**
 
-// Delete DB rows
-await env.DB.prepare(
-  "DELETE FROM draft_attachments WHERE created_at < ?"
-).bind(Date.now() / 1000 - 86400).run();
+```typescript
+// apps/worker/src/lib/draft-cleanup.ts
+export async function cleanupDraftAttachments(env: Env): Promise<void> {
+  const now = Math.floor(Date.now() / 1000);
+  const draftTTL = 6 * 60 * 60;  // 6 hours
+  const claimTimeout = 5 * 60;    // 5 minutes — stale claims
+
+  // 1. Delete promoted drafts (status=2) — R2 blobs already in attachments
+  await env.DB.prepare("DELETE FROM draft_attachments WHERE status = 2").run();
+
+  // 2. Reset stale claims (status=1, claimed_at older than 5 minutes)
+  await env.DB.prepare(
+    "UPDATE draft_attachments SET status = 0, claimed_at = NULL WHERE status = 1 AND claimed_at < ?"
+  ).bind(now - claimTimeout).run();
+
+  // 3. Find and delete expired pending/reset drafts — also delete R2 blobs
+  const expired = await env.DB.prepare(
+    "SELECT id, file_path FROM draft_attachments WHERE status IN (0, 1) AND created_at < ?"
+  ).bind(now - draftTTL).all<{ id: number; file_path: string }>();
+
+  if (expired.results.length > 0) {
+    // Delete R2 blobs
+    await deleteAttachmentBlobs(env, expired.results.map(e => e.file_path));
+    // Delete DB rows
+    await env.DB.prepare(
+      "DELETE FROM draft_attachments WHERE status IN (0, 1) AND created_at < ?"
+    ).bind(now - draftTTL).run();
+  }
+}
 ```
 
 ### R2 Deletion Helper
 
-Create shared helper for R2 blob cleanup, used by:
-- Draft orphan cleanup
-- User content deletion (`user-content.ts`)
-- Moderation nuke (`moderation.ts`)
-- Admin attachment delete (`admin/attachment.ts`)
+Create shared helper for R2 blob cleanup:
 
 ```typescript
 // apps/worker/src/lib/r2-cleanup.ts
@@ -227,6 +284,73 @@ export async function deleteAttachmentBlobs(
   // R2.delete() is idempotent, safe to call on non-existent keys
   await Promise.all(filePaths.map(path => env.R2.delete(path)));
 }
+
+/**
+ * Delete attachments by post ID — used by all post deletion paths.
+ * Deletes both DB rows and R2 blobs.
+ */
+export async function deleteAttachmentsByPostId(
+  env: Env,
+  postId: number
+): Promise<void> {
+  const attachments = await env.DB.prepare(
+    "SELECT file_path FROM attachments WHERE post_id = ?"
+  ).bind(postId).all<{ file_path: string }>();
+
+  if (attachments.results.length > 0) {
+    await deleteAttachmentBlobs(env, attachments.results.map(a => a.file_path));
+    await env.DB.prepare("DELETE FROM attachments WHERE post_id = ?").bind(postId).run();
+  }
+}
+
+/**
+ * Delete attachments by thread ID — used by thread deletion paths.
+ * Deletes both DB rows and R2 blobs.
+ */
+export async function deleteAttachmentsByThreadId(
+  env: Env,
+  threadId: number
+): Promise<void> {
+  const attachments = await env.DB.prepare(
+    "SELECT file_path FROM attachments WHERE thread_id = ?"
+  ).bind(threadId).all<{ file_path: string }>();
+
+  if (attachments.results.length > 0) {
+    await deleteAttachmentBlobs(env, attachments.results.map(a => a.file_path));
+    await env.DB.prepare("DELETE FROM attachments WHERE thread_id = ?").bind(threadId).run();
+  }
+}
+```
+
+### Deletion Paths — Complete Coverage
+
+**CRITICAL**: All post/thread deletion paths must clean up R2 blobs. Current code only deletes DB rows.
+
+| Path | File | Current Issue | Fix |
+|------|------|---------------|-----|
+| User deletes own post | `user-content.ts:67` | No attachment cleanup | Add `deleteAttachmentsByPostId()` |
+| User deletes own thread | `user-content.ts:129` | Deletes attachment rows, not R2 | Use `deleteAttachmentsByThreadId()` |
+| Mod deletes post | `moderation.ts:395` | No attachment cleanup | Add `deleteAttachmentsByPostId()` |
+| Mod deletes thread | `moderation.ts` | Deletes attachment rows, not R2 | Use `deleteAttachmentsByThreadId()` |
+| Admin deletes post | `admin/post.ts:166` | No attachment cleanup | Add `deleteAttachmentsByPostId()` |
+| Admin nuke user | `moderation.ts` | Deletes attachment rows, not R2 | Use helper |
+| Admin delete attachment | `admin/attachment.ts` | Missing R2 delete | Add R2 delete |
+
+**Example fix for user-content.ts:67:**
+
+```typescript
+// Before: only deletes posts
+await env.DB.batch([
+  env.DB.prepare("DELETE FROM posts WHERE id = ?").bind(id),
+  ...
+]);
+
+// After: also deletes attachments and R2 blobs
+await deleteAttachmentsByPostId(env, id);  // NEW — deletes R2 + DB
+await env.DB.batch([
+  env.DB.prepare("DELETE FROM posts WHERE id = ?").bind(id),
+  ...
+]);
 ```
 
 ## API Design
@@ -267,7 +391,14 @@ export const UPLOAD_CONFIGS: Record<string, UploadConfig> = {
 
 Frontend derives URL: `https://t.no.mt/${filePath}`
 
-**Errors**: Same as avatar upload (`NO_FILE`, `FILE_TOO_LARGE`, `INVALID_FORMAT`, `UPLOAD_FAILED`)
+**Errors**:
+| Code | Status | Description |
+|------|--------|-------------|
+| `NO_FILE` | 400 | No file in request |
+| `FILE_TOO_LARGE` | 413 | Single file > 1 MB |
+| `INVALID_FORMAT` | 415 | Not JPG/PNG/GIF/WebP |
+| `DRAFT_QUOTA_EXCEEDED` | 429 | Too many drafts or storage limit |
+| `UPLOAD_FAILED` | 500 | R2 write failed |
 
 ### DELETE /api/v1/upload/draft/:id (new)
 
@@ -293,6 +424,7 @@ export async function DELETE(
 **Worker handler validation**:
 - Must exist in `draft_attachments`
 - Must be author (`author_id = user.userId`)
+- Must be `status = 0` (not claimed or promoted)
 
 **Behavior**:
 - Delete from R2
@@ -313,7 +445,7 @@ Create new thread with attachments.
 ```
 
 **Validation**:
-- All IDs must exist in `draft_attachments`
+- All IDs must exist in `draft_attachments` with `status = 0`
 - All must have `author_id = current_user.id`
 - Total size of all attachments ≤ 5 MB
 - Count ≤ 9
@@ -446,44 +578,52 @@ Keep display logic in existing components, just ensure they handle the new attac
 |-----------|------|
 | Migration | `apps/worker/migrations/0028_create_draft_attachments.sql` |
 | Upload config | `apps/worker/src/lib/upload-config.ts` (add `attachment`) |
-| Upload handler | `apps/worker/src/lib/upload.ts` (add attachment case) |
+| Upload handler | `apps/worker/src/lib/upload.ts` (add attachment case + quota check) |
 | R2 cleanup helper | `apps/worker/src/lib/r2-cleanup.ts` (new) |
+| Draft cleanup | `apps/worker/src/lib/draft-cleanup.ts` (new) |
 | Draft delete handler | `apps/worker/src/handlers/upload.ts` (new) |
 | Draft delete proxy | `apps/web/src/app/api/v1/upload/draft/[id]/route.ts` (new) |
-| Scheduled cleanup | `apps/worker/src/scheduled.ts` (add orphan cleanup) |
+| Scheduled handler | `apps/worker/src/index.ts:541` (add draft cleanup call) |
 | AttachmentZone | `apps/web/src/components/forum/attachment-zone.tsx` |
 | Post API changes | `apps/worker/src/handlers/post.ts` |
 | Thread API changes | `apps/worker/src/handlers/thread.ts` (restructure for post_id) |
+| User content fixes | `apps/worker/src/handlers/user-content.ts` (add R2 cleanup) |
+| Moderation fixes | `apps/worker/src/handlers/moderation.ts` (add R2 cleanup) |
+| Admin post fixes | `apps/worker/src/handlers/admin/post.ts` (add R2 cleanup) |
 
 ## Security Considerations
 
 1. **Auth required**: All upload/delete operations require valid JWT
 2. **Ownership check**: Only author can delete their draft attachments
-3. **Single-use drafts**: `DELETE ... RETURNING` prevents race conditions
-4. **Size limits enforced server-side**: Client limits can be bypassed
-5. **MIME type validation**: Check actual file content, not just extension
-6. **Filename sanitization**: Store original name but use GUID for path
-7. **Orphan cleanup**: Prevent storage abuse from abandoned uploads
-8. **R2 cleanup on delete**: All deletion paths must also delete R2 blobs
+3. **Draft quota**: Prevents abuse via unlimited uploads (20 files, 20MB per user)
+4. **Claim-based promotion**: `status` field prevents race conditions
+5. **Size limits enforced server-side**: Client limits can be bypassed
+6. **MIME type validation**: Check actual file content, not just extension
+7. **Filename sanitization**: Store original name but use GUID for path
+8. **Complete deletion**: All post/thread delete paths clean up R2 blobs
 
 ## Migration Checklist
 
 1. [ ] Create migration `0028_create_draft_attachments.sql`
 2. [ ] Add `attachment` config to `upload-config.ts`
-3. [ ] Add attachment upload case to `upload.ts`
-4. [ ] Create `r2-cleanup.ts` helper
-5. [ ] Create `upload.ts` handler with draft delete
-6. [ ] Create Next.js proxy `apps/web/src/app/api/v1/upload/draft/[id]/route.ts`
-7. [ ] Restructure `thread.create()` to get `post_id` separately
-8. [ ] Modify `post.create()` to accept `attachmentIds` with atomic promotion
-9. [ ] Modify `thread.create()` to accept `attachmentIds`
-10. [ ] Add orphan cleanup to scheduled Worker
-11. [ ] Update user-content/moderation/admin deletion to use R2 cleanup helper
-12. [ ] Create `AttachmentZone` component
-13. [ ] Integrate into post editor
-14. [ ] Run migration
-15. [ ] Deploy Worker
-16. [ ] Test e2e
+3. [ ] Add attachment upload case to `upload.ts` with quota check
+4. [ ] Create `r2-cleanup.ts` helper with `deleteAttachmentsByPostId/ThreadId`
+5. [ ] Create `draft-cleanup.ts` for scheduled cleanup
+6. [ ] Create `upload.ts` handler with draft delete
+7. [ ] Create Next.js proxy `apps/web/src/app/api/v1/upload/draft/[id]/route.ts`
+8. [ ] Restructure `thread.create()` to get `post_id` separately
+9. [ ] Modify `post.create()` to accept `attachmentIds` with claim-based promotion
+10. [ ] Modify `thread.create()` to accept `attachmentIds`
+11. [ ] Add draft cleanup call to scheduled handler in `index.ts:541`
+12. [ ] Fix `user-content.ts` post/thread deletion to use R2 helpers
+13. [ ] Fix `moderation.ts` post/thread deletion to use R2 helpers
+14. [ ] Fix `admin/post.ts` deletion to use R2 helpers
+15. [ ] Fix `admin/attachment.ts` to delete R2 blobs
+16. [ ] Create `AttachmentZone` component
+17. [ ] Integrate into post editor
+18. [ ] Run migration
+19. [ ] Deploy Worker
+20. [ ] Test e2e
 
 ## Future Enhancements
 
@@ -494,3 +634,4 @@ Keep display logic in existing components, just ensure they handle the new attac
 - Non-image attachments (PDF, ZIP) with download UI
 - Drag to reorder attachments
 - Edit alt text for accessibility
+- Published attachment quota per user (with admin dashboard)
