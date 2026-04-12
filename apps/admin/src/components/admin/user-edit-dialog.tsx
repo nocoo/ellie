@@ -259,6 +259,35 @@ export function UserEditDialog({
 							/>
 						</div>
 					</div>
+
+					{/* IP Info Section (read-only) */}
+					{(user?.regIp || user?.lastIp) && (
+						<div className="space-y-4">
+							<h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+								<span className="h-1 w-1 rounded-full bg-muted-foreground" />
+								IP 信息
+							</h3>
+
+							<div className="grid grid-cols-2 gap-4">
+								{user.regIp && (
+									<div className="grid gap-2">
+										<Label className="text-muted-foreground">注册 IP</Label>
+										<div className="px-3 py-2 rounded-md bg-muted/50 text-sm font-mono">
+											{user.regIp}
+										</div>
+									</div>
+								)}
+								{user.lastIp && (
+									<div className="grid gap-2">
+										<Label className="text-muted-foreground">最后登录 IP</Label>
+										<div className="px-3 py-2 rounded-md bg-muted/50 text-sm font-mono">
+											{user.lastIp}
+										</div>
+									</div>
+								)}
+							</div>
+						</div>
+					)}
 				</div>
 
 				{/* Footer */}
