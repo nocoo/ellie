@@ -15,7 +15,7 @@ import { errorResponse } from "../middleware/error";
 
 /** Explicit PublicUser columns — never SELECT * to avoid leaking sensitive fields */
 const PUBLIC_USER_COLUMNS =
-	"id, username, avatar, role, reg_date, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, last_activity, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site";
+	"id, username, avatar, role, reg_date, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, last_activity, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, reg_ip, last_ip";
 
 /** Default/max page sizes for user history endpoints */
 const DEFAULT_HISTORY_LIMIT = 20;
@@ -77,7 +77,11 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
 	}
 
-	return jsonResponse(toPublicUser(result), origin);
+	// Check if requester is admin/mod (role >= 1) to include IP fields
+	const viewer = await optionalAuthVerified(request, env);
+	const isStaff = viewer !== null && viewer.role >= 1;
+
+	return jsonResponse(toPublicUser(result, isStaff), origin);
 }
 
 /** GET /api/v1/users/:id/threads - List user's threads with keyset pagination */

@@ -252,6 +252,10 @@ export interface User {
 	lastActivity: number;
 	/** Whether user has uploaded an avatar (determines posting permission) */
 	hasAvatar?: boolean;
+	/** Registration IP (admin-only) */
+	regIp?: string;
+	/** Last login IP (admin-only) */
+	lastIp?: string;
 }
 
 /** Moderator info for display */
