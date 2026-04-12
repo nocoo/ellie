@@ -39,6 +39,52 @@ export function decodeCursor(cursor: string): CursorPayload | null {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Generic cursor utilities for various payload shapes
+// ---------------------------------------------------------------------------
+
+/**
+ * Encode any cursor payload object into an opaque base64 string.
+ * This is the generic version that works with any payload shape.
+ */
+export function encodeGenericCursor<T extends object>(payload: T): string {
+	return btoa(JSON.stringify(payload));
+}
+
+/**
+ * Decode an opaque cursor string and validate it against a schema.
+ *
+ * @param cursor - The base64-encoded cursor string
+ * @param validator - A function that validates the parsed object has the expected shape
+ * @returns The validated payload or null if invalid
+ *
+ * @example
+ * ```ts
+ * interface PostCursor { position: number }
+ * const payload = decodeGenericCursor<PostCursor>(cursor, (p) =>
+ *   typeof p.position === 'number'
+ * );
+ * ```
+ */
+export function decodeGenericCursor<T extends object>(
+	cursor: string,
+	validator: (parsed: Partial<T>) => boolean,
+): T | null {
+	try {
+		const json = atob(cursor);
+		const parsed: unknown = JSON.parse(json);
+		if (typeof parsed !== "object" || parsed === null) {
+			return null;
+		}
+		if (validator(parsed as Partial<T>)) {
+			return parsed as T;
+		}
+		return null;
+	} catch {
+		return null;
+	}
+}
+
 /** Default page size */
 export const DEFAULT_PAGE_SIZE = 20;
 

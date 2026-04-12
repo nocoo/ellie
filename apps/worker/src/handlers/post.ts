@@ -1,5 +1,5 @@
 // Post handlers for Cloudflare Worker
-import { canViewForumVisibility } from "@ellie/types";
+import { canViewForumVisibility, decodeGenericCursor, encodeGenericCursor } from "@ellie/types";
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
@@ -17,28 +17,9 @@ interface PostCursorPayload {
 	position: number;
 }
 
-/** Encode post cursor to base64 */
-function encodePostCursor(payload: PostCursorPayload): string {
-	return btoa(JSON.stringify(payload));
-}
-
-/** Decode post cursor from base64 */
-function decodePostCursor(cursor: string): PostCursorPayload | null {
-	try {
-		const json = atob(cursor);
-		const parsed = JSON.parse(json) as unknown;
-		if (
-			typeof parsed === "object" &&
-			parsed !== null &&
-			"position" in parsed &&
-			typeof (parsed as PostCursorPayload).position === "number"
-		) {
-			return parsed as PostCursorPayload;
-		}
-		return null;
-	} catch {
-		return null;
-	}
+/** Validate post cursor payload shape */
+function isPostCursor(p: Partial<PostCursorPayload>): boolean {
+	return typeof p.position === "number";
 }
 
 /** GET /api/v1/posts - List posts with position-based pagination */
@@ -95,7 +76,9 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	const clampedLimit =
 		limitNum === undefined || limitNum <= 0 ? DEFAULT_PAGE_SIZE : Math.min(limitNum, MAX_PAGE_SIZE);
 
-	const cursor = cursorStr ? decodePostCursor(cursorStr) : null;
+	const cursor = cursorStr
+		? decodeGenericCursor<PostCursorPayload>(cursorStr, isPostCursor)
+		: null;
 
 	let result: D1Result;
 	if (cursor) {
@@ -121,7 +104,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	if (posts.length === clampedLimit && posts.length > 0) {
 		const lastPost = posts[posts.length - 1];
 		if (lastPost) {
-			nextCursor = encodePostCursor({
+			nextCursor = encodeGenericCursor<PostCursorPayload>({
 				position: lastPost.position,
 			});
 		}
