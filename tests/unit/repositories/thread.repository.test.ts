@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { createMockDataStore } from "@ellie/repositories";
-import { createMockThreadRepository } from "@ellie/repositories";
+import { createMockDataStore } from "@ellie/test-mocks";
+import { createMockThreadRepository } from "@ellie/test-mocks";
 import { StickyLevel } from "@ellie/types";
 
 describe("createMockThreadRepository", () => {

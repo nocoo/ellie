@@ -98,7 +98,8 @@ export const TABLES = {
 			content TEXT NOT NULL,
 			created_at INTEGER NOT NULL,
 			is_first INTEGER NOT NULL DEFAULT 0,
-			position INTEGER NOT NULL DEFAULT 0
+			position INTEGER NOT NULL DEFAULT 0,
+			invisible INTEGER NOT NULL DEFAULT 0
 		);
 	`,
 

@@ -38,6 +38,8 @@ export type { CursorPayload } from "./pagination";
 export {
 	encodeCursor,
 	decodeCursor,
+	encodeGenericCursor,
+	decodeGenericCursor,
 	DEFAULT_PAGE_SIZE,
 	MAX_PAGE_SIZE,
 	clampPageSize,

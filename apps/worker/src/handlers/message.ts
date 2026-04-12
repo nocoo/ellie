@@ -1,6 +1,7 @@
 // Message (private messaging) handlers for Cloudflare Worker
 // Ref: docs/12-private-messages.md §4
 
+import { decodeGenericCursor, encodeGenericCursor } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
@@ -22,28 +23,9 @@ interface MessageCursor {
 	id: number;
 }
 
-function encodeMessageCursor(payload: MessageCursor): string {
-	return btoa(JSON.stringify(payload));
-}
-
-function decodeMessageCursor(cursor: string): MessageCursor | null {
-	try {
-		const json = atob(cursor);
-		const parsed = JSON.parse(json) as unknown;
-		if (
-			typeof parsed === "object" &&
-			parsed !== null &&
-			"createdAt" in parsed &&
-			"id" in parsed &&
-			typeof (parsed as MessageCursor).createdAt === "number" &&
-			typeof (parsed as MessageCursor).id === "number"
-		) {
-			return parsed as MessageCursor;
-		}
-		return null;
-	} catch {
-		return null;
-	}
+/** Validate message cursor payload shape */
+function isMessageCursor(p: Partial<MessageCursor>): boolean {
+	return typeof p.createdAt === "number" && typeof p.id === "number";
 }
 
 // ─── D1 row type ─────────────────────────────────────────────
@@ -117,7 +99,7 @@ export const list = withAuthVerified(async (request, env, user) => {
 		limitNum === undefined || limitNum <= 0 ? DEFAULT_LIMIT : Math.min(limitNum, MAX_LIMIT);
 
 	const cursorStr = url.searchParams.get("cursor");
-	const cursor = cursorStr ? decodeMessageCursor(cursorStr) : null;
+	const cursor = cursorStr ? decodeGenericCursor<MessageCursor>(cursorStr, isMessageCursor) : null;
 
 	// Build query based on box type
 	const isInbox = box === "inbox";
@@ -151,7 +133,7 @@ export const list = withAuthVerified(async (request, env, user) => {
 	let nextCursor: string | null = null;
 	if (messages.length === clampedLimit && messages.length > 0) {
 		const last = result.results[result.results.length - 1];
-		nextCursor = encodeMessageCursor({ createdAt: last.created_at, id: last.id });
+		nextCursor = encodeGenericCursor<MessageCursor>({ createdAt: last.created_at, id: last.id });
 	}
 
 	// Get unread count (inbox only)

@@ -528,8 +528,6 @@ describe("publicUserToUser", () => {
 		expect(user.email).toBe("");
 		expect(user.status).toBe(UserStatus.Active);
 		expect(user.lastLogin).toBe(0);
-		expect(user.regIp).toBe("");
-		expect(user.lastIp).toBe("");
 	});
 
 	it("preserves all PublicUser fields through spread", () => {

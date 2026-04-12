@@ -1,5 +1,10 @@
 // Thread handlers for Cloudflare Worker
-import { type Thread, canViewForumVisibility } from "@ellie/types";
+import {
+	type Thread,
+	canViewForumVisibility,
+	decodeGenericCursor,
+	encodeGenericCursor,
+} from "@ellie/types";
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
@@ -20,32 +25,11 @@ interface ThreadCursorPayload {
 	id: number;
 }
 
-/** Encode thread cursor to base64 */
-function encodeThreadCursor(payload: ThreadCursorPayload): string {
-	return btoa(JSON.stringify(payload));
-}
-
-/** Decode thread cursor from base64 */
-function decodeThreadCursor(cursor: string): ThreadCursorPayload | null {
-	try {
-		const json = atob(cursor);
-		const parsed = JSON.parse(json) as unknown;
-		if (
-			typeof parsed === "object" &&
-			parsed !== null &&
-			"sticky" in parsed &&
-			"lastPostAt" in parsed &&
-			"id" in parsed &&
-			typeof (parsed as ThreadCursorPayload).sticky === "number" &&
-			typeof (parsed as ThreadCursorPayload).lastPostAt === "number" &&
-			typeof (parsed as ThreadCursorPayload).id === "number"
-		) {
-			return parsed as ThreadCursorPayload;
-		}
-		return null;
-	} catch {
-		return null;
-	}
+/** Validate thread cursor payload shape */
+function isThreadCursor(p: Partial<ThreadCursorPayload>): boolean {
+	return (
+		typeof p.sticky === "number" && typeof p.lastPostAt === "number" && typeof p.id === "number"
+	);
 }
 
 /** D1 row shape for cursor extraction (snake_case) */
@@ -182,7 +166,9 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 	// -------------------------------------------------------------------
 	// Branch: keyset cursor pagination (default / backward-compatible)
 	// -------------------------------------------------------------------
-	const cursor = cursorStr ? decodeThreadCursor(cursorStr) : null;
+	const cursor = cursorStr
+		? decodeGenericCursor<ThreadCursorPayload>(cursorStr, isThreadCursor)
+		: null;
 	const query = getThreadListQuery(useKvCache, cursor !== null);
 
 	const result: D1Result = cursor
@@ -212,7 +198,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 	if (threads.length === clampedLimit && threads.length > 0) {
 		const lastRawRow = result.results[result.results.length - 1] as unknown as D1ThreadRow;
 		if (lastRawRow) {
-			nextCursor = encodeThreadCursor({
+			nextCursor = encodeGenericCursor<ThreadCursorPayload>({
 				sticky: lastRawRow.sticky,
 				lastPostAt: lastRawRow.last_post_at,
 				id: lastRawRow.id,

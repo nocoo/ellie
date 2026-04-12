@@ -110,8 +110,6 @@ export async function loadThreadDetail(params: {
 			interest: "",
 			qq: "",
 			site: "",
-			regIp: "",
-			lastIp: "",
 		};
 	}
 

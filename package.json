@@ -52,7 +52,7 @@
 		"husky": "^9.1.7",
 		"lint-staged": "^16.4.0",
 		"typescript": "^5.9",
-		"@ellie/repositories": "workspace:*",
+		"@ellie/test-mocks": "workspace:*",
 		"@ellie/types": "workspace:*"
 	},
 	"trustedDependencies": ["@biomejs/biome"],
