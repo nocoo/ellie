@@ -247,8 +247,6 @@ export interface User {
 	qq: string;
 	site: string;
 	lastActivity: number;
-	regIp: string;
-	lastIp: string;
 	/** Whether user has uploaded an avatar (determines posting permission) */
 	hasAvatar?: boolean;
 }

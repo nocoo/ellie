@@ -86,8 +86,6 @@ describe("D1 row mappers", () => {
 				qq: "12345678",
 				site: "https://example.com",
 				lastActivity: 1711540800,
-				regIp: "",
-				lastIp: "",
 			});
 		});
 
@@ -171,7 +169,7 @@ describe("D1 row mappers", () => {
 			};
 
 			const user = toUser(row);
-			expect(Object.keys(user)).toHaveLength(32);
+			expect(Object.keys(user)).toHaveLength(30);
 		});
 	});
 
