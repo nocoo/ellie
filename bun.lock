@@ -9,7 +9,7 @@
       },
       "devDependencies": {
         "@biomejs/biome": "^1.9.0",
-        "@ellie/repositories": "workspace:*",
+        "@ellie/test-mocks": "workspace:*",
         "@ellie/types": "workspace:*",
         "@emoji-mart/data": "^1.2.1",
         "@emoji-mart/react": "^1.1.1",
@@ -28,7 +28,7 @@
     },
     "apps/admin": {
       "name": "admin",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "dependencies": {
         "@dnd-kit/core": "^6.3.1",
         "@dnd-kit/sortable": "^10.0.0",
@@ -57,7 +57,7 @@
     },
     "apps/web": {
       "name": "web",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "dependencies": {
         "@auth/core": "^0.34.3",
         "@base-ui/react": "^1.3.0",
@@ -65,7 +65,6 @@
         "@dnd-kit/core": "^6.3.1",
         "@dnd-kit/sortable": "^10.0.0",
         "@dnd-kit/utilities": "^3.2.2",
-        "@ellie/repositories": "workspace:*",
         "@ellie/shared": "workspace:*",
         "@ellie/types": "workspace:*",
         "@tailwindcss/postcss": "^4",
@@ -97,7 +96,7 @@
     },
     "apps/worker": {
       "name": "@ellie/worker",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "dependencies": {
         "@cloudflare/workers-types": "^4.20250320.0",
         "@ellie/types": "workspace:*",
@@ -113,7 +112,7 @@
     },
     "packages/cli": {
       "name": "@ellie/cli",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "bin": "./src/index.ts",
       "dependencies": {
         "@ellie/types": "workspace:*",
@@ -126,34 +125,34 @@
     },
     "packages/db": {
       "name": "@ellie/db",
-      "version": "0.1.0",
+      "version": "1.0.0",
     },
     "packages/migrate": {
       "name": "@ellie/migrate",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "bin": "./src/index.ts",
-    },
-    "packages/repositories": {
-      "name": "@ellie/repositories",
-      "version": "0.1.0",
-      "dependencies": {
-        "@ellie/types": "workspace:*",
-      },
     },
     "packages/shared": {
       "name": "@ellie/shared",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "devDependencies": {
         "typescript": "^5.9",
       },
     },
+    "packages/test-mocks": {
+      "name": "@ellie/test-mocks",
+      "version": "1.0.0",
+      "dependencies": {
+        "@ellie/types": "workspace:*",
+      },
+    },
     "packages/types": {
       "name": "@ellie/types",
-      "version": "0.1.0",
+      "version": "1.0.0",
     },
     "packages/ui": {
       "name": "@ellie/ui",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "dependencies": {
         "@base-ui/react": "^1.3.0",
         "@radix-ui/react-avatar": "^1.1.0",
@@ -310,9 +309,9 @@
 
     "@ellie/migrate": ["@ellie/migrate@workspace:packages/migrate"],
 
-    "@ellie/repositories": ["@ellie/repositories@workspace:packages/repositories"],
-
     "@ellie/shared": ["@ellie/shared@workspace:packages/shared"],
+
+    "@ellie/test-mocks": ["@ellie/test-mocks@workspace:packages/test-mocks"],
 
     "@ellie/types": ["@ellie/types@workspace:packages/types"],
 

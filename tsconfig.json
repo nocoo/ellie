@@ -10,7 +10,7 @@
 		{ "path": "./apps/worker" },
 		{ "path": "./packages/cli" },
 		{ "path": "./packages/db" },
-		{ "path": "./packages/repositories" },
+		{ "path": "./packages/test-mocks" },
 		{ "path": "./packages/types" },
 		{ "path": "./packages/migrate" }
 	]

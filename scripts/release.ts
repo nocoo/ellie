@@ -23,7 +23,7 @@ const PACKAGE_FILES = [
 	"apps/web/package.json",
 	"apps/admin/package.json",
 	"packages/types/package.json",
-	"packages/repositories/package.json",
+	"packages/test-mocks/package.json",
 	"packages/ui/package.json",
 	"packages/cli/package.json",
 	"packages/shared/package.json",

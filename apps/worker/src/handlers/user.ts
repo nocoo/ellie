@@ -1,3 +1,4 @@
+import { decodeGenericCursor, encodeGenericCursor } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { toPost, toPublicUser, toThread } from "../lib/mappers";
 import { jsonResponse } from "../lib/response";
@@ -14,7 +15,7 @@ import { errorResponse } from "../middleware/error";
 
 /** Explicit PublicUser columns — never SELECT * to avoid leaking sensitive fields */
 const PUBLIC_USER_COLUMNS =
-	"id, username, avatar, role, reg_date, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, last_activity, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site";
+	"id, username, avatar, role, reg_date, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, last_activity, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, reg_ip, last_ip";
 
 /** Default/max page sizes for user history endpoints */
 const DEFAULT_HISTORY_LIMIT = 20;
@@ -31,28 +32,9 @@ interface UserHistoryCursor {
 	id: number;
 }
 
-function encodeHistoryCursor(payload: UserHistoryCursor): string {
-	return btoa(JSON.stringify(payload));
-}
-
-function decodeHistoryCursor(cursor: string): UserHistoryCursor | null {
-	try {
-		const json = atob(cursor);
-		const parsed = JSON.parse(json) as unknown;
-		if (
-			typeof parsed === "object" &&
-			parsed !== null &&
-			"createdAt" in parsed &&
-			"id" in parsed &&
-			typeof (parsed as UserHistoryCursor).createdAt === "number" &&
-			typeof (parsed as UserHistoryCursor).id === "number"
-		) {
-			return parsed as UserHistoryCursor;
-		}
-		return null;
-	} catch {
-		return null;
-	}
+/** Validate user history cursor payload shape */
+function isHistoryCursor(p: Partial<UserHistoryCursor>): boolean {
+	return typeof p.createdAt === "number" && typeof p.id === "number";
 }
 
 /** Parse userId from the second-to-last URL path segment: /api/v1/users/:id/threads */
@@ -95,7 +77,11 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
 	}
 
-	return jsonResponse(toPublicUser(result), origin);
+	// Check if requester is admin/mod (role >= 1) to include IP fields
+	const viewer = await optionalAuthVerified(request, env);
+	const isStaff = viewer !== null && viewer.role >= 1;
+
+	return jsonResponse(toPublicUser(result, isStaff), origin);
 }
 
 /** GET /api/v1/users/:id/threads - List user's threads with keyset pagination */
@@ -115,7 +101,7 @@ export async function listThreads(request: Request, env: Env): Promise<Response>
 
 	const clampedLimit = clampLimit(url.searchParams.get("limit"));
 	const cursorStr = url.searchParams.get("cursor");
-	const cursor = cursorStr ? decodeHistoryCursor(cursorStr) : null;
+	const cursor = cursorStr ? decodeGenericCursor<UserHistoryCursor>(cursorStr, isHistoryCursor) : null;
 
 	let result: D1Result;
 	if (cursor) {
@@ -144,7 +130,7 @@ export async function listThreads(request: Request, env: Env): Promise<Response>
 	let nextCursor: string | null = null;
 	if (threads.length === clampedLimit && threads.length > 0) {
 		const last = threads[threads.length - 1];
-		nextCursor = encodeHistoryCursor({ createdAt: last.createdAt, id: last.id });
+		nextCursor = encodeGenericCursor<UserHistoryCursor>({ createdAt: last.createdAt, id: last.id });
 	}
 
 	return new Response(
@@ -173,7 +159,7 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 
 	const clampedLimit = clampLimit(url.searchParams.get("limit"));
 	const cursorStr = url.searchParams.get("cursor");
-	const cursor = cursorStr ? decodeHistoryCursor(cursorStr) : null;
+	const cursor = cursorStr ? decodeGenericCursor<UserHistoryCursor>(cursorStr, isHistoryCursor) : null;
 
 	let result: D1Result;
 	if (cursor) {
@@ -204,7 +190,7 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 	let nextCursor: string | null = null;
 	if (posts.length === clampedLimit && posts.length > 0) {
 		const last = posts[posts.length - 1];
-		nextCursor = encodeHistoryCursor({ createdAt: last.createdAt, id: last.id });
+		nextCursor = encodeGenericCursor<UserHistoryCursor>({ createdAt: last.createdAt, id: last.id });
 	}
 
 	return new Response(
@@ -233,7 +219,7 @@ export async function listDigest(request: Request, env: Env): Promise<Response> 
 
 	const clampedLimit = clampLimit(url.searchParams.get("limit"));
 	const cursorStr = url.searchParams.get("cursor");
-	const cursor = cursorStr ? decodeHistoryCursor(cursorStr) : null;
+	const cursor = cursorStr ? decodeGenericCursor<UserHistoryCursor>(cursorStr, isHistoryCursor) : null;
 
 	let result: D1Result;
 	if (cursor) {
@@ -262,7 +248,7 @@ export async function listDigest(request: Request, env: Env): Promise<Response> 
 	let nextCursor: string | null = null;
 	if (threads.length === clampedLimit && threads.length > 0) {
 		const last = threads[threads.length - 1];
-		nextCursor = encodeHistoryCursor({ createdAt: last.createdAt, id: last.id });
+		nextCursor = encodeGenericCursor<UserHistoryCursor>({ createdAt: last.createdAt, id: last.id });
 	}
 
 	return new Response(

@@ -45,10 +45,10 @@ interface D1UserRow {
 	qq: string;
 	site: string;
 	last_activity: number;
+	// IP fields (admin-only in public API, always in admin API)
 	reg_ip?: string;
 	last_ip?: string;
-	// Sensitive fields (never exposed):
-	// password_hash, password_salt
+	// Sensitive fields (never exposed): password_hash, password_salt
 }
 
 /** D1 row shape for forums table */
@@ -147,8 +147,8 @@ export function toUser(row: Record<string, unknown>): User {
 		qq: r.qq,
 		site: r.site,
 		lastActivity: r.last_activity,
-		regIp: r.reg_ip ?? "",
-		lastIp: r.last_ip ?? "",
+		regIp: r.reg_ip,
+		lastIp: r.last_ip,
 	};
 }
 
@@ -360,10 +360,15 @@ export function toCensorWord(row: Record<string, unknown>): CensorWord {
 /**
  * Maps a D1 user row to PublicUser (no sensitive fields).
  * For public GET /api/v1/users/:id
+ * @param row - D1 row data
+ * @param includeIp - If true, include regIp/lastIp (admin-only)
  */
-export function toPublicUser(row: Record<string, unknown>): PublicUser {
+export function toPublicUser(
+	row: Record<string, unknown>,
+	includeIp = false,
+): PublicUser {
 	const r = row as unknown as D1UserRow;
-	return {
+	const result: PublicUser = {
 		id: r.id,
 		username: r.username,
 		avatar: r.avatar,
@@ -393,6 +398,12 @@ export function toPublicUser(row: Record<string, unknown>): PublicUser {
 		qq: r.qq,
 		site: r.site,
 	};
+	// Admin-only: include IP fields
+	if (includeIp) {
+		result.regIp = r.reg_ip;
+		result.lastIp = r.last_ip;
+	}
+	return result;
 }
 
 /**
