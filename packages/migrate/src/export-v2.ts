@@ -15,6 +15,7 @@ mkdirSync(OUT_DIR, { recursive: true });
 
 const db = new Database(DB_PATH, { readonly: true });
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: acceptable complexity for SQL escape utility
 function sqlEscape(val: unknown): string {
 	if (val === null || val === undefined) return "NULL";
 	if (typeof val === "number") return String(val);

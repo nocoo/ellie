@@ -14,6 +14,7 @@ export interface D1ClientConfig {
  * NOTE: This package uses `bun:sqlite` and must be run with Bun.
  */
 export class D1Client {
+	// biome-ignore lint/suspicious/noExplicitAny: bun:sqlite Database type not available at compile time
 	private db: any;
 
 	constructor(config: D1ClientConfig) {

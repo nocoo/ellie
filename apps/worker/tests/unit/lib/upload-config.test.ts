@@ -32,13 +32,13 @@ describe("UPLOAD_CONFIGS", () => {
 
 	describe("config validation", () => {
 		it("should have positive maxSize for all configs", () => {
-			for (const [purpose, config] of Object.entries(UPLOAD_CONFIGS)) {
+			for (const [_purpose, config] of Object.entries(UPLOAD_CONFIGS)) {
 				expect(config.maxSize).toBeGreaterThan(0);
 			}
 		});
 
 		it("should have at least one allowed MIME type for all configs", () => {
-			for (const [purpose, config] of Object.entries(UPLOAD_CONFIGS)) {
+			for (const [_purpose, config] of Object.entries(UPLOAD_CONFIGS)) {
 				expect(config.allowedMimeTypes.length).toBeGreaterThan(0);
 			}
 		});

@@ -65,6 +65,7 @@ function buildFtsQuery(query: string): string {
  *
  * Controlled by general.search.enabled setting (default: true).
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: acceptable complexity for search handler
 export async function searchThreads(
 	request: Request,
 	env: Env,

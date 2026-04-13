@@ -6,7 +6,7 @@ import { TEST_JWT_SECRET, createMockKV, makeEnv } from "../../helpers";
 
 describe("maintenance middleware", () => {
 	/** Create a mock DB that returns user with specified role and status */
-	function createMockDbWithUser(userId: number, role: number, status = 0) {
+	function createMockDbWithUser(_userId: number, role: number, status = 0) {
 		return {
 			prepare: mock((sql: string) => {
 				if (sql.includes("SELECT role, status FROM users")) {

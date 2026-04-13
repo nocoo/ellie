@@ -178,6 +178,7 @@ const MOD_ACTION_CONFIG: Record<
 // Component
 // ---------------------------------------------------------------------------
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: acceptable complexity for popover component
 export function UserPopover({
 	userId,
 	children,

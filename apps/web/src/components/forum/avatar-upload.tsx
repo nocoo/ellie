@@ -32,6 +32,7 @@ export function AvatarUpload({ currentUrl, onUploadComplete, disabled }: AvatarU
 		return null;
 	};
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: validateFile is stable (no deps on state)
 	const uploadFile = useCallback(
 		async (file: File) => {
 			// Client-side validation
