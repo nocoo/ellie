@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS draft_attachments (
   file_size   INTEGER NOT NULL DEFAULT 0,
   is_image    INTEGER NOT NULL DEFAULT 1,
   status      INTEGER NOT NULL DEFAULT 0,  -- 0=pending, 1=claimed, 2=promoted
-  claimed_at  INTEGER,                      -- When claimed for promotion
+  claim_token TEXT,                         -- UUID for idempotent claim/rollback
   created_at  INTEGER NOT NULL DEFAULT 0
 );
 
@@ -57,8 +57,10 @@ CREATE INDEX IF NOT EXISTS idx_draft_attachments_status ON draft_attachments(sta
 
 **Status values:**
 - `0` = pending (available for use)
-- `1` = claimed (locked for promotion, has `claimed_at` timestamp)
+- `1` = claimed (locked for promotion, has `claim_token`)
 - `2` = promoted (successfully moved to attachments, pending cleanup)
+
+**claim_token**: UUID generated per submission attempt. Used for idempotent rollback — only affects drafts claimed by this exact request, avoiding collision with concurrent claims by the same user.
 
 **Note**: `width` is NOT extracted at upload time — the Worker only validates MIME/size. If needed later, image metadata extraction can be added as a future enhancement.
 
@@ -134,89 +136,146 @@ The key insight: D1 `batch()` is transactional — if any statement fails, the e
 **For replies** (`POST /api/v1/posts`):
 
 ```typescript
+// Generate unique claim token for this request
+const claimToken = crypto.randomUUID();
+
 // 1. Validate and CLAIM drafts atomically
 const claimResult = await env.DB.prepare(
   `UPDATE draft_attachments 
-   SET status = 1, claimed_at = ? 
+   SET status = 1, claim_token = ? 
    WHERE id IN (SELECT value FROM json_each(?)) 
      AND author_id = ? 
      AND status = 0
    RETURNING *`
-).bind(now, JSON.stringify(attachmentIds), user.userId).all();
+).bind(claimToken, JSON.stringify(attachmentIds), user.userId).all();
 
 if (claimResult.results.length !== attachmentIds.length) {
   // Some IDs invalid, already claimed, or not owned by user
-  // Rollback any partial claims
+  // Rollback only drafts claimed by THIS request (identified by claim_token)
   await env.DB.prepare(
-    "UPDATE draft_attachments SET status = 0, claimed_at = NULL WHERE author_id = ? AND status = 1 AND claimed_at = ?"
-  ).bind(user.userId, now).run();
+    "UPDATE draft_attachments SET status = 0, claim_token = NULL WHERE claim_token = ?"
+  ).bind(claimToken).run();
   return errorResponse("INVALID_ATTACHMENTS", 400);
 }
 
 // Check total size
 const totalSize = claimResult.results.reduce((sum, d) => sum + d.file_size, 0);
 if (totalSize > 5 * 1024 * 1024) {
-  // Rollback claims
+  // Rollback only drafts claimed by THIS request
   await env.DB.prepare(
-    "UPDATE draft_attachments SET status = 0, claimed_at = NULL WHERE id IN (SELECT value FROM json_each(?))"
-  ).bind(JSON.stringify(attachmentIds)).run();
+    "UPDATE draft_attachments SET status = 0, claim_token = NULL WHERE claim_token = ?"
+  ).bind(claimToken).run();
   return errorResponse("ATTACHMENTS_TOO_LARGE", 413);
 }
 
-// 2. Create post + promote attachments in single transaction
-const postResult = await env.DB.prepare(
-  "INSERT INTO posts (...) VALUES (...)"
-).bind(...).run();
-const postId = postResult.meta.last_row_id;
-
-// 3. Transactional batch: insert attachments + mark drafts as promoted + update counts
-await env.DB.batch([
-  // Insert into attachments
-  ...claimResult.results.map(d =>
+// 2. Atomic transaction: create post + promote attachments + update counts
+//    All statements in batch() succeed or all fail together
+try {
+  const batchResult = await env.DB.batch([
+    // Create post (must be first to get post_id via meta.last_row_id)
+    env.DB.prepare("INSERT INTO posts (...) VALUES (...)").bind(...),
+    // Insert into attachments (use placeholder post_id, will be updated below)
+    ...claimResult.results.map(d =>
+      env.DB.prepare(
+        "INSERT INTO attachments (thread_id, post_id, author_id, filename, file_path, file_size, is_image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      ).bind(threadId, 0, user.userId, d.filename, d.file_path, d.file_size, d.is_image, now)
+    ),
+    // Mark drafts as promoted
     env.DB.prepare(
-      "INSERT INTO attachments (thread_id, post_id, author_id, filename, file_path, file_size, is_image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    ).bind(threadId, postId, user.userId, d.filename, d.file_path, d.file_size, d.is_image, now)
-  ),
-  // Mark drafts as promoted (not deleted yet — cleanup job handles it)
-  env.DB.prepare(
-    "UPDATE draft_attachments SET status = 2 WHERE id IN (SELECT value FROM json_each(?))"
-  ).bind(JSON.stringify(attachmentIds)),
-  // Update thread/forum counts...
-]);
+      "UPDATE draft_attachments SET status = 2 WHERE claim_token = ?"
+    ).bind(claimToken),
+    // Update thread/forum counts...
+  ]);
+  const postId = batchResult[0].meta.last_row_id;
+  
+  // Fix post_id in attachments (batch was atomic, these rows exist)
+  if (claimResult.results.length > 0) {
+    await env.DB.prepare(
+      "UPDATE attachments SET post_id = ? WHERE post_id = 0 AND author_id = ? AND created_at = ?"
+    ).bind(postId, user.userId, now).run();
+  }
+} catch (err) {
+  // batch() failed — post was NOT created, attachments NOT inserted
+  // Rollback claimed drafts so user can retry
+  await env.DB.prepare(
+    "UPDATE draft_attachments SET status = 0, claim_token = NULL WHERE claim_token = ?"
+  ).bind(claimToken).run();
+  throw err;
+}
+```
+
+**Key insight**: D1 `batch()` is transactional. If any statement fails, the entire batch rolls back. Post creation is now INSIDE the batch, so a failed attachment insert means the post is never created.
 ```
 
 **For thread creation** (`POST /api/v1/threads`):
 
 ```typescript
+const claimToken = crypto.randomUUID();
+
 // 1. Claim and validate drafts (same as above)
+const claimResult = await env.DB.prepare(
+  `UPDATE draft_attachments SET status = 1, claim_token = ? 
+   WHERE id IN (SELECT value FROM json_each(?)) AND author_id = ? AND status = 0
+   RETURNING *`
+).bind(claimToken, JSON.stringify(attachmentIds), user.userId).all();
 
-// 2. Insert thread FIRST (get thread_id)
-const threadResult = await env.DB.prepare(
-  "INSERT INTO threads (...) VALUES (...)"
-).bind(...).run();
-const threadId = threadResult.meta.last_row_id;
+if (claimResult.results.length !== attachmentIds.length) {
+  await env.DB.prepare(
+    "UPDATE draft_attachments SET status = 0, claim_token = NULL WHERE claim_token = ?"
+  ).bind(claimToken).run();
+  return errorResponse("INVALID_ATTACHMENTS", 400);
+}
 
-// 3. Insert first post SEPARATELY (get post_id)
-const postResult = await env.DB.prepare(
-  "INSERT INTO posts (thread_id, ...) VALUES (?, ...)"
-).bind(threadId, ...).run();
-const postId = postResult.meta.last_row_id;
+// Validate total size (same as above)...
 
-// 4. Transactional batch: insert attachments + mark promoted + update counts
-await env.DB.batch([
-  ...claimResult.results.map(d =>
-    env.DB.prepare("INSERT INTO attachments (...) VALUES (...)").bind(threadId, postId, ...)
-  ),
-  env.DB.prepare("UPDATE draft_attachments SET status = 2 WHERE id IN (SELECT value FROM json_each(?))").bind(...),
-  env.DB.prepare("UPDATE forums SET threads = threads + 1, ...").bind(...),
-  env.DB.prepare("UPDATE users SET threads = threads + 1, ...").bind(...),
-]);
+// 2. Atomic transaction: create thread + first post + attachments + counts
+try {
+  const batchResult = await env.DB.batch([
+    // Create thread (first to get thread_id)
+    env.DB.prepare("INSERT INTO threads (...) VALUES (...)").bind(...),
+    // Create first post (use placeholder thread_id=0, fix after)
+    env.DB.prepare("INSERT INTO posts (thread_id, ...) VALUES (0, ...)").bind(...),
+    // Insert attachments (use placeholder IDs, fix after)
+    ...claimResult.results.map(d =>
+      env.DB.prepare(
+        "INSERT INTO attachments (thread_id, post_id, author_id, ...) VALUES (0, 0, ?, ...)"
+      ).bind(user.userId, ...)
+    ),
+    // Mark drafts as promoted
+    env.DB.prepare(
+      "UPDATE draft_attachments SET status = 2 WHERE claim_token = ?"
+    ).bind(claimToken),
+    // Update forum/user counts
+    env.DB.prepare("UPDATE forums SET threads = threads + 1, ...").bind(...),
+    env.DB.prepare("UPDATE users SET threads = threads + 1, ...").bind(...),
+  ]);
+  
+  const threadId = batchResult[0].meta.last_row_id;
+  const postId = batchResult[1].meta.last_row_id;
+  
+  // Fix thread_id/post_id in posts and attachments
+  await env.DB.batch([
+    env.DB.prepare("UPDATE posts SET thread_id = ? WHERE id = ?").bind(threadId, postId),
+    env.DB.prepare(
+      "UPDATE attachments SET thread_id = ?, post_id = ? WHERE thread_id = 0 AND post_id = 0 AND author_id = ?"
+    ).bind(threadId, postId, user.userId),
+  ]);
+} catch (err) {
+  // batch() failed — nothing created
+  await env.DB.prepare(
+    "UPDATE draft_attachments SET status = 0, claim_token = NULL WHERE claim_token = ?"
+  ).bind(claimToken).run();
+  throw err;
+}
+```
 ```
 
 **Key invariants:**
+- `claim_token` (UUID) ensures rollback only affects THIS request's drafts, not concurrent claims
 - `status=1` (claimed) prevents double-use: only one request can claim pending drafts
 - `status=2` (promoted) marks successful promotion; R2 blobs are NOT orphans
-- If batch fails after claim, cleanup recovers: stale claims (status=1 with old claimed_at) get reset
+- Post/thread creation is INSIDE `batch()` — failure rolls back everything atomically
+- If batch fails, explicit rollback resets claimed drafts so user can retry
 - D1 batch is transactional: partial insert failures roll back
 
 ### Why Two-Phase?
@@ -250,9 +309,10 @@ export async function cleanupDraftAttachments(env: Env): Promise<void> {
   // 1. Delete promoted drafts (status=2) — R2 blobs already in attachments
   await env.DB.prepare("DELETE FROM draft_attachments WHERE status = 2").run();
 
-  // 2. Reset stale claims (status=1, claimed_at older than 5 minutes)
+  // 2. Reset stale claims (status=1, claim_token set but no corresponding active request)
+  //    Use created_at as proxy for age since claim_token has no timestamp
   await env.DB.prepare(
-    "UPDATE draft_attachments SET status = 0, claimed_at = NULL WHERE status = 1 AND claimed_at < ?"
+    "UPDATE draft_attachments SET status = 0, claim_token = NULL WHERE status = 1 AND created_at < ?"
   ).bind(now - claimTimeout).run();
 
   // 3. Find and delete expired pending/reset drafts — also delete R2 blobs
@@ -407,17 +467,47 @@ Delete draft attachment during compose (before submit).
 **Next.js proxy required**: Create `apps/web/src/app/api/v1/upload/draft/[id]/route.ts`:
 
 ```typescript
-// Proxy DELETE to Worker with JWT + API key
+import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
+import { ForumApiError, forumApi } from "@/lib/forum-api";
+import { getWorkerJwt } from "@/lib/forum-auth";
+import { NextResponse } from "next/server";
+
+function csrfCheck(request: Request) {
+  if (isMutatingMethod(request.method) && !validateOrigin(request)) {
+    return NextResponse.json(
+      { error: { code: "CSRF_REJECTED", message: "Origin not allowed" } },
+      { status: 403 },
+    );
+  }
+  return null;
+}
+
+/**
+ * DELETE /api/v1/upload/draft/:id
+ * Delete draft attachment during compose (before submit)
+ */
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const csrfError = csrfCheck(request);
+  if (csrfError) return csrfError;
+
   const { id } = await params;
   const jwt = await getWorkerJwt();
   if (!jwt) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "NOT_AUTHENTICATED" }, { status: 401 });
   }
-  return forumApi.deleteAuth(`/api/v1/upload/draft/${id}`, jwt);
+
+  try {
+    const result = await forumApi.deleteAuth(`/api/v1/upload/draft/${id}`, {}, jwt);
+    return NextResponse.json(result);
+  } catch (err) {
+    if (err instanceof ForumApiError) {
+      return NextResponse.json({ error: err.code }, { status: err.status });
+    }
+    return NextResponse.json({ error: "INTERNAL_ERROR" }, { status: 500 });
+  }
 }
 ```
 
@@ -596,8 +686,9 @@ Keep display logic in existing components, just ensure they handle the new attac
 1. **Auth required**: All upload/delete operations require valid JWT
 2. **Ownership check**: Only author can delete their draft attachments
 3. **Draft quota**: Prevents abuse via unlimited uploads (20 files, 20MB per user)
-4. **Claim-based promotion**: `status` field prevents race conditions
-5. **Size limits enforced server-side**: Client limits can be bypassed
+4. **Claim token**: UUID per request prevents concurrent claim collision
+5. **Atomic batch**: Post/thread creation inside `batch()` ensures all-or-nothing
+6. **Size limits enforced server-side**: Client limits can be bypassed
 6. **MIME type validation**: Check actual file content, not just extension
 7. **Filename sanitization**: Store original name but use GUID for path
 8. **Complete deletion**: All post/thread delete paths clean up R2 blobs
