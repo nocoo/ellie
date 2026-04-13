@@ -32,6 +32,7 @@ export function Lightbox({ images, initialIndex = 0, open, onClose }: LightboxPr
 	}, [open, initialIndex]);
 
 	// Keyboard navigation
+	// biome-ignore lint/correctness/useExhaustiveDependencies: handlers use refs internally and are stable
 	useEffect(() => {
 		if (!open) return;
 
@@ -58,7 +59,7 @@ export function Lightbox({ images, initialIndex = 0, open, onClose }: LightboxPr
 
 		document.addEventListener("keydown", handleKeyDown);
 		return () => document.removeEventListener("keydown", handleKeyDown);
-	}, [open, currentIndex, images.length]);
+	}, [open]);
 
 	// Prevent body scroll when open
 	useEffect(() => {

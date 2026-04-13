@@ -109,9 +109,11 @@ export function Lightbox({ images, initialIndex = 0, open, onClose }: LightboxPr
 	const currentImage = images[currentIndex];
 
 	return (
+		// biome-ignore lint/a11y/useKeyWithClickEvents: keyboard events handled by parent useEffect
 		<div
 			className="fixed inset-0 z-50 flex items-center justify-center"
 			onClick={onClose}
+			// biome-ignore lint/a11y/useSemanticElements: custom dialog with controlled backdrop
 			role="dialog"
 			aria-modal="true"
 		>
@@ -209,6 +211,7 @@ export function Lightbox({ images, initialIndex = 0, open, onClose }: LightboxPr
 			)}
 
 			{/* Image */}
+			{/* biome-ignore lint/a11y/useKeyWithClickEvents: click handler only stops propagation */}
 			<div
 				className="relative max-w-[90vw] max-h-[85vh] overflow-auto"
 				onClick={(e) => e.stopPropagation()}

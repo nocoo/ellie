@@ -12,7 +12,7 @@
 import { $ } from "bun";
 
 const BATCH_SIZE = 500; // D1 batch limit consideration
-const CSV_FILE = "./scripts/pms.csv";
+const _CSV_FILE = "./scripts/pms.csv";
 
 interface PmRow {
 	id: number;

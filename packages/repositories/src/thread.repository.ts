@@ -77,8 +77,10 @@ export function createMockThreadRepository(store: MockDataStore): ThreadReposito
 			if (params.authorId !== undefined)
 				filtered = filtered.filter((t) => t.authorId === params.authorId);
 			if (params.digest) filtered = filtered.filter((t) => t.digest > 0);
-			if (params.createdAfter !== undefined)
-				filtered = filtered.filter((t) => t.createdAt >= params.createdAfter!);
+			if (params.createdAfter !== undefined) {
+				const after = params.createdAfter;
+				filtered = filtered.filter((t) => t.createdAt >= after);
+			}
 
 			const sort = params.sort ?? "latest";
 			const sortKey = getSortKey(sort);
@@ -95,8 +97,10 @@ export function createMockThreadRepository(store: MockDataStore): ThreadReposito
 			}
 
 			let filtered = [...store.threads];
-			if (params.titlePrefix)
-				filtered = filtered.filter((t) => t.subject.startsWith(params.titlePrefix!));
+			if (params.titlePrefix) {
+				const prefix = params.titlePrefix;
+				filtered = filtered.filter((t) => t.subject.startsWith(prefix));
+			}
 			if (params.authorName) filtered = filtered.filter((t) => t.authorName === params.authorName);
 
 			filtered.sort((a, b) => b.createdAt - a.createdAt || b.id - a.id);

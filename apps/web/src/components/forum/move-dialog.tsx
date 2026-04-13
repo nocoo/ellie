@@ -32,7 +32,7 @@ export function MoveDialog({
 	onConfirm,
 	loading,
 }: MoveDialogProps) {
-	const [forums, setForums] = useState<Forum[]>([]);
+	const [_forums, setForums] = useState<Forum[]>([]);
 	const [tree, setTree] = useState<ForumTreeNode[]>([]);
 	const [selected, setSelected] = useState<number | null>(null);
 	const [loadingForums, setLoadingForums] = useState(false);

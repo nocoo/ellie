@@ -23,6 +23,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 	return (
 		<html lang="zh-CN" className={cn(inter.variable, dmSans.variable)} suppressHydrationWarning>
 			<head>
+				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: trusted inline FOUC prevention script */}
 				<script dangerouslySetInnerHTML={{ __html: foucPreventionScript }} />
 			</head>
 			<body>

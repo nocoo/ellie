@@ -135,6 +135,7 @@ while (true) {
 			attempts++;
 			if (attempts > 20) break; // safety valve
 		}
+		// biome-ignore lint/style/noNonNullAssertion: line is always assigned inside the while loop before break
 		writer?.write(line!);
 		currentRows++;
 		grandTotal++;

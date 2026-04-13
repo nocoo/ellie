@@ -99,6 +99,7 @@ function TreeConnector({ depth, isLast }: { depth: number; isLast: boolean }) {
 	return (
 		<div className="flex items-center" style={{ width: `${depth * 24}px` }}>
 			{Array.from({ length: depth }).map((_, i) => (
+				// biome-ignore lint/suspicious/noArrayIndexKey: static list of visual connectors
 				<div key={`connector-${depth}-${i}`} className="relative h-full w-6 flex-shrink-0">
 					{i === depth - 1 ? (
 						// Last connector with branch line
