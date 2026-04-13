@@ -5,12 +5,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { apiClient } from "@/lib/api-client";
 import { getAvatarUrl } from "@/lib/avatar";
@@ -97,21 +92,12 @@ function CommentDialog({ open, onOpenChange, postId, onSuccess }: CommentDialogP
 							{content.length}/255
 						</span>
 					</div>
-					{error && (
-						<p className="text-sm text-destructive">{error}</p>
-					)}
+					{error && <p className="text-sm text-destructive">{error}</p>}
 					<div className="flex justify-end gap-2">
-						<Button
-							variant="outline"
-							onClick={() => onOpenChange(false)}
-							disabled={submitting}
-						>
+						<Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
 							取消
 						</Button>
-						<Button
-							onClick={handleSubmit}
-							disabled={!content.trim() || submitting}
-						>
+						<Button onClick={handleSubmit} disabled={!content.trim() || submitting}>
 							{submitting ? (
 								<Loader2 className="h-4 w-4 animate-spin mr-1" />
 							) : (
@@ -126,7 +112,13 @@ function CommentDialog({ open, onOpenChange, postId, onSuccess }: CommentDialogP
 	);
 }
 
-export function PostComments({ postId, threadClosed, isLoggedIn, dialogOpen: externalDialogOpen, onDialogOpenChange }: PostCommentsProps) {
+export function PostComments({
+	postId,
+	threadClosed,
+	isLoggedIn,
+	dialogOpen: externalDialogOpen,
+	onDialogOpenChange,
+}: PostCommentsProps) {
 	const [comments, setComments] = useState<PostComment[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [internalDialogOpen, setInternalDialogOpen] = useState(false);
@@ -138,9 +130,7 @@ export function PostComments({ postId, threadClosed, isLoggedIn, dialogOpen: ext
 
 	const fetchComments = useCallback(async () => {
 		try {
-			const response = await apiClient.get<PostComment[]>(
-				`/api/v1/post-comments?postId=${postId}`
-			);
+			const response = await apiClient.get<PostComment[]>(`/api/v1/post-comments?postId=${postId}`);
 			setComments(response.data);
 		} catch (err) {
 			console.error("[PostComments] fetch error:", err);
@@ -228,9 +218,7 @@ export function PostComments({ postId, threadClosed, isLoggedIn, dialogOpen: ext
 						>
 							{comment.authorName}
 						</Link>
-						<span className="text-forum-text break-all">
-							{comment.content}
-						</span>
+						<span className="text-forum-text break-all">{comment.content}</span>
 						<span className="text-2xs text-forum-text-muted flex-shrink-0 ml-auto">
 							{formatCommentTime(comment.createdAt)}
 						</span>

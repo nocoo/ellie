@@ -305,16 +305,26 @@ export function createMockR2(config?: {
 	objects?: Map<string, ArrayBuffer>;
 }) {
 	const store = config?.objects ?? new Map<string, ArrayBuffer>();
-	const putCalls: { key: string; body: ArrayBuffer; options?: { httpMetadata?: { contentType?: string } } }[] = [];
+	const putCalls: {
+		key: string;
+		body: ArrayBuffer;
+		options?: { httpMetadata?: { contentType?: string } };
+	}[] = [];
 	return {
-		put: mock(async (key: string, body: ArrayBuffer | ReadableStream | string, options?: { httpMetadata?: { contentType?: string } }) => {
-			if (config?.putError) throw config.putError;
-			const buffer =
-				body instanceof ArrayBuffer ? body : new TextEncoder().encode(body as string).buffer;
-			store.set(key, buffer as ArrayBuffer);
-			putCalls.push({ key, body: buffer as ArrayBuffer, options });
-			return { key, size: (buffer as ArrayBuffer).byteLength };
-		}),
+		put: mock(
+			async (
+				key: string,
+				body: ArrayBuffer | ReadableStream | string,
+				options?: { httpMetadata?: { contentType?: string } },
+			) => {
+				if (config?.putError) throw config.putError;
+				const buffer =
+					body instanceof ArrayBuffer ? body : new TextEncoder().encode(body as string).buffer;
+				store.set(key, buffer as ArrayBuffer);
+				putCalls.push({ key, body: buffer as ArrayBuffer, options });
+				return { key, size: (buffer as ArrayBuffer).byteLength };
+			},
+		),
 		get: mock(async (key: string) => {
 			const data = store.get(key);
 			if (!data) return null;
@@ -332,5 +342,11 @@ export function createMockR2(config?: {
 			store.delete(key);
 		}),
 		_putCalls: putCalls,
-	} as unknown as R2Bucket & { _putCalls: { key: string; body: ArrayBuffer; options?: { httpMetadata?: { contentType?: string } } }[] };
+	} as unknown as R2Bucket & {
+		_putCalls: {
+			key: string;
+			body: ArrayBuffer;
+			options?: { httpMetadata?: { contentType?: string } };
+		}[];
+	};
 }

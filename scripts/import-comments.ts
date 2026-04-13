@@ -151,20 +151,22 @@ async function main() {
 		const values = batch
 			.map(
 				(c) =>
-					`(${c.id}, ${c.tid}, ${c.pid}, ${c.authorid}, '${escapeSqlString(c.author)}', '${escapeSqlString(c.comment)}', ${c.score}, ${c.rpid}, '${escapeSqlString(c.useip)}', ${c.dateline})`
+					`(${c.id}, ${c.tid}, ${c.pid}, ${c.authorid}, '${escapeSqlString(c.author)}', '${escapeSqlString(c.comment)}', ${c.score}, ${c.rpid}, '${escapeSqlString(c.useip)}', ${c.dateline})`,
 			)
 			.join(",\n");
 
 		statements.push(
-			`INSERT INTO post_comments (id, thread_id, post_id, author_id, author_name, content, score, reply_post_id, ip, created_at) VALUES\n${values};`
+			`INSERT INTO post_comments (id, thread_id, post_id, author_id, author_name, content, score, reply_post_id, ip, created_at) VALUES\n${values};`,
 		);
 	}
 
 	await Bun.write(sqlFile, statements.join("\n\n"));
-	console.log(`\nGenerated ${sqlFile} with ${statements.length} INSERT statements (batch size: ${batchSize})`);
+	console.log(
+		`\nGenerated ${sqlFile} with ${statements.length} INSERT statements (batch size: ${batchSize})`,
+	);
 	console.log("\nTo apply, run:");
 	console.log(
-		"  cd apps/worker && npx wrangler d1 execute tongjinet-db --remote -c wrangler.toml --file=../../reference/db/import-comments.sql"
+		"  cd apps/worker && npx wrangler d1 execute tongjinet-db --remote -c wrangler.toml --file=../../reference/db/import-comments.sql",
 	);
 }
 

@@ -10,9 +10,9 @@
  *   bun run release -- --dry-run # preview only
  */
 
-import { $ } from "bun";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { $ } from "bun";
 
 const ROOT = join(import.meta.dir, "..");
 

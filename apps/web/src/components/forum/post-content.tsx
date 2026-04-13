@@ -30,7 +30,14 @@ interface PostContentProps {
 	comments?: ReactNode;
 }
 
-export function PostContent({ post, isFirst, threadDigest, author, actionBar, comments }: PostContentProps) {
+export function PostContent({
+	post,
+	isFirst,
+	threadDigest,
+	author,
+	actionBar,
+	comments,
+}: PostContentProps) {
 	return (
 		<div className="flex-1 min-w-0 flex flex-col" suppressHydrationWarning>
 			<div className="p-3 flex flex-col flex-1" suppressHydrationWarning>

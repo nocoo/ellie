@@ -3,8 +3,8 @@
 
 import "server-only";
 
-import type { PaginatedResult } from "@/viewmodels/shared/pagination";
 import { forumApi } from "@/lib/forum-api";
+import type { PaginatedResult } from "@/viewmodels/shared/pagination";
 import type { Thread } from "@ellie/types";
 
 export interface SearchData {
