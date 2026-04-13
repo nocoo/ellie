@@ -11,11 +11,7 @@ export type AvatarSize = "big" | "middle" | "small";
  * @param cacheBust - Optional timestamp for cache busting after avatar upload
  * @returns Avatar URL string
  */
-export function getAvatarUrl(
-	uid: number,
-	size: AvatarSize = "big",
-	cacheBust?: number,
-): string {
+export function getAvatarUrl(uid: number, size: AvatarSize = "big", cacheBust?: number): string {
 	// Size parameter kept for backward compatibility but ignored — always serve big
 	const params = cacheBust ? `?v=${cacheBust}` : "";
 	return `/api/avatar/${uid}${params}`;

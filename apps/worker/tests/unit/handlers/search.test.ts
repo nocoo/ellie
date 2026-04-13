@@ -35,9 +35,7 @@ describe("search handlers", () => {
 					if (sql.includes("settings WHERE key")) {
 						return {
 							first: mock(async () =>
-								config.searchEnabled === false
-									? { value: "false" }
-									: { value: "true" },
+								config.searchEnabled === false ? { value: "false" } : { value: "true" },
 							),
 						};
 					}
@@ -113,9 +111,7 @@ describe("search handlers", () => {
 			const env = { ...mockEnv, DB: db };
 
 			const response = await searchThreads(
-				new Request(
-					"https://api.example.com/api/v1/search/threads?q=test&cursor=invalid!!!",
-				),
+				new Request("https://api.example.com/api/v1/search/threads?q=test&cursor=invalid!!!"),
 				env,
 				getCtx(),
 			);
@@ -133,9 +129,7 @@ describe("search handlers", () => {
 			// btoa("not-json")
 			const invalidCursor = btoa("not-json");
 			const response = await searchThreads(
-				new Request(
-					`https://api.example.com/api/v1/search/threads?q=test&cursor=${invalidCursor}`,
-				),
+				new Request(`https://api.example.com/api/v1/search/threads?q=test&cursor=${invalidCursor}`),
 				env,
 				getCtx(),
 			);
@@ -152,9 +146,7 @@ describe("search handlers", () => {
 			// btoa('{"foo":"bar"}')
 			const invalidCursor = btoa('{"foo":"bar"}');
 			const response = await searchThreads(
-				new Request(
-					`https://api.example.com/api/v1/search/threads?q=test&cursor=${invalidCursor}`,
-				),
+				new Request(`https://api.example.com/api/v1/search/threads?q=test&cursor=${invalidCursor}`),
 				env,
 				getCtx(),
 			);
@@ -200,9 +192,7 @@ describe("search handlers", () => {
 			const env = { ...mockEnv, DB: db };
 
 			const response = await searchThreads(
-				new Request(
-					"https://api.example.com/api/v1/search/threads?q=test&limit=2",
-				),
+				new Request("https://api.example.com/api/v1/search/threads?q=test&limit=2"),
 				env,
 				getCtx(),
 			);
@@ -242,9 +232,7 @@ describe("search handlers", () => {
 			const env = { ...mockEnv, DB: db };
 
 			await searchThreads(
-				new Request(
-					"https://api.example.com/api/v1/search/threads?q=test&limit=100",
-				),
+				new Request("https://api.example.com/api/v1/search/threads?q=test&limit=100"),
 				env,
 				getCtx(),
 			);
@@ -267,9 +255,7 @@ describe("search handlers", () => {
 			// Create valid cursor
 			const cursor = btoa(JSON.stringify({ lastPostAt: 1711544400, id: 2 }));
 			const response = await searchThreads(
-				new Request(
-					`https://api.example.com/api/v1/search/threads?q=test&cursor=${cursor}`,
-				),
+				new Request(`https://api.example.com/api/v1/search/threads?q=test&cursor=${cursor}`),
 				env,
 				getCtx(),
 			);
@@ -327,9 +313,7 @@ describe("search handlers", () => {
 			const env2 = { ...mockEnv, DB: db2 };
 
 			await searchThreads(
-				new Request(
-					`https://api.example.com/api/v1/search/threads?q=test&cursor=${cursor}`,
-				),
+				new Request(`https://api.example.com/api/v1/search/threads?q=test&cursor=${cursor}`),
 				env2,
 				getCtx(),
 			);
@@ -347,9 +331,7 @@ describe("search handlers", () => {
 
 			// Query with quotes should not cause error
 			const response = await searchThreads(
-				new Request(
-					'https://api.example.com/api/v1/search/threads?q=test"quote',
-				),
+				new Request('https://api.example.com/api/v1/search/threads?q=test"quote'),
 				env,
 				getCtx(),
 			);
@@ -389,9 +371,7 @@ describe("search handlers", () => {
 			const env = { ...mockEnv, DB: db };
 
 			await searchThreads(
-				new Request(
-					"https://api.example.com/api/v1/search/threads?q=同济%20毕业典礼",
-				),
+				new Request("https://api.example.com/api/v1/search/threads?q=同济%20毕业典礼"),
 				env,
 				getCtx(),
 			);
@@ -611,12 +591,9 @@ describe("search handlers", () => {
 
 			// Logged-in user
 			const token = await createJwtForRole(0); // Regular user
-			const request = new Request(
-				"https://api.example.com/api/v1/search/threads?q=test",
-				{
-					headers: { Authorization: `Bearer ${token}` },
-				},
-			);
+			const request = new Request("https://api.example.com/api/v1/search/threads?q=test", {
+				headers: { Authorization: `Bearer ${token}` },
+			});
 
 			await searchThreads(request, env, getCtx());
 
@@ -662,12 +639,9 @@ describe("search handlers", () => {
 
 			// Admin user
 			const token = await createJwtForRole(1); // Admin
-			const request = new Request(
-				"https://api.example.com/api/v1/search/threads?q=test",
-				{
-					headers: { Authorization: `Bearer ${token}` },
-				},
-			);
+			const request = new Request("https://api.example.com/api/v1/search/threads?q=test", {
+				headers: { Authorization: `Bearer ${token}` },
+			});
 
 			await searchThreads(request, env, getCtx());
 
@@ -693,9 +667,7 @@ describe("search handlers", () => {
 			const env = { ...mockEnv, DB: db };
 
 			const response = await searchThreads(
-				new Request(
-					"https://api.example.com/api/v1/search/threads?q=test&limit=2",
-				),
+				new Request("https://api.example.com/api/v1/search/threads?q=test&limit=2"),
 				env,
 				getCtx(),
 			);
@@ -721,9 +693,7 @@ describe("search handlers", () => {
 			const env = { ...mockEnv, DB: db };
 
 			const response = await searchThreads(
-				new Request(
-					"https://api.example.com/api/v1/search/threads?q=test&limit=10",
-				),
+				new Request("https://api.example.com/api/v1/search/threads?q=test&limit=10"),
 				env,
 				getCtx(),
 			);

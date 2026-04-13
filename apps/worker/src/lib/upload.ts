@@ -29,7 +29,12 @@ export async function handleUpload(
 	try {
 		formData = await request.formData();
 	} catch {
-		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid multipart form data" }, origin);
+		return errorResponse(
+			"INVALID_REQUEST",
+			400,
+			{ message: "Invalid multipart form data" },
+			origin,
+		);
 	}
 
 	const file = formData.get("file") as File | null;
