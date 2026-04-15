@@ -368,10 +368,7 @@ export function toCensorWord(row: Record<string, unknown>): CensorWord {
  * @param row - D1 row data
  * @param includeIp - If true, include regIp/lastIp (admin-only)
  */
-export function toPublicUser(
-	row: Record<string, unknown>,
-	includeIp = false,
-): PublicUser {
+export function toPublicUser(row: Record<string, unknown>, includeIp = false): PublicUser {
 	const r = row as unknown as D1UserRow;
 	const result: PublicUser = {
 		id: r.id,

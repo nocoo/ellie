@@ -214,7 +214,8 @@ export function UserPopover({
 
 	// Resolve viewer identity: prefer props (for backward compat), fall back to session
 	const viewerRole = viewerRoleProp ?? session?.user?.role ?? 0;
-	const viewerUserId = viewerUserIdProp ?? (session?.user?.id ? Number.parseInt(session.user.id, 10) : null);
+	const viewerUserId =
+		viewerUserIdProp ?? (session?.user?.id ? Number.parseInt(session.user.id, 10) : null);
 
 	// Staff: Admin (1), SuperMod (2), Mod (3) — can see admin info section (IP, etc.)
 	const isStaff = viewerRole >= 1;
