@@ -6,11 +6,7 @@
 // 1. If user has avatar_path set (GUID-based), use CDN_BASE/{avatar_path}
 // 2. Otherwise fallback to legacy UID-based path: CDN_BASE/avatar/{dir structure}
 
-import {
-	FALLBACK_URL,
-	computeAvatarCdnPath,
-	getCacheControl,
-} from "@/lib/avatar-proxy";
+import { FALLBACK_URL, computeAvatarCdnPath, getCacheControl } from "@/lib/avatar-proxy";
 import { type NextRequest, NextResponse } from "next/server";
 
 function getWorkerUrl(): string {
