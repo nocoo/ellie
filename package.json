@@ -1,83 +1,76 @@
 {
-  "name": "ellie-monorepo",
-  "version": "1.1.0",
-  "private": true,
-  "type": "module",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
-  "scripts": {
-    "dev": "bun run dev:forum",
-    "dev:forum": "bun run --filter web dev",
-    "dev:admin": "bun run --filter admin dev",
-    "dev:all": "bun run --filter web --filter admin dev",
-    "build": "bun run --filter web --filter admin build",
-    "build:forum": "bun run --filter web build",
-    "build:admin": "bun run --filter admin build",
-    "start": "bun run --filter web start",
-    "start:forum": "bun run --filter web start",
-    "start:admin": "bun run --filter admin start",
-    "migrate": "bun run --filter migrate start",
-    "cli": "bun run --filter cli start",
-    "worker:dev": "bun run --filter '@ellie/worker' dev",
-    "worker:deploy": "bun run --filter '@ellie/worker' deploy",
-    "tui": "bun --bun run scripts/tui.ts",
-    "release": "bun run scripts/release.ts",
-    "test": "bun test tests/unit/ && bun test apps/worker/ && bun test apps/admin/tests/",
-    "test:unit": "bun test tests/unit/",
-    "test:unit:worker": "bun test apps/worker/",
-    "test:unit:admin": "bun test apps/admin/tests/",
-    "test:integration": "bun test --preload tests/integration/preload.ts tests/integration/",
-    "test:integration:worker": "bun test --preload tests/integration/preload.ts tests/integration/worker/",
-    "test:integration:proxy": "bun test tests/integration/proxy/",
-    "verify:test-db": "bun run scripts/verify-test-db.ts",
-    "test:e2e": "bunx playwright test -c playwright.config.ts",
-    "test:coverage": "bun test --coverage tests/unit/",
-    "typecheck": "bun run --filter '*' typecheck",
-    "lint": "biome check .",
-    "lint:fix": "biome check --write .",
-    "format": "biome format --write .",
-    "prepare": "husky"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^1.9.0",
-    "@emoji-mart/data": "^1.2.1",
-    "@emoji-mart/react": "^1.1.1",
-    "@playwright/test": "^1.58.2",
-    "@tiptap/extension-character-count": "^3.21.0",
-    "@tiptap/extension-link": "^3.21.0",
-    "@tiptap/extension-placeholder": "^3.21.0",
-    "@tiptap/react": "^3.21.0",
-    "@tiptap/starter-kit": "^3.21.0",
-    "@types/bun": "^1.2.0",
-    "@types/node": "^22",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.4.0",
-    "typescript": "^5.9",
-    "@ellie/test-mocks": "workspace:*",
-    "@ellie/types": "workspace:*"
-  },
-  "trustedDependencies": [
-    "@biomejs/biome"
-  ],
-  "packageManager": "bun@1.3.11",
-  "engines": {
-    "node": ">=22",
-    "bun": ">=1.0"
-  },
-  "lint-staged": {
-    "*.{ts,tsx,js,jsx,json,css,md}": [
-      "biome check --no-errors-on-unmatched"
-    ]
-  },
-  "dependencies": {
-    "defu": "^6.1.6",
-    "dompurify": "^3.4.0",
-    "hono": "^4.12.14"
-  },
-  "overrides": {
-    "dompurify": "^3.4.0",
-    "hono": "^4.12.14"
-  }
+	"name": "ellie-monorepo",
+	"version": "1.1.0",
+	"private": true,
+	"type": "module",
+	"workspaces": ["apps/*", "packages/*"],
+	"scripts": {
+		"dev": "bun run dev:forum",
+		"dev:forum": "bun run --filter web dev",
+		"dev:admin": "bun run --filter admin dev",
+		"dev:all": "bun run --filter web --filter admin dev",
+		"build": "bun run --filter web --filter admin build",
+		"build:forum": "bun run --filter web build",
+		"build:admin": "bun run --filter admin build",
+		"start": "bun run --filter web start",
+		"start:forum": "bun run --filter web start",
+		"start:admin": "bun run --filter admin start",
+		"migrate": "bun run --filter migrate start",
+		"cli": "bun run --filter cli start",
+		"worker:dev": "bun run --filter '@ellie/worker' dev",
+		"worker:deploy": "bun run --filter '@ellie/worker' deploy",
+		"tui": "bun --bun run scripts/tui.ts",
+		"release": "bun run scripts/release.ts",
+		"test": "bun test tests/unit/ && bun test apps/worker/ && bun test apps/admin/tests/",
+		"test:unit": "bun test tests/unit/",
+		"test:unit:worker": "bun test apps/worker/",
+		"test:unit:admin": "bun test apps/admin/tests/",
+		"test:integration": "bun test --preload tests/integration/preload.ts tests/integration/",
+		"test:integration:worker": "bun test --preload tests/integration/preload.ts tests/integration/worker/",
+		"test:integration:proxy": "bun test tests/integration/proxy/",
+		"verify:test-db": "bun run scripts/verify-test-db.ts",
+		"test:e2e": "bunx playwright test -c playwright.config.ts",
+		"test:coverage": "bun test --coverage tests/unit/",
+		"typecheck": "bun run --filter '*' typecheck",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write .",
+		"format": "biome format --write .",
+		"prepare": "husky"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.0",
+		"@emoji-mart/data": "^1.2.1",
+		"@emoji-mart/react": "^1.1.1",
+		"@playwright/test": "^1.58.2",
+		"@tiptap/extension-character-count": "^3.21.0",
+		"@tiptap/extension-link": "^3.21.0",
+		"@tiptap/extension-placeholder": "^3.21.0",
+		"@tiptap/react": "^3.21.0",
+		"@tiptap/starter-kit": "^3.21.0",
+		"@types/bun": "^1.2.0",
+		"@types/node": "^22",
+		"husky": "^9.1.7",
+		"lint-staged": "^16.4.0",
+		"typescript": "^5.9",
+		"@ellie/test-mocks": "workspace:*",
+		"@ellie/types": "workspace:*"
+	},
+	"trustedDependencies": ["@biomejs/biome"],
+	"packageManager": "bun@1.3.11",
+	"engines": {
+		"node": ">=22",
+		"bun": ">=1.0"
+	},
+	"lint-staged": {
+		"*.{ts,tsx,js,jsx,json,css,md}": ["biome check --no-errors-on-unmatched"]
+	},
+	"dependencies": {
+		"defu": "^6.1.6",
+		"dompurify": "^3.4.0",
+		"hono": "^4.12.14"
+	},
+	"overrides": {
+		"dompurify": "^3.4.0",
+		"hono": "^4.12.14"
+	}
 }
