@@ -133,7 +133,7 @@ export function ForumCreateDialog({
 									className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
 										type === opt.value
 											? "border-primary bg-primary text-primary-foreground"
-											: "border-input bg-background hover:bg-accent"
+											: "border-border bg-background hover:bg-accent"
 									}`}
 								>
 									{opt.label}
@@ -150,7 +150,7 @@ export function ForumCreateDialog({
 								id="create-parent"
 								value={parentId}
 								onChange={(e) => setParentId(Number(e.target.value))}
-								className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+								className="h-9 rounded-md border border-border bg-background px-3 text-sm"
 							>
 								{type === "forum" && <option value={0}>无上级分区</option>}
 								{validParents.map((p) => (
@@ -181,7 +181,7 @@ export function ForumCreateDialog({
 							id="create-description"
 							value={description}
 							onChange={(e) => setDescription(e.target.value)}
-							className="min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+							className="min-h-[80px] rounded-md border border-border bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
 							placeholder="版块描述"
 							maxLength={500}
 						/>
@@ -218,7 +218,7 @@ export function ForumCreateDialog({
 								id="create-status"
 								value={status}
 								onChange={(e) => setStatus(Number(e.target.value))}
-								className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+								className="h-9 rounded-md border border-border bg-background px-3 text-sm"
 							>
 								{STATUS_OPTIONS.map((opt) => (
 									<option key={opt.value} value={opt.value}>

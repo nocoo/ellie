@@ -76,7 +76,7 @@ export function ThreadEditDialog({
 								id="edit-sticky"
 								value={sticky}
 								onChange={(e) => setSticky(Number(e.target.value))}
-								className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+								className="h-9 rounded-md border border-border bg-background px-3 text-sm"
 							>
 								<option value={0}>无</option>
 								<option value={1}>版块置顶</option>
@@ -91,7 +91,7 @@ export function ThreadEditDialog({
 								id="edit-digest"
 								value={digest}
 								onChange={(e) => setDigest(Number(e.target.value))}
-								className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+								className="h-9 rounded-md border border-border bg-background px-3 text-sm"
 							>
 								<option value={0}>无</option>
 								<option value={1}>精华 I</option>
@@ -108,7 +108,7 @@ export function ThreadEditDialog({
 								id="edit-closed"
 								value={closed}
 								onChange={(e) => setClosed(Number(e.target.value))}
-								className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+								className="h-9 rounded-md border border-border bg-background px-3 text-sm"
 							>
 								<option value={0}>开放</option>
 								<option value={1}>已锁定</option>

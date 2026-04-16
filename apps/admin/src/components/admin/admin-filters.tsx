@@ -77,7 +77,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 							key={filter.key}
 							value={values[filter.key] ?? ""}
 							onChange={(e) => onFilterChange(filter.key, e.target.value)}
-							className="h-9 rounded-md border border-input bg-input px-3 text-sm"
+							className="h-9 rounded-md border border-border bg-secondary px-3 text-sm"
 						>
 							<option value="">{filter.label}</option>
 							{filter.options.map((opt) => (
