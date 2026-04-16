@@ -49,9 +49,7 @@ describe("live handler", () => {
 			const response = await live(makeRequest(), env);
 			const data = await response.json();
 
-			expect(data.timestamp).toMatch(
-				/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/,
-			);
+			expect(data.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/);
 		});
 
 		it("should include uptime as a number", async () => {
@@ -91,9 +89,7 @@ describe("live handler", () => {
 			});
 			const response = await live(req, env);
 
-			expect(response.headers.get("Access-Control-Allow-Origin")).toBe(
-				"https://ellie.nocoo.cloud",
-			);
+			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("https://ellie.nocoo.cloud");
 		});
 
 		it("should not set Access-Control-Allow-Origin for disallowed origin", async () => {
@@ -159,10 +155,7 @@ describe("live handler", () => {
 		it("should strip 'ok' from error messages that contain it", async () => {
 			const dbWithOkInError = {
 				prepare: mock(() => ({
-					first: mock(
-						() =>
-							Promise.reject(new Error("connection ok but data broken")),
-					),
+					first: mock(() => Promise.reject(new Error("connection ok but data broken"))),
 				})),
 			} as unknown as D1Database;
 
@@ -198,9 +191,7 @@ describe("live handler", () => {
 			const response = await live(req, env);
 
 			expect(response.status).toBe(503);
-			expect(response.headers.get("Access-Control-Allow-Origin")).toBe(
-				"http://localhost:3000",
-			);
+			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
 		});
 	});
 
