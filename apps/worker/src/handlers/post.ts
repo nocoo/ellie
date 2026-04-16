@@ -76,9 +76,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	const clampedLimit =
 		limitNum === undefined || limitNum <= 0 ? DEFAULT_PAGE_SIZE : Math.min(limitNum, MAX_PAGE_SIZE);
 
-	const cursor = cursorStr
-		? decodeGenericCursor<PostCursorPayload>(cursorStr, isPostCursor)
-		: null;
+	const cursor = cursorStr ? decodeGenericCursor<PostCursorPayload>(cursorStr, isPostCursor) : null;
 
 	let result: D1Result;
 	if (cursor) {
