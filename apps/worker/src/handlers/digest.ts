@@ -84,7 +84,9 @@ export async function list(request: Request, env: Env): Promise<Response> {
 
 	const clampedLimit = clampLimit(url.searchParams.get("limit"));
 	const cursorStr = url.searchParams.get("cursor");
-	const cursor = cursorStr ? decodeGenericCursor<DigestCursorPayload>(cursorStr, isDigestCursor) : null;
+	const cursor = cursorStr
+		? decodeGenericCursor<DigestCursorPayload>(cursorStr, isDigestCursor)
+		: null;
 
 	// Optional filters
 	const forumIdParam = url.searchParams.get("forumId");
