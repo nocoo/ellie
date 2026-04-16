@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { digestLabel } from "../../../../apps/web/src/viewmodels/forum/digest";
 import { createRepositories, resetStore } from "@ellie/test-mocks";
+import { digestLabel } from "../../../../apps/web/src/viewmodels/forum/digest";
 
 // ---------------------------------------------------------------------------
 // digestLabel

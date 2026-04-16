@@ -60,10 +60,7 @@ describe("encodeGenericCursor / decodeGenericCursor", () => {
 	it("round-trips a PostCursor payload", () => {
 		const payload: PostCursor = { position: 42 };
 		const encoded = encodeGenericCursor(payload);
-		const decoded = decodeGenericCursor<PostCursor>(
-			encoded,
-			(p) => typeof p.position === "number",
-		);
+		const decoded = decodeGenericCursor<PostCursor>(encoded, (p) => typeof p.position === "number");
 		expect(decoded).toEqual(payload);
 	});
 
@@ -87,10 +84,7 @@ describe("encodeGenericCursor / decodeGenericCursor", () => {
 
 	it("returns null when validator rejects", () => {
 		const encoded = encodeGenericCursor({ position: "not-a-number" });
-		const decoded = decodeGenericCursor<PostCursor>(
-			encoded,
-			(p) => typeof p.position === "number",
-		);
+		const decoded = decodeGenericCursor<PostCursor>(encoded, (p) => typeof p.position === "number");
 		expect(decoded).toBeNull();
 	});
 
