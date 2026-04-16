@@ -3,6 +3,8 @@ import { VERSION_DISPLAY } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { corsHeaders } from "../middleware/cors";
 
+const bootedAt = Date.now();
+
 /**
  * GET /api/live - Health check endpoint.
  *
@@ -14,29 +16,32 @@ import { corsHeaders } from "../middleware/cors";
  */
 export async function live(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
-	const timestamp = Date.now();
-	let d1Status = "connected";
-	let healthy = true;
+	const timestamp = new Date().toISOString();
+	const uptime = Math.round((Date.now() - bootedAt) / 1000);
+	let database: { connected: boolean; error?: string } = { connected: false };
 
 	// Probe D1 connectivity with the lightest possible query
 	try {
 		await env.DB.prepare("SELECT 1 AS probe").first();
+		database = { connected: true };
 	} catch (err) {
-		healthy = false;
 		const message = err instanceof Error ? err.message : String(err);
 		// Strip any accidental "ok" from error messages to prevent monitor false positives
-		d1Status = `unreachable: ${message.replace(/\bok\b/gi, "***")}`;
+		database = {
+			connected: false,
+			error: message.replace(/\bok\b/gi, "***"),
+		};
 	}
+
+	const healthy = database.connected;
 
 	const body = {
 		status: healthy ? "ok" : "error",
 		version: VERSION_DISPLAY,
-		component: "ellie",
-		environment: env.ENVIRONMENT,
+		component: "ellie-worker",
 		timestamp,
-		checks: {
-			d1: d1Status,
-		},
+		uptime,
+		database,
 	};
 
 	return new Response(JSON.stringify(body), {

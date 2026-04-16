@@ -1,5 +1,19 @@
-import { NextResponse } from "next/server";
+import { APP_VERSION } from "@/lib/version";
+
+export const dynamic = "force-dynamic";
 
 export async function GET() {
-	return NextResponse.json({ status: "ok" });
+	const timestamp = new Date().toISOString();
+	const uptime = Math.floor(process.uptime());
+
+	return Response.json(
+		{
+			status: "ok",
+			version: APP_VERSION,
+			component: "ellie-web",
+			timestamp,
+			uptime,
+		},
+		{ status: 200, headers: { "Cache-Control": "no-store" } },
+	);
 }
