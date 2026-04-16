@@ -31,6 +31,7 @@ export async function live(request: Request, env: Env): Promise<Response> {
 	const body = {
 		status: healthy ? "ok" : "error",
 		version: VERSION_DISPLAY,
+		component: "ellie",
 		environment: env.ENVIRONMENT,
 		timestamp,
 		checks: {
