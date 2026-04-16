@@ -3,11 +3,6 @@
 # that cannot be updated without breaking changes.
 
 [[IgnoredVulns]]
-# next@16.2.2 — latest version, awaiting upstream fix
-id = "GHSA-5f7q-jpqc-wp7h"
-reason = "Using latest Next.js 16.2.2; awaiting upstream fix"
-
-[[IgnoredVulns]]
 # cookie@0.6.0 — pinned by @auth/core@0.34.3
 id = "GHSA-pxg6-pf52-xh8x"
 reason = "Pinned by @auth/core@0.34.3; no compatible fix available"
@@ -44,39 +39,11 @@ id = "GHSA-737v-mqg7-c878"
 reason = "Pinned by wrangler@3.x -> unenv@2.0.0-rc.14; awaiting wrangler update"
 
 [[IgnoredVulns]]
-# next@16.2.2 — PPR DoS vulnerability, but fixed in 16.1.5+
-# OSV database has incorrect range that includes 16.2.x
-# See: https://osv.dev/GHSA-5f7q-jpqc-wp7h (fix range: 16.1.5)
-id = "GHSA-5f7q-jpqc-wp7h"
-reason = "False positive: Next.js 16.2.2 already includes fix (fixed in 16.1.5)"
-[[IgnoredVulns]]
 # @hono/node-server@1.19.12 — SSRF via Host header
 id = "GHSA-92pp-h63x-v22m"
-reason = "Hono update requires testing; pinned for now"
-
-[[IgnoredVulns]]
-# hono@4.12.9 — multiple medium-severity issues
-id = "GHSA-26pp-8wgv-hjvm"
-reason = "Hono update requires testing; pinned for now"
-
-[[IgnoredVulns]]
-id = "GHSA-r5rp-j6wh-rvv4"
-reason = "Hono update requires testing; pinned for now"
-
-[[IgnoredVulns]]
-id = "GHSA-wmmm-f939-6g9c"
-reason = "Hono update requires testing; pinned for now"
-
-[[IgnoredVulns]]
-id = "GHSA-xf4j-xp2r-rqqx"
-reason = "Hono update requires testing; pinned for now"
-
-[[IgnoredVulns]]
-id = "GHSA-xpcf-pg52-r92g"
-reason = "Hono update requires testing; pinned for now"
+reason = "@hono/node-server pinned by @modelcontextprotocol/sdk; awaiting upstream fix"
 
 [[IgnoredVulns]]
 # next@16.2.2 — server-side request forgery
 id = "GHSA-q4gf-8mx6-v5v3"
 reason = "Using latest Next.js 16.2.2; awaiting upstream fix"
-
