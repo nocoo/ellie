@@ -38,6 +38,13 @@ describe("live handler", () => {
 			expect(data.checks.d1).toBe("connected");
 		});
 
+		it("should include component field as ellie", async () => {
+			const response = await live(makeRequest(), env);
+			const data = await response.json();
+
+			expect(data.component).toBe("ellie");
+		});
+
 		it("should include environment field", async () => {
 			const response = await live(makeRequest(), env);
 			const data = await response.json();
