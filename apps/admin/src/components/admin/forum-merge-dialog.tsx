@@ -94,7 +94,7 @@ export function ForumMergeDialog({
 							id="merge-target"
 							value={targetId ?? ""}
 							onChange={(e) => setTargetId(e.target.value ? Number(e.target.value) : null)}
-							className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+							className="h-9 rounded-md border border-border bg-background px-3 text-sm"
 						>
 							<option value="">选择目标版块...</option>
 							{targetOptions.map((f) => (
