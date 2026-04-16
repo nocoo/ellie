@@ -65,6 +65,12 @@
 		"*.{ts,tsx,js,jsx,json,css,md}": ["biome check --no-errors-on-unmatched"]
 	},
 	"dependencies": {
-		"defu": "^6.1.6"
+		"defu": "^6.1.6",
+		"dompurify": "^3.4.0",
+		"hono": "^4.12.14"
+	},
+	"overrides": {
+		"dompurify": "^3.4.0",
+		"hono": "^4.12.14"
 	}
 }
