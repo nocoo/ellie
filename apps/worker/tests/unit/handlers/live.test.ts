@@ -31,35 +31,33 @@ describe("live handler", () => {
 			expect(data.status).toBe("ok");
 		});
 
-		it("should include d1 connected in checks", async () => {
+		it("should include database.connected true", async () => {
 			const response = await live(makeRequest(), env);
 			const data = await response.json();
 
-			expect(data.checks.d1).toBe("connected");
+			expect(data.database.connected).toBe(true);
 		});
 
-		it("should include component field as ellie", async () => {
+		it("should include component field as ellie-worker", async () => {
 			const response = await live(makeRequest(), env);
 			const data = await response.json();
 
-			expect(data.component).toBe("ellie");
+			expect(data.component).toBe("ellie-worker");
 		});
 
-		it("should include environment field", async () => {
+		it("should include ISO 8601 timestamp", async () => {
 			const response = await live(makeRequest(), env);
 			const data = await response.json();
 
-			expect(data.environment).toBe("test");
+			expect(data.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/);
 		});
 
-		it("should include timestamp field", async () => {
-			const before = Date.now();
+		it("should include uptime as a number", async () => {
 			const response = await live(makeRequest(), env);
 			const data = await response.json();
-			const after = Date.now();
 
-			expect(data.timestamp).toBeGreaterThanOrEqual(before);
-			expect(data.timestamp).toBeLessThanOrEqual(after);
+			expect(typeof data.uptime).toBe("number");
+			expect(data.uptime).toBeGreaterThanOrEqual(0);
 		});
 
 		it("should return Cache-Control: no-store", async () => {
@@ -132,25 +130,22 @@ describe("live handler", () => {
 			expect(data.status).toBe("error");
 		});
 
-		it("should include error details in checks.d1", async () => {
+		it("should include database.connected false with error", async () => {
 			const response = await live(makeRequest(), env);
 			const data = await response.json();
 
-			expect(data.checks.d1).toContain("unreachable:");
-			expect(data.checks.d1).toContain("D1 connection failed");
+			expect(data.database.connected).toBe(false);
+			expect(data.database.error).toContain("D1 connection failed");
 		});
 
 		it("should NOT contain 'ok' anywhere in error response body (monitor safety)", async () => {
 			const response = await live(makeRequest(), env);
 			const text = await response.text();
 
-			// The word "ok" should not appear in the response when status is error
-			// to prevent keyword-based monitors from false-positive matching
 			const parsed = JSON.parse(text);
 			expect(parsed.status).toBe("error");
 
 			// Check that no value in the response body contains standalone "ok"
-			// (status:"ok" would be a false positive for a keyword monitor)
 			const bodyWithoutStatus = { ...parsed };
 			bodyWithoutStatus.status = undefined;
 			const remainingText = JSON.stringify(bodyWithoutStatus);
@@ -164,12 +159,15 @@ describe("live handler", () => {
 				})),
 			} as unknown as D1Database;
 
-			const response = await live(makeRequest(), { ...baseEnv, DB: dbWithOkInError });
+			const response = await live(makeRequest(), {
+				...baseEnv,
+				DB: dbWithOkInError,
+			});
 			const data = await response.json();
 
 			// "ok" in error message should be replaced to prevent monitor confusion
-			expect(data.checks.d1).not.toMatch(/\bok\b/i);
-			expect(data.checks.d1).toContain("***");
+			expect(data.database.error).not.toMatch(/\bok\b/i);
+			expect(data.database.error).toContain("***");
 		});
 
 		it("should still return Cache-Control: no-store on error", async () => {
@@ -212,24 +210,8 @@ describe("live handler", () => {
 			expect(response.status).toBe(503);
 			const data = await response.json();
 			expect(data.status).toBe("error");
-			expect(data.checks.d1).toContain("unreachable:");
-			expect(data.checks.d1).toContain("string error");
-		});
-	});
-
-	describe("environment field", () => {
-		it("should reflect the ENVIRONMENT env var", async () => {
-			const healthyDb = {
-				prepare: mock(() => ({
-					first: mock(() => Promise.resolve({ probe: 1 })),
-				})),
-			} as unknown as D1Database;
-
-			const env = { ...baseEnv, DB: healthyDb, ENVIRONMENT: "production" };
-			const response = await live(makeRequest(), env);
-			const data = await response.json();
-
-			expect(data.environment).toBe("production");
+			expect(data.database.connected).toBe(false);
+			expect(data.database.error).toContain("string error");
 		});
 	});
 });
