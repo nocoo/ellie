@@ -109,7 +109,7 @@ export function CensorWordCreateDialog({
 							id="cw-action"
 							value={action}
 							onChange={(e) => setAction(e.target.value as "ban" | "replace")}
-							className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+							className="h-9 rounded-md border border-border bg-background px-3 text-sm"
 						>
 							<option value="replace">替换</option>
 							<option value="ban">禁止发布</option>

@@ -300,7 +300,7 @@ export default function CensorWordsPage() {
 						onChange={(e) => setTestInput(e.target.value)}
 						placeholder="输入要测试的内容..."
 						rows={3}
-						className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+						className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 					/>
 					<Button onClick={handleTestContent} disabled={testLoading || !testInput.trim()}>
 						{testLoading ? "测试中..." : "测试"}
