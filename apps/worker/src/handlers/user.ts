@@ -136,7 +136,9 @@ export async function listThreads(request: Request, env: Env): Promise<Response>
 
 	const clampedLimit = clampLimit(url.searchParams.get("limit"));
 	const cursorStr = url.searchParams.get("cursor");
-	const cursor = cursorStr ? decodeGenericCursor<UserHistoryCursor>(cursorStr, isHistoryCursor) : null;
+	const cursor = cursorStr
+		? decodeGenericCursor<UserHistoryCursor>(cursorStr, isHistoryCursor)
+		: null;
 
 	let result: D1Result;
 	if (cursor) {
@@ -194,7 +196,9 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 
 	const clampedLimit = clampLimit(url.searchParams.get("limit"));
 	const cursorStr = url.searchParams.get("cursor");
-	const cursor = cursorStr ? decodeGenericCursor<UserHistoryCursor>(cursorStr, isHistoryCursor) : null;
+	const cursor = cursorStr
+		? decodeGenericCursor<UserHistoryCursor>(cursorStr, isHistoryCursor)
+		: null;
 
 	let result: D1Result;
 	if (cursor) {
@@ -254,7 +258,9 @@ export async function listDigest(request: Request, env: Env): Promise<Response> 
 
 	const clampedLimit = clampLimit(url.searchParams.get("limit"));
 	const cursorStr = url.searchParams.get("cursor");
-	const cursor = cursorStr ? decodeGenericCursor<UserHistoryCursor>(cursorStr, isHistoryCursor) : null;
+	const cursor = cursorStr
+		? decodeGenericCursor<UserHistoryCursor>(cursorStr, isHistoryCursor)
+		: null;
 
 	let result: D1Result;
 	if (cursor) {

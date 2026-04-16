@@ -293,18 +293,8 @@ describe("handleUpload", () => {
 			const file1 = createJpegFile(1000);
 			const file2 = createJpegFile(1000);
 
-			await handleUpload(
-				createMultipartRequest({ file: file1, purpose: "avatar" }),
-				env,
-				ctx,
-				42,
-			);
-			await handleUpload(
-				createMultipartRequest({ file: file2, purpose: "avatar" }),
-				env,
-				ctx,
-				42,
-			);
+			await handleUpload(createMultipartRequest({ file: file1, purpose: "avatar" }), env, ctx, 42);
+			await handleUpload(createMultipartRequest({ file: file2, purpose: "avatar" }), env, ctx, 42);
 
 			expect(r2._putCalls).toHaveLength(2);
 			expect(r2._putCalls[0].key).not.toBe(r2._putCalls[1].key);

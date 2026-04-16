@@ -76,7 +76,13 @@ export async function checkPostingPermission(
 		"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id = ?",
 	)
 		.bind(user.userId)
-		.first<{ status: number; avatar_path: string; has_avatar: number; reg_date: number; role: number }>();
+		.first<{
+			status: number;
+			avatar_path: string;
+			has_avatar: number;
+			reg_date: number;
+			role: number;
+		}>();
 
 	if (!userRow) {
 		return {
