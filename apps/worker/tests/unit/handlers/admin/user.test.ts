@@ -2,11 +2,14 @@ import { describe, expect, it } from "bun:test";
 import {
 	ban,
 	batchFetch,
+	batchRecalcCounters,
 	batchRole,
 	batchStatus,
 	getById,
 	list,
+	listStaff,
 	nuke,
+	recalcCounters,
 	update,
 } from "../../../../src/handlers/admin/user";
 import { createAdminRequest, createMockDb, makeD1UserRow, makeEnv } from "../../../helpers";
@@ -771,6 +774,337 @@ describe("admin user handlers", () => {
 			expect(res.status).toBe(400);
 			const body = await res.json();
 			expect(body.error.code).toBe("BATCH_LIMIT_EXCEEDED");
+		});
+
+		it("should return 400 for invalid JSON body", async () => {
+			const { db } = createMockDb();
+			const req = new Request("https://api.example.com/api/admin/users/batch-role", {
+				method: "POST",
+				headers: { "X-API-Key": "test-admin-api-key", "Content-Type": "application/json" },
+				body: "not json",
+			});
+			const res = await batchRole(req, adminEnv(db));
+			expect(res.status).toBe(400);
+		});
+
+		it("should return count 0 for NaN-only ids", async () => {
+			const { db } = createMockDb();
+			const request = createAdminRequest("POST", "/api/admin/users/batch-role", {
+				ids: ["abc", "def"],
+				role: 2,
+			});
+			const res = await batchRole(request, adminEnv(db));
+			const body = await res.json();
+			expect(res.status).toBe(200);
+			expect(body.data.count).toBe(0);
+		});
+	});
+
+	// ─── batchStatus — edge cases ────────────────────────────────
+
+	describe("batchStatus — edge cases", () => {
+		it("should return 400 for invalid JSON body", async () => {
+			const { db } = createMockDb();
+			const req = new Request("https://api.example.com/api/admin/users/batch-status", {
+				method: "POST",
+				headers: { "X-API-Key": "test-admin-api-key", "Content-Type": "application/json" },
+				body: "not json",
+			});
+			const res = await batchStatus(req, adminEnv(db));
+			expect(res.status).toBe(400);
+		});
+
+		it("should return count 0 for NaN-only ids", async () => {
+			const { db } = createMockDb();
+			const request = createAdminRequest("POST", "/api/admin/users/batch-status", {
+				ids: ["abc", "def"],
+				status: -1,
+			});
+			const res = await batchStatus(request, adminEnv(db));
+			const body = await res.json();
+			expect(res.status).toBe(200);
+			expect(body.data.count).toBe(0);
+		});
+	});
+
+	// ─── update — avatar validation ──────────────────────────────
+
+	describe("update — avatar validation", () => {
+		it("should update avatar with valid string", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+					"SELECT id, username": makeD1UserRow({ id: 42, avatar: "new.png" }),
+				},
+			});
+
+			const request = createAdminRequest("PATCH", "/api/admin/users/42", {
+				avatar: "new.png",
+			});
+			const res = await update(request, adminEnv(db));
+			expect(res.status).toBe(200);
+		});
+
+		it("should reject non-string avatar", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+				},
+			});
+
+			const request = createAdminRequest("PATCH", "/api/admin/users/42", {
+				avatar: 123,
+			});
+			const res = await update(request, adminEnv(db));
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("avatar must be a string");
+		});
+	});
+
+	// ─── ban — collateral damage ─────────────────────────────────
+
+	describe("ban — collateral damage", () => {
+		it("should handle collateral author counts when deleting content", async () => {
+			const threadRows = [{ id: 10, forum_id: 1, replies: 5 }];
+
+			const { db } = createMockDb({
+				firstResults: { "SELECT id FROM users WHERE id": { id: 42 } },
+				allResults: {
+					"SELECT id, forum_id, replies FROM threads WHERE author_id": threadRows,
+					"SELECT forum_id, COUNT(*) as cnt FROM posts": [],
+					"SELECT thread_id, COUNT(*) as cnt FROM posts": [],
+					"SELECT author_id, COUNT(*) as cnt FROM posts WHERE thread_id IN": [
+						{ author_id: 99, cnt: 3 },
+					],
+				},
+			});
+
+			const res = await ban(
+				createAdminRequest("POST", "/api/admin/users/42/ban", { deleteContent: true }),
+				adminEnv(db),
+			);
+			const body = await res.json();
+
+			expect(res.status).toBe(200);
+			expect(body.data.contentDeleted).toBe(true);
+		});
+	});
+
+	// ─── recalcCounters ──────────────────────────────────────────
+
+	describe("recalcCounters", () => {
+		it("should recalculate counters for a user", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT id FROM users WHERE id": { id: 42 },
+					"FROM posts WHERE author_id": { cnt: 20 },
+					"digest > 0": { cnt: 2 },
+					"FROM threads WHERE author_id": { cnt: 5 },
+				},
+			});
+
+			const res = await recalcCounters(
+				createAdminRequest("POST", "/api/admin/users/42/recalc-counters"),
+				adminEnv(db),
+			);
+			const body = await res.json();
+
+			expect(res.status).toBe(200);
+			expect(body.data.id).toBe(42);
+			expect(body.data.threads).toBe(5);
+			expect(body.data.posts).toBe(20);
+			expect(body.data.digestPosts).toBe(2);
+		});
+
+		it("should return 400 for invalid user ID", async () => {
+			const { db } = createMockDb();
+			const res = await recalcCounters(
+				createAdminRequest("POST", "/api/admin/users/abc/recalc-counters"),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(400);
+		});
+
+		it("should return 404 for non-existent user", async () => {
+			const { db } = createMockDb({
+				firstResults: { "SELECT id FROM users WHERE id": null },
+			});
+			const res = await recalcCounters(
+				createAdminRequest("POST", "/api/admin/users/999/recalc-counters"),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(404);
+		});
+
+		it("should handle zero counts", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT id FROM users WHERE id": { id: 42 },
+					// Null results → defaults to 0
+				},
+			});
+
+			const res = await recalcCounters(
+				createAdminRequest("POST", "/api/admin/users/42/recalc-counters"),
+				adminEnv(db),
+			);
+			const body = await res.json();
+
+			expect(res.status).toBe(200);
+			expect(body.data.threads).toBe(0);
+			expect(body.data.posts).toBe(0);
+			expect(body.data.digestPosts).toBe(0);
+		});
+	});
+
+	// ─── batchRecalcCounters ─────────────────────────────────────
+
+	describe("batchRecalcCounters", () => {
+		it("should recalculate counters for specific user IDs", async () => {
+			const { db, batchCalls } = createMockDb({
+				allResults: {
+					"SELECT author_id, COUNT(*) as cnt FROM threads WHERE author_id IN": [
+						{ author_id: 1, cnt: 3 },
+					],
+					"SELECT author_id, COUNT(*) as cnt FROM posts WHERE author_id IN": [
+						{ author_id: 1, cnt: 10 },
+					],
+					"SELECT author_id, COUNT(*) as cnt FROM threads WHERE author_id IN (?,?) AND digest": [
+						{ author_id: 1, cnt: 1 },
+					],
+				},
+			});
+
+			const res = await batchRecalcCounters(
+				createAdminRequest("POST", "/api/admin/users/batch-recalc-counters", {
+					ids: [1, 2],
+				}),
+				adminEnv(db),
+			);
+			const body = await res.json();
+
+			expect(res.status).toBe(200);
+			expect(body.data.updated).toBe(2);
+			expect(batchCalls.length).toBe(1);
+		});
+
+		it("should recalculate for all active users when no ids provided", async () => {
+			const { db, batchCalls } = createMockDb({
+				allResults: {
+					"SELECT id FROM users WHERE status": [{ id: 1 }, { id: 2 }],
+					"SELECT author_id, COUNT(*) as cnt FROM threads WHERE author_id IN": [],
+					"SELECT author_id, COUNT(*) as cnt FROM posts WHERE author_id IN": [],
+				},
+			});
+
+			const res = await batchRecalcCounters(
+				createAdminRequest("POST", "/api/admin/users/batch-recalc-counters", {}),
+				adminEnv(db),
+			);
+			const body = await res.json();
+
+			expect(res.status).toBe(200);
+			expect(body.data.updated).toBe(2);
+		});
+
+		it("should return 400 for invalid JSON body", async () => {
+			const { db } = createMockDb();
+			const req = new Request("https://api.example.com/api/admin/users/batch-recalc-counters", {
+				method: "POST",
+				headers: { "X-API-Key": "test-admin-api-key", "Content-Type": "application/json" },
+				body: "{ invalid json",
+			});
+			const res = await batchRecalcCounters(req, adminEnv(db));
+			expect(res.status).toBe(400);
+		});
+
+		it("should return updated 0 for empty user list", async () => {
+			const { db } = createMockDb({
+				allResults: {
+					"SELECT id FROM users WHERE status": [],
+				},
+			});
+
+			const res = await batchRecalcCounters(
+				createAdminRequest("POST", "/api/admin/users/batch-recalc-counters", {}),
+				adminEnv(db),
+			);
+			const body = await res.json();
+
+			expect(res.status).toBe(200);
+			expect(body.data.updated).toBe(0);
+		});
+
+		it("should reject batch exceeding 1000 IDs", async () => {
+			const { db } = createMockDb();
+			const ids = Array.from({ length: 1001 }, (_, i) => i + 1);
+
+			const res = await batchRecalcCounters(
+				createAdminRequest("POST", "/api/admin/users/batch-recalc-counters", { ids }),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.code).toBe("BATCH_LIMIT_EXCEEDED");
+		});
+
+		it("should handle empty body text gracefully", async () => {
+			const { db } = createMockDb({
+				allResults: {
+					"SELECT id FROM users WHERE status": [{ id: 1 }],
+					"SELECT author_id, COUNT(*) as cnt FROM threads WHERE author_id IN": [],
+					"SELECT author_id, COUNT(*) as cnt FROM posts WHERE author_id IN": [],
+				},
+			});
+
+			const req = new Request("https://api.example.com/api/admin/users/batch-recalc-counters", {
+				method: "POST",
+				headers: { "X-API-Key": "test-admin-api-key" },
+			});
+			const res = await batchRecalcCounters(req, adminEnv(db));
+			expect(res.status).toBe(200);
+		});
+	});
+
+	// ─── listStaff ───────────────────────────────────────────────
+
+	describe("listStaff", () => {
+		it("should return staff users (role > 0)", async () => {
+			const { db } = createMockDb({
+				allResults: {
+					"FROM users WHERE role > 0": [
+						makeD1UserRow({ id: 1, role: 1, username: "admin" }),
+						makeD1UserRow({ id: 2, role: 2, username: "supermod" }),
+						makeD1UserRow({ id: 3, role: 3, username: "mod" }),
+					],
+				},
+			});
+
+			const res = await listStaff(
+				createAdminRequest("GET", "/api/admin/users/staff"),
+				adminEnv(db),
+			);
+			const body = await res.json();
+
+			expect(res.status).toBe(200);
+			expect(body.data).toHaveLength(3);
+		});
+
+		it("should return empty array when no staff users exist", async () => {
+			const { db } = createMockDb({
+				allResults: { "FROM users WHERE role > 0": [] },
+			});
+
+			const res = await listStaff(
+				createAdminRequest("GET", "/api/admin/users/staff"),
+				adminEnv(db),
+			);
+			const body = await res.json();
+
+			expect(res.status).toBe(200);
+			expect(body.data).toEqual([]);
 		});
 	});
 });
