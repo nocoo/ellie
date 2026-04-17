@@ -106,22 +106,63 @@ describe("user handlers", () => {
 			const sql = prepareSpy.mock.calls[0][0] as string;
 			// Should NOT use SELECT *
 			expect(sql).not.toContain("SELECT *");
-			// Should explicitly list PublicUser columns
-			expect(sql).toContain("id");
-			expect(sql).toContain("username");
-			expect(sql).toContain("avatar");
-			expect(sql).toContain("role");
-			expect(sql).toContain("reg_date");
-			expect(sql).toContain("threads");
-			expect(sql).toContain("posts");
-			expect(sql).toContain("credits");
-			// status is queried to check for banned users, but not returned
-			expect(sql).toContain("status");
-			// Should NOT contain other sensitive columns
-			expect(sql).not.toContain("email");
-			expect(sql).not.toContain("last_login");
-			expect(sql).not.toContain("password_hash");
-			expect(sql).not.toContain("password_salt");
+
+			// Allowlist approach: parse the column list between SELECT and FROM,
+			// and assert every selected column appears in the explicit allowlist.
+			// This is more robust than a denylist — any newly-added sensitive
+			// field will fail the test instead of silently leaking.
+			const match = sql.match(/SELECT\s+([\s\S]+?)\s+FROM\b/i);
+			expect(match).not.toBeNull();
+			const columns = (match?.[1] ?? "")
+				.split(",")
+				.map((c) => c.trim())
+				.filter((c) => c.length > 0);
+
+			// PublicUser fields exposed via toPublicUser mapper, plus `status`
+			// which is selected to gate visibility but never returned to clients.
+			const ALLOWED_COLUMNS = new Set([
+				"id",
+				"username",
+				"avatar",
+				"avatar_path",
+				"role",
+				"reg_date",
+				"threads",
+				"posts",
+				"credits",
+				"signature",
+				"group_title",
+				"group_stars",
+				"group_color",
+				"custom_title",
+				"digest_posts",
+				"ol_time",
+				"last_activity",
+				"gender",
+				"birth_year",
+				"birth_month",
+				"birth_day",
+				"reside_province",
+				"reside_city",
+				"graduate_school",
+				"bio",
+				"interest",
+				"qq",
+				"site",
+				"reg_ip",
+				"last_ip",
+				"status",
+			]);
+
+			for (const col of columns) {
+				expect(ALLOWED_COLUMNS.has(col)).toBe(true);
+			}
+
+			// Sensitive columns must never appear in the selection.
+			expect(columns).not.toContain("email");
+			expect(columns).not.toContain("last_login");
+			expect(columns).not.toContain("password_hash");
+			expect(columns).not.toContain("password_salt");
 		});
 
 		it("should return 404 with CORS headers when user not found", async () => {

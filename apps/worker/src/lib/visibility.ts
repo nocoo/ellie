@@ -226,8 +226,8 @@ export const ThreadStickyLevel = {
 	HIDDEN: -1, // Hidden by moderator
 	NORMAL: 0, // Normal thread
 	STICKY_FORUM: 1, // Sticky within forum
-	STICKY_CATEGORY: 2, // Sticky within category
-	STICKY_GLOBAL: 3, // Global sticky (all forums)
+	STICKY_GLOBAL: 2, // Global sticky (all forums)
+	STICKY_CATEGORY: 3, // Sticky within category
 } as const;
 
 /**
