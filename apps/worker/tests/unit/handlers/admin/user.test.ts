@@ -895,7 +895,7 @@ describe("admin user handlers", () => {
 
 	describe("recalcCounters", () => {
 		it("should recalculate counters for a user", async () => {
-			const { db, calls } = createMockDb({
+			const { db } = createMockDb({
 				firstResults: {
 					"SELECT id FROM users WHERE id": { id: 42 },
 					"FROM posts WHERE author_id": { cnt: 20 },
@@ -990,7 +990,7 @@ describe("admin user handlers", () => {
 		});
 
 		it("should recalculate for all active users when no ids provided", async () => {
-			const { db, batchCalls } = createMockDb({
+			const { db } = createMockDb({
 				allResults: {
 					"SELECT id FROM users WHERE status": [{ id: 1 }, { id: 2 }],
 					"SELECT author_id, COUNT(*) as cnt FROM threads WHERE author_id IN": [],

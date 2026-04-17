@@ -1,11 +1,11 @@
 import { describe, expect, it } from "bun:test";
-import { createMockDb, makeEnv } from "../../helpers";
 import {
-	getUserForPermission,
 	getForumForPermission,
-	getThreadForPermission,
 	getPostForPermission,
+	getThreadForPermission,
+	getUserForPermission,
 } from "../../../src/lib/permissionHelpers";
+import { createMockDb, makeEnv } from "../../helpers";
 
 describe("permissionHelpers", () => {
 	// ─── getUserForPermission ──────────────────────────────
