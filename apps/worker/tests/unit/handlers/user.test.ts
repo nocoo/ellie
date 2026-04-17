@@ -1,5 +1,12 @@
 import { describe, expect, it, mock } from "bun:test";
-import { getAvatarPath, getById, listPosts, listThreads } from "../../../src/handlers/user";
+import {
+	getAvatarPath,
+	getById,
+	listDigest,
+	listPosts,
+	listThreads,
+	search,
+} from "../../../src/handlers/user";
 import type { Env } from "../../../src/lib/env";
 import { createMockKV } from "../../helpers";
 
@@ -444,6 +451,373 @@ describe("user handlers", () => {
 			);
 
 			expect(response.status).toBe(400);
+		});
+	});
+
+	describe("listThreads — edge cases", () => {
+		it("should return 400 for invalid userId", async () => {
+			const response = await listThreads(
+				new Request("https://example.com/api/v1/users/0/threads"),
+				mockEnv,
+			);
+			expect(response.status).toBe(400);
+		});
+
+		it("should return 400 for negative userId", async () => {
+			const response = await listThreads(
+				new Request("https://example.com/api/v1/users/-1/threads"),
+				mockEnv,
+			);
+			expect(response.status).toBe(400);
+		});
+
+		it("should return nextCursor when results equal limit", async () => {
+			// Create exactly 1 row and set limit=1
+			const rows = [
+				{
+					id: 100,
+					forum_id: 1,
+					author_id: 123,
+					author_name: "testuser",
+					subject: "Thread One",
+					created_at: 1711540800,
+					last_post_at: 1711544400,
+					last_poster: "bob",
+					replies: 5,
+					views: 100,
+					closed: 0,
+					sticky: 0,
+					digest: 0,
+					special: 0,
+					highlight: 0,
+					recommends: 0,
+					post_table_id: 1,
+				},
+			];
+			const allSpy = mock(() => Promise.resolve({ results: rows }));
+			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await listThreads(
+				new Request("https://example.com/api/v1/users/123/threads?limit=1"),
+				env,
+			);
+
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.data).toHaveLength(1);
+			expect(data.meta.nextCursor).not.toBeNull();
+		});
+
+		it("should clamp limit to MAX_HISTORY_LIMIT", async () => {
+			const allSpy = mock(() => Promise.resolve({ results: [] }));
+			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			await listThreads(
+				new Request("https://example.com/api/v1/users/123/threads?limit=999"),
+				env,
+			);
+
+			// The last bind param should be 50 (MAX_HISTORY_LIMIT)
+			const lastBindCall = bindSpy.mock.calls[0];
+			expect(lastBindCall[lastBindCall.length - 1]).toBe(50);
+		});
+	});
+
+	describe("listPosts — edge cases", () => {
+		it("should return 400 for invalid userId", async () => {
+			const response = await listPosts(
+				new Request("https://example.com/api/v1/users/0/posts"),
+				mockEnv,
+			);
+			expect(response.status).toBe(400);
+		});
+
+		it("should use keyset WHERE clause when cursor is provided", async () => {
+			const allSpy = mock(() => Promise.resolve({ results: [] }));
+			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const cursor = btoa(JSON.stringify({ createdAt: 1711540800, id: 200 }));
+			await listPosts(
+				new Request(`https://example.com/api/v1/users/123/posts?cursor=${cursor}`),
+				env,
+			);
+
+			const sql = prepareSpy.mock.calls[0][0] as string;
+			expect(sql).toContain("created_at < ?");
+		});
+
+		it("should return nextCursor when results equal limit", async () => {
+			const rows = [
+				{
+					id: 200,
+					thread_id: 10,
+					forum_id: 1,
+					author_id: 123,
+					author_name: "testuser",
+					content: "<p>Hello</p>",
+					created_at: 1711540800,
+					is_first: 0,
+					position: 2,
+				},
+			];
+			const allSpy = mock(() => Promise.resolve({ results: rows }));
+			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await listPosts(
+				new Request("https://example.com/api/v1/users/123/posts?limit=1"),
+				env,
+			);
+
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.meta.nextCursor).not.toBeNull();
+		});
+	});
+
+	describe("listDigest", () => {
+		it("should return 400 for invalid userId", async () => {
+			const response = await listDigest(
+				new Request("https://example.com/api/v1/users/0/digest"),
+				mockEnv,
+			);
+			expect(response.status).toBe(400);
+		});
+
+		it("should return digest threads for a valid user", async () => {
+			const rows = [
+				{
+					id: 100,
+					forum_id: 1,
+					author_id: 123,
+					author_name: "testuser",
+					subject: "Digest Thread",
+					created_at: 1711540800,
+					last_post_at: 1711544400,
+					last_poster: "bob",
+					replies: 5,
+					views: 100,
+					closed: 0,
+					sticky: 0,
+					digest: 2,
+					special: 0,
+					highlight: 0,
+					recommends: 0,
+					post_table_id: 1,
+				},
+			];
+			const allSpy = mock(() => Promise.resolve({ results: rows }));
+			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await listDigest(
+				new Request("https://example.com/api/v1/users/123/digest"),
+				env,
+			);
+
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.data).toHaveLength(1);
+			expect(data.data[0].digest).toBe(2);
+
+			// SQL should filter by digest > 0
+			const sql = prepareSpy.mock.calls[0][0] as string;
+			expect(sql).toContain("digest > 0");
+		});
+
+		it("should return empty array when no digest threads", async () => {
+			const allSpy = mock(() => Promise.resolve({ results: [] }));
+			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await listDigest(
+				new Request("https://example.com/api/v1/users/123/digest"),
+				env,
+			);
+
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.data).toEqual([]);
+			expect(data.meta.nextCursor).toBeNull();
+		});
+
+		it("should use cursor for keyset pagination", async () => {
+			const allSpy = mock(() => Promise.resolve({ results: [] }));
+			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const cursor = btoa(JSON.stringify({ createdAt: 1711540800, id: 100 }));
+			await listDigest(
+				new Request(`https://example.com/api/v1/users/123/digest?cursor=${cursor}`),
+				env,
+			);
+
+			const sql = prepareSpy.mock.calls[0][0] as string;
+			expect(sql).toContain("created_at < ?");
+		});
+
+		it("should return nextCursor when results equal limit", async () => {
+			const rows = [
+				{
+					id: 100,
+					forum_id: 1,
+					author_id: 123,
+					author_name: "testuser",
+					subject: "Digest Thread",
+					created_at: 1711540800,
+					last_post_at: 1711544400,
+					last_poster: "bob",
+					replies: 5,
+					views: 100,
+					closed: 0,
+					sticky: 0,
+					digest: 1,
+					special: 0,
+					highlight: 0,
+					recommends: 0,
+					post_table_id: 1,
+				},
+			];
+			const allSpy = mock(() => Promise.resolve({ results: rows }));
+			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await listDigest(
+				new Request("https://example.com/api/v1/users/123/digest?limit=1"),
+				env,
+			);
+
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.meta.nextCursor).not.toBeNull();
+		});
+	});
+
+	describe("search", () => {
+		it("should return 400 when query is missing", async () => {
+			const response = await search(
+				new Request("https://example.com/api/v1/users/search"),
+				mockEnv,
+			);
+			expect(response.status).toBe(400);
+		});
+
+		it("should return 400 when query is too short", async () => {
+			const response = await search(
+				new Request("https://example.com/api/v1/users/search?q=a"),
+				mockEnv,
+			);
+			expect(response.status).toBe(400);
+			const data = await response.json();
+			expect(data.error.details.message).toContain("at least 2 characters");
+		});
+
+		it("should return matching users", async () => {
+			const rows = [
+				{ id: 1, username: "alice" },
+				{ id: 2, username: "alex" },
+			];
+			const allSpy = mock(() => Promise.resolve({ results: rows }));
+			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await search(
+				new Request("https://example.com/api/v1/users/search?q=al"),
+				env,
+			);
+
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.data).toHaveLength(2);
+			expect(data.data[0].username).toBe("alice");
+
+			// Verify bind params: prefix match + limit
+			expect(bindSpy.mock.calls[0][0]).toBe("al%");
+			expect(bindSpy.mock.calls[0][1]).toBe(10); // default limit
+		});
+
+		it("should clamp limit to MAX_SEARCH_LIMIT", async () => {
+			const allSpy = mock(() => Promise.resolve({ results: [] }));
+			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			await search(
+				new Request("https://example.com/api/v1/users/search?q=test&limit=100"),
+				env,
+			);
+
+			expect(bindSpy.mock.calls[0][1]).toBe(20); // MAX_SEARCH_LIMIT
+		});
+
+		it("should escape special LIKE characters", async () => {
+			const allSpy = mock(() => Promise.resolve({ results: [] }));
+			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			await search(
+				new Request("https://example.com/api/v1/users/search?q=te%25st"),
+				env,
+			);
+
+			// % should be escaped
+			expect(bindSpy.mock.calls[0][0]).toBe("te\\%st%");
+		});
+
+		it("should return empty array when no matches", async () => {
+			const allSpy = mock(() => Promise.resolve({ results: [] }));
+			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await search(
+				new Request("https://example.com/api/v1/users/search?q=zzz"),
+				env,
+			);
+
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.data).toEqual([]);
+		});
+
+		it("should use custom limit when provided", async () => {
+			const allSpy = mock(() => Promise.resolve({ results: [] }));
+			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			await search(
+				new Request("https://example.com/api/v1/users/search?q=test&limit=5"),
+				env,
+			);
+
+			expect(bindSpy.mock.calls[0][1]).toBe(5);
 		});
 	});
 });
