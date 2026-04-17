@@ -231,7 +231,9 @@ describe("status constants", () => {
 	it("ThreadStickyLevel values are correct", () => {
 		expect(ThreadStickyLevel.NORMAL).toBe(0);
 		expect(ThreadStickyLevel.DELETED).toBe(-2);
-		expect(ThreadStickyLevel.STICKY_GLOBAL).toBe(3);
+		expect(ThreadStickyLevel.STICKY_FORUM).toBe(1);
+		expect(ThreadStickyLevel.STICKY_GLOBAL).toBe(2);
+		expect(ThreadStickyLevel.STICKY_CATEGORY).toBe(3);
 	});
 
 	it("PostInvisibleLevel values are correct", () => {
