@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { createMockDb, makeEnv } from "../../helpers";
 import { checkPostingPermission } from "../../../src/lib/postingPermission";
 import type { PostingUser } from "../../../src/lib/postingPermission";
+import { createMockDb, makeEnv } from "../../helpers";
 
 function makeUser(role = 0, userId = 1): PostingUser {
 	return { userId, role };
@@ -171,7 +171,12 @@ describe("checkPostingPermission", () => {
 
 	it("staff bypasses posting restrictions", async () => {
 		const env = buildEnv(
-			makeUserRow({ role: 1, reg_date: Math.floor(Date.now() / 1000), avatar_path: "", has_avatar: 0 }),
+			makeUserRow({
+				role: 1,
+				reg_date: Math.floor(Date.now() / 1000),
+				avatar_path: "",
+				has_avatar: 0,
+			}),
 			makeSettingsRows({
 				"features.posting.enabled": "true",
 				"features.posting.min_registration_days": "30",

@@ -1,4 +1,4 @@
-import { describe, expect, it, mock, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, it, mock } from "bun:test";
 
 // Mock the api-client module before importing the module under test
 const mockPatch = mock(async () => ({ data: undefined, meta: {} }));
@@ -12,17 +12,17 @@ mock.module("../../../apps/web/src/lib/api-client", () => ({
 }));
 
 import {
-	setThreadSticky,
-	setThreadDigest,
-	setThreadClosed,
-	moveThread,
-	setThreadHighlight,
-	deleteThread,
-	deletePost,
-	editPost,
 	deleteMyPost,
 	deleteMyThread,
+	deletePost,
+	deleteThread,
 	editMyPost,
+	editPost,
+	moveThread,
+	setThreadClosed,
+	setThreadDigest,
+	setThreadHighlight,
+	setThreadSticky,
 } from "../../../apps/web/src/lib/moderation-api";
 
 beforeEach(() => {
@@ -36,17 +36,23 @@ describe("moderation-api", () => {
 	describe("setThreadSticky", () => {
 		it("calls patch with correct URL and level", async () => {
 			await setThreadSticky(42, "forum");
-			expect(mockPatch).toHaveBeenCalledWith("/api/v1/moderation/threads/42/sticky", { level: "forum" });
+			expect(mockPatch).toHaveBeenCalledWith("/api/v1/moderation/threads/42/sticky", {
+				level: "forum",
+			});
 		});
 
 		it("supports 'none' level", async () => {
 			await setThreadSticky(1, "none");
-			expect(mockPatch).toHaveBeenCalledWith("/api/v1/moderation/threads/1/sticky", { level: "none" });
+			expect(mockPatch).toHaveBeenCalledWith("/api/v1/moderation/threads/1/sticky", {
+				level: "none",
+			});
 		});
 
 		it("supports 'global' level", async () => {
 			await setThreadSticky(99, "global");
-			expect(mockPatch).toHaveBeenCalledWith("/api/v1/moderation/threads/99/sticky", { level: "global" });
+			expect(mockPatch).toHaveBeenCalledWith("/api/v1/moderation/threads/99/sticky", {
+				level: "global",
+			});
 		});
 	});
 
@@ -60,19 +66,25 @@ describe("moderation-api", () => {
 	describe("setThreadClosed", () => {
 		it("calls patch with closed=true", async () => {
 			await setThreadClosed(5, true);
-			expect(mockPatch).toHaveBeenCalledWith("/api/v1/moderation/threads/5/close", { closed: true });
+			expect(mockPatch).toHaveBeenCalledWith("/api/v1/moderation/threads/5/close", {
+				closed: true,
+			});
 		});
 
 		it("calls patch with closed=false", async () => {
 			await setThreadClosed(5, false);
-			expect(mockPatch).toHaveBeenCalledWith("/api/v1/moderation/threads/5/close", { closed: false });
+			expect(mockPatch).toHaveBeenCalledWith("/api/v1/moderation/threads/5/close", {
+				closed: false,
+			});
 		});
 	});
 
 	describe("moveThread", () => {
 		it("calls patch with targetForumId", async () => {
 			await moveThread(7, 20);
-			expect(mockPatch).toHaveBeenCalledWith("/api/v1/moderation/threads/7/move", { targetForumId: 20 });
+			expect(mockPatch).toHaveBeenCalledWith("/api/v1/moderation/threads/7/move", {
+				targetForumId: 20,
+			});
 		});
 	});
 
@@ -85,7 +97,9 @@ describe("moderation-api", () => {
 
 		it("supports null color (remove highlight)", async () => {
 			await setThreadHighlight(3, { color: null });
-			expect(mockPatch).toHaveBeenCalledWith("/api/v1/moderation/threads/3/highlight", { color: null });
+			expect(mockPatch).toHaveBeenCalledWith("/api/v1/moderation/threads/3/highlight", {
+				color: null,
+			});
 		});
 	});
 
@@ -108,7 +122,9 @@ describe("moderation-api", () => {
 	describe("editPost", () => {
 		it("calls patch with content", async () => {
 			await editPost(50, "updated content");
-			expect(mockPatch).toHaveBeenCalledWith("/api/v1/moderation/posts/50", { content: "updated content" });
+			expect(mockPatch).toHaveBeenCalledWith("/api/v1/moderation/posts/50", {
+				content: "updated content",
+			});
 		});
 	});
 
@@ -131,7 +147,9 @@ describe("moderation-api", () => {
 	describe("editMyPost", () => {
 		it("calls patch with /me/ URL and content", async () => {
 			await editMyPost(400, "my updated post");
-			expect(mockPatch).toHaveBeenCalledWith("/api/v1/me/posts/400", { content: "my updated post" });
+			expect(mockPatch).toHaveBeenCalledWith("/api/v1/me/posts/400", {
+				content: "my updated post",
+			});
 		});
 	});
 });

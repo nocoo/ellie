@@ -518,10 +518,7 @@ describe("user handlers", () => {
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
-			await listThreads(
-				new Request("https://example.com/api/v1/users/123/threads?limit=999"),
-				env,
-			);
+			await listThreads(new Request("https://example.com/api/v1/users/123/threads?limit=999"), env);
 
 			// The last bind param should be 50 (MAX_HISTORY_LIMIT)
 			const lastBindCall = bindSpy.mock.calls[0];
@@ -764,10 +761,7 @@ describe("user handlers", () => {
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
-			await search(
-				new Request("https://example.com/api/v1/users/search?q=test&limit=100"),
-				env,
-			);
+			await search(new Request("https://example.com/api/v1/users/search?q=test&limit=100"), env);
 
 			expect(bindSpy.mock.calls[0][1]).toBe(20); // MAX_SEARCH_LIMIT
 		});
@@ -779,10 +773,7 @@ describe("user handlers", () => {
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
-			await search(
-				new Request("https://example.com/api/v1/users/search?q=te%25st"),
-				env,
-			);
+			await search(new Request("https://example.com/api/v1/users/search?q=te%25st"), env);
 
 			// % should be escaped
 			expect(bindSpy.mock.calls[0][0]).toBe("te\\%st%");
@@ -812,10 +803,7 @@ describe("user handlers", () => {
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
-			await search(
-				new Request("https://example.com/api/v1/users/search?q=test&limit=5"),
-				env,
-			);
+			await search(new Request("https://example.com/api/v1/users/search?q=test&limit=5"), env);
 
 			expect(bindSpy.mock.calls[0][1]).toBe(5);
 		});

@@ -1430,7 +1430,7 @@ describe("PATCH /api/v1/moderation/threads/:id/highlight", () => {
 
 	it("should set highlight with 6-digit hex color for Admin", async () => {
 		const token = await makeModToken(1);
-		const { db, calls } = createMockDb({
+		const { db } = createMockDb({
 			firstResults: {
 				...mockThread(1, 1, 10),
 				...mockUser(1, 1, "admin"),
@@ -2183,7 +2183,7 @@ describe("nukeUser — edge cases", () => {
 
 	it("should nuke user with threads and standalone posts", async () => {
 		const token = await makeModToken(1);
-		const { db, calls, batchCalls } = createMockDb({
+		const { db } = createMockDb({
 			firstResults: {
 				...mockUser(1, 1, "admin"),
 				"SELECT id, username, status, role FROM users": {

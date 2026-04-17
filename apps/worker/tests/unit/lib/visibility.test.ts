@@ -1,28 +1,28 @@
 import { describe, expect, it } from "bun:test";
 import { UserRole } from "@ellie/types";
 import {
-	THREAD_VISIBLE,
-	POST_VISIBLE,
-	USER_ACTIVE,
 	FORUM_ACTIVE,
-	threadVisible,
-	postVisible,
-	userActive,
-	forumActive,
-	isUserPublic,
-	isUserBanned,
-	isUserArchived,
-	isUserPlaceholder,
-	buildVisibilityContext,
-	buildForumVisibilityFilter,
-	buildForumFilter,
-	canViewForumVisibility,
-	threadListFilters,
-	postListFilters,
-	ThreadStickyLevel,
-	PostInvisibleLevel,
-	UserStatusLevel,
 	ForumStatusLevel,
+	POST_VISIBLE,
+	PostInvisibleLevel,
+	THREAD_VISIBLE,
+	ThreadStickyLevel,
+	USER_ACTIVE,
+	UserStatusLevel,
+	buildForumFilter,
+	buildForumVisibilityFilter,
+	buildVisibilityContext,
+	canViewForumVisibility,
+	forumActive,
+	isUserArchived,
+	isUserBanned,
+	isUserPlaceholder,
+	isUserPublic,
+	postListFilters,
+	postVisible,
+	threadListFilters,
+	threadVisible,
+	userActive,
 } from "../../../src/lib/visibility";
 
 // ─── SQL Constants ─────────────────────────────────────────
@@ -196,7 +196,7 @@ describe("canViewForumVisibility", () => {
 	});
 
 	it("unknown visibility returns false", () => {
-		expect(canViewForumVisibility("unknown" as any, admin)).toBe(false);
+		expect(canViewForumVisibility("unknown" as never, admin)).toBe(false);
 	});
 });
 

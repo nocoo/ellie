@@ -3,7 +3,7 @@
 // NOTE: These tests focus on executing code paths for coverage. When run alongside proxy.test.ts,
 // the mock.module may not fully override already-cached modules, but the code paths still execute.
 
-import { describe, expect, it, mock, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 // ─── Mock setup ────────────────────────────────────────────
 
@@ -23,7 +23,7 @@ mock.module("next/server", () => ({
 // Must import after mocking
 const { proxy } = await import("../../apps/web/src/proxy");
 
-function makeNextRequest(pathname: string): any {
+function makeNextRequest(pathname: string): unknown {
 	const url = new URL(pathname, "https://example.com");
 	return {
 		nextUrl: url,
@@ -42,13 +42,13 @@ describe("proxy()", () => {
 
 	afterEach(() => {
 		globalThis.fetch = originalFetch;
-		delete process.env.WORKER_API_URL;
-		delete process.env.FORUM_API_KEY;
+		process.env.WORKER_API_URL = undefined;
+		process.env.FORUM_API_KEY = undefined;
 	});
 
 	it("executes public route path when no worker configured", async () => {
-		delete process.env.WORKER_API_URL;
-		delete process.env.FORUM_API_KEY;
+		process.env.WORKER_API_URL = undefined;
+		process.env.FORUM_API_KEY = undefined;
 		mockAuth.mockResolvedValueOnce(null);
 		const result = await proxy(makeNextRequest("/forums"));
 		expect(result).toBeDefined();
@@ -72,7 +72,7 @@ describe("proxy()", () => {
 
 		globalThis.fetch = mock(async () => {
 			throw new Error("Network error");
-		}) as any;
+		}) as typeof fetch;
 
 		mockAuth.mockResolvedValueOnce(null);
 		const result = await proxy(makeNextRequest("/forums"));
@@ -83,9 +83,7 @@ describe("proxy()", () => {
 		process.env.WORKER_API_URL = "https://worker2.example.com";
 		process.env.FORUM_API_KEY = "test-key-2";
 
-		globalThis.fetch = mock(async () =>
-			new Response("Error", { status: 500 }),
-		) as any;
+		globalThis.fetch = mock(async () => new Response("Error", { status: 500 })) as typeof fetch;
 
 		mockAuth.mockResolvedValueOnce(null);
 		const result = await proxy(makeNextRequest("/forums"));
@@ -96,11 +94,12 @@ describe("proxy()", () => {
 		process.env.WORKER_API_URL = "https://worker3.example.com/";
 		process.env.FORUM_API_KEY = "test-key-3";
 
-		globalThis.fetch = mock(async () =>
-			new Response(JSON.stringify({ data: { "features.access.require_login": true } }), {
-				status: 200,
-			}),
-		) as any;
+		globalThis.fetch = mock(
+			async () =>
+				new Response(JSON.stringify({ data: { "features.access.require_login": true } }), {
+					status: 200,
+				}),
+		) as typeof fetch;
 
 		mockAuth.mockResolvedValueOnce(null);
 		const result = await proxy(makeNextRequest("/forums"));
