@@ -1,7 +1,13 @@
 import { describe, expect, it } from "bun:test";
 import type { Env } from "../../../src/lib/env";
 import { createJwt } from "../../../src/lib/jwt";
-import { authMiddleware, moderationMiddleware } from "../../../src/middleware/auth";
+import {
+	authMiddleware,
+	authMiddlewareVerified,
+	moderationMiddleware,
+	optionalAuth,
+	optionalAuthVerified,
+} from "../../../src/middleware/auth";
 import { createMockDb, createMockKV } from "../../helpers";
 
 describe("authMiddleware", () => {
@@ -346,5 +352,254 @@ describe("moderationMiddleware", () => {
 		expect(result).toBeInstanceOf(Response);
 		const response = result as Response;
 		expect(response.status).toBe(403); // Should be denied based on DB role
+	});
+});
+
+// ---------------------------------------------------------------------------
+// optionalAuth
+// ---------------------------------------------------------------------------
+
+describe("optionalAuth", () => {
+	const mockEnv: Env = {
+		API_KEY: "test-api-key",
+		ADMIN_API_KEY: "test-admin-api-key",
+		DB: {} as D1Database,
+		ENVIRONMENT: "test",
+		JWT_SECRET: "test-secret-key-for-jwt-hs256",
+		KV: createMockKV(),
+	};
+
+	it("returns null when no Authorization header", async () => {
+		const request = new Request("https://example.com/api/v1/threads");
+		const result = await optionalAuth(request, mockEnv);
+		expect(result).toBeNull();
+	});
+
+	it("returns null when Authorization header is not Bearer", async () => {
+		const request = new Request("https://example.com/api/v1/threads", {
+			headers: { Authorization: "Basic abc" },
+		});
+		const result = await optionalAuth(request, mockEnv);
+		expect(result).toBeNull();
+	});
+
+	it("returns user for valid token", async () => {
+		const token = await createJwt(
+			{ userId: 42, role: 2, exp: Math.floor(Date.now() / 1000) + 3600 },
+			mockEnv.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/threads", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const result = await optionalAuth(request, mockEnv);
+		expect(result).toEqual({ userId: 42, role: 2 });
+	});
+
+	it("returns null for expired token", async () => {
+		const token = await createJwt(
+			{ userId: 1, role: 0, exp: Math.floor(Date.now() / 1000) - 3600 },
+			mockEnv.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/threads", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const result = await optionalAuth(request, mockEnv);
+		expect(result).toBeNull();
+	});
+
+	it("returns null for invalid token", async () => {
+		const request = new Request("https://example.com/api/v1/threads", {
+			headers: { Authorization: "Bearer invalid.token.here" },
+		});
+		const result = await optionalAuth(request, mockEnv);
+		expect(result).toBeNull();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// optionalAuthVerified
+// ---------------------------------------------------------------------------
+
+describe("optionalAuthVerified", () => {
+	function createVerifiedEnv(dbUser: { role: number; status: number } | null): Env {
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status FROM users": dbUser,
+			},
+		});
+		return {
+			API_KEY: "test-api-key",
+			ADMIN_API_KEY: "test-admin-api-key",
+			DB: db,
+			ENVIRONMENT: "test",
+			JWT_SECRET: "test-secret-key-for-jwt-hs256",
+			KV: createMockKV(),
+		};
+	}
+
+	it("returns null when no Authorization header", async () => {
+		const env = createVerifiedEnv({ role: 0, status: 0 });
+		const request = new Request("https://example.com/api/v1/threads");
+		const result = await optionalAuthVerified(request, env);
+		expect(result).toBeNull();
+	});
+
+	it("returns user with DB-verified role for valid token", async () => {
+		const env = createVerifiedEnv({ role: 2, status: 0 });
+		const token = await createJwt(
+			{ userId: 1, role: 0, exp: Math.floor(Date.now() / 1000) + 3600 },
+			env.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/threads", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const result = await optionalAuthVerified(request, env);
+		expect(result).toEqual({ userId: 1, role: 2 }); // DB role, not JWT role
+	});
+
+	it("returns null for expired token", async () => {
+		const env = createVerifiedEnv({ role: 0, status: 0 });
+		const token = await createJwt(
+			{ userId: 1, role: 0, exp: Math.floor(Date.now() / 1000) - 3600 },
+			env.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/threads", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const result = await optionalAuthVerified(request, env);
+		expect(result).toBeNull();
+	});
+
+	it("returns null for user not found in DB", async () => {
+		const env = createVerifiedEnv(null);
+		const token = await createJwt(
+			{ userId: 999, role: 0, exp: Math.floor(Date.now() / 1000) + 3600 },
+			env.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/threads", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const result = await optionalAuthVerified(request, env);
+		expect(result).toBeNull();
+	});
+
+	it("returns null for banned user (status !== 0)", async () => {
+		const env = createVerifiedEnv({ role: 1, status: -1 });
+		const token = await createJwt(
+			{ userId: 1, role: 1, exp: Math.floor(Date.now() / 1000) + 3600 },
+			env.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/threads", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const result = await optionalAuthVerified(request, env);
+		expect(result).toBeNull();
+	});
+
+	it("returns null for invalid token", async () => {
+		const env = createVerifiedEnv({ role: 0, status: 0 });
+		const request = new Request("https://example.com/api/v1/threads", {
+			headers: { Authorization: "Bearer bad.token" },
+		});
+		const result = await optionalAuthVerified(request, env);
+		expect(result).toBeNull();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// authMiddlewareVerified
+// ---------------------------------------------------------------------------
+
+describe("authMiddlewareVerified", () => {
+	function createVerifiedEnv(dbUser: { role: number; status: number } | null): Env {
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status FROM users": dbUser,
+			},
+		});
+		return {
+			API_KEY: "test-api-key",
+			ADMIN_API_KEY: "test-admin-api-key",
+			DB: db,
+			ENVIRONMENT: "test",
+			JWT_SECRET: "test-secret-key-for-jwt-hs256",
+			KV: createMockKV(),
+		};
+	}
+
+	it("returns 401 when no auth header", async () => {
+		const env = createVerifiedEnv({ role: 0, status: 0 });
+		const request = new Request("https://example.com/api/v1/me/posts");
+		const result = await authMiddlewareVerified(request, env);
+		expect(result).toBeInstanceOf(Response);
+		expect((result as Response).status).toBe(401);
+	});
+
+	it("returns 401 for expired token", async () => {
+		const env = createVerifiedEnv({ role: 0, status: 0 });
+		const token = await createJwt(
+			{ userId: 1, role: 0, exp: Math.floor(Date.now() / 1000) - 3600 },
+			env.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/me/posts", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const result = await authMiddlewareVerified(request, env);
+		expect(result).toBeInstanceOf(Response);
+		expect((result as Response).status).toBe(401);
+	});
+
+	it("returns 404 when user not found in DB", async () => {
+		const env = createVerifiedEnv(null);
+		const token = await createJwt(
+			{ userId: 999, role: 0, exp: Math.floor(Date.now() / 1000) + 3600 },
+			env.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/me/posts", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const result = await authMiddlewareVerified(request, env);
+		expect(result).toBeInstanceOf(Response);
+		expect((result as Response).status).toBe(404);
+	});
+
+	it("returns 403 when user is banned", async () => {
+		const env = createVerifiedEnv({ role: 1, status: -1 });
+		const token = await createJwt(
+			{ userId: 1, role: 1, exp: Math.floor(Date.now() / 1000) + 3600 },
+			env.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/me/posts", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const result = await authMiddlewareVerified(request, env);
+		expect(result).toBeInstanceOf(Response);
+		expect((result as Response).status).toBe(403);
+	});
+
+	it("returns user with DB-verified role for valid token", async () => {
+		const env = createVerifiedEnv({ role: 2, status: 0 });
+		const token = await createJwt(
+			{ userId: 5, role: 0, exp: Math.floor(Date.now() / 1000) + 3600 },
+			env.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/me/posts", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const result = await authMiddlewareVerified(request, env);
+		expect(result).not.toBeInstanceOf(Response);
+		const authResult = result as { user: { userId: number; role: number } };
+		expect(authResult.user.userId).toBe(5);
+		expect(authResult.user.role).toBe(2); // DB role
+	});
+
+	it("returns 401 for invalid token", async () => {
+		const env = createVerifiedEnv({ role: 0, status: 0 });
+		const request = new Request("https://example.com/api/v1/me/posts", {
+			headers: { Authorization: "Bearer invalid.token" },
+		});
+		const result = await authMiddlewareVerified(request, env);
+		expect(result).toBeInstanceOf(Response);
+		expect((result as Response).status).toBe(401);
 	});
 });
