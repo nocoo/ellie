@@ -115,7 +115,7 @@ describe("L2: Worker Auth API", () => {
 		});
 
 		test("returns user info with valid JWT", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerFetch("/api/v1/auth/me", {
 				headers: { Authorization: `Bearer ${jwt}` },
 			});

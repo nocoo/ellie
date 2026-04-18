@@ -14,7 +14,7 @@ describe("L2: Worker Messaging API", () => {
 		});
 
 		test("returns message list with valid JWT", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerFetch("/api/v1/messages", {
 				headers: { Authorization: `Bearer ${jwt}` },
 			});
@@ -28,7 +28,7 @@ describe("L2: Worker Messaging API", () => {
 		});
 
 		test("supports pagination", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerFetch("/api/v1/messages?limit=10&offset=0", {
 				headers: { Authorization: `Bearer ${jwt}` },
 			});
@@ -45,7 +45,7 @@ describe("L2: Worker Messaging API", () => {
 		});
 
 		test("returns unread count with valid JWT", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerFetch("/api/v1/messages/unread-count", {
 				headers: { Authorization: `Bearer ${jwt}` },
 			});
@@ -68,7 +68,7 @@ describe("L2: Worker Messaging API", () => {
 		});
 
 		test("marks all messages as read with valid JWT", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerPost("/api/v1/messages/mark-all-read", {}, jwt);
 			expect([200, 404]).toContain(res.status);
 		});
@@ -83,7 +83,7 @@ describe("L2: Worker Messaging API", () => {
 		});
 
 		test("returns 404 for non-existent message", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerFetch("/api/v1/messages/999999", {
 				headers: { Authorization: `Bearer ${jwt}` },
 			});
@@ -104,13 +104,13 @@ describe("L2: Worker Messaging API", () => {
 		});
 
 		test("returns 400 for missing required fields", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerPost("/api/v1/messages", {}, jwt);
 			expect(res.status).toBe(400);
 		});
 
 		test("returns 404 for non-existent recipient", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerPost(
 				"/api/v1/messages",
 				{
@@ -133,7 +133,7 @@ describe("L2: Worker Messaging API", () => {
 		});
 
 		test("returns 404 for non-existent message", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerDelete("/api/v1/messages/999999", jwt);
 			expect([403, 404]).toContain(res.status);
 		});

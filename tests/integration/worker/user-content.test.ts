@@ -18,7 +18,7 @@ describe("L2: Worker User Content API", () => {
 		});
 
 		test("returns 400 for missing required fields", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerPost(
 				"/api/v1/threads",
 				{}, // Missing required fields
@@ -28,7 +28,7 @@ describe("L2: Worker User Content API", () => {
 		});
 
 		test("returns 400 for invalid forumId", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerPost(
 				"/api/v1/threads",
 				{
@@ -55,7 +55,7 @@ describe("L2: Worker User Content API", () => {
 		});
 
 		test("returns 400 for missing required fields", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerPost(
 				"/api/v1/posts",
 				{}, // Missing required fields
@@ -65,7 +65,7 @@ describe("L2: Worker User Content API", () => {
 		});
 
 		test("returns 404 for non-existent thread", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerPost(
 				"/api/v1/posts",
 				{
@@ -89,7 +89,7 @@ describe("L2: Worker User Content API", () => {
 		});
 
 		test("accepts valid profile update with JWT", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerPatch(
 				"/api/v1/users/me",
 				{
@@ -115,7 +115,7 @@ describe("L2: Worker User Content API", () => {
 		});
 
 		test("returns 400 for missing fields", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerPost("/api/v1/users/me/password", {}, jwt);
 			expect(res.status).toBe(400);
 		});
@@ -130,7 +130,7 @@ describe("L2: Worker User Content API", () => {
 		});
 
 		test("returns 404 for non-existent post", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerDelete("/api/v1/me/posts/999999", jwt);
 			expect([403, 404]).toContain(res.status);
 		});
@@ -145,7 +145,7 @@ describe("L2: Worker User Content API", () => {
 		});
 
 		test("returns 404 for non-existent thread", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerDelete("/api/v1/me/threads/999999", jwt);
 			expect([403, 404]).toContain(res.status);
 		});
@@ -162,7 +162,7 @@ describe("L2: Worker User Content API", () => {
 		});
 
 		test("returns 404 for non-existent post", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerPatch(
 				"/api/v1/me/posts/999999",
 				{
