@@ -21,7 +21,7 @@ describe("L2: Worker Moderation API", () => {
 		});
 
 		test("returns 403 for regular user", async () => {
-			const jwt = await createTestJwt(1, 0); // Regular user
+			const jwt = await createTestJwt(3, 0); // Regular user (seeded id=3, role=User)
 			const res = await workerPatch("/api/v1/moderation/threads/1/sticky", { sticky: true }, jwt);
 			expect(res.status).toBe(403);
 		});
@@ -48,7 +48,7 @@ describe("L2: Worker Moderation API", () => {
 		});
 
 		test("returns 403 for regular user", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerPatch("/api/v1/moderation/threads/1/digest", { digest: true }, jwt);
 			expect(res.status).toBe(403);
 		});
@@ -63,7 +63,7 @@ describe("L2: Worker Moderation API", () => {
 		});
 
 		test("returns 403 for regular user", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerPatch("/api/v1/moderation/threads/1/close", { closed: true }, jwt);
 			expect(res.status).toBe(403);
 		});
@@ -78,7 +78,7 @@ describe("L2: Worker Moderation API", () => {
 		});
 
 		test("returns 403 for regular user", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerPatch("/api/v1/moderation/threads/1/move", { forumId: 2 }, jwt);
 			expect(res.status).toBe(403);
 		});
@@ -93,7 +93,7 @@ describe("L2: Worker Moderation API", () => {
 		});
 
 		test("returns 403 for regular user", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerPatch(
 				"/api/v1/moderation/threads/1/highlight",
 				{ highlight: 1 },
@@ -110,7 +110,7 @@ describe("L2: Worker Moderation API", () => {
 		});
 
 		test("returns 403 for regular user", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerDelete("/api/v1/moderation/threads/1", jwt);
 			expect(res.status).toBe(403);
 		});
@@ -125,7 +125,7 @@ describe("L2: Worker Moderation API", () => {
 		});
 
 		test("returns 403 for regular user", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerDelete("/api/v1/moderation/posts/1", jwt);
 			expect(res.status).toBe(403);
 		});
@@ -140,7 +140,7 @@ describe("L2: Worker Moderation API", () => {
 		});
 
 		test("returns 403 for regular user", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerPatch(
 				"/api/v1/moderation/posts/1",
 				{ content: "Edited by mod" },
@@ -159,7 +159,7 @@ describe("L2: Worker Moderation API", () => {
 		});
 
 		test("returns 403 for regular user", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerFetch("/api/v1/moderation/users/1/status", {
 				headers: { Authorization: `Bearer ${jwt}` },
 			});
@@ -184,7 +184,7 @@ describe("L2: Worker Moderation API", () => {
 		});
 
 		test("returns 403 for regular user", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerFetch("/api/v1/moderation/users/1/ip-records", {
 				headers: { Authorization: `Bearer ${jwt}` },
 			});
@@ -202,7 +202,7 @@ describe("L2: Worker Moderation API", () => {
 		});
 
 		test("returns 403 for regular user", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerPost(
 				"/api/v1/moderation/users/1/mute",
 				{ duration: 3600, reason: "Test" },
@@ -219,7 +219,7 @@ describe("L2: Worker Moderation API", () => {
 		});
 
 		test("returns 403 for regular user", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerPost("/api/v1/moderation/users/1/unmute", {}, jwt);
 			expect(res.status).toBe(403);
 		});
@@ -234,7 +234,7 @@ describe("L2: Worker Moderation API", () => {
 		});
 
 		test("returns 403 for regular user", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerPost("/api/v1/moderation/users/1/ban", { reason: "Test ban" }, jwt);
 			expect(res.status).toBe(403);
 		});
@@ -247,7 +247,7 @@ describe("L2: Worker Moderation API", () => {
 		});
 
 		test("returns 403 for regular user", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerPost("/api/v1/moderation/users/1/unban", {}, jwt);
 			expect(res.status).toBe(403);
 		});
@@ -262,7 +262,7 @@ describe("L2: Worker Moderation API", () => {
 		});
 
 		test("returns 403 for regular user", async () => {
-			const jwt = await createTestJwt(1, 0);
+			const jwt = await createTestJwt(3, 0);
 			const res = await workerPost("/api/v1/moderation/users/1/nuke", { reason: "Test nuke" }, jwt);
 			expect(res.status).toBe(403);
 		});
