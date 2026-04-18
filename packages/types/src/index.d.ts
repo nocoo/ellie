@@ -1,49 +1,11 @@
 export { VERSION, VERSION_DISPLAY } from "./version";
 export * from "./types";
-export type {
-	PublicUser,
-	User,
-	Forum,
-	ForumVisibility,
-	Thread,
-	Post,
-	Attachment,
-	IpBan,
-	CensorWord,
-} from "./types";
+export type { PublicUser, User, Forum, ForumVisibility, Thread, Post, PostComment, Attachment, IpBan, CensorWord, } from "./types";
 export type { ForumTreeNode, VisibilityContext } from "./forum";
-export {
-	buildForumTree,
-	filterVisibleForums,
-	findForumAncestors,
-	canViewForum as canViewForumVisibility,
-} from "./forum";
+export { buildForumTree, filterVisibleForums, findForumAncestors, canViewForum as canViewForumVisibility, } from "./forum";
 export type { ThreadBadge, HighlightStyle } from "./thread";
 export { getThreadBadges, decodeHighlight } from "./thread";
 export type { CursorPayload } from "./pagination";
-export {
-	encodeCursor,
-	decodeCursor,
-	DEFAULT_PAGE_SIZE,
-	MAX_PAGE_SIZE,
-	clampPageSize,
-} from "./pagination";
-export type {
-	PermissionUser,
-	PermissionForum,
-	PermissionPost,
-	PermissionThread,
-} from "./permission";
-export {
-	canViewForum,
-	canCreateThread,
-	canReplyToThread,
-	canModerate,
-	canAccessAdmin,
-	canManageUsers,
-	canEditPost,
-	canDeletePost,
-	canDeleteThread,
-	canManageThread,
-	canMoveThread,
-} from "./permission";
+export { encodeCursor, decodeCursor, encodeGenericCursor, decodeGenericCursor, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, clampPageSize, } from "./pagination";
+export type { PermissionUser, PermissionForum, PermissionPost, PermissionThread, } from "./permission";
+export { canViewForum, canCreateThread, canReplyToThread, canModerate, canAccessAdmin, canManageUsers, canEditPost, canDeletePost, canDeleteThread, canManageThread, canMoveThread, } from "./permission";

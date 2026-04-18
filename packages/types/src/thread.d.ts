@@ -1,16 +1,16 @@
 import type { Thread } from "./types";
 export interface ThreadBadge {
-	type: string;
-	label: string;
-	variant: "destructive" | "warning" | "default" | "success" | "secondary";
+    type: string;
+    label: string;
+    variant: "destructive" | "warning" | "default" | "success" | "secondary";
 }
 /** Compute display badges for a thread (typeName, sticky, digest, closed, special). */
 export declare function getThreadBadges(thread: Thread): ThreadBadge[];
 export interface HighlightStyle {
-	color: string | null;
-	bold: boolean;
-	italic: boolean;
-	underline: boolean;
+    color: string | null;
+    bold: boolean;
+    italic: boolean;
+    underline: boolean;
 }
 /**
  * Decode DZ highlight field into style object.

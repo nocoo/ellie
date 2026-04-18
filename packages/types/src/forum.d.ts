@@ -1,7 +1,7 @@
 import type { Forum, ForumVisibility } from "./types";
-import type { UserRole } from "./types";
+import { UserRole } from "./types";
 export interface ForumTreeNode extends Forum {
-	children: ForumTreeNode[];
+    children: ForumTreeNode[];
 }
 /**
  * Build a tree from flat Forum[] array.
@@ -21,8 +21,8 @@ export declare function findForumAncestors(forums: Forum[], forumId: number): Fo
  * isLoggedIn: whether the user is authenticated
  */
 export interface VisibilityContext {
-	isLoggedIn: boolean;
-	role: UserRole;
+    isLoggedIn: boolean;
+    role: UserRole;
 }
 /**
  * Check if user can view a forum based on its visibility setting.
@@ -48,7 +48,4 @@ export declare function canViewForum(visibility: ForumVisibility, ctx: Visibilit
  * - staff: only mods/super mods/admins
  * - admin: only admins
  */
-export declare function filterVisibleForums(
-	node: ForumTreeNode,
-	ctx?: VisibilityContext,
-): ForumTreeNode | null;
+export declare function filterVisibleForums(node: ForumTreeNode, ctx?: VisibilityContext): ForumTreeNode | null;
