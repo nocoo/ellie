@@ -1,0 +1,11 @@
+# OSV-Scanner configuration for ellie Rust CLI workspace.
+# Filters advisories whose trigger conditions are not reachable from this code.
+
+[[IgnoredVulns]]
+# rand@0.8.6 — soundness issue requires custom logger + thread_rng + reseeding
+# during a log call. ellie-tui does not register a custom logger that touches
+# rand, and rand is not even reachable in the compiled dependency tree
+# (cargo tree -i rand -> nothing). Fix is in 0.9.x, a non-trivial upgrade
+# pulled in transitively; revisit when upstream deps move.
+id = "GHSA-cq8v-f236-94qc"
+reason = "Trigger path (custom logger + ThreadRng reseed) not reachable from ellie-tui; rand not in compiled tree"
