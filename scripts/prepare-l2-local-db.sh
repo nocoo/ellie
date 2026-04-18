@@ -14,9 +14,9 @@ CONFIG="apps/worker/wrangler.toml"
 DB="tongjinet-db-test"
 
 echo "[L2] Applying migrations to local D1 ($DB)..."
-npx wrangler d1 migrations apply "$DB" --env test --local -c "$CONFIG"
+bunx wrangler d1 migrations apply "$DB" --env test --local -c "$CONFIG"
 
 echo "[L2] Seeding test data..."
-npx wrangler d1 execute "$DB" --env test --local -c "$CONFIG" --file scripts/seed-test-db.sql
+bunx wrangler d1 execute "$DB" --env test --local -c "$CONFIG" --file scripts/seed-test-db.sql
 
 echo "[L2] Local D1 ready."
