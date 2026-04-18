@@ -43,7 +43,8 @@ preview_id = "490227e961174fd38c6c14530a4ee3ee"
 
 [[env.test.r2_buckets]]
 binding = "R2"
-bucket_name = "tongjinet"
+bucket_name = "tongjinet-test"
+preview_bucket_name = "tongjinet-test"
 
 [env.test.vars]
 ENVIRONMENT = "test"
