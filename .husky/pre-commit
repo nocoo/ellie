@@ -1,10 +1,78 @@
-bunx lint-staged && bun run typecheck && cd apps/worker && bun test
+#!/bin/bash
+# Optimized pre-commit hook with conditional execution
 
-# Rust (if cli-rs exists)
-if [ -f "packages/cli-rs/Cargo.toml" ]; then
-  cd packages/cli-rs
-  cargo fmt --check --all
-  cargo clippy --all-targets --all-features -- -D warnings
-  cargo test --workspace
-  cd ../..
+set -e
+
+TEMP_DIR=$(mktemp -d)
+trap "rm -rf $TEMP_DIR" EXIT
+
+# Detect what files are staged
+HAS_TS=$(git diff --cached --name-only | grep -E '\.(ts|tsx)$' | head -1)
+HAS_RUST=$(git diff --cached --name-only | grep -E '\.rs$|packages/cli-rs/Cargo\.(toml|lock)' | head -1)
+HAS_OTHER=$(git diff --cached --name-only | grep -E '\.(json|js|jsx|css|md)$' | head -1)
+
+# Track PIDs
+declare -a PIDS=()
+
+# lint-staged always runs (handles its own file detection)
+(bunx lint-staged; echo $? > "$TEMP_DIR/lint_exit") &
+PIDS+=($!)
+
+# Typecheck only if TypeScript files changed
+if [ -n "$HAS_TS" ]; then
+  (bun run typecheck; echo $? > "$TEMP_DIR/typecheck_exit") &
+  PIDS+=($!)
+else
+  echo 0 > "$TEMP_DIR/typecheck_exit"
 fi
+
+# Worker tests only if TypeScript files changed (tests are in TS)
+if [ -n "$HAS_TS" ]; then
+  (cd apps/worker && bun test --concurrent; echo $? > "$TEMP_DIR/worker_exit") &
+  PIDS+=($!)
+else
+  echo 0 > "$TEMP_DIR/worker_exit"
+fi
+
+# Rust checks only if Rust files changed
+if [ -n "$HAS_RUST" ] && [ -f "packages/cli-rs/Cargo.toml" ]; then
+  (
+    cd packages/cli-rs
+    # Run all three cargo commands in parallel for speed
+    cargo fmt --check --all &
+    FMT_PID=$!
+    cargo clippy --all-targets --all-features -- -D warnings &
+    CLIPPY_PID=$!
+    cargo test --workspace &
+    TEST_PID=$!
+    
+    # Collect exit codes
+    FMT_EXIT=0; CLIPPY_EXIT=0; TEST_EXIT=0
+    wait $FMT_PID || FMT_EXIT=1
+    wait $CLIPPY_PID || CLIPPY_EXIT=1
+    wait $TEST_PID || TEST_EXIT=1
+    
+    # Exit with first non-zero code
+    if [ $FMT_EXIT -ne 0 ]; then exit $FMT_EXIT; fi
+    if [ $CLIPPY_EXIT -ne 0 ]; then exit $CLIPPY_EXIT; fi
+    if [ $TEST_EXIT -ne 0 ]; then exit $TEST_EXIT; fi
+    echo 0 > "$TEMP_DIR/rust_exit"
+  ) &
+  PIDS+=($!)
+else
+  echo 0 > "$TEMP_DIR/rust_exit"
+fi
+
+# Wait for all PIDs
+FAILED=0
+for pid in "${PIDS[@]}"; do
+  wait $pid || FAILED=1
+done
+
+# Check individual exit codes for better error reporting
+[ "$(cat $TEMP_DIR/lint_exit 2>/dev/null || echo 1)" -ne 0 ] && echo "❌ lint-staged failed" && FAILED=1
+[ "$(cat $TEMP_DIR/typecheck_exit 2>/dev/null || echo 1)" -ne 0 ] && echo "❌ typecheck failed" && FAILED=1
+[ "$(cat $TEMP_DIR/worker_exit 2>/dev/null || echo 1)" -ne 0 ] && echo "❌ worker tests failed" && FAILED=1
+[ "$(cat $TEMP_DIR/rust_exit 2>/dev/null || echo 1)" -ne 0 ] && echo "❌ rust checks failed" && FAILED=1
+
+exit $FAILED
