@@ -20,10 +20,10 @@
  *   bun run test:e2e:api
  */
 
-import { spawn, type Subprocess } from "bun";
 import { existsSync, rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { type Subprocess, spawn } from "bun";
 
 // ─── Configuration ─────────────────────────────────────────────
 

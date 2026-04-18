@@ -1,42 +1,18 @@
-// tests/integration/preload.ts — Global setup/teardown for L2 tests
-// Automatically starts the Worker before any integration test runs.
-// Also loads environment variables from .dev.vars to match Worker config.
+// tests/integration/preload.ts — Global preload for L2 tests.
+//
+// The Worker lifecycle is now owned by scripts/run-l2.ts (which boots
+// `wrangler dev --local --persist-to .wrangler/state/e2e` with secrets
+// injected via --var). This preload only needs to make sure the test
+// client uses the same secret values when no environment override exists.
 
-import { afterAll, beforeAll } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { startWorker, stopWorker } from "./setup";
+const TEST_DEFAULTS: Record<string, string> = {
+	API_KEY: "test-api-key",
+	ADMIN_API_KEY: "test-admin-api-key",
+	JWT_SECRET: "test-secret-key-for-jwt-hs256",
+};
 
-// Load .dev.vars into process.env before tests run
-// This ensures test API keys match what the Worker expects
-function loadDevVars(): void {
-	try {
-		const devVarsPath = join(process.cwd(), ".dev.vars");
-		const content = readFileSync(devVarsPath, "utf-8");
-		for (const line of content.split("\n")) {
-			const trimmed = line.trim();
-			if (!trimmed || trimmed.startsWith("#")) continue;
-			const eqIndex = trimmed.indexOf("=");
-			if (eqIndex === -1) continue;
-			const key = trimmed.slice(0, eqIndex);
-			const value = trimmed.slice(eqIndex + 1);
-			// Only set if not already in environment (allow overrides)
-			if (!process.env[key]) {
-				process.env[key] = value;
-			}
-		}
-		console.log("[L2] Loaded .dev.vars");
-	} catch {
-		console.warn("[L2] Warning: Could not load .dev.vars");
+for (const [key, value] of Object.entries(TEST_DEFAULTS)) {
+	if (!process.env[key]) {
+		process.env[key] = value;
 	}
 }
-
-loadDevVars();
-
-beforeAll(async () => {
-	await startWorker();
-});
-
-afterAll(async () => {
-	await stopWorker();
-});
