@@ -1,5 +1,6 @@
 # L1 + G1 + G2 — full gate check before push
 bun run typecheck                              # G1: compile check
+bun run lint                                   # G1: biome lint (--error-on-warnings)
 bun test tests/unit/                           # L1: web unit tests
 bun test apps/worker                           # L1: worker unit tests
 
