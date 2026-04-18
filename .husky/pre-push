@@ -3,31 +3,12 @@ bun run typecheck                              # G1: compile check
 bun test tests/unit/                           # L1: web unit tests
 bun test apps/worker                           # L1: worker unit tests
 
-# L2: Worker integration tests (auto-start worker if needed)
-echo "[pre-push] Starting L2 integration tests..."
-WORKER_PID=""
-if ! curl -sf http://localhost:8787/api/live > /dev/null 2>&1; then
-  echo "[pre-push] Starting test Worker on port 8787..."
-  npx wrangler dev -c apps/worker/wrangler.toml --env test --remote --port 8787 > /dev/null 2>&1 &
-  WORKER_PID=$!
-  # Wait for worker to be ready (max 30s)
-  for i in $(seq 1 60); do
-    if curl -sf http://localhost:8787/api/live > /dev/null 2>&1; then
-      echo "[pre-push] Worker ready"
-      break
-    fi
-    sleep 0.5
-  done
-  if ! curl -sf http://localhost:8787/api/live > /dev/null 2>&1; then
-    echo "[pre-push] ERROR: Worker failed to start"
-    [ -n "$WORKER_PID" ] && kill $WORKER_PID 2>/dev/null
-    exit 1
-  fi
-fi
-bun test --preload ./tests/integration/preload.ts tests/integration/worker/
-L2_EXIT=$?
-[ -n "$WORKER_PID" ] && kill $WORKER_PID 2>/dev/null
-if [ $L2_EXIT -ne 0 ]; then
+# L2: Worker integration tests via the run-l2.ts orchestrator.
+# run-l2.ts owns the full lifecycle (clean state, migrate, seed, boot
+# wrangler dev --local with secrets, run bun test). Replaces the old
+# inline `wrangler dev --remote` spawn that no longer matches setup.ts.
+echo "[pre-push] Running L2 integration tests via test:l2..."
+if ! bun run test:l2; then
   echo "[pre-push] L2 tests failed"
   exit 1
 fi
