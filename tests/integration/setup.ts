@@ -319,7 +319,15 @@ export async function startWorker(): Promise<void> {
 		// Port not in use — we need to start the Worker
 	}
 
-	console.log(`[L2] Starting Worker on port ${WORKER_PORT} (env=test, remote D1)...`);
+	// Mode selection:
+	//   D1_MODE=local  → use local SQLite (CI / sandbox; no Cloudflare creds required)
+	//   D1_MODE=remote → use real remote D1 (default for local dev with `wrangler login`)
+	const mode = (process.env.D1_MODE ?? "remote").toLowerCase();
+	const modeFlag = mode === "local" ? "--local" : "--remote";
+
+	console.log(
+		`[L2] Starting Worker on port ${WORKER_PORT} (env=test, ${modeFlag === "--local" ? "local" : "remote"} D1)...`,
+	);
 	workerProcess = spawn(
 		[
 			"npx",
@@ -329,9 +337,16 @@ export async function startWorker(): Promise<void> {
 			"apps/worker/wrangler.toml",
 			"--env",
 			"test",
-			"--remote",
+			modeFlag,
 			"--port",
 			String(WORKER_PORT),
+			// Inject test secrets as vars so wrangler doesn't require .dev.vars
+			"--var",
+			`API_KEY:${getApiKeyA()}`,
+			"--var",
+			`ADMIN_API_KEY:${getApiKeyB()}`,
+			"--var",
+			`JWT_SECRET:${getJwtSecret()}`,
 		],
 		{
 			cwd: process.cwd(),

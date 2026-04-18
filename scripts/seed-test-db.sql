@@ -21,10 +21,10 @@ INSERT OR REPLACE INTO users (id, username, email, password_hash, password_salt,
   (2, 'moderator', 'mod@test.com', '', '', 1, 0),
   (3, 'testuser', 'test@test.com', '', '', 0, 0);
 
--- Seed forums for L2 tests
+-- Seed forums for L2 tests (status = 1 means active/visible)
 INSERT OR REPLACE INTO forums (id, parent_id, name, description, display_order, status, type) VALUES
-  (1, 0, 'Test Forum 1', 'First test forum', 1, 0, 'forum'),
-  (2, 0, 'Test Forum 2', 'Second test forum', 2, 0, 'forum');
+  (1, 0, 'Test Forum 1', 'First test forum', 1, 1, 'forum'),
+  (2, 0, 'Test Forum 2', 'Second test forum', 2, 1, 'forum');
 
 -- Seed threads for L2 tests (sticky = 0 for normal visible threads)
 INSERT OR REPLACE INTO threads (id, forum_id, author_id, author_name, subject, created_at, last_post_at, last_poster, replies, views, closed, sticky, digest, special, highlight, recommends, post_table_id, type_name, last_poster_id) VALUES
