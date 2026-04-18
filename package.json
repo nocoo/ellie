@@ -65,7 +65,7 @@
 		"bun": ">=1.0"
 	},
 	"lint-staged": {
-		"*.{ts,tsx,js,jsx,json,css,md}": ["biome check --no-errors-on-unmatched"]
+		"*.{ts,tsx,js,jsx,json,css,md}": ["biome check --error-on-warnings --no-errors-on-unmatched"]
 	},
 	"dependencies": {
 		"defu": "^6.1.6",
