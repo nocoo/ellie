@@ -9,6 +9,14 @@ dist/
 .next/
 *.tsbuildinfo
 
+# TypeScript build output for packages/db and packages/migrate
+packages/db/src/*.js
+packages/db/src/*.d.ts
+packages/migrate/src/*.js
+packages/migrate/src/*.d.ts
+packages/migrate/src/**/*.js
+packages/migrate/src/**/*.d.ts
+
 # Bun
 bun.lockb
 
