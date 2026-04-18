@@ -4,14 +4,15 @@
 // Auto-starts Cloudflare Worker on port 8787 before tests,
 // waits for it to be ready, and kills it after tests complete.
 
-import { type Subprocess, spawn } from "bun";
-
 // ─── Configuration ─────────────────────────────────────────────
+//
+// The Worker is started externally by scripts/run-l2.ts. This module only
+// provides URL/auth helpers and a thin readiness check.
 
 /** Worker default port (wrangler dev) */
 const WORKER_PORT = 8787;
 const WORKER_URL = `http://localhost:${WORKER_PORT}`;
-const STARTUP_TIMEOUT = 30_000; // 30s max for server startup
+const READINESS_TIMEOUT_MS = 5_000;
 
 /**
  * Get API Key A (public API) from environment.
@@ -42,7 +43,7 @@ export const API_KEY_B = "DEPRECATED_USE_getApiKeyB";
 /** @deprecated Use getJwtSecret() instead */
 export const JWT_SECRET = "DEPRECATED_USE_getJwtSecret";
 
-let workerProcess: Subprocess | null = null;
+let workerReadyPromise: Promise<void> | null = null;
 
 // ─── URL Helpers ───────────────────────────────────────────────
 
@@ -285,78 +286,41 @@ export async function adminDelete(path: string): Promise<Response> {
 // ─── Server Lifecycle ──────────────────────────────────────────
 
 /**
- * Wait for the Worker to respond on the health endpoint.
- */
-async function waitForWorker(timeoutMs: number): Promise<void> {
-	const start = Date.now();
-	while (Date.now() - start < timeoutMs) {
-		try {
-			const response = await fetch(`${WORKER_URL}/api/live`);
-			if (response.ok) return;
-		} catch {
-			// Worker not ready yet
-		}
-		await new Promise((r) => setTimeout(r, 500));
-	}
-	throw new Error(`Worker did not start within ${timeoutMs}ms`);
-}
-
-/**
- * Start the Cloudflare Worker dev server.
- * Call in beforeAll() of integration test suites.
+ * Confirm the externally-managed Worker is reachable. Worker startup is
+ * owned by scripts/run-l2.ts; this helper only verifies that the dev
+ * server is up so tests fail fast with a clear error otherwise.
  */
 export async function startWorker(): Promise<void> {
-	if (workerProcess) return; // Already running
+	if (workerReadyPromise) return workerReadyPromise;
 
-	// Check if Worker is already running externally
-	try {
-		const response = await fetch(`${WORKER_URL}/api/live`);
-		if (response.ok) {
-			console.log(`[L2] Worker already running on port ${WORKER_PORT}`);
-			return;
+	workerReadyPromise = (async () => {
+		const start = Date.now();
+		while (Date.now() - start < READINESS_TIMEOUT_MS) {
+			try {
+				const response = await fetch(`${WORKER_URL}/api/live`);
+				if (response.ok) {
+					console.log(`[L2] Worker reachable on port ${WORKER_PORT}`);
+					return;
+				}
+			} catch {
+				// not ready yet
+			}
+			await new Promise((r) => setTimeout(r, 200));
 		}
-	} catch {
-		// Port not in use — we need to start the Worker
-	}
+		throw new Error(
+			`[L2] Worker not reachable on port ${WORKER_PORT}. Run integration tests via \`bun run test:e2e:api\` (scripts/run-l2.ts).`,
+		);
+	})();
 
-	console.log(`[L2] Starting Worker on port ${WORKER_PORT} (env=test, remote D1)...`);
-	workerProcess = spawn(
-		[
-			"npx",
-			"wrangler",
-			"dev",
-			"-c",
-			"apps/worker/wrangler.toml",
-			"--env",
-			"test",
-			"--remote",
-			"--port",
-			String(WORKER_PORT),
-		],
-		{
-			cwd: process.cwd(),
-			stdout: "ignore",
-			stderr: "ignore",
-			env: {
-				...process.env,
-				NODE_ENV: "test",
-			},
-		},
-	);
-
-	await waitForWorker(STARTUP_TIMEOUT);
-	console.log(`[L2] Worker ready on port ${WORKER_PORT}`);
+	return workerReadyPromise;
 }
 
 /**
- * Stop the Worker dev server.
- * Call in afterAll() of integration test suites.
+ * No-op: Worker lifecycle is owned by scripts/run-l2.ts.
+ * Kept for backward compatibility with any test that calls it in afterAll.
  */
 export async function stopWorker(): Promise<void> {
-	if (!workerProcess) return;
-	console.log("[L2] Stopping Worker...");
-	workerProcess.kill();
-	workerProcess = null;
+	workerReadyPromise = null;
 }
 
 // ─── Legacy exports (for backward compatibility during migration) ───
