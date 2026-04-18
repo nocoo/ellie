@@ -1,11 +1,11 @@
 import type { Attachment, Forum, Post, Thread, User } from "@ellie/types";
 export interface MockDataStore {
-	users: User[];
-	forums: Forum[];
-	threads: Thread[];
-	posts: Post[];
-	attachments: Attachment[];
-	nextId(): number;
+    users: User[];
+    forums: Forum[];
+    threads: Thread[];
+    posts: Post[];
+    attachments: Attachment[];
+    nextId(): number;
 }
 /**
  * Create a fresh MockDataStore with cloned copies of all seed data.
