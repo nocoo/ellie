@@ -46,7 +46,9 @@
 			"*.sql",
 			"*.sql.gz",
 			".wrangler",
-			"packages/cli-rs/target"
+			"packages/cli-rs/target",
+			"**/*.d.ts",
+			"*.tsbuildinfo"
 		]
 	},
 	"overrides": [
