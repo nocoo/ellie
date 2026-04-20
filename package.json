@@ -33,6 +33,7 @@
 		"test:e2e:api": "bun run scripts/run-l2.ts",
 		"verify:test-db": "bun run scripts/verify-test-db.ts",
 		"test:e2e": "bunx playwright test -c playwright.config.ts",
+		"test:e2e:browser": "bun run scripts/run-l3.ts",
 		"test:coverage": "bun test --coverage tests/unit/",
 		"typecheck": "tsc --build",
 		"lint": "biome check --error-on-warnings .",
