@@ -41,10 +41,8 @@ export default defineConfig({
 		},
 	],
 
-	webServer: {
-		command: `AUTH_SECRET=e2e-test-secret-key-at-least-32-characters NEXT_PUBLIC_CAP_API_ENDPOINT= bun run dev --port ${PORT}`,
-		url: BASE_URL,
-		reuseExistingServer: !process.env.CI,
-		timeout: 60_000,
-	},
+	// Server lifecycle is managed by scripts/run-l3.ts (loads .env files,
+	// validates D1 isolation, starts dev server with test env, runs Playwright,
+	// tears down). Keeping it out of playwright.config.ts ensures CI gets
+	// deterministic teardown and pre-flight env validation.
 });
