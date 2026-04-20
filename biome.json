@@ -10,7 +10,9 @@
 			"complexity": {
 				"noExcessiveCognitiveComplexity": {
 					"level": "warn",
-					"options": { "maxAllowedComplexity": 25 }
+					"options": {
+						"maxAllowedComplexity": 25
+					}
 				}
 			},
 			"correctness": {
@@ -48,7 +50,10 @@
 			".wrangler",
 			"packages/cli-rs/target",
 			"**/*.d.ts",
-			"*.tsbuildinfo"
+			"*.tsbuildinfo",
+			"packages/*/src/**/*.js",
+			"packages/*/src/**/*.js.map",
+			"packages/*/src/**/*.d.ts"
 		]
 	},
 	"overrides": [
