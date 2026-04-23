@@ -5,9 +5,6 @@
 
 import React, { useEffect, useRef, useState } from "react";
 
-// Import cap widget (registers custom element)
-import "@cap.js/widget";
-
 interface CapWidgetProps {
 	/** Cap API endpoint URL (e.g., https://cap.example.com/site-key/) */
 	apiEndpoint: string;
@@ -23,9 +20,10 @@ export function CapWidget({ apiEndpoint, onSolve, onError, className }: CapWidge
 	const widgetRef = useRef<HTMLElement>(null);
 	const [mounted, setMounted] = useState(false);
 
-	// Only render on client
+	// Only render on client — also defer cap widget import until browser,
+	// since @cap.js/widget touches `navigator` at module load (SSR crash).
 	useEffect(() => {
-		setMounted(true);
+		import("@cap.js/widget").then(() => setMounted(true));
 	}, []);
 
 	// Attach event listeners
