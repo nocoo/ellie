@@ -43,5 +43,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bunx playwright install --with-deps chromium
+      - name: "Seed test D1 (forum/thread/user fixtures for L3 specs)"
+        run: npx wrangler d1 execute tongjinet-db-test --remote -c apps/worker/wrangler.toml --file scripts/seed-test-db.sql
       - name: "L3: Playwright E2E tests"
         run: bun run test:e2e:browser
