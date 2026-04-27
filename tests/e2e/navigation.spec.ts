@@ -120,11 +120,11 @@ test.describe("E2E-NV: Navigation Flow", () => {
 		// Should have "精华帖列表" heading
 		await expect(page.locator("text=精华帖列表")).toBeVisible();
 
-		// Should have stats cards (4 cards: total, level1, level2, level3)
-		const statsCards = page.locator(".grid-cols-4 > div").filter({
-			has: page.locator("p.text-2xl"),
-		});
-		await expect(statsCards).toHaveCount(4);
+		// Should have hero with "篇精华" stat (digest-hero.tsx text-xl block)
+		await expect(page.locator("text=篇精华")).toBeVisible();
+
+		// Should have level filter tabs (全部 / 一星 / 二星 / 三星)
+		await expect(page.locator("text=论坛精华 · 知识殿堂")).toBeVisible();
 	});
 
 	/**
