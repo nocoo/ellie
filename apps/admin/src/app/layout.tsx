@@ -9,7 +9,7 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-dm-sans" });
 
 export const metadata: Metadata = {
-	title: "Ellie Admin",
+	title: "ellie - 管理后台",
 	description: "Ellie Admin Console",
 };
 
