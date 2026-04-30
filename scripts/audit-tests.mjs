@@ -24,10 +24,12 @@ for (const f of files) {
 	const src = readFileSync(f, "utf8");
 	const re2 = /\b(it|test)\s*\(\s*(['"`])([^'"`]+)\2\s*,\s*(?:async\s*)?\(?\)?\s*=>\s*\{/g;
 	// Track describe nesting via line scan
-	const describes = [...src.matchAll(/\bdescribe\s*(?:\.\w+)?\s*\(\s*(['"`])([^'"`]+)\1/g)].map((m) => ({
-		name: m[2],
-		pos: m.index,
-	}));
+	const describes = [...src.matchAll(/\bdescribe\s*(?:\.\w+)?\s*\(\s*(['"`])([^'"`]+)\1/g)].map(
+		(m) => ({
+			name: m[2],
+			pos: m.index,
+		}),
+	);
 	const blocks = [];
 	let m;
 	while ((m = re2.exec(src))) {
