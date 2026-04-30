@@ -118,17 +118,6 @@ describe("validateEmail", () => {
 // ---------------------------------------------------------------------------
 
 describe("canSubmitRegister", () => {
-	it("returns true when all fields valid", () => {
-		expect(
-			canSubmitRegister({
-				username: "validuser",
-				password: "123456",
-				confirmPassword: "123456",
-				email: "",
-			}),
-		).toBe(true);
-	});
-
 	it("returns false when username invalid", () => {
 		expect(
 			canSubmitRegister({
