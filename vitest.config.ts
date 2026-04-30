@@ -11,6 +11,7 @@ export default defineConfig({
 	test: {
 		pool: "threads",
 		isolate: false,
+		chaiConfig: { includeStack: false, truncateThreshold: 200 },
 		projects: [
 			"apps/worker",
 			"apps/web",
