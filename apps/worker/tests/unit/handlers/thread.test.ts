@@ -685,11 +685,15 @@ describe("thread handlers", () => {
 			const db = createGetByIdMockDb(d1Row);
 			const env = { ...mockEnv, DB: db };
 
-			// The bind call with the thread ID happens when fetching the thread
-			await getById(new Request("https://example.com/api/v1/threads/456"), env, getCtx());
+			const response = await getById(
+				new Request("https://example.com/api/v1/threads/456"),
+				env,
+				getCtx(),
+			);
 
-			// Since we use a helper, just verify the request succeeds
-			// (The helper already validates the ID is correctly parsed)
+			expect(response.status).toBe(200);
+			const data = (await response.json()) as { data: { id: number } };
+			expect(data.data.id).toBe(456);
 		});
 
 		it("should increment view count when thread is fetched", async () => {
