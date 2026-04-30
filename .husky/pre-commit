@@ -28,7 +28,7 @@ fi
 
 # Worker tests only if TypeScript files changed (tests are in TS)
 if [ -n "$HAS_TS" ]; then
-  (cd apps/worker && bunx vitest run; echo $? > "$TEMP_DIR/worker_exit") &
+  (bunx vitest run apps/worker; echo $? > "$TEMP_DIR/worker_exit") &
   PIDS+=($!)
 else
   echo 0 > "$TEMP_DIR/worker_exit"

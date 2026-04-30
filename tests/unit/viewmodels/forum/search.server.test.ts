@@ -49,7 +49,7 @@ function createMockThread(id: number) {
 
 describe("loadSearchResults — isSearchEnabled via settings", () => {
 	afterEach(() => {
-		mock.restore();
+		vi.restoreAllMocks();
 	});
 
 	it("returns disabled: true when general.search.enabled is false", async () => {
@@ -130,7 +130,7 @@ describe("loadSearchResults — isSearchEnabled via settings", () => {
 
 describe("loadSearchResults — empty query handling", () => {
 	afterEach(() => {
-		mock.restore();
+		vi.restoreAllMocks();
 	});
 
 	it("returns empty results for empty query string", async () => {
@@ -211,7 +211,7 @@ describe("loadSearchResults — empty query handling", () => {
 
 describe("loadSearchResults — search results", () => {
 	afterEach(() => {
-		mock.restore();
+		vi.restoreAllMocks();
 	});
 
 	it("returns search results for valid query", async () => {
@@ -343,7 +343,7 @@ describe("loadSearchResults — search results", () => {
 
 describe("loadSearchResults — API call behavior", () => {
 	afterEach(() => {
-		mock.restore();
+		vi.restoreAllMocks();
 	});
 
 	it("does not call search API when search is disabled", async () => {

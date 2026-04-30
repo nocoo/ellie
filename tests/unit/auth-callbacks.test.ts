@@ -1,6 +1,6 @@
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import type { Account, Session, User } from "next-auth";
 import type { JWT } from "next-auth/jwt";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	decodeJwtExp,
 	jwtCallback,
@@ -299,7 +299,7 @@ describe("refreshWorkerToken", () => {
 	});
 
 	it("returns new token pair on successful refresh", async () => {
-		const mockFetch = vi.fn(() =>
+		const mockFetch = mock(() =>
 			Promise.resolve(
 				new Response(
 					JSON.stringify({
@@ -328,7 +328,7 @@ describe("refreshWorkerToken", () => {
 	});
 
 	it("returns null when Worker responds with non-200", async () => {
-		globalThis.fetch = vi.fn(() =>
+		globalThis.fetch = mock(() =>
 			Promise.resolve(new Response("{}", { status: 401 })),
 		) as typeof globalThis.fetch;
 
@@ -336,7 +336,7 @@ describe("refreshWorkerToken", () => {
 	});
 
 	it("returns null when response body lacks data.token", async () => {
-		globalThis.fetch = vi.fn(() =>
+		globalThis.fetch = mock(() =>
 			Promise.resolve(
 				new Response(JSON.stringify({ data: { refreshToken: "new-r" } }), {
 					status: 200,
@@ -349,7 +349,7 @@ describe("refreshWorkerToken", () => {
 	});
 
 	it("returns null when response body lacks data.refreshToken", async () => {
-		globalThis.fetch = vi.fn(() =>
+		globalThis.fetch = mock(() =>
 			Promise.resolve(
 				new Response(JSON.stringify({ data: { token: "new-jwt" } }), {
 					status: 200,
@@ -362,7 +362,7 @@ describe("refreshWorkerToken", () => {
 	});
 
 	it("returns null when response body has no data field", async () => {
-		globalThis.fetch = vi.fn(() =>
+		globalThis.fetch = mock(() =>
 			Promise.resolve(
 				new Response(JSON.stringify({ error: "something" }), {
 					status: 200,
@@ -375,7 +375,7 @@ describe("refreshWorkerToken", () => {
 	});
 
 	it("returns null on network error (fetch throws)", async () => {
-		globalThis.fetch = vi.fn(() =>
+		globalThis.fetch = mock(() =>
 			Promise.reject(new Error("Network error")),
 		) as typeof globalThis.fetch;
 
@@ -384,7 +384,7 @@ describe("refreshWorkerToken", () => {
 
 	it("strips trailing slashes from WORKER_API_URL", async () => {
 		process.env.WORKER_API_URL = "https://worker.example.com///";
-		const mockFetch = vi.fn(() =>
+		const mockFetch = mock(() =>
 			Promise.resolve(
 				new Response(JSON.stringify({ data: { token: "t", refreshToken: "r" } }), {
 					status: 200,
@@ -423,7 +423,7 @@ describe("jwtCallback refresh path", () => {
 		const newExp = Math.floor(Date.now() / 1000) + 7 * 24 * 3600;
 		const newJwt = makeJwtString(newExp);
 
-		globalThis.fetch = vi.fn(() =>
+		globalThis.fetch = mock(() =>
 			Promise.resolve(
 				new Response(
 					JSON.stringify({
@@ -456,7 +456,7 @@ describe("jwtCallback refresh path", () => {
 	});
 
 	it("sets error when refresh fails (non-200)", async () => {
-		globalThis.fetch = vi.fn(() =>
+		globalThis.fetch = mock(() =>
 			Promise.resolve(new Response("{}", { status: 401 })),
 		) as typeof globalThis.fetch;
 
@@ -478,7 +478,7 @@ describe("jwtCallback refresh path", () => {
 	});
 
 	it("sets error when refresh returns incomplete data", async () => {
-		globalThis.fetch = vi.fn(() =>
+		globalThis.fetch = mock(() =>
 			Promise.resolve(
 				new Response(JSON.stringify({ data: { token: "new-jwt" } }), {
 					status: 200,
@@ -502,7 +502,7 @@ describe("jwtCallback refresh path", () => {
 	});
 
 	it("sets error when network fails during refresh", async () => {
-		globalThis.fetch = vi.fn(() =>
+		globalThis.fetch = mock(() =>
 			Promise.reject(new Error("Network error")),
 		) as typeof globalThis.fetch;
 
@@ -563,7 +563,7 @@ describe("jwtCallback refresh path", () => {
 		const newExp = Math.floor(Date.now() / 1000) + 86400;
 		const newJwt = makeJwtString(newExp);
 
-		globalThis.fetch = vi.fn(() =>
+		globalThis.fetch = mock(() =>
 			Promise.resolve(
 				new Response(JSON.stringify({ data: { token: newJwt, refreshToken: "new-rt" } }), {
 					status: 200,

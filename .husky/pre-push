@@ -1,8 +1,8 @@
 # L1 + G1 + G2 — full gate check before push
 bun run typecheck                              # G1: compile check
 bun run lint                                   # G1: biome lint (--error-on-warnings)
-vitest run -c vitest.config.ts                 # L1: web unit tests
-vitest run -c apps/worker/vitest.config.ts     # L1: worker unit tests
+vitest run                                     # L1: all unit tests (vitest-managed)
+bun run test:unit:bun                          # L1: bun-dependent unit tests
 
 # L2: Worker integration tests via the run-l2.ts orchestrator.
 # run-l2.ts owns the full lifecycle (clean state, migrate, seed, boot
