@@ -190,43 +190,43 @@ describe("isContentBlockedError", () => {
 
 describe("message maps completeness", () => {
 	it("POST_ERROR_MESSAGES has required keys", () => {
-		expect(POST_ERROR_MESSAGES.UNAUTHORIZED).toBeDefined();
-		expect(POST_ERROR_MESSAGES.THREAD_CLOSED).toBeDefined();
-		expect(POST_ERROR_MESSAGES.CONTENT_BANNED).toBeDefined();
-		expect(POST_ERROR_MESSAGES.RATE_LIMITED).toBeDefined();
+		expect(POST_ERROR_MESSAGES.UNAUTHORIZED).toMatch(/.+/);
+		expect(POST_ERROR_MESSAGES.THREAD_CLOSED).toMatch(/.+/);
+		expect(POST_ERROR_MESSAGES.CONTENT_BANNED).toMatch(/.+/);
+		expect(POST_ERROR_MESSAGES.RATE_LIMITED).toMatch(/.+/);
 	});
 
 	it("THREAD_ERROR_MESSAGES has required keys", () => {
-		expect(THREAD_ERROR_MESSAGES.UNAUTHORIZED).toBeDefined();
-		expect(THREAD_ERROR_MESSAGES.FORUM_CLOSED).toBeDefined();
-		expect(THREAD_ERROR_MESSAGES.CONTENT_BANNED).toBeDefined();
-		expect(THREAD_ERROR_MESSAGES.RATE_LIMITED).toBeDefined();
+		expect(THREAD_ERROR_MESSAGES.UNAUTHORIZED).toMatch(/.+/);
+		expect(THREAD_ERROR_MESSAGES.FORUM_CLOSED).toMatch(/.+/);
+		expect(THREAD_ERROR_MESSAGES.CONTENT_BANNED).toMatch(/.+/);
+		expect(THREAD_ERROR_MESSAGES.RATE_LIMITED).toMatch(/.+/);
 	});
 
 	it("DELETE_ERROR_MESSAGES has required keys", () => {
-		expect(DELETE_ERROR_MESSAGES.FORBIDDEN).toBeDefined();
-		expect(DELETE_ERROR_MESSAGES.POST_NOT_FOUND).toBeDefined();
-		expect(DELETE_ERROR_MESSAGES.THREAD_NOT_FOUND).toBeDefined();
+		expect(DELETE_ERROR_MESSAGES.FORBIDDEN).toMatch(/.+/);
+		expect(DELETE_ERROR_MESSAGES.POST_NOT_FOUND).toMatch(/.+/);
+		expect(DELETE_ERROR_MESSAGES.THREAD_NOT_FOUND).toMatch(/.+/);
 	});
 
 	it("EDIT_ERROR_MESSAGES has required keys", () => {
-		expect(EDIT_ERROR_MESSAGES.FORBIDDEN).toBeDefined();
-		expect(EDIT_ERROR_MESSAGES.POST_NOT_FOUND).toBeDefined();
-		expect(EDIT_ERROR_MESSAGES.CONTENT_BANNED).toBeDefined();
+		expect(EDIT_ERROR_MESSAGES.FORBIDDEN).toMatch(/.+/);
+		expect(EDIT_ERROR_MESSAGES.POST_NOT_FOUND).toMatch(/.+/);
+		expect(EDIT_ERROR_MESSAGES.CONTENT_BANNED).toMatch(/.+/);
 	});
 
 	it("PROFILE_ERROR_MESSAGES has required keys", () => {
-		expect(PROFILE_ERROR_MESSAGES.NOT_AUTHENTICATED).toBeDefined();
-		expect(PROFILE_ERROR_MESSAGES.INVALID_BODY).toBeDefined();
+		expect(PROFILE_ERROR_MESSAGES.NOT_AUTHENTICATED).toMatch(/.+/);
+		expect(PROFILE_ERROR_MESSAGES.INVALID_BODY).toMatch(/.+/);
 	});
 
 	it("DEFAULT_ERROR_MESSAGES has all operation types", () => {
-		expect(DEFAULT_ERROR_MESSAGES.reply).toBeDefined();
-		expect(DEFAULT_ERROR_MESSAGES.createThread).toBeDefined();
-		expect(DEFAULT_ERROR_MESSAGES.delete).toBeDefined();
-		expect(DEFAULT_ERROR_MESSAGES.edit).toBeDefined();
-		expect(DEFAULT_ERROR_MESSAGES.save).toBeDefined();
-		expect(DEFAULT_ERROR_MESSAGES.generic).toBeDefined();
+		expect(DEFAULT_ERROR_MESSAGES.reply).toMatch(/.+/);
+		expect(DEFAULT_ERROR_MESSAGES.createThread).toMatch(/.+/);
+		expect(DEFAULT_ERROR_MESSAGES.delete).toMatch(/.+/);
+		expect(DEFAULT_ERROR_MESSAGES.edit).toMatch(/.+/);
+		expect(DEFAULT_ERROR_MESSAGES.save).toMatch(/.+/);
+		expect(DEFAULT_ERROR_MESSAGES.generic).toMatch(/.+/);
 	});
 });
 
