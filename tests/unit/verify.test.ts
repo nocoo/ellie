@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, unlinkSync } from "node:fs";
 import { BatchLoader } from "../../scripts/migrate/load/batch-insert";
 import { analyzeEncoding, verifyEncoding } from "../../scripts/migrate/verify/encoding";
 import {
@@ -15,13 +14,10 @@ import {
 	verifyPerformance,
 } from "../../scripts/migrate/verify/performance";
 
-const TEST_DB = "/tmp/ellie-test-verify.db";
+const TEST_DB = ":memory:";
 
 function cleanup() {
-	for (const suffix of ["", "-wal", "-shm"]) {
-		const path = `${TEST_DB}${suffix}`;
-		if (existsSync(path)) unlinkSync(path);
-	}
+	// in-memory: nothing to clean up
 }
 
 /** Create a test database with sample data. */
