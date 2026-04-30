@@ -562,6 +562,145 @@ describe("admin forum handlers", () => {
 			expect(updateCall?.sql).toContain("type = ?");
 		});
 
+		it("should update visibility field", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+				},
+			});
+
+			const res = await update(
+				new Request("https://api.example.com/api/admin/forums/42", {
+					method: "PATCH",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ visibility: "members" }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(200);
+			const updateCall = calls.find((c) => c.sql.includes("UPDATE forums SET"));
+			expect(updateCall?.sql).toContain("visibility = ?");
+		});
+
+		it("should reject invalid visibility value", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+				},
+			});
+
+			const res = await update(
+				new Request("https://api.example.com/api/admin/forums/42", {
+					method: "PATCH",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ visibility: "secret" }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+		});
+
+		it("should update moderators field", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+				},
+			});
+
+			const res = await update(
+				new Request("https://api.example.com/api/admin/forums/42", {
+					method: "PATCH",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ moderators: "alice,bob" }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(200);
+			const updateCall = calls.find((c) => c.sql.includes("UPDATE forums SET"));
+			expect(updateCall?.sql).toContain("moderators = ?");
+		});
+
+		it("should reject non-string moderators value", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+				},
+			});
+
+			const res = await update(
+				new Request("https://api.example.com/api/admin/forums/42", {
+					method: "PATCH",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ moderators: 123 }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+		});
+
+		it("should update moderatorIds field", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+				},
+			});
+
+			const res = await update(
+				new Request("https://api.example.com/api/admin/forums/42", {
+					method: "PATCH",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ moderatorIds: "1,2,3" }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(200);
+			const updateCall = calls.find((c) => c.sql.includes("UPDATE forums SET"));
+			expect(updateCall?.sql).toContain("moderator_ids = ?");
+		});
+
+		it("should reject invalid moderatorIds format", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+				},
+			});
+
+			const res = await update(
+				new Request("https://api.example.com/api/admin/forums/42", {
+					method: "PATCH",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ moderatorIds: "abc,def" }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(400);
+		});
+
+		it("should accept empty moderatorIds", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+				},
+			});
+
+			const res = await update(
+				new Request("https://api.example.com/api/admin/forums/42", {
+					method: "PATCH",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ moderatorIds: "" }),
+				}),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(200);
+		});
+
 		it("should reject invalid forum ID (non-numeric)", async () => {
 			const { db } = createMockDb();
 			const res = await update(

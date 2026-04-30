@@ -239,5 +239,152 @@ describe("admin settings handler", () => {
 
 			expect(response.status).toBe(200);
 		});
+
+		it("should reject invalid boolean value", async () => {
+			const db = makeSettingsDb();
+			const kv = makeKv();
+			const env = makeEnv({ DB: db, KV: kv });
+			const request = createAdminRequest("PUT", "/api/admin/settings", {
+				"features.access.maintenance_mode": "yes",
+			});
+
+			const response = await bulkUpdate(request, env);
+
+			expect(response.status).toBe(400);
+			const body = (await response.json()) as Record<string, unknown>;
+			const error = body.error as Record<string, unknown>;
+			expect(error.code).toBe("INVALID_BOOLEAN");
+		});
+
+		it("should accept valid boolean value", async () => {
+			const db = makeSettingsDb();
+			const kv = makeKv();
+			const env = makeEnv({ DB: db, KV: kv });
+			const request = createAdminRequest("PUT", "/api/admin/settings", {
+				"features.access.maintenance_mode": "true",
+			});
+
+			const response = await bulkUpdate(request, env);
+
+			expect(response.status).toBe(200);
+		});
+
+		it("should reject invalid JSON navigation links", async () => {
+			const db = makeSettingsDb();
+			const kv = makeKv();
+			const env = makeEnv({ DB: db, KV: kv });
+			const request = createAdminRequest("PUT", "/api/admin/settings", {
+				"general.navigation.header_links": "not-json",
+			});
+
+			const response = await bulkUpdate(request, env);
+
+			expect(response.status).toBe(400);
+			const body = (await response.json()) as Record<string, unknown>;
+			const error = body.error as Record<string, unknown>;
+			expect(error.code).toBe("INVALID_JSON_VALUE");
+		});
+
+		it("should reject JSON array with wrong structure", async () => {
+			const db = makeSettingsDb();
+			const kv = makeKv();
+			const env = makeEnv({ DB: db, KV: kv });
+			const request = createAdminRequest("PUT", "/api/admin/settings", {
+				"general.navigation.header_links": JSON.stringify([{ wrong: "structure" }]),
+			});
+
+			const response = await bulkUpdate(request, env);
+
+			expect(response.status).toBe(400);
+		});
+
+		it("should reject non-array JSON value for navigation links", async () => {
+			const db = makeSettingsDb();
+			const kv = makeKv();
+			const env = makeEnv({ DB: db, KV: kv });
+			const request = createAdminRequest("PUT", "/api/admin/settings", {
+				"general.navigation.header_links": JSON.stringify({ label: "a", url: "b" }),
+			});
+
+			const response = await bulkUpdate(request, env);
+
+			expect(response.status).toBe(400);
+		});
+
+		it("should accept valid JSON navigation links", async () => {
+			const db = makeSettingsDb();
+			const kv = makeKv();
+			const env = makeEnv({ DB: db, KV: kv });
+			const request = createAdminRequest("PUT", "/api/admin/settings", {
+				"general.navigation.header_links": JSON.stringify([
+					{ label: "Home", url: "/" },
+					{ label: "About", url: "/about" },
+				]),
+			});
+
+			const response = await bulkUpdate(request, env);
+
+			expect(response.status).toBe(200);
+		});
+
+		it("should validate non-negative number keys (allow zero)", async () => {
+			const db = makeSettingsDb();
+			const kv = makeKv();
+			const env = makeEnv({ DB: db, KV: kv });
+			const request = createAdminRequest("PUT", "/api/admin/settings", {
+				"features.posting.min_registration_days": "0",
+			});
+
+			const response = await bulkUpdate(request, env);
+
+			expect(response.status).toBe(200);
+		});
+
+		it("should reject negative values for non-negative number keys", async () => {
+			const db = makeSettingsDb();
+			const kv = makeKv();
+			const env = makeEnv({ DB: db, KV: kv });
+			const request = createAdminRequest("PUT", "/api/admin/settings", {
+				"features.posting.min_registration_days": "-1",
+			});
+
+			const response = await bulkUpdate(request, env);
+
+			expect(response.status).toBe(400);
+		});
+
+		it("should reject non-integer values for non-negative number keys", async () => {
+			const db = makeSettingsDb();
+			const kv = makeKv();
+			const env = makeEnv({ DB: db, KV: kv });
+			const request = createAdminRequest("PUT", "/api/admin/settings", {
+				"features.posting.min_registration_days": "3.5",
+			});
+
+			const response = await bulkUpdate(request, env);
+
+			expect(response.status).toBe(400);
+		});
+
+		it("should reject non-object body", async () => {
+			const db = makeSettingsDb();
+			const kv = makeKv();
+			const env = makeEnv({ DB: db, KV: kv });
+			const request = new Request("https://api.example.com/api/admin/settings", {
+				method: "PUT",
+				headers: {
+					"X-API-Key": "test-admin-api-key",
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify([1, 2, 3]),
+			});
+
+			const response = await bulkUpdate(request, env);
+
+			expect(response.status).toBe(400);
+			const body = (await response.json()) as Record<string, unknown>;
+			const error = body.error as Record<string, unknown>;
+			expect(error.code).toBe("INVALID_BODY");
+		});
 	});
 });

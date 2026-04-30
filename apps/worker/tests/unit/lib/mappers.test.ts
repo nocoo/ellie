@@ -537,6 +537,46 @@ describe("D1 row mappers", () => {
 			const user = toPublicUser(row);
 			expect(Object.keys(user)).toHaveLength(28);
 		});
+
+		it("should include regIp and lastIp when includeIp is true", () => {
+			const row = {
+				id: 1,
+				username: "alice",
+				avatar: "",
+				avatar_path: "",
+				role: 0,
+				reg_date: 0,
+				threads: 0,
+				posts: 0,
+				credits: 0,
+				signature: "",
+				group_title: "",
+				group_stars: 0,
+				group_color: "",
+				custom_title: "",
+				digest_posts: 0,
+				ol_time: 0,
+				last_activity: 0,
+				gender: 0,
+				birth_year: 0,
+				birth_month: 0,
+				birth_day: 0,
+				reside_province: "",
+				reside_city: "",
+				graduate_school: "",
+				bio: "",
+				interest: "",
+				qq: "",
+				site: "",
+				reg_ip: "192.168.1.1",
+				last_ip: "10.0.0.1",
+			};
+
+			const user = toPublicUser(row, true);
+			expect(user.regIp).toBe("192.168.1.1");
+			expect(user.lastIp).toBe("10.0.0.1");
+			expect(Object.keys(user)).toHaveLength(30);
+		});
 	});
 
 	describe("toAttachment", () => {
@@ -656,6 +696,66 @@ describe("D1 row mappers", () => {
 			expect("is_image" in attachment).toBe(false);
 			expect("has_thumb" in attachment).toBe(false);
 			expect("created_at" in attachment).toBe(false);
+		});
+
+		it("should sanitize trusted CDN URL (t.no.mt) to just pathname", () => {
+			const row = {
+				id: 1,
+				thread_id: 1,
+				post_id: 1,
+				author_id: 1,
+				filename: "photo.jpg",
+				file_path: "https://t.no.mt/attachments/photo.jpg",
+				file_size: 100,
+				is_image: 1,
+				width: 640,
+				has_thumb: 0,
+				downloads: 0,
+				created_at: 0,
+			};
+
+			const attachment = toAttachment(row);
+			expect(attachment.filePath).toBe("/attachments/photo.jpg");
+		});
+
+		it("should reject external non-CDN https URL", () => {
+			const row = {
+				id: 1,
+				thread_id: 1,
+				post_id: 1,
+				author_id: 1,
+				filename: "photo.jpg",
+				file_path: "https://evil.com/malware.exe",
+				file_size: 100,
+				is_image: 0,
+				width: 0,
+				has_thumb: 0,
+				downloads: 0,
+				created_at: 0,
+			};
+
+			const attachment = toAttachment(row);
+			expect(attachment.filePath).toBe("");
+		});
+
+		it("should reject invalid http URL gracefully", () => {
+			const row = {
+				id: 1,
+				thread_id: 1,
+				post_id: 1,
+				author_id: 1,
+				filename: "doc.pdf",
+				file_path: "http://[invalid",
+				file_size: 100,
+				is_image: 0,
+				width: 0,
+				has_thumb: 0,
+				downloads: 0,
+				created_at: 0,
+			};
+
+			const attachment = toAttachment(row);
+			expect(attachment.filePath).toBe("");
 		});
 	});
 
