@@ -2,7 +2,6 @@
 // Ref: docs/e2e-test-design.md §E2E-TH: Thread Flow (2 specs)
 
 import { expect, test } from "./fixtures/base";
-import { ForumPage } from "./pages/forum.page";
 import { ThreadPage } from "./pages/thread.page";
 
 // Stateful tests must run serially to avoid race conditions
@@ -59,8 +58,11 @@ test.describe("E2E-TH: Thread Flow", () => {
 	 * The loginAs fixture currently only supports e2etest user.
 	 * TODO: Add admin credentials to fixture to enable this test.
 	 */
-	// biome-ignore lint/suspicious/noSkippedTests: blocked on admin credentials fixture
-	test.skip("E2E-TH-02: logged-in user can create thread", async ({ page, loginAs }) => {
+	// TODO: Unblock when admin credentials fixture is available.
+	// Implementation preserved below — convert back to active test when ready.
+	test.todo("E2E-TH-02: logged-in user can create thread");
+	/*
+	test("E2E-TH-02: logged-in user can create thread", async ({ page, loginAs }) => {
 		// Login first
 		await loginAs("admin");
 
@@ -98,4 +100,5 @@ test.describe("E2E-TH: Thread Flow", () => {
 		// Should see our subject as the heading
 		await expect(page.locator("h1")).toContainText(uniqueSubject);
 	});
+	*/
 });

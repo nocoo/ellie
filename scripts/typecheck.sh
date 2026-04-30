@@ -17,16 +17,9 @@ check_route_types() {
     return 1
   fi
 
-  # Find newest source file under app/
-  local newest_app routes_mtime
-  if command -v fd &>/dev/null; then
-    newest_app=$(fd -e ts -e tsx . "$app_dir/src/app/" -x stat -f '%m %N' 2>/dev/null | sort -nr | head -1 | awk '{print $1}')
-  else
-    newest_app=$(find "$app_dir/src/app" -type f \( -name '*.ts' -o -name '*.tsx' \) -exec stat -f '%m' {} \; 2>/dev/null | sort -nr | head -1)
-  fi
-  routes_mtime=$(stat -f '%m' "$routes_dts" 2>/dev/null || echo 0)
-
-  if [ -n "${newest_app:-}" ] && [ "$newest_app" -gt "$routes_mtime" ]; then
+  # POSIX-portable: find any app source file newer than routes.d.ts.
+  # `find -newer` works on macOS (BSD) and Linux (GNU) without stat format differences.
+  if find "$app_dir/src/app" -type f \( -name '*.ts' -o -name '*.tsx' \) -newer "$routes_dts" 2>/dev/null | grep -q .; then
     echo "⚠️  $app_dir/.next/types/routes.d.ts is stale — rebuilding..."
     return 1
   fi
