@@ -4,7 +4,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 t0=$(date +%s%N)
-out=$(bun run test 2>&1)
+out=$(bash scripts/run-tests.sh 2>&1)
 exit_code=$?
 t1=$(date +%s%N)
 total_ms=$(( (t1 - t0) / 1000000 ))
