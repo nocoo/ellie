@@ -26,6 +26,9 @@ echo "METRIC bun_ms=$bun_ms"
 echo "METRIC vitest_tests=${total_tests:-0}"
 echo "METRIC bun_tests=${bun_tests:-0}"
 
+# Audit meaningfulness (cheap, ~50ms)
+node scripts/audit-tests.mjs 2>/dev/null || true
+
 if [ "$exit_code" -ne 0 ] || [ -n "${fail_count:-}" ] && [ "${fail_count:-0}" != "0" ]; then
   echo "FAIL exit=$exit_code fails=${fail_count:-0}" >&2
   exit 1
