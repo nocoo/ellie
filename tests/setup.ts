@@ -1,7 +1,3 @@
-/**
- * Bun test preload — mock server-only package so server-side modules
- * can be imported in test environment.
- */
-import { mock } from "bun:test";
+import { vi } from "vitest";
 
-mock.module("server-only", () => ({}));
+vi.mock("server-only", () => ({}));
