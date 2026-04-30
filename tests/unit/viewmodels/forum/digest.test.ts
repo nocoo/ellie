@@ -1,5 +1,5 @@
-import { describe, expect, it } from "bun:test";
 import { createRepositories, resetStore } from "@ellie/test-mocks";
+import { describe, expect, it } from "vitest";
 import { digestLabel } from "../../../../apps/web/src/viewmodels/forum/digest";
 
 // ---------------------------------------------------------------------------

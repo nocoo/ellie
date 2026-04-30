@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, unlinkSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
+import { afterEach, describe, expect, test } from "vitest";
 import {
 	type ParsedRow,
 	parseDumpFile,

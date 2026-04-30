@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { canSubmit } from "../../../../apps/web/src/viewmodels/forum/post-editor";
 
 // ---------------------------------------------------------------------------

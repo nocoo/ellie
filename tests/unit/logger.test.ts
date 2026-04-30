@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { afterEach, describe, expect, test } from "vitest";
 import { MigrationLogger } from "../../scripts/migrate/load/logger";
 
 const TEST_DIR = "/tmp/ellie-test-logger";

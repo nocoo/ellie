@@ -1,4 +1,3 @@
-import { describe, expect, test } from "bun:test";
 import {
 	NAMED_SMILEYS,
 	NAMED_SMILEY_SET,
@@ -8,6 +7,7 @@ import {
 	numberedFilename,
 	replaceSmileyCodesWithImages,
 } from "@/lib/smiley";
+import { describe, expect, test } from "vitest";
 
 const CDN = "https://t.no.mt/static/image/smiley";
 

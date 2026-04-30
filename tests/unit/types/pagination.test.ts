@@ -1,4 +1,3 @@
-import { describe, expect, it } from "bun:test";
 import {
 	type CursorPayload,
 	DEFAULT_PAGE_SIZE,
@@ -9,6 +8,7 @@ import {
 	encodeCursor,
 	encodeGenericCursor,
 } from "@ellie/types";
+import { describe, expect, it } from "vitest";
 
 // ---------------------------------------------------------------------------
 // encodeCursor / decodeCursor (legacy CursorPayload shape)
