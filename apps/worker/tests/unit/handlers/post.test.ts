@@ -56,7 +56,7 @@ describe("post handlers", () => {
 			const call200 = calls.find(
 				(c) => c.sql.includes("SELECT * FROM posts") && c.params.includes(100),
 			);
-			expect(call200).toBeDefined();
+			expect(call200?.params).toContain(100);
 
 			// Test limit within range
 			calls.length = 0;
@@ -64,7 +64,7 @@ describe("post handlers", () => {
 			const call100 = calls.find(
 				(c) => c.sql.includes("SELECT * FROM posts") && c.params.includes(100),
 			);
-			expect(call100).toBeDefined();
+			expect(call100?.params).toContain(100);
 
 			// Test limit < 1 (defaults to 100)
 			calls.length = 0;
@@ -72,7 +72,7 @@ describe("post handlers", () => {
 			const call0 = calls.find(
 				(c) => c.sql.includes("SELECT * FROM posts") && c.params.includes(100),
 			);
-			expect(call0).toBeDefined();
+			expect(call0?.params).toContain(100);
 		});
 
 		it("should map D1 snake_case rows to camelCase Post objects", async () => {

@@ -137,9 +137,11 @@ describe("attachment handlers", () => {
 				env,
 			);
 
-			const data = await response.json();
-			expect(data.meta.timestamp).toBeDefined();
-			expect(data.meta.requestId).toBeDefined();
+			const data = (await response.json()) as { meta: { timestamp: number; requestId: string } };
+			expect(typeof data.meta.timestamp).toBe("number");
+			expect(data.meta.timestamp).toBeGreaterThan(0);
+			expect(typeof data.meta.requestId).toBe("string");
+			expect(data.meta.requestId.length).toBeGreaterThan(0);
 		});
 
 		// ─── Error branches ──────────────────────────────────────────
