@@ -232,6 +232,46 @@ vi.mock("../../src/lib/upload", () => ({
 // Import the worker after all mocks are set up
 import worker from "../../src/index";
 
+// Helper: dynamically import a mocked handler module and return a specific function mock.
+// Maps module keys used in test tables to their actual import paths.
+const MODULE_PATHS: Record<string, string> = {
+	forum: "../../src/handlers/forum",
+	thread: "../../src/handlers/thread",
+	post: "../../src/handlers/post",
+	attachment: "../../src/handlers/attachment",
+	user: "../../src/handlers/user",
+	search: "../../src/handlers/search",
+	digest: "../../src/handlers/digest",
+	stats: "../../src/handlers/stats",
+	settings: "../../src/handlers/settings",
+	auth: "../../src/handlers/auth",
+	me: "../../src/handlers/me",
+	message: "../../src/handlers/message",
+	"post-comment": "../../src/handlers/post-comment",
+	report: "../../src/handlers/report",
+	moderation: "../../src/handlers/moderation",
+	"user-content": "../../src/handlers/user-content",
+	"admin/forum": "../../src/handlers/admin/forum",
+	"admin/thread": "../../src/handlers/admin/thread",
+	"admin/post": "../../src/handlers/admin/post",
+	"admin/user": "../../src/handlers/admin/user",
+	"admin/statistics": "../../src/handlers/admin/statistics",
+	"admin/attachment": "../../src/handlers/admin/attachment",
+	"admin/ipBan": "../../src/handlers/admin/ipBan",
+	"admin/censorWord": "../../src/handlers/admin/censorWord",
+	"admin/stats": "../../src/handlers/admin/stats",
+	"admin/settings": "../../src/handlers/admin/settings",
+	"admin/report": "../../src/handlers/admin/report",
+	"admin/adminLog": "../../src/handlers/admin/adminLog",
+	"admin/announcement": "../../src/handlers/admin/announcement",
+};
+
+async function expectHandlerCalled(mod: string, fn: string): Promise<void> {
+	const modulePath = MODULE_PATHS[mod];
+	const m = await import(modulePath);
+	expect(m[fn]).toHaveBeenCalledTimes(1);
+}
+
 const TEST_API_KEY = "test-api-key";
 const TEST_ADMIN_API_KEY = "test-admin-key";
 
@@ -603,10 +643,11 @@ describe("router (src/index.ts)", () => {
 				["GET", "/api/v1/digest/filters", "digest", "filters"],
 				["GET", "/api/v1/stats", "stats", "stats"],
 				["GET", "/api/v1/settings", "settings", "list"],
-			])("%s %s → %s.%s", async (method, path, _mod, _fn) => {
+			])("%s %s → %s.%s", async (method, path, mod, fn) => {
 				const request = makeRequest(method, path);
 				const response = await worker.fetch(request, makeEnv(), makeCtx());
 				expect(response.status).toBe(200);
+				await expectHandlerCalled(mod, fn);
 			});
 		});
 
@@ -618,10 +659,11 @@ describe("router (src/index.ts)", () => {
 				["GET", "/api/v1/auth/me", "auth", "me"],
 				["POST", "/api/v1/auth/register", "auth", "register"],
 				["GET", "/api/v1/auth/check-username", "auth", "checkUsername"],
-			])("%s %s → %s.%s", async (method, path, _mod, _fn) => {
+			])("%s %s → %s.%s", async (method, path, mod, fn) => {
 				const request = makeRequest(method, path);
 				const response = await worker.fetch(request, makeEnv(), makeCtx());
 				expect(response.status).toBe(200);
+				await expectHandlerCalled(mod, fn);
 			});
 		});
 
@@ -644,10 +686,11 @@ describe("router (src/index.ts)", () => {
 				["DELETE", "/api/v1/me/posts/1", "user-content", "deleteMyPost"],
 				["DELETE", "/api/v1/me/threads/1", "user-content", "deleteMyThread"],
 				["PATCH", "/api/v1/me/posts/1", "user-content", "editMyPost"],
-			])("%s %s → %s.%s", async (method, path, _mod, _fn) => {
+			])("%s %s → %s.%s", async (method, path, mod, fn) => {
 				const request = makeRequest(method, path);
 				const response = await worker.fetch(request, makeEnv(), makeCtx());
 				expect(response.status).toBe(200);
+				await expectHandlerCalled(mod, fn);
 			});
 		});
 
@@ -668,97 +711,99 @@ describe("router (src/index.ts)", () => {
 				["POST", "/api/v1/moderation/users/1/ban", "moderation", "banUser"],
 				["POST", "/api/v1/moderation/users/1/unban", "moderation", "unbanUser"],
 				["POST", "/api/v1/moderation/users/1/nuke", "moderation", "nukeUser"],
-			])("%s %s → %s.%s", async (method, path, _mod, _fn) => {
+			])("%s %s → %s.%s", async (method, path, mod, fn) => {
 				const request = makeRequest(method, path);
 				const response = await worker.fetch(request, makeEnv(), makeCtx());
 				expect(response.status).toBe(200);
+				await expectHandlerCalled(mod, fn);
 			});
 		});
 
 		describe("admin routes", () => {
 			it.each([
 				// Forums
-				["GET", "/api/admin/forums"],
-				["POST", "/api/admin/forums"],
-				["GET", "/api/admin/forums/1"],
-				["PATCH", "/api/admin/forums/1"],
-				["DELETE", "/api/admin/forums/1"],
-				["POST", "/api/admin/forums/reorder"],
-				["POST", "/api/admin/forums/1/merge"],
+				["GET", "/api/admin/forums", "admin/forum", "list"],
+				["POST", "/api/admin/forums", "admin/forum", "create"],
+				["GET", "/api/admin/forums/1", "admin/forum", "getById"],
+				["PATCH", "/api/admin/forums/1", "admin/forum", "update"],
+				["DELETE", "/api/admin/forums/1", "admin/forum", "remove"],
+				["POST", "/api/admin/forums/reorder", "admin/forum", "reorder"],
+				["POST", "/api/admin/forums/1/merge", "admin/forum", "merge"],
 				// Threads
-				["GET", "/api/admin/threads"],
-				["GET", "/api/admin/threads/1"],
-				["PATCH", "/api/admin/threads/1"],
-				["DELETE", "/api/admin/threads/1"],
-				["POST", "/api/admin/threads/batch-delete"],
-				["POST", "/api/admin/threads/batch-move"],
+				["GET", "/api/admin/threads", "admin/thread", "list"],
+				["GET", "/api/admin/threads/1", "admin/thread", "getById"],
+				["PATCH", "/api/admin/threads/1", "admin/thread", "update"],
+				["DELETE", "/api/admin/threads/1", "admin/thread", "remove"],
+				["POST", "/api/admin/threads/batch-delete", "admin/thread", "batchDelete"],
+				["POST", "/api/admin/threads/batch-move", "admin/thread", "batchMove"],
 				// Posts
-				["GET", "/api/admin/posts"],
-				["GET", "/api/admin/posts/1"],
-				["PATCH", "/api/admin/posts/1"],
-				["DELETE", "/api/admin/posts/1"],
-				["POST", "/api/admin/posts/batch-delete"],
+				["GET", "/api/admin/posts", "admin/post", "list"],
+				["GET", "/api/admin/posts/1", "admin/post", "getById"],
+				["PATCH", "/api/admin/posts/1", "admin/post", "update"],
+				["DELETE", "/api/admin/posts/1", "admin/post", "remove"],
+				["POST", "/api/admin/posts/batch-delete", "admin/post", "batchDelete"],
 				// Users
-				["GET", "/api/admin/users"],
-				["GET", "/api/admin/users/1"],
-				["PATCH", "/api/admin/users/1"],
-				["POST", "/api/admin/users/1/ban"],
-				["POST", "/api/admin/users/1/nuke"],
-				["POST", "/api/admin/users/1/recalc-counters"],
-				["GET", "/api/admin/users/batch"],
-				["POST", "/api/admin/users/batch-status"],
-				["POST", "/api/admin/users/batch-role"],
-				["POST", "/api/admin/users/batch-recalc-counters"],
-				["GET", "/api/admin/users/staff"],
+				["GET", "/api/admin/users", "admin/user", "list"],
+				["GET", "/api/admin/users/1", "admin/user", "getById"],
+				["PATCH", "/api/admin/users/1", "admin/user", "update"],
+				["POST", "/api/admin/users/1/ban", "admin/user", "ban"],
+				["POST", "/api/admin/users/1/nuke", "admin/user", "nuke"],
+				["POST", "/api/admin/users/1/recalc-counters", "admin/user", "recalcCounters"],
+				["GET", "/api/admin/users/batch", "admin/user", "batchFetch"],
+				["POST", "/api/admin/users/batch-status", "admin/user", "batchStatus"],
+				["POST", "/api/admin/users/batch-role", "admin/user", "batchRole"],
+				["POST", "/api/admin/users/batch-recalc-counters", "admin/user", "batchRecalcCounters"],
+				["GET", "/api/admin/users/staff", "admin/user", "listStaff"],
 				// Statistics
-				["POST", "/api/admin/statistics/recalc-forums"],
-				["POST", "/api/admin/statistics/recalc-threads"],
-				["POST", "/api/admin/statistics/recalc-users"],
+				["POST", "/api/admin/statistics/recalc-forums", "admin/statistics", "recalcForums"],
+				["POST", "/api/admin/statistics/recalc-threads", "admin/statistics", "recalcThreads"],
+				["POST", "/api/admin/statistics/recalc-users", "admin/statistics", "recalcUsers"],
 				// Attachments
-				["GET", "/api/admin/attachments"],
-				["GET", "/api/admin/attachments/1"],
-				["DELETE", "/api/admin/attachments/1"],
-				["POST", "/api/admin/attachments/batch-delete"],
+				["GET", "/api/admin/attachments", "admin/attachment", "list"],
+				["GET", "/api/admin/attachments/1", "admin/attachment", "getById"],
+				["DELETE", "/api/admin/attachments/1", "admin/attachment", "remove"],
+				["POST", "/api/admin/attachments/batch-delete", "admin/attachment", "batchDelete"],
 				// IP Bans
-				["GET", "/api/admin/ip-bans"],
-				["POST", "/api/admin/ip-bans"],
-				["GET", "/api/admin/ip-bans/1"],
-				["PATCH", "/api/admin/ip-bans/1"],
-				["DELETE", "/api/admin/ip-bans/1"],
-				["POST", "/api/admin/ip-bans/batch-delete"],
-				["GET", "/api/admin/ip-bans/check-ip"],
+				["GET", "/api/admin/ip-bans", "admin/ipBan", "list"],
+				["POST", "/api/admin/ip-bans", "admin/ipBan", "create"],
+				["GET", "/api/admin/ip-bans/1", "admin/ipBan", "getById"],
+				["PATCH", "/api/admin/ip-bans/1", "admin/ipBan", "update"],
+				["DELETE", "/api/admin/ip-bans/1", "admin/ipBan", "remove"],
+				["POST", "/api/admin/ip-bans/batch-delete", "admin/ipBan", "batchDelete"],
+				["GET", "/api/admin/ip-bans/check-ip", "admin/ipBan", "checkIp"],
 				// Censor Words
-				["GET", "/api/admin/censor-words"],
-				["POST", "/api/admin/censor-words"],
-				["GET", "/api/admin/censor-words/1"],
-				["PATCH", "/api/admin/censor-words/1"],
-				["DELETE", "/api/admin/censor-words/1"],
-				["POST", "/api/admin/censor-words/batch-delete"],
-				["POST", "/api/admin/censor-words/test"],
+				["GET", "/api/admin/censor-words", "admin/censorWord", "list"],
+				["POST", "/api/admin/censor-words", "admin/censorWord", "create"],
+				["GET", "/api/admin/censor-words/1", "admin/censorWord", "getById"],
+				["PATCH", "/api/admin/censor-words/1", "admin/censorWord", "update"],
+				["DELETE", "/api/admin/censor-words/1", "admin/censorWord", "remove"],
+				["POST", "/api/admin/censor-words/batch-delete", "admin/censorWord", "batchDelete"],
+				["POST", "/api/admin/censor-words/test", "admin/censorWord", "test"],
 				// Stats
-				["GET", "/api/admin/stats"],
+				["GET", "/api/admin/stats", "admin/stats", "handleStats"],
 				// Settings
-				["GET", "/api/admin/settings"],
-				["PUT", "/api/admin/settings"],
+				["GET", "/api/admin/settings", "admin/settings", "list"],
+				["PUT", "/api/admin/settings", "admin/settings", "bulkUpdate"],
 				// Reports
-				["GET", "/api/admin/reports"],
-				["GET", "/api/admin/reports/1"],
-				["PATCH", "/api/admin/reports/1"],
-				["POST", "/api/admin/reports/batch-delete"],
+				["GET", "/api/admin/reports", "admin/report", "list"],
+				["GET", "/api/admin/reports/1", "admin/report", "getById"],
+				["PATCH", "/api/admin/reports/1", "admin/report", "update"],
+				["POST", "/api/admin/reports/batch-delete", "admin/report", "batchDelete"],
 				// Admin Logs
-				["GET", "/api/admin/admin-logs"],
-				["GET", "/api/admin/admin-logs/1"],
+				["GET", "/api/admin/admin-logs", "admin/adminLog", "list"],
+				["GET", "/api/admin/admin-logs/1", "admin/adminLog", "getById"],
 				// Announcements
-				["GET", "/api/admin/announcements"],
-				["POST", "/api/admin/announcements"],
-				["GET", "/api/admin/announcements/1"],
-				["PATCH", "/api/admin/announcements/1"],
-				["DELETE", "/api/admin/announcements/1"],
-				["POST", "/api/admin/announcements/batch-delete"],
-			])("%s %s dispatches correctly", async (method, path) => {
+				["GET", "/api/admin/announcements", "admin/announcement", "list"],
+				["POST", "/api/admin/announcements", "admin/announcement", "create"],
+				["GET", "/api/admin/announcements/1", "admin/announcement", "getById"],
+				["PATCH", "/api/admin/announcements/1", "admin/announcement", "update"],
+				["DELETE", "/api/admin/announcements/1", "admin/announcement", "remove"],
+				["POST", "/api/admin/announcements/batch-delete", "admin/announcement", "batchDelete"],
+			])("%s %s → %s.%s", async (method, path, mod, fn) => {
 				const request = makeAdminRequest(method, path);
 				const response = await worker.fetch(request, makeEnv(), makeCtx());
 				expect(response.status).toBe(200);
+				await expectHandlerCalled(mod, fn);
 			});
 		});
 	});
