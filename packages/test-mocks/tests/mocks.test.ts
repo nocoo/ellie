@@ -39,12 +39,12 @@ describe("createRepositories", () => {
 	it("returns all repository fields", () => {
 		resetStore();
 		const repos = createRepositories();
-		expect(repos.forums).toBeDefined();
-		expect(repos.threads).toBeDefined();
-		expect(repos.posts).toBeDefined();
-		expect(repos.users).toBeDefined();
-		expect(repos.attachments).toBeDefined();
-		expect(repos._store).toBeDefined();
+		// Each repo is an object with at least one method
+		for (const key of ["forums", "threads", "posts", "users", "attachments"] as const) {
+			expect(typeof repos[key]).toBe("object");
+			expect(Object.keys(repos[key]).length).toBeGreaterThan(0);
+		}
+		expect(repos._store.users.length).toBeGreaterThan(0);
 	});
 
 	it("uses singleton store across calls", () => {

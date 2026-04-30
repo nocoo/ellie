@@ -3,10 +3,6 @@ import { UPLOAD_CONFIGS } from "../../../src/lib/upload-config";
 
 describe("UPLOAD_CONFIGS", () => {
 	describe("avatar config", () => {
-		it("should have avatar config defined", () => {
-			expect(UPLOAD_CONFIGS.avatar).toBeDefined();
-		});
-
 		it("should limit avatar size to 200KB", () => {
 			expect(UPLOAD_CONFIGS.avatar.maxSize).toBe(200 * 1024);
 		});
