@@ -1,6 +1,6 @@
 // Shared test utilities for Cloudflare Worker tests
 
-import { mock } from "bun:test";
+import { vi } from "vitest";
 import type { Env } from "../src/lib/env";
 
 // ─── Constants ─────────────────────────────────────────────
@@ -17,14 +17,14 @@ export const TEST_JWT_SECRET = "test-secret-key-for-jwt-hs256";
 export function createMockKV(initialData: Record<string, string> = {}) {
 	const store = new Map<string, string>(Object.entries(initialData));
 	return {
-		get: mock(async (key: string) => store.get(key) ?? null),
-		put: mock(async (key: string, value: string) => {
+		get: vi.fn(async (key: string) => store.get(key) ?? null),
+		put: vi.fn(async (key: string, value: string) => {
 			store.set(key, value);
 		}),
-		delete: mock(async (key: string) => {
+		delete: vi.fn(async (key: string) => {
 			store.delete(key);
 		}),
-		getWithMetadata: mock(async (key: string) => ({
+		getWithMetadata: vi.fn(async (key: string) => ({
 			value: store.get(key) ?? null,
 			metadata: null,
 		})),
@@ -38,10 +38,10 @@ export function createMockKV(initialData: Record<string, string> = {}) {
 export function createMockCtx() {
 	const waitUntilPromises: Promise<unknown>[] = [];
 	return {
-		waitUntil: mock((promise: Promise<unknown>) => {
+		waitUntil: vi.fn((promise: Promise<unknown>) => {
 			waitUntilPromises.push(promise);
 		}),
-		passThroughOnException: mock(() => {}),
+		passThroughOnException: vi.fn(() => {}),
 		_waitUntilPromises: waitUntilPromises,
 	} as unknown as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
 }
@@ -224,12 +224,12 @@ export function createMockDb(config?: {
 	const batchCalls: unknown[][] = [];
 
 	const db = {
-		prepare: mock((sql: string) => {
+		prepare: vi.fn((sql: string) => {
 			return {
-				bind: mock((...params: unknown[]) => {
+				bind: vi.fn((...params: unknown[]) => {
 					calls.push({ sql, params });
 					return {
-						first: mock(async () => {
+						first: vi.fn(async () => {
 							if (config?.firstResults) {
 								for (const [key, val] of Object.entries(config.firstResults)) {
 									if (sql.includes(key)) return val;
@@ -237,7 +237,7 @@ export function createMockDb(config?: {
 							}
 							return null;
 						}),
-						all: mock(async () => {
+						all: vi.fn(async () => {
 							if (config?.allResults) {
 								for (const [key, val] of Object.entries(config.allResults)) {
 									if (sql.includes(key)) return { results: val };
@@ -245,7 +245,7 @@ export function createMockDb(config?: {
 							}
 							return { results: [] };
 						}),
-						run: mock(async () => {
+						run: vi.fn(async () => {
 							if (config?.runResults) {
 								for (const [key, val] of Object.entries(config.runResults)) {
 									if (sql.includes(key)) return val;
@@ -256,7 +256,7 @@ export function createMockDb(config?: {
 					};
 				}),
 				// Also support parameterless calls
-				first: mock(async () => {
+				first: vi.fn(async () => {
 					calls.push({ sql, params: [] });
 					if (config?.firstResults) {
 						for (const [key, val] of Object.entries(config.firstResults)) {
@@ -265,7 +265,7 @@ export function createMockDb(config?: {
 					}
 					return null;
 				}),
-				all: mock(async () => {
+				all: vi.fn(async () => {
 					calls.push({ sql, params: [] });
 					if (config?.allResults) {
 						for (const [key, val] of Object.entries(config.allResults)) {
@@ -274,7 +274,7 @@ export function createMockDb(config?: {
 					}
 					return { results: [] };
 				}),
-				run: mock(async () => {
+				run: vi.fn(async () => {
 					calls.push({ sql, params: [] });
 					if (config?.runResults) {
 						for (const [key, val] of Object.entries(config.runResults)) {
@@ -285,7 +285,7 @@ export function createMockDb(config?: {
 				}),
 			} as unknown as D1PreparedStatement;
 		}),
-		batch: mock(async (stmts: unknown[]) => {
+		batch: vi.fn(async (stmts: unknown[]) => {
 			batchCalls.push(stmts);
 			return stmts.map(() => ({ success: true, results: [] }));
 		}),
@@ -311,7 +311,7 @@ export function createMockR2(config?: {
 		options?: { httpMetadata?: { contentType?: string } };
 	}[] = [];
 	return {
-		put: mock(
+		put: vi.fn(
 			async (
 				key: string,
 				body: ArrayBuffer | ReadableStream | string,
@@ -325,7 +325,7 @@ export function createMockR2(config?: {
 				return { key, size: (buffer as ArrayBuffer).byteLength };
 			},
 		),
-		get: mock(async (key: string) => {
+		get: vi.fn(async (key: string) => {
 			const data = store.get(key);
 			if (!data) return null;
 			return {
@@ -338,7 +338,7 @@ export function createMockR2(config?: {
 				arrayBuffer: async () => data,
 			};
 		}),
-		delete: mock(async (key: string) => {
+		delete: vi.fn(async (key: string) => {
 			store.delete(key);
 		}),
 		_putCalls: putCalls,
