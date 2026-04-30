@@ -4,6 +4,8 @@ export default defineConfig({
 	test: {
 		name: "test-mocks",
 		root: __dirname,
+		pool: "threads",
+		isolate: false,
 		include: ["tests/**/*.test.ts"],
 		passWithNoTests: true,
 		environment: "node",

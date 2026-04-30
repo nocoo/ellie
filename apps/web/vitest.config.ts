@@ -11,6 +11,8 @@ export default defineConfig({
 	test: {
 		name: "web",
 		root: __dirname,
+		pool: "threads",
+		isolate: false,
 		include: ["tests/**/*.test.ts"],
 		exclude: [],
 		passWithNoTests: true,

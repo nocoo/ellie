@@ -9,6 +9,8 @@ export default defineConfig({
 		},
 	},
 	test: {
+		pool: "threads",
+		isolate: false,
 		projects: [
 			"apps/worker",
 			"apps/web",
