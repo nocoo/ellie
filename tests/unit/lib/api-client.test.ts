@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "../../../apps/web/src/lib/api-client";
 
 // ---------------------------------------------------------------------------
@@ -7,10 +7,10 @@ import { apiClient } from "../../../apps/web/src/lib/api-client";
 
 const originalFetch = globalThis.fetch;
 
-let mockFetchFn: ReturnType<typeof mock>;
+let mockFetchFn: ReturnType<typeof vi.fn>;
 
 function mockSuccess(data: unknown) {
-	mockFetchFn = mock(() =>
+	mockFetchFn = vi.fn(() =>
 		Promise.resolve(
 			new Response(JSON.stringify({ data, meta: { timestamp: 1, requestId: "r1" } }), {
 				status: 200,
@@ -56,7 +56,7 @@ describe("apiClient", () => {
 		});
 
 		it("should throw ApiError on non-ok response", async () => {
-			mockFetchFn = mock(() =>
+			mockFetchFn = vi.fn(() =>
 				Promise.resolve(
 					new Response(
 						JSON.stringify({ error: { code: "UNKNOWN_KEYS", message: "Unknown key" } }),

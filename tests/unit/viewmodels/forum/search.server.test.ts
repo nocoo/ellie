@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import * as forumApiModule from "../../../../apps/web/src/lib/forum-api";
 import { loadSearchResults } from "../../../../apps/web/src/viewmodels/forum/search.server";
 
@@ -11,10 +11,10 @@ function mockForumApi(overrides: {
 	getCursor?: typeof forumApiModule.forumApi.getCursor;
 }) {
 	if (overrides.get) {
-		spyOn(forumApiModule.forumApi, "get").mockImplementation(overrides.get);
+		vi.spyOn(forumApiModule.forumApi, "get").mockImplementation(overrides.get);
 	}
 	if (overrides.getCursor) {
-		spyOn(forumApiModule.forumApi, "getCursor").mockImplementation(overrides.getCursor);
+		vi.spyOn(forumApiModule.forumApi, "getCursor").mockImplementation(overrides.getCursor);
 	}
 }
 

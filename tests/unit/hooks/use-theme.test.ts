@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ---------------------------------------------------------------------------
 // Mock browser globals BEFORE importing the module under test
@@ -7,20 +7,20 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 function createLocalStorageMock() {
 	const store: Record<string, string> = {};
 	return {
-		getItem: mock((key: string) => (key in store ? store[key] : null)),
-		setItem: mock((key: string, value: string) => {
+		getItem: vi.fn((key: string) => (key in store ? store[key] : null)),
+		setItem: vi.fn((key: string, value: string) => {
 			store[key] = value;
 		}),
-		removeItem: mock((key: string) => {
+		removeItem: vi.fn((key: string) => {
 			delete store[key];
 		}),
-		clear: mock(() => {
+		clear: vi.fn(() => {
 			for (const k of Object.keys(store)) delete store[k];
 		}),
 		get length() {
 			return Object.keys(store).length;
 		},
-		key: mock((_index: number) => null),
+		key: vi.fn((_index: number) => null),
 		_store: store,
 	};
 }
@@ -34,10 +34,10 @@ function createMatchMediaMock() {
 		get matches() {
 			return matchMediaMatches;
 		},
-		addEventListener: mock((event: string, handler: (e: { matches: boolean }) => void) => {
+		addEventListener: vi.fn((event: string, handler: (e: { matches: boolean }) => void) => {
 			if (event === "change") matchMediaHandlers.push(handler);
 		}),
-		removeEventListener: mock((event: string, handler: (e: { matches: boolean }) => void) => {
+		removeEventListener: vi.fn((event: string, handler: (e: { matches: boolean }) => void) => {
 			if (event === "change") {
 				matchMediaHandlers = matchMediaHandlers.filter((h) => h !== handler);
 			}
@@ -47,10 +47,10 @@ function createMatchMediaMock() {
 
 const classListMethods = {
 	_classes: new Set<string>() as Set<string>,
-	toggle: mock((_cls: string, _force?: boolean) => {}),
-	add: mock((_cls: string) => {}),
-	remove: mock((_cls: string) => {}),
-	contains: mock((_cls: string) => false),
+	toggle: vi.fn((_cls: string, _force?: boolean) => {}),
+	add: vi.fn((_cls: string) => {}),
+	remove: vi.fn((_cls: string) => {}),
+	contains: vi.fn((_cls: string) => false),
 };
 
 const documentElement = {
@@ -81,7 +81,7 @@ beforeEach(() => {
 	savedGlobals.document = globalThis.document;
 
 	(globalThis as Record<string, unknown>).localStorage = localStorageMock;
-	const matchMediaFn = mock(() => createMatchMediaMock());
+	const matchMediaFn = vi.fn(() => createMatchMediaMock());
 	(globalThis as Record<string, unknown>).matchMedia = matchMediaFn;
 	(globalThis as Record<string, unknown>).document = { documentElement };
 	(globalThis as Record<string, unknown>).window = { matchMedia: matchMediaFn };
@@ -453,7 +453,7 @@ describe("useTheme — external store subscribe", () => {
 
 	it("subscribe adds listener and unsubscribe removes it", () => {
 		useTheme();
-		const listener = mock(() => {});
+		const listener = vi.fn(() => {});
 		const unsub = capturedSubscribe?.(listener);
 
 		// Trigger emitChange
@@ -470,8 +470,8 @@ describe("useTheme — external store subscribe", () => {
 
 	it("multiple subscribers all get notified", () => {
 		useTheme();
-		const listener1 = mock(() => {});
-		const listener2 = mock(() => {});
+		const listener1 = vi.fn(() => {});
+		const listener2 = vi.fn(() => {});
 		capturedSubscribe?.(listener1);
 		capturedSubscribe?.(listener2);
 
