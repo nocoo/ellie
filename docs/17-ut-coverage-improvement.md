@@ -160,27 +160,30 @@ packages/test-mocks/
 
 Each Wave is a single commit targeting one package. Dependencies between waves are minimal — Waves 1–5 can run in parallel after Wave 0. Wave 6 is the final gate commit after all packages pass.
 
-### Wave 0: Infrastructure (1 commit)
+### Wave 0: Infrastructure (1 commit) ✅
 
-**Commit: `feat(test): add vitest workspace config and per-package vitest configs`**
+**Commit: `feat(test): add vitest project configs and per-package coverage gates`**
 
-- Create `vitest.workspace.ts` at root
+- Create root `vitest.config.ts` with `test.projects` (Vitest 4 API, replaces deprecated `vitest.workspace.ts`)
 - Create per-package `vitest.config.ts` for: worker, web, admin, shared, test-mocks
+- Each package config uses `defineConfig` for dual-purpose: project mode + standalone coverage
 - Update root `package.json` scripts
-- Set initial thresholds at **current coverage level** (ratchet-start)
-- Remove the old root `vitest.config.ts` (replaced by workspace)
+- Set initial thresholds: worker at current level, others at 0 (no tests yet)
+- Packages without tests use `passWithNoTests: true` until their wave
 
 Changes:
-- `vitest.workspace.ts` (new)
+- `vitest.config.ts` (rewritten — Vitest 4 projects mode)
 - `apps/worker/vitest.config.ts` (new)
-- `apps/web/vitest.config.ts` (new)
+- `apps/web/vitest.config.ts` (new, `passWithNoTests: true`)
 - `apps/admin/vitest.config.ts` (new)
-- `packages/shared/vitest.config.ts` (new)
-- `packages/test-mocks/vitest.config.ts` (new)
-- `vitest.config.ts` (remove or convert to workspace root)
+- `packages/shared/vitest.config.ts` (new, `passWithNoTests: true`)
+- `packages/test-mocks/vitest.config.ts` (new, `passWithNoTests: true`)
 - `package.json` (update scripts)
+- `apps/web/tsconfig.json`, `apps/admin/tsconfig.json` (exclude vitest.config.ts)
 
-> **Note:** Bun→Vitest test file migration happens in Wave 3 (web commit) since all 4 migratable files test web-owned source code.
+> **Note:** Root `test` script remains hybrid (`vitest run` + `bun test` for 6 excluded files) until Wave 3 migrates 4 of those to Vitest.
+> Per-package coverage scripts (`test:coverage:web`, etc.) are available but will report 0% until their wave adds tests.
+> Bun→Vitest test file migration happens in Wave 3 (web commit) since all 4 migratable files test web-owned source code.
 
 ### Wave 1: `packages/shared` (1 commit)
 

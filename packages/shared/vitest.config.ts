@@ -5,6 +5,7 @@ export default defineConfig({
 		name: "shared",
 		root: __dirname,
 		include: ["tests/**/*.test.ts"],
+		passWithNoTests: true,
 		environment: "node",
 		coverage: {
 			provider: "v8",
