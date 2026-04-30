@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run vitest and bun tests in parallel; aggregate exit codes.
+# Run vitest and bun:test in parallel; aggregate exit codes.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
