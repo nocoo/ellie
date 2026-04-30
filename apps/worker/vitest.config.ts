@@ -10,6 +10,8 @@ export default defineConfig({
 	test: {
 		name: "worker",
 		root: __dirname,
+		pool: "threads",
+		isolate: false,
 		include: ["tests/**/*.test.ts"],
 		environment: "node",
 		coverage: {

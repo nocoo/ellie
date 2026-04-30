@@ -61,9 +61,12 @@ describe("useUsersAdmin", () => {
 	it("fetches data on mount", async () => {
 		const { result } = renderHook(() => useUsersAdmin());
 
-		await waitFor(() => {
-			expect(result.current.state.loading).toBe(false);
-		});
+		await waitFor(
+			() => {
+				expect(result.current.state.loading).toBe(false);
+			},
+			{ interval: 5 },
+		);
 
 		expect(result.current.state.data).toHaveLength(1);
 		expect(result.current.state.data[0].username).toBe("alice");
@@ -74,9 +77,12 @@ describe("useUsersAdmin", () => {
 		mockFetchFailure();
 		const { result } = renderHook(() => useUsersAdmin());
 
-		await waitFor(() => {
-			expect(result.current.state.loading).toBe(false);
-		});
+		await waitFor(
+			() => {
+				expect(result.current.state.loading).toBe(false);
+			},
+			{ interval: 5 },
+		);
 
 		expect(result.current.state.data).toEqual([]);
 	});
@@ -85,18 +91,24 @@ describe("useUsersAdmin", () => {
 		mockFetchSuccess([MOCK_USER], { page: 1, pages: 3 });
 		const { result } = renderHook(() => useUsersAdmin());
 
-		await waitFor(() => {
-			expect(result.current.state.loading).toBe(false);
-		});
+		await waitFor(
+			() => {
+				expect(result.current.state.loading).toBe(false);
+			},
+			{ interval: 5 },
+		);
 
 		mockFetchSuccess([{ ...MOCK_USER, id: 2 }], { page: 2, pages: 3 });
 		await act(async () => {
 			await result.current.actions.fetchData(2);
 		});
 
-		await waitFor(() => {
-			expect(result.current.state.loading).toBe(false);
-		});
+		await waitFor(
+			() => {
+				expect(result.current.state.loading).toBe(false);
+			},
+			{ interval: 5 },
+		);
 
 		// Verify fetch was called with page=2
 		const lastCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
@@ -106,25 +118,34 @@ describe("useUsersAdmin", () => {
 	it("handles filter change triggers re-fetch", async () => {
 		const { result } = renderHook(() => useUsersAdmin());
 
-		await waitFor(() => {
-			expect(result.current.state.loading).toBe(false);
-		});
+		await waitFor(
+			() => {
+				expect(result.current.state.loading).toBe(false);
+			},
+			{ interval: 5 },
+		);
 
 		await act(async () => {
 			result.current.actions.handleFilterChange("search", "bob");
 		});
 
-		await waitFor(() => {
-			expect(result.current.state.filters.search).toBe("bob");
-		});
+		await waitFor(
+			() => {
+				expect(result.current.state.filters.search).toBe("bob");
+			},
+			{ interval: 5 },
+		);
 	});
 
 	it("handleClearFilters resets filters", async () => {
 		const { result } = renderHook(() => useUsersAdmin({ initialFilters: { search: "test" } }));
 
-		await waitFor(() => {
-			expect(result.current.state.loading).toBe(false);
-		});
+		await waitFor(
+			() => {
+				expect(result.current.state.loading).toBe(false);
+			},
+			{ interval: 5 },
+		);
 
 		expect(result.current.state.filters.search).toBe("test");
 
@@ -138,9 +159,12 @@ describe("useUsersAdmin", () => {
 	it("openEditDialog / closeEditDialog", async () => {
 		const { result } = renderHook(() => useUsersAdmin());
 
-		await waitFor(() => {
-			expect(result.current.state.loading).toBe(false);
-		});
+		await waitFor(
+			() => {
+				expect(result.current.state.loading).toBe(false);
+			},
+			{ interval: 5 },
+		);
 
 		act(() => {
 			result.current.actions.openEditDialog(MOCK_USER);
@@ -156,9 +180,12 @@ describe("useUsersAdmin", () => {
 	it("handleEditSave calls updateUser and refetches", async () => {
 		const { result } = renderHook(() => useUsersAdmin());
 
-		await waitFor(() => {
-			expect(result.current.state.loading).toBe(false);
-		});
+		await waitFor(
+			() => {
+				expect(result.current.state.loading).toBe(false);
+			},
+			{ interval: 5 },
+		);
 
 		act(() => {
 			result.current.actions.openEditDialog(MOCK_USER);
@@ -175,9 +202,12 @@ describe("useUsersAdmin", () => {
 	it("handleBan opens confirm dialog", async () => {
 		const { result } = renderHook(() => useUsersAdmin());
 
-		await waitFor(() => {
-			expect(result.current.state.loading).toBe(false);
-		});
+		await waitFor(
+			() => {
+				expect(result.current.state.loading).toBe(false);
+			},
+			{ interval: 5 },
+		);
 
 		act(() => {
 			result.current.actions.handleBan(MOCK_USER);
@@ -190,9 +220,12 @@ describe("useUsersAdmin", () => {
 	it("handleBan with deleteContent uses different title", async () => {
 		const { result } = renderHook(() => useUsersAdmin());
 
-		await waitFor(() => {
-			expect(result.current.state.loading).toBe(false);
-		});
+		await waitFor(
+			() => {
+				expect(result.current.state.loading).toBe(false);
+			},
+			{ interval: 5 },
+		);
 
 		act(() => {
 			result.current.actions.handleBan(MOCK_USER, true);
@@ -204,9 +237,12 @@ describe("useUsersAdmin", () => {
 	it("handleBan confirm calls banUser", async () => {
 		const { result } = renderHook(() => useUsersAdmin());
 
-		await waitFor(() => {
-			expect(result.current.state.loading).toBe(false);
-		});
+		await waitFor(
+			() => {
+				expect(result.current.state.loading).toBe(false);
+			},
+			{ interval: 5 },
+		);
 
 		act(() => {
 			result.current.actions.handleBan(MOCK_USER, false);
@@ -222,9 +258,12 @@ describe("useUsersAdmin", () => {
 	it("handleNuke opens confirm with requireInput", async () => {
 		const { result } = renderHook(() => useUsersAdmin());
 
-		await waitFor(() => {
-			expect(result.current.state.loading).toBe(false);
-		});
+		await waitFor(
+			() => {
+				expect(result.current.state.loading).toBe(false);
+			},
+			{ interval: 5 },
+		);
 
 		act(() => {
 			result.current.actions.handleNuke(MOCK_USER);
@@ -237,9 +276,12 @@ describe("useUsersAdmin", () => {
 	it("handleNuke confirm calls nukeUser", async () => {
 		const { result } = renderHook(() => useUsersAdmin());
 
-		await waitFor(() => {
-			expect(result.current.state.loading).toBe(false);
-		});
+		await waitFor(
+			() => {
+				expect(result.current.state.loading).toBe(false);
+			},
+			{ interval: 5 },
+		);
 
 		act(() => {
 			result.current.actions.handleNuke(MOCK_USER);
@@ -255,9 +297,12 @@ describe("useUsersAdmin", () => {
 	it("handleUnban calls updateUser with status 0", async () => {
 		const { result } = renderHook(() => useUsersAdmin());
 
-		await waitFor(() => {
-			expect(result.current.state.loading).toBe(false);
-		});
+		await waitFor(
+			() => {
+				expect(result.current.state.loading).toBe(false);
+			},
+			{ interval: 5 },
+		);
 
 		await act(async () => {
 			await result.current.actions.handleUnban(MOCK_USER);
@@ -269,9 +314,12 @@ describe("useUsersAdmin", () => {
 	it("handleBatchAction ban calls batchSetStatus", async () => {
 		const { result } = renderHook(() => useUsersAdmin());
 
-		await waitFor(() => {
-			expect(result.current.state.loading).toBe(false);
-		});
+		await waitFor(
+			() => {
+				expect(result.current.state.loading).toBe(false);
+			},
+			{ interval: 5 },
+		);
 
 		act(() => {
 			result.current.actions.setSelectedIds(new Set([1, 2]));
@@ -288,9 +336,12 @@ describe("useUsersAdmin", () => {
 	it("handleBatchAction activate calls batchSetStatus", async () => {
 		const { result } = renderHook(() => useUsersAdmin());
 
-		await waitFor(() => {
-			expect(result.current.state.loading).toBe(false);
-		});
+		await waitFor(
+			() => {
+				expect(result.current.state.loading).toBe(false);
+			},
+			{ interval: 5 },
+		);
 
 		act(() => {
 			result.current.actions.setSelectedIds(new Set([3]));
@@ -306,9 +357,12 @@ describe("useUsersAdmin", () => {
 	it("handleBatchAction with empty selection does nothing", async () => {
 		const { result } = renderHook(() => useUsersAdmin());
 
-		await waitFor(() => {
-			expect(result.current.state.loading).toBe(false);
-		});
+		await waitFor(
+			() => {
+				expect(result.current.state.loading).toBe(false);
+			},
+			{ interval: 5 },
+		);
 
 		await act(async () => {
 			await result.current.actions.handleBatchAction("ban");
@@ -320,9 +374,12 @@ describe("useUsersAdmin", () => {
 	it("closeConfirmDialog closes the dialog", async () => {
 		const { result } = renderHook(() => useUsersAdmin());
 
-		await waitFor(() => {
-			expect(result.current.state.loading).toBe(false);
-		});
+		await waitFor(
+			() => {
+				expect(result.current.state.loading).toBe(false);
+			},
+			{ interval: 5 },
+		);
 
 		act(() => {
 			result.current.actions.handleBan(MOCK_USER);
@@ -339,9 +396,12 @@ describe("useUsersAdmin", () => {
 		mockFetchSuccess();
 		const { result } = renderHook(() => useUsersAdmin({ initialPageSize: 50 }));
 
-		await waitFor(() => {
-			expect(result.current.state.loading).toBe(false);
-		});
+		await waitFor(
+			() => {
+				expect(result.current.state.loading).toBe(false);
+			},
+			{ interval: 5 },
+		);
 
 		// The fetch URL should contain limit=50
 		const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0];
