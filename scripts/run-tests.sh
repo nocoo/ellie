@@ -10,7 +10,7 @@ trap 'rm -f "$vitest_log" "$bun_log"' EXIT
 node_modules/.bin/vitest run --no-color >"$vitest_log" 2>&1 &
 v_pid=$!
 
-bun test tests/unit/loader.test.ts tests/unit/verify.test.ts >"$bun_log" 2>&1 &
+bun test "$(pwd)/tests/unit/loader.test.ts" "$(pwd)/tests/unit/verify.test.ts" >"$bun_log" 2>&1 &
 b_pid=$!
 
 wait "$v_pid"; v_exit=$?
