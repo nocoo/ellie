@@ -3,6 +3,15 @@
 import { MD5 } from "crypto-js";
 
 /**
+ * PBKDF2 iteration count for password hashing.
+ * Defaults to 100,000 (OWASP recommended for SHA-256 in 2023+).
+ * Override via PBKDF2_ITERATIONS env var (used in tests for speed).
+ */
+export const PBKDF2_ITERATIONS =
+	Number.parseInt((typeof process !== "undefined" && process.env?.PBKDF2_ITERATIONS) || "", 10) ||
+	100000;
+
+/**
  * Verifies Discuz old password format.
  * Discuz: md5(md5(password) + salt)
  * Note: Uses plain MD5, not HMAC-MD5.
@@ -47,7 +56,7 @@ export async function hashPassword(password: string): Promise<string> {
 		{
 			name: "PBKDF2",
 			salt,
-			iterations: 100000,
+			iterations: PBKDF2_ITERATIONS,
 			hash: "SHA-256",
 		},
 		keyMaterial,
@@ -94,7 +103,7 @@ export async function verifyPassword(input: string, storedHash: string): Promise
 			{
 				name: "PBKDF2",
 				salt,
-				iterations: 100000,
+				iterations: PBKDF2_ITERATIONS,
 				hash: "SHA-256",
 			},
 			keyMaterial,
