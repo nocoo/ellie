@@ -55,8 +55,11 @@ test.describe("E2E-PO: Post Flow", () => {
 	 * The loginAs fixture currently only supports e2etest user.
 	 * TODO: Add admin credentials to fixture to enable this test.
 	 */
-	// biome-ignore lint/suspicious/noSkippedTests: blocked on admin credentials fixture
-	test.skip("E2E-PO-02: logged-in user can reply to thread", async ({ page, loginAs }) => {
+	// TODO: Unblock when admin credentials fixture is available.
+	// Implementation preserved below — convert back to active test when ready.
+	test.todo("E2E-PO-02: logged-in user can reply to thread");
+	/*
+	test("E2E-PO-02: logged-in user can reply to thread", async ({ page, loginAs }) => {
 		// Login first
 		await loginAs("admin");
 
@@ -94,4 +97,5 @@ test.describe("E2E-PO: Post Flow", () => {
 		const replyLocator = page.locator(`text=${uniqueReply}`);
 		await expect(replyLocator).toBeVisible({ timeout: 10000 });
 	});
+	*/
 });

@@ -3,7 +3,7 @@
 # Husky runs hooks via "sh -e"; re-exec under bash for associative syntax.
 if [ -z "$_ELLIE_HOOK_BASH" ]; then export _ELLIE_HOOK_BASH=1; exec bash "$0" "$@"; fi
 
-# Stages: lint-staged + typecheck + all unit tests + gitleaks (staged) + rust (conditional)
+# Stages: lint-staged + unit coverage + L2 + gitleaks + typecheck + rust (conditional)
 
 set -o pipefail
 
@@ -35,8 +35,9 @@ wait_stage() {
 
 # Launch parallel stages
 run_bg lint       bunx lint-staged
-run_bg unit       bunx vitest run
+run_bg unit       bunx vitest run --coverage
 run_bg gitleaks   gitleaks protect --staged --no-banner
+run_bg l2         bun run test:l2
 
 if [ -n "$HAS_TS" ]; then
   run_bg typecheck  bun run typecheck
@@ -51,6 +52,7 @@ fi
 wait_stage lint
 wait_stage unit
 wait_stage gitleaks
+wait_stage l2
 if [ -n "$HAS_TS" ]; then
   wait_stage typecheck
 fi
