@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ForumApiError, forumApi, publicUserToUser } from "../../../apps/web/src/lib/forum-api";
 import { UserStatus } from "../../../packages/types/src/types";
 
@@ -9,7 +9,7 @@ import { UserStatus } from "../../../packages/types/src/types";
 const originalFetch = globalThis.fetch;
 const originalEnv = { ...process.env };
 
-let mockFetchFn: ReturnType<typeof mock>;
+let mockFetchFn: ReturnType<typeof vi.fn>;
 
 function mockResponse(body: unknown, status = 200): Response {
 	return new Response(JSON.stringify(body), {
@@ -21,7 +21,7 @@ function mockResponse(body: unknown, status = 200): Response {
 beforeEach(() => {
 	process.env.WORKER_API_URL = "https://worker.example.com";
 	process.env.FORUM_API_KEY = "test-forum-key";
-	mockFetchFn = mock(() =>
+	mockFetchFn = vi.fn(() =>
 		Promise.resolve(mockResponse({ data: { ok: true }, meta: { timestamp: 1, requestId: "r1" } })),
 	);
 	globalThis.fetch = mockFetchFn as typeof fetch;

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "../../../apps/web/src/lib/api-client";
 import {
@@ -15,12 +15,12 @@ import {
 	setThreadSticky,
 } from "../../../apps/web/src/lib/moderation-api";
 
-let patchSpy: ReturnType<typeof spyOn>;
-let deleteSpy: ReturnType<typeof spyOn>;
+let patchSpy: ReturnType<typeof vi.spyOn>;
+let deleteSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
-	patchSpy = spyOn(apiClient, "patch").mockResolvedValue({ data: undefined, meta: {} });
-	deleteSpy = spyOn(apiClient, "delete").mockResolvedValue({ data: undefined, meta: {} });
+	patchSpy = vi.spyOn(apiClient, "patch").mockResolvedValue({ data: undefined, meta: {} });
+	deleteSpy = vi.spyOn(apiClient, "delete").mockResolvedValue({ data: undefined, meta: {} });
 });
 
 afterEach(() => {
