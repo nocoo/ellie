@@ -3,24 +3,20 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-vitest_log=$(mktemp)
-bun_log=$(mktemp)
-trap 'rm -f "$vitest_log" "$bun_log"' EXIT
+vlog=$(mktemp); blog=$(mktemp)
+trap 'rm -f "$vlog" "$blog"' EXIT
 
-node_modules/.bin/vitest run --no-color --experimental.fsModuleCache >"$vitest_log" 2>&1 &
-v_pid=$!
+node_modules/.bin/vitest run --no-color --experimental.fsModuleCache >"$vlog" 2>&1 &
+v=$!
+bun test "$PWD/tests/unit/loader.test.ts" "$PWD/tests/unit/verify.test.ts" >"$blog" 2>&1 &
+b=$!
 
-bun test "$(pwd)/tests/unit/loader.test.ts" "$(pwd)/tests/unit/verify.test.ts" >"$bun_log" 2>&1 &
-b_pid=$!
+wait "$v"; ve=$?
+wait "$b"; be=$?
 
-wait "$v_pid"; v_exit=$?
-wait "$b_pid"; b_exit=$?
+cat "$vlog"; echo; cat "$blog"
 
-cat "$vitest_log"
-echo ""
-cat "$bun_log"
-
-if [ "$v_exit" -ne 0 ] || [ "$b_exit" -ne 0 ]; then
-  echo "FAIL vitest=$v_exit bun=$b_exit" >&2
+if [ "$ve" -ne 0 ] || [ "$be" -ne 0 ]; then
+  echo "FAIL vitest=$ve bun=$be" >&2
   exit 1
 fi
