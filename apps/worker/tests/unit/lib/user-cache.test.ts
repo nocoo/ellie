@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, vi } from "vitest";
 import {
 	getUserProfile,
 	getUserProfiles,
@@ -11,16 +11,16 @@ import { createMockCtx, makeEnv } from "../../helpers";
 function createJsonKV(initialData: Record<string, string> = {}) {
 	const store = new Map<string, string>(Object.entries(initialData));
 	return {
-		get: mock(async (key: string, type?: string) => {
+		get: vi.fn(async (key: string, type?: string) => {
 			const raw = store.get(key) ?? null;
 			if (raw === null) return null;
 			if (type === "json") return JSON.parse(raw);
 			return raw;
 		}),
-		put: mock(async (key: string, value: string) => {
+		put: vi.fn(async (key: string, value: string) => {
 			store.set(key, value);
 		}),
-		delete: mock(async (key: string) => {
+		delete: vi.fn(async (key: string) => {
 			store.delete(key);
 		}),
 	} as unknown as KVNamespace;
@@ -29,9 +29,9 @@ function createJsonKV(initialData: Record<string, string> = {}) {
 // D1 mock factory
 function createMockD1(results: Record<string, unknown>[] = []) {
 	return {
-		prepare: mock(() => ({
-			bind: mock(() => ({
-				all: mock(async () => ({ results })),
+		prepare: vi.fn(() => ({
+			bind: vi.fn(() => ({
+				all: vi.fn(async () => ({ results })),
 			})),
 		})),
 	} as unknown as D1Database;

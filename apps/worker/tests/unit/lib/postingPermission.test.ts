@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { checkPostingPermission } from "../../../src/lib/postingPermission";
 import type { PostingUser } from "../../../src/lib/postingPermission";
 import { createMockDb, makeEnv } from "../../helpers";

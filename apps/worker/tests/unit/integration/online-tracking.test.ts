@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, type mock, vi } from "vitest";
 
 /**
  * Integration tests for online tracking middleware.
@@ -41,7 +41,7 @@ describe.skipIf(!canRunIntegration)("online tracking integration", () => {
 				waitUntil: (p: Promise<unknown>) => {
 					waitUntilPromises.push(p);
 				},
-				passThroughOnException: mock(() => {}),
+				passThroughOnException: vi.fn(() => {}),
 			} as ExecutionContext,
 			waitUntilPromises,
 		};
@@ -49,10 +49,10 @@ describe.skipIf(!canRunIntegration)("online tracking integration", () => {
 
 	/** Create mock env with KV tracking */
 	const makeEnv = (options?: { kvGet?: ReturnType<typeof mock> }) => {
-		const kvPut = mock(() => Promise.resolve());
+		const kvPut = vi.fn(() => Promise.resolve());
 		const kvGet =
 			options?.kvGet ??
-			mock((key: string) => {
+			vi.fn((key: string) => {
 				// Return null for throttle check (allow tracking)
 				if (key.startsWith("activity_throttle:")) return Promise.resolve(null);
 				return Promise.resolve(null);
@@ -63,12 +63,12 @@ describe.skipIf(!canRunIntegration)("online tracking integration", () => {
 				API_KEY: TEST_API_KEY,
 				ADMIN_API_KEY: "test-admin-api-key",
 				DB: {
-					prepare: mock((sql: string) => {
+					prepare: vi.fn((sql: string) => {
 						// Handle SELECT for activity tracking
 						if (sql.includes("SELECT last_activity")) {
 							return {
-								bind: mock(() => ({
-									first: mock(() =>
+								bind: vi.fn(() => ({
+									first: vi.fn(() =>
 										Promise.resolve({
 											last_activity: Math.floor(Date.now() / 1000) - 120,
 											ol_time: 10,
@@ -80,23 +80,23 @@ describe.skipIf(!canRunIntegration)("online tracking integration", () => {
 						// Handle UPDATE for activity tracking
 						if (sql.includes("UPDATE users SET last_activity")) {
 							return {
-								bind: mock(() => ({
-									run: mock(() => Promise.resolve({ success: true })),
+								bind: vi.fn(() => ({
+									run: vi.fn(() => Promise.resolve({ success: true })),
 								})),
 							};
 						}
 						// Default: return empty results
 						return {
-							bind: mock(() => ({
-								first: mock(() => Promise.resolve(null)),
-								all: mock(() => Promise.resolve({ results: [] })),
-								run: mock(() => Promise.resolve()),
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve(null)),
+								all: vi.fn(() => Promise.resolve({ results: [] })),
+								run: vi.fn(() => Promise.resolve()),
 							})),
-							all: mock(() => Promise.resolve({ results: [] })),
-							first: mock(() => Promise.resolve(null)),
+							all: vi.fn(() => Promise.resolve({ results: [] })),
+							first: vi.fn(() => Promise.resolve(null)),
 						};
 					}),
-					batch: mock(() =>
+					batch: vi.fn(() =>
 						Promise.resolve([
 							{ results: [{ cnt: 0 }] },
 							{ results: [{ cnt: 0 }] },

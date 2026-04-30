@@ -1,10 +1,10 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, vi } from "vitest";
 import type { Env } from "../../../src/lib/env";
 import { type OnlineUserData, trackOnline } from "../../../src/middleware/online";
 
 describe("trackOnline", () => {
 	const createMockEnv = () => {
-		const kvPut = mock(() => Promise.resolve());
+		const kvPut = vi.fn(() => Promise.resolve());
 		return {
 			env: {
 				API_KEY: "test-api-key",
@@ -14,9 +14,9 @@ describe("trackOnline", () => {
 				JWT_SECRET: "test-secret",
 				KV: {
 					put: kvPut,
-					get: mock(() => Promise.resolve(null)),
-					list: mock(() => Promise.resolve({ keys: [], list_complete: true })),
-					delete: mock(() => Promise.resolve()),
+					get: vi.fn(() => Promise.resolve(null)),
+					list: vi.fn(() => Promise.resolve({ keys: [], list_complete: true })),
+					delete: vi.fn(() => Promise.resolve()),
 				} as unknown as KVNamespace,
 			} as Env,
 			kvPut,

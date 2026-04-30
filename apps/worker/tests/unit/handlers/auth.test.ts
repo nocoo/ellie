@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, vi } from "vitest";
 import { login, logout, me, refresh } from "../../../src/handlers/auth";
 import type { Env } from "../../../src/lib/env";
 import { hashPassword } from "../../../src/lib/password";
@@ -11,15 +11,15 @@ function createMockDb(
 		runResult?: { success: boolean };
 	} = {},
 ) {
-	const runSpy = mock(() => Promise.resolve(overrides.runResult ?? { success: true }));
-	const firstSpy = mock(() => Promise.resolve(overrides.firstResult ?? null));
+	const runSpy = vi.fn(() => Promise.resolve(overrides.runResult ?? { success: true }));
+	const firstSpy = vi.fn(() => Promise.resolve(overrides.firstResult ?? null));
 
-	const bindSpy = mock((..._args: unknown[]) => ({
+	const bindSpy = vi.fn((..._args: unknown[]) => ({
 		first: firstSpy,
 		run: runSpy,
 	}));
 
-	const prepareSpy = mock((_sql: string) => ({
+	const prepareSpy = vi.fn((_sql: string) => ({
 		bind: bindSpy,
 	}));
 
@@ -47,9 +47,9 @@ describe("auth handlers", () => {
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret-key-for-jwt-hs256",
 		KV: {
-			get: mock(() => Promise.resolve(null)), // No rate limit hit / no lockout
-			put: mock(() => Promise.resolve()),
-			delete: mock(() => Promise.resolve()),
+			get: vi.fn(() => Promise.resolve(null)), // No rate limit hit / no lockout
+			put: vi.fn(() => Promise.resolve()),
+			delete: vi.fn(() => Promise.resolve()),
 		} as unknown as KVNamespace,
 	};
 
@@ -98,13 +98,13 @@ describe("auth handlers", () => {
 				...mockEnv,
 				DB: db,
 				KV: {
-					get: mock((key: string) => {
+					get: vi.fn((key: string) => {
 						// Simulate IP lockout
 						if (key.startsWith("login-lockout-ip:")) return Promise.resolve("1");
 						return Promise.resolve(null);
 					}),
-					put: mock(() => Promise.resolve()),
-					delete: mock(() => Promise.resolve()),
+					put: vi.fn(() => Promise.resolve()),
+					delete: vi.fn(() => Promise.resolve()),
 				} as unknown as KVNamespace,
 			};
 
@@ -119,13 +119,13 @@ describe("auth handlers", () => {
 		});
 
 		it("should return 429 and trigger 24h lockout after 5 failed attempts", async () => {
-			const kvPutSpy = mock(() => Promise.resolve());
+			const kvPutSpy = vi.fn(() => Promise.resolve());
 			const { db } = createMockDb({ firstResult: null });
 			const env = {
 				...mockEnv,
 				DB: db,
 				KV: {
-					get: mock((key: string) => {
+					get: vi.fn((key: string) => {
 						// No lockout yet, but 5 attempts reached
 						if (key.startsWith("login-lockout-")) return Promise.resolve(null);
 						if (key.startsWith("login-ip:")) {
@@ -134,7 +134,7 @@ describe("auth handlers", () => {
 						return Promise.resolve(null);
 					}),
 					put: kvPutSpy,
-					delete: mock(() => Promise.resolve()),
+					delete: vi.fn(() => Promise.resolve()),
 				} as unknown as KVNamespace,
 			};
 
@@ -232,27 +232,27 @@ describe("auth handlers", () => {
 			};
 
 			// Need a DB that returns the user on SELECT, and supports UPDATE for last_login
-			const runSpy = mock(() => Promise.resolve({ success: true }));
-			const firstSpy = mock(() => Promise.resolve(user));
+			const runSpy = vi.fn(() => Promise.resolve({ success: true }));
+			const firstSpy = vi.fn(() => Promise.resolve(user));
 
-			const bindSpy = mock((..._args: unknown[]) => ({
+			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				first: firstSpy,
 				run: runSpy,
 			}));
 
-			const prepareSpy = mock((_sql: string) => ({
+			const prepareSpy = vi.fn((_sql: string) => ({
 				bind: bindSpy,
 			}));
 
 			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const kvPutSpy = mock(() => Promise.resolve());
+			const kvPutSpy = vi.fn(() => Promise.resolve());
 			const env = {
 				...mockEnv,
 				DB: db,
 				KV: {
-					get: mock(() => Promise.resolve(null)),
+					get: vi.fn(() => Promise.resolve(null)),
 					put: kvPutSpy,
-					delete: mock(() => Promise.resolve()),
+					delete: vi.fn(() => Promise.resolve()),
 				} as unknown as KVNamespace,
 			};
 
@@ -299,27 +299,27 @@ describe("auth handlers", () => {
 				status: 0,
 			};
 
-			const runSpy = mock(() => Promise.resolve({ success: true }));
-			const firstSpy = mock(() => Promise.resolve(user));
+			const runSpy = vi.fn(() => Promise.resolve({ success: true }));
+			const firstSpy = vi.fn(() => Promise.resolve(user));
 
-			const bindSpy = mock((..._args: unknown[]) => ({
+			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				first: firstSpy,
 				run: runSpy,
 			}));
 
-			const prepareSpy = mock((_sql: string) => ({
+			const prepareSpy = vi.fn((_sql: string) => ({
 				bind: bindSpy,
 			}));
 
 			const db = { prepare: prepareSpy } as unknown as D1Database;
-			const kvPutSpy = mock(() => Promise.resolve());
+			const kvPutSpy = vi.fn(() => Promise.resolve());
 			const env = {
 				...mockEnv,
 				DB: db,
 				KV: {
-					get: mock(() => Promise.resolve(null)),
+					get: vi.fn(() => Promise.resolve(null)),
 					put: kvPutSpy,
-					delete: mock(() => Promise.resolve()),
+					delete: vi.fn(() => Promise.resolve()),
 				} as unknown as KVNamespace,
 			};
 
@@ -377,26 +377,26 @@ describe("auth handlers", () => {
 				status: 0,
 			};
 
-			const runSpy = mock(() => Promise.resolve({ success: true }));
-			const firstSpy = mock(() => Promise.resolve(user));
+			const runSpy = vi.fn(() => Promise.resolve({ success: true }));
+			const firstSpy = vi.fn(() => Promise.resolve(user));
 
-			const bindSpy = mock((..._args: unknown[]) => ({
+			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				first: firstSpy,
 				run: runSpy,
 			}));
 
 			const db = {
-				prepare: mock((_sql: string) => ({ bind: bindSpy })),
+				prepare: vi.fn((_sql: string) => ({ bind: bindSpy })),
 			} as unknown as D1Database;
 
-			const kvPutSpy = mock(() => Promise.resolve());
+			const kvPutSpy = vi.fn(() => Promise.resolve());
 			const env = {
 				...mockEnv,
 				DB: db,
 				KV: {
-					get: mock(() => Promise.resolve(null)),
+					get: vi.fn(() => Promise.resolve(null)),
 					put: kvPutSpy,
-					delete: mock(() => Promise.resolve()),
+					delete: vi.fn(() => Promise.resolve()),
 				} as unknown as KVNamespace,
 			};
 
@@ -426,15 +426,15 @@ describe("auth handlers", () => {
 				status: 0,
 			};
 
-			const runSpy = mock(() => Promise.resolve({ success: true }));
-			const firstSpy = mock(() => Promise.resolve(user));
+			const runSpy = vi.fn(() => Promise.resolve({ success: true }));
+			const firstSpy = vi.fn(() => Promise.resolve(user));
 
-			const bindSpy = mock((..._args: unknown[]) => ({
+			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				first: firstSpy,
 				run: runSpy,
 			}));
 
-			const prepareSpy = mock((_sql: string) => ({
+			const prepareSpy = vi.fn((_sql: string) => ({
 				bind: bindSpy,
 			}));
 
@@ -443,9 +443,9 @@ describe("auth handlers", () => {
 				...mockEnv,
 				DB: db,
 				KV: {
-					get: mock(() => Promise.resolve(null)),
-					put: mock(() => Promise.resolve()),
-					delete: mock(() => Promise.resolve()),
+					get: vi.fn(() => Promise.resolve(null)),
+					put: vi.fn(() => Promise.resolve()),
+					delete: vi.fn(() => Promise.resolve()),
 				} as unknown as KVNamespace,
 			};
 
@@ -469,25 +469,25 @@ describe("auth handlers", () => {
 				status: 0,
 			};
 
-			const runSpy = mock(() => Promise.resolve({ success: true }));
-			const firstSpy = mock(() => Promise.resolve(user));
+			const runSpy = vi.fn(() => Promise.resolve({ success: true }));
+			const firstSpy = vi.fn(() => Promise.resolve(user));
 
-			const bindSpy = mock((..._args: unknown[]) => ({
+			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				first: firstSpy,
 				run: runSpy,
 			}));
 
 			const db = {
-				prepare: mock((_sql: string) => ({ bind: bindSpy })),
+				prepare: vi.fn((_sql: string) => ({ bind: bindSpy })),
 			} as unknown as D1Database;
 
 			const env = {
 				...mockEnv,
 				DB: db,
 				KV: {
-					get: mock(() => Promise.resolve(null)),
-					put: mock(() => Promise.resolve()),
-					delete: mock(() => Promise.resolve()),
+					get: vi.fn(() => Promise.resolve(null)),
+					put: vi.fn(() => Promise.resolve()),
+					delete: vi.fn(() => Promise.resolve()),
 				} as unknown as KVNamespace,
 			};
 
@@ -523,25 +523,25 @@ describe("auth handlers", () => {
 				status: 0,
 			};
 
-			const runSpy = mock(() => Promise.resolve({ success: true }));
-			const firstSpy = mock(() => Promise.resolve(user));
+			const runSpy = vi.fn(() => Promise.resolve({ success: true }));
+			const firstSpy = vi.fn(() => Promise.resolve(user));
 
-			const bindSpy = mock((..._args: unknown[]) => ({
+			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				first: firstSpy,
 				run: runSpy,
 			}));
 
 			const db = {
-				prepare: mock((_sql: string) => ({ bind: bindSpy })),
+				prepare: vi.fn((_sql: string) => ({ bind: bindSpy })),
 			} as unknown as D1Database;
 
 			const env = {
 				...mockEnv,
 				DB: db,
 				KV: {
-					get: mock(() => Promise.resolve(null)),
-					put: mock(() => Promise.resolve()),
-					delete: mock(() => Promise.resolve()),
+					get: vi.fn(() => Promise.resolve(null)),
+					put: vi.fn(() => Promise.resolve()),
+					delete: vi.fn(() => Promise.resolve()),
 				} as unknown as KVNamespace,
 			};
 
@@ -559,20 +559,20 @@ describe("auth handlers", () => {
 			kvStore: Map<string, string>,
 			dbUser: { id: number; username: string; role: number; status: number } | null,
 		): Env => {
-			const firstSpy = mock(() => Promise.resolve(dbUser));
-			const bindSpy = mock((..._args: unknown[]) => ({ first: firstSpy }));
-			const prepareSpy = mock((_sql: string) => ({ bind: bindSpy }));
+			const firstSpy = vi.fn(() => Promise.resolve(dbUser));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ first: firstSpy }));
+			const prepareSpy = vi.fn((_sql: string) => ({ bind: bindSpy }));
 
 			return {
 				...mockEnv,
 				DB: { prepare: prepareSpy } as unknown as D1Database,
 				KV: {
-					get: mock((key: string) => Promise.resolve(kvStore.get(key) ?? null)),
-					put: mock((key: string, value: string) => {
+					get: vi.fn((key: string) => Promise.resolve(kvStore.get(key) ?? null)),
+					put: vi.fn((key: string, value: string) => {
 						kvStore.set(key, value);
 						return Promise.resolve();
 					}),
-					delete: mock((key: string) => {
+					delete: vi.fn((key: string) => {
 						kvStore.delete(key);
 						return Promise.resolve();
 					}),
@@ -763,7 +763,7 @@ describe("auth handlers", () => {
 			const env: Env = {
 				...mockEnv,
 				KV: {
-					delete: mock((key: string) => {
+					delete: vi.fn((key: string) => {
 						kvStore.delete(key);
 						return Promise.resolve();
 					}),
@@ -782,7 +782,7 @@ describe("auth handlers", () => {
 			const env: Env = {
 				...mockEnv,
 				KV: {
-					delete: mock((key: string) => {
+					delete: vi.fn((key: string) => {
 						kvStore.delete(key);
 						return Promise.resolve();
 					}),
@@ -800,7 +800,7 @@ describe("auth handlers", () => {
 		it("should succeed even if token doesn't exist (idempotent)", async () => {
 			const env: Env = {
 				...mockEnv,
-				KV: { delete: mock(() => Promise.resolve()) } as unknown as KVNamespace,
+				KV: { delete: vi.fn(() => Promise.resolve()) } as unknown as KVNamespace,
 			};
 
 			const response = await logout(createLogoutRequest({ refreshToken: "non-existent" }), env);

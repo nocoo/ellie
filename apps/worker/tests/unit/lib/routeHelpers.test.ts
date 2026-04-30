@@ -1,5 +1,5 @@
-import { describe, expect, it, mock } from "bun:test";
 import { UserRole } from "@ellie/types";
+import { describe, expect, it, vi } from "vitest";
 import { withAdmin, withAuth, withModerator } from "../../../src/lib/routeHelpers";
 import type { AuthUser } from "../../../src/middleware/auth";
 import { createJwtForRole, createMockDb, makeEnv } from "../../helpers";
@@ -8,7 +8,7 @@ describe("withAuth", () => {
 	const env = makeEnv();
 
 	it("should return 401 when no Authorization header", async () => {
-		const handler = mock(
+		const handler = vi.fn(
 			async (_req: Request, _env: unknown, _user: AuthUser) => new Response("ok"),
 		);
 		const wrapped = withAuth(handler);
@@ -20,7 +20,7 @@ describe("withAuth", () => {
 	});
 
 	it("should return 401 for invalid token", async () => {
-		const handler = mock(
+		const handler = vi.fn(
 			async (_req: Request, _env: unknown, _user: AuthUser) => new Response("ok"),
 		);
 		const wrapped = withAuth(handler);
@@ -64,7 +64,7 @@ describe("withAdmin", () => {
 
 	it("should return 401 when no token", async () => {
 		const env = makeEnvWithDb({ role: 1, status: 0 });
-		const handler = mock(async () => new Response("ok"));
+		const handler = vi.fn(async () => new Response("ok"));
 		const wrapped = withAdmin(handler);
 		const req = new Request("https://example.com/api/admin/test");
 		const res = await wrapped(req, env);
@@ -75,7 +75,7 @@ describe("withAdmin", () => {
 
 	it("should return 403 for regular user", async () => {
 		const env = makeEnvWithDb({ role: UserRole.User, status: 0 }); // DB returns User role
-		const handler = mock(async () => new Response("ok"));
+		const handler = vi.fn(async () => new Response("ok"));
 		const wrapped = withAdmin(handler);
 		const token = await createJwtForRole(UserRole.User);
 		const req = new Request("https://example.com/api/admin/test", {
@@ -91,7 +91,7 @@ describe("withAdmin", () => {
 
 	it("should return 403 for Mod", async () => {
 		const env = makeEnvWithDb({ role: UserRole.Mod, status: 0 }); // DB returns Mod role
-		const handler = mock(async () => new Response("ok"));
+		const handler = vi.fn(async () => new Response("ok"));
 		const wrapped = withAdmin(handler);
 		const token = await createJwtForRole(UserRole.Mod);
 		const req = new Request("https://example.com/api/admin/test", {
@@ -105,7 +105,7 @@ describe("withAdmin", () => {
 
 	it("should call handler for Admin", async () => {
 		const env = makeEnvWithDb({ role: UserRole.Admin, status: 0 }); // DB returns Admin role
-		const handler = mock(async () => new Response("ok"));
+		const handler = vi.fn(async () => new Response("ok"));
 		const wrapped = withAdmin(handler);
 		const token = await createJwtForRole(UserRole.Admin);
 		const req = new Request("https://example.com/api/admin/test", {
@@ -119,7 +119,7 @@ describe("withAdmin", () => {
 
 	it("should include CORS headers on 403 when origin is provided", async () => {
 		const env = makeEnvWithDb({ role: UserRole.User, status: 0 }); // DB returns User role
-		const handler = mock(async () => new Response("ok"));
+		const handler = vi.fn(async () => new Response("ok"));
 		const wrapped = withAdmin(handler);
 		const token = await createJwtForRole(UserRole.User);
 		const req = new Request("https://example.com/api/admin/test", {
@@ -136,7 +136,7 @@ describe("withAdmin", () => {
 
 	it("should return 404 when user not found in DB", async () => {
 		const env = makeEnvWithDb(null); // DB returns null
-		const handler = mock(async () => new Response("ok"));
+		const handler = vi.fn(async () => new Response("ok"));
 		const wrapped = withAdmin(handler);
 		const token = await createJwtForRole(UserRole.Admin);
 		const req = new Request("https://example.com/api/admin/test", {
@@ -150,7 +150,7 @@ describe("withAdmin", () => {
 
 	it("should return 403 when user is banned", async () => {
 		const env = makeEnvWithDb({ role: UserRole.Admin, status: 1 }); // Banned user
-		const handler = mock(async () => new Response("ok"));
+		const handler = vi.fn(async () => new Response("ok"));
 		const wrapped = withAdmin(handler);
 		const token = await createJwtForRole(UserRole.Admin);
 		const req = new Request("https://example.com/api/admin/test", {
@@ -165,7 +165,7 @@ describe("withAdmin", () => {
 	it("should use DB role instead of JWT role (prevents privilege escalation)", async () => {
 		// JWT claims Admin, but DB says User
 		const env = makeEnvWithDb({ role: UserRole.User, status: 0 });
-		const handler = mock(async () => new Response("ok"));
+		const handler = vi.fn(async () => new Response("ok"));
 		const wrapped = withAdmin(handler);
 		const token = await createJwtForRole(UserRole.Admin); // JWT says Admin
 		const req = new Request("https://example.com/api/admin/test", {
@@ -189,7 +189,7 @@ describe("withModerator", () => {
 
 	it("should return 403 for regular user", async () => {
 		const env = makeEnvWithDb({ role: UserRole.User, status: 0 });
-		const handler = mock(async () => new Response("ok"));
+		const handler = vi.fn(async () => new Response("ok"));
 		const wrapped = withModerator(handler);
 		const token = await createJwtForRole(UserRole.User);
 		const req = new Request("https://example.com/api/admin/test", {
@@ -204,7 +204,7 @@ describe("withModerator", () => {
 
 	it("should call handler for Mod", async () => {
 		const env = makeEnvWithDb({ role: UserRole.Mod, status: 0 });
-		const handler = mock(async () => new Response("ok"));
+		const handler = vi.fn(async () => new Response("ok"));
 		const wrapped = withModerator(handler);
 		const token = await createJwtForRole(UserRole.Mod);
 		const req = new Request("https://example.com/api/admin/test", {
@@ -218,7 +218,7 @@ describe("withModerator", () => {
 
 	it("should call handler for SuperMod", async () => {
 		const env = makeEnvWithDb({ role: UserRole.SuperMod, status: 0 });
-		const handler = mock(async () => new Response("ok"));
+		const handler = vi.fn(async () => new Response("ok"));
 		const wrapped = withModerator(handler);
 		const token = await createJwtForRole(UserRole.SuperMod);
 		const req = new Request("https://example.com/api/admin/test", {
@@ -232,7 +232,7 @@ describe("withModerator", () => {
 
 	it("should call handler for Admin", async () => {
 		const env = makeEnvWithDb({ role: UserRole.Admin, status: 0 });
-		const handler = mock(async () => new Response("ok"));
+		const handler = vi.fn(async () => new Response("ok"));
 		const wrapped = withModerator(handler);
 		const token = await createJwtForRole(UserRole.Admin);
 		const req = new Request("https://example.com/api/admin/test", {
@@ -247,7 +247,7 @@ describe("withModerator", () => {
 	it("should use DB role instead of JWT role (prevents privilege escalation)", async () => {
 		// JWT claims Mod, but DB says User
 		const env = makeEnvWithDb({ role: UserRole.User, status: 0 });
-		const handler = mock(async () => new Response("ok"));
+		const handler = vi.fn(async () => new Response("ok"));
 		const wrapped = withModerator(handler);
 		const token = await createJwtForRole(UserRole.Mod); // JWT says Mod
 		const req = new Request("https://example.com/api/admin/test", {

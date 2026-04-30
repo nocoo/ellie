@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, vi } from "vitest";
 import type { Env } from "../../../src/lib/env";
 import { trackActivity } from "../../../src/middleware/activity";
 
@@ -9,20 +9,20 @@ describe("trackActivity", () => {
 		throttleValue?: string | null;
 		userData?: { last_activity: number; ol_time: number } | null;
 	}) => {
-		const kvGet = mock(() => Promise.resolve(options?.throttleValue ?? null));
-		const kvPut = mock(() => Promise.resolve());
+		const kvGet = vi.fn(() => Promise.resolve(options?.throttleValue ?? null));
+		const kvPut = vi.fn(() => Promise.resolve());
 		// Use explicit check for undefined to allow null as a valid value
 		const userDataValue =
 			options?.userData === undefined ? { last_activity: 0, ol_time: 0 } : options.userData;
-		const dbFirst = mock(() => Promise.resolve(userDataValue));
-		const dbRun = mock(() => Promise.resolve({ success: true }));
+		const dbFirst = vi.fn(() => Promise.resolve(userDataValue));
+		const dbRun = vi.fn(() => Promise.resolve({ success: true }));
 
 		// Create separate bind mocks for SELECT and UPDATE queries
-		const selectBind = mock(() => ({ first: dbFirst }));
-		const updateBind = mock(() => ({ run: dbRun }));
+		const selectBind = vi.fn(() => ({ first: dbFirst }));
+		const updateBind = vi.fn(() => ({ run: dbRun }));
 
 		// Track which query is being prepared
-		const dbPrepare = mock((sql: string) => {
+		const dbPrepare = vi.fn((sql: string) => {
 			if (sql.includes("SELECT")) {
 				return { bind: selectBind };
 			}
@@ -39,8 +39,8 @@ describe("trackActivity", () => {
 				KV: {
 					get: kvGet,
 					put: kvPut,
-					list: mock(() => Promise.resolve({ keys: [], list_complete: true })),
-					delete: mock(() => Promise.resolve()),
+					list: vi.fn(() => Promise.resolve({ keys: [], list_complete: true })),
+					delete: vi.fn(() => Promise.resolve()),
 				} as unknown as KVNamespace,
 			} as Env,
 			kvGet,

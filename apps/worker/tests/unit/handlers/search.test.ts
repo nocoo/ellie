@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, vi } from "vitest";
 import { searchThreads } from "../../../src/handlers/search";
 import type { Env } from "../../../src/lib/env";
 import {
@@ -30,11 +30,11 @@ describe("search handlers", () => {
 			countResult?: number;
 		}) {
 			return {
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					// Settings query
 					if (sql.includes("settings WHERE key")) {
 						return {
-							first: mock(async () =>
+							first: vi.fn(async () =>
 								config.searchEnabled === false ? { value: "false" } : { value: "true" },
 							),
 						};
@@ -42,15 +42,15 @@ describe("search handlers", () => {
 					// Count query
 					if (sql.includes("COUNT(*)")) {
 						return {
-							bind: mock(() => ({
-								first: mock(async () => ({ cnt: config.countResult ?? 0 })),
+							bind: vi.fn(() => ({
+								first: vi.fn(async () => ({ cnt: config.countResult ?? 0 })),
 							})),
 						};
 					}
 					// Search query
 					return {
-						bind: mock(() => ({
-							all: mock(async () => ({
+						bind: vi.fn(() => ({
+							all: vi.fn(async () => ({
 								results: config.searchResults ?? [],
 							})),
 						})),
@@ -204,23 +204,23 @@ describe("search handlers", () => {
 		});
 
 		it("clamps limit to max 50", async () => {
-			const allSpy = mock(async () => ({ results: [] }));
+			const allSpy = vi.fn(async () => ({ results: [] }));
 			const db = {
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					if (sql.includes("settings WHERE key")) {
 						return {
-							first: mock(async () => ({ value: "true" })),
+							first: vi.fn(async () => ({ value: "true" })),
 						};
 					}
 					if (sql.includes("COUNT(*)")) {
 						return {
-							bind: mock(() => ({
-								first: mock(async () => ({ cnt: 0 })),
+							bind: vi.fn(() => ({
+								first: vi.fn(async () => ({ cnt: 0 })),
 							})),
 						};
 					}
 					return {
-						bind: mock((...args: unknown[]) => {
+						bind: vi.fn((...args: unknown[]) => {
 							// Last arg is limit + 1
 							const limitArg = args[args.length - 1];
 							expect(limitArg).toBe(51); // 50 + 1 for pagination
@@ -289,23 +289,23 @@ describe("search handlers", () => {
 			const cursor = btoa(JSON.stringify({ lastPostAt: 1711544400, id: 2 }));
 			const countCalled = { value: false };
 			const db2 = {
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					if (sql.includes("settings WHERE key")) {
 						return {
-							first: mock(async () => ({ value: "true" })),
+							first: vi.fn(async () => ({ value: "true" })),
 						};
 					}
 					if (sql.includes("COUNT(*)")) {
 						countCalled.value = true;
 						return {
-							bind: mock(() => ({
-								first: mock(async () => ({ cnt: 0 })),
+							bind: vi.fn(() => ({
+								first: vi.fn(async () => ({ cnt: 0 })),
 							})),
 						};
 					}
 					return {
-						bind: mock(() => ({
-							all: mock(async () => ({ results: [threadRow] })),
+						bind: vi.fn(() => ({
+							all: vi.fn(async () => ({ results: [threadRow] })),
 						})),
 					};
 				}),
@@ -342,27 +342,27 @@ describe("search handlers", () => {
 		it("handles multi-keyword AND search", async () => {
 			let capturedFtsQuery = "";
 			const db = {
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					if (sql.includes("settings WHERE key")) {
 						return {
-							first: mock(async () => ({ value: "true" })),
+							first: vi.fn(async () => ({ value: "true" })),
 						};
 					}
 					if (sql.includes("COUNT(*)")) {
 						return {
-							bind: mock((ftsQuery: string) => {
+							bind: vi.fn((ftsQuery: string) => {
 								capturedFtsQuery = ftsQuery;
 								return {
-									first: mock(async () => ({ cnt: 0 })),
+									first: vi.fn(async () => ({ cnt: 0 })),
 								};
 							}),
 						};
 					}
 					return {
-						bind: mock((ftsQuery: string) => {
+						bind: vi.fn((ftsQuery: string) => {
 							capturedFtsQuery = ftsQuery;
 							return {
-								all: mock(async () => ({ results: [] })),
+								all: vi.fn(async () => ({ results: [] })),
 							};
 						}),
 					};
@@ -446,23 +446,23 @@ describe("search handlers", () => {
 			// This is tested through SQL query generation - verify the SQL includes visibility check
 			let capturedSql = "";
 			const db = {
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					capturedSql = sql;
 					if (sql.includes("settings WHERE key")) {
 						return {
-							first: mock(async () => ({ value: "true" })),
+							first: vi.fn(async () => ({ value: "true" })),
 						};
 					}
 					if (sql.includes("COUNT(*)")) {
 						return {
-							bind: mock(() => ({
-								first: mock(async () => ({ cnt: 0 })),
+							bind: vi.fn(() => ({
+								first: vi.fn(async () => ({ cnt: 0 })),
 							})),
 						};
 					}
 					return {
-						bind: mock(() => ({
-							all: mock(async () => ({ results: [] })),
+						bind: vi.fn(() => ({
+							all: vi.fn(async () => ({ results: [] })),
 						})),
 					};
 				}),
@@ -482,23 +482,23 @@ describe("search handlers", () => {
 		it("filters threads in hidden forums", async () => {
 			let capturedSql = "";
 			const db = {
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					capturedSql = sql;
 					if (sql.includes("settings WHERE key")) {
 						return {
-							first: mock(async () => ({ value: "true" })),
+							first: vi.fn(async () => ({ value: "true" })),
 						};
 					}
 					if (sql.includes("COUNT(*)")) {
 						return {
-							bind: mock(() => ({
-								first: mock(async () => ({ cnt: 0 })),
+							bind: vi.fn(() => ({
+								first: vi.fn(async () => ({ cnt: 0 })),
 							})),
 						};
 					}
 					return {
-						bind: mock(() => ({
-							all: mock(async () => ({ results: [] })),
+						bind: vi.fn(() => ({
+							all: vi.fn(async () => ({ results: [] })),
 						})),
 					};
 				}),
@@ -518,23 +518,23 @@ describe("search handlers", () => {
 		it("respects forum visibility levels for anonymous user", async () => {
 			let capturedSql = "";
 			const db = {
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					capturedSql = sql;
 					if (sql.includes("settings WHERE key")) {
 						return {
-							first: mock(async () => ({ value: "true" })),
+							first: vi.fn(async () => ({ value: "true" })),
 						};
 					}
 					if (sql.includes("COUNT(*)")) {
 						return {
-							bind: mock(() => ({
-								first: mock(async () => ({ cnt: 0 })),
+							bind: vi.fn(() => ({
+								first: vi.fn(async () => ({ cnt: 0 })),
 							})),
 						};
 					}
 					return {
-						bind: mock(() => ({
-							all: mock(async () => ({ results: [] })),
+						bind: vi.fn(() => ({
+							all: vi.fn(async () => ({ results: [] })),
 						})),
 					};
 				}),
@@ -557,32 +557,32 @@ describe("search handlers", () => {
 		it("respects forum visibility levels for logged-in user", async () => {
 			let capturedSql = "";
 			const db = {
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					if (sql.includes("settings WHERE key")) {
 						return {
-							first: mock(async () => ({ value: "true" })),
+							first: vi.fn(async () => ({ value: "true" })),
 						};
 					}
 					// optionalAuthVerified checks user in DB
 					if (sql.includes("SELECT role, status FROM users")) {
 						return {
-							bind: mock(() => ({
-								first: mock(async () => ({ role: 0, status: 0 })),
+							bind: vi.fn(() => ({
+								first: vi.fn(async () => ({ role: 0, status: 0 })),
 							})),
 						};
 					}
 					if (sql.includes("COUNT(*)")) {
 						capturedSql = sql;
 						return {
-							bind: mock(() => ({
-								first: mock(async () => ({ cnt: 0 })),
+							bind: vi.fn(() => ({
+								first: vi.fn(async () => ({ cnt: 0 })),
 							})),
 						};
 					}
 					capturedSql = sql;
 					return {
-						bind: mock(() => ({
-							all: mock(async () => ({ results: [] })),
+						bind: vi.fn(() => ({
+							all: vi.fn(async () => ({ results: [] })),
 						})),
 					};
 				}),
@@ -605,32 +605,32 @@ describe("search handlers", () => {
 		it("respects forum visibility levels for admin", async () => {
 			let capturedSql = "";
 			const db = {
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					if (sql.includes("settings WHERE key")) {
 						return {
-							first: mock(async () => ({ value: "true" })),
+							first: vi.fn(async () => ({ value: "true" })),
 						};
 					}
 					// optionalAuthVerified checks user in DB
 					if (sql.includes("SELECT role, status FROM users")) {
 						return {
-							bind: mock(() => ({
-								first: mock(async () => ({ role: 1, status: 0 })), // Admin role
+							bind: vi.fn(() => ({
+								first: vi.fn(async () => ({ role: 1, status: 0 })), // Admin role
 							})),
 						};
 					}
 					if (sql.includes("COUNT(*)")) {
 						capturedSql = sql;
 						return {
-							bind: mock(() => ({
-								first: mock(async () => ({ cnt: 0 })),
+							bind: vi.fn(() => ({
+								first: vi.fn(async () => ({ cnt: 0 })),
 							})),
 						};
 					}
 					capturedSql = sql;
 					return {
-						bind: mock(() => ({
-							all: mock(async () => ({ results: [] })),
+						bind: vi.fn(() => ({
+							all: vi.fn(async () => ({ results: [] })),
 						})),
 					};
 				}),
@@ -740,33 +740,33 @@ describe("search handlers", () => {
 			]);
 
 			const mockKV = {
-				get: mock(async (key: string, type?: string) => {
+				get: vi.fn(async (key: string, type?: string) => {
 					const val = kvStore.get(key);
 					if (!val) return null;
 					if (type === "json") return JSON.parse(val);
 					return val;
 				}),
-				put: mock(async () => {}),
-				delete: mock(async () => {}),
+				put: vi.fn(async () => {}),
+				delete: vi.fn(async () => {}),
 			} as unknown as KVNamespace;
 
 			const db = {
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					if (sql.includes("settings WHERE key")) {
 						return {
-							first: mock(async () => ({ value: "true" })),
+							first: vi.fn(async () => ({ value: "true" })),
 						};
 					}
 					if (sql.includes("COUNT(*)")) {
 						return {
-							bind: mock(() => ({
-								first: mock(async () => ({ cnt: 1 })),
+							bind: vi.fn(() => ({
+								first: vi.fn(async () => ({ cnt: 1 })),
 							})),
 						};
 					}
 					return {
-						bind: mock(() => ({
-							all: mock(async () => ({ results: [threadRow] })),
+						bind: vi.fn(() => ({
+							all: vi.fn(async () => ({ results: [threadRow] })),
 						})),
 					};
 				}),

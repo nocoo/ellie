@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, vi } from "vitest";
 
 /**
  * Route-level integration tests that call worker.fetch() directly,
@@ -41,29 +41,29 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 		API_KEY: TEST_API_KEY,
 		ADMIN_API_KEY: TEST_ADMIN_API_KEY,
 		DB: {
-			prepare: mock(() => ({
-				all: mock(() => Promise.resolve({ results: [] })),
-				bind: mock(() => ({
-					first: mock(() => Promise.resolve(null)),
-					all: mock(() => Promise.resolve({ results: [] })),
-					run: mock(() => Promise.resolve()),
+			prepare: vi.fn(() => ({
+				all: vi.fn(() => Promise.resolve({ results: [] })),
+				bind: vi.fn(() => ({
+					first: vi.fn(() => Promise.resolve(null)),
+					all: vi.fn(() => Promise.resolve({ results: [] })),
+					run: vi.fn(() => Promise.resolve()),
 				})),
-				first: mock(() => Promise.resolve(null)),
+				first: vi.fn(() => Promise.resolve(null)),
 			})),
 			...dbOverrides,
 		} as unknown as D1Database,
 		ENVIRONMENT: "test",
 		JWT_SECRET: "test-secret",
 		KV: {
-			get: mock(() => Promise.resolve(null)),
-			put: mock(() => Promise.resolve()),
+			get: vi.fn(() => Promise.resolve(null)),
+			put: vi.fn(() => Promise.resolve()),
 		} as unknown as KVNamespace,
 	});
 
 	/** Create a mock ExecutionContext */
 	const makeCtx = (): ExecutionContext => ({
-		waitUntil: mock(() => {}),
-		passThroughOnException: mock(() => {}),
+		waitUntil: vi.fn(() => {}),
+		passThroughOnException: vi.fn(() => {}),
 	});
 
 	const makeRequest = (url: string, init?: RequestInit): CFRequest =>
@@ -129,8 +129,8 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 
 		it("should NOT require API key for GET /api/live", async () => {
 			const env = makeEnv({
-				prepare: mock(() => ({
-					first: mock(() => Promise.resolve({ probe: 1 })),
+				prepare: vi.fn(() => ({
+					first: vi.fn(() => Promise.resolve({ probe: 1 })),
 				})),
 			});
 
@@ -210,8 +210,8 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 	describe("GET /api/live", () => {
 		it("should return health check response", async () => {
 			const env = makeEnv({
-				prepare: mock(() => ({
-					first: mock(() => Promise.resolve({ probe: 1 })),
+				prepare: vi.fn(() => ({
+					first: vi.fn(() => Promise.resolve({ probe: 1 })),
 				})),
 			});
 
@@ -228,8 +228,8 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 
 		it("should include Access-Control-Allow-Origin for allowed origin", async () => {
 			const env = makeEnv({
-				prepare: mock(() => ({
-					first: mock(() => Promise.resolve({ probe: 1 })),
+				prepare: vi.fn(() => ({
+					first: vi.fn(() => Promise.resolve({ probe: 1 })),
 				})),
 			});
 
@@ -258,7 +258,7 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 
 			expect(response.status).toBe(200);
 			const data = await response.json();
-			expect(data.data).toBeArray();
+			expect(data.data).toBeInstanceOf(Array);
 		});
 	});
 
@@ -283,24 +283,24 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 		it("should route to thread list handler (requires forumId)", async () => {
 			// Need to mock forum lookup for checkForumPermission
 			const env = makeEnv({
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					// Forum visibility check query
 					if (sql.includes("SELECT") && sql.includes("forums") && sql.includes("WHERE id")) {
 						return {
-							bind: mock(() => ({
-								first: mock(() => Promise.resolve({ id: 1, invisible: 0, password: null })),
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ id: 1, invisible: 0, password: null })),
 							})),
 						};
 					}
 					// Default: return empty results
 					return {
-						all: mock(() => Promise.resolve({ results: [] })),
-						bind: mock(() => ({
-							first: mock(() => Promise.resolve(null)),
-							all: mock(() => Promise.resolve({ results: [] })),
-							run: mock(() => Promise.resolve()),
+						all: vi.fn(() => Promise.resolve({ results: [] })),
+						bind: vi.fn(() => ({
+							first: vi.fn(() => Promise.resolve(null)),
+							all: vi.fn(() => Promise.resolve({ results: [] })),
+							run: vi.fn(() => Promise.resolve()),
 						})),
-						first: mock(() => Promise.resolve(null)),
+						first: vi.fn(() => Promise.resolve(null)),
 					};
 				}),
 			});
@@ -313,7 +313,7 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 
 			expect(response.status).toBe(200);
 			const data = await response.json();
-			expect(data.data).toBeArray();
+			expect(data.data).toBeInstanceOf(Array);
 		});
 
 		it("should return 400 without forumId", async () => {
@@ -347,37 +347,37 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 		it("should route to post list handler (requires threadId)", async () => {
 			// Need to mock thread and forum lookups for visibility checks
 			const env = makeEnv({
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					// Thread lookup query - get forum_id
 					if (sql.includes("SELECT forum_id FROM threads")) {
 						return {
-							bind: mock(() => ({
-								first: mock(() => Promise.resolve({ forum_id: 1 })),
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ forum_id: 1 })),
 							})),
 						};
 					}
 					// Thread lookup query - also need sticky check for newer code
 					if (sql.includes("SELECT") && sql.includes("threads") && sql.includes("WHERE id")) {
 						return {
-							bind: mock(() => ({
-								first: mock(() => Promise.resolve({ forum_id: 1, sticky: 0 })),
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ forum_id: 1, sticky: 0 })),
 							})),
 						};
 					}
 					// Forum visibility check query
 					if (sql.includes("SELECT status, visibility FROM forums")) {
 						return {
-							bind: mock(() => ({
-								first: mock(() => Promise.resolve({ status: 1, visibility: "public" })),
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
 							})),
 						};
 					}
 					// Default: return empty results for posts
 					return {
-						all: mock(() => Promise.resolve({ results: [] })),
-						bind: mock(() => ({
-							first: mock(() => Promise.resolve(null)),
-							all: mock(() => Promise.resolve({ results: [] })),
+						all: vi.fn(() => Promise.resolve({ results: [] })),
+						bind: vi.fn(() => ({
+							first: vi.fn(() => Promise.resolve(null)),
+							all: vi.fn(() => Promise.resolve({ results: [] })),
 						})),
 					};
 				}),
@@ -390,7 +390,7 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 
 			expect(response.status).toBe(200);
 			const data = await response.json();
-			expect(data.data).toBeArray();
+			expect(data.data).toBeInstanceOf(Array);
 		});
 	});
 
@@ -519,11 +519,11 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 				throw new Error("DB exploded");
 			};
 			const env = makeEnv({
-				prepare: mock(() => ({
-					all: mock(throwAsync),
-					bind: mock(() => ({
-						first: mock(throwAsync),
-						all: mock(throwAsync),
+				prepare: vi.fn(() => ({
+					all: vi.fn(throwAsync),
+					bind: vi.fn(() => ({
+						first: vi.fn(throwAsync),
+						all: vi.fn(throwAsync),
 					})),
 				})),
 			});
@@ -574,7 +574,7 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 		it("DELETE /api/v1/auth/logout should reach handler", async () => {
 			const env = makeEnv();
 			// Add KV.delete for logout handler
-			(env.KV as unknown as Record<string, unknown>).delete = mock(() => Promise.resolve());
+			(env.KV as unknown as Record<string, unknown>).delete = vi.fn(() => Promise.resolve());
 
 			const response = await (await getWorker()).fetch(
 				makeRequest(
@@ -655,45 +655,45 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 		it("GET /api/v1/posts/:id/attachments should route to handler", async () => {
 			// Need to mock post, thread, and forum lookups for visibility checks
 			const env = makeEnv({
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					// Post lookup query - get thread_id
 					if (sql.includes("SELECT") && sql.includes("posts") && sql.includes("WHERE id")) {
 						return {
-							bind: mock(() => ({
-								first: mock(() => Promise.resolve({ thread_id: 1, invisible: 0 })),
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ thread_id: 1, invisible: 0 })),
 							})),
 						};
 					}
 					// Thread lookup query - get forum_id
 					if (sql.includes("SELECT") && sql.includes("threads") && sql.includes("WHERE id")) {
 						return {
-							bind: mock(() => ({
-								first: mock(() => Promise.resolve({ forum_id: 1, sticky: 0 })),
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ forum_id: 1, sticky: 0 })),
 							})),
 						};
 					}
 					// Forum visibility check query
 					if (sql.includes("SELECT status, visibility FROM forums")) {
 						return {
-							bind: mock(() => ({
-								first: mock(() => Promise.resolve({ status: 1, visibility: "public" })),
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
 							})),
 						};
 					}
 					// Attachment list query
 					if (sql.includes("SELECT * FROM attachments")) {
 						return {
-							bind: mock(() => ({
-								all: mock(() => Promise.resolve({ results: [] })),
+							bind: vi.fn(() => ({
+								all: vi.fn(() => Promise.resolve({ results: [] })),
 							})),
 						};
 					}
 					// Default
 					return {
-						all: mock(() => Promise.resolve({ results: [] })),
-						bind: mock(() => ({
-							first: mock(() => Promise.resolve(null)),
-							all: mock(() => Promise.resolve({ results: [] })),
+						all: vi.fn(() => Promise.resolve({ results: [] })),
+						bind: vi.fn(() => ({
+							first: vi.fn(() => Promise.resolve(null)),
+							all: vi.fn(() => Promise.resolve({ results: [] })),
 						})),
 					};
 				}),
@@ -706,7 +706,7 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 
 			expect(response.status).toBe(200);
 			const data = await response.json();
-			expect(data.data).toBeArray();
+			expect(data.data).toBeInstanceOf(Array);
 		});
 	});
 

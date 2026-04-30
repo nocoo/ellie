@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, vi } from "vitest";
 import {
 	type SettingsMap,
 	getSetting,
@@ -39,21 +39,21 @@ const BAD_JSON_ROW = { key: "bad.json", value: "not-json", type: "json", updated
 
 function makeKvMock(cachedValue?: string) {
 	return {
-		get: mock(async () => cachedValue ?? null),
-		put: mock(async () => {}),
-		delete: mock(async () => {}),
+		get: vi.fn(async () => cachedValue ?? null),
+		put: vi.fn(async () => {}),
+		delete: vi.fn(async () => {}),
 	} as unknown as KVNamespace;
 }
 
 function makeDbMock(rows: Record<string, unknown>[] = SAMPLE_ROWS) {
 	return {
-		prepare: mock(() => ({
-			all: mock(async () => ({ results: rows })),
-			bind: mock((..._params: unknown[]) => ({
-				run: mock(async () => ({ success: true })),
+		prepare: vi.fn(() => ({
+			all: vi.fn(async () => ({ results: rows })),
+			bind: vi.fn((..._params: unknown[]) => ({
+				run: vi.fn(async () => ({ success: true })),
 			})),
 		})),
-		batch: mock(async (stmts: unknown[]) => stmts.map(() => ({ success: true, results: [] }))),
+		batch: vi.fn(async (stmts: unknown[]) => stmts.map(() => ({ success: true, results: [] }))),
 	} as unknown as D1Database;
 }
 
@@ -249,15 +249,15 @@ describe("settings cache helper", () => {
 
 		it("should prepare UPDATE statements with correct bindings", async () => {
 			const kv = makeKvMock();
-			const preparedBindMock = mock((..._params: unknown[]) => ({
-				run: mock(async () => ({ success: true })),
+			const preparedBindMock = vi.fn((..._params: unknown[]) => ({
+				run: vi.fn(async () => ({ success: true })),
 			}));
 			const db = {
-				prepare: mock(() => ({
-					all: mock(async () => ({ results: [] })),
+				prepare: vi.fn(() => ({
+					all: vi.fn(async () => ({ results: [] })),
 					bind: preparedBindMock,
 				})),
-				batch: mock(async (stmts: unknown[]) => stmts.map(() => ({ success: true, results: [] }))),
+				batch: vi.fn(async (stmts: unknown[]) => stmts.map(() => ({ success: true, results: [] }))),
 			} as unknown as D1Database;
 			const env = makeEnv({ KV: kv, DB: db });
 

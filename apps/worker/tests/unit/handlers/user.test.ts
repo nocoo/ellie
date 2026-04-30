@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, vi } from "vitest";
 import {
 	getAvatarPath,
 	getById,
@@ -35,11 +35,11 @@ describe("user handlers", () => {
 	describe("getById", () => {
 		it("should map D1 snake_case row to camelCase User", async () => {
 			const d1Row = makeD1UserRow();
-			const firstSpy = mock(() => Promise.resolve(d1Row));
-			const bindSpy = mock((..._args: unknown[]) => ({
+			const firstSpy = vi.fn(() => Promise.resolve(d1Row));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				first: firstSpy,
 			}));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -73,11 +73,11 @@ describe("user handlers", () => {
 
 		it("should NOT leak password_hash or password_salt", async () => {
 			const d1Row = makeD1UserRow();
-			const firstSpy = mock(() => Promise.resolve(d1Row));
-			const bindSpy = mock((..._args: unknown[]) => ({
+			const firstSpy = vi.fn(() => Promise.resolve(d1Row));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				first: firstSpy,
 			}));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -93,11 +93,11 @@ describe("user handlers", () => {
 
 		it("should SELECT specific columns (not SELECT *)", async () => {
 			const d1Row = makeD1UserRow();
-			const firstSpy = mock(() => Promise.resolve(d1Row));
-			const bindSpy = mock((..._args: unknown[]) => ({
+			const firstSpy = vi.fn(() => Promise.resolve(d1Row));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				first: firstSpy,
 			}));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -166,11 +166,11 @@ describe("user handlers", () => {
 		});
 
 		it("should return 404 with CORS headers when user not found", async () => {
-			const firstSpy = mock(() => Promise.resolve(null));
-			const bindSpy = mock((..._args: unknown[]) => ({
+			const firstSpy = vi.fn(() => Promise.resolve(null));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				first: firstSpy,
 			}));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -191,11 +191,11 @@ describe("user handlers", () => {
 
 		it("should return 404 for banned users (status = -1)", async () => {
 			const d1Row = makeD1UserRow({ id: 123, status: -1 });
-			const firstSpy = mock(() => Promise.resolve(d1Row));
-			const bindSpy = mock((..._args: unknown[]) => ({
+			const firstSpy = vi.fn(() => Promise.resolve(d1Row));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				first: firstSpy,
 			}));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -215,11 +215,11 @@ describe("user handlers", () => {
 
 		it("should parse user ID from URL", async () => {
 			const d1Row = makeD1UserRow({ id: 456 });
-			const firstSpy = mock(() => Promise.resolve(d1Row));
-			const bindSpy = mock((..._args: unknown[]) => ({
+			const firstSpy = vi.fn(() => Promise.resolve(d1Row));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				first: firstSpy,
 			}));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -229,11 +229,11 @@ describe("user handlers", () => {
 		});
 
 		it("should handle non-numeric ID gracefully", async () => {
-			const firstSpy = mock(() => Promise.resolve(null));
-			const bindSpy = mock((..._args: unknown[]) => ({
+			const firstSpy = vi.fn(() => Promise.resolve(null));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				first: firstSpy,
 			}));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -245,11 +245,11 @@ describe("user handlers", () => {
 
 		it("should include CORS headers with valid origin", async () => {
 			const d1Row = makeD1UserRow();
-			const firstSpy = mock(() => Promise.resolve(d1Row));
-			const bindSpy = mock((..._args: unknown[]) => ({
+			const firstSpy = vi.fn(() => Promise.resolve(d1Row));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				first: firstSpy,
 			}));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -291,9 +291,9 @@ describe("user handlers", () => {
 
 		it("should return threads for a valid user", async () => {
 			const rows = makeD1ThreadRows();
-			const allSpy = mock(() => Promise.resolve({ results: rows }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: rows }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -312,9 +312,9 @@ describe("user handlers", () => {
 		});
 
 		it("should return empty array when user has no threads", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -330,9 +330,9 @@ describe("user handlers", () => {
 		});
 
 		it("should use keyset WHERE clause when cursor is provided", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -347,9 +347,9 @@ describe("user handlers", () => {
 		});
 
 		it("should parse userId from URL path", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -375,9 +375,9 @@ describe("user handlers", () => {
 					position: 2,
 				},
 			];
-			const allSpy = mock(() => Promise.resolve({ results: rows }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: rows }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -395,9 +395,9 @@ describe("user handlers", () => {
 		});
 
 		it("should return empty array when user has no posts", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -414,9 +414,9 @@ describe("user handlers", () => {
 
 	describe("getAvatarPath", () => {
 		it("should return avatarPath for user with GUID avatar", async () => {
-			const firstSpy = mock(() => Promise.resolve({ avatar_path: "avatars/abc123.jpg" }));
-			const bindSpy = mock((..._args: unknown[]) => ({ first: firstSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const firstSpy = vi.fn(() => Promise.resolve({ avatar_path: "avatars/abc123.jpg" }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ first: firstSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -431,9 +431,9 @@ describe("user handlers", () => {
 		});
 
 		it("should return empty avatarPath for user without GUID avatar", async () => {
-			const firstSpy = mock(() => Promise.resolve({ avatar_path: "" }));
-			const bindSpy = mock((..._args: unknown[]) => ({ first: firstSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const firstSpy = vi.fn(() => Promise.resolve({ avatar_path: "" }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ first: firstSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -448,9 +448,9 @@ describe("user handlers", () => {
 		});
 
 		it("should return 404 for non-existent user", async () => {
-			const firstSpy = mock(() => Promise.resolve(null));
-			const bindSpy = mock((..._args: unknown[]) => ({ first: firstSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const firstSpy = vi.fn(() => Promise.resolve(null));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ first: firstSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -465,9 +465,9 @@ describe("user handlers", () => {
 		it("should NOT check user status (return data even for banned users)", async () => {
 			// This is intentional — avatar proxy needs to display avatars for
 			// banned/archived users whose historical posts are still visible
-			const firstSpy = mock(() => Promise.resolve({ avatar_path: "avatars/banned-user.jpg" }));
-			const bindSpy = mock((..._args: unknown[]) => ({ first: firstSpy }));
-			const prepareSpy = mock((sql: string) => {
+			const firstSpy = vi.fn(() => Promise.resolve({ avatar_path: "avatars/banned-user.jpg" }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ first: firstSpy }));
+			const prepareSpy = vi.fn((sql: string) => {
 				// Verify the query does NOT include status check
 				expect(sql).not.toContain("AND status");
 				return { bind: bindSpy };
@@ -535,9 +535,9 @@ describe("user handlers", () => {
 					post_table_id: 1,
 				},
 			];
-			const allSpy = mock(() => Promise.resolve({ results: rows }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: rows }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -553,9 +553,9 @@ describe("user handlers", () => {
 		});
 
 		it("should clamp limit to MAX_HISTORY_LIMIT", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -577,9 +577,9 @@ describe("user handlers", () => {
 		});
 
 		it("should use keyset WHERE clause when cursor is provided", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -607,9 +607,9 @@ describe("user handlers", () => {
 					position: 2,
 				},
 			];
-			const allSpy = mock(() => Promise.resolve({ results: rows }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: rows }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -655,9 +655,9 @@ describe("user handlers", () => {
 					post_table_id: 1,
 				},
 			];
-			const allSpy = mock(() => Promise.resolve({ results: rows }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: rows }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -677,9 +677,9 @@ describe("user handlers", () => {
 		});
 
 		it("should return empty array when no digest threads", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -695,9 +695,9 @@ describe("user handlers", () => {
 		});
 
 		it("should use cursor for keyset pagination", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -733,9 +733,9 @@ describe("user handlers", () => {
 					post_table_id: 1,
 				},
 			];
-			const allSpy = mock(() => Promise.resolve({ results: rows }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: rows }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -774,9 +774,9 @@ describe("user handlers", () => {
 				{ id: 1, username: "alice" },
 				{ id: 2, username: "alex" },
 			];
-			const allSpy = mock(() => Promise.resolve({ results: rows }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: rows }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -796,9 +796,9 @@ describe("user handlers", () => {
 		});
 
 		it("should clamp limit to MAX_SEARCH_LIMIT", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -808,9 +808,9 @@ describe("user handlers", () => {
 		});
 
 		it("should escape special LIKE characters", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -821,9 +821,9 @@ describe("user handlers", () => {
 		});
 
 		it("should return empty array when no matches", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 
@@ -838,9 +838,9 @@ describe("user handlers", () => {
 		});
 
 		it("should use custom limit when provided", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({ all: allSpy }));
-			const prepareSpy = mock(() => ({ bind: bindSpy }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
 

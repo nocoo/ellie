@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { jsonResponse, paginatedResponse } from "../../../src/lib/response";
 
 describe("jsonResponse", () => {
@@ -11,8 +11,8 @@ describe("jsonResponse", () => {
 		const res = jsonResponse({ id: 1 });
 		const body = await res.json();
 		expect(body.data).toEqual({ id: 1 });
-		expect(body.meta.timestamp).toBeNumber();
-		expect(body.meta.requestId).toBeString();
+		expect(body.meta.timestamp).toBeTypeOf("number");
+		expect(body.meta.requestId).toBeTypeOf("string");
 	});
 
 	it("should accept custom status code", () => {

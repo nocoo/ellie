@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, vi } from "vitest";
 import { bulkUpdate, list } from "../../../../src/handlers/admin/settings";
 import { createAdminRequest, makeEnv } from "../../../helpers";
 
@@ -12,21 +12,21 @@ const SAMPLE_ROWS = [
 
 function makeSettingsDb(rows = SAMPLE_ROWS) {
 	return {
-		prepare: mock(() => ({
-			all: mock(async () => ({ results: rows })),
-			bind: mock((..._params: unknown[]) => ({
-				run: mock(async () => ({ success: true })),
+		prepare: vi.fn(() => ({
+			all: vi.fn(async () => ({ results: rows })),
+			bind: vi.fn((..._params: unknown[]) => ({
+				run: vi.fn(async () => ({ success: true })),
 			})),
 		})),
-		batch: mock(async (stmts: unknown[]) => stmts.map(() => ({ success: true, results: [] }))),
+		batch: vi.fn(async (stmts: unknown[]) => stmts.map(() => ({ success: true, results: [] }))),
 	} as unknown as D1Database;
 }
 
 function makeKv() {
 	return {
-		get: mock(async () => null),
-		put: mock(async () => {}),
-		delete: mock(async () => {}),
+		get: vi.fn(async () => null),
+		put: vi.fn(async () => {}),
+		delete: vi.fn(async () => {}),
 	} as unknown as KVNamespace;
 }
 

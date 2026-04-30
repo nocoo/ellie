@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, vi } from "vitest";
 import type { EntityConfig } from "../../../src/lib/crud";
 import {
 	createBatchDeleteHandler,
@@ -624,7 +624,7 @@ describe("createCreateHandler", () => {
 	it("should call beforeCreate hook and abort if it returns a Response", async () => {
 		const { db } = createMockDb();
 		const env = makeEnv({ DB: db });
-		const beforeCreate = mock(async () => {
+		const beforeCreate = vi.fn(async () => {
 			return new Response(JSON.stringify({ error: { code: "HOOK_ERROR", message: "Blocked" } }), {
 				status: 403,
 			});
@@ -651,7 +651,7 @@ describe("createCreateHandler", () => {
 			},
 		});
 		const env = makeEnv({ DB: db });
-		const beforeCreate = mock(async () => undefined);
+		const beforeCreate = vi.fn(async () => undefined);
 		const handler = createCreateHandler(makeTestConfig({ beforeCreate }));
 
 		const res = await handler(makeJsonRequest("/api/admin/test-items", { name: "Hooked" }), env);
@@ -661,7 +661,7 @@ describe("createCreateHandler", () => {
 	});
 
 	it("should call afterCreate hook with new id, data, env", async () => {
-		const afterCreate = mock(async () => {});
+		const afterCreate = vi.fn(async () => {});
 		const { db } = createMockDb({
 			runResults: {
 				"INSERT INTO test_items": { success: true, meta: { last_row_id: 30, changes: 1 } },
@@ -687,7 +687,7 @@ describe("createCreateHandler", () => {
 	});
 
 	it("should not call afterCreate when last_row_id is falsy (0)", async () => {
-		const afterCreate = mock(async () => {});
+		const afterCreate = vi.fn(async () => {});
 		const { db } = createMockDb({
 			runResults: {
 				"INSERT INTO test_items": { success: true, meta: { last_row_id: 0, changes: 1 } },
@@ -835,7 +835,7 @@ describe("createUpdateHandler", () => {
 	});
 
 	it("should call beforeUpdate hook and abort if it returns a Response", async () => {
-		const beforeUpdate = mock(async () => {
+		const beforeUpdate = vi.fn(async () => {
 			return new Response(JSON.stringify({ error: { code: "HOOK_BLOCK", message: "Nope" } }), {
 				status: 409,
 			});
@@ -863,7 +863,7 @@ describe("createUpdateHandler", () => {
 	});
 
 	it("should proceed when beforeUpdate returns undefined", async () => {
-		const beforeUpdate = mock(async () => undefined);
+		const beforeUpdate = vi.fn(async () => undefined);
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT * FROM test_items WHERE id": { id: 1, name: "Old", some_value: 10 },
@@ -886,7 +886,7 @@ describe("createUpdateHandler", () => {
 	});
 
 	it("should call afterUpdate hook with correct args", async () => {
-		const afterUpdate = mock(async () => {});
+		const afterUpdate = vi.fn(async () => {});
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT * FROM test_items WHERE id": { id: 1, name: "Old", some_value: 10 },
@@ -968,7 +968,7 @@ describe("createRemoveHandler", () => {
 	});
 
 	it("should call beforeDelete hook and abort if it returns a Response", async () => {
-		const beforeDelete = mock(async () => {
+		const beforeDelete = vi.fn(async () => {
 			return new Response(
 				JSON.stringify({ error: { code: "HAS_CHILDREN", message: "Has deps" } }),
 				{ status: 409 },
@@ -989,7 +989,7 @@ describe("createRemoveHandler", () => {
 	});
 
 	it("should proceed when beforeDelete returns undefined", async () => {
-		const beforeDelete = mock(async () => undefined);
+		const beforeDelete = vi.fn(async () => undefined);
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT * FROM test_items WHERE id": { id: 1, name: "Item", some_value: 0 },
@@ -1005,7 +1005,7 @@ describe("createRemoveHandler", () => {
 	});
 
 	it("should call afterDelete hook with correct args", async () => {
-		const afterDelete = mock(async () => {});
+		const afterDelete = vi.fn(async () => {});
 		const existing = { id: 1, name: "Gone", some_value: 99 };
 		const { db } = createMockDb({
 			firstResults: {
@@ -1180,16 +1180,16 @@ describe("createBatchDeleteHandler", () => {
 		});
 		// Override the mock to alternate results
 		const originalPrepare = db.prepare as (sql: string) => ReturnType<D1Database["prepare"]>;
-		db.prepare = mock((sql: string) => {
+		db.prepare = vi.fn((sql: string) => {
 			const stmt = originalPrepare(sql);
 			if (sql.includes("SELECT * FROM test_items WHERE id")) {
 				const originalBind = stmt.bind as (
 					...params: unknown[]
 				) => ReturnType<D1PreparedStatement["bind"]>;
-				stmt.bind = mock((...params: unknown[]) => {
+				stmt.bind = vi.fn((...params: unknown[]) => {
 					callCount++;
 					const bound = originalBind(...params);
-					bound.first = mock(async () =>
+					bound.first = vi.fn(async () =>
 						callCount === 1 ? { id: 1, name: "A", some_value: 0 } : null,
 					);
 					return bound;
@@ -1212,7 +1212,7 @@ describe("createBatchDeleteHandler", () => {
 
 	it("should skip items when beforeDelete hook returns a Response", async () => {
 		let _hookCallCount = 0;
-		const beforeDelete = mock(async (id: number) => {
+		const beforeDelete = vi.fn(async (id: number) => {
 			_hookCallCount++;
 			// Block deletion of id=2
 			if (id === 2) {
@@ -1242,7 +1242,7 @@ describe("createBatchDeleteHandler", () => {
 	});
 
 	it("should call afterDelete for each successfully deleted item", async () => {
-		const afterDelete = mock(async () => {});
+		const afterDelete = vi.fn(async () => {});
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT * FROM test_items WHERE id": { id: 1, name: "A", some_value: 0 },

@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, type mock, vi } from "vitest";
 import { stats } from "../../../src/handlers/stats";
 import type { PublicStats } from "../../../src/handlers/stats";
 import { TEST_API_KEY, makeEnv } from "../../helpers";
@@ -32,16 +32,16 @@ function makeStatsDb(counts: number[], newestUsername = "newbie") {
 	];
 
 	return {
-		prepare: mock((_sql: string) => ({
-			bind: mock(() => ({
-				all: mock(async () => {
+		prepare: vi.fn((_sql: string) => ({
+			bind: vi.fn(() => ({
+				all: vi.fn(async () => {
 					// Not used by batch — included for completeness
 					return { results: [] };
 				}),
 			})),
-			all: mock(async () => ({ results: [] })),
+			all: vi.fn(async () => ({ results: [] })),
 		})),
-		batch: mock(async () => stmts),
+		batch: vi.fn(async () => stmts),
 	} as unknown as D1Database;
 }
 
@@ -51,7 +51,7 @@ function makeKv(options?: {
 	peakData?: { count: number; date: string } | null;
 }) {
 	return {
-		get: mock(async (key: string, type?: string) => {
+		get: vi.fn(async (key: string, type?: string) => {
 			if (key === "public-stats") {
 				return options?.cachedValue ?? null;
 			}
@@ -63,8 +63,8 @@ function makeKv(options?: {
 			}
 			return null;
 		}),
-		put: mock(async () => {}),
-		delete: mock(async () => {}),
+		put: vi.fn(async () => {}),
+		delete: vi.fn(async () => {}),
 	} as unknown as KVNamespace;
 }
 
@@ -153,10 +153,10 @@ describe("public stats handler", () => {
 				{ results: [] }, // newestMember - no users
 			];
 			const db = {
-				prepare: mock(() => ({
-					bind: mock(() => ({})),
+				prepare: vi.fn(() => ({
+					bind: vi.fn(() => ({})),
 				})),
-				batch: mock(async () => stmts),
+				batch: vi.fn(async () => stmts),
 			} as unknown as D1Database;
 			const kv = makeKv();
 			const env = makeEnv({ DB: db, KV: kv });

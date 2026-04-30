@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, vi } from "vitest";
 import { list } from "../../../src/handlers/settings";
 import { TEST_API_KEY, makeEnv } from "../../helpers";
 
@@ -39,17 +39,17 @@ const SAMPLE_ROWS = [
 
 function makeSettingsDb(rows = SAMPLE_ROWS) {
 	return {
-		prepare: mock(() => ({
-			all: mock(async () => ({ results: rows })),
+		prepare: vi.fn(() => ({
+			all: vi.fn(async () => ({ results: rows })),
 		})),
 	} as unknown as D1Database;
 }
 
 function makeKv(cachedValue?: string) {
 	return {
-		get: mock(async () => cachedValue ?? null),
-		put: mock(async () => {}),
-		delete: mock(async () => {}),
+		get: vi.fn(async () => cachedValue ?? null),
+		put: vi.fn(async () => {}),
+		delete: vi.fn(async () => {}),
 	} as unknown as KVNamespace;
 }
 
