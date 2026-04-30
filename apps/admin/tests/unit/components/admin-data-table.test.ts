@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 
 // ---------------------------------------------------------------------------
 // AdminDataTable — unit tests for the selection logic
