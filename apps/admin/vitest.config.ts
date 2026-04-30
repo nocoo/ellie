@@ -16,12 +16,7 @@ export default defineConfig({
 		coverage: {
 			provider: "v8",
 			include: ["src/lib/**/*.ts", "src/viewmodels/**/*.ts"],
-			exclude: [
-				"src/**/*.d.ts",
-				"src/components/**",
-				"src/app/**",
-				"src/viewmodels/admin/use-users-admin.ts",
-			],
+			exclude: ["src/**/*.d.ts", "src/components/**", "src/app/**"],
 			thresholds: {
 				statements: 95,
 				lines: 95,
