@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { FORUM_NAV_ITEMS } from "../../../apps/web/src/lib/forum-navigation";
 
 describe("FORUM_NAV_ITEMS", () => {

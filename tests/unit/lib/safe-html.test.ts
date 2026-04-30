@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
 import { sanitizeInlineHtml } from "@/lib/safe-html";
+import { describe, expect, test } from "vitest";
 
 describe("sanitizeInlineHtml", () => {
 	// ── Basic pass-through ──────────────────────────────────────────

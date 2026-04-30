@@ -1,7 +1,7 @@
-import { describe, expect, it } from "bun:test";
 import { createMockDataStore } from "@ellie/test-mocks";
 import { createMockUserRepository } from "@ellie/test-mocks";
 import { UserRole, UserStatus } from "@ellie/types";
+import { describe, expect, it } from "vitest";
 
 describe("createMockUserRepository", () => {
 	const store = createMockDataStore();

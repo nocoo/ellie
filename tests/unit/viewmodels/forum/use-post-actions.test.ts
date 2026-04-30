@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { getDeleteStrategy } from "../../../../apps/web/src/viewmodels/forum/use-post-actions";
 
 describe("use-post-actions pure functions", () => {

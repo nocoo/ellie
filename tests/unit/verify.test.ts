@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, unlinkSync } from "node:fs";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { BatchLoader } from "../../scripts/migrate/load/batch-insert";
 import { analyzeEncoding, verifyEncoding } from "../../scripts/migrate/verify/encoding";
 import {

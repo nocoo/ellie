@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { isValidSearchQuery } from "../../../../apps/web/src/viewmodels/forum/search";
 
 // ---------------------------------------------------------------------------

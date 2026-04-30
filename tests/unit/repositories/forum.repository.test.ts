@@ -1,6 +1,6 @@
-import { describe, expect, it } from "bun:test";
 import { createMockDataStore } from "@ellie/test-mocks";
 import { createMockForumRepository } from "@ellie/test-mocks";
+import { describe, expect, it } from "vitest";
 
 describe("createMockForumRepository", () => {
 	const store = createMockDataStore();
