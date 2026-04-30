@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, unlinkSync } from "node:fs";
 import { BatchLoader } from "../../scripts/migrate/load/batch-insert";
 import {
 	INDEX_DDL,
@@ -8,13 +7,10 @@ import {
 	TABLE_ORDER,
 } from "../../scripts/migrate/load/schema";
 
-const TEST_DB = "/tmp/ellie-test-loader.db";
+const TEST_DB = ":memory:";
 
 function cleanup() {
-	for (const suffix of ["", "-wal", "-shm"]) {
-		const path = `${TEST_DB}${suffix}`;
-		if (existsSync(path)) unlinkSync(path);
-	}
+	// in-memory: nothing to clean up
 }
 
 describe("schema", () => {
