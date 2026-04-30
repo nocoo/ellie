@@ -1,6 +1,8 @@
 import { resolve } from "node:path";
 import { defineConfig } from "vitest/config";
 
+process.env.PBKDF2_ITERATIONS = process.env.PBKDF2_ITERATIONS || "1000";
+
 export default defineConfig({
 	resolve: {
 		alias: {

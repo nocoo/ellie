@@ -1,13 +1,15 @@
 #!/usr/bin/env node
+import { execSync } from "node:child_process";
+import { createHash } from "node:crypto";
 // Audit test files for low-meaning patterns:
 //  - tests with 0 expect() calls
 //  - tests with only weak smoke assertions (typeof checks, .toBeDefined)
 //  - DUPLICATE test BODIES within the same file (whitespace-normalized)
 import { readFileSync } from "node:fs";
-import { execSync } from "node:child_process";
-import { createHash } from "node:crypto";
 
-const files = execSync('find apps packages tests -name "*.test.ts" -not -path "*/node_modules/*"', { encoding: "utf8" })
+const files = execSync('find apps packages tests -name "*.test.ts" -not -path "*/node_modules/*"', {
+	encoding: "utf8",
+})
 	.trim()
 	.split("\n")
 	.filter(Boolean);
@@ -25,7 +27,8 @@ for (const f of files) {
 	let m;
 	while ((m = re2.exec(src))) {
 		const start = m.index + m[0].length;
-		let depth = 1, i = start;
+		let depth = 1;
+		let i = start;
 		while (i < src.length && depth > 0) {
 			const ch = src[i++];
 			if (ch === "{") depth++;
@@ -44,8 +47,16 @@ for (const f of files) {
 			noAssert++;
 			offenders.push(`${f}: NO_ASSERT > ${b.name}`);
 		} else {
-			const meaningful = (b.body.match(/\.toBe\(|\.toEqual\(|\.toBeNull\(|\.toBeFalsy\(|\.toBeTruthy\(|\.toContain\(|\.toMatch\(|\.toHaveBeen\w+\(|\.toThrow\w*\(|\.toBeGreater\w*\(|\.toBeLess\w*\(|\.toHaveLength\(|\.rejects\.|\.resolves\./g) || []).length;
-			const weakOnly = (b.body.match(/\.toBeDefined\(\)|\.toBe\(("boolean"|"string"|"number"|"object"|"function")\)/g) || []).length;
+			const meaningful = (
+				b.body.match(
+					/\.toBe\(|\.toEqual\(|\.toBeNull\(|\.toBeFalsy\(|\.toBeTruthy\(|\.toContain\(|\.toMatch\(|\.toHaveBeen\w+\(|\.toThrow\w*\(|\.toBeGreater\w*\(|\.toBeLess\w*\(|\.toHaveLength\(|\.rejects\.|\.resolves\./g,
+				) || []
+			).length;
+			const weakOnly = (
+				b.body.match(
+					/\.toBeDefined\(\)|\.toBe\(("boolean"|"string"|"number"|"object"|"function")\)/g,
+				) || []
+			).length;
 			if (expects > 0 && meaningful === 0 && weakOnly > 0) {
 				weakSmoke++;
 				offenders.push(`${f}: WEAK > ${b.name}`);
@@ -64,9 +75,11 @@ for (const f of files) {
 }
 
 const meaningless = noAssert + weakSmoke + dupBodies;
-console.error(`audit: ${totalTests} tests, ${noAssert} no-assert, ${weakSmoke} weak-smoke, ${dupBodies} dup-bodies`);
+console.error(
+	`audit: ${totalTests} tests, ${noAssert} no-assert, ${weakSmoke} weak-smoke, ${dupBodies} dup-bodies`,
+);
 if (process.argv.includes("-v")) {
-	for (const o of offenders) console.error("  " + o);
+	for (const o of offenders) console.error(`  ${o}`);
 }
 console.log(`METRIC test_count=${totalTests}`);
 console.log(`METRIC no_assert_count=${noAssert}`);
