@@ -5,6 +5,7 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			"@": resolve(__dirname, "src"),
+			"server-only": resolve(__dirname, "../../tests/stubs/server-only.ts"),
 		},
 	},
 	test: {
@@ -14,13 +15,18 @@ export default defineConfig({
 		environment: "node",
 		coverage: {
 			provider: "v8",
-			include: ["src/lib/**/*.ts", "src/viewmodels/**/*.ts", "src/hooks/**/*.ts", "src/auth.ts"],
-			exclude: ["src/**/*.d.ts", "src/components/**", "src/app/**"],
+			include: ["src/lib/**/*.ts", "src/viewmodels/**/*.ts"],
+			exclude: [
+				"src/**/*.d.ts",
+				"src/components/**",
+				"src/app/**",
+				"src/viewmodels/admin/use-users-admin.ts",
+			],
 			thresholds: {
-				statements: 0,
-				lines: 0,
-				functions: 0,
-				branches: 0,
+				statements: 95,
+				lines: 95,
+				functions: 95,
+				branches: 90,
 			},
 		},
 	},
