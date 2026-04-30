@@ -709,7 +709,7 @@ describe("thread handlers", () => {
 			const updateCall = (db.prepare as ReturnType<typeof mock>).mock.calls.find((c) =>
 				(c[0] as string).includes("UPDATE threads SET views"),
 			);
-			expect(updateCall).toBeDefined();
+			expect(updateCall?.[0] as string).toContain("UPDATE threads SET views");
 		});
 
 		it("should increment views even if UPDATE fails (fire-and-forget)", async () => {
