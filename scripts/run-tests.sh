@@ -7,7 +7,7 @@ vitest_log=$(mktemp)
 bun_log=$(mktemp)
 trap 'rm -f "$vitest_log" "$bun_log"' EXIT
 
-node_modules/.bin/vitest run --no-color >"$vitest_log" 2>&1 &
+node_modules/.bin/vitest run --no-color --experimental.fsModuleCache >"$vitest_log" 2>&1 &
 v_pid=$!
 
 bun test "$(pwd)/tests/unit/loader.test.ts" "$(pwd)/tests/unit/verify.test.ts" >"$bun_log" 2>&1 &
