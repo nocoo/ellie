@@ -130,7 +130,9 @@
 						"noUnusedTemplateLiteral": "off"
 					},
 					"suspicious": {
-						"noExplicitAny": "off"
+						"noExplicitAny": "off",
+						"noFocusedTests": "error",
+						"noSkippedTests": "error"
 					}
 				}
 			}

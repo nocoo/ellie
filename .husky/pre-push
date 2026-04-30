@@ -1,30 +1,72 @@
-# L1 + G1 + G2 — full gate check before push
-bun run typecheck                              # G1: compile check
-bun run lint                                   # G1: biome lint (--error-on-warnings)
-vitest run                                     # L1: all unit tests (vitest-managed)
-bun run test:unit:bun                          # L1: bun-dependent unit tests
+#!/bin/bash
+# Pre-push hook — L1/L2/G1/G2 full gate, parallelized where possible.
+# Husky runs hooks via "sh -e"; re-exec under bash for associative syntax.
+if [ -z "$_ELLIE_HOOK_BASH" ]; then export _ELLIE_HOOK_BASH=1; exec bash "$0" "$@"; fi
 
-# L2: Worker integration tests via the run-l2.ts orchestrator.
-# run-l2.ts owns the full lifecycle (clean state, migrate, seed, boot
-# wrangler dev --local with secrets, run bun test). Replaces the old
-# inline `wrangler dev --remote` spawn that no longer matches setup.ts.
-echo "[pre-push] Running L2 integration tests via test:l2..."
-if ! bun run test:l2; then
-  echo "[pre-push] L2 tests failed"
-  exit 1
+#
+# Phase 1 (parallel): typecheck + lint + unit tests + bun tests
+# Phase 2 (parallel): L2 API E2E + osv-scanner + gitleaks + Rust (conditional)
+#
+# L2 must run after Phase 1 passes (compile errors → broken Worker).
+
+set -o pipefail
+
+TMPDIR_HOOK=$(mktemp -d -t ellie-prepush-XXXXXX)
+trap 'rm -rf "$TMPDIR_HOOK"' EXIT
+
+run_bg() {
+  local name="$1"; shift
+  ( "$@" >"$TMPDIR_HOOK/$name.log" 2>&1; echo $? >"$TMPDIR_HOOK/$name.exit" ) &
+  eval "PID_$name=$!"
+}
+
+wait_stage() {
+  local name="$1" pid_var="PID_$1" pid status
+  pid=${!pid_var}
+  wait "$pid" 2>/dev/null || true
+  status=$(cat "$TMPDIR_HOOK/$name.exit" 2>/dev/null || echo 1)
+  echo "━━━ $name (exit=$status) ━━━"
+  cat "$TMPDIR_HOOK/$name.log"
+  if [ "$status" -ne 0 ]; then
+    echo "❌ pre-push stage '$name' failed" >&2
+    exit "$status"
+  fi
+}
+
+# ─── Phase 1: G1 + L1 (parallel) ─────────────────────────────────
+run_bg typecheck  bun run typecheck
+run_bg lint       bun run lint
+run_bg unit       bunx vitest run
+run_bg bun_tests  bun test tests/unit/loader.test.ts tests/unit/verify.test.ts
+
+wait_stage typecheck
+wait_stage lint
+wait_stage unit
+wait_stage bun_tests
+
+# ─── Phase 2: L2 + G2 (parallel) ─────────────────────────────────
+echo "[pre-push] Phase 2: L2 + G2 gates..."
+
+run_bg l2         bun run test:l2
+run_bg osv        osv-scanner scan --lockfile bun.lock
+run_bg gitleaks   gitleaks detect --no-banner
+
+# Rust L2 + G2 (conditional)
+if [ -f "packages/cli-rs/Cargo.toml" ]; then
+  run_bg rust bash -c '
+    cd packages/cli-rs
+    if [ -n "$ELLIE_API_URL" ] && [ -n "$ELLIE_API_KEY" ]; then
+      cargo test --test integration -- --ignored
+    else
+      echo "Skipping Rust L2: ELLIE_API_URL/ELLIE_API_KEY not set"
+    fi
+    osv-scanner scan --lockfile Cargo.lock
+  '
 fi
 
-osv-scanner scan --lockfile bun.lock           # G2: dependency vulnerability scan
-gitleaks detect --no-banner                    # G2: secret leak detection
-
-# Rust L2 + G2 (if cli-rs exists)
+wait_stage l2
+wait_stage osv
+wait_stage gitleaks
 if [ -f "packages/cli-rs/Cargo.toml" ]; then
-  cd packages/cli-rs
-  if [ -n "$ELLIE_API_URL" ] && [ -n "$ELLIE_API_KEY" ]; then
-    cargo test --test integration -- --ignored   # L2 (requires test Worker env vars)
-  else
-    echo "Skipping Rust L2: ELLIE_API_URL/ELLIE_API_KEY not set"
-  fi
-  osv-scanner scan --lockfile Cargo.lock       # G2
-  cd ../..
+  wait_stage rust
 fi

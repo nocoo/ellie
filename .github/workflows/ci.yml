@@ -20,7 +20,6 @@ jobs:
 
   browser-e2e:
     name: "L3 Browser E2E"
-    needs: [quality]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
