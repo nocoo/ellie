@@ -22,7 +22,7 @@
 		"worker:deploy:test": "wrangler deploy -c apps/worker/wrangler.toml --env test",
 		"tui": "bun --bun run scripts/tui.ts",
 		"release": "bun run scripts/release.ts",
-		"test": "vitest run && bun test tests/unit/loader.test.ts tests/unit/verify.test.ts",
+		"test": "bash scripts/run-tests.sh",
 		"test:unit": "vitest run",
 		"test:unit:bun": "bun test tests/unit/loader.test.ts tests/unit/verify.test.ts",
 		"test:worker": "vitest run -c apps/worker/vitest.config.ts",
