@@ -20,14 +20,7 @@ export default defineConfig({
 				test: {
 					name: "root",
 					include: ["tests/unit/**/*.test.ts"],
-					exclude: [
-						"tests/unit/loader.test.ts",
-						"tests/unit/verify.test.ts",
-						"tests/unit/proxy.test.ts",
-						"tests/unit/auth-callbacks.test.ts",
-						"tests/unit/hooks/use-is-mobile.test.ts",
-						"tests/unit/hooks/use-theme.test.ts",
-					],
+					exclude: ["tests/unit/loader.test.ts", "tests/unit/verify.test.ts"],
 					environment: "node",
 				},
 			},

@@ -12,7 +12,7 @@ export default defineConfig({
 		name: "web",
 		root: __dirname,
 		include: ["tests/**/*.test.ts"],
-		exclude: ["tests/unit/lib/avatar.test.ts", "tests/unit/lib/avatar-proxy.test.ts"],
+		exclude: [],
 		passWithNoTests: true,
 		environment: "node",
 		coverage: {
@@ -32,10 +32,10 @@ export default defineConfig({
 				"src/actions/**",
 			],
 			thresholds: {
-				statements: 0,
-				lines: 0,
-				functions: 0,
-				branches: 0,
+				statements: 95,
+				lines: 95,
+				functions: 95,
+				branches: 90,
 			},
 		},
 	},
