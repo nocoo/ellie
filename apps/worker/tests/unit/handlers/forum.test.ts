@@ -327,4 +327,217 @@ describe("forum handlers", () => {
 			expect(response.status).toBe(404);
 		});
 	});
+
+	// ─── KV Cache Branch Tests ─────────────────────────────────────
+
+	describe("list (KV cache enabled)", () => {
+		const kvMockEnv: Env = {
+			API_KEY: "test-api-key",
+			ADMIN_API_KEY: "test-admin-api-key",
+			DB: {} as D1Database,
+			ENVIRONMENT: "test",
+			JWT_SECRET: "test-secret",
+			KV: createMockKV(),
+			USE_KV_USER_CACHE: "true",
+		};
+
+		/** Create KV that returns parsed JSON for get(key, "json") */
+		function createJsonKV(data: Record<string, unknown>) {
+			return {
+				get: vi.fn(async (key: string) => data[key] ?? null),
+				put: vi.fn(async () => {}),
+				delete: vi.fn(async () => {}),
+			} as unknown as KVNamespace;
+		}
+
+		it("should use simple query without JOIN when KV cache is enabled", async () => {
+			const d1Row = makeD1ForumRow({ last_poster_id: 10 });
+			const prepareSpy = vi.fn((sql: string) => {
+				// Forum query (simple, no JOIN)
+				if (sql.includes("FROM forums") && !sql.includes("FROM threads")) {
+					return {
+						all: vi.fn(() => Promise.resolve({ results: [d1Row] })),
+					};
+				}
+				// Visible last threads query
+				if (sql.includes("MAX(last_post_at)") && sql.includes("FROM threads")) {
+					return {
+						bind: vi.fn(() => ({
+							all: vi.fn(() => Promise.resolve({ results: [makeVisibleLastThreadRow(1)] })),
+						})),
+					};
+				}
+				// Moderator names query
+				if (sql.includes("SELECT id, username FROM users WHERE id IN")) {
+					return {
+						bind: vi.fn(() => ({
+							all: vi.fn(() => Promise.resolve({ results: [] })),
+						})),
+					};
+				}
+				// Thread count query
+				return {
+					bind: vi.fn(() => ({
+						all: vi.fn(() => Promise.resolve({ results: [] })),
+					})),
+				};
+			});
+			// KV mock that returns parsed user profile object
+			const kv = createJsonKV({
+				"user:mini:10": {
+					id: 10,
+					username: "cached_alice",
+					avatar: "cached.png",
+					avatarPath: "avatars/cached.jpg",
+					role: 0,
+					groupTitle: "",
+					groupColor: "",
+					groupStars: 0,
+				},
+			});
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...kvMockEnv, DB: db, KV: kv };
+			const ctx = createMockCtx();
+
+			const response = await list(new Request("https://example.com/api/v1/forums"), env, ctx);
+
+			expect(response.status).toBe(200);
+			// Verify simple query was used (no LEFT JOIN)
+			expect(prepareSpy).toHaveBeenCalledWith(expect.stringContaining("SELECT * FROM forums"));
+			expect(prepareSpy).not.toHaveBeenCalledWith(expect.stringContaining("LEFT JOIN users"));
+			// Verify KV enrichment happened
+			const data = await response.json();
+			expect(data.data[0].lastPosterAvatar).toBe("cached.png");
+		});
+	});
+
+	describe("getById (KV cache enabled)", () => {
+		const kvMockEnv: Env = {
+			API_KEY: "test-api-key",
+			ADMIN_API_KEY: "test-admin-api-key",
+			DB: {} as D1Database,
+			ENVIRONMENT: "test",
+			JWT_SECRET: "test-secret",
+			KV: createMockKV(),
+			USE_KV_USER_CACHE: "true",
+		};
+
+		/** Create KV that returns parsed JSON for get(key, "json") */
+		function createJsonKV(data: Record<string, unknown>) {
+			return {
+				get: vi.fn(async (key: string) => data[key] ?? null),
+				put: vi.fn(async () => {}),
+				delete: vi.fn(async () => {}),
+			} as unknown as KVNamespace;
+		}
+
+		it("should use simple query and enrich with KV cache", async () => {
+			const d1Row = makeD1ForumRow({ id: 1, last_poster_id: 10 });
+			const prepareSpy = vi.fn((sql: string) => {
+				// Forum query (simple, no JOIN)
+				if (
+					sql.includes("FROM forums") &&
+					sql.includes("WHERE") &&
+					!sql.includes("MAX(last_post_at)")
+				) {
+					return {
+						bind: vi.fn(() => ({
+							first: vi.fn(() => Promise.resolve(d1Row)),
+						})),
+					};
+				}
+				// Visible last threads query
+				if (sql.includes("MAX(last_post_at)") && sql.includes("FROM threads")) {
+					return {
+						bind: vi.fn(() => ({
+							all: vi.fn(() =>
+								Promise.resolve({
+									results: [makeVisibleLastThreadRow(1)],
+								}),
+							),
+						})),
+					};
+				}
+				// Moderator names query
+				if (sql.includes("SELECT id, username FROM users WHERE id IN")) {
+					return {
+						bind: vi.fn(() => ({
+							all: vi.fn(() => Promise.resolve({ results: [] })),
+						})),
+					};
+				}
+				// Count query
+				return {
+					bind: vi.fn(() => ({
+						first: vi.fn(() => Promise.resolve({ cnt: 0 })),
+					})),
+				};
+			});
+			// KV mock that returns parsed user profile object
+			const kv = createJsonKV({
+				"user:mini:10": {
+					id: 10,
+					username: "cached_alice",
+					avatar: "cached.png",
+					avatarPath: "avatars/cached.jpg",
+					role: 0,
+					groupTitle: "",
+					groupColor: "",
+					groupStars: 0,
+				},
+			});
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...kvMockEnv, DB: db, KV: kv };
+			const ctx = createMockCtx();
+
+			const response = await getById(new Request("https://example.com/api/v1/forums/1"), env, ctx);
+
+			expect(response.status).toBe(200);
+			// Verify simple query was used (no LEFT JOIN)
+			expect(prepareSpy).toHaveBeenCalledWith(
+				expect.stringContaining("SELECT * FROM forums WHERE id"),
+			);
+			// Verify KV enrichment happened
+			const data = await response.json();
+			expect(data.data.lastPosterAvatar).toBe("cached.png");
+		});
+
+		it("should return 403 when visibility is restricted for getById", async () => {
+			const d1Row = makeD1ForumRow({ id: 1, visibility: "members", status: 1 });
+			const prepareSpy = vi.fn((sql: string) => {
+				if (
+					sql.includes("FROM forums") &&
+					sql.includes("WHERE") &&
+					!sql.includes("MAX(last_post_at)")
+				) {
+					return {
+						bind: vi.fn(() => ({
+							first: vi.fn(() => Promise.resolve(d1Row)),
+						})),
+					};
+				}
+				if (sql.includes("MAX(last_post_at)")) {
+					return {
+						bind: vi.fn(() => ({
+							all: vi.fn(() => Promise.resolve({ results: [] })),
+						})),
+					};
+				}
+				return {
+					bind: vi.fn(() => ({
+						first: vi.fn(() => Promise.resolve({ cnt: 0 })),
+					})),
+				};
+			});
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...kvMockEnv, DB: db };
+			const ctx = createMockCtx();
+
+			const response = await getById(new Request("https://example.com/api/v1/forums/1"), env, ctx);
+
+			expect(response.status).toBe(403);
+			const data = await response.json();
+			expect(data.error.code).toBe("FORBIDDEN");
+		});
+	});
 });

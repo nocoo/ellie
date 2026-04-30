@@ -486,6 +486,120 @@ describe("thread handlers", () => {
 			expect(response.status).toBe(400);
 			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("https://ellie.nocoo.cloud");
 		});
+
+		it("should return 404 when forum not found for list", async () => {
+			const db = {
+				prepare: vi.fn((sql: string) => {
+					if (sql.includes("SELECT status, visibility FROM forums")) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve(null)),
+							})),
+						};
+					}
+					return { bind: vi.fn(() => ({ all: vi.fn(() => Promise.resolve({ results: [] })) })) };
+				}),
+			} as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await list(
+				new Request("https://example.com/api/v1/threads?forumId=999"),
+				env,
+				getCtx(),
+			);
+
+			expect(response.status).toBe(404);
+			const data = await response.json();
+			expect(data.error.code).toBe("FORUM_NOT_FOUND");
+		});
+
+		it("should return 404 when forum status is inactive", async () => {
+			const db = {
+				prepare: vi.fn((sql: string) => {
+					if (sql.includes("SELECT status, visibility FROM forums")) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 0, visibility: "public" })),
+							})),
+						};
+					}
+					return { bind: vi.fn(() => ({ all: vi.fn(() => Promise.resolve({ results: [] })) })) };
+				}),
+			} as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await list(
+				new Request("https://example.com/api/v1/threads?forumId=1"),
+				env,
+				getCtx(),
+			);
+
+			expect(response.status).toBe(404);
+		});
+
+		it("should return 403 when forum is members-only and no auth", async () => {
+			const db = {
+				prepare: vi.fn((sql: string) => {
+					if (sql.includes("SELECT status, visibility FROM forums")) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "members" })),
+							})),
+						};
+					}
+					return { bind: vi.fn(() => ({ all: vi.fn(() => Promise.resolve({ results: [] })) })) };
+				}),
+			} as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await list(
+				new Request("https://example.com/api/v1/threads?forumId=1"),
+				env,
+				getCtx(),
+			);
+
+			expect(response.status).toBe(403);
+			const data = await response.json();
+			expect(data.error.code).toBe("FORBIDDEN");
+		});
+
+		it("should use offset pagination when page param is provided", async () => {
+			const d1Row = makeD1ThreadRow({ id: 1 });
+			const allSpy = vi.fn(() => Promise.resolve({ results: [d1Row] }));
+			const firstSpy = vi.fn((sql: string) => {
+				if (sql.includes("SELECT status, visibility FROM forums")) {
+					return {
+						bind: vi.fn(() => ({
+							first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
+						})),
+					};
+				}
+				if (sql.includes("COUNT(*)")) {
+					return {
+						bind: vi.fn(() => ({
+							first: vi.fn(() => Promise.resolve({ total: 50 })),
+						})),
+					};
+				}
+				// Thread list query with OFFSET
+				return {
+					bind: vi.fn(() => ({ all: allSpy })),
+				};
+			});
+			const db = { prepare: firstSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await list(
+				new Request("https://example.com/api/v1/threads?forumId=1&page=2&limit=10"),
+				env,
+				getCtx(),
+			);
+
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.meta.total).toBe(50);
+			expect(data.meta.page).toBe(2);
+		});
 	});
 
 	describe("getById", () => {
@@ -609,6 +723,96 @@ describe("thread handlers", () => {
 				(c[0] as string).includes("UPDATE threads SET views"),
 			);
 			expect(updateCall).toBeDefined();
+		});
+
+		it("should return 404 when forum is inactive for getById", async () => {
+			const d1Row = makeD1ThreadRow({ id: 1 });
+			const db = {
+				prepare: vi.fn((sql: string) => {
+					if (sql.includes("FROM threads") && sql.includes("WHERE")) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve(d1Row)),
+							})),
+						};
+					}
+					if (sql.includes("SELECT status, visibility FROM forums")) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 0, visibility: "public" })),
+							})),
+						};
+					}
+					if (sql.includes("UPDATE threads SET views")) {
+						return {
+							bind: vi.fn(() => ({
+								run: vi.fn(() => Promise.resolve({ success: true })),
+							})),
+						};
+					}
+					return {
+						bind: vi.fn(() => ({
+							first: vi.fn(() => Promise.resolve(null)),
+						})),
+					};
+				}),
+			} as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await getById(
+				new Request("https://example.com/api/v1/threads/1"),
+				env,
+				getCtx(),
+			);
+
+			expect(response.status).toBe(404);
+			const data = await response.json();
+			expect(data.error.code).toBe("THREAD_NOT_FOUND");
+		});
+
+		it("should return 403 when forum visibility denies access for getById", async () => {
+			const d1Row = makeD1ThreadRow({ id: 1 });
+			const db = {
+				prepare: vi.fn((sql: string) => {
+					if (sql.includes("FROM threads") && sql.includes("WHERE")) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve(d1Row)),
+							})),
+						};
+					}
+					if (sql.includes("SELECT status, visibility FROM forums")) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "members" })),
+							})),
+						};
+					}
+					if (sql.includes("UPDATE threads SET views")) {
+						return {
+							bind: vi.fn(() => ({
+								run: vi.fn(() => Promise.resolve({ success: true })),
+							})),
+						};
+					}
+					return {
+						bind: vi.fn(() => ({
+							first: vi.fn(() => Promise.resolve(null)),
+						})),
+					};
+				}),
+			} as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await getById(
+				new Request("https://example.com/api/v1/threads/1"),
+				env,
+				getCtx(),
+			);
+
+			expect(response.status).toBe(403);
+			const data = await response.json();
+			expect(data.error.code).toBe("FORBIDDEN");
 		});
 	});
 

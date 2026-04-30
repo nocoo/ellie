@@ -141,5 +141,158 @@ describe("attachment handlers", () => {
 			expect(data.meta.timestamp).toBeDefined();
 			expect(data.meta.requestId).toBeDefined();
 		});
+
+		// ─── Error branches ──────────────────────────────────────────
+
+		it("should return 400 for invalid post ID", async () => {
+			const { db } = createMockDb();
+			const env = { ...mockEnv, DB: db };
+
+			const response = await listByPost(
+				new Request("https://example.com/api/v1/posts/abc/attachments"),
+				env,
+			);
+
+			expect(response.status).toBe(400);
+			const data = await response.json();
+			expect(data.error.code).toBe("INVALID_REQUEST");
+		});
+
+		it("should return 400 for zero post ID", async () => {
+			const { db } = createMockDb();
+			const env = { ...mockEnv, DB: db };
+
+			const response = await listByPost(
+				new Request("https://example.com/api/v1/posts/0/attachments"),
+				env,
+			);
+
+			expect(response.status).toBe(400);
+		});
+
+		it("should return 404 when post not found", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT thread_id, invisible FROM posts WHERE id": null,
+				},
+			});
+			const env = { ...mockEnv, DB: db };
+
+			const response = await listByPost(
+				new Request("https://example.com/api/v1/posts/99/attachments"),
+				env,
+			);
+
+			expect(response.status).toBe(404);
+			const data = await response.json();
+			expect(data.error.code).toBe("POST_NOT_FOUND");
+		});
+
+		it("should return 404 when post is invisible", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 1, invisible: 1 },
+				},
+			});
+			const env = { ...mockEnv, DB: db };
+
+			const response = await listByPost(
+				new Request("https://example.com/api/v1/posts/5/attachments"),
+				env,
+			);
+
+			expect(response.status).toBe(404);
+		});
+
+		it("should return 404 when thread is hidden (sticky < 0)", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 1, invisible: 0 },
+					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: -1 },
+				},
+			});
+			const env = { ...mockEnv, DB: db };
+
+			const response = await listByPost(
+				new Request("https://example.com/api/v1/posts/5/attachments"),
+				env,
+			);
+
+			expect(response.status).toBe(404);
+		});
+
+		it("should return 404 when thread not found", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 99, invisible: 0 },
+					"SELECT forum_id, sticky FROM threads WHERE id": null,
+				},
+			});
+			const env = { ...mockEnv, DB: db };
+
+			const response = await listByPost(
+				new Request("https://example.com/api/v1/posts/5/attachments"),
+				env,
+			);
+
+			expect(response.status).toBe(404);
+		});
+
+		it("should return 404 when forum is inactive (status <= 0)", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 1, invisible: 0 },
+					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 0, visibility: "public" },
+				},
+			});
+			const env = { ...mockEnv, DB: db };
+
+			const response = await listByPost(
+				new Request("https://example.com/api/v1/posts/5/attachments"),
+				env,
+			);
+
+			expect(response.status).toBe(404);
+		});
+
+		it("should return 404 when forum is paused (status === 2)", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 1, invisible: 0 },
+					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 2, visibility: "public" },
+				},
+			});
+			const env = { ...mockEnv, DB: db };
+
+			const response = await listByPost(
+				new Request("https://example.com/api/v1/posts/5/attachments"),
+				env,
+			);
+
+			expect(response.status).toBe(404);
+		});
+
+		it("should return 403 when visibility check fails (members-only, no auth)", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT thread_id, invisible FROM posts WHERE id": { thread_id: 1, invisible: 0 },
+					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "members" },
+				},
+			});
+			const env = { ...mockEnv, DB: db };
+
+			// No auth header → anonymous user cannot access members-only forum
+			const response = await listByPost(
+				new Request("https://example.com/api/v1/posts/5/attachments"),
+				env,
+			);
+
+			expect(response.status).toBe(403);
+			const data = await response.json();
+			expect(data.error.code).toBe("FORBIDDEN");
+		});
 	});
 });
