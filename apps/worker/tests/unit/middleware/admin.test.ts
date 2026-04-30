@@ -1,5 +1,5 @@
-import { describe, expect, it } from "bun:test";
 import { UserRole } from "@ellie/types";
+import { describe, expect, it } from "vitest";
 import { requireAdmin, requireModerator } from "../../../src/middleware/admin";
 import type { AuthUser } from "../../../src/middleware/auth";
 

@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, vi } from "vitest";
 import { recalcForumMetadata, recalcThreadMetadata } from "../../../src/lib/recalcMetadata";
 import { createMockDb, makeEnv } from "../../helpers";
 
@@ -98,7 +98,7 @@ describe("recalcMetadata", () => {
 
 			// Override prepare to handle the two-call sequence
 			const originalPrepare = db.prepare;
-			(db as unknown as Record<string, unknown>).prepare = mock((sql: string) => {
+			(db as unknown as Record<string, unknown>).prepare = vi.fn((sql: string) => {
 				if (sql.includes("FROM posts") && !postCallDone) {
 					postCallDone = true;
 					calls.push({ sql, params: [] });

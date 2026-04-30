@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { list, remove } from "../../../../src/handlers/admin/attachment";
 import { createAdminRequest, createMockDb, makeD1AttachmentRow, makeEnv } from "../../../helpers";
 

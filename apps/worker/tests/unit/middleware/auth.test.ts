@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import type { Env } from "../../../src/lib/env";
 import { createJwt } from "../../../src/lib/jwt";
 import {

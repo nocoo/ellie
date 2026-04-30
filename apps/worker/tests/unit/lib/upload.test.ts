@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import type { Env } from "../../../src/lib/env";
 import { generateAvatarPath, handleUpload } from "../../../src/lib/upload";
 import { createMockCtx, createMockDb, createMockKV, createMockR2 } from "../../helpers";

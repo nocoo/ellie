@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, vi } from "vitest";
 import type { Env } from "../../../src/lib/env";
 import { aggregateOnlineStats } from "../../../src/lib/online-stats";
 
@@ -11,14 +11,14 @@ describe("aggregateOnlineStats", () => {
 		existingPeak?: { count: number; date: string; timestamp: number } | null;
 	}) => {
 		const keys = options?.onlineKeys ?? [];
-		const kvPut = mock(() => Promise.resolve());
-		const kvGet = mock((key: string, type?: string) => {
+		const kvPut = vi.fn(() => Promise.resolve());
+		const kvGet = vi.fn((key: string, type?: string) => {
 			if (key === "stats:online_peak" && type === "json") {
 				return Promise.resolve(options?.existingPeak ?? null);
 			}
 			return Promise.resolve(null);
 		});
-		const kvList = mock(() =>
+		const kvList = vi.fn(() =>
 			Promise.resolve({
 				keys,
 				list_complete: true,
@@ -37,7 +37,7 @@ describe("aggregateOnlineStats", () => {
 					get: kvGet,
 					put: kvPut,
 					list: kvList,
-					delete: mock(() => Promise.resolve()),
+					delete: vi.fn(() => Promise.resolve()),
 				} as unknown as KVNamespace,
 			} as Env,
 			kvPut,
@@ -169,9 +169,9 @@ describe("aggregateOnlineStats", () => {
 	it("should paginate through large key sets", async () => {
 		// Simulate pagination with multiple list calls
 		let callCount = 0;
-		const kvPut = mock(() => Promise.resolve());
-		const kvGet = mock(() => Promise.resolve(null));
-		const kvList = mock(() => {
+		const kvPut = vi.fn(() => Promise.resolve());
+		const kvGet = vi.fn(() => Promise.resolve(null));
+		const kvList = vi.fn(() => {
 			callCount++;
 			if (callCount === 1) {
 				// First page: 1000 keys, more to come
@@ -201,7 +201,7 @@ describe("aggregateOnlineStats", () => {
 				get: kvGet,
 				put: kvPut,
 				list: kvList,
-				delete: mock(() => Promise.resolve()),
+				delete: vi.fn(() => Promise.resolve()),
 			} as unknown as KVNamespace,
 		} as Env;
 

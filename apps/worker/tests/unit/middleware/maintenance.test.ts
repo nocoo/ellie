@@ -1,5 +1,5 @@
-import { describe, expect, it, mock } from "bun:test";
 import { UserRole } from "@ellie/types";
+import { describe, expect, it, vi } from "vitest";
 import { createJwt } from "../../../src/lib/jwt";
 import { checkMaintenance } from "../../../src/middleware/maintenance";
 import { TEST_JWT_SECRET, createMockKV, makeEnv } from "../../helpers";
@@ -8,17 +8,17 @@ describe("maintenance middleware", () => {
 	/** Create a mock DB that returns user with specified role and status */
 	function createMockDbWithUser(_userId: number, role: number, status = 0) {
 		return {
-			prepare: mock((sql: string) => {
+			prepare: vi.fn((sql: string) => {
 				if (sql.includes("SELECT role, status FROM users")) {
 					return {
-						bind: mock(() => ({
-							first: mock(() => Promise.resolve({ role, status })),
+						bind: vi.fn(() => ({
+							first: vi.fn(() => Promise.resolve({ role, status })),
 						})),
 					};
 				}
 				return {
-					bind: mock(() => ({
-						first: mock(() => Promise.resolve(null)),
+					bind: vi.fn(() => ({
+						first: vi.fn(() => Promise.resolve(null)),
 					})),
 				};
 			}),

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { create, getById, list } from "../../../src/handlers/post";
 import type { Env } from "../../../src/lib/env";
 import {

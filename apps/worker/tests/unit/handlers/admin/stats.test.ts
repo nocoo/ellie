@@ -1,16 +1,16 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, vi } from "vitest";
 import { handleStats } from "../../../../src/handlers/admin/stats";
 import { createAdminRequest, makeEnv } from "../../../helpers";
 
 describe("admin stats handler", () => {
 	function makeStatsMockDb() {
 		const db = {
-			prepare: mock((_sql: string) => ({
-				bind: mock((..._params: unknown[]) => ({
+			prepare: vi.fn((_sql: string) => ({
+				bind: vi.fn((..._params: unknown[]) => ({
 					// bind returns itself for chaining in batch
 				})),
 			})),
-			batch: mock(async () => [
+			batch: vi.fn(async () => [
 				{ results: [{ cnt: 100 }] }, // total users
 				{ results: [{ cnt: 5 }] }, // today users
 				{ results: [{ cnt: 3 }] }, // banned users

@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, vi } from "vitest";
 import { checkUsername, register } from "../../../src/handlers/auth";
 import { createMockDb, makeEnv } from "../../helpers";
 
@@ -34,11 +34,11 @@ function createMockKV(overrides?: {
 }) {
 	const putCalls = overrides?.putCalls ?? [];
 	return {
-		get: mock(async (key: string) => overrides?.get?.[key] ?? null),
-		put: mock(async (key: string, value: string, opts?: unknown) => {
+		get: vi.fn(async (key: string) => overrides?.get?.[key] ?? null),
+		put: vi.fn(async (key: string, value: string, opts?: unknown) => {
 			putCalls.push({ key, value, opts });
 		}),
-		delete: mock(async () => {}),
+		delete: vi.fn(async () => {}),
 	} as unknown as KVNamespace;
 }
 
@@ -318,25 +318,25 @@ describe("register", () => {
 	it("returns USERNAME_TAKEN 409 on UNIQUE constraint violation", async () => {
 		const mockKv = createMockKV();
 		const throwingDb = {
-			prepare: mock((sql: string) => {
-				const runMock = mock(async () => {
+			prepare: vi.fn((sql: string) => {
+				const runMock = vi.fn(async () => {
 					if (sql.includes("INSERT")) {
 						throw new Error("UNIQUE constraint failed: users.username");
 					}
 					return { success: true, meta: { last_row_id: 1, changes: 1 } };
 				});
-				const firstMock = mock(async () => {
+				const firstMock = vi.fn(async () => {
 					// Return "true" for registration setting to allow registration
 					if (sql.includes("settings")) return { value: "true" };
 					return null;
 				});
-				const allMock = mock(async () => {
+				const allMock = vi.fn(async () => {
 					if (sql.includes("censor_words")) return { results: [] };
 					return { results: [] };
 				});
 
 				return {
-					bind: mock((..._params: unknown[]) => ({
+					bind: vi.fn((..._params: unknown[]) => ({
 						first: firstMock,
 						all: allMock,
 						run: runMock,

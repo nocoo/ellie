@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, vi } from "vitest";
 import { live } from "../../../src/handlers/live";
 import type { Env } from "../../../src/lib/env";
 import { createMockKV } from "../../helpers";
@@ -16,8 +16,8 @@ describe("live handler", () => {
 
 	describe("when D1 is healthy", () => {
 		const healthyDb = {
-			prepare: mock(() => ({
-				first: mock(() => Promise.resolve({ probe: 1 })),
+			prepare: vi.fn(() => ({
+				first: vi.fn(() => Promise.resolve({ probe: 1 })),
 			})),
 		} as unknown as D1Database;
 
@@ -104,8 +104,8 @@ describe("live handler", () => {
 		});
 
 		it("should probe D1 with SELECT 1", async () => {
-			const firstSpy = mock(() => Promise.resolve({ probe: 1 }));
-			const prepareSpy = mock(() => ({ first: firstSpy }));
+			const firstSpy = vi.fn(() => Promise.resolve({ probe: 1 }));
+			const prepareSpy = vi.fn(() => ({ first: firstSpy }));
 			const db = { prepare: prepareSpy } as unknown as D1Database;
 
 			await live(makeRequest(), { ...baseEnv, DB: db });
@@ -117,8 +117,8 @@ describe("live handler", () => {
 
 	describe("when D1 is down", () => {
 		const brokenDb = {
-			prepare: mock(() => ({
-				first: mock(() => Promise.reject(new Error("D1 connection failed"))),
+			prepare: vi.fn(() => ({
+				first: vi.fn(() => Promise.reject(new Error("D1 connection failed"))),
 			})),
 		} as unknown as D1Database;
 
@@ -156,8 +156,8 @@ describe("live handler", () => {
 
 		it("should strip 'ok' from error messages that contain it", async () => {
 			const dbWithOkInError = {
-				prepare: mock(() => ({
-					first: mock(() => Promise.reject(new Error("connection ok but data broken"))),
+				prepare: vi.fn(() => ({
+					first: vi.fn(() => Promise.reject(new Error("connection ok but data broken"))),
 				})),
 			} as unknown as D1Database;
 
@@ -199,8 +199,8 @@ describe("live handler", () => {
 
 	describe("when D1 throws non-Error", () => {
 		const dbWithStringError = {
-			prepare: mock(() => ({
-				first: mock(() => Promise.reject("string error")),
+			prepare: vi.fn(() => ({
+				first: vi.fn(() => Promise.reject("string error")),
 			})),
 		} as unknown as D1Database;
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { changePassword, updateProfile } from "../../../src/handlers/me";
 import type { Env } from "../../../src/lib/env";
 import { hashPassword } from "../../../src/lib/password";

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { createJwt, isTokenExpired, verifyJwt } from "../../../src/lib/jwt";
 
 describe("createJwt", () => {
@@ -12,7 +12,7 @@ describe("createJwt", () => {
 
 		const token = await createJwt(payload, secret);
 
-		expect(token).toBeString();
+		expect(token).toBeTypeOf("string");
 		expect(token).toMatch(/^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/);
 	});
 

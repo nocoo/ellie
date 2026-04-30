@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, vi } from "vitest";
 import { createEntityHandlers, withEntityAuth } from "../../../src/lib/adminHelpers";
 import type { EntityConfig } from "../../../src/lib/crud";
 import type { Env } from "../../../src/lib/env";
@@ -32,7 +32,7 @@ describe("withEntityAuth", () => {
 	const env = makeEnv();
 
 	it("should call handler with (request, env) as a pass-through wrapper", async () => {
-		const handler = mock(async (_req: Request, _env: Env) => new Response("ok"));
+		const handler = vi.fn(async (_req: Request, _env: Env) => new Response("ok"));
 		const wrapped = withEntityAuth(adminConfig, handler);
 		const req = makeRequest();
 		const res = await wrapped(req, env);
@@ -43,7 +43,7 @@ describe("withEntityAuth", () => {
 	});
 
 	it("should return the handler's response directly", async () => {
-		const handler = mock(
+		const handler = vi.fn(
 			async (_req: Request, _env: Env) =>
 				new Response(JSON.stringify({ data: "test" }), { status: 200 }),
 		);
@@ -56,7 +56,7 @@ describe("withEntityAuth", () => {
 	});
 
 	it("should work with moderator config (same pass-through behavior)", async () => {
-		const handler = mock(async (_req: Request, _env: Env) => new Response("mod-ok"));
+		const handler = vi.fn(async (_req: Request, _env: Env) => new Response("mod-ok"));
 		const wrapped = withEntityAuth(modConfig, handler);
 		const res = await wrapped(makeRequest(), env);
 
@@ -71,8 +71,8 @@ describe("createEntityHandlers", () => {
 	const env = makeEnv();
 
 	it("should wrap all handlers with withEntityAuth", async () => {
-		const listHandler = mock(async (_req: Request, _env: Env) => new Response("list"));
-		const getHandler = mock(async (_req: Request, _env: Env) => new Response("get"));
+		const listHandler = vi.fn(async (_req: Request, _env: Env) => new Response("list"));
+		const getHandler = vi.fn(async (_req: Request, _env: Env) => new Response("get"));
 
 		const wrapped = createEntityHandlers(adminConfig, { list: listHandler, get: getHandler });
 
@@ -86,7 +86,7 @@ describe("createEntityHandlers", () => {
 	});
 
 	it("should pass request and env to wrapped handlers", async () => {
-		const handler = mock(async (_req: Request, _env: Env) => new Response("ok"));
+		const handler = vi.fn(async (_req: Request, _env: Env) => new Response("ok"));
 		const wrapped = createEntityHandlers(adminConfig, { action: handler });
 		const req = makeRequest();
 

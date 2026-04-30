@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, type mock, vi } from "vitest";
 import { create, getById, list } from "../../../src/handlers/thread";
 import type { Env } from "../../../src/lib/env";
 import {
@@ -51,19 +51,19 @@ describe("thread handlers", () => {
 		});
 
 		it("should clamp limit to [1, 100]", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const prepareSpy = mock((sql: string) => {
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const prepareSpy = vi.fn((sql: string) => {
 				// Forum visibility check query
 				if (sql.includes("SELECT status, visibility FROM forums")) {
 					return {
-						bind: mock(() => ({
-							first: mock(() => Promise.resolve({ status: 1, visibility: "public" })),
+						bind: vi.fn(() => ({
+							first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
 						})),
 					};
 				}
 				// Thread list query
 				return {
-					bind: mock((..._args: unknown[]) => ({
+					bind: vi.fn((..._args: unknown[]) => ({
 						all: allSpy,
 					})),
 				};
@@ -99,20 +99,20 @@ describe("thread handlers", () => {
 
 		it("should map D1 snake_case rows to camelCase Thread objects", async () => {
 			const d1Row = makeD1ThreadRow({ forum_id: 10, author_id: 100, views: 42, recommends: 3 });
-			const allSpy = mock(() => Promise.resolve({ results: [d1Row] }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: [d1Row] }));
 			const db = {
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					// Forum visibility check query
 					if (sql.includes("SELECT status, visibility FROM forums")) {
 						return {
-							bind: mock(() => ({
-								first: mock(() => Promise.resolve({ status: 1, visibility: "public" })),
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
 							})),
 						};
 					}
 					// Thread list query
 					return {
-						bind: mock(() => ({ all: allSpy })),
+						bind: vi.fn(() => ({ all: allSpy })),
 					};
 				}),
 			} as unknown as D1Database;
@@ -143,16 +143,16 @@ describe("thread handlers", () => {
 
 		it("should query threads with JOIN on first page", async () => {
 			const d1Row = makeD1ThreadRow();
-			const allSpy = mock(() => Promise.resolve({ results: [d1Row] }));
-			const bindSpy = mock((..._args: unknown[]) => ({
+			const allSpy = vi.fn(() => Promise.resolve({ results: [d1Row] }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				all: allSpy,
 			}));
-			const prepareSpy = mock((sql: string) => {
+			const prepareSpy = vi.fn((sql: string) => {
 				// Forum visibility check query
 				if (sql.includes("SELECT status, visibility FROM forums")) {
 					return {
-						bind: mock(() => ({
-							first: mock(() => Promise.resolve({ status: 1, visibility: "public" })),
+						bind: vi.fn(() => ({
+							first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
 						})),
 					};
 				}
@@ -177,16 +177,16 @@ describe("thread handlers", () => {
 					id: 100,
 				}),
 			);
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				all: allSpy,
 			}));
-			const prepareSpy = mock((sql: string) => {
+			const prepareSpy = vi.fn((sql: string) => {
 				// Forum visibility check query
 				if (sql.includes("SELECT status, visibility FROM forums")) {
 					return {
-						bind: mock(() => ({
-							first: mock(() => Promise.resolve({ status: 1, visibility: "public" })),
+						bind: vi.fn(() => ({
+							first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
 						})),
 					};
 				}
@@ -224,20 +224,20 @@ describe("thread handlers", () => {
 				}),
 			);
 
-			const allSpy = mock(() => Promise.resolve({ results: threads }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: threads }));
 			const db = {
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					// Forum visibility check query
 					if (sql.includes("SELECT status, visibility FROM forums")) {
 						return {
-							bind: mock(() => ({
-								first: mock(() => Promise.resolve({ status: 1, visibility: "public" })),
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
 							})),
 						};
 					}
 					// Thread list query
 					return {
-						bind: mock(() => ({ all: allSpy })),
+						bind: vi.fn(() => ({ all: allSpy })),
 					};
 				}),
 			} as unknown as D1Database;
@@ -261,20 +261,20 @@ describe("thread handlers", () => {
 
 		it("should not generate next cursor when results are less than limit", async () => {
 			const d1Row = makeD1ThreadRow();
-			const allSpy = mock(() => Promise.resolve({ results: [d1Row] }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: [d1Row] }));
 			const db = {
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					// Forum visibility check query
 					if (sql.includes("SELECT status, visibility FROM forums")) {
 						return {
-							bind: mock(() => ({
-								first: mock(() => Promise.resolve({ status: 1, visibility: "public" })),
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
 							})),
 						};
 					}
 					// Thread list query
 					return {
-						bind: mock(() => ({ all: allSpy })),
+						bind: vi.fn(() => ({ all: allSpy })),
 					};
 				}),
 			} as unknown as D1Database;
@@ -291,20 +291,20 @@ describe("thread handlers", () => {
 		});
 
 		it("should include metadata in response", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
 			const db = {
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					// Forum visibility check query
 					if (sql.includes("SELECT status, visibility FROM forums")) {
 						return {
-							bind: mock(() => ({
-								first: mock(() => Promise.resolve({ status: 1, visibility: "public" })),
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
 							})),
 						};
 					}
 					// Thread list query
 					return {
-						bind: mock(() => ({ all: allSpy })),
+						bind: vi.fn(() => ({ all: allSpy })),
 					};
 				}),
 			} as unknown as D1Database;
@@ -323,16 +323,16 @@ describe("thread handlers", () => {
 
 		it("should handle invalid cursor gracefully", async () => {
 			const invalidCursor = btoa(JSON.stringify({ wrong: "structure" }));
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				all: allSpy,
 			}));
-			const prepareSpy = mock((sql: string) => {
+			const prepareSpy = vi.fn((sql: string) => {
 				// Forum visibility check query
 				if (sql.includes("SELECT status, visibility FROM forums")) {
 					return {
-						bind: mock(() => ({
-							first: mock(() => Promise.resolve({ status: 1, visibility: "public" })),
+						bind: vi.fn(() => ({
+							first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
 						})),
 					};
 				}
@@ -355,16 +355,16 @@ describe("thread handlers", () => {
 
 		it("should handle malformed cursor (invalid base64)", async () => {
 			const malformedCursor = "not-valid-base64!!!";
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				all: allSpy,
 			}));
-			const prepareSpy = mock((sql: string) => {
+			const prepareSpy = vi.fn((sql: string) => {
 				// Forum visibility check query
 				if (sql.includes("SELECT status, visibility FROM forums")) {
 					return {
-						bind: mock(() => ({
-							first: mock(() => Promise.resolve({ status: 1, visibility: "public" })),
+						bind: vi.fn(() => ({
+							first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
 						})),
 					};
 				}
@@ -386,17 +386,17 @@ describe("thread handlers", () => {
 		});
 
 		it("should use default limit of 100 when no limit parameter provided", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				all: allSpy,
 			}));
 			const db = {
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					// Forum visibility check query
 					if (sql.includes("SELECT status, visibility FROM forums")) {
 						return {
-							bind: mock(() => ({
-								first: mock(() => Promise.resolve({ status: 1, visibility: "public" })),
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
 							})),
 						};
 					}
@@ -412,17 +412,17 @@ describe("thread handlers", () => {
 		});
 
 		it("should use valid limit within range", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
-			const bindSpy = mock((..._args: unknown[]) => ({
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				all: allSpy,
 			}));
 			const db = {
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					// Forum visibility check query
 					if (sql.includes("SELECT status, visibility FROM forums")) {
 						return {
-							bind: mock(() => ({
-								first: mock(() => Promise.resolve({ status: 1, visibility: "public" })),
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
 							})),
 						};
 					}
@@ -442,20 +442,20 @@ describe("thread handlers", () => {
 		});
 
 		it("should include CORS headers with origin", async () => {
-			const allSpy = mock(() => Promise.resolve({ results: [] }));
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
 			const db = {
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					// Forum visibility check query
 					if (sql.includes("SELECT status, visibility FROM forums")) {
 						return {
-							bind: mock(() => ({
-								first: mock(() => Promise.resolve({ status: 1, visibility: "public" })),
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
 							})),
 						};
 					}
 					// Thread list query
 					return {
-						bind: mock(() => ({ all: allSpy })),
+						bind: vi.fn(() => ({ all: allSpy })),
 					};
 				}),
 			} as unknown as D1Database;
@@ -492,36 +492,36 @@ describe("thread handlers", () => {
 		/** Helper: creates a mock DB for getById which handles thread, user cache, forum visibility, and views queries */
 		function createGetByIdMockDb(threadRow: unknown | null) {
 			return {
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					// Thread query (with or without JOIN)
 					if (sql.includes("FROM threads") && sql.includes("WHERE")) {
 						return {
-							bind: mock((..._args: unknown[]) => ({
-								first: mock(() => Promise.resolve(threadRow)),
+							bind: vi.fn((..._args: unknown[]) => ({
+								first: vi.fn(() => Promise.resolve(threadRow)),
 							})),
 						};
 					}
 					// Forum visibility check query
 					if (sql.includes("SELECT status, visibility FROM forums")) {
 						return {
-							bind: mock(() => ({
-								first: mock(() => Promise.resolve({ status: 1, visibility: "public" })),
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
 							})),
 						};
 					}
 					// Views increment query
 					if (sql.includes("UPDATE threads SET views")) {
 						return {
-							bind: mock((..._args: unknown[]) => ({
-								run: mock(() => Promise.resolve({ success: true })),
+							bind: vi.fn((..._args: unknown[]) => ({
+								run: vi.fn(() => Promise.resolve({ success: true })),
 							})),
 						};
 					}
 					return {
-						bind: mock((..._args: unknown[]) => ({
-							first: mock(() => Promise.resolve(null)),
-							all: mock(() => Promise.resolve({ results: [] })),
-							run: mock(() => Promise.resolve({ success: true })),
+						bind: vi.fn((..._args: unknown[]) => ({
+							first: vi.fn(() => Promise.resolve(null)),
+							all: vi.fn(() => Promise.resolve({ results: [] })),
+							run: vi.fn(() => Promise.resolve({ success: true })),
 						})),
 					};
 				}),

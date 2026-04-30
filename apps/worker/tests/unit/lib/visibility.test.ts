@@ -1,5 +1,5 @@
-import { describe, expect, it } from "bun:test";
 import { UserRole } from "@ellie/types";
+import { describe, expect, it } from "vitest";
 import {
 	FORUM_ACTIVE,
 	ForumStatusLevel,

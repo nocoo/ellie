@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { listByPost } from "../../../src/handlers/attachment";
 import type { Env } from "../../../src/lib/env";
 import { TEST_JWT_SECRET, createMockDb, createMockKV, makeD1AttachmentRow } from "../../helpers";

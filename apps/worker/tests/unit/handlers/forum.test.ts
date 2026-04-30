@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, vi } from "vitest";
 import { getById, list } from "../../../src/handlers/forum";
 import type { Env } from "../../../src/lib/env";
 import { createMockCtx, createMockKV } from "../../helpers";
@@ -61,25 +61,25 @@ describe("forum handlers", () => {
 			visibleLastThreadRows: unknown[] = [],
 		) {
 			return {
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					// Forum query (with or without JOIN)
 					if (sql.includes("FROM forums") && !sql.includes("FROM threads")) {
 						return {
-							all: mock(() => Promise.resolve({ results: forumRows })),
+							all: vi.fn(() => Promise.resolve({ results: forumRows })),
 						};
 					}
 					// Visible last threads query (window function)
 					if (sql.includes("MAX(last_post_at)") && sql.includes("FROM threads")) {
 						return {
-							bind: mock(() => ({
-								all: mock(() => Promise.resolve({ results: visibleLastThreadRows })),
+							bind: vi.fn(() => ({
+								all: vi.fn(() => Promise.resolve({ results: visibleLastThreadRows })),
 							})),
 						};
 					}
 					// Thread count query
 					return {
-						bind: mock(() => ({
-							all: mock(() => Promise.resolve({ results: countRows })),
+						bind: vi.fn(() => ({
+							all: vi.fn(() => Promise.resolve({ results: countRows })),
 						})),
 					};
 				}),
@@ -200,7 +200,7 @@ describe("forum handlers", () => {
 			const visibleRow = visibleLastThreadRow ?? defaultVisibleRow;
 
 			return {
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					// Forum query (with or without JOIN)
 					if (
 						sql.includes("FROM forums") &&
@@ -208,23 +208,23 @@ describe("forum handlers", () => {
 						!sql.includes("MAX(last_post_at)")
 					) {
 						return {
-							bind: mock(() => ({
-								first: mock(() => Promise.resolve(forumRow)),
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve(forumRow)),
 							})),
 						};
 					}
 					// Visible last threads query (window function)
 					if (sql.includes("MAX(last_post_at)") && sql.includes("FROM threads")) {
 						return {
-							bind: mock(() => ({
-								all: mock(() => Promise.resolve({ results: visibleRow ? [visibleRow] : [] })),
+							bind: vi.fn(() => ({
+								all: vi.fn(() => Promise.resolve({ results: visibleRow ? [visibleRow] : [] })),
 							})),
 						};
 					}
 					// Thread count query
 					return {
-						bind: mock(() => ({
-							first: mock(() => Promise.resolve({ cnt: todayCount })),
+						bind: vi.fn(() => ({
+							first: vi.fn(() => Promise.resolve({ cnt: todayCount })),
 						})),
 					};
 				}),
@@ -277,15 +277,15 @@ describe("forum handlers", () => {
 		it("should parse forum ID from URL", async () => {
 			const d1Row = makeD1ForumRow({ id: 123 });
 			const visibleRow = makeVisibleLastThreadRow(123);
-			const bindSpy = mock(() => ({
-				first: mock(() => Promise.resolve(d1Row)),
+			const bindSpy = vi.fn(() => ({
+				first: vi.fn(() => Promise.resolve(d1Row)),
 			}));
-			const visibleBindSpy = mock(() => ({
-				all: mock(() => Promise.resolve({ results: [visibleRow] })),
+			const visibleBindSpy = vi.fn(() => ({
+				all: vi.fn(() => Promise.resolve({ results: [visibleRow] })),
 			}));
 
 			const db = {
-				prepare: mock((sql: string) => {
+				prepare: vi.fn((sql: string) => {
 					// Forum query (with or without JOIN)
 					if (
 						sql.includes("FROM forums") &&
@@ -299,8 +299,8 @@ describe("forum handlers", () => {
 						return { bind: visibleBindSpy };
 					}
 					return {
-						bind: mock(() => ({
-							first: mock(() => Promise.resolve({ cnt: 0 })),
+						bind: vi.fn(() => ({
+							first: vi.fn(() => Promise.resolve({ cnt: 0 })),
 						})),
 					};
 				}),
