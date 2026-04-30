@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 vlog=$(mktemp); blog=$(mktemp)
 trap 'rm -f "$vlog" "$blog"' EXIT
 
-node_modules/.bin/vitest run --no-color --experimental.fsModuleCache >"$vlog" 2>&1 &
+node_modules/.bin/vitest run --no-color --experimental.fsModuleCache --silent=passed-only >"$vlog" 2>&1 &
 v=$!
 bun test "$PWD/tests/unit/loader.test.ts" "$PWD/tests/unit/verify.test.ts" >"$blog" 2>&1 &
 b=$!
