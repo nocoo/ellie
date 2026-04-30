@@ -35,7 +35,7 @@ wait_stage() {
 
 # Launch parallel stages
 run_bg lint       bunx lint-staged
-run_bg unit       bunx vitest run --coverage
+run_bg unit       bun run test:coverage
 run_bg gitleaks   gitleaks protect --staged --no-banner
 run_bg l2         bun run test:l2
 
