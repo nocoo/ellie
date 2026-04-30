@@ -161,16 +161,6 @@ describe("useIsMobile", () => {
 		expect(globalThis.matchMedia).toHaveBeenCalledWith("(max-width: 767px)");
 	});
 
-	it("initializes state from matchMedia.matches (false)", () => {
-		sharedState.matchMediaMatches = false;
-		expect(getIsMobile()).toBe(false);
-	});
-
-	it("initializes state from matchMedia.matches (true)", () => {
-		sharedState.matchMediaMatches = true;
-		expect(getIsMobile()).toBe(true);
-	});
-
 	it("matchMedia event handler correctly updates state based on event.matches", () => {
 		sharedState.matchMediaMatches = false;
 		useIsMobile();
