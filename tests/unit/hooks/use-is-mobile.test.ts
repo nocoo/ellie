@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 // ---------------------------------------------------------------------------
 // Mock browser globals BEFORE importing the module under test
@@ -14,10 +14,10 @@ function createMatchMediaMock() {
 		get matches() {
 			return matchMediaMatches;
 		},
-		addEventListener: vi.fn((event: string, handler: (e: { matches: boolean }) => void) => {
+		addEventListener: mock((event: string, handler: (e: { matches: boolean }) => void) => {
 			if (event === "change") matchMediaHandlers.push(handler);
 		}),
-		removeEventListener: vi.fn((event: string, handler: (e: { matches: boolean }) => void) => {
+		removeEventListener: mock((event: string, handler: (e: { matches: boolean }) => void) => {
 			if (event === "change") {
 				matchMediaHandlers = matchMediaHandlers.filter((h) => h !== handler);
 			}
@@ -33,7 +33,7 @@ beforeEach(() => {
 	savedGlobals.matchMedia = globalThis.matchMedia;
 	savedGlobals.window = globalThis.window;
 
-	const matchMediaFn = vi.fn((_query: string) => createMatchMediaMock());
+	const matchMediaFn = mock((_query: string) => createMatchMediaMock());
 	(globalThis as Record<string, unknown>).matchMedia = matchMediaFn;
 	(globalThis as Record<string, unknown>).window = { matchMedia: matchMediaFn };
 });

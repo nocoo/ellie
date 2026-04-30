@@ -5,11 +5,23 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			"@": resolve(__dirname, "apps/web/src"),
+			"server-only": resolve(__dirname, "tests/stubs/server-only.ts"),
 		},
 	},
 	test: {
-		include: ["tests/unit/**/*.test.ts"],
-		setupFiles: ["./tests/setup.ts"],
+		include: [
+			"tests/unit/**/*.test.ts",
+			"apps/worker/tests/**/*.test.ts",
+			"apps/admin/tests/**/*.test.ts",
+		],
+		exclude: [
+			"tests/unit/loader.test.ts",
+			"tests/unit/verify.test.ts",
+			"tests/unit/proxy.test.ts",
+			"tests/unit/auth-callbacks.test.ts",
+			"tests/unit/hooks/use-is-mobile.test.ts",
+			"tests/unit/hooks/use-theme.test.ts",
+		],
 		environment: "node",
 		coverage: {
 			provider: "v8",

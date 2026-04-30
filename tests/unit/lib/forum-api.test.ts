@@ -457,7 +457,7 @@ describe("forumApi error handling", () => {
 
 describe("forumApi environment validation", () => {
 	it("throws when WORKER_API_URL is not set", async () => {
-		process.env.WORKER_API_URL = undefined;
+		process.env.WORKER_API_URL = "";
 
 		try {
 			await forumApi.get("/api/v1/stats");
@@ -468,7 +468,7 @@ describe("forumApi environment validation", () => {
 	});
 
 	it("throws when FORUM_API_KEY is not set", async () => {
-		process.env.FORUM_API_KEY = undefined;
+		process.env.FORUM_API_KEY = "";
 
 		try {
 			await forumApi.get("/api/v1/stats");
