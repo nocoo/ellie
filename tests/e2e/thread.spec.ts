@@ -59,6 +59,7 @@ test.describe("E2E-TH: Thread Flow", () => {
 	 * The loginAs fixture currently only supports e2etest user.
 	 * TODO: Add admin credentials to fixture to enable this test.
 	 */
+	// biome-ignore lint/suspicious/noSkippedTests: blocked on admin credentials fixture
 	test.skip("E2E-TH-02: logged-in user can create thread", async ({ page, loginAs }) => {
 		// Login first
 		await loginAs("admin");

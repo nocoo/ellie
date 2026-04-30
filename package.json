@@ -44,7 +44,7 @@
 		"verify:test-db": "bun run scripts/verify-test-db.ts",
 		"test:e2e": "bunx playwright test -c playwright.config.ts",
 		"test:e2e:browser": "bun run scripts/run-l3.ts",
-		"typecheck": "tsc --build",
+		"typecheck": "bash scripts/typecheck.sh",
 		"lint": "biome check --error-on-warnings .",
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",

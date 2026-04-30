@@ -1,78 +1,59 @@
 #!/bin/bash
-# Optimized pre-commit hook with conditional execution
+# Pre-commit hook — parallel quality gates.
+# Husky runs hooks via "sh -e"; re-exec under bash for associative syntax.
+if [ -z "$_ELLIE_HOOK_BASH" ]; then export _ELLIE_HOOK_BASH=1; exec bash "$0" "$@"; fi
 
-set -e
+# Stages: lint-staged + typecheck + all unit tests + gitleaks (staged) + rust (conditional)
 
-TEMP_DIR=$(mktemp -d)
-trap "rm -rf $TEMP_DIR" EXIT
+set -o pipefail
+
+TMPDIR_HOOK=$(mktemp -d -t ellie-precommit-XXXXXX)
+trap 'rm -rf "$TMPDIR_HOOK"' EXIT
 
 # Detect what files are staged
 HAS_TS=$(git diff --cached --name-only | grep -E '\.(ts|tsx)$' | head -1)
 HAS_RUST=$(git diff --cached --name-only | grep -E '\.rs$|packages/cli-rs/Cargo\.(toml|lock)' | head -1)
-HAS_OTHER=$(git diff --cached --name-only | grep -E '\.(json|js|jsx|css|md)$' | head -1)
 
-# Track PIDs
-declare -a PIDS=()
+run_bg() {
+  local name="$1"; shift
+  ( "$@" >"$TMPDIR_HOOK/$name.log" 2>&1; echo $? >"$TMPDIR_HOOK/$name.exit" ) &
+  eval "PID_$name=$!"
+}
 
-# lint-staged always runs (handles its own file detection)
-(bunx lint-staged; echo $? > "$TEMP_DIR/lint_exit") &
-PIDS+=($!)
+wait_stage() {
+  local name="$1" pid_var="PID_$1" pid status
+  pid=${!pid_var}
+  wait "$pid" 2>/dev/null || true
+  status=$(cat "$TMPDIR_HOOK/$name.exit" 2>/dev/null || echo 1)
+  echo "━━━ $name (exit=$status) ━━━"
+  cat "$TMPDIR_HOOK/$name.log"
+  if [ "$status" -ne 0 ]; then
+    echo "❌ pre-commit stage '$name' failed" >&2
+    exit "$status"
+  fi
+}
 
-# Typecheck only if TypeScript files changed
+# Launch parallel stages
+run_bg lint       bunx lint-staged
+run_bg unit       bunx vitest run
+run_bg gitleaks   gitleaks protect --staged --no-banner
+
 if [ -n "$HAS_TS" ]; then
-  (bun run typecheck; echo $? > "$TEMP_DIR/typecheck_exit") &
-  PIDS+=($!)
-else
-  echo 0 > "$TEMP_DIR/typecheck_exit"
+  run_bg typecheck  bun run typecheck
 fi
 
-# Worker tests only if TypeScript files changed (tests are in TS)
-if [ -n "$HAS_TS" ]; then
-  (bunx vitest run apps/worker; echo $? > "$TEMP_DIR/worker_exit") &
-  PIDS+=($!)
-else
-  echo 0 > "$TEMP_DIR/worker_exit"
-fi
-
-# Rust checks only if Rust files changed
+# Rust checks (conditional)
 if [ -n "$HAS_RUST" ] && [ -f "packages/cli-rs/Cargo.toml" ]; then
-  (
-    cd packages/cli-rs
-    # Run all three cargo commands in parallel for speed
-    cargo fmt --check --all &
-    FMT_PID=$!
-    cargo clippy --all-targets --all-features -- -D warnings &
-    CLIPPY_PID=$!
-    cargo test --workspace &
-    TEST_PID=$!
-    
-    # Collect exit codes
-    FMT_EXIT=0; CLIPPY_EXIT=0; TEST_EXIT=0
-    wait $FMT_PID || FMT_EXIT=1
-    wait $CLIPPY_PID || CLIPPY_EXIT=1
-    wait $TEST_PID || TEST_EXIT=1
-    
-    # Exit with first non-zero code
-    if [ $FMT_EXIT -ne 0 ]; then exit $FMT_EXIT; fi
-    if [ $CLIPPY_EXIT -ne 0 ]; then exit $CLIPPY_EXIT; fi
-    if [ $TEST_EXIT -ne 0 ]; then exit $TEST_EXIT; fi
-    echo 0 > "$TEMP_DIR/rust_exit"
-  ) &
-  PIDS+=($!)
-else
-  echo 0 > "$TEMP_DIR/rust_exit"
+  run_bg rust bash -c 'cd packages/cli-rs && cargo fmt --check --all && cargo clippy --all-targets --all-features -- -D warnings && cargo test --workspace'
 fi
 
-# Wait for all PIDs
-FAILED=0
-for pid in "${PIDS[@]}"; do
-  wait $pid || FAILED=1
-done
-
-# Check individual exit codes for better error reporting
-[ "$(cat $TEMP_DIR/lint_exit 2>/dev/null || echo 1)" -ne 0 ] && echo "❌ lint-staged failed" && FAILED=1
-[ "$(cat $TEMP_DIR/typecheck_exit 2>/dev/null || echo 1)" -ne 0 ] && echo "❌ typecheck failed" && FAILED=1
-[ "$(cat $TEMP_DIR/worker_exit 2>/dev/null || echo 1)" -ne 0 ] && echo "❌ worker tests failed" && FAILED=1
-[ "$(cat $TEMP_DIR/rust_exit 2>/dev/null || echo 1)" -ne 0 ] && echo "❌ rust checks failed" && FAILED=1
-
-exit $FAILED
+# Wait in order — fail fast on first failure
+wait_stage lint
+wait_stage unit
+wait_stage gitleaks
+if [ -n "$HAS_TS" ]; then
+  wait_stage typecheck
+fi
+if [ -n "$HAS_RUST" ] && [ -f "packages/cli-rs/Cargo.toml" ]; then
+  wait_stage rust
+fi
