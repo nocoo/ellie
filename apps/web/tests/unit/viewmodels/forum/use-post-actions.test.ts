@@ -44,11 +44,6 @@ describe("use-post-actions pure functions", () => {
 			expect(strategy).toBe("self");
 		});
 
-		it("calls deletePost for moderate strategy", async () => {
-			const strategy = getDeleteStrategy(false, true);
-			expect(strategy).toBe("moderate");
-		});
-
 		it("throws for none strategy", () => {
 			const strategy = getDeleteStrategy(false, false);
 			expect(strategy).toBe("none");

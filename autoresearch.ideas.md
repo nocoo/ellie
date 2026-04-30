@@ -1,40 +1,33 @@
-# Pre-commit Optimization Ideas (Autoresearch)
+# UT Speed/Stability/Meaning Optimization Ideas
 
-## Completed Optimizations (~75% faster)
+## Completed (~71% faster: 4516ms → 1300ms)
 
 | Optimization | Impact |
 |--------------|--------|
-| ✅ Parallel check execution | ~50% faster (all 4 checks run simultaneously) |
-| ✅ `tsc --build` with proper composite configs | typecheck: 1189ms → ~100ms |
-| ✅ `bun test --concurrent` | tests: 469ms → ~250ms |
-| ✅ Parallel cargo commands | rust: 765ms → ~630ms |
-| ✅ Conditional execution | Skip checks when files unchanged |
-| ✅ Ignore generated .d.ts in biome | Eliminates false errors |
+| ✅ vitest threads pool + isolate=false | vitest_ms 2150→1100 (-49%) |
+| ✅ Run vitest + bun:test in parallel | total saves ~2s sequential |
+| ✅ Pass absolute paths to bun test | bun_ms 2900→17 (-99%) — bun does 2s scan from relative path in monorepo |
+| ✅ In-memory SQLite for loader/verify tests | minor |
+| ✅ Strengthen weak-smoke tests + delete duplicates | meaningless 19→4 |
+| ✅ Add real assertions to NO_ASSERT tests | quality |
 
-## Final Results
+## Failed Experiments (DO NOT REPEAT)
 
-| Metric | Baseline | Final | Improvement |
-|--------|----------|-------|-------------|
-| **total_ms** | 2,657ms | ~650ms | **75% faster** |
-| typecheck_ms | 1,189ms | ~100ms | 92% faster |
-| worker_test_ms | 469ms | ~250ms | 47% faster |
-| rust_ms | 765ms | ~630ms | 18% faster |
-| lint_staged_ms | 141ms | ~150ms | (unchanged) |
+- ❌ `pool: vmThreads` for worker — 4 test failures (mocks don't share state)
+- ❌ `maxWorkers: 8` — 13 test failures on first run (race conditions with isolate=false)
 
-## Potential Future Optimizations (Deferred)
+## Outstanding (deferred)
 
-- [ ] **cargo workspace caching** - Pre-warm cargo cache in CI/dev environment
-- [ ] **Selective worker tests** - Only run tests related to changed files
-- [ ] **biome daemon mode** - Keep biome running for faster subsequent checks
-- [ ] **tsc daemon/tsserver** - Use TypeScript language server for faster incremental checks
-- [ ] **Pre-commit result caching** - Cache results based on file hashes
-- [ ] **Turbo-style remote caching** - Share build artifacts across machines
+- [ ] Split apps/worker/tests/unit/router.test.ts (141 tests, 225ms — current floor)
+- [ ] Reduce PBKDF2 iterations in tests/fixtures only (lower bound for password.test.ts: 195ms)
+- [ ] Investigate why bun test takes 2s on relative paths in this monorepo (probably node_modules walk)
+- [ ] vitest cache.dir tuning (currently default node_modules/.vite)
+- [ ] Track coverage as bench secondary metric (currently 91.28% branches — task wants 95%)
+- [ ] Add many targeted tests to bring branch coverage 91%→95% (~250 missing branches across worker/web)
+  - Worst: thread.ts 31, ipBan.ts 24, announcement.ts 20, forum.ts 19, me.ts 19
 
-## Key Learnings
+## Key Findings
 
-1. **Parallelization is the biggest win** - Running independent checks in parallel reduced total time by ~60%
-2. **`tsc --build` with proper composite** - Packages must have `composite: true` and `noEmit: false` for proper incremental builds; incorrect config causes full rebuilds every time
-3. **`bun test --concurrent`** - Parallel test execution is safe and cuts test time in half
-4. **Cargo commands are parallelizable** - fmt, clippy, and test can run concurrently without conflicts
-5. **Conditional execution** - Real-world commits often touch only one language, allowing checks to be skipped
-6. **.gitignore for generated files** - TypeScript composite projects generate .js/.d.ts files that should be ignored
+1. **Bun test relative-path tax**: `bun test path/to/x.test.ts` scans the project (~2s for 1.9GB node_modules). Pass `$(pwd)/path/to/x.test.ts` to skip the scan. Massive impact in monorepos.
+2. **Vitest 4 changed `poolOptions`**: now flat `test.isolate`, `test.maxWorkers`, etc. Old `poolOptions.threads.isolate` is silently ignored.
+3. **isolate=false is fast but fragile**: Some tests rely on per-file module isolation. With shared modules across files, race conditions can appear when adding more workers.
