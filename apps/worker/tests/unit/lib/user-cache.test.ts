@@ -279,7 +279,7 @@ describe("user-cache", () => {
 			const kv = createJsonKV();
 			const env = makeEnv({ KV: kv });
 
-			await invalidateUserCaches(env, []);
+			await expect(invalidateUserCaches(env, [])).resolves.toBeUndefined();
 		});
 	});
 });
