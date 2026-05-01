@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, test } from "vitest";
-import { mapPassword, verifyDzPassword } from "../../scripts/migrate/transform/password";
+import { mapPassword, verifyDzPassword } from "../src/transform/password";
 
 /** Helper: compute DZ-style password hash for testing. */
 function dzHash(password: string, salt: string): string {

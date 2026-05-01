@@ -19,6 +19,7 @@ export default defineConfig({
 			"packages/shared",
 			"packages/test-mocks",
 			"packages/types",
+			"packages/migrate",
 			{
 				extends: true,
 				test: {

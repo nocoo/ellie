@@ -1,10 +1,5 @@
 import { describe, expect, test } from "vitest";
-import {
-	bbcodeToHtml,
-	escapeHtml,
-	sanitizeHtml,
-	sanitizeUrl,
-} from "../../scripts/migrate/transform/bbcode";
+import { bbcodeToHtml, escapeHtml, sanitizeHtml, sanitizeUrl } from "../src/transform/bbcode";
 
 // ─── escapeHtml ──────────────────────────────────────────────────────────────
 

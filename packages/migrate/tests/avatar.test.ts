@@ -1,9 +1,5 @@
 import { describe, expect, test } from "vitest";
-import {
-	computeAvatarPath,
-	computeAvatarR2Key,
-	getAvatarValue,
-} from "../../scripts/migrate/transform/avatar";
+import { computeAvatarPath, computeAvatarR2Key, getAvatarValue } from "../src/transform/avatar";
 
 describe("computeAvatarPath", () => {
 	test("uid=1", () => {

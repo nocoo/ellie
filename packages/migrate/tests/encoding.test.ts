@@ -4,7 +4,7 @@ import {
 	hasEncodingIssue,
 	tryRepairGbk,
 	validateEncoding,
-} from "../../scripts/migrate/transform/encoding";
+} from "../src/transform/encoding";
 
 describe("hasCjkChars", () => {
 	test("detects Chinese characters", () => {
