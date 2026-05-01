@@ -5,6 +5,7 @@
 
 import { ApiError, apiClient } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-messages";
+import { stripHtmlTags } from "@/lib/text";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
@@ -66,14 +67,6 @@ export function validateReplyContent(html: string, minLength = 2): ContentValida
 		return { valid: false, error: "内容太短，请输入更多内容" };
 	}
 	return { valid: true };
-}
-
-/**
- * Strip HTML tags from content.
- * Pure function for content length validation.
- */
-export function stripHtmlTags(html: string): string {
-	return html.replace(/<[^>]*>/g, "");
 }
 
 /**

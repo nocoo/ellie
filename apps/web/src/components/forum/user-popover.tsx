@@ -27,8 +27,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { apiClient } from "@/lib/api-client";
 import { getAvatarUrl } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
-import { formatNumber } from "@/viewmodels/shared/formatting";
-import type { PublicUser, UserRole } from "@ellie/types";
+import { formatLocaleDate, formatNumber } from "@/viewmodels/shared/formatting";
+import { formatLastActive, getRoleBadge } from "@/viewmodels/shared/user-display";
+import type { PublicUser } from "@ellie/types";
+import { isUserBanned, isUserMuted } from "@ellie/types";
 import {
 	Ban,
 	Calendar,
@@ -88,51 +90,6 @@ type ModAction = "mute" | "ban" | "nuke" | "unmute" | "unban" | null;
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function formatDate(timestamp: number): string {
-	if (!timestamp) return "未知";
-	const date = new Date(timestamp * 1000);
-	return date.toLocaleDateString("zh-CN", { year: "numeric", month: "short", day: "numeric" });
-}
-
-function formatLastActive(timestamp: number): string {
-	if (!timestamp) return "从未";
-	const now = Date.now();
-	const diff = now - timestamp * 1000;
-	const minutes = Math.floor(diff / 60000);
-	if (minutes < 1) return "刚刚";
-	if (minutes < 60) return `${minutes} 分钟前`;
-	const hours = Math.floor(minutes / 60);
-	if (hours < 24) return `${hours} 小时前`;
-	const days = Math.floor(hours / 24);
-	if (days < 30) return `${days} 天前`;
-	return formatDate(timestamp);
-}
-
-function getRoleBadge(
-	role: UserRole,
-): { label: string; variant: "default" | "secondary" | "outline" } | null {
-	switch (role) {
-		case 1:
-			return { label: "管理员", variant: "default" };
-		case 2:
-			return { label: "超级版主", variant: "secondary" };
-		case 3:
-			return { label: "版主", variant: "secondary" };
-		default:
-			return null;
-	}
-}
-
-/** Check if user is muted (status = -2) */
-function isMuted(status: number | null): boolean {
-	return status === -2;
-}
-
-/** Check if user is banned (status = -1) */
-function isBanned(status: number | null): boolean {
-	return status === -1;
-}
 
 /** Mod action configuration */
 const MOD_ACTION_CONFIG: Record<
@@ -305,8 +262,8 @@ export function UserPopover({
 
 	const user = data?.user;
 	const roleBadge = user ? getRoleBadge(user.role) : null;
-	const userIsMuted = isMuted(userStatus);
-	const userIsBanned = isBanned(userStatus);
+	const userIsMuted = isUserMuted(userStatus);
+	const userIsBanned = isUserBanned(userStatus);
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -353,7 +310,7 @@ export function UserPopover({
 							<DetailRow
 								icon={<Calendar className="h-3.5 w-3.5" />}
 								label="注册时间"
-								value={formatDate(user.regDate)}
+								value={formatLocaleDate(user.regDate) ?? "未知"}
 							/>
 							<DetailRow
 								icon={<Clock className="h-3.5 w-3.5" />}

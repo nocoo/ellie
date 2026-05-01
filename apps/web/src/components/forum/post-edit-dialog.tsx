@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api-client";
 import { editMyPost, editPost } from "@/lib/moderation-api";
+import { stripHtmlTags } from "@/lib/text";
 import { cn } from "@/lib/utils";
 import { Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -44,7 +45,7 @@ export function PostEditDialog({
 
 	const handleSubmit = useCallback(
 		async (html: string) => {
-			const strippedContent = html.replace(/<[^>]*>/g, "").trim();
+			const strippedContent = stripHtmlTags(html).trim();
 			if (strippedContent.length < 2) {
 				setError("内容太短，请输入更多内容");
 				return;

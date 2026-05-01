@@ -45,6 +45,9 @@ export {
 	clampPageSize,
 } from "./pagination";
 
+// ─── User ────────────────────────────────────────────────────
+export { isUserMuted, isUserBanned } from "./user";
+
 // ─── Permission ───────────────────────────────────────────────
 export type {
 	PermissionUser,

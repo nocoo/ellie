@@ -7,5 +7,6 @@ export type { ThreadBadge, HighlightStyle } from "./thread";
 export { getThreadBadges, decodeHighlight } from "./thread";
 export type { CursorPayload } from "./pagination";
 export { encodeCursor, decodeCursor, encodeGenericCursor, decodeGenericCursor, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, clampPageSize, } from "./pagination";
+export { isUserMuted, isUserBanned } from "./user";
 export type { PermissionUser, PermissionForum, PermissionPost, PermissionThread, } from "./permission";
 export { canViewForum, canCreateThread, canReplyToThread, canModerate, canAccessAdmin, canManageUsers, canEditPost, canDeletePost, canDeleteThread, canManageThread, canMoveThread, } from "./permission";

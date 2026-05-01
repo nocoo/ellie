@@ -5,6 +5,7 @@
 
 import { ApiError, apiClient } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-messages";
+import { stripHtmlTags } from "@/lib/text";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
@@ -112,7 +113,7 @@ export function validateSubject(
  * Pure function for testability.
  */
 export function validateContent(html: string, minLength = 10): { valid: boolean; error?: string } {
-	const strippedContent = html.replace(/<[^>]*>/g, "").trim();
+	const strippedContent = stripHtmlTags(html).trim();
 	if (strippedContent.length < minLength) {
 		return { valid: false, error: `内容太短，请输入更多内容（至少${minLength}个字符）` };
 	}
