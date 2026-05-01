@@ -7,6 +7,7 @@ import {
 	moderationMiddleware,
 	optionalAuth,
 	optionalAuthVerified,
+	requireVerifiedEmail,
 } from "../../../src/middleware/auth";
 import { createMockDb, createMockKV } from "../../helpers";
 
@@ -601,5 +602,167 @@ describe("authMiddlewareVerified", () => {
 		const result = await authMiddlewareVerified(request, env);
 		expect(result).toBeInstanceOf(Response);
 		expect((result as Response).status).toBe(401);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// requireVerifiedEmail (docs/17 §2 — read-only gate)
+// ---------------------------------------------------------------------------
+
+describe("requireVerifiedEmail", () => {
+	function createGateEnv(
+		dbUser: { role: number; status: number; email_verified_at: number } | null,
+	): Env {
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status, email_verified_at FROM users": dbUser,
+			},
+		});
+		return {
+			API_KEY: "test-api-key",
+			ADMIN_API_KEY: "test-admin-api-key",
+			DB: db,
+			ENVIRONMENT: "test",
+			JWT_SECRET: "test-secret-key-for-jwt-hs256",
+			KV: createMockKV(),
+		};
+	}
+
+	it("returns 401 when no auth header", async () => {
+		const env = createGateEnv({ role: 0, status: 0, email_verified_at: 1700000000 });
+		const request = new Request("https://example.com/api/v1/posts");
+		const result = await requireVerifiedEmail(request, env);
+		expect(result).toBeInstanceOf(Response);
+		expect((result as Response).status).toBe(401);
+	});
+
+	it("returns 401 for invalid token", async () => {
+		const env = createGateEnv({ role: 0, status: 0, email_verified_at: 1700000000 });
+		const request = new Request("https://example.com/api/v1/posts", {
+			headers: { Authorization: "Bearer not-a-real-jwt" },
+		});
+		const result = await requireVerifiedEmail(request, env);
+		expect(result).toBeInstanceOf(Response);
+		expect((result as Response).status).toBe(401);
+		const data = await (result as Response).json();
+		expect(data.error.code).toBe("INVALID_TOKEN");
+	});
+
+	it("returns 401 for expired token", async () => {
+		const env = createGateEnv({ role: 0, status: 0, email_verified_at: 1700000000 });
+		const token = await createJwt(
+			{ userId: 1, role: 0, exp: Math.floor(Date.now() / 1000) - 3600 },
+			env.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/posts", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const result = await requireVerifiedEmail(request, env);
+		expect(result).toBeInstanceOf(Response);
+		expect((result as Response).status).toBe(401);
+		const data = await (result as Response).json();
+		expect(data.error.code).toBe("TOKEN_EXPIRED");
+	});
+
+	it("returns 404 when user not found in DB", async () => {
+		const env = createGateEnv(null);
+		const token = await createJwt(
+			{ userId: 999, role: 0, exp: Math.floor(Date.now() / 1000) + 3600 },
+			env.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/posts", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const result = await requireVerifiedEmail(request, env);
+		expect(result).toBeInstanceOf(Response);
+		expect((result as Response).status).toBe(404);
+		const data = await (result as Response).json();
+		expect(data.error.code).toBe("USER_NOT_FOUND");
+	});
+
+	it("passes for verified, non-banned user (DB-verified role wins over JWT)", async () => {
+		const env = createGateEnv({ role: 2, status: 0, email_verified_at: 1700000000 });
+		const token = await createJwt(
+			{ userId: 5, role: 0, exp: Math.floor(Date.now() / 1000) + 3600 }, // JWT says role 0
+			env.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/posts", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const result = await requireVerifiedEmail(request, env);
+		expect(result).not.toBeInstanceOf(Response);
+		const authResult = result as { user: { userId: number; role: number } };
+		expect(authResult.user.userId).toBe(5);
+		expect(authResult.user.role).toBe(2); // DB role, not JWT role
+	});
+
+	it("returns 403 EMAIL_NOT_VERIFIED when email_verified_at is 0 (sentinel)", async () => {
+		const env = createGateEnv({ role: 0, status: 0, email_verified_at: 0 });
+		const token = await createJwt(
+			{ userId: 7, role: 0, exp: Math.floor(Date.now() / 1000) + 3600 },
+			env.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/posts", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const result = await requireVerifiedEmail(request, env);
+		expect(result).toBeInstanceOf(Response);
+		const response = result as Response;
+		expect(response.status).toBe(403);
+		const data = await response.json();
+		expect(data.error.code).toBe("EMAIL_NOT_VERIFIED");
+	});
+
+	it("returns 403 USER_BANNED when user is banned (precedence over EMAIL_NOT_VERIFIED)", async () => {
+		// Banned AND unverified — banned must win.
+		const env = createGateEnv({ role: 0, status: -1, email_verified_at: 0 });
+		const token = await createJwt(
+			{ userId: 8, role: 0, exp: Math.floor(Date.now() / 1000) + 3600 },
+			env.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/posts", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const result = await requireVerifiedEmail(request, env);
+		expect(result).toBeInstanceOf(Response);
+		const response = result as Response;
+		expect(response.status).toBe(403);
+		const data = await response.json();
+		expect(data.error.code).toBe("USER_BANNED");
+	});
+
+	it("returns 403 USER_BANNED when verified user is later banned", async () => {
+		const env = createGateEnv({ role: 0, status: -1, email_verified_at: 1700000000 });
+		const token = await createJwt(
+			{ userId: 9, role: 0, exp: Math.floor(Date.now() / 1000) + 3600 },
+			env.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/posts", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const result = await requireVerifiedEmail(request, env);
+		expect(result).toBeInstanceOf(Response);
+		const response = result as Response;
+		expect(response.status).toBe(403);
+		const data = await response.json();
+		expect(data.error.code).toBe("USER_BANNED");
+	});
+
+	it("treats negative email_verified_at as unverified (defensive)", async () => {
+		// Schema enforces NOT NULL DEFAULT 0, but be defensive about bogus rows.
+		const env = createGateEnv({ role: 0, status: 0, email_verified_at: -1 });
+		const token = await createJwt(
+			{ userId: 10, role: 0, exp: Math.floor(Date.now() / 1000) + 3600 },
+			env.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/posts", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const result = await requireVerifiedEmail(request, env);
+		expect(result).toBeInstanceOf(Response);
+		const response = result as Response;
+		expect(response.status).toBe(403);
+		const data = await response.json();
+		expect(data.error.code).toBe("EMAIL_NOT_VERIFIED");
 	});
 });

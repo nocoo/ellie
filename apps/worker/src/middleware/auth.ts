@@ -191,6 +191,79 @@ export async function authMiddlewareVerified(
 }
 
 /**
+ * JWT authentication middleware with database verification AND email verification gate.
+ *
+ * Behaviour: like {@link authMiddlewareVerified}, but additionally rejects users whose
+ * email has not been verified (i.e. `users.email_verified_at = 0`, see docs/17 §3).
+ *
+ * Precedence (must be preserved by callers and tests):
+ *   1. Missing/invalid/expired token → 401 (UNAUTHORIZED / INVALID_TOKEN / TOKEN_EXPIRED)
+ *   2. User row missing → 404 (USER_NOT_FOUND)
+ *   3. User banned (status !== 0) → 403 (USER_BANNED)   ← always wins over email gate
+ *   4. Email unverified (email_verified_at === 0) → 403 (EMAIL_NOT_VERIFIED)
+ *   5. Otherwise → { user }
+ *
+ * Use this middleware (or {@link withVerifiedEmail}) to gate write actions per
+ * docs/17 §2 Read-only gate. Phase 2 does NOT wire any production routes to it yet.
+ *
+ * @param request - Incoming request
+ * @param env - Worker environment
+ * @returns Either { user: AuthUser } with verified role, or error Response
+ */
+export async function requireVerifiedEmail(
+	request: Request,
+	env: Env,
+): Promise<{ user: AuthUser } | Response> {
+	const authHeader = request.headers.get("Authorization");
+
+	if (!authHeader?.startsWith("Bearer ")) {
+		return errorResponse("UNAUTHORIZED", 401);
+	}
+
+	const token = authHeader.slice(7);
+
+	try {
+		const payload = (await verifyJwt(token, env.JWT_SECRET)) as JwtPayload;
+
+		if (isTokenExpired(payload)) {
+			return errorResponse("TOKEN_EXPIRED", 401);
+		}
+
+		// Fetch role + status + email_verified_at in a single round-trip.
+		const dbUser = await env.DB.prepare(
+			"SELECT role, status, email_verified_at FROM users WHERE id = ?",
+		)
+			.bind(payload.userId)
+			.first<{ role: number; status: number; email_verified_at: number }>();
+
+		if (!dbUser) {
+			return errorResponse("USER_NOT_FOUND", 404);
+		}
+
+		// Banned check MUST run before the email-verification check so that a
+		// banned user with an unverified email still surfaces as USER_BANNED.
+		if (dbUser.status !== 0) {
+			return errorResponse("USER_BANNED", 403);
+		}
+
+		// 0 is the unverified sentinel (docs/17 §3, §6.1). Any positive value
+		// indicates the unix-seconds moment the user verified their email.
+		if (!dbUser.email_verified_at || dbUser.email_verified_at <= 0) {
+			return errorResponse("EMAIL_NOT_VERIFIED", 403);
+		}
+
+		return {
+			user: {
+				userId: payload.userId,
+				role: dbUser.role,
+			},
+		};
+	} catch {
+		return errorResponse("INVALID_TOKEN", 401);
+	}
+}
+
+/**
  * Moderation middleware — JWT auth + role check for /api/v1/moderation/* endpoints.
  * Requires any non-User role: Admin (1), SuperMod (2), or Mod (3).
  * Used by forum moderators in the web frontend (Key A + JWT).

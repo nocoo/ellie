@@ -47,6 +47,7 @@ function getStatusMessage(code: string): string {
 		INVALID_EMAIL: "Email format is invalid",
 		USERNAME_BANNED: "Username contains prohibited words",
 		USER_BANNED: "User account is banned",
+		EMAIL_NOT_VERIFIED: "Email verification required to perform this action",
 		TOKEN_EXPIRED: "Authentication token has expired",
 		INVALID_TOKEN: "Invalid authentication token",
 		FORBIDDEN_ADMIN_ONLY: "This action requires administrator privileges",
