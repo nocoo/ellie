@@ -3,7 +3,7 @@
 
 import { UserRole } from "@ellie/types";
 import type { AuthUser } from "../middleware/auth";
-import { authMiddleware, authMiddlewareVerified } from "../middleware/auth";
+import { authMiddleware, authMiddlewareVerified, requireVerifiedEmail } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 import type { Env } from "./env";
 
@@ -39,6 +39,28 @@ export function withAuth(handler: AuthenticatedHandler) {
 export function withAuthVerified(handler: AuthenticatedHandler) {
 	return async (request: Request, env: Env): Promise<Response> => {
 		const authResult = await authMiddlewareVerified(request, env);
+		if (authResult instanceof Response) return authResult;
+		return handler(request, env, authResult.user);
+	};
+}
+
+/**
+ * Wrap a handler with JWT auth + DB verification + email-verified gate.
+ *
+ * Equivalent to {@link withAuthVerified} but additionally rejects users whose
+ * email is unverified with `403 EMAIL_NOT_VERIFIED`. Banned users still
+ * surface as `403 USER_BANNED` (see {@link requireVerifiedEmail} precedence).
+ *
+ * Use this for endpoints that mutate forum content (post create / reply /
+ * thread create / attachment upload, etc.) per docs/17 §2 Read-only gate.
+ *
+ * NOTE (phase 2): no production routes are wired to this wrapper yet — it is
+ * introduced as a pure helper and exercised only by unit tests. Wiring lands
+ * in a later phase per the staged rollout in docs/17 §12.
+ */
+export function withVerifiedEmail(handler: AuthenticatedHandler) {
+	return async (request: Request, env: Env): Promise<Response> => {
+		const authResult = await requireVerifiedEmail(request, env);
 		if (authResult instanceof Response) return authResult;
 		return handler(request, env, authResult.user);
 	};

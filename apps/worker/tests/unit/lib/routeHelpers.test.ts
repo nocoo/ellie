@@ -1,6 +1,11 @@
 import { UserRole } from "@ellie/types";
 import { describe, expect, it, vi } from "vitest";
-import { withAdmin, withAuth, withModerator } from "../../../src/lib/routeHelpers";
+import {
+	withAdmin,
+	withAuth,
+	withModerator,
+	withVerifiedEmail,
+} from "../../../src/lib/routeHelpers";
 import type { AuthUser } from "../../../src/middleware/auth";
 import { createJwtForRole, createMockDb, makeEnv } from "../../helpers";
 
@@ -259,3 +264,80 @@ describe("withModerator", () => {
 		expect(handler).not.toHaveBeenCalled();
 	});
 });
+
+// ---------------------------------------------------------------------------
+// withVerifiedEmail (docs/17 §2 — read-only gate wrapper)
+// ---------------------------------------------------------------------------
+
+describe("withVerifiedEmail", () => {
+	function envWithUser(dbUser: { role: number; status: number; email_verified_at: number } | null) {
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status, email_verified_at FROM users": dbUser,
+			},
+		});
+		return makeEnv({ DB: db });
+	}
+
+	it("returns 401 when no Authorization header", async () => {
+		const handler = vi.fn(
+			async (_req: Request, _env: unknown, _user: AuthUser) => new Response("ok"),
+		);
+		const wrapped = withVerifiedEmail(handler);
+		const res = await wrapped(new Request("https://example.com/api/test"), envWithUser(null));
+		expect(res.status).toBe(401);
+		expect(handler).not.toHaveBeenCalled();
+	});
+
+	it("invokes handler with DB-verified user when email is verified", async () => {
+		let captured: AuthUser | null = null;
+		const handler = async (_req: Request, _env: unknown, user: AuthUser) => {
+			captured = user;
+			return new Response("ok");
+		};
+		const env = envWithUser({ role: 2, status: 0, email_verified_at: 1700000000 });
+		const token = await createJwtForRole(UserRole.User, 5);
+		const res = await wrappedRequest(token, withVerifiedEmail(handler), env);
+		expect(res.status).toBe(200);
+		expect(captured).not.toBeNull();
+		expect((captured as unknown as AuthUser).userId).toBe(5);
+		expect((captured as unknown as AuthUser).role).toBe(2); // DB role wins
+	});
+
+	it("returns 403 EMAIL_NOT_VERIFIED when email is unverified", async () => {
+		const handler = vi.fn(
+			async (_req: Request, _env: unknown, _user: AuthUser) => new Response("ok"),
+		);
+		const env = envWithUser({ role: 0, status: 0, email_verified_at: 0 });
+		const token = await createJwtForRole(UserRole.User, 5);
+		const res = await wrappedRequest(token, withVerifiedEmail(handler), env);
+		expect(res.status).toBe(403);
+		const data = await res.json();
+		expect(data.error.code).toBe("EMAIL_NOT_VERIFIED");
+		expect(handler).not.toHaveBeenCalled();
+	});
+
+	it("returns 403 USER_BANNED before EMAIL_NOT_VERIFIED (banned + unverified)", async () => {
+		const handler = vi.fn(
+			async (_req: Request, _env: unknown, _user: AuthUser) => new Response("ok"),
+		);
+		const env = envWithUser({ role: 0, status: -1, email_verified_at: 0 });
+		const token = await createJwtForRole(UserRole.User, 5);
+		const res = await wrappedRequest(token, withVerifiedEmail(handler), env);
+		expect(res.status).toBe(403);
+		const data = await res.json();
+		expect(data.error.code).toBe("USER_BANNED"); // precedence rule
+		expect(handler).not.toHaveBeenCalled();
+	});
+});
+
+async function wrappedRequest(
+	token: string,
+	wrapped: (req: Request, env: unknown) => Promise<Response>,
+	env: unknown,
+): Promise<Response> {
+	const req = new Request("https://example.com/api/test", {
+		headers: { Authorization: `Bearer ${token}` },
+	});
+	return wrapped(req, env);
+}
