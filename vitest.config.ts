@@ -18,6 +18,7 @@ export default defineConfig({
 			"apps/admin",
 			"packages/shared",
 			"packages/test-mocks",
+			"packages/types",
 			{
 				extends: true,
 				test: {
