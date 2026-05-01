@@ -198,7 +198,8 @@ export function extractUser(
 	return {
 		id: uid,
 		username: ucRow[UC_MEMBER_COLS.username] ?? "",
-		email: ucRow[UC_MEMBER_COLS.email] ?? "",
+		// Legacy contact emails are unverified; users must re-add email after verification.
+		email: "",
 		password_hash: pw.passwordHash,
 		password_salt: pw.passwordSalt,
 		avatar: member ? getAvatarValue(uid, member.avatarstatus) : "",

@@ -69,7 +69,7 @@ export enum ForumType {
 export interface User {
   id: number;          // PK — DZ uid
   username: string;    // UNIQUE — 来自 uc_members
-  email: string;       // 来自 uc_members
+  email: string;       // 迁移初始为空；用户在新系统验证后写入
   avatar: string;      // R2 key: "avatars/{uid}.jpg" 或 ""（无头像）
   status: UserStatus;  // 0=正常, -1=封禁, -2=归档
   role: UserRole;      // 0=user, 1=admin, 2=super-mod, 3=mod

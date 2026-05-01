@@ -84,7 +84,7 @@ scp nocoo@tongji.nocoo.cloud:/tmp/pm.sql.gz reference/db/
 |---------|-----------|-----------|------|
 | id | `uc_members` | uid | PK |
 | username | `uc_members` | username | |
-| email | `uc_members` | email | |
+| email | — | — | 迁移时置空；旧邮箱未验证，用户需在新系统重新验证后写入 |
 | password_hash | `uc_members` | password | |
 | password_salt | `uc_members` | salt | |
 | avatar | 计算 | uid | `avatars/{uid}.jpg` |
