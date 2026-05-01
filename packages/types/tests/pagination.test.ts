@@ -119,4 +119,15 @@ describe("clampPageSize", () => {
 		expect(clampPageSize(100)).toBe(MAX_PAGE_SIZE);
 		expect(clampPageSize(1000)).toBe(MAX_PAGE_SIZE);
 	});
+
+	it("passes through NaN (edge case: limit <= 0 is false for NaN)", () => {
+		// NOTE: NaN slips past the `<= 0` guard — Math.min(NaN, 50) = NaN
+		// This documents current behavior; callers should validate input.
+		expect(clampPageSize(Number.NaN)).toBeNaN();
+	});
+
+	it("passes through small positive fractions (0 < x < 1)", () => {
+		// 0.5 > 0, so it passes the guard; Math.min(0.5, 50) = 0.5
+		expect(clampPageSize(0.5)).toBe(0.5);
+	});
 });
