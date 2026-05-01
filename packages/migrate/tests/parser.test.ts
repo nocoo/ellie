@@ -8,7 +8,7 @@ import {
 	parseInsertStatement,
 	parseQuotedString,
 	parseTuple,
-} from "../../scripts/migrate/extract/parser";
+} from "../src/extract/parser";
 
 describe("parseQuotedString", () => {
 	test("simple string", () => {

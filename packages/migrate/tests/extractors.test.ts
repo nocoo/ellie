@@ -3,18 +3,28 @@ import {
 	type AttachmentIndexData,
 	type MemberCountData,
 	type MemberData,
+	type MemberFieldForumData,
 	type PostExtractionStats,
+	type ProfileData,
+	type StatusData,
+	type UsergroupData,
 	extractAttachment,
 	extractForum,
 	extractPost,
+	extractPostComment,
 	extractThread,
 	extractUser,
 	parseAttachmentIndex,
 	parseLastPost,
 	parseMemberCountRow,
+	parseMemberFieldForumRow,
 	parseMemberRow,
-} from "../../scripts/migrate/extract/extractors";
-import type { ParsedRow } from "../../scripts/migrate/extract/parser";
+	parseProfileRow,
+	parseStatusRow,
+	parseThreadTypeRow,
+	parseUsergroupRow,
+} from "../src/extract/extractors";
+import type { ParsedRow } from "../src/extract/parser";
 
 // ─── Helper: build a sparse ParsedRow from index→value pairs ──────────────────
 
@@ -36,6 +46,7 @@ describe("parseLastPost", () => {
 			lastThreadId: 123,
 			lastPostAt: 1700000000,
 			lastPoster: "admin",
+			lastThreadSubject: "Some subject",
 		});
 	});
 
@@ -44,6 +55,7 @@ describe("parseLastPost", () => {
 			lastThreadId: 0,
 			lastPostAt: 0,
 			lastPoster: "",
+			lastThreadSubject: "",
 		});
 	});
 
@@ -52,6 +64,7 @@ describe("parseLastPost", () => {
 			lastThreadId: 0,
 			lastPostAt: 0,
 			lastPoster: "",
+			lastThreadSubject: "",
 		});
 	});
 
@@ -74,8 +87,12 @@ describe("parseLastPost", () => {
 
 describe("extractForum", () => {
 	// FORUM_COLS: fid=0, fup=1, type=2, name=3, status=4, displayorder=5, threads=7, posts=8, lastpost=13
-	const forumFields = new Map<number, { description: string; icon: string }>();
-	forumFields.set(10, { description: "Test forum desc", icon: "icon.png" });
+	const forumFields = new Map<number, { description: string; icon: string; moderators: string }>();
+	forumFields.set(10, {
+		description: "Test forum desc",
+		icon: "icon.png",
+		moderators: "mod1,mod2",
+	});
 
 	function forumRow(overrides: Record<number, string> = {}): ParsedRow {
 		return row({
@@ -106,9 +123,11 @@ describe("extractForum", () => {
 			posts: 500,
 			type: "forum",
 			status: 1,
+			moderators: "mod1,mod2",
 			last_thread_id: 42,
 			last_post_at: 1700000000,
 			last_poster: "admin",
+			last_thread_subject: "Last thread",
 		});
 	});
 
@@ -135,6 +154,7 @@ describe("extractForum", () => {
 		expect(result).not.toBeNull();
 		expect(result?.description).toBe("");
 		expect(result?.icon).toBe("");
+		expect(result?.moderators).toBe("");
 	});
 
 	test("handles sub-forum type and parent_id", () => {
@@ -164,6 +184,7 @@ describe("parseMemberRow", () => {
 			4: "0", // status
 			6: "1", // avatarstatus
 			8: "1", // adminid
+			9: "9", // groupid
 			12: "1500000000", // regdate
 			13: "999", // credits
 			22: "0", // freeze
@@ -174,6 +195,7 @@ describe("parseMemberRow", () => {
 			status: 0,
 			avatarstatus: 1,
 			adminid: 1,
+			groupid: 9,
 			regdate: 1500000000,
 			credits: 999,
 			freeze: 0,
@@ -194,13 +216,13 @@ describe("parseMemberRow", () => {
 // ─── parseMemberCountRow ──────────────────────────────────────────────────────
 
 describe("parseMemberCountRow", () => {
-	// MEMBER_COUNT_COLS: uid=0, threads=2, posts=3
+	// MEMBER_COUNT_COLS: uid=0, posts=10, threads=11, digestposts=12, oltime=19
 
 	test("parses count data", () => {
-		const r = row({ 0: "200", 2: "15", 3: "350" });
+		const r = row({ 0: "200", 10: "350", 11: "15", 12: "3", 19: "1000" });
 		const result = parseMemberCountRow(r);
 		expect(result.uid).toBe(200);
-		expect(result.data).toEqual({ threads: 15, posts: 350 });
+		expect(result.data).toEqual({ threads: 15, posts: 350, digestposts: 3, oltime: 1000 });
 	});
 
 	test("defaults to 0 for missing counts", () => {
@@ -208,6 +230,8 @@ describe("parseMemberCountRow", () => {
 		const result = parseMemberCountRow(r);
 		expect(result.data.threads).toBe(0);
 		expect(result.data.posts).toBe(0);
+		expect(result.data.digestposts).toBe(0);
+		expect(result.data.oltime).toBe(0);
 	});
 });
 
@@ -231,6 +255,7 @@ describe("extractUser", () => {
 		status: 0,
 		avatarstatus: 1,
 		adminid: 0,
+		groupid: 0,
 		regdate: 1500000000,
 		credits: 100,
 		freeze: 0,
@@ -239,6 +264,8 @@ describe("extractUser", () => {
 	const defaultCounts: MemberCountData = {
 		threads: 5,
 		posts: 50,
+		digestposts: 0,
+		oltime: 0,
 	};
 
 	test("extracts active user with member + count data", () => {
@@ -356,6 +383,7 @@ describe("extractThread", () => {
 			highlight: 0,
 			recommends: 7, // 10 - 3
 			post_table_id: 0,
+			type_name: "",
 		});
 	});
 
@@ -641,5 +669,329 @@ describe("extractAttachment", () => {
 		const result = extractAttachment(shardRow(), indexMap);
 		expect(result).not.toBeNull();
 		expect(result?.downloads).toBe(42);
+	});
+});
+
+// ─── parseMemberFieldForumRow ────────────────────────────────────────────────
+
+describe("parseMemberFieldForumRow", () => {
+	test("parses field forum data", () => {
+		const r = row({ 0: "100", 3: "Custom Title", 5: "<b>sig</b>" });
+		const result = parseMemberFieldForumRow(r);
+		expect(result.uid).toBe(100);
+		expect(result.data).toEqual({
+			customstatus: "Custom Title",
+			sightml: "<b>sig</b>",
+		});
+	});
+
+	test("defaults to empty strings for missing fields", () => {
+		const r = row({ 0: "50" });
+		const result = parseMemberFieldForumRow(r);
+		expect(result.uid).toBe(50);
+		expect(result.data.customstatus).toBe("");
+		expect(result.data.sightml).toBe("");
+	});
+});
+
+// ─── parseProfileRow ─────────────────────────────────────────────────────────
+
+describe("parseProfileRow", () => {
+	test("parses profile with all fields", () => {
+		const r = row({
+			0: "100",
+			2: "1", // gender
+			3: "1990", // birthyear
+			4: "6", // birthmonth
+			5: "15", // birthday
+			17: "北京", // resideprovince
+			18: "海淀", // residecity
+			22: "清华大学", // graduateschool
+			35: "12345", // qq
+			39: "https://example.com", // site
+			40: "Hello world", // bio
+			41: "Coding", // interest
+			42: "Main Campus", // field1 (campus)
+		});
+		const result = parseProfileRow(r);
+		expect(result.uid).toBe(100);
+		expect(result.data).toEqual({
+			gender: 1,
+			birthyear: 1990,
+			birthmonth: 6,
+			birthday: 15,
+			resideprovince: "北京",
+			residecity: "海淀",
+			graduateschool: "清华大学",
+			bio: "Hello world",
+			interest: "Coding",
+			qq: "12345",
+			site: "https://example.com",
+			campus: "Main Campus",
+		});
+	});
+
+	test("defaults to empty/zero for missing fields", () => {
+		const r = row({ 0: "50" });
+		const result = parseProfileRow(r);
+		expect(result.data.gender).toBe(0);
+		expect(result.data.resideprovince).toBe("");
+		expect(result.data.campus).toBe("");
+	});
+});
+
+// ─── parseStatusRow ──────────────────────────────────────────────────────────
+
+describe("parseStatusRow", () => {
+	test("parses status data", () => {
+		const r = row({ 0: "100", 1: "192.168.1.1", 2: "10.0.0.1", 5: "1700000000" });
+		const result = parseStatusRow(r);
+		expect(result.uid).toBe(100);
+		expect(result.data).toEqual({
+			regip: "192.168.1.1",
+			lastip: "10.0.0.1",
+			lastactivity: 1700000000,
+		});
+	});
+
+	test("defaults to empty/zero for missing fields", () => {
+		const r = row({ 0: "50" });
+		const result = parseStatusRow(r);
+		expect(result.data.regip).toBe("");
+		expect(result.data.lastip).toBe("");
+		expect(result.data.lastactivity).toBe(0);
+	});
+});
+
+// ─── parseUsergroupRow ───────────────────────────────────────────────────────
+
+describe("parseUsergroupRow", () => {
+	test("parses usergroup data", () => {
+		const r = row({ 0: "5", 4: "管理员", 7: "3", 8: "#ff0000" });
+		const result = parseUsergroupRow(r);
+		expect(result.groupid).toBe(5);
+		expect(result.data).toEqual({
+			grouptitle: "管理员",
+			stars: 3,
+			color: "#ff0000",
+		});
+	});
+
+	test("defaults for missing fields", () => {
+		const r = row({ 0: "1" });
+		const result = parseUsergroupRow(r);
+		expect(result.data.grouptitle).toBe("");
+		expect(result.data.stars).toBe(0);
+		expect(result.data.color).toBe("");
+	});
+});
+
+// ─── parseThreadTypeRow ──────────────────────────────────────────────────────
+
+describe("parseThreadTypeRow", () => {
+	test("parses thread type", () => {
+		const r = row({ 0: "3", 3: "讨论" });
+		const result = parseThreadTypeRow(r);
+		expect(result).toEqual({ typeid: 3, name: "讨论" });
+	});
+
+	test("defaults name to empty string", () => {
+		const r = row({ 0: "1" });
+		const result = parseThreadTypeRow(r);
+		expect(result.name).toBe("");
+	});
+});
+
+// ─── extractThread with threadTypeMap ────────────────────────────────────────
+
+describe("extractThread with threadTypeMap", () => {
+	function threadRow(overrides: Record<number, string> = {}): ParsedRow {
+		return row({
+			0: "1000",
+			1: "10",
+			2: "0",
+			3: "5", // typeid
+			7: "testuser",
+			8: "100",
+			9: "Hello World",
+			10: "1700000000",
+			11: "1700001000",
+			12: "replier",
+			13: "500",
+			14: "20",
+			15: "0",
+			16: "0",
+			17: "0",
+			19: "0",
+			22: "0",
+			25: "10",
+			26: "3",
+			...overrides,
+		});
+	}
+
+	const typeMap = new Map<number, string>();
+	typeMap.set(5, "讨论");
+
+	test("resolves typeid to type_name", () => {
+		const result = extractThread(threadRow(), typeMap);
+		expect(result?.type_name).toBe("讨论");
+	});
+
+	test("returns empty string for unknown typeid", () => {
+		const result = extractThread(threadRow({ 3: "99" }), typeMap);
+		expect(result?.type_name).toBe("");
+	});
+
+	test("returns empty string when typeid is 0", () => {
+		const result = extractThread(threadRow({ 3: "0" }), typeMap);
+		expect(result?.type_name).toBe("");
+	});
+});
+
+// ─── extractUser with extras ─────────────────────────────────────────────────
+
+describe("extractUser with extras", () => {
+	function ucRow(overrides: Record<number, string> = {}): ParsedRow {
+		return row({
+			0: "100",
+			1: "testuser",
+			2: "abc123hash",
+			3: "test@example.com",
+			9: "1700000000",
+			10: "x1y2z3",
+			...overrides,
+		});
+	}
+
+	const member: MemberData = {
+		status: 0,
+		avatarstatus: 1,
+		adminid: 0,
+		groupid: 5,
+		regdate: 1500000000,
+		credits: 100,
+		freeze: 0,
+	};
+
+	const counts: MemberCountData = {
+		threads: 5,
+		posts: 50,
+		digestposts: 3,
+		oltime: 1000,
+	};
+
+	const fieldForum: MemberFieldForumData = {
+		customstatus: "Custom Title",
+		sightml: "<b>My Sig</b>",
+	};
+
+	const profile: ProfileData = {
+		gender: 1,
+		birthyear: 1990,
+		birthmonth: 6,
+		birthday: 15,
+		resideprovince: "北京",
+		residecity: "海淀",
+		graduateschool: "清华",
+		bio: "Hello",
+		interest: "Coding",
+		qq: "12345",
+		site: "https://example.com",
+		campus: "Main",
+	};
+
+	const status: StatusData = {
+		lastactivity: 1700000000,
+		regip: "192.168.1.1",
+		lastip: "10.0.0.1",
+	};
+
+	const usergroup: UsergroupData = {
+		grouptitle: "管理员",
+		stars: 3,
+		color: "#ff0000",
+	};
+
+	test("includes extras when provided", () => {
+		const result = extractUser(ucRow(), member, counts, false, {
+			fieldForum,
+			profile,
+			status,
+			usergroup,
+		});
+		expect(result.signature).toBe("<b>My Sig</b>");
+		expect(result.custom_title).toBe("Custom Title");
+		expect(result.group_title).toBe("管理员");
+		expect(result.group_stars).toBe(3);
+		expect(result.group_color).toBe("#ff0000");
+		expect(result.digest_posts).toBe(3);
+		expect(result.ol_time).toBe(1000);
+		expect(result.gender).toBe(1);
+		expect(result.birth_year).toBe(1990);
+		expect(result.reside_province).toBe("北京");
+		expect(result.campus).toBe("Main");
+		expect(result.last_activity).toBe(1700000000);
+		expect(result.reg_ip).toBe("192.168.1.1");
+		expect(result.last_ip).toBe("10.0.0.1");
+	});
+
+	test("defaults extras fields when not provided", () => {
+		const result = extractUser(ucRow(), member, counts, false);
+		expect(result.signature).toBe("");
+		expect(result.custom_title).toBe("");
+		expect(result.group_title).toBe("");
+		expect(result.group_stars).toBe(0);
+		expect(result.group_color).toBe("");
+		expect(result.gender).toBe(0);
+		expect(result.last_activity).toBe(0);
+		expect(result.reg_ip).toBe("");
+	});
+});
+
+// ─── extractPostComment ──────────────────────────────────────────────────────
+
+describe("extractPostComment", () => {
+	test("extracts post comment with all fields", () => {
+		const r = row({
+			0: "500", // id
+			1: "1000", // tid
+			2: "5000", // pid
+			3: "commenter", // author
+			4: "200", // authorid
+			5: "1700000000", // dateline
+			6: "Great post!", // comment
+			7: "5", // score
+			8: "192.168.1.1", // useip
+			10: "5001", // rpid
+		});
+		const result = extractPostComment(r);
+		expect(result).not.toBeNull();
+		expect(result).toEqual({
+			id: 500,
+			thread_id: 1000,
+			post_id: 5000,
+			author_id: 200,
+			author_name: "commenter",
+			content: "Great post!",
+			score: 5,
+			reply_post_id: 5001,
+			ip: "192.168.1.1",
+			created_at: 1700000000,
+		});
+	});
+
+	test("returns null for corrupt row (id=0)", () => {
+		const r = row({ 0: "0" });
+		expect(extractPostComment(r)).toBeNull();
+	});
+
+	test("defaults optional fields", () => {
+		const r = row({ 0: "1", 1: "1", 2: "1" });
+		const result = extractPostComment(r);
+		expect(result).not.toBeNull();
+		expect(result?.score).toBe(0);
+		expect(result?.reply_post_id).toBe(0);
+		expect(result?.ip).toBe("");
 	});
 });
