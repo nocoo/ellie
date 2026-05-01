@@ -174,6 +174,17 @@ export default {
 				return await (await import("./handlers/me")).changePassword(request, env);
 			}
 
+			// ── Email verification (docs/17 §7.2, §7.3) ─────
+			// Allowed for unverified (but authenticated) users. Phase 3 ships
+			// request-code + verify only; email-change (7.1) lands in phase 5
+			// after the unique-index migration.
+			if (path === "/api/v1/users/me/email/request-code" && request.method === "POST") {
+				return await (await import("./handlers/email")).requestCode(request, env);
+			}
+			if (path === "/api/v1/users/me/email/verify" && request.method === "POST") {
+				return await (await import("./handlers/email")).verifyCode(request, env);
+			}
+
 			// ── Private messaging routes (#70-#74) ──────────
 			if (path === "/api/v1/messages" && request.method === "GET") {
 				return await (await import("./handlers/message")).list(request, env);
