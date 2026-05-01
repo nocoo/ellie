@@ -15,6 +15,7 @@ import {
 	type CodeRecord,
 	MAX_ATTEMPTS,
 	RESEND_THROTTLE_SECONDS,
+	SEND_LOCK_TTL_SECONDS,
 	codeKvKey,
 	computeCodeHmac,
 	constantTimeEqualHex,
@@ -22,6 +23,7 @@ import {
 	isValidEmail,
 	maskEmail,
 	normalizeEmail,
+	sendLockKvKey,
 } from "../lib/email-verify";
 import { jsonResponse } from "../lib/response";
 import { withAuthVerified } from "../lib/routeHelpers";
@@ -78,6 +80,7 @@ export const requestCode = withAuthVerified(async (request, env, user) => {
 	}
 
 	const key = codeKvKey(user.userId);
+	const lockKey = sendLockKvKey(user.userId);
 	const now = nowSeconds();
 
 	// Resend throttle — read existing record, if any.
@@ -98,6 +101,24 @@ export const requestCode = withAuthVerified(async (request, env, user) => {
 			// Corrupt record → fall through and overwrite below.
 		}
 	}
+
+	// In-flight send guard: if another request for this user is mid-Dove, refuse
+	// to send a second email. KV is eventually-consistent so this is best-effort
+	// — but it closes the window between "throttle check" and "lastSentAt write"
+	// where two concurrent callers could each fire a Dove request.
+	//
+	// We use the same `next_resend_allowed_at` shape so the client treats it
+	// identically to a normal throttle (no need for a new error code).
+	const lockHeld = await env.KV.get(lockKey);
+	if (lockHeld) {
+		return errorResponse(
+			"CODE_RESEND_THROTTLED",
+			429,
+			{ next_resend_allowed_at: now + SEND_LOCK_TTL_SECONDS },
+			origin,
+		);
+	}
+	await env.KV.put(lockKey, "1", { expirationTtl: SEND_LOCK_TTL_SECONDS });
 
 	const code = generateCode();
 	const codeHmac = await computeCodeHmac(
@@ -121,10 +142,17 @@ export const requestCode = withAuthVerified(async (request, env, user) => {
 	});
 
 	if (!sendResult.ok) {
-		// IMPORTANT: do NOT mutate KV. The caller can retry without burning
-		// the throttle, and an attacker who flips dove offline cannot lock
-		// users out of new codes.
-		return errorResponse("EMAIL_PROVIDER_FAILED", 502, { provider_code: sendResult.code }, origin);
+		// Release the lock so the user can retry without waiting for TTL.
+		await env.KV.delete(lockKey);
+		// Log the upstream code server-side for observability — never expose it
+		// to the client (would leak Dove allowlist / config state). The log
+		// intentionally omits plaintext code, HMAC, and full email.
+		console.warn(
+			`[email-verify] dove send failed user=${user.userId} ` +
+				`recipient=${maskEmail(targetEmailNormalized)} ` +
+				`upstream_code=${sendResult.code} status=${sendResult.status}`,
+		);
+		return errorResponse("EMAIL_PROVIDER_FAILED", 502, undefined, origin);
 	}
 
 	const record: CodeRecord = {
@@ -136,6 +164,9 @@ export const requestCode = withAuthVerified(async (request, env, user) => {
 	};
 
 	await env.KV.put(key, JSON.stringify(record), { expirationTtl: CODE_TTL_SECONDS });
+	// Release the in-flight lock — the canonical record is now the source of
+	// truth and the 60s throttle takes over.
+	await env.KV.delete(lockKey);
 
 	return jsonResponse(
 		{

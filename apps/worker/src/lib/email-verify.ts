@@ -10,6 +10,9 @@ export const CODE_TTL_SECONDS = 900; // 15 minutes
 export const RESEND_THROTTLE_SECONDS = 60;
 /** Max wrong-code attempts before the KV record is invalidated (docs/17 §7.3). */
 export const MAX_ATTEMPTS = 5;
+/** In-flight send-lock TTL, in seconds. Long enough to outlast a slow Dove call,
+ *  short enough that a crashed worker doesn't lock the user out for long. */
+export const SEND_LOCK_TTL_SECONDS = 10;
 
 /** Shape of the per-user KV record holding an in-flight verification code. */
 export interface CodeRecord {
@@ -28,6 +31,11 @@ export interface CodeRecord {
 /** Build the canonical KV key for a user's verification record. */
 export function codeKvKey(userId: number): string {
 	return `email_verify:${userId}`;
+}
+
+/** Build the per-user in-flight send-lock key. Held while we await Dove. */
+export function sendLockKvKey(userId: number): string {
+	return `email_verify_lock:${userId}`;
 }
 
 /**

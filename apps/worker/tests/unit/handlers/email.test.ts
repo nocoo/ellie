@@ -24,6 +24,7 @@ import {
 	type CodeRecord,
 	codeKvKey,
 	computeCodeHmac,
+	sendLockKvKey,
 } from "../../../src/lib/email-verify";
 import type { Env } from "../../../src/lib/env";
 import { createJwt } from "../../../src/lib/jwt";
@@ -186,18 +187,39 @@ describe("requestCode (POST /api/v1/users/me/email/request-code)", () => {
 		expect(rec.attempts).toBe(0);
 		expect(rec.lastSentAt).toBeGreaterThan(0);
 		expect(rec.expiresAt - rec.lastSentAt).toBe(CODE_TTL_SECONDS);
+		// In-flight lock must be released after a successful send.
+		expect(await kv.get(sendLockKvKey(7))).toBeNull();
 	});
 
-	it("returns 502 EMAIL_PROVIDER_FAILED and DOES NOT mutate KV when dove fails", async () => {
+	it("returns 502 EMAIL_PROVIDER_FAILED, releases the in-flight lock, and DOES NOT mutate KV when dove fails", async () => {
 		const { env, kv } = makeEnv({
 			dbUser: { role: 0, status: 0, email_verified_at: 0 },
 		});
 		stubDoveFail(env);
-		const res = await requestCode(await makeRequest("/x"), env);
-		expect(res.status).toBe(502);
-		expect((await res.json()).error.code).toBe("EMAIL_PROVIDER_FAILED");
-		// Critical: KV must remain empty so the user can retry without burning the throttle.
-		expect(await kv.get(codeKvKey(7))).toBeNull();
+		// Silence the expected server-side log for this test.
+		const warnSpy = mock(() => {});
+		const origWarn = console.warn;
+		console.warn = warnSpy as unknown as typeof console.warn;
+		try {
+			const res = await requestCode(await makeRequest("/x"), env);
+			expect(res.status).toBe(502);
+			const body = await res.json();
+			expect(body.error.code).toBe("EMAIL_PROVIDER_FAILED");
+			// SECURITY: must not leak Dove upstream code to the client.
+			expect(body.error.details).toBeUndefined();
+			// Critical: KV must remain empty so the user can retry without burning the throttle.
+			expect(await kv.get(codeKvKey(7))).toBeNull();
+			// Lock must be released on Dove failure so the user can retry immediately.
+			expect(await kv.get(sendLockKvKey(7))).toBeNull();
+			// Server logged the upstream code for observability (no PII / no plaintext code).
+			expect(warnSpy).toHaveBeenCalledTimes(1);
+			const logged = String((warnSpy.mock.calls[0] as unknown as string[])[0]);
+			expect(logged).toContain("upstream_code=recipient_not_found");
+			expect(logged).toContain("u***@example.com");
+			expect(logged).not.toContain("user@example.com");
+		} finally {
+			console.warn = origWarn;
+		}
 	});
 
 	it("returns 429 CODE_RESEND_THROTTLED when called within 60s of last send", async () => {
@@ -225,6 +247,44 @@ describe("requestCode (POST /api/v1/users/me/email/request-code)", () => {
 		// KV record left unchanged.
 		const raw = await kv.get(codeKvKey(7));
 		expect(JSON.parse(raw as string).lastSentAt).toBe(existing.lastSentAt);
+	});
+
+	it("returns 429 CODE_RESEND_THROTTLED and DOES NOT call dove when an in-flight send-lock exists", async () => {
+		// Simulates a concurrent caller mid-Dove: the lock is present but no
+		// canonical record yet (so the lastSentAt-based throttle would NOT block).
+		const { env, kv } = makeEnv({
+			dbUser: { role: 0, status: 0, email_verified_at: 0 },
+			kv: { [sendLockKvKey(7)]: "1" },
+		});
+		const tracker = stubDoveOk(env);
+
+		const res = await requestCode(await makeRequest("/x"), env);
+		expect(res.status).toBe(429);
+		expect((await res.json()).error.code).toBe("CODE_RESEND_THROTTLED");
+		// Dove must NOT be called while another send is in flight.
+		expect(tracker.calls).toBe(0);
+		// No canonical record was written by us either.
+		expect(await kv.get(codeKvKey(7))).toBeNull();
+	});
+
+	it("races: two concurrent requestCode calls only invoke dove once", async () => {
+		const { env, kv } = makeEnv({
+			dbUser: { role: 0, status: 0, email_verified_at: 0 },
+		});
+		const tracker = stubDoveOk(env);
+		// Fire both before the first finishes — second must see the lock.
+		const [a, b] = await Promise.all([
+			requestCode(await makeRequest("/x"), env),
+			requestCode(await makeRequest("/x"), env),
+		]);
+		const statuses = [a.status, b.status].sort();
+		expect(statuses).toEqual([200, 429]);
+		expect(tracker.calls).toBe(1);
+		// Lock cleared after the winning call completes.
+		expect(await kv.get(sendLockKvKey(7))).toBeNull();
+		// Canonical record persisted exactly once.
+		const rec = JSON.parse((await kv.get(codeKvKey(7))) as string) as CodeRecord;
+		expect(rec.attempts).toBe(0);
 	});
 
 	it("allows resend after the throttle window has elapsed", async () => {
