@@ -2,7 +2,9 @@
 import { FloatingActions } from "@/components/forum/floating-actions";
 import { PostCard } from "@/components/forum/post-card";
 import { ReplyDialog } from "@/components/forum/reply-dialog";
+import { buildQuoteSnippet } from "@/lib/text";
 import type { EnrichedPost } from "@/viewmodels/forum/thread-detail";
+import { formatDateTime } from "@/viewmodels/shared/formatting";
 import type { Thread } from "@ellie/types";
 import { useCallback, useState } from "react";
 
@@ -43,13 +45,11 @@ export function ThreadPostsClient({
 
 	const handleReply = useCallback((post?: EnrichedPost) => {
 		if (post) {
-			// Quote reply - extract plain text for quote
-			const plainText = post.content.replace(/<[^>]*>/g, "").slice(0, 200);
-			// Format time as YYYY-M-D HH:mm
-			const date = new Date(post.createdAt * 1000);
-			const timeStr = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+			// Quote reply - extract plain text snippet for quote
+			const snippet = buildQuoteSnippet(post.content);
+			const timeStr = formatDateTime(post.createdAt);
 			setQuotedPost({
-				content: plainText + (post.content.length > 200 ? "..." : ""),
+				content: snippet,
 				author: post.author?.username ?? "匿名",
 				time: timeStr,
 			});

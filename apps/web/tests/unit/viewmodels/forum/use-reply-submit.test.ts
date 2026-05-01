@@ -12,9 +12,9 @@ vi.mock("@/lib/api-client", () => ({
 }));
 
 import { apiClient } from "@/lib/api-client";
+import { stripHtmlTags } from "@/lib/text";
 import {
 	buildQuotedContent,
-	stripHtmlTags,
 	submitReply,
 	validateReplyContent,
 } from "@/viewmodels/forum/use-reply-submit";
