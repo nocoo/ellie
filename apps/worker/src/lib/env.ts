@@ -17,6 +17,22 @@ export interface Env {
 	 * Default: false (JOIN approach).
 	 */
 	USE_KV_USER_CACHE?: string;
+	/**
+	 * HMAC key for email-verification codes (docs/17 §6.2).
+	 * 6-digit codes are too small to resist offline brute-force after KV
+	 * exfiltration; HMAC with a server secret prevents that. Set via
+	 * `wrangler secret put EMAIL_VERIFY_HMAC_KEY`.
+	 *
+	 * Optional in the type because phase 3 only needs it for the new
+	 * email-verification handlers; other handlers continue to ignore it.
+	 */
+	EMAIL_VERIFY_HMAC_KEY?: string;
+	/** Dove email-relay base URL, e.g. `https://dove.example.com` (docs/17 §8). */
+	DOVE_BASE_URL?: string;
+	/** Dove project id whose webhook is used to send verification mail. */
+	DOVE_PROJECT_ID?: string;
+	/** Dove webhook bearer token (set via `wrangler secret put DOVE_WEBHOOK_TOKEN`). */
+	DOVE_WEBHOOK_TOKEN?: string;
 }
 
 /** Check if KV user cache is enabled */
