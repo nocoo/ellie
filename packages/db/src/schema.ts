@@ -234,6 +234,12 @@ export const INDEXES = {
 	users: [
 		"CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);",
 		"CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);",
+		// Mirrors migration 0029_email_normalized_unique_index.sql. The
+		// partial WHERE leaves legacy/cleared rows (email_normalized = '')
+		// unconstrained so they can later claim an email via the verify
+		// flow. Drift guard: tests/unit/migration-0029-schema.test.ts pins
+		// this string to the migration file.
+		"CREATE UNIQUE INDEX IF NOT EXISTS users_email_normalized_uniq ON users(email_normalized) WHERE email_normalized != '';",
 	],
 
 	threads: [
