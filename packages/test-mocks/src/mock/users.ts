@@ -37,6 +37,9 @@ export const MOCK_USERS: User[] = [
 		qq: "12345678",
 		site: "https://tongji.net",
 		lastActivity: 1711612800,
+		emailVerifiedAt: 1711612800,
+		emailNormalized: "admin@tongji.net",
+		emailChangedAt: 0,
 	},
 	{
 		id: 2,
@@ -70,6 +73,9 @@ export const MOCK_USERS: User[] = [
 		qq: "",
 		site: "",
 		lastActivity: 1711526400,
+		emailVerifiedAt: 1711526400,
+		emailNormalized: "supermod@tongji.net",
+		emailChangedAt: 0,
 	},
 	{
 		id: 3,
@@ -103,6 +109,9 @@ export const MOCK_USERS: User[] = [
 		qq: "",
 		site: "",
 		lastActivity: 1711440000,
+		emailVerifiedAt: 1711440000,
+		emailNormalized: "mod@tongji.net",
+		emailChangedAt: 0,
 	},
 	{
 		id: 10,
@@ -136,6 +145,9 @@ export const MOCK_USERS: User[] = [
 		qq: "87654321",
 		site: "",
 		lastActivity: 1711353600,
+		emailVerifiedAt: 1711353600,
+		emailNormalized: "zhangsan@example.com",
+		emailChangedAt: 0,
 	},
 	{
 		id: 11,
@@ -169,6 +181,9 @@ export const MOCK_USERS: User[] = [
 		qq: "",
 		site: "",
 		lastActivity: 1711267200,
+		emailVerifiedAt: 1711267200,
+		emailNormalized: "lisi@example.com",
+		emailChangedAt: 0,
 	},
 	{
 		id: 12,
@@ -202,6 +217,9 @@ export const MOCK_USERS: User[] = [
 		qq: "",
 		site: "",
 		lastActivity: 1609459200,
+		emailVerifiedAt: 0,
+		emailNormalized: "wangwu@example.com",
+		emailChangedAt: 0,
 	},
 	{
 		id: 13,
@@ -235,5 +253,8 @@ export const MOCK_USERS: User[] = [
 		qq: "",
 		site: "",
 		lastActivity: 1451606400,
+		emailVerifiedAt: 1451606400,
+		emailNormalized: "old@example.com",
+		emailChangedAt: 0,
 	},
 ];

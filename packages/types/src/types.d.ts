@@ -163,6 +163,15 @@ export interface User {
     qq: string;
     site: string;
     lastActivity: number;
+    /**
+     * Email verification state — see docs/17-email-verification.md §3, §6.1.
+     * 0 = unverified (sentinel). > 0 = unix seconds at the moment of verification.
+     */
+    emailVerifiedAt: number;
+    /** Lowercased + trimmed snapshot of `email`. Empty for legacy rows. */
+    emailNormalized: string;
+    /** Unix seconds of the last successful email change while unverified. 0 if never. */
+    emailChangedAt: number;
     /** Whether user has uploaded an avatar (determines posting permission) */
     hasAvatar?: boolean;
     /** Registration IP (admin-only) */

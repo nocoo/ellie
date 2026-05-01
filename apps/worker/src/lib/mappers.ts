@@ -46,6 +46,10 @@ interface D1UserRow {
 	qq: string;
 	site: string;
 	last_activity: number;
+	// Email verification (docs/17-email-verification.md §6.1)
+	email_verified_at: number;
+	email_normalized: string;
+	email_changed_at: number;
 	// IP fields (admin-only in public API, always in admin API)
 	reg_ip?: string;
 	last_ip?: string;
@@ -149,6 +153,9 @@ export function toUser(row: Record<string, unknown>): User {
 		qq: r.qq,
 		site: r.site,
 		lastActivity: r.last_activity,
+		emailVerifiedAt: r.email_verified_at ?? 0,
+		emailNormalized: r.email_normalized ?? "",
+		emailChangedAt: r.email_changed_at ?? 0,
 		regIp: r.reg_ip,
 		lastIp: r.last_ip,
 	};

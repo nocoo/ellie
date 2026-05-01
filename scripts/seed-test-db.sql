@@ -21,12 +21,15 @@ INSERT OR REPLACE INTO forums (id, parent_id, name, description, display_order, 
 -- ─── Users (parents of threads/posts) ─────────────────────────────────────
 -- e2etest password is "e2etest123" hashed with Discuz legacy format
 -- md5(md5(pwd)+salt) (matches verifyDiscuzPassword in apps/worker/src/lib/password.ts).
-INSERT OR REPLACE INTO users (id, username, email, password_hash, password_salt, role, status, threads, posts, digest_posts, credits) VALUES
-  (1, 'admin', 'admin@test.com', '', '', 2, 0, 0, 0, 0, 0),
-  (2, 'moderator', 'mod@test.com', '', '', 1, 0, 0, 0, 0, 0),
-  (3, 'testuser', 'test@test.com', '', '', 0, 0, 0, 0, 0, 0),
-  (100, 'e2etest', 'e2etest@test.com', 'c03883cd846c081766bed1b6748d3bd3', 'e2esalt0', 0, 0, 0, 0, 0, 0),
-  (64495, 'e2eprofile', 'e2eprofile@test.com', '', '', 0, 0, 1, 1, 0, 100);
+-- email_verified_at = 1 marks every seeded user as verified so existing E2E
+-- specs that exercise write paths keep working without going through the
+-- email-verification flow (docs/17-email-verification.md §10).
+INSERT OR REPLACE INTO users (id, username, email, password_hash, password_salt, role, status, threads, posts, digest_posts, credits, email_verified_at, email_normalized, email_changed_at) VALUES
+  (1, 'admin', 'admin@test.com', '', '', 2, 0, 0, 0, 0, 0, 1, 'admin@test.com', 0),
+  (2, 'moderator', 'mod@test.com', '', '', 1, 0, 0, 0, 0, 0, 1, 'mod@test.com', 0),
+  (3, 'testuser', 'test@test.com', '', '', 0, 0, 0, 0, 0, 0, 1, 'test@test.com', 0),
+  (100, 'e2etest', 'e2etest@test.com', 'c03883cd846c081766bed1b6748d3bd3', 'e2esalt0', 0, 0, 0, 0, 0, 0, 1, 'e2etest@test.com', 0),
+  (64495, 'e2eprofile', 'e2eprofile@test.com', '', '', 0, 0, 1, 1, 0, 100, 1, 'e2eprofile@test.com', 0);
 
 -- ─── Threads ──────────────────────────────────────────────────────────────
 INSERT OR REPLACE INTO threads (id, forum_id, author_id, author_name, subject, created_at, last_post_at, last_poster, replies, views, closed, sticky, digest, special, highlight, recommends, post_table_id, type_name, last_poster_id) VALUES

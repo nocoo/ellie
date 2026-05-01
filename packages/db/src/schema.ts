@@ -60,7 +60,10 @@ export const TABLES = {
 			site TEXT NOT NULL DEFAULT '',
 			last_activity INTEGER NOT NULL DEFAULT 0,
 			has_avatar INTEGER NOT NULL DEFAULT 0,
-			avatar_path TEXT NOT NULL DEFAULT ''
+			avatar_path TEXT NOT NULL DEFAULT '',
+			email_verified_at INTEGER NOT NULL DEFAULT 0,
+			email_normalized TEXT NOT NULL DEFAULT '',
+			email_changed_at INTEGER NOT NULL DEFAULT 0
 		);
 	`,
 
