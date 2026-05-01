@@ -50,6 +50,9 @@ function makeUser(overrides: Partial<User> & { id: number }): User {
 		qq: "",
 		site: "",
 		lastActivity: 0,
+		emailVerifiedAt: 0,
+		emailNormalized: "",
+		emailChangedAt: 0,
 		...overrides,
 	};
 }

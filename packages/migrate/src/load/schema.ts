@@ -60,7 +60,10 @@ export const TABLE_DDL: string[] = [
   last_activity INTEGER NOT NULL DEFAULT 0,
   reg_ip        TEXT    NOT NULL DEFAULT '',
   last_ip       TEXT    NOT NULL DEFAULT '',
-  campus        TEXT    NOT NULL DEFAULT ''
+  campus        TEXT    NOT NULL DEFAULT '',
+  email_verified_at INTEGER NOT NULL DEFAULT 0,
+  email_normalized  TEXT    NOT NULL DEFAULT '',
+  email_changed_at  INTEGER NOT NULL DEFAULT 0
 )`,
 
 	`CREATE TABLE IF NOT EXISTS threads (
@@ -214,6 +217,8 @@ export const TABLE_COLUMNS: Record<TableName, string[]> = {
 		"reg_ip",
 		"last_ip",
 		"campus",
+		// email_verified_at, email_normalized, email_changed_at are intentionally
+		// omitted: source DZ data has no values; SQLite uses column DEFAULTs.
 	],
 	threads: [
 		"id",

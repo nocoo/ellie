@@ -278,5 +278,10 @@ export function publicUserToUser(pu: PublicUser): User {
 		email: "",
 		status: UserStatus.Active,
 		lastLogin: 0,
+		// Verification state is never exposed via PublicUser; default to
+		// "unverified" sentinel here (docs/17-email-verification.md §3).
+		emailVerifiedAt: 0,
+		emailNormalized: "",
+		emailChangedAt: 0,
 	};
 }
