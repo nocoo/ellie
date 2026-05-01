@@ -272,7 +272,7 @@ describe("extractUser", () => {
 		const result = extractUser(ucRow(), defaultMember, defaultCounts, false);
 		expect(result.id).toBe(100);
 		expect(result.username).toBe("testuser");
-		expect(result.email).toBe("test@example.com");
+		expect(result.email).toBe("");
 		expect(result.password_hash).toBe("abc123hash");
 		expect(result.password_salt).toBe("x1y2z3");
 		expect(result.status).toBe(0);
@@ -282,6 +282,16 @@ describe("extractUser", () => {
 		expect(result.threads).toBe(5);
 		expect(result.posts).toBe(50);
 		expect(result.credits).toBe(100);
+	});
+
+	test("drops legacy email so users must verify a new address", () => {
+		const result = extractUser(
+			ucRow({ 3: "legacy-user@example.com" }),
+			defaultMember,
+			defaultCounts,
+			false,
+		);
+		expect(result.email).toBe("");
 	});
 
 	test("avatar is set when avatarstatus=1", () => {

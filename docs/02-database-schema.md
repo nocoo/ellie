@@ -89,7 +89,7 @@ CREATE TABLE users (
 |-------|-------------|--------------|------|-------|
 | `id` | `pre_common_member` | `uid` | mediumint unsigned PK | 同时也是 `uc_members` 的 PK（共享 uid 空间） |
 | `username` | `uc_members` | `username` | char(15) | 位于 `db_tongji_ucenter`。`pre_common_member` 也有 `username` |
-| `email` | `uc_members` | `email` | char(32) | `pre_common_member.email` 是 char(40)，优先使用 ucenter 作为认证源 |
+| `email` | — | — | char(32) | 迁移时丢弃旧系统未验证邮箱，置空；新系统要求用户重新验证后写入 |
 | `password_hash` | `uc_members` | `password` | char(32) | `md5(md5(password) + salt)` — 详见下方 |
 | `password_salt` | `uc_members` | `salt` | char(6) | 6 位随机字符串 |
 | `avatar` | — | 由 `uid` 计算 | — | R2 key: `avatars/{uid}.jpg`（源路径 `data/avatar/{uid%16}/{uid%256}/{uid}_avatar_big.jpg`） |
@@ -106,7 +106,7 @@ CREATE TABLE users (
 ```sql
 -- Step 1: 活跃用户（pre_common_member 中存在的 ~7万）
 SELECT
-  m.uid, uc.username, uc.email, uc.password, uc.salt,
+  m.uid, uc.username, '' AS email, uc.password, uc.salt,
   m.status, m.adminid, m.regdate, m.avatarstatus,
   uc.lastlogintime,
   COALESCE(mc.threads, 0) AS threads,
@@ -119,7 +119,7 @@ LEFT JOIN db_tongji_main.pre_common_member_count mc ON mc.uid = m.uid;
 
 -- Step 2: 归档用户（pre_common_member_archive 中存在的 ~107万）
 SELECT
-  a.uid, uc.username, uc.email, uc.password, uc.salt,
+  a.uid, uc.username, '' AS email, uc.password, uc.salt,
   -2 AS status,  -- 标记为归档
   0 AS adminid, a.regdate, 0 AS avatarstatus,
   uc.lastlogintime,

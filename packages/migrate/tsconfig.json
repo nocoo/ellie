@@ -5,7 +5,7 @@
 		"strict": true,
 		"composite": true,
 		"declaration": true,
-		"noEmit": false,
+		"emitDeclarationOnly": true,
 		"esModuleInterop": true,
 		"module": "ESNext",
 		"moduleResolution": "bundler",
