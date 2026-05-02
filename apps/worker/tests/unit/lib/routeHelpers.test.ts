@@ -1,4 +1,4 @@
-import { UserRole } from "@ellie/types";
+import { EMAIL_NOT_VERIFIED_PAYLOAD, UserRole } from "@ellie/types";
 import { describe, expect, it, vi } from "vitest";
 import {
 	withAdmin,
@@ -313,7 +313,8 @@ describe("withVerifiedEmail", () => {
 		const res = await wrappedRequest(token, withVerifiedEmail(handler), env);
 		expect(res.status).toBe(403);
 		const data = await res.json();
-		expect(data.error.code).toBe("EMAIL_NOT_VERIFIED");
+		// docs/17 §5.4 — flat payload shape, not the wrapped { error: { code } }.
+		expect(data).toEqual(EMAIL_NOT_VERIFIED_PAYLOAD);
 		expect(handler).not.toHaveBeenCalled();
 	});
 

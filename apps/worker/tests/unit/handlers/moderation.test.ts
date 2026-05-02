@@ -39,18 +39,29 @@ function modRequest(method: string, path: string, token: string, body?: unknown)
 // ─── Permission Mock Data ─────────────────────────────────────────
 // These helper functions create the mock data needed for permission checks
 
-/** Mock data for moderationMiddleware DB role verification only (minimal) */
-function mockAuthUser(role = 1, status = 0) {
+/** Mock data for moderationMiddleware DB role + status + email-verification check.
+ *  email_verified_at defaults to a positive value (verified) so existing tests
+ *  bypass the docs/17 §5.4 gate. Pass `email_verified_at: 0` explicitly to test
+ *  the unverified branch. */
+function mockAuthUser(role = 1, status = 0, email_verified_at = 1700000000) {
 	return {
-		"SELECT role, status FROM users WHERE id": { role, status },
+		"SELECT role, status, email_verified_at FROM users WHERE id": {
+			role,
+			status,
+			email_verified_at,
+		},
 	};
 }
 
 /** Mock data for user permission check (supports both middleware auth and permission helper queries) */
 function mockUser(userId = 1, role = 1, username = "admin") {
 	return {
-		// For moderationMiddleware DB role verification
-		"SELECT role, status FROM users WHERE id": { role, status: 0 },
+		// For moderationMiddleware DB role + status + email-verification check
+		"SELECT role, status, email_verified_at FROM users WHERE id": {
+			role,
+			status: 0,
+			email_verified_at: 1700000000,
+		},
 		// For getUserForPermission
 		"SELECT id, username, role, status FROM users": { id: userId, username, role, status: 0 },
 	};

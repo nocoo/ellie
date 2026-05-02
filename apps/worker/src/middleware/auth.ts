@@ -2,7 +2,7 @@
 import { UserRole } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { isTokenExpired, verifyJwt } from "../lib/jwt";
-import { errorResponse } from "./error";
+import { emailNotVerifiedResponse, errorResponse } from "./error";
 
 export interface JwtPayload {
 	userId: number;
@@ -200,7 +200,9 @@ export async function authMiddlewareVerified(
  *   1. Missing/invalid/expired token → 401 (UNAUTHORIZED / INVALID_TOKEN / TOKEN_EXPIRED)
  *   2. User row missing → 404 (USER_NOT_FOUND)
  *   3. User banned (status !== 0) → 403 (USER_BANNED)   ← always wins over email gate
- *   4. Email unverified (email_verified_at === 0) → 403 (EMAIL_NOT_VERIFIED)
+ *   4. Email unverified (email_verified_at === 0) → 403 EMAIL_NOT_VERIFIED payload
+ *      (flat docs/17 §5.4 shape via {@link emailNotVerifiedResponse}, NOT the
+ *      wrapped `errorResponse` shape).
  *   5. Otherwise → { user }
  *
  * Use this middleware (or {@link withVerifiedEmail}) to gate write actions per
@@ -215,6 +217,7 @@ export async function requireVerifiedEmail(
 	env: Env,
 ): Promise<{ user: AuthUser } | Response> {
 	const authHeader = request.headers.get("Authorization");
+	const origin = request.headers.get("Origin") ?? undefined;
 
 	if (!authHeader?.startsWith("Bearer ")) {
 		return errorResponse("UNAUTHORIZED", 401);
@@ -249,7 +252,7 @@ export async function requireVerifiedEmail(
 		// 0 is the unverified sentinel (docs/17 §3, §6.1). Any positive value
 		// indicates the unix-seconds moment the user verified their email.
 		if (!dbUser.email_verified_at || dbUser.email_verified_at <= 0) {
-			return errorResponse("EMAIL_NOT_VERIFIED", 403);
+			return emailNotVerifiedResponse(origin);
 		}
 
 		return {
@@ -264,12 +267,25 @@ export async function requireVerifiedEmail(
 }
 
 /**
- * Moderation middleware — JWT auth + role check for /api/v1/moderation/* endpoints.
- * Requires any non-User role: Admin (1), SuperMod (2), or Mod (3).
+ * Moderation middleware — JWT auth + role check + email-verification gate for
+ * /api/v1/moderation/* endpoints. Requires any non-User role: Admin (1),
+ * SuperMod (2), or Mod (3).
+ *
  * Used by forum moderators in the web frontend (Key A + JWT).
  *
- * IMPORTANT: This middleware performs a database lookup to verify the user's current role,
- * preventing privilege escalation from cached JWT claims after role demotion.
+ * IMPORTANT: This middleware performs a database lookup to verify the user's
+ * current role, preventing privilege escalation from cached JWT claims after
+ * role demotion.
+ *
+ * Precedence (must be preserved by callers and tests, see docs/17 §5.4):
+ *   1. Missing/invalid/expired token → 401 (UNAUTHORIZED / INVALID_TOKEN / TOKEN_EXPIRED)
+ *   2. User row missing → 404 (USER_NOT_FOUND)
+ *   3. User banned (status !== 0) → 403 (USER_BANNED)
+ *   4. Role is regular User → 403 (FORBIDDEN_MOD_ONLY)   ← always wins over email gate
+ *   5. Mod/SuperMod/Admin but email unverified → 403 EMAIL_NOT_VERIFIED payload
+ *      (flat docs/17 §5.4 shape via {@link emailNotVerifiedResponse}). Regular
+ *      Users never reach this branch — they are stopped by FORBIDDEN_MOD_ONLY.
+ *   6. Otherwise → { user }
  */
 export async function moderationMiddleware(
 	request: Request,
@@ -279,12 +295,16 @@ export async function moderationMiddleware(
 	if (authResult instanceof Response) return authResult;
 
 	const { user } = authResult;
+	const origin = request.headers.get("Origin") ?? undefined;
 
-	// Verify current role from database (not just JWT claims)
-	// This prevents demoted users from using cached JWT privileges
-	const dbUser = await env.DB.prepare("SELECT role, status FROM users WHERE id = ?")
+	// Verify current role + status + email verification from database (not just
+	// JWT claims). This prevents demoted users from using cached JWT privileges
+	// and ensures unverified mods cannot bypass the §5.4 email gate.
+	const dbUser = await env.DB.prepare(
+		"SELECT role, status, email_verified_at FROM users WHERE id = ?",
+	)
 		.bind(user.userId)
-		.first<{ role: number; status: number }>();
+		.first<{ role: number; status: number; email_verified_at: number }>();
 
 	if (!dbUser) {
 		return errorResponse("USER_NOT_FOUND", 404);
@@ -298,9 +318,19 @@ export async function moderationMiddleware(
 	// Use database role instead of JWT claim
 	const currentRole = dbUser.role;
 
-	// Mod (3), SuperMod (2), Admin (1) can perform moderation actions
+	// Mod (3), SuperMod (2), Admin (1) can perform moderation actions.
+	// Regular Users are rejected here — BEFORE the email check — so a regular
+	// user hitting a moderation endpoint always sees FORBIDDEN_MOD_ONLY,
+	// regardless of whether their email is verified.
 	if (currentRole === UserRole.User) {
 		return errorResponse("FORBIDDEN_MOD_ONLY", 403);
+	}
+
+	// Email-verification gate (docs/17 §5.4) — only reachable by Mod/SuperMod/
+	// Admin. Unverified privileged accounts are still subject to the §2 read-only
+	// gate for moderation actions.
+	if (!dbUser.email_verified_at || dbUser.email_verified_at <= 0) {
+		return emailNotVerifiedResponse(origin);
 	}
 
 	// Return user with verified role from database
