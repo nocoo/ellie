@@ -18,11 +18,11 @@ test.describe("E2E-UJ: User Journey", () => {
 		await homePage.goto();
 		expect(await homePage.isLoaded()).toBe(true);
 
-		// Click into a forum (any forum link)
-		const forumLink = page.locator('a[href^="/forums/"]').first();
+		// Click into forum 114 (has 25+ threads in seed)
+		const forumLink = page.locator('a[href="/forums/114"]');
 		await expect(forumLink).toBeVisible();
 		await forumLink.click();
-		await page.waitForURL(/\/forums\/\d+/);
+		await page.waitForURL(/\/forums\/114/);
 
 		// Wait for the forum page thread list to render (thread links or empty state)
 		const threadLink = page.locator('a[href^="/threads/"]').first();
@@ -80,20 +80,20 @@ test.describe("E2E-UJ: User Journey", () => {
 		// Should see username (use first() since breadcrumbs also contain it)
 		await expect(page.getByText("e2eprofile").first()).toBeVisible();
 
-		// Click "回帖" tab (posts)
-		const postsTab = page.locator('a[href*="tab=posts"]');
+		// Click "回帖" tab (posts) — .first() because mobile+desktop tab bars both match
+		const postsTab = page.locator('a[href*="tab=posts"]').first();
 		await expect(postsTab).toBeVisible();
 		await postsTab.click();
 		await page.waitForURL(/tab=posts/);
 
 		// Click "精华" tab (digest)
-		const digestTab = page.locator('a[href*="tab=digest"]');
+		const digestTab = page.locator('a[href*="tab=digest"]').first();
 		await expect(digestTab).toBeVisible();
 		await digestTab.click();
 		await page.waitForURL(/tab=digest/);
 
 		// Click "主题" tab (threads) to go back
-		const threadsTab = page.locator('a[href*="tab=threads"]');
+		const threadsTab = page.locator('a[href*="tab=threads"]').first();
 		await expect(threadsTab).toBeVisible();
 		await threadsTab.click();
 		await page.waitForURL(/tab=threads/);
