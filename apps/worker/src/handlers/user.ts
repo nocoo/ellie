@@ -1,6 +1,7 @@
 import { decodeGenericCursor, encodeGenericCursor } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { toPost, toPublicUser, toThread } from "../lib/mappers";
+import { clampLimit } from "../lib/pagination";
 import { jsonResponse } from "../lib/response";
 import {
 	USER_ACTIVE,
@@ -40,12 +41,6 @@ function isHistoryCursor(p: Partial<UserHistoryCursor>): boolean {
 function parseUserIdFromParent(url: URL): number {
 	const parts = url.pathname.split("/");
 	return Number.parseInt(parts[parts.length - 2] ?? "0", 10);
-}
-
-/** Clamp limit to [1, MAX_HISTORY_LIMIT] */
-function clampLimit(limitParam: string | null): number {
-	const n = limitParam ? Number.parseInt(limitParam, 10) : undefined;
-	return n === undefined || n <= 0 ? DEFAULT_HISTORY_LIMIT : Math.min(n, MAX_HISTORY_LIMIT);
 }
 
 // ─── Handlers ────────────────────────────────────────────────
@@ -133,7 +128,10 @@ export async function listThreads(request: Request, env: Env): Promise<Response>
 	const visCtx = buildVisibilityContext(user);
 	const forumFilter = buildForumFilter(visCtx);
 
-	const clampedLimit = clampLimit(url.searchParams.get("limit"));
+	const clampedLimit = clampLimit(url.searchParams.get("limit"), {
+		defaultLimit: DEFAULT_HISTORY_LIMIT,
+		maxLimit: MAX_HISTORY_LIMIT,
+	});
 	const cursorStr = url.searchParams.get("cursor");
 	const cursor = cursorStr
 		? decodeGenericCursor<UserHistoryCursor>(cursorStr, isHistoryCursor)
@@ -187,7 +185,10 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 	const visCtx = buildVisibilityContext(user);
 	const forumFilter = buildForumFilter(visCtx);
 
-	const clampedLimit = clampLimit(url.searchParams.get("limit"));
+	const clampedLimit = clampLimit(url.searchParams.get("limit"), {
+		defaultLimit: DEFAULT_HISTORY_LIMIT,
+		maxLimit: MAX_HISTORY_LIMIT,
+	});
 	const cursorStr = url.searchParams.get("cursor");
 	const cursor = cursorStr
 		? decodeGenericCursor<UserHistoryCursor>(cursorStr, isHistoryCursor)
@@ -243,7 +244,10 @@ export async function listDigest(request: Request, env: Env): Promise<Response> 
 	const visCtx = buildVisibilityContext(user);
 	const forumFilter = buildForumFilter(visCtx);
 
-	const clampedLimit = clampLimit(url.searchParams.get("limit"));
+	const clampedLimit = clampLimit(url.searchParams.get("limit"), {
+		defaultLimit: DEFAULT_HISTORY_LIMIT,
+		maxLimit: MAX_HISTORY_LIMIT,
+	});
 	const cursorStr = url.searchParams.get("cursor");
 	const cursor = cursorStr
 		? decodeGenericCursor<UserHistoryCursor>(cursorStr, isHistoryCursor)
@@ -307,12 +311,10 @@ export async function search(request: Request, env: Env): Promise<Response> {
 	}
 
 	// Clamp limit
-	const limitParam = url.searchParams.get("limit");
-	const limitNum = limitParam ? Number.parseInt(limitParam, 10) : undefined;
-	const clampedLimit =
-		limitNum === undefined || limitNum <= 0
-			? DEFAULT_SEARCH_LIMIT
-			: Math.min(limitNum, MAX_SEARCH_LIMIT);
+	const clampedLimit = clampLimit(url.searchParams.get("limit"), {
+		defaultLimit: DEFAULT_SEARCH_LIMIT,
+		maxLimit: MAX_SEARCH_LIMIT,
+	});
 
 	// Prefix match on username, only normal users (status >= 0)
 	// Escape special LIKE characters
