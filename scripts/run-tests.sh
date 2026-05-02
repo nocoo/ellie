@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 vlog=$(mktemp); blog=$(mktemp); elog=$(mktemp)
 trap 'rm -f "$vlog" "$blog" "$elog"' EXIT
 
-node_modules/.bin/vitest run --no-color --experimental.fsModuleCache --silent=passed-only >"$vlog" 2>&1 &
+node_modules/.bin/vitest run --no-color --silent=passed-only >"$vlog" 2>&1 &
 v=$!
 # email.test.ts uses `mock.module(...)` to stub `src/lib/dove` at module
 # top-level. bun's `mock.module` is process-global, so running email.test.ts
