@@ -48,6 +48,17 @@ export {
 // ─── User ────────────────────────────────────────────────────
 export { isUserMuted, isUserBanned } from "./user";
 
+// ─── Email verification (docs/17 §5.4 — Rev4) ───────────────
+export type {
+	EmailNotVerifiedCtaVariant,
+	EmailNotVerifiedDialog,
+	EmailNotVerifiedPayload,
+} from "./email-verification";
+export {
+	EMAIL_NOT_VERIFIED_PAYLOAD,
+	cloneEmailNotVerifiedPayload,
+} from "./email-verification";
+
 // ─── Permission ───────────────────────────────────────────────
 export type {
 	PermissionUser,
