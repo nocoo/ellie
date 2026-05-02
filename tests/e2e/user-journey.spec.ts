@@ -22,20 +22,16 @@ test.describe("E2E-UJ: User Journey", () => {
 		const forumLink = page.locator('a[href^="/forums/"]').first();
 		await expect(forumLink).toBeVisible();
 		await forumLink.click();
-		await page.waitForLoadState("networkidle");
+		await page.waitForURL(/\/forums\/\d+/);
 
-		// Should be on /forums/{id}
-		expect(page.url()).toMatch(/\/forums\/\d+/);
 		await expect(page.locator("h1")).toBeVisible();
 
 		// Click into a thread
 		const threadLink = page.locator('a[href^="/threads/"]').first();
 		await expect(threadLink).toBeVisible();
 		await threadLink.click();
-		await page.waitForLoadState("networkidle");
+		await page.waitForURL(/\/threads\/\d+/);
 
-		// Should be on /threads/{id}
-		expect(page.url()).toMatch(/\/threads\/\d+/);
 		await expect(page.locator("h1")).toBeVisible();
 
 		// Navigate back via breadcrumb
@@ -45,10 +41,7 @@ test.describe("E2E-UJ: User Journey", () => {
 			.first();
 		await expect(breadcrumbForumLink).toBeVisible();
 		await breadcrumbForumLink.click();
-		await page.waitForLoadState("networkidle");
-
-		// Should be back on forum page
-		expect(page.url()).toMatch(/\/forums\/\d+/);
+		await page.waitForURL(/\/forums\/\d+/);
 	});
 
 	/**
@@ -62,10 +55,7 @@ test.describe("E2E-UJ: User Journey", () => {
 		await loginAs("e2etest");
 
 		await page.goto("/me");
-		await page.waitForLoadState("networkidle");
-
-		// Should not be redirected to login
-		expect(page.url()).toContain("/me");
+		await page.waitForURL("**/me");
 
 		// Should have breadcrumb with "我的账号"
 		await expect(page.getByText("我的账号")).toBeVisible();
@@ -87,7 +77,7 @@ test.describe("E2E-UJ: User Journey", () => {
 
 		// Go to e2eprofile user (id=64495, has 1 thread + 1 post per seed)
 		await page.goto("/users/64495");
-		await page.waitForLoadState("networkidle");
+		await page.waitForURL("**/users/64495**");
 
 		// Should see username
 		await expect(page.getByText("e2eprofile")).toBeVisible();
@@ -96,26 +86,18 @@ test.describe("E2E-UJ: User Journey", () => {
 		const postsTab = page.locator('a[href*="tab=posts"]');
 		await expect(postsTab).toBeVisible();
 		await postsTab.click();
-		await page.waitForLoadState("networkidle");
-
-		// URL should have tab=posts
-		expect(page.url()).toContain("tab=posts");
+		await page.waitForURL(/tab=posts/);
 
 		// Click "精华" tab (digest)
 		const digestTab = page.locator('a[href*="tab=digest"]');
 		await expect(digestTab).toBeVisible();
 		await digestTab.click();
-		await page.waitForLoadState("networkidle");
-
-		// URL should have tab=digest
-		expect(page.url()).toContain("tab=digest");
+		await page.waitForURL(/tab=digest/);
 
 		// Click "主题" tab (threads) to go back
 		const threadsTab = page.locator('a[href*="tab=threads"]');
 		await expect(threadsTab).toBeVisible();
 		await threadsTab.click();
-		await page.waitForLoadState("networkidle");
-
-		expect(page.url()).toContain("tab=threads");
+		await page.waitForURL(/tab=threads/);
 	});
 });

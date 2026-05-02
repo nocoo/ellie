@@ -15,7 +15,7 @@ test.describe("E2E-DF: Digest Filters", () => {
 		await loginAs("e2etest");
 
 		await page.goto("/digest");
-		await page.waitForLoadState("networkidle");
+		await page.waitForURL("**/digest");
 
 		// Should see "精华帖列表" heading
 		await expect(page.getByText("精华帖列表")).toBeVisible();
@@ -26,10 +26,7 @@ test.describe("E2E-DF: Digest Filters", () => {
 
 		if (hasLevelTab) {
 			await levelTab.click();
-			await page.waitForLoadState("networkidle");
-
-			// URL should contain level=1
-			expect(page.url()).toContain("level=1");
+			await page.waitForURL(/level=1/);
 
 			// Should still see heading (page didn't crash)
 			await expect(page.getByText("精华帖列表")).toBeVisible();
@@ -39,8 +36,7 @@ test.describe("E2E-DF: Digest Filters", () => {
 		const allTab = page.locator('a[href="/digest"]').first();
 		if (await allTab.isVisible()) {
 			await allTab.click();
-			await page.waitForLoadState("networkidle");
-			expect(page.url()).not.toContain("level=");
+			await page.waitForURL("**/digest");
 		}
 	});
 });
