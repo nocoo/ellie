@@ -27,7 +27,22 @@ export default defineConfig({
 		coverage: {
 			provider: "v8",
 			include: ["src/**/*.ts"],
-			exclude: ["src/**/*.d.ts"],
+			// Excluded source modules are covered by the bun:test lane
+			// (see scripts/run-tests.sh and .husky/pre-push). They use bun-native
+			// APIs such as `mock.module` that vitest's runner cannot execute, so
+			// vitest never imports them and v8 coverage would otherwise count
+			// them as 0% in the denominator. The bun:test lane in pre-push and
+			// `bun run test` is the source of truth for these files.
+			//
+			// Tech debt: pre-commit currently does NOT run the bun:test lane —
+			// only pre-push does. Tracked as follow-up to unify hook semantics
+			// (see docs/17 §12 review thread, path A1-).
+			exclude: [
+				"src/**/*.d.ts",
+				"src/lib/dove.ts",
+				"src/lib/email-verify.ts",
+				"src/handlers/email.ts",
+			],
 			thresholds: {
 				statements: 95,
 				lines: 95,
