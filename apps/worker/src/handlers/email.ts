@@ -77,7 +77,6 @@ export const requestCode = withAuthVerified(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	if (!env.EMAIL_VERIFY_HMAC_KEY) {
-		// Server is misconfigured — never expose plaintext clue, but fail loud.
 		return errorResponse("INTERNAL_ERROR", 500, undefined, origin);
 	}
 
