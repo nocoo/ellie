@@ -77,3 +77,34 @@ export function cloneEmailNotVerifiedPayload(): EmailNotVerifiedPayload {
 		redirect_to: EMAIL_NOT_VERIFIED_PAYLOAD.redirect_to,
 	};
 }
+
+// ─── Request bodies (docs/17 §7.2 / §7.3, §9) ───────────────────────────
+//
+// Shape contracts shared by the Worker handler, the Next.js proxy route and
+// the web `<EmailVerificationCard>`. They describe the *wire shape* — fields
+// are typed as the strings they appear as in JSON. The Worker MUST still run
+// runtime validation (length, format, normalization, etc.) before trusting
+// any field; these types only buy compile-time safety against rename / typo.
+
+/**
+ * POST /api/v1/users/me/email/request-code body.
+ * Carries the pending email the user wants to verify and the Cloudflare
+ * Turnstile token captured by the widget. The token is mandatory in rev4
+ * (§7.2.1, fail-closed) — see Worker handler for runtime enforcement.
+ */
+export interface EmailRequestCodeBody {
+	email: string;
+	cf_turnstile_token: string;
+}
+
+/**
+ * POST /api/v1/users/me/email/verify body.
+ * The submit step is intentionally captcha-free: a successful captcha was
+ * already burned at request-code time, so adding one here would only
+ * frustrate the legitimate user. Re-validating `email` matches the KV
+ * `pendingEmailNormalized` is the responsibility of the Worker handler.
+ */
+export interface EmailVerifyCodeBody {
+	email: string;
+	code: string;
+}

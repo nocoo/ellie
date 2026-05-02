@@ -8,7 +8,7 @@ export { getThreadBadges, decodeHighlight } from "./thread";
 export type { CursorPayload } from "./pagination";
 export { encodeCursor, decodeCursor, encodeGenericCursor, decodeGenericCursor, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, clampPageSize, } from "./pagination";
 export { isUserMuted, isUserBanned } from "./user";
-export type { EmailNotVerifiedCtaVariant, EmailNotVerifiedDialog, EmailNotVerifiedPayload, } from "./email-verification";
+export type { EmailNotVerifiedCtaVariant, EmailNotVerifiedDialog, EmailNotVerifiedPayload, EmailRequestCodeBody, EmailVerifyCodeBody, } from "./email-verification";
 export { EMAIL_NOT_VERIFIED_PAYLOAD, cloneEmailNotVerifiedPayload, } from "./email-verification";
 export type { PermissionUser, PermissionForum, PermissionPost, PermissionThread, } from "./permission";
 export { canViewForum, canCreateThread, canReplyToThread, canModerate, canAccessAdmin, canManageUsers, canEditPost, canDeletePost, canDeleteThread, canManageThread, canMoveThread, } from "./permission";

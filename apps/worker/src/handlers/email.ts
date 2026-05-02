@@ -16,6 +16,7 @@
 // rejected by `withAuthVerified`. Already-verified users are short-circuited
 // with `EMAIL_ALREADY_VERIFIED` so accidental re-flows are no-ops.
 
+import type { EmailRequestCodeBody, EmailVerifyCodeBody } from "@ellie/types";
 import { sendDoveEmail } from "../lib/dove";
 import {
 	CODE_TTL_SECONDS,
@@ -88,6 +89,10 @@ export const requestCode = withAuthVerified(async (request, env, user) => {
 		return errorResponse("INVALID_BODY", 400, undefined, origin);
 	}
 
+	// Compile-time hint only — runtime checks below are still authoritative.
+	// `Partial<>` preserves "field may be missing / wrong-typed" reality.
+	const reqBody = body as Partial<EmailRequestCodeBody>;
+
 	// Rev4 §7.2 / §7.2.1: Turnstile captcha runs FIRST.
 	// - Missing token → 400 CAPTCHA_REQUIRED (does NOT burn resend throttle).
 	// - siteverify failure / timeout / 5xx → 403 CAPTCHA_INVALID (fail-closed).
@@ -95,7 +100,7 @@ export const requestCode = withAuthVerified(async (request, env, user) => {
 	// can't be used to enumerate captcha state, and before any KV read so a
 	// rejected captcha never touches throttle/lock keys.
 	const submittedToken =
-		typeof body.cf_turnstile_token === "string" ? body.cf_turnstile_token.trim() : "";
+		typeof reqBody.cf_turnstile_token === "string" ? reqBody.cf_turnstile_token.trim() : "";
 	if (!submittedToken) {
 		return errorResponse("CAPTCHA_REQUIRED", 400, undefined, origin);
 	}
@@ -110,7 +115,7 @@ export const requestCode = withAuthVerified(async (request, env, user) => {
 		return errorResponse("CAPTCHA_INVALID", 403, undefined, origin);
 	}
 
-	const submittedEmail = typeof body.email === "string" ? body.email.trim() : "";
+	const submittedEmail = typeof reqBody.email === "string" ? reqBody.email.trim() : "";
 	if (!isValidEmail(submittedEmail)) {
 		return errorResponse("EMAIL_INVALID", 400, undefined, origin);
 	}
@@ -260,13 +265,16 @@ export const verifyCode = withAuthVerified(async (request, env, user) => {
 		return errorResponse("INVALID_BODY", 400, undefined, origin);
 	}
 
-	const submittedEmail = typeof body.email === "string" ? body.email.trim() : "";
+	// Compile-time hint only — runtime checks below remain authoritative.
+	const verifyBody = body as Partial<EmailVerifyCodeBody>;
+
+	const submittedEmail = typeof verifyBody.email === "string" ? verifyBody.email.trim() : "";
 	if (!isValidEmail(submittedEmail)) {
 		return errorResponse("EMAIL_INVALID", 400, undefined, origin);
 	}
 	const submittedEmailNormalized = normalizeEmail(submittedEmail);
 
-	const submittedCode = typeof body.code === "string" ? body.code.trim() : "";
+	const submittedCode = typeof verifyBody.code === "string" ? verifyBody.code.trim() : "";
 	if (!/^\d{6}$/.test(submittedCode)) {
 		return errorResponse("CODE_FORMAT_INVALID", 400, undefined, origin);
 	}
