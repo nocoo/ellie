@@ -43,7 +43,14 @@ export interface EmailVerificationUserView {
  * and machine state — the card has three visually distinct stacks.
  */
 export type CardMode =
-	/** Already verified → show badge + verified email + "change email" affordance. */
+	/**
+	 * Already verified → show badge + verified email + "change email" affordance.
+	 *
+	 * NB: `email` may be the empty string. The Worker permits a `verified` user
+	 * with no persisted email (legacy / migration). The component renders a
+	 * fallback string ("已验证邮箱") in that case — verified takes precedence
+	 * over the unbound stack so the badge is preserved.
+	 */
 	| { kind: "verified"; email: string; verifiedAt: number }
 	/** No email on file yet → "你尚未绑定邮箱" + email input + Turnstile + send button. */
 	| { kind: "unbound" }
@@ -54,10 +61,16 @@ export type CardMode =
  * Pick the rendering mode based purely on the user's current persisted
  * email + emailVerifiedAt. Pure function — no fallback logic baked into the
  * component.
+ *
+ * Precedence: verified beats every other mode. If `emailVerifiedAt > 0` the
+ * card always shows the verified badge, even when `email` is an empty string
+ * (the component shows a fallback label in that case). Only when
+ * `emailVerifiedAt === 0` do we fall back to unbound / unverified based on
+ * whether an email is on file.
  */
 export function pickCardMode(user: EmailVerificationUserView): CardMode {
 	const trimmed = user.email.trim();
-	if (user.emailVerifiedAt > 0 && trimmed !== "") {
+	if (user.emailVerifiedAt > 0) {
 		return { kind: "verified", email: trimmed, verifiedAt: user.emailVerifiedAt };
 	}
 	if (trimmed === "") {
@@ -74,12 +87,18 @@ export function pickCardMode(user: EmailVerificationUserView): CardMode {
  * The interactive form state. `idle` is the resting state where the user
  * can edit the email and solve the captcha; `sending` and `verifying` are
  * mid-flight network states that disable inputs.
+ *
+ * `verifying` carries the same `sentTo` / `nextResendAllowedAt` payload as
+ * `code-sent` so a `verify_error` can return to the prior code-sent state
+ * without requiring the caller to re-burn a captcha. This is the reviewer's
+ * required behaviour (msg dcdbfacc): wrong code → stay in code-sent and let
+ * the user re-enter the code.
  */
 export type FormState =
 	| { kind: "idle"; error: string | null }
 	| { kind: "sending" }
 	| { kind: "code-sent"; sentTo: string; nextResendAllowedAt: number; error: string | null }
-	| { kind: "verifying" }
+	| { kind: "verifying"; sentTo: string; nextResendAllowedAt: number }
 	| { kind: "verified" }
 	| { kind: "config-error"; reason: string };
 
@@ -143,7 +162,13 @@ export function nextState(prev: FormState, event: FormEvent): FormState {
 
 		case "verify_start":
 			if (prev.kind === "code-sent") {
-				return { kind: "verifying" };
+				// Carry the code-sent payload into `verifying` so verify_error can
+				// recover without a second captcha round-trip.
+				return {
+					kind: "verifying",
+					sentTo: prev.sentTo,
+					nextResendAllowedAt: prev.nextResendAllowedAt,
+				};
 			}
 			return prev;
 
@@ -155,16 +180,16 @@ export function nextState(prev: FormState, event: FormEvent): FormState {
 
 		case "verify_error":
 			if (prev.kind === "verifying") {
-				// Drop back to code-sent so the user can re-enter the code without
-				// re-burning a captcha. We preserve `sentTo` / `nextResendAllowedAt`
-				// captured at send_success time.
-				// The reducer cannot "remember" prior code-sent state here, so the
-				// caller must re-emit it via `restore_after_verify_error`. To keep
-				// the API tight we instead let the component remember the prior
-				// code-sent payload and pass it back via `reset_to_idle`-then-
-				// `send_success`. For test simplicity we collapse to idle with the
-				// error so it is still observable.
-				return { kind: "idle", error: event.message };
+				// Reviewer requirement (msg dcdbfacc): wrong code → stay in
+				// code-sent so the user can re-enter the code without re-burning
+				// the captcha. Carry sentTo / nextResendAllowedAt forward; surface
+				// the error inline.
+				return {
+					kind: "code-sent",
+					sentTo: prev.sentTo,
+					nextResendAllowedAt: prev.nextResendAllowedAt,
+					error: event.message,
+				};
 			}
 			return prev;
 
@@ -234,33 +259,64 @@ export function isValidCodeFormat(code: string): boolean {
  * fall back to a generic message so the card never shows a raw machine code.
  * The dialog dispatch for `EMAIL_NOT_VERIFIED` is handled by Phase 7 — this
  * map is for inline form errors only.
+ *
+ * The `case` set is aligned with the union the Worker actually emits across
+ * `apps/worker/src/handlers/email.ts` (request-code + verify):
+ *   INTERNAL_ERROR, INVALID_BODY, CAPTCHA_REQUIRED, CAPTCHA_INVALID,
+ *   EMAIL_INVALID, USER_NOT_FOUND, EMAIL_ALREADY_VERIFIED,
+ *   CODE_RESEND_THROTTLED, EMAIL_PROVIDER_FAILED, CODE_FORMAT_INVALID,
+ *   CODE_NOT_FOUND, EMAIL_CODE_EMAIL_MISMATCH, CODE_LOCKED, CODE_INVALID,
+ *   EMAIL_ALREADY_IN_USE
+ * plus the proxy-emitted fences NOT_AUTHENTICATED / CSRF_REJECTED.
  */
 export function mapErrorCode(code: string, fallback?: string): string {
 	switch (code) {
+		// ── Captcha ──
 		case "CAPTCHA_REQUIRED":
 			return "请先完成人机验证。";
 		case "CAPTCHA_INVALID":
 			return "人机验证未通过，请刷新后重试。";
+
+		// ── Email ──
 		case "EMAIL_INVALID":
 			return "邮箱格式无效，请检查后重试。";
 		case "EMAIL_ALREADY_IN_USE":
 			return "该邮箱已被其他账户绑定。";
 		case "EMAIL_ALREADY_VERIFIED":
 			return "该邮箱已经验证过了。";
+
+		// ── Code (request-code resend throttle) ──
 		case "CODE_RESEND_THROTTLED":
 			return "发送过于频繁，请稍后再试。";
+
+		// ── Code (verify) ──
+		case "CODE_FORMAT_INVALID":
+			return "验证码格式不正确，请输入 6 位数字。";
+		case "CODE_NOT_FOUND":
+			return "验证码不存在或已过期，请重新发送。";
 		case "CODE_INVALID":
-			return "验证码错误或已过期，请重新输入。";
-		case "CODE_EXPIRED":
-			return "验证码已过期，请重新发送。";
-		case "TOO_MANY_ATTEMPTS":
-			return "尝试次数过多，请稍后再试。";
+			return "验证码错误，请重新输入。";
+		case "CODE_LOCKED":
+			return "尝试次数过多，请重新发送验证码。";
+		case "EMAIL_CODE_EMAIL_MISMATCH":
+			return "验证码与邮箱不匹配，请确认后重试。";
+
+		// ── Provider / system ──
+		case "EMAIL_PROVIDER_FAILED":
+			return "邮件发送失败，请稍后重试。";
+		case "USER_NOT_FOUND":
+			return "用户不存在，请重新登录。";
+		case "INVALID_BODY":
+			return "请求格式错误，请刷新页面重试。";
+
+		// ── Proxy fences ──
 		case "NOT_AUTHENTICATED":
 			return "登录已过期，请重新登录。";
 		case "CSRF_REJECTED":
 			return "请求被拒绝，请刷新页面重试。";
 		case "INTERNAL_ERROR":
 			return "服务器内部错误，请稍后重试。";
+
 		default:
 			return fallback?.trim() || "操作失败，请稍后重试。";
 	}

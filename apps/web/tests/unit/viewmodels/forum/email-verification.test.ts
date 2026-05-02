@@ -42,9 +42,24 @@ describe("pickCardMode", () => {
 		expect(m).toEqual<CardMode>({ kind: "verified", email: "x@y.io", verifiedAt: 100 });
 	});
 
-	it("returns unbound when email is empty (regardless of emailVerifiedAt)", () => {
-		expect(pickCardMode({ email: "", emailVerifiedAt: 0 })).toEqual<CardMode>({ kind: "unbound" });
+	it("verified takes precedence even when email is empty (legacy/migration fallback)", () => {
+		// Reviewer requirement (msg dcdbfacc): emailVerifiedAt > 0 always wins,
+		// even with empty email. The component shows a fallback label.
+		expect(pickCardMode({ email: "", emailVerifiedAt: 1 })).toEqual<CardMode>({
+			kind: "verified",
+			email: "",
+			verifiedAt: 1,
+		});
 		expect(pickCardMode({ email: "   ", emailVerifiedAt: 100 })).toEqual<CardMode>({
+			kind: "verified",
+			email: "",
+			verifiedAt: 100,
+		});
+	});
+
+	it("returns unbound only when emailVerifiedAt === 0 AND email is empty", () => {
+		expect(pickCardMode({ email: "", emailVerifiedAt: 0 })).toEqual<CardMode>({ kind: "unbound" });
+		expect(pickCardMode({ email: "   ", emailVerifiedAt: 0 })).toEqual<CardMode>({
 			kind: "unbound",
 		});
 	});
@@ -90,22 +105,57 @@ describe("nextState", () => {
 		expect(s).toEqual<FormState>({ kind: "idle", error: "boom" });
 	});
 
-	it("code-sent → verifying on verify_start", () => {
+	it("code-sent → verifying carries sentTo / nextResendAllowedAt forward", () => {
+		// Reviewer requirement (msg dcdbfacc): the verifying state must remember
+		// the code-sent payload so verify_error can recover without a second
+		// captcha round-trip.
 		const s = nextState(
-			{ kind: "code-sent", sentTo: "x***@y.io", nextResendAllowedAt: 0, error: null },
+			{ kind: "code-sent", sentTo: "x***@y.io", nextResendAllowedAt: 1700000060, error: null },
 			{ type: "verify_start" },
 		);
-		expect(s).toEqual<FormState>({ kind: "verifying" });
+		expect(s).toEqual<FormState>({
+			kind: "verifying",
+			sentTo: "x***@y.io",
+			nextResendAllowedAt: 1700000060,
+		});
 	});
 
 	it("verifying → verified on verify_success (terminal happy path)", () => {
-		const s = nextState({ kind: "verifying" }, { type: "verify_success" });
+		const s = nextState(
+			{ kind: "verifying", sentTo: "x***@y.io", nextResendAllowedAt: 1700000060 },
+			{ type: "verify_success" },
+		);
 		expect(s).toEqual<FormState>({ kind: "verified" });
 	});
 
-	it("verifying → idle with error on verify_error (user can retry)", () => {
-		const s = nextState({ kind: "verifying" }, { type: "verify_error", message: "码错" });
-		expect(s).toEqual<FormState>({ kind: "idle", error: "码错" });
+	it("verifying → code-sent (with inline error) on verify_error — keeps sentTo so user can retry without re-captcha", () => {
+		// Reviewer requirement: wrong code → stay in code-sent; do NOT drop back
+		// to idle (which would require the user to re-burn a captcha).
+		const s = nextState(
+			{ kind: "verifying", sentTo: "x***@y.io", nextResendAllowedAt: 1700000060 },
+			{ type: "verify_error", message: "码错" },
+		);
+		expect(s).toEqual<FormState>({
+			kind: "code-sent",
+			sentTo: "x***@y.io",
+			nextResendAllowedAt: 1700000060,
+			error: "码错",
+		});
+	});
+
+	it("verify_error → user can verify_start again from the recovered code-sent state", () => {
+		// Regression for the full retry loop.
+		const afterError = nextState(
+			{ kind: "verifying", sentTo: "x***@y.io", nextResendAllowedAt: 42 },
+			{ type: "verify_error", message: "wrong" },
+		);
+		expect(afterError.kind).toBe("code-sent");
+		const retried = nextState(afterError, { type: "verify_start" });
+		expect(retried).toEqual<FormState>({
+			kind: "verifying",
+			sentTo: "x***@y.io",
+			nextResendAllowedAt: 42,
+		});
 	});
 
 	it("config_invalid is terminal from any state", () => {
@@ -113,7 +163,7 @@ describe("nextState", () => {
 			{ kind: "idle", error: null },
 			{ kind: "sending" },
 			{ kind: "code-sent", sentTo: "x", nextResendAllowedAt: 0, error: null },
-			{ kind: "verifying" },
+			{ kind: "verifying", sentTo: "x", nextResendAllowedAt: 0 },
 			{ kind: "verified" },
 		];
 		for (const s of states) {
@@ -210,16 +260,31 @@ describe("isValidCodeFormat", () => {
 
 // ─── mapErrorCode ────────────────────────────────────────────────────────────
 describe("mapErrorCode", () => {
+	// Aligned with the union the Worker actually emits across
+	// apps/worker/src/handlers/email.ts (request-code + verify) plus the
+	// proxy-emitted fences. Reviewer requirement (msg dcdbfacc): every code
+	// the worker can return on the email flow MUST have a copy mapping.
 	it.each([
+		// Captcha
 		"CAPTCHA_REQUIRED",
 		"CAPTCHA_INVALID",
+		// Email
 		"EMAIL_INVALID",
 		"EMAIL_ALREADY_IN_USE",
 		"EMAIL_ALREADY_VERIFIED",
+		// Code throttle (request-code)
 		"CODE_RESEND_THROTTLED",
+		// Code (verify)
+		"CODE_FORMAT_INVALID",
+		"CODE_NOT_FOUND",
 		"CODE_INVALID",
-		"CODE_EXPIRED",
-		"TOO_MANY_ATTEMPTS",
+		"CODE_LOCKED",
+		"EMAIL_CODE_EMAIL_MISMATCH",
+		// Provider / system
+		"EMAIL_PROVIDER_FAILED",
+		"USER_NOT_FOUND",
+		"INVALID_BODY",
+		// Proxy fences
 		"NOT_AUTHENTICATED",
 		"CSRF_REJECTED",
 		"INTERNAL_ERROR",
@@ -227,6 +292,16 @@ describe("mapErrorCode", () => {
 		const msg = mapErrorCode(code);
 		expect(msg).toMatch(/[一-龥]/);
 		expect(msg.length).toBeGreaterThan(0);
+		// Must not be the generic fallback — every known code has a specific copy.
+		expect(msg).not.toBe("操作失败，请稍后重试。");
+	});
+
+	it("CODE_NOT_FOUND copy mentions resending", () => {
+		expect(mapErrorCode("CODE_NOT_FOUND")).toBe("验证码不存在或已过期，请重新发送。");
+	});
+
+	it("CODE_LOCKED copy tells the user to resend", () => {
+		expect(mapErrorCode("CODE_LOCKED")).toBe("尝试次数过多，请重新发送验证码。");
 	});
 
 	it("falls back to a generic Chinese message for unknown codes", () => {
@@ -286,7 +361,7 @@ describe("parseWrappedError", () => {
 describe("describeWrappedError", () => {
 	it("maps the wrapped code via mapErrorCode", () => {
 		expect(describeWrappedError({ error: { code: "CODE_INVALID", message: "x" } }, 400)).toBe(
-			"验证码错误或已过期，请重新输入。",
+			"验证码错误，请重新输入。",
 		);
 	});
 
