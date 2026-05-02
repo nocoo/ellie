@@ -2,9 +2,9 @@ import { decodeGenericCursor, encodeGenericCursor } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { toThread } from "../lib/mappers";
 import {
-	FORUM_ACTIVE,
 	buildForumVisibilityFilter,
 	buildVisibilityContext,
+	forumActive,
 	threadVisible,
 } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
@@ -101,7 +101,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	const { conditions, bindings } = buildDigestConditions({ forumId, level, year });
 
 	// Add forum visibility filter (status = 1 for active, and visibility check)
-	const fullConditions = [...conditions, FORUM_ACTIVE.replace("status", "f.status"), forumFilter];
+	const fullConditions = [...conditions, forumActive("f"), forumFilter];
 
 	let result: D1Result;
 	if (cursor) {
@@ -180,7 +180,7 @@ export async function stats(request: Request, env: Env): Promise<Response> {
 			SUM(CASE WHEN t.digest = 3 THEN 1 ELSE 0 END) as level3
 		 FROM threads t
 		 INNER JOIN forums f ON t.forum_id = f.id
-		 WHERE t.digest > 0 AND ${threadVisible("t")} AND ${FORUM_ACTIVE.replace("status", "f.status")} AND ${forumFilter}`,
+		 WHERE t.digest > 0 AND ${threadVisible("t")} AND ${forumActive("f")} AND ${forumFilter}`,
 	).first<{ total: number; level1: number; level2: number; level3: number }>();
 
 	return new Response(
@@ -211,7 +211,7 @@ export async function filters(request: Request, env: Env): Promise<Response> {
 		`SELECT DISTINCT strftime('%Y', t.created_at, 'unixepoch') as year
 		 FROM threads t
 		 INNER JOIN forums f ON t.forum_id = f.id
-		 WHERE t.digest > 0 AND ${threadVisible("t")} AND ${FORUM_ACTIVE.replace("status", "f.status")} AND ${forumFilter}
+		 WHERE t.digest > 0 AND ${threadVisible("t")} AND ${forumActive("f")} AND ${forumFilter}
 		 ORDER BY year DESC`,
 	).all<{ year: string }>();
 
@@ -224,7 +224,7 @@ export async function filters(request: Request, env: Env): Promise<Response> {
 		`SELECT f.id, f.name, COUNT(t.id) as digest_count
 		 FROM threads t
 		 INNER JOIN forums f ON t.forum_id = f.id
-		 WHERE t.digest > 0 AND ${threadVisible("t")} AND ${FORUM_ACTIVE.replace("status", "f.status")} AND ${forumFilter}
+		 WHERE t.digest > 0 AND ${threadVisible("t")} AND ${forumActive("f")} AND ${forumFilter}
 		 GROUP BY f.id, f.name
 		 ORDER BY f.name`,
 	).all<{ id: number; name: string; digest_count: number }>();

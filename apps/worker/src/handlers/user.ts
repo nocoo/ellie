@@ -3,10 +3,10 @@ import type { Env } from "../lib/env";
 import { toPost, toPublicUser, toThread } from "../lib/mappers";
 import { jsonResponse } from "../lib/response";
 import {
-	POST_VISIBLE,
 	USER_ACTIVE,
 	buildForumFilter,
 	buildVisibilityContext,
+	postVisible,
 	threadVisible,
 } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
@@ -206,7 +206,7 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 			`SELECT p.* FROM posts p
 			 INNER JOIN threads t ON p.thread_id = t.id
 			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE p.author_id = ? AND ${POST_VISIBLE.replace("invisible", "p.invisible")} AND ${threadVisible("t")} AND ${forumFilter}
+			 WHERE p.author_id = ? AND ${postVisible("p")} AND ${threadVisible("t")} AND ${forumFilter}
 			 AND (p.created_at < ? OR (p.created_at = ? AND p.id < ?))
 			 ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
 		)
@@ -217,7 +217,7 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 			`SELECT p.* FROM posts p
 			 INNER JOIN threads t ON p.thread_id = t.id
 			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE p.author_id = ? AND ${POST_VISIBLE.replace("invisible", "p.invisible")} AND ${threadVisible("t")} AND ${forumFilter}
+			 WHERE p.author_id = ? AND ${postVisible("p")} AND ${threadVisible("t")} AND ${forumFilter}
 			 ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
 		)
 			.bind(userId, clampedLimit)
