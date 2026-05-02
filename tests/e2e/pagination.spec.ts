@@ -51,29 +51,23 @@ test.describe("E2E-PG: Pagination", () => {
 		// Should have posts
 		await expect(threadPage.postCards.first()).toBeVisible();
 
-		// Look for pagination controls
-		const pageLinks = page.locator('a[href*="page="]');
-		const pagination = page.locator('nav[aria-label="pagination"], [data-testid="pagination"]');
+		// Thread page uses keyset (cursor) pagination — look for cursor links or 下一页 button
+		const cursorLinks = page.locator('a[href*="cursor="]');
+		const nextButton = page.getByRole("link", { name: /下一页/ });
 
-		const hasPageLinks = (await pageLinks.count()) > 0;
-		const hasPagination = await pagination.isVisible().catch(() => false);
+		const hasCursorLinks = (await cursorLinks.count()) > 0;
+		const hasNextButton = await nextButton.isVisible().catch(() => false);
 
 		// Should have some form of pagination
-		expect(hasPageLinks || hasPagination).toBe(true);
+		expect(hasCursorLinks || hasNextButton).toBe(true);
 
-		// If page links exist, click page 2
-		if (hasPageLinks) {
-			const page2Link = page.locator('a[href*="page=2"]').first();
-			if (await page2Link.isVisible()) {
-				await page2Link.click();
-				await page.waitForLoadState("networkidle");
+		// Click next page if available
+		if (hasNextButton) {
+			await nextButton.click();
+			await page.waitForURL(/cursor=/);
 
-				// URL should contain page=2
-				expect(page.url()).toContain("page=2");
-
-				// Should still have post cards
-				await expect(threadPage.postCards.first()).toBeVisible();
-			}
+			// Should still have post cards
+			await expect(threadPage.postCards.first()).toBeVisible();
 		}
 	});
 });

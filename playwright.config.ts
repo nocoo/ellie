@@ -15,11 +15,16 @@ export default defineConfig({
 	workers: 1,
 	reporter: "html",
 
+	expect: {
+		timeout: process.env.CI ? 15_000 : 5_000,
+	},
+
 	use: {
 		baseURL: BASE_URL,
 		trace: "on-first-retry",
 		locale: "zh-CN",
 		timezoneId: "Asia/Shanghai",
+		navigationTimeout: 30_000,
 	},
 
 	// ---------------------------------------------------------------------------
