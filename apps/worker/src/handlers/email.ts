@@ -1,9 +1,16 @@
 // Email verification handlers — request-code (7.2) and verify (7.3).
-// Refs docs/17-email-verification.md §7.2, §7.3.
+// Refs docs/17-email-verification.md §7.2, §7.3 (rev3).
 //
 // Endpoints (both authenticated via JWT, but DO NOT require email-verified):
-//   POST /api/v1/users/me/email/request-code
-//   POST /api/v1/users/me/email/verify
+//   POST /api/v1/users/me/email/request-code   body: { email }
+//   POST /api/v1/users/me/email/verify         body: { email, code }
+//
+// rev3 model: pending email lives in KV ONLY. The users table is not touched
+// until verify succeeds, at which point we write email + email_normalized +
+// email_verified_at in a single conditional UPDATE guarded by
+// `email_verified_at = 0`. Uniqueness is enforced by the 0029 partial index
+// (`email_normalized != ''`); a constraint violation surfaces as
+// 409 EMAIL_ALREADY_IN_USE.
 //
 // Allowed for unverified users — that's the whole point. Banned users are
 // rejected by `withAuthVerified`. Already-verified users are short-circuited
@@ -30,8 +37,6 @@ import { withAuthVerified } from "../lib/routeHelpers";
 import { errorResponse } from "../middleware/error";
 
 interface UserRow {
-	email: string;
-	email_normalized: string;
 	email_verified_at: number;
 	username: string;
 }
@@ -41,19 +46,31 @@ function nowSeconds(): number {
 }
 
 async function loadUser(env: { DB: D1Database }, userId: number): Promise<UserRow | null> {
-	return env.DB.prepare(
-		"SELECT email, email_normalized, email_verified_at, username FROM users WHERE id = ?",
-	)
+	return env.DB.prepare("SELECT email_verified_at, username FROM users WHERE id = ?")
 		.bind(userId)
 		.first<UserRow>();
+}
+
+/** True if the thrown D1 error matches the partial unique index on email_normalized. */
+function isEmailUniqueViolation(err: unknown): boolean {
+	const msg = err instanceof Error ? err.message : String(err);
+	// D1 surfaces SQLite errors as "UNIQUE constraint failed: users.email_normalized"
+	// or similar text mentioning the index name. Match conservatively.
+	return /UNIQUE/i.test(msg) && /email_normalized/i.test(msg);
 }
 
 /**
  * POST /api/v1/users/me/email/request-code
  *
- * Generate a 6-digit code, HMAC it, store the envelope in KV with 15-min TTL,
- * and dispatch via dove. Only persists state on successful send (so a dove
- * failure leaves the throttle clock untouched and the user can retry).
+ * Body: `{ email: "user@example.com" }`
+ *
+ * Generate a 6-digit code, HMAC it, store the pending envelope (display +
+ * normalized form) in KV with 15-min TTL, and dispatch via dove. Only persists
+ * state on successful send (so a dove failure leaves the throttle clock
+ * untouched and the user can retry).
+ *
+ * Does NOT touch the users table. The pending email exists only in KV until
+ * verifyCode succeeds.
  */
 export const requestCode = withAuthVerified(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
@@ -63,6 +80,19 @@ export const requestCode = withAuthVerified(async (request, env, user) => {
 		return errorResponse("INTERNAL_ERROR", 500, undefined, origin);
 	}
 
+	let body: Record<string, unknown>;
+	try {
+		body = (await request.json()) as Record<string, unknown>;
+	} catch {
+		return errorResponse("INVALID_BODY", 400, undefined, origin);
+	}
+
+	const submittedEmail = typeof body.email === "string" ? body.email.trim() : "";
+	if (!isValidEmail(submittedEmail)) {
+		return errorResponse("EMAIL_INVALID", 400, undefined, origin);
+	}
+	const pendingEmailNormalized = normalizeEmail(submittedEmail);
+
 	const dbUser = await loadUser(env, user.userId);
 	if (!dbUser) {
 		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
@@ -70,13 +100,6 @@ export const requestCode = withAuthVerified(async (request, env, user) => {
 
 	if (dbUser.email_verified_at > 0) {
 		return errorResponse("EMAIL_ALREADY_VERIFIED", 403, undefined, origin);
-	}
-
-	const targetEmailNormalized = dbUser.email_normalized || normalizeEmail(dbUser.email);
-	if (!isValidEmail(targetEmailNormalized)) {
-		// Legacy / corrupt row — user must hit POST /api/v1/users/me/email first
-		// (phase 5). Until then we cannot deliver anywhere.
-		return errorResponse("EMAIL_INVALID", 400, undefined, origin);
 	}
 
 	const key = codeKvKey(user.userId);
@@ -124,13 +147,13 @@ export const requestCode = withAuthVerified(async (request, env, user) => {
 	const codeHmac = await computeCodeHmac(
 		env.EMAIL_VERIFY_HMAC_KEY,
 		user.userId,
-		targetEmailNormalized,
+		pendingEmailNormalized,
 		code,
 	);
 
 	// Send first — only persist on success (docs/17 §7.2).
 	const sendResult = await sendDoveEmail(env, {
-		to: dbUser.email, // exact display form
+		to: submittedEmail, // exact display form the user typed
 		template: "ellie-email-verify",
 		// Stable per (user, code) so accidental retries deduplicate at dove.
 		idempotencyKey: `${user.userId}:${codeHmac.slice(0, 16)}`,
@@ -149,7 +172,7 @@ export const requestCode = withAuthVerified(async (request, env, user) => {
 		// intentionally omits plaintext code, HMAC, and full email.
 		console.warn(
 			`[email-verify] dove send failed user=${user.userId} ` +
-				`recipient=${maskEmail(targetEmailNormalized)} ` +
+				`recipient=${maskEmail(pendingEmailNormalized)} ` +
 				`upstream_code=${sendResult.code} status=${sendResult.status}`,
 		);
 		return errorResponse("EMAIL_PROVIDER_FAILED", 502, undefined, origin);
@@ -157,7 +180,8 @@ export const requestCode = withAuthVerified(async (request, env, user) => {
 
 	const record: CodeRecord = {
 		codeHmac,
-		targetEmailNormalized,
+		pendingEmail: submittedEmail,
+		pendingEmailNormalized,
 		expiresAt: now + CODE_TTL_SECONDS,
 		attempts: 0,
 		lastSentAt: now,
@@ -170,7 +194,7 @@ export const requestCode = withAuthVerified(async (request, env, user) => {
 
 	return jsonResponse(
 		{
-			sent_to: maskEmail(targetEmailNormalized),
+			sent_to: maskEmail(pendingEmailNormalized),
 			expires_in: CODE_TTL_SECONDS,
 			next_resend_allowed_at: now + RESEND_THROTTLE_SECONDS,
 		},
@@ -181,8 +205,20 @@ export const requestCode = withAuthVerified(async (request, env, user) => {
 /**
  * POST /api/v1/users/me/email/verify
  *
- * Accepts `{ code: "123456" }`. On success: sets `email_verified_at = now()`
- * and deletes the KV record. JWT keeps working — no logout needed.
+ * Body: `{ email: "user@example.com", code: "123456" }`
+ *
+ * The body email MUST match the pending email saved by the most recent
+ * request-code; otherwise we return 409 EMAIL_CODE_EMAIL_MISMATCH without
+ * burning an attempt — the mismatch usually means the user re-typed a
+ * different address, not a brute force.
+ *
+ * On success: writes `email`, `email_normalized`, and `email_verified_at` in
+ * a single conditional UPDATE guarded by `email_verified_at = 0` (one-shot
+ * first-add semantics in rev3) and deletes the KV record. JWT keeps working
+ * — no logout needed.
+ *
+ * `email_changed_at` is intentionally NOT written here — rev3 treats this as
+ * the first-add path; subsequent change flows are out of scope.
  */
 export const verifyCode = withAuthVerified(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
@@ -198,8 +234,14 @@ export const verifyCode = withAuthVerified(async (request, env, user) => {
 		return errorResponse("INVALID_BODY", 400, undefined, origin);
 	}
 
-	const submitted = typeof body.code === "string" ? body.code.trim() : "";
-	if (!/^\d{6}$/.test(submitted)) {
+	const submittedEmail = typeof body.email === "string" ? body.email.trim() : "";
+	if (!isValidEmail(submittedEmail)) {
+		return errorResponse("EMAIL_INVALID", 400, undefined, origin);
+	}
+	const submittedEmailNormalized = normalizeEmail(submittedEmail);
+
+	const submittedCode = typeof body.code === "string" ? body.code.trim() : "";
+	if (!/^\d{6}$/.test(submittedCode)) {
 		return errorResponse("CODE_FORMAT_INVALID", 400, undefined, origin);
 	}
 
@@ -236,19 +278,18 @@ export const verifyCode = withAuthVerified(async (request, env, user) => {
 		return errorResponse("CODE_NOT_FOUND", 404, undefined, origin);
 	}
 
-	const currentNormalized = dbUser.email_normalized || normalizeEmail(dbUser.email);
-	if (record.targetEmailNormalized !== currentNormalized) {
-		// Email changed since the code was issued — invalidate so the next
-		// request-code starts from a clean slate.
-		await env.KV.delete(key);
-		return errorResponse("EMAIL_CHANGED_SINCE_CODE", 409, undefined, origin);
+	// Body email must match the pending email this code was issued for. We
+	// compare normalized forms so casing / whitespace differences don't trip
+	// honest users. Mismatch ≠ brute force, so we do NOT burn an attempt.
+	if (record.pendingEmailNormalized !== submittedEmailNormalized) {
+		return errorResponse("EMAIL_CODE_EMAIL_MISMATCH", 409, undefined, origin);
 	}
 
 	const submittedHmac = await computeCodeHmac(
 		env.EMAIL_VERIFY_HMAC_KEY,
 		user.userId,
-		record.targetEmailNormalized,
-		submitted,
+		record.pendingEmailNormalized,
+		submittedCode,
 	);
 
 	if (!constantTimeEqualHex(submittedHmac, record.codeHmac)) {
@@ -270,10 +311,32 @@ export const verifyCode = withAuthVerified(async (request, env, user) => {
 		);
 	}
 
-	// Success path: persist verification, then delete KV.
-	await env.DB.prepare("UPDATE users SET email_verified_at = ? WHERE id = ?")
-		.bind(now, user.userId)
-		.run();
+	// Success path: write email + normalized + verified-at in a single
+	// conditional UPDATE. The `email_verified_at = 0` guard is a one-shot
+	// first-add gate (NOT a concurrency primitive — D1 serializes per row).
+	// `email_changed_at` is intentionally untouched in rev3.
+	try {
+		const result = await env.DB.prepare(
+			"UPDATE users SET email = ?, email_normalized = ?, email_verified_at = ? WHERE id = ? AND email_verified_at = 0",
+		)
+			.bind(record.pendingEmail, record.pendingEmailNormalized, now, user.userId)
+			.run();
+
+		// If the guard missed (someone verified out-of-band between loadUser and
+		// here), surface the same already-verified contract.
+		const changes = (result.meta as { changes?: number } | undefined)?.changes ?? 0;
+		if (changes === 0) {
+			return errorResponse("EMAIL_ALREADY_VERIFIED", 403, undefined, origin);
+		}
+	} catch (err) {
+		if (isEmailUniqueViolation(err)) {
+			// 0029 partial unique index rejected the write — another account
+			// already owns this normalized email. Leave the KV record so the
+			// user can retry with a different address via request-code.
+			return errorResponse("EMAIL_ALREADY_IN_USE", 409, undefined, origin);
+		}
+		throw err;
+	}
 	await env.KV.delete(key);
 
 	return jsonResponse({ verified: true, verified_at: now }, origin);

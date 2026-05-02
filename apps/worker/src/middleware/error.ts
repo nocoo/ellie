@@ -55,7 +55,9 @@ function getStatusMessage(code: string): string {
 		CODE_INVALID: "Verification code is incorrect",
 		CODE_LOCKED: "Too many incorrect attempts — request a new code",
 		CODE_RESEND_THROTTLED: "Please wait before requesting another code",
-		EMAIL_CHANGED_SINCE_CODE: "Email changed since the code was issued — request a new one",
+		EMAIL_CODE_EMAIL_MISMATCH:
+			"Submitted email does not match the address the code was sent to — request a new code",
+		EMAIL_ALREADY_IN_USE: "Email address is already in use",
 		EMAIL_PROVIDER_FAILED: "Failed to send verification email — please try again",
 		TOKEN_EXPIRED: "Authentication token has expired",
 		INVALID_TOKEN: "Invalid authentication token",

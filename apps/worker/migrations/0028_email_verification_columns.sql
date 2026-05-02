@@ -7,10 +7,14 @@
 --   email_verified_at > 0  → unix seconds at verification
 --   email_normalized       → lower(trim(email)); maintained by app layer.
 --                            Uniqueness is enforced in a follow-up migration
---                            (0029) AFTER ops resolves duplicates and BEFORE
---                            the email-change endpoint is exposed.
---   email_changed_at       → unix seconds of the last successful email change
---                            while unverified; drives the 24h change quota.
+--                            (0029) so the verify endpoint (rev3 §7.3) has a
+--                            DB-level safety net before it writes users.email.
+--                            Phase 5a ops clears legacy email fields (no
+--                            duplicate resolution needed under rev3 — every
+--                            row gets reset to '' / 0).
+--   email_changed_at       → reserved for a future verified-user email-change
+--                            RFC. NOT written by the rev3 first-add flow and
+--                            does NOT currently drive any quota.
 
 ALTER TABLE users ADD COLUMN email_verified_at INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN email_normalized  TEXT    NOT NULL DEFAULT '';

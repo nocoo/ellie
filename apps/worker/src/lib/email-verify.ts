@@ -14,12 +14,19 @@ export const MAX_ATTEMPTS = 5;
  *  short enough that a crashed worker doesn't lock the user out for long. */
 export const SEND_LOCK_TTL_SECONDS = 10;
 
-/** Shape of the per-user KV record holding an in-flight verification code. */
+/** Shape of the per-user KV record holding an in-flight verification code.
+ *
+ * rev3: pending email lives ONLY in KV until verify succeeds — `users.email`
+ * is not written by request-code. Both display and normalized forms are kept
+ * so verify can write the canonical display form back to D1 in one shot.
+ */
 export interface CodeRecord {
-	/** Hex-encoded HMAC-SHA256 of `<userId>:<email_normalized>:<code>` keyed by EMAIL_VERIFY_HMAC_KEY. */
+	/** Hex-encoded HMAC-SHA256 of `<userId>:<pendingEmailNormalized>:<code>` keyed by EMAIL_VERIFY_HMAC_KEY. */
 	codeHmac: string;
-	/** The normalized email this code was issued for (so email-changed invalidates it). */
-	targetEmailNormalized: string;
+	/** The display form of the pending email (what the user typed, trimmed). Written to users.email on verify success. */
+	pendingEmail: string;
+	/** The normalized form of the pending email. Used for HMAC, body-mismatch check, and users.email_normalized on verify. */
+	pendingEmailNormalized: string;
 	/** Unix seconds when the code stops being valid. Defensive — KV TTL is also set. */
 	expiresAt: number;
 	/** Number of failed attempts so far (0..MAX_ATTEMPTS). */
