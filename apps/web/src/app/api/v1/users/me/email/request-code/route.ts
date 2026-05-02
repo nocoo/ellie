@@ -10,6 +10,7 @@ import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
+import type { EmailRequestCodeBody } from "@ellie/types";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -39,7 +40,15 @@ export async function POST(request: Request) {
 	}
 
 	try {
-		const body = await request.json();
+		const raw = (await request.json()) as Partial<Record<string, unknown>>;
+		// Explicitly project to `EmailRequestCodeBody` — never spread the raw
+		// body. This guarantees only the fields the Worker contract expects
+		// reach the upstream, regardless of what the caller appends. Runtime
+		// validation (string types, captcha verification) stays on the Worker.
+		const body: EmailRequestCodeBody = {
+			email: raw.email as string,
+			cf_turnstile_token: raw.cf_turnstile_token as string,
+		};
 		const result = await forumApi.postAuth<unknown>(
 			"/api/v1/users/me/email/request-code",
 			body,

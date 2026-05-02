@@ -20,7 +20,14 @@ import type { ForumApiError } from "./forum-api";
 export function isEmailNotVerifiedPayload(body: unknown): boolean {
 	if (body == null || typeof body !== "object") return false;
 	const obj = body as Record<string, unknown>;
-	return obj.error === EMAIL_NOT_VERIFIED_PAYLOAD.error;
+	if (obj.error !== EMAIL_NOT_VERIFIED_PAYLOAD.error) return false;
+	// Reviewer guard: also require the §5.4 shape's fingerprint fields so a
+	// future malformed body that just happens to set `error: "EMAIL_NOT_VERIFIED"`
+	// at the top level cannot be verbatim-forwarded with missing dialog/redirect.
+	if (typeof obj.message !== "string") return false;
+	if (typeof obj.redirect_to !== "string") return false;
+	if (obj.dialog == null || typeof obj.dialog !== "object") return false;
+	return true;
 }
 
 /**
