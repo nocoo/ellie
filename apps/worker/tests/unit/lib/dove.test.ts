@@ -75,9 +75,9 @@ describe("sendDoveEmail — request shape and result mapping", () => {
 		const env = baseEnv();
 		const res = await sendDoveEmail(env, {
 			to: "u@example.com",
-			template: "ellie-email-verify",
+			template: "verify-email",
 			idempotencyKey: "1:abcd",
-			variables: { code: "123456", expires_in_minutes: "15", username: "alice" },
+			variables: { code: "123456" },
 		});
 
 		expect(res).toEqual({ ok: true });
@@ -88,10 +88,10 @@ describe("sendDoveEmail — request shape and result mapping", () => {
 		expect(headers.Authorization).toBe("Bearer tok");
 		expect(headers["Content-Type"]).toBe("application/json");
 		expect(JSON.parse(c.init.body as string)).toEqual({
-			template: "ellie-email-verify",
+			template: "verify-email",
 			to: "u@example.com",
 			idempotency_key: "1:abcd",
-			variables: { code: "123456", expires_in_minutes: "15", username: "alice" },
+			variables: { code: "123456" },
 		});
 	});
 

@@ -177,13 +177,16 @@ export const requestCode = withAuthVerified(async (request, env, user) => {
 	// Send first — only persist on success (docs/17 §7.2).
 	const sendResult = await sendDoveEmail(env, {
 		to: submittedEmail, // exact display form the user typed
-		template: "ellie-email-verify",
+		// Slug is configured via env so ops can swap templates without a deploy.
+		// Falls back to "verify-email" (the configured Dove slug) if unset.
+		template: env.DOVE_TEMPLATE_SLUG || "verify-email",
 		// Stable per (user, code) so accidental retries deduplicate at dove.
 		idempotencyKey: `${user.userId}:${codeHmac.slice(0, 16)}`,
+		// Template only consumes `code` (docs/17 §8). Do NOT add more variables
+		// here — extra fields would be silently dropped by dove and create
+		// drift between code and the configured template.
 		variables: {
 			code,
-			expires_in_minutes: String(Math.floor(CODE_TTL_SECONDS / 60)),
-			username: dbUser.username,
 		},
 	});
 

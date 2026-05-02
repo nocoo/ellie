@@ -1,7 +1,8 @@
 // Dove email-relay client (docs/17 §8).
 //
-// Phase 3 only uses one template, `ellie-email-verify`, with a single recipient
-// per call. The dove webhook accepts `{ template, to, idempotency_key, variables }`.
+// Phase 3 only uses one template (slug configured via `env.DOVE_TEMPLATE_SLUG`,
+// e.g. `verify-email`) with a single recipient per call. The dove webhook
+// accepts `{ template, to, idempotency_key, variables }`.
 //
 // IMPORTANT: this module is unaware of the read-only "open recipients" gate
 // described in docs/17 §8.1a. That gate is a dove-side change (phase 4a) — until

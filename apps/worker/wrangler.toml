@@ -28,6 +28,17 @@ ALLOWED_ORIGINS = "https://ellie.nocoo.cloud,https://ellie.worker.hexly.ai"
 # verification email is sent and no real users are affected. Phase 5b write
 # enforcement is gated separately, so missing keys here cannot leak access.
 
+# Dove email relay (docs/17 §8). Webhook = `${DOVE_BASE_URL}/api/webhook/${DOVE_PROJECT_ID}/send`.
+# Only the BASE_URL / PROJECT_ID / TEMPLATE_SLUG are tracked vars; the bearer
+# token is a secret and MUST be set out-of-band:
+#   wrangler secret put DOVE_WEBHOOK_TOKEN
+# Until the secret is in place sendDoveEmail returns
+# `{ ok: false, code: "dove_not_configured" }`, so request-code reports
+# EMAIL_PROVIDER_FAILED and never persists a code — fail-closed.
+DOVE_BASE_URL = "https://dove.hexly.ai"
+DOVE_PROJECT_ID = "vKOrSPha4wtzkWlJSAV8d"
+DOVE_TEMPLATE_SLUG = "verify-email"
+
 [triggers]
 crons = ["*/5 * * * *"]
 
@@ -63,3 +74,12 @@ ALLOWED_ORIGINS = "*"
 # any real outbound dependency. They MUST never be used in production.
 TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
 TURNSTILE_SECRET_KEY = "1x0000000000000000000000000000000AA"
+# Dove (docs/17 §8). Test env points at the real base URL but the worker
+# only reaches dove inside unit tests with mocked fetch — there is no real
+# outbound call from the L2 suite (handlers/email is in the bun:test lane
+# with mock.module). The token is intentionally a placeholder; production
+# uses `wrangler secret put DOVE_WEBHOOK_TOKEN` against [env=production].
+DOVE_BASE_URL = "https://dove.hexly.ai"
+DOVE_PROJECT_ID = "vKOrSPha4wtzkWlJSAV8d"
+DOVE_TEMPLATE_SLUG = "verify-email"
+DOVE_WEBHOOK_TOKEN = "test-token-not-real"
