@@ -15,12 +15,10 @@ import Google from "next-auth/providers/google";
 // ---------------------------------------------------------------------------
 
 function getGoogleCredentials() {
-	const clientId = process.env.AUTH_GOOGLE_ID;
-	const clientSecret = process.env.AUTH_GOOGLE_SECRET;
-	if (!clientId || !clientSecret) {
-		throw new Error("Missing AUTH_GOOGLE_ID or AUTH_GOOGLE_SECRET environment variables");
-	}
-	return { clientId, clientSecret };
+	return {
+		clientId: process.env.AUTH_GOOGLE_ID ?? "",
+		clientSecret: process.env.AUTH_GOOGLE_SECRET ?? "",
+	};
 }
 
 // ---------------------------------------------------------------------------
