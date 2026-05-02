@@ -9,6 +9,7 @@ import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
+import type { EmailVerifyCodeBody } from "@ellie/types";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -38,7 +39,16 @@ export async function POST(request: Request) {
 	}
 
 	try {
-		const body = await request.json();
+		const raw = (await request.json()) as Partial<Record<string, unknown>>;
+		// Explicitly project to `EmailVerifyCodeBody` — never spread the raw
+		// body. The verify step is captcha-free per docs/17 §7.3; if a caller
+		// (browser, malicious client, future bug) attaches `cf_turnstile_token`
+		// or any other field, we MUST drop it here before forwarding to the
+		// Worker. Runtime field validation stays on the Worker side.
+		const body: EmailVerifyCodeBody = {
+			email: raw.email as string,
+			code: raw.code as string,
+		};
 		const result = await forumApi.postAuth<unknown>("/api/v1/users/me/email/verify", body, jwt);
 		return NextResponse.json(result);
 	} catch (err) {

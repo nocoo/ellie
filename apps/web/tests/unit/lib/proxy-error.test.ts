@@ -16,8 +16,38 @@ describe("isEmailNotVerifiedPayload — §5.4 discriminator", () => {
 		expect(isEmailNotVerifiedPayload(EMAIL_NOT_VERIFIED_PAYLOAD)).toBe(true);
 	});
 
-	it("returns true for any object whose top-level error is the literal string", () => {
-		expect(isEmailNotVerifiedPayload({ error: "EMAIL_NOT_VERIFIED", extra: 1 })).toBe(true);
+	it("returns true for any object with the §5.4 fingerprint (error/message/dialog/redirect_to)", () => {
+		expect(
+			isEmailNotVerifiedPayload({
+				error: "EMAIL_NOT_VERIFIED",
+				message: "Email not verified",
+				dialog: { title: "x", body: "y", primary_action: { label: "z", href: "/me" } },
+				redirect_to: "/verify-email",
+				extra: 1,
+			}),
+		).toBe(true);
+	});
+
+	it("returns false when top-level error matches but fingerprint fields are missing", () => {
+		// Reviewer hardening: top-level discriminator alone is not enough.
+		expect(isEmailNotVerifiedPayload({ error: "EMAIL_NOT_VERIFIED" })).toBe(false);
+		expect(isEmailNotVerifiedPayload({ error: "EMAIL_NOT_VERIFIED", message: "x" })).toBe(false);
+		expect(
+			isEmailNotVerifiedPayload({
+				error: "EMAIL_NOT_VERIFIED",
+				message: "x",
+				redirect_to: "/y",
+				// dialog missing
+			}),
+		).toBe(false);
+		expect(
+			isEmailNotVerifiedPayload({
+				error: "EMAIL_NOT_VERIFIED",
+				message: "x",
+				dialog: { title: "t" },
+				// redirect_to missing
+			}),
+		).toBe(false);
 	});
 
 	it("returns false for the wrapped { error: { code } } shape", () => {

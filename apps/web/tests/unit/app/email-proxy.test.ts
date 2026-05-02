@@ -84,6 +84,31 @@ describe("POST /api/v1/users/me/email/request-code", () => {
 		);
 	});
 
+	it("projects body to EmailRequestCodeBody — preserves cf_turnstile_token but strips extras", async () => {
+		getWorkerJwtMock.mockResolvedValue("jwt-abc");
+		postAuthMock.mockResolvedValue({
+			data: { sent_to: "x***@y.io" },
+			meta: { timestamp: 1, requestId: "r1" },
+		});
+		const { POST } = await import("@/app/api/v1/users/me/email/request-code/route");
+		const res = await POST(
+			makeRequest({
+				email: "x@y.io",
+				cf_turnstile_token: "tok-xyz",
+				code: "999999",
+				role: "admin",
+			}),
+		);
+		expect(res.status).toBe(200);
+		expect(postAuthMock).toHaveBeenCalledTimes(1);
+		const [, forwardedBody] = postAuthMock.mock.calls[0];
+		expect(forwardedBody).toEqual({ email: "x@y.io", cf_turnstile_token: "tok-xyz" });
+		expect(Object.keys(forwardedBody as Record<string, unknown>).sort()).toEqual([
+			"cf_turnstile_token",
+			"email",
+		]);
+	});
+
 	it("forwards the docs/17 §5.4 flat payload verbatim on 403 EMAIL_NOT_VERIFIED", async () => {
 		// (Captured for completeness — request-code itself does not gate on
 		// email_verified_at, but the proxy MUST NOT collapse this payload if
@@ -165,6 +190,32 @@ describe("POST /api/v1/users/me/email/verify", () => {
 		const [, forwardedBody] = postAuthMock.mock.calls[0];
 		expect(forwardedBody).toEqual({ email: "x@y.io", code: "123456" });
 		expect((forwardedBody as Record<string, unknown>).cf_turnstile_token).toBeUndefined();
+	});
+
+	it("strips cf_turnstile_token and any extra fields when caller injects them", async () => {
+		// Reviewer guard: even if a malicious/buggy caller appends a captcha
+		// token (or any other field), the proxy must project the body to
+		// `EmailVerifyCodeBody` exactly — never spread.
+		getWorkerJwtMock.mockResolvedValue("jwt-abc");
+		postAuthMock.mockResolvedValue({
+			data: { verified: true },
+			meta: { timestamp: 1, requestId: "r1" },
+		});
+		const { POST } = await import("@/app/api/v1/users/me/email/verify/route");
+		const res = await POST(
+			makeVerifyRequest({
+				email: "x@y.io",
+				code: "123456",
+				cf_turnstile_token: "should-be-dropped",
+				extra: "also-dropped",
+				role: "admin",
+			}),
+		);
+		expect(res.status).toBe(200);
+		expect(postAuthMock).toHaveBeenCalledTimes(1);
+		const [, forwardedBody] = postAuthMock.mock.calls[0];
+		expect(forwardedBody).toEqual({ email: "x@y.io", code: "123456" });
+		expect(Object.keys(forwardedBody as Record<string, unknown>).sort()).toEqual(["code", "email"]);
 	});
 
 	it("forwards the docs/17 §5.4 flat payload verbatim on 403 EMAIL_NOT_VERIFIED", async () => {
