@@ -2,6 +2,7 @@
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
+import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -36,13 +37,10 @@ export async function POST(request: Request) {
 		const result = await forumApi.postAuth<unknown>("/api/v1/reports", body, jwt);
 		return NextResponse.json(result, { status: 201 });
 	} catch (err) {
-		console.error("[reports/route] forumApi.postAuth error:", err);
 		if (err instanceof ForumApiError) {
-			return NextResponse.json(
-				{ error: { code: err.code, message: err.message } },
-				{ status: err.status },
-			);
+			return forumApiErrorToProxyResponse(err);
 		}
+		console.error("[reports/route] forumApi.postAuth error:", err);
 		return NextResponse.json(
 			{ error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
 			{ status: 500 },

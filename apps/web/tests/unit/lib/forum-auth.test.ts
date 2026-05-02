@@ -6,27 +6,23 @@ vi.mock("@/lib/forum-api", () => ({
 	forumApi: { get: vi.fn(), postAuth: vi.fn(), patchAuth: vi.fn(), post: vi.fn() },
 	ForumApiError: class ForumApiError extends Error {
 		code: string;
-		constructor(msg: string, code: string) {
+		status: number;
+		rawBody?: unknown;
+		constructor(msg: string, code: string, status = 500) {
 			super(msg);
 			this.code = code;
+			this.status = status;
 		}
 	},
 }));
 
 import { ForumApiError, forumApi } from "@/lib/forum-api";
-import {
-	authFetch,
-	authPatch,
-	getCurrentForumUser,
-	getSessionProvider,
-	getWorkerJwt,
-} from "@/lib/forum-auth";
+import { authPatch, getCurrentForumUser, getSessionProvider, getWorkerJwt } from "@/lib/forum-auth";
 import { getToken } from "@auth/core/jwt";
 import { headers } from "next/headers";
 
 const mockGetToken = getToken as ReturnType<typeof vi.fn>;
 const mockHeaders = headers as ReturnType<typeof vi.fn>;
-const mockPostAuth = forumApi.postAuth as ReturnType<typeof vi.fn>;
 const mockPatchAuth = forumApi.patchAuth as ReturnType<typeof vi.fn>;
 const mockPost = forumApi.post as ReturnType<typeof vi.fn>;
 
@@ -103,80 +99,24 @@ describe("forum-auth", () => {
 		});
 	});
 
-	describe("authFetch", () => {
+	describe("authPatch", () => {
 		it("returns NOT_AUTHENTICATED when no token", async () => {
 			mockGetToken.mockResolvedValue(null);
-			expect(await authFetch("/test", {})).toEqual({ error: "NOT_AUTHENTICATED" });
+			expect(await authPatch("/test", {})).toEqual({ error: "NOT_AUTHENTICATED" });
 		});
 
 		it("returns NOT_AUTHENTICATED when wrong provider", async () => {
 			mockGetToken.mockResolvedValue({ provider: "google" });
-			expect(await authFetch("/test", {})).toEqual({ error: "NOT_AUTHENTICATED" });
+			expect(await authPatch("/test", {})).toEqual({ error: "NOT_AUTHENTICATED" });
 		});
 
 		it("returns NOT_AUTHENTICATED when RefreshTokenExpired", async () => {
 			mockGetToken.mockResolvedValue({ provider: "credentials", error: "RefreshTokenExpired" });
-			expect(await authFetch("/test", {})).toEqual({ error: "NOT_AUTHENTICATED" });
+			expect(await authPatch("/test", {})).toEqual({ error: "NOT_AUTHENTICATED" });
 		});
 
 		it("returns NOT_AUTHENTICATED when no workerJwt", async () => {
 			mockGetToken.mockResolvedValue({ provider: "credentials" });
-			expect(await authFetch("/test", {})).toEqual({ error: "NOT_AUTHENTICATED" });
-		});
-
-		it("returns data on success", async () => {
-			mockGetToken.mockResolvedValue({ provider: "credentials", workerJwt: "jwt" });
-			mockPostAuth.mockResolvedValue({ data: { ok: true } });
-			expect(await authFetch("/test", { x: 1 })).toEqual({ data: { ok: true } });
-			expect(mockPostAuth).toHaveBeenCalledWith("/test", { x: 1 }, "jwt");
-		});
-
-		it("returns error code for non-TOKEN_EXPIRED ForumApiError", async () => {
-			mockGetToken.mockResolvedValue({ provider: "credentials", workerJwt: "jwt" });
-			mockPostAuth.mockRejectedValue(new ForumApiError("fail", "FORBIDDEN"));
-			expect(await authFetch("/test", {})).toEqual({ error: "FORBIDDEN" });
-		});
-
-		it("returns INTERNAL_ERROR for non-ForumApiError", async () => {
-			mockGetToken.mockResolvedValue({ provider: "credentials", workerJwt: "jwt" });
-			mockPostAuth.mockRejectedValue(new Error("random"));
-			expect(await authFetch("/test", {})).toEqual({ error: "INTERNAL_ERROR" });
-		});
-
-		it("retries on TOKEN_EXPIRED with refresh", async () => {
-			mockGetToken.mockResolvedValue({
-				provider: "credentials",
-				workerJwt: "jwt",
-				workerRefreshToken: "rt",
-			});
-			mockPostAuth.mockRejectedValueOnce(new ForumApiError("expired", "TOKEN_EXPIRED"));
-			mockPost.mockResolvedValue({ data: { token: "new-jwt", refreshToken: "new-rt" } });
-			mockPostAuth.mockResolvedValueOnce({ data: { result: "ok" } });
-			expect(await authFetch("/test", {})).toEqual({ data: { result: "ok" } });
-			expect(mockPost).toHaveBeenCalledWith("/api/v1/auth/refresh", { refreshToken: "rt" });
-		});
-
-		it("returns NOT_AUTHENTICATED when no refreshToken on TOKEN_EXPIRED", async () => {
-			mockGetToken.mockResolvedValue({ provider: "credentials", workerJwt: "jwt" });
-			mockPostAuth.mockRejectedValue(new ForumApiError("expired", "TOKEN_EXPIRED"));
-			expect(await authFetch("/test", {})).toEqual({ error: "NOT_AUTHENTICATED" });
-		});
-
-		it("returns NOT_AUTHENTICATED when refresh fails", async () => {
-			mockGetToken.mockResolvedValue({
-				provider: "credentials",
-				workerJwt: "jwt",
-				workerRefreshToken: "rt",
-			});
-			mockPostAuth.mockRejectedValue(new ForumApiError("expired", "TOKEN_EXPIRED"));
-			mockPost.mockRejectedValue(new Error("refresh failed"));
-			expect(await authFetch("/test", {})).toEqual({ error: "NOT_AUTHENTICATED" });
-		});
-	});
-
-	describe("authPatch", () => {
-		it("returns NOT_AUTHENTICATED when no token", async () => {
-			mockGetToken.mockResolvedValue(null);
 			expect(await authPatch("/test", {})).toEqual({ error: "NOT_AUTHENTICATED" });
 		});
 
@@ -185,6 +125,20 @@ describe("forum-auth", () => {
 			mockPatchAuth.mockResolvedValue({ data: { patched: true } });
 			expect(await authPatch("/test", { y: 2 })).toEqual({ data: { patched: true } });
 			expect(mockPatchAuth).toHaveBeenCalledWith("/test", { y: 2 }, "jwt");
+		});
+
+		it("re-throws non-TOKEN_EXPIRED ForumApiError so callers can preserve status/rawBody", async () => {
+			mockGetToken.mockResolvedValue({ provider: "credentials", workerJwt: "jwt" });
+			const err = new ForumApiError("forbidden", "FORBIDDEN");
+			mockPatchAuth.mockRejectedValue(err);
+			await expect(authPatch("/test", {})).rejects.toBe(err);
+		});
+
+		it("re-throws non-ForumApiError errors (callers handle via try/catch)", async () => {
+			mockGetToken.mockResolvedValue({ provider: "credentials", workerJwt: "jwt" });
+			const err = new Error("random");
+			mockPatchAuth.mockRejectedValue(err);
+			await expect(authPatch("/test", {})).rejects.toBe(err);
 		});
 
 		it("retries on TOKEN_EXPIRED with refresh", async () => {
@@ -197,6 +151,12 @@ describe("forum-auth", () => {
 			mockPost.mockResolvedValue({ data: { token: "new-jwt", refreshToken: "new-rt" } });
 			mockPatchAuth.mockResolvedValueOnce({ data: { done: true } });
 			expect(await authPatch("/test", {})).toEqual({ data: { done: true } });
+		});
+
+		it("returns NOT_AUTHENTICATED when no refreshToken on TOKEN_EXPIRED", async () => {
+			mockGetToken.mockResolvedValue({ provider: "credentials", workerJwt: "jwt" });
+			mockPatchAuth.mockRejectedValue(new ForumApiError("expired", "TOKEN_EXPIRED"));
+			expect(await authPatch("/test", {})).toEqual({ error: "NOT_AUTHENTICATED" });
 		});
 
 		it("returns NOT_AUTHENTICATED when refresh fails", async () => {

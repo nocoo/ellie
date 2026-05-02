@@ -5,6 +5,7 @@ import "server-only";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { ForumApiError } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
+import { forumApiErrorToProxyResponse, isEmailNotVerifiedPayload } from "@/lib/proxy-error";
 import { NextResponse } from "next/server";
 
 function getWorkerUrl(): string {
@@ -84,6 +85,13 @@ export async function POST(request: Request) {
 		}
 
 		if (!res.ok) {
+			// docs/17 §5.4 EmailNotVerifiedPayload uses a flat shape
+			// (`{ error: "EMAIL_NOT_VERIFIED", message, dialog, redirect_to }`).
+			// Forward verbatim so the browser's email-verification dialog
+			// trigger (api-client → dispatchEmailNotVerified) still fires.
+			if (isEmailNotVerifiedPayload(json)) {
+				return NextResponse.json(json, { status: res.status });
+			}
 			const errorData = json.error as { code: string; message: string } | undefined;
 			return NextResponse.json(
 				{ error: errorData ?? { code: "UNKNOWN", message: `Worker returned ${res.status}` } },
@@ -93,13 +101,10 @@ export async function POST(request: Request) {
 
 		return NextResponse.json(json, { status: res.status });
 	} catch (err) {
-		console.error("[upload/route] fetch error:", err);
 		if (err instanceof ForumApiError) {
-			return NextResponse.json(
-				{ error: { code: err.code, message: err.message } },
-				{ status: err.status },
-			);
+			return forumApiErrorToProxyResponse(err);
 		}
+		console.error("[upload/route] fetch error:", err);
 		return NextResponse.json(
 			{ error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
 			{ status: 500 },

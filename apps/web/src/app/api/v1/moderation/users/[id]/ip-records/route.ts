@@ -1,5 +1,6 @@
 import { ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
+import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
 import { NextResponse } from "next/server";
 
 /**
@@ -10,16 +11,21 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 	const { id } = await params;
 	const jwt = await getWorkerJwt();
 	if (!jwt) {
-		return NextResponse.json({ error: "NOT_AUTHENTICATED" }, { status: 401 });
+		return NextResponse.json(
+			{ error: { code: "NOT_AUTHENTICATED", message: "Not authenticated" } },
+			{ status: 401 },
+		);
 	}
 
 	try {
 		const result = await forumApi.getAuth(`/api/v1/moderation/users/${id}/ip-records`, jwt);
 		return NextResponse.json(result);
 	} catch (err) {
-		if (err instanceof ForumApiError) {
-			return NextResponse.json({ error: err.code }, { status: err.status });
-		}
-		return NextResponse.json({ error: "INTERNAL_ERROR" }, { status: 500 });
+		if (err instanceof ForumApiError) return forumApiErrorToProxyResponse(err);
+		console.error("[moderation/users/[id]/ip-records/route] forumApi.getAuth error:", err);
+		return NextResponse.json(
+			{ error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
+			{ status: 500 },
+		);
 	}
 }
