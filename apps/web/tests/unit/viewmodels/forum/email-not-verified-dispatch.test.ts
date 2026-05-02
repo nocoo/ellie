@@ -16,6 +16,7 @@ import {
 	EMAIL_NOT_VERIFIED_EVENT,
 	dispatchEmailNotVerified,
 	isEmailNotVerifiedPayloadClient,
+	normalizeCtaVariant,
 	pickDialogPayload,
 } from "@/viewmodels/forum/email-not-verified-dispatch";
 import { EMAIL_NOT_VERIFIED_PAYLOAD } from "@ellie/types";
@@ -201,5 +202,26 @@ describe("dispatchEmailNotVerified", () => {
 		const evt = dispatchSpy.mock.calls[0][0] as CustomEvent;
 		expect(evt.type).toBe(EMAIL_NOT_VERIFIED_EVENT);
 		expect(evt.detail).toEqual(detail);
+	});
+});
+
+describe("normalizeCtaVariant", () => {
+	// Reviewer mandate (msg 5b4f107f): missing / unknown cta_variant must
+	// fall back to "primary" so Button never receives undefined.
+	it("returns 'primary' when input is undefined", () => {
+		expect(normalizeCtaVariant(undefined)).toBe("primary");
+	});
+
+	it("passes through 'primary' verbatim", () => {
+		expect(normalizeCtaVariant("primary")).toBe("primary");
+	});
+
+	it("falls back to 'primary' for unknown variants (forward-compat with future schema bumps)", () => {
+		// The current EmailNotVerifiedCtaVariant union is just "primary",
+		// so a wire body that ships a new variant we haven't taught the
+		// renderer about should NOT be passed through. Cast through unknown
+		// to simulate a wire body the type system hasn't caught up to.
+		expect(normalizeCtaVariant("danger" as unknown as "primary")).toBe("primary");
+		expect(normalizeCtaVariant("" as unknown as "primary")).toBe("primary");
 	});
 });
