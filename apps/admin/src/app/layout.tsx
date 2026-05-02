@@ -8,6 +8,8 @@ import { DM_Sans, Inter } from "next/font/google";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-dm-sans" });
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
 	title: "ellie - 管理后台",
 	description: "Ellie Admin Console",
