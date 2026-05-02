@@ -11,6 +11,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import type { Forum } from "@ellie/types";
 import { type ForumTreeNode, buildForumTree } from "@ellie/types";
@@ -39,21 +40,25 @@ export function MoveDialog({
 
 	// Fetch forums when dialog opens
 	useEffect(() => {
-		if (open) {
-			setLoadingForums(true);
-			fetch("/api/v1/forums")
-				.then((res) => res.json())
-				.then((json: { data: Forum[] }) => {
-					setForums(json.data);
-					setTree(buildForumTree(json.data));
-				})
-				.catch(() => {
-					// Ignore errors
-				})
-				.finally(() => {
-					setLoadingForums(false);
-				});
-		}
+		if (!open) return;
+		let cancelled = false;
+		setLoadingForums(true);
+		apiClient
+			.get<Forum[]>("/api/v1/forums")
+			.then(({ data }) => {
+				if (cancelled) return;
+				setForums(data);
+				setTree(buildForumTree(data));
+			})
+			.catch(() => {
+				// Ignore errors — UI will show "no forums available"
+			})
+			.finally(() => {
+				if (!cancelled) setLoadingForums(false);
+			});
+		return () => {
+			cancelled = true;
+		};
 	}, [open]);
 
 	const handleConfirm = () => {
