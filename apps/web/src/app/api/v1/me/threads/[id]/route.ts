@@ -1,6 +1,7 @@
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
+import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
 import { NextResponse } from "next/server";
 
 /**
@@ -18,7 +19,10 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 	const { id } = await params;
 	const jwt = await getWorkerJwt();
 	if (!jwt) {
-		return NextResponse.json({ error: "NOT_AUTHENTICATED" }, { status: 401 });
+		return NextResponse.json(
+			{ error: { code: "NOT_AUTHENTICATED", message: "Not authenticated" } },
+			{ status: 401 },
+		);
 	}
 
 	try {
@@ -26,8 +30,12 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 		return NextResponse.json(result);
 	} catch (err) {
 		if (err instanceof ForumApiError) {
-			return NextResponse.json({ error: err.code }, { status: err.status });
+			return forumApiErrorToProxyResponse(err);
 		}
-		return NextResponse.json({ error: "INTERNAL_ERROR" }, { status: 500 });
+		console.error("[me/threads/[id]/route] forumApi.deleteAuth error:", err);
+		return NextResponse.json(
+			{ error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
+			{ status: 500 },
+		);
 	}
 }
