@@ -20,25 +20,39 @@ export function CapWidget({ apiEndpoint, onSolve, onError, className }: CapWidge
 	const widgetRef = useRef<HTMLElement>(null);
 	const [mounted, setMounted] = useState(false);
 
+	// Stable refs so event handlers always call the latest callback without
+	// needing the callback identity in the effect dependency array.
+	const onSolveRef = useRef(onSolve);
+	const onErrorRef = useRef(onError);
+	useEffect(() => {
+		onSolveRef.current = onSolve;
+	}, [onSolve]);
+	useEffect(() => {
+		onErrorRef.current = onError;
+	}, [onError]);
+
 	// Only render on client — also defer cap widget import until browser,
 	// since @cap.js/widget touches `navigator` at module load (SSR crash).
 	useEffect(() => {
 		import("@cap.js/widget").then(() => setMounted(true));
 	}, []);
 
-	// Attach event listeners
+	// Attach event listeners once the real <cap-widget> element is in the DOM.
+	// `mounted` gates this: when false the DOM holds a placeholder <div> and
+	// there is nothing useful to listen on.
 	useEffect(() => {
+		if (!mounted) return;
 		const widget = widgetRef.current;
 		if (!widget) return;
 
 		const handleSolve = (e: Event) => {
 			const detail = (e as CustomEvent<{ token: string }>).detail;
-			onSolve?.(detail.token);
+			onSolveRef.current?.(detail.token);
 		};
 
 		const handleError = (e: Event) => {
 			const detail = (e as CustomEvent<{ message: string }>).detail;
-			onError?.(detail.message);
+			onErrorRef.current?.(detail.message);
 		};
 
 		widget.addEventListener("solve", handleSolve);
@@ -48,7 +62,7 @@ export function CapWidget({ apiEndpoint, onSolve, onError, className }: CapWidge
 			widget.removeEventListener("solve", handleSolve);
 			widget.removeEventListener("error", handleError);
 		};
-	}, [onSolve, onError]);
+	}, [mounted]);
 
 	if (!mounted) {
 		// SSR placeholder
