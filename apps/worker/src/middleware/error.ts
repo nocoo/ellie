@@ -1,5 +1,6 @@
 // Error handling middleware for Cloudflare Worker
 
+import { cloneEmailNotVerifiedPayload } from "@ellie/types";
 import { corsHeaders } from "./cors";
 
 export interface ErrorResponse {
@@ -26,6 +27,26 @@ export function errorResponse(
 
 	return new Response(JSON.stringify(body), {
 		status,
+		headers: {
+			...corsHeaders(origin),
+			"Content-Type": "application/json",
+		},
+	});
+}
+
+/**
+ * Build the canonical 403 response for the email-verification gate
+ * (docs/17 §5.4 — Rev4). The body shape is the FLAT EmailNotVerifiedPayload
+ * exported from `@ellie/types` (NOT the wrapped `{ error: { code, message } }`
+ * shape used by {@link errorResponse}). Frontend dispatches dialogs by
+ * string-equal on the top-level `error` field — do not regress this.
+ *
+ * Always uses `cloneEmailNotVerifiedPayload()` to avoid sharing the constant
+ * by reference with the JSON serializer.
+ */
+export function emailNotVerifiedResponse(origin?: string): Response {
+	return new Response(JSON.stringify(cloneEmailNotVerifiedPayload()), {
+		status: 403,
 		headers: {
 			...corsHeaders(origin),
 			"Content-Type": "application/json",

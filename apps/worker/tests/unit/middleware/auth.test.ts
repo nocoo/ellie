@@ -1,3 +1,4 @@
+import { EMAIL_NOT_VERIFIED_PAYLOAD } from "@ellie/types";
 import { describe, expect, it } from "vitest";
 import type { Env } from "../../../src/lib/env";
 import { createJwt } from "../../../src/lib/jwt";
@@ -202,11 +203,24 @@ describe("authMiddleware", () => {
 });
 
 describe("moderationMiddleware", () => {
-	/** Create a mock env with DB that returns specified user role/status */
-	function createModMockEnv(dbUser: { role: number; status: number } | null): Env {
+	/** Create a mock env with DB that returns specified user role/status/email_verified_at.
+	 *  email_verified_at defaults to a positive value (i.e. verified) so existing
+	 *  tests that don't care about §5.4 still exercise the post-Phase-5b code path
+	 *  (which now selects email_verified_at in the same round-trip). */
+	function createModMockEnv(
+		dbUser: { role: number; status: number; email_verified_at?: number } | null,
+	): Env {
+		const row =
+			dbUser === null
+				? null
+				: {
+						role: dbUser.role,
+						status: dbUser.status,
+						email_verified_at: dbUser.email_verified_at ?? 1700000000,
+					};
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT role, status FROM users": dbUser,
+				"SELECT role, status, email_verified_at FROM users": row,
 			},
 		});
 		return {
@@ -353,6 +367,102 @@ describe("moderationMiddleware", () => {
 		expect(result).toBeInstanceOf(Response);
 		const response = result as Response;
 		expect(response.status).toBe(403); // Should be denied based on DB role
+	});
+
+	// ─── docs/17 §5.4 — email-verification gate precedence ────────────────────
+
+	it("regular User with unverified email still surfaces FORBIDDEN_MOD_ONLY (role wins over email gate)", async () => {
+		// docs/17 §5.4 precedence: role check fires BEFORE email check, so a
+		// regular user hitting a moderation endpoint never gets the §5.4 dialog.
+		const mockEnv = createModMockEnv({ role: 0, status: 0, email_verified_at: 0 });
+		const token = await createJwt(
+			{ userId: 11, role: 0, exp: Math.floor(Date.now() / 1000) + 3600 },
+			mockEnv.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/moderation/threads/1/sticky", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+
+		const result = await moderationMiddleware(request, mockEnv);
+		expect(result).toBeInstanceOf(Response);
+		const response = result as Response;
+		expect(response.status).toBe(403);
+		const data = await response.json();
+		// Wrapped errorResponse shape — NOT the §5.4 flat payload.
+		expect(data.error.code).toBe("FORBIDDEN_MOD_ONLY");
+	});
+
+	it("Mod with unverified email is rejected with §5.4 EMAIL_NOT_VERIFIED payload", async () => {
+		// Privileged role + unverified email → flat docs/17 §5.4 payload, NOT
+		// the wrapped { error: { code } } shape used by other moderation errors.
+		const mockEnv = createModMockEnv({ role: 3, status: 0, email_verified_at: 0 });
+		const token = await createJwt(
+			{ userId: 12, role: 3, exp: Math.floor(Date.now() / 1000) + 3600 },
+			mockEnv.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/moderation/threads/1/sticky", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+
+		const result = await moderationMiddleware(request, mockEnv);
+		expect(result).toBeInstanceOf(Response);
+		const response = result as Response;
+		expect(response.status).toBe(403);
+		const data = await response.json();
+		expect(data).toEqual(EMAIL_NOT_VERIFIED_PAYLOAD);
+	});
+
+	it("Admin with unverified email is rejected with §5.4 EMAIL_NOT_VERIFIED payload", async () => {
+		const mockEnv = createModMockEnv({ role: 1, status: 0, email_verified_at: 0 });
+		const token = await createJwt(
+			{ userId: 13, role: 1, exp: Math.floor(Date.now() / 1000) + 3600 },
+			mockEnv.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/moderation/threads/1/sticky", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+
+		const result = await moderationMiddleware(request, mockEnv);
+		expect(result).toBeInstanceOf(Response);
+		const response = result as Response;
+		expect(response.status).toBe(403);
+		const data = await response.json();
+		expect(data).toEqual(EMAIL_NOT_VERIFIED_PAYLOAD);
+	});
+
+	it("banned Mod with unverified email surfaces USER_BANNED (banned wins over email gate)", async () => {
+		// Precedence: banned > role > email. A banned mod never sees §5.4.
+		const mockEnv = createModMockEnv({ role: 3, status: -1, email_verified_at: 0 });
+		const token = await createJwt(
+			{ userId: 14, role: 3, exp: Math.floor(Date.now() / 1000) + 3600 },
+			mockEnv.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/moderation/threads/1/sticky", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+
+		const result = await moderationMiddleware(request, mockEnv);
+		expect(result).toBeInstanceOf(Response);
+		const response = result as Response;
+		expect(response.status).toBe(403);
+		const data = await response.json();
+		expect(data.error.code).toBe("USER_BANNED");
+	});
+
+	it("verified Mod (positive email_verified_at) is allowed through", async () => {
+		const mockEnv = createModMockEnv({ role: 3, status: 0, email_verified_at: 1700000000 });
+		const token = await createJwt(
+			{ userId: 15, role: 3, exp: Math.floor(Date.now() / 1000) + 3600 },
+			mockEnv.JWT_SECRET,
+		);
+		const request = new Request("https://example.com/api/v1/moderation/threads/1/sticky", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+
+		const result = await moderationMiddleware(request, mockEnv);
+		expect(result).not.toBeInstanceOf(Response);
+		const authResult = result as { user: { userId: number; role: number } };
+		expect(authResult.user.role).toBe(3);
 	});
 });
 
@@ -709,8 +819,9 @@ describe("requireVerifiedEmail", () => {
 		expect(result).toBeInstanceOf(Response);
 		const response = result as Response;
 		expect(response.status).toBe(403);
+		// docs/17 §5.4 — flat payload shape, NOT the wrapped { error: { code } }.
 		const data = await response.json();
-		expect(data.error.code).toBe("EMAIL_NOT_VERIFIED");
+		expect(data).toEqual(EMAIL_NOT_VERIFIED_PAYLOAD);
 	});
 
 	it("returns 403 USER_BANNED when user is banned (precedence over EMAIL_NOT_VERIFIED)", async () => {
@@ -763,6 +874,6 @@ describe("requireVerifiedEmail", () => {
 		const response = result as Response;
 		expect(response.status).toBe(403);
 		const data = await response.json();
-		expect(data.error.code).toBe("EMAIL_NOT_VERIFIED");
+		expect(data).toEqual(EMAIL_NOT_VERIFIED_PAYLOAD);
 	});
 });
