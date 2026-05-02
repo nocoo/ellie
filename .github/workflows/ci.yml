@@ -14,9 +14,24 @@ jobs:
       test-command: "bun run test"
       typecheck-command: "bun run typecheck"
       lint-command: "bun run lint"
-      enable-l2: "true"
-      l2-command: "bun run test:e2e:api"
     secrets: inherit
+
+  api-e2e:
+    name: "L2 API E2E"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: "L2: API E2E tests"
+        run: bun run test:e2e:api
+        env:
+          CI: "true"
 
   browser-e2e:
     name: "L3 Browser E2E"
@@ -24,25 +39,24 @@ jobs:
     timeout-minutes: 25
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     env:
-      # D1 / Worker test secrets — see apps/worker/wrangler.toml [env.test].
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       D1_TEST_DATABASE_ID: ${{ secrets.D1_TEST_DATABASE_ID }}
-      # Web → Worker wiring. Next.js reads WORKER_API_URL/FORUM_API_KEY,
-      # so mirror the CI secrets onto those names for the run-l3 launcher.
       WORKER_URL_TEST: ${{ secrets.WORKER_URL_TEST }}
       WORKER_API_URL: ${{ secrets.WORKER_URL_TEST }}
       API_KEY: ${{ secrets.API_KEY }}
       FORUM_API_KEY: ${{ secrets.API_KEY }}
-      # AUTH_SECRET signs NextAuth JWTs; JWT_SECRET is the Worker-side HS256 key.
       JWT_SECRET: ${{ secrets.JWT_SECRET }}
       AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bunx playwright install --with-deps chromium
-      - name: "Seed test D1 (forum/thread/user fixtures for L3 specs)"
+      - name: "Seed test D1 (forum/thread/user fixtures)"
         run: bun x wrangler d1 execute tongjinet-db-test --remote -c apps/worker/wrangler.toml --file scripts/seed-test-db.sql
       - name: "L3: Playwright E2E tests"
         run: bun run test:e2e:browser
