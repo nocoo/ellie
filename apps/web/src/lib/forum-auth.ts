@@ -3,7 +3,7 @@
  *
  * - getWorkerJwt(): Decrypt NextAuth cookie → extract Worker JWT
  * - getCurrentForumUser(): Extract user info from cookie
- * - authFetch(): Call authenticated Worker API with TOKEN_EXPIRED retry
+ * - authPatch(): PATCH authenticated Worker API with TOKEN_EXPIRED one-shot retry
  *
  * Uses getToken() from @auth/core/jwt which handles cookie chunking
  * automatically (Auth.js splits JWE into .0, .1, ... when >4KB).
@@ -79,7 +79,7 @@ export async function getSessionProvider(): Promise<string | null> {
 }
 
 /**
- * Call authenticated Worker API with TOKEN_EXPIRED one-shot retry.
+ * PATCH authenticated Worker API with TOKEN_EXPIRED one-shot retry.
  *
  * When the Worker JWT is expired but the page hasn't been navigated
  * (so proxy hasn't refreshed the cookie yet), this function:
@@ -93,51 +93,22 @@ export async function getSessionProvider(): Promise<string | null> {
  * get a new TOKEN_EXPIRED and fail. The user needs to navigate to
  * trigger a proxy refresh.
  *
+ * Returns:
+ * - ApiResponse<T> on success
+ * - { error: "NOT_AUTHENTICATED" } when the session is missing or refresh fails
+ *
+ * Throws `ForumApiError` for any other Worker error (preserving status,
+ * code, message, and rawBody) so proxy callers can run the body through
+ * `forumApiErrorToProxyResponse()` and forward flat docs/17 §5.4 payloads
+ * verbatim. The previous version collapsed every Worker error into
+ * `{ error: code }`, losing status and the EmailNotVerified dialog payload.
+ *
  * Ref: docs/04g-user-auth.md §3.3
- */
-export async function authFetch<T>(
-	path: string,
-	body: unknown,
-): Promise<ApiResponse<T> | { error: string }> {
-	const token = await getSessionToken();
-	if (!token || token.provider !== "credentials") return { error: "NOT_AUTHENTICATED" };
-	if (token.error === "RefreshTokenExpired") return { error: "NOT_AUTHENTICATED" };
-
-	const workerJwt = token.workerJwt as string;
-	if (!workerJwt) return { error: "NOT_AUTHENTICATED" };
-
-	try {
-		return await forumApi.postAuth<T>(path, body, workerJwt);
-	} catch (error) {
-		if (!(error instanceof ForumApiError) || error.code !== "TOKEN_EXPIRED") {
-			return { error: error instanceof ForumApiError ? error.code : "INTERNAL_ERROR" };
-		}
-
-		// TOKEN_EXPIRED → try refresh once
-		const refreshToken = token.workerRefreshToken as string;
-		if (!refreshToken) return { error: "NOT_AUTHENTICATED" };
-
-		try {
-			const refreshResult = await forumApi.post<{
-				token: string;
-				refreshToken: string;
-			}>("/api/v1/auth/refresh", { refreshToken });
-
-			return await forumApi.postAuth<T>(path, body, refreshResult.data.token);
-		} catch {
-			return { error: "NOT_AUTHENTICATED" };
-		}
-	}
-}
-
-/**
- * PATCH authenticated Worker API with TOKEN_EXPIRED one-shot retry.
- * Same logic as authFetch but uses PATCH method.
  */
 export async function authPatch<T>(
 	path: string,
 	body: unknown,
-): Promise<ApiResponse<T> | { error: string }> {
+): Promise<ApiResponse<T> | { error: "NOT_AUTHENTICATED" }> {
 	const token = await getSessionToken();
 	if (!token || token.provider !== "credentials") return { error: "NOT_AUTHENTICATED" };
 	if (token.error === "RefreshTokenExpired") return { error: "NOT_AUTHENTICATED" };
@@ -149,7 +120,7 @@ export async function authPatch<T>(
 		return await forumApi.patchAuth<T>(path, body, workerJwt);
 	} catch (error) {
 		if (!(error instanceof ForumApiError) || error.code !== "TOKEN_EXPIRED") {
-			return { error: error instanceof ForumApiError ? error.code : "INTERNAL_ERROR" };
+			throw error;
 		}
 
 		// TOKEN_EXPIRED → try refresh once

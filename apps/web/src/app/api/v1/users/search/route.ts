@@ -1,5 +1,6 @@
 // Proxy route: GET /api/v1/users/search (no JWT required)
 import { ForumApiError, forumApi } from "@/lib/forum-api";
+import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
@@ -12,11 +13,9 @@ export async function GET(request: Request) {
 		return NextResponse.json(result);
 	} catch (err) {
 		if (err instanceof ForumApiError) {
-			return NextResponse.json(
-				{ error: { code: err.code, message: err.message } },
-				{ status: err.status },
-			);
+			return forumApiErrorToProxyResponse(err);
 		}
+		console.error("[users/search/route] forumApi.get error:", err);
 		return NextResponse.json(
 			{ error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
 			{ status: 500 },

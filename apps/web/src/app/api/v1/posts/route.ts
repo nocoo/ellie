@@ -3,6 +3,7 @@ import { ForumApiError, forumApi } from "@/lib/forum-api";
 // Proxy route: POST /api/v1/posts
 // Browser → Next.js → Worker (create post/reply)
 import { getWorkerJwt } from "@/lib/forum-auth";
+import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -37,13 +38,10 @@ export async function POST(request: Request) {
 		const result = await forumApi.postAuth<unknown>("/api/v1/posts", body, jwt);
 		return NextResponse.json(result, { status: 201 });
 	} catch (err) {
-		console.error("[posts/route] forumApi.postAuth error:", err);
 		if (err instanceof ForumApiError) {
-			return NextResponse.json(
-				{ error: { code: err.code, message: err.message } },
-				{ status: err.status },
-			);
+			return forumApiErrorToProxyResponse(err);
 		}
+		console.error("[posts/route] forumApi.postAuth error:", err);
 		return NextResponse.json(
 			{ error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
 			{ status: 500 },
