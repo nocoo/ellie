@@ -5,11 +5,12 @@
 -- duplicates) are intentionally left un-constrained — they have not yet
 -- claimed an email and must be free to do so via the verify flow.
 --
--- This index MUST land BEFORE the email-change endpoint (§10.1, Phase 5)
--- is exposed; otherwise two concurrent change requests can both pass an
--- application-layer "is this email free?" check. The unique index is the
--- real safety net; the app-layer conditional UPDATE keeps the error
--- surface clean by translating constraint violations into 409 EMAIL_TAKEN.
+-- This index MUST land BEFORE the verify endpoint (rev3 §7.3, Phase 3b) can
+-- safely write users.email; otherwise two concurrent verify requests for the
+-- same address can both pass an application-layer "is this email free?"
+-- check. The unique index is the real safety net; the app-layer conditional
+-- UPDATE keeps the error surface clean by translating constraint violations
+-- into 409 EMAIL_ALREADY_IN_USE.
 --
 -- Pre-flight gate (Phase 4b, see scripts/find-duplicate-emails.ts):
 --   the analyzer MUST report zero duplicate groups against the target DB
