@@ -416,14 +416,6 @@ export function toPublicUser(row: Record<string, unknown>, includeIp = false): P
 	return result;
 }
 
-/**
- * Maps a D1 user row to SelfUser (includes email, status, lastLogin, credits).
- * For GET /api/v1/auth/me and PATCH /api/v1/users/me
- */
-export function toSelfUser(row: Record<string, unknown>): User {
-	return toUser(row);
-}
-
 // ─── User Cache Enhanced Mappers ──────────────────────────────────────────────
 // These functions enrich Forum/Thread with user info from KV cache
 

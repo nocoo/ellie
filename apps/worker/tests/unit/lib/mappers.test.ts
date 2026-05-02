@@ -11,7 +11,6 @@ import {
 	toIpBan,
 	toPost,
 	toPublicUser,
-	toSelfUser,
 	toThread,
 	toUser,
 } from "../../../src/lib/mappers";
@@ -885,50 +884,6 @@ describe("D1 row mappers", () => {
 
 			const cw = toCensorWord(row);
 			expect(cw.action).toBe("replace");
-		});
-	});
-
-	// ─── toSelfUser ───────────────────────────────────────────
-
-	describe("toSelfUser", () => {
-		it("should delegate to toUser and include sensitive fields", () => {
-			const row = {
-				id: 1,
-				username: "alice",
-				email: "alice@example.com",
-				avatar: "",
-				status: 0,
-				role: 0,
-				reg_date: 0,
-				last_login: 0,
-				threads: 0,
-				posts: 0,
-				credits: 0,
-				signature: "",
-				group_title: "",
-				group_stars: 0,
-				group_color: "",
-				custom_title: "",
-				digest_posts: 0,
-				ol_time: 0,
-				gender: 0,
-				birth_year: 0,
-				birth_month: 0,
-				birth_day: 0,
-				reside_province: "",
-				reside_city: "",
-				graduate_school: "",
-				bio: "",
-				interest: "",
-				qq: "",
-				site: "",
-				last_activity: 0,
-			};
-
-			const selfUser = toSelfUser(row);
-			expect(selfUser.id).toBe(1);
-			expect(selfUser.email).toBe("alice@example.com");
-			expect(selfUser.status).toBe(0);
 		});
 	});
 
