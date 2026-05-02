@@ -1,8 +1,10 @@
+import { EmailVerificationBanner } from "@/components/forum/email-verification-banner";
 import { ForumLayoutShell } from "@/components/forum/forum-layout";
 import { SessionGuard } from "@/components/forum/session-guard";
 import { MaintenancePage } from "@/components/maintenance-page";
 import { forumApi } from "@/lib/forum-api";
 import { getCurrentForumUser } from "@/lib/forum-auth";
+import { getSelfForumUser } from "@/lib/forum-self";
 import { buildGlobalFooterViewModel } from "@/viewmodels/forum/footer";
 import {
 	type HeaderStats,
@@ -70,8 +72,16 @@ export default async function ForumLayout({ children }: { children: ReactNode })
 		}
 	}
 
-	// Normal mode — load all data
-	const [stats, currentUser] = await Promise.all([loadStats(), loadCurrentUser()]);
+	// Normal mode — load all data. `self` is loaded separately from
+	// `currentUser` because the header viewmodel only needs the public
+	// projection; the email-verification banner needs `emailVerifiedAt`
+	// which lives on the self-shape. Both calls fail-soft to null so a
+	// transient Worker outage doesn't block the layout from rendering.
+	const [stats, currentUser, self] = await Promise.all([
+		loadStats(),
+		loadCurrentUser(),
+		getSelfForumUser(),
+	]);
 
 	const headerVm = buildHeaderViewModel(settings, currentUser, stats);
 	const footerVm = buildGlobalFooterViewModel(settings);
@@ -79,6 +89,7 @@ export default async function ForumLayout({ children }: { children: ReactNode })
 	return (
 		<ForumLayoutShell headerVm={headerVm} footerVm={footerVm}>
 			<SessionGuard />
+			<EmailVerificationBanner self={self} />
 			{children}
 		</ForumLayoutShell>
 	);
