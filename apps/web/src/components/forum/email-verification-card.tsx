@@ -34,6 +34,7 @@ import {
 	type FormState,
 	describeWrappedError,
 	initialFormState,
+	isValidCodeFormat,
 	isValidEmailFormat,
 	makeRequestCodeBody,
 	makeVerifyBody,
@@ -272,8 +273,12 @@ function EmailVerificationForm({
 							key={widgetKey}
 							siteKey={turnstileSiteKey}
 							onSolve={(tok) => setTurnstileToken(tok)}
-							onError={() => setTurnstileToken(null)}
-							onExpire={() => setTurnstileToken(null)}
+							// Reviewer (msg 5f23f06e): error/expire must remount the widget
+							// so the user actually sees a fresh challenge — clearing the
+							// captured token alone leaves the same (now-broken) instance on
+							// the page.
+							onError={resetTurnstile}
+							onExpire={resetTurnstile}
 						/>
 					</div>
 				)}
@@ -314,7 +319,10 @@ function EmailVerificationForm({
 							type="button"
 							variant="default"
 							onClick={handleVerify}
-							disabled={isConfigError || isBusy || code.trim().length !== 6}
+							// Reviewer (msg 5f23f06e): use the viewmodel's
+							// `isValidCodeFormat` (6 ASCII digits) rather than just length,
+							// so the button stays disabled for non-numeric 6-char input.
+							disabled={isConfigError || isBusy || !isValidCodeFormat(code)}
 						>
 							{state.kind === "verifying" ? "验证中…" : "验证"}
 						</Button>
