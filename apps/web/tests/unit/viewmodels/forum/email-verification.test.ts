@@ -3,7 +3,7 @@
  * email-verification.ts).
  *
  * The viewmodel is the testable substrate of the EmailVerificationCard: it
- * owns the state machine, request-body shape, error mapping, and Turnstile
+ * owns the state machine, request-body shape, error mapping, and captcha
  * config validation. The component layer should remain a thin shell — these
  * tests lock the contract end-to-end.
  */
@@ -22,7 +22,7 @@ import {
 	parseWrappedError,
 	pickCardMode,
 	requestCodePreflight,
-	validateTurnstileConfig,
+	validateCaptchaConfig,
 } from "@/viewmodels/forum/email-verification";
 import { describe, expect, it } from "vitest";
 
@@ -43,8 +43,6 @@ describe("pickCardMode", () => {
 	});
 
 	it("verified takes precedence even when email is empty (legacy/migration fallback)", () => {
-		// Reviewer requirement (msg dcdbfacc): emailVerifiedAt > 0 always wins,
-		// even with empty email. The component shows a fallback label.
 		expect(pickCardMode({ email: "", emailVerifiedAt: 1 })).toEqual<CardMode>({
 			kind: "verified",
 			email: "",
@@ -106,9 +104,6 @@ describe("nextState", () => {
 	});
 
 	it("code-sent → verifying carries sentTo / nextResendAllowedAt forward", () => {
-		// Reviewer requirement (msg dcdbfacc): the verifying state must remember
-		// the code-sent payload so verify_error can recover without a second
-		// captcha round-trip.
 		const s = nextState(
 			{ kind: "code-sent", sentTo: "x***@y.io", nextResendAllowedAt: 1700000060, error: null },
 			{ type: "verify_start" },
@@ -129,8 +124,6 @@ describe("nextState", () => {
 	});
 
 	it("verifying → code-sent (with inline error) on verify_error — keeps sentTo so user can retry without re-captcha", () => {
-		// Reviewer requirement: wrong code → stay in code-sent; do NOT drop back
-		// to idle (which would require the user to re-burn a captcha).
 		const s = nextState(
 			{ kind: "verifying", sentTo: "x***@y.io", nextResendAllowedAt: 1700000060 },
 			{ type: "verify_error", message: "码错" },
@@ -144,7 +137,6 @@ describe("nextState", () => {
 	});
 
 	it("verify_error → user can verify_start again from the recovered code-sent state", () => {
-		// Regression for the full retry loop.
 		const afterError = nextState(
 			{ kind: "verifying", sentTo: "x***@y.io", nextResendAllowedAt: 42 },
 			{ type: "verify_error", message: "wrong" },
@@ -182,12 +174,10 @@ describe("nextState", () => {
 	});
 
 	it("ignores out-of-order events without changing state", () => {
-		// send_success while idle → ignored
 		const idle: FormState = { kind: "idle", error: null };
 		expect(nextState(idle, { type: "send_success", sentTo: "x", nextResendAllowedAt: 0 })).toBe(
 			idle,
 		);
-		// verify_start while idle → ignored
 		expect(nextState(idle, { type: "verify_start" })).toBe(idle);
 	});
 
@@ -202,16 +192,15 @@ describe("nextState", () => {
 
 // ─── makeRequestCodeBody / makeVerifyBody ────────────────────────────────────
 describe("makeRequestCodeBody", () => {
-	it("projects to { email, cf_turnstile_token } and trims both", () => {
-		expect(makeRequestCodeBody("  x@y.io  ", "  tok-abc  ")).toEqual({
+	it("projects to { email } and trims", () => {
+		expect(makeRequestCodeBody("  x@y.io  ")).toEqual({
 			email: "x@y.io",
-			cf_turnstile_token: "tok-abc",
 		});
 	});
 
-	it("returns exactly two keys (no extras)", () => {
-		const body = makeRequestCodeBody("x@y.io", "tok");
-		expect(Object.keys(body).sort()).toEqual(["cf_turnstile_token", "email"]);
+	it("returns exactly one key (no extras)", () => {
+		const body = makeRequestCodeBody("x@y.io");
+		expect(Object.keys(body)).toEqual(["email"]);
 	});
 });
 
@@ -260,12 +249,8 @@ describe("isValidCodeFormat", () => {
 
 // ─── mapErrorCode ────────────────────────────────────────────────────────────
 describe("mapErrorCode", () => {
-	// Aligned with the union the Worker actually emits across
-	// apps/worker/src/handlers/email.ts (request-code + verify) plus the
-	// proxy-emitted fences. Reviewer requirement (msg dcdbfacc): every code
-	// the worker can return on the email flow MUST have a copy mapping.
 	it.each([
-		// Captcha
+		// Captcha (retained mapping for backwards compatibility)
 		"CAPTCHA_REQUIRED",
 		"CAPTCHA_INVALID",
 		// Email
@@ -292,7 +277,6 @@ describe("mapErrorCode", () => {
 		const msg = mapErrorCode(code);
 		expect(msg).toMatch(/[一-龥]/);
 		expect(msg.length).toBeGreaterThan(0);
-		// Must not be the generic fallback — every known code has a specific copy.
 		expect(msg).not.toBe("操作失败，请稍后重试。");
 	});
 
@@ -378,24 +362,27 @@ describe("describeWrappedError", () => {
 	});
 });
 
-// ─── validateTurnstileConfig ────────────────────────────────────────────────
-describe("validateTurnstileConfig (fail-closed)", () => {
-	it("returns ok with trimmed key for a non-empty string", () => {
-		expect(validateTurnstileConfig("  abc-key  ")).toEqual({ ok: true, siteKey: "abc-key" });
+// ─── validateCaptchaConfig ────────────────────────────────────────────────
+describe("validateCaptchaConfig (fail-closed)", () => {
+	it("returns ok with trimmed endpoint for a non-empty string", () => {
+		expect(validateCaptchaConfig("  https://cap.example.com/key/  ")).toEqual({
+			ok: true,
+			apiEndpoint: "https://cap.example.com/key/",
+		});
 	});
 
 	it("fails closed for undefined", () => {
-		const r = validateTurnstileConfig(undefined);
+		const r = validateCaptchaConfig(undefined);
 		expect(r.ok).toBe(false);
-		if (!r.ok) expect(r.reason).toMatch(/NEXT_PUBLIC_TURNSTILE_SITE_KEY/);
+		if (!r.ok) expect(r.reason).toMatch(/NEXT_PUBLIC_CAP_API_ENDPOINT/);
 	});
 
 	it("fails closed for empty string", () => {
-		expect(validateTurnstileConfig("").ok).toBe(false);
+		expect(validateCaptchaConfig("").ok).toBe(false);
 	});
 
 	it("fails closed for whitespace-only string", () => {
-		expect(validateTurnstileConfig("   ").ok).toBe(false);
+		expect(validateCaptchaConfig("   ").ok).toBe(false);
 	});
 });
 
@@ -404,65 +391,64 @@ describe("requestCodePreflight (combined gate)", () => {
 	it("returns null when config + email + token are all valid", () => {
 		expect(
 			requestCodePreflight({
-				siteKey: "abc",
-				turnstileToken: "tok",
+				apiEndpoint: "https://cap.example.com/key/",
+				capToken: "tok",
 				email: "x@y.io",
 			}),
 		).toBeNull();
 	});
 
-	it("blocks when site key is missing (fail-closed) — even if token+email look fine", () => {
+	it("blocks when api endpoint is missing (fail-closed) — even if token+email look fine", () => {
 		const msg = requestCodePreflight({
-			siteKey: undefined,
-			turnstileToken: "tok",
+			apiEndpoint: undefined,
+			capToken: "tok",
 			email: "x@y.io",
 		});
 		expect(msg).not.toBeNull();
-		expect(msg).toMatch(/NEXT_PUBLIC_TURNSTILE_SITE_KEY/);
+		expect(msg).toMatch(/NEXT_PUBLIC_CAP_API_ENDPOINT/);
 	});
 
 	it("blocks on bad email format", () => {
 		expect(
 			requestCodePreflight({
-				siteKey: "abc",
-				turnstileToken: "tok",
+				apiEndpoint: "https://cap.example.com/key/",
+				capToken: "tok",
 				email: "no-at",
 			}),
 		).toBe("邮箱格式无效，请检查后重试。");
 	});
 
-	it("blocks when turnstile token is null/empty (captcha not solved)", () => {
+	it("blocks when cap token is null/empty (captcha not solved)", () => {
 		expect(
 			requestCodePreflight({
-				siteKey: "abc",
-				turnstileToken: null,
+				apiEndpoint: "https://cap.example.com/key/",
+				capToken: null,
 				email: "x@y.io",
 			}),
 		).toBe("请先完成人机验证。");
 		expect(
 			requestCodePreflight({
-				siteKey: "abc",
-				turnstileToken: "   ",
+				apiEndpoint: "https://cap.example.com/key/",
+				capToken: "   ",
 				email: "x@y.io",
 			}),
 		).toBe("请先完成人机验证。");
 	});
 
 	it("config error takes precedence over email and captcha errors", () => {
-		// All three are invalid — config_invalid wins.
 		const msg = requestCodePreflight({
-			siteKey: undefined,
-			turnstileToken: null,
+			apiEndpoint: undefined,
+			capToken: null,
 			email: "no-at",
 		});
-		expect(msg).toMatch(/NEXT_PUBLIC_TURNSTILE_SITE_KEY/);
+		expect(msg).toMatch(/NEXT_PUBLIC_CAP_API_ENDPOINT/);
 	});
 
 	it("email error takes precedence over captcha error", () => {
 		expect(
 			requestCodePreflight({
-				siteKey: "abc",
-				turnstileToken: null,
+				apiEndpoint: "https://cap.example.com/key/",
+				capToken: null,
 				email: "no-at",
 			}),
 		).toBe("邮箱格式无效，请检查后重试。");

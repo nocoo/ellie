@@ -1,8 +1,8 @@
 // Behavioral tests for the two email-verification proxy routes.
 //
 // These prove the wire contract the EmailVerificationCard depends on:
-//   - request-code forwards `cf_turnstile_token` to the Worker verbatim.
-//   - verify never sends `cf_turnstile_token` (captcha was already burned).
+//   - request-code forwards only `{ email }` to the Worker.
+//   - verify forwards `{ email, code }` (no captcha token).
 //   - both routes propagate the docs/17 §5.4 flat payload unmodified.
 //   - both routes reject CSRF before touching the Worker / session.
 //
@@ -63,28 +63,28 @@ describe("POST /api/v1/users/me/email/request-code", () => {
 	it("returns 401 when no session JWT is available", async () => {
 		getWorkerJwtMock.mockResolvedValue(null);
 		const { POST } = await import("@/app/api/v1/users/me/email/request-code/route");
-		const res = await POST(makeRequest({ email: "x@y.io", cf_turnstile_token: "tok" }));
+		const res = await POST(makeRequest({ email: "x@y.io" }));
 		expect(res.status).toBe(401);
 		expect(postAuthMock).not.toHaveBeenCalled();
 	});
 
-	it("forwards the body verbatim to the Worker, preserving cf_turnstile_token", async () => {
+	it("forwards only { email } to the Worker", async () => {
 		getWorkerJwtMock.mockResolvedValue("jwt-abc");
 		postAuthMock.mockResolvedValue({
 			data: { sent_to: "x***@y.io" },
 			meta: { timestamp: 1, requestId: "r1" },
 		});
 		const { POST } = await import("@/app/api/v1/users/me/email/request-code/route");
-		const res = await POST(makeRequest({ email: "x@y.io", cf_turnstile_token: "tok-xyz" }));
+		const res = await POST(makeRequest({ email: "x@y.io" }));
 		expect(res.status).toBe(200);
 		expect(postAuthMock).toHaveBeenCalledWith(
 			"/api/v1/users/me/email/request-code",
-			{ email: "x@y.io", cf_turnstile_token: "tok-xyz" },
+			{ email: "x@y.io" },
 			"jwt-abc",
 		);
 	});
 
-	it("projects body to EmailRequestCodeBody — preserves cf_turnstile_token but strips extras", async () => {
+	it("projects body to EmailRequestCodeBody — only email, strips extras", async () => {
 		getWorkerJwtMock.mockResolvedValue("jwt-abc");
 		postAuthMock.mockResolvedValue({
 			data: { sent_to: "x***@y.io" },
@@ -102,17 +102,11 @@ describe("POST /api/v1/users/me/email/request-code", () => {
 		expect(res.status).toBe(200);
 		expect(postAuthMock).toHaveBeenCalledTimes(1);
 		const [, forwardedBody] = postAuthMock.mock.calls[0];
-		expect(forwardedBody).toEqual({ email: "x@y.io", cf_turnstile_token: "tok-xyz" });
-		expect(Object.keys(forwardedBody as Record<string, unknown>).sort()).toEqual([
-			"cf_turnstile_token",
-			"email",
-		]);
+		expect(forwardedBody).toEqual({ email: "x@y.io" });
+		expect(Object.keys(forwardedBody as Record<string, unknown>)).toEqual(["email"]);
 	});
 
 	it("forwards the docs/17 §5.4 flat payload verbatim on 403 EMAIL_NOT_VERIFIED", async () => {
-		// (Captured for completeness — request-code itself does not gate on
-		// email_verified_at, but the proxy MUST NOT collapse this payload if
-		// it ever appears, so the contract is locked.)
 		getWorkerJwtMock.mockResolvedValue("jwt-abc");
 		const err = new ForumApiError(403, {
 			code: "EMAIL_NOT_VERIFIED",
@@ -121,7 +115,7 @@ describe("POST /api/v1/users/me/email/request-code", () => {
 		err.rawBody = EMAIL_NOT_VERIFIED_PAYLOAD;
 		postAuthMock.mockRejectedValue(err);
 		const { POST } = await import("@/app/api/v1/users/me/email/request-code/route");
-		const res = await POST(makeRequest({ email: "x@y.io", cf_turnstile_token: "tok" }));
+		const res = await POST(makeRequest({ email: "x@y.io" }));
 		expect(res.status).toBe(403);
 		const body = await res.json();
 		expect(body).toEqual(EMAIL_NOT_VERIFIED_PAYLOAD);
@@ -136,7 +130,7 @@ describe("POST /api/v1/users/me/email/request-code", () => {
 		err.rawBody = { error: { code: "CODE_RESEND_THROTTLED", message: "Too soon" } };
 		postAuthMock.mockRejectedValue(err);
 		const { POST } = await import("@/app/api/v1/users/me/email/request-code/route");
-		const res = await POST(makeRequest({ email: "x@y.io", cf_turnstile_token: "tok" }));
+		const res = await POST(makeRequest({ email: "x@y.io" }));
 		expect(res.status).toBe(429);
 		const body = await res.json();
 		expect(body).toEqual({ error: { code: "CODE_RESEND_THROTTLED", message: "Too soon" } });
@@ -175,9 +169,6 @@ describe("POST /api/v1/users/me/email/verify", () => {
 	});
 
 	it("forwards { email, code } verbatim — the body must NOT contain cf_turnstile_token", async () => {
-		// Regression guard for docs/17 §7.3: captcha was already burned at
-		// request-code time. If a future change ever passes a captcha token to
-		// the verify proxy, this test fails loudly.
 		getWorkerJwtMock.mockResolvedValue("jwt-abc");
 		postAuthMock.mockResolvedValue({
 			data: { verified: true },
@@ -193,9 +184,6 @@ describe("POST /api/v1/users/me/email/verify", () => {
 	});
 
 	it("strips cf_turnstile_token and any extra fields when caller injects them", async () => {
-		// Reviewer guard: even if a malicious/buggy caller appends a captcha
-		// token (or any other field), the proxy must project the body to
-		// `EmailVerifyCodeBody` exactly — never spread.
 		getWorkerJwtMock.mockResolvedValue("jwt-abc");
 		postAuthMock.mockResolvedValue({
 			data: { verified: true },

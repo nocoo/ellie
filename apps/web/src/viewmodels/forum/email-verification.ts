@@ -1,7 +1,7 @@
 /**
  * Email verification ViewModel — pure logic for the EmailVerificationCard.
  *
- * Ref: docs/17-email-verification.md (rev4)
+ * Ref: docs/17-email-verification.md
  *
  * This module is intentionally framework-free: no React, no fetch. It exposes
  * the state machine, body builders, error → copy mapping, and config-validation
@@ -11,7 +11,7 @@
  * Test boundaries
  * ---------------
  * Everything exported here is a pure function (`makeXxxBody`, `mapErrorCode`,
- * `nextState`, `validateTurnstileConfig`, …) so it can be exhaustively unit-
+ * `nextState`, `validateCaptchaConfig`, …) so it can be exhaustively unit-
  * tested without spinning up React or DOM. The card component then becomes a
  * thin shell that just wires UI events to these functions.
  */
@@ -52,7 +52,7 @@ export type CardMode =
 	 * over the unbound stack so the badge is preserved.
 	 */
 	| { kind: "verified"; email: string; verifiedAt: number }
-	/** No email on file yet → "你尚未绑定邮箱" + email input + Turnstile + send button. */
+	/** No email on file yet → "你尚未绑定邮箱" + email input + Cap + send button. */
 	| { kind: "unbound" }
 	/** Email on file but not verified → "邮箱未验证" + same form (email pre-filled). */
 	| { kind: "unverified"; email: string };
@@ -180,10 +180,6 @@ export function nextState(prev: FormState, event: FormEvent): FormState {
 
 		case "verify_error":
 			if (prev.kind === "verifying") {
-				// Reviewer requirement (msg dcdbfacc): wrong code → stay in
-				// code-sent so the user can re-enter the code without re-burning
-				// the captcha. Carry sentTo / nextResendAllowedAt forward; surface
-				// the error inline.
 				return {
 					kind: "code-sent",
 					sentTo: prev.sentTo,
@@ -212,10 +208,9 @@ export function nextState(prev: FormState, event: FormEvent): FormState {
  * keeps the wire shape consistent with the proxy's projection guard so the
  * Worker contract stays the single source of truth.
  */
-export function makeRequestCodeBody(email: string, turnstileToken: string): EmailRequestCodeBody {
+export function makeRequestCodeBody(email: string): EmailRequestCodeBody {
 	return {
 		email: email.trim(),
-		cf_turnstile_token: turnstileToken.trim(),
 	};
 }
 
@@ -259,15 +254,6 @@ export function isValidCodeFormat(code: string): boolean {
  * fall back to a generic message so the card never shows a raw machine code.
  * The dialog dispatch for `EMAIL_NOT_VERIFIED` is handled by Phase 7 — this
  * map is for inline form errors only.
- *
- * The `case` set is aligned with the union the Worker actually emits across
- * `apps/worker/src/handlers/email.ts` (request-code + verify):
- *   INTERNAL_ERROR, INVALID_BODY, CAPTCHA_REQUIRED, CAPTCHA_INVALID,
- *   EMAIL_INVALID, USER_NOT_FOUND, EMAIL_ALREADY_VERIFIED,
- *   CODE_RESEND_THROTTLED, EMAIL_PROVIDER_FAILED, CODE_FORMAT_INVALID,
- *   CODE_NOT_FOUND, EMAIL_CODE_EMAIL_MISMATCH, CODE_LOCKED, CODE_INVALID,
- *   EMAIL_ALREADY_IN_USE
- * plus the proxy-emitted fences NOT_AUTHENTICATED / CSRF_REJECTED.
  */
 export function mapErrorCode(code: string, fallback?: string): string {
 	switch (code) {
@@ -356,47 +342,46 @@ export function describeWrappedError(body: unknown, status: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Turnstile config validation (fail-closed)
+// Captcha config validation (fail-closed)
 // ---------------------------------------------------------------------------
 
 /**
- * Validate the Turnstile site key passed in from `NEXT_PUBLIC_TURNSTILE_SITE_KEY`.
+ * Validate the Cap API endpoint passed in from `NEXT_PUBLIC_CAP_API_ENDPOINT`.
  *
- * Per reviewer guidance (msg 0bb2fc12): a missing/blank key MUST NOT just
- * disable the widget visually — it must surface as an explicit configuration
- * error in the viewmodel and UI, and any attempt to call `request-code` MUST
- * be blocked. Returning `{ ok: false }` here is what the card uses to
- * dispatch the `config_invalid` event into the state machine.
+ * A missing/blank endpoint MUST surface as an explicit configuration error in
+ * the viewmodel and UI, and any attempt to call `request-code` MUST be
+ * blocked. Returning `{ ok: false }` here is what the card uses to dispatch
+ * the `config_invalid` event into the state machine.
  */
-export function validateTurnstileConfig(
-	siteKey: string | undefined,
-): { ok: true; siteKey: string } | { ok: false; reason: string } {
-	if (siteKey == null || siteKey.trim() === "") {
+export function validateCaptchaConfig(
+	apiEndpoint: string | undefined,
+): { ok: true; apiEndpoint: string } | { ok: false; reason: string } {
+	if (apiEndpoint == null || apiEndpoint.trim() === "") {
 		return {
 			ok: false,
-			reason: "邮箱验证暂不可用：站点未配置 NEXT_PUBLIC_TURNSTILE_SITE_KEY，请联系管理员。",
+			reason: "邮箱验证暂不可用：站点未配置 NEXT_PUBLIC_CAP_API_ENDPOINT，请联系管理员。",
 		};
 	}
-	return { ok: true, siteKey: siteKey.trim() };
+	return { ok: true, apiEndpoint: apiEndpoint.trim() };
 }
 
 /**
  * Combined pre-flight check: the form is OK to call request-code only when
- *   - Turnstile config is valid AND
+ *   - Cap config is valid AND
  *   - the user has solved the widget (token is non-empty) AND
  *   - the email has a syntactically valid format.
  *
  * Returns `null` when ready, or a user-facing error message when blocked.
  */
 export function requestCodePreflight(args: {
-	siteKey: string | undefined;
-	turnstileToken: string | null;
+	apiEndpoint: string | undefined;
+	capToken: string | null;
 	email: string;
 }): string | null {
-	const cfg = validateTurnstileConfig(args.siteKey);
+	const cfg = validateCaptchaConfig(args.apiEndpoint);
 	if (!cfg.ok) return cfg.reason;
 	if (!isValidEmailFormat(args.email)) return mapErrorCode("EMAIL_INVALID");
-	if (args.turnstileToken == null || args.turnstileToken.trim() === "") {
+	if (args.capToken == null || args.capToken.trim() === "") {
 		return mapErrorCode("CAPTCHA_REQUIRED");
 	}
 	return null;

@@ -55,7 +55,7 @@ export default async function MePage() {
 				</h2>
 				<EmailVerificationCard
 					user={toEmailVerificationUserView(self)}
-					turnstileSiteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+					capApiEndpoint={process.env.NEXT_PUBLIC_CAP_API_ENDPOINT}
 				/>
 			</section>
 		</div>
