@@ -28,13 +28,14 @@ export default defineConfig({
 	projects: [
 		{
 			name: "stateless",
-			testMatch: /\/(navigation|auth|search|system|redirect|pagination|message)\.spec\.ts/,
+			testMatch:
+				/\/(navigation|auth|search|system|redirect|pagination|message|user-journey|search-interaction|digest-filter)\.spec\.ts/,
 			fullyParallel: true, // Tests within same file can run in parallel
 			use: { ...devices["Desktop Chrome"] },
 		},
 		{
 			name: "stateful",
-			testMatch: /\/(thread|post|post-comments)\.spec\.ts/,
+			testMatch: /\/(thread|post|post-comments|thread-crud|post-crud)\.spec\.ts/,
 			fullyParallel: false,
 			dependencies: ["stateless"], // Run after stateless completes
 			use: { ...devices["Desktop Chrome"] },
