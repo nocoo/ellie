@@ -12,7 +12,6 @@ export default defineConfig({
 		name: "admin",
 		root: __dirname,
 		pool: "threads",
-		isolate: false,
 		include: ["tests/**/*.test.ts"],
 		environment: "node",
 		coverage: {
