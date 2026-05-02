@@ -150,10 +150,27 @@ async function request<T>(
 
 	if (!res.ok) {
 		const errorData = json.error as ForumApiErrorData | undefined;
-		throw new ForumApiError(
-			res.status,
-			errorData ?? { code: "UNKNOWN", message: `Worker returned ${res.status}` },
-		);
+		// `errorData` is the wrapped `{ code, message, details? }` shape used by
+		// most Worker errors. The flat docs/17 §5.4 EmailNotVerifiedPayload uses
+		// a *string* discriminator at `json.error` instead — when that happens
+		// `errorData` is the literal "EMAIL_NOT_VERIFIED" string, which fails
+		// the wrapped contract. Fall back to a synthetic wrapped record so the
+		// throw-site invariant holds, but stash the raw body on the error so
+		// proxy callers can re-emit the original payload verbatim.
+		const isWrapped =
+			errorData != null && typeof errorData === "object" && typeof errorData.code === "string";
+		const wrapped: ForumApiErrorData = isWrapped
+			? errorData
+			: typeof json.error === "string"
+				? {
+						code: json.error,
+						message:
+							typeof json.message === "string" ? json.message : `Worker returned ${res.status}`,
+					}
+				: { code: "UNKNOWN", message: `Worker returned ${res.status}` };
+		const err = new ForumApiError(res.status, wrapped);
+		err.rawBody = json;
+		throw err;
 	}
 
 	return {

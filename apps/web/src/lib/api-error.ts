@@ -27,6 +27,15 @@ export class ApiError extends Error {
 	readonly status: number;
 	readonly code: string;
 	readonly details?: Record<string, unknown>;
+	/**
+	 * Raw response body parsed as JSON (when available). Lets proxy/error
+	 * helpers forward unusual shapes verbatim — notably the flat
+	 * `{ error: "EMAIL_NOT_VERIFIED", message, dialog, redirect_to }` payload
+	 * from docs/17 §5.4, which would otherwise be lossily collapsed into
+	 * `{ error: { code, message } }`. Optional and best-effort: clients that
+	 * don't capture it will still see `code` populated.
+	 */
+	rawBody?: unknown;
 
 	constructor(status: number, data: ApiErrorData);
 	constructor(status: number, code: string, message: string);
