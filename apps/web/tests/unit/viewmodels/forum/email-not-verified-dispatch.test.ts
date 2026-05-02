@@ -18,6 +18,7 @@ import {
 	isEmailNotVerifiedPayloadClient,
 	normalizeCtaVariant,
 	pickDialogPayload,
+	preflightEmailVerifiedBlock,
 } from "@/viewmodels/forum/email-not-verified-dispatch";
 import { EMAIL_NOT_VERIFIED_PAYLOAD } from "@ellie/types";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -223,5 +224,53 @@ describe("normalizeCtaVariant", () => {
 		// to simulate a wire body the type system hasn't caught up to.
 		expect(normalizeCtaVariant("danger" as unknown as "primary")).toBe("primary");
 		expect(normalizeCtaVariant("" as unknown as "primary")).toBe("primary");
+	});
+});
+
+describe("preflightEmailVerifiedBlock", () => {
+	// Reviewer guidance (msg 58c38e78): "只在能可靠知道 emailVerifiedAt === 0
+	// 的入口做 preflight dispatch；不知道状态的入口不要猜。" — null and
+	// undefined fall through to the api-client backstop; only literal `0`
+	// blocks. Verified users (positive numbers) proceed normally.
+	const originalWindow = (globalThis as { window?: unknown }).window;
+
+	afterEach(() => {
+		if (originalWindow === undefined) {
+			(globalThis as { window?: unknown }).window = undefined;
+		} else {
+			(globalThis as { window?: unknown }).window = originalWindow;
+		}
+	});
+
+	it("returns false for null without dispatching (anonymous / fail-soft)", () => {
+		const dispatchSpy = vi.fn();
+		(globalThis as { window?: unknown }).window = { dispatchEvent: dispatchSpy };
+		expect(preflightEmailVerifiedBlock(null)).toBe(false);
+		expect(dispatchSpy).not.toHaveBeenCalled();
+	});
+
+	it("returns false for undefined without dispatching (caller has no source)", () => {
+		const dispatchSpy = vi.fn();
+		(globalThis as { window?: unknown }).window = { dispatchEvent: dispatchSpy };
+		expect(preflightEmailVerifiedBlock(undefined)).toBe(false);
+		expect(dispatchSpy).not.toHaveBeenCalled();
+	});
+
+	it("returns true and dispatches the canonical payload for 0 (unverified)", () => {
+		const dispatchSpy = vi.fn();
+		(globalThis as { window?: unknown }).window = { dispatchEvent: dispatchSpy };
+		expect(preflightEmailVerifiedBlock(0)).toBe(true);
+		expect(dispatchSpy).toHaveBeenCalledTimes(1);
+		const evt = dispatchSpy.mock.calls[0][0] as CustomEvent;
+		expect(evt.type).toBe(EMAIL_NOT_VERIFIED_EVENT);
+		// Preflight has no wire body, so the canonical constant is dispatched.
+		expect((evt.detail as { dialog: { title: string } }).dialog.title).toBeTruthy();
+	});
+
+	it("returns false for a positive timestamp without dispatching (verified)", () => {
+		const dispatchSpy = vi.fn();
+		(globalThis as { window?: unknown }).window = { dispatchEvent: dispatchSpy };
+		expect(preflightEmailVerifiedBlock(1_700_000_000_000)).toBe(false);
+		expect(dispatchSpy).not.toHaveBeenCalled();
 	});
 });

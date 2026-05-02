@@ -3,6 +3,7 @@ import { FloatingActions } from "@/components/forum/floating-actions";
 import { PostCard } from "@/components/forum/post-card";
 import { ReplyDialog } from "@/components/forum/reply-dialog";
 import { buildQuoteSnippet } from "@/lib/text";
+import { preflightEmailVerifiedBlock } from "@/viewmodels/forum/email-not-verified-dispatch";
 import type { EnrichedPost } from "@/viewmodels/forum/thread-detail";
 import { formatDateTime } from "@/viewmodels/shared/formatting";
 import type { Thread } from "@ellie/types";
@@ -19,6 +20,14 @@ interface ThreadPostsClientProps {
 	/** Can delete thread (SuperMod/Admin or author) */
 	canDeleteThread: boolean;
 	currentUserId: number | null;
+	/**
+	 * Server-side projected `emailVerifiedAt` for the current user.
+	 * `null` means anonymous OR the loader fail-soft pathed (server
+	 * couldn't tell). Per Phase 7-4 reviewer guidance (msg 58c38e78),
+	 * we only block when this is exactly `0`; null falls through to the
+	 * api-client interceptor backstop.
+	 */
+	selfEmailVerifiedAt: number | null;
 	/** Previous page URL for pagination */
 	prevHref?: string | null;
 	/** Next page URL for pagination */
@@ -33,6 +42,7 @@ export function ThreadPostsClient({
 	canMoveThread,
 	canDeleteThread,
 	currentUserId,
+	selfEmailVerifiedAt,
 	prevHref,
 	nextHref,
 }: ThreadPostsClientProps) {
@@ -43,26 +53,34 @@ export function ThreadPostsClient({
 		time: string;
 	} | null>(null);
 
-	const handleReply = useCallback((post?: EnrichedPost) => {
-		if (post) {
-			// Quote reply - extract plain text snippet for quote
-			const snippet = buildQuoteSnippet(post.content);
-			const timeStr = formatDateTime(post.createdAt);
-			setQuotedPost({
-				content: snippet,
-				author: post.author?.username ?? "匿名",
-				time: timeStr,
-			});
-		} else {
-			setQuotedPost(null);
-		}
-		setReplyOpen(true);
-	}, []);
+	const handleReply = useCallback(
+		(post?: EnrichedPost) => {
+			// Phase 7-4 preflight: short-circuit unverified writers before we
+			// stage quote state / open the editor. The api-client interceptor
+			// still backstops on the actual submit if state changes.
+			if (preflightEmailVerifiedBlock(selfEmailVerifiedAt)) return;
+			if (post) {
+				// Quote reply - extract plain text snippet for quote
+				const snippet = buildQuoteSnippet(post.content);
+				const timeStr = formatDateTime(post.createdAt);
+				setQuotedPost({
+					content: snippet,
+					author: post.author?.username ?? "匿名",
+					time: timeStr,
+				});
+			} else {
+				setQuotedPost(null);
+			}
+			setReplyOpen(true);
+		},
+		[selfEmailVerifiedAt],
+	);
 
 	const handleQuickReply = useCallback(() => {
+		if (preflightEmailVerifiedBlock(selfEmailVerifiedAt)) return;
 		setQuotedPost(null);
 		setReplyOpen(true);
-	}, []);
+	}, [selfEmailVerifiedAt]);
 
 	return (
 		<>

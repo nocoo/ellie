@@ -139,3 +139,35 @@ export function normalizeCtaVariant(
 	if (variant && ALLOWED_CTA_VARIANTS.has(variant)) return variant;
 	return "primary";
 }
+
+/**
+ * Preflight: at the moment a write affordance is clicked, decide whether
+ * we should short-circuit by opening the §5.4 dialog ourselves instead of
+ * making the user go through the post-422 detour.
+ *
+ * Returns `true` when the affordance should be BLOCKED (caller dispatches
+ * the dialog and does NOT open the write UI). Returns `false` when the
+ * write is allowed to proceed normally.
+ *
+ * Reviewer guidance (msg 58c38e78): "只在能可靠知道 emailVerifiedAt === 0
+ * 的入口做 preflight dispatch；不知道状态的入口不要猜。" The contract is
+ * therefore deliberately strict:
+ *
+ * - `null` (anonymous OR self-load failed OR caller has no reliable
+ *   source) → DO NOT block. The api-client interceptor still backstops:
+ *   if the Worker rejects, the dialog opens at that point. False negatives
+ *   (we let an unverified user click the button) are recoverable; false
+ *   positives (we block a verified user with stale state) are not.
+ * - `0` → BLOCK. The Worker treats `0` as "never verified" — a logged-in
+ *   user with that value can't write, and a server-side projection is
+ *   the source of truth here, not the client.
+ * - any positive number → DO NOT block (verified).
+ *
+ * Side effect: when blocking, this dispatches the EMAIL_NOT_VERIFIED
+ * event with the canonical constant payload (no wire body to use yet).
+ */
+export function preflightEmailVerifiedBlock(emailVerifiedAt: number | null | undefined): boolean {
+	if (emailVerifiedAt !== 0) return false;
+	dispatchEmailNotVerified(pickDialogPayload(undefined));
+	return true;
+}
