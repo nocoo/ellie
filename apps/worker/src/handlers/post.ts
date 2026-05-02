@@ -6,7 +6,7 @@ import type { Env } from "../lib/env";
 import { toPost } from "../lib/mappers";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
-import { withAuthVerified } from "../lib/routeHelpers";
+import { withVerifiedEmail } from "../lib/routeHelpers";
 import { POST_VISIBLE, buildVisibilityContext } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
@@ -192,7 +192,7 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 }
 
 /** POST /api/v1/posts - Reply to a thread (requires auth) */
-export const create = withAuthVerified(async (request, env, user) => {
+export const create = withVerifiedEmail(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	// Check posting permission (banned, muted, registration days, avatar, content switch)

@@ -5,7 +5,7 @@ import { decodeGenericCursor, encodeGenericCursor } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
-import { withAuthVerified } from "../lib/routeHelpers";
+import { withAuthVerified, withVerifiedEmail } from "../lib/routeHelpers";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
@@ -224,7 +224,7 @@ export const getById = withAuthVerified(async (request, env, user) => {
 /**
  * POST /api/v1/messages - Send a new message
  */
-export const create = withAuthVerified(async (request, env, user) => {
+export const create = withVerifiedEmail(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	// Check posting permission
@@ -345,7 +345,7 @@ export const create = withAuthVerified(async (request, env, user) => {
 /**
  * POST /api/v1/messages/mark-all-read - Mark all inbox messages as read
  */
-export const markAllRead = withAuthVerified(async (request, env, user) => {
+export const markAllRead = withVerifiedEmail(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	await env.DB.prepare(
@@ -360,7 +360,7 @@ export const markAllRead = withAuthVerified(async (request, env, user) => {
 /**
  * DELETE /api/v1/messages/:id - Delete a message (soft delete)
  */
-export const remove = withAuthVerified(async (request, env, user) => {
+export const remove = withVerifiedEmail(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const pathParts = url.pathname.split("/");

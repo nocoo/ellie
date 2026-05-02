@@ -4,7 +4,7 @@ import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
 import { jsonResponse } from "../lib/response";
-import { withAuthVerified } from "../lib/routeHelpers";
+import { withVerifiedEmail } from "../lib/routeHelpers";
 import { buildVisibilityContext } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
@@ -112,7 +112,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 }
 
 /** POST /api/v1/post-comments - Create a comment on a post (requires auth) */
-export const create = withAuthVerified(async (request, env, user) => {
+export const create = withVerifiedEmail(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	// Check user status from database (banned users cannot comment)

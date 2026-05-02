@@ -2,7 +2,7 @@
 import { toUser } from "../lib/mappers";
 import { hashPassword, verifyDiscuzPassword, verifyPassword } from "../lib/password";
 import { jsonResponse } from "../lib/response";
-import { withAuthVerified } from "../lib/routeHelpers";
+import { withAuthVerified, withVerifiedEmail } from "../lib/routeHelpers";
 import { invalidateUserCache } from "../lib/user-cache";
 import { errorResponse } from "../middleware/error";
 
@@ -178,7 +178,7 @@ function validateProfileFields(
 }
 
 /** PATCH /api/v1/users/me — Update own profile */
-export const updateProfile = withAuthVerified(async (request, env, user) => {
+export const updateProfile = withVerifiedEmail(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	let body: Record<string, unknown>;

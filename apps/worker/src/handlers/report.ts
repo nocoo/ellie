@@ -2,7 +2,7 @@ import { canViewForumVisibility } from "@ellie/types";
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
-import { withAuthVerified } from "../lib/routeHelpers";
+import { withAuthVerified, withVerifiedEmail } from "../lib/routeHelpers";
 import { POST_VISIBLE, THREAD_VISIBLE } from "../lib/visibility";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
@@ -26,7 +26,7 @@ const DUPLICATE_REPORT_WINDOW = 24 * 60 * 60;
 // ─── #75 POST /api/v1/reports ────────────────────────────────
 // Submit a post report
 
-export const create = withAuthVerified(async (request, env, user) => {
+export const create = withVerifiedEmail(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	// Parse body

@@ -8,6 +8,11 @@ import {
 } from "../../../src/handlers/report";
 import { createJwt } from "../../../src/lib/jwt";
 import { TEST_JWT_SECRET, createMockDb, makeEnv } from "../../helpers";
+import {
+	expectEmailNotVerifiedResponse,
+	makeUnverifiedEnv,
+	unverifiedUserJwt,
+} from "../helpers/email-gate";
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
@@ -81,7 +86,7 @@ describe("POST /api/v1/reports", () => {
 		const token = await makeUserToken();
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -103,7 +108,7 @@ describe("POST /api/v1/reports", () => {
 		const token = await makeUserToken();
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -122,7 +127,7 @@ describe("POST /api/v1/reports", () => {
 		const token = await makeUserToken();
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -141,7 +146,7 @@ describe("POST /api/v1/reports", () => {
 		const token = await makeUserToken();
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -160,7 +165,7 @@ describe("POST /api/v1/reports", () => {
 		const token = await makeUserToken(1, 0);
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT role, status FROM users WHERE id": { role: 0, status: -1 },
+				"SELECT role, status": { role: 0, status: -1, email_verified_at: 1700000000 },
 				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 					status: -1,
 					avatar_path: "avatars/test.jpg",
@@ -184,7 +189,7 @@ describe("POST /api/v1/reports", () => {
 		const token = await makeUserToken(1, 0);
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
@@ -212,7 +217,7 @@ describe("POST /api/v1/reports", () => {
 		// The post query includes "invisible = 0", so invisible posts won't be found
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
@@ -240,7 +245,7 @@ describe("POST /api/v1/reports", () => {
 		// Post exists but its thread has sticky < 0 (hidden/deleted/placeholder)
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
@@ -268,7 +273,7 @@ describe("POST /api/v1/reports", () => {
 		const token = await makeUserToken(1, 0);
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
@@ -300,7 +305,7 @@ describe("POST /api/v1/reports", () => {
 		const token = await makeUserToken(1, 0);
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
@@ -333,7 +338,7 @@ describe("POST /api/v1/reports", () => {
 		const token = await makeUserToken(1, 0);
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
@@ -383,7 +388,7 @@ describe("GET /api/v1/posting-permission", () => {
 		const token = await makeUserToken(1, 0);
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
@@ -408,7 +413,7 @@ describe("GET /api/v1/posting-permission", () => {
 		const token = await makeUserToken(1, 0);
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT role, status FROM users WHERE id": { role: 0, status: -1 },
+				"SELECT role, status": { role: 0, status: -1, email_verified_at: 1700000000 },
 				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 					status: -1, // Banned
 					avatar_path: "avatars/test.jpg",
@@ -429,7 +434,7 @@ describe("GET /api/v1/posting-permission", () => {
 		const token = await makeUserToken(1, 0);
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT role, status FROM users WHERE id": { role: 0, status: -2 },
+				"SELECT role, status": { role: 0, status: -2, email_verified_at: 1700000000 },
 				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 					status: -2, // Muted
 					avatar_path: "avatars/test.jpg",
@@ -451,7 +456,7 @@ describe("GET /api/v1/posting-permission", () => {
 		const now = Math.floor(Date.now() / 1000);
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
@@ -474,5 +479,40 @@ describe("GET /api/v1/posting-permission", () => {
 		const data = (await res.json()) as { data: { allowed: boolean; reason: string } };
 		expect(data.data.allowed).toBe(false);
 		expect(data.data.reason).toBeTruthy();
+	});
+});
+
+describe("report handlers — §5.4 email-verification gate", () => {
+	it("create: unverified user → 403 EMAIL_NOT_VERIFIED payload, no business SQL", async () => {
+		const { env, calls } = makeUnverifiedEnv(1);
+		const token = await unverifiedUserJwt(1);
+		const response = await create(
+			new Request("https://example.com/api/v1/reports", {
+				method: "POST",
+				headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+				body: JSON.stringify({ targetType: "post", targetId: 1, reason: "spam" }),
+			}),
+			env,
+		);
+		await expectEmailNotVerifiedResponse(response);
+		expect(calls.length).toBe(1);
+		expect(calls[0].sql).toContain("SELECT role, status, email_verified_at FROM users");
+	});
+
+	it("checkPermission: unverified user is allowed through gate (allow-list — read-style)", async () => {
+		// Allow-list regression: checkPermission stays on withAuthVerified per §5.1; an
+		// unverified user must NOT receive the §5.4 payload here. The handler may emit
+		// any non-403/EMAIL response (it is allowed to query DB, etc.).
+		const { env } = makeUnverifiedEnv(1);
+		const token = await unverifiedUserJwt(1);
+		const response = await checkPermission(
+			new Request("https://example.com/api/v1/posting-permission", {
+				headers: { Authorization: `Bearer ${token}` },
+			}),
+			env,
+		);
+		// Whatever the response is, it MUST NOT be the §5.4 EmailNotVerifiedPayload.
+		const text = await response.clone().text();
+		expect(text).not.toContain("EMAIL_NOT_VERIFIED");
 	});
 });

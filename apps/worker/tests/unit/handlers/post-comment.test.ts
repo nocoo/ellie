@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import * as postComment from "../../../src/handlers/post-comment";
 import { createJwtForRole, createMockDb, makeEnv } from "../../helpers";
+import {
+	expectEmailNotVerifiedResponse,
+	makeUnverifiedEnv,
+	unverifiedUserJwt,
+} from "../helpers/email-gate";
 
 describe("post-comment handlers", () => {
 	// ─── list ───────────────────────────────────────────────────────
@@ -140,7 +145,7 @@ describe("post-comment handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT status FROM users WHERE id": { status: -1 },
 				},
 			});
@@ -161,7 +166,7 @@ describe("post-comment handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT status FROM users WHERE id": { status: 0 },
 				},
 			});
@@ -182,7 +187,7 @@ describe("post-comment handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT status FROM users WHERE id": { status: 0 },
 				},
 			});
@@ -203,7 +208,7 @@ describe("post-comment handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT status FROM users WHERE id": { status: 0 },
 				},
 			});
@@ -224,7 +229,7 @@ describe("post-comment handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT status FROM users WHERE id": { status: 0 },
 				},
 			});
@@ -245,7 +250,7 @@ describe("post-comment handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT status FROM users WHERE id": { status: 0 },
 					"SELECT id, thread_id, forum_id FROM posts": null,
 				},
@@ -270,7 +275,7 @@ describe("post-comment handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT status FROM users WHERE id": { status: 0 },
 					"SELECT id, thread_id, forum_id FROM posts": { id: 1, thread_id: 1, forum_id: 1 },
 					"SELECT closed, sticky, forum_id FROM threads": { closed: 1, sticky: 0, forum_id: 1 },
@@ -296,7 +301,7 @@ describe("post-comment handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT status FROM users WHERE id": { status: 0 },
 					"SELECT id, thread_id, forum_id FROM posts": { id: 1, thread_id: 1, forum_id: 1 },
 					"SELECT closed, sticky, forum_id FROM threads": { closed: 0, sticky: 0, forum_id: 1 },
@@ -336,5 +341,23 @@ describe("post-comment handlers", () => {
 			expect(body.data.id).toBe(42);
 			expect(body.data.content).toBe("Great comment!");
 		});
+	});
+});
+
+describe("post-comment handlers — §5.4 email-verification gate", () => {
+	it("create: unverified user → 403 EMAIL_NOT_VERIFIED payload, no business SQL", async () => {
+		const { env, calls } = makeUnverifiedEnv(1);
+		const token = await unverifiedUserJwt(1);
+		const response = await postComment.create(
+			new Request("https://example.com/api/v1/post-comments", {
+				method: "POST",
+				headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+				body: JSON.stringify({ postId: 1, content: "x" }),
+			}),
+			env,
+		);
+		await expectEmailNotVerifiedResponse(response);
+		expect(calls.length).toBe(1);
+		expect(calls[0].sql).toContain("SELECT role, status, email_verified_at FROM users");
 	});
 });

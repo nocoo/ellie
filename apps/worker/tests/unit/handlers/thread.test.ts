@@ -10,6 +10,11 @@ import {
 	makeD1ForumRow,
 	makeD1ThreadRow,
 } from "../../helpers";
+import {
+	expectEmailNotVerifiedResponse,
+	makeUnverifiedEnv,
+	unverifiedUserJwt,
+} from "../helpers/email-gate";
 
 describe("thread handlers", () => {
 	const mockEnv: Env = {
@@ -838,7 +843,7 @@ describe("thread handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
@@ -871,7 +876,7 @@ describe("thread handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
@@ -904,7 +909,7 @@ describe("thread handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"FROM forums WHERE id": null,
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
@@ -938,7 +943,7 @@ describe("thread handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
@@ -976,7 +981,7 @@ describe("thread handlers", () => {
 			const createdThread = makeD1ThreadRow({ id: 100, forum_id: 1 });
 			const { db, batchCalls } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
 					"SELECT * FROM threads WHERE id": createdThread,
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
@@ -1025,7 +1030,7 @@ describe("thread handlers", () => {
 			const createdThread = makeD1ThreadRow({ id: 100 });
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
 					"SELECT * FROM threads WHERE id": createdThread,
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
@@ -1067,7 +1072,7 @@ describe("thread handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
@@ -1100,7 +1105,7 @@ describe("thread handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
@@ -1133,7 +1138,7 @@ describe("thread handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"FROM forums WHERE id": makeD1ForumRow({ id: 1 }),
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
@@ -1160,6 +1165,26 @@ describe("thread handlers", () => {
 			expect(response.status).toBe(400);
 			const body = await response.json();
 			expect(body.error.code).toBe("INVALID_BODY");
+		});
+
+		// docs/17 §5.4 — Phase 5b email-verification gate regression.
+		it("rejects unverified user with 403 EMAIL_NOT_VERIFIED payload (gate fires before business SQL)", async () => {
+			const { env, calls } = makeUnverifiedEnv(1);
+			const token = await unverifiedUserJwt(1);
+			const response = await create(
+				new Request("https://example.com/api/v1/threads", {
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ forumId: 1, subject: "x", content: "y" }),
+				}),
+				env,
+			);
+			await expectEmailNotVerifiedResponse(response);
+			// Auth middleware runs exactly one DB query (SELECT role, status,
+			// email_verified_at FROM users) and the handler short-circuits before
+			// hitting any forum / settings / thread SQL.
+			expect(calls.length).toBe(1);
+			expect(calls[0].sql).toContain("SELECT role, status, email_verified_at FROM users");
 		});
 	});
 });

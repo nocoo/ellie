@@ -9,6 +9,11 @@ import {
 	makeD1PostRow,
 	makeD1ThreadRow,
 } from "../../helpers";
+import {
+	expectEmailNotVerifiedResponse,
+	makeUnverifiedEnv,
+	unverifiedUserJwt,
+} from "../helpers/email-gate";
 
 describe("post handlers", () => {
 	const mockEnv: Env = {
@@ -419,7 +424,7 @@ describe("post handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT id, forum_id, closed FROM threads WHERE id": makeD1ThreadRow({
 						id: 1,
 						closed: 0,
@@ -455,7 +460,7 @@ describe("post handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "avatars/test.jpg",
@@ -487,7 +492,7 @@ describe("post handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT id, forum_id, closed FROM threads WHERE id": null,
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
@@ -520,7 +525,7 @@ describe("post handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT id, forum_id, closed FROM threads WHERE id": { id: 1, forum_id: 10, closed: 1 },
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
@@ -560,7 +565,7 @@ describe("post handlers", () => {
 			});
 			const { db, batchCalls } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT id, forum_id, closed FROM threads WHERE id": { id: 1, forum_id: 10, closed: 0 },
 					"SELECT status, visibility FROM forums": { status: 1, visibility: "public" },
 					"SELECT MAX(position)": { maxPos: 5 },
@@ -604,7 +609,7 @@ describe("post handlers", () => {
 			const createdPost = makeD1PostRow({ id: 50, content: "Trimmed" });
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT id, forum_id, closed FROM threads WHERE id": { id: 1, forum_id: 10, closed: 0 },
 					"SELECT status, visibility FROM forums": { status: 1, visibility: "public" },
 					"SELECT MAX(position)": { maxPos: 1 },
@@ -641,7 +646,7 @@ describe("post handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT id, forum_id, closed FROM threads WHERE id": { id: 1, forum_id: 10, closed: 0 },
 					"SELECT status, visibility FROM forums": { status: 1, visibility: "public" },
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
@@ -675,7 +680,7 @@ describe("post handlers", () => {
 			const token = await createJwtForRole(0, 1);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "avatars/test.jpg",
@@ -702,5 +707,24 @@ describe("post handlers", () => {
 			const body = await response.json();
 			expect(body.error.code).toBe("INVALID_BODY");
 		});
+	});
+});
+
+// docs/17 §5.4 — Phase 5b email-verification gate regression for post.create.
+describe("post handlers — §5.4 email-verification gate", () => {
+	it("create: unverified user → 403 EMAIL_NOT_VERIFIED payload, no business SQL", async () => {
+		const { env, calls } = makeUnverifiedEnv(1);
+		const token = await unverifiedUserJwt(1);
+		const response = await create(
+			new Request("https://example.com/api/v1/posts", {
+				method: "POST",
+				headers: { Authorization: `Bearer ${token}` },
+				body: JSON.stringify({ threadId: 1, content: "x" }),
+			}),
+			env,
+		);
+		await expectEmailNotVerifiedResponse(response);
+		expect(calls.length).toBe(1);
+		expect(calls[0].sql).toContain("SELECT role, status, email_verified_at FROM users");
 	});
 });

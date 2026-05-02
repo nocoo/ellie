@@ -142,7 +142,7 @@ describe("digest handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				},
 				allResults: {
 					"SELECT t.* FROM threads": [],
@@ -197,7 +197,7 @@ describe("digest handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					SELECT: { total: 50, level1: 30, level2: 15, level3: 5 },
 				},
 			});
@@ -256,7 +256,7 @@ describe("digest handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				},
 				allResults: {
 					"SELECT DISTINCT strftime": [],
