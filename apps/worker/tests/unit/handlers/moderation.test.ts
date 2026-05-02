@@ -673,6 +673,63 @@ describe("DELETE /api/v1/moderation/posts/:id", () => {
 		expect(data.data.deleted).toBe(true);
 		expect(batchCalls.length).toBe(1);
 	});
+
+	it("recalculates thread metadata before forum metadata (R3-A)", async () => {
+		// Regression: moderation deletePost used to skip
+		// recalcThreadMetadata, leaving threads.last_post_at /
+		// last_poster pointing at the now-deleted post; the subsequent
+		// forum recalc would then read stale per-thread aggregates.
+		const token = await makeModToken(1); // Admin
+		const { db, calls } = createMockDb({
+			firstResults: {
+				"SELECT id, thread_id, forum_id, author_id, is_first FROM posts": {
+					id: 9,
+					thread_id: 42,
+					forum_id: 7,
+					author_id: 10,
+					is_first: 0,
+				},
+				...mockUser(1, 1, "admin"),
+				...mockForum(7, ""),
+				// recalcThreadMetadata: most recent visible post in this thread
+				"SELECT created_at, author_name, author_id": {
+					created_at: 1700001234,
+					author_name: "alice",
+					author_id: 10,
+				},
+				// recalcForumMetadata: most recent visible thread in this forum
+				"SELECT id, subject, last_post_at, last_poster, last_poster_id": {
+					id: 42,
+					subject: "t",
+					last_post_at: 1700001234,
+					last_poster: "alice",
+					last_poster_id: 10,
+				},
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = new Request("https://api.example.com/api/v1/moderation/posts/9", {
+			method: "DELETE",
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const res = await deletePost(req, env);
+		expect(res.status).toBe(200);
+
+		const threadRecalcIdx = calls.findIndex(
+			(c) =>
+				c.sql.includes("SELECT created_at, author_name, author_id") &&
+				c.sql.includes("FROM posts") &&
+				c.params[0] === 42,
+		);
+		const forumRecalcIdx = calls.findIndex(
+			(c) =>
+				c.sql.includes("SELECT id, subject, last_post_at, last_poster, last_poster_id") &&
+				c.params[0] === 7,
+		);
+		expect(threadRecalcIdx).toBeGreaterThanOrEqual(0);
+		expect(forumRecalcIdx).toBeGreaterThanOrEqual(0);
+		expect(threadRecalcIdx).toBeLessThan(forumRecalcIdx);
+	});
 });
 
 // ═══════════════════════════════════════════════════════════════════
