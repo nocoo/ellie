@@ -1,12 +1,7 @@
 import { type Forum, type ModeratorInfo, canViewForumVisibility } from "@ellie/types";
 import type { ForumVisibility } from "@ellie/types";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
-import {
-	enrichForumWithUserCache,
-	enrichForumsWithUserCache,
-	parseModeratorIds,
-	toForum,
-} from "../lib/mappers";
+import { enrichForumsWithUserCache, parseModeratorIds, toForum } from "../lib/mappers";
 import { getUserProfiles } from "../lib/user-cache";
 import { THREAD_VISIBLE, buildVisibilityContext } from "../lib/visibility";
 
@@ -353,7 +348,7 @@ export async function getById(
 	// Enrich with KV user cache (only if enabled)
 	if (useKvCache && forum.lastPosterId > 0) {
 		const userCache = await getUserProfiles(env, ctx, [forum.lastPosterId]);
-		forum = enrichForumWithUserCache(forum, userCache);
+		forum = enrichForumsWithUserCache([forum], userCache)[0] ?? forum;
 	}
 
 	return new Response(

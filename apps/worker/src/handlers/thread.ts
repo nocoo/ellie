@@ -8,7 +8,7 @@ import {
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
-import { enrichThreadWithUserCache, enrichThreadsWithUserCache, toThread } from "../lib/mappers";
+import { enrichThreadsWithUserCache, toThread } from "../lib/mappers";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse, paginatedResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
@@ -317,7 +317,7 @@ export async function getById(
 		const userIds = [thread.authorId, thread.lastPosterId].filter((uid) => uid > 0);
 		if (userIds.length > 0) {
 			const userCache = await getUserProfiles(env, ctx, userIds);
-			thread = enrichThreadWithUserCache(thread, userCache);
+			thread = enrichThreadsWithUserCache([thread], userCache)[0] ?? thread;
 		}
 	}
 
