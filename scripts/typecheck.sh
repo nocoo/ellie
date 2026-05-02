@@ -41,4 +41,4 @@ if [ "$rebuild_needed" = true ]; then
   bun run build
 fi
 
-exec tsc --build
+exec bunx tsc --build
