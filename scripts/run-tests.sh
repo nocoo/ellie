@@ -8,7 +8,14 @@ trap 'rm -f "$vlog" "$blog"' EXIT
 
 node_modules/.bin/vitest run --no-color --experimental.fsModuleCache --silent=passed-only >"$vlog" 2>&1 &
 v=$!
-bun test "$PWD/tests/unit/loader.test.ts" "$PWD/tests/unit/verify.test.ts" >"$blog" 2>&1 &
+bun test \
+  "$PWD/tests/unit/loader.test.ts" \
+  "$PWD/tests/unit/verify.test.ts" \
+  "$PWD/tests/unit/migration-0029-schema.test.ts" \
+  "$PWD/apps/worker/tests/unit/handlers/email.test.ts" \
+  "$PWD/apps/worker/tests/unit/lib/dove.test.ts" \
+  "$PWD/apps/worker/tests/unit/lib/email-verify.test.ts" \
+  >"$blog" 2>&1 &
 b=$!
 
 wait "$v"; ve=$?

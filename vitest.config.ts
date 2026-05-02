@@ -25,7 +25,11 @@ export default defineConfig({
 				test: {
 					name: "root",
 					include: ["tests/unit/**/*.test.ts"],
-					exclude: ["tests/unit/loader.test.ts", "tests/unit/verify.test.ts"],
+					exclude: [
+						"tests/unit/loader.test.ts",
+						"tests/unit/verify.test.ts",
+						"tests/unit/migration-0029-schema.test.ts",
+					],
 					environment: "node",
 				},
 			},
