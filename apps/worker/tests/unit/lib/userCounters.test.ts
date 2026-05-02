@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
 	batchDecrementUserPosts,
-	batchDecrementUserThreads,
 	decrementUserPosts,
 	decrementUserThreads,
 } from "../../../src/lib/userCounters";
@@ -67,29 +66,6 @@ describe("userCounters", () => {
 			const env = makeEnv({ DB: db });
 
 			await batchDecrementUserPosts(env, new Map());
-
-			expect(batchCalls.length).toBe(0);
-		});
-	});
-
-	describe("batchDecrementUserThreads", () => {
-		it("should batch decrement thread counts", async () => {
-			const { db, batchCalls } = createMockDb({});
-			const env = makeEnv({ DB: db });
-
-			const authorCounts = new Map([[1, 2]]);
-
-			await batchDecrementUserThreads(env, authorCounts);
-
-			expect(batchCalls.length).toBe(1);
-			expect(batchCalls[0].length).toBe(1);
-		});
-
-		it("should no-op for empty map", async () => {
-			const { db, batchCalls } = createMockDb({});
-			const env = makeEnv({ DB: db });
-
-			await batchDecrementUserThreads(env, new Map());
 
 			expect(batchCalls.length).toBe(0);
 		});
