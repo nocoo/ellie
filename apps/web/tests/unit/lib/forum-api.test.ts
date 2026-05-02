@@ -551,6 +551,42 @@ describe("forumApi error handling", () => {
 			expect(err.code).toBe("UNKNOWN");
 		}
 	});
+
+	it("captures rawBody on error so proxy callers can re-emit unusual payloads (docs/17 §5.4)", async () => {
+		// docs/17 §5.4: flat EmailNotVerifiedPayload — top-level `error` is the
+		// literal string "EMAIL_NOT_VERIFIED", NOT the wrapped { code, message }
+		// shape. The throw must still satisfy the wrapped contract for callers
+		// that only read `code`/`message`, but the raw flat body must be preserved
+		// on `rawBody` so proxy-error.ts can forward it verbatim.
+		const flat = {
+			error: "EMAIL_NOT_VERIFIED",
+			message: "请先验证邮箱后再发布或回复内容。",
+			dialog: { title: "需要验证邮箱", body: "x", cta_label: "去验证邮箱", cta_variant: "primary" },
+			redirect_to: "/me#email",
+		};
+		mockFetchFn.mockImplementation(() =>
+			Promise.resolve(
+				new Response(JSON.stringify(flat), {
+					status: 403,
+					headers: { "Content-Type": "application/json" },
+				}),
+			),
+		);
+
+		try {
+			await forumApi.post("/api/v1/threads", { x: 1 });
+			expect.unreachable("should have thrown");
+		} catch (e) {
+			expect(e).toBeInstanceOf(ForumApiError);
+			const err = e as ForumApiError;
+			expect(err.status).toBe(403);
+			// Wrapped contract still satisfied for legacy callers.
+			expect(err.code).toBe("EMAIL_NOT_VERIFIED");
+			expect(err.message).toBe("请先验证邮箱后再发布或回复内容。");
+			// Raw body preserved verbatim — same object as the wire shape.
+			expect(err.rawBody).toEqual(flat);
+		}
+	});
 });
 
 // ---------------------------------------------------------------------------
