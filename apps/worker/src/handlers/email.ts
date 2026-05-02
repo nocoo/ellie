@@ -35,7 +35,6 @@ import {
 } from "../lib/email-verify";
 import { jsonResponse } from "../lib/response";
 import { withAuthVerified } from "../lib/routeHelpers";
-import { verifyTurnstileToken } from "../lib/turnstile";
 import { errorResponse } from "../middleware/error";
 
 interface UserRow {
@@ -92,28 +91,6 @@ export const requestCode = withAuthVerified(async (request, env, user) => {
 	// Compile-time hint only — runtime checks below are still authoritative.
 	// `Partial<>` preserves "field may be missing / wrong-typed" reality.
 	const reqBody = body as Partial<EmailRequestCodeBody>;
-
-	// Rev4 §7.2 / §7.2.1: Turnstile captcha runs FIRST.
-	// - Missing token → 400 CAPTCHA_REQUIRED (does NOT burn resend throttle).
-	// - siteverify failure / timeout / 5xx → 403 CAPTCHA_INVALID (fail-closed).
-	// We deliberately check captcha before EMAIL_INVALID so a malformed body
-	// can't be used to enumerate captcha state, and before any KV read so a
-	// rejected captcha never touches throttle/lock keys.
-	const submittedToken =
-		typeof reqBody.cf_turnstile_token === "string" ? reqBody.cf_turnstile_token.trim() : "";
-	if (!submittedToken) {
-		return errorResponse("CAPTCHA_REQUIRED", 400, undefined, origin);
-	}
-	const remoteIp = request.headers.get("CF-Connecting-IP") ?? undefined;
-	const captcha = await verifyTurnstileToken(env, submittedToken, remoteIp);
-	if (!captcha.success) {
-		// Server-side log for ops; client only sees the generic error code so
-		// we don't leak Turnstile config / hostname state.
-		console.warn(
-			`[email-verify] turnstile rejected user=${user.userId} reason=${captcha.reason ?? "unknown"}`,
-		);
-		return errorResponse("CAPTCHA_INVALID", 403, undefined, origin);
-	}
 
 	const submittedEmail = typeof reqBody.email === "string" ? reqBody.email.trim() : "";
 	if (!isValidEmail(submittedEmail)) {

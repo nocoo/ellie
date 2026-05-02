@@ -19,14 +19,6 @@ bucket_name = "tongjinet"
 [vars]
 ENVIRONMENT = "production"
 ALLOWED_ORIGINS = "https://ellie.nocoo.cloud,https://ellie.worker.hexly.ai"
-# Cloudflare Turnstile keys (docs/17 §7.2.1 — rev4).
-# Production keys MUST be set by ops BEFORE Phase 3c production cutover:
-#   - TURNSTILE_SITE_KEY: add real site key here (plain var; frontend reads it).
-#   - TURNSTILE_SECRET_KEY: set via `wrangler secret put TURNSTILE_SECRET_KEY`.
-# Until both are in place the request-code endpoint fails closed
-# (verifyTurnstileToken returns success=false → 403 CAPTCHA_INVALID), so no
-# verification email is sent and no real users are affected. Phase 5b write
-# enforcement is gated separately, so missing keys here cannot leak access.
 
 # Dove email relay (docs/17 §8). Webhook = `${DOVE_BASE_URL}/api/webhook/${DOVE_PROJECT_ID}/send`.
 # Only the BASE_URL / PROJECT_ID / TEMPLATE_SLUG are tracked vars; the bearer
@@ -68,12 +60,6 @@ preview_bucket_name = "tongjinet-test"
 [env.test.vars]
 ENVIRONMENT = "test"
 ALLOWED_ORIGINS = "*"
-# Cloudflare Turnstile always-pass test keys (docs/17 §7.2.1).
-# Both site key and secret are publicly documented "always pass" values —
-# they let the frontend widget render and let `siteverify` succeed without
-# any real outbound dependency. They MUST never be used in production.
-TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
-TURNSTILE_SECRET_KEY = "1x0000000000000000000000000000000AA"
 # Dove (docs/17 §8). Test env points at the real base URL but the worker
 # only reaches dove inside unit tests with mocked fetch — there is no real
 # outbound call from the L2 suite (handlers/email is in the bun:test lane

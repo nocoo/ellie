@@ -43,13 +43,12 @@ export declare const EMAIL_NOT_VERIFIED_PAYLOAD: EmailNotVerifiedPayload;
 export declare function cloneEmailNotVerifiedPayload(): EmailNotVerifiedPayload;
 /**
  * POST /api/v1/users/me/email/request-code body.
- * Carries the pending email the user wants to verify and the Cloudflare
- * Turnstile token captured by the widget. The token is mandatory in rev4
- * (§7.2.1, fail-closed) — see Worker handler for runtime enforcement.
+ * Carries the pending email the user wants to verify. Client-side Cap
+ * captcha gates the send button; the token is NOT forwarded to the Worker
+ * (same model as login/register).
  */
 export interface EmailRequestCodeBody {
     email: string;
-    cf_turnstile_token: string;
 }
 /**
  * POST /api/v1/users/me/email/verify body.

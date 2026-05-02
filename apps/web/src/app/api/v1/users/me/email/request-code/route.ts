@@ -1,10 +1,9 @@
 // Proxy route: POST /api/v1/users/me/email/request-code
 //
-// Browser → Next.js → Worker. Forwards the request body verbatim — including
-// the `cf_turnstile_token` Cloudflare Turnstile widget token captured by the
-// EmailVerificationCard. The Worker side enforces captcha (§7.2.1, fail-closed)
-// and the docs/17 §5.4 flat payload is passed through unmodified for the
-// global write-button dialog flow.
+// Browser → Next.js → Worker. Forwards the request body verbatim. Client-side
+// Cap captcha gates the send button; the token is NOT forwarded to the Worker
+// (same model as login/register). The Worker still has JWT auth + 60s throttle +
+// 5 attempt limit + HMAC code signing as abuse protection.
 
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { ForumApiError, forumApi } from "@/lib/forum-api";
@@ -41,13 +40,8 @@ export async function POST(request: Request) {
 
 	try {
 		const raw = (await request.json()) as Partial<Record<string, unknown>>;
-		// Explicitly project to `EmailRequestCodeBody` — never spread the raw
-		// body. This guarantees only the fields the Worker contract expects
-		// reach the upstream, regardless of what the caller appends. Runtime
-		// validation (string types, captcha verification) stays on the Worker.
 		const body: EmailRequestCodeBody = {
 			email: raw.email as string,
-			cf_turnstile_token: raw.cf_turnstile_token as string,
 		};
 		const result = await forumApi.postAuth<unknown>(
 			"/api/v1/users/me/email/request-code",

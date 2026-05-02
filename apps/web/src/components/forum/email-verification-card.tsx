@@ -5,26 +5,12 @@
 // Structure
 // ---------
 // This component is intentionally thin. All non-trivial logic — state machine,
-// request body shape, error mapping, Turnstile config validation — lives in
+// request body shape, error mapping, Cap config validation — lives in
 // `apps/web/src/viewmodels/forum/email-verification.ts`. Tests live there. This
 // file is the wire-up: render the right stack for the user's mode, drive the
-// reducer with form events, fetch the proxy routes, and forward Turnstile
-// callbacks.
-//
-// Reviewer requirements (msg f4189ead)
-// ------------------------------------
-// 1. UI stays thin — viewmodel owns state/body/error mapping.
-// 2. After every request-code outcome (success or failure) AND on Turnstile
-//    expire, the captured `cf_turnstile_token` is reset to null and the
-//    widget is reset, so the next attempt requires solving the captcha again.
-// 3. verify failure stays in `code-sent`; the user re-enters the code without
-//    re-burning a Turnstile token.
-// 4. `verified` mode with empty email shows a fallback label instead of
-//    leaking `pending` state through the user prop.
-// 5. Missing `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is fail-closed: the form is
-//    locked and a config error is shown; no fetch is attempted.
+// reducer with form events, fetch the proxy routes, and forward Cap callbacks.
 
-import { TurnstileWidget } from "@/components/turnstile-widget";
+import { CapWidget } from "@/components/cap-widget";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -41,25 +27,23 @@ import {
 	nextState,
 	pickCardMode,
 	requestCodePreflight,
-	validateTurnstileConfig,
+	validateCaptchaConfig,
 } from "@/viewmodels/forum/email-verification";
 import { useRouter } from "next/navigation";
 import { useEffect, useReducer, useRef, useState } from "react";
 
 export interface EmailVerificationCardProps {
 	user: EmailVerificationUserView;
-	/** NEXT_PUBLIC_TURNSTILE_SITE_KEY — passed in so the page renders fail-closed
+	/** NEXT_PUBLIC_CAP_API_ENDPOINT — passed in so the page renders fail-closed
 	 *  when env var is missing instead of crashing the client bundle. */
-	turnstileSiteKey: string | undefined;
+	capApiEndpoint: string | undefined;
 }
 
-export function EmailVerificationCard({ user, turnstileSiteKey }: EmailVerificationCardProps) {
+export function EmailVerificationCard({ user, capApiEndpoint }: EmailVerificationCardProps) {
 	const router = useRouter();
 	const mode = pickCardMode(user);
 
-	// Validate the Turnstile site key once and lock the form into config-error
-	// state if it's missing/blank. This is the primary fail-closed gate.
-	const cfg = validateTurnstileConfig(turnstileSiteKey);
+	const cfg = validateCaptchaConfig(capApiEndpoint);
 	const [state, dispatch] = useReducer(
 		nextState,
 		cfg.ok ? initialFormState : ({ kind: "config-error", reason: cfg.reason } as FormState),
@@ -102,13 +86,10 @@ export function EmailVerificationCard({ user, turnstileSiteKey }: EmailVerificat
 			isUnbound={mode.kind === "unbound"}
 			state={state}
 			dispatch={dispatch}
-			turnstileSiteKey={cfg.ok ? cfg.siteKey : ""}
+			capApiEndpoint={cfg.ok ? cfg.apiEndpoint : ""}
 			isConfigError={!cfg.ok}
 			configErrorReason={cfg.ok ? "" : cfg.reason}
 			onVerified={() => {
-				// Refresh the server-rendered page so the verified state lands on
-				// re-mount via the user prop. The reducer is already in
-				// `verified`, so this is the paint of record.
 				router.refresh();
 			}}
 		/>
@@ -121,7 +102,7 @@ interface EmailVerificationFormProps {
 	isUnbound: boolean;
 	state: FormState;
 	dispatch: React.Dispatch<Parameters<typeof nextState>[1]>;
-	turnstileSiteKey: string;
+	capApiEndpoint: string;
 	isConfigError: boolean;
 	configErrorReason: string;
 	onVerified: () => void;
@@ -133,21 +114,17 @@ function EmailVerificationForm({
 	isUnbound,
 	state,
 	dispatch,
-	turnstileSiteKey,
+	capApiEndpoint,
 	isConfigError,
 	configErrorReason,
 	onVerified,
 }: EmailVerificationFormProps) {
 	const [email, setEmail] = useState(initialEmail);
 	const [code, setCode] = useState("");
-	const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-	// Bumping this key forces the TurnstileWidget to remount (and thus
-	// re-render a fresh challenge). The widget itself does not expose a
-	// programmatic reset hook through props, so a key swap is the cleanest
-	// public-API reset.
+	const [capToken, setCapToken] = useState<string | null>(null);
 	const [widgetKey, setWidgetKey] = useState(0);
-	const resetTurnstile = () => {
-		setTurnstileToken(null);
+	const resetCap = () => {
+		setCapToken(null);
 		setWidgetKey((k) => k + 1);
 	};
 
@@ -165,16 +142,13 @@ function EmailVerificationForm({
 	const handleSendCode = async () => {
 		if (isConfigError || isBusy) return;
 		const preflightError = requestCodePreflight({
-			siteKey: turnstileSiteKey,
-			turnstileToken,
+			apiEndpoint: capApiEndpoint,
+			capToken,
 			email,
 		});
 		if (preflightError) {
-			// Surface as send_error from the user's POV (form stays in idle/code-
-			// sent with the error visible). We don't enter `sending` so the reset
-			// path below also fires.
 			dispatch({ type: "send_error", message: preflightError });
-			resetTurnstile();
+			resetCap();
 			return;
 		}
 		dispatch({ type: "send_start" });
@@ -182,12 +156,12 @@ function EmailVerificationForm({
 			const res = await fetch("/api/v1/users/me/email/request-code", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(makeRequestCodeBody(email, turnstileToken ?? "")),
+				body: JSON.stringify(makeRequestCodeBody(email)),
 			});
 			const body = (await res.json().catch(() => null)) as unknown;
 			if (!res.ok) {
 				dispatch({ type: "send_error", message: describeWrappedError(body, res.status) });
-				resetTurnstile();
+				resetCap();
 				return;
 			}
 			const data =
@@ -202,10 +176,10 @@ function EmailVerificationForm({
 				sentTo,
 				nextResendAllowedAt,
 			});
-			resetTurnstile();
+			resetCap();
 		} catch {
 			dispatch({ type: "send_error", message: "网络错误，请稍后重试。" });
-			resetTurnstile();
+			resetCap();
 		}
 	};
 
@@ -229,13 +203,9 @@ function EmailVerificationForm({
 		}
 	};
 
-	// Inline error message shown above the buttons.
 	const inlineError =
 		state.kind === "idle" ? state.error : state.kind === "code-sent" ? state.error : null;
 
-	// Show the code input and verify button whenever the user is past send
-	// (`code-sent` or `verifying`). We render `state.sentTo` from whichever
-	// branch is active.
 	const showCodeInput = state.kind === "code-sent" || state.kind === "verifying";
 	const sentTo = state.kind === "code-sent" || state.kind === "verifying" ? state.sentTo : "";
 
@@ -269,16 +239,11 @@ function EmailVerificationForm({
 
 				{!isConfigError && (
 					<div className="flex flex-col gap-1">
-						<TurnstileWidget
+						<CapWidget
 							key={widgetKey}
-							siteKey={turnstileSiteKey}
-							onSolve={(tok) => setTurnstileToken(tok)}
-							// Reviewer (msg 5f23f06e): error/expire must remount the widget
-							// so the user actually sees a fresh challenge — clearing the
-							// captured token alone leaves the same (now-broken) instance on
-							// the page.
-							onError={resetTurnstile}
-							onExpire={resetTurnstile}
+							apiEndpoint={capApiEndpoint}
+							onSolve={(tok) => setCapToken(tok)}
+							onError={() => resetCap()}
 						/>
 					</div>
 				)}
@@ -309,7 +274,7 @@ function EmailVerificationForm({
 					<Button
 						type="button"
 						onClick={handleSendCode}
-						disabled={isConfigError || isBusy || !isValidEmailFormat(email) || !turnstileToken}
+						disabled={isConfigError || isBusy || !isValidEmailFormat(email) || !capToken}
 					>
 						{state.kind === "sending" ? "发送中…" : showCodeInput ? "重新发送验证码" : "发送验证码"}
 					</Button>
@@ -319,9 +284,6 @@ function EmailVerificationForm({
 							type="button"
 							variant="default"
 							onClick={handleVerify}
-							// Reviewer (msg 5f23f06e): use the viewmodel's
-							// `isValidCodeFormat` (6 ASCII digits) rather than just length,
-							// so the button stays disabled for non-numeric 6-char input.
 							disabled={isConfigError || isBusy || !isValidCodeFormat(code)}
 						>
 							{state.kind === "verifying" ? "验证中…" : "验证"}

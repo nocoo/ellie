@@ -23,7 +23,6 @@ export default defineConfig({
 			"tests/unit/handlers/email.test.ts",
 			"tests/unit/lib/dove.test.ts",
 			"tests/unit/lib/email-verify.test.ts",
-			"tests/unit/lib/turnstile.test.ts",
 		],
 		environment: "node",
 		coverage: {
@@ -36,7 +35,7 @@ export default defineConfig({
 			// v8 coverage would otherwise count them as 0% in the denominator.
 			//
 			// Hook / runner coverage map for the excluded files:
-			//   - dove.ts, email-verify.ts, handlers/email.ts, turnstile.ts
+			//   - dove.ts, email-verify.ts, handlers/email.ts
 			//       → covered by `.husky/pre-push` bun_tests list AND by
 			//         `scripts/run-tests.sh` (= `bun run test`).
 			//
@@ -47,7 +46,6 @@ export default defineConfig({
 				"src/**/*.d.ts",
 				"src/lib/dove.ts",
 				"src/lib/email-verify.ts",
-				"src/lib/turnstile.ts",
 				"src/handlers/email.ts",
 			],
 			thresholds: {

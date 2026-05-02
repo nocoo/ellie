@@ -15,7 +15,7 @@
 //   wiring.
 // - Same auth gate: null self-load → `/login?redirect=/verify-email`
 //   so the user lands back here after sign-in.
-// - Same fail-closed Turnstile config: env key passed in as a prop;
+// - Same fail-closed Cap config: env key passed in as a prop;
 //   missing key surfaces inside the card as a config error.
 //
 // What's intentionally different from /me
@@ -50,7 +50,7 @@ export default async function VerifyEmailPage() {
 			<Breadcrumbs items={breadcrumbs} />
 			<EmailVerificationCard
 				user={toEmailVerificationUserView(self)}
-				turnstileSiteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+				capApiEndpoint={process.env.NEXT_PUBLIC_CAP_API_ENDPOINT}
 			/>
 		</div>
 	);

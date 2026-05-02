@@ -1,7 +1,7 @@
-// Unit tests for email-verification HTTP handlers (docs/17 §7.2, §7.3 — rev3 + rev4 captcha).
-// Mocks the dove client module AND the turnstile client module (NOT global
-// fetch) so this file is safe to run concurrently with apps/worker/tests/unit/lib/dove.test.ts
-// which DOES stub globalThis.fetch.
+// Unit tests for email-verification HTTP handlers (docs/17 §7.2, §7.3).
+// Mocks the dove client module (NOT global fetch) so this file is safe to run
+// concurrently with apps/worker/tests/unit/lib/dove.test.ts which DOES stub
+// globalThis.fetch.
 
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 
@@ -26,22 +26,6 @@ mock.module("../../../src/lib/dove", () => ({
 			return { ok: false, code: "recipient_not_found", status: 404 };
 		}
 		return { ok: true };
-	},
-}));
-
-// Module-level turnstile stub (rev4). Behavior is encoded on the env object
-// via the magic property `__TURNSTILE_MODE__` so each test owns its policy:
-//   undefined / "ok"      → success: true
-//   "reject"              → success: false, reason: "invalid-input-response"
-//   "timeout"             → success: false, reason: "timeout" (fail-closed)
-const turnstileCallsByEnv = new WeakMap<object, number>();
-mock.module("../../../src/lib/turnstile", () => ({
-	verifyTurnstileToken: async (env: { __TURNSTILE_MODE__?: string }) => {
-		turnstileCallsByEnv.set(env, (turnstileCallsByEnv.get(env) ?? 0) + 1);
-		const mode = env.__TURNSTILE_MODE__ ?? "ok";
-		if (mode === "reject") return { success: false, reason: "invalid-input-response" };
-		if (mode === "timeout") return { success: false, reason: "timeout" };
-		return { success: true };
 	},
 }));
 
@@ -143,11 +127,6 @@ function makeEnv(opts: {
 		DOVE_BASE_URL: doveOn ? "https://dove.example.com" : undefined,
 		DOVE_PROJECT_ID: doveOn ? "ellie" : undefined,
 		DOVE_WEBHOOK_TOKEN: doveOn ? "tok" : undefined,
-		// Turnstile (rev4): tests use the documented always-pass test secret;
-		// the verifyTurnstileToken mock above ignores its actual value and reads
-		// __TURNSTILE_MODE__ off the env to decide outcome (default: success).
-		TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA",
-		TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
 	};
 	return { env, kv };
 }
@@ -165,17 +144,6 @@ async function makeRequest(path: string, body?: unknown, userId = 7): Promise<Re
 		},
 		body: body !== undefined ? JSON.stringify(body) : undefined,
 	});
-}
-
-/**
- * Build a request-code body. By default includes a placeholder
- * `cf_turnstile_token` so the rev4 captcha gate is satisfied — the turnstile
- * mock returns success for any non-empty token unless the env flips
- * `__TURNSTILE_MODE__`. Tests that exercise the missing-token / rejection
- * paths can omit the token explicitly.
- */
-function reqCodeBody(extra: Record<string, unknown>): Record<string, unknown> {
-	return { cf_turnstile_token: "test-turnstile-token", ...extra };
 }
 
 const originalFetch = globalThis.fetch;
@@ -213,7 +181,7 @@ afterAll(() => {
 
 // ───────────────────────────── request-code ─────────────────────────────
 
-describe("requestCode (POST /api/v1/users/me/email/request-code) — rev3", () => {
+describe("requestCode (POST /api/v1/users/me/email/request-code)", () => {
 	it("returns 401 when no JWT", async () => {
 		const { env } = makeEnv({ dbUser: { role: 0, status: 0, email_verified_at: 0 } });
 		const req = new Request("https://example.com/x", {
@@ -243,17 +211,14 @@ describe("requestCode (POST /api/v1/users/me/email/request-code) — rev3", () =
 
 	it("returns 400 EMAIL_INVALID when body.email is missing", async () => {
 		const { env } = makeEnv({ dbUser: { role: 0, status: 0, email_verified_at: 0 } });
-		const res = await requestCode(await makeRequest("/x", reqCodeBody({})), env);
+		const res = await requestCode(await makeRequest("/x", {}), env);
 		expect(res.status).toBe(400);
 		expect((await res.json()).error.code).toBe("EMAIL_INVALID");
 	});
 
 	it("returns 400 EMAIL_INVALID for malformed email", async () => {
 		const { env } = makeEnv({ dbUser: { role: 0, status: 0, email_verified_at: 0 } });
-		const res = await requestCode(
-			await makeRequest("/x", reqCodeBody({ email: "not-an-email" })),
-			env,
-		);
+		const res = await requestCode(await makeRequest("/x", { email: "not-an-email" }), env);
 		expect(res.status).toBe(400);
 		expect((await res.json()).error.code).toBe("EMAIL_INVALID");
 	});
@@ -262,10 +227,7 @@ describe("requestCode (POST /api/v1/users/me/email/request-code) — rev3", () =
 		const { env } = makeEnv({
 			dbUser: { role: 0, status: 0, email_verified_at: 1700000000 },
 		});
-		const res = await requestCode(
-			await makeRequest("/x", reqCodeBody({ email: "user@example.com" })),
-			env,
-		);
+		const res = await requestCode(await makeRequest("/x", { email: "user@example.com" }), env);
 		expect(res.status).toBe(403);
 		expect((await res.json()).error.code).toBe("EMAIL_ALREADY_VERIFIED");
 	});
@@ -275,10 +237,7 @@ describe("requestCode (POST /api/v1/users/me/email/request-code) — rev3", () =
 			dbUser: { role: 0, status: 0, email_verified_at: 0 },
 		});
 		stubDoveOk(env);
-		const res = await requestCode(
-			await makeRequest("/x", reqCodeBody({ email: "User@Example.COM" })),
-			env,
-		);
+		const res = await requestCode(await makeRequest("/x", { email: "User@Example.COM" }), env);
 		expect(res.status).toBe(200);
 		const body = await res.json();
 		expect(body.data.sent_to).toBe("u***@example.com");
@@ -299,61 +258,42 @@ describe("requestCode (POST /api/v1/users/me/email/request-code) — rev3", () =
 		expect(await kv.get(sendLockKvKey(7))).toBeNull();
 	});
 
-	it("(rev4 §8) sends to the user-provided pendingEmail with template slug `verify-email` and ONLY the `code` variable", async () => {
+	it("(§8) sends to the user-provided pendingEmail with template slug `verify-email` and ONLY the `code` variable", async () => {
 		const { env } = makeEnv({
 			dbUser: { role: 0, status: 0, email_verified_at: 0 },
 		});
 		const dove = stubDoveOk(env);
-		const res = await requestCode(
-			await makeRequest("/x", reqCodeBody({ email: "User@Example.COM" })),
-			env,
-		);
+		const res = await requestCode(await makeRequest("/x", { email: "User@Example.COM" }), env);
 		expect(res.status).toBe(200);
 
 		const last = dove.lastInput;
 		expect(last).toBeDefined();
 		if (!last) return;
-		// Recipient is the EXACT display form the user typed (NOT users.email,
-		// NOT the normalized form). docs/17 §8 + §7.2.
 		expect(last.to).toBe("User@Example.COM");
-		// Default slug when env.DOVE_TEMPLATE_SLUG is unset.
 		expect(last.template).toBe("verify-email");
-		// Variables: ONLY `code`. No username / expires_in_minutes / extras.
 		expect(Object.keys(last.variables).sort()).toEqual(["code"]);
 		expect(last.variables.code).toMatch(/^\d{6}$/);
-		// Idempotency key shape: `${userId}:${first16OfCodeHmac}`.
 		expect(last.idempotencyKey).toMatch(/^7:[0-9a-f]{16}$/);
 	});
 
-	it("(rev4 §8) honors env.DOVE_TEMPLATE_SLUG override so ops can swap templates without a deploy", async () => {
+	it("(§8) honors env.DOVE_TEMPLATE_SLUG override so ops can swap templates without a deploy", async () => {
 		const { env } = makeEnv({
 			dbUser: { role: 0, status: 0, email_verified_at: 0 },
 		});
 		const dove = stubDoveOk(env);
 		env.DOVE_TEMPLATE_SLUG = "verify-email-canary";
-		const res = await requestCode(
-			await makeRequest("/x", reqCodeBody({ email: "user@example.com" })),
-			env,
-		);
+		const res = await requestCode(await makeRequest("/x", { email: "user@example.com" }), env);
 		expect(res.status).toBe(200);
 		expect(dove.lastInput?.template).toBe("verify-email-canary");
-		// Variables remain locked to `{ code }` regardless of slug override.
 		expect(Object.keys(dove.lastInput?.variables ?? {})).toEqual(["code"]);
 	});
 
-	it("does NOT touch users.email (rev3 — pending lives in KV only)", async () => {
-		// If the handler were to UPDATE users on request-code, our wrapped DB
-		// would be exercised. We assert by looking at calls indirectly — there's
-		// only one read on users (the loadUser SELECT). We rely on the fact that
-		// the response succeeded and the KV record holds the pending email.
+	it("does NOT touch users.email (pending lives in KV only)", async () => {
 		const { env, kv } = makeEnv({
 			dbUser: { role: 0, status: 0, email_verified_at: 0 },
 		});
 		stubDoveOk(env);
-		const res = await requestCode(
-			await makeRequest("/x", reqCodeBody({ email: "fresh@example.com" })),
-			env,
-		);
+		const res = await requestCode(await makeRequest("/x", { email: "fresh@example.com" }), env);
 		expect(res.status).toBe(200);
 		const rec = JSON.parse((await kv.get(codeKvKey(7))) as string) as CodeRecord;
 		expect(rec.pendingEmailNormalized).toBe("fresh@example.com");
@@ -368,10 +308,7 @@ describe("requestCode (POST /api/v1/users/me/email/request-code) — rev3", () =
 		const origWarn = console.warn;
 		console.warn = warnSpy as unknown as typeof console.warn;
 		try {
-			const res = await requestCode(
-				await makeRequest("/x", reqCodeBody({ email: "user@example.com" })),
-				env,
-			);
+			const res = await requestCode(await makeRequest("/x", { email: "user@example.com" }), env);
 			expect(res.status).toBe(502);
 			const body = await res.json();
 			expect(body.error.code).toBe("EMAIL_PROVIDER_FAILED");
@@ -404,10 +341,7 @@ describe("requestCode (POST /api/v1/users/me/email/request-code) — rev3", () =
 		});
 		const fetchTracker = stubDoveOk(env);
 
-		const res = await requestCode(
-			await makeRequest("/x", reqCodeBody({ email: "user@example.com" })),
-			env,
-		);
+		const res = await requestCode(await makeRequest("/x", { email: "user@example.com" }), env);
 		expect(res.status).toBe(429);
 		const body = await res.json();
 		expect(body.error.code).toBe("CODE_RESEND_THROTTLED");
@@ -424,10 +358,7 @@ describe("requestCode (POST /api/v1/users/me/email/request-code) — rev3", () =
 		});
 		const tracker = stubDoveOk(env);
 
-		const res = await requestCode(
-			await makeRequest("/x", reqCodeBody({ email: "user@example.com" })),
-			env,
-		);
+		const res = await requestCode(await makeRequest("/x", { email: "user@example.com" }), env);
 		expect(res.status).toBe(429);
 		expect((await res.json()).error.code).toBe("CODE_RESEND_THROTTLED");
 		expect(tracker.calls).toBe(0);
@@ -440,8 +371,8 @@ describe("requestCode (POST /api/v1/users/me/email/request-code) — rev3", () =
 		});
 		const tracker = stubDoveOk(env);
 		const [a, b] = await Promise.all([
-			requestCode(await makeRequest("/x", reqCodeBody({ email: "user@example.com" })), env),
-			requestCode(await makeRequest("/x", reqCodeBody({ email: "user@example.com" })), env),
+			requestCode(await makeRequest("/x", { email: "user@example.com" }), env),
+			requestCode(await makeRequest("/x", { email: "user@example.com" }), env),
 		]);
 		const statuses = [a.status, b.status].sort();
 		expect(statuses).toEqual([200, 429]);
@@ -466,10 +397,7 @@ describe("requestCode (POST /api/v1/users/me/email/request-code) — rev3", () =
 			kv: { [codeKvKey(7)]: JSON.stringify(existing) },
 		});
 		stubDoveOk(env);
-		const res = await requestCode(
-			await makeRequest("/x", reqCodeBody({ email: "user@example.com" })),
-			env,
-		);
+		const res = await requestCode(await makeRequest("/x", { email: "user@example.com" }), env);
 		expect(res.status).toBe(200);
 		const newRec = JSON.parse((await kv.get(codeKvKey(7))) as string) as CodeRecord;
 		expect(newRec.lastSentAt).toBeGreaterThan(existing.lastSentAt);
@@ -481,136 +409,14 @@ describe("requestCode (POST /api/v1/users/me/email/request-code) — rev3", () =
 			dbUser: { role: 0, status: 0, email_verified_at: 0 },
 		});
 		(env as { EMAIL_VERIFY_HMAC_KEY?: string }).EMAIL_VERIFY_HMAC_KEY = undefined;
-		const res = await requestCode(
-			await makeRequest("/x", reqCodeBody({ email: "user@example.com" })),
-			env,
-		);
+		const res = await requestCode(await makeRequest("/x", { email: "user@example.com" }), env);
 		expect(res.status).toBe(500);
-	});
-
-	// ─── Rev4 §7.2.1 Turnstile captcha ───
-	// Captcha is checked BEFORE the throttle, in-flight lock, dove call, or KV
-	// mutation, so a missing/invalid token can never burn resend throttle or
-	// cause a verification email to be dispatched.
-
-	it("returns 400 CAPTCHA_REQUIRED when cf_turnstile_token is missing (rev4)", async () => {
-		const { env, kv } = makeEnv({ dbUser: { role: 0, status: 0, email_verified_at: 0 } });
-		const tracker = stubDoveOk(env);
-		// Body has email but no cf_turnstile_token.
-		const res = await requestCode(await makeRequest("/x", { email: "user@example.com" }), env);
-		expect(res.status).toBe(400);
-		const body = await res.json();
-		expect(body.error.code).toBe("CAPTCHA_REQUIRED");
-		// §7.2 contract: new captcha codes must carry a captcha-specific
-		// message, NOT the generic "An error occurred" default. proxy/UI
-		// surface this string directly.
-		expect(typeof body.error.message).toBe("string");
-		expect(body.error.message).toMatch(/captcha/i);
-		expect(body.error.message).not.toBe("An error occurred");
-		// Captcha gate must run before dove and before KV mutations.
-		expect(tracker.calls).toBe(0);
-		expect(await kv.get(codeKvKey(7))).toBeNull();
-		expect(await kv.get(sendLockKvKey(7))).toBeNull();
-	});
-
-	it("returns 400 CAPTCHA_REQUIRED when cf_turnstile_token is empty string", async () => {
-		const { env, kv } = makeEnv({ dbUser: { role: 0, status: 0, email_verified_at: 0 } });
-		const res = await requestCode(
-			await makeRequest("/x", { email: "user@example.com", cf_turnstile_token: "   " }),
-			env,
-		);
-		expect(res.status).toBe(400);
-		expect((await res.json()).error.code).toBe("CAPTCHA_REQUIRED");
-		expect(await kv.get(codeKvKey(7))).toBeNull();
-	});
-
-	it("returns 403 CAPTCHA_INVALID when Turnstile siteverify rejects the token (rev4)", async () => {
-		const { env, kv } = makeEnv({ dbUser: { role: 0, status: 0, email_verified_at: 0 } });
-		(env as { __TURNSTILE_MODE__?: string }).__TURNSTILE_MODE__ = "reject";
-		const tracker = stubDoveOk(env);
-		const warnSpy = mock(() => {});
-		const origWarn = console.warn;
-		console.warn = warnSpy as unknown as typeof console.warn;
-		try {
-			const res = await requestCode(
-				await makeRequest("/x", reqCodeBody({ email: "user@example.com" })),
-				env,
-			);
-			expect(res.status).toBe(403);
-			const body = await res.json();
-			expect(body.error.code).toBe("CAPTCHA_INVALID");
-			// §7.2 contract: captcha-specific message, not the default fallback.
-			expect(body.error.message).toMatch(/captcha/i);
-			expect(body.error.message).not.toBe("An error occurred");
-			// No dove call, no KV mutation, no throttle burn.
-			expect(tracker.calls).toBe(0);
-			expect(await kv.get(codeKvKey(7))).toBeNull();
-			expect(await kv.get(sendLockKvKey(7))).toBeNull();
-			// Server log records reason for ops; client never sees it.
-			expect(warnSpy).toHaveBeenCalledTimes(1);
-			const logged = String((warnSpy.mock.calls[0] as unknown as string[])[0]);
-			expect(logged).toContain("turnstile rejected");
-			expect(logged).toContain("invalid-input-response");
-		} finally {
-			console.warn = origWarn;
-		}
-	});
-
-	it("returns 403 CAPTCHA_INVALID (fail-closed) on Turnstile timeout / network failure", async () => {
-		const { env, kv } = makeEnv({ dbUser: { role: 0, status: 0, email_verified_at: 0 } });
-		(env as { __TURNSTILE_MODE__?: string }).__TURNSTILE_MODE__ = "timeout";
-		const tracker = stubDoveOk(env);
-		const warnSpy = mock(() => {});
-		const origWarn = console.warn;
-		console.warn = warnSpy as unknown as typeof console.warn;
-		try {
-			const res = await requestCode(
-				await makeRequest("/x", reqCodeBody({ email: "user@example.com" })),
-				env,
-			);
-			expect(res.status).toBe(403);
-			expect((await res.json()).error.code).toBe("CAPTCHA_INVALID");
-			// Fail-closed: never proceed to dove or KV write on captcha
-			// timeout — otherwise an attacker could DOS Turnstile and bypass.
-			expect(tracker.calls).toBe(0);
-			expect(await kv.get(codeKvKey(7))).toBeNull();
-			expect(warnSpy).toHaveBeenCalledTimes(1);
-			expect(String((warnSpy.mock.calls[0] as unknown as string[])[0])).toContain("timeout");
-		} finally {
-			console.warn = origWarn;
-		}
-	});
-
-	it("captcha check runs BEFORE resend throttle so a bad token cannot burn the clock", async () => {
-		// Seed an existing record with a recent lastSentAt — under normal flow
-		// a new request would 429. We expect CAPTCHA_REQUIRED to win because
-		// captcha is checked first; the existing record's lastSentAt must be
-		// untouched.
-		const now = Math.floor(Date.now() / 1000);
-		const existing: CodeRecord = {
-			codeHmac: "f".repeat(64),
-			pendingEmail: "user@example.com",
-			pendingEmailNormalized: "user@example.com",
-			expiresAt: now + 600,
-			attempts: 0,
-			lastSentAt: now - 5,
-		};
-		const { env, kv } = makeEnv({
-			dbUser: { role: 0, status: 0, email_verified_at: 0 },
-			kv: { [codeKvKey(7)]: JSON.stringify(existing) },
-		});
-		const res = await requestCode(await makeRequest("/x", { email: "user@example.com" }), env);
-		expect(res.status).toBe(400);
-		expect((await res.json()).error.code).toBe("CAPTCHA_REQUIRED");
-		// Existing throttle record preserved verbatim.
-		const raw = await kv.get(codeKvKey(7));
-		expect(JSON.parse(raw as string).lastSentAt).toBe(existing.lastSentAt);
 	});
 });
 
 // ───────────────────────────── verify ─────────────────────────────
 
-describe("verifyCode (POST /api/v1/users/me/email/verify) — rev3", () => {
+describe("verifyCode (POST /api/v1/users/me/email/verify)", () => {
 	async function seedRecord(args: {
 		userId?: number;
 		code: string;
@@ -703,7 +509,6 @@ describe("verifyCode (POST /api/v1/users/me/email/verify) — rev3", () => {
 			dbUser: { role: 0, status: 0, email_verified_at: 0 },
 			kv: kvSeed,
 		});
-		// Mixed casing + leading/trailing whitespace — should normalize and match.
 		const res = await verifyCode(
 			await makeRequest("/x", { email: "  USER@Example.COM  ", code: "123456" }),
 			env,
@@ -726,7 +531,6 @@ describe("verifyCode (POST /api/v1/users/me/email/verify) — rev3", () => {
 		);
 		expect(res.status).toBe(409);
 		expect((await res.json()).error.code).toBe("EMAIL_CODE_EMAIL_MISMATCH");
-		// KV record preserved — attempts NOT incremented.
 		const rec = JSON.parse((await kv.get(codeKvKey(7))) as string) as CodeRecord;
 		expect(rec.attempts).toBe(0);
 	});
@@ -744,8 +548,6 @@ describe("verifyCode (POST /api/v1/users/me/email/verify) — rev3", () => {
 		);
 		expect(res.status).toBe(409);
 		expect((await res.json()).error.code).toBe("EMAIL_ALREADY_IN_USE");
-		// KV record preserved so the user can retry with a different address
-		// after a fresh request-code (rev3 doesn't burn the code on collision).
 		expect(await kv.get(codeKvKey(7))).not.toBeNull();
 	});
 
@@ -754,7 +556,7 @@ describe("verifyCode (POST /api/v1/users/me/email/verify) — rev3", () => {
 		const { env } = makeEnv({
 			dbUser: { role: 0, status: 0, email_verified_at: 0 },
 			kv: kvSeed,
-			updateChanges: 0, // guard `email_verified_at = 0` missed
+			updateChanges: 0,
 		});
 		const res = await verifyCode(
 			await makeRequest("/x", { email: "user@example.com", code: "123456" }),
