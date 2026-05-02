@@ -77,22 +77,32 @@ export function toEmailVerificationUserView(self: SelfForumUser): EmailVerificat
 
 /**
  * Load the current user from the Worker via `/api/v1/auth/me`. Returns
- * `null` for any failure (no JWT, expired refresh, Worker error). The
- * caller is expected to redirect to /login when this returns null.
+ * `null` for any failure (no JWT, expired refresh, Worker error,
+ * cookie-decrypt throw, missing AUTH_SECRET). The caller is expected
+ * to redirect to /login when this returns null.
+ *
+ * Why the whole body is inside one try/catch
+ * ------------------------------------------
+ * `getWorkerJwt()` is not infallible: it goes through `headers()`,
+ * reads `AUTH_SECRET` (throws when unset), and runs `getToken()`
+ * (which can throw on a malformed / corrupted JWE cookie). Reviewer
+ * requirement (msg dd5aee78): a thrown loader must NOT 500 the /me
+ * page; it must surface as `null` so the page falls through to the
+ * login-redirect fence. So the cookie-decrypt path lives inside the
+ * same catch as the Worker call.
  */
 export async function getSelfForumUser(): Promise<SelfForumUser | null> {
-	const jwt = await getWorkerJwt();
-	if (!jwt) return null;
-
 	try {
+		const jwt = await getWorkerJwt();
+		if (!jwt) return null;
 		const { data } = await forumApi.getAuth<User>("/api/v1/auth/me", jwt);
 		return projectSelfForumUser(data);
 	} catch (err) {
-		// Treat all Worker failures as "not logged in" from the page's POV —
-		// a stale JWT, a missing user row, or a transient Worker outage all
-		// mean the page can't render its self-view, and the safest UX is to
-		// bounce to login. The dialog/banner in Phase 7 has its own §5.4
-		// dispatch path; this loader is for the resting page render.
+		// Treat every failure path identically — stale JWT, missing user row,
+		// transient Worker outage, missing AUTH_SECRET, malformed cookie —
+		// they all mean the page can't render its self-view, and the safest
+		// UX is to bounce to login. The dialog/banner in Phase 7 has its own
+		// §5.4 dispatch path; this loader is for the resting page render.
 		if (err instanceof ForumApiError) return null;
 		return null;
 	}
