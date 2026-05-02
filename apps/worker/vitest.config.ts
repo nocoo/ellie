@@ -13,10 +13,9 @@ export default defineConfig({
 		name: "worker",
 		root: __dirname,
 		pool: "threads",
-		isolate: false,
 		include: ["tests/**/*.test.ts"],
 		// These suites use the bun:test runner (mock.module, fast crypto, or
-		// global fetch stubbing under pool=threads + isolate=false) and run via
+		// global fetch stubbing) and run via
 		// `bun test`; exclude them from vitest to avoid `Cannot find package
 		// 'bun:test'` failures during the `bunx vitest run` gate.
 		exclude: [
@@ -29,9 +28,8 @@ export default defineConfig({
 			provider: "v8",
 			include: ["src/**/*.ts"],
 			// Excluded source modules are covered by the bun:test lane. They use
-			// bun-native APIs such as `mock.module` (or globalThis.fetch stubs
-			// that are unsafe under vitest pool=threads + isolate=false) that
-			// vitest's runner cannot execute, so vitest never imports them and
+			// bun-native APIs such as `mock.module` (or globalThis.fetch stubs)
+			// that vitest's runner cannot execute, so vitest never imports them and
 			// v8 coverage would otherwise count them as 0% in the denominator.
 			//
 			// Hook / runner coverage map for the excluded files:
