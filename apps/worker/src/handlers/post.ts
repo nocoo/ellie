@@ -4,6 +4,7 @@ import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
 import { toPost } from "../lib/mappers";
+import { clampLimit } from "../lib/pagination";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
@@ -26,7 +27,6 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const threadId = url.searchParams.get("threadId");
-	const limitParam = url.searchParams.get("limit");
 	const cursorStr = url.searchParams.get("cursor");
 
 	if (!threadId) {
@@ -69,11 +69,10 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	}
 
 	// Clamp limit to [1, 100], defaulting to 100
-	const DEFAULT_PAGE_SIZE = 100;
-	const MAX_PAGE_SIZE = 100;
-	const limitNum = limitParam ? Number.parseInt(limitParam, 10) : undefined;
-	const clampedLimit =
-		limitNum === undefined || limitNum <= 0 ? DEFAULT_PAGE_SIZE : Math.min(limitNum, MAX_PAGE_SIZE);
+	const clampedLimit = clampLimit(url.searchParams.get("limit"), {
+		defaultLimit: 100,
+		maxLimit: 100,
+	});
 
 	const cursor = cursorStr ? decodeGenericCursor<PostCursorPayload>(cursorStr, isPostCursor) : null;
 
