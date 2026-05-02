@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import * as message from "../../../src/handlers/message";
 import { createJwtForRole, createMockDb, makeEnv } from "../../helpers";
+import {
+	expectEmailNotVerifiedResponse,
+	makeUnverifiedEnv,
+	unverifiedUserJwt,
+} from "../helpers/email-gate";
 
 describe("message handlers", () => {
 	// ─── list ───────────────────────────────────────────────────────
@@ -17,7 +22,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT COUNT(*)": { count: 3 },
 				},
 				allResults: {
@@ -56,7 +61,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				},
 				allResults: {
 					"SELECT * FROM messages": [],
@@ -76,7 +81,7 @@ describe("message handlers", () => {
 			const cursor = btoa(JSON.stringify({ createdAt: 1711540800, id: 5 }));
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT COUNT(*)": { count: 0 },
 				},
 				allResults: {
@@ -95,7 +100,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT COUNT(*)": { count: 0 },
 				},
 				allResults: {
@@ -125,7 +130,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT COUNT(*)": { count: 7 },
 				},
 			});
@@ -154,7 +159,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				},
 			});
 			const env = makeEnv({ DB: db });
@@ -169,7 +174,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT * FROM messages WHERE id": null,
 				},
 			});
@@ -185,7 +190,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT * FROM messages WHERE id": {
 						id: 1,
 						sender_id: 20,
@@ -213,7 +218,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT * FROM messages WHERE id": {
 						id: 1,
 						sender_id: 20,
@@ -241,7 +246,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT * FROM messages WHERE id": {
 						id: 1,
 						sender_id: 20,
@@ -272,7 +277,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT * FROM messages WHERE id": {
 						id: 1,
 						sender_id: 10,
@@ -313,7 +318,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "",
@@ -343,7 +348,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "",
@@ -373,7 +378,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "",
@@ -403,7 +408,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "",
@@ -438,7 +443,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "",
@@ -469,7 +474,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "",
@@ -512,7 +517,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "",
@@ -559,7 +564,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				},
 			});
 			const env = makeEnv({ DB: db });
@@ -590,7 +595,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				},
 			});
 			const env = makeEnv({ DB: db });
@@ -606,7 +611,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT sender_id, receiver_id": null,
 				},
 			});
@@ -623,7 +628,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT sender_id, receiver_id": {
 						sender_id: 20,
 						receiver_id: 30,
@@ -645,7 +650,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT sender_id, receiver_id": {
 						sender_id: 10,
 						receiver_id: 20,
@@ -669,7 +674,7 @@ describe("message handlers", () => {
 			const token = await createJwtForRole(0, 10);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT sender_id, receiver_id": {
 						sender_id: 20,
 						receiver_id: 10,
@@ -686,5 +691,68 @@ describe("message handlers", () => {
 			const response = await message.remove(request, env);
 			expect(response.status).toBe(200);
 		});
+	});
+});
+
+describe("message handlers — §5.4 email-verification gate", () => {
+	it("create: unverified user → 403 EMAIL_NOT_VERIFIED payload, no business SQL", async () => {
+		const { env, calls } = makeUnverifiedEnv(1);
+		const token = await unverifiedUserJwt(1);
+		const response = await message.create(
+			new Request("https://example.com/api/v1/messages", {
+				method: "POST",
+				headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+				body: JSON.stringify({ recipientId: 2, content: "x" }),
+			}),
+			env,
+		);
+		await expectEmailNotVerifiedResponse(response);
+		expect(calls.length).toBe(1);
+		expect(calls[0].sql).toContain("SELECT role, status, email_verified_at FROM users");
+	});
+
+	it("markAllRead: unverified user → 403 EMAIL_NOT_VERIFIED payload, no business SQL", async () => {
+		const { env, calls } = makeUnverifiedEnv(1);
+		const token = await unverifiedUserJwt(1);
+		const response = await message.markAllRead(
+			new Request("https://example.com/api/v1/messages/read-all", {
+				method: "POST",
+				headers: { Authorization: `Bearer ${token}` },
+			}),
+			env,
+		);
+		await expectEmailNotVerifiedResponse(response);
+		expect(calls.length).toBe(1);
+		expect(calls[0].sql).toContain("SELECT role, status, email_verified_at FROM users");
+	});
+
+	it("remove: unverified user → 403 EMAIL_NOT_VERIFIED payload, no business SQL", async () => {
+		const { env, calls } = makeUnverifiedEnv(1);
+		const token = await unverifiedUserJwt(1);
+		const response = await message.remove(
+			new Request("https://example.com/api/v1/messages/1", {
+				method: "DELETE",
+				headers: { Authorization: `Bearer ${token}` },
+			}),
+			env,
+		);
+		await expectEmailNotVerifiedResponse(response);
+		expect(calls.length).toBe(1);
+		expect(calls[0].sql).toContain("SELECT role, status, email_verified_at FROM users");
+	});
+
+	it("list: unverified user is allowed through gate (allow-list — read)", async () => {
+		// list stays on withAuthVerified per allow-list. An unverified user MUST
+		// NOT receive the §5.4 EmailNotVerifiedPayload here.
+		const { env } = makeUnverifiedEnv(1);
+		const token = await unverifiedUserJwt(1);
+		const response = await message.list(
+			new Request("https://example.com/api/v1/messages", {
+				headers: { Authorization: `Bearer ${token}` },
+			}),
+			env,
+		);
+		const text = await response.clone().text();
+		expect(text).not.toContain("EMAIL_NOT_VERIFIED");
 	});
 });

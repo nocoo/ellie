@@ -11,7 +11,7 @@ import { type Env, isKvUserCacheEnabled } from "../lib/env";
 import { enrichThreadWithUserCache, enrichThreadsWithUserCache, toThread } from "../lib/mappers";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse, paginatedResponse } from "../lib/response";
-import { withAuthVerified } from "../lib/routeHelpers";
+import { withVerifiedEmail } from "../lib/routeHelpers";
 import { getUserProfiles } from "../lib/user-cache";
 import { THREAD_VISIBLE, buildVisibilityContext, threadVisible } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
@@ -339,7 +339,7 @@ export async function getById(
 }
 
 /** POST /api/v1/threads - Create a new thread (requires auth) */
-export const create = withAuthVerified(async (request, env, user) => {
+export const create = withVerifiedEmail(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	// Check posting permission (banned, muted, registration days, avatar, content switch)

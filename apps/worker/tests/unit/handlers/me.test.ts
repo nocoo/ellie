@@ -9,6 +9,11 @@ import {
 	createMockKV,
 	makeD1UserRow,
 } from "../../helpers";
+import {
+	expectEmailNotVerifiedResponse,
+	makeUnverifiedEnv,
+	unverifiedUserJwt,
+} from "../helpers/email-gate";
 
 describe("user self-service handlers", () => {
 	const mockEnv: Env = {
@@ -34,7 +39,7 @@ describe("user self-service handlers", () => {
 			const updatedUser = makeD1UserRow({ id: 42, email: "new@example.com" });
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT id, username, email": updatedUser,
 				},
 			});
@@ -58,7 +63,7 @@ describe("user self-service handlers", () => {
 			const updatedUser = makeD1UserRow({ id: 42, avatar: "new-avatar.png" });
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT id, username, email": updatedUser,
 				},
 			});
@@ -81,7 +86,7 @@ describe("user self-service handlers", () => {
 			const token = await createJwtForRole(0, 42);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				},
 			});
 
@@ -103,7 +108,7 @@ describe("user self-service handlers", () => {
 			const token = await createJwtForRole(0, 42);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				},
 			});
 
@@ -125,7 +130,7 @@ describe("user self-service handlers", () => {
 			const token = await createJwtForRole(0, 42);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				},
 			});
 
@@ -145,7 +150,7 @@ describe("user self-service handlers", () => {
 			const token = await createJwtForRole(0, 42);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				},
 			});
 
@@ -167,7 +172,7 @@ describe("user self-service handlers", () => {
 			const token = await createJwtForRole(0, 42);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT id, username, email": null, // user vanished between auth and SELECT
 				},
 			});
@@ -201,7 +206,7 @@ describe("user self-service handlers", () => {
 			const token = await createJwtForRole(0, 42);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				},
 			});
 
@@ -223,7 +228,7 @@ describe("user self-service handlers", () => {
 			const token = await createJwtForRole(0, 42);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				},
 			});
 
@@ -246,7 +251,7 @@ describe("user self-service handlers", () => {
 			const storedHash = await hashPassword("correct_password");
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT password_hash": { password_hash: storedHash, password_salt: "" },
 				},
 			});
@@ -270,7 +275,7 @@ describe("user self-service handlers", () => {
 			const storedHash = await hashPassword("old_password");
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT password_hash": { password_hash: storedHash, password_salt: "" },
 				},
 			});
@@ -297,7 +302,7 @@ describe("user self-service handlers", () => {
 			const token = await createJwtForRole(0, 42);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 				},
 			});
 
@@ -319,7 +324,7 @@ describe("user self-service handlers", () => {
 			const token = await createJwtForRole(0, 42);
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT role, status FROM users WHERE id": { role: 0, status: 0 },
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
 					"SELECT password_hash": null, // user vanished between auth and SELECT
 				},
 			});
@@ -337,5 +342,40 @@ describe("user self-service handlers", () => {
 			const body = await response.json();
 			expect(body.error.code).toBe("USER_NOT_FOUND");
 		});
+	});
+});
+
+describe("me handlers — §5.4 email-verification gate", () => {
+	it("updateProfile: unverified user → 403 EMAIL_NOT_VERIFIED payload, no business SQL", async () => {
+		const { env, calls } = makeUnverifiedEnv(1);
+		const token = await unverifiedUserJwt(1);
+		const response = await updateProfile(
+			new Request("https://example.com/api/v1/me", {
+				method: "PATCH",
+				headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+				body: JSON.stringify({ nickname: "x" }),
+			}),
+			env,
+		);
+		await expectEmailNotVerifiedResponse(response);
+		expect(calls.length).toBe(1);
+		expect(calls[0].sql).toContain("SELECT role, status, email_verified_at FROM users");
+	});
+
+	it("changePassword: unverified user is allowed through gate (allow-list — §5.1)", async () => {
+		// changePassword stays on withAuthVerified per §5.1 allow-list. An unverified
+		// user MUST NOT receive the §5.4 EmailNotVerifiedPayload here.
+		const { env } = makeUnverifiedEnv(1);
+		const token = await unverifiedUserJwt(1);
+		const response = await changePassword(
+			new Request("https://example.com/api/v1/me/password", {
+				method: "PATCH",
+				headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+				body: JSON.stringify({ oldPassword: "x", newPassword: "y" }),
+			}),
+			env,
+		);
+		const text = await response.clone().text();
+		expect(text).not.toContain("EMAIL_NOT_VERIFIED");
 	});
 });

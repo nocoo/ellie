@@ -206,9 +206,11 @@ vi.mock("../../src/middleware/maintenance", () => ({
 // Mock auth middleware for tryTrackAuth and upload route
 const authMiddlewareMock = vi.fn(async () => new Response(null, { status: 401 }));
 const authMiddlewareVerifiedMock = vi.fn(async () => new Response(null, { status: 401 }));
+const requireVerifiedEmailMock = vi.fn(async () => new Response(null, { status: 401 }));
 vi.mock("../../src/middleware/auth", () => ({
 	authMiddleware: (...args: unknown[]) => authMiddlewareMock(...args),
 	authMiddlewareVerified: (...args: unknown[]) => authMiddlewareVerifiedMock(...args),
+	requireVerifiedEmail: (...args: unknown[]) => requireVerifiedEmailMock(...args),
 	optionalAuthVerified: vi.fn(async () => null),
 }));
 
@@ -490,7 +492,7 @@ describe("router (src/index.ts)", () => {
 
 	describe("upload route", () => {
 		it("should return 401 when auth fails for upload", async () => {
-			authMiddlewareVerifiedMock.mockResolvedValue(new Response(null, { status: 401 }));
+			requireVerifiedEmailMock.mockResolvedValue(new Response(null, { status: 401 }));
 			const env = makeEnv();
 			const ctx = makeCtx();
 			const request = makeRequest("POST", "/api/v1/upload");
@@ -502,7 +504,7 @@ describe("router (src/index.ts)", () => {
 		});
 
 		it("should delegate to handleUpload when auth succeeds", async () => {
-			authMiddlewareVerifiedMock.mockResolvedValue({ user: { userId: 42, role: 0 } });
+			requireVerifiedEmailMock.mockResolvedValue({ user: { userId: 42, role: 0 } });
 			handleUploadMock.mockResolvedValue(new Response("{}", { status: 200 }));
 			const env = makeEnv();
 			const ctx = makeCtx();
@@ -512,6 +514,29 @@ describe("router (src/index.ts)", () => {
 
 			expect(response.status).toBe(200);
 			expect(handleUploadMock).toHaveBeenCalledWith(request, env, ctx, 42, undefined);
+		});
+
+		it("should propagate §5.4 EMAIL_NOT_VERIFIED payload from requireVerifiedEmail", async () => {
+			// Regression: the upload route is wired to requireVerifiedEmail (Phase 5b
+			// Commit C). When that middleware emits the §5.4 flat payload, the router
+			// must return it verbatim without invoking handleUpload.
+			const { EMAIL_NOT_VERIFIED_PAYLOAD } = await import("@ellie/types");
+			requireVerifiedEmailMock.mockResolvedValue(
+				new Response(JSON.stringify(EMAIL_NOT_VERIFIED_PAYLOAD), {
+					status: 403,
+					headers: { "Content-Type": "application/json" },
+				}),
+			);
+			const env = makeEnv();
+			const ctx = makeCtx();
+			const request = makeRequest("POST", "/api/v1/upload");
+
+			const response = await worker.fetch(request, env, ctx);
+
+			expect(response.status).toBe(403);
+			expect(handleUploadMock).not.toHaveBeenCalled();
+			const body = await response.json();
+			expect(body).toEqual(EMAIL_NOT_VERIFIED_PAYLOAD);
 		});
 	});
 

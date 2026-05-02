@@ -224,10 +224,10 @@ export default {
 				return await (await import("./handlers/report")).checkPermission(request, env);
 			}
 
-			// ── Upload route (Key A + JWT verified) ──────────
+			// ── Upload route (Key A + JWT verified + email-verified) ─
 			if (path === "/api/v1/upload" && request.method === "POST") {
-				const { authMiddlewareVerified } = await import("./middleware/auth");
-				const authResult = await authMiddlewareVerified(request, env);
+				const { requireVerifiedEmail } = await import("./middleware/auth");
+				const authResult = await requireVerifiedEmail(request, env);
 				if (authResult instanceof Response) return authResult;
 				return await (await import("./lib/upload")).handleUpload(
 					request,
