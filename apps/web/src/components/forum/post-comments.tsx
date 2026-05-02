@@ -130,7 +130,10 @@ export function PostComments({
 
 	const fetchComments = useCallback(async () => {
 		try {
-			const response = await apiClient.get<PostComment[]>(`/api/v1/post-comments?postId=${postId}`);
+			// Use searchParams object form so the helper handles encoding and
+			// undefined/null filtering. Never string-concat user-supplied
+			// values into the URL.
+			const response = await apiClient.get<PostComment[]>("/api/v1/post-comments", { postId });
 			setComments(response.data);
 		} catch (err) {
 			console.error("[PostComments] fetch error:", err);
