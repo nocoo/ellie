@@ -1,16 +1,16 @@
 import { decodeGenericCursor, encodeGenericCursor } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { toPost, toPublicUser, toThread } from "../lib/mappers";
+import { clampLimit } from "../lib/pagination";
 import { jsonResponse } from "../lib/response";
 import {
-	POST_VISIBLE,
 	USER_ACTIVE,
 	buildForumFilter,
 	buildVisibilityContext,
+	postVisible,
 	threadVisible,
 } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
-import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
 /** Explicit PublicUser columns — never SELECT * to avoid leaking sensitive fields */
@@ -41,12 +41,6 @@ function isHistoryCursor(p: Partial<UserHistoryCursor>): boolean {
 function parseUserIdFromParent(url: URL): number {
 	const parts = url.pathname.split("/");
 	return Number.parseInt(parts[parts.length - 2] ?? "0", 10);
-}
-
-/** Clamp limit to [1, MAX_HISTORY_LIMIT] */
-function clampLimit(limitParam: string | null): number {
-	const n = limitParam ? Number.parseInt(limitParam, 10) : undefined;
-	return n === undefined || n <= 0 ? DEFAULT_HISTORY_LIMIT : Math.min(n, MAX_HISTORY_LIMIT);
 }
 
 // ─── Handlers ────────────────────────────────────────────────
@@ -134,7 +128,10 @@ export async function listThreads(request: Request, env: Env): Promise<Response>
 	const visCtx = buildVisibilityContext(user);
 	const forumFilter = buildForumFilter(visCtx);
 
-	const clampedLimit = clampLimit(url.searchParams.get("limit"));
+	const clampedLimit = clampLimit(url.searchParams.get("limit"), {
+		defaultLimit: DEFAULT_HISTORY_LIMIT,
+		maxLimit: MAX_HISTORY_LIMIT,
+	});
 	const cursorStr = url.searchParams.get("cursor");
 	const cursor = cursorStr
 		? decodeGenericCursor<UserHistoryCursor>(cursorStr, isHistoryCursor)
@@ -170,13 +167,7 @@ export async function listThreads(request: Request, env: Env): Promise<Response>
 		nextCursor = encodeGenericCursor<UserHistoryCursor>({ createdAt: last.createdAt, id: last.id });
 	}
 
-	return new Response(
-		JSON.stringify({
-			data: threads,
-			meta: { timestamp: Date.now(), requestId: crypto.randomUUID(), nextCursor },
-		}),
-		{ headers: { ...corsHeaders(origin), "Content-Type": "application/json" } },
-	);
+	return jsonResponse(threads, origin, { nextCursor });
 }
 
 /** GET /api/v1/users/:id/posts - List user's posts with keyset pagination */
@@ -194,7 +185,10 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 	const visCtx = buildVisibilityContext(user);
 	const forumFilter = buildForumFilter(visCtx);
 
-	const clampedLimit = clampLimit(url.searchParams.get("limit"));
+	const clampedLimit = clampLimit(url.searchParams.get("limit"), {
+		defaultLimit: DEFAULT_HISTORY_LIMIT,
+		maxLimit: MAX_HISTORY_LIMIT,
+	});
 	const cursorStr = url.searchParams.get("cursor");
 	const cursor = cursorStr
 		? decodeGenericCursor<UserHistoryCursor>(cursorStr, isHistoryCursor)
@@ -206,7 +200,7 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 			`SELECT p.* FROM posts p
 			 INNER JOIN threads t ON p.thread_id = t.id
 			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE p.author_id = ? AND ${POST_VISIBLE.replace("invisible", "p.invisible")} AND ${threadVisible("t")} AND ${forumFilter}
+			 WHERE p.author_id = ? AND ${postVisible("p")} AND ${threadVisible("t")} AND ${forumFilter}
 			 AND (p.created_at < ? OR (p.created_at = ? AND p.id < ?))
 			 ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
 		)
@@ -217,7 +211,7 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 			`SELECT p.* FROM posts p
 			 INNER JOIN threads t ON p.thread_id = t.id
 			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE p.author_id = ? AND ${POST_VISIBLE.replace("invisible", "p.invisible")} AND ${threadVisible("t")} AND ${forumFilter}
+			 WHERE p.author_id = ? AND ${postVisible("p")} AND ${threadVisible("t")} AND ${forumFilter}
 			 ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
 		)
 			.bind(userId, clampedLimit)
@@ -232,13 +226,7 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 		nextCursor = encodeGenericCursor<UserHistoryCursor>({ createdAt: last.createdAt, id: last.id });
 	}
 
-	return new Response(
-		JSON.stringify({
-			data: posts,
-			meta: { timestamp: Date.now(), requestId: crypto.randomUUID(), nextCursor },
-		}),
-		{ headers: { ...corsHeaders(origin), "Content-Type": "application/json" } },
-	);
+	return jsonResponse(posts, origin, { nextCursor });
 }
 
 /** GET /api/v1/users/:id/digest - List user's digest threads with keyset pagination */
@@ -256,7 +244,10 @@ export async function listDigest(request: Request, env: Env): Promise<Response> 
 	const visCtx = buildVisibilityContext(user);
 	const forumFilter = buildForumFilter(visCtx);
 
-	const clampedLimit = clampLimit(url.searchParams.get("limit"));
+	const clampedLimit = clampLimit(url.searchParams.get("limit"), {
+		defaultLimit: DEFAULT_HISTORY_LIMIT,
+		maxLimit: MAX_HISTORY_LIMIT,
+	});
 	const cursorStr = url.searchParams.get("cursor");
 	const cursor = cursorStr
 		? decodeGenericCursor<UserHistoryCursor>(cursorStr, isHistoryCursor)
@@ -292,13 +283,7 @@ export async function listDigest(request: Request, env: Env): Promise<Response> 
 		nextCursor = encodeGenericCursor<UserHistoryCursor>({ createdAt: last.createdAt, id: last.id });
 	}
 
-	return new Response(
-		JSON.stringify({
-			data: threads,
-			meta: { timestamp: Date.now(), requestId: crypto.randomUUID(), nextCursor },
-		}),
-		{ headers: { ...corsHeaders(origin), "Content-Type": "application/json" } },
-	);
+	return jsonResponse(threads, origin, { nextCursor });
 }
 
 /**
@@ -326,12 +311,10 @@ export async function search(request: Request, env: Env): Promise<Response> {
 	}
 
 	// Clamp limit
-	const limitParam = url.searchParams.get("limit");
-	const limitNum = limitParam ? Number.parseInt(limitParam, 10) : undefined;
-	const clampedLimit =
-		limitNum === undefined || limitNum <= 0
-			? DEFAULT_SEARCH_LIMIT
-			: Math.min(limitNum, MAX_SEARCH_LIMIT);
+	const clampedLimit = clampLimit(url.searchParams.get("limit"), {
+		defaultLimit: DEFAULT_SEARCH_LIMIT,
+		maxLimit: MAX_SEARCH_LIMIT,
+	});
 
 	// Prefix match on username, only normal users (status >= 0)
 	// Escape special LIKE characters

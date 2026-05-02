@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-	enrichForumWithUserCache,
 	enrichForumsWithUserCache,
-	enrichThreadWithUserCache,
 	enrichThreadsWithUserCache,
 	parseModeratorIds,
 	toAttachment,
@@ -11,7 +9,6 @@ import {
 	toIpBan,
 	toPost,
 	toPublicUser,
-	toSelfUser,
 	toThread,
 	toUser,
 } from "../../../src/lib/mappers";
@@ -888,50 +885,6 @@ describe("D1 row mappers", () => {
 		});
 	});
 
-	// ─── toSelfUser ───────────────────────────────────────────
-
-	describe("toSelfUser", () => {
-		it("should delegate to toUser and include sensitive fields", () => {
-			const row = {
-				id: 1,
-				username: "alice",
-				email: "alice@example.com",
-				avatar: "",
-				status: 0,
-				role: 0,
-				reg_date: 0,
-				last_login: 0,
-				threads: 0,
-				posts: 0,
-				credits: 0,
-				signature: "",
-				group_title: "",
-				group_stars: 0,
-				group_color: "",
-				custom_title: "",
-				digest_posts: 0,
-				ol_time: 0,
-				gender: 0,
-				birth_year: 0,
-				birth_month: 0,
-				birth_day: 0,
-				reside_province: "",
-				reside_city: "",
-				graduate_school: "",
-				bio: "",
-				interest: "",
-				qq: "",
-				site: "",
-				last_activity: 0,
-			};
-
-			const selfUser = toSelfUser(row);
-			expect(selfUser.id).toBe(1);
-			expect(selfUser.email).toBe("alice@example.com");
-			expect(selfUser.status).toBe(0);
-		});
-	});
-
 	// ─── KV Cache Enrichment ──────────────────────────────────
 
 	describe("enrichForumsWithUserCache", () => {
@@ -976,46 +929,6 @@ describe("D1 row mappers", () => {
 			const userCache = new Map<number, UserMiniProfile>();
 			const enriched = enrichForumsWithUserCache([], userCache);
 			expect(enriched).toEqual([]);
-		});
-	});
-
-	describe("enrichForumWithUserCache", () => {
-		it("should enrich a single forum with cached user info", () => {
-			const forum = toForum({ id: 1, last_poster_id: 10, last_poster: "old" } as Record<
-				string,
-				unknown
-			>);
-			const userCache = new Map<number, UserMiniProfile>([
-				[
-					10,
-					{
-						id: 10,
-						username: "new",
-						avatar: "new.png",
-						role: 0,
-						groupTitle: "",
-						groupColor: "",
-						groupStars: 0,
-					},
-				],
-			]);
-
-			const enriched = enrichForumWithUserCache(forum, userCache);
-
-			expect(enriched.lastPoster).toBe("new");
-			expect(enriched.lastPosterAvatar).toBe("new.png");
-		});
-
-		it("should return unchanged forum when user not in cache", () => {
-			const forum = toForum({ id: 1, last_poster_id: 99, last_poster: "unknown" } as Record<
-				string,
-				unknown
-			>);
-			const userCache = new Map<number, UserMiniProfile>();
-
-			const enriched = enrichForumWithUserCache(forum, userCache);
-
-			expect(enriched.lastPoster).toBe("unknown");
 		});
 	});
 
@@ -1114,67 +1027,6 @@ describe("D1 row mappers", () => {
 
 			expect(enriched[0].authorName).toBe("cached_author");
 			expect(enriched[0].lastPoster).toBe("poster");
-		});
-	});
-
-	describe("enrichThreadWithUserCache", () => {
-		it("should enrich a single thread with cached user info", () => {
-			const thread = toThread({
-				id: 1,
-				author_id: 10,
-				last_poster_id: 20,
-				author_name: "old",
-				last_poster: "old_p",
-			} as Record<string, unknown>);
-			const userCache = new Map<number, UserMiniProfile>([
-				[
-					10,
-					{
-						id: 10,
-						username: "new",
-						avatar: "new.png",
-						role: 0,
-						groupTitle: "",
-						groupColor: "",
-						groupStars: 0,
-					},
-				],
-				[
-					20,
-					{
-						id: 20,
-						username: "new_p",
-						avatar: "new_p.png",
-						role: 0,
-						groupTitle: "",
-						groupColor: "",
-						groupStars: 0,
-					},
-				],
-			]);
-
-			const enriched = enrichThreadWithUserCache(thread, userCache);
-
-			expect(enriched.authorName).toBe("new");
-			expect(enriched.authorAvatar).toBe("new.png");
-			expect(enriched.lastPoster).toBe("new_p");
-			expect(enriched.lastPosterAvatar).toBe("new_p.png");
-		});
-
-		it("should return unchanged thread when no users in cache", () => {
-			const thread = toThread({
-				id: 1,
-				author_id: 99,
-				last_poster_id: 88,
-				author_name: "orig",
-				last_poster: "orig_p",
-			} as Record<string, unknown>);
-			const userCache = new Map<number, UserMiniProfile>();
-
-			const enriched = enrichThreadWithUserCache(thread, userCache);
-
-			expect(enriched.authorName).toBe("orig");
-			expect(enriched.lastPoster).toBe("orig_p");
 		});
 	});
 });

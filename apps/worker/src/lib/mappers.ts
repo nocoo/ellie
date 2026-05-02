@@ -416,14 +416,6 @@ export function toPublicUser(row: Record<string, unknown>, includeIp = false): P
 	return result;
 }
 
-/**
- * Maps a D1 user row to SelfUser (includes email, status, lastLogin, credits).
- * For GET /api/v1/auth/me and PATCH /api/v1/users/me
- */
-export function toSelfUser(row: Record<string, unknown>): User {
-	return toUser(row);
-}
-
 // ─── User Cache Enhanced Mappers ──────────────────────────────────────────────
 // These functions enrich Forum/Thread with user info from KV cache
 
@@ -472,43 +464,4 @@ export function enrichThreadsWithUserCache(
 			lastPosterAvatarPath: lastPoster?.avatarPath ?? "",
 		};
 	});
-}
-
-/**
- * Enrich a single forum with user info from KV cache.
- */
-export function enrichForumWithUserCache(
-	forum: Forum,
-	userCache: Map<number, UserMiniProfile>,
-): Forum {
-	const user = userCache.get(forum.lastPosterId);
-	if (user) {
-		return {
-			...forum,
-			lastPoster: user.username,
-			lastPosterAvatar: user.avatar,
-			lastPosterAvatarPath: user.avatarPath,
-		};
-	}
-	return forum;
-}
-
-/**
- * Enrich a single thread with user info from KV cache.
- */
-export function enrichThreadWithUserCache(
-	thread: Thread,
-	userCache: Map<number, UserMiniProfile>,
-): Thread {
-	const author = userCache.get(thread.authorId);
-	const lastPoster = userCache.get(thread.lastPosterId);
-	return {
-		...thread,
-		authorName: author?.username ?? thread.authorName,
-		authorAvatar: author?.avatar ?? "",
-		authorAvatarPath: author?.avatarPath ?? "",
-		lastPoster: lastPoster?.username ?? thread.lastPoster,
-		lastPosterAvatar: lastPoster?.avatar ?? "",
-		lastPosterAvatarPath: lastPoster?.avatarPath ?? "",
-	};
 }

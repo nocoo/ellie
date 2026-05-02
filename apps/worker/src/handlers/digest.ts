@@ -1,14 +1,15 @@
 import { decodeGenericCursor, encodeGenericCursor } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { toThread } from "../lib/mappers";
+import { clampLimit } from "../lib/pagination";
+import { jsonResponse } from "../lib/response";
 import {
-	FORUM_ACTIVE,
 	buildForumVisibilityFilter,
 	buildVisibilityContext,
+	forumActive,
 	threadVisible,
 } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
-import { corsHeaders } from "../middleware/cors";
 
 /** Digest cursor payload for keyset pagination */
 interface DigestCursorPayload {
@@ -34,12 +35,6 @@ interface D1DigestRow {
 /** Default/max page sizes */
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
-
-/** Clamp limit to [1, MAX_LIMIT] */
-function clampLimit(limitParam: string | null): number {
-	const n = limitParam ? Number.parseInt(limitParam, 10) : undefined;
-	return n === undefined || n <= 0 ? DEFAULT_LIMIT : Math.min(n, MAX_LIMIT);
-}
 
 /** Build WHERE clause conditions for digest query (thread conditions only) */
 function buildDigestConditions(params: {
@@ -82,7 +77,10 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	const visCtx = buildVisibilityContext(user);
 	const forumFilter = buildForumVisibilityFilter(visCtx);
 
-	const clampedLimit = clampLimit(url.searchParams.get("limit"));
+	const clampedLimit = clampLimit(url.searchParams.get("limit"), {
+		defaultLimit: DEFAULT_LIMIT,
+		maxLimit: MAX_LIMIT,
+	});
 	const cursorStr = url.searchParams.get("cursor");
 	const cursor = cursorStr
 		? decodeGenericCursor<DigestCursorPayload>(cursorStr, isDigestCursor)
@@ -101,7 +99,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	const { conditions, bindings } = buildDigestConditions({ forumId, level, year });
 
 	// Add forum visibility filter (status = 1 for active, and visibility check)
-	const fullConditions = [...conditions, FORUM_ACTIVE.replace("status", "f.status"), forumFilter];
+	const fullConditions = [...conditions, forumActive("f"), forumFilter];
 
 	let result: D1Result;
 	if (cursor) {
@@ -153,13 +151,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		}
 	}
 
-	return new Response(
-		JSON.stringify({
-			data: threads,
-			meta: { timestamp: Date.now(), requestId: crypto.randomUUID(), nextCursor },
-		}),
-		{ headers: { ...corsHeaders(origin), "Content-Type": "application/json" } },
-	);
+	return jsonResponse(threads, origin, { nextCursor });
 }
 
 /** GET /api/v1/digest/stats - Get digest statistics */
@@ -180,20 +172,17 @@ export async function stats(request: Request, env: Env): Promise<Response> {
 			SUM(CASE WHEN t.digest = 3 THEN 1 ELSE 0 END) as level3
 		 FROM threads t
 		 INNER JOIN forums f ON t.forum_id = f.id
-		 WHERE t.digest > 0 AND ${threadVisible("t")} AND ${FORUM_ACTIVE.replace("status", "f.status")} AND ${forumFilter}`,
+		 WHERE t.digest > 0 AND ${threadVisible("t")} AND ${forumActive("f")} AND ${forumFilter}`,
 	).first<{ total: number; level1: number; level2: number; level3: number }>();
 
-	return new Response(
-		JSON.stringify({
-			data: {
-				total: result?.total ?? 0,
-				level1: result?.level1 ?? 0,
-				level2: result?.level2 ?? 0,
-				level3: result?.level3 ?? 0,
-			},
-			meta: { timestamp: Date.now(), requestId: crypto.randomUUID() },
-		}),
-		{ headers: { ...corsHeaders(origin), "Content-Type": "application/json" } },
+	return jsonResponse(
+		{
+			total: result?.total ?? 0,
+			level1: result?.level1 ?? 0,
+			level2: result?.level2 ?? 0,
+			level3: result?.level3 ?? 0,
+		},
+		origin,
 	);
 }
 
@@ -211,7 +200,7 @@ export async function filters(request: Request, env: Env): Promise<Response> {
 		`SELECT DISTINCT strftime('%Y', t.created_at, 'unixepoch') as year
 		 FROM threads t
 		 INNER JOIN forums f ON t.forum_id = f.id
-		 WHERE t.digest > 0 AND ${threadVisible("t")} AND ${FORUM_ACTIVE.replace("status", "f.status")} AND ${forumFilter}
+		 WHERE t.digest > 0 AND ${threadVisible("t")} AND ${forumActive("f")} AND ${forumFilter}
 		 ORDER BY year DESC`,
 	).all<{ year: string }>();
 
@@ -224,7 +213,7 @@ export async function filters(request: Request, env: Env): Promise<Response> {
 		`SELECT f.id, f.name, COUNT(t.id) as digest_count
 		 FROM threads t
 		 INNER JOIN forums f ON t.forum_id = f.id
-		 WHERE t.digest > 0 AND ${threadVisible("t")} AND ${FORUM_ACTIVE.replace("status", "f.status")} AND ${forumFilter}
+		 WHERE t.digest > 0 AND ${threadVisible("t")} AND ${forumActive("f")} AND ${forumFilter}
 		 GROUP BY f.id, f.name
 		 ORDER BY f.name`,
 	).all<{ id: number; name: string; digest_count: number }>();
@@ -235,11 +224,5 @@ export async function filters(request: Request, env: Env): Promise<Response> {
 		digestCount: r.digest_count,
 	}));
 
-	return new Response(
-		JSON.stringify({
-			data: { years, forums },
-			meta: { timestamp: Date.now(), requestId: crypto.randomUUID() },
-		}),
-		{ headers: { ...corsHeaders(origin), "Content-Type": "application/json" } },
-	);
+	return jsonResponse({ years, forums }, origin);
 }

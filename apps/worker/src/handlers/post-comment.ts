@@ -5,7 +5,7 @@ import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
 import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
-import { buildVisibilityContext } from "../lib/visibility";
+import { buildVisibilityContext, isForumActive } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
@@ -66,7 +66,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		.bind(threadRow.forum_id)
 		.first<{ status: number; visibility: string }>();
 
-	if (!forumRow || forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
+	if (!isForumActive(forumRow)) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
 
@@ -190,7 +190,7 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		.bind(threadRow.forum_id)
 		.first<{ status: number; visibility: string }>();
 
-	if (!forumRow || forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
+	if (!isForumActive(forumRow)) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
 
