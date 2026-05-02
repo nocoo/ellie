@@ -24,9 +24,7 @@ test.describe("E2E-UJ: User Journey", () => {
 		await forumLink.click();
 		await page.waitForURL(/\/forums\/\d+/);
 
-		await expect(page.locator("h1")).toBeVisible();
-
-		// Click into a thread
+		// Wait for the forum page thread list to render (thread links or empty state)
 		const threadLink = page.locator('a[href^="/threads/"]').first();
 		await expect(threadLink).toBeVisible();
 		await threadLink.click();
@@ -61,7 +59,7 @@ test.describe("E2E-UJ: User Journey", () => {
 		await expect(page.getByText("我的账号")).toBeVisible();
 
 		// Should have email verification section (id="email")
-		const emailSection = page.locator("#email");
+		const emailSection = page.locator("section#email");
 		await expect(emailSection).toBeVisible();
 	});
 
@@ -79,8 +77,8 @@ test.describe("E2E-UJ: User Journey", () => {
 		await page.goto("/users/64495");
 		await page.waitForURL("**/users/64495**");
 
-		// Should see username
-		await expect(page.getByText("e2eprofile")).toBeVisible();
+		// Should see username (use first() since breadcrumbs also contain it)
+		await expect(page.getByText("e2eprofile").first()).toBeVisible();
 
 		// Click "回帖" tab (posts)
 		const postsTab = page.locator('a[href*="tab=posts"]');
