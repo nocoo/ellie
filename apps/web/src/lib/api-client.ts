@@ -10,6 +10,11 @@
 // Error type (imported from shared module, re-exported for backward compatibility)
 // ---------------------------------------------------------------------------
 
+import {
+	dispatchEmailNotVerified,
+	isEmailNotVerifiedPayloadClient,
+	pickDialogPayload,
+} from "@/viewmodels/forum/email-not-verified-dispatch";
 import { ApiError } from "./api-error";
 export { ApiError };
 
@@ -90,12 +95,28 @@ async function request<T>(
 	}
 
 	if (!res.ok) {
+		// docs/17 §5.4 — Worker write-route gates emit a flat
+		// `{ error: "EMAIL_NOT_VERIFIED", message, dialog, redirect_to }`
+		// body (NOT the wrapped `{ error: { code, message } }` envelope).
+		// When we see that shape, dispatch the global dialog event so any
+		// mounted listener can open the verification dialog. We still throw
+		// `ApiError` so the caller's existing error path runs — but with
+		// `rawBody` populated so downstream code can re-render the same
+		// payload without a second fetch.
+		if (isEmailNotVerifiedPayloadClient(json)) {
+			dispatchEmailNotVerified(pickDialogPayload(json));
+			const err = new ApiError(res.status, "EMAIL_NOT_VERIFIED", json.message);
+			err.rawBody = json;
+			throw err;
+		}
 		const error = json.error as { code?: string; message?: string } | undefined;
-		throw new ApiError(
+		const err = new ApiError(
 			res.status,
 			error?.code ?? "UNKNOWN",
 			error?.message ?? `Request failed with status ${res.status}`,
 		);
+		err.rawBody = json;
+		throw err;
 	}
 
 	return {
