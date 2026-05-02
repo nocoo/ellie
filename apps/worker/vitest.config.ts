@@ -36,22 +36,13 @@ export default defineConfig({
 			// v8 coverage would otherwise count them as 0% in the denominator.
 			//
 			// Hook / runner coverage map for the excluded files:
-			//   - dove.ts, email-verify.ts, handlers/email.ts
+			//   - dove.ts, email-verify.ts, handlers/email.ts, turnstile.ts
 			//       → covered by `.husky/pre-push` bun_tests list AND by
 			//         `scripts/run-tests.sh` (= `bun run test`).
-			//   - turnstile.ts (added in Phase 3c, rev4)
-			//       → covered ONLY by `scripts/run-tests.sh` / `bun run test` /
-			//         targeted `bun test apps/worker/tests/unit/lib/turnstile.test.ts`.
-			//         NOT in `.husky/pre-commit` and NOT in `.husky/pre-push`.
-			//         This is an accepted residual risk / tech debt: pre-push's
-			//         bun_tests list was intentionally not extended (sensitive
-			//         file, owner declined the edit). Run `bun run test` locally
-			//         before pushing turnstile changes.
 			//
-			// Tech debt: pre-commit currently does NOT run the bun:test lane at
-			// all — only pre-push does, and even pre-push misses turnstile per
-			// above. Tracked as follow-up to unify hook semantics (see docs/17
-			// §12 review thread, path A1-).
+			// Tech debt: pre-commit currently does NOT run the bun:test lane —
+			// only pre-push does. Tracked as follow-up to unify hook semantics
+			// (see docs/17 §12 review thread, path A1-).
 			exclude: [
 				"src/**/*.d.ts",
 				"src/lib/dove.ts",
