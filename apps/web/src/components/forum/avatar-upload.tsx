@@ -4,6 +4,8 @@
 // Validates client-side then uploads to /api/v1/upload with purpose=avatar
 
 import { cn } from "@/lib/utils";
+import { parseAvatarUploadResponse } from "@/viewmodels/forum/avatar-upload";
+import { dispatchEmailNotVerified } from "@/viewmodels/forum/email-not-verified-dispatch";
 import { Loader2, Upload } from "lucide-react";
 import { type DragEvent, useCallback, useState } from "react";
 
@@ -53,18 +55,26 @@ export function AvatarUpload({ currentUrl, onUploadComplete, disabled }: AvatarU
 					method: "POST",
 					body: formData,
 				});
-				const result = (await res.json()) as {
-					data?: { url: string; size: number };
-					error?: { code: string; message: string };
-				};
+				let json: unknown;
+				try {
+					json = await res.json();
+				} catch {
+					json = null;
+				}
 
-				if (result.data) {
+				const parsed = parseAvatarUploadResponse(res.status, json);
+				if (parsed.kind === "success") {
 					// Add cache-busting timestamp for immediate refresh
-					const newUrl = `${result.data.url}?v=${Date.now()}`;
+					const newUrl = `${parsed.url}?v=${Date.now()}`;
 					setPreviewUrl(newUrl);
 					onUploadComplete(newUrl);
+				} else if (parsed.kind === "email-not-verified") {
+					// Hand off to the global verification dialog (same path as
+					// the api-client interceptor uses for JSON responses).
+					dispatchEmailNotVerified(parsed.detail);
+					setError("请先验证邮箱后再上传头像");
 				} else {
-					setError(result.error?.message || "上传失败");
+					setError(parsed.message);
 				}
 			} catch {
 				setError("上传失败，请重试");
