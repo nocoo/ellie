@@ -1,6 +1,7 @@
 import { decodeGenericCursor, encodeGenericCursor } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { toThread } from "../lib/mappers";
+import { jsonResponse } from "../lib/response";
 import {
 	buildForumVisibilityFilter,
 	buildVisibilityContext,
@@ -8,7 +9,6 @@ import {
 	threadVisible,
 } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
-import { corsHeaders } from "../middleware/cors";
 
 /** Digest cursor payload for keyset pagination */
 interface DigestCursorPayload {
@@ -153,13 +153,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		}
 	}
 
-	return new Response(
-		JSON.stringify({
-			data: threads,
-			meta: { timestamp: Date.now(), requestId: crypto.randomUUID(), nextCursor },
-		}),
-		{ headers: { ...corsHeaders(origin), "Content-Type": "application/json" } },
-	);
+	return jsonResponse(threads, origin, { nextCursor });
 }
 
 /** GET /api/v1/digest/stats - Get digest statistics */
@@ -183,17 +177,14 @@ export async function stats(request: Request, env: Env): Promise<Response> {
 		 WHERE t.digest > 0 AND ${threadVisible("t")} AND ${forumActive("f")} AND ${forumFilter}`,
 	).first<{ total: number; level1: number; level2: number; level3: number }>();
 
-	return new Response(
-		JSON.stringify({
-			data: {
-				total: result?.total ?? 0,
-				level1: result?.level1 ?? 0,
-				level2: result?.level2 ?? 0,
-				level3: result?.level3 ?? 0,
-			},
-			meta: { timestamp: Date.now(), requestId: crypto.randomUUID() },
-		}),
-		{ headers: { ...corsHeaders(origin), "Content-Type": "application/json" } },
+	return jsonResponse(
+		{
+			total: result?.total ?? 0,
+			level1: result?.level1 ?? 0,
+			level2: result?.level2 ?? 0,
+			level3: result?.level3 ?? 0,
+		},
+		origin,
 	);
 }
 
@@ -235,11 +226,5 @@ export async function filters(request: Request, env: Env): Promise<Response> {
 		digestCount: r.digest_count,
 	}));
 
-	return new Response(
-		JSON.stringify({
-			data: { years, forums },
-			meta: { timestamp: Date.now(), requestId: crypto.randomUUID() },
-		}),
-		{ headers: { ...corsHeaders(origin), "Content-Type": "application/json" } },
-	);
+	return jsonResponse({ years, forums }, origin);
 }

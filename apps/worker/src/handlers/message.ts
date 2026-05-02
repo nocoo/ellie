@@ -6,7 +6,6 @@ import { applyCensorFilter } from "../lib/censor";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withAuthVerified, withVerifiedEmail } from "../lib/routeHelpers";
-import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
 // ─── Constants ───────────────────────────────────────────────
@@ -147,18 +146,10 @@ export const list = withAuthVerified(async (request, env, user) => {
 		unreadCount = countResult?.count ?? 0;
 	}
 
-	return new Response(
-		JSON.stringify({
-			data: messages,
-			meta: {
-				timestamp: Date.now(),
-				requestId: crypto.randomUUID(),
-				nextCursor,
-				...(unreadCount !== undefined && { unreadCount }),
-			},
-		}),
-		{ headers: { ...corsHeaders(origin), "Content-Type": "application/json" } },
-	);
+	return jsonResponse(messages, origin, {
+		nextCursor,
+		...(unreadCount !== undefined && { unreadCount }),
+	});
 });
 
 /**
