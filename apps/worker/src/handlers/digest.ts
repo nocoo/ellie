@@ -1,6 +1,7 @@
 import { decodeGenericCursor, encodeGenericCursor } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { toThread } from "../lib/mappers";
+import { clampLimit } from "../lib/pagination";
 import { jsonResponse } from "../lib/response";
 import {
 	buildForumVisibilityFilter,
@@ -34,12 +35,6 @@ interface D1DigestRow {
 /** Default/max page sizes */
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
-
-/** Clamp limit to [1, MAX_LIMIT] */
-function clampLimit(limitParam: string | null): number {
-	const n = limitParam ? Number.parseInt(limitParam, 10) : undefined;
-	return n === undefined || n <= 0 ? DEFAULT_LIMIT : Math.min(n, MAX_LIMIT);
-}
 
 /** Build WHERE clause conditions for digest query (thread conditions only) */
 function buildDigestConditions(params: {
@@ -82,7 +77,10 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	const visCtx = buildVisibilityContext(user);
 	const forumFilter = buildForumVisibilityFilter(visCtx);
 
-	const clampedLimit = clampLimit(url.searchParams.get("limit"));
+	const clampedLimit = clampLimit(url.searchParams.get("limit"), {
+		defaultLimit: DEFAULT_LIMIT,
+		maxLimit: MAX_LIMIT,
+	});
 	const cursorStr = url.searchParams.get("cursor");
 	const cursor = cursorStr
 		? decodeGenericCursor<DigestCursorPayload>(cursorStr, isDigestCursor)
