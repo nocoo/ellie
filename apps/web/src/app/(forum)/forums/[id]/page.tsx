@@ -8,6 +8,7 @@ import { ThreadItem } from "@/components/forum/thread-item";
 import { ThreadListHeader } from "@/components/forum/thread-list-header";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Card, CardContent } from "@/components/ui/card";
+import { getSelfForumUser } from "@/lib/forum-self";
 import {
 	type ThreadListPagedData,
 	loadThreadListPaged,
@@ -72,6 +73,13 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 		};
 	}
 
+	// Phase 7-4: load self for the new-thread preflight. Server-only,
+	// fail-soft to null. The header receives `selfEmailVerifiedAt` so the
+	// "发表新帖" button can short-circuit to the §5.4 dialog when the
+	// logged-in user is unverified, instead of opening the editor and
+	// burning a write request that the Worker would reject.
+	const self = await getSelfForumUser();
+
 	const basePath = `/forums/${forumId}`;
 	const isGroup = data.forum?.type === ForumType.Group;
 
@@ -84,7 +92,13 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 				</div>
 			)}
 			{/* Forum header with new thread button */}
-			{data.forum && <ForumHeaderClient forum={data.forum} isGroup={isGroup} />}
+			{data.forum && (
+				<ForumHeaderClient
+					forum={data.forum}
+					isGroup={isGroup}
+					selfEmailVerifiedAt={self?.emailVerifiedAt ?? null}
+				/>
+			)}
 
 			{error && (
 				<div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">

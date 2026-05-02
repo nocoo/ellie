@@ -6,6 +6,7 @@ import { ThreadBadgeList } from "@/components/forum/thread-badge";
 import { ThreadPostsClient } from "@/components/forum/thread-posts-client";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Card, CardContent } from "@/components/ui/card";
+import { getSelfForumUser } from "@/lib/forum-self";
 import {
 	type ThreadDetailPageData,
 	loadThreadDetail,
@@ -79,6 +80,13 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 		};
 	}
 
+	// Phase 7-4: load self for the reply preflight (mirrors forum page).
+	// Server-only, fail-soft to null. The client receives `selfEmailVerifiedAt`
+	// so 回复 / 快速回复 can short-circuit to the §5.4 dialog when the
+	// logged-in user is unverified, instead of opening the editor and burning
+	// a write request that the Worker would reject.
+	const self = await getSelfForumUser();
+
 	if (error || !data.thread) {
 		return (
 			<Card size="sm">
@@ -146,6 +154,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 					canMoveThread={data.canMoveThread}
 					canDeleteThread={data.canDeleteThread}
 					currentUserId={data.currentUser?.id ?? null}
+					selfEmailVerifiedAt={self?.emailVerifiedAt ?? null}
 					prevHref={
 						data.prevCursor
 							? `/threads/${threadId}?cursor=${data.prevCursor}&direction=backward`
