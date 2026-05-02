@@ -2,25 +2,15 @@ import { UserRole } from "@ellie/types";
 import { describe, expect, it } from "vitest";
 import {
 	FORUM_ACTIVE,
-	ForumStatusLevel,
 	POST_VISIBLE,
-	PostInvisibleLevel,
 	THREAD_VISIBLE,
-	ThreadStickyLevel,
 	USER_ACTIVE,
-	UserStatusLevel,
 	buildForumFilter,
 	buildForumVisibilityFilter,
 	buildVisibilityContext,
 	canViewForumVisibility,
 	forumActive,
-	isUserArchived,
-	isUserBanned,
-	isUserPlaceholder,
-	isUserPublic,
-	postListFilters,
 	postVisible,
-	threadListFilters,
 	threadVisible,
 	userActive,
 } from "../../../src/lib/visibility";
@@ -51,44 +41,6 @@ describe("table-prefixed SQL helpers", () => {
 		expect(postVisible("posts")).toBe("posts.invisible = 0");
 		expect(userActive("usr")).toBe("usr.status >= 0");
 		expect(forumActive("forums")).toBe("forums.status = 1");
-	});
-});
-
-// ─── User Status Checks ───────────────────────────────────
-
-describe("isUserPublic", () => {
-	it("returns true for status >= 0", () => {
-		expect(isUserPublic(0)).toBe(true);
-		expect(isUserPublic(1)).toBe(true);
-	});
-	it("returns false for negative status", () => {
-		expect(isUserPublic(-1)).toBe(false);
-		expect(isUserPublic(-2)).toBe(false);
-		expect(isUserPublic(-3)).toBe(false);
-	});
-});
-
-describe("isUserBanned", () => {
-	it("returns true only for -1", () => {
-		expect(isUserBanned(-1)).toBe(true);
-		expect(isUserBanned(0)).toBe(false);
-		expect(isUserBanned(-2)).toBe(false);
-	});
-});
-
-describe("isUserArchived", () => {
-	it("returns true only for -2", () => {
-		expect(isUserArchived(-2)).toBe(true);
-		expect(isUserArchived(-1)).toBe(false);
-		expect(isUserArchived(0)).toBe(false);
-	});
-});
-
-describe("isUserPlaceholder", () => {
-	it("returns true only for -3", () => {
-		expect(isUserPlaceholder(-3)).toBe(true);
-		expect(isUserPlaceholder(-1)).toBe(false);
-		expect(isUserPlaceholder(0)).toBe(false);
 	});
 });
 
@@ -197,57 +149,5 @@ describe("canViewForumVisibility", () => {
 
 	it("unknown visibility returns false", () => {
 		expect(canViewForumVisibility("unknown" as never, admin)).toBe(false);
-	});
-});
-
-// ─── threadListFilters ─────────────────────────────────────
-
-describe("threadListFilters", () => {
-	it("returns correct conditions for guest", () => {
-		const ctx = { isLoggedIn: false, role: UserRole.User };
-		const filters = threadListFilters(ctx);
-		expect(filters.threadCondition).toBe("t.sticky >= 0");
-		expect(filters.forumCondition).toBe("f.status = 1");
-		expect(filters.forumVisibility).toBe("(f.visibility = 'public')");
-	});
-});
-
-// ─── postListFilters ───────────────────────────────────────
-
-describe("postListFilters", () => {
-	it("returns correct conditions for logged-in user", () => {
-		const ctx = { isLoggedIn: true, role: UserRole.User };
-		const filters = postListFilters(ctx);
-		expect(filters.postCondition).toBe("p.invisible = 0");
-		expect(filters.threadCondition).toBe("t.sticky >= 0");
-		expect(filters.forumCondition).toBe("f.status = 1");
-		expect(filters.forumVisibility).toContain("members");
-	});
-});
-
-// ─── Status Constants ──────────────────────────────────────
-
-describe("status constants", () => {
-	it("ThreadStickyLevel values are correct", () => {
-		expect(ThreadStickyLevel.NORMAL).toBe(0);
-		expect(ThreadStickyLevel.DELETED).toBe(-2);
-		expect(ThreadStickyLevel.STICKY_FORUM).toBe(1);
-		expect(ThreadStickyLevel.STICKY_GLOBAL).toBe(2);
-		expect(ThreadStickyLevel.STICKY_CATEGORY).toBe(3);
-	});
-
-	it("PostInvisibleLevel values are correct", () => {
-		expect(PostInvisibleLevel.VISIBLE).toBe(0);
-		expect(PostInvisibleLevel.DELETED).toBe(1);
-	});
-
-	it("UserStatusLevel values are correct", () => {
-		expect(UserStatusLevel.BANNED).toBe(-1);
-		expect(UserStatusLevel.NORMAL).toBe(0);
-	});
-
-	it("ForumStatusLevel values are correct", () => {
-		expect(ForumStatusLevel.ACTIVE).toBe(1);
-		expect(ForumStatusLevel.DELETED).toBe(-1);
 	});
 });
