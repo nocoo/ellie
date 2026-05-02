@@ -1,10 +1,27 @@
 # 17 — Email Verification & Read-Only Gate
 
-Status: **Revision 3 (simplified single-flow model)**
-Owner: Claude-02 (impl) · Codex-02 (review)
-Related: `04g-user-auth.md`, `api-architecture.md`, dove webhook (`POST /api/webhook/:projectId/send`)
+Status: **Revision 4 (Turnstile + write-block dialog contract)**
+Owner: Claude-02 (impl) · Codex-02 (review) · SD-SDE-A (rev4 impl) · SD-Reviewer-A (rev4 review)
+Related: `04g-user-auth.md`, `api-architecture.md`, dove webhook (`POST /api/webhook/:projectId/send`), Cloudflare Turnstile (`https://challenges.cloudflare.com/turnstile/v0/siteverify`)
 
 ## 0. Revision History
+
+**Rev4 (2026-05-02) — Turnstile on request-code + write-block dialog contract + user-page primary entry.**
+Rev3 把流程简化为单路径并完成 prod ops clean state（5a 已 apply，1,141,587 行 zero-row audit），rev4 在不改变单流程模型的前提下补齐三块**前后端契约**，使 5b 写路由 cutover 与前端 6/7 可以并行无歧义实现：
+
+- **CAPTCHA on `request-code` only.** 采用 Cloudflare **Turnstile**：`request-code` 必须携带 `cf_turnstile_token`，Worker 调 `siteverify` 后才发码；`verify` 不加 captcha，依赖既有 `attempts ≤ 5 / TTL 900s / CODE_LOCKED` 兜底。新错误码 `400 CAPTCHA_REQUIRED` / `403 CAPTCHA_INVALID`（详见 §7.2）。新增 Worker 配置 `TURNSTILE_SECRET_KEY`（secret）+ `TURNSTILE_SITE_KEY`（vars，前端可读）。
+- **Write-block dialog contract.** 任何被 `requireVerifiedEmail` / `withVerifiedEmail` 拒绝的写请求，Worker 返回**结构化** `403 EMAIL_NOT_VERIFIED` payload（见 §5.4），其中包含 `dialog`（title/body/cta_label）+ `redirect_to`，前端据此弹同一 dialog 并跳转。前端按钮拦截与 403 兜底共享同一 payload schema。
+- **User-page primary entry.** 主入口为「用户页 → 邮箱卡片」（`/me` → `EmailVerificationCard`），写按钮 dialog 与 banner 的 CTA 一律 `redirect_to: "/me#email"`。`/verify-email` 退化为 deep link / 直链入口（依然实现，便于邮件通知或外部跳转），二者复用同一组件与 proxy routes。
+- §12 Rollout 表格按 rev4 重排（5a ✅ shipped；新增 Phase 3c Turnstile；5b 切换基于 §5.4 payload）。
+- 旧 §12 Phase 3b 标 pending 但实际 commit `35639ac` 已落地 → rev4 表格修正为 ✅ shipped。
+
+下文 §0–§16 rev3 正文保留以便对照旧决策；rev4 真正生效的契约段落（§5.4 / §7.2 / §7.2.1 / §8.2 dove `to` note / §9 / §12）已就地替换或追加。
+
+> **Rev4 supersedes notice**：以下 rev3 段落已被 rev4 整体覆盖，实现请以 rev4 段落为准：
+> - **§4 User Flow** —— 「引导到 `/verify-email` 全站写 affordance disable」改为 §9 + §5.4：主入口 `/me#email` 卡片，写按钮永远可点 + dialog 引导；`/verify-email` 仅为 deep link。
+> - **§5 Read-Only Gate** §5.1/§5.2/§5.3 仍生效；§5.4 是 rev4 新增的拒绝 payload 契约。
+> - **§7.2 / §7.3 / §8.2** —— rev3 正文留底；rev4 改写见 §7.2 (rev4) / §7.2.1 (新) / §8.2 rev4 note。
+> - **§11.3 / §11 E2E 场景** —— rev3 描述 `/verify-email` 提交流程；rev4 实现里入口路径替换为 `/me#email`，组件相同；E2E 步骤替换 URL 即可。
 
 **Rev3 (2026-05-02) — Simplified single-flow model.**
 旧设计同时支持「老用户 verify 现有邮箱」+「老用户 change to new email」+「新用户验证」三条路径，合并测试和 ops 复杂度高。新模型在导入阶段把所有 `users.email` 清空（extractor 已在上游 `87d790e` 实现，prod 由 ops 一次性 SQL 清空），统一只剩一种状态：
@@ -60,6 +77,8 @@ Verification emails are delivered via the local **dove** service over its existi
 - **Verification code**: a 6-digit numeric code, server-generated, single-use, bound to `(user_id, email_normalized)`.
 
 ## 4. User Flow (Rev3)
+
+> **Rev4 supersedes step 2.** 主入口改为「用户页 → 邮箱卡片」（`/me#email`）。前端发现 `me.email_verified_at == 0` 时仅显示 banner（CTA → `/me#email`）；写按钮**永远可点**，点击或绕过时由 §5.4 dialog 双保险引导用户去 `/me#email`。`/verify-email` 仅作为 deep link 保留。原步骤 2「引导到 `/verify-email` 全站写 affordance disable」作废。
 
 1. 用户登录或注册，JWT 照常签发。
 2. 后端 `me` / `login` response 暴露 `email_verified_at`；前端发现 `== 0` ⇒ 引导到 `/verify-email`，全站写操作 affordance disable。
@@ -144,6 +163,36 @@ Default-deny rule: any new route added later that mutates state must opt **in** 
 
 The frontend additionally hides write affordances, but the Worker is the source of truth.
 
+### 5.4 `403 EMAIL_NOT_VERIFIED` payload contract (Rev4)
+
+任何被 `requireVerifiedEmail` / `withVerifiedEmail` / 扩展后的 `moderationMiddleware` 拒绝的写请求，**必须**返回如下结构化 body（HTTP `403`，`Content-Type: application/json`）：
+
+```json
+{
+  "error": "EMAIL_NOT_VERIFIED",
+  "message": "请先验证邮箱后再发布或回复内容。",
+  "dialog": {
+    "title": "需要验证邮箱",
+    "body": "你的账户还未验证邮箱，目前只能浏览。请前往个人中心绑定并验证邮箱后再继续。",
+    "cta_label": "去验证邮箱",
+    "cta_variant": "primary"
+  },
+  "redirect_to": "/me#email"
+}
+```
+
+字段约束：
+- `error` 固定为字符串 `"EMAIL_NOT_VERIFIED"`，前端用此字段做 dialog 触发判断（不要解析 message 文案）。
+- `dialog.title / body / cta_label` 是中文文案，文案变更属 UX 改动，需要回到本文档 §5.4 同步。
+- `dialog.cta_variant ∈ {"primary"}`，预留扩展。
+- `redirect_to` 永远是站内相对路径，rev4 默认 `"/me#email"`（用户页邮箱卡片锚点）。`/verify-email` 仅作为 deep link 使用，不出现在该字段。
+- 请求来源不影响 payload 结构 —— REST、Next.js proxy 透传、SSR 抓取都使用同一 schema。
+
+前端契约（与 §9 共用）：
+- 写入口（发帖 / 回帖 / 评论 / 私信 / 上传 / 编辑 / 举报）按钮**永远可点**。点击时如果 cached `me.email_verified_at == 0`，前端**直接弹** dialog（payload 来自前端常量，schema 与 §5.4 一致），不实际发请求。
+- 如果用户绕过前端发出请求，Worker 返回 §5.4 payload，前端 fetch 包装层（`apps/web/src/lib/api.ts`）拦截 `error == "EMAIL_NOT_VERIFIED"` 并弹同一 dialog，CTA 跳转 `redirect_to`。
+- Dialog 组件由前端常量与 server payload 共享同一 TypeScript type：`type EmailNotVerifiedPayload = { error: "EMAIL_NOT_VERIFIED"; message: string; dialog: {...}; redirect_to: string }`，定义放在 `packages/types/src/email-verification.ts`（rev4 新增）。
+
 ## 6. Data Model
 
 > **Rev3 note:** §6 column set unchanged. Only `email_changed_at` 的语义在 rev3 被收紧为「永远保持 0，直到独立 RFC 引入 verified-user email change」。
@@ -197,17 +246,23 @@ All live under `/api/v1/users/me/email*`. All require valid JWT (`authMiddleware
 
 > **Rev3 §7.1 — REMOVED.** 旧 `POST /api/v1/users/me/email` (email-change endpoint) 不再存在。其唯一作用——把新邮箱写进 `users.email`——已被合并到 §7.2 / §7.3 流程；`users.email` 只在 §7.3 verify 成功后被一次性原子写入。
 
-### 7.2 `POST /api/v1/users/me/email/request-code` (Rev3)
+### 7.2 `POST /api/v1/users/me/email/request-code` (Rev4)
+
+> **Rev4 change**: body 增加必填字段 `cf_turnstile_token`。Worker 调 Cloudflare `siteverify` 通过后才进入 dove 发送链路。详细契约见 §7.2.1。
 
 Request:
 ```json
-{ "email": "user@example.com" }
+{
+  "email": "user@example.com",
+  "cf_turnstile_token": "<turnstile response token>"
+}
 ```
 
 Behavior:
+- **Rev4: Turnstile 校验先行**。`cf_turnstile_token` 缺失 ⇒ `400 CAPTCHA_REQUIRED`；`siteverify` 返回 `success=false` ⇒ `403 CAPTCHA_INVALID`（不计入 resend throttle，保持 idempotent UX）。校验通过后再走原有 rev3 流程。
 - Normalize body.email (`lower(trim(...))`)，长度 ≤ 254、RFC-style regex；失败 ⇒ `400 EMAIL_INVALID`。
 - **不写 `users` 表**。所有 pending 状态都在 KV record 内。
-- KV record 形状（rev3）：
+- KV record 形状（rev4，与 rev3 相同字段）：
   ```json
   {
     "codeHmac": "<hex>",
@@ -224,15 +279,36 @@ Behavior:
 - 通过 dove 把 code 发到 `pendingEmail`（display form）。
 - 仅在 dove 200 后才持久化 KV / `lastSentAt`（dove 失败不烧 throttle）。
 
-Response 200（rev3 mask 不变）：
+Response 200（rev4，mask 不变）：
 ```json
 { "sent_to": "u***@example.com", "expires_in": 900, "next_resend_allowed_at": 1714576800 }
 ```
 
-Errors（与 rev2 相同 + 一条新增）：
+Errors（rev4 集合）：
+- `400 CAPTCHA_REQUIRED` — body 缺 `cf_turnstile_token`。
+- `403 CAPTCHA_INVALID` — Turnstile `siteverify` 拒绝（含过期 / 重放 / hostname mismatch）。
 - `400 EMAIL_INVALID` — body.email 缺失 / 格式不合法。
 - `403 EMAIL_ALREADY_VERIFIED` — 当前用户 `email_verified_at > 0`。rev3 单向流程下不允许已验证用户重新走此 endpoint。
-- `429 CODE_RESEND_THROTTLED`、`502 EMAIL_PROVIDER_FAILED`：同 rev2。
+- `429 CODE_RESEND_THROTTLED`、`502 EMAIL_PROVIDER_FAILED`：同 rev3。
+
+### 7.2.1 Cloudflare Turnstile contract (Rev4)
+
+- **Provider**：Cloudflare Turnstile（managed widget；Worker 同栈无额外可用性面）。
+- **Worker 配置**：
+  - `TURNSTILE_SECRET_KEY` — Worker secret，`wrangler secret put TURNSTILE_SECRET_KEY`。
+  - `TURNSTILE_SITE_KEY` — 普通 var（前端可读，写入 `[vars]` 与 `[env.test.vars]`）。test 环境使用 Cloudflare 提供的 always-pass test keys（site key `1x00000000000000000000AA`，secret `1x0000000000000000000000000000000AA`）以保证 vitest / e2e 不依赖外网。
+- **Server-side verify**：
+  ```
+  POST https://challenges.cloudflare.com/turnstile/v0/siteverify
+  Content-Type: application/x-www-form-urlencoded
+  Body: secret=<TURNSTILE_SECRET_KEY>&response=<token>&remoteip=<cf-connecting-ip>
+  ```
+  - 5s timeout；timeout / 5xx ⇒ `403 CAPTCHA_INVALID`（fail-closed，避免被用作绕过手段）。
+  - `remoteip` 取自 `request.headers.get("CF-Connecting-IP")`，缺失则省略字段。
+  - 不缓存 token：每次 request 一次性核销；同 token 复用由 Turnstile 侧拒绝。
+- **Token 生命周期**：Turnstile token TTL ≈ 300s；过期 ⇒ `403 CAPTCHA_INVALID`，前端按提示 reset widget。
+- **`verify` 不带 captcha**（rev4 决策，§0 与 SD-Reviewer-A 已 align）：rationale = `attempts ≤ 5` + KV TTL 900s + `CODE_LOCKED` 已构成防爆破闭环；再加 captcha 引入额外失败模式，得不偿失。
+- **测试策略**：单测里 `TURNSTILE_SECRET_KEY` 用 always-pass test secret，禁止真正 outbound `siteverify` 调用；同时新增一个 unit test 覆盖 fail-closed（mock fetch 抛错 → 期望 `403 CAPTCHA_INVALID`）。
 
 ### 7.3 `POST /api/v1/users/me/email/verify` (Rev3)
 
@@ -326,7 +402,7 @@ await fetch(`${env.DOVE_BASE_URL}/api/webhook/${env.DOVE_PROJECT_ID}/send`, {
   },
   body: JSON.stringify({
     template: "ellie-email-verify",
-    to: user.email,                // exact display form
+    to: pendingEmail,              // KV pendingEmail (display form). NOT user.email — see note below.
     idempotency_key: idempotencyKey,
     variables: {
       code: plaintextCode,
@@ -337,20 +413,28 @@ await fetch(`${env.DOVE_BASE_URL}/api/webhook/${env.DOVE_PROJECT_ID}/send`, {
 });
 ```
 
+> **Rev4 note**：`to` 必须取 §7.2 request-code 写入 KV 的 `pendingEmail`（display form），**不是** `users.email`。rev3/4 clean state 下 `users.email = ''` 直到 §7.3 verify 成功才被一次性 UPDATE 写入；若 dove 调用里读 `user.email`，prod 上验证码邮件会发到空字符串、被 dove 拒收。
+
 - Timeout: 5s (`AbortSignal.timeout(5000)`). On timeout → `502 EMAIL_PROVIDER_FAILED`.
 - Plaintext code is **only** held in memory for the duration of this request. Never logged.
 - Idempotency: same code → same key → dove dedupes if we accidentally retry.
 
-## 9. Frontend Changes (`apps/web`) (Rev3)
+## 9. Frontend Changes (`apps/web`) (Rev4)
 
-- New page `/verify-email` (Next.js route)，单流程 UI：
-  - 邮箱输入框 + "发送验证码" 按钮（calls §7.2，body `{ email }`）。throttle 期间按钮 disable + 倒计时。
-  - 6-digit code 输入框 + 提交（calls §7.3，body `{ email, code }`，复用页面状态里的同一个 email 字段；用户改 email 后必须重发 code）。
-  - **不存在「更换邮箱」二级表单**——rev3 单流程下，改邮箱就等于在同一个输入框里换文本然后再点「发送验证码」。
-  - §7 错误码全部映射到中文 messages：`EMAIL_INVALID` / `EMAIL_CODE_EMAIL_MISMATCH` / `EMAIL_ALREADY_IN_USE` / `CODE_INVALID` / `CODE_LOCKED` / `CODE_NOT_FOUND` / `CODE_RESEND_THROTTLED` / `EMAIL_PROVIDER_FAILED` / `EMAIL_ALREADY_VERIFIED`。
-- Global banner `<UnverifiedEmailBanner>`：当 cached `me` 的 `email_verified_at == 0` 时显示，链接到 `/verify-email`。
-- 所有写操作 affordance（发帖 / 回复 / 点评 / 私信 / 上传 / 编辑 / 举报）根据 `me.email_verified_at` 渲染 disabled 状态。Server 仍是 source of truth；UI 只是 convenience。
-- Next.js proxy routes（rev3 只有两条）：`/api/v1/users/me/email/request-code`、`/api/v1/users/me/email/verify`。**没有 `/api/v1/users/me/email`**（§7.1 已 removed）。
+> **Rev4 change**: 主入口改为「用户页 → 邮箱卡片」（`/me#email`）。`/verify-email` 仍实现，但仅作为 deep link / 邮件直链使用；写按钮 dialog 与 banner 的 CTA **永远** `redirect_to: "/me#email"`。
+
+- 用户页 `apps/web/src/app/me/page.tsx`（或现有 settings 路由）新增 `<EmailVerificationCard>`：
+  - `me.email_verified_at == 0` 时展开为「填邮箱 + 发送验证码 + 输入 code + 验证」单卡片。
+  - `email_verified_at > 0` 时折叠为只读 badge（rev4 不提供改邮箱入口；将来由独立 RFC 加）。
+  - 卡片内含 Turnstile widget（site key 来自 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`，从 Worker `TURNSTILE_SITE_KEY` 同步）。点击「发送验证码」时一并提交 token；token 过期则 reset widget。
+- `/verify-email` 路由保留，但 page body 直接挂载同一 `<EmailVerificationCard>` 组件，避免双份实现。
+- Global banner `<UnverifiedEmailBanner>`：当 cached `me.email_verified_at == 0` 时显示，CTA 链接 `/me#email`（不是 `/verify-email`）。
+- 所有写操作 affordance（发帖 / 回复 / 点评 / 私信 / 上传 / 编辑 / 举报）：
+  - 按钮**永远可点**（rev4 dialog 双保险策略）。
+  - 点击时若 `me.email_verified_at == 0` ⇒ 弹 `<EmailNotVerifiedDialog>`（payload 来自前端常量，与 §5.4 schema 一致），CTA 跳转 `/me#email`。
+  - 若用户绕过前端发请求，fetch 包装层 (`apps/web/src/lib/api.ts`) 拦截 `error == "EMAIL_NOT_VERIFIED"` 并复用同一 dialog 组件。
+- Next.js proxy routes（rev4 仍只有两条）：`/api/v1/users/me/email/request-code`、`/api/v1/users/me/email/verify`。proxy 透传 body（含 `cf_turnstile_token`）与所有 5xx/4xx 原 payload，不二次加工。
+- 共享 type：`packages/types/src/email-verification.ts` 导出 `EmailNotVerifiedPayload` / `EmailVerifyRequestBody` / `EmailVerifySubmitBody`，前后端共用。
 
 ## 10. Migration & Backfill (Rev3)
 
@@ -428,11 +512,15 @@ WHERE id = ? AND email_verified_at = 0
 - Full happy path: register → request-code → verify → POST /threads succeeds.
 - Sad paths: unverified user gets 403 EMAIL_NOT_VERIFIED on every blocked endpoint listed in §5.2 (table-driven).
 
-### 11.3 E2E (Playwright, existing harness) (Rev3)
+### 11.3 E2E (Playwright, existing harness) (Rev4)
 
-- Login as 邮箱已清空的 seed user → banner 可见 → `/verify-email` 输入 email + 提交 + 输入 code → 后续 POST /threads 成功。
-- 邮箱冲突路径：seed 用户 A 已验证 `a@x.io`；seed 用户 B 走流程到 verify 时输入同一 email → 收到 `EMAIL_ALREADY_IN_USE`，重输不同 email 后成功。
-- email mismatch 路径：在 `/verify-email` 发完 code 后改 email 再提交 → `EMAIL_CODE_EMAIL_MISMATCH`，提示重发。
+> **Rev4 supersedes Rev3 §11.3.** 入口路径从 `/verify-email` 改为「登录后访问 `/me` 邮箱卡片」（同一 `<EmailVerificationCard>` 组件；`/verify-email` 仍可走 deep link，但 E2E 的「正常用户路径」必须验证 `/me#email` 入口 + 写按钮 dialog 拦截）。Turnstile widget 在 E2E 用 always-pass test site key（`1x00000000000000000000AA`）。
+
+- Login as 邮箱已清空的 seed user → banner 可见 → 点击「发帖」按钮触发 `<EmailNotVerifiedDialog>` → CTA 跳到 `/me#email` → 卡片输入 email + Turnstile auto-pass + 「发送验证码」 → 输入 code + 提交 → 解锁 → 后续 POST /threads 成功。
+- 邮箱冲突路径：seed 用户 A 已验证 `a@x.io`；seed 用户 B 走 `/me#email` 流程到 verify 时输入同一 email → 收到 `EMAIL_ALREADY_IN_USE`，重输不同 email 后成功。
+- email mismatch 路径：在 `/me#email` 发完 code 后改 email 再提交 → `EMAIL_CODE_EMAIL_MISMATCH`，提示重发。
+- 后端 403 兜底路径：用 fetch 直接 POST /threads（绕过前端按钮）→ Worker 返回 §5.4 payload → 前端 fetch 包装层弹同一 dialog → CTA 跳 `/me#email`。
+- Deep link 路径：直接访问 `/verify-email` → 同样的 `<EmailVerificationCard>` 渲染 → 流程与 `/me#email` 一致（保证 deep link 可用）。
 
 ### 11.4 Manual smoke (Rev3)
 
@@ -443,25 +531,23 @@ WHERE id = ? AND email_verified_at = 0
 - 复核 Ellie worker + dove 双侧日志：**禁止**出现 plaintext code、HMAC、full target email；只允许 userId + masked-email tail。
 - smoke 完成后立即在 dove 侧 ops record 中标注「Ellie open-recipients verified at <timestamp>」，作为 Phase 5b cutover 的前置 evidence。
 
-## 12. Rollout (Rev3)
+## 12. Rollout (Rev4)
 
 | Phase | Commit subject | Status / Notes |
 |---|---|---|
-| 1 | `feat(db): add email verification columns (migration 0028)` | **shipped** (commit `0a6641e`). 见 §12.1。 |
-| 2 | `feat(worker): requireVerifiedEmail middleware + withVerifiedEmail wrapper (no routes wired)` | **shipped** (commit `59fa4a3`). |
-| 3a | `feat(worker): email request-code + verify endpoints (no email-change yet)` + `fix(worker): hide dove upstream code + add per-user in-flight send lock` | **shipped** (commits `064589c`, `3f479a6`). 旧实现：request-code 对 `me.email` 发码、verify 只接受 `{ code }`。在 rev3 模型下 `me.email=''` 是常态，会被 EMAIL_INVALID 拦死，由 Phase 3b 修。 |
-| 3b | `feat(worker): request email verification for pending address` | **pending — rev3 new commit**. |
-| | | - §7.2 request-code 接收 `body.email`，pending 状态全部存 KV，不写 `users` 表。 |
-| | | - §7.3 verify 接收 `{ email, code }`；body.email normalize 后必须 == KV pending（否则 `409 EMAIL_CODE_EMAIL_MISMATCH`）。 |
-| | | - verify 成功用条件 UPDATE 写入 email + normalized + verified_at；`email_changed_at` 不动。 |
-| | | - 撞 0029 唯一索引 ⇒ catch 后返回 `409 EMAIL_ALREADY_IN_USE`；最终安全边界仅依赖唯一索引。 |
-| 4 | `feat(db): unique partial index on email_normalized (migration 0029)` | **shipped** (commit `73be123`). 见旧 §12 4c 的 status 段。 |
-| 5a | (ops) clear `email / email_normalized / email_verified_at / email_changed_at` on prod tongjinet-db | **pending — Phase 5a requires explicit ops approval**: Codex-02 review 3b commit + dry-run count 后由 zheng-li 单独授权 apply。SQL 见 §10.0。 |
-| 5b | `feat(worker): enforce verification on write routes` | **pending**. 切换 §5.2 各路由到 `requireVerifiedEmail` / `withVerifiedEmail` / 扩展 `moderationMiddleware`。User-visible cutover；上线前 Phase 5a 必须完成。 |
-| 6 | `feat(web): /verify-email page + banner + proxy routes` | **pending**. rev3 单流程：单一 email 输入框 + code 输入框；不含「换邮箱」UI。Proxy routes 只需 §7.2 / §7.3 两条。 |
-| 7 | `feat(web): disable write affordances when unverified` | **pending**. UX polish。 |
+| 1 | `feat(db): add email verification columns (migration 0028)` | ✅ shipped (`0a6641e`). 见 §12.1。 |
+| 2 | `feat(worker): requireVerifiedEmail middleware + withVerifiedEmail wrapper (no routes wired)` | ✅ shipped (`59fa4a3`). |
+| 3a | `feat(worker): email request-code + verify endpoints (no email-change yet)` + `fix(worker): hide dove upstream code + add per-user in-flight send lock` | ✅ shipped (`064589c`, `3f479a6`). |
+| 3b | `feat(worker): request email verification for pending address` | ✅ shipped (`35639ac`). request-code/verify 已接收 `body.email`，pending 走 KV，conditional UPDATE 落库；唯一索引 catch ⇒ `409 EMAIL_ALREADY_IN_USE`。|
+| 4 | `feat(db): unique partial index on email_normalized (migration 0029)` | ✅ shipped (`73be123`). |
+| 5a | (ops) clear `email / email_normalized / email_verified_at / email_changed_at` on prod tongjinet-db | ✅ **shipped 2026-05-02** (zheng-li authorized → SD-SDE-A apply). dry-run/apply/verify 三段全部为 0；1,141,587 行 zero-row audit；`changed_db=false`。详见对话线程 / ops audit。|
+| **5b-docs** | `docs(17): rev4 — Turnstile + EMAIL_NOT_VERIFIED dialog payload + user-page primary entry` | 🟡 **in review** — 本 commit。仅文档契约，不动代码。SD-Reviewer-A review 通过后再开下面任一代码 phase。|
+| 3c | `feat(worker): turnstile captcha on email request-code` | ⏳ pending. 实现 §7.2.1：`TURNSTILE_SECRET_KEY` secret + `TURNSTILE_SITE_KEY` var；`request-code` 校验 `cf_turnstile_token` → siteverify → fail-closed `403 CAPTCHA_INVALID`。`verify` 不动。单测 + fail-closed test。|
+| 5b | `feat(worker): enforce verification on write routes` | ⏳ pending. §5.2 路由切到 `requireVerifiedEmail` / `withVerifiedEmail`，扩展 `moderationMiddleware`；统一返回 §5.4 payload。User-visible cutover。3c 与 5b 在 review 上独立但 deploy 顺序：3c 先于 5b（前端依赖 site key）。**See also §12.2 deploy ordering.**|
+| 6 | `feat(web): EmailVerificationCard on /me + /verify-email page + proxy routes` | ⏳ pending. §9 单组件 + Turnstile widget + proxy 透传 token。`/me#email` 为主入口；`/verify-email` 仅 deep link。|
+| 7 | `feat(web): write-affordance dialog (EMAIL_NOT_VERIFIED) + banner` | ⏳ pending. §5.4 dialog payload 双保险（前端按钮拦 + fetch 包装层 403 拦）；统一 CTA → `/me#email`。|
 
-**Removed in rev3：** rev2 §12 中的 4b backfill scripts、原 Phase 5 `feat(worker): email-change endpoint (7.1)`、§6 quota。
+**Removed in rev4：** rev2 §12 中的 4b backfill scripts、原 Phase 5 `feat(worker): email-change endpoint (7.1)`、§6 quota（rev3 已删）。
 
 ### 12.1 Phase 1 — exhaustive file list
 
@@ -482,6 +568,25 @@ Codex-02 flagged that "Phase 1 = migration only" leaves the local DB and the TS 
 Auth/me handler returns the new `email_verified_at` so the frontend can render the banner without an extra round trip — that wiring is in phase 7, but the field must be exposed in phase 1 so the frontend has something to read once we get there.
 
 No behavioral code changes in phase 1. Phase 1 is reviewable as "schema + type + accessor exposure only."
+
+### 12.2 Commit-merge order vs production cutover order (Rev4)
+
+**Commit / merge order**（review 单元，可顺序合入 main，不直接对用户生效）：3c → 5b → 6 → 7。每个独立 commit，独立 review，可背靠背合入。
+
+**Production cutover order**（user-visible 启用，必须串行并满足前置条件）：
+
+1. Phase 3c worker 部署到 prod（Turnstile secret/var 已配齐）。
+2. Phase 6 web 部署到 prod（`/me#email` 卡片 + Turnstile widget + proxy 已上）。
+3. Phase 7 web 部署到 prod（dialog + banner + fetch 包装层 403 兜底已上）。
+4. Dove ops 前置条件全部满足：Ellie project `allow_unknown_recipients = 1`、`§11.4` controlled smoke 已 record evidence。
+5. **最后**才启用 Phase 5b：worker 把写路由切到 `requireVerifiedEmail` / `withVerifiedEmail`。
+
+**5b 部署策略**（必须二选一，避免 5b commit 一旦合入并触发自动部署，老用户立刻只读但前端 dialog/卡片尚未到位）：
+
+- **A. 顺序部署（推荐）**：5b 与 3c/6/7 一起合入 main 但暂不发布；只在前述 1–4 完成后 trigger worker deploy。本仓库 worker 部署是手动 `wrangler:deploy`（见 `package.json scripts.worker:deploy`）→ 顺序部署是默认安全态。
+- **B. Feature flag 兜底**：5b 实现 default-off 的 env flag（如 `EMAIL_VERIFICATION_ENFORCED=false`），合入即可，cutover 通过 flip 完成。仅当 5b 必须先于 6/7 落地时使用。
+
+> Default 走 A。如选 B，5b commit 必须额外引入 flag 读取与 flip 操作文档；本文档 §12.2 默认假设 A 路径，5b commit body 必须明确声明部署策略。
 
 ## 13. Resolved Reviewer Decisions
 
