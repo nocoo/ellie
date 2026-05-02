@@ -274,12 +274,15 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		);
 	}
 
-	// Check receiver exists and is not banned
+	// Check receiver exists, is not banned/muted, and is not a placeholder
+	// (status < 0 means banned, muted, or otherwise hidden — surface as
+	// USER_NOT_FOUND consistent with the user-search endpoint and docs/12,
+	// which only ever return users with status >= 0).
 	const receiver = await env.DB.prepare("SELECT id, username, status FROM users WHERE id = ?")
 		.bind(receiverId)
 		.first<{ id: number; username: string; status: number }>();
 
-	if (!receiver) {
+	if (!receiver || receiver.status < 0) {
 		return errorResponse("USER_NOT_FOUND", 400, { message: "Receiver not found" }, origin);
 	}
 
