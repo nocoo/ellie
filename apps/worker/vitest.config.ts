@@ -15,6 +15,14 @@ export default defineConfig({
 		pool: "threads",
 		isolate: false,
 		include: ["tests/**/*.test.ts"],
+		// These three suites use the bun:test runner (mock.module, fast crypto)
+		// and run via `bun test`; exclude them from vitest to avoid `Cannot find
+		// package 'bun:test'` failures during the `bunx vitest run` gate.
+		exclude: [
+			"tests/unit/handlers/email.test.ts",
+			"tests/unit/lib/dove.test.ts",
+			"tests/unit/lib/email-verify.test.ts",
+		],
 		environment: "node",
 		coverage: {
 			provider: "v8",
