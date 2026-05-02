@@ -1,4 +1,6 @@
-import { apiClient } from "@/lib/api-client";
+import { ApiError, apiClient } from "@/lib/api-client";
+import { EMAIL_NOT_VERIFIED_EVENT } from "@/viewmodels/forum/email-not-verified-dispatch";
+import { EMAIL_NOT_VERIFIED_PAYLOAD } from "@ellie/types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ---------------------------------------------------------------------------
@@ -151,6 +153,114 @@ describe("apiClient", () => {
 			globalThis.fetch = mockFetchFn as typeof fetch;
 
 			await expect(apiClient.get("/api/v1/forums")).rejects.toThrow("Failed to parse response");
+		});
+
+		it("should preserve rawBody on ApiError for non-OK responses", async () => {
+			// Phase 7-1: callers (e.g. the verification dialog) need the raw
+			// body so they can render the Worker's copy without a second fetch.
+			const body = { error: { code: "X", message: "y" }, hint: "extra" };
+			mockFetchFn = vi.fn(() =>
+				Promise.resolve(
+					new Response(JSON.stringify(body), {
+						status: 400,
+						headers: { "Content-Type": "application/json" },
+					}),
+				),
+			);
+			globalThis.fetch = mockFetchFn as typeof fetch;
+			try {
+				await apiClient.get("/api/v1/forums");
+				expect.fail("expected throw");
+			} catch (e) {
+				expect(e).toBeInstanceOf(ApiError);
+				expect((e as ApiError).rawBody).toEqual(body);
+			}
+		});
+	});
+
+	describe("EMAIL_NOT_VERIFIED dispatch (docs/17 §5.4)", () => {
+		// The api-client must detect the flat §5.4 payload on any non-OK
+		// response and dispatch the global dialog event. Reviewer's
+		// directive (msg 0e069f5b): "全局/共享 fetch 能识别 Worker 的 flat
+		// EMAIL_NOT_VERIFIED payload".
+		const originalDispatchEvent = globalThis.dispatchEvent;
+		let dispatchSpy: ReturnType<typeof vi.fn>;
+
+		beforeEach(() => {
+			dispatchSpy = vi.fn();
+			// The viewmodel's `dispatchEmailNotVerified` reads `window`. In the
+			// node test env we stub a minimal window with dispatchEvent. We
+			// also need `location.origin` because the api-client's getBaseUrl
+			// reads it when window is defined.
+			(globalThis as { window?: unknown }).window = {
+				dispatchEvent: dispatchSpy,
+				location: { origin: "http://localhost" },
+			};
+		});
+
+		afterEach(() => {
+			(globalThis as { window?: unknown }).window = undefined;
+			globalThis.dispatchEvent = originalDispatchEvent;
+		});
+
+		it("dispatches the email-not-verified event when the body matches §5.4", async () => {
+			mockFetchFn = vi.fn(() =>
+				Promise.resolve(
+					new Response(JSON.stringify({ ...EMAIL_NOT_VERIFIED_PAYLOAD }), {
+						status: 403,
+						headers: { "Content-Type": "application/json" },
+					}),
+				),
+			);
+			globalThis.fetch = mockFetchFn as typeof fetch;
+
+			try {
+				await apiClient.post("/api/v1/threads", { title: "x" });
+				expect.fail("expected throw");
+			} catch (e) {
+				expect(e).toBeInstanceOf(ApiError);
+				expect((e as ApiError).code).toBe("EMAIL_NOT_VERIFIED");
+				expect((e as ApiError).rawBody).toEqual({ ...EMAIL_NOT_VERIFIED_PAYLOAD });
+			}
+
+			expect(dispatchSpy).toHaveBeenCalledTimes(1);
+			const evt = dispatchSpy.mock.calls[0][0] as CustomEvent;
+			expect(evt.type).toBe(EMAIL_NOT_VERIFIED_EVENT);
+			expect(evt.detail.redirect_to).toBe(EMAIL_NOT_VERIFIED_PAYLOAD.redirect_to);
+			expect(evt.detail.dialog.title).toBe(EMAIL_NOT_VERIFIED_PAYLOAD.dialog.title);
+		});
+
+		it("does NOT dispatch for the wrapped { error: { code } } shape", async () => {
+			// Even if the wrapped envelope happens to carry code
+			// "EMAIL_NOT_VERIFIED", the §5.4 dialog must not fire — the dialog
+			// requires the flat shape so it can render the dialog body.
+			mockFetchFn = vi.fn(() =>
+				Promise.resolve(
+					new Response(JSON.stringify({ error: { code: "EMAIL_NOT_VERIFIED", message: "x" } }), {
+						status: 403,
+						headers: { "Content-Type": "application/json" },
+					}),
+				),
+			);
+			globalThis.fetch = mockFetchFn as typeof fetch;
+
+			await expect(apiClient.post("/api/v1/threads", { title: "x" })).rejects.toThrow();
+			expect(dispatchSpy).not.toHaveBeenCalled();
+		});
+
+		it("does NOT dispatch for unrelated 4xx errors", async () => {
+			mockFetchFn = vi.fn(() =>
+				Promise.resolve(
+					new Response(JSON.stringify({ error: { code: "BAD_REQUEST", message: "x" } }), {
+						status: 400,
+						headers: { "Content-Type": "application/json" },
+					}),
+				),
+			);
+			globalThis.fetch = mockFetchFn as typeof fetch;
+
+			await expect(apiClient.post("/api/v1/threads", { title: "x" })).rejects.toThrow();
+			expect(dispatchSpy).not.toHaveBeenCalled();
 		});
 	});
 });
