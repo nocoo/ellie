@@ -33,6 +33,20 @@ export interface Env {
 	DOVE_PROJECT_ID?: string;
 	/** Dove webhook bearer token (set via `wrangler secret put DOVE_WEBHOOK_TOKEN`). */
 	DOVE_WEBHOOK_TOKEN?: string;
+	/**
+	 * Cloudflare Turnstile shared secret (docs/17 §7.2.1 — rev4).
+	 * Set via `wrangler secret put TURNSTILE_SECRET_KEY`. Test environment
+	 * uses Cloudflare's documented always-pass test secret
+	 * (`1x0000000000000000000000000000000AA`) so unit + e2e tests do not
+	 * make real outbound siteverify calls.
+	 */
+	TURNSTILE_SECRET_KEY?: string;
+	/**
+	 * Cloudflare Turnstile public site key. Plain var — readable by the
+	 * frontend so the widget can be rendered. Test env uses
+	 * `1x00000000000000000000AA` (always-pass).
+	 */
+	TURNSTILE_SITE_KEY?: string;
 }
 
 /** Check if KV user cache is enabled */

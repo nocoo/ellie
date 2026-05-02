@@ -59,6 +59,8 @@ function getStatusMessage(code: string): string {
 			"Submitted email does not match the address the code was sent to — request a new code",
 		EMAIL_ALREADY_IN_USE: "Email address is already in use",
 		EMAIL_PROVIDER_FAILED: "Failed to send verification email — please try again",
+		CAPTCHA_REQUIRED: "Captcha verification is required",
+		CAPTCHA_INVALID: "Captcha verification failed — please refresh and try again",
 		TOKEN_EXPIRED: "Authentication token has expired",
 		INVALID_TOKEN: "Invalid authentication token",
 		FORBIDDEN_ADMIN_ONLY: "This action requires administrator privileges",

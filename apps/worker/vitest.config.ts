@@ -15,32 +15,48 @@ export default defineConfig({
 		pool: "threads",
 		isolate: false,
 		include: ["tests/**/*.test.ts"],
-		// These three suites use the bun:test runner (mock.module, fast crypto)
-		// and run via `bun test`; exclude them from vitest to avoid `Cannot find
-		// package 'bun:test'` failures during the `bunx vitest run` gate.
+		// These suites use the bun:test runner (mock.module, fast crypto, or
+		// global fetch stubbing under pool=threads + isolate=false) and run via
+		// `bun test`; exclude them from vitest to avoid `Cannot find package
+		// 'bun:test'` failures during the `bunx vitest run` gate.
 		exclude: [
 			"tests/unit/handlers/email.test.ts",
 			"tests/unit/lib/dove.test.ts",
 			"tests/unit/lib/email-verify.test.ts",
+			"tests/unit/lib/turnstile.test.ts",
 		],
 		environment: "node",
 		coverage: {
 			provider: "v8",
 			include: ["src/**/*.ts"],
-			// Excluded source modules are covered by the bun:test lane
-			// (see scripts/run-tests.sh and .husky/pre-push). They use bun-native
-			// APIs such as `mock.module` that vitest's runner cannot execute, so
-			// vitest never imports them and v8 coverage would otherwise count
-			// them as 0% in the denominator. The bun:test lane in pre-push and
-			// `bun run test` is the source of truth for these files.
+			// Excluded source modules are covered by the bun:test lane. They use
+			// bun-native APIs such as `mock.module` (or globalThis.fetch stubs
+			// that are unsafe under vitest pool=threads + isolate=false) that
+			// vitest's runner cannot execute, so vitest never imports them and
+			// v8 coverage would otherwise count them as 0% in the denominator.
 			//
-			// Tech debt: pre-commit currently does NOT run the bun:test lane —
-			// only pre-push does. Tracked as follow-up to unify hook semantics
-			// (see docs/17 §12 review thread, path A1-).
+			// Hook / runner coverage map for the excluded files:
+			//   - dove.ts, email-verify.ts, handlers/email.ts
+			//       → covered by `.husky/pre-push` bun_tests list AND by
+			//         `scripts/run-tests.sh` (= `bun run test`).
+			//   - turnstile.ts (added in Phase 3c, rev4)
+			//       → covered ONLY by `scripts/run-tests.sh` / `bun run test` /
+			//         targeted `bun test apps/worker/tests/unit/lib/turnstile.test.ts`.
+			//         NOT in `.husky/pre-commit` and NOT in `.husky/pre-push`.
+			//         This is an accepted residual risk / tech debt: pre-push's
+			//         bun_tests list was intentionally not extended (sensitive
+			//         file, owner declined the edit). Run `bun run test` locally
+			//         before pushing turnstile changes.
+			//
+			// Tech debt: pre-commit currently does NOT run the bun:test lane at
+			// all — only pre-push does, and even pre-push misses turnstile per
+			// above. Tracked as follow-up to unify hook semantics (see docs/17
+			// §12 review thread, path A1-).
 			exclude: [
 				"src/**/*.d.ts",
 				"src/lib/dove.ts",
 				"src/lib/email-verify.ts",
+				"src/lib/turnstile.ts",
 				"src/handlers/email.ts",
 			],
 			thresholds: {
