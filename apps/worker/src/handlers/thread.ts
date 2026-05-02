@@ -206,22 +206,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		}
 	}
 
-	return new Response(
-		JSON.stringify({
-			data: threads,
-			meta: {
-				timestamp: Date.now(),
-				requestId: crypto.randomUUID(),
-				nextCursor,
-			},
-		}),
-		{
-			headers: {
-				...corsHeaders(origin),
-				"Content-Type": "application/json",
-			},
-		},
-	);
+	return jsonResponse(threads, origin, { nextCursor });
 }
 
 /** Helper to enrich threads with user cache (only used when KV cache is enabled) */

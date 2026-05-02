@@ -10,7 +10,6 @@ import {
 	threadVisible,
 } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
-import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
 /** Explicit PublicUser columns — never SELECT * to avoid leaking sensitive fields */
@@ -170,13 +169,7 @@ export async function listThreads(request: Request, env: Env): Promise<Response>
 		nextCursor = encodeGenericCursor<UserHistoryCursor>({ createdAt: last.createdAt, id: last.id });
 	}
 
-	return new Response(
-		JSON.stringify({
-			data: threads,
-			meta: { timestamp: Date.now(), requestId: crypto.randomUUID(), nextCursor },
-		}),
-		{ headers: { ...corsHeaders(origin), "Content-Type": "application/json" } },
-	);
+	return jsonResponse(threads, origin, { nextCursor });
 }
 
 /** GET /api/v1/users/:id/posts - List user's posts with keyset pagination */
@@ -232,13 +225,7 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 		nextCursor = encodeGenericCursor<UserHistoryCursor>({ createdAt: last.createdAt, id: last.id });
 	}
 
-	return new Response(
-		JSON.stringify({
-			data: posts,
-			meta: { timestamp: Date.now(), requestId: crypto.randomUUID(), nextCursor },
-		}),
-		{ headers: { ...corsHeaders(origin), "Content-Type": "application/json" } },
-	);
+	return jsonResponse(posts, origin, { nextCursor });
 }
 
 /** GET /api/v1/users/:id/digest - List user's digest threads with keyset pagination */
@@ -292,13 +279,7 @@ export async function listDigest(request: Request, env: Env): Promise<Response> 
 		nextCursor = encodeGenericCursor<UserHistoryCursor>({ createdAt: last.createdAt, id: last.id });
 	}
 
-	return new Response(
-		JSON.stringify({
-			data: threads,
-			meta: { timestamp: Date.now(), requestId: crypto.randomUUID(), nextCursor },
-		}),
-		{ headers: { ...corsHeaders(origin), "Content-Type": "application/json" } },
-	);
+	return jsonResponse(threads, origin, { nextCursor });
 }
 
 /**

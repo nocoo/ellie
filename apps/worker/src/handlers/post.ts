@@ -9,7 +9,6 @@ import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
 import { POST_VISIBLE, buildVisibilityContext } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
-import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
 /** Post cursor payload for keyset pagination */
@@ -108,22 +107,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		}
 	}
 
-	return new Response(
-		JSON.stringify({
-			data: posts,
-			meta: {
-				timestamp: Date.now(),
-				requestId: crypto.randomUUID(),
-				nextCursor,
-			},
-		}),
-		{
-			headers: {
-				...corsHeaders(origin),
-				"Content-Type": "application/json",
-			},
-		},
-	);
+	return jsonResponse(posts, origin, { nextCursor });
 }
 
 /** GET /api/v1/posts/:id - Get post by ID */
@@ -174,21 +158,7 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 		);
 	}
 
-	return new Response(
-		JSON.stringify({
-			data: toPost(postRow),
-			meta: {
-				timestamp: Date.now(),
-				requestId: crypto.randomUUID(),
-			},
-		}),
-		{
-			headers: {
-				...corsHeaders(origin),
-				"Content-Type": "application/json",
-			},
-		},
-	);
+	return jsonResponse(toPost(postRow), origin);
 }
 
 /** POST /api/v1/posts - Reply to a thread (requires auth) */
