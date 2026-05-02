@@ -34,6 +34,7 @@
 
 import {
 	EMAIL_NOT_VERIFIED_PAYLOAD,
+	type EmailNotVerifiedCtaVariant,
 	type EmailNotVerifiedDialog,
 	type EmailNotVerifiedPayload,
 } from "@ellie/types";
@@ -114,4 +115,27 @@ export function dispatchEmailNotVerified(detail: EmailNotVerifiedEventDetail): b
 		new CustomEvent<EmailNotVerifiedEventDetail>(EMAIL_NOT_VERIFIED_EVENT, { detail }),
 	);
 	return true;
+}
+
+/**
+ * The set of `cta_variant` values the dialog renderer is willing to
+ * pass through to the Button. Anything else (including `undefined` from a
+ * forgiving wire body) falls back to the canonical `"primary"` so the
+ * Button never receives `undefined` and silently renders the wrong style.
+ *
+ * Reviewer mandate (msg 5b4f107f): "cta_variant 如果缺失要 fallback 到
+ * primary，不要让可选 wire 变体把 Button variant 传成 undefined。"
+ */
+const ALLOWED_CTA_VARIANTS: ReadonlySet<EmailNotVerifiedCtaVariant> = new Set(["primary"]);
+
+/**
+ * Normalize the wire dialog's `cta_variant` to a value the renderer can
+ * trust. Pure helper kept next to the dispatcher so tests can pin the
+ * fallback contract without round-tripping through the React component.
+ */
+export function normalizeCtaVariant(
+	variant: EmailNotVerifiedDialog["cta_variant"] | undefined,
+): EmailNotVerifiedCtaVariant {
+	if (variant && ALLOWED_CTA_VARIANTS.has(variant)) return variant;
+	return "primary";
 }
