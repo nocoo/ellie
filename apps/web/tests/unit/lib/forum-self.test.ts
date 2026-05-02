@@ -166,4 +166,14 @@ describe("getSelfForumUser", () => {
 		mockGetAuth.mockRejectedValue(new Error("ECONNRESET"));
 		expect(await getSelfForumUser()).toBe(null);
 	});
+
+	it("returns null when getWorkerJwt itself throws (e.g. missing AUTH_SECRET / corrupt cookie)", async () => {
+		// Reviewer hardening (msg dd5aee78): getWorkerJwt() goes through
+		// headers() / getToken() / AUTH_SECRET — all of which can throw.
+		// The loader contract says "any failure → null"; verify the catch
+		// covers the JWT-decrypt path too, not just the Worker call.
+		mockGetWorkerJwt.mockRejectedValue(new Error("AUTH_SECRET environment variable is not set"));
+		expect(await getSelfForumUser()).toBe(null);
+		expect(mockGetAuth).not.toHaveBeenCalled();
+	});
 });
