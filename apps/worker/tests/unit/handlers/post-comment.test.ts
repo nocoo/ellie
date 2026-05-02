@@ -146,7 +146,13 @@ describe("post-comment handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status FROM users WHERE id": { status: -1 },
+					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+						status: -1,
+						avatar_path: "",
+						has_avatar: 0,
+						reg_date: 1700000000,
+						role: 0,
+					},
 				},
 			});
 			const env = makeEnv({ DB: db });
@@ -167,7 +173,13 @@ describe("post-comment handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status FROM users WHERE id": { status: 0 },
+					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+						status: 0,
+						avatar_path: "/avatar.png",
+						has_avatar: 1,
+						reg_date: 1700000000,
+						role: 0,
+					},
 				},
 			});
 			const env = makeEnv({ DB: db });
@@ -188,7 +200,13 @@ describe("post-comment handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status FROM users WHERE id": { status: 0 },
+					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+						status: 0,
+						avatar_path: "/avatar.png",
+						has_avatar: 1,
+						reg_date: 1700000000,
+						role: 0,
+					},
 				},
 			});
 			const env = makeEnv({ DB: db });
@@ -209,7 +227,13 @@ describe("post-comment handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status FROM users WHERE id": { status: 0 },
+					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+						status: 0,
+						avatar_path: "/avatar.png",
+						has_avatar: 1,
+						reg_date: 1700000000,
+						role: 0,
+					},
 				},
 			});
 			const env = makeEnv({ DB: db });
@@ -230,7 +254,13 @@ describe("post-comment handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status FROM users WHERE id": { status: 0 },
+					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+						status: 0,
+						avatar_path: "/avatar.png",
+						has_avatar: 1,
+						reg_date: 1700000000,
+						role: 0,
+					},
 				},
 			});
 			const env = makeEnv({ DB: db });
@@ -251,7 +281,13 @@ describe("post-comment handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status FROM users WHERE id": { status: 0 },
+					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+						status: 0,
+						avatar_path: "/avatar.png",
+						has_avatar: 1,
+						reg_date: 1700000000,
+						role: 0,
+					},
 					"SELECT id, thread_id, forum_id FROM posts": null,
 				},
 				allResults: {
@@ -276,7 +312,13 @@ describe("post-comment handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status FROM users WHERE id": { status: 0 },
+					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+						status: 0,
+						avatar_path: "/avatar.png",
+						has_avatar: 1,
+						reg_date: 1700000000,
+						role: 0,
+					},
 					"SELECT id, thread_id, forum_id FROM posts": { id: 1, thread_id: 1, forum_id: 1 },
 					"SELECT closed, sticky, forum_id FROM threads": { closed: 1, sticky: 0, forum_id: 1 },
 				},
@@ -302,7 +344,13 @@ describe("post-comment handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT status FROM users WHERE id": { status: 0 },
+					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+						status: 0,
+						avatar_path: "/avatar.png",
+						has_avatar: 1,
+						reg_date: 1700000000,
+						role: 0,
+					},
 					"SELECT id, thread_id, forum_id FROM posts": { id: 1, thread_id: 1, forum_id: 1 },
 					"SELECT closed, sticky, forum_id FROM threads": { closed: 0, sticky: 0, forum_id: 1 },
 					"SELECT status, visibility FROM forums": { status: 1, visibility: "public" },
@@ -340,6 +388,130 @@ describe("post-comment handlers", () => {
 			const body = (await response.json()) as { data: { id: number; content: string } };
 			expect(body.data.id).toBe(42);
 			expect(body.data.content).toBe("Great comment!");
+		});
+
+		// ─── R3-B: post-comment:create routes through checkPostingPermission ───
+
+		it("R3-B: blocks normal user when allow_reply=false (content switch)", async () => {
+			const token = await createJwtForRole(0, 10);
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+						status: 0,
+						avatar_path: "/avatar.png",
+						has_avatar: 1,
+						reg_date: 1700000000,
+						role: 0,
+					},
+				},
+				allResults: {
+					"SELECT key, value FROM settings WHERE key LIKE 'features.posting.%'": [
+						{ key: "features.content.allow_reply", value: "false" },
+					],
+				},
+			});
+			const env = makeEnv({ DB: db });
+			const request = new Request("https://api.example.com/api/v1/post-comments", {
+				method: "POST",
+				headers: {
+					Authorization: `Bearer ${token}`,
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ postId: 1, content: "test" }),
+			});
+			const response = await postComment.create(request, env);
+			expect(response.status).toBe(403);
+			const body = (await response.json()) as { error: { code: string } };
+			expect(body.error.code).toBe("CONTENT_DISABLED");
+		});
+
+		it("R3-B: staff (role >= 1) bypasses allow_reply=false content switch", async () => {
+			const token = await createJwtForRole(1, 10);
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT role, status": { role: 1, status: 0, email_verified_at: 1700000000 },
+					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+						status: 0,
+						avatar_path: "/avatar.png",
+						has_avatar: 1,
+						reg_date: 1700000000,
+						role: 1,
+					},
+					"SELECT id, thread_id, forum_id FROM posts": { id: 1, thread_id: 1, forum_id: 1 },
+					"SELECT closed, sticky, forum_id FROM threads": { closed: 0, sticky: 0, forum_id: 1 },
+					"SELECT status, visibility FROM forums": { status: 1, visibility: "public" },
+					"SELECT username FROM users": { username: "mod" },
+					"SELECT * FROM post_comments WHERE id": {
+						id: 50,
+						thread_id: 1,
+						post_id: 1,
+						author_id: 10,
+						author_name: "mod",
+						content: "staff bypass",
+						score: 0,
+						reply_post_id: 0,
+						created_at: 1711540800,
+					},
+				},
+				allResults: {
+					"SELECT key, value FROM settings WHERE key LIKE 'features.posting.%'": [
+						{ key: "features.content.allow_reply", value: "false" },
+					],
+					"SELECT id, find, replacement, action FROM censor_words": [],
+				},
+				runResults: {
+					"INSERT INTO post_comments": { success: true, meta: { last_row_id: 50, changes: 1 } },
+				},
+			});
+			const env = makeEnv({ DB: db });
+			const request = new Request("https://api.example.com/api/v1/post-comments", {
+				method: "POST",
+				headers: {
+					Authorization: `Bearer ${token}`,
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ postId: 1, content: "staff bypass" }),
+			});
+			const response = await postComment.create(request, env);
+			expect(response.status).toBe(201);
+		});
+
+		it("R3-B: blocks normal user under min_registration_days posting restriction", async () => {
+			const token = await createJwtForRole(0, 10);
+			const nowSeconds = Math.floor(Date.now() / 1000);
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users WHERE id": {
+						status: 0,
+						avatar_path: "/avatar.png",
+						has_avatar: 1,
+						// Registered 1 day ago
+						reg_date: nowSeconds - 86400,
+						role: 0,
+					},
+				},
+				allResults: {
+					"SELECT key, value FROM settings WHERE key LIKE 'features.posting.%'": [
+						{ key: "features.posting.enabled", value: "true" },
+						{ key: "features.posting.min_registration_days", value: "7" },
+					],
+				},
+			});
+			const env = makeEnv({ DB: db });
+			const request = new Request("https://api.example.com/api/v1/post-comments", {
+				method: "POST",
+				headers: {
+					Authorization: `Bearer ${token}`,
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ postId: 1, content: "test" }),
+			});
+			const response = await postComment.create(request, env);
+			expect(response.status).toBe(403);
+			const body = (await response.json()) as { error: { code: string } };
+			expect(body.error.code).toBe("POSTING_RESTRICTION");
 		});
 	});
 });

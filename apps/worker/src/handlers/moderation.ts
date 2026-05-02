@@ -402,7 +402,10 @@ export async function deletePost(request: Request, env: Env): Promise<Response> 
 	// Decrement post author's post count
 	await decrementUserPosts(env, post.author_id);
 
-	// Recalc forum metadata
+	// Recalc thread metadata first (last_post_at / last_poster may have
+	// pointed at the deleted post), then forum metadata which derives from
+	// the per-thread aggregate.
+	await recalcThreadMetadata(env, post.thread_id);
 	await recalcForumMetadata(env, post.forum_id);
 
 	return jsonResponse({ deleted: true, id }, origin);

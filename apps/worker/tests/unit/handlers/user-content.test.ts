@@ -128,6 +128,65 @@ describe("user-content handlers", () => {
 			expect(body.data.deleted).toBe(true);
 			expect(body.data.id).toBe(5);
 		});
+
+		it("recalculates thread metadata before forum metadata (R3-A)", async () => {
+			// Regression: deleting a non-first post used to skip
+			// recalcThreadMetadata, leaving threads.last_post_at /
+			// last_poster pointing at the now-deleted post. The forum
+			// recalc then read stale per-thread aggregates and could end
+			// up advertising a deleted poster as the forum's last poster.
+			const token = await createJwtForRole(0, 10);
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+					"SELECT id, thread_id, forum_id, author_id, is_first FROM posts": {
+						id: 9,
+						thread_id: 42,
+						forum_id: 7,
+						author_id: 10,
+						is_first: 0,
+					},
+					// recalcThreadMetadata: most recent visible post in this thread
+					"SELECT created_at, author_name, author_id": {
+						created_at: 1700001234,
+						author_name: "alice",
+						author_id: 10,
+					},
+					// recalcForumMetadata: most recent visible thread in this forum
+					"SELECT id, subject, last_post_at, last_poster, last_poster_id": {
+						id: 42,
+						subject: "t",
+						last_post_at: 1700001234,
+						last_poster: "alice",
+						last_poster_id: 10,
+					},
+				},
+			});
+			const env = makeEnv({ DB: db });
+			const request = new Request("https://api.example.com/api/v1/me/posts/9", {
+				method: "DELETE",
+				headers: { Authorization: `Bearer ${token}` },
+			});
+			const response = await deleteMyPost(request, env);
+			expect(response.status).toBe(200);
+
+			// Thread recalc query must have run, parameterized with the
+			// post's thread_id, BEFORE the forum recalc query.
+			const threadRecalcIdx = calls.findIndex(
+				(c) =>
+					c.sql.includes("SELECT created_at, author_name, author_id") &&
+					c.sql.includes("FROM posts") &&
+					c.params[0] === 42,
+			);
+			const forumRecalcIdx = calls.findIndex(
+				(c) =>
+					c.sql.includes("SELECT id, subject, last_post_at, last_poster, last_poster_id") &&
+					c.params[0] === 7,
+			);
+			expect(threadRecalcIdx).toBeGreaterThanOrEqual(0);
+			expect(forumRecalcIdx).toBeGreaterThanOrEqual(0);
+			expect(threadRecalcIdx).toBeLessThan(forumRecalcIdx);
+		});
 	});
 
 	// ─── deleteMyThread ─────────────────────────────────────────────

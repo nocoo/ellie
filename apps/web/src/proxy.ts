@@ -177,17 +177,25 @@ async function getRequireLogin(): Promise<boolean> {
 }
 
 // ---------------------------------------------------------------------------
-// Build redirect URL respecting reverse proxy headers
+// Build redirect URL — origin is taken from `req.nextUrl` only.
 // ---------------------------------------------------------------------------
+//
+// Trusting `x-forwarded-host` / `x-forwarded-proto` here would be an open
+// redirect: any client can set those request headers, so an attacker could
+// craft a request to a public endpoint (e.g. `/threads/new` while logged out)
+// with `X-Forwarded-Host: evil.example.com` and have us emit a 3xx Location
+// pointing at `https://evil.example.com/login`. Browsers follow the Location
+// blindly. The user lands on attacker infrastructure that mimics our login
+// page.
+//
+// `req.nextUrl.origin` is derived by Next.js from the host the runtime is
+// actually serving (and overridable at deploy time via NEXT_PUBLIC_* /
+// trustHost config), not from arbitrary request headers — so we use it
+// exclusively. If a deployment ever needs to honor an upstream proxy's
+// host, it must be configured at the runtime layer, not inferred from
+// request headers in app code.
 
 export function buildRedirectUrl(req: NextRequest, pathname: string): URL {
-	const forwardedHost = req.headers.get("x-forwarded-host");
-	const forwardedProto = req.headers.get("x-forwarded-proto") || "https";
-
-	if (forwardedHost) {
-		return new URL(pathname, `${forwardedProto}://${forwardedHost}`);
-	}
-
 	return new URL(pathname, req.nextUrl.origin);
 }
 

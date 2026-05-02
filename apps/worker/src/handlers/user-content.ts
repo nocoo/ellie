@@ -5,7 +5,7 @@
 
 import type { Env } from "../lib/env";
 import { parseIdFromPath } from "../lib/parseId";
-import { recalcForumMetadata } from "../lib/recalcMetadata";
+import { recalcForumMetadata, recalcThreadMetadata } from "../lib/recalcMetadata";
 import { jsonResponse } from "../lib/response";
 import {
 	batchDecrementUserPosts,
@@ -74,7 +74,10 @@ export async function deleteMyPost(request: Request, env: Env): Promise<Response
 	// Decrement user's post count
 	await decrementUserPosts(env, user.userId);
 
-	// Recalc forum metadata
+	// Recalc thread metadata first (last_post_at / last_poster may have
+	// pointed at the deleted post), then forum metadata which derives from
+	// the per-thread aggregate.
+	await recalcThreadMetadata(env, post.thread_id);
 	await recalcForumMetadata(env, post.forum_id);
 
 	return jsonResponse({ deleted: true, id }, origin);

@@ -290,36 +290,40 @@ describe("buildRedirectUrl", () => {
 		} as Parameters<typeof buildRedirectUrl>[0];
 	}
 
-	it("uses x-forwarded-host and x-forwarded-proto when available", () => {
-		const req = makeMockRequest("https://app.example.com/path", {
-			"x-forwarded-host": "proxy.example.com",
+	it("uses request origin even when x-forwarded-host is set (open-redirect guard)", () => {
+		// An attacker can set X-Forwarded-Host on any request — we must NOT
+		// echo it back in a redirect Location header. The redirect must
+		// always anchor on the host the runtime is actually serving.
+		const req = makeMockRequest("https://app.example.com/threads/new", {
+			"x-forwarded-host": "evil.example.com",
 			"x-forwarded-proto": "https",
 		});
 		const result = buildRedirectUrl(req, "/login");
-		expect(result.href).toBe("https://proxy.example.com/login");
+		expect(result.href).toBe("https://app.example.com/login");
 	});
 
-	it("uses x-forwarded-host with https proto when x-forwarded-proto is missing", () => {
-		const req = makeMockRequest("https://app.example.com/path", {
-			"x-forwarded-host": "proxy.example.com",
+	it("ignores x-forwarded-proto entirely (cannot be used to downgrade scheme)", () => {
+		const req = makeMockRequest("https://app.example.com/threads/new", {
+			"x-forwarded-host": "app.example.com",
+			"x-forwarded-proto": "http",
 		});
 		const result = buildRedirectUrl(req, "/login");
-		expect(result.href).toBe("https://proxy.example.com/login");
+		expect(result.href).toBe("https://app.example.com/login");
 	});
 
-	it("falls back to request origin when no forwarded headers", () => {
+	it("uses request origin when no forwarded headers are present", () => {
 		const req = makeMockRequest("https://app.example.com/path");
 		const result = buildRedirectUrl(req, "/login");
 		expect(result.href).toBe("https://app.example.com/login");
 	});
 
-	it("handles custom x-forwarded-proto value", () => {
-		const req = makeMockRequest("https://app.example.com/path", {
-			"x-forwarded-host": "proxy.example.com",
-			"x-forwarded-proto": "http",
+	it("preserves the request's own scheme regardless of forwarded headers", () => {
+		const req = makeMockRequest("http://localhost:3000/threads/new", {
+			"x-forwarded-host": "evil.example.com",
+			"x-forwarded-proto": "https",
 		});
 		const result = buildRedirectUrl(req, "/login");
-		expect(result.href).toBe("http://proxy.example.com/login");
+		expect(result.href).toBe("http://localhost:3000/login");
 	});
 });
 

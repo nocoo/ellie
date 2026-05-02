@@ -3,6 +3,7 @@ import { canViewForumVisibility } from "@ellie/types";
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
+import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
 import { buildVisibilityContext, isForumActive } from "../lib/visibility";
@@ -115,13 +116,10 @@ export async function list(request: Request, env: Env): Promise<Response> {
 export const create = withVerifiedEmail(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
-	// Check user status from database (banned users cannot comment)
-	const userRow = await env.DB.prepare("SELECT status FROM users WHERE id = ?")
-		.bind(user.userId)
-		.first<{ status: number }>();
-
-	if (!userRow || userRow.status < 0) {
-		return errorResponse("FORBIDDEN", 403, { message: "You cannot post comments" }, origin);
+	// Check posting permission (banned, muted, registration days, avatar, content switch)
+	const permissionResult = await checkPostingPermission(env, user, origin, "reply");
+	if (!permissionResult.allowed) {
+		return permissionResult.error;
 	}
 
 	let body: Record<string, unknown>;
