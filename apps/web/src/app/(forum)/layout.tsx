@@ -17,6 +17,8 @@ import type { PublicUser } from "@ellie/types";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata(): Promise<Metadata> {
 	const settings = await fetchPublicSettings();
 	const siteName = getStr(settings, "general.site.name", "Ellie");
