@@ -57,6 +57,19 @@ export const userActive = (alias = "u") => `${alias}.status >= 0`;
 /** Forum active status with table prefix */
 export const forumActive = (alias = "f") => `${alias}.status = 1`;
 
+/**
+ * Runtime predicate: is this forum row publicly active?
+ * Equivalent to the SQL `forumActive(alias)` filter.
+ * Active = status === 1; everything else (hidden 0, deleted -1,
+ * paused 2, QQ-group 3, or any future unknown positive status)
+ * is treated as not active so unknown states default to hidden.
+ */
+export function isForumActive<T extends { status: number }>(
+	forum: T | null | undefined,
+): forum is T {
+	return forum != null && forum.status === 1;
+}
+
 // ─── Forum Visibility Context ────────────────────────────────
 
 /**

@@ -3,7 +3,7 @@ import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withAuthVerified, withVerifiedEmail } from "../lib/routeHelpers";
-import { POST_VISIBLE, THREAD_VISIBLE } from "../lib/visibility";
+import { POST_VISIBLE, THREAD_VISIBLE, isForumActive } from "../lib/visibility";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
@@ -103,7 +103,7 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		.bind(thread.forum_id)
 		.first<{ status: number; visibility: string }>();
 
-	if (!forumRow || forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
+	if (!isForumActive(forumRow)) {
 		return errorResponse("TARGET_NOT_FOUND", 404, { message: "Post not found" }, origin);
 	}
 

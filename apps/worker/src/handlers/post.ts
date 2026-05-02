@@ -7,7 +7,7 @@ import { toPost } from "../lib/mappers";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
-import { POST_VISIBLE, buildVisibilityContext } from "../lib/visibility";
+import { POST_VISIBLE, buildVisibilityContext, isForumActive } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 
@@ -55,7 +55,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		.bind(threadRow.forum_id)
 		.first<{ status: number; visibility: string }>();
 
-	if (!forumRow || forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
+	if (!isForumActive(forumRow)) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
 
@@ -145,7 +145,7 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 		.bind(threadRow.forum_id)
 		.first<{ status: number; visibility: string }>();
 
-	if (!forumRow || forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
+	if (!isForumActive(forumRow)) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
 
@@ -211,7 +211,7 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		.bind(thread.forum_id)
 		.first<{ status: number; visibility: string }>();
 
-	if (!forumRow || forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
+	if (!isForumActive(forumRow)) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
 

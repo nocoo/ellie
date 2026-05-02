@@ -288,7 +288,9 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 					if (sql.includes("SELECT") && sql.includes("forums") && sql.includes("WHERE id")) {
 						return {
 							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ id: 1, invisible: 0, password: null })),
+								first: vi.fn(() =>
+									Promise.resolve({ id: 1, status: 1, invisible: 0, password: null }),
+								),
 							})),
 						};
 					}
