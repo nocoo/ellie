@@ -1,10 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-	getUserProfile,
-	getUserProfiles,
-	invalidateUserCache,
-	invalidateUserCaches,
-} from "../../../src/lib/user-cache";
+import { getUserProfiles, invalidateUserCache } from "../../../src/lib/user-cache";
 import { createMockCtx, makeEnv } from "../../helpers";
 
 // KV mock that supports the "json" type parameter
@@ -212,41 +207,6 @@ describe("user-cache", () => {
 		});
 	});
 
-	describe("getUserProfile", () => {
-		it("should return undefined for non-existent user", async () => {
-			const kv = createJsonKV();
-			const db = createMockD1([]);
-			const env = makeEnv({ KV: kv, DB: db });
-			const ctx = createMockCtx();
-
-			const result = await getUserProfile(env, ctx, 999);
-
-			expect(result).toBeUndefined();
-		});
-
-		it("should return profile for existing user", async () => {
-			const kv = createJsonKV();
-			const db = createMockD1([
-				{
-					id: 1,
-					username: "alice",
-					avatar: "avatar.png",
-					role: 1,
-					group_title: "Admin",
-					group_color: "#FF0000",
-					group_stars: 9,
-				},
-			]);
-			const env = makeEnv({ KV: kv, DB: db });
-			const ctx = createMockCtx();
-
-			const result = await getUserProfile(env, ctx, 1);
-
-			expect(result).toBeDefined();
-			expect(result?.username).toBe("alice");
-		});
-	});
-
 	describe("invalidateUserCache", () => {
 		it("should delete the cache key from KV", async () => {
 			const kv = createJsonKV();
@@ -257,29 +217,6 @@ describe("user-cache", () => {
 
 			const remaining = await kv.get("user:mini:42");
 			expect(remaining).toBeNull();
-		});
-	});
-
-	describe("invalidateUserCaches", () => {
-		it("should delete multiple cache keys from KV", async () => {
-			const kv = createJsonKV();
-			await kv.put("user:mini:1", JSON.stringify({ id: 1 }));
-			await kv.put("user:mini:2", JSON.stringify({ id: 2 }));
-			await kv.put("user:mini:3", JSON.stringify({ id: 3 }));
-			const env = makeEnv({ KV: kv });
-
-			await invalidateUserCaches(env, [1, 2, 3]);
-
-			expect(await kv.get("user:mini:1")).toBeNull();
-			expect(await kv.get("user:mini:2")).toBeNull();
-			expect(await kv.get("user:mini:3")).toBeNull();
-		});
-
-		it("should handle empty array gracefully", async () => {
-			const kv = createJsonKV();
-			const env = makeEnv({ KV: kv });
-
-			await expect(invalidateUserCaches(env, [])).resolves.toBeUndefined();
 		});
 	});
 });

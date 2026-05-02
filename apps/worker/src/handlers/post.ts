@@ -4,12 +4,12 @@ import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
 import { toPost } from "../lib/mappers";
+import { clampLimit } from "../lib/pagination";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
-import { POST_VISIBLE, buildVisibilityContext } from "../lib/visibility";
+import { POST_VISIBLE, buildVisibilityContext, isForumActive } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
-import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
 /** Post cursor payload for keyset pagination */
@@ -27,7 +27,6 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const threadId = url.searchParams.get("threadId");
-	const limitParam = url.searchParams.get("limit");
 	const cursorStr = url.searchParams.get("cursor");
 
 	if (!threadId) {
@@ -56,7 +55,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		.bind(threadRow.forum_id)
 		.first<{ status: number; visibility: string }>();
 
-	if (!forumRow || forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
+	if (!isForumActive(forumRow)) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
 
@@ -70,11 +69,10 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	}
 
 	// Clamp limit to [1, 100], defaulting to 100
-	const DEFAULT_PAGE_SIZE = 100;
-	const MAX_PAGE_SIZE = 100;
-	const limitNum = limitParam ? Number.parseInt(limitParam, 10) : undefined;
-	const clampedLimit =
-		limitNum === undefined || limitNum <= 0 ? DEFAULT_PAGE_SIZE : Math.min(limitNum, MAX_PAGE_SIZE);
+	const clampedLimit = clampLimit(url.searchParams.get("limit"), {
+		defaultLimit: 100,
+		maxLimit: 100,
+	});
 
 	const cursor = cursorStr ? decodeGenericCursor<PostCursorPayload>(cursorStr, isPostCursor) : null;
 
@@ -108,22 +106,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		}
 	}
 
-	return new Response(
-		JSON.stringify({
-			data: posts,
-			meta: {
-				timestamp: Date.now(),
-				requestId: crypto.randomUUID(),
-				nextCursor,
-			},
-		}),
-		{
-			headers: {
-				...corsHeaders(origin),
-				"Content-Type": "application/json",
-			},
-		},
-	);
+	return jsonResponse(posts, origin, { nextCursor });
 }
 
 /** GET /api/v1/posts/:id - Get post by ID */
@@ -161,7 +144,7 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 		.bind(threadRow.forum_id)
 		.first<{ status: number; visibility: string }>();
 
-	if (!forumRow || forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
+	if (!isForumActive(forumRow)) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
 
@@ -174,21 +157,7 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 		);
 	}
 
-	return new Response(
-		JSON.stringify({
-			data: toPost(postRow),
-			meta: {
-				timestamp: Date.now(),
-				requestId: crypto.randomUUID(),
-			},
-		}),
-		{
-			headers: {
-				...corsHeaders(origin),
-				"Content-Type": "application/json",
-			},
-		},
-	);
+	return jsonResponse(toPost(postRow), origin);
 }
 
 /** POST /api/v1/posts - Reply to a thread (requires auth) */
@@ -241,7 +210,7 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		.bind(thread.forum_id)
 		.first<{ status: number; visibility: string }>();
 
-	if (!forumRow || forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
+	if (!isForumActive(forumRow)) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
 

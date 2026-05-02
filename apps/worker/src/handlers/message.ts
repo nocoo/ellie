@@ -3,10 +3,10 @@
 
 import { decodeGenericCursor, encodeGenericCursor } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
+import { clampLimit } from "../lib/pagination";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withAuthVerified, withVerifiedEmail } from "../lib/routeHelpers";
-import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
 // ─── Constants ───────────────────────────────────────────────
@@ -93,10 +93,10 @@ export const list = withAuthVerified(async (request, env, user) => {
 	const url = new URL(request.url);
 
 	const box = url.searchParams.get("box") === "outbox" ? "outbox" : "inbox";
-	const limitParam = url.searchParams.get("limit");
-	const limitNum = limitParam ? Number.parseInt(limitParam, 10) : undefined;
-	const clampedLimit =
-		limitNum === undefined || limitNum <= 0 ? DEFAULT_LIMIT : Math.min(limitNum, MAX_LIMIT);
+	const clampedLimit = clampLimit(url.searchParams.get("limit"), {
+		defaultLimit: DEFAULT_LIMIT,
+		maxLimit: MAX_LIMIT,
+	});
 
 	const cursorStr = url.searchParams.get("cursor");
 	const cursor = cursorStr ? decodeGenericCursor<MessageCursor>(cursorStr, isMessageCursor) : null;
@@ -147,18 +147,10 @@ export const list = withAuthVerified(async (request, env, user) => {
 		unreadCount = countResult?.count ?? 0;
 	}
 
-	return new Response(
-		JSON.stringify({
-			data: messages,
-			meta: {
-				timestamp: Date.now(),
-				requestId: crypto.randomUUID(),
-				nextCursor,
-				...(unreadCount !== undefined && { unreadCount }),
-			},
-		}),
-		{ headers: { ...corsHeaders(origin), "Content-Type": "application/json" } },
-	);
+	return jsonResponse(messages, origin, {
+		nextCursor,
+		...(unreadCount !== undefined && { unreadCount }),
+	});
 });
 
 /**

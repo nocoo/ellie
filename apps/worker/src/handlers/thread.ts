@@ -8,12 +8,18 @@ import {
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
-import { enrichThreadWithUserCache, enrichThreadsWithUserCache, toThread } from "../lib/mappers";
+import { enrichThreadsWithUserCache, toThread } from "../lib/mappers";
+import { clampLimit } from "../lib/pagination";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse, paginatedResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
 import { getUserProfiles } from "../lib/user-cache";
-import { THREAD_VISIBLE, buildVisibilityContext, threadVisible } from "../lib/visibility";
+import {
+	THREAD_VISIBLE,
+	buildVisibilityContext,
+	isForumActive,
+	threadVisible,
+} from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
@@ -87,7 +93,6 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const forumId = url.searchParams.get("forumId");
-	const limitParam = url.searchParams.get("limit");
 	const cursorStr = url.searchParams.get("cursor");
 	const pageParam = url.searchParams.get("page");
 
@@ -113,7 +118,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 	}
 
 	// Filter by status and visibility
-	if (forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
+	if (!isForumActive(forumRow)) {
 		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
 	}
 	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
@@ -126,11 +131,10 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 	}
 
 	// Clamp limit to [1, 100], defaulting to 100
-	const DEFAULT_PAGE_SIZE = 100;
-	const MAX_PAGE_SIZE = 100;
-	const limitNum = limitParam ? Number.parseInt(limitParam, 10) : undefined;
-	const clampedLimit =
-		limitNum === undefined || limitNum <= 0 ? DEFAULT_PAGE_SIZE : Math.min(limitNum, MAX_PAGE_SIZE);
+	const clampedLimit = clampLimit(url.searchParams.get("limit"), {
+		defaultLimit: 100,
+		maxLimit: 100,
+	});
 
 	const useKvCache = isKvUserCacheEnabled(env);
 
@@ -206,22 +210,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		}
 	}
 
-	return new Response(
-		JSON.stringify({
-			data: threads,
-			meta: {
-				timestamp: Date.now(),
-				requestId: crypto.randomUUID(),
-				nextCursor,
-			},
-		}),
-		{
-			headers: {
-				...corsHeaders(origin),
-				"Content-Type": "application/json",
-			},
-		},
-	);
+	return jsonResponse(threads, origin, { nextCursor });
 }
 
 /** Helper to enrich threads with user cache (only used when KV cache is enabled) */
@@ -287,7 +276,7 @@ export async function getById(
 		.bind(forumId)
 		.first<{ status: number; visibility: string }>();
 
-	if (!forumRow || forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
+	if (!isForumActive(forumRow)) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
 	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
@@ -317,7 +306,7 @@ export async function getById(
 		const userIds = [thread.authorId, thread.lastPosterId].filter((uid) => uid > 0);
 		if (userIds.length > 0) {
 			const userCache = await getUserProfiles(env, ctx, userIds);
-			thread = enrichThreadWithUserCache(thread, userCache);
+			thread = enrichThreadsWithUserCache([thread], userCache)[0] ?? thread;
 		}
 	}
 
@@ -394,7 +383,7 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		.bind(forumId)
 		.first<{ id: number; status: number; visibility: string }>();
 
-	if (!forum || forum.status <= 0 || forum.status === 2 || forum.status === 3) {
+	if (!isForumActive(forum)) {
 		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
 	}
 

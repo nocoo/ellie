@@ -57,35 +57,17 @@ export const userActive = (alias = "u") => `${alias}.status >= 0`;
 /** Forum active status with table prefix */
 export const forumActive = (alias = "f") => `${alias}.status = 1`;
 
-// ─── User Status Check ───────────────────────────────────────
-
 /**
- * Check if a user status value indicates a public/normal user.
- * Used for filtering in TypeScript code after DB fetch.
+ * Runtime predicate: is this forum row publicly active?
+ * Equivalent to the SQL `forumActive(alias)` filter.
+ * Active = status === 1; everything else (hidden 0, deleted -1,
+ * paused 2, QQ-group 3, or any future unknown positive status)
+ * is treated as not active so unknown states default to hidden.
  */
-export function isUserPublic(status: number): boolean {
-	return status >= 0;
-}
-
-/**
- * Check if a user status value indicates the user is banned.
- */
-export function isUserBanned(status: number): boolean {
-	return status === -1;
-}
-
-/**
- * Check if a user status value indicates the user is archived.
- */
-export function isUserArchived(status: number): boolean {
-	return status === -2;
-}
-
-/**
- * Check if a user status value indicates a placeholder account.
- */
-export function isUserPlaceholder(status: number): boolean {
-	return status === -3;
+export function isForumActive<T extends { status: number }>(
+	forum: T | null | undefined,
+): forum is T {
+	return forum != null && forum.status === 1;
 }
 
 // ─── Forum Visibility Context ────────────────────────────────
@@ -172,91 +154,3 @@ export function canViewForumVisibility(
 			return false;
 	}
 }
-
-// ─── Combined Filters for Common Queries ─────────────────────
-
-/**
- * SQL WHERE conditions for public thread listing.
- * Combines thread visibility + forum visibility.
- *
- * @param visCtx - Visibility context from user auth
- * @returns Object with conditions array and forum filter string
- */
-export function threadListFilters(visCtx: VisibilityContext): {
-	threadCondition: string;
-	forumCondition: string;
-	forumVisibility: string;
-} {
-	return {
-		threadCondition: threadVisible("t"),
-		forumCondition: forumActive("f"),
-		forumVisibility: buildForumVisibilityFilter(visCtx, "f"),
-	};
-}
-
-/**
- * SQL WHERE conditions for public post listing.
- * Combines post visibility + thread visibility + forum visibility.
- *
- * @param visCtx - Visibility context from user auth
- * @returns Object with all condition strings
- */
-export function postListFilters(visCtx: VisibilityContext): {
-	postCondition: string;
-	threadCondition: string;
-	forumCondition: string;
-	forumVisibility: string;
-} {
-	return {
-		postCondition: postVisible("p"),
-		threadCondition: threadVisible("t"),
-		forumCondition: forumActive("f"),
-		forumVisibility: buildForumVisibilityFilter(visCtx, "f"),
-	};
-}
-
-// ─── Status Constants for Documentation ──────────────────────
-
-/**
- * Thread sticky values and their meanings.
- */
-export const ThreadStickyLevel = {
-	PLACEHOLDER: -3, // Placeholder thread (migration artifact)
-	DELETED: -2, // Soft deleted
-	HIDDEN: -1, // Hidden by moderator
-	NORMAL: 0, // Normal thread
-	STICKY_FORUM: 1, // Sticky within forum
-	STICKY_GLOBAL: 2, // Global sticky (all forums)
-	STICKY_CATEGORY: 3, // Sticky within category
-} as const;
-
-/**
- * Post invisible values and their meanings.
- */
-export const PostInvisibleLevel = {
-	VISIBLE: 0, // Normal visible post
-	DELETED: 1, // Soft deleted
-	PENDING: 2, // Pending moderation
-	IGNORED: 3, // Ignored/spam
-} as const;
-
-/**
- * User status values and their meanings.
- */
-export const UserStatusLevel = {
-	PLACEHOLDER: -3, // Placeholder for deleted users
-	ARCHIVED: -2, // Archived account (cannot login)
-	BANNED: -1, // Banned user
-	NORMAL: 0, // Normal active user
-} as const;
-
-/**
- * Forum status values and their meanings.
- */
-export const ForumStatusLevel = {
-	DELETED: -1, // Deleted forum
-	HIDDEN: 0, // Hidden by admin
-	ACTIVE: 1, // Normal active forum
-	PAUSED: 2, // Paused (read-only)
-	QQ_GROUP: 3, // Special QQ group forum
-} as const;

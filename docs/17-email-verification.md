@@ -1,18 +1,28 @@
 # 17 — Email Verification & Read-Only Gate
 
-Status: **Revision 4 (Turnstile + write-block dialog contract)**
-Owner: Claude-02 (impl) · Codex-02 (review) · SD-SDE-A (rev4 impl) · SD-Reviewer-A (rev4 review)
-Related: `04g-user-auth.md`, `api-architecture.md`, dove webhook (`POST /api/webhook/:projectId/send`), Cloudflare Turnstile (`https://challenges.cloudflare.com/turnstile/v0/siteverify`)
+Status: **Revision 5 (Cap.js replaces Turnstile; shipped in v1.2.0)**
+Owner: Claude-02 (impl) · Codex-02 (review) · SD-SDE-A (rev4–rev5 impl) · SD-Reviewer-A (rev4–rev5 review)
+Related: `04g-user-auth.md`, `api-architecture.md`, dove webhook (`POST /api/webhook/:projectId/send`), Cap.js client widget (shared with login/register; see `apps/web/src/components/cap-widget.tsx`)
 
 ## 0. Revision History
 
-**Rev4 (2026-05-02) — Turnstile on request-code + write-block dialog contract + user-page primary entry.**
+**Rev5 (2026-05-02) — CAPTCHA unified to Cap.js (client-side only); Cloudflare Turnstile fully removed.**
+v1.2.0 shipped (`07e467e`) instead of the Turnstile-based design from rev4. The forum already uses Cap.js for login/register, and operating two CAPTCHA providers added avoidable surface area without improving the user experience. The functional model — "request-code's send button is gated by a client-side challenge, verify is not" — is preserved; what changes is the provider and the fact that **Cap.js is a client-only gate**: the request-code wire body is unchanged in structure (just `{ email }`), the Cap token is **not** forwarded to the proxy or to the Worker, and there is **no server-side Cap verification**. Backend brute-force protection continues to rely on the existing `attempts ≤ 5 / TTL 900s / CODE_LOCKED` chain, the per-user in-flight send lock, and the resend throttle.
+
+- **CAPTCHA provider switched to Cap.js (client-only).** Email-verification card embeds the same `<CapWidget>` used elsewhere (config validated by `validateCaptchaConfig(capApiEndpoint)` in `apps/web/src/viewmodels/forum/email-verification.ts`); the widget enables the "发送验证码" button only after a successful client-side challenge. The token never leaves the browser — `EmailRequestCodeBody` is still `{ email }`, `makeRequestCodeBody(email)` builds it, the Next.js proxy projects only `{ email }` onto the Worker, and the Worker has no Cap-aware code path.
+- **Worker no longer calls Cloudflare `siteverify`.** `apps/worker/src/lib/turnstile.ts` and its tests have been deleted. There are no Turnstile-specific Worker secrets/vars to provision (`TURNSTILE_SECRET_KEY` / `TURNSTILE_SITE_KEY` / `NEXT_PUBLIC_TURNSTILE_SITE_KEY` are obsolete and should be removed from any environment configuration that still references them).
+- **No change to write-block dialog contract.** The §5.4 `EMAIL_NOT_VERIFIED` payload, `redirect_to: "/me#email"`, banner, dialog, and preflight wiring all behave exactly as rev4 specified — those parts shipped in Phase 5b–7 unchanged.
+- **No change to KV record / HMAC layout / verify endpoint** — only the request-code captcha layer was swapped, and the swap is purely client-side.
+- **Doc cleanup**: rev4 sections that describe Turnstile (Status line, §0 rev4 summary, §7.2 / §7.2.1 / §9 / §11 / §12 mentions) are superseded by this rev5 entry. The rev4 prose is intentionally left in place below for historical traceability of the design decision; **implementations must follow rev5 + the v1.2.0 source of truth, not the rev4 Turnstile sections.**
+- **Manual verification (zheng-li, local)**: end-to-end flow exercised — request-code triggers a real Dove send, the code arrives, and submitting it unlocks the account.
+
+**Rev4 (2026-05-02) — Turnstile on request-code + write-block dialog contract + user-page primary entry. _Superseded by Rev5 on the CAPTCHA provider only._**
 Rev3 把流程简化为单路径并完成 prod ops clean state（5a 已 apply，1,141,587 行 zero-row audit），rev4 在不改变单流程模型的前提下补齐三块**前后端契约**，使 5b 写路由 cutover 与前端 6/7 可以并行无歧义实现：
 
 - **CAPTCHA on `request-code` only.** 采用 Cloudflare **Turnstile**：`request-code` 必须携带 `cf_turnstile_token`，Worker 调 `siteverify` 后才发码；`verify` 不加 captcha，依赖既有 `attempts ≤ 5 / TTL 900s / CODE_LOCKED` 兜底。新错误码 `400 CAPTCHA_REQUIRED` / `403 CAPTCHA_INVALID`（详见 §7.2）。新增 Worker 配置 `TURNSTILE_SECRET_KEY`（secret）+ `TURNSTILE_SITE_KEY`（vars，前端可读）。
 - **Write-block dialog contract.** 任何被 `requireVerifiedEmail` / `withVerifiedEmail` 拒绝的写请求，Worker 返回**结构化** `403 EMAIL_NOT_VERIFIED` payload（见 §5.4），其中包含 `dialog`（title/body/cta_label）+ `redirect_to`，前端据此弹同一 dialog 并跳转。前端按钮拦截与 403 兜底共享同一 payload schema。
 - **User-page primary entry.** 主入口为「用户页 → 邮箱卡片」（`/me` → `EmailVerificationCard`），写按钮 dialog 与 banner 的 CTA 一律 `redirect_to: "/me#email"`。`/verify-email` 退化为 deep link / 直链入口（依然实现，便于邮件通知或外部跳转），二者复用同一组件与 proxy routes。
-- §12 Rollout 表格按 rev4 重排（5a ✅ shipped；新增 Phase 3c Turnstile；5b 切换基于 §5.4 payload）。
+- §12 Rollout 表格按 rev4 重排（5a ✅ shipped；新增 Phase 3c Turnstile；5b 切换基于 §5.4 payload）。**Rev5 supersede**：Phase 3c Turnstile 整段作废，已被 Cap.js 复用替换；不要再按 §12 Phase 3c 安排部署任务。
 - 旧 §12 Phase 3b 标 pending 但实际 commit `35639ac` 已落地 → rev4 表格修正为 ✅ shipped。
 
 下文 §0–§16 rev3 正文保留以便对照旧决策；rev4 真正生效的契约段落（§5.4 / §7.2 / §7.2.1 / §8.2 dove `to` note / §9 / §12）已就地替换或追加。
@@ -246,9 +256,11 @@ All live under `/api/v1/users/me/email*`. All require valid JWT (`authMiddleware
 
 > **Rev3 §7.1 — REMOVED.** 旧 `POST /api/v1/users/me/email` (email-change endpoint) 不再存在。其唯一作用——把新邮箱写进 `users.email`——已被合并到 §7.2 / §7.3 流程；`users.email` 只在 §7.3 verify 成功后被一次性原子写入。
 
-### 7.2 `POST /api/v1/users/me/email/request-code` (Rev4)
+### 7.2 `POST /api/v1/users/me/email/request-code` (Rev4 → **Rev5: client-side Cap.js gate; wire body unchanged**)
 
-> **Rev4 change**: body 增加必填字段 `cf_turnstile_token`。Worker 调 Cloudflare `siteverify` 通过后才进入 dove 发送链路。详细契约见 §7.2.1。
+> **Rev5 (v1.2.0, shipped)**: the captcha layer is Cap.js and is **client-only**. `EmailRequestCodeBody` is `{ email }` (no captcha field); the proxy projects only `{ email }`; the Worker has no captcha-aware code path. The Cap widget gates the "发送验证码" button in the browser — the token never leaves the client. Backend brute-force protection continues to rely on the existing resend throttle, in-flight send lock, `attempts ≤ 5`, and KV TTL. The Turnstile-specific request body field, error codes, and §7.2.1 contract below are historical.
+
+> **Rev4 change** _(superseded)_: body 增加必填字段 `cf_turnstile_token`。Worker 调 Cloudflare `siteverify` 通过后才进入 dove 发送链路。详细契约见 §7.2.1。
 
 Request:
 ```json
@@ -291,7 +303,9 @@ Errors（rev4 集合）：
 - `403 EMAIL_ALREADY_VERIFIED` — 当前用户 `email_verified_at > 0`。rev3 单向流程下不允许已验证用户重新走此 endpoint。
 - `429 CODE_RESEND_THROTTLED`、`502 EMAIL_PROVIDER_FAILED`：同 rev3。
 
-### 7.2.1 Cloudflare Turnstile contract (Rev4)
+### 7.2.1 Cloudflare Turnstile contract (Rev4) — **Rev5: REMOVED. Cap.js used instead.**
+
+> **Rev5 (v1.2.0, shipped)**: This entire subsection is historical. v1.2.0 removed Turnstile and reused the existing Cap.js client widget pattern used by login/register (`apps/web/src/components/cap-widget.tsx`); Cap.js gates the send button in the browser only — there is **no server-side Cap verification path**. There is no Turnstile secret/var to provision, no `siteverify` HTTP call, and no `cf_turnstile_token` field. Test environments do not need Cloudflare always-pass test keys. The text below is preserved only to explain why the historical errors `400 CAPTCHA_REQUIRED` / `403 CAPTCHA_INVALID` exist in earlier commits' tests.
 
 - **Provider**：Cloudflare Turnstile（managed widget；Worker 同栈无额外可用性面）。
 - **Worker 配置**：
@@ -426,6 +440,7 @@ await fetch(`${env.DOVE_BASE_URL}/api/webhook/${env.DOVE_PROJECT_ID}/send`, {
   - `me.email_verified_at == 0` 时展开为「填邮箱 + 发送验证码 + 输入 code + 验证」单卡片。
   - `email_verified_at > 0` 时折叠为只读 badge（rev4 不提供改邮箱入口；将来由独立 RFC 加）。
   - 卡片内含 Turnstile widget（site key 来自 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`，从 Worker `TURNSTILE_SITE_KEY` 同步）。点击「发送验证码」时一并提交 token；token 过期则 reset widget。
+    > **Rev5 supersede**：v1.2.0 已改为 `<CapWidget>`（client-only gate）；前端配置改为 `capApiEndpoint`（由 `validateCaptchaConfig` 校验）。Cap token **不**通过 wire 送给 Worker，仅在浏览器内 enable 「发送验证码」按钮。无 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`。
 - `/verify-email` 路由保留，但 page body 直接挂载同一 `<EmailVerificationCard>` 组件，避免双份实现。
 - Global banner `<UnverifiedEmailBanner>`：当 cached `me.email_verified_at == 0` 时显示，CTA 链接 `/me#email`（不是 `/verify-email`）。
 - 所有写操作 affordance（发帖 / 回复 / 点评 / 私信 / 上传 / 编辑 / 举报）：
@@ -433,6 +448,7 @@ await fetch(`${env.DOVE_BASE_URL}/api/webhook/${env.DOVE_PROJECT_ID}/send`, {
   - 点击时若 `me.email_verified_at == 0` ⇒ 弹 `<EmailNotVerifiedDialog>`（payload 来自前端常量，与 §5.4 schema 一致），CTA 跳转 `/me#email`。
   - 若用户绕过前端发请求，fetch 包装层 (`apps/web/src/lib/api.ts`) 拦截 `error == "EMAIL_NOT_VERIFIED"` 并复用同一 dialog 组件。
 - Next.js proxy routes（rev4 仍只有两条）：`/api/v1/users/me/email/request-code`、`/api/v1/users/me/email/verify`。proxy 透传 body（含 `cf_turnstile_token`）与所有 5xx/4xx 原 payload，不二次加工。
+  > **Rev5 supersede**：proxy 仍是这两条路径，但 request-code body 只投影 `{ email }`（无 captcha 字段）；Cap token **不**经过 proxy/Worker。
 - 共享 type：`packages/types/src/email-verification.ts` 导出 `EmailNotVerifiedPayload` / `EmailVerifyRequestBody` / `EmailVerifySubmitBody`，前后端共用。
 
 ## 10. Migration & Backfill (Rev3)
@@ -514,8 +530,11 @@ WHERE id = ? AND email_verified_at = 0
 ### 11.3 E2E (Playwright, existing harness) (Rev4)
 
 > **Rev4 supersedes Rev3 §11.3.** 入口路径从 `/verify-email` 改为「登录后访问 `/me` 邮箱卡片」（同一 `<EmailVerificationCard>` 组件；`/verify-email` 仍可走 deep link，但 E2E 的「正常用户路径」必须验证 `/me#email` 入口 + 写按钮 dialog 拦截）。Turnstile widget 在 E2E 用 always-pass test site key（`1x00000000000000000000AA`）。
+>
+> **Rev5 supersede**：E2E 现使用 Cap.js widget，不再使用 Turnstile test site key。
 
 - Login as 邮箱已清空的 seed user → banner 可见 → 点击「发帖」按钮触发 `<EmailNotVerifiedDialog>` → CTA 跳到 `/me#email` → 卡片输入 email + Turnstile auto-pass + 「发送验证码」 → 输入 code + 提交 → 解锁 → 后续 POST /threads 成功。
+  > **Rev5 supersede**：「Turnstile auto-pass」一步替换为 Cap.js widget 的客户端挑战；其余流程一致。
 - 邮箱冲突路径：seed 用户 A 已验证 `a@x.io`；seed 用户 B 走 `/me#email` 流程到 verify 时输入同一 email → 收到 `EMAIL_ALREADY_IN_USE`，重输不同 email 后成功。
 - email mismatch 路径：在 `/me#email` 发完 code 后改 email 再提交 → `EMAIL_CODE_EMAIL_MISMATCH`，提示重发。
 - 后端 403 兜底路径：用 fetch 直接 POST /threads（绕过前端按钮）→ Worker 返回 §5.4 payload → 前端 fetch 包装层弹同一 dialog → CTA 跳 `/me#email`。
@@ -532,6 +551,8 @@ WHERE id = ? AND email_verified_at = 0
 
 ## 12. Rollout (Rev4)
 
+> **Rev5 status (v1.2.0, shipped `07e467e`)**: All Phase 1–7 work has shipped. Phase 3c (Turnstile on Worker) was **not shipped as designed** — it was replaced by reusing the existing Cap.js client integration. Phases 5b / 6 / 7 shipped without any Turnstile dependency. Treat the table below as historical: read it for context, don't use it as a deploy plan. Live deploy artifacts are in `CHANGELOG.md` v1.2.0 and the v1.2.0 release commit.
+
 | Phase | Commit subject | Status / Notes |
 |---|---|---|
 | 1 | `feat(db): add email verification columns (migration 0028)` | ✅ shipped (`0a6641e`). 见 §12.1。 |
@@ -540,11 +561,11 @@ WHERE id = ? AND email_verified_at = 0
 | 3b | `feat(worker): request email verification for pending address` | ✅ shipped (`35639ac`). request-code/verify 已接收 `body.email`，pending 走 KV，conditional UPDATE 落库；唯一索引 catch ⇒ `409 EMAIL_ALREADY_IN_USE`。|
 | 4 | `feat(db): unique partial index on email_normalized (migration 0029)` | ✅ shipped (`73be123`). |
 | 5a | (ops) clear `email / email_normalized / email_verified_at / email_changed_at` on prod tongjinet-db | ✅ **shipped 2026-05-02** (zheng-li authorized → SD-SDE-A apply). dry-run/apply/verify 三段全部为 0；1,141,587 行 zero-row audit；`changed_db=false`。详见对话线程 / ops audit。|
-| **5b-docs** | `docs(17): rev4 — Turnstile + EMAIL_NOT_VERIFIED dialog payload + user-page primary entry` | 🟡 **in review** — 本 commit。仅文档契约，不动代码。SD-Reviewer-A review 通过后再开下面任一代码 phase。|
-| 3c | `feat(worker): turnstile captcha on email request-code` | ⏳ pending. 实现 §7.2.1：`TURNSTILE_SECRET_KEY` secret + `TURNSTILE_SITE_KEY` var；`request-code` 校验 `cf_turnstile_token` → siteverify → fail-closed `403 CAPTCHA_INVALID`。`verify` 不动。单测 + fail-closed test。|
-| 5b | `feat(worker): enforce verification on write routes` | ⏳ pending. §5.2 路由切到 `requireVerifiedEmail` / `withVerifiedEmail`，扩展 `moderationMiddleware`；统一返回 §5.4 payload。User-visible cutover。3c 与 5b 在 review 上独立但 deploy 顺序：3c 先于 5b（前端依赖 site key）。**See also §12.2 deploy ordering.**|
-| 6 | `feat(web): EmailVerificationCard on /me + /verify-email page + proxy routes` | ⏳ pending. §9 单组件 + Turnstile widget + proxy 透传 token。`/me#email` 为主入口；`/verify-email` 仅 deep link。|
-| 7 | `feat(web): write-affordance dialog (EMAIL_NOT_VERIFIED) + banner` | ⏳ pending. §5.4 dialog payload 双保险（前端按钮拦 + fetch 包装层 403 拦）；统一 CTA → `/me#email`。|
+| **5b-docs** | `docs(17): rev4 — Turnstile + EMAIL_NOT_VERIFIED dialog payload + user-page primary entry` | ✅ **shipped** as part of rev4 doc commit; **Rev5 shipped** in this revision (v1.2.0 docs update). |
+| 3c | `feat(worker): turnstile captcha on email request-code` | ⛔ **Rev5: not shipped (replaced)** — Turnstile integration was abandoned in favor of reusing Cap.js (the same client widget used by login/register). No Worker-side `siteverify`, no `TURNSTILE_*` config. |
+| 5b | `feat(worker): enforce verification on write routes` | ✅ **Rev5 shipped in v1.2.0**: §5.2 写路由 enforce `requireVerifiedEmail` / `withVerifiedEmail`，统一返回 §5.4 payload。User-visible cutover 已发生。Rev4 原文里的 "3c 必须先于 5b" 前置条件已作废（无 3c）。|
+| 6 | `feat(web): EmailVerificationCard on /me + /verify-email page + proxy routes` | ✅ **Rev5 shipped in v1.2.0**: §9 单组件 + Cap.js widget（**client-only gate, not** Turnstile, not server-verified）+ proxy 仅投影 `{ email }`。`/me#email` 为主入口；`/verify-email` 仅 deep link。|
+| 7 | `feat(web): write-affordance dialog (EMAIL_NOT_VERIFIED) + banner` | ✅ **Rev5 shipped in v1.2.0**: §5.4 dialog payload 双保险（写按钮 preflight + api-client 403 兜底）；统一 CTA → `/me#email`；server-rendered banner 也已上。|
 
 **Removed in rev4：** rev2 §12 中的 4b backfill scripts、原 Phase 5 `feat(worker): email-change endpoint (7.1)`、§6 quota（rev3 已删）。
 
@@ -570,12 +591,14 @@ No behavioral code changes in phase 1. Phase 1 is reviewable as "schema + type +
 
 ### 12.2 Commit-merge order vs production cutover order (Rev4)
 
+> **Rev5 (v1.2.0)**: All listed phases shipped to main; "Phase 3c Turnstile" rows below are historical (no Turnstile was deployed). Worker deploys no longer require any `TURNSTILE_*` provisioning. Cap.js was already deployed for login/register, so the email-verification card piggybacks on the existing Cap config.
+
 **Commit / merge order**（review 单元，可顺序合入 main，不直接对用户生效）：3c → 5b → 6 → 7。每个独立 commit，独立 review，可背靠背合入。
 
 **Production cutover order**（user-visible 启用，必须串行并满足前置条件）：
 
-1. Phase 3c worker 部署到 prod（Turnstile secret/var 已配齐）。
-2. Phase 6 web 部署到 prod（`/me#email` 卡片 + Turnstile widget + proxy 已上）。
+1. ~~Phase 3c worker 部署到 prod（Turnstile secret/var 已配齐）。~~ **Rev5**: dropped — no Turnstile deploy needed.
+2. Phase 6 web 部署到 prod（`/me#email` 卡片 + Cap widget + proxy 已上）。  _(Rev4 原文写 Turnstile widget；Rev5 改为 Cap.js)_
 3. Phase 7 web 部署到 prod（dialog + banner + fetch 包装层 403 兜底已上）。
 4. Dove ops 前置条件全部满足：Ellie project `allow_unknown_recipients = 1`、`§11.4` controlled smoke 已 record evidence。
 5. **最后**才启用 Phase 5b：worker 把写路由切到 `requireVerifiedEmail` / `withVerifiedEmail`。

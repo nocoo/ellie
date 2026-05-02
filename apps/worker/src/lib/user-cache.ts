@@ -101,24 +101,6 @@ export async function getUserProfiles(
 }
 
 /**
- * Get a single user profile from KV cache with DB fallback.
- * Convenience wrapper around getUserProfiles for single user lookups.
- *
- * @param env - Worker environment
- * @param ctx - ExecutionContext for non-blocking KV writes
- * @param userId - User ID to fetch
- * @returns UserMiniProfile or undefined if not found
- */
-export async function getUserProfile(
-	env: Env,
-	ctx: ExecutionContext,
-	userId: number,
-): Promise<UserMiniProfile | undefined> {
-	const profiles = await getUserProfiles(env, ctx, [userId]);
-	return profiles.get(userId);
-}
-
-/**
  * Invalidate user cache when profile changes.
  * Call this after admin updates username, avatar, or role.
  *
@@ -127,14 +109,4 @@ export async function getUserProfile(
  */
 export async function invalidateUserCache(env: Env, userId: number): Promise<void> {
 	await env.KV.delete(`${USER_CACHE_PREFIX}${userId}`);
-}
-
-/**
- * Batch invalidate user caches.
- *
- * @param env - Worker environment
- * @param userIds - Array of user IDs whose caches to invalidate
- */
-export async function invalidateUserCaches(env: Env, userIds: number[]): Promise<void> {
-	await Promise.all(userIds.map((id) => env.KV.delete(`${USER_CACHE_PREFIX}${id}`)));
 }
