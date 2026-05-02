@@ -53,6 +53,8 @@ export type {
 	EmailNotVerifiedCtaVariant,
 	EmailNotVerifiedDialog,
 	EmailNotVerifiedPayload,
+	EmailRequestCodeBody,
+	EmailVerifyCodeBody,
 } from "./email-verification";
 export {
 	EMAIL_NOT_VERIFIED_PAYLOAD,

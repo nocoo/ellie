@@ -8,6 +8,8 @@ import { describe, expect, it } from "vitest";
 import {
 	EMAIL_NOT_VERIFIED_PAYLOAD,
 	type EmailNotVerifiedPayload,
+	type EmailRequestCodeBody,
+	type EmailVerifyCodeBody,
 	cloneEmailNotVerifiedPayload,
 } from "../src/email-verification";
 
@@ -68,5 +70,34 @@ describe("cloneEmailNotVerifiedPayload — defensive copy", () => {
 		// Mutate the clone — the constant must be unaffected.
 		a.dialog.title = "MUTATED";
 		expect(EMAIL_NOT_VERIFIED_PAYLOAD.dialog.title).toBe("需要验证邮箱");
+	});
+});
+
+describe("EmailRequestCodeBody / EmailVerifyCodeBody — wire shape (docs/17 §7.2 / §7.3, §9)", () => {
+	it("EmailRequestCodeBody carries email + cf_turnstile_token, both string", () => {
+		// Compile-time + structural check. Worker handler still validates at runtime.
+		const body: EmailRequestCodeBody = {
+			email: "user@example.com",
+			cf_turnstile_token: "tok_abc",
+		};
+		expect(typeof body.email).toBe("string");
+		expect(typeof body.cf_turnstile_token).toBe("string");
+		// Required fields — listing them here is intentional. If the contract
+		// grows a field, this test must be updated alongside docs §7.2.
+		expect(Object.keys(body).sort()).toEqual(["cf_turnstile_token", "email"]);
+	});
+
+	it("EmailVerifyCodeBody carries email + code (no captcha at submit time)", () => {
+		const body: EmailVerifyCodeBody = {
+			email: "user@example.com",
+			code: "123456",
+		};
+		expect(typeof body.email).toBe("string");
+		expect(typeof body.code).toBe("string");
+		expect(Object.keys(body).sort()).toEqual(["code", "email"]);
+		// Guard against accidental captcha re-introduction at the verify step:
+		// captcha was already burned at request-code time, adding it here only
+		// frustrates the legitimate user.
+		expect((body as Record<string, unknown>).cf_turnstile_token).toBeUndefined();
 	});
 });
