@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-05-02
+
+### Added
+
+- **Email verification flow**: Request-code + verify endpoints with HMAC-signed codes, KV-backed state, and Dove email relay integration
+- **Email verification UI**: `EmailVerificationCard` on `/me` and `/verify-email` pages with 6-digit code input
+- **Email verification gate**: `withVerifiedEmail` middleware rejects unverified users on write endpoints (§5.4 dialog)
+- **EmailVerificationBanner**: Server-rendered banner nudging unverified users to verify
+- **EmailVerificationDialog**: Client-side dialog triggered on §5.4 403 responses
+
+### Changed
+
+- **CAPTCHA unified to Cap.js**: Replaced Cloudflare Turnstile with Cap.js for email verification (client-side only gate, matching login/register pattern)
+- **FOUC prevention**: Externalized inline script to `public/fouc.js`
+- **Button variants**: Extracted `buttonVariants` to dedicated module
+
+### Fixed
+
+- **Cap widget event listeners**: Fixed listeners not attaching after mount (stable refs + `[mounted]` dependency)
+- **KV send-lock TTL**: Raised from 10s to 60s (Cloudflare KV minimum)
+
 ## [1.1.0] - 2026-04-12
 
 ### Added
