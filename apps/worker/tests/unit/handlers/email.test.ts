@@ -7,10 +7,21 @@ import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 
 // Module-level dove stub. Behavior is encoded in `env.DOVE_PROJECT_ID` so each
 // test (which owns its own env) gets isolated behavior under --concurrent.
+// We also record the LAST input the handler passed to `sendDoveEmail`, keyed by
+// env, so handler-contract tests can assert on `to` / `template` / `variables`
+// without coupling to dove client internals.
+interface RecordedDoveInput {
+	to: string;
+	template: string;
+	idempotencyKey: string;
+	variables: Record<string, string>;
+}
 const doveCallsByEnv = new WeakMap<object, number>();
+const lastDoveInputByEnv = new WeakMap<object, RecordedDoveInput>();
 mock.module("../../../src/lib/dove", () => ({
-	sendDoveEmail: async (env: { DOVE_PROJECT_ID?: string }) => {
+	sendDoveEmail: async (env: { DOVE_PROJECT_ID?: string }, input: RecordedDoveInput) => {
 		doveCallsByEnv.set(env, (doveCallsByEnv.get(env) ?? 0) + 1);
+		lastDoveInputByEnv.set(env, input);
 		if (env.DOVE_PROJECT_ID === "fail") {
 			return { ok: false, code: "recipient_not_found", status: 404 };
 		}
@@ -175,11 +186,14 @@ beforeEach(() => {
 	}) as unknown as typeof fetch;
 });
 
-function stubDoveOk(env: Env): { calls: number } {
+function stubDoveOk(env: Env): { calls: number; lastInput: RecordedDoveInput | undefined } {
 	env.DOVE_PROJECT_ID = "ellie";
 	return {
 		get calls() {
 			return doveCallsByEnv.get(env) ?? 0;
+		},
+		get lastInput() {
+			return lastDoveInputByEnv.get(env);
 		},
 	};
 }
@@ -283,6 +297,48 @@ describe("requestCode (POST /api/v1/users/me/email/request-code) — rev3", () =
 		expect(rec.expiresAt - rec.lastSentAt).toBe(CODE_TTL_SECONDS);
 		// In-flight lock must be released after a successful send.
 		expect(await kv.get(sendLockKvKey(7))).toBeNull();
+	});
+
+	it("(rev4 §8) sends to the user-provided pendingEmail with template slug `verify-email` and ONLY the `code` variable", async () => {
+		const { env } = makeEnv({
+			dbUser: { role: 0, status: 0, email_verified_at: 0 },
+		});
+		const dove = stubDoveOk(env);
+		const res = await requestCode(
+			await makeRequest("/x", reqCodeBody({ email: "User@Example.COM" })),
+			env,
+		);
+		expect(res.status).toBe(200);
+
+		const last = dove.lastInput;
+		expect(last).toBeDefined();
+		if (!last) return;
+		// Recipient is the EXACT display form the user typed (NOT users.email,
+		// NOT the normalized form). docs/17 §8 + §7.2.
+		expect(last.to).toBe("User@Example.COM");
+		// Default slug when env.DOVE_TEMPLATE_SLUG is unset.
+		expect(last.template).toBe("verify-email");
+		// Variables: ONLY `code`. No username / expires_in_minutes / extras.
+		expect(Object.keys(last.variables).sort()).toEqual(["code"]);
+		expect(last.variables.code).toMatch(/^\d{6}$/);
+		// Idempotency key shape: `${userId}:${first16OfCodeHmac}`.
+		expect(last.idempotencyKey).toMatch(/^7:[0-9a-f]{16}$/);
+	});
+
+	it("(rev4 §8) honors env.DOVE_TEMPLATE_SLUG override so ops can swap templates without a deploy", async () => {
+		const { env } = makeEnv({
+			dbUser: { role: 0, status: 0, email_verified_at: 0 },
+		});
+		const dove = stubDoveOk(env);
+		env.DOVE_TEMPLATE_SLUG = "verify-email-canary";
+		const res = await requestCode(
+			await makeRequest("/x", reqCodeBody({ email: "user@example.com" })),
+			env,
+		);
+		expect(res.status).toBe(200);
+		expect(dove.lastInput?.template).toBe("verify-email-canary");
+		// Variables remain locked to `{ code }` regardless of slug override.
+		expect(Object.keys(dove.lastInput?.variables ?? {})).toEqual(["code"]);
 	});
 
 	it("does NOT touch users.email (rev3 — pending lives in KV only)", async () => {

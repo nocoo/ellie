@@ -367,12 +367,13 @@ Body: { "template": "<slug>", "to": "<email>", "idempotency_key": "<uuid>", "var
 
 ### 8.1 Worker-side wiring
 
-- Add three secrets/vars to `apps/worker/wrangler.toml` (development & production):
-  - `DOVE_BASE_URL` — e.g. `https://dove.example.com`
+- Add four secrets/vars to `apps/worker/wrangler.toml` (development & production):
+  - `DOVE_BASE_URL` — e.g. `https://dove.hexly.ai`
   - `DOVE_PROJECT_ID`
+  - `DOVE_TEMPLATE_SLUG` — plain var so ops can swap templates without a code deploy.
   - `DOVE_WEBHOOK_TOKEN` — secret, set via `wrangler secret put`.
 - Add a Worker secret `EMAIL_VERIFY_HMAC_KEY` (see §6.2).
-- Add a template in dove (out-of-band, manual) with slug `ellie-email-verify` and variables `{ code, expires_in_minutes, username }`.
+- Add a template in dove (out-of-band, manual) with slug `verify-email` and a single string variable `{ code }`.
 
 ### 8.1a Recipient whitelist — RESOLVED (Option A) (Rev3)
 
@@ -401,13 +402,11 @@ await fetch(`${env.DOVE_BASE_URL}/api/webhook/${env.DOVE_PROJECT_ID}/send`, {
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
-    template: "ellie-email-verify",
+    template: env.DOVE_TEMPLATE_SLUG || "verify-email",
     to: pendingEmail,              // KV pendingEmail (display form). NOT user.email — see note below.
     idempotency_key: idempotencyKey,
     variables: {
       code: plaintextCode,
-      expires_in_minutes: "15",
-      username: user.username,
     },
   }),
 });

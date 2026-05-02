@@ -34,6 +34,12 @@ export interface Env {
 	/** Dove webhook bearer token (set via `wrangler secret put DOVE_WEBHOOK_TOKEN`). */
 	DOVE_WEBHOOK_TOKEN?: string;
 	/**
+	 * Dove template slug used for verification emails (docs/17 §8). Plain var
+	 * so ops can swap templates without a code deploy. The template MUST accept
+	 * a single `code` string variable.
+	 */
+	DOVE_TEMPLATE_SLUG?: string;
+	/**
 	 * Cloudflare Turnstile shared secret (docs/17 §7.2.1 — rev4).
 	 * Set via `wrangler secret put TURNSTILE_SECRET_KEY`. Test environment
 	 * uses Cloudflare's documented always-pass test secret
