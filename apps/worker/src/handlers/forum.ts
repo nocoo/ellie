@@ -3,7 +3,7 @@ import type { ForumVisibility } from "@ellie/types";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
 import { enrichForumsWithUserCache, parseModeratorIds, toForum } from "../lib/mappers";
 import { getUserProfiles } from "../lib/user-cache";
-import { THREAD_VISIBLE, buildVisibilityContext } from "../lib/visibility";
+import { THREAD_VISIBLE, buildVisibilityContext, isForumActive } from "../lib/visibility";
 
 // Forum handlers for Cloudflare Worker
 import { optionalAuthVerified } from "../middleware/auth";
@@ -233,7 +233,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 	// Also filter by status: hide admin-hidden (0), deleted (-1), paused (2), QQ group (3)
 	forums = forums.filter((f) => {
 		// Status filter
-		if (f.status <= 0 || f.status === 2 || f.status === 3) return false;
+		if (!isForumActive(f)) return false;
 		// Visibility filter
 		return canViewForumVisibility(f.visibility as ForumVisibility, visCtx);
 	});
@@ -291,7 +291,7 @@ export async function getById(
 	let forum = toForum(r);
 
 	// Check status and visibility
-	if (forum.status <= 0 || forum.status === 2 || forum.status === 3) {
+	if (!isForumActive(forum)) {
 		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
 	}
 	if (!canViewForumVisibility(forum.visibility as ForumVisibility, visCtx)) {

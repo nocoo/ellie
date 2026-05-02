@@ -10,6 +10,7 @@ import {
 	buildVisibilityContext,
 	canViewForumVisibility,
 	forumActive,
+	isForumActive,
 	postVisible,
 	threadVisible,
 	userActive,
@@ -149,5 +150,29 @@ describe("canViewForumVisibility", () => {
 
 	it("unknown visibility returns false", () => {
 		expect(canViewForumVisibility("unknown" as never, admin)).toBe(false);
+	});
+});
+
+// ─── isForumActive ─────────────────────────────────────────
+
+describe("isForumActive", () => {
+	it("returns true only for status === 1", () => {
+		expect(isForumActive({ status: 1 })).toBe(true);
+	});
+
+	it("returns false for documented inactive statuses", () => {
+		expect(isForumActive({ status: 0 })).toBe(false); // hidden by admin
+		expect(isForumActive({ status: -1 })).toBe(false); // deleted
+		expect(isForumActive({ status: 2 })).toBe(false); // paused
+		expect(isForumActive({ status: 3 })).toBe(false); // QQ group
+	});
+
+	it("returns false for unknown future positive statuses (safe default)", () => {
+		expect(isForumActive({ status: 4 })).toBe(false);
+	});
+
+	it("returns false for null/undefined", () => {
+		expect(isForumActive(null)).toBe(false);
+		expect(isForumActive(undefined)).toBe(false);
 	});
 });

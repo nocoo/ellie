@@ -13,7 +13,12 @@ import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse, paginatedResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
 import { getUserProfiles } from "../lib/user-cache";
-import { THREAD_VISIBLE, buildVisibilityContext, threadVisible } from "../lib/visibility";
+import {
+	THREAD_VISIBLE,
+	buildVisibilityContext,
+	isForumActive,
+	threadVisible,
+} from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
@@ -113,7 +118,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 	}
 
 	// Filter by status and visibility
-	if (forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
+	if (!isForumActive(forumRow)) {
 		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
 	}
 	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
@@ -272,7 +277,7 @@ export async function getById(
 		.bind(forumId)
 		.first<{ status: number; visibility: string }>();
 
-	if (!forumRow || forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
+	if (!isForumActive(forumRow)) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
 	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
@@ -379,7 +384,7 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		.bind(forumId)
 		.first<{ id: number; status: number; visibility: string }>();
 
-	if (!forum || forum.status <= 0 || forum.status === 2 || forum.status === 3) {
+	if (!isForumActive(forum)) {
 		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
 	}
 

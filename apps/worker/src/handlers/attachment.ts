@@ -3,7 +3,7 @@ import { canViewForumVisibility } from "@ellie/types";
 import type { ForumVisibility } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { toAttachment } from "../lib/mappers";
-import { buildVisibilityContext } from "../lib/visibility";
+import { buildVisibilityContext, isForumActive } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
@@ -44,7 +44,7 @@ export async function listByPost(request: Request, env: Env): Promise<Response> 
 		.bind(thread.forum_id)
 		.first<{ status: number; visibility: string }>();
 
-	if (!forumRow || forumRow.status <= 0 || forumRow.status === 2 || forumRow.status === 3) {
+	if (!isForumActive(forumRow)) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
 
