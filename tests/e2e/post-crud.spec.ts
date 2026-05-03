@@ -26,11 +26,12 @@ test.describe("E2E-PR: Post CRUD", () => {
 		await threadPage.replyButton.click();
 		await expect(threadPage.replyDialog).toBeVisible();
 
-		// Fill reply content
+		// Fill reply content — wait for TipTap ProseMirror to be ready
 		const uniqueReply = `E2E Reply ${Date.now()}`;
-		const editor = threadPage.replyDialog.locator('[contenteditable="true"], textarea').first();
+		const editor = threadPage.replyDialog.locator(".ProseMirror[contenteditable='true']");
+		await expect(editor).toBeVisible();
 		await editor.click();
-		await editor.pressSequentially(uniqueReply);
+		await page.keyboard.type(uniqueReply);
 
 		// Submit
 		const submitBtn = threadPage.replyDialog.getByRole("button", { name: /发送回复/ });
@@ -45,7 +46,7 @@ test.describe("E2E-PR: Post CRUD", () => {
 		await page.waitForLoadState("networkidle");
 
 		// Find our reply text
-		await expect(page.getByText(uniqueReply)).toBeVisible({ timeout: 10000 });
+		await expect(page.getByText(uniqueReply).first()).toBeVisible({ timeout: 10000 });
 	});
 
 	/**
@@ -78,11 +79,12 @@ test.describe("E2E-PR: Post CRUD", () => {
 		await expect(dialog.getByText("编辑回复")).toBeVisible();
 
 		// Clear and type new content
-		const editor = dialog.locator('[contenteditable="true"]').first();
+		const editor = dialog.locator(".ProseMirror[contenteditable='true']");
+		await expect(editor).toBeVisible();
 		await editor.click();
 		await page.keyboard.press("Meta+A");
 		const editedContent = `Edited E2E Reply ${Date.now()}`;
-		await editor.pressSequentially(editedContent);
+		await page.keyboard.type(editedContent);
 
 		// Submit via the editor's submit mechanism (Enter or button)
 		// PostEditor has an internal submit button
