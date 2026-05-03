@@ -44,6 +44,14 @@ export interface UseReplySubmitReturn {
 export interface UseReplySubmitOptions {
 	/** Thread ID to reply to */
 	threadId: number;
+	/** Close the dialog before navigating */
+	onClose?: () => void;
+	/** Quoted content (plain text snippet) */
+	quotedContent?: string;
+	/** Quoted author name */
+	quotedAuthor?: string;
+	/** Quoted post time */
+	quotedTime?: string;
 	/** Minimum content length (default: 2) */
 	minContentLength?: number;
 }
@@ -122,6 +130,10 @@ export async function submitReply(threadId: number, content: string): Promise<Po
  */
 export function useReplySubmit({
 	threadId,
+	onClose,
+	quotedContent,
+	quotedAuthor,
+	quotedTime,
 	minContentLength = 2,
 }: UseReplySubmitOptions): UseReplySubmitReturn {
 	const router = useRouter();
@@ -147,17 +159,19 @@ export function useReplySubmit({
 			setError(null);
 
 			try {
-				const post = await submitReply(threadId, html);
+				const quoteHtml = buildQuotedContent(quotedContent, quotedAuthor, quotedTime);
+				const finalContent = quoteHtml ? quoteHtml + html : html;
+				const post = await submitReply(threadId, finalContent);
+				onClose?.();
 				router.push(`/threads/${threadId}?last=1#post-${post.id}`);
 			} catch (err) {
 				const code = err instanceof ApiError ? err.code : undefined;
 				const message = getErrorMessage(code, "reply");
 				setError(message);
-			} finally {
 				setSubmitting(false);
 			}
 		},
-		[threadId, minContentLength, router],
+		[threadId, minContentLength, quotedContent, quotedAuthor, quotedTime, onClose, router],
 	);
 
 	return {
