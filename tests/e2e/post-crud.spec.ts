@@ -8,7 +8,7 @@ import { ThreadPage } from "./pages/thread.page";
 test.describe.configure({ mode: "serial" });
 
 test.describe("E2E-PR: Post CRUD", () => {
-	const THREAD_ID = 662174; // L3 navigation thread from seed
+	const THREAD_ID = 1; // Thread 1 has only 1 post in seed — reply will appear on page 1
 
 	/**
 	 * E2E-PR-01: Reply to Thread
