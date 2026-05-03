@@ -11,6 +11,17 @@ vi.mock("@/lib/forum-api", () => ({
 	publicUserToUser: vi.fn((u: any) => u),
 }));
 
+vi.mock("@/lib/forum-data", async () => {
+	const { forumApi } = await import("@/lib/forum-api");
+	return {
+		getForumList: async () => {
+			const res = await (forumApi as any).getAll("/api/v1/forums");
+			return res.data;
+		},
+		getThreadById: vi.fn(),
+	};
+});
+
 import { forumApi } from "@/lib/forum-api";
 import { loadNewThreadPageData } from "@/viewmodels/forum/new-thread.server";
 
@@ -58,7 +69,7 @@ const mockForums = [
 describe("loadNewThreadPageData", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		mockForumApi.get.mockResolvedValue({ data: mockForums });
+		mockForumApi.getAll.mockResolvedValue({ data: mockForums });
 	});
 
 	it("returns forumId and forumName for existing forum", async () => {

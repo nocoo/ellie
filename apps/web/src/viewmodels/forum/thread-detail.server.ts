@@ -1,11 +1,13 @@
 // viewmodels/forum/thread-detail.server.ts — Server-only data loader for thread detail
-// Calls Worker API (GET /api/v1/threads/:id + GET /api/v1/posts + GET /api/v1/posts/:id/attachments + GET /api/v1/users/:id).
+// Calls Worker API (GET /api/v1/threads/:id + GET /api/v1/posts + GET /api/v1/forums
+//   + POST /api/v1/posts/attachments/batch + GET /api/v1/users/batch).
 
 import "server-only";
 
 import { forumApi, publicUserToUser } from "@/lib/forum-api";
 import { getCurrentForumUser } from "@/lib/forum-auth";
 import { buildThreadBreadcrumbs } from "@/lib/forum-breadcrumbs";
+import { getForumList, getThreadById } from "@/lib/forum-data";
 import { getPostsPerPage } from "@/lib/forum-settings";
 import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import {
@@ -61,20 +63,19 @@ export async function loadThreadDetail(params: {
 	// Fetch current user session and posts per page setting
 	const [sessionUser, defaultLimit] = await Promise.all([getCurrentForumUser(), getPostsPerPage()]);
 
-	// Parallel fetch: thread + posts + forums
-	const [threadRes, postsRes, forumsRes] = await Promise.all([
-		forumApi.get<Thread>(`/api/v1/threads/${params.threadId}`),
+	// Parallel fetch: thread + posts + forums (thread & forums deduped via React cache)
+	const [thread, postsRes, forums] = await Promise.all([
+		getThreadById(params.threadId),
 		forumApi.getCursor<Post>("/api/v1/posts", {
 			threadId: params.threadId,
 			limit: params.limit ?? defaultLimit,
 			cursor: params.cursor,
 			last: params.last ? "1" : undefined,
 		}),
-		forumApi.getAll<Forum>("/api/v1/forums"),
+		getForumList(),
 	]);
 
-	const thread = threadRes.data;
-	const forum = forumsRes.data.find((f) => f.id === thread.forumId) ?? null;
+	const forum = forums.find((f) => f.id === thread.forumId) ?? null;
 
 	// Build current user object for permission checks
 	let currentUser: User | null = null;
@@ -172,13 +173,13 @@ export async function loadThreadDetail(params: {
 	);
 
 	// Build breadcrumbs from forum ancestors
-	const ancestors = findForumAncestors(forumsRes.data, thread.forumId);
+	const ancestors = findForumAncestors(forums, thread.forumId);
 	const breadcrumbs = buildThreadBreadcrumbs(ancestors, thread.subject);
 
 	return {
 		thread,
 		forum,
-		forums: forumsRes.data,
+		forums,
 		posts,
 		nextCursor: postsRes.meta.nextCursor,
 		prevCursor: null, // Worker v1 does not support backward pagination

@@ -1,20 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/forum-api", () => ({
-	forumApi: {
-		get: vi.fn(),
-		getAll: vi.fn(),
-		getCursor: vi.fn(),
-		getPage: vi.fn(),
-		postAuth: vi.fn(),
-	},
-	publicUserToUser: vi.fn((u: any) => u),
+vi.mock("@/lib/forum-data", () => ({
+	getForumList: vi.fn(),
+	getThreadById: vi.fn(),
 }));
 
-import { forumApi } from "@/lib/forum-api";
+import { getForumList } from "@/lib/forum-data";
 import { loadForumList } from "@/viewmodels/forum/forum-list.server";
 
-const mockForumApi = forumApi as any;
+const mockGetForumList = getForumList as ReturnType<typeof vi.fn>;
 
 describe("loadForumList", () => {
 	beforeEach(() => {
@@ -60,10 +54,10 @@ describe("loadForumList", () => {
 				todayPosts: 0,
 			},
 		];
-		mockForumApi.getAll.mockResolvedValue({ data: forums });
+		mockGetForumList.mockResolvedValue(forums);
 
 		const result = await loadForumList();
-		expect(mockForumApi.getAll).toHaveBeenCalledWith("/api/v1/forums");
+		expect(mockGetForumList).toHaveBeenCalled();
 		expect(Array.isArray(result)).toBe(true);
 		expect(result.length).toBeGreaterThan(0);
 		expect(result[0].id).toBe(1);
@@ -109,7 +103,7 @@ describe("loadForumList", () => {
 				todayPosts: 0,
 			},
 		];
-		mockForumApi.getAll.mockResolvedValue({ data: forums });
+		mockGetForumList.mockResolvedValue(forums);
 
 		const result = await loadForumList();
 		expect(result.length).toBe(1);
@@ -117,7 +111,7 @@ describe("loadForumList", () => {
 	});
 
 	it("returns empty array for empty forums", async () => {
-		mockForumApi.getAll.mockResolvedValue({ data: [] });
+		mockGetForumList.mockResolvedValue([]);
 		const result = await loadForumList();
 		expect(result).toEqual([]);
 	});

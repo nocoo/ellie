@@ -5,6 +5,7 @@ import "server-only";
 
 import { forumApi } from "@/lib/forum-api";
 import { buildForumBreadcrumbs } from "@/lib/forum-breadcrumbs";
+import { getForumList } from "@/lib/forum-data";
 import { getPageSize } from "@/lib/forum-settings";
 import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import {
@@ -47,9 +48,9 @@ export async function loadThreadList(params: {
 	// Get page size from settings
 	const defaultLimit = await getPageSize();
 
-	// Parallel fetch: forum tree + threads
-	const [forumsRes, threadsRes] = await Promise.all([
-		forumApi.getAll<Forum>("/api/v1/forums"),
+	// Parallel fetch: forum tree + threads (forums deduped via React cache)
+	const [forums, threadsRes] = await Promise.all([
+		getForumList(),
 		forumApi.getCursor<Thread>("/api/v1/threads", {
 			forumId: params.forumId,
 			limit: params.limit ?? defaultLimit,
@@ -58,7 +59,7 @@ export async function loadThreadList(params: {
 	]);
 
 	// Build forum tree and find current forum
-	const tree = buildForumTree(forumsRes.data);
+	const tree = buildForumTree(forums);
 	const visible = tree
 		.map((node) => filterVisibleForums(node))
 		.filter((n): n is ForumTreeNode => n !== null);
@@ -83,9 +84,9 @@ export async function loadThreadListPaged(params: {
 	const defaultLimit = await getPageSize();
 	const limit = params.limit ?? defaultLimit;
 
-	// Parallel fetch: forum tree + threads (offset pagination)
-	const [forumsRes, threadsRes] = await Promise.all([
-		forumApi.getAll<Forum>("/api/v1/forums"),
+	// Parallel fetch: forum tree + threads (forums deduped via React cache)
+	const [forums, threadsRes] = await Promise.all([
+		getForumList(),
 		forumApi.getPage<Thread>("/api/v1/threads", {
 			forumId: params.forumId,
 			page,
@@ -94,19 +95,19 @@ export async function loadThreadListPaged(params: {
 	]);
 
 	// Build forum tree and find current forum
-	const tree = buildForumTree(forumsRes.data);
+	const tree = buildForumTree(forums);
 	const visible = tree
 		.map((node) => filterVisibleForums(node))
 		.filter((n): n is ForumTreeNode => n !== null);
 	const forum = findNodeById(visible, params.forumId);
 
 	// Build breadcrumbs from forum ancestors
-	const ancestors = findForumAncestors(forumsRes.data, params.forumId);
+	const ancestors = findForumAncestors(forums, params.forumId);
 	const breadcrumbs = buildForumBreadcrumbs(ancestors);
 
 	return {
 		forum,
-		forums: forumsRes.data,
+		forums,
 		items: enrichThreads(threadsRes.data),
 		page: threadsRes.meta.page ?? page,
 		pages: threadsRes.meta.pages ?? 1,
