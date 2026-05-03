@@ -1,19 +1,20 @@
 /**
  * Lightweight title loaders for generateMetadata.
  *
- * Only fetches the single resource needed for the page <title>,
- * avoiding the heavy page-level loaders that pull posts, attachments,
- * authors, pagination, breadcrumbs, etc.
+ * Uses React cache()-backed helpers from forum-data so that
+ * generateMetadata and the page loader share the same fetch
+ * within one RSC render pass (no duplicate Worker requests).
  */
 
 import "server-only";
 
 import { forumApi } from "@/lib/forum-api";
-import type { Forum, PublicUser, Thread } from "@ellie/types";
+import { getForumList, getThreadById } from "@/lib/forum-data";
+import type { PublicUser } from "@ellie/types";
 
-/** Fetch thread subject by ID. */
+/** Fetch thread subject by ID (deduped via getThreadById cache). */
 export async function getThreadTitle(threadId: number): Promise<string> {
-	const { data: thread } = await forumApi.get<Thread>(`/api/v1/threads/${threadId}`);
+	const thread = await getThreadById(threadId);
 	return thread.subject;
 }
 
@@ -23,9 +24,9 @@ export async function getUserTitle(userId: number): Promise<string> {
 	return user.username;
 }
 
-/** Fetch forum name by ID (requires full forum list — no single-forum endpoint). */
+/** Fetch forum name by ID (deduped via getForumList cache). */
 export async function getForumTitle(forumId: number): Promise<string> {
-	const { data: forums } = await forumApi.getAll<Forum>("/api/v1/forums");
+	const forums = await getForumList();
 	const forum = forums.find((f) => f.id === forumId);
 	return forum?.name ?? `版块 ${forumId}`;
 }
