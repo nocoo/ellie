@@ -23,22 +23,14 @@ test.describe("E2E-PC: Post Comments", () => {
 		// Wait for posts to load
 		await expect(threadPage.postCards.first()).toBeVisible();
 
-		// Look for comments section — "点评" text indicator
-		// Comments may or may not exist on this thread, so check gracefully
-		const commentSections = page.locator("text=点评");
-		const hasComments = (await commentSections.count()) > 0;
+		// Seed data includes 2 comments on post 662174 by e2etest and e2eprofile.
+		// The post-comments component renders them inside a section with "点评" header.
+		// Verify seeded comment content is visible.
+		await expect(page.getByText("写得好！")).toBeVisible({ timeout: 10000 });
 
-		if (hasComments) {
-			// If comments exist, verify structure
-			const commentSection = page.locator(".border-t.border-dashed").first();
-			await expect(commentSection).toBeVisible();
-
-			// Should have author links
-			const authorLinks = commentSection.locator('a[href^="/users/"]');
-			expect(await authorLinks.count()).toBeGreaterThan(0);
-		}
-		// If no comments on this thread, that's fine — the component just doesn't render
-		expect(true).toBe(true);
+		// Verify comment author link exists
+		const commentAuthorLink = page.locator('a[href="/users/100"]');
+		expect(await commentAuthorLink.count()).toBeGreaterThan(0);
 	});
 
 	/**
