@@ -129,11 +129,15 @@ test.describe("E2E-PR: Post CRUD", () => {
 			.first();
 		await expect(confirmDialog).toBeVisible();
 
-		// Click confirm button
-		const confirmBtn = confirmDialog.getByRole("button", { name: /删除|确认/ });
+		// Click confirm button (confirmText="删除")
+		const confirmBtn = confirmDialog.getByRole("button", { name: "删除" });
 		await confirmBtn.click();
 
-		// Wait for page to refresh
+		// Dialog closing confirms the delete API succeeded
+		await expect(confirmDialog).not.toBeVisible({ timeout: 15000 });
+
+		// router.refresh() is a soft RSC refresh — reload fully to get updated data
+		await page.reload();
 		await page.waitForLoadState("networkidle");
 
 		// Post count should decrease
