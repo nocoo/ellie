@@ -26,56 +26,64 @@ export async function loadUserProfile(params: {
 	limit?: number;
 }): Promise<UserProfileData> {
 	const tab = resolveTab(params.tab);
-	// Get page size from settings
+
+	// Parallel fetch: user profile + (page size → tab data)
+	// These two chains are independent — user data is only needed for `total` counts,
+	// not for the tab API call itself.
+	const [{ data: publicUser }, tabResult] = await Promise.all([
+		forumApi.get<PublicUser>(`/api/v1/users/${params.userId}`),
+		fetchTabData(params, tab),
+	]);
+
+	const user = publicUserToUser(publicUser);
+
+	// Merge tab results with user-derived totals (only when fetch succeeded)
+	const totalMap: Record<ProfileTab, number> = {
+		threads: user.threads,
+		posts: user.posts,
+		digest: user.digestPosts,
+	};
+	const total = tabResult.ok ? totalMap[tab] : 0;
+	const tabPage = { ...tabResult, total };
+
+	return {
+		user,
+		tab,
+		threads: tab === "threads" ? (tabPage as PaginatedResult<Thread>) : emptyPage(),
+		posts: tab === "posts" ? (tabPage as PaginatedResult<Post>) : emptyPage(),
+		digest: tab === "digest" ? (tabPage as PaginatedResult<Thread>) : emptyPage(),
+	};
+}
+
+type TabFetchResult<T> = PaginatedResult<T> & { ok: boolean };
+
+/** Fetch page size then tab-specific data. Runs in parallel with user fetch. */
+async function fetchTabData(
+	params: { userId: number; cursor?: string; limit?: number },
+	tab: ProfileTab,
+): Promise<TabFetchResult<Thread | Post>> {
 	const defaultLimit = await getPageSize();
 	const limit = params.limit ?? defaultLimit;
 
-	const { data: publicUser } = await forumApi.get<PublicUser>(`/api/v1/users/${params.userId}`);
-	const user = publicUserToUser(publicUser);
+	const endpointMap: Record<ProfileTab, string> = {
+		threads: `/api/v1/users/${params.userId}/threads`,
+		posts: `/api/v1/users/${params.userId}/posts`,
+		digest: `/api/v1/users/${params.userId}/digest`,
+	};
 
-	let threads: PaginatedResult<Thread> = emptyPage();
-	let posts: PaginatedResult<Post> = emptyPage();
-	let digest: PaginatedResult<Thread> = emptyPage();
-
-	if (tab === "threads") {
-		const res = await forumApi.getCursor<Thread>(`/api/v1/users/${params.userId}/threads`, {
+	try {
+		const res = await forumApi.getCursor<Thread | Post>(endpointMap[tab], {
 			limit,
 			cursor: params.cursor,
 		});
-		threads = {
+		return {
+			ok: true,
 			items: res.data,
 			nextCursor: res.meta.nextCursor,
 			prevCursor: params.cursor ?? null,
-			total: user.threads,
+			total: 0,
 		};
-	} else if (tab === "posts") {
-		const res = await forumApi.getCursor<Post>(`/api/v1/users/${params.userId}/posts`, {
-			limit,
-			cursor: params.cursor,
-		});
-		posts = {
-			items: res.data,
-			nextCursor: res.meta.nextCursor,
-			prevCursor: params.cursor ?? null,
-			total: user.posts,
-		};
-	} else if (tab === "digest") {
-		try {
-			const res = await forumApi.getCursor<Thread>(`/api/v1/users/${params.userId}/digest`, {
-				limit,
-				cursor: params.cursor,
-			});
-			digest = {
-				items: res.data,
-				nextCursor: res.meta.nextCursor,
-				prevCursor: params.cursor ?? null,
-				total: user.digestPosts,
-			};
-		} catch {
-			// If digest API fails (e.g., user has no digest posts), return empty result
-			digest = { items: [], nextCursor: null, prevCursor: null, total: 0 };
-		}
+	} catch {
+		return { ...emptyPage(), ok: false };
 	}
-
-	return { user, tab, threads, posts, digest };
 }
