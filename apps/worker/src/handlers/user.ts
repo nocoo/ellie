@@ -45,6 +45,66 @@ function parseUserIdFromParent(url: URL): number {
 
 // ─── Handlers ────────────────────────────────────────────────
 
+/** Max IDs per batch request */
+const MAX_BATCH_IDS = 100;
+
+/**
+ * GET /api/v1/users/batch?ids=1,2,3 - Batch user lookup
+ *
+ * Returns public profiles for multiple users in a single request.
+ * Designed to eliminate N+1 per-author fetches in thread detail pages.
+ *
+ * - Uses PUBLIC_USER_COLUMNS (no sensitive field leaks)
+ * - Staff viewers see IP fields (same as getById)
+ * - Caps at 100 IDs, deduplicates, filters invalid
+ * - Omits non-existent and non-public users (status < 0) silently
+ */
+export async function batchGet(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+	const url = new URL(request.url);
+	const idsParam = url.searchParams.get("ids");
+
+	if (!idsParam) {
+		return errorResponse("INVALID_REQUEST", 400, { message: "ids parameter is required" }, origin);
+	}
+
+	// Parse, deduplicate, and validate IDs
+	const rawIds = idsParam.split(",").map((s) => Number.parseInt(s.trim(), 10));
+	const uniqueIds = [...new Set(rawIds.filter((id) => !Number.isNaN(id) && id > 0))];
+
+	if (uniqueIds.length === 0) {
+		return jsonResponse([], origin);
+	}
+
+	if (uniqueIds.length > MAX_BATCH_IDS) {
+		return errorResponse(
+			"INVALID_REQUEST",
+			400,
+			{ message: `Too many IDs (max ${MAX_BATCH_IDS})` },
+			origin,
+		);
+	}
+
+	// Check if requester is staff (role >= 1) for IP field visibility
+	const viewer = await optionalAuthVerified(request, env);
+	const isStaff = viewer !== null && viewer.role >= 1;
+
+	// Batch query with IN clause (SQLite limit is 999 vars, we cap at 100)
+	const placeholders = uniqueIds.map(() => "?").join(",");
+	const result = await env.DB.prepare(
+		`SELECT ${PUBLIC_USER_COLUMNS}, status FROM users WHERE id IN (${placeholders})`,
+	)
+		.bind(...uniqueIds)
+		.all<Record<string, unknown>>();
+
+	// Filter out non-public users and map to PublicUser
+	const users = result.results
+		.filter((row) => (row.status as number) >= 0)
+		.map((row) => toPublicUser(row, isStaff));
+
+	return jsonResponse(users, origin);
+}
+
 /** GET /api/v1/users/:id - Get user public profile */
 export async function getById(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;

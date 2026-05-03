@@ -115,6 +115,10 @@ export default {
 			if (path === "/api/v1/users/search" && request.method === "GET") {
 				return await (await import("./handlers/user")).search(request, env);
 			}
+			// ── Batch user lookup (N+1 optimization) ────────
+			if (path === "/api/v1/users/batch" && request.method === "GET") {
+				return await (await import("./handlers/user")).batchGet(request, env);
+			}
 
 			// ── Thread search (FTS5, Key A, optional JWT) ─────
 			if (path === "/api/v1/search/threads" && request.method === "GET") {
