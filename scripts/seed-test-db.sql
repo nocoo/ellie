@@ -93,6 +93,11 @@ INSERT OR REPLACE INTO posts (id, thread_id, forum_id, author_id, author_name, c
   (700024, 662174, 114, 100, 'e2etest', 'Reply 24 to L3 thread', 1700000240, 0, 25, 0),
   (700025, 662198, 114, 100, 'e2etest', 'Digest thread first post', 1700024000, 1, 1, 0);
 
+-- ─── Post Comments (点评 on posts in thread 662174) ─────────────────────────
+INSERT OR REPLACE INTO post_comments (id, thread_id, post_id, author_id, author_name, content, score, created_at) VALUES
+  (1, 662174, 662174, 100, 'e2etest', '写得好！', 0, 1700000300),
+  (2, 662174, 662174, 64495, 'e2eprofile', '同意楼上', 0, 1700000400);
+
 -- ─── Settings (ensure search is enabled) ─────────────────────────────────
 INSERT OR REPLACE INTO settings (key, value, type, updated_at)
 VALUES ('general.search.enabled', 'true', 'boolean', 1700000000);
