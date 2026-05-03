@@ -6,6 +6,7 @@ vi.mock("@/lib/forum-api", () => ({
 		getAll: vi.fn(),
 		getCursor: vi.fn(),
 		getPage: vi.fn(),
+		post: vi.fn(),
 		postAuth: vi.fn(),
 	},
 	publicUserToUser: vi.fn((u: any) => ({
@@ -129,11 +130,17 @@ describe("loadThreadDetail", () => {
 			return Promise.resolve({ data: null });
 		});
 		mockForumApi.getAll.mockImplementation((path: string) => {
-			if (path.includes("attachments")) return Promise.resolve({ data: [] });
+			if (path.includes("users/batch"))
+				return Promise.resolve({ data: [{ id: 100, userId: 100, username: "user1", role: 0 }] });
 			if (path.includes("forums")) return Promise.resolve({ data: mockForums });
 			return Promise.resolve({ data: [] });
 		});
 		mockForumApi.getCursor.mockResolvedValue({ data: mockPosts, meta: { nextCursor: null } });
+		// Batch attachments endpoint
+		mockForumApi.post.mockImplementation((path: string) => {
+			if (path.includes("attachments/batch")) return Promise.resolve({ data: [] });
+			return Promise.resolve({ data: null });
+		});
 	});
 
 	it("returns thread detail with posts, forum, and breadcrumbs", async () => {
@@ -172,20 +179,19 @@ describe("loadThreadDetail", () => {
 	});
 
 	it("handles attachment fetch failures gracefully", async () => {
-		mockForumApi.getAll.mockImplementation((path: string) => {
-			if (path.includes("attachments")) return Promise.reject(new Error("fail"));
-			if (path.includes("forums")) return Promise.resolve({ data: mockForums });
-			return Promise.resolve({ data: [] });
+		mockForumApi.post.mockImplementation((path: string) => {
+			if (path.includes("attachments/batch")) return Promise.reject(new Error("fail"));
+			return Promise.resolve({ data: null });
 		});
 		const result = await loadThreadDetail({ threadId: 1 });
 		expect(result.posts[0].attachments).toEqual([]);
 	});
 
 	it("handles author fetch failures gracefully", async () => {
-		mockForumApi.get.mockImplementation((path: string) => {
-			if (path.startsWith("/api/v1/threads/")) return Promise.resolve({ data: mockThread });
-			if (path.startsWith("/api/v1/users/")) return Promise.reject(new Error("not found"));
-			return Promise.resolve({ data: null });
+		mockForumApi.getAll.mockImplementation((path: string) => {
+			if (path.includes("users/batch")) return Promise.reject(new Error("not found"));
+			if (path.includes("forums")) return Promise.resolve({ data: mockForums });
+			return Promise.resolve({ data: [] });
 		});
 		const result = await loadThreadDetail({ threadId: 1 });
 		expect(result.posts[0].author).toBeNull();
@@ -201,5 +207,53 @@ describe("loadThreadDetail", () => {
 		});
 		const result = await loadThreadDetail({ threadId: 1 });
 		expect(result.forum).toBeNull();
+	});
+
+	// ─── N+1 regression: pin API request counts ────────────────
+	// These tests ensure that batch optimizations are not regressed.
+	// With batch endpoints, call counts are constant regardless of post/author count.
+
+	it("makes exactly 5 API calls for a page with 3 posts by 2 authors (batch optimized)", async () => {
+		const posts = [
+			{ ...mockPosts[0], id: 200, authorId: 100, authorName: "user1" },
+			{ ...mockPosts[0], id: 201, authorId: 100, authorName: "user1" },
+			{ ...mockPosts[0], id: 202, authorId: 200, authorName: "user2" },
+		];
+		mockForumApi.getCursor.mockResolvedValue({ data: posts, meta: { nextCursor: null } });
+
+		await loadThreadDetail({ threadId: 1 });
+
+		// get: 1 thread GET only (no per-user GETs)
+		expect(mockForumApi.get).toHaveBeenCalledTimes(1);
+		// getAll: 1 forums + 1 users/batch = 2
+		expect(mockForumApi.getAll).toHaveBeenCalledTimes(2);
+		// getCursor: 1 posts
+		expect(mockForumApi.getCursor).toHaveBeenCalledTimes(1);
+		// post: 1 attachments/batch
+		expect(mockForumApi.post).toHaveBeenCalledTimes(1);
+		// Total HTTP calls: 1 + 2 + 1 + 1 = 5 (constant, was 8 with N+1)
+	});
+
+	it("API call count is constant regardless of post/author count (N+1 eliminated)", async () => {
+		// 10 posts by 5 unique authors — same call count as 3 posts by 2 authors
+		const posts = Array.from({ length: 10 }, (_, i) => ({
+			...mockPosts[0],
+			id: 300 + i,
+			authorId: 500 + (i % 5),
+			authorName: `author${i % 5}`,
+		}));
+		mockForumApi.getCursor.mockResolvedValue({ data: posts, meta: { nextCursor: null } });
+
+		await loadThreadDetail({ threadId: 1 });
+
+		// get: 1 thread (constant)
+		expect(mockForumApi.get).toHaveBeenCalledTimes(1);
+		// getAll: 1 forums + 1 users/batch = 2 (constant)
+		expect(mockForumApi.getAll).toHaveBeenCalledTimes(2);
+		// getCursor: 1 posts (constant)
+		expect(mockForumApi.getCursor).toHaveBeenCalledTimes(1);
+		// post: 1 attachments/batch (constant)
+		expect(mockForumApi.post).toHaveBeenCalledTimes(1);
+		// Total: 5 — same as 3 posts. N+1 is gone.
 	});
 });
