@@ -96,8 +96,11 @@ test.describe("E2E-DL: Dialog layout (B4)", () => {
 		await assertFooterFitsDialog(dialog);
 
 		// Narrow pass — same dialog, just resize the window.
+		// Use toPass() to retry until CSS media queries settle after resize.
 		await page.setViewportSize(NARROW);
-		await assertDialogFitsViewport(dialog, NARROW);
+		await expect(async () => {
+			await assertDialogFitsViewport(dialog, NARROW);
+		}).toPass({ timeout: 5000 });
 		await assertFooterFitsDialog(dialog);
 
 		// Close with Cancel so we don't pollute server state.
@@ -135,8 +138,11 @@ test.describe("E2E-DL: Dialog layout (B4)", () => {
 		await page.keyboard.press("Escape");
 
 		// Narrow pass.
+		// Use toPass() to retry until CSS media queries settle after resize.
 		await page.setViewportSize(NARROW);
-		await assertDialogFitsViewport(dialog, NARROW);
+		await expect(async () => {
+			await assertDialogFitsViewport(dialog, NARROW);
+		}).toPass({ timeout: 5000 });
 		await assertFooterFitsDialog(dialog);
 
 		await dialog.getByRole("button", { name: /取消/ }).click();
