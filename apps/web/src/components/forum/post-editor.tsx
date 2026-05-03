@@ -470,7 +470,14 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 				heading: { levels: [2, 3, 4] },
 			}),
 			Underline,
-			Link.configure({ openOnClick: false }),
+			Link.configure({
+				openOnClick: false,
+				// Apply the same allow-list to paste / autolink / HTML parse
+				// paths so a `javascript:` URL pasted into the editor cannot
+				// reach the DOM. The popover already guards the manual flow.
+				isAllowedUri: (url) => sanitizeUrl(url).url !== null,
+				shouldAutoLink: (url) => sanitizeUrl(url).url !== null,
+			}),
 			Image.configure({
 				inline: false,
 				allowBase64: false,
