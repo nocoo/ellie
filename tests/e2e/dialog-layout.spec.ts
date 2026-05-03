@@ -89,7 +89,7 @@ test.describe("E2E-DL: Dialog layout (B4)", () => {
 		// Desktop pass
 		await page.setViewportSize(DESKTOP);
 		await forumPage.newThreadButton.click();
-		const dialog = page.locator('[role="dialog"]');
+		const dialog = page.locator('[data-slot="dialog-content"]');
 		await expect(dialog).toBeVisible();
 		await expect(dialog.getByText("发表新帖")).toBeVisible();
 		await assertDialogFitsViewport(dialog, DESKTOP);
@@ -116,7 +116,7 @@ test.describe("E2E-DL: Dialog layout (B4)", () => {
 
 		await page.setViewportSize(DESKTOP);
 		await threadPage.replyButton.click();
-		const dialog = page.locator('[role="dialog"]');
+		const dialog = page.locator('[data-slot="dialog-content"]');
 		await expect(dialog).toBeVisible();
 		await assertDialogFitsViewport(dialog, DESKTOP);
 		await assertFooterFitsDialog(dialog);
