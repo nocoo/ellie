@@ -49,8 +49,8 @@ export function NewThreadDialog({ open, onOpenChange, forumId, forumName }: NewT
 			<DialogContent
 				className={cn(
 					"glass-panel",
-					"w-[calc(100vw-2rem)] sm:w-[800px] md:w-[960px] lg:w-[1024px]",
-					"h-[calc(75vw-1.5rem)] sm:h-[600px] md:h-[720px] lg:h-[768px]",
+					// Unified width/height with reply + edit dialogs.
+					"w-[calc(100vw-2rem)] max-w-[1200px]",
 					"max-h-[90vh] overflow-hidden flex flex-col",
 					"rounded-xl p-0",
 				)}
@@ -142,25 +142,32 @@ export function NewThreadDialog({ open, onOpenChange, forumId, forumName }: NewT
 							)}
 						</div>
 
-						{/* Editor area */}
-						<div className="flex-1 overflow-y-auto px-5 py-4 min-h-0">
-							<div className="rounded-lg border border-border/60 bg-card/50 overflow-hidden">
-								<PostEditor
-									ref={editorRef}
-									onSubmit={actions.handleSubmit}
-									placeholder="写下你的主题内容..."
-									maxLength={50000}
-									submitting={state.submitting}
-									canSubmit={validation.canSubmit}
-									hideFooter
-								/>
-							</div>
+						{/* Editor area — PostEditor is its own bordered card and grows */}
+						<div
+							className="flex-1 min-h-0 px-5 py-4 flex flex-col"
+							onKeyDown={(e) => {
+								if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && validation.canSubmit) {
+									e.preventDefault();
+									const html = editorRef.current?.getHTML() ?? "";
+									actions.handleSubmit(html);
+								}
+							}}
+						>
+							<PostEditor
+								ref={editorRef}
+								onSubmit={actions.handleSubmit}
+								placeholder="写下你的主题内容..."
+								maxLength={50000}
+								submitting={state.submitting}
+								canSubmit={validation.canSubmit}
+								hideFooter
+							/>
 						</div>
 
 						{/* Footer */}
 						<div className="px-5 py-4 border-t border-border/50 bg-muted/30">
 							<div className="flex items-center justify-between">
-								<p className="text-xs text-muted-foreground">支持富文本编辑，可插入链接和表情</p>
+								<p className="text-xs text-muted-foreground">按 Ctrl+Enter 快速发布</p>
 								<div className="flex items-center gap-2">
 									<Button
 										variant="ghost"

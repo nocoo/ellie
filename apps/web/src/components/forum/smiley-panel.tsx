@@ -1,10 +1,18 @@
 "use client";
 
-// SmileyPanel — tabbed smiley picker for PostEditor
-// Displays traditional forum smileys from CDN (default, coolmonkey, comcom packs)
+// SmileyPicker — popover trigger + tabbed smiley panel for PostEditor.
+//
+// Old behaviour: a permanently-mounted panel pinned to the bottom of
+// the editor, eating ~140px of vertical space inside reply / new-thread
+// dialogs. The B4 dialog overhaul replaces that with an Insert/Smiley
+// toolbar button so the editor body actually gets the height it needs.
+// `SmileyPanelContent` is exported for callers (or tests) that want the
+// raw grid without the popover wrapper.
 
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SMILEY_PACKS, getSmileyImageUrl } from "@/lib/smiley";
 import { cn } from "@/lib/utils";
+import { Smile as SmileIcon } from "lucide-react";
 import { useState } from "react";
 
 const TABS = [
@@ -13,17 +21,21 @@ const TABS = [
 	{ id: "comcom", name: "兔斯基" },
 ] as const;
 
-interface SmileyPanelProps {
+interface SmileyPanelContentProps {
 	onSelect: (code: string) => void;
 	className?: string;
 }
 
-export function SmileyPanel({ onSelect, className }: SmileyPanelProps) {
+/**
+ * Raw smiley grid — no popover, no outer border. Use this when you want
+ * to embed the picker into another container (or a test harness).
+ */
+export function SmileyPanelContent({ onSelect, className }: SmileyPanelContentProps) {
 	const [activeTab, setActiveTab] = useState<string>("default");
 	const smileys = SMILEY_PACKS[activeTab] ?? [];
 
 	return (
-		<div className={cn("border-t", className)}>
+		<div className={cn("flex flex-col", className)}>
 			{/* Tab buttons */}
 			<div className="flex gap-1 px-2 py-1.5 border-b bg-muted/30">
 				{TABS.map((tab) => (
@@ -44,7 +56,7 @@ export function SmileyPanel({ onSelect, className }: SmileyPanelProps) {
 			</div>
 
 			{/* Smiley grid */}
-			<div className="grid grid-cols-12 gap-0.5 p-2 max-h-[100px] overflow-y-auto">
+			<div className="grid grid-cols-12 gap-0.5 p-2 max-h-[220px] overflow-y-auto">
 				{smileys.map((smiley) => (
 					<button
 						key={smiley.code}
@@ -66,5 +78,35 @@ export function SmileyPanel({ onSelect, className }: SmileyPanelProps) {
 				))}
 			</div>
 		</div>
+	);
+}
+
+interface SmileyPickerProps {
+	onSelect: (code: string) => void;
+}
+
+/**
+ * Toolbar button that opens the smiley grid in a popover. Used by
+ * `PostEditor`'s Insert group.
+ */
+export function SmileyPicker({ onSelect }: SmileyPickerProps) {
+	return (
+		<Popover>
+			<PopoverTrigger
+				render={
+					<button
+						type="button"
+						aria-label="插入表情"
+						title="插入表情"
+						className="inline-flex h-7 w-7 items-center justify-center rounded text-xs font-medium text-muted-foreground transition-colors hover:bg-muted"
+					>
+						<SmileIcon className="h-3.5 w-3.5" />
+					</button>
+				}
+			/>
+			<PopoverContent className="w-auto p-0" align="end" sideOffset={8}>
+				<SmileyPanelContent onSelect={onSelect} />
+			</PopoverContent>
+		</Popover>
 	);
 }
