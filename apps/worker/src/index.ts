@@ -238,6 +238,17 @@ export default {
 				);
 			}
 
+			// ── Public-asset GET for post images (Key A only — Next proxy
+			// forwards browser requests with the forum API key; the response
+			// is publicly cacheable and includes nosniff). Path is validated
+			// strictly against the post-images/{uuid}.{ext} shape.
+			{
+				const m = path.match(/^\/api\/v1\/post-images\/(.+)$/);
+				if (m && request.method === "GET") {
+					return await (await import("./lib/postImage")).handleGetPostImage(m[1], env, origin);
+				}
+			}
+
 			// ── Moderation routes (Key A + JWT + role check) ─
 			if (
 				path.match(/^\/api\/v1\/moderation\/threads\/\d+\/sticky$/) &&
