@@ -7,7 +7,7 @@ import { preflightEmailVerifiedBlock } from "@/viewmodels/forum/email-not-verifi
 import type { EnrichedPost } from "@/viewmodels/forum/thread-detail";
 import { formatDateTime } from "@/viewmodels/shared/formatting";
 import type { Thread } from "@ellie/types";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 interface ThreadPostsClientProps {
 	thread: Thread;
@@ -81,6 +81,14 @@ export function ThreadPostsClient({
 		setQuotedPost(null);
 		setReplyOpen(true);
 	}, [selfEmailVerifiedAt]);
+
+	useEffect(() => {
+		const hash = window.location.hash;
+		if (/^#post-\d+$/.test(hash)) {
+			const el = document.querySelector(hash);
+			el?.scrollIntoView({ behavior: "smooth", block: "center" });
+		}
+	}, []);
 
 	return (
 		<>

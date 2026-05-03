@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/api-client", () => ({
-	apiClient: { post: vi.fn(async () => ({ data: {} })) },
+	apiClient: { post: vi.fn(async () => ({ data: { id: 1 } })) },
 	ApiError: class ApiError extends Error {
 		code?: string;
 		constructor(m: string, c?: string) {
