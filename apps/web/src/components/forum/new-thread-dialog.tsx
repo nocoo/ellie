@@ -164,11 +164,11 @@ export function NewThreadDialog({ open, onOpenChange, forumId, forumName }: NewT
 							/>
 						</div>
 
-						{/* Footer */}
+						{/* Footer — stacks vertically on narrow screens, row at sm+ */}
 						<div className="px-5 py-4 border-t border-border/50 bg-muted/30">
-							<div className="flex items-center justify-between">
+							<div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
 								<p className="text-xs text-muted-foreground">按 Ctrl+Enter 快速发布</p>
-								<div className="flex items-center gap-2">
+								<div className="flex items-center justify-end gap-2">
 									<Button
 										variant="ghost"
 										onClick={() => handleOpenChange(false)}

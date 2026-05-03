@@ -138,11 +138,11 @@ export function PostEditDialog({
 					/>
 				</div>
 
-				{/* Footer — matches reply / new-thread dialogs */}
+				{/* Footer — stacks vertically on narrow screens, row at sm+ */}
 				<div className="px-5 py-4 border-t border-border/50 bg-muted/30">
-					<div className="flex items-center justify-between">
+					<div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<p className="text-xs text-muted-foreground">按 Ctrl+Enter 保存</p>
-						<div className="flex items-center gap-2">
+						<div className="flex items-center justify-end gap-2">
 							<Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
 								取消
 							</Button>
