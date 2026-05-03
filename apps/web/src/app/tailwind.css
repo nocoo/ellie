@@ -493,3 +493,14 @@ body::before {
 .dark [style*="--bg-dark"] {
 	background-image: var(--bg-dark) !important;
 }
+
+/* ==========================================================================
+   Tiptap / ProseMirror — kill the default contenteditable focus ring.
+   The PostEditor wrapper already paints its own focus-within border, so the
+   inner blue outline ProseMirror inherits from `[contenteditable]:focus`
+   would just stack a second ring on top.
+   ========================================================================== */
+.ProseMirror:focus,
+.ProseMirror:focus-visible {
+	outline: none;
+}

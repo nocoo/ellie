@@ -2,16 +2,62 @@
 
 // components/forum/post-editor.tsx — Rich text editor (Tiptap)
 // Ref: 04e §RichTextEditor — toolbar + editor + character count
+//
+// B3 changes (review msg=d57926b5):
+//   - Underline now actually works (extension-underline registered).
+//   - Image insert button uploads via the same-origin /api/v1/upload
+//     proxy (purpose=post-image), parses the response with the
+//     post-image-upload viewmodel, and dispatches the §5.4 verification
+//     dialog if the user is not yet email-verified — same pattern as
+//     the avatar uploader, since raw multipart fetch bypasses the
+//     api-client interceptor.
+//   - Link popover replaces the old `window.prompt` flow. URL is
+//     sanitized (rejects javascript:/data:/vbscript:/file:) before
+//     handing it to Tiptap's setLink.
+//   - Toolbar uses lucide icons + tooltips and is grouped:
+//       Block(H2/H3/Quote/Code) | Inline(B/I/U) | List(UL/OL) | Insert(Link/Image/Emoji)
+//   - Wrapper drops the always-on `ring-1 ring-border` halo; uses a
+//     border that highlights on focus-within instead. The inner blue
+//     ProseMirror outline is killed via tailwind.css.
 
 import { EmojiPicker } from "@/components/forum/emoji-picker";
 import { SmileyPanel } from "@/components/forum/smiley-panel";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { dispatchEmailNotVerified } from "@/viewmodels/forum/email-not-verified-dispatch";
+import { parsePostImageUploadResponse } from "@/viewmodels/forum/post-image-upload";
+import { sanitizeUrl } from "@/viewmodels/forum/url-sanitize";
 import CharacterCount from "@tiptap/extension-character-count";
+import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
+import Underline from "@tiptap/extension-underline";
 import { type Editor, EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { forwardRef, useCallback, useImperativeHandle } from "react";
+import {
+	Bold as BoldIcon,
+	Code as CodeIcon,
+	Heading2 as Heading2Icon,
+	Heading3 as Heading3Icon,
+	Image as ImageIcon,
+	Italic as ItalicIcon,
+	Link as LinkIcon,
+	List as ListIcon,
+	ListOrdered as ListOrderedIcon,
+	Loader2 as LoaderIcon,
+	Quote as QuoteIcon,
+	Underline as UnderlineIcon,
+} from "lucide-react";
+import {
+	type FormEvent,
+	forwardRef,
+	useCallback,
+	useImperativeHandle,
+	useRef,
+	useState,
+} from "react";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -36,7 +82,7 @@ export interface PostEditorRef {
 }
 
 // ---------------------------------------------------------------------------
-// Toolbar toggle button
+// Toolbar toggle button (with tooltip)
 // ---------------------------------------------------------------------------
 
 function ToolbarButton({
@@ -44,126 +90,355 @@ function ToolbarButton({
 	onClick,
 	children,
 	title,
+	disabled,
 }: {
 	active?: boolean;
 	onClick: () => void;
 	children: React.ReactNode;
 	title: string;
+	disabled?: boolean;
 }) {
 	return (
-		<button
-			type="button"
-			onClick={onClick}
-			title={title}
-			className={`inline-flex h-7 w-7 items-center justify-center rounded text-xs font-medium transition-colors ${
-				active ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
-			}`}
-		>
-			{children}
-		</button>
+		<Tooltip>
+			<TooltipTrigger
+				render={
+					<button
+						type="button"
+						onClick={onClick}
+						aria-label={title}
+						disabled={disabled}
+						className={`inline-flex h-7 w-7 items-center justify-center rounded text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+							active ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+						}`}
+					>
+						{children}
+					</button>
+				}
+			/>
+			<TooltipContent>{title}</TooltipContent>
+		</Tooltip>
 	);
 }
 
 // ---------------------------------------------------------------------------
-// Toolbar
+// Link popover — URL + display text, sanitized before applying
+// ---------------------------------------------------------------------------
+
+function LinkPopover({ editor }: { editor: Editor }) {
+	const [open, setOpen] = useState(false);
+	const [url, setUrl] = useState("");
+	const [text, setText] = useState("");
+	const [error, setError] = useState<string | null>(null);
+
+	// Pre-fill from current selection / existing link when opening
+	const handleOpenChange = useCallback(
+		(next: boolean) => {
+			setOpen(next);
+			if (next) {
+				const existingHref = (editor.getAttributes("link").href as string | undefined) ?? "";
+				setUrl(existingHref);
+				const { from, to } = editor.state.selection;
+				const selected = editor.state.doc.textBetween(from, to, " ");
+				setText(selected);
+				setError(null);
+			}
+		},
+		[editor],
+	);
+
+	const handleSubmit = useCallback(
+		(e: FormEvent) => {
+			e.preventDefault();
+			const sanitized = sanitizeUrl(url);
+			if (!sanitized.url) {
+				setError("不支持的链接地址");
+				return;
+			}
+
+			const chain = editor.chain().focus().extendMarkRange("link");
+
+			const { from, to } = editor.state.selection;
+			const trimmedText = text.trim();
+			if (from === to && trimmedText.length > 0) {
+				// No selection: insert the display text and link it.
+				chain
+					.insertContent({
+						type: "text",
+						text: trimmedText,
+						marks: [{ type: "link", attrs: { href: sanitized.url } }],
+					})
+					.run();
+			} else {
+				chain.setLink({ href: sanitized.url }).run();
+			}
+			setOpen(false);
+		},
+		[editor, url, text],
+	);
+
+	const handleUnlink = useCallback(() => {
+		editor.chain().focus().unsetLink().run();
+		setOpen(false);
+	}, [editor]);
+
+	const isLinkActive = editor.isActive("link");
+
+	return (
+		<Popover open={open} onOpenChange={handleOpenChange}>
+			<Tooltip>
+				<TooltipTrigger
+					render={
+						<PopoverTrigger
+							render={
+								<button
+									type="button"
+									aria-label="插入链接"
+									className={`inline-flex h-7 w-7 items-center justify-center rounded text-xs font-medium transition-colors ${
+										isLinkActive
+											? "bg-primary text-primary-foreground"
+											: "hover:bg-muted text-muted-foreground"
+									}`}
+								>
+									<LinkIcon className="h-3.5 w-3.5" />
+								</button>
+							}
+						/>
+					}
+				/>
+				<TooltipContent>插入链接</TooltipContent>
+			</Tooltip>
+			<PopoverContent align="start" className="w-80">
+				<form onSubmit={handleSubmit} className="flex flex-col gap-2">
+					<label className="text-xs text-muted-foreground" htmlFor="link-url">
+						链接地址
+					</label>
+					<Input
+						id="link-url"
+						type="text"
+						placeholder="https://example.com"
+						value={url}
+						onChange={(e) => {
+							setUrl(e.target.value);
+							setError(null);
+						}}
+						autoFocus
+					/>
+					<label className="text-xs text-muted-foreground" htmlFor="link-text">
+						显示文字（可选，未选中文本时使用）
+					</label>
+					<Input
+						id="link-text"
+						type="text"
+						placeholder="链接显示的文字"
+						value={text}
+						onChange={(e) => setText(e.target.value)}
+					/>
+					{error && <p className="text-xs text-destructive">{error}</p>}
+					<div className="flex items-center justify-between gap-2 pt-1">
+						{isLinkActive ? (
+							<Button type="button" size="sm" variant="ghost" onClick={handleUnlink}>
+								移除链接
+							</Button>
+						) : (
+							<span />
+						)}
+						<div className="flex gap-2">
+							<Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
+								取消
+							</Button>
+							<Button type="submit" size="sm">
+								确定
+							</Button>
+						</div>
+					</div>
+				</form>
+			</PopoverContent>
+		</Popover>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Image upload button — raw multipart fetch + §5.4-aware response parsing
+// ---------------------------------------------------------------------------
+
+const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/gif";
+
+function ImageUploadButton({ editor }: { editor: Editor }) {
+	const inputRef = useRef<HTMLInputElement | null>(null);
+	const [uploading, setUploading] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+
+	const handleClick = useCallback(() => {
+		if (uploading) return;
+		setError(null);
+		inputRef.current?.click();
+	}, [uploading]);
+
+	const handleChange = useCallback(
+		async (e: React.ChangeEvent<HTMLInputElement>) => {
+			const file = e.target.files?.[0];
+			// Always reset so re-selecting the same file works again.
+			e.target.value = "";
+			if (!file) return;
+
+			setUploading(true);
+			setError(null);
+
+			const formData = new FormData();
+			formData.append("file", file);
+			formData.append("purpose", "post-image");
+
+			try {
+				const res = await fetch("/api/v1/upload", {
+					method: "POST",
+					body: formData,
+				});
+				let json: unknown;
+				try {
+					json = await res.json();
+				} catch {
+					json = null;
+				}
+				const parsed = parsePostImageUploadResponse(res.status, json);
+				if (parsed.kind === "success") {
+					editor.chain().focus().setImage({ src: parsed.url }).run();
+				} else if (parsed.kind === "email-not-verified") {
+					dispatchEmailNotVerified(parsed.detail);
+					setError("请先验证邮箱后再上传图片");
+				} else {
+					setError(parsed.message);
+				}
+			} catch {
+				setError("上传失败，请重试");
+			} finally {
+				setUploading(false);
+			}
+		},
+		[editor],
+	);
+
+	return (
+		<>
+			<Tooltip>
+				<TooltipTrigger
+					render={
+						<button
+							type="button"
+							onClick={handleClick}
+							disabled={uploading}
+							aria-label="插入图片"
+							className="inline-flex h-7 w-7 items-center justify-center rounded text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							{uploading ? (
+								<LoaderIcon className="h-3.5 w-3.5 animate-spin" />
+							) : (
+								<ImageIcon className="h-3.5 w-3.5" />
+							)}
+						</button>
+					}
+				/>
+				<TooltipContent>{error ? error : "插入图片"}</TooltipContent>
+			</Tooltip>
+			<input
+				ref={inputRef}
+				type="file"
+				accept={IMAGE_ACCEPT}
+				onChange={handleChange}
+				className="hidden"
+			/>
+		</>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Toolbar — grouped: Block | Inline | List | Insert
 // ---------------------------------------------------------------------------
 
 function Toolbar({ editor }: { editor: Editor }) {
 	return (
-		<div className="flex items-center gap-0.5 border-b px-2 py-1 flex-wrap">
-			{/* Formatting */}
-			<ToolbarButton
-				active={editor.isActive("bold")}
-				onClick={() => editor.chain().focus().toggleBold().run()}
-				title="粗体"
-			>
-				B
-			</ToolbarButton>
-			<ToolbarButton
-				active={editor.isActive("italic")}
-				onClick={() => editor.chain().focus().toggleItalic().run()}
-				title="斜体"
-			>
-				<span className="italic">I</span>
-			</ToolbarButton>
-			<ToolbarButton
-				active={editor.isActive("underline")}
-				onClick={() => editor.chain().focus().toggleUnderline().run()}
-				title="下划线"
-			>
-				U
-			</ToolbarButton>
+		<TooltipProvider delay={400}>
+			<div className="flex items-center gap-0.5 border-b px-2 py-1 flex-wrap">
+				{/* Block */}
+				<ToolbarButton
+					active={editor.isActive("heading", { level: 2 })}
+					onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+					title="标题 2"
+				>
+					<Heading2Icon className="h-3.5 w-3.5" />
+				</ToolbarButton>
+				<ToolbarButton
+					active={editor.isActive("heading", { level: 3 })}
+					onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+					title="标题 3"
+				>
+					<Heading3Icon className="h-3.5 w-3.5" />
+				</ToolbarButton>
+				<ToolbarButton
+					active={editor.isActive("blockquote")}
+					onClick={() => editor.chain().focus().toggleBlockquote().run()}
+					title="引用"
+				>
+					<QuoteIcon className="h-3.5 w-3.5" />
+				</ToolbarButton>
+				<ToolbarButton
+					active={editor.isActive("codeBlock")}
+					onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+					title="代码块"
+				>
+					<CodeIcon className="h-3.5 w-3.5" />
+				</ToolbarButton>
 
-			<span className="mx-1 h-4 w-px bg-border" />
+				<span className="mx-1 h-4 w-px bg-border" />
 
-			{/* Headings */}
-			<ToolbarButton
-				active={editor.isActive("heading", { level: 2 })}
-				onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-				title="标题 2"
-			>
-				H2
-			</ToolbarButton>
-			<ToolbarButton
-				active={editor.isActive("heading", { level: 3 })}
-				onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-				title="标题 3"
-			>
-				H3
-			</ToolbarButton>
+				{/* Inline */}
+				<ToolbarButton
+					active={editor.isActive("bold")}
+					onClick={() => editor.chain().focus().toggleBold().run()}
+					title="粗体"
+				>
+					<BoldIcon className="h-3.5 w-3.5" />
+				</ToolbarButton>
+				<ToolbarButton
+					active={editor.isActive("italic")}
+					onClick={() => editor.chain().focus().toggleItalic().run()}
+					title="斜体"
+				>
+					<ItalicIcon className="h-3.5 w-3.5" />
+				</ToolbarButton>
+				<ToolbarButton
+					active={editor.isActive("underline")}
+					onClick={() => editor.chain().focus().toggleUnderline().run()}
+					title="下划线"
+				>
+					<UnderlineIcon className="h-3.5 w-3.5" />
+				</ToolbarButton>
 
-			<span className="mx-1 h-4 w-px bg-border" />
+				<span className="mx-1 h-4 w-px bg-border" />
 
-			{/* Lists */}
-			<ToolbarButton
-				active={editor.isActive("bulletList")}
-				onClick={() => editor.chain().focus().toggleBulletList().run()}
-				title="无序列表"
-			>
-				UL
-			</ToolbarButton>
-			<ToolbarButton
-				active={editor.isActive("orderedList")}
-				onClick={() => editor.chain().focus().toggleOrderedList().run()}
-				title="有序列表"
-			>
-				OL
-			</ToolbarButton>
+				{/* List */}
+				<ToolbarButton
+					active={editor.isActive("bulletList")}
+					onClick={() => editor.chain().focus().toggleBulletList().run()}
+					title="无序列表"
+				>
+					<ListIcon className="h-3.5 w-3.5" />
+				</ToolbarButton>
+				<ToolbarButton
+					active={editor.isActive("orderedList")}
+					onClick={() => editor.chain().focus().toggleOrderedList().run()}
+					title="有序列表"
+				>
+					<ListOrderedIcon className="h-3.5 w-3.5" />
+				</ToolbarButton>
 
-			<span className="mx-1 h-4 w-px bg-border" />
+				<span className="mx-1 h-4 w-px bg-border" />
 
-			{/* Blockquote & Code */}
-			<ToolbarButton
-				active={editor.isActive("blockquote")}
-				onClick={() => editor.chain().focus().toggleBlockquote().run()}
-				title="引用"
-			>
-				&quot;
-			</ToolbarButton>
-			<ToolbarButton
-				active={editor.isActive("codeBlock")}
-				onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-				title="代码块"
-			>
-				{"</>"}
-			</ToolbarButton>
-
-			<span className="mx-1 h-4 w-px bg-border" />
-
-			{/* Link & Emoji */}
-			<ToolbarButton
-				onClick={() => {
-					const url = window.prompt("输入链接地址:");
-					if (url) {
-						editor.chain().focus().setLink({ href: url }).run();
-					}
-				}}
-				title="插入链接"
-			>
-				🔗
-			</ToolbarButton>
-			<EmojiPicker onSelect={(emoji) => editor.chain().focus().insertContent(emoji).run()} />
-		</div>
+				{/* Insert */}
+				<LinkPopover editor={editor} />
+				<ImageUploadButton editor={editor} />
+				<EmojiPicker onSelect={(emoji) => editor.chain().focus().insertContent(emoji).run()} />
+			</div>
+		</TooltipProvider>
 	);
 }
 
@@ -194,7 +469,15 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 			StarterKit.configure({
 				heading: { levels: [2, 3, 4] },
 			}),
+			Underline,
 			Link.configure({ openOnClick: false }),
+			Image.configure({
+				inline: false,
+				allowBase64: false,
+				HTMLAttributes: {
+					class: "max-w-full h-auto rounded-md",
+				},
+			}),
 			Placeholder.configure({ placeholder }),
 			CharacterCount.configure({ limit: maxLength }),
 		],
@@ -219,7 +502,7 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 	const charCount = editor?.storage.characterCount;
 
 	return (
-		<div className="rounded-lg bg-card ring-1 ring-border overflow-hidden">
+		<div className="rounded-lg bg-card border border-border overflow-hidden focus-within:border-ring transition-colors">
 			{/* Subject (thread mode only) */}
 			{subject !== undefined && onSubjectChange && (
 				<div className="border-b px-3 py-2">
