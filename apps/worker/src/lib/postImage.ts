@@ -144,9 +144,14 @@ export async function handleGetPostImage(
 		return errorResponse("NOT_FOUND", 404, undefined, origin);
 	}
 
-	// Prefer the contentType R2 stored at upload, fall back to the
-	// extension-derived MIME so we never serve `application/octet-stream`.
-	const contentType = obj.httpMetadata?.contentType ?? validated.mime;
+	// Always derive Content-Type from the validated extension whitelist —
+	// never trust R2-stored metadata. If something else (a misconfigured
+	// admin write, a future bug) ever puts an object at this key shape
+	// with `text/html` metadata, `nosniff` cannot rescue an explicit HTML
+	// content-type. The extension is already constrained to a tiny
+	// image-only whitelist by `validatePostImageKey`, so this is the only
+	// safe source of truth here.
+	const contentType = validated.mime;
 
 	return new Response(obj.body, {
 		status: 200,
