@@ -319,6 +319,37 @@ describe("post handlers", () => {
 			expect(postsCall?.params).toEqual([1, 10]);
 		});
 
+		it("should query posts DESC and reverse when last=1", async () => {
+			const rows = [
+				makeD1PostRow({ id: 3, position: 3 }),
+				makeD1PostRow({ id: 2, position: 2 }),
+				makeD1PostRow({ id: 1, position: 1 }),
+			];
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
+					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				},
+				allResults: {
+					"SELECT * FROM posts WHERE thread_id": rows,
+				},
+			});
+			const env = { ...mockEnv, DB: db };
+
+			const response = await list(
+				new Request("https://example.com/api/v1/posts?threadId=1&last=1"),
+				env,
+			);
+
+			const postsCall = calls.find((c) => c.sql.includes("SELECT * FROM posts"));
+			expect(postsCall?.sql).toContain("ORDER BY position DESC");
+
+			const data = await response.json();
+			expect(data.data[0].position).toBe(1);
+			expect(data.data[2].position).toBe(3);
+			expect(data.meta.nextCursor).toBeNull();
+		});
+
 		it("should include CORS headers with origin", async () => {
 			const { db } = createMockDb({
 				firstResults: {

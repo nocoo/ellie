@@ -75,9 +75,16 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	});
 
 	const cursor = cursorStr ? decodeGenericCursor<PostCursorPayload>(cursorStr, isPostCursor) : null;
+	const lastPage = url.searchParams.get("last") === "1";
 
 	let result: D1Result;
-	if (cursor) {
+	if (lastPage) {
+		const stmt = env.DB.prepare(
+			`SELECT * FROM posts WHERE thread_id = ? AND ${POST_VISIBLE} ORDER BY position DESC LIMIT ?`,
+		);
+		result = await stmt.bind(threadIdNum, clampedLimit).all();
+		result.results.reverse();
+	} else if (cursor) {
 		// Position-based pagination: WHERE thread_id = ? AND position > ? ORDER BY position
 		// Only return visible posts (invisible = 0)
 		const stmt = env.DB.prepare(
@@ -97,7 +104,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 
 	// Generate next cursor from raw D1 row (position is same in both)
 	let nextCursor: string | null = null;
-	if (posts.length === clampedLimit && posts.length > 0) {
+	if (!lastPage && posts.length === clampedLimit && posts.length > 0) {
 		const lastPost = posts[posts.length - 1];
 		if (lastPost) {
 			nextCursor = encodeGenericCursor<PostCursorPayload>({
