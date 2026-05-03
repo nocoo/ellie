@@ -350,27 +350,13 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 			// Need to mock thread and forum lookups for visibility checks
 			const env = makeEnv({
 				prepare: vi.fn((sql: string) => {
-					// Thread lookup query - get forum_id
-					if (sql.includes("SELECT forum_id FROM threads")) {
+					// Thread→Forum JOIN visibility check (consolidated query)
+					if (sql.includes("JOIN forums f")) {
 						return {
 							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ forum_id: 1 })),
-							})),
-						};
-					}
-					// Thread lookup query - also need sticky check for newer code
-					if (sql.includes("SELECT") && sql.includes("threads") && sql.includes("WHERE id")) {
-						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ forum_id: 1, sticky: 0 })),
-							})),
-						};
-					}
-					// Forum visibility check query
-					if (sql.includes("SELECT status, visibility FROM forums")) {
-						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
+								first: vi.fn(() =>
+									Promise.resolve({ forum_id: 1, sticky: 0, status: 1, visibility: "public" }),
+								),
 							})),
 						};
 					}

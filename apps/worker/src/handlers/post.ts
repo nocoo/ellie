@@ -42,24 +42,25 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	const user = await optionalAuthVerified(request, env);
 	const visCtx = buildVisibilityContext(user);
 
-	// Get forum info via thread, also check thread is visible (sticky >= 0)
-	const threadRow = await env.DB.prepare("SELECT forum_id, sticky FROM threads WHERE id = ?")
+	// Single JOIN query: thread → forum (replaces 2 serial queries)
+	const row = await env.DB.prepare(
+		`SELECT t.forum_id, t.sticky, f.status, f.visibility
+		 FROM threads t
+		 JOIN forums f ON f.id = t.forum_id
+		 WHERE t.id = ?`,
+	)
 		.bind(threadIdNum)
-		.first<{ forum_id: number; sticky: number }>();
+		.first<{ forum_id: number; sticky: number; status: number; visibility: string }>();
 
-	if (!threadRow || threadRow.sticky < 0) {
+	if (!row || row.sticky < 0) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
 
-	const forumRow = await env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
-		.bind(threadRow.forum_id)
-		.first<{ status: number; visibility: string }>();
-
-	if (!isForumActive(forumRow)) {
+	if (!isForumActive(row)) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
 
-	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
+	if (!canViewForumVisibility(row.visibility as ForumVisibility, visCtx)) {
 		return errorResponse(
 			"FORBIDDEN",
 			403,
@@ -139,23 +140,25 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 	const user = await optionalAuthVerified(request, env);
 	const visCtx = buildVisibilityContext(user);
 
-	const threadRow = await env.DB.prepare("SELECT forum_id, sticky FROM threads WHERE id = ?")
+	// Single JOIN query: thread → forum (replaces 2 serial queries)
+	const visRow = await env.DB.prepare(
+		`SELECT t.forum_id, t.sticky, f.status, f.visibility
+		 FROM threads t
+		 JOIN forums f ON f.id = t.forum_id
+		 WHERE t.id = ?`,
+	)
 		.bind(threadId)
-		.first<{ forum_id: number; sticky: number }>();
+		.first<{ forum_id: number; sticky: number; status: number; visibility: string }>();
 
-	if (!threadRow || threadRow.sticky < 0) {
+	if (!visRow || visRow.sticky < 0) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
 
-	const forumRow = await env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
-		.bind(threadRow.forum_id)
-		.first<{ status: number; visibility: string }>();
-
-	if (!isForumActive(forumRow)) {
+	if (!isForumActive(visRow)) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
 
-	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
+	if (!canViewForumVisibility(visRow.visibility as ForumVisibility, visCtx)) {
 		return errorResponse(
 			"FORBIDDEN",
 			403,
@@ -201,10 +204,15 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 	}
 	content = censorResult.content;
 
-	// Validate thread exists and is not closed
-	const thread = await env.DB.prepare("SELECT id, forum_id, closed FROM threads WHERE id = ?")
+	// Single JOIN query: thread → forum (replaces 2 serial queries)
+	const thread = await env.DB.prepare(
+		`SELECT t.id, t.forum_id, t.closed, f.status, f.visibility
+		 FROM threads t
+		 JOIN forums f ON f.id = t.forum_id
+		 WHERE t.id = ?`,
+	)
 		.bind(threadId)
-		.first<{ id: number; forum_id: number; closed: number }>();
+		.first<{ id: number; forum_id: number; closed: number; status: number; visibility: string }>();
 	if (!thread) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
@@ -213,11 +221,7 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 	}
 
 	// Check forum visibility - user must have access to post in this forum
-	const forumRow = await env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
-		.bind(thread.forum_id)
-		.first<{ status: number; visibility: string }>();
-
-	if (!isForumActive(forumRow)) {
+	if (!isForumActive(thread)) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
 
@@ -225,7 +229,7 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		isLoggedIn: true,
 		role: user.role,
 	};
-	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
+	if (!canViewForumVisibility(thread.visibility as ForumVisibility, visCtx)) {
 		return errorResponse(
 			"FORBIDDEN",
 			403,

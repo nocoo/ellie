@@ -28,7 +28,7 @@ describe("post-comment handlers", () => {
 		it("should return 404 if post not found", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT thread_id FROM posts WHERE id": null,
+					"FROM posts p": null,
 				},
 			});
 			const env = makeEnv({ DB: db });
@@ -40,8 +40,7 @@ describe("post-comment handlers", () => {
 		it("should return 404 if thread is hidden (sticky < 0)", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT thread_id FROM posts WHERE id": { thread_id: 1 },
-					"SELECT forum_id, sticky FROM threads": { forum_id: 1, sticky: -1 },
+					"FROM posts p": { forum_id: 1, sticky: -1, status: 1, visibility: "public" },
 				},
 			});
 			const env = makeEnv({ DB: db });
@@ -53,9 +52,7 @@ describe("post-comment handlers", () => {
 		it("should return 404 if forum is inactive", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT thread_id FROM posts WHERE id": { thread_id: 1 },
-					"SELECT forum_id, sticky FROM threads": { forum_id: 1, sticky: 0 },
-					"SELECT status, visibility FROM forums": { status: 0, visibility: "public" },
+					"FROM posts p": { forum_id: 1, sticky: 0, status: 0, visibility: "public" },
 				},
 			});
 			const env = makeEnv({ DB: db });
@@ -67,9 +64,7 @@ describe("post-comment handlers", () => {
 		it("should return 403 if forum visibility restricts access", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT thread_id FROM posts WHERE id": { thread_id: 1 },
-					"SELECT forum_id, sticky FROM threads": { forum_id: 1, sticky: 0 },
-					"SELECT status, visibility FROM forums": { status: 1, visibility: "members" },
+					"FROM posts p": { forum_id: 1, sticky: 0, status: 1, visibility: "members" },
 				},
 			});
 			const env = makeEnv({ DB: db });
@@ -82,9 +77,7 @@ describe("post-comment handlers", () => {
 		it("should list comments for a public forum post", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT thread_id FROM posts WHERE id": { thread_id: 1 },
-					"SELECT forum_id, sticky FROM threads": { forum_id: 1, sticky: 0 },
-					"SELECT status, visibility FROM forums": { status: 1, visibility: "public" },
+					"FROM posts p": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 				},
 				allResults: {
 					"SELECT * FROM post_comments WHERE post_id": [
@@ -114,9 +107,7 @@ describe("post-comment handlers", () => {
 		it("should support custom limit", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT thread_id FROM posts WHERE id": { thread_id: 1 },
-					"SELECT forum_id, sticky FROM threads": { forum_id: 1, sticky: 0 },
-					"SELECT status, visibility FROM forums": { status: 1, visibility: "public" },
+					"FROM posts p": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 				},
 				allResults: {
 					"SELECT * FROM post_comments WHERE post_id": [],
@@ -288,7 +279,7 @@ describe("post-comment handlers", () => {
 						reg_date: 1700000000,
 						role: 0,
 					},
-					"SELECT id, thread_id, forum_id FROM posts": null,
+					"FROM posts p": null,
 				},
 				allResults: {
 					"SELECT id, find, replacement, action FROM censor_words": [],
@@ -319,8 +310,14 @@ describe("post-comment handlers", () => {
 						reg_date: 1700000000,
 						role: 0,
 					},
-					"SELECT id, thread_id, forum_id FROM posts": { id: 1, thread_id: 1, forum_id: 1 },
-					"SELECT closed, sticky, forum_id FROM threads": { closed: 1, sticky: 0, forum_id: 1 },
+					"FROM posts p": {
+						thread_id: 1,
+						closed: 1,
+						sticky: 0,
+						forum_id: 1,
+						status: 1,
+						visibility: "public",
+					},
 				},
 				allResults: {
 					"SELECT id, find, replacement, action FROM censor_words": [],
@@ -351,9 +348,14 @@ describe("post-comment handlers", () => {
 						reg_date: 1700000000,
 						role: 0,
 					},
-					"SELECT id, thread_id, forum_id FROM posts": { id: 1, thread_id: 1, forum_id: 1 },
-					"SELECT closed, sticky, forum_id FROM threads": { closed: 0, sticky: 0, forum_id: 1 },
-					"SELECT status, visibility FROM forums": { status: 1, visibility: "public" },
+					"FROM posts p": {
+						thread_id: 1,
+						closed: 0,
+						sticky: 0,
+						forum_id: 1,
+						status: 1,
+						visibility: "public",
+					},
 					"SELECT username FROM users": { username: "alice" },
 					"SELECT * FROM post_comments WHERE id": {
 						id: 42,
@@ -438,9 +440,14 @@ describe("post-comment handlers", () => {
 						reg_date: 1700000000,
 						role: 1,
 					},
-					"SELECT id, thread_id, forum_id FROM posts": { id: 1, thread_id: 1, forum_id: 1 },
-					"SELECT closed, sticky, forum_id FROM threads": { closed: 0, sticky: 0, forum_id: 1 },
-					"SELECT status, visibility FROM forums": { status: 1, visibility: "public" },
+					"FROM posts p": {
+						thread_id: 1,
+						closed: 0,
+						sticky: 0,
+						forum_id: 1,
+						status: 1,
+						visibility: "public",
+					},
 					"SELECT username FROM users": { username: "mod" },
 					"SELECT * FROM post_comments WHERE id": {
 						id: 50,

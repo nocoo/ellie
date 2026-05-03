@@ -42,12 +42,22 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid postId" }, origin);
 	}
 
-	// Verify post exists and is visible
-	const postRow = await env.DB.prepare("SELECT thread_id FROM posts WHERE id = ? AND invisible = 0")
+	// Single JOIN query: post → thread → forum (replaces 3 serial queries)
+	const row = await env.DB.prepare(
+		`SELECT t.forum_id, t.sticky, f.status, f.visibility
+		 FROM posts p
+		 JOIN threads t ON t.id = p.thread_id
+		 JOIN forums f ON f.id = t.forum_id
+		 WHERE p.id = ? AND p.invisible = 0`,
+	)
 		.bind(postIdNum)
-		.first<{ thread_id: number }>();
+		.first<{ forum_id: number; sticky: number; status: number; visibility: string }>();
 
-	if (!postRow) {
+	if (!row || row.sticky < 0) {
+		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
+	}
+
+	if (!isForumActive(row)) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
 
@@ -55,23 +65,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	const user = await optionalAuthVerified(request, env);
 	const visCtx = buildVisibilityContext(user);
 
-	const threadRow = await env.DB.prepare("SELECT forum_id, sticky FROM threads WHERE id = ?")
-		.bind(postRow.thread_id)
-		.first<{ forum_id: number; sticky: number }>();
-
-	if (!threadRow || threadRow.sticky < 0) {
-		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
-	}
-
-	const forumRow = await env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
-		.bind(threadRow.forum_id)
-		.first<{ status: number; visibility: string }>();
-
-	if (!isForumActive(forumRow)) {
-		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
-	}
-
-	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
+	if (!canViewForumVisibility(row.visibility as ForumVisibility, visCtx)) {
 		return errorResponse(
 			"FORBIDDEN",
 			403,
@@ -157,46 +151,42 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 	}
 	content = censorResult.content;
 
-	// Verify post exists and is visible
-	const postRow = await env.DB.prepare(
-		"SELECT id, thread_id, forum_id FROM posts WHERE id = ? AND invisible = 0",
+	// Single JOIN query: post → thread → forum (replaces 3 serial queries)
+	const row = await env.DB.prepare(
+		`SELECT p.thread_id, t.closed, t.sticky, t.forum_id, f.status, f.visibility
+		 FROM posts p
+		 JOIN threads t ON t.id = p.thread_id
+		 JOIN forums f ON f.id = t.forum_id
+		 WHERE p.id = ? AND p.invisible = 0`,
 	)
 		.bind(postId)
-		.first<{ id: number; thread_id: number; forum_id: number }>();
+		.first<{
+			thread_id: number;
+			closed: number;
+			sticky: number;
+			forum_id: number;
+			status: number;
+			visibility: string;
+		}>();
 
-	if (!postRow) {
+	if (!row || row.sticky < 0) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
 
-	// Check thread is not closed
-	const threadRow = await env.DB.prepare(
-		"SELECT closed, sticky, forum_id FROM threads WHERE id = ?",
-	)
-		.bind(postRow.thread_id)
-		.first<{ closed: number; sticky: number; forum_id: number }>();
-
-	if (!threadRow || threadRow.sticky < 0) {
-		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
-	}
-
-	if (threadRow.closed === 1) {
+	if (row.closed === 1) {
 		return errorResponse("THREAD_CLOSED", 403, undefined, origin);
 	}
 
-	// Check forum visibility - user must have access to comment in this forum
-	const forumRow = await env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
-		.bind(threadRow.forum_id)
-		.first<{ status: number; visibility: string }>();
-
-	if (!isForumActive(forumRow)) {
+	if (!isForumActive(row)) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
 
+	// Check forum visibility - user must have access to comment in this forum
 	const visCtx: VisibilityContext = {
 		isLoggedIn: true,
 		role: user.role,
 	};
-	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
+	if (!canViewForumVisibility(row.visibility as ForumVisibility, visCtx)) {
 		return errorResponse(
 			"FORBIDDEN",
 			403,
@@ -221,7 +211,7 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		`INSERT INTO post_comments (thread_id, post_id, author_id, author_name, content, score, reply_post_id, ip, created_at)
 		 VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)`,
 	)
-		.bind(postRow.thread_id, postId, user.userId, authorName, content, ip, now)
+		.bind(row.thread_id, postId, user.userId, authorName, content, ip, now)
 		.run();
 
 	const commentId = insertResult.meta.last_row_id;
