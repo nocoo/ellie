@@ -91,6 +91,10 @@ export default {
 			if (path.match(/^\/api\/v1\/posts\/\d+\/attachments$/) && request.method === "GET") {
 				return await (await import("./handlers/attachment")).listByPost(request, env);
 			}
+			// ── Batch attachment fetch (N+1 optimization) ────
+			if (path === "/api/v1/posts/attachments/batch" && request.method === "POST") {
+				return await (await import("./handlers/attachment")).batchByPostIds(request, env);
+			}
 			if (path.match(/^\/api\/v1\/users\/\d+$/) && request.method === "GET") {
 				return await (await import("./handlers/user")).getById(request, env);
 			}
