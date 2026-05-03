@@ -47,8 +47,7 @@ describe("post handlers", () => {
 		it("should clamp limit to [1, 100]", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
-					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 				},
 				allResults: {
 					"SELECT * FROM posts WHERE thread_id": [],
@@ -84,8 +83,7 @@ describe("post handlers", () => {
 			const d1Row = makeD1PostRow({ thread_id: 10, forum_id: 5, author_id: 100 });
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 5, sticky: 0 },
-					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+					"JOIN forums f": { forum_id: 5, sticky: 0, status: 1, visibility: "public" },
 				},
 				allResults: {
 					"SELECT * FROM posts WHERE thread_id": [d1Row],
@@ -115,8 +113,7 @@ describe("post handlers", () => {
 			const d1Row = makeD1PostRow({ is_first: 0 });
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
-					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 				},
 				allResults: {
 					"SELECT * FROM posts WHERE thread_id": [d1Row],
@@ -134,8 +131,7 @@ describe("post handlers", () => {
 			const d1Row = makeD1PostRow();
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
-					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 				},
 				allResults: {
 					"SELECT * FROM posts WHERE thread_id": [d1Row],
@@ -156,8 +152,7 @@ describe("post handlers", () => {
 			const cursor = btoa(JSON.stringify({ position: 100 }));
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
-					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 				},
 				allResults: {
 					"SELECT * FROM posts WHERE thread_id": [],
@@ -186,8 +181,7 @@ describe("post handlers", () => {
 
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
-					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 				},
 				allResults: {
 					"SELECT * FROM posts WHERE thread_id": posts,
@@ -212,8 +206,7 @@ describe("post handlers", () => {
 			const d1Row = makeD1PostRow();
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
-					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 				},
 				allResults: {
 					"SELECT * FROM posts WHERE thread_id": [d1Row],
@@ -234,8 +227,7 @@ describe("post handlers", () => {
 			const invalidCursor = btoa(JSON.stringify({ wrong: "structure" }));
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
-					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 				},
 				allResults: {
 					"SELECT * FROM posts WHERE thread_id": [],
@@ -260,8 +252,7 @@ describe("post handlers", () => {
 			const malformedCursor = "not-valid-base64!!!";
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
-					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 				},
 				allResults: {
 					"SELECT * FROM posts WHERE thread_id": [],
@@ -285,8 +276,7 @@ describe("post handlers", () => {
 		it("should not generate next cursor when results are empty", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
-					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 				},
 				allResults: {
 					"SELECT * FROM posts WHERE thread_id": [],
@@ -304,8 +294,7 @@ describe("post handlers", () => {
 		it("should use valid limit within range", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
-					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 				},
 				allResults: {
 					"SELECT * FROM posts WHERE thread_id": [],
@@ -327,8 +316,7 @@ describe("post handlers", () => {
 			];
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
-					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 				},
 				allResults: {
 					"SELECT * FROM posts WHERE thread_id": rows,
@@ -353,8 +341,7 @@ describe("post handlers", () => {
 		it("should include CORS headers with origin", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
-					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 				},
 				allResults: {
 					"SELECT * FROM posts WHERE thread_id": [],
@@ -387,8 +374,7 @@ describe("post handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT * FROM posts WHERE id": d1Row,
-					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 5, sticky: 0 },
-					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+					"JOIN forums f": { forum_id: 5, sticky: 0, status: 1, visibility: "public" },
 				},
 			});
 			const env = { ...mockEnv, DB: db };
@@ -426,8 +412,7 @@ describe("post handlers", () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
 					"SELECT * FROM posts WHERE id": d1Row,
-					"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
-					"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+					"JOIN forums f": { forum_id: 1, sticky: 0, status: 1, visibility: "public" },
 				},
 			});
 			const env = { ...mockEnv, DB: db };
@@ -456,9 +441,11 @@ describe("post handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT id, forum_id, closed FROM threads WHERE id": makeD1ThreadRow({
+					"JOIN forums f": makeD1ThreadRow({
 						id: 1,
 						closed: 0,
+						status: 1,
+						visibility: "public",
 					}),
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
@@ -524,7 +511,7 @@ describe("post handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT id, forum_id, closed FROM threads WHERE id": null,
+					"JOIN forums f": null,
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "avatars/test.jpg",
@@ -557,7 +544,7 @@ describe("post handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT id, forum_id, closed FROM threads WHERE id": { id: 1, forum_id: 10, closed: 1 },
+					"JOIN forums f": { id: 1, forum_id: 10, closed: 1, status: 1, visibility: "public" },
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "avatars/test.jpg",
@@ -597,8 +584,7 @@ describe("post handlers", () => {
 			const { db, batchCalls } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT id, forum_id, closed FROM threads WHERE id": { id: 1, forum_id: 10, closed: 0 },
-					"SELECT status, visibility FROM forums": { status: 1, visibility: "public" },
+					"JOIN forums f": { id: 1, forum_id: 10, closed: 0, status: 1, visibility: "public" },
 					"SELECT MAX(position)": { maxPos: 5 },
 					"SELECT * FROM posts WHERE id": createdPost,
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
@@ -641,8 +627,7 @@ describe("post handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT id, forum_id, closed FROM threads WHERE id": { id: 1, forum_id: 10, closed: 0 },
-					"SELECT status, visibility FROM forums": { status: 1, visibility: "public" },
+					"JOIN forums f": { id: 1, forum_id: 10, closed: 0, status: 1, visibility: "public" },
 					"SELECT MAX(position)": { maxPos: 1 },
 					"SELECT * FROM posts WHERE id": createdPost,
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
@@ -678,8 +663,7 @@ describe("post handlers", () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT id, forum_id, closed FROM threads WHERE id": { id: 1, forum_id: 10, closed: 0 },
-					"SELECT status, visibility FROM forums": { status: 1, visibility: "public" },
+					"JOIN forums f": { id: 1, forum_id: 10, closed: 0, status: 1, visibility: "public" },
 					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 						status: 0,
 						avatar_path: "avatars/test.jpg",
