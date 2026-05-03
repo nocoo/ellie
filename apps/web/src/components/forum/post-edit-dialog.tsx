@@ -88,8 +88,8 @@ export function PostEditDialog({
 			<DialogContent
 				className={cn(
 					"glass-panel",
-					"w-[calc(100vw-2rem)] max-w-[1200px]",
-					"max-h-[90vh] overflow-hidden flex flex-col",
+					"w-[calc(100vw-2rem)] sm:w-[80vw] sm:max-w-[80vw]",
+					"max-h-[90vh] sm:h-[85vh] overflow-hidden flex flex-col",
 					"rounded-xl p-0",
 				)}
 				showCloseButton={false}
