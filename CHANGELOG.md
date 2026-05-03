@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.1] - 2026-05-03
+
+### Added
+
+- **Post image upload**: Magic-byte sniffing for image validation on upload + serve endpoints
+- **L3 E2E test suite**: 15 new spec files covering post CRUD, thread CRUD, pagination, search, digest filter, user journey, messages, post-comments, and redirect security (39 total L3 tests)
+
+### Fixed
+
+- **CSRF origin allowlist**: Added E2E port (27031) to allowed origins, unblocking write operations in L3 tests
+- **Open redirect**: `buildRedirectUrl` no longer trusts forwarded-host header
+- **Post-comments API**: Client uses `searchParams` object form for correct query forwarding
+- **DM receiver validation**: Reject receivers with `status < 0` as `USER_NOT_FOUND`
+- **Post-comment permissions**: Route `post-comment:create` through `checkPostingPermission` gate
+- **Thread metadata on delete**: Recalculate thread replies/last_poster when deleting non-first posts
+- **CI build failures**: `force-dynamic` on forum/admin layouts prevents pre-render env var errors
+- **CI migrations**: Fix D1 migration command and vitest isolation for GitHub Actions
+
+### Changed
+
+- **Worker refactors**: Consolidated cursor responses, pagination clamping, forum status guards, and removed dead exports/aliases
+- **Proxy error passthrough**: Unified error forwarding across all v1 proxy routes
+
 ## [1.2.0] - 2026-05-02
 
 ### Added
