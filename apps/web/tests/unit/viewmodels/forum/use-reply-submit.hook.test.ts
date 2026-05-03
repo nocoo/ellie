@@ -2,12 +2,12 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockRefresh = vi.fn();
+const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
-	useRouter: () => ({ refresh: mockRefresh, push: vi.fn() }),
+	useRouter: () => ({ refresh: vi.fn(), push: mockPush }),
 }));
 
-const mockPost = vi.fn(async () => ({ data: {} }));
+const mockPost = vi.fn(async () => ({ data: { id: 42 } }));
 vi.mock("@/lib/api-client", () => ({
 	apiClient: { post: (...args: any[]) => mockPost(...args) },
 	ApiError: class ApiError extends Error {
@@ -43,9 +43,8 @@ describe("useReplySubmit hook", () => {
 		expect(mockPost).not.toHaveBeenCalled();
 	});
 
-	it("submits valid content successfully", async () => {
-		const onSuccess = vi.fn();
-		const { result } = renderHook(() => useReplySubmit({ threadId: 123, onSuccess }));
+	it("submits valid content and navigates to last page", async () => {
+		const { result } = renderHook(() => useReplySubmit({ threadId: 123 }));
 		await act(async () => {
 			await result.current.actions.handleSubmit("<p>Hello World!</p>");
 		});
@@ -53,8 +52,7 @@ describe("useReplySubmit hook", () => {
 			threadId: 123,
 			content: "<p>Hello World!</p>",
 		});
-		expect(onSuccess).toHaveBeenCalled();
-		expect(mockRefresh).toHaveBeenCalled();
+		expect(mockPush).toHaveBeenCalledWith("/threads/123?last=1#post-42");
 	});
 
 	it("handles API error", async () => {

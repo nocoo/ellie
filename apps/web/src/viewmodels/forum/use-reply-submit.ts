@@ -6,6 +6,7 @@
 import { ApiError, apiClient } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-messages";
 import { stripHtmlTags } from "@/lib/text";
+import type { Post } from "@ellie/types";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
@@ -43,8 +44,6 @@ export interface UseReplySubmitReturn {
 export interface UseReplySubmitOptions {
 	/** Thread ID to reply to */
 	threadId: number;
-	/** Callback after successful submission (defaults to router.refresh) */
-	onSuccess?: () => void;
 	/** Minimum content length (default: 2) */
 	minContentLength?: number;
 }
@@ -94,11 +93,12 @@ export function buildQuotedContent(
  * Submit a reply to the API.
  * Extracted for testability and reuse.
  */
-export async function submitReply(threadId: number, content: string): Promise<void> {
-	await apiClient.post("/api/v1/posts", {
+export async function submitReply(threadId: number, content: string): Promise<Post> {
+	const res = await apiClient.post<Post>("/api/v1/posts", {
 		threadId,
 		content,
 	});
+	return res.data;
 }
 
 /**
@@ -122,7 +122,6 @@ export async function submitReply(threadId: number, content: string): Promise<vo
  */
 export function useReplySubmit({
 	threadId,
-	onSuccess,
 	minContentLength = 2,
 }: UseReplySubmitOptions): UseReplySubmitReturn {
 	const router = useRouter();
@@ -148,12 +147,8 @@ export function useReplySubmit({
 			setError(null);
 
 			try {
-				await submitReply(threadId, html);
-
-				if (onSuccess) {
-					onSuccess();
-				}
-				router.refresh();
+				const post = await submitReply(threadId, html);
+				router.push(`/threads/${threadId}?last=1#post-${post.id}`);
 			} catch (err) {
 				const code = err instanceof ApiError ? err.code : undefined;
 				const message = getErrorMessage(code, "reply");
@@ -162,7 +157,7 @@ export function useReplySubmit({
 				setSubmitting(false);
 			}
 		},
-		[threadId, minContentLength, onSuccess, router],
+		[threadId, minContentLength, router],
 	);
 
 	return {

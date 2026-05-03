@@ -135,7 +135,7 @@ export function PostCard({
 	);
 
 	return (
-		<div className="border border-border bg-card -mt-px first:mt-0">
+		<div id={`post-${post.id}`} className="border border-border bg-card -mt-px first:mt-0">
 			{/* Desktop: two-column layout */}
 			<div className="hidden md:flex">
 				<PostSidebar

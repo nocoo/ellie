@@ -45,7 +45,6 @@ export function ReplyDialog({
 	// Use ViewModel hook for reply submission
 	const { state, actions } = useReplySubmit({
 		threadId,
-		onSuccess: () => onOpenChange(false),
 	});
 
 	// Build initial content with quote if provided

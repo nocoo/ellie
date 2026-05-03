@@ -56,6 +56,7 @@ export async function loadThreadDetail(params: {
 	cursor?: string;
 	direction?: "forward" | "backward";
 	limit?: number;
+	last?: boolean;
 }): Promise<ThreadDetailPageData> {
 	// Fetch current user session and posts per page setting
 	const [sessionUser, defaultLimit] = await Promise.all([getCurrentForumUser(), getPostsPerPage()]);
@@ -67,6 +68,7 @@ export async function loadThreadDetail(params: {
 			threadId: params.threadId,
 			limit: params.limit ?? defaultLimit,
 			cursor: params.cursor,
+			last: params.last ? "1" : undefined,
 		}),
 		forumApi.getAll<Forum>("/api/v1/forums"),
 	]);

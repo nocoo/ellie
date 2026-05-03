@@ -20,7 +20,7 @@ import Link from "next/link";
 
 interface ThreadDetailPageProps {
 	params: Promise<{ id: string }>;
-	searchParams: Promise<{ cursor?: string; direction?: string }>;
+	searchParams: Promise<{ cursor?: string; direction?: string; last?: string }>;
 }
 
 export async function generateMetadata({ params }: ThreadDetailPageProps): Promise<Metadata> {
@@ -60,6 +60,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 			threadId,
 			cursor: sp.cursor,
 			direction: sp.direction === "backward" ? "backward" : "forward",
+			last: sp.last === "1",
 		});
 	} catch (e) {
 		error = e instanceof Error ? e.message : "Failed to load thread";
