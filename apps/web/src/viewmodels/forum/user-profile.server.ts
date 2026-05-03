@@ -71,19 +71,35 @@ async function fetchTabData(
 		digest: `/api/v1/users/${params.userId}/digest`,
 	};
 
-	try {
-		const res = await forumApi.getCursor<Thread | Post>(endpointMap[tab], {
-			limit,
-			cursor: params.cursor,
-		});
-		return {
-			ok: true,
-			items: res.data,
-			nextCursor: res.meta.nextCursor,
-			prevCursor: params.cursor ?? null,
-			total: 0,
-		};
-	} catch {
-		return { ...emptyPage(), ok: false };
+	// Only digest has graceful fallback — threads/posts failures should propagate
+	// (matching pre-refactor behavior where only digest had try/catch)
+	if (tab === "digest") {
+		try {
+			const res = await forumApi.getCursor<Thread | Post>(endpointMap[tab], {
+				limit,
+				cursor: params.cursor,
+			});
+			return {
+				ok: true,
+				items: res.data,
+				nextCursor: res.meta.nextCursor,
+				prevCursor: params.cursor ?? null,
+				total: 0,
+			};
+		} catch {
+			return { ...emptyPage(), ok: false };
+		}
 	}
+
+	const res = await forumApi.getCursor<Thread | Post>(endpointMap[tab], {
+		limit,
+		cursor: params.cursor,
+	});
+	return {
+		ok: true,
+		items: res.data,
+		nextCursor: res.meta.nextCursor,
+		prevCursor: params.cursor ?? null,
+		total: 0,
+	};
 }
