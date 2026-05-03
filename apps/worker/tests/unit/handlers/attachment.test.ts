@@ -221,6 +221,8 @@ describe("attachment handlers", () => {
 			);
 
 			expect(response.status).toBe(404);
+			const data = (await response.json()) as { error: { code: string } };
+			expect(data.error.code).toBe("POST_NOT_FOUND");
 		});
 
 		it("should return 404 when thread not found", async () => {
@@ -238,6 +240,8 @@ describe("attachment handlers", () => {
 			);
 
 			expect(response.status).toBe(404);
+			const data = (await response.json()) as { error: { code: string } };
+			expect(data.error.code).toBe("POST_NOT_FOUND");
 		});
 
 		it("should return 404 when forum is inactive (status <= 0)", async () => {
@@ -256,6 +260,8 @@ describe("attachment handlers", () => {
 			);
 
 			expect(response.status).toBe(404);
+			const data = (await response.json()) as { error: { code: string } };
+			expect(data.error.code).toBe("POST_NOT_FOUND");
 		});
 
 		it("should return 404 when forum is paused (status === 2)", async () => {
