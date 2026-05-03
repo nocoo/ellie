@@ -1,6 +1,12 @@
 "use client";
 
 // components/forum/post-edit-dialog.tsx — Edit post content dialog
+//
+// B4: unified to the same shell as `new-thread-dialog.tsx` /
+// `reply-dialog.tsx` — same `max-w-[1200px]` cap, same `max-h-[90vh]`
+// content-driven height, same header/footer hierarchy. The PostEditor
+// `hideFooter` flag is on so the dialog footer is the single source of
+// truth for submit/cancel.
 
 import { PostEditor } from "@/components/forum/post-editor";
 import { Button } from "@/components/ui/button";
@@ -8,7 +14,6 @@ import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
-	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
@@ -16,9 +21,9 @@ import { ApiError } from "@/lib/api-client";
 import { editMyPost, editPost } from "@/lib/moderation-api";
 import { stripHtmlTags } from "@/lib/text";
 import { cn } from "@/lib/utils";
-import { Pencil } from "lucide-react";
+import { AlertCircle, Pencil, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 interface PostEditDialogProps {
 	open: boolean;
@@ -40,6 +45,7 @@ export function PostEditDialog({
 	canModerate,
 }: PostEditDialogProps) {
 	const router = useRouter();
+	const editorRef = useRef<{ getHTML: () => string } | null>(null);
 	const [submitting, setSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
@@ -82,43 +88,78 @@ export function PostEditDialog({
 			<DialogContent
 				className={cn(
 					"glass-panel",
-					"sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col",
-					"rounded-xl",
+					"w-[calc(100vw-2rem)] max-w-[1200px]",
+					"max-h-[90vh] overflow-hidden flex flex-col",
+					"rounded-xl p-0",
 				)}
-				showCloseButton
+				showCloseButton={false}
 			>
-				<DialogHeader>
-					<DialogTitle className="flex items-center gap-2">
-						<Pencil className="h-5 w-5 text-primary" />
-						编辑回复
-					</DialogTitle>
-					<DialogDescription>修改回复内容</DialogDescription>
+				{/* Header */}
+				<DialogHeader className="px-5 pt-5 pb-4 border-b border-border/50">
+					<div className="flex items-center gap-3">
+						<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+							<Pencil className="h-5 w-5 text-primary" />
+						</div>
+						<div>
+							<DialogTitle className="text-lg">编辑回复</DialogTitle>
+							<DialogDescription className="text-xs mt-0.5">修改回复内容</DialogDescription>
+						</div>
+					</div>
 				</DialogHeader>
 
 				{/* Error display */}
 				{error && (
-					<div className="rounded-lg bg-destructive/10 border border-destructive/30 p-3">
+					<div className="mx-5 mt-4 flex items-start gap-3 rounded-lg bg-destructive/10 border border-destructive/30 p-3">
+						<AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
 						<p className="text-sm text-destructive">{error}</p>
 					</div>
 				)}
 
-				{/* Editor */}
-				<div className="flex-1 overflow-y-auto min-h-0">
+				{/* Editor area */}
+				<div
+					className="flex-1 min-h-0 px-5 py-4 flex flex-col"
+					onKeyDown={(e) => {
+						if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !submitting) {
+							e.preventDefault();
+							const html = editorRef.current?.getHTML() ?? "";
+							handleSubmit(html);
+						}
+					}}
+				>
 					<PostEditor
+						ref={editorRef}
 						initialContent={currentContent}
 						onSubmit={handleSubmit}
 						placeholder="编辑回复内容..."
 						maxLength={10000}
 						submitting={submitting}
 						canSubmit={!submitting}
+						hideFooter
 					/>
 				</div>
 
-				<DialogFooter>
-					<Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
-						取消
-					</Button>
-				</DialogFooter>
+				{/* Footer — matches reply / new-thread dialogs */}
+				<div className="px-5 py-4 border-t border-border/50 bg-muted/30">
+					<div className="flex items-center justify-between">
+						<p className="text-xs text-muted-foreground">按 Ctrl+Enter 保存</p>
+						<div className="flex items-center gap-2">
+							<Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
+								取消
+							</Button>
+							<Button
+								onClick={() => {
+									const html = editorRef.current?.getHTML() ?? "";
+									handleSubmit(html);
+								}}
+								disabled={submitting}
+								className="gap-2"
+							>
+								<Save className="h-4 w-4" />
+								{submitting ? "保存中..." : "保存"}
+							</Button>
+						</div>
+					</div>
+				</div>
 			</DialogContent>
 		</Dialog>
 	);

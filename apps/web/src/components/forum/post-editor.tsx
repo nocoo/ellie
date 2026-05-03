@@ -21,7 +21,7 @@
 //     ProseMirror outline is killed via tailwind.css.
 
 import { EmojiPicker } from "@/components/forum/emoji-picker";
-import { SmileyPanel } from "@/components/forum/smiley-panel";
+import { SmileyPicker } from "@/components/forum/smiley-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -436,6 +436,7 @@ function Toolbar({ editor }: { editor: Editor }) {
 				{/* Insert */}
 				<LinkPopover editor={editor} />
 				<ImageUploadButton editor={editor} />
+				<SmileyPicker onSelect={(code) => editor.chain().focus().insertContent(`${code} `).run()} />
 				<EmojiPicker onSelect={(emoji) => editor.chain().focus().insertContent(emoji).run()} />
 			</div>
 		</TooltipProvider>
@@ -509,7 +510,7 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 	const charCount = editor?.storage.characterCount;
 
 	return (
-		<div className="rounded-lg bg-card border border-border overflow-hidden focus-within:border-ring transition-colors">
+		<div className="flex h-full min-h-0 flex-col rounded-lg bg-card border border-border overflow-hidden focus-within:border-ring transition-colors">
 			{/* Subject (thread mode only) */}
 			{subject !== undefined && onSubjectChange && (
 				<div className="border-b px-3 py-2">
@@ -527,19 +528,11 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 			{/* Toolbar */}
 			{editor && !disabled && <Toolbar editor={editor} />}
 
-			{/* Editor area */}
-			<EditorContent editor={editor} className="tiptap-content min-h-[180px] px-3 py-2 text-sm" />
-
-			{/* Smiley panel - traditional forum smileys */}
-			{editor && !disabled && (
-				<SmileyPanel
-					onSelect={(code) => {
-						editor.chain().focus().insertContent(`${code} `).run();
-					}}
-				/>
-			)}
-
-			{/* Footer */}
+			{/* Editor area — grows to fill the dialog body, scrolls internally */}
+			<EditorContent
+				editor={editor}
+				className="tiptap-content min-h-[180px] flex-1 overflow-y-auto px-3 py-2 text-sm"
+			/>
 			{!hideFooter && (
 				<div className="flex items-center justify-between border-t px-3 py-2">
 					<span className="text-xs text-muted-foreground">

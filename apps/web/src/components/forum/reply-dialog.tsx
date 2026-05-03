@@ -64,9 +64,12 @@ export function ReplyDialog({
 			<DialogContent
 				className={cn(
 					"glass-panel",
-					"w-[calc(100vw-2rem)] sm:w-[800px] md:w-[960px]",
-					"h-[calc(75vw-1.5rem)] sm:h-[600px] md:h-[720px]",
-					"max-h-[85vh] overflow-hidden flex flex-col",
+					// Width: full on mobile, capped at 1200px on desktop. Unified
+					// across reply / new-thread / edit dialogs.
+					"w-[calc(100vw-2rem)] max-w-[1200px]",
+					// Height: drop fixed h-[600px]/[720px]; let content drive
+					// height up to 90vh. Editor body scrolls internally.
+					"max-h-[90vh] overflow-hidden flex flex-col",
 					"rounded-xl p-0",
 				)}
 				showCloseButton={false}
@@ -138,20 +141,27 @@ export function ReplyDialog({
 							</div>
 						)}
 
-						{/* Editor area */}
-						<div className="flex-1 overflow-y-auto px-5 py-4 min-h-0">
-							<div className="rounded-lg border border-border/60 bg-card/50 overflow-hidden">
-								<PostEditor
-									ref={editorRef}
-									initialContent={initialContent}
-									onSubmit={actions.handleSubmit}
-									placeholder="写下你的回复..."
-									maxLength={10000}
-									submitting={state.submitting}
-									canSubmit={!state.submitting}
-									hideFooter
-								/>
-							</div>
+						{/* Editor area — PostEditor is its own bordered card and grows */}
+						<div
+							className="flex-1 min-h-0 px-5 py-4 flex flex-col"
+							onKeyDown={(e) => {
+								if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !state.submitting) {
+									e.preventDefault();
+									const html = editorRef.current?.getHTML() ?? "";
+									actions.handleSubmit(html);
+								}
+							}}
+						>
+							<PostEditor
+								ref={editorRef}
+								initialContent={initialContent}
+								onSubmit={actions.handleSubmit}
+								placeholder="写下你的回复..."
+								maxLength={10000}
+								submitting={state.submitting}
+								canSubmit={!state.submitting}
+								hideFooter
+							/>
 						</div>
 
 						{/* Footer */}
