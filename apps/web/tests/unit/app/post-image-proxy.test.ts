@@ -83,6 +83,18 @@ describe("GET /api/post-image/[...path]", () => {
 			expect(res.status).toBe(404);
 			expect(fetchMock).not.toHaveBeenCalled();
 		});
+
+		it("404s on uppercase UUID (mirrors Worker's lowercase-only UUID_RE)", async () => {
+			const res = await callRoute([`${VALID_UUID.toUpperCase()}.jpg`]);
+			expect(res.status).toBe(404);
+			expect(fetchMock).not.toHaveBeenCalled();
+		});
+
+		it("404s on uppercase extension", async () => {
+			const res = await callRoute([`${VALID_UUID}.JPG`]);
+			expect(res.status).toBe(404);
+			expect(fetchMock).not.toHaveBeenCalled();
+		});
 	});
 
 	describe("upstream call shape", () => {

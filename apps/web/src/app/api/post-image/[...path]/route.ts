@@ -31,16 +31,20 @@ function getApiKey(): string {
 }
 
 /**
- * Same shape the Worker enforces: lowercase RFC 4122 UUID + whitelisted
- * image extension, single segment, no traversal.
+ * Same shape the Worker enforces: lowercase RFC 4122 UUID + lowercase
+ * whitelisted image extension, single segment, no traversal.
  *
  * We re-validate here (instead of just trusting the Worker to 404) so:
  *   - we never spend a Worker round-trip on an obviously bad path
  *   - we cannot accidentally smuggle ".." or extra slashes through
  *     `decodeURIComponent` into the upstream URL
+ *
+ * Lowercase-only mirrors the Worker's `UUID_RE` exactly so a path that
+ * round-trips through this proxy can never reach the Worker only to be
+ * 404'd (avoids one extra failing Worker call per malformed request).
  */
 const POST_IMAGE_PATH_RE =
-	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:jpg|jpeg|png|webp|gif)$/i;
+	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:jpg|jpeg|png|webp|gif)$/;
 
 function notFound(): NextResponse {
 	return NextResponse.json({ error: { code: "NOT_FOUND", message: "Not found" } }, { status: 404 });
