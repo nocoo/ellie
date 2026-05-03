@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.2] - 2026-05-03
+
+### Added
+
+- **Batch attachment endpoint**: `POST /api/v1/posts/attachments/batch` fetches all attachments for a thread's posts in a single query (eliminates N+1)
+- **Batch user endpoint**: `GET /api/v1/users/batch?ids=` fetches multiple user profiles in a single query (eliminates N+1)
+- **Last page navigation**: `last=1` param on posts endpoint + auto-navigate to last page after reply
+
+### Fixed
+
+- **Quote not in editor**: Fixed quote content not appearing in editor, close dialog on reply, prevent double submit
+- **PostEditor focus border**: Removed unintended blue focus-within border
+- **Editor dialog sizing**: Enlarged to 80vw width and 85vh height
+- **Error propagation**: Preserved POST_NOT_FOUND error code in attachment visibility chain and user-profile tab fetch
+
+### Performance
+
+- **Thread page SSR**: Reduced Worker requests from ~42 to ~6 per page load (batch endpoints + React cache + parallel fetches)
+- **Visibility chain JOINs**: Consolidated 3 serial D1 queries into single JOIN for post listing, post-comments, and attachment handlers
+- **React cache() deduplication**: `generateMetadata` and page component share thread/forum fetches within same render pass
+- **Parallel page loaders**: `getSelfForumUser` now runs in parallel with `loadThreadDetail`/`loadThreadListPaged`
+- **User profile parallelization**: Profile data and tab data fetched concurrently
+
 ## [1.2.1] - 2026-05-03
 
 ### Added
