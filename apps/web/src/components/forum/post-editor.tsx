@@ -510,7 +510,7 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 	const charCount = editor?.storage.characterCount;
 
 	return (
-		<div className="flex h-full min-h-0 flex-col rounded-lg bg-card border border-border overflow-hidden focus-within:border-ring transition-colors">
+		<div className="flex h-full min-h-0 flex-col rounded-lg bg-card border border-border overflow-hidden">
 			{/* Subject (thread mode only) */}
 			{subject !== undefined && onSubjectChange && (
 				<div className="border-b px-3 py-2">
