@@ -63,14 +63,14 @@ test.describe("E2E-PR: Post CRUD", () => {
 		await threadPage.goto(THREAD_ID);
 		await page.waitForLoadState("networkidle");
 
-		// Find the last post card (our reply from PR-01) — look for edit button
-		// Our posts will have "编辑" button visible since we're the author
-		const editButtons = page.locator('button:has-text("编辑")');
+		// Find edit buttons — desktop/mobile layouts both render them,
+		// so filter to visible ones only
+		const editButtons = page.locator('button:has-text("编辑"):visible');
 		const editCount = await editButtons.count();
 
 		test.skip(editCount === 0, "No editable posts found");
 
-		// Click last edit button (our most recent reply)
+		// Click last visible edit button (our most recent reply)
 		await editButtons.last().click();
 
 		// Edit dialog should open with "编辑回复"
@@ -111,8 +111,8 @@ test.describe("E2E-PR: Post CRUD", () => {
 		await threadPage.goto(THREAD_ID);
 		await page.waitForLoadState("networkidle");
 
-		// Find delete buttons (only appear on non-first posts we authored)
-		const deleteButtons = page.locator('button:has-text("删除")');
+		// Find delete buttons — filter to visible (desktop/mobile dual layout)
+		const deleteButtons = page.locator('button:has-text("删除"):visible');
 		const deleteCount = await deleteButtons.count();
 
 		test.skip(deleteCount === 0, "No deletable posts found");
