@@ -44,7 +44,8 @@ describe("useReplySubmit hook", () => {
 	});
 
 	it("submits valid content and navigates to last page", async () => {
-		const { result } = renderHook(() => useReplySubmit({ threadId: 123 }));
+		const onClose = vi.fn();
+		const { result } = renderHook(() => useReplySubmit({ threadId: 123, onClose }));
 		await act(async () => {
 			await result.current.actions.handleSubmit("<p>Hello World!</p>");
 		});
@@ -52,7 +53,27 @@ describe("useReplySubmit hook", () => {
 			threadId: 123,
 			content: "<p>Hello World!</p>",
 		});
+		expect(onClose).toHaveBeenCalled();
 		expect(mockPush).toHaveBeenCalledWith("/threads/123?last=1#post-42");
+		expect(result.current.state.submitting).toBe(true);
+	});
+
+	it("prepends quote HTML when quote data is provided", async () => {
+		const { result } = renderHook(() =>
+			useReplySubmit({
+				threadId: 1,
+				quotedContent: "Hello",
+				quotedAuthor: "Alice",
+				quotedTime: "2026-01-01",
+			}),
+		);
+		await act(async () => {
+			await result.current.actions.handleSubmit("<p>My reply</p>");
+		});
+		const call = mockPost.mock.calls[0];
+		expect(call[1].content).toContain('class="quote"');
+		expect(call[1].content).toContain("Alice");
+		expect(call[1].content).toContain("<p>My reply</p>");
 	});
 
 	it("handles API error", async () => {

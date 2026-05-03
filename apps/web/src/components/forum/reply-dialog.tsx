@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { cn } from "@/lib/utils";
-import { buildQuotedContent, useReplySubmit } from "@/viewmodels/forum/use-reply-submit";
+import { useReplySubmit } from "@/viewmodels/forum/use-reply-submit";
 import { AlertCircle, MessageSquare, Send, XCircle } from "lucide-react";
 import { useRef } from "react";
 
@@ -45,10 +45,11 @@ export function ReplyDialog({
 	// Use ViewModel hook for reply submission
 	const { state, actions } = useReplySubmit({
 		threadId,
+		onClose: () => onOpenChange(false),
+		quotedContent,
+		quotedAuthor,
+		quotedTime,
 	});
-
-	// Build initial content with quote if provided
-	const initialContent = buildQuotedContent(quotedContent, quotedAuthor, quotedTime);
 
 	// Reset error when dialog closes
 	const handleOpenChange = (open: boolean) => {
@@ -149,7 +150,6 @@ export function ReplyDialog({
 						>
 							<PostEditor
 								ref={editorRef}
-								initialContent={initialContent}
 								onSubmit={actions.handleSubmit}
 								placeholder="写下你的回复..."
 								maxLength={10000}

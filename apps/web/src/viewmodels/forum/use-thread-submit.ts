@@ -244,7 +244,6 @@ export function useThreadSubmit({
 				const code = err instanceof ApiError ? err.code : undefined;
 				const message = getErrorMessage(code, "createThread");
 				setError(message);
-			} finally {
 				setSubmitting(false);
 			}
 		},
