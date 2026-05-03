@@ -201,7 +201,7 @@ describe("handleGetPostImage", () => {
 		expect(res.status).toBe(404);
 	});
 
-	it("returns object with stored contentType + nosniff + immutable cache", async () => {
+	it("returns object with extension-derived contentType + nosniff + immutable cache", async () => {
 		const r2 = createMockR2();
 		const env = makeEnv(r2);
 		const data = new Uint8Array([0xff, 0xd8, 0xff]).buffer;
@@ -216,7 +216,22 @@ describe("handleGetPostImage", () => {
 		expect(res.headers.get("Cache-Control")).toBe("public, max-age=31536000, immutable");
 	});
 
-	it("falls back to ext-derived MIME when stored contentType is missing", async () => {
+	it("ignores R2-stored contentType and uses ext-derived MIME (defense against text/html injection)", async () => {
+		const r2 = createMockR2();
+		const env = makeEnv(r2);
+		// Pretend a previous bug or admin write stored a malicious metadata
+		await env.R2.put(`${POST_IMAGE_PREFIX}${VALID_UUID}.jpg`, new ArrayBuffer(8), {
+			httpMetadata: { contentType: "text/html" },
+		});
+
+		const res = await handleGetPostImage(`${VALID_UUID}.jpg`, env);
+		expect(res.status).toBe(200);
+		// Must be image/jpeg from extension, NOT text/html from metadata
+		expect(res.headers.get("Content-Type")).toBe("image/jpeg");
+		expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+	});
+
+	it("uses ext-derived MIME when stored contentType is missing", async () => {
 		const r2 = createMockR2();
 		const env = makeEnv(r2);
 		// put without httpMetadata

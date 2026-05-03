@@ -231,6 +231,12 @@ vi.mock("../../src/lib/upload", () => ({
 	handleUpload: (...args: unknown[]) => handleUploadMock(...args),
 }));
 
+// Mock post-image GET handler
+const handleGetPostImageMock = vi.fn(async () => new Response("img", { status: 200 }));
+vi.mock("../../src/lib/postImage", () => ({
+	handleGetPostImage: (...args: unknown[]) => handleGetPostImageMock(...args),
+}));
+
 // Import the worker after all mocks are set up
 import worker from "../../src/index";
 
@@ -537,6 +543,77 @@ describe("router (src/index.ts)", () => {
 			expect(handleUploadMock).not.toHaveBeenCalled();
 			const body = await response.json();
 			expect(body).toEqual(EMAIL_NOT_VERIFIED_PAYLOAD);
+		});
+	});
+
+	// ─── Post-image GET route (Key A only) ──────────────────────────
+
+	describe("post-image GET route", () => {
+		it("should return 401 without X-API-Key", async () => {
+			const env = makeEnv();
+			const ctx = makeCtx();
+			// Build request without the API key header
+			const request = new Request(
+				"https://api.example.com/api/v1/post-images/550e8400-e29b-41d4-a716-446655440000.jpg",
+				{ method: "GET" },
+			) as CFRequest;
+
+			const response = await worker.fetch(request, env, ctx);
+
+			expect(response.status).toBe(401);
+			expect(handleGetPostImageMock).not.toHaveBeenCalled();
+		});
+
+		it("should return 401 with wrong X-API-Key", async () => {
+			const env = makeEnv();
+			const ctx = makeCtx();
+			const request = new Request(
+				"https://api.example.com/api/v1/post-images/550e8400-e29b-41d4-a716-446655440000.jpg",
+				{ method: "GET", headers: { "X-API-Key": "wrong-key" } },
+			) as CFRequest;
+
+			const response = await worker.fetch(request, env, ctx);
+
+			expect(response.status).toBe(401);
+			expect(handleGetPostImageMock).not.toHaveBeenCalled();
+		});
+
+		it("should delegate to handleGetPostImage with path suffix when Key A presented", async () => {
+			handleGetPostImageMock.mockResolvedValue(
+				new Response("img", {
+					status: 200,
+					headers: { "Content-Type": "image/jpeg" },
+				}),
+			);
+			const env = makeEnv();
+			const ctx = makeCtx();
+			const request = makeRequest(
+				"GET",
+				"/api/v1/post-images/550e8400-e29b-41d4-a716-446655440000.jpg",
+			);
+
+			const response = await worker.fetch(request, env, ctx);
+
+			expect(response.status).toBe(200);
+			expect(handleGetPostImageMock).toHaveBeenCalledTimes(1);
+			expect(handleGetPostImageMock.mock.calls[0][0]).toBe(
+				"550e8400-e29b-41d4-a716-446655440000.jpg",
+			);
+			expect(handleGetPostImageMock.mock.calls[0][1]).toBe(env);
+		});
+
+		it("should not match POST on /api/v1/post-images/...", async () => {
+			const env = makeEnv();
+			const ctx = makeCtx();
+			const request = makeRequest(
+				"POST",
+				"/api/v1/post-images/550e8400-e29b-41d4-a716-446655440000.jpg",
+			);
+
+			const response = await worker.fetch(request, env, ctx);
+
+			expect(response.status).toBe(404);
+			expect(handleGetPostImageMock).not.toHaveBeenCalled();
 		});
 	});
 
