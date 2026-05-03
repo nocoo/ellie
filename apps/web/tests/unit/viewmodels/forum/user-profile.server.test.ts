@@ -74,6 +74,16 @@ describe("loadUserProfile", () => {
 		expect(result.digest.total).toBe(0);
 	});
 
+	it("propagates threads API failure (no silent swallow)", async () => {
+		mockForumApi.getCursor.mockRejectedValue(new Error("server error"));
+		await expect(loadUserProfile({ userId: 42, tab: "threads" })).rejects.toThrow("server error");
+	});
+
+	it("propagates posts API failure (no silent swallow)", async () => {
+		mockForumApi.getCursor.mockRejectedValue(new Error("server error"));
+		await expect(loadUserProfile({ userId: 42, tab: "posts" })).rejects.toThrow("server error");
+	});
+
 	it("passes cursor and limit to API", async () => {
 		await loadUserProfile({ userId: 42, tab: "threads", cursor: "abc", limit: 5 });
 		expect(mockForumApi.getCursor).toHaveBeenCalledWith("/api/v1/users/42/threads", {
