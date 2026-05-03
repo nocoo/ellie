@@ -64,12 +64,8 @@ export function ReplyDialog({
 			<DialogContent
 				className={cn(
 					"glass-panel",
-					// Width: full on mobile, capped at 1200px on desktop. Unified
-					// across reply / new-thread / edit dialogs.
-					"w-[calc(100vw-2rem)] max-w-[1200px]",
-					// Height: drop fixed h-[600px]/[720px]; let content drive
-					// height up to 90vh. Editor body scrolls internally.
-					"max-h-[90vh] overflow-hidden flex flex-col",
+					"w-[calc(100vw-2rem)] sm:w-[80vw] sm:max-w-[80vw]",
+					"max-h-[90vh] sm:h-[85vh] overflow-hidden flex flex-col",
 					"rounded-xl p-0",
 				)}
 				showCloseButton={false}
