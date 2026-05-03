@@ -47,28 +47,32 @@ async function assertDialogFitsViewport(
 }
 
 /**
- * Footer button row must not overflow the dialog horizontally even on
- * narrow viewports. This is the regression the reviewer flagged: at
- * 375px the previous flat `flex justify-between` row pushed the
- * primary submit past the viewport edge.
+ * Every button rendered inside the dialog must stay inside the dialog
+ * bounds — both horizontally (the 375px footer overflow B4 targets)
+ * and vertically (so a footer/toolbar clipped by the dialog's
+ * `overflow-hidden` is caught instead of silently passing).
  */
 async function assertFooterFitsDialog(dialog: import("@playwright/test").Locator) {
 	const dialogBox = await dialog.boundingBox();
 	expect(dialogBox).not.toBeNull();
 	if (!dialogBox) return;
 
-	// Footer is the bottom-most row containing the primary submit
-	// button. The submit text differs per dialog (发布主题 / 发送回复
-	// / 保存) so just match any role=button inside the dialog and
-	// check none extend past the dialog box.
+	// The submit text differs per dialog (发布主题 / 发送回复 / 保存)
+	// so just match any button inside the dialog and check none extend
+	// past the dialog box on either axis.
 	const buttons = dialog.locator("button");
 	const count = await buttons.count();
 	for (let i = 0; i < count; i++) {
 		const btn = buttons.nth(i);
 		const btnBox = await btn.boundingBox();
 		if (!btnBox) continue;
+		// Horizontal containment.
 		expect(btnBox.x).toBeGreaterThanOrEqual(dialogBox.x - 1);
 		expect(btnBox.x + btnBox.width).toBeLessThanOrEqual(dialogBox.x + dialogBox.width + 1);
+		// Vertical containment — catches footer/toolbar clipped by
+		// `overflow-hidden` on the dialog content.
+		expect(btnBox.y).toBeGreaterThanOrEqual(dialogBox.y - 1);
+		expect(btnBox.y + btnBox.height).toBeLessThanOrEqual(dialogBox.y + dialogBox.height + 1);
 	}
 }
 
