@@ -74,7 +74,7 @@ test.describe("E2E-PR: Post CRUD", () => {
 		await editButtons.last().click();
 
 		// Edit dialog should open with "编辑回复"
-		const dialog = page.locator('[role="dialog"]');
+		const dialog = page.locator('[role="dialog"]:visible');
 		await expect(dialog).toBeVisible();
 		await expect(dialog.getByText("编辑回复")).toBeVisible();
 
@@ -124,7 +124,9 @@ test.describe("E2E-PR: Post CRUD", () => {
 		await deleteButtons.last().click();
 
 		// Confirmation dialog should appear
-		const confirmDialog = page.locator('[role="alertdialog"], [role="dialog"]');
+		const confirmDialog = page
+			.locator('[role="alertdialog"]:visible, [role="dialog"]:visible')
+			.first();
 		await expect(confirmDialog).toBeVisible();
 
 		// Click confirm button
