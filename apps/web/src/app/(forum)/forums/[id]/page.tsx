@@ -57,6 +57,10 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 	let data: ThreadListPagedData;
 	let error: string | null = null;
 
+	// Parallel: loader + self-user fetch. Both are independent.
+	// self uses fail-soft (.catch → null) so it never breaks the page.
+	const selfPromise = getSelfForumUser().catch(() => null);
+
 	try {
 		data = await loadThreadListPaged({ forumId, page });
 	} catch (e) {
@@ -73,12 +77,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 		};
 	}
 
-	// Phase 7-4: load self for the new-thread preflight. Server-only,
-	// fail-soft to null. The header receives `selfEmailVerifiedAt` so the
-	// "发表新帖" button can short-circuit to the §5.4 dialog when the
-	// logged-in user is unverified, instead of opening the editor and
-	// burning a write request that the Worker would reject.
-	const self = await getSelfForumUser();
+	const self = await selfPromise;
 
 	const basePath = `/forums/${forumId}`;
 	const isGroup = data.forum?.type === ForumType.Group;

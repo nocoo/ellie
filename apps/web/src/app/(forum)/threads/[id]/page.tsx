@@ -55,6 +55,10 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 	let data: ThreadDetailPageData;
 	let error: string | null = null;
 
+	// Parallel: loader + self-user fetch. Both are independent.
+	// self uses fail-soft (.catch → null) so it never breaks the page.
+	const selfPromise = getSelfForumUser().catch(() => null);
+
 	try {
 		data = await loadThreadDetail({
 			threadId,
@@ -81,12 +85,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 		};
 	}
 
-	// Phase 7-4: load self for the reply preflight (mirrors forum page).
-	// Server-only, fail-soft to null. The client receives `selfEmailVerifiedAt`
-	// so 回复 / 快速回复 can short-circuit to the §5.4 dialog when the
-	// logged-in user is unverified, instead of opening the editor and burning
-	// a write request that the Worker would reject.
-	const self = await getSelfForumUser();
+	const self = await selfPromise;
 
 	if (error || !data.thread) {
 		return (
