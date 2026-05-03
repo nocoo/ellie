@@ -124,31 +124,42 @@ export async function loadThreadDetail(params: {
 	const canMove = canMoveThread(currentUser);
 	const canDelete = forum ? canDeleteThread(currentUser, thread, forum) : false;
 
-	// Fetch attachments per post (Worker only supports per-post, not per-thread)
-	const attachmentResults = await Promise.all(
-		postsRes.data.map((post) =>
-			forumApi
-				.getAll<Attachment>(`/api/v1/posts/${post.id}/attachments`)
-				.then((res) => res.data)
-				.catch(() => [] as Attachment[]),
-		),
-	);
-	const allAttachments = attachmentResults.flat();
-
-	// Batch author lookup (deduplicated)
+	// Fetch attachments and authors in parallel using batch endpoints
+	// (eliminates N+1: 1 batch request instead of N per-post attachment requests,
+	//  and 1 batch request instead of M per-author user requests)
+	const postIds = postsRes.data.map((p) => p.id);
 	const authorIds = uniqueAuthorIds(postsRes.data);
-	const authorEntries = await Promise.all(
-		authorIds.map((id) =>
-			forumApi
-				.get<PublicUser>(`/api/v1/users/${id}`)
-				.then((res) => [id, publicUserToUser(res.data)] as const)
-				.catch(() => null),
-		),
-	);
-	const authorMap = new Map<number, User>();
-	for (const entry of authorEntries) {
-		if (entry) authorMap.set(entry[0], entry[1]);
-	}
+
+	const [batchAttachmentRes, batchAuthorRes] = await Promise.all([
+		// Batch attachment fetch: POST /api/v1/posts/attachments/batch
+		postIds.length > 0
+			? forumApi
+					.post<Attachment[]>("/api/v1/posts/attachments/batch", {
+						threadId: params.threadId,
+						postIds,
+					})
+					.then((res) => res.data)
+					.catch(() => [] as Attachment[])
+			: Promise.resolve([] as Attachment[]),
+		// Batch author fetch: GET /api/v1/users/batch?ids=1,2,3
+		authorIds.length > 0
+			? forumApi
+					.getAll<PublicUser>("/api/v1/users/batch", {
+						ids: authorIds.join(","),
+					})
+					.then((res) => {
+						const map = new Map<number, User>();
+						for (const pu of res.data) {
+							map.set(pu.id, publicUserToUser(pu));
+						}
+						return map;
+					})
+					.catch(() => new Map<number, User>())
+			: Promise.resolve(new Map<number, User>()),
+	]);
+
+	const allAttachments = batchAttachmentRes;
+	const authorMap = batchAuthorRes;
 
 	// Group attachments by postId and enrich posts
 	const attachmentMap = groupAttachmentsByPostId(allAttachments);
