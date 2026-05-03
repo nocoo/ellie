@@ -16,6 +16,9 @@ const MAX_BATCH_POST_IDS = 100;
  * Verify that a thread is visible and its forum is accessible to the viewer.
  * Shared by both listByPost and batchByPostIds to prevent visibility SQL drift.
  *
+ * @param notFoundCode - Error code for "not found" responses (default: THREAD_NOT_FOUND).
+ *   listByPost passes POST_NOT_FOUND to preserve post-centric error semantics.
+ *
  * Returns { allowed: true, forumId } on success, or { allowed: false, response } on failure.
  */
 async function verifyThreadVisibility(
@@ -24,6 +27,7 @@ async function verifyThreadVisibility(
 	request: Request,
 	env: Env,
 	origin?: string,
+	notFoundCode = "THREAD_NOT_FOUND",
 ): Promise<{ allowed: true; forumId: number } | { allowed: false; response: Response }> {
 	// Check thread visibility (sticky >= 0)
 	const thread = await db
@@ -32,7 +36,7 @@ async function verifyThreadVisibility(
 		.first<{ forum_id: number; sticky: number }>();
 
 	if (!thread || thread.sticky < 0) {
-		return { allowed: false, response: errorResponse("THREAD_NOT_FOUND", 404, undefined, origin) };
+		return { allowed: false, response: errorResponse(notFoundCode, 404, undefined, origin) };
 	}
 
 	// Check forum status and visibility
@@ -42,7 +46,7 @@ async function verifyThreadVisibility(
 		.first<{ status: number; visibility: string }>();
 
 	if (!isForumActive(forumRow)) {
-		return { allowed: false, response: errorResponse("THREAD_NOT_FOUND", 404, undefined, origin) };
+		return { allowed: false, response: errorResponse(notFoundCode, 404, undefined, origin) };
 	}
 
 	// Get user auth for visibility check (verified against DB)
@@ -176,7 +180,15 @@ export async function listByPost(request: Request, env: Env): Promise<Response> 
 	}
 
 	// Use shared visibility check for thread→forum chain
-	const visResult = await verifyThreadVisibility(env.DB, post.thread_id, request, env, origin);
+	// Pass POST_NOT_FOUND to preserve post-centric error semantics
+	const visResult = await verifyThreadVisibility(
+		env.DB,
+		post.thread_id,
+		request,
+		env,
+		origin,
+		"POST_NOT_FOUND",
+	);
 	if (!visResult.allowed) {
 		return visResult.response;
 	}
