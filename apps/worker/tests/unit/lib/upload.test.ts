@@ -46,14 +46,32 @@ describe("handleUpload", () => {
 		});
 	}
 
+	// Build a buffer that starts with the canonical magic bytes for a
+	// given image format and is padded out to the requested total size.
+	// The magic-byte sniffer (see imageMagicBytes.ts) inspects only the
+	// header, so the padding doesn't have to be valid image data.
+	function bufferWithSignature(signature: number[], totalSize: number): ArrayBuffer {
+		const size = Math.max(totalSize, signature.length);
+		const buf = new Uint8Array(size);
+		buf.set(signature, 0);
+		return buf.buffer;
+	}
+
+	const JPEG_SIG = [0xff, 0xd8, 0xff];
+	const PNG_SIG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+	const GIF_SIG = [0x47, 0x49, 0x46, 0x38, 0x39, 0x61];
+	const WEBP_SIG = [0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50];
+
 	function createJpegFile(size: number): File {
-		const buffer = new ArrayBuffer(size);
-		return new File([buffer], "test.jpg", { type: "image/jpeg" });
+		return new File([bufferWithSignature(JPEG_SIG, size)], "test.jpg", {
+			type: "image/jpeg",
+		});
 	}
 
 	function createPngFile(size: number): File {
-		const buffer = new ArrayBuffer(size);
-		return new File([buffer], "test.png", { type: "image/png" });
+		return new File([bufferWithSignature(PNG_SIG, size)], "test.png", {
+			type: "image/png",
+		});
 	}
 
 	describe("validation", () => {
@@ -319,6 +337,149 @@ describe("handleUpload", () => {
 			const body = await response.json();
 			expect(body.error.code).toBe("UPLOAD_FAILED");
 			expect(body.error.details.message).toBe("R2 connection failed");
+		});
+	});
+
+	describe("magic-byte sniffing", () => {
+		it("rejects JPEG-claimed file with GIF bytes (sniffed type not allowed)", async () => {
+			const env = createEnv();
+			const ctx = createMockCtx();
+			// Claim JPEG, but body is GIF signature — GIF not allowed for avatar
+			const file = new File([bufferWithSignature(GIF_SIG, 1000)], "lie.jpg", {
+				type: "image/jpeg",
+			});
+			const request = createMultipartRequest({ file, purpose: "avatar" });
+
+			const response = await handleUpload(request, env, ctx, 42);
+			expect(response.status).toBe(415);
+			const body = await response.json();
+			expect(body.error.code).toBe("INVALID_FORMAT");
+			expect(body.error.details.sniffedType).toBe("image/gif");
+		});
+
+		it("rejects file with no recognizable signature even if MIME claims JPEG", async () => {
+			const env = createEnv();
+			const ctx = createMockCtx();
+			const file = new File([new ArrayBuffer(1000)], "blank.jpg", {
+				type: "image/jpeg",
+			});
+			const request = createMultipartRequest({ file, purpose: "avatar" });
+
+			const response = await handleUpload(request, env, ctx, 42);
+			expect(response.status).toBe(415);
+			const body = await response.json();
+			expect(body.error.code).toBe("INVALID_FORMAT");
+			expect(body.error.details.sniffedType).toBeNull();
+		});
+
+		it("avatar INVALID_FORMAT message uses formatsLabel", async () => {
+			const env = createEnv();
+			const ctx = createMockCtx();
+			const gif = new File([bufferWithSignature(GIF_SIG, 1000)], "x.gif", {
+				type: "image/gif",
+			});
+			const request = createMultipartRequest({ file: gif, purpose: "avatar" });
+
+			const response = await handleUpload(request, env, ctx, 42);
+			expect(response.status).toBe(415);
+			const body = await response.json();
+			expect(body.error.details.message).toContain("JPG, PNG");
+		});
+	});
+
+	describe("post-image upload", () => {
+		function createWebpFile(size: number): File {
+			return new File([bufferWithSignature(WEBP_SIG, size)], "x.webp", {
+				type: "image/webp",
+			});
+		}
+		function createGifFile(size: number): File {
+			return new File([bufferWithSignature(GIF_SIG, size)], "x.gif", {
+				type: "image/gif",
+			});
+		}
+
+		it("uploads JPEG to post-images/ prefix", async () => {
+			const r2 = createMockR2();
+			const { db, calls } = createMockDb();
+			const env = createEnv({ R2: r2, DB: db });
+			const ctx = createMockCtx();
+			const file = createJpegFile(5000);
+			const request = createMultipartRequest({ file, purpose: "post-image" });
+
+			const response = await handleUpload(request, env, ctx, 42);
+			expect(response.status).toBe(200);
+			const body = await response.json();
+			expect(body.data.path).toMatch(/^post-images\/[a-f0-9-]+\.jpg$/);
+			expect(body.data.url).toMatch(/^\/api\/post-image\/[a-f0-9-]+\.jpg$/);
+			expect(body.data.size).toBe(5000);
+			expect(body.data.contentType).toBe("image/jpeg");
+
+			expect(r2._putCalls).toHaveLength(1);
+			expect(r2._putCalls[0].key).toMatch(/^post-images\/[a-f0-9-]+\.jpg$/);
+			expect(r2._putCalls[0].options?.httpMetadata?.contentType).toBe("image/jpeg");
+
+			// Should NOT touch users table
+			expect(calls.find((c) => c.sql.includes("UPDATE users"))).toBeUndefined();
+			// Should NOT schedule cache invalidation (post-image isn't per-user)
+			expect((ctx as any)._waitUntilPromises).toHaveLength(0);
+		});
+
+		it("accepts WebP for post-image", async () => {
+			const r2 = createMockR2();
+			const { db } = createMockDb();
+			const env = createEnv({ R2: r2, DB: db });
+			const ctx = createMockCtx();
+			const request = createMultipartRequest({
+				file: createWebpFile(2000),
+				purpose: "post-image",
+			});
+
+			const response = await handleUpload(request, env, ctx, 42);
+			expect(response.status).toBe(200);
+			const body = await response.json();
+			expect(body.data.path).toMatch(/\.webp$/);
+		});
+
+		it("accepts GIF for post-image", async () => {
+			const r2 = createMockR2();
+			const { db } = createMockDb();
+			const env = createEnv({ R2: r2, DB: db });
+			const ctx = createMockCtx();
+			const request = createMultipartRequest({
+				file: createGifFile(2000),
+				purpose: "post-image",
+			});
+
+			const response = await handleUpload(request, env, ctx, 42);
+			expect(response.status).toBe(200);
+			const body = await response.json();
+			expect(body.data.path).toMatch(/\.gif$/);
+		});
+
+		it("rejects post-image over 5MB", async () => {
+			const env = createEnv();
+			const ctx = createMockCtx();
+			const big = createJpegFile(6 * 1024 * 1024);
+			const request = createMultipartRequest({ file: big, purpose: "post-image" });
+
+			const response = await handleUpload(request, env, ctx, 42);
+			expect(response.status).toBe(413);
+			const body = await response.json();
+			expect(body.error.code).toBe("FILE_TOO_LARGE");
+			expect(body.error.details.maxSize).toBe(5 * 1024 * 1024);
+		});
+
+		it("post-image INVALID_FORMAT message uses post-image formatsLabel", async () => {
+			const env = createEnv();
+			const ctx = createMockCtx();
+			const bad = new File([new ArrayBuffer(1000)], "x.bmp", { type: "image/bmp" });
+			const request = createMultipartRequest({ file: bad, purpose: "post-image" });
+
+			const response = await handleUpload(request, env, ctx, 42);
+			expect(response.status).toBe(415);
+			const body = await response.json();
+			expect(body.error.details.message).toContain("JPG, PNG, WebP, GIF");
 		});
 	});
 });

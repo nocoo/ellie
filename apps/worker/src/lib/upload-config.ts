@@ -6,12 +6,21 @@ export interface UploadConfig {
 	maxSize: number;
 	/** Allowed MIME types */
 	allowedMimeTypes: string[];
+	/** Human-readable list of accepted formats, used in error messages */
+	formatsLabel: string;
 }
 
 export const UPLOAD_CONFIGS: Record<string, UploadConfig> = {
 	avatar: {
 		maxSize: 200 * 1024, // 200 KB
 		allowedMimeTypes: ["image/jpeg", "image/png"],
+		formatsLabel: "JPG, PNG",
 	},
-	// Future: add attachment config with different limits
+	"post-image": {
+		// 5 MB — large enough for typical screenshots/photos, small enough
+		// to keep R2 + edge bandwidth predictable.
+		maxSize: 5 * 1024 * 1024,
+		allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+		formatsLabel: "JPG, PNG, WebP, GIF",
+	},
 };

@@ -1,8 +1,12 @@
-// Upload handler — handles file uploads (avatar, future: attachments)
-// Currently supports avatar uploads with validation and R2 storage
+// Upload handler — handles file uploads (avatar, post-image, future: attachments)
+// All upload purposes share size/MIME validation, magic-byte sniffing, and the
+// same authenticated multipart request shape; per-purpose handlers diverge on
+// where the bytes are stored and what response shape the client gets.
 
 import { errorResponse } from "../middleware/error";
 import type { Env } from "./env";
+import { sniffImageType } from "./imageMagicBytes";
+import { handlePostImageUpload } from "./postImage";
 import { jsonResponse } from "./response";
 import { UPLOAD_CONFIGS } from "./upload-config";
 import { invalidateUserCache } from "./user-cache";
@@ -78,13 +82,13 @@ export async function handleUpload(
 		);
 	}
 
-	// Validate MIME type
+	// Validate the client-claimed MIME type (cheap reject before reading body)
 	if (!config.allowedMimeTypes.includes(file.type)) {
 		return errorResponse(
 			"INVALID_FORMAT",
 			415,
 			{
-				message: "Only JPG and PNG formats are allowed",
+				message: `Only ${config.formatsLabel} formats are allowed`,
 				allowedTypes: config.allowedMimeTypes,
 				actualType: file.type,
 			},
@@ -95,12 +99,36 @@ export async function handleUpload(
 	// Read file content
 	const arrayBuffer = await file.arrayBuffer();
 
-	// Handle avatar upload
-	if (purpose === "avatar") {
-		return handleAvatarUpload(env, ctx, userId, arrayBuffer, file.type, origin);
+	// Magic-byte sniff — never trust the client-supplied Content-Type alone.
+	// Reject if the bytes don't match any whitelisted image format, or if the
+	// sniffed format isn't allowed by the per-purpose config.
+	const sniffed = sniffImageType(arrayBuffer);
+	if (!sniffed || !config.allowedMimeTypes.includes(sniffed)) {
+		return errorResponse(
+			"INVALID_FORMAT",
+			415,
+			{
+				message: `File contents do not match an accepted image format (${config.formatsLabel})`,
+				allowedTypes: config.allowedMimeTypes,
+				actualType: file.type,
+				sniffedType: sniffed,
+			},
+			origin,
+		);
 	}
 
-	// Future: handle other purposes
+	// Handle avatar upload — use the sniffed MIME so a mislabeled JPEG can't
+	// land in R2 with the wrong Content-Type.
+	if (purpose === "avatar") {
+		return handleAvatarUpload(env, ctx, userId, arrayBuffer, sniffed, origin);
+	}
+
+	if (purpose === "post-image") {
+		return handlePostImageUpload(env, arrayBuffer, sniffed, origin);
+	}
+
+	// Unknown purpose that nonetheless passed the Object.hasOwn check —
+	// indicates a config entry without a handler. Fail closed.
 	return errorResponse("INVALID_PURPOSE", 400, undefined, origin);
 }
 

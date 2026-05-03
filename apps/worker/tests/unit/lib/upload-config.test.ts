@@ -26,6 +26,29 @@ describe("UPLOAD_CONFIGS", () => {
 		});
 	});
 
+	describe("post-image config", () => {
+		it("should limit post-image size to 5 MB", () => {
+			expect(UPLOAD_CONFIGS["post-image"].maxSize).toBe(5 * 1024 * 1024);
+		});
+
+		it("should allow JPEG, PNG, WebP, GIF", () => {
+			const types = UPLOAD_CONFIGS["post-image"].allowedMimeTypes;
+			expect(types).toEqual(
+				expect.arrayContaining(["image/jpeg", "image/png", "image/webp", "image/gif"]),
+			);
+			expect(types).toHaveLength(4);
+		});
+
+		it("should not allow SVG", () => {
+			expect(UPLOAD_CONFIGS["post-image"].allowedMimeTypes).not.toContain("image/svg+xml");
+		});
+
+		it("should expose human-readable formatsLabel", () => {
+			expect(typeof UPLOAD_CONFIGS["post-image"].formatsLabel).toBe("string");
+			expect(UPLOAD_CONFIGS["post-image"].formatsLabel.length).toBeGreaterThan(0);
+		});
+	});
+
 	describe("config validation", () => {
 		it("should have positive maxSize for all configs", () => {
 			for (const [_purpose, config] of Object.entries(UPLOAD_CONFIGS)) {

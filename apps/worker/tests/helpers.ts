@@ -305,6 +305,7 @@ export function createMockR2(config?: {
 	objects?: Map<string, ArrayBuffer>;
 }) {
 	const store = config?.objects ?? new Map<string, ArrayBuffer>();
+	const metaStore = new Map<string, { httpMetadata?: { contentType?: string } }>();
 	const putCalls: {
 		key: string;
 		body: ArrayBuffer;
@@ -321,6 +322,7 @@ export function createMockR2(config?: {
 				const buffer =
 					body instanceof ArrayBuffer ? body : new TextEncoder().encode(body as string).buffer;
 				store.set(key, buffer as ArrayBuffer);
+				if (options) metaStore.set(key, options);
 				putCalls.push({ key, body: buffer as ArrayBuffer, options });
 				return { key, size: (buffer as ArrayBuffer).byteLength };
 			},
@@ -328,6 +330,7 @@ export function createMockR2(config?: {
 		get: vi.fn(async (key: string) => {
 			const data = store.get(key);
 			if (!data) return null;
+			const meta = metaStore.get(key);
 			return {
 				body: new ReadableStream({
 					start(controller) {
@@ -336,6 +339,7 @@ export function createMockR2(config?: {
 					},
 				}),
 				arrayBuffer: async () => data,
+				httpMetadata: meta?.httpMetadata,
 			};
 		}),
 		delete: vi.fn(async (key: string) => {
