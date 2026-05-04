@@ -419,7 +419,9 @@ describe("admin user handlers", () => {
 	describe("ban", () => {
 		it("should simple ban without content deletion", async () => {
 			const { db } = createMockDb({
-				firstResults: { "SELECT id FROM users WHERE id": { id: 42 } },
+				firstResults: {
+					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
+				},
 			});
 
 			const res = await ban(
@@ -442,7 +444,9 @@ describe("admin user handlers", () => {
 			const standaloneThreadRows = [{ thread_id: 20, cnt: 2 }];
 
 			const { db, batchCalls } = createMockDb({
-				firstResults: { "SELECT id FROM users WHERE id": { id: 42 } },
+				firstResults: {
+					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
+				},
 				allResults: {
 					"SELECT id, forum_id, replies FROM threads WHERE author_id": threadRows,
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": standalonePostRows,
@@ -470,7 +474,7 @@ describe("admin user handlers", () => {
 
 		it("should return 404 for non-existent user", async () => {
 			const { db } = createMockDb({
-				firstResults: { "SELECT id FROM users WHERE id": null },
+				firstResults: { "SELECT id, status, role FROM users WHERE id": null },
 			});
 
 			const res = await ban(
@@ -483,7 +487,9 @@ describe("admin user handlers", () => {
 
 		it("should handle ban with no body (default no content deletion)", async () => {
 			const { db } = createMockDb({
-				firstResults: { "SELECT id FROM users WHERE id": { id: 42 } },
+				firstResults: {
+					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
+				},
 			});
 
 			const res = await ban(
@@ -519,7 +525,9 @@ describe("admin user handlers", () => {
 			const standaloneThreadRows = [{ thread_id: 20, cnt: 3 }];
 
 			const { db, batchCalls } = createMockDb({
-				firstResults: { "SELECT id FROM users WHERE id": { id: 42 } },
+				firstResults: {
+					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
+				},
 				allResults: {
 					"SELECT id, forum_id, replies FROM threads WHERE author_id": threadRows,
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": standalonePostRows,
@@ -543,7 +551,7 @@ describe("admin user handlers", () => {
 
 		it("should return 404 for non-existent user", async () => {
 			const { db } = createMockDb({
-				firstResults: { "SELECT id FROM users WHERE id": null },
+				firstResults: { "SELECT id, status, role FROM users WHERE id": null },
 			});
 
 			const res = await nuke(createAdminRequest("POST", "/api/admin/users/999/nuke"), adminEnv(db));
@@ -553,7 +561,9 @@ describe("admin user handlers", () => {
 
 		it("should handle user with no content to delete", async () => {
 			const { db, batchCalls } = createMockDb({
-				firstResults: { "SELECT id FROM users WHERE id": { id: 42 } },
+				firstResults: {
+					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
+				},
 				allResults: {
 					"SELECT id, forum_id, replies FROM threads WHERE author_id": [],
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": [],
@@ -581,6 +591,200 @@ describe("admin user handlers", () => {
 			const res = await nuke(request, adminEnv(db));
 
 			expect(res.status).toBe(400);
+		});
+	});
+
+	// ─── D4-a: purge skeleton + cross-handler ALREADY_PURGED guards ──────────
+
+	describe("purge (D4-a skeleton)", () => {
+		const targetRow = { id: 42, username: "victim", status: 0, role: 0 };
+
+		const validBody = { actorId: 1, confirmUsername: "victim" };
+
+		it("returns 501 NOT_IMPLEMENTED when all guards pass (D4-a stops here)", async () => {
+			const { db } = createMockDb({
+				firstResults: { "SELECT id, username, status, role FROM users": targetRow },
+			});
+			const { purge } = await import("../../../../src/handlers/admin/user");
+
+			const res = await purge(
+				createAdminRequest("POST", "/api/admin/users/42/purge", validBody),
+				adminEnv(db),
+			);
+			const body = await res.json();
+
+			expect(res.status).toBe(501);
+			expect(body.error.code).toBe("NOT_IMPLEMENTED");
+		});
+
+		it("returns 400 INVALID_BODY when body is not JSON", async () => {
+			const { db } = createMockDb();
+			const { purge } = await import("../../../../src/handlers/admin/user");
+
+			const req = new Request("https://api.example.com/api/admin/users/42/purge", {
+				method: "POST",
+				headers: { "X-API-Key": "test-admin-key", "Content-Type": "application/json" },
+				body: "not-json",
+			});
+			const res = await purge(req, adminEnv(db));
+			expect(res.status).toBe(400);
+			expect((await res.json()).error.code).toBe("INVALID_BODY");
+		});
+
+		it("returns 400 INVALID_BODY when actorId is missing or non-positive", async () => {
+			const { db } = createMockDb();
+			const { purge } = await import("../../../../src/handlers/admin/user");
+
+			const res = await purge(
+				createAdminRequest("POST", "/api/admin/users/42/purge", {
+					actorId: 0,
+					confirmUsername: "victim",
+				}),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(400);
+			expect((await res.json()).error.code).toBe("INVALID_BODY");
+		});
+
+		it("returns 400 INVALID_BODY when confirmUsername is missing", async () => {
+			const { db } = createMockDb();
+			const { purge } = await import("../../../../src/handlers/admin/user");
+
+			const res = await purge(
+				createAdminRequest("POST", "/api/admin/users/42/purge", { actorId: 1 }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(400);
+		});
+
+		it("returns 404 USER_NOT_FOUND when target row missing", async () => {
+			const { db } = createMockDb({
+				firstResults: { "SELECT id, username, status, role FROM users": null },
+			});
+			const { purge } = await import("../../../../src/handlers/admin/user");
+
+			const res = await purge(
+				createAdminRequest("POST", "/api/admin/users/42/purge", validBody),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(404);
+			expect((await res.json()).error.code).toBe("USER_NOT_FOUND");
+		});
+
+		it("returns 400 CONFIRM_MISMATCH when confirmUsername != target.username", async () => {
+			const { db } = createMockDb({
+				firstResults: { "SELECT id, username, status, role FROM users": targetRow },
+			});
+			const { purge } = await import("../../../../src/handlers/admin/user");
+
+			const res = await purge(
+				createAdminRequest("POST", "/api/admin/users/42/purge", {
+					actorId: 1,
+					confirmUsername: "wrong",
+				}),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(400);
+			expect((await res.json()).error.code).toBe("CONFIRM_MISMATCH");
+		});
+
+		it("returns 403 SELF_PURGE when actorId === target id", async () => {
+			const { db } = createMockDb({
+				firstResults: { "SELECT id, username, status, role FROM users": targetRow },
+			});
+			const { purge } = await import("../../../../src/handlers/admin/user");
+
+			const res = await purge(
+				createAdminRequest("POST", "/api/admin/users/42/purge", {
+					actorId: 42,
+					confirmUsername: "victim",
+				}),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(403);
+			expect((await res.json()).error.code).toBe("SELF_PURGE");
+		});
+
+		it("returns 403 CANNOT_PURGE_STAFF when target.role > 0", async () => {
+			for (const role of [1, 2, 3]) {
+				const { db } = createMockDb({
+					firstResults: {
+						"SELECT id, username, status, role FROM users": { ...targetRow, role },
+					},
+				});
+				const { purge } = await import("../../../../src/handlers/admin/user");
+
+				const res = await purge(
+					createAdminRequest("POST", "/api/admin/users/42/purge", validBody),
+					adminEnv(db),
+				);
+				expect(res.status, `role=${role}`).toBe(403);
+				expect((await res.json()).error.code).toBe("CANNOT_PURGE_STAFF");
+			}
+		});
+
+		it("returns 409 ALREADY_PURGED when target.status === -99", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT id, username, status, role FROM users": { ...targetRow, status: -99 },
+				},
+			});
+			const { purge } = await import("../../../../src/handlers/admin/user");
+
+			const res = await purge(
+				createAdminRequest("POST", "/api/admin/users/42/purge", validBody),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(409);
+			expect((await res.json()).error.code).toBe("ALREADY_PURGED");
+		});
+
+		it("returns 400 for invalid path id", async () => {
+			const { db } = createMockDb();
+			const { purge } = await import("../../../../src/handlers/admin/user");
+			const res = await purge(
+				createAdminRequest("POST", "/api/admin/users/abc/purge", validBody),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(400);
+		});
+	});
+
+	describe("ALREADY_PURGED cross-handler guards (D4-a)", () => {
+		const purgedRow = makeD1UserRow({ id: 42, status: -99 });
+
+		it("update rejects with 409 ALREADY_PURGED on tombstoned user", async () => {
+			const { db } = createMockDb({
+				firstResults: { "SELECT * FROM users WHERE id": purgedRow },
+			});
+			const res = await update(
+				createAdminRequest("PATCH", "/api/admin/users/42", { credits: 1 }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(409);
+			expect((await res.json()).error.code).toBe("ALREADY_PURGED");
+		});
+
+		it("ban rejects with 409 ALREADY_PURGED on tombstoned user", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT id, status, role FROM users WHERE id": { id: 42, status: -99, role: 0 },
+				},
+			});
+			const res = await ban(createAdminRequest("POST", "/api/admin/users/42/ban"), adminEnv(db));
+			expect(res.status).toBe(409);
+			expect((await res.json()).error.code).toBe("ALREADY_PURGED");
+		});
+
+		it("nuke rejects with 409 ALREADY_PURGED on tombstoned user", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT id, status, role FROM users WHERE id": { id: 42, status: -99, role: 0 },
+				},
+			});
+			const res = await nuke(createAdminRequest("POST", "/api/admin/users/42/nuke"), adminEnv(db));
+			expect(res.status).toBe(409);
+			expect((await res.json()).error.code).toBe("ALREADY_PURGED");
 		});
 	});
 
@@ -904,7 +1108,9 @@ describe("admin user handlers", () => {
 			const threadRows = [{ id: 10, forum_id: 1, replies: 5 }];
 
 			const { db } = createMockDb({
-				firstResults: { "SELECT id FROM users WHERE id": { id: 42 } },
+				firstResults: {
+					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
+				},
 				allResults: {
 					"SELECT id, forum_id, replies FROM threads WHERE author_id": threadRows,
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": [],

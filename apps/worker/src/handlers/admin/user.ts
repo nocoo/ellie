@@ -14,8 +14,9 @@ import { errorResponse } from "../../middleware/error";
 
 // ─── Column list (never SELECT * — excludes password_hash, password_salt) ────
 
+// D4-a: purged_at/purged_by added for tombstone tracking.
 const USER_COLUMNS =
-	"id, username, email, avatar, status, role, reg_date, last_login, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, last_activity, email_verified_at, email_normalized, email_changed_at, reg_ip, last_ip";
+	"id, username, email, avatar, status, role, reg_date, last_login, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, last_activity, email_verified_at, email_normalized, email_changed_at, reg_ip, last_ip, purged_at, purged_by";
 
 // ─── Entity config ───────────────────────────────────────────────────────────
 
@@ -98,14 +99,25 @@ const userConfig: EntityConfig = {
 		},
 	],
 
-	// #38 beforeUpdate: username uniqueness
-	beforeUpdate: async (id, data, _existing, env, origin) => {
+	// #38 beforeUpdate: ALREADY_PURGED guard + username uniqueness.
+	// D4-a: PATCH /api/admin/users/:id is the canonical attack surface for
+	// hand-crafted writes (e.g. resurrecting a tombstone), so the guard sits
+	// inside beforeUpdate where it cannot be bypassed by a future updateFields
+	// expansion. ban/nuke/purge each repeat the check via existing-row query.
+	beforeUpdate: async (id, data, existing, env, origin) => {
+		const existingStatus = (existing as { status?: number }).status;
+		if (existingStatus === -99) {
+			return errorResponse("ALREADY_PURGED", 409, undefined, origin);
+		}
+
 		// Username uniqueness check
 		if (data.username !== undefined) {
-			const existing = await env.DB.prepare("SELECT id FROM users WHERE username = ? AND id != ?")
+			const existingRow = await env.DB.prepare(
+				"SELECT id FROM users WHERE username = ? AND id != ?",
+			)
 				.bind(data.username, id)
 				.first();
-			if (existing) {
+			if (existingRow) {
 				return errorResponse("USERNAME_TAKEN", 409, undefined, origin);
 			}
 		}
@@ -288,10 +300,16 @@ export const ban = withEntityAuth(
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
 		}
 
-		// Verify user exists
-		const existing = await env.DB.prepare("SELECT id FROM users WHERE id = ?").bind(id).first();
+		// Verify user exists. Pull status/role too so we can apply ALREADY_PURGED
+		// guard without a second query (D4-a).
+		const existing = await env.DB.prepare("SELECT id, status, role FROM users WHERE id = ?")
+			.bind(id)
+			.first<{ id: number; status: number; role: number }>();
 		if (!existing) {
 			return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
+		}
+		if (existing.status === -99) {
+			return errorResponse("ALREADY_PURGED", 409, undefined, origin);
 		}
 
 		// Parse optional body
@@ -342,10 +360,15 @@ export const nuke = withEntityAuth(
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
 		}
 
-		// Verify user exists
-		const existing = await env.DB.prepare("SELECT id FROM users WHERE id = ?").bind(id).first();
+		// Verify user exists + ALREADY_PURGED guard (D4-a)
+		const existing = await env.DB.prepare("SELECT id, status, role FROM users WHERE id = ?")
+			.bind(id)
+			.first<{ id: number; status: number; role: number }>();
 		if (!existing) {
 			return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
+		}
+		if (existing.status === -99) {
+			return errorResponse("ALREADY_PURGED", 409, undefined, origin);
 		}
 
 		// Nuke = ban + delete content + zero credits (always deletes content)
@@ -368,6 +391,109 @@ export const nuke = withEntityAuth(
 				threadsDeleted: result.threadsDeleted,
 				postsDeleted: result.postsDeleted,
 			},
+			origin,
+		);
+	},
+);
+
+// ─── D4-a POST /api/admin/users/:id/purge ────────────────────────────────────
+// "彻底清除" — tombstone the user + delete all their content.
+//
+// D4-a SCOPE INTENTIONALLY DEGRADED.
+//   This handler runs all guards, then returns 501 NOT_IMPLEMENTED on the
+//   would-be success path. NO writes happen until D4-b wires content cleanup.
+//   Reviewer constraint: do not expose a usable "tombstone-only" endpoint
+//   that leaves [已删除#id] visible while the user's threads/posts/messages
+//   are still live.
+//
+// Request body (required even on D4-a so the contract is locked in early):
+//   { actorId: number, confirmUsername: string }
+//   - actorId         admin user id issuing the purge (recorded in purged_by)
+//   - confirmUsername must equal target.username — typed-confirm safety net
+//
+// Guards (all return 4xx before we reach 501):
+//   USER_NOT_FOUND     target id missing
+//   INVALID_BODY       missing/invalid actorId or confirmUsername
+//   CONFIRM_MISMATCH   confirmUsername != target.username
+//   SELF_PURGE         actorId === id
+//   CANNOT_PURGE_STAFF target.role > 0  (admin / supermod / moderator)
+//   ALREADY_PURGED     target.status === -99
+//   NOT_IMPLEMENTED    everything checks out — D4-b will replace this with
+//                      content cleanup + tombstone write + R2 best-effort.
+
+export const purge = withEntityAuth(
+	userConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined;
+		const id = parsePathSegment(request, 1);
+		if (id === null) {
+			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
+		}
+
+		// Parse body up front — purge requires explicit confirmation.
+		let body: Record<string, unknown>;
+		try {
+			body = (await request.json()) as Record<string, unknown>;
+		} catch {
+			return errorResponse(
+				"INVALID_BODY",
+				400,
+				{ message: "purge requires { actorId, confirmUsername } body" },
+				origin,
+			);
+		}
+
+		const actorId = typeof body.actorId === "number" ? body.actorId : Number.NaN;
+		const confirmUsername = body.confirmUsername;
+		if (!Number.isInteger(actorId) || actorId <= 0) {
+			return errorResponse(
+				"INVALID_BODY",
+				400,
+				{ message: "actorId must be a positive integer" },
+				origin,
+			);
+		}
+		if (typeof confirmUsername !== "string" || confirmUsername.length === 0) {
+			return errorResponse(
+				"INVALID_BODY",
+				400,
+				{ message: "confirmUsername must be a non-empty string" },
+				origin,
+			);
+		}
+
+		// Pull the target with the columns the guards need.
+		const existing = await env.DB.prepare(
+			"SELECT id, username, status, role FROM users WHERE id = ?",
+		)
+			.bind(id)
+			.first<{ id: number; username: string; status: number; role: number }>();
+		if (!existing) {
+			return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
+		}
+
+		if (existing.username !== confirmUsername) {
+			return errorResponse("CONFIRM_MISMATCH", 400, undefined, origin);
+		}
+		if (actorId === id) {
+			return errorResponse("SELF_PURGE", 403, undefined, origin);
+		}
+		if (existing.role > 0) {
+			// 1=Admin, 2=SuperMod, 3=Moderator — all blocked. If product wants
+			// to allow purging moderators (role=3) later, gate it on @zheng-li
+			// confirmation per D4 D0 v2 §2.
+			return errorResponse("CANNOT_PURGE_STAFF", 403, undefined, origin);
+		}
+		if (existing.status === -99) {
+			return errorResponse("ALREADY_PURGED", 409, undefined, origin);
+		}
+
+		// All guards passed. D4-a does NOT touch the row. D4-b will replace
+		// this branch with the actual content + tombstone + R2 pipeline.
+		return errorResponse(
+			"NOT_IMPLEMENTED",
+			501,
+			{ message: "Purge content pipeline ships in D4-b" },
 			origin,
 		);
 	},

@@ -93,6 +93,8 @@ describe("D1 row mappers", () => {
 				emailChangedAt: 0,
 				regIp: undefined,
 				lastIp: undefined,
+				purgedAt: 0,
+				purgedBy: 0,
 			});
 		});
 
@@ -182,7 +184,8 @@ describe("D1 row mappers", () => {
 			};
 
 			const user = toUser(row);
-			expect(Object.keys(user)).toHaveLength(36);
+			// 36 base columns + purgedAt + purgedBy (D4-a tombstone fields).
+			expect(Object.keys(user)).toHaveLength(38);
 		});
 	});
 

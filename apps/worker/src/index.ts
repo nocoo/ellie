@@ -427,6 +427,9 @@ export default {
 			if (path.match(/^\/api\/admin\/users\/\d+\/nuke$/) && request.method === "POST") {
 				return await (await import("./handlers/admin/user")).nuke(request, env);
 			}
+			if (path.match(/^\/api\/admin\/users\/\d+\/purge$/) && request.method === "POST") {
+				return await (await import("./handlers/admin/user")).purge(request, env);
+			}
 			if (path.match(/^\/api\/admin\/users\/\d+\/recalc-counters$/) && request.method === "POST") {
 				return await (await import("./handlers/admin/user")).recalcCounters(request, env);
 			}

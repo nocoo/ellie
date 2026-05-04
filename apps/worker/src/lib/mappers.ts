@@ -53,6 +53,9 @@ interface D1UserRow {
 	// IP fields (admin-only in public API, always in admin API)
 	reg_ip?: string;
 	last_ip?: string;
+	// D4 tombstone columns
+	purged_at?: number;
+	purged_by?: number;
 	// Sensitive fields (never exposed): password_hash, password_salt
 }
 
@@ -158,6 +161,8 @@ export function toUser(row: Record<string, unknown>): User {
 		emailChangedAt: r.email_changed_at ?? 0,
 		regIp: r.reg_ip,
 		lastIp: r.last_ip,
+		purgedAt: r.purged_at ?? 0,
+		purgedBy: r.purged_by ?? 0,
 	};
 }
 
