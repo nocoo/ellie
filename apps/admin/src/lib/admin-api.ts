@@ -176,15 +176,26 @@ export const adminApi = {
 
 	/**
 	 * Raw request — for endpoints that need custom handling (e.g., passthrough).
-	 * Returns the raw fetch Response.
+	 * Returns the raw fetch Response. Optional `extraHeaders` lets the caller
+	 * inject audit headers (D4-b: X-Admin-Actor-Email/Name for purge).
 	 */
-	async raw(method: string, path: string, body?: unknown): Promise<Response> {
+	async raw(
+		method: string,
+		path: string,
+		body?: unknown,
+		extraHeaders?: Record<string, string>,
+	): Promise<Response> {
 		const url = new URL(path, getWorkerUrl());
 		const headers: Record<string, string> = {
 			"X-API-Key": getApiKey(),
 		};
 		if (body !== undefined) {
 			headers["Content-Type"] = "application/json";
+		}
+		if (extraHeaders) {
+			for (const [k, v] of Object.entries(extraHeaders)) {
+				headers[k] = v;
+			}
 		}
 		return fetch(url.toString(), {
 			method,
