@@ -22,7 +22,7 @@ import {
 	DropdownMenuTrigger,
 } from "@ellie/ui";
 import { MoreHorizontal } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 // ---------------------------------------------------------------------------
 // Filter definitions
@@ -84,6 +84,7 @@ function statusVariant(status: number): "default" | "destructive" | "secondary" 
 export default function UsersPage() {
 	// Read initial search from URL query params
 	const searchParams = useSearchParams();
+	const router = useRouter();
 	const initialSearch = searchParams.get("search") ?? "";
 
 	// Use ViewModel hook for all state and logic
@@ -151,24 +152,10 @@ export default function UsersPage() {
 						}
 					/>
 					<DropdownMenuContent align="end" className="w-40 whitespace-nowrap">
-						<DropdownMenuItem onClick={() => actions.openEditDialog(row)}>编辑</DropdownMenuItem>
-						{row.status !== -1 && (
-							<>
-								<DropdownMenuItem onClick={() => actions.handleBan(row)}>封禁</DropdownMenuItem>
-								<DropdownMenuItem
-									onClick={() => actions.handleBan(row, true)}
-									className="text-destructive"
-								>
-									封禁并删除内容
-								</DropdownMenuItem>
-							</>
-						)}
-						{row.status === -1 && (
-							<DropdownMenuItem onClick={() => actions.handleUnban(row)}>解除封禁</DropdownMenuItem>
-						)}
-						<DropdownMenuItem onClick={() => actions.handleNuke(row)} className="text-destructive">
-							彻底清除
+						<DropdownMenuItem onClick={() => router.push(`/admin/users/${row.id}`)}>
+							查看详情
 						</DropdownMenuItem>
+						<DropdownMenuItem onClick={() => actions.openEditDialog(row)}>编辑</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
 			),
