@@ -72,8 +72,8 @@ interface ForumAvatarProps {
 	userId: number;
 	userName: string;
 	avatarPath?: string | null;
-	/** Avatar size. "sm" (24px) for thread rows; "xs" (20px) for comments; "md" (32px) for post cards. */
-	size?: "xs" | "sm" | "md";
+	/** Avatar size. "xs" (20px) for comments; "sm" (24px) for thread rows; "md" (32px) for post cards; "lg" (48px) for messages. */
+	size?: "xs" | "sm" | "md" | "lg";
 	/** Show subtle drop shadow (used in desktop thread rows). */
 	shadow?: boolean;
 	/** Additional className on the root Avatar element. */
@@ -88,14 +88,14 @@ export function ForumAvatar({
 	shadow = false,
 	className,
 }: ForumAvatarProps) {
-	const isXs = size === "xs";
+	const sizeClass = size === "xs" ? "h-5 w-5" : size === "lg" ? "h-12 w-12" : undefined;
 
 	return (
 		<Avatar
 			size={size === "sm" ? "sm" : undefined}
 			className={cn(
 				"rounded-sm",
-				isXs && "h-5 w-5",
+				sizeClass,
 				shadow && "shadow-[0_0_2px_rgba(0,0,0,0.1)]",
 				className,
 			)}
@@ -106,7 +106,10 @@ export function ForumAvatar({
 				className="rounded-sm"
 			/>
 			<AvatarFallback
-				className={cn("rounded-sm bg-muted p-0 overflow-hidden", isXs ? "text-2xs" : "text-xs")}
+				className={cn(
+					"rounded-sm bg-muted p-0 overflow-hidden",
+					size === "xs" ? "text-2xs" : "text-xs",
+				)}
 			>
 				<img src={getStaticImageUrl("tavatar.gif")} alt="" className="h-full w-full object-cover" />
 			</AvatarFallback>
