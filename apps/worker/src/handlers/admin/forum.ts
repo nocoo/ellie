@@ -1,6 +1,7 @@
 // Admin forum handlers — CRUD framework + custom merge/reorder endpoints
 import { ForumType } from "@ellie/types";
 import { withEntityAuth } from "../../lib/adminHelpers";
+import { resolveActor, writeAdminLog } from "../../lib/adminLog";
 import type { EntityConfig } from "../../lib/crud";
 import {
 	createCreateHandler,
@@ -12,7 +13,7 @@ import {
 import type { Env } from "../../lib/env";
 import { invalidateForumCacheAll } from "../../lib/forum-cache";
 import { toForum } from "../../lib/mappers";
-import { parsePathSegment } from "../../lib/parseId";
+import { parseIdFromPath, parsePathSegment } from "../../lib/parseId";
 import { recalcForumMetadata } from "../../lib/recalcMetadata";
 import { jsonResponse } from "../../lib/response";
 
@@ -234,14 +235,216 @@ export const list = withEntityAuth(forumConfig, createListHandler(forumConfig));
 /** #19 GET /api/admin/forums/:id */
 export const getById = withEntityAuth(forumConfig, createGetByIdHandler(forumConfig));
 
+// ─── F3-c helpers ────────────────────────────────────────────────
+// Map of body field name → existing-row column for diff detection. Mirrors
+// forumConfig.updateFields. `description` is intentionally only ever logged
+// as a length / changed-flag — never the raw value.
+
+const FORUM_UPDATE_FIELD_TO_COLUMN: Record<string, string> = {
+	name: "name",
+	description: "description",
+	icon: "icon",
+	displayOrder: "display_order",
+	status: "status",
+	type: "type",
+	parentId: "parent_id",
+	moderators: "moderators",
+	moderatorIds: "moderator_ids",
+	visibility: "visibility",
+};
+
+interface ForumUpdateDiff {
+	changedFields: string[];
+	before: Record<string, unknown>;
+	after: Record<string, unknown>;
+	descriptionLengthBefore?: number;
+	descriptionLengthAfter?: number;
+}
+
+function buildForumUpdateDiff(
+	body: Record<string, unknown>,
+	existing: Record<string, unknown>,
+): ForumUpdateDiff {
+	const changedFields: string[] = [];
+	const before: Record<string, unknown> = {};
+	const after: Record<string, unknown> = {};
+	let descriptionLengthBefore: number | undefined;
+	let descriptionLengthAfter: number | undefined;
+
+	for (const [field, column] of Object.entries(FORUM_UPDATE_FIELD_TO_COLUMN)) {
+		if (!(field in body)) continue;
+		const incoming = body[field];
+		const current = existing[column];
+		if (incoming === current) continue;
+		changedFields.push(field);
+		if (field === "description") {
+			descriptionLengthBefore = typeof current === "string" ? current.length : 0;
+			descriptionLengthAfter = typeof incoming === "string" ? incoming.length : 0;
+		} else {
+			before[field] = current ?? null;
+			after[field] = incoming ?? null;
+		}
+	}
+
+	return { changedFields, before, after, descriptionLengthBefore, descriptionLengthAfter };
+}
+
+// ─── CRUD handlers wrapped for audit ─────────────────────────────
+
 /** #20 POST /api/admin/forums */
-export const create = withEntityAuth(forumConfig, createCreateHandler(forumConfig));
+const createInner = createCreateHandler(forumConfig);
+
+export const create = withEntityAuth(
+	forumConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		// Snapshot body so we can capture submitted name/type/parentId for audit.
+		let body: Record<string, unknown> = {};
+		let bodyText = "";
+		try {
+			bodyText = await request.text();
+			body = JSON.parse(bodyText) as Record<string, unknown>;
+		} catch {
+			// inner returns its own 400
+		}
+
+		const innerReq = new Request(request.url, {
+			method: request.method,
+			headers: request.headers,
+			body: bodyText,
+		});
+
+		const res = await createInner(innerReq, env);
+
+		if (res.status >= 200 && res.status < 300) {
+			// Inner returns the created row in `data`. Clone to avoid consuming
+			// the response body the framework already produced.
+			let newId: number | null = null;
+			try {
+				const clone = res.clone();
+				const json = (await clone.json()) as { data?: { id?: number } };
+				newId = json?.data?.id ?? null;
+			} catch {
+				// best-effort
+			}
+			const description = typeof body.description === "string" ? body.description : "";
+			await writeAdminLog(env, resolveActor(request), {
+				action: "forum.create",
+				targetType: "forum",
+				targetId: newId,
+				details: {
+					name: typeof body.name === "string" ? body.name : null,
+					type: typeof body.type === "string" ? body.type : "forum",
+					parentId: typeof body.parentId === "number" ? body.parentId : 0,
+					visibility: typeof body.visibility === "string" ? body.visibility : "public",
+					descriptionLength: description.length,
+				},
+			});
+		}
+
+		return res;
+	},
+);
 
 /** #21 PATCH /api/admin/forums/:id */
-export const update = withEntityAuth(forumConfig, createUpdateHandler(forumConfig));
+const updateInner = createUpdateHandler(forumConfig);
+
+export const update = withEntityAuth(
+	forumConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const id = parseIdFromPath(request);
+
+		let body: Record<string, unknown> = {};
+		let bodyText = "";
+		let existing: Record<string, unknown> | null = null;
+		try {
+			bodyText = await request.text();
+			body = JSON.parse(bodyText) as Record<string, unknown>;
+		} catch {
+			// inner returns 400
+		}
+		if (id !== null) {
+			try {
+				existing = (await env.DB.prepare("SELECT * FROM forums WHERE id = ?")
+					.bind(id)
+					.first()) as Record<string, unknown> | null;
+			} catch {
+				// best-effort snapshot
+			}
+		}
+
+		const innerReq = new Request(request.url, {
+			method: request.method,
+			headers: request.headers,
+			body: bodyText,
+		});
+
+		const res = await updateInner(innerReq, env);
+
+		if (res.status >= 200 && res.status < 300 && id !== null && existing) {
+			const diff = buildForumUpdateDiff(body, existing);
+			if (diff.changedFields.length > 0) {
+				const details: Record<string, unknown> = {
+					parentId: existing.parent_id ?? null,
+					changedFields: diff.changedFields,
+				};
+				if (diff.descriptionLengthBefore !== undefined) {
+					details.descriptionLengthBefore = diff.descriptionLengthBefore;
+					details.descriptionLengthAfter = diff.descriptionLengthAfter;
+				}
+				if (Object.keys(diff.before).length > 0) {
+					details.before = diff.before;
+					details.after = diff.after;
+				}
+				await writeAdminLog(env, resolveActor(request), {
+					action: "forum.update",
+					targetType: "forum",
+					targetId: id,
+					details,
+				});
+			}
+		}
+
+		return res;
+	},
+);
 
 /** #22 DELETE /api/admin/forums/:id */
-export const remove = withEntityAuth(forumConfig, createRemoveHandler(forumConfig));
+const removeInner = createRemoveHandler(forumConfig);
+
+export const remove = withEntityAuth(
+	forumConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const id = parseIdFromPath(request);
+
+		let existing: Record<string, unknown> | null = null;
+		if (id !== null) {
+			try {
+				existing = (await env.DB.prepare("SELECT * FROM forums WHERE id = ?")
+					.bind(id)
+					.first()) as Record<string, unknown> | null;
+			} catch {
+				// best-effort snapshot
+			}
+		}
+
+		const res = await removeInner(request, env);
+
+		if (res.status >= 200 && res.status < 300 && id !== null && existing) {
+			await writeAdminLog(env, resolveActor(request), {
+				action: "forum.delete",
+				targetType: "forum",
+				targetId: id,
+				details: {
+					name: existing.name ?? null,
+					parentId: existing.parent_id ?? null,
+					type: existing.type ?? null,
+				},
+			});
+		}
+
+		return res;
+	},
+);
 
 // ─── Custom endpoints ────────────────────────────────────────────
 
@@ -329,6 +532,19 @@ export const merge = withEntityAuth(
 		// Invalidate both caches (structure + counts changed by merge)
 		await invalidateForumCacheAll(env);
 
+		// F3-c: audit only after the mutation has committed.
+		await writeAdminLog(env, resolveActor(request), {
+			action: "forum.merge",
+			targetType: "forum",
+			targetId: sourceId,
+			details: {
+				sourceForumId: sourceId,
+				targetForumId,
+				threadsMoved,
+				postsMoved,
+			},
+		});
+
 		return jsonResponse(
 			{
 				merged: true,
@@ -391,7 +607,32 @@ export const reorder = withEntityAuth(
 			}
 		}
 
-		const statements = (orders as { id: number; displayOrder: number }[]).map((item) =>
+		const orderItems = orders as { id: number; displayOrder: number }[];
+
+		// F3-c: snapshot existing display_order for the requested ids so the
+		// audit row only records rows that actually exist AND actually changed.
+		// Missing ids are dropped from the audit (the UPDATE is a no-op for
+		// them anyway); unchanged rows are dropped to avoid recording false
+		// "edits" when a reorder request matches current state.
+		const ids = orderItems.map((o) => o.id);
+		const placeholders = ids.map(() => "?").join(",");
+		const existingRows = await env.DB.prepare(
+			`SELECT id, display_order FROM forums WHERE id IN (${placeholders})`,
+		)
+			.bind(...ids)
+			.all<{ id: number; display_order: number }>();
+		const existingById = new Map<number, number>(
+			(existingRows.results ?? []).map((r) => [r.id, r.display_order]),
+		);
+		const changedRows = orderItems
+			.filter((o) => existingById.has(o.id) && existingById.get(o.id) !== o.displayOrder)
+			.map((o) => ({
+				id: o.id,
+				before: existingById.get(o.id) ?? null,
+				after: o.displayOrder,
+			}));
+
+		const statements = orderItems.map((item) =>
 			env.DB.prepare("UPDATE forums SET display_order = ? WHERE id = ?").bind(
 				item.displayOrder,
 				item.id,
@@ -402,6 +643,18 @@ export const reorder = withEntityAuth(
 
 		// Invalidate forum tree cache (display order is in tree)
 		await invalidateForumCacheAll(env);
+
+		// F3-c: only audit when something actually changed. No-op reorders
+		// (all ids missing or all display_order already match) skip the
+		// admin_logs row entirely.
+		if (changedRows.length > 0) {
+			await writeAdminLog(env, resolveActor(request), {
+				action: "forum.reorder",
+				targetType: "forum",
+				targetId: null,
+				details: { count: changedRows.length, orders: changedRows },
+			});
+		}
 
 		return jsonResponse({ updated: true, count: orders.length }, origin);
 	},

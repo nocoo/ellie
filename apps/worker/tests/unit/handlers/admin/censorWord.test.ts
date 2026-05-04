@@ -467,4 +467,144 @@ describe("admin censorWord handlers", () => {
 			expect(response.status).toBe(400);
 		});
 	});
+
+	// ─── F3-c: audit instrumentation ─────────────────────────────────
+
+	describe("F3-c audit instrumentation", () => {
+		function actorReq(method: string, path: string, body?: unknown): Request {
+			return new Request(`https://api.example.com${path}`, {
+				method,
+				headers: {
+					"X-API-Key": "test-api-key",
+					"Content-Type": "application/json",
+					"X-Admin-Actor-Email": "alice@example.com",
+					"X-Admin-Actor-Name": "Alice",
+				},
+				...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+			});
+		}
+
+		function findAuditInsert(calls: { sql: string; params: unknown[] }[]) {
+			return calls.find((c) => c.sql.includes("INSERT INTO admin_logs"));
+		}
+
+		it("POST writes censor_word.create with plaintext find/replacement/action", async () => {
+			const row = makeCensorWordRow({ id: 11, find: "spammy" });
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT id FROM censor_words WHERE find": null,
+					"SELECT * FROM censor_words WHERE id": row,
+				},
+				runResults: { "INSERT INTO censor_words": { meta: { last_row_id: 11 } } },
+			});
+			const env = makeEnv({ DB: db });
+			const res = await create(
+				actorReq("POST", "/api/admin/censor-words", {
+					find: "spammy",
+					replacement: "###",
+					action: "replace",
+				}),
+				env,
+			);
+			expect(res.status).toBe(201);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			expect(insert?.params[2]).toBe("censor_word.create");
+			expect(insert?.params[3]).toBe("censor_word");
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.find).toBe("spammy");
+			expect(details.replacement).toBe("###");
+			expect(details.action).toBe("replace");
+		});
+
+		it("PATCH writes censor_word.update with diff", async () => {
+			const existing = makeCensorWordRow({ id: 5, find: "old", action: "replace" });
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM censor_words WHERE id": existing,
+					"SELECT id FROM censor_words WHERE find": null,
+				},
+			});
+			const env = makeEnv({ DB: db });
+			const res = await update(
+				actorReq("PATCH", "/api/admin/censor-words/5", { action: "ban" }),
+				env,
+			);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			expect(insert?.params[2]).toBe("censor_word.update");
+			expect(insert?.params[4]).toBe(5);
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.changedFields).toEqual(["action"]);
+			expect(details.before.action).toBe("replace");
+			expect(details.after.action).toBe("ban");
+		});
+
+		it("PATCH no-op (same values) does NOT write audit row", async () => {
+			const existing = makeCensorWordRow({ id: 5, action: "replace" });
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM censor_words WHERE id": existing,
+					"SELECT id FROM censor_words WHERE find": null,
+				},
+			});
+			const env = makeEnv({ DB: db });
+			const res = await update(
+				actorReq("PATCH", "/api/admin/censor-words/5", { action: "replace" }),
+				env,
+			);
+			expect(res.status).toBe(200);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+
+		it("DELETE writes censor_word.delete with snapshot", async () => {
+			const existing = makeCensorWordRow({ id: 7, find: "doomed" });
+			const { db, calls } = createMockDb({
+				firstResults: { "SELECT * FROM censor_words WHERE id": existing },
+			});
+			const env = makeEnv({ DB: db });
+			const res = await remove(actorReq("DELETE", "/api/admin/censor-words/7"), env);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert?.params[2]).toBe("censor_word.delete");
+			expect(insert?.params[4]).toBe(7);
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.find).toBe("doomed");
+		});
+
+		it("batch-delete writes censor_word.batch_delete only when existing > 0", async () => {
+			const { db, calls } = createMockDb({
+				allResults: {
+					"SELECT id FROM censor_words WHERE id IN": [{ id: 1 }, { id: 2 }],
+				},
+				firstResults: { "SELECT * FROM censor_words WHERE id": makeCensorWordRow() },
+			});
+			const env = makeEnv({ DB: db });
+			const res = await batchDelete(
+				actorReq("POST", "/api/admin/censor-words/batch-delete", { ids: [1, 2] }),
+				env,
+			);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert?.params[2]).toBe("censor_word.batch_delete");
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.ids).toEqual([1, 2]);
+			expect(details.count).toBe(2);
+		});
+
+		it("batch-delete with no existing rows does NOT write audit row", async () => {
+			const { db, calls } = createMockDb({
+				allResults: { "SELECT id FROM censor_words WHERE id IN": [] },
+				firstResults: { "SELECT * FROM censor_words WHERE id": makeCensorWordRow() },
+			});
+			const env = makeEnv({ DB: db });
+			const res = await batchDelete(
+				actorReq("POST", "/api/admin/censor-words/batch-delete", { ids: [999] }),
+				env,
+			);
+			expect(res.status).toBe(200);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+	});
 });

@@ -1118,4 +1118,218 @@ describe("admin forum handlers", () => {
 			expect(body.error.details.message).toBe("Invalid JSON body");
 		});
 	});
+
+	// ─── F3-c: audit instrumentation ─────────────────────────────────
+
+	describe("F3-c audit instrumentation", () => {
+		function actorReq(method: string, path: string, body?: unknown): Request {
+			const headers: Record<string, string> = {
+				"X-API-Key": "test-api-key",
+				"Content-Type": "application/json",
+				"X-Admin-Actor-Email": "alice@example.com",
+				"X-Admin-Actor-Name": "Alice",
+				"CF-Connecting-IP": "5.6.7.8",
+			};
+			return new Request(`https://api.example.com${path}`, {
+				method,
+				headers,
+				...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+			});
+		}
+
+		function findAuditInsert(calls: { sql: string; params: unknown[] }[]) {
+			return calls.find((c) => c.sql.includes("INSERT INTO admin_logs"));
+		}
+
+		it("POST writes forum.create with name/type/parentId and descriptionLength only", async () => {
+			const created = makeD1ForumRow({ id: 99, name: "New Forum" });
+			const { db, calls } = createMockDb({
+				firstResults: { "SELECT * FROM forums WHERE id": created },
+				runResults: { "INSERT INTO forums": { meta: { last_row_id: 99 } } },
+			});
+			const res = await create(
+				actorReq("POST", "/api/admin/forums", {
+					name: "New Forum",
+					type: "forum",
+					description: "long description text",
+				}),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(201);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			expect(insert?.params[2]).toBe("forum.create");
+			expect(insert?.params[3]).toBe("forum");
+			expect(insert?.params[4]).toBe(99);
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.name).toBe("New Forum");
+			expect(details.descriptionLength).toBe("long description text".length);
+			// Raw description text MUST NOT leak.
+			expect(JSON.stringify(details)).not.toContain("long description text");
+		});
+
+		it("PATCH writes forum.update with description length-only", async () => {
+			const existing = makeD1ForumRow({ id: 5, description: "old desc" });
+			const updated = makeD1ForumRow({ id: 5, description: "much longer new desc" });
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM forums WHERE id": existing,
+					"SELECT id, parent_id, name, description": updated,
+				},
+			});
+			const res = await update(
+				actorReq("PATCH", "/api/admin/forums/5", { description: "much longer new desc" }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.changedFields).toEqual(["description"]);
+			expect(details.descriptionLengthBefore).toBe("old desc".length);
+			expect(details.descriptionLengthAfter).toBe("much longer new desc".length);
+			expect(details.before).toBeUndefined();
+			expect(JSON.stringify(details)).not.toContain("much longer new desc");
+		});
+
+		it("PATCH no-op (same value) does NOT write audit row", async () => {
+			const existing = makeD1ForumRow({ id: 5, name: "Same" });
+			const updated = makeD1ForumRow({ id: 5, name: "Same" });
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM forums WHERE id": existing,
+					"SELECT id, parent_id": updated,
+				},
+			});
+			const res = await update(
+				actorReq("PATCH", "/api/admin/forums/5", { name: "Same" }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+
+		it("DELETE writes forum.delete", async () => {
+			const existing = makeD1ForumRow({ id: 7, name: "Doomed" });
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM forums WHERE id": existing,
+					"SELECT COUNT(*) as cnt FROM threads": { cnt: 0 },
+				},
+			});
+			const res = await remove(actorReq("DELETE", "/api/admin/forums/7"), adminEnv(db));
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert?.params[2]).toBe("forum.delete");
+			expect(insert?.params[4]).toBe(7);
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.name).toBe("Doomed");
+		});
+
+		it("DELETE refused (forum has threads) does NOT write audit row", async () => {
+			const existing = makeD1ForumRow({ id: 7 });
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM forums WHERE id": existing,
+					"SELECT COUNT(*) as cnt FROM threads": { cnt: 5 },
+				},
+			});
+			const res = await remove(actorReq("DELETE", "/api/admin/forums/7"), adminEnv(db));
+			expect(res.status).toBe(409);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+
+		it("merge writes forum.merge with thread/post counts", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 3 }),
+					"SELECT id FROM forums WHERE id": { id: 4 },
+					"SELECT COUNT(*) as cnt FROM threads": { cnt: 2 },
+					"SELECT COUNT(*) as cnt FROM posts": { cnt: 10 },
+				},
+			});
+			const res = await merge(
+				actorReq("POST", "/api/admin/forums/3/merge", { targetForumId: 4 }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert?.params[2]).toBe("forum.merge");
+			expect(insert?.params[4]).toBe(3);
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.sourceForumId).toBe(3);
+			expect(details.targetForumId).toBe(4);
+			expect(details.threadsMoved).toBe(2);
+			expect(details.postsMoved).toBe(10);
+			// Actor email comes from X-Admin-Actor-Email; must NOT fall back to system.
+			expect(details.actorEmail).toBe("alice@example.com");
+		});
+
+		it("reorder writes one forum.reorder row with only changed rows (id, before, after)", async () => {
+			// 3 incoming: id 1 changes (10→11), id 2 unchanged (20→20),
+			// id 99 missing in DB. Audit MUST contain only id 1.
+			const { db, calls } = createMockDb({
+				allResults: {
+					"SELECT id, display_order FROM forums WHERE id IN": [
+						{ id: 1, display_order: 10 },
+						{ id: 2, display_order: 20 },
+					],
+				},
+			});
+			const res = await reorder(
+				actorReq("POST", "/api/admin/forums/reorder", {
+					orders: [
+						{ id: 1, displayOrder: 11 },
+						{ id: 2, displayOrder: 20 },
+						{ id: 99, displayOrder: 30 },
+					],
+				}),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			expect(insert?.params[2]).toBe("forum.reorder");
+			expect(insert?.params[4]).toBeNull();
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.count).toBe(1);
+			expect(details.orders).toEqual([{ id: 1, before: 10, after: 11 }]);
+		});
+
+		it("reorder no-op (all unchanged) does NOT write audit row", async () => {
+			const { db, calls } = createMockDb({
+				allResults: {
+					"SELECT id, display_order FROM forums WHERE id IN": [
+						{ id: 1, display_order: 10 },
+						{ id: 2, display_order: 20 },
+					],
+				},
+			});
+			const res = await reorder(
+				actorReq("POST", "/api/admin/forums/reorder", {
+					orders: [
+						{ id: 1, displayOrder: 10 },
+						{ id: 2, displayOrder: 20 },
+					],
+				}),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+
+		it("reorder with all-missing ids does NOT write audit row", async () => {
+			const { db, calls } = createMockDb({
+				allResults: { "SELECT id, display_order FROM forums WHERE id IN": [] },
+			});
+			const res = await reorder(
+				actorReq("POST", "/api/admin/forums/reorder", {
+					orders: [{ id: 999, displayOrder: 1 }],
+				}),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+	});
 });

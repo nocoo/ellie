@@ -3,6 +3,7 @@
 // Supports scheduling (start_at/end_at), forum targeting, and sticky sorting.
 
 import { withEntityAuth } from "../../lib/adminHelpers";
+import { resolveActor, writeAdminLog } from "../../lib/adminLog";
 import type { EntityConfig } from "../../lib/crud";
 import {
 	createBatchDeleteHandler,
@@ -12,6 +13,7 @@ import {
 	createUpdateHandler,
 } from "../../lib/crud";
 import type { Env } from "../../lib/env";
+import { parseIdFromPath } from "../../lib/parseId";
 import { paginatedResponse } from "../../lib/response";
 
 import { errorResponse } from "../../middleware/error";
@@ -307,19 +309,239 @@ export const getById = withEntityAuth(announcementConfig, createGetByIdHandler(a
 
 // ─── POST /api/admin/announcements ───────────────────────────────
 
-export const create = withEntityAuth(announcementConfig, createCreateHandler(announcementConfig));
+const announcementCreateInner = createCreateHandler(announcementConfig);
+
+export const create = withEntityAuth(
+	announcementConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		let body: Record<string, unknown> = {};
+		let bodyText = "";
+		try {
+			bodyText = await request.text();
+			body = JSON.parse(bodyText) as Record<string, unknown>;
+		} catch {
+			// inner 400
+		}
+		const innerReq = new Request(request.url, {
+			method: request.method,
+			headers: request.headers,
+			body: bodyText,
+		});
+		const res = await announcementCreateInner(innerReq, env);
+		if (res.status >= 200 && res.status < 300) {
+			let newId: number | null = null;
+			try {
+				const json = (await res.clone().json()) as { data?: { id?: number } };
+				newId = json?.data?.id ?? null;
+			} catch {
+				// best-effort
+			}
+			const title = typeof body.title === "string" ? body.title : "";
+			const content = typeof body.content === "string" ? body.content : "";
+			await writeAdminLog(env, resolveActor(request), {
+				action: "announcement.create",
+				targetType: "announcement",
+				targetId: newId,
+				details: {
+					// Title and body length-only — never raw text (PII discipline).
+					titleLength: title.length,
+					bodyLength: content.length,
+					status: typeof body.status === "number" ? body.status : 1,
+					sticky: typeof body.sticky === "number" ? body.sticky : 0,
+					forumIds: typeof body.forumIds === "string" ? body.forumIds : "",
+					startAt: typeof body.startAt === "number" ? body.startAt : null,
+					endAt: typeof body.endAt === "number" ? body.endAt : null,
+				},
+			});
+		}
+		return res;
+	},
+);
 
 // ─── PATCH /api/admin/announcements/:id ──────────────────────────
 
-export const update = withEntityAuth(announcementConfig, createUpdateHandler(announcementConfig));
+const announcementUpdateInner = createUpdateHandler(announcementConfig);
+
+// F3-c: build the audit diff for an announcement update. Title and content
+// are recorded as length-only (PII discipline); structural fields use
+// before/after. Returns null when nothing actually changed.
+
+const ANN_FIELD_MAP: Array<[string, string]> = [
+	["title", "title"],
+	["content", "content"],
+	["forumIds", "forum_ids"],
+	["sticky", "sticky"],
+	["startAt", "start_at"],
+	["endAt", "end_at"],
+	["status", "status"],
+];
+
+function buildAnnouncementUpdateDetails(
+	body: Record<string, unknown>,
+	existing: Record<string, unknown>,
+): Record<string, unknown> | null {
+	const changedFields: string[] = [];
+	const before: Record<string, unknown> = {};
+	const after: Record<string, unknown> = {};
+	const lengths: Record<string, number> = {};
+
+	for (const [field, column] of ANN_FIELD_MAP) {
+		if (!(field in body)) continue;
+		const incoming = body[field];
+		const current = existing[column];
+		if (incoming === current) continue;
+		changedFields.push(field);
+		if (field === "title" || field === "content") {
+			const prefix = field === "title" ? "title" : "body";
+			lengths[`${prefix}LengthBefore`] = typeof current === "string" ? current.length : 0;
+			lengths[`${prefix}LengthAfter`] = typeof incoming === "string" ? incoming.length : 0;
+		} else {
+			before[field] = current ?? null;
+			after[field] = incoming ?? null;
+		}
+	}
+	if (changedFields.length === 0) return null;
+
+	const details: Record<string, unknown> = { changedFields, ...lengths };
+	if (Object.keys(before).length > 0) {
+		details.before = before;
+		details.after = after;
+	}
+	return details;
+}
+
+export const update = withEntityAuth(
+	announcementConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const id = parseIdFromPath(request);
+		let body: Record<string, unknown> = {};
+		let bodyText = "";
+		let existing: Record<string, unknown> | null = null;
+		try {
+			bodyText = await request.text();
+			body = JSON.parse(bodyText) as Record<string, unknown>;
+		} catch {
+			// inner 400
+		}
+		if (id !== null) {
+			try {
+				existing = (await env.DB.prepare("SELECT * FROM announcements WHERE id = ?")
+					.bind(id)
+					.first()) as Record<string, unknown> | null;
+			} catch {
+				// best-effort
+			}
+		}
+		const innerReq = new Request(request.url, {
+			method: request.method,
+			headers: request.headers,
+			body: bodyText,
+		});
+		const res = await announcementUpdateInner(innerReq, env);
+		if (res.status >= 200 && res.status < 300 && id !== null && existing) {
+			const details = buildAnnouncementUpdateDetails(body, existing);
+			if (details) {
+				await writeAdminLog(env, resolveActor(request), {
+					action: "announcement.update",
+					targetType: "announcement",
+					targetId: id,
+					details,
+				});
+			}
+		}
+		return res;
+	},
+);
 
 // ─── DELETE /api/admin/announcements/:id ─────────────────────────
 
-export const remove = withEntityAuth(announcementConfig, createRemoveHandler(announcementConfig));
+const announcementRemoveInner = createRemoveHandler(announcementConfig);
+
+export const remove = withEntityAuth(
+	announcementConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const id = parseIdFromPath(request);
+		let existing: Record<string, unknown> | null = null;
+		if (id !== null) {
+			try {
+				existing = (await env.DB.prepare("SELECT * FROM announcements WHERE id = ?")
+					.bind(id)
+					.first()) as Record<string, unknown> | null;
+			} catch {
+				// best-effort
+			}
+		}
+		const res = await announcementRemoveInner(request, env);
+		if (res.status >= 200 && res.status < 300 && id !== null && existing) {
+			const title = typeof existing.title === "string" ? existing.title : "";
+			const content = typeof existing.content === "string" ? existing.content : "";
+			await writeAdminLog(env, resolveActor(request), {
+				action: "announcement.delete",
+				targetType: "announcement",
+				targetId: id,
+				details: {
+					titleLength: title.length,
+					bodyLength: content.length,
+					status: existing.status ?? null,
+					sticky: existing.sticky ?? null,
+				},
+			});
+		}
+		return res;
+	},
+);
 
 // ─── POST /api/admin/announcements/batch-delete ──────────────────
 
+const announcementBatchDeleteInner = createBatchDeleteHandler(announcementConfig);
+
 export const batchDelete = withEntityAuth(
 	announcementConfig,
-	createBatchDeleteHandler(announcementConfig),
+	async (request: Request, env: Env): Promise<Response> => {
+		let ids: unknown[] = [];
+		let bodyText = "";
+		try {
+			bodyText = await request.text();
+			const parsed = JSON.parse(bodyText) as { ids?: unknown[] };
+			if (Array.isArray(parsed?.ids)) ids = parsed.ids;
+		} catch {
+			// inner 400
+		}
+		const numericIds = ids
+			.map((id) => Number(id))
+			.filter((id): id is number => !Number.isNaN(id))
+			.slice(0, announcementConfig.batchLimit ?? 100);
+
+		let existingIds: number[] = [];
+		if (numericIds.length > 0) {
+			try {
+				const placeholders = numericIds.map(() => "?").join(",");
+				const rows = await env.DB.prepare(
+					`SELECT id FROM announcements WHERE id IN (${placeholders})`,
+				)
+					.bind(...numericIds)
+					.all<{ id: number }>();
+				existingIds = (rows.results ?? []).map((r) => r.id);
+			} catch {
+				// fall through
+			}
+		}
+
+		const innerReq = new Request(request.url, {
+			method: request.method,
+			headers: request.headers,
+			body: bodyText,
+		});
+		const res = await announcementBatchDeleteInner(innerReq, env);
+
+		if (res.status >= 200 && res.status < 300 && existingIds.length > 0) {
+			await writeAdminLog(env, resolveActor(request), {
+				action: "announcement.batch_delete",
+				targetType: "announcement",
+				targetId: null,
+				details: { ids: existingIds, count: existingIds.length },
+			});
+		}
+		return res;
+	},
 );
