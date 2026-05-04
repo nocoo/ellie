@@ -8,6 +8,7 @@ import { type ThreadDisplayItem, highlightStyle } from "@/viewmodels/forum/threa
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import Link from "next/link";
 import { ThreadBadgeList } from "./thread-badge";
+import { ThreadLastPostCell } from "./thread-last-post-cell";
 import { ThreadRowStats } from "./thread-row-stats";
 import { ForumAvatar } from "./user-avatar";
 import { UserPopover } from "./user-popover";
@@ -68,22 +69,11 @@ export function ThreadItem({ item }: ThreadItemProps) {
 				/>
 
 				{/* Column 4: Last Post (fixed) */}
-				<div className="flex flex-col items-center justify-center w-[120px] shrink-0 py-2 text-center">
-					{thread.lastPosterId > 0 ? (
-						<UserPopover userId={thread.lastPosterId}>
-							<span className="text-xs text-foreground font-medium truncate max-w-full hover:text-primary transition-colors cursor-pointer">
-								{thread.lastPoster || "-"}
-							</span>
-						</UserPopover>
-					) : (
-						<span className="text-xs text-muted-foreground truncate max-w-full">
-							{thread.lastPoster || "-"}
-						</span>
-					)}
-					<span className="text-xs text-muted-foreground">
-						{thread.lastPostAt ? formatRelativeTime(thread.lastPostAt) : "-"}
-					</span>
-				</div>
+				<ThreadLastPostCell
+					lastPosterId={thread.lastPosterId}
+					lastPoster={thread.lastPoster}
+					lastPostAt={thread.lastPostAt}
+				/>
 			</div>
 
 			{/* Mobile layout: two-row compact display */}
