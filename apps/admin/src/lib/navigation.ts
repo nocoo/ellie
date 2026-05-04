@@ -57,6 +57,11 @@ export const NAV_GROUPS: NavGroupDef[] = [
 		],
 	},
 	{
+		label: "日志",
+		defaultOpen: true,
+		items: [{ href: "/admin/logs/operations", label: "操作日志", icon: "FileText" }],
+	},
+	{
 		label: "设置",
 		items: [
 			{ href: "/admin/settings/general", label: "通用设置", icon: "Settings" },
@@ -82,6 +87,8 @@ export const ROUTE_LABELS: Record<string, string> = {
 	reports: "举报管理",
 	"ip-bans": "IP 封禁",
 	"censor-words": "敏感词",
+	logs: "日志",
+	operations: "操作日志",
 	settings: "设置",
 	general: "通用设置",
 	features: "功能设置",
