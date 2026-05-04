@@ -172,4 +172,71 @@ test.describe("Admin users CRUD", () => {
 		await expect(page.getByRole("menuitem", { name: "封禁", exact: true })).toBeVisible();
 		await expect(page.getByRole("menuitem", { name: "解除封禁" })).toHaveCount(0);
 	});
+
+	test("edit username conflict surfaces inline error and keeps dialog open", async ({
+		page,
+		context,
+		loginAsAdmin,
+		baseURL,
+	}) => {
+		const origin = baseURL ?? "http://localhost:7032";
+		await loginAsAdmin();
+
+		// Snapshot testuser so afterEach can roll back even if the dialog
+		// somehow committed a partial change. (The 409 failure path should
+		// not mutate state, but this keeps the suite's contract uniform.)
+		{
+			const res = await context.request.get(`/api/admin/users/${SEED_USER_ID}`, {
+				headers: { Origin: origin },
+			});
+			expect(res.ok()).toBeTruthy();
+			snapshot = ((await res.json()) as UserResponse).data;
+		}
+		const snap = snapshot;
+		if (!snap) throw new Error("snapshot must be present");
+		const initialUsername = snap.username;
+
+		await page.goto(`/admin/users?search=${encodeURIComponent(initialUsername)}`);
+		await expect(page.getByRole("heading", { name: "用户" })).toBeVisible();
+		await expect(page.getByText(initialUsername, { exact: true }).first()).toBeVisible();
+
+		// Open edit dialog and rename to a username that already exists in
+		// the seed (`e2etest`, id=100) → worker returns 409 USERNAME_TAKEN.
+		const triggerName = `打开用户「${initialUsername}」操作菜单`;
+		await page.getByRole("button", { name: triggerName }).click();
+		await page.getByRole("menuitem", { name: "编辑" }).click();
+
+		const editDialog = page.getByRole("dialog", { name: "编辑用户" });
+		await expect(editDialog).toBeVisible();
+
+		const usernameInput = editDialog.locator("#edit-username");
+		await usernameInput.fill("e2etest");
+		await editDialog.getByRole("button", { name: "保存更改" }).click();
+
+		// Dialog must remain open with an inline error banner; the worker's
+		// USERNAME_TAKEN message ("Username is already taken") is surfaced
+		// raw via AdminInlineMessage (role="alert").
+		const errorBanner = editDialog.getByRole("alert");
+		await expect(errorBanner).toBeVisible();
+		await expect(errorBanner).toContainText(/Username is already taken|USERNAME_TAKEN/);
+		await expect(editDialog).toBeVisible();
+
+		// Save button must be re-enabled (loading state cleared).
+		const saveBtn = editDialog.getByRole("button", { name: "保存更改" });
+		await expect(saveBtn).toBeEnabled();
+
+		// Username is unchanged on the backend.
+		{
+			const res = await context.request.get(`/api/admin/users/${SEED_USER_ID}`, {
+				headers: { Origin: origin },
+			});
+			expect(res.ok()).toBeTruthy();
+			const after = ((await res.json()) as UserResponse).data;
+			expect(after.username).toBe(initialUsername);
+		}
+
+		// Closing the dialog clears the error.
+		await editDialog.getByRole("button", { name: "取消" }).click();
+		await expect(editDialog).toBeHidden();
+	});
 });
