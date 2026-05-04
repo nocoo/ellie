@@ -40,6 +40,8 @@ export const MOCK_USERS: User[] = [
 		emailVerifiedAt: 1711612800,
 		emailNormalized: "admin@tongji.net",
 		emailChangedAt: 0,
+		purgedAt: 0,
+		purgedBy: 0,
 	},
 	{
 		id: 2,
@@ -76,6 +78,8 @@ export const MOCK_USERS: User[] = [
 		emailVerifiedAt: 1711526400,
 		emailNormalized: "supermod@tongji.net",
 		emailChangedAt: 0,
+		purgedAt: 0,
+		purgedBy: 0,
 	},
 	{
 		id: 3,
@@ -112,6 +116,8 @@ export const MOCK_USERS: User[] = [
 		emailVerifiedAt: 1711440000,
 		emailNormalized: "mod@tongji.net",
 		emailChangedAt: 0,
+		purgedAt: 0,
+		purgedBy: 0,
 	},
 	{
 		id: 10,
@@ -148,6 +154,8 @@ export const MOCK_USERS: User[] = [
 		emailVerifiedAt: 1711353600,
 		emailNormalized: "zhangsan@example.com",
 		emailChangedAt: 0,
+		purgedAt: 0,
+		purgedBy: 0,
 	},
 	{
 		id: 11,
@@ -184,6 +192,8 @@ export const MOCK_USERS: User[] = [
 		emailVerifiedAt: 1711267200,
 		emailNormalized: "lisi@example.com",
 		emailChangedAt: 0,
+		purgedAt: 0,
+		purgedBy: 0,
 	},
 	{
 		id: 12,
@@ -220,6 +230,8 @@ export const MOCK_USERS: User[] = [
 		emailVerifiedAt: 0,
 		emailNormalized: "wangwu@example.com",
 		emailChangedAt: 0,
+		purgedAt: 0,
+		purgedBy: 0,
 	},
 	{
 		id: 13,
@@ -256,5 +268,7 @@ export const MOCK_USERS: User[] = [
 		emailVerifiedAt: 1451606400,
 		emailNormalized: "old@example.com",
 		emailChangedAt: 0,
+		purgedAt: 0,
+		purgedBy: 0,
 	},
 ];

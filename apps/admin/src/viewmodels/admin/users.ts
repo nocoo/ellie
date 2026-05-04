@@ -18,6 +18,10 @@ export interface User {
 	lastLogin: number;
 	regIp?: string;
 	lastIp?: string;
+	/** D4 tombstone — unix seconds when admin purged this user. 0 if never. */
+	purgedAt?: number;
+	/** D4 tombstone — admin user id who issued purge. 0 if never. */
+	purgedBy?: number;
 }
 
 export interface UserFilters {
@@ -92,6 +96,8 @@ export function roleLabel(role: number): string {
 /** Map status number to display label. */
 export function statusLabel(status: number): string {
 	switch (status) {
+		case -99:
+			return "已清除";
 		case -1:
 			return "已封禁";
 		case -2:

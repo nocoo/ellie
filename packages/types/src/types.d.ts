@@ -15,7 +15,18 @@ export declare enum UserRole {
  *
  * Placeholder (-3) is used for FK integrity when the original user was deleted.
  */
+/**
+ * User account status — see Doc02 §6.1 (legacy: -1=Banned, -2=Archived).
+ *
+ * Placeholder (-3) is used for FK integrity when the original user was deleted.
+ *
+ * D4 Tombstone (-99): user has been "彻底清除" (admin purge). PII is wiped,
+ * username is replaced with a `[已删除#<id>]` marker, all of the user's
+ * threads/posts/messages have been deleted. The row is kept so that FK
+ * references from collateral content + audit logs stay intact.
+ */
 export declare enum UserStatus {
+    Tombstone = -99,// D4: tombstoned by admin purge — PII cleared, content removed
     Placeholder = -3,// FK integrity placeholder
     Archived = -2,// Historical/archived account
     Banned = -1,// Account disabled
@@ -178,6 +189,13 @@ export interface User {
     regIp?: string;
     /** Last login IP (admin-only) */
     lastIp?: string;
+    /**
+     * D4 tombstone — unix seconds at the moment of `POST /admin/users/:id/purge`.
+     * 0 = not purged. Status is `UserStatus.Tombstone (-99)` when set.
+     */
+    purgedAt: number;
+    /** Admin user id who issued the purge. 0 if never purged. */
+    purgedBy: number;
 }
 /** Moderator info for display */
 export interface ModeratorInfo {

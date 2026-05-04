@@ -47,6 +47,10 @@ function statusVariant(status: number): "default" | "destructive" | "secondary" 
 			return "destructive";
 		case -2:
 			return "secondary";
+		case -99:
+			// Tombstone — muted look, distinct from active "default" but still
+			// quieter than the destructive ban badge.
+			return "outline";
 		default:
 			return "default";
 	}
@@ -310,33 +314,41 @@ export default function UserDetailPage() {
 				</CardHeader>
 				<CardContent>
 					<div className="flex flex-wrap gap-2">
-						<Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-							<Pencil className="mr-1 h-4 w-4" />
-							编辑资料
-						</Button>
-						{user.status !== -1 && (
-							<Button
-								variant="destructive"
-								size="sm"
-								onClick={() => {
-									setBanError(null);
-									setBanDialogOpen(true);
-								}}
-							>
-								<Shield className="mr-1 h-4 w-4" />
-								封禁用户
-							</Button>
-						)}
-						{user.status === -1 && (
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={() => handleUnban(user)}
-								disabled={unbanLoading}
-							>
-								<ShieldOff className="mr-1 h-4 w-4" />
-								{unbanLoading ? "解除中..." : "解除封禁"}
-							</Button>
+						{user.status === -99 ? (
+							<p className="text-sm text-muted-foreground">
+								此用户已被彻底清除，无法再编辑或封禁。
+							</p>
+						) : (
+							<>
+								<Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+									<Pencil className="mr-1 h-4 w-4" />
+									编辑资料
+								</Button>
+								{user.status !== -1 && (
+									<Button
+										variant="destructive"
+										size="sm"
+										onClick={() => {
+											setBanError(null);
+											setBanDialogOpen(true);
+										}}
+									>
+										<Shield className="mr-1 h-4 w-4" />
+										封禁用户
+									</Button>
+								)}
+								{user.status === -1 && (
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => handleUnban(user)}
+										disabled={unbanLoading}
+									>
+										<ShieldOff className="mr-1 h-4 w-4" />
+										{unbanLoading ? "解除中..." : "解除封禁"}
+									</Button>
+								)}
+							</>
 						)}
 					</div>
 				</CardContent>

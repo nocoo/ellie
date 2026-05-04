@@ -71,6 +71,10 @@ describe("users", () => {
 			expect(statusLabel(-2)).toBe("已归档");
 		});
 
+		it("returns 已清除 for -99 (D4 tombstone)", () => {
+			expect(statusLabel(-99)).toBe("已清除");
+		});
+
 		it("returns 正常 for other values", () => {
 			expect(statusLabel(0)).toBe("正常");
 			expect(statusLabel(1)).toBe("正常");
