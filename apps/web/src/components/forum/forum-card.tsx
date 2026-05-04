@@ -37,6 +37,24 @@ function LastPosterAvatarLink({
 	);
 }
 
+/** Sub-forum link list. Returns null when empty. */
+function SubForumLinks({ forums }: { forums: { id: number; name: string }[] }) {
+	if (forums.length === 0) return null;
+	return (
+		<div className="relative z-10 mt-0.5 flex items-baseline gap-1 flex-wrap leading-5">
+			<span className="text-xs text-muted-foreground">子版面:</span>
+			{forums.map((sub, i) => (
+				<span key={sub.id}>
+					{i > 0 && <span className="text-xs text-muted-foreground">, </span>}
+					<Link href={`/forums/${sub.id}`} className="text-xs text-forum-link hover:underline">
+						{sub.name}
+					</Link>
+				</span>
+			))}
+		</div>
+	);
+}
+
 /** Moderator list with UserPopover links. Returns null when empty. */
 function ModeratorLinks({
 	mods,
@@ -116,22 +134,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 					)}
 
 					{/* Sub-forums */}
-					{forum.children.length > 0 && (
-						<div className="relative z-10 mt-0.5 flex items-baseline gap-1 flex-wrap leading-5">
-							<span className="text-xs text-muted-foreground">子版面:</span>
-							{forum.children.map((sub, i) => (
-								<span key={sub.id}>
-									{i > 0 && <span className="text-xs text-muted-foreground">, </span>}
-									<Link
-										href={`/forums/${sub.id}`}
-										className="text-xs text-forum-link hover:underline"
-									>
-										{sub.name}
-									</Link>
-								</span>
-							))}
-						</div>
-					)}
+					<SubForumLinks forums={forum.children} />
 
 					{/* Moderators */}
 					<ModeratorLinks mods={forum.moderatorList ?? []} variant="wide" />
