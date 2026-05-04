@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock forum-cache to spy on invalidateForumTree
+// Mock forum-cache to spy on invalidateForumCacheAll
 vi.mock("../../../../src/lib/forum-cache", () => ({
+	invalidateForumCacheAll: vi.fn(async () => {}),
 	invalidateForumTree: vi.fn(async () => {}),
+	invalidateForumVolatile: vi.fn(async () => {}),
 	isForumCacheEnabled: vi.fn(() => true),
 }));
 
@@ -12,10 +14,10 @@ vi.mock("../../../../src/lib/recalcMetadata", () => ({
 }));
 
 import { create, merge, remove, reorder, update } from "../../../../src/handlers/admin/forum";
-import { invalidateForumTree } from "../../../../src/lib/forum-cache";
+import { invalidateForumCacheAll } from "../../../../src/lib/forum-cache";
 import { createMockDb, makeD1ForumRow, makeEnv } from "../../../helpers";
 
-const mockInvalidate = invalidateForumTree as ReturnType<typeof vi.fn>;
+const mockInvalidate = invalidateForumCacheAll as ReturnType<typeof vi.fn>;
 
 describe("admin forum — KV cache invalidation", () => {
 	const adminEnv = (db: D1Database) => makeEnv({ DB: db });
