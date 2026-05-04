@@ -340,4 +340,45 @@ test.describe("Admin users CRUD", () => {
 			).toBeLessThanOrEqual(40);
 		}
 	});
+
+	test("detail page 查询注册 IP navigates to filtered list with banner", async ({
+		context,
+		page,
+		loginAsAdmin,
+		baseURL,
+	}) => {
+		// D3 path: detail page → list page filtered by reg_ip exact match.
+		// We verify (a) URL gets the regIp query param, (b) the list page
+		// shows the IP context banner, and (c) the seed user is still
+		// visible in the result set (worker exact filter wired up).
+		const origin = baseURL ?? "http://localhost:7032";
+		await loginAsAdmin();
+
+		// Snapshot is read-only here; no mutations, but keep the contract.
+		{
+			const res = await context.request.get(`/api/admin/users/${SEED_USER_ID}`, {
+				headers: { Origin: origin },
+			});
+			expect(res.ok()).toBeTruthy();
+			snapshot = ((await res.json()) as UserResponse).data;
+		}
+		const snap = snapshot;
+		if (!snap) throw new Error("snapshot must be present");
+
+		await page.goto(`/admin/users/${SEED_USER_ID}`);
+		await expect(page.getByRole("heading", { name: snap.username })).toBeVisible();
+
+		// Detail page exposes 查询注册 IP only when user.regIp is non-empty.
+		// The seed user must have a reg_ip; if not, this is itself a seed bug.
+		const regIpButton = page.getByRole("button", { name: "查询注册 IP" });
+		await expect(regIpButton).toBeVisible();
+		await regIpButton.click();
+
+		// URL has regIp query param.
+		await expect(page).toHaveURL(/\/admin\/users\?regIp=/);
+		// IP context banner surfaces ("正在查看注册 IP 为 ...").
+		await expect(page.getByText(/正在查看注册 IP 为/)).toBeVisible();
+		// Seed user row is still visible in the filtered list.
+		await expect(page.getByText(snap.username, { exact: true }).first()).toBeVisible();
+	});
 });

@@ -221,13 +221,37 @@ export default function UserDetailPage() {
 					<CardHeader>
 						<CardTitle>元信息</CardTitle>
 					</CardHeader>
-					<CardContent>
+					<CardContent className="space-y-3">
 						<dl className="grid grid-cols-[7rem_1fr] gap-y-2 text-sm">
 							<dt className="text-muted-foreground">注册 IP</dt>
 							<dd className="font-mono">{fmtIp(user.regIp)}</dd>
 							<dt className="text-muted-foreground">最近 IP</dt>
 							<dd className="font-mono">{fmtIp(user.lastIp)}</dd>
 						</dl>
+						<div className="flex flex-wrap gap-2">
+							{user.regIp && user.regIp.trim().length > 0 && (
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() =>
+										router.push(`/admin/users?regIp=${encodeURIComponent(user.regIp ?? "")}`)
+									}
+								>
+									查询注册 IP
+								</Button>
+							)}
+							{user.lastIp && user.lastIp.trim().length > 0 && (
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() =>
+										router.push(`/admin/users?lastIp=${encodeURIComponent(user.lastIp ?? "")}`)
+									}
+								>
+									查询最近 IP
+								</Button>
+							)}
+						</div>
 					</CardContent>
 				</Card>
 			</div>

@@ -47,6 +47,8 @@ export interface UserFilters {
 	search: string;
 	status: string;
 	role: string;
+	regIp: string;
+	lastIp: string;
 	[key: string]: string; // Index signature for compatibility with AdminFilters
 }
 
@@ -138,6 +140,8 @@ const DEFAULT_FILTERS: UserFilters = {
 	search: "",
 	status: "",
 	role: "",
+	regIp: "",
+	lastIp: "",
 };
 
 const DEFAULT_PAGINATION: PaginationInfo = {
@@ -174,6 +178,8 @@ export function buildUserSearchParams(
 	if (filters.search) params.set("username", filters.search);
 	if (filters.status) params.set("status", filters.status);
 	if (filters.role) params.set("role", filters.role);
+	if (filters.regIp) params.set("regIp", filters.regIp);
+	if (filters.lastIp) params.set("lastIp", filters.lastIp);
 	return params;
 }
 

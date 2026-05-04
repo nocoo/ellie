@@ -25,6 +25,8 @@ export interface UserFilters {
 	email?: string;
 	status?: number | null;
 	role?: number | null;
+	regIp?: string;
+	lastIp?: string;
 	page?: number;
 	limit?: number;
 }
@@ -68,6 +70,8 @@ export function buildUserSearchParams(
 		email: filters.email || undefined,
 		status: filters.status ?? undefined,
 		role: filters.role ?? undefined,
+		regIp: filters.regIp || undefined,
+		lastIp: filters.lastIp || undefined,
 	};
 }
 

@@ -4,29 +4,83 @@ import { describe, expect, it } from "vitest";
 describe("use-users-admin helpers", () => {
 	describe("buildUserSearchParams", () => {
 		it("sets page and limit", () => {
-			const params = buildUserSearchParams(2, 10, { search: "", status: "", role: "" });
+			const params = buildUserSearchParams(2, 10, {
+				search: "",
+				status: "",
+				role: "",
+				regIp: "",
+				lastIp: "",
+			});
 			expect(params.get("page")).toBe("2");
 			expect(params.get("limit")).toBe("10");
 		});
 
 		it("includes username when search is non-empty", () => {
-			const params = buildUserSearchParams(1, 20, { search: "john", status: "", role: "" });
+			const params = buildUserSearchParams(1, 20, {
+				search: "john",
+				status: "",
+				role: "",
+				regIp: "",
+				lastIp: "",
+			});
 			expect(params.get("username")).toBe("john");
 		});
 
 		it("omits username when search is empty", () => {
-			const params = buildUserSearchParams(1, 20, { search: "", status: "", role: "" });
+			const params = buildUserSearchParams(1, 20, {
+				search: "",
+				status: "",
+				role: "",
+				regIp: "",
+				lastIp: "",
+			});
 			expect(params.has("username")).toBe(false);
 		});
 
 		it("includes status when non-empty", () => {
-			const params = buildUserSearchParams(1, 20, { search: "", status: "-1", role: "" });
+			const params = buildUserSearchParams(1, 20, {
+				search: "",
+				status: "-1",
+				role: "",
+				regIp: "",
+				lastIp: "",
+			});
 			expect(params.get("status")).toBe("-1");
 		});
 
 		it("includes role when non-empty", () => {
-			const params = buildUserSearchParams(1, 20, { search: "", status: "", role: "1" });
+			const params = buildUserSearchParams(1, 20, {
+				search: "",
+				status: "",
+				role: "1",
+				regIp: "",
+				lastIp: "",
+			});
 			expect(params.get("role")).toBe("1");
+		});
+
+		it("includes regIp / lastIp when non-empty", () => {
+			const params = buildUserSearchParams(1, 20, {
+				search: "",
+				status: "",
+				role: "",
+				regIp: "1.2.3.4",
+				lastIp: "5.6.7.8",
+			});
+			expect(params.get("regIp")).toBe("1.2.3.4");
+			expect(params.get("lastIp")).toBe("5.6.7.8");
+		});
+
+		it("omits regIp / lastIp when empty", () => {
+			const params = buildUserSearchParams(1, 20, {
+				search: "",
+				status: "",
+				role: "",
+				regIp: "",
+				lastIp: "",
+			});
+			expect(params.has("regIp")).toBe(false);
+			expect(params.has("lastIp")).toBe(false);
 		});
 	});
 

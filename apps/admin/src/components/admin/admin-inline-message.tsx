@@ -7,9 +7,9 @@
 "use client";
 
 import { cn } from "@ellie/ui/utils";
-import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info } from "lucide-react";
 
-export type AdminInlineMessageVariant = "success" | "error";
+export type AdminInlineMessageVariant = "success" | "error" | "info";
 
 export interface AdminInlineMessageProps {
 	variant: AdminInlineMessageVariant;
@@ -23,6 +23,13 @@ const VARIANT_CLASSES: Record<AdminInlineMessageVariant, string> = {
 	success:
 		"border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300",
 	error: "border-destructive/50 bg-destructive/10 text-destructive",
+	info: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300",
+};
+
+const VARIANT_ICONS: Record<AdminInlineMessageVariant, typeof CheckCircle2> = {
+	success: CheckCircle2,
+	error: AlertCircle,
+	info: Info,
 };
 
 export function AdminInlineMessage({
@@ -31,7 +38,7 @@ export function AdminInlineMessage({
 	dense = false,
 	className,
 }: AdminInlineMessageProps) {
-	const Icon = variant === "success" ? CheckCircle2 : AlertCircle;
+	const Icon = VARIANT_ICONS[variant];
 	return (
 		<div
 			role={variant === "error" ? "alert" : "status"}
