@@ -3,17 +3,15 @@
 
 "use client";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { apiClient } from "@/lib/api-client";
-import { getAvatarUrl } from "@/lib/avatar";
-import { getStaticImageUrl } from "@/lib/cdn";
 import type { PostComment } from "@ellie/types";
 import { Loader2, MessageCircle, Send } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { ForumAvatar } from "./user-avatar";
 
 interface PostCommentsProps {
 	postId: number;
@@ -200,20 +198,7 @@ export function PostComments({
 				{visibleComments.map((comment) => (
 					<div key={comment.id} className="px-3 py-1.5 flex items-center gap-2 text-xs">
 						<Link href={`/users/${comment.authorId}`} className="flex-shrink-0">
-							<Avatar className="h-5 w-5 rounded-sm">
-								<AvatarImage
-									src={getAvatarUrl(comment.authorId, "small")}
-									alt={comment.authorName}
-									className="rounded-sm"
-								/>
-								<AvatarFallback className="text-2xs rounded-sm bg-muted p-0 overflow-hidden">
-									<img
-										src={getStaticImageUrl("tavatar.gif")}
-										alt=""
-										className="h-full w-full object-cover"
-									/>
-								</AvatarFallback>
-							</Avatar>
+							<ForumAvatar userId={comment.authorId} userName={comment.authorName} size="xs" />
 						</Link>
 						<Link
 							href={`/users/${comment.authorId}`}

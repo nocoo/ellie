@@ -6,6 +6,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAvatarUrl } from "@/contexts/avatar-context";
+import { getAvatarUrl } from "@/lib/avatar";
 import { getStaticImageUrl } from "@/lib/cdn";
 import { cn } from "@/lib/utils";
 
@@ -55,6 +56,58 @@ export function TrackedUserAvatar({
 		>
 			<AvatarImage src={avatarUrl} alt={username ?? `User ${uid}`} className="rounded-sm" />
 			<AvatarFallback className="text-sm rounded-sm bg-muted p-0 overflow-hidden">
+				<img src={getStaticImageUrl("tavatar.gif")} alt="" className="h-full w-full object-cover" />
+			</AvatarFallback>
+		</Avatar>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// ForumAvatar — Forum thread/comment avatar with rounded-sm + tavatar fallback
+// Encapsulates the repeated Avatar+Image+Fallback pattern from thread-item,
+// digest-card, post-comments, etc.
+// ---------------------------------------------------------------------------
+
+interface ForumAvatarProps {
+	userId: number;
+	userName: string;
+	avatarPath?: string | null;
+	/** Avatar size. "sm" (24px) for thread rows; "xs" (20px) for comments. */
+	size?: "sm" | "xs";
+	/** Show subtle drop shadow (used in desktop thread rows). */
+	shadow?: boolean;
+	/** Additional className on the root Avatar element. */
+	className?: string;
+}
+
+export function ForumAvatar({
+	userId,
+	userName,
+	avatarPath,
+	size = "sm",
+	shadow = false,
+	className,
+}: ForumAvatarProps) {
+	const isXs = size === "xs";
+
+	return (
+		<Avatar
+			size={isXs ? undefined : "sm"}
+			className={cn(
+				"rounded-sm",
+				isXs && "h-5 w-5",
+				shadow && "shadow-[0_0_2px_rgba(0,0,0,0.1)]",
+				className,
+			)}
+		>
+			<AvatarImage
+				src={getAvatarUrl(userId, "small", avatarPath ?? undefined)}
+				alt={userName}
+				className="rounded-sm"
+			/>
+			<AvatarFallback
+				className={cn("rounded-sm bg-muted p-0 overflow-hidden", isXs ? "text-2xs" : "text-xs")}
+			>
 				<img src={getStaticImageUrl("tavatar.gif")} alt="" className="h-full w-full object-cover" />
 			</AvatarFallback>
 		</Avatar>
