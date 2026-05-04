@@ -4,10 +4,7 @@
 
 import { ComposeMessageDialog } from "@/components/forum/compose-message-dialog";
 import { type BreadcrumbItem, Breadcrumbs } from "@/components/layout/breadcrumbs";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { getAvatarUrl } from "@/lib/avatar";
-import { getStaticImageUrl } from "@/lib/cdn";
 import { cn } from "@/lib/utils";
 import { ApiError, type Message, deleteMessage, fetchMessage } from "@/viewmodels/forum/messages";
 import { ArrowLeft, Loader2, Reply, Trash2 } from "lucide-react";
@@ -15,6 +12,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { ForumAvatar } from "./user-avatar";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -179,20 +177,12 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 				<div className="flex items-start justify-between border-b border-border pb-4">
 					<div className="flex items-start gap-3">
 						<Link href={`/users/${message.senderId}`}>
-							<Avatar className="h-12 w-12 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.1)]">
-								<AvatarImage
-									src={getAvatarUrl(message.senderId, "middle")}
-									alt={message.senderName}
-									className="rounded-sm"
-								/>
-								<AvatarFallback className="rounded-sm bg-muted p-0 overflow-hidden">
-									<img
-										src={getStaticImageUrl("tavatar.gif")}
-										alt=""
-										className="h-full w-full object-cover"
-									/>
-								</AvatarFallback>
-							</Avatar>
+							<ForumAvatar
+								userId={message.senderId}
+								userName={message.senderName}
+								size="lg"
+								shadow
+							/>
 						</Link>
 						<div>
 							<div className="flex items-center gap-2">

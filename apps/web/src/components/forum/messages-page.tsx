@@ -5,10 +5,7 @@
 
 import { ComposeMessageDialog } from "@/components/forum/compose-message-dialog";
 import { type BreadcrumbItem, Breadcrumbs } from "@/components/layout/breadcrumbs";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { getAvatarUrl } from "@/lib/avatar";
-import { getStaticImageUrl } from "@/lib/cdn";
 import { cn } from "@/lib/utils";
 import type { MessageListItem, SidebarItem } from "@/viewmodels/forum/messages";
 import {
@@ -23,6 +20,7 @@ import { CheckCheck, Mail, PenLine, Send, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { ForumAvatar } from "./user-avatar";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -239,20 +237,7 @@ function MessageRow({
 			{/* Avatar */}
 			<div className="flex-shrink-0">
 				<Link href={`/users/${peerId}`}>
-					<Avatar className="h-12 w-12 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.1)]">
-						<AvatarImage
-							src={getAvatarUrl(peerId, "middle")}
-							alt={peerName}
-							className="rounded-sm"
-						/>
-						<AvatarFallback className="rounded-sm bg-muted p-0 overflow-hidden">
-							<img
-								src={getStaticImageUrl("tavatar.gif")}
-								alt=""
-								className="h-full w-full object-cover"
-							/>
-						</AvatarFallback>
-					</Avatar>
+					<ForumAvatar userId={peerId} userName={peerName} size="lg" shadow />
 				</Link>
 			</div>
 
