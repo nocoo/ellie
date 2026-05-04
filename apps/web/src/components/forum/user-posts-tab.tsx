@@ -1,5 +1,6 @@
 // components/forum/user-posts-tab.tsx — Posts tab for user profile page
 
+import { ForumEmptyState } from "@/components/forum/empty-state";
 import type { UserProfileData } from "@/viewmodels/forum/user-profile.server";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import Link from "next/link";
@@ -10,11 +11,7 @@ export function UserPostsTab({
 	posts: UserProfileData["posts"];
 }) {
 	if (posts.items.length === 0) {
-		return (
-			<div className="py-8 text-center text-sm text-muted-foreground">
-				暂无回复（Worker v1 尚不支持按用户查询历史）
-			</div>
-		);
+		return <ForumEmptyState>暂无回复（Worker v1 尚不支持按用户查询历史）</ForumEmptyState>;
 	}
 
 	return (

@@ -1,5 +1,6 @@
 // components/forum/user-digest-tab.tsx — Digest threads tab for user profile page
 
+import { ForumEmptyState } from "@/components/forum/empty-state";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
 import type { UserProfileData } from "@/viewmodels/forum/user-profile.server";
 import { formatCompactNumber, formatRelativeTime } from "@/viewmodels/shared/formatting";
@@ -12,7 +13,7 @@ export function UserDigestTab({
 	digest: UserProfileData["digest"];
 }) {
 	if (digest.items.length === 0) {
-		return <div className="py-8 text-center text-sm text-muted-foreground">暂无精华帖</div>;
+		return <ForumEmptyState>暂无精华帖</ForumEmptyState>;
 	}
 
 	return (
