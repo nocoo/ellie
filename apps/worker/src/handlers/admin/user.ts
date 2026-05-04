@@ -2,6 +2,7 @@ import { withEntityAuth } from "../../lib/adminHelpers";
 import type { EntityConfig } from "../../lib/crud";
 import { createGetByIdHandler, createListHandler, createUpdateHandler } from "../../lib/crud";
 import type { Env } from "../../lib/env";
+import { invalidateForumVolatile } from "../../lib/forum-cache";
 import { toUser } from "../../lib/mappers";
 import { parsePathSegment } from "../../lib/parseId";
 import { recalcForumMetadata, recalcThreadMetadata } from "../../lib/recalcMetadata";
@@ -353,6 +354,9 @@ export const nuke = withEntityAuth(
 		)
 			.bind(id)
 			.run();
+
+		// Invalidate volatile cache (massive counts change from content deletion)
+		await invalidateForumVolatile(env);
 
 		return jsonResponse(
 			{

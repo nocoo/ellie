@@ -183,3 +183,240 @@ export async function getForumTree(env: Env, ctx?: ExecutionContext): Promise<Fo
 export async function invalidateForumTree(env: Env): Promise<void> {
 	await env.KV.delete(FORUM_TREE_KEY).catch(() => {});
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Layer 2: Volatile Data Cache (last-post info, today counts, totals)
+// ═══════════════════════════════════════════════════════════════════════
+
+// ─── Types ──────────────────────────────────────────────────────────
+
+/** Per-forum volatile data: changes on every post/thread create. */
+export interface ForumVolatileEntry {
+	lastThreadId: number;
+	lastThreadSubject: string;
+	lastPostAt: number;
+	lastPosterId: number;
+	lastPoster: string;
+	todayThreads: number;
+	threads: number;
+	posts: number;
+}
+
+interface CachedForumVolatile {
+	entries: Record<number, ForumVolatileEntry>;
+	cachedAt: number;
+}
+
+// ─── Constants ──────────────────────────────────────────────────────
+
+const FORUM_VOLATILE_KEY = "forums:volatile:v1";
+/** TTL IS the consistency guarantee for volatile data. */
+const FORUM_VOLATILE_TTL = 60;
+
+// ─── Validation ─────────────────────────────────────────────────────
+
+function isValidVolatilePayload(cached: CachedForumVolatile): boolean {
+	if (
+		typeof cached.entries !== "object" ||
+		cached.entries === null ||
+		Array.isArray(cached.entries)
+	) {
+		return false;
+	}
+	// Spot-check first entry (if any) has required numeric fields
+	const keys = Object.keys(cached.entries);
+	if (keys.length === 0) return true;
+	const first = cached.entries[Number(keys[0])];
+	return (
+		first !== undefined &&
+		typeof first.lastThreadId === "number" &&
+		typeof first.lastPostAt === "number" &&
+		typeof first.threads === "number"
+	);
+}
+
+// ─── Read-through cache ─────────────────────────────────────────────
+
+/**
+ * Get volatile forum data from KV cache, falling through to D1 on miss.
+ * Returns a map of forumId → volatile entry.
+ *
+ * D1 fallback queries:
+ * 1. Today's thread count per forum (visible threads created in last 24h)
+ * 2. Visible last thread per forum (most recent visible thread's last post info)
+ *
+ * @param env Worker environment
+ * @param ctx ExecutionContext for non-blocking KV.put
+ * @param forumIds Forum IDs to fetch volatile data for
+ */
+export async function getForumVolatile(
+	env: Env,
+	ctx: ExecutionContext,
+	forumIds: number[],
+): Promise<Record<number, ForumVolatileEntry>> {
+	// Try KV cache first (only when feature flag is enabled)
+	if (isForumCacheEnabled(env)) {
+		try {
+			const cached = await env.KV.get<CachedForumVolatile>(FORUM_VOLATILE_KEY, "json");
+			if (cached && isValidVolatilePayload(cached)) {
+				return cached.entries;
+			}
+		} catch {
+			// KV read failure — fall through to D1
+		}
+	}
+
+	// D1 fallback: build volatile data from scratch
+	const cutoff24h = Math.floor(Date.now() / 1000) - 86400;
+
+	// Query 1: today's visible thread count per forum
+	const todayResult = await env.DB.prepare(
+		"SELECT forum_id, COUNT(*) AS cnt FROM threads WHERE created_at >= ? AND sticky >= 0 GROUP BY forum_id",
+	)
+		.bind(cutoff24h)
+		.all<{ forum_id: number; cnt: number }>();
+
+	const todayMap = new Map<number, number>();
+	for (const row of todayResult.results) {
+		todayMap.set(row.forum_id, row.cnt);
+	}
+
+	// Query 2: forum-level counts (threads, posts) from forums table
+	const forumsResult = await env.DB.prepare(
+		"SELECT id, threads, posts, last_thread_id FROM forums",
+	).all<{ id: number; threads: number; posts: number; last_thread_id: number }>();
+
+	const forumsMap = new Map<number, { threads: number; posts: number; lastThreadId: number }>();
+	for (const row of forumsResult.results) {
+		forumsMap.set(row.id, {
+			threads: row.threads,
+			posts: row.posts,
+			lastThreadId: row.last_thread_id,
+		});
+	}
+
+	// Query 3: visible last thread per forum (most recent visible thread)
+	const lastThreadResult = await fetchVisibleLastThreadsForCache(env.DB, forumIds);
+
+	// Build volatile entries
+	const entries: Record<number, ForumVolatileEntry> = {};
+	for (const forumId of forumIds) {
+		const counts = forumsMap.get(forumId);
+		const lastThread = lastThreadResult.get(forumId);
+		entries[forumId] = {
+			lastThreadId: lastThread?.threadId ?? 0,
+			lastThreadSubject: lastThread?.subject ?? "",
+			lastPostAt: lastThread?.lastPostAt ?? 0,
+			lastPosterId: lastThread?.lastPosterId ?? 0,
+			lastPoster: lastThread?.lastPoster ?? "",
+			todayThreads: todayMap.get(forumId) ?? 0,
+			threads: counts?.threads ?? 0,
+			posts: counts?.posts ?? 0,
+		};
+	}
+
+	// Write to KV (non-blocking)
+	if (isForumCacheEnabled(env)) {
+		const payload: CachedForumVolatile = { entries, cachedAt: Date.now() };
+		const putPromise = env.KV.put(FORUM_VOLATILE_KEY, JSON.stringify(payload), {
+			expirationTtl: FORUM_VOLATILE_TTL,
+		}).catch(() => {});
+		ctx.waitUntil(putPromise);
+	}
+
+	return entries;
+}
+
+/** Helper: fetch visible last thread info per forum for cache population. */
+async function fetchVisibleLastThreadsForCache(
+	db: D1Database,
+	forumIds: number[],
+): Promise<
+	Map<
+		number,
+		{
+			threadId: number;
+			subject: string;
+			lastPostAt: number;
+			lastPosterId: number;
+			lastPoster: string;
+		}
+	>
+> {
+	if (forumIds.length === 0) return new Map();
+
+	const result = new Map<
+		number,
+		{
+			threadId: number;
+			subject: string;
+			lastPostAt: number;
+			lastPosterId: number;
+			lastPoster: string;
+		}
+	>();
+
+	const BATCH_SIZE = 100;
+	for (let i = 0; i < forumIds.length; i += BATCH_SIZE) {
+		const batch = forumIds.slice(i, i + BATCH_SIZE);
+		const placeholders = batch.map(() => "?").join(",");
+
+		const batchResult = await db
+			.prepare(
+				`SELECT t.forum_id, t.id as thread_id, t.subject, t.last_post_at, t.last_poster_id, t.last_poster
+				 FROM threads t
+				 INNER JOIN (
+					 SELECT forum_id, MAX(last_post_at) as max_post_at
+					 FROM threads
+					 WHERE forum_id IN (${placeholders}) AND sticky >= 0
+					 GROUP BY forum_id
+				 ) sub ON t.forum_id = sub.forum_id AND t.last_post_at = sub.max_post_at
+				 WHERE t.sticky >= 0`,
+			)
+			.bind(...batch)
+			.all<{
+				forum_id: number;
+				thread_id: number;
+				subject: string;
+				last_post_at: number;
+				last_poster_id: number;
+				last_poster: string;
+			}>();
+
+		for (const row of batchResult.results) {
+			if (!result.has(row.forum_id)) {
+				result.set(row.forum_id, {
+					threadId: row.thread_id,
+					subject: row.subject,
+					lastPostAt: row.last_post_at,
+					lastPosterId: row.last_poster_id,
+					lastPoster: row.last_poster,
+				});
+			}
+		}
+	}
+
+	return result;
+}
+
+// ─── Volatile Invalidation ──────────────────────────────────────────
+
+/**
+ * Invalidate volatile forum cache (best-effort, swallows errors).
+ * Use for destructive ops (delete/move) to shorten stale window.
+ * Not needed for creates — TTL (60s) handles freshness.
+ */
+export async function invalidateForumVolatile(env: Env): Promise<void> {
+	await env.KV.delete(FORUM_VOLATILE_KEY).catch(() => {});
+}
+
+/**
+ * Invalidate both forum caches (tree + volatile).
+ * Use for admin operations that affect structure AND counts (create/delete/merge).
+ */
+export async function invalidateForumCacheAll(env: Env): Promise<void> {
+	await Promise.all([
+		env.KV.delete(FORUM_TREE_KEY).catch(() => {}),
+		env.KV.delete(FORUM_VOLATILE_KEY).catch(() => {}),
+	]);
+}

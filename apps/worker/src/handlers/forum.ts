@@ -1,7 +1,12 @@
 import { type Forum, type ModeratorInfo, canViewForumVisibility } from "@ellie/types";
 import type { ForumVisibility } from "@ellie/types";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
-import { type ForumTreeEntry, getForumTree } from "../lib/forum-cache";
+import {
+	type ForumTreeEntry,
+	getForumTree,
+	getForumVolatile,
+	isForumCacheEnabled,
+} from "../lib/forum-cache";
 import { enrichForumsWithUserCache, parseModeratorIds, toForum } from "../lib/mappers";
 import { getUserProfiles } from "../lib/user-cache";
 import { THREAD_VISIBLE, buildVisibilityContext, isForumActive } from "../lib/visibility";
@@ -132,110 +137,149 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 	const user = await optionalAuthVerified(request, env);
 	const visCtx = buildVisibilityContext(user);
 
-	// Run both queries in parallel: all forums + per-forum thread count in last 24h
-	const cutoff24h = Math.floor(Date.now() / 1000) - 86400;
+	const useForumKvCache = isForumCacheEnabled(env);
+	const useKvUserCache = isKvUserCacheEnabled(env);
 
-	const useKvCache = isKvUserCacheEnabled(env);
+	let forums: Forum[];
 
-	// Choose query based on cache strategy
-	const forumQuery = useKvCache
-		? "SELECT * FROM forums ORDER BY display_order"
-		: `SELECT f.*, u.avatar AS last_poster_avatar, u.avatar_path AS last_poster_avatar_path
-		   FROM forums f
-		   LEFT JOIN users u ON f.last_poster_id = u.id
-		   ORDER BY f.display_order`;
+	if (useForumKvCache) {
+		// ─── Two-layer KV cache path ─────────────────────────────
+		// Layer 1: structural tree (10min TTL, explicit invalidation)
+		// Layer 2: volatile data (60s TTL)
+		const tree = await getForumTree(env, ctx);
+		const forumIds = tree.map((e) => e.id);
+		const volatile = await getForumVolatile(env, ctx, forumIds);
 
-	const [forumResult, countResult] = await Promise.all([
-		env.DB.prepare(forumQuery).all(),
-		// Only count visible threads (sticky >= 0) for today's count
-		env.DB.prepare(
-			`SELECT forum_id, COUNT(*) AS cnt FROM threads WHERE created_at >= ? AND ${THREAD_VISIBLE} GROUP BY forum_id`,
-		)
-			.bind(cutoff24h)
-			.all<{ forum_id: number; cnt: number }>(),
-	]);
+		// Merge tree + volatile into Forum objects
+		forums = tree.map((entry) => {
+			const vol = volatile[entry.id];
+			return {
+				id: entry.id,
+				parentId: entry.parentId,
+				name: entry.name,
+				description: entry.description,
+				icon: entry.icon,
+				displayOrder: entry.displayOrder,
+				status: entry.status,
+				visibility: entry.visibility as ForumVisibility,
+				type: entry.type as Forum["type"],
+				moderators: entry.moderators,
+				moderatorList: entry.moderatorList,
+				threads: vol?.threads ?? 0,
+				posts: vol?.posts ?? 0,
+				todayThreads: vol?.todayThreads ?? 0,
+				lastThreadId: vol?.lastThreadId ?? 0,
+				lastThreadSubject: vol?.lastThreadSubject ?? "",
+				lastPostAt: vol?.lastPostAt ?? 0,
+				lastPosterId: vol?.lastPosterId ?? 0,
+				lastPoster: vol?.lastPoster ?? "",
+				lastPosterAvatar: "",
+				lastPosterAvatarPath: "",
+			};
+		});
 
-	// Build lookup map: forum_id → todayThreads
-	const todayMap = new Map<number, number>();
-	for (const row of countResult.results) {
-		todayMap.set(row.forum_id, row.cnt);
-	}
-
-	let forums: Forum[] = forumResult.results.map((row) => {
-		const r = row as Record<string, unknown>;
-		const forum = toForum(r);
-		forum.todayThreads = todayMap.get(forum.id) ?? 0;
-		// If JOIN approach, populate avatar directly from query result
-		if (!useKvCache && r.last_poster_avatar !== undefined) {
-			forum.lastPosterAvatar = (r.last_poster_avatar as string) ?? "";
-			forum.lastPosterAvatarPath = (r.last_poster_avatar_path as string) ?? "";
+		// Enrich with KV user cache for last poster avatars
+		if (useKvUserCache) {
+			const lastPosterIds = forums.map((f) => f.lastPosterId).filter((id) => id > 0);
+			if (lastPosterIds.length > 0) {
+				const userCache = await getUserProfiles(env, ctx, lastPosterIds);
+				forums = enrichForumsWithUserCache(forums, userCache);
+			}
 		}
-		return forum;
-	});
+	} else {
+		// ─── Legacy D1-only path ─────────────────────────────────
+		const cutoff24h = Math.floor(Date.now() / 1000) - 86400;
 
-	// Collect all moderator IDs and fetch their names
-	const allModeratorIds = new Set<number>();
-	for (const row of forumResult.results) {
-		const moderatorIdsStr = (row as Record<string, unknown>).moderator_ids as string;
-		for (const id of parseModeratorIds(moderatorIdsStr ?? "")) {
-			allModeratorIds.add(id);
+		const forumQuery = useKvUserCache
+			? "SELECT * FROM forums ORDER BY display_order"
+			: `SELECT f.*, u.avatar AS last_poster_avatar, u.avatar_path AS last_poster_avatar_path
+			   FROM forums f
+			   LEFT JOIN users u ON f.last_poster_id = u.id
+			   ORDER BY f.display_order`;
+
+		const [forumResult, countResult] = await Promise.all([
+			env.DB.prepare(forumQuery).all(),
+			env.DB.prepare(
+				`SELECT forum_id, COUNT(*) AS cnt FROM threads WHERE created_at >= ? AND ${THREAD_VISIBLE} GROUP BY forum_id`,
+			)
+				.bind(cutoff24h)
+				.all<{ forum_id: number; cnt: number }>(),
+		]);
+
+		const todayMap = new Map<number, number>();
+		for (const row of countResult.results) {
+			todayMap.set(row.forum_id, row.cnt);
 		}
-	}
-	const moderatorNameMap = await fetchModeratorNames(env.DB, [...allModeratorIds]);
 
-	// Populate moderatorList for each forum
-	forums = forums.map((forum, i) => {
-		const moderatorIdsStr = (forumResult.results[i] as Record<string, unknown>)
-			.moderator_ids as string;
-		return {
-			...forum,
-			moderatorList: buildModeratorList(moderatorIdsStr ?? "", moderatorNameMap),
-		};
-	});
+		forums = forumResult.results.map((row) => {
+			const r = row as Record<string, unknown>;
+			const forum = toForum(r);
+			forum.todayThreads = todayMap.get(forum.id) ?? 0;
+			if (!useKvUserCache && r.last_poster_avatar !== undefined) {
+				forum.lastPosterAvatar = (r.last_poster_avatar as string) ?? "";
+				forum.lastPosterAvatarPath = (r.last_poster_avatar_path as string) ?? "";
+			}
+			return forum;
+		});
 
-	// Replace forum last thread metadata with visible thread data
-	// This prevents leaking hidden/deleted thread subjects and posters
-	const forumIds = forums.map((f) => f.id);
-	const visibleLastThreads = await fetchVisibleLastThreads(env.DB, forumIds);
-	forums = forums.map((forum) => {
-		const visible = visibleLastThreads.get(forum.id);
-		if (visible) {
+		// Collect all moderator IDs and fetch their names
+		const allModeratorIds = new Set<number>();
+		for (const row of forumResult.results) {
+			const moderatorIdsStr = (row as Record<string, unknown>).moderator_ids as string;
+			for (const id of parseModeratorIds(moderatorIdsStr ?? "")) {
+				allModeratorIds.add(id);
+			}
+		}
+		const moderatorNameMap = await fetchModeratorNames(env.DB, [...allModeratorIds]);
+
+		forums = forums.map((forum, i) => {
+			const moderatorIdsStr = (forumResult.results[i] as Record<string, unknown>)
+				.moderator_ids as string;
 			return {
 				...forum,
-				lastThreadId: visible.threadId,
-				lastThreadSubject: visible.subject,
-				lastPostAt: visible.lastPostAt,
-				lastPosterId: visible.lastPosterId,
-				lastPoster: visible.lastPoster,
+				moderatorList: buildModeratorList(moderatorIdsStr ?? "", moderatorNameMap),
 			};
-		}
-		// No visible threads in this forum - clear the metadata
-		return {
-			...forum,
-			lastThreadId: 0,
-			lastThreadSubject: "",
-			lastPostAt: 0,
-			lastPosterId: 0,
-			lastPoster: "",
-			lastPosterAvatar: "",
-		};
-	});
+		});
 
-	// Enrich with KV user cache (only if enabled)
-	if (useKvCache) {
-		const lastPosterIds = forums.map((f) => f.lastPosterId).filter((id) => id > 0);
-		if (lastPosterIds.length > 0) {
-			const userCache = await getUserProfiles(env, ctx, lastPosterIds);
-			forums = enrichForumsWithUserCache(forums, userCache);
+		// Replace forum last thread metadata with visible thread data
+		const forumIds = forums.map((f) => f.id);
+		const visibleLastThreads = await fetchVisibleLastThreads(env.DB, forumIds);
+		forums = forums.map((forum) => {
+			const visible = visibleLastThreads.get(forum.id);
+			if (visible) {
+				return {
+					...forum,
+					lastThreadId: visible.threadId,
+					lastThreadSubject: visible.subject,
+					lastPostAt: visible.lastPostAt,
+					lastPosterId: visible.lastPosterId,
+					lastPoster: visible.lastPoster,
+				};
+			}
+			return {
+				...forum,
+				lastThreadId: 0,
+				lastThreadSubject: "",
+				lastPostAt: 0,
+				lastPosterId: 0,
+				lastPoster: "",
+				lastPosterAvatar: "",
+			};
+		});
+
+		// Enrich with KV user cache (only if enabled)
+		if (useKvUserCache) {
+			const lastPosterIds = forums.map((f) => f.lastPosterId).filter((id) => id > 0);
+			if (lastPosterIds.length > 0) {
+				const userCache = await getUserProfiles(env, ctx, lastPosterIds);
+				forums = enrichForumsWithUserCache(forums, userCache);
+			}
 		}
 	}
 
-	// Filter by visibility: remove forums the user can't access
-	// Also filter by status: hide admin-hidden (0), deleted (-1), paused (2), QQ group (3)
+	// Filter by visibility and active status (both paths converge here)
 	forums = forums.filter((f) => {
-		// Status filter
 		if (!isForumActive(f)) return false;
-		// Visibility filter
 		return canViewForumVisibility(f.visibility as ForumVisibility, visCtx);
 	});
 
