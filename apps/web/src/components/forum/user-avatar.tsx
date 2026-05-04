@@ -72,8 +72,8 @@ interface ForumAvatarProps {
 	userId: number;
 	userName: string;
 	avatarPath?: string | null;
-	/** Avatar size. "sm" (24px) for thread rows; "xs" (20px) for comments. */
-	size?: "sm" | "xs";
+	/** Avatar size. "sm" (24px) for thread rows; "xs" (20px) for comments; "md" (32px) for post cards. */
+	size?: "xs" | "sm" | "md";
 	/** Show subtle drop shadow (used in desktop thread rows). */
 	shadow?: boolean;
 	/** Additional className on the root Avatar element. */
@@ -92,7 +92,7 @@ export function ForumAvatar({
 
 	return (
 		<Avatar
-			size={isXs ? undefined : "sm"}
+			size={size === "sm" ? "sm" : undefined}
 			className={cn(
 				"rounded-sm",
 				isXs && "h-5 w-5",

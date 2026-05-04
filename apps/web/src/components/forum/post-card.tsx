@@ -165,8 +165,8 @@ export function PostCard({
 								userId={post.authorId}
 								userName={post.author.username}
 								avatarPath={post.author.avatarPath}
-								size="xs"
-								className="h-8 w-8 shadow-[0_0_2px_rgba(0,0,0,0.15)]"
+								size="md"
+								className="shadow-[0_0_2px_rgba(0,0,0,0.15)]"
 							/>
 						</Link>
 					) : (
