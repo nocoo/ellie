@@ -18,6 +18,12 @@ export interface Env {
 	 */
 	USE_KV_USER_CACHE?: string;
 	/**
+	 * Feature flag: use KV cache for forum tree (structural metadata).
+	 * When "true", forum tree is read from KV with 10min TTL + explicit invalidation.
+	 * Default: false (direct D1 queries).
+	 */
+	USE_KV_FORUM_CACHE?: string;
+	/**
 	 * HMAC key for email-verification codes (docs/17 §6.2).
 	 * 6-digit codes are too small to resist offline brute-force after KV
 	 * exfiltration; HMAC with a server secret prevents that. Set via

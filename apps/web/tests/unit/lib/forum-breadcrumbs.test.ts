@@ -1,6 +1,9 @@
 import {
 	buildForumBreadcrumbs,
+	buildForumBreadcrumbsFromAncestors,
+	buildNewThreadBreadcrumbsFromAncestors,
 	buildThreadBreadcrumbs,
+	buildThreadBreadcrumbsFromAncestors,
 	buildUserBreadcrumbs,
 } from "@/lib/forum-breadcrumbs";
 import { findForumAncestors } from "@ellie/types";
@@ -225,5 +228,127 @@ describe("buildUserBreadcrumbs", () => {
 	it("username item has no href", () => {
 		const items = buildUserBreadcrumbs("bob");
 		expect(items[2]?.href).toBeUndefined();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// buildForumBreadcrumbsFromAncestors (ancestors endpoint)
+// ---------------------------------------------------------------------------
+
+describe("buildForumBreadcrumbsFromAncestors", () => {
+	it("returns [home, forumName] when ancestors are empty", () => {
+		const items = buildForumBreadcrumbsFromAncestors([], "Current Forum");
+		expect(items).toEqual([
+			{ label: "同济网论坛", href: "/", icon: "home" },
+			{ label: "Current Forum" },
+		]);
+	});
+
+	it("returns [home, ancestor→href, forumName] for depth-1 forum", () => {
+		const items = buildForumBreadcrumbsFromAncestors(
+			[{ id: 1, parentId: 0, name: "技术分区" }],
+			"前端开发",
+		);
+		expect(items).toEqual([
+			{ label: "同济网论坛", href: "/", icon: "home" },
+			{ label: "技术分区", href: "/forums/1" },
+			{ label: "前端开发" },
+		]);
+	});
+
+	it("last item (forumName) has no href", () => {
+		const items = buildForumBreadcrumbsFromAncestors(
+			[
+				{ id: 1, parentId: 0, name: "Root" },
+				{ id: 10, parentId: 1, name: "Parent" },
+			],
+			"Current",
+		);
+		const last = items[items.length - 1];
+		expect(last?.href).toBeUndefined();
+		expect(last?.label).toBe("Current");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// buildThreadBreadcrumbsFromAncestors (ancestors endpoint)
+// ---------------------------------------------------------------------------
+
+describe("buildThreadBreadcrumbsFromAncestors", () => {
+	it("returns [home, forum→href, subject] when no ancestors", () => {
+		const items = buildThreadBreadcrumbsFromAncestors([], 5, "技术分区", "React教程");
+		expect(items).toEqual([
+			{ label: "同济网论坛", href: "/", icon: "home" },
+			{ label: "技术分区", href: "/forums/5" },
+			{ label: "React教程" },
+		]);
+	});
+
+	it("all ancestors and forum have href, subject does not", () => {
+		const items = buildThreadBreadcrumbsFromAncestors(
+			[
+				{ id: 1, parentId: 0, name: "技术分区" },
+				{ id: 10, parentId: 1, name: "前端开发" },
+			],
+			100,
+			"React",
+			"Hooks深入浅出",
+		);
+		expect(items).toEqual([
+			{ label: "同济网论坛", href: "/", icon: "home" },
+			{ label: "技术分区", href: "/forums/1" },
+			{ label: "前端开发", href: "/forums/10" },
+			{ label: "React", href: "/forums/100" },
+			{ label: "Hooks深入浅出" },
+		]);
+	});
+
+	it("thread subject is the last item without href", () => {
+		const items = buildThreadBreadcrumbsFromAncestors([], 1, "Root", "Post Title");
+		const last = items[items.length - 1];
+		expect(last).toEqual({ label: "Post Title" });
+	});
+});
+
+// ---------------------------------------------------------------------------
+// buildNewThreadBreadcrumbsFromAncestors (ancestors endpoint)
+// ---------------------------------------------------------------------------
+
+describe("buildNewThreadBreadcrumbsFromAncestors", () => {
+	it("returns [home, forum→href, 发表主题] when no ancestors", () => {
+		const items = buildNewThreadBreadcrumbsFromAncestors([], 5, "技术分区");
+		expect(items).toEqual([
+			{ label: "同济网论坛", href: "/", icon: "home" },
+			{ label: "技术分区", href: "/forums/5" },
+			{ label: "发表主题" },
+		]);
+	});
+
+	it("all ancestors and forum have href, 发表主题 does not", () => {
+		const items = buildNewThreadBreadcrumbsFromAncestors(
+			[
+				{ id: 1, parentId: 0, name: "技术分区" },
+				{ id: 10, parentId: 1, name: "前端开发" },
+			],
+			100,
+			"React",
+		);
+		expect(items).toEqual([
+			{ label: "同济网论坛", href: "/", icon: "home" },
+			{ label: "技术分区", href: "/forums/1" },
+			{ label: "前端开发", href: "/forums/10" },
+			{ label: "React", href: "/forums/100" },
+			{ label: "发表主题" },
+		]);
+	});
+
+	it("发表主题 is always the last item without href", () => {
+		const items = buildNewThreadBreadcrumbsFromAncestors(
+			[{ id: 1, parentId: 0, name: "Root" }],
+			10,
+			"Forum",
+		);
+		const last = items[items.length - 1];
+		expect(last).toEqual({ label: "发表主题" });
 	});
 });

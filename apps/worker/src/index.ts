@@ -73,6 +73,11 @@ export default {
 			if (path === "/api/v1/forums" && request.method === "GET") {
 				return await (await import("./handlers/forum")).list(request, env, ctx);
 			}
+			// Ancestors endpoint MUST be registered before /api/v1/forums/:id
+			// to avoid the regex matching "ancestors" as a forum ID.
+			if (path.match(/^\/api\/v1\/forums\/\d+\/ancestors$/) && request.method === "GET") {
+				return await (await import("./handlers/forum")).getAncestors(request, env, ctx);
+			}
 			if (path.match(/^\/api\/v1\/forums\/\d+$/) && request.method === "GET") {
 				return await (await import("./handlers/forum")).getById(request, env, ctx);
 			}

@@ -9,7 +9,7 @@
 
 import "server-only";
 
-import type { Forum, Thread } from "@ellie/types";
+import type { Forum, ForumVisibility, ModeratorInfo, Thread } from "@ellie/types";
 import { cache } from "react";
 import { forumApi } from "./forum-api";
 
@@ -22,5 +22,41 @@ export const getThreadById = cache(async (threadId: number): Promise<Thread> => 
 /** Fetch the full forum list (deduplicated within same render pass). */
 export const getForumList = cache(async (): Promise<Forum[]> => {
 	const { data } = await forumApi.getAll<Forum>("/api/v1/forums");
+	return data;
+});
+
+// ─── Forum Context (ancestors endpoint) ─────────────────────────────
+
+/** Forum structural context returned by the ancestors endpoint. */
+export interface ForumContext {
+	id: number;
+	parentId: number;
+	name: string;
+	status: number;
+	visibility: ForumVisibility;
+	type: string;
+	moderatorIds: string;
+	moderatorList: ModeratorInfo[];
+}
+
+/** Ancestor breadcrumb item from the ancestors endpoint. */
+export interface AncestorItem {
+	id: number;
+	parentId: number;
+	name: string;
+}
+
+/** Full response from GET /api/v1/forums/:id/ancestors */
+export interface ForumAncestorsData {
+	forum: ForumContext;
+	ancestors: AncestorItem[];
+}
+
+/**
+ * Fetch forum context + ancestors for breadcrumbs (deduplicated within same render pass).
+ * Uses the lightweight /ancestors endpoint instead of fetching the full forum list.
+ */
+export const getForumAncestors = cache(async (forumId: number): Promise<ForumAncestorsData> => {
+	const { data } = await forumApi.get<ForumAncestorsData>(`/api/v1/forums/${forumId}/ancestors`);
 	return data;
 });
