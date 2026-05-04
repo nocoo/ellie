@@ -99,6 +99,14 @@ test.describe("Admin threads/posts CRUD", () => {
 	}) => {
 		const origin = baseURL ?? "http://localhost:7032";
 
+		// Mint the admin session cookie BEFORE any context.request calls —
+		// the admin proxy's GET handlers also pass through auth() +
+		// resolveAdmin(), so without the session cookie even snapshot reads
+		// would 401. context.request shares cookies with the browser
+		// context, so once loginAsAdmin() injects the cookie, both UI
+		// navigations and direct admin proxy calls are authenticated.
+		await loginAsAdmin();
+
 		// Snapshot real current values via API up-front so afterEach can
 		// restore exactly what we found, regardless of UI display formatting.
 		{
@@ -108,6 +116,10 @@ test.describe("Admin threads/posts CRUD", () => {
 			expect(res.ok(), "GET /api/admin/threads/:id should succeed").toBeTruthy();
 			originalSubject = ((await res.json()) as ThreadResponse).data.subject;
 		}
+		expect(
+			typeof originalSubject === "string" && originalSubject.length > 0,
+			"originalSubject snapshot must be a non-empty string",
+		).toBeTruthy();
 		{
 			const res = await context.request.get(`/api/admin/posts/${SEED_REPLY_POST_ID}`, {
 				headers: { Origin: origin },
@@ -115,8 +127,10 @@ test.describe("Admin threads/posts CRUD", () => {
 			expect(res.ok(), "GET /api/admin/posts/:id should succeed").toBeTruthy();
 			originalPostContent = ((await res.json()) as PostResponse).data.content;
 		}
-
-		await loginAsAdmin();
+		expect(
+			typeof originalPostContent === "string" && originalPostContent.length > 0,
+			"originalPostContent snapshot must be a non-empty string",
+		).toBeTruthy();
 
 		// ── LIST → DETAIL ──────────────────────────────────────────────
 		await page.goto("/admin/threads");
