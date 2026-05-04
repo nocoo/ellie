@@ -3,14 +3,13 @@
 // components/forum/forum-card.tsx — Forum card with two layout variants
 // "wide" = full-width row (学习与学术区 style), "grid" = compact cell in 2-col grid (社团与爱好区 style)
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getAvatarUrl } from "@/lib/avatar";
 import { getStaticImageUrl } from "@/lib/cdn";
 import { formatCount } from "@/viewmodels/forum/forum-list";
 import { formatDateTime } from "@/viewmodels/shared/formatting";
 import type { ForumTreeNode } from "@ellie/types";
 import Link from "next/link";
 import { SafeHtml } from "./safe-html";
+import { ForumAvatar } from "./user-avatar";
 import { UserPopover } from "./user-popover";
 
 interface ForumCardProps {
@@ -115,20 +114,12 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 						{/* Last poster avatar */}
 						{forum.lastPosterId > 0 && (
 							<Link href={`/users/${forum.lastPosterId}`} className="shrink-0">
-								<Avatar size="sm" className="rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.1)]">
-									<AvatarImage
-										src={getAvatarUrl(forum.lastPosterId, "small", forum.lastPosterAvatarPath)}
-										alt={forum.lastPoster}
-										className="rounded-sm"
-									/>
-									<AvatarFallback className="text-xs rounded-sm bg-muted p-0 overflow-hidden">
-										<img
-											src={getStaticImageUrl("tavatar.gif")}
-											alt=""
-											className="h-full w-full object-cover"
-										/>
-									</AvatarFallback>
-								</Avatar>
+								<ForumAvatar
+									userId={forum.lastPosterId}
+									userName={forum.lastPoster}
+									avatarPath={forum.lastPosterAvatarPath}
+									shadow
+								/>
 							</Link>
 						)}
 						<div className="flex flex-col items-end min-w-0">
@@ -246,20 +237,12 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 					<div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
 						{forum.lastPosterId > 0 && (
 							<Link href={`/users/${forum.lastPosterId}`} className="shrink-0">
-								<Avatar size="sm" className="rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.1)]">
-									<AvatarImage
-										src={getAvatarUrl(forum.lastPosterId, "small", forum.lastPosterAvatarPath)}
-										alt={forum.lastPoster}
-										className="rounded-sm"
-									/>
-									<AvatarFallback className="text-xs rounded-sm bg-muted p-0 overflow-hidden">
-										<img
-											src={getStaticImageUrl("tavatar.gif")}
-											alt=""
-											className="h-full w-full object-cover"
-										/>
-									</AvatarFallback>
-								</Avatar>
+								<ForumAvatar
+									userId={forum.lastPosterId}
+									userName={forum.lastPoster}
+									avatarPath={forum.lastPosterAvatarPath}
+									shadow
+								/>
 							</Link>
 						)}
 						<Link
