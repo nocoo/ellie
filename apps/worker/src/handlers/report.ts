@@ -1,5 +1,6 @@
 import { canViewForumVisibility } from "@ellie/types";
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
+import type { Env } from "../lib/env";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withAuthVerified, withVerifiedEmail } from "../lib/routeHelpers";
@@ -20,11 +21,94 @@ export const REPORT_REASONS = [
 
 export type ReportReason = (typeof REPORT_REASONS)[number];
 
+export const REPORT_TYPES = ["thread", "post", "user"] as const;
+export type ReportType = (typeof REPORT_TYPES)[number];
+
 /** 24 hours in seconds */
 const DUPLICATE_REPORT_WINDOW = 24 * 60 * 60;
 
+// ─── Target resolution ───────────────────────────────────────
+
+interface ResolveOk {
+	ok: true;
+	/** Author/owner of the target — used for self-report check. */
+	authorId: number;
+}
+interface ResolveFail {
+	ok: false;
+}
+type ResolveResult = ResolveOk | ResolveFail;
+
+/**
+ * Resolve a report target by type and verify it is visible to the reporter.
+ * Returns the target's "owner" id (post.author / thread.author / user.id)
+ * so the caller can apply a uniform self-report check.
+ *
+ * - thread: must satisfy THREAD_VISIBLE + forum active + reporter visibility.
+ * - post:   must satisfy POST_VISIBLE, then its thread must be visible too.
+ * - user:   must exist and not be tombstoned (status != -99).
+ */
+async function resolveReportTarget(
+	env: Env,
+	type: ReportType,
+	targetId: number,
+	visCtx: VisibilityContext,
+): Promise<ResolveResult> {
+	if (type === "post") {
+		const post = await env.DB.prepare(
+			`SELECT id, thread_id, author_id FROM posts WHERE id = ? AND ${POST_VISIBLE}`,
+		)
+			.bind(targetId)
+			.first<{ id: number; thread_id: number; author_id: number }>();
+		if (!post) return { ok: false };
+
+		const thread = await env.DB.prepare(
+			`SELECT forum_id FROM threads WHERE id = ? AND ${THREAD_VISIBLE}`,
+		)
+			.bind(post.thread_id)
+			.first<{ forum_id: number }>();
+		if (!thread) return { ok: false };
+
+		const forum = await env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
+			.bind(thread.forum_id)
+			.first<{ status: number; visibility: string }>();
+		if (!isForumActive(forum)) return { ok: false };
+		if (!canViewForumVisibility(forum.visibility as ForumVisibility, visCtx)) {
+			return { ok: false };
+		}
+		return { ok: true, authorId: post.author_id };
+	}
+
+	if (type === "thread") {
+		const thread = await env.DB.prepare(
+			`SELECT id, forum_id, author_id FROM threads WHERE id = ? AND ${THREAD_VISIBLE}`,
+		)
+			.bind(targetId)
+			.first<{ id: number; forum_id: number; author_id: number }>();
+		if (!thread) return { ok: false };
+
+		const forum = await env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
+			.bind(thread.forum_id)
+			.first<{ status: number; visibility: string }>();
+		if (!isForumActive(forum)) return { ok: false };
+		if (!canViewForumVisibility(forum.visibility as ForumVisibility, visCtx)) {
+			return { ok: false };
+		}
+		return { ok: true, authorId: thread.author_id };
+	}
+
+	// type === "user"
+	const target = await env.DB.prepare("SELECT id, status FROM users WHERE id = ?")
+		.bind(targetId)
+		.first<{ id: number; status: number }>();
+	if (!target) return { ok: false };
+	// Tombstoned users cannot be reported.
+	if (target.status === -99) return { ok: false };
+	return { ok: true, authorId: target.id };
+}
+
 // ─── #75 POST /api/v1/reports ────────────────────────────────
-// Submit a post report
+// Submit a report against a thread, post, or user.
 
 export const create = withVerifiedEmail(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
@@ -39,15 +123,16 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 
 	const { type, targetId, reason } = body;
 
-	// Validate type — only 'post' is supported in this release
-	if (type !== "post") {
+	// Validate type — must be one of the supported report targets.
+	if (typeof type !== "string" || !REPORT_TYPES.includes(type as ReportType)) {
 		return errorResponse(
 			"INVALID_REQUEST",
 			400,
-			{ message: "Only 'post' type is supported" },
+			{ message: `type must be one of: ${REPORT_TYPES.join(", ")}` },
 			origin,
 		);
 	}
+	const reportType = type as ReportType;
 
 	// Validate targetId
 	if (typeof targetId !== "number" || !Number.isInteger(targetId) || targetId <= 0) {
@@ -75,71 +160,41 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		return permissionResult.error;
 	}
 
-	// Check target post exists and is visible (invisible = 0)
-	// Also get thread_id + author_id for further checks
-	const post = await env.DB.prepare(
-		`SELECT id, thread_id, author_id FROM posts WHERE id = ? AND ${POST_VISIBLE}`,
-	)
-		.bind(targetId)
-		.first<{ id: number; thread_id: number; author_id: number }>();
-
-	if (!post) {
-		return errorResponse("TARGET_NOT_FOUND", 404, { message: "Post not found" }, origin);
-	}
-
-	// Check thread exists and is visible (sticky >= 0)
-	// Hidden/deleted/placeholder threads should not allow reports
-	const thread = await env.DB.prepare(
-		`SELECT forum_id FROM threads WHERE id = ? AND ${THREAD_VISIBLE}`,
-	)
-		.bind(post.thread_id)
-		.first<{ forum_id: number }>();
-
-	if (!thread) {
-		return errorResponse("TARGET_NOT_FOUND", 404, { message: "Post not found" }, origin);
-	}
-
-	const forumRow = await env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
-		.bind(thread.forum_id)
-		.first<{ status: number; visibility: string }>();
-
-	if (!isForumActive(forumRow)) {
-		return errorResponse("TARGET_NOT_FOUND", 404, { message: "Post not found" }, origin);
-	}
-
+	// Resolve target (visibility + existence)
 	const visCtx: VisibilityContext = {
 		isLoggedIn: true,
 		role: user.role,
 	};
-	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
-		return errorResponse("TARGET_NOT_FOUND", 404, { message: "Post not found" }, origin);
+	const resolved = await resolveReportTarget(env, reportType, targetId, visCtx);
+	if (!resolved.ok) {
+		return errorResponse("TARGET_NOT_FOUND", 404, { message: "Target not found" }, origin);
 	}
 
-	// Check cannot report own post
-	if (post.author_id === user.userId) {
+	// Self-report check (uniform across types via resolved.authorId)
+	if (resolved.authorId === user.userId) {
 		return errorResponse(
 			"CANNOT_REPORT_SELF",
 			400,
-			{ message: "You cannot report your own post" },
+			{ message: "You cannot report your own content" },
 			origin,
 		);
 	}
 
-	// Check duplicate report (24h window)
+	// Duplicate report check (24h window) — keyed on (reporter, type, target_id)
 	const now = Math.floor(Date.now() / 1000);
 	const windowStart = now - DUPLICATE_REPORT_WINDOW;
 
 	const existingReport = await env.DB.prepare(
-		"SELECT 1 FROM reports WHERE reporter_id = ? AND type = 'post' AND target_id = ? AND created_at > ?",
+		"SELECT 1 FROM reports WHERE reporter_id = ? AND type = ? AND target_id = ? AND created_at > ?",
 	)
-		.bind(user.userId, targetId, windowStart)
+		.bind(user.userId, reportType, targetId, windowStart)
 		.first();
 
 	if (existingReport) {
 		return errorResponse(
 			"DUPLICATE_REPORT",
 			400,
-			{ message: "You have already reported this post within the last 24 hours" },
+			{ message: "You have already reported this target within the last 24 hours" },
 			origin,
 		);
 	}
@@ -156,7 +211,7 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		`INSERT INTO reports (type, target_id, reporter_id, reporter_name, reason, status, created_at)
 		 VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
 	)
-		.bind("post", targetId, user.userId, reporterName, reason, now)
+		.bind(reportType, targetId, user.userId, reporterName, reason, now)
 		.run();
 
 	const reportId = result.meta.last_row_id;
@@ -164,7 +219,7 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 	return jsonResponse(
 		{
 			id: reportId,
-			type: "post",
+			type: reportType,
 			targetId,
 			reason,
 			createdAt: now,
