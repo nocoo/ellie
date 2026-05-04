@@ -253,8 +253,8 @@ export default function ForumsPage() {
 	const [createError, setCreateError] = useState<string | null>(null);
 	const [editError, setEditError] = useState<string | null>(null);
 	const [confirmError, setConfirmError] = useState<string | null>(null);
-	// Page-level banner for actions that don't open a dialog (e.g. visibility toggle)
-	// or for dialogs not in this batch's scope (merge).
+	const [mergeError, setMergeError] = useState<string | null>(null);
+	// Page-level banner for actions that don't open a dialog (e.g. visibility toggle).
 	const [pageMessage, setPageMessage] = useState<{
 		type: "success" | "error";
 		text: string;
@@ -408,14 +408,14 @@ export default function ForumsPage() {
 	const handleMerge = useCallback(
 		async (sourceId: number, targetId: number) => {
 			setMergeLoading(true);
-			setPageMessage(null);
+			setMergeError(null);
 			try {
 				await mergeForums(sourceId, targetId);
 				setMergeSource(null);
 				fetchData();
 				setPageMessage({ type: "success", text: "版块已合并" });
 			} catch (err) {
-				setPageMessage({ type: "error", text: extractErrorMessage(err, "合并版块失败") });
+				setMergeError(extractErrorMessage(err, "合并版块失败"));
 			} finally {
 				setMergeLoading(false);
 			}
@@ -559,10 +559,16 @@ export default function ForumsPage() {
 
 			<ForumMergeDialog
 				open={mergeSource !== null}
-				onOpenChange={(open) => !open && setMergeSource(null)}
+				onOpenChange={(open) => {
+					if (!open) {
+						setMergeSource(null);
+						setMergeError(null);
+					}
+				}}
 				source={mergeSource}
 				forums={rawData}
 				loading={mergeLoading}
+				error={mergeError}
 				onMerge={handleMerge}
 			/>
 
