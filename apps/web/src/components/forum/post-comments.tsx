@@ -234,17 +234,3 @@ export function PostComments({
 		</div>
 	);
 }
-
-// Standalone button for PostActionBar
-export function CommentButton({ onClick }: { onClick: () => void }) {
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className="flex items-center gap-0.5 transition-colors cursor-pointer text-forum-text-muted hover:text-forum-link"
-		>
-			<MessageCircle className="h-3.5 w-3.5" />
-			<span>点评</span>
-		</button>
-	);
-}
