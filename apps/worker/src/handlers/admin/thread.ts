@@ -2,6 +2,7 @@
 // Endpoints #25-#30: list, getById, update, delete, batch-delete, batch-move
 
 import { withEntityAuth } from "../../lib/adminHelpers";
+import { resolveActor, writeAdminLog } from "../../lib/adminLog";
 import type { EntityConfig } from "../../lib/crud";
 import {
 	createBatchDeleteHandler,
@@ -191,8 +192,129 @@ export const list = withEntityAuth(threadConfig, createListHandler(threadConfig)
 /** #26 GET /api/admin/threads/:id — Get thread by ID */
 export const getById = withEntityAuth(threadConfig, createGetByIdHandler(threadConfig));
 
-/** #27 PATCH /api/admin/threads/:id — Unified update (subject, sticky, digest, closed, highlight, forumId) */
-export const update = withEntityAuth(threadConfig, createUpdateHandler(threadConfig));
+// ─── F3-b helpers ────────────────────────────────────────────────
+// Map of body field name → existing-row column for diff detection. Mirrors
+// threadConfig.updateFields. Subject is logged as length only (PII-light).
+
+const UPDATE_FIELD_TO_COLUMN: Record<string, string> = {
+	subject: "subject",
+	sticky: "sticky",
+	digest: "digest",
+	closed: "closed",
+	highlight: "highlight",
+	forumId: "forum_id",
+};
+
+interface ThreadUpdateDiff {
+	changedFields: string[];
+	before: Record<string, unknown>;
+	after: Record<string, unknown>;
+	subjectLengthBefore?: number;
+	subjectLengthAfter?: number;
+}
+
+function buildThreadUpdateDiff(
+	body: Record<string, unknown>,
+	existing: Record<string, unknown>,
+): ThreadUpdateDiff {
+	const changedFields: string[] = [];
+	const before: Record<string, unknown> = {};
+	const after: Record<string, unknown> = {};
+	let subjectLengthBefore: number | undefined;
+	let subjectLengthAfter: number | undefined;
+
+	for (const [field, column] of Object.entries(UPDATE_FIELD_TO_COLUMN)) {
+		if (!(field in body)) continue;
+		const incoming = body[field];
+		const current = existing[column];
+		// Treat string/number identity as the only signal we care about; deep
+		// compare not needed because all updateFields are scalars.
+		if (incoming === current) continue;
+		changedFields.push(field);
+		if (field === "subject") {
+			subjectLengthBefore = typeof current === "string" ? current.length : 0;
+			subjectLengthAfter = typeof incoming === "string" ? incoming.length : 0;
+		} else {
+			before[field] = current ?? null;
+			after[field] = incoming ?? null;
+		}
+	}
+
+	return { changedFields, before, after, subjectLengthBefore, subjectLengthAfter };
+}
+
+// ─── #27 PATCH /api/admin/threads/:id — Unified update ───────────
+// F3-b: wrap the framework handler so we can emit thread.update only on
+// successful (2xx) mutations, with a no-op skip when no field actually
+// changed value. The inner handler still runs the SQL — we only add an
+// audit row, not new business behavior.
+
+const updateInner = createUpdateHandler(threadConfig);
+
+export const update = withEntityAuth(
+	threadConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const id = parseIdFromPath(request);
+
+		// Snapshot body + existing row before the inner handler consumes the
+		// request stream. Failures here just skip audit — the inner handler
+		// owns validation and will return its own 4xx.
+		let body: Record<string, unknown> = {};
+		let bodyText = "";
+		let existing: Record<string, unknown> | null = null;
+		try {
+			bodyText = await request.text();
+			body = JSON.parse(bodyText) as Record<string, unknown>;
+		} catch {
+			// fall through; inner handler will 400
+		}
+		if (id !== null) {
+			try {
+				existing = (await env.DB.prepare("SELECT * FROM threads WHERE id = ?")
+					.bind(id)
+					.first()) as Record<string, unknown> | null;
+			} catch {
+				// best-effort snapshot
+			}
+		}
+
+		const innerReq = new Request(request.url, {
+			method: request.method,
+			headers: request.headers,
+			body: bodyText,
+		});
+
+		const res = await updateInner(innerReq, env);
+
+		if (res.status >= 200 && res.status < 300 && id !== null && existing) {
+			const diff = buildThreadUpdateDiff(body, existing);
+			// Skip audit on semantic no-op so admin_logs stays signal-rich.
+			if (diff.changedFields.length > 0) {
+				const details: Record<string, unknown> = {
+					forumId: existing.forum_id ?? null,
+					authorId: existing.author_id ?? null,
+					changedFields: diff.changedFields,
+				};
+				if (diff.subjectLengthBefore !== undefined) {
+					details.subjectLengthBefore = diff.subjectLengthBefore;
+					details.subjectLengthAfter = diff.subjectLengthAfter;
+				}
+				if (Object.keys(diff.before).length > 0) {
+					details.before = diff.before;
+					details.after = diff.after;
+				}
+				await writeAdminLog(env, resolveActor(request), {
+					action: "thread.update",
+					targetType: "thread",
+					targetId: id,
+					details,
+				});
+			}
+		}
+
+		return res;
+	},
+);
 
 // ─── Custom delete handler (#28) ─────────────────────────────────
 // Custom because response includes postsDeleted (not supported by createRemoveHandler)
@@ -251,6 +373,18 @@ export const remove = withEntityAuth(
 		await recalcForumMetadata(env, threadRow.forum_id);
 		await invalidateForumVolatile(env);
 
+		// F3-b: audit only after the mutation has committed.
+		await writeAdminLog(env, resolveActor(request), {
+			action: "thread.delete",
+			targetType: "thread",
+			targetId: id,
+			details: {
+				forumId: threadRow.forum_id,
+				authorId: threadRow.author_id,
+				postsDeleted,
+			},
+		});
+
 		return jsonResponse({ deleted: true, id, postsDeleted }, origin);
 	},
 );
@@ -260,8 +394,67 @@ export const remove = withEntityAuth(
 // plus afterDelete hook for forum count adjustments.
 // Note: the CRUD batch delete handler calls beforeDelete/afterDelete per item,
 // but the standard response is {deleted: true, count} which matches the spec.
+//
+// F3-b: wrap so we can snapshot the existing ids before the inner handler
+// deletes them, then audit ONE row per successful batch (not per item).
 
-export const batchDelete = withEntityAuth(threadConfig, createBatchDeleteHandler(threadConfig));
+const batchDeleteInner = createBatchDeleteHandler(threadConfig);
+
+export const batchDelete = withEntityAuth(
+	threadConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		// Mirror createBatchDeleteHandler's body parsing so we can snapshot
+		// the real existing set, then re-build the request for the inner.
+		let ids: unknown[] = [];
+		let bodyText = "";
+		try {
+			bodyText = await request.text();
+			const parsed = JSON.parse(bodyText) as { ids?: unknown[] };
+			if (Array.isArray(parsed?.ids)) ids = parsed.ids;
+		} catch {
+			// inner returns its own 400
+		}
+
+		const numericIds = ids
+			.map((id) => Number(id))
+			.filter((id): id is number => !Number.isNaN(id))
+			.slice(0, 100);
+
+		let existingIds: number[] = [];
+		if (numericIds.length > 0) {
+			try {
+				const placeholders = numericIds.map(() => "?").join(",");
+				const rows = await env.DB.prepare(`SELECT id FROM threads WHERE id IN (${placeholders})`)
+					.bind(...numericIds)
+					.all<{ id: number }>();
+				existingIds = (rows.results ?? []).map((r) => r.id);
+			} catch {
+				// fall through with []
+			}
+		}
+
+		const innerReq = new Request(request.url, {
+			method: request.method,
+			headers: request.headers,
+			body: bodyText,
+		});
+
+		const res = await batchDeleteInner(innerReq, env);
+
+		if (res.status >= 200 && res.status < 300 && existingIds.length > 0) {
+			// threadConfig has no beforeDelete skip path — snapshot equals
+			// the deleted set, no need to re-parse the inner response.
+			await writeAdminLog(env, resolveActor(request), {
+				action: "thread.batch_delete",
+				targetType: "thread",
+				targetId: null,
+				details: { ids: existingIds, count: existingIds.length },
+			});
+		}
+
+		return res;
+	},
+);
 
 // ─── Batch move (#30) ────────────────────────────────────────────
 
@@ -400,6 +593,22 @@ export const batchMove = withEntityAuth(
 		}
 		await recalcForumMetadata(env, targetForumId);
 		await invalidateForumVolatile(env);
+
+		// F3-b: audit one row for the entire successful batch. fromForumIds
+		// is deduped (Map keys) so multi-source batches are searchable.
+		const movedIds = movable.map((t) => t.id);
+		const fromForumIds = Array.from(forumAdjustments.keys());
+		await writeAdminLog(env, resolveActor(request), {
+			action: "thread.batch_move",
+			targetType: "thread",
+			targetId: null,
+			details: {
+				ids: movedIds,
+				count: movable.length,
+				fromForumIds,
+				toForumId: targetForumId,
+			},
+		});
 
 		return jsonResponse({ moved: true, count: movable.length, forumId: targetForumId }, origin);
 	},

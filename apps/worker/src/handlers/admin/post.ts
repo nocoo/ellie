@@ -3,6 +3,7 @@
 // Custom handler for batch-delete (skipped first-post IDs in response).
 
 import { withEntityAuth } from "../../lib/adminHelpers";
+import { resolveActor, writeAdminLog } from "../../lib/adminLog";
 import type { EntityConfig } from "../../lib/crud";
 import {
 	createGetByIdHandler,
@@ -10,8 +11,10 @@ import {
 	createRemoveHandler,
 	createUpdateHandler,
 } from "../../lib/crud";
+import type { Env } from "../../lib/env";
 import { invalidateForumVolatile } from "../../lib/forum-cache";
 import { toPost } from "../../lib/mappers";
+import { parseIdFromPath } from "../../lib/parseId";
 import { recalcForumMetadata, recalcThreadMetadata } from "../../lib/recalcMetadata";
 import { jsonResponse } from "../../lib/response";
 import { batchDecrementUserPosts, decrementUserPosts } from "../../lib/userCounters";
@@ -85,10 +88,116 @@ export const list = withEntityAuth(postConfig, createListHandler(postConfig));
 export const getById = withEntityAuth(postConfig, createGetByIdHandler(postConfig));
 
 /** #33 PATCH /api/admin/posts/:id — Edit post content */
-export const update = withEntityAuth(postConfig, createUpdateHandler(postConfig));
+// F3-b: wrap framework handler so we can audit post.update on success only,
+// recording length-only metadata (no raw content) and skipping no-ops.
+
+const updateInner = createUpdateHandler(postConfig);
+
+export const update = withEntityAuth(
+	postConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const id = parseIdFromPath(request);
+
+		let body: Record<string, unknown> = {};
+		let bodyText = "";
+		let existing: Record<string, unknown> | null = null;
+		try {
+			bodyText = await request.text();
+			body = JSON.parse(bodyText) as Record<string, unknown>;
+		} catch {
+			// inner returns its own 400
+		}
+		if (id !== null) {
+			try {
+				existing = (await env.DB.prepare("SELECT * FROM posts WHERE id = ?")
+					.bind(id)
+					.first()) as Record<string, unknown> | null;
+			} catch {
+				// best-effort
+			}
+		}
+
+		const innerReq = new Request(request.url, {
+			method: request.method,
+			headers: request.headers,
+			body: bodyText,
+		});
+
+		const res = await updateInner(innerReq, env);
+
+		if (res.status >= 200 && res.status < 300 && id !== null && existing) {
+			const incomingContent = typeof body.content === "string" ? body.content : null;
+			const previousContent =
+				typeof existing.content === "string" ? (existing.content as string) : "";
+			const contentChanged = incomingContent !== null && incomingContent !== previousContent;
+
+			// No-op skip: only "content" is updateable on posts; if it didn't
+			// actually change value, don't emit an audit row.
+			if (contentChanged) {
+				await writeAdminLog(env, resolveActor(request), {
+					action: "post.update",
+					targetType: "post",
+					targetId: id,
+					details: {
+						threadId: existing.thread_id ?? null,
+						forumId: existing.forum_id ?? null,
+						authorId: existing.author_id ?? null,
+						contentLengthBefore: previousContent.length,
+						contentLengthAfter: incomingContent.length,
+						contentChanged: true,
+						changedFields: ["content"],
+					},
+				});
+			}
+		}
+
+		return res;
+	},
+);
 
 /** #34 DELETE /api/admin/posts/:id — Delete post (refuses first post) */
-export const remove = withEntityAuth(postConfig, createRemoveHandler(postConfig));
+// F3-b: wrap so we can audit post.delete only after the inner remove
+// commits successfully (skips first-post 400 path).
+
+const removeInner = createRemoveHandler(postConfig);
+
+export const remove = withEntityAuth(
+	postConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const id = parseIdFromPath(request);
+
+		// Snapshot existing first so we still have the row's metadata after
+		// the inner handler deletes it.
+		let existing: Record<string, unknown> | null = null;
+		if (id !== null) {
+			try {
+				existing = (await env.DB.prepare("SELECT * FROM posts WHERE id = ?")
+					.bind(id)
+					.first()) as Record<string, unknown> | null;
+			} catch {
+				// best-effort
+			}
+		}
+
+		const res = await removeInner(request, env);
+
+		if (res.status >= 200 && res.status < 300 && id !== null && existing) {
+			await writeAdminLog(env, resolveActor(request), {
+				action: "post.delete",
+				targetType: "post",
+				targetId: id,
+				details: {
+					threadId: existing.thread_id ?? null,
+					forumId: existing.forum_id ?? null,
+					authorId: existing.author_id ?? null,
+					isFirst: existing.is_first === 1,
+				},
+			});
+		}
+
+		return res;
+	},
+);
 
 // ─── Custom Batch Delete (#35) ───────────────────────────────────
 // Cannot use createBatchDeleteHandler because the response must include
@@ -196,6 +305,22 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env) => {
 	await batchDecrementUserPosts(env, authorUpdates);
 
 	await invalidateForumVolatile(env);
+
+	// F3-b: audit one row for the entire successful batch using the
+	// `deletable` snapshot — `skipped` first-posts are intentionally not
+	// audited as a separate row, only carried as metadata when at least
+	// one real deletion happened. Pure no-op (only first-posts requested)
+	// already returned above, so reaching here implies deletable.length > 0.
+	await writeAdminLog(env, resolveActor(request), {
+		action: "post.batch_delete",
+		targetType: "post",
+		targetId: null,
+		details: {
+			ids: deletable.map((p) => p.id),
+			count: deletable.length,
+			skippedFirstPostIds: skipped,
+		},
+	});
 
 	return jsonResponse({ deleted: true, count: deletable.length, skipped }, origin);
 });

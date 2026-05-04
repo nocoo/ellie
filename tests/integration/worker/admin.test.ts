@@ -843,6 +843,60 @@ describe("L2: Worker Admin API", () => {
 				await adminPost("/api/admin/reports/batch-delete", { ids: [finalReportId] });
 			}
 		});
+
+		// ─── F3-b: thread.update lifecycle ─────────────────────────
+		// Same pattern as F3-a: snapshot → mutate → poll → restore.
+		// Picks `sticky` because it's reversible without affecting content
+		// or other fixtures, and because it's a non-subject field so the
+		// audit row should carry before/after rather than length-only.
+
+		test("thread.update writes a thread.update admin_logs row that the list API surfaces", async () => {
+			// Read current sticky so we can restore it deterministically.
+			const getRes = await adminGet("/api/admin/threads/662174");
+			expect(getRes.status).toBe(200);
+			const thread = (await getRes.json()) as { data: { sticky: number } };
+			const originalSticky = thread.data.sticky;
+			// Toggle to a different valid value (sticky range is 0-3).
+			const newSticky = originalSticky === 0 ? 1 : 0;
+
+			const beforeRes = await adminGet("/api/admin/admin-logs?action=thread.update&limit=1");
+			expect(beforeRes.status).toBe(200);
+			const before = (await beforeRes.json()) as {
+				data: Array<{ id: number; targetId: number | null }>;
+			};
+			const beforeTopId = before.data[0]?.id ?? 0;
+
+			try {
+				const patchRes = await adminPatch("/api/admin/threads/662174", { sticky: newSticky });
+				expect(patchRes.status).toBe(200);
+
+				let hit:
+					| { id: number; action: string; targetId: number | null; targetType: string }
+					| undefined;
+				for (let i = 0; i < 5 && !hit; i++) {
+					const res = await adminGet("/api/admin/admin-logs?action=thread.update&limit=10");
+					expect(res.status).toBe(200);
+					const body = (await res.json()) as {
+						data: Array<{
+							id: number;
+							action: string;
+							targetId: number | null;
+							targetType: string;
+						}>;
+					};
+					hit = body.data.find((row) => row.id > beforeTopId && row.targetId === 662174);
+					if (!hit) await new Promise((r) => setTimeout(r, 100));
+				}
+				expect(hit).toBeDefined();
+				expect(hit?.action).toBe("thread.update");
+				expect(hit?.targetType).toBe("thread");
+				expect(hit?.targetId).toBe(662174);
+			} finally {
+				// Restore original sticky so subsequent runs and other tests
+				// see the fixture in its baseline state.
+				await adminPatch("/api/admin/threads/662174", { sticky: originalSticky });
+			}
+		});
 	});
 
 	// ─── Admin Announcements ───────────────────────────────────────
