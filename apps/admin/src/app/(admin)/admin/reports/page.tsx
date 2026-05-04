@@ -7,11 +7,16 @@ import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import {
 	REPORT_STATUS_OPTIONS,
+	REPORT_TYPE_OPTIONS,
 	type Report,
+	type ReportType,
 	STATUS_COLORS,
 	STATUS_LABELS,
+	TYPE_LABELS,
 	batchDeleteReports,
 	fetchReports,
+	getReportTargetAdminLink,
+	getReportTargetLabel,
 	updateReportStatus,
 } from "@/viewmodels/admin/reports";
 import { Badge } from "@ellie/ui";
@@ -46,6 +51,12 @@ const FILTERS: FilterDef[] = [
 		type: "select",
 		options: REPORT_STATUS_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
 	},
+	{
+		key: "type",
+		label: "类型",
+		type: "select",
+		options: REPORT_TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+	},
 ];
 
 const BATCH_ACTIONS: BatchAction[] = [{ key: "delete", label: "批量删除", variant: "destructive" }];
@@ -63,7 +74,7 @@ export default function ReportsPage() {
 		limit: 20,
 	});
 	const [loading, setLoading] = useState(true);
-	const [filters, setFilters] = useState<Record<string, string>>({ status: "" });
+	const [filters, setFilters] = useState<Record<string, string>>({ status: "", type: "" });
 	const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
 
 	// Confirm dialog state
@@ -93,6 +104,7 @@ export default function ReportsPage() {
 					page,
 					limit: pagination.limit,
 					status: (filters.status as "pending" | "resolved" | "dismissed") || undefined,
+					type: (filters.type as ReportType) || undefined,
 				});
 				setData(result.data);
 				setPagination({
@@ -121,7 +133,7 @@ export default function ReportsPage() {
 	}, []);
 
 	const handleClearFilters = useCallback(() => {
-		setFilters({ status: "" });
+		setFilters({ status: "", type: "" });
 	}, []);
 
 	// ---------------------------------------------------------------------------
@@ -195,11 +207,6 @@ export default function ReportsPage() {
 	// Helpers
 	// ---------------------------------------------------------------------------
 
-	const getPostLink = (report: Report) => {
-		if (!report.threadId) return null;
-		return `/threads/${report.threadId}#post-${report.targetId}`;
-	};
-
 	const formatDateTime = (timestamp: number) => {
 		return new Date(timestamp * 1000).toLocaleString("zh-CN");
 	};
@@ -224,21 +231,30 @@ export default function ReportsPage() {
 			className: "w-16",
 		},
 		{
+			key: "type",
+			header: "类型",
+			cell: (row) => <Badge variant="outline">{TYPE_LABELS[row.type]}</Badge>,
+			className: "w-16",
+		},
+		{
 			key: "targetId",
-			header: "举报帖子",
+			header: "举报对象",
 			cell: (row) => {
-				const link = getPostLink(row);
+				const link = getReportTargetAdminLink(row);
+				const label = getReportTargetLabel(row);
 				return link ? (
 					<Link
 						href={link}
-						target="_blank"
-						className="flex items-center gap-1 text-primary hover:underline"
+						className="flex items-center gap-1 text-primary hover:underline max-w-[20rem] truncate"
+						title={label}
 					>
-						#{row.targetId}
-						<ExternalLink className="h-3 w-3" />
+						<span className="truncate">{label}</span>
+						<ExternalLink className="h-3 w-3 shrink-0" />
 					</Link>
 				) : (
-					<span className="text-muted-foreground">#{row.targetId}</span>
+					<span className="text-muted-foreground" title={label}>
+						{label}
+					</span>
 				);
 			},
 		},
@@ -299,17 +315,20 @@ export default function ReportsPage() {
 							<Eye className="h-4 w-4 mr-2" />
 							查看详情
 						</DropdownMenuItem>
-						{getPostLink(row) && (
-							<DropdownMenuItem
-								onClick={() => {
-									const link = getPostLink(row);
-									if (link) window.open(link, "_blank");
-								}}
-							>
-								<ExternalLink className="h-4 w-4 mr-2" />
-								查看帖子
-							</DropdownMenuItem>
-						)}
+						{(() => {
+							const link = getReportTargetAdminLink(row);
+							if (!link) return null;
+							return (
+								<DropdownMenuItem
+									onClick={() => {
+										window.open(link, "_blank");
+									}}
+								>
+									<ExternalLink className="h-4 w-4 mr-2" />
+									查看{TYPE_LABELS[row.type]}
+								</DropdownMenuItem>
+							);
+						})()}
 						<DropdownMenuSeparator />
 						{row.status === "pending" && (
 							<>
@@ -341,7 +360,7 @@ export default function ReportsPage() {
 			<div className="flex items-center justify-between">
 				<div>
 					<h1 className="text-2xl font-semibold text-foreground">举报管理</h1>
-					<p className="mt-1 text-sm text-muted-foreground">处理用户举报的帖子</p>
+					<p className="mt-1 text-sm text-muted-foreground">处理用户举报的主题、回帖与用户</p>
 				</div>
 				<Button variant="outline" onClick={() => fetchData(pagination.page)} disabled={loading}>
 					<RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
@@ -397,20 +416,29 @@ export default function ReportsPage() {
 					{detailReport && (
 						<div className="space-y-4 py-2">
 							<div className="grid grid-cols-[100px_1fr] gap-2 text-sm">
-								<span className="text-muted-foreground">被举报帖子</span>
+								<span className="text-muted-foreground">类型</span>
 								<span>
-									{getPostLink(detailReport) ? (
-										<Link
-											href={getPostLink(detailReport) ?? ""}
-											target="_blank"
-											className="text-primary hover:underline inline-flex items-center gap-1"
-										>
-											#{detailReport.targetId}
-											<ExternalLink className="h-3 w-3" />
-										</Link>
-									) : (
-										<span>#{detailReport.targetId}</span>
-									)}
+									<Badge variant="outline">{TYPE_LABELS[detailReport.type]}</Badge>
+								</span>
+
+								<span className="text-muted-foreground">举报对象</span>
+								<span>
+									{(() => {
+										const link = getReportTargetAdminLink(detailReport);
+										const label = getReportTargetLabel(detailReport);
+										return link ? (
+											<Link
+												href={link}
+												className="text-primary hover:underline inline-flex items-center gap-1"
+											>
+												{label}
+												<ExternalLink className="h-3 w-3" />
+											</Link>
+										) : (
+											<span>{label}</span>
+										);
+									})()}
+									<span className="text-muted-foreground ml-1">(ID: {detailReport.targetId})</span>
 								</span>
 
 								<span className="text-muted-foreground">举报人</span>
