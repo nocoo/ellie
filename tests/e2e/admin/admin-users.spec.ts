@@ -5,17 +5,14 @@
 //
 // Scope after D2 list-menu collapse
 //   The per-row action menu now only exposes 查看详情 + 编辑.
-//   封禁 / 封禁并删除内容 / 解除封禁 / 彻底清除 are migrated to the
-//   detail page (/admin/users/[id]). Detail page currently only
-//   surfaces 编辑 + 解除封禁; the destructive ban/purge flow ships in D4.
+//   封禁 / 解除封禁 live on the detail page (/admin/users/[id]).
+//   封禁并删除内容 / 彻底清除 ship in D4.
 //
 // Tests
 //   1. edit credits via list menu — bump +1, verify via API.
-//   2. unban via detail page — pre-set status=-1 over API, navigate to
-//      detail, click 解除封禁, verify badge returns to 正常 and
-//      backend status is 0.
-//   3. list → 查看详情 → detail loads → switch tabs → back navigates
-//      to /admin/users.
+//   2. ban → unban on detail page — open detail, click 封禁用户,
+//      confirm dialog, assert 已封禁; then 解除封禁, assert 正常.
+//   3. list → 查看详情 → detail loads → switch tabs → back.
 //   4. username conflict in list edit dialog still surfaces inline
 //      error and keeps dialog open.
 //   5. List action menu fits viewport (D1 layout regression guard,
@@ -125,7 +122,7 @@ test.describe("Admin users CRUD", () => {
 		}
 	});
 
-	test("unban via detail page", async ({ context, page, loginAsAdmin, baseURL }) => {
+	test("ban → unban via detail page", async ({ context, page, loginAsAdmin, baseURL }) => {
 		const origin = baseURL ?? "http://localhost:7032";
 		await loginAsAdmin();
 
@@ -140,31 +137,43 @@ test.describe("Admin users CRUD", () => {
 		const snap = snapshot;
 		if (!snap) throw new Error("snapshot must be present");
 
-		// Pre-condition: ban the user via API. Ban menu lives on the
-		// detail page in D4; D2 only owns the unban path on the detail
-		// page, so set the banned state directly here.
-		{
-			const res = await context.request.patch(`/api/admin/users/${SEED_USER_ID}`, {
-				headers: { Origin: origin, "Content-Type": "application/json" },
-				data: { status: -1 },
-			});
-			expect(res.ok(), "PATCH ban precondition should succeed").toBeTruthy();
-		}
-
 		await page.goto(`/admin/users/${SEED_USER_ID}`);
 		await expect(page.getByRole("heading", { name: snap.username })).toBeVisible();
-		await expect(page.getByText("已封禁", { exact: true })).toBeVisible();
-
-		// 解除封禁 button is rendered in danger zone; no confirm dialog.
-		await page.getByRole("button", { name: "解除封禁" }).click();
-
-		// Status badge flips back to 正常; success banner appears.
+		// Pre-condition: user starts in normal state (seed invariant).
 		await expect(page.getByText("正常", { exact: true })).toBeVisible();
-		await expect(page.getByText(`已解除封禁 ${snap.username}`)).toBeVisible();
-		// 解除封禁 button hides itself (only shown when status === -1).
-		await expect(page.getByRole("button", { name: "解除封禁" })).toHaveCount(0);
+
+		// ── BAN: opens AdminConfirmDialog, then confirm ────────────────
+		await page.getByRole("button", { name: "封禁用户" }).click();
+		const banDialog = page.getByRole("dialog", { name: "封禁用户" });
+		await expect(banDialog).toBeVisible();
+		await banDialog.getByRole("button", { name: "确认" }).click();
+		await expect(banDialog).toBeHidden();
+
+		// Status badge flips to 已封禁; success banner surfaces.
+		await expect(page.getByText("已封禁", { exact: true })).toBeVisible();
+		await expect(page.getByText(`已封禁 ${snap.username}`)).toBeVisible();
+		// 封禁用户 button hides; 解除封禁 surfaces.
+		await expect(page.getByRole("button", { name: "封禁用户" })).toHaveCount(0);
+		await expect(page.getByRole("button", { name: "解除封禁" })).toBeVisible();
 
 		// Verify backend.
+		{
+			const res = await context.request.get(`/api/admin/users/${SEED_USER_ID}`, {
+				headers: { Origin: origin },
+			});
+			expect(res.ok()).toBeTruthy();
+			const after = ((await res.json()) as UserResponse).data;
+			expect(after.status).toBe(-1);
+		}
+
+		// ── UNBAN: plain Button, no confirm dialog ─────────────────────
+		await page.getByRole("button", { name: "解除封禁" }).click();
+		await expect(page.getByText("正常", { exact: true })).toBeVisible();
+		await expect(page.getByText(`已解除封禁 ${snap.username}`)).toBeVisible();
+		await expect(page.getByRole("button", { name: "解除封禁" })).toHaveCount(0);
+		await expect(page.getByRole("button", { name: "封禁用户" })).toBeVisible();
+
+		// Verify backend back to 0.
 		{
 			const res = await context.request.get(`/api/admin/users/${SEED_USER_ID}`, {
 				headers: { Origin: origin },
