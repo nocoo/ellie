@@ -3,6 +3,7 @@
 
 import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import type { Forum } from "@ellie/types";
+import type { AncestorItem } from "./forum-data";
 
 const HOME: BreadcrumbItem = { label: "同济网论坛", href: "/", icon: "home" };
 
@@ -43,4 +44,62 @@ export function buildThreadBreadcrumbs(ancestors: Forum[], subject: string): Bre
  */
 export function buildUserBreadcrumbs(username: string): BreadcrumbItem[] {
 	return [HOME, { label: "用户" }, { label: username }];
+}
+
+// ─── Ancestors-endpoint breadcrumb builders ────────────────────────
+
+/**
+ * Build breadcrumbs from ancestors endpoint data + forum name.
+ * ancestors = [root, ..., parent] (NOT including the target forum).
+ * → [首页, ...ancestors with href, forumName without href]
+ */
+export function buildForumBreadcrumbsFromAncestors(
+	ancestors: AncestorItem[],
+	forumName: string,
+): BreadcrumbItem[] {
+	const items: BreadcrumbItem[] = [HOME];
+	for (const a of ancestors) {
+		items.push({ label: a.name, href: `/forums/${a.id}` });
+	}
+	items.push({ label: forumName });
+	return items;
+}
+
+/**
+ * Build breadcrumbs for thread detail from ancestors endpoint data.
+ * ancestors = [root, ..., parent] (NOT including the target forum).
+ * → [首页, ...ancestors with href, forumName with href, thread subject without href]
+ */
+export function buildThreadBreadcrumbsFromAncestors(
+	ancestors: AncestorItem[],
+	forumId: number,
+	forumName: string,
+	subject: string,
+): BreadcrumbItem[] {
+	const items: BreadcrumbItem[] = [HOME];
+	for (const a of ancestors) {
+		items.push({ label: a.name, href: `/forums/${a.id}` });
+	}
+	items.push({ label: forumName, href: `/forums/${forumId}` });
+	items.push({ label: subject });
+	return items;
+}
+
+/**
+ * Build breadcrumbs for new-thread page from ancestors endpoint data.
+ * ancestors = [root, ..., parent] (NOT including the target forum).
+ * → [首页, ...ancestors with href, forumName with href, 发表主题]
+ */
+export function buildNewThreadBreadcrumbsFromAncestors(
+	ancestors: AncestorItem[],
+	forumId: number,
+	forumName: string,
+): BreadcrumbItem[] {
+	const items: BreadcrumbItem[] = [HOME];
+	for (const a of ancestors) {
+		items.push({ label: a.name, href: `/forums/${a.id}` });
+	}
+	items.push({ label: forumName, href: `/forums/${forumId}` });
+	items.push({ label: "发表主题" });
+	return items;
 }

@@ -1,6 +1,7 @@
 import { type Forum, type ModeratorInfo, canViewForumVisibility } from "@ellie/types";
 import type { ForumVisibility } from "@ellie/types";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
+import { type ForumTreeEntry, getForumTree } from "../lib/forum-cache";
 import { enrichForumsWithUserCache, parseModeratorIds, toForum } from "../lib/mappers";
 import { getUserProfiles } from "../lib/user-cache";
 import { THREAD_VISIBLE, buildVisibilityContext, isForumActive } from "../lib/visibility";
@@ -354,6 +355,122 @@ export async function getById(
 	return new Response(
 		JSON.stringify({
 			data: forum,
+			meta: {
+				timestamp: Date.now(),
+				requestId: crypto.randomUUID(),
+			},
+		}),
+		{
+			headers: {
+				...corsHeaders(origin),
+				"Content-Type": "application/json",
+			},
+		},
+	);
+}
+
+// ─── Ancestors endpoint ─────────────────────────────────────────────
+
+/** Forum context returned by ancestors endpoint (structural fields only). */
+interface ForumContext {
+	id: number;
+	parentId: number;
+	name: string;
+	status: number;
+	visibility: ForumVisibility;
+	type: string;
+	moderatorIds: string;
+	moderatorList: ModeratorInfo[];
+}
+
+/** Breadcrumb item returned by ancestors endpoint. */
+interface AncestorItem {
+	id: number;
+	parentId: number;
+	name: string;
+}
+
+/**
+ * GET /api/v1/forums/:id/ancestors
+ *
+ * Lightweight breadcrumb endpoint. Returns the target forum's context plus its
+ * ancestor chain (root → parent), computed from the KV-cached forum tree.
+ *
+ * Visibility semantics (matches existing behavior):
+ * 1. Read forum tree from KV/D1
+ * 2. Filter by viewer visibility + active status
+ * 3. Compute ancestors from FILTERED list
+ *    - Target not in filtered list → 404
+ *    - Hidden ancestor → chain terminates (don't leak names)
+ * 4. Return { forum: ForumContext, ancestors: AncestorItem[] }
+ */
+export async function getAncestors(
+	request: Request,
+	env: Env,
+	ctx: ExecutionContext,
+): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+
+	// Parse forum ID from path: /api/v1/forums/:id/ancestors
+	const url = new URL(request.url);
+	const pathParts = url.pathname.split("/");
+	// ["", "api", "v1", "forums", ":id", "ancestors"]
+	const idStr = pathParts[4];
+	const forumId = Number.parseInt(idStr ?? "0", 10);
+	if (!forumId || forumId <= 0) {
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid forum ID" }, origin);
+	}
+
+	// Get optional user auth for visibility filtering
+	const user = await optionalAuthVerified(request, env);
+	const visCtx = buildVisibilityContext(user);
+
+	// Get forum tree (from KV cache or D1 fallback)
+	const tree = await getForumTree(env, ctx);
+
+	// Filter tree: only active + visible forums for this viewer
+	const visibleForums = tree.filter((entry) => {
+		if (!isForumActive(entry)) return false;
+		return canViewForumVisibility(entry.visibility, visCtx);
+	});
+
+	// Find target forum in the filtered set
+	const target = visibleForums.find((f) => f.id === forumId);
+	if (!target) {
+		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
+	}
+
+	// Compute ancestor chain from filtered list (same algorithm as findForumAncestors)
+	const byId = new Map<number, ForumTreeEntry>();
+	for (const f of visibleForums) byId.set(f.id, f);
+
+	const ancestors: AncestorItem[] = [];
+	let current = byId.get(target.parentId);
+	while (current) {
+		ancestors.push({ id: current.id, parentId: current.parentId, name: current.name });
+		if (current.parentId === 0 || current.parentId === current.id) break;
+		current = byId.get(current.parentId);
+	}
+	ancestors.reverse(); // root → parent order
+
+	// Build forum context
+	const forumContext: ForumContext = {
+		id: target.id,
+		parentId: target.parentId,
+		name: target.name,
+		status: target.status,
+		visibility: target.visibility,
+		type: target.type,
+		moderatorIds: target.moderatorIds,
+		moderatorList: target.moderatorList,
+	};
+
+	return new Response(
+		JSON.stringify({
+			data: {
+				forum: forumContext,
+				ancestors,
+			},
 			meta: {
 				timestamp: Date.now(),
 				requestId: crypto.randomUUID(),

@@ -10,6 +10,7 @@ import {
 	createUpdateHandler,
 } from "../../lib/crud";
 import type { Env } from "../../lib/env";
+import { invalidateForumTree } from "../../lib/forum-cache";
 import { toForum } from "../../lib/mappers";
 import { parsePathSegment } from "../../lib/parseId";
 import { recalcForumMetadata } from "../../lib/recalcMetadata";
@@ -212,6 +213,17 @@ const forumConfig: EntityConfig = {
 			return errorResponse("FORUM_HAS_THREADS", 409, { threadCount: countResult.cnt }, origin);
 		}
 	},
+
+	// Invalidate forum tree cache after any structural change
+	async afterCreate(_id, _data, env) {
+		await invalidateForumTree(env);
+	},
+	async afterUpdate(_id, _data, _existing, env) {
+		await invalidateForumTree(env);
+	},
+	async afterDelete(_id, _existing, env) {
+		await invalidateForumTree(env);
+	},
 };
 
 // ─── CRUD handlers (factory-generated) ───────────────────────────
@@ -314,6 +326,9 @@ export const merge = withEntityAuth(
 		// Recalc target forum metadata after merge
 		await recalcForumMetadata(env, targetForumId as number);
 
+		// Invalidate forum tree cache (structure changed)
+		await invalidateForumTree(env);
+
 		return jsonResponse(
 			{
 				merged: true,
@@ -384,6 +399,9 @@ export const reorder = withEntityAuth(
 		);
 
 		await env.DB.batch(statements);
+
+		// Invalidate forum tree cache (display order is in tree)
+		await invalidateForumTree(env);
 
 		return jsonResponse({ updated: true, count: orders.length }, origin);
 	},
