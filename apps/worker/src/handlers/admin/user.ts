@@ -562,12 +562,19 @@ async function fetchStandalonePosts(
 	return r.results as unknown as PurgeStandalonePost[];
 }
 
-function buildAttachmentWhere(
+// Builds a 3-way OR clause covering rows authored by the target plus rows
+// that hang off content being deleted. Used for `attachments` and
+// `post_comments` so the target's own contributions in survivor threads
+// (where they neither own the thread nor wrote a deleted post) still get
+// removed. Always returns a clause — `author_id = ?` alone is a valid
+// shape even when no posts/threads are being deleted.
+function buildAuthorContentWhere(
+	authorId: number,
 	allDeletedPostIds: number[],
 	ownedThreadIds: number[],
-): { where: string; binds: unknown[] } | null {
-	const parts: string[] = [];
-	const binds: unknown[] = [];
+): { where: string; binds: unknown[] } {
+	const parts: string[] = ["author_id = ?"];
+	const binds: unknown[] = [authorId];
 	if (allDeletedPostIds.length > 0) {
 		parts.push(`post_id IN (${allDeletedPostIds.map(() => "?").join(",")})`);
 		binds.push(...allDeletedPostIds);
@@ -576,7 +583,6 @@ function buildAttachmentWhere(
 		parts.push(`thread_id IN (${ownedThreadIds.map(() => "?").join(",")})`);
 		binds.push(...ownedThreadIds);
 	}
-	if (parts.length === 0) return null;
 	return { where: parts.join(" OR "), binds };
 }
 
@@ -616,29 +622,33 @@ async function purgePreflight(env: Env, id: number): Promise<PurgePreflight> {
 		collateralAuthorDelta.set(p.author_id, (collateralAuthorDelta.get(p.author_id) ?? 0) + 1);
 	}
 
-	const attWhere = buildAttachmentWhere(allDeletedPostIds, ownedThreadIds);
-	let attachmentRows: PurgeAttachment[] = [];
-	if (attWhere) {
-		const r = await env.DB.prepare(
-			`SELECT DISTINCT file_path FROM attachments WHERE ${attWhere.where}`,
-		)
-			.bind(...attWhere.binds)
-			.all();
-		attachmentRows = r.results as unknown as PurgeAttachment[];
-	}
+	const attWhere = buildAuthorContentWhere(id, allDeletedPostIds, ownedThreadIds);
+	// R2 keys (DISTINCT file_path).
+	const r2KeysRes = await env.DB.prepare(
+		`SELECT DISTINCT file_path FROM attachments WHERE ${attWhere.where}`,
+	)
+		.bind(...attWhere.binds)
+		.all();
 	const attachmentKeys = Array.from(
-		new Set(attachmentRows.map((a) => a.file_path).filter(Boolean)),
+		new Set(
+			(r2KeysRes.results as unknown as PurgeAttachment[]).map((a) => a.file_path).filter(Boolean),
+		),
 	);
+	// True deleted-row count (DISTINCT id, in case the WHERE matches a row
+	// twice via overlapping branches of the OR).
+	const attCountRow = await env.DB.prepare(
+		`SELECT COUNT(DISTINCT id) as cnt FROM attachments WHERE ${attWhere.where}`,
+	)
+		.bind(...attWhere.binds)
+		.first<{ cnt: number }>();
+	const attachmentCount = attCountRow?.cnt ?? 0;
 
-	let commentCount = 0;
-	if (attWhere) {
-		const r = await env.DB.prepare(
-			`SELECT COUNT(DISTINCT id) as cnt FROM post_comments WHERE ${attWhere.where}`,
-		)
-			.bind(...attWhere.binds)
-			.first<{ cnt: number }>();
-		commentCount = r?.cnt ?? 0;
-	}
+	const commentRow = await env.DB.prepare(
+		`SELECT COUNT(DISTINCT id) as cnt FROM post_comments WHERE ${attWhere.where}`,
+	)
+		.bind(...attWhere.binds)
+		.first<{ cnt: number }>();
+	const commentCount = commentRow?.cnt ?? 0;
 
 	const messageCountRow = await env.DB.prepare(
 		"SELECT COUNT(*) as cnt FROM messages WHERE sender_id = ? OR receiver_id = ?",
@@ -658,7 +668,7 @@ async function purgePreflight(env: Env, id: number): Promise<PurgePreflight> {
 		collateralAuthorDelta,
 		attachmentKeys,
 		commentCount,
-		attachmentCount: attachmentRows.length,
+		attachmentCount,
 		messageCount,
 	};
 }
@@ -672,30 +682,21 @@ function buildPurgeBatch(
 	const stmts: D1PreparedStatement[] = [];
 	const { allDeletedPostIds, ownedThreadIds } = pre;
 
+	// post_comments + attachments share the same 3-way OR clause: rows
+	// authored by the target, OR rows hanging off posts/threads being
+	// deleted. Single DELETE per table avoids overlapping double-delete.
+	const authorWhere = buildAuthorContentWhere(id, allDeletedPostIds, ownedThreadIds);
+	stmts.push(
+		env.DB.prepare(`DELETE FROM post_comments WHERE ${authorWhere.where}`).bind(
+			...authorWhere.binds,
+		),
+	);
+	stmts.push(
+		env.DB.prepare(`DELETE FROM attachments WHERE ${authorWhere.where}`).bind(...authorWhere.binds),
+	);
+
 	if (allDeletedPostIds.length > 0) {
 		const ph = allDeletedPostIds.map(() => "?").join(",");
-		stmts.push(
-			env.DB.prepare(`DELETE FROM post_comments WHERE post_id IN (${ph})`).bind(
-				...allDeletedPostIds,
-			),
-		);
-	}
-	if (ownedThreadIds.length > 0) {
-		const ph = ownedThreadIds.map(() => "?").join(",");
-		stmts.push(
-			env.DB.prepare(`DELETE FROM post_comments WHERE thread_id IN (${ph})`).bind(
-				...ownedThreadIds,
-			),
-		);
-		stmts.push(
-			env.DB.prepare(`DELETE FROM attachments WHERE thread_id IN (${ph})`).bind(...ownedThreadIds),
-		);
-	}
-	if (allDeletedPostIds.length > 0) {
-		const ph = allDeletedPostIds.map(() => "?").join(",");
-		stmts.push(
-			env.DB.prepare(`DELETE FROM attachments WHERE post_id IN (${ph})`).bind(...allDeletedPostIds),
-		);
 		stmts.push(env.DB.prepare(`DELETE FROM posts WHERE id IN (${ph})`).bind(...allDeletedPostIds));
 	}
 	if (ownedThreadIds.length > 0) {
