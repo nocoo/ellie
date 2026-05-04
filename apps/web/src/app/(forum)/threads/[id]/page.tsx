@@ -4,6 +4,7 @@ import { KeysetPagination } from "@/components/forum/keyset-pagination";
 import { ModProvider } from "@/components/forum/mod-context";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
 import { ThreadPostsClient } from "@/components/forum/thread-posts-client";
+import { ThreadReportButton } from "@/components/forum/thread-report-button";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Card, CardContent } from "@/components/ui/card";
 import { getSelfForumUser } from "@/lib/forum-self";
@@ -116,9 +117,16 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 			{/* Thread header (simplified — views/replies now in first post sidebar) */}
 			<Card size="sm" className="bg-gradient-to-br from-slate-500/5 via-background to-zinc-500/5">
 				<CardContent>
-					<div className="flex items-center gap-2 flex-wrap">
-						<ThreadBadgeList badges={badges} />
-						<h1 className="text-base font-semibold text-foreground">{thread.subject}</h1>
+					<div className="flex items-start gap-2 flex-wrap">
+						<div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
+							<ThreadBadgeList badges={badges} />
+							<h1 className="text-base font-semibold text-foreground">{thread.subject}</h1>
+						</div>
+						<ThreadReportButton
+							threadId={thread.id}
+							authorId={thread.authorId}
+							currentUserId={data.currentUser?.id ?? null}
+						/>
 					</div>
 					<div className="mt-1.5 flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
 						<Link

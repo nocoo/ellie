@@ -52,7 +52,7 @@ describe("checkReportPermission", () => {
 describe("submitReport", () => {
 	beforeEach(() => vi.clearAllMocks());
 
-	it("converts payload format and posts", async () => {
+	it("converts legacy postId payload to API format", async () => {
 		const apiResult = { id: 1, type: "post", targetId: 100, reason: "垃圾广告", createdAt: 1000 };
 		mockClient.post.mockResolvedValue({ data: apiResult });
 
@@ -62,6 +62,30 @@ describe("submitReport", () => {
 			type: "post",
 			targetId: 100,
 			reason: "垃圾广告",
+		});
+	});
+
+	it("forwards thread target type", async () => {
+		mockClient.post.mockResolvedValue({
+			data: { id: 2, type: "thread", targetId: 7, reason: "违规内容", createdAt: 1 },
+		});
+		await submitReport({ targetType: "thread", targetId: 7, reason: "违规内容" });
+		expect(mockClient.post).toHaveBeenCalledWith("/api/v1/reports", {
+			type: "thread",
+			targetId: 7,
+			reason: "违规内容",
+		});
+	});
+
+	it("forwards user target type", async () => {
+		mockClient.post.mockResolvedValue({
+			data: { id: 3, type: "user", targetId: 12, reason: "人身攻击", createdAt: 1 },
+		});
+		await submitReport({ targetType: "user", targetId: 12, reason: "人身攻击" });
+		expect(mockClient.post).toHaveBeenCalledWith("/api/v1/reports", {
+			type: "user",
+			targetId: 12,
+			reason: "人身攻击",
 		});
 	});
 });
