@@ -9,6 +9,8 @@ import { recalcForumMetadata, recalcThreadMetadata } from "../../lib/recalcMetad
 import { jsonResponse } from "../../lib/response";
 import { invalidateUserCache } from "../../lib/user-cache";
 import { batchDecrementUserPosts } from "../../lib/userCounters";
+import { buildTombstoneStatement } from "../../lib/userTombstone";
+import { POST_VISIBLE, THREAD_VISIBLE, postVisible, threadVisible } from "../../lib/visibility";
 // Admin user handlers (#36-#42) — CRUD framework + custom actions
 import { errorResponse } from "../../middleware/error";
 
@@ -135,6 +137,23 @@ const userConfig: EntityConfig = {
 		}
 	},
 };
+
+// ─── D4-b: tombstone-aware ALREADY_PURGED helper for batch endpoints ────────
+// Returns the subset of input ids that are tombstoned (status === -99). Empty
+// array means "safe to proceed". Used by batchStatus / batchRole /
+// batchRecalcCounters to refuse the whole batch instead of silently skipping
+// — see D4 D0 v3 §2.
+
+async function fetchTombstoneIds(env: Env, ids: number[]): Promise<number[]> {
+	if (ids.length === 0) return [];
+	const placeholders = ids.map(() => "?").join(",");
+	const r = await env.DB.prepare(
+		`SELECT id FROM users WHERE id IN (${placeholders}) AND status = -99`,
+	)
+		.bind(...ids)
+		.all();
+	return (r.results as { id: number }[]).map((row) => row.id);
+}
 
 // ─── #36 GET /api/admin/users ────────────────────────────────────────────────
 
@@ -396,30 +415,368 @@ export const nuke = withEntityAuth(
 	},
 );
 
-// ─── D4-a POST /api/admin/users/:id/purge ────────────────────────────────────
-// "彻底清除" — tombstone the user + delete all their content.
+// ─── D4-b POST /api/admin/users/:id/purge ────────────────────────────────────
+// "彻底清除" — delete user content + tombstone the user row + best-effort R2.
 //
-// D4-a SCOPE INTENTIONALLY DEGRADED.
-//   This handler runs all guards, then returns 501 NOT_IMPLEMENTED on the
-//   would-be success path. NO writes happen until D4-b wires content cleanup.
-//   Reviewer constraint: do not expose a usable "tombstone-only" endpoint
-//   that leaves [已删除#id] visible while the user's threads/posts/messages
-//   are still live.
+// D4-b SCOPE (replaces D4-a 501 skeleton; merges original D4-c R2 step):
+//   - DB cleanup + counter repair + tombstone in a single env.DB.batch().
+//   - After DB batch: recalcThreadMetadata / recalcForumMetadata for affected
+//     rows (failures throw — endpoint returns 500; R2 not yet attempted).
+//   - After recalc + invalidateForumVolatile: best-effort R2 deletes (avatar +
+//     attachments). R2 failures DO NOT fail the request — reported in response.
 //
-// Request body (required even on D4-a so the contract is locked in early):
-//   { actorId: number, confirmUsername: string }
-//   - actorId         admin user id issuing the purge (recorded in purged_by)
-//   - confirmUsername must equal target.username — typed-confirm safety net
+// AUDIT TABLES INTENTIONALLY NOT TOUCHED:
+//   reports, admin_logs, ip_bans, censor_words, announcements all preserved.
+//   Only user-authored CONTENT is removed: threads, posts, post_comments,
+//   attachments, messages.
 //
-// Guards (all return 4xx before we reach 501):
-//   USER_NOT_FOUND     target id missing
-//   INVALID_BODY       missing/invalid actorId or confirmUsername
-//   CONFIRM_MISMATCH   confirmUsername != target.username
-//   SELF_PURGE         actorId === id
-//   CANNOT_PURGE_STAFF target.role > 0  (admin / supermod / moderator)
-//   ALREADY_PURGED     target.status === -99
-//   NOT_IMPLEMENTED    everything checks out — D4-b will replace this with
-//                      content cleanup + tombstone write + R2 best-effort.
+// ACTOR IDENTITY:
+//   purged_by is hard-coded to 0 (admin-panel system actor). The Next admin
+//   proxy injects X-Admin-Actor-Email / X-Admin-Actor-Name headers which are
+//   read here ONLY for the response.audit field — never for SELF_PURGE
+//   semantics, since admin sessions don't carry a numeric users.id. SELF_PURGE
+//   is therefore not implementable in D4-b and is intentionally absent. (Once
+//   admin-email → users.id mapping exists we re-introduce the guard.)
+//
+// Request body:
+//   { confirmUsername: string }    — must equal target.username
+//
+// Guards (in order):
+//   INVALID_BODY        bad JSON or missing/empty confirmUsername
+//   USER_NOT_FOUND      target id missing
+//   CONFIRM_MISMATCH    confirmUsername != target.username
+//   CANNOT_PURGE_STAFF  target.role > 0
+//   ALREADY_PURGED      target.status === -99
+//
+// Failure semantics:
+//   - DB batch failure → 500. Nothing else runs. SQLite rolls back the batch.
+//   - recalcMetadata failure → 500. DB is already committed; R2 NOT touched.
+//     Operator must re-run /api/admin/users/:id/recalc-counters or related
+//     repair tools. Log line tags the affected ids.
+//   - R2 failures → 200 with response.r2.failed[] populated. DB is the source
+//     of truth; orphan R2 objects can be cleaned by a future GC pass.
+
+interface PurgeOwnedThread {
+	id: number;
+	forum_id: number;
+}
+interface PurgeOwnedThreadPost {
+	id: number;
+	author_id: number;
+}
+interface PurgeStandalonePost {
+	id: number;
+	thread_id: number;
+	forum_id: number;
+}
+interface PurgeAttachment {
+	file_path: string;
+}
+
+interface PurgeTarget {
+	id: number;
+	username: string;
+	status: number;
+	role: number;
+	avatar_path: string;
+}
+
+interface PurgePreflight {
+	ownedThreads: PurgeOwnedThread[];
+	ownedThreadIds: number[];
+	ownedThreadPosts: PurgeOwnedThreadPost[];
+	standalonePosts: PurgeStandalonePost[];
+	allDeletedPostIds: number[];
+	survivorThreadIds: number[];
+	affectedForumIds: number[];
+	collateralAuthorDelta: Map<number, number>;
+	attachmentKeys: string[];
+	commentCount: number;
+	attachmentCount: number;
+	messageCount: number;
+}
+
+async function parsePurgeBody(
+	request: Request,
+): Promise<{ ok: true; confirmUsername: string } | { ok: false; res: Response }> {
+	const origin = request.headers.get("Origin") ?? undefined;
+	let body: Record<string, unknown>;
+	try {
+		body = (await request.json()) as Record<string, unknown>;
+	} catch {
+		return {
+			ok: false,
+			res: errorResponse(
+				"INVALID_BODY",
+				400,
+				{ message: "purge requires { confirmUsername } body" },
+				origin,
+			),
+		};
+	}
+	const confirmUsername = body.confirmUsername;
+	if (typeof confirmUsername !== "string" || confirmUsername.length === 0) {
+		return {
+			ok: false,
+			res: errorResponse(
+				"INVALID_BODY",
+				400,
+				{ message: "confirmUsername must be a non-empty string" },
+				origin,
+			),
+		};
+	}
+	return { ok: true, confirmUsername };
+}
+
+function checkPurgeGuards(
+	target: PurgeTarget | null,
+	confirmUsername: string,
+	origin: string | undefined,
+): Response | null {
+	if (!target) return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
+	if (target.username !== confirmUsername)
+		return errorResponse("CONFIRM_MISMATCH", 400, undefined, origin);
+	if (target.role > 0) return errorResponse("CANNOT_PURGE_STAFF", 403, undefined, origin);
+	if (target.status === -99) return errorResponse("ALREADY_PURGED", 409, undefined, origin);
+	return null;
+}
+
+async function fetchStandalonePosts(
+	env: Env,
+	id: number,
+	ownedThreadIds: number[],
+): Promise<PurgeStandalonePost[]> {
+	if (ownedThreadIds.length > 0) {
+		const ph = ownedThreadIds.map(() => "?").join(",");
+		const r = await env.DB.prepare(
+			`SELECT id, thread_id, forum_id FROM posts WHERE author_id = ? AND thread_id NOT IN (${ph})`,
+		)
+			.bind(id, ...ownedThreadIds)
+			.all();
+		return r.results as unknown as PurgeStandalonePost[];
+	}
+	const r = await env.DB.prepare("SELECT id, thread_id, forum_id FROM posts WHERE author_id = ?")
+		.bind(id)
+		.all();
+	return r.results as unknown as PurgeStandalonePost[];
+}
+
+function buildAttachmentWhere(
+	allDeletedPostIds: number[],
+	ownedThreadIds: number[],
+): { where: string; binds: unknown[] } | null {
+	const parts: string[] = [];
+	const binds: unknown[] = [];
+	if (allDeletedPostIds.length > 0) {
+		parts.push(`post_id IN (${allDeletedPostIds.map(() => "?").join(",")})`);
+		binds.push(...allDeletedPostIds);
+	}
+	if (ownedThreadIds.length > 0) {
+		parts.push(`thread_id IN (${ownedThreadIds.map(() => "?").join(",")})`);
+		binds.push(...ownedThreadIds);
+	}
+	if (parts.length === 0) return null;
+	return { where: parts.join(" OR "), binds };
+}
+
+async function purgePreflight(env: Env, id: number): Promise<PurgePreflight> {
+	const ownedThreadsRes = await env.DB.prepare(
+		"SELECT id, forum_id FROM threads WHERE author_id = ?",
+	)
+		.bind(id)
+		.all();
+	const ownedThreads = ownedThreadsRes.results as unknown as PurgeOwnedThread[];
+	const ownedThreadIds = ownedThreads.map((t) => t.id);
+
+	let ownedThreadPosts: PurgeOwnedThreadPost[] = [];
+	if (ownedThreadIds.length > 0) {
+		const ph = ownedThreadIds.map(() => "?").join(",");
+		const r = await env.DB.prepare(`SELECT id, author_id FROM posts WHERE thread_id IN (${ph})`)
+			.bind(...ownedThreadIds)
+			.all();
+		ownedThreadPosts = r.results as unknown as PurgeOwnedThreadPost[];
+	}
+	const standalonePosts = await fetchStandalonePosts(env, id, ownedThreadIds);
+
+	const allDeletedPostIds = [
+		...ownedThreadPosts.map((p) => p.id),
+		...standalonePosts.map((p) => p.id),
+	];
+	const survivorThreadIds = Array.from(new Set(standalonePosts.map((p) => p.thread_id))).filter(
+		(tid) => !ownedThreadIds.includes(tid),
+	);
+	const affectedForumIds = Array.from(
+		new Set([...ownedThreads.map((t) => t.forum_id), ...standalonePosts.map((p) => p.forum_id)]),
+	);
+
+	const collateralAuthorDelta = new Map<number, number>();
+	for (const p of ownedThreadPosts) {
+		if (p.author_id === id) continue;
+		collateralAuthorDelta.set(p.author_id, (collateralAuthorDelta.get(p.author_id) ?? 0) + 1);
+	}
+
+	const attWhere = buildAttachmentWhere(allDeletedPostIds, ownedThreadIds);
+	let attachmentRows: PurgeAttachment[] = [];
+	if (attWhere) {
+		const r = await env.DB.prepare(
+			`SELECT DISTINCT file_path FROM attachments WHERE ${attWhere.where}`,
+		)
+			.bind(...attWhere.binds)
+			.all();
+		attachmentRows = r.results as unknown as PurgeAttachment[];
+	}
+	const attachmentKeys = Array.from(
+		new Set(attachmentRows.map((a) => a.file_path).filter(Boolean)),
+	);
+
+	let commentCount = 0;
+	if (attWhere) {
+		const r = await env.DB.prepare(
+			`SELECT COUNT(DISTINCT id) as cnt FROM post_comments WHERE ${attWhere.where}`,
+		)
+			.bind(...attWhere.binds)
+			.first<{ cnt: number }>();
+		commentCount = r?.cnt ?? 0;
+	}
+
+	const messageCountRow = await env.DB.prepare(
+		"SELECT COUNT(*) as cnt FROM messages WHERE sender_id = ? OR receiver_id = ?",
+	)
+		.bind(id, id)
+		.first<{ cnt: number }>();
+	const messageCount = messageCountRow?.cnt ?? 0;
+
+	return {
+		ownedThreads,
+		ownedThreadIds,
+		ownedThreadPosts,
+		standalonePosts,
+		allDeletedPostIds,
+		survivorThreadIds,
+		affectedForumIds,
+		collateralAuthorDelta,
+		attachmentKeys,
+		commentCount,
+		attachmentCount: attachmentRows.length,
+		messageCount,
+	};
+}
+
+function buildPurgeBatch(
+	env: Env,
+	id: number,
+	pre: PurgePreflight,
+	nowSec: number,
+): D1PreparedStatement[] {
+	const stmts: D1PreparedStatement[] = [];
+	const { allDeletedPostIds, ownedThreadIds } = pre;
+
+	if (allDeletedPostIds.length > 0) {
+		const ph = allDeletedPostIds.map(() => "?").join(",");
+		stmts.push(
+			env.DB.prepare(`DELETE FROM post_comments WHERE post_id IN (${ph})`).bind(
+				...allDeletedPostIds,
+			),
+		);
+	}
+	if (ownedThreadIds.length > 0) {
+		const ph = ownedThreadIds.map(() => "?").join(",");
+		stmts.push(
+			env.DB.prepare(`DELETE FROM post_comments WHERE thread_id IN (${ph})`).bind(
+				...ownedThreadIds,
+			),
+		);
+		stmts.push(
+			env.DB.prepare(`DELETE FROM attachments WHERE thread_id IN (${ph})`).bind(...ownedThreadIds),
+		);
+	}
+	if (allDeletedPostIds.length > 0) {
+		const ph = allDeletedPostIds.map(() => "?").join(",");
+		stmts.push(
+			env.DB.prepare(`DELETE FROM attachments WHERE post_id IN (${ph})`).bind(...allDeletedPostIds),
+		);
+		stmts.push(env.DB.prepare(`DELETE FROM posts WHERE id IN (${ph})`).bind(...allDeletedPostIds));
+	}
+	if (ownedThreadIds.length > 0) {
+		const ph = ownedThreadIds.map(() => "?").join(",");
+		// threads_fts trigger fires automatically on threads delete
+		stmts.push(env.DB.prepare(`DELETE FROM threads WHERE id IN (${ph})`).bind(...ownedThreadIds));
+	}
+	stmts.push(
+		env.DB.prepare("DELETE FROM messages WHERE sender_id = ? OR receiver_id = ?").bind(id, id),
+	);
+
+	for (const tid of pre.survivorThreadIds) {
+		stmts.push(
+			env.DB.prepare(
+				`UPDATE threads
+				   SET replies = (
+				     SELECT COUNT(*) FROM posts
+				      WHERE thread_id = ? AND is_first = 0 AND ${POST_VISIBLE}
+				   )
+				 WHERE id = ?`,
+			).bind(tid, tid),
+		);
+	}
+
+	for (const fid of pre.affectedForumIds) {
+		stmts.push(
+			env.DB.prepare(
+				`UPDATE forums
+				   SET threads = (
+				     SELECT COUNT(*) FROM threads WHERE forum_id = ? AND ${THREAD_VISIBLE}
+				   ),
+				   posts = (
+				     SELECT COUNT(*) FROM posts p JOIN threads t ON p.thread_id = t.id
+				      WHERE p.forum_id = ? AND ${postVisible("p")} AND ${threadVisible("t")}
+				   )
+				 WHERE id = ?`,
+			).bind(fid, fid, fid),
+		);
+	}
+
+	for (const [authorId, delta] of pre.collateralAuthorDelta) {
+		stmts.push(
+			env.DB.prepare("UPDATE users SET posts = MAX(0, posts - ?) WHERE id = ?").bind(
+				delta,
+				authorId,
+			),
+		);
+	}
+
+	stmts.push(buildTombstoneStatement(env, id, 0, nowSec));
+	return stmts;
+}
+
+async function purgeR2Cleanup(
+	env: Env,
+	keys: string[],
+): Promise<{ deletedCount: number; failed: { key: string; error: string }[] }> {
+	const failed: { key: string; error: string }[] = [];
+	let deletedCount = 0;
+	for (const key of keys) {
+		try {
+			await env.R2.delete(key);
+			deletedCount++;
+		} catch (err) {
+			failed.push({
+				key,
+				error: err instanceof Error ? err.message : String(err),
+			});
+		}
+	}
+	return { deletedCount, failed };
+}
+
+async function runPurgeRecalc(env: Env, pre: PurgePreflight): Promise<void> {
+	for (const tid of pre.survivorThreadIds) {
+		await recalcThreadMetadata(env, tid);
+	}
+	for (const fid of pre.affectedForumIds) {
+		await recalcForumMetadata(env, fid);
+	}
+}
 
 export const purge = withEntityAuth(
 	userConfig,
@@ -430,70 +787,83 @@ export const purge = withEntityAuth(
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
 		}
 
-		// Parse body up front — purge requires explicit confirmation.
-		let body: Record<string, unknown>;
-		try {
-			body = (await request.json()) as Record<string, unknown>;
-		} catch {
-			return errorResponse(
-				"INVALID_BODY",
-				400,
-				{ message: "purge requires { actorId, confirmUsername } body" },
-				origin,
-			);
-		}
+		const actorEmail = request.headers.get("X-Admin-Actor-Email") ?? "";
+		const actorName = request.headers.get("X-Admin-Actor-Name") ?? "";
 
-		const actorId = typeof body.actorId === "number" ? body.actorId : Number.NaN;
-		const confirmUsername = body.confirmUsername;
-		if (!Number.isInteger(actorId) || actorId <= 0) {
-			return errorResponse(
-				"INVALID_BODY",
-				400,
-				{ message: "actorId must be a positive integer" },
-				origin,
-			);
-		}
-		if (typeof confirmUsername !== "string" || confirmUsername.length === 0) {
-			return errorResponse(
-				"INVALID_BODY",
-				400,
-				{ message: "confirmUsername must be a non-empty string" },
-				origin,
-			);
-		}
+		const parsed = await parsePurgeBody(request);
+		if (!parsed.ok) return parsed.res;
 
-		// Pull the target with the columns the guards need.
 		const existing = await env.DB.prepare(
-			"SELECT id, username, status, role FROM users WHERE id = ?",
+			"SELECT id, username, status, role, avatar_path FROM users WHERE id = ?",
 		)
 			.bind(id)
-			.first<{ id: number; username: string; status: number; role: number }>();
-		if (!existing) {
-			return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
+			.first<PurgeTarget>();
+		const guard = checkPurgeGuards(existing, parsed.confirmUsername, origin);
+		if (guard) return guard;
+		// existing is non-null past the guard
+		const target = existing as PurgeTarget;
+
+		const pre = await purgePreflight(env, id);
+		const nowSec = Math.floor(Date.now() / 1000);
+		const stmts = buildPurgeBatch(env, id, pre, nowSec);
+
+		try {
+			await env.DB.batch(stmts);
+		} catch (err) {
+			console.error("[purge] DB batch failed", { userId: id, err });
+			return errorResponse(
+				"PURGE_DB_FAILED",
+				500,
+				{ message: "DB cleanup batch failed; nothing was committed" },
+				origin,
+			);
 		}
 
-		if (existing.username !== confirmUsername) {
-			return errorResponse("CONFIRM_MISMATCH", 400, undefined, origin);
-		}
-		if (actorId === id) {
-			return errorResponse("SELF_PURGE", 403, undefined, origin);
-		}
-		if (existing.role > 0) {
-			// 1=Admin, 2=SuperMod, 3=Moderator — all blocked. If product wants
-			// to allow purging moderators (role=3) later, gate it on @zheng-li
-			// confirmation per D4 D0 v2 §2.
-			return errorResponse("CANNOT_PURGE_STAFF", 403, undefined, origin);
-		}
-		if (existing.status === -99) {
-			return errorResponse("ALREADY_PURGED", 409, undefined, origin);
+		try {
+			await runPurgeRecalc(env, pre);
+		} catch (err) {
+			console.error("[purge] recalcMetadata failed AFTER tombstone committed", {
+				userId: id,
+				survivorThreadIds: pre.survivorThreadIds,
+				affectedForumIds: pre.affectedForumIds,
+				err,
+			});
+			return errorResponse(
+				"PURGE_RECALC_FAILED",
+				500,
+				{
+					message:
+						"Tombstone + content cleanup committed; last_post metadata recalc failed. Re-run recalc tools.",
+				},
+				origin,
+			);
 		}
 
-		// All guards passed. D4-a does NOT touch the row. D4-b will replace
-		// this branch with the actual content + tombstone + R2 pipeline.
-		return errorResponse(
-			"NOT_IMPLEMENTED",
-			501,
-			{ message: "Purge content pipeline ships in D4-b" },
+		await invalidateForumVolatile(env);
+		await invalidateUserCache(env, id);
+		for (const authorId of pre.collateralAuthorDelta.keys()) {
+			await invalidateUserCache(env, authorId);
+		}
+
+		const r2Keys = Array.from(
+			new Set([...pre.attachmentKeys, ...(target.avatar_path ? [target.avatar_path] : [])]),
+		);
+		const r2 = await purgeR2Cleanup(env, r2Keys);
+
+		return jsonResponse(
+			{
+				purged: true,
+				id,
+				deleted: {
+					threads: pre.ownedThreads.length,
+					posts: pre.allDeletedPostIds.length,
+					comments: pre.commentCount,
+					attachments: pre.attachmentCount,
+					messages: pre.messageCount,
+				},
+				audit: { actorEmail, actorName },
+				r2: { deletedCount: r2.deletedCount, failed: r2.failed },
+			},
 			origin,
 		);
 	},
@@ -588,6 +958,13 @@ export const batchStatus = withEntityAuth(
 			return jsonResponse({ updated: true, count: 0 }, origin);
 		}
 
+		// D4-b: refuse if any target is already tombstoned. Whole batch fails
+		// — never silently skip; admin must explicitly drop the tombstoned ids.
+		const tombstoned = await fetchTombstoneIds(env, ids);
+		if (tombstoned.length > 0) {
+			return errorResponse("ALREADY_PURGED", 409, { tombstoneIds: tombstoned }, origin);
+		}
+
 		const placeholders = ids.map(() => "?").join(",");
 		await env.DB.prepare(`UPDATE users SET status = ? WHERE id IN (${placeholders})`)
 			.bind(body.status, ...ids)
@@ -640,6 +1017,12 @@ export const batchRole = withEntityAuth(
 			return jsonResponse({ updated: true, count: 0 }, origin);
 		}
 
+		// D4-b: ALREADY_PURGED guard — same shape as batchStatus.
+		const tombstoned = await fetchTombstoneIds(env, ids);
+		if (tombstoned.length > 0) {
+			return errorResponse("ALREADY_PURGED", 409, { tombstoneIds: tombstoned }, origin);
+		}
+
 		const placeholders = ids.map(() => "?").join(",");
 		await env.DB.prepare(`UPDATE users SET role = ? WHERE id IN (${placeholders})`)
 			.bind(body.role, ...ids)
@@ -661,10 +1044,15 @@ export const recalcCounters = withEntityAuth(
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
 		}
 
-		// Verify user exists
-		const user = await env.DB.prepare("SELECT id FROM users WHERE id = ?").bind(id).first();
+		// Verify user exists + ALREADY_PURGED guard (D4-b)
+		const user = await env.DB.prepare("SELECT id, status FROM users WHERE id = ?")
+			.bind(id)
+			.first<{ id: number; status: number }>();
 		if (!user) {
 			return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
+		}
+		if (user.status === -99) {
+			return errorResponse("ALREADY_PURGED", 409, undefined, origin);
 		}
 
 		// Count threads authored by user
@@ -729,6 +1117,13 @@ export const batchRecalcCounters = withEntityAuth(
 					{ message: `Maximum ${MAX_BATCH_RECALC} users per batch` },
 					origin,
 				);
+			}
+			// D4-b: explicit-id path may target tombstoned users — refuse the
+			// whole batch so the admin notices. Implicit "all active" path
+			// below already filters status >= 0 which excludes -99.
+			const tombstoned = await fetchTombstoneIds(env, userIds);
+			if (tombstoned.length > 0) {
+				return errorResponse("ALREADY_PURGED", 409, { tombstoneIds: tombstoned }, origin);
 			}
 		} else {
 			// No IDs provided - get all active user IDs (status >= 0)

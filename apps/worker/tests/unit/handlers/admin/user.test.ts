@@ -12,7 +12,13 @@ import {
 	recalcCounters,
 	update,
 } from "../../../../src/handlers/admin/user";
-import { createAdminRequest, createMockDb, makeD1UserRow, makeEnv } from "../../../helpers";
+import {
+	createAdminRequest,
+	createMockDb,
+	createMockR2,
+	makeD1UserRow,
+	makeEnv,
+} from "../../../helpers";
 
 describe("admin user handlers", () => {
 	const adminEnv = (db: D1Database) => makeEnv({ DB: db });
@@ -594,28 +600,32 @@ describe("admin user handlers", () => {
 		});
 	});
 
-	// ─── D4-a: purge skeleton + cross-handler ALREADY_PURGED guards ──────────
+	// ─── D4-b: purge full pipeline + cross-handler ALREADY_PURGED guards ─────
 
-	describe("purge (D4-a skeleton)", () => {
-		const targetRow = { id: 42, username: "victim", status: 0, role: 0 };
+	describe("purge (D4-b full pipeline)", () => {
+		const targetRow = {
+			id: 42,
+			username: "victim",
+			status: 0,
+			role: 0,
+			avatar_path: "avatars/42.png",
+		};
+		const validBody = { confirmUsername: "victim" };
 
-		const validBody = { actorId: 1, confirmUsername: "victim" };
-
-		it("returns 501 NOT_IMPLEMENTED when all guards pass (D4-a stops here)", async () => {
-			const { db } = createMockDb({
-				firstResults: { "SELECT id, username, status, role FROM users": targetRow },
+		// Build a request that carries audit headers like the admin proxy does.
+		function purgeRequest(id: number, body: unknown, actor?: { email?: string; name?: string }) {
+			const headers: Record<string, string> = {
+				"X-API-Key": "test-admin-key",
+				"Content-Type": "application/json",
+			};
+			if (actor?.email !== undefined) headers["X-Admin-Actor-Email"] = actor.email;
+			if (actor?.name !== undefined) headers["X-Admin-Actor-Name"] = actor.name;
+			return new Request(`https://api.example.com/api/admin/users/${id}/purge`, {
+				method: "POST",
+				headers,
+				body: JSON.stringify(body),
 			});
-			const { purge } = await import("../../../../src/handlers/admin/user");
-
-			const res = await purge(
-				createAdminRequest("POST", "/api/admin/users/42/purge", validBody),
-				adminEnv(db),
-			);
-			const body = await res.json();
-
-			expect(res.status).toBe(501);
-			expect(body.error.code).toBe("NOT_IMPLEMENTED");
-		});
+		}
 
 		it("returns 400 INVALID_BODY when body is not JSON", async () => {
 			const { db } = createMockDb();
@@ -626,22 +636,7 @@ describe("admin user handlers", () => {
 				headers: { "X-API-Key": "test-admin-key", "Content-Type": "application/json" },
 				body: "not-json",
 			});
-			const res = await purge(req, adminEnv(db));
-			expect(res.status).toBe(400);
-			expect((await res.json()).error.code).toBe("INVALID_BODY");
-		});
-
-		it("returns 400 INVALID_BODY when actorId is missing or non-positive", async () => {
-			const { db } = createMockDb();
-			const { purge } = await import("../../../../src/handlers/admin/user");
-
-			const res = await purge(
-				createAdminRequest("POST", "/api/admin/users/42/purge", {
-					actorId: 0,
-					confirmUsername: "victim",
-				}),
-				adminEnv(db),
-			);
+			const res = await purge(req, makeEnv({ DB: db, R2: createMockR2() }));
 			expect(res.status).toBe(400);
 			expect((await res.json()).error.code).toBe("INVALID_BODY");
 		});
@@ -650,73 +645,51 @@ describe("admin user handlers", () => {
 			const { db } = createMockDb();
 			const { purge } = await import("../../../../src/handlers/admin/user");
 
-			const res = await purge(
-				createAdminRequest("POST", "/api/admin/users/42/purge", { actorId: 1 }),
-				adminEnv(db),
-			);
+			const res = await purge(purgeRequest(42, {}), makeEnv({ DB: db, R2: createMockR2() }));
 			expect(res.status).toBe(400);
+			expect((await res.json()).error.code).toBe("INVALID_BODY");
 		});
 
 		it("returns 404 USER_NOT_FOUND when target row missing", async () => {
 			const { db } = createMockDb({
-				firstResults: { "SELECT id, username, status, role FROM users": null },
+				firstResults: { "SELECT id, username, status, role, avatar_path FROM users": null },
 			});
 			const { purge } = await import("../../../../src/handlers/admin/user");
 
-			const res = await purge(
-				createAdminRequest("POST", "/api/admin/users/42/purge", validBody),
-				adminEnv(db),
-			);
+			const res = await purge(purgeRequest(42, validBody), makeEnv({ DB: db, R2: createMockR2() }));
 			expect(res.status).toBe(404);
 			expect((await res.json()).error.code).toBe("USER_NOT_FOUND");
 		});
 
 		it("returns 400 CONFIRM_MISMATCH when confirmUsername != target.username", async () => {
 			const { db } = createMockDb({
-				firstResults: { "SELECT id, username, status, role FROM users": targetRow },
+				firstResults: { "SELECT id, username, status, role, avatar_path FROM users": targetRow },
 			});
 			const { purge } = await import("../../../../src/handlers/admin/user");
 
 			const res = await purge(
-				createAdminRequest("POST", "/api/admin/users/42/purge", {
-					actorId: 1,
-					confirmUsername: "wrong",
-				}),
-				adminEnv(db),
+				purgeRequest(42, { confirmUsername: "wrong" }),
+				makeEnv({ DB: db, R2: createMockR2() }),
 			);
 			expect(res.status).toBe(400);
 			expect((await res.json()).error.code).toBe("CONFIRM_MISMATCH");
-		});
-
-		it("returns 403 SELF_PURGE when actorId === target id", async () => {
-			const { db } = createMockDb({
-				firstResults: { "SELECT id, username, status, role FROM users": targetRow },
-			});
-			const { purge } = await import("../../../../src/handlers/admin/user");
-
-			const res = await purge(
-				createAdminRequest("POST", "/api/admin/users/42/purge", {
-					actorId: 42,
-					confirmUsername: "victim",
-				}),
-				adminEnv(db),
-			);
-			expect(res.status).toBe(403);
-			expect((await res.json()).error.code).toBe("SELF_PURGE");
 		});
 
 		it("returns 403 CANNOT_PURGE_STAFF when target.role > 0", async () => {
 			for (const role of [1, 2, 3]) {
 				const { db } = createMockDb({
 					firstResults: {
-						"SELECT id, username, status, role FROM users": { ...targetRow, role },
+						"SELECT id, username, status, role, avatar_path FROM users": {
+							...targetRow,
+							role,
+						},
 					},
 				});
 				const { purge } = await import("../../../../src/handlers/admin/user");
 
 				const res = await purge(
-					createAdminRequest("POST", "/api/admin/users/42/purge", validBody),
-					adminEnv(db),
+					purgeRequest(42, validBody),
+					makeEnv({ DB: db, R2: createMockR2() }),
 				);
 				expect(res.status, `role=${role}`).toBe(403);
 				expect((await res.json()).error.code).toBe("CANNOT_PURGE_STAFF");
@@ -726,15 +699,15 @@ describe("admin user handlers", () => {
 		it("returns 409 ALREADY_PURGED when target.status === -99", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT id, username, status, role FROM users": { ...targetRow, status: -99 },
+					"SELECT id, username, status, role, avatar_path FROM users": {
+						...targetRow,
+						status: -99,
+					},
 				},
 			});
 			const { purge } = await import("../../../../src/handlers/admin/user");
 
-			const res = await purge(
-				createAdminRequest("POST", "/api/admin/users/42/purge", validBody),
-				adminEnv(db),
-			);
+			const res = await purge(purgeRequest(42, validBody), makeEnv({ DB: db, R2: createMockR2() }));
 			expect(res.status).toBe(409);
 			expect((await res.json()).error.code).toBe("ALREADY_PURGED");
 		});
@@ -743,10 +716,152 @@ describe("admin user handlers", () => {
 			const { db } = createMockDb();
 			const { purge } = await import("../../../../src/handlers/admin/user");
 			const res = await purge(
-				createAdminRequest("POST", "/api/admin/users/abc/purge", validBody),
-				adminEnv(db),
+				new Request("https://api.example.com/api/admin/users/abc/purge", {
+					method: "POST",
+					headers: { "X-API-Key": "test-admin-key", "Content-Type": "application/json" },
+					body: JSON.stringify(validBody),
+				}),
+				makeEnv({ DB: db, R2: createMockR2() }),
 			);
 			expect(res.status).toBe(400);
+		});
+
+		it("happy path: runs DB batch in correct order, recalcs metadata, deletes R2, returns audit + counts", async () => {
+			// Owned thread 100 in forum 7; one own post + one collateral post by user 99.
+			// Target also has standalone post 201 in someone else's thread 300 (forum 8).
+			const { db, calls, batchCalls } = createMockDb({
+				firstResults: {
+					"SELECT id, username, status, role, avatar_path FROM users": targetRow,
+					"SELECT COUNT(DISTINCT id) as cnt FROM post_comments": { cnt: 5 },
+					"SELECT COUNT(*) as cnt FROM messages": { cnt: 3 },
+					"SELECT created_at, author_name, author_id\n\t\t\t FROM posts\n\t\t\t WHERE thread_id":
+						null,
+					"SELECT created_at, author_name, author_id FROM threads WHERE id": null,
+					"SELECT id, subject, last_post_at, last_poster, last_poster_id\n\t\t\t FROM threads\n\t\t\t WHERE forum_id":
+						null,
+				},
+				allResults: {
+					"SELECT id, forum_id FROM threads WHERE author_id": [{ id: 100, forum_id: 7 }],
+					"SELECT id, author_id FROM posts WHERE thread_id IN": [
+						{ id: 150, author_id: 42 },
+						{ id: 151, author_id: 99 },
+					],
+					"SELECT id, thread_id, forum_id FROM posts WHERE author_id = ? AND thread_id NOT IN": [
+						{ id: 201, thread_id: 300, forum_id: 8 },
+					],
+					"SELECT DISTINCT file_path FROM attachments": [
+						{ file_path: "att/a.png" },
+						{ file_path: "att/b.png" },
+					],
+				},
+			});
+
+			const r2 = createMockR2();
+			const { purge } = await import("../../../../src/handlers/admin/user");
+
+			const res = await purge(
+				purgeRequest(42, validBody, { email: "admin@example.com", name: "Admin User" }),
+				makeEnv({ DB: db, R2: r2 }),
+			);
+			expect(res.status).toBe(200);
+			const body = await res.json();
+			expect(body.data.purged).toBe(true);
+			expect(body.data.id).toBe(42);
+			expect(body.data.deleted).toEqual({
+				threads: 1,
+				posts: 3, // 2 owned-thread posts + 1 standalone
+				comments: 5,
+				attachments: 2,
+				messages: 3,
+			});
+			expect(body.data.audit).toEqual({
+				actorEmail: "admin@example.com",
+				actorName: "Admin User",
+			});
+			expect(body.data.r2.deletedCount).toBe(3); // 2 attachments + 1 avatar
+			expect(body.data.r2.failed).toEqual([]);
+
+			// Exactly one DB batch.
+			expect(batchCalls).toHaveLength(1);
+			// audit-table negative assertion (across all SQL prepared in this test):
+			const allSqls = calls.map((c) => c.sql).join("\n");
+			expect(allSqls).not.toMatch(/\bFROM reports\b/);
+			expect(allSqls).not.toMatch(/\bFROM admin_logs\b/);
+			expect(allSqls).not.toMatch(/\bFROM ip_bans\b/);
+			expect(allSqls).not.toMatch(/\bFROM censor_words\b/);
+			expect(allSqls).not.toMatch(/\bFROM announcements\b/);
+			expect(allSqls).not.toMatch(/DELETE FROM reports/);
+			expect(allSqls).not.toMatch(/DELETE FROM admin_logs/);
+			expect(allSqls).not.toMatch(/DELETE FROM ip_bans/);
+
+			// Schema column-name sanity:
+			expect(allSqls).toMatch(/threads WHERE author_id/);
+			expect(allSqls).toMatch(/posts WHERE author_id/);
+			expect(allSqls).toMatch(/messages WHERE sender_id = \? OR receiver_id = \?/);
+			expect(allSqls).toMatch(/attachments/);
+			expect(allSqls).toMatch(/file_path/);
+
+			// Visibility constants used in counter repair:
+			expect(allSqls).toMatch(/sticky >= 0/);
+			expect(allSqls).toMatch(/invisible = 0/);
+
+			// R2 was hit for both attachment keys + avatar.
+			expect(
+				(r2.delete as ReturnType<typeof import("vitest").vi.fn>).mock.calls
+					.map((c: unknown[]) => c[0])
+					.sort(),
+			).toEqual(["att/a.png", "att/b.png", "avatars/42.png"]);
+		});
+
+		it("returns 500 PURGE_DB_FAILED if DB batch throws (R2 not touched)", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT id, username, status, role, avatar_path FROM users": targetRow,
+					"SELECT COUNT(DISTINCT id) as cnt FROM post_comments": { cnt: 0 },
+					"SELECT COUNT(*) as cnt FROM messages": { cnt: 0 },
+				},
+				allResults: {
+					"SELECT id, forum_id FROM threads WHERE author_id": [],
+					"SELECT id, thread_id, forum_id FROM posts WHERE author_id": [],
+					"SELECT DISTINCT file_path FROM attachments": [],
+				},
+			});
+			(db.batch as ReturnType<typeof import("vitest").vi.fn>).mockRejectedValueOnce(
+				new Error("d1 batch boom"),
+			);
+			const r2 = createMockR2();
+			const { purge } = await import("../../../../src/handlers/admin/user");
+
+			const res = await purge(purgeRequest(42, validBody), makeEnv({ DB: db, R2: r2 }));
+			expect(res.status).toBe(500);
+			expect((await res.json()).error.code).toBe("PURGE_DB_FAILED");
+			expect((r2.delete as ReturnType<typeof import("vitest").vi.fn>).mock.calls).toHaveLength(0);
+		});
+
+		it("R2 failures are recorded in response.r2.failed without failing the request", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT id, username, status, role, avatar_path FROM users": targetRow,
+					"SELECT COUNT(DISTINCT id) as cnt FROM post_comments": { cnt: 0 },
+					"SELECT COUNT(*) as cnt FROM messages": { cnt: 0 },
+				},
+				allResults: {
+					"SELECT id, forum_id FROM threads WHERE author_id": [],
+					"SELECT id, thread_id, forum_id FROM posts WHERE author_id": [],
+					"SELECT DISTINCT file_path FROM attachments": [],
+				},
+			});
+			const r2 = createMockR2();
+			(r2.delete as ReturnType<typeof import("vitest").vi.fn>).mockImplementationOnce(async () => {
+				throw new Error("r2 boom");
+			});
+			const { purge } = await import("../../../../src/handlers/admin/user");
+
+			const res = await purge(purgeRequest(42, validBody), makeEnv({ DB: db, R2: r2 }));
+			expect(res.status).toBe(200);
+			const body = await res.json();
+			expect(body.data.r2.deletedCount).toBe(0);
+			expect(body.data.r2.failed).toEqual([{ key: "avatars/42.png", error: "r2 boom" }]);
 		});
 	});
 
@@ -783,6 +898,74 @@ describe("admin user handlers", () => {
 				},
 			});
 			const res = await nuke(createAdminRequest("POST", "/api/admin/users/42/nuke"), adminEnv(db));
+			expect(res.status).toBe(409);
+			expect((await res.json()).error.code).toBe("ALREADY_PURGED");
+		});
+
+		// D4-b additions: batch endpoints + recalcCounters.
+
+		it("batchStatus rejects with 409 when any id is tombstoned", async () => {
+			const { db } = createMockDb({
+				allResults: {
+					"SELECT id FROM users WHERE id IN": [{ id: 42 }],
+				},
+			});
+			const res = await batchStatus(
+				createAdminRequest("POST", "/api/admin/users/batch-status", {
+					ids: [42, 43],
+					status: 0,
+				}),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(409);
+			const body = await res.json();
+			expect(body.error.code).toBe("ALREADY_PURGED");
+			expect(body.error.details.tombstoneIds).toEqual([42]);
+		});
+
+		it("batchRole rejects with 409 when any id is tombstoned", async () => {
+			const { db } = createMockDb({
+				allResults: {
+					"SELECT id FROM users WHERE id IN": [{ id: 42 }],
+				},
+			});
+			const res = await batchRole(
+				createAdminRequest("POST", "/api/admin/users/batch-role", {
+					ids: [42, 43],
+					role: 0,
+				}),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(409);
+			expect((await res.json()).error.code).toBe("ALREADY_PURGED");
+		});
+
+		it("recalcCounters rejects with 409 on tombstoned user", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT id, status FROM users WHERE id": { id: 42, status: -99 },
+				},
+			});
+			const res = await recalcCounters(
+				createAdminRequest("POST", "/api/admin/users/42/recalc-counters"),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(409);
+			expect((await res.json()).error.code).toBe("ALREADY_PURGED");
+		});
+
+		it("batchRecalcCounters rejects with 409 on explicit tombstoned id", async () => {
+			const { db } = createMockDb({
+				allResults: {
+					"SELECT id FROM users WHERE id IN": [{ id: 42 }],
+				},
+			});
+			const res = await batchRecalcCounters(
+				createAdminRequest("POST", "/api/admin/users/batch-recalc-counters", {
+					ids: [42, 43],
+				}),
+				adminEnv(db),
+			);
 			expect(res.status).toBe(409);
 			expect((await res.json()).error.code).toBe("ALREADY_PURGED");
 		});
@@ -1138,7 +1321,7 @@ describe("admin user handlers", () => {
 		it("should recalculate counters for a user", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT id FROM users WHERE id": { id: 42 },
+					"SELECT id, status FROM users WHERE id": { id: 42, status: 0 },
 					"FROM posts WHERE author_id": { cnt: 20 },
 					"digest > 0": { cnt: 2 },
 					"FROM threads WHERE author_id": { cnt: 5 },
@@ -1181,7 +1364,7 @@ describe("admin user handlers", () => {
 		it("should handle zero counts", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"SELECT id FROM users WHERE id": { id: 42 },
+					"SELECT id, status FROM users WHERE id": { id: 42, status: 0 },
 					// Null results → defaults to 0
 				},
 			});
