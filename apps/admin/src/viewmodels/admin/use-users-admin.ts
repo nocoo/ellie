@@ -1,17 +1,18 @@
 // viewmodels/admin/use-users-admin.ts — ViewModel for Admin Users page
 // MVVM Pattern: Encapsulates all user management state and logic.
+//
+// Scope after D4-d:
+//   The list page now exposes only 查看详情 + 编辑 in the per-row menu
+//   plus 批量封禁 / 批量激活 in the batch bar. All single-user destructive
+//   actions (ban / unban / purge) live on /admin/users/[id]; their state
+//   and handlers are inlined in the detail page next to the destructive
+//   UI. So this hook only owns: list fetch + filters + selection + edit
+//   dialog + batch actions.
 
 "use client";
 
 import { extractErrorMessage } from "@/lib/admin-error";
-import {
-	type User,
-	type UserUpdate,
-	banUser,
-	batchSetStatus,
-	nukeUser,
-	updateUser,
-} from "@/viewmodels/admin/users";
+import { type User, type UserUpdate, batchSetStatus, updateUser } from "@/viewmodels/admin/users";
 import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------
@@ -26,18 +27,6 @@ export interface PaginationInfo {
 	pages: number;
 	total: number;
 	limit: number;
-}
-
-/**
- * Confirm dialog state
- */
-export interface ConfirmDialogState {
-	open: boolean;
-	title: string;
-	description: string;
-	variant: "default" | "destructive";
-	requireInput?: string;
-	onConfirm: () => void;
 }
 
 /**
@@ -72,14 +61,6 @@ export interface UsersAdminState {
 	editLoading: boolean;
 	/** Edit dialog inline error message (null if none) */
 	editError: string | null;
-	/** Confirm dialog state */
-	confirmDialog: ConfirmDialogState;
-	/** Confirm dialog loading state */
-	confirmLoading: boolean;
-	/** Confirm dialog inline error message (null if none) */
-	confirmError: string | null;
-	/** Page-level inline message (success/error) for actions without a dialog. */
-	pageMessage: { type: "success" | "error"; text: string } | null;
 }
 
 /**
@@ -100,18 +81,10 @@ export interface UsersAdminActions {
 	closeEditDialog: () => void;
 	/** Save user edits */
 	handleEditSave: (id: number, update: UserUpdate) => Promise<void>;
-	/** Ban a user */
-	handleBan: (user: User, deleteContent?: boolean) => void;
-	/** Nuke a user (ban + delete all + reset credits) */
-	handleNuke: (user: User) => void;
-	/** Unban a user */
-	handleUnban: (user: User) => Promise<void>;
 	/** Handle batch action on selected users */
 	handleBatchAction: (key: string) => Promise<void>;
 	/** Update selected IDs */
 	setSelectedIds: (ids: Set<string | number>) => void;
-	/** Close confirm dialog */
-	closeConfirmDialog: () => void;
 }
 
 /**
@@ -149,14 +122,6 @@ const DEFAULT_PAGINATION: PaginationInfo = {
 	pages: 0,
 	total: 0,
 	limit: 20,
-};
-
-const DEFAULT_CONFIRM_DIALOG: ConfirmDialogState = {
-	open: false,
-	title: "",
-	description: "",
-	variant: "default",
-	onConfirm: () => {},
 };
 
 // ---------------------------------------------------------------------------
@@ -246,17 +211,10 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 	});
 	const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
 
-	// Dialog states
+	// Edit dialog state
 	const [editUser, setEditUser] = useState<User | null>(null);
 	const [editLoading, setEditLoading] = useState(false);
 	const [editError, setEditError] = useState<string | null>(null);
-	const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(DEFAULT_CONFIRM_DIALOG);
-	const [confirmLoading, setConfirmLoading] = useState(false);
-	const [confirmError, setConfirmError] = useState<string | null>(null);
-	const [pageMessage, setPageMessage] = useState<{
-		type: "success" | "error";
-		text: string;
-	} | null>(null);
 
 	// -------------------------------------------------------------------------
 	// Data fetching
@@ -336,87 +294,6 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 	);
 
 	// -------------------------------------------------------------------------
-	// Moderation handlers
-	// -------------------------------------------------------------------------
-
-	const handleBan = useCallback(
-		(user: User, deleteContent = false) => {
-			setConfirmError(null);
-			setConfirmDialog({
-				open: true,
-				title: deleteContent ? "封禁并删除内容" : "封禁用户",
-				description: deleteContent
-					? `封禁 ${user.username} 并删除其所有内容？此操作不可撤销。`
-					: `确定封禁 ${user.username}？封禁后该用户将无法访问论坛。`,
-				variant: "destructive",
-				onConfirm: async () => {
-					setConfirmLoading(true);
-					setConfirmError(null);
-					try {
-						await banUser(user.id, deleteContent);
-						setConfirmDialog((d) => ({ ...d, open: false }));
-						fetchData(pagination.page);
-					} catch (err) {
-						setConfirmError(extractErrorMessage(err, "封禁用户失败"));
-					} finally {
-						setConfirmLoading(false);
-					}
-				},
-			});
-		},
-		[fetchData, pagination.page],
-	);
-
-	const handleNuke = useCallback(
-		(user: User) => {
-			setConfirmError(null);
-			setConfirmDialog({
-				open: true,
-				title: "彻底清除用户",
-				description: `此操作将封禁 ${user.username}，删除其所有内容，并将积分重置为 0。此操作不可撤销。`,
-				variant: "destructive",
-				requireInput: user.username,
-				onConfirm: async () => {
-					setConfirmLoading(true);
-					setConfirmError(null);
-					try {
-						await nukeUser(user.id);
-						setConfirmDialog((d) => ({ ...d, open: false }));
-						fetchData(pagination.page);
-					} catch (err) {
-						setConfirmError(extractErrorMessage(err, "清除用户失败"));
-					} finally {
-						setConfirmLoading(false);
-					}
-				},
-			});
-		},
-		[fetchData, pagination.page],
-	);
-
-	const handleUnban = useCallback(
-		async (user: User) => {
-			setPageMessage(null);
-			try {
-				await updateUser(user.id, { status: 0 });
-				fetchData(pagination.page);
-				setPageMessage({ type: "success", text: `已解除封禁 ${user.username}` });
-			} catch (err) {
-				setPageMessage({
-					type: "error",
-					text: extractErrorMessage(err, "解除封禁失败"),
-				});
-			}
-		},
-		[fetchData, pagination.page],
-	);
-
-	const closeConfirmDialog = useCallback(() => {
-		setConfirmDialog((d) => ({ ...d, open: false }));
-		setConfirmError(null);
-	}, []);
-
-	// -------------------------------------------------------------------------
 	// Batch handlers
 	// -------------------------------------------------------------------------
 
@@ -450,10 +327,6 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 			editUser,
 			editLoading,
 			editError,
-			confirmDialog,
-			confirmLoading,
-			confirmError,
-			pageMessage,
 		},
 		actions: {
 			fetchData,
@@ -463,12 +336,8 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 			openEditDialog,
 			closeEditDialog,
 			handleEditSave,
-			handleBan,
-			handleNuke,
-			handleUnban,
 			handleBatchAction,
 			setSelectedIds,
-			closeConfirmDialog,
 		},
 	};
 }
