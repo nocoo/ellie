@@ -1,11 +1,8 @@
 // components/forum/user-threads-tab.tsx — Threads tab for user profile page
 
 import { ForumEmptyState } from "@/components/forum/empty-state";
-import { ThreadBadgeList } from "@/components/forum/thread-badge";
+import { UserThreadRow } from "@/components/forum/user-thread-row";
 import type { UserProfileData } from "@/viewmodels/forum/user-profile.server";
-import { formatRelativeTime } from "@/viewmodels/shared/formatting";
-import { getThreadBadges } from "@ellie/types";
-import Link from "next/link";
 
 export function UserThreadsTab({
 	threads,
@@ -18,23 +15,9 @@ export function UserThreadsTab({
 
 	return (
 		<div className="divide-y divide-border/50">
-			{threads.items.map((thread) => {
-				const badges = getThreadBadges(thread);
-				return (
-					<div key={thread.id} className="flex items-center gap-2 py-1.5">
-						{badges.length > 0 && <ThreadBadgeList badges={badges} />}
-						<Link
-							href={`/threads/${thread.id}`}
-							className="min-w-0 flex-1 truncate text-sm text-foreground hover:text-primary transition-colors"
-						>
-							{thread.subject}
-						</Link>
-						<span className="text-xs text-muted-foreground shrink-0">
-							{formatRelativeTime(thread.lastPostAt ?? thread.createdAt)}
-						</span>
-					</div>
-				);
-			})}
+			{threads.items.map((thread) => (
+				<UserThreadRow key={thread.id} thread={thread} timeSource="lastPost" />
+			))}
 		</div>
 	);
 }
