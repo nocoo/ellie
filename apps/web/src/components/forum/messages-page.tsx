@@ -3,8 +3,9 @@
 
 "use client";
 
+import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
 import { ComposeMessageDialog } from "@/components/forum/compose-message-dialog";
-import { type BreadcrumbItem, Breadcrumbs } from "@/components/layout/breadcrumbs";
+import type { BreadcrumbItem } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { MessageListItem, SidebarItem } from "@/viewmodels/forum/messages";
@@ -507,11 +508,7 @@ export function MessagesPageClient({
 	return (
 		<div className="space-y-2">
 			{/* Breadcrumbs */}
-			{breadcrumbs.length > 1 && (
-				<div className="py-2">
-					<Breadcrumbs items={breadcrumbs} />
-				</div>
-			)}
+			<BreadcrumbBar items={breadcrumbs} />
 
 			{/* Header section with title and compose button */}
 			<MessagesHeaderSection
