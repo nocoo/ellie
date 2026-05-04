@@ -1,4 +1,4 @@
-import { adminApi, createProxyHandler, passthrough } from "@/lib/admin-proxy";
+import { adminApi, adminApiAs, createProxyHandler, passthrough } from "@/lib/admin-proxy";
 
 export const GET = createProxyHandler(async (_request, _admin, context) => {
 	const { id } = await context.params;
@@ -18,6 +18,7 @@ export const PATCH = createProxyHandler(async (request, admin, context) => {
 		handlerName: admin.name || admin.email,
 	};
 
-	const res = await adminApi.raw("PATCH", `/api/admin/reports/${id}`, enrichedBody);
+	const api = adminApiAs(admin);
+	const res = await api.raw("PATCH", `/api/admin/reports/${id}`, enrichedBody);
 	return passthrough(res);
 });

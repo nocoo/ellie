@@ -1,4 +1,5 @@
 import { withEntityAuth } from "../../lib/adminHelpers";
+import { resolveActor, writeAdminLog } from "../../lib/adminLog";
 import type { EntityConfig } from "../../lib/crud";
 import { createGetByIdHandler, createListHandler, createUpdateHandler } from "../../lib/crud";
 import type { Env } from "../../lib/env";
@@ -344,6 +345,12 @@ export const ban = withEntityAuth(
 		if (!deleteContent) {
 			// Simple ban — just set status to -1
 			await env.DB.prepare("UPDATE users SET status = -1 WHERE id = ?").bind(id).run();
+			await writeAdminLog(env, resolveActor(request), {
+				action: "user.ban",
+				targetType: "user",
+				targetId: id,
+				details: { mode: "ban", deletedContent: false },
+			});
 			return jsonResponse({ banned: true, id, contentDeleted: false }, origin);
 		}
 
@@ -355,6 +362,18 @@ export const ban = withEntityAuth(
 			.bind(id)
 			.run();
 
+		await writeAdminLog(env, resolveActor(request), {
+			action: "user.ban",
+			targetType: "user",
+			targetId: id,
+			details: {
+				mode: "ban_delete_content",
+				deletedContent: true,
+				deletedThreads: result.threadsDeleted,
+				deletedPosts: result.postsDeleted,
+			},
+		});
+
 		return jsonResponse(
 			{
 				banned: true,
@@ -365,6 +384,57 @@ export const ban = withEntityAuth(
 			},
 			origin,
 		);
+	},
+);
+
+// ─── F3-a POST /api/admin/users/:id/unban ────────────────────────────────────
+//
+// Dedicated unban endpoint introduced alongside F3-a audit instrumentation so
+// the action gets its own admin_logs row (`user.unban`) instead of hiding
+// inside the generic `update` PATCH path. Mirrors ban/nuke/purge guards:
+//   - INVALID_REQUEST  → bad path id
+//   - USER_NOT_FOUND   → no row
+//   - ALREADY_PURGED   → status === -99 tombstone, refuse
+//   - INVALID_REQUEST  → user is not currently banned (status !== -1)
+// On success: status -1 → 0. role / credits / PII left untouched.
+
+export const unban = withEntityAuth(
+	userConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined;
+		const id = parsePathSegment(request, 1);
+		if (id === null) {
+			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
+		}
+
+		const existing = await env.DB.prepare("SELECT id, status, role FROM users WHERE id = ?")
+			.bind(id)
+			.first<{ id: number; status: number; role: number }>();
+		if (!existing) {
+			return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
+		}
+		if (existing.status === -99) {
+			return errorResponse("ALREADY_PURGED", 409, undefined, origin);
+		}
+		if (existing.status !== -1) {
+			return errorResponse(
+				"INVALID_REQUEST",
+				400,
+				{ message: "User is not currently banned" },
+				origin,
+			);
+		}
+
+		await env.DB.prepare("UPDATE users SET status = 0 WHERE id = ?").bind(id).run();
+
+		await writeAdminLog(env, resolveActor(request), {
+			action: "user.unban",
+			targetType: "user",
+			targetId: id,
+			details: { previousStatus: existing.status },
+		});
+
+		return jsonResponse({ unbanned: true, id, previousStatus: existing.status }, origin);
 	},
 );
 
@@ -402,6 +472,16 @@ export const nuke = withEntityAuth(
 
 		// Invalidate volatile cache (massive counts change from content deletion)
 		await invalidateForumVolatile(env);
+
+		await writeAdminLog(env, resolveActor(request), {
+			action: "user.nuke",
+			targetType: "user",
+			targetId: id,
+			details: {
+				deletedThreads: result.threadsDeleted,
+				deletedPosts: result.postsDeleted,
+			},
+		});
 
 		return jsonResponse(
 			{
@@ -850,6 +930,21 @@ export const purge = withEntityAuth(
 			new Set([...pre.attachmentKeys, ...(target.avatar_path ? [target.avatar_path] : [])]),
 		);
 		const r2 = await purgeR2Cleanup(env, r2Keys);
+
+		await writeAdminLog(env, resolveActor(request), {
+			action: "user.purge",
+			targetType: "user",
+			targetId: id,
+			details: {
+				deletedThreads: pre.ownedThreads.length,
+				deletedPosts: pre.allDeletedPostIds.length,
+				deletedComments: pre.commentCount,
+				deletedAttachments: pre.attachmentCount,
+				deletedMessages: pre.messageCount,
+				r2DeletedCount: r2.deletedCount,
+				r2FailedCount: r2.failed.length,
+			},
+		});
 
 		return jsonResponse(
 			{

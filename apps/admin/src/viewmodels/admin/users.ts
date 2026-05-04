@@ -49,6 +49,12 @@ export interface BanResult {
 	deletedContent?: number;
 }
 
+export interface UnbanResult {
+	unbanned: boolean;
+	id: number;
+	previousStatus: number;
+}
+
 export interface NukeResult {
 	nuked: boolean;
 	deletedThreads: number;
@@ -148,6 +154,11 @@ export async function updateUser(id: number, data: UserUpdate): Promise<User> {
 
 export async function banUser(id: number, deleteContent?: boolean): Promise<BanResult> {
 	const res = await apiClient.post<BanResult>(`/api/admin/users/${id}/ban`, { deleteContent });
+	return res.data;
+}
+
+export async function unbanUser(id: number): Promise<UnbanResult> {
+	const res = await apiClient.post<UnbanResult>(`/api/admin/users/${id}/unban`);
 	return res.data;
 }
 

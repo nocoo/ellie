@@ -27,6 +27,7 @@ import {
 	purgeUser,
 	roleLabel,
 	statusLabel,
+	unbanUser,
 	updateUser,
 } from "@/viewmodels/admin/users";
 import { formatNumber } from "@ellie/shared";
@@ -123,7 +124,7 @@ export default function UserDetailPage() {
 		setUnbanLoading(true);
 		setPageMessage(null);
 		try {
-			await updateUser(user.id, { status: 0 });
+			await unbanUser(user.id);
 			await actions.reloadUser();
 			setPageMessage({ type: "success", text: `已解除封禁 ${user.username}` });
 		} catch (err) {
