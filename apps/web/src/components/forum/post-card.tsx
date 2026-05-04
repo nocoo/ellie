@@ -155,7 +155,6 @@ export function PostCard({
 					/>
 				</div>
 			</div>
-
 			{/* Mobile: compact single-column layout */}
 			<div className="md:hidden">
 				{/* Compact header row */}
@@ -218,7 +217,6 @@ export function PostCard({
 					comments={commentsSection}
 				/>
 			</div>
-
 			{/* Edit dialog */}
 			<PostEditDialog
 				open={state.editDialogOpen}
@@ -228,7 +226,6 @@ export function PostCard({
 				isOwnPost={isOwnPost}
 				canModerate={canModerate}
 			/>
-
 			{/* Delete confirmation dialog */}
 			<ConfirmDialog
 				open={state.deleteDialogOpen}
@@ -240,9 +237,13 @@ export function PostCard({
 				loading={state.deleting}
 				onConfirm={actions.handleDeleteConfirm}
 			/>
-
 			{/* Report dialog */}
-			<ReportDialog open={reportDialogOpen} onOpenChange={setReportDialogOpen} postId={post.id} />
+			<ReportDialog
+				open={reportDialogOpen}
+				onOpenChange={setReportDialogOpen}
+				targetType="post"
+				targetId={post.id}
+			/>
 		</div>
 	);
 }

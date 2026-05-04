@@ -17,6 +17,7 @@ import {
 	ApiError,
 	REPORT_REASONS,
 	type ReportReason,
+	type ReportTargetType,
 	checkReportPermission,
 	submitReport,
 } from "@/viewmodels/forum/report";
@@ -25,12 +26,70 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const CAP_API_ENDPOINT = process.env.NEXT_PUBLIC_CAP_API_ENDPOINT ?? "";
 
+// Type-aware copy. Keys correspond to ReportTargetType.
+const TYPE_COPY: Record<
+	ReportTargetType,
+	{
+		title: string;
+		permissionPassed: string;
+		duplicate: string;
+		cannotSelf: string;
+		notFound: string;
+	}
+> = {
+	thread: {
+		title: "举报主题",
+		permissionPassed: "您有权限举报此主题",
+		duplicate: "您已经举报过这个主题了",
+		cannotSelf: "不能举报自己的主题",
+		notFound: "主题不存在",
+	},
+	post: {
+		title: "举报回帖",
+		permissionPassed: "您有权限举报此回复",
+		duplicate: "您已经举报过这条回复了",
+		cannotSelf: "不能举报自己的回复",
+		notFound: "回复不存在",
+	},
+	user: {
+		title: "举报用户",
+		permissionPassed: "您有权限举报此用户",
+		duplicate: "您已经举报过这位用户了",
+		cannotSelf: "不能举报自己",
+		notFound: "用户不存在",
+	},
+};
+
 interface ReportDialogProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	postId: number;
+	/** New API: target type + id. */
+	targetType?: ReportTargetType;
+	targetId?: number;
+	/**
+	 * @deprecated Use {targetType: 'post', targetId} instead.
+	 * Kept for backwards-compat with existing post-card callers.
+	 */
+	postId?: number;
 	/** Called after successful report submission */
 	onSuccess?: () => void;
+}
+
+/** Map a submit error to a user-facing message using the active type-aware copy. */
+function mapSubmitError(err: unknown, copy: (typeof TYPE_COPY)[ReportTargetType]): string {
+	if (!(err instanceof ApiError)) {
+		return "网络错误，请重试";
+	}
+	switch (err.code) {
+		case "DUPLICATE_REPORT":
+			return copy.duplicate;
+		case "CANNOT_REPORT_SELF":
+			return copy.cannotSelf;
+		case "TARGET_NOT_FOUND":
+			return copy.notFound;
+		default:
+			return err.message || "提交失败，请重试";
+	}
 }
 
 type Step = "permission" | "captcha" | "reason";
@@ -42,7 +101,18 @@ interface StepState {
 	reason: ReportReason | null;
 }
 
-export function ReportDialog({ open, onOpenChange, postId, onSuccess }: ReportDialogProps) {
+export function ReportDialog({
+	open,
+	onOpenChange,
+	targetType,
+	targetId,
+	postId,
+	onSuccess,
+}: ReportDialogProps) {
+	// Resolve effective target — prefer new {targetType,targetId}, fall back to legacy postId.
+	const effectiveType: ReportTargetType = targetType ?? "post";
+	const effectiveId: number | undefined = targetId ?? postId;
+	const copy = TYPE_COPY[effectiveType];
 	const [step, setStep] = useState<StepState>({
 		permission: "pending",
 		captcha: CAP_API_ENDPOINT ? "pending" : "skipped",
@@ -134,12 +204,20 @@ export function ReportDialog({ open, onOpenChange, postId, onSuccess }: ReportDi
 
 	const handleSubmit = async () => {
 		if (!canSubmit || submitting) return;
+		if (effectiveId === undefined) {
+			setError("缺少举报对象");
+			return;
+		}
 
 		setSubmitting(true);
 		setError(null);
 
 		try {
-			await submitReport({ postId, reason: step.reason as ReportReason });
+			await submitReport({
+				targetType: effectiveType,
+				targetId: effectiveId,
+				reason: step.reason as ReportReason,
+			});
 			setSuccess(true);
 			onSuccess?.();
 			// Auto-close after showing success message
@@ -147,20 +225,7 @@ export function ReportDialog({ open, onOpenChange, postId, onSuccess }: ReportDi
 				onOpenChange(false);
 			}, 1500);
 		} catch (err) {
-			if (err instanceof ApiError) {
-				// Handle specific error codes (match Worker error codes)
-				if (err.code === "DUPLICATE_REPORT") {
-					setError("您已经举报过这条回复了");
-				} else if (err.code === "CANNOT_REPORT_SELF") {
-					setError("不能举报自己的回复");
-				} else if (err.code === "TARGET_NOT_FOUND") {
-					setError("回复不存在");
-				} else {
-					setError(err.message || "提交失败，请重试");
-				}
-			} else {
-				setError("网络错误，请重试");
-			}
+			setError(mapSubmitError(err, copy));
 		} finally {
 			setSubmitting(false);
 		}
@@ -189,7 +254,7 @@ export function ReportDialog({ open, onOpenChange, postId, onSuccess }: ReportDi
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
 						<Flag className="h-5 w-5 text-orange-500" />
-						举报内容
+						{copy.title}
 					</DialogTitle>
 					<DialogDescription>请完成以下步骤提交举报</DialogDescription>
 				</DialogHeader>
@@ -205,7 +270,9 @@ export function ReportDialog({ open, onOpenChange, postId, onSuccess }: ReportDi
 							<p className="text-sm text-muted-foreground pl-6">正在检查...</p>
 						)}
 						{step.permission === "passed" && (
-							<p className="text-sm text-green-600 dark:text-green-400 pl-6">您有权限举报此回复</p>
+							<p className="text-sm text-green-600 dark:text-green-400 pl-6">
+								{copy.permissionPassed}
+							</p>
 						)}
 						{step.permission === "failed" && (
 							<p className="text-sm text-destructive pl-6">{step.permissionError}</p>

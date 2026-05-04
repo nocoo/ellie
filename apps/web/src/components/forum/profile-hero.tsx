@@ -16,6 +16,7 @@ import { useState } from "react";
 import { ProfileEditDialog } from "./profile-edit-dialog";
 import { TrackedUserAvatar } from "./user-avatar";
 import { UserModActions } from "./user-mod-actions";
+import { UserReportButton } from "./user-report-button";
 
 interface ProfileHeroProps {
 	user: {
@@ -80,6 +81,12 @@ export function ProfileHero({ user }: ProfileHeroProps) {
 									<span className="hidden sm:inline">编辑资料</span>
 								</Button>
 							)}
+							{/* Report button (any logged-in non-owner). Worker still guards self-report. */}
+							<UserReportButton
+								userId={user.id}
+								isOwnProfile={isOwnProfile}
+								isLoggedIn={Boolean(session?.user)}
+							/>
 							{/* Mod actions (Admin/SuperMod only, not own profile) */}
 							<UserModActions
 								userId={user.id}
