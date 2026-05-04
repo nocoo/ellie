@@ -215,6 +215,23 @@ const FORUM_VOLATILE_TTL = 60;
 
 // ─── Validation ─────────────────────────────────────────────────────
 
+/** Validate a single volatile entry has all required fields. */
+function isValidVolatileEntry(entry: unknown): boolean {
+	if (typeof entry !== "object" || entry === null) return false;
+	const e = entry as Record<string, unknown>;
+	return (
+		typeof e.lastThreadId === "number" &&
+		typeof e.lastThreadSubject === "string" &&
+		typeof e.lastPostAt === "number" &&
+		typeof e.lastPosterId === "number" &&
+		typeof e.lastPoster === "string" &&
+		typeof e.todayThreads === "number" &&
+		typeof e.threads === "number" &&
+		typeof e.posts === "number"
+	);
+}
+
+/** Full shape check for cached volatile payload — rejects corrupt / schema-mismatched data. */
 function isValidVolatilePayload(cached: CachedForumVolatile): boolean {
 	if (
 		typeof cached.entries !== "object" ||
@@ -223,16 +240,9 @@ function isValidVolatilePayload(cached: CachedForumVolatile): boolean {
 	) {
 		return false;
 	}
-	// Spot-check first entry (if any) has required numeric fields
-	const keys = Object.keys(cached.entries);
-	if (keys.length === 0) return true;
-	const first = cached.entries[Number(keys[0])];
-	return (
-		first !== undefined &&
-		typeof first.lastThreadId === "number" &&
-		typeof first.lastPostAt === "number" &&
-		typeof first.threads === "number"
-	);
+	const values = Object.values(cached.entries);
+	if (values.length === 0) return true;
+	return values.every(isValidVolatileEntry);
 }
 
 // ─── Read-through cache ─────────────────────────────────────────────

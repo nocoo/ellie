@@ -10,6 +10,7 @@ import {
 	createUpdateHandler,
 } from "../../lib/crud";
 import type { Env } from "../../lib/env";
+import { invalidateForumVolatile } from "../../lib/forum-cache";
 import { toThread } from "../../lib/mappers";
 import { parseIdFromPath } from "../../lib/parseId";
 import { recalcForumMetadata } from "../../lib/recalcMetadata";
@@ -135,6 +136,7 @@ const threadConfig: EntityConfig = {
 			// Recalc metadata for both old and new forums
 			await recalcForumMetadata(env, oldForumId);
 			await recalcForumMetadata(env, newForumId);
+			await invalidateForumVolatile(env);
 		}
 	},
 
@@ -177,10 +179,9 @@ const threadConfig: EntityConfig = {
 
 		// Recalc forum metadata after thread deletion
 		await recalcForumMetadata(env, forumId);
+		await invalidateForumVolatile(env);
 	},
-};
-
-// ─── CRUD handlers ───────────────────────────────────────────────
+}; // ─── CRUD handlers ───────────────────────────────────────────────
 
 /** #25 GET /api/admin/threads — List threads with filters */
 export const list = withEntityAuth(threadConfig, createListHandler(threadConfig));
@@ -246,6 +247,7 @@ export const remove = withEntityAuth(
 
 		// Recalc forum metadata after thread deletion
 		await recalcForumMetadata(env, threadRow.forum_id);
+		await invalidateForumVolatile(env);
 
 		return jsonResponse({ deleted: true, id, postsDeleted }, origin);
 	},
@@ -395,6 +397,7 @@ export const batchMove = withEntityAuth(
 			await recalcForumMetadata(env, forumId);
 		}
 		await recalcForumMetadata(env, targetForumId);
+		await invalidateForumVolatile(env);
 
 		return jsonResponse({ moved: true, count: movable.length, forumId: targetForumId }, origin);
 	},
