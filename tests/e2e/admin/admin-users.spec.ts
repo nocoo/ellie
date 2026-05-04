@@ -341,6 +341,219 @@ test.describe("Admin users CRUD", () => {
 		}
 	});
 
+	test("purge dialog confirm button stays disabled until username typed", async ({
+		context,
+		page,
+		loginAsAdmin,
+		baseURL,
+	}) => {
+		// D4-d typed-confirm guard. No backend call here — the
+		// AdminConfirmDialog disables 彻底清除 until the input matches the
+		// current username. We use seed admin (id=1, username "admin",
+		// role>0 staff) so we don't even need to snapshot/restore.
+		const origin = baseURL ?? "http://localhost:7032";
+		await loginAsAdmin();
+
+		// Resolve current username from API (avoid hard-coding "admin").
+		let username: string;
+		{
+			const res = await context.request.get("/api/admin/users/1", {
+				headers: { Origin: origin },
+			});
+			expect(res.ok()).toBeTruthy();
+			username = ((await res.json()) as UserResponse).data.username;
+		}
+
+		await page.goto("/admin/users/1");
+		await expect(page.getByRole("heading", { name: username })).toBeVisible();
+
+		await page.getByTestId("purge-user-button").click();
+		const purgeDialog = page.getByRole("dialog", { name: "彻底清除用户" });
+		await expect(purgeDialog).toBeVisible();
+
+		const confirmBtn = purgeDialog.getByRole("button", { name: "彻底清除" });
+		await expect(confirmBtn).toBeDisabled();
+
+		// Wrong input keeps it disabled.
+		const input = purgeDialog.getByPlaceholder("输入用户名以确认");
+		await input.fill("not-the-username");
+		await expect(confirmBtn).toBeDisabled();
+
+		// Correct input enables it.
+		await input.fill(username);
+		await expect(confirmBtn).toBeEnabled();
+
+		await purgeDialog.getByRole("button", { name: "取消" }).click();
+		await expect(purgeDialog).toBeHidden();
+	});
+
+	test("purge of staff user surfaces CANNOT_PURGE_STAFF inline", async ({
+		context,
+		page,
+		loginAsAdmin,
+		baseURL,
+	}) => {
+		// D4-d real-Worker failure path. Seed admin id=1 has role>0 so the
+		// Worker rejects with 403 CANNOT_PURGE_STAFF. The UI must surface
+		// the error in the dialog and keep the dialog open. No mutation
+		// hits the DB on this path, so no afterEach restore is needed.
+		const origin = baseURL ?? "http://localhost:7032";
+		await loginAsAdmin();
+
+		let username: string;
+		let role: number;
+		{
+			const res = await context.request.get("/api/admin/users/1", {
+				headers: { Origin: origin },
+			});
+			expect(res.ok()).toBeTruthy();
+			const u = ((await res.json()) as UserResponse).data;
+			username = u.username;
+			role = u.role;
+		}
+		expect(role, "seed user id=1 must be staff (role>0) for this test").toBeGreaterThan(0);
+
+		await page.goto("/admin/users/1");
+		await expect(page.getByRole("heading", { name: username })).toBeVisible();
+
+		await page.getByTestId("purge-user-button").click();
+		const purgeDialog = page.getByRole("dialog", { name: "彻底清除用户" });
+		await expect(purgeDialog).toBeVisible();
+
+		await purgeDialog.getByPlaceholder("输入用户名以确认").fill(username);
+		await purgeDialog.getByRole("button", { name: "彻底清除" }).click();
+
+		// Error surfaces inside the dialog; dialog stays open.
+		const errorBanner = purgeDialog.getByRole("alert");
+		await expect(errorBanner).toBeVisible();
+		await expect(errorBanner).toContainText(/CANNOT_PURGE_STAFF|不能.*管理|无法.*清除/);
+		await expect(purgeDialog).toBeVisible();
+
+		// User row in DB unchanged.
+		{
+			const res = await context.request.get("/api/admin/users/1", {
+				headers: { Origin: origin },
+			});
+			expect(res.ok()).toBeTruthy();
+			const after = ((await res.json()) as UserResponse).data;
+			expect(after.status).not.toBe(-99);
+			expect(after.username).toBe(username);
+		}
+
+		await purgeDialog.getByRole("button", { name: "取消" }).click();
+	});
+
+	test("purge success flow shows banner with detail counts (mocked)", async ({
+		page,
+		loginAsAdmin,
+	}) => {
+		// D4-d success path. We mock both POST /purge AND the GET reload so
+		// the page transitions to the tombstone view without touching the
+		// real DB. testuser id=3 is regular role=0; mock returns a typical
+		// PurgeResult payload.
+		await loginAsAdmin();
+
+		// Mock the GET /api/admin/users/3 endpoint — first call returns
+		// the live row (so the page can render), subsequent calls (the
+		// reload after purge) return the tombstone row.
+		const liveUser = {
+			id: 3,
+			username: "testuser",
+			email: "test@example.com",
+			avatar: "",
+			credits: 0,
+			status: 0,
+			role: 0,
+			threads: 0,
+			posts: 0,
+			regDate: 0,
+			lastLogin: 0,
+			regIp: "",
+			lastIp: "",
+		};
+		const tombstoneUser = {
+			...liveUser,
+			username: "[deleted]",
+			email: "",
+			status: -99,
+			purgedAt: Math.floor(Date.now() / 1000),
+			purgedBy: 1,
+		};
+		let getCalls = 0;
+		await page.route("**/api/admin/users/3", async (route) => {
+			if (route.request().method() !== "GET") return route.fallback();
+			getCalls += 1;
+			const body = getCalls === 1 ? liveUser : tombstoneUser;
+			await route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify({
+					data: body,
+					meta: { timestamp: Date.now(), requestId: "mock" },
+				}),
+			});
+		});
+
+		// Stub threads/posts list endpoints (filtered by authorId) so the
+		// detail tabs don't hit the real backend.
+		await page.route(/\/api\/admin\/(threads|posts)\?/, async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify({
+					data: [],
+					meta: {
+						timestamp: Date.now(),
+						requestId: "mock",
+						total: 0,
+						page: 1,
+						limit: 20,
+						pages: 0,
+					},
+				}),
+			});
+		});
+
+		// Mock the POST /purge endpoint.
+		await page.route("**/api/admin/users/3/purge", async (route) => {
+			if (route.request().method() !== "POST") return route.fallback();
+			await route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify({
+					data: {
+						purged: true,
+						id: 3,
+						deleted: { threads: 2, posts: 5, comments: 3, attachments: 1, messages: 4 },
+						audit: { actorEmail: "admin@example.com", actorName: "admin" },
+						r2: { deletedCount: 1, failed: [] },
+					},
+					meta: { timestamp: Date.now(), requestId: "mock" },
+				}),
+			});
+		});
+
+		await page.goto("/admin/users/3");
+		await expect(page.getByRole("heading", { name: "testuser" })).toBeVisible();
+
+		await page.getByTestId("purge-user-button").click();
+		const purgeDialog = page.getByRole("dialog", { name: "彻底清除用户" });
+		await expect(purgeDialog).toBeVisible();
+		await purgeDialog.getByPlaceholder("输入用户名以确认").fill("testuser");
+		await purgeDialog.getByRole("button", { name: "彻底清除" }).click();
+
+		// Dialog closes, success banner with detail counts appears.
+		await expect(purgeDialog).toBeHidden();
+		await expect(page.getByText(/已彻底清除该用户/)).toBeVisible();
+		await expect(page.getByText(/主题 2 · 帖子 5 · 点评 3 · 附件 1 · 私信 4/)).toBeVisible();
+
+		// After reload, the tombstone-status short-circuit kicks in: the
+		// edit/ban/purge buttons disappear and the page shows the muted
+		// "此用户已被彻底清除" notice.
+		await expect(page.getByText("此用户已被彻底清除，无法再编辑或封禁。")).toBeVisible();
+		await expect(page.getByTestId("purge-user-button")).toHaveCount(0);
+	});
+
 	test("detail page 查询注册 IP navigates to filtered list with banner", async ({
 		context,
 		page,

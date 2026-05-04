@@ -20,9 +20,11 @@ import type { Post } from "@/viewmodels/admin/posts";
 import type { Thread } from "@/viewmodels/admin/threads";
 import { useUserDetail } from "@/viewmodels/admin/use-user-detail";
 import {
+	type PurgeResult,
 	type User,
 	type UserUpdate,
 	banUser,
+	purgeUser,
 	roleLabel,
 	statusLabel,
 	updateUser,
@@ -32,7 +34,7 @@ import { Badge } from "@ellie/ui";
 import { Button } from "@ellie/ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@ellie/ui";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ellie/ui";
-import { ArrowLeft, Loader2, Pencil, Shield, ShieldOff } from "lucide-react";
+import { ArrowLeft, Loader2, Pencil, Shield, ShieldOff, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -84,6 +86,15 @@ export default function UserDetailPage() {
 	const [banDialogOpen, setBanDialogOpen] = useState(false);
 	const [banLoading, setBanLoading] = useState(false);
 	const [banError, setBanError] = useState<string | null>(null);
+
+	// D4-d: typed-confirm purge dialog. Worker enforces all guards
+	// (CONFIRM_MISMATCH / CANNOT_PURGE_STAFF / ALREADY_PURGED); UI just
+	// surfaces the error in the dialog. Allow opening for staff so the
+	// 403 path is reachable from this single source of truth.
+	const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
+	const [purgeLoading, setPurgeLoading] = useState(false);
+	const [purgeError, setPurgeError] = useState<string | null>(null);
+
 	const [pageMessage, setPageMessage] = useState<{
 		type: "success" | "error";
 		text: string;
@@ -137,6 +148,35 @@ export default function UserDetailPage() {
 			setBanError(extractErrorMessage(err, "封禁用户失败"));
 		} finally {
 			setBanLoading(false);
+		}
+	};
+
+	const handlePurgeConfirm = async (user: User) => {
+		setPurgeLoading(true);
+		setPurgeError(null);
+		try {
+			const result: PurgeResult = await purgeUser(user.id, user.username);
+			setPurgeDialogOpen(false);
+			// Reload moves the page to its tombstone view (status === -99 short
+			// circuit). If the reload itself fails, keep the success banner
+			// visible so the operator knows the purge succeeded.
+			try {
+				await actions.reloadUser();
+			} catch {
+				// swallow — the success message stays; operator can navigate back
+			}
+			const { deleted, r2 } = result;
+			const detail = `主题 ${deleted.threads} · 帖子 ${deleted.posts} · 点评 ${deleted.comments} · 附件 ${deleted.attachments} · 私信 ${deleted.messages}${
+				r2.failed.length > 0 ? ` · R2 失败 ${r2.failed.length}` : ""
+			}`;
+			setPageMessage({
+				type: "success",
+				text: `已彻底清除该用户（${detail}）`,
+			});
+		} catch (err) {
+			setPurgeError(extractErrorMessage(err, "彻底清除失败"));
+		} finally {
+			setPurgeLoading(false);
 		}
 	};
 
@@ -348,6 +388,18 @@ export default function UserDetailPage() {
 										{unbanLoading ? "解除中..." : "解除封禁"}
 									</Button>
 								)}
+								<Button
+									variant="destructive"
+									size="sm"
+									onClick={() => {
+										setPurgeError(null);
+										setPurgeDialogOpen(true);
+									}}
+									data-testid="purge-user-button"
+								>
+									<Trash2 className="mr-1 h-4 w-4" />
+									彻底清除
+								</Button>
 							</>
 						)}
 					</div>
@@ -378,6 +430,23 @@ export default function UserDetailPage() {
 				loading={banLoading}
 				error={banError}
 				onConfirm={() => handleBanConfirm(user)}
+			/>
+
+			<AdminConfirmDialog
+				open={purgeDialogOpen}
+				onOpenChange={(open) => {
+					setPurgeDialogOpen(open);
+					if (!open) setPurgeError(null);
+				}}
+				title="彻底清除用户"
+				description={`将删除 ${user.username} 的全部主题、帖子、点评、附件、私信，并清空 R2 文件并写入 tombstone。此操作不可恢复。`}
+				requireInput={user.username}
+				inputPlaceholder="输入用户名以确认"
+				variant="destructive"
+				confirmLabel="彻底清除"
+				loading={purgeLoading}
+				error={purgeError}
+				onConfirm={() => handlePurgeConfirm(user)}
 			/>
 		</div>
 	);

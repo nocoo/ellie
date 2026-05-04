@@ -55,6 +55,27 @@ export interface NukeResult {
 	deletedPosts: number;
 }
 
+export interface PurgeDeletedCounts {
+	threads: number;
+	posts: number;
+	comments: number;
+	attachments: number;
+	messages: number;
+}
+
+export interface PurgeR2Failure {
+	key: string;
+	error: string;
+}
+
+export interface PurgeResult {
+	purged: true;
+	id: number;
+	deleted: PurgeDeletedCounts;
+	audit: { actorEmail: string; actorName: string };
+	r2: { deletedCount: number; failed: PurgeR2Failure[] };
+}
+
 export interface BatchResult {
 	affected: number;
 }
@@ -132,6 +153,22 @@ export async function banUser(id: number, deleteContent?: boolean): Promise<BanR
 
 export async function nukeUser(id: number): Promise<NukeResult> {
 	const res = await apiClient.post<NukeResult>(`/api/admin/users/${id}/nuke`);
+	return res.data;
+}
+
+/**
+ * D4-d: Irreversible content cleanup + tombstone + R2 purge.
+ *
+ * Caller must pass the current `username` value as `confirmUsername`; the
+ * Worker rejects with `CONFIRM_MISMATCH` otherwise. Staff users (role > 0)
+ * are rejected with `CANNOT_PURGE_STAFF`. Already-purged users are
+ * rejected with `ALREADY_PURGED`. UI surfaces these via the dialog
+ * inline error.
+ */
+export async function purgeUser(id: number, confirmUsername: string): Promise<PurgeResult> {
+	const res = await apiClient.post<PurgeResult>(`/api/admin/users/${id}/purge`, {
+		confirmUsername,
+	});
 	return res.data;
 }
 
