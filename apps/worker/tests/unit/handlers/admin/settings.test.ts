@@ -387,4 +387,84 @@ describe("admin settings handler", () => {
 			expect(error.code).toBe("INVALID_BODY");
 		});
 	});
+
+	// ─── F3-c: audit instrumentation ─────────────────────────────────
+
+	describe("F3-c audit instrumentation", () => {
+		// settings tests use a custom slim mock; for audit we need a richer mock
+		// that exposes per-prepare SQL/params (so we can find the admin_logs INSERT).
+
+		function makeAuditingDb(priorRows: typeof SAMPLE_ROWS) {
+			const calls: { sql: string; params: unknown[] }[] = [];
+			const db = {
+				prepare: vi.fn((sql: string) => ({
+					all: vi.fn(async () => ({ results: priorRows })),
+					bind: vi.fn((...params: unknown[]) => {
+						calls.push({ sql, params });
+						return {
+							run: vi.fn(async () => ({ success: true })),
+							first: vi.fn(async () => null),
+							all: vi.fn(async () => ({ results: [] })),
+						};
+					}),
+				})),
+				batch: vi.fn(async (stmts: unknown[]) => stmts.map(() => ({ success: true, results: [] }))),
+			} as unknown as D1Database;
+			return { db, calls };
+		}
+
+		function findAuditInsert(calls: { sql: string; params: unknown[] }[]) {
+			return calls.find((c) => c.sql.includes("INSERT INTO admin_logs"));
+		}
+
+		function actorReq(method: string, path: string, body?: unknown): Request {
+			return new Request(`https://api.example.com${path}`, {
+				method,
+				headers: {
+					"X-API-Key": "test-admin-api-key",
+					"Content-Type": "application/json",
+					"X-Admin-Actor-Email": "alice@example.com",
+					"X-Admin-Actor-Name": "Alice",
+				},
+				...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+			});
+		}
+
+		it("PUT writes setting.update with changedKeys + before/after for non-sensitive keys", async () => {
+			const { db, calls } = makeAuditingDb(SAMPLE_ROWS);
+			const env = makeEnv({ DB: db, KV: makeKv() });
+			const res = await bulkUpdate(
+				actorReq("PUT", "/api/admin/settings", { "general.site.name": "Renamed" }),
+				env,
+			);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			expect(insert?.params[2]).toBe("setting.update");
+			expect(insert?.params[3]).toBe("setting");
+			expect(insert?.params[4]).toBeNull();
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.changedKeys).toEqual(["general.site.name"]);
+			expect(details.before["general.site.name"]).toBe("Ellie");
+			expect(details.after["general.site.name"]).toBe("Renamed");
+		});
+
+		it("PUT no-op (same value) does NOT write audit row", async () => {
+			const { db, calls } = makeAuditingDb(SAMPLE_ROWS);
+			const env = makeEnv({ DB: db, KV: makeKv() });
+			const res = await bulkUpdate(
+				actorReq("PUT", "/api/admin/settings", { "general.site.name": "Ellie" }),
+				env,
+			);
+			expect(res.status).toBe(200);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+
+		// Note: sensitive-key redaction (password/secret/token/auth/etc. substrings)
+		// is defense-in-depth for future ALLOWED_KEYS additions. None of the
+		// currently whitelisted keys contain any sensitive substring, so it
+		// cannot be exercised end-to-end through bulkUpdate without expanding
+		// the whitelist. The classifier's unit-level coverage lives alongside
+		// the handler if/when a sensitive key is added to ALLOWED_KEYS.
+	});
 });

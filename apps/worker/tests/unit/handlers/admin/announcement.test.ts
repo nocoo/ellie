@@ -416,4 +416,186 @@ describe("admin announcement handlers", () => {
 			expect(response.status).toBe(200);
 		});
 	});
+
+	// ─── F3-c: audit instrumentation ─────────────────────────────────
+
+	describe("F3-c audit instrumentation", () => {
+		function actorReq(method: string, path: string, body?: unknown): Request {
+			return new Request(`https://api.example.com${path}`, {
+				method,
+				headers: {
+					"X-API-Key": "test-api-key",
+					"Content-Type": "application/json",
+					"X-Admin-Actor-Email": "alice@example.com",
+					"X-Admin-Actor-Name": "Alice",
+				},
+				...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+			});
+		}
+
+		function findAuditInsert(calls: { sql: string; params: unknown[] }[]) {
+			return calls.find((c) => c.sql.includes("INSERT INTO admin_logs"));
+		}
+
+		function makeAnnRow(overrides?: Record<string, unknown>) {
+			return {
+				id: 1,
+				title: "Welcome",
+				content: "Hello everyone",
+				forum_ids: "",
+				sticky: 0,
+				start_at: null,
+				end_at: null,
+				status: 1,
+				author_id: 0,
+				author_name: "",
+				created_at: 1711540800,
+				updated_at: 1711540800,
+				...overrides,
+			};
+		}
+
+		it("POST writes announcement.create with title/body length-only — never raw text", async () => {
+			const row = makeAnnRow({ id: 99 });
+			const { db, calls } = createMockDb({
+				firstResults: { SELECT: row },
+				runResults: { "INSERT INTO announcements": { meta: { last_row_id: 99 } } },
+			});
+			const env = makeEnv({ DB: db });
+			const titleText = "Important announcement!";
+			const bodyText = "This is the announcement body — please read carefully.";
+			const res = await announcement.create(
+				actorReq("POST", "/api/admin/announcements", {
+					title: titleText,
+					content: bodyText,
+					sticky: 1,
+					status: 1,
+				}),
+				env,
+			);
+			expect(res.status).toBe(201);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			expect(insert?.params[2]).toBe("announcement.create");
+			expect(insert?.params[3]).toBe("announcement");
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.titleLength).toBe(titleText.length);
+			expect(details.bodyLength).toBe(bodyText.length);
+			// Raw title/content MUST NOT leak.
+			const serialized = JSON.stringify(details);
+			expect(serialized).not.toContain(titleText);
+			expect(serialized).not.toContain(bodyText);
+		});
+
+		it("PATCH writes announcement.update with title/body length-only diff", async () => {
+			const existing = makeAnnRow({ id: 5, title: "Old", content: "old body" });
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM announcements WHERE id": existing,
+					SELECT: existing,
+				},
+			});
+			const env = makeEnv({ DB: db });
+			const newTitle = "Brand new title";
+			const newBody = "Brand new body content here";
+			const res = await announcement.update(
+				actorReq("PATCH", "/api/admin/announcements/5", {
+					title: newTitle,
+					content: newBody,
+					sticky: 1,
+				}),
+				env,
+			);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			expect(insert?.params[2]).toBe("announcement.update");
+			expect(insert?.params[4]).toBe(5);
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.changedFields).toEqual(expect.arrayContaining(["title", "content", "sticky"]));
+			expect(details.titleLengthBefore).toBe("Old".length);
+			expect(details.titleLengthAfter).toBe(newTitle.length);
+			expect(details.bodyLengthBefore).toBe("old body".length);
+			expect(details.bodyLengthAfter).toBe(newBody.length);
+			expect(details.before.sticky).toBe(0);
+			expect(details.after.sticky).toBe(1);
+			// Title/content text never leaks.
+			const serialized = JSON.stringify(details);
+			expect(serialized).not.toContain(newTitle);
+			expect(serialized).not.toContain(newBody);
+			expect(serialized).not.toContain("old body");
+		});
+
+		it("PATCH no-op (same values) does NOT write audit row", async () => {
+			const existing = makeAnnRow({ id: 5, title: "Same", sticky: 1 });
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM announcements WHERE id": existing,
+					SELECT: existing,
+				},
+			});
+			const env = makeEnv({ DB: db });
+			const res = await announcement.update(
+				actorReq("PATCH", "/api/admin/announcements/5", { title: "Same", sticky: 1 }),
+				env,
+			);
+			expect(res.status).toBe(200);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+
+		it("DELETE writes announcement.delete with length-only details", async () => {
+			const titleText = "Removed Title";
+			const bodyText = "Removed body content";
+			const existing = makeAnnRow({ id: 7, title: titleText, content: bodyText });
+			const { db, calls } = createMockDb({
+				firstResults: { "SELECT * FROM announcements WHERE id": existing },
+			});
+			const env = makeEnv({ DB: db });
+			const res = await announcement.remove(actorReq("DELETE", "/api/admin/announcements/7"), env);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert?.params[2]).toBe("announcement.delete");
+			expect(insert?.params[4]).toBe(7);
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.titleLength).toBe(titleText.length);
+			expect(details.bodyLength).toBe(bodyText.length);
+			const serialized = JSON.stringify(details);
+			expect(serialized).not.toContain(titleText);
+			expect(serialized).not.toContain(bodyText);
+		});
+
+		it("batch-delete writes announcement.batch_delete only when existing > 0", async () => {
+			const { db, calls } = createMockDb({
+				allResults: {
+					"SELECT id FROM announcements WHERE id IN": [{ id: 1 }, { id: 2 }],
+				},
+				firstResults: { "SELECT * FROM announcements WHERE id": makeAnnRow() },
+			});
+			const env = makeEnv({ DB: db });
+			const res = await announcement.batchDelete(
+				actorReq("POST", "/api/admin/announcements/batch-delete", { ids: [1, 2] }),
+				env,
+			);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert?.params[2]).toBe("announcement.batch_delete");
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.ids).toEqual([1, 2]);
+			expect(details.count).toBe(2);
+		});
+
+		it("batch-delete with no existing rows does NOT write audit row", async () => {
+			const { db, calls } = createMockDb({
+				allResults: { "SELECT id FROM announcements WHERE id IN": [] },
+				firstResults: { "SELECT * FROM announcements WHERE id": makeAnnRow() },
+			});
+			const env = makeEnv({ DB: db });
+			const res = await announcement.batchDelete(
+				actorReq("POST", "/api/admin/announcements/batch-delete", { ids: [999] }),
+				env,
+			);
+			expect(res.status).toBe(200);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+	});
 });

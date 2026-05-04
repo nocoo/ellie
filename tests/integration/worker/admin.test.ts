@@ -948,4 +948,95 @@ describe("L2: Worker Admin API", () => {
 			expect(res.status).toBe(400);
 		});
 	});
+
+	// ─── F3-c: ip_ban audit lifecycle ──────────────────────────────
+	// Same poll pattern as F3-a/F3-b. We use ip_ban for the create→delete
+	// chain because the handler auto-fills required schema fields
+	// (admin_id/admin_name/created_at), it has no foreign-key dependencies,
+	// and IP plaintext is allowed in audit details per the F3-c spec.
+
+	describe("F3-c audit lifecycle (ip_ban create + delete)", () => {
+		test("ip_ban.create then ip_ban.delete each surface in admin-logs", async () => {
+			// Use a unique non-loopback IP so the self-ban check
+			// (CF-Connecting-IP match) cannot interfere across reruns.
+			const lastOctet = (Date.now() % 250) + 2;
+			const uniqueIp = `198.51.100.${lastOctet}`;
+
+			const beforeCreateRes = await adminGet("/api/admin/admin-logs?action=ip_ban.create&limit=1");
+			expect(beforeCreateRes.status).toBe(200);
+			const beforeCreate = (await beforeCreateRes.json()) as {
+				data: Array<{ id: number }>;
+			};
+			const beforeCreateTopId = beforeCreate.data[0]?.id ?? 0;
+
+			const beforeDeleteRes = await adminGet("/api/admin/admin-logs?action=ip_ban.delete&limit=1");
+			expect(beforeDeleteRes.status).toBe(200);
+			const beforeDelete = (await beforeDeleteRes.json()) as {
+				data: Array<{ id: number }>;
+			};
+			const beforeDeleteTopId = beforeDelete.data[0]?.id ?? 0;
+
+			// 1. Create
+			const createRes = await adminPost("/api/admin/ip-bans", {
+				ip: uniqueIp,
+				reason: "F3-c L2 audit chain test",
+			});
+			expect(createRes.status).toBe(201);
+			const created = (await createRes.json()) as { data: { id: number } };
+			const newId = created.data.id;
+
+			try {
+				// 2. Poll for create audit row.
+				let createHit:
+					| { id: number; action: string; targetId: number | null; targetType: string }
+					| undefined;
+				for (let i = 0; i < 5 && !createHit; i++) {
+					const res = await adminGet("/api/admin/admin-logs?action=ip_ban.create&limit=10");
+					expect(res.status).toBe(200);
+					const body = (await res.json()) as {
+						data: Array<{
+							id: number;
+							action: string;
+							targetId: number | null;
+							targetType: string;
+						}>;
+					};
+					createHit = body.data.find((row) => row.id > beforeCreateTopId && row.targetId === newId);
+					if (!createHit) await new Promise((r) => setTimeout(r, 100));
+				}
+				expect(createHit).toBeDefined();
+				expect(createHit?.action).toBe("ip_ban.create");
+				expect(createHit?.targetType).toBe("ip_ban");
+				expect(createHit?.targetId).toBe(newId);
+			} finally {
+				// 3. Delete (cleanup) — runs regardless of poll outcome
+				// so the fixture state is always restored for subsequent runs.
+				const delRes = await adminDelete(`/api/admin/ip-bans/${newId}`);
+				expect(delRes.status).toBe(200);
+			}
+
+			// 4. Poll for delete audit row.
+			let deleteHit:
+				| { id: number; action: string; targetId: number | null; targetType: string }
+				| undefined;
+			for (let i = 0; i < 5 && !deleteHit; i++) {
+				const res = await adminGet("/api/admin/admin-logs?action=ip_ban.delete&limit=10");
+				expect(res.status).toBe(200);
+				const body = (await res.json()) as {
+					data: Array<{
+						id: number;
+						action: string;
+						targetId: number | null;
+						targetType: string;
+					}>;
+				};
+				deleteHit = body.data.find((row) => row.id > beforeDeleteTopId && row.targetId === newId);
+				if (!deleteHit) await new Promise((r) => setTimeout(r, 100));
+			}
+			expect(deleteHit).toBeDefined();
+			expect(deleteHit?.action).toBe("ip_ban.delete");
+			expect(deleteHit?.targetType).toBe("ip_ban");
+			expect(deleteHit?.targetId).toBe(newId);
+		});
+	});
 });

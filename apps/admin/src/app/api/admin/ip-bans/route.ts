@@ -1,4 +1,4 @@
-import { adminApi, createProxyHandler, passthrough } from "@/lib/admin-proxy";
+import { adminApi, adminApiAs, createProxyHandler, passthrough } from "@/lib/admin-proxy";
 
 export const GET = createProxyHandler(async (request) => {
 	const url = new URL(request.url);
@@ -6,8 +6,9 @@ export const GET = createProxyHandler(async (request) => {
 	return passthrough(res);
 });
 
-export const POST = createProxyHandler(async (request) => {
+export const POST = createProxyHandler(async (request, admin) => {
 	const body = await request.json();
-	const res = await adminApi.raw("POST", "/api/admin/ip-bans", body);
+	const api = adminApiAs(admin);
+	const res = await api.raw("POST", "/api/admin/ip-bans", body);
 	return passthrough(res);
 });

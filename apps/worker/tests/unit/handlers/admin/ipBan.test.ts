@@ -531,4 +531,145 @@ describe("admin ipBan handlers", () => {
 			expect(error.code).toBe("INVALID_REQUEST");
 		});
 	});
+
+	// ─── F3-c: audit instrumentation ─────────────────────────────────
+
+	describe("F3-c audit instrumentation", () => {
+		function actorReq(method: string, path: string, body?: unknown): Request {
+			return new Request(`https://api.example.com${path}`, {
+				method,
+				headers: {
+					"X-API-Key": "test-api-key",
+					"Content-Type": "application/json",
+					"X-Admin-Actor-Email": "alice@example.com",
+					"X-Admin-Actor-Name": "Alice",
+					"CF-Connecting-IP": "5.6.7.8",
+				},
+				...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+			});
+		}
+
+		function findAuditInsert(calls: { sql: string; params: unknown[] }[]) {
+			return calls.find((c) => c.sql.includes("INSERT INTO admin_logs"));
+		}
+
+		it("POST writes ip_ban.create with plaintext ip/reason/expiresAt", async () => {
+			const row = makeIpBanRow({ id: 42, ip: "192.0.2.10" });
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT id FROM ip_bans WHERE ip": null,
+					"SELECT id, ip, admin_id": row,
+				},
+			});
+			const env = makeEnv({ DB: db });
+			const res = await create(
+				actorReq("POST", "/api/admin/ip-bans", {
+					ip: "192.0.2.10",
+					reason: "abuse",
+					expiresAt: 1900000000,
+				}),
+				env,
+			);
+			expect(res.status).toBe(201);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			expect(insert?.params[2]).toBe("ip_ban.create");
+			expect(insert?.params[3]).toBe("ip_ban");
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.ip).toBe("192.0.2.10");
+			expect(details.reason).toBe("abuse");
+			expect(details.expiresAt).toBe(1900000000);
+		});
+
+		it("PATCH writes ip_ban.update with reason diff and ip context", async () => {
+			const existing = makeIpBanRow({ id: 3, ip: "10.0.0.1", reason: "old" });
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM ip_bans WHERE id": existing,
+					"SELECT id, ip, admin_id": existing,
+				},
+			});
+			const env = makeEnv({ DB: db });
+			const res = await update(actorReq("PATCH", "/api/admin/ip-bans/3", { reason: "new" }), env);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			expect(insert?.params[2]).toBe("ip_ban.update");
+			expect(insert?.params[4]).toBe(3);
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.ip).toBe("10.0.0.1");
+			expect(details.changedFields).toEqual(["reason"]);
+			expect(details.before.reason).toBe("old");
+			expect(details.after.reason).toBe("new");
+		});
+
+		it("PATCH no-op (same reason) does NOT write audit row", async () => {
+			const existing = makeIpBanRow({ id: 3, reason: "same" });
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM ip_bans WHERE id": existing,
+					"SELECT id, ip, admin_id": existing,
+				},
+			});
+			const env = makeEnv({ DB: db });
+			const res = await update(actorReq("PATCH", "/api/admin/ip-bans/3", { reason: "same" }), env);
+			expect(res.status).toBe(200);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+
+		it("DELETE writes ip_ban.delete with snapshot", async () => {
+			const existing = makeIpBanRow({ id: 7, ip: "10.0.0.7", reason: "spam" });
+			const { db, calls } = createMockDb({
+				firstResults: { "SELECT * FROM ip_bans WHERE id": existing },
+			});
+			const env = makeEnv({ DB: db });
+			const res = await remove(actorReq("DELETE", "/api/admin/ip-bans/7"), env);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert?.params[2]).toBe("ip_ban.delete");
+			expect(insert?.params[4]).toBe(7);
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.ip).toBe("10.0.0.7");
+			expect(details.reason).toBe("spam");
+		});
+
+		it("batch-delete writes ip_ban.batch_delete only when existing > 0", async () => {
+			const { db, calls } = createMockDb({
+				allResults: {
+					"SELECT id, ip FROM ip_bans WHERE id IN": [
+						{ id: 1, ip: "10.0.0.1" },
+						{ id: 2, ip: "10.0.0.2" },
+					],
+				},
+				firstResults: { "SELECT * FROM ip_bans WHERE id": makeIpBanRow() },
+			});
+			const env = makeEnv({ DB: db });
+			const res = await batchDelete(
+				actorReq("POST", "/api/admin/ip-bans/batch-delete", { ids: [1, 2] }),
+				env,
+			);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert?.params[2]).toBe("ip_ban.batch_delete");
+			expect(insert?.params[4]).toBeNull();
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.ids).toEqual([1, 2]);
+			expect(details.ips).toEqual(["10.0.0.1", "10.0.0.2"]);
+			expect(details.count).toBe(2);
+		});
+
+		it("batch-delete with no existing rows does NOT write audit row", async () => {
+			const { db, calls } = createMockDb({
+				allResults: { "SELECT id, ip FROM ip_bans WHERE id IN": [] },
+				firstResults: { "SELECT * FROM ip_bans WHERE id": makeIpBanRow() },
+			});
+			const env = makeEnv({ DB: db });
+			const res = await batchDelete(
+				actorReq("POST", "/api/admin/ip-bans/batch-delete", { ids: [999] }),
+				env,
+			);
+			expect(res.status).toBe(200);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+	});
 });

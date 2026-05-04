@@ -3,6 +3,7 @@
 // Custom handlers for list (expired filter) and check-ip (CIDR/wildcard matching).
 
 import { withEntityAuth } from "../../lib/adminHelpers";
+import { resolveActor, writeAdminLog } from "../../lib/adminLog";
 import type { EntityConfig } from "../../lib/crud";
 import {
 	createBatchDeleteHandler,
@@ -13,6 +14,7 @@ import {
 } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { toIpBan } from "../../lib/mappers";
+import { parseIdFromPath } from "../../lib/parseId";
 import { jsonResponse, paginatedResponse } from "../../lib/response";
 
 import { errorResponse } from "../../middleware/error";
@@ -267,7 +269,7 @@ export const create = withEntityAuth(
 	async (request: Request, env: Env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 
-		// Clone body to peek at the IP for self-ban check
+		// Clone body to peek at the IP for self-ban check + audit metadata.
 		const cloned = request.clone();
 		let body: Record<string, unknown>;
 		try {
@@ -285,21 +287,202 @@ export const create = withEntityAuth(
 			return errorResponse("IP_BAN_SELF", 400, undefined, origin);
 		}
 
-		return crudCreate(request, env);
+		const res = await crudCreate(request, env);
+
+		// F3-c: audit only on success. IP plaintext is allowed by spec —
+		// the audit trail's job is to know who banned what.
+		if (res.status >= 200 && res.status < 300) {
+			let newId: number | null = null;
+			try {
+				const json = (await res.clone().json()) as { data?: { id?: number } };
+				newId = json?.data?.id ?? null;
+			} catch {
+				// best-effort
+			}
+			await writeAdminLog(env, resolveActor(request), {
+				action: "ip_ban.create",
+				targetType: "ip_ban",
+				targetId: newId,
+				details: {
+					ip: typeof body.ip === "string" ? body.ip : null,
+					reason: typeof body.reason === "string" ? body.reason : "",
+					expiresAt: typeof body.expiresAt === "number" ? body.expiresAt : null,
+				},
+			});
+		}
+
+		return res;
 	},
 );
 
 // ─── #50 PATCH /api/admin/ip-bans/:id ────────────────────────────
 
-export const update = withEntityAuth(ipBanConfig, createUpdateHandler(ipBanConfig));
+const ipBanUpdateInner = createUpdateHandler(ipBanConfig);
+
+export const update = withEntityAuth(
+	ipBanConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const id = parseIdFromPath(request);
+
+		let body: Record<string, unknown> = {};
+		let bodyText = "";
+		let existing: Record<string, unknown> | null = null;
+		try {
+			bodyText = await request.text();
+			body = JSON.parse(bodyText) as Record<string, unknown>;
+		} catch {
+			// inner returns 400
+		}
+		if (id !== null) {
+			try {
+				existing = (await env.DB.prepare("SELECT * FROM ip_bans WHERE id = ?")
+					.bind(id)
+					.first()) as Record<string, unknown> | null;
+			} catch {
+				// best-effort
+			}
+		}
+
+		const innerReq = new Request(request.url, {
+			method: request.method,
+			headers: request.headers,
+			body: bodyText,
+		});
+
+		const res = await ipBanUpdateInner(innerReq, env);
+
+		if (res.status >= 200 && res.status < 300 && id !== null && existing) {
+			// Only `reason` and `expiresAt` are mutable; both are non-sensitive.
+			const changedFields: string[] = [];
+			const before: Record<string, unknown> = {};
+			const after: Record<string, unknown> = {};
+			if ("reason" in body && body.reason !== existing.reason) {
+				changedFields.push("reason");
+				before.reason = existing.reason ?? null;
+				after.reason = body.reason ?? null;
+			}
+			if ("expiresAt" in body && body.expiresAt !== existing.expires_at) {
+				changedFields.push("expiresAt");
+				before.expiresAt = existing.expires_at ?? null;
+				after.expiresAt = body.expiresAt ?? null;
+			}
+			if (changedFields.length > 0) {
+				await writeAdminLog(env, resolveActor(request), {
+					action: "ip_ban.update",
+					targetType: "ip_ban",
+					targetId: id,
+					details: {
+						ip: existing.ip ?? null,
+						changedFields,
+						before,
+						after,
+					},
+				});
+			}
+		}
+
+		return res;
+	},
+);
 
 // ─── #51 DELETE /api/admin/ip-bans/:id ───────────────────────────
 
-export const remove = withEntityAuth(ipBanConfig, createRemoveHandler(ipBanConfig));
+const ipBanRemoveInner = createRemoveHandler(ipBanConfig);
+
+export const remove = withEntityAuth(
+	ipBanConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const id = parseIdFromPath(request);
+
+		let existing: Record<string, unknown> | null = null;
+		if (id !== null) {
+			try {
+				existing = (await env.DB.prepare("SELECT * FROM ip_bans WHERE id = ?")
+					.bind(id)
+					.first()) as Record<string, unknown> | null;
+			} catch {
+				// best-effort
+			}
+		}
+
+		const res = await ipBanRemoveInner(request, env);
+
+		if (res.status >= 200 && res.status < 300 && id !== null && existing) {
+			await writeAdminLog(env, resolveActor(request), {
+				action: "ip_ban.delete",
+				targetType: "ip_ban",
+				targetId: id,
+				details: {
+					ip: existing.ip ?? null,
+					reason: existing.reason ?? "",
+					expiresAt: existing.expires_at ?? null,
+				},
+			});
+		}
+
+		return res;
+	},
+);
 
 // ─── #52 POST /api/admin/ip-bans/batch-delete ────────────────────
 
-export const batchDelete = withEntityAuth(ipBanConfig, createBatchDeleteHandler(ipBanConfig));
+const ipBanBatchDeleteInner = createBatchDeleteHandler(ipBanConfig);
+
+export const batchDelete = withEntityAuth(
+	ipBanConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		let ids: unknown[] = [];
+		let bodyText = "";
+		try {
+			bodyText = await request.text();
+			const parsed = JSON.parse(bodyText) as { ids?: unknown[] };
+			if (Array.isArray(parsed?.ids)) ids = parsed.ids;
+		} catch {
+			// inner returns 400
+		}
+
+		const numericIds = ids
+			.map((id) => Number(id))
+			.filter((id): id is number => !Number.isNaN(id))
+			.slice(0, ipBanConfig.batchLimit ?? 100);
+
+		let existingIds: number[] = [];
+		let existingIps: string[] = [];
+		if (numericIds.length > 0) {
+			try {
+				const placeholders = numericIds.map(() => "?").join(",");
+				const rows = await env.DB.prepare(
+					`SELECT id, ip FROM ip_bans WHERE id IN (${placeholders})`,
+				)
+					.bind(...numericIds)
+					.all<{ id: number; ip: string }>();
+				existingIds = (rows.results ?? []).map((r) => r.id);
+				existingIps = (rows.results ?? []).map((r) => r.ip);
+			} catch {
+				// fall through with []
+			}
+		}
+
+		const innerReq = new Request(request.url, {
+			method: request.method,
+			headers: request.headers,
+			body: bodyText,
+		});
+
+		const res = await ipBanBatchDeleteInner(innerReq, env);
+
+		if (res.status >= 200 && res.status < 300 && existingIds.length > 0) {
+			await writeAdminLog(env, resolveActor(request), {
+				action: "ip_ban.batch_delete",
+				targetType: "ip_ban",
+				targetId: null,
+				details: { ids: existingIds, ips: existingIps, count: existingIds.length },
+			});
+		}
+
+		return res;
+	},
+);
 
 // ─── #53 GET /api/admin/ip-bans/check-ip ─────────────────────────
 

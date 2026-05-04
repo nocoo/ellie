@@ -2,6 +2,7 @@
 // Custom handler (not CRUD factory) — settings use "get all + bulk update" pattern
 
 import { withEntityAuth } from "../../lib/adminHelpers";
+import { resolveActor, writeAdminLog } from "../../lib/adminLog";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { jsonResponse } from "../../lib/response";
@@ -221,9 +222,82 @@ async function bulkUpdateSettings(request: Request, env: Env): Promise<Response>
 		updateMap[key] = String(value);
 	}
 
+	// Snapshot prior values so audit can record the diff. Done after validation
+	// so we never log keys the operator can't actually write. Best-effort: a
+	// failure here just degrades the diff to changedKeys-only.
+	let priorMap: SettingsDetailMap = {};
+	try {
+		priorMap = await getSettingsDetailed(env);
+	} catch {
+		// fall through with {}
+	}
+
 	await upsertSettings(env, updateMap);
 
+	// F3-c: classify each changed key and redact suspected secrets so audit
+	// rows never carry credentials. The exact-match denylist in adminLog only
+	// catches bare `password`/`token`/...; settings keys are dotted/prefixed
+	// (e.g. `general.smtp.password`) so we apply our own substring rules here
+	// and only emit `[REDACTED]` envelopes for sensitive keys.
+	const changedKeys: string[] = [];
+	const valuesBefore: Record<string, string | null> = {};
+	const valuesAfter: Record<string, string | null> = {};
+	for (const [key, value] of entries) {
+		const prior = priorMap[key]?.value ?? null;
+		const next = String(value);
+		// String-equality skip — settings values are stored/compared as strings.
+		if (prior === next) continue;
+		changedKeys.push(key);
+		if (isSensitiveSettingsKey(key)) {
+			valuesBefore[key] = prior === null ? null : "[REDACTED]";
+			valuesAfter[key] = "[REDACTED]";
+		} else {
+			valuesBefore[key] = prior;
+			valuesAfter[key] = next;
+		}
+	}
+
+	if (changedKeys.length > 0) {
+		await writeAdminLog(env, resolveActor(request), {
+			action: "setting.update",
+			targetType: "setting",
+			targetId: null,
+			details: {
+				count: changedKeys.length,
+				changedKeys,
+				before: valuesBefore,
+				after: valuesAfter,
+			},
+		});
+	}
+
 	return jsonResponse({ updated: entries.length }, origin);
+}
+
+// ─── Audit helpers ──────────────────────────────────────────
+// Substring-based sensitive key detector. Setting keys are dotted (e.g.
+// `general.smtp.password`, `general.oauth.client_secret`) so the exact-match
+// denylist in `sanitizeAdminLogDetails` would not catch them — we apply our
+// own classification here before details ever reach the sanitizer. False
+// positives (e.g. `general.smtp.username` doesn't trigger) are preferred to
+// false negatives.
+
+const SENSITIVE_KEY_SUBSTRINGS = [
+	"password",
+	"secret",
+	"token",
+	"api_key",
+	"apikey",
+	"api-key",
+	"cookie",
+	"auth",
+	"credential",
+	"private_key",
+];
+
+function isSensitiveSettingsKey(key: string): boolean {
+	const lower = key.toLowerCase();
+	return SENSITIVE_KEY_SUBSTRINGS.some((needle) => lower.includes(needle));
 }
 
 // ─── Exports (wrapped with withEntityAuth) ──────────────────
