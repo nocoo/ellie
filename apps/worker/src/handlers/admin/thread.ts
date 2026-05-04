@@ -181,7 +181,9 @@ const threadConfig: EntityConfig = {
 		await recalcForumMetadata(env, forumId);
 		await invalidateForumVolatile(env);
 	},
-}; // ─── CRUD handlers ───────────────────────────────────────────────
+};
+
+// ─── CRUD handlers ───────────────────────────────────────────────
 
 /** #25 GET /api/admin/threads — List threads with filters */
 export const list = withEntityAuth(threadConfig, createListHandler(threadConfig));
