@@ -150,7 +150,7 @@ export default function UsersPage() {
 							</Button>
 						}
 					/>
-					<DropdownMenuContent align="end">
+					<DropdownMenuContent align="end" className="w-40 whitespace-nowrap">
 						<DropdownMenuItem onClick={() => actions.openEditDialog(row)}>编辑</DropdownMenuItem>
 						{row.status !== -1 && (
 							<>
