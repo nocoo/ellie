@@ -185,7 +185,11 @@ async function runPlaywright(): Promise<number> {
 		stdout: "inherit",
 		stderr: "inherit",
 		stdin: "inherit",
-		env: process.env,
+		// NODE_ENV must reach the Playwright worker process — the loginAsAdmin
+		// fixture's hard guard checks it before minting a session cookie. The
+		// parent runner doesn't set its own NODE_ENV, so we inject it here too
+		// (same as we do for the dev server in startServer()).
+		env: { ...process.env, NODE_ENV: "test" },
 	});
 	const code = await proc.exited;
 	return typeof code === "number" ? code : 1;

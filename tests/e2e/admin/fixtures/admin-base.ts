@@ -98,15 +98,16 @@ export const test = base.extend<AdminTestFixtures>({
 				},
 			});
 
-			// Derive cookie domain from baseURL (set per-project in
-			// playwright.config.ts → admin → http://localhost:7032).
-			const url = new URL(baseURL ?? "http://localhost:7032");
+			// Use Playwright's `url` form rather than hand-setting `domain` —
+			// it sidesteps localhost domain quirks and lets Playwright derive
+			// host/port/path itself. baseURL is set per-project in
+			// playwright.config.ts → admin → http://localhost:7032.
+			const cookieUrl = baseURL ?? "http://localhost:7032";
 			await context.addCookies([
 				{
 					name: SESSION_COOKIE_NAME,
 					value: token,
-					domain: url.hostname,
-					path: "/",
+					url: cookieUrl,
 					httpOnly: true,
 					sameSite: "Lax",
 					secure: false, // dev server is HTTP
