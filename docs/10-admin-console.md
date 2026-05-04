@@ -119,26 +119,28 @@ Browser → Next.js Admin Layout
 - Admin UI exposes 类型 filter + 类型 badge column; target column links to `/admin/threads/:id` (thread/post) or `/admin/users/:id` (user).
 - Web entries: 举报回帖 (post-card), 举报主题 (thread header), 举报用户 (profile hero). UI hides self-report; Worker remains final guard.
 
-**Out of scope (still planned):** Audit Logs (§7) — tracked separately under the F batch.
+### 7. Audit Logs ✅ Complete (F batch)
+
+| Page | Path | Status | Features |
+|------|------|--------|----------|
+| **Operation Logs** | `/admin/logs/operations` | ✅ | Read-only admin action history. Filters: action (exact), targetType, adminId, targetId, date range. Detail dialog renders pretty-printed JSON or falls back to raw text on parse failure. Target column whitelist-links to `user`/`thread`/`report`/`forum`. |
+
+**Scope (F batch):**
+- F1 (write helper): `apps/worker/src/lib/adminLog.ts` provides `resolveActor(request)` (reads `X-Admin-Actor-Email` / `X-Admin-Actor-Name` injected by `adminApiAs`; falls back to `system`/`id=0`), `sanitizeAdminLogDetails(input)` (deny-list redaction at every depth, depth cap 4, 4 KB UTF-8 cap with `{truncated:true,head:"…"}` envelope), and `writeAdminLog(env, actor, params)` (best-effort INSERT — never throws back to the caller; failures go to `console.error`).
+- F2 (read API): `GET /api/admin/admin-logs` (list, filterable + paginated) and `GET /api/admin/admin-logs/:id` (single row).
+- F3-a/b/c (handler integration): the mutation families covered are `user.ban` / `user.unban` / `user.nuke` / `user.purge`, `report.resolve` / `report.dismiss` / `report.batch_delete`, `thread.update` / `thread.delete` / `thread.batch_delete` / `thread.batch_move`, `post.update` / `post.delete` / `post.batch_delete`, `forum.create` / `forum.update` / `forum.delete` / `forum.merge` / `forum.reorder`, `setting.update`, `ip_ban.create` / `ip_ban.update` / `ip_ban.delete` / `ip_ban.batch_delete`, `censor_word.create` / `censor_word.update` / `censor_word.delete` / `censor_word.batch_delete`, `announcement.create` / `announcement.update` / `announcement.delete` / `announcement.batch_delete`. Each handler calls `writeAdminLog` after the underlying mutation commits. Failure-path audit is intentionally out of scope.
+- F4 (UI): `/admin/logs/operations` read-only page + `AdminLogDetailDialog`. No mutations, no batch bar. Lives under the **日志** nav group.
+
+**Not yet covered (follow-ups):**
+- Attachment mutations (`attachment.delete` / `attachment.batch_delete`) — R2 + DB side-effects need their own action shape; tracked as F3-d.
+- Generic `user.update`, role/status batch flips, statistics recalc — maintenance-class mutations not part of the F batch.
+- No `/admin/logs/audit` event-stream page is planned — operation logs cover the audit need today.
+
+See [`docs/14a-audit-logs.md`](./14a-audit-logs.md) for schema, action matrix, redaction rules, and test gates.
 
 ---
 
 ## Planned Features (TODO)
-
-### 7. Audit Logs 📋 Planned
-
-| Page | Path | Priority | Features |
-|------|------|----------|----------|
-| **Operation Logs** | `/admin/logs/operations` | Medium | Admin action history, filterable by admin/action type/target |
-| **Audit Logs** | `/admin/logs/audit` | Medium | Content changes, user status changes, security events |
-
-**Implementation Plan:**
-1. Add `admin_logs` table: `id`, `admin_id`, `action`, `target_type`, `target_id`, `details` (JSON), `ip`, `created_at`
-2. Add logging middleware to all admin mutation endpoints
-3. Create Worker handlers for log retrieval with pagination
-4. Build admin UI with advanced filters and export capability
-5. L1 tests: logging middleware unit tests
-6. L2 tests: verify logs created for each admin action
 
 ### 8. Staff Management 📋 Planned
 
@@ -191,11 +193,12 @@ Browser → Next.js Admin Layout
 | Level | Scope | Status | Notes |
 |-------|-------|--------|-------|
 | L1 Unit | Handler logic, viewmodel functions | ✅ Passing | ~900 tests in `apps/worker/tests/` and `tests/unit/` |
-| L2 Integration | API route → Worker → D1 | ✅ Rewritten | `tests/integration/admin.test.ts` updated to match actual endpoints |
-| L3 E2E | Full admin workflows | ❌ Not implemented | Needs Playwright scenarios |
+| L2 Integration | API route → Worker → D1 | ✅ Rewritten | `tests/integration/worker/admin.test.ts` updated to match actual endpoints |
+| L3 E2E | Full admin workflows | ✅ Partial / Active | Playwright `admin` project covers auth, forums, threads, users, reports, and operation logs. Run via `bun run test:e2e:admin` (boots admin app on :7032 with `NODE_ENV=test` + `.env.test`). Direct `bunx playwright …` requires the same env loaded manually. |
 
 **Known Issues:**
-- None — L2 tests have been updated to match current API structure
+- Admin L3 specs require `.env.test` + a `-test` Worker URL via the `bun run test:e2e:admin` runner; running raw `bunx playwright …` without that setup will fail in `loginAsAdmin`.
+- Attachment delete audit is still a follow-up (F3-d); attachment mutations do not yet write to `admin_logs`.
 
 ### Test Improvement Plan
 
@@ -236,6 +239,6 @@ Browser → Next.js Admin Layout
 
 3. **Input Validation**: All inputs validated at Worker level
 
-4. **Audit Trail**: Planned for future implementation (see §7)
+4. **Audit Trail**: Implemented under the F batch (see §7 + [`docs/14a-audit-logs.md`](./14a-audit-logs.md)). Mutations in the covered families (user ban/nuke, report resolve/dismiss, thread/post content edits & deletes, forum/setting/ip_ban/censor_word/announcement CRUD) are recorded best-effort to `admin_logs`; sensitive keys are redacted by `sanitizeAdminLogDetails`. Attachment delete audit (F3-d) and maintenance-class mutations (statistics recalc, role/status batches, generic `user.update`) are not covered yet.
 
 5. **Dangerous Actions**: Always require confirmation dialogs
