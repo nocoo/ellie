@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { AdminApiError, adminApi } from "@/lib/admin-api";
+import { AdminApiError, adminApi, adminApiAs } from "@/lib/admin-api";
 
 const originalFetch = globalThis.fetch;
 const originalEnv = { ...process.env };
@@ -134,5 +134,74 @@ describe("adminApi", () => {
 			process.env.ADMIN_API_KEY = "";
 			await expect(adminApi.get("/api/x")).rejects.toThrow("ADMIN_API_KEY");
 		});
+	});
+});
+
+// ─── adminApiAs (F1: actor-bound client) ─────────────────────────
+
+describe("adminApiAs", () => {
+	const actor = { email: "alice@example.com", name: "Alice" };
+
+	it("injects X-Admin-Actor headers on POST", async () => {
+		const api = adminApiAs(actor);
+		await api.raw("POST", "/api/admin/users/1/ban", { reason: "spam" });
+		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+		const headers = opts.headers as Record<string, string>;
+		expect(headers["X-Admin-Actor-Email"]).toBe("alice@example.com");
+		expect(headers["X-Admin-Actor-Name"]).toBe("Alice");
+		expect(headers["X-API-Key"]).toBe("test-key-123");
+	});
+
+	it.each(["PATCH", "PUT", "DELETE"])("injects actor headers on %s", async (method) => {
+		const api = adminApiAs(actor);
+		await api.raw(method, "/api/admin/x");
+		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+		const headers = opts.headers as Record<string, string>;
+		expect(headers["X-Admin-Actor-Email"]).toBe("alice@example.com");
+		expect(headers["X-Admin-Actor-Name"]).toBe("Alice");
+	});
+
+	it("does NOT inject actor headers on GET", async () => {
+		const api = adminApiAs(actor);
+		await api.raw("GET", "/api/admin/users");
+		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+		const headers = opts.headers as Record<string, string>;
+		expect(headers["X-Admin-Actor-Email"]).toBeUndefined();
+		expect(headers["X-Admin-Actor-Name"]).toBeUndefined();
+	});
+
+	it("does NOT inject actor headers on HEAD", async () => {
+		const api = adminApiAs(actor);
+		await api.raw("HEAD", "/api/admin/users");
+		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+		const headers = opts.headers as Record<string, string>;
+		expect(headers["X-Admin-Actor-Email"]).toBeUndefined();
+	});
+
+	it("is case-insensitive on the method", async () => {
+		const api = adminApiAs(actor);
+		await api.raw("post", "/api/admin/x");
+		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+		const headers = opts.headers as Record<string, string>;
+		expect(headers["X-Admin-Actor-Email"]).toBe("alice@example.com");
+	});
+
+	it("merges with caller-supplied extraHeaders without losing actor headers", async () => {
+		const api = adminApiAs(actor);
+		await api.raw("POST", "/api/admin/x", { a: 1 }, { "X-Custom": "yes" });
+		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+		const headers = opts.headers as Record<string, string>;
+		expect(headers["X-Custom"]).toBe("yes");
+		expect(headers["X-Admin-Actor-Email"]).toBe("alice@example.com");
+	});
+
+	it("respects caller override of actor headers", async () => {
+		const api = adminApiAs(actor);
+		await api.raw("POST", "/api/admin/x", null, { "X-Admin-Actor-Email": "override@example.com" });
+		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+		const headers = opts.headers as Record<string, string>;
+		expect(headers["X-Admin-Actor-Email"]).toBe("override@example.com");
+		// Name still comes from actor since caller did not override.
+		expect(headers["X-Admin-Actor-Name"]).toBe("Alice");
 	});
 });

@@ -204,3 +204,61 @@ export const adminApi = {
 		});
 	},
 };
+
+// ---------------------------------------------------------------------------
+// Actor-bound client — F1 audit logging infrastructure.
+//
+// `adminApiAs(admin)` returns a thin wrapper that pre-binds the audit headers
+// (`X-Admin-Actor-Email` / `X-Admin-Actor-Name`) on every mutation call. GET
+// and HEAD requests deliberately skip the headers so read-only proxy calls
+// don't carry the operator identity (audit log only records mutations).
+//
+// Use case (admin route handler):
+//   const api = adminApiAs(admin);
+//   const res = await api.raw("POST", `/api/admin/users/${id}/purge`, body);
+//
+// The wrapper purposely re-uses `adminApi.raw` so the underlying auth/key
+// plumbing stays in one place. Each method merges caller-supplied
+// extraHeaders on top of the actor headers (caller wins on conflict).
+// ---------------------------------------------------------------------------
+
+const MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+export interface ActorIdentity {
+	email: string;
+	name: string;
+}
+
+export interface AdminApiClient {
+	raw(
+		method: string,
+		path: string,
+		body?: unknown,
+		extraHeaders?: Record<string, string>,
+	): Promise<Response>;
+}
+
+export function adminApiAs(actor: ActorIdentity): AdminApiClient {
+	return {
+		async raw(
+			method: string,
+			path: string,
+			body?: unknown,
+			extraHeaders?: Record<string, string>,
+		): Promise<Response> {
+			const upper = method.toUpperCase();
+			const merged: Record<string, string> = { ...(extraHeaders ?? {}) };
+			if (MUTATION_METHODS.has(upper)) {
+				// Caller-supplied headers win on conflict — but normal callers
+				// should NOT override these.
+				if (merged["X-Admin-Actor-Email"] === undefined) {
+					merged["X-Admin-Actor-Email"] = actor.email;
+				}
+				if (merged["X-Admin-Actor-Name"] === undefined) {
+					merged["X-Admin-Actor-Name"] = actor.name;
+				}
+			}
+			return adminApi.raw(method, path, body, merged);
+		},
+	};
+}
