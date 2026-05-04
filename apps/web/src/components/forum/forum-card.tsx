@@ -23,6 +23,20 @@ function ForumIcon({ hasActivity = false }: { hasActivity?: boolean }) {
 	return <img src={src} alt="" className="h-7 w-auto shrink-0" aria-hidden="true" />;
 }
 
+/** Last poster avatar wrapped in a user link. Returns null when userId <= 0. */
+function LastPosterAvatarLink({
+	userId,
+	userName,
+	avatarPath,
+}: { userId: number; userName: string; avatarPath?: string | null }) {
+	if (userId <= 0) return null;
+	return (
+		<Link href={`/users/${userId}`} className="shrink-0">
+			<ForumAvatar userId={userId} userName={userName} avatarPath={avatarPath} shadow />
+		</Link>
+	);
+}
+
 // ---------------------------------------------------------------------------
 // Wide layout — one forum per row
 // Desktop: 3-column (info | stats | last post)
@@ -112,16 +126,11 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 				{forum.lastPostAt > 0 && (
 					<div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground shrink-0 min-w-[200px]">
 						{/* Last poster avatar */}
-						{forum.lastPosterId > 0 && (
-							<Link href={`/users/${forum.lastPosterId}`} className="shrink-0">
-								<ForumAvatar
-									userId={forum.lastPosterId}
-									userName={forum.lastPoster}
-									avatarPath={forum.lastPosterAvatarPath}
-									shadow
-								/>
-							</Link>
-						)}
+						<LastPosterAvatarLink
+							userId={forum.lastPosterId}
+							userName={forum.lastPoster}
+							avatarPath={forum.lastPosterAvatarPath}
+						/>
 						<div className="flex flex-col items-end min-w-0">
 							<Link
 								href={`/threads/${forum.lastThreadId}`}
@@ -235,16 +244,11 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 				{/* Last post preview */}
 				{forum.lastPostAt > 0 && (
 					<div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-						{forum.lastPosterId > 0 && (
-							<Link href={`/users/${forum.lastPosterId}`} className="shrink-0">
-								<ForumAvatar
-									userId={forum.lastPosterId}
-									userName={forum.lastPoster}
-									avatarPath={forum.lastPosterAvatarPath}
-									shadow
-								/>
-							</Link>
-						)}
+						<LastPosterAvatarLink
+							userId={forum.lastPosterId}
+							userName={forum.lastPoster}
+							avatarPath={forum.lastPosterAvatarPath}
+						/>
 						<Link
 							href={`/threads/${forum.lastThreadId}`}
 							className="relative z-10 text-forum-link hover:underline truncate"
