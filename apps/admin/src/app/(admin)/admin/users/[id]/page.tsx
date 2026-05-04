@@ -1,16 +1,16 @@
 "use client";
 
 // Admin User Detail Page (View layer)
-// MVVM: ViewModel is `useUserDetail`. Mutation handlers (edit/unban) are
-// inlined here because they only run from this single page; no shared
-// dialog state is needed beyond the existing UserEditDialog.
+// MVVM: ViewModel is `useUserDetail`. Mutation handlers (edit/ban/unban)
+// are inlined here because they only run from this single page; no
+// shared dialog state is needed beyond UserEditDialog + AdminConfirmDialog.
 //
-// Scope (D2): basic info card, meta card (incl. reg_ip / last_ip plain
-// display — same-IP query lands in D3), threads / posts tabs with
-// pagination, danger zone with 编辑 + 解除封禁 (when banned). The full
-// purge action arrives in D4; we leave a placeholder card so the
-// information architecture is visible during review.
+// Scope (D2): basic info card, meta card (reg_ip / last_ip), threads /
+// posts tabs with pagination, danger zone with 编辑 + 封禁 (when not
+// banned) + 解除封禁 (when banned). 封禁 here is the plain ban path
+// (banUser(id, false)) — content-deletion / tombstone purge land in D4.
 
+import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { AdminPagination } from "@/components/admin/admin-pagination";
@@ -22,6 +22,7 @@ import { useUserDetail } from "@/viewmodels/admin/use-user-detail";
 import {
 	type User,
 	type UserUpdate,
+	banUser,
 	roleLabel,
 	statusLabel,
 	updateUser,
@@ -31,7 +32,7 @@ import { Badge } from "@ellie/ui";
 import { Button } from "@ellie/ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@ellie/ui";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ellie/ui";
-import { ArrowLeft, Loader2, Pencil, ShieldOff } from "lucide-react";
+import { ArrowLeft, Loader2, Pencil, Shield, ShieldOff } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -76,6 +77,9 @@ export default function UserDetailPage() {
 	const [editError, setEditError] = useState<string | null>(null);
 
 	const [unbanLoading, setUnbanLoading] = useState(false);
+	const [banDialogOpen, setBanDialogOpen] = useState(false);
+	const [banLoading, setBanLoading] = useState(false);
+	const [banError, setBanError] = useState<string | null>(null);
 	const [pageMessage, setPageMessage] = useState<{
 		type: "success" | "error";
 		text: string;
@@ -114,6 +118,21 @@ export default function UserDetailPage() {
 			});
 		} finally {
 			setUnbanLoading(false);
+		}
+	};
+
+	const handleBanConfirm = async (user: User) => {
+		setBanLoading(true);
+		setBanError(null);
+		try {
+			await banUser(user.id, false);
+			setBanDialogOpen(false);
+			await actions.reloadUser();
+			setPageMessage({ type: "success", text: `已封禁 ${user.username}` });
+		} catch (err) {
+			setBanError(extractErrorMessage(err, "封禁用户失败"));
+		} finally {
+			setBanLoading(false);
 		}
 	};
 
@@ -209,7 +228,6 @@ export default function UserDetailPage() {
 							<dt className="text-muted-foreground">最近 IP</dt>
 							<dd className="font-mono">{fmtIp(user.lastIp)}</dd>
 						</dl>
-						<p className="mt-3 text-xs text-muted-foreground">同 IP 用户查询将在 D3 启用。</p>
 					</CardContent>
 				</Card>
 			</div>
@@ -272,6 +290,19 @@ export default function UserDetailPage() {
 							<Pencil className="mr-1 h-4 w-4" />
 							编辑资料
 						</Button>
+						{user.status !== -1 && (
+							<Button
+								variant="destructive"
+								size="sm"
+								onClick={() => {
+									setBanError(null);
+									setBanDialogOpen(true);
+								}}
+							>
+								<Shield className="mr-1 h-4 w-4" />
+								封禁用户
+							</Button>
+						)}
 						{user.status === -1 && (
 							<Button
 								variant="outline"
@@ -284,9 +315,6 @@ export default function UserDetailPage() {
 							</Button>
 						)}
 					</div>
-					<p className="mt-3 text-xs text-muted-foreground">
-						封禁并彻底清除（删除主题/帖子/附件/站内信，并 tombstone 用户）将在 D4 启用。
-					</p>
 				</CardContent>
 			</Card>
 
@@ -300,6 +328,20 @@ export default function UserDetailPage() {
 				loading={editLoading}
 				error={editError}
 				onSave={handleEditSave}
+			/>
+
+			<AdminConfirmDialog
+				open={banDialogOpen}
+				onOpenChange={(open) => {
+					setBanDialogOpen(open);
+					if (!open) setBanError(null);
+				}}
+				title="封禁用户"
+				description={`确定封禁 ${user.username}？封禁后该用户将无法访问论坛。`}
+				variant="destructive"
+				loading={banLoading}
+				error={banError}
+				onConfirm={() => handleBanConfirm(user)}
 			/>
 		</div>
 	);
