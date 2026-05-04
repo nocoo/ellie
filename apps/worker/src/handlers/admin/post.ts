@@ -10,6 +10,7 @@ import {
 	createRemoveHandler,
 	createUpdateHandler,
 } from "../../lib/crud";
+import { invalidateForumVolatile } from "../../lib/forum-cache";
 import { toPost } from "../../lib/mappers";
 import { recalcForumMetadata, recalcThreadMetadata } from "../../lib/recalcMetadata";
 import { jsonResponse } from "../../lib/response";
@@ -71,6 +72,7 @@ const postConfig: EntityConfig = {
 		// Recalc thread and forum metadata after post deletion
 		await recalcThreadMetadata(env, row.thread_id);
 		await recalcForumMetadata(env, row.forum_id);
+		await invalidateForumVolatile(env);
 	},
 };
 
@@ -192,6 +194,8 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env) => {
 
 	// Decrement user post counts
 	await batchDecrementUserPosts(env, authorUpdates);
+
+	await invalidateForumVolatile(env);
 
 	return jsonResponse({ deleted: true, count: deletable.length, skipped }, origin);
 });

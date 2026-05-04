@@ -129,6 +129,34 @@ function buildModeratorList(
 		.filter((m): m is ModeratorInfo => m !== null);
 }
 
+/** Batch-fetch last poster avatars via D1 when user cache is disabled. */
+async function enrichForumsWithAvatarSQL(db: D1Database, forums: Forum[]): Promise<Forum[]> {
+	const lastPosterIds = [...new Set(forums.map((f) => f.lastPosterId).filter((id) => id > 0))];
+	if (lastPosterIds.length === 0) return forums;
+
+	const placeholders = lastPosterIds.map(() => "?").join(",");
+	const avatarResult = await db
+		.prepare(`SELECT id, avatar, avatar_path FROM users WHERE id IN (${placeholders})`)
+		.bind(...lastPosterIds)
+		.all<{ id: number; avatar: string; avatar_path: string }>();
+
+	const avatarMap = new Map<number, { avatar: string; avatarPath: string }>();
+	for (const row of avatarResult.results) {
+		avatarMap.set(row.id, {
+			avatar: row.avatar ?? "",
+			avatarPath: row.avatar_path ?? "",
+		});
+	}
+
+	return forums.map((f) => {
+		const info = avatarMap.get(f.lastPosterId);
+		if (info) {
+			return { ...f, lastPosterAvatar: info.avatar, lastPosterAvatarPath: info.avatarPath };
+		}
+		return f;
+	});
+}
+
 /** GET /api/v1/forums - List all forums (no pagination) */
 export async function list(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
@@ -178,13 +206,15 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 			};
 		});
 
-		// Enrich with KV user cache for last poster avatars
+		// Enrich with last poster avatars
 		if (useKvUserCache) {
 			const lastPosterIds = forums.map((f) => f.lastPosterId).filter((id) => id > 0);
 			if (lastPosterIds.length > 0) {
 				const userCache = await getUserProfiles(env, ctx, lastPosterIds);
 				forums = enrichForumsWithUserCache(forums, userCache);
 			}
+		} else {
+			forums = await enrichForumsWithAvatarSQL(env.DB, forums);
 		}
 	} else {
 		// ─── Legacy D1-only path ─────────────────────────────────

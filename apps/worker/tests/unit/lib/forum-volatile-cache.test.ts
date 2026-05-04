@@ -157,6 +157,43 @@ describe("forum-cache volatile", () => {
 			expect(db.prepare).toHaveBeenCalled();
 		});
 
+		it("falls through to D1 when second entry is invalid but first is valid", async () => {
+			const entries: Record<number, unknown> = {
+				1: {
+					lastThreadId: 100,
+					lastThreadSubject: "Good Entry",
+					lastPostAt: 1700000000,
+					lastPosterId: 5,
+					lastPoster: "alice",
+					todayThreads: 3,
+					threads: 50,
+					posts: 500,
+				},
+				2: {
+					// Missing required fields — stale schema
+					lastThreadId: 200,
+					threads: 10,
+				},
+			};
+			const kv = createJsonKV({
+				"forums:volatile:v1": JSON.stringify({ entries, cachedAt: Date.now() }),
+			});
+			const forumsRows = [
+				{ id: 1, threads: 11, posts: 110, last_thread_id: 30 },
+				{ id: 2, threads: 22, posts: 220, last_thread_id: 40 },
+			];
+			const db = createMockD1ForVolatile([], forumsRows, []);
+			const env = makeEnv({ KV: kv, DB: db, USE_KV_FORUM_CACHE: "true" });
+			const ctx = createMockCtx();
+
+			const result = await getForumVolatile(env, ctx, [1, 2]);
+
+			// Should fall through to D1, NOT use the cached (partially invalid) payload
+			expect(result[1]?.threads).toBe(11);
+			expect(result[2]?.threads).toBe(22);
+			expect(db.prepare).toHaveBeenCalled();
+		});
+
 		it("falls through to D1 on KV read error", async () => {
 			const kv = {
 				get: vi.fn(async () => {
