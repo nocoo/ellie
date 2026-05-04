@@ -30,6 +30,7 @@ function makeTreeEntry(overrides?: Partial<ForumTreeEntry>): ForumTreeEntry {
 		status: 1,
 		visibility: "public",
 		type: "group",
+		moderators: "",
 		moderatorIds: "",
 		moderatorList: [],
 		...overrides,
@@ -211,11 +212,12 @@ describe("getAncestors", () => {
 		expect(res.status).toBe(404);
 	});
 
-	it("returns forum context with moderatorList", async () => {
+	it("returns forum context with moderators and moderatorList", async () => {
 		mockGetForumTree.mockResolvedValue([
 			makeTreeEntry({
 				id: 1,
 				parentId: 0,
+				moderators: "mod_alice,mod_bob",
 				moderatorIds: "10,20",
 				moderatorList: [
 					{ id: 10, name: "mod_alice" },
@@ -229,6 +231,7 @@ describe("getAncestors", () => {
 
 		const res = await getAncestors(req, env, ctx);
 		const body = await res.json();
+		expect(body.data.forum.moderators).toBe("mod_alice,mod_bob");
 		expect(body.data.forum.moderatorList).toEqual([
 			{ id: 10, name: "mod_alice" },
 			{ id: 20, name: "mod_bob" },

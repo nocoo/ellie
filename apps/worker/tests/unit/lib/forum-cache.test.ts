@@ -63,6 +63,7 @@ function makeTreeRow(overrides?: Record<string, unknown>) {
 		status: 1,
 		visibility: "public",
 		type: "group",
+		moderators: "",
 		moderator_ids: "",
 		...overrides,
 	};
@@ -102,6 +103,7 @@ describe("forum-cache", () => {
 					status: 1,
 					visibility: "public",
 					type: "group",
+					moderators: "",
 					moderatorIds: "",
 					moderatorList: [],
 				},
@@ -119,6 +121,44 @@ describe("forum-cache", () => {
 			expect(result[0]?.name).toBe("Cached Forum");
 			// D1 should NOT be queried
 			expect(db.prepare).not.toHaveBeenCalled();
+		});
+
+		it("falls through to D1 when cached payload has invalid shape", async () => {
+			// Corrupt payload: forums is not an array
+			const kv = createJsonKV({
+				"forums:tree:v1": JSON.stringify({ forums: "not-an-array", cachedAt: Date.now() }),
+			});
+			const rows = [makeTreeRow()];
+			const db = createMockD1(rows);
+			const env = makeEnv({ KV: kv, DB: db, USE_KV_FORUM_CACHE: "true" });
+			const ctx = createMockCtx();
+
+			const result = await getForumTree(env, ctx);
+
+			// Should fall through to D1 because validation fails
+			expect(result).toHaveLength(1);
+			expect(result[0]?.name).toBe("Root Forum");
+			expect(db.prepare).toHaveBeenCalled();
+		});
+
+		it("falls through to D1 when cached entry is missing required fields", async () => {
+			// Payload has forums array but entries lack required fields
+			const kv = createJsonKV({
+				"forums:tree:v1": JSON.stringify({
+					forums: [{ noId: true, noName: true }],
+					cachedAt: Date.now(),
+				}),
+			});
+			const rows = [makeTreeRow()];
+			const db = createMockD1(rows);
+			const env = makeEnv({ KV: kv, DB: db, USE_KV_FORUM_CACHE: "true" });
+			const ctx = createMockCtx();
+
+			const result = await getForumTree(env, ctx);
+
+			expect(result).toHaveLength(1);
+			expect(result[0]?.name).toBe("Root Forum");
+			expect(db.prepare).toHaveBeenCalled();
 		});
 
 		it("falls through to D1 on KV miss and stores result", async () => {
@@ -188,6 +228,7 @@ describe("forum-cache", () => {
 				status: 1,
 				visibility: "members",
 				type: "sub",
+				moderators: "",
 				moderatorIds: "",
 				moderatorList: [],
 			});

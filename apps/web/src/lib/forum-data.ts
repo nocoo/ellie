@@ -35,6 +35,7 @@ export interface ForumContext {
 	status: number;
 	visibility: ForumVisibility;
 	type: string;
+	moderators: string;
 	moderatorIds: string;
 	moderatorList: ModeratorInfo[];
 }

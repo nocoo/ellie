@@ -21,6 +21,8 @@ export interface ForumTreeEntry {
 	status: number;
 	visibility: ForumVisibility;
 	type: string;
+	/** Comma-separated moderator usernames (used by canModerate permission check). */
+	moderators: string;
 	moderatorIds: string;
 	moderatorList: ModeratorInfo[];
 }
@@ -42,6 +44,16 @@ export function isForumCacheEnabled(env: Env): boolean {
 	return env.USE_KV_FORUM_CACHE === "true";
 }
 
+// ─── Validation ────────────────────────────────────────────────────
+
+/** Basic shape check for cached payload — rejects corrupt / schema-mismatched data. */
+function isValidCachedTree(cached: CachedForumTree): boolean {
+	if (!Array.isArray(cached.forums)) return false;
+	if (cached.forums.length === 0) return true; // empty tree is valid
+	const first = cached.forums[0];
+	return typeof first.id === "number" && typeof first.name === "string";
+}
+
 // ─── Read-through cache ─────────────────────────────────────────────
 
 /**
@@ -56,7 +68,7 @@ export async function getForumTree(env: Env, ctx?: ExecutionContext): Promise<Fo
 	if (isForumCacheEnabled(env)) {
 		try {
 			const cached = await env.KV.get<CachedForumTree>(FORUM_TREE_KEY, "json");
-			if (cached?.forums) {
+			if (cached && isValidCachedTree(cached)) {
 				return cached.forums;
 			}
 		} catch {
@@ -66,7 +78,7 @@ export async function getForumTree(env: Env, ctx?: ExecutionContext): Promise<Fo
 
 	// D1 fallback: fetch structural fields + moderator names
 	const forumRows = await env.DB.prepare(
-		"SELECT id, parent_id, name, description, icon, display_order, status, visibility, type, moderator_ids FROM forums ORDER BY display_order",
+		"SELECT id, parent_id, name, description, icon, display_order, status, visibility, type, moderators, moderator_ids FROM forums ORDER BY display_order",
 	).all<{
 		id: number;
 		parent_id: number;
@@ -77,6 +89,7 @@ export async function getForumTree(env: Env, ctx?: ExecutionContext): Promise<Fo
 		status: number;
 		visibility: string;
 		type: string;
+		moderators: string;
 		moderator_ids: string;
 	}>();
 
@@ -121,6 +134,7 @@ export async function getForumTree(env: Env, ctx?: ExecutionContext): Promise<Fo
 			status: row.status,
 			visibility: (row.visibility || "public") as ForumVisibility,
 			type: row.type,
+			moderators: row.moderators ?? "",
 			moderatorIds: row.moderator_ids ?? "",
 			moderatorList,
 		};
@@ -147,7 +161,7 @@ export async function getForumTree(env: Env, ctx?: ExecutionContext): Promise<Fo
 // ─── Invalidation ───────────────────────────────────────────────────
 
 /**
- * Invalidate the forum tree cache. Always awaited (admin ops are infrequent).
+ * Invalidate the forum tree cache (best-effort, swallows errors).
  * Safe to call even when feature flag is off (no-op if key doesn't exist).
  */
 export async function invalidateForumTree(env: Env): Promise<void> {

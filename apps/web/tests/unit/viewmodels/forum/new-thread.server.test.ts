@@ -1,15 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/forum-api", () => ({
-	forumApi: {
-		get: vi.fn(),
-		getAll: vi.fn(),
-		getCursor: vi.fn(),
-		getPage: vi.fn(),
-		postAuth: vi.fn(),
-	},
-	publicUserToUser: vi.fn((u: any) => u),
-}));
+vi.mock("@/lib/forum-api", async (importOriginal) => {
+	const original = await importOriginal<typeof import("@/lib/forum-api")>();
+	return {
+		...original,
+		forumApi: {
+			get: vi.fn(),
+			getAll: vi.fn(),
+			getCursor: vi.fn(),
+			getPage: vi.fn(),
+			postAuth: vi.fn(),
+		},
+		publicUserToUser: vi.fn((u: any) => u),
+	};
+});
 
 vi.mock("@/lib/forum-data", async () => {
 	const { forumApi } = await import("@/lib/forum-api");
@@ -26,7 +30,7 @@ vi.mock("@/lib/forum-data", async () => {
 	};
 });
 
-import { forumApi } from "@/lib/forum-api";
+import { ForumApiError, forumApi } from "@/lib/forum-api";
 import { loadNewThreadPageData } from "@/viewmodels/forum/new-thread.server";
 
 const mockForumApi = forumApi as any;
@@ -58,11 +62,23 @@ describe("loadNewThreadPageData", () => {
 		expect(result.forumName).toBe("Sub Forum");
 	});
 
-	it("returns fallback when ancestors endpoint fails (forum not found)", async () => {
-		mockForumApi.get.mockRejectedValue(new Error("FORUM_NOT_FOUND"));
+	it("returns fallback when ancestors endpoint returns 404", async () => {
+		mockForumApi.get.mockRejectedValue(new ForumApiError(404, "FORUM_NOT_FOUND", "Not found"));
 
 		const result = await loadNewThreadPageData(999);
 		expect(result.forumName).toBe("版块 999");
+	});
+
+	it("rethrows non-404 errors from ancestors endpoint", async () => {
+		mockForumApi.get.mockRejectedValue(new ForumApiError(500, "INTERNAL_ERROR", "Server error"));
+
+		await expect(loadNewThreadPageData(1)).rejects.toThrow(ForumApiError);
+	});
+
+	it("rethrows non-ForumApiError errors", async () => {
+		mockForumApi.get.mockRejectedValue(new Error("Network failure"));
+
+		await expect(loadNewThreadPageData(1)).rejects.toThrow("Network failure");
 	});
 
 	it("returns breadcrumbs with ancestors + forum + 发表主题", async () => {

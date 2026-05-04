@@ -6,6 +6,7 @@
 
 import "server-only";
 
+import { ForumApiError } from "@/lib/forum-api";
 import { buildNewThreadBreadcrumbsFromAncestors } from "@/lib/forum-breadcrumbs";
 import { getForumAncestors } from "@/lib/forum-data";
 import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
@@ -28,16 +29,19 @@ export async function loadNewThreadPageData(forumId: number): Promise<NewThreadP
 			forumName: forum.name,
 			breadcrumbs: buildNewThreadBreadcrumbsFromAncestors(ancestors, forumId, forum.name),
 		};
-	} catch {
-		// Fallback: forum not found or not accessible
-		return {
-			forumId,
-			forumName: `版块 ${forumId}`,
-			breadcrumbs: [
-				{ label: "同济网论坛", href: "/", icon: "home" },
-				{ label: `版块 ${forumId}` },
-				{ label: "发表主题" },
-			],
-		};
+	} catch (error) {
+		// Only gracefully degrade on 404/not-accessible — rethrow unexpected errors
+		if (error instanceof ForumApiError && error.status === 404) {
+			return {
+				forumId,
+				forumName: `版块 ${forumId}`,
+				breadcrumbs: [
+					{ label: "同济网论坛", href: "/", icon: "home" },
+					{ label: `版块 ${forumId}` },
+					{ label: "发表主题" },
+				],
+			};
+		}
+		throw error;
 	}
 }
