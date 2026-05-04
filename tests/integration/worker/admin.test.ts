@@ -694,6 +694,157 @@ describe("L2: Worker Admin API", () => {
 		});
 	});
 
+	// ─── F3-a audit lifecycle ──────────────────────────────────────
+	//
+	// End-to-end check: a high-risk admin mutation must land an admin_logs
+	// row that is immediately surfaced via the admin-logs filter API. We
+	// run two independent chains (user.ban + report.resolve) so a regression
+	// in either the writer or the reader is caught.
+	//
+	// Both tests use idempotent fixtures: ban is paired with an unban; the
+	// report is created via the public API and torn down with batch-delete.
+
+	describe("F3-a audit lifecycle (user.ban + report.resolve)", () => {
+		test("user.ban writes a user.ban admin_logs row that the list API surfaces", async () => {
+			// Snapshot the current top admin_logs id so we can detect the new row
+			// without scanning the entire table (audit trail can grow over time).
+			const beforeRes = await adminGet("/api/admin/admin-logs?action=user.ban&limit=1");
+			expect(beforeRes.status).toBe(200);
+			const before = (await beforeRes.json()) as {
+				data: Array<{ id: number; targetId: number | null }>;
+			};
+			const beforeTopId = before.data[0]?.id ?? 0;
+
+			// Ban target user 100 (e2etest), no content delete.
+			const banRes = await adminPost("/api/admin/users/100/ban", { deleteContent: false });
+			expect(banRes.status).toBe(200);
+			const banBody = (await banRes.json()) as { data: { banned: boolean } };
+			expect(banBody.data.banned).toBe(true);
+
+			try {
+				// Best-effort poll: writeAdminLog is fire-and-forget; give it a
+				// short window in case the row hasn't landed yet.
+				let hit:
+					| { id: number; action: string; targetId: number | null; targetType: string }
+					| undefined;
+				for (let i = 0; i < 5 && !hit; i++) {
+					const res = await adminGet("/api/admin/admin-logs?action=user.ban&limit=10");
+					expect(res.status).toBe(200);
+					const body = (await res.json()) as {
+						data: Array<{
+							id: number;
+							action: string;
+							targetId: number | null;
+							targetType: string;
+						}>;
+					};
+					hit = body.data.find((row) => row.id > beforeTopId && row.targetId === 100);
+					if (!hit) await new Promise((r) => setTimeout(r, 100));
+				}
+				expect(hit).toBeDefined();
+				expect(hit?.action).toBe("user.ban");
+				expect(hit?.targetType).toBe("user");
+				expect(hit?.targetId).toBe(100);
+			} finally {
+				// Cleanup — restore the user so the test is idempotent.
+				await adminPost("/api/admin/users/100/unban", {});
+			}
+		});
+
+		test("report.resolve writes a report.resolve admin_logs row that the list API surfaces", async () => {
+			// Reporter is user 100 (e2etest, role=0); target is thread 662174.
+			const reporterJwt = await createTestJwt(100, 0);
+
+			// `reason` must be one of the fixed REPORT_REASONS enum
+			// (apps/worker/src/handlers/report.ts) — cannot use a unique
+			// marker. The (reporter, type, targetId) tuple is enough to
+			// identify the row inside the 24h dedup window (only one pending
+			// row can exist per tuple per window).
+
+			// 1. Submit a thread report.
+			const submitRes = await workerPost(
+				"/api/v1/reports",
+				{ type: "thread", targetId: 662174, reason: "垃圾广告" },
+				reporterJwt,
+			);
+			let reportId: number | null = null;
+			if (submitRes.status === 201) {
+				const body = (await submitRes.json()) as { data: { id: number } };
+				reportId = body.data.id;
+			} else {
+				// Only DUPLICATE_REPORT is acceptable (24h dedup window from a
+				// prior run within the same calendar day).
+				expect(submitRes.status).toBe(400);
+				const errBody = (await submitRes.json()) as { error?: { code?: string } };
+				expect(errBody.error?.code).toBe("DUPLICATE_REPORT");
+				// Recover the dedup'd id via admin list. Filter to our exact
+				// (type, target, reporter) tuple — there can be at most one
+				// pending row per the dedup constraint.
+				const listRes = await adminGet("/api/admin/reports?type=thread&reporterId=100&limit=50");
+				expect(listRes.status).toBe(200);
+				const list = (await listRes.json()) as {
+					data: Array<{
+						id: number;
+						targetId: number;
+						type: string;
+						status: string;
+					}>;
+				};
+				// Prefer pending; fall back to any matching (resolved/dismissed
+				// shouldn't normally appear because dedup checks pending only,
+				// but being defensive doesn't hurt).
+				const candidates = list.data.filter((r) => r.type === "thread" && r.targetId === 662174);
+				reportId = (candidates.find((r) => r.status === "pending") ?? candidates[0])?.id ?? null;
+			}
+			expect(reportId).not.toBeNull();
+			const finalReportId = reportId as number;
+
+			// 2. Snapshot top admin_logs id for action=report.resolve.
+			const beforeRes = await adminGet("/api/admin/admin-logs?action=report.resolve&limit=1");
+			expect(beforeRes.status).toBe(200);
+			const before = (await beforeRes.json()) as {
+				data: Array<{ id: number; targetId: number | null }>;
+			};
+			const beforeTopId = before.data[0]?.id ?? 0;
+
+			try {
+				// 3. Resolve the report.
+				const patchRes = await adminPatch(`/api/admin/reports/${finalReportId}`, {
+					status: "resolved",
+					handlerId: 1,
+					handlerName: "admin",
+				});
+				expect(patchRes.status).toBe(200);
+
+				// 4. Poll the admin-logs list for the new entry.
+				let hit:
+					| { id: number; action: string; targetId: number | null; targetType: string }
+					| undefined;
+				for (let i = 0; i < 5 && !hit; i++) {
+					const res = await adminGet("/api/admin/admin-logs?action=report.resolve&limit=10");
+					expect(res.status).toBe(200);
+					const body = (await res.json()) as {
+						data: Array<{
+							id: number;
+							action: string;
+							targetId: number | null;
+							targetType: string;
+						}>;
+					};
+					hit = body.data.find((row) => row.id > beforeTopId && row.targetId === finalReportId);
+					if (!hit) await new Promise((r) => setTimeout(r, 100));
+				}
+				expect(hit).toBeDefined();
+				expect(hit?.action).toBe("report.resolve");
+				expect(hit?.targetType).toBe("report");
+				expect(hit?.targetId).toBe(finalReportId);
+			} finally {
+				// 5. Cleanup — delete the report so the test is idempotent.
+				await adminPost("/api/admin/reports/batch-delete", { ids: [finalReportId] });
+			}
+		});
+	});
+
 	// ─── Admin Announcements ───────────────────────────────────────
 
 	describe("GET /api/admin/announcements", () => {

@@ -20,6 +20,7 @@ import {
 	fetchUsers,
 	fetchUsersByIds,
 	nukeUser,
+	unbanUser,
 	updateUser,
 } from "@/viewmodels/admin/users";
 
@@ -61,6 +62,16 @@ describe("users API functions", () => {
 		const result = await banUser(42, true);
 		expect(mockPost).toHaveBeenCalledWith("/api/admin/users/42/ban", { deleteContent: true });
 		expect(result.banned).toBe(true);
+	});
+
+	it("unbanUser calls post on dedicated unban endpoint (no body)", async () => {
+		mockPost.mockResolvedValue({
+			data: { unbanned: true, id: 42, previousStatus: -1 },
+		});
+		const result = await unbanUser(42);
+		expect(mockPost).toHaveBeenCalledWith("/api/admin/users/42/unban");
+		expect(result.unbanned).toBe(true);
+		expect(result.previousStatus).toBe(-1);
 	});
 
 	it("nukeUser calls post", async () => {

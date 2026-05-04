@@ -424,6 +424,9 @@ export default {
 			if (path.match(/^\/api\/admin\/users\/\d+\/ban$/) && request.method === "POST") {
 				return await (await import("./handlers/admin/user")).ban(request, env);
 			}
+			if (path.match(/^\/api\/admin\/users\/\d+\/unban$/) && request.method === "POST") {
+				return await (await import("./handlers/admin/user")).unban(request, env);
+			}
 			if (path.match(/^\/api\/admin\/users\/\d+\/nuke$/) && request.method === "POST") {
 				return await (await import("./handlers/admin/user")).nuke(request, env);
 			}

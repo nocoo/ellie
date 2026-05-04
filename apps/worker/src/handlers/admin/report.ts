@@ -3,6 +3,7 @@
 // Custom handlers for list (status/type filters) and update (resolve/dismiss).
 
 import { withEntityAuth } from "../../lib/adminHelpers";
+import { resolveActor, writeAdminLog } from "../../lib/adminLog";
 import type { EntityConfig } from "../../lib/crud";
 import { createBatchDeleteHandler } from "../../lib/crud";
 import type { Env } from "../../lib/env";
@@ -294,6 +295,22 @@ export const update = withEntityAuth(
 			.bind(...updateParams, id)
 			.run();
 
+		// F3-a: emit audit only when transitioning into a terminal state.
+		// pending → pending or terminal → pending revert is not currently logged
+		// (low-risk, no-op observers); resolved/dismissed both get a row.
+		if (status === "resolved" || status === "dismissed") {
+			const reportId = Number.parseInt(id, 10);
+			await writeAdminLog(env, resolveActor(request), {
+				action: status === "resolved" ? "report.resolve" : "report.dismiss",
+				targetType: "report",
+				targetId: Number.isFinite(reportId) ? reportId : null,
+				details: {
+					previousStatus: (existing as Record<string, unknown>).status ?? null,
+					reportType: (existing as Record<string, unknown>).type ?? null,
+				},
+			});
+		}
+
 		// Fetch updated record
 		const updated = await env.DB.prepare(`SELECT ${REPORT_COLUMNS} FROM reports WHERE id = ?`)
 			.bind(id)
@@ -304,5 +321,73 @@ export const update = withEntityAuth(
 );
 
 // ─── POST /api/admin/reports/batch-delete ────────────────────────
+//
+// F3-a: wrap the generic CRUD batch-delete handler so we can emit an audit
+// row only when the underlying mutation succeeds (HTTP 2xx). Failure paths
+// are intentionally not logged — keeps admin_logs as a "what changed" trail,
+// not an attempted-action trail.
 
-export const batchDelete = withEntityAuth(reportConfig, createBatchDeleteHandler(reportConfig));
+const batchDeleteInner = createBatchDeleteHandler(reportConfig);
+
+export const batchDelete = withEntityAuth(
+	reportConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		// Snapshot the requested ids before the body stream is consumed by the
+		// inner handler. We re-build a fresh Request so the inner handler still
+		// has a body to parse.
+		let ids: unknown[] = [];
+		let bodyText = "";
+		try {
+			bodyText = await request.text();
+			const parsed = JSON.parse(bodyText) as { ids?: unknown[] };
+			if (Array.isArray(parsed?.ids)) ids = parsed.ids;
+		} catch {
+			// fall through — inner handler will return its own 400
+		}
+
+		// Coerce ids the same way createBatchDeleteHandler does (Number(id) +
+		// drop NaN), then snapshot which ones actually exist *before* the
+		// inner handler deletes them. We log only what we know was really
+		// removed, not the caller's intent.
+		const numericIds = ids
+			.map((id) => Number(id))
+			.filter((id): id is number => !Number.isNaN(id))
+			.slice(0, 100);
+
+		let existingIds: number[] = [];
+		if (numericIds.length > 0) {
+			try {
+				const placeholders = numericIds.map(() => "?").join(",");
+				const rows = await env.DB.prepare(`SELECT id FROM reports WHERE id IN (${placeholders})`)
+					.bind(...numericIds)
+					.all<{ id: number }>();
+				existingIds = (rows.results ?? []).map((r) => r.id);
+			} catch {
+				// best-effort snapshot — fall through with []
+			}
+		}
+
+		const innerReq = new Request(request.url, {
+			method: request.method,
+			headers: request.headers,
+			body: bodyText,
+		});
+
+		const res = await batchDeleteInner(innerReq, env);
+
+		if (res.status >= 200 && res.status < 300) {
+			// reportConfig has no beforeDelete skip path, so the snapshot of
+			// rows that existed at the moment of the SELECT is the exact set
+			// the inner CRUD handler will have deleted. No need to re-parse
+			// inner's response body.
+			await writeAdminLog(env, resolveActor(request), {
+				action: "report.batch_delete",
+				targetType: "report",
+				targetId: null,
+				details: { ids: existingIds, count: existingIds.length },
+			});
+		}
+
+		return res;
+	},
+);

@@ -413,4 +413,165 @@ describe("admin report handlers", () => {
 			expect(response.status).toBe(200);
 		});
 	});
+
+	// ─── F3-a: audit instrumentation ─────────────────────────────────
+
+	describe("F3-a audit instrumentation", () => {
+		function actorReq(method: string, path: string, body?: unknown): Request {
+			const headers: Record<string, string> = {
+				"X-API-Key": "test-api-key",
+				"Content-Type": "application/json",
+				"X-Admin-Actor-Email": "alice@example.com",
+				"X-Admin-Actor-Name": "Alice",
+				"CF-Connecting-IP": "5.6.7.8",
+			};
+			return new Request(`https://api.example.com${path}`, {
+				method,
+				headers,
+				...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+			});
+		}
+
+		function findAuditInsert(calls: { sql: string; params: unknown[] }[]) {
+			return calls.find((c) => c.sql.includes("INSERT INTO admin_logs"));
+		}
+
+		const existingPending = {
+			id: 7,
+			type: "post",
+			target_id: 100,
+			status: "pending",
+			handler_id: null,
+			handler_name: "",
+			handled_at: null,
+			created_at: 1711540800,
+			reporter_id: 1,
+			reporter_name: "bob",
+			reason: "spam",
+		};
+
+		it("PATCH status=resolved writes report.resolve audit row", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: { "FROM reports WHERE id": existingPending },
+			});
+			const res = await report.update(
+				actorReq("PATCH", "/api/admin/reports/7", {
+					status: "resolved",
+					handlerId: 0,
+					handlerName: "Alice",
+				}),
+				makeEnv({ DB: db }),
+			);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			expect(insert?.params[2]).toBe("report.resolve");
+			expect(insert?.params[3]).toBe("report");
+			expect(insert?.params[4]).toBe(7);
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.previousStatus).toBe("pending");
+			expect(details.reportType).toBe("post");
+			expect(details.actorEmail).toBe("alice@example.com");
+		});
+
+		it("PATCH status=dismissed writes report.dismiss audit row", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: { "FROM reports WHERE id": existingPending },
+			});
+			await report.update(
+				actorReq("PATCH", "/api/admin/reports/7", { status: "dismissed" }),
+				makeEnv({ DB: db }),
+			);
+			const insert = findAuditInsert(calls);
+			expect(insert?.params[2]).toBe("report.dismiss");
+		});
+
+		it("PATCH status=pending does NOT write an audit row", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: { "FROM reports WHERE id": existingPending },
+			});
+			await report.update(
+				actorReq("PATCH", "/api/admin/reports/7", { status: "pending" }),
+				makeEnv({ DB: db }),
+			);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+
+		it("batch-delete writes one report.batch_delete row with existing ids in details", async () => {
+			// Snapshot SELECT IN returns all 3 as existing; per-id fetchRowFull
+			// also returns rows so the inner CRUD handler counts 3.
+			const { db, calls } = createMockDb({
+				firstResults: { "FROM reports WHERE id = ?": { id: 1 } },
+				allResults: {
+					"SELECT id FROM reports WHERE id IN": [{ id: 1 }, { id: 2 }, { id: 3 }],
+				},
+			});
+			const res = await report.batchDelete(
+				actorReq("POST", "/api/admin/reports/batch-delete", { ids: [1, 2, 3] }),
+				makeEnv({ DB: db }),
+			);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			expect(insert?.params[2]).toBe("report.batch_delete");
+			expect(insert?.params[4]).toBeNull();
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.ids).toEqual([1, 2, 3]);
+			expect(details.count).toBe(3);
+		});
+
+		it("batch-delete with bad body still 400s and does NOT write audit", async () => {
+			const { db, calls } = createMockDb();
+			const res = await report.batchDelete(
+				actorReq("POST", "/api/admin/reports/batch-delete", { ids: "nope" }),
+				makeEnv({ DB: db }),
+			);
+			expect(res.status).toBeGreaterThanOrEqual(400);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+
+		// B3: numeric-string ids (e.g. "1","2") must be coerced via Number()
+		// to match CRUD inner-handler behavior, then audit-logged as numbers.
+		it("batch-delete coerces numeric-string ids and audits the actual deleted set", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: { "FROM reports WHERE id = ?": { id: 1 } },
+				allResults: {
+					"SELECT id FROM reports WHERE id IN": [{ id: 1 }, { id: 2 }],
+				},
+			});
+			const res = await report.batchDelete(
+				actorReq("POST", "/api/admin/reports/batch-delete", { ids: ["1", "2"] }),
+				makeEnv({ DB: db }),
+			);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.ids).toEqual([1, 2]);
+			expect(details.count).toBe(2);
+		});
+
+		// B3: when caller asks to delete ids that don't exist, audit must
+		// reflect only the rows actually removed, not the requested ids.
+		it("batch-delete with mixed existing/missing ids only audits the existing ones", async () => {
+			// Snapshot SELECT returns only id=1 — that's the source of truth
+			// for what we audit, since reportConfig has no beforeDelete skip.
+			const { db, calls } = createMockDb({
+				firstResults: { "FROM reports WHERE id = ?": { id: 1 } },
+				allResults: {
+					"SELECT id FROM reports WHERE id IN": [{ id: 1 }],
+				},
+			});
+			const res = await report.batchDelete(
+				actorReq("POST", "/api/admin/reports/batch-delete", { ids: [1, 999] }),
+				makeEnv({ DB: db }),
+			);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.ids).toEqual([1]);
+			expect(details.count).toBe(1);
+		});
+	});
 });

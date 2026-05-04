@@ -10,6 +10,7 @@ import {
 	listStaff,
 	nuke,
 	recalcCounters,
+	unban,
 	update,
 } from "../../../../src/handlers/admin/user";
 import {
@@ -1632,6 +1633,199 @@ describe("admin user handlers", () => {
 
 			expect(res.status).toBe(200);
 			expect(body.data).toEqual([]);
+		});
+	});
+
+	// ─── F3-a: unban + audit-log instrumentation ─────────────
+
+	function actorHeaders(): Record<string, string> {
+		return {
+			"X-Admin-Actor-Email": "alice@example.com",
+			"X-Admin-Actor-Name": "Alice",
+			"CF-Connecting-IP": "1.2.3.4",
+		};
+	}
+
+	function adminMutationReq(
+		method: string,
+		path: string,
+		body?: unknown,
+		extraHeaders?: Record<string, string>,
+	): Request {
+		const headers: Record<string, string> = {
+			"X-API-Key": "test-api-key",
+			"Content-Type": "application/json",
+			...actorHeaders(),
+			...(extraHeaders ?? {}),
+		};
+		return new Request(`https://api.example.com${path}`, {
+			method,
+			headers,
+			...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+		});
+	}
+
+	describe("unban", () => {
+		it("flips status from -1 to 0 on a banned user", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT id, status, role FROM users WHERE id": { id: 42, status: -1, role: 0 },
+				},
+			});
+
+			const res = await unban(adminMutationReq("POST", "/api/admin/users/42/unban"), adminEnv(db));
+			const body = await res.json();
+
+			expect(res.status).toBe(200);
+			expect(body.data).toEqual({ unbanned: true, id: 42, previousStatus: -1 });
+			const update = calls.find(
+				(c) => c.sql.includes("UPDATE users SET status = 0") && c.params[0] === 42,
+			);
+			expect(update).toBeTruthy();
+		});
+
+		it("rejects non-banned user with INVALID_REQUEST", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
+				},
+			});
+			const res = await unban(adminMutationReq("POST", "/api/admin/users/42/unban"), adminEnv(db));
+			const body = await res.json();
+			expect(res.status).toBe(400);
+			expect(body.error.code).toBe("INVALID_REQUEST");
+		});
+
+		it("rejects already-purged tombstone with ALREADY_PURGED", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT id, status, role FROM users WHERE id": { id: 42, status: -99, role: 0 },
+				},
+			});
+			const res = await unban(adminMutationReq("POST", "/api/admin/users/42/unban"), adminEnv(db));
+			expect(res.status).toBe(409);
+		});
+
+		it("returns 404 for missing user", async () => {
+			const { db } = createMockDb({
+				firstResults: { "SELECT id, status, role FROM users WHERE id": null },
+			});
+			const res = await unban(adminMutationReq("POST", "/api/admin/users/999/unban"), adminEnv(db));
+			expect(res.status).toBe(404);
+		});
+
+		it("rejects invalid user ID", async () => {
+			const { db } = createMockDb();
+			const res = await unban(adminMutationReq("POST", "/api/admin/users/abc/unban"), adminEnv(db));
+			expect(res.status).toBe(400);
+		});
+	});
+
+	describe("F3-a audit instrumentation", () => {
+		function findAuditInsert(calls: { sql: string; params: unknown[] }[]) {
+			return calls.find((c) => c.sql.includes("INSERT INTO admin_logs"));
+		}
+
+		it("ban (no content delete) writes a user.ban audit row with actor", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
+				},
+			});
+			const res = await ban(adminMutationReq("POST", "/api/admin/users/42/ban", {}), adminEnv(db));
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			// binds: admin_id, admin_name, action, target_type, target_id, details, ip, created_at
+			expect(insert?.params[1]).toBe("Alice");
+			expect(insert?.params[2]).toBe("user.ban");
+			expect(insert?.params[3]).toBe("user");
+			expect(insert?.params[4]).toBe(42);
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.mode).toBe("ban");
+			expect(details.deletedContent).toBe(false);
+			expect(details.actorEmail).toBe("alice@example.com");
+			expect(insert?.params[6]).toBe("1.2.3.4");
+		});
+
+		it("ban (with content delete) records counts in details", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
+				},
+				allResults: {
+					"SELECT id, forum_id, replies FROM threads WHERE author_id": [
+						{ id: 10, forum_id: 1, replies: 3 },
+					],
+					"SELECT forum_id, COUNT(*) as cnt FROM posts": [{ forum_id: 1, cnt: 2 }],
+					"SELECT thread_id, COUNT(*) as cnt FROM posts": [{ thread_id: 20, cnt: 2 }],
+				},
+			});
+			const res = await ban(
+				adminMutationReq("POST", "/api/admin/users/42/ban", { deleteContent: true }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.mode).toBe("ban_delete_content");
+			expect(details.deletedContent).toBe(true);
+			expect(details.deletedThreads).toBe(1);
+			expect(details.deletedPosts).toBeGreaterThan(0);
+		});
+
+		it("unban writes user.unban with previousStatus", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT id, status, role FROM users WHERE id": { id: 42, status: -1, role: 0 },
+				},
+			});
+			await unban(adminMutationReq("POST", "/api/admin/users/42/unban"), adminEnv(db));
+			const insert = findAuditInsert(calls);
+			expect(insert?.params[2]).toBe("user.unban");
+			expect(insert?.params[4]).toBe(42);
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.previousStatus).toBe(-1);
+			expect(details.actorEmail).toBe("alice@example.com");
+		});
+
+		it("nuke writes user.nuke with deletion counts", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
+				},
+				allResults: {
+					"SELECT id, forum_id, replies FROM threads WHERE author_id": [
+						{ id: 10, forum_id: 1, replies: 2 },
+					],
+					"SELECT forum_id, COUNT(*) as cnt FROM posts": [{ forum_id: 1, cnt: 3 }],
+					"SELECT thread_id, COUNT(*) as cnt FROM posts": [{ thread_id: 20, cnt: 3 }],
+				},
+			});
+			const res = await nuke(adminMutationReq("POST", "/api/admin/users/42/nuke"), adminEnv(db));
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert?.params[2]).toBe("user.nuke");
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.deletedThreads).toBe(1);
+			expect(details.deletedPosts).toBeGreaterThan(0);
+		});
+
+		it("system actor (no headers) writes admin_name=system and no actorEmail in details", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT id, status, role FROM users WHERE id": { id: 42, status: -1, role: 0 },
+				},
+			});
+			const req = new Request("https://api.example.com/api/admin/users/42/unban", {
+				method: "POST",
+				headers: { "X-API-Key": "test-api-key" },
+			});
+			await unban(req, adminEnv(db));
+			const insert = findAuditInsert(calls);
+			expect(insert?.params[1]).toBe("system");
+			const details = JSON.parse(insert?.params[5] as string);
+			expect("actorEmail" in details).toBe(false);
 		});
 	});
 });
