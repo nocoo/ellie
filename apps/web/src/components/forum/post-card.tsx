@@ -17,9 +17,9 @@ import { PostEditDialog } from "@/components/forum/post-edit-dialog";
 import { PostSidebar } from "@/components/forum/post-sidebar";
 import { ReportDialog } from "@/components/forum/report-dialog";
 import { ThreadModMenu } from "@/components/forum/thread-mod-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ForumAvatar } from "@/components/forum/user-avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { getAvatarUrl } from "@/lib/avatar";
 import { getStaticImageUrl } from "@/lib/cdn";
 import { type EnrichedPost, floorLabel } from "@/viewmodels/forum/thread-detail";
 import { usePostActions } from "@/viewmodels/forum/use-post-actions";
@@ -161,20 +161,13 @@ export function PostCard({
 				<div className="flex items-center gap-2 px-3 pt-3 pb-2 border-b border-dashed border-border">
 					{post.author ? (
 						<Link href={`/users/${post.authorId}`}>
-							<Avatar className="h-8 w-8 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
-								<AvatarImage
-									src={getAvatarUrl(post.authorId, "small", post.author?.avatarPath)}
-									alt={post.author.username}
-									className="rounded-sm"
-								/>
-								<AvatarFallback className="text-xs rounded-sm bg-muted p-0 overflow-hidden">
-									<img
-										src={getStaticImageUrl("tavatar.gif")}
-										alt=""
-										className="h-full w-full object-cover"
-									/>
-								</AvatarFallback>
-							</Avatar>
+							<ForumAvatar
+								userId={post.authorId}
+								userName={post.author.username}
+								avatarPath={post.author.avatarPath}
+								size="xs"
+								className="h-8 w-8 shadow-[0_0_2px_rgba(0,0,0,0.15)]"
+							/>
 						</Link>
 					) : (
 						<Avatar className="h-8 w-8 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
