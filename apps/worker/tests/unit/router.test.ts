@@ -16,6 +16,7 @@ vi.mock("../../src/handlers/live", () => ({
 vi.mock("../../src/handlers/forum", () => ({
 	list: mockHandler(),
 	getById: mockHandler(),
+	getAncestors: mockHandler(),
 }));
 vi.mock("../../src/handlers/thread", () => ({
 	list: mockHandler(),
@@ -728,6 +729,7 @@ describe("router (src/index.ts)", () => {
 			it.each([
 				["GET", "/api/v1/forums", "forum", "list"],
 				["GET", "/api/v1/forums/1", "forum", "getById"],
+				["GET", "/api/v1/forums/1/ancestors", "forum", "getAncestors"],
 				["GET", "/api/v1/threads", "thread", "list"],
 				["GET", "/api/v1/threads/1", "thread", "getById"],
 				["GET", "/api/v1/posts", "post", "list"],

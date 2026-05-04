@@ -379,6 +379,7 @@ interface ForumContext {
 	status: number;
 	visibility: ForumVisibility;
 	type: string;
+	moderators: string;
 	moderatorIds: string;
 	moderatorList: ModeratorInfo[];
 }
@@ -461,6 +462,7 @@ export async function getAncestors(
 		status: target.status,
 		visibility: target.visibility,
 		type: target.type,
+		moderators: target.moderators,
 		moderatorIds: target.moderatorIds,
 		moderatorList: target.moderatorList,
 	};
