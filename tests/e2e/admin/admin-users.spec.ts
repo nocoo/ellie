@@ -239,4 +239,73 @@ test.describe("Admin users CRUD", () => {
 		await editDialog.getByRole("button", { name: "取消" }).click();
 		await expect(editDialog).toBeHidden();
 	});
+
+	test("user row action menu fits content within viewport", async ({
+		page,
+		context,
+		loginAsAdmin,
+		baseURL,
+	}) => {
+		// D1 layout regression: the per-row dropdown's popup width was
+		// driven by `w-(--anchor-width)` (anchor ≈ 32-40px from the w-10
+		// actions cell), with a `min-w-32` floor (128px) below the longest
+		// label "封禁并删除内容". Items wrapped/overflowed inside the
+		// popup. The page now overrides with `w-40 whitespace-nowrap` so
+		// each menuitem renders on a single line within the popup bbox.
+		const origin = baseURL ?? "http://localhost:7032";
+		await loginAsAdmin();
+
+		// Snapshot is unused — read just to keep the suite's contract that
+		// every test has a snapshot reference for the afterEach restore.
+		{
+			const res = await context.request.get(`/api/admin/users/${SEED_USER_ID}`, {
+				headers: { Origin: origin },
+			});
+			expect(res.ok()).toBeTruthy();
+			snapshot = ((await res.json()) as UserResponse).data;
+		}
+		const snap = snapshot;
+		if (!snap) throw new Error("snapshot must be present");
+		const initialUsername = snap.username;
+
+		await page.goto(`/admin/users?search=${encodeURIComponent(initialUsername)}`);
+		await expect(page.getByRole("heading", { name: "用户" })).toBeVisible();
+
+		const triggerName = `打开用户「${initialUsername}」操作菜单`;
+		await page.getByRole("button", { name: triggerName }).click();
+
+		// Wait for the popup, then inspect every menuitem's bbox.
+		const menu = page.getByRole("menu");
+		await expect(menu).toBeVisible();
+
+		const viewport = page.viewportSize();
+		expect(viewport, "viewport size must be available").not.toBeNull();
+		if (!viewport) throw new Error("unreachable");
+
+		// Collect all menuitems under the popup. Their bboxes must:
+		//   1. fit horizontally inside the viewport (no clipping right edge),
+		//   2. each occupy a single line whose height is <= ~28px (text-sm
+		//      line-height plus padding); a wrapped 2-line item would push
+		//      this above ~40px.
+		const menuItems = menu.getByRole("menuitem");
+		const count = await menuItems.count();
+		expect(count, "users action menu must render at least one item").toBeGreaterThan(0);
+
+		for (let i = 0; i < count; i++) {
+			const item = menuItems.nth(i);
+			const text = (await item.textContent())?.trim() ?? "";
+			const bbox = await item.boundingBox();
+			expect(bbox, `menuitem #${i} ("${text}") must have a bbox`).not.toBeNull();
+			if (!bbox) continue;
+			expect(bbox.x, `menuitem "${text}" must start inside viewport`).toBeGreaterThanOrEqual(0);
+			expect(
+				bbox.x + bbox.width,
+				`menuitem "${text}" must not overflow viewport right edge`,
+			).toBeLessThanOrEqual(viewport.width);
+			expect(
+				bbox.height,
+				`menuitem "${text}" must render on a single line (no wrap)`,
+			).toBeLessThanOrEqual(40);
+		}
+	});
 });
