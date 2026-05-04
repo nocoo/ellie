@@ -18,7 +18,8 @@ bucket_name = "tongjinet"
 
 [vars]
 ENVIRONMENT = "production"
-ALLOWED_ORIGINS = "https://ellie.nocoo.cloud,https://ellie.worker.hexly.ai"
+ALLOWED_ORIGINS = "https://ellie.worker.hexly.ai"
+USE_KV_FORUM_CACHE = "true"
 
 # Dove email relay (docs/17 §8). Webhook = `${DOVE_BASE_URL}/api/webhook/${DOVE_PROJECT_ID}/send`.
 # Only the BASE_URL / PROJECT_ID / TEMPLATE_SLUG are tracked vars; the bearer
