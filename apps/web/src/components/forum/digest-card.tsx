@@ -3,12 +3,12 @@
 // Includes digest level border color, highlight-styled title, and recommends
 
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
-import { formatCompactNumber, formatRelativeTime } from "@/viewmodels/shared/formatting";
+import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import type { Thread, ThreadBadge } from "@ellie/types";
 import { decodeHighlight } from "@ellie/types";
-import { Heart } from "lucide-react";
 import Link from "next/link";
 import type { CSSProperties } from "react";
+import { ThreadRowStats } from "./thread-row-stats";
 import { ForumAvatar } from "./user-avatar";
 import { UserPopover } from "./user-popover";
 
@@ -90,19 +90,12 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 				</div>
 
 				{/* Column 3: Replies / Views / Recommends (fixed) */}
-				<div className="flex flex-col items-center justify-center w-[80px] shrink-0 py-2 text-center tabular-nums">
-					<span className="text-xs text-foreground font-medium">
-						{formatCompactNumber(thread.replies)} / {formatCompactNumber(thread.views)}
-					</span>
-					{thread.recommends > 0 ? (
-						<span className="inline-flex items-center gap-0.5 text-xs text-rose-500">
-							<Heart className="h-3 w-3 fill-current" />
-							{formatCompactNumber(thread.recommends)}
-						</span>
-					) : (
-						<span className="text-xs text-muted-foreground">回/览</span>
-					)}
-				</div>
+				<ThreadRowStats
+					replies={thread.replies}
+					views={thread.views}
+					recommends={thread.recommends}
+					variant="desktop"
+				/>
 
 				{/* Column 4: Last Reply (fixed) */}
 				<div className="flex flex-col items-center justify-center w-[120px] shrink-0 py-2 pr-3 text-center">
@@ -157,13 +150,12 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 					<span>·</span>
 					<span>{formatRelativeTime(thread.createdAt)}</span>
 					<span className="ml-auto tabular-nums">
-						{formatCompactNumber(thread.replies)} 回 / {formatCompactNumber(thread.views)} 览
-						{thread.recommends > 0 && (
-							<span className="inline-flex items-center gap-0.5 ml-1.5 text-rose-500">
-								<Heart className="h-3 w-3 fill-current" />
-								{formatCompactNumber(thread.recommends)}
-							</span>
-						)}
+						<ThreadRowStats
+							replies={thread.replies}
+							views={thread.views}
+							recommends={thread.recommends}
+							variant="mobile"
+						/>
 					</span>
 				</div>
 			</div>

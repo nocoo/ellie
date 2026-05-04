@@ -5,10 +5,10 @@
 // Mobile: 2-row compact layout (Avatar + badges + subject on row 1, stats inline on row 2)
 
 import { type ThreadDisplayItem, highlightStyle } from "@/viewmodels/forum/thread-list";
-import { formatCompactNumber, formatRelativeTime } from "@/viewmodels/shared/formatting";
-import { Heart } from "lucide-react";
+import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import Link from "next/link";
 import { ThreadBadgeList } from "./thread-badge";
+import { ThreadRowStats } from "./thread-row-stats";
 import { ForumAvatar } from "./user-avatar";
 import { UserPopover } from "./user-popover";
 
@@ -60,19 +60,12 @@ export function ThreadItem({ item }: ThreadItemProps) {
 				</div>
 
 				{/* Column 3: Replies / Views / Recommends (fixed) */}
-				<div className="flex flex-col items-center justify-center w-[80px] shrink-0 py-2 text-center tabular-nums">
-					<span className="text-xs text-foreground font-medium">
-						{formatCompactNumber(thread.replies)} / {formatCompactNumber(thread.views)}
-					</span>
-					{thread.recommends > 0 ? (
-						<span className="inline-flex items-center gap-0.5 text-xs text-rose-500">
-							<Heart className="h-3 w-3 fill-current" />
-							{formatCompactNumber(thread.recommends)}
-						</span>
-					) : (
-						<span className="text-xs text-muted-foreground">回/览</span>
-					)}
-				</div>
+				<ThreadRowStats
+					replies={thread.replies}
+					views={thread.views}
+					recommends={thread.recommends}
+					variant="desktop"
+				/>
 
 				{/* Column 4: Last Post (fixed) */}
 				<div className="flex flex-col items-center justify-center w-[120px] shrink-0 py-2 text-center">
@@ -127,13 +120,12 @@ export function ThreadItem({ item }: ThreadItemProps) {
 					<span>·</span>
 					<span>{formatRelativeTime(thread.createdAt)}</span>
 					<span className="ml-auto tabular-nums">
-						{formatCompactNumber(thread.replies)} 回 / {formatCompactNumber(thread.views)} 览
-						{thread.recommends > 0 && (
-							<span className="inline-flex items-center gap-0.5 ml-1.5 text-rose-500">
-								<Heart className="h-3 w-3 fill-current" />
-								{formatCompactNumber(thread.recommends)}
-							</span>
-						)}
+						<ThreadRowStats
+							replies={thread.replies}
+							views={thread.views}
+							recommends={thread.recommends}
+							variant="mobile"
+						/>
 					</span>
 				</div>
 			</div>
