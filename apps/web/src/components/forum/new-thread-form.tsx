@@ -4,8 +4,9 @@
 
 "use client";
 
+import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
 import { PostEditor } from "@/components/forum/post-editor";
-import { type BreadcrumbItem, Breadcrumbs } from "@/components/layout/breadcrumbs";
+import type { BreadcrumbItem } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -194,11 +195,7 @@ export function NewThreadForm({ breadcrumbs, forumId: _forumId }: NewThreadFormP
 	return (
 		<div className="space-y-3">
 			{/* Breadcrumbs */}
-			{breadcrumbs.length > 1 && (
-				<div className="py-2">
-					<Breadcrumbs items={breadcrumbs} />
-				</div>
-			)}
+			<BreadcrumbBar items={breadcrumbs} />
 
 			{/* Post type tabs */}
 			<PostTypeTabs activeTab={activeTab} onTabChange={setActiveTab} />

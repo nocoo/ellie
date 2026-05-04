@@ -1,12 +1,12 @@
 // Ref: 04f §6 — RSC page, Discuz classic thread list layout with page-number pagination
 
+import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
 import { ForumFloatingActions } from "@/components/forum/forum-floating-actions";
 import { ForumHeaderClient } from "@/components/forum/forum-header-client";
 import { ForumPanel } from "@/components/forum/forum-panel";
 import { PagePagination } from "@/components/forum/page-pagination";
 import { ThreadItem } from "@/components/forum/thread-item";
 import { ThreadListHeader } from "@/components/forum/thread-list-header";
-import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Card, CardContent } from "@/components/ui/card";
 import { getSelfForumUser } from "@/lib/forum-self";
 import {
@@ -85,11 +85,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 	return (
 		<div className="space-y-2">
 			{/* Breadcrumbs */}
-			{data.breadcrumbs.length > 1 && (
-				<div className="py-2">
-					<Breadcrumbs items={data.breadcrumbs} />
-				</div>
-			)}
+			<BreadcrumbBar items={data.breadcrumbs} />
 			{/* Forum header with new thread button */}
 			{data.forum && (
 				<ForumHeaderClient

@@ -2,8 +2,9 @@
 
 "use client";
 
+import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
 import { ComposeMessageDialog } from "@/components/forum/compose-message-dialog";
-import { type BreadcrumbItem, Breadcrumbs } from "@/components/layout/breadcrumbs";
+import type { BreadcrumbItem } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ApiError, type Message, deleteMessage, fetchMessage } from "@/viewmodels/forum/messages";
@@ -154,11 +155,7 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 	return (
 		<div className="space-y-4">
 			{/* Breadcrumbs */}
-			{breadcrumbs.length > 1 && (
-				<div className="py-2">
-					<Breadcrumbs items={breadcrumbs} />
-				</div>
-			)}
+			<BreadcrumbBar items={breadcrumbs} />
 
 			{/* Back link */}
 			<div className="flex items-center gap-2">

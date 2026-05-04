@@ -1,11 +1,11 @@
 // Ref: 04f §7 — Discuz classic two-column layout with mod action bar
 
+import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
 import { ModProvider } from "@/components/forum/mod-context";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
 import { ThreadPostsClient } from "@/components/forum/thread-posts-client";
 import { ThreadReportButton } from "@/components/forum/thread-report-button";
-import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Card, CardContent } from "@/components/ui/card";
 import { getSelfForumUser } from "@/lib/forum-self";
 import {
@@ -108,11 +108,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 	return (
 		<div className="space-y-3">
 			{/* Breadcrumbs */}
-			{data.breadcrumbs.length > 1 && (
-				<div className="py-2">
-					<Breadcrumbs items={data.breadcrumbs} />
-				</div>
-			)}
+			<BreadcrumbBar items={data.breadcrumbs} />
 
 			{/* Thread header (simplified — views/replies now in first post sidebar) */}
 			<Card size="sm" className="bg-gradient-to-br from-slate-500/5 via-background to-zinc-500/5">
