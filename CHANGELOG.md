@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.3] - 2026-05-04
+
+### Added
+
+- **KV-cached forum tree** (Phase 1): Two-layer KV cache for forum structural metadata (10min TTL) with explicit invalidation on admin operations
+- **Volatile forum data cache** (Phase 2): KV cache for forum counts and last-post info (60s TTL) with write-path invalidation
+- **Forum ancestors endpoint**: Lightweight `GET /api/v1/forums/:id/ancestors` for breadcrumbs without fetching the full forum list
+- **Schema validation**: Cached payloads are validated on read to reject stale/corrupt data after schema changes
+
+### Fixed
+
+- **E2E dialog locator**: Use `data-slot="dialog-content"` selector to avoid Playwright strict mode violation when smiley popover coexists
+- **E2E viewport resize**: Wrap narrow-viewport assertions in `expect().toPass()` to handle CSS media query settle delay on CI
+
+### Changed
+
+- **Enable KV forum cache**: Set `USE_KV_FORUM_CACHE=true` in production — forums endpoint serves from KV on cache hit (0 D1 queries)
+- **Remove dead origin**: Removed non-existent `ellie.nocoo.cloud` from production `ALLOWED_ORIGINS`
+- **New-thread breadcrumbs**: Migrated to ancestors endpoint (avoids full forum list fetch)
+
 ## [1.2.2] - 2026-05-03
 
 ### Added
