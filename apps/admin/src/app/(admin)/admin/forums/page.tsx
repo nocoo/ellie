@@ -190,6 +190,7 @@ function ForumRow({ node, isLast, onEdit, onToggleStatus, onMerge, onDelete }: F
 						<Button
 							variant="ghost"
 							size="icon"
+							aria-label={`打开「${node.name}」操作菜单`}
 							className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
 						>
 							<MoreHorizontal className="h-4 w-4" />
