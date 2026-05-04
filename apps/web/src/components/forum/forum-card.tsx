@@ -37,6 +37,30 @@ function LastPosterAvatarLink({
 	);
 }
 
+/** Forum thread/post count display. */
+function ForumStats({
+	threads,
+	posts,
+	variant,
+}: { threads: number; posts: number; variant: "desktop" | "inline" }) {
+	if (variant === "desktop") {
+		return (
+			<div className="flex flex-col items-end text-xs text-muted-foreground shrink-0 tabular-nums min-w-[80px]">
+				<span>
+					<span className="text-foreground font-medium">{formatCount(threads)}</span>
+					{" / "}
+					{formatCount(posts)}
+				</span>
+			</div>
+		);
+	}
+	return (
+		<>
+			{formatCount(threads)} 帖 / {formatCount(posts)} 回
+		</>
+	);
+}
+
 /** Today's new thread count badge. Returns null when count <= 0. */
 function TodayThreadBadge({
 	count,
@@ -150,13 +174,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 				</div>
 
 				{/* Middle: stats — "帖数 / 回帖" */}
-				<div className="flex flex-col items-end text-xs text-muted-foreground shrink-0 tabular-nums min-w-[80px]">
-					<span>
-						<span className="text-foreground font-medium">{formatCount(forum.threads)}</span>
-						{" / "}
-						{formatCount(forum.posts)}
-					</span>
-				</div>
+				<ForumStats threads={forum.threads} posts={forum.posts} variant="desktop" />
 
 				{/* Right: last post info (md+ only) */}
 				{forum.lastPostAt > 0 && (
@@ -207,7 +225,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 				{/* Row 2: stats + last poster */}
 				<div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
 					<span className="tabular-nums">
-						{formatCount(forum.threads)} 帖 / {formatCount(forum.posts)} 回
+						<ForumStats threads={forum.threads} posts={forum.posts} variant="inline" />
 					</span>
 					{forum.lastPostAt > 0 && (
 						<>
@@ -249,7 +267,7 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 					<TodayThreadBadge count={forum.todayThreads} variant="plus" />
 				</div>
 				<div className="mt-0.5 text-xs text-muted-foreground tabular-nums leading-5">
-					{formatCount(forum.threads)} 帖 / {formatCount(forum.posts)} 回
+					<ForumStats threads={forum.threads} posts={forum.posts} variant="inline" />
 				</div>
 
 				{/* Moderators */}
