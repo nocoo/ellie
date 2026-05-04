@@ -1,6 +1,6 @@
 # 13 — 举报功能
 
-> 用户举报**帖子**的前端入口、用户端 API、管理后台列表与处理界面。
+> 用户举报**主题 / 回帖 / 用户**的前端入口、用户端 API、管理后台列表与处理界面。
 >
 > **前置依赖**：02（数据库设计，reports 表已存在）、05（Worker API）、10（管理后台）
 
@@ -10,12 +10,13 @@
 
 | # | 问题 | 决策 | 说明 |
 |---|------|------|------|
-| 1 | 本期范围 | **只做 post 举报** | thread/user 举报留后续迭代 |
+| 1 | 范围 | **支持 thread / post / user** | E 批已扩展，post 为最初实现的类型 |
 | 2 | 举报理由 | **只允许预设值** | 不支持自定义补充说明，避免结构化数据丢失 |
-| 3 | 跳转元数据 | **联表查** | Admin API 查询时 JOIN posts/threads 补齐 thread_id |
+| 3 | 跳转元数据 | **联表查** | Admin API 用类型守卫的 LEFT JOIN 补齐 thread_id / target_title / target_name |
 | 4 | 单条删除 | **用 batch-delete** | 前端传 `[id]` 单元素数组 |
-| 5 | 处理人身份 | **只记录 name** | handler_id 固定为 0，handler_name 从 session 取 |
+| 5 | 处理人身份 | **handler_id + handler_name** | resolve/dismiss 时由 admin session 写入；revert to pending 时清空 |
 | 6 | 人机验证 | **复用 Cap.js** | 使用现有 CapWidget 组件，前端校验通过后提交 |
+| 7 | 自我举报 | **UI 隐藏 + Worker 兜底** | 前端按钮在 `currentUserId === authorId` 时不渲染；Worker 仍以 `CANNOT_REPORT_SELF` 守门 |
 
 ---
 
@@ -26,22 +27,24 @@
 | 组件 | 状态 | 说明 |
 |------|------|------|
 | `reports` 表 | ✅ 已存在 | schema.ts 已定义 |
-| Admin API | ⚠️ 需改造 | 需联表补齐 thread_id 用于跳转 |
-| 用户端举报 API | ❌ 缺失 | 无 `/api/v1/reports` 端点 |
-| 前端举报入口 | ❌ 缺失 | 帖子操作栏无举报按钮 |
-| Admin 举报管理页 | ❌ 缺失 | 无 `/admin/reports` 页面 |
+| Admin API | ✅ 类型感知 | 类型守卫 LEFT JOIN 补齐 `thread_id` / `target_title` / `target_name` |
+| 用户端举报 API | ✅ 三类型 | `POST /api/v1/reports` 支持 `type ∈ {thread, post, user}` |
+| 前端举报入口 | ✅ 三入口 | 帖子操作栏 / 主题头部 / 个人页 |
+| Admin 举报管理页 | ✅ 类型筛选 | `/admin/reports` 含 类型 / 状态 双 filter，detail 类型感知 |
 
-### 1.2 本次实现
+### 1.2 当前能力边界
 
 | 功能 | 说明 |
 |------|------|
-| 用户举报 API | 创建举报（POST `/api/v1/reports`），仅支持 `type=post` |
-| 发帖权限检查 API | 新增 GET `/api/v1/posting-permission`，前端用于弹窗 Step 1 |
-| 帖子举报入口 | 帖子操作栏右侧添加"举报"按钮 |
-| 举报弹窗 | 三步校验：权限检查 → Cap.js 验证 → 选择预设理由 |
-| Admin API 改造 | 联表查询补齐 thread_id |
-| Admin 举报列表 | 查看所有举报，按状态筛选 |
-| Admin 举报处理 | 标记已处理/驳回，跳转查看被举报帖子 |
+| 用户举报 API | `POST /api/v1/reports`，body `{ type: 'thread'\|'post'\|'user', targetId, reason }` |
+| 发帖权限检查 API | `GET /api/v1/posting-permission`，前端用于弹窗 Step 1 |
+| 主题 / 回帖 / 用户 举报入口 | `ThreadReportButton`（thread header）/ `ReportDialog`（post-card）/ `UserReportButton`（profile hero） |
+| 举报弹窗 | 三步校验：权限检查 → Cap.js 验证 → 选择预设理由；类型感知文案（标题 / 错误提示） |
+| Admin API JOIN | type-guarded LEFT JOIN：post→`posts.thread_id` + `threads.subject`，thread→`threads.subject`，user→`users.username` |
+| Admin 举报列表 | 按 类型 / 状态 / 举报人 筛选 |
+| Admin 举报处理 | 标记已处理 / 驳回 / 还原为待处理；跳转到对应 admin 实体页（thread 或 user） |
+
+> Audit Logs（admin 操作日志）由 F 批负责，不在本批范围。
 
 ---
 
@@ -70,8 +73,8 @@ CREATE TABLE IF NOT EXISTS reports (
 
 | 字段 | 说明 |
 |------|------|
-| `type` | 举报类型：本期只支持 `post` |
-| `target_id` | 被举报帖子 ID（posts.id） |
+| `type` | 举报类型：`thread` / `post` / `user` |
+| `target_id` | 被举报对象 ID（threads.id / posts.id / users.id，按 type 解释） |
 | `reporter_id` | 举报人 UID |
 | `reason` | 举报理由（预设值，不支持自定义） |
 | `status` | `pending`=待处理，`resolved`=已处理，`dismissed`=已驳回 |
@@ -92,8 +95,8 @@ CREATE TABLE IF NOT EXISTS reports (
 | 1 | 已登录 | JWT 鉴权 |
 | 2 | 账号状态正常 | `users.status >= 0` |
 | 3 | 能够发帖 | 复用 `checkPostingPermission()` |
-| 4 | 不能举报自己的帖子 | `post.author_id != reporter_id` |
-| 5 | 帖子存在 | 被举报的帖子存在 |
+| 4 | 不能举报自己的内容 | `resolved.authorId != reporter_id`（thread.author_id / post.author_id / user.id 三者由 Worker 解析） |
+| 5 | 目标存在 | 类型对应的实体存在（user 还需 `status != -99`） |
 
 **注意**：Cap.js 验证仅在前端进行（与登录/注册一致），后端不校验 capToken。
 
@@ -130,7 +133,7 @@ CREATE TABLE IF NOT EXISTS reports (
 │                                                 │
 │  Step 1: 检查权限                               │
 │  ┌─────────────────────────────────────────┐   │
-│  │ ✓ 您有权限举报此帖子                    │   │
+│  │ ✓ 您有权限举报此对象                    │   │
 │  └─────────────────────────────────────────┘   │
 │                                                 │
 │  Step 2: 人机验证                               │
@@ -160,8 +163,8 @@ CREATE TABLE IF NOT EXISTS reports (
 
 ### 3.3 重复举报限制
 
-- 同一用户对同一帖子，24 小时内只能举报一次
-- 检查：`SELECT 1 FROM reports WHERE reporter_id=? AND type='post' AND target_id=? AND created_at > ?`
+- 同一用户对同一对象（按 `type + target_id` 区分），24 小时内只能举报一次
+- 检查：`SELECT 1 FROM reports WHERE reporter_id=? AND type=? AND target_id=? AND created_at > ?`
 
 ---
 
@@ -171,7 +174,7 @@ CREATE TABLE IF NOT EXISTS reports (
 
 | # | Method | Path | Handler | 说明 |
 |---|--------|------|---------|------|
-| #75 | `POST` | `/api/v1/reports` | `create` | 提交帖子举报 |
+| #75 | `POST` | `/api/v1/reports` | `create` | 提交举报（thread / post / user） |
 | #76 | `GET` | `/api/v1/posting-permission` | `checkPermission` | 检查发帖权限（举报弹窗 Step 1） |
 
 ### 4.2 #75 POST /api/v1/reports
@@ -192,8 +195,8 @@ CREATE TABLE IF NOT EXISTS reports (
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `type` | string | ✅ | 本期只接受 `post` |
-| `targetId` | number | ✅ | 被举报帖子 ID |
+| `type` | string | ✅ | `thread` / `post` / `user` 三选一 |
+| `targetId` | number | ✅ | 被举报对象 ID（按 `type` 解释：thread→主题 ID；post→帖子 ID；user→用户 ID） |
 | `reason` | string | ✅ | 必须是预设值之一 |
 
 **注意**：Cap.js 验证在前端完成，后端不校验（与登录/注册行为一致）。
@@ -231,9 +234,9 @@ const REPORT_REASONS = [
 |------|------|------|
 | `UNAUTHORIZED` | 401 | 未登录 |
 | `FORBIDDEN` | 403 | 无权限（无法发帖） |
-| `INVALID_REQUEST` | 400 | 参数错误、type 不是 post、reason 不在预设列表 |
-| `TARGET_NOT_FOUND` | 404 | 举报的帖子不存在 |
-| `CANNOT_REPORT_SELF` | 400 | 不能举报自己的帖子 |
+| `INVALID_REQUEST` | 400 | 参数错误、type 不在 `thread/post/user`、reason 不在预设列表 |
+| `TARGET_NOT_FOUND` | 404 | 举报对象不存在或不可见 |
+| `CANNOT_REPORT_SELF` | 400 | 不能举报自己（自己的主题/帖子/账号） |
 | `DUPLICATE_REPORT` | 400 | 24 小时内重复举报 |
 
 ### 4.3 #76 GET /api/v1/posting-permission
@@ -273,24 +276,37 @@ const REPORT_REASONS = [
 
 | # | Method | Path | Handler | 状态 |
 |---|--------|------|---------|------|
-| #35 | `GET` | `/api/admin/reports` | `list` | ⚠️ 需改造 |
-| #36 | `GET` | `/api/admin/reports/:id` | `getById` | ⚠️ 需改造 |
+| #35 | `GET` | `/api/admin/reports` | `list` | ✅ 已联表 |
+| #36 | `GET` | `/api/admin/reports/:id` | `getById` | ✅ 已联表 |
 | #37 | `PATCH` | `/api/admin/reports/:id` | `update` | ✅ 已有 |
 | #38 | `POST` | `/api/admin/reports/batch-delete` | `batchDelete` | ✅ 已有 |
 
-**改造内容**：list 和 getById 需联表查询，返回 `threadId` 用于跳转：
+**联表内容**：list 和 getById 按 `type` 联表查询，返回每种类型对应的元数据：
 
 ```sql
-SELECT r.*, p.thread_id
+-- post   → 取 posts.thread_id 作为 threadId、对应 thread.subject 作为 target_title
+-- thread → 直接取 threads.id 作为 threadId、threads.subject 作为 target_title
+-- user   → 取 users.username 作为 target_name
+SELECT r.*,
+       CASE WHEN r.type='post'   THEN p.thread_id
+            WHEN r.type='thread' THEN t.id END                        AS thread_id,
+       CASE WHEN r.type='thread' THEN t.subject
+            WHEN r.type='post'   THEN tp.subject END                  AS target_title,
+       CASE WHEN r.type='user'   THEN u.username END                  AS target_name
 FROM reports r
-LEFT JOIN posts p ON r.type = 'post' AND r.target_id = p.id
+LEFT JOIN posts   p  ON r.type='post'   AND r.target_id = p.id
+LEFT JOIN threads tp ON r.type='post'   AND p.thread_id = tp.id
+LEFT JOIN threads t  ON r.type='thread' AND r.target_id = t.id
+LEFT JOIN users   u  ON r.type='user'   AND r.target_id = u.id
 ```
 
 **返回字段新增**：
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `threadId` | number \| null | 帖子所属主题 ID，用于跳转 `/threads/{threadId}#post-{targetId}` |
+| `threadId` | number \| null | `post`→所属 parent thread id；`thread`→target thread id；`user`→null |
+| `targetTitle` | string \| null | thread / post 的主题标题 |
+| `targetName` | string \| null | user 的 username |
 
 ### 4.5 文件位置
 
@@ -365,7 +381,7 @@ Messages routes (#70-#74)
 
 **文件**：`apps/web/src/components/forum/post-action-bar.tsx`
 
-在操作栏右侧（编辑/删除按钮之前或之后）添加"举报"按钮：
+在操作栏右侧（编辑/删除按钮之前或之后）添加"举报"按钮，targetType 固定为 `post`：
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -376,6 +392,26 @@ Messages routes (#70-#74)
 **显示条件**：
 - 用户已登录
 - 不是自己的帖子
+
+### 6.1.1 主题头部入口
+
+**文件**：`apps/web/src/components/forum/thread-report-button.tsx`
+
+主题详情页头部右侧渲染"举报主题"按钮，targetType=`thread`，targetId=`thread.id`。
+
+**显示条件**：
+- 用户已登录
+- 不是主题作者
+
+### 6.1.2 用户主页入口
+
+**文件**：`apps/web/src/components/forum/user-report-button.tsx`
+
+个人主页 hero 区渲染"举报用户"按钮，targetType=`user`，targetId=`user.id`。
+
+**显示条件**：
+- 用户已登录
+- 不是本人主页
 
 ### 6.2 举报弹窗
 
@@ -489,18 +525,18 @@ reports: "举报管理",
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  举报管理                                                    │
-│  处理用户举报的帖子                                          │
+│  处理用户提交的举报（主题 / 帖子 / 用户）                    │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
-│  筛选: [全部状态 ▼]                              [刷新]     │
+│  筛选: [全部状态 ▼]  [全部类型 ▼]                [刷新]     │
 │                                                              │
-├──────┬────────┬──────────┬────────┬────────────────┬───────┤
-│  ☐  │ ID     │ 举报帖子  │ 举报人  │ 理由           │ 状态  │
-├──────┼────────┼──────────┼────────┼────────────────┼───────┤
-│  ☐  │ 1      │ #12345   │ alice  │ 垃圾广告       │ 待处理│
-│  ☐  │ 2      │ #67890   │ bob    │ 人身攻击       │ 已处理│
-│  ☐  │ 3      │ #11111   │ carol  │ 违规内容       │ 已驳回│
-└──────┴────────┴──────────┴────────┴────────────────┴───────┘
+├──────┬────┬──────┬────────────┬────────┬──────────┬───────┤
+│  ☐  │ ID │ 类型 │ 举报对象    │ 举报人 │ 理由     │ 状态  │
+├──────┼────┼──────┼────────────┼────────┼──────────┼───────┤
+│  ☐  │ 1  │ 帖子 │ 主题标题... │ alice  │ 垃圾广告 │ 待处理│
+│  ☐  │ 2  │ 主题 │ 主题标题... │ bob    │ 人身攻击 │ 已处理│
+│  ☐  │ 3  │ 用户 │ @carol      │ dave   │ 违规     │ 已驳回│
+└──────┴────┴──────┴────────────┴────────┴──────────┴───────┘
 │                                                              │
 │  [批量删除]                              < 1 2 3 ... 10 >   │
 └─────────────────────────────────────────────────────────────┘
@@ -510,13 +546,15 @@ reports: "举报管理",
 
 | 列 | 说明 |
 |----|------|
-| 举报帖子 | `#target_id`，可点击跳转到 `/threads/{threadId}#post-{targetId}` |
-| 举报人 | 可点击，跳转到用户页 |
+| 类型 | `thread` / `post` / `user` 徽标 |
+| 举报对象 | 按 type 渲染：thread/post → `target_title`，跳转 `/admin/threads/{threadId 或 target_id}`；user → `@target_name`，跳转 `/admin/users/{target_id}` |
+| 举报人 | 可点击，跳转到 `/admin/users/:id` |
 | 理由 | 显示 reason 字段（预设值） |
 | 状态 | 待处理（黄）/已处理（绿）/已驳回（灰） |
 
 **筛选项**：
 - 状态：全部 / 待处理 / 已处理 / 已驳回
+- 类型：全部 / 主题 / 帖子 / 用户
 
 ### 7.3 举报详情/处理
 
@@ -527,10 +565,11 @@ reports: "举报管理",
 │  举报详情 #1                                [×] │
 ├─────────────────────────────────────────────────┤
 │                                                 │
-│  被举报帖子：#12345 [查看 →]                   │
+│  类型：帖子 / 主题 / 用户                       │
+│  举报对象：<target_title 或 @target_name> [查看 →] │
 │  举报人：alice (UID: 100)  [查看 →]            │
 │  举报理由：垃圾广告                             │
-│  举报时间：2024-04-04 10:30:00                 │
+│  举报时间：2026-04-04 10:30:00                 │
 │                                                 │
 │  当前状态：待处理                               │
 │                                                 │
@@ -543,9 +582,11 @@ reports: "举报管理",
 - **驳回举报**：设置 status=dismissed
 - **删除**：调用 batch-delete 传 `[id]`
 
-**跳转链接**：
-- 帖子：`/threads/{threadId}#post-{targetId}`（threadId 从 API 返回）
-- 用户：`/users/{reporterId}`
+**跳转链接**（admin 内部跳转，不跳前台）：
+- `type=thread`：`/admin/threads/{target_id}`
+- `type=post`：`/admin/threads/{threadId}`（目前没有 stable 的 post anchor，跳到所属主题详情）
+- `type=user`：`/admin/users/{target_id}`
+- 举报人：`/admin/users/{reporterId}`
 
 ### 7.4 文件结构
 
@@ -594,27 +635,27 @@ Step 1 → Step 2 → Step 3 → Step 4 → Step 5
 
 ### 用户端
 
-- [ ] 举报按钮：已登录用户可见（非自己的帖子）
+- [ ] 举报按钮：已登录用户可见（非自己的对象）
 - [ ] 举报按钮：未登录用户不可见
-- [ ] 举报按钮：自己的帖子不显示举报按钮
+- [ ] 举报按钮：自己的主题/帖子/账号不显示举报按钮
 - [ ] 举报弹窗 Step 1：权限检查（发帖权限）
 - [ ] 举报弹窗 Step 1：新用户/禁言用户显示具体限制原因
 - [ ] 举报弹窗 Step 2：Cap.js 验证（未配置则跳过）
 - [ ] 举报弹窗 Step 3：必须选择预设理由才能提交
 - [ ] 举报提交：成功后显示提示信息
 - [ ] 举报提交：reason 必须是预设值之一
-- [ ] 重复举报：24 小时内重复举报显示友好提示
-- [ ] 类型限制：只接受 type=post
+- [ ] 重复举报：24 小时内重复举报显示友好提示（按 type+target_id 去重）
+- [ ] 类型支持：thread / post / user 三类型均可提交
 
 ### 管理后台
 
 - [ ] 导航：显示"举报管理"入口
-- [ ] 列表：正确显示所有举报记录
-- [ ] 列表：显示 threadId 用于跳转
-- [ ] 筛选：状态筛选正常工作
+- [ ] 列表：正确显示所有举报记录（含 类型 列与 类型 筛选）
+- [ ] 列表：thread/post 显示 target_title，user 显示 @target_name
+- [ ] 筛选：状态筛选 + 类型筛选正常工作
 - [ ] 分页：分页正常工作
 - [ ] 详情：点击可查看举报详情
-- [ ] 跳转：点击举报帖子可跳转到 `/threads/{threadId}#post-{targetId}`
+- [ ] 跳转：thread/post 跳 `/admin/threads/:id`，user 跳 `/admin/users/:id`
 - [ ] 处理：标记已处理/驳回正常，handler_name 正确记录
 - [ ] 删除：调用 batch-delete 传 `[id]` 正常
 
@@ -630,9 +671,7 @@ Step 1 → Step 2 → Step 3 → Step 4 → Step 5
 
 | 功能 | 说明 |
 |------|------|
-| 主题举报 | 支持举报主题（入口、API、后台） |
-| 用户举报 | 支持直接举报用户（不依赖具体帖子） |
 | 举报通知 | 举报提交后通知管理员（站内信/邮件） |
-| 一键处理 | 处理举报时可选直接删除被举报帖子 |
-| 举报统计 | Dashboard 显示待处理举报数量 |
+| 一键处理 | 处理举报时可选直接删除/隐藏被举报对象 |
+| 举报统计 | Dashboard 显示待处理举报数量、按类型分布 |
 | 举报历史 | 用户个人中心查看自己的举报记录 |

@@ -107,23 +107,23 @@ Browser → Next.js Admin Layout
 | **Nav Links** | `/admin/settings/nav-links` | ✅ | Header navigation bar, drag-to-reorder |
 | **Friend Links** | `/admin/settings/friend-links` | ✅ | Footer friend links, drag-to-reorder |
 
+### 6. Reports Management ✅ Complete
+
+| Page | Path | Status | Features |
+|------|------|--------|----------|
+| **Reports** | `/admin/reports` | ✅ | Type-aware list (thread/post/user) with per-type target metadata, status & type filters, detail dialog, resolve/dismiss/revert + batch delete |
+
+**Scope (E batch):**
+- Worker `POST /api/v1/reports` accepts `type ∈ {thread, post, user}` with uniform self-report / duplicate / visibility guards.
+- Admin list/detail JOINs per-type metadata (`target_title` for thread/post via `threads.subject`, `target_name` for user, `thread_id` for post→parent thread navigation).
+- Admin UI exposes 类型 filter + 类型 badge column; target column links to `/admin/threads/:id` (thread/post) or `/admin/users/:id` (user).
+- Web entries: 举报回帖 (post-card), 举报主题 (thread header), 举报用户 (profile hero). UI hides self-report; Worker remains final guard.
+
+**Out of scope (still planned):** Audit Logs (§7) — tracked separately under the F batch.
+
 ---
 
 ## Planned Features (TODO)
-
-### 6. Reports Management 📋 Planned
-
-| Page | Path | Priority | Features |
-|------|------|----------|----------|
-| **Reports** | `/admin/reports` | High | List user reports for threads/posts/users, review status, resolve/dismiss, batch operations |
-
-**Implementation Plan:**
-1. Add `reports` table: `id`, `type`, `target_id`, `reporter_id`, `reason`, `status`, `handler_id`, `handled_at`, `created_at`
-2. Create Worker handlers: `GET/POST /admin/reports`, `PATCH /admin/reports/:id`
-3. Create Next.js proxy routes
-4. Build admin UI page with filters (status/type), action buttons (resolve/dismiss/ban user)
-5. L1 tests: unit tests for handlers and viewmodel
-6. L2 tests: integration tests for report lifecycle
 
 ### 7. Audit Logs 📋 Planned
 
