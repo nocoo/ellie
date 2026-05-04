@@ -161,6 +161,42 @@ describe("forum-cache", () => {
 			expect(db.prepare).toHaveBeenCalled();
 		});
 
+		it("falls through to D1 when stale KV payload lacks moderators field", async () => {
+			// Simulates a pre-moderators-field cached entry (old schema)
+			const kv = createJsonKV({
+				"forums:tree:v1": JSON.stringify({
+					forums: [
+						{
+							id: 1,
+							parentId: 0,
+							name: "Stale Forum",
+							description: "",
+							icon: "",
+							displayOrder: 1,
+							status: 1,
+							visibility: "public",
+							type: "group",
+							// moderators field is MISSING — old schema
+							moderatorIds: "",
+							moderatorList: [],
+						},
+					],
+					cachedAt: Date.now(),
+				}),
+			});
+			const rows = [makeTreeRow()];
+			const db = createMockD1(rows);
+			const env = makeEnv({ KV: kv, DB: db, USE_KV_FORUM_CACHE: "true" });
+			const ctx = createMockCtx();
+
+			const result = await getForumTree(env, ctx);
+
+			// Should reject stale payload and fall through to D1
+			expect(result).toHaveLength(1);
+			expect(result[0]?.name).toBe("Root Forum");
+			expect(db.prepare).toHaveBeenCalled();
+		});
+
 		it("falls through to D1 on KV miss and stores result", async () => {
 			const kv = createJsonKV(); // empty — KV miss
 			const rows = [makeTreeRow({ moderator_ids: "" })];
