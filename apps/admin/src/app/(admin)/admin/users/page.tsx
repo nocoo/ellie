@@ -72,6 +72,8 @@ function statusVariant(status: number): "default" | "destructive" | "secondary" 
 			return "destructive";
 		case -2:
 			return "secondary";
+		case -99:
+			return "outline";
 		default:
 			return "default";
 	}
@@ -175,7 +177,9 @@ export default function UsersPage() {
 						<DropdownMenuItem onClick={() => router.push(`/admin/users/${row.id}`)}>
 							查看详情
 						</DropdownMenuItem>
-						<DropdownMenuItem onClick={() => actions.openEditDialog(row)}>编辑</DropdownMenuItem>
+						{row.status !== -99 && (
+							<DropdownMenuItem onClick={() => actions.openEditDialog(row)}>编辑</DropdownMenuItem>
+						)}
 					</DropdownMenuContent>
 				</DropdownMenu>
 			),
