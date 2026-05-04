@@ -29,6 +29,7 @@ export default defineConfig({
 
 	// ---------------------------------------------------------------------------
 	// Projects: stateless (parallel within file) vs stateful (sequential)
+	//           vs admin (separate dev server on 7032, own runner)
 	// ---------------------------------------------------------------------------
 	projects: [
 		{
@@ -44,6 +45,17 @@ export default defineConfig({
 			fullyParallel: false,
 			dependencies: ["stateless"], // Run after stateless completes
 			use: { ...devices["Desktop Chrome"] },
+		},
+		{
+			// Admin specs live under tests/e2e/admin/ and target apps/admin on
+			// port 7032. They are run only by scripts/run-l3-admin.ts; the
+			// forum runner explicitly passes --project=stateless --project=stateful
+			// so this project never executes against the forum dev server.
+			name: "admin",
+			testDir: "tests/e2e/admin",
+			testMatch: /.*\.spec\.ts/,
+			fullyParallel: false,
+			use: { ...devices["Desktop Chrome"], baseURL: "http://localhost:7032" },
 		},
 	],
 
