@@ -139,7 +139,12 @@ export default function UsersPage() {
 				<DropdownMenu>
 					<DropdownMenuTrigger
 						render={
-							<Button variant="ghost" size="icon" className="h-8 w-8">
+							<Button
+								variant="ghost"
+								size="icon"
+								aria-label={`打开用户「${row.username}」操作菜单`}
+								className="h-8 w-8"
+							>
 								<MoreHorizontal className="h-4 w-4" />
 							</Button>
 						}
