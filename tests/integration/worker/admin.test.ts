@@ -2,7 +2,15 @@
 // Tests admin endpoints: forums, threads, posts, users, settings, etc.
 
 import { describe, expect, test } from "bun:test";
-import { adminDelete, adminGet, adminPatch, adminPost, adminPut } from "../setup";
+import {
+	adminDelete,
+	adminGet,
+	adminPatch,
+	adminPost,
+	adminPut,
+	createTestJwt,
+	workerPost,
+} from "../setup";
 
 describe("L2: Worker Admin API", () => {
 	// ─── Admin Forums ──────────────────────────────────────────────
@@ -504,6 +512,167 @@ describe("L2: Worker Admin API", () => {
 				ids: [],
 			});
 			expect(res.status).toBe(400);
+		});
+	});
+
+	// ─── Reports lifecycle (E4: post → list/get → patch → batch-delete) ───
+	//
+	// End-to-end flow exercising the real Worker chain (no mocks):
+	//   1. user 100 (e2etest) submits a thread report against thread 662174
+	//      (author 64495) and a user report against user 64495.
+	//   2. Admin GET list with type=thread / type=user surfaces both rows
+	//      with the per-type JOIN metadata (target_title for thread,
+	//      target_name for user).
+	//   3. Admin GET detail returns the same JOIN-shaped payload.
+	//   4. Admin PATCH transitions pending → resolved with handler info.
+	//   5. Admin batch-delete removes the seeded rows so the test is
+	//      idempotent across runs (the Worker also enforces a 24h dedup
+	//      window keyed on reporter+type+target_id).
+
+	describe("Reports lifecycle (thread + user)", () => {
+		test("submit → list → get → patch → batch-delete", async () => {
+			// Reporter is user 100 (e2etest, role=0); targets belong to user 64495.
+			const reporterJwt = await createTestJwt(100, 0);
+
+			// 1a. Submit thread report.
+			const threadRes = await workerPost(
+				"/api/v1/reports",
+				{ type: "thread", targetId: 662174, reason: "垃圾广告" },
+				reporterJwt,
+			);
+			// Accept 201 (fresh) or 400 DUPLICATE_REPORT (dedup window from prior run)
+			// — in the dedup case we recover the existing report id via admin list.
+			let threadReportId: number | null = null;
+			if (threadRes.status === 201) {
+				const body = (await threadRes.json()) as { data: { id: number; type: string } };
+				expect(body.data.type).toBe("thread");
+				threadReportId = body.data.id;
+			} else {
+				expect(threadRes.status).toBe(400);
+				const body = (await threadRes.json()) as { error?: { code?: string } };
+				expect(body.error?.code).toBe("DUPLICATE_REPORT");
+			}
+
+			// 1b. Submit user report.
+			const userRes = await workerPost(
+				"/api/v1/reports",
+				{ type: "user", targetId: 64495, reason: "人身攻击" },
+				reporterJwt,
+			);
+			let userReportId: number | null = null;
+			if (userRes.status === 201) {
+				const body = (await userRes.json()) as { data: { id: number; type: string } };
+				expect(body.data.type).toBe("user");
+				userReportId = body.data.id;
+			} else {
+				expect(userRes.status).toBe(400);
+				const body = (await userRes.json()) as { error?: { code?: string } };
+				expect(body.error?.code).toBe("DUPLICATE_REPORT");
+			}
+
+			// 2a. Admin list with type=thread surfaces the thread report with title.
+			const listThreadRes = await adminGet(
+				"/api/admin/reports?type=thread&reporterId=100&limit=50",
+			);
+			expect(listThreadRes.status).toBe(200);
+			const listThread = (await listThreadRes.json()) as {
+				data: Array<{
+					id: number;
+					type: string;
+					targetId: number;
+					threadId: number | null;
+					targetTitle: string | null;
+					targetName: string | null;
+				}>;
+			};
+			const threadHit = listThread.data.find((r) => r.targetId === 662174 && r.type === "thread");
+			expect(threadHit).toBeDefined();
+			expect(threadHit?.threadId).toBe(662174);
+			expect(threadHit?.targetTitle).toBe("L3 navigation thread");
+			expect(threadHit?.targetName).toBeNull();
+			if (threadReportId === null) threadReportId = threadHit?.id ?? null;
+			expect(threadReportId).not.toBeNull();
+
+			// 2b. Admin list with type=user surfaces the user report with username.
+			const listUserRes = await adminGet("/api/admin/reports?type=user&reporterId=100&limit=50");
+			expect(listUserRes.status).toBe(200);
+			const listUser = (await listUserRes.json()) as {
+				data: Array<{
+					id: number;
+					type: string;
+					targetId: number;
+					threadId: number | null;
+					targetTitle: string | null;
+					targetName: string | null;
+				}>;
+			};
+			const userHit = listUser.data.find((r) => r.targetId === 64495 && r.type === "user");
+			expect(userHit).toBeDefined();
+			expect(userHit?.threadId).toBeNull();
+			expect(userHit?.targetTitle).toBeNull();
+			expect(userHit?.targetName).toBe("e2eprofile");
+			if (userReportId === null) userReportId = userHit?.id ?? null;
+			expect(userReportId).not.toBeNull();
+
+			// 3. Admin GET detail returns the same JOIN-shaped payload for the thread report.
+			const detailRes = await adminGet(`/api/admin/reports/${threadReportId}`);
+			expect(detailRes.status).toBe(200);
+			const detail = (await detailRes.json()) as {
+				data: {
+					id: number;
+					type: string;
+					threadId: number | null;
+					targetTitle: string | null;
+					targetName: string | null;
+				};
+			};
+			expect(detail.data.id).toBe(threadReportId);
+			expect(detail.data.type).toBe("thread");
+			expect(detail.data.threadId).toBe(662174);
+			expect(detail.data.targetTitle).toBe("L3 navigation thread");
+			expect(detail.data.targetName).toBeNull();
+
+			// 3b. Admin GET detail for the user report exercises the user-branch JOIN.
+			const userDetailRes = await adminGet(`/api/admin/reports/${userReportId}`);
+			expect(userDetailRes.status).toBe(200);
+			const userDetail = (await userDetailRes.json()) as {
+				data: {
+					id: number;
+					type: string;
+					threadId: number | null;
+					targetTitle: string | null;
+					targetName: string | null;
+				};
+			};
+			expect(userDetail.data.id).toBe(userReportId);
+			expect(userDetail.data.type).toBe("user");
+			expect(userDetail.data.threadId).toBeNull();
+			expect(userDetail.data.targetTitle).toBeNull();
+			expect(userDetail.data.targetName).toBe("e2eprofile");
+
+			// 4. Admin PATCH the thread report to resolved.
+			const patchRes = await adminPatch(`/api/admin/reports/${threadReportId}`, {
+				status: "resolved",
+				handlerId: 1,
+				handlerName: "admin",
+			});
+			expect(patchRes.status).toBe(200);
+			const patched = (await patchRes.json()) as {
+				data: { status: string; handlerId: number | null; handlerName: string };
+			};
+			expect(patched.data.status).toBe("resolved");
+			expect(patched.data.handlerId).toBe(1);
+			expect(patched.data.handlerName).toBe("admin");
+
+			// 5. Cleanup: batch-delete both reports so the test is idempotent.
+			const ids = [threadReportId, userReportId].filter((id): id is number => id !== null);
+			expect(ids.length).toBeGreaterThan(0);
+			const cleanupRes = await adminPost("/api/admin/reports/batch-delete", { ids });
+			expect(cleanupRes.status).toBe(200);
+
+			// Verify cleanup — detail of the deleted thread report should now 404.
+			const verifyRes = await adminGet(`/api/admin/reports/${threadReportId}`);
+			expect(verifyRes.status).toBe(404);
 		});
 	});
 
