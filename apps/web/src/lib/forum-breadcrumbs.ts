@@ -7,6 +7,11 @@ import type { AncestorItem } from "./forum-data";
 
 const HOME: BreadcrumbItem = { label: "同济网论坛", href: "/", icon: "home" };
 
+/** Map an array of {id, name} objects to linked breadcrumb items. */
+function forumCrumbs(items: { id: number; name: string }[]): BreadcrumbItem[] {
+	return items.map((f) => ({ label: f.name, href: `/forums/${f.id}` }));
+}
+
 /**
  * Build breadcrumbs for a forum page.
  * ancestors = [root, ..., parent, self] (from findForumAncestors).
@@ -14,14 +19,8 @@ const HOME: BreadcrumbItem = { label: "同济网论坛", href: "/", icon: "home"
  */
 export function buildForumBreadcrumbs(ancestors: Forum[]): BreadcrumbItem[] {
 	if (ancestors.length === 0) return [HOME];
-
-	const items: BreadcrumbItem[] = [HOME];
-	for (let i = 0; i < ancestors.length; i++) {
-		const forum = ancestors[i] as Forum;
-		const isLast = i === ancestors.length - 1;
-		items.push(isLast ? { label: forum.name } : { label: forum.name, href: `/forums/${forum.id}` });
-	}
-	return items;
+	const last = ancestors[ancestors.length - 1] as Forum;
+	return [HOME, ...forumCrumbs(ancestors.slice(0, -1)), { label: last.name }];
 }
 
 /**
@@ -30,12 +29,7 @@ export function buildForumBreadcrumbs(ancestors: Forum[]): BreadcrumbItem[] {
  * → [首页, ...all forum ancestors with href, thread subject without href]
  */
 export function buildThreadBreadcrumbs(ancestors: Forum[], subject: string): BreadcrumbItem[] {
-	const items: BreadcrumbItem[] = [HOME];
-	for (const forum of ancestors) {
-		items.push({ label: forum.name, href: `/forums/${forum.id}` });
-	}
-	items.push({ label: subject });
-	return items;
+	return [HOME, ...forumCrumbs(ancestors), { label: subject }];
 }
 
 /**
@@ -57,12 +51,7 @@ export function buildForumBreadcrumbsFromAncestors(
 	ancestors: AncestorItem[],
 	forumName: string,
 ): BreadcrumbItem[] {
-	const items: BreadcrumbItem[] = [HOME];
-	for (const a of ancestors) {
-		items.push({ label: a.name, href: `/forums/${a.id}` });
-	}
-	items.push({ label: forumName });
-	return items;
+	return [HOME, ...forumCrumbs(ancestors), { label: forumName }];
 }
 
 /**
@@ -76,13 +65,12 @@ export function buildThreadBreadcrumbsFromAncestors(
 	forumName: string,
 	subject: string,
 ): BreadcrumbItem[] {
-	const items: BreadcrumbItem[] = [HOME];
-	for (const a of ancestors) {
-		items.push({ label: a.name, href: `/forums/${a.id}` });
-	}
-	items.push({ label: forumName, href: `/forums/${forumId}` });
-	items.push({ label: subject });
-	return items;
+	return [
+		HOME,
+		...forumCrumbs(ancestors),
+		{ label: forumName, href: `/forums/${forumId}` },
+		{ label: subject },
+	];
 }
 
 /**
@@ -95,11 +83,10 @@ export function buildNewThreadBreadcrumbsFromAncestors(
 	forumId: number,
 	forumName: string,
 ): BreadcrumbItem[] {
-	const items: BreadcrumbItem[] = [HOME];
-	for (const a of ancestors) {
-		items.push({ label: a.name, href: `/forums/${a.id}` });
-	}
-	items.push({ label: forumName, href: `/forums/${forumId}` });
-	items.push({ label: "发表主题" });
-	return items;
+	return [
+		HOME,
+		...forumCrumbs(ancestors),
+		{ label: forumName, href: `/forums/${forumId}` },
+		{ label: "发表主题" },
+	];
 }
