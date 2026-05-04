@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import type { Forum } from "@/viewmodels/admin/forums";
 import { typeLabel } from "@/viewmodels/admin/forums";
 import { Button } from "@ellie/ui";
@@ -27,6 +28,7 @@ export interface ForumMergeDialogProps {
 	/** All forums to choose a target from */
 	forums: Forum[];
 	loading?: boolean;
+	error?: string | null;
 	onMerge: (sourceId: number, targetId: number) => void;
 }
 
@@ -40,6 +42,7 @@ export function ForumMergeDialog({
 	source,
 	forums,
 	loading = false,
+	error,
 	onMerge,
 }: ForumMergeDialogProps) {
 	const [targetId, setTargetId] = useState<number | null>(null);
@@ -77,6 +80,8 @@ export function ForumMergeDialog({
 						将来源版块的所有主题移至目标版块，合并后来源版块将被删除。
 					</DialogDescription>
 				</DialogHeader>
+
+				{error && <AdminInlineMessage variant="error" text={error} dense />}
 
 				<div className="grid gap-4 py-4">
 					<div className="grid gap-2">
