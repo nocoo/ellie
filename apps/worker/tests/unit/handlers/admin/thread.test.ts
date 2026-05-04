@@ -1011,4 +1011,243 @@ describe("admin thread handlers", () => {
 			expect(batchCalls[0].length).toBe(9);
 		});
 	});
+
+	// ─── F3-b: audit instrumentation ─────────────────────────────────
+
+	describe("F3-b audit instrumentation", () => {
+		function actorReq(method: string, path: string, body?: unknown): Request {
+			const headers: Record<string, string> = {
+				"X-API-Key": "test-api-key",
+				"Content-Type": "application/json",
+				"X-Admin-Actor-Email": "alice@example.com",
+				"X-Admin-Actor-Name": "Alice",
+				"CF-Connecting-IP": "5.6.7.8",
+			};
+			return new Request(`https://api.example.com${path}`, {
+				method,
+				headers,
+				...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+			});
+		}
+
+		function findAuditInsert(calls: { sql: string; params: unknown[] }[]) {
+			return calls.find((c) => c.sql.includes("INSERT INTO admin_logs"));
+		}
+
+		// ─── update ──────────────────────────────────────────────
+
+		it("PATCH writes thread.update on real change with subject length-only", async () => {
+			const existing = makeD1ThreadRow({
+				id: 42,
+				forum_id: 5,
+				author_id: 99,
+				subject: "Old Title",
+				sticky: 0,
+			});
+			const updated = makeD1ThreadRow({
+				id: 42,
+				forum_id: 5,
+				author_id: 99,
+				subject: "New Title",
+				sticky: 0,
+			});
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM threads WHERE id": existing,
+					"SELECT * FROM threads": updated,
+				},
+			});
+			const res = await update(
+				actorReq("PATCH", "/api/admin/threads/42", { subject: "New Title" }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			expect(insert?.params[2]).toBe("thread.update");
+			expect(insert?.params[3]).toBe("thread");
+			expect(insert?.params[4]).toBe(42);
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.changedFields).toEqual(["subject"]);
+			expect(details.subjectLengthBefore).toBe("Old Title".length);
+			expect(details.subjectLengthAfter).toBe("New Title".length);
+			// Raw subject text MUST NOT leak into details (PII discipline).
+			expect(details.before).toBeUndefined();
+			expect(details.after).toBeUndefined();
+			expect(details.forumId).toBe(5);
+			expect(details.authorId).toBe(99);
+			expect(details.actorEmail).toBe("alice@example.com");
+		});
+
+		it("PATCH writes thread.update with before/after for non-subject fields", async () => {
+			const existing = makeD1ThreadRow({ id: 42, sticky: 0, closed: 0 });
+			const updated = makeD1ThreadRow({ id: 42, sticky: 2, closed: 1 });
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM threads WHERE id": existing,
+					"SELECT * FROM threads": updated,
+				},
+			});
+			const res = await update(
+				actorReq("PATCH", "/api/admin/threads/42", { sticky: 2, closed: 1 }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.changedFields).toEqual(expect.arrayContaining(["sticky", "closed"]));
+			expect(details.before).toMatchObject({ sticky: 0, closed: 0 });
+			expect(details.after).toMatchObject({ sticky: 2, closed: 1 });
+		});
+
+		it("PATCH no-op (incoming equals existing) does NOT write audit row", async () => {
+			const existing = makeD1ThreadRow({ id: 42, sticky: 1 });
+			const updated = makeD1ThreadRow({ id: 42, sticky: 1 });
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM threads WHERE id": existing,
+					"SELECT * FROM threads": updated,
+				},
+			});
+			const res = await update(
+				actorReq("PATCH", "/api/admin/threads/42", { sticky: 1 }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+
+		it("PATCH 404 (no existing) does NOT write audit row", async () => {
+			const { db, calls } = createMockDb();
+			const res = await update(
+				actorReq("PATCH", "/api/admin/threads/999", { sticky: 1 }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(404);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+
+		// ─── remove ──────────────────────────────────────────────
+
+		it("DELETE writes thread.delete with forumId/authorId/postsDeleted", async () => {
+			const threadRow = makeD1ThreadRow({ id: 42, forum_id: 5, author_id: 100, replies: 10 });
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM threads": threadRow,
+					"SELECT COUNT": { cnt: 11 },
+				},
+			});
+			const res = await remove(actorReq("DELETE", "/api/admin/threads/42"), adminEnv(db));
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			expect(insert?.params[2]).toBe("thread.delete");
+			expect(insert?.params[4]).toBe(42);
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.forumId).toBe(5);
+			expect(details.authorId).toBe(100);
+			expect(details.postsDeleted).toBe(11);
+		});
+
+		it("DELETE 404 (missing thread) does NOT write audit row", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: { "SELECT * FROM threads": null },
+			});
+			const res = await remove(actorReq("DELETE", "/api/admin/threads/999"), adminEnv(db));
+			expect(res.status).toBe(404);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+
+		// ─── batchDelete ─────────────────────────────────────────
+
+		it("batch-delete writes one thread.batch_delete row with snapshot ids", async () => {
+			// Snapshot returns existing ids; per-id fetchRowFull returns rows
+			// so the inner CRUD handler counts them as deleted.
+			const threadRow = makeD1ThreadRow({ id: 1, forum_id: 5, replies: 0 });
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM threads WHERE id": threadRow,
+					"SELECT COUNT": { cnt: 0 },
+				},
+				allResults: {
+					"SELECT id FROM threads WHERE id IN": [{ id: 1 }, { id: 2 }],
+					"SELECT author_id, COUNT": [],
+				},
+			});
+			const res = await batchDelete(
+				actorReq("POST", "/api/admin/threads/batch-delete", { ids: [1, 2] }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			expect(insert?.params[2]).toBe("thread.batch_delete");
+			expect(insert?.params[4]).toBeNull();
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.ids).toEqual([1, 2]);
+			expect(details.count).toBe(2);
+		});
+
+		it("batch-delete with no existing ids does NOT write audit row", async () => {
+			const { db, calls } = createMockDb({
+				allResults: {
+					"SELECT id FROM threads WHERE id IN": [],
+				},
+			});
+			const res = await batchDelete(
+				actorReq("POST", "/api/admin/threads/batch-delete", { ids: [999, 1000] }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+
+		// ─── batchMove ───────────────────────────────────────────
+
+		it("batch-move writes one thread.batch_move row with deduped fromForumIds", async () => {
+			const threadRows = [
+				makeD1ThreadRow({ id: 1, forum_id: 5, replies: 2 }),
+				makeD1ThreadRow({ id: 2, forum_id: 7, replies: 3 }),
+				makeD1ThreadRow({ id: 3, forum_id: 5, replies: 1 }),
+			];
+			const { db, calls } = createMockDb({
+				firstResults: { "SELECT id FROM forums": { id: 10 } },
+				allResults: {
+					"SELECT id, forum_id, replies FROM threads": threadRows,
+				},
+			});
+			const res = await batchMove(
+				actorReq("POST", "/api/admin/threads/batch-move", { ids: [1, 2, 3], forumId: 10 }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			expect(insert?.params[2]).toBe("thread.batch_move");
+			expect(insert?.params[4]).toBeNull();
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.ids).toEqual([1, 2, 3]);
+			expect(details.count).toBe(3);
+			expect(details.toForumId).toBe(10);
+			// Source forums deduped: {5, 7}
+			expect(new Set(details.fromForumIds)).toEqual(new Set([5, 7]));
+		});
+
+		it("batch-move no-op (all already in target) does NOT write audit row", async () => {
+			const threadRows = [makeD1ThreadRow({ id: 1, forum_id: 10, replies: 2 })];
+			const { db, calls } = createMockDb({
+				firstResults: { "SELECT id FROM forums": { id: 10 } },
+				allResults: {
+					"SELECT id, forum_id, replies FROM threads": threadRows,
+				},
+			});
+			const res = await batchMove(
+				actorReq("POST", "/api/admin/threads/batch-move", { ids: [1], forumId: 10 }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+	});
 });

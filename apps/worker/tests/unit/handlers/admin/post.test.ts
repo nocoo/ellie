@@ -625,4 +625,190 @@ describe("admin post handlers", () => {
 			expect(body.error.code).toBe("INVALID_BODY");
 		});
 	});
+
+	// ─── F3-b: audit instrumentation ─────────────────────────────────
+
+	describe("F3-b audit instrumentation", () => {
+		function actorReq(method: string, path: string, body?: unknown): Request {
+			const headers: Record<string, string> = {
+				"X-API-Key": "test-api-key",
+				"Content-Type": "application/json",
+				"X-Admin-Actor-Email": "alice@example.com",
+				"X-Admin-Actor-Name": "Alice",
+				"CF-Connecting-IP": "5.6.7.8",
+			};
+			return new Request(`https://api.example.com${path}`, {
+				method,
+				headers,
+				...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+			});
+		}
+
+		function findAuditInsert(calls: { sql: string; params: unknown[] }[]) {
+			return calls.find((c) => c.sql.includes("INSERT INTO admin_logs"));
+		}
+
+		// ─── update ──────────────────────────────────────────────
+
+		it("PATCH writes post.update with content lengths only (no raw content)", async () => {
+			const existing = makeD1PostRow({
+				id: 50,
+				thread_id: 7,
+				forum_id: 3,
+				author_id: 99,
+				content: "old content",
+			});
+			const updated = makeD1PostRow({
+				id: 50,
+				thread_id: 7,
+				forum_id: 3,
+				author_id: 99,
+				content: "new content with more text",
+			});
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM posts WHERE id": existing,
+					"SELECT * FROM posts": updated,
+				},
+			});
+			const res = await update(
+				actorReq("PATCH", "/api/admin/posts/50", { content: "new content with more text" }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			expect(insert?.params[2]).toBe("post.update");
+			expect(insert?.params[3]).toBe("post");
+			expect(insert?.params[4]).toBe(50);
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.threadId).toBe(7);
+			expect(details.forumId).toBe(3);
+			expect(details.authorId).toBe(99);
+			expect(details.contentLengthBefore).toBe("old content".length);
+			expect(details.contentLengthAfter).toBe("new content with more text".length);
+			expect(details.contentChanged).toBe(true);
+			expect(details.changedFields).toEqual(["content"]);
+			// Raw content text MUST NOT leak.
+			expect(JSON.stringify(details)).not.toContain("new content with more text");
+			expect(details.actorEmail).toBe("alice@example.com");
+		});
+
+		it("PATCH no-op (content unchanged) does NOT write audit row", async () => {
+			const existing = makeD1PostRow({ id: 50, content: "same" });
+			const updated = makeD1PostRow({ id: 50, content: "same" });
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM posts WHERE id": existing,
+					"SELECT * FROM posts": updated,
+				},
+			});
+			const res = await update(
+				actorReq("PATCH", "/api/admin/posts/50", { content: "same" }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+
+		it("PATCH 404 (no existing) does NOT write audit row", async () => {
+			const { db, calls } = createMockDb();
+			const res = await update(
+				actorReq("PATCH", "/api/admin/posts/999", { content: "x" }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(404);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+
+		// ─── remove ──────────────────────────────────────────────
+
+		it("DELETE writes post.delete with thread/forum/author + isFirst=false", async () => {
+			const postRow = makeD1PostRow({
+				id: 60,
+				thread_id: 8,
+				forum_id: 4,
+				author_id: 77,
+				is_first: 0,
+			});
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM posts": postRow,
+				},
+			});
+			const res = await remove(actorReq("DELETE", "/api/admin/posts/60"), adminEnv(db));
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			expect(insert?.params[2]).toBe("post.delete");
+			expect(insert?.params[4]).toBe(60);
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.threadId).toBe(8);
+			expect(details.forumId).toBe(4);
+			expect(details.authorId).toBe(77);
+			expect(details.isFirst).toBe(false);
+		});
+
+		it("DELETE on first post returns 400 and does NOT write audit row", async () => {
+			const postRow = makeD1PostRow({ id: 61, is_first: 1 });
+			const { db, calls } = createMockDb({
+				firstResults: { "SELECT * FROM posts": postRow },
+			});
+			const res = await remove(actorReq("DELETE", "/api/admin/posts/61"), adminEnv(db));
+			expect(res.status).toBe(400);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+
+		it("DELETE 404 (missing post) does NOT write audit row", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: { "SELECT * FROM posts": null },
+			});
+			const res = await remove(actorReq("DELETE", "/api/admin/posts/999"), adminEnv(db));
+			expect(res.status).toBe(404);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+
+		// ─── batchDelete ─────────────────────────────────────────
+
+		it("batch-delete writes one post.batch_delete row with deletable ids only", async () => {
+			const postRows = [
+				{ id: 1, thread_id: 7, forum_id: 3, author_id: 99, is_first: 0 },
+				{ id: 2, thread_id: 7, forum_id: 3, author_id: 99, is_first: 0 },
+				{ id: 3, thread_id: 7, forum_id: 3, author_id: 99, is_first: 1 },
+			];
+			const { db, calls } = createMockDb({
+				allResults: {
+					"FROM posts WHERE id IN": postRows,
+				},
+			});
+			const res = await batchDelete(
+				actorReq("POST", "/api/admin/posts/batch-delete", { ids: [1, 2, 3] }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+			const insert = findAuditInsert(calls);
+			expect(insert).toBeTruthy();
+			expect(insert?.params[2]).toBe("post.batch_delete");
+			expect(insert?.params[4]).toBeNull();
+			const details = JSON.parse(insert?.params[5] as string);
+			expect(details.ids).toEqual([1, 2]);
+			expect(details.count).toBe(2);
+			expect(details.skippedFirstPostIds).toEqual([3]);
+		});
+
+		it("batch-delete with only first-posts (all skipped) does NOT write audit row", async () => {
+			const postRows = [{ id: 1, thread_id: 7, forum_id: 3, author_id: 99, is_first: 1 }];
+			const { db, calls } = createMockDb({
+				allResults: {
+					"FROM posts WHERE id IN": postRows,
+				},
+			});
+			const res = await batchDelete(
+				actorReq("POST", "/api/admin/posts/batch-delete", { ids: [1] }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+			expect(findAuditInsert(calls)).toBeUndefined();
+		});
+	});
 });
