@@ -6,6 +6,7 @@ import { PostEditDialog } from "@/components/admin/post-edit-dialog";
 import { PostFloor } from "@/components/admin/post-floor";
 import { ThreadEditDialog } from "@/components/admin/thread-edit-dialog";
 import { useBreadcrumbOverride } from "@/components/layout/breadcrumb-context";
+import { extractErrorMessage } from "@/lib/admin-error";
 import type { PostUpdate } from "@/viewmodels/admin/posts";
 import { deletePost, updatePost } from "@/viewmodels/admin/posts";
 import {
@@ -54,6 +55,10 @@ export default function ThreadDetailPage() {
 	}>({ open: false, title: "", description: "", variant: "default", onConfirm: () => {} });
 	const [confirmLoading, setConfirmLoading] = useState(false);
 
+	const [editThreadError, setEditThreadError] = useState<string | null>(null);
+	const [editPostError, setEditPostError] = useState<string | null>(null);
+	const [confirmError, setConfirmError] = useState<string | null>(null);
+
 	// Dynamic breadcrumb
 	useBreadcrumbOverride(data?.thread.subject ?? null);
 
@@ -88,10 +93,13 @@ export default function ThreadDetailPage() {
 	const handleEditThreadSave = useCallback(
 		async (id: number, update: ThreadUpdate) => {
 			setEditThreadLoading(true);
+			setEditThreadError(null);
 			try {
 				await updateThread(id, update);
 				setEditThread(false);
 				fetchData(data?.pagination.page ?? 1);
+			} catch (err) {
+				setEditThreadError(extractErrorMessage(err, "保存主题失败"));
 			} finally {
 				setEditThreadLoading(false);
 			}
@@ -101,6 +109,7 @@ export default function ThreadDetailPage() {
 
 	const handleDeleteThread = useCallback(() => {
 		if (!data) return;
+		setConfirmError(null);
 		setConfirmDialog({
 			open: true,
 			title: "删除主题",
@@ -108,10 +117,13 @@ export default function ThreadDetailPage() {
 			variant: "destructive",
 			onConfirm: async () => {
 				setConfirmLoading(true);
+				setConfirmError(null);
 				try {
 					await deleteThread(threadId);
 					setConfirmDialog((d) => ({ ...d, open: false }));
 					router.push("/admin/threads");
+				} catch (err) {
+					setConfirmError(extractErrorMessage(err, "删除主题失败"));
 				} finally {
 					setConfirmLoading(false);
 				}
@@ -123,10 +135,13 @@ export default function ThreadDetailPage() {
 	const handleEditPostSave = useCallback(
 		async (id: number, update: PostUpdate) => {
 			setEditPostLoading(true);
+			setEditPostError(null);
 			try {
 				await updatePost(id, update);
 				setEditPost(null);
 				fetchData(data?.pagination.page ?? 1);
+			} catch (err) {
+				setEditPostError(extractErrorMessage(err, "保存帖子失败"));
 			} finally {
 				setEditPostLoading(false);
 			}
@@ -137,6 +152,7 @@ export default function ThreadDetailPage() {
 	const handleDeletePost = useCallback(
 		(post: EnrichedPost) => {
 			if (post.isFirst) return;
+			setConfirmError(null);
 			setConfirmDialog({
 				open: true,
 				title: "删除帖子",
@@ -144,10 +160,13 @@ export default function ThreadDetailPage() {
 				variant: "destructive",
 				onConfirm: async () => {
 					setConfirmLoading(true);
+					setConfirmError(null);
 					try {
 						await deletePost(post.id);
 						setConfirmDialog((d) => ({ ...d, open: false }));
 						fetchData(data?.pagination.page ?? 1);
+					} catch (err) {
+						setConfirmError(extractErrorMessage(err, "删除帖子失败"));
 					} finally {
 						setConfirmLoading(false);
 					}
@@ -252,27 +271,41 @@ export default function ThreadDetailPage() {
 			{/* Dialogs */}
 			<ThreadEditDialog
 				open={editThread}
-				onOpenChange={setEditThread}
+				onOpenChange={(open) => {
+					setEditThread(open);
+					if (!open) setEditThreadError(null);
+				}}
 				thread={thread}
 				loading={editThreadLoading}
+				error={editThreadError}
 				onSave={handleEditThreadSave}
 			/>
 
 			<PostEditDialog
 				open={editPost !== null}
-				onOpenChange={(open) => !open && setEditPost(null)}
+				onOpenChange={(open) => {
+					if (!open) {
+						setEditPost(null);
+						setEditPostError(null);
+					}
+				}}
 				post={editPost}
 				loading={editPostLoading}
+				error={editPostError}
 				onSave={handleEditPostSave}
 			/>
 
 			<AdminConfirmDialog
 				open={confirmDialog.open}
-				onOpenChange={(open) => setConfirmDialog((d) => ({ ...d, open }))}
+				onOpenChange={(open) => {
+					setConfirmDialog((d) => ({ ...d, open }));
+					if (!open) setConfirmError(null);
+				}}
 				title={confirmDialog.title}
 				description={confirmDialog.description}
 				variant={confirmDialog.variant}
 				loading={confirmLoading}
+				error={confirmError}
 				onConfirm={confirmDialog.onConfirm}
 			/>
 		</div>

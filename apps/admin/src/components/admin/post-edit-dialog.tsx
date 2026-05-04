@@ -5,6 +5,7 @@ import { Button } from "@ellie/ui";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@ellie/ui";
 import { Label } from "@ellie/ui";
 import { useCallback, useEffect, useState } from "react";
+import { AdminInlineMessage } from "./admin-inline-message";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -15,6 +16,7 @@ export interface PostEditDialogProps {
 	onOpenChange: (open: boolean) => void;
 	post: Post | null;
 	loading?: boolean;
+	error?: string | null;
 	onSave: (id: number, data: PostUpdate) => void;
 }
 
@@ -27,6 +29,7 @@ export function PostEditDialog({
 	onOpenChange,
 	post,
 	loading = false,
+	error,
 	onSave,
 }: PostEditDialogProps) {
 	const [content, setContent] = useState("");
@@ -48,6 +51,8 @@ export function PostEditDialog({
 				<DialogHeader>
 					<DialogTitle>编辑帖子</DialogTitle>
 				</DialogHeader>
+
+				{error && <AdminInlineMessage variant="error" text={error} dense />}
 
 				<div className="grid gap-4 py-4">
 					<div className="grid gap-2">

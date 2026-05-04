@@ -3,6 +3,7 @@
 
 "use client";
 
+import { extractErrorMessage } from "@/lib/admin-error";
 import {
 	type User,
 	type UserUpdate,
@@ -67,10 +68,16 @@ export interface UsersAdminState {
 	editUser: User | null;
 	/** Edit dialog loading state */
 	editLoading: boolean;
+	/** Edit dialog inline error message (null if none) */
+	editError: string | null;
 	/** Confirm dialog state */
 	confirmDialog: ConfirmDialogState;
 	/** Confirm dialog loading state */
 	confirmLoading: boolean;
+	/** Confirm dialog inline error message (null if none) */
+	confirmError: string | null;
+	/** Page-level inline message (success/error) for actions without a dialog. */
+	pageMessage: { type: "success" | "error"; text: string } | null;
 }
 
 /**
@@ -236,8 +243,14 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 	// Dialog states
 	const [editUser, setEditUser] = useState<User | null>(null);
 	const [editLoading, setEditLoading] = useState(false);
+	const [editError, setEditError] = useState<string | null>(null);
 	const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(DEFAULT_CONFIRM_DIALOG);
 	const [confirmLoading, setConfirmLoading] = useState(false);
+	const [confirmError, setConfirmError] = useState<string | null>(null);
+	const [pageMessage, setPageMessage] = useState<{
+		type: "success" | "error";
+		text: string;
+	} | null>(null);
 
 	// -------------------------------------------------------------------------
 	// Data fetching
@@ -291,19 +304,24 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 
 	const openEditDialog = useCallback((user: User) => {
 		setEditUser(user);
+		setEditError(null);
 	}, []);
 
 	const closeEditDialog = useCallback(() => {
 		setEditUser(null);
+		setEditError(null);
 	}, []);
 
 	const handleEditSave = useCallback(
 		async (id: number, update: UserUpdate) => {
 			setEditLoading(true);
+			setEditError(null);
 			try {
 				await updateUser(id, update);
 				setEditUser(null);
 				fetchData(pagination.page);
+			} catch (err) {
+				setEditError(extractErrorMessage(err, "保存用户失败"));
 			} finally {
 				setEditLoading(false);
 			}
@@ -317,6 +335,7 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 
 	const handleBan = useCallback(
 		(user: User, deleteContent = false) => {
+			setConfirmError(null);
 			setConfirmDialog({
 				open: true,
 				title: deleteContent ? "封禁并删除内容" : "封禁用户",
@@ -326,10 +345,13 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 				variant: "destructive",
 				onConfirm: async () => {
 					setConfirmLoading(true);
+					setConfirmError(null);
 					try {
 						await banUser(user.id, deleteContent);
 						setConfirmDialog((d) => ({ ...d, open: false }));
 						fetchData(pagination.page);
+					} catch (err) {
+						setConfirmError(extractErrorMessage(err, "封禁用户失败"));
 					} finally {
 						setConfirmLoading(false);
 					}
@@ -341,6 +363,7 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 
 	const handleNuke = useCallback(
 		(user: User) => {
+			setConfirmError(null);
 			setConfirmDialog({
 				open: true,
 				title: "彻底清除用户",
@@ -349,10 +372,13 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 				requireInput: user.username,
 				onConfirm: async () => {
 					setConfirmLoading(true);
+					setConfirmError(null);
 					try {
 						await nukeUser(user.id);
 						setConfirmDialog((d) => ({ ...d, open: false }));
 						fetchData(pagination.page);
+					} catch (err) {
+						setConfirmError(extractErrorMessage(err, "清除用户失败"));
 					} finally {
 						setConfirmLoading(false);
 					}
@@ -364,14 +390,24 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 
 	const handleUnban = useCallback(
 		async (user: User) => {
-			await updateUser(user.id, { status: 0 });
-			fetchData(pagination.page);
+			setPageMessage(null);
+			try {
+				await updateUser(user.id, { status: 0 });
+				fetchData(pagination.page);
+				setPageMessage({ type: "success", text: `已解除封禁 ${user.username}` });
+			} catch (err) {
+				setPageMessage({
+					type: "error",
+					text: extractErrorMessage(err, "解除封禁失败"),
+				});
+			}
 		},
 		[fetchData, pagination.page],
 	);
 
 	const closeConfirmDialog = useCallback(() => {
 		setConfirmDialog((d) => ({ ...d, open: false }));
+		setConfirmError(null);
 	}, []);
 
 	// -------------------------------------------------------------------------
@@ -407,8 +443,11 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 			selectedIds,
 			editUser,
 			editLoading,
+			editError,
 			confirmDialog,
 			confirmLoading,
+			confirmError,
+			pageMessage,
 		},
 		actions: {
 			fetchData,

@@ -7,6 +7,7 @@ import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
+import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { AdminPagination } from "@/components/admin/admin-pagination";
 import { UserEditDialog } from "@/components/admin/user-edit-dialog";
 import { useUsersAdmin } from "@/viewmodels/admin/use-users-admin";
@@ -193,6 +194,10 @@ export default function UsersPage() {
 				onClearAll={actions.handleClearFilters}
 			/>
 
+			{state.pageMessage && (
+				<AdminInlineMessage variant={state.pageMessage.type} text={state.pageMessage.text} />
+			)}
+
 			<div className="rounded-xl bg-secondary p-1 overflow-x-auto">
 				<AdminDataTable
 					columns={columns}
@@ -219,6 +224,7 @@ export default function UsersPage() {
 				onOpenChange={(open) => !open && actions.closeEditDialog()}
 				user={state.editUser}
 				loading={state.editLoading}
+				error={state.editError}
 				onSave={actions.handleEditSave}
 			/>
 
@@ -230,6 +236,7 @@ export default function UsersPage() {
 				variant={state.confirmDialog.variant}
 				requireInput={state.confirmDialog.requireInput}
 				loading={state.confirmLoading}
+				error={state.confirmError}
 				onConfirm={state.confirmDialog.onConfirm}
 			/>
 		</div>

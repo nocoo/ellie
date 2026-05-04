@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@ellie/ui";
 import { Label } from "@ellie/ui";
 import { useCallback, useEffect, useState } from "react";
+import { AdminInlineMessage } from "./admin-inline-message";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -17,6 +18,7 @@ export interface ForumEditDialogProps {
 	forum: Forum | null;
 	forums: Forum[]; // For parent selection
 	loading?: boolean;
+	error?: string | null;
 	onSave: (id: number, data: ForumUpdate) => void;
 }
 
@@ -45,6 +47,7 @@ export function ForumEditDialog({
 	forum,
 	forums,
 	loading = false,
+	error,
 	onSave,
 }: ForumEditDialogProps) {
 	const [name, setName] = useState("");
@@ -121,6 +124,8 @@ export function ForumEditDialog({
 				<DialogHeader>
 					<DialogTitle>编辑版块</DialogTitle>
 				</DialogHeader>
+
+				{error && <AdminInlineMessage variant="error" text={error} dense />}
 
 				<div className="grid gap-4 py-4">
 					{/* Type selector */}

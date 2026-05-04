@@ -11,6 +11,7 @@ import {
 } from "@ellie/ui";
 import { Input } from "@ellie/ui";
 import { useCallback, useState } from "react";
+import { AdminInlineMessage } from "./admin-inline-message";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -29,6 +30,7 @@ export interface AdminConfirmDialogProps {
 	cancelLabel?: string;
 	variant?: "default" | "destructive";
 	loading?: boolean;
+	error?: string | null;
 	onConfirm: () => void;
 }
 
@@ -47,6 +49,7 @@ export function AdminConfirmDialog({
 	cancelLabel = "取消",
 	variant = "default",
 	loading = false,
+	error,
 	onConfirm,
 }: AdminConfirmDialogProps) {
 	const [inputValue, setInputValue] = useState("");
@@ -74,6 +77,8 @@ export function AdminConfirmDialog({
 					<DialogTitle>{title}</DialogTitle>
 					<DialogDescription>{description}</DialogDescription>
 				</DialogHeader>
+
+				{error && <AdminInlineMessage variant="error" text={error} dense />}
 
 				{requireInput && (
 					<div className="py-2">
