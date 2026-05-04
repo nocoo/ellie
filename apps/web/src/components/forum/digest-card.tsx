@@ -3,15 +3,13 @@
 // Includes digest level border color, highlight-styled title, and recommends
 
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getAvatarUrl } from "@/lib/avatar";
-import { getStaticImageUrl } from "@/lib/cdn";
 import { formatCompactNumber, formatRelativeTime } from "@/viewmodels/shared/formatting";
 import type { Thread, ThreadBadge } from "@ellie/types";
 import { decodeHighlight } from "@ellie/types";
 import { Heart } from "lucide-react";
 import Link from "next/link";
 import type { CSSProperties } from "react";
+import { ForumAvatar } from "./user-avatar";
 import { UserPopover } from "./user-popover";
 
 interface DigestCardProps {
@@ -58,20 +56,12 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 				{/* Column 1: Avatar + Title (flex) */}
 				<div className="min-w-0 flex-1 flex items-center gap-3 py-2 px-3">
 					<Link href={`/users/${thread.authorId}`} className="shrink-0">
-						<Avatar size="sm" className="rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.1)]">
-							<AvatarImage
-								src={getAvatarUrl(thread.authorId, "small", thread.authorAvatarPath)}
-								alt={thread.authorName}
-								className="rounded-sm"
-							/>
-							<AvatarFallback className="text-xs rounded-sm bg-muted p-0 overflow-hidden">
-								<img
-									src={getStaticImageUrl("tavatar.gif")}
-									alt=""
-									className="h-full w-full object-cover"
-								/>
-							</AvatarFallback>
-						</Avatar>
+						<ForumAvatar
+							userId={thread.authorId}
+							userName={thread.authorName}
+							avatarPath={thread.authorAvatarPath}
+							shadow
+						/>
 					</Link>
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-2">
@@ -138,20 +128,11 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 				{/* Row 1: Avatar + badges + subject */}
 				<div className="flex items-center gap-2">
 					<Link href={`/users/${thread.authorId}`} className="shrink-0">
-						<Avatar size="sm" className="rounded-sm">
-							<AvatarImage
-								src={getAvatarUrl(thread.authorId, "small", thread.authorAvatarPath)}
-								alt={thread.authorName}
-								className="rounded-sm"
-							/>
-							<AvatarFallback className="text-xs rounded-sm bg-muted p-0 overflow-hidden">
-								<img
-									src={getStaticImageUrl("tavatar.gif")}
-									alt=""
-									className="h-full w-full object-cover"
-								/>
-							</AvatarFallback>
-						</Avatar>
+						<ForumAvatar
+							userId={thread.authorId}
+							userName={thread.authorName}
+							avatarPath={thread.authorAvatarPath}
+						/>
 					</Link>
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-1.5">
