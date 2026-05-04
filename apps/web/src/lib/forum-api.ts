@@ -300,5 +300,7 @@ export function publicUserToUser(pu: PublicUser): User {
 		emailVerifiedAt: 0,
 		emailNormalized: "",
 		emailChangedAt: 0,
+		purgedAt: 0,
+		purgedBy: 0,
 	};
 }

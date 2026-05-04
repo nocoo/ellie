@@ -116,6 +116,8 @@ export async function loadThreadDetail(params: {
 			interest: "",
 			qq: "",
 			site: "",
+			purgedAt: 0,
+			purgedBy: 0,
 		};
 	}
 
