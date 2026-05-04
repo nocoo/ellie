@@ -104,7 +104,7 @@ describe("POST /api/v1/reports", () => {
 		expect(data.error.code).toBe("INVALID_BODY");
 	});
 
-	it("should return 400 for non-post type", async () => {
+	it("should return 400 for unknown type", async () => {
 		const token = await makeUserToken();
 		const { db } = createMockDb({
 			firstResults: {
@@ -113,14 +113,15 @@ describe("POST /api/v1/reports", () => {
 		});
 		const env = makeEnv({ DB: db });
 		const req = reportRequest("POST", "/api/v1/reports", token, {
-			type: "thread",
+			type: "forum",
 			targetId: 1,
 			reason: "垃圾广告",
 		});
 		const res = await create(req, env);
 		expect(res.status).toBe(400);
 		const data = (await res.json()) as { error: { code: string; details?: { message: string } } };
-		expect(data.error.details?.message).toContain("post");
+		expect(data.error.code).toBe("INVALID_REQUEST");
+		expect(data.error.details?.message).toContain("type");
 	});
 
 	it("should return 400 for invalid targetId", async () => {
@@ -371,6 +372,299 @@ describe("POST /api/v1/reports", () => {
 		expect(data.data.id).toBe(42);
 		expect(data.data.type).toBe("post");
 		expect(data.data.reason).toBe("垃圾广告");
+	});
+
+	// ─── thread type ────────────────────────────────────────────
+
+	it("should create thread report successfully", async () => {
+		const token = await makeUserToken(1, 0);
+		const { db, calls } = createMockDb({
+			firstResults: {
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					status: 0,
+					avatar_path: "avatars/test.jpg",
+					has_avatar: 0,
+					reg_date: 0,
+					role: 0,
+				},
+				"SELECT id, forum_id, author_id FROM threads": {
+					id: 5,
+					forum_id: 1,
+					author_id: 2,
+				},
+				"SELECT status, visibility FROM forums": { status: 1, visibility: "public" },
+				"SELECT username FROM users": { username: "testuser" },
+			},
+			allResults: {
+				"SELECT key, value FROM settings": [],
+			},
+			runResults: {
+				"INSERT INTO reports": { success: true, meta: { last_row_id: 7, changes: 1 } },
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = reportRequest("POST", "/api/v1/reports", token, {
+			type: "thread",
+			targetId: 5,
+			reason: "违规内容",
+		});
+		const res = await create(req, env);
+		expect(res.status).toBe(201);
+		const data = (await res.json()) as { data: { id: number; type: string; targetId: number } };
+		expect(data.data.type).toBe("thread");
+		expect(data.data.targetId).toBe(5);
+		// INSERT bind must use type from body, not hard-coded "post"
+		const insertCall = calls.find((c) => c.sql.includes("INSERT INTO reports"));
+		expect(insertCall?.params[0]).toBe("thread");
+		// Dedup SQL must bind type, not literal
+		const dedupCall = calls.find(
+			(c) => c.sql.includes("FROM reports") && c.sql.includes("reporter_id"),
+		);
+		expect(dedupCall?.params[1]).toBe("thread");
+	});
+
+	it("should return 404 when thread not found", async () => {
+		const token = await makeUserToken(1, 0);
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					status: 0,
+					avatar_path: "avatars/test.jpg",
+					has_avatar: 0,
+					reg_date: 0,
+					role: 0,
+				},
+				// Thread query returns null
+			},
+			allResults: { "SELECT key, value FROM settings": [] },
+		});
+		const env = makeEnv({ DB: db });
+		const req = reportRequest("POST", "/api/v1/reports", token, {
+			type: "thread",
+			targetId: 999,
+			reason: "垃圾广告",
+		});
+		const res = await create(req, env);
+		expect(res.status).toBe(404);
+		const data = (await res.json()) as { error: { code: string } };
+		expect(data.error.code).toBe("TARGET_NOT_FOUND");
+	});
+
+	it("should return 400 when reporting own thread", async () => {
+		const token = await makeUserToken(1, 0);
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					status: 0,
+					avatar_path: "avatars/test.jpg",
+					has_avatar: 0,
+					reg_date: 0,
+					role: 0,
+				},
+				"SELECT id, forum_id, author_id FROM threads": {
+					id: 5,
+					forum_id: 1,
+					author_id: 1, // same as reporter
+				},
+				"SELECT status, visibility FROM forums": { status: 1, visibility: "public" },
+			},
+			allResults: { "SELECT key, value FROM settings": [] },
+		});
+		const env = makeEnv({ DB: db });
+		const req = reportRequest("POST", "/api/v1/reports", token, {
+			type: "thread",
+			targetId: 5,
+			reason: "垃圾广告",
+		});
+		const res = await create(req, env);
+		expect(res.status).toBe(400);
+		const data = (await res.json()) as { error: { code: string } };
+		expect(data.error.code).toBe("CANNOT_REPORT_SELF");
+	});
+
+	it("should return 400 for duplicate thread report within 24h", async () => {
+		const token = await makeUserToken(1, 0);
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					status: 0,
+					avatar_path: "avatars/test.jpg",
+					has_avatar: 0,
+					reg_date: 0,
+					role: 0,
+				},
+				"SELECT id, forum_id, author_id FROM threads": {
+					id: 5,
+					forum_id: 1,
+					author_id: 2,
+				},
+				"SELECT status, visibility FROM forums": { status: 1, visibility: "public" },
+				"SELECT 1 FROM reports WHERE reporter_id": { 1: 1 },
+			},
+			allResults: { "SELECT key, value FROM settings": [] },
+		});
+		const env = makeEnv({ DB: db });
+		const req = reportRequest("POST", "/api/v1/reports", token, {
+			type: "thread",
+			targetId: 5,
+			reason: "垃圾广告",
+		});
+		const res = await create(req, env);
+		expect(res.status).toBe(400);
+		const data = (await res.json()) as { error: { code: string } };
+		expect(data.error.code).toBe("DUPLICATE_REPORT");
+	});
+
+	// ─── user type ──────────────────────────────────────────────
+
+	it("should create user report successfully", async () => {
+		const token = await makeUserToken(1, 0);
+		const { db, calls } = createMockDb({
+			firstResults: {
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					status: 0,
+					avatar_path: "avatars/test.jpg",
+					has_avatar: 0,
+					reg_date: 0,
+					role: 0,
+				},
+				"SELECT id, status FROM users": { id: 9, status: 0 },
+				"SELECT username FROM users": { username: "testuser" },
+			},
+			allResults: { "SELECT key, value FROM settings": [] },
+			runResults: {
+				"INSERT INTO reports": { success: true, meta: { last_row_id: 11, changes: 1 } },
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = reportRequest("POST", "/api/v1/reports", token, {
+			type: "user",
+			targetId: 9,
+			reason: "人身攻击",
+		});
+		const res = await create(req, env);
+		expect(res.status).toBe(201);
+		const data = (await res.json()) as { data: { id: number; type: string; targetId: number } };
+		expect(data.data.type).toBe("user");
+		expect(data.data.targetId).toBe(9);
+		const insertCall = calls.find((c) => c.sql.includes("INSERT INTO reports"));
+		expect(insertCall?.params[0]).toBe("user");
+	});
+
+	it("should return 404 when target user not found", async () => {
+		const token = await makeUserToken(1, 0);
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					status: 0,
+					avatar_path: "avatars/test.jpg",
+					has_avatar: 0,
+					reg_date: 0,
+					role: 0,
+				},
+				// "SELECT id, status FROM users" returns null
+			},
+			allResults: { "SELECT key, value FROM settings": [] },
+		});
+		const env = makeEnv({ DB: db });
+		const req = reportRequest("POST", "/api/v1/reports", token, {
+			type: "user",
+			targetId: 999,
+			reason: "垃圾广告",
+		});
+		const res = await create(req, env);
+		expect(res.status).toBe(404);
+	});
+
+	it("should return 404 when target user is tombstoned", async () => {
+		const token = await makeUserToken(1, 0);
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					status: 0,
+					avatar_path: "avatars/test.jpg",
+					has_avatar: 0,
+					reg_date: 0,
+					role: 0,
+				},
+				"SELECT id, status FROM users": { id: 9, status: -99 },
+			},
+			allResults: { "SELECT key, value FROM settings": [] },
+		});
+		const env = makeEnv({ DB: db });
+		const req = reportRequest("POST", "/api/v1/reports", token, {
+			type: "user",
+			targetId: 9,
+			reason: "垃圾广告",
+		});
+		const res = await create(req, env);
+		expect(res.status).toBe(404);
+		const data = (await res.json()) as { error: { code: string } };
+		expect(data.error.code).toBe("TARGET_NOT_FOUND");
+	});
+
+	it("should return 400 when reporting self (user type)", async () => {
+		const token = await makeUserToken(1, 0);
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					status: 0,
+					avatar_path: "avatars/test.jpg",
+					has_avatar: 0,
+					reg_date: 0,
+					role: 0,
+				},
+				"SELECT id, status FROM users": { id: 1, status: 0 },
+			},
+			allResults: { "SELECT key, value FROM settings": [] },
+		});
+		const env = makeEnv({ DB: db });
+		const req = reportRequest("POST", "/api/v1/reports", token, {
+			type: "user",
+			targetId: 1, // self
+			reason: "垃圾广告",
+		});
+		const res = await create(req, env);
+		expect(res.status).toBe(400);
+		const data = (await res.json()) as { error: { code: string } };
+		expect(data.error.code).toBe("CANNOT_REPORT_SELF");
+	});
+
+	it("should return 400 for duplicate user report within 24h", async () => {
+		const token = await makeUserToken(1, 0);
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					status: 0,
+					avatar_path: "avatars/test.jpg",
+					has_avatar: 0,
+					reg_date: 0,
+					role: 0,
+				},
+				"SELECT id, status FROM users": { id: 9, status: 0 },
+				"SELECT 1 FROM reports WHERE reporter_id": { 1: 1 },
+			},
+			allResults: { "SELECT key, value FROM settings": [] },
+		});
+		const env = makeEnv({ DB: db });
+		const req = reportRequest("POST", "/api/v1/reports", token, {
+			type: "user",
+			targetId: 9,
+			reason: "垃圾广告",
+		});
+		const res = await create(req, env);
+		expect(res.status).toBe(400);
+		const data = (await res.json()) as { error: { code: string } };
+		expect(data.error.code).toBe("DUPLICATE_REPORT");
 	});
 });
 
