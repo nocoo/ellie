@@ -19,11 +19,38 @@ const REPORT_COLUMNS = `
 	.replace(/\s+/g, " ")
 	.trim();
 
-// Columns for JOIN query (includes thread_id from posts)
+// Columns for JOIN query — per-type metadata via LEFT JOINs:
+//   posts p   joined for type='post'   → thread_id
+//   threads t joined for type='thread' → t.id (= target_id)
+//   threads tp joined for the post's parent thread → subject (target title)
+//   users u   joined for type='user'   → username
 const REPORT_JOIN_COLUMNS = `
 	r.id, r.type, r.target_id, r.reporter_id, r.reporter_name,
 	r.reason, r.status, r.handler_id, r.handler_name, r.handled_at, r.created_at,
-	p.thread_id
+	CASE
+		WHEN r.type = 'post'   THEN p.thread_id
+		WHEN r.type = 'thread' THEN t.id
+		ELSE NULL
+	END AS thread_id,
+	CASE
+		WHEN r.type = 'post'   THEN tp.subject
+		WHEN r.type = 'thread' THEN t.subject
+		ELSE NULL
+	END AS target_title,
+	CASE
+		WHEN r.type = 'user'   THEN u.username
+		ELSE NULL
+	END AS target_name
+`
+	.replace(/\s+/g, " ")
+	.trim();
+
+const REPORT_JOIN_FROM = `
+	FROM reports r
+	LEFT JOIN posts   p  ON r.type = 'post'   AND r.target_id = p.id
+	LEFT JOIN threads tp ON r.type = 'post'   AND p.thread_id = tp.id
+	LEFT JOIN threads t  ON r.type = 'thread' AND r.target_id = t.id
+	LEFT JOIN users   u  ON r.type = 'user'   AND r.target_id = u.id
 `
 	.replace(/\s+/g, " ")
 	.trim();
@@ -46,11 +73,13 @@ function toReport(row: Record<string, unknown>) {
 	};
 }
 
-/** Mapper for JOIN query result (includes threadId) */
-function toReportWithThread(row: Record<string, unknown>) {
+/** Mapper for JOIN query result (per-type target metadata) */
+function toReportWithJoin(row: Record<string, unknown>) {
 	return {
 		...toReport(row),
 		threadId: (row.thread_id as number | null) ?? null,
+		targetTitle: (row.target_title as string | null) ?? null,
+		targetName: (row.target_name as string | null) ?? null,
 	};
 }
 
@@ -146,11 +175,10 @@ export const list = withEntityAuth(
 			.bind(...params)
 			.first<{ total: number }>();
 
-		// JOIN with posts to get thread_id
+		// JOIN with per-type tables to get thread_id / title / username
 		const result = await env.DB.prepare(
 			`SELECT ${REPORT_JOIN_COLUMNS}
-			 FROM reports r
-			 LEFT JOIN posts p ON r.type = 'post' AND r.target_id = p.id
+			 ${REPORT_JOIN_FROM}
 			 ${whereClause}
 			 ORDER BY r.created_at DESC
 			 LIMIT ? OFFSET ?`,
@@ -159,7 +187,7 @@ export const list = withEntityAuth(
 			.all();
 
 		return paginatedResponse(
-			result.results.map((r) => toReportWithThread(r as Record<string, unknown>)),
+			result.results.map((r) => toReportWithJoin(r as Record<string, unknown>)),
 			countResult?.total ?? 0,
 			page,
 			limit,
@@ -184,8 +212,7 @@ export const getById = withEntityAuth(
 
 		const result = await env.DB.prepare(
 			`SELECT ${REPORT_JOIN_COLUMNS}
-			 FROM reports r
-			 LEFT JOIN posts p ON r.type = 'post' AND r.target_id = p.id
+			 ${REPORT_JOIN_FROM}
 			 WHERE r.id = ?`,
 		)
 			.bind(id)
@@ -195,7 +222,7 @@ export const getById = withEntityAuth(
 			return errorResponse("REPORT_NOT_FOUND", 404, undefined, origin);
 		}
 
-		return jsonResponse(toReportWithThread(result as Record<string, unknown>), origin);
+		return jsonResponse(toReportWithJoin(result as Record<string, unknown>), origin);
 	},
 );
 

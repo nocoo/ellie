@@ -41,6 +41,121 @@ describe("admin report handlers", () => {
 			expect(body.meta.total).toBe(1);
 		});
 
+		it("should expose per-type target metadata for thread reports", async () => {
+			const { db } = createMockDb({
+				firstResults: { "SELECT COUNT(*)": { total: 1 } },
+				allResults: {
+					SELECT: [
+						{
+							id: 2,
+							type: "thread",
+							target_id: 7,
+							reporter_id: 10,
+							reporter_name: "alice",
+							reason: "spam",
+							status: "pending",
+							handler_id: null,
+							handler_name: "",
+							handled_at: null,
+							created_at: 1711540800,
+							thread_id: 7,
+							target_title: "Hello world",
+							target_name: null,
+						},
+					],
+				},
+			});
+			const env = makeEnv({ DB: db });
+			const request = createAdminRequest("GET", "/api/admin/reports?type=thread");
+			const response = await report.list(request, env);
+			const body = (await response.json()) as {
+				data: {
+					type: string;
+					threadId: number | null;
+					targetTitle: string | null;
+					targetName: string | null;
+				}[];
+			};
+			expect(body.data[0].type).toBe("thread");
+			expect(body.data[0].threadId).toBe(7);
+			expect(body.data[0].targetTitle).toBe("Hello world");
+			expect(body.data[0].targetName).toBeNull();
+		});
+
+		it("should expose per-type target metadata for user reports", async () => {
+			const { db } = createMockDb({
+				firstResults: { "SELECT COUNT(*)": { total: 1 } },
+				allResults: {
+					SELECT: [
+						{
+							id: 3,
+							type: "user",
+							target_id: 12,
+							reporter_id: 10,
+							reporter_name: "alice",
+							reason: "spam",
+							status: "pending",
+							handler_id: null,
+							handler_name: "",
+							handled_at: null,
+							created_at: 1711540800,
+							thread_id: null,
+							target_title: null,
+							target_name: "bob",
+						},
+					],
+				},
+			});
+			const env = makeEnv({ DB: db });
+			const request = createAdminRequest("GET", "/api/admin/reports?type=user");
+			const response = await report.list(request, env);
+			const body = (await response.json()) as {
+				data: {
+					type: string;
+					threadId: number | null;
+					targetTitle: string | null;
+					targetName: string | null;
+				}[];
+			};
+			expect(body.data[0].type).toBe("user");
+			expect(body.data[0].threadId).toBeNull();
+			expect(body.data[0].targetTitle).toBeNull();
+			expect(body.data[0].targetName).toBe("bob");
+		});
+
+		it("should ignore invalid type filter", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: { "SELECT COUNT(*)": { total: 0 } },
+				allResults: { SELECT: [] },
+			});
+			const env = makeEnv({ DB: db });
+			const request = createAdminRequest("GET", "/api/admin/reports?type=forum");
+			const response = await report.list(request, env);
+			expect(response.status).toBe(200);
+			// 'forum' must NOT appear in any bind params
+			const allParams = calls.flatMap((c) => c.params);
+			expect(allParams).not.toContain("forum");
+		});
+
+		it("JOIN SQL uses threads.subject (not .title) — schema regression guard", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: { "SELECT COUNT(*)": { total: 0 } },
+				allResults: { SELECT: [] },
+			});
+			const env = makeEnv({ DB: db });
+			const request = createAdminRequest("GET", "/api/admin/reports");
+			await report.list(request, env);
+			const joinSql = calls.find(
+				(c) => c.sql.includes("LEFT JOIN") && c.sql.includes("AS target_title"),
+			)?.sql;
+			expect(joinSql).toBeDefined();
+			expect(joinSql).toContain("t.subject");
+			expect(joinSql).toContain("tp.subject");
+			// `threads` has no `title` column — this guards against silent regression.
+			expect(joinSql).not.toMatch(/\bt\.title\b/);
+			expect(joinSql).not.toMatch(/\btp\.title\b/);
+		});
+
 		it("should filter by status", async () => {
 			const { db } = createMockDb({
 				firstResults: { "SELECT COUNT(*)": { total: 0 } },
