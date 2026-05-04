@@ -2,21 +2,19 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock the users module API functions
+// Mock the users module API functions used by the list-page hook.
+// (Single-user destructive actions live on the detail page now and are
+// tested separately; we only mock what this hook still imports.)
 vi.mock("@/viewmodels/admin/users", () => ({
-	banUser: vi.fn().mockResolvedValue({}),
 	batchSetStatus: vi.fn().mockResolvedValue({}),
-	nukeUser: vi.fn().mockResolvedValue({}),
 	updateUser: vi.fn().mockResolvedValue({}),
 }));
 
 import { useUsersAdmin } from "@/viewmodels/admin/use-users-admin";
 import type { User } from "@/viewmodels/admin/users";
-import { banUser, batchSetStatus, nukeUser, updateUser } from "@/viewmodels/admin/users";
+import { batchSetStatus, updateUser } from "@/viewmodels/admin/users";
 
-const mockBanUser = banUser as ReturnType<typeof vi.fn>;
 const mockBatchSetStatus = batchSetStatus as ReturnType<typeof vi.fn>;
-const mockNukeUser = nukeUser as ReturnType<typeof vi.fn>;
 const mockUpdateUser = updateUser as ReturnType<typeof vi.fn>;
 
 const MOCK_USER: User = {
@@ -31,7 +29,6 @@ const MOCK_USER: User = {
 	regDate: 1700000000,
 	lastLogin: 1700001000,
 	avatar: "",
-	avatarPath: "",
 };
 
 function mockFetchSuccess(data: User[] = [MOCK_USER], meta = {}) {
@@ -199,118 +196,6 @@ describe("useUsersAdmin", () => {
 		expect(result.current.state.editUser).toBeNull();
 	});
 
-	it("handleBan opens confirm dialog", async () => {
-		const { result } = renderHook(() => useUsersAdmin());
-
-		await waitFor(
-			() => {
-				expect(result.current.state.loading).toBe(false);
-			},
-			{ interval: 5 },
-		);
-
-		act(() => {
-			result.current.actions.handleBan(MOCK_USER);
-		});
-
-		expect(result.current.state.confirmDialog.open).toBe(true);
-		expect(result.current.state.confirmDialog.variant).toBe("destructive");
-	});
-
-	it("handleBan with deleteContent uses different title", async () => {
-		const { result } = renderHook(() => useUsersAdmin());
-
-		await waitFor(
-			() => {
-				expect(result.current.state.loading).toBe(false);
-			},
-			{ interval: 5 },
-		);
-
-		act(() => {
-			result.current.actions.handleBan(MOCK_USER, true);
-		});
-
-		expect(result.current.state.confirmDialog.title).toContain("删除内容");
-	});
-
-	it("handleBan confirm calls banUser", async () => {
-		const { result } = renderHook(() => useUsersAdmin());
-
-		await waitFor(
-			() => {
-				expect(result.current.state.loading).toBe(false);
-			},
-			{ interval: 5 },
-		);
-
-		act(() => {
-			result.current.actions.handleBan(MOCK_USER, false);
-		});
-
-		await act(async () => {
-			await result.current.state.confirmDialog.onConfirm();
-		});
-
-		expect(mockBanUser).toHaveBeenCalledWith(1, false);
-	});
-
-	it("handleNuke opens confirm with requireInput", async () => {
-		const { result } = renderHook(() => useUsersAdmin());
-
-		await waitFor(
-			() => {
-				expect(result.current.state.loading).toBe(false);
-			},
-			{ interval: 5 },
-		);
-
-		act(() => {
-			result.current.actions.handleNuke(MOCK_USER);
-		});
-
-		expect(result.current.state.confirmDialog.open).toBe(true);
-		expect(result.current.state.confirmDialog.requireInput).toBe("alice");
-	});
-
-	it("handleNuke confirm calls nukeUser", async () => {
-		const { result } = renderHook(() => useUsersAdmin());
-
-		await waitFor(
-			() => {
-				expect(result.current.state.loading).toBe(false);
-			},
-			{ interval: 5 },
-		);
-
-		act(() => {
-			result.current.actions.handleNuke(MOCK_USER);
-		});
-
-		await act(async () => {
-			await result.current.state.confirmDialog.onConfirm();
-		});
-
-		expect(mockNukeUser).toHaveBeenCalledWith(1);
-	});
-
-	it("handleUnban calls updateUser with status 0", async () => {
-		const { result } = renderHook(() => useUsersAdmin());
-
-		await waitFor(
-			() => {
-				expect(result.current.state.loading).toBe(false);
-			},
-			{ interval: 5 },
-		);
-
-		await act(async () => {
-			await result.current.actions.handleUnban(MOCK_USER);
-		});
-
-		expect(mockUpdateUser).toHaveBeenCalledWith(1, { status: 0 });
-	});
-
 	it("handleBatchAction ban calls batchSetStatus", async () => {
 		const { result } = renderHook(() => useUsersAdmin());
 
@@ -369,27 +254,6 @@ describe("useUsersAdmin", () => {
 		});
 
 		expect(mockBatchSetStatus).not.toHaveBeenCalled();
-	});
-
-	it("closeConfirmDialog closes the dialog", async () => {
-		const { result } = renderHook(() => useUsersAdmin());
-
-		await waitFor(
-			() => {
-				expect(result.current.state.loading).toBe(false);
-			},
-			{ interval: 5 },
-		);
-
-		act(() => {
-			result.current.actions.handleBan(MOCK_USER);
-		});
-		expect(result.current.state.confirmDialog.open).toBe(true);
-
-		act(() => {
-			result.current.actions.closeConfirmDialog();
-		});
-		expect(result.current.state.confirmDialog.open).toBe(false);
 	});
 
 	it("initialPageSize option is respected", async () => {
