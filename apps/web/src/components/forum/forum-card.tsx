@@ -37,6 +37,19 @@ function LastPosterAvatarLink({
 	);
 }
 
+/** Today's new thread count badge. Returns null when count <= 0. */
+function TodayThreadBadge({
+	count,
+	variant,
+}: { count: number; variant: "parenthesized" | "plus" }) {
+	if (count <= 0) return null;
+	return (
+		<span className="text-xs text-forum-accent font-medium">
+			{variant === "parenthesized" ? `(${formatCount(count)})` : `+${formatCount(count)}`}
+		</span>
+	);
+}
+
 /** Sub-forum link list. Returns null when empty. */
 function SubForumLinks({ forums }: { forums: { id: number; name: string }[] }) {
 	if (forums.length === 0) return null;
@@ -120,11 +133,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 						>
 							{forum.name}
 						</Link>
-						{forum.todayThreads > 0 && (
-							<span className="text-xs text-forum-accent font-medium">
-								({formatCount(forum.todayThreads)})
-							</span>
-						)}
+						<TodayThreadBadge count={forum.todayThreads} variant="parenthesized" />
 					</div>
 					{forum.description && (
 						<SafeHtml
@@ -193,11 +202,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 					>
 						{forum.name}
 					</Link>
-					{forum.todayThreads > 0 && (
-						<span className="text-xs text-forum-accent font-medium">
-							+{formatCount(forum.todayThreads)}
-						</span>
-					)}
+					<TodayThreadBadge count={forum.todayThreads} variant="plus" />
 				</div>
 				{/* Row 2: stats + last poster */}
 				<div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -241,11 +246,7 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 					>
 						{forum.name}
 					</Link>
-					{forum.todayThreads > 0 && (
-						<span className="text-xs text-forum-accent font-medium">
-							+{formatCount(forum.todayThreads)}
-						</span>
-					)}
+					<TodayThreadBadge count={forum.todayThreads} variant="plus" />
 				</div>
 				<div className="mt-0.5 text-xs text-muted-foreground tabular-nums leading-5">
 					{formatCount(forum.threads)} 帖 / {formatCount(forum.posts)} 回
