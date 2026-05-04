@@ -733,6 +733,7 @@ describe("admin user handlers", () => {
 				firstResults: {
 					"SELECT id, username, status, role, avatar_path FROM users": targetRow,
 					"SELECT COUNT(DISTINCT id) as cnt FROM post_comments": { cnt: 5 },
+					"SELECT COUNT(DISTINCT id) as cnt FROM attachments": { cnt: 4 },
 					"SELECT COUNT(*) as cnt FROM messages": { cnt: 3 },
 					"SELECT created_at, author_name, author_id\n\t\t\t FROM posts\n\t\t\t WHERE thread_id":
 						null,
@@ -771,7 +772,7 @@ describe("admin user handlers", () => {
 				threads: 1,
 				posts: 3, // 2 owned-thread posts + 1 standalone
 				comments: 5,
-				attachments: 2,
+				attachments: 4, // distinct attachment row count (NOT distinct file_path count)
 				messages: 3,
 			});
 			expect(body.data.audit).toEqual({
@@ -804,6 +805,21 @@ describe("admin user handlers", () => {
 			// Visibility constants used in counter repair:
 			expect(allSqls).toMatch(/sticky >= 0/);
 			expect(allSqls).toMatch(/invisible = 0/);
+
+			// post_comments + attachments DELETE both use the 3-way OR clause
+			// so that target's own contributions in survivor threads are wiped.
+			const commentDeleteSql = calls
+				.map((c) => c.sql)
+				.find((s) => /^DELETE FROM post_comments\b/.test(s));
+			const attachmentDeleteSql = calls
+				.map((c) => c.sql)
+				.find((s) => /^DELETE FROM attachments\b/.test(s));
+			expect(commentDeleteSql).toMatch(/author_id = \?/);
+			expect(commentDeleteSql).toMatch(/post_id IN/);
+			expect(commentDeleteSql).toMatch(/thread_id IN/);
+			expect(attachmentDeleteSql).toMatch(/author_id = \?/);
+			expect(attachmentDeleteSql).toMatch(/post_id IN/);
+			expect(attachmentDeleteSql).toMatch(/thread_id IN/);
 
 			// R2 was hit for both attachment keys + avatar.
 			expect(
@@ -862,6 +878,93 @@ describe("admin user handlers", () => {
 			const body = await res.json();
 			expect(body.data.r2.deletedCount).toBe(0);
 			expect(body.data.r2.failed).toEqual([{ key: "avatars/42.png", error: "r2 boom" }]);
+		});
+
+		it("survivor-thread-only: deletes target's own post_comments via author_id even when no posts/threads belong to target", async () => {
+			// User 42 owns nothing (no threads, no posts), but has written
+			// post_comments inside someone else's thread. Pure author_id branch.
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT id, username, status, role, avatar_path FROM users": targetRow,
+					"SELECT COUNT(DISTINCT id) as cnt FROM post_comments": { cnt: 7 },
+					"SELECT COUNT(DISTINCT id) as cnt FROM attachments": { cnt: 0 },
+					"SELECT COUNT(*) as cnt FROM messages": { cnt: 0 },
+				},
+				allResults: {
+					"SELECT id, forum_id FROM threads WHERE author_id": [],
+					"SELECT id, thread_id, forum_id FROM posts WHERE author_id": [],
+					"SELECT DISTINCT file_path FROM attachments": [],
+				},
+			});
+			const r2 = createMockR2();
+			const { purge } = await import("../../../../src/handlers/admin/user");
+
+			const res = await purge(purgeRequest(42, validBody), makeEnv({ DB: db, R2: r2 }));
+			expect(res.status).toBe(200);
+			const body = await res.json();
+			expect(body.data.deleted.comments).toBe(7);
+			expect(body.data.deleted.attachments).toBe(0);
+
+			const commentDeleteSql = calls
+				.map((c) => c.sql)
+				.find((s) => /^DELETE FROM post_comments\b/.test(s));
+			expect(commentDeleteSql).toMatch(/author_id = \?/);
+			// No posts/threads → only author_id branch in the WHERE.
+			expect(commentDeleteSql).not.toMatch(/post_id IN/);
+			expect(commentDeleteSql).not.toMatch(/thread_id IN/);
+		});
+
+		it("returns 500 PURGE_RECALC_FAILED if recalcMetadata throws AFTER batch (R2 not touched)", async () => {
+			// Owned thread present so survivor-thread / forum recalc actually runs.
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT id, username, status, role, avatar_path FROM users": targetRow,
+					"SELECT COUNT(DISTINCT id) as cnt FROM post_comments": { cnt: 0 },
+					"SELECT COUNT(DISTINCT id) as cnt FROM attachments": { cnt: 0 },
+					"SELECT COUNT(*) as cnt FROM messages": { cnt: 0 },
+					"SELECT created_at, author_name, author_id\n\t\t\t FROM posts\n\t\t\t WHERE thread_id":
+						null,
+					"SELECT created_at, author_name, author_id FROM threads WHERE id": null,
+				},
+				allResults: {
+					"SELECT id, forum_id FROM threads WHERE author_id": [{ id: 100, forum_id: 7 }],
+					"SELECT id, thread_id, forum_id FROM posts WHERE author_id = ? AND thread_id NOT IN": [
+						{ id: 201, thread_id: 300, forum_id: 8 },
+					],
+					"SELECT DISTINCT file_path FROM attachments": [],
+				},
+			});
+			// Wrap prepare: when recalcThreadMetadata's first SELECT runs, throw.
+			// (recalcThreadMetadata's first query starts with
+			// `SELECT created_at, author_name, author_id\n\t\t\t FROM posts\n\t\t\t WHERE thread_id`.)
+			const origPrepareImpl = (
+				db.prepare as ReturnType<typeof import("vitest").vi.fn>
+			).getMockImplementation();
+			(db.prepare as ReturnType<typeof import("vitest").vi.fn>).mockImplementation(
+				(sql: string) => {
+					if (
+						/SELECT created_at, author_name, author_id\s+FROM posts\s+WHERE thread_id/.test(sql)
+					) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(async () => {
+									throw new Error("recalc boom");
+								}),
+								all: vi.fn(async () => ({ results: [] })),
+								run: vi.fn(async () => ({ success: true, meta: {} })),
+							})),
+						};
+					}
+					return origPrepareImpl?.(sql);
+				},
+			);
+			const r2 = createMockR2();
+			const { purge } = await import("../../../../src/handlers/admin/user");
+
+			const res = await purge(purgeRequest(42, validBody), makeEnv({ DB: db, R2: r2 }));
+			expect(res.status).toBe(500);
+			expect((await res.json()).error.code).toBe("PURGE_RECALC_FAILED");
+			expect((r2.delete as ReturnType<typeof import("vitest").vi.fn>).mock.calls).toHaveLength(0);
 		});
 	});
 
