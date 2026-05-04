@@ -15,11 +15,11 @@ import {
 	setThreadHighlight,
 	setThreadSticky,
 } from "@/lib/moderation-api";
-import type { LucideIcon } from "lucide-react";
 import { ArrowRight, Highlighter, Lock, LockOpen, Pin, Star, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { DigestDialog } from "./digest-dialog";
+import { ForumActionButton } from "./forum-action-button";
 import { HighlightDialog } from "./highlight-dialog";
 import { MoveDialog } from "./move-dialog";
 import { StickyDialog } from "./sticky-dialog";
@@ -45,36 +45,6 @@ interface ThreadModMenuProps {
 	canMoveThread: boolean;
 	/** Can user delete thread? (SuperMod/Admin or author) */
 	canDeleteThread: boolean;
-}
-
-// ---------------------------------------------------------------------------
-// Action Button
-// ---------------------------------------------------------------------------
-
-interface ActionBtnProps {
-	icon: LucideIcon;
-	label: string;
-	onClick?: () => void;
-	disabled?: boolean;
-	variant?: "default" | "destructive";
-}
-
-function ActionBtn({ icon: Icon, label, onClick, disabled, variant = "default" }: ActionBtnProps) {
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			disabled={disabled}
-			className={`flex items-center gap-0.5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-				variant === "destructive"
-					? "text-destructive/70 hover:text-destructive"
-					: "text-forum-text-muted hover:text-forum-link"
-			}`}
-		>
-			<Icon className="h-3.5 w-3.5" />
-			<span>{label}</span>
-		</button>
-	);
 }
 
 // ---------------------------------------------------------------------------
@@ -214,25 +184,25 @@ export function ThreadModMenu({
 			<div className="flex items-center gap-4 text-xs">
 				{canManageThread && (
 					<>
-						<ActionBtn
+						<ForumActionButton
 							icon={Pin}
 							label="置顶"
 							onClick={() => setStickyDialogOpen(true)}
 							disabled={loading}
 						/>
-						<ActionBtn
+						<ForumActionButton
 							icon={Highlighter}
 							label="高亮"
 							onClick={() => setHighlightDialogOpen(true)}
 							disabled={loading}
 						/>
-						<ActionBtn
+						<ForumActionButton
 							icon={Star}
 							label="精华"
 							onClick={() => setDigestDialogOpen(true)}
 							disabled={loading}
 						/>
-						<ActionBtn
+						<ForumActionButton
 							icon={closed ? LockOpen : Lock}
 							label={closed ? "解锁" : "关闭"}
 							onClick={handleToggleClose}
@@ -241,7 +211,7 @@ export function ThreadModMenu({
 					</>
 				)}
 				{canMoveThread && (
-					<ActionBtn
+					<ForumActionButton
 						icon={ArrowRight}
 						label="移动"
 						onClick={() => setMoveDialogOpen(true)}
@@ -249,7 +219,7 @@ export function ThreadModMenu({
 					/>
 				)}
 				{canDeleteThread && (
-					<ActionBtn
+					<ForumActionButton
 						icon={Trash2}
 						label="删除"
 						onClick={handleDeleteClick}
