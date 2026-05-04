@@ -46,12 +46,28 @@ export function isForumCacheEnabled(env: Env): boolean {
 
 // ─── Validation ────────────────────────────────────────────────────
 
-/** Basic shape check for cached payload — rejects corrupt / schema-mismatched data. */
+/** Validate a single cached entry has all fields required by the current schema. */
+function isValidEntry(entry: unknown): boolean {
+	if (typeof entry !== "object" || entry === null) return false;
+	const e = entry as Record<string, unknown>;
+	return (
+		typeof e.id === "number" &&
+		typeof e.parentId === "number" &&
+		typeof e.name === "string" &&
+		typeof e.status === "number" &&
+		typeof e.visibility === "string" &&
+		typeof e.type === "string" &&
+		typeof e.moderators === "string" &&
+		typeof e.moderatorIds === "string" &&
+		Array.isArray(e.moderatorList)
+	);
+}
+
+/** Full shape check for cached payload — rejects corrupt / schema-mismatched data. */
 function isValidCachedTree(cached: CachedForumTree): boolean {
 	if (!Array.isArray(cached.forums)) return false;
 	if (cached.forums.length === 0) return true; // empty tree is valid
-	const first = cached.forums[0];
-	return typeof first.id === "number" && typeof first.name === "string";
+	return cached.forums.every(isValidEntry);
 }
 
 // ─── Read-through cache ─────────────────────────────────────────────
