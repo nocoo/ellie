@@ -37,6 +37,46 @@ function LastPosterAvatarLink({
 	);
 }
 
+/** Moderator list with UserPopover links. Returns null when empty. */
+function ModeratorLinks({
+	mods,
+	variant,
+}: { mods: { id: number; name: string }[]; variant: "wide" | "grid" }) {
+	if (mods.length === 0) return null;
+
+	if (variant === "wide") {
+		return (
+			<div className="relative z-10 mt-0.5 flex items-baseline gap-1 flex-wrap leading-5">
+				<span className="text-xs text-muted-foreground">版主:</span>
+				{mods.map((mod, i) => (
+					<span key={mod.id}>
+						{i > 0 && <span className="text-xs text-muted-foreground">, </span>}
+						<UserPopover userId={mod.id}>
+							<span className="text-xs text-forum-link hover:underline cursor-pointer">
+								{mod.name}
+							</span>
+						</UserPopover>
+					</span>
+				))}
+			</div>
+		);
+	}
+
+	return (
+		<div className="mt-0.5 text-xs text-muted-foreground leading-5">
+			版主:{" "}
+			{mods.map((mod, i) => (
+				<span key={mod.id}>
+					{i > 0 && ", "}
+					<UserPopover userId={mod.id}>
+						<span className="text-forum-link hover:underline cursor-pointer">{mod.name}</span>
+					</UserPopover>
+				</span>
+			))}
+		</div>
+	);
+}
+
 // ---------------------------------------------------------------------------
 // Wide layout — one forum per row
 // Desktop: 3-column (info | stats | last post)
@@ -44,8 +84,6 @@ function LastPosterAvatarLink({
 // ---------------------------------------------------------------------------
 
 function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
-	const mods = forum.moderatorList ?? [];
-
 	return (
 		<div className="relative transition-colors hover:bg-accent focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset">
 			{/* Desktop layout */}
@@ -96,21 +134,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 					)}
 
 					{/* Moderators */}
-					{mods.length > 0 && (
-						<div className="relative z-10 mt-0.5 flex items-baseline gap-1 flex-wrap leading-5">
-							<span className="text-xs text-muted-foreground">版主:</span>
-							{mods.map((mod, i) => (
-								<span key={mod.id}>
-									{i > 0 && <span className="text-xs text-muted-foreground">, </span>}
-									<UserPopover userId={mod.id}>
-										<span className="text-xs text-forum-link hover:underline cursor-pointer">
-											{mod.name}
-										</span>
-									</UserPopover>
-								</span>
-							))}
-						</div>
-					)}
+					<ModeratorLinks mods={forum.moderatorList ?? []} variant="wide" />
 				</div>
 
 				{/* Middle: stats — "帖数 / 回帖" */}
@@ -198,8 +222,6 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 // ---------------------------------------------------------------------------
 
 function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
-	const mods = forum.moderatorList ?? [];
-
 	return (
 		<div className="relative flex items-start gap-2.5 px-4 py-3 transition-colors hover:bg-accent focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset">
 			{/* Icon */}
@@ -227,19 +249,7 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 				</div>
 
 				{/* Moderators */}
-				{mods.length > 0 && (
-					<div className="mt-0.5 text-xs text-muted-foreground leading-5">
-						版主:{" "}
-						{mods.map((mod, i) => (
-							<span key={mod.id}>
-								{i > 0 && ", "}
-								<UserPopover userId={mod.id}>
-									<span className="text-forum-link hover:underline cursor-pointer">{mod.name}</span>
-								</UserPopover>
-							</span>
-						))}
-					</div>
-				)}
+				<ModeratorLinks mods={forum.moderatorList ?? []} variant="grid" />
 
 				{/* Last post preview */}
 				{forum.lastPostAt > 0 && (
