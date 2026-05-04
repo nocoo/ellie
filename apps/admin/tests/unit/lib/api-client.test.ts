@@ -1,4 +1,4 @@
-import { apiClient } from "@/lib/api-client";
+import { ApiError, apiClient } from "@/lib/api-client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const originalFetch = globalThis.fetch;
@@ -129,6 +129,58 @@ describe("apiClient", () => {
 			globalThis.fetch = mockFetchFn as any;
 
 			await expect(apiClient.get("/api/admin/bad")).rejects.toThrow("Failed to parse");
+		});
+
+		it("preserves error.details from worker envelope", async () => {
+			mockFetchFn = vi.fn(() =>
+				Promise.resolve(
+					new Response(
+						JSON.stringify({
+							error: {
+								code: "VALIDATION_FAILED",
+								message: "Validation failed",
+								details: { fields: { username: "USERNAME_TAKEN" } },
+							},
+						}),
+						{ status: 400, headers: { "Content-Type": "application/json" } },
+					),
+				),
+			);
+			globalThis.fetch = mockFetchFn as any;
+
+			let caught: unknown;
+			try {
+				await apiClient.patch("/api/admin/users/1", { username: "admin" });
+			} catch (err) {
+				caught = err;
+			}
+			expect(caught).toBeInstanceOf(ApiError);
+			const err = caught as ApiError;
+			expect(err.status).toBe(400);
+			expect(err.code).toBe("VALIDATION_FAILED");
+			expect(err.message).toBe("Validation failed");
+			expect(err.details).toEqual({ fields: { username: "USERNAME_TAKEN" } });
+		});
+
+		it("leaves details undefined when worker omits it", async () => {
+			mockFetchFn = vi.fn(() =>
+				Promise.resolve(
+					new Response(JSON.stringify({ error: { code: "NOT_FOUND", message: "Not found" } }), {
+						status: 404,
+						headers: { "Content-Type": "application/json" },
+					}),
+				),
+			);
+			globalThis.fetch = mockFetchFn as any;
+
+			let caught: unknown;
+			try {
+				await apiClient.get("/api/admin/missing");
+			} catch (err) {
+				caught = err;
+			}
+			expect(caught).toBeInstanceOf(ApiError);
+			expect((caught as ApiError).details).toBeUndefined();
 		});
 	});
 });

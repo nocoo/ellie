@@ -90,12 +90,14 @@ async function request<T>(
 	}
 
 	if (!res.ok) {
-		const error = json.error as { code?: string; message?: string } | undefined;
-		throw new ApiError(
-			res.status,
-			error?.code ?? "UNKNOWN",
-			error?.message ?? `Request failed with status ${res.status}`,
-		);
+		const error = json.error as
+			| { code?: string; message?: string; details?: Record<string, unknown> }
+			| undefined;
+		throw new ApiError(res.status, {
+			code: error?.code ?? "UNKNOWN",
+			message: error?.message ?? `Request failed with status ${res.status}`,
+			details: error?.details,
+		});
 	}
 
 	return {
