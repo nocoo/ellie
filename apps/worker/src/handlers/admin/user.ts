@@ -33,6 +33,9 @@ const userConfig: EntityConfig = {
 		{ param: "email", column: "email", type: "like" },
 		{ param: "status", column: "status", type: "exact", parse: "int" },
 		{ param: "role", column: "role", type: "exact", parse: "int" },
+		// D3: same-IP query — exact match, no LIKE wildcards (PII surface).
+		{ param: "regIp", column: "reg_ip", type: "exact" },
+		{ param: "lastIp", column: "last_ip", type: "exact" },
 	],
 	listSort: "id DESC",
 

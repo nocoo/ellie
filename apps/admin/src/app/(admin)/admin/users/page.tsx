@@ -82,15 +82,35 @@ function statusVariant(status: number): "default" | "destructive" | "secondary" 
 // ---------------------------------------------------------------------------
 
 export default function UsersPage() {
-	// Read initial search from URL query params
+	// Read initial search / IP filters from URL query params. The IP
+	// filters are populated only by the user-detail page's "查询注册 IP" /
+	// "查询最近 IP" buttons (D3) — `AdminFilters` does not expose any
+	// free-form IP input to limit PII surface.
 	const searchParams = useSearchParams();
 	const router = useRouter();
 	const initialSearch = searchParams.get("search") ?? "";
+	const initialRegIp = searchParams.get("regIp") ?? "";
+	const initialLastIp = searchParams.get("lastIp") ?? "";
+
+	const initialFilters: Partial<{
+		search: string;
+		regIp: string;
+		lastIp: string;
+	}> = {};
+	if (initialSearch) initialFilters.search = initialSearch;
+	if (initialRegIp) initialFilters.regIp = initialRegIp;
+	if (initialLastIp) initialFilters.lastIp = initialLastIp;
 
 	// Use ViewModel hook for all state and logic
 	const { state, actions } = useUsersAdmin({
-		initialFilters: initialSearch ? { search: initialSearch } : undefined,
+		initialFilters: Object.keys(initialFilters).length > 0 ? initialFilters : undefined,
 	});
+
+	const ipBanner = state.filters.regIp
+		? `正在查看注册 IP 为 ${state.filters.regIp} 的用户`
+		: state.filters.lastIp
+			? `正在查看最近 IP 为 ${state.filters.lastIp} 的用户`
+			: null;
 
 	// -----------------------------------------------------------------------
 	// Column definitions
@@ -180,6 +200,8 @@ export default function UsersPage() {
 				onFilterChange={actions.handleFilterChange}
 				onClearAll={actions.handleClearFilters}
 			/>
+
+			{ipBanner && <AdminInlineMessage variant="info" text={ipBanner} />}
 
 			{state.pageMessage && (
 				<AdminInlineMessage variant={state.pageMessage.type} text={state.pageMessage.text} />

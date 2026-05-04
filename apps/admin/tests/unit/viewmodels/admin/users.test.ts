@@ -29,6 +29,18 @@ describe("users", () => {
 			const params = buildUserSearchParams({ status: -1 });
 			expect(params.status).toBe(-1);
 		});
+
+		it("includes regIp / lastIp when set", () => {
+			const params = buildUserSearchParams({ regIp: "1.2.3.4", lastIp: "5.6.7.8" });
+			expect(params.regIp).toBe("1.2.3.4");
+			expect(params.lastIp).toBe("5.6.7.8");
+		});
+
+		it("omits empty IP strings", () => {
+			const params = buildUserSearchParams({ regIp: "", lastIp: "" });
+			expect(params.regIp).toBeUndefined();
+			expect(params.lastIp).toBeUndefined();
+		});
 	});
 
 	describe("roleLabel", () => {

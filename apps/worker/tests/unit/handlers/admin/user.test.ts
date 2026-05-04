@@ -97,6 +97,41 @@ describe("admin user handlers", () => {
 			expect(roleCall?.params).toContain(3);
 		});
 
+		it("should filter by regIp (exact)", async () => {
+			const { db, calls } = createMockDb({
+				allResults: { "FROM users": [] },
+				firstResults: { "SELECT COUNT": { total: 0 } },
+			});
+
+			const res = await list(
+				createAdminRequest("GET", "/api/admin/users?regIp=1.2.3.4"),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(200);
+			const ipCall = calls.find((c) => c.sql.includes("reg_ip ="));
+			expect(ipCall?.params).toContain("1.2.3.4");
+			// Must be exact, not a LIKE search.
+			expect(calls.some((c) => c.sql.includes("reg_ip LIKE"))).toBe(false);
+		});
+
+		it("should filter by lastIp (exact)", async () => {
+			const { db, calls } = createMockDb({
+				allResults: { "FROM users": [] },
+				firstResults: { "SELECT COUNT": { total: 0 } },
+			});
+
+			const res = await list(
+				createAdminRequest("GET", "/api/admin/users?lastIp=5.6.7.8"),
+				adminEnv(db),
+			);
+
+			expect(res.status).toBe(200);
+			const ipCall = calls.find((c) => c.sql.includes("last_ip ="));
+			expect(ipCall?.params).toContain("5.6.7.8");
+			expect(calls.some((c) => c.sql.includes("last_ip LIKE"))).toBe(false);
+		});
+
 		it("should reject invalid page number", async () => {
 			const { db } = createMockDb();
 			const res = await list(createAdminRequest("GET", "/api/admin/users?page=0"), adminEnv(db));
