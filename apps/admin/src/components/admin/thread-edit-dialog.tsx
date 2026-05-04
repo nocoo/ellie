@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@ellie/ui";
 import { Label } from "@ellie/ui";
 import { useCallback, useEffect, useState } from "react";
+import { AdminInlineMessage } from "./admin-inline-message";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -16,6 +17,7 @@ export interface ThreadEditDialogProps {
 	onOpenChange: (open: boolean) => void;
 	thread: Thread | null;
 	loading?: boolean;
+	error?: string | null;
 	onSave: (id: number, data: ThreadUpdate) => void;
 }
 
@@ -28,6 +30,7 @@ export function ThreadEditDialog({
 	onOpenChange,
 	thread,
 	loading = false,
+	error,
 	onSave,
 }: ThreadEditDialogProps) {
 	const [subject, setSubject] = useState("");
@@ -57,6 +60,8 @@ export function ThreadEditDialog({
 				<DialogHeader>
 					<DialogTitle>编辑主题</DialogTitle>
 				</DialogHeader>
+
+				{error && <AdminInlineMessage variant="error" text={error} dense />}
 
 				<div className="grid gap-4 py-4">
 					<div className="grid gap-2">

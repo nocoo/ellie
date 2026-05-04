@@ -4,8 +4,10 @@ import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
+import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { ThreadEditDialog } from "@/components/admin/thread-edit-dialog";
+import { extractErrorMessage } from "@/lib/admin-error";
 import {
 	type Thread,
 	type ThreadUpdate,
@@ -88,6 +90,13 @@ export default function ThreadsPage() {
 	}>({ open: false, title: "", description: "", variant: "default", onConfirm: () => {} });
 	const [confirmLoading, setConfirmLoading] = useState(false);
 
+	const [editError, setEditError] = useState<string | null>(null);
+	const [confirmError, setConfirmError] = useState<string | null>(null);
+	const [pageMessage, setPageMessage] = useState<{
+		type: "success" | "error";
+		text: string;
+	} | null>(null);
+
 	const fetchData = useCallback(
 		async (page = 1) => {
 			setLoading(true);
@@ -134,10 +143,13 @@ export default function ThreadsPage() {
 	const handleEditSave = useCallback(
 		async (id: number, update: ThreadUpdate) => {
 			setEditLoading(true);
+			setEditError(null);
 			try {
 				await updateThread(id, update);
 				setEditThread(null);
 				fetchData(pagination.page);
+			} catch (err) {
+				setEditError(extractErrorMessage(err, "保存主题失败"));
 			} finally {
 				setEditLoading(false);
 			}
@@ -147,6 +159,7 @@ export default function ThreadsPage() {
 
 	const handleDelete = useCallback(
 		(thread: Thread) => {
+			setConfirmError(null);
 			setConfirmDialog({
 				open: true,
 				title: "删除主题",
@@ -154,10 +167,13 @@ export default function ThreadsPage() {
 				variant: "destructive",
 				onConfirm: async () => {
 					setConfirmLoading(true);
+					setConfirmError(null);
 					try {
 						await deleteThread(thread.id);
 						setConfirmDialog((d) => ({ ...d, open: false }));
 						fetchData(pagination.page);
+					} catch (err) {
+						setConfirmError(extractErrorMessage(err, "删除主题失败"));
 					} finally {
 						setConfirmLoading(false);
 					}
@@ -169,8 +185,21 @@ export default function ThreadsPage() {
 
 	const handleToggleClose = useCallback(
 		async (thread: Thread) => {
-			await updateThread(thread.id, { closed: thread.closed ? 0 : 1 });
-			fetchData(pagination.page);
+			setPageMessage(null);
+			const next = thread.closed ? 0 : 1;
+			try {
+				await updateThread(thread.id, { closed: next });
+				fetchData(pagination.page);
+				setPageMessage({
+					type: "success",
+					text: next === 1 ? `已锁定「${thread.subject}」` : `已解锁「${thread.subject}」`,
+				});
+			} catch (err) {
+				setPageMessage({
+					type: "error",
+					text: extractErrorMessage(err, "切换主题锁定状态失败"),
+				});
+			}
 		},
 		[fetchData, pagination.page],
 	);
@@ -271,6 +300,8 @@ export default function ThreadsPage() {
 				onClearAll={handleClearFilters}
 			/>
 
+			{pageMessage && <AdminInlineMessage variant={pageMessage.type} text={pageMessage.text} />}
+
 			<div className="rounded-xl bg-secondary p-1 overflow-x-auto">
 				<AdminDataTable
 					columns={columns}
@@ -294,19 +325,29 @@ export default function ThreadsPage() {
 
 			<ThreadEditDialog
 				open={editThread !== null}
-				onOpenChange={(open) => !open && setEditThread(null)}
+				onOpenChange={(open) => {
+					if (!open) {
+						setEditThread(null);
+						setEditError(null);
+					}
+				}}
 				thread={editThread}
 				loading={editLoading}
+				error={editError}
 				onSave={handleEditSave}
 			/>
 
 			<AdminConfirmDialog
 				open={confirmDialog.open}
-				onOpenChange={(open) => setConfirmDialog((d) => ({ ...d, open }))}
+				onOpenChange={(open) => {
+					setConfirmDialog((d) => ({ ...d, open }));
+					if (!open) setConfirmError(null);
+				}}
 				title={confirmDialog.title}
 				description={confirmDialog.description}
 				variant={confirmDialog.variant}
 				loading={confirmLoading}
+				error={confirmError}
 				onConfirm={confirmDialog.onConfirm}
 			/>
 		</div>

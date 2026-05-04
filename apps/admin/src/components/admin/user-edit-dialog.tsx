@@ -7,8 +7,9 @@ import { Input } from "@ellie/ui";
 import { Label } from "@ellie/ui";
 import { Select } from "@ellie/ui";
 import { cn } from "@ellie/ui/utils";
-import { AlertCircle, Save, User as UserIcon } from "lucide-react";
+import { Save, User as UserIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { AdminInlineMessage } from "./admin-inline-message";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -131,12 +132,7 @@ export function UserEditDialog({
 				</DialogHeader>
 
 				{/* Error display */}
-				{error && (
-					<div className="mx-5 mt-4 flex items-start gap-3 rounded-lg bg-destructive/10 border border-destructive/30 p-3">
-						<AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-						<p className="text-sm text-destructive">{error}</p>
-					</div>
-				)}
+				{error && <AdminInlineMessage variant="error" text={error} className="mx-5 mt-4" />}
 
 				{/* Form */}
 				<div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">

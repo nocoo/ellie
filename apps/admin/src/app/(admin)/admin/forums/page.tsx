@@ -2,9 +2,11 @@
 
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
+import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { ForumCreateDialog } from "@/components/admin/forum-create-dialog";
 import { ForumEditDialog } from "@/components/admin/forum-edit-dialog";
 import { ForumMergeDialog } from "@/components/admin/forum-merge-dialog";
+import { extractErrorMessage } from "@/lib/admin-error";
 import {
 	type Forum,
 	type ForumCreate,
@@ -247,6 +249,17 @@ export default function ForumsPage() {
 	}>({ open: false, title: "", description: "", variant: "default", onConfirm: () => {} });
 	const [confirmLoading, setConfirmLoading] = useState(false);
 
+	// Per-dialog inline error messages (cleared on dialog close / next attempt).
+	const [createError, setCreateError] = useState<string | null>(null);
+	const [editError, setEditError] = useState<string | null>(null);
+	const [confirmError, setConfirmError] = useState<string | null>(null);
+	// Page-level banner for actions that don't open a dialog (e.g. visibility toggle)
+	// or for dialogs not in this batch's scope (merge).
+	const [pageMessage, setPageMessage] = useState<{
+		type: "success" | "error";
+		text: string;
+	} | null>(null);
+
 	// -----------------------------------------------------------------------
 	// Data fetching
 	// -----------------------------------------------------------------------
@@ -314,10 +327,13 @@ export default function ForumsPage() {
 	const handleCreate = useCallback(
 		async (formData: ForumCreate) => {
 			setCreateLoading(true);
+			setCreateError(null);
 			try {
 				await createForum(formData);
 				setCreateOpen(false);
 				fetchData();
+			} catch (err) {
+				setCreateError(extractErrorMessage(err, "创建版块失败"));
 			} finally {
 				setCreateLoading(false);
 			}
@@ -328,10 +344,13 @@ export default function ForumsPage() {
 	const handleEdit = useCallback(
 		async (id: number, data: ForumUpdate) => {
 			setEditLoading(true);
+			setEditError(null);
 			try {
 				await updateForum(id, data);
 				setEditForum(null);
 				fetchData();
+			} catch (err) {
+				setEditError(extractErrorMessage(err, "保存版块失败"));
 			} finally {
 				setEditLoading(false);
 			}
@@ -341,14 +360,28 @@ export default function ForumsPage() {
 
 	const handleToggleStatus = useCallback(
 		async (forum: Forum) => {
-			await updateForum(forum.id, { status: forum.status === 1 ? 0 : 1 });
-			fetchData();
+			setPageMessage(null);
+			const next = forum.status === 1 ? 0 : 1;
+			try {
+				await updateForum(forum.id, { status: next });
+				fetchData();
+				setPageMessage({
+					type: "success",
+					text: next === 0 ? `已隐藏「${forum.name}」` : `已显示「${forum.name}」`,
+				});
+			} catch (err) {
+				setPageMessage({
+					type: "error",
+					text: extractErrorMessage(err, "切换版块状态失败"),
+				});
+			}
 		},
 		[fetchData],
 	);
 
 	const handleDelete = useCallback(
 		(forum: Forum) => {
+			setConfirmError(null);
 			setConfirmDialog({
 				open: true,
 				title: "删除版块",
@@ -356,10 +389,13 @@ export default function ForumsPage() {
 				variant: "destructive",
 				onConfirm: async () => {
 					setConfirmLoading(true);
+					setConfirmError(null);
 					try {
 						await deleteForum(forum.id);
 						setConfirmDialog((d) => ({ ...d, open: false }));
 						fetchData();
+					} catch (err) {
+						setConfirmError(extractErrorMessage(err, "删除版块失败"));
 					} finally {
 						setConfirmLoading(false);
 					}
@@ -372,10 +408,14 @@ export default function ForumsPage() {
 	const handleMerge = useCallback(
 		async (sourceId: number, targetId: number) => {
 			setMergeLoading(true);
+			setPageMessage(null);
 			try {
 				await mergeForums(sourceId, targetId);
 				setMergeSource(null);
 				fetchData();
+				setPageMessage({ type: "success", text: "版块已合并" });
+			} catch (err) {
+				setPageMessage({ type: "error", text: extractErrorMessage(err, "合并版块失败") });
 			} finally {
 				setMergeLoading(false);
 			}
@@ -417,6 +457,9 @@ export default function ForumsPage() {
 				onFilterChange={handleFilterChange}
 				onClearAll={handleClearFilters}
 			/>
+
+			{/* Page-level feedback (visibility toggle / merge) */}
+			{pageMessage && <AdminInlineMessage variant={pageMessage.type} text={pageMessage.text} />}
 
 			{/* Tree view */}
 			<div className="rounded-xl bg-secondary p-1 overflow-x-auto overflow-hidden">
@@ -489,18 +532,28 @@ export default function ForumsPage() {
 			{/* Dialogs */}
 			<ForumCreateDialog
 				open={createOpen}
-				onOpenChange={setCreateOpen}
+				onOpenChange={(open) => {
+					setCreateOpen(open);
+					if (!open) setCreateError(null);
+				}}
 				forums={rawData}
 				loading={createLoading}
+				error={createError}
 				onSave={handleCreate}
 			/>
 
 			<ForumEditDialog
 				open={editForum !== null}
-				onOpenChange={(open) => !open && setEditForum(null)}
+				onOpenChange={(open) => {
+					if (!open) {
+						setEditForum(null);
+						setEditError(null);
+					}
+				}}
 				forum={editForum}
 				forums={rawData}
 				loading={editLoading}
+				error={editError}
 				onSave={handleEdit}
 			/>
 
@@ -515,11 +568,15 @@ export default function ForumsPage() {
 
 			<AdminConfirmDialog
 				open={confirmDialog.open}
-				onOpenChange={(open) => setConfirmDialog((d) => ({ ...d, open }))}
+				onOpenChange={(open) => {
+					setConfirmDialog((d) => ({ ...d, open }));
+					if (!open) setConfirmError(null);
+				}}
 				title={confirmDialog.title}
 				description={confirmDialog.description}
 				variant={confirmDialog.variant}
 				loading={confirmLoading}
+				error={confirmError}
 				onConfirm={confirmDialog.onConfirm}
 			/>
 		</div>
