@@ -224,6 +224,11 @@ describe("EmailVerificationCard toast integration", () => {
 			const successToast = alerts.find((el) => el.textContent?.includes("邮箱已验证"));
 			expect(successToast).toBeTruthy();
 		});
+
+		// Verify router.refresh() is still called after verify_success
+		await waitFor(() => {
+			expect(mockRefresh).toHaveBeenCalledTimes(1);
+		});
 	});
 
 	// --- Verify: API error ---
