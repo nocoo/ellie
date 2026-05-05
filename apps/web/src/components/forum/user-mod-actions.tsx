@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { Ban, Loader2, Shield, Trash2, VolumeX } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { useForumToast } from "./forum-toast";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -119,6 +120,7 @@ export function UserModActions({
 	className,
 }: UserModActionsProps) {
 	const router = useRouter();
+	const toast = useForumToast();
 	// Can manage users (Admin or SuperMod only)
 	const canManageUsers = viewerRole >= 1 && viewerRole <= 2;
 
@@ -153,6 +155,7 @@ export function UserModActions({
 		try {
 			await apiClient.post(config.endpoint(userId), {});
 			setModActionMessage({ type: "success", text: `${config.title}成功` });
+			toast.success(`${config.title}成功`);
 
 			// For nuke action, redirect to home page after a short delay
 			if (modAction === "nuke") {
@@ -167,15 +170,17 @@ export function UserModActions({
 			await fetchUserStatus();
 			onActionComplete?.();
 		} catch (err) {
+			const description = err instanceof Error ? err.message : "请稍后重试";
 			setModActionMessage({
 				type: "error",
-				text: `${config.title}失败: ${err instanceof Error ? err.message : "请稍后重试"}`,
+				text: `${config.title}失败: ${description}`,
 			});
+			toast.error({ title: `${config.title}失败`, description });
 		} finally {
 			setModActionLoading(false);
 			setModAction(null);
 		}
-	}, [modAction, userId, fetchUserStatus, onActionComplete, router]);
+	}, [modAction, userId, fetchUserStatus, onActionComplete, router, toast]);
 
 	// Fetch status on mount
 	useEffect(() => {
