@@ -24,6 +24,7 @@ import {
 } from "@/viewmodels/forum/messages";
 import { AlertCircle, Loader2, Send, User, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useForumToast } from "./forum-toast";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -195,6 +196,8 @@ export function ComposeMessageDialog({
 	initialRecipient,
 	onSuccess,
 }: ComposeMessageDialogProps) {
+	const toast = useForumToast();
+
 	// Form state
 	const [recipientQuery, setRecipientQuery] = useState("");
 	const [selectedRecipient, setSelectedRecipient] = useState<UserSearchResult | null>(null);
@@ -253,16 +256,15 @@ export function ComposeMessageDialog({
 			await sendMessage(payload);
 			onOpenChange(false);
 			onSuccess?.();
+			toast.success("站内信已发送");
 		} catch (err) {
-			if (err instanceof ApiError) {
-				setError(err.message);
-			} else {
-				setError("发送失败，请重试");
-			}
+			const message = err instanceof ApiError ? err.message : "发送失败，请重试";
+			setError(message);
+			toast.error({ title: "发送失败", description: message });
 		} finally {
 			setIsSending(false);
 		}
-	}, [selectedRecipient, subject, content, onOpenChange, onSuccess]);
+	}, [selectedRecipient, subject, content, onOpenChange, onSuccess, toast]);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
