@@ -15,6 +15,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { createPortal } from "react-dom";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -109,9 +110,15 @@ function ToastContainer({
 	toasts,
 	onRemove,
 }: { toasts: ToastItem[]; onRemove: (id: number) => void }) {
-	if (toasts.length === 0) return null;
+	const [mounted, setMounted] = useState(false);
 
-	return (
+	useEffect(() => {
+		setMounted(true);
+	}, []);
+
+	if (!mounted || toasts.length === 0) return null;
+
+	return createPortal(
 		<div
 			aria-live="polite"
 			aria-atomic="false"
@@ -120,7 +127,8 @@ function ToastContainer({
 			{toasts.map((toast) => (
 				<ToastCard key={toast.id} toast={toast} onClose={() => onRemove(toast.id)} />
 			))}
-		</div>
+		</div>,
+		document.body,
 	);
 }
 
