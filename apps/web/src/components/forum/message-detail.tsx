@@ -13,6 +13,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { useForumToast } from "./forum-toast";
 import { ForumAvatar } from "./user-avatar";
 
 // ---------------------------------------------------------------------------
@@ -46,6 +47,7 @@ function formatMessageDate(timestamp: number): string {
 export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailClientProps) {
 	const router = useRouter();
 	const { data: session } = useSession();
+	const toast = useForumToast();
 
 	// Get current user ID from session
 	const currentUserId = session?.user?.id ? Number.parseInt(session.user.id, 10) : null;
@@ -93,13 +95,11 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 		setIsDeleting(true);
 		try {
 			await deleteMessage(messageId);
+			toast.success("站内信已删除");
 			router.push("/messages");
 		} catch (err) {
-			if (err instanceof ApiError) {
-				alert(err.message);
-			} else {
-				alert("删除失败，请重试");
-			}
+			const message = err instanceof ApiError ? err.message : "删除失败，请重试";
+			toast.error({ title: "删除失败", description: message });
 			setIsDeleting(false);
 		}
 	};
