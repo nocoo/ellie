@@ -21,6 +21,7 @@ import { CheckCheck, Mail, PenLine, Send, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { useForumToast } from "./forum-toast";
 import { ForumAvatar } from "./user-avatar";
 
 // ---------------------------------------------------------------------------
@@ -363,6 +364,7 @@ export function MessagesPageClient({
 	initialRecipient,
 }: MessagesPageClientProps) {
 	const router = useRouter();
+	const toast = useForumToast();
 
 	// State
 	const [activeBox, setActiveBox] = useState<"inbox" | "outbox">(initialBox);
@@ -470,12 +472,10 @@ export function MessagesPageClient({
 			setMessages((prev) => prev.filter((m) => m.id !== id));
 			// Refresh unread count
 			loadUnreadCount();
+			toast.success("站内信已删除");
 		} catch (err) {
-			if (err instanceof ApiError) {
-				alert(err.message);
-			} else {
-				alert("删除失败，请重试");
-			}
+			const message = err instanceof ApiError ? err.message : "删除失败，请重试";
+			toast.error({ title: "删除失败", description: message });
 		}
 	};
 
@@ -494,12 +494,10 @@ export function MessagesPageClient({
 			// Update local state to mark all messages as read
 			setMessages((prev) => prev.map((m) => ({ ...m, isRead: true })));
 			setUnreadCount(0);
+			toast.success("已全部标记为已读");
 		} catch (err) {
-			if (err instanceof ApiError) {
-				alert(err.message);
-			} else {
-				alert("操作失败，请重试");
-			}
+			const message = err instanceof ApiError ? err.message : "操作失败，请重试";
+			toast.error({ title: "标记已读失败", description: message });
 		} finally {
 			setIsMarkingAllRead(false);
 		}
