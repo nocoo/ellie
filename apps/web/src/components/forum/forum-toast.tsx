@@ -11,6 +11,7 @@ import {
 	useCallback,
 	useContext,
 	useEffect,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -71,11 +72,14 @@ export function ForumToastProvider({ children }: { children: ReactNode }) {
 		setToasts((prev) => prev.filter((t) => t.id !== id));
 	}, []);
 
-	const ctx: ForumToastContextValue = {
-		success: (o) => addToast("success", o),
-		error: (o) => addToast("error", o),
-		info: (o) => addToast("info", o),
-	};
+	const ctx: ForumToastContextValue = useMemo(
+		() => ({
+			success: (o: string | ToastOptions) => addToast("success", o),
+			error: (o: string | ToastOptions) => addToast("error", o),
+			info: (o: string | ToastOptions) => addToast("info", o),
+		}),
+		[addToast],
+	);
 
 	return (
 		<ForumToastContext.Provider value={ctx}>
@@ -111,7 +115,7 @@ function ToastContainer({
 		<div
 			aria-live="polite"
 			aria-atomic="false"
-			className="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none max-w-sm w-full"
+			className="fixed top-4 inset-x-4 z-[9999] flex flex-col gap-2 pointer-events-none w-auto sm:inset-x-auto sm:right-4 sm:w-full sm:max-w-sm"
 		>
 			{toasts.map((toast) => (
 				<ToastCard key={toast.id} toast={toast} onClose={() => onRemove(toast.id)} />
