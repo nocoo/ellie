@@ -3,6 +3,7 @@
 // components/forum/thread-mod-menu.tsx — Thread moderation action bar
 // Flat inline buttons positioned at the bottom of the first post
 
+import { useForumToast } from "@/components/forum/forum-toast";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ApiError } from "@/lib/api-client";
 import {
@@ -63,6 +64,7 @@ export function ThreadModMenu({
 	canDeleteThread,
 }: ThreadModMenuProps) {
 	const router = useRouter();
+	const toast = useForumToast();
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
@@ -78,13 +80,16 @@ export function ThreadModMenu({
 		setError(null);
 		try {
 			await setThreadClosed(threadId, !closed);
+			toast.success(closed ? "主题已解锁" : "主题已关闭");
 			router.refresh();
 		} catch (err) {
-			setError(err instanceof ApiError ? err.message : "操作失败");
+			const message = err instanceof ApiError ? err.message : "操作失败";
+			setError(message);
+			toast.error({ title: closed ? "解锁失败" : "关闭失败", description: message });
 		} finally {
 			setLoading(false);
 		}
-	}, [threadId, closed, router]);
+	}, [threadId, closed, router, toast]);
 
 	const handleStickyChange = useCallback(
 		async (level: StickyLevel) => {
@@ -93,14 +98,17 @@ export function ThreadModMenu({
 			try {
 				await setThreadSticky(threadId, level);
 				setStickyDialogOpen(false);
+				toast.success("置顶已更新");
 				router.refresh();
 			} catch (err) {
-				setError(err instanceof ApiError ? err.message : "操作失败");
+				const message = err instanceof ApiError ? err.message : "操作失败";
+				setError(message);
+				toast.error({ title: "置顶失败", description: message });
 			} finally {
 				setLoading(false);
 			}
 		},
-		[threadId, router],
+		[threadId, router, toast],
 	);
 
 	const handleDigestChange = useCallback(
@@ -110,14 +118,17 @@ export function ThreadModMenu({
 			try {
 				await setThreadDigest(threadId, level);
 				setDigestDialogOpen(false);
+				toast.success("精华已更新");
 				router.refresh();
 			} catch (err) {
-				setError(err instanceof ApiError ? err.message : "操作失败");
+				const message = err instanceof ApiError ? err.message : "操作失败";
+				setError(message);
+				toast.error({ title: "精华设置失败", description: message });
 			} finally {
 				setLoading(false);
 			}
 		},
-		[threadId, router],
+		[threadId, router, toast],
 	);
 
 	const handleHighlightChange = useCallback(
@@ -127,14 +138,17 @@ export function ThreadModMenu({
 			try {
 				await setThreadHighlight(threadId, options);
 				setHighlightDialogOpen(false);
+				toast.success("高亮已更新");
 				router.refresh();
 			} catch (err) {
-				setError(err instanceof ApiError ? err.message : "操作失败");
+				const message = err instanceof ApiError ? err.message : "操作失败";
+				setError(message);
+				toast.error({ title: "高亮设置失败", description: message });
 			} finally {
 				setLoading(false);
 			}
 		},
-		[threadId, router],
+		[threadId, router, toast],
 	);
 
 	const handleMove = useCallback(
@@ -144,14 +158,17 @@ export function ThreadModMenu({
 			try {
 				await moveThread(threadId, targetForumId);
 				setMoveDialogOpen(false);
+				toast.success("主题已移动");
 				router.refresh();
 			} catch (err) {
-				setError(err instanceof ApiError ? err.message : "操作失败");
+				const message = err instanceof ApiError ? err.message : "操作失败";
+				setError(message);
+				toast.error({ title: "移动失败", description: message });
 			} finally {
 				setLoading(false);
 			}
 		},
-		[threadId, router],
+		[threadId, router, toast],
 	);
 
 	const handleDeleteClick = useCallback(() => {
@@ -165,13 +182,16 @@ export function ThreadModMenu({
 		try {
 			await deleteThread(threadId);
 			setDeleteDialogOpen(false);
+			toast.success("主题已删除");
 			// Navigate back to forum after deletion
 			router.push(`/forums/${forumId}`);
 		} catch (err) {
-			setError(err instanceof ApiError ? err.message : "删除失败");
+			const message = err instanceof ApiError ? err.message : "删除失败";
+			setError(message);
+			toast.error({ title: "删除失败", description: message });
 			setLoading(false);
 		}
-	}, [threadId, forumId, router]);
+	}, [threadId, forumId, router, toast]);
 
 	// Don't render if user has no permissions
 	if (!canManageThread && !canMoveThread && !canDeleteThread) {
