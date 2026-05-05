@@ -3,6 +3,7 @@
 
 "use client";
 
+import { useForumToast } from "@/components/forum/forum-toast";
 import { ApiError, apiClient } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-messages";
 import type { User } from "@ellie/types";
@@ -227,6 +228,7 @@ export function useProfileEdit({
 	onSuccess,
 }: UseProfileEditOptions): UseProfileEditReturn {
 	const router = useRouter();
+	const toast = useForumToast();
 
 	// State
 	const [form, setForm] = useState<ProfileFormData>(() => createFormDataFromUser(initialData));
@@ -277,15 +279,17 @@ export function useProfileEdit({
 			if (onSuccess) {
 				onSuccess();
 			}
+			toast.success("个人资料已保存");
 			router.refresh();
 		} catch (err) {
 			const code = err instanceof ApiError ? err.code : undefined;
 			const message = getErrorMessage(code, "save");
 			setError(message);
+			toast.error({ title: "保存失败", description: message });
 		} finally {
 			setSubmitting(false);
 		}
-	}, [submitting, form, onSuccess, router]);
+	}, [submitting, form, onSuccess, router, toast]);
 
 	return {
 		state: {
