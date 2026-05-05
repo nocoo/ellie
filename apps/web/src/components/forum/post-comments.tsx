@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { apiClient } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-error";
 import type { PostComment } from "@ellie/types";
 import { Loader2, MessageCircle, Send } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { useForumToast } from "./forum-toast";
 import { ForumAvatar } from "./user-avatar";
 
 interface PostCommentsProps {
@@ -38,6 +40,7 @@ function CommentDialog({ open, onOpenChange, postId, onSuccess }: CommentDialogP
 	const [content, setContent] = useState("");
 	const [submitting, setSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const toast = useForumToast();
 
 	const handleSubmit = useCallback(async () => {
 		if (!content.trim()) return;
@@ -53,13 +56,15 @@ function CommentDialog({ open, onOpenChange, postId, onSuccess }: CommentDialogP
 			setContent("");
 			onOpenChange(false);
 			onSuccess(response.data);
+			toast.success("点评已发送");
 		} catch (err) {
-			setError("发送失败，请稍后重试");
-			console.error("[CommentDialog] submit error:", err);
+			const message = err instanceof ApiError ? err.message : "发送失败，请稍后重试";
+			setError(message);
+			toast.error({ title: "点评发送失败", description: message });
 		} finally {
 			setSubmitting(false);
 		}
-	}, [content, postId, onOpenChange, onSuccess]);
+	}, [content, postId, onOpenChange, onSuccess, toast]);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
