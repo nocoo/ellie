@@ -11,6 +11,7 @@
 // reducer with form events, fetch the proxy routes, and forward Cap callbacks.
 
 import { CapWidget } from "@/components/cap-widget";
+import { useForumToast } from "@/components/forum/forum-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -119,6 +120,7 @@ function EmailVerificationForm({
 	configErrorReason,
 	onVerified,
 }: EmailVerificationFormProps) {
+	const toast = useForumToast();
 	const [email, setEmail] = useState(initialEmail);
 	const [code, setCode] = useState("");
 	const [capToken, setCapToken] = useState<string | null>(null);
@@ -148,6 +150,7 @@ function EmailVerificationForm({
 		});
 		if (preflightError) {
 			dispatch({ type: "send_error", message: preflightError });
+			toast.error({ title: "验证码发送失败", description: preflightError });
 			resetCap();
 			return;
 		}
@@ -160,7 +163,9 @@ function EmailVerificationForm({
 			});
 			const body = (await res.json().catch(() => null)) as unknown;
 			if (!res.ok) {
-				dispatch({ type: "send_error", message: describeWrappedError(body, res.status) });
+				const message = describeWrappedError(body, res.status);
+				dispatch({ type: "send_error", message });
+				toast.error({ title: "验证码发送失败", description: message });
 				resetCap();
 				return;
 			}
@@ -176,9 +181,11 @@ function EmailVerificationForm({
 				sentTo,
 				nextResendAllowedAt,
 			});
+			toast.success(`验证码已发送至 ${sentTo}`);
 			resetCap();
 		} catch {
 			dispatch({ type: "send_error", message: "网络错误，请稍后重试。" });
+			toast.error({ title: "验证码发送失败", description: "网络错误，请稍后重试。" });
 			resetCap();
 		}
 	};
@@ -194,12 +201,16 @@ function EmailVerificationForm({
 			});
 			if (!res.ok) {
 				const body = (await res.json().catch(() => null)) as unknown;
-				dispatch({ type: "verify_error", message: describeWrappedError(body, res.status) });
+				const message = describeWrappedError(body, res.status);
+				dispatch({ type: "verify_error", message });
+				toast.error({ title: "邮箱验证失败", description: message });
 				return;
 			}
 			dispatch({ type: "verify_success" });
+			toast.success("邮箱已验证");
 		} catch {
 			dispatch({ type: "verify_error", message: "网络错误，请稍后重试。" });
+			toast.error({ title: "邮箱验证失败", description: "网络错误，请稍后重试。" });
 		}
 	};
 
