@@ -3,6 +3,7 @@
 
 "use client";
 
+import { useForumToast } from "@/components/forum/forum-toast";
 import { ApiError, apiClient } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-messages";
 import { stripHtmlTags } from "@/lib/text";
@@ -183,6 +184,7 @@ export function useThreadSubmit({
 	minContentLength = 10,
 }: UseThreadSubmitOptions): UseThreadSubmitReturn {
 	const router = useRouter();
+	const toast = useForumToast();
 
 	// State
 	const [subject, setSubject] = useState("");
@@ -233,6 +235,7 @@ export function useThreadSubmit({
 					onSuccess();
 				}
 				reset();
+				toast.success("主题已发布");
 
 				// Navigate to the new thread
 				if (threadId) {
@@ -244,6 +247,7 @@ export function useThreadSubmit({
 				const code = err instanceof ApiError ? err.code : undefined;
 				const message = getErrorMessage(code, "createThread");
 				setError(message);
+				toast.error({ title: "发帖失败", description: message });
 				setSubmitting(false);
 			}
 		},
@@ -256,6 +260,7 @@ export function useThreadSubmit({
 			onSuccess,
 			reset,
 			router,
+			toast,
 		],
 	);
 
