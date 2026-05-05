@@ -3,6 +3,7 @@
 
 "use client";
 
+import { useForumToast } from "@/components/forum/forum-toast";
 import { ApiError, apiClient } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error-messages";
 import { stripHtmlTags } from "@/lib/text";
@@ -137,6 +138,7 @@ export function useReplySubmit({
 	minContentLength = 2,
 }: UseReplySubmitOptions): UseReplySubmitReturn {
 	const router = useRouter();
+	const toast = useForumToast();
 
 	// Submission state
 	const [submitting, setSubmitting] = useState(false);
@@ -163,15 +165,17 @@ export function useReplySubmit({
 				const finalContent = quoteHtml ? quoteHtml + html : html;
 				const post = await submitReply(threadId, finalContent);
 				onClose?.();
+				toast.success("回复已发布");
 				router.push(`/threads/${threadId}?last=1#post-${post.id}`);
 			} catch (err) {
 				const code = err instanceof ApiError ? err.code : undefined;
 				const message = getErrorMessage(code, "reply");
 				setError(message);
+				toast.error({ title: "回复失败", description: message });
 				setSubmitting(false);
 			}
 		},
-		[threadId, minContentLength, quotedContent, quotedAuthor, quotedTime, onClose, router],
+		[threadId, minContentLength, quotedContent, quotedAuthor, quotedTime, onClose, router, toast],
 	);
 
 	return {
