@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
-import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, renderHook, screen } from "@testing-library/react";
+import { createElement } from "react";
+import type { ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockRefresh = vi.fn();
 const mockPush = vi.fn();
@@ -24,13 +26,22 @@ vi.mock("@/lib/error-messages", () => ({
 	getErrorMessage: vi.fn((_code: string | undefined, context: string) => `Error: ${context}`),
 }));
 
+import { ForumToastProvider } from "@/components/forum/forum-toast";
 import { useThreadSubmit } from "@/viewmodels/forum/use-thread-submit";
+
+function wrapper({ children }: { children: ReactNode }) {
+	return createElement(ForumToastProvider, null, children);
+}
 
 describe("useThreadSubmit hook", () => {
 	beforeEach(() => vi.clearAllMocks());
 
+	afterEach(() => {
+		cleanup();
+	});
+
 	it("returns initial state", () => {
-		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }));
+		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
 		expect(result.current.state.submitting).toBe(false);
 		expect(result.current.state.error).toBeNull();
 		expect(result.current.state.subject).toBe("");
@@ -38,7 +49,7 @@ describe("useThreadSubmit hook", () => {
 	});
 
 	it("setSubject updates subject and validation", () => {
-		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }));
+		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
 		act(() => {
 			result.current.actions.setSubject("Hello World");
 		});
@@ -48,7 +59,7 @@ describe("useThreadSubmit hook", () => {
 	});
 
 	it("shows subject error for short subject", () => {
-		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }));
+		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
 		act(() => {
 			result.current.actions.setSubject("abc");
 		});
@@ -57,7 +68,7 @@ describe("useThreadSubmit hook", () => {
 	});
 
 	it("handleSubmit validates subject", async () => {
-		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }));
+		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
 		act(() => {
 			result.current.actions.setSubject("ab");
 		});
@@ -69,7 +80,7 @@ describe("useThreadSubmit hook", () => {
 	});
 
 	it("handleSubmit validates content", async () => {
-		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }));
+		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
 		act(() => {
 			result.current.actions.setSubject("Valid Title Here");
 		});
@@ -82,7 +93,7 @@ describe("useThreadSubmit hook", () => {
 
 	it("handleSubmit succeeds and navigates to new thread", async () => {
 		const onSuccess = vi.fn();
-		const { result } = renderHook(() => useThreadSubmit({ forumId: 5, onSuccess }));
+		const { result } = renderHook(() => useThreadSubmit({ forumId: 5, onSuccess }), { wrapper });
 		act(() => {
 			result.current.actions.setSubject("Valid Title Here");
 		});
@@ -100,7 +111,7 @@ describe("useThreadSubmit hook", () => {
 
 	it("handles API error", async () => {
 		mockPost.mockRejectedValueOnce(new Error("fail"));
-		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }));
+		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
 		act(() => {
 			result.current.actions.setSubject("Valid Title Here");
 		});
@@ -112,7 +123,7 @@ describe("useThreadSubmit hook", () => {
 	});
 
 	it("reset clears subject and error", async () => {
-		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }));
+		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
 		act(() => {
 			result.current.actions.setSubject("something");
 		});
@@ -124,7 +135,7 @@ describe("useThreadSubmit hook", () => {
 	});
 
 	it("clearError clears error", async () => {
-		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }));
+		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
 		act(() => {
 			result.current.actions.setSubject("ab");
 		});
@@ -139,7 +150,7 @@ describe("useThreadSubmit hook", () => {
 
 	it("navigates to router.refresh when threadId is undefined", async () => {
 		mockPost.mockResolvedValueOnce({ data: {} }); // no id
-		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }));
+		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
 		act(() => {
 			result.current.actions.setSubject("Valid Title Here");
 		});
@@ -147,5 +158,49 @@ describe("useThreadSubmit hook", () => {
 			await result.current.actions.handleSubmit("<p>This is enough content for validation</p>");
 		});
 		expect(mockRefresh).toHaveBeenCalled();
+	});
+
+	// -------------------------------------------------------------------------
+	// Toast integration
+	// -------------------------------------------------------------------------
+
+	it("shows success toast on successful submit", async () => {
+		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
+		act(() => {
+			result.current.actions.setSubject("Valid Title Here");
+		});
+		await act(async () => {
+			await result.current.actions.handleSubmit("<p>This is enough content for validation</p>");
+		});
+		const alert = screen.getByRole("alert");
+		expect(alert.textContent).toContain("主题已发布");
+	});
+
+	it("shows error toast on API failure", async () => {
+		mockPost.mockRejectedValueOnce(new Error("fail"));
+		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
+		act(() => {
+			result.current.actions.setSubject("Valid Title Here");
+		});
+		await act(async () => {
+			await result.current.actions.handleSubmit("<p>This is enough content for validation</p>");
+		});
+		const alerts = screen.getAllByRole("alert");
+		const errorToast = alerts.find((el) => el.textContent?.includes("发帖失败"));
+		expect(errorToast).toBeTruthy();
+		expect(errorToast?.textContent).toContain("Error: createThread");
+	});
+
+	it("does not show toast on local validation failure", async () => {
+		const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
+		act(() => {
+			result.current.actions.setSubject("ab");
+		});
+		await act(async () => {
+			await result.current.actions.handleSubmit("<p>Enough content for the thread body here</p>");
+		});
+		expect(result.current.state.error).toContain("标题");
+		const alert = screen.queryByRole("alert");
+		expect(alert).toBeNull();
 	});
 });
