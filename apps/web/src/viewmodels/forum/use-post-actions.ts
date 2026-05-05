@@ -3,7 +3,7 @@
 
 "use client";
 
-import { ApiError } from "@/lib/api-client";
+import { useForumToast } from "@/components/forum/forum-toast";
 import { deleteMyPost, deletePost, editMyPost, editPost } from "@/lib/moderation-api";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
@@ -94,6 +94,7 @@ export function usePostActions({
 	onDeleteSuccess,
 }: UsePostActionsOptions): UsePostActionsReturn {
 	const router = useRouter();
+	const toast = useForumToast();
 
 	// Dialog state
 	const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -135,17 +136,20 @@ export function usePostActions({
 				throw new Error("没有删除权限");
 			}
 			setDeleteDialogOpen(false);
+			toast.success("回复已删除");
 			if (onDeleteSuccess) {
 				onDeleteSuccess();
 			} else {
 				router.refresh();
 			}
 		} catch (err) {
-			setDeleteError(err instanceof ApiError ? err.message : "删除失败");
+			const message = err instanceof Error && err.message ? err.message : "删除失败";
+			setDeleteError(message);
+			toast.error({ title: "删除失败", description: message });
 		} finally {
 			setDeleting(false);
 		}
-	}, [postId, isOwnPost, canModerate, router, onDeleteSuccess]);
+	}, [postId, isOwnPost, canModerate, router, onDeleteSuccess, toast]);
 
 	return {
 		state: {

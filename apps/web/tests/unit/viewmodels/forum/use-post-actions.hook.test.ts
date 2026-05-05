@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
-import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, renderHook, screen } from "@testing-library/react";
+import { createElement } from "react";
+import type { ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock next/navigation
 const mockRefresh = vi.fn();
@@ -31,16 +33,26 @@ vi.mock("@/lib/api-client", () => ({
 	},
 }));
 
+import { ForumToastProvider } from "@/components/forum/forum-toast";
 import { usePostActions } from "@/viewmodels/forum/use-post-actions";
+
+function wrapper({ children }: { children: ReactNode }) {
+	return createElement(ForumToastProvider, null, children);
+}
 
 describe("usePostActions hook", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
 
+	afterEach(() => {
+		cleanup();
+	});
+
 	it("returns initial state with all dialogs closed", () => {
-		const { result } = renderHook(() =>
-			usePostActions({ postId: 1, isOwnPost: true, canModerate: false }),
+		const { result } = renderHook(
+			() => usePostActions({ postId: 1, isOwnPost: true, canModerate: false }),
+			{ wrapper },
 		);
 		expect(result.current.state.editDialogOpen).toBe(false);
 		expect(result.current.state.deleteDialogOpen).toBe(false);
@@ -49,8 +61,9 @@ describe("usePostActions hook", () => {
 	});
 
 	it("opens edit dialog", () => {
-		const { result } = renderHook(() =>
-			usePostActions({ postId: 1, isOwnPost: true, canModerate: false }),
+		const { result } = renderHook(
+			() => usePostActions({ postId: 1, isOwnPost: true, canModerate: false }),
+			{ wrapper },
 		);
 		act(() => {
 			result.current.actions.handleEdit();
@@ -59,8 +72,9 @@ describe("usePostActions hook", () => {
 	});
 
 	it("closes edit dialog", () => {
-		const { result } = renderHook(() =>
-			usePostActions({ postId: 1, isOwnPost: true, canModerate: false }),
+		const { result } = renderHook(
+			() => usePostActions({ postId: 1, isOwnPost: true, canModerate: false }),
+			{ wrapper },
 		);
 		act(() => {
 			result.current.actions.handleEdit();
@@ -72,8 +86,9 @@ describe("usePostActions hook", () => {
 	});
 
 	it("opens delete dialog and clears previous error", () => {
-		const { result } = renderHook(() =>
-			usePostActions({ postId: 1, isOwnPost: true, canModerate: false }),
+		const { result } = renderHook(
+			() => usePostActions({ postId: 1, isOwnPost: true, canModerate: false }),
+			{ wrapper },
 		);
 		act(() => {
 			result.current.actions.handleDeleteClick();
@@ -83,8 +98,9 @@ describe("usePostActions hook", () => {
 	});
 
 	it("closes delete dialog", () => {
-		const { result } = renderHook(() =>
-			usePostActions({ postId: 1, isOwnPost: true, canModerate: false }),
+		const { result } = renderHook(
+			() => usePostActions({ postId: 1, isOwnPost: true, canModerate: false }),
+			{ wrapper },
 		);
 		act(() => {
 			result.current.actions.handleDeleteClick();
@@ -96,8 +112,9 @@ describe("usePostActions hook", () => {
 	});
 
 	it("deletes own post successfully", async () => {
-		const { result } = renderHook(() =>
-			usePostActions({ postId: 42, isOwnPost: true, canModerate: false }),
+		const { result } = renderHook(
+			() => usePostActions({ postId: 42, isOwnPost: true, canModerate: false }),
+			{ wrapper },
 		);
 		await act(async () => {
 			await result.current.actions.handleDeleteConfirm();
@@ -108,8 +125,9 @@ describe("usePostActions hook", () => {
 	});
 
 	it("deletes post as moderator", async () => {
-		const { result } = renderHook(() =>
-			usePostActions({ postId: 42, isOwnPost: false, canModerate: true }),
+		const { result } = renderHook(
+			() => usePostActions({ postId: 42, isOwnPost: false, canModerate: true }),
+			{ wrapper },
 		);
 		await act(async () => {
 			await result.current.actions.handleDeleteConfirm();
@@ -118,24 +136,27 @@ describe("usePostActions hook", () => {
 	});
 
 	it("shows error when no permission to delete", async () => {
-		const { result } = renderHook(() =>
-			usePostActions({ postId: 42, isOwnPost: false, canModerate: false }),
+		const { result } = renderHook(
+			() => usePostActions({ postId: 42, isOwnPost: false, canModerate: false }),
+			{ wrapper },
 		);
 		await act(async () => {
 			await result.current.actions.handleDeleteConfirm();
 		});
-		expect(result.current.state.deleteError).toBe("删除失败");
+		expect(result.current.state.deleteError).toBe("没有删除权限");
 	});
 
 	it("calls onDeleteSuccess callback instead of router.refresh", async () => {
 		const onSuccess = vi.fn();
-		const { result } = renderHook(() =>
-			usePostActions({
-				postId: 42,
-				isOwnPost: true,
-				canModerate: false,
-				onDeleteSuccess: onSuccess,
-			}),
+		const { result } = renderHook(
+			() =>
+				usePostActions({
+					postId: 42,
+					isOwnPost: true,
+					canModerate: false,
+					onDeleteSuccess: onSuccess,
+				}),
+			{ wrapper },
 		);
 		await act(async () => {
 			await result.current.actions.handleDeleteConfirm();
@@ -146,13 +167,60 @@ describe("usePostActions hook", () => {
 
 	it("handles API error during delete", async () => {
 		mockDeleteMyPost.mockRejectedValueOnce(new Error("Network error"));
-		const { result } = renderHook(() =>
-			usePostActions({ postId: 42, isOwnPost: true, canModerate: false }),
+		const { result } = renderHook(
+			() => usePostActions({ postId: 42, isOwnPost: true, canModerate: false }),
+			{ wrapper },
 		);
 		await act(async () => {
 			await result.current.actions.handleDeleteConfirm();
 		});
-		expect(result.current.state.deleteError).toBe("删除失败");
+		expect(result.current.state.deleteError).toBe("Network error");
 		expect(result.current.state.deleting).toBe(false);
+	});
+
+	// -------------------------------------------------------------------------
+	// Toast integration
+	// -------------------------------------------------------------------------
+
+	it("shows success toast on delete", async () => {
+		const { result } = renderHook(
+			() => usePostActions({ postId: 42, isOwnPost: true, canModerate: false }),
+			{ wrapper },
+		);
+		await act(async () => {
+			await result.current.actions.handleDeleteConfirm();
+		});
+		const alert = screen.getByRole("alert");
+		expect(alert.textContent).toContain("回复已删除");
+	});
+
+	it("shows error toast with ApiError message on delete failure", async () => {
+		const { ApiError } = await import("@/lib/api-client");
+		mockDeleteMyPost.mockRejectedValueOnce(new ApiError("帖子不存在"));
+		const { result } = renderHook(
+			() => usePostActions({ postId: 42, isOwnPost: true, canModerate: false }),
+			{ wrapper },
+		);
+		await act(async () => {
+			await result.current.actions.handleDeleteConfirm();
+		});
+		const alerts = screen.getAllByRole("alert");
+		const errorToast = alerts.find((el) => el.textContent?.includes("帖子不存在"));
+		expect(errorToast).toBeTruthy();
+		expect(errorToast?.textContent).toContain("删除失败");
+	});
+
+	it("shows error toast with '没有删除权限' when no permission", async () => {
+		const { result } = renderHook(
+			() => usePostActions({ postId: 42, isOwnPost: false, canModerate: false }),
+			{ wrapper },
+		);
+		await act(async () => {
+			await result.current.actions.handleDeleteConfirm();
+		});
+		const alerts = screen.getAllByRole("alert");
+		const errorToast = alerts.find((el) => el.textContent?.includes("没有删除权限"));
+		expect(errorToast).toBeTruthy();
+		expect(errorToast?.textContent).toContain("删除失败");
 	});
 });
