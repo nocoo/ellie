@@ -3,6 +3,7 @@
 // Avatar upload component with drag-and-drop support
 // Validates client-side then uploads to /api/v1/upload with purpose=avatar
 
+import { useForumToast } from "@/components/forum/forum-toast";
 import { cn } from "@/lib/utils";
 import { parseAvatarUploadResponse } from "@/viewmodels/forum/avatar-upload";
 import { dispatchEmailNotVerified } from "@/viewmodels/forum/email-not-verified-dispatch";
@@ -19,6 +20,7 @@ const MAX_SIZE_KB = 200;
 const ALLOWED_TYPES = ["image/jpeg", "image/png"];
 
 export function AvatarUpload({ currentUrl, onUploadComplete, disabled }: AvatarUploadProps) {
+	const toast = useForumToast();
 	const [isDragging, setIsDragging] = useState(false);
 	const [isUploading, setIsUploading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -40,6 +42,7 @@ export function AvatarUpload({ currentUrl, onUploadComplete, disabled }: AvatarU
 			const validationError = validateFile(file);
 			if (validationError) {
 				setError(validationError);
+				toast.error({ title: "头像上传失败", description: validationError });
 				return;
 			}
 
@@ -68,21 +71,25 @@ export function AvatarUpload({ currentUrl, onUploadComplete, disabled }: AvatarU
 					const newUrl = `${parsed.url}?v=${Date.now()}`;
 					setPreviewUrl(newUrl);
 					onUploadComplete(newUrl);
+					toast.success("头像已上传");
 				} else if (parsed.kind === "email-not-verified") {
 					// Hand off to the global verification dialog (same path as
 					// the api-client interceptor uses for JSON responses).
 					dispatchEmailNotVerified(parsed.detail);
 					setError("请先验证邮箱后再上传头像");
+					toast.error({ title: "头像上传失败", description: "请先验证邮箱后再上传头像" });
 				} else {
 					setError(parsed.message);
+					toast.error({ title: "头像上传失败", description: parsed.message });
 				}
 			} catch {
 				setError("上传失败，请重试");
+				toast.error({ title: "头像上传失败", description: "上传失败，请重试" });
 			} finally {
 				setIsUploading(false);
 			}
 		},
-		[onUploadComplete, validateFile],
+		[onUploadComplete, validateFile, toast],
 	);
 
 	const handleDrop = (e: DragEvent<HTMLDivElement>) => {
