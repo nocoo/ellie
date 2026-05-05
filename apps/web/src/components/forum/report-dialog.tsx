@@ -3,6 +3,7 @@
 // components/forum/report-dialog.tsx — Post report dialog with three-step verification
 
 import { CapWidget } from "@/components/cap-widget";
+import { useForumToast } from "@/components/forum/forum-toast";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -113,6 +114,7 @@ export function ReportDialog({
 	const effectiveType: ReportTargetType = targetType ?? "post";
 	const effectiveId: number | undefined = targetId ?? postId;
 	const copy = TYPE_COPY[effectiveType];
+	const toast = useForumToast();
 	const [step, setStep] = useState<StepState>({
 		permission: "pending",
 		captcha: CAP_API_ENDPOINT ? "pending" : "skipped",
@@ -220,12 +222,15 @@ export function ReportDialog({
 			});
 			setSuccess(true);
 			onSuccess?.();
+			toast.success("举报已提交");
 			// Auto-close after showing success message
 			closeTimerRef.current = setTimeout(() => {
 				onOpenChange(false);
 			}, 1500);
 		} catch (err) {
-			setError(mapSubmitError(err, copy));
+			const message = mapSubmitError(err, copy);
+			setError(message);
+			toast.error({ title: "举报提交失败", description: message });
 		} finally {
 			setSubmitting(false);
 		}
