@@ -194,10 +194,19 @@ describe("UserModActions toast integration", () => {
 			fireEvent.click(screen.getByText("封禁并删除"));
 		});
 
+		// Toast should appear immediately
 		await waitFor(() => {
 			const alerts = screen.getAllByRole("alert");
 			const successToast = alerts.find((el) => el.textContent?.includes("封禁并删除内容成功"));
 			expect(successToast).toBeTruthy();
 		});
+
+		// Wait for the 1s delayed redirect
+		await waitFor(
+			() => {
+				expect(mockPush).toHaveBeenCalledWith("/");
+			},
+			{ timeout: 2000 },
+		);
 	});
 });
