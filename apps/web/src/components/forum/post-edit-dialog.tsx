@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { AlertCircle, Pencil, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
+import { useForumToast } from "./forum-toast";
 
 interface PostEditDialogProps {
 	open: boolean;
@@ -45,6 +46,7 @@ export function PostEditDialog({
 	canModerate,
 }: PostEditDialogProps) {
 	const router = useRouter();
+	const toast = useForumToast();
 	const editorRef = useRef<{ getHTML: () => string } | null>(null);
 	const [submitting, setSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -72,15 +74,17 @@ export function PostEditDialog({
 				}
 
 				onOpenChange(false);
+				toast.success("回复已保存");
 				router.refresh();
 			} catch (err) {
 				const message = err instanceof ApiError ? err.message : "保存失败，请稍后重试";
 				setError(message);
+				toast.error({ title: "保存失败", description: message });
 			} finally {
 				setSubmitting(false);
 			}
 		},
-		[postId, isOwnPost, canModerate, onOpenChange, router],
+		[postId, isOwnPost, canModerate, onOpenChange, router, toast],
 	);
 
 	return (
