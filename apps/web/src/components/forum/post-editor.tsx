@@ -21,6 +21,7 @@
 //     ProseMirror outline is killed via tailwind.css.
 
 import { EmojiPicker } from "@/components/forum/emoji-picker";
+import { useForumToast } from "@/components/forum/forum-toast";
 import { SmileyPicker } from "@/components/forum/smiley-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -264,6 +265,7 @@ function LinkPopover({ editor }: { editor: Editor }) {
 const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/gif";
 
 function ImageUploadButton({ editor }: { editor: Editor }) {
+	const toast = useForumToast();
 	const inputRef = useRef<HTMLInputElement | null>(null);
 	const [uploading, setUploading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -302,19 +304,23 @@ function ImageUploadButton({ editor }: { editor: Editor }) {
 				const parsed = parsePostImageUploadResponse(res.status, json);
 				if (parsed.kind === "success") {
 					editor.chain().focus().setImage({ src: parsed.url }).run();
+					toast.success("图片已上传");
 				} else if (parsed.kind === "email-not-verified") {
 					dispatchEmailNotVerified(parsed.detail);
 					setError("请先验证邮箱后再上传图片");
+					toast.error({ title: "图片上传失败", description: "请先验证邮箱后再上传图片" });
 				} else {
 					setError(parsed.message);
+					toast.error({ title: "图片上传失败", description: parsed.message });
 				}
 			} catch {
 				setError("上传失败，请重试");
+				toast.error({ title: "图片上传失败", description: "上传失败，请重试" });
 			} finally {
 				setUploading(false);
 			}
 		},
-		[editor],
+		[editor, toast],
 	);
 
 	return (
