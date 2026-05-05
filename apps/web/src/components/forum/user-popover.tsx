@@ -49,6 +49,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
+import { useForumToast } from "./forum-toast";
 import { UserAvatar } from "./user-avatar";
 
 // ---------------------------------------------------------------------------
@@ -153,6 +154,7 @@ export function UserPopover({
 	disabled = false,
 }: UserPopoverProps) {
 	const { data: session } = useSession();
+	const toast = useForumToast();
 	const [open, setOpen] = useState(false);
 	const [loading, setLoading] = useState(false);
 	const [data, setData] = useState<UserPopoverData | null>(null);
@@ -218,20 +220,23 @@ export function UserPopover({
 		try {
 			await apiClient.post(config.endpoint(userId), {});
 			setModActionMessage({ type: "success", text: `${config.title}成功` });
+			toast.success(`${config.title}成功`);
 			// Refresh user data and status
 			setData(null);
 			setUserStatus(null);
 			await Promise.all([fetchUser(), fetchUserStatus()]);
 		} catch (err) {
+			const description = err instanceof Error ? err.message : "请稍后重试";
 			setModActionMessage({
 				type: "error",
-				text: `${config.title}失败: ${err instanceof Error ? err.message : "请稍后重试"}`,
+				text: `${config.title}失败: ${description}`,
 			});
+			toast.error({ title: `${config.title}失败`, description });
 		} finally {
 			setModActionLoading(false);
 			setModAction(null);
 		}
-	}, [modAction, userId, data?.user, fetchUser, fetchUserStatus]);
+	}, [modAction, userId, data?.user, fetchUser, fetchUserStatus, toast]);
 
 	// Fetch user data when popover opens
 	useEffect(() => {
