@@ -293,13 +293,13 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env) => {
 
 	await env.DB.batch(statements);
 
-	// Recalc metadata for affected threads and forums
-	for (const threadId of threadUpdates.keys()) {
-		await recalcThreadMetadata(env, threadId);
-	}
-	for (const forumId of forumUpdates.keys()) {
-		await recalcForumMetadata(env, forumId);
-	}
+	// Recalc metadata for affected threads and forums in parallel — each call
+	// is independent of the others. Reduces total D1 wait time on a batch
+	// delete from O(N) round-trips to roughly O(1).
+	await Promise.all([
+		...Array.from(threadUpdates.keys(), (threadId) => recalcThreadMetadata(env, threadId)),
+		...Array.from(forumUpdates.keys(), (forumId) => recalcForumMetadata(env, forumId)),
+	]);
 
 	// Decrement user post counts
 	await batchDecrementUserPosts(env, authorUpdates);
