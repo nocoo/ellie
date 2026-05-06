@@ -8,7 +8,6 @@ import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
 import { buildVisibilityContext, isForumActive } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
-import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
 /** Map D1 row to API response format */
@@ -92,21 +91,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 
 	const comments = result.results.map((row) => toPostComment(row as Record<string, unknown>));
 
-	return new Response(
-		JSON.stringify({
-			data: comments,
-			meta: {
-				timestamp: Date.now(),
-				requestId: crypto.randomUUID(),
-			},
-		}),
-		{
-			headers: {
-				...corsHeaders(origin),
-				"Content-Type": "application/json",
-			},
-		},
-	);
+	return jsonResponse(comments, origin);
 }
 
 /** POST /api/v1/post-comments - Create a comment on a post (requires auth) */

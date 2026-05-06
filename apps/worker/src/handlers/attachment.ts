@@ -6,7 +6,6 @@ import { toAttachment } from "../lib/mappers";
 import { jsonResponse } from "../lib/response";
 import { buildVisibilityContext, isForumActive } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
-import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
 /** Max post IDs per batch request */
@@ -199,19 +198,5 @@ export async function listByPost(request: Request, env: Env): Promise<Response> 
 		toAttachment(row as Record<string, unknown>),
 	);
 
-	return new Response(
-		JSON.stringify({
-			data: attachments,
-			meta: {
-				timestamp: Date.now(),
-				requestId: crypto.randomUUID(),
-			},
-		}),
-		{
-			headers: {
-				...corsHeaders(origin),
-				"Content-Type": "application/json",
-			},
-		},
-	);
+	return jsonResponse(attachments, origin);
 }
