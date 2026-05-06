@@ -209,15 +209,32 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 	}
 	content = censorResult.content;
 
-	// Single JOIN query: thread → forum (replaces 2 serial queries)
-	const thread = await env.DB.prepare(
-		`SELECT t.id, t.forum_id, t.closed, f.status, f.visibility
-		 FROM threads t
-		 JOIN forums f ON f.id = t.forum_id
-		 WHERE t.id = ?`,
-	)
-		.bind(threadId)
-		.first<{ id: number; forum_id: number; closed: number; status: number; visibility: string }>();
+	// Run the three independent reads (visibility JOIN, next-position lookup,
+	// author name) in parallel — saves 2 D1 round-trips on the post.create
+	// hot path.
+	const [thread, posResult, authorRow] = await Promise.all([
+		env.DB.prepare(
+			`SELECT t.id, t.forum_id, t.closed, f.status, f.visibility
+			 FROM threads t
+			 JOIN forums f ON f.id = t.forum_id
+			 WHERE t.id = ?`,
+		)
+			.bind(threadId)
+			.first<{
+				id: number;
+				forum_id: number;
+				closed: number;
+				status: number;
+				visibility: string;
+			}>(),
+		env.DB.prepare("SELECT MAX(position) as maxPos FROM posts WHERE thread_id = ?")
+			.bind(threadId)
+			.first<{ maxPos: number | null }>(),
+		env.DB.prepare("SELECT username FROM users WHERE id = ?")
+			.bind(user.userId)
+			.first<{ username: string }>(),
+	]);
+
 	if (!thread) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
@@ -243,18 +260,7 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		);
 	}
 
-	// Get next position
-	const posResult = await env.DB.prepare(
-		"SELECT MAX(position) as maxPos FROM posts WHERE thread_id = ?",
-	)
-		.bind(threadId)
-		.first<{ maxPos: number | null }>();
 	const nextPosition = (posResult?.maxPos ?? 0) + 1;
-
-	// Fetch author name from users table
-	const authorRow = await env.DB.prepare("SELECT username FROM users WHERE id = ?")
-		.bind(user.userId)
-		.first<{ username: string }>();
 	const authorName = authorRow?.username ?? `user_${user.userId}`;
 
 	const now = Math.floor(Date.now() / 1000);
