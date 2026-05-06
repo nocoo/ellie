@@ -6,7 +6,6 @@ import { toUser } from "../lib/mappers";
 import { hashPassword, verifyDiscuzPassword, verifyPassword } from "../lib/password";
 import { jsonResponse } from "../lib/response";
 import { withAuthVerified } from "../lib/routeHelpers";
-import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
 /**
@@ -182,28 +181,17 @@ export async function login(request: Request, env: Env): Promise<Response> {
 		);
 		const [token] = await Promise.all([tokenPromise, ...sideEffects]);
 
-		return new Response(
-			JSON.stringify({
-				data: {
-					token,
-					refreshToken,
-					user: {
-						userId: user.id,
-						username: user.username,
-						role: user.role,
-					} satisfies AuthUser,
-				},
-				meta: {
-					timestamp: Date.now(),
-					requestId: crypto.randomUUID(),
-				},
-			}),
+		return jsonResponse(
 			{
-				headers: {
-					...corsHeaders(origin),
-					"Content-Type": "application/json",
-				},
+				token,
+				refreshToken,
+				user: {
+					userId: user.id,
+					username: user.username,
+					role: user.role,
+				} satisfies AuthUser,
 			},
+			origin,
 		);
 	} catch {
 		return errorResponse("INTERNAL_ERROR", 500, undefined, origin);
@@ -263,28 +251,17 @@ export async function refresh(request: Request, env: Env): Promise<Response> {
 			createJwt({ userId: user.id, role: user.role, exp }, env.JWT_SECRET),
 		]);
 
-		return new Response(
-			JSON.stringify({
-				data: {
-					token,
-					refreshToken: newRefreshToken,
-					user: {
-						userId: user.id,
-						username: user.username,
-						role: user.role,
-					} satisfies AuthUser,
-				},
-				meta: {
-					timestamp: Date.now(),
-					requestId: crypto.randomUUID(),
-				},
-			}),
+		return jsonResponse(
 			{
-				headers: {
-					...corsHeaders(origin),
-					"Content-Type": "application/json",
-				},
+				token,
+				refreshToken: newRefreshToken,
+				user: {
+					userId: user.id,
+					username: user.username,
+					role: user.role,
+				} satisfies AuthUser,
 			},
+			origin,
 		);
 	} catch {
 		return errorResponse("INTERNAL_ERROR", 500, undefined, origin);
@@ -437,25 +414,15 @@ export async function register(request: Request, env: Env): Promise<Response> {
 			expirationTtl: 3600,
 		});
 
-		return new Response(
-			JSON.stringify({
-				data: {
-					token,
-					refreshToken,
-					user: { userId, username, role: 0 } satisfies AuthUser,
-				},
-				meta: {
-					timestamp: Date.now(),
-					requestId: crypto.randomUUID(),
-				},
-			}),
+		return jsonResponse(
 			{
-				status: 201,
-				headers: {
-					...corsHeaders(origin),
-					"Content-Type": "application/json",
-				},
+				token,
+				refreshToken,
+				user: { userId, username, role: 0 } satisfies AuthUser,
 			},
+			origin,
+			undefined,
+			201,
 		);
 	} catch {
 		return errorResponse("INTERNAL_ERROR", 500, undefined, origin);
