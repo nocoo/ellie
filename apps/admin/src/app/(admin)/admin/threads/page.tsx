@@ -69,7 +69,7 @@ export default function ThreadsPage() {
 		page: 1,
 		pages: 0,
 		total: 0,
-		limit: 20,
+		limit: 100,
 	});
 	const [loading, setLoading] = useState(true);
 	const [filters, setFilters] = useState<Record<string, string>>({
@@ -115,7 +115,7 @@ export default function ThreadsPage() {
 					page: json.meta?.page ?? page,
 					pages: json.meta?.pages ?? 0,
 					total: json.meta?.total ?? 0,
-					limit: json.meta?.limit ?? 20,
+					limit: json.meta?.limit ?? 100,
 				});
 			} catch {
 				setData([]);

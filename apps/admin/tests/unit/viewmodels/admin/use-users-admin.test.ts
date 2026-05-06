@@ -104,7 +104,7 @@ describe("use-users-admin helpers", () => {
 			expect(result.pagination.page).toBe(3);
 			expect(result.pagination.pages).toBe(0);
 			expect(result.pagination.total).toBe(0);
-			expect(result.pagination.limit).toBe(20);
+			expect(result.pagination.limit).toBe(100);
 		});
 
 		it("handles partial meta", () => {

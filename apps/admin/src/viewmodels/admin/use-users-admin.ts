@@ -121,7 +121,7 @@ const DEFAULT_PAGINATION: PaginationInfo = {
 	page: 1,
 	pages: 0,
 	total: 0,
-	limit: 20,
+	limit: 100,
 };
 
 // ---------------------------------------------------------------------------
@@ -162,7 +162,7 @@ export function parseUsersResponse(
 			page: json.meta?.page ?? fallbackPage,
 			pages: json.meta?.pages ?? 0,
 			total: json.meta?.total ?? 0,
-			limit: json.meta?.limit ?? 20,
+			limit: json.meta?.limit ?? 100,
 		},
 	};
 }
