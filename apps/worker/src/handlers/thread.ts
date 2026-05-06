@@ -390,22 +390,27 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		return errorResponse("INVALID_BODY", 400, { message: "content is required" }, origin);
 	}
 
-	// Censor word check — subject + content
-	const subjectCheck = await applyCensorFilter(subject.trim(), env);
-	if (subjectCheck.banned) {
-		return errorResponse("CONTENT_BANNED", 403, undefined, origin);
-	}
-	const contentCheck = await applyCensorFilter(content.trim(), env);
-	if (contentCheck.banned) {
+	// Censor word check — subject + content (independent, run in parallel)
+	const [subjectCheck, contentCheck] = await Promise.all([
+		applyCensorFilter(subject.trim(), env),
+		applyCensorFilter(content.trim(), env),
+	]);
+	if (subjectCheck.banned || contentCheck.banned) {
 		return errorResponse("CONTENT_BANNED", 403, undefined, origin);
 	}
 	const filteredSubject = subjectCheck.content;
 	content = contentCheck.content;
 
-	// Validate forum exists and check visibility
-	const forum = await env.DB.prepare("SELECT id, status, visibility FROM forums WHERE id = ?")
-		.bind(forumId)
-		.first<{ id: number; status: number; visibility: string }>();
+	// Forum visibility query + author-name lookup are independent of each
+	// other and of the censor checks above — fire both in parallel.
+	const [forum, authorRow] = await Promise.all([
+		env.DB.prepare("SELECT id, status, visibility FROM forums WHERE id = ?")
+			.bind(forumId)
+			.first<{ id: number; status: number; visibility: string }>(),
+		env.DB.prepare("SELECT username FROM users WHERE id = ?")
+			.bind(user.userId)
+			.first<{ username: string }>(),
+	]);
 
 	if (!isForumActive(forum)) {
 		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
@@ -425,10 +430,6 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		);
 	}
 
-	// Fetch author name from users table
-	const authorRow = await env.DB.prepare("SELECT username FROM users WHERE id = ?")
-		.bind(user.userId)
-		.first<{ username: string }>();
 	const authorName = authorRow?.username ?? `user_${user.userId}`;
 
 	const now = Math.floor(Date.now() / 1000);
