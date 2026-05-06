@@ -301,26 +301,22 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env) => {
 		...Array.from(forumUpdates.keys(), (forumId) => recalcForumMetadata(env, forumId)),
 	]);
 
-	// Decrement user post counts
-	await batchDecrementUserPosts(env, authorUpdates);
-
-	await invalidateForumVolatile(env);
-
-	// F3-b: audit one row for the entire successful batch using the
-	// `deletable` snapshot — `skipped` first-posts are intentionally not
-	// audited as a separate row, only carried as metadata when at least
-	// one real deletion happened. Pure no-op (only first-posts requested)
-	// already returned above, so reaching here implies deletable.length > 0.
-	await writeAdminLog(env, resolveActor(request), {
-		action: "post.batch_delete",
-		targetType: "post",
-		targetId: null,
-		details: {
-			ids: deletable.map((p) => p.id),
-			count: deletable.length,
-			skippedFirstPostIds: skipped,
-		},
-	});
+	// Final fan-out: per-author post-count decrements + KV cache
+	// invalidation + audit-log write are all independent.
+	await Promise.all([
+		batchDecrementUserPosts(env, authorUpdates),
+		invalidateForumVolatile(env),
+		writeAdminLog(env, resolveActor(request), {
+			action: "post.batch_delete",
+			targetType: "post",
+			targetId: null,
+			details: {
+				ids: deletable.map((p) => p.id),
+				count: deletable.length,
+				skippedFirstPostIds: skipped,
+			},
+		}),
+	]);
 
 	return jsonResponse({ deleted: true, count: deletable.length, skipped }, origin);
 });
