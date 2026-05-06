@@ -358,10 +358,22 @@ export async function register(request: Request, env: Env): Promise<Response> {
 			return errorResponse("INVALID_EMAIL", 400, undefined, origin);
 		}
 
-		// ── Check if registration is allowed ──
-		const registrationSetting = await env.DB.prepare(
-			"SELECT value FROM settings WHERE key = 'features.registration.allow_new_user'",
-		).first<{ value: string }>();
+		// Independent guards: settings lookup + censor check + IP rate-limit
+		// counter. Run them in parallel — saves up to 2 D1/KV round-trips on
+		// the registration hot path.
+		const ip = getClientIP(request);
+		if (!ip) {
+			return errorResponse("INVALID_REQUEST", 400, { message: "Missing client IP" }, origin);
+		}
+		const rateLimitKey = `reg-ip:${ip}`;
+
+		const [registrationSetting, censorResult, rateCountRaw] = await Promise.all([
+			env.DB.prepare(
+				"SELECT value FROM settings WHERE key = 'features.registration.allow_new_user'",
+			).first<{ value: string }>(),
+			checkCensorWords(username, env),
+			env.KV.get(rateLimitKey),
+		]);
 
 		// Default to true if setting doesn't exist
 		const allowRegistration = registrationSetting?.value !== "false";
@@ -369,19 +381,11 @@ export async function register(request: Request, env: Env): Promise<Response> {
 			return errorResponse("REGISTRATION_DISABLED", 403, undefined, origin);
 		}
 
-		// ── Censor word check on username ──
-		const censorResult = await checkCensorWords(username, env);
 		if (censorResult.matched && censorResult.action === "ban") {
 			return errorResponse("USERNAME_BANNED", 400, undefined, origin);
 		}
 
-		// ── IP rate limiting: max 3 registrations per hour ──
-		const ip = getClientIP(request);
-		if (!ip) {
-			return errorResponse("INVALID_REQUEST", 400, { message: "Missing client IP" }, origin);
-		}
-		const rateLimitKey = `reg-ip:${ip}`;
-		const currentCount = Number.parseInt((await env.KV.get(rateLimitKey)) ?? "0", 10);
+		const currentCount = Number.parseInt(rateCountRaw ?? "0", 10);
 		if (currentCount >= 3) {
 			return errorResponse("RATE_LIMITED", 429, undefined, origin);
 		}
@@ -391,8 +395,9 @@ export async function register(request: Request, env: Env): Promise<Response> {
 		const now = Math.floor(Date.now() / 1000);
 
 		// ── Insert user (UNIQUE constraint safety net) ──
+		let userId: number;
 		try {
-			await env.DB.prepare(
+			const insertResult = await env.DB.prepare(
 				`INSERT INTO users (
 					username, email, password_hash, password_salt,
 					status, role, reg_date, last_login, last_activity,
@@ -401,23 +406,16 @@ export async function register(request: Request, env: Env): Promise<Response> {
 			)
 				.bind(username, email, passwordHash, now, now, now, ip, ip)
 				.run();
+			userId = Number(insertResult.meta.last_row_id);
+			if (!userId) {
+				return errorResponse("INTERNAL_ERROR", 500, undefined, origin);
+			}
 		} catch (e: unknown) {
 			if (e instanceof Error && e.message.includes("UNIQUE constraint")) {
 				return errorResponse("USERNAME_TAKEN", 409, undefined, origin);
 			}
 			throw e;
 		}
-
-		// ── Get inserted user ID ──
-		const inserted = await env.DB.prepare("SELECT id FROM users WHERE username = ?")
-			.bind(username)
-			.first();
-
-		if (!inserted) {
-			return errorResponse("INTERNAL_ERROR", 500, undefined, origin);
-		}
-
-		const userId = (inserted as { id: number }).id;
 
 		// ── Issue JWT + refresh token (same as login) ──
 		const exp = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
