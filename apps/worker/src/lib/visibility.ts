@@ -72,6 +72,15 @@ export function isForumActive<T extends { status: number }>(
 
 // ─── Forum Visibility Context ────────────────────────────────
 
+// Reusable VisibilityContext for the anonymous (logged-out) caller. The
+// shape never varies, so we hand out a frozen singleton instead of
+// allocating a fresh object on every request — the hottest list endpoints
+// (forum.list, thread.list) build one of these per call.
+const ANONYMOUS_VIS_CTX: VisibilityContext = Object.freeze({
+	isLoggedIn: false,
+	role: UserRole.User,
+}) as VisibilityContext;
+
 /**
  * Build visibility context from optional user auth.
  * Used for forum visibility filtering.
@@ -79,9 +88,10 @@ export function isForumActive<T extends { status: number }>(
 export function buildVisibilityContext(
 	user: { userId: number; role: number } | null,
 ): VisibilityContext {
+	if (user === null) return ANONYMOUS_VIS_CTX;
 	return {
-		isLoggedIn: user !== null,
-		role: user?.role ?? UserRole.User,
+		isLoggedIn: true,
+		role: user.role,
 	};
 }
 
