@@ -74,8 +74,8 @@ Browser → Next.js API Routes → Cloudflare Worker → D1/KV
 **Wrangler commands** must specify config: `-c apps/worker/wrangler.toml`
 
 ```bash
-# Deploy
-npx wrangler deploy -c apps/worker/wrangler.toml
+# Deploy Worker (standard: applies pending D1 migrations first)
+bun run worker:deploy
 
 # Update secrets
 echo "<value>" | npx wrangler secret put API_KEY -c apps/worker/wrangler.toml
@@ -100,7 +100,10 @@ npx wrangler dev -c apps/worker/wrangler.toml
 | `bun run build` | Build Next.js for production |
 | `bun run start` | Start production server |
 | `bun run worker:dev` | Start Cloudflare Worker locally |
-| `bun run worker:deploy` | Deploy Worker to production |
+| `bun run worker:migrate:prod` | Apply pending D1 migrations to production (`tongjinet-db`) |
+| `bun run worker:migrate:test` | Apply pending D1 migrations to test (`tongjinet-db-test`) |
+| `bun run worker:deploy` | **Standard prod deploy**: applies pending D1 migrations, then `wrangler deploy`. Always use this — never run `wrangler deploy` directly. |
+| `bun run worker:deploy:test` | Same flow against the test environment |
 | `bun run migrate` | Run database migrations |
 | `bun run cli` | Run legacy TS CLI |
 | `bun run tui` | Launch Rust TUI (via scripts/tui.ts) |
@@ -166,6 +169,17 @@ npx wrangler dev -c apps/worker/wrangler.toml
 
 ## Retrospective
 
+### 2026-05-07: Worker Deploy Without Migration Apply
+- **Issue:** Deployed worker `f1d00be` to production; admin `/api/admin/users` immediately broke with 500 ("无法加载 users 列表")
+- **Cause:** Migration `0030_user_tombstone.sql` (adds `purged_at`/`purged_by` to `users`) was never applied to prod D1. Deployed worker's `USER_COLUMNS` SELECT references those columns → SQLite "no such column" → 500.
+- **Fix:**
+  1. `cd apps/worker && bun x wrangler d1 migrations apply tongjinet-db --remote` — applied 0030
+  2. Hardened the deploy contract: `bun run worker:deploy` now runs `worker:migrate:prod` BEFORE `wrangler deploy`. `worker:deploy:test` does the same against the test env.
+- **Lessons:**
+  1. **Never run `wrangler deploy` directly.** Always use `bun run worker:deploy` so migrations apply first.
+  2. **Schema and code must move together.** Any commit that touches `*_COLUMNS`/handlers + a new migration must be deployed atomically — migration first, code second.
+  3. **Pre-deploy verification:** `bun x wrangler d1 migrations list tongjinet-db --remote` should print `✅ No migrations to apply!` once `worker:deploy` completes.
+
 ### 2026-04-06: D1 Test Isolation Setup
 - **Issue:** L2 tests were failing because they couldn't connect to production D1 or used empty local D1
 - **Solution:** Created isolated test environment with separate D1 and KV instances
@@ -210,5 +224,5 @@ npx wrangler dev -c apps/worker/wrangler.toml
 - **Fix:** 创建 `0022_create_messages.sql` 并运行 `wrangler d1 migrations apply`
 - **Lessons:**
   1. **新增 Worker handler 涉及新表时，必须同时创建 migration**
-  2. **D1 migration 命令:** `cd apps/worker && npx wrangler d1 migrations apply tongjinet-db --remote -c wrangler.toml`
-  3. **部署检查清单:** Worker 代码改动 → `bun run worker:deploy`；D1 schema 改动 → 运行 migration
+  2. **单独 apply migration（不 deploy）:** `bun run worker:migrate:prod`
+  3. **部署检查清单:** Worker 代码改动 → `bun run worker:deploy`（已自动先 apply migrations，再 deploy）；纯 schema 改动且暂不 deploy → `bun run worker:migrate:prod`
