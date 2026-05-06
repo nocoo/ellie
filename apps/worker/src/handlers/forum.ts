@@ -53,6 +53,32 @@ interface VisibleLastThread {
 	lastPoster: string;
 }
 
+// Mirror of `D1ForumRow` from lib/mappers, kept inline so the inlined
+// row→Forum loop in `list` can field-access without a `Record<string, unknown>`
+// indirection. Runtime cast is identical to `toForum`.
+interface D1ForumRowLike {
+	id: number;
+	parent_id: number;
+	name: string;
+	description: string;
+	icon: string;
+	display_order: number;
+	threads: number;
+	posts: number;
+	type: string;
+	status: number;
+	visibility: string;
+	moderators: string;
+	moderator_ids?: string;
+	last_thread_id: number;
+	last_post_at: number;
+	last_poster: string;
+	last_poster_id: number | null;
+	last_thread_subject: string;
+	last_poster_avatar?: string;
+	last_poster_avatar_path?: string;
+}
+
 /**
  * Fetch the most recent visible thread for each forum.
  * Returns a map of forum_id -> visible last thread info.
@@ -191,6 +217,9 @@ async function listForumsLegacy(env: Env, useKvUserCache: boolean): Promise<Foru
 	}
 
 	// First pass: build base Forum objects + collect moderator IDs + forum IDs.
+	// Inline `toForum` + the JOIN-avatar branch so each row is one allocation
+	// (no function call, no post-creation mutation). Property order matches
+	// `toForum()` so V8 keeps a single hidden class across both call sites.
 	const rawRows = forumResult.results as Record<string, unknown>[];
 	const rowCount = rawRows.length;
 	const forums: Forum[] = new Array(rowCount);
@@ -198,17 +227,41 @@ async function listForumsLegacy(env: Env, useKvUserCache: boolean): Promise<Foru
 	const forumIds: number[] = new Array(rowCount);
 	const allModeratorIds = new Set<number>();
 	for (let i = 0; i < rowCount; i++) {
-		const r = rawRows[i];
-		const forum = toForum(r);
-		forum.todayThreads = todayMap.get(forum.id) ?? 0;
-		if (!useKvUserCache && r.last_poster_avatar !== undefined) {
-			forum.lastPosterAvatar = (r.last_poster_avatar as string) ?? "";
-			forum.lastPosterAvatarPath = (r.last_poster_avatar_path as string) ?? "";
-		}
+		const r = rawRows[i] as unknown as D1ForumRowLike;
+		const id = r.id;
+		const forum: Forum = {
+			id,
+			parentId: r.parent_id,
+			name: r.name,
+			description: r.description,
+			icon: r.icon,
+			displayOrder: r.display_order,
+			threads: r.threads,
+			posts: r.posts,
+			type: r.type as Forum["type"],
+			status: r.status,
+			visibility: (r.visibility || "public") as Forum["visibility"],
+			moderators: r.moderators,
+			moderatorList: [], // filled in pass 2
+			todayThreads: todayMap.get(id) ?? 0,
+			lastThreadId: r.last_thread_id,
+			lastPostAt: r.last_post_at,
+			lastPoster: r.last_poster,
+			lastPosterId: r.last_poster_id ?? 0,
+			lastPosterAvatar:
+				!useKvUserCache && r.last_poster_avatar !== undefined
+					? ((r.last_poster_avatar as string | undefined) ?? "")
+					: "",
+			lastPosterAvatarPath:
+				!useKvUserCache && r.last_poster_avatar !== undefined
+					? ((r.last_poster_avatar_path as string | undefined) ?? "")
+					: "",
+			lastThreadSubject: r.last_thread_subject,
+		};
 		const modIds = parseModeratorIds((r.moderator_ids as string) ?? "");
 		moderatorIdsPerForum[i] = modIds;
 		for (const id of modIds) allModeratorIds.add(id);
-		forumIds[i] = forum.id;
+		forumIds[i] = id;
 		forums[i] = forum;
 	}
 
