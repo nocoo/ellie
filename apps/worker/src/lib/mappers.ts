@@ -197,10 +197,21 @@ export function toForum(row: Record<string, unknown>): Forum {
 /** Parse moderator_ids string (comma-separated) into number array */
 export function parseModeratorIds(moderatorIds: string): number[] {
 	if (!moderatorIds) return [];
-	return moderatorIds
-		.split(",")
-		.map((s) => Number.parseInt(s.trim(), 10))
-		.filter((id) => !Number.isNaN(id) && id > 0);
+	// Hand-rolled split-and-parse to avoid the
+	// `.split().map().filter()` allocation chain. Behaviour matches the
+	// previous implementation including whitespace tolerance and rejection
+	// of NaN / non-positive ids.
+	const out: number[] = [];
+	const len = moderatorIds.length;
+	let start = 0;
+	for (let i = 0; i <= len; i++) {
+		if (i === len || moderatorIds.charCodeAt(i) === 44 /* ',' */) {
+			const n = Number.parseInt(moderatorIds.slice(start, i).trim(), 10);
+			if (!Number.isNaN(n) && n > 0) out.push(n);
+			start = i + 1;
+		}
+	}
+	return out;
 }
 
 /** Maps a D1 thread row to the frontend Thread type. Strips post_table_id. */
