@@ -126,26 +126,26 @@ export async function batchByPostIds(request: Request, env: Env): Promise<Respon
 		);
 	}
 
-	// Verify thread visibility (single check for the whole batch)
-	const visResult = await verifyThreadVisibility(env.DB, threadId, request, env, origin);
+	// Visibility check + attachments query are independent — fire both in
+	// parallel and discard the data if the visibility check denies. Worth
+	// the speculative work because the authorised case is by far the common
+	// one and saves up to 1 D1 RTT.
+	const attPlaceholders = uniquePostIds.map(() => "?").join(",");
+	const [visResult, result] = await Promise.all([
+		verifyThreadVisibility(env.DB, threadId, request, env, origin),
+		env.DB.prepare(
+			`SELECT a.*
+			 FROM attachments a
+			 INNER JOIN posts p ON p.id = a.post_id
+			 WHERE a.post_id IN (${attPlaceholders}) AND p.thread_id = ? AND p.invisible = 0
+			 ORDER BY a.post_id, a.id`,
+		)
+			.bind(...uniquePostIds, threadId)
+			.all(),
+	]);
 	if (!visResult.allowed) {
 		return visResult.response;
 	}
-
-	// Combined attachments+posts JOIN replaces the previous 2 sequential
-	// queries (validate post IDs, then fetch attachments). The post-side
-	// filters (`thread_id` and `invisible = 0`) move into the JOIN's WHERE
-	// clause so any attachment for an invalid/hidden post is filtered out.
-	const attPlaceholders = uniquePostIds.map(() => "?").join(",");
-	const result = await env.DB.prepare(
-		`SELECT a.*
-		 FROM attachments a
-		 INNER JOIN posts p ON p.id = a.post_id
-		 WHERE a.post_id IN (${attPlaceholders}) AND p.thread_id = ? AND p.invisible = 0
-		 ORDER BY a.post_id, a.id`,
-	)
-		.bind(...uniquePostIds, threadId)
-		.all();
 
 	const attachments = result.results.map((row) => toAttachment(row as Record<string, unknown>));
 
