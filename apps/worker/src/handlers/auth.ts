@@ -141,12 +141,35 @@ export async function login(request: Request, env: Env): Promise<Response> {
 			return errorResponse("INVALID_CREDENTIALS", 401, undefined, origin);
 		}
 
-		// Login successful — clear rate limit counter
-		await env.KV.delete(ipRateLimitKey);
-
-		// Generate JWT token (7 days)
+		// Login successful — fan out the post-verify side effects in parallel:
+		//   - clear rate-limit counter (KV)
+		//   - sign JWT (CPU)
+		//   - persist refresh token (KV)
+		//   - update last_login + last_ip (D1)
+		//   - (optional) silent password upgrade for legacy Discuz users (D1)
+		// They're all independent and don't gate the response shape.
 		const exp = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
-		const token = await createJwt(
+		const refreshToken = crypto.randomUUID();
+
+		const sideEffects: Promise<unknown>[] = [
+			env.KV.delete(ipRateLimitKey),
+			env.KV.put(`refresh:${refreshToken}`, String(user.id), {
+				expirationTtl: 30 * 24 * 60 * 60,
+			}),
+			env.DB.prepare("UPDATE users SET last_login = ?, last_ip = ? WHERE id = ?")
+				.bind(Math.floor(Date.now() / 1000), ip, user.id)
+				.run(),
+		];
+		if (user.password_salt) {
+			sideEffects.push(
+				hashPassword(password).then((newHash) =>
+					env.DB.prepare("UPDATE users SET password_hash = ?, password_salt = '' WHERE id = ?")
+						.bind(newHash, user.id)
+						.run(),
+				),
+			);
+		}
+		const tokenPromise = createJwt(
 			{
 				userId: user.id,
 				role: user.role,
@@ -154,27 +177,7 @@ export async function login(request: Request, env: Env): Promise<Response> {
 			},
 			env.JWT_SECRET,
 		);
-
-		// Generate refresh token (random UUID)
-		const refreshToken = crypto.randomUUID();
-
-		// Store refresh token in KV (30 days)
-		await env.KV.put(`refresh:${refreshToken}`, String(user.id), {
-			expirationTtl: 30 * 24 * 60 * 60,
-		});
-
-		// Silent password upgrade if still using old format
-		if (user.password_salt) {
-			const newHash = await hashPassword(password);
-			await env.DB.prepare("UPDATE users SET password_hash = ?, password_salt = '' WHERE id = ?")
-				.bind(newHash, user.id)
-				.run();
-		}
-
-		// Update last login time and IP
-		await env.DB.prepare("UPDATE users SET last_login = ?, last_ip = ? WHERE id = ?")
-			.bind(Math.floor(Date.now() / 1000), ip, user.id)
-			.run();
+		const [token] = await Promise.all([tokenPromise, ...sideEffects]);
 
 		return new Response(
 			JSON.stringify({
