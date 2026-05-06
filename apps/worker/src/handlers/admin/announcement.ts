@@ -281,17 +281,16 @@ export const list = withEntityAuth(
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid page number" }, origin);
 		}
 
-		const countResult = await env.DB.prepare(
-			`SELECT COUNT(*) as total FROM announcements ${whereClause}`,
-		)
-			.bind(...params)
-			.first<{ total: number }>();
-
-		const result = await env.DB.prepare(
-			`SELECT ${ANNOUNCEMENT_COLUMNS} FROM announcements ${whereClause} ORDER BY sticky DESC, created_at DESC LIMIT ? OFFSET ?`,
-		)
-			.bind(...params, limit, (page - 1) * limit)
-			.all();
+		const [countResult, result] = await Promise.all([
+			env.DB.prepare(`SELECT COUNT(*) as total FROM announcements ${whereClause}`)
+				.bind(...params)
+				.first<{ total: number }>(),
+			env.DB.prepare(
+				`SELECT ${ANNOUNCEMENT_COLUMNS} FROM announcements ${whereClause} ORDER BY sticky DESC, created_at DESC LIMIT ? OFFSET ?`,
+			)
+				.bind(...params, limit, (page - 1) * limit)
+				.all(),
+		]);
 
 		return paginatedResponse(
 			result.results.map((r) => toAnnouncement(r as Record<string, unknown>)),
