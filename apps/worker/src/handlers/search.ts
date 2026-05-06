@@ -138,6 +138,10 @@ export async function searchThreads(
 	const url = new URL(request.url);
 	const origin = request.headers.get("Origin") ?? undefined;
 
+	// Auth + the search-enabled settings lookup are independent of each
+	// other and of the URL parsing below — fire both eagerly so they overlap.
+	const userPromise = optionalAuthVerified(request, env);
+
 	// 0. Check if search is enabled (via settings)
 	const searchEnabledRow = await env.DB.prepare(
 		"SELECT value FROM settings WHERE key = 'general.search.enabled'",
@@ -176,8 +180,8 @@ export async function searchThreads(
 		}
 	}
 
-	// 3. Build visibility context from optional auth
-	const user = await optionalAuthVerified(request, env);
+	// 3. Build visibility context from optional auth (already in-flight)
+	const user = await userPromise;
 	const visCtx = buildVisibilityContext(user);
 	const forumFilter = buildForumFilter(visCtx, "f");
 
@@ -186,12 +190,16 @@ export async function searchThreads(
 	const sql = buildSearchSql(forumFilter, !!cursorPayload);
 	const params = buildSearchParams(ftsQuery, cursorPayload, clampedLimit);
 
-	const result = await env.DB.prepare(sql)
-		.bind(...params)
-		.all();
-
-	// 5. Get total count (only on first page, for UI display)
-	const total = cursorStr ? 0 : await getSearchTotalCount(env, ftsQuery, forumFilter);
+	// Run the page query and (when on first page) the total-count query in
+	// parallel — they're independent.
+	const [result, total] = await Promise.all([
+		env.DB.prepare(sql)
+			.bind(...params)
+			.all(),
+		cursorStr
+			? Promise.resolve(0)
+			: getSearchTotalCount(env, ftsQuery, forumFilter),
+	]);
 
 	// 6. Build response with pagination
 	const hasMore = result.results.length > clampedLimit;
