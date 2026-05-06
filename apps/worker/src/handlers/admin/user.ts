@@ -342,36 +342,39 @@ export const ban = withEntityAuth(
 		const deleteContent = body.deleteContent === true;
 
 		if (!deleteContent) {
-			// Simple ban — just set status to -1
-			await env.DB.prepare("UPDATE users SET status = -1 WHERE id = ?").bind(id).run();
-			await writeAdminLog(env, resolveActor(request), {
-				action: "user.ban",
-				targetType: "user",
-				targetId: id,
-				details: { mode: "ban", deletedContent: false },
-			});
+			// Simple ban — status update + audit log are independent.
+			await Promise.all([
+				env.DB.prepare("UPDATE users SET status = -1 WHERE id = ?").bind(id).run(),
+				writeAdminLog(env, resolveActor(request), {
+					action: "user.ban",
+					targetType: "user",
+					targetId: id,
+					details: { mode: "ban", deletedContent: false },
+				}),
+			]);
 			return jsonResponse({ banned: true, id, contentDeleted: false }, origin);
 		}
 
 		// Ban + delete all content
 		const result = await deleteUserContent(env, id);
 
-		// Update user: ban + zero counters
-		await env.DB.prepare("UPDATE users SET status = -1, threads = 0, posts = 0 WHERE id = ?")
-			.bind(id)
-			.run();
-
-		await writeAdminLog(env, resolveActor(request), {
-			action: "user.ban",
-			targetType: "user",
-			targetId: id,
-			details: {
-				mode: "ban_delete_content",
-				deletedContent: true,
-				deletedThreads: result.threadsDeleted,
-				deletedPosts: result.postsDeleted,
-			},
-		});
+		// Status update + audit log are independent.
+		await Promise.all([
+			env.DB.prepare("UPDATE users SET status = -1, threads = 0, posts = 0 WHERE id = ?")
+				.bind(id)
+				.run(),
+			writeAdminLog(env, resolveActor(request), {
+				action: "user.ban",
+				targetType: "user",
+				targetId: id,
+				details: {
+					mode: "ban_delete_content",
+					deletedContent: true,
+					deletedThreads: result.threadsDeleted,
+					deletedPosts: result.postsDeleted,
+				},
+			}),
+		]);
 
 		return jsonResponse(
 			{
