@@ -62,30 +62,49 @@ function mapThreadRows(results: unknown[], useKvCache: boolean): Thread[] {
 }
 
 /** Get thread list query based on cache strategy */
-function getThreadListQuery(useKvCache: boolean, withCursor: boolean): string {
-	const selectFields = useKvCache
-		? "*"
-		: "t.*, author.avatar AS author_avatar, author.avatar_path AS author_avatar_path, lp.avatar AS last_poster_avatar, lp.avatar_path AS last_poster_avatar_path";
-	const fromClause = useKvCache
-		? "threads"
-		: "threads t LEFT JOIN users author ON t.author_id = author.id LEFT JOIN users lp ON t.last_poster_id = lp.id";
-	const tablePrefix = useKvCache ? "" : "t.";
-	// Only show visible threads, exclude hidden/deleted/placeholder
-	const whereClause = useKvCache
-		? `forum_id = ? AND ${THREAD_VISIBLE}`
-		: `t.forum_id = ? AND ${threadVisible("t")}`;
+// Pre-compute the four SQL templates produced by getThreadListQuery so we
+// don't rebuild them on every request. The shape only depends on two booleans
+// (useKvCache, withCursor) so a 2x2 lookup is enough.
+const THREAD_LIST_QUERY_CACHE: Readonly<
+	Record<"kv" | "join", { withCursor: string; noCursor: string; offset: string }>
+> = (() => {
+	const build = (useKvCache: boolean, withCursor: boolean): string => {
+		const selectFields = useKvCache
+			? "*"
+			: "t.*, author.avatar AS author_avatar, author.avatar_path AS author_avatar_path, lp.avatar AS last_poster_avatar, lp.avatar_path AS last_poster_avatar_path";
+		const fromClause = useKvCache
+			? "threads"
+			: "threads t LEFT JOIN users author ON t.author_id = author.id LEFT JOIN users lp ON t.last_poster_id = lp.id";
+		const tablePrefix = useKvCache ? "" : "t.";
+		const whereClause = useKvCache
+			? `forum_id = ? AND ${THREAD_VISIBLE}`
+			: `t.forum_id = ? AND ${threadVisible("t")}`;
+		if (withCursor) {
+			const cursorCondition = `(${tablePrefix}sticky < ? OR (${tablePrefix}sticky = ? AND (${tablePrefix}last_post_at < ? OR (${tablePrefix}last_post_at = ? AND ${tablePrefix}id < ?))))`;
+			return `SELECT ${selectFields} FROM ${fromClause} WHERE ${whereClause} AND ${cursorCondition} ORDER BY ${tablePrefix}sticky DESC, ${tablePrefix}last_post_at DESC, ${tablePrefix}id DESC LIMIT ?`;
+		}
+		return `SELECT ${selectFields} FROM ${fromClause} WHERE ${whereClause} ORDER BY ${tablePrefix}sticky DESC, ${tablePrefix}last_post_at DESC, ${tablePrefix}id DESC LIMIT ?`;
+	};
+	const entry = (useKvCache: boolean) => {
+		const noCursor = build(useKvCache, false);
+		return {
+			withCursor: build(useKvCache, true),
+			noCursor,
+			offset: `${noCursor} OFFSET ?`,
+		};
+	};
+	return { kv: entry(true), join: entry(false) };
+})();
 
-	if (withCursor) {
-		const cursorCondition = `(${tablePrefix}sticky < ? OR (${tablePrefix}sticky = ? AND (${tablePrefix}last_post_at < ? OR (${tablePrefix}last_post_at = ? AND ${tablePrefix}id < ?))))`;
-		return `SELECT ${selectFields} FROM ${fromClause} WHERE ${whereClause} AND ${cursorCondition} ORDER BY ${tablePrefix}sticky DESC, ${tablePrefix}last_post_at DESC, ${tablePrefix}id DESC LIMIT ?`;
-	}
-	return `SELECT ${selectFields} FROM ${fromClause} WHERE ${whereClause} ORDER BY ${tablePrefix}sticky DESC, ${tablePrefix}last_post_at DESC, ${tablePrefix}id DESC LIMIT ?`;
+/** Get thread list query based on cache strategy */
+function getThreadListQuery(useKvCache: boolean, withCursor: boolean): string {
+	const e = THREAD_LIST_QUERY_CACHE[useKvCache ? "kv" : "join"];
+	return withCursor ? e.withCursor : e.noCursor;
 }
 
 /** Get thread list query with OFFSET for page-based pagination */
 function getThreadListQueryWithOffset(useKvCache: boolean): string {
-	// Base query ends with "LIMIT ?", append " OFFSET ?" to get "LIMIT ? OFFSET ?"
-	return `${getThreadListQuery(useKvCache, false)} OFFSET ?`;
+	return THREAD_LIST_QUERY_CACHE[useKvCache ? "kv" : "join"].offset;
 }
 
 /** GET /api/v1/threads - List threads with keyset or offset pagination */
