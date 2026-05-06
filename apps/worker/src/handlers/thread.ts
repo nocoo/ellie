@@ -105,13 +105,17 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid forumId" }, origin);
 	}
 
-	// Check forum visibility before listing threads (verified against DB)
-	const user = await optionalAuthVerified(request, env);
+	// Check forum visibility before listing threads (verified against DB).
+	// We fire BOTH the forum-meta lookup and the auth lookup in parallel since
+	// they're independent — in production this saves one D1 round-trip on the
+	// hot path.
+	const [user, forumRow] = await Promise.all([
+		optionalAuthVerified(request, env),
+		env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
+			.bind(forumIdNum)
+			.first<{ status: number; visibility: string }>(),
+	]);
 	const visCtx = buildVisibilityContext(user);
-
-	const forumRow = await env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
-		.bind(forumIdNum)
-		.first<{ status: number; visibility: string }>();
 
 	if (!forumRow) {
 		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
