@@ -1,7 +1,7 @@
-import { decodeGenericCursor, encodeGenericCursor } from "@ellie/types";
+import { decodeGenericCursor } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { toPost, toPublicUser, toThread } from "../lib/mappers";
-import { clampLimit } from "../lib/pagination";
+import { buildNextCursor, clampLimit } from "../lib/pagination";
 import { jsonResponse } from "../lib/response";
 import {
 	USER_ACTIVE,
@@ -95,14 +95,10 @@ async function runUserHistoryQuery<T extends { createdAt: number; id: number }>(
 		items[i] = opts.mapper(result.results[i] as Record<string, unknown>);
 	}
 
-	let nextCursor: string | null = null;
-	if (items.length === clampedLimit && items.length > 0) {
-		const last = items[items.length - 1];
-		nextCursor = encodeGenericCursor<UserHistoryCursor>({
-			createdAt: last.createdAt,
-			id: last.id,
-		});
-	}
+	const nextCursor = buildNextCursor<T, UserHistoryCursor>(items, clampedLimit, (last) => ({
+		createdAt: last.createdAt,
+		id: last.id,
+	}));
 
 	return jsonResponse(items, origin, { nextCursor });
 }
