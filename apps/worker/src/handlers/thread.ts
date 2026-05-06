@@ -282,6 +282,10 @@ export async function getById(
 		   LEFT JOIN users lp ON t.last_poster_id = lp.id
 		   WHERE t.id = ? AND ${threadVisible("t")}`;
 
+	// Auth is independent of the thread row — fire it eagerly so it overlaps
+	// with both the thread query and (later) the forum visibility query.
+	const userPromise = optionalAuthVerified(request, env);
+
 	const result = await env.DB.prepare(threadQuery).bind(id).first();
 
 	if (!result) {
@@ -291,13 +295,14 @@ export async function getById(
 	const r = result as Record<string, unknown>;
 	const forumId = r.forum_id as number;
 
-	// Check forum visibility before returning thread (verified against DB)
-	const user = await optionalAuthVerified(request, env);
+	// Forum query and auth resolution can also overlap.
+	const [user, forumRow] = await Promise.all([
+		userPromise,
+		env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
+			.bind(forumId)
+			.first<{ status: number; visibility: string }>(),
+	]);
 	const visCtx = buildVisibilityContext(user);
-
-	const forumRow = await env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
-		.bind(forumId)
-		.first<{ status: number; visibility: string }>();
 
 	if (!isForumActive(forumRow)) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
