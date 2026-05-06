@@ -212,15 +212,12 @@ export const updateProfile = withVerifiedEmail(async (request, env, user) => {
 		.bind(...params)
 		.run();
 
-	// Invalidate user cache if avatar was changed (it's a cached field)
-	if (fields.avatar !== undefined) {
-		await invalidateUserCache(env, user.userId);
-	}
-
-	// Fetch updated user
-	const row = await env.DB.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`)
-		.bind(user.userId)
-		.first();
+	// Invalidate user cache (KV) and fetch updated row (D1) in parallel — the
+	// cache invalidation doesn't gate the fetch result.
+	const [, row] = await Promise.all([
+		fields.avatar !== undefined ? invalidateUserCache(env, user.userId) : Promise.resolve(),
+		env.DB.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`).bind(user.userId).first(),
+	]);
 
 	if (!row) {
 		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
