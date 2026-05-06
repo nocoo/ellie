@@ -1089,15 +1089,16 @@ export async function nukeUser(request: Request, env: Env): Promise<Response> {
 	// Delete all user content (same logic as admin nuke)
 	const result = await deleteUserContent(env, userId);
 
-	// Update user: ban + zero all counters + zero credits
-	await env.DB.prepare(
-		"UPDATE users SET status = -1, threads = 0, posts = 0, credits = 0 WHERE id = ?",
-	)
-		.bind(userId)
-		.run();
-
-	// Invalidate volatile cache (massive counts change from content deletion)
-	await invalidateForumVolatile(env);
+	// Update user (ban + zero counters/credits) and invalidate the
+	// volatile cache in parallel — they're independent.
+	await Promise.all([
+		env.DB.prepare(
+			"UPDATE users SET status = -1, threads = 0, posts = 0, credits = 0 WHERE id = ?",
+		)
+			.bind(userId)
+			.run(),
+		invalidateForumVolatile(env),
+	]);
 
 	return jsonResponse(
 		{
