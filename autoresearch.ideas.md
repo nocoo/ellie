@@ -5,31 +5,39 @@ pursue in the current session, with rationale.
 
 ## Achievements (this session)
 
-- **Bench `total_µs`**: 270,356 → ~250,000 (−7–9% min-of-min)
-- **Production wins** (saved D1 round-trips, not visible in the local bench):
+- **Bench `total_µs`**: 270,356 → ~245,000–250,000 (−7–9% min-of-min,
+  ~10× noise-floor confidence sustained over 35+ measurements)
+- **66 commits, 4174 / 4174 L1 tests green throughout, typecheck clean**
+- **Production wins** (saved D1 round-trips — invisible in the local bench):
   - Parallelised auth + visibility queries on every list/getById endpoint:
     forum, thread, post, post-comment, search, user (batchGet/getById),
     digest, attachment, messages
   - Parallelised metadata fan-outs in forum.getById, deleteUserContent,
     purge user content, batch user-stat recalc, single-user stat recalc
   - Parallelised create paths: thread.create, post.create,
-    post-comment.create, message.create, auth/register
-  - Parallelised auth/login and auth/refresh side effects
+    post-comment.create, message.create, auth/register, auth/checkUsername,
+    report.create
+  - Parallelised auth/login + auth/refresh side effects + me/changePassword
   - JOIN-fused redundant queries (attachment batch, post.list visibility)
   - Cached SQL templates (thread.list)
   - Eliminated redundant SELECT COUNT in admin/thread.remove + afterDelete
   - Use INSERT meta.last_row_id instead of follow-up SELECT in registration
   - Parallel COUNT + page query in createListHandler (covers ALL paginated
-    admin endpoints) plus 3 custom list handlers (announcement, report,
+    admin endpoints) plus 4 custom list handlers (announcement, report,
     adminLog, ipBan)
+  - Parallelised the per-id pipeline in createBatchDeleteHandler (covers
+    all admin entities that batch-delete)
   - 7 moderation handlers parallelised (permission + target user lookups)
   - admin/user.merge / admin/forum.merge multi-read parallelisation
+  - Tail fan-out parallelisation: post.batchDelete, forum.merge,
+    forum.reorder, admin/thread.batchMove (recalc + cache + audit)
 - **Code-quality refactors**:
   - Extracted `runUserHistoryQuery` (listThreads/listPosts/listDigest)
   - Extracted `buildNextCursor` (5 list handlers)
   - Migrated forum/attachment/post-comment/auth handlers to `jsonResponse`
     (~150 lines of boilerplate removed total)
-- **Safety**: 4174 / 4174 L1 tests stay green throughout the session
+- **Gate hardening**: `autoresearch.checks.sh` now also runs `tsc` (we caught
+  one buildNextCursor type bound regression that vitest had passed)
 
 ## Cross-cutting (still deferred)
 
