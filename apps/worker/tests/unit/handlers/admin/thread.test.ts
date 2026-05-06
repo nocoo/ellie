@@ -610,7 +610,14 @@ describe("admin thread handlers", () => {
 			const { db, batchCalls } = createMockDb({
 				firstResults: {
 					"SELECT * FROM threads": threadRow,
-					"SELECT COUNT": { cnt: 11 },
+				},
+				allResults: {
+					// remove() now derives postsDeleted by summing per-author counts
+					// instead of issuing a separate SELECT COUNT(*).
+					"SELECT author_id, COUNT(*)": [
+						{ author_id: 1, cnt: 4 },
+						{ author_id: 2, cnt: 7 },
+					],
 				},
 			});
 
@@ -622,8 +629,10 @@ describe("admin thread handlers", () => {
 			expect(body.data.deleted).toBe(true);
 			expect(body.data.postsDeleted).toBe(11);
 
-			// Verify batch was called: DELETE posts, DELETE thread, UPDATE forum
-			expect(batchCalls.length).toBe(1);
+			// Two batches now: (1) DELETE posts + DELETE thread + UPDATE forum,
+			// and (2) batchDecrementUserPosts for the per-author post-count
+			// updates derived from the GROUP BY.
+			expect(batchCalls.length).toBe(2);
 			expect(batchCalls[0].length).toBe(3);
 		});
 
@@ -1135,7 +1144,12 @@ describe("admin thread handlers", () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
 					"SELECT * FROM threads": threadRow,
-					"SELECT COUNT": { cnt: 11 },
+				},
+				allResults: {
+					"SELECT author_id, COUNT(*)": [
+						{ author_id: 1, cnt: 4 },
+						{ author_id: 2, cnt: 7 },
+					],
 				},
 			});
 			const res = await remove(actorReq("DELETE", "/api/admin/threads/42"), adminEnv(db));

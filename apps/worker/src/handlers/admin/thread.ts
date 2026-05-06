@@ -134,9 +134,11 @@ const threadConfig: EntityConfig = {
 				).bind(postCount, newForumId),
 			]);
 
-			// Recalc metadata for both old and new forums
-			await recalcForumMetadata(env, oldForumId);
-			await recalcForumMetadata(env, newForumId);
+			// Recalc metadata for both old and new forums (independent — parallel)
+			await Promise.all([
+				recalcForumMetadata(env, oldForumId),
+				recalcForumMetadata(env, newForumId),
+			]);
 			await invalidateForumVolatile(env);
 		}
 	},
@@ -335,24 +337,20 @@ export const remove = withEntityAuth(
 
 		const threadRow = thread as { forum_id: number; author_id: number; replies: number };
 
-		// Query post authors before deletion for user counter updates
+		// Query post authors before deletion for user counter updates. The total
+		// post count for the thread is just the sum of these per-author counts,
+		// so we can skip the separate `SELECT COUNT(*)` round-trip.
 		const postAuthors = await env.DB.prepare(
 			"SELECT author_id, COUNT(*) as cnt FROM posts WHERE thread_id = ? GROUP BY author_id",
 		)
 			.bind(id)
 			.all();
 		const authorCounts = new Map<number, number>();
+		let postsDeleted = 0;
 		for (const row of postAuthors.results as { author_id: number; cnt: number }[]) {
 			authorCounts.set(row.author_id, row.cnt);
+			postsDeleted += row.cnt;
 		}
-
-		// Count all posts belonging to this thread
-		const countResult = await env.DB.prepare(
-			"SELECT COUNT(*) as cnt FROM posts WHERE thread_id = ?",
-		)
-			.bind(id)
-			.first<{ cnt: number }>();
-		const postsDeleted = countResult?.cnt ?? 0;
 
 		// Delete all posts, delete thread, decrement forum counts
 		await env.DB.batch([
