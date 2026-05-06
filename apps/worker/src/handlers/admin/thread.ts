@@ -505,21 +505,21 @@ export const batchMove = withEntityAuth(
 		}
 		const targetForumId = body.forumId;
 
-		// Validate target forum exists
-		const targetForum = await env.DB.prepare("SELECT id FROM forums WHERE id = ?")
-			.bind(targetForumId)
-			.first();
+		// Validate target forum + fetch source threads in parallel — they're
+		// independent reads.
+		const placeholders = ids.map(() => "?").join(",");
+		const [targetForum, threads] = await Promise.all([
+			env.DB.prepare("SELECT id FROM forums WHERE id = ?").bind(targetForumId).first(),
+			env.DB.prepare(
+				`SELECT id, forum_id, replies FROM threads WHERE id IN (${placeholders})`,
+			)
+				.bind(...ids)
+				.all(),
+		]);
+
 		if (!targetForum) {
 			return errorResponse("INVALID_BODY", 400, { message: "Target forum not found" }, origin);
 		}
-
-		// Fetch all threads
-		const placeholders = ids.map(() => "?").join(",");
-		const threads = await env.DB.prepare(
-			`SELECT id, forum_id, replies FROM threads WHERE id IN (${placeholders})`,
-		)
-			.bind(...ids)
-			.all();
 
 		const threadRows = threads.results as { id: number; forum_id: number; replies: number }[];
 		if (threadRows.length === 0) {
