@@ -132,29 +132,19 @@ export async function batchByPostIds(request: Request, env: Env): Promise<Respon
 		return visResult.response;
 	}
 
-	// Verify all posts belong to this thread and are visible (invisible = 0)
-	const postPlaceholders = uniquePostIds.map(() => "?").join(",");
-	const postsResult = await env.DB.prepare(
-		`SELECT id FROM posts WHERE id IN (${postPlaceholders}) AND thread_id = ? AND invisible = 0`,
+	// Combined attachments+posts JOIN replaces the previous 2 sequential
+	// queries (validate post IDs, then fetch attachments). The post-side
+	// filters (`thread_id` and `invisible = 0`) move into the JOIN's WHERE
+	// clause so any attachment for an invalid/hidden post is filtered out.
+	const attPlaceholders = uniquePostIds.map(() => "?").join(",");
+	const result = await env.DB.prepare(
+		`SELECT a.*
+		 FROM attachments a
+		 INNER JOIN posts p ON p.id = a.post_id
+		 WHERE a.post_id IN (${attPlaceholders}) AND p.thread_id = ? AND p.invisible = 0
+		 ORDER BY a.post_id, a.id`,
 	)
 		.bind(...uniquePostIds, threadId)
-		.all<{ id: number }>();
-
-	const validPostIds = new Set(postsResult.results.map((r) => r.id));
-
-	// Filter to only valid posts (silently ignore invalid/hidden posts)
-	const filteredPostIds = uniquePostIds.filter((id) => validPostIds.has(id));
-
-	if (filteredPostIds.length === 0) {
-		return jsonResponse([], origin);
-	}
-
-	// Fetch all attachments for valid posts in a single query
-	const attPlaceholders = filteredPostIds.map(() => "?").join(",");
-	const result = await env.DB.prepare(
-		`SELECT * FROM attachments WHERE post_id IN (${attPlaceholders}) ORDER BY post_id, id`,
-	)
-		.bind(...filteredPostIds)
 		.all();
 
 	const attachments = result.results.map((row) => toAttachment(row as Record<string, unknown>));
