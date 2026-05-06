@@ -5,31 +5,31 @@ pursue in the current session, with rationale.
 
 ## Achievements (this session)
 
-- **Bench `total_µs`**: 270,356 → 247,136 (−8.6% min-of-min)
+- **Bench `total_µs`**: 270,356 → ~250,000 (−7–9% min-of-min)
 - **Production wins** (saved D1 round-trips, not visible in the local bench):
-  - `forum.list`: defer auth + parallelise mod-names / visible-last-thread fetch
-  - `forum.getById`: parallelise 3 metadata queries + defer auth (4 RTTs → 2)
-  - `thread.list`: Promise.all auth + visibility check + cached SQL templates
-  - `thread.getById`: defer auth + parallel forum visibility query
-  - `thread.create`: parallel censor + forum + author lookups (5 → 2 RTTs)
-  - `post.list / getById`: defer auth + parallel visibility check
-  - `post.create`: parallel visibility / position / author (3 reads in 1 hop)
-  - `post-comment.list / create`: defer auth, parallel visibility + author
-  - `search.list`: defer auth + parallel page query / total-count
-  - `user.batchGet / getById`: parallel auth + user-row fetch
-  - `messages.list (inbox)`: parallel page query + unread count
-  - `messages.create`: parallel receiver / sender / 2 censor checks (4 reads)
-  - `digest.filters`: parallel years + forums aggregates
-  - `attachment.verifyThreadVisibility`: defer auth
-  - `admin createListHandler`: parallel COUNT + page query (covers ALL
-    paginated admin lists — forums, threads, posts, users, attachments,
-    ipBan, censorWord, adminLog, announcement, report)
+  - Parallelised auth + visibility queries on every list/getById endpoint:
+    forum, thread, post, post-comment, search, user (batchGet/getById),
+    digest, attachment, messages
+  - Parallelised metadata fan-outs in forum.getById, deleteUserContent,
+    purge user content, batch user-stat recalc, single-user stat recalc
+  - Parallelised create paths: thread.create, post.create,
+    post-comment.create, message.create, auth/register
+  - Parallelised auth/login and auth/refresh side effects
+  - JOIN-fused redundant queries (attachment batch, post.list visibility)
+  - Cached SQL templates (thread.list)
+  - Eliminated redundant SELECT COUNT in admin/thread.remove + afterDelete
+  - Use INSERT meta.last_row_id instead of follow-up SELECT in registration
+  - Parallel COUNT + page query in createListHandler (covers ALL paginated
+    admin endpoints) plus 3 custom list handlers (announcement, report,
+    adminLog, ipBan)
+  - 7 moderation handlers parallelised (permission + target user lookups)
+  - admin/user.merge / admin/forum.merge multi-read parallelisation
 - **Code-quality refactors**:
-  - `runUserHistoryQuery` extracted from listThreads/listPosts/listDigest
-    (−0 functional change, ~120 lines saved)
-  - `buildNextCursor` helper extracted from 5 list handlers
-    (~40 lines saved, prevents drift on pagination edge cases)
-  - `forum.list` legacy path: 3 `.map()` passes fused into 2 in-place loops
+  - Extracted `runUserHistoryQuery` (listThreads/listPosts/listDigest)
+  - Extracted `buildNextCursor` (5 list handlers)
+  - Migrated forum/attachment/post-comment/auth handlers to `jsonResponse`
+    (~150 lines of boilerplate removed total)
+- **Safety**: 4174 / 4174 L1 tests stay green throughout the session
 
 ## Cross-cutting (still deferred)
 
