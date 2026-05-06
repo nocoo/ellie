@@ -990,8 +990,14 @@ export async function unbanUser(request: Request, env: Env): Promise<Response> {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
 	}
 
-	// Permission check: Admin/SuperMod only
-	const user = await getUserForPermission(env, authResult.user.userId);
+	// Permission lookup + target lookup are independent — fire in parallel.
+	const [user, targetUser] = await Promise.all([
+		getUserForPermission(env, authResult.user.userId),
+		env.DB.prepare("SELECT id, username, status FROM users WHERE id = ?")
+			.bind(userId)
+			.first<{ id: number; username: string; status: number }>(),
+	]);
+
 	if (!user) {
 		return errorResponse("INTERNAL_ERROR", 500, { message: "Failed to fetch user data" }, origin);
 	}
@@ -1004,11 +1010,6 @@ export async function unbanUser(request: Request, env: Env): Promise<Response> {
 			origin,
 		);
 	}
-
-	// Get target user
-	const targetUser = await env.DB.prepare("SELECT id, username, status FROM users WHERE id = ?")
-		.bind(userId)
-		.first<{ id: number; username: string; status: number }>();
 
 	if (!targetUser) {
 		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
