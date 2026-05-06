@@ -281,35 +281,33 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		);
 	}
 
-	// Check receiver exists, is not banned/muted, and is not a placeholder
-	// (status < 0 means banned, muted, or otherwise hidden — surface as
-	// USER_NOT_FOUND consistent with the user-search endpoint and docs/12,
-	// which only ever return users with status >= 0).
-	const receiver = await env.DB.prepare("SELECT id, username, status FROM users WHERE id = ?")
-		.bind(receiverId)
-		.first<{ id: number; username: string; status: number }>();
+	// Receiver lookup, sender lookup, and (optional) subject + content censor
+	// checks are all independent — fire them in parallel. Saves up to 3 D1
+	// round-trips on the message-send hot path.
+	const [receiver, sender, subjectCheck, contentCheck] = await Promise.all([
+		env.DB.prepare("SELECT id, username, status FROM users WHERE id = ?")
+			.bind(receiverId)
+			.first<{ id: number; username: string; status: number }>(),
+		env.DB.prepare("SELECT username FROM users WHERE id = ?")
+			.bind(user.userId)
+			.first<{ username: string }>(),
+		subject ? applyCensorFilter(subject, env) : Promise.resolve(null),
+		applyCensorFilter(content, env),
+	]);
 
 	if (!receiver || receiver.status < 0) {
 		return errorResponse("USER_NOT_FOUND", 400, { message: "Receiver not found" }, origin);
 	}
 
-	// Get sender info
-	const sender = await env.DB.prepare("SELECT username FROM users WHERE id = ?")
-		.bind(user.userId)
-		.first<{ username: string }>();
-
 	const senderName = sender?.username ?? `user_${user.userId}`;
 
-	// Apply censor filter to subject and content
-	if (subject) {
-		const subjectCheck = await applyCensorFilter(subject, env);
+	if (subjectCheck) {
 		if (subjectCheck.banned) {
 			return errorResponse("CONTENT_BANNED", 403, undefined, origin);
 		}
 		subject = subjectCheck.content;
 	}
 
-	const contentCheck = await applyCensorFilter(content, env);
 	if (contentCheck.banned) {
 		return errorResponse("CONTENT_BANNED", 403, undefined, origin);
 	}
