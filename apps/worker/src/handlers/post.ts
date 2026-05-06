@@ -130,6 +130,10 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 	const idStr = pathParts[pathParts.length - 1];
 	const id = Number.parseInt(idStr ?? "0", 10);
 
+	// Auth is independent of the post/thread chain — fire it eagerly so it
+	// overlaps with the post and visibility queries.
+	const userPromise = optionalAuthVerified(request, env);
+
 	// Only return visible posts (invisible = 0)
 	const stmt = env.DB.prepare(`SELECT * FROM posts WHERE id = ? AND ${POST_VISIBLE}`);
 	const result = await stmt.bind(id).first();
@@ -141,19 +145,19 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 	const postRow = result as Record<string, unknown>;
 	const threadId = postRow.thread_id as number;
 
-	// Check thread visibility (sticky >= 0) and forum visibility
-	const user = await optionalAuthVerified(request, env);
+	// Visibility check JOIN runs in parallel with auth resolution.
+	const [user, visRow] = await Promise.all([
+		userPromise,
+		env.DB.prepare(
+			`SELECT t.forum_id, t.sticky, f.status, f.visibility
+			 FROM threads t
+			 JOIN forums f ON f.id = t.forum_id
+			 WHERE t.id = ?`,
+		)
+			.bind(threadId)
+			.first<{ forum_id: number; sticky: number; status: number; visibility: string }>(),
+	]);
 	const visCtx = buildVisibilityContext(user);
-
-	// Single JOIN query: thread → forum (replaces 2 serial queries)
-	const visRow = await env.DB.prepare(
-		`SELECT t.forum_id, t.sticky, f.status, f.visibility
-		 FROM threads t
-		 JOIN forums f ON f.id = t.forum_id
-		 WHERE t.id = ?`,
-	)
-		.bind(threadId)
-		.first<{ forum_id: number; sticky: number; status: number; visibility: string }>();
 
 	if (!visRow || visRow.sticky < 0) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
