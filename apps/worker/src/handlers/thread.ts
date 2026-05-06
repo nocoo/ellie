@@ -16,7 +16,6 @@ import {
 	threadVisible,
 } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
-import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
 /** Thread cursor payload for keyset pagination */
@@ -334,21 +333,7 @@ export async function getById(
 		}
 	}
 
-	return new Response(
-		JSON.stringify({
-			data: thread,
-			meta: {
-				timestamp: Date.now(),
-				requestId: crypto.randomUUID(),
-			},
-		}),
-		{
-			headers: {
-				...corsHeaders(origin),
-				"Content-Type": "application/json",
-			},
-		},
-	);
+	return jsonResponse(thread, origin);
 }
 
 /** POST /api/v1/threads - Create a new thread (requires auth) */
