@@ -101,7 +101,7 @@ export function AdminDataTable<T>({
 	return (
 		<Table>
 			<TableHeader>
-				<TableRow>
+				<TableRow className="hover:bg-transparent">
 					{selectable && (
 						<TableHead className="w-10">
 							<Checkbox
