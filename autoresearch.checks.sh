@@ -5,10 +5,16 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-bunx vitest run --experimental.fsModuleCache \
-  -c apps/worker/vitest.config.ts \
-  tests/unit/handlers/forum.test.ts \
-  tests/unit/handlers/thread.test.ts \
-  tests/unit/handlers/forum-cache-avatar.test.ts \
-  tests/unit/handlers/forum-ancestors.test.ts \
-  tests/unit/lib >/tmp/autoresearch_checks.log 2>&1
+{
+  bunx vitest run --experimental.fsModuleCache \
+    -c apps/worker/vitest.config.ts \
+    tests/unit/handlers/forum.test.ts \
+    tests/unit/handlers/thread.test.ts \
+    tests/unit/handlers/forum-cache-avatar.test.ts \
+    tests/unit/handlers/forum-ancestors.test.ts \
+    tests/unit/lib
+  # Keep typecheck on the gate — we shipped a session where buildNextCursor
+  # broke `bun run typecheck` while leaving vitest green; the autoresearch
+  # bench would then "keep" a state that fails CI typecheck.
+  bash scripts/typecheck.sh
+} >/tmp/autoresearch_checks.log 2>&1
