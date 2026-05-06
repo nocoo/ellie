@@ -171,9 +171,7 @@ export async function listByPost(request: Request, env: Env): Promise<Response> 
 		env.DB.prepare("SELECT thread_id, invisible FROM posts WHERE id = ?")
 			.bind(postId)
 			.first<{ thread_id: number; invisible: number }>(),
-		env.DB.prepare("SELECT * FROM attachments WHERE post_id = ? ORDER BY id")
-			.bind(postId)
-			.all(),
+		env.DB.prepare("SELECT * FROM attachments WHERE post_id = ? ORDER BY id").bind(postId).all(),
 	]);
 
 	if (!post || post.invisible !== 0) {

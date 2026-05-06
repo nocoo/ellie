@@ -510,9 +510,7 @@ export const batchMove = withEntityAuth(
 		const placeholders = ids.map(() => "?").join(",");
 		const [targetForum, threads] = await Promise.all([
 			env.DB.prepare("SELECT id FROM forums WHERE id = ?").bind(targetForumId).first(),
-			env.DB.prepare(
-				`SELECT id, forum_id, replies FROM threads WHERE id IN (${placeholders})`,
-			)
+			env.DB.prepare(`SELECT id, forum_id, replies FROM threads WHERE id IN (${placeholders})`)
 				.bind(...ids)
 				.all(),
 		]);

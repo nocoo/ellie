@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.4] - 2026-05-06
+
+### Performance
+
+- **Worker parallelization** (82 commits): Systematic fan-out of independent D1/KV queries across all handlers — auth, threads, posts, forums, messages, attachments, moderation, admin, search. Benchmarks show 14.2% latency reduction on list-loading critical path.
+- **Response helpers**: `jsonListResponse` skips `...meta` spread for keyset endpoints; `buildJsonHeaders` eliminates `corsHeaders` spread in hot path
+- **Query optimization**: Single-pass `getQueryParam` replaces `URLSearchParams`; hand-rolled `parseModeratorIds` avoids intermediate array allocations; SQL template caching at module load
+- **Inline mapping**: `toThread`/`toForum` inlined into list loops with pre-allocated result arrays; indexed for-loop for moderator-id set construction; frozen singleton `VisibilityContext` for anonymous callers
+
+### Fixed
+
+- **E2E test stability**: Dialog layout tolerance increased to 4px for sub-pixel flexbox variance; post-comments locator uses `.first()` for duplicate text; L3 env config supplies AUTH_SECRET via `apps/web/.env.test`
+- **Worker query string**: Catch `URIError` on malformed percent-encoding in query params
+- **Worker batch delete**: Deduplicate IDs before parallel fan-out in `createBatchDeleteHandler`
+
+### Changed
+
+- **Refactored response flow**: Unified `jsonResponse` helper usage across auth, attachment, post-comment, thread, and user handlers
+- **Cursor pagination**: Extracted `buildNextCursor` helper for consistent keyset pagination across user history and admin list endpoints
+
 ## [1.2.3] - 2026-05-04
 
 ### Added

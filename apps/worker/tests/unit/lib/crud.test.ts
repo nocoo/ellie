@@ -1269,9 +1269,7 @@ describe("createBatchDeleteHandler", () => {
 			},
 		});
 		const env = makeEnv({ DB: db });
-		const handler = createBatchDeleteHandler(
-			makeTestConfig({ afterDelete, beforeDelete }),
-		);
+		const handler = createBatchDeleteHandler(makeTestConfig({ afterDelete, beforeDelete }));
 
 		const res = await handler(
 			makeJsonRequest("/api/admin/test-items/batch-delete", { ids: [42, 42, "42", 42] }),
