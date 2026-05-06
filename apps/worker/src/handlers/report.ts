@@ -184,11 +184,18 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 	const now = Math.floor(Date.now() / 1000);
 	const windowStart = now - DUPLICATE_REPORT_WINDOW;
 
-	const existingReport = await env.DB.prepare(
-		"SELECT 1 FROM reports WHERE reporter_id = ? AND type = ? AND target_id = ? AND created_at > ?",
-	)
-		.bind(user.userId, reportType, targetId, windowStart)
-		.first();
+	// Duplicate-report check + reporter-username lookup are independent —
+	// fire in parallel to halve D1 round-trip latency.
+	const [existingReport, reporter] = await Promise.all([
+		env.DB.prepare(
+			"SELECT 1 FROM reports WHERE reporter_id = ? AND type = ? AND target_id = ? AND created_at > ?",
+		)
+			.bind(user.userId, reportType, targetId, windowStart)
+			.first(),
+		env.DB.prepare("SELECT username FROM users WHERE id = ?")
+			.bind(user.userId)
+			.first<{ username: string }>(),
+	]);
 
 	if (existingReport) {
 		return errorResponse(
@@ -198,11 +205,6 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 			origin,
 		);
 	}
-
-	// Get reporter username
-	const reporter = await env.DB.prepare("SELECT username FROM users WHERE id = ?")
-		.bind(user.userId)
-		.first<{ username: string }>();
 
 	const reporterName = reporter?.username ?? "";
 
