@@ -41,18 +41,97 @@ interface D1ThreadRow {
 
 /** Map D1 rows to Thread objects with optional avatar enrichment */
 function mapThreadRows(results: unknown[], useKvCache: boolean): Thread[] {
-	return results.map((row) => {
-		const r = row as Record<string, unknown>;
-		const thread = toThread(r);
-		// If JOIN approach, populate avatars directly from query result
-		if (!useKvCache) {
-			thread.authorAvatar = (r.author_avatar as string) ?? "";
-			thread.authorAvatarPath = (r.author_avatar_path as string) ?? "";
-			thread.lastPosterAvatar = (r.last_poster_avatar as string) ?? "";
-			thread.lastPosterAvatarPath = (r.last_poster_avatar_path as string) ?? "";
+	// Inline toThread + avatar fan-out into one allocation per row — avoids
+	// a function call and a 4-field post-creation mutation when JOIN data is
+	// present. Property order matches toThread() so V8 can keep a single
+	// hidden class for both call sites.
+	const n = results.length;
+	const out = new Array<Thread>(n);
+	if (useKvCache) {
+		for (let i = 0; i < n; i++) {
+			const r = results[i] as unknown as D1ThreadRowLike;
+			out[i] = {
+				id: r.id,
+				forumId: r.forum_id,
+				authorId: r.author_id,
+				authorName: r.author_name,
+				authorAvatar: "",
+				authorAvatarPath: "",
+				subject: r.subject,
+				createdAt: r.created_at,
+				lastPostAt: r.last_post_at,
+				lastPoster: r.last_poster,
+				lastPosterId: r.last_poster_id ?? 0,
+				lastPosterAvatar: "",
+				lastPosterAvatarPath: "",
+				replies: r.replies,
+				views: r.views,
+				closed: r.closed,
+				sticky: r.sticky,
+				digest: r.digest,
+				special: r.special,
+				highlight: r.highlight,
+				recommends: r.recommends,
+				typeName: r.type_name,
+			};
 		}
-		return thread;
-	});
+	} else {
+		for (let i = 0; i < n; i++) {
+			const r = results[i] as unknown as D1ThreadRowLike;
+			out[i] = {
+				id: r.id,
+				forumId: r.forum_id,
+				authorId: r.author_id,
+				authorName: r.author_name,
+				authorAvatar: (r.author_avatar as string | undefined) ?? "",
+				authorAvatarPath: (r.author_avatar_path as string | undefined) ?? "",
+				subject: r.subject,
+				createdAt: r.created_at,
+				lastPostAt: r.last_post_at,
+				lastPoster: r.last_poster,
+				lastPosterId: r.last_poster_id ?? 0,
+				lastPosterAvatar: (r.last_poster_avatar as string | undefined) ?? "",
+				lastPosterAvatarPath: (r.last_poster_avatar_path as string | undefined) ?? "",
+				replies: r.replies,
+				views: r.views,
+				closed: r.closed,
+				sticky: r.sticky,
+				digest: r.digest,
+				special: r.special,
+				highlight: r.highlight,
+				recommends: r.recommends,
+				typeName: r.type_name,
+			};
+		}
+	}
+	return out;
+}
+
+// Local row shape (mirrors D1ThreadRow used by mappers.toThread). Kept inline
+// to avoid an extra import surface; the runtime cast is identical.
+interface D1ThreadRowLike {
+	id: number;
+	forum_id: number;
+	author_id: number;
+	author_name: string;
+	subject: string;
+	created_at: number;
+	last_post_at: number;
+	last_poster: string;
+	last_poster_id: number | null;
+	replies: number;
+	views: number;
+	closed: number;
+	sticky: number;
+	digest: number;
+	special: number;
+	highlight: number;
+	recommends: number;
+	type_name: string;
+	author_avatar?: string;
+	author_avatar_path?: string;
+	last_poster_avatar?: string;
+	last_poster_avatar_path?: string;
 }
 
 /** Get thread list query based on cache strategy */
@@ -440,9 +519,9 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 			env.DB.prepare(
 				"UPDATE forums SET threads = threads + 1, posts = posts + 1, last_thread_id = ?, last_post_at = ?, last_poster = ?, last_poster_id = ?, last_thread_subject = ? WHERE id = ?",
 			).bind(threadId, now, authorName, user.userId, filteredSubject, forumId),
-			env.DB.prepare(
-				"UPDATE users SET threads = threads + 1, posts = posts + 1 WHERE id = ?",
-			).bind(user.userId),
+			env.DB.prepare("UPDATE users SET threads = threads + 1, posts = posts + 1 WHERE id = ?").bind(
+				user.userId,
+			),
 		]),
 		env.DB.prepare("SELECT * FROM threads WHERE id = ?").bind(threadId).first(),
 	]);
