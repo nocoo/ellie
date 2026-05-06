@@ -26,7 +26,7 @@ test.describe("E2E-PC: Post Comments", () => {
 		// Seed data includes 2 comments on post 662174 by e2etest and e2eprofile.
 		// The post-comments component renders them inside a section with "点评" header.
 		// Verify seeded comment content is visible.
-		await expect(page.getByText("写得好！")).toBeVisible({ timeout: 10000 });
+		await expect(page.getByText("写得好！").first()).toBeVisible({ timeout: 10000 });
 
 		// Verify comment author link exists
 		const commentAuthorLink = page.locator('a[href="/users/100"]');

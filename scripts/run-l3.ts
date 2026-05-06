@@ -132,8 +132,12 @@ async function startServer(): Promise<void> {
 		stderr: "inherit",
 		env: {
 			...process.env,
+			// NODE_ENV=test makes Next.js skip .env.local (which has CAPTCHA config
+			// we don't want in E2E). Auth-related env vars are supplied via
+			// apps/web/.env.test which Next.js loads when NODE_ENV=test.
 			NODE_ENV: "test",
-			// CAP widget is not used in E2E; force-empty to skip captcha challenge.
+			// Belt-and-suspenders: also set directly in process.env in case
+			// Next.js loads it before reading .env.test.
 			NEXT_PUBLIC_CAP_API_ENDPOINT: "",
 		},
 	});

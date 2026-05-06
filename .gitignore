@@ -34,6 +34,8 @@ output/
 # Environment
 .env
 .env.local
+.env.test
+apps/web/.env.test
 .dev.vars
 
 # Next.js generated
