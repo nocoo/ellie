@@ -601,15 +601,14 @@ export async function deleteThread(request: Request, env: Env): Promise<Response
 		),
 	]);
 
-	// Decrement user counters
-	await decrementUserThreads(env, thread.author_id);
-	await batchDecrementUserPosts(env, authorCounts);
-
-	// Recalc forum metadata
-	await recalcForumMetadata(env, thread.forum_id);
-
-	// Invalidate volatile cache (forum counts + last-post may have changed)
-	await invalidateForumVolatile(env);
+	// Tail fan-out: user counter decrements + forum recalc + cache
+	// invalidation are all independent. Parallelise to compress latency.
+	await Promise.all([
+		decrementUserThreads(env, thread.author_id),
+		batchDecrementUserPosts(env, authorCounts),
+		recalcForumMetadata(env, thread.forum_id),
+		invalidateForumVolatile(env),
+	]);
 
 	return jsonResponse({ deleted: true, id }, origin);
 }
