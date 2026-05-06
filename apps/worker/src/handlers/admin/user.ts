@@ -1227,41 +1227,41 @@ export const batchRecalcCounters = withEntityAuth(
 		}
 
 		// Batch recalculate: for each user, compute counts and update
-		// Using a single query with GROUP BY for efficiency
+		// Three GROUP BY counts (threads/posts/digests) are independent
+		// reads keyed on the same user-id list. Run via Promise.all to halve
+		// the round-trip cost of this admin recalculation.
 		const placeholders = userIds.map(() => "?").join(",");
 
-		// Get thread counts per user
-		const threadCounts = await env.DB.prepare(
-			`SELECT author_id, COUNT(*) as cnt FROM threads WHERE author_id IN (${placeholders}) GROUP BY author_id`,
-		)
-			.bind(...userIds)
-			.all();
+		const [threadCounts, postCounts, digestCounts] = await Promise.all([
+			env.DB.prepare(
+				`SELECT author_id, COUNT(*) as cnt FROM threads WHERE author_id IN (${placeholders}) GROUP BY author_id`,
+			)
+				.bind(...userIds)
+				.all(),
+			env.DB.prepare(
+				`SELECT author_id, COUNT(*) as cnt FROM posts WHERE author_id IN (${placeholders}) GROUP BY author_id`,
+			)
+				.bind(...userIds)
+				.all(),
+			env.DB.prepare(
+				`SELECT author_id, COUNT(*) as cnt FROM threads WHERE author_id IN (${placeholders}) AND digest > 0 GROUP BY author_id`,
+			)
+				.bind(...userIds)
+				.all(),
+		]);
+
 		const threadMap = new Map(
 			threadCounts.results.map((r) => [
 				(r as { author_id: number }).author_id,
 				(r as { cnt: number }).cnt,
 			]),
 		);
-
-		// Get post counts per user
-		const postCounts = await env.DB.prepare(
-			`SELECT author_id, COUNT(*) as cnt FROM posts WHERE author_id IN (${placeholders}) GROUP BY author_id`,
-		)
-			.bind(...userIds)
-			.all();
 		const postMap = new Map(
 			postCounts.results.map((r) => [
 				(r as { author_id: number }).author_id,
 				(r as { cnt: number }).cnt,
 			]),
 		);
-
-		// Get digest counts per user
-		const digestCounts = await env.DB.prepare(
-			`SELECT author_id, COUNT(*) as cnt FROM threads WHERE author_id IN (${placeholders}) AND digest > 0 GROUP BY author_id`,
-		)
-			.bind(...userIds)
-			.all();
 		const digestMap = new Map(
 			digestCounts.results.map((r) => [
 				(r as { author_id: number }).author_id,
