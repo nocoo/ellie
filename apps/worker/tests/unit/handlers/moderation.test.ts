@@ -1125,6 +1125,73 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 		);
 		expect(updateCall).toBeDefined();
 	});
+
+	it("purges attachments + post_comments by thread_id and post_id BEFORE DELETE FROM posts/threads (FK regression)", async () => {
+		const token = await makeModToken(1);
+		const { db, calls } = createMockDb({
+			firstResults: {
+				...mockUser(1, 1, "admin"),
+				"SELECT id, username, status, role FROM users": {
+					id: 10,
+					username: "spammer",
+					status: 0,
+					role: 0,
+				},
+				"SELECT COUNT(*) as cnt FROM attachments WHERE author_id": { cnt: 0 },
+			},
+			allResults: {
+				"SELECT id, forum_id, replies FROM threads WHERE author_id": [
+					{ id: 30, forum_id: 1, replies: 1 },
+				],
+				"SELECT forum_id, COUNT(*) as cnt FROM posts": [{ forum_id: 1, cnt: 1 }],
+				"SELECT thread_id, COUNT(*) as cnt FROM posts": [{ thread_id: 40, cnt: 1 }],
+				"SELECT id FROM posts WHERE author_id": [{ id: 88 }],
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("POST", "/api/v1/moderation/users/10/nuke", token);
+		const res = await nukeUser(req, env);
+		expect(res.status).toBe(200);
+
+		const idxAttThread = calls.findIndex((c) =>
+			c.sql.includes("DELETE FROM attachments WHERE thread_id IN"),
+		);
+		const idxCommentsThread = calls.findIndex((c) =>
+			c.sql.includes("DELETE FROM post_comments WHERE thread_id IN"),
+		);
+		const idxAttPost = calls.findIndex((c) =>
+			c.sql.includes("DELETE FROM attachments WHERE post_id IN"),
+		);
+		const idxCommentsPost = calls.findIndex((c) =>
+			c.sql.includes("DELETE FROM post_comments WHERE post_id IN"),
+		);
+		const idxPosts = calls.findIndex((c) => c.sql.startsWith("DELETE FROM posts WHERE thread_id"));
+		const idxStandalonePosts = calls.findIndex((c) =>
+			c.sql.startsWith("DELETE FROM posts WHERE id IN"),
+		);
+		const idxThreads = calls.findIndex((c) => c.sql.startsWith("DELETE FROM threads WHERE id"));
+
+		expect(idxAttThread).toBeGreaterThanOrEqual(0);
+		expect(idxCommentsThread).toBeGreaterThanOrEqual(0);
+		expect(idxAttPost).toBeGreaterThanOrEqual(0);
+		expect(idxCommentsPost).toBeGreaterThanOrEqual(0);
+		expect(idxPosts).toBeGreaterThan(idxAttThread);
+		expect(idxPosts).toBeGreaterThan(idxCommentsThread);
+		expect(idxThreads).toBeGreaterThan(idxPosts);
+		expect(idxStandalonePosts).toBeGreaterThan(idxAttPost);
+		expect(idxStandalonePosts).toBeGreaterThan(idxCommentsPost);
+
+		// Hardening: standalone parent DELETE must NOT use the
+		// batch-internal sub-query form, which would re-evaluate against
+		// `threads` after the same batch has already deleted them.
+		const drifty = calls.find(
+			(c) =>
+				c.sql.includes("DELETE FROM posts") &&
+				c.sql.includes("author_id") &&
+				c.sql.includes("thread_id NOT IN"),
+		);
+		expect(drifty).toBeUndefined();
+	});
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

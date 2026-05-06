@@ -1176,6 +1176,18 @@ async function deleteUserContent(env: Env, userId: number): Promise<ContentDelet
 		cnt: number;
 	}[];
 
+	// 4b. Snapshot standalone post ids BEFORE the deletion batch — needed by
+	// `buildDeletePostChildStatements` to clear FK children (attachments +
+	// post_comments) keyed on those post ids without sub-querying `posts`
+	// inside the same batch.
+	const standalonePostIdRows = await env.DB.prepare(
+		"SELECT id FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?)",
+	)
+		.bind(userId, userId)
+		.all<{ id: number }>();
+	const standalonePostIds = standalonePostIdRows.results.map((r) => r.id);
+	const userThreadIds = threadRows.map((t) => t.id);
+
 	// 5. Collateral damage: other users' posts in the user's threads
 	const collateralAuthorCounts = new Map<number, number>();
 	if (threadRows.length > 0) {
@@ -1194,6 +1206,15 @@ async function deleteUserContent(env: Env, userId: number): Promise<ContentDelet
 	// Build batch
 	const statements: D1PreparedStatement[] = [];
 
+	// Purge FK children (attachments + post_comments) BEFORE the parent
+	// posts/threads go away. Step 0 above already deleted attachments by
+	// THIS user (`author_id = userId`), but other users' attachments and
+	// all post_comments still reference posts/threads that this batch is
+	// about to delete. Without these prefixes the batch raises a FOREIGN
+	// KEY constraint failure (500). Keyed on snapshot ids gathered above.
+	statements.push(...buildDeleteThreadChildStatements(env, userThreadIds));
+	statements.push(...buildDeletePostChildStatements(env, standalonePostIds));
+
 	// Delete all posts in user's threads (cascade)
 	for (const t of threadRows) {
 		statements.push(env.DB.prepare("DELETE FROM posts WHERE thread_id = ?").bind(t.id));
@@ -1204,12 +1225,19 @@ async function deleteUserContent(env: Env, userId: number): Promise<ContentDelet
 		statements.push(env.DB.prepare("DELETE FROM threads WHERE id = ?").bind(t.id));
 	}
 
-	// Delete user's standalone posts (replies in other threads)
-	statements.push(
-		env.DB.prepare(
-			"DELETE FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?)",
-		).bind(userId, userId),
-	);
+	// Delete user's standalone posts (replies in other threads). Use the
+	// snapshot ids — the previous form
+	// `WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads ...)`
+	// re-evaluates the sub-query against `threads` AFTER this same batch has
+	// already deleted the user's threads, drifting the parent delete set away
+	// from the snapshot the FK child purge above was keyed on. Snapshot id
+	// IN (...) is the only form that keeps both contracts identical.
+	if (standalonePostIds.length > 0) {
+		const ph = standalonePostIds.map(() => "?").join(",");
+		statements.push(
+			env.DB.prepare(`DELETE FROM posts WHERE id IN (${ph})`).bind(...standalonePostIds),
+		);
+	}
 
 	// Update thread reply counts for affected threads
 	for (const row of standaloneThreadRows) {
