@@ -25,8 +25,8 @@ def main() -> None:
     PUBLIC.mkdir(parents=True, exist_ok=True)
     ADMIN_APP.mkdir(parents=True, exist_ok=True)
 
-    # public/ — sidebar and display assets
-    for size in [24, 80]:
+    # public/ — sidebar, display, and login assets
+    for size in [24, 80, 192]:
         resize(img, size).save(PUBLIC / f"logo-{size}.png", "PNG", optimize=True)
 
     # (admin)/ — Next.js file-convention metadata (admin-only favicon)
@@ -50,6 +50,7 @@ def main() -> None:
 
     print("✓ public/logo-24.png (24×24)")
     print("✓ public/logo-80.png (80×80)")
+    print("✓ public/logo-192.png (192×192)")
     print("✓ (admin)/icon.png (32×32)")
     print("✓ (admin)/apple-icon.png (180×180)")
     print("✓ (admin)/favicon.ico (16+32)")

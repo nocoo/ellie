@@ -1,12 +1,12 @@
 "use client";
 
 import { CapWidget } from "@/components/cap-widget";
-import { ForumLogo } from "@/components/forum/forum-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { canSubmitLogin, loginErrorMessage } from "@/viewmodels/forum/auth";
+import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
@@ -139,7 +139,15 @@ function LoginFormInner() {
 					<div className="flex flex-1 flex-col px-6 pt-6 pb-5">
 						{/* Logo */}
 						<div className="flex justify-center mb-6">
-							<ForumLogo height={40} />
+							<div className="h-24 w-24 overflow-hidden rounded-full ring-1 ring-border">
+								<Image
+									src="/logo-192.png"
+									alt="Ellie"
+									width={192}
+									height={192}
+									className="h-full w-full"
+								/>
+							</div>
 						</div>
 
 						<form onSubmit={handleSubmit} className="space-y-4">
