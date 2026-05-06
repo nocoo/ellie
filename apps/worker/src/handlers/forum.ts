@@ -260,7 +260,7 @@ async function listForumsLegacy(env: Env, useKvUserCache: boolean): Promise<Foru
 		};
 		const modIds = parseModeratorIds((r.moderator_ids as string) ?? "");
 		moderatorIdsPerForum[i] = modIds;
-		for (const id of modIds) allModeratorIds.add(id);
+		for (let j = 0; j < modIds.length; j++) allModeratorIds.add(modIds[j]);
 		forumIds[i] = id;
 		forums[i] = forum;
 	}
