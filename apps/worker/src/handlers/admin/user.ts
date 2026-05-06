@@ -427,14 +427,16 @@ export const unban = withEntityAuth(
 			);
 		}
 
-		await env.DB.prepare("UPDATE users SET status = 0 WHERE id = ?").bind(id).run();
-
-		await writeAdminLog(env, resolveActor(request), {
-			action: "user.unban",
-			targetType: "user",
-			targetId: id,
-			details: { previousStatus: existing.status },
-		});
+		// Status UPDATE + audit log are independent.
+		await Promise.all([
+			env.DB.prepare("UPDATE users SET status = 0 WHERE id = ?").bind(id).run(),
+			writeAdminLog(env, resolveActor(request), {
+				action: "user.unban",
+				targetType: "user",
+				targetId: id,
+				details: { previousStatus: existing.status },
+			}),
+		]);
 
 		return jsonResponse({ unbanned: true, id, previousStatus: existing.status }, origin);
 	},
