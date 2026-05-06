@@ -1,15 +1,10 @@
 // Thread handlers for Cloudflare Worker
-import {
-	type Thread,
-	canViewForumVisibility,
-	decodeGenericCursor,
-	encodeGenericCursor,
-} from "@ellie/types";
+import { type Thread, canViewForumVisibility, decodeGenericCursor } from "@ellie/types";
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
 import { enrichThreadsWithUserCache, toThread } from "../lib/mappers";
-import { clampLimit } from "../lib/pagination";
+import { buildNextCursor, clampLimit } from "../lib/pagination";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse, paginatedResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
@@ -221,17 +216,18 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 	}
 
 	// Generate next cursor from raw D1 row (snake_case) — NOT from mapped Thread
-	let nextCursor: string | null = null;
-	if (threads.length === clampedLimit && threads.length > 0) {
-		const lastRawRow = result.results[result.results.length - 1] as unknown as D1ThreadRow;
-		if (lastRawRow) {
-			nextCursor = encodeGenericCursor<ThreadCursorPayload>({
-				sticky: lastRawRow.sticky,
-				lastPostAt: lastRawRow.last_post_at,
-				id: lastRawRow.id,
-			});
-		}
-	}
+	const nextCursor = buildNextCursor<unknown, ThreadCursorPayload>(
+		result.results,
+		clampedLimit,
+		(last) => {
+			const row = last as D1ThreadRow;
+			return {
+				sticky: row.sticky,
+				lastPostAt: row.last_post_at,
+				id: row.id,
+			};
+		},
+	);
 
 	return jsonResponse(threads, origin, { nextCursor });
 }

@@ -157,9 +157,7 @@ export async function batchGet(request: Request, env: Env): Promise<Response> {
 	const placeholders = uniqueIds.map(() => "?").join(",");
 	const [viewer, result] = await Promise.all([
 		viewerPromise,
-		env.DB.prepare(
-			`SELECT ${PUBLIC_USER_COLUMNS}, status FROM users WHERE id IN (${placeholders})`,
-		)
+		env.DB.prepare(`SELECT ${PUBLIC_USER_COLUMNS}, status FROM users WHERE id IN (${placeholders})`)
 			.bind(...uniqueIds)
 			.all<Record<string, unknown>>(),
 	]);

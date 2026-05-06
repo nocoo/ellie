@@ -1,5 +1,33 @@
 // Pagination helpers shared across handlers.
 
+import { encodeGenericCursor } from "@ellie/types";
+
+/**
+ * Build a `nextCursor` token for keyset pagination, or `null` when the page
+ * was not full (i.e. there is no next page).
+ *
+ * Centralises the `if (items.length === limit) encodeGenericCursor({...last})`
+ * boilerplate that was duplicated across every list handler. The `extract`
+ * callback returns the cursor payload built from the last item; this is
+ * typically taken from a raw D1 row (so callers can pass `result.results`)
+ * but works equally well with mapped objects.
+ *
+ * Returns `null` when:
+ *  - the page is shorter than `limit` (no next page)
+ *  - `items` is empty
+ *  - the last element is missing for any reason
+ */
+export function buildNextCursor<TItem, TPayload extends Record<string, unknown>>(
+	items: ArrayLike<TItem>,
+	limit: number,
+	extract: (last: TItem) => TPayload,
+): string | null {
+	if (items.length !== limit || items.length === 0) return null;
+	const last = items[items.length - 1];
+	if (last == null) return null;
+	return encodeGenericCursor<TPayload>(extract(last));
+}
+
 /**
  * Parse a `?limit=` query string value and clamp it to `[1, maxLimit]`.
  *
