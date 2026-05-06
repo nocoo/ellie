@@ -3,6 +3,33 @@
 import { buildJsonHeaders } from "../middleware/cors";
 
 /**
+ * Hot-path variant of {@link jsonResponse} for keyset-cursor list endpoints.
+ * The shape is identical to `jsonResponse(data, origin, { nextCursor })` but
+ * we skip the `...meta` spread by listing all 3 meta fields inline. Saves a
+ * spread + intermediate-object alloc per call — measurable on list endpoints
+ * that fire thousands of times per second.
+ */
+export function jsonListResponse<T>(
+	data: T,
+	origin: string | undefined,
+	nextCursor: string | null,
+): Response {
+	return new Response(
+		JSON.stringify({
+			data,
+			meta: {
+				timestamp: Date.now(),
+				requestId: crypto.randomUUID(),
+				nextCursor,
+			},
+		}),
+		{
+			headers: buildJsonHeaders(origin),
+		},
+	);
+}
+
+/**
  * Build a standard JSON response with { data, meta } envelope.
  */
 export function jsonResponse<T>(
