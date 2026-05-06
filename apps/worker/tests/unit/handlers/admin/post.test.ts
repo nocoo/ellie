@@ -358,9 +358,38 @@ describe("admin post handlers", () => {
 			expect(body.data.deleted).toBe(true);
 			expect(body.data.id).toBe(42);
 
-			// afterDelete hook calls env.DB.batch with thread + forum updates
-			expect(batchCalls.length).toBe(1);
-			expect(batchCalls[0].length).toBe(2); // UPDATE thread, UPDATE forum
+			// beforeDelete: child-row purge batch (attachments + post_comments by post_id)
+			// afterDelete: thread + forum updates batch
+			expect(batchCalls.length).toBe(2);
+			expect(batchCalls[0].length).toBe(2); // DELETE attachments, DELETE post_comments
+			expect(batchCalls[1].length).toBe(2); // UPDATE thread, UPDATE forum
+		});
+
+		it("should purge attachments and post_comments by post_id BEFORE the framework's DELETE FROM posts (FK regression)", async () => {
+			const postRow = makeD1PostRow({ id: 42, thread_id: 5, forum_id: 10, is_first: 0 });
+			const { db, calls } = createMockDb({
+				firstResults: { "SELECT * FROM posts WHERE id": postRow },
+			});
+
+			const res = await remove(
+				new Request("https://api.example.com/api/admin/posts/42", { method: "DELETE" }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+
+			// Order assertion: child-row purges (post_id keyed) must precede the
+			// `DELETE FROM posts WHERE id = ?` issued by createRemoveHandler.
+			const idxAtt = calls.findIndex((c) =>
+				c.sql.includes("DELETE FROM attachments WHERE post_id IN"),
+			);
+			const idxComments = calls.findIndex((c) =>
+				c.sql.includes("DELETE FROM post_comments WHERE post_id IN"),
+			);
+			const idxPost = calls.findIndex((c) => c.sql.startsWith("DELETE FROM posts WHERE id"));
+			expect(idxAtt).toBeGreaterThanOrEqual(0);
+			expect(idxComments).toBeGreaterThanOrEqual(0);
+			expect(idxPost).toBeGreaterThan(idxAtt);
+			expect(idxPost).toBeGreaterThan(idxComments);
 		});
 
 		it("should refuse to delete first post", async () => {
@@ -460,11 +489,44 @@ describe("admin post handlers", () => {
 			const selectCall = calls.find((c) => c.sql.includes("WHERE id IN"));
 			expect(selectCall).toBeDefined();
 
-			// Verify batch: 3 DELETE posts + 2 UPDATE threads + 1 UPDATE forum = 6
-			expect(batchCalls[0].length).toBe(6);
+			// Verify batch: 1 DELETE attachments + 1 DELETE post_comments
+			// + 3 DELETE posts + 2 UPDATE threads + 1 UPDATE forum = 8
+			expect(batchCalls[0].length).toBe(8);
 
 			// Verify user counter decrement batch was also called
 			expect(batchCalls.length).toBeGreaterThanOrEqual(1);
+		});
+
+		it("should purge attachments + post_comments before DELETE FROM posts in batch (FK regression)", async () => {
+			const postRows = [
+				makeD1PostRow({ id: 1, thread_id: 5, forum_id: 10, is_first: 0 }),
+				makeD1PostRow({ id: 2, thread_id: 5, forum_id: 10, is_first: 0 }),
+			];
+			const { db, calls } = createMockDb({
+				allResults: { "SELECT id, thread_id, forum_id, author_id, is_first FROM posts": postRows },
+			});
+
+			const res = await batchDelete(
+				new Request("https://api.example.com/api/admin/posts/batch-delete", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ ids: [1, 2] }),
+				}),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+
+			const idxAtt = calls.findIndex((c) =>
+				c.sql.includes("DELETE FROM attachments WHERE post_id IN"),
+			);
+			const idxComments = calls.findIndex((c) =>
+				c.sql.includes("DELETE FROM post_comments WHERE post_id IN"),
+			);
+			const idxPosts = calls.findIndex((c) => c.sql.startsWith("DELETE FROM posts WHERE id"));
+			expect(idxAtt).toBeGreaterThanOrEqual(0);
+			expect(idxComments).toBeGreaterThanOrEqual(0);
+			expect(idxPosts).toBeGreaterThan(idxAtt);
+			expect(idxPosts).toBeGreaterThan(idxComments);
 		});
 
 		it("should skip first posts and report them", async () => {

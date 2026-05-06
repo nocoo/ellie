@@ -629,11 +629,12 @@ describe("admin thread handlers", () => {
 			expect(body.data.deleted).toBe(true);
 			expect(body.data.postsDeleted).toBe(11);
 
-			// Two batches now: (1) DELETE posts + DELETE thread + UPDATE forum,
-			// and (2) batchDecrementUserPosts for the per-author post-count
-			// updates derived from the GROUP BY.
+			// Two batches now: (1) DELETE attachments + DELETE post_comments
+			// (FK child purge keyed on thread_id) + DELETE posts + DELETE thread
+			// + UPDATE forum, and (2) batchDecrementUserPosts for the per-author
+			// post-count updates derived from the GROUP BY.
 			expect(batchCalls.length).toBe(2);
-			expect(batchCalls[0].length).toBe(3);
+			expect(batchCalls[0].length).toBe(5);
 		});
 
 		it("should return 404 for non-existent thread", async () => {
@@ -760,18 +761,18 @@ describe("admin thread handlers", () => {
 		});
 
 		it("should cascade-delete posts and decrement author counters", async () => {
-			const threadRow = makeD1ThreadRow({ id: 10, forum_id: 5, author_id: 100, replies: 2 });
+			const threadSnapshot = [{ id: 10, forum_id: 5, author_id: 100 }];
+			// New batch handler aggregates per-(thread, author) via GROUP BY
+			// thread_id, author_id (single round-trip across all threads in the
+			// batch) — the per-author totals roll up in JS.
 			const postAuthorRows = [
-				{ author_id: 100, cnt: 1 },
-				{ author_id: 200, cnt: 2 },
+				{ thread_id: 10, author_id: 100, cnt: 1 },
+				{ thread_id: 10, author_id: 200, cnt: 2 },
 			];
 			const { db, calls, batchCalls } = createMockDb({
-				firstResults: {
-					"SELECT * FROM threads WHERE id": threadRow,
-					"SELECT COUNT": { cnt: 3 },
-				},
 				allResults: {
-					"SELECT author_id, COUNT": postAuthorRows,
+					"SELECT id, forum_id, author_id FROM threads WHERE id IN": threadSnapshot,
+					"SELECT thread_id, author_id, COUNT": postAuthorRows,
 				},
 			});
 
@@ -785,13 +786,29 @@ describe("admin thread handlers", () => {
 			expect(body.data.deleted).toBe(true);
 			expect(body.data.count).toBe(1);
 
-			// Verify posts were deleted (afterDelete should DELETE FROM posts WHERE thread_id = ?)
-			const deletePostsCall = calls.find((c) =>
-				c.sql.includes("DELETE FROM posts WHERE thread_id"),
+			// Verify the consolidated batch executed in the right order: child
+			// FK rows first, then posts, then threads. All prepared statements
+			// land in `calls` via .bind(); the batch order is preserved by the
+			// order they were prepared.
+			expect(batchCalls.length).toBeGreaterThanOrEqual(1);
+			const idxAtt = calls.findIndex((c) =>
+				c.sql.includes("DELETE FROM attachments WHERE thread_id IN"),
 			);
-			expect(deletePostsCall).toBeDefined();
+			const idxComments = calls.findIndex((c) =>
+				c.sql.includes("DELETE FROM post_comments WHERE thread_id IN"),
+			);
+			const idxPosts = calls.findIndex((c) =>
+				c.sql.includes("DELETE FROM posts WHERE thread_id IN"),
+			);
+			const idxThreads = calls.findIndex((c) => c.sql.includes("DELETE FROM threads WHERE id IN"));
+			expect(idxAtt).toBeGreaterThanOrEqual(0);
+			expect(idxComments).toBeGreaterThanOrEqual(0);
+			expect(idxPosts).toBeGreaterThan(idxAtt);
+			expect(idxPosts).toBeGreaterThan(idxComments);
+			expect(idxThreads).toBeGreaterThan(idxPosts);
 
-			// Verify user thread counter decremented
+			// Verify user thread counter decremented (single decrementUserThreads
+			// call with count 1 for author 100).
 			const threadCounterCall = calls.find((c) =>
 				c.sql.includes("UPDATE users SET threads = MAX(0, threads - ?)"),
 			);
@@ -1176,17 +1193,15 @@ describe("admin thread handlers", () => {
 		// ─── batchDelete ─────────────────────────────────────────
 
 		it("batch-delete writes one thread.batch_delete row with snapshot ids", async () => {
-			// Snapshot returns existing ids; per-id fetchRowFull returns rows
-			// so the inner CRUD handler counts them as deleted.
-			const threadRow = makeD1ThreadRow({ id: 1, forum_id: 5, replies: 0 });
+			// Snapshot returns existing thread rows; the consolidated batch fans
+			// out child purge → posts → threads in one call.
 			const { db, calls } = createMockDb({
-				firstResults: {
-					"SELECT * FROM threads WHERE id": threadRow,
-					"SELECT COUNT": { cnt: 0 },
-				},
 				allResults: {
-					"SELECT id FROM threads WHERE id IN": [{ id: 1 }, { id: 2 }],
-					"SELECT author_id, COUNT": [],
+					"SELECT id, forum_id, author_id FROM threads WHERE id IN": [
+						{ id: 1, forum_id: 5, author_id: 100 },
+						{ id: 2, forum_id: 5, author_id: 101 },
+					],
+					"SELECT thread_id, author_id, COUNT": [],
 				},
 			});
 			const res = await batchDelete(
@@ -1206,7 +1221,7 @@ describe("admin thread handlers", () => {
 		it("batch-delete with no existing ids does NOT write audit row", async () => {
 			const { db, calls } = createMockDb({
 				allResults: {
-					"SELECT id FROM threads WHERE id IN": [],
+					"SELECT id, forum_id, author_id FROM threads WHERE id IN": [],
 				},
 			});
 			const res = await batchDelete(

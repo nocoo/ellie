@@ -3,13 +3,9 @@
 
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
+import { buildDeleteThreadChildStatements } from "../../lib/contentDelete";
 import type { EntityConfig } from "../../lib/crud";
-import {
-	createBatchDeleteHandler,
-	createGetByIdHandler,
-	createListHandler,
-	createUpdateHandler,
-} from "../../lib/crud";
+import { createGetByIdHandler, createListHandler, createUpdateHandler } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { invalidateForumVolatile } from "../../lib/forum-cache";
 import { toThread } from "../../lib/mappers";
@@ -162,8 +158,17 @@ const threadConfig: EntityConfig = {
 			postsInThread += row.cnt;
 		}
 
-		// Delete orphaned posts + decrement forum counts
+		// Note: this hook only fires from createRemoveHandler/createBatchDeleteHandler,
+		// which run AFTER `DELETE FROM threads WHERE id = ?`. The thread row is
+		// already gone here, so child rows on `posts.thread_id` /
+		// `attachments.thread_id` / `post_comments.thread_id` are technically
+		// orphaned at this point — but the thread teardown paths that use this
+		// CRUD framework (none for threads as of this commit) MUST purge child
+		// rows BEFORE the framework's parent DELETE. We keep the orphan cleanup
+		// here as a safety net since the columns aren't ON DELETE CASCADE and
+		// may pre-exist in the DB.
 		await env.DB.batch([
+			...buildDeleteThreadChildStatements(env, [id]),
 			env.DB.prepare("DELETE FROM posts WHERE thread_id = ?").bind(id),
 			env.DB.prepare(
 				"UPDATE forums SET threads = threads - 1, posts = posts - ? WHERE id = ?",
@@ -348,8 +353,12 @@ export const remove = withEntityAuth(
 			postsDeleted += row.cnt;
 		}
 
-		// Delete all posts, delete thread, decrement forum counts
+		// Delete attachments + post_comments first (FK ON DELETE not declared
+		// CASCADE on attachments/post_comments → must purge before posts/threads
+		// or D1 raises FOREIGN KEY constraint failed).
+		// Then delete all posts, delete thread, decrement forum counts.
 		await env.DB.batch([
+			...buildDeleteThreadChildStatements(env, [id]),
 			env.DB.prepare("DELETE FROM posts WHERE thread_id = ?").bind(id),
 			env.DB.prepare("DELETE FROM threads WHERE id = ?").bind(id),
 			env.DB.prepare(
@@ -384,69 +393,152 @@ export const remove = withEntityAuth(
 );
 
 // ─── Batch delete (#29) ──────────────────────────────────────────
-// Uses CRUD framework's batch delete with beforeDelete to count posts,
-// plus afterDelete hook for forum count adjustments.
-// Note: the CRUD batch delete handler calls beforeDelete/afterDelete per item,
-// but the standard response is {deleted: true, count} which matches the spec.
-//
-// F3-b: wrap so we can snapshot the existing ids before the inner handler
-// deletes them, then audit ONE row per successful batch (not per item).
+// Custom batch handler — cannot delegate to createBatchDeleteHandler because
+// `attachments.thread_id` and `post_comments.thread_id` REFERENCE threads(id)
+// without ON DELETE CASCADE. The framework's per-row pipeline runs
+// `DELETE FROM threads WHERE id = ?` BEFORE its `afterDelete` hook fires,
+// so child rows can never be cleaned ahead of the parent in that path. We
+// build one consolidated batch with the explicit child-purge → posts →
+// threads ordering and then fan out the perf-friendly tail (counters /
+// recalc / cache / audit) like the post.batchDelete sibling.
 
-const batchDeleteInner = createBatchDeleteHandler(threadConfig);
+const THREAD_BATCH_LIMIT = 100;
 
 export const batchDelete = withEntityAuth(
 	threadConfig,
 	async (request: Request, env: Env): Promise<Response> => {
-		// Mirror createBatchDeleteHandler's body parsing so we can snapshot
-		// the real existing set, then re-build the request for the inner.
-		let ids: unknown[] = [];
-		let bodyText = "";
+		const origin = request.headers.get("Origin") ?? undefined;
+
+		let body: Record<string, unknown>;
 		try {
-			bodyText = await request.text();
-			const parsed = JSON.parse(bodyText) as { ids?: unknown[] };
-			if (Array.isArray(parsed?.ids)) ids = parsed.ids;
+			body = (await request.json()) as Record<string, unknown>;
 		} catch {
-			// inner returns its own 400
+			return errorResponse("INVALID_BODY", 400, undefined, origin);
 		}
 
-		const numericIds = ids
-			.map((id) => Number(id))
-			.filter((id): id is number => !Number.isNaN(id))
-			.slice(0, 100);
-
-		let existingIds: number[] = [];
-		if (numericIds.length > 0) {
-			try {
-				const placeholders = numericIds.map(() => "?").join(",");
-				const rows = await env.DB.prepare(`SELECT id FROM threads WHERE id IN (${placeholders})`)
-					.bind(...numericIds)
-					.all<{ id: number }>();
-				existingIds = (rows.results ?? []).map((r) => r.id);
-			} catch {
-				// fall through with []
-			}
+		const { ids } = body;
+		if (!Array.isArray(ids) || ids.length === 0) {
+			return errorResponse(
+				"INVALID_BODY",
+				400,
+				{ message: "ids must be a non-empty array" },
+				origin,
+			);
+		}
+		if (ids.length > THREAD_BATCH_LIMIT) {
+			return errorResponse(
+				"BATCH_LIMIT_EXCEEDED",
+				400,
+				{ message: `Maximum ${THREAD_BATCH_LIMIT} items per batch` },
+				origin,
+			);
 		}
 
-		const innerReq = new Request(request.url, {
-			method: request.method,
-			headers: request.headers,
-			body: bodyText,
-		});
+		// Dedupe + numeric coercion: prevents double-counter-decrement on the
+		// same id and matches the framework's recently added dedupe behavior.
+		const seen = new Set<number>();
+		const numericIds: number[] = [];
+		for (const raw of ids) {
+			const n = Number(raw);
+			if (Number.isNaN(n) || seen.has(n)) continue;
+			seen.add(n);
+			numericIds.push(n);
+		}
+		if (numericIds.length === 0) {
+			return errorResponse(
+				"INVALID_BODY",
+				400,
+				{ message: "ids must contain valid numbers" },
+				origin,
+			);
+		}
 
-		const res = await batchDeleteInner(innerReq, env);
+		// Snapshot the actual existing threads (rows that aren't there shouldn't
+		// land in the audit row or the forum-counter math).
+		const placeholders = numericIds.map(() => "?").join(",");
+		const threadRows = (
+			await env.DB.prepare(
+				`SELECT id, forum_id, author_id FROM threads WHERE id IN (${placeholders})`,
+			)
+				.bind(...numericIds)
+				.all<{ id: number; forum_id: number; author_id: number }>()
+		).results;
 
-		if (res.status >= 200 && res.status < 300 && existingIds.length > 0) {
-			// threadConfig has no beforeDelete skip path — snapshot equals
-			// the deleted set, no need to re-parse the inner response.
-			await writeAdminLog(env, resolveActor(request), {
+		if (threadRows.length === 0) {
+			return jsonResponse({ deleted: true, count: 0 }, origin);
+		}
+
+		const existingIds = threadRows.map((t) => t.id);
+		const existingPlaceholders = existingIds.map(() => "?").join(",");
+
+		// Aggregate per-author post counts across all of these threads in one
+		// round-trip; aggregate per-forum thread counts + total post counts in
+		// the same pass. Used after the batch for counter decrements and forum
+		// recalcs.
+		const postAuthors = await env.DB.prepare(
+			`SELECT thread_id, author_id, COUNT(*) as cnt FROM posts WHERE thread_id IN (${existingPlaceholders}) GROUP BY thread_id, author_id`,
+		)
+			.bind(...existingIds)
+			.all<{ thread_id: number; author_id: number; cnt: number }>();
+
+		const authorCounts = new Map<number, number>();
+		const postsPerThread = new Map<number, number>();
+		for (const row of postAuthors.results) {
+			authorCounts.set(row.author_id, (authorCounts.get(row.author_id) ?? 0) + row.cnt);
+			postsPerThread.set(row.thread_id, (postsPerThread.get(row.thread_id) ?? 0) + row.cnt);
+		}
+
+		const forumThreadCounts = new Map<number, number>();
+		const forumPostCounts = new Map<number, number>();
+		const threadAuthorCounts = new Map<number, number>();
+		for (const t of threadRows) {
+			forumThreadCounts.set(t.forum_id, (forumThreadCounts.get(t.forum_id) ?? 0) + 1);
+			forumPostCounts.set(
+				t.forum_id,
+				(forumPostCounts.get(t.forum_id) ?? 0) + (postsPerThread.get(t.id) ?? 0),
+			);
+			threadAuthorCounts.set(t.author_id, (threadAuthorCounts.get(t.author_id) ?? 0) + 1);
+		}
+
+		// Build batch in strict child→posts→threads→forum order.
+		const statements: D1PreparedStatement[] = [
+			...buildDeleteThreadChildStatements(env, existingIds),
+			env.DB.prepare(`DELETE FROM posts WHERE thread_id IN (${existingPlaceholders})`).bind(
+				...existingIds,
+			),
+			env.DB.prepare(`DELETE FROM threads WHERE id IN (${existingPlaceholders})`).bind(
+				...existingIds,
+			),
+		];
+		for (const [forumId, threadCount] of forumThreadCounts) {
+			const postCount = forumPostCounts.get(forumId) ?? 0;
+			statements.push(
+				env.DB.prepare(
+					"UPDATE forums SET threads = threads - ?, posts = posts - ? WHERE id = ?",
+				).bind(threadCount, postCount, forumId),
+			);
+		}
+
+		await env.DB.batch(statements);
+
+		// Tail fan-out — independent counter decrements + per-forum recalcs +
+		// volatile cache invalidation + audit log.
+		await Promise.all([
+			batchDecrementUserPosts(env, authorCounts),
+			...Array.from(threadAuthorCounts, ([authorId, count]) =>
+				decrementUserThreads(env, authorId, count),
+			),
+			...Array.from(forumThreadCounts.keys(), (forumId) => recalcForumMetadata(env, forumId)),
+			invalidateForumVolatile(env),
+			writeAdminLog(env, resolveActor(request), {
 				action: "thread.batch_delete",
 				targetType: "thread",
 				targetId: null,
 				details: { ids: existingIds, count: existingIds.length },
-			});
-		}
+			}),
+		]);
 
-		return res;
+		return jsonResponse({ deleted: true, count: existingIds.length }, origin);
 	},
 );
 

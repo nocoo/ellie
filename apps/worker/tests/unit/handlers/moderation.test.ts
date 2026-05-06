@@ -730,6 +730,54 @@ describe("DELETE /api/v1/moderation/posts/:id", () => {
 		expect(forumRecalcIdx).toBeGreaterThanOrEqual(0);
 		expect(threadRecalcIdx).toBeLessThan(forumRecalcIdx);
 	});
+
+	it("purges attachments + post_comments by post_id BEFORE DELETE FROM posts (FK regression)", async () => {
+		const token = await makeModToken(1);
+		const { db, calls } = createMockDb({
+			firstResults: {
+				"SELECT id, thread_id, forum_id, author_id, is_first FROM posts": {
+					id: 9,
+					thread_id: 42,
+					forum_id: 7,
+					author_id: 10,
+					is_first: 0,
+				},
+				...mockUser(1, 1, "admin"),
+				...mockForum(7, ""),
+				"SELECT created_at, author_name, author_id": {
+					created_at: 1700001234,
+					author_name: "alice",
+					author_id: 10,
+				},
+				"SELECT id, subject, last_post_at, last_poster, last_poster_id": {
+					id: 42,
+					subject: "t",
+					last_post_at: 1700001234,
+					last_poster: "alice",
+					last_poster_id: 10,
+				},
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = new Request("https://api.example.com/api/v1/moderation/posts/9", {
+			method: "DELETE",
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const res = await deletePost(req, env);
+		expect(res.status).toBe(200);
+
+		const idxAtt = calls.findIndex((c) =>
+			c.sql.includes("DELETE FROM attachments WHERE post_id IN"),
+		);
+		const idxComments = calls.findIndex((c) =>
+			c.sql.includes("DELETE FROM post_comments WHERE post_id IN"),
+		);
+		const idxPost = calls.findIndex((c) => c.sql.startsWith("DELETE FROM posts WHERE id"));
+		expect(idxAtt).toBeGreaterThanOrEqual(0);
+		expect(idxComments).toBeGreaterThanOrEqual(0);
+		expect(idxPost).toBeGreaterThan(idxAtt);
+		expect(idxPost).toBeGreaterThan(idxComments);
+	});
 });
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1759,6 +1807,46 @@ describe("DELETE /api/v1/moderation/threads/:id", () => {
 		});
 		const res = await deleteThread(req, env);
 		expect(res.status).toBe(200);
+	});
+
+	it("purges attachments + post_comments by thread_id BEFORE DELETE FROM posts/threads (FK regression)", async () => {
+		const token = await makeModToken(1);
+		const { db, calls } = createMockDb({
+			firstResults: {
+				"SELECT id, forum_id, author_id, replies FROM threads": {
+					id: 1,
+					forum_id: 1,
+					author_id: 10,
+					replies: 2,
+				},
+				...mockUser(1, 1, "admin"),
+				...mockForum(1, ""),
+			},
+			allResults: {
+				"SELECT author_id FROM posts WHERE thread_id": [{ author_id: 10 }, { author_id: 20 }],
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = new Request("https://api.example.com/api/v1/moderation/threads/1", {
+			method: "DELETE",
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const res = await deleteThread(req, env);
+		expect(res.status).toBe(200);
+
+		const idxAtt = calls.findIndex((c) =>
+			c.sql.includes("DELETE FROM attachments WHERE thread_id IN"),
+		);
+		const idxComments = calls.findIndex((c) =>
+			c.sql.includes("DELETE FROM post_comments WHERE thread_id IN"),
+		);
+		const idxPosts = calls.findIndex((c) => c.sql.includes("DELETE FROM posts WHERE thread_id"));
+		const idxThread = calls.findIndex((c) => c.sql.startsWith("DELETE FROM threads WHERE id"));
+		expect(idxAtt).toBeGreaterThanOrEqual(0);
+		expect(idxComments).toBeGreaterThanOrEqual(0);
+		expect(idxPosts).toBeGreaterThan(idxAtt);
+		expect(idxPosts).toBeGreaterThan(idxComments);
+		expect(idxThread).toBeGreaterThan(idxPosts);
 	});
 });
 
