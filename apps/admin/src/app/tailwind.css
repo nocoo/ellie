@@ -1,6 +1,17 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/*
+ * Tailwind v4 only auto-detects sources inside the project root
+ * (apps/admin/). The shadcn primitives we use for Dialog, DropdownMenu,
+ * Popover, Card, Tabs, Sheet, etc. live in the workspace package
+ * `@ellie/ui` at packages/ui/src/components/, which would otherwise be
+ * skipped — leaving utilities like `bg-popover`, `bg-muted`, `bg-card`,
+ * `ring-border`, `bg-border` unemitted in admin's compiled CSS, with
+ * dialogs/dropdowns/cards rendering with transparent backgrounds.
+ */
+@source "../../../../packages/ui/src/**/*.{ts,tsx}";
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
