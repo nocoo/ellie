@@ -1,75 +1,54 @@
-# Autoresearch: Unit Test Optimization (Speed, Stability, Meaning)
+# Autoresearch Rules — Ellie List Loading Performance
 
-## Summary
+## Goal
+Find and remove performance bottlenecks affecting **list loading** across web,
+admin and worker layers. Refactor duplicated code into shared helpers when it
+helps clarity or hot-path performance, but **do not change behaviour** and
+**do not break tests** (L1, L2, L3).
 
-Optimized unit tests from **4,516ms to ~937ms** (**~79% faster**), removed/strengthened 18 meaningless tests, kept 10/10 stability.
+## Primary Metric
+- `total_µs` from `bun scripts/bench-list.ts` — combined wall time of N
+  iterations of representative list handlers (forum.list + thread.list with
+  varied dataset sizes).
+- Lower is better.
 
-## Final Benchmark Results
+## Secondary Metrics (monitoring only)
+- `forum_list_µs` — per-call time for forum tree list
+- `thread_list_µs` — per-call time for thread list
+- `worker_test_ms` — duration of `bunx vitest run -c apps/worker/vitest.config.ts`
+  on a smoke subset (only run on the gate, not every iteration)
 
-| Metric | Baseline | Final | Change |
-|--------|----------|-------|--------|
-| **total_ms** | 4,516ms | ~937ms | **-79%** |
-| vitest_ms | 2,150ms | ~700ms | -67% |
-| bun_ms | 2,090ms | ~17ms | **-99%** |
-| meaningless_test_count | 19 | 0 | -100% |
-| stability | (untested) | 20/20 pass | ✓ |
-| branch coverage | 91.28% | 91.25% | maintained |
-| statement coverage | 95.57% | 95.57% | maintained |
+## Hard Gates (must pass)
+1. The benchmark itself must finish without errors and JSON output of handlers
+   must keep the same shape (the bench includes a sanity check).
+2. Worker unit tests for the touched handlers must pass:
+   `bunx vitest run -c apps/worker/vitest.config.ts tests/unit/handlers/forum.test.ts tests/unit/handlers/thread.test.ts tests/unit/lib`
+   Run this gate **before keeping** any change that modifies
+   `apps/worker/src/handlers/forum.ts`, `apps/worker/src/handlers/thread.ts`, or
+   anything under `apps/worker/src/lib/`.
+3. Once per ~10 keeps (or before a meaningful refactor PR), run full L1
+   `bun run test` to make sure nothing else regressed.
 
-## Optimizations Applied (Ranked by Impact)
+## Anti-Cheating Guardrails
+- Do **not** short-circuit handlers to skip work for benchmark inputs.
+- Do **not** memoize cross-call (handler must remain stateless per request)
+  unless the cache is also valid in production (KV-backed, TTL'd, etc.).
+- Do **not** edit `scripts/bench-list.ts` to make it cheaper to run unless the
+  change is clearly fairer (e.g. measuring more representative work). Any edit
+  to the bench must keep the same set of operations.
+- Optimisations should generalise: if a change only helps the bench's exact
+  dataset shape, reject it.
+- Behavioural changes require new/updated unit tests in the same commit.
 
-1. **vitest `--experimental.fsModuleCache`** — persistent module cache; transform 5.4s→1.2s, import 7.3s→3.2s on warm runs
-2. **Absolute paths to bun test** — bypasses 2s monorepo scan in bun (`$PWD/path` vs relative)
-3. **Run vitest + bun:test in parallel** — `scripts/run-tests.sh`
-4. **Vitest threads pool + isolate=false** — shares modules across files
-5. **Switch jsdom→happy-dom** in 6 hook test files (saves ~70ms wall)
-6. **Configurable PBKDF2 iterations** — `PBKDF2_ITERATIONS` env var (1000 in tests, 100k in prod) — saves 150ms on password.test.ts
-7. **In-memory SQLite** — loader/verify tests use `:memory:`
-8. **Strengthen weak tests** — `.toBeDefined()` → `.toMatch(/.+/)` / `.toContain()`
-9. **Remove 4 truly duplicate tests** — `dup-body` audit clean
-10. **Add real assertions to 2 NO_ASSERT tests**
-11. **chai.includeStack=false** — minor
+## Useful Commands
+- Bench: `bun scripts/bench-list.ts`
+- Worker handler tests: `bunx vitest run -c apps/worker/vitest.config.ts tests/unit/handlers tests/unit/lib`
+- Full L1: `bun run test`
 
-## Files Changed
-
-- `vitest.config.ts` + 5 project configs — threads pool, isolate=false, chaiConfig
-- `scripts/run-tests.sh` (new) — parallel vitest + bun:test runner with fsModuleCache
-- `scripts/bench-ut.sh` (new) — benchmark script
-- `scripts/audit-tests.mjs` (new) — meaningfulness audit (no-assert / weak-smoke / dup-body within describe)
-- `package.json` — `test` script uses `run-tests.sh`
-- `apps/worker/src/lib/password.ts` — PBKDF2_ITERATIONS env var
-- `apps/worker/vitest.config.ts` — sets test PBKDF2 iterations to 1000
-- `tests/unit/loader.test.ts`, `tests/unit/verify.test.ts` — in-memory SQLite
-- Various `*.test.ts` — strengthened/deduplicated tests
-
-## Failed Experiments
-
-- ❌ `pool: vmThreads` — 4 test failures (mocks don't share state)
-- ❌ `maxWorkers: 8` — 13 test failures (race conditions with isolate=false)
-- ❌ `NODE_ENV=production` — breaks tests
-- ❌ `sequence.concurrent: true` — 176 failures (tests share state)
-- ❌ Separate vitest invocations per project — 6x process startup overhead
-- ❌ `--no-experimental.nodeLoader` — slower
-- ❌ `--no-experimental.viteModuleRunner` — alias resolution breaks
-- ❌ `--experimental.preParse` — adds startup overhead
-- ❌ `optimizeDeps.include` — no measurable gain
-- ❌ `pool: forks` — slower than threads
-
-## Outstanding (deferred — see autoresearch.ideas.md)
-
-- Branch coverage 91.25% < 95% target (would require ~178 new tests across worker/web)
-- Splitting `apps/worker/tests/unit/router.test.ts` (250ms — current floor)
-
-## Benchmark
-
-```bash
-./scripts/bench-ut.sh                     # measure speed
-node scripts/audit-tests.mjs -v           # check meaningfulness
-node_modules/.bin/vitest --clearCache     # reset experimental cache (if stale)
-```
-
-## Run Tests
-
-```bash
-bun run test            # parallel vitest + bun:test with fsModuleCache
-```
+## Notes
+- Worker handlers are mostly pure functions that take `(Request, Env, ctx)` and
+  talk to a mocked `D1Database` in benches. We can therefore measure handler
+  cost directly without a worker runtime.
+- The bench also covers admin/web shared code transitively (mappers,
+  pagination, response builders, censor, visibility) which are imported by the
+  same handlers.
