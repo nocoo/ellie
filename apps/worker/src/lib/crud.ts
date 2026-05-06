@@ -259,17 +259,16 @@ export function createListHandler(config: EntityConfig) {
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid page number" }, origin);
 		}
 
-		const countResult = await env.DB.prepare(
-			`SELECT COUNT(*) as total FROM ${config.table} ${whereClause}`,
-		)
-			.bind(...params)
-			.first<{ total: number }>();
-
-		const result = await env.DB.prepare(
-			`SELECT ${config.columns} FROM ${config.table} ${whereClause} ORDER BY ${sort} LIMIT ? OFFSET ?`,
-		)
-			.bind(...params, limit, (page - 1) * limit)
-			.all();
+		const [countResult, result] = await Promise.all([
+			env.DB.prepare(`SELECT COUNT(*) as total FROM ${config.table} ${whereClause}`)
+				.bind(...params)
+				.first<{ total: number }>(),
+			env.DB.prepare(
+				`SELECT ${config.columns} FROM ${config.table} ${whereClause} ORDER BY ${sort} LIMIT ? OFFSET ?`,
+			)
+				.bind(...params, limit, (page - 1) * limit)
+				.all(),
+		]);
 
 		return paginatedResponse(
 			result.results.map((r) => config.mapper(r as Record<string, unknown>)),
