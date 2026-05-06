@@ -70,9 +70,21 @@ export async function login(request: Request, env: Env): Promise<Response> {
 			return errorResponse("INVALID_REQUEST", 400, { message: "Missing client IP" }, origin);
 		}
 
-		// Check for 24-hour lockout first
 		const ipLockoutKey = `login-lockout-ip:${ip}`;
-		const ipLocked = await env.KV.get(ipLockoutKey);
+		const ipRateLimitKey = `login-ip:${ip}`;
+
+		// Lockout check + hourly rate-limit + user fetch are all independent
+		// reads. Fan them out so the slowest dominates instead of summing the
+		// three round-trips.
+		const [ipLocked, ipAttemptsStr, result] = await Promise.all([
+			env.KV.get(ipLockoutKey),
+			env.KV.get(ipRateLimitKey),
+			env.DB.prepare(
+				"SELECT id, username, password_hash, password_salt, role, status FROM users WHERE username = ?",
+			)
+				.bind(username)
+				.first(),
+		]);
 
 		if (ipLocked) {
 			return errorResponse(
@@ -83,9 +95,6 @@ export async function login(request: Request, env: Env): Promise<Response> {
 			);
 		}
 
-		// Check hourly rate limit (5 attempts per hour per IP)
-		const ipRateLimitKey = `login-ip:${ip}`;
-		const ipAttemptsStr = await env.KV.get(ipRateLimitKey);
 		const ipAttempts = Number.parseInt(ipAttemptsStr ?? "0", 10);
 
 		if (ipAttempts >= 5) {
@@ -98,12 +107,6 @@ export async function login(request: Request, env: Env): Promise<Response> {
 				origin,
 			);
 		}
-
-		// Query user from D1
-		const stmt = env.DB.prepare(
-			"SELECT id, username, password_hash, password_salt, role, status FROM users WHERE username = ?",
-		);
-		const result = await stmt.bind(username).first();
 
 		if (!result) {
 			// Increment rate limit counter on invalid username
