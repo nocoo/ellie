@@ -703,38 +703,31 @@ async function purgePreflight(env: Env, id: number): Promise<PurgePreflight> {
 	}
 
 	const attWhere = buildAuthorContentWhere(id, allDeletedPostIds, ownedThreadIds);
-	// R2 keys (DISTINCT file_path).
-	const r2KeysRes = await env.DB.prepare(
-		`SELECT DISTINCT file_path FROM attachments WHERE ${attWhere.where}`,
-	)
-		.bind(...attWhere.binds)
-		.all();
+
+	// 4 independent counting/listing queries — fan out via Promise.all.
+	// Saves 3 D1 round-trips on the user-purge admin operation.
+	const [r2KeysRes, attCountRow, commentRow, messageCountRow] = await Promise.all([
+		env.DB.prepare(`SELECT DISTINCT file_path FROM attachments WHERE ${attWhere.where}`)
+			.bind(...attWhere.binds)
+			.all(),
+		env.DB.prepare(`SELECT COUNT(DISTINCT id) as cnt FROM attachments WHERE ${attWhere.where}`)
+			.bind(...attWhere.binds)
+			.first<{ cnt: number }>(),
+		env.DB.prepare(`SELECT COUNT(DISTINCT id) as cnt FROM post_comments WHERE ${attWhere.where}`)
+			.bind(...attWhere.binds)
+			.first<{ cnt: number }>(),
+		env.DB.prepare("SELECT COUNT(*) as cnt FROM messages WHERE sender_id = ? OR receiver_id = ?")
+			.bind(id, id)
+			.first<{ cnt: number }>(),
+	]);
+
 	const attachmentKeys = Array.from(
 		new Set(
 			(r2KeysRes.results as unknown as PurgeAttachment[]).map((a) => a.file_path).filter(Boolean),
 		),
 	);
-	// True deleted-row count (DISTINCT id, in case the WHERE matches a row
-	// twice via overlapping branches of the OR).
-	const attCountRow = await env.DB.prepare(
-		`SELECT COUNT(DISTINCT id) as cnt FROM attachments WHERE ${attWhere.where}`,
-	)
-		.bind(...attWhere.binds)
-		.first<{ cnt: number }>();
 	const attachmentCount = attCountRow?.cnt ?? 0;
-
-	const commentRow = await env.DB.prepare(
-		`SELECT COUNT(DISTINCT id) as cnt FROM post_comments WHERE ${attWhere.where}`,
-	)
-		.bind(...attWhere.binds)
-		.first<{ cnt: number }>();
 	const commentCount = commentRow?.cnt ?? 0;
-
-	const messageCountRow = await env.DB.prepare(
-		"SELECT COUNT(*) as cnt FROM messages WHERE sender_id = ? OR receiver_id = ?",
-	)
-		.bind(id, id)
-		.first<{ cnt: number }>();
 	const messageCount = messageCountRow?.cnt ?? 0;
 
 	return {
