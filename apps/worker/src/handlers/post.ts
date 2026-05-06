@@ -274,19 +274,21 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 
 	const postId = postResult.meta.last_row_id;
 
-	// Batch update counts (with last_poster_id)
-	await env.DB.batch([
-		env.DB.prepare(
-			"UPDATE threads SET replies = replies + 1, last_post_at = ?, last_poster = ?, last_poster_id = ? WHERE id = ?",
-		).bind(now, authorName, user.userId, threadId),
-		env.DB.prepare(
-			"UPDATE forums SET posts = posts + 1, last_post_at = ?, last_poster = ?, last_poster_id = ? WHERE id = ?",
-		).bind(now, authorName, user.userId, thread.forum_id),
-		env.DB.prepare("UPDATE users SET posts = posts + 1 WHERE id = ?").bind(user.userId),
+	// Run the counters batch and the createdPost fetch concurrently — the
+	// posts row was already committed by the prior INSERT, so the SELECT
+	// doesn't depend on the batch.
+	const [, createdPost] = await Promise.all([
+		env.DB.batch([
+			env.DB.prepare(
+				"UPDATE threads SET replies = replies + 1, last_post_at = ?, last_poster = ?, last_poster_id = ? WHERE id = ?",
+			).bind(now, authorName, user.userId, threadId),
+			env.DB.prepare(
+				"UPDATE forums SET posts = posts + 1, last_post_at = ?, last_poster = ?, last_poster_id = ? WHERE id = ?",
+			).bind(now, authorName, user.userId, thread.forum_id),
+			env.DB.prepare("UPDATE users SET posts = posts + 1 WHERE id = ?").bind(user.userId),
+		]),
+		env.DB.prepare("SELECT * FROM posts WHERE id = ?").bind(postId).first(),
 	]);
-
-	// Fetch created post
-	const createdPost = await env.DB.prepare("SELECT * FROM posts WHERE id = ?").bind(postId).first();
 
 	return jsonResponse(toPost(createdPost as Record<string, unknown>), origin, undefined, 201);
 });
