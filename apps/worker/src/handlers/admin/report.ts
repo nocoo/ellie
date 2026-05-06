@@ -170,22 +170,21 @@ export const list = withEntityAuth(
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid page number" }, origin);
 		}
 
-		const countResult = await env.DB.prepare(
-			`SELECT COUNT(*) as total FROM reports r ${whereClause}`,
-		)
-			.bind(...params)
-			.first<{ total: number }>();
-
-		// JOIN with per-type tables to get thread_id / title / username
-		const result = await env.DB.prepare(
-			`SELECT ${REPORT_JOIN_COLUMNS}
-			 ${REPORT_JOIN_FROM}
-			 ${whereClause}
-			 ORDER BY r.created_at DESC
-			 LIMIT ? OFFSET ?`,
-		)
-			.bind(...params, limit, (page - 1) * limit)
-			.all();
+		const [countResult, result] = await Promise.all([
+			env.DB.prepare(`SELECT COUNT(*) as total FROM reports r ${whereClause}`)
+				.bind(...params)
+				.first<{ total: number }>(),
+			// JOIN with per-type tables to get thread_id / title / username
+			env.DB.prepare(
+				`SELECT ${REPORT_JOIN_COLUMNS}
+				 ${REPORT_JOIN_FROM}
+				 ${whereClause}
+				 ORDER BY r.created_at DESC
+				 LIMIT ? OFFSET ?`,
+			)
+				.bind(...params, limit, (page - 1) * limit)
+				.all(),
+		]);
 
 		return paginatedResponse(
 			result.results.map((r) => toReportWithJoin(r as Record<string, unknown>)),
