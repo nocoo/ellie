@@ -243,9 +243,11 @@ async function listForumsLegacy(env: Env, useKvUserCache: boolean): Promise<Foru
 export async function list(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 
-	// Get optional user auth for visibility filtering (verified against DB)
-	const user = await optionalAuthVerified(request, env);
-	const visCtx = buildVisibilityContext(user);
+	// Kick off the (verified) auth lookup eagerly. We don't need the result
+	// until the final visibility filter, so it can run in parallel with the
+	// forum data fetch — saves one D1 round-trip on the hot path when the
+	// caller is authenticated.
+	const userPromise = optionalAuthVerified(request, env);
 
 	const useForumKvCache = isForumCacheEnabled(env);
 	const useKvUserCache = isKvUserCacheEnabled(env);
@@ -308,6 +310,10 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 			}
 		}
 	}
+
+	// Now resolve the auth lookup we started at the top.
+	const user = await userPromise;
+	const visCtx = buildVisibilityContext(user);
 
 	// Filter by visibility and active status (both paths converge here)
 	forums = forums.filter((f) => {
