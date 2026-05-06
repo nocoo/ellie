@@ -6,6 +6,7 @@ import { type Env, isKvUserCacheEnabled } from "../lib/env";
 import { enrichThreadsWithUserCache, toThread } from "../lib/mappers";
 import { buildNextCursor, clampLimit } from "../lib/pagination";
 import { checkPostingPermission } from "../lib/postingPermission";
+import { getQueryParam } from "../lib/queryString";
 import { jsonResponse, paginatedResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
 import { getUserProfiles } from "../lib/user-cache";
@@ -183,14 +184,13 @@ function getThreadListQueryWithOffset(useKvCache: boolean): string {
 /** GET /api/v1/threads - List threads with keyset or offset pagination */
 export async function list(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
-	// Parse the query string directly (skip `new URL(...)`). Saves ~0.2 µs per
-	// request vs constructing a full URL just to read 4 search params.
+	// Read query params directly from the raw URL (skip `new URL` + `URLSearchParams`).
+	// Saves ~0.18 µs/request — see `lib/queryString.ts`.
 	const rawUrl = request.url;
-	const qIdx = rawUrl.indexOf("?");
-	const params = new URLSearchParams(qIdx >= 0 ? rawUrl.slice(qIdx + 1) : "");
-	const forumId = params.get("forumId");
-	const cursorStr = params.get("cursor");
-	const pageParam = params.get("page");
+	const forumId = getQueryParam(rawUrl, "forumId");
+	const cursorStr = getQueryParam(rawUrl, "cursor");
+	const pageParam = getQueryParam(rawUrl, "page");
+	const limitParam = getQueryParam(rawUrl, "limit");
 
 	if (!forumId) {
 		return errorResponse("INVALID_REQUEST", 400, { message: "forumId is required" }, origin);
@@ -231,7 +231,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 	}
 
 	// Clamp limit to [1, 100], defaulting to 100
-	const clampedLimit = clampLimit(params.get("limit"), {
+	const clampedLimit = clampLimit(limitParam, {
 		defaultLimit: 100,
 		maxLimit: 100,
 	});
