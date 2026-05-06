@@ -1,6 +1,6 @@
 // Standardized JSON response builders for Cloudflare Worker handlers
 
-import { corsHeaders } from "../middleware/cors";
+import { buildJsonHeaders } from "../middleware/cors";
 
 /**
  * Build a standard JSON response with { data, meta } envelope.
@@ -22,10 +22,7 @@ export function jsonResponse<T>(
 		}),
 		{
 			status,
-			headers: {
-				...corsHeaders(origin),
-				"Content-Type": "application/json",
-			},
+			headers: buildJsonHeaders(origin),
 		},
 	);
 }
