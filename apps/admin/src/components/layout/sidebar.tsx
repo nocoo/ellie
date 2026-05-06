@@ -25,7 +25,6 @@ import {
 	Users,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type ElementType, useState } from "react";
@@ -165,8 +164,8 @@ export function Sidebar() {
 					/* -- Collapsed (icon-only) view -- */
 					<div className="flex h-screen w-[68px] flex-col items-center">
 						{/* Logo */}
-						<div className="flex h-14 w-full items-center justify-start pl-5 pr-3">
-							<Image src="/logo-24.png" alt="Ellie" width={24} height={24} />
+						<div className="flex h-14 w-full items-center justify-start pl-6 pr-3">
+							<img src="/logo-24.png" alt="Ellie" width={24} height={24} className="shrink-0" />
 						</div>
 
 						{/* Expand toggle */}
@@ -241,7 +240,7 @@ export function Sidebar() {
 						<div className="px-3 h-14 flex items-center">
 							<div className="flex w-full items-center justify-between px-3">
 								<div className="flex items-center gap-3">
-									<Image src="/logo-24.png" alt="Ellie" width={24} height={24} />
+									<img src="/logo-24.png" alt="Ellie" width={24} height={24} className="shrink-0" />
 									<span className="text-base font-semibold text-foreground">Ellie</span>
 									<span className="rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground leading-none">
 										{VERSION_DISPLAY}
