@@ -3,7 +3,35 @@
 Ideas surfaced during the list-loading optimisation pass that we chose not to
 pursue in the current session, with rationale.
 
-## Cross-cutting
+## Achievements (this session)
+
+- **Bench `total_µs`**: 270,356 → 247,136 (−8.6% min-of-min)
+- **Production wins** (saved D1 round-trips, not visible in the local bench):
+  - `forum.list`: defer auth + parallelise mod-names / visible-last-thread fetch
+  - `forum.getById`: parallelise 3 metadata queries + defer auth (4 RTTs → 2)
+  - `thread.list`: Promise.all auth + visibility check + cached SQL templates
+  - `thread.getById`: defer auth + parallel forum visibility query
+  - `thread.create`: parallel censor + forum + author lookups (5 → 2 RTTs)
+  - `post.list / getById`: defer auth + parallel visibility check
+  - `post.create`: parallel visibility / position / author (3 reads in 1 hop)
+  - `post-comment.list / create`: defer auth, parallel visibility + author
+  - `search.list`: defer auth + parallel page query / total-count
+  - `user.batchGet / getById`: parallel auth + user-row fetch
+  - `messages.list (inbox)`: parallel page query + unread count
+  - `messages.create`: parallel receiver / sender / 2 censor checks (4 reads)
+  - `digest.filters`: parallel years + forums aggregates
+  - `attachment.verifyThreadVisibility`: defer auth
+  - `admin createListHandler`: parallel COUNT + page query (covers ALL
+    paginated admin lists — forums, threads, posts, users, attachments,
+    ipBan, censorWord, adminLog, announcement, report)
+- **Code-quality refactors**:
+  - `runUserHistoryQuery` extracted from listThreads/listPosts/listDigest
+    (−0 functional change, ~120 lines saved)
+  - `buildNextCursor` helper extracted from 5 list handlers
+    (~40 lines saved, prevents drift on pagination edge cases)
+  - `forum.list` legacy path: 3 `.map()` passes fused into 2 in-place loops
+
+## Cross-cutting (still deferred)
 
 - **Reduce list-payload size**: `forum.list` returns ALL forums (no pagination),
   `thread.list` returns up to 100 threads, each carrying ~22 fields including
