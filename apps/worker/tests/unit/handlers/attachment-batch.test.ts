@@ -31,8 +31,7 @@ describe("batchByPostIds", () => {
 				"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
 			},
 			allResults: {
-				"SELECT id FROM posts WHERE id IN": [{ id: 10 }, { id: 20 }],
-				"SELECT * FROM attachments WHERE post_id IN": [att1, att2, att3],
+				"FROM attachments a": [att1, att2, att3],
 			},
 		});
 		const env = { ...mockEnv, DB: db };
@@ -62,19 +61,18 @@ describe("batchByPostIds", () => {
 				"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
 			},
 			allResults: {
-				"SELECT id FROM posts WHERE id IN": [{ id: 10 }],
-				"SELECT * FROM attachments WHERE post_id IN": [],
+				"FROM attachments a": [],
 			},
 		});
 		const env = { ...mockEnv, DB: db };
 
 		await batchByPostIds(makeRequest({ threadId: 1, postIds: [10, 10, 10] }), env);
 
-		// The posts validation query should only have 1 unique ID
-		const postsQuery = calls.find((c) => c.sql.includes("SELECT id FROM posts"));
-		expect(postsQuery).toBeDefined();
-		// Params: [10 (deduplicated), 1 (threadId)]
-		expect(postsQuery?.params).toEqual([10, 1]);
+		// The combined attachments+posts JOIN should be bound with the
+		// deduplicated post ids followed by threadId.
+		const attQuery = calls.find((c) => c.sql.includes("FROM attachments a"));
+		expect(attQuery).toBeDefined();
+		expect(attQuery?.params).toEqual([10, 1]);
 	});
 
 	it("should return 400 for missing threadId", async () => {
@@ -136,8 +134,7 @@ describe("batchByPostIds", () => {
 			},
 			allResults: {
 				// Only post 10 belongs to thread 1; post 99 does not
-				"SELECT id FROM posts WHERE id IN": [{ id: 10 }],
-				"SELECT * FROM attachments WHERE post_id IN": [att1],
+				"FROM attachments a": [att1],
 			},
 		});
 		const env = { ...mockEnv, DB: db };
@@ -163,8 +160,7 @@ describe("batchByPostIds", () => {
 				"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
 			},
 			allResults: {
-				"SELECT id FROM posts WHERE id IN": [{ id: 10 }],
-				"SELECT * FROM attachments WHERE post_id IN": [att],
+				"FROM attachments a": [att],
 			},
 		});
 		const env = { ...mockEnv, DB: db };
@@ -180,7 +176,7 @@ describe("batchByPostIds", () => {
 		expect(data.data[0].is_image).toBeUndefined();
 	});
 
-	it("should only issue 4 D1 queries for N posts (no N+1)", async () => {
+	it("should only issue 3 D1 queries for N posts (no N+1)", async () => {
 		const postIds = [10, 20, 30, 40, 50];
 		const { db, calls } = createMockDb({
 			firstResults: {
@@ -189,18 +185,17 @@ describe("batchByPostIds", () => {
 			},
 			allResults: {
 				"SELECT id FROM posts WHERE id IN": postIds.map((id) => ({ id })),
-				"SELECT * FROM attachments WHERE post_id IN": [],
+				"FROM attachments a": [],
 			},
 		});
 		const env = { ...mockEnv, DB: db };
 
 		await batchByPostIds(makeRequest({ threadId: 1, postIds }), env);
 
-		// Exactly 4 queries regardless of how many posts:
+		// Exactly 3 queries regardless of how many posts:
 		// 1. SELECT forum_id, sticky FROM threads (thread check)
 		// 2. SELECT status, visibility FROM forums (forum check)
-		// 3. SELECT id FROM posts WHERE id IN (...) (post validation)
-		// 4. SELECT * FROM attachments WHERE post_id IN (...) (actual fetch)
-		expect(calls.length).toBe(4);
+		// 3. JOIN attachments x posts (combined post-validation + fetch)
+		expect(calls.length).toBe(3);
 	});
 });
