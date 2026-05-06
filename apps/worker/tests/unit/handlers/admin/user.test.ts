@@ -476,7 +476,11 @@ describe("admin user handlers", () => {
 
 			// Verify batch was called
 			expect(batchCalls.length).toBe(1);
-			expect(batchCalls[0].length).toBe(9);
+			// 9 base statements + 2 child purges keyed on user's thread_ids
+			// (DELETE attachments + DELETE post_comments) - 1 standalone
+			// posts DELETE skipped because no `SELECT id FROM posts` mock
+			// returns []. So: 9 - 1 + 2 = 10.
+			expect(batchCalls[0].length).toBe(10);
 		});
 
 		it("should return 404 for non-existent user", async () => {
@@ -521,6 +525,72 @@ describe("admin user handlers", () => {
 
 			expect(res.status).toBe(400);
 		});
+
+		it("purges attachments + post_comments by thread_id and post_id BEFORE DELETE FROM posts/threads (FK regression)", async () => {
+			const threadRows = [{ id: 10, forum_id: 1, replies: 1 }];
+			const standalonePostRows = [{ forum_id: 1, cnt: 1 }];
+			const standaloneThreadRows = [{ thread_id: 20, cnt: 1 }];
+			const standalonePostIdRows = [{ id: 77 }];
+
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
+				},
+				allResults: {
+					"SELECT id, forum_id, replies FROM threads WHERE author_id": threadRows,
+					"SELECT forum_id, COUNT(*) as cnt FROM posts": standalonePostRows,
+					"SELECT thread_id, COUNT(*) as cnt FROM posts": standaloneThreadRows,
+					"SELECT id FROM posts WHERE author_id": standalonePostIdRows,
+				},
+			});
+
+			const res = await ban(
+				createAdminRequest("POST", "/api/admin/users/42/ban", { deleteContent: true }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+
+			const idxAttThread = calls.findIndex((c) =>
+				c.sql.includes("DELETE FROM attachments WHERE thread_id IN"),
+			);
+			const idxCommentsThread = calls.findIndex((c) =>
+				c.sql.includes("DELETE FROM post_comments WHERE thread_id IN"),
+			);
+			const idxAttPost = calls.findIndex((c) =>
+				c.sql.includes("DELETE FROM attachments WHERE post_id IN"),
+			);
+			const idxCommentsPost = calls.findIndex((c) =>
+				c.sql.includes("DELETE FROM post_comments WHERE post_id IN"),
+			);
+			const idxPosts = calls.findIndex((c) =>
+				c.sql.startsWith("DELETE FROM posts WHERE thread_id"),
+			);
+			const idxStandalonePosts = calls.findIndex((c) =>
+				c.sql.startsWith("DELETE FROM posts WHERE id IN"),
+			);
+			const idxThreads = calls.findIndex((c) => c.sql.startsWith("DELETE FROM threads WHERE id"));
+
+			expect(idxAttThread).toBeGreaterThanOrEqual(0);
+			expect(idxCommentsThread).toBeGreaterThanOrEqual(0);
+			expect(idxAttPost).toBeGreaterThanOrEqual(0);
+			expect(idxCommentsPost).toBeGreaterThanOrEqual(0);
+			expect(idxPosts).toBeGreaterThan(idxAttThread);
+			expect(idxPosts).toBeGreaterThan(idxCommentsThread);
+			expect(idxThreads).toBeGreaterThan(idxPosts);
+			expect(idxStandalonePosts).toBeGreaterThan(idxAttPost);
+			expect(idxStandalonePosts).toBeGreaterThan(idxCommentsPost);
+
+			// Hardening: standalone parent DELETE must NOT use the
+			// batch-internal sub-query form, which would re-evaluate against
+			// `threads` after the same batch has already deleted them.
+			const drifty = calls.find(
+				(c) =>
+					c.sql.includes("DELETE FROM posts") &&
+					c.sql.includes("author_id") &&
+					c.sql.includes("thread_id NOT IN"),
+			);
+			expect(drifty).toBeUndefined();
+		});
 	});
 
 	// ─── nuke ─────────────────────────────────────────────────
@@ -553,7 +623,11 @@ describe("admin user handlers", () => {
 
 			// Verify batch was called
 			expect(batchCalls.length).toBe(1);
-			expect(batchCalls[0].length).toBe(6);
+			// 6 base statements + 2 child purges keyed on user's thread_ids
+			// (DELETE attachments + DELETE post_comments) - 1 standalone
+			// posts DELETE skipped because no `SELECT id FROM posts` mock
+			// returns []. So: 6 - 1 + 2 = 7.
+			expect(batchCalls[0].length).toBe(7);
 		});
 
 		it("should return 404 for non-existent user", async () => {
@@ -586,9 +660,9 @@ describe("admin user handlers", () => {
 			expect(body.data.threadsDeleted).toBe(0);
 			expect(body.data.postsDeleted).toBe(0);
 
-			// Batch: 1 delete standalone posts = 1 statement
-			expect(batchCalls.length).toBe(1);
-			expect(batchCalls[0].length).toBe(1);
+			// No threads, no standalone posts → empty `statements` → batch
+			// is skipped entirely (no_op no-op DELETE).
+			expect(batchCalls.length).toBe(0);
 		});
 
 		it("should reject invalid user ID", async () => {

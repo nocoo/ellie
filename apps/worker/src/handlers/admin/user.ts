@@ -1,5 +1,9 @@
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
+import {
+	buildDeletePostChildStatements,
+	buildDeleteThreadChildStatements,
+} from "../../lib/contentDelete";
 import type { EntityConfig } from "../../lib/crud";
 import { createGetByIdHandler, createListHandler, createUpdateHandler } from "../../lib/crud";
 import type { Env } from "../../lib/env";
@@ -176,26 +180,40 @@ interface ContentDeletionResult {
 }
 
 async function deleteUserContent(env: Env, userId: number): Promise<ContentDeletionResult> {
-	// 1. Fetch threads, standalone posts (grouped by forum), and standalone
-	// posts (grouped by thread) in parallel — all three are independent
-	// SELECT-only queries against the same userId. Halves the D1 round-trip
-	// latency on a heavy admin operation.
-	const [threads, standalonePosts, standaloneThreadUpdates] = await Promise.all([
-		env.DB.prepare("SELECT id, forum_id, replies FROM threads WHERE author_id = ?")
-			.bind(userId)
-			.all(),
-		env.DB.prepare(
-			"SELECT forum_id, COUNT(*) as cnt FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?) GROUP BY forum_id",
-		)
-			.bind(userId, userId)
-			.all(),
-		env.DB.prepare(
-			"SELECT thread_id, COUNT(*) as cnt FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?) GROUP BY thread_id",
-		)
-			.bind(userId, userId)
-			.all(),
-	]);
+	// 1. Fetch threads, standalone posts (grouped by forum), standalone posts
+	// (grouped by thread), and standalone post ids in parallel — all four are
+	// independent SELECT-only queries against the same userId. Halves the D1
+	// round-trip latency on a heavy admin operation.
+	//
+	// The standalone post id snapshot must be taken BEFORE the deletion batch
+	// runs so that `buildDeletePostChildStatements` can clear FK children
+	// (attachments + post_comments) keyed on those post ids — these tables
+	// reference posts WITHOUT ON DELETE CASCADE, and embedding a SELECT
+	// against `posts` inside the same batch would see post-delete state.
+	const [threads, standalonePosts, standaloneThreadUpdates, standalonePostIdRows] =
+		await Promise.all([
+			env.DB.prepare("SELECT id, forum_id, replies FROM threads WHERE author_id = ?")
+				.bind(userId)
+				.all(),
+			env.DB.prepare(
+				"SELECT forum_id, COUNT(*) as cnt FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?) GROUP BY forum_id",
+			)
+				.bind(userId, userId)
+				.all(),
+			env.DB.prepare(
+				"SELECT thread_id, COUNT(*) as cnt FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?) GROUP BY thread_id",
+			)
+				.bind(userId, userId)
+				.all(),
+			env.DB.prepare(
+				"SELECT id FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?)",
+			)
+				.bind(userId, userId)
+				.all<{ id: number }>(),
+		]);
 	const threadRows = threads.results as { id: number; forum_id: number; replies: number }[];
+	const userThreadIds = threadRows.map((t) => t.id);
+	const standalonePostIds = standalonePostIdRows.results.map((r) => r.id);
 
 	// 2. Group forum impact from user's threads (thread count + all posts in those threads)
 	const forumThreadCounts = new Map<number, number>();
@@ -230,6 +248,14 @@ async function deleteUserContent(env: Env, userId: number): Promise<ContentDelet
 	// Build batch
 	const statements: D1PreparedStatement[] = [];
 
+	// Purge FK children (attachments + post_comments) BEFORE the parent
+	// posts/threads go away. Neither child column is ON DELETE CASCADE, so
+	// any DELETE FROM posts/threads here without these prefixes raises a
+	// FOREIGN KEY constraint failure (500). Keyed on snapshot ids gathered
+	// above — never sub-query the same tables we're mutating in this batch.
+	statements.push(...buildDeleteThreadChildStatements(env, userThreadIds));
+	statements.push(...buildDeletePostChildStatements(env, standalonePostIds));
+
 	// Delete all posts in user's threads (cascade)
 	for (const t of threadRows) {
 		statements.push(env.DB.prepare("DELETE FROM posts WHERE thread_id = ?").bind(t.id));
@@ -240,12 +266,19 @@ async function deleteUserContent(env: Env, userId: number): Promise<ContentDelet
 		statements.push(env.DB.prepare("DELETE FROM threads WHERE id = ?").bind(t.id));
 	}
 
-	// Delete user's standalone posts (replies in other threads)
-	statements.push(
-		env.DB.prepare(
-			"DELETE FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?)",
-		).bind(userId, userId),
-	);
+	// Delete user's standalone posts (replies in other threads). Use the
+	// snapshot ids — the previous form
+	// `WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads ...)`
+	// re-evaluates the sub-query against `threads` AFTER this same batch has
+	// already deleted the user's threads, drifting the parent delete set away
+	// from the snapshot the FK child purge above was keyed on. Snapshot id
+	// IN (...) is the only form that keeps both contracts identical.
+	if (standalonePostIds.length > 0) {
+		const ph = standalonePostIds.map(() => "?").join(",");
+		statements.push(
+			env.DB.prepare(`DELETE FROM posts WHERE id IN (${ph})`).bind(...standalonePostIds),
+		);
+	}
 
 	// Update thread reply counts for affected threads
 	for (const row of standaloneThreadRows) {
