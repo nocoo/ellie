@@ -450,26 +450,31 @@ export function createBatchDeleteHandler(config: EntityConfig) {
 			);
 		}
 
-		let count = 0;
-		for (const id of numericIds) {
-			const existing = await fetchRowFull(env, config.table, id);
-			if (!existing) continue;
+		// Each id is independent — fan out the per-row delete pipeline so
+		// large batches don't pay N round-trips of latency. Hooks (before/after
+		// delete) are still invoked per row.
+		const results = await Promise.all(
+			numericIds.map(async (id) => {
+				const existing = await fetchRowFull(env, config.table, id);
+				if (!existing) return 0;
 
-			if (config.beforeDelete) {
-				const hookResult = await config.beforeDelete(
-					id,
-					existing as Record<string, unknown>,
-					env,
-					origin,
-				);
-				if (hookResult instanceof Response) continue;
-			}
+				if (config.beforeDelete) {
+					const hookResult = await config.beforeDelete(
+						id,
+						existing as Record<string, unknown>,
+						env,
+						origin,
+					);
+					if (hookResult instanceof Response) return 0;
+				}
 
-			await env.DB.prepare(`DELETE FROM ${config.table} WHERE id = ?`).bind(id).run();
-			if (config.afterDelete)
-				await config.afterDelete(id, existing as Record<string, unknown>, env, origin);
-			count++;
-		}
+				await env.DB.prepare(`DELETE FROM ${config.table} WHERE id = ?`).bind(id).run();
+				if (config.afterDelete)
+					await config.afterDelete(id, existing as Record<string, unknown>, env, origin);
+				return 1;
+			}),
+		);
+		const count = results.reduce((sum, n) => sum + n, 0);
 
 		return jsonResponse({ deleted: true, count }, origin);
 	};
