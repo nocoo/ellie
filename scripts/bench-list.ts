@@ -276,7 +276,7 @@ async function sanityCheck() {
 async function main() {
 	await sanityCheck();
 
-	const ITERS = Number.parseInt(process.env.BENCH_ITERS ?? "1500", 10);
+	const ITERS = Number.parseInt(process.env.BENCH_ITERS ?? "5000", 10);
 
 	const fEnv = makeEnv(makeForumListDb());
 	const forumReq = new Request("https://example.com/api/v1/forums");
