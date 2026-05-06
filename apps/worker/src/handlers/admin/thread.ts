@@ -147,24 +147,20 @@ const threadConfig: EntityConfig = {
 		const forumId = existing.forum_id as number;
 		const authorId = existing.author_id as number;
 
-		// Query post authors before deleting orphaned posts
+		// Query post authors before deleting orphaned posts. The total post
+		// count for the thread is the sum of these per-author counts, so we
+		// avoid a separate SELECT COUNT(*) round-trip.
 		const postAuthors = await env.DB.prepare(
 			"SELECT author_id, COUNT(*) as cnt FROM posts WHERE thread_id = ? GROUP BY author_id",
 		)
 			.bind(id)
 			.all();
 		const authorCounts = new Map<number, number>();
+		let postsInThread = 0;
 		for (const row of postAuthors.results as { author_id: number; cnt: number }[]) {
 			authorCounts.set(row.author_id, row.cnt);
+			postsInThread += row.cnt;
 		}
-
-		// Count posts for forum counter adjustment
-		const countResult = await env.DB.prepare(
-			"SELECT COUNT(*) as cnt FROM posts WHERE thread_id = ?",
-		)
-			.bind(id)
-			.first<{ cnt: number }>();
-		const postsInThread = countResult?.cnt ?? 0;
 
 		// Delete orphaned posts + decrement forum counts
 		await env.DB.batch([
