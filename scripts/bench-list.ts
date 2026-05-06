@@ -215,6 +215,7 @@ function makeEnv(db: D1Database) {
 		KV: makeKv(),
 		R2: {} as unknown as R2Bucket,
 		USE_KV_USER_CACHE: "false",
+		// biome-ignore lint/suspicious/noExplicitAny: bench harness partial env mock
 	} as any;
 }
 
@@ -245,11 +246,10 @@ async function sanityCheck() {
 	const fEnv = makeEnv(makeForumListDb());
 	const fRes = await forumList(new Request("https://example.com/api/v1/forums"), fEnv, ctx);
 	if (fRes.status !== 200) throw new Error(`forum list status ${fRes.status}`);
+	// biome-ignore lint/suspicious/noExplicitAny: bench sanity check
 	const fJson: any = await fRes.json();
 	if (!Array.isArray(fJson.data) || fJson.data.length !== FORUM_COUNT) {
-		throw new Error(
-			`forum list shape: expected ${FORUM_COUNT} forums, got ${fJson.data?.length}`,
-		);
+		throw new Error(`forum list shape: expected ${FORUM_COUNT} forums, got ${fJson.data?.length}`);
 	}
 	const f0 = fJson.data[0];
 	for (const k of ["id", "name", "moderatorList", "lastPostAt", "todayThreads"]) {
@@ -263,9 +263,10 @@ async function sanityCheck() {
 		ctx,
 	);
 	if (tRes.status !== 200) throw new Error(`thread list status ${tRes.status}`);
+	// biome-ignore lint/suspicious/noExplicitAny: bench sanity check
 	const tJson: any = await tRes.json();
 	if (!Array.isArray(tJson.data) || tJson.data.length === 0) {
-		throw new Error(`thread list shape: empty data`);
+		throw new Error("thread list shape: empty data");
 	}
 	const t0 = tJson.data[0];
 	for (const k of ["id", "forumId", "authorId", "subject", "lastPostAt"]) {
@@ -294,13 +295,18 @@ async function main() {
 	let idx = 0;
 	const thread = await timeAsync("thread_list", ITERS, async () => {
 		idx = (idx % FORUM_COUNT) + 1;
+		// biome-ignore lint/style/noNonNullAssertion: map is pre-populated for all indices
 		await threadList(threadReqs.get(idx)!, tEnvs.get(idx)!, ctx);
 	});
 
 	const totalUs = forum.totalUs + thread.totalUs;
 
-	console.log(`forum_list  iters=${forum.iters}  total=${forum.totalUs.toFixed(0)}µs  per=${forum.perUs.toFixed(1)}µs`);
-	console.log(`thread_list iters=${thread.iters}  total=${thread.totalUs.toFixed(0)}µs  per=${thread.perUs.toFixed(1)}µs`);
+	console.log(
+		`forum_list  iters=${forum.iters}  total=${forum.totalUs.toFixed(0)}µs  per=${forum.perUs.toFixed(1)}µs`,
+	);
+	console.log(
+		`thread_list iters=${thread.iters}  total=${thread.totalUs.toFixed(0)}µs  per=${thread.perUs.toFixed(1)}µs`,
+	);
 	console.log(`combined total=${totalUs.toFixed(0)}µs`);
 
 	console.log(`METRIC total_µs=${totalUs.toFixed(0)}`);

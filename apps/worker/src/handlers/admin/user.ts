@@ -1159,9 +1159,7 @@ export const recalcCounters = withEntityAuth(
 			env.DB.prepare("SELECT COUNT(*) as cnt FROM posts WHERE author_id = ?")
 				.bind(id)
 				.first<{ cnt: number }>(),
-			env.DB.prepare(
-				"SELECT COUNT(*) as cnt FROM threads WHERE author_id = ? AND digest > 0",
-			)
+			env.DB.prepare("SELECT COUNT(*) as cnt FROM threads WHERE author_id = ? AND digest > 0")
 				.bind(id)
 				.first<{ cnt: number }>(),
 		]);
