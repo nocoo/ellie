@@ -451,17 +451,16 @@ export async function checkUsername(request: Request, env: Env): Promise<Respons
 		return errorResponse("RATE_LIMITED", 429, undefined, origin);
 	}
 
-	// Censor word check
-	const censorResult = await checkCensorWords(username, env);
+	// Censor + DB uniqueness check are independent — fire in parallel.
+	const [censorResult, existing] = await Promise.all([
+		checkCensorWords(username, env),
+		env.DB.prepare("SELECT 1 FROM users WHERE username = ?").bind(username).first(),
+	]);
+
 	if (censorResult.matched && censorResult.action === "ban") {
 		await env.KV.put(rateLimitKey, String(currentCount + 1), { expirationTtl: 60 });
 		return jsonResponse({ available: false, reason: "banned" }, origin);
 	}
-
-	// Database uniqueness check
-	const existing = await env.DB.prepare("SELECT 1 FROM users WHERE username = ?")
-		.bind(username)
-		.first();
 
 	if (existing) {
 		await env.KV.put(rateLimitKey, String(currentCount + 1), { expirationTtl: 60 });
