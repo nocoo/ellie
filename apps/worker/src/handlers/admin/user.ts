@@ -1145,23 +1145,20 @@ export const recalcCounters = withEntityAuth(
 		}
 
 		// Count threads authored by user
-		const threadsRow = await env.DB.prepare(
-			"SELECT COUNT(*) as cnt FROM threads WHERE author_id = ?",
-		)
-			.bind(id)
-			.first<{ cnt: number }>();
-
-		// Count posts authored by user
-		const postsRow = await env.DB.prepare("SELECT COUNT(*) as cnt FROM posts WHERE author_id = ?")
-			.bind(id)
-			.first<{ cnt: number }>();
-
-		// Count digest threads authored by user
-		const digestRow = await env.DB.prepare(
-			"SELECT COUNT(*) as cnt FROM threads WHERE author_id = ? AND digest > 0",
-		)
-			.bind(id)
-			.first<{ cnt: number }>();
+		// Three independent counts — fan out via Promise.all.
+		const [threadsRow, postsRow, digestRow] = await Promise.all([
+			env.DB.prepare("SELECT COUNT(*) as cnt FROM threads WHERE author_id = ?")
+				.bind(id)
+				.first<{ cnt: number }>(),
+			env.DB.prepare("SELECT COUNT(*) as cnt FROM posts WHERE author_id = ?")
+				.bind(id)
+				.first<{ cnt: number }>(),
+			env.DB.prepare(
+				"SELECT COUNT(*) as cnt FROM threads WHERE author_id = ? AND digest > 0",
+			)
+				.bind(id)
+				.first<{ cnt: number }>(),
+		]);
 
 		const threads = threadsRow?.cnt ?? 0;
 		const posts = postsRow?.cnt ?? 0;
