@@ -462,25 +462,25 @@ export const nuke = withEntityAuth(
 		// Nuke = ban + delete content + zero credits (always deletes content)
 		const result = await deleteUserContent(env, id);
 
-		// Update user: ban + zero all counters + zero credits
-		await env.DB.prepare(
-			"UPDATE users SET status = -1, threads = 0, posts = 0, credits = 0 WHERE id = ?",
-		)
-			.bind(id)
-			.run();
-
-		// Invalidate volatile cache (massive counts change from content deletion)
-		await invalidateForumVolatile(env);
-
-		await writeAdminLog(env, resolveActor(request), {
-			action: "user.nuke",
-			targetType: "user",
-			targetId: id,
-			details: {
-				deletedThreads: result.threadsDeleted,
-				deletedPosts: result.postsDeleted,
-			},
-		});
+		// User-counter zeroing UPDATE, volatile-cache invalidation, and the
+		// audit-log write are all independent. Fan out.
+		await Promise.all([
+			env.DB.prepare(
+				"UPDATE users SET status = -1, threads = 0, posts = 0, credits = 0 WHERE id = ?",
+			)
+				.bind(id)
+				.run(),
+			invalidateForumVolatile(env),
+			writeAdminLog(env, resolveActor(request), {
+				action: "user.nuke",
+				targetType: "user",
+				targetId: id,
+				details: {
+					deletedThreads: result.threadsDeleted,
+					deletedPosts: result.postsDeleted,
+				},
+			}),
+		]);
 
 		return jsonResponse(
 			{
