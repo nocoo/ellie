@@ -38,9 +38,11 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid threadId" }, origin);
 	}
 
-	// Check forum visibility before listing posts (verified against DB)
-	const user = await optionalAuthVerified(request, env);
-	const visCtx = buildVisibilityContext(user);
+	// Kick off the (verified) auth lookup eagerly. We don't need the result
+	// until the visibility check, so it can run in parallel with the
+	// thread→forum JOIN query — saves one D1 round-trip on the hot path when
+	// the caller is authenticated.
+	const userPromise = optionalAuthVerified(request, env);
 
 	// Single JOIN query: thread → forum (replaces 2 serial queries)
 	const row = await env.DB.prepare(
@@ -51,6 +53,9 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	)
 		.bind(threadIdNum)
 		.first<{ forum_id: number; sticky: number; status: number; visibility: string }>();
+
+	const user = await userPromise;
+	const visCtx = buildVisibilityContext(user);
 
 	if (!row || row.sticky < 0) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
