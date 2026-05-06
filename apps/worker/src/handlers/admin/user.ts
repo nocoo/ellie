@@ -289,12 +289,11 @@ async function deleteUserContent(env: Env, userId: number): Promise<ContentDelet
 	for (const row of standaloneRows) {
 		allAffectedForumIds.add(row.forum_id);
 	}
-	for (const forumId of allAffectedForumIds) {
-		await recalcForumMetadata(env, forumId);
-	}
-	for (const row of standaloneThreadRows) {
-		await recalcThreadMetadata(env, row.thread_id);
-	}
+	// Recalc forum + thread metadata for everything affected, in parallel.
+	await Promise.all([
+		...Array.from(allAffectedForumIds, (forumId) => recalcForumMetadata(env, forumId)),
+		...standaloneThreadRows.map((row) => recalcThreadMetadata(env, row.thread_id)),
+	]);
 
 	// Decrement collateral authors' post counts (other users' posts in deleted threads)
 	await batchDecrementUserPosts(env, collateralAuthorCounts);
@@ -844,12 +843,11 @@ async function purgeR2Cleanup(
 }
 
 async function runPurgeRecalc(env: Env, pre: PurgePreflight): Promise<void> {
-	for (const tid of pre.survivorThreadIds) {
-		await recalcThreadMetadata(env, tid);
-	}
-	for (const fid of pre.affectedForumIds) {
-		await recalcForumMetadata(env, fid);
-	}
+	// Survivor-thread + affected-forum recalcs are independent — fan out.
+	await Promise.all([
+		...pre.survivorThreadIds.map((tid) => recalcThreadMetadata(env, tid)),
+		...Array.from(pre.affectedForumIds, (fid) => recalcForumMetadata(env, fid)),
+	]);
 }
 
 export const purge = withEntityAuth(
@@ -913,11 +911,14 @@ export const purge = withEntityAuth(
 			);
 		}
 
-		await invalidateForumVolatile(env);
-		await invalidateUserCache(env, id);
-		for (const authorId of pre.collateralAuthorDelta.keys()) {
-			await invalidateUserCache(env, authorId);
-		}
+		// Cache invalidations are all independent (different keys) — fan out.
+		await Promise.all([
+			invalidateForumVolatile(env),
+			invalidateUserCache(env, id),
+			...Array.from(pre.collateralAuthorDelta.keys(), (authorId) =>
+				invalidateUserCache(env, authorId),
+			),
+		]);
 
 		const r2Keys = Array.from(
 			new Set([...pre.attachmentKeys, ...(target.avatar_path ? [target.avatar_path] : [])]),
