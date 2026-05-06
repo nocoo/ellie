@@ -440,7 +440,19 @@ export function createBatchDeleteHandler(config: EntityConfig) {
 			);
 		}
 
-		const numericIds = ids.map((id) => Number(id)).filter((id) => !Number.isNaN(id));
+		// Dedupe ids before fan-out: with a parallel pipeline, two concurrent
+		// runs against the same id would both observe the row as existing, both
+		// DELETE (idempotent), and both invoke `afterDelete` — which for hooks
+		// that decrement counts (e.g. admin/thread.batchDelete) would
+		// double-decrement. Keep insertion order for stable response shape.
+		const seen = new Set<number>();
+		const numericIds: number[] = [];
+		for (const id of ids) {
+			const n = Number(id);
+			if (Number.isNaN(n) || seen.has(n)) continue;
+			seen.add(n);
+			numericIds.push(n);
+		}
 		if (numericIds.length === 0) {
 			return errorResponse(
 				"INVALID_BODY",
