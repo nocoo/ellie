@@ -245,17 +245,17 @@ export async function refresh(request: Request, env: Env): Promise<Response> {
 			return errorResponse("USER_BANNED", 403, undefined, origin);
 		}
 
-		// Rotate: delete old refresh token, create new one
-		await env.KV.delete(`refresh:${refreshToken}`);
-
+		// Rotate: delete old refresh token + create new one + sign JWT in
+		// parallel — the three operations are independent of each other.
 		const newRefreshToken = crypto.randomUUID();
-		await env.KV.put(`refresh:${newRefreshToken}`, String(user.id), {
-			expirationTtl: 30 * 24 * 60 * 60,
-		});
-
-		// Generate new JWT (7 days)
 		const exp = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
-		const token = await createJwt({ userId: user.id, role: user.role, exp }, env.JWT_SECRET);
+		const [, , token] = await Promise.all([
+			env.KV.delete(`refresh:${refreshToken}`),
+			env.KV.put(`refresh:${newRefreshToken}`, String(user.id), {
+				expirationTtl: 30 * 24 * 60 * 60,
+			}),
+			createJwt({ userId: user.id, role: user.role, exp }, env.JWT_SECRET),
+		]);
 
 		return new Response(
 			JSON.stringify({
