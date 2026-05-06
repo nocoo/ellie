@@ -12,8 +12,8 @@ import { getUserProfiles } from "../lib/user-cache";
 import { THREAD_VISIBLE, buildVisibilityContext, isForumActive } from "../lib/visibility";
 
 // Forum handlers for Cloudflare Worker
+import { jsonResponse } from "../lib/response";
 import { optionalAuthVerified } from "../middleware/auth";
-import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
 /** Fetch moderator names by IDs in a single query (batched for SQLite limits) */
@@ -326,21 +326,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		return canViewForumVisibility(f.visibility as ForumVisibility, visCtx);
 	});
 
-	return new Response(
-		JSON.stringify({
-			data: forums,
-			meta: {
-				timestamp: Date.now(),
-				requestId: crypto.randomUUID(),
-			},
-		}),
-		{
-			headers: {
-				...corsHeaders(origin),
-				"Content-Type": "application/json",
-			},
-		},
-	);
+	return jsonResponse(forums, origin);
 }
 
 /** GET /api/v1/forums/:id - Get forum by ID */
@@ -449,21 +435,7 @@ export async function getById(
 		forum = enrichForumsWithUserCache([forum], userCache)[0] ?? forum;
 	}
 
-	return new Response(
-		JSON.stringify({
-			data: forum,
-			meta: {
-				timestamp: Date.now(),
-				requestId: crypto.randomUUID(),
-			},
-		}),
-		{
-			headers: {
-				...corsHeaders(origin),
-				"Content-Type": "application/json",
-			},
-		},
-	);
+	return jsonResponse(forum, origin);
 }
 
 // ─── Ancestors endpoint ─────────────────────────────────────────────
@@ -564,22 +536,5 @@ export async function getAncestors(
 		moderatorList: target.moderatorList,
 	};
 
-	return new Response(
-		JSON.stringify({
-			data: {
-				forum: forumContext,
-				ancestors,
-			},
-			meta: {
-				timestamp: Date.now(),
-				requestId: crypto.randomUUID(),
-			},
-		}),
-		{
-			headers: {
-				...corsHeaders(origin),
-				"Content-Type": "application/json",
-			},
-		},
-	);
+	return jsonResponse({ forum: forumContext, ancestors }, origin);
 }
