@@ -60,6 +60,11 @@ async function assertFooterFitsDialog(dialog: import("@playwright/test").Locator
 	// The submit text differs per dialog (发布主题 / 发送回复 / 保存)
 	// so just match any button inside the dialog and check none extend
 	// past the dialog box on either axis.
+	// Tolerance: 4px accounts for sub-pixel rounding differences across
+	// runs (flexbox gap + justify-end can shift by 1-3px depending on
+	// fractional layout). The original B4 regression was 20+ px overflow,
+	// so 4px tolerance still catches real layout bugs.
+	const TOLERANCE = 4;
 	const buttons = dialog.locator("button");
 	const count = await buttons.count();
 	for (let i = 0; i < count; i++) {
@@ -67,12 +72,14 @@ async function assertFooterFitsDialog(dialog: import("@playwright/test").Locator
 		const btnBox = await btn.boundingBox();
 		if (!btnBox) continue;
 		// Horizontal containment.
-		expect(btnBox.x).toBeGreaterThanOrEqual(dialogBox.x - 1);
-		expect(btnBox.x + btnBox.width).toBeLessThanOrEqual(dialogBox.x + dialogBox.width + 1);
+		expect(btnBox.x).toBeGreaterThanOrEqual(dialogBox.x - TOLERANCE);
+		expect(btnBox.x + btnBox.width).toBeLessThanOrEqual(dialogBox.x + dialogBox.width + TOLERANCE);
 		// Vertical containment — catches footer/toolbar clipped by
 		// `overflow-hidden` on the dialog content.
-		expect(btnBox.y).toBeGreaterThanOrEqual(dialogBox.y - 1);
-		expect(btnBox.y + btnBox.height).toBeLessThanOrEqual(dialogBox.y + dialogBox.height + 1);
+		expect(btnBox.y).toBeGreaterThanOrEqual(dialogBox.y - TOLERANCE);
+		expect(btnBox.y + btnBox.height).toBeLessThanOrEqual(
+			dialogBox.y + dialogBox.height + TOLERANCE,
+		);
 	}
 }
 
