@@ -4,6 +4,7 @@
 
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
+import { buildDeletePostChildStatements } from "../../lib/contentDelete";
 import type { EntityConfig } from "../../lib/crud";
 import {
 	createGetByIdHandler,
@@ -49,7 +50,7 @@ const postConfig: EntityConfig = {
 		},
 	],
 	canDelete: true,
-	beforeDelete: async (_id, existing, _env, origin) => {
+	beforeDelete: async (id, existing, env, origin) => {
 		if ((existing as { is_first: number }).is_first === 1) {
 			return errorResponse(
 				"CANNOT_DELETE_FIRST_POST",
@@ -59,6 +60,14 @@ const postConfig: EntityConfig = {
 				},
 				origin,
 			);
+		}
+		// Purge attachments/post_comments BEFORE the framework's
+		// `DELETE FROM posts WHERE id = ?` runs in createRemoveHandler. Both
+		// child tables REFERENCE posts(id) without ON DELETE CASCADE, so
+		// skipping this prefix turns the next DELETE into a 500.
+		const childStmts = buildDeletePostChildStatements(env, [id]);
+		if (childStmts.length > 0) {
+			await env.DB.batch(childStmts);
 		}
 		return undefined;
 	},
@@ -276,6 +285,11 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env) => {
 
 	// Build batch statements
 	const statements: D1PreparedStatement[] = [];
+
+	// Purge child rows (attachments + post_comments) keyed on post_id BEFORE
+	// the parent posts go away, otherwise the next DELETE trips FK 500.
+	const deletableIds = deletable.map((p) => p.id);
+	statements.push(...buildDeletePostChildStatements(env, deletableIds));
 
 	for (const p of deletable) {
 		statements.push(env.DB.prepare("DELETE FROM posts WHERE id = ?").bind(p.id));

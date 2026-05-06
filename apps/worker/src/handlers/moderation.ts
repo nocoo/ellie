@@ -18,6 +18,10 @@ import {
 	canModerate,
 	canMoveThread,
 } from "@ellie/types";
+import {
+	buildDeletePostChildStatements,
+	buildDeleteThreadChildStatements,
+} from "../lib/contentDelete";
 import type { Env } from "../lib/env";
 import { invalidateForumVolatile } from "../lib/forum-cache";
 import { parseIdFromPath, parsePathSegment } from "../lib/parseId";
@@ -396,8 +400,11 @@ export async function deletePost(request: Request, env: Env): Promise<Response> 
 		);
 	}
 
-	// Delete post, decrement thread replies and forum post count
+	// Delete post (purge attachments + post_comments first — both reference
+	// posts(id) without ON DELETE CASCADE so the parent DELETE would 500),
+	// decrement thread replies and forum post count.
 	await env.DB.batch([
+		...buildDeletePostChildStatements(env, [id]),
 		env.DB.prepare("DELETE FROM posts WHERE id = ?").bind(id),
 		env.DB.prepare("UPDATE threads SET replies = replies - 1 WHERE id = ?").bind(post.thread_id),
 		env.DB.prepare("UPDATE forums SET posts = posts - 1 WHERE id = ?").bind(post.forum_id),
@@ -591,9 +598,11 @@ export async function deleteThread(request: Request, env: Env): Promise<Response
 
 	const totalPosts = thread.replies + 1;
 
-	// Delete thread and all posts, update forum counts
+	// Delete thread and all posts, update forum counts. Purge child rows
+	// (attachments + post_comments) keyed on thread_id BEFORE the parent
+	// posts/threads go away — neither child column is ON DELETE CASCADE.
 	await env.DB.batch([
-		env.DB.prepare("DELETE FROM attachments WHERE thread_id = ?").bind(id),
+		...buildDeleteThreadChildStatements(env, [id]),
 		env.DB.prepare("DELETE FROM posts WHERE thread_id = ?").bind(id),
 		env.DB.prepare("DELETE FROM threads WHERE id = ?").bind(id),
 		env.DB.prepare("UPDATE forums SET threads = threads - 1, posts = posts - ? WHERE id = ?").bind(
