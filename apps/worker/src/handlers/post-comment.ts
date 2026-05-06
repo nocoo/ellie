@@ -154,23 +154,28 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 	}
 	content = censorResult.content;
 
-	// Single JOIN query: post → thread → forum (replaces 3 serial queries)
-	const row = await env.DB.prepare(
-		`SELECT p.thread_id, t.closed, t.sticky, t.forum_id, f.status, f.visibility
-		 FROM posts p
-		 JOIN threads t ON t.id = p.thread_id
-		 JOIN forums f ON f.id = t.forum_id
-		 WHERE p.id = ? AND p.invisible = 0`,
-	)
-		.bind(postId)
-		.first<{
-			thread_id: number;
-			closed: number;
-			sticky: number;
-			forum_id: number;
-			status: number;
-			visibility: string;
-		}>();
+	// Visibility JOIN + author-name lookup are independent — fire in parallel.
+	const [row, authorRow] = await Promise.all([
+		env.DB.prepare(
+			`SELECT p.thread_id, t.closed, t.sticky, t.forum_id, f.status, f.visibility
+			 FROM posts p
+			 JOIN threads t ON t.id = p.thread_id
+			 JOIN forums f ON f.id = t.forum_id
+			 WHERE p.id = ? AND p.invisible = 0`,
+		)
+			.bind(postId)
+			.first<{
+				thread_id: number;
+				closed: number;
+				sticky: number;
+				forum_id: number;
+				status: number;
+				visibility: string;
+			}>(),
+		env.DB.prepare("SELECT username FROM users WHERE id = ?")
+			.bind(user.userId)
+			.first<{ username: string }>(),
+	]);
 
 	if (!row || row.sticky < 0) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
@@ -198,10 +203,6 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		);
 	}
 
-	// Fetch author name from users table
-	const authorRow = await env.DB.prepare("SELECT username FROM users WHERE id = ?")
-		.bind(user.userId)
-		.first<{ username: string }>();
 	const authorName = authorRow?.username ?? `user_${user.userId}`;
 
 	const now = Math.floor(Date.now() / 1000);
