@@ -638,20 +638,19 @@ export const reorder = withEntityAuth(
 
 		await env.DB.batch(statements);
 
-		// Invalidate forum tree cache (display order is in tree)
-		await invalidateForumCacheAll(env);
-
-		// F3-c: only audit when something actually changed. No-op reorders
-		// (all ids missing or all display_order already match) skip the
-		// admin_logs row entirely.
-		if (changedRows.length > 0) {
-			await writeAdminLog(env, resolveActor(request), {
-				action: "forum.reorder",
-				targetType: "forum",
-				targetId: null,
-				details: { count: changedRows.length, orders: changedRows },
-			});
-		}
+		// Invalidate forum tree cache + write audit row (when there are
+		// actual changes) in parallel — they're independent.
+		await Promise.all([
+			invalidateForumCacheAll(env),
+			changedRows.length > 0
+				? writeAdminLog(env, resolveActor(request), {
+						action: "forum.reorder",
+						targetType: "forum",
+						targetId: null,
+						details: { count: changedRows.length, orders: changedRows },
+					})
+				: Promise.resolve(),
+		]);
 
 		return jsonResponse({ updated: true, count: orders.length }, origin);
 	},
