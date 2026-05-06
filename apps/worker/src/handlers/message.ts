@@ -124,9 +124,21 @@ export const list = withAuthVerified(async (request, env, user) => {
 		bindings = [user.userId, clampedLimit];
 	}
 
-	const result = await env.DB.prepare(query)
+	// Run the message page query and (for inbox) the unread-count query in
+	// parallel — they're independent, and D1 round-trip latency dominates.
+	const messagesPromise = env.DB.prepare(query)
 		.bind(...bindings)
 		.all<MessageRow>();
+
+	const unreadCountPromise = isInbox
+		? env.DB.prepare(
+				"SELECT COUNT(*) as count FROM messages WHERE receiver_id = ? AND is_read = 0 AND receiver_deleted = 0",
+			)
+				.bind(user.userId)
+				.first<{ count: number }>()
+		: null;
+
+	const result = await messagesPromise;
 	const messages = result.results.map(toMessageListItem);
 
 	// Generate next cursor
@@ -136,14 +148,9 @@ export const list = withAuthVerified(async (request, env, user) => {
 		nextCursor = encodeGenericCursor<MessageCursor>({ createdAt: last.created_at, id: last.id });
 	}
 
-	// Get unread count (inbox only)
 	let unreadCount: number | undefined;
-	if (isInbox) {
-		const countResult = await env.DB.prepare(
-			"SELECT COUNT(*) as count FROM messages WHERE receiver_id = ? AND is_read = 0 AND receiver_deleted = 0",
-		)
-			.bind(user.userId)
-			.first<{ count: number }>();
+	if (unreadCountPromise) {
+		const countResult = await unreadCountPromise;
 		unreadCount = countResult?.count ?? 0;
 	}
 

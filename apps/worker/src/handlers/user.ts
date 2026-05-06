@@ -43,6 +43,70 @@ function parseUserIdFromParent(url: URL): number {
 	return Number.parseInt(parts[parts.length - 2] ?? "0", 10);
 }
 
+/**
+ * Shared scaffolding for the user history endpoints (`listThreads`,
+ * `listPosts`, `listDigest`). They all follow the same pattern:
+ *   1. parse + validate `userId`
+ *   2. resolve verified auth + visibility context
+ *   3. clamp `limit`, decode optional cursor
+ *   4. run a 2-form keyset query (with / without cursor)
+ *   5. map rows + emit `nextCursor`
+ * Centralising it removes ~120 lines of near-identical code and makes
+ * adding a new history endpoint a one-liner.
+ */
+async function runUserHistoryQuery<T extends { createdAt: number; id: number }>(
+	request: Request,
+	env: Env,
+	opts: {
+		buildQuery: (forumFilter: string, withCursor: boolean) => string;
+		mapper: (row: Record<string, unknown>) => T;
+	},
+): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+	const url = new URL(request.url);
+	const userId = parseUserIdFromParent(url);
+
+	if (Number.isNaN(userId) || userId <= 0) {
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid userId" }, origin);
+	}
+
+	const user = await optionalAuthVerified(request, env);
+	const visCtx = buildVisibilityContext(user);
+	const forumFilter = buildForumFilter(visCtx);
+
+	const clampedLimit = clampLimit(url.searchParams.get("limit"), {
+		defaultLimit: DEFAULT_HISTORY_LIMIT,
+		maxLimit: MAX_HISTORY_LIMIT,
+	});
+	const cursorStr = url.searchParams.get("cursor");
+	const cursor = cursorStr
+		? decodeGenericCursor<UserHistoryCursor>(cursorStr, isHistoryCursor)
+		: null;
+
+	const query = opts.buildQuery(forumFilter, cursor !== null);
+	const result: D1Result = cursor
+		? await env.DB.prepare(query)
+				.bind(userId, cursor.createdAt, cursor.createdAt, cursor.id, clampedLimit)
+				.all()
+		: await env.DB.prepare(query).bind(userId, clampedLimit).all();
+
+	const items: T[] = new Array(result.results.length);
+	for (let i = 0; i < result.results.length; i++) {
+		items[i] = opts.mapper(result.results[i] as Record<string, unknown>);
+	}
+
+	let nextCursor: string | null = null;
+	if (items.length === clampedLimit && items.length > 0) {
+		const last = items[items.length - 1];
+		nextCursor = encodeGenericCursor<UserHistoryCursor>({
+			createdAt: last.createdAt,
+			id: last.id,
+		});
+	}
+
+	return jsonResponse(items, origin, { nextCursor });
+}
+
 // ─── Handlers ────────────────────────────────────────────────
 
 /** Max IDs per batch request */
@@ -175,175 +239,58 @@ export async function getAvatarPath(request: Request, env: Env): Promise<Respons
 
 /** GET /api/v1/users/:id/threads - List user's threads with keyset pagination */
 export async function listThreads(request: Request, env: Env): Promise<Response> {
-	const origin = request.headers.get("Origin") ?? undefined;
-	const url = new URL(request.url);
-	const userId = parseUserIdFromParent(url);
-
-	if (Number.isNaN(userId) || userId <= 0) {
-		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid userId" }, origin);
-	}
-
-	// Get user auth for visibility filtering (verified against DB)
-	const user = await optionalAuthVerified(request, env);
-	const visCtx = buildVisibilityContext(user);
-	const forumFilter = buildForumFilter(visCtx);
-
-	const clampedLimit = clampLimit(url.searchParams.get("limit"), {
-		defaultLimit: DEFAULT_HISTORY_LIMIT,
-		maxLimit: MAX_HISTORY_LIMIT,
+	return runUserHistoryQuery(request, env, {
+		buildQuery: (forumFilter, withCursor) =>
+			withCursor
+				? `SELECT t.* FROM threads t
+				   INNER JOIN forums f ON t.forum_id = f.id
+				   WHERE t.author_id = ? AND ${threadVisible("t")} AND ${forumFilter}
+				   AND (t.created_at < ? OR (t.created_at = ? AND t.id < ?))
+				   ORDER BY t.created_at DESC, t.id DESC LIMIT ?`
+				: `SELECT t.* FROM threads t
+				   INNER JOIN forums f ON t.forum_id = f.id
+				   WHERE t.author_id = ? AND ${threadVisible("t")} AND ${forumFilter}
+				   ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
+		mapper: (row) => toThread(row),
 	});
-	const cursorStr = url.searchParams.get("cursor");
-	const cursor = cursorStr
-		? decodeGenericCursor<UserHistoryCursor>(cursorStr, isHistoryCursor)
-		: null;
-
-	let result: D1Result;
-	if (cursor) {
-		result = await env.DB.prepare(
-			`SELECT t.* FROM threads t
-			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE t.author_id = ? AND ${threadVisible("t")} AND ${forumFilter}
-			 AND (t.created_at < ? OR (t.created_at = ? AND t.id < ?))
-			 ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
-		)
-			.bind(userId, cursor.createdAt, cursor.createdAt, cursor.id, clampedLimit)
-			.all();
-	} else {
-		result = await env.DB.prepare(
-			`SELECT t.* FROM threads t
-			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE t.author_id = ? AND ${threadVisible("t")} AND ${forumFilter}
-			 ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
-		)
-			.bind(userId, clampedLimit)
-			.all();
-	}
-
-	const threads = result.results.map((row) => toThread(row as Record<string, unknown>));
-
-	let nextCursor: string | null = null;
-	if (threads.length === clampedLimit && threads.length > 0) {
-		const last = threads[threads.length - 1];
-		nextCursor = encodeGenericCursor<UserHistoryCursor>({ createdAt: last.createdAt, id: last.id });
-	}
-
-	return jsonResponse(threads, origin, { nextCursor });
 }
 
 /** GET /api/v1/users/:id/posts - List user's posts with keyset pagination */
 export async function listPosts(request: Request, env: Env): Promise<Response> {
-	const origin = request.headers.get("Origin") ?? undefined;
-	const url = new URL(request.url);
-	const userId = parseUserIdFromParent(url);
-
-	if (Number.isNaN(userId) || userId <= 0) {
-		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid userId" }, origin);
-	}
-
-	// Get user auth for visibility filtering (verified against DB)
-	const user = await optionalAuthVerified(request, env);
-	const visCtx = buildVisibilityContext(user);
-	const forumFilter = buildForumFilter(visCtx);
-
-	const clampedLimit = clampLimit(url.searchParams.get("limit"), {
-		defaultLimit: DEFAULT_HISTORY_LIMIT,
-		maxLimit: MAX_HISTORY_LIMIT,
+	return runUserHistoryQuery(request, env, {
+		buildQuery: (forumFilter, withCursor) =>
+			withCursor
+				? `SELECT p.* FROM posts p
+				   INNER JOIN threads t ON p.thread_id = t.id
+				   INNER JOIN forums f ON t.forum_id = f.id
+				   WHERE p.author_id = ? AND ${postVisible("p")} AND ${threadVisible("t")} AND ${forumFilter}
+				   AND (p.created_at < ? OR (p.created_at = ? AND p.id < ?))
+				   ORDER BY p.created_at DESC, p.id DESC LIMIT ?`
+				: `SELECT p.* FROM posts p
+				   INNER JOIN threads t ON p.thread_id = t.id
+				   INNER JOIN forums f ON t.forum_id = f.id
+				   WHERE p.author_id = ? AND ${postVisible("p")} AND ${threadVisible("t")} AND ${forumFilter}
+				   ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
+		mapper: (row) => toPost(row),
 	});
-	const cursorStr = url.searchParams.get("cursor");
-	const cursor = cursorStr
-		? decodeGenericCursor<UserHistoryCursor>(cursorStr, isHistoryCursor)
-		: null;
-
-	let result: D1Result;
-	if (cursor) {
-		result = await env.DB.prepare(
-			`SELECT p.* FROM posts p
-			 INNER JOIN threads t ON p.thread_id = t.id
-			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE p.author_id = ? AND ${postVisible("p")} AND ${threadVisible("t")} AND ${forumFilter}
-			 AND (p.created_at < ? OR (p.created_at = ? AND p.id < ?))
-			 ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
-		)
-			.bind(userId, cursor.createdAt, cursor.createdAt, cursor.id, clampedLimit)
-			.all();
-	} else {
-		result = await env.DB.prepare(
-			`SELECT p.* FROM posts p
-			 INNER JOIN threads t ON p.thread_id = t.id
-			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE p.author_id = ? AND ${postVisible("p")} AND ${threadVisible("t")} AND ${forumFilter}
-			 ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
-		)
-			.bind(userId, clampedLimit)
-			.all();
-	}
-
-	const posts = result.results.map((row) => toPost(row as Record<string, unknown>));
-
-	let nextCursor: string | null = null;
-	if (posts.length === clampedLimit && posts.length > 0) {
-		const last = posts[posts.length - 1];
-		nextCursor = encodeGenericCursor<UserHistoryCursor>({ createdAt: last.createdAt, id: last.id });
-	}
-
-	return jsonResponse(posts, origin, { nextCursor });
 }
 
 /** GET /api/v1/users/:id/digest - List user's digest threads with keyset pagination */
 export async function listDigest(request: Request, env: Env): Promise<Response> {
-	const origin = request.headers.get("Origin") ?? undefined;
-	const url = new URL(request.url);
-	const userId = parseUserIdFromParent(url);
-
-	if (Number.isNaN(userId) || userId <= 0) {
-		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid userId" }, origin);
-	}
-
-	// Get user auth for visibility filtering (verified against DB)
-	const user = await optionalAuthVerified(request, env);
-	const visCtx = buildVisibilityContext(user);
-	const forumFilter = buildForumFilter(visCtx);
-
-	const clampedLimit = clampLimit(url.searchParams.get("limit"), {
-		defaultLimit: DEFAULT_HISTORY_LIMIT,
-		maxLimit: MAX_HISTORY_LIMIT,
+	return runUserHistoryQuery(request, env, {
+		buildQuery: (forumFilter, withCursor) =>
+			withCursor
+				? `SELECT t.* FROM threads t
+				   INNER JOIN forums f ON t.forum_id = f.id
+				   WHERE t.author_id = ? AND t.digest > 0 AND ${threadVisible("t")} AND ${forumFilter}
+				   AND (t.created_at < ? OR (t.created_at = ? AND t.id < ?))
+				   ORDER BY t.created_at DESC, t.id DESC LIMIT ?`
+				: `SELECT t.* FROM threads t
+				   INNER JOIN forums f ON t.forum_id = f.id
+				   WHERE t.author_id = ? AND t.digest > 0 AND ${threadVisible("t")} AND ${forumFilter}
+				   ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
+		mapper: (row) => toThread(row),
 	});
-	const cursorStr = url.searchParams.get("cursor");
-	const cursor = cursorStr
-		? decodeGenericCursor<UserHistoryCursor>(cursorStr, isHistoryCursor)
-		: null;
-
-	let result: D1Result;
-	if (cursor) {
-		result = await env.DB.prepare(
-			`SELECT t.* FROM threads t
-			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE t.author_id = ? AND t.digest > 0 AND ${threadVisible("t")} AND ${forumFilter}
-			 AND (t.created_at < ? OR (t.created_at = ? AND t.id < ?))
-			 ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
-		)
-			.bind(userId, cursor.createdAt, cursor.createdAt, cursor.id, clampedLimit)
-			.all();
-	} else {
-		result = await env.DB.prepare(
-			`SELECT t.* FROM threads t
-			 INNER JOIN forums f ON t.forum_id = f.id
-			 WHERE t.author_id = ? AND t.digest > 0 AND ${threadVisible("t")} AND ${forumFilter}
-			 ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
-		)
-			.bind(userId, clampedLimit)
-			.all();
-	}
-
-	const threads = result.results.map((row) => toThread(row as Record<string, unknown>));
-
-	let nextCursor: string | null = null;
-	if (threads.length === clampedLimit && threads.length > 0) {
-		const last = threads[threads.length - 1];
-		nextCursor = encodeGenericCursor<UserHistoryCursor>({ createdAt: last.createdAt, id: last.id });
-	}
-
-	return jsonResponse(threads, origin, { nextCursor });
 }
 
 /**

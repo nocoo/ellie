@@ -195,28 +195,29 @@ export async function filters(request: Request, env: Env): Promise<Response> {
 	const visCtx = buildVisibilityContext(user);
 	const forumFilter = buildForumVisibilityFilter(visCtx);
 
-	// Get distinct years from visible digest threads in visible forums
-	const yearsResult = await env.DB.prepare(
-		`SELECT DISTINCT strftime('%Y', t.created_at, 'unixepoch') as year
-		 FROM threads t
-		 INNER JOIN forums f ON t.forum_id = f.id
-		 WHERE t.digest > 0 AND ${threadVisible("t")} AND ${forumActive("f")} AND ${forumFilter}
-		 ORDER BY year DESC`,
-	).all<{ year: string }>();
+	// Two independent aggregate queries — run in parallel to halve the
+	// D1 round-trip cost on this filter endpoint.
+	const [yearsResult, forumsResult] = await Promise.all([
+		env.DB.prepare(
+			`SELECT DISTINCT strftime('%Y', t.created_at, 'unixepoch') as year
+			 FROM threads t
+			 INNER JOIN forums f ON t.forum_id = f.id
+			 WHERE t.digest > 0 AND ${threadVisible("t")} AND ${forumActive("f")} AND ${forumFilter}
+			 ORDER BY year DESC`,
+		).all<{ year: string }>(),
+		env.DB.prepare(
+			`SELECT f.id, f.name, COUNT(t.id) as digest_count
+			 FROM threads t
+			 INNER JOIN forums f ON t.forum_id = f.id
+			 WHERE t.digest > 0 AND ${threadVisible("t")} AND ${forumActive("f")} AND ${forumFilter}
+			 GROUP BY f.id, f.name
+			 ORDER BY f.name`,
+		).all<{ id: number; name: string; digest_count: number }>(),
+	]);
 
 	const years = yearsResult.results
 		.map((r) => Number.parseInt(r.year, 10))
 		.filter((y) => !Number.isNaN(y));
-
-	// Get forums that have visible digest threads (with count)
-	const forumsResult = await env.DB.prepare(
-		`SELECT f.id, f.name, COUNT(t.id) as digest_count
-		 FROM threads t
-		 INNER JOIN forums f ON t.forum_id = f.id
-		 WHERE t.digest > 0 AND ${threadVisible("t")} AND ${forumActive("f")} AND ${forumFilter}
-		 GROUP BY f.id, f.name
-		 ORDER BY f.name`,
-	).all<{ id: number; name: string; digest_count: number }>();
 
 	const forums = forumsResult.results.map((r) => ({
 		id: r.id,
