@@ -29,6 +29,11 @@ async function verifyThreadVisibility(
 	origin?: string,
 	notFoundCode = "THREAD_NOT_FOUND",
 ): Promise<{ allowed: true; forumId: number } | { allowed: false; response: Response }> {
+	// Auth lookup is independent of the thread/forum chain — fire it eagerly
+	// so it overlaps with the thread + forum queries below. Saves one D1 RTT
+	// in production when the caller is logged in.
+	const userPromise = optionalAuthVerified(request, env);
+
 	// Check thread visibility (sticky >= 0)
 	const thread = await db
 		.prepare("SELECT forum_id, sticky FROM threads WHERE id = ?")
@@ -49,8 +54,8 @@ async function verifyThreadVisibility(
 		return { allowed: false, response: errorResponse(notFoundCode, 404, undefined, origin) };
 	}
 
-	// Get user auth for visibility check (verified against DB)
-	const user = await optionalAuthVerified(request, env);
+	// Resolve auth (already in-flight)
+	const user = await userPromise;
 	const visCtx = buildVisibilityContext(user);
 
 	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
