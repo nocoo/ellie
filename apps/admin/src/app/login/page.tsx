@@ -1,6 +1,7 @@
 "use client";
 
 import { ThemeToggle } from "@/components/theme-toggle";
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { signInWithGoogle } from "./actions";
@@ -125,9 +126,15 @@ function LoginContent() {
 
 						{/* Badge content */}
 						<div className="flex flex-1 flex-col items-center px-6 pt-6 pb-5">
-							{/* Logo placeholder */}
-							<div className="h-24 w-24 overflow-hidden rounded-full bg-secondary dark:bg-background ring-1 ring-border flex items-center justify-center">
-								<span className="text-3xl font-bold text-primary">E</span>
+							{/* Logo */}
+							<div className="h-24 w-24 overflow-hidden rounded-full bg-secondary dark:bg-background ring-1 ring-border">
+								<Image
+									src="/logo-192.png"
+									alt="Ellie"
+									width={192}
+									height={192}
+									className="h-full w-full"
+								/>
 							</div>
 
 							<p className="mt-5 text-lg font-semibold text-foreground">管理控制台</p>
