@@ -581,11 +581,11 @@ export const batchMove = withEntityAuth(
 
 		await env.DB.batch(statements);
 
-		// Recalc metadata for all affected forums (old ones + target)
-		for (const forumId of forumAdjustments.keys()) {
-			await recalcForumMetadata(env, forumId);
-		}
-		await recalcForumMetadata(env, targetForumId);
+		// Recalc metadata for all affected forums (old ones + target) in parallel.
+		await Promise.all([
+			...Array.from(forumAdjustments.keys(), (forumId) => recalcForumMetadata(env, forumId)),
+			recalcForumMetadata(env, targetForumId),
+		]);
 		await invalidateForumVolatile(env);
 
 		// F3-b: audit one row for the entire successful batch. fromForumIds
