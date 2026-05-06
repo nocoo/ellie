@@ -523,24 +523,24 @@ export const merge = withEntityAuth(
 
 		await env.DB.batch(statements);
 
-		// Recalc target forum metadata after merge
-		await recalcForumMetadata(env, targetForumId as number);
-
-		// Invalidate both caches (structure + counts changed by merge)
-		await invalidateForumCacheAll(env);
-
-		// F3-c: audit only after the mutation has committed.
-		await writeAdminLog(env, resolveActor(request), {
-			action: "forum.merge",
-			targetType: "forum",
-			targetId: sourceId,
-			details: {
-				sourceForumId: sourceId,
-				targetForumId,
-				threadsMoved,
-				postsMoved,
-			},
-		});
+		// Post-merge fan-out: recalc + cache invalidation + audit log are all
+		// independent of each other (and of the response body), so run them
+		// in parallel.
+		await Promise.all([
+			recalcForumMetadata(env, targetForumId as number),
+			invalidateForumCacheAll(env),
+			writeAdminLog(env, resolveActor(request), {
+				action: "forum.merge",
+				targetType: "forum",
+				targetId: sourceId,
+				details: {
+					sourceForumId: sourceId,
+					targetForumId,
+					threadsMoved,
+					postsMoved,
+				},
+			}),
+		]);
 
 		return jsonResponse(
 			{
