@@ -7,7 +7,7 @@ import { enrichThreadsWithUserCache, toThread } from "../lib/mappers";
 import { buildNextCursor, clampLimit } from "../lib/pagination";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { getQueryParam } from "../lib/queryString";
-import { jsonResponse, paginatedResponse } from "../lib/response";
+import { jsonListResponse, jsonResponse, paginatedResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
 import { getUserProfiles } from "../lib/user-cache";
 import {
@@ -311,7 +311,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		},
 	);
 
-	return jsonResponse(threads, origin, { nextCursor });
+	return jsonListResponse(threads, origin, nextCursor);
 }
 
 /** Helper to enrich threads with user cache (only used when KV cache is enabled) */
