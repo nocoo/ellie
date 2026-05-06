@@ -230,7 +230,11 @@ describe("register", () => {
 			allResults: { "SELECT id, find": [] },
 			firstResults: {
 				"SELECT value FROM settings": { value: "true" },
-				"SELECT id FROM users": { id: 42 },
+			},
+			runResults: {
+				// auth.register now reads the new userId from INSERT meta.last_row_id
+				// rather than a follow-up SELECT, so the mock must surface it here.
+				"INSERT INTO users": { success: true, meta: { last_row_id: 42, changes: 1 } },
 			},
 		});
 		const putCalls: Array<{ key: string; value: string; opts?: unknown }> = [];
