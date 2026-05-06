@@ -165,10 +165,17 @@ export async function listByPost(request: Request, env: Env): Promise<Response> 
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid post ID" }, origin);
 	}
 
-	// Get post's thread_id and check if post is visible (invisible = 0)
-	const post = await env.DB.prepare("SELECT thread_id, invisible FROM posts WHERE id = ?")
-		.bind(postId)
-		.first<{ thread_id: number; invisible: number }>();
+	// Run the post lookup and attachments query in parallel — attachments
+	// query is keyed only on postId so it doesn't need the post row to start.
+	// We still gate the response behind the visibility chain below.
+	const [post, attachmentResult] = await Promise.all([
+		env.DB.prepare("SELECT thread_id, invisible FROM posts WHERE id = ?")
+			.bind(postId)
+			.first<{ thread_id: number; invisible: number }>(),
+		env.DB.prepare("SELECT * FROM attachments WHERE post_id = ? ORDER BY id")
+			.bind(postId)
+			.all(),
+	]);
 
 	if (!post || post.invisible !== 0) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
@@ -188,11 +195,9 @@ export async function listByPost(request: Request, env: Env): Promise<Response> 
 		return visResult.response;
 	}
 
-	const result = await env.DB.prepare("SELECT * FROM attachments WHERE post_id = ? ORDER BY id")
-		.bind(postId)
-		.all();
-
-	const attachments = result.results.map((row) => toAttachment(row as Record<string, unknown>));
+	const attachments = attachmentResult.results.map((row) =>
+		toAttachment(row as Record<string, unknown>),
+	);
 
 	return new Response(
 		JSON.stringify({
