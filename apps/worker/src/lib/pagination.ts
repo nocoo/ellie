@@ -17,7 +17,7 @@ import { encodeGenericCursor } from "@ellie/types";
  *  - `items` is empty
  *  - the last element is missing for any reason
  */
-export function buildNextCursor<TItem, TPayload extends Record<string, unknown>>(
+export function buildNextCursor<TItem, TPayload>(
 	items: ArrayLike<TItem>,
 	limit: number,
 	extract: (last: TItem) => TPayload,
@@ -25,7 +25,9 @@ export function buildNextCursor<TItem, TPayload extends Record<string, unknown>>
 	if (items.length !== limit || items.length === 0) return null;
 	const last = items[items.length - 1];
 	if (last == null) return null;
-	return encodeGenericCursor<TPayload>(extract(last));
+	return encodeGenericCursor<TPayload extends Record<string, unknown> ? TPayload : never>(
+		extract(last) as TPayload extends Record<string, unknown> ? TPayload : never,
+	);
 }
 
 /**

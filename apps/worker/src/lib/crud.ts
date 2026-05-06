@@ -474,7 +474,7 @@ export function createBatchDeleteHandler(config: EntityConfig) {
 				return 1;
 			}),
 		);
-		const count = results.reduce((sum, n) => sum + n, 0);
+		const count = results.reduce<number>((sum, n) => sum + n, 0);
 
 		return jsonResponse({ deleted: true, count }, origin);
 	};
