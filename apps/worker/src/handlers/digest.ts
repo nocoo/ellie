@@ -1,7 +1,7 @@
-import { decodeGenericCursor, encodeGenericCursor } from "@ellie/types";
+import { decodeGenericCursor } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { toThread } from "../lib/mappers";
-import { clampLimit } from "../lib/pagination";
+import { buildNextCursor, clampLimit } from "../lib/pagination";
 import { jsonResponse } from "../lib/response";
 import {
 	buildForumVisibilityFilter,
@@ -139,17 +139,18 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	const threads = result.results.map((row) => toThread(row as Record<string, unknown>));
 
 	// Generate next cursor
-	let nextCursor: string | null = null;
-	if (threads.length === clampedLimit && threads.length > 0) {
-		const lastRawRow = result.results[result.results.length - 1] as unknown as D1DigestRow;
-		if (lastRawRow) {
-			nextCursor = encodeGenericCursor<DigestCursorPayload>({
-				digest: lastRawRow.digest,
-				lastPostAt: lastRawRow.last_post_at,
-				id: lastRawRow.id,
-			});
-		}
-	}
+	const nextCursor = buildNextCursor<unknown, DigestCursorPayload>(
+		result.results,
+		clampedLimit,
+		(last) => {
+			const row = last as D1DigestRow;
+			return {
+				digest: row.digest,
+				lastPostAt: row.last_post_at,
+				id: row.id,
+			};
+		},
+	);
 
 	return jsonResponse(threads, origin, { nextCursor });
 }

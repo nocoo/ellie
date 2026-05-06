@@ -1,10 +1,10 @@
 // Post handlers for Cloudflare Worker
-import { canViewForumVisibility, decodeGenericCursor, encodeGenericCursor } from "@ellie/types";
+import { canViewForumVisibility, decodeGenericCursor } from "@ellie/types";
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
 import { toPost } from "../lib/mappers";
-import { clampLimit } from "../lib/pagination";
+import { buildNextCursor, clampLimit } from "../lib/pagination";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
@@ -109,15 +109,11 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	const posts = result.results.map((row) => toPost(row as Record<string, unknown>));
 
 	// Generate next cursor from raw D1 row (position is same in both)
-	let nextCursor: string | null = null;
-	if (!lastPage && posts.length === clampedLimit && posts.length > 0) {
-		const lastPost = posts[posts.length - 1];
-		if (lastPost) {
-			nextCursor = encodeGenericCursor<PostCursorPayload>({
-				position: lastPost.position,
-			});
-		}
-	}
+	const nextCursor = lastPage
+		? null
+		: buildNextCursor<(typeof posts)[number], PostCursorPayload>(posts, clampedLimit, (last) => ({
+				position: last.position,
+			}));
 
 	return jsonResponse(posts, origin, { nextCursor });
 }

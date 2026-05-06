@@ -1,9 +1,9 @@
 // Message (private messaging) handlers for Cloudflare Worker
 // Ref: docs/12-private-messages.md §4
 
-import { decodeGenericCursor, encodeGenericCursor } from "@ellie/types";
+import { decodeGenericCursor } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
-import { clampLimit } from "../lib/pagination";
+import { buildNextCursor, clampLimit } from "../lib/pagination";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withAuthVerified, withVerifiedEmail } from "../lib/routeHelpers";
@@ -142,11 +142,11 @@ export const list = withAuthVerified(async (request, env, user) => {
 	const messages = result.results.map(toMessageListItem);
 
 	// Generate next cursor
-	let nextCursor: string | null = null;
-	if (messages.length === clampedLimit && messages.length > 0) {
-		const last = result.results[result.results.length - 1];
-		nextCursor = encodeGenericCursor<MessageCursor>({ createdAt: last.created_at, id: last.id });
-	}
+	const nextCursor = buildNextCursor<MessageRow, MessageCursor>(
+		result.results,
+		clampedLimit,
+		(last) => ({ createdAt: last.created_at, id: last.id }),
+	);
 
 	let unreadCount: number | undefined;
 	if (unreadCountPromise) {

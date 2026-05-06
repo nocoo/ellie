@@ -196,9 +196,7 @@ export async function searchThreads(
 		env.DB.prepare(sql)
 			.bind(...params)
 			.all(),
-		cursorStr
-			? Promise.resolve(0)
-			: getSearchTotalCount(env, ftsQuery, forumFilter),
+		cursorStr ? Promise.resolve(0) : getSearchTotalCount(env, ftsQuery, forumFilter),
 	]);
 
 	// 6. Build response with pagination
