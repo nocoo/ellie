@@ -355,9 +355,10 @@ export async function getById(
 	const idStr = pathParts[pathParts.length - 1];
 	const id = Number.parseInt(idStr ?? "0", 10);
 
-	// Get optional user auth for visibility filtering (verified against DB)
-	const user = await optionalAuthVerified(request, env);
-	const visCtx = buildVisibilityContext(user);
+	// Auth + forum row are independent at this point — fire both eagerly so
+	// they overlap in production. We don't actually need the auth result
+	// until the visibility check after the forum query resolves.
+	const userPromise = optionalAuthVerified(request, env);
 
 	const useKvCache = isKvUserCacheEnabled(env);
 
@@ -378,10 +379,14 @@ export async function getById(
 	const r = result as Record<string, unknown>;
 	let forum = toForum(r);
 
-	// Check status and visibility
+	// Check status (cheap, sync) before paying for auth resolution.
 	if (!isForumActive(forum)) {
 		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
 	}
+
+	const user = await userPromise;
+	const visCtx = buildVisibilityContext(user);
+
 	if (!canViewForumVisibility(forum.visibility as ForumVisibility, visCtx)) {
 		return errorResponse(
 			"FORBIDDEN",
@@ -399,14 +404,26 @@ export async function getById(
 	// Populate moderatorList
 	const moderatorIdsStr = r.moderator_ids as string;
 	const moderatorIds = parseModeratorIds(moderatorIdsStr ?? "");
+
+	// Run the three remaining D1 calls (mod names, visible last thread, today
+	// count) in parallel — they are independent.
+	const cutoff24h = Math.floor(Date.now() / 1000) - 86400;
+	const [moderatorNameMap, visibleLastThreads, countResult] = await Promise.all([
+		moderatorIds.length > 0
+			? fetchModeratorNames(env.DB, moderatorIds)
+			: Promise.resolve(new Map<number, string>()),
+		fetchVisibleLastThreads(env.DB, [id]),
+		env.DB.prepare(
+			`SELECT COUNT(*) AS cnt FROM threads WHERE forum_id = ? AND created_at >= ? AND ${THREAD_VISIBLE}`,
+		)
+			.bind(id, cutoff24h)
+			.first<{ cnt: number }>(),
+	]);
+
 	if (moderatorIds.length > 0) {
-		const moderatorNameMap = await fetchModeratorNames(env.DB, moderatorIds);
 		forum.moderatorList = buildModeratorList(moderatorIdsStr ?? "", moderatorNameMap);
 	}
 
-	// Replace forum last thread metadata with visible thread data
-	// This prevents leaking hidden/deleted thread subjects and posters
-	const visibleLastThreads = await fetchVisibleLastThreads(env.DB, [id]);
 	const visible = visibleLastThreads.get(id);
 	if (visible) {
 		forum.lastThreadId = visible.threadId;
@@ -424,13 +441,6 @@ export async function getById(
 		forum.lastPosterAvatar = "";
 	}
 
-	// Count threads in last 24h for this forum (only visible threads: sticky >= 0)
-	const cutoff24h = Math.floor(Date.now() / 1000) - 86400;
-	const countResult = await env.DB.prepare(
-		`SELECT COUNT(*) AS cnt FROM threads WHERE forum_id = ? AND created_at >= ? AND ${THREAD_VISIBLE}`,
-	)
-		.bind(id, cutoff24h)
-		.first<{ cnt: number }>();
 	forum.todayThreads = countResult?.cnt ?? 0;
 
 	// Enrich with KV user cache (only if enabled)
