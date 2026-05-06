@@ -443,23 +443,24 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 
 	const threadId = threadResult.meta.last_row_id;
 
-	// Step 2: Batch insert first post + update counts (with last_poster_id)
-	await env.DB.batch([
-		env.DB.prepare(
-			"INSERT INTO posts (thread_id, forum_id, author_id, author_name, content, created_at, is_first, position) VALUES (?, ?, ?, ?, ?, ?, 1, 1)",
-		).bind(threadId, forumId, user.userId, authorName, content, now),
-		env.DB.prepare(
-			"UPDATE forums SET threads = threads + 1, posts = posts + 1, last_thread_id = ?, last_post_at = ?, last_poster = ?, last_poster_id = ?, last_thread_subject = ? WHERE id = ?",
-		).bind(threadId, now, authorName, user.userId, filteredSubject, forumId),
-		env.DB.prepare("UPDATE users SET threads = threads + 1, posts = posts + 1 WHERE id = ?").bind(
-			user.userId,
-		),
+	// Step 2: batch the post insert + count updates, while concurrently
+	// fetching the just-inserted thread row. The thread row was already
+	// committed by Step 1, so the SELECT can run alongside the batch —
+	// shaving one D1 round-trip off the create-thread response time.
+	const [, createdThread] = await Promise.all([
+		env.DB.batch([
+			env.DB.prepare(
+				"INSERT INTO posts (thread_id, forum_id, author_id, author_name, content, created_at, is_first, position) VALUES (?, ?, ?, ?, ?, ?, 1, 1)",
+			).bind(threadId, forumId, user.userId, authorName, content, now),
+			env.DB.prepare(
+				"UPDATE forums SET threads = threads + 1, posts = posts + 1, last_thread_id = ?, last_post_at = ?, last_poster = ?, last_poster_id = ?, last_thread_subject = ? WHERE id = ?",
+			).bind(threadId, now, authorName, user.userId, filteredSubject, forumId),
+			env.DB.prepare(
+				"UPDATE users SET threads = threads + 1, posts = posts + 1 WHERE id = ?",
+			).bind(user.userId),
+		]),
+		env.DB.prepare("SELECT * FROM threads WHERE id = ?").bind(threadId).first(),
 	]);
-
-	// Fetch created thread
-	const createdThread = await env.DB.prepare("SELECT * FROM threads WHERE id = ?")
-		.bind(threadId)
-		.first();
 
 	return jsonResponse(toThread(createdThread as Record<string, unknown>), origin, undefined, 201);
 });
