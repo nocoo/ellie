@@ -695,8 +695,14 @@ export async function getUserStatus(request: Request, env: Env): Promise<Respons
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
 	}
 
-	// Permission check: Admin/SuperMod only
-	const user = await getUserForPermission(env, authResult.user.userId);
+	// Permission lookup + target lookup are independent — fire in parallel.
+	const [user, targetUser] = await Promise.all([
+		getUserForPermission(env, authResult.user.userId),
+		env.DB.prepare("SELECT id, username, status FROM users WHERE id = ?")
+			.bind(userId)
+			.first<{ id: number; username: string; status: number }>(),
+	]);
+
 	if (!user) {
 		return errorResponse("INTERNAL_ERROR", 500, { message: "Failed to fetch user data" }, origin);
 	}
@@ -709,11 +715,6 @@ export async function getUserStatus(request: Request, env: Env): Promise<Respons
 			origin,
 		);
 	}
-
-	// Get target user status
-	const targetUser = await env.DB.prepare("SELECT id, username, status FROM users WHERE id = ?")
-		.bind(userId)
-		.first<{ id: number; username: string; status: number }>();
 
 	if (!targetUser) {
 		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
@@ -750,8 +751,14 @@ export async function getUserIpRecords(request: Request, env: Env): Promise<Resp
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
 	}
 
-	// Permission check: Admin/SuperMod only
-	const user = await getUserForPermission(env, authResult.user.userId);
+	// Permission lookup + target lookup are independent — fire in parallel.
+	const [user, targetUser] = await Promise.all([
+		getUserForPermission(env, authResult.user.userId),
+		env.DB.prepare("SELECT id, username FROM users WHERE id = ?")
+			.bind(userId)
+			.first<{ id: number; username: string }>(),
+	]);
+
 	if (!user) {
 		return errorResponse("INTERNAL_ERROR", 500, { message: "Failed to fetch user data" }, origin);
 	}
@@ -764,11 +771,6 @@ export async function getUserIpRecords(request: Request, env: Env): Promise<Resp
 			origin,
 		);
 	}
-
-	// Get target user
-	const targetUser = await env.DB.prepare("SELECT id, username FROM users WHERE id = ?")
-		.bind(userId)
-		.first<{ id: number; username: string }>();
 
 	if (!targetUser) {
 		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
@@ -799,8 +801,14 @@ export async function muteUser(request: Request, env: Env): Promise<Response> {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
 	}
 
-	// Permission check: Admin/SuperMod only
-	const user = await getUserForPermission(env, authResult.user.userId);
+	// Permission lookup + target lookup are independent — fire in parallel.
+	const [user, targetUser] = await Promise.all([
+		getUserForPermission(env, authResult.user.userId),
+		env.DB.prepare("SELECT id, username, status, role FROM users WHERE id = ?")
+			.bind(userId)
+			.first<{ id: number; username: string; status: number; role: number }>(),
+	]);
+
 	if (!user) {
 		return errorResponse("INTERNAL_ERROR", 500, { message: "Failed to fetch user data" }, origin);
 	}
@@ -813,13 +821,6 @@ export async function muteUser(request: Request, env: Env): Promise<Response> {
 			origin,
 		);
 	}
-
-	// Get target user
-	const targetUser = await env.DB.prepare(
-		"SELECT id, username, status, role FROM users WHERE id = ?",
-	)
-		.bind(userId)
-		.first<{ id: number; username: string; status: number; role: number }>();
 
 	if (!targetUser) {
 		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
@@ -870,8 +871,14 @@ export async function unmuteUser(request: Request, env: Env): Promise<Response> 
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
 	}
 
-	// Permission check: Admin/SuperMod only
-	const user = await getUserForPermission(env, authResult.user.userId);
+	// Permission lookup + target lookup are independent — fire in parallel.
+	const [user, targetUser] = await Promise.all([
+		getUserForPermission(env, authResult.user.userId),
+		env.DB.prepare("SELECT id, username, status FROM users WHERE id = ?")
+			.bind(userId)
+			.first<{ id: number; username: string; status: number }>(),
+	]);
+
 	if (!user) {
 		return errorResponse("INTERNAL_ERROR", 500, { message: "Failed to fetch user data" }, origin);
 	}
@@ -884,11 +891,6 @@ export async function unmuteUser(request: Request, env: Env): Promise<Response> 
 			origin,
 		);
 	}
-
-	// Get target user
-	const targetUser = await env.DB.prepare("SELECT id, username, status FROM users WHERE id = ?")
-		.bind(userId)
-		.first<{ id: number; username: string; status: number }>();
 
 	if (!targetUser) {
 		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
@@ -929,8 +931,14 @@ export async function banUser(request: Request, env: Env): Promise<Response> {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
 	}
 
-	// Permission check: Admin/SuperMod only
-	const user = await getUserForPermission(env, authResult.user.userId);
+	// Permission lookup + target lookup are independent — fire in parallel.
+	const [user, targetUser] = await Promise.all([
+		getUserForPermission(env, authResult.user.userId),
+		env.DB.prepare("SELECT id, username, status, role FROM users WHERE id = ?")
+			.bind(userId)
+			.first<{ id: number; username: string; status: number; role: number }>(),
+	]);
+
 	if (!user) {
 		return errorResponse("INTERNAL_ERROR", 500, { message: "Failed to fetch user data" }, origin);
 	}
@@ -943,13 +951,6 @@ export async function banUser(request: Request, env: Env): Promise<Response> {
 			origin,
 		);
 	}
-
-	// Get target user
-	const targetUser = await env.DB.prepare(
-		"SELECT id, username, status, role FROM users WHERE id = ?",
-	)
-		.bind(userId)
-		.first<{ id: number; username: string; status: number; role: number }>();
 
 	if (!targetUser) {
 		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
@@ -1050,8 +1051,14 @@ export async function nukeUser(request: Request, env: Env): Promise<Response> {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
 	}
 
-	// Permission check: Admin/SuperMod only
-	const user = await getUserForPermission(env, authResult.user.userId);
+	// Permission lookup + target lookup are independent — fire in parallel.
+	const [user, targetUser] = await Promise.all([
+		getUserForPermission(env, authResult.user.userId),
+		env.DB.prepare("SELECT id, username, status, role FROM users WHERE id = ?")
+			.bind(userId)
+			.first<{ id: number; username: string; status: number; role: number }>(),
+	]);
+
 	if (!user) {
 		return errorResponse("INTERNAL_ERROR", 500, { message: "Failed to fetch user data" }, origin);
 	}
@@ -1064,13 +1071,6 @@ export async function nukeUser(request: Request, env: Env): Promise<Response> {
 			origin,
 		);
 	}
-
-	// Get target user
-	const targetUser = await env.DB.prepare(
-		"SELECT id, username, status, role FROM users WHERE id = ?",
-	)
-		.bind(userId)
-		.first<{ id: number; username: string; status: number; role: number }>();
 
 	if (!targetUser) {
 		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
