@@ -403,17 +403,18 @@ export async function deletePost(request: Request, env: Env): Promise<Response> 
 		env.DB.prepare("UPDATE forums SET posts = posts - 1 WHERE id = ?").bind(post.forum_id),
 	]);
 
-	// Decrement post author's post count
-	await decrementUserPosts(env, post.author_id);
-
-	// Recalc thread metadata first (last_post_at / last_poster may have
-	// pointed at the deleted post), then forum metadata which derives from
-	// the per-thread aggregate.
-	await recalcThreadMetadata(env, post.thread_id);
-	await recalcForumMetadata(env, post.forum_id);
-
-	// Invalidate volatile cache (forum counts + last-post may have changed)
-	await invalidateForumVolatile(env);
+	// Tail fan-out: user post-counter, thread→forum recalc chain, and
+	// volatile cache invalidation are mutually independent. Recalc must
+	// stay thread-then-forum (forum derives from thread aggregate), but the
+	// other two can overlap with it.
+	await Promise.all([
+		decrementUserPosts(env, post.author_id),
+		(async () => {
+			await recalcThreadMetadata(env, post.thread_id);
+			await recalcForumMetadata(env, post.forum_id);
+		})(),
+		invalidateForumVolatile(env),
+	]);
 
 	return jsonResponse({ deleted: true, id }, origin);
 }
