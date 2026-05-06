@@ -1256,6 +1256,35 @@ describe("createBatchDeleteHandler", () => {
 		expect(afterDelete).toHaveBeenCalledTimes(2);
 	});
 
+	it("should dedupe duplicate ids before fan-out (afterDelete called once per unique id)", async () => {
+		// Regression: with the parallel pipeline, two concurrent runs against the
+		// same id would both observe the row, both DELETE, and both invoke
+		// afterDelete — which for hooks that decrement counts (e.g.
+		// admin/thread.batchDelete recalc) would double-decrement.
+		const afterDelete = vi.fn(async () => {});
+		const beforeDelete = vi.fn(async () => undefined);
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT * FROM test_items WHERE id": { id: 42, name: "X", some_value: 0 },
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const handler = createBatchDeleteHandler(
+			makeTestConfig({ afterDelete, beforeDelete }),
+		);
+
+		const res = await handler(
+			makeJsonRequest("/api/admin/test-items/batch-delete", { ids: [42, 42, "42", 42] }),
+			env,
+		);
+
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { data: { count: number; deleted: boolean } };
+		expect(body.data.count).toBe(1);
+		expect(beforeDelete).toHaveBeenCalledTimes(1);
+		expect(afterDelete).toHaveBeenCalledTimes(1);
+	});
+
 	it("should return 400 for invalid JSON body", async () => {
 		const { db } = createMockDb();
 		const env = makeEnv({ DB: db });
