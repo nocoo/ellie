@@ -40,4 +40,25 @@ describe("getQueryParam", () => {
 	it("decodes percent-encoded values", () => {
 		expect(getQueryParam("https://e.com/?cursor=abc%3D%3D", "cursor")).toBe("abc==");
 	});
+
+	it.each([
+		["https://e.com/?cursor=%", "cursor"],
+		["https://e.com/?forumId=%", "forumId"],
+		["https://e.com/?cursor=%ZZ", "cursor"],
+	])("returns the raw slice for malformed percent encoding %s [%s]", (url, key) => {
+		// URLSearchParams.get is lenient on malformed percent encoding and
+		// surfaces the raw value to the caller's own validation. Earlier we
+		// threw URIError, which the global handler converted into
+		// INTERNAL_ERROR (500) on something like `/api/v1/threads?forumId=%`.
+		expect(getQueryParam(url, key)).toBe(ref(url, key));
+	});
+
+	it("does not throw on partial-valid + trailing-malformed sequences", () => {
+		// Note: URLSearchParams decodes the leading valid sequences and keeps the
+		// trailing bad chars (e.g. `%E0%A4%A` -> `\uFFFD%A`). Our fast path can't
+		// recover partial decodes, so we surface the whole raw slice. Important
+		// invariant: we never throw — the caller never sees a 500 from this.
+		expect(() => getQueryParam("https://e.com/?cursor=%E0%A4%A", "cursor")).not.toThrow();
+		expect(getQueryParam("https://e.com/?cursor=%E0%A4%A", "cursor")).toBe("%E0%A4%A");
+	});
 });

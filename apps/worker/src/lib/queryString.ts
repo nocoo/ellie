@@ -9,6 +9,9 @@
  *   - `?key` (no `=` and no value) returns `null` here, `""` from
  *     URLSearchParams. Not a shape any of our public endpoints accept.
  *   - Repeated keys: returns the FIRST occurrence (matches URLSearchParams.get).
+ *   - Malformed percent encoding (e.g. `?cursor=%` or `?cursor=%ZZ`): returns
+ *     the raw slice (matches URLSearchParams, which is lenient and surfaces
+ *     the bad value to the caller's own validation rather than 500-ing).
  *
  * Validated by the unit test in `apps/worker/tests/unit/lib/queryString.test.ts`.
  */
@@ -28,9 +31,15 @@ export function getQueryParam(url: string, key: string): string | null {
 			if (end < 0) end = len;
 			const slice = url.slice(start, end);
 			// Skip decodeURIComponent for the common no-percent path.
-			return slice.indexOf("%") < 0 && slice.indexOf("+") < 0
-				? slice
-				: decodeURIComponent(slice.replace(/\+/g, " "));
+			if (slice.indexOf("%") < 0 && slice.indexOf("+") < 0) return slice;
+			try {
+				return decodeURIComponent(slice.replace(/\+/g, " "));
+			} catch {
+				// Malformed percent encoding (e.g. `%` alone or `%ZZ`).
+				// URLSearchParams returns the raw value here rather than throwing;
+				// match that so callers' own validation handles it.
+				return slice;
+			}
 		}
 		const next = url.indexOf("&", i);
 		if (next < 0) return null;
