@@ -212,8 +212,13 @@ async function listForumsLegacy(env: Env, useKvUserCache: boolean): Promise<Foru
 		forums[i] = forum;
 	}
 
-	const moderatorNameMap = await fetchModeratorNames(env.DB, [...allModeratorIds]);
-	const visibleLastThreads = await fetchVisibleLastThreads(env.DB, forumIds);
+	// fetchModeratorNames and fetchVisibleLastThreads are independent D1
+	// calls — run them in parallel to halve the round-trip latency for the
+	// legacy forum.list path.
+	const [moderatorNameMap, visibleLastThreads] = await Promise.all([
+		fetchModeratorNames(env.DB, [...allModeratorIds]),
+		fetchVisibleLastThreads(env.DB, forumIds),
+	]);
 
 	// Second pass: in-place enrich with moderator list + visible last-thread.
 	for (let i = 0; i < rowCount; i++) {

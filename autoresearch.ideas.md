@@ -1,0 +1,50 @@
+# Autoresearch Ideas (deferred / future)
+
+Ideas surfaced during the list-loading optimisation pass that we chose not to
+pursue in the current session, with rationale.
+
+## Cross-cutting
+
+- **Reduce list-payload size**: `forum.list` returns ALL forums (no pagination),
+  `thread.list` returns up to 100 threads, each carrying ~22 fields including
+  many empty strings (`lastPosterAvatarPath`, `customTitle`, etc). JSON.stringify
+  is the dominant cost (~85% on thread.list) and trimming the wire shape would
+  give a real win. Requires a coordinated frontend change so deferred.
+- **Replace `crypto.randomUUID()` requestId with a shorter token** in `meta`. UUID
+  cost itself is negligible (~30 ns) but the 36-char token bloats every list
+  response. Also a contract change.
+- **Speculative-execute posts query in `post.list`**: kick off the posts query in
+  parallel with the visibility check; throw the result away if the visibility
+  check fails. Saves one D1 RTT but wastes work on rejected requests; needs
+  metrics before committing.
+
+## Worker handlers
+
+- **`createListHandler` (admin CRUD)**: combines `SELECT COUNT(*)` and the
+  paginated `SELECT` into two sequential D1 queries. SQLite supports
+  `COUNT(*) OVER ()` window function; could fold into one query. Verify D1
+  optimiser actually computes the count once before changing.
+- **`createBatchDeleteHandler`**: sequential per-id loop with `await fetchRow → before → DELETE → after`.
+  In production this is N round-trips. Parallelising with `Promise.all` is safe
+  (each id is independent) and would slash batch-delete latency.
+- **`fetchVisibleLastThreads` self-join**: works but does an unindexed
+  `MAX(last_post_at)` scan per forum batch in real D1. With KV cache enabled the
+  whole call is bypassed, but the legacy path could materialise this once into
+  KV with the existing cache invalidation.
+- **DRY cursor extraction** across `digest.list`, `message.list`, `post.list`,
+  `search.list`, `thread.list`, `user.list*`: every handler re-implements
+  `if (items.length === limit) encodeGenericCursor({...last})`. Extract into a
+  `buildNextCursor(items, limit, extract)` helper. Tiny but improves
+  readability.
+
+## Frontend (web / admin)
+
+- **Virtualise long lists**: `messages-page`, admin `users` table, post comments
+  all render N items into the DOM. React-virtual or similar would scale better
+  for large lists.
+- **Memoise list-item components**: list children re-render on parent state
+  change; `React.memo` + stable keys would cut wasted renders on
+  `forum-toast`, `move-dialog`.
+- **Move list-data fetch into RSC/loader where possible**: a few client
+  components fetch their own list data via `useEffect`. Promoting to a server
+  component would skip the round-trip and avoid hydration mismatch.
