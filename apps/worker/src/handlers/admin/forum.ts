@@ -481,29 +481,26 @@ export const merge = withEntityAuth(
 			);
 		}
 
-		// Verify source forum exists
-		const source = await env.DB.prepare("SELECT * FROM forums WHERE id = ?").bind(sourceId).first();
+		// Source/target forum + thread/post counts are 4 independent reads.
+		// Run them in parallel to halve D1 round-trip latency on the merge
+		// admin operation.
+		const [source, target, threadCount, postCount] = await Promise.all([
+			env.DB.prepare("SELECT * FROM forums WHERE id = ?").bind(sourceId).first(),
+			env.DB.prepare("SELECT id FROM forums WHERE id = ?").bind(targetForumId).first(),
+			env.DB.prepare("SELECT COUNT(*) as cnt FROM threads WHERE forum_id = ?")
+				.bind(sourceId)
+				.first<{ cnt: number }>(),
+			env.DB.prepare("SELECT COUNT(*) as cnt FROM posts WHERE forum_id = ?")
+				.bind(sourceId)
+				.first<{ cnt: number }>(),
+		]);
+
 		if (!source) {
 			return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
 		}
-
-		// Verify target forum exists
-		const target = await env.DB.prepare("SELECT id FROM forums WHERE id = ?")
-			.bind(targetForumId)
-			.first();
 		if (!target) {
 			return errorResponse("INVALID_BODY", 400, { message: "Target forum not found" }, origin);
 		}
-
-		// Count threads and posts to move
-		const threadCount = await env.DB.prepare(
-			"SELECT COUNT(*) as cnt FROM threads WHERE forum_id = ?",
-		)
-			.bind(sourceId)
-			.first<{ cnt: number }>();
-		const postCount = await env.DB.prepare("SELECT COUNT(*) as cnt FROM posts WHERE forum_id = ?")
-			.bind(sourceId)
-			.first<{ cnt: number }>();
 
 		const threadsMoved = threadCount?.cnt ?? 0;
 		const postsMoved = postCount?.cnt ?? 0;
