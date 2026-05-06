@@ -176,12 +176,25 @@ interface ContentDeletionResult {
 }
 
 async function deleteUserContent(env: Env, userId: number): Promise<ContentDeletionResult> {
-	// 1. Get user's threads to calculate forum impact
-	const threads = await env.DB.prepare(
-		"SELECT id, forum_id, replies FROM threads WHERE author_id = ?",
-	)
-		.bind(userId)
-		.all();
+	// 1. Fetch threads, standalone posts (grouped by forum), and standalone
+	// posts (grouped by thread) in parallel — all three are independent
+	// SELECT-only queries against the same userId. Halves the D1 round-trip
+	// latency on a heavy admin operation.
+	const [threads, standalonePosts, standaloneThreadUpdates] = await Promise.all([
+		env.DB.prepare("SELECT id, forum_id, replies FROM threads WHERE author_id = ?")
+			.bind(userId)
+			.all(),
+		env.DB.prepare(
+			"SELECT forum_id, COUNT(*) as cnt FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?) GROUP BY forum_id",
+		)
+			.bind(userId, userId)
+			.all(),
+		env.DB.prepare(
+			"SELECT thread_id, COUNT(*) as cnt FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?) GROUP BY thread_id",
+		)
+			.bind(userId, userId)
+			.all(),
+	]);
 	const threadRows = threads.results as { id: number; forum_id: number; replies: number }[];
 
 	// 2. Group forum impact from user's threads (thread count + all posts in those threads)
@@ -192,20 +205,7 @@ async function deleteUserContent(env: Env, userId: number): Promise<ContentDelet
 		forumPostCounts.set(t.forum_id, (forumPostCounts.get(t.forum_id) ?? 0) + t.replies + 1);
 	}
 
-	// 3. Count standalone posts (replies in other users' threads) grouped by forum
-	const standalonePosts = await env.DB.prepare(
-		"SELECT forum_id, COUNT(*) as cnt FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?) GROUP BY forum_id",
-	)
-		.bind(userId, userId)
-		.all();
 	const standaloneRows = standalonePosts.results as { forum_id: number; cnt: number }[];
-
-	// 4. Standalone post counts grouped by thread (for reply counter updates)
-	const standaloneThreadUpdates = await env.DB.prepare(
-		"SELECT thread_id, COUNT(*) as cnt FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?) GROUP BY thread_id",
-	)
-		.bind(userId, userId)
-		.all();
 	const standaloneThreadRows = standaloneThreadUpdates.results as {
 		thread_id: number;
 		cnt: number;
