@@ -42,6 +42,10 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid postId" }, origin);
 	}
 
+	// Auth lookup is independent of the post visibility chain — fire eagerly
+	// so it overlaps in production. We need it before the visibility check.
+	const userPromise = optionalAuthVerified(request, env);
+
 	// Single JOIN query: post → thread → forum (replaces 3 serial queries)
 	const row = await env.DB.prepare(
 		`SELECT t.forum_id, t.sticky, f.status, f.visibility
@@ -61,8 +65,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
 
-	// Check forum visibility
-	const user = await optionalAuthVerified(request, env);
+	const user = await userPromise;
 	const visCtx = buildVisibilityContext(user);
 
 	if (!canViewForumVisibility(row.visibility as ForumVisibility, visCtx)) {
