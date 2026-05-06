@@ -267,7 +267,12 @@ export const changePassword = withAuthVerified(async (request, env, user) => {
 		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
 	}
 
-	// Verify old password (support both Discuz and PBKDF2 formats)
+	// Verify old password and pre-compute the new hash in parallel.
+	// hashPassword is the slow step (PBKDF2) and the new hash is needed on
+	// every success path; pre-computing it lets the verify and hash work
+	// overlap. On failure we discard the hash — acceptable cost since the
+	// failure case is also rate-limited at the IP layer.
+	const newHashPromise = hashPassword(newPassword);
 	let isValid = false;
 	if (row.password_salt) {
 		isValid = await verifyDiscuzPassword(oldPassword, row.password_hash, row.password_salt);
@@ -276,11 +281,12 @@ export const changePassword = withAuthVerified(async (request, env, user) => {
 	}
 
 	if (!isValid) {
+		// Drain the in-flight hash so we don't leak an unhandled rejection.
+		newHashPromise.catch(() => {});
 		return errorResponse("WRONG_PASSWORD", 401, undefined, origin);
 	}
 
-	// Hash new password with PBKDF2, clear salt
-	const newHash = await hashPassword(newPassword);
+	const newHash = await newHashPromise;
 	await env.DB.prepare("UPDATE users SET password_hash = ?, password_salt = '' WHERE id = ?")
 		.bind(newHash, user.userId)
 		.run();
