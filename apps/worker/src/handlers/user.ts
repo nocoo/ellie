@@ -149,17 +149,21 @@ export async function batchGet(request: Request, env: Env): Promise<Response> {
 		);
 	}
 
-	// Check if requester is staff (role >= 1) for IP field visibility
-	const viewer = await optionalAuthVerified(request, env);
-	const isStaff = viewer !== null && viewer.role >= 1;
+	// Auth lookup is independent of the batch query — fire it eagerly so it
+	// overlaps in production.
+	const viewerPromise = optionalAuthVerified(request, env);
 
 	// Batch query with IN clause (SQLite limit is 999 vars, we cap at 100)
 	const placeholders = uniqueIds.map(() => "?").join(",");
-	const result = await env.DB.prepare(
-		`SELECT ${PUBLIC_USER_COLUMNS}, status FROM users WHERE id IN (${placeholders})`,
-	)
-		.bind(...uniqueIds)
-		.all<Record<string, unknown>>();
+	const [viewer, result] = await Promise.all([
+		viewerPromise,
+		env.DB.prepare(
+			`SELECT ${PUBLIC_USER_COLUMNS}, status FROM users WHERE id IN (${placeholders})`,
+		)
+			.bind(...uniqueIds)
+			.all<Record<string, unknown>>(),
+	]);
+	const isStaff = viewer !== null && viewer.role >= 1;
 
 	// Filter out non-public users and map to PublicUser
 	const users = result.results
@@ -177,11 +181,13 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 	const idStr = pathParts[pathParts.length - 1];
 	const id = Number.parseInt(idStr ?? "0", 10);
 
-	const result = await env.DB.prepare(
-		`SELECT ${PUBLIC_USER_COLUMNS}, status FROM users WHERE id = ?`,
-	)
-		.bind(id)
-		.first<Record<string, unknown>>();
+	// Fire auth + user-row queries in parallel — they're independent.
+	const [viewer, result] = await Promise.all([
+		optionalAuthVerified(request, env),
+		env.DB.prepare(`SELECT ${PUBLIC_USER_COLUMNS}, status FROM users WHERE id = ?`)
+			.bind(id)
+			.first<Record<string, unknown>>(),
+	]);
 
 	if (!result) {
 		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
@@ -195,8 +201,6 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
 	}
 
-	// Check if requester is admin/mod (role >= 1) to include IP fields
-	const viewer = await optionalAuthVerified(request, env);
 	const isStaff = viewer !== null && viewer.role >= 1;
 
 	return jsonResponse(toPublicUser(result, isStaff), origin);
