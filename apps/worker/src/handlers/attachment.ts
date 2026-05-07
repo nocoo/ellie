@@ -3,6 +3,7 @@ import { canViewForumVisibility } from "@ellie/types";
 import type { ForumVisibility } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { toAttachment } from "../lib/mappers";
+import { parsePathSegment } from "../lib/parseId";
 import { jsonResponse } from "../lib/response";
 import { buildVisibilityContext, isForumActive } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
@@ -154,13 +155,9 @@ export async function batchByPostIds(request: Request, env: Env): Promise<Respon
 /** GET /api/v1/posts/:id/attachments - List attachments for a post */
 export async function listByPost(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
-	const url = new URL(request.url);
-	const pathParts = url.pathname.split("/");
-	// /api/v1/posts/:id/attachments → posts is at [-3], id at [-2]
-	const idStr = pathParts[pathParts.length - 2];
-	const postId = Number.parseInt(idStr ?? "0", 10);
+	const postId = parsePathSegment(request, 1);
 
-	if (Number.isNaN(postId) || postId <= 0) {
+	if (postId === null || postId <= 0) {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid post ID" }, origin);
 	}
 
