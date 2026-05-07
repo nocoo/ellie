@@ -134,6 +134,7 @@ export function makeD1UserRow(overrides?: Record<string, unknown>) {
 		username: "testuser",
 		email: "test@example.com",
 		avatar: "avatar.png",
+		avatar_path: "avatars/test.jpg",
 		status: 0,
 		role: 0,
 		reg_date: 1711540800,

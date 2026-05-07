@@ -46,6 +46,32 @@ describe("admin user handlers", () => {
 			expect(body.meta.total).toBe(2);
 		});
 
+		it("should include avatarPath in the listed user payload", async () => {
+			// Admin UI renders avatars from `avatarPath` (GUID-based CDN path) when
+			// present. Lock that the SELECT projection includes `avatar_path` so
+			// the field actually reaches the client and is mapped to camelCase.
+			const { db, calls } = createMockDb({
+				allResults: {
+					"FROM users": [makeD1UserRow({ id: 1, avatar: "x.png", avatar_path: "avatars/u1.jpg" })],
+				},
+				firstResults: { "SELECT COUNT": { total: 1 } },
+			});
+
+			const res = await list(
+				createAdminRequest("GET", "/api/admin/users?page=1&limit=20"),
+				adminEnv(db),
+			);
+			const body = await res.json();
+
+			expect(res.status).toBe(200);
+			expect(body.data[0]).toMatchObject({
+				avatar: "x.png",
+				avatarPath: "avatars/u1.jpg",
+			});
+			const projection = calls.find((c) => c.sql.includes("avatar_path"));
+			expect(projection?.sql).toBeDefined();
+		});
+
 		it("should filter by username (LIKE)", async () => {
 			const { db, calls } = createMockDb({
 				allResults: { "FROM users": [] },
