@@ -2,6 +2,9 @@
 
 const CDN_BASE = "https://t.no.mt";
 
+/** Fallback avatar (default Discuz "tavatar.gif") served from CDN. */
+export const FALLBACK_AVATAR_URL = `${CDN_BASE}/static/image/common/tavatar.gif`;
+
 /** Static image URL under /static/image/common/ */
 export function getStaticImageUrl(filename: string): string {
 	return `${CDN_BASE}/static/image/common/${filename}`;
@@ -63,4 +66,45 @@ export function getAttachmentUrl(filePath: string): string {
 export function getAttachmentThumbUrl(filePath: string): string {
 	const url = getAttachmentUrl(filePath);
 	return `${url}.thumb.jpg`;
+}
+
+/**
+ * Compute the legacy CDN path for an avatar given a user ID.
+ *
+ * UID is zero-padded to 9 digits then split into directory structure
+ * (matches the original Discuz layout, mirrored from the web app's
+ * `apps/web/src/lib/avatar-proxy.ts` so admin and forum stay in sync).
+ *
+ * @example
+ *   computeLegacyAvatarCdnPath(12345)
+ *   => "https://t.no.mt/avatar/000/01/23/45_avatar_big.jpg"
+ */
+export function computeLegacyAvatarCdnPath(uid: number): string {
+	const padded = uid.toString().padStart(9, "0");
+	const dir1 = padded.slice(0, 3);
+	const dir2 = padded.slice(3, 5);
+	const dir3 = padded.slice(5, 7);
+	const file = padded.slice(7, 9);
+	return `${CDN_BASE}/avatar/${dir1}/${dir2}/${dir3}/${file}_avatar_big.jpg`;
+}
+
+/**
+ * Resolve the displayable avatar URL for a user.
+ *
+ * - `avatarPath` set → direct CDN path (`https://t.no.mt/{avatarPath}`),
+ *   matching the GUID-based pipeline in `apps/web/src/lib/avatar.ts`.
+ * - Otherwise → the legacy UID-based path. The browser is expected to
+ *   `onError` swap to {@link FALLBACK_AVATAR_URL} when the legacy file
+ *   doesn't exist.
+ *
+ * Guards against `uid <= 0` and an `avatarPath` of just whitespace by
+ * returning the fallback directly so callers don't have to special-case.
+ */
+export function getUserAvatarUrl(uid: number, avatarPath?: string | null): string {
+	if (avatarPath && avatarPath.trim().length > 0) {
+		const cleaned = avatarPath.replace(/^\/+/, "");
+		return `${CDN_BASE}/${cleaned}`;
+	}
+	if (!Number.isFinite(uid) || uid <= 0) return FALLBACK_AVATAR_URL;
+	return computeLegacyAvatarCdnPath(uid);
 }
