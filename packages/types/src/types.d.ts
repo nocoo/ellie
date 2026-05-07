@@ -196,6 +196,19 @@ export interface User {
     purgedAt: number;
     /** Admin user id who issued the purge. 0 if never purged. */
     purgedBy: number;
+    /**
+     * Admin-list-only enrichment: number of private messages where the user
+     * is sender OR receiver. Populated by the admin user list handler via
+     * post-page enrichment; absent on detail / non-admin payloads. Mirrors
+     * the `purgeUser` pre-flight semantics so the count an operator sees is
+     * the same one purge will report on success.
+     */
+    messagesCount?: number;
+    /**
+     * Admin-list-only enrichment: number of `attachments` rows uploaded by
+     * this user (`author_id`). Populated only on the admin user list.
+     */
+    attachmentsCount?: number;
 }
 /** Moderator info for display */
 export interface ModeratorInfo {

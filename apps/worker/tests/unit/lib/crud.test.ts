@@ -629,6 +629,85 @@ describe("createListHandler", () => {
 
 		expect(res.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
 	});
+
+	// ─── enrichListRows hook ──────────────────────────────────
+	// Lock the contract: hook receives the page rows (post-LIMIT, post-
+	// pagination), can attach virtual columns, return them in order, and
+	// the mapper sees the enriched shape. Used by admin user list to
+	// compute messages/attachments counts off a per-page UID set.
+
+	it("calls enrichListRows after page query and before mapper", async () => {
+		const { db } = createMockDb({
+			firstResults: { "SELECT COUNT": { total: 2 } },
+			allResults: {
+				"SELECT id, name, some_value FROM test_items": [
+					{ id: 1, name: "a", some_value: 10 },
+					{ id: 2, name: "b", some_value: 20 },
+				],
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const config = makeTestConfig({
+			mapper: (row) => ({
+				id: row.id,
+				name: row.name,
+				value: row.some_value,
+				extra: row.extra,
+			}),
+			enrichListRows: async (rows) => {
+				return rows.map((r) => ({ ...r, extra: `enriched-${r.id}` }));
+			},
+		});
+		const handler = createListHandler(config);
+
+		const res = await handler(makeRequest("/api/admin/test-items"), env);
+		const body = await res.json();
+
+		expect(body.data).toEqual([
+			{ id: 1, name: "a", value: 10, extra: "enriched-1" },
+			{ id: 2, name: "b", value: 20, extra: "enriched-2" },
+		]);
+	});
+
+	it("skips enrichListRows when page is empty", async () => {
+		const { db } = createMockDb({
+			firstResults: { "SELECT COUNT": { total: 0 } },
+			allResults: {},
+		});
+		const env = makeEnv({ DB: db });
+		let called = false;
+		const handler = createListHandler(
+			makeTestConfig({
+				enrichListRows: async (rows) => {
+					called = rows.length > 0;
+					return rows;
+				},
+			}),
+		);
+
+		await handler(makeRequest("/api/admin/test-items"), env);
+		expect(called).toBe(false);
+	});
+
+	it("enrichListRows runs in unpaginated mode too", async () => {
+		const { db } = createMockDb({
+			allResults: {
+				"SELECT id, name, some_value FROM test_items": [{ id: 1, name: "a", some_value: 10 }],
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const handler = createListHandler(
+			makeTestConfig({
+				listPaginated: false,
+				mapper: (row) => ({ id: row.id, mark: row.mark }),
+				enrichListRows: async (rows) => rows.map((r) => ({ ...r, mark: "ok" })),
+			}),
+		);
+
+		const res = await handler(makeRequest("/api/admin/test-items"), env);
+		const body = await res.json();
+		expect(body.data).toEqual([{ id: 1, mark: "ok" }]);
+	});
 });
 
 // ─── createGetByIdHandler ──────────────────────────────────
