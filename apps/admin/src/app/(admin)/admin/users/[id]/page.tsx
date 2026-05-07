@@ -141,7 +141,7 @@ export default function UserDetailPage() {
 		setPurgeLoading(true);
 		setPurgeError(null);
 		try {
-			const result: PurgeResult = await purgeUser(user.id, user.username);
+			const result: PurgeResult = await purgeUser(user.id);
 			setPurgeDialogOpen(false);
 			// Reload moves the page to its tombstone view (status === -99 short
 			// circuit). If the reload itself fails, keep the success banner
@@ -425,9 +425,9 @@ export default function UserDetailPage() {
 					if (!open) setPurgeError(null);
 				}}
 				title="彻底清除用户"
-				description={`将删除 ${user.username} 的全部主题、帖子、点评、附件、私信，并清空 R2 文件并写入 tombstone。此操作不可恢复。`}
-				requireInput={user.username}
-				inputPlaceholder="输入用户名以确认"
+				description={`将永久删除 ${user.username} 的全部主题、帖子、点评、附件、私信，并清空 R2 文件并写入 tombstone。此操作不可逆，无法恢复。`}
+				requireInput="ok"
+				inputPlaceholder="输入 ok 以确认"
 				variant="destructive"
 				confirmLabel="彻底清除"
 				loading={purgeLoading}

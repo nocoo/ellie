@@ -685,7 +685,7 @@ describe("admin user handlers", () => {
 			role: 0,
 			avatar_path: "avatars/42.png",
 		};
-		const validBody = { confirmUsername: "victim" };
+		const validBody = { confirm: "ok" };
 
 		// Build a request that carries audit headers like the admin proxy does.
 		function purgeRequest(id: number, body: unknown, actor?: { email?: string; name?: string }) {
@@ -716,11 +716,23 @@ describe("admin user handlers", () => {
 			expect((await res.json()).error.code).toBe("INVALID_BODY");
 		});
 
-		it("returns 400 INVALID_BODY when confirmUsername is missing", async () => {
+		it("returns 400 INVALID_BODY when confirm is missing", async () => {
 			const { db } = createMockDb();
 			const { purge } = await import("../../../../src/handlers/admin/user");
 
 			const res = await purge(purgeRequest(42, {}), makeEnv({ DB: db, R2: createMockR2() }));
+			expect(res.status).toBe(400);
+			expect((await res.json()).error.code).toBe("INVALID_BODY");
+		});
+
+		it("returns 400 INVALID_BODY when confirm is not a string", async () => {
+			const { db } = createMockDb();
+			const { purge } = await import("../../../../src/handlers/admin/user");
+
+			const res = await purge(
+				purgeRequest(42, { confirm: 123 }),
+				makeEnv({ DB: db, R2: createMockR2() }),
+			);
 			expect(res.status).toBe(400);
 			expect((await res.json()).error.code).toBe("INVALID_BODY");
 		});
@@ -736,14 +748,12 @@ describe("admin user handlers", () => {
 			expect((await res.json()).error.code).toBe("USER_NOT_FOUND");
 		});
 
-		it("returns 400 CONFIRM_MISMATCH when confirmUsername != target.username", async () => {
-			const { db } = createMockDb({
-				firstResults: { "SELECT id, username, status, role, avatar_path FROM users": targetRow },
-			});
+		it('returns 400 CONFIRM_MISMATCH when confirm !== "ok"', async () => {
+			const { db } = createMockDb();
 			const { purge } = await import("../../../../src/handlers/admin/user");
 
 			const res = await purge(
-				purgeRequest(42, { confirmUsername: "wrong" }),
+				purgeRequest(42, { confirm: "yes" }),
 				makeEnv({ DB: db, R2: createMockR2() }),
 			);
 			expect(res.status).toBe(400);
