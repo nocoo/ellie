@@ -39,9 +39,8 @@ function isHistoryCursor(p: Partial<UserHistoryCursor>): boolean {
 }
 
 /** Parse userId from the second-to-last URL path segment: /api/v1/users/:id/threads */
-function parseUserIdFromParent(url: URL): number {
-	const parts = url.pathname.split("/");
-	return Number.parseInt(parts[parts.length - 2] ?? "0", 10);
+function parseUserIdFromParent(request: Request): number {
+	return parsePathSegment(request, 1) ?? Number.NaN;
 }
 
 /**
@@ -65,7 +64,7 @@ async function runUserHistoryQuery<T extends { createdAt: number; id: number }>(
 ): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
-	const userId = parseUserIdFromParent(url);
+	const userId = parseUserIdFromParent(request);
 
 	if (Number.isNaN(userId) || userId <= 0) {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid userId" }, origin);
