@@ -14,6 +14,7 @@ import {
 } from "@ellie/ui";
 import { Input } from "@ellie/ui";
 import { Label } from "@ellie/ui";
+import { Select } from "@ellie/ui";
 import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------
@@ -95,19 +96,18 @@ export function ForumMergeDialog({
 
 					<div className="grid gap-2">
 						<Label htmlFor="merge-target">目标版块</Label>
-						<select
+						<Select
 							id="merge-target"
 							value={targetId ?? ""}
 							onChange={(e) => setTargetId(e.target.value ? Number(e.target.value) : null)}
-							className="h-9 rounded-md border border-border bg-background px-3 text-sm"
-						>
-							<option value="">选择目标版块...</option>
-							{targetOptions.map((f) => (
-								<option key={f.id} value={f.id}>
-									[{typeLabel(f.type)}] {f.name} ({f.threads} 个主题)
-								</option>
-							))}
-						</select>
+							options={[
+								{ value: "", label: "选择目标版块..." },
+								...targetOptions.map((f) => ({
+									value: f.id,
+									label: `[${typeLabel(f.type)}] ${f.name} (${f.threads} 个主题)`,
+								})),
+							]}
+						/>
 					</div>
 
 					{source && source.threads > 0 && (

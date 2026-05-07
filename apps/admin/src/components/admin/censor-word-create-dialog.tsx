@@ -9,6 +9,7 @@ import { Button } from "@ellie/ui";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@ellie/ui";
 import { Input } from "@ellie/ui";
 import { Label } from "@ellie/ui";
+import { Select } from "@ellie/ui";
 import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------
@@ -105,15 +106,15 @@ export function CensorWordCreateDialog({
 
 					<div className="grid gap-2">
 						<Label htmlFor="cw-action">动作</Label>
-						<select
+						<Select
 							id="cw-action"
 							value={action}
 							onChange={(e) => setAction(e.target.value as "ban" | "replace")}
-							className="h-9 rounded-md border border-border bg-background px-3 text-sm"
-						>
-							<option value="replace">替换</option>
-							<option value="ban">禁止发布</option>
-						</select>
+							options={[
+								{ value: "replace", label: "替换" },
+								{ value: "ban", label: "禁止发布" },
+							]}
+						/>
 						<p className="text-xs text-muted-foreground">
 							替换：将词语替换为指定内容。禁止发布：直接拦截帖子。
 						</p>
