@@ -3,6 +3,7 @@ import { canViewForumVisibility } from "@ellie/types";
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
+import { clampLimit } from "../lib/pagination";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
@@ -77,11 +78,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	}
 
 	// Clamp limit
-	const DEFAULT_LIMIT = 50;
-	const MAX_LIMIT = 100;
-	const limitNum = limitParam ? Number.parseInt(limitParam, 10) : undefined;
-	const clampedLimit =
-		limitNum === undefined || limitNum <= 0 ? DEFAULT_LIMIT : Math.min(limitNum, MAX_LIMIT);
+	const clampedLimit = clampLimit(limitParam, { defaultLimit: 50, maxLimit: 100 });
 
 	const result = await env.DB.prepare(
 		"SELECT * FROM post_comments WHERE post_id = ? ORDER BY created_at ASC LIMIT ?",
