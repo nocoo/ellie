@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.5] - 2026-05-07
+
+### Added
+
+- **Admin batch operations**: Batch move dialog for threads with typed-confirm batch delete; batch purge for users with serial loop execution
+- **Admin range filters**: Numeric range and date range filter types for user list (主题/帖子/站内信/附件 counts + registration date)
+- **Admin user avatars**: UserAvatar component with CDN avatar URL helpers; expose avatarPath on admin user payload
+- **Admin inline actions**: Inline action buttons on users and threads tables with cross-reference links across admin pages
+- **Admin badges**: Centralized badge variant mapping via `badges.ts`
+
+### Fixed
+
+- **Worker cascade deletes**: Clear child rows before thread and post deletes; clear child rows in user content deletion
+- **Admin UI polish**: Consistent user-status colours, line tabs in user detail, thread subject display for posts, empty filter select states, table header hover state prevention
+- **Tailwind v4**: Scan `@ellie/ui` sources for utility emission in admin app
+- **Dependencies**: Update hono for OSV advisory fix
+
+### Changed
+
+- **Worker parse helpers**: Reuse `parseIdFromPath`, `parsePathSegment`, and `clampLimit` across all handlers (admin reports, user history, forum, user, attachment, post, message, search)
+- **Admin controls**: Standardized filter controls, shared Select in form dialogs, default pagination to 100/page
+- **Deploy contract**: `bun run worker:deploy` now applies pending D1 migrations before deploying
+
 ## [1.2.4] - 2026-05-06
 
 ### Performance
