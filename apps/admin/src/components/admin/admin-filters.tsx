@@ -2,6 +2,7 @@
 
 import { Button } from "@ellie/ui";
 import { Input } from "@ellie/ui";
+import { Select } from "@ellie/ui";
 import { Search, X } from "lucide-react";
 import { useCallback, useState } from "react";
 
@@ -56,7 +57,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 								placeholder={filter.label}
 								value={searchInput}
 								onChange={(e) => setSearchInput(e.target.value)}
-								className="h-9 w-[200px] pl-8 pr-8"
+								className="w-[200px] pl-8 pr-8"
 							/>
 							{searchInput && (
 								<button
@@ -73,19 +74,13 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 
 				if (filter.type === "select" && filter.options) {
 					return (
-						<select
+						<Select
 							key={filter.key}
 							value={values[filter.key] ?? ""}
 							onChange={(e) => onFilterChange(filter.key, e.target.value)}
-							className="h-9 rounded-md border border-border bg-secondary px-3 text-sm"
-						>
-							<option value="">{filter.label}</option>
-							{filter.options.map((opt) => (
-								<option key={opt.value} value={opt.value}>
-									{opt.label}
-								</option>
-							))}
-						</select>
+							aria-label={filter.label}
+							options={[{ value: "", label: filter.label }, ...filter.options]}
+						/>
 					);
 				}
 
@@ -94,8 +89,6 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 						<Button
 							key={filter.key}
 							variant={values[filter.key] === "true" ? "default" : "outline"}
-							size="sm"
-							className="h-9"
 							onClick={() =>
 								onFilterChange(filter.key, values[filter.key] === "true" ? "" : "true")
 							}
@@ -109,7 +102,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 			})}
 
 			{hasActiveFilters && onClearAll && (
-				<Button variant="ghost" size="sm" className="h-9" onClick={onClearAll}>
+				<Button variant="ghost" onClick={onClearAll}>
 					清除筛选
 				</Button>
 			)}

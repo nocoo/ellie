@@ -323,7 +323,6 @@ export default function IpBansPage() {
 					/>
 					<Button
 						variant="outline"
-						size="sm"
 						onClick={handleCheckIp}
 						disabled={checkLoading || !checkIpValue.trim()}
 					>
