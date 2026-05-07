@@ -10,6 +10,7 @@ import {
 	reportTypeVariant,
 	threadClosedVariant,
 	threadDigestVariant,
+	threadHighlightVariant,
 	threadStickyVariant,
 	userRoleVariant,
 	userStatusVariant,
@@ -69,6 +70,12 @@ describe("badges — thread flag variants", () => {
 	it("closed >0 → destructive, 0 → muted", () => {
 		expect(threadClosedVariant(1)).toBe("destructive");
 		expect(threadClosedVariant(0)).toBe("muted");
+	});
+	it("highlight >0 → default, 0 → muted (encoded bitmask, any non-zero counts)", () => {
+		expect(threadHighlightVariant(1)).toBe("default");
+		// Real values are 24-bit RGB packs (e.g. 0xff0000 = 16711680).
+		expect(threadHighlightVariant(16711680)).toBe("default");
+		expect(threadHighlightVariant(0)).toBe("muted");
 	});
 });
 

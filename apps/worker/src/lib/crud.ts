@@ -15,8 +15,16 @@ export interface FilterDef {
 	param: string;
 	/** D1 column name */
 	column: string;
-	/** Match type */
-	type: "exact" | "like";
+	/**
+	 * Match type.
+	 * - `exact` — `column = ?` (raw string or parsed value)
+	 * - `like` — `column LIKE %raw%`
+	 * - `positive` — boolean-style filter for encoded numeric columns: raw
+	 *   `1`/`true` → `column > 0`, raw `0`/`false` → `column = 0`. Used when
+	 *   the underlying column is a bitmask/RGB pack (e.g. `threads.highlight`)
+	 *   and the UI just wants "set" vs "unset".
+	 */
+	type: "exact" | "like" | "positive";
 	/** Value parser — defaults to string passthrough */
 	parse?: "int" | "boolean";
 }
@@ -115,6 +123,11 @@ function getOrigin(request: Request): string | undefined {
 }
 
 function applyFilter(f: FilterDef, raw: string, conditions: string[], params: unknown[]): void {
+	if (f.type === "positive") {
+		if (raw === "true" || raw === "1") conditions.push(`${f.column} > 0`);
+		else if (raw === "false" || raw === "0") conditions.push(`${f.column} = 0`);
+		return;
+	}
 	if (f.parse === "int") {
 		const num = Number.parseInt(raw, 10);
 		if (Number.isNaN(num)) return;

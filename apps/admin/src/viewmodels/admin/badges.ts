@@ -94,6 +94,15 @@ export function threadClosedVariant(closed: number): AdminBadgeVariant {
 	return closed > 0 ? "destructive" : "muted";
 }
 
+/**
+ * Highlight is an encoded RGB+style bitmask (see worker `encodeHighlight`),
+ * so the variant only differentiates "set" vs "unset" — any non-zero value
+ * means a custom title style was applied.
+ */
+export function threadHighlightVariant(highlight: number): AdminBadgeVariant {
+	return highlight > 0 ? "default" : "muted";
+}
+
 // ---------------------------------------------------------------------------
 // Reports
 // ---------------------------------------------------------------------------

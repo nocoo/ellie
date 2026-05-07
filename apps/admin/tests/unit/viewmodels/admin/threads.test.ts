@@ -28,6 +28,20 @@ describe("threads", () => {
 			const params = buildThreadSearchParams({ subject: "hello" });
 			expect(params.subject).toBe("hello");
 		});
+
+		it('emits highlighted="1" for true and the number 1', () => {
+			expect(buildThreadSearchParams({ highlighted: true }).highlighted).toBe("1");
+			expect(buildThreadSearchParams({ highlighted: 1 }).highlighted).toBe("1");
+		});
+
+		it('emits highlighted="0" for false and the number 0 (so api-client doesn\'t drop it)', () => {
+			expect(buildThreadSearchParams({ highlighted: false }).highlighted).toBe("0");
+			expect(buildThreadSearchParams({ highlighted: 0 }).highlighted).toBe("0");
+		});
+
+		it("omits highlighted when undefined", () => {
+			expect(buildThreadSearchParams({}).highlighted).toBeUndefined();
+		});
 	});
 
 	describe("stickyLabel", () => {

@@ -11,6 +11,7 @@ import { extractErrorMessage } from "@/lib/admin-error";
 import {
 	threadClosedVariant,
 	threadDigestVariant,
+	threadHighlightVariant,
 	threadStickyVariant,
 } from "@/viewmodels/admin/badges";
 import {
@@ -40,9 +41,21 @@ const FILTERS: FilterDef[] = [
 		label: "置顶状态",
 		type: "select",
 		options: [
+			{ value: "0", label: "未置顶" },
 			{ value: "1", label: "版块置顶" },
 			{ value: "2", label: "全局置顶" },
 			{ value: "3", label: "分类置顶" },
+		],
+	},
+	{
+		key: "digest",
+		label: "精华状态",
+		type: "select",
+		options: [
+			{ value: "0", label: "非精华" },
+			{ value: "1", label: "精华 I" },
+			{ value: "2", label: "精华 II" },
+			{ value: "3", label: "精华 III" },
 		],
 	},
 	{
@@ -52,6 +65,15 @@ const FILTERS: FilterDef[] = [
 		options: [
 			{ value: "0", label: "开放" },
 			{ value: "1", label: "已锁定" },
+		],
+	},
+	{
+		key: "highlighted",
+		label: "高亮状态",
+		type: "select",
+		options: [
+			{ value: "0", label: "未高亮" },
+			{ value: "1", label: "已高亮" },
 		],
 	},
 ];
@@ -74,7 +96,9 @@ export default function ThreadsPage() {
 	const [filters, setFilters] = useState<Record<string, string>>({
 		search: "",
 		sticky: "",
+		digest: "",
 		closed: "",
+		highlighted: "",
 	});
 	const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
 
@@ -105,7 +129,9 @@ export default function ThreadsPage() {
 				params.set("limit", String(pagination.limit));
 				if (filters.search) params.set("subject", filters.search);
 				if (filters.sticky) params.set("sticky", filters.sticky);
+				if (filters.digest) params.set("digest", filters.digest);
 				if (filters.closed) params.set("closed", filters.closed);
+				if (filters.highlighted) params.set("highlighted", filters.highlighted);
 
 				const res = await fetch(`/api/admin/threads?${params.toString()}`);
 				const json = await res.json();
@@ -136,7 +162,7 @@ export default function ThreadsPage() {
 	}, []);
 
 	const handleClearFilters = useCallback(() => {
-		setFilters({ search: "", sticky: "", closed: "" });
+		setFilters({ search: "", sticky: "", digest: "", closed: "", highlighted: "" });
 	}, []);
 
 	const handleEditSave = useCallback(
@@ -265,6 +291,7 @@ export default function ThreadsPage() {
 					{row.digest > 0 && (
 						<Badge variant={threadDigestVariant(row.digest)}>{digestLabel(row.digest)}</Badge>
 					)}
+					{row.highlight > 0 && <Badge variant={threadHighlightVariant(row.highlight)}>高亮</Badge>}
 				</div>
 			),
 		},

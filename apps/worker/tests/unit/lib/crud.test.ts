@@ -30,6 +30,7 @@ function makeTestConfig(overrides?: Partial<EntityConfig>): EntityConfig {
 			{ param: "name", column: "name", type: "like" },
 			{ param: "status", column: "status", type: "exact", parse: "int" },
 			{ param: "active", column: "active", type: "exact", parse: "boolean" },
+			{ param: "highlighted", column: "highlight", type: "positive" },
 		],
 		createFields: [
 			{
@@ -304,6 +305,62 @@ describe("createListHandler", () => {
 		const handler = createListHandler(makeTestConfig());
 
 		await handler(makeRequest("/api/admin/test-items?active=maybe"), env);
+
+		const countCall = calls.find((c) => c.sql.includes("COUNT"));
+		expect(countCall?.sql).not.toContain("WHERE");
+	});
+
+	it("should apply 'positive' filter with '1' as column > 0", async () => {
+		const { db, calls } = createMockDb({
+			firstResults: { "SELECT COUNT": { total: 1 } },
+			allResults: { "SELECT id, name, some_value FROM test_items": [testRow] },
+		});
+		const env = makeEnv({ DB: db });
+		const handler = createListHandler(makeTestConfig());
+
+		await handler(makeRequest("/api/admin/test-items?highlighted=1"), env);
+
+		const countCall = calls.find((c) => c.sql.includes("COUNT"));
+		expect(countCall?.sql).toContain("WHERE highlight > 0");
+	});
+
+	it("should apply 'positive' filter with 'true' as column > 0", async () => {
+		const { db, calls } = createMockDb({
+			firstResults: { "SELECT COUNT": { total: 1 } },
+			allResults: { "SELECT id, name, some_value FROM test_items": [testRow] },
+		});
+		const env = makeEnv({ DB: db });
+		const handler = createListHandler(makeTestConfig());
+
+		await handler(makeRequest("/api/admin/test-items?highlighted=true"), env);
+
+		const countCall = calls.find((c) => c.sql.includes("COUNT"));
+		expect(countCall?.sql).toContain("WHERE highlight > 0");
+	});
+
+	it("should apply 'positive' filter with '0' as column = 0", async () => {
+		const { db, calls } = createMockDb({
+			firstResults: { "SELECT COUNT": { total: 1 } },
+			allResults: { "SELECT id, name, some_value FROM test_items": [testRow] },
+		});
+		const env = makeEnv({ DB: db });
+		const handler = createListHandler(makeTestConfig());
+
+		await handler(makeRequest("/api/admin/test-items?highlighted=0"), env);
+
+		const countCall = calls.find((c) => c.sql.includes("COUNT"));
+		expect(countCall?.sql).toContain("WHERE highlight = 0");
+	});
+
+	it("should ignore 'positive' filter with invalid value", async () => {
+		const { db, calls } = createMockDb({
+			firstResults: { "SELECT COUNT": { total: 0 } },
+			allResults: {},
+		});
+		const env = makeEnv({ DB: db });
+		const handler = createListHandler(makeTestConfig());
+
+		await handler(makeRequest("/api/admin/test-items?highlighted=maybe"), env);
 
 		const countCall = calls.find((c) => c.sql.includes("COUNT"));
 		expect(countCall?.sql).not.toContain("WHERE");
