@@ -8,6 +8,7 @@ import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-ta
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { AdminPagination } from "@/components/admin/admin-pagination";
+import { UserAvatar } from "@/components/admin/user-avatar";
 import { UserEditDialog } from "@/components/admin/user-edit-dialog";
 import { userRoleVariant, userStatusVariant } from "@/viewmodels/admin/badges";
 import { useUsersAdmin } from "@/viewmodels/admin/use-users-admin";
@@ -107,9 +108,7 @@ export default function UsersPage() {
 					href={`/admin/users/${row.id}`}
 					className="flex items-center gap-2 text-foreground hover:underline"
 				>
-					<div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
-						{row.username[0]?.toUpperCase() ?? "?"}
-					</div>
+					<UserAvatar uid={row.id} username={row.username} avatarPath={row.avatarPath} size={32} />
 					<span className="font-medium">{row.username}</span>
 				</Link>
 			),

@@ -1,5 +1,6 @@
 "use client";
 
+import { UserAvatar } from "@/components/admin/user-avatar";
 import { FIRST_POST_VARIANT, userRoleVariant, userStatusVariant } from "@/viewmodels/admin/badges";
 import type { EnrichedPost } from "@/viewmodels/admin/thread-detail";
 import { roleLabel } from "@/viewmodels/admin/users";
@@ -93,20 +94,13 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 			<div className="flex flex-col md:flex-row">
 				{/* Author sidebar */}
 				<div className="flex md:flex-col items-center md:items-center gap-3 md:gap-2 border-b md:border-b-0 md:border-r p-4 md:w-48 md:shrink-0 bg-muted/10">
-					{/* Avatar */}
-					{author?.avatar ? (
-						<img
-							src={author.avatar}
-							alt={author.username}
-							className="h-12 w-12 md:h-16 md:w-16 rounded-full object-cover"
-						/>
-					) : (
-						<img
-							src="/static/image/common/tavatar.gif"
-							alt="默认头像"
-							className="h-12 w-12 md:h-16 md:w-16 rounded-full object-cover bg-muted"
-						/>
-					)}
+					{/* Avatar — falls back to default tavatar.gif via UserAvatar onError. */}
+					<UserAvatar
+						uid={author?.id ?? post.authorId}
+						username={author?.username ?? post.authorName}
+						avatarPath={author?.avatarPath}
+						className="md:h-16 md:w-16 h-12 w-12"
+					/>
 
 					<div className="flex flex-col items-start md:items-center gap-1 min-w-0">
 						{/* Username — link to user detail when we have a usable id */}

@@ -14,6 +14,7 @@ import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { AdminPagination } from "@/components/admin/admin-pagination";
+import { UserAvatar } from "@/components/admin/user-avatar";
 import { UserEditDialog } from "@/components/admin/user-edit-dialog";
 import { extractErrorMessage } from "@/lib/admin-error";
 import { FIRST_POST_VARIANT, userRoleVariant, userStatusVariant } from "@/viewmodels/admin/badges";
@@ -208,9 +209,7 @@ export default function UserDetailPage() {
 
 			{/* Header */}
 			<div className="flex items-center gap-4">
-				<div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center text-lg font-medium">
-					{user.username[0]?.toUpperCase() ?? "?"}
-				</div>
+				<UserAvatar uid={user.id} username={user.username} avatarPath={user.avatarPath} size={48} />
 				<div className="flex-1">
 					<h1 className="text-2xl font-semibold text-foreground">{user.username}</h1>
 					<div className="mt-1 flex items-center gap-2">
@@ -293,7 +292,7 @@ export default function UserDetailPage() {
 				</CardHeader>
 				<CardContent>
 					<Tabs defaultValue="threads">
-						<TabsList variant="line">
+						<TabsList>
 							<TabsTrigger value="threads">主题（{formatNumber(user.threads)}）</TabsTrigger>
 							<TabsTrigger value="posts">帖子（{formatNumber(user.posts)}）</TabsTrigger>
 						</TabsList>
