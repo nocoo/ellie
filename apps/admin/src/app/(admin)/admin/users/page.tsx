@@ -14,13 +14,7 @@ import { type User, roleLabel, statusLabel } from "@/viewmodels/admin/users";
 import { formatNumber } from "@ellie/shared";
 import { Badge } from "@ellie/ui";
 import { Button } from "@ellie/ui";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@ellie/ui";
-import { MoreHorizontal } from "lucide-react";
+import { Eye, Pencil } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -163,30 +157,32 @@ export default function UsersPage() {
 			key: "actions",
 			header: "",
 			cell: (row) => (
-				<DropdownMenu>
-					<DropdownMenuTrigger
-						render={
-							<Button
-								variant="ghost"
-								size="icon"
-								aria-label={`打开用户「${row.username}」操作菜单`}
-								className="h-8 w-8"
-							>
-								<MoreHorizontal className="h-4 w-4" />
-							</Button>
-						}
-					/>
-					<DropdownMenuContent align="end" className="w-40 whitespace-nowrap">
-						<DropdownMenuItem onClick={() => router.push(`/admin/users/${row.id}`)}>
-							查看详情
-						</DropdownMenuItem>
-						{row.status !== -99 && (
-							<DropdownMenuItem onClick={() => actions.openEditDialog(row)}>编辑</DropdownMenuItem>
-						)}
-					</DropdownMenuContent>
-				</DropdownMenu>
+				<div className="flex items-center justify-end gap-1">
+					<Button
+						variant="ghost"
+						size="icon"
+						className="h-8 w-8"
+						aria-label={`查看用户「${row.username}」详情`}
+						title={`查看用户「${row.username}」详情`}
+						onClick={() => router.push(`/admin/users/${row.id}`)}
+					>
+						<Eye className="h-4 w-4" />
+					</Button>
+					{row.status !== -99 && (
+						<Button
+							variant="ghost"
+							size="icon"
+							className="h-8 w-8"
+							aria-label={`编辑用户「${row.username}」`}
+							title={`编辑用户「${row.username}」`}
+							onClick={() => actions.openEditDialog(row)}
+						>
+							<Pencil className="h-4 w-4" />
+						</Button>
+					)}
+				</div>
 			),
-			className: "w-10",
+			className: "w-auto whitespace-nowrap",
 		},
 	];
 
