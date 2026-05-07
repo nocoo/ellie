@@ -1,0 +1,17 @@
+node_modules
+.next
+.git
+.github
+.husky
+.wrangler
+.dev.vars
+.env*
+!.env.example
+*.tsbuildinfo
+playwright-report
+test-results
+tests
+e2e
+coverage
+reference
+packages/cli-rs
