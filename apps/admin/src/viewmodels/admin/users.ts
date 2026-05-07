@@ -24,6 +24,17 @@ export interface User {
 	purgedAt?: number;
 	/** D4 tombstone — admin user id who issued purge. 0 if never. */
 	purgedBy?: number;
+	/**
+	 * Admin-list-only enrichment from worker `enrichListRows`. Number of
+	 * private messages where the user is sender OR receiver (mirrors
+	 * `purgeUser` pre-flight semantics). Absent on detail / non-list paths.
+	 */
+	messagesCount?: number;
+	/**
+	 * Admin-list-only enrichment from worker `enrichListRows`. Number of
+	 * `attachments` rows uploaded by this user (`author_id`).
+	 */
+	attachmentsCount?: number;
 }
 
 export interface UserFilters {

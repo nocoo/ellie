@@ -127,10 +127,32 @@ export default function UsersPage() {
 			),
 		},
 		{
+			key: "threads",
+			header: "主题",
+			cell: (row) => formatNumber(row.threads),
+			className: "text-right tabular-nums",
+		},
+		{
 			key: "posts",
 			header: "帖子",
 			cell: (row) => formatNumber(row.posts),
-			className: "text-right",
+			className: "text-right tabular-nums",
+		},
+		{
+			key: "messages",
+			header: "站内信",
+			// `messagesCount` is admin-list-only enrichment from
+			// `enrichListRows` (worker handlers/admin/user.ts). Worker always
+			// emits a number on the list path; the `?? 0` is belt-and-braces
+			// for transient mismatches and never shows blank cells.
+			cell: (row) => formatNumber(row.messagesCount ?? 0),
+			className: "text-right tabular-nums",
+		},
+		{
+			key: "attachments",
+			header: "附件",
+			cell: (row) => formatNumber(row.attachmentsCount ?? 0),
+			className: "text-right tabular-nums",
 		},
 		{
 			key: "registered",
