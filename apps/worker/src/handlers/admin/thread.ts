@@ -34,6 +34,11 @@ const threadConfig: EntityConfig = {
 		{ param: "closed", column: "closed", type: "exact", parse: "int" },
 		{ param: "digest", column: "digest", type: "exact", parse: "int" },
 		{ param: "highlight", column: "highlight", type: "exact", parse: "int" },
+		// `highlight` is an encoded RGB+style bitmask (see encodeHighlight in
+		// moderation.ts). Exact-match values are not useful in the UI, so the
+		// admin list also exposes a `highlighted=0|1` boolean filter that
+		// translates to `highlight = 0` / `highlight > 0`.
+		{ param: "highlighted", column: "highlight", type: "positive" },
 	],
 	listSort: "id DESC",
 	updateFields: [

@@ -28,7 +28,18 @@ export interface ThreadFilters {
 	sticky?: number;
 	closed?: number;
 	digest?: number;
+	/**
+	 * Exact match against the encoded `highlight` bitmask. Almost never useful
+	 * from the UI (real values are 24-bit RGB packs); prefer `highlighted`.
+	 */
 	highlight?: number;
+	/**
+	 * Boolean-style filter on `highlight`: `1`/`true` → `highlight > 0`,
+	 * `0`/`false` → `highlight = 0`. Wired through the worker `positive`
+	 * filter type so the UI can offer "已高亮 / 未高亮" without leaking the
+	 * bitmask encoding.
+	 */
+	highlighted?: 0 | 1 | boolean;
 	page?: number;
 	limit?: number;
 }
@@ -62,6 +73,12 @@ export interface MoveResult {
 export function buildThreadSearchParams(
 	filters: ThreadFilters,
 ): Record<string, string | number | boolean | undefined | null> {
+	// `highlighted` accepts boolean or 0/1; normalise to the "1"/"0" strings the
+	// worker `positive` filter expects (so a bare `false` doesn't get dropped
+	// by api-client's truthy filter).
+	let highlighted: string | undefined;
+	if (filters.highlighted === true || filters.highlighted === 1) highlighted = "1";
+	else if (filters.highlighted === false || filters.highlighted === 0) highlighted = "0";
 	return {
 		page: filters.page,
 		limit: filters.limit,
@@ -73,6 +90,7 @@ export function buildThreadSearchParams(
 		closed: filters.closed ?? undefined,
 		digest: filters.digest ?? undefined,
 		highlight: filters.highlight ?? undefined,
+		highlighted,
 	};
 }
 
