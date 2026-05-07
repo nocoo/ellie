@@ -6,6 +6,7 @@ import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-ta
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
+import { ThreadBatchMoveDialog } from "@/components/admin/thread-batch-move-dialog";
 import { ThreadEditDialog } from "@/components/admin/thread-edit-dialog";
 import { extractErrorMessage } from "@/lib/admin-error";
 import {
@@ -18,6 +19,7 @@ import {
 	type Thread,
 	type ThreadUpdate,
 	batchDeleteThreads,
+	batchMoveThreads,
 	deleteThread,
 	digestLabel,
 	stickyLabel,
@@ -78,7 +80,13 @@ const FILTERS: FilterDef[] = [
 	},
 ];
 
-const BATCH_ACTIONS: BatchAction[] = [{ key: "delete", label: "批量删除", variant: "destructive" }];
+const BATCH_ACTIONS: BatchAction[] = [
+	{ key: "move", label: "批量移动" },
+	// Batch H2 of task #15 — typed-confirm `ok` is wired below in
+	// handleBatchAction so a misclick on this destructive action cannot
+	// pull the trigger by itself.
+	{ key: "delete", label: "批量删除", variant: "destructive" },
+];
 
 // ---------------------------------------------------------------------------
 // Page component
@@ -109,6 +117,7 @@ export default function ThreadsPage() {
 		title: string;
 		description: string;
 		variant: "default" | "destructive";
+		requireInput?: string;
 		onConfirm: () => void;
 	}>({ open: false, title: "", description: "", variant: "default", onConfirm: () => {} });
 	const [confirmLoading, setConfirmLoading] = useState(false);
@@ -119,6 +128,12 @@ export default function ThreadsPage() {
 		type: "success" | "error";
 		text: string;
 	} | null>(null);
+
+	// Batch H1 — batch-move dialog state. Local to the page (no viewmodel
+	// hook for this page yet); error is in-dialog (per reviewer).
+	const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+	const [moveLoading, setMoveLoading] = useState(false);
+	const [moveError, setMoveError] = useState<string | null>(null);
 
 	const fetchData = useCallback(
 		async (page = 1) => {
@@ -234,10 +249,71 @@ export default function ThreadsPage() {
 			const ids = Array.from(selectedIds).map(Number);
 			if (ids.length === 0) return;
 			if (key === "delete") {
-				await batchDeleteThreads(ids);
+				// Batch H2 — typed-confirm `ok` (matches users-page batch
+				// purge). Errors render in-dialog via confirmError.
+				setConfirmError(null);
+				setConfirmDialog({
+					open: true,
+					title: "批量删除主题",
+					description: `将永久删除选中的 ${ids.length} 个主题及其全部回复，此操作不可撤销。请输入 ok 以确认。`,
+					variant: "destructive",
+					requireInput: "ok",
+					onConfirm: async () => {
+						setConfirmLoading(true);
+						setConfirmError(null);
+						try {
+							const result = await batchDeleteThreads(ids);
+							setConfirmDialog((d) => ({ ...d, open: false }));
+							setSelectedIds(new Set());
+							fetchData(pagination.page);
+							setPageMessage({
+								type: "success",
+								text: `已删除 ${result.affected} 个主题`,
+							});
+						} catch (err) {
+							setConfirmError(extractErrorMessage(err, "批量删除主题失败"));
+						} finally {
+							setConfirmLoading(false);
+						}
+					},
+				});
+				return;
 			}
-			setSelectedIds(new Set());
-			fetchData(pagination.page);
+			if (key === "move") {
+				// Batch H1 — open the dedicated picker dialog. Selection is
+				// captured via state; the dialog reads selectedIds.size at
+				// render time so it always reflects the live count.
+				setMoveError(null);
+				setMoveDialogOpen(true);
+				return;
+			}
+		},
+		[selectedIds, fetchData, pagination.page],
+	);
+
+	const handleMoveConfirm = useCallback(
+		async (forumId: number) => {
+			const ids = Array.from(selectedIds).map(Number);
+			if (ids.length === 0) {
+				setMoveError("未选择任何主题");
+				return;
+			}
+			setMoveLoading(true);
+			setMoveError(null);
+			try {
+				const result = await batchMoveThreads(ids, forumId);
+				setMoveDialogOpen(false);
+				setSelectedIds(new Set());
+				fetchData(pagination.page);
+				setPageMessage({
+					type: "success",
+					text: `已移动 ${result.affected} 个主题到目标版块`,
+				});
+			} catch (err) {
+				setMoveError(extractErrorMessage(err, "批量移动主题失败"));
+			} finally {
+				setMoveLoading(false);
+			}
 		},
 		[selectedIds, fetchData, pagination.page],
 	);
@@ -401,9 +477,22 @@ export default function ThreadsPage() {
 				title={confirmDialog.title}
 				description={confirmDialog.description}
 				variant={confirmDialog.variant}
+				requireInput={confirmDialog.requireInput}
 				loading={confirmLoading}
 				error={confirmError}
 				onConfirm={confirmDialog.onConfirm}
+			/>
+
+			<ThreadBatchMoveDialog
+				open={moveDialogOpen}
+				onOpenChange={(open) => {
+					setMoveDialogOpen(open);
+					if (!open) setMoveError(null);
+				}}
+				selectedCount={selectedIds.size}
+				loading={moveLoading}
+				error={moveError}
+				onConfirm={handleMoveConfirm}
 			/>
 		</div>
 	);
