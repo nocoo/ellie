@@ -15,6 +15,13 @@ export interface FilterDef {
 	label: string;
 	type: "search" | "select" | "toggle";
 	options?: { value: string; label: string }[];
+	/**
+	 * Optional placeholder shown as the empty (clear-selection) option for
+	 * select filters. Falls back to `全部${label}` when omitted. Use this when
+	 * `label` is itself one of the option values (e.g. "已锁定") and the
+	 * default placeholder would imply a selection has been made.
+	 */
+	placeholder?: string;
 }
 
 export interface AdminFiltersProps {
@@ -22,6 +29,29 @@ export interface AdminFiltersProps {
 	values: Record<string, string>;
 	onFilterChange: (key: string, value: string) => void;
 	onClearAll?: () => void;
+}
+
+// ---------------------------------------------------------------------------
+// Pure helpers (exported for testing)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve the placeholder text shown as the empty (clear-selection) option
+ * for a select filter. Defaults to `全部${label}` when not specified, so the
+ * empty state never reads like one of the option values (e.g. "已锁定").
+ */
+export function resolveSelectPlaceholder(filter: Pick<FilterDef, "label" | "placeholder">): string {
+	return filter.placeholder ?? `全部${filter.label}`;
+}
+
+/**
+ * Build the option list for a select filter, with the empty-value option
+ * (used to clear the filter) prepended.
+ */
+export function buildSelectOptions(
+	filter: Pick<FilterDef, "label" | "placeholder" | "options">,
+): { value: string; label: string }[] {
+	return [{ value: "", label: resolveSelectPlaceholder(filter) }, ...(filter.options ?? [])];
 }
 
 // ---------------------------------------------------------------------------
@@ -79,7 +109,7 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 							value={values[filter.key] ?? ""}
 							onChange={(e) => onFilterChange(filter.key, e.target.value)}
 							aria-label={filter.label}
-							options={[{ value: "", label: filter.label }, ...filter.options]}
+							options={buildSelectOptions(filter)}
 						/>
 					);
 				}
