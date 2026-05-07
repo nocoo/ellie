@@ -1,6 +1,6 @@
 "use client";
 
-import { FIRST_POST_VARIANT, userRoleVariant } from "@/viewmodels/admin/badges";
+import { FIRST_POST_VARIANT, userRoleVariant, userStatusVariant } from "@/viewmodels/admin/badges";
 import type { EnrichedPost } from "@/viewmodels/admin/thread-detail";
 import { roleLabel } from "@/viewmodels/admin/users";
 import { formatNumber } from "@ellie/shared";
@@ -135,7 +135,7 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 
 						{/* User status (if banned/archived) */}
 						{author && statusIndicator(author.status) && (
-							<Badge variant="destructive" className="text-xs">
+							<Badge variant={userStatusVariant(author.status)} className="text-xs">
 								{statusIndicator(author.status)}
 							</Badge>
 						)}
