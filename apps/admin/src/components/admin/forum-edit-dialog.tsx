@@ -5,6 +5,7 @@ import { Button } from "@ellie/ui";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@ellie/ui";
 import { Input } from "@ellie/ui";
 import { Label } from "@ellie/ui";
+import { Select } from "@ellie/ui";
 import { useCallback, useEffect, useState } from "react";
 import { AdminInlineMessage } from "./admin-inline-message";
 
@@ -153,19 +154,15 @@ export function ForumEditDialog({
 					{type !== "group" && validParents.length > 0 && (
 						<div className="grid gap-2">
 							<Label htmlFor="edit-parent">上级{type === "forum" ? "分区" : "版块"}</Label>
-							<select
+							<Select
 								id="edit-parent"
 								value={parentId}
 								onChange={(e) => setParentId(Number(e.target.value))}
-								className="h-9 rounded-md border border-border bg-background px-3 text-sm"
-							>
-								{type === "forum" && <option value={0}>无上级分区</option>}
-								{validParents.map((p) => (
-									<option key={p.id} value={p.id}>
-										{p.name}
-									</option>
-								))}
-							</select>
+								options={[
+									...(type === "forum" ? [{ value: 0, label: "无上级分区" }] : []),
+									...validParents.map((p) => ({ value: p.id, label: p.name })),
+								]}
+							/>
 						</div>
 					)}
 
@@ -221,18 +218,12 @@ export function ForumEditDialog({
 
 						<div className="grid gap-2">
 							<Label htmlFor="edit-status">状态</Label>
-							<select
+							<Select
 								id="edit-status"
 								value={status}
 								onChange={(e) => setStatus(Number(e.target.value))}
-								className="h-9 rounded-md border border-border bg-background px-3 text-sm"
-							>
-								{STATUS_OPTIONS.map((opt) => (
-									<option key={opt.value} value={opt.value}>
-										{opt.label}
-									</option>
-								))}
-							</select>
+								options={STATUS_OPTIONS}
+							/>
 						</div>
 					</div>
 				</div>

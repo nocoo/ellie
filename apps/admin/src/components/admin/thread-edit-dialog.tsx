@@ -5,6 +5,7 @@ import { Button } from "@ellie/ui";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@ellie/ui";
 import { Input } from "@ellie/ui";
 import { Label } from "@ellie/ui";
+import { Select } from "@ellie/ui";
 import { useCallback, useEffect, useState } from "react";
 import { AdminInlineMessage } from "./admin-inline-message";
 
@@ -77,47 +78,47 @@ export function ThreadEditDialog({
 					<div className="grid grid-cols-2 gap-4">
 						<div className="grid gap-2">
 							<Label htmlFor="edit-sticky">置顶</Label>
-							<select
+							<Select
 								id="edit-sticky"
 								value={sticky}
 								onChange={(e) => setSticky(Number(e.target.value))}
-								className="h-9 rounded-md border border-border bg-background px-3 text-sm"
-							>
-								<option value={0}>无</option>
-								<option value={1}>版块置顶</option>
-								<option value={2}>全局置顶</option>
-								<option value={3}>分类置顶</option>
-							</select>
+								options={[
+									{ value: 0, label: "无" },
+									{ value: 1, label: "版块置顶" },
+									{ value: 2, label: "全局置顶" },
+									{ value: 3, label: "分类置顶" },
+								]}
+							/>
 						</div>
 
 						<div className="grid gap-2">
 							<Label htmlFor="edit-digest">精华</Label>
-							<select
+							<Select
 								id="edit-digest"
 								value={digest}
 								onChange={(e) => setDigest(Number(e.target.value))}
-								className="h-9 rounded-md border border-border bg-background px-3 text-sm"
-							>
-								<option value={0}>无</option>
-								<option value={1}>精华 I</option>
-								<option value={2}>精华 II</option>
-								<option value={3}>精华 III</option>
-							</select>
+								options={[
+									{ value: 0, label: "无" },
+									{ value: 1, label: "精华 I" },
+									{ value: 2, label: "精华 II" },
+									{ value: 3, label: "精华 III" },
+								]}
+							/>
 						</div>
 					</div>
 
 					<div className="grid grid-cols-2 gap-4">
 						<div className="grid gap-2">
 							<Label htmlFor="edit-closed">已锁定</Label>
-							<select
+							<Select
 								id="edit-closed"
 								value={closed}
 								onChange={(e) => setClosed(Number(e.target.value))}
-								className="h-9 rounded-md border border-border bg-background px-3 text-sm"
-							>
-								<option value={0}>开放</option>
-								<option value={1}>已锁定</option>
-							</select>
+								options={[
+									{ value: 0, label: "开放" },
+									{ value: 1, label: "已锁定" },
+								]}
+							/>
 						</div>
 
 						<div className="grid gap-2">
