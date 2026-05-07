@@ -4,6 +4,7 @@
 import { decodeGenericCursor } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import { buildNextCursor, clampLimit } from "../lib/pagination";
+import { parseIdFromPath } from "../lib/parseId";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withAuthVerified, withVerifiedEmail } from "../lib/routeHelpers";
@@ -181,12 +182,9 @@ export const unreadCount = withAuthVerified(async (request, env, user) => {
  */
 export const getById = withAuthVerified(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
-	const url = new URL(request.url);
-	const pathParts = url.pathname.split("/");
-	const idStr = pathParts[pathParts.length - 1];
-	const id = Number.parseInt(idStr ?? "0", 10);
+	const id = parseIdFromPath(request);
 
-	if (Number.isNaN(id) || id <= 0) {
+	if (id === null || id <= 0) {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid message ID" }, origin);
 	}
 
@@ -340,9 +338,6 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 });
 
 /**
- * DELETE /api/v1/messages/:id - Delete a message (soft delete)
- */
-/**
  * POST /api/v1/messages/mark-all-read - Mark all inbox messages as read
  */
 export const markAllRead = withVerifiedEmail(async (request, env, user) => {
@@ -362,12 +357,9 @@ export const markAllRead = withVerifiedEmail(async (request, env, user) => {
  */
 export const remove = withVerifiedEmail(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
-	const url = new URL(request.url);
-	const pathParts = url.pathname.split("/");
-	const idStr = pathParts[pathParts.length - 1];
-	const id = Number.parseInt(idStr ?? "0", 10);
+	const id = parseIdFromPath(request);
 
-	if (Number.isNaN(id) || id <= 0) {
+	if (id === null || id <= 0) {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid message ID" }, origin);
 	}
 
