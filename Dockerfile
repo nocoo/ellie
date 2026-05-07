@@ -35,6 +35,9 @@ COPY --from=deps /app/node_modules ./node_modules
 # Re-run install to link workspace packages properly
 RUN bun install --frozen-lockfile
 
+# Fail fast if APP is not web or admin
+RUN case "$APP" in web|admin) ;; *) echo "ERROR: APP must be 'web' or 'admin', got '$APP'" >&2; exit 1;; esac
+
 # Build-time placeholders only for libs that read env at module-init
 # (next-auth). Real secrets are injected at runtime via container env.
 ENV WORKER_API_URL=http://placeholder
