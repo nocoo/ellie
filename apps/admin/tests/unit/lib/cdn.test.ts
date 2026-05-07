@@ -1,8 +1,11 @@
 import {
+	FALLBACK_AVATAR_URL,
+	computeLegacyAvatarCdnPath,
 	getAttachmentThumbUrl,
 	getAttachmentUrl,
 	getSmileyUrl,
 	getStaticImageUrl,
+	getUserAvatarUrl,
 } from "@/lib/cdn";
 import { describe, expect, it } from "vitest";
 
@@ -72,6 +75,51 @@ describe("cdn", () => {
 			expect(getAttachmentThumbUrl("forum/file.jpg")).toBe(
 				"https://t.no.mt/forum/file.jpg.thumb.jpg",
 			);
+		});
+	});
+
+	describe("computeLegacyAvatarCdnPath", () => {
+		// Locks the legacy 9-digit zero-padded directory split. Mirrored from
+		// apps/web/src/lib/avatar-proxy.ts so admin and forum keep agreeing on
+		// where Discuz historically wrote avatars.
+		it("zero-pads UID to 9 digits and splits into 3/2/2/2 dirs", () => {
+			expect(computeLegacyAvatarCdnPath(12345)).toBe(
+				"https://t.no.mt/avatar/000/01/23/45_avatar_big.jpg",
+			);
+		});
+
+		it("works for small UIDs", () => {
+			expect(computeLegacyAvatarCdnPath(1)).toBe(
+				"https://t.no.mt/avatar/000/00/00/01_avatar_big.jpg",
+			);
+		});
+	});
+
+	describe("getUserAvatarUrl", () => {
+		it("uses GUID-based avatarPath directly when present", () => {
+			expect(getUserAvatarUrl(42, "avatars/abc.jpg")).toBe("https://t.no.mt/avatars/abc.jpg");
+		});
+
+		it("strips a leading slash from avatarPath to avoid `//`", () => {
+			expect(getUserAvatarUrl(42, "/avatars/abc.jpg")).toBe("https://t.no.mt/avatars/abc.jpg");
+		});
+
+		it("falls back to legacy UID path when avatarPath is missing/empty/whitespace", () => {
+			expect(getUserAvatarUrl(12345)).toBe("https://t.no.mt/avatar/000/01/23/45_avatar_big.jpg");
+			expect(getUserAvatarUrl(12345, "")).toBe(
+				"https://t.no.mt/avatar/000/01/23/45_avatar_big.jpg",
+			);
+			expect(getUserAvatarUrl(12345, "   ")).toBe(
+				"https://t.no.mt/avatar/000/01/23/45_avatar_big.jpg",
+			);
+			expect(getUserAvatarUrl(12345, null)).toBe(
+				"https://t.no.mt/avatar/000/01/23/45_avatar_big.jpg",
+			);
+		});
+
+		it("returns the fallback gif for non-positive UIDs without avatarPath", () => {
+			expect(getUserAvatarUrl(0)).toBe(FALLBACK_AVATAR_URL);
+			expect(getUserAvatarUrl(-1)).toBe(FALLBACK_AVATAR_URL);
 		});
 	});
 });
