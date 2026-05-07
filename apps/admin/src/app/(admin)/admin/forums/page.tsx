@@ -164,17 +164,17 @@ function ForumRow({ node, isLast, onEdit, onToggleStatus, onMerge, onDelete }: F
 				)}
 			</div>
 
-			{/* Stats */}
+			{/* Stats — fixed-width columns so numbers + labels line up vertically across rows */}
 			<div className="hidden sm:flex items-center gap-6 text-xs text-muted-foreground">
-				<div className="text-right">
+				<div className="w-16 text-right tabular-nums">
 					<div className="font-medium text-foreground">{node.threads.toLocaleString()}</div>
 					<div>主题</div>
 				</div>
-				<div className="text-right">
+				<div className="w-16 text-right tabular-nums">
 					<div className="font-medium text-foreground">{node.posts.toLocaleString()}</div>
 					<div>帖子</div>
 				</div>
-				<div className="w-12 text-right">
+				<div className="w-12 text-right tabular-nums">
 					<div className="text-foreground">{node.displayOrder}</div>
 					<div>排序</div>
 				</div>
