@@ -32,7 +32,7 @@ const FILTERS: FilterDef[] = [
 	{ key: "search", label: "搜索主题...", type: "search" },
 	{
 		key: "sticky",
-		label: "置顶",
+		label: "置顶状态",
 		type: "select",
 		options: [
 			{ value: "1", label: "版块置顶" },
@@ -42,7 +42,7 @@ const FILTERS: FilterDef[] = [
 	},
 	{
 		key: "closed",
-		label: "已锁定",
+		label: "锁定状态",
 		type: "select",
 		options: [
 			{ value: "0", label: "开放" },

@@ -41,7 +41,7 @@ const TARGET_TYPE_OPTIONS = [
 // as an inline controlled input on this page; only the targetType select goes
 // through AdminFilters.
 const FILTERS: FilterDef[] = [
-	{ key: "targetType", label: "全部 targetType", type: "select", options: TARGET_TYPE_OPTIONS },
+	{ key: "targetType", label: "targetType", type: "select", options: TARGET_TYPE_OPTIONS },
 ];
 
 // ---------------------------------------------------------------------------
