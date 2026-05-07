@@ -7,6 +7,7 @@ import { resolveActor, writeAdminLog } from "../../lib/adminLog";
 import type { EntityConfig } from "../../lib/crud";
 import { createBatchDeleteHandler } from "../../lib/crud";
 import type { Env } from "../../lib/env";
+import { parseIdFromPath } from "../../lib/parseId";
 import { jsonResponse, paginatedResponse } from "../../lib/response";
 
 import { errorResponse } from "../../middleware/error";
@@ -203,10 +204,9 @@ export const getById = withEntityAuth(
 	reportConfig,
 	async (request: Request, env: Env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
-		const url = new URL(request.url);
-		const id = url.pathname.split("/").pop();
+		const id = parseIdFromPath(request);
 
-		if (!id || Number.isNaN(Number.parseInt(id, 10))) {
+		if (id === null || id <= 0) {
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid report ID" }, origin);
 		}
 
@@ -233,10 +233,9 @@ export const update = withEntityAuth(
 	reportConfig,
 	async (request: Request, env: Env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
-		const url = new URL(request.url);
-		const id = url.pathname.split("/").pop();
+		const id = parseIdFromPath(request);
 
-		if (!id || Number.isNaN(Number.parseInt(id, 10))) {
+		if (id === null || id <= 0) {
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid report ID" }, origin);
 		}
 
@@ -298,11 +297,10 @@ export const update = withEntityAuth(
 		// pending → pending or terminal → pending revert is not currently logged
 		// (low-risk, no-op observers); resolved/dismissed both get a row.
 		if (status === "resolved" || status === "dismissed") {
-			const reportId = Number.parseInt(id, 10);
 			await writeAdminLog(env, resolveActor(request), {
 				action: status === "resolved" ? "report.resolve" : "report.dismiss",
 				targetType: "report",
-				targetId: Number.isFinite(reportId) ? reportId : null,
+				targetId: id,
 				details: {
 					previousStatus: (existing as Record<string, unknown>).status ?? null,
 					reportType: (existing as Record<string, unknown>).type ?? null,
