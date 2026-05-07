@@ -5,6 +5,7 @@ import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
 import { toPost } from "../lib/mappers";
 import { buildNextCursor, clampLimit } from "../lib/pagination";
+import { parseIdFromPath } from "../lib/parseId";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
@@ -121,10 +122,7 @@ export async function list(request: Request, env: Env): Promise<Response> {
 /** GET /api/v1/posts/:id - Get post by ID */
 export async function getById(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
-	const url = new URL(request.url);
-	const pathParts = url.pathname.split("/");
-	const idStr = pathParts[pathParts.length - 1];
-	const id = Number.parseInt(idStr ?? "0", 10);
+	const id = parseIdFromPath(request) ?? Number.NaN;
 
 	// Auth is independent of the post/thread chain — fire it eagerly so it
 	// overlaps with the post and visibility queries.
