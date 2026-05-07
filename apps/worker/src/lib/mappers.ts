@@ -56,6 +56,10 @@ interface D1UserRow {
 	// D4 tombstone columns
 	purged_at?: number;
 	purged_by?: number;
+	// Admin list enrichment (virtual columns attached by enrichListRows;
+	// absent on detail / non-admin queries).
+	messages_count?: number;
+	attachments_count?: number;
 	// Sensitive fields (never exposed): password_hash, password_salt
 }
 
@@ -163,6 +167,11 @@ export function toUser(row: Record<string, unknown>): User {
 		lastIp: r.last_ip,
 		purgedAt: r.purged_at ?? 0,
 		purgedBy: r.purged_by ?? 0,
+		// Only set when the row was enriched (admin list path); leave
+		// undefined elsewhere so the field is absent in the JSON payload
+		// rather than misleadingly `0`.
+		...(r.messages_count !== undefined ? { messagesCount: r.messages_count } : {}),
+		...(r.attachments_count !== undefined ? { attachmentsCount: r.attachments_count } : {}),
 	};
 }
 

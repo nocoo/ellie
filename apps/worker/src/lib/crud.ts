@@ -90,6 +90,19 @@ export interface EntityConfig {
 	/** 404 error code (default: NOT_FOUND) */
 	notFoundCode?: string;
 
+	/**
+	 * Optional list-only enrichment hook. Runs *after* the page query
+	 * (so it sees only the page's rows, never N×filter explosion) and
+	 * *before* `mapper`. Use to attach virtual columns assembled from
+	 * separate aggregate queries — e.g. per-user message / attachment
+	 * counts on the admin user list. Must return rows of the same length
+	 * and order as the input.
+	 */
+	enrichListRows?: (
+		rows: Record<string, unknown>[],
+		env: Env,
+	) => Promise<Record<string, unknown>[]>;
+
 	// ─── Lifecycle hooks (no user identity — admin auth is Key B only) ───
 	beforeCreate?: (data: Record<string, unknown>, env: Env, origin?: string) => Promise<HookResult>;
 	afterCreate?: (
@@ -299,8 +312,10 @@ export function createListHandler(config: EntityConfig) {
 			)
 				.bind(...params)
 				.all();
+			const rows = result.results as Record<string, unknown>[];
+			const enriched = config.enrichListRows ? await config.enrichListRows(rows, env) : rows;
 			return jsonResponse(
-				result.results.map((r) => config.mapper(r as Record<string, unknown>)),
+				enriched.map((r) => config.mapper(r)),
 				origin,
 			);
 		}
@@ -325,8 +340,11 @@ export function createListHandler(config: EntityConfig) {
 				.all(),
 		]);
 
+		const rows = result.results as Record<string, unknown>[];
+		const enriched = config.enrichListRows ? await config.enrichListRows(rows, env) : rows;
+
 		return paginatedResponse(
-			result.results.map((r) => config.mapper(r as Record<string, unknown>)),
+			enriched.map((r) => config.mapper(r)),
 			countResult?.total ?? 0,
 			page,
 			limit,

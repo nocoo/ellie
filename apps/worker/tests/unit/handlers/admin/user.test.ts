@@ -72,6 +72,117 @@ describe("admin user handlers", () => {
 			expect(projection?.sql).toBeDefined();
 		});
 
+		// ─── Batch C: per-user messages / attachments count enrichment ────
+		// The list page must show 主题/帖子/站内信/附件 quartet. 主题 and 帖子 come
+		// from the existing `users.threads` / `users.posts` denormalised
+		// columns. 站内信 and 附件 are attached via post-page enrichment so
+		// the count subqueries see only the page UID set, never the filter
+		// cartesian product. Lock the SQL shape, the IN-list keying, and the
+		// payload field names so a future refactor can't silently regress
+		// into an N×filter JOIN.
+
+		it("attaches messagesCount and attachmentsCount to each list row", async () => {
+			const { db } = createMockDb({
+				allResults: {
+					"FROM users": [
+						makeD1UserRow({ id: 10 }),
+						makeD1UserRow({ id: 11 }),
+						makeD1UserRow({ id: 12 }),
+					],
+					// User 10 sent 2 + received 3 = 5 messages, uploaded 4 attachments.
+					// User 11 only received 1 message, no attachments.
+					// User 12 has nothing — must still get explicit `0` (not undefined).
+					"WHERE sender_id IN": [{ uid: 10, cnt: 2 }],
+					"WHERE receiver_id IN": [
+						{ uid: 10, cnt: 3 },
+						{ uid: 11, cnt: 1 },
+					],
+					"FROM attachments WHERE author_id IN": [{ uid: 10, cnt: 4 }],
+				},
+				firstResults: { "SELECT COUNT": { total: 3 } },
+			});
+
+			const res = await list(
+				createAdminRequest("GET", "/api/admin/users?page=1&limit=20"),
+				adminEnv(db),
+			);
+			const body = await res.json();
+
+			expect(res.status).toBe(200);
+			expect(body.data).toHaveLength(3);
+			expect(body.data[0]).toMatchObject({ id: 10, messagesCount: 5, attachmentsCount: 4 });
+			expect(body.data[1]).toMatchObject({ id: 11, messagesCount: 1, attachmentsCount: 0 });
+			expect(body.data[2]).toMatchObject({ id: 12, messagesCount: 0, attachmentsCount: 0 });
+		});
+
+		it("enrichment keys count subqueries on the page UID set (not the filter)", async () => {
+			// Reviewer's hard line: count subqueries must NOT amplify with
+			// search/range filters. Verify the IN-list contains exactly the
+			// page row IDs and nothing from the request URL.
+			const { db, calls } = createMockDb({
+				allResults: {
+					"FROM users": [makeD1UserRow({ id: 100 }), makeD1UserRow({ id: 200 })],
+					"WHERE sender_id IN": [],
+					"WHERE receiver_id IN": [],
+					"FROM attachments WHERE author_id IN": [],
+				},
+				firstResults: { "SELECT COUNT": { total: 2 } },
+			});
+
+			await list(
+				createAdminRequest("GET", "/api/admin/users?username=foo&page=1&limit=20"),
+				adminEnv(db),
+			);
+
+			const senderCall = calls.find((c) => c.sql.includes("sender_id IN"));
+			const receiverCall = calls.find((c) => c.sql.includes("receiver_id IN"));
+			const attCall = calls.find(
+				(c) => c.sql.includes("FROM attachments") && c.sql.includes("author_id IN"),
+			);
+			expect(senderCall?.params).toEqual([100, 200]);
+			expect(receiverCall?.params).toEqual([100, 200]);
+			expect(attCall?.params).toEqual([100, 200]);
+			// SQL must not pivot to a JOIN against the filtered users projection.
+			expect(senderCall?.sql).not.toMatch(/JOIN\s+users/i);
+			expect(receiverCall?.sql).not.toMatch(/JOIN\s+users/i);
+			expect(attCall?.sql).not.toMatch(/JOIN\s+users/i);
+		});
+
+		it("enrichment fires no count SQL when the page is empty", async () => {
+			const { db, calls } = createMockDb({
+				allResults: { "FROM users": [] },
+				firstResults: { "SELECT COUNT": { total: 0 } },
+			});
+
+			await list(createAdminRequest("GET", "/api/admin/users?page=1&limit=20"), adminEnv(db));
+
+			expect(calls.find((c) => c.sql.includes("sender_id IN"))).toBeUndefined();
+			expect(calls.find((c) => c.sql.includes("receiver_id IN"))).toBeUndefined();
+			expect(calls.find((c) => c.sql.includes("attachments WHERE author_id IN"))).toBeUndefined();
+		});
+
+		it("messages count sums sender + receiver directions per user", async () => {
+			// Locks the `purgeUser` parity contract: count an operator sees
+			// on the list = count purge will report on success
+			// (`sender_id OR receiver_id`).
+			const { db } = createMockDb({
+				allResults: {
+					"FROM users": [makeD1UserRow({ id: 7 })],
+					"WHERE sender_id IN": [{ uid: 7, cnt: 11 }],
+					"WHERE receiver_id IN": [{ uid: 7, cnt: 22 }],
+					"FROM attachments WHERE author_id IN": [],
+				},
+				firstResults: { "SELECT COUNT": { total: 1 } },
+			});
+
+			const res = await list(
+				createAdminRequest("GET", "/api/admin/users?page=1&limit=20"),
+				adminEnv(db),
+			);
+			const body = await res.json();
+			expect(body.data[0]).toMatchObject({ id: 7, messagesCount: 33 });
+		});
+
 		it("should filter by username (LIKE)", async () => {
 			const { db, calls } = createMockDb({
 				allResults: { "FROM users": [] },
