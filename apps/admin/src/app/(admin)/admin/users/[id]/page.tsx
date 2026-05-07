@@ -16,6 +16,7 @@ import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { AdminPagination } from "@/components/admin/admin-pagination";
 import { UserEditDialog } from "@/components/admin/user-edit-dialog";
 import { extractErrorMessage } from "@/lib/admin-error";
+import { FIRST_POST_VARIANT, userRoleVariant, userStatusVariant } from "@/viewmodels/admin/badges";
 import type { Post } from "@/viewmodels/admin/posts";
 import type { Thread } from "@/viewmodels/admin/threads";
 import { useUserDetail } from "@/viewmodels/admin/use-user-detail";
@@ -43,21 +44,6 @@ import { useState } from "react";
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function statusVariant(status: number): "default" | "destructive" | "secondary" | "outline" {
-	switch (status) {
-		case -1:
-			return "destructive";
-		case -2:
-			return "secondary";
-		case -99:
-			// Tombstone — muted look, distinct from active "default" but still
-			// quieter than the destructive ban badge.
-			return "outline";
-		default:
-			return "default";
-	}
-}
 
 function fmtTimestamp(seconds: number | null | undefined): string {
 	if (!seconds) return "—";
@@ -229,8 +215,8 @@ export default function UserDetailPage() {
 				<div className="flex-1">
 					<h1 className="text-2xl font-semibold text-foreground">{user.username}</h1>
 					<div className="mt-1 flex items-center gap-2">
-						<Badge variant={statusVariant(user.status)}>{statusLabel(user.status)}</Badge>
-						<Badge variant="outline">{roleLabel(user.role)}</Badge>
+						<Badge variant={userStatusVariant(user.status)}>{statusLabel(user.status)}</Badge>
+						<Badge variant={userRoleVariant(user.role)}>{roleLabel(user.role)}</Badge>
 						<span className="text-sm text-muted-foreground">ID: {user.id}</span>
 					</div>
 				</div>
@@ -517,7 +503,7 @@ const postColumns: ColumnDef<Post>[] = [
 	{
 		key: "isFirst",
 		header: "首楼",
-		cell: (p) => (p.isFirst ? <Badge variant="outline">是</Badge> : "—"),
+		cell: (p) => (p.isFirst ? <Badge variant={FIRST_POST_VARIANT}>是</Badge> : "—"),
 	},
 	{
 		key: "createdAt",

@@ -6,6 +6,7 @@ import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-ta
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { CensorWordCreateDialog } from "@/components/admin/censor-word-create-dialog";
+import { censorActionVariant } from "@/viewmodels/admin/badges";
 import {
 	type CensorWord,
 	type CensorWordCreate,
@@ -215,9 +216,7 @@ export default function CensorWordsPage() {
 			key: "action",
 			header: "动作",
 			cell: (row) => (
-				<Badge variant={row.action === "ban" ? "destructive" : "outline"}>
-					{actionLabel(row.action)}
-				</Badge>
+				<Badge variant={censorActionVariant(row.action)}>{actionLabel(row.action)}</Badge>
 			),
 		},
 		{

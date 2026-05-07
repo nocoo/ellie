@@ -7,6 +7,7 @@ import { ForumCreateDialog } from "@/components/admin/forum-create-dialog";
 import { ForumEditDialog } from "@/components/admin/forum-edit-dialog";
 import { ForumMergeDialog } from "@/components/admin/forum-merge-dialog";
 import { extractErrorMessage } from "@/lib/admin-error";
+import { forumStatusVariant, forumTypeVariant } from "@/viewmodels/admin/badges";
 import {
 	type Forum,
 	type ForumCreate,
@@ -75,11 +76,7 @@ const FILTERS: FilterDef[] = [
 // ---------------------------------------------------------------------------
 
 function StatusBadge({ status }: { status: number }) {
-	return (
-		<Badge variant={status === 0 ? "secondary" : "default"} className="text-[10px]">
-			{statusLabel(status)}
-		</Badge>
-	);
+	return <Badge variant={forumStatusVariant(status)}>{statusLabel(status)}</Badge>;
 }
 
 function TypeIcon({ type }: { type: string }) {
@@ -159,9 +156,7 @@ function ForumRow({ node, isLast, onEdit, onToggleStatus, onMerge, onDelete }: F
 			<div className="flex-1 min-w-0">
 				<div className="flex items-center gap-2">
 					<span className="font-medium text-foreground truncate">{node.name}</span>
-					<Badge variant="outline" className="text-[10px] font-normal">
-						{typeLabel(node.type)}
-					</Badge>
+					<Badge variant={forumTypeVariant(node.type)}>{typeLabel(node.type)}</Badge>
 					<StatusBadge status={node.status} />
 				</div>
 				{node.description && (

@@ -6,6 +6,7 @@ import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-ta
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { IpBanCreateDialog } from "@/components/admin/ip-ban-create-dialog";
+import { ipBanExpiryVariant, ipBanStateVariant } from "@/viewmodels/admin/badges";
 import type { IpBan, IpBanCreate, IpBanUpdate, IpCheckResult } from "@/viewmodels/admin/ip-bans";
 import { formatExpiry } from "@/viewmodels/admin/ip-bans";
 import { Badge } from "@ellie/ui";
@@ -255,7 +256,7 @@ export default function IpBansPage() {
 			key: "expiresAt",
 			header: "过期时间",
 			cell: (row) => {
-				if (!row.expiresAt) return <Badge variant="secondary">永久</Badge>;
+				if (!row.expiresAt) return <Badge variant={ipBanExpiryVariant(false)}>永久</Badge>;
 				const expired = row.expiresAt * 1000 < Date.now();
 				return (
 					<span className={expired ? "text-muted-foreground line-through" : ""}>
@@ -334,7 +335,7 @@ export default function IpBansPage() {
 					<div className="mt-3">
 						{checkResult.banned ? (
 							<div className="space-y-1">
-								<Badge variant="destructive">已封禁</Badge>
+								<Badge variant={ipBanStateVariant(true)}>已封禁</Badge>
 								{checkResult.matchingBans?.map((ban) => (
 									<p key={ban.id} className="text-sm text-muted-foreground">
 										匹配规则 <span className="font-mono">{ban.ip}</span>
@@ -344,7 +345,7 @@ export default function IpBansPage() {
 								))}
 							</div>
 						) : (
-							<Badge variant="outline">未封禁</Badge>
+							<Badge variant={ipBanStateVariant(false)}>未封禁</Badge>
 						)}
 					</div>
 				)}

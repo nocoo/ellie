@@ -1,5 +1,6 @@
 "use client";
 
+import { FIRST_POST_VARIANT, userRoleVariant } from "@/viewmodels/admin/badges";
 import type { EnrichedPost } from "@/viewmodels/admin/thread-detail";
 import { roleLabel } from "@/viewmodels/admin/users";
 import { formatNumber } from "@ellie/shared";
@@ -32,19 +33,6 @@ function formatDate(ts: number): string {
 	return new Date(ts * 1000).toLocaleString();
 }
 
-function roleBadgeVariant(role: number): "default" | "secondary" | "destructive" | "outline" {
-	switch (role) {
-		case 1:
-			return "destructive"; // Admin
-		case 2:
-			return "default"; // SuperMod
-		case 3:
-			return "secondary"; // Mod
-		default:
-			return "outline"; // Member
-	}
-}
-
 function statusIndicator(status: number): string | null {
 	switch (status) {
 		case -1:
@@ -69,7 +57,7 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 			<div className="flex items-center justify-between border-b border-border/50 bg-muted/30 px-4 py-2">
 				<div className="flex items-center gap-2 text-sm text-muted-foreground">
 					<span className="font-mono font-medium text-foreground">#{post.position}</span>
-					{post.isFirst && <Badge variant="default">楼主</Badge>}
+					{post.isFirst && <Badge variant={FIRST_POST_VARIANT}>楼主</Badge>}
 					<span>{formatDate(post.createdAt)}</span>
 				</div>
 				<DropdownMenu>
@@ -139,7 +127,7 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 
 						{/* Role badge */}
 						{author && (
-							<Badge variant={roleBadgeVariant(author.role)} className="text-xs">
+							<Badge variant={userRoleVariant(author.role)} className="text-xs">
 								{author.role > 0 && <Shield className="mr-1 h-3 w-3" />}
 								{roleLabel(author.role)}
 							</Badge>
