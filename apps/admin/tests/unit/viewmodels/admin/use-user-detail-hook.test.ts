@@ -8,6 +8,7 @@ vi.mock("@/viewmodels/admin/users", () => ({
 
 vi.mock("@/viewmodels/admin/threads", () => ({
 	fetchThreads: vi.fn(),
+	fetchThread: vi.fn(),
 }));
 
 vi.mock("@/viewmodels/admin/posts", () => ({
@@ -15,13 +16,14 @@ vi.mock("@/viewmodels/admin/posts", () => ({
 }));
 
 import { fetchPosts } from "@/viewmodels/admin/posts";
-import { fetchThreads } from "@/viewmodels/admin/threads";
-import { useUserDetail } from "@/viewmodels/admin/use-user-detail";
+import { fetchThread, fetchThreads } from "@/viewmodels/admin/threads";
+import { enrichPostsWithThreadSubjects, useUserDetail } from "@/viewmodels/admin/use-user-detail";
 import type { User } from "@/viewmodels/admin/users";
 import { fetchUser } from "@/viewmodels/admin/users";
 
 const mockFetchUser = fetchUser as ReturnType<typeof vi.fn>;
 const mockFetchThreads = fetchThreads as ReturnType<typeof vi.fn>;
+const mockFetchThread = fetchThread as ReturnType<typeof vi.fn>;
 const mockFetchPosts = fetchPosts as ReturnType<typeof vi.fn>;
 
 const MOCK_USER: User = {
@@ -50,7 +52,8 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	mockFetchUser.mockResolvedValue(MOCK_USER);
 	mockFetchThreads.mockResolvedValue(makePage([{ id: 1, subject: "t" }]));
-	mockFetchPosts.mockResolvedValue(makePage([{ id: 2, content: "p" }]));
+	mockFetchPosts.mockResolvedValue(makePage([{ id: 2, threadId: 1, content: "p" }]));
+	mockFetchThread.mockResolvedValue({ id: 1, subject: "t" });
 });
 
 afterEach(() => {
@@ -162,5 +165,91 @@ describe("useUserDetail", () => {
 			expect(mockFetchThreads).toHaveBeenCalledWith({ authorId: 7, page: 1, limit: 5 });
 			expect(mockFetchPosts).toHaveBeenCalledWith({ authorId: 7, page: 1, limit: 5 });
 		});
+	});
+
+	it("dedupes threadIds when enriching posts with thread subjects", async () => {
+		mockFetchPosts.mockResolvedValue(
+			makePage([
+				{ id: 10, threadId: 100, content: "a" },
+				{ id: 11, threadId: 100, content: "b" },
+				{ id: 12, threadId: 200, content: "c" },
+			]),
+		);
+		mockFetchThread.mockImplementation((id: number) =>
+			Promise.resolve({ id, subject: `Subject ${id}` }),
+		);
+
+		const { result } = renderHook(() => useUserDetail({ userId: 42 }));
+
+		await waitFor(() => {
+			expect(result.current.state.posts[0]?.threadSubject).toBe("Subject 100");
+			expect(result.current.state.posts[1]?.threadSubject).toBe("Subject 100");
+			expect(result.current.state.posts[2]?.threadSubject).toBe("Subject 200");
+		});
+
+		expect(mockFetchThread).toHaveBeenCalledTimes(2);
+		expect(mockFetchThread).toHaveBeenCalledWith(100);
+		expect(mockFetchThread).toHaveBeenCalledWith(200);
+	});
+
+	it("falls back to undefined threadSubject when fetchThread fails for one id", async () => {
+		mockFetchPosts.mockResolvedValue(
+			makePage([
+				{ id: 10, threadId: 100, content: "a" },
+				{ id: 11, threadId: 200, content: "b" },
+			]),
+		);
+		mockFetchThread.mockImplementation((id: number) =>
+			id === 200
+				? Promise.reject(new Error("boom"))
+				: Promise.resolve({ id, subject: `Subject ${id}` }),
+		);
+
+		const { result } = renderHook(() => useUserDetail({ userId: 42 }));
+
+		await waitFor(() => {
+			expect(result.current.state.postsLoading).toBe(false);
+		});
+
+		expect(result.current.state.posts).toHaveLength(2);
+		expect(result.current.state.posts[0]?.threadSubject).toBe("Subject 100");
+		expect(result.current.state.posts[1]?.threadSubject).toBeUndefined();
+		// Surface error must NOT be set — partial enrichment is best-effort.
+		expect(result.current.state.postsError).toBeNull();
+	});
+
+	it("skips enrichment when posts list is empty", async () => {
+		mockFetchPosts.mockResolvedValue(makePage([]));
+
+		const { result } = renderHook(() => useUserDetail({ userId: 42 }));
+
+		await waitFor(() => {
+			expect(result.current.state.postsLoading).toBe(false);
+		});
+
+		expect(mockFetchThread).not.toHaveBeenCalled();
+		expect(result.current.state.posts).toHaveLength(0);
+	});
+});
+
+describe("enrichPostsWithThreadSubjects", () => {
+	it("attaches threadSubject when present in the lookup map", () => {
+		const out = enrichPostsWithThreadSubjects(
+			[{ id: 1, threadId: 10 } as never, { id: 2, threadId: 20 } as never],
+			new Map([
+				[10, "ten"],
+				[20, "twenty"],
+			]),
+		);
+		expect(out[0]?.threadSubject).toBe("ten");
+		expect(out[1]?.threadSubject).toBe("twenty");
+	});
+
+	it("leaves threadSubject undefined when the threadId is missing from the map", () => {
+		const out = enrichPostsWithThreadSubjects(
+			[{ id: 1, threadId: 99 } as never],
+			new Map([[10, "ten"]]),
+		);
+		expect(out[0]?.threadSubject).toBeUndefined();
 	});
 });
