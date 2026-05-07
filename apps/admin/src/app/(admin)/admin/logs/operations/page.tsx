@@ -176,12 +176,22 @@ export default function AdminLogsPage() {
 		{
 			key: "admin",
 			header: "管理员",
-			cell: (row) => (
-				<span className="text-sm">
-					{row.adminName || "(未命名)"}{" "}
-					<span className="text-muted-foreground">#{row.adminId}</span>
-				</span>
-			),
+			cell: (row) => {
+				const name = row.adminName || "(未命名)";
+				return row.adminId > 0 ? (
+					<Link
+						href={`/admin/users/${row.adminId}`}
+						className="text-sm text-primary hover:underline"
+						onClick={(e) => e.stopPropagation()}
+					>
+						{name} <span className="text-muted-foreground">#{row.adminId}</span>
+					</Link>
+				) : (
+					<span className="text-sm">
+						{name} <span className="text-muted-foreground">#{row.adminId}</span>
+					</span>
+				);
+			},
 		},
 		{
 			key: "action",

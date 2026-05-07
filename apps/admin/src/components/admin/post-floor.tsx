@@ -12,6 +12,7 @@ import {
 	DropdownMenuTrigger,
 } from "@ellie/ui";
 import { MoreHorizontal, Pencil, Shield, Trash2 } from "lucide-react";
+import Link from "next/link";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -120,10 +121,21 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 					)}
 
 					<div className="flex flex-col items-start md:items-center gap-1 min-w-0">
-						{/* Username */}
-						<span className="font-medium text-sm truncate max-w-full">
-							{author?.username ?? post.authorName}
-						</span>
+						{/* Username — link to user detail when we have a usable id */}
+						{(() => {
+							const linkId = author?.id ?? post.authorId;
+							const displayName = author?.username ?? post.authorName;
+							return linkId > 0 ? (
+								<Link
+									href={`/admin/users/${linkId}`}
+									className="font-medium text-sm truncate max-w-full text-primary hover:underline"
+								>
+									{displayName}
+								</Link>
+							) : (
+								<span className="font-medium text-sm truncate max-w-full">{displayName}</span>
+							);
+						})()}
 
 						{/* Role badge */}
 						{author && (

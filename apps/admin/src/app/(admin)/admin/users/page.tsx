@@ -21,6 +21,7 @@ import {
 	DropdownMenuTrigger,
 } from "@ellie/ui";
 import { MoreHorizontal } from "lucide-react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 // ---------------------------------------------------------------------------
@@ -122,12 +123,15 @@ export default function UsersPage() {
 			key: "user",
 			header: "用户",
 			cell: (row) => (
-				<div className="flex items-center gap-2">
+				<Link
+					href={`/admin/users/${row.id}`}
+					className="flex items-center gap-2 text-foreground hover:underline"
+				>
 					<div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
 						{row.username[0]?.toUpperCase() ?? "?"}
 					</div>
 					<span className="font-medium">{row.username}</span>
-				</div>
+				</Link>
 			),
 		},
 		{ key: "email", header: "邮箱", cell: (row) => row.email },

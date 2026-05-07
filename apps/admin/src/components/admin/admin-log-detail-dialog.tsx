@@ -49,7 +49,23 @@ export function AdminLogDetailDialog({ open, onOpenChange, log }: AdminLogDetail
 					<div className="grid gap-3 py-2 text-sm">
 						<DetailRow label="ID" value={String(log.id)} />
 						<DetailRow label="时间" value={formatLogTime(log.createdAt)} />
-						<DetailRow label="管理员" value={`${log.adminName || "(未命名)"} #${log.adminId}`} />
+						<DetailRow
+							label="管理员"
+							value={
+								log.adminId > 0 ? (
+									<Link
+										href={`/admin/users/${log.adminId}`}
+										className="text-primary underline-offset-4 hover:underline"
+									>
+										{log.adminName || "(未命名)"} #{log.adminId}
+									</Link>
+								) : (
+									<span>
+										{log.adminName || "(未命名)"} #{log.adminId}
+									</span>
+								)
+							}
+						/>
 						<DetailRow
 							label="Action"
 							value={<code className="rounded bg-secondary px-1.5 py-0.5">{log.action}</code>}

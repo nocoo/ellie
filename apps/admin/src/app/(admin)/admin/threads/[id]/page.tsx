@@ -25,6 +25,7 @@ import { formatNumber } from "@ellie/shared";
 import { Badge } from "@ellie/ui";
 import { Button } from "@ellie/ui";
 import { ArrowLeft, Loader2, Pencil, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -226,7 +227,19 @@ export default function ThreadDetailPage() {
 							{thread.subject}
 						</h1>
 						<div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-							<span>作者: {thread.authorName}</span>
+							<span>
+								作者:{" "}
+								{thread.authorId > 0 ? (
+									<Link
+										href={`/admin/users/${thread.authorId}`}
+										className="text-primary hover:underline"
+									>
+										{thread.authorName}
+									</Link>
+								) : (
+									thread.authorName
+								)}
+							</span>
 							<span>·</span>
 							<span>{new Date(thread.createdAt * 1000).toLocaleString()}</span>
 							<span>·</span>

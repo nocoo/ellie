@@ -230,7 +230,18 @@ export default function ThreadsPage() {
 				</Link>
 			),
 		},
-		{ key: "author", header: "作者", cell: (row) => row.authorName },
+		{
+			key: "author",
+			header: "作者",
+			cell: (row) =>
+				row.authorId > 0 ? (
+					<Link href={`/admin/users/${row.authorId}`} className="text-primary hover:underline">
+						{row.authorName}
+					</Link>
+				) : (
+					row.authorName
+				),
+		},
 		{
 			key: "replies",
 			header: "回复",
