@@ -90,6 +90,17 @@ npx wrangler dev -c apps/worker/wrangler.toml
 3. `apiKey` in `~/.config/ellie/config.json`
 4. Build-time `ELLIE_DEFAULT_API_KEY` (injected in release builds)
 
+## Deployment
+
+**Full documentation:** `docs/docker-deployment.md`
+
+- **Host:** jp2.nocoo.cloud (Azure Japan, Docker)
+- **Edge:** Cloudflare → proxy-caddy (mTLS) → Docker containers
+- **Images:** `ghcr.io/<owner>/ellie-web` + `ghcr.io/<owner>/ellie-admin` on GHCR
+- **CI/CD:** Push to main → CI green → Release workflow builds images → SSH deploy to jp2
+- **Worker:** Deployed separately via `bun run worker:deploy` (not part of Docker release)
+- **Domains:** ellie.hexly.ai (forum), ellie-admin.hexly.ai (admin console)
+
 ## NPM Scripts (root package.json)
 
 ### Development
