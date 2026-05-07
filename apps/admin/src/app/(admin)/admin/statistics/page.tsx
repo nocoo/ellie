@@ -1,6 +1,7 @@
 "use client";
 
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
+import { STATISTICS_DONE_VARIANT } from "@/viewmodels/admin/badges";
 import { Badge } from "@ellie/ui";
 import { Button } from "@ellie/ui";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@ellie/ui";
@@ -116,7 +117,7 @@ export default function StatisticsPage() {
 										<CardTitle className="text-base">{task.title}</CardTitle>
 									</div>
 									{hasResult && result.updated !== -1 && (
-										<Badge variant="outline" className="text-success border-success/50">
+										<Badge variant={STATISTICS_DONE_VARIANT}>
 											<CheckCircle className="mr-1 h-3 w-3" />
 											完成
 										</Badge>

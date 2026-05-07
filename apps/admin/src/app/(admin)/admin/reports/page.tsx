@@ -5,12 +5,12 @@ import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
+import { reportStatusVariant, reportTypeVariant } from "@/viewmodels/admin/badges";
 import {
 	REPORT_STATUS_OPTIONS,
 	REPORT_TYPE_OPTIONS,
 	type Report,
 	type ReportType,
-	STATUS_COLORS,
 	STATUS_LABELS,
 	TYPE_LABELS,
 	batchDeleteReports,
@@ -233,7 +233,7 @@ export default function ReportsPage() {
 		{
 			key: "type",
 			header: "类型",
-			cell: (row) => <Badge variant="outline">{TYPE_LABELS[row.type]}</Badge>,
+			cell: (row) => <Badge variant={reportTypeVariant(row.type)}>{TYPE_LABELS[row.type]}</Badge>,
 			className: "w-16",
 		},
 		{
@@ -283,10 +283,9 @@ export default function ReportsPage() {
 		{
 			key: "status",
 			header: "状态",
-			cell: (row) => {
-				const colors = STATUS_COLORS[row.status];
-				return <Badge className={`${colors.bg} ${colors.text}`}>{STATUS_LABELS[row.status]}</Badge>;
-			},
+			cell: (row) => (
+				<Badge variant={reportStatusVariant(row.status)}>{STATUS_LABELS[row.status]}</Badge>
+			),
 		},
 		{
 			key: "handlerName",
@@ -425,7 +424,9 @@ export default function ReportsPage() {
 							<div className="grid grid-cols-[100px_1fr] gap-2 text-sm">
 								<span className="text-muted-foreground">类型</span>
 								<span>
-									<Badge variant="outline">{TYPE_LABELS[detailReport.type]}</Badge>
+									<Badge variant={reportTypeVariant(detailReport.type)}>
+										{TYPE_LABELS[detailReport.type]}
+									</Badge>
 								</span>
 
 								<span className="text-muted-foreground">举报对象</span>
@@ -473,9 +474,7 @@ export default function ReportsPage() {
 
 								<span className="text-muted-foreground">当前状态</span>
 								<span>
-									<Badge
-										className={`${STATUS_COLORS[detailReport.status].bg} ${STATUS_COLORS[detailReport.status].text}`}
-									>
+									<Badge variant={reportStatusVariant(detailReport.status)}>
 										{STATUS_LABELS[detailReport.status]}
 									</Badge>
 								</span>

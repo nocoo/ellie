@@ -9,6 +9,7 @@ import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { AdminPagination } from "@/components/admin/admin-pagination";
 import { UserEditDialog } from "@/components/admin/user-edit-dialog";
+import { userRoleVariant, userStatusVariant } from "@/viewmodels/admin/badges";
 import { useUsersAdmin } from "@/viewmodels/admin/use-users-admin";
 import { type User, roleLabel, statusLabel } from "@/viewmodels/admin/users";
 import { formatNumber } from "@ellie/shared";
@@ -55,23 +56,6 @@ const BATCH_ACTIONS: BatchAction[] = [
 	{ key: "ban", label: "批量封禁", variant: "destructive" },
 	{ key: "activate", label: "批量激活" },
 ];
-
-// ---------------------------------------------------------------------------
-// Status badge variant
-// ---------------------------------------------------------------------------
-
-function statusVariant(status: number): "default" | "destructive" | "secondary" | "outline" {
-	switch (status) {
-		case -1:
-			return "destructive";
-		case -2:
-			return "secondary";
-		case -99:
-			return "outline";
-		default:
-			return "default";
-	}
-}
 
 // ---------------------------------------------------------------------------
 // Page component
@@ -132,12 +116,14 @@ export default function UsersPage() {
 		{
 			key: "role",
 			header: "角色",
-			cell: (row) => <Badge variant="outline">{roleLabel(row.role)}</Badge>,
+			cell: (row) => <Badge variant={userRoleVariant(row.role)}>{roleLabel(row.role)}</Badge>,
 		},
 		{
 			key: "status",
 			header: "状态",
-			cell: (row) => <Badge variant={statusVariant(row.status)}>{statusLabel(row.status)}</Badge>,
+			cell: (row) => (
+				<Badge variant={userStatusVariant(row.status)}>{statusLabel(row.status)}</Badge>
+			),
 		},
 		{
 			key: "posts",

@@ -70,16 +70,6 @@ export const REPORT_STATUS_OPTIONS: { value: ReportStatus | ""; label: string }[
 	{ value: "dismissed", label: "已驳回" },
 ];
 
-/** Status badge colors */
-export const STATUS_COLORS: Record<ReportStatus, { bg: string; text: string }> = {
-	pending: {
-		bg: "bg-yellow-100 dark:bg-yellow-900/30",
-		text: "text-yellow-800 dark:text-yellow-200",
-	},
-	resolved: { bg: "bg-green-100 dark:bg-green-900/30", text: "text-green-800 dark:text-green-200" },
-	dismissed: { bg: "bg-gray-100 dark:bg-gray-800", text: "text-gray-600 dark:text-gray-400" },
-};
-
 /** Status labels */
 export const STATUS_LABELS: Record<ReportStatus, string> = {
 	pending: "待处理",

@@ -7,6 +7,11 @@ import { PostFloor } from "@/components/admin/post-floor";
 import { ThreadEditDialog } from "@/components/admin/thread-edit-dialog";
 import { useBreadcrumbOverride } from "@/components/layout/breadcrumb-context";
 import { extractErrorMessage } from "@/lib/admin-error";
+import {
+	threadClosedVariant,
+	threadDigestVariant,
+	threadStickyVariant,
+} from "@/viewmodels/admin/badges";
 import type { PostUpdate } from "@/viewmodels/admin/posts";
 import { deletePost, updatePost } from "@/viewmodels/admin/posts";
 import {
@@ -248,9 +253,19 @@ export default function ThreadDetailPage() {
 							<span>{formatNumber(thread.views)} 浏览</span>
 						</div>
 						<div className="flex flex-wrap gap-1.5">
-							{thread.sticky > 0 && <Badge variant="default">{stickyLabel(thread.sticky)}</Badge>}
-							{thread.closed > 0 && <Badge variant="secondary">已锁定</Badge>}
-							{thread.digest > 0 && <Badge variant="outline">{digestLabel(thread.digest)}</Badge>}
+							{thread.sticky > 0 && (
+								<Badge variant={threadStickyVariant(thread.sticky)}>
+									{stickyLabel(thread.sticky)}
+								</Badge>
+							)}
+							{thread.closed > 0 && (
+								<Badge variant={threadClosedVariant(thread.closed)}>已锁定</Badge>
+							)}
+							{thread.digest > 0 && (
+								<Badge variant={threadDigestVariant(thread.digest)}>
+									{digestLabel(thread.digest)}
+								</Badge>
+							)}
 						</div>
 					</div>
 

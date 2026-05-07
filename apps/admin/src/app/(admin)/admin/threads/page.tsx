@@ -9,6 +9,11 @@ import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-p
 import { ThreadEditDialog } from "@/components/admin/thread-edit-dialog";
 import { extractErrorMessage } from "@/lib/admin-error";
 import {
+	threadClosedVariant,
+	threadDigestVariant,
+	threadStickyVariant,
+} from "@/viewmodels/admin/badges";
+import {
 	type Thread,
 	type ThreadUpdate,
 	batchDeleteThreads,
@@ -253,9 +258,13 @@ export default function ThreadsPage() {
 			header: "状态",
 			cell: (row) => (
 				<div className="flex gap-1">
-					{row.sticky > 0 && <Badge variant="default">{stickyLabel(row.sticky)}</Badge>}
-					{row.closed > 0 && <Badge variant="secondary">已锁定</Badge>}
-					{row.digest > 0 && <Badge variant="outline">{digestLabel(row.digest)}</Badge>}
+					{row.sticky > 0 && (
+						<Badge variant={threadStickyVariant(row.sticky)}>{stickyLabel(row.sticky)}</Badge>
+					)}
+					{row.closed > 0 && <Badge variant={threadClosedVariant(row.closed)}>已锁定</Badge>}
+					{row.digest > 0 && (
+						<Badge variant={threadDigestVariant(row.digest)}>{digestLabel(row.digest)}</Badge>
+					)}
 				</div>
 			),
 		},
