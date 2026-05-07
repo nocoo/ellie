@@ -294,7 +294,7 @@ export default function UserDetailPage() {
 				</CardHeader>
 				<CardContent>
 					<Tabs defaultValue="threads">
-						<TabsList>
+						<TabsList variant="line">
 							<TabsTrigger value="threads">主题（{formatNumber(user.threads)}）</TabsTrigger>
 							<TabsTrigger value="posts">帖子（{formatNumber(user.posts)}）</TabsTrigger>
 						</TabsList>
