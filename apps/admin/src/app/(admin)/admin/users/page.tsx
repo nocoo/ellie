@@ -50,6 +50,46 @@ const FILTERS: FilterDef[] = [
 	},
 ];
 
+/**
+ * 高级过滤器 (Batch F of task #15). Rendered in a separate section below
+ * the basic filter row so the primary search/status/role surface stays
+ * compact. The 5 range filters mirror the worker `range` filters
+ * registered in Batch E (param naming `${key}Min` / `${key}Max`):
+ *   regDate / lastLogin → daterange (00:00:00 / 23:59:59 unix seconds)
+ *   threads / posts / credits → numrange
+ *
+ * `useUsersAdmin` -> `buildUserSearchParams` performs the unix-seconds
+ * conversion + the `Number.isFinite` `0`-survival guard before the
+ * request leaves the browser.
+ */
+const ADVANCED_FILTERS: FilterDef[] = [
+	{
+		key: "regDate",
+		label: "注册时间",
+		type: "daterange",
+	},
+	{
+		key: "lastLogin",
+		label: "最后登录",
+		type: "daterange",
+	},
+	{
+		key: "threads",
+		label: "主题数",
+		type: "numrange",
+	},
+	{
+		key: "posts",
+		label: "帖子数",
+		type: "numrange",
+	},
+	{
+		key: "credits",
+		label: "积分",
+		type: "numrange",
+	},
+];
+
 // ---------------------------------------------------------------------------
 // Batch actions
 // ---------------------------------------------------------------------------
@@ -212,6 +252,26 @@ export default function UsersPage() {
 				onFilterChange={actions.handleFilterChange}
 				onClearAll={actions.handleClearFilters}
 			/>
+
+			{/*
+			 * 高级过滤器 — Batch F. Separated from FILTERS so the basic
+			 * row stays compact. `onClearAll` is omitted here to avoid two
+			 * clear buttons; `handleClearFilters` resets all filter keys
+			 * (basic + advanced range) including the 10 range keys
+			 * pre-declared in DEFAULT_FILTERS.
+			 */}
+			<details className="rounded-lg border border-border bg-secondary px-3 py-2">
+				<summary className="cursor-pointer select-none text-sm font-medium text-foreground">
+					高级过滤器
+				</summary>
+				<div className="pt-3">
+					<AdminFilters
+						filters={ADVANCED_FILTERS}
+						values={state.filters}
+						onFilterChange={actions.handleFilterChange}
+					/>
+				</div>
+			</details>
 
 			{ipBanner && <AdminInlineMessage variant="info" text={ipBanner} />}
 

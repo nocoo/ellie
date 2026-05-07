@@ -11,6 +11,13 @@
 
 "use client";
 
+import {
+	dateInputToUnixSecondsEnd,
+	dateInputToUnixSecondsStart,
+	normalizeNumRangeBound,
+	rangeMaxKey,
+	rangeMinKey,
+} from "@/components/admin/admin-filters";
 import { extractErrorMessage } from "@/lib/admin-error";
 import { type User, type UserUpdate, batchSetStatus, updateUser } from "@/viewmodels/admin/users";
 import { useCallback, useEffect, useState } from "react";
@@ -30,7 +37,20 @@ export interface PaginationInfo {
 }
 
 /**
- * Filter values for user search
+ * Filter values for user search.
+ *
+ * Range filters (advanced filters section, Batch F of task #15) live under
+ * the canonical `${key}Min` / `${key}Max` suffix keys produced by
+ * `rangeMinKey` / `rangeMaxKey`. The keys are pre-declared here (instead
+ * of relying on the index signature alone) so `DEFAULT_FILTERS` resets
+ * them on 清除筛选 and so `Object.entries(filters)` enumerates them on
+ * fresh state.
+ *
+ * UI semantics for date range fields: the value entered into the
+ * `<input type="date">` is `YYYY-MM-DD` local-day; conversion to unix
+ * seconds (00:00:00 / 23:59:59) is centralised in
+ * `buildUserSearchParams` so the worker only ever sees integer seconds
+ * with the `range` filter type registered in Batch E.
  */
 export interface UserFilters {
 	search: string;
@@ -38,6 +58,19 @@ export interface UserFilters {
 	role: string;
 	regIp: string;
 	lastIp: string;
+	// Advanced range filters (Batch F). Stored as raw input strings:
+	// numranges hold numeric strings ("0", "100"); dateranges hold
+	// `YYYY-MM-DD`. Empty string = unset.
+	regDateMin: string;
+	regDateMax: string;
+	lastLoginMin: string;
+	lastLoginMax: string;
+	threadsMin: string;
+	threadsMax: string;
+	postsMin: string;
+	postsMax: string;
+	creditsMin: string;
+	creditsMax: string;
 	[key: string]: string; // Index signature for compatibility with AdminFilters
 }
 
@@ -115,6 +148,16 @@ const DEFAULT_FILTERS: UserFilters = {
 	role: "",
 	regIp: "",
 	lastIp: "",
+	regDateMin: "",
+	regDateMax: "",
+	lastLoginMin: "",
+	lastLoginMax: "",
+	threadsMin: "",
+	threadsMax: "",
+	postsMin: "",
+	postsMax: "",
+	creditsMin: "",
+	creditsMax: "",
 };
 
 const DEFAULT_PAGINATION: PaginationInfo = {
@@ -131,6 +174,12 @@ const DEFAULT_PAGINATION: PaginationInfo = {
 /**
  * Build URL search params from filters.
  * Pure function for testability.
+ *
+ * Range filter param naming aligns with worker `userConfig.filters`
+ * registered in Batch E (regDate/lastLogin/threads/posts/credits).
+ * Date inputs convert to inclusive unix-seconds bounds (Batch B
+ * helpers); numeric inputs go through `normalizeNumRangeBound` so `0`
+ * survives as a real bound. Invalid / empty values are omitted.
  */
 export function buildUserSearchParams(
 	page: number,
@@ -145,6 +194,34 @@ export function buildUserSearchParams(
 	if (filters.role) params.set("role", filters.role);
 	if (filters.regIp) params.set("regIp", filters.regIp);
 	if (filters.lastIp) params.set("lastIp", filters.lastIp);
+
+	// --- Advanced range filters (Batch F) ---
+	// Date range → unix seconds (start = 00:00:00, end = 23:59:59 of the
+	// local day). Worker `range` filter is inclusive on both sides.
+	const regDateMin = dateInputToUnixSecondsStart(filters.regDateMin);
+	if (regDateMin !== null) params.set(rangeMinKey("regDate"), String(regDateMin));
+	const regDateMax = dateInputToUnixSecondsEnd(filters.regDateMax);
+	if (regDateMax !== null) params.set(rangeMaxKey("regDate"), String(regDateMax));
+
+	const lastLoginMin = dateInputToUnixSecondsStart(filters.lastLoginMin);
+	if (lastLoginMin !== null) params.set(rangeMinKey("lastLogin"), String(lastLoginMin));
+	const lastLoginMax = dateInputToUnixSecondsEnd(filters.lastLoginMax);
+	if (lastLoginMax !== null) params.set(rangeMaxKey("lastLogin"), String(lastLoginMax));
+
+	// Numeric ranges. `normalizeNumRangeBound` keeps "0" as a valid bound
+	// (Number.isFinite, not truthy) so a user can filter "credits = 0".
+	const numRanges: Array<[keyof UserFilters & string, keyof UserFilters & string, string]> = [
+		["threadsMin", "threadsMax", "threads"],
+		["postsMin", "postsMax", "posts"],
+		["creditsMin", "creditsMax", "credits"],
+	];
+	for (const [minField, maxField, paramBase] of numRanges) {
+		const min = normalizeNumRangeBound(filters[minField] ?? "");
+		if (min !== null) params.set(rangeMinKey(paramBase), min);
+		const max = normalizeNumRangeBound(filters[maxField] ?? "");
+		if (max !== null) params.set(rangeMaxKey(paramBase), max);
+	}
+
 	return params;
 }
 
