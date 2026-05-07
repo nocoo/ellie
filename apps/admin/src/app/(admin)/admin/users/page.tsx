@@ -83,6 +83,7 @@ export default function UsersPage() {
 
 	// Use ViewModel hook for all state and logic
 	const { state, actions } = useUsersAdmin({
+		initialPageSize: 100,
 		initialFilters: Object.keys(initialFilters).length > 0 ? initialFilters : undefined,
 	});
 
