@@ -8,14 +8,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/viewmodels/admin/users", () => ({
 	batchSetStatus: vi.fn().mockResolvedValue({}),
 	updateUser: vi.fn().mockResolvedValue({}),
+	purgeUser: vi.fn().mockResolvedValue({}),
 }));
 
 import { useUsersAdmin } from "@/viewmodels/admin/use-users-admin";
 import type { User } from "@/viewmodels/admin/users";
-import { batchSetStatus, updateUser } from "@/viewmodels/admin/users";
+import { batchSetStatus, purgeUser, updateUser } from "@/viewmodels/admin/users";
 
 const mockBatchSetStatus = batchSetStatus as ReturnType<typeof vi.fn>;
 const mockUpdateUser = updateUser as ReturnType<typeof vi.fn>;
+const mockPurgeUser = purgeUser as ReturnType<typeof vi.fn>;
 
 const MOCK_USER: User = {
 	id: 1,
@@ -270,5 +272,157 @@ describe("useUsersAdmin", () => {
 		// The fetch URL should contain limit=50
 		const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0];
 		expect(fetchCall).toContain("limit=50");
+	});
+
+	// ----------------------------------------------------------------------
+	// Batch G — batch purge dialog + serial loop
+	// ----------------------------------------------------------------------
+
+	describe("batch purge", () => {
+		it("opens the confirm dialog and does NOT call purgeUser yet", async () => {
+			const { result } = renderHook(() => useUsersAdmin());
+			await waitFor(() => expect(result.current.state.loading).toBe(false), { interval: 5 });
+
+			act(() => {
+				result.current.actions.setSelectedIds(new Set([1, 2]));
+			});
+			await act(async () => {
+				await result.current.actions.handleBatchAction("purge");
+			});
+
+			expect(result.current.state.purgeBatchOpen).toBe(true);
+			expect(result.current.state.purgeBatchSummary).toBeNull();
+			expect(mockPurgeUser).not.toHaveBeenCalled();
+		});
+
+		it("rejects confirm with empty selection", async () => {
+			const { result } = renderHook(() => useUsersAdmin());
+			await waitFor(() => expect(result.current.state.loading).toBe(false), { interval: 5 });
+
+			await act(async () => {
+				await result.current.actions.handlePurgeBatchConfirm();
+			});
+
+			expect(mockPurgeUser).not.toHaveBeenCalled();
+			expect(result.current.state.purgeBatchError).toBe("未选择任何用户");
+		});
+
+		it("purges selected ids serially, surfaces summary, clears selection", async () => {
+			mockPurgeUser.mockResolvedValue({});
+			const { result } = renderHook(() => useUsersAdmin());
+			await waitFor(() => expect(result.current.state.loading).toBe(false), { interval: 5 });
+
+			act(() => {
+				result.current.actions.setSelectedIds(new Set([10, 20]));
+			});
+			await act(async () => {
+				await result.current.actions.handleBatchAction("purge");
+			});
+			await act(async () => {
+				await result.current.actions.handlePurgeBatchConfirm();
+			});
+
+			expect(mockPurgeUser).toHaveBeenCalledTimes(2);
+			expect(mockPurgeUser).toHaveBeenNthCalledWith(1, 10);
+			expect(mockPurgeUser).toHaveBeenNthCalledWith(2, 20);
+			expect(result.current.state.purgeBatchSummary).toEqual({
+				succeeded: [10, 20],
+				failed: [],
+			});
+			expect(result.current.state.purgeBatchOpen).toBe(false);
+			expect(result.current.state.selectedIds.size).toBe(0);
+		});
+
+		it("captures per-id failures into summary (no silent drop)", async () => {
+			mockPurgeUser.mockImplementation(async (id: number) => {
+				if (id === 2) throw new Error("nope");
+			});
+			const { result } = renderHook(() => useUsersAdmin());
+			await waitFor(() => expect(result.current.state.loading).toBe(false), { interval: 5 });
+
+			act(() => {
+				result.current.actions.setSelectedIds(new Set([1, 2, 3]));
+			});
+			await act(async () => {
+				await result.current.actions.handleBatchAction("purge");
+			});
+			await act(async () => {
+				await result.current.actions.handlePurgeBatchConfirm();
+			});
+
+			const summary = result.current.state.purgeBatchSummary;
+			expect(summary?.succeeded).toEqual([1, 3]);
+			expect(summary?.failed).toEqual([{ id: 2, error: "nope" }]);
+		});
+
+		it("closePurgeBatchDialog clears state but is no-op while loading", async () => {
+			const { result } = renderHook(() => useUsersAdmin());
+			await waitFor(() => expect(result.current.state.loading).toBe(false), { interval: 5 });
+
+			act(() => {
+				result.current.actions.setSelectedIds(new Set([1]));
+			});
+			await act(async () => {
+				await result.current.actions.handleBatchAction("purge");
+			});
+			expect(result.current.state.purgeBatchOpen).toBe(true);
+
+			act(() => {
+				result.current.actions.closePurgeBatchDialog();
+			});
+			expect(result.current.state.purgeBatchOpen).toBe(false);
+		});
+
+		it("clearPurgeBatchSummary dismisses the banner", async () => {
+			mockPurgeUser.mockResolvedValue({});
+			const { result } = renderHook(() => useUsersAdmin());
+			await waitFor(() => expect(result.current.state.loading).toBe(false), { interval: 5 });
+
+			act(() => {
+				result.current.actions.setSelectedIds(new Set([1]));
+			});
+			await act(async () => {
+				await result.current.actions.handleBatchAction("purge");
+			});
+			await act(async () => {
+				await result.current.actions.handlePurgeBatchConfirm();
+			});
+			expect(result.current.state.purgeBatchSummary).not.toBeNull();
+
+			act(() => {
+				result.current.actions.clearPurgeBatchSummary();
+			});
+			expect(result.current.state.purgeBatchSummary).toBeNull();
+		});
+	});
+
+	// ----------------------------------------------------------------------
+	// Batch F — handleClearFilters resets advanced range keys too
+	// ----------------------------------------------------------------------
+
+	it("handleClearFilters resets basic + advanced range keys", async () => {
+		const { result } = renderHook(() =>
+			useUsersAdmin({
+				initialFilters: { search: "alice" },
+			}),
+		);
+		await waitFor(() => expect(result.current.state.loading).toBe(false), { interval: 5 });
+
+		act(() => {
+			result.current.actions.handleFilterChange("regDateMin", "2026-01-01");
+			result.current.actions.handleFilterChange("threadsMax", "100");
+			result.current.actions.handleFilterChange("creditsMin", "0");
+		});
+		expect(result.current.state.filters.regDateMin).toBe("2026-01-01");
+		expect(result.current.state.filters.threadsMax).toBe("100");
+		expect(result.current.state.filters.creditsMin).toBe("0");
+
+		act(() => {
+			result.current.actions.handleClearFilters();
+		});
+		expect(result.current.state.filters.search).toBe("");
+		expect(result.current.state.filters.regDateMin).toBe("");
+		expect(result.current.state.filters.threadsMax).toBe("");
+		expect(result.current.state.filters.creditsMin).toBe("");
 	});
 });

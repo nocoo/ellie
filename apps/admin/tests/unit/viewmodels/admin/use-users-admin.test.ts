@@ -1,5 +1,10 @@
-import { buildUserSearchParams, parseUsersResponse } from "@/viewmodels/admin/use-users-admin";
-import { describe, expect, it } from "vitest";
+import {
+	buildUserSearchParams,
+	formatPurgeBatchSummary,
+	parseUsersResponse,
+	runPurgeBatchSerial,
+} from "@/viewmodels/admin/use-users-admin";
+import { describe, expect, it, vi } from "vitest";
 
 // Helper to build a fully-defaulted UserFilters for tests; lets each
 // test override only the keys it cares about (esp. the 10 range keys
@@ -190,6 +195,118 @@ describe("use-users-admin helpers", () => {
 			const result = parseUsersResponse(json as any, 1);
 			expect(result.pagination.pages).toBe(0);
 			expect(result.pagination.total).toBe(0);
+		});
+	});
+
+	// -----------------------------------------------------------------------
+	// Batch G — serial batch purge helpers.
+	// -----------------------------------------------------------------------
+
+	describe("runPurgeBatchSerial", () => {
+		it("invokes purgeFn for each id in order", async () => {
+			const calls: number[] = [];
+			const purgeFn = vi.fn(async (id: number) => {
+				calls.push(id);
+			});
+			const outcome = await runPurgeBatchSerial([1, 2, 3], purgeFn);
+			expect(calls).toEqual([1, 2, 3]);
+			expect(outcome.succeeded).toEqual([1, 2, 3]);
+			expect(outcome.failed).toEqual([]);
+			expect(purgeFn).toHaveBeenCalledTimes(3);
+		});
+
+		it("runs strictly serial (no concurrency)", async () => {
+			let inFlight = 0;
+			let maxInFlight = 0;
+			const purgeFn = vi.fn(async () => {
+				inFlight += 1;
+				maxInFlight = Math.max(maxInFlight, inFlight);
+				await new Promise((r) => setTimeout(r, 5));
+				inFlight -= 1;
+			});
+			await runPurgeBatchSerial([1, 2, 3, 4], purgeFn);
+			expect(maxInFlight).toBe(1);
+		});
+
+		it("captures per-id failures with extracted error messages", async () => {
+			const purgeFn = vi.fn(async (id: number) => {
+				if (id === 2) throw new Error("boom");
+				if (id === 4) throw new Error("staff guard");
+			});
+			const outcome = await runPurgeBatchSerial([1, 2, 3, 4], purgeFn);
+			expect(outcome.succeeded).toEqual([1, 3]);
+			expect(outcome.failed).toEqual([
+				{ id: 2, error: "boom" },
+				{ id: 4, error: "staff guard" },
+			]);
+		});
+
+		it("never silently drops a failure (one bad id keeps the rest going)", async () => {
+			const purgeFn = vi.fn(async (id: number) => {
+				if (id === 1) throw new Error("first failed");
+			});
+			const outcome = await runPurgeBatchSerial([1, 2], purgeFn);
+			expect(outcome.failed).toHaveLength(1);
+			expect(outcome.succeeded).toEqual([2]);
+		});
+
+		it("returns empty outcome for empty id list (no purgeFn calls)", async () => {
+			const purgeFn = vi.fn();
+			const outcome = await runPurgeBatchSerial([], purgeFn);
+			expect(outcome).toEqual({ succeeded: [], failed: [] });
+			expect(purgeFn).not.toHaveBeenCalled();
+		});
+
+		it("falls back to default error text for non-Error throws", async () => {
+			const purgeFn = vi.fn(async () => {
+				throw "raw string"; // not an Error
+			});
+			const outcome = await runPurgeBatchSerial([7], purgeFn);
+			expect(outcome.failed[0]?.id).toBe(7);
+			expect(outcome.failed[0]?.error).toBe("彻底清除失败");
+		});
+	});
+
+	describe("formatPurgeBatchSummary", () => {
+		it("returns null for an empty outcome (no banner)", () => {
+			expect(formatPurgeBatchSummary({ succeeded: [], failed: [] })).toBeNull();
+		});
+
+		it("formats success-only outcome", () => {
+			expect(formatPurgeBatchSummary({ succeeded: [1, 2, 3], failed: [] })).toBe(
+				"批量清除完成：成功 3，失败 0",
+			);
+		});
+
+		it("formats mixed outcome and includes failed-id reasons", () => {
+			const text = formatPurgeBatchSummary({
+				succeeded: [1, 2],
+				failed: [
+					{ id: 5, error: "staff guard" },
+					{ id: 6, error: "already purged" },
+				],
+			});
+			expect(text).toContain("成功 2");
+			expect(text).toContain("失败 2");
+			expect(text).toContain("#5: staff guard");
+			expect(text).toContain("#6: already purged");
+		});
+
+		it("caps detail to first 3 failures and notes the remainder", () => {
+			const text = formatPurgeBatchSummary({
+				succeeded: [],
+				failed: [
+					{ id: 1, error: "e1" },
+					{ id: 2, error: "e2" },
+					{ id: 3, error: "e3" },
+					{ id: 4, error: "e4" },
+					{ id: 5, error: "e5" },
+				],
+			});
+			expect(text).toContain("#1: e1");
+			expect(text).toContain("#3: e3");
+			expect(text).not.toContain("#4: e4");
+			expect(text).toContain("等 5 项");
 		});
 	});
 });

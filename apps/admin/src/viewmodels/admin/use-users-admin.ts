@@ -19,7 +19,13 @@ import {
 	rangeMinKey,
 } from "@/components/admin/admin-filters";
 import { extractErrorMessage } from "@/lib/admin-error";
-import { type User, type UserUpdate, batchSetStatus, updateUser } from "@/viewmodels/admin/users";
+import {
+	type User,
+	type UserUpdate,
+	batchSetStatus,
+	purgeUser,
+	updateUser,
+} from "@/viewmodels/admin/users";
 import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------
@@ -75,6 +81,16 @@ export interface UserFilters {
 }
 
 /**
+ * Per-id outcome of a serial batch purge run. Failed entries carry the
+ * extracted human message so the operator can see *why* — never silently
+ * dropped (Batch G of task #15).
+ */
+export interface PurgeBatchOutcome {
+	succeeded: number[];
+	failed: { id: number; error: string }[];
+}
+
+/**
  * State returned by useUsersAdmin
  */
 export interface UsersAdminState {
@@ -94,6 +110,18 @@ export interface UsersAdminState {
 	editLoading: boolean;
 	/** Edit dialog inline error message (null if none) */
 	editError: string | null;
+	/** Batch purge confirm dialog open */
+	purgeBatchOpen: boolean;
+	/** Batch purge in-progress flag — disables confirm button + dialog close */
+	purgeBatchLoading: boolean;
+	/**
+	 * Inline error shown inside the batch purge dialog (for setup-time
+	 * issues, e.g. empty selection on confirm). Per-id failures are
+	 * surfaced through `purgeBatchSummary` after the run completes.
+	 */
+	purgeBatchError: string | null;
+	/** Last completed batch outcome — null until the first run resolves. */
+	purgeBatchSummary: PurgeBatchOutcome | null;
 }
 
 /**
@@ -118,6 +146,17 @@ export interface UsersAdminActions {
 	handleBatchAction: (key: string) => Promise<void>;
 	/** Update selected IDs */
 	setSelectedIds: (ids: Set<string | number>) => void;
+	/** Close the batch purge dialog (also clears its inline error). */
+	closePurgeBatchDialog: () => void;
+	/** Dismiss the post-run summary banner. */
+	clearPurgeBatchSummary: () => void;
+	/**
+	 * Confirm-handler for the batch purge dialog. Iterates the current
+	 * selection serially (no concurrency, mirrors per-user purge flow on
+	 * the detail page), records per-id success/failure, refreshes the
+	 * list and clears the selection only when at least one purge ran.
+	 */
+	handlePurgeBatchConfirm: () => Promise<void>;
 }
 
 /**
@@ -244,6 +283,57 @@ export function parseUsersResponse(
 	};
 }
 
+/**
+ * Run a batch purge serially (Batch G of task #15).
+ *
+ * Reviewer constraint: do NOT introduce a worker batch endpoint; the
+ * existing single-user purge handler is the source of truth (covers
+ * staff guard, tombstone, R2). The UI loops one id at a time and
+ * collects per-id outcomes so neither success nor failure is silently
+ * dropped.
+ *
+ * Pure function — no React/state coupling — so it can be tested
+ * standalone with a stubbed `purgeFn`.
+ *
+ * @param ids     Selected user ids in iteration order.
+ * @param purgeFn Per-id mutation; must throw on failure.
+ */
+export async function runPurgeBatchSerial(
+	ids: number[],
+	purgeFn: (id: number) => Promise<unknown>,
+): Promise<PurgeBatchOutcome> {
+	const succeeded: number[] = [];
+	const failed: { id: number; error: string }[] = [];
+	for (const id of ids) {
+		try {
+			await purgeFn(id);
+			succeeded.push(id);
+		} catch (err) {
+			failed.push({ id, error: extractErrorMessage(err, "彻底清除失败") });
+		}
+	}
+	return { succeeded, failed };
+}
+
+/**
+ * Build a human-readable banner string from a `PurgeBatchOutcome`.
+ * Always reports both counts; appends up to 3 failed-id details so
+ * the operator sees concrete reasons without overflowing the banner.
+ * Returns `null` for an empty outcome (caller suppresses banner).
+ */
+export function formatPurgeBatchSummary(outcome: PurgeBatchOutcome): string | null {
+	const { succeeded, failed } = outcome;
+	if (succeeded.length === 0 && failed.length === 0) return null;
+	const head = `批量清除完成：成功 ${succeeded.length}，失败 ${failed.length}`;
+	if (failed.length === 0) return head;
+	const sample = failed
+		.slice(0, 3)
+		.map((f) => `#${f.id}: ${f.error}`)
+		.join("；");
+	const more = failed.length > 3 ? ` 等 ${failed.length} 项` : "";
+	return `${head}（${sample}${more}）`;
+}
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -292,6 +382,12 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 	const [editUser, setEditUser] = useState<User | null>(null);
 	const [editLoading, setEditLoading] = useState(false);
 	const [editError, setEditError] = useState<string | null>(null);
+
+	// Batch purge dialog state (Batch G).
+	const [purgeBatchOpen, setPurgeBatchOpen] = useState(false);
+	const [purgeBatchLoading, setPurgeBatchLoading] = useState(false);
+	const [purgeBatchError, setPurgeBatchError] = useState<string | null>(null);
+	const [purgeBatchSummary, setPurgeBatchSummary] = useState<PurgeBatchOutcome | null>(null);
 
 	// -------------------------------------------------------------------------
 	// Data fetching
@@ -383,12 +479,55 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 				await batchSetStatus(ids, -1);
 			} else if (key === "activate") {
 				await batchSetStatus(ids, 0);
+			} else if (key === "purge") {
+				// Defer the actual purges until the operator types `ok` in
+				// the confirm dialog. The dialog reads selectedIds at
+				// confirm-time so any selection change between open + click
+				// is honoured.
+				setPurgeBatchError(null);
+				setPurgeBatchSummary(null);
+				setPurgeBatchOpen(true);
+				return;
+			} else {
+				return;
 			}
 			setSelectedIds(new Set());
 			fetchData(pagination.page);
 		},
 		[selectedIds, fetchData, pagination.page],
 	);
+
+	const closePurgeBatchDialog = useCallback(() => {
+		if (purgeBatchLoading) return;
+		setPurgeBatchOpen(false);
+		setPurgeBatchError(null);
+	}, [purgeBatchLoading]);
+
+	const clearPurgeBatchSummary = useCallback(() => {
+		setPurgeBatchSummary(null);
+	}, []);
+
+	const handlePurgeBatchConfirm = useCallback(async () => {
+		const ids = Array.from(selectedIds).map(Number);
+		if (ids.length === 0) {
+			setPurgeBatchError("未选择任何用户");
+			return;
+		}
+		setPurgeBatchLoading(true);
+		setPurgeBatchError(null);
+		try {
+			const outcome = await runPurgeBatchSerial(ids, purgeUser);
+			setPurgeBatchSummary(outcome);
+			setPurgeBatchOpen(false);
+			// Always reload + clear selection — even if every id failed,
+			// because the page may have transient state (status badges)
+			// out of sync with reality.
+			setSelectedIds(new Set());
+			fetchData(pagination.page);
+		} finally {
+			setPurgeBatchLoading(false);
+		}
+	}, [selectedIds, fetchData, pagination.page]);
 
 	// -------------------------------------------------------------------------
 	// Return
@@ -404,6 +543,10 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 			editUser,
 			editLoading,
 			editError,
+			purgeBatchOpen,
+			purgeBatchLoading,
+			purgeBatchError,
+			purgeBatchSummary,
 		},
 		actions: {
 			fetchData,
@@ -415,6 +558,9 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 			handleEditSave,
 			handleBatchAction,
 			setSelectedIds,
+			closePurgeBatchDialog,
+			clearPurgeBatchSummary,
+			handlePurgeBatchConfirm,
 		},
 	};
 }

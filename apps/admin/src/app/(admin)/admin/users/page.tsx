@@ -4,6 +4,7 @@
 // MVVM: This is the View layer. State and logic are in useUsersAdmin hook.
 
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
+import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
@@ -11,7 +12,7 @@ import { AdminPagination } from "@/components/admin/admin-pagination";
 import { UserAvatar } from "@/components/admin/user-avatar";
 import { UserEditDialog } from "@/components/admin/user-edit-dialog";
 import { userRoleVariant, userStatusVariant } from "@/viewmodels/admin/badges";
-import { useUsersAdmin } from "@/viewmodels/admin/use-users-admin";
+import { formatPurgeBatchSummary, useUsersAdmin } from "@/viewmodels/admin/use-users-admin";
 import { type User, roleLabel, statusLabel } from "@/viewmodels/admin/users";
 import { formatNumber } from "@ellie/shared";
 import { Badge } from "@ellie/ui";
@@ -97,6 +98,10 @@ const ADVANCED_FILTERS: FilterDef[] = [
 const BATCH_ACTIONS: BatchAction[] = [
 	{ key: "ban", label: "批量封禁", variant: "destructive" },
 	{ key: "activate", label: "批量激活" },
+	// Batch G of task #15. Confirm dialog requires typing `ok`; the
+	// hook iterates the selection serially and surfaces a per-id
+	// success/failure summary so nothing is silently dropped.
+	{ key: "purge", label: "批量清除", variant: "destructive" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -275,6 +280,30 @@ export default function UsersPage() {
 
 			{ipBanner && <AdminInlineMessage variant="info" text={ipBanner} />}
 
+			{/*
+			 * Batch G — surface the most recent batch purge outcome above
+			 * the table. `formatPurgeBatchSummary` always reports both
+			 * counts and lists up to 3 failed-id reasons so failures are
+			 * visible. Variant flips to `error` when any id failed,
+			 * `success` when every id succeeded.
+			 */}
+			{state.purgeBatchSummary &&
+				(() => {
+					const text = formatPurgeBatchSummary(state.purgeBatchSummary);
+					if (!text) return null;
+					const variant = state.purgeBatchSummary.failed.length > 0 ? "error" : "success";
+					return (
+						<div className="flex items-start gap-2">
+							<div className="flex-1">
+								<AdminInlineMessage variant={variant} text={text} />
+							</div>
+							<Button variant="ghost" size="sm" onClick={actions.clearPurgeBatchSummary}>
+								关闭
+							</Button>
+						</div>
+					);
+				})()}
+
 			<div className="rounded-xl bg-secondary p-1 overflow-x-auto">
 				<AdminDataTable
 					columns={columns}
@@ -303,6 +332,27 @@ export default function UsersPage() {
 				loading={state.editLoading}
 				error={state.editError}
 				onSave={actions.handleEditSave}
+			/>
+
+			{/*
+			 * Batch G — typed-confirm dialog. The selected count is read
+			 * at render time (not snapshotted), so it stays accurate if
+			 * the operator dismisses + reopens. Confirm token is the
+			 * literal `ok` (matches the per-user purge dialog already
+			 * shipped on /admin/users/[id]).
+			 */}
+			<AdminConfirmDialog
+				open={state.purgeBatchOpen}
+				onOpenChange={(open) => !open && actions.closePurgeBatchDialog()}
+				title="批量彻底清除用户"
+				description={`将对所选 ${state.selectedIds.size} 个用户执行不可恢复的内容清除（主题、帖子、点评、附件、私信、R2 资源）+ 留下 tombstone。该操作逐个串行执行；员工账号 (role > 0) 会被服务端拒绝。`}
+				requireInput="ok"
+				inputPlaceholder="ok"
+				confirmLabel={`确认清除 ${state.selectedIds.size} 个`}
+				variant="destructive"
+				loading={state.purgeBatchLoading}
+				error={state.purgeBatchError}
+				onConfirm={actions.handlePurgeBatchConfirm}
 			/>
 		</div>
 	);
