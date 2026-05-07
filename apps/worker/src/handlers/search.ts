@@ -5,6 +5,7 @@ import { type Thread, decodeGenericCursor, encodeGenericCursor } from "@ellie/ty
 import type { Env } from "../lib/env";
 import { isKvUserCacheEnabled } from "../lib/env";
 import { enrichThreadsWithUserCache, toThread } from "../lib/mappers";
+import { clampLimit } from "../lib/pagination";
 import { jsonResponse } from "../lib/response";
 import { getUserProfiles } from "../lib/user-cache";
 import { buildForumFilter, buildVisibilityContext, threadVisible } from "../lib/visibility";
@@ -37,10 +38,16 @@ function buildFtsQuery(query: string): string {
 	return tokens.map((t) => `"${t.replace(/"/g, '""')}"`).join(" ");
 }
 
-/** Parse and validate limit parameter */
+const SEARCH_DEFAULT_LIMIT = 20;
+const SEARCH_MAX_LIMIT = 50;
+
+/** Clamp search limit — same as clampLimit but treats NaN as default */
 function parseLimit(limitParam: string | null): number {
-	const limitNum = limitParam ? Number.parseInt(limitParam, 10) : 20;
-	return Number.isNaN(limitNum) || limitNum <= 0 ? 20 : Math.min(limitNum, 50);
+	const result = clampLimit(limitParam, {
+		defaultLimit: SEARCH_DEFAULT_LIMIT,
+		maxLimit: SEARCH_MAX_LIMIT,
+	});
+	return Number.isNaN(result) ? SEARCH_DEFAULT_LIMIT : result;
 }
 
 /** Build search SQL query */
