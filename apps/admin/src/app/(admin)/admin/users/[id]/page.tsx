@@ -17,9 +17,8 @@ import { AdminPagination } from "@/components/admin/admin-pagination";
 import { UserEditDialog } from "@/components/admin/user-edit-dialog";
 import { extractErrorMessage } from "@/lib/admin-error";
 import { FIRST_POST_VARIANT, userRoleVariant, userStatusVariant } from "@/viewmodels/admin/badges";
-import type { Post } from "@/viewmodels/admin/posts";
 import type { Thread } from "@/viewmodels/admin/threads";
-import { useUserDetail } from "@/viewmodels/admin/use-user-detail";
+import { type UserDetailPost, useUserDetail } from "@/viewmodels/admin/use-user-detail";
 import {
 	type PurgeResult,
 	type User,
@@ -318,7 +317,7 @@ export default function UserDetailPage() {
 
 						<TabsContent value="posts" className="mt-4 space-y-2">
 							{state.postsError && <AdminInlineMessage variant="error" text={state.postsError} />}
-							<AdminDataTable<Post>
+							<AdminDataTable<UserDetailPost>
 								columns={postColumns}
 								data={state.posts}
 								getRowId={(p) => p.id}
@@ -485,13 +484,17 @@ const threadColumns: ColumnDef<Thread>[] = [
 	},
 ];
 
-const postColumns: ColumnDef<Post>[] = [
+const postColumns: ColumnDef<UserDetailPost>[] = [
 	{
 		key: "thread",
 		header: "所在主题",
 		cell: (p) => (
-			<Link href={`/admin/threads/${p.threadId}`} className="hover:underline">
-				#{p.threadId}
+			<Link
+				href={`/admin/threads/${p.threadId}`}
+				className="hover:underline"
+				title={p.threadSubject ?? `#${p.threadId}`}
+			>
+				{p.threadSubject ?? `#${p.threadId}`}
 			</Link>
 		),
 	},

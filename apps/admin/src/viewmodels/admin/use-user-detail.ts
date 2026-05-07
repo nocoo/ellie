@@ -8,7 +8,7 @@
 
 import { extractErrorMessage } from "@/lib/admin-error";
 import { type Post, fetchPosts } from "@/viewmodels/admin/posts";
-import { type Thread, fetchThreads } from "@/viewmodels/admin/threads";
+import { type Thread, fetchThread, fetchThreads } from "@/viewmodels/admin/threads";
 import { type User, fetchUser } from "@/viewmodels/admin/users";
 import { useCallback, useEffect, useState } from "react";
 
@@ -38,7 +38,7 @@ export interface UserDetailState {
 	threadsError: string | null;
 
 	/** Posts authored by this user (current page). */
-	posts: Post[];
+	posts: UserDetailPost[];
 	postsPagination: PaginationInfo;
 	postsLoading: boolean;
 	postsError: string | null;
@@ -63,6 +63,31 @@ export interface UseUserDetailOptions {
 	userId: number;
 	/** Page size for threads & posts panels. Default 20. */
 	pageSize?: number;
+}
+
+/**
+ * Post enriched with its parent thread's subject for display in the user
+ * detail page (the admin posts list API does not include thread metadata,
+ * so we patch it on after the fact via per-thread fetches).
+ */
+export interface UserDetailPost extends Post {
+	/** Subject of the parent thread, or undefined if the lookup failed. */
+	threadSubject?: string;
+}
+
+/**
+ * Patch each post with its parent thread's subject from the lookup map.
+ * Posts whose thread is missing from the map keep `threadSubject: undefined`
+ * so the UI can fall back to `#${threadId}`. Pure for testability.
+ */
+export function enrichPostsWithThreadSubjects(
+	posts: Post[],
+	subjectsByThreadId: Map<number, string>,
+): UserDetailPost[] {
+	return posts.map((p) => {
+		const subject = subjectsByThreadId.get(p.threadId);
+		return subject !== undefined ? { ...p, threadSubject: subject } : p;
+	});
 }
 
 // ---------------------------------------------------------------------------
@@ -102,7 +127,7 @@ export function useUserDetail({
 	const [threadsPage, setThreadsPageState] = useState(1);
 
 	// Posts panel
-	const [posts, setPosts] = useState<Post[]>([]);
+	const [posts, setPosts] = useState<UserDetailPost[]>([]);
 	const [postsPagination, setPostsPagination] = useState<PaginationInfo>({
 		...DEFAULT_PAGINATION,
 		limit: pageSize,
@@ -179,8 +204,11 @@ export function useUserDetail({
 		setPostsLoading(true);
 		setPostsError(null);
 		fetchPosts({ authorId: userId, page: postsPage, limit: pageSize })
-			.then((res) => {
+			.then(async (res) => {
 				if (cancelled) return;
+				// Show the raw posts immediately, then enrich with thread
+				// subjects in a second pass. Each fetchThread is independent —
+				// one failure must not blank other rows or the whole list.
 				setPosts(res.data);
 				setPostsPagination({
 					page: res.meta.page,
@@ -188,6 +216,22 @@ export function useUserDetail({
 					total: res.meta.total,
 					limit: res.meta.limit,
 				});
+
+				const uniqueThreadIds = Array.from(new Set(res.data.map((p) => p.threadId)));
+				if (uniqueThreadIds.length === 0) return;
+				const subjectPairs = await Promise.all(
+					uniqueThreadIds.map((id) =>
+						fetchThread(id)
+							.then((t) => [id, t.subject] as const)
+							.catch(() => null),
+					),
+				);
+				if (cancelled) return;
+				const subjectsByThreadId = new Map<number, string>();
+				for (const pair of subjectPairs) {
+					if (pair) subjectsByThreadId.set(pair[0], pair[1]);
+				}
+				setPosts((prev) => enrichPostsWithThreadSubjects(prev, subjectsByThreadId));
 			})
 			.catch((err) => {
 				if (cancelled) return;
