@@ -93,11 +93,11 @@
 	"dependencies": {
 		"defu": "^6.1.6",
 		"dompurify": "^3.4.0",
-		"hono": "^4.12.14"
+		"hono": "^4.12.18"
 	},
 	"overrides": {
 		"dompurify": "^3.4.0",
-		"hono": "^4.12.14",
+		"hono": "^4.12.18",
 		"ip-address": "^10.1.1",
 		"postcss": "^8.5.10"
 	}
