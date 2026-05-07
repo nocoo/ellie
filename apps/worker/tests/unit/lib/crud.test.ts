@@ -366,6 +366,153 @@ describe("createListHandler", () => {
 		expect(countCall?.sql).not.toContain("WHERE");
 	});
 
+	// ─── range filter ────────────────────────────────────────
+	// `range` filter: `column >= ?Min AND column <= ?Max`. Each side
+	// independent, inclusive. `0` is a valid bound (positive falsy guard
+	// must not drop it). Invalid / non-finite values are silently dropped
+	// so the rest of the filter still applies.
+
+	function rangeConfig(): EntityConfig {
+		return makeTestConfig({
+			filters: [
+				// default param naming: `someValueMin` / `someValueMax`
+				{ param: "someValue", column: "some_value", type: "range" },
+				// explicit override naming
+				{
+					param: "credits",
+					column: "credits",
+					type: "range",
+					minParam: "creditsLow",
+					maxParam: "creditsHigh",
+				},
+				// float parsing
+				{ param: "score", column: "score", type: "range", parse: "float" },
+			],
+		});
+	}
+
+	it("'range' filter applies min-only as `column >= ?`", async () => {
+		const { db, calls } = createMockDb({
+			firstResults: { "SELECT COUNT": { total: 1 } },
+			allResults: { "SELECT id, name, some_value FROM test_items": [testRow] },
+		});
+		const env = makeEnv({ DB: db });
+		const handler = createListHandler(rangeConfig());
+
+		await handler(makeRequest("/api/admin/test-items?someValueMin=10"), env);
+
+		const countCall = calls.find((c) => c.sql.includes("COUNT"));
+		expect(countCall?.sql).toContain("WHERE some_value >= ?");
+		expect(countCall?.sql).not.toContain("<=");
+		expect(countCall?.params).toEqual([10]);
+	});
+
+	it("'range' filter applies max-only as `column <= ?`", async () => {
+		const { db, calls } = createMockDb({
+			firstResults: { "SELECT COUNT": { total: 1 } },
+			allResults: { "SELECT id, name, some_value FROM test_items": [testRow] },
+		});
+		const env = makeEnv({ DB: db });
+		const handler = createListHandler(rangeConfig());
+
+		await handler(makeRequest("/api/admin/test-items?someValueMax=99"), env);
+
+		const countCall = calls.find((c) => c.sql.includes("COUNT"));
+		expect(countCall?.sql).toContain("WHERE some_value <= ?");
+		expect(countCall?.sql).not.toContain(">=");
+		expect(countCall?.params).toEqual([99]);
+	});
+
+	it("'range' filter applies both bounds as `>= ? AND <= ?` in min-then-max order", async () => {
+		const { db, calls } = createMockDb({
+			firstResults: { "SELECT COUNT": { total: 1 } },
+			allResults: { "SELECT id, name, some_value FROM test_items": [testRow] },
+		});
+		const env = makeEnv({ DB: db });
+		const handler = createListHandler(rangeConfig());
+
+		await handler(makeRequest("/api/admin/test-items?someValueMin=5&someValueMax=20"), env);
+
+		const countCall = calls.find((c) => c.sql.includes("COUNT"));
+		expect(countCall?.sql).toContain("WHERE some_value >= ? AND some_value <= ?");
+		expect(countCall?.params).toEqual([5, 20]);
+	});
+
+	it("'range' filter ignores invalid bounds but keeps valid side", async () => {
+		const { db, calls } = createMockDb({
+			firstResults: { "SELECT COUNT": { total: 1 } },
+			allResults: { "SELECT id, name, some_value FROM test_items": [testRow] },
+		});
+		const env = makeEnv({ DB: db });
+		const handler = createListHandler(rangeConfig());
+
+		await handler(makeRequest("/api/admin/test-items?someValueMin=abc&someValueMax=42"), env);
+
+		const countCall = calls.find((c) => c.sql.includes("COUNT"));
+		expect(countCall?.sql).toContain("WHERE some_value <= ?");
+		expect(countCall?.sql).not.toContain(">=");
+		expect(countCall?.params).toEqual([42]);
+	});
+
+	it("'range' filter treats `0` as a valid bound (not falsy-dropped)", async () => {
+		const { db, calls } = createMockDb({
+			firstResults: { "SELECT COUNT": { total: 1 } },
+			allResults: { "SELECT id, name, some_value FROM test_items": [testRow] },
+		});
+		const env = makeEnv({ DB: db });
+		const handler = createListHandler(rangeConfig());
+
+		await handler(makeRequest("/api/admin/test-items?someValueMin=0&someValueMax=0"), env);
+
+		const countCall = calls.find((c) => c.sql.includes("COUNT"));
+		expect(countCall?.sql).toContain("WHERE some_value >= ? AND some_value <= ?");
+		expect(countCall?.params).toEqual([0, 0]);
+	});
+
+	it("'range' filter with empty string bounds adds no clause", async () => {
+		const { db, calls } = createMockDb({
+			firstResults: { "SELECT COUNT": { total: 0 } },
+			allResults: {},
+		});
+		const env = makeEnv({ DB: db });
+		const handler = createListHandler(rangeConfig());
+
+		await handler(makeRequest("/api/admin/test-items?someValueMin=&someValueMax="), env);
+
+		const countCall = calls.find((c) => c.sql.includes("COUNT"));
+		expect(countCall?.sql).not.toContain("WHERE");
+	});
+
+	it("'range' filter respects minParam/maxParam overrides", async () => {
+		const { db, calls } = createMockDb({
+			firstResults: { "SELECT COUNT": { total: 1 } },
+			allResults: { "SELECT id, name, some_value FROM test_items": [testRow] },
+		});
+		const env = makeEnv({ DB: db });
+		const handler = createListHandler(rangeConfig());
+
+		await handler(makeRequest("/api/admin/test-items?creditsLow=100&creditsHigh=500"), env);
+
+		const countCall = calls.find((c) => c.sql.includes("COUNT"));
+		expect(countCall?.sql).toContain("WHERE credits >= ? AND credits <= ?");
+		expect(countCall?.params).toEqual([100, 500]);
+	});
+
+	it("'range' filter parses floats when parse=float", async () => {
+		const { db, calls } = createMockDb({
+			firstResults: { "SELECT COUNT": { total: 1 } },
+			allResults: { "SELECT id, name, some_value FROM test_items": [testRow] },
+		});
+		const env = makeEnv({ DB: db });
+		const handler = createListHandler(rangeConfig());
+
+		await handler(makeRequest("/api/admin/test-items?scoreMin=1.5&scoreMax=9.75"), env);
+
+		const countCall = calls.find((c) => c.sql.includes("COUNT"));
+		expect(countCall?.sql).toContain("WHERE score >= ? AND score <= ?");
+		expect(countCall?.params).toEqual([1.5, 9.75]);
+	});
+
 	it("should skip filters with empty string value", async () => {
 		const { db, calls } = createMockDb({
 			firstResults: { "SELECT COUNT": { total: 0 } },

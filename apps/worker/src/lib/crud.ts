@@ -11,7 +11,11 @@ import { jsonResponse, paginatedResponse } from "./response";
 
 /** Filter definition for admin list endpoints */
 export interface FilterDef {
-	/** Query param name */
+	/**
+	 * Query param name. For `range` filters this is the *base* name; the
+	 * actual min/max query params default to `${param}Min` / `${param}Max`
+	 * unless explicitly overridden by `minParam` / `maxParam`.
+	 */
 	param: string;
 	/** D1 column name */
 	column: string;
@@ -23,10 +27,18 @@ export interface FilterDef {
 	 *   `1`/`true` → `column > 0`, raw `0`/`false` → `column = 0`. Used when
 	 *   the underlying column is a bitmask/RGB pack (e.g. `threads.highlight`)
 	 *   and the UI just wants "set" vs "unset".
+	 * - `range` — inclusive numeric range `column >= ?Min AND column <= ?Max`,
+	 *   each side independent. Reads two query params (see `minParam`/`maxParam`).
+	 *   Defaults to integer parsing; floats via `parse: "float"`. Invalid /
+	 *   non-finite values are ignored. `0` is a valid bound.
 	 */
-	type: "exact" | "like" | "positive";
-	/** Value parser — defaults to string passthrough */
-	parse?: "int" | "boolean";
+	type: "exact" | "like" | "positive" | "range";
+	/** Value parser — defaults to string passthrough (or `int` for `range`) */
+	parse?: "int" | "boolean" | "float";
+	/** Range only: query param for the lower bound (default `${param}Min`). */
+	minParam?: string;
+	/** Range only: query param for the upper bound (default `${param}Max`). */
+	maxParam?: string;
 }
 
 /** Field definition for create/update */
@@ -122,6 +134,32 @@ function getOrigin(request: Request): string | undefined {
 	return request.headers.get("Origin") ?? undefined;
 }
 
+function parseRangeBound(raw: string, parse: FilterDef["parse"]): number | null {
+	const n = parse === "float" ? Number.parseFloat(raw) : Number.parseInt(raw, 10);
+	return Number.isFinite(n) ? n : null;
+}
+
+function applyRangeFilter(f: FilterDef, url: URL, conditions: string[], params: unknown[]): void {
+	const minParam = f.minParam ?? `${f.param}Min`;
+	const maxParam = f.maxParam ?? `${f.param}Max`;
+	const rawMin = url.searchParams.get(minParam);
+	const rawMax = url.searchParams.get(maxParam);
+	if (rawMin !== null && rawMin !== "") {
+		const lo = parseRangeBound(rawMin, f.parse);
+		if (lo !== null) {
+			conditions.push(`${f.column} >= ?`);
+			params.push(lo);
+		}
+	}
+	if (rawMax !== null && rawMax !== "") {
+		const hi = parseRangeBound(rawMax, f.parse);
+		if (hi !== null) {
+			conditions.push(`${f.column} <= ?`);
+			params.push(hi);
+		}
+	}
+}
+
 function applyFilter(f: FilterDef, raw: string, conditions: string[], params: unknown[]): void {
 	if (f.type === "positive") {
 		if (raw === "true" || raw === "1") conditions.push(`${f.column} > 0`);
@@ -153,6 +191,10 @@ function buildWhereClause(
 	const params: unknown[] = [];
 	if (filters) {
 		for (const f of filters) {
+			if (f.type === "range") {
+				applyRangeFilter(f, url, conditions, params);
+				continue;
+			}
 			const raw = url.searchParams.get(f.param);
 			if (raw === null || raw === "") continue;
 			applyFilter(f, raw, conditions, params);
