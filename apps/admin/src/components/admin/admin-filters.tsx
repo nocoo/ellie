@@ -13,7 +13,7 @@ import { useCallback, useState } from "react";
 export interface FilterDef {
 	key: string;
 	label: string;
-	type: "search" | "select" | "toggle";
+	type: "search" | "select" | "toggle" | "numrange" | "daterange";
 	options?: { value: string; label: string }[];
 	/**
 	 * Optional placeholder shown as the empty (clear-selection) option for
@@ -22,6 +22,13 @@ export interface FilterDef {
 	 * default placeholder would imply a selection has been made.
 	 */
 	placeholder?: string;
+	/**
+	 * Range filter (numrange / daterange) only — placeholder text for the
+	 * lower / upper bound inputs. Defaults to `最小` / `最大` for numrange
+	 * and `开始日期` / `结束日期` for daterange.
+	 */
+	minPlaceholder?: string;
+	maxPlaceholder?: string;
 }
 
 export interface AdminFiltersProps {
@@ -52,6 +59,77 @@ export function buildSelectOptions(
 	filter: Pick<FilterDef, "label" | "placeholder" | "options">,
 ): { value: string; label: string }[] {
 	return [{ value: "", label: resolveSelectPlaceholder(filter) }, ...(filter.options ?? [])];
+}
+
+/**
+ * Range filters store their two bounds in the `values` map under the keys
+ * `${key}Min` and `${key}Max`. Centralise the suffix so the component, the
+ * viewmodels, and the worker query-param naming all agree.
+ */
+export function rangeMinKey(key: string): string {
+	return `${key}Min`;
+}
+export function rangeMaxKey(key: string): string {
+	return `${key}Max`;
+}
+
+/**
+ * Convert an HTML date input value (`YYYY-MM-DD`, local-day semantics) to
+ * a unix-seconds bound. `Start` returns 00:00:00 of that local day; `End`
+ * returns 23:59:59 of that local day. Returns `null` for empty / malformed
+ * / out-of-range input so the caller can drop the bound silently.
+ *
+ * Inclusive on both ends — matches `range` filter semantics in worker
+ * `crud.ts` (`column >= ?Min AND column <= ?Max`).
+ */
+function parseDateInput(yyyymmdd: string): { y: number; m: number; d: number } | null {
+	const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(yyyymmdd.trim());
+	if (!match) return null;
+	const y = Number(match[1]);
+	const m = Number(match[2]);
+	const d = Number(match[3]);
+	if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+	return { y, m, d };
+}
+
+function buildDate(y: number, m: number, d: number, h: number, mi: number, s: number): Date | null {
+	const date = new Date(y, m - 1, d, h, mi, s, 0);
+	// Reject invalid calendar dates (e.g. Feb 30 → Mar 2 rollover).
+	if (
+		date.getFullYear() !== y ||
+		date.getMonth() !== m - 1 ||
+		date.getDate() !== d ||
+		Number.isNaN(date.getTime())
+	) {
+		return null;
+	}
+	return date;
+}
+
+export function dateInputToUnixSecondsStart(yyyymmdd: string): number | null {
+	const parts = parseDateInput(yyyymmdd);
+	if (!parts) return null;
+	const date = buildDate(parts.y, parts.m, parts.d, 0, 0, 0);
+	return date ? Math.floor(date.getTime() / 1000) : null;
+}
+
+export function dateInputToUnixSecondsEnd(yyyymmdd: string): number | null {
+	const parts = parseDateInput(yyyymmdd);
+	if (!parts) return null;
+	const date = buildDate(parts.y, parts.m, parts.d, 23, 59, 59);
+	return date ? Math.floor(date.getTime() / 1000) : null;
+}
+
+/**
+ * Normalise a numeric range bound from a raw input string. Returns the
+ * numeric string for safe URL-param use, or `null` if empty / not finite.
+ * `0` is a valid bound — explicit `Number.isFinite` guard, not truthy.
+ */
+export function normalizeNumRangeBound(raw: string): string | null {
+	const trimmed = raw.trim();
+	if (trimmed === "") return null;
+	const n = Number(trimmed);
+	return Number.isFinite(n) ? String(n) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -125,6 +203,62 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 						>
 							{filter.label}
 						</Button>
+					);
+				}
+
+				if (filter.type === "numrange") {
+					const minKey = rangeMinKey(filter.key);
+					const maxKey = rangeMaxKey(filter.key);
+					return (
+						<div key={filter.key} className="flex items-center gap-1">
+							<span className="text-sm text-muted-foreground">{filter.label}</span>
+							<Input
+								type="number"
+								inputMode="numeric"
+								value={values[minKey] ?? ""}
+								onChange={(e) => onFilterChange(minKey, e.target.value)}
+								placeholder={filter.minPlaceholder ?? "最小"}
+								aria-label={`${filter.label} 最小`}
+								className="w-[88px]"
+							/>
+							<span className="text-sm text-muted-foreground">—</span>
+							<Input
+								type="number"
+								inputMode="numeric"
+								value={values[maxKey] ?? ""}
+								onChange={(e) => onFilterChange(maxKey, e.target.value)}
+								placeholder={filter.maxPlaceholder ?? "最大"}
+								aria-label={`${filter.label} 最大`}
+								className="w-[88px]"
+							/>
+						</div>
+					);
+				}
+
+				if (filter.type === "daterange") {
+					const minKey = rangeMinKey(filter.key);
+					const maxKey = rangeMaxKey(filter.key);
+					return (
+						<div key={filter.key} className="flex items-center gap-1">
+							<span className="text-sm text-muted-foreground">{filter.label}</span>
+							<Input
+								type="date"
+								value={values[minKey] ?? ""}
+								onChange={(e) => onFilterChange(minKey, e.target.value)}
+								placeholder={filter.minPlaceholder ?? "开始日期"}
+								aria-label={`${filter.label} 开始日期`}
+								className="w-[150px]"
+							/>
+							<span className="text-sm text-muted-foreground">—</span>
+							<Input
+								type="date"
+								value={values[maxKey] ?? ""}
+								onChange={(e) => onFilterChange(maxKey, e.target.value)}
+								placeholder={filter.maxPlaceholder ?? "结束日期"}
+								aria-label={`${filter.label} 结束日期`}
+								className="w-[150px]"
+							/>
+						</div>
 					);
 				}
 
