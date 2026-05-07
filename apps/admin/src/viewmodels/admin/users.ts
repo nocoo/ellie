@@ -9,6 +9,8 @@ export interface User {
 	username: string;
 	email: string;
 	avatar: string;
+	/** GUID-based avatar path (e.g. "avatars/abc.jpg"); empty string when not set. Direct CDN address. */
+	avatarPath?: string;
 	role: number;
 	status: number;
 	threads: number;
