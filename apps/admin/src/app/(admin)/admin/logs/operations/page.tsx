@@ -274,7 +274,7 @@ export default function AdminLogsPage() {
 							value={actionInput}
 							onChange={(e) => setActionInput(e.target.value)}
 							placeholder="如 user.ban，回车提交"
-							className="h-9 w-56 pr-8"
+							className="w-56 pr-8"
 						/>
 						{actionInput && (
 							<button
@@ -299,7 +299,7 @@ export default function AdminLogsPage() {
 						value={adminIdInput}
 						onChange={(e) => setAdminIdInput(e.target.value)}
 						placeholder="例如 1"
-						className="h-9 w-32"
+						className="w-32"
 					/>
 				</div>
 				<div className="grid gap-1">
@@ -313,7 +313,7 @@ export default function AdminLogsPage() {
 						value={targetIdInput}
 						onChange={(e) => setTargetIdInput(e.target.value)}
 						placeholder="例如 3"
-						className="h-9 w-32"
+						className="w-32"
 					/>
 				</div>
 				<div className="grid gap-1">
@@ -325,7 +325,7 @@ export default function AdminLogsPage() {
 						type="date"
 						value={startDate}
 						onChange={(e) => setStartDate(e.target.value)}
-						className="h-9 w-44"
+						className="w-44"
 					/>
 				</div>
 				<div className="grid gap-1">
@@ -337,7 +337,7 @@ export default function AdminLogsPage() {
 						type="date"
 						value={endDate}
 						onChange={(e) => setEndDate(e.target.value)}
-						className="h-9 w-44"
+						className="w-44"
 					/>
 				</div>
 			</div>
