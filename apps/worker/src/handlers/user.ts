@@ -2,6 +2,7 @@ import { decodeGenericCursor } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { toPost, toPublicUser, toThread } from "../lib/mappers";
 import { buildNextCursor, clampLimit } from "../lib/pagination";
+import { parseIdFromPath, parsePathSegment } from "../lib/parseId";
 import { jsonResponse } from "../lib/response";
 import {
 	USER_ACTIVE,
@@ -170,10 +171,7 @@ export async function batchGet(request: Request, env: Env): Promise<Response> {
 /** GET /api/v1/users/:id - Get user public profile */
 export async function getById(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
-	const url = new URL(request.url);
-	const pathParts = url.pathname.split("/");
-	const idStr = pathParts[pathParts.length - 1];
-	const id = Number.parseInt(idStr ?? "0", 10);
+	const id = parseIdFromPath(request) ?? Number.NaN;
 
 	// Fire auth + user-row queries in parallel — they're independent.
 	const [viewer, result] = await Promise.all([
@@ -214,13 +212,9 @@ export async function getById(request: Request, env: Env): Promise<Response> {
  */
 export async function getAvatarPath(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
-	const url = new URL(request.url);
-	const pathParts = url.pathname.split("/");
-	// Path: /api/v1/users/:id/avatar-path -> id is second-to-last
-	const idStr = pathParts[pathParts.length - 2];
-	const id = Number.parseInt(idStr ?? "0", 10);
+	const id = parsePathSegment(request, 1);
 
-	if (Number.isNaN(id) || id <= 0) {
+	if (id === null || id <= 0) {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid userId" }, origin);
 	}
 
