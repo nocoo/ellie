@@ -58,12 +58,22 @@ export interface DeleteResult {
 	deletedPosts: number;
 }
 
-export interface BatchResult {
-	affected: number;
+// Batch result contracts mirror the worker exactly so callers don't drift:
+//   batchDelete  → { deleted: true, count }
+//   batchMove    → { moved: true,   count, forumId }
+// `count` reflects rows the worker actually touched (after dedupe + missing
+// row drop for delete, after `already in target` skip for move). Don't
+// rename to `affected` — that was a stale guess that previously rendered
+// `undefined` in the success banner.
+export interface BatchDeleteResult {
+	deleted: boolean;
+	count: number;
 }
 
-export interface MoveResult {
-	affected: number;
+export interface BatchMoveResult {
+	moved: boolean;
+	count: number;
+	forumId: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -143,12 +153,15 @@ export async function deleteThread(id: number): Promise<DeleteResult> {
 	return res.data;
 }
 
-export async function batchDeleteThreads(ids: number[]): Promise<BatchResult> {
-	const res = await apiClient.post<BatchResult>("/api/admin/threads/batch-delete", { ids });
+export async function batchDeleteThreads(ids: number[]): Promise<BatchDeleteResult> {
+	const res = await apiClient.post<BatchDeleteResult>("/api/admin/threads/batch-delete", { ids });
 	return res.data;
 }
 
-export async function batchMoveThreads(ids: number[], forumId: number): Promise<MoveResult> {
-	const res = await apiClient.post<MoveResult>("/api/admin/threads/batch-move", { ids, forumId });
+export async function batchMoveThreads(ids: number[], forumId: number): Promise<BatchMoveResult> {
+	const res = await apiClient.post<BatchMoveResult>("/api/admin/threads/batch-move", {
+		ids,
+		forumId,
+	});
 	return res.data;
 }

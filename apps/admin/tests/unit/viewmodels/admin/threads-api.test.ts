@@ -59,20 +59,29 @@ describe("threads API functions", () => {
 		expect(r.deleted).toBe(true);
 	});
 
-	it("batchDeleteThreads calls post", async () => {
-		mockPost.mockResolvedValue({ data: { affected: 3 } });
+	it("batchDeleteThreads calls post and returns worker `{deleted,count}` shape", async () => {
+		// Mirrors worker `handlers/admin/thread.ts` batchDelete:
+		//   return jsonResponse({ deleted: true, count: existingIds.length }, ...)
+		// Locked here so a future rename (e.g. back to `affected`) trips this
+		// test before it can render `undefined` in the success banner.
+		mockPost.mockResolvedValue({ data: { deleted: true, count: 3 } });
 		const r = await batchDeleteThreads([1, 2, 3]);
 		expect(mockPost).toHaveBeenCalledWith("/api/admin/threads/batch-delete", { ids: [1, 2, 3] });
-		expect(r.affected).toBe(3);
+		expect(r.deleted).toBe(true);
+		expect(r.count).toBe(3);
 	});
 
-	it("batchMoveThreads calls post", async () => {
-		mockPost.mockResolvedValue({ data: { affected: 2 } });
+	it("batchMoveThreads calls post and returns worker `{moved,count,forumId}` shape", async () => {
+		// Mirrors worker batchMove:
+		//   return jsonResponse({ moved: true, count, forumId: targetForumId }, ...)
+		mockPost.mockResolvedValue({ data: { moved: true, count: 2, forumId: 10 } });
 		const r = await batchMoveThreads([1, 2], 10);
 		expect(mockPost).toHaveBeenCalledWith("/api/admin/threads/batch-move", {
 			ids: [1, 2],
 			forumId: 10,
 		});
-		expect(r.affected).toBe(2);
+		expect(r.moved).toBe(true);
+		expect(r.count).toBe(2);
+		expect(r.forumId).toBe(10);
 	});
 });
