@@ -112,6 +112,22 @@ const userConfig: EntityConfig = {
 		// D3: same-IP query — exact match, no LIKE wildcards (PII surface).
 		{ param: "regIp", column: "reg_ip", type: "exact" },
 		{ param: "lastIp", column: "last_ip", type: "exact" },
+		// Batch E: 高级过滤器 — inclusive numeric ranges (Batch A `range`
+		// type). Default param naming `${param}Min`/`${param}Max` matches
+		// the admin AdminFilters key convention (Batch B). Date columns
+		// are stored as unix seconds; the UI converts local-day inputs
+		// to 00:00:00 / 23:59:59 unix seconds (Batch B helpers) so
+		// inclusive bounds line up.
+		//
+		// `0` survives both sides (worker `Number.isFinite` guard) — a
+		// `lastLoginMin=0` filter selects users with `last_login >= 0`
+		// (i.e. everyone, including never-logged-in `last_login = 0`),
+		// and `creditsMin=0` selects everyone with non-negative credits.
+		{ param: "regDate", column: "reg_date", type: "range" },
+		{ param: "lastLogin", column: "last_login", type: "range" },
+		{ param: "threads", column: "threads", type: "range" },
+		{ param: "posts", column: "posts", type: "range" },
+		{ param: "credits", column: "credits", type: "range" },
 	],
 	listSort: "id DESC",
 

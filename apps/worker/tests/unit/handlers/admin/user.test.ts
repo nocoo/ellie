@@ -284,6 +284,130 @@ describe("admin user handlers", () => {
 			const body = await res.json();
 			expect(body.error.details.message).toBe("Invalid page number");
 		});
+
+		// ─── Batch E: 高级过滤器 — 5 inclusive numeric ranges ──────────────
+		// regDate / lastLogin / threads / posts / credits each map to the
+		// `range` filter type added in Batch A. Default param naming
+		// `${param}Min` / `${param}Max` aligns with the admin AdminFilters
+		// key convention from Batch B. Lock the SQL clause shape and
+		// param binding for every dimension, including the `0` bound case
+		// the reviewer flagged (`lastLoginMin=0` and `creditsMin=0` must
+		// not be falsy-dropped).
+
+		it("filters by regDateMin / regDateMax (range, inclusive)", async () => {
+			const { db, calls } = createMockDb({
+				allResults: { "FROM users": [] },
+				firstResults: { "SELECT COUNT": { total: 0 } },
+			});
+
+			await list(
+				createAdminRequest("GET", "/api/admin/users?regDateMin=1700000000&regDateMax=1800000000"),
+				adminEnv(db),
+			);
+
+			const countCall = calls.find((c) => c.sql.includes("COUNT"));
+			expect(countCall?.sql).toContain("reg_date >= ? AND reg_date <= ?");
+			expect(countCall?.params).toEqual([1700000000, 1800000000]);
+		});
+
+		it("filters by lastLoginMin alone applies only the lower bound", async () => {
+			const { db, calls } = createMockDb({
+				allResults: { "FROM users": [] },
+				firstResults: { "SELECT COUNT": { total: 0 } },
+			});
+
+			await list(
+				createAdminRequest("GET", "/api/admin/users?lastLoginMin=1700000000"),
+				adminEnv(db),
+			);
+
+			const countCall = calls.find((c) => c.sql.includes("COUNT"));
+			expect(countCall?.sql).toContain("last_login >= ?");
+			expect(countCall?.sql).not.toContain("last_login <=");
+			expect(countCall?.params).toEqual([1700000000]);
+		});
+
+		it("treats lastLoginMin=0 as a real bound (not falsy-dropped)", async () => {
+			// Reviewer's hard line: `0` survives the worker `Number.isFinite`
+			// guard. Otherwise legit "any time including never-logged-in"
+			// queries would silently match-everything via missing WHERE.
+			const { db, calls } = createMockDb({
+				allResults: { "FROM users": [] },
+				firstResults: { "SELECT COUNT": { total: 0 } },
+			});
+
+			await list(createAdminRequest("GET", "/api/admin/users?lastLoginMin=0"), adminEnv(db));
+
+			const countCall = calls.find((c) => c.sql.includes("COUNT"));
+			expect(countCall?.sql).toContain("last_login >= ?");
+			expect(countCall?.params).toEqual([0]);
+		});
+
+		it("treats creditsMin=0 as a real bound (not falsy-dropped)", async () => {
+			const { db, calls } = createMockDb({
+				allResults: { "FROM users": [] },
+				firstResults: { "SELECT COUNT": { total: 0 } },
+			});
+
+			await list(
+				createAdminRequest("GET", "/api/admin/users?creditsMin=0&creditsMax=100"),
+				adminEnv(db),
+			);
+
+			const countCall = calls.find((c) => c.sql.includes("COUNT"));
+			expect(countCall?.sql).toContain("credits >= ? AND credits <= ?");
+			expect(countCall?.params).toEqual([0, 100]);
+		});
+
+		it("filters by threadsMin / threadsMax (range, integer parsing)", async () => {
+			const { db, calls } = createMockDb({
+				allResults: { "FROM users": [] },
+				firstResults: { "SELECT COUNT": { total: 0 } },
+			});
+
+			await list(
+				createAdminRequest("GET", "/api/admin/users?threadsMin=5&threadsMax=200"),
+				adminEnv(db),
+			);
+
+			const countCall = calls.find((c) => c.sql.includes("COUNT"));
+			expect(countCall?.sql).toContain("threads >= ? AND threads <= ?");
+			expect(countCall?.params).toEqual([5, 200]);
+		});
+
+		it("filters by postsMax alone applies only the upper bound", async () => {
+			const { db, calls } = createMockDb({
+				allResults: { "FROM users": [] },
+				firstResults: { "SELECT COUNT": { total: 0 } },
+			});
+
+			await list(createAdminRequest("GET", "/api/admin/users?postsMax=50"), adminEnv(db));
+
+			const countCall = calls.find((c) => c.sql.includes("COUNT"));
+			expect(countCall?.sql).toContain("posts <= ?");
+			expect(countCall?.sql).not.toContain("posts >=");
+			expect(countCall?.params).toEqual([50]);
+		});
+
+		it("combines multiple range filters with existing string filters via AND", async () => {
+			const { db, calls } = createMockDb({
+				allResults: { "FROM users": [] },
+				firstResults: { "SELECT COUNT": { total: 0 } },
+			});
+
+			await list(
+				createAdminRequest("GET", "/api/admin/users?username=alice&postsMin=10&creditsMax=500"),
+				adminEnv(db),
+			);
+
+			const countCall = calls.find((c) => c.sql.includes("COUNT"));
+			expect(countCall?.sql).toContain("username LIKE ?");
+			expect(countCall?.sql).toContain("posts >= ?");
+			expect(countCall?.sql).toContain("credits <= ?");
+			// AND-joined; bind order matches filter declaration order in
+			// userConfig (username → posts → credits).
+			expect(countCall?.params).toEqual(["%alice%", 10, 500]);
+		});
 	});
 
 	// ─── getById ──────────────────────────────────────────────
