@@ -18,6 +18,7 @@ import {
 } from "@ellie/ui";
 import { Input } from "@ellie/ui";
 import { MoreHorizontal, Plus, Search } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------
@@ -241,7 +242,14 @@ export default function IpBansPage() {
 		{
 			key: "createdBy",
 			header: "创建者",
-			cell: (row) => row.adminName,
+			cell: (row) =>
+				row.adminId > 0 ? (
+					<Link href={`/admin/users/${row.adminId}`} className="text-primary hover:underline">
+						{row.adminName}
+					</Link>
+				) : (
+					row.adminName
+				),
 		},
 		{
 			key: "expiresAt",

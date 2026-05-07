@@ -261,14 +261,14 @@ export default function ReportsPage() {
 		{
 			key: "reporterName",
 			header: "举报人",
-			cell: (row) => (
-				<Link
-					href={`/admin/users?search=${encodeURIComponent(row.reporterName)}`}
-					className="text-primary hover:underline"
-				>
-					{row.reporterName}
-				</Link>
-			),
+			cell: (row) =>
+				row.reporterId > 0 ? (
+					<Link href={`/admin/users/${row.reporterId}`} className="text-primary hover:underline">
+						{row.reporterName}
+					</Link>
+				) : (
+					<span>{row.reporterName}</span>
+				),
 		},
 		{
 			key: "reason",
@@ -291,12 +291,19 @@ export default function ReportsPage() {
 		{
 			key: "handlerName",
 			header: "处理人",
-			cell: (row) =>
-				row.handlerName ? (
-					<span className="text-sm">{row.handlerName}</span>
+			cell: (row) => {
+				if (!row.handlerName) return <span className="text-muted-foreground">—</span>;
+				return row.handlerId != null && row.handlerId > 0 ? (
+					<Link
+						href={`/admin/users/${row.handlerId}`}
+						className="text-sm text-primary hover:underline"
+					>
+						{row.handlerName}
+					</Link>
 				) : (
-					<span className="text-muted-foreground">—</span>
-				),
+					<span className="text-sm">{row.handlerName}</span>
+				);
+			},
 		},
 		{
 			key: "actions",
@@ -443,12 +450,16 @@ export default function ReportsPage() {
 
 								<span className="text-muted-foreground">举报人</span>
 								<span>
-									<Link
-										href={`/admin/users?search=${encodeURIComponent(detailReport.reporterName)}`}
-										className="text-primary hover:underline"
-									>
-										{detailReport.reporterName}
-									</Link>
+									{detailReport.reporterId > 0 ? (
+										<Link
+											href={`/admin/users/${detailReport.reporterId}`}
+											className="text-primary hover:underline"
+										>
+											{detailReport.reporterName}
+										</Link>
+									) : (
+										detailReport.reporterName
+									)}
 									<span className="text-muted-foreground ml-1">
 										(UID: {detailReport.reporterId})
 									</span>
@@ -472,7 +483,18 @@ export default function ReportsPage() {
 								{detailReport.handlerName && (
 									<>
 										<span className="text-muted-foreground">处理人</span>
-										<span>{detailReport.handlerName}</span>
+										<span>
+											{detailReport.handlerId != null && detailReport.handlerId > 0 ? (
+												<Link
+													href={`/admin/users/${detailReport.handlerId}`}
+													className="text-primary hover:underline"
+												>
+													{detailReport.handlerName}
+												</Link>
+											) : (
+												detailReport.handlerName
+											)}
+										</span>
 									</>
 								)}
 
