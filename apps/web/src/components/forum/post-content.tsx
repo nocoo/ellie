@@ -61,9 +61,12 @@ export function PostContent({
 				</div>
 
 				{/* Post HTML content — isolated in <article> so unclosed tags
-				   cannot escape into sibling React nodes. */}
+				   cannot escape into sibling React nodes.
+				   `min-h-[120px]` keeps very short posts from collapsing
+				   onto the signature line; long posts still auto-expand
+				   because min-height never caps content. */}
 				<article
-					className="mt-3 prose prose-sm max-w-none text-foreground whitespace-pre-line [&>*:first-child]:mt-0"
+					className="mt-3 prose prose-sm max-w-none text-foreground whitespace-pre-line min-h-[120px] [&>*:first-child]:mt-0"
 					suppressHydrationWarning
 				>
 					<div dangerouslySetInnerHTML={{ __html: post.content }} suppressHydrationWarning />
