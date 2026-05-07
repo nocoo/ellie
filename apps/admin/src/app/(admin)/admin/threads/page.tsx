@@ -20,13 +20,7 @@ import {
 import { formatNumber } from "@ellie/shared";
 import { Badge } from "@ellie/ui";
 import { Button } from "@ellie/ui";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@ellie/ui";
-import { MoreHorizontal } from "lucide-react";
+import { Lock, Pencil, Trash2, Unlock } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -274,26 +268,40 @@ export default function ThreadsPage() {
 			key: "actions",
 			header: "",
 			cell: (row) => (
-				<DropdownMenu>
-					<DropdownMenuTrigger
-						render={
-							<Button variant="ghost" size="icon" className="h-8 w-8">
-								<MoreHorizontal className="h-4 w-4" />
-							</Button>
-						}
-					/>
-					<DropdownMenuContent align="end">
-						<DropdownMenuItem onClick={() => setEditThread(row)}>编辑</DropdownMenuItem>
-						<DropdownMenuItem onClick={() => handleToggleClose(row)}>
-							{row.closed ? "解锁" : "锁定"}
-						</DropdownMenuItem>
-						<DropdownMenuItem onClick={() => handleDelete(row)} className="text-destructive">
-							删除
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
+				<div className="flex items-center justify-end gap-1">
+					<Button
+						variant="ghost"
+						size="icon"
+						className="h-8 w-8"
+						aria-label={`编辑主题「${row.subject}」`}
+						title={`编辑主题「${row.subject}」`}
+						onClick={() => setEditThread(row)}
+					>
+						<Pencil className="h-4 w-4" />
+					</Button>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="h-8 w-8"
+						aria-label={row.closed ? `解锁主题「${row.subject}」` : `锁定主题「${row.subject}」`}
+						title={row.closed ? `解锁主题「${row.subject}」` : `锁定主题「${row.subject}」`}
+						onClick={() => handleToggleClose(row)}
+					>
+						{row.closed ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+					</Button>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="h-8 w-8 text-destructive hover:text-destructive focus-visible:text-destructive"
+						aria-label={`删除主题「${row.subject}」`}
+						title={`删除主题「${row.subject}」`}
+						onClick={() => handleDelete(row)}
+					>
+						<Trash2 className="h-4 w-4" />
+					</Button>
+				</div>
 			),
-			className: "w-10",
+			className: "w-auto whitespace-nowrap",
 		},
 	];
 
