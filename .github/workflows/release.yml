@@ -1,0 +1,173 @@
+# Ellie CD — triggered after CI succeeds on main.
+# Builds Docker images for web + admin, pushes to GHCR,
+# then SSHs into jp2.nocoo.cloud to pull and restart.
+name: Release
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-ellie-production
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    name: Build images & deploy to jp2
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # Only run when triggered by a successful CI run, OR manual dispatch.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    permissions:
+      contents: read
+      packages: write
+    environment: ellie / production
+
+    steps:
+      - name: Checkout (matching CI commit)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Build web image ──
+      - name: Compute web image metadata
+        id: meta-web
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/ellie-web
+          tags: |
+            type=raw,value=latest
+            type=sha,format=long,prefix=
+
+      - name: Build & push web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: APP=web
+          tags: ${{ steps.meta-web.outputs.tags }}
+          labels: ${{ steps.meta-web.outputs.labels }}
+          cache-from: type=gha,scope=ellie-web
+          cache-to: type=gha,mode=max,scope=ellie-web
+
+      # ── Build admin image ──
+      - name: Compute admin image metadata
+        id: meta-admin
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/ellie-admin
+          tags: |
+            type=raw,value=latest
+            type=sha,format=long,prefix=
+
+      - name: Build & push admin image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: APP=admin
+          tags: ${{ steps.meta-admin.outputs.tags }}
+          labels: ${{ steps.meta-admin.outputs.labels }}
+          cache-from: type=gha,scope=ellie-admin
+          cache-to: type=gha,mode=max,scope=ellie-admin
+
+      # ── Deploy to jp2 ──
+      - name: Deploy to jp2.nocoo.cloud
+        uses: appleboy/ssh-action@v1
+        env:
+          IMAGE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: IMAGE_SHA
+          script: |
+            set -euo pipefail
+            cd /opt/ellie
+            echo "${{ secrets.GHCR_PULL_TOKEN }}" | docker login ghcr.io \
+              -u "${{ secrets.GHCR_PULL_USER }}" --password-stdin
+            docker compose pull web admin
+            docker compose up -d --no-deps web admin
+            # Health check — web
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              if docker exec ellie-web bun -e \
+                'fetch("http://127.0.0.1:7031/api/live").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))' 2>/dev/null; then
+                echo "✅ web responding on :7031"
+                break
+              fi
+              echo "attempt $i: web not ready yet"
+              sleep 3
+              if [ "$i" = "10" ]; then echo "❌ web failed to come up"; docker logs --tail 80 ellie-web; exit 1; fi
+            done
+            # Health check — admin
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              if docker exec ellie-admin bun -e \
+                'fetch("http://127.0.0.1:7032/api/live").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))' 2>/dev/null; then
+                echo "✅ admin responding on :7032"
+                break
+              fi
+              echo "attempt $i: admin not ready yet"
+              sleep 3
+              if [ "$i" = "10" ]; then echo "❌ admin failed to come up"; docker logs --tail 80 ellie-admin; exit 1; fi
+            done
+            docker image prune -f
+
+      # ── External smoke tests ──
+      - name: Smoke test — web (via Cloudflare edge)
+        run: |
+          set -e
+          for i in 1 2 3 4 5; do
+            CODE=$(curl -sS -o /dev/null -w "%{http_code}" https://ellie.hexly.ai/api/live || true)
+            echo "attempt $i: HTTP $CODE"
+            if [ "$CODE" = "200" ]; then
+              echo "✅ web edge serving deployed build"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "❌ web edge smoke test failed"
+          exit 1
+
+      - name: Smoke test — admin (via Cloudflare edge)
+        run: |
+          set -e
+          for i in 1 2 3 4 5; do
+            CODE=$(curl -sS -o /dev/null -w "%{http_code}" https://ellie-admin.hexly.ai/api/live || true)
+            echo "attempt $i: HTTP $CODE"
+            if [ "$CODE" = "200" ]; then
+              echo "✅ admin edge serving deployed build"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "❌ admin edge smoke test failed"
+          exit 1
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Ellie CD"
+            echo ""
+            echo "- Web image: \`ghcr.io/${{ github.repository_owner }}/ellie-web:${{ github.event.workflow_run.head_sha || github.sha }}\`"
+            echo "- Admin image: \`ghcr.io/${{ github.repository_owner }}/ellie-admin:${{ github.event.workflow_run.head_sha || github.sha }}\`"
+            echo "- Host: jp2.nocoo.cloud"
+            echo "- Web URL: https://ellie.hexly.ai/"
+            echo "- Admin URL: https://ellie-admin.hexly.ai/"
+          } >> "$GITHUB_STEP_SUMMARY"
