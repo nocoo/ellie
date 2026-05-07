@@ -8,6 +8,7 @@ import {
 	isForumCacheEnabled,
 } from "../lib/forum-cache";
 import { enrichForumsWithUserCache, parseModeratorIds, toForum } from "../lib/mappers";
+import { parseIdFromPath, parsePathSegment } from "../lib/parseId";
 import { getUserProfiles } from "../lib/user-cache";
 import { THREAD_VISIBLE, buildVisibilityContext, isForumActive } from "../lib/visibility";
 
@@ -389,10 +390,7 @@ export async function getById(
 	ctx: ExecutionContext,
 ): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
-	const url = new URL(request.url);
-	const pathParts = url.pathname.split("/");
-	const idStr = pathParts[pathParts.length - 1];
-	const id = Number.parseInt(idStr ?? "0", 10);
+	const id = parseIdFromPath(request) ?? Number.NaN;
 
 	// Auth + forum row are independent at this point — fire both eagerly so
 	// they overlap in production. We don't actually need the auth result
@@ -535,11 +533,7 @@ export async function getAncestors(
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	// Parse forum ID from path: /api/v1/forums/:id/ancestors
-	const url = new URL(request.url);
-	const pathParts = url.pathname.split("/");
-	// ["", "api", "v1", "forums", ":id", "ancestors"]
-	const idStr = pathParts[4];
-	const forumId = Number.parseInt(idStr ?? "0", 10);
+	const forumId = parsePathSegment(request, 1);
 	if (!forumId || forumId <= 0) {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid forum ID" }, origin);
 	}
