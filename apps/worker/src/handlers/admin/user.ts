@@ -556,12 +556,16 @@ export const nuke = withEntityAuth(
 //   admin-email → users.id mapping exists we re-introduce the guard.)
 //
 // Request body:
-//   { confirmUsername: string }    — must equal target.username
+//   { confirm: "ok" }    — fixed token, not the target username. The dialog
+//                          asks the operator to type "ok" so we don't have
+//                          to round-trip the (potentially long / non-ASCII)
+//                          username; the irreversibility warning lives in
+//                          the dialog copy.
 //
 // Guards (in order):
-//   INVALID_BODY        bad JSON or missing/empty confirmUsername
+//   INVALID_BODY        bad JSON or missing/non-string confirm
 //   USER_NOT_FOUND      target id missing
-//   CONFIRM_MISMATCH    confirmUsername != target.username
+//   CONFIRM_MISMATCH    confirm !== "ok"
 //   CANNOT_PURGE_STAFF  target.role > 0
 //   ALREADY_PURGED      target.status === -99
 //
@@ -615,7 +619,7 @@ interface PurgePreflight {
 
 async function parsePurgeBody(
 	request: Request,
-): Promise<{ ok: true; confirmUsername: string } | { ok: false; res: Response }> {
+): Promise<{ ok: true } | { ok: false; res: Response }> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	let body: Record<string, unknown>;
 	try {
@@ -626,34 +630,29 @@ async function parsePurgeBody(
 			res: errorResponse(
 				"INVALID_BODY",
 				400,
-				{ message: "purge requires { confirmUsername } body" },
+				{ message: 'purge requires { confirm: "ok" } body' },
 				origin,
 			),
 		};
 	}
-	const confirmUsername = body.confirmUsername;
-	if (typeof confirmUsername !== "string" || confirmUsername.length === 0) {
+	const confirm = body.confirm;
+	if (typeof confirm !== "string") {
 		return {
 			ok: false,
-			res: errorResponse(
-				"INVALID_BODY",
-				400,
-				{ message: "confirmUsername must be a non-empty string" },
-				origin,
-			),
+			res: errorResponse("INVALID_BODY", 400, { message: "confirm must be a string" }, origin),
 		};
 	}
-	return { ok: true, confirmUsername };
+	if (confirm !== "ok") {
+		return {
+			ok: false,
+			res: errorResponse("CONFIRM_MISMATCH", 400, { message: 'confirm must equal "ok"' }, origin),
+		};
+	}
+	return { ok: true };
 }
 
-function checkPurgeGuards(
-	target: PurgeTarget | null,
-	confirmUsername: string,
-	origin: string | undefined,
-): Response | null {
+function checkPurgeGuards(target: PurgeTarget | null, origin: string | undefined): Response | null {
 	if (!target) return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
-	if (target.username !== confirmUsername)
-		return errorResponse("CONFIRM_MISMATCH", 400, undefined, origin);
 	if (target.role > 0) return errorResponse("CANNOT_PURGE_STAFF", 403, undefined, origin);
 	if (target.status === -99) return errorResponse("ALREADY_PURGED", 409, undefined, origin);
 	return null;
@@ -908,7 +907,7 @@ export const purge = withEntityAuth(
 		)
 			.bind(id)
 			.first<PurgeTarget>();
-		const guard = checkPurgeGuards(existing, parsed.confirmUsername, origin);
+		const guard = checkPurgeGuards(existing, origin);
 		if (guard) return guard;
 		// existing is non-null past the guard
 		const target = existing as PurgeTarget;

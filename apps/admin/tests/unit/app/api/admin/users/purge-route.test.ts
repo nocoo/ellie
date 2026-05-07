@@ -51,7 +51,7 @@ describe("admin purge route — F1 actor wiring", () => {
 		const req = new Request("http://localhost/api/admin/users/42/purge", {
 			method: "POST",
 			headers: { "Content-Type": "application/json", origin: "http://localhost:3000" },
-			body: JSON.stringify({ confirmUsername: "deleted-user" }),
+			body: JSON.stringify({ confirm: "ok" }),
 		}) as never;
 		const ctx = { params: Promise.resolve({ id: "42" }) };
 		const res = await POST(req, ctx);
@@ -63,6 +63,6 @@ describe("admin purge route — F1 actor wiring", () => {
 		expect(headers["X-Admin-Actor-Email"]).toBe("alice@example.com");
 		expect(headers["X-Admin-Actor-Name"]).toBe("Alice");
 		expect(headers["X-API-Key"]).toBe("test-key");
-		expect(opts.body).toBe(JSON.stringify({ confirmUsername: "deleted-user" }));
+		expect(opts.body).toBe(JSON.stringify({ confirm: "ok" }));
 	});
 });

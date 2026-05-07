@@ -170,15 +170,16 @@ export async function nukeUser(id: number): Promise<NukeResult> {
 /**
  * D4-d: Irreversible content cleanup + tombstone + R2 purge.
  *
- * Caller must pass the current `username` value as `confirmUsername`; the
- * Worker rejects with `CONFIRM_MISMATCH` otherwise. Staff users (role > 0)
- * are rejected with `CANNOT_PURGE_STAFF`. Already-purged users are
- * rejected with `ALREADY_PURGED`. UI surfaces these via the dialog
+ * Sends `{ confirm: "ok" }` — a fixed token, not the username. The dialog
+ * gates the operator on typing `ok`; the Worker re-validates server-side
+ * (`CONFIRM_MISMATCH` if the token is anything else). Staff users
+ * (role > 0) are rejected with `CANNOT_PURGE_STAFF`. Already-purged users
+ * are rejected with `ALREADY_PURGED`. UI surfaces these via the dialog
  * inline error.
  */
-export async function purgeUser(id: number, confirmUsername: string): Promise<PurgeResult> {
+export async function purgeUser(id: number): Promise<PurgeResult> {
 	const res = await apiClient.post<PurgeResult>(`/api/admin/users/${id}/purge`, {
-		confirmUsername,
+		confirm: "ok",
 	});
 	return res.data;
 }
