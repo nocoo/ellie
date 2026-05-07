@@ -268,7 +268,7 @@ export default function ThreadsPage() {
 							fetchData(pagination.page);
 							setPageMessage({
 								type: "success",
-								text: `已删除 ${result.affected} 个主题`,
+								text: `已删除 ${result.count} 个主题`,
 							});
 						} catch (err) {
 							setConfirmError(extractErrorMessage(err, "批量删除主题失败"));
@@ -307,7 +307,7 @@ export default function ThreadsPage() {
 				fetchData(pagination.page);
 				setPageMessage({
 					type: "success",
-					text: `已移动 ${result.affected} 个主题到目标版块`,
+					text: `已移动 ${result.count} 个主题到目标版块`,
 				});
 			} catch (err) {
 				setMoveError(extractErrorMessage(err, "批量移动主题失败"));
