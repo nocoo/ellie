@@ -398,4 +398,23 @@ describe("bbcodeToHtml", () => {
 		expect(result).toContain("<ol>");
 		expect(result).toContain("</ol>");
 	});
+
+	test("orphan [/list] without preceding open falls back to </ul>", () => {
+		// Covers closeListTags at bbcode.ts:231 — when the accumulated content
+		// has no open <ol>/<ul>, `stack.length > 0` is false and the fallback
+		// closes with </ul>. Real Discuz dumps occasionally contain orphan
+		// closers when the original post was hand-edited.
+		const result = bbcodeToHtml("[/list]");
+		expect(result).toContain("</ul>");
+	});
+
+	test("htmlon orphan </ul> before [/list] keeps the empty-stack pop arm safe", () => {
+		// Covers closeListTags at bbcode.ts:224 — accumulated content includes
+		// a literal </ul> (only reachable through htmlon, which preserves raw
+		// HTML), so the regex matches a closing tag while `stack` is still
+		// empty; the `stack.length > 0` guard skips the underflow pop.
+		const result = bbcodeToHtml("</ul>[/list]", { htmlon: true });
+		// Fallback close still emits </ul>; guard prevented an underflow throw.
+		expect(result).toContain("</ul>");
+	});
 });
