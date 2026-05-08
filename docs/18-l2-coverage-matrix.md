@@ -12,9 +12,9 @@ Last audit: **2026-05-09**
 |---|---|
 | Total (route × method) | **134** |
 | Method breakdown | GET 58 / POST 46 / PATCH 16 / PUT 1 / DELETE 13 |
-| L2 calls scanned | 195 |
-| Routes hit | **118** (88.06%) |
-| Routes uncovered | **16** |
+| L2 calls scanned | 206 |
+| Routes hit | **122** (91.04%) |
+| Routes uncovered | **12** |
 | Exemptions | 0 |
 | Unmatched test calls | 0 |
 
@@ -53,7 +53,7 @@ L2 calls are recognized in two forms:
 
 2. **Raw `fetch(...)` to the Worker** — calls of the form
    `fetch("http://localhost:8787/api/...", init?)` or
-   `fetch(\`${getWorkerUrl()}/api/...\`, init?)` (also
+   `fetch(`${getWorkerUrl()}/api/...`, init?)` (also
    `${WORKER_URL}`). Default method is `GET`; an `init` object with
    `method: "POST" | "PATCH" | ...` overrides it. Only the literal
    `localhost:8787` prefix and the two known template helpers are
@@ -120,7 +120,7 @@ _None._ Every route × method must be covered by L2.
 | ❌ | POST | `/api/v1/checkin` | index.ts:244 |
 | ❌ | GET | `/api/v1/checkin/status` | index.ts:241 |
 | ✅ | GET | `/api/v1/digest` | index.ts:134 |
-| ❌ | GET | `/api/v1/digest/filters` | index.ts:140 |
+| ✅ | GET | `/api/v1/digest/filters` | index.ts:140 |
 | ✅ | GET | `/api/v1/digest/stats` | index.ts:137 |
 | ✅ | GET | `/api/v1/forums` | index.ts:73 |
 | ✅ | GET | `/api/v1/messages` | index.ts:205 |
@@ -140,7 +140,7 @@ _None._ Every route × method must be covered by L2.
 | ✅ | GET | `/api/v1/threads` | index.ts:84 |
 | ✅ | POST | `/api/v1/threads` | index.ts:175 |
 | ❌ | POST | `/api/v1/upload` | index.ts:249 |
-| ❌ | GET | `/api/v1/users/batch` | index.ts:124 |
+| ✅ | GET | `/api/v1/users/batch` | index.ts:124 |
 | ✅ | PATCH | `/api/v1/users/me` | index.ts:183 |
 | ❌ | POST | `/api/v1/users/me/email/request-code` | index.ts:197 |
 | ❌ | POST | `/api/v1/users/me/email/verify` | index.ts:200 |
@@ -178,7 +178,7 @@ _None._ Every route × method must be covered by L2.
 | ✅ | POST | `/^\/api\/admin\/users\/\d+\/recalc-counters$/` | index.ts:444 |
 | ✅ | POST | `/^\/api\/admin\/users\/\d+\/unban$/` | index.ts:435 |
 | ✅ | GET | `/^\/api\/v1\/forums\/\d+$/` | index.ts:81 |
-| ❌ | GET | `/^\/api\/v1\/forums\/\d+\/ancestors$/` | index.ts:78 |
+| ✅ | GET | `/^\/api\/v1\/forums\/\d+\/ancestors$/` | index.ts:78 |
 | ✅ | DELETE | `/^\/api\/v1\/me\/posts\/\d+$/` | index.ts:338 |
 | ✅ | PATCH | `/^\/api\/v1\/me\/posts\/\d+$/` | index.ts:344 |
 | ✅ | DELETE | `/^\/api\/v1\/me\/threads\/\d+$/` | index.ts:341 |
@@ -204,7 +204,7 @@ _None._ Every route × method must be covered by L2.
 | ✅ | GET | `/^\/api\/v1\/posts\/\d+\/attachments$/` | index.ts:96 |
 | ✅ | GET | `/^\/api\/v1\/threads\/\d+$/` | index.ts:87 |
 | ✅ | GET | `/^\/api\/v1\/users\/\d+$/` | index.ts:103 |
-| ❌ | GET | `/^\/api\/v1\/users\/\d+\/avatar-path$/` | index.ts:106 |
+| ✅ | GET | `/^\/api\/v1\/users\/\d+\/avatar-path$/` | index.ts:106 |
 | ✅ | GET | `/^\/api\/v1\/users\/\d+\/digest$/` | index.ts:115 |
 | ✅ | GET | `/^\/api\/v1\/users\/\d+\/posts$/` | index.ts:112 |
 | ✅ | GET | `/^\/api\/v1\/users\/\d+\/threads$/` | index.ts:109 |
@@ -213,11 +213,7 @@ _None._ Every route × method must be covered by L2.
 
 | Method | Pattern | Source line |
 |---|---|---|
-| GET | `/^\/api\/v1\/forums\/\d+\/ancestors$/` | index.ts:78 |
 | POST | `/api/v1/posts/attachments/batch` | index.ts:100 |
-| GET | `/^\/api\/v1\/users\/\d+\/avatar-path$/` | index.ts:106 |
-| GET | `/api/v1/users/batch` | index.ts:124 |
-| GET | `/api/v1/digest/filters` | index.ts:140 |
 | POST | `/api/v1/users/me/email/request-code` | index.ts:197 |
 | POST | `/api/v1/users/me/email/verify` | index.ts:200 |
 | GET | `/api/v1/post-comments` | index.ts:225 |

@@ -505,12 +505,24 @@ function renderMarkdown(rep: CoverageReport): string {
 	lines.push("validateApiKey middleware, the maintenance gate) are intentionally");
 	lines.push("**not** counted as routes.");
 	lines.push("");
-	lines.push("L2 calls are matched against the helper map declared at the top of");
-	lines.push("the script (mirrors `tests/integration/setup.ts`):");
+	lines.push("L2 calls are recognized in two forms:");
+	lines.push("");
+	lines.push("1. **Helper calls** — the helper map declared at the top of the");
+	lines.push("   script (mirrors `tests/integration/setup.ts`):");
 	lines.push("");
 	for (const [helper, method] of Object.entries(HELPER_METHOD)) {
-		lines.push(`- \`${helper}\` → ${method}`);
+		lines.push(`   - \`${helper}\` → ${method}`);
 	}
+	lines.push("");
+	lines.push("2. **Raw `fetch(...)` to the Worker** — calls of the form");
+	lines.push('   `fetch("http://localhost:8787/api/...", init?)` or');
+	lines.push("   `fetch(`${getWorkerUrl()}/api/...`, init?)` (also");
+	lines.push("   `${WORKER_URL}`). Default method is `GET`; an `init` object with");
+	lines.push('   `method: "POST" | "PATCH" | ...` overrides it. Only the literal');
+	lines.push("   `localhost:8787` prefix and the two known template helpers are");
+	lines.push("   recognized — external URLs and non-Worker `fetch` calls are");
+	lines.push("   ignored. Scanning for raw fetches is restricted to");
+	lines.push("   `tests/integration/worker/**` to avoid false positives.");
 	lines.push("");
 	lines.push("Test paths with `${...}` template substitutions are rewritten to");
 	lines.push("`:param` and matched against literal routes verbatim or against");

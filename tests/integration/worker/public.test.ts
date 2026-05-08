@@ -47,6 +47,32 @@ describe("L2: Worker Public API", () => {
 		});
 	});
 
+	describe("GET /api/v1/forums/:id/ancestors", () => {
+		test("returns 404 for non-existent forum", async () => {
+			const res = await workerFetch("/api/v1/forums/999999/ancestors");
+			expect(res.status).toBe(404);
+			const data = await res.json();
+			expect(data.error.code).toBe("FORUM_NOT_FOUND");
+		});
+
+		test("returns forum context + ancestor chain for existing forum", async () => {
+			// Pick any forum from /api/v1/forums to avoid hard-coding IDs.
+			const listRes = await workerFetch("/api/v1/forums");
+			expect(listRes.status).toBe(200);
+			const listData = await listRes.json();
+			if (listData.data.length === 0) return;
+
+			const forumId = listData.data[0].id;
+			const res = await workerFetch(`/api/v1/forums/${forumId}/ancestors`);
+			expect(res.status).toBe(200);
+			const data = await res.json();
+			expect(data.data).toHaveProperty("forum");
+			expect(data.data.forum.id).toBe(forumId);
+			expect(data.data).toHaveProperty("ancestors");
+			expect(Array.isArray(data.data.ancestors)).toBe(true);
+		});
+	});
+
 	// ─── Threads ───────────────────────────────────────────────────
 
 	describe("GET /api/v1/threads", () => {
@@ -199,6 +225,67 @@ describe("L2: Worker Public API", () => {
 		});
 	});
 
+	describe("GET /api/v1/users/:id/avatar-path", () => {
+		test("returns 400 for invalid user id", async () => {
+			const res = await workerFetch("/api/v1/users/0/avatar-path");
+			// path regex \d+ rejects 0 via id <= 0 guard → 400 INVALID_REQUEST
+			expect(res.status).toBe(400);
+			const data = await res.json();
+			expect(data.error.code).toBe("INVALID_REQUEST");
+		});
+
+		test("returns 404 for non-existent user", async () => {
+			const res = await workerFetch("/api/v1/users/999999/avatar-path");
+			expect(res.status).toBe(404);
+			const data = await res.json();
+			expect(data.error.code).toBe("USER_NOT_FOUND");
+		});
+
+		test("returns avatarPath for existing user", async () => {
+			const res = await workerFetch("/api/v1/users/3/avatar-path");
+			expect(res.status).toBe(200);
+			const data = await res.json();
+			expect(data.data).toHaveProperty("avatarPath");
+			expect(typeof data.data.avatarPath).toBe("string");
+		});
+	});
+
+	describe("GET /api/v1/users/batch", () => {
+		test("returns 400 when ids is missing", async () => {
+			const res = await workerFetch("/api/v1/users/batch");
+			expect(res.status).toBe(400);
+			const data = await res.json();
+			expect(data.error.code).toBe("INVALID_REQUEST");
+		});
+
+		test("returns empty array for ids that parse to nothing", async () => {
+			const res = await workerFetch("/api/v1/users/batch?ids=abc,,-1");
+			expect(res.status).toBe(200);
+			const data = await res.json();
+			expect(Array.isArray(data.data)).toBe(true);
+			expect(data.data).toHaveLength(0);
+		});
+
+		test("returns 400 when ids exceed batch cap", async () => {
+			const ids = Array.from({ length: 101 }, (_, i) => i + 1).join(",");
+			const res = await workerFetch(`/api/v1/users/batch?ids=${ids}`);
+			expect(res.status).toBe(400);
+			const data = await res.json();
+			expect(data.error.code).toBe("INVALID_REQUEST");
+		});
+
+		test("returns existing public users for valid ids", async () => {
+			const res = await workerFetch("/api/v1/users/batch?ids=3,999999");
+			expect(res.status).toBe(200);
+			const data = await res.json();
+			expect(Array.isArray(data.data)).toBe(true);
+			// Only id=3 should come back; non-existent users are silently dropped.
+			const ids = data.data.map((u: { id: number }) => u.id);
+			expect(ids).toContain(3);
+			expect(ids).not.toContain(999999);
+		});
+	});
+
 	// ─── Digest ────────────────────────────────────────────────────
 
 	describe("GET /api/v1/digest", () => {
@@ -217,6 +304,25 @@ describe("L2: Worker Public API", () => {
 			expect(res.status).toBe(200);
 			const data = await res.json();
 			expect(data).toHaveProperty("data");
+		});
+	});
+
+	describe("GET /api/v1/digest/filters", () => {
+		test("returns 200 with years and forums arrays", async () => {
+			const res = await workerFetch("/api/v1/digest/filters");
+			expect(res.status).toBe(200);
+			const data = await res.json();
+			expect(data.data).toHaveProperty("years");
+			expect(data.data).toHaveProperty("forums");
+			expect(Array.isArray(data.data.years)).toBe(true);
+			expect(Array.isArray(data.data.forums)).toBe(true);
+			// Each year is a number; forum entries shape-match.
+			for (const y of data.data.years) expect(typeof y).toBe("number");
+			for (const f of data.data.forums) {
+				expect(f).toHaveProperty("id");
+				expect(f).toHaveProperty("name");
+				expect(f).toHaveProperty("digestCount");
+			}
 		});
 	});
 
