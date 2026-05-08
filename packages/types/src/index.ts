@@ -61,6 +61,19 @@ export {
 	cloneEmailNotVerifiedPayload,
 } from "./email-verification";
 
+// ─── Check-in (签到) ────────────────────────────────────────────
+export type { UserCheckin, CheckinMood, CheckinLevel } from "./checkin";
+export {
+	CHECKIN_MOODS,
+	CHECKIN_LEVELS,
+	CHECKIN_REWARD_MIN,
+	CHECKIN_REWARD_MAX,
+	CHECKIN_HOUR_START,
+	CHECKIN_HOUR_END,
+	CHECKIN_TIMEZONE,
+	getCheckinLevel,
+} from "./checkin";
+
 // ─── Permission ───────────────────────────────────────────────
 export type {
 	PermissionUser,

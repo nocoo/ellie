@@ -222,6 +222,20 @@ export const TABLES = {
 			created_at INTEGER NOT NULL
 		);
 	`,
+
+	user_checkins: `
+		CREATE TABLE IF NOT EXISTS user_checkins (
+			user_id         INTEGER PRIMARY KEY,
+			total_days      INTEGER NOT NULL DEFAULT 0,
+			month_days      INTEGER NOT NULL DEFAULT 0,
+			streak_days     INTEGER NOT NULL DEFAULT 0,
+			reward_total    INTEGER NOT NULL DEFAULT 0,
+			last_reward     INTEGER NOT NULL DEFAULT 0,
+			mood            TEXT    NOT NULL DEFAULT '',
+			message         TEXT    NOT NULL DEFAULT '',
+			last_checkin_at INTEGER NOT NULL DEFAULT 0
+		);
+	`,
 };
 
 export const INDEXES = {
@@ -291,5 +305,9 @@ export const INDEXES = {
 		"CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id, receiver_deleted, created_at DESC);",
 		"CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id, sender_deleted, created_at DESC);",
 		"CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(receiver_id, is_read, receiver_deleted);",
+	],
+
+	user_checkins: [
+		"CREATE INDEX IF NOT EXISTS idx_user_checkins_last ON user_checkins(last_checkin_at);",
 	],
 };
