@@ -55,6 +55,13 @@ describe("buildHeaderViewModel", () => {
 		expect(vm.hotKeywords.length).toBeGreaterThan(0);
 	});
 
+	it("fallback DEFAULT_NAV_TABS includes 签到 -> /checkin", () => {
+		const vm = buildHeaderViewModel(emptySettings);
+		const checkin = vm.navTabs.find((t) => t.label === "签到");
+		expect(checkin).toBeDefined();
+		expect(checkin?.href).toBe("/checkin");
+	});
+
 	it("uses custom navTabs from settings when provided", () => {
 		const settings = {
 			"general.navigation.header_links": [
