@@ -14,8 +14,8 @@ import {
 	type UserCheckin,
 	getCheckinLevel,
 } from "@ellie/types";
+import { jsonResponse } from "../lib/response";
 import { withAuth, withAuthVerified } from "../lib/routeHelpers";
-import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 
 // ─── D1 Row Shape ───────────────────────────────────────────
@@ -123,19 +123,14 @@ export const status = withAuth(async (request, env, user) => {
 	const level = checkin ? getCheckinLevel(checkin.totalDays) : null;
 	const withinWindow = isWithinCheckinWindow();
 
-	return new Response(
-		JSON.stringify({
+	return jsonResponse(
+		{
 			checkin,
 			checkedInToday,
 			level,
 			withinWindow,
-		}),
-		{
-			headers: {
-				...corsHeaders(origin),
-				"Content-Type": "application/json",
-			},
 		},
+		origin,
 	);
 });
 
@@ -305,17 +300,12 @@ export const perform = withAuthVerified(async (request, env, user) => {
 
 	const level = getCheckinLevel(newTotalDays);
 
-	return new Response(
-		JSON.stringify({
+	return jsonResponse(
+		{
 			checkin,
 			reward,
 			level,
-		}),
-		{
-			headers: {
-				...corsHeaders(origin),
-				"Content-Type": "application/json",
-			},
 		},
+		origin,
 	);
 });

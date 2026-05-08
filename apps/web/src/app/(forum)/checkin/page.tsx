@@ -54,13 +54,24 @@ export default async function CheckinPage() {
 		const result = await forumApi.getAuth<CheckinStatusResponse>("/api/v1/checkin/status", jwt);
 		initial = result.data;
 	} catch {
-		// Fallback: treat as no checkin history
-		initial = {
-			checkin: null,
-			checkedInToday: false,
-			level: null,
-			withinWindow: true,
-		};
+		// API unreachable — show error card instead of a misleading "ready" state
+		const breadcrumbs = [
+			{ label: "首页", href: "/", icon: "home" as const },
+			{ label: "每日签到" },
+		];
+		return (
+			<div className="flex flex-col gap-4">
+				<Breadcrumbs items={breadcrumbs} />
+				<Card>
+					<CardHeader>
+						<CardTitle>每日签到</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<p className="text-muted-foreground">签到状态加载失败，请稍后刷新重试。</p>
+					</CardContent>
+				</Card>
+			</div>
+		);
 	}
 
 	const breadcrumbs = [{ label: "首页", href: "/", icon: "home" as const }, { label: "每日签到" }];
