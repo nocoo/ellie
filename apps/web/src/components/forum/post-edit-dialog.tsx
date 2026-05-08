@@ -21,9 +21,10 @@ import { ApiError } from "@/lib/api-client";
 import { editMyPost, editPost } from "@/lib/moderation-api";
 import { stripHtmlTags } from "@/lib/text";
 import { cn } from "@/lib/utils";
-import { AlertCircle, Pencil, Save } from "lucide-react";
+import { Pencil, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
+import { DialogErrorBanner } from "./dialog-error-banner";
 import { useForumToast } from "./forum-toast";
 
 interface PostEditDialogProps {
@@ -112,12 +113,7 @@ export function PostEditDialog({
 				</DialogHeader>
 
 				{/* Error display */}
-				{error && (
-					<div className="mx-5 mt-4 flex items-start gap-3 rounded-lg bg-destructive/10 border border-destructive/30 p-3">
-						<AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-						<p className="text-sm text-destructive">{error}</p>
-					</div>
-				)}
+				{error && <DialogErrorBanner message={error} />}
 
 				{/* Editor area */}
 				<div

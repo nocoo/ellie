@@ -16,8 +16,9 @@ import {
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { cn } from "@/lib/utils";
 import { useReplySubmit } from "@/viewmodels/forum/use-reply-submit";
-import { AlertCircle, MessageSquare, Send, XCircle } from "lucide-react";
+import { MessageSquare, Send, XCircle } from "lucide-react";
 import { useRef } from "react";
+import { DialogErrorBanner } from "./dialog-error-banner";
 
 interface ReplyDialogProps {
 	open: boolean;
@@ -120,12 +121,7 @@ export function ReplyDialog({
 						</DialogHeader>
 
 						{/* Error display */}
-						{state.error && (
-							<div className="mx-5 mt-4 flex items-start gap-3 rounded-lg bg-destructive/10 border border-destructive/30 p-3">
-								<AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-								<p className="text-sm text-destructive">{state.error}</p>
-							</div>
-						)}
+						{state.error && <DialogErrorBanner message={state.error} />}
 
 						{/* Quote preview */}
 						{quotedContent && quotedAuthor && (
