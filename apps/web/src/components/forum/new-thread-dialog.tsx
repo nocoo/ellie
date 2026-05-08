@@ -16,8 +16,9 @@ import {
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { cn } from "@/lib/utils";
 import { useThreadSubmit } from "@/viewmodels/forum/use-thread-submit";
-import { AlertCircle, PenLine, Send, XCircle } from "lucide-react";
+import { PenLine, Send, XCircle } from "lucide-react";
 import { useRef } from "react";
+import { DialogErrorBanner } from "./dialog-error-banner";
 
 interface NewThreadDialogProps {
 	open: boolean;
@@ -105,12 +106,7 @@ export function NewThreadDialog({ open, onOpenChange, forumId, forumName }: NewT
 						</DialogHeader>
 
 						{/* Error display */}
-						{state.error && (
-							<div className="mx-5 mt-4 flex items-start gap-3 rounded-lg bg-destructive/10 border border-destructive/30 p-3">
-								<AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-								<p className="text-sm text-destructive">{state.error}</p>
-							</div>
-						)}
+						{state.error && <DialogErrorBanner message={state.error} />}
 
 						{/* Subject input */}
 						<div className="px-5 pt-4">
