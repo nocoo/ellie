@@ -121,7 +121,7 @@ function MessagesHeaderSection({
 				{/* Icon and title */}
 				<div className="flex-1 min-w-0">
 					<div className="flex items-center gap-2">
-						<Mail className="h-6 w-6 text-cyan-500 shrink-0" />
+						<Mail className="h-6 w-6 text-primary shrink-0" />
 						<h1 className="text-lg font-semibold text-foreground">站内信</h1>
 					</div>
 					<p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">私信沟通，畅所欲言</p>
@@ -275,7 +275,7 @@ function MessageRow({
 						<span className="font-medium text-foreground ml-1">{message.subject}</span>
 					)}
 					{!message.isRead && isInbox && (
-						<span className="ml-2 inline-block h-2 w-2 rounded-full bg-red-500" title="未读" />
+						<span className="ml-2 inline-block h-2 w-2 rounded-full bg-destructive" title="未读" />
 					)}
 				</div>
 

@@ -126,22 +126,22 @@ export function FloatingActions({
 			</div>
 
 			{/* Keyboard shortcuts hint - below buttons, smaller text */}
-			<div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-md bg-card/80 backdrop-blur border border-border/50 shadow-md text-[10px] text-muted-foreground">
+			<div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-md bg-card/80 backdrop-blur border border-border/50 shadow-md text-2xs text-muted-foreground">
 				{prevHref && (
 					<span className="flex items-center gap-0.5">
-						<kbd className="px-1 py-0.5 rounded bg-muted font-mono text-[9px]">[</kbd>
+						<kbd className="px-1 py-0.5 rounded bg-muted font-mono text-2xs">[</kbd>
 						<span>上页</span>
 					</span>
 				)}
 				{nextHref && (
 					<span className="flex items-center gap-0.5">
-						<kbd className="px-1 py-0.5 rounded bg-muted font-mono text-[9px]">]</kbd>
+						<kbd className="px-1 py-0.5 rounded bg-muted font-mono text-2xs">]</kbd>
 						<span>下页</span>
 					</span>
 				)}
 				{backHref && (
 					<span className="flex items-center gap-0.5">
-						<kbd className="px-1 py-0.5 rounded bg-muted font-mono text-[9px]">Esc</kbd>
+						<kbd className="px-1 py-0.5 rounded bg-muted font-mono text-2xs">Esc</kbd>
 						<span>返回</span>
 					</span>
 				)}

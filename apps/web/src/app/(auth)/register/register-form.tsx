@@ -66,7 +66,7 @@ function usernameStatusText(status: UsernameStatus): string | null {
 function usernameStatusColor(status: UsernameStatus): string {
 	switch (status) {
 		case "available":
-			return "text-green-600 dark:text-green-400";
+			return "text-success";
 		case "taken":
 		case "banned":
 		case "invalid":
@@ -86,9 +86,9 @@ function StrengthBar({ strength }: { strength: PasswordStrength }) {
 	if (strength === "none") return null;
 
 	const config = {
-		weak: { width: "w-1/3", color: "bg-red-500", label: "弱" },
-		medium: { width: "w-2/3", color: "bg-yellow-500", label: "中" },
-		strong: { width: "w-full", color: "bg-green-500", label: "强" },
+		weak: { width: "w-1/3", color: "bg-destructive", label: "弱" },
+		medium: { width: "w-2/3", color: "bg-forum-accent", label: "中" },
+		strong: { width: "w-full", color: "bg-success", label: "强" },
 	}[strength];
 
 	return (
@@ -393,7 +393,7 @@ function RegisterFormInner() {
 					<div className="flex items-center justify-center border-t border-border bg-secondary/50 py-2.5">
 						<div className="flex items-center gap-1.5">
 							<div className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-							<span className="text-[10px] text-muted-foreground">安全连接</span>
+							<span className="text-2xs text-muted-foreground">安全连接</span>
 						</div>
 					</div>
 				</div>

@@ -25,7 +25,7 @@ export function ThreadRowStats({ replies, views, recommends, variant }: ThreadRo
 					{formatCompactNumber(replies)} / {formatCompactNumber(views)}
 				</span>
 				{recommends > 0 ? (
-					<span className="inline-flex items-center gap-0.5 text-xs text-rose-500">
+					<span className="inline-flex items-center gap-0.5 text-xs text-destructive">
 						<Heart className="h-3 w-3 fill-current" />
 						{formatCompactNumber(recommends)}
 					</span>
@@ -41,7 +41,7 @@ export function ThreadRowStats({ replies, views, recommends, variant }: ThreadRo
 		<>
 			{formatCompactNumber(replies)} 回 / {formatCompactNumber(views)} 览
 			{recommends > 0 && (
-				<span className="inline-flex items-center gap-0.5 ml-1.5 text-rose-500">
+				<span className="inline-flex items-center gap-0.5 ml-1.5 text-destructive">
 					<Heart className="h-3 w-3 fill-current" />
 					{formatCompactNumber(recommends)}
 				</span>
