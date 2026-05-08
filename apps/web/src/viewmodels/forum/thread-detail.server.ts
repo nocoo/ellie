@@ -94,6 +94,7 @@ export async function loadThreadDetail(params: {
 			threads: 0,
 			posts: 0,
 			credits: 0,
+			coins: 0,
 			signature: "",
 			groupTitle: "",
 			groupStars: 0,

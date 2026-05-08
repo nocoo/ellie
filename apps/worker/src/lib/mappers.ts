@@ -27,6 +27,7 @@ interface D1UserRow {
 	threads: number;
 	posts: number;
 	credits: number;
+	coins: number;
 	signature: string;
 	group_title: string;
 	group_stars: number;
@@ -141,6 +142,7 @@ export function toUser(row: Record<string, unknown>): User {
 		threads: r.threads,
 		posts: r.posts,
 		credits: r.credits,
+		coins: r.coins,
 		signature: r.signature,
 		groupTitle: r.group_title,
 		groupStars: r.group_stars,
@@ -412,6 +414,7 @@ export function toPublicUser(row: Record<string, unknown>, includeIp = false): P
 		threads: r.threads,
 		posts: r.posts,
 		credits: r.credits,
+		coins: r.coins,
 		signature: r.signature,
 		groupTitle: r.group_title,
 		groupStars: r.group_stars,

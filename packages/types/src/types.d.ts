@@ -119,6 +119,7 @@ export interface PublicUser {
     threads: number;
     posts: number;
     credits: number;
+    coins: number;
     signature: string;
     groupTitle: string;
     groupStars: number;
@@ -155,6 +156,7 @@ export interface User {
     threads: number;
     posts: number;
     credits: number;
+    coins: number;
     signature: string;
     groupTitle: string;
     groupStars: number;

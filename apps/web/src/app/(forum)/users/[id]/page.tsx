@@ -134,6 +134,14 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 						<p className="mt-1 text-xs text-muted-foreground">积分</p>
 					</CardContent>
 				</Card>
+				<Card size="sm">
+					<CardContent className="text-center">
+						<p className="text-lg font-semibold text-foreground">
+							{formatCompactNumber(data.user.coins)}
+						</p>
+						<p className="mt-1 text-xs text-muted-foreground">同钱</p>
+					</CardContent>
+				</Card>
 			</div>
 
 			{/* Personal Info Card — only if any fields are non-empty */}

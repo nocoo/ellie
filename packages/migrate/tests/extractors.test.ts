@@ -216,13 +216,20 @@ describe("parseMemberRow", () => {
 // ─── parseMemberCountRow ──────────────────────────────────────────────────────
 
 describe("parseMemberCountRow", () => {
-	// MEMBER_COUNT_COLS: uid=0, posts=10, threads=11, digestposts=12, oltime=19
+	// MEMBER_COUNT_COLS: uid=0, extcredits1=1, extcredits2=2, posts=10, threads=11, digestposts=12, oltime=19
 
 	test("parses count data", () => {
-		const r = row({ 0: "200", 10: "350", 11: "15", 12: "3", 19: "1000" });
+		const r = row({ 0: "200", 1: "500", 2: "12345", 10: "350", 11: "15", 12: "3", 19: "1000" });
 		const result = parseMemberCountRow(r);
 		expect(result.uid).toBe(200);
-		expect(result.data).toEqual({ threads: 15, posts: 350, digestposts: 3, oltime: 1000 });
+		expect(result.data).toEqual({
+			threads: 15,
+			posts: 350,
+			digestposts: 3,
+			oltime: 1000,
+			extcredits1: 500,
+			extcredits2: 12345,
+		});
 	});
 
 	test("defaults to 0 for missing counts", () => {
@@ -232,6 +239,8 @@ describe("parseMemberCountRow", () => {
 		expect(result.data.posts).toBe(0);
 		expect(result.data.digestposts).toBe(0);
 		expect(result.data.oltime).toBe(0);
+		expect(result.data.extcredits1).toBe(0);
+		expect(result.data.extcredits2).toBe(0);
 	});
 });
 
@@ -266,6 +275,8 @@ describe("extractUser", () => {
 		posts: 50,
 		digestposts: 0,
 		oltime: 0,
+		extcredits1: 0,
+		extcredits2: 0,
 	};
 
 	test("extracts active user with member + count data", () => {
@@ -282,6 +293,13 @@ describe("extractUser", () => {
 		expect(result.threads).toBe(5);
 		expect(result.posts).toBe(50);
 		expect(result.credits).toBe(100);
+		expect(result.coins).toBe(0);
+	});
+
+	test("extracts coins from extcredits2", () => {
+		const countsWithCoins: MemberCountData = { ...defaultCounts, extcredits2: 99999 };
+		const result = extractUser(ucRow(), defaultMember, countsWithCoins, false);
+		expect(result.coins).toBe(99999);
 	});
 
 	test("drops legacy email so users must verify a new address", () => {
@@ -889,6 +907,8 @@ describe("extractUser with extras", () => {
 		posts: 50,
 		digestposts: 3,
 		oltime: 1000,
+		extcredits1: 0,
+		extcredits2: 0,
 	};
 
 	const fieldForum: MemberFieldForumData = {
