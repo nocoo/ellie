@@ -78,15 +78,15 @@ Other per-package excludes (re-exports, type-only files):
 | `packages/shared`    | 95    | 90     | 95    | 95    |
 | `packages/test-mocks`| 98    | 95     | 98    | 98    |
 | `packages/types`     | 95    | 90     | 95    | 95    |
-| `packages/migrate`   | 95    | 85     | 95    | 85    |
+| `packages/migrate`   | 95    | 90     | 95    | 95    |
 
 Notes:
 
 - `packages/test-mocks` keeps a higher floor because the package is small and
   100% achievable; we don't want regressions to slip in.
-- `packages/migrate` ships with `branch 85` because most branches handle
-  Discuz-specific BBCode quirks; raising to 90 is **Phase 2 explicit gap**
-  (current actual: stmt 95.95 / branch 87.68 / func 100 / line 97.21).
+- `packages/migrate` branch floor was raised from 85 to 90 in Phase 2C after
+  parser/bbcode/extractor edge-branch tests landed. Current actual:
+  stmt 97.81 / branch 90.20 / func 100 / line 98.60.
 - `packages/test-mocks` repository globs intentionally exclude `src/index.ts`
   (re-export); current actual covers 99.58 / 97.07 / 98.73 / 100.
 
@@ -186,10 +186,10 @@ files.**
 Captured for cross-reference; L2 100% scope is owned by `docs/18-l2-coverage-matrix.md`
 (Phase 1B), G2 by `osv-scanner.toml` and gitleaks defaults.
 
-| Gate    | Command                                        | Baseline result (2026-05-09 post-Phase-2B) |
+| Gate    | Command                                        | Baseline result (2026-05-09 post-Phase-2C) |
 |---------|------------------------------------------------|--------------------------------------------|
-| L1      | `bun run test`                                 | 4488 vitest tests + 37 bun tests passing   |
-| L1 cov  | `bun run test:coverage`                        | All 7 packages over §2.3 floors; `packages/types` now 100/100/100/100 |
+| L1      | `bun run test`                                 | 4498 vitest tests + 37 bun tests passing   |
+| L1 cov  | `bun run test:coverage`                        | All 7 packages over §2.3 floors; `packages/migrate` now 97.81 / 90.20 / 100 / 98.60 with the raised branch ≥90 floor; `packages/types` 100/100/100/100 |
 | L2      | `bun run test:l2`                              | 258 tests passing                           |
 | G1      | `bun run typecheck` + `bun run lint`           | both clean                                  |
 | G2a     | `gitleaks detect --no-banner`                  | no leaks (1397 commits)                     |

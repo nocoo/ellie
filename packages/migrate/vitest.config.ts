@@ -17,7 +17,7 @@ export default defineConfig({
 				statements: 95,
 				lines: 95,
 				functions: 95,
-				branches: 85,
+				branches: 90,
 			},
 		},
 	},
