@@ -10,10 +10,22 @@
 
 import { Database } from "bun:sqlite";
 import { INDEX_DDL, TABLE_COLUMNS, TABLE_DDL, type TableName } from "./schema";
-import { type UpsertConfig, buildInsertSql, buildUpsertSql } from "./sql-builder";
+import {
+	type ExistsFilter,
+	type UpsertConfig,
+	buildFilteredUpsertSql,
+	buildInsertSql,
+	buildUpsertSql,
+} from "./sql-builder";
 
 // Re-export pure SQL builders and types for external consumers
-export { buildInsertSql, buildUpsertSql, type UpsertConfig } from "./sql-builder";
+export {
+	buildFilteredUpsertSql,
+	buildInsertSql,
+	buildUpsertSql,
+	type ExistsFilter,
+	type UpsertConfig,
+} from "./sql-builder";
 
 /** Options for the batch loader. */
 export interface LoaderOptions {
@@ -147,6 +159,52 @@ export class BatchLoader {
 		}
 
 		return upserted;
+	}
+
+	/**
+	 * Upsert rows with a WHERE EXISTS filter to skip orphan foreign keys.
+	 *
+	 * Uses INSERT INTO ... SELECT ... WHERE EXISTS to only insert/update rows
+	 * whose sourceColumn value exists in the reference table. The extra bind
+	 * parameter for the EXISTS check is appended automatically.
+	 *
+	 * @param table - Target table name
+	 * @param rows - Array of row records to upsert
+	 * @param config - Upsert configuration (conflict column + update allowlist)
+	 * @param filter - Existence check configuration
+	 * @returns Number of rows upserted (includes skipped-by-EXISTS rows in count)
+	 */
+	upsertRowsFiltered(
+		table: TableName,
+		rows: RowRecord[],
+		config: UpsertConfig,
+		filter: ExistsFilter,
+	): number {
+		const columns = TABLE_COLUMNS[table];
+		const sql = buildFilteredUpsertSql(table, columns, config, filter);
+		const stmt = this.db.prepare(sql);
+
+		let processed = 0;
+
+		for (let i = 0; i < rows.length; i += this.batchSize) {
+			const batch = rows.slice(i, i + this.batchSize);
+			const tx = this.db.transaction(() => {
+				for (const row of batch) {
+					const values = columns.map((col) => row[col] ?? null);
+					// Append the EXISTS check value as extra bind parameter
+					values.push(row[filter.sourceColumn] ?? null);
+					stmt.run(...values);
+					processed++;
+
+					if (this.onProgress && processed % this.progressInterval === 0) {
+						this.onProgress(table, processed);
+					}
+				}
+			});
+			tx();
+		}
+
+		return processed;
 	}
 
 	/** Get the underlying database instance (for queries/verification). */

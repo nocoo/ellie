@@ -714,3 +714,42 @@ export function extractPostComment(row: ParsedRow): RowRecord | null {
 		created_at: Number(row[POSTCOMMENT_COLS.dateline]) || 0,
 	};
 }
+
+// ─── Checkins (签到) ─────────────────────────────────────────────────────────
+
+/**
+ * Column indices for pre_dsu_paulsign / pre_dsu_paulsign2 INSERT VALUES.
+ * Verified from dump DDL: uid, time, days, lasted, mdays, reward, lastreward, qdxq, todaysay
+ */
+const CHECKIN_COLS = {
+	uid: 0,
+	time: 1,
+	days: 2,
+	lasted: 3,
+	mdays: 4,
+	reward: 5,
+	lastreward: 6,
+	qdxq: 7,
+	todaysay: 8,
+} as const;
+
+/**
+ * Extract a checkin row from pre_dsu_paulsign / pre_dsu_paulsign2.
+ * Returns null for rows with invalid uid (<= 0).
+ */
+export function extractCheckin(row: ParsedRow): RowRecord | null {
+	const uid = Number(row[CHECKIN_COLS.uid]);
+	if (!uid || uid <= 0) return null;
+
+	return {
+		user_id: uid,
+		total_days: Number(row[CHECKIN_COLS.days]) || 0,
+		month_days: Number(row[CHECKIN_COLS.mdays]) || 0,
+		streak_days: Number(row[CHECKIN_COLS.lasted]) || 0,
+		reward_total: Number(row[CHECKIN_COLS.reward]) || 0,
+		last_reward: Number(row[CHECKIN_COLS.lastreward]) || 0,
+		mood: row[CHECKIN_COLS.qdxq] ?? "",
+		message: row[CHECKIN_COLS.todaysay] ?? "",
+		last_checkin_at: Number(row[CHECKIN_COLS.time]) || 0,
+	};
+}

@@ -46,6 +46,18 @@ export const USERS_UPSERT_COLUMNS: string[] = [
 	"has_avatar",
 ];
 
+/** Checkins columns to update on conflict (all except user_id PK). */
+export const CHECKINS_UPSERT_COLUMNS: string[] = [
+	"total_days",
+	"month_days",
+	"streak_days",
+	"reward_total",
+	"last_reward",
+	"mood",
+	"message",
+	"last_checkin_at",
+];
+
 /** Forums columns to update on conflict (Discuz-owned). */
 export const FORUMS_UPSERT_COLUMNS: string[] = [
 	"parent_id",
@@ -195,6 +207,18 @@ export const TABLE_DDL: string[] = [
   ip            TEXT    NOT NULL DEFAULT '',
   created_at    INTEGER NOT NULL DEFAULT 0
 )`,
+
+	`CREATE TABLE IF NOT EXISTS user_checkins (
+  user_id         INTEGER PRIMARY KEY,
+  total_days      INTEGER NOT NULL DEFAULT 0,
+  month_days      INTEGER NOT NULL DEFAULT 0,
+  streak_days     INTEGER NOT NULL DEFAULT 0,
+  reward_total    INTEGER NOT NULL DEFAULT 0,
+  last_reward     INTEGER NOT NULL DEFAULT 0,
+  mood            TEXT    NOT NULL DEFAULT '',
+  message         TEXT    NOT NULL DEFAULT '',
+  last_checkin_at INTEGER NOT NULL DEFAULT 0
+)`,
 ];
 
 /** DDL statements to create all indexes. Applied after data load for performance. */
@@ -217,6 +241,9 @@ export const INDEX_DDL: string[] = [
 	"CREATE INDEX IF NOT EXISTS idx_post_comments_post ON post_comments(post_id, created_at DESC)",
 	"CREATE INDEX IF NOT EXISTS idx_post_comments_thread ON post_comments(thread_id)",
 	"CREATE INDEX IF NOT EXISTS idx_post_comments_author ON post_comments(author_id)",
+
+	// user_checkins indexes
+	"CREATE INDEX IF NOT EXISTS idx_user_checkins_last ON user_checkins(last_checkin_at)",
 ];
 
 /** Table names in FK dependency order (for migration). */
@@ -227,6 +254,7 @@ export const TABLE_ORDER = [
 	"posts",
 	"attachments",
 	"post_comments",
+	"user_checkins",
 ] as const;
 export type TableName = (typeof TABLE_ORDER)[number];
 
@@ -347,5 +375,16 @@ export const TABLE_COLUMNS: Record<TableName, string[]> = {
 		"reply_post_id",
 		"ip",
 		"created_at",
+	],
+	user_checkins: [
+		"user_id",
+		"total_days",
+		"month_days",
+		"streak_days",
+		"reward_total",
+		"last_reward",
+		"mood",
+		"message",
+		"last_checkin_at",
 	],
 };

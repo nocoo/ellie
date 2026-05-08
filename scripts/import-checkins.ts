@@ -1,5 +1,10 @@
 #!/usr/bin/env bun
 /**
+ * @deprecated Use `packages/migrate` instead. This script generates raw INSERT
+ * SQL assuming user_checkins is empty. The canonical pipeline in packages/migrate
+ * uses ON CONFLICT(user_id) DO UPDATE SET with WHERE EXISTS(users) for safe
+ * re-import. This file is kept as reference only — do not use for production.
+ *
  * import-checkins.ts — Merge pre_dsu_paulsign + pre_dsu_paulsign2 from MySQL
  * dump and generate D1 INSERT SQL to populate the `user_checkins` table.
  *
