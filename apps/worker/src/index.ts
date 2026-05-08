@@ -237,6 +237,14 @@ export default {
 				return await (await import("./handlers/report")).checkPermission(request, env);
 			}
 
+			// ── Check-in (签到) routes ──────────────────────
+			if (path === "/api/v1/checkin/status" && request.method === "GET") {
+				return await (await import("./handlers/checkin")).status(request, env);
+			}
+			if (path === "/api/v1/checkin" && request.method === "POST") {
+				return await (await import("./handlers/checkin")).perform(request, env);
+			}
+
 			// ── Upload route (Key A + JWT verified + email-verified) ─
 			if (path === "/api/v1/upload" && request.method === "POST") {
 				const { requireVerifiedEmail } = await import("./middleware/auth");

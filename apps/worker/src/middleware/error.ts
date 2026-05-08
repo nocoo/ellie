@@ -119,6 +119,10 @@ function getStatusMessage(code: string): string {
 		FILE_TOO_LARGE: "File size exceeds the allowed limit",
 		INVALID_FORMAT: "File format is not allowed",
 		UPLOAD_FAILED: "Failed to upload file",
+		// Check-in errors
+		CHECKIN_INVALID_MOOD: "Invalid mood — must be one of the predefined emotion codes",
+		CHECKIN_OUTSIDE_WINDOW: "Check-in is not available at this time",
+		CHECKIN_ALREADY_DONE: "Already checked in today",
 	};
 
 	return messages[code] || "An error occurred";
