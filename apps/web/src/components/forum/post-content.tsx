@@ -43,7 +43,7 @@ export function PostContent({
 }: PostContentProps) {
 	return (
 		<div className="flex-1 min-w-0 flex flex-col" suppressHydrationWarning>
-			<div className="p-3 flex flex-col flex-1" suppressHydrationWarning>
+			<div className="p-3 lg:p-4 flex flex-col flex-1" suppressHydrationWarning>
 				{/* Top meta bar — dashed bottom border */}
 				<div className="flex items-center gap-2 pb-2 border-b border-dashed border-border text-xs text-muted-foreground">
 					<PostAuthorStatusIcon
