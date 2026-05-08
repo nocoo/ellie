@@ -55,6 +55,9 @@
 		"lint": "biome check --error-on-warnings .",
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",
+		"gate:g1": "bun run typecheck && bun run lint && bun run test:coverage",
+		"gate:g2": "gitleaks detect --no-banner && osv-scanner scan --lockfile bun.lock",
+		"gate:full": "bun run gate:g1 && bun run test:l2 && bun run gate:g2",
 		"prepare": "husky"
 	},
 	"devDependencies": {
