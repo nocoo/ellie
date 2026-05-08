@@ -615,7 +615,7 @@ export const nuke = withEntityAuth(
 		// audit-log write are all independent. Fan out.
 		await Promise.all([
 			env.DB.prepare(
-				"UPDATE users SET status = -1, threads = 0, posts = 0, credits = 0 WHERE id = ?",
+				"UPDATE users SET status = -1, threads = 0, posts = 0, credits = 0, coins = 0 WHERE id = ?",
 			)
 				.bind(id)
 				.run(),
