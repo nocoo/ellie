@@ -10,13 +10,7 @@
 
 import { PostEditor } from "@/components/forum/post-editor";
 import { Button } from "@/components/ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api-client";
 import { editMyPost, editPost } from "@/lib/moderation-api";
 import { stripHtmlTags } from "@/lib/text";
@@ -25,6 +19,7 @@ import { Pencil, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import { DialogErrorBanner } from "./dialog-error-banner";
+import { DialogHeroHeader } from "./dialog-hero-header";
 import { useForumToast } from "./forum-toast";
 
 interface PostEditDialogProps {
@@ -100,17 +95,11 @@ export function PostEditDialog({
 				showCloseButton={false}
 			>
 				{/* Header */}
-				<DialogHeader className="px-5 pt-5 pb-4 border-b border-border/50">
-					<div className="flex items-center gap-3">
-						<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-							<Pencil className="h-5 w-5 text-primary" />
-						</div>
-						<div>
-							<DialogTitle className="text-lg">编辑回复</DialogTitle>
-							<DialogDescription className="text-xs mt-0.5">修改回复内容</DialogDescription>
-						</div>
-					</div>
-				</DialogHeader>
+				<DialogHeroHeader
+					icon={<Pencil className="h-5 w-5 text-primary" />}
+					title="编辑回复"
+					description="修改回复内容"
+				/>
 
 				{/* Error display */}
 				{error && <DialogErrorBanner message={error} />}
