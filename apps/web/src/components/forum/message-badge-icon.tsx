@@ -1,5 +1,7 @@
 // MessageBadgeIcon — Mail icon with unread count badge for header
 // Only fetches unread count for credentials users (who have Worker JWT)
+// Polls at a relaxed interval suited for sparse-traffic forums, and pauses
+// when the browser tab is hidden to avoid wasting requests.
 
 "use client";
 
@@ -8,13 +10,15 @@ import { fetchUnreadCount } from "@/viewmodels/forum/messages";
 import { Mail } from "lucide-react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Refresh interval for polling unread count
 // ---------------------------------------------------------------------------
 
-const POLL_INTERVAL_MS = 60_000; // 1 minute
+// 5 minutes — sufficient for sparse-traffic forums; the tab-visibility
+// listener triggers an immediate refresh when the user switches back.
+const POLL_INTERVAL_MS = 300_000;
 
 // ---------------------------------------------------------------------------
 // Main Component
@@ -23,34 +27,62 @@ const POLL_INTERVAL_MS = 60_000; // 1 minute
 export function MessageBadgeIcon() {
 	const { data: session, status } = useSession();
 	const [unreadCount, setUnreadCount] = useState(0);
+	const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
 	// Check if user is logged in with credentials provider
 	const isCredentialsUser = status === "authenticated" && session?.user?.provider === "credentials";
 
-	// Fetch unread count on mount and periodically
+	const loadUnread = useCallback(async () => {
+		try {
+			const count = await fetchUnreadCount();
+			setUnreadCount(count);
+		} catch {
+			// Silently ignore errors
+		}
+	}, []);
+
+	// Poll with visibility awareness: pause when hidden, resume + immediate
+	// refresh when visible again.
 	useEffect(() => {
 		if (!isCredentialsUser) {
 			setUnreadCount(0);
 			return;
 		}
 
-		const loadUnread = async () => {
-			try {
-				const count = await fetchUnreadCount();
-				setUnreadCount(count);
-			} catch {
-				// Silently ignore errors
+		const startPolling = () => {
+			if (intervalRef.current) return; // already running
+			intervalRef.current = setInterval(loadUnread, POLL_INTERVAL_MS);
+		};
+
+		const stopPolling = () => {
+			if (intervalRef.current) {
+				clearInterval(intervalRef.current);
+				intervalRef.current = null;
 			}
 		};
 
-		// Initial load
+		const handleVisibility = () => {
+			if (document.visibilityState === "visible") {
+				loadUnread(); // immediate refresh when user switches back
+				startPolling();
+			} else {
+				stopPolling();
+			}
+		};
+
+		// Initial load + start polling (only if tab is visible)
 		loadUnread();
+		if (document.visibilityState === "visible") {
+			startPolling();
+		}
 
-		// Poll periodically
-		const interval = setInterval(loadUnread, POLL_INTERVAL_MS);
+		document.addEventListener("visibilitychange", handleVisibility);
 
-		return () => clearInterval(interval);
-	}, [isCredentialsUser]);
+		return () => {
+			stopPolling();
+			document.removeEventListener("visibilitychange", handleVisibility);
+		};
+	}, [isCredentialsUser, loadUnread]);
 
 	return (
 		<Link
