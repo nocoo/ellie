@@ -27,10 +27,10 @@ export class UserPage {
 		return this.page.locator('[class*="badge"]').first();
 	}
 
-	/** Stats cards (threads/posts/digest/credits) */
+	/** Stats cards (threads/posts/digest/credits/coins) */
 	get statsCards() {
-		// Stats are in .grid-cols-4 with p.text-lg inside
-		return this.page.locator(".grid-cols-4 > a, .grid-cols-4 > div").filter({
+		// Stats are in .grid-cols-5 with p.text-lg inside
+		return this.page.locator(".grid-cols-5 > a, .grid-cols-5 > div").filter({
 			has: this.page.locator("p.text-lg"),
 		});
 	}

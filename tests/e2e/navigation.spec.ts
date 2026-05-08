@@ -98,8 +98,8 @@ test.describe("E2E-NV: Navigation Flow", () => {
 		// Should have username heading
 		await expect(userPage.username).toBeVisible();
 
-		// Should have stats cards (4 cards: threads, posts, digest, credits)
-		await expect(userPage.statsCards).toHaveCount(4);
+		// Should have stats cards (5 cards: threads, posts, digest, credits, coins)
+		await expect(userPage.statsCards).toHaveCount(5);
 
 		// Should have tab navigation
 		await expect(userPage.tabNav).toBeVisible();
