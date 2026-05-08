@@ -238,7 +238,7 @@ function MessageRow({
 		>
 			{/* Avatar */}
 			<div className="flex-shrink-0">
-				<Link href={`/users/${peerId}`}>
+				<Link href={`/users/${peerId}`} prefetch={false}>
 					<ForumAvatar userId={peerId} userName={peerName} size="lg" shadow />
 				</Link>
 			</div>
@@ -251,6 +251,7 @@ function MessageRow({
 						<>
 							<Link
 								href={`/users/${peerId}`}
+								prefetch={false}
 								className="font-bold text-foreground hover:text-primary"
 							>
 								{peerName}
@@ -262,6 +263,7 @@ function MessageRow({
 							<span className="text-muted-foreground">发送给 </span>
 							<Link
 								href={`/users/${peerId}`}
+								prefetch={false}
 								className="font-bold text-foreground hover:text-primary"
 							>
 								{peerName}
@@ -280,6 +282,7 @@ function MessageRow({
 				{/* Preview */}
 				<Link
 					href={`/messages/${message.id}`}
+					prefetch={false}
 					className="block mt-1 text-sm text-muted-foreground leading-relaxed line-clamp-2 hover:text-foreground"
 				>
 					{message.preview}
@@ -289,7 +292,11 @@ function MessageRow({
 				<div className="mt-1.5 flex items-center justify-between text-xs text-muted-foreground">
 					<span>{formatMessageDate(message.createdAt)}</span>
 					<div className="flex items-center gap-2">
-						<Link href={`/messages/${message.id}`} className="text-primary hover:underline">
+						<Link
+							href={`/messages/${message.id}`}
+							prefetch={false}
+							className="text-primary hover:underline"
+						>
 							查看
 						</Link>
 						<button

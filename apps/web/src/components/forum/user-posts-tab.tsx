@@ -20,6 +20,7 @@ export function UserPostsTab({
 				<div key={post.id} className="py-2">
 					<Link
 						href={`/threads/${post.threadId}`}
+						prefetch={false}
 						className="text-xs text-muted-foreground hover:text-primary transition-colors"
 					>
 						回复主题 #{post.threadId}

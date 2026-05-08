@@ -202,11 +202,12 @@ export function PostComments({
 			<div className="divide-y divide-dashed divide-border">
 				{visibleComments.map((comment) => (
 					<div key={comment.id} className="px-3 py-1.5 flex items-center gap-2 text-xs">
-						<Link href={`/users/${comment.authorId}`} className="flex-shrink-0">
+						<Link href={`/users/${comment.authorId}`} prefetch={false} className="flex-shrink-0">
 							<ForumAvatar userId={comment.authorId} userName={comment.authorName} size="xs" />
 						</Link>
 						<Link
 							href={`/users/${comment.authorId}`}
+							prefetch={false}
 							className="font-medium text-forum-link hover:underline flex-shrink-0"
 						>
 							{comment.authorName}

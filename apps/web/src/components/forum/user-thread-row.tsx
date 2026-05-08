@@ -29,6 +29,7 @@ export function UserThreadRow({
 			{badges.length > 0 && <ThreadBadgeList badges={badges} />}
 			<Link
 				href={`/threads/${thread.id}`}
+				prefetch={false}
 				className="min-w-0 flex-1 truncate text-sm text-foreground hover:text-primary transition-colors"
 			>
 				{thread.subject}
