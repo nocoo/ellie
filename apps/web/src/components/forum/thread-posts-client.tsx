@@ -114,6 +114,7 @@ export function ThreadPostsClient({
 						isFirstPost={isFirst}
 						threadId={thread.id}
 						forumId={thread.forumId}
+						threadAuthorId={thread.authorId}
 					/>
 				);
 			})}

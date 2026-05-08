@@ -7,6 +7,7 @@
 // React hydration mismatches. Keeping everything inside one container with
 // suppressHydrationWarning prevents that.
 
+import { PostAuthorStatusIcon } from "@/components/forum/post-author-status-icon";
 import { Badge } from "@/components/ui/badge";
 import { getAttachmentThumbUrl, getAttachmentUrl, getStaticImageUrl } from "@/lib/cdn";
 import {
@@ -16,13 +17,14 @@ import {
 	formatFileSize,
 } from "@/viewmodels/forum/thread-detail";
 import type { User } from "@ellie/types";
-import { SquarePen } from "lucide-react";
 import type { ReactNode } from "react";
 
 interface PostContentProps {
 	post: EnrichedPost;
 	isFirst: boolean;
 	threadDigest?: number;
+	/** Original thread starter's user id; used to flag 楼主 (ico_lz.png). */
+	threadAuthorId?: number;
 	author?: User | null;
 	/** Rendered after content & signature to avoid hydration issues with unclosed HTML. */
 	actionBar?: ReactNode;
@@ -34,6 +36,7 @@ export function PostContent({
 	post,
 	isFirst,
 	threadDigest,
+	threadAuthorId,
 	author,
 	actionBar,
 	comments,
@@ -43,7 +46,14 @@ export function PostContent({
 			<div className="p-3 flex flex-col flex-1" suppressHydrationWarning>
 				{/* Top meta bar — dashed bottom border */}
 				<div className="flex items-center gap-2 pb-2 border-b border-dashed border-border text-xs text-muted-foreground">
-					<SquarePen className="h-3.5 w-3.5 text-primary" />
+					<PostAuthorStatusIcon
+						role={author?.role}
+						isThreadAuthor={
+							author?.id !== undefined &&
+							threadAuthorId !== undefined &&
+							author.id === threadAuthorId
+						}
+					/>
 					<span>发表于 {formatDateTime(post.createdAt)}</span>
 
 					{/* Digest badge — only first post when digest > 0 */}

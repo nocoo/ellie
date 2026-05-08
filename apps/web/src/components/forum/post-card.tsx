@@ -11,6 +11,7 @@
 "use client";
 
 import { PostActionBar } from "@/components/forum/post-action-bar";
+import { PostAuthorStatusIcon } from "@/components/forum/post-author-status-icon";
 import { PostComments } from "@/components/forum/post-comments";
 import { PostContent } from "@/components/forum/post-content";
 import { PostEditDialog } from "@/components/forum/post-edit-dialog";
@@ -47,6 +48,8 @@ interface PostCardProps {
 	isFirstPost: boolean;
 	threadId: number;
 	forumId: number;
+	/** Original thread starter's user id (for楼主 icon resolution). */
+	threadAuthorId: number;
 }
 
 export function PostCard({
@@ -66,6 +69,7 @@ export function PostCard({
 	isFirstPost,
 	threadId,
 	forumId,
+	threadAuthorId,
 }: PostCardProps) {
 	const isFirst = post.isFirst || post.position === 1;
 	const isOwnPost = currentUserId !== null && post.authorId === currentUserId;
@@ -149,6 +153,7 @@ export function PostCard({
 						post={post}
 						isFirst={isFirst}
 						threadDigest={threadDigest}
+						threadAuthorId={threadAuthorId}
 						author={post.author}
 						actionBar={actionBar}
 						comments={commentsSection}
@@ -192,7 +197,12 @@ export function PostCard({
 						) : (
 							<span className="text-sm font-medium text-forum-text-muted truncate">未知用户</span>
 						)}
-						<span className="text-2xs text-forum-text-muted">
+						<span className="text-2xs text-forum-text-muted flex items-center gap-1">
+							<PostAuthorStatusIcon
+								role={post.author?.role}
+								isThreadAuthor={post.author?.id !== undefined && post.author.id === threadAuthorId}
+								className="h-3.5 w-3.5 shrink-0"
+							/>
 							{formatRelativeTime(post.createdAt)}
 						</span>
 					</div>
@@ -206,6 +216,7 @@ export function PostCard({
 					post={post}
 					isFirst={isFirst}
 					threadDigest={threadDigest}
+					threadAuthorId={threadAuthorId}
 					author={post.author}
 					actionBar={actionBar}
 					comments={commentsSection}
