@@ -6,18 +6,14 @@ import { describe, expect, it, vi } from "vitest";
  *
  * NOTE: These tests require the full monorepo environment to run because
  * they import the worker module which depends on @ellie/types.
- * Run from repo root: `bun test apps/worker/tests/unit/integration/router.test.ts`
+ * Run from repo root: `bun run test:worker`.
  */
 
-// Skip in isolated worktree environments where @ellie/types is unavailable
-const canRunIntegration = (() => {
-	try {
-		require.resolve("@ellie/types");
-		return true;
-	} catch {
-		return false;
-	}
-})();
+// Skip via explicit env gate. Default-on at the monorepo root; isolated
+// worktrees lacking workspace deps opt out with `ELLIE_INTEGRATION=0`.
+// See docs/18-quality-baseline.md §3.3.
+const canRunIntegration =
+	process.env.ELLIE_INTEGRATION === undefined || process.env.ELLIE_INTEGRATION === "1";
 
 describe.skipIf(!canRunIntegration)("worker router integration", () => {
 	// Dynamic import to avoid parse-time errors in isolated environments

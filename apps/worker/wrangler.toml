@@ -63,8 +63,8 @@ ENVIRONMENT = "test"
 ALLOWED_ORIGINS = "*"
 # Dove (docs/17 §8). Test env points at the real base URL but the worker
 # only reaches dove inside unit tests with mocked fetch — there is no real
-# outbound call from the L2 suite (handlers/email is in the bun:test lane
-# with mock.module). The token is intentionally a placeholder; production
+# outbound call from the L2 suite (handlers/email tests use vi.mock on
+# `src/lib/dove`). The token is intentionally a placeholder; production
 # uses `wrangler secret put DOVE_WEBHOOK_TOKEN` against [env=production].
 DOVE_BASE_URL = "https://dove.hexly.ai"
 DOVE_PROJECT_ID = "vKOrSPha4wtzkWlJSAV8d"

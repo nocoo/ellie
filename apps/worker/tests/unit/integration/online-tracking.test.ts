@@ -5,7 +5,7 @@ import { describe, expect, it, type mock, vi } from "vitest";
  *
  * NOTE: These tests require the full monorepo environment to run because
  * they import the worker module which depends on @ellie/types.
- * Run from repo root: `bun test apps/worker/tests/unit/integration/online-tracking.test.ts`
+ * Run from repo root: `bun run test:worker`.
  *
  * The core tracking logic is covered by unit tests:
  * - tests/unit/middleware/online.test.ts (4 tests)
@@ -13,17 +13,11 @@ import { describe, expect, it, type mock, vi } from "vitest";
  * - tests/unit/lib/online-stats.test.ts (6 tests)
  */
 
-// Skip full integration tests in isolated worktree environments
-// These tests pass when run from the monorepo root with all dependencies installed
-const canRunIntegration = (() => {
-	try {
-		// Try to resolve @ellie/types — if it fails, we're in an isolated environment
-		require.resolve("@ellie/types");
-		return true;
-	} catch {
-		return false;
-	}
-})();
+// Skip via explicit env gate. Default-on at the monorepo root; isolated
+// worktrees lacking workspace deps opt out with `ELLIE_INTEGRATION=0`.
+// See docs/18-quality-baseline.md §3.3.
+const canRunIntegration =
+	process.env.ELLIE_INTEGRATION === undefined || process.env.ELLIE_INTEGRATION === "1";
 
 describe.skipIf(!canRunIntegration)("online tracking integration", () => {
 	// Dynamic import to avoid parse-time errors in isolated environments
