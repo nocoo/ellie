@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { FORUMS_UPSERT_COLUMNS, TABLE_COLUMNS, USERS_UPSERT_COLUMNS } from "../src/load/schema";
-import { buildInsertSql, buildUpsertSql } from "../src/load/sql-builder";
+import {
+	CHECKINS_UPSERT_COLUMNS,
+	FORUMS_UPSERT_COLUMNS,
+	TABLE_COLUMNS,
+	USERS_UPSERT_COLUMNS,
+} from "../src/load/schema";
+import { buildFilteredUpsertSql, buildInsertSql, buildUpsertSql } from "../src/load/sql-builder";
 
 // ─── Upsert allowlist tests ──────────────────────────────────────────────────
 // These verify that the upsert allowlists are correct and consistent with
@@ -255,5 +260,125 @@ describe("buildInsertSql", () => {
 		const sql = buildInsertSql("users", TABLE_COLUMNS.users);
 		const placeholderCount = (sql.match(/\?/g) ?? []).length;
 		expect(placeholderCount).toBe(TABLE_COLUMNS.users.length);
+	});
+});
+
+// ─── Checkins schema tests ──────────────────────────────────────────────────
+
+describe("CHECKINS_UPSERT_COLUMNS", () => {
+	test("has 8 columns (9 total minus user_id PK)", () => {
+		expect(CHECKINS_UPSERT_COLUMNS).toHaveLength(8);
+	});
+
+	test("all columns exist in TABLE_COLUMNS.user_checkins", () => {
+		for (const col of CHECKINS_UPSERT_COLUMNS) {
+			expect(TABLE_COLUMNS.user_checkins).toContain(col);
+		}
+	});
+
+	test("excludes primary key (user_id)", () => {
+		expect(CHECKINS_UPSERT_COLUMNS).not.toContain("user_id");
+	});
+
+	test("includes all checkin stat columns", () => {
+		const statCols = ["total_days", "month_days", "streak_days", "reward_total", "last_reward"];
+		for (const col of statCols) {
+			expect(CHECKINS_UPSERT_COLUMNS).toContain(col);
+		}
+	});
+
+	test("includes mood and message", () => {
+		expect(CHECKINS_UPSERT_COLUMNS).toContain("mood");
+		expect(CHECKINS_UPSERT_COLUMNS).toContain("message");
+	});
+
+	test("includes last_checkin_at", () => {
+		expect(CHECKINS_UPSERT_COLUMNS).toContain("last_checkin_at");
+	});
+
+	test("no duplicates", () => {
+		const unique = new Set(CHECKINS_UPSERT_COLUMNS);
+		expect(unique.size).toBe(CHECKINS_UPSERT_COLUMNS.length);
+	});
+});
+
+describe("TABLE_COLUMNS.user_checkins", () => {
+	test("has 9 columns", () => {
+		expect(TABLE_COLUMNS.user_checkins).toHaveLength(9);
+	});
+
+	test("user_id is first column", () => {
+		expect(TABLE_COLUMNS.user_checkins[0]).toBe("user_id");
+	});
+});
+
+// ─── buildFilteredUpsertSql tests ───────────────────────────────────────────
+
+describe("buildFilteredUpsertSql", () => {
+	test("checkins SQL uses SELECT...WHERE EXISTS...ON CONFLICT", () => {
+		const sql = buildFilteredUpsertSql(
+			"user_checkins",
+			TABLE_COLUMNS.user_checkins,
+			{ conflictColumn: "user_id", updateColumns: CHECKINS_UPSERT_COLUMNS },
+			{ referenceTable: "users", referenceColumn: "id", sourceColumn: "user_id" },
+		);
+		expect(sql).toContain("SELECT ?,?,?,?,?,?,?,?,?");
+		expect(sql).toContain("WHERE EXISTS (SELECT 1 FROM users WHERE id = ?)");
+		expect(sql).toContain("ON CONFLICT(user_id) DO UPDATE SET");
+	});
+
+	test("checkins SET clause includes all stat columns", () => {
+		const sql = buildFilteredUpsertSql(
+			"user_checkins",
+			TABLE_COLUMNS.user_checkins,
+			{ conflictColumn: "user_id", updateColumns: CHECKINS_UPSERT_COLUMNS },
+			{ referenceTable: "users", referenceColumn: "id", sourceColumn: "user_id" },
+		);
+		expect(sql).toContain("total_days = excluded.total_days");
+		expect(sql).toContain("mood = excluded.mood");
+		expect(sql).toContain("last_checkin_at = excluded.last_checkin_at");
+	});
+
+	test("checkins SET clause excludes user_id PK", () => {
+		const sql = buildFilteredUpsertSql(
+			"user_checkins",
+			TABLE_COLUMNS.user_checkins,
+			{ conflictColumn: "user_id", updateColumns: CHECKINS_UPSERT_COLUMNS },
+			{ referenceTable: "users", referenceColumn: "id", sourceColumn: "user_id" },
+		);
+		expect(sql).not.toContain("user_id = excluded.user_id");
+	});
+
+	test("has column count + 1 placeholders (extra for EXISTS check)", () => {
+		const sql = buildFilteredUpsertSql(
+			"user_checkins",
+			TABLE_COLUMNS.user_checkins,
+			{ conflictColumn: "user_id", updateColumns: CHECKINS_UPSERT_COLUMNS },
+			{ referenceTable: "users", referenceColumn: "id", sourceColumn: "user_id" },
+		);
+		const placeholderCount = (sql.match(/\?/g) ?? []).length;
+		expect(placeholderCount).toBe(TABLE_COLUMNS.user_checkins.length + 1);
+	});
+
+	test("throws on empty updateColumns", () => {
+		expect(() =>
+			buildFilteredUpsertSql(
+				"user_checkins",
+				TABLE_COLUMNS.user_checkins,
+				{ conflictColumn: "user_id", updateColumns: [] },
+				{ referenceTable: "users", referenceColumn: "id", sourceColumn: "user_id" },
+			),
+		).toThrow('updateColumns must not be empty for table "user_checkins"');
+	});
+
+	test("throws if updateColumns contains conflict column", () => {
+		expect(() =>
+			buildFilteredUpsertSql(
+				"user_checkins",
+				TABLE_COLUMNS.user_checkins,
+				{ conflictColumn: "user_id", updateColumns: ["user_id", "total_days"] },
+				{ referenceTable: "users", referenceColumn: "id", sourceColumn: "user_id" },
+			),
+		).toThrow('updateColumns must not contain the conflict column "user_id"');
 	});
 });

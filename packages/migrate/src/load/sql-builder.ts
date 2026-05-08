@@ -50,3 +50,47 @@ export function buildUpsertSql(table: string, columns: string[], config: UpsertC
 	const updateSet = config.updateColumns.map((col) => `${col} = excluded.${col}`).join(", ");
 	return `INSERT INTO ${table} (${columns.join(",")}) VALUES (${placeholders}) ON CONFLICT(${config.conflictColumn}) DO UPDATE SET ${updateSet}`;
 }
+
+/** Configuration for a WHERE EXISTS pre-filter on INSERT. */
+export interface ExistsFilter {
+	/** Table to check existence in (e.g., "users"). */
+	referenceTable: string;
+	/** Column in the reference table to match (e.g., "id"). */
+	referenceColumn: string;
+	/** Column in the source row whose value is checked (e.g., "user_id"). */
+	sourceColumn: string;
+}
+
+/**
+ * Build an INSERT ... SELECT ... WHERE EXISTS ... ON CONFLICT DO UPDATE SQL statement.
+ *
+ * Uses INSERT INTO ... SELECT ?,?... WHERE EXISTS (SELECT 1 FROM refTable WHERE refCol = ?)
+ * to skip rows that reference non-existent parent rows (e.g., checkins for deleted users).
+ * The caller must append the sourceColumn value as an extra bind parameter after the
+ * normal column values.
+ *
+ * @param table - Target table name
+ * @param columns - All column names in INSERT order
+ * @param config - Upsert configuration (conflict column + update allowlist)
+ * @param filter - Existence check configuration
+ * @returns Parameterized SQL string (column count + 1 parameters)
+ * @throws Error if updateColumns is empty or contains the conflict column
+ */
+export function buildFilteredUpsertSql(
+	table: string,
+	columns: string[],
+	config: UpsertConfig,
+	filter: ExistsFilter,
+): string {
+	if (config.updateColumns.length === 0) {
+		throw new Error(`buildFilteredUpsertSql: updateColumns must not be empty for table "${table}"`);
+	}
+	if (config.updateColumns.includes(config.conflictColumn)) {
+		throw new Error(
+			`buildFilteredUpsertSql: updateColumns must not contain the conflict column "${config.conflictColumn}"`,
+		);
+	}
+	const placeholders = columns.map(() => "?").join(",");
+	const updateSet = config.updateColumns.map((col) => `${col} = excluded.${col}`).join(", ");
+	return `INSERT INTO ${table} (${columns.join(",")}) SELECT ${placeholders} WHERE EXISTS (SELECT 1 FROM ${filter.referenceTable} WHERE ${filter.referenceColumn} = ?) ON CONFLICT(${config.conflictColumn}) DO UPDATE SET ${updateSet}`;
+}

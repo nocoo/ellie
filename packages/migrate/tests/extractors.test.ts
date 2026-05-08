@@ -9,6 +9,7 @@ import {
 	type StatusData,
 	type UsergroupData,
 	extractAttachment,
+	extractCheckin,
 	extractForum,
 	extractPost,
 	extractPostComment,
@@ -1045,5 +1046,105 @@ describe("extractPostComment", () => {
 		expect(result?.score).toBe(0);
 		expect(result?.reply_post_id).toBe(0);
 		expect(result?.ip).toBe("");
+	});
+});
+
+// ─── extractCheckin ─────────────────────────────────────────────────────────
+
+describe("extractCheckin", () => {
+	// pre_dsu_paulsign columns:
+	// uid(0), time(1), days(2), lasted(3), mdays(4), reward(5), lastreward(6), qdxq(7), todaysay(8)
+
+	test("extracts all fields from a complete row", () => {
+		const r = row({
+			0: "119966",
+			1: "1714953600",
+			2: "500",
+			3: "15",
+			4: "20",
+			5: "12000",
+			6: "50",
+			7: "kx",
+			8: "Hello world",
+		});
+		const result = extractCheckin(r);
+		expect(result).not.toBeNull();
+		expect(result?.user_id).toBe(119966);
+		expect(result?.last_checkin_at).toBe(1714953600);
+		expect(result?.total_days).toBe(500);
+		expect(result?.streak_days).toBe(15);
+		expect(result?.month_days).toBe(20);
+		expect(result?.reward_total).toBe(12000);
+		expect(result?.last_reward).toBe(50);
+		expect(result?.mood).toBe("kx");
+		expect(result?.message).toBe("Hello world");
+	});
+
+	test("returns null for uid=0", () => {
+		const r = row({ 0: "0" });
+		expect(extractCheckin(r)).toBeNull();
+	});
+
+	test("returns null for negative uid", () => {
+		const r = row({ 0: "-1" });
+		expect(extractCheckin(r)).toBeNull();
+	});
+
+	test("returns null for missing uid", () => {
+		const r = row({});
+		expect(extractCheckin(r)).toBeNull();
+	});
+
+	test("defaults numeric fields to 0", () => {
+		const r = row({ 0: "42" });
+		const result = extractCheckin(r);
+		expect(result).not.toBeNull();
+		expect(result?.user_id).toBe(42);
+		expect(result?.total_days).toBe(0);
+		expect(result?.month_days).toBe(0);
+		expect(result?.streak_days).toBe(0);
+		expect(result?.reward_total).toBe(0);
+		expect(result?.last_reward).toBe(0);
+		expect(result?.last_checkin_at).toBe(0);
+	});
+
+	test("defaults string fields to empty", () => {
+		const r = row({ 0: "42" });
+		const result = extractCheckin(r);
+		expect(result).not.toBeNull();
+		expect(result?.mood).toBe("");
+		expect(result?.message).toBe("");
+	});
+
+	test("output columns match TABLE_COLUMNS.user_checkins", () => {
+		const r = row({
+			0: "1",
+			1: "100",
+			2: "5",
+			3: "3",
+			4: "2",
+			5: "100",
+			6: "10",
+			7: "kx",
+			8: "hi",
+		});
+		const result = extractCheckin(r);
+		expect(result).not.toBeNull();
+		// Verify all TABLE_COLUMNS.user_checkins keys are present
+		const expectedKeys = [
+			"user_id",
+			"total_days",
+			"month_days",
+			"streak_days",
+			"reward_total",
+			"last_reward",
+			"mood",
+			"message",
+			"last_checkin_at",
+		];
+		for (const key of expectedKeys) {
+			expect(result).toHaveProperty(key);
+		}
+		expect(Object.keys(result ?? {})).toHaveLength(expectedKeys.length);
 	});
 });
