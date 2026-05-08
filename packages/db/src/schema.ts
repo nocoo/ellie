@@ -40,6 +40,7 @@ export const TABLES = {
 			threads INTEGER NOT NULL DEFAULT 0,
 			posts INTEGER NOT NULL DEFAULT 0,
 			credits INTEGER NOT NULL DEFAULT 0,
+			coins INTEGER NOT NULL DEFAULT 0,
 			signature TEXT NOT NULL DEFAULT '',
 			group_title TEXT NOT NULL DEFAULT '',
 			group_stars INTEGER NOT NULL DEFAULT 0,

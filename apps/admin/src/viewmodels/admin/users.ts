@@ -16,6 +16,7 @@ export interface User {
 	threads: number;
 	posts: number;
 	credits: number;
+	coins: number;
 	regDate: number;
 	lastLogin: number;
 	regIp?: string;
@@ -55,6 +56,7 @@ export interface UserUpdate {
 	status?: number;
 	role?: number;
 	credits?: number;
+	coins?: number;
 }
 
 export interface BanResult {
