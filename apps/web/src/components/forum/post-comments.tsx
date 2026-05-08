@@ -182,7 +182,7 @@ export function PostComments({
 	return (
 		<div className="border-t border-dashed border-border">
 			{/* Header - theme-aware colors */}
-			<div className="flex items-center justify-between px-3 py-1.5 bg-muted/50">
+			<div className="flex items-center justify-between px-3 py-1.5 bg-muted/30">
 				<span className="text-xs text-muted-foreground font-medium flex items-center gap-1">
 					<MessageCircle className="h-3.5 w-3.5" />
 					点评
@@ -199,7 +199,7 @@ export function PostComments({
 			</div>
 
 			{/* Comment list */}
-			<div className="divide-y divide-dashed divide-border">
+			<div className="divide-y divide-border/50">
 				{visibleComments.map((comment) => (
 					<div key={comment.id} className="px-3 py-1.5 flex items-center gap-2 text-xs">
 						<Link href={`/users/${comment.authorId}`} prefetch={false} className="flex-shrink-0">
