@@ -426,4 +426,101 @@ describe("POST /api/v1/checkin", () => {
 		const res = await perform(req, env);
 		expect(res.status).toBe(200);
 	});
+
+	it("returns 409 when concurrent request already wrote checkin (changes=0)", async () => {
+		mockShanghaiTime(12);
+		const row = makeD1CheckinRow({
+			last_checkin_at: todayStartUnix() - 3600, // yesterday — passes early check
+		});
+		const { db, batchCalls } = createMockDb({
+			firstResults: {
+				"SELECT role, status FROM users": { role: 0, status: 0 },
+				"SELECT * FROM user_checkins": row,
+			},
+		});
+		// Override batch to simulate concurrent write: conditional UPDATE was no-op
+		db.batch = vi.fn(async (stmts: unknown[]) => {
+			batchCalls.push(stmts);
+			return [
+				{ success: true, results: [], meta: { changes: 0, last_row_id: 0 } },
+				{ success: true, results: [], meta: { changes: 0, last_row_id: 0 } },
+			];
+		}) as typeof db.batch;
+		const env = makeEnv({ DB: db });
+		const req = await createAuthRequest("POST", "/api/v1/checkin", {
+			mood: "kx",
+			message: "race",
+		});
+
+		const res = await perform(req, env);
+		expect(res.status).toBe(409);
+		const data = (await res.json()) as { error: { code: string } };
+		expect(data.error.code).toBe("CHECKIN_ALREADY_DONE");
+	});
+
+	it("duplicate checkin (early check) does not call batch", async () => {
+		mockShanghaiTime(12);
+		const row = makeD1CheckinRow({
+			last_checkin_at: todayStartUnix() + 3600, // already today
+		});
+		const { db, batchCalls } = createMockDb({
+			firstResults: {
+				"SELECT role, status FROM users": { role: 0, status: 0 },
+				"SELECT * FROM user_checkins": row,
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = await createAuthRequest("POST", "/api/v1/checkin", {
+			mood: "kx",
+			message: "dup",
+		});
+
+		await perform(req, env);
+		expect(batchCalls).toHaveLength(0); // no coins awarded
+	});
+
+	it("uses conditional UPDATE with last_checkin_at guard for returning users", async () => {
+		mockShanghaiTime(12);
+		const row = makeD1CheckinRow({
+			last_checkin_at: todayStartUnix() - 3600,
+		});
+		const { db, calls } = createMockDb({
+			firstResults: {
+				"SELECT role, status FROM users": { role: 0, status: 0 },
+				"SELECT * FROM user_checkins": row,
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = await createAuthRequest("POST", "/api/v1/checkin", {
+			mood: "kx",
+			message: "test",
+		});
+
+		await perform(req, env);
+
+		const updateCall = calls.find((c) => c.sql.includes("UPDATE user_checkins"));
+		expect(updateCall?.sql).toContain("AND last_checkin_at < ?");
+		const coinsCall = calls.find((c) => c.sql.includes("UPDATE users SET coins"));
+		expect(coinsCall?.sql).toContain("AND EXISTS");
+	});
+
+	it("uses INSERT ON CONFLICT DO NOTHING for first-time users", async () => {
+		mockShanghaiTime(12);
+		const { db, calls } = createMockDb({
+			firstResults: {
+				"SELECT role, status FROM users": { role: 0, status: 0 },
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = await createAuthRequest("POST", "/api/v1/checkin", {
+			mood: "kx",
+			message: "first",
+		});
+
+		await perform(req, env);
+
+		const insertCall = calls.find((c) => c.sql.includes("INSERT INTO user_checkins"));
+		expect(insertCall?.sql).toContain("ON CONFLICT");
+		expect(insertCall?.sql).toContain("DO NOTHING");
+	});
 });

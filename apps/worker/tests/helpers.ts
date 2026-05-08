@@ -288,7 +288,11 @@ export function createMockDb(config?: {
 		}),
 		batch: vi.fn(async (stmts: unknown[]) => {
 			batchCalls.push(stmts);
-			return stmts.map(() => ({ success: true, results: [] }));
+			return stmts.map(() => ({
+				success: true,
+				results: [],
+				meta: { changes: 1, last_row_id: 1 },
+			}));
 		}),
 	} as unknown as D1Database;
 

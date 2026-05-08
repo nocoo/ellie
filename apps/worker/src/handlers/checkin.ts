@@ -48,23 +48,55 @@ function toUserCheckin(row: D1CheckinRow): UserCheckin {
 	};
 }
 
-// ─── Helpers ────────────────────────────────────────────────
+// ─── Timezone-safe helpers ──────────────────────────────────
+//
+// Cloudflare Workers run in UTC. A naïve toLocaleString → new Date()
+// round-trip re-parses the formatted string as local (UTC) time,
+// shifting the Shanghai date boundary by 8 hours. We use
+// Intl.DateTimeFormat.formatToParts() to extract Shanghai-local fields
+// directly and compute Unix timestamps via Date.UTC.
 
-/** Get current date/time in Asia/Shanghai. */
-function shanghaiNow(): Date {
-	return new Date(new Date().toLocaleString("en-US", { timeZone: CHECKIN_TIMEZONE }));
+interface ShanghaiParts {
+	year: number;
+	month: number; // 1-12
+	day: number;
+	hour: number; // 0-23
+}
+
+const shanghaiFmt = new Intl.DateTimeFormat("en-US", {
+	timeZone: CHECKIN_TIMEZONE,
+	year: "numeric",
+	month: "numeric",
+	day: "numeric",
+	hour: "numeric",
+	hour12: false,
+});
+
+/** Extract Shanghai year/month/day/hour from a timestamp (defaults to now). */
+function getShanghaiParts(date?: Date): ShanghaiParts {
+	const parts = shanghaiFmt.formatToParts(date ?? new Date());
+	const map: Record<string, number> = {};
+	for (const p of parts) {
+		if (p.type !== "literal") map[p.type] = Number(p.value);
+	}
+	return {
+		year: map.year,
+		month: map.month,
+		day: map.day,
+		// Intl hour12:false may yield 24 for midnight — normalize to 0
+		hour: map.hour === 24 ? 0 : map.hour,
+	};
 }
 
 /** Start-of-day (00:00:00) in Asia/Shanghai as unix seconds. */
-function shanghaiTodayStart(): number {
-	const now = shanghaiNow();
-	now.setHours(0, 0, 0, 0);
-	return Math.floor(now.getTime() / 1000);
+function shanghaiTodayStartUnix(): number {
+	const { year, month, day } = getShanghaiParts();
+	return Math.floor(Date.UTC(year, month - 1, day) / 1000) - 8 * 3600;
 }
 
 /** Check if the current Asia/Shanghai hour is within the checkin window. */
 function isWithinCheckinWindow(): boolean {
-	const hour = shanghaiNow().getHours();
+	const { hour } = getShanghaiParts();
 	return hour >= CHECKIN_HOUR_START && hour < CHECKIN_HOUR_END_EXCLUSIVE;
 }
 
@@ -85,7 +117,7 @@ export const status = withAuth(async (request, env, user) => {
 		.bind(user.userId)
 		.first<D1CheckinRow>();
 
-	const todayStart = shanghaiTodayStart();
+	const todayStart = shanghaiTodayStartUnix();
 	const checkin = row ? toUserCheckin(row) : null;
 	const checkedInToday = checkin ? checkin.lastCheckinAt >= todayStart : false;
 	const level = checkin ? getCheckinLevel(checkin.totalDays) : null;
@@ -154,18 +186,15 @@ export const perform = withAuthVerified(async (request, env, user) => {
 		.bind(user.userId)
 		.first<D1CheckinRow>();
 
-	const todayStart = shanghaiTodayStart();
-	const now = shanghaiNow();
+	const todayStart = shanghaiTodayStartUnix();
 	const nowUnix = Math.floor(Date.now() / 1000);
 
-	// ── Duplicate check ──────────────────────────────────────
+	// ── Early duplicate check (fast path) ────────────────────
 	if (existing && existing.last_checkin_at >= todayStart) {
 		return errorResponse(
 			"CHECKIN_ALREADY_DONE",
 			409,
-			{
-				message: "Already checked in today",
-			},
+			{ message: "Already checked in today" },
 			origin,
 		);
 	}
@@ -186,14 +215,10 @@ export const perform = withAuthVerified(async (request, env, user) => {
 				? existing.streak_days + 1
 				: 1;
 
-		// Month days: reset if different month
-		const lastDate = new Date(
-			new Date(existing.last_checkin_at * 1000).toLocaleString("en-US", {
-				timeZone: CHECKIN_TIMEZONE,
-			}),
-		);
-		const sameMonth =
-			lastDate.getFullYear() === now.getFullYear() && lastDate.getMonth() === now.getMonth();
+		// Month days: reset if different month (Shanghai time)
+		const lastParts = getShanghaiParts(new Date(existing.last_checkin_at * 1000));
+		const nowParts = getShanghaiParts();
+		const sameMonth = lastParts.year === nowParts.year && lastParts.month === nowParts.month;
 		newMonthDays = sameMonth ? existing.month_days + 1 : 1;
 
 		newTotalDays = existing.total_days + 1;
@@ -203,14 +228,19 @@ export const perform = withAuthVerified(async (request, env, user) => {
 		newTotalDays = 1;
 	}
 
-	// ── Transaction: update checkin + award coins ────────────
+	// ── Conditional write: checkin + coins ───────────────────
+	// Both statements use conditions to prevent double-award under
+	// concurrent requests. The UPDATE guards with `last_checkin_at < ?`
+	// and the INSERT uses ON CONFLICT DO NOTHING. The coins UPDATE
+	// only fires if the checkin row was actually written (WHERE EXISTS
+	// checks that last_checkin_at matches our nowUnix).
 	const checkinSql = existing
 		? env.DB.prepare(
 				`UPDATE user_checkins
 				 SET total_days = ?, month_days = ?, streak_days = ?,
 				     reward_total = reward_total + ?, last_reward = ?,
 				     mood = ?, message = ?, last_checkin_at = ?
-				 WHERE user_id = ?`,
+				 WHERE user_id = ? AND last_checkin_at < ?`,
 			).bind(
 				newTotalDays,
 				newMonthDays,
@@ -221,11 +251,13 @@ export const perform = withAuthVerified(async (request, env, user) => {
 				message,
 				nowUnix,
 				user.userId,
+				todayStart,
 			)
 		: env.DB.prepare(
 				`INSERT INTO user_checkins
 				 (user_id, total_days, month_days, streak_days, reward_total, last_reward, mood, message, last_checkin_at)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+				 ON CONFLICT(user_id) DO NOTHING`,
 			).bind(
 				user.userId,
 				newTotalDays,
@@ -238,12 +270,27 @@ export const perform = withAuthVerified(async (request, env, user) => {
 				nowUnix,
 			);
 
-	const coinsSql = env.DB.prepare("UPDATE users SET coins = coins + ? WHERE id = ?").bind(
-		reward,
-		user.userId,
-	);
+	const coinsSql = env.DB.prepare(
+		`UPDATE users SET coins = coins + ?
+		 WHERE id = ? AND EXISTS (
+		   SELECT 1 FROM user_checkins WHERE user_id = ? AND last_checkin_at = ?
+		 )`,
+	).bind(reward, user.userId, user.userId, nowUnix);
 
-	await env.DB.batch([checkinSql, coinsSql]);
+	const results = await env.DB.batch([checkinSql, coinsSql]);
+
+	// ── Concurrent duplicate guard ──────────────────────────
+	// If the conditional write was a no-op (another request already
+	// updated last_checkin_at to >= todayStart), return duplicate error.
+	const checkinChanges = (results[0] as { meta?: { changes?: number } })?.meta?.changes;
+	if (checkinChanges === 0) {
+		return errorResponse(
+			"CHECKIN_ALREADY_DONE",
+			409,
+			{ message: "Already checked in today" },
+			origin,
+		);
+	}
 
 	// ── Build response ───────────────────────────────────────
 	const checkin: UserCheckin = {
