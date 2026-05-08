@@ -229,6 +229,15 @@ describe("parseInsertLine", () => {
 		expect(rows).toHaveLength(1);
 		expect(rows[0]).toEqual(["1", "a"]);
 	});
+
+	test("else-fallback advances past unexpected separators between tuples (tab, newline)", () => {
+		// Skip-loop only consumes ' ' and ',', so a tab or newline between two
+		// tuples must hit the bare `i++` fallback (line 177) and still produce
+		// both rows. Without the fallback the parser would loop forever.
+		const rows = parseInsertLine("INSERT INTO `t` VALUES (1,'a')\t(2,'b')\n(3,'c');", "t");
+		expect(rows).toHaveLength(3);
+		expect(rows.map((r) => r[0])).toEqual(["1", "2", "3"]);
+	});
 });
 
 describe("parseInsertStatement", () => {
