@@ -69,7 +69,7 @@ describe("GET /api/v1/checkin/status", () => {
 		const res = await status(req, env);
 		expect(res.status).toBe(200);
 
-		const data = await res.json();
+		const { data } = await res.json();
 		expect(data.checkin).toBeNull();
 		expect(data.checkedInToday).toBe(false);
 		expect(data.level).toBeNull();
@@ -91,7 +91,7 @@ describe("GET /api/v1/checkin/status", () => {
 		const res = await status(req, env);
 		expect(res.status).toBe(200);
 
-		const data = await res.json();
+		const { data } = await res.json();
 		expect(data.checkin).not.toBeNull();
 		expect(data.checkin.totalDays).toBe(50);
 		expect(data.checkedInToday).toBe(false);
@@ -111,7 +111,7 @@ describe("GET /api/v1/checkin/status", () => {
 		const req = await createAuthRequest("GET", "/api/v1/checkin/status");
 
 		const res = await status(req, env);
-		const data = await res.json();
+		const { data } = await res.json();
 		expect(data.checkedInToday).toBe(true);
 	});
 
@@ -122,7 +122,7 @@ describe("GET /api/v1/checkin/status", () => {
 		const req = await createAuthRequest("GET", "/api/v1/checkin/status");
 
 		const res = await status(req, env);
-		const data = await res.json();
+		const { data } = await res.json();
 		expect(data.withinWindow).toBe(false);
 	});
 
@@ -133,7 +133,7 @@ describe("GET /api/v1/checkin/status", () => {
 		const req = await createAuthRequest("GET", "/api/v1/checkin/status");
 
 		const res = await status(req, env);
-		const data = await res.json();
+		const { data } = await res.json();
 		expect(data.withinWindow).toBe(false);
 	});
 
@@ -144,7 +144,7 @@ describe("GET /api/v1/checkin/status", () => {
 		const req = await createAuthRequest("GET", "/api/v1/checkin/status");
 
 		const res = await status(req, env);
-		const data = await res.json();
+		const { data } = await res.json();
 		expect(data.withinWindow).toBe(true);
 	});
 });
@@ -243,10 +243,12 @@ describe("POST /api/v1/checkin", () => {
 		const res = await perform(req, env);
 		expect(res.status).toBe(200);
 
-		const data = (await res.json()) as {
-			checkin: UserCheckin;
-			reward: number;
-			level: { level: number; label: string } | null;
+		const { data } = (await res.json()) as {
+			data: {
+				checkin: UserCheckin;
+				reward: number;
+				level: { level: number; label: string } | null;
+			};
 		};
 		expect(data.checkin.totalDays).toBe(1);
 		expect(data.checkin.monthDays).toBe(1);
@@ -288,9 +290,11 @@ describe("POST /api/v1/checkin", () => {
 		const res = await perform(req, env);
 		expect(res.status).toBe(200);
 
-		const data = (await res.json()) as {
-			checkin: UserCheckin;
-			reward: number;
+		const { data } = (await res.json()) as {
+			data: {
+				checkin: UserCheckin;
+				reward: number;
+			};
 		};
 		expect(data.checkin.totalDays).toBe(31);
 		expect(data.checkin.monthDays).toBe(8); // same month
@@ -325,7 +329,7 @@ describe("POST /api/v1/checkin", () => {
 		const res = await perform(req, env);
 		expect(res.status).toBe(200);
 
-		const data = (await res.json()) as { checkin: UserCheckin };
+		const { data } = (await res.json()) as { data: { checkin: UserCheckin } };
 		expect(data.checkin.totalDays).toBe(101);
 		expect(data.checkin.streakDays).toBe(1); // streak reset
 	});
@@ -347,7 +351,7 @@ describe("POST /api/v1/checkin", () => {
 		const res = await perform(req, env);
 		expect(res.status).toBe(200);
 
-		const data = (await res.json()) as { checkin: UserCheckin };
+		const { data } = (await res.json()) as { data: { checkin: UserCheckin } };
 		expect(data.checkin.message).toHaveLength(100);
 	});
 
