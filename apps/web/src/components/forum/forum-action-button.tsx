@@ -23,10 +23,10 @@ export function ForumActionButton({
 			type="button"
 			onClick={onClick}
 			disabled={disabled}
-			className={`flex items-center gap-0.5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+			className={`flex items-center gap-0.5 rounded-sm transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed ${
 				variant === "destructive"
 					? "text-destructive/70 hover:text-destructive"
-					: "text-forum-text-muted hover:text-forum-link"
+					: "text-muted-foreground hover:text-foreground"
 			}`}
 		>
 			<Icon className="h-3.5 w-3.5" />

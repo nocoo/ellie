@@ -28,7 +28,7 @@ export function PostAuthorStatusIcon({
 			src={getStaticImageUrl(name)}
 			alt={alt}
 			title={alt}
-			className={className ?? "h-4 w-4 shrink-0"}
+			className={className ?? "h-3.5 w-3.5 shrink-0"}
 		/>
 	);
 }
