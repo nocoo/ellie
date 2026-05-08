@@ -594,6 +594,19 @@ describe("extractPost", () => {
 		const result = extractPost(postRow(), stats);
 		expect(result).not.toBeNull();
 	});
+
+	test("encoding-repair branch is safe when stats is undefined", () => {
+		// Lines 555-557 of extractors.ts: `if (repaired)` then `if (stats)` and
+		// `stats?.onEncodingFailure?.()`. Without this case the no-stats arm of
+		// both narrows is uncovered. The byte sequence below is GBK for
+		// "你好世界" misread as Latin1 — validateEncoding repairs it; we omit
+		// `stats` here so both narrows take their `false` arm.
+		const mojibake = String.fromCharCode(0xc4, 0xe3, 0xba, 0xc3, 0xca, 0xc0, 0xbd, 0xe7);
+		const result = extractPost(postRow({ 0: "42", 8: mojibake }));
+		expect(result).not.toBeNull();
+		expect(result?.id).toBe(42);
+		expect(result?.content).toContain("你好世界");
+	});
 });
 
 // ─── parseAttachmentIndex ─────────────────────────────────────────────────────

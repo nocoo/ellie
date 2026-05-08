@@ -66,6 +66,14 @@ describe("tryRepairGbk", () => {
 		const invalid = String.fromCharCode(0xff, 0xfe, 0x01);
 		expect(tryRepairGbk(invalid)).toBeNull();
 	});
+
+	test("returns null when GBK decode succeeds but yields no CJK (line 67 branch)", () => {
+		// Pure ASCII bytes are valid GBK and decode to ASCII — hasCjkChars()
+		// is false, exercising the explicit `return null` after the decoder
+		// succeeds (encoding.ts:67), not the catch fallback.
+		const asciiOnly = String.fromCharCode(0x41, 0x42, 0x43);
+		expect(tryRepairGbk(asciiOnly)).toBeNull();
+	});
 });
 
 describe("validateEncoding", () => {
