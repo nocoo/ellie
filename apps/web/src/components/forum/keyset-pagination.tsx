@@ -31,7 +31,7 @@ export function KeysetPagination({
 						variant="outline"
 						size="xs"
 						nativeButton={false}
-						render={<Link href={prevHref} />}
+						render={<Link href={prevHref} prefetch={false} />}
 					>
 						← 上一页
 					</Button>
@@ -45,7 +45,7 @@ export function KeysetPagination({
 						variant="outline"
 						size="xs"
 						nativeButton={false}
-						render={<Link href={nextHref} />}
+						render={<Link href={nextHref} prefetch={false} />}
 					>
 						下一页 →
 					</Button>

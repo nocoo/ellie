@@ -222,6 +222,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 					<ForumIcon hasActivity={forum.todayThreads > 0} />
 					<Link
 						href={`/forums/${forum.id}`}
+						prefetch={false}
 						className="text-sm font-bold text-foreground hover:text-destructive transition-colors"
 					>
 						{forum.name}
@@ -266,6 +267,7 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 				<div className="flex items-baseline gap-1.5 flex-wrap">
 					<Link
 						href={`/forums/${forum.id}`}
+						prefetch={false}
 						className="text-sm font-bold text-foreground hover:text-destructive transition-colors"
 					>
 						{forum.name}
