@@ -202,14 +202,22 @@ function printVerification(
 
 	console.log("  ┌─ AFTER execution ─────────────────────────────────────");
 	console.log("  │");
-	console.log("  │  -- Verify totals:");
+	console.log("  │  -- Verify totals (upper bounds from dump; actual ≤ these");
+	console.log("  │  -- if some dump UIDs don't exist in D1 users):");
 	console.log("  │  SELECT COUNT(*) AS total_rows,");
 	console.log("  │         COALESCE(SUM(total_days), 0) AS sum_days,");
 	console.log("  │         COALESCE(SUM(reward_total), 0) AS sum_reward");
 	console.log("  │  FROM user_checkins;");
 	console.log(
-		`  │  -- Expected: rows = ${merged.length}, sum_days = ${totalDaysSum}, sum_reward = ${totalReward}`,
+		`  │  -- Expected: rows ≤ ${merged.length}, sum_days ≤ ${totalDaysSum}, sum_reward ≤ ${totalReward}`,
 	);
+	console.log("  │");
+	console.log("  │  -- Orphan check (must be 0):");
+	console.log("  │  SELECT COUNT(*) AS orphan_rows");
+	console.log("  │  FROM user_checkins c");
+	console.log("  │  LEFT JOIN users u ON u.id = c.user_id");
+	console.log("  │  WHERE u.id IS NULL;");
+	console.log("  │  -- Expected: 0");
 	console.log("  │");
 	console.log("  │  -- Spot-check known users:");
 	console.log(
@@ -262,7 +270,7 @@ function generateChunks(
 
 		for (const r of slice) {
 			lines.push(
-				`INSERT INTO user_checkins (user_id, total_days, month_days, streak_days, reward_total, last_reward, mood, message, last_checkin_at) VALUES (${r.uid}, ${r.totalDays}, ${r.monthDays}, ${r.streakDays}, ${r.rewardTotal}, ${r.lastReward}, '${sqlEscape(r.mood)}', '${sqlEscape(r.message)}', ${r.lastCheckinAt});`,
+				`INSERT INTO user_checkins (user_id, total_days, month_days, streak_days, reward_total, last_reward, mood, message, last_checkin_at) SELECT ${r.uid}, ${r.totalDays}, ${r.monthDays}, ${r.streakDays}, ${r.rewardTotal}, ${r.lastReward}, '${sqlEscape(r.mood)}', '${sqlEscape(r.message)}', ${r.lastCheckinAt} WHERE EXISTS (SELECT 1 FROM users WHERE id = ${r.uid});`,
 			);
 		}
 
@@ -290,6 +298,7 @@ interface Manifest {
 		number,
 		{ totalDays: number; rewardTotal: number; mood: string } | "NOT_IN_DUMP"
 	>;
+	note: string;
 	files: string[];
 }
 
@@ -326,6 +335,7 @@ function buildManifest(
 			sumRewardTotal: merged.reduce((s, r) => s + r.rewardTotal, 0),
 		},
 		spotCheckUids: spotChecks,
+		note: "totalInserts is the dump-side upper bound. Actual rows inserted depend on D1 users intersection (INSERT ... SELECT ... WHERE EXISTS). Orphan rows = 0 guaranteed.",
 		files: chunks.map((c) => c.filename),
 	};
 }
