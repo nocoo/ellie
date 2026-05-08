@@ -1,4 +1,70 @@
 /**
+ * Upsert allowlists — columns updated on ON CONFLICT for each parent table.
+ *
+ * Only Discuz-sourced columns are in DO UPDATE SET; app-owned columns
+ * (avatar_path, email, email_verified_at, email_normalized, email_changed_at,
+ * purged_at, purged_by for users; visibility, moderator_ids, last_poster_id
+ * for forums) are preserved on conflict.
+ */
+
+/** Users columns to update on conflict (Discuz-owned). */
+export const USERS_UPSERT_COLUMNS: string[] = [
+	"username",
+	"password_hash",
+	"password_salt",
+	"avatar",
+	"status",
+	"role",
+	"reg_date",
+	"last_login",
+	"threads",
+	"posts",
+	"credits",
+	"coins",
+	"signature",
+	"group_title",
+	"group_stars",
+	"group_color",
+	"custom_title",
+	"digest_posts",
+	"ol_time",
+	"gender",
+	"birth_year",
+	"birth_month",
+	"birth_day",
+	"reside_province",
+	"reside_city",
+	"graduate_school",
+	"bio",
+	"interest",
+	"qq",
+	"site",
+	"last_activity",
+	"reg_ip",
+	"last_ip",
+	"campus",
+	"has_avatar",
+];
+
+/** Forums columns to update on conflict (Discuz-owned). */
+export const FORUMS_UPSERT_COLUMNS: string[] = [
+	"parent_id",
+	"name",
+	"description",
+	"icon",
+	"display_order",
+	"threads",
+	"posts",
+	"type",
+	"status",
+	"moderators",
+	"last_thread_id",
+	"last_post_at",
+	"last_poster",
+	"last_thread_subject",
+];
+
+/**
  * D1 database schema — DDL statements for creating tables and indexes.
  *
  * Directly from docs/02-database-schema.md. Tables are created in FK dependency

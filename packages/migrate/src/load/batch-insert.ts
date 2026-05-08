@@ -23,6 +23,14 @@ export interface LoaderOptions {
 	progressInterval?: number;
 }
 
+/** Configuration for upsert (ON CONFLICT DO UPDATE). */
+export interface UpsertConfig {
+	/** Column used for ON CONFLICT (e.g., "id" or "user_id"). */
+	conflictColumn: string;
+	/** Columns to update on conflict. Only these are overwritten for existing rows. */
+	updateColumns: string[];
+}
+
 /** A row to insert: record of column name → value. */
 export type RowRecord = Record<string, string | number | null>;
 
@@ -107,6 +115,45 @@ export class BatchLoader {
 			this.onProgress,
 			this.progressInterval,
 		);
+	}
+
+	/**
+	 * Upsert rows into a table using ON CONFLICT DO UPDATE.
+	 *
+	 * For new rows: all TABLE_COLUMNS are inserted (app-owned columns get DEFAULTs).
+	 * For existing rows: only updateColumns are overwritten; other columns are preserved.
+	 *
+	 * @param table - Target table name
+	 * @param rows - Array of row records to upsert
+	 * @param config - Upsert configuration (conflict column + update allowlist)
+	 * @returns Number of rows upserted
+	 */
+	upsertRows(table: TableName, rows: RowRecord[], config: UpsertConfig): number {
+		const columns = TABLE_COLUMNS[table];
+		const placeholders = columns.map(() => "?").join(",");
+		const updateSet = config.updateColumns.map((col) => `${col} = excluded.${col}`).join(", ");
+		const sql = `INSERT INTO ${table} (${columns.join(",")}) VALUES (${placeholders}) ON CONFLICT(${config.conflictColumn}) DO UPDATE SET ${updateSet}`;
+		const stmt = this.db.prepare(sql);
+
+		let upserted = 0;
+
+		for (let i = 0; i < rows.length; i += this.batchSize) {
+			const batch = rows.slice(i, i + this.batchSize);
+			const tx = this.db.transaction(() => {
+				for (const row of batch) {
+					const values = columns.map((col) => row[col] ?? null);
+					stmt.run(...values);
+					upserted++;
+
+					if (this.onProgress && upserted % this.progressInterval === 0) {
+						this.onProgress(table, upserted);
+					}
+				}
+			});
+			tx();
+		}
+
+		return upserted;
 	}
 
 	/** Get the underlying database instance (for queries/verification). */
