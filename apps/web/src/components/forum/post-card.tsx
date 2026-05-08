@@ -201,7 +201,6 @@ export function PostCard({
 							<PostAuthorStatusIcon
 								role={post.author?.role}
 								isThreadAuthor={post.author?.id !== undefined && post.author.id === threadAuthorId}
-								className="h-3.5 w-3.5 shrink-0"
 							/>
 							{formatRelativeTime(post.createdAt)}
 						</span>
