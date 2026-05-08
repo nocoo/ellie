@@ -83,9 +83,9 @@ export function getCheckinLevel(totalDays: number): CheckinLevel | null {
 export const CHECKIN_REWARD_MIN = 20;
 export const CHECKIN_REWARD_MAX = 500;
 
-/** Check-in time window (Asia/Shanghai hours, inclusive). */
-export const CHECKIN_HOUR_START = 4; // 04:00
-export const CHECKIN_HOUR_END = 23; // 23:00
+/** Check-in time window — Asia/Shanghai hours, half-open [START, END). */
+export const CHECKIN_HOUR_START = 4; // inclusive: 04:00 可签
+export const CHECKIN_HOUR_END_EXCLUSIVE = 23; // exclusive: 23:00 起不可签
 
 /** Timezone for the check-in window. */
 export const CHECKIN_TIMEZONE = "Asia/Shanghai";
