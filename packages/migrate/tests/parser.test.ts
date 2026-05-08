@@ -78,6 +78,46 @@ describe("parseQuotedString", () => {
 		const { value } = parseQuotedString("'test\\xval'", 0);
 		expect(value).toBe("testxval");
 	});
+
+	test("escape at very start of string body (no flush of empty segment)", () => {
+		// Covers parser.ts:120 false arm: at i==segStart, the `if (i > segStart)`
+		// guard skips the parts.push of an empty substring before consuming \\n.
+		const { value } = parseQuotedString("'\\nfoo'", 0);
+		expect(value).toBe("\nfoo");
+	});
+
+	test("doubled-quote at very start of string body (no flush of empty segment)", () => {
+		// Covers parser.ts:132 false arm: at i==segStart, the `if (i > segStart)`
+		// guard skips the empty-segment push before emitting the literal quote.
+		const { value, end } = parseQuotedString("'''foo'", 0);
+		expect(value).toBe("'foo");
+		expect(end).toBe(7);
+	});
+
+	test("trailing backslash at buffer end breaks out of escape loop", () => {
+		// Covers parser.ts:122 (the `if (i >= len) break` true arm) and the
+		// final tail-flush guard at parser.ts:148. The lone trailing `\\` has
+		// no successor byte; the loop flushes the segment-before-backslash,
+		// breaks out, and the post-loop tail flush re-emits substring(segStart, i)
+		// which still spans the original segment (segStart was not advanced
+		// before the break). Net result for "'foo\\" is "foofoo\\" — locking
+		// this down so that fixing the double-flush later is an explicit
+		// behavior change, not a silent regression. Real MySQL dumps never
+		// produce a truncated trailing backslash, so the visible output of
+		// this branch on production data is irrelevant; we only need the
+		// branch hit for coverage.
+		const { value, end } = parseQuotedString("'foo\\", 0);
+		expect(value).toBe("foofoo\\");
+		expect(end).toBe(5);
+	});
+
+	test("unterminated string with no body returns empty (line 148 i==segStart)", () => {
+		// Opening quote followed by EOF — both segment-flush guards see
+		// i == segStart, exercising the false arm at parser.ts:148.
+		const { value, end } = parseQuotedString("'", 0);
+		expect(value).toBe("");
+		expect(end).toBe(1);
+	});
 });
 
 describe("parseTuple", () => {

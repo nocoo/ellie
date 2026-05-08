@@ -458,6 +458,12 @@ describe("extractThread", () => {
 		expect(result?.recommends).toBe(-3);
 	});
 
+	test("returns null for corrupt row with tid=0", () => {
+		// Covers extractors.ts:469 true arm — same skip-corrupt contract as
+		// extractPost / extractForum but never exercised on extractThread.
+		expect(extractThread(threadRow({ 0: "0" }))).toBeNull();
+	});
+
 	test("post_table_id maps correctly", () => {
 		const result = extractThread(threadRow({ 2: "3" }));
 		expect(result).not.toBeNull();
