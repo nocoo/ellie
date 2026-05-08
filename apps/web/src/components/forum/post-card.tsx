@@ -160,7 +160,7 @@ export function PostCard({
 				{/* Compact header row */}
 				<div className="flex items-center gap-2 px-3 pt-3 pb-2 border-b border-dashed border-border">
 					{post.author ? (
-						<Link href={`/users/${post.authorId}`}>
+						<Link href={`/users/${post.authorId}`} prefetch={false}>
 							<ForumAvatar
 								userId={post.authorId}
 								userName={post.author.username}
@@ -184,6 +184,7 @@ export function PostCard({
 						{post.author ? (
 							<Link
 								href={`/users/${post.authorId}`}
+								prefetch={false}
 								className="text-sm font-medium text-forum-link hover:underline truncate"
 							>
 								{post.author.username}

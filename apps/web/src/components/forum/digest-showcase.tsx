@@ -67,6 +67,7 @@ export function DigestShowcase({ threads, total }: DigestShowcaseProps) {
 								{badges.length > 0 && <ThreadBadgeList badges={badges} />}
 								<Link
 									href={`/threads/${thread.id}`}
+									prefetch={false}
 									className="min-w-0 flex-1 truncate text-sm text-foreground hover:text-primary transition-colors"
 								>
 									{thread.subject}
@@ -74,6 +75,7 @@ export function DigestShowcase({ threads, total }: DigestShowcaseProps) {
 								<div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground shrink-0">
 									<Link
 										href={`/users/${thread.authorId}`}
+										prefetch={false}
 										className="hover:text-primary transition-colors"
 									>
 										{thread.authorName}

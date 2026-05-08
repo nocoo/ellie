@@ -42,7 +42,7 @@ export function PagePagination({ page, pages, total, basePath, className }: Page
 						variant="outline"
 						size="icon-xs"
 						nativeButton={false}
-						render={<Link href={href(page - 1)} />}
+						render={<Link href={href(page - 1)} prefetch={false} />}
 					>
 						<ChevronLeft />
 					</Button>
@@ -69,7 +69,7 @@ export function PagePagination({ page, pages, total, basePath, className }: Page
 							className={item === page ? "bg-primary text-primary-foreground" : undefined}
 							{...(item === page
 								? { nativeButton: true, disabled: true }
-								: { nativeButton: false, render: <Link href={href(item)} /> })}
+								: { nativeButton: false, render: <Link href={href(item)} prefetch={false} /> })}
 						>
 							{item}
 						</Button>
@@ -82,7 +82,7 @@ export function PagePagination({ page, pages, total, basePath, className }: Page
 						variant="outline"
 						size="icon-xs"
 						nativeButton={false}
-						render={<Link href={href(page + 1)} />}
+						render={<Link href={href(page + 1)} prefetch={false} />}
 					>
 						<ChevronRight />
 					</Button>

@@ -31,7 +31,7 @@ function LastPosterAvatarLink({
 }: { userId: number; userName: string; avatarPath?: string | null }) {
 	if (userId <= 0) return null;
 	return (
-		<Link href={`/users/${userId}`} className="shrink-0">
+		<Link href={`/users/${userId}`} prefetch={false} className="shrink-0">
 			<ForumAvatar userId={userId} userName={userName} avatarPath={avatarPath} shadow />
 		</Link>
 	);
@@ -83,7 +83,11 @@ function SubForumLinks({ forums }: { forums: { id: number; name: string }[] }) {
 			{forums.map((sub, i) => (
 				<span key={sub.id}>
 					{i > 0 && <span className="text-xs text-muted-foreground">, </span>}
-					<Link href={`/forums/${sub.id}`} className="text-xs text-forum-link hover:underline">
+					<Link
+						href={`/forums/${sub.id}`}
+						prefetch={false}
+						className="text-xs text-forum-link hover:underline"
+					>
 						{sub.name}
 					</Link>
 				</span>
@@ -153,6 +157,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 					<div className="flex items-baseline gap-1.5">
 						<Link
 							href={`/forums/${forum.id}`}
+							prefetch={false}
 							className="text-sm font-bold text-foreground hover:text-destructive transition-colors"
 						>
 							{forum.name}
@@ -188,6 +193,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 						<div className="flex flex-col items-end min-w-0">
 							<Link
 								href={`/threads/${forum.lastThreadId}`}
+								prefetch={false}
 								className="relative z-10 text-forum-link hover:underline truncate max-w-[180px]"
 							>
 								{forum.lastThreadSubject || "最新主题"}
@@ -283,6 +289,7 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 						/>
 						<Link
 							href={`/threads/${forum.lastThreadId}`}
+							prefetch={false}
 							className="relative z-10 text-forum-link hover:underline truncate"
 						>
 							{forum.lastThreadSubject || "最新主题"}

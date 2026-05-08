@@ -56,7 +56,7 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 			<div className="hidden sm:flex items-center">
 				{/* Column 1: Avatar + Title (flex) */}
 				<div className="min-w-0 flex-1 flex items-center gap-3 py-2 px-3">
-					<Link href={`/users/${thread.authorId}`} className="shrink-0">
+					<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0">
 						<ForumAvatar
 							userId={thread.authorId}
 							userName={thread.authorName}
@@ -69,6 +69,7 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 							{badges.length > 0 && <ThreadBadgeList badges={badges} />}
 							<Link
 								href={`/threads/${thread.id}`}
+								prefetch={false}
 								className="min-w-0 flex-1 truncate text-sm text-foreground hover:text-primary transition-colors"
 								style={titleStyle}
 							>
@@ -111,7 +112,7 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 			<div className="sm:hidden px-3 py-2">
 				{/* Row 1: Avatar + badges + subject */}
 				<div className="flex items-center gap-2">
-					<Link href={`/users/${thread.authorId}`} className="shrink-0">
+					<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0">
 						<ForumAvatar
 							userId={thread.authorId}
 							userName={thread.authorName}
@@ -124,6 +125,7 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 						</div>
 						<Link
 							href={`/threads/${thread.id}`}
+							prefetch={false}
 							className="block truncate text-sm text-foreground hover:text-primary transition-colors"
 							style={titleStyle}
 						>

@@ -127,7 +127,11 @@ export function PostSidebar({
 					{/* UID */}
 					<div className="flex items-baseline justify-between gap-1">
 						<span className="shrink-0 text-forum-text-muted">UID:</span>
-						<Link href={`/users/${author.id}`} className="text-forum-link hover:underline">
+						<Link
+							href={`/users/${author.id}`}
+							prefetch={false}
+							className="text-forum-link hover:underline"
+						>
 							{author.id}
 						</Link>
 					</div>
@@ -181,6 +185,7 @@ export function PostSidebar({
 				<div className="flex items-center gap-3 mt-1 self-start">
 					<Link
 						href={`/messages?to=${author.id}`}
+						prefetch={false}
 						className="flex items-center gap-1 text-xs text-forum-link hover:underline"
 					>
 						<Mail className="h-3.5 w-3.5" />

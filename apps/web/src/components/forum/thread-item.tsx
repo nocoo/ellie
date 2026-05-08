@@ -26,7 +26,7 @@ export function ThreadItem({ item }: ThreadItemProps) {
 			<div className="hidden sm:flex items-center">
 				{/* Avatar column */}
 				<div className="flex items-center justify-center w-[36px] shrink-0 pl-2">
-					<Link href={`/users/${thread.authorId}`} className="shrink-0">
+					<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0">
 						<ForumAvatar
 							userId={thread.authorId}
 							userName={thread.authorName}
@@ -41,6 +41,7 @@ export function ThreadItem({ item }: ThreadItemProps) {
 					{badges.length > 0 && <ThreadBadgeList badges={badges} />}
 					<Link
 						href={`/threads/${thread.id}`}
+						prefetch={false}
 						className="min-w-0 flex-1 truncate text-sm text-foreground hover:text-primary transition-colors"
 						style={highlightStyle(hl)}
 					>
@@ -80,7 +81,7 @@ export function ThreadItem({ item }: ThreadItemProps) {
 			<div className="sm:hidden px-3 py-2">
 				{/* Row 1: Avatar + badges + subject */}
 				<div className="flex items-center gap-2">
-					<Link href={`/users/${thread.authorId}`} className="shrink-0">
+					<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0">
 						<ForumAvatar
 							userId={thread.authorId}
 							userName={thread.authorName}
@@ -93,6 +94,7 @@ export function ThreadItem({ item }: ThreadItemProps) {
 						</div>
 						<Link
 							href={`/threads/${thread.id}`}
+							prefetch={false}
 							className="block truncate text-sm text-foreground hover:text-primary transition-colors"
 							style={highlightStyle(hl)}
 						>
