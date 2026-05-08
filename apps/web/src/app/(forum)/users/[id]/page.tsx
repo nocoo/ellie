@@ -137,7 +137,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 				<Card size="sm">
 					<CardContent className="text-center">
 						<p className="text-lg font-semibold text-foreground">
-							{formatCompactNumber(data.user.coins)}
+							{formatCompactNumber(data.user.coins ?? 0)}
 						</p>
 						<p className="mt-1 text-xs text-muted-foreground">同钱</p>
 					</CardContent>
