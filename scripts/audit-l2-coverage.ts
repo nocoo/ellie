@@ -26,13 +26,19 @@
  *   bun run scripts/audit-l2-coverage.ts --write    # rewrite the markdown
  *   bun run scripts/audit-l2-coverage.ts --strict-coverage   # gate mode
  *
- * The parser is intentionally restrictive: it only accepts the exact
- * `if (path === "...")` and `if (path.match(/.../))` shapes that
- * apps/worker/src/index.ts uses today, plus the same-line
- * `request.method === "..."` check. Anything else (e.g. method-less guards,
- * 405 fallbacks) is ignored — those are not routes. If the router file
- * adopts a new shape, this script will under-count and the diff will fail
- * review; that is the desired loud failure.
+ * The parser is intentionally restrictive: it only accepts the three exact
+ * shapes that apps/worker/src/index.ts uses today, plus the same-line
+ * `request.method === "..."` check:
+ *
+ *   Shape A: if (path === "<literal>" && request.method === "<METHOD>") {
+ *   Shape B: if (path.match(/<regex>/) && request.method === "<METHOD>") {
+ *   Shape C: const m = path.match(/<regex>/);
+ *            if (m && request.method === "<METHOD>") {
+ *
+ * Anything else (e.g. method-less guards, 405 fallbacks) is ignored — those
+ * are not routes. If the router file adopts a new shape, this script will
+ * under-count and the diff will fail review; that is the desired loud
+ * failure.
  */
 
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -433,12 +439,14 @@ function renderMarkdown(rep: CoverageReport): string {
 	lines.push("");
 	lines.push("## 2. Parser contract");
 	lines.push("");
-	lines.push("Routes are extracted from `apps/worker/src/index.ts` using two");
+	lines.push("Routes are extracted from `apps/worker/src/index.ts` using three");
 	lines.push("regex shapes:");
 	lines.push("");
 	lines.push("```");
 	lines.push('if (path === "<literal>" && request.method === "<METHOD>") {');
 	lines.push('if (path.match(/<regex>/) && request.method === "<METHOD>") {');
+	lines.push("const m = path.match(/<regex>/);");
+	lines.push('if (m && request.method === "<METHOD>") {');
 	lines.push("```");
 	lines.push("");
 	lines.push("Method-less guards (e.g. CORS preflight `OPTIONS`, the");

@@ -20,12 +20,14 @@ Last audit: **2026-05-09**
 
 ## 2. Parser contract
 
-Routes are extracted from `apps/worker/src/index.ts` using two
+Routes are extracted from `apps/worker/src/index.ts` using three
 regex shapes:
 
 ```
 if (path === "<literal>" && request.method === "<METHOD>") {
 if (path.match(/<regex>/) && request.method === "<METHOD>") {
+const m = path.match(/<regex>/);
+if (m && request.method === "<METHOD>") {
 ```
 
 Method-less guards (e.g. CORS preflight `OPTIONS`, the
