@@ -94,10 +94,10 @@ Notes:
 
 ## 3. Single runner: Vitest only (skip-rule re-evaluation)
 
-### 3.1 Pre-Phase-1 state
+### 3.1 Pre-Phase-1 state (historical)
 
-`scripts/run-tests.sh` runs Vitest **and** three separate `bun test` invocations
-because of these files:
+Before Phase 2A, `scripts/run-tests.sh` ran Vitest **and** three separate
+`bun test` invocations because of these files:
 
 | File                                                | Bun-only API used                            |
 |-----------------------------------------------------|----------------------------------------------|
@@ -105,54 +105,50 @@ because of these files:
 | `tests/unit/verify.test.ts`                         | `bun:sqlite`                                 |
 | `tests/unit/migration-0029-schema.test.ts`          | `bun:sqlite`                                 |
 | `apps/worker/tests/unit/lib/dove.test.ts`           | `globalThis.fetch = mock(…)` (process-global)|
-| `apps/worker/tests/unit/lib/email-verify.test.ts`   | `globalThis.fetch` stub                      |
+| `apps/worker/tests/unit/lib/email-verify.test.ts`   | `bun:test` import (no mocks)                 |
 | `apps/worker/tests/unit/handlers/email.test.ts`     | `mock.module(...)`                           |
 
-The three worker files are excluded from the Vitest v8 coverage denominator in
-`apps/worker/vitest.config.ts` (else they would count as 0% covered).
+The three worker files were excluded from the Vitest v8 coverage denominator
+in `apps/worker/vitest.config.ts` so they would not count as 0% covered.
 
-### 3.2 Frozen decision (Phase 1A)
+### 3.2 Phase 2A — landed
 
-**Worker `dove` / `email-verify` / `handlers/email`**: **migrate back to Vitest**
-(Phase 2A), then drop the v8-coverage `exclude` entries and remove these
-filenames from `scripts/run-tests.sh`'s `bun test` lists. Mock translation:
+**Worker `dove` / `email-verify` / `handlers/email`**: migrated to Vitest
+(commits `e87f604` + `fe64e27`). The v8-coverage `exclude` entries and the
+worker `bun test` lane were removed; only `**/*.d.ts` remains in the worker
+coverage exclude list. Mock translation that was applied:
 
 | bun:test API                          | Vitest equivalent                                       |
 |---------------------------------------|---------------------------------------------------------|
-| `mock.module("…", () => ({ … }))`     | `vi.mock("…", () => ({ … }))` (or `vi.doMock` for in-test override) |
+| `mock.module("…", () => ({ … }))`     | top-level `vi.mock("…", () => ({ … }))`; share state via `vi.hoisted()` |
 | `globalThis.fetch = mock(...)`        | `vi.spyOn(globalThis, "fetch").mockImplementation(...)` with `afterEach(() => vi.restoreAllMocks())` |
 | `mock(() => {})` (anonymous)          | `vi.fn(() => {})`                                       |
 
-Fallback if migration uncovers a runtime block (e.g. WHATWG fetch quirk):
-keep the file under `bun test` **and** generate an lcov report from `bun test
---coverage`, then merge with Vitest lcov via `lcov` CLI in
-`scripts/coverage-merge.sh`. The merged report becomes the authoritative
-denominator that the G1 gate enforces. This is the **B plan**, not the default.
+Post-migration baseline (worker package): stmt 95.52 / branch 90.46 / func 97 /
+line 96.85 — over the 95/90/95/95 floor.
 
 **Migration-0029 / loader / verify** stay under `bun test` permanently because
 they invoke `bun:sqlite` directly. They are **not** in any Vitest coverage
 denominator (they exercise `packages/migrate` scripts that are themselves
-excluded from `packages/migrate/vitest.config.ts`).
+excluded from `packages/migrate/vitest.config.ts`). The bun lane in
+`scripts/run-tests.sh` and `.husky/pre-push` now runs only these three files.
 
-### 3.3 `describe.skipIf` re-evaluation
+### 3.3 Integration `describe.skipIf` — landed
 
 Files: `apps/worker/tests/unit/integration/online-tracking.test.ts`,
 `apps/worker/tests/unit/integration/router.test.ts`.
 
-Current guard: `describe.skipIf(!canRunIntegration)` where `canRunIntegration`
-calls `require.resolve("@ellie/types")`. In monorepo root this never skips, so
-the tests **do run** in baseline today. The guard exists only for isolated
-worktrees lacking deps.
-
-Decision: **replace with explicit env gate** in Phase 2A.
+Phase 2A replaced the `require.resolve("@ellie/types")` side-channel with an
+explicit env gate:
 
 ```ts
-const canRunIntegration = process.env.ELLIE_INTEGRATION === "1"
-  || process.env.ELLIE_INTEGRATION === undefined; // default-on at monorepo root
+const canRunIntegration =
+  process.env.ELLIE_INTEGRATION === undefined
+  || process.env.ELLIE_INTEGRATION === "1";
 ```
 
-A truly isolated worktree opts out via `ELLIE_INTEGRATION=0`. This removes the
-`require.resolve` side-channel and makes CI behavior deterministic.
+Default-on at the monorepo root; an isolated worktree opts out with
+`ELLIE_INTEGRATION=0`. CI behavior is now deterministic.
 
 ### 3.4 Playwright `test.skip` calls (out-of-scope for L1)
 
@@ -190,13 +186,13 @@ files.**
 Captured for cross-reference; L2 100% scope is owned by `docs/18-l2-coverage-matrix.md`
 (Phase 1B), G2 by `osv-scanner.toml` and gitleaks defaults.
 
-| Gate    | Command                                        | Baseline result (2026-05-09) |
-|---------|------------------------------------------------|------------------------------|
-| L1      | `bun run test`                                 | 4493 tests passing           |
-| L1 cov  | `bun run test:coverage`                        | All 7 packages over §2.3 floors |
-| L2      | `bun run test:l2`                              | 258 tests passing             |
-| G1      | `bun run typecheck` + `bun run lint`           | both clean                   |
-| G2a     | `gitleaks detect --no-banner`                  | no leaks (1397 commits)       |
+| Gate    | Command                                        | Baseline result (2026-05-09 post-Phase-2A) |
+|---------|------------------------------------------------|--------------------------------------------|
+| L1      | `bun run test`                                 | 4456 vitest tests + 37 bun tests passing   |
+| L1 cov  | `bun run test:coverage`                        | All 7 packages over §2.3 floors             |
+| L2      | `bun run test:l2`                              | 258 tests passing                           |
+| G1      | `bun run typecheck` + `bun run lint`           | both clean                                  |
+| G2a     | `gitleaks detect --no-banner`                  | no leaks (1397 commits)                     |
 | G2b     | `osv-scanner scan --lockfile bun.lock`         | no issues (10 filtered, see `osv-scanner.toml`) |
 
 ---
