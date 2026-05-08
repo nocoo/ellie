@@ -95,7 +95,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 			<ProfileHero user={data.user} />
 
 			{/* Stats */}
-			<div className="grid grid-cols-4 gap-2">
+			<div className="grid grid-cols-5 gap-2">
 				<Link href={`/users/${userId}?tab=threads`}>
 					<Card size="sm" className="hover:border-primary/50 transition-colors cursor-pointer">
 						<CardContent className="text-center">
