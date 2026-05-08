@@ -3,7 +3,7 @@
 // concurrently with apps/worker/tests/unit/lib/dove.test.ts which DOES stub
 // globalThis.fetch.
 
-import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Module-level dove stub. Behavior is encoded in `env.DOVE_PROJECT_ID` so each
 // test (which owns its own env) gets isolated behavior under --concurrent.
@@ -16,9 +16,14 @@ interface RecordedDoveInput {
 	idempotencyKey: string;
 	variables: Record<string, string>;
 }
-const doveCallsByEnv = new WeakMap<object, number>();
-const lastDoveInputByEnv = new WeakMap<object, RecordedDoveInput>();
-mock.module("../../../src/lib/dove", () => ({
+// vi.mock is hoisted above imports, so the factory cannot close over module-
+// level identifiers. Use vi.hoisted() to share the WeakMaps with the rest of
+// this file.
+const { doveCallsByEnv, lastDoveInputByEnv } = vi.hoisted(() => ({
+	doveCallsByEnv: new WeakMap<object, number>(),
+	lastDoveInputByEnv: new WeakMap<object, RecordedDoveInput>(),
+}));
+vi.mock("../../../src/lib/dove", () => ({
 	sendDoveEmail: async (env: { DOVE_PROJECT_ID?: string }, input: RecordedDoveInput) => {
 		doveCallsByEnv.set(env, (doveCallsByEnv.get(env) ?? 0) + 1);
 		lastDoveInputByEnv.set(env, input);
@@ -304,7 +309,7 @@ describe("requestCode (POST /api/v1/users/me/email/request-code)", () => {
 			dbUser: { role: 0, status: 0, email_verified_at: 0 },
 		});
 		stubDoveFail(env);
-		const warnSpy = mock(() => {});
+		const warnSpy = vi.fn(() => {});
 		const origWarn = console.warn;
 		console.warn = warnSpy as unknown as typeof console.warn;
 		try {

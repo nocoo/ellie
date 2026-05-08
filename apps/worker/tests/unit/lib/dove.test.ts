@@ -1,7 +1,7 @@
 // Unit tests for the dove client (docs/17 §8).
 // Stubs global fetch — never makes a real network call.
 
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { sendDoveEmail } from "../../../src/lib/dove";
 import type { Env } from "../../../src/lib/env";
 import { createMockKV } from "../../helpers";
@@ -22,10 +22,8 @@ function baseEnv(overrides: Partial<Env> = {}): Env {
 	};
 }
 
-const originalFetch = globalThis.fetch;
-
 afterEach(() => {
-	globalThis.fetch = originalFetch;
+	vi.restoreAllMocks();
 });
 
 describe("sendDoveEmail — config validation", () => {
@@ -67,10 +65,10 @@ describe("sendDoveEmail — config validation", () => {
 describe("sendDoveEmail — request shape and result mapping", () => {
 	it("posts the canonical payload with bearer auth", async () => {
 		let captured: { url: string; init: RequestInit } | null = null;
-		globalThis.fetch = mock(async (url: string, init?: RequestInit) => {
+		vi.spyOn(globalThis, "fetch").mockImplementation((async (url: string, init?: RequestInit) => {
 			captured = { url, init: init ?? {} };
 			return new Response(JSON.stringify({ ok: true }), { status: 200 });
-		}) as unknown as typeof fetch;
+		}) as unknown as typeof fetch);
 
 		const env = baseEnv();
 		const res = await sendDoveEmail(env, {
@@ -97,10 +95,10 @@ describe("sendDoveEmail — request shape and result mapping", () => {
 
 	it("strips trailing slash on DOVE_BASE_URL", async () => {
 		let url = "";
-		globalThis.fetch = mock(async (u: string) => {
+		vi.spyOn(globalThis, "fetch").mockImplementation((async (u: string) => {
 			url = u;
 			return new Response("{}", { status: 200 });
-		}) as unknown as typeof fetch;
+		}) as unknown as typeof fetch);
 
 		const env = baseEnv({ DOVE_BASE_URL: "https://dove.example.com//" });
 		await sendDoveEmail(env, {
@@ -113,12 +111,10 @@ describe("sendDoveEmail — request shape and result mapping", () => {
 	});
 
 	it("surfaces upstream error.code on 4xx with structured body", async () => {
-		globalThis.fetch = mock(
-			async () =>
-				new Response(JSON.stringify({ error: { code: "recipient_not_found" } }), {
-					status: 404,
-				}),
-		) as unknown as typeof fetch;
+		vi.spyOn(globalThis, "fetch").mockImplementation((async () =>
+			new Response(JSON.stringify({ error: { code: "recipient_not_found" } }), {
+				status: 404,
+			})) as unknown as typeof fetch);
 
 		const env = baseEnv();
 		const res = await sendDoveEmail(env, {
@@ -131,9 +127,8 @@ describe("sendDoveEmail — request shape and result mapping", () => {
 	});
 
 	it("falls back to http_<status> when body is not JSON", async () => {
-		globalThis.fetch = mock(
-			async () => new Response("oops", { status: 502 }),
-		) as unknown as typeof fetch;
+		vi.spyOn(globalThis, "fetch").mockImplementation((async () =>
+			new Response("oops", { status: 502 })) as unknown as typeof fetch);
 
 		const env = baseEnv();
 		const res = await sendDoveEmail(env, {
@@ -146,9 +141,9 @@ describe("sendDoveEmail — request shape and result mapping", () => {
 	});
 
 	it("returns transport_error when fetch throws", async () => {
-		globalThis.fetch = mock(async () => {
+		vi.spyOn(globalThis, "fetch").mockImplementation((async () => {
 			throw new Error("boom");
-		}) as unknown as typeof fetch;
+		}) as unknown as typeof fetch);
 
 		const env = baseEnv();
 		const res = await sendDoveEmail(env, {
@@ -165,11 +160,11 @@ describe("sendDoveEmail — request shape and result mapping", () => {
 	});
 
 	it("returns timeout when fetch throws TimeoutError", async () => {
-		globalThis.fetch = mock(async () => {
+		vi.spyOn(globalThis, "fetch").mockImplementation((async () => {
 			const e = new Error("aborted");
 			e.name = "TimeoutError";
 			throw e;
-		}) as unknown as typeof fetch;
+		}) as unknown as typeof fetch);
 
 		const env = baseEnv();
 		const res = await sendDoveEmail(env, {
