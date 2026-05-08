@@ -171,11 +171,11 @@ export function PostCard({
 								userName={post.author.username}
 								avatarPath={post.author.avatarPath}
 								size="md"
-								className="shadow-[0_0_2px_rgba(0,0,0,0.15)]"
+								className="shadow-[0_0_2px_rgba(0,0,0,0.15)] dark:shadow-[0_0_2px_rgba(255,255,255,0.10)]"
 							/>
 						</Link>
 					) : (
-						<Avatar className="h-8 w-8 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]">
+						<Avatar className="h-8 w-8 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)] dark:shadow-[0_0_2px_rgba(255,255,255,0.10)]">
 							<AvatarFallback className="text-xs rounded-sm bg-muted p-0 overflow-hidden">
 								<img
 									src={getStaticImageUrl("tavatar.gif")}
