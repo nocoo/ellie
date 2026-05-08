@@ -32,7 +32,7 @@ There are two independent migration codebases:
 
 | Directory | Entry point | Status |
 |-----------|------------|--------|
-| `packages/migrate/` | `bun run migrate` → `bun run --filter migrate start` | **Canonical.** 35 user columns, campus from profile.field1, coins, usergroup, post_comments, forum moderators. Full ETL pipeline. |
+| `packages/migrate/` | `bun run migrate` → `bun run --filter migrate start` | **Canonical.** 36 user columns (incl. campus from profile.field1), coins, usergroup, post_comments, forum moderators. Full ETL pipeline. |
 | `scripts/migrate/` | `bun run scripts/migrate/index.ts` (manual) | **Frozen legacy.** 13 user columns, no profile/campus/coins. Reference only — do not modify. |
 
 **All code changes in this plan target `packages/migrate/`.**
@@ -41,15 +41,23 @@ The `scripts/migrate/` directory will not be modified. If any existing scripts
 (e.g. `scripts/migrate/import-v3.sh`) reference the old path, they should be
 treated as legacy and not used for this import cycle.
 
-### packages/migrate schema.ts vs D1 actual — already aligned
+### packages/migrate schema.ts vs D1 actual — status
 
-`packages/migrate/src/load/schema.ts` already has 35 user columns matching
-the D1 schema's Discuz-owned columns. The only D1 columns NOT in schema.ts
-are app-owned columns added by later migrations:
+`packages/migrate/src/load/schema.ts` currently has 36 user columns matching
+D1's Discuz-owned columns. The remaining D1 columns fall into two categories:
 
-| D1 Column | Migration | Why omitted from schema.ts |
-|-----------|----------|---------------------------|
-| has_avatar | 0026 | App-derived (set from avatarstatus during import) |
+#### To add in this import cycle (source-derived)
+
+| D1 Column | Migration | Source | Action |
+|-----------|----------|--------|--------|
+| has_avatar | 0026 | Derived: `1` if `pre_common_member.avatarstatus > 0`, else `0` | Add to `packages/migrate` TABLE_DDL, TABLE_COLUMNS, extractUser(). Does NOT affect `avatar_path` (separate app-owned column). |
+
+This brings the user column count to **37** after implementation.
+
+#### Intentionally excluded (app-owned, no Discuz source)
+
+| D1 Column | Migration | Why excluded |
+|-----------|----------|-------------|
 | avatar_path | 0027 | App-owned (R2 path, set by app upload flow) |
 | purged_at | 0030 | App-owned (admin purge timestamp) |
 | purged_by | 0030 | App-owned (admin who purged) |
@@ -57,8 +65,8 @@ are app-owned columns added by later migrations:
 | moderator_ids | 0000 (forums) | App-derived (populated by populate-moderator-ids.ts) |
 | last_poster_id | 0000 (forums/threads) | App-derived (computed post-import) |
 
-These columns are intentionally excluded — they use SQLite DEFAULTs on INSERT
-and are PRESERVED on upsert (not in DO UPDATE SET).
+These columns use SQLite DEFAULTs on INSERT and are PRESERVED on upsert
+(not in DO UPDATE SET).
 
 ### Column mapping reference (users)
 
@@ -279,7 +287,7 @@ Test DB: `tongjinet-db-test` — do NOT touch production until dry-run passes on
 ## Execution Order
 
 1. **Backup D1** → `reference/d1-backups/2026-05-09/`
-2. **Add upsert mode to `packages/migrate`** — modify `packages/migrate/src/load/batch-insert.ts` to support ON CONFLICT DO UPDATE SET for users/forums/checkins (currently only does plain INSERT)
+2. **Add `has_avatar` + upsert mode to `packages/migrate`** — add `has_avatar` to users DDL/TABLE_COLUMNS/extractUser() (derived from avatarstatus), then modify `packages/migrate/src/load/batch-insert.ts` to support ON CONFLICT DO UPDATE SET for users/forums/checkins (currently only does plain INSERT)
 3. **Add checkin extractor to `packages/migrate`** — parse pre_dsu_paulsign/paulsign2 dumps
 4. **Local dry-run** — `bun run migrate` with today's dumps, run validations
 5. **Upsert users** — via wrangler d1 execute or batch SQL
