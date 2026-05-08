@@ -17,7 +17,10 @@ interface DigestHeroProps {
 
 export function DigestHero({ stats, authorCount }: DigestHeroProps) {
 	return (
-		<Card size="sm" className="bg-gradient-to-br from-success/5 via-background to-amber-500/5">
+		<Card
+			size="sm"
+			className="bg-gradient-to-br from-forum-accent/5 via-background to-forum-accent/[0.02]"
+		>
 			<CardContent>
 				<div className="flex flex-col sm:flex-row sm:items-center gap-4">
 					{/* Title and atmosphere */}

@@ -116,7 +116,7 @@ function MessagesHeaderSection({
 	isMarkingAllRead: boolean;
 }) {
 	return (
-		<div className="rounded-sm border border-border bg-gradient-to-br from-cyan-500/5 via-background to-teal-500/5 p-4">
+		<div className="rounded-sm border border-border bg-gradient-to-br from-primary/5 via-background to-primary/[0.02] p-4">
 			<div className="flex items-start gap-4">
 				{/* Icon and title */}
 				<div className="flex-1 min-w-0">
