@@ -19,7 +19,13 @@ export async function register() {
 	// Skip during build (placeholder values) or when env is missing
 	if (!workerUrl || !apiKey || workerUrl.includes("placeholder")) return;
 
-	const pingUrl = `${workerUrl.replace(/\/+$/, "")}/api/v1/settings?prefix=features.access.`;
+	const base = workerUrl.replace(/\/+$/, "");
+
+	// Ping the real slow endpoint (/api/v1/forums) to keep both the Worker
+	// fetch isolate AND the D1 connection/query-plan cache warm. Pinging a
+	// lightweight path like /api/v1/settings only warms the isolate — D1
+	// still cold-starts on the first forums request (observed 2.5s).
+	const pingUrl = `${base}/api/v1/forums`;
 
 	async function ping() {
 		try {
