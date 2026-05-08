@@ -4,8 +4,12 @@
 if [ -z "$_ELLIE_HOOK_BASH" ]; then export _ELLIE_HOOK_BASH=1; exec bash "$0" "$@"; fi
 
 #
-# Phase 1 (parallel): typecheck + lint + unit tests + bun tests
-# Phase 2 (parallel): L2 API E2E + osv-scanner + gitleaks + Rust (conditional)
+# Phase 1 (parallel): typecheck + lint + L1 coverage + bun tests  (= gate:g1 + bun lane)
+# Phase 2 (parallel): L2 API E2E + osv-scanner + gitleaks + Rust (conditional)  (= L2 + gate:g2)
+#
+# Stages match the gate:g1 / gate:full definitions in package.json. We keep
+# them inlined here only to preserve parallel execution; semantics are the
+# same as `bun run gate:g1 && bun run test:l2 && bun run gate:g2`.
 #
 # L2 must run after Phase 1 passes (compile errors → broken Worker).
 
@@ -36,7 +40,7 @@ wait_stage() {
 # ─── Phase 1: G1 + L1 (parallel) ─────────────────────────────────
 run_bg typecheck  bun run typecheck
 run_bg lint       bun run lint
-run_bg unit       bunx vitest run
+run_bg unit       bun run test:coverage
 run_bg bun_tests  bun test \
   tests/unit/loader.test.ts \
   tests/unit/verify.test.ts \

@@ -3,7 +3,13 @@
 # Husky runs hooks via "sh -e"; re-exec under bash for associative syntax.
 if [ -z "$_ELLIE_HOOK_BASH" ]; then export _ELLIE_HOOK_BASH=1; exec bash "$0" "$@"; fi
 
-# Stages: lint-staged + unit coverage + L2 + gitleaks + typecheck + rust (conditional)
+# Stages: lint-staged + L1 coverage + L2 + gitleaks + typecheck + rust (conditional)
+#
+# Semantically a parallel realization of `bun run gate:g1` (typecheck + lint
+# via lint-staged + L1 coverage) plus L2 + the staged-only gitleaks scan that
+# pre-commit needs. Pre-push covers the full repo gitleaks + osv-scanner.
+# When changing the gate definition update both .husky/pre-commit/pre-push
+# and the gate:* scripts in package.json so semantics stay in lockstep.
 
 set -o pipefail
 
