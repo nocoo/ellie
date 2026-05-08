@@ -19,12 +19,12 @@
  *   # Step 2 — generate with custom chunk size
  *   bun run scripts/backfill-coins.ts --generate --chunk-size 10000
  *
- * Output goes to reference/generated/backfill-coins-YYYYMMDD-HHMMSS/
+ * Output goes to reference/generated/backfill-coins-YYYYMMDDHHMMSSmmm/
  * (gitignored via reference/). Each run creates a unique subdirectory
  * with chunk SQL files and a manifest.json for auditability.
  *
  * Execute each chunk against production D1:
- *   DIR=reference/generated/backfill-coins-YYYYMMDD-HHMMSS
+ *   DIR=reference/generated/backfill-coins-YYYYMMDDHHMMSSmmm
  *   for f in $DIR/backfill-coins-*.sql; do
  *     echo "Executing $f ..."
  *     npx wrangler d1 execute tongjinet-db --remote \
@@ -301,9 +301,20 @@ try {
 	printVerification(entries);
 
 	if (mode === "generate") {
-		// Timestamped subdirectory for auditability — never collides with prior runs
+		// Timestamped subdirectory for auditability — never collides with prior runs.
+		// Uses millisecond precision to avoid same-second collisions.
 		const now = new Date();
-		const ts = now.toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
+		const pad = (n: number, w = 2) => String(n).padStart(w, "0");
+		const ts = [
+			now.getFullYear(),
+			pad(now.getMonth() + 1),
+			pad(now.getDate()),
+			"-",
+			pad(now.getHours()),
+			pad(now.getMinutes()),
+			pad(now.getSeconds()),
+			pad(now.getMilliseconds(), 3),
+		].join("");
 		const outDir = `${OUTPUT_ROOT}/backfill-coins-${ts}`;
 		mkdirSync(outDir, { recursive: true });
 
