@@ -195,9 +195,9 @@ export function PostCard({
 								{post.author.username}
 							</Link>
 						) : (
-							<span className="text-sm font-medium text-forum-text-muted truncate">未知用户</span>
+							<span className="text-sm font-medium text-muted-foreground truncate">未知用户</span>
 						)}
-						<span className="text-2xs text-forum-text-muted flex items-center gap-1">
+						<span className="text-2xs text-muted-foreground flex items-center gap-1">
 							<PostAuthorStatusIcon
 								role={post.author?.role}
 								isThreadAuthor={post.author?.id !== undefined && post.author.id === threadAuthorId}
