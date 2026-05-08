@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { FORUMS_UPSERT_COLUMNS, TABLE_COLUMNS, USERS_UPSERT_COLUMNS } from "../src/load/schema";
+import { buildInsertSql, buildUpsertSql } from "../src/load/sql-builder";
 
 // ─── Upsert allowlist tests ──────────────────────────────────────────────────
 // These verify that the upsert allowlists are correct and consistent with
@@ -131,5 +132,128 @@ describe("TABLE_COLUMNS.users completeness", () => {
 
 	test("includes campus", () => {
 		expect(TABLE_COLUMNS.users).toContain("campus");
+	});
+});
+
+// ─── SQL builder tests ──────────────────────────────────────────────────────
+// These verify that buildUpsertSql produces correct ON CONFLICT SQL and that
+// the generated SET clause exactly follows the allowlist.
+
+describe("buildUpsertSql", () => {
+	test("users SQL uses ON CONFLICT(id) DO UPDATE SET", () => {
+		const sql = buildUpsertSql("users", TABLE_COLUMNS.users, {
+			conflictColumn: "id",
+			updateColumns: USERS_UPSERT_COLUMNS,
+		});
+		expect(sql).toContain("ON CONFLICT(id) DO UPDATE SET");
+	});
+
+	test("users SET clause includes Discuz-owned columns", () => {
+		const sql = buildUpsertSql("users", TABLE_COLUMNS.users, {
+			conflictColumn: "id",
+			updateColumns: USERS_UPSERT_COLUMNS,
+		});
+		expect(sql).toContain("has_avatar = excluded.has_avatar");
+		expect(sql).toContain("campus = excluded.campus");
+		expect(sql).toContain("coins = excluded.coins");
+		expect(sql).toContain("username = excluded.username");
+		expect(sql).toContain("password_hash = excluded.password_hash");
+	});
+
+	test("users SET clause excludes id and app-owned columns", () => {
+		const sql = buildUpsertSql("users", TABLE_COLUMNS.users, {
+			conflictColumn: "id",
+			updateColumns: USERS_UPSERT_COLUMNS,
+		});
+		// PK must not be in SET
+		expect(sql).not.toContain("id = excluded.id");
+		// App-owned email columns must not be in SET
+		expect(sql).not.toContain("email = excluded.email");
+		expect(sql).not.toContain("email_verified_at = excluded.email_verified_at");
+		expect(sql).not.toContain("email_normalized = excluded.email_normalized");
+		expect(sql).not.toContain("email_changed_at = excluded.email_changed_at");
+	});
+
+	test("users SQL INSERT lists all TABLE_COLUMNS", () => {
+		const sql = buildUpsertSql("users", TABLE_COLUMNS.users, {
+			conflictColumn: "id",
+			updateColumns: USERS_UPSERT_COLUMNS,
+		});
+		// INSERT should contain all columns including app-owned (for new rows)
+		expect(sql).toMatch(/^INSERT INTO users \(/);
+		for (const col of TABLE_COLUMNS.users) {
+			expect(sql).toContain(col);
+		}
+	});
+
+	test("forums SQL uses ON CONFLICT(id) DO UPDATE SET", () => {
+		const sql = buildUpsertSql("forums", TABLE_COLUMNS.forums, {
+			conflictColumn: "id",
+			updateColumns: FORUMS_UPSERT_COLUMNS,
+		});
+		expect(sql).toContain("ON CONFLICT(id) DO UPDATE SET");
+	});
+
+	test("forums SET clause excludes app-owned columns", () => {
+		const sql = buildUpsertSql("forums", TABLE_COLUMNS.forums, {
+			conflictColumn: "id",
+			updateColumns: FORUMS_UPSERT_COLUMNS,
+		});
+		expect(sql).not.toContain("visibility = excluded.visibility");
+		expect(sql).not.toContain("moderator_ids = excluded.moderator_ids");
+		expect(sql).not.toContain("last_poster_id = excluded.last_poster_id");
+	});
+
+	test("forums SET clause includes Discuz-owned columns", () => {
+		const sql = buildUpsertSql("forums", TABLE_COLUMNS.forums, {
+			conflictColumn: "id",
+			updateColumns: FORUMS_UPSERT_COLUMNS,
+		});
+		expect(sql).toContain("moderators = excluded.moderators");
+		expect(sql).toContain("last_thread_subject = excluded.last_thread_subject");
+		expect(sql).toContain("name = excluded.name");
+	});
+
+	test("SET clause has exactly N assignments matching updateColumns length", () => {
+		const sql = buildUpsertSql("users", TABLE_COLUMNS.users, {
+			conflictColumn: "id",
+			updateColumns: USERS_UPSERT_COLUMNS,
+		});
+		// Count "= excluded." occurrences — should equal updateColumns.length
+		const setMatches = sql.match(/= excluded\./g);
+		expect(setMatches).toHaveLength(USERS_UPSERT_COLUMNS.length);
+	});
+
+	test("throws on empty updateColumns", () => {
+		expect(() =>
+			buildUpsertSql("users", TABLE_COLUMNS.users, {
+				conflictColumn: "id",
+				updateColumns: [],
+			}),
+		).toThrow('updateColumns must not be empty for table "users"');
+	});
+
+	test("throws if updateColumns contains the conflict column", () => {
+		expect(() =>
+			buildUpsertSql("users", TABLE_COLUMNS.users, {
+				conflictColumn: "id",
+				updateColumns: ["id", "username"],
+			}),
+		).toThrow('updateColumns must not contain the conflict column "id"');
+	});
+});
+
+describe("buildInsertSql", () => {
+	test("produces parameterized INSERT", () => {
+		const sql = buildInsertSql("posts", TABLE_COLUMNS.posts);
+		expect(sql).toBe(
+			"INSERT INTO posts (id,thread_id,forum_id,author_id,author_name,content,created_at,is_first,position,invisible) VALUES (?,?,?,?,?,?,?,?,?,?)",
+		);
+	});
+
+	test("placeholder count matches column count", () => {
+		const sql = buildInsertSql("users", TABLE_COLUMNS.users);
+		const placeholderCount = (sql.match(/\?/g) ?? []).length;
+		expect(placeholderCount).toBe(TABLE_COLUMNS.users.length);
 	});
 });

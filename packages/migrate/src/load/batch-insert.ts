@@ -10,6 +10,10 @@
 
 import { Database } from "bun:sqlite";
 import { INDEX_DDL, TABLE_COLUMNS, TABLE_DDL, type TableName } from "./schema";
+import { type UpsertConfig, buildInsertSql, buildUpsertSql } from "./sql-builder";
+
+// Re-export pure SQL builders and types for external consumers
+export { buildInsertSql, buildUpsertSql, type UpsertConfig } from "./sql-builder";
 
 /** Options for the batch loader. */
 export interface LoaderOptions {
@@ -21,14 +25,6 @@ export interface LoaderOptions {
 	onProgress?: (table: string, count: number) => void;
 	/** Progress reporting interval (default: 10000). */
 	progressInterval?: number;
-}
-
-/** Configuration for upsert (ON CONFLICT DO UPDATE). */
-export interface UpsertConfig {
-	/** Column used for ON CONFLICT (e.g., "id" or "user_id"). */
-	conflictColumn: string;
-	/** Columns to update on conflict. Only these are overwritten for existing rows. */
-	updateColumns: string[];
 }
 
 /** A row to insert: record of column name → value. */
@@ -78,8 +74,7 @@ export class BatchLoader {
 	 */
 	insertRows(table: TableName, rows: RowRecord[]): number {
 		const columns = TABLE_COLUMNS[table];
-		const placeholders = columns.map(() => "?").join(",");
-		const sql = `INSERT INTO ${table} (${columns.join(",")}) VALUES (${placeholders})`;
+		const sql = buildInsertSql(table, columns);
 		const stmt = this.db.prepare(sql);
 
 		let inserted = 0;
@@ -130,9 +125,7 @@ export class BatchLoader {
 	 */
 	upsertRows(table: TableName, rows: RowRecord[], config: UpsertConfig): number {
 		const columns = TABLE_COLUMNS[table];
-		const placeholders = columns.map(() => "?").join(",");
-		const updateSet = config.updateColumns.map((col) => `${col} = excluded.${col}`).join(", ");
-		const sql = `INSERT INTO ${table} (${columns.join(",")}) VALUES (${placeholders}) ON CONFLICT(${config.conflictColumn}) DO UPDATE SET ${updateSet}`;
+		const sql = buildUpsertSql(table, columns, config);
 		const stmt = this.db.prepare(sql);
 
 		let upserted = 0;
@@ -196,11 +189,7 @@ export class StreamInserter {
 		this.onProgress = onProgress;
 		this.progressInterval = progressInterval;
 		this.columns = TABLE_COLUMNS[table];
-
-		const placeholders = this.columns.map(() => "?").join(",");
-		this.stmt = db.prepare(
-			`INSERT INTO ${table} (${this.columns.join(",")}) VALUES (${placeholders})`,
-		);
+		this.stmt = db.prepare(buildInsertSql(table, this.columns));
 	}
 
 	/** Add a row to the buffer. Automatically flushes when batch size is reached. */
