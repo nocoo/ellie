@@ -7,6 +7,7 @@
       "dependencies": {
         "defu": "^6.1.6",
         "dompurify": "^3.4.0",
+        "fast-uri": "^3.1.2",
         "hono": "^4.12.18",
       },
       "devDependencies": {
@@ -36,7 +37,7 @@
     },
     "apps/admin": {
       "name": "admin",
-      "version": "1.2.4",
+      "version": "1.2.5",
       "dependencies": {
         "@dnd-kit/core": "^6.3.1",
         "@dnd-kit/sortable": "^10.0.0",
@@ -70,7 +71,7 @@
     },
     "apps/web": {
       "name": "web",
-      "version": "1.2.4",
+      "version": "1.2.5",
       "dependencies": {
         "@auth/core": "^0.34.3",
         "@base-ui/react": "^1.3.0",
@@ -112,7 +113,7 @@
     },
     "apps/worker": {
       "name": "@ellie/worker",
-      "version": "1.2.4",
+      "version": "1.2.5",
       "dependencies": {
         "@cloudflare/workers-types": "^4.20250320.0",
         "@ellie/types": "workspace:*",
@@ -128,7 +129,7 @@
     },
     "packages/cli": {
       "name": "@ellie/cli",
-      "version": "1.2.4",
+      "version": "1.2.5",
       "bin": "./src/index.ts",
       "dependencies": {
         "@ellie/types": "workspace:*",
@@ -141,34 +142,34 @@
     },
     "packages/db": {
       "name": "@ellie/db",
-      "version": "1.2.4",
+      "version": "1.2.5",
     },
     "packages/migrate": {
       "name": "@ellie/migrate",
-      "version": "1.2.4",
+      "version": "1.2.5",
       "bin": "./src/index.ts",
     },
     "packages/shared": {
       "name": "@ellie/shared",
-      "version": "1.2.4",
+      "version": "1.2.5",
       "devDependencies": {
         "typescript": "^5.9",
       },
     },
     "packages/test-mocks": {
       "name": "@ellie/test-mocks",
-      "version": "1.2.4",
+      "version": "1.2.5",
       "dependencies": {
         "@ellie/types": "workspace:*",
       },
     },
     "packages/types": {
       "name": "@ellie/types",
-      "version": "1.2.4",
+      "version": "1.2.5",
     },
     "packages/ui": {
       "name": "@ellie/ui",
-      "version": "1.2.4",
+      "version": "1.2.5",
       "dependencies": {
         "@base-ui/react": "^1.3.0",
         "@radix-ui/react-avatar": "^1.1.0",
@@ -1093,7 +1094,7 @@
 
     "fast-glob": ["fast-glob@3.3.3", "", { "dependencies": { "@nodelib/fs.stat": "^2.0.2", "@nodelib/fs.walk": "^1.2.3", "glob-parent": "^5.1.2", "merge2": "^1.3.0", "micromatch": "^4.0.8" } }, "sha512-7MptL8U0cqcFdzIzwOTHoilX9x5BrNqye7Z/LuC7kCMRio1EMSyqRK3BEAUD7sXRq4iT4AzTVuZdhgQ2TCvYLg=="],
 
-    "fast-uri": ["fast-uri@3.1.0", "", {}, "sha512-iPeeDKJSWf4IEOasVVrknXpaBV0IApz/gp7S2bb7Z4Lljbl2MGJRqInZiUrQwV16cpzw/D3S5j5Julj/gT52AA=="],
+    "fast-uri": ["fast-uri@3.1.2", "", {}, "sha512-rVjf7ArG3LTk+FS6Yw81V1DLuZl1bRbNrev6Tmd/9RaroeeRRJhAt7jg/6YFxbvAQXUCavSoZhPPj6oOx+5KjQ=="],
 
     "fastq": ["fastq@1.20.1", "", { "dependencies": { "reusify": "^1.0.4" } }, "sha512-GGToxJ/w1x32s/D2EKND7kTil4n8OVk/9mycTc4VDza13lOvpUZTGX3mFSCtV9ksdGBVzvsyAVLM6mHFThxXxw=="],
 
@@ -1880,6 +1881,8 @@
     "@types/bun/bun-types": ["bun-types@1.3.11", "", { "dependencies": { "@types/node": "*" } }, "sha512-1KGPpoxQWl9f6wcZh57LvrPIInQMn2TQ7jsgxqpRzg+l0QPOFvJVH7HmvHo/AiPgwXy+/Thf6Ov3EdVn1vOabg=="],
 
     "@types/ws/@types/node": ["@types/node@25.5.0", "", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-jp2P3tQMSxWugkCUKLRPVUpGaL5MVFwF8RDuSRztfwgN1wmqJeMSbKlnEtQqU8UrhTmzEmZdu2I6v2dpp7XIxw=="],
+
+    "ajv/fast-uri": ["fast-uri@3.1.0", "", {}, "sha512-iPeeDKJSWf4IEOasVVrknXpaBV0IApz/gp7S2bb7Z4Lljbl2MGJRqInZiUrQwV16cpzw/D3S5j5Julj/gT52AA=="],
 
     "bun-types/@types/node": ["@types/node@25.5.0", "", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-jp2P3tQMSxWugkCUKLRPVUpGaL5MVFwF8RDuSRztfwgN1wmqJeMSbKlnEtQqU8UrhTmzEmZdu2I6v2dpp7XIxw=="],
 
