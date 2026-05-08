@@ -77,7 +77,10 @@ interface UnifiedEmojiPickerProps {
 
 export function UnifiedEmojiPicker({ onSelect }: UnifiedEmojiPickerProps) {
 	const [open, setOpen] = useState(false);
-	const [activeTab, setActiveTab] = useState<EmojiTab>("unicode");
+	// Forum tab (with default pack) is the initial view — zheng-li wants
+	// users to land on the legacy default smiley group when opening the
+	// picker, since that's what posts most commonly use.
+	const [activeTab, setActiveTab] = useState<EmojiTab>("forum");
 	const [forumPack, setForumPack] = useState<string>("default");
 	const [recent, setRecent] = useState<RecentEmoji[]>([]);
 	const [searchQuery, setSearchQuery] = useState("");
@@ -138,13 +141,13 @@ export function UnifiedEmojiPicker({ onSelect }: UnifiedEmojiPickerProps) {
 			<PopoverContent className="w-[320px] p-0 overflow-hidden" align="end" sideOffset={8}>
 				{/* Main tabs */}
 				<div className="flex border-b bg-muted/30">
-					<TabButton active={activeTab === "unicode"} onClick={() => setActiveTab("unicode")}>
-						<span className="mr-1.5">😀</span>
-						Emoji
-					</TabButton>
 					<TabButton active={activeTab === "forum"} onClick={() => setActiveTab("forum")}>
 						<span className="mr-1.5">🎭</span>
 						Forum
+					</TabButton>
+					<TabButton active={activeTab === "unicode"} onClick={() => setActiveTab("unicode")}>
+						<span className="mr-1.5">😀</span>
+						Emoji
 					</TabButton>
 					<TabButton active={activeTab === "recent"} onClick={() => setActiveTab("recent")}>
 						<span className="mr-1.5">⏰</span>
