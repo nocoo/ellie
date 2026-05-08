@@ -184,8 +184,8 @@ describe("D1 row mappers", () => {
 			};
 
 			const user = toUser(row);
-			// 36 base columns + purgedAt + purgedBy (D4-a tombstone fields).
-			expect(Object.keys(user)).toHaveLength(38);
+			// 37 base columns + purgedAt + purgedBy (D4-a tombstone fields).
+			expect(Object.keys(user)).toHaveLength(39);
 		});
 	});
 
@@ -546,7 +546,7 @@ describe("D1 row mappers", () => {
 			};
 
 			const user = toPublicUser(row);
-			expect(Object.keys(user)).toHaveLength(28);
+			expect(Object.keys(user)).toHaveLength(29);
 		});
 
 		it("should include regIp and lastIp when includeIp is true", () => {
@@ -586,7 +586,7 @@ describe("D1 row mappers", () => {
 			const user = toPublicUser(row, true);
 			expect(user.regIp).toBe("192.168.1.1");
 			expect(user.lastIp).toBe("10.0.0.1");
-			expect(Object.keys(user)).toHaveLength(30);
+			expect(Object.keys(user)).toHaveLength(31);
 		});
 	});
 

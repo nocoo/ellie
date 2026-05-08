@@ -72,6 +72,7 @@ export function buildTombstoneFields(
 		threads: 0,
 		posts: 0,
 		credits: 0,
+		coins: 0,
 		digest_posts: 0,
 
 		// Profile / display fields (cleared so PII does not leak via admin views)

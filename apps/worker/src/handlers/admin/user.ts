@@ -23,7 +23,7 @@ import { errorResponse } from "../../middleware/error";
 
 // D4-a: purged_at/purged_by added for tombstone tracking.
 const USER_COLUMNS =
-	"id, username, email, avatar, avatar_path, status, role, reg_date, last_login, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, last_activity, email_verified_at, email_normalized, email_changed_at, reg_ip, last_ip, purged_at, purged_by";
+	"id, username, email, avatar, avatar_path, status, role, reg_date, last_login, threads, posts, credits, coins, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, last_activity, email_verified_at, email_normalized, email_changed_at, reg_ip, last_ip, purged_at, purged_by";
 
 // ─── List enrichment: per-user messages / attachments counts ────────────────
 
@@ -128,6 +128,7 @@ const userConfig: EntityConfig = {
 		{ param: "threads", column: "threads", type: "range" },
 		{ param: "posts", column: "posts", type: "range" },
 		{ param: "credits", column: "credits", type: "range" },
+		{ param: "coins", column: "coins", type: "range" },
 	],
 	listSort: "id DESC",
 
@@ -202,6 +203,15 @@ const userConfig: EntityConfig = {
 			validate: (v) => {
 				if (typeof v !== "number") return "credits must be a number";
 				if (!Number.isInteger(v)) return "credits must be an integer";
+				return null;
+			},
+		},
+		{
+			name: "coins",
+			column: "coins",
+			validate: (v) => {
+				if (typeof v !== "number") return "coins must be a number";
+				if (!Number.isInteger(v)) return "coins must be an integer";
 				return null;
 			},
 		},

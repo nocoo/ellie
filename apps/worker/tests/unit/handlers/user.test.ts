@@ -130,6 +130,7 @@ describe("user handlers", () => {
 				"threads",
 				"posts",
 				"credits",
+				"coins",
 				"signature",
 				"group_title",
 				"group_stars",

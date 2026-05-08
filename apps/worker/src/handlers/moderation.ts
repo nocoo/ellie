@@ -1101,7 +1101,9 @@ export async function nukeUser(request: Request, env: Env): Promise<Response> {
 	// Update user (ban + zero counters/credits) and invalidate the
 	// volatile cache in parallel — they're independent.
 	await Promise.all([
-		env.DB.prepare("UPDATE users SET status = -1, threads = 0, posts = 0, credits = 0 WHERE id = ?")
+		env.DB.prepare(
+			"UPDATE users SET status = -1, threads = 0, posts = 0, credits = 0, coins = 0 WHERE id = ?",
+		)
 			.bind(userId)
 			.run(),
 		invalidateForumVolatile(env),

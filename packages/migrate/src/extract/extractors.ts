@@ -129,6 +129,8 @@ const MEMBER_COLS = {
 /** Column indices for pre_common_member_count INSERT VALUES (verified from user_extra dump DDL). */
 const MEMBER_COUNT_COLS = {
 	uid: 0,
+	extcredits1: 1, // "积分" — should equal pre_common_member.credits; kept for validation
+	extcredits2: 2, // "同钱" — forum currency (coins), awarded by sign-in etc.
 	posts: 10,
 	threads: 11,
 	digestposts: 12,
@@ -198,6 +200,8 @@ export interface MemberCountData {
 	posts: number;
 	digestposts: number;
 	oltime: number;
+	extcredits1: number; // "积分" — for validation against credits
+	extcredits2: number; // "同钱" (coins)
 }
 
 /** Data from pre_common_member_field_forum for one user. */
@@ -261,6 +265,8 @@ export function parseMemberCountRow(row: ParsedRow): { uid: number; data: Member
 			posts: Number(row[MEMBER_COUNT_COLS.posts]) || 0,
 			digestposts: Number(row[MEMBER_COUNT_COLS.digestposts]) || 0,
 			oltime: Number(row[MEMBER_COUNT_COLS.oltime]) || 0,
+			extcredits1: Number(row[MEMBER_COUNT_COLS.extcredits1]) || 0,
+			extcredits2: Number(row[MEMBER_COUNT_COLS.extcredits2]) || 0,
 		},
 	};
 }
@@ -400,6 +406,7 @@ export function extractUser(
 		threads: counts?.threads ?? 0,
 		posts: counts?.posts ?? 0,
 		credits: member?.credits ?? 0,
+		coins: counts?.extcredits2 ?? 0,
 		signature: ff?.sightml ?? "",
 		group_title: ug?.grouptitle ?? "",
 		group_stars: ug?.stars ?? 0,

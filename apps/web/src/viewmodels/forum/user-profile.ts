@@ -14,6 +14,7 @@ export interface ProfileStats {
 	threads: number;
 	posts: number;
 	credits: number;
+	coins: number;
 }
 
 export const PROFILE_TABS: { key: ProfileTab; label: string }[] = [
@@ -76,6 +77,7 @@ export function buildProfileStats(user: User): ProfileStats {
 		threads: user.threads,
 		posts: user.posts,
 		credits: user.credits,
+		coins: user.coins,
 	};
 }
 
