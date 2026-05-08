@@ -56,7 +56,7 @@ export function PostSidebar({
 					viewerUserId={viewerUserId}
 					align="start"
 				>
-					<div className="mt-1 bg-card p-1 lg:p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)] cursor-pointer">
+					<div className="mt-1 bg-card p-1 lg:p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)] dark:shadow-[0_0_3px_rgba(255,255,255,0.12)] cursor-pointer">
 						<UserAvatar
 							src={getAvatarUrl(author.id, "big", author.avatarPath)}
 							alt={author.username}
@@ -65,7 +65,7 @@ export function PostSidebar({
 					</div>
 				</UserPopover>
 			) : (
-				<div className="mt-1 bg-card p-1 lg:p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)]">
+				<div className="mt-1 bg-card p-1 lg:p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)] dark:shadow-[0_0_3px_rgba(255,255,255,0.12)]">
 					<img
 						src={getStaticImageUrl("tavatar.gif")}
 						alt="默认头像"
