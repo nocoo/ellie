@@ -5,13 +5,7 @@
 // MVVM: This is the View layer. State and logic are in useProfileEdit hook.
 
 import { Button } from "@/components/ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -19,10 +13,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAvatarUrl, useAvatarVersion } from "@/contexts/avatar-context";
 import { cn } from "@/lib/utils";
 import { GENDER_OPTIONS, useProfileEdit } from "@/viewmodels/forum/use-profile-edit";
-import { Save, User as UserIcon, X } from "lucide-react";
+import { Save, User as UserIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AvatarUpload } from "./avatar-upload";
 import { DialogErrorBanner } from "./dialog-error-banner";
+import { DialogHeroHeader } from "./dialog-hero-header";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -85,6 +80,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogContent
 				className={cn(
+					"glass-panel",
 					"w-[calc(100vw-2rem)] sm:w-[520px]",
 					"max-h-[85vh] overflow-hidden flex flex-col",
 					"rounded-xl p-0",
@@ -92,29 +88,13 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 				showCloseButton={false}
 			>
 				{/* Header */}
-				<DialogHeader className="px-5 pt-5 pb-4 border-b border-border/50">
-					<div className="flex items-center justify-between">
-						<div className="flex items-center gap-3">
-							<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-								<UserIcon className="h-5 w-5 text-primary" />
-							</div>
-							<div>
-								<DialogTitle className="text-lg">编辑个人资料</DialogTitle>
-								<DialogDescription className="text-xs mt-0.5">更新你的个人信息</DialogDescription>
-							</div>
-						</div>
-						<Button
-							variant="ghost"
-							size="icon-sm"
-							onClick={() => handleOpenChange(false)}
-							disabled={state.submitting}
-							className="text-muted-foreground hover:text-foreground"
-						>
-							<span className="sr-only">关闭</span>
-							<X className="h-4 w-4" />
-						</Button>
-					</div>
-				</DialogHeader>
+				<DialogHeroHeader
+					icon={<UserIcon className="h-5 w-5 text-primary" />}
+					title="编辑个人资料"
+					description="更新你的个人信息"
+					onClose={() => handleOpenChange(false)}
+					closeDisabled={state.submitting}
+				/>
 
 				{/* Error display */}
 				{state.error && <DialogErrorBanner message={state.error} />}
