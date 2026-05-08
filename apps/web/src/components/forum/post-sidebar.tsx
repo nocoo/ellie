@@ -139,7 +139,7 @@ export function PostSidebar({
 					{/* Credits */}
 					<div className="flex items-baseline justify-between gap-1">
 						<span className="shrink-0 text-forum-text-muted">同钱:</span>
-						<span>{formatNumber(author.coins)}</span>
+						<span>{formatNumber(author.coins ?? 0)}</span>
 					</div>
 
 					{/* Registration date */}

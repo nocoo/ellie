@@ -31,6 +31,7 @@ function makeUser(overrides: Partial<User> & { id: number }): User {
 		threads: 10,
 		posts: 50,
 		credits: 100,
+		coins: 0,
 		signature: "",
 		groupTitle: "",
 		groupStars: 0,
@@ -107,15 +108,15 @@ describe("formatUserStatus", () => {
 
 describe("buildProfileStats", () => {
 	it("extracts stats from user", () => {
-		const user = makeUser({ id: 1, threads: 5, posts: 30, credits: 200 });
+		const user = makeUser({ id: 1, threads: 5, posts: 30, credits: 200, coins: 100 });
 		const stats = buildProfileStats(user);
-		expect(stats).toEqual({ threads: 5, posts: 30, credits: 200 });
+		expect(stats).toEqual({ threads: 5, posts: 30, credits: 200, coins: 100 });
 	});
 
 	it("handles zero values", () => {
-		const user = makeUser({ id: 1, threads: 0, posts: 0, credits: 0 });
+		const user = makeUser({ id: 1, threads: 0, posts: 0, credits: 0, coins: 0 });
 		const stats = buildProfileStats(user);
-		expect(stats).toEqual({ threads: 0, posts: 0, credits: 0 });
+		expect(stats).toEqual({ threads: 0, posts: 0, credits: 0, coins: 0 });
 	});
 });
 

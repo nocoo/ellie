@@ -77,7 +77,7 @@ export function buildProfileStats(user: User): ProfileStats {
 		threads: user.threads,
 		posts: user.posts,
 		credits: user.credits,
-		coins: user.coins,
+		coins: user.coins ?? 0,
 	};
 }
 
