@@ -501,7 +501,7 @@ describe("POST /api/v1/checkin", () => {
 		const updateCall = calls.find((c) => c.sql.includes("UPDATE user_checkins"));
 		expect(updateCall?.sql).toContain("AND last_checkin_at < ?");
 		const coinsCall = calls.find((c) => c.sql.includes("UPDATE users SET coins"));
-		expect(coinsCall?.sql).toContain("AND EXISTS");
+		expect(coinsCall?.sql).toContain("changes() > 0");
 	});
 
 	it("uses INSERT ON CONFLICT DO NOTHING for first-time users", async () => {
@@ -522,5 +522,7 @@ describe("POST /api/v1/checkin", () => {
 		const insertCall = calls.find((c) => c.sql.includes("INSERT INTO user_checkins"));
 		expect(insertCall?.sql).toContain("ON CONFLICT");
 		expect(insertCall?.sql).toContain("DO NOTHING");
+		const coinsCall = calls.find((c) => c.sql.includes("UPDATE users SET coins"));
+		expect(coinsCall?.sql).toContain("changes() > 0");
 	});
 });
