@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useAvatarUrl, useAvatarVersion } from "@/contexts/avatar-context";
 import { cn } from "@/lib/utils";
 import { GENDER_OPTIONS, useProfileEdit } from "@/viewmodels/forum/use-profile-edit";
@@ -287,7 +288,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 						<div className="grid gap-4">
 							<div className="grid gap-2">
 								<Label htmlFor="edit-bio">简介</Label>
-								<textarea
+								<Textarea
 									id="edit-bio"
 									value={state.form.bio}
 									onChange={(e) => actions.setField("bio", e.target.value)}
@@ -295,12 +296,12 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 									placeholder="介绍一下自己..."
 									disabled={state.submitting}
 									rows={3}
-									className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 dark:bg-input/30 resize-none"
+									className="resize-none"
 								/>
 							</div>
 							<div className="grid gap-2">
 								<Label htmlFor="edit-interest">兴趣爱好</Label>
-								<textarea
+								<Textarea
 									id="edit-interest"
 									value={state.form.interest}
 									onChange={(e) => actions.setField("interest", e.target.value)}
@@ -308,7 +309,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 									placeholder="你喜欢什么..."
 									disabled={state.submitting}
 									rows={3}
-									className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 dark:bg-input/30 resize-none"
+									className="resize-none"
 								/>
 							</div>
 						</div>

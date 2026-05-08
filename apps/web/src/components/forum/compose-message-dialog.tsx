@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
 	ApiError,
@@ -312,7 +313,7 @@ export function ComposeMessageDialog({
 					{/* Content */}
 					<div className="grid gap-2">
 						<Label htmlFor="content">内容</Label>
-						<textarea
+						<Textarea
 							id="content"
 							value={content}
 							onChange={(e) => setContent(e.target.value)}
@@ -320,7 +321,7 @@ export function ComposeMessageDialog({
 							rows={6}
 							maxLength={10000}
 							disabled={isSending}
-							className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 dark:bg-input/30 resize-none"
+							className="resize-none"
 						/>
 						<div className="text-xs text-muted-foreground text-right">{content.length}/10000</div>
 					</div>
