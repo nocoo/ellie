@@ -22,9 +22,9 @@ interface DigestCardProps {
 function getDigestBorderClass(digest: number): string {
 	switch (digest) {
 		case 3:
-			return "border-l-amber-500"; // Gold for level III
+			return "border-l-forum-accent"; // Gold-equivalent (forum accent) for level III
 		case 2:
-			return "border-l-blue-500"; // Blue for level II
+			return "border-l-primary"; // Blue-equivalent (primary) for level II
 		default:
 			return "border-l-success"; // Green for level I
 	}
