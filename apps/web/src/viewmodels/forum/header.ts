@@ -71,7 +71,7 @@ const DEFAULT_NAV_TABS: HeaderNavTab[] = [
 	{ label: "情感空间", href: "/forums/6" },
 	{ label: "鹊桥", href: "/forums/7" },
 	{ label: "竞猜", href: "/forums/8" },
-	{ label: "签到", href: "/forums/9" },
+	{ label: "签到", href: "/checkin" },
 	{ label: "道具", href: "/forums/10" },
 ];
 
