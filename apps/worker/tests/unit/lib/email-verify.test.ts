@@ -2,7 +2,7 @@
 // Covers code generator distribution, HMAC determinism, constant-time compare,
 // email validation/normalization, and masking.
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import {
 	codeKvKey,
 	computeCodeHmac,
