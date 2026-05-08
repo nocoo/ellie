@@ -40,10 +40,7 @@ run_bg unit       bunx vitest run
 run_bg bun_tests  bun test \
   tests/unit/loader.test.ts \
   tests/unit/verify.test.ts \
-  tests/unit/migration-0029-schema.test.ts \
-  apps/worker/tests/unit/handlers/email.test.ts \
-  apps/worker/tests/unit/lib/dove.test.ts \
-  apps/worker/tests/unit/lib/email-verify.test.ts
+  tests/unit/migration-0029-schema.test.ts
 
 wait_stage typecheck
 wait_stage lint

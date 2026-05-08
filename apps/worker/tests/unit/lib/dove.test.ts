@@ -111,10 +111,12 @@ describe("sendDoveEmail — request shape and result mapping", () => {
 	});
 
 	it("surfaces upstream error.code on 4xx with structured body", async () => {
-		vi.spyOn(globalThis, "fetch").mockImplementation((async () =>
-			new Response(JSON.stringify({ error: { code: "recipient_not_found" } }), {
-				status: 404,
-			})) as unknown as typeof fetch);
+		vi.spyOn(globalThis, "fetch").mockImplementation(
+			(async () =>
+				new Response(JSON.stringify({ error: { code: "recipient_not_found" } }), {
+					status: 404,
+				})) as unknown as typeof fetch,
+		);
 
 		const env = baseEnv();
 		const res = await sendDoveEmail(env, {
@@ -127,8 +129,9 @@ describe("sendDoveEmail — request shape and result mapping", () => {
 	});
 
 	it("falls back to http_<status> when body is not JSON", async () => {
-		vi.spyOn(globalThis, "fetch").mockImplementation((async () =>
-			new Response("oops", { status: 502 })) as unknown as typeof fetch);
+		vi.spyOn(globalThis, "fetch").mockImplementation(
+			(async () => new Response("oops", { status: 502 })) as unknown as typeof fetch,
+		);
 
 		const env = baseEnv();
 		const res = await sendDoveEmail(env, {
