@@ -514,7 +514,7 @@ function UserHeader({
 									{user.groupTitle}
 								</span>
 								{user.groupStars > 0 && (
-									<span className="text-amber-500 text-xs">
+									<span className="text-forum-accent text-xs">
 										{"★".repeat(Math.min(user.groupStars, 5))}
 									</span>
 								)}
@@ -554,7 +554,7 @@ function UserStatusBadges({
 				</Badge>
 			)}
 			{userIsMuted && !userIsBanned && (
-				<Badge variant="outline" className="text-2xs text-orange-500 border-orange-500">
+				<Badge variant="outline" className="text-2xs text-forum-accent border-forum-accent">
 					已禁言
 				</Badge>
 			)}
@@ -702,8 +702,8 @@ function ModActionDialog({
 						className={cn(
 							"text-sm px-3 py-2 rounded-md",
 							modActionMessage.type === "success"
-								? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-								: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+								? "bg-success/15 text-success dark:bg-success/20"
+								: "bg-destructive/15 text-destructive dark:bg-destructive/20",
 						)}
 					>
 						{modActionMessage.text}

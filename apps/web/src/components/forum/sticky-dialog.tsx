@@ -79,7 +79,7 @@ export function StickyDialog({
 								<Pin
 									className={cn(
 										"h-5 w-5",
-										option.level === "global" ? "text-orange-500" : "text-blue-500",
+										option.level === "global" ? "text-forum-accent" : "text-primary",
 									)}
 								/>
 							)}

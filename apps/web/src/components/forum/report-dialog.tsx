@@ -245,7 +245,7 @@ export function ReportDialog({
 			return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />;
 		}
 		if (state === "passed" || state === "skipped") {
-			return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+			return <CheckCircle2 className="h-4 w-4 text-success" />;
 		}
 		if (state === "failed") {
 			return <AlertCircle className="h-4 w-4 text-destructive" />;
@@ -258,7 +258,7 @@ export function ReportDialog({
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
-						<Flag className="h-5 w-5 text-orange-500" />
+						<Flag className="h-5 w-5 text-destructive" />
 						{copy.title}
 					</DialogTitle>
 					<DialogDescription>请完成以下步骤提交举报</DialogDescription>
@@ -275,9 +275,7 @@ export function ReportDialog({
 							<p className="text-sm text-muted-foreground pl-6">正在检查...</p>
 						)}
 						{step.permission === "passed" && (
-							<p className="text-sm text-green-600 dark:text-green-400 pl-6">
-								{copy.permissionPassed}
-							</p>
+							<p className="text-sm text-success pl-6">{copy.permissionPassed}</p>
 						)}
 						{step.permission === "failed" && (
 							<p className="text-sm text-destructive pl-6">{step.permissionError}</p>
@@ -300,9 +298,7 @@ export function ReportDialog({
 									/>
 								</div>
 							)}
-							{step.captcha === "passed" && (
-								<p className="text-sm text-green-600 dark:text-green-400 pl-6">验证成功</p>
-							)}
+							{step.captcha === "passed" && <p className="text-sm text-success pl-6">验证成功</p>}
 						</div>
 					)}
 
@@ -353,7 +349,7 @@ export function ReportDialog({
 
 					{/* Success message */}
 					{success && (
-						<div className="flex items-center gap-2 p-3 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 text-sm">
+						<div className="flex items-center gap-2 p-3 rounded-lg bg-success/15 dark:bg-success/20 text-success text-sm">
 							<CheckCircle2 className="h-4 w-4 shrink-0" />
 							<span>举报提交成功，感谢您的反馈</span>
 						</div>

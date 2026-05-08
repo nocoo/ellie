@@ -56,7 +56,7 @@ export function ProfileHero({ user }: ProfileHeroProps) {
 						<TrackedUserAvatar uid={user.id} username={user.username} size="lg" />
 						<div className="min-w-0 flex-1">
 							<div className="flex items-center gap-2 flex-wrap">
-								<User className="h-5 w-5 text-orange-500 shrink-0" />
+								<User className="h-5 w-5 text-forum-accent shrink-0" />
 								<h1 className="text-base font-semibold text-foreground">{user.username}</h1>
 								<Badge variant={getUserRoleBadgeVariant(user.role)}>
 									{formatUserRole(user.role)}

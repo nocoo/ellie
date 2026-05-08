@@ -94,7 +94,7 @@ export function MessageBadgeIcon() {
 			{unreadCount > 0 && (
 				<span
 					className={cn(
-						"absolute -top-0.5 -right-0.5 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-medium",
+						"absolute -top-0.5 -right-0.5 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-2xs font-medium",
 						unreadCount > 99 ? "h-4 min-w-4 px-1" : "h-4 w-4",
 					)}
 				>

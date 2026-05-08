@@ -92,7 +92,7 @@ export function MoveDialog({
 						{isGroup ? (
 							<FolderOpen className="h-4 w-4 text-muted-foreground" />
 						) : (
-							<Folder className="h-4 w-4 text-blue-500" />
+							<Folder className="h-4 w-4 text-primary" />
 						)}
 						<span className={cn("flex-1", isGroup && "font-medium")}>{node.name}</span>
 						{isCurrent && <span className="text-xs text-muted-foreground">(当前)</span>}

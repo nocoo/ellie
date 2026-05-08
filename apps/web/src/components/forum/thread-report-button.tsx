@@ -27,7 +27,7 @@ export function ThreadReportButton({ threadId, authorId, currentUserId }: Thread
 			<Button
 				variant="ghost"
 				size="sm"
-				className="gap-1 text-muted-foreground hover:text-orange-600"
+				className="gap-1 text-muted-foreground hover:text-destructive"
 				aria-label="举报主题"
 				onClick={() => setOpen(true)}
 			>

@@ -75,7 +75,7 @@ export function DigestDialog({
 										<Star
 											// biome-ignore lint/suspicious/noArrayIndexKey: static array
 											key={i}
-											className="h-4 w-4 fill-yellow-400 text-yellow-400"
+											className="h-4 w-4 fill-forum-accent text-forum-accent"
 										/>
 									))
 								)}

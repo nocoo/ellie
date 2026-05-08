@@ -24,7 +24,7 @@ function OnlineStatsBar({ vm }: { vm: HomeFooterViewModel }) {
 	const s = vm.onlineStats;
 
 	return (
-		<div className="rounded-sm border-l-[3px] border-l-green-500 bg-card px-4 py-2.5">
+		<div className="rounded-sm border-l-[3px] border-l-success bg-card px-4 py-2.5">
 			<p className="text-sm text-foreground">
 				在线会员 - 总计 <span className="font-bold">{s.totalOnline}</span> 人在线 - 最高记录是{" "}
 				<span className="font-bold">{s.peakOnline}</span> 于 {s.peakDate}.
