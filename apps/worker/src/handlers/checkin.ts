@@ -232,8 +232,9 @@ export const perform = withAuthVerified(async (request, env, user) => {
 	// Both statements use conditions to prevent double-award under
 	// concurrent requests. The UPDATE guards with `last_checkin_at < ?`
 	// and the INSERT uses ON CONFLICT DO NOTHING. The coins UPDATE
-	// only fires if the checkin row was actually written (WHERE EXISTS
-	// checks that last_checkin_at matches our nowUnix).
+	// uses SQLite `changes() > 0` so it only fires when the immediately
+	// preceding checkin statement actually modified a row. This prevents
+	// same-second concurrent requests from both awarding coins.
 	const checkinSql = existing
 		? env.DB.prepare(
 				`UPDATE user_checkins
@@ -271,11 +272,8 @@ export const perform = withAuthVerified(async (request, env, user) => {
 			);
 
 	const coinsSql = env.DB.prepare(
-		`UPDATE users SET coins = coins + ?
-		 WHERE id = ? AND EXISTS (
-		   SELECT 1 FROM user_checkins WHERE user_id = ? AND last_checkin_at = ?
-		 )`,
-	).bind(reward, user.userId, user.userId, nowUnix);
+		"UPDATE users SET coins = coins + ? WHERE id = ? AND changes() > 0",
+	).bind(reward, user.userId);
 
 	const results = await env.DB.batch([checkinSql, coinsSql]);
 
