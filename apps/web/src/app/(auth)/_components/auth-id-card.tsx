@@ -8,7 +8,7 @@
 // login-form / register-form so visual output stays identical.
 
 import { ThemeToggle } from "@/components/theme-toggle";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { AuthBarcode } from "./auth-barcode";
 
 interface AuthIdCardProps {
@@ -30,7 +30,7 @@ const RADIAL_GLOW_BG = [
 	"transparent 100%)",
 ].join(" ");
 
-const ID_CARD_BOX_SHADOW = [
+const ID_CARD_BOX_SHADOW_LIGHT = [
 	"0 1px 2px rgba(0,0,0,0.06)",
 	"0 4px 8px rgba(0,0,0,0.04)",
 	"0 12px 24px rgba(0,0,0,0.06)",
@@ -39,9 +39,26 @@ const ID_CARD_BOX_SHADOW = [
 	"0 0 60px rgba(0,0,0,0.03)",
 ].join(", ");
 
+// Dark variant — keep deep black drop to lift the card off the dark
+// background, plus a very faint white edge/ambient glow. Stays subtle so
+// the card never reads as a glowing white-outlined panel.
+const ID_CARD_BOX_SHADOW_DARK = [
+	"0 0 0 1px rgba(255,255,255,0.04)",
+	"0 12px 32px rgba(0,0,0,0.35)",
+	"0 0 48px rgba(255,255,255,0.025)",
+].join(", ");
+
 export function AuthIdCard({ topCenter, children }: AuthIdCardProps) {
 	return (
-		<div className="relative flex min-h-screen flex-col bg-background overflow-hidden">
+		<div
+			className="relative flex min-h-screen flex-col bg-background overflow-hidden"
+			style={
+				{
+					"--auth-id-card-shadow-light": ID_CARD_BOX_SHADOW_LIGHT,
+					"--auth-id-card-shadow-dark": ID_CARD_BOX_SHADOW_DARK,
+				} as CSSProperties
+			}
+		>
 			{/* Radial glow */}
 			<div
 				className="pointer-events-none absolute inset-0"
@@ -55,11 +72,8 @@ export function AuthIdCard({ topCenter, children }: AuthIdCardProps) {
 
 			{/* Centered content */}
 			<div className="flex flex-1 items-center justify-center p-4">
-				{/* Badge card */}
-				<div
-					className="relative w-[308px] overflow-hidden rounded-2xl bg-card flex flex-col ring-1 ring-black/[0.08] dark:ring-white/[0.06]"
-					style={{ boxShadow: ID_CARD_BOX_SHADOW }}
-				>
+				{/* Badge card — boxShadow flips with the .dark theme via CSS var */}
+				<div className="relative w-[308px] overflow-hidden rounded-2xl bg-card flex flex-col ring-1 ring-black/[0.08] dark:ring-white/[0.06] shadow-[var(--auth-id-card-shadow-light)] dark:shadow-[var(--auth-id-card-shadow-dark)]">
 					{/* Header strip with decorations */}
 					<div className="bg-primary px-5 py-3">
 						<div className="flex items-center justify-between">
