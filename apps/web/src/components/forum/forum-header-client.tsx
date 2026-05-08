@@ -43,7 +43,7 @@ export function ForumHeaderClient({ forum, isGroup, selfEmailVerifiedAt }: Forum
 
 	return (
 		<>
-			<div className="rounded-sm border border-border bg-gradient-to-br from-blue-500/5 via-background to-sky-500/5">
+			<div className="rounded-sm border border-border bg-gradient-to-br from-primary/5 via-background to-primary/[0.02]">
 				<div className="p-4">
 					{/* Top: Forum name + New thread button */}
 					<div className="flex items-center justify-between gap-4">

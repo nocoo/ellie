@@ -50,7 +50,10 @@ export function ProfileHero({ user }: ProfileHeroProps) {
 
 	return (
 		<>
-			<Card size="sm" className="bg-gradient-to-br from-orange-500/5 via-background to-rose-500/5">
+			<Card
+				size="sm"
+				className="bg-gradient-to-br from-forum-accent/5 via-background to-forum-accent/[0.02]"
+			>
 				<CardContent>
 					<div className="flex items-center gap-4">
 						<TrackedUserAvatar uid={user.id} username={user.username} size="lg" />

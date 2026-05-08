@@ -111,7 +111,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 			<BreadcrumbBar items={data.breadcrumbs} />
 
 			{/* Thread header (simplified — views/replies now in first post sidebar) */}
-			<Card size="sm" className="bg-gradient-to-br from-slate-500/5 via-background to-zinc-500/5">
+			<Card size="sm" className="bg-gradient-to-br from-muted/40 via-background to-muted/20">
 				<CardContent>
 					<div className="flex items-start gap-2 flex-wrap">
 						<div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
