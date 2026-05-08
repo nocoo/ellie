@@ -162,22 +162,37 @@ These are L3 scope and outside this document's enforcement.
 
 ---
 
-## 4. G1 gate (frozen scope, hook wiring deferred)
+## 4. Gate scripts (Phase 3 — landed)
 
-G1 is **typecheck + lint + L1 coverage thresholds**. Phase 1A only freezes
-*what* the gate is; *wiring* (a single `bun run gate:g1` script and aligning
-the husky hooks) lands in Phase 3.
+Phase 1A froze *what* each gate is; Phase 3 collapses *how* it is invoked
+into a single canonical set of `package.json` scripts so hooks, CI, and
+humans all run the same definition.
 
-| Component               | Today                                                                                            | Phase 3 target                                              |
-|-------------------------|--------------------------------------------------------------------------------------------------|-------------------------------------------------------------|
-| Typecheck               | `bun run typecheck` (`scripts/typecheck.sh` → `tsc --build` with route-type freshness)            | unchanged                                                   |
-| Lint                    | `bun run lint` (`biome check --error-on-warnings .`)                                              | unchanged                                                   |
-| Coverage gate           | `bun run test:coverage` runs each per-package `vitest.config.ts` with thresholds (§2.3) inline    | wrap into `bun run gate:g1` for one-command invocation       |
+| Script              | Definition                                                                                                                                | Notes |
+|---------------------|-------------------------------------------------------------------------------------------------------------------------------------------|-------|
+| `bun run gate:g1`   | `bun run typecheck && bun run lint && bun run test:coverage`                                                                              | G1 = typecheck + lint + L1 coverage thresholds (§2.3). |
+| `bun run gate:g2`   | `gitleaks detect --no-banner && osv-scanner scan --lockfile bun.lock`                                                                     | G2a + G2b. Filters for G2b live in `osv-scanner.toml`. |
+| `bun run gate:full` | `bun run gate:g1 && bun run test:l2 && bun run gate:g2`                                                                                   | Full pre-release sweep (G1 + L2 + G2). |
 
-Pre-commit (`.husky/pre-commit`) and pre-push (`.husky/pre-push`) currently
-shell out to the individual commands directly; Phase 3 replaces those with the
-single `gate:g1` / `gate:g2` entry points. **This commit does not change hook
-files.**
+Husky hooks reuse the same underlying commands but keep them inlined to
+preserve parallel execution:
+
+| Hook                | Stages (parallel within each phase)                                                                                                                                        |
+|---------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `.husky/pre-commit` | lint-staged (incremental biome) + `bun run test:coverage` + `gitleaks protect --staged` + `bun run test:l2` + (conditional) `bun run typecheck` + (conditional) Rust gates |
+| `.husky/pre-push`   | Phase 1: `bun run typecheck` + `bun run lint` + `bun run test:coverage` + bun:sqlite migrate lane.<br/>Phase 2: `bun run test:l2` + `osv-scanner` + `gitleaks detect` + (conditional) Rust gates |
+
+Pre-commit gitleaks runs `protect --staged` (commit-time, staged files
+only); pre-push runs the full-repo `detect` form, which matches `gate:g2`
+exactly. Pre-push L1 lane uses `bun run test:coverage` (was `bunx vitest
+run` before Phase 3) so the §2.3 thresholds are now enforced on push as
+well as on commit.
+
+**Out of scope for G1 today:** `scripts/audit-l2-coverage.ts
+--strict-coverage` is intentionally not part of `gate:g1`. The audit is
+green for the existing matched routes but the matrix still has 17
+uncovered routes (Phase 4 work); promoting it to gate:g1 before the
+matrix is at 100% would block all commits until Phase 4 lands.
 
 ---
 
@@ -186,14 +201,14 @@ files.**
 Captured for cross-reference; L2 100% scope is owned by `docs/18-l2-coverage-matrix.md`
 (Phase 1B), G2 by `osv-scanner.toml` and gitleaks defaults.
 
-| Gate    | Command                                        | Baseline result (2026-05-09 post-Phase-2C) |
+| Gate    | Command                                        | Baseline result (2026-05-09 post-Phase-3) |
 |---------|------------------------------------------------|--------------------------------------------|
 | L1      | `bun run test`                                 | 4498 vitest tests + 37 bun tests passing   |
 | L1 cov  | `bun run test:coverage`                        | All 7 packages over §2.3 floors; `packages/migrate` now 97.81 / 90.20 / 100 / 98.60 with the raised branch ≥90 floor; `packages/types` 100/100/100/100 |
 | L2      | `bun run test:l2`                              | 258 tests passing                           |
-| G1      | `bun run typecheck` + `bun run lint`           | both clean                                  |
-| G2a     | `gitleaks detect --no-banner`                  | no leaks (1397 commits)                     |
-| G2b     | `osv-scanner scan --lockfile bun.lock`         | no issues (10 filtered, see `osv-scanner.toml`) |
+| G1      | `bun run gate:g1` (typecheck + lint + L1 cov)  | clean                                       |
+| G2      | `bun run gate:g2` (gitleaks + osv-scanner)     | clean — no leaks (1409 commits), no issues (10 filtered, see `osv-scanner.toml`) |
+| Full    | `bun run gate:full` (G1 + L2 + G2)             | composition of the rows above; verified via the constituent commands |
 
 ---
 
