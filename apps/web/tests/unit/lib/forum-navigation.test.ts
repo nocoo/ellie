@@ -2,9 +2,9 @@ import { FORUM_NAV_ITEMS } from "@/lib/forum-navigation";
 import { describe, expect, it } from "vitest";
 
 describe("FORUM_NAV_ITEMS", () => {
-	it("has 3 nav items: 首页, 精华, 搜索", () => {
-		expect(FORUM_NAV_ITEMS.length).toBe(3);
-		expect(FORUM_NAV_ITEMS.map((i) => i.label)).toEqual(["首页", "精华", "搜索"]);
+	it("has 4 nav items: 首页, 精华, 签到, 搜索", () => {
+		expect(FORUM_NAV_ITEMS.length).toBe(4);
+		expect(FORUM_NAV_ITEMS.map((i) => i.label)).toEqual(["首页", "精华", "签到", "搜索"]);
 	});
 
 	it("each item has required fields", () => {
@@ -27,5 +27,10 @@ describe("FORUM_NAV_ITEMS", () => {
 	it("search points to /search", () => {
 		const search = FORUM_NAV_ITEMS.find((i) => i.label === "搜索");
 		expect(search?.href).toBe("/search");
+	});
+
+	it("checkin points to /checkin", () => {
+		const checkin = FORUM_NAV_ITEMS.find((i) => i.label === "签到");
+		expect(checkin?.href).toBe("/checkin");
 	});
 });

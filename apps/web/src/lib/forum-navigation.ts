@@ -21,5 +21,6 @@ export interface ForumNavItem {
 export const FORUM_NAV_ITEMS: ForumNavItem[] = [
 	{ href: "/", label: "首页" },
 	{ href: "/digest", label: "精华" },
+	{ href: "/checkin", label: "签到" },
 	{ href: "/search", label: "搜索" },
 ];
