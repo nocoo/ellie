@@ -4,17 +4,17 @@
 > Re-run with `bun run scripts/audit-l2-coverage.ts --write` after any change
 > to `apps/worker/src/index.ts` or `tests/integration/worker/*.test.ts`.
 
-Last audit: **2026-05-08**
+Last audit: **2026-05-09**
 
 ## 1. Summary
 
 | Metric | Value |
 |---|---|
-| Total (route × method) | **133** |
-| Method breakdown | GET 57 / POST 46 / PATCH 16 / PUT 1 / DELETE 13 |
+| Total (route × method) | **134** |
+| Method breakdown | GET 58 / POST 46 / PATCH 16 / PUT 1 / DELETE 13 |
 | L2 calls scanned | 194 |
-| Routes hit | **117** (87.97%) |
-| Routes uncovered | **16** |
+| Routes hit | **117** (87.31%) |
+| Routes uncovered | **17** |
 | Exemptions | 0 |
 | Unmatched test calls | 0 |
 
@@ -185,6 +185,7 @@ _None._ Every route × method must be covered by L2.
 | ✅ | GET | `/^\/api\/v1\/moderation\/users\/\d+\/status$/` | index.ts:312 |
 | ✅ | POST | `/^\/api\/v1\/moderation\/users\/\d+\/unban$/` | index.ts:330 |
 | ✅ | POST | `/^\/api\/v1\/moderation\/users\/\d+\/unmute$/` | index.ts:324 |
+| ❌ | GET | `/^\/api\/v1\/post-images\/(.+)$/` | index.ts:268 |
 | ✅ | GET | `/^\/api\/v1\/posts\/\d+$/` | index.ts:93 |
 | ✅ | GET | `/^\/api\/v1\/posts\/\d+\/attachments$/` | index.ts:96 |
 | ✅ | GET | `/^\/api\/v1\/threads\/\d+$/` | index.ts:87 |
@@ -213,6 +214,7 @@ _None._ Every route × method must be covered by L2.
 | GET | `/api/v1/checkin/status` | index.ts:241 |
 | POST | `/api/v1/checkin` | index.ts:244 |
 | POST | `/api/v1/upload` | index.ts:249 |
+| GET | `/^\/api\/v1\/post-images\/(.+)$/` | index.ts:268 |
 | POST | `/^\/api\/admin\/users\/\d+\/purge$/` | index.ts:441 |
 
 ## 6. Unmatched L2 calls
