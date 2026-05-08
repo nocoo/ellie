@@ -108,6 +108,17 @@ function parseRouter(): Route[] {
 	const lines = src.split("\n");
 	const routes: Route[] = [];
 
+	// Pre-pass: track `const VAR = path.match(/regex/);` assignments so
+	// Shape C below can resolve the corresponding `if (VAR && request.method
+	// === "...")` block. We don't try to enforce scope — names are reused
+	// rarely enough in this router file that the latest assignment always
+	// wins; if shadowing ever becomes a problem we'll add a depth check.
+	const matchAssign = new Map<string, { patternSrc: string; line: number }>();
+	for (let i = 0; i < lines.length; i++) {
+		const m = lines[i].match(/^\s*const\s+(\w+)\s*=\s*path\.match\(\/(.+?)\/\)\s*;?\s*$/);
+		if (m) matchAssign.set(m[1], { patternSrc: m[2], line: i + 1 });
+	}
+
 	// Collapse multi-line `if (\n   path...\n   && request.method === "..."\n)`
 	// into single-line equivalents anchored at the `if (` line, so both
 	// single-line and split-line router shapes are recognized uniformly.
@@ -157,6 +168,26 @@ function parseRouter(): Route[] {
 				pattern: `/${patternSrc}/`,
 				kind: "regex",
 				regex: new RegExp(patternSrc),
+				line,
+			});
+			continue;
+		}
+
+		// Shape C: const VAR = path.match(/REGEX/);
+		//          if (VAR && request.method === "<METHOD>") {
+		// Used in apps/worker/src/index.ts:267-268 (post-images) where the
+		// match result is reused inside the body via captured groups.
+		const varMatch = text.match(/^if \(\s*(\w+)\s*&&\s*request\.method === "([A-Z]+)"\s*\)/);
+		if (varMatch) {
+			const varName = varMatch[1];
+			const method = varMatch[2];
+			const assigned = matchAssign.get(varName);
+			if (!assigned) continue;
+			routes.push({
+				method,
+				pattern: `/${assigned.patternSrc}/`,
+				kind: "regex",
+				regex: new RegExp(assigned.patternSrc),
 				line,
 			});
 		}
@@ -358,7 +389,14 @@ function printSummary(rep: CoverageReport): void {
 }
 
 function renderMarkdown(rep: CoverageReport): string {
-	const date = new Date().toISOString().slice(0, 10);
+	// Local-date stamp (YYYY-MM-DD) so the matrix's "Last audit" line matches
+	// the operator's wall clock and Slock thread timestamps. Using
+	// toISOString() would skew by up to a calendar day for non-UTC zones.
+	const now = new Date();
+	const yyyy = now.getFullYear();
+	const mm = String(now.getMonth() + 1).padStart(2, "0");
+	const dd = String(now.getDate()).padStart(2, "0");
+	const date = `${yyyy}-${mm}-${dd}`;
 	const methodCounts: Record<string, number> = {};
 	for (const r of rep.routes) {
 		methodCounts[r.method] = (methodCounts[r.method] ?? 0) + 1;
@@ -498,8 +536,18 @@ function main(): void {
 	if (strict) {
 		const exemptKeys = new Set(rep.exempt.map((e) => `${e.method} ${e.pattern}`));
 		const failing = rep.missRoutes.filter((r) => !exemptKeys.has(`${r.method} ${r.pattern}`));
-		if (failing.length > 0) {
-			console.error(`\n❌ --strict-coverage: ${failing.length} non-exempt route(s) uncovered.`);
+		// Unmatched calls are also a hard fail under strict mode: a non-zero
+		// count means a test is hitting a path the parser can't resolve, so
+		// the matrix is no longer authoritative — treat that as a gate break.
+		if (failing.length > 0 || rep.unmatchedCalls.length > 0) {
+			if (failing.length > 0) {
+				console.error(`\n❌ --strict-coverage: ${failing.length} non-exempt route(s) uncovered.`);
+			}
+			if (rep.unmatchedCalls.length > 0) {
+				console.error(
+					`❌ --strict-coverage: ${rep.unmatchedCalls.length} L2 call(s) unmatched — matrix is not authoritative.`,
+				);
+			}
 			process.exit(1);
 		}
 	}
