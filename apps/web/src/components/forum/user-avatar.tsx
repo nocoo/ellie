@@ -52,7 +52,11 @@ export function TrackedUserAvatar({
 
 	return (
 		<Avatar
-			className={cn(sizeClasses[size], "rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)]", className)}
+			className={cn(
+				sizeClasses[size],
+				"rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)] dark:shadow-[0_0_2px_rgba(255,255,255,0.10)]",
+				className,
+			)}
 		>
 			<AvatarImage src={avatarUrl} alt={username ?? `User ${uid}`} className="rounded-sm" />
 			<AvatarFallback className="text-sm rounded-sm bg-muted p-0 overflow-hidden">
@@ -96,7 +100,7 @@ export function ForumAvatar({
 			className={cn(
 				"rounded-sm",
 				sizeClass,
-				shadow && "shadow-[0_0_2px_rgba(0,0,0,0.1)]",
+				shadow && "shadow-[0_0_2px_rgba(0,0,0,0.1)] dark:shadow-[0_0_2px_rgba(255,255,255,0.10)]",
 				className,
 			)}
 		>
