@@ -31,7 +31,7 @@ export function PostActionBar({
 	const hasModActions = canEdit || canDelete || canReport;
 
 	return (
-		<div className="flex items-center justify-between border-t border-dashed border-border px-3 py-2 text-xs text-forum-text-muted">
+		<div className="flex items-center justify-between border-t border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
 			{/* Left: User actions */}
 			<div className="flex items-center gap-4">
 				{canComment && <ForumActionButton icon={MessageCircle} label="点评" onClick={onComment} />}

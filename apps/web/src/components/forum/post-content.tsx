@@ -99,9 +99,9 @@ export function PostContent({
 										</a>
 									) : (
 										<>
-											<span className="text-forum-text-muted">📎</span>
+											<span className="text-muted-foreground">📎</span>
 											<span className="truncate">{att.filename}</span>
-											<span className="text-forum-text-muted shrink-0">
+											<span className="text-muted-foreground shrink-0">
 												{formatFileSize(att.fileSize)}
 											</span>
 										</>
@@ -127,7 +127,7 @@ export function PostContent({
 							/>
 						</div>
 						<article
-							className="text-xs text-forum-text-muted prose prose-sm max-w-none [&>*]:text-forum-text-muted [&>*]:text-xs"
+							className="text-xs text-muted-foreground prose prose-sm max-w-none [&>*]:text-muted-foreground [&>*]:text-xs"
 							suppressHydrationWarning
 						>
 							<div
