@@ -26,61 +26,58 @@ All dumps are in `reference/db/2026-05-09/`:
 | checkins.sql.gz | pre_dsu_paulsign + pre_dsu_paulsign2 | user_checkins | upsert |
 | postcomment.sql.gz | pre_forum_postcomment | (future) | deferred |
 
-## Column Mapping — schema.ts Drift
+## Migration Code — Two Directories
 
-### users table (schema.ts → D1 actual)
+There are two independent migration codebases:
 
-Schema.ts currently has 13 columns. D1 actual has 40+ columns.
-Columns to add to extractUser():
+| Directory | Entry point | Status |
+|-----------|------------|--------|
+| `packages/migrate/` | `bun run migrate` → `bun run --filter migrate start` | **Canonical.** 35 user columns, campus from profile.field1, coins, usergroup, post_comments, forum moderators. Full ETL pipeline. |
+| `scripts/migrate/` | `bun run scripts/migrate/index.ts` (manual) | **Frozen legacy.** 13 user columns, no profile/campus/coins. Reference only — do not modify. |
 
-| D1 Column | Discuz Source | Table |
-|-----------|--------------|-------|
-| signature | sightml | pre_common_member_field_forum |
-| group_title | grouptitle | pre_common_usergroup (via member.groupid) |
-| group_stars | stars | pre_common_usergroup (via member.groupid) |
-| group_color | color | pre_common_usergroup (via member.groupid) |
-| custom_title | customstatus | pre_common_member_field_forum |
-| digest_posts | digestposts | pre_common_member_count |
-| ol_time | oltime | pre_common_member_count |
-| gender | gender | pre_common_member_profile |
-| birth_year | birthyear | pre_common_member_profile |
-| birth_month | birthmonth | pre_common_member_profile |
-| birth_day | birthday | pre_common_member_profile |
-| reside_province | resideprovince | pre_common_member_profile |
-| reside_city | residecity | pre_common_member_profile |
-| graduate_school | graduateschool | pre_common_member_profile |
-| bio | bio | pre_common_member_profile |
-| interest | interest | pre_common_member_profile |
-| qq | qq | pre_common_member_profile |
-| site | site | pre_common_member_profile |
-| last_activity | lastactivity | pre_common_member_status |
-| reg_ip | regip | pre_common_member_status |
-| last_ip | lastip | pre_common_member_status |
-| coins | extcredits2 | pre_common_member_count |
-| campus | — | DEFAULT '' (no Discuz source) |
-| has_avatar | derived | 1 if avatarstatus > 0 |
-| avatar_path | — | DEFAULT '' (set by app) |
-| purged_at | — | DEFAULT 0 |
-| purged_by | — | DEFAULT 0 |
+**All code changes in this plan target `packages/migrate/`.**
 
-### forums table (schema.ts → D1 actual)
+The `scripts/migrate/` directory will not be modified. If any existing scripts
+(e.g. `scripts/migrate/import-v3.sh`) reference the old path, they should be
+treated as legacy and not used for this import cycle.
 
-Columns to add:
-| D1 Column | Discuz Source |
-|-----------|-------------|
-| last_thread_subject | from lastpost field (tab-separated) |
-| moderators | moderators field from pre_forum_forumfield |
-| last_poster_id | 0 (derived later or from thread data) |
-| moderator_ids | '' (populated by populate-moderator-ids.ts) |
-| visibility | 'public' (DEFAULT) |
+### packages/migrate schema.ts vs D1 actual — already aligned
 
-### threads table (schema.ts → D1 actual)
+`packages/migrate/src/load/schema.ts` already has 35 user columns matching
+the D1 schema's Discuz-owned columns. The only D1 columns NOT in schema.ts
+are app-owned columns added by later migrations:
 
-Columns to add:
-| D1 Column | Discuz Source |
-|-----------|-------------|
-| type_name | '' (DEFAULT, from threadtype) |
-| last_poster_id | 0 (derived later) |
+| D1 Column | Migration | Why omitted from schema.ts |
+|-----------|----------|---------------------------|
+| has_avatar | 0026 | App-derived (set from avatarstatus during import) |
+| avatar_path | 0027 | App-owned (R2 path, set by app upload flow) |
+| purged_at | 0030 | App-owned (admin purge timestamp) |
+| purged_by | 0030 | App-owned (admin who purged) |
+| visibility | 0000 (forums) | App-owned (admin sets per-forum) |
+| moderator_ids | 0000 (forums) | App-derived (populated by populate-moderator-ids.ts) |
+| last_poster_id | 0000 (forums/threads) | App-derived (computed post-import) |
+
+These columns are intentionally excluded — they use SQLite DEFAULTs on INSERT
+and are PRESERVED on upsert (not in DO UPDATE SET).
+
+### Column mapping reference (users)
+
+`packages/migrate/src/extract/extractors.ts` already maps all Discuz sources:
+
+| D1 Column | Discuz Source | Discuz Table |
+|-----------|-------------|--------------|
+| username, password_hash, password_salt, last_login | uc_members | db_tongji_ucenter.uc_members |
+| status, role(adminid), reg_date, credits, avatar | pre_common_member | members.sql.gz |
+| threads, posts, digest_posts, ol_time, coins(extcredits2) | pre_common_member_count | member_count.sql.gz |
+| gender, birth_year/month/day, reside_province/city, graduate_school, bio, interest, qq, site, **campus(field1)** | pre_common_member_profile | member_profile.sql.gz |
+| reg_ip, last_ip, last_activity | pre_common_member_status | member_status.sql.gz |
+| signature(sightml), custom_title(customstatus) | pre_common_member_field_forum | member_field_forum.sql.gz |
+| group_title, group_stars, group_color | pre_common_usergroup (via member.groupid) | usergroup.sql.gz |
+| has_avatar | derived from avatarstatus | members.sql.gz |
+
+**campus** has a confirmed Discuz source: `pre_common_member_profile.field1`
+(values: 四平路校区, 嘉定校区, 校外人士, etc. per `0024_add_campus_field.sql`).
+It is Discuz-owned and will be upserted.
 
 ## Strategy Details
 
@@ -102,7 +99,7 @@ INSERT INTO users (
   signature, group_title, group_stars, group_color, custom_title,
   digest_posts, ol_time, gender, birth_year, birth_month, birth_day,
   reside_province, reside_city, graduate_school, bio, interest, qq, site,
-  last_activity, reg_ip, last_ip, coins, has_avatar
+  last_activity, reg_ip, last_ip, coins, has_avatar, campus
 ) VALUES (?, ?, ?, ...)
 ON CONFLICT(id) DO UPDATE SET
   username        = excluded.username,
@@ -138,20 +135,22 @@ ON CONFLICT(id) DO UPDATE SET
   reg_ip          = excluded.reg_ip,
   last_ip         = excluded.last_ip,
   coins           = excluded.coins,
-  has_avatar      = excluded.has_avatar;
+  has_avatar      = excluded.has_avatar,
+  campus          = excluded.campus;
 ```
 
 #### Users column ownership
 
 | Owner | Columns | Behavior on import |
 |-------|---------|-------------------|
-| **Discuz-owned** (DO UPDATE) | username, password_hash, password_salt, avatar, status, role, reg_date, last_login, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, last_activity, reg_ip, last_ip, coins, has_avatar | Overwritten from source |
-| **App-owned** (PRESERVED) | avatar_path, email, email_verified_at, email_normalized, email_changed_at, campus, purged_at, purged_by | Never touched by import — keeps existing app values |
+| **Discuz-owned** (DO UPDATE) | username, password_hash, password_salt, avatar, status, role, reg_date, last_login, threads, posts, credits, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, last_activity, reg_ip, last_ip, coins, has_avatar, campus | Overwritten from source |
+| **App-owned** (PRESERVED) | avatar_path, email, email_verified_at, email_normalized, email_changed_at, purged_at, purged_by | Never touched by import — keeps existing app values |
 
 Note: `email` is set to `''` on initial INSERT (Discuz emails are unverified
 legacy data), but preserved on UPDATE (user may have re-added via app).
 `has_avatar` is derived from Discuz `avatarstatus` on insert but does NOT
-overwrite `avatar_path` (separate column).
+overwrite `avatar_path` (separate column). `campus` is extracted from
+`pre_common_member_profile.field1` (confirmed source per `0024_add_campus_field.sql`).
 
 ### 2. Forums — ON CONFLICT upsert (source-owned columns only)
 
@@ -261,7 +260,7 @@ Test DB: `tongjinet-db-test` — do NOT touch production until dry-run passes on
 
 ### Local Dry-Run
 
-1. Build local SQLite from dumps (same as current `scripts/migrate/index.ts`)
+1. Build local SQLite from dumps using `packages/migrate` (`bun run migrate`)
 2. Run FK integrity check: `PRAGMA foreign_key_check;`
 3. Compare row counts: source dump vs local SQLite
 4. Sample spot-check: verify 10 random users have correct fields
@@ -280,13 +279,13 @@ Test DB: `tongjinet-db-test` — do NOT touch production until dry-run passes on
 ## Execution Order
 
 1. **Backup D1** → `reference/d1-backups/2026-05-09/`
-2. **Update schema.ts** — add missing columns to TABLE_DDL, TABLE_COLUMNS
-3. **Update extractors.ts** — add new source table parsing, expand extractUser()
-4. **Local dry-run** — generate local SQLite, run validations
+2. **Add upsert mode to `packages/migrate`** — modify `packages/migrate/src/load/batch-insert.ts` to support ON CONFLICT DO UPDATE SET for users/forums/checkins (currently only does plain INSERT)
+3. **Add checkin extractor to `packages/migrate`** — parse pre_dsu_paulsign/paulsign2 dumps
+4. **Local dry-run** — `bun run migrate` with today's dumps, run validations
 5. **Upsert users** — via wrangler d1 execute or batch SQL
 6. **Upsert forums** — same
 7. **Incremental threads** — only id > max existing
 8. **Incremental posts** — only id > max existing
 9. **Incremental attachments** — only id > max existing
-10. **Upsert checkins** — full replace
+10. **Upsert checkins** — ON CONFLICT(user_id) with EXISTS filter
 11. **Post-import validation** — row counts, FK check, spot-check
