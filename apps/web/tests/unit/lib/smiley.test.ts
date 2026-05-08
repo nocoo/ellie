@@ -1,9 +1,11 @@
 import {
-	NAMED_SMILEYS,
-	NAMED_SMILEY_SET,
+	DEFAULT_NAMED_SMILEY_NAMES,
+	DEFAULT_NAMED_SMILEY_SET,
+	SMILEY_PACKS,
 	comcomFilename,
 	coolmonkeyFilename,
 	escapeAttr,
+	namedSmileyFilename,
 	numberedFilename,
 	replaceSmileyCodesWithImages,
 } from "@/lib/smiley";
@@ -86,56 +88,48 @@ describe("comcomFilename", () => {
 	});
 });
 
-// ── Named code mapping ─────────────────────────────────────────────
+// ── namedSmileyFilename — closed whitelist gate ───────────────────────
+//
+// D1 inventory (2026-05-08) drove the curation: items with non-zero hits
+// in `posts.content` plus items already on the prior runtime whitelist.
+// Names that have 0 hits AND were never previously rendered (icon1..icon9,
+// some `*_smile` variants) are intentionally absent.
 
-describe("NAMED_SMILEY_SET", () => {
-	test("contains at least 39 named codes", () => {
-		expect(NAMED_SMILEY_SET.size).toBeGreaterThanOrEqual(39);
+describe("namedSmileyFilename", () => {
+	test("accepts every name in the curated whitelist", () => {
+		expect(namedSmileyFilename("eh")).toBe("eh.gif");
+		expect(namedSmileyFilename("smile")).toBe("smile.gif");
+		expect(namedSmileyFilename("w00t")).toBe("w00t.gif");
+		expect(namedSmileyFilename("smile_blush")).toBe("smile_blush.gif");
+		expect(namedSmileyFilename("ico29")).toBe("ico29.gif");
+		expect(namedSmileyFilename("angel_smile")).toBe("angel_smile.gif");
+		expect(namedSmileyFilename("smile_8ball")).toBe("smile_8ball.gif");
 	});
 
-	test("contains core emoticon codes", () => {
-		for (const name of ["smile", "cry", "victory", "lol", "kiss", "biggrin", "mad", "tongue"]) {
-			expect(NAMED_SMILEY_SET.has(name)).toBe(true);
-		}
+	test("accepts the longest whitelist entry (whatchutalkingabout_smile)", () => {
+		expect(namedSmileyFilename("whatchutalkingabout_smile")).toBe("whatchutalkingabout_smile.gif");
 	});
 
-	test("contains extended codes (cool, w00t, wink, angry, etc.)", () => {
-		for (const name of [
-			"cool",
-			"w00t",
-			"wink",
-			"angry",
-			"crazy",
-			"dozingoff",
-			"laugh",
-			"rolleyes",
-		]) {
-			expect(NAMED_SMILEY_SET.has(name)).toBe(true);
-		}
+	test("rejects names not in the whitelist", () => {
+		// Previously matched by the open-mapping prototype but never on the
+		// curated list (no D1 hits, never in legacy whitelist).
+		expect(namedSmileyFilename("foo_bar1")).toBeNull();
+		expect(namedSmileyFilename("someemoji")).toBeNull();
+		expect(namedSmileyFilename("icon1")).toBeNull();
+		expect(namedSmileyFilename("icon9")).toBeNull();
+		expect(namedSmileyFilename("present_smile")).toBeNull();
 	});
 
-	test("contains Discuz common codes (unhappy, bigsmile, ico29, tounge)", () => {
-		for (const name of ["unhappy", "bigsmile", "ico29", "tounge"]) {
-			expect(NAMED_SMILEY_SET.has(name)).toBe(true);
-		}
+	test("rejects names with uppercase, hyphens, dots, or slashes", () => {
+		expect(namedSmileyFilename("SMILE")).toBeNull();
+		expect(namedSmileyFilename("foo-bar")).toBeNull();
+		expect(namedSmileyFilename("foo.bar")).toBeNull();
+		expect(namedSmileyFilename("../x")).toBeNull();
+		expect(namedSmileyFilename("foo/bar")).toBeNull();
 	});
 
-	test("contains smile_ variants with underscores", () => {
-		for (const name of ["smile_blush", "smile_cool", "smile_shy"]) {
-			expect(NAMED_SMILEY_SET.has(name)).toBe(true);
-		}
-	});
-
-	test("all values end with .gif", () => {
-		for (const file of Object.values(NAMED_SMILEYS)) {
-			expect(file).toMatch(/\.gif$/);
-		}
-	});
-
-	test("all values contain only safe filename chars", () => {
-		for (const file of Object.values(NAMED_SMILEYS)) {
-			expect(file).toMatch(/^[a-z0-9_]+\.gif$/);
-		}
+	test("rejects empty input", () => {
+		expect(namedSmileyFilename("")).toBeNull();
 	});
 });
 
@@ -184,7 +178,7 @@ describe("replaceSmileyCodesWithImages", () => {
 		expect(replaceSmileyCodesWithImages(html)).toBe(html);
 	});
 
-	// ── Named codes — alphanumeric ──────────────────────────────────
+	// ── Named codes — known historical names ───────────────────────
 
 	test("replaces :smile: with default/smile.gif img", () => {
 		const result = replaceSmileyCodesWithImages("Hello :smile: world");
@@ -203,48 +197,9 @@ describe("replaceSmileyCodesWithImages", () => {
 		expect(result).toBe(`<img src="${CDN}/default/w00t.gif" alt=":w00t:" class="smiley" />`);
 	});
 
-	test("replaces :cool: with default/cool.gif", () => {
-		const result = replaceSmileyCodesWithImages(":cool:");
-		expect(result).toBe(`<img src="${CDN}/default/cool.gif" alt=":cool:" class="smiley" />`);
-	});
-
-	test("replaces :wink: with default/wink.gif", () => {
-		const result = replaceSmileyCodesWithImages(":wink:");
-		expect(result).toBe(`<img src="${CDN}/default/wink.gif" alt=":wink:" class="smiley" />`);
-	});
-
-	test("replaces :angry: with default/angry.gif", () => {
-		const result = replaceSmileyCodesWithImages(":angry:");
-		expect(result).toBe(`<img src="${CDN}/default/angry.gif" alt=":angry:" class="smiley" />`);
-	});
-
-	test("replaces :rolleyes: with default/rolleyes.gif", () => {
-		const result = replaceSmileyCodesWithImages(":rolleyes:");
-		expect(result).toBe(
-			`<img src="${CDN}/default/rolleyes.gif" alt=":rolleyes:" class="smiley" />`,
-		);
-	});
-
 	test("replaces :ico29: with default/ico29.gif", () => {
 		const result = replaceSmileyCodesWithImages(":ico29:");
 		expect(result).toBe(`<img src="${CDN}/default/ico29.gif" alt=":ico29:" class="smiley" />`);
-	});
-
-	test("replaces :unhappy: with default/unhappy.gif", () => {
-		const result = replaceSmileyCodesWithImages(":unhappy:");
-		expect(result).toBe(`<img src="${CDN}/default/unhappy.gif" alt=":unhappy:" class="smiley" />`);
-	});
-
-	test("replaces :bigsmile: with default/bigsmile.gif", () => {
-		const result = replaceSmileyCodesWithImages(":bigsmile:");
-		expect(result).toBe(
-			`<img src="${CDN}/default/bigsmile.gif" alt=":bigsmile:" class="smiley" />`,
-		);
-	});
-
-	test("replaces :tounge: (common misspelling) with default/tounge.gif", () => {
-		const result = replaceSmileyCodesWithImages(":tounge:");
-		expect(result).toBe(`<img src="${CDN}/default/tounge.gif" alt=":tounge:" class="smiley" />`);
 	});
 
 	test("replaces :smile_blush: (underscore variant) with default/smile_blush.gif", () => {
@@ -254,21 +209,77 @@ describe("replaceSmileyCodesWithImages", () => {
 		);
 	});
 
-	test("replaces :smile_cool: with default/smile_cool.gif", () => {
-		const result = replaceSmileyCodesWithImages(":smile_cool:");
+	test("replaces :tounge: (common misspelling) with default/tounge.gif", () => {
+		const result = replaceSmileyCodesWithImages(":tounge:");
+		expect(result).toBe(`<img src="${CDN}/default/tounge.gif" alt=":tounge:" class="smiley" />`);
+	});
+
+	test("replaces :eh: with default/eh.gif (added based on D1 hits)", () => {
+		const result = replaceSmileyCodesWithImages(":eh:");
+		expect(result).toBe(`<img src="${CDN}/default/eh.gif" alt=":eh:" class="smiley" />`);
+	});
+
+	test("replaces the longest whitelist entry :whatchutalkingabout_smile:", () => {
+		const result = replaceSmileyCodesWithImages(":whatchutalkingabout_smile:");
 		expect(result).toBe(
-			`<img src="${CDN}/default/smile_cool.gif" alt=":smile_cool:" class="smiley" />`,
+			`<img src="${CDN}/default/whatchutalkingabout_smile.gif" alt=":whatchutalkingabout_smile:" class="smiley" />`,
 		);
 	});
 
-	test("replaces multiple named codes", () => {
-		const result = replaceSmileyCodesWithImages(":smile::victory:");
-		expect(result).toContain("smile.gif");
-		expect(result).toContain("victory.gif");
+	test("renders :eh: alongside other named codes in mixed content", () => {
+		const result = replaceSmileyCodesWithImages("hi :eh: and :smile: too");
+		expect(result).toBe(
+			`hi <img src="${CDN}/default/eh.gif" alt=":eh:" class="smiley" /> and ` +
+				`<img src="${CDN}/default/smile.gif" alt=":smile:" class="smiley" /> too`,
+		);
 	});
 
-	test("leaves unknown named codes unchanged", () => {
-		expect(replaceSmileyCodesWithImages(":unknown:")).toBe(":unknown:");
+	test("replaces multiple distinct named codes", () => {
+		const result = replaceSmileyCodesWithImages(":smile::victory:");
+		expect(result).toContain("default/smile.gif");
+		expect(result).toContain("default/victory.gif");
+	});
+
+	// ── Whitelist gate: out-of-list names stay raw ──────────────────
+
+	test("leaves unknown :name: tokens unchanged (closed whitelist)", () => {
+		// Match the regex shape but are not on the whitelist → pass-through.
+		expect(replaceSmileyCodesWithImages(":foo_bar1:")).toBe(":foo_bar1:");
+		expect(replaceSmileyCodesWithImages(":someemoji:")).toBe(":someemoji:");
+		expect(replaceSmileyCodesWithImages(":icon1:")).toBe(":icon1:");
+	});
+
+	// ── Safety boundaries that must NOT render ──────────────────────
+
+	test("does not match named code with uppercase", () => {
+		expect(replaceSmileyCodesWithImages(":SMILE:")).toBe(":SMILE:");
+		expect(replaceSmileyCodesWithImages(":Eh:")).toBe(":Eh:");
+	});
+
+	test("does not match name starting with a digit or underscore", () => {
+		expect(replaceSmileyCodesWithImages(":1abc:")).toBe(":1abc:");
+		expect(replaceSmileyCodesWithImages(":_foo:")).toBe(":_foo:");
+	});
+
+	test("does not match path-traversal-looking tokens", () => {
+		// Dots, slashes, and hyphens are outside the regex char class — token
+		// stays as raw text rather than producing default/../x.gif.
+		expect(replaceSmileyCodesWithImages(":../x:")).toBe(":../x:");
+		expect(replaceSmileyCodesWithImages(":foo-bar:")).toBe(":foo-bar:");
+		expect(replaceSmileyCodesWithImages(":foo.bar:")).toBe(":foo.bar:");
+		expect(replaceSmileyCodesWithImages(":foo/bar:")).toBe(":foo/bar:");
+	});
+
+	test("does not process named codes longer than the regex cap (ReDoS guard)", () => {
+		// Regex caps the captured name at 30 chars total. A 31-char name
+		// must NOT match — even if it would otherwise look like a smiley.
+		const longName = "a".repeat(31);
+		const longCode = `:${longName}:`;
+		expect(replaceSmileyCodesWithImages(longCode)).toBe(longCode);
+	});
+
+	test("does not match bare single-letter capital codes like :A:", () => {
+		expect(replaceSmileyCodesWithImages(":A:")).toBe(":A:");
 	});
 
 	// ── Numbered :N: codes ─────────────────────────────────────────────
@@ -289,6 +300,10 @@ describe("replaceSmileyCodesWithImages", () => {
 
 	test("leaves :0: unchanged (out of range)", () => {
 		expect(replaceSmileyCodesWithImages(":0:")).toBe(":0:");
+	});
+
+	test("leaves :200: unchanged (regex caps numeric at 2 digits; D1 shows IPv6 use)", () => {
+		expect(replaceSmileyCodesWithImages("fe80::200:e8ff")).toBe("fe80::200:e8ff");
 	});
 
 	// ── Coolmonkey {:2_NNN:} ────────────────────────────────────────
@@ -329,6 +344,12 @@ describe("replaceSmileyCodesWithImages", () => {
 
 	// ── Unhandled codes (pass-through) ──────────────────────────────
 
+	test("leaves {:1_NNN:} default-pack numeric codes unchanged (out-of-scope)", () => {
+		// Tracked as a separate follow-up — needs the legacy cache_smiley map.
+		expect(replaceSmileyCodesWithImages("{:1_200:}")).toBe("{:1_200:}");
+		expect(replaceSmileyCodesWithImages("{:1_220:}")).toBe("{:1_220:}");
+	});
+
 	test("leaves {:soso_eNNN:} codes unchanged", () => {
 		expect(replaceSmileyCodesWithImages("{:soso_e100:}")).toBe("{:soso_e100:}");
 	});
@@ -363,27 +384,9 @@ describe("replaceSmileyCodesWithImages", () => {
 	// ── Injection prevention ────────────────────────────────────────
 
 	test("escapes HTML in alt attribute for crafted coolmonkey code", () => {
-		// A {:2_NNN:} code can't actually contain injection since the regex
-		// only captures \d{1,4}, but verify the alt is properly escaped
 		const result = replaceSmileyCodesWithImages("{:2_133:}");
 		expect(result).toContain('alt="{:2_133:}"');
 		expect(result).not.toContain("<script>");
-	});
-
-	test("does not process overly long named codes (ReDoS prevention)", () => {
-		// Named codes are capped at 20 chars — this 25-char string should pass through
-		const longCode = `:${"a".repeat(25)}:`;
-		expect(replaceSmileyCodesWithImages(longCode)).toBe(longCode);
-	});
-
-	test("does not match named code with uppercase", () => {
-		// Regex only matches lowercase + digits
-		expect(replaceSmileyCodesWithImages(":SMILE:")).toBe(":SMILE:");
-	});
-
-	test("leaves unknown underscore codes unchanged", () => {
-		// Underscores are allowed but :foo_bar: isn't in our whitelist
-		expect(replaceSmileyCodesWithImages(":foo_bar:")).toBe(":foo_bar:");
 	});
 
 	// ── Mixed content ───────────────────────────────────────────────
@@ -408,15 +411,6 @@ describe("replaceSmileyCodesWithImages", () => {
 		expect(result).toContain("coolmonkey/08.gif");
 	});
 
-	test("handles all three new named codes in one string", () => {
-		const input = "Check :cool: and :w00t: also :wink: here";
-		const result = replaceSmileyCodesWithImages(input);
-
-		expect(result).toContain("cool.gif");
-		expect(result).toContain("w00t.gif");
-		expect(result).toContain("wink.gif");
-	});
-
 	// ── Regex statefulness guard ────────────────────────────────────
 
 	test("produces consistent results on repeated calls", () => {
@@ -426,15 +420,190 @@ describe("replaceSmileyCodesWithImages", () => {
 		expect(r1).toBe(r2);
 	});
 
-	// ── Comprehensive: all 32 named codes resolve to img ────────────
+	// ── HTML-aware: tokens inside attributes / tag bodies are NOT replaced ─
 
-	test("every named smiley code in the mapping produces an <img>", () => {
-		for (const name of NAMED_SMILEY_SET) {
-			const input = `:${name}:`;
-			const result = replaceSmileyCodesWithImages(input);
-			expect(result).toContain("<img ");
-			expect(result).toContain(`default/${name}`);
-			expect(result).toContain('class="smiley"');
+	test("does not replace :word: inside an anchor's href or title", () => {
+		const input = '<a href="/search?q=:foo:" title=":bar:">:eh:</a>';
+		const result = replaceSmileyCodesWithImages(input);
+		expect(result).toBe(
+			`<a href="/search?q=:foo:" title=":bar:"><img src="${CDN}/default/eh.gif" alt=":eh:" class="smiley" /></a>`,
+		);
+		// Belt-and-braces: nothing should have leaked an <img> into the attribute strings
+		expect(result).toContain('href="/search?q=:foo:"');
+		expect(result).toContain('title=":bar:"');
+	});
+
+	test("does not touch attributes on a self-closing img tag", () => {
+		const input = '<img alt=":eh:" src="/x/:foo:.png" />';
+		const result = replaceSmileyCodesWithImages(input);
+		expect(result).toBe(input);
+	});
+
+	test("does not replace tokens in numbered/coolmonkey IDs hidden inside attributes", () => {
+		const input = '<a href="/p?q={:2_133:}&t={:3_149:}">hi :smile:</a>';
+		const result = replaceSmileyCodesWithImages(input);
+		expect(result).toContain('href="/p?q={:2_133:}&t={:3_149:}"');
+		expect(result).toContain(`<img src="${CDN}/default/smile.gif"`);
+	});
+
+	test("does not replace tokens inside <code> blocks", () => {
+		const input = "<p>regular :smile:</p><code>literal :smile: stays</code>";
+		const result = replaceSmileyCodesWithImages(input);
+		expect(result).toContain(
+			`<p>regular <img src="${CDN}/default/smile.gif" alt=":smile:" class="smiley" /></p>`,
+		);
+		expect(result).toContain("<code>literal :smile: stays</code>");
+	});
+
+	test("does not replace tokens inside <pre> blocks", () => {
+		const input = "<pre>:eh: {:2_133:} :1:</pre><p>:eh:</p>";
+		const result = replaceSmileyCodesWithImages(input);
+		expect(result).toContain("<pre>:eh: {:2_133:} :1:</pre>");
+		expect(result).toContain(`<p><img src="${CDN}/default/eh.gif"`);
+	});
+
+	test("does not replace tokens inside <script> or <style>", () => {
+		const input = "<script>var s = ':smile:';</script><style>.x{content:':eh:';}</style>";
+		const result = replaceSmileyCodesWithImages(input);
+		expect(result).toBe(input);
+	});
+
+	test("does not replace tokens inside HTML comments", () => {
+		const input = "<!-- :eh: stays --> hi :eh:";
+		const result = replaceSmileyCodesWithImages(input);
+		expect(result).toBe(
+			`<!-- :eh: stays --> hi <img src="${CDN}/default/eh.gif" alt=":eh:" class="smiley" />`,
+		);
+	});
+
+	test("handles consecutive tags and text correctly", () => {
+		const input = "<b>:smile:</b><i>:cry:</i>plain :eh:";
+		const result = replaceSmileyCodesWithImages(input);
+		expect(result).toBe(
+			`<b><img src="${CDN}/default/smile.gif" alt=":smile:" class="smiley" /></b>` +
+				`<i><img src="${CDN}/default/cry.gif" alt=":cry:" class="smiley" /></i>` +
+				`plain <img src="${CDN}/default/eh.gif" alt=":eh:" class="smiley" />`,
+		);
+	});
+
+	test("handles self-closing void tags between text", () => {
+		const input = "before :eh:<br/>after :smile:";
+		const result = replaceSmileyCodesWithImages(input);
+		expect(result).toBe(
+			`before <img src="${CDN}/default/eh.gif" alt=":eh:" class="smiley" /><br/>` +
+				`after <img src="${CDN}/default/smile.gif" alt=":smile:" class="smiley" />`,
+		);
+	});
+
+	test("nested code inside paragraph still skipped", () => {
+		const input = "<p>before <code>:eh:</code> after :eh:</p>";
+		const result = replaceSmileyCodesWithImages(input);
+		expect(result).toBe(
+			`<p>before <code>:eh:</code> after <img src="${CDN}/default/eh.gif" alt=":eh:" class="smiley" /></p>`,
+		);
+	});
+});
+
+// ── Picker / SMILEY_PACKS data sanity ───────────────────────────────────
+//
+// The picker emits the same legacy tokens that the renderer consumes, so a
+// drift between the two would mean the picker offers smileys the renderer
+// silently drops (or vice versa). These tests pin both sides to the same
+// `DEFAULT_NAMED_SMILEY_NAMES` whitelist so they cannot diverge.
+
+describe("SMILEY_PACKS picker data", () => {
+	test("DEFAULT_NAMED_SMILEY_SET is derived from DEFAULT_NAMED_SMILEY_NAMES", () => {
+		expect(DEFAULT_NAMED_SMILEY_SET.size).toBe(DEFAULT_NAMED_SMILEY_NAMES.length);
+		for (const name of DEFAULT_NAMED_SMILEY_NAMES) {
+			expect(DEFAULT_NAMED_SMILEY_SET.has(name)).toBe(true);
+		}
+	});
+
+	test("DEFAULT_NAMED_SMILEY_NAMES has no duplicates", () => {
+		expect(new Set(DEFAULT_NAMED_SMILEY_NAMES).size).toBe(DEFAULT_NAMED_SMILEY_NAMES.length);
+	});
+
+	test("DEFAULT_NAMED_SMILEY_NAMES uses only safe filename characters", () => {
+		for (const name of DEFAULT_NAMED_SMILEY_NAMES) {
+			expect(name).toMatch(/^[a-z][a-z0-9_]{0,29}$/);
+		}
+	});
+
+	test("default pack contains numbered 1-16 followed by every whitelist name", () => {
+		const def = SMILEY_PACKS.default;
+		// Numbered 1-16 lead the picker grid.
+		for (let i = 1; i <= 16; i++) {
+			const item = def.find((s) => s.code === `:${i}:`);
+			expect(item).toBeDefined();
+			expect(item?.file).toBe(`${i}.gif`);
+		}
+		// Every whitelist name is also exposed via the picker.
+		for (const name of DEFAULT_NAMED_SMILEY_NAMES) {
+			const item = def.find((s) => s.code === `:${name}:`);
+			expect(item).toBeDefined();
+			expect(item?.file).toBe(`${name}.gif`);
+		}
+		expect(def.length).toBe(16 + DEFAULT_NAMED_SMILEY_NAMES.length);
+	});
+
+	test("every default-pack picker token round-trips through the renderer", () => {
+		for (const item of SMILEY_PACKS.default) {
+			const html = replaceSmileyCodesWithImages(item.code);
+			expect(html).toContain(`/default/${item.file}`);
+			expect(html).toContain(`alt="${item.code}"`);
+		}
+	});
+
+	test("coolmonkey pack covers IDs 133-148 mapped to 01.gif-16.gif", () => {
+		const cm = SMILEY_PACKS.coolmonkey;
+		expect(cm.length).toBe(16);
+		expect(cm[0]).toEqual({ code: "{:2_133:}", file: "01.gif" });
+		expect(cm[15]).toEqual({ code: "{:2_148:}", file: "16.gif" });
+	});
+
+	test("comcom pack covers IDs 149-172 mapped to 1.gif-24.gif", () => {
+		const cc = SMILEY_PACKS.comcom;
+		expect(cc.length).toBe(24);
+		expect(cc[0]).toEqual({ code: "{:3_149:}", file: "1.gif" });
+		expect(cc[23]).toEqual({ code: "{:3_172:}", file: "24.gif" });
+	});
+
+	test("every coolmonkey/comcom picker token round-trips through the renderer", () => {
+		for (const item of SMILEY_PACKS.coolmonkey) {
+			const html = replaceSmileyCodesWithImages(item.code);
+			expect(html).toContain(`/coolmonkey/${item.file}`);
+		}
+		for (const item of SMILEY_PACKS.comcom) {
+			const html = replaceSmileyCodesWithImages(item.code);
+			expect(html).toContain(`/comcom/${item.file}`);
+		}
+	});
+
+	test("0-hit / non-legacy items are NOT in the whitelist", () => {
+		// D1 inventory (2026-05-08) showed these have zero usage and were
+		// never on the prior runtime whitelist. They must stay out so the
+		// picker never offers them.
+		const excluded = [
+			"icon1",
+			"icon2",
+			"icon3",
+			"icon4",
+			"icon5",
+			"icon6",
+			"icon7",
+			"icon8",
+			"icon9",
+			"angry_smile",
+			"omg_smile",
+			"present_smile",
+			"regular_smile",
+			"sad_smile",
+			"smile_shock",
+			"teeth_smile",
+			"tounge_smile",
+		];
+		for (const name of excluded) {
+			expect(DEFAULT_NAMED_SMILEY_SET.has(name)).toBe(false);
 		}
 	});
 });
