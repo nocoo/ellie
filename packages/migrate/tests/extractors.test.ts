@@ -316,12 +316,14 @@ describe("extractUser", () => {
 		const result = extractUser(ucRow(), defaultMember, defaultCounts, false);
 		// getAvatarValue(100, 1) should return R2 key
 		expect(result.avatar).toBe("avatars/100.jpg");
+		expect(result.has_avatar).toBe(1);
 	});
 
 	test("avatar is empty when avatarstatus=0", () => {
 		const noAvatar = { ...defaultMember, avatarstatus: 0 };
 		const result = extractUser(ucRow(), noAvatar, defaultCounts, false);
 		expect(result.avatar).toBe("");
+		expect(result.has_avatar).toBe(0);
 	});
 
 	test("archived user gets status=-2", () => {
@@ -335,11 +337,12 @@ describe("extractUser", () => {
 		expect(result.status).toBe(-1);
 	});
 
-	test("no member data: status=0, role=0, empty avatar", () => {
+	test("no member data: status=0, role=0, empty avatar, has_avatar=0", () => {
 		const result = extractUser(ucRow(), null, null, false);
 		expect(result.status).toBe(0);
 		expect(result.role).toBe(0);
 		expect(result.avatar).toBe("");
+		expect(result.has_avatar).toBe(0);
 		expect(result.reg_date).toBe(0);
 		expect(result.threads).toBe(0);
 		expect(result.posts).toBe(0);

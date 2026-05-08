@@ -399,6 +399,7 @@ export function extractUser(
 		password_hash: pw.passwordHash,
 		password_salt: pw.passwordSalt,
 		avatar: member ? getAvatarValue(uid, member.avatarstatus) : "",
+		has_avatar: member && member.avatarstatus > 0 ? 1 : 0,
 		status: computeUserStatus(member, isArchived),
 		role: member?.adminid ?? 0,
 		reg_date: member?.regdate ?? 0,
