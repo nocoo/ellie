@@ -207,7 +207,7 @@ Captured for cross-reference; L2 100% scope is owned by `docs/18-l2-coverage-mat
 | L1 cov  | `bun run test:coverage`                        | All 7 packages over §2.3 floors; `packages/migrate` now 97.81 / 90.20 / 100 / 98.60 with the raised branch ≥90 floor; `packages/types` 100/100/100/100 |
 | L2      | `bun run test:l2`                              | 258 tests passing                           |
 | G1      | `bun run gate:g1` (typecheck + lint + L1 cov)  | clean                                       |
-| G2      | `bun run gate:g2` (gitleaks + osv-scanner)     | clean — no leaks (1409 commits), no issues (10 filtered, see `osv-scanner.toml`) |
+| G2      | `bun run gate:g2` (gitleaks + osv-scanner)     | clean — no leaks; no issues (10 filtered, see `osv-scanner.toml`) |
 | Full    | `bun run gate:full` (G1 + L2 + G2)             | composition of the rows above; verified via the constituent commands |
 
 ---
