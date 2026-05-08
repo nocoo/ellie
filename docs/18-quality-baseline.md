@@ -186,10 +186,10 @@ files.**
 Captured for cross-reference; L2 100% scope is owned by `docs/18-l2-coverage-matrix.md`
 (Phase 1B), G2 by `osv-scanner.toml` and gitleaks defaults.
 
-| Gate    | Command                                        | Baseline result (2026-05-09 post-Phase-2A) |
+| Gate    | Command                                        | Baseline result (2026-05-09 post-Phase-2B) |
 |---------|------------------------------------------------|--------------------------------------------|
-| L1      | `bun run test`                                 | 4456 vitest tests + 37 bun tests passing   |
-| L1 cov  | `bun run test:coverage`                        | All 7 packages over §2.3 floors             |
+| L1      | `bun run test`                                 | 4488 vitest tests + 37 bun tests passing   |
+| L1 cov  | `bun run test:coverage`                        | All 7 packages over §2.3 floors; `packages/types` now 100/100/100/100 |
 | L2      | `bun run test:l2`                              | 258 tests passing                           |
 | G1      | `bun run typecheck` + `bun run lint`           | both clean                                  |
 | G2a     | `gitleaks detect --no-banner`                  | no leaks (1397 commits)                     |
