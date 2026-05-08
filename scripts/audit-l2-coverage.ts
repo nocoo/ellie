@@ -39,6 +39,21 @@
  * are not routes. If the router file adopts a new shape, this script will
  * under-count and the diff will fail review; that is the desired loud
  * failure.
+ *
+ * L2 calls (numerator) are recognized in two forms:
+ *
+ *   1. Helper calls — workerFetch / workerPost / adminGet / ... per the
+ *      HELPER_METHOD map below. Helper name implies the HTTP method.
+ *
+ *   2. Raw `fetch(...)` to the Worker — e.g.
+ *        fetch("http://localhost:8787/api/...", init?)
+ *        fetch(`${getWorkerUrl()}/api/...`, init?)
+ *        fetch(`${WORKER_URL}/api/...`, init?)
+ *      Default method is GET; an `init` literal with `method: "POST" | ...`
+ *      overrides it. Only the literal `localhost:8787` prefix and the two
+ *      known template helpers are recognized — external URLs and non-Worker
+ *      fetches are deliberately ignored. Raw-fetch scanning is restricted
+ *      to tests/integration/worker/** to avoid false positives.
  */
 
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -243,6 +258,14 @@ function parseL2Calls(): L2Call[] {
 	// Capture up to the next top-level comma or close-paren so we can sniff
 	// `{ method: "..." }` overrides for workerFetch / workerAuthFetch / adminFetch.
 	const callRe = new RegExp(`\\b(${helperUnion})\\s*\\(\\s*([\`"'])(.*?)\\2([^)]*)`, "g");
+	// Raw `fetch(<worker-url>, init?)` calls used by a small number of L2
+	// suites that target the Worker without going through a helper. We accept
+	// either the literal `http://localhost:8787` prefix the L2 runner boots
+	// against, or a `${getWorkerUrl()}` / `${WORKER_URL}` template prefix, so
+	// that a future helper rename does not silently regress detection.
+	// Same `{ method: "..." }` lookahead applies; default is GET.
+	const rawFetchRe =
+		/\bfetch\s*\(\s*([`"'])(?:http:\/\/localhost:8787|\$\{(?:getWorkerUrl\(\)|WORKER_URL)\})(\/[^`"'\s]*)\1([^)]*)/g;
 	const methodOverrideRe = /\bmethod\s*:\s*["']([A-Z]+)["']/;
 
 	for (const file of listTestFiles()) {
@@ -277,6 +300,35 @@ function parseL2Calls(): L2Call[] {
 					line: i + 1,
 				});
 				m = callRe.exec(line);
+			}
+
+			// Raw `fetch("http://localhost:8787/...", init?)` — only matches
+			// Worker URLs (literal localhost:8787 prefix or known template
+			// helper). External URLs and non-Worker fetches are ignored.
+			rawFetchRe.lastIndex = 0;
+			let rm: RegExpExecArray | null = rawFetchRe.exec(line);
+			while (rm) {
+				const rawPath = rm[2];
+				const trailing = rm[3] ?? "";
+				let method = "GET";
+				const lookahead = [
+					trailing,
+					lines[i + 1] ?? "",
+					lines[i + 2] ?? "",
+					lines[i + 3] ?? "",
+				].join(" ");
+				const ov = lookahead.match(methodOverrideRe);
+				if (ov) method = ov[1];
+				const templatePath = templatize(rawPath);
+				calls.push({
+					helper: "fetch",
+					method,
+					rawPath,
+					templatePath,
+					file: file.replace(`${REPO_ROOT}/`, ""),
+					line: i + 1,
+				});
+				rm = rawFetchRe.exec(line);
 			}
 		}
 	}

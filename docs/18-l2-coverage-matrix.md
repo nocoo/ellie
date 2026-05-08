@@ -12,9 +12,9 @@ Last audit: **2026-05-09**
 |---|---|
 | Total (route × method) | **134** |
 | Method breakdown | GET 58 / POST 46 / PATCH 16 / PUT 1 / DELETE 13 |
-| L2 calls scanned | 194 |
-| Routes hit | **117** (87.31%) |
-| Routes uncovered | **17** |
+| L2 calls scanned | 195 |
+| Routes hit | **118** (88.06%) |
+| Routes uncovered | **16** |
 | Exemptions | 0 |
 | Unmatched test calls | 0 |
 
@@ -34,20 +34,32 @@ Method-less guards (e.g. CORS preflight `OPTIONS`, the
 validateApiKey middleware, the maintenance gate) are intentionally
 **not** counted as routes.
 
-L2 calls are matched against the helper map declared at the top of
-the script (mirrors `tests/integration/setup.ts`):
+L2 calls are recognized in two forms:
 
-- `workerFetch` → GET
-- `workerAuthFetch` → GET
-- `workerPost` → POST
-- `workerPatch` → PATCH
-- `workerDelete` → DELETE
-- `adminFetch` → GET
-- `adminGet` → GET
-- `adminPost` → POST
-- `adminPatch` → PATCH
-- `adminPut` → PUT
-- `adminDelete` → DELETE
+1. **Helper calls** — the helper map declared at the top of the
+   script (mirrors `tests/integration/setup.ts`):
+
+   - `workerFetch` → GET
+   - `workerAuthFetch` → GET
+   - `workerPost` → POST
+   - `workerPatch` → PATCH
+   - `workerDelete` → DELETE
+   - `adminFetch` → GET
+   - `adminGet` → GET
+   - `adminPost` → POST
+   - `adminPatch` → PATCH
+   - `adminPut` → PUT
+   - `adminDelete` → DELETE
+
+2. **Raw `fetch(...)` to the Worker** — calls of the form
+   `fetch("http://localhost:8787/api/...", init?)` or
+   `fetch(\`${getWorkerUrl()}/api/...\`, init?)` (also
+   `${WORKER_URL}`). Default method is `GET`; an `init` object with
+   `method: "POST" | "PATCH" | ...` overrides it. Only the literal
+   `localhost:8787` prefix and the two known template helpers are
+   recognized — external URLs and non-Worker `fetch` calls are
+   ignored. Scanning for raw fetches is restricted to
+   `tests/integration/worker/**` to avoid false positives.
 
 Test paths with `${...}` template substitutions are rewritten to
 `:param` and matched against literal routes verbatim or against
@@ -98,7 +110,7 @@ _None._ Every route × method must be covered by L2.
 | ✅ | POST | `/api/admin/users/batch-role` | index.ts:420 |
 | ✅ | POST | `/api/admin/users/batch-status` | index.ts:417 |
 | ✅ | GET | `/api/admin/users/staff` | index.ts:426 |
-| ❌ | GET | `/api/live` | index.ts:56 |
+| ✅ | GET | `/api/live` | index.ts:56 |
 | ✅ | GET | `/api/v1/auth/check-username` | index.ts:170 |
 | ✅ | POST | `/api/v1/auth/login` | index.ts:155 |
 | ✅ | DELETE | `/api/v1/auth/logout` | index.ts:161 |
@@ -201,7 +213,6 @@ _None._ Every route × method must be covered by L2.
 
 | Method | Pattern | Source line |
 |---|---|---|
-| GET | `/api/live` | index.ts:56 |
 | GET | `/^\/api\/v1\/forums\/\d+\/ancestors$/` | index.ts:78 |
 | POST | `/api/v1/posts/attachments/batch` | index.ts:100 |
 | GET | `/^\/api\/v1\/users\/\d+\/avatar-path$/` | index.ts:106 |
