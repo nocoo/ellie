@@ -10,11 +10,16 @@ import { createHash } from "node:crypto";
 /**
  * Escape a value for inline SQL. Strings are single-quoted with internal
  * quotes doubled; numbers pass through; null becomes NULL.
+ *
+ * Null bytes (\x00) are stripped because D1's SQL file import parser uses
+ * C-style string processing — a null byte silently truncates the file,
+ * causing all subsequent statements to be dropped without error.
  */
 export function escapeSQL(val: string | number | null): string {
 	if (val === null) return "NULL";
 	if (typeof val === "number") return String(val);
-	return `'${String(val).replace(/'/g, "''")}'`;
+	const sanitized = String(val).replace(/\0/g, "");
+	return `'${sanitized.replace(/'/g, "''")}'`;
 }
 
 /**

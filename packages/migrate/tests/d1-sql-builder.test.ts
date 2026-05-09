@@ -43,6 +43,18 @@ describe("escapeSQL", () => {
 	test("string with special SQL characters is safely quoted", () => {
 		expect(escapeSQL("DROP TABLE users; --")).toBe("'DROP TABLE users; --'");
 	});
+
+	test("null bytes are stripped (D1 import parser truncates at \\x00)", () => {
+		expect(escapeSQL("before\x00after")).toBe("'beforeafter'");
+		expect(escapeSQL("\x00leading")).toBe("'leading'");
+		expect(escapeSQL("trailing\x00")).toBe("'trailing'");
+		expect(escapeSQL("\x00")).toBe("''");
+		expect(escapeSQL("no\x00null\x00bytes\x00here")).toBe("'nonullbyteshere'");
+	});
+
+	test("null bytes and single quotes are both handled", () => {
+		expect(escapeSQL("it's\x00 broken")).toBe("'it''s broken'");
+	});
 });
 
 // ─── buildUpsertStatement ──────────────────────────────────────────────────
