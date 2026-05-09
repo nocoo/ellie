@@ -1,16 +1,16 @@
 "use client";
 
 // components/forum/thread-item.tsx — Discuz classic thread row
-// Desktop: 4-column table layout (Avatar | Subject | Author | Stats | Last Post)
-// Mobile: 2-row compact layout (Avatar + badges + subject on row 1, stats inline on row 2)
+// Desktop: 4-column table layout (Icon | Subject | Author | Stats | Last Post)
+// Mobile: 2-row compact layout (Icon + badges + subject on row 1, stats inline on row 2)
 
 import { type ThreadDisplayItem, highlightStyle } from "@/viewmodels/forum/thread-list";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
+import Image from "next/image";
 import Link from "next/link";
 import { ThreadBadgeList } from "./thread-badge";
 import { ThreadLastPostCell } from "./thread-last-post-cell";
 import { ThreadRowStats } from "./thread-row-stats";
-import { ForumAvatar } from "./user-avatar";
 import { UserPopover } from "./user-popover";
 
 interface ThreadItemProps {
@@ -18,22 +18,15 @@ interface ThreadItemProps {
 }
 
 export function ThreadItem({ item }: ThreadItemProps) {
-	const { thread, badges, highlight: hl } = item;
+	const { thread, badges, highlight: hl, iconSrc } = item;
 
 	return (
 		<div className="border-b border-border/50 last:border-0 transition-colors hover:bg-accent/50 focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset">
 			{/* Desktop layout: single row with columns */}
 			<div className="hidden sm:flex items-center">
-				{/* Avatar column */}
+				{/* Thread icon column */}
 				<div className="flex items-center justify-center w-[36px] shrink-0 pl-2">
-					<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0">
-						<ForumAvatar
-							userId={thread.authorId}
-							userName={thread.authorName}
-							avatarPath={thread.authorAvatarPath}
-							shadow
-						/>
-					</Link>
+					<Image src={iconSrc} alt="" width={16} height={16} className="opacity-70" unoptimized />
 				</div>
 
 				{/* Column 1: Subject (flex) */}
@@ -79,15 +72,16 @@ export function ThreadItem({ item }: ThreadItemProps) {
 
 			{/* Mobile layout: two-row compact display */}
 			<div className="sm:hidden px-3 py-2">
-				{/* Row 1: Avatar + badges + subject */}
-				<div className="flex items-center gap-2">
-					<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0">
-						<ForumAvatar
-							userId={thread.authorId}
-							userName={thread.authorName}
-							avatarPath={thread.authorAvatarPath}
-						/>
-					</Link>
+				{/* Row 1: Icon + badges + subject */}
+				<div className="flex items-start gap-2">
+					<Image
+						src={iconSrc}
+						alt=""
+						width={14}
+						height={14}
+						className="opacity-70 mt-0.5 shrink-0"
+						unoptimized
+					/>
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-1.5">
 							{badges.length > 0 && <ThreadBadgeList badges={badges} />}
@@ -103,7 +97,7 @@ export function ThreadItem({ item }: ThreadItemProps) {
 					</div>
 				</div>
 				{/* Row 2: author · time · stats */}
-				<div className="mt-1 ml-8 flex items-center gap-1.5 text-xs text-muted-foreground">
+				<div className="mt-1 ml-6 flex items-center gap-1.5 text-xs text-muted-foreground">
 					<UserPopover userId={thread.authorId}>
 						<span className="text-foreground hover:text-primary cursor-pointer">
 							{thread.authorName}

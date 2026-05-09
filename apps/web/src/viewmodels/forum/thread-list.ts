@@ -20,6 +20,7 @@ export interface ThreadDisplayItem {
 	thread: Thread;
 	badges: ReturnType<typeof getThreadBadges>;
 	highlight: ReturnType<typeof decodeHighlight>;
+	iconSrc: string;
 }
 
 export interface ThreadListState {
@@ -45,6 +46,7 @@ export function enrichThreads(threads: Thread[]): ThreadDisplayItem[] {
 		thread,
 		badges: getThreadBadges(thread),
 		highlight: decodeHighlight(thread.highlight),
+		iconSrc: getThreadIconSrc(thread),
 	}));
 }
 
