@@ -5,7 +5,7 @@ import { withEntityAuth } from "../../lib/adminHelpers";
 import { bumpForumSummaryGen, invalidateUserCaches } from "../../lib/cache/invalidate";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
-import { invalidateForumCacheAll, invalidateForumVolatile } from "../../lib/forum-cache";
+import { invalidateForumVolatile } from "../../lib/forum-cache";
 import { jsonResponse } from "../../lib/response";
 import { invalidateUserCache } from "../../lib/user-cache";
 import { errorResponse } from "../../middleware/error";
@@ -113,11 +113,13 @@ export const recalcForums = withEntityAuth(
 		await env.DB.batch(statements);
 
 		// Cache invalidation (docs/19 §6 row "admin statistics recalc-forums"):
-		// - Legacy: every forum aggregate row was rewritten — drop both
-		//   tree (visibility/structure unchanged but counts feed the tree
-		//   payload) and volatile.
-		// - v2: bump `forum:summary:gen`.
-		await Promise.all([invalidateForumCacheAll(env), bumpForumSummaryGen(env)]);
+		// recalcForums rewrites aggregate fields (threads/posts/last-post)
+		// consumed by the volatile/summary layer; the tree layer is not
+		// touched because structure / visibility / description / moderators
+		// did not change.
+		// - Legacy: drop forums:volatile:v1.
+		// - v2: bump forum:summary:gen.
+		await Promise.all([invalidateForumVolatile(env), bumpForumSummaryGen(env)]);
 
 		return jsonResponse({ updated: forumIds.length }, origin);
 	},
