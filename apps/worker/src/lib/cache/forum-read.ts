@@ -173,19 +173,27 @@ async function loadUserMaps(
 
 	const idUnion = new Set<number>([...modIds, ...avatarIds]);
 	const ids = [...idUnion];
-	const placeholders = ids.map(() => "?").join(",");
-	const result = await env.DB.prepare(
-		`SELECT id, username, avatar, avatar_path FROM users WHERE id IN (${placeholders})`,
-	)
-		.bind(...ids)
-		.all<{ id: number; username: string; avatar: string | null; avatar_path: string | null }>();
-	for (const row of result.results) {
-		if (modIds.has(row.id)) modNameMap.set(row.id, row.username);
-		if (avatarIds.has(row.id)) {
-			avatarMap.set(row.id, {
-				avatar: row.avatar ?? "",
-				avatarPath: row.avatar_path ?? "",
-			});
+
+	// SQLite caps prepared-statement variables at 999. Forums + moderators +
+	// last-posters can plausibly exceed that on a large board, so chunk the
+	// IN-list into BATCH_SIZE-element windows that stay well under the cap.
+	const BATCH_SIZE = 100;
+	for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+		const batch = ids.slice(i, i + BATCH_SIZE);
+		const placeholders = batch.map(() => "?").join(",");
+		const result = await env.DB.prepare(
+			`SELECT id, username, avatar, avatar_path FROM users WHERE id IN (${placeholders})`,
+		)
+			.bind(...batch)
+			.all<{ id: number; username: string; avatar: string | null; avatar_path: string | null }>();
+		for (const row of result.results) {
+			if (modIds.has(row.id)) modNameMap.set(row.id, row.username);
+			if (avatarIds.has(row.id)) {
+				avatarMap.set(row.id, {
+					avatar: row.avatar ?? "",
+					avatarPath: row.avatar_path ?? "",
+				});
+			}
 		}
 	}
 	return { modNameMap, avatarMap };
@@ -273,7 +281,8 @@ async function fetchVisibleLastThreadsForSnapshot(
 				 WHERE forum_id IN (${placeholders}) AND sticky >= 0
 				 GROUP BY forum_id
 			 ) sub ON t.forum_id = sub.forum_id AND t.last_post_at = sub.max_post_at
-			 WHERE t.sticky >= 0`,
+			 WHERE t.sticky >= 0
+			 ORDER BY t.last_post_at DESC, t.id DESC`,
 		)
 			.bind(...batch)
 			.all<{
@@ -443,8 +452,9 @@ export async function getForumMetaV2(
 		if (cached !== null && cached !== undefined && isForumMetaPayload(cached)) {
 			return { kind: "ok", forum: cached.forum };
 		}
-	} catch {
+	} catch (err) {
 		// Fall through.
+		console.warn(`[cache] forum:meta read failed key=${key}`, err);
 	}
 
 	// Miss path: load full forum row from D1.
@@ -464,7 +474,9 @@ export async function getForumMetaV2(
 	// Best-effort write-back; never block the response.
 	const putPromise = env.KV.put(key, JSON.stringify(payload), {
 		expirationTtl: FORUM_META_TTL,
-	}).catch(() => {});
+	}).catch((err) => {
+		console.warn(`[cache] forum:meta write-back failed key=${key}`, err);
+	});
 	ctx.waitUntil(putPromise);
 
 	return { kind: "ok", forum: payload.forum };

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+	FORUM_DIGEST_AFFECTING_COLUMNS,
+	affectsForumDigest,
 	bumpDigestGen,
 	bumpForumSummaryGen,
 	bumpForumTreeGen,
@@ -186,5 +188,42 @@ describe("cache/invalidate — composite helpers", () => {
 		expect(s2.get("forum:tree:gen")?.length).toBeGreaterThan(0);
 		expect(s2.get("forum:summary:gen")?.length).toBeGreaterThan(0);
 		expect(s2.has("digest:gen")).toBe(false);
+	});
+});
+
+describe("affectsForumDigest — single source of truth for digest-affecting columns", () => {
+	it("FORUM_DIGEST_AFFECTING_COLUMNS lists exactly the snake-case digest-affecting columns", () => {
+		// Lock in the contract — adding/removing a column here is a
+		// deliberate digest-semantics change that must be reviewed.
+		expect([...FORUM_DIGEST_AFFECTING_COLUMNS]).toEqual([
+			"name",
+			"status",
+			"visibility",
+			"parent_id",
+			"type",
+		]);
+	});
+
+	it.each(FORUM_DIGEST_AFFECTING_COLUMNS)("returns true when %s is updated", (col) => {
+		expect(affectsForumDigest({ [col]: "x" })).toBe(true);
+	});
+
+	it("returns false for non-digest-affecting columns (description, icon, display_order, moderators…)", () => {
+		expect(affectsForumDigest({ description: "x" })).toBe(false);
+		expect(affectsForumDigest({ icon: "x" })).toBe(false);
+		expect(affectsForumDigest({ display_order: 7 })).toBe(false);
+		expect(affectsForumDigest({ moderators: "alice" })).toBe(false);
+		expect(affectsForumDigest({ moderator_ids: "1,2" })).toBe(false);
+	});
+
+	it("returns false for an empty payload", () => {
+		expect(affectsForumDigest({})).toBe(false);
+	});
+
+	it("does NOT trigger on the camelCase API field name (parentId is wrong; column is parent_id)", () => {
+		// Guards against the regression where the handler reads the API
+		// camelCase key instead of the DB snake_case column.
+		expect(affectsForumDigest({ parentId: 5 })).toBe(false);
+		expect(affectsForumDigest({ parent_id: 5 })).toBe(true);
 	});
 });

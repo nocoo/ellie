@@ -31,18 +31,20 @@ export async function getGen(env: Env, genKey: string): Promise<string> {
 	let token: string | null = null;
 	try {
 		token = await env.KV.get(genKey);
-	} catch {
+	} catch (err) {
 		// KV read failure — fall through to seeding so the cache key is
 		// still well-formed; if the seed write also fails we return the
 		// in-memory token so the caller can still build a key.
+		console.warn(`[cache] gen read failed key=${genKey}`, err);
 	}
 	if (token && token.length > 0) return token;
 
 	const seeded = makeToken();
 	try {
 		await env.KV.put(genKey, seeded);
-	} catch {
+	} catch (err) {
 		// Best-effort: the next reader will try again.
+		console.warn(`[cache] gen seed write failed key=${genKey}`, err);
 	}
 	return seeded;
 }
@@ -60,8 +62,9 @@ export async function bumpGen(env: Env, genKey: string): Promise<string> {
 	try {
 		const opts = NEW_GEN_TTL > 0 ? { expirationTtl: NEW_GEN_TTL } : undefined;
 		await env.KV.put(genKey, token, opts);
-	} catch {
+	} catch (err) {
 		// Swallow; mutation must not fail because of KV.
+		console.warn(`[cache] gen bump write failed key=${genKey}`, err);
 	}
 	return token;
 }

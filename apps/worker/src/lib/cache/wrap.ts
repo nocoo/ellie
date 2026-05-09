@@ -45,8 +45,10 @@ export async function cacheGetOrSet<T>(
 				return cached as T;
 			}
 		}
-	} catch {
-		// Fall through to loader.
+	} catch (err) {
+		// KV read failure — log and fall through to loader so the handler
+		// keeps working off D1.
+		console.warn(`[cache] read miss (KV error) key=${key}`, err);
 	}
 
 	// Miss path
@@ -55,7 +57,9 @@ export async function cacheGetOrSet<T>(
 	// Best-effort write-back; never block the response.
 	const putPromise = env.KV.put(key, JSON.stringify(fresh), {
 		expirationTtl: options.ttl,
-	}).catch(() => {});
+	}).catch((err) => {
+		console.warn(`[cache] write-back failed key=${key}`, err);
+	});
 	ctx.waitUntil(putPromise);
 
 	return fresh;
