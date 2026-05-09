@@ -22,10 +22,9 @@
 - **Next.js fetch cache is disabled by contract.** `apps/web/src/lib/forum-api.ts`
   always sets `cache: "no-store"` when calling the Worker. This is a binding
   architectural constraint; reverting it requires updating this doc first.
-- **`apps/admin/src/lib/api-client.ts`** must also pass `cache: "no-store"` so
-  the admin frontend never accidentally relies on Next data cache. (Phase 1
-  task — currently the option is omitted, which leaves behavior to Next
-  defaults.)
+- **`apps/admin/src/lib/api-client.ts`** also passes `cache: "no-store"`
+  (line 82) so the admin frontend never accidentally relies on the Next
+  data cache.
 - **HTTP / Cloudflare edge cache** is reserved for **immutable** static
   assets only (e.g. `lib/postImage.ts:156-163` `Cache-Control: public,
   max-age=31536000, immutable`). API JSON responses do not opt into edge
@@ -47,8 +46,8 @@ for primitives that are reused across many list views (`user:mini`,
 - TTL is a performance safety net for unexpected miss storms and to bound
   memory inside KV. It is not a substitute for a missing invalidation hook.
 - Every cache entry must declare both a TTL and an invalidator (gen bump or
-  delete) in §6 below, except explicitly documented low-criticality TTL-only
-  entries such as `stats:public:v2` (§4).
+  delete) in docs/20, except explicitly documented low-criticality TTL-only
+  entries such as `public-stats` (docs/20 §8.2).
 
 ---
 
@@ -209,40 +208,42 @@ This is enforced by `tests/unit/handlers/forum-v2-cache.test.ts`
 ## 5. Read route → cache layering
 
 Layering legend:
-- **cache** — full Worker KV cache via the helpers in §7
+- **cache** — full Worker KV cache via the helpers in §7 (live today)
+- **planned cache** — handler currently no-cache; the listed key is
+  scheduled for the named phase. Treat as "no-cache" for any reasoning
+  about today's behavior.
 - **cache via primitive** — handler does not cache its own response, but
-  enriches via `user:mini:v2` / `user:public:v2` (which are cached)
-- **short private cache** — per-user, ≤30s TTL
+  enriches via `user:mini` (live, opt-in via `USE_KV_USER_CACHE`)
 - **edge cache** — Cloudflare HTTP cache only
 - **no-cache** — direct D1 every request
 
 | Route                                                | Layering            | Notes |
 |------------------------------------------------------|---------------------|-------|
 | `GET /api/live`                                      | no-cache            | health probe |
-| `GET /api/v1/forums`                                 | cache               | tree + summary, per-bucket |
+| `GET /api/v1/forums`                                 | cache               | `forum:tree:v2` + `forum:summary:v2`, per-bucket |
 | `GET /api/v1/forums/:id/ancestors`                   | cache               | reuses `forum:tree:v2` |
 | `GET /api/v1/forums/:id`                             | cache               | `forum:meta:v2` |
-| `GET /api/v1/threads?forumId=…`                      | cache (page1) / no-cache (deep) | `thread:list:v2` |
-| `GET /api/v1/threads/:id`                            | cache               | `thread:meta:v2`; **view-count UPDATE preserved** (§6.4) |
-| `GET /api/v1/posts?threadId=…`                       | cache (page1) / no-cache (deep) | `post:list:v2` |
+| `GET /api/v1/threads?forumId=…`                      | cache (page1) / no-cache (deep) | `thread:list:v2`; uses `user:mini` primitive when `USE_KV_USER_CACHE=true` |
+| `GET /api/v1/threads/:id`                            | planned cache (Phase 4) | live: no-cache; planned `thread:meta:v2`; **view-count UPDATE preserved** (§6.4) |
+| `GET /api/v1/posts?threadId=…`                       | planned cache (Phase 4) | live: no-cache; planned `post:list:v2` |
 | `GET /api/v1/posts/:id`                              | no-cache            | low-traffic single-post fetch |
 | `GET /api/v1/posts/:id/attachments`                  | no-cache            | considered for inline-with-post in a future API contract change, not now |
-| `GET /api/v1/users/:id`                              | cache               | `user:public:v2:<id>:<viewerBucket>` |
+| `GET /api/v1/users/:id`                              | planned cache (Phase 6) | live: no-cache; planned `user:public:v2:<id>:<viewerBucket>` |
 | `GET /api/v1/users/:id/avatar-path`                  | no-cache            | covered by edge cache via `apps/web/src/lib/avatar-proxy.ts` (7d / 24h / 0) |
 | `GET /api/v1/users/:id/threads\|posts\|digest`       | no-cache            | low ROI; revisit in Phase 7 |
 | `GET /api/v1/users/search`                           | no-cache            | user-supplied query |
 | `GET /api/v1/users/batch`                            | no-cache (first release) | future variant could fan-out via `user:public:v2`, separate task |
-| `GET /api/v1/search/threads`                         | no-cache            | FTS query varies; settings lookup goes through `getSetting` |
-| `GET /api/v1/digest`                                 | cache (page1)       | `digest:list:v2` |
-| `GET /api/v1/digest/stats`                           | cache               | `digest:stats:v2` |
-| `GET /api/v1/digest/filters`                         | cache               | `digest:filters:v2` (via `digest:gen`) |
-| `GET /api/v1/stats`                                  | cache               | `stats:public:v2` (TTL only) |
-| `GET /api/v1/settings`                               | cache               | `settings:all:v2` |
+| `GET /api/v1/search/threads`                         | no-cache (uses `user:mini` primitive when `USE_KV_USER_CACHE=true`) | FTS query varies; settings lookup goes through `getSetting` |
+| `GET /api/v1/digest`                                 | planned cache (Phase 5) | live: no-cache; planned `digest:list:v2` |
+| `GET /api/v1/digest/stats`                           | planned cache (Phase 5) | live: no-cache; planned `digest:stats:v2` |
+| `GET /api/v1/digest/filters`                         | planned cache (Phase 5) | live: no-cache; planned `digest:filters:v2` (via `digest:gen`) |
+| `GET /api/v1/stats`                                  | cache (TTL only)    | `public-stats` (v1 literal key, 60 s TTL) |
+| `GET /api/v1/settings`                               | cache               | `settings:all` (v1 literal key, 24 h TTL, explicit delete on PUT) |
 | `GET /api/v1/auth/me`                                | no-cache            | per-request identity |
 | `GET /api/v1/auth/check-username`                    | no-cache            | mutating gate |
-| `GET /api/v1/messages?box=…`                         | short private cache | `pm:inbox:v2` |
-| `GET /api/v1/messages/unread-count`                  | short private cache | `pm:unread:v2` |
-| `GET /api/v1/messages/:id`                           | no-cache            | GET writes `is_read = 1`; must invalidate inbox + unread (§6) |
+| `GET /api/v1/messages?box=…`                         | planned cache (Phase 6) | live: no-cache; planned short private cache `pm:inbox:v2` |
+| `GET /api/v1/messages/unread-count`                  | planned cache (Phase 6) | live: no-cache; planned short private cache `pm:unread:v2` |
+| `GET /api/v1/messages/:id`                           | no-cache            | GET writes `is_read = 1`; planned PM caches must invalidate inbox + unread on write |
 | `GET /api/v1/post-comments`                          | no-cache            | low traffic; future cache uses `post-comments:list:gen:<postId>`, **not** `post:list:gen` |
 | `GET /api/v1/posting-permission`                     | no-cache            | per-user, real-time |
 | `GET /api/v1/checkin/status`                         | no-cache            | per-user, daily |
