@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { searchThreads } from "../../../src/handlers/search";
 import type { Env } from "../../../src/lib/env";
 import {
@@ -10,6 +10,10 @@ import {
 } from "../../helpers";
 
 describe("search handlers", () => {
+	// Note: settings now go through the settings KV cache (`getSetting` →
+	// `getSettings` → `env.KV.get("settings:all")`). Reset the KV before
+	// each test so a "search disabled" fixture in one test does not bleed
+	// into the next via the cached "settings:all" entry.
 	const mockEnv: Env = {
 		API_KEY: "test-api-key",
 		ADMIN_API_KEY: "test-admin-api-key",
@@ -20,10 +24,18 @@ describe("search handlers", () => {
 		USE_KV_USER_CACHE: "false",
 	};
 
+	beforeEach(() => {
+		mockEnv.KV = createMockKV();
+	});
+
 	const getCtx = () => createMockCtx();
 
 	describe("searchThreads", () => {
-		// Helper to create mock DB
+		// Helper to create mock DB. The search handler now reads settings via
+		// `getSetting()` which goes through the settings KV cache; on cache
+		// miss it falls back to a `SELECT key, value, type, updated_at FROM
+		// settings` table scan. We mock that scan and return a single row
+		// for `general.search.enabled` of type=boolean.
 		function createSearchDb(config: {
 			searchEnabled?: boolean;
 			searchResults?: unknown[];
@@ -31,12 +43,19 @@ describe("search handlers", () => {
 		}) {
 			return {
 				prepare: vi.fn((sql: string) => {
-					// Settings query
-					if (sql.includes("settings WHERE key")) {
+					// Settings full-table scan (consumed by getSettings → getSetting)
+					if (sql.includes("FROM settings")) {
 						return {
-							first: vi.fn(async () =>
-								config.searchEnabled === false ? { value: "false" } : { value: "true" },
-							),
+							all: vi.fn(async () => ({
+								results: [
+									{
+										key: "general.search.enabled",
+										value: config.searchEnabled === false ? "false" : "true",
+										type: "boolean",
+										updated_at: 0,
+									},
+								],
+							})),
 						};
 					}
 					// Count query
@@ -207,9 +226,18 @@ describe("search handlers", () => {
 			const allSpy = vi.fn(async () => ({ results: [] }));
 			const db = {
 				prepare: vi.fn((sql: string) => {
-					if (sql.includes("settings WHERE key")) {
+					if (sql.includes("FROM settings")) {
 						return {
-							first: vi.fn(async () => ({ value: "true" })),
+							all: vi.fn(async () => ({
+								results: [
+									{
+										key: "general.search.enabled",
+										value: "true",
+										type: "boolean",
+										updated_at: 0,
+									},
+								],
+							})),
 						};
 					}
 					if (sql.includes("COUNT(*)")) {
@@ -290,9 +318,18 @@ describe("search handlers", () => {
 			const countCalled = { value: false };
 			const db2 = {
 				prepare: vi.fn((sql: string) => {
-					if (sql.includes("settings WHERE key")) {
+					if (sql.includes("FROM settings")) {
 						return {
-							first: vi.fn(async () => ({ value: "true" })),
+							all: vi.fn(async () => ({
+								results: [
+									{
+										key: "general.search.enabled",
+										value: "true",
+										type: "boolean",
+										updated_at: 0,
+									},
+								],
+							})),
 						};
 					}
 					if (sql.includes("COUNT(*)")) {
@@ -343,9 +380,18 @@ describe("search handlers", () => {
 			let capturedFtsQuery = "";
 			const db = {
 				prepare: vi.fn((sql: string) => {
-					if (sql.includes("settings WHERE key")) {
+					if (sql.includes("FROM settings")) {
 						return {
-							first: vi.fn(async () => ({ value: "true" })),
+							all: vi.fn(async () => ({
+								results: [
+									{
+										key: "general.search.enabled",
+										value: "true",
+										type: "boolean",
+										updated_at: 0,
+									},
+								],
+							})),
 						};
 					}
 					if (sql.includes("COUNT(*)")) {
@@ -448,9 +494,18 @@ describe("search handlers", () => {
 			const db = {
 				prepare: vi.fn((sql: string) => {
 					capturedSql = sql;
-					if (sql.includes("settings WHERE key")) {
+					if (sql.includes("FROM settings")) {
 						return {
-							first: vi.fn(async () => ({ value: "true" })),
+							all: vi.fn(async () => ({
+								results: [
+									{
+										key: "general.search.enabled",
+										value: "true",
+										type: "boolean",
+										updated_at: 0,
+									},
+								],
+							})),
 						};
 					}
 					if (sql.includes("COUNT(*)")) {
@@ -484,9 +539,18 @@ describe("search handlers", () => {
 			const db = {
 				prepare: vi.fn((sql: string) => {
 					capturedSql = sql;
-					if (sql.includes("settings WHERE key")) {
+					if (sql.includes("FROM settings")) {
 						return {
-							first: vi.fn(async () => ({ value: "true" })),
+							all: vi.fn(async () => ({
+								results: [
+									{
+										key: "general.search.enabled",
+										value: "true",
+										type: "boolean",
+										updated_at: 0,
+									},
+								],
+							})),
 						};
 					}
 					if (sql.includes("COUNT(*)")) {
@@ -520,9 +584,18 @@ describe("search handlers", () => {
 			const db = {
 				prepare: vi.fn((sql: string) => {
 					capturedSql = sql;
-					if (sql.includes("settings WHERE key")) {
+					if (sql.includes("FROM settings")) {
 						return {
-							first: vi.fn(async () => ({ value: "true" })),
+							all: vi.fn(async () => ({
+								results: [
+									{
+										key: "general.search.enabled",
+										value: "true",
+										type: "boolean",
+										updated_at: 0,
+									},
+								],
+							})),
 						};
 					}
 					if (sql.includes("COUNT(*)")) {
@@ -558,9 +631,18 @@ describe("search handlers", () => {
 			let capturedSql = "";
 			const db = {
 				prepare: vi.fn((sql: string) => {
-					if (sql.includes("settings WHERE key")) {
+					if (sql.includes("FROM settings")) {
 						return {
-							first: vi.fn(async () => ({ value: "true" })),
+							all: vi.fn(async () => ({
+								results: [
+									{
+										key: "general.search.enabled",
+										value: "true",
+										type: "boolean",
+										updated_at: 0,
+									},
+								],
+							})),
 						};
 					}
 					// optionalAuthVerified checks user in DB
@@ -606,9 +688,18 @@ describe("search handlers", () => {
 			let capturedSql = "";
 			const db = {
 				prepare: vi.fn((sql: string) => {
-					if (sql.includes("settings WHERE key")) {
+					if (sql.includes("FROM settings")) {
 						return {
-							first: vi.fn(async () => ({ value: "true" })),
+							all: vi.fn(async () => ({
+								results: [
+									{
+										key: "general.search.enabled",
+										value: "true",
+										type: "boolean",
+										updated_at: 0,
+									},
+								],
+							})),
 						};
 					}
 					// optionalAuthVerified checks user in DB
@@ -752,9 +843,18 @@ describe("search handlers", () => {
 
 			const db = {
 				prepare: vi.fn((sql: string) => {
-					if (sql.includes("settings WHERE key")) {
+					if (sql.includes("FROM settings")) {
 						return {
-							first: vi.fn(async () => ({ value: "true" })),
+							all: vi.fn(async () => ({
+								results: [
+									{
+										key: "general.search.enabled",
+										value: "true",
+										type: "boolean",
+										updated_at: 0,
+									},
+								],
+							})),
 						};
 					}
 					if (sql.includes("COUNT(*)")) {
