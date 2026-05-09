@@ -63,13 +63,16 @@ Code anchors are paths under `apps/worker/src/`.
 ### 2.1 `forum:tree:v2:<bucket>:g<gen>` — shipped
 
 - **Builder:** `lib/cache/keys.ts → forumTreeKey(bucket, gen)`
-- **Payload:** structural forum tree per visibility bucket (id / parent_id /
-  name / slug / display_order / type / visibility / status). No volatile
-  aggregates.
+- **Payload (`ForumTreeNodeV2[]` in `lib/cache/forum.ts`):** structural
+  forum nodes per visibility bucket — `id`, `parentId`, `name`,
+  `description`, `icon`, `displayOrder`, `type`, `status`, `visibility`,
+  `moderators` (comma-separated usernames), `moderatorIds` (comma-
+  separated user IDs, used by `GET /api/v1/forums/:id/ancestors`), and
+  `moderatorList: ModeratorInfo[]`. No volatile aggregates.
 - **TTL:** 86 400 s (24 h) — `FORUM_TREE_TTL` in `lib/cache/forum-read.ts`.
 - **Bucket:** `anon | member | staff | admin` — see docs/19 §2.2.
 - **Gen key:** `forum:tree:gen`.
-- **Read:** `lib/cache/forum-read.ts → loadForumTree`. Used by
+- **Read:** `lib/cache/forum-read.ts → getForumTreeV2`. Used by
   `GET /api/v1/forums` and `GET /api/v1/forums/:id/ancestors`.
 - **Write:** read-through via `cacheGetOrSet`.
 - **Invalidation:** `bumpForumTreeGen` from `lib/cache/invalidate.ts`,
@@ -88,17 +91,26 @@ Code anchors are paths under `apps/worker/src/`.
 - **TTL:** 600 s (10 min) — `FORUM_SUMMARY_TTL`.
 - **Bucket:** `anon | member | staff | admin`.
 - **Gen key:** `forum:summary:gen`.
-- **Read:** `lib/cache/forum-read.ts → loadForumSummary`.
+- **Read:** `lib/cache/forum-read.ts → getForumSummaryV2`.
 - **Write:** read-through via `cacheGetOrSet`.
 - **Invalidation:** `bumpForumSummaryGen`. Bumped on:
   - admin forum create / update / delete / merge / reorder
   - admin statistics `recalc-forums`
   - admin statistics `recalc-threads` (scoped + unscoped)
-  - admin thread CRUD / batch (subject change also bumps this)
-  - thread create / delete / move
-  - post create / delete (`invalidateForumVolatileV2`)
-  - moderation thread sticky / digest / close / highlight (subject only)
-  - moderation thread delete / move
+  - admin thread CRUD (delete / batch-delete via
+    `invalidateForumVolatileV2`; **subject-only update** also bumps
+    summary because `lastThreadSubject` is part of the payload —
+    sticky / closed / digest / highlight do NOT bump summary)
+  - admin thread move / batch-move
+  - admin post delete / batch-delete (`invalidateForumVolatileV2`)
+  - admin user `ban(deleteContent=true)` / `nuke` / `purge`
+    (each runs `deleteUserContent` then bumps summary)
+  - moderation `nukeUser` (`deleteUserContent` then summary)
+  - moderation thread move / delete / post delete
+    (`invalidateForumVolatileV2`)
+  - thread create (`POST /api/v1/threads`) — via `invalidateForumVolatileV2`
+  - post create (`POST /api/v1/posts`) — via `invalidateForumVolatileV2`
+  - `DELETE /api/v1/me/threads/:id`, `DELETE /api/v1/me/posts/:id`
 
 ### 2.3 `forum:meta:v2:<forumId>:<bucket>:g<gen>` — shipped
 
@@ -110,7 +122,7 @@ Code anchors are paths under `apps/worker/src/`.
 - **Bucket:** `anon | member | staff | admin`.
 - **Gen key:** `forum:summary:gen` (intentionally shared — Phase 7 may split
   into per-forum `forum:meta:gen:<forumId>`).
-- **Read:** `lib/cache/forum-read.ts → loadForumMeta`. Also used as the
+- **Read:** `lib/cache/forum-read.ts → getForumMetaV2`. Also used as the
   visibility gate before `thread:list:v2` lookup in
   `handlers/thread.ts:list`.
 - **Write:** read-through via `cacheGetOrSet`.
@@ -165,7 +177,8 @@ Code anchors are paths under `apps/worker/src/`.
 | Admin thread CRUD / batch | per-forum (subject change also bumps `forum:summary:gen`) |
 | Admin post delete / batch-delete | per-forum |
 | Admin batch move (multi-forum) | `invalidateThreadListForForums(uniqueForumIds)` |
-| Admin user `nuke` / `purge` | per-forum for affected forums; `bumpThreadListGenAll` fallback when affected forums can't be enumerated |
+| Admin user `ban(deleteContent=true)` / `nuke` / `purge` | per-forum for affected forums (via `invalidateThreadListForForums`); +`bumpDigestGen` if any deleted thread had `digest > 0` |
+| Moderation `nukeUser` | per-forum for affected forums; +`bumpDigestGen` conditionally |
 | `admin/statistics/recalc-threads` scoped (`{forumId: N}`) | per-forum N |
 | `admin/statistics/recalc-threads` unscoped | `thread:list:gen:all` only |
 
@@ -234,13 +247,13 @@ reads or writes them yet.
 
 ## 6. User domain
 
-### 6.1 `user:mini:<id>` — shipped (v1 schema)
+### 6.1 `user:mini:<id>` — shipped (v1 schema, live)
 
-- **Builder:** literal prefix `user:mini:` in `lib/user-cache.ts`. Note
-  that `lib/cache/keys.ts → userMiniKey(id)` produces
-  `user:mini:v2:<id>`; this v2 key is **not yet active** because the
-  read/write path still uses the v1 prefix. Migration to the v2 key is
-  scheduled as part of Phase 6.
+- **Builder:** literal prefix `user:mini:` in `lib/user-cache.ts`
+  (`USER_CACHE_PREFIX`). The v2 builder
+  `lib/cache/keys.ts → userMiniKey(id)` produces `user:mini:v2:<id>` —
+  this v2 key is reserved for the Phase 6 schema migration; today the
+  read path still uses the v1 prefix.
 - **Payload (`UserMiniProfile`):**
   ```ts
   { id, username, avatar, avatarPath, role, groupTitle, groupColor, groupStars }
@@ -248,19 +261,34 @@ reads or writes them yet.
 - **TTL:** 86 400 s (24 h) — `USER_CACHE_TTL`.
 - **Bucket:** none (no viewer-conditional fields).
 - **Gen key:** none — invalidation by explicit `KV.delete`.
-- **Read:** `lib/user-cache.ts → getUserProfiles` (batch fan-out from
-  thread / post / forum-summary list builders).
+- **Feature flag:** opt-in via `env.USE_KV_USER_CACHE === "true"`
+  (see `lib/env.ts:isUserKvCacheEnabled`). Off by default.
+- **Read:** `lib/user-cache.ts → getUserProfiles`, called from:
+  - `handlers/thread.ts:list` (and the deep-keyset enrichment branch)
+  - `handlers/search.ts:searchThreads`
+  Forum v2 `getForumSummaryV2` does NOT use `getUserProfiles`; its
+  visible-last-poster avatars are resolved by a single batched
+  D1 query inside `fetchVisibleLastThreadsForSnapshot` so the
+  summary cache stays self-contained.
 - **Write:** read-through inside `getUserProfiles`.
-- **Invalidation:** `KV.delete(\`user:mini:<id>\`)` via the legacy
-  `invalidateUserCache` helper or, for new code paths, via
-  `invalidateUserCaches(env, id)` which today still hits the v1 key
-  (will switch to v2 with the schema migration). Triggered on:
-  - `me.updateProfile` (avatar)
-  - admin user update / nuke / purge / ban
-  - admin user batch-status / batch-role / batch-recalc-counters
-  - single `recalcCounters`
-  - admin statistics `recalc-users`
-  - email verify (changes display fields)
+- **Invalidation:**
+  - `lib/user-cache.ts → invalidateUserCache(env, id)` deletes the
+    live v1 key `user:mini:<id>`.
+  - `lib/cache/invalidate.ts → invalidateUserCaches(env, id)` deletes
+    the planned v2 key `user:mini:v2:<id>` AND both
+    `user:public:v2:<id>:{public,staff}` variants.
+  - Most admin write paths call BOTH
+    (`invalidateUserCache(env, id)` + `invalidateUserCaches(env, id)`)
+    so the live v1 key and the planned v2 surface are kept in sync;
+    see `handlers/admin/user.ts:invalidateUserCachesForIds` for the
+    batch helper. Triggered on:
+    - admin user update / nuke / purge / ban
+    - admin user batch-status / batch-role / batch-recalc-counters
+    - single `recalcCounters`
+    - admin statistics `recalc-users`
+  - Email verify (`handlers/email.ts:verifyCode`) does NOT invalidate
+    user-cache today — the only user-visible field it changes is
+    `email`, which is not part of `UserMiniProfile`.
 
 ### 6.2 `user:public:v2:<id>:<viewerBucket>` — planned (Phase 6)
 
