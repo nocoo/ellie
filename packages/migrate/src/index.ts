@@ -692,12 +692,12 @@ export async function migrateAttachments(
 export async function migrateCheckins(
 	loader: BatchLoader,
 	sources: SourceFiles,
-): Promise<{ total: number; skippedMissingUser: number }> {
+): Promise<{ eligible: number; processed: number; skippedMissingUser: number }> {
 	log("=== Checkins ===");
 
 	if (!sources.checkins) {
 		log("  No checkins dump found — skipping");
-		return { total: 0, skippedMissingUser: 0 };
+		return { eligible: 0, processed: 0, skippedMissingUser: 0 };
 	}
 
 	// Parse primary table
@@ -733,7 +733,7 @@ export async function migrateCheckins(
 
 	// Upsert with WHERE EXISTS(users) filter
 	const rows = [...primaryMap.values()];
-	loader.upsertRowsFiltered(
+	const processed = loader.upsertRowsFiltered(
 		"user_checkins",
 		rows,
 		{
@@ -747,15 +747,29 @@ export async function migrateCheckins(
 		},
 	);
 
-	// Count actual inserted rows to determine skipped
+	// Count how many UIDs from this batch actually exist in users (= eligible)
+	// This is correct for both fresh and incremental runs, unlike full table COUNT(*)
 	const db = loader.getDb();
-	const actualCount = (
-		db.query("SELECT COUNT(*) as cnt FROM user_checkins").get() as { cnt: number }
-	).cnt;
-	const skippedMissingUser = primaryMap.size - actualCount;
+	const userIds = rows.map((r) => r.user_id);
+	let eligible = 0;
+	// Query in chunks to avoid SQLite bind-parameter limits
+	const chunkSize = 500;
+	for (let i = 0; i < userIds.length; i += chunkSize) {
+		const chunk = userIds.slice(i, i + chunkSize);
+		const placeholders = chunk.map(() => "?").join(",");
+		const cnt = (
+			db.query(`SELECT COUNT(*) as cnt FROM users WHERE id IN (${placeholders})`).get(...chunk) as {
+				cnt: number;
+			}
+		).cnt;
+		eligible += cnt;
+	}
+	const skippedMissingUser = primaryMap.size - eligible;
 
-	log(`  Checkins: ${actualCount} inserted, ${skippedMissingUser} skipped (missing user)`);
-	return { total: actualCount, skippedMissingUser };
+	log(
+		`  Checkins: ${eligible} eligible, ${processed} processed, ${skippedMissingUser} skipped (missing user)`,
+	);
+	return { eligible, processed, skippedMissingUser };
 }
 
 // ─── Main Pipeline ──────────────────────────────────────────────────────────
@@ -848,7 +862,7 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 
 		// Checkins (after users, uses WHERE EXISTS)
 		const checkinResult = await migrateCheckins(loader, sources);
-		stats.checkins = checkinResult.total;
+		stats.checkins = checkinResult.eligible;
 		stats.skipped.checkinsMissingUser = checkinResult.skippedMissingUser;
 
 		// Create indexes after all data is loaded (much faster)
@@ -865,6 +879,7 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 			threads: stats.threads,
 			posts: stats.posts,
 			attachments: stats.attachments,
+			checkins: stats.checkins,
 		};
 
 		const intReport = verifyIntegrity(db, expected);

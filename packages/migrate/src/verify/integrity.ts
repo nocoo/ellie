@@ -31,6 +31,7 @@ export interface ExpectedCounts {
 	threads: number;
 	posts: number;
 	attachments: number;
+	checkins: number;
 }
 
 /**
@@ -50,6 +51,20 @@ export function verifyRowCounts(db: Database, expected: ExpectedCounts): CheckRe
 			expected: exp,
 			actual,
 			details: actual !== exp ? `Difference: ${actual - exp}` : undefined,
+		});
+	}
+
+	// Checkins: use >= because upsert on incremental runs may have pre-existing rows
+	{
+		const row = db.query("SELECT COUNT(*) as cnt FROM user_checkins").get() as { cnt: number };
+		const actual = row.cnt;
+		const exp = expected.checkins;
+		results.push({
+			name: "row_count_user_checkins",
+			passed: actual >= exp,
+			expected: `>= ${exp}`,
+			actual,
+			details: actual < exp ? `Missing ${exp - actual} rows` : undefined,
 		});
 	}
 
@@ -97,6 +112,11 @@ const FK_CHECKS: FkCheck[] = [
 		name: "attachments.author_id → users.id",
 		query:
 			"SELECT COUNT(*) as cnt FROM attachments a LEFT JOIN users u ON a.author_id = u.id WHERE u.id IS NULL",
+	},
+	{
+		name: "user_checkins.user_id → users.id",
+		query:
+			"SELECT COUNT(*) as cnt FROM user_checkins c LEFT JOIN users u ON c.user_id = u.id WHERE u.id IS NULL",
 	},
 ];
 

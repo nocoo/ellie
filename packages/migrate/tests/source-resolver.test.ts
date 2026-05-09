@@ -1,5 +1,9 @@
 import { describe, expect, test, vi } from "vitest";
-import { detectFormat, resolveSourceFiles } from "../src/extract/source-resolver";
+import {
+	detectFormat,
+	resolveSourceFiles,
+	validateRequiredFiles,
+} from "../src/extract/source-resolver";
 
 // Mock existsSync to control which files "exist"
 vi.mock("node:fs", () => ({
@@ -10,6 +14,28 @@ let mockExistingFiles = new Set<string>();
 
 function setExistingFiles(...paths: string[]): void {
 	mockExistingFiles = new Set(paths);
+}
+
+/** All required split-format files for a given directory. */
+function allSplitFiles(dir: string): string[] {
+	return [
+		`${dir}/forums.sql.gz`,
+		`${dir}/attachments.sql.gz`,
+		`${dir}/members.sql.gz`,
+		`${dir}/ucenter_members.sql.gz`,
+		`${dir}/member_count.sql.gz`,
+		`${dir}/usergroup.sql.gz`,
+		`${dir}/member_field_forum.sql.gz`,
+		`${dir}/member_profile.sql.gz`,
+		`${dir}/member_status.sql.gz`,
+		`${dir}/threads.sql.gz`,
+		`${dir}/posts.sql.gz`,
+	];
+}
+
+/** All required legacy-format files for a given directory. */
+function allLegacyFiles(dir: string): string[] {
+	return [`${dir}/main_small.sql.gz`, `${dir}/user_extra.sql.gz`];
 }
 
 // ─── detectFormat ─────────────────────────────────────────────────────────────
@@ -36,19 +62,81 @@ describe("detectFormat", () => {
 	});
 });
 
+// ─── validateRequiredFiles ────────────────────────────────────────────────────
+
+describe("validateRequiredFiles", () => {
+	const DIR = "/data/validate";
+
+	test("passes when all split required files exist", () => {
+		setExistingFiles(...allSplitFiles(DIR));
+		expect(() => validateRequiredFiles(DIR, "split")).not.toThrow();
+	});
+
+	test("throws when split is missing ucenter_members.sql.gz", () => {
+		const files = allSplitFiles(DIR).filter((f) => !f.includes("ucenter_members"));
+		setExistingFiles(...files);
+		expect(() => validateRequiredFiles(DIR, "split")).toThrow("ucenter_members.sql.gz");
+	});
+
+	test("throws when split is missing posts.sql.gz", () => {
+		const files = allSplitFiles(DIR).filter((f) => !f.includes("posts.sql.gz"));
+		setExistingFiles(...files);
+		expect(() => validateRequiredFiles(DIR, "split")).toThrow("posts.sql.gz");
+	});
+
+	test("throws when split is missing attachments.sql.gz", () => {
+		const files = allSplitFiles(DIR).filter((f) => !f.includes("attachments.sql.gz"));
+		setExistingFiles(...files);
+		expect(() => validateRequiredFiles(DIR, "split")).toThrow("attachments.sql.gz");
+	});
+
+	test("lists all missing files in error message", () => {
+		setExistingFiles(`${DIR}/forums.sql.gz`, `${DIR}/members.sql.gz`);
+		expect(() => validateRequiredFiles(DIR, "split")).toThrow(
+			/Missing required split-format files.*ucenter_members\.sql\.gz.*posts\.sql\.gz/,
+		);
+	});
+
+	test("includes directory in error message", () => {
+		setExistingFiles();
+		expect(() => validateRequiredFiles(DIR, "split")).toThrow(DIR);
+	});
+
+	test("passes when all legacy required files exist", () => {
+		setExistingFiles(...allLegacyFiles(DIR));
+		expect(() => validateRequiredFiles(DIR, "legacy")).not.toThrow();
+	});
+
+	test("throws when legacy is missing main_small.sql.gz", () => {
+		setExistingFiles(`${DIR}/user_extra.sql.gz`);
+		expect(() => validateRequiredFiles(DIR, "legacy")).toThrow("main_small.sql.gz");
+	});
+
+	test("throws when legacy is missing user_extra.sql.gz", () => {
+		setExistingFiles(`${DIR}/main_small.sql.gz`);
+		expect(() => validateRequiredFiles(DIR, "legacy")).toThrow("user_extra.sql.gz");
+	});
+});
+
 // ─── resolveSourceFiles (split format) ────────────────────────────────────────
 
 describe("resolveSourceFiles — split format", () => {
 	const DIR = "/data/split";
 
-	test("returns split format when indicators exist", () => {
-		setExistingFiles(`${DIR}/forums.sql.gz`, `${DIR}/members.sql.gz`);
+	test("returns split format when all required files exist", () => {
+		setExistingFiles(...allSplitFiles(DIR));
 		const result = resolveSourceFiles(DIR);
 		expect(result.format).toBe("split");
 	});
 
-	test("resolves all required split-format paths", () => {
+	test("throws when split required files are incomplete", () => {
+		// Only format indicators but not all required
 		setExistingFiles(`${DIR}/forums.sql.gz`, `${DIR}/members.sql.gz`);
+		expect(() => resolveSourceFiles(DIR)).toThrow("Missing required split-format files");
+	});
+
+	test("resolves all required split-format paths", () => {
+		setExistingFiles(...allSplitFiles(DIR));
 		const result = resolveSourceFiles(DIR);
 
 		expect(result.forums).toBe(`${DIR}/forums.sql.gz`);
@@ -63,53 +151,60 @@ describe("resolveSourceFiles — split format", () => {
 	});
 
 	test("threads and threadShards point to same file", () => {
-		setExistingFiles(`${DIR}/forums.sql.gz`, `${DIR}/members.sql.gz`);
+		setExistingFiles(...allSplitFiles(DIR));
 		const result = resolveSourceFiles(DIR);
 		expect(result.threads).toBe(`${DIR}/threads.sql.gz`);
 		expect(result.threadShards).toBe(result.threads);
 	});
 
 	test("posts and postShards point to same file", () => {
-		setExistingFiles(`${DIR}/forums.sql.gz`, `${DIR}/members.sql.gz`);
+		setExistingFiles(...allSplitFiles(DIR));
 		const result = resolveSourceFiles(DIR);
 		expect(result.posts).toBe(`${DIR}/posts.sql.gz`);
 		expect(result.postShards).toBe(result.posts);
 	});
 
 	test("checkins resolves when checkins.sql.gz exists", () => {
-		setExistingFiles(`${DIR}/forums.sql.gz`, `${DIR}/members.sql.gz`, `${DIR}/checkins.sql.gz`);
+		setExistingFiles(...allSplitFiles(DIR), `${DIR}/checkins.sql.gz`);
 		const result = resolveSourceFiles(DIR);
 		expect(result.checkins).toBe(`${DIR}/checkins.sql.gz`);
 	});
 
 	test("checkins is null when checkins.sql.gz is missing", () => {
-		setExistingFiles(`${DIR}/forums.sql.gz`, `${DIR}/members.sql.gz`);
+		setExistingFiles(...allSplitFiles(DIR));
 		const result = resolveSourceFiles(DIR);
 		expect(result.checkins).toBeNull();
 	});
 
 	test("postcomments resolves when postcomment.sql.gz exists", () => {
-		setExistingFiles(`${DIR}/forums.sql.gz`, `${DIR}/members.sql.gz`, `${DIR}/postcomment.sql.gz`);
+		setExistingFiles(...allSplitFiles(DIR), `${DIR}/postcomment.sql.gz`);
 		const result = resolveSourceFiles(DIR);
 		expect(result.postcomments).toBe(`${DIR}/postcomment.sql.gz`);
 	});
 
 	test("postcomments is null when postcomment.sql.gz is missing", () => {
-		setExistingFiles(`${DIR}/forums.sql.gz`, `${DIR}/members.sql.gz`);
+		setExistingFiles(...allSplitFiles(DIR));
 		const result = resolveSourceFiles(DIR);
 		expect(result.postcomments).toBeNull();
 	});
 
-	test("threadtype resolves from usergroup.sql.gz when it exists", () => {
-		setExistingFiles(`${DIR}/forums.sql.gz`, `${DIR}/members.sql.gz`, `${DIR}/usergroup.sql.gz`);
+	test("threadtype resolves from threadtype.sql.gz when it exists", () => {
+		setExistingFiles(...allSplitFiles(DIR), `${DIR}/threadtype.sql.gz`);
 		const result = resolveSourceFiles(DIR);
-		expect(result.threadtype).toBe(`${DIR}/usergroup.sql.gz`);
+		expect(result.threadtype).toBe(`${DIR}/threadtype.sql.gz`);
 	});
 
-	test("threadtype is null when usergroup.sql.gz is missing", () => {
-		setExistingFiles(`${DIR}/forums.sql.gz`, `${DIR}/members.sql.gz`);
+	test("threadtype is null when threadtype.sql.gz is missing", () => {
+		setExistingFiles(...allSplitFiles(DIR));
 		const result = resolveSourceFiles(DIR);
 		expect(result.threadtype).toBeNull();
+	});
+
+	test("threadtype does NOT point to usergroup.sql.gz", () => {
+		// usergroup.sql.gz exists but does NOT contain pre_forum_threadtype
+		setExistingFiles(...allSplitFiles(DIR));
+		const result = resolveSourceFiles(DIR);
+		expect(result.threadtype).not.toBe(`${DIR}/usergroup.sql.gz`);
 	});
 });
 
@@ -119,13 +214,18 @@ describe("resolveSourceFiles — legacy format", () => {
 	const DIR = "/data/legacy";
 
 	test("returns legacy format when split indicators are absent", () => {
-		setExistingFiles();
+		setExistingFiles(...allLegacyFiles(DIR));
 		const result = resolveSourceFiles(DIR);
 		expect(result.format).toBe("legacy");
 	});
 
-	test("forums, attachments, members all point to main_small.sql.gz", () => {
+	test("throws when legacy required files are missing", () => {
 		setExistingFiles();
+		expect(() => resolveSourceFiles(DIR)).toThrow("Missing required legacy-format files");
+	});
+
+	test("forums, attachments, members all point to main_small.sql.gz", () => {
+		setExistingFiles(...allLegacyFiles(DIR));
 		const result = resolveSourceFiles(DIR);
 		const main = `${DIR}/main_small.sql.gz`;
 		expect(result.forums).toBe(main);
@@ -134,7 +234,7 @@ describe("resolveSourceFiles — legacy format", () => {
 	});
 
 	test("count, usergroup, fieldForum, profile, status point to user_extra.sql.gz", () => {
-		setExistingFiles();
+		setExistingFiles(...allLegacyFiles(DIR));
 		const result = resolveSourceFiles(DIR);
 		const extra = `${DIR}/user_extra.sql.gz`;
 		expect(result.memberCount).toBe(extra);
@@ -146,67 +246,71 @@ describe("resolveSourceFiles — legacy format", () => {
 	});
 
 	test("ucMembers prefers ucenter.sql.gz over ucenter_members.sql.gz", () => {
-		setExistingFiles(`${DIR}/ucenter.sql.gz`, `${DIR}/ucenter_members.sql.gz`);
+		setExistingFiles(
+			...allLegacyFiles(DIR),
+			`${DIR}/ucenter.sql.gz`,
+			`${DIR}/ucenter_members.sql.gz`,
+		);
 		const result = resolveSourceFiles(DIR);
 		expect(result.ucMembers).toBe(`${DIR}/ucenter.sql.gz`);
 	});
 
 	test("ucMembers falls back to ucenter_members.sql.gz", () => {
-		setExistingFiles(`${DIR}/ucenter_members.sql.gz`);
+		setExistingFiles(...allLegacyFiles(DIR), `${DIR}/ucenter_members.sql.gz`);
 		const result = resolveSourceFiles(DIR);
 		expect(result.ucMembers).toBe(`${DIR}/ucenter_members.sql.gz`);
 	});
 
 	test("ucMembers returns preferred path when neither exists", () => {
-		setExistingFiles();
+		setExistingFiles(...allLegacyFiles(DIR));
 		const result = resolveSourceFiles(DIR);
 		expect(result.ucMembers).toBe(`${DIR}/ucenter.sql.gz`);
 	});
 
 	test("threads prefers thread.sql.gz over threads.sql.gz", () => {
-		setExistingFiles(`${DIR}/thread.sql.gz`, `${DIR}/threads.sql.gz`);
+		setExistingFiles(...allLegacyFiles(DIR), `${DIR}/thread.sql.gz`, `${DIR}/threads.sql.gz`);
 		const result = resolveSourceFiles(DIR);
 		expect(result.threads).toBe(`${DIR}/thread.sql.gz`);
 	});
 
 	test("threads falls back to threads.sql.gz", () => {
-		setExistingFiles(`${DIR}/threads.sql.gz`);
+		setExistingFiles(...allLegacyFiles(DIR), `${DIR}/threads.sql.gz`);
 		const result = resolveSourceFiles(DIR);
 		expect(result.threads).toBe(`${DIR}/threads.sql.gz`);
 	});
 
 	test("threadShards prefers thread_shards.sql.gz", () => {
-		setExistingFiles(`${DIR}/thread_shards.sql.gz`);
+		setExistingFiles(...allLegacyFiles(DIR), `${DIR}/thread_shards.sql.gz`);
 		const result = resolveSourceFiles(DIR);
 		expect(result.threadShards).toBe(`${DIR}/thread_shards.sql.gz`);
 	});
 
 	test("posts prefers post_main.sql.gz", () => {
-		setExistingFiles(`${DIR}/post_main.sql.gz`);
+		setExistingFiles(...allLegacyFiles(DIR), `${DIR}/post_main.sql.gz`);
 		const result = resolveSourceFiles(DIR);
 		expect(result.posts).toBe(`${DIR}/post_main.sql.gz`);
 	});
 
 	test("postShards prefers post_shards.sql.gz", () => {
-		setExistingFiles(`${DIR}/post_shards.sql.gz`);
+		setExistingFiles(...allLegacyFiles(DIR), `${DIR}/post_shards.sql.gz`);
 		const result = resolveSourceFiles(DIR);
 		expect(result.postShards).toBe(`${DIR}/post_shards.sql.gz`);
 	});
 
 	test("checkins is always null in legacy format", () => {
-		setExistingFiles();
+		setExistingFiles(...allLegacyFiles(DIR));
 		const result = resolveSourceFiles(DIR);
 		expect(result.checkins).toBeNull();
 	});
 
 	test("postcomments resolves when postcomment.sql.gz exists", () => {
-		setExistingFiles(`${DIR}/postcomment.sql.gz`);
+		setExistingFiles(...allLegacyFiles(DIR), `${DIR}/postcomment.sql.gz`);
 		const result = resolveSourceFiles(DIR);
 		expect(result.postcomments).toBe(`${DIR}/postcomment.sql.gz`);
 	});
 
 	test("postcomments is null when missing", () => {
-		setExistingFiles();
+		setExistingFiles(...allLegacyFiles(DIR));
 		const result = resolveSourceFiles(DIR);
 		expect(result.postcomments).toBeNull();
 	});
