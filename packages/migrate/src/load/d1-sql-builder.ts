@@ -283,3 +283,16 @@ export function isWarningOnly(stderr: string): boolean {
 		clean.includes("SQL error");
 	return hasWarning && !hasError;
 }
+
+/**
+ * Detect whether a wrangler error is a transient network fetch failure.
+ * Only matches "fetch failed" — does NOT match SQL errors, D1 errors,
+ * WARNING verification failures, or sample mismatches.
+ */
+export function isFetchFailure(stderr: string): boolean {
+	if (!stderr) return false;
+	// Strip ANSI escape sequences for reliable pattern matching
+	// biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape sequences use \x1b
+	const clean = stderr.replace(/\x1b\[[0-9;]*m/g, "");
+	return clean.includes("fetch failed");
+}

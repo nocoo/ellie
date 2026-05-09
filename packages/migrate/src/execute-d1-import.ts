@@ -37,6 +37,7 @@ import {
 	FK_RELATIONS,
 	IMPORT_TABLE_ORDER,
 	computeManifestFingerprint,
+	isFetchFailure,
 	isWarningOnly,
 	validateManifestStructure,
 } from "./load/d1-sql-builder";
@@ -85,6 +86,8 @@ interface ChunkExecResult {
 			passed: boolean;
 		}>;
 	};
+	/** Number of fetch-failure retries before final result (0 = first attempt succeeded). */
+	retry_attempts?: number;
 }
 
 interface ExecutionLog {
@@ -154,6 +157,54 @@ function wranglerExecute(
 		const stderr = err.stderr || err.message || "Unknown error";
 		return { success: false, error: stderr, stderr };
 	}
+}
+
+// ─── Fetch-failure retry ──────────────────────────────────────────────────
+
+/** Maximum retries for transient network failures (fetch failed). */
+const MAX_FETCH_RETRIES = 3;
+
+/** Base delay between retries in ms — doubles each attempt (5s, 10s, 20s). */
+const RETRY_BASE_DELAY_MS = Number(process.env.EXECUTOR_RETRY_BASE_DELAY_MS ?? "5000");
+
+function sleepSync(ms: number): void {
+	Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * Execute a wrangler command with bounded retry for transient fetch failures.
+ * Retries up to MAX_FETCH_RETRIES times with exponential backoff.
+ * Returns the final result — either success or the last failure.
+ */
+function wranglerExecuteWithRetry(
+	sqlFile: string,
+	dbName: string,
+	cwd: string,
+	logFn: (msg: string) => void,
+): { success: boolean; error?: string; stderr?: string; retries: number } {
+	let lastResult = wranglerExecute(sqlFile, dbName, cwd);
+	if (lastResult.success) return { ...lastResult, retries: 0 };
+
+	for (let attempt = 1; attempt <= MAX_FETCH_RETRIES; attempt++) {
+		if (!isFetchFailure(lastResult.stderr ?? "")) {
+			// Not a fetch failure — don't retry (SQL error, etc.)
+			return { ...lastResult, retries: attempt - 1 };
+		}
+
+		const delayMs = RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+		logFn(
+			`    RETRY ${attempt}/${MAX_FETCH_RETRIES} after fetch failed (waiting ${delayMs / 1000}s)...`,
+		);
+		sleepSync(delayMs);
+
+		lastResult = wranglerExecute(sqlFile, dbName, cwd);
+		if (lastResult.success) {
+			logFn(`    RETRY ${attempt} succeeded`);
+			return { ...lastResult, retries: attempt };
+		}
+	}
+
+	return { ...lastResult, retries: MAX_FETCH_RETRIES };
 }
 
 function wranglerQuery(sql: string, dbName: string, cwd: string): string {
@@ -661,7 +712,7 @@ for (let i = 0; i < orderedChunks.length; i++) {
 	const startedAt = new Date().toISOString();
 	const startMs = Date.now();
 	const sqlFilePath = resolve(join(importDir, file));
-	const result = wranglerExecute(sqlFilePath, dbName, projectRoot);
+	const result = wranglerExecuteWithRetry(sqlFilePath, dbName, projectRoot, log);
 	const durationMs = Date.now() - startMs;
 	const finishedAt = new Date().toISOString();
 
@@ -672,6 +723,7 @@ for (let i = 0; i < orderedChunks.length; i++) {
 		started_at: startedAt,
 		finished_at: finishedAt,
 		duration_ms: durationMs,
+		retry_attempts: result.retries > 0 ? result.retries : undefined,
 	};
 
 	if (!result.success) {

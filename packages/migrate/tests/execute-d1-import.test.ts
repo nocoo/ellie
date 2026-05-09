@@ -140,7 +140,7 @@ function setupFixture(
 function runExecutor(
 	manifestPath: string,
 	args: string[] = [],
-	env?: { fakeMode?: string },
+	env?: { fakeMode?: string; fetchFailCount?: number; fetchFailCounterFile?: string },
 ): { stdout: string; exitCode: number } {
 	const cmd = [
 		"bun",
@@ -155,6 +155,14 @@ function runExecutor(
 		extraEnv.EXECUTOR_NPX_BIN = FAKE_NPX_PATH;
 		extraEnv.FAKE_WRANGLER_MODE = env.fakeMode;
 	}
+	if (env?.fetchFailCount !== undefined) {
+		extraEnv.FETCH_FAIL_COUNT = String(env.fetchFailCount);
+	}
+	if (env?.fetchFailCounterFile) {
+		extraEnv.FETCH_FAIL_COUNTER_FILE = env.fetchFailCounterFile;
+	}
+	// Use 0 retry delay in tests to avoid slow test runs
+	extraEnv.EXECUTOR_RETRY_BASE_DELAY_MS = "0";
 	try {
 		const stdout = execSync(cmd, {
 			encoding: "utf-8",
@@ -315,6 +323,36 @@ case "$MODE" in
         echo '[{"results":[{}]}]'
       fi
     fi
+    exit 0
+    ;;
+  fetch-failed)
+    if has_flag "--file" "$@"; then
+      echo "WARNING: This process may take some time, during which your D1 database will be unavailable to serve queries." >&2
+      echo "ERROR: fetch failed" >&2
+      exit 1
+    fi
+    if has_flag "--json" "$@"; then emit_json "$@"; fi
+    exit 0
+    ;;
+  fetch-failed-then-succeed)
+    # Fail with fetch-failed for the first FETCH_FAIL_COUNT calls with --file,
+    # then succeed. Uses a counter file to track attempts.
+    if has_flag "--file" "$@"; then
+      COUNTER_FILE="\${FETCH_FAIL_COUNTER_FILE:-/tmp/fake-wrangler-counter}"
+      MAX_FAILS="\${FETCH_FAIL_COUNT:-1}"
+      CURRENT=0
+      if [[ -f "$COUNTER_FILE" ]]; then
+        CURRENT=$(cat "$COUNTER_FILE")
+      fi
+      CURRENT=$((CURRENT + 1))
+      echo "$CURRENT" > "$COUNTER_FILE"
+      if [[ "$CURRENT" -le "$MAX_FAILS" ]]; then
+        echo "WARNING: This process may take some time, during which your D1 database will be unavailable to serve queries." >&2
+        echo "ERROR: fetch failed" >&2
+        exit 1
+      fi
+    fi
+    if has_flag "--json" "$@"; then emit_json "$@"; fi
     exit 0
     ;;
 esac
@@ -1068,5 +1106,88 @@ describe("windowed canary row count verification", () => {
 		expect(exitCode).not.toBe(0);
 		expect(stdout).not.toContain("windowed canary");
 		expect(stdout).toContain("verification FAILED");
+	});
+});
+
+// ─── Fetch-failure retry tests ────────────────────────────────────────────
+
+describe("fetch-failure retry", () => {
+	test("fetch failed on first attempt → retry → success with retry_attempts in log", () => {
+		const manifest = makeManifest();
+		const counterFile = join(TEST_DIR, "retry-counter-1");
+		// Fail 1 time, then succeed
+		const manifestPath = setupFixture("retry-then-succeed", manifest);
+		const { exitCode, stdout } = runExecutor(manifestPath, [], {
+			fakeMode: "fetch-failed-then-succeed",
+			fetchFailCount: 1,
+			fetchFailCounterFile: counterFile,
+		});
+		expect(exitCode).toBe(0);
+		expect(stdout).toContain("RETRY 1/3 after fetch failed");
+		expect(stdout).toContain("RETRY 1 succeeded");
+		expect(stdout).toContain("Import complete and verified");
+
+		const logPath = join(TEST_DIR, "retry-then-succeed", "execution-log.json");
+		const log = JSON.parse(readFileSync(logPath, "utf-8"));
+		const doneChunks = log.chunks.filter((c: { status: string }) => c.status === "done");
+		expect(doneChunks).toHaveLength(2);
+		// First chunk (forums) should have retry_attempts=1
+		const forums = log.chunks.find((c: { file: string }) => c.file === "forums-001.sql");
+		expect(forums.retry_attempts).toBe(1);
+	});
+
+	test("fetch failed exhausts all retries → failure with retry_attempts in log", () => {
+		const manifest = makeManifest();
+		const manifestPath = setupFixture("retry-exhaust", manifest);
+		const { exitCode, stdout } = runExecutor(manifestPath, [], {
+			fakeMode: "fetch-failed",
+		});
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("RETRY 1/3 after fetch failed");
+		expect(stdout).toContain("RETRY 2/3 after fetch failed");
+		expect(stdout).toContain("RETRY 3/3 after fetch failed");
+		expect(stdout).toContain("FAILED");
+		expect(stdout).toContain("stopped at");
+
+		const logPath = join(TEST_DIR, "retry-exhaust", "execution-log.json");
+		const log = JSON.parse(readFileSync(logPath, "utf-8"));
+		const failedChunks = log.chunks.filter((c: { status: string }) => c.status === "failed");
+		expect(failedChunks).toHaveLength(1);
+		expect(failedChunks[0].retry_attempts).toBe(3);
+	});
+
+	test("SQL error does NOT trigger retry", () => {
+		const manifest = makeManifest();
+		const manifestPath = setupFixture("no-retry-sql", manifest);
+		const { exitCode, stdout } = runExecutor(manifestPath, [], {
+			fakeMode: "fail-exec",
+		});
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("FAILED");
+		// No retry lines should appear
+		expect(stdout).not.toContain("RETRY");
+		expect(stdout).toContain("stopped at");
+
+		const logPath = join(TEST_DIR, "no-retry-sql", "execution-log.json");
+		const log = JSON.parse(readFileSync(logPath, "utf-8"));
+		const failedChunks = log.chunks.filter((c: { status: string }) => c.status === "failed");
+		expect(failedChunks).toHaveLength(1);
+		// No retry_attempts field (or undefined)
+		expect(failedChunks[0].retry_attempts).toBeUndefined();
+	});
+
+	test("WARNING verification failure does NOT trigger retry", () => {
+		const manifest = makeManifest();
+		const manifestPath = setupFixture("no-retry-warning", manifest);
+		const { exitCode, stdout } = runExecutor(
+			manifestPath,
+			["--verify-warning-success", "--source-db", SOURCE_DB_PATH],
+			{ fakeMode: "warning-only" },
+		);
+		// Should pass (warning verification passes with fake wrangler)
+		// The point is: isWarningOnly does NOT match isFetchFailure
+		expect(exitCode).toBe(0);
+		expect(stdout).not.toContain("RETRY");
+		expect(stdout).toContain("VERIFIED OK");
 	});
 });
