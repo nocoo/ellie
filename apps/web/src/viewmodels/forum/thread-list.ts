@@ -138,8 +138,10 @@ export type InlinePageItem = number | "ellipsis";
 /**
  * Calculate total pages for a thread.
  * `replies` does not include the OP post, so total posts = replies + 1.
+ * Guards against postsPerPage <= 0 (returns 1).
  */
 export function getThreadPageCount(replies: number, postsPerPage: number): number {
+	if (postsPerPage <= 0) return 1;
 	return Math.ceil((replies + 1) / postsPerPage);
 }
 
@@ -185,4 +187,40 @@ export function pageToPostCursor(page: number, postsPerPage: number): string | n
 export function getThreadPageUrl(threadId: number, page: number): string {
 	if (page <= 1) return `/threads/${threadId}`;
 	return `/threads/${threadId}?page=${page}`;
+}
+
+/**
+ * Resolve the effective cursor for loading thread posts.
+ *
+ * Priority: explicit cursor > ?last=1 > ?page=N > first page (null).
+ * Only `last === "1"` is treated as the last-page flag; any other value
+ * (including "0") does not suppress ?page.
+ */
+export function resolveThreadPostCursor(
+	params: { cursor?: string; page?: string; last?: string },
+	postsPerPage: number,
+): { cursor: string | undefined; isLastPage: boolean } {
+	const isLastPage = params.last === "1";
+
+	// Explicit cursor always wins
+	if (params.cursor) {
+		return { cursor: params.cursor, isLastPage: false };
+	}
+
+	// ?last=1 takes priority over ?page
+	if (isLastPage) {
+		return { cursor: undefined, isLastPage: true };
+	}
+
+	// Convert ?page=N to a position-based cursor
+	if (params.page) {
+		const pageNum = Number.parseInt(params.page, 10);
+		if (!Number.isNaN(pageNum) && pageNum > 1) {
+			const cursor = pageToPostCursor(pageNum, postsPerPage) ?? undefined;
+			return { cursor, isLastPage: false };
+		}
+	}
+
+	// Default: first page
+	return { cursor: undefined, isLastPage: false };
 }

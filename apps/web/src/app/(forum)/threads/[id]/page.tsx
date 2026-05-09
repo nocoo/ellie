@@ -13,7 +13,7 @@ import {
 	type ThreadDetailPageData,
 	loadThreadDetail,
 } from "@/viewmodels/forum/thread-detail.server";
-import { pageToPostCursor } from "@/viewmodels/forum/thread-list";
+import { resolveThreadPostCursor } from "@/viewmodels/forum/thread-list";
 import { getThreadTitle } from "@/viewmodels/forum/title.server";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { parseIntParam } from "@/viewmodels/shared/params";
@@ -64,21 +64,15 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 
 	// Resolve cursor: explicit cursor takes priority over ?page=N.
 	// ?page=N is converted to a position-based cursor for the post handler.
-	let cursor = sp.cursor;
-	if (!cursor && sp.page && !sp.last) {
-		const pageNum = parseIntParam(sp.page);
-		if (pageNum != null && pageNum > 1) {
-			const postsPerPage = await getPostsPerPage();
-			cursor = pageToPostCursor(pageNum, postsPerPage) ?? undefined;
-		}
-	}
+	const postsPerPage = await getPostsPerPage();
+	const { cursor, isLastPage } = resolveThreadPostCursor(sp, postsPerPage);
 
 	try {
 		data = await loadThreadDetail({
 			threadId,
 			cursor,
 			direction: sp.direction === "backward" ? "backward" : "forward",
-			last: sp.last === "1",
+			last: isLastPage,
 		});
 	} catch (e) {
 		error = e instanceof Error ? e.message : "Failed to load thread";
