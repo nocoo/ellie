@@ -93,6 +93,7 @@ export interface Manifest {
 			source_total_rows: number;
 			source_rows_after_max: number | null;
 			continuation_min_id?: number | null;
+			effective_chunk_size?: number;
 			chunks: number;
 			rows: number;
 			files: string[];
