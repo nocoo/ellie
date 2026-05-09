@@ -277,15 +277,23 @@ reads or writes them yet.
   - `lib/cache/invalidate.ts → invalidateUserCaches(env, id)` deletes
     the planned v2 key `user:mini:v2:<id>` AND both
     `user:public:v2:<id>:{public,staff}` variants.
-  - Most admin write paths call BOTH
-    (`invalidateUserCache(env, id)` + `invalidateUserCaches(env, id)`)
-    so the live v1 key and the planned v2 surface are kept in sync;
-    see `handlers/admin/user.ts:invalidateUserCachesForIds` for the
-    batch helper. Triggered on:
+  - **Live v1 (`user:mini:<id>`) triggers** — the only key actually
+    populated today:
+    - `handlers/me.ts:updateProfile` when `fields.avatar !== undefined`
+      (line 218) calls `invalidateUserCache(env, user.userId)`.
+    - All admin write paths below also call `invalidateUserCache` as
+      part of the double-delete pattern.
+  - **Planned v2 / public variants triggers** — currently pre-deleted
+    even though no reader populates them, via the double-delete
+    pattern in `handlers/admin/user.ts:invalidateUserCachesForIds`
+    which calls BOTH `invalidateUserCache` + `invalidateUserCaches`:
     - admin user update / nuke / purge / ban
     - admin user batch-status / batch-role / batch-recalc-counters
     - single `recalcCounters`
     - admin statistics `recalc-users`
+    `me.updateProfile(avatar)` is NOT yet wired to `invalidateUserCaches`
+    because the v2 reader is gated off (`USE_KV_USER_CACHE !== "true"`),
+    so v2 has no live populator to invalidate from that path.
   - Email verify (`handlers/email.ts:verifyCode`) does NOT invalidate
     user-cache today — the only user-visible field it changes is
     `email`, which is not part of `UserMiniProfile`.
@@ -461,7 +469,8 @@ handlers stay single-call:
 | `invalidateForumSummaryV2`                    | `forum:summary:gen`                                                                                    |
 | `invalidateForumVolatileV2(env, forumId)`     | `forum:summary:gen` + `thread:list:gen:<forumId>`                                                      |
 | `invalidateThreadListForForums(env, fids)`    | `thread:list:gen:<each unique fid>`                                                                    |
-| `invalidateUserCaches(env, userId)`           | `KV.delete user:mini:<id>` + `deleteUserPublicVariants(env, id)`                                       |
+| `invalidateUserCache(env, userId)`            | `KV.delete user:mini:<id>` (live v1)                                                                   |
+| `invalidateUserCaches(env, userId)`           | `KV.delete user:mini:v2:<id>` + `deleteUserPublicVariants(env, id)` (planned v2 + public variants)     |
 
 ---
 
