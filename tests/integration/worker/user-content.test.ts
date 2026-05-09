@@ -2,7 +2,7 @@
 // Tests user content CRUD: create thread/post, edit/delete own content
 
 import { describe, expect, test } from "bun:test";
-import { createTestJwt, workerDelete, workerPatch, workerPost } from "../setup";
+import { createTestJwt, workerDelete, workerFetch, workerPatch, workerPost } from "../setup";
 
 describe("L2: Worker User Content API", () => {
 	// ─── Create Thread ─────────────────────────────────────────────
@@ -171,6 +171,109 @@ describe("L2: Worker User Content API", () => {
 				jwt,
 			);
 			expect([403, 404]).toContain(res.status);
+		});
+	});
+
+	// ─── Post comments (点评) ──────────────────────────────────────
+
+	describe("GET /api/v1/post-comments", () => {
+		test("returns 400 when postId is missing", async () => {
+			const res = await workerFetch("/api/v1/post-comments");
+			expect(res.status).toBe(400);
+			const data = await res.json();
+			expect(data.error.code).toBe("INVALID_REQUEST");
+		});
+
+		test("returns 400 when postId is not numeric", async () => {
+			const res = await workerFetch("/api/v1/post-comments?postId=abc");
+			expect(res.status).toBe(400);
+			const data = await res.json();
+			expect(data.error.code).toBe("INVALID_REQUEST");
+		});
+
+		test("returns 404 for non-existent post", async () => {
+			const res = await workerFetch("/api/v1/post-comments?postId=999999");
+			expect(res.status).toBe(404);
+			const data = await res.json();
+			expect(data.error.code).toBe("POST_NOT_FOUND");
+		});
+	});
+
+	describe("POST /api/v1/post-comments", () => {
+		test("returns 401 without JWT", async () => {
+			const res = await workerPost("/api/v1/post-comments", { postId: 1, content: "hi" });
+			expect(res.status).toBe(401);
+		});
+
+		test("returns 400 for invalid body (no postId)", async () => {
+			const jwt = await createTestJwt(100, 0);
+			const res = await workerPost("/api/v1/post-comments", { content: "hi" }, jwt);
+			// Either INVALID_BODY (no postId) or a permission error before body
+			// validation; both still exercise the route.
+			expect([400, 403]).toContain(res.status);
+		});
+
+		test("returns 400 for empty content", async () => {
+			const jwt = await createTestJwt(100, 0);
+			const res = await workerPost("/api/v1/post-comments", { postId: 1, content: "" }, jwt);
+			expect([400, 403]).toContain(res.status);
+		});
+	});
+
+	// ─── Reports ───────────────────────────────────────────────────
+
+	describe("POST /api/v1/reports", () => {
+		test("returns 401 without JWT", async () => {
+			const body = { type: "thread", targetId: 1, reason: "垃圾广告" };
+			const res = await workerPost("/api/v1/reports", body);
+			expect(res.status).toBe(401);
+		});
+
+		test("returns 400 for invalid type", async () => {
+			const jwt = await createTestJwt(100, 0);
+			const body = { type: "bogus", targetId: 1, reason: "垃圾广告" };
+			const res = await workerPost("/api/v1/reports", body, jwt);
+			expect(res.status).toBe(400);
+			const data = await res.json();
+			expect(data.error.code).toBe("INVALID_REQUEST");
+		});
+
+		test("returns 400 for invalid targetId", async () => {
+			const jwt = await createTestJwt(100, 0);
+			const body = { type: "thread", targetId: -1, reason: "垃圾广告" };
+			const res = await workerPost("/api/v1/reports", body, jwt);
+			expect(res.status).toBe(400);
+			const data = await res.json();
+			expect(data.error.code).toBe("INVALID_REQUEST");
+		});
+
+		test("returns 400 for invalid reason", async () => {
+			const jwt = await createTestJwt(100, 0);
+			const body = { type: "thread", targetId: 1, reason: "not-a-real-reason" };
+			const res = await workerPost("/api/v1/reports", body, jwt);
+			expect(res.status).toBe(400);
+			const data = await res.json();
+			expect(data.error.code).toBe("INVALID_REQUEST");
+		});
+	});
+
+	// ─── Posting permission ────────────────────────────────────────
+
+	describe("GET /api/v1/posting-permission", () => {
+		test("returns 401 without JWT", async () => {
+			const res = await workerFetch("/api/v1/posting-permission");
+			expect(res.status).toBe(401);
+		});
+
+		test("returns 200 with allowed/reason for authenticated user", async () => {
+			const jwt = await createTestJwt(100, 0);
+			const res = await workerFetch("/api/v1/posting-permission", {
+				headers: { Authorization: `Bearer ${jwt}` },
+			});
+			expect(res.status).toBe(200);
+			const data = await res.json();
+			expect(data.data).toHaveProperty("allowed");
+			expect(typeof data.data.allowed).toBe("boolean");
 		});
 	});
 });

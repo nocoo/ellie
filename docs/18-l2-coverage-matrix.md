@@ -12,9 +12,9 @@ Last audit: **2026-05-09**
 |---|---|
 | Total (route × method) | **134** |
 | Method breakdown | GET 58 / POST 46 / PATCH 16 / PUT 1 / DELETE 13 |
-| L2 calls scanned | 206 |
-| Routes hit | **122** (91.04%) |
-| Routes uncovered | **12** |
+| L2 calls scanned | 218 |
+| Routes hit | **126** (94.03%) |
+| Routes uncovered | **8** |
 | Exemptions | 0 |
 | Unmatched test calls | 0 |
 
@@ -127,13 +127,13 @@ _None._ Every route × method must be covered by L2.
 | ✅ | POST | `/api/v1/messages` | index.ts:217 |
 | ✅ | POST | `/api/v1/messages/mark-all-read` | index.ts:211 |
 | ✅ | GET | `/api/v1/messages/unread-count` | index.ts:208 |
-| ❌ | GET | `/api/v1/post-comments` | index.ts:225 |
-| ❌ | POST | `/api/v1/post-comments` | index.ts:228 |
-| ❌ | GET | `/api/v1/posting-permission` | index.ts:236 |
+| ✅ | GET | `/api/v1/post-comments` | index.ts:225 |
+| ✅ | POST | `/api/v1/post-comments` | index.ts:228 |
+| ✅ | GET | `/api/v1/posting-permission` | index.ts:236 |
 | ✅ | GET | `/api/v1/posts` | index.ts:90 |
 | ✅ | POST | `/api/v1/posts` | index.ts:178 |
 | ❌ | POST | `/api/v1/posts/attachments/batch` | index.ts:100 |
-| ❌ | POST | `/api/v1/reports` | index.ts:233 |
+| ✅ | POST | `/api/v1/reports` | index.ts:233 |
 | ✅ | GET | `/api/v1/search/threads` | index.ts:129 |
 | ✅ | GET | `/api/v1/settings` | index.ts:150 |
 | ✅ | GET | `/api/v1/stats` | index.ts:145 |
@@ -216,10 +216,6 @@ _None._ Every route × method must be covered by L2.
 | POST | `/api/v1/posts/attachments/batch` | index.ts:100 |
 | POST | `/api/v1/users/me/email/request-code` | index.ts:197 |
 | POST | `/api/v1/users/me/email/verify` | index.ts:200 |
-| GET | `/api/v1/post-comments` | index.ts:225 |
-| POST | `/api/v1/post-comments` | index.ts:228 |
-| POST | `/api/v1/reports` | index.ts:233 |
-| GET | `/api/v1/posting-permission` | index.ts:236 |
 | GET | `/api/v1/checkin/status` | index.ts:241 |
 | POST | `/api/v1/checkin` | index.ts:244 |
 | POST | `/api/v1/upload` | index.ts:249 |
