@@ -92,6 +92,7 @@ export interface Manifest {
 			prod_max_id: number | null;
 			source_total_rows: number;
 			source_rows_after_max: number | null;
+			continuation_min_id?: number | null;
 			chunks: number;
 			rows: number;
 			files: string[];

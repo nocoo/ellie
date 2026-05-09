@@ -44,6 +44,8 @@ const { values } = parseArgs({
 		out: { type: "string" },
 		"production-state": { type: "string" },
 		force: { type: "boolean", default: false },
+		"users-chunk-size": { type: "string" },
+		"users-min-id": { type: "string" },
 	},
 });
 
@@ -52,6 +54,10 @@ const OUT_DIR = values.out ?? "output/d1-import-2026-05-09";
 const PROD_STATE_PATH = values["production-state"] ?? "packages/migrate/production-state.json";
 const FORCE = values.force ?? false;
 const CHUNK_SIZE = 5000; // rows per SQL file (D1 has statement limits)
+const USERS_CHUNK_SIZE = values["users-chunk-size"]
+	? Number.parseInt(values["users-chunk-size"], 10)
+	: CHUNK_SIZE;
+const USERS_MIN_ID = values["users-min-id"] ? Number.parseInt(values["users-min-id"], 10) : null;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -76,18 +82,40 @@ function generateUpsertChunks(
 	conflictColumn: string,
 	updateColumns: string[],
 	outDir: string,
-): { chunks: ChunkInfo[]; totalRows: number } {
+	opts?: { chunkSize?: number; minId?: number },
+): { chunks: ChunkInfo[]; totalRows: number; generatedRows: number } {
+	const chunkSize = opts?.chunkSize ?? CHUNK_SIZE;
 	const chunks: ChunkInfo[] = [];
 	const totalRows = (db.query(`SELECT COUNT(*) as cnt FROM ${table}`).get() as { cnt: number }).cnt;
-	log(`  ${table}: ${totalRows.toLocaleString()} rows → upsert (all rows)`);
+
+	const whereClause = opts?.minId != null ? `WHERE id > ${opts.minId}` : "";
+	const generatedRows =
+		opts?.minId != null
+			? (
+					db.query(`SELECT COUNT(*) as cnt FROM ${table} ${whereClause}`).get() as {
+						cnt: number;
+					}
+				).cnt
+			: totalRows;
+
+	if (opts?.minId != null) {
+		log(
+			`  ${table}: ${totalRows.toLocaleString()} total, ${generatedRows.toLocaleString()} to generate (id > ${opts.minId}) → upsert (chunk size ${chunkSize})`,
+		);
+	} else {
+		log(`  ${table}: ${totalRows.toLocaleString()} rows → upsert (all rows)`);
+	}
 
 	let chunkNum = 0;
 	let offset = 0;
 
-	while (offset < totalRows) {
+	while (offset < generatedRows) {
 		chunkNum++;
+		const orderClause = opts?.minId != null ? "ORDER BY id" : "";
 		const rows = db
-			.query(`SELECT ${columns.join(",")} FROM ${table} LIMIT ${CHUNK_SIZE} OFFSET ${offset}`)
+			.query(
+				`SELECT ${columns.join(",")} FROM ${table} ${whereClause} ${orderClause} LIMIT ${chunkSize} OFFSET ${offset}`,
+			)
 			.all() as Array<Record<string, string | number | null>>;
 
 		if (rows.length === 0) break;
@@ -102,10 +130,10 @@ function generateUpsertChunks(
 		const fileName = chunkFileName(table, chunkNum);
 		writeFileSync(`${outDir}/${fileName}`, content);
 		chunks.push({ file: fileName, table, rows: rows.length, bytes, strategy: "upsert" });
-		offset += CHUNK_SIZE;
+		offset += chunkSize;
 	}
 
-	return { chunks, totalRows };
+	return { chunks, totalRows, generatedRows };
 }
 
 // ─── Incremental INSERT OR IGNORE generator (filtered by prod max_id) ─────
@@ -158,6 +186,12 @@ log(`  Source DB:         ${DB_PATH}`);
 log(`  Production state:  ${PROD_STATE_PATH}`);
 log(`  Output:            ${OUT_DIR}`);
 log(`  Chunk size:        ${CHUNK_SIZE} rows/file`);
+if (USERS_CHUNK_SIZE !== CHUNK_SIZE) {
+	log(`  Users chunk size:  ${USERS_CHUNK_SIZE} rows/file (override)`);
+}
+if (USERS_MIN_ID != null) {
+	log(`  Users min ID:      ${USERS_MIN_ID} (continuation)`);
+}
 
 // Load production state
 const prodState = loadProductionState(PROD_STATE_PATH);
@@ -200,6 +234,7 @@ function recordTableStats(
 	totalRows: number,
 	prodMaxId: number | null,
 	filteredRows: number | null,
+	continuationMinId?: number | null,
 ): void {
 	allChunks.push(...chunks);
 	tableStats[table] = {
@@ -207,6 +242,7 @@ function recordTableStats(
 		prod_max_id: prodMaxId,
 		source_total_rows: totalRows,
 		source_rows_after_max: filteredRows,
+		...(continuationMinId != null ? { continuation_min_id: continuationMinId } : {}),
 		chunks: chunks.length,
 		rows: chunks.reduce((sum, c) => sum + c.rows, 0),
 		files: chunks.map((c) => c.file),
@@ -225,8 +261,11 @@ const forumsResult = generateUpsertChunks(
 );
 recordTableStats("forums", "upsert", forumsResult.chunks, forumsResult.totalRows, null, null);
 
-// 2. Users — upsert (all rows)
+// 2. Users — upsert (with optional continuation and chunk size override)
 log("Generating users...");
+const usersOpts: { chunkSize?: number; minId?: number } = {};
+if (USERS_CHUNK_SIZE !== CHUNK_SIZE) usersOpts.chunkSize = USERS_CHUNK_SIZE;
+if (USERS_MIN_ID != null) usersOpts.minId = USERS_MIN_ID;
 const usersResult = generateUpsertChunks(
 	db,
 	"users",
@@ -234,8 +273,17 @@ const usersResult = generateUpsertChunks(
 	"id",
 	USERS_UPSERT_COLUMNS,
 	OUT_DIR,
+	Object.keys(usersOpts).length > 0 ? usersOpts : undefined,
 );
-recordTableStats("users", "upsert", usersResult.chunks, usersResult.totalRows, null, null);
+recordTableStats(
+	"users",
+	"upsert",
+	usersResult.chunks,
+	usersResult.totalRows,
+	null,
+	USERS_MIN_ID != null ? usersResult.generatedRows : null,
+	USERS_MIN_ID,
+);
 
 // 3. Threads — incremental (id > prod max_id)
 log("Generating threads...");
@@ -336,8 +384,10 @@ for (const [table, info] of Object.entries(manifest.tables)) {
 		info.prod_max_id !== null
 			? ` (prod max_id=${info.prod_max_id}, new=${info.source_rows_after_max})`
 			: "";
+	const contNote =
+		info.continuation_min_id != null ? ` (continuation: id > ${info.continuation_min_id})` : "";
 	log(
-		`  ${table}: ${info.rows.toLocaleString()} rows → ${info.chunks} chunks (${info.strategy})${maxIdNote}`,
+		`  ${table}: ${info.rows.toLocaleString()} rows → ${info.chunks} chunks (${info.strategy})${maxIdNote}${contNote}`,
 	);
 }
 const totalBytes = allChunks.reduce((sum, c) => sum + c.bytes, 0);
