@@ -95,11 +95,62 @@ export async function bumpDigestGen(env: Env): Promise<string> {
 // per-call. Phase 1 wires only the gaps explicitly listed in docs/19 §9.
 
 /**
+ * Bump only `forum:summary:gen` — the safe parity for legacy callsites
+ * whose mutation changes counts / last-post / today-thread metadata for
+ * forums but does not have a precise forumId in scope (or where the
+ * thread-list cache is not yet active in this phase). Use this whenever
+ * the legacy code calls `invalidateForumVolatile(env)` without a
+ * forumId-keyed thread-list invalidation.
+ */
+export async function invalidateForumSummaryV2(env: Env): Promise<void> {
+	await bumpForumSummaryGen(env);
+}
+
+/**
  * Bump everything that depends on the forum-summary aggregates after a
  * volatile thread/post change in `forumId`. Mirrors the
  * `POST /api/v1/threads` row in §6 (forum:summary:gen + thread:list:gen for
- * the affected forum).
+ * the affected forum). Use ONLY at callsites that already had an exact
+ * `forumId` and where thread-list:v2 is wired (Phase 3+).
  */
 export async function invalidateForumVolatileV2(env: Env, forumId: number): Promise<void> {
 	await Promise.all([bumpForumSummaryGen(env), bumpThreadListGen(env, forumId)]);
+}
+
+/**
+ * Bump every gen affected by a forum create / delete / merge: the
+ * structural tree, the per-bucket summary aggregates, AND the digest
+ * gen because the set of forums visible to digest filters changes when
+ * a forum is added or removed. For `update`, callers must use
+ * `invalidateForumUpdateV2` which decides per-field whether digest is
+ * affected. For `reorder`, use `invalidateForumReorderV2` (tree +
+ * summary, NOT digest).
+ */
+export async function invalidateForumStructureV2(env: Env): Promise<void> {
+	await Promise.all([bumpForumTreeGen(env), bumpForumSummaryGen(env), bumpDigestGen(env)]);
+}
+
+/**
+ * Bump tree + summary, and conditionally digest, for a forum update.
+ * Digest gen is bumped only when one of the digest-filter-affecting
+ * fields changed: `name`, `status`, `visibility`, `parent_id`, `type`.
+ * Other field changes (description, icon, moderators, display_order…)
+ * do not change which threads digest queries can see, so we leave
+ * digest gen alone to avoid invalidating unrelated digest caches.
+ */
+export async function invalidateForumUpdateV2(
+	env: Env,
+	changes: { affectsDigest: boolean },
+): Promise<void> {
+	const ops: Promise<unknown>[] = [bumpForumTreeGen(env), bumpForumSummaryGen(env)];
+	if (changes.affectsDigest) ops.push(bumpDigestGen(env));
+	await Promise.all(ops);
+}
+
+/**
+ * Bump tree + summary for a `display_order` reorder. Digest filters are
+ * untouched by reorder so we deliberately do NOT bump digest gen.
+ */
+export async function invalidateForumReorderV2(env: Env): Promise<void> {
+	await Promise.all([bumpForumTreeGen(env), bumpForumSummaryGen(env)]);
 }

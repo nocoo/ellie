@@ -18,6 +18,7 @@ import {
 	canModerate,
 	canMoveThread,
 } from "@ellie/types";
+import { invalidateForumSummaryV2 } from "../lib/cache/invalidate";
 import {
 	buildDeletePostChildStatements,
 	buildDeleteThreadChildStatements,
@@ -327,7 +328,7 @@ export async function moveThread(request: Request, env: Env): Promise<Response> 
 	await recalcForumMetadata(env, targetForumId);
 
 	// Invalidate volatile cache (source/target forum counts + last-post changed)
-	await invalidateForumVolatile(env);
+	await Promise.all([invalidateForumVolatile(env), invalidateForumSummaryV2(env)]);
 
 	return jsonResponse({ id, forumId: targetForumId, moved: true }, origin);
 }
@@ -421,6 +422,7 @@ export async function deletePost(request: Request, env: Env): Promise<Response> 
 			await recalcForumMetadata(env, post.forum_id);
 		})(),
 		invalidateForumVolatile(env),
+		invalidateForumSummaryV2(env),
 	]);
 
 	return jsonResponse({ deleted: true, id }, origin);
@@ -618,6 +620,7 @@ export async function deleteThread(request: Request, env: Env): Promise<Response
 		batchDecrementUserPosts(env, authorCounts),
 		recalcForumMetadata(env, thread.forum_id),
 		invalidateForumVolatile(env),
+		invalidateForumSummaryV2(env),
 	]);
 
 	return jsonResponse({ deleted: true, id }, origin);
@@ -1107,6 +1110,7 @@ export async function nukeUser(request: Request, env: Env): Promise<Response> {
 			.bind(userId)
 			.run(),
 		invalidateForumVolatile(env),
+		invalidateForumSummaryV2(env),
 	]);
 
 	return jsonResponse(

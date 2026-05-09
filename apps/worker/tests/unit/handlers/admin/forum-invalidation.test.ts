@@ -13,11 +13,27 @@ vi.mock("../../../../src/lib/recalcMetadata", () => ({
 	recalcForumMetadata: vi.fn(async () => {}),
 }));
 
+// Spy on the v2 invalidation helpers so we can assert per-mutation fan-out.
+vi.mock("../../../../src/lib/cache/invalidate", () => ({
+	invalidateForumStructureV2: vi.fn(async () => {}),
+	invalidateForumReorderV2: vi.fn(async () => {}),
+	invalidateForumUpdateV2: vi.fn(async () => {}),
+	invalidateForumSummaryV2: vi.fn(async () => {}),
+}));
+
 import { create, merge, remove, reorder, update } from "../../../../src/handlers/admin/forum";
+import {
+	invalidateForumReorderV2,
+	invalidateForumStructureV2,
+	invalidateForumUpdateV2,
+} from "../../../../src/lib/cache/invalidate";
 import { invalidateForumCacheAll } from "../../../../src/lib/forum-cache";
 import { createMockDb, makeD1ForumRow, makeEnv } from "../../../helpers";
 
 const mockInvalidate = invalidateForumCacheAll as ReturnType<typeof vi.fn>;
+const mockStructureV2 = invalidateForumStructureV2 as ReturnType<typeof vi.fn>;
+const mockReorderV2 = invalidateForumReorderV2 as ReturnType<typeof vi.fn>;
+const mockUpdateV2 = invalidateForumUpdateV2 as ReturnType<typeof vi.fn>;
 
 describe("admin forum — KV cache invalidation", () => {
 	const adminEnv = (db: D1Database) => makeEnv({ DB: db });
@@ -45,9 +61,10 @@ describe("admin forum — KV cache invalidation", () => {
 
 		expect(res.status).toBe(201);
 		expect(mockInvalidate).toHaveBeenCalledTimes(1);
+		expect(mockStructureV2).toHaveBeenCalledTimes(1);
 	});
 
-	it("invalidates after successful update", async () => {
+	it("invalidates after successful update (digest-affecting field bumps digest)", async () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42, name: "Updated" }),
@@ -65,6 +82,68 @@ describe("admin forum — KV cache invalidation", () => {
 
 		expect(res.status).toBe(200);
 		expect(mockInvalidate).toHaveBeenCalledTimes(1);
+		expect(mockUpdateV2).toHaveBeenCalledTimes(1);
+		expect(mockUpdateV2).toHaveBeenCalledWith(expect.anything(), { affectsDigest: true });
+	});
+
+	it("update with non-digest field (description) does NOT bump digest", async () => {
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42, description: "old" }),
+			},
+		});
+
+		const res = await update(
+			new Request("https://api.example.com/api/admin/forums/42", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ description: "new" }),
+			}),
+			adminEnv(db),
+		);
+
+		expect(res.status).toBe(200);
+		expect(mockUpdateV2).toHaveBeenCalledWith(expect.anything(), { affectsDigest: false });
+	});
+
+	it("update with displayOrder only does NOT bump digest", async () => {
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+			},
+		});
+
+		const res = await update(
+			new Request("https://api.example.com/api/admin/forums/42", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ displayOrder: 7 }),
+			}),
+			adminEnv(db),
+		);
+
+		expect(res.status).toBe(200);
+		expect(mockUpdateV2).toHaveBeenCalledWith(expect.anything(), { affectsDigest: false });
+	});
+
+	it("update with visibility bumps digest", async () => {
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+			},
+		});
+
+		const res = await update(
+			new Request("https://api.example.com/api/admin/forums/42", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ visibility: "members" }),
+			}),
+			adminEnv(db),
+		);
+
+		expect(res.status).toBe(200);
+		expect(mockUpdateV2).toHaveBeenCalledWith(expect.anything(), { affectsDigest: true });
 	});
 
 	it("invalidates after successful delete", async () => {
@@ -84,6 +163,7 @@ describe("admin forum — KV cache invalidation", () => {
 
 		expect(res.status).toBe(200);
 		expect(mockInvalidate).toHaveBeenCalledTimes(1);
+		expect(mockStructureV2).toHaveBeenCalledTimes(1);
 	});
 
 	it("does NOT invalidate when delete is rejected (has threads)", async () => {
@@ -103,6 +183,7 @@ describe("admin forum — KV cache invalidation", () => {
 
 		expect(res.status).toBe(409);
 		expect(mockInvalidate).not.toHaveBeenCalled();
+		expect(mockStructureV2).not.toHaveBeenCalled();
 	});
 
 	it("invalidates after successful merge", async () => {
@@ -126,6 +207,7 @@ describe("admin forum — KV cache invalidation", () => {
 
 		expect(res.status).toBe(200);
 		expect(mockInvalidate).toHaveBeenCalledTimes(1);
+		expect(mockStructureV2).toHaveBeenCalledTimes(1);
 	});
 
 	it("invalidates after successful reorder", async () => {
@@ -147,6 +229,7 @@ describe("admin forum — KV cache invalidation", () => {
 
 		expect(res.status).toBe(200);
 		expect(mockInvalidate).toHaveBeenCalledTimes(1);
+		expect(mockReorderV2).toHaveBeenCalledTimes(1);
 	});
 
 	it("does NOT invalidate on validation error (reorder)", async () => {
@@ -163,5 +246,6 @@ describe("admin forum — KV cache invalidation", () => {
 
 		expect(res.status).toBe(400);
 		expect(mockInvalidate).not.toHaveBeenCalled();
+		expect(mockReorderV2).not.toHaveBeenCalled();
 	});
 });

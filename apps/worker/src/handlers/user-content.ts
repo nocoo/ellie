@@ -3,6 +3,7 @@
 //            PATCH /api/v1/me/posts/:id
 // Users can delete/edit their own content without requiring moderator permissions.
 
+import { invalidateForumSummaryV2 } from "../lib/cache/invalidate";
 import {
 	buildDeletePostChildStatements,
 	buildDeleteThreadChildStatements,
@@ -87,7 +88,7 @@ export async function deleteMyPost(request: Request, env: Env): Promise<Response
 	// the per-thread aggregate.
 	await recalcThreadMetadata(env, post.thread_id);
 	await recalcForumMetadata(env, post.forum_id);
-	await invalidateForumVolatile(env);
+	await Promise.all([invalidateForumVolatile(env), invalidateForumSummaryV2(env)]);
 
 	return jsonResponse({ deleted: true, id }, origin);
 }
@@ -156,7 +157,7 @@ export async function deleteMyThread(request: Request, env: Env): Promise<Respon
 
 	// Recalc forum metadata
 	await recalcForumMetadata(env, thread.forum_id);
-	await invalidateForumVolatile(env);
+	await Promise.all([invalidateForumVolatile(env), invalidateForumSummaryV2(env)]);
 
 	return jsonResponse({ deleted: true, id }, origin);
 }

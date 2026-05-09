@@ -3,6 +3,7 @@
 
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
+import { invalidateForumSummaryV2 } from "../../lib/cache/invalidate";
 import { buildDeleteThreadChildStatements } from "../../lib/contentDelete";
 import type { EntityConfig } from "../../lib/crud";
 import { createGetByIdHandler, createListHandler, createUpdateHandler } from "../../lib/crud";
@@ -140,7 +141,7 @@ const threadConfig: EntityConfig = {
 				recalcForumMetadata(env, oldForumId),
 				recalcForumMetadata(env, newForumId),
 			]);
-			await invalidateForumVolatile(env);
+			await Promise.all([invalidateForumVolatile(env), invalidateForumSummaryV2(env)]);
 		}
 	},
 
@@ -188,7 +189,7 @@ const threadConfig: EntityConfig = {
 
 		// Recalc forum metadata after thread deletion
 		await recalcForumMetadata(env, forumId);
-		await invalidateForumVolatile(env);
+		await Promise.all([invalidateForumVolatile(env), invalidateForumSummaryV2(env)]);
 	},
 };
 
@@ -379,7 +380,7 @@ export const remove = withEntityAuth(
 
 		// Recalc forum metadata after thread deletion
 		await recalcForumMetadata(env, threadRow.forum_id);
-		await invalidateForumVolatile(env);
+		await Promise.all([invalidateForumVolatile(env), invalidateForumSummaryV2(env)]);
 
 		// F3-b: audit only after the mutation has committed.
 		await writeAdminLog(env, resolveActor(request), {
@@ -535,6 +536,7 @@ export const batchDelete = withEntityAuth(
 			),
 			...Array.from(forumThreadCounts.keys(), (forumId) => recalcForumMetadata(env, forumId)),
 			invalidateForumVolatile(env),
+			invalidateForumSummaryV2(env),
 			writeAdminLog(env, resolveActor(request), {
 				action: "thread.batch_delete",
 				targetType: "thread",
@@ -681,7 +683,7 @@ export const batchMove = withEntityAuth(
 			...Array.from(forumAdjustments.keys(), (forumId) => recalcForumMetadata(env, forumId)),
 			recalcForumMetadata(env, targetForumId),
 		]);
-		await invalidateForumVolatile(env);
+		await Promise.all([invalidateForumVolatile(env), invalidateForumSummaryV2(env)]);
 
 		// F3-b: audit one row for the entire successful batch. fromForumIds
 		// is deduped (Map keys) so multi-source batches are searchable.
