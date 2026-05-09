@@ -44,7 +44,7 @@ export interface ThreadListState {
 export function enrichThreads(threads: Thread[]): ThreadDisplayItem[] {
 	return threads.map((thread) => ({
 		thread,
-		badges: getThreadBadges(thread),
+		badges: filterIconRedundantBadges(getThreadBadges(thread)),
 		highlight: decodeHighlight(thread.highlight),
 		iconSrc: getThreadIconSrc(thread),
 	}));
@@ -69,6 +69,9 @@ export function highlightStyle(
 /**
  * Resolve the classic Discuz folder/pin icon for a thread row.
  * Returns a CDN URL for the appropriate GIF icon.
+ *
+ * Priority matches forumdisplay_list.htm <td class="icn">:
+ *   closed → special(1-5) → sticky(1-4) → digest → folder_new/common
  */
 export function getThreadIconSrc(thread: {
 	closed: number;
@@ -78,12 +81,34 @@ export function getThreadIconSrc(thread: {
 	lastPostAt: number;
 }): string {
 	if (thread.closed === 1) return getStaticImageUrl("folder_lock.gif");
+	// Special thread types: poll/trade/reward/activity/debate
 	if (thread.special === 1) return getStaticImageUrl("pollsmall.gif");
+	if (thread.special === 2) return getStaticImageUrl("tradesmall.gif");
+	if (thread.special === 3) return getStaticImageUrl("rewardsmall.gif");
+	if (thread.special === 4) return getStaticImageUrl("activitysmall.gif");
+	if (thread.special === 5) return getStaticImageUrl("debatesmall.gif");
+	// Sticky: displayorder 1-4 → pin_1..4.gif; clamp >4 to pin_4
 	if (thread.sticky >= StickyLevel.Forum)
-		return getStaticImageUrl(`pin_${Math.min(thread.sticky, 3)}.gif`);
+		return getStaticImageUrl(`pin_${Math.min(thread.sticky, 4)}.gif`);
 	if (thread.digest > 0) return getStaticImageUrl(`digest_${Math.min(thread.digest, 3)}.gif`);
 	// folder_new: last reply within 24 hours
 	const oneDayAgo = Math.floor(Date.now() / 1000) - 86400;
 	if (thread.lastPostAt > oneDayAgo) return getStaticImageUrl("folder_new.gif");
 	return getStaticImageUrl("folder_common.gif");
+}
+
+/**
+ * Badge types that are already conveyed by the thread icon column.
+ * These are filtered out in the thread list to avoid redundancy.
+ */
+const ICON_REPRESENTED_BADGE_TYPES = new Set(["sticky", "digest", "closed", "special"]);
+
+/**
+ * Filter badges to only include those NOT already represented by the icon.
+ * Keeps typeName (thread classification) since it has no icon equivalent.
+ */
+export function filterIconRedundantBadges(
+	badges: ReturnType<typeof getThreadBadges>,
+): ReturnType<typeof getThreadBadges> {
+	return badges.filter((b) => !ICON_REPRESENTED_BADGE_TYPES.has(b.type));
 }
