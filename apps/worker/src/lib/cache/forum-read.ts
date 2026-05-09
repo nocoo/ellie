@@ -57,10 +57,12 @@ export const FORUM_META_TTL = 600; // 10min
 // ─── Snapshot row (D1) ────────────────────────────────────────────
 
 /**
- * One enriched D1 row. Combines the `forums` table (incl. `moderator_ids`),
- * a LEFT JOIN on `users` for the last-poster avatar fields, the moderator
- * name list, and the today-thread count. Both tree and summary builders are
- * fed this same row shape so a single D1 fetch can satisfy both.
+ * One enriched D1 row. Combines the `forums` table (incl. `moderator_ids`)
+ * with the visible-last-thread override (sticky >= 0), the moderator
+ * name list, the today-thread count, and the visible last poster's
+ * avatar (resolved from `users` keyed by the *visible* poster id, NOT
+ * `forums.last_poster_id`). Both tree and summary builders are fed this
+ * same row shape so a single D1 fetch can satisfy both.
  */
 export interface ForumSnapshotRow extends Forum {
 	/** Comma-separated moderator user IDs (preserved verbatim from D1). */

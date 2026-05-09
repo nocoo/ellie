@@ -155,15 +155,24 @@ function makeD1Mock(
 					})),
 				};
 			}
-			// getById raw row
+			// getById raw row (v2 path uses plain SELECT * FROM forums WHERE id = ?,
+			// legacy path may still use the LEFT JOIN form).
 			if (
-				sql.includes("FROM forums f") &&
-				sql.includes("LEFT JOIN users") &&
-				sql.includes("WHERE f.id")
+				sql.includes("FROM forums") &&
+				sql.includes("WHERE") &&
+				(sql.includes("WHERE f.id") || sql.includes("WHERE id = ?"))
 			) {
 				return {
 					bind: vi.fn((id: number) => ({
 						first: vi.fn(async () => forumRows.find((r) => r.id === id) ?? null),
+					})),
+				};
+			}
+			// users single avatar lookup (visible-last-poster avatar in v2 getById)
+			if (sql.includes("FROM users WHERE id = ?")) {
+				return {
+					bind: vi.fn((id: number) => ({
+						first: vi.fn(async () => users.find((u) => u.id === id) ?? null),
 					})),
 				};
 			}
@@ -580,6 +589,85 @@ describe("forum.getById — v2 cache", () => {
 		const putMock = kv.put as unknown as ReturnType<typeof vi.fn>;
 		const wrote = putMock.mock.calls.find((c) => (c[0] as string).startsWith("forum:meta:v2"));
 		expect(wrote?.[0]).toBe("forum:meta:v2:3:anon:gtS");
+	});
+
+	it("miss path uses visible-last-poster avatar (response + meta cache)", async () => {
+		// Raw forum row points at hidden poster_id=99 with avatar 'ghost.png'.
+		// Visible last-thread query returns a different poster (id=8 'bob.png').
+		// The v2 response AND the cached forum:meta:v2 payload must use bob's
+		// avatar, not ghost's.
+		const rows = [
+			makeForumRow({
+				id: 3,
+				status: 1,
+				visibility: "public",
+				last_thread_id: 999,
+				last_thread_subject: "hidden-subj",
+				last_post_at: 1_700_000_999,
+				last_poster: "ghost",
+				last_poster_id: 99,
+			}),
+		];
+		const visibleLastThreads = [
+			{
+				forum_id: 3,
+				thread_id: 100,
+				subject: "visible-subj",
+				last_post_at: 1_700_000_100,
+				last_poster_id: 8,
+				last_poster: "bob",
+			},
+		];
+		const users = [
+			{ id: 99, username: "ghost", avatar: "ghost.png", avatar_path: "/g.png" },
+			{ id: 8, username: "bob", avatar: "bob.png", avatar_path: "/b.png" },
+		];
+		const kv = createMockKV({ "forum:summary:gen": "tS" });
+		const { db } = makeD1Mock(rows, { visibleLastThreads, users });
+		const env = makeEnvV2(db, kv);
+		const ctx = createMockCtx() as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
+
+		const res = await getById(new Request("https://x/api/v1/forums/3"), env, ctx);
+		expect(res.status).toBe(200);
+		const body: {
+			data: {
+				lastThreadId: number;
+				lastThreadSubject: string;
+				lastPoster: string;
+				lastPosterId: number;
+				lastPosterAvatar: string;
+				lastPosterAvatarPath: string;
+			};
+		} = await res.json();
+		expect(body.data.lastThreadId).toBe(100);
+		expect(body.data.lastThreadSubject).toBe("visible-subj");
+		expect(body.data.lastPoster).toBe("bob");
+		expect(body.data.lastPosterId).toBe(8);
+		expect(body.data.lastPosterAvatar).toBe("bob.png");
+		expect(body.data.lastPosterAvatarPath).toBe("/b.png");
+
+		await Promise.all(ctx._waitUntilPromises);
+		const putMock = kv.put as unknown as ReturnType<typeof vi.fn>;
+		const metaWrite = putMock.mock.calls.find((c) =>
+			(c[0] as string).startsWith("forum:meta:v2:3:anon:gtS"),
+		);
+		expect(metaWrite).toBeDefined();
+		const cached = (
+			JSON.parse(metaWrite?.[1] as string) as {
+				forum: {
+					lastThreadSubject: string;
+					lastPoster: string;
+					lastPosterId: number;
+					lastPosterAvatar: string;
+					lastPosterAvatarPath: string;
+				};
+			}
+		).forum;
+		expect(cached.lastThreadSubject).toBe("visible-subj");
+		expect(cached.lastPoster).toBe("bob");
+		expect(cached.lastPosterId).toBe(8);
+		expect(cached.lastPosterAvatar).toBe("bob.png");
+		expect(cached.lastPosterAvatarPath).toBe("/b.png");
 	});
 
 	it("cache HIT: 0 D1 calls", async () => {
