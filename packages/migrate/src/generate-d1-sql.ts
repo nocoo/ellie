@@ -48,6 +48,7 @@ const { values } = parseArgs({
 		"users-min-id": { type: "string" },
 		"users-max-id": { type: "string" },
 		tables: { type: "string" },
+		"missing-ids": { type: "string" },
 	},
 });
 
@@ -85,6 +86,100 @@ const USERS_MAX_ID = values["users-max-id"]
 	? parseStrictUint(values["users-max-id"], "users-max-id", false)
 	: null;
 const TABLES_FILTER = values.tables ? new Set(values.tables.split(",").map((t) => t.trim())) : null;
+
+// ─── --missing-ids parsing & validation ────────────────────────────────────
+//
+// Whitelist of tables eligible for exact-id filtering. INSERT-OR-IGNORE only;
+// upsert tables (users/forums/checkins) are intentionally excluded so the
+// missing-ids mode cannot regress full-row reconciliation semantics.
+const MISSING_IDS_ALLOWED_TABLES = new Set(["threads", "posts", "post_comments", "attachments"]);
+
+interface MissingIdsSpec {
+	file: string;
+	ids: number[];
+}
+
+/**
+ * Parse `--missing-ids table=file,table=file,...`.
+ * Returns null when the flag is not provided.
+ *
+ * Strict validation (any failure → process.exit(1)):
+ *   - At least one entry, no duplicate table keys
+ *   - Table name must be in MISSING_IDS_ALLOWED_TABLES
+ *   - File must exist and be readable
+ *   - File must be non-empty
+ *   - Each non-blank line must match /^[0-9]+$/ and parse as a positive integer
+ *   - No duplicate IDs within a single file
+ */
+function parseMissingIdsFlag(raw: string | undefined): Map<string, MissingIdsSpec> | null {
+	if (raw == null) return null;
+	const map = new Map<string, MissingIdsSpec>();
+	const entries = raw
+		.split(",")
+		.map((s) => s.trim())
+		.filter(Boolean);
+	if (entries.length === 0) {
+		console.error("Error: --missing-ids must contain at least one table=file pair");
+		process.exit(1);
+	}
+	for (const entry of entries) {
+		const eq = entry.indexOf("=");
+		if (eq <= 0 || eq === entry.length - 1) {
+			console.error(`Error: --missing-ids entry must be "table=file", got "${entry}"`);
+			process.exit(1);
+		}
+		const table = entry.slice(0, eq).trim();
+		const file = entry.slice(eq + 1).trim();
+		if (!MISSING_IDS_ALLOWED_TABLES.has(table)) {
+			console.error(
+				`Error: --missing-ids table "${table}" is not allowed; allowed: ${[...MISSING_IDS_ALLOWED_TABLES].join(", ")}`,
+			);
+			process.exit(1);
+		}
+		if (map.has(table)) {
+			console.error(`Error: --missing-ids has duplicate entry for table "${table}"`);
+			process.exit(1);
+		}
+		if (!existsSync(file)) {
+			console.error(`Error: --missing-ids file not found: ${file}`);
+			process.exit(1);
+		}
+		const text = readFileSync(file, "utf-8");
+		const lines = text
+			.split(/\r?\n/)
+			.map((l) => l.trim())
+			.filter(Boolean);
+		if (lines.length === 0) {
+			console.error(`Error: --missing-ids file is empty: ${file}`);
+			process.exit(1);
+		}
+		const ids: number[] = [];
+		const seen = new Set<number>();
+		for (const line of lines) {
+			if (!STRICT_UINT_RE.test(line)) {
+				console.error(
+					`Error: --missing-ids file ${file} contains non-positive-integer line: "${line}"`,
+				);
+				process.exit(1);
+			}
+			const n = Number(line);
+			if (n === 0) {
+				console.error(`Error: --missing-ids file ${file} contains 0 (id must be > 0)`);
+				process.exit(1);
+			}
+			if (seen.has(n)) {
+				console.error(`Error: --missing-ids file ${file} contains duplicate id: ${n}`);
+				process.exit(1);
+			}
+			seen.add(n);
+			ids.push(n);
+		}
+		map.set(table, { file, ids });
+	}
+	return map;
+}
+
+const MISSING_IDS = parseMissingIdsFlag(values["missing-ids"]);
 
 if (USERS_MIN_ID != null && USERS_MAX_ID != null && USERS_MAX_ID <= USERS_MIN_ID) {
 	console.error(
@@ -230,6 +325,84 @@ function generateIncrementalChunks(
 	return { chunks, totalRows, filteredRows };
 }
 
+// ─── Exact missing-id INSERT OR IGNORE generator ───────────────────────────
+//
+// Uses a temporary in-memory table loaded with the missing IDs so the chunk
+// query stays parameter-free and chunk-friendly (LIMIT/OFFSET against an
+// indexed temp table). Asserts that the source DB returns exactly one row per
+// requested ID — any drift between the missing-ID file and the source DB
+// fails the run instead of silently dropping rows.
+function generateExactMissingIdChunks(
+	db: Database,
+	table: string,
+	columns: string[],
+	missingIds: number[],
+	missingIdsFile: string,
+	outDir: string,
+): { chunks: ChunkInfo[]; totalRows: number; matchedRows: number } {
+	const chunks: ChunkInfo[] = [];
+	const totalRows = (db.query(`SELECT COUNT(*) as cnt FROM ${table}`).get() as { cnt: number }).cnt;
+	const expectedCount = missingIds.length;
+
+	// Stage IDs in a temp table for indexed lookup. Use a unique name per call
+	// so concurrent runs do not collide (defensive).
+	const tempName = `__exact_ids_${table}`;
+	db.exec(`DROP TABLE IF EXISTS ${tempName}`);
+	db.exec(`CREATE TEMP TABLE ${tempName} (id INTEGER PRIMARY KEY)`);
+	const insertStmt = db.prepare(`INSERT INTO ${tempName}(id) VALUES (?)`);
+	db.exec("BEGIN");
+	try {
+		for (const id of missingIds) insertStmt.run(id);
+		db.exec("COMMIT");
+	} catch (e) {
+		db.exec("ROLLBACK");
+		throw e;
+	}
+
+	const matchedRows = (
+		db
+			.query(`SELECT COUNT(*) as cnt FROM ${table} t WHERE t.id IN (SELECT id FROM ${tempName})`)
+			.get() as { cnt: number }
+	).cnt;
+	if (matchedRows !== expectedCount) {
+		console.error(
+			`Error: --missing-ids drift for ${table}: file ${missingIdsFile} lists ${expectedCount} ids but source DB has ${matchedRows} matching rows. Refresh the missing-ids file from a fresh exact-diff before regenerating.`,
+		);
+		db.exec(`DROP TABLE IF EXISTS ${tempName}`);
+		process.exit(1);
+	}
+	log(
+		`  ${table}: ${totalRows.toLocaleString()} total, ${matchedRows.toLocaleString()} exact-id (missing-ids file: ${missingIdsFile}) → INSERT OR IGNORE`,
+	);
+
+	let chunkNum = 0;
+	let offset = 0;
+	while (offset < matchedRows) {
+		chunkNum++;
+		const rows = db
+			.query(
+				`SELECT ${columns.join(",")} FROM ${table} WHERE id IN (SELECT id FROM ${tempName}) ORDER BY id LIMIT ${CHUNK_SIZE} OFFSET ${offset}`,
+			)
+			.all() as Array<Record<string, string | number | null>>;
+		if (rows.length === 0) break;
+		const { content, bytes, pk_list } = formatInsertOrIgnoreChunk(table, columns, rows);
+		const fileName = chunkFileName(table, chunkNum);
+		writeFileSync(`${outDir}/${fileName}`, content);
+		chunks.push({
+			file: fileName,
+			table,
+			rows: rows.length,
+			bytes,
+			strategy: "insert_or_ignore",
+			pk_list,
+		});
+		offset += CHUNK_SIZE;
+	}
+
+	db.exec(`DROP TABLE IF EXISTS ${tempName}`);
+	return { chunks, totalRows, matchedRows };
+}
+
 // ─── Main ───────────────────────────────────────────────────────────────────
 
 log("=== D1 Import SQL Generator ===");
@@ -248,6 +421,11 @@ if (USERS_MAX_ID != null) {
 }
 if (TABLES_FILTER != null) {
 	log(`  Tables filter:     ${[...TABLES_FILTER].join(", ")}`);
+}
+if (MISSING_IDS != null) {
+	for (const [table, spec] of MISSING_IDS) {
+		log(`  Missing IDs:       ${table} ← ${spec.file} (${spec.ids.length} ids)`);
+	}
 }
 
 // Load production state
@@ -280,6 +458,8 @@ const tableStats: Record<
 		continuation_min_id?: number | null;
 		continuation_max_id?: number | null;
 		effective_chunk_size?: number;
+		exact_missing_ids_file?: string;
+		exact_missing_ids_count?: number;
 		chunks: number;
 		rows: number;
 		files: string[];
@@ -297,6 +477,8 @@ function recordTableStats(
 	continuationMinId?: number | null,
 	effectiveChunkSize?: number,
 	continuationMaxId?: number | null,
+	exactMissingIdsFile?: string,
+	exactMissingIdsCount?: number,
 ): void {
 	allChunks.push(...chunks);
 	tableStats[table] = {
@@ -309,6 +491,8 @@ function recordTableStats(
 		...(effectiveChunkSize != null && effectiveChunkSize !== CHUNK_SIZE
 			? { effective_chunk_size: effectiveChunkSize }
 			: {}),
+		...(exactMissingIdsFile != null ? { exact_missing_ids_file: exactMissingIdsFile } : {}),
+		...(exactMissingIdsCount != null ? { exact_missing_ids_count: exactMissingIdsCount } : {}),
 		chunks: chunks.length,
 		rows: chunks.reduce((sum, c) => sum + c.rows, 0),
 		files: chunks.map((c) => c.file),
@@ -319,6 +503,52 @@ function recordTableStats(
 function shouldGenerate(table: string): boolean {
 	if (TABLES_FILTER == null) return true;
 	return TABLES_FILTER.has(table);
+}
+
+/**
+ * Dispatch an insert_or_ignore table to either:
+ *   - exact missing-id mode (when --missing-ids has an entry for it), or
+ *   - max-id incremental mode (the default)
+ *
+ * Records the right manifest fields in either case.
+ */
+function generateInsertOrIgnoreTable(table: string, columns: string[]): void {
+	const prodMaxId = prodState.tables[table]?.max_id ?? 0;
+	const spec = MISSING_IDS?.get(table);
+	if (spec != null) {
+		log(`Generating ${table} (exact missing-ids mode)...`);
+		const result = generateExactMissingIdChunks(db, table, columns, spec.ids, spec.file, OUT_DIR);
+		// source_rows_after_max kept for reference even in exact mode
+		const filteredRows = (
+			db.query(`SELECT COUNT(*) as cnt FROM ${table} WHERE id > ${prodMaxId}`).get() as {
+				cnt: number;
+			}
+		).cnt;
+		recordTableStats(
+			table,
+			"insert_or_ignore",
+			result.chunks,
+			result.totalRows,
+			prodMaxId,
+			filteredRows,
+			null,
+			undefined,
+			null,
+			spec.file,
+			result.matchedRows,
+		);
+	} else {
+		log(`Generating ${table}...`);
+		const result = generateIncrementalChunks(db, table, columns, prodMaxId, OUT_DIR);
+		recordTableStats(
+			table,
+			"insert_or_ignore",
+			result.chunks,
+			result.totalRows,
+			prodMaxId,
+			result.filteredRows,
+		);
+	}
 }
 
 // 1. Forums — upsert (all rows)
@@ -368,94 +598,30 @@ if (shouldGenerate("users")) {
 	log("Skipping users (--tables filter)");
 }
 
-// 3. Threads — incremental (id > prod max_id)
+// 3. Threads — incremental (id > prod max_id) or exact missing-ids
 if (shouldGenerate("threads")) {
-	log("Generating threads...");
-	const threadsProdMaxId = prodState.tables.threads?.max_id ?? 0;
-	const threadsResult = generateIncrementalChunks(
-		db,
-		"threads",
-		TABLE_COLUMNS.threads,
-		threadsProdMaxId,
-		OUT_DIR,
-	);
-	recordTableStats(
-		"threads",
-		"insert_or_ignore",
-		threadsResult.chunks,
-		threadsResult.totalRows,
-		threadsProdMaxId,
-		threadsResult.filteredRows,
-	);
+	generateInsertOrIgnoreTable("threads", TABLE_COLUMNS.threads);
 } else {
 	log("Skipping threads (--tables filter)");
 }
 
-// 4. Posts — incremental (id > prod max_id)
+// 4. Posts — incremental (id > prod max_id) or exact missing-ids
 if (shouldGenerate("posts")) {
-	log("Generating posts...");
-	const postsProdMaxId = prodState.tables.posts?.max_id ?? 0;
-	const postsResult = generateIncrementalChunks(
-		db,
-		"posts",
-		TABLE_COLUMNS.posts,
-		postsProdMaxId,
-		OUT_DIR,
-	);
-	recordTableStats(
-		"posts",
-		"insert_or_ignore",
-		postsResult.chunks,
-		postsResult.totalRows,
-		postsProdMaxId,
-		postsResult.filteredRows,
-	);
+	generateInsertOrIgnoreTable("posts", TABLE_COLUMNS.posts);
 } else {
 	log("Skipping posts (--tables filter)");
 }
 
-// 5. Attachments — incremental (id > prod max_id)
+// 5. Attachments — incremental (id > prod max_id) or exact missing-ids
 if (shouldGenerate("attachments")) {
-	log("Generating attachments...");
-	const attachProdMaxId = prodState.tables.attachments?.max_id ?? 0;
-	const attachResult = generateIncrementalChunks(
-		db,
-		"attachments",
-		TABLE_COLUMNS.attachments,
-		attachProdMaxId,
-		OUT_DIR,
-	);
-	recordTableStats(
-		"attachments",
-		"insert_or_ignore",
-		attachResult.chunks,
-		attachResult.totalRows,
-		attachProdMaxId,
-		attachResult.filteredRows,
-	);
+	generateInsertOrIgnoreTable("attachments", TABLE_COLUMNS.attachments);
 } else {
 	log("Skipping attachments (--tables filter)");
 }
 
-// 6. Post Comments — incremental (id > prod max_id)
+// 6. Post Comments — incremental (id > prod max_id) or exact missing-ids
 if (shouldGenerate("post_comments")) {
-	log("Generating post_comments...");
-	const pcProdMaxId = prodState.tables.post_comments?.max_id ?? 0;
-	const pcResult = generateIncrementalChunks(
-		db,
-		"post_comments",
-		TABLE_COLUMNS.post_comments,
-		pcProdMaxId,
-		OUT_DIR,
-	);
-	recordTableStats(
-		"post_comments",
-		"insert_or_ignore",
-		pcResult.chunks,
-		pcResult.totalRows,
-		pcProdMaxId,
-		pcResult.filteredRows,
-	);
+	generateInsertOrIgnoreTable("post_comments", TABLE_COLUMNS.post_comments);
 } else {
 	log("Skipping post_comments (--tables filter)");
 }
