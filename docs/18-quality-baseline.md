@@ -172,7 +172,8 @@ humans all run the same definition.
 |---------------------|-------------------------------------------------------------------------------------------------------------------------------------------|-------|
 | `bun run gate:g1`   | `bun run typecheck && bun run lint && bun run test:coverage`                                                                              | G1 = typecheck + lint + L1 coverage thresholds (§2.3). |
 | `bun run gate:g2`   | `gitleaks detect --no-banner && osv-scanner scan --lockfile bun.lock`                                                                     | G2a + G2b. Filters for G2b live in `osv-scanner.toml`. |
-| `bun run gate:full` | `bun run gate:g1 && bun run test:l2 && bun run gate:g2`                                                                                   | Full pre-release sweep (G1 + L2 + G2). |
+| `bun run gate:l2`   | `bun run test:l2 && bun run scripts/audit-l2-coverage.ts --strict-coverage`                                                               | L2 = full L2 suite + strict 100% (route × method) audit. Phase 4E landed: 134/134 routes hit, 0 uncovered, 0 unmatched. |
+| `bun run gate:full` | `bun run gate:g1 && bun run gate:l2 && bun run gate:g2`                                                                                   | Full pre-release sweep (G1 + L2 + G2). |
 
 Husky hooks reuse the same underlying commands but keep them inlined to
 preserve parallel execution:
@@ -189,10 +190,11 @@ run` before Phase 3) so the §2.3 thresholds are now enforced on push as
 well as on commit.
 
 **Out of scope for G1 today:** `scripts/audit-l2-coverage.ts
---strict-coverage` is intentionally not part of `gate:g1`. The audit is
-green for the existing matched routes but the matrix still has 17
-uncovered routes (Phase 4 work); promoting it to gate:g1 before the
-matrix is at 100% would block all commits until Phase 4 lands.
+--strict-coverage` is intentionally not part of `gate:g1`. After
+Phase 4E landed (matrix at 134/134 hit, 0 uncovered) the strict
+audit is wired into `gate:l2` (and therefore `gate:full`), so
+release sweeps fail loudly if a new route lands without an L2 case.
+G1 stays focused on static + L1 coverage so commits remain fast.
 
 ---
 
@@ -201,13 +203,15 @@ matrix is at 100% would block all commits until Phase 4 lands.
 Captured for cross-reference; L2 100% scope is owned by `docs/18-l2-coverage-matrix.md`
 (Phase 1B), G2 by `osv-scanner.toml` and gitleaks defaults.
 
-| Gate    | Command                                        | Baseline result (2026-05-09 post-Phase-3) |
+| Gate    | Command                                        | Baseline result (2026-05-09 post-Phase-4E) |
 |---------|------------------------------------------------|--------------------------------------------|
 | L1      | `bun run test`                                 | 4498 vitest tests + 37 bun tests passing   |
 | L1 cov  | `bun run test:coverage`                        | All 7 packages over §2.3 floors; `packages/migrate` now 97.81 / 90.20 / 100 / 98.60 with the raised branch ≥90 floor; `packages/types` 100/100/100/100 |
-| L2      | `bun run test:l2`                              | 258 tests passing                           |
+| L2      | `bun run test:l2`                              | 295 tests passing                           |
+| L2 strict | `bun run scripts/audit-l2-coverage.ts --strict-coverage` | 134/134 hit / 0 uncovered / 0 unmatched (100% — Phase 4E landed) |
 | G1      | `bun run gate:g1` (typecheck + lint + L1 cov)  | clean                                       |
 | G2      | `bun run gate:g2` (gitleaks + osv-scanner)     | clean — no leaks; no issues (10 filtered, see `osv-scanner.toml`) |
+| L2 gate | `bun run gate:l2` (test:l2 + strict audit)     | clean                                       |
 | Full    | `bun run gate:full` (G1 + L2 + G2)             | composition of the rows above; verified via the constituent commands |
 
 ---
