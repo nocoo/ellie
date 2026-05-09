@@ -194,6 +194,34 @@ variants (`public` and `staff`) every time.
 Public stats are non-critical and slowly-moving; explicit invalidation would
 add invalidator wiring in many admin paths for marginal value.
 
+### 4.1 `forum:summary:v2` / `forum:meta:v2` visible-last-thread semantics
+
+The `last_thread_*` and `last_poster*` fields exposed on `forum:summary:v2`
+list rows and on `forum:meta:v2` (single-forum meta on the read-by-id miss
+path) **must reflect the latest *visible* thread**, not the raw
+`forums.last_thread_id` row, which can point at a hidden / recycled thread.
+
+Concretely:
+- "Visible" = `THREAD_VISIBLE` SQL fragment **plus** `sticky >= 0` (i.e. not
+  a soft-hidden / recycled thread). See `fetchVisibleLastThreads` in
+  `apps/worker/src/lib/cache/forum-read.ts`.
+- The cached row's `last_thread_id`, `last_thread_subject`, `last_post_at`,
+  `last_poster`, `last_poster_id`, **avatar fields** are taken from the
+  visible-last-thread query result. If no visible thread exists, all of
+  these fields are cleared (empty / 0 / null).
+- The avatar (`avatar`, `avatar_path`) is bound to the **visible
+  `lastPosterId`**, never to whatever `forums.last_poster_id` happened to
+  be at write time. Avatars are resolved via a single batched
+  `SELECT ... FROM users WHERE id IN (...)` over moderator IDs ∪ visible
+  last-poster IDs.
+- The same semantics apply to the getById meta-miss path
+  (`loadFullForumFromD1` in `apps/worker/src/handlers/forum.ts`): no
+  `LEFT JOIN users` on `forums.last_poster_id`; instead resolve the
+  visible last thread first, then fetch the visible poster's avatar.
+
+This is enforced by `tests/unit/handlers/forum-v2-cache.test.ts`
+(visible-overrides-hidden, no-visible-clears, miss-path-uses-visible-avatar).
+
 ---
 
 ## 5. Read route → cache layering
@@ -261,8 +289,9 @@ Layering legend:
 | `PATCH /api/v1/users/me` (avatar)                       | —                                                                                                 | `user:mini:v2:<userId>`, `deleteUserPublicVariants(env, userId)` |
 | `POST /api/v1/users/me/email/verify`                    | —                                                                                                 | `deleteUserPublicVariants(env, userId)` |
 | `POST /api/v1/users/me/password`                        | —                                                                                                 | — |
-| admin forum CRUD / reorder / merge                      | `forum:tree:gen`, `forum:summary:gen`                                                             | — |
-| admin forum rename or visibility change                 | `forum:tree:gen`, `forum:summary:gen`, `digest:gen`                                               | — |
+| admin forum CRUD / merge                                | `forum:tree:gen`, `forum:summary:gen`, `digest:gen` (create / delete / merge always touch digest filters) | — |
+| admin forum reorder                                     | `forum:tree:gen`, `forum:summary:gen` (NOT `digest:gen` — display order is not a digest filter) | — |
+| admin forum update                                      | `forum:tree:gen`, `forum:summary:gen`; `digest:gen` only when one of `name / status / visibility / parent_id / type` is in the patch (`afterUpdate` reads DB-column-keyed `data`, so the field-presence check uses snake_case `parent_id`) | — |
 | admin thread CRUD / batch                               | `thread:list:gen:<forumId>`, `forum:summary:gen`, `thread:meta:gen:<threadId>`                    | — |
 | admin post edit                                         | `post:list:gen:<threadId>`, `thread:meta:gen:<threadId>`                                          | — |
 | admin post delete / batch-delete                        | `post:list:gen:<threadId>`, `thread:meta:gen:<threadId>`, `thread:list:gen:<forumId>`, `forum:summary:gen` | — |
@@ -313,9 +342,19 @@ Implemented under `apps/worker/src/lib/cache/`:
 ## 8. Feature flags & legacy
 
 - The legacy `USE_KV_FORUM_CACHE` flag controls the `v1` `forums:tree:v1` /
-  `forums:volatile:v1` path inside `apps/worker/src/lib/forum-cache.ts`. Phase
-  2 introduces v2 caching *behind the same* flag; the flag stays the single
-  on/off switch for forum cache.
+  `forums:volatile:v1` path inside `apps/worker/src/lib/forum-cache.ts`.
+- **Phase 2 ships v2 forum read path behind a separate flag
+  `USE_KV_FORUM_CACHE_V2`** (`apps/worker/src/lib/env.ts` →
+  `isForumCacheV2Enabled`). Default is **off**: the read handlers fall
+  through to the legacy v1 path. Cutover (default-on / v1 removal) is
+  intentionally **not** part of Phase 2; it happens in Phase 7 after
+  `gate:full` has run green for at least one phase with the flag turned on
+  in a controlled environment.
+- All forum write paths invalidate **both** v1 and v2 in the same fan-out
+  (see §6 below). v2 invalidation parity covers every legacy
+  `invalidateForumVolatile` / `invalidateForumCacheAll` callsite;
+  `apps/worker/src/handlers/admin/statistics.ts` is left untouched because
+  it already bumps `forum:summary:gen` directly via Phase 1.
 - `v1` keys remain in code until Phase 7 evaluates removal. Removal requires:
   (a) `v2` shipped, (b) `gate:full` green for at least one Phase, (c) optional
   observation window.
@@ -328,7 +367,7 @@ Implemented under `apps/worker/src/lib/cache/`:
 |-------|------------------------------------------------------------------------------------------------|----------|
 | 0     | This doc.                                                                                      | Phase 0  |
 | 1     | Foundation helpers under `apps/worker/src/lib/cache/`. Fix existing invalidation gaps (thread/post create → forum volatile; admin statistics recalc-{forums,threads,users}; admin user batch-status / batch-role / batch-recalc-counters; single recalcCounters). `search.ts` reads `general.search.enabled` via `getSetting`. `apps/admin/src/lib/api-client.ts` sets `cache: "no-store"`. **No new business cache.** | Phase 1  |
-| 2     | `forum:tree:v2` + `forum:summary:v2` + `forum:meta:v2` + `forums/:id/ancestors`. Reuses `lib/cache/` from Phase 1. | Phase 2  |
+| 2     | `forum:tree:v2` + `forum:summary:v2` + `forum:meta:v2` + `forums/:id/ancestors`, behind `USE_KV_FORUM_CACHE_V2` (default off — see §8). Visible-last-thread semantics (§4.1). v2 invalidation parity wired to every legacy `invalidateForumVolatile` / `invalidateForumCacheAll` callsite via `invalidateForumStructureV2` / `invalidateForumReorderV2` / `invalidateForumUpdateV2({affectsDigest})` / `invalidateForumSummaryV2`. Reuses `lib/cache/` from Phase 1. | Phase 2  |
 | 3     | `thread:list:v2` for `GET /api/v1/threads?forumId=…&page=1`. **Gated on §3.3.1: `recalc-threads` invalidation must be extended (per-thread/per-forum bumps OR `thread:list:gen:all`) before this phase ships.** | deferred |
 | 4     | `post:list:v2` + `thread:meta:v2`. View-count batching not included. **Same §3.3.1 gate applies for `thread:meta:v2`.** | deferred |
 | 5     | `digest:list:v2` / `digest:stats:v2` / `digest:filters:v2`.                                     | deferred |
