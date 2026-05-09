@@ -153,10 +153,20 @@ const threadConfig: EntityConfig = {
 		//   - forum_id change ⇒ source + target volatile bump
 		//   - any list-affecting field change ⇒ per-forum thread-list bump
 		//     for the forum the thread now lives in
+		//   - subject change ⇒ ALSO bump forum:summary:gen, because
+		//     `forum:summary:v2` carries `lastThreadSubject` (the visible-
+		//     last-thread title). If the renamed thread happens to be the
+		//     forum's current visible-last, the summary cache would
+		//     otherwise serve the old title until TTL expiry. We do NOT
+		//     extend this to sticky/closed/digest/highlight — those don't
+		//     change `lastThreadSubject` and the summary refresh would be
+		//     pure overhead.
 		//   - digest change ⇒ also bump digest gen (filter visibility)
 		const LIST_AFFECTING = new Set(["sticky", "digest", "closed", "highlight", "subject"]);
 		const listAffected = Object.keys(data).some((c) => LIST_AFFECTING.has(c));
 		const digestChanged = data.digest !== undefined && data.digest !== (existing.digest as number);
+		const subjectChanged =
+			data.subject !== undefined && data.subject !== (existing.subject as string);
 
 		const ops: Promise<unknown>[] = [];
 		if (movedForum) {
@@ -169,6 +179,7 @@ const threadConfig: EntityConfig = {
 		} else if (listAffected) {
 			const currentForumId = existing.forum_id as number;
 			ops.push(bumpThreadListGen(env, currentForumId));
+			if (subjectChanged) ops.push(bumpForumSummaryGen(env));
 		}
 		if (digestChanged) ops.push(bumpDigestGen(env));
 		if (ops.length > 0) await Promise.all(ops);

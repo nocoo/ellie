@@ -49,18 +49,28 @@ export const THREAD_LIST_TTL = 60; // 1min
  * KV envelope written for one page1 cache entry. Keep this MINIMAL —
  * only what `handlers/thread.ts:list` re-uses to build the response.
  *
+ * Post-`9d39588`: the page1 loader is unified — keyset (no cursor) and
+ * offset (page=1) requests share the SAME cache key, so the loader
+ * MUST always populate BOTH `total` and `nextCursor`. Tightening
+ * `total` from `number | null` to `number` lets the validator drop any
+ * pre-fix payload that still has `total: null` as a cache miss.
+ *
  * - `items`: the canonical Thread payload returned to clients (already
  *   bucket-independent and avatar-enriched).
- * - `total`: only populated for the offset branch; keyset branch sets
- *   it to `null`.
- * - `nextCursor`: only populated for the keyset branch; offset branch
- *   sets it to `null`.
+ * - `total`: visible-thread total for this forum (used by the offset
+ *   `paginatedResponse`). Always a number.
+ * - `nextCursor`: encoded keyset cursor for the next page; `null` when
+ *   the page wasn't full (no more rows).
  * - `limit`: echoed back so the response shape can be reconstructed
  *   without a second KV round-trip.
+ *
+ * Deep-pagination loaders (cursor / page>1) NEVER pass through the
+ * cache; they may produce a transient internal payload and are not
+ * subject to this contract.
  */
 export interface ThreadListPayloadV2 {
 	items: Thread[];
-	total: number | null;
+	total: number;
 	nextCursor: string | null;
 	limit: number;
 }
@@ -68,15 +78,15 @@ export interface ThreadListPayloadV2 {
 /**
  * Shape validator for `ThreadListPayloadV2`. Treats schema drift as a
  * miss (per `cacheGetOrSet` contract). Intentionally strict so an old
- * cache row that lacks one of the four contract fields is dropped on
- * read.
+ * cache row that lacks one of the four contract fields — including a
+ * pre-`9d39588` row with `total: null` — is dropped on read.
  */
 export function isThreadListPayload(value: unknown): value is ThreadListPayloadV2 {
 	if (typeof value !== "object" || value === null) return false;
 	const v = value as Partial<ThreadListPayloadV2>;
 	if (!Array.isArray(v.items)) return false;
 	if (typeof v.limit !== "number") return false;
-	if (v.total !== null && typeof v.total !== "number") return false;
+	if (typeof v.total !== "number") return false;
 	if (v.nextCursor !== null && typeof v.nextCursor !== "string") return false;
 	return true;
 }
