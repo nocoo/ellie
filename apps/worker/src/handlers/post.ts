@@ -1,8 +1,14 @@
 // Post handlers for Cloudflare Worker
 import { canViewForumVisibility, decodeGenericCursor } from "@ellie/types";
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
+import {
+	bumpPostListGen,
+	bumpThreadMetaGen,
+	invalidateForumVolatileV2,
+} from "../lib/cache/invalidate";
 import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
+import { invalidateForumVolatile } from "../lib/forum-cache";
 import { toPost } from "../lib/mappers";
 import { buildNextCursor, clampLimit } from "../lib/pagination";
 import { parseIdFromPath } from "../lib/parseId";
@@ -286,6 +292,19 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 			env.DB.prepare("UPDATE users SET posts = posts + 1 WHERE id = ?").bind(user.userId),
 		]),
 		env.DB.prepare("SELECT * FROM posts WHERE id = ?").bind(postId).first(),
+	]);
+
+	// Cache invalidation (docs/19 §6 row "POST /api/v1/posts"):
+	// - Legacy v1: drop `forums:volatile:v1` so forum last-post / today-count
+	//   reflects the new reply.
+	// - v2: bump `forum:summary:gen` + `thread:list:gen:<forumId>` (and the
+	//   thread:meta / post:list gens for completeness; consumers land in
+	//   Phase 3/4).
+	await Promise.all([
+		invalidateForumVolatile(env),
+		invalidateForumVolatileV2(env, thread.forum_id),
+		bumpThreadMetaGen(env, threadId),
+		bumpPostListGen(env, threadId),
 	]);
 
 	return jsonResponse(toPost(createdPost as Record<string, unknown>), origin, undefined, 201);
