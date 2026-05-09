@@ -13,8 +13,10 @@
  */
 
 import { existsSync, mkdirSync } from "node:fs";
+import { resolveSourceFiles } from "./extract/source-resolver";
 import {
 	migrateAttachments,
+	migrateCheckins,
 	migrateForums,
 	migratePosts,
 	migrateThreads,
@@ -23,7 +25,7 @@ import {
 import { BatchLoader } from "./load/batch-insert";
 import { MigrationLogger } from "./load/logger";
 
-const SOURCE_DIR = "reference/db";
+const SOURCE_DIR = process.argv[3] ?? "reference/db";
 const DB_PATH = "output/ellie.db";
 const OUTPUT_DIR = "output";
 const BATCH_SIZE = 500;
@@ -32,10 +34,12 @@ const PROGRESS_INTERVAL = 10000;
 const step = process.argv[2];
 if (!step) {
 	console.error(
-		"Usage: bun run scripts/migrate/run-step.ts <forums|users|threads|posts|attachments>",
+		"Usage: bun run scripts/migrate/run-step.ts <forums|users|threads|posts|attachments|checkins> [sourceDir]",
 	);
 	process.exit(1);
 }
+
+const sources = resolveSourceFiles(SOURCE_DIR);
 
 mkdirSync(OUTPUT_DIR, { recursive: true });
 
@@ -70,7 +74,7 @@ try {
 
 	switch (step) {
 		case "forums": {
-			const count = await migrateForums(loader, SOURCE_DIR);
+			const count = await migrateForums(loader, sources);
 			log(`Done. Forums: ${count}`);
 
 			// Quick verification
@@ -89,7 +93,7 @@ try {
 		}
 
 		case "users": {
-			const result = await migrateUsers(loader, SOURCE_DIR);
+			const result = await migrateUsers(loader, sources);
 			log(`Done. Users: ${result.total}`);
 
 			const db = loader.getDb();
@@ -143,7 +147,7 @@ try {
 			const userIdsT = new Set(userRowsT.map((r) => r.id));
 			log(`  ${userIdsT.size.toLocaleString()} user IDs loaded`);
 
-			const result = await migrateThreads(loader, SOURCE_DIR, forumIds, userIdsT);
+			const result = await migrateThreads(loader, sources, forumIds, userIdsT);
 			log(`Done. Threads: ${result.total} inserted, ${result.skipped} skipped`);
 			log(`  Missing forums (placeholders created): ${result.missingForums}`);
 			log(`  Missing authors (placeholders created): ${result.missingAuthors}`);
@@ -182,7 +186,7 @@ try {
 			const threadIds = new Set(threadRows.map((r) => r.id));
 			log(`  ${threadIds.size.toLocaleString()} thread IDs loaded`);
 
-			const result = await migratePosts(loader, SOURCE_DIR, userIds, threadIds, logger);
+			const result = await migratePosts(loader, sources, userIds, threadIds, logger);
 			log(`Done. Posts: ${result.total} inserted`);
 			log(`  Encoding repaired: ${result.encodingRepaired}`);
 			log(`  BBCode failures: ${result.bbcodeFailures}`);
@@ -226,7 +230,7 @@ try {
 			const threadIdsA = new Set(threadRowsA.map((r) => r.id));
 			log(`  ${threadIdsA.size.toLocaleString()} thread IDs loaded`);
 
-			const result = await migrateAttachments(loader, SOURCE_DIR, postIds, threadIdsA, logger);
+			const result = await migrateAttachments(loader, sources, postIds, threadIdsA, logger);
 			log(`Done. Attachments: ${result.total} inserted`);
 			log(`  No-index skipped: ${result.skipped}`);
 			log(`  Missing posts (placeholders created): ${result.missingPosts}`);
@@ -246,9 +250,30 @@ try {
 			break;
 		}
 
+		case "checkins": {
+			const result = await migrateCheckins(loader, sources);
+			log(
+				`Done. Checkins: ${result.total} inserted, ${result.skippedMissingUser} skipped (missing user)`,
+			);
+
+			const db = loader.getDb();
+			const dbCount = db.query("SELECT COUNT(*) as c FROM user_checkins").get() as { c: number };
+			log(`Verify: SELECT COUNT(*) FROM user_checkins = ${dbCount.c}`);
+
+			// Top checkers
+			const top = db
+				.query("SELECT user_id, total_days FROM user_checkins ORDER BY total_days DESC LIMIT 5")
+				.all() as Array<{ user_id: number; total_days: number }>;
+			log("Top checkers:");
+			for (const t of top) {
+				log(`  user_id=${t.user_id}: ${t.total_days} days`);
+			}
+			break;
+		}
+
 		default:
 			console.error(`Unknown step: ${step}`);
-			console.error("Valid steps: forums, users, threads, posts, attachments");
+			console.error("Valid steps: forums, users, threads, posts, attachments, checkins");
 			process.exit(1);
 	}
 } catch (err) {

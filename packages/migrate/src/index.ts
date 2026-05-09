@@ -8,7 +8,7 @@
  *   bun run scripts/migrate/index.ts [--db output.db] [--source reference/db]
  *
  * Per docs/03-migration.md: migrate in FK dependency order:
- *   forums → users → threads → posts → attachments
+ *   forums → users → threads → posts → attachments → post_comments → user_checkins
  */
 
 import { DEFAULT_CONFIG, type MigrateConfig, parseCliArgs } from "./cli";
@@ -21,6 +21,7 @@ import {
 	type StatusData,
 	type UsergroupData,
 	extractAttachment,
+	extractCheckin,
 	extractForum,
 	extractPost,
 	extractThread,
@@ -35,8 +36,10 @@ import {
 	parseUsergroupRow,
 } from "./extract/extractors";
 import { type ParsedRow, parseDumpFile } from "./extract/parser";
+import { type SourceFiles, resolveSourceFiles } from "./extract/source-resolver";
 import { BatchLoader } from "./load/batch-insert";
 import { MigrationLogger } from "./load/logger";
+import { CHECKINS_UPSERT_COLUMNS } from "./load/schema";
 import { verifyEncoding } from "./verify/encoding";
 import { type ExpectedCounts, verifyIntegrity } from "./verify/integrity";
 import { verifyPerformance } from "./verify/performance";
@@ -52,6 +55,7 @@ export interface MigrateStats {
 	threads: number;
 	posts: number;
 	attachments: number;
+	checkins: number;
 	skipped: { [key: string]: number };
 	errors: string[];
 	duration: number;
@@ -64,13 +68,12 @@ function log(msg: string): void {
 
 // ─── Step 1: Forums ─────────────────────────────────────────────────────────
 
-export async function migrateForums(loader: BatchLoader, sourceDir: string): Promise<number> {
+export async function migrateForums(loader: BatchLoader, sources: SourceFiles): Promise<number> {
 	log("=== Forums ===");
-	const dumpFile = `${sourceDir}/main_small.sql.gz`;
 
 	log("  Parsing pre_forum_forumfield...");
 	const forumFields = new Map<number, { description: string; icon: string; moderators: string }>();
-	await parseDumpFile(dumpFile, "pre_forum_forumfield", (row) => {
+	await parseDumpFile(sources.forums, "pre_forum_forumfield", (row) => {
 		// forumfield columns verified from DDL: fid=0, description=1, password=2, icon=3, ...moderators=8
 		const fid = Number(row[0]);
 		const description = row[1] ?? "";
@@ -88,7 +91,7 @@ export async function migrateForums(loader: BatchLoader, sourceDir: string): Pro
 
 	log("  Parsing pre_forum_forum...");
 	const inserter = loader.createStreamInserter("forums");
-	await parseDumpFile(dumpFile, "pre_forum_forum", (row) => {
+	await parseDumpFile(sources.forums, "pre_forum_forum", (row) => {
 		const record = extractForum(row, forumFields);
 		if (record) inserter.add(record);
 	});
@@ -101,16 +104,13 @@ export async function migrateForums(loader: BatchLoader, sourceDir: string): Pro
 
 export async function migrateUsers(
 	loader: BatchLoader,
-	sourceDir: string,
+	sources: SourceFiles,
 ): Promise<{ total: number; userIds: Set<number> }> {
 	log("=== Users ===");
-	const mainDump = `${sourceDir}/main_small.sql.gz`;
-	const ucDump = `${sourceDir}/ucenter.sql.gz`;
-	const extraDump = `${sourceDir}/user_extra.sql.gz`;
 
 	log("  Parsing pre_common_member...");
 	const memberMap = new Map<number, MemberData>();
-	await parseDumpFile(mainDump, "pre_common_member", (row) => {
+	await parseDumpFile(sources.members, "pre_common_member", (row) => {
 		const { uid, data } = parseMemberRow(row);
 		memberMap.set(uid, data);
 	});
@@ -119,7 +119,7 @@ export async function migrateUsers(
 	log("  Parsing pre_common_member_archive...");
 	const archiveMap = new Map<number, MemberData>();
 	try {
-		await parseDumpFile(mainDump, "pre_common_member_archive", (row) => {
+		await parseDumpFile(sources.members, "pre_common_member_archive", (row) => {
 			const { uid, data } = parseMemberRow(row);
 			archiveMap.set(uid, data);
 		});
@@ -131,7 +131,7 @@ export async function migrateUsers(
 	log("  Parsing pre_common_member_count...");
 	const countMap = new Map<number, MemberCountData>();
 	try {
-		await parseDumpFile(extraDump, "pre_common_member_count", (row) => {
+		await parseDumpFile(sources.memberCount, "pre_common_member_count", (row) => {
 			const { uid, data } = parseMemberCountRow(row);
 			countMap.set(uid, data);
 		});
@@ -142,7 +142,7 @@ export async function migrateUsers(
 
 	log("  Parsing pre_common_member_count_archive...");
 	try {
-		await parseDumpFile(extraDump, "pre_common_member_count_archive", (row) => {
+		await parseDumpFile(sources.memberCount, "pre_common_member_count_archive", (row) => {
 			const { uid, data } = parseMemberCountRow(row);
 			if (!countMap.has(uid)) countMap.set(uid, data);
 		});
@@ -154,7 +154,7 @@ export async function migrateUsers(
 	log("  Parsing pre_common_usergroup...");
 	const usergroupMap = new Map<number, UsergroupData>();
 	try {
-		await parseDumpFile(extraDump, "pre_common_usergroup", (row) => {
+		await parseDumpFile(sources.usergroup, "pre_common_usergroup", (row) => {
 			const { groupid, data } = parseUsergroupRow(row);
 			usergroupMap.set(groupid, data);
 		});
@@ -166,7 +166,7 @@ export async function migrateUsers(
 	log("  Parsing pre_common_member_field_forum...");
 	const fieldForumMap = new Map<number, MemberFieldForumData>();
 	try {
-		await parseDumpFile(extraDump, "pre_common_member_field_forum", (row) => {
+		await parseDumpFile(sources.memberFieldForum, "pre_common_member_field_forum", (row) => {
 			const { uid, data } = parseMemberFieldForumRow(row);
 			fieldForumMap.set(uid, data);
 		});
@@ -177,10 +177,14 @@ export async function migrateUsers(
 
 	log("  Parsing pre_common_member_field_forum_archive...");
 	try {
-		await parseDumpFile(extraDump, "pre_common_member_field_forum_archive", (row) => {
-			const { uid, data } = parseMemberFieldForumRow(row);
-			if (!fieldForumMap.has(uid)) fieldForumMap.set(uid, data);
-		});
+		await parseDumpFile(
+			sources.memberFieldForum,
+			"pre_common_member_field_forum_archive",
+			(row) => {
+				const { uid, data } = parseMemberFieldForumRow(row);
+				if (!fieldForumMap.has(uid)) fieldForumMap.set(uid, data);
+			},
+		);
 	} catch {
 		// Table may not exist — that's OK
 	}
@@ -189,7 +193,7 @@ export async function migrateUsers(
 	log("  Parsing pre_common_member_profile...");
 	const profileMap = new Map<number, ProfileData>();
 	try {
-		await parseDumpFile(extraDump, "pre_common_member_profile", (row) => {
+		await parseDumpFile(sources.memberProfile, "pre_common_member_profile", (row) => {
 			const { uid, data } = parseProfileRow(row);
 			profileMap.set(uid, data);
 		});
@@ -200,7 +204,7 @@ export async function migrateUsers(
 
 	log("  Parsing pre_common_member_profile_archive...");
 	try {
-		await parseDumpFile(extraDump, "pre_common_member_profile_archive", (row) => {
+		await parseDumpFile(sources.memberProfile, "pre_common_member_profile_archive", (row) => {
 			const { uid, data } = parseProfileRow(row);
 			if (!profileMap.has(uid)) profileMap.set(uid, data);
 		});
@@ -212,7 +216,7 @@ export async function migrateUsers(
 	log("  Parsing pre_common_member_status...");
 	const statusMap = new Map<number, StatusData>();
 	try {
-		await parseDumpFile(extraDump, "pre_common_member_status", (row) => {
+		await parseDumpFile(sources.memberStatus, "pre_common_member_status", (row) => {
 			const { uid, data } = parseStatusRow(row);
 			statusMap.set(uid, data);
 		});
@@ -223,7 +227,7 @@ export async function migrateUsers(
 
 	log("  Parsing pre_common_member_status_archive...");
 	try {
-		await parseDumpFile(extraDump, "pre_common_member_status_archive", (row) => {
+		await parseDumpFile(sources.memberStatus, "pre_common_member_status_archive", (row) => {
 			const { uid, data } = parseStatusRow(row);
 			if (!statusMap.has(uid)) statusMap.set(uid, data);
 		});
@@ -236,7 +240,7 @@ export async function migrateUsers(
 	const inserter = loader.createStreamInserter("users");
 	const userIds = new Set<number>();
 
-	await parseDumpFile(ucDump, "uc_members", (row) => {
+	await parseDumpFile(sources.ucMembers, "uc_members", (row) => {
 		const uid = Number(row[0]);
 		const member = memberMap.get(uid) ?? archiveMap.get(uid) ?? null;
 		const isArchived = !memberMap.has(uid) && archiveMap.has(uid);
@@ -263,7 +267,7 @@ export async function migrateUsers(
 
 export async function migrateThreads(
 	loader: BatchLoader,
-	sourceDir: string,
+	sources: SourceFiles,
 	forumIds: Set<number>,
 	userIds: Set<number>,
 ): Promise<{
@@ -274,19 +278,19 @@ export async function migrateThreads(
 	missingAuthors: number;
 }> {
 	log("=== Threads ===");
-	const dumpFile = `${sourceDir}/thread.sql.gz`;
-	const extraDump = `${sourceDir}/user_extra.sql.gz`;
 
-	// Build threadTypeMap from user_extra dump
+	// Build threadTypeMap
 	log("  Parsing pre_forum_threadtype...");
 	const threadTypeMap = new Map<number, string>();
-	try {
-		await parseDumpFile(extraDump, "pre_forum_threadtype", (row) => {
-			const { typeid, name } = parseThreadTypeRow(row);
-			if (typeid > 0 && name) threadTypeMap.set(typeid, name);
-		});
-	} catch {
-		// Table may not exist — that's OK
+	if (sources.threadtype) {
+		try {
+			await parseDumpFile(sources.threadtype, "pre_forum_threadtype", (row) => {
+				const { typeid, name } = parseThreadTypeRow(row);
+				if (typeid > 0 && name) threadTypeMap.set(typeid, name);
+			});
+		} catch {
+			// Table may not exist — that's OK
+		}
 	}
 	log(`  Collected ${threadTypeMap.size} thread type records`);
 
@@ -316,15 +320,14 @@ export async function migrateThreads(
 	};
 
 	// Parse main thread table
-	await parseDumpFile(dumpFile, "pre_forum_thread", processThreadRow);
+	await parseDumpFile(sources.threads, "pre_forum_thread", processThreadRow);
 
 	// Parse thread shard tables (pre_forum_thread_1, _2, _3, etc.)
-	const threadShardDump = `${sourceDir}/thread_shards.sql.gz`;
 	for (let i = 1; i <= 7; i++) {
 		const tableName = `pre_forum_thread_${i}`;
 		try {
 			log(`  Parsing ${tableName}...`);
-			await parseDumpFile(threadShardDump, tableName, processThreadRow);
+			await parseDumpFile(sources.threadShards, tableName, processThreadRow);
 		} catch {
 			// Shard table may not exist or be empty — that's OK
 		}
@@ -438,7 +441,7 @@ export interface PostMigrateResult {
  */
 export async function migratePosts(
 	loader: BatchLoader,
-	sourceDir: string,
+	sources: SourceFiles,
 	userIds: Set<number>,
 	threadIds: Set<number>,
 	logger: MigrationLogger,
@@ -485,15 +488,14 @@ export async function migratePosts(
 		postIds.add(pid);
 	};
 
-	const mainDump = `${sourceDir}/post_main.sql.gz`;
+	const mainDump = sources.posts;
 	log("  Parsing pre_forum_post (main)...");
 	await parseDumpFile(mainDump, "pre_forum_post", processRow);
 
-	const shardDump = `${sourceDir}/post_shards.sql.gz`;
 	for (let i = 1; i <= 4; i++) {
 		const tableName = `pre_forum_post_${i}`;
 		log(`  Parsing ${tableName}...`);
-		await parseDumpFile(shardDump, tableName, processRow);
+		await parseDumpFile(sources.postShards, tableName, processRow);
 	}
 
 	const total = inserter.flush();
@@ -564,17 +566,16 @@ export async function migratePosts(
 
 export async function migrateAttachments(
 	loader: BatchLoader,
-	sourceDir: string,
+	sources: SourceFiles,
 	postIds: Set<number>,
 	threadIds: Set<number>,
 	_logger: MigrationLogger,
 ): Promise<{ total: number; skipped: number; missingPosts: number; missingThreads: number }> {
 	log("=== Attachments ===");
-	const dumpFile = `${sourceDir}/main_small.sql.gz`;
 
 	log("  Parsing pre_forum_attachment (index)...");
 	const indexMap = new Map<number, AttachmentIndexData>();
-	await parseDumpFile(dumpFile, "pre_forum_attachment", (row) => {
+	await parseDumpFile(sources.attachments, "pre_forum_attachment", (row) => {
 		const idx = parseAttachmentIndex(row);
 		indexMap.set(idx.aid, idx);
 	});
@@ -588,7 +589,7 @@ export async function migrateAttachments(
 	for (let i = 0; i <= 9; i++) {
 		const tableName = `pre_forum_attachment_${i}`;
 		log(`  Parsing ${tableName}...`);
-		await parseDumpFile(dumpFile, tableName, (row) => {
+		await parseDumpFile(sources.attachments, tableName, (row) => {
 			const record = extractAttachment(row, indexMap);
 			if (!record) {
 				skipped++;
@@ -678,6 +679,85 @@ export async function migrateAttachments(
 	};
 }
 
+// ─── Step 6: Checkins ─────────────────────────────────────────────────────
+
+/**
+ * Migrate user_checkins from pre_dsu_paulsign + pre_dsu_paulsign2.
+ *
+ * Merge strategy: primary (paulsign) wins on overlapping UIDs;
+ * unique UIDs from paulsign2 are merged in.
+ *
+ * Uses upsertRowsFiltered with WHERE EXISTS(users) to skip orphan UIDs.
+ */
+export async function migrateCheckins(
+	loader: BatchLoader,
+	sources: SourceFiles,
+): Promise<{ total: number; skippedMissingUser: number }> {
+	log("=== Checkins ===");
+
+	if (!sources.checkins) {
+		log("  No checkins dump found — skipping");
+		return { total: 0, skippedMissingUser: 0 };
+	}
+
+	// Parse primary table
+	log("  Parsing pre_dsu_paulsign (primary)...");
+	const primaryMap = new Map<number, import("./load/batch-insert").RowRecord>();
+	await parseDumpFile(sources.checkins, "pre_dsu_paulsign", (row) => {
+		const record = extractCheckin(row);
+		if (record) primaryMap.set(record.user_id as number, record);
+	});
+	log(`  Primary: ${primaryMap.size} rows`);
+
+	// Parse backup table and merge (primary wins on overlap)
+	log("  Parsing pre_dsu_paulsign2 (backup)...");
+	let overlapCount = 0;
+	let uniqueBackup = 0;
+	try {
+		await parseDumpFile(sources.checkins, "pre_dsu_paulsign2", (row) => {
+			const record = extractCheckin(row);
+			if (!record) return;
+			const uid = record.user_id as number;
+			if (primaryMap.has(uid)) {
+				overlapCount++;
+			} else {
+				primaryMap.set(uid, record);
+				uniqueBackup++;
+			}
+		});
+	} catch {
+		// paulsign2 may not exist — that's OK
+	}
+	log(`  Backup merge: ${overlapCount} overlaps (kept primary), ${uniqueBackup} unique merged`);
+	log(`  Total merged: ${primaryMap.size} rows`);
+
+	// Upsert with WHERE EXISTS(users) filter
+	const rows = [...primaryMap.values()];
+	loader.upsertRowsFiltered(
+		"user_checkins",
+		rows,
+		{
+			conflictColumn: "user_id",
+			updateColumns: CHECKINS_UPSERT_COLUMNS,
+		},
+		{
+			referenceTable: "users",
+			referenceColumn: "id",
+			sourceColumn: "user_id",
+		},
+	);
+
+	// Count actual inserted rows to determine skipped
+	const db = loader.getDb();
+	const actualCount = (
+		db.query("SELECT COUNT(*) as cnt FROM user_checkins").get() as { cnt: number }
+	).cnt;
+	const skippedMissingUser = primaryMap.size - actualCount;
+
+	log(`  Checkins: ${actualCount} inserted, ${skippedMissingUser} skipped (missing user)`);
+	return { total: actualCount, skippedMissingUser };
+}
+
 // ─── Main Pipeline ──────────────────────────────────────────────────────────
 
 export async function runMigration(config: MigrateConfig): Promise<MigrateStats> {
@@ -688,13 +768,16 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 		threads: 0,
 		posts: 0,
 		attachments: 0,
+		checkins: 0,
 		skipped: {},
 		errors: [],
 		duration: 0,
 	};
 
+	// Resolve source files (split vs legacy format)
+	const sources = resolveSourceFiles(config.sourceDir);
 	log("Migration starting");
-	log(`  Source: ${config.sourceDir}`);
+	log(`  Source: ${config.sourceDir} (${sources.format} format)`);
 	log(`  Output: ${config.dbPath}`);
 	log(`  Batch size: ${config.batchSize}`);
 
@@ -720,9 +803,9 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 		loader.createTables();
 
 		// Migrate in FK dependency order, collecting ID sets for orphan detection
-		stats.forums = await migrateForums(loader, config.sourceDir);
+		stats.forums = await migrateForums(loader, sources);
 
-		const userResult = await migrateUsers(loader, config.sourceDir);
+		const userResult = await migrateUsers(loader, sources);
 		stats.users = userResult.total;
 
 		// Collect forumIds for thread FK validation
@@ -734,12 +817,7 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 			for (const r of forumRows) forumIds.add(r.id);
 		}
 
-		const threadResult = await migrateThreads(
-			loader,
-			config.sourceDir,
-			forumIds,
-			userResult.userIds,
-		);
+		const threadResult = await migrateThreads(loader, sources, forumIds, userResult.userIds);
 		stats.threads = threadResult.total;
 		stats.skipped.threads = threadResult.skipped;
 		stats.skipped.threadMissingForums = threadResult.missingForums;
@@ -747,7 +825,7 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 
 		const postResult = await migratePosts(
 			loader,
-			config.sourceDir,
+			sources,
 			userResult.userIds,
 			threadResult.threadIds,
 			logger,
@@ -758,7 +836,7 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 
 		const attachResult = await migrateAttachments(
 			loader,
-			config.sourceDir,
+			sources,
 			postResult.postIds,
 			threadResult.threadIds,
 			logger,
@@ -767,6 +845,11 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 		stats.skipped.attachments = attachResult.skipped;
 		stats.skipped.attachMissingPosts = attachResult.missingPosts;
 		stats.skipped.attachMissingThreads = attachResult.missingThreads;
+
+		// Checkins (after users, uses WHERE EXISTS)
+		const checkinResult = await migrateCheckins(loader, sources);
+		stats.checkins = checkinResult.total;
+		stats.skipped.checkinsMissingUser = checkinResult.skippedMissingUser;
 
 		// Create indexes after all data is loaded (much faster)
 		log("Creating indexes...");
@@ -821,6 +904,7 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 	log(`  Threads:     ${stats.threads.toLocaleString()}`);
 	log(`  Posts:       ${stats.posts.toLocaleString()}`);
 	log(`  Attachments: ${stats.attachments.toLocaleString()}`);
+	log(`  Checkins:    ${stats.checkins.toLocaleString()}`);
 
 	return stats;
 }
