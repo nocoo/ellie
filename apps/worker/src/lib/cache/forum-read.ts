@@ -78,13 +78,14 @@ export interface ForumSnapshotRow extends Forum {
  * `buildForumSummaryPayload`; cold-start of a request that misses both
  * caches will run this loader exactly once.
  *
- * Applies the same visible-last-thread override as `listForumsLegacy()`:
- * the raw `forums.last_thread_*` columns can point at a hidden / recycled
- * thread (sticky < 0). For each forum we batch-query the most recent
- * VISIBLE thread (sticky >= 0) and override the last-thread / last-poster
- * fields with that, including a separate avatar lookup keyed by the
- * visible last-poster id (which may differ from `forums.last_poster_id`).
- * Forums with no visible thread get all last-* + avatar fields cleared.
+ * Applies a visible-last-thread override on top of the raw `forums`
+ * row: the raw `forums.last_thread_*` columns can point at a hidden /
+ * recycled thread (sticky < 0). For each forum we batch-query the most
+ * recent VISIBLE thread (sticky >= 0) and override the last-thread /
+ * last-poster fields with that, including a separate avatar lookup
+ * keyed by the visible last-poster id (which may differ from
+ * `forums.last_poster_id`). Forums with no visible thread get all
+ * last-* + avatar fields cleared.
  */
 export async function loadForumSnapshot(env: Env): Promise<ForumSnapshotRow[]> {
 	const cutoff24h = Math.floor(Date.now() / 1000) - 86400;
@@ -217,8 +218,8 @@ function buildSnapshotRow(raw: Record<string, unknown>, ctx: BuildRowCtx): Forum
 	}
 
 	// Apply visible-last-thread override. If no visible thread exists,
-	// all last-* + avatar fields default to cleared values (matches
-	// legacy semantics in `listForumsLegacy`).
+	// all last-* + avatar fields default to cleared values (no
+	// last-thread / last-poster shown for that forum).
 	const v = ctx.visible;
 	const av = v ? ctx.avatarMap.get(v.lastPosterId) : undefined;
 
