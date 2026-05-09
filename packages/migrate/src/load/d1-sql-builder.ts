@@ -134,3 +134,64 @@ export function formatInsertOrIgnoreChunk(
 export function chunkFileName(table: string, chunkNum: number): string {
 	return `${table}-${String(chunkNum).padStart(3, "0")}.sql`;
 }
+
+/** FK relationship definition — shared between dry-run integrity and remote verification. */
+export interface FkRelation {
+	table: string;
+	col: string;
+	ref: string;
+	refCol: string;
+}
+
+/**
+ * Canonical FK relationships for all tables.
+ * Must stay in sync with schema DDL and verify/integrity.ts.
+ */
+export const FK_RELATIONS: FkRelation[] = [
+	{ table: "threads", col: "forum_id", ref: "forums", refCol: "id" },
+	{ table: "threads", col: "author_id", ref: "users", refCol: "id" },
+	{ table: "posts", col: "thread_id", ref: "threads", refCol: "id" },
+	{ table: "posts", col: "forum_id", ref: "forums", refCol: "id" },
+	{ table: "posts", col: "author_id", ref: "users", refCol: "id" },
+	{ table: "attachments", col: "post_id", ref: "posts", refCol: "id" },
+	{ table: "attachments", col: "thread_id", ref: "threads", refCol: "id" },
+	{ table: "attachments", col: "author_id", ref: "users", refCol: "id" },
+	{ table: "user_checkins", col: "user_id", ref: "users", refCol: "id" },
+];
+
+/** Table execution order — FK dependency order. */
+export const IMPORT_TABLE_ORDER = [
+	"forums",
+	"users",
+	"threads",
+	"posts",
+	"attachments",
+	"user_checkins",
+] as const;
+
+/**
+ * Compute a fingerprint string for a manifest, used to bind execution logs
+ * to a specific generation run.
+ */
+export function computeManifestFingerprint(manifest: Manifest): string {
+	return [
+		manifest.production_state.database.id,
+		manifest.generated_at,
+		manifest.total_chunks,
+		manifest.total_rows,
+		manifest.source_db,
+	].join("|");
+}
+
+/**
+ * Validate that a chunk filename is safe — basename only, no path traversal.
+ * Returns true if the filename is safe.
+ */
+export function isValidChunkFilename(file: string): boolean {
+	if (!file) return false;
+	if (file.includes("/") || file.includes("\\")) return false;
+	if (file.includes("..")) return false;
+	if (file.startsWith("/")) return false;
+	if (!file.endsWith(".sql")) return false;
+	return true;
+}
