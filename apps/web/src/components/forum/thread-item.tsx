@@ -11,6 +11,7 @@ import Link from "next/link";
 import { ThreadBadgeList } from "./thread-badge";
 import { ThreadLastPostCell } from "./thread-last-post-cell";
 import { ThreadRowStats } from "./thread-row-stats";
+import { ForumAvatar } from "./user-avatar";
 import { UserPopover } from "./user-popover";
 
 interface ThreadItemProps {
@@ -42,16 +43,25 @@ export function ThreadItem({ item }: ThreadItemProps) {
 					</Link>
 				</div>
 
-				{/* Column 2: Author (fixed) */}
-				<div className="flex flex-col items-center justify-center w-[100px] shrink-0 py-2 text-center">
-					<UserPopover userId={thread.authorId}>
-						<span className="text-xs text-foreground font-medium hover:text-primary transition-colors truncate max-w-full cursor-pointer">
-							{thread.authorName}
+				{/* Column 2: Author (fixed, left-aligned with avatar) */}
+				<div className="flex items-center gap-1.5 w-[120px] shrink-0 py-2 px-2">
+					<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0">
+						<ForumAvatar
+							userId={thread.authorId}
+							userName={thread.authorName}
+							avatarPath={thread.authorAvatarPath}
+						/>
+					</Link>
+					<div className="min-w-0">
+						<UserPopover userId={thread.authorId}>
+							<span className="text-xs text-foreground font-medium hover:text-primary transition-colors truncate block max-w-full cursor-pointer">
+								{thread.authorName}
+							</span>
+						</UserPopover>
+						<span className="text-xs text-muted-foreground">
+							{formatRelativeTime(thread.createdAt)}
 						</span>
-					</UserPopover>
-					<span className="text-xs text-muted-foreground">
-						{formatRelativeTime(thread.createdAt)}
-					</span>
+					</div>
 				</div>
 
 				{/* Column 3: Replies / Views / Recommends (fixed) */}
@@ -96,8 +106,16 @@ export function ThreadItem({ item }: ThreadItemProps) {
 						</Link>
 					</div>
 				</div>
-				{/* Row 2: author · time · stats */}
+				{/* Row 2: avatar · author · time · stats */}
 				<div className="mt-1 ml-6 flex items-center gap-1.5 text-xs text-muted-foreground">
+					<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0">
+						<ForumAvatar
+							userId={thread.authorId}
+							userName={thread.authorName}
+							avatarPath={thread.authorAvatarPath}
+							size="xs"
+						/>
+					</Link>
 					<UserPopover userId={thread.authorId}>
 						<span className="text-foreground hover:text-primary cursor-pointer">
 							{thread.authorName}
