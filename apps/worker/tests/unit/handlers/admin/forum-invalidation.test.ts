@@ -146,6 +146,26 @@ describe("admin forum — KV cache invalidation", () => {
 		expect(mockUpdateV2).toHaveBeenCalledWith(expect.anything(), { affectsDigest: true });
 	});
 
+	it("update with parentId bumps digest (parent_id column)", async () => {
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+			},
+		});
+
+		const res = await update(
+			new Request("https://api.example.com/api/admin/forums/42", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ parentId: 2 }),
+			}),
+			adminEnv(db),
+		);
+
+		expect(res.status).toBe(200);
+		expect(mockUpdateV2).toHaveBeenCalledWith(expect.anything(), { affectsDigest: true });
+	});
+
 	it("invalidates after successful delete", async () => {
 		const { db } = createMockDb({
 			firstResults: {

@@ -228,12 +228,15 @@ const forumConfig: EntityConfig = {
 		// Digest filters depend on name/status/visibility/parent_id/type only.
 		// Other field changes (description/icon/moderators/displayOrder…) do
 		// not affect digest visibility, so don't bump digest gen for those.
+		// `data` here is keyed by DB column names (set by validateAndCollectFields
+		// via `data[f.column] = value`), so use snake_case `parent_id`, not the
+		// camelCase API field `parentId`.
 		const d = data as Record<string, unknown>;
 		const affectsDigest =
 			d.name !== undefined ||
 			d.status !== undefined ||
 			d.visibility !== undefined ||
-			d.parentId !== undefined ||
+			d.parent_id !== undefined ||
 			d.type !== undefined;
 		await Promise.all([
 			invalidateForumCacheAll(env),
