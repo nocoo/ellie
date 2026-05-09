@@ -5,7 +5,6 @@ import { withEntityAuth } from "../../lib/adminHelpers";
 import { bumpForumSummaryGen, invalidateUserCaches } from "../../lib/cache/invalidate";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
-import { invalidateForumVolatile } from "../../lib/forum-cache";
 import { jsonResponse } from "../../lib/response";
 import { invalidateUserCache } from "../../lib/user-cache";
 import { errorResponse } from "../../middleware/error";
@@ -119,7 +118,7 @@ export const recalcForums = withEntityAuth(
 		// did not change.
 		// - Legacy: drop forums:volatile:v1.
 		// - v2: bump forum:summary:gen.
-		await Promise.all([invalidateForumVolatile(env), bumpForumSummaryGen(env)]);
+		await Promise.all([bumpForumSummaryGen(env)]);
 
 		return jsonResponse({ updated: forumIds.length }, origin);
 	},
@@ -227,7 +226,7 @@ export const recalcThreads = withEntityAuth(
 		// - v2: bump forum:summary:gen. Per docs/19 §3.3.1, before
 		//   thread:list:v2 / thread:meta:v2 ship (Phase 3/4) this
 		//   invalidation MUST be extended.
-		await Promise.all([invalidateForumVolatile(env), bumpForumSummaryGen(env)]);
+		await Promise.all([bumpForumSummaryGen(env)]);
 
 		return jsonResponse({ updated: threadData.length }, origin);
 	},

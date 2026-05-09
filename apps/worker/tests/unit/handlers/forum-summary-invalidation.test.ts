@@ -1,18 +1,9 @@
 // Phase 2 commit 3 — v2 forum:summary:gen invalidation parity at high-risk
 // fan-out callsites. We mock `lib/cache/invalidate` so we can assert that
-// every legacy `invalidateForumVolatile` call is paired with its v2
-// `invalidateForumSummaryV2` counterpart. Behavior of the underlying
-// handlers is covered by their existing tests; this file only locks the
-// summary fan-out so a future regression that drops the v2 hook is caught.
+// every write that previously paired legacy `invalidateForumVolatile` with
+// its v2 `invalidateForumSummaryV2` counterpart still bumps v2.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-vi.mock("../../../src/lib/forum-cache", () => ({
-	invalidateForumVolatile: vi.fn(async () => {}),
-	invalidateForumCacheAll: vi.fn(async () => {}),
-	invalidateForumTree: vi.fn(async () => {}),
-	isForumCacheEnabled: vi.fn(() => true),
-}));
 
 vi.mock("../../../src/lib/cache/invalidate", async () => {
 	const actual = await vi.importActual<typeof import("../../../src/lib/cache/invalidate")>(

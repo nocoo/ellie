@@ -5,13 +5,6 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../../src/lib/forum-cache", () => ({
-	invalidateForumVolatile: vi.fn(async () => {}),
-	invalidateForumCacheAll: vi.fn(async () => {}),
-	invalidateForumTree: vi.fn(async () => {}),
-	isForumCacheEnabled: vi.fn(() => true),
-}));
-
 vi.mock("../../../src/lib/cache/invalidate", async () => {
 	const actual = await vi.importActual<typeof import("../../../src/lib/cache/invalidate")>(
 		"../../../src/lib/cache/invalidate",
@@ -54,11 +47,9 @@ import {
 	invalidateForumVolatileV2,
 	invalidateUserCaches,
 } from "../../../src/lib/cache/invalidate";
-import { invalidateForumVolatile } from "../../../src/lib/forum-cache";
 import { invalidateUserCache } from "../../../src/lib/user-cache";
 import { createAdminRequest, createJwtForRole, createMockDb, makeEnv } from "../../helpers";
 
-const mockInvVol = invalidateForumVolatile as ReturnType<typeof vi.fn>;
 const mockInvVolV2 = invalidateForumVolatileV2 as ReturnType<typeof vi.fn>;
 const mockBumpSummary = bumpForumSummaryGen as ReturnType<typeof vi.fn>;
 const mockBumpThreadMeta = bumpThreadMetaGen as ReturnType<typeof vi.fn>;
@@ -71,7 +62,7 @@ beforeEach(() => {
 });
 
 describe("Phase 1 commit 2 — thread/post create invalidation", () => {
-	it("POST /api/v1/threads invalidates legacy volatile + v2 forum gens", async () => {
+	it("POST /api/v1/threads invalidates v2 forum gens", async () => {
 		const token = await createJwtForRole(0, 10);
 		const { db } = createMockDb({
 			firstResults: {
@@ -116,11 +107,10 @@ describe("Phase 1 commit 2 — thread/post create invalidation", () => {
 
 		const res = await createThread(req, env);
 		expect(res.status).toBe(201);
-		expect(mockInvVol).toHaveBeenCalledTimes(1);
 		expect(mockInvVolV2).toHaveBeenCalledWith(env, 1);
 	});
 
-	it("POST /api/v1/posts invalidates legacy volatile + v2 forum/thread/post gens", async () => {
+	it("POST /api/v1/posts invalidates v2 forum/thread/post gens", async () => {
 		const token = await createJwtForRole(0, 10);
 		const { db } = createMockDb({
 			firstResults: {
@@ -159,7 +149,6 @@ describe("Phase 1 commit 2 — thread/post create invalidation", () => {
 
 		const res = await createPost(req, env);
 		expect(res.status).toBe(201);
-		expect(mockInvVol).toHaveBeenCalledTimes(1);
 		expect(mockInvVolV2).toHaveBeenCalledWith(env, 7);
 		expect(mockBumpThreadMeta).toHaveBeenCalledWith(env, 1);
 		expect(mockBumpPostList).toHaveBeenCalledWith(env, 1);
@@ -167,7 +156,7 @@ describe("Phase 1 commit 2 — thread/post create invalidation", () => {
 });
 
 describe("Phase 1 commit 2 — admin statistics invalidation", () => {
-	it("recalcForums drops volatile only (not tree) and bumps forum:summary:gen", async () => {
+	it("recalcForums bumps forum:summary:gen", async () => {
 		const { db } = createMockDb({
 			allResults: {
 				"SELECT id FROM forums": [{ id: 1 }, { id: 2 }],
@@ -180,11 +169,10 @@ describe("Phase 1 commit 2 — admin statistics invalidation", () => {
 		const req = createAdminRequest("POST", "/api/admin/statistics/recalc-forums");
 		const res = await recalcForums(req, env);
 		expect(res.status).toBe(200);
-		expect(mockInvVol).toHaveBeenCalledTimes(1);
 		expect(mockBumpSummary).toHaveBeenCalledTimes(1);
 	});
 
-	it("recalcThreads drops volatile and bumps forum:summary:gen", async () => {
+	it("recalcThreads bumps forum:summary:gen", async () => {
 		const { db } = createMockDb({
 			allResults: {
 				"SELECT id, created_at, author_name, author_id FROM threads": [
@@ -198,7 +186,6 @@ describe("Phase 1 commit 2 — admin statistics invalidation", () => {
 		const req = createAdminRequest("POST", "/api/admin/statistics/recalc-threads");
 		const res = await recalcThreads(req, env);
 		expect(res.status).toBe(200);
-		expect(mockInvVol).toHaveBeenCalledTimes(1);
 		expect(mockBumpSummary).toHaveBeenCalledTimes(1);
 	});
 

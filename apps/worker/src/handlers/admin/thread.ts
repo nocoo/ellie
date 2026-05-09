@@ -8,7 +8,6 @@ import { buildDeleteThreadChildStatements } from "../../lib/contentDelete";
 import type { EntityConfig } from "../../lib/crud";
 import { createGetByIdHandler, createListHandler, createUpdateHandler } from "../../lib/crud";
 import type { Env } from "../../lib/env";
-import { invalidateForumVolatile } from "../../lib/forum-cache";
 import { toThread } from "../../lib/mappers";
 import { parseIdFromPath } from "../../lib/parseId";
 import { recalcForumMetadata } from "../../lib/recalcMetadata";
@@ -141,7 +140,7 @@ const threadConfig: EntityConfig = {
 				recalcForumMetadata(env, oldForumId),
 				recalcForumMetadata(env, newForumId),
 			]);
-			await Promise.all([invalidateForumVolatile(env), invalidateForumSummaryV2(env)]);
+			await Promise.all([invalidateForumSummaryV2(env)]);
 		}
 	},
 
@@ -189,7 +188,7 @@ const threadConfig: EntityConfig = {
 
 		// Recalc forum metadata after thread deletion
 		await recalcForumMetadata(env, forumId);
-		await Promise.all([invalidateForumVolatile(env), invalidateForumSummaryV2(env)]);
+		await Promise.all([invalidateForumSummaryV2(env)]);
 	},
 };
 
@@ -380,7 +379,7 @@ export const remove = withEntityAuth(
 
 		// Recalc forum metadata after thread deletion
 		await recalcForumMetadata(env, threadRow.forum_id);
-		await Promise.all([invalidateForumVolatile(env), invalidateForumSummaryV2(env)]);
+		await Promise.all([invalidateForumSummaryV2(env)]);
 
 		// F3-b: audit only after the mutation has committed.
 		await writeAdminLog(env, resolveActor(request), {
@@ -535,7 +534,6 @@ export const batchDelete = withEntityAuth(
 				decrementUserThreads(env, authorId, count),
 			),
 			...Array.from(forumThreadCounts.keys(), (forumId) => recalcForumMetadata(env, forumId)),
-			invalidateForumVolatile(env),
 			invalidateForumSummaryV2(env),
 			writeAdminLog(env, resolveActor(request), {
 				action: "thread.batch_delete",
@@ -683,7 +681,7 @@ export const batchMove = withEntityAuth(
 			...Array.from(forumAdjustments.keys(), (forumId) => recalcForumMetadata(env, forumId)),
 			recalcForumMetadata(env, targetForumId),
 		]);
-		await Promise.all([invalidateForumVolatile(env), invalidateForumSummaryV2(env)]);
+		await Promise.all([invalidateForumSummaryV2(env)]);
 
 		// F3-b: audit one row for the entire successful batch. fromForumIds
 		// is deduped (Map keys) so multi-source batches are searchable.

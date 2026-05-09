@@ -197,7 +197,6 @@ function makeEnvV2(db: D1Database, kv: KVNamespace = createMockKV()): Env {
 		ENVIRONMENT: "test",
 		JWT_SECRET: "s",
 		KV: kv,
-		USE_KV_FORUM_CACHE_V2: "true",
 	} as Env;
 }
 
@@ -763,31 +762,7 @@ describe("forum.getAncestors — v2 cache", () => {
 });
 
 // ─── disabled flag ──────────────────────────────────────────────────
-
-describe("v2 flag disabled", () => {
-	it("list does NOT touch v2 KV keys", async () => {
-		const rows = [makeForumRow({ id: 1 })];
-		const { db } = makeD1Mock(rows);
-		const kv = createMockKV();
-		// USE_KV_FORUM_CACHE_V2 absent ⇒ v2 disabled
-		const env = {
-			API_KEY: "k",
-			ADMIN_API_KEY: "a",
-			DB: db,
-			ENVIRONMENT: "test",
-			JWT_SECRET: "s",
-			KV: kv,
-		} as Env;
-		const ctx = createMockCtx();
-		await list(new Request("https://x/api/v1/forums"), env, ctx);
-		const getMock = kv.get as unknown as ReturnType<typeof vi.fn>;
-		const putMock = kv.put as unknown as ReturnType<typeof vi.fn>;
-		const v2Touch = [...getMock.mock.calls, ...putMock.mock.calls].some(
-			(c) =>
-				(c[0] as string).startsWith("forum:tree:v2") ||
-				(c[0] as string).startsWith("forum:summary:v2") ||
-				(c[0] as string).startsWith("forum:meta:v2"),
-		);
-		expect(v2Touch).toBe(false);
-	});
-});
+//
+// v2 is the only forum cache path now — flag-disabled scenario removed
+// alongside USE_KV_FORUM_CACHE_V2 in commit "remove forum v2 flag +
+// legacy v1 forum cache path".
