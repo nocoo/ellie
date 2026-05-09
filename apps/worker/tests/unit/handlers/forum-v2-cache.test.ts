@@ -69,13 +69,47 @@ function makeForumRow(overrides: Partial<ForumD1> = {}): ForumD1 {
 	};
 }
 
+interface VisibleLastThreadFixture {
+	forum_id: number;
+	thread_id: number;
+	subject: string;
+	last_post_at: number;
+	last_poster_id: number;
+	last_poster: string;
+}
+
+interface UserFixture {
+	id: number;
+	username?: string;
+	avatar?: string;
+	avatar_path?: string;
+}
+
 /** D1 mock that routes by SQL keyword. Tracks all `prepare` calls. */
-function makeD1Mock(forumRows: ForumD1[]) {
+function makeD1Mock(
+	forumRows: ForumD1[],
+	opts: {
+		visibleLastThreads?: VisibleLastThreadFixture[];
+		users?: UserFixture[];
+	} = {},
+) {
 	const prepareCalls: string[] = [];
+	const visibleLastThreads = opts.visibleLastThreads ?? [];
+	const users = opts.users ?? [];
 	const db = {
 		prepare: vi.fn((sql: string) => {
 			prepareCalls.push(sql);
-			// list snapshot: SELECT f.*, u.avatar... FROM forums f LEFT JOIN users
+			// v2 snapshot: SELECT * FROM forums ORDER BY display_order
+			if (
+				sql.includes("SELECT * FROM forums") &&
+				sql.includes("ORDER BY display_order") &&
+				!sql.includes("WHERE")
+			) {
+				return {
+					all: vi.fn(async () => ({ results: forumRows })),
+				};
+			}
+			// legacy list snapshot: SELECT f.*, u.avatar... FROM forums f LEFT JOIN users
 			if (
 				sql.includes("FROM forums f") &&
 				sql.includes("LEFT JOIN users") &&
@@ -101,16 +135,24 @@ function makeD1Mock(forumRows: ForumD1[]) {
 					bind: vi.fn(() => ({ first: vi.fn(async () => ({ cnt: 0 })) })),
 				};
 			}
-			// visible last threads
+			// visible last threads (snapshot + handler share the same signature)
 			if (sql.includes("MAX(last_post_at)")) {
 				return {
-					bind: vi.fn(() => ({ all: vi.fn(async () => ({ results: [] })) })),
+					bind: vi.fn((...ids: number[]) => ({
+						all: vi.fn(async () => ({
+							results: visibleLastThreads.filter((v) => ids.includes(v.forum_id)),
+						})),
+					})),
 				};
 			}
-			// moderator names (none in fixtures)
+			// users lookup (moderator names + visible-last-poster avatars)
 			if (sql.includes("FROM users WHERE id IN")) {
 				return {
-					bind: vi.fn(() => ({ all: vi.fn(async () => ({ results: [] })) })),
+					bind: vi.fn((...ids: number[]) => ({
+						all: vi.fn(async () => ({
+							results: users.filter((u) => ids.includes(u.id)),
+						})),
+					})),
 				};
 			}
 			// getById raw row
@@ -119,7 +161,6 @@ function makeD1Mock(forumRows: ForumD1[]) {
 				sql.includes("LEFT JOIN users") &&
 				sql.includes("WHERE f.id")
 			) {
-				const _row = forumRows.find((_r) => true);
 				return {
 					bind: vi.fn((id: number) => ({
 						first: vi.fn(async () => forumRows.find((r) => r.id === id) ?? null),
@@ -165,7 +206,18 @@ describe("forum.list — v2 cache", () => {
 			makeForumRow({ id: 2, visibility: "admin", status: 1 }),
 			makeForumRow({ id: 3, visibility: "public", status: 0 }), // inactive
 		];
-		const { db } = makeD1Mock(rows);
+		const visibleLastThreads = [
+			{
+				forum_id: 1,
+				thread_id: 100,
+				subject: "hello",
+				last_post_at: 1700000000,
+				last_poster_id: 7,
+				last_poster: "alice",
+			},
+		];
+		const users = [{ id: 7, username: "alice", avatar: "a.png", avatar_path: "/avatars/a.png" }];
+		const { db } = makeD1Mock(rows, { visibleLastThreads, users });
 		const env = makeEnvV2(db);
 		const ctx = createMockCtx();
 
@@ -298,11 +350,176 @@ describe("forum.list — v2 cache", () => {
 		const ctx = createMockCtx();
 
 		await list(new Request("https://x/api/v1/forums"), env, ctx);
-		// The snapshot SQL contains "FROM forums f" + "LEFT JOIN users" with NO WHERE.
+		// The snapshot SQL is "SELECT * FROM forums ORDER BY display_order".
 		const snapshotCalls = prepareCalls.filter(
-			(s) => s.includes("FROM forums f") && s.includes("LEFT JOIN users") && !s.includes("WHERE"),
+			(s) =>
+				s.includes("SELECT * FROM forums") &&
+				s.includes("ORDER BY display_order") &&
+				!s.includes("WHERE"),
 		);
 		expect(snapshotCalls.length).toBe(1);
+	});
+
+	it("visible last-thread overrides hidden forum row subject (list + summary cache)", async () => {
+		// forums.last_thread_subject = "hidden-subj" with poster_id=99 (the
+		// stored row points at a hidden / recycled thread). The visible
+		// last-thread query returns subject="visible-subj" + poster_id=8.
+		// v2 list response AND the written summary cache must use the
+		// visible subject and the visible poster's avatar (NOT the row's
+		// last_poster_id=99 avatar).
+		const rows = [
+			makeForumRow({
+				id: 1,
+				visibility: "public",
+				last_thread_id: 999,
+				last_thread_subject: "hidden-subj",
+				last_post_at: 1_700_000_999,
+				last_poster: "ghost",
+				last_poster_id: 99,
+			}),
+		];
+		const visibleLastThreads = [
+			{
+				forum_id: 1,
+				thread_id: 100,
+				subject: "visible-subj",
+				last_post_at: 1_700_000_100,
+				last_poster_id: 8,
+				last_poster: "bob",
+			},
+		];
+		const users = [
+			// id=99 (hidden poster) MUST NOT be looked up; include it just to
+			// prove that even if a buggy code path resolved it, the test fixture
+			// has a different avatar than what we expect to flow through.
+			{ id: 99, username: "ghost", avatar: "ghost.png", avatar_path: "/g.png" },
+			{ id: 8, username: "bob", avatar: "bob.png", avatar_path: "/b.png" },
+		];
+		const kv = createMockKV({ "forum:tree:gen": "tT", "forum:summary:gen": "tS" });
+		const { db } = makeD1Mock(rows, { visibleLastThreads, users });
+		const env = makeEnvV2(db, kv);
+		const ctx = createMockCtx() as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
+
+		const res = await list(new Request("https://x/api/v1/forums"), env, ctx);
+		expect(res.status).toBe(200);
+		const body: {
+			data: Array<{
+				id: number;
+				lastThreadId: number;
+				lastThreadSubject: string;
+				lastPoster: string;
+				lastPosterId: number;
+				lastPosterAvatar: string;
+				lastPosterAvatarPath: string;
+				lastPostAt: number;
+			}>;
+		} = await res.json();
+		const f = body.data[0];
+		expect(f.lastThreadId).toBe(100);
+		expect(f.lastThreadSubject).toBe("visible-subj");
+		expect(f.lastPostAt).toBe(1_700_000_100);
+		expect(f.lastPoster).toBe("bob");
+		expect(f.lastPosterId).toBe(8);
+		expect(f.lastPosterAvatar).toBe("bob.png");
+		expect(f.lastPosterAvatarPath).toBe("/b.png");
+
+		// Summary cache must also have been written with the visible values.
+		await Promise.all(ctx._waitUntilPromises);
+		const putMock = kv.put as unknown as ReturnType<typeof vi.fn>;
+		const summaryWrite = putMock.mock.calls.find((c) =>
+			(c[0] as string).startsWith("forum:summary:v2:anon:gtS"),
+		);
+		expect(summaryWrite).toBeDefined();
+		const summaryPayload = JSON.parse(summaryWrite?.[1] as string) as {
+			aggregates: Record<
+				string,
+				{
+					lastThreadId: number;
+					lastThreadSubject: string;
+					lastPoster: string;
+					lastPosterId: number;
+					lastPosterAvatar: string;
+					lastPosterAvatarPath: string;
+				}
+			>;
+		};
+		const agg = summaryPayload.aggregates["1"];
+		expect(agg.lastThreadId).toBe(100);
+		expect(agg.lastThreadSubject).toBe("visible-subj");
+		expect(agg.lastPoster).toBe("bob");
+		expect(agg.lastPosterId).toBe(8);
+		expect(agg.lastPosterAvatar).toBe("bob.png");
+		expect(agg.lastPosterAvatarPath).toBe("/b.png");
+	});
+
+	it("no visible thread → list response and summary cache clear last-* + avatar fields", async () => {
+		const rows = [
+			makeForumRow({
+				id: 1,
+				visibility: "public",
+				last_thread_id: 999,
+				last_thread_subject: "stale",
+				last_poster: "ghost",
+				last_poster_id: 99,
+				last_post_at: 1_700_000_999,
+			}),
+		];
+		// No visible threads returned by the visible-last-thread query.
+		const kv = createMockKV({ "forum:tree:gen": "tT", "forum:summary:gen": "tS" });
+		const { db } = makeD1Mock(rows, { visibleLastThreads: [], users: [] });
+		const env = makeEnvV2(db, kv);
+		const ctx = createMockCtx() as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
+
+		const res = await list(new Request("https://x/api/v1/forums"), env, ctx);
+		const body: {
+			data: Array<{
+				lastThreadId: number;
+				lastThreadSubject: string;
+				lastPostAt: number;
+				lastPoster: string;
+				lastPosterId: number;
+				lastPosterAvatar: string;
+				lastPosterAvatarPath: string;
+			}>;
+		} = await res.json();
+		const f = body.data[0];
+		expect(f.lastThreadId).toBe(0);
+		expect(f.lastThreadSubject).toBe("");
+		expect(f.lastPostAt).toBe(0);
+		expect(f.lastPoster).toBe("");
+		expect(f.lastPosterId).toBe(0);
+		expect(f.lastPosterAvatar).toBe("");
+		expect(f.lastPosterAvatarPath).toBe("");
+
+		await Promise.all(ctx._waitUntilPromises);
+		const putMock = kv.put as unknown as ReturnType<typeof vi.fn>;
+		const summaryWrite = putMock.mock.calls.find((c) =>
+			(c[0] as string).startsWith("forum:summary:v2:anon:gtS"),
+		);
+		expect(summaryWrite).toBeDefined();
+		const agg = (
+			JSON.parse(summaryWrite?.[1] as string) as {
+				aggregates: Record<
+					string,
+					{
+						lastThreadId: number;
+						lastThreadSubject: string;
+						lastPostAt: number;
+						lastPoster: string;
+						lastPosterId: number;
+						lastPosterAvatar: string;
+						lastPosterAvatarPath: string;
+					}
+				>;
+			}
+		).aggregates["1"];
+		expect(agg.lastThreadId).toBe(0);
+		expect(agg.lastThreadSubject).toBe("");
+		expect(agg.lastPostAt).toBe(0);
+		expect(agg.lastPoster).toBe("");
+		expect(agg.lastPosterId).toBe(0);
+		expect(agg.lastPosterAvatar).toBe("");
+		expect(agg.lastPosterAvatarPath).toBe("");
 	});
 });
 

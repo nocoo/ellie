@@ -75,18 +75,24 @@ export interface ForumSnapshotRow extends Forum {
  * single source of truth for both `buildForumTreePayload` and
  * `buildForumSummaryPayload`; cold-start of a request that misses both
  * caches will run this loader exactly once.
+ *
+ * Applies the same visible-last-thread override as `listForumsLegacy()`:
+ * the raw `forums.last_thread_*` columns can point at a hidden / recycled
+ * thread (sticky < 0). For each forum we batch-query the most recent
+ * VISIBLE thread (sticky >= 0) and override the last-thread / last-poster
+ * fields with that, including a separate avatar lookup keyed by the
+ * visible last-poster id (which may differ from `forums.last_poster_id`).
+ * Forums with no visible thread get all last-* + avatar fields cleared.
  */
 export async function loadForumSnapshot(env: Env): Promise<ForumSnapshotRow[]> {
 	const cutoff24h = Math.floor(Date.now() / 1000) - 86400;
 
-	// JOIN users to get the last-poster avatar inline; this avoids a second
-	// round-trip to user:mini and matches the legacy non-KV-user-cache path.
-	const forumQuery = `
-		SELECT f.*, u.avatar AS last_poster_avatar, u.avatar_path AS last_poster_avatar_path
-		FROM forums f
-		LEFT JOIN users u ON f.last_poster_id = u.id
-		ORDER BY f.display_order
-	`;
+	// We deliberately DO NOT JOIN users for the last-poster avatar here:
+	// the visible-last-thread override (below) may point at a different
+	// user than `forums.last_poster_id`, so the JOIN'd avatar would be
+	// stale. Avatars are fetched in a second batched lookup keyed by
+	// the *visible* last-poster ids.
+	const forumQuery = "SELECT * FROM forums ORDER BY display_order";
 
 	const [forumResult, countResult] = await Promise.all([
 		env.DB.prepare(forumQuery).all(),
@@ -102,62 +108,191 @@ export async function loadForumSnapshot(env: Env): Promise<ForumSnapshotRow[]> {
 		todayMap.set(row.forum_id, row.cnt);
 	}
 
-	// Collect moderator IDs across all forums for one batched name lookup.
 	const rawRows = forumResult.results as Record<string, unknown>[];
-	const allModIds = new Set<number>();
-	const perRowModIds: number[][] = new Array(rawRows.length);
-	for (let i = 0; i < rawRows.length; i++) {
-		const ids = parseModeratorIds(((rawRows[i].moderator_ids as string) ?? "") || "");
-		perRowModIds[i] = ids;
-		for (const id of ids) allModIds.add(id);
+	const { allModIds, perRowModIds, forumIds } = collectRowIds(rawRows);
+
+	// Visible-last-thread per forum (sticky >= 0). Mirrors
+	// `fetchVisibleLastThreads` in handlers/forum.ts.
+	const visibleLastByForum = await fetchVisibleLastThreadsForSnapshot(env, forumIds);
+
+	const avatarIds = new Set<number>();
+	for (const v of visibleLastByForum.values()) {
+		if (v.lastPosterId > 0) avatarIds.add(v.lastPosterId);
 	}
 
-	let modNameMap = new Map<number, string>();
-	if (allModIds.size > 0) {
-		const ids = [...allModIds];
-		const placeholders = ids.map(() => "?").join(",");
-		const result = await env.DB.prepare(
-			`SELECT id, username FROM users WHERE id IN (${placeholders})`,
-		)
-			.bind(...ids)
-			.all<{ id: number; username: string }>();
-		modNameMap = new Map(result.results.map((r) => [r.id, r.username]));
-	}
+	const { modNameMap, avatarMap } = await loadUserMaps(env, allModIds, avatarIds);
 
 	const out: ForumSnapshotRow[] = new Array(rawRows.length);
 	for (let i = 0; i < rawRows.length; i++) {
-		const r = rawRows[i] as Record<string, unknown>;
-		const id = r.id as number;
-		const moderatorIdsStr = (r.moderator_ids as string) ?? "";
-		const moderatorList: ModeratorInfo[] = [];
-		for (const mid of perRowModIds[i]) {
-			const name = modNameMap.get(mid);
-			if (name) moderatorList.push({ id: mid, name });
+		out[i] = buildSnapshotRow(rawRows[i], {
+			modIds: perRowModIds[i],
+			modNameMap,
+			visible: visibleLastByForum.get((rawRows[i] as Record<string, unknown>).id as number),
+			avatarMap,
+			todayMap,
+		});
+	}
+	return out;
+}
+
+interface RowIdCollectResult {
+	allModIds: Set<number>;
+	perRowModIds: number[][];
+	forumIds: number[];
+}
+
+function collectRowIds(rawRows: Record<string, unknown>[]): RowIdCollectResult {
+	const allModIds = new Set<number>();
+	const perRowModIds: number[][] = new Array(rawRows.length);
+	const forumIds: number[] = new Array(rawRows.length);
+	for (let i = 0; i < rawRows.length; i++) {
+		const r = rawRows[i];
+		const ids = parseModeratorIds(((r.moderator_ids as string) ?? "") || "");
+		perRowModIds[i] = ids;
+		for (const id of ids) allModIds.add(id);
+		forumIds[i] = r.id as number;
+	}
+	return { allModIds, perRowModIds, forumIds };
+}
+
+interface UserMaps {
+	modNameMap: Map<number, string>;
+	avatarMap: Map<number, { avatar: string; avatarPath: string }>;
+}
+
+async function loadUserMaps(
+	env: Env,
+	modIds: Set<number>,
+	avatarIds: Set<number>,
+): Promise<UserMaps> {
+	const modNameMap = new Map<number, string>();
+	const avatarMap = new Map<number, { avatar: string; avatarPath: string }>();
+	if (modIds.size === 0 && avatarIds.size === 0) return { modNameMap, avatarMap };
+
+	const idUnion = new Set<number>([...modIds, ...avatarIds]);
+	const ids = [...idUnion];
+	const placeholders = ids.map(() => "?").join(",");
+	const result = await env.DB.prepare(
+		`SELECT id, username, avatar, avatar_path FROM users WHERE id IN (${placeholders})`,
+	)
+		.bind(...ids)
+		.all<{ id: number; username: string; avatar: string | null; avatar_path: string | null }>();
+	for (const row of result.results) {
+		if (modIds.has(row.id)) modNameMap.set(row.id, row.username);
+		if (avatarIds.has(row.id)) {
+			avatarMap.set(row.id, {
+				avatar: row.avatar ?? "",
+				avatarPath: row.avatar_path ?? "",
+			});
 		}
-		out[i] = {
-			id,
-			parentId: r.parent_id as number,
-			name: r.name as string,
-			description: r.description as string,
-			icon: r.icon as string,
-			displayOrder: r.display_order as number,
-			threads: r.threads as number,
-			posts: r.posts as number,
-			type: r.type as Forum["type"],
-			status: r.status as number,
-			visibility: ((r.visibility as string) || "public") as ForumVisibility,
-			moderators: (r.moderators as string) ?? "",
-			moderatorIds: moderatorIdsStr,
-			moderatorList,
-			todayThreads: todayMap.get(id) ?? 0,
-			lastThreadId: r.last_thread_id as number,
-			lastPostAt: r.last_post_at as number,
-			lastPoster: r.last_poster as string,
-			lastPosterId: (r.last_poster_id as number | null) ?? 0,
-			lastPosterAvatar: ((r.last_poster_avatar as string | undefined) ?? "") || "",
-			lastPosterAvatarPath: ((r.last_poster_avatar_path as string | undefined) ?? "") || "",
-			lastThreadSubject: r.last_thread_subject as string,
-		};
+	}
+	return { modNameMap, avatarMap };
+}
+
+interface BuildRowCtx {
+	modIds: number[];
+	modNameMap: Map<number, string>;
+	visible: VisibleLastThreadRow | undefined;
+	avatarMap: Map<number, { avatar: string; avatarPath: string }>;
+	todayMap: Map<number, number>;
+}
+
+function buildSnapshotRow(raw: Record<string, unknown>, ctx: BuildRowCtx): ForumSnapshotRow {
+	const id = raw.id as number;
+	const moderatorIdsStr = (raw.moderator_ids as string) ?? "";
+	const moderatorList: ModeratorInfo[] = [];
+	for (const mid of ctx.modIds) {
+		const name = ctx.modNameMap.get(mid);
+		if (name) moderatorList.push({ id: mid, name });
+	}
+
+	// Apply visible-last-thread override. If no visible thread exists,
+	// all last-* + avatar fields default to cleared values (matches
+	// legacy semantics in `listForumsLegacy`).
+	const v = ctx.visible;
+	const av = v ? ctx.avatarMap.get(v.lastPosterId) : undefined;
+
+	return {
+		id,
+		parentId: raw.parent_id as number,
+		name: raw.name as string,
+		description: raw.description as string,
+		icon: raw.icon as string,
+		displayOrder: raw.display_order as number,
+		threads: raw.threads as number,
+		posts: raw.posts as number,
+		type: raw.type as Forum["type"],
+		status: raw.status as number,
+		visibility: ((raw.visibility as string) || "public") as ForumVisibility,
+		moderators: (raw.moderators as string) ?? "",
+		moderatorIds: moderatorIdsStr,
+		moderatorList,
+		todayThreads: ctx.todayMap.get(id) ?? 0,
+		lastThreadId: v?.threadId ?? 0,
+		lastPostAt: v?.lastPostAt ?? 0,
+		lastPoster: v?.lastPoster ?? "",
+		lastPosterId: v?.lastPosterId ?? 0,
+		lastPosterAvatar: av?.avatar ?? "",
+		lastPosterAvatarPath: av?.avatarPath ?? "",
+		lastThreadSubject: v?.subject ?? "",
+	};
+}
+
+interface VisibleLastThreadRow {
+	threadId: number;
+	subject: string;
+	lastPostAt: number;
+	lastPosterId: number;
+	lastPoster: string;
+}
+
+/**
+ * Snapshot-local copy of `fetchVisibleLastThreads` from handlers/forum.ts.
+ * Kept private here so the cache module owns its own IO and stays
+ * decoupled from the handler module.
+ */
+async function fetchVisibleLastThreadsForSnapshot(
+	env: Env,
+	forumIds: number[],
+): Promise<Map<number, VisibleLastThreadRow>> {
+	const out = new Map<number, VisibleLastThreadRow>();
+	if (forumIds.length === 0) return out;
+
+	const BATCH_SIZE = 100; // SQLite var limit guard
+	for (let i = 0; i < forumIds.length; i += BATCH_SIZE) {
+		const batch = forumIds.slice(i, i + BATCH_SIZE);
+		const placeholders = batch.map(() => "?").join(",");
+		const res = await env.DB.prepare(
+			`SELECT t.forum_id, t.id as thread_id, t.subject, t.last_post_at, t.last_poster_id, t.last_poster
+			 FROM threads t
+			 INNER JOIN (
+				 SELECT forum_id, MAX(last_post_at) as max_post_at
+				 FROM threads
+				 WHERE forum_id IN (${placeholders}) AND sticky >= 0
+				 GROUP BY forum_id
+			 ) sub ON t.forum_id = sub.forum_id AND t.last_post_at = sub.max_post_at
+			 WHERE t.sticky >= 0`,
+		)
+			.bind(...batch)
+			.all<{
+				forum_id: number;
+				thread_id: number;
+				subject: string;
+				last_post_at: number;
+				last_poster_id: number;
+				last_poster: string;
+			}>();
+		for (const row of res.results) {
+			if (!out.has(row.forum_id)) {
+				out.set(row.forum_id, {
+					threadId: row.thread_id,
+					subject: row.subject,
+					lastPostAt: row.last_post_at,
+					lastPosterId: row.last_poster_id,
+					lastPoster: row.last_poster,
+				});
+			}
+		}
 	}
 	return out;
 }
