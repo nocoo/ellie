@@ -370,4 +370,118 @@ describe("continuation generation", () => {
 		expect(manifest.tables.users.continuation_min_id).toBe(0);
 		expect(manifest.tables.users.rows).toBe(3); // all 3 users have id > 0
 	});
+
+	test("--users-max-id limits upper bound and records continuation_max_id", () => {
+		// DB has users 1,2,3 — max-id=2 should include users 1 and 2
+		const { exitCode, stdout } = runGeneratorCont(["--users-max-id", "2"]);
+		expect(exitCode).toBe(0);
+		expect(stdout).toContain("id <= 2");
+
+		const manifest: Manifest = JSON.parse(readFileSync(join(CONT_OUT, "manifest.json"), "utf-8"));
+		expect(manifest.tables.users.continuation_max_id).toBe(2);
+		expect(manifest.tables.users.rows).toBe(2); // users 1 and 2
+	});
+
+	test("--users-min-id + --users-max-id produces windowed range", () => {
+		// DB has users 1,2,3 — min=1, max=2 should include only user 2
+		const { exitCode, stdout } = runGeneratorCont(["--users-min-id", "1", "--users-max-id", "2"]);
+		expect(exitCode).toBe(0);
+		expect(stdout).toContain("1 < id <= 2");
+
+		const manifest: Manifest = JSON.parse(readFileSync(join(CONT_OUT, "manifest.json"), "utf-8"));
+		expect(manifest.tables.users.continuation_min_id).toBe(1);
+		expect(manifest.tables.users.continuation_max_id).toBe(2);
+		expect(manifest.tables.users.rows).toBe(1); // only user 2
+
+		const usersSql = readFileSync(join(CONT_OUT, "users-001.sql"), "utf-8");
+		expect(usersSql).toContain("'bob'");
+		expect(usersSql).not.toContain("'alice'");
+		expect(usersSql).not.toContain("'charlie'");
+	});
+
+	test("--users-max-id <= --users-min-id is rejected", () => {
+		const { exitCode, stdout } = runGeneratorCont(["--users-min-id", "5", "--users-max-id", "3"]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("must be greater than");
+	});
+});
+
+// ─── Table filter tests ──────────────────────────────────────────────────
+
+describe("--tables filter", () => {
+	const FILTER_OUT = join(TEST_DIR, "output-filter");
+
+	function runGeneratorFilter(args: string[] = []): { stdout: string; exitCode: number } {
+		const cmd = [
+			"bun",
+			"run",
+			join(PROJECT_ROOT, "src/generate-d1-sql.ts"),
+			"--db",
+			DB_PATH,
+			"--out",
+			FILTER_OUT,
+			"--production-state",
+			PROD_STATE_PATH,
+			"--force",
+			...args,
+		].join(" ");
+		try {
+			const stdout = execSync(cmd, { encoding: "utf-8", cwd: PROJECT_ROOT, timeout: 30_000 });
+			return { stdout, exitCode: 0 };
+		} catch (e) {
+			const err = e as { status: number; stdout?: string; stderr?: string };
+			return { stdout: (err.stdout ?? "") + (err.stderr ?? ""), exitCode: err.status ?? 1 };
+		}
+	}
+
+	test("--tables users generates only users chunks", () => {
+		const { exitCode, stdout } = runGeneratorFilter(["--tables", "users"]);
+		expect(exitCode).toBe(0);
+		expect(stdout).toContain("Skipping forums");
+		expect(stdout).toContain("Skipping threads");
+		expect(stdout).toContain("Skipping posts");
+		expect(stdout).toContain("Skipping attachments");
+		expect(stdout).toContain("Skipping user_checkins");
+
+		const manifest: Manifest = JSON.parse(readFileSync(join(FILTER_OUT, "manifest.json"), "utf-8"));
+		expect(Object.keys(manifest.tables)).toEqual(["users"]);
+		expect(manifest.total_chunks).toBe(1);
+		expect(manifest.chunks.every((c) => c.table === "users")).toBe(true);
+		expect(existsSync(join(FILTER_OUT, "forums-001.sql"))).toBe(false);
+		expect(existsSync(join(FILTER_OUT, "users-001.sql"))).toBe(true);
+	});
+
+	test("--tables with multiple tables generates only selected", () => {
+		const { exitCode, stdout } = runGeneratorFilter(["--tables", "forums,users"]);
+		expect(exitCode).toBe(0);
+		expect(stdout).toContain("Skipping threads");
+		expect(stdout).not.toContain("Skipping forums");
+		expect(stdout).not.toContain("Skipping users");
+
+		const manifest: Manifest = JSON.parse(readFileSync(join(FILTER_OUT, "manifest.json"), "utf-8"));
+		expect(Object.keys(manifest.tables).sort()).toEqual(["forums", "users"]);
+	});
+
+	test("--tables users + --users-min-id + --users-max-id for canary", () => {
+		// Simulates canary: only users, windowed range, small chunk size
+		const { exitCode } = runGeneratorFilter([
+			"--tables",
+			"users",
+			"--users-min-id",
+			"1",
+			"--users-max-id",
+			"3",
+			"--users-chunk-size",
+			"1",
+		]);
+		expect(exitCode).toBe(0);
+
+		const manifest: Manifest = JSON.parse(readFileSync(join(FILTER_OUT, "manifest.json"), "utf-8"));
+		expect(Object.keys(manifest.tables)).toEqual(["users"]);
+		expect(manifest.tables.users.continuation_min_id).toBe(1);
+		expect(manifest.tables.users.continuation_max_id).toBe(3);
+		expect(manifest.tables.users.effective_chunk_size).toBe(1);
+		expect(manifest.tables.users.chunks).toBe(2); // users 2 and 3
+		expect(manifest.tables.users.rows).toBe(2);
+	});
 });
