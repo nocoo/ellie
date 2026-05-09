@@ -69,6 +69,11 @@ const FK_CHECKS: FkCheck[] = [
 			"SELECT COUNT(*) as cnt FROM posts p LEFT JOIN threads t ON p.thread_id = t.id WHERE t.id IS NULL",
 	},
 	{
+		name: "posts.forum_id → forums.id",
+		query:
+			"SELECT COUNT(*) as cnt FROM posts p LEFT JOIN forums f ON p.forum_id = f.id WHERE f.id IS NULL",
+	},
+	{
 		name: "posts.author_id → users.id",
 		query:
 			"SELECT COUNT(*) as cnt FROM posts p LEFT JOIN users u ON p.author_id = u.id WHERE u.id IS NULL",
