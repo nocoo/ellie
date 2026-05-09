@@ -47,7 +47,7 @@ export function SiteFooter({ vm }: SiteFooterProps) {
 			{/* ── Background image — 125% content width and centered ── */}
 			{/* Uses CSS background-image with .dark class to sync with site theme toggle */}
 			{/* Browser only downloads the image for the current theme */}
-			<div className="width-container relative -mt-16 -top-[300px] mb-[-300px]">
+			<div className="width-container relative -mt-16 -top-[280px] mb-[-280px]">
 				<div className="mx-[-12.5%]">
 					<div
 						role="img"
