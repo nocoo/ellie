@@ -1,0 +1,45 @@
+{
+	"captured_at": "2026-05-09T08:49:00Z",
+	"database": {
+		"name": "tongjinet-db",
+		"id": "2b4bbcda-6a08-45bf-bbde-badfa4d73c8f"
+	},
+	"backup": {
+		"path": "reference/d1-backups/2026-05-09/tongjinet-db-before-import.sql",
+		"size_gb": 6.8,
+		"tables_included": ["forums", "users", "threads", "posts", "attachments", "user_checkins"],
+		"tables_excluded": [
+			"threads_fts",
+			"threads_fts_content",
+			"threads_fts_idx",
+			"threads_fts_docsize",
+			"threads_fts_config"
+		]
+	},
+	"tables": {
+		"forums": {
+			"count": 218,
+			"max_id": 401
+		},
+		"users": {
+			"count": 1141587,
+			"max_id": 1145906
+		},
+		"threads": {
+			"count": 982551,
+			"max_id": 1184073
+		},
+		"posts": {
+			"count": 9510387,
+			"max_id": 10134659
+		},
+		"attachments": {
+			"count": 76721,
+			"max_id": 87329
+		},
+		"user_checkins": {
+			"count": 2814,
+			"max_id": 1140903
+		}
+	}
+}
