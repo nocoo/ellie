@@ -30,10 +30,12 @@ import {
  * exists.
  */
 export async function deleteUserMini(env: Env, userId: number): Promise<void> {
+	const key = userMiniKey(userId);
 	try {
-		await env.KV.delete(userMiniKey(userId));
-	} catch {
+		await env.KV.delete(key);
+	} catch (err) {
 		// best-effort
+		console.warn(`[cache] delete failed key=${key}`, err);
 	}
 }
 
@@ -43,9 +45,15 @@ export async function deleteUserMini(env: Env, userId: number): Promise<void> {
  * time.
  */
 export async function deleteUserPublicVariants(env: Env, userId: number): Promise<void> {
+	const publicKey = userPublicKey(userId, "public");
+	const staffKey = userPublicKey(userId, "staff");
 	await Promise.all([
-		env.KV.delete(userPublicKey(userId, "public")).catch(() => {}),
-		env.KV.delete(userPublicKey(userId, "staff")).catch(() => {}),
+		env.KV.delete(publicKey).catch((err) => {
+			console.warn(`[cache] delete failed key=${publicKey}`, err);
+		}),
+		env.KV.delete(staffKey).catch((err) => {
+			console.warn(`[cache] delete failed key=${staffKey}`, err);
+		}),
 	]);
 }
 
@@ -145,6 +153,36 @@ export async function invalidateForumUpdateV2(
 	const ops: Promise<unknown>[] = [bumpForumTreeGen(env), bumpForumSummaryGen(env)];
 	if (changes.affectsDigest) ops.push(bumpDigestGen(env));
 	await Promise.all(ops);
+}
+
+/**
+ * Snake-case `forums` columns whose change affects digest filter
+ * visibility. Single source of truth shared by:
+ *   - `admin/forum.ts` afterUpdate (deciding whether to bump digest gen)
+ *   - any future caller that needs to know which forum updates flip
+ *     digest visibility.
+ *
+ * Other columns (description, icon, moderators, display_order…) are
+ * deliberately excluded — see docs/19 §6 for the rationale.
+ */
+export const FORUM_DIGEST_AFFECTING_COLUMNS = [
+	"name",
+	"status",
+	"visibility",
+	"parent_id",
+	"type",
+] as const;
+
+/**
+ * Returns true when at least one of `FORUM_DIGEST_AFFECTING_COLUMNS` is
+ * present in the update payload (snake-case, as collected by
+ * `validateAndCollectFields`).
+ */
+export function affectsForumDigest(data: Record<string, unknown>): boolean {
+	for (const col of FORUM_DIGEST_AFFECTING_COLUMNS) {
+		if (data[col] !== undefined) return true;
+	}
+	return false;
 }
 
 /**

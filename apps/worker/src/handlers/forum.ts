@@ -87,7 +87,8 @@ async function fetchVisibleLastThreads(
 					 WHERE forum_id IN (${placeholders}) AND sticky >= 0
 					 GROUP BY forum_id
 				 ) sub ON t.forum_id = sub.forum_id AND t.last_post_at = sub.max_post_at
-				 WHERE t.sticky >= 0`,
+				 WHERE t.sticky >= 0
+				 ORDER BY t.last_post_at DESC, t.id DESC`,
 			)
 			.bind(...batch)
 			.all<{

@@ -6,12 +6,18 @@ vi.mock("../../../../src/lib/recalcMetadata", () => ({
 }));
 
 // Spy on the v2 invalidation helpers so we can assert per-mutation fan-out.
-vi.mock("../../../../src/lib/cache/invalidate", () => ({
-	invalidateForumStructureV2: vi.fn(async () => {}),
-	invalidateForumReorderV2: vi.fn(async () => {}),
-	invalidateForumUpdateV2: vi.fn(async () => {}),
-	invalidateForumSummaryV2: vi.fn(async () => {}),
-}));
+// Use importOriginal so non-mocked exports (e.g. `affectsForumDigest`)
+// remain real implementations.
+vi.mock("../../../../src/lib/cache/invalidate", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../../../../src/lib/cache/invalidate")>();
+	return {
+		...actual,
+		invalidateForumStructureV2: vi.fn(async () => {}),
+		invalidateForumReorderV2: vi.fn(async () => {}),
+		invalidateForumUpdateV2: vi.fn(async () => {}),
+		invalidateForumSummaryV2: vi.fn(async () => {}),
+	};
+});
 
 import { create, merge, remove, reorder, update } from "../../../../src/handlers/admin/forum";
 import {
