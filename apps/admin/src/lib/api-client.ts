@@ -75,6 +75,11 @@ async function request<T>(
 		method,
 		headers,
 		body: opts?.body !== undefined ? JSON.stringify(opts.body) : undefined,
+		// Admin UI must always see fresh data — opt out of every layer of
+		// browser / Next.js fetch caching. The Worker layer owns its own KV
+		// cache + invalidation; double-caching at the admin SPA would just
+		// hide the freshness signals admins act on.
+		cache: "no-store",
 	});
 
 	const text = await res.text();

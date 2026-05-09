@@ -7,6 +7,7 @@ import { isKvUserCacheEnabled } from "../lib/env";
 import { enrichThreadsWithUserCache, toThread } from "../lib/mappers";
 import { clampLimit } from "../lib/pagination";
 import { jsonResponse } from "../lib/response";
+import { getSetting } from "../lib/settings";
 import { getUserProfiles } from "../lib/user-cache";
 import { buildForumFilter, buildVisibilityContext, threadVisible } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
@@ -149,11 +150,11 @@ export async function searchThreads(
 	// other and of the URL parsing below — fire both eagerly so they overlap.
 	const userPromise = optionalAuthVerified(request, env);
 
-	// 0. Check if search is enabled (via settings)
-	const searchEnabledRow = await env.DB.prepare(
-		"SELECT value FROM settings WHERE key = 'general.search.enabled'",
-	).first<{ value: string }>();
-	const searchEnabled = searchEnabledRow?.value !== "false"; // default true
+	// 0. Check if search is enabled (via settings). Use the cached
+	// `getSetting` helper so the lookup hits the settings KV cache instead
+	// of issuing a per-request D1 read on a key that almost never changes
+	// (`upsertSettings` invalidates the KV cache on write).
+	const searchEnabled = await getSetting(env, "general.search.enabled", true);
 
 	if (!searchEnabled) {
 		return errorResponse(
