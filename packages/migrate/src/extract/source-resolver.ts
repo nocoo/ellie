@@ -43,7 +43,7 @@ export interface SourceFiles {
 	checkins: string | null;
 	/** Post comments (pre_forum_postcomment). Null if no dump exists. */
 	postcomments: string | null;
-	/** Threadtype (pre_forum_threadtype). May not exist in split format. */
+	/** Threadtype (pre_forum_threadtype). Null if no dump exists. */
 	threadtype: string | null;
 	/** Detected format. */
 	format: "split" | "legacy";
@@ -84,6 +84,45 @@ export function detectFormat(sourceDir: string): "split" | "legacy" {
 	return "legacy";
 }
 
+/** Required files for split format — must all exist for a valid split dump. */
+const SPLIT_REQUIRED = [
+	"forums.sql.gz",
+	"attachments.sql.gz",
+	"members.sql.gz",
+	"ucenter_members.sql.gz",
+	"member_count.sql.gz",
+	"usergroup.sql.gz",
+	"member_field_forum.sql.gz",
+	"member_profile.sql.gz",
+	"member_status.sql.gz",
+	"threads.sql.gz",
+	"posts.sql.gz",
+] as const;
+
+/** Required files for legacy format — must all exist for a valid legacy dump. */
+const LEGACY_REQUIRED = ["main_small.sql.gz", "user_extra.sql.gz"] as const;
+
+/**
+ * Validate that all required files for the detected format exist.
+ * Throws with a clear error listing all missing files.
+ */
+export function validateRequiredFiles(sourceDir: string, format: "split" | "legacy"): void {
+	const required = format === "split" ? SPLIT_REQUIRED : LEGACY_REQUIRED;
+	const missing: string[] = [];
+
+	for (const file of required) {
+		if (!existsSync(`${sourceDir}/${file}`)) {
+			missing.push(file);
+		}
+	}
+
+	if (missing.length > 0) {
+		throw new Error(
+			`Missing required ${format}-format files in ${sourceDir}: ${missing.join(", ")}`,
+		);
+	}
+}
+
 /**
  * Resolve all source file paths for the migration pipeline.
  *
@@ -95,9 +134,12 @@ export function detectFormat(sourceDir: string): "split" | "legacy" {
  *   - `main_small.sql.gz` contains forums + attachments + members
  *   - `user_extra.sql.gz` contains member_count + usergroup + field_forum + profile + status + threadtype
  *   - Thread/post shards are in separate files
+ *
+ * @throws Error if required files for the detected format are missing.
  */
 export function resolveSourceFiles(sourceDir: string): SourceFiles {
 	const format = detectFormat(sourceDir);
+	validateRequiredFiles(sourceDir, format);
 
 	if (format === "split") {
 		const threads = `${sourceDir}/threads.sql.gz`;
@@ -118,7 +160,7 @@ export function resolveSourceFiles(sourceDir: string): SourceFiles {
 			postShards: posts, // Shards are in the same file in split format
 			checkins: resolveOptional(sourceDir, "checkins.sql.gz"),
 			postcomments: resolveOptional(sourceDir, "postcomment.sql.gz"),
-			threadtype: resolveOptional(sourceDir, "usergroup.sql.gz"),
+			threadtype: resolveOptional(sourceDir, "threadtype.sql.gz"),
 			format,
 		};
 	}

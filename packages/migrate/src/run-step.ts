@@ -253,7 +253,7 @@ try {
 		case "checkins": {
 			const result = await migrateCheckins(loader, sources);
 			log(
-				`Done. Checkins: ${result.total} inserted, ${result.skippedMissingUser} skipped (missing user)`,
+				`Done. Checkins: ${result.eligible} eligible, ${result.processed} processed, ${result.skippedMissingUser} skipped (missing user)`,
 			);
 
 			const db = loader.getDb();
