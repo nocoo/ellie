@@ -437,7 +437,30 @@ if (shouldGenerate("attachments")) {
 	log("Skipping attachments (--tables filter)");
 }
 
-// 6. Checkins — upsert (all rows)
+// 6. Post Comments — incremental (id > prod max_id)
+if (shouldGenerate("post_comments")) {
+	log("Generating post_comments...");
+	const pcProdMaxId = prodState.tables.post_comments?.max_id ?? 0;
+	const pcResult = generateIncrementalChunks(
+		db,
+		"post_comments",
+		TABLE_COLUMNS.post_comments,
+		pcProdMaxId,
+		OUT_DIR,
+	);
+	recordTableStats(
+		"post_comments",
+		"insert_or_ignore",
+		pcResult.chunks,
+		pcResult.totalRows,
+		pcProdMaxId,
+		pcResult.filteredRows,
+	);
+} else {
+	log("Skipping post_comments (--tables filter)");
+}
+
+// 7. Checkins — upsert (all rows)
 if (shouldGenerate("user_checkins")) {
 	log("Generating user_checkins...");
 	const checkinsResult = generateUpsertChunks(

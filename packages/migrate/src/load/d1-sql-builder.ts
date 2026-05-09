@@ -172,6 +172,9 @@ export const FK_RELATIONS: FkRelation[] = [
 	{ table: "attachments", col: "post_id", ref: "posts", refCol: "id" },
 	{ table: "attachments", col: "thread_id", ref: "threads", refCol: "id" },
 	{ table: "attachments", col: "author_id", ref: "users", refCol: "id" },
+	{ table: "post_comments", col: "thread_id", ref: "threads", refCol: "id" },
+	{ table: "post_comments", col: "post_id", ref: "posts", refCol: "id" },
+	{ table: "post_comments", col: "author_id", ref: "users", refCol: "id" },
 	{ table: "user_checkins", col: "user_id", ref: "users", refCol: "id" },
 ];
 
@@ -182,6 +185,7 @@ export const IMPORT_TABLE_ORDER = [
 	"threads",
 	"posts",
 	"attachments",
+	"post_comments",
 	"user_checkins",
 ] as const;
 

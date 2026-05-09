@@ -32,6 +32,7 @@ export interface ExpectedCounts {
 	threads: number;
 	posts: number;
 	attachments: number;
+	post_comments: number;
 	checkins: number;
 }
 
@@ -39,7 +40,7 @@ export interface ExpectedCounts {
  * Verify row counts match expected values.
  */
 export function verifyRowCounts(db: Database, expected: ExpectedCounts): CheckResult[] {
-	const tables = ["forums", "users", "threads", "posts", "attachments"] as const;
+	const tables = ["forums", "users", "threads", "posts", "attachments", "post_comments"] as const;
 	const results: CheckResult[] = [];
 
 	for (const table of tables) {

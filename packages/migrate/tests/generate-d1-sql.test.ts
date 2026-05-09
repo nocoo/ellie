@@ -58,6 +58,7 @@ db.exec(\`
   CREATE TABLE threads (id INTEGER PRIMARY KEY, forum_id INTEGER NOT NULL, author_id INTEGER NOT NULL, author_name TEXT NOT NULL DEFAULT '', subject TEXT NOT NULL, created_at INTEGER NOT NULL DEFAULT 0, last_post_at INTEGER NOT NULL DEFAULT 0, last_poster TEXT NOT NULL DEFAULT '', replies INTEGER NOT NULL DEFAULT 0, views INTEGER NOT NULL DEFAULT 0, closed INTEGER NOT NULL DEFAULT 0, sticky INTEGER NOT NULL DEFAULT 0, digest INTEGER NOT NULL DEFAULT 0, special INTEGER NOT NULL DEFAULT 0, highlight INTEGER NOT NULL DEFAULT 0, recommends INTEGER NOT NULL DEFAULT 0, post_table_id INTEGER NOT NULL DEFAULT 0, type_name TEXT NOT NULL DEFAULT '');
   CREATE TABLE posts (id INTEGER PRIMARY KEY, thread_id INTEGER NOT NULL, forum_id INTEGER NOT NULL, author_id INTEGER NOT NULL, author_name TEXT NOT NULL DEFAULT '', content TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL DEFAULT 0, is_first INTEGER NOT NULL DEFAULT 0, position INTEGER NOT NULL DEFAULT 0, invisible INTEGER NOT NULL DEFAULT 0);
   CREATE TABLE attachments (id INTEGER PRIMARY KEY, thread_id INTEGER NOT NULL, post_id INTEGER NOT NULL, author_id INTEGER NOT NULL, filename TEXT NOT NULL, file_path TEXT NOT NULL, file_size INTEGER NOT NULL DEFAULT 0, is_image INTEGER NOT NULL DEFAULT 0, width INTEGER NOT NULL DEFAULT 0, has_thumb INTEGER NOT NULL DEFAULT 0, downloads INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0);
+  CREATE TABLE post_comments (id INTEGER PRIMARY KEY, thread_id INTEGER NOT NULL, post_id INTEGER NOT NULL, author_id INTEGER NOT NULL, author_name TEXT NOT NULL DEFAULT '', content TEXT NOT NULL DEFAULT '', score INTEGER NOT NULL DEFAULT 0, reply_post_id INTEGER NOT NULL DEFAULT 0, ip TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL DEFAULT 0);
   CREATE TABLE user_checkins (user_id INTEGER PRIMARY KEY, total_days INTEGER NOT NULL DEFAULT 0, month_days INTEGER NOT NULL DEFAULT 0, streak_days INTEGER NOT NULL DEFAULT 0, reward_total INTEGER NOT NULL DEFAULT 0, last_reward INTEGER NOT NULL DEFAULT 0, mood TEXT NOT NULL DEFAULT '', message TEXT NOT NULL DEFAULT '', last_checkin_at INTEGER NOT NULL DEFAULT 0);
 
   INSERT INTO forums (id, name) VALUES (1, 'General'), (2, 'Off-topic');
@@ -78,6 +79,11 @@ db.exec(\`
   INSERT INTO attachments (id, thread_id, post_id, author_id, filename, file_path) VALUES
     (1, 1, 1, 1, 'old.png', '/old.png'),
     (5, 2, 100, 2, 'boundary.jpg', '/boundary.jpg');
+  INSERT INTO post_comments (id, thread_id, post_id, author_id, content) VALUES
+    (1, 1, 1, 1, 'Old comment'),
+    (7, 2, 100, 2, 'Prod boundary comment'),
+    (8, 51, 101, 3, 'New comment 8'),
+    (9, 52, 103, 1, 'New comment 9');
   INSERT INTO user_checkins (user_id, total_days, mood) VALUES (1, 10, 'happy'), (2, 5, 'sleepy');
 \`);
 db.close();
@@ -93,7 +99,15 @@ db.close();
 		backup: {
 			path: "test/backup.sql",
 			size_gb: 0.1,
-			tables_included: ["forums", "users", "threads", "posts", "attachments", "user_checkins"],
+			tables_included: [
+				"forums",
+				"users",
+				"threads",
+				"posts",
+				"attachments",
+				"post_comments",
+				"user_checkins",
+			],
 			tables_excluded: [],
 		},
 		tables: {
@@ -102,6 +116,7 @@ db.close();
 			threads: { count: 4, max_id: 50 },
 			posts: { count: 2, max_id: 100 },
 			attachments: { count: 2, max_id: 5 },
+			post_comments: { count: 2, max_id: 7 },
 			user_checkins: { count: 2, max_id: 2 },
 		},
 	};
@@ -167,6 +182,21 @@ describe("generate-d1-sql integration", () => {
 		expect(postsSql).toContain("'New post 103'");
 		expect(postsSql).not.toContain("'Old post'");
 		expect(postsSql).not.toContain("'Prod boundary post'");
+
+		// post_comments-001.sql should only have id 8, 9 (prod max=7)
+		const pcFile = join(OUT_DIR, "post_comments-001.sql");
+		expect(existsSync(pcFile)).toBe(true);
+		const pcSql = readFileSync(pcFile, "utf-8");
+		expect(pcSql).toContain("INSERT OR IGNORE INTO post_comments");
+		expect(pcSql).toContain("'New comment 8'");
+		expect(pcSql).toContain("'New comment 9'");
+		expect(pcSql).not.toContain("'Old comment'");
+		expect(pcSql).not.toContain("'Prod boundary comment'");
+
+		const manifest: Manifest = JSON.parse(readFileSync(join(OUT_DIR, "manifest.json"), "utf-8"));
+		expect(manifest.tables.post_comments.prod_max_id).toBe(7);
+		expect(manifest.tables.post_comments.source_rows_after_max).toBe(2);
+		expect(manifest.tables.post_comments.source_total_rows).toBe(4);
 	});
 
 	test("zero incremental rows produce no chunk file", () => {
@@ -441,6 +471,7 @@ describe("--tables filter", () => {
 		expect(stdout).toContain("Skipping threads");
 		expect(stdout).toContain("Skipping posts");
 		expect(stdout).toContain("Skipping attachments");
+		expect(stdout).toContain("Skipping post_comments");
 		expect(stdout).toContain("Skipping user_checkins");
 
 		const manifest: Manifest = JSON.parse(readFileSync(join(FILTER_OUT, "manifest.json"), "utf-8"));
