@@ -37,7 +37,7 @@ import {
 	FK_RELATIONS,
 	IMPORT_TABLE_ORDER,
 	computeManifestFingerprint,
-	isFetchFailure,
+	isRetryableUploadFailure,
 	isWarningOnly,
 	validateManifestStructure,
 } from "./load/d1-sql-builder";
@@ -186,14 +186,14 @@ function wranglerExecuteWithRetry(
 	if (lastResult.success) return { ...lastResult, retries: 0 };
 
 	for (let attempt = 1; attempt <= MAX_FETCH_RETRIES; attempt++) {
-		if (!isFetchFailure(lastResult.stderr ?? "")) {
+		if (!isRetryableUploadFailure(lastResult.stderr ?? "")) {
 			// Not a fetch failure — don't retry (SQL error, etc.)
 			return { ...lastResult, retries: attempt - 1 };
 		}
 
 		const delayMs = RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
 		logFn(
-			`    RETRY ${attempt}/${MAX_FETCH_RETRIES} after fetch failed (waiting ${delayMs / 1000}s)...`,
+			`    RETRY ${attempt}/${MAX_FETCH_RETRIES} after upload failure (waiting ${delayMs / 1000}s)...`,
 		);
 		sleepSync(delayMs);
 

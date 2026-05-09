@@ -285,14 +285,27 @@ export function isWarningOnly(stderr: string): boolean {
 }
 
 /**
- * Detect whether a wrangler error is a transient network fetch failure.
- * Only matches "fetch failed" — does NOT match SQL errors, D1 errors,
- * WARNING verification failures, or sample mismatches.
+ * Detect whether a wrangler error is a transient, retryable upload failure.
+ *
+ * Matches:
+ *   - "fetch failed" — network-layer failure during upload
+ *   - "File could not be uploaded. Please retry" — S3/R2 upload rejection
+ *   - XML InternalError with retry hint — Cloudflare storage internal error
+ *
+ * Does NOT match (these must fail immediately):
+ *   - Authentication errors (code: 10000)
+ *   - SQLITE / SQL errors
+ *   - WARNING verification / sample mismatch failures
+ *   - Generic ERROR without explicit retry semantics
  */
-export function isFetchFailure(stderr: string): boolean {
+export function isRetryableUploadFailure(stderr: string): boolean {
 	if (!stderr) return false;
 	// Strip ANSI escape sequences for reliable pattern matching
 	// biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape sequences use \x1b
 	const clean = stderr.replace(/\x1b\[[0-9;]*m/g, "");
-	return clean.includes("fetch failed");
+	if (clean.includes("fetch failed")) return true;
+	if (clean.includes("File could not be uploaded") && clean.includes("Please retry")) return true;
+	if (clean.includes("<Code>InternalError</Code>") && /Please (try again|retry)/i.test(clean))
+		return true;
+	return false;
 }

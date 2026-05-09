@@ -6,7 +6,7 @@ import {
 	escapeSQL,
 	formatInsertOrIgnoreChunk,
 	formatUpsertChunk,
-	isFetchFailure,
+	isRetryableUploadFailure,
 } from "../src/load/d1-sql-builder";
 import {
 	CHECKINS_UPSERT_COLUMNS,
@@ -470,35 +470,37 @@ describe("column ownership in generated SQL", () => {
 	});
 });
 
-// ─── isFetchFailure ───────────────────────────────────────────────────────
+// ─── isRetryableUploadFailure ───────────────────────────────────────────────────────
 
-describe("isFetchFailure", () => {
+describe("isRetryableUploadFailure", () => {
 	test("detects fetch failed with ANSI codes (real wrangler output)", () => {
 		const stderr =
 			"\x1b[33m▲ \x1b[43;33m[\x1b[43;30mWARNING\x1b[43;33m]\x1b[0m ⚠️ This process may take some time\n\n\x1b[31m✘ \x1b[41;31m[\x1b[41;97mERROR\x1b[41;31m]\x1b[0m \x1b[1mfetch failed\x1b[0m";
-		expect(isFetchFailure(stderr)).toBe(true);
+		expect(isRetryableUploadFailure(stderr)).toBe(true);
 	});
 
 	test("detects fetch failed without ANSI codes", () => {
-		expect(isFetchFailure("ERROR: fetch failed")).toBe(true);
-		expect(isFetchFailure("TypeError: fetch failed")).toBe(true);
+		expect(isRetryableUploadFailure("ERROR: fetch failed")).toBe(true);
+		expect(isRetryableUploadFailure("TypeError: fetch failed")).toBe(true);
 	});
 
 	test("rejects empty stderr", () => {
-		expect(isFetchFailure("")).toBe(false);
+		expect(isRetryableUploadFailure("")).toBe(false);
 	});
 
 	test("rejects SQL error (does not contain fetch failed)", () => {
-		expect(isFetchFailure("Error: SQLITE_CONSTRAINT: UNIQUE constraint failed")).toBe(false);
+		expect(isRetryableUploadFailure("Error: SQLITE_CONSTRAINT: UNIQUE constraint failed")).toBe(
+			false,
+		);
 	});
 
 	test("rejects generic wrangler error", () => {
-		expect(isFetchFailure("Error: simulated wrangler execution failure")).toBe(false);
+		expect(isRetryableUploadFailure("Error: simulated wrangler execution failure")).toBe(false);
 	});
 
 	test("rejects warning-only (no fetch failed)", () => {
 		expect(
-			isFetchFailure(
+			isRetryableUploadFailure(
 				"WARNING: This process may take some time, during which your D1 database will be unavailable to serve queries.",
 			),
 		).toBe(false);
@@ -506,7 +508,35 @@ describe("isFetchFailure", () => {
 
 	test("rejects SQL error with WARNING prefix", () => {
 		expect(
-			isFetchFailure("WARNING: unavailable\nError: SQLITE_CONSTRAINT: UNIQUE constraint failed"),
+			isRetryableUploadFailure(
+				"WARNING: unavailable\nError: SQLITE_CONSTRAINT: UNIQUE constraint failed",
+			),
 		).toBe(false);
+	});
+
+	test("detects S3/R2 upload failure with 'File could not be uploaded. Please retry'", () => {
+		const stderr =
+			"WARNING: This process may take some time\nERROR: File could not be uploaded. Please retry.\nGot response: InternalError";
+		expect(isRetryableUploadFailure(stderr)).toBe(true);
+	});
+
+	test("detects XML InternalError with 'Please try again'", () => {
+		const stderr =
+			'WARNING: This process may take some time\nERROR: File could not be uploaded. Please retry.\nGot response: <?xml version="1.0" encoding="UTF-8"?><Error><Code>InternalError</Code><Message>We encountered an internal error. Please try again.</Message></Error>';
+		expect(isRetryableUploadFailure(stderr)).toBe(true);
+	});
+
+	test("detects XML InternalError with ANSI codes", () => {
+		const stderr =
+			"\x1b[33mWARNING\x1b[0m This process may take some time\n\x1b[31mERROR\x1b[0m File could not be uploaded. Please retry.\n<Code>InternalError</Code><Message>Please try again.</Message>";
+		expect(isRetryableUploadFailure(stderr)).toBe(true);
+	});
+
+	test("rejects Authentication error [code: 10000]", () => {
+		expect(isRetryableUploadFailure("ERROR: Authentication error [code: 10000]")).toBe(false);
+	});
+
+	test("rejects generic ERROR without retry semantics", () => {
+		expect(isRetryableUploadFailure("ERROR: Unknown server error")).toBe(false);
 	});
 });
