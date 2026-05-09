@@ -8,7 +8,8 @@
  *   - Dry-run mode: prints execution plan without running
  *   - Resume: skips chunks already marked "done" in execution-log.json
  *     (validates manifest fingerprint to prevent stale log reuse)
- *   - Execution log: records status, duration, errors per chunk
+ *   - Mark-done: safely marks a verified failed chunk as done in execution-log.json
+ *     (validates fingerprint, requires status=failed, records audit fields)
  *   - Post-import verification: row counts, max IDs, FK orphan checks
  *
  * Usage:
@@ -19,6 +20,10 @@
  *   bun run packages/migrate/src/execute-d1-import.ts \
  *     --manifest output/d1-import-2026-05-09/manifest.json \
  *     --resume
+ *
+ *   bun run packages/migrate/src/execute-d1-import.ts \
+ *     --manifest output/d1-import-2026-05-09/manifest.json \
+ *     --mark-done users-035.sql
  */
 
 import { execFileSync } from "node:child_process";
@@ -41,12 +46,14 @@ const { values } = parseArgs({
 		manifest: { type: "string" },
 		"dry-run": { type: "boolean", default: false },
 		resume: { type: "boolean", default: false },
+		"mark-done": { type: "string" },
 	},
 });
 
 const MANIFEST_PATH = values.manifest ?? "output/d1-import-2026-05-09/manifest.json";
 const DRY_RUN = values["dry-run"] ?? false;
 const RESUME = values.resume ?? false;
+const MARK_DONE = values["mark-done"];
 const NPX_BIN = process.env.EXECUTOR_NPX_BIN ?? "npx";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -59,6 +66,8 @@ interface ChunkExecResult {
 	finished_at: string;
 	duration_ms: number;
 	error?: string;
+	manually_verified_at?: string;
+	reason?: string;
 }
 
 interface ExecutionLog {
@@ -314,7 +323,7 @@ function runVerification(manifest: Manifest, dbName: string, cwd: string): Verif
 
 log("=== D1 Import Executor ===");
 log(`  Manifest: ${MANIFEST_PATH}`);
-log(`  Mode: ${DRY_RUN ? "dry-run" : RESUME ? "resume" : "full"}`);
+log(`  Mode: ${DRY_RUN ? "dry-run" : RESUME ? "resume" : MARK_DONE ? "mark-done" : "full"}`);
 
 const manifest = loadManifest(MANIFEST_PATH);
 const importDir = dirname(MANIFEST_PATH);
@@ -329,6 +338,54 @@ log(`  Fingerprint: ${fingerprint}`);
 
 // Validate manifest structure (tables.files ↔ chunks consistency + filename safety)
 validateManifestStructure(manifest);
+
+// ─── Mark-done mode ────────────────────────────────────────────────────────
+
+if (MARK_DONE) {
+	const existingLog = loadExecutionLog(execLogPath);
+	if (!existingLog) {
+		console.error("Error: No execution-log.json found. Nothing to mark done.");
+		process.exit(1);
+	}
+
+	if (existingLog.manifest_fingerprint !== fingerprint) {
+		console.error(
+			`Error: Execution log fingerprint mismatch.\n  Log:      ${existingLog.manifest_fingerprint}\n  Manifest: ${fingerprint}\nThe manifest has changed since the last run. Delete execution-log.json or regenerate the bundle.`,
+		);
+		process.exit(1);
+	}
+
+	if (!manifest.chunks.some((c) => c.file === MARK_DONE)) {
+		console.error(`Error: "${MARK_DONE}" is not a chunk in the manifest.`);
+		process.exit(1);
+	}
+
+	const chunkIdx = existingLog.chunks.findIndex((c) => c.file === MARK_DONE);
+	if (chunkIdx === -1) {
+		console.error(`Error: "${MARK_DONE}" not found in execution log.`);
+		process.exit(1);
+	}
+
+	const chunk = existingLog.chunks[chunkIdx];
+	if (chunk.status !== "failed") {
+		console.error(
+			`Error: "${MARK_DONE}" has status "${chunk.status}", not "failed". Only failed chunks can be marked done.`,
+		);
+		process.exit(1);
+	}
+
+	existingLog.chunks[chunkIdx] = {
+		...chunk,
+		status: "done",
+		error: undefined,
+		manually_verified_at: new Date().toISOString(),
+		reason: "manually verified: data confirmed present in remote D1",
+	};
+
+	saveExecutionLog(execLogPath, existingLog);
+	log(`  Marked "${MARK_DONE}" as done (manually verified).`);
+	process.exit(0);
+}
 
 // Validate all chunk files exist in the import directory
 const missingFiles = manifest.chunks.filter((c) => !existsSync(join(importDir, c.file)));
