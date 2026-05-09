@@ -410,9 +410,10 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 /**
  * Load a single forum row from D1 with all enrichment needed by the public
  * `Forum` response: moderator list, visible last-thread info, today count,
- * and last-poster avatar (LEFT JOIN). Returns `null` when the row doesn't
- * exist. Used by the v2 `forum:meta:v2` miss path so cache writes always
- * carry the full payload.
+ * and last-poster avatar (resolved against the *visible* last poster, NOT
+ * `forums.last_poster_id`, since the row may point at a hidden / recycled
+ * thread). Returns `null` when the row doesn't exist. Used by the v2
+ * `forum:meta:v2` miss path so cache writes always carry the full payload.
  *
  * Status / visibility filtering is left to the caller — this loader returns
  * the raw row whether or not the bucket can see it.
@@ -422,22 +423,15 @@ async function loadFullForumFromD1(
 	id: number,
 	useKvUserCache: boolean,
 ): Promise<Forum | null> {
-	// Always JOIN users for the avatar fields. The v2 meta payload must
-	// be self-sufficient on cache hit, so we cannot rely on a downstream
-	// `getUserProfiles` call — populate avatar in the same fetch.
-	const forumQuery = `
-		SELECT f.*, u.avatar AS last_poster_avatar, u.avatar_path AS last_poster_avatar_path
-		FROM forums f
-		LEFT JOIN users u ON f.last_poster_id = u.id
-		WHERE f.id = ?
-	`;
-	const result = await env.DB.prepare(forumQuery).bind(id).first();
+	// Do NOT JOIN `users` on `forums.last_poster_id` here: when the row
+	// points at a hidden / recycled thread, the visible-last-thread
+	// override below uses a different poster and the JOIN'd avatar would
+	// be wrong. Avatar is resolved AFTER visible-last-thread is known.
+	const result = await env.DB.prepare("SELECT * FROM forums WHERE id = ?").bind(id).first();
 	if (!result) return null;
 
 	const r = result as Record<string, unknown>;
 	const forum = toForum(r);
-	forum.lastPosterAvatar = ((r.last_poster_avatar as string | undefined) ?? "") || "";
-	forum.lastPosterAvatarPath = ((r.last_poster_avatar_path as string | undefined) ?? "") || "";
 
 	const moderatorIdsStr = (r.moderator_ids as string) ?? "";
 	const moderatorIds = parseModeratorIds(moderatorIdsStr);
@@ -466,6 +460,18 @@ async function loadFullForumFromD1(
 		forum.lastPostAt = visible.lastPostAt;
 		forum.lastPosterId = visible.lastPosterId;
 		forum.lastPoster = visible.lastPoster;
+
+		// Resolve the visible poster's avatar in a single targeted lookup.
+		if (visible.lastPosterId > 0) {
+			const av = await env.DB.prepare("SELECT avatar, avatar_path FROM users WHERE id = ?")
+				.bind(visible.lastPosterId)
+				.first<{ avatar: string | null; avatar_path: string | null }>();
+			forum.lastPosterAvatar = (av?.avatar ?? "") || "";
+			forum.lastPosterAvatarPath = (av?.avatar_path ?? "") || "";
+		} else {
+			forum.lastPosterAvatar = "";
+			forum.lastPosterAvatarPath = "";
+		}
 	} else {
 		forum.lastThreadId = 0;
 		forum.lastThreadSubject = "";
@@ -478,10 +484,7 @@ async function loadFullForumFromD1(
 
 	forum.todayThreads = countResult?.cnt ?? 0;
 
-	// Avatar fallback: if we have a last_poster_id but the JOIN missed
-	// (deleted user), and the legacy KV-user-cache path would have filled
-	// it, that's already gracefully empty here. Caller does not need to do
-	// any further enrichment.
+	// Avatar fallback: deleted user → empty strings, matching legacy.
 	void useKvUserCache;
 
 	return forum;
