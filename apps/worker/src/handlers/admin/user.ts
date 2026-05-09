@@ -1,6 +1,6 @@
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
-import { invalidateUserCaches } from "../../lib/cache/invalidate";
+import { invalidateForumSummaryV2, invalidateUserCaches } from "../../lib/cache/invalidate";
 import {
 	buildDeletePostChildStatements,
 	buildDeleteThreadChildStatements,
@@ -645,6 +645,7 @@ export const nuke = withEntityAuth(
 				.bind(id)
 				.run(),
 			invalidateForumVolatile(env),
+			invalidateForumSummaryV2(env),
 			writeAdminLog(env, resolveActor(request), {
 				action: "user.nuke",
 				targetType: "user",
@@ -1087,6 +1088,7 @@ export const purge = withEntityAuth(
 		// Cache invalidations are all independent (different keys) — fan out.
 		await Promise.all([
 			invalidateForumVolatile(env),
+			invalidateForumSummaryV2(env),
 			invalidateUserCache(env, id),
 			...Array.from(pre.collateralAuthorDelta.keys(), (authorId) =>
 				invalidateUserCache(env, authorId),

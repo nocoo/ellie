@@ -8,6 +8,10 @@ import {
 	bumpThreadMetaGen,
 	deleteUserMini,
 	deleteUserPublicVariants,
+	invalidateForumReorderV2,
+	invalidateForumStructureV2,
+	invalidateForumSummaryV2,
+	invalidateForumUpdateV2,
 	invalidateForumVolatileV2,
 	invalidateUserCaches,
 } from "../../../../src/lib/cache/invalidate";
@@ -136,5 +140,51 @@ describe("cache/invalidate — composite helpers", () => {
 
 		expect(store.get("forum:summary:gen")?.length).toBeGreaterThan(0);
 		expect(store.get("thread:list:gen:4")?.length).toBeGreaterThan(0);
+	});
+
+	it("invalidateForumSummaryV2 bumps ONLY forum:summary:gen", async () => {
+		const { kv, store } = inMemoryKV();
+		const env = makeEnv({ KV: kv });
+		await invalidateForumSummaryV2(env);
+
+		expect(store.get("forum:summary:gen")?.length).toBeGreaterThan(0);
+		expect(store.has("forum:tree:gen")).toBe(false);
+		expect(store.has("digest:gen")).toBe(false);
+	});
+
+	it("invalidateForumStructureV2 bumps tree + summary + digest", async () => {
+		const { kv, store } = inMemoryKV();
+		const env = makeEnv({ KV: kv });
+		await invalidateForumStructureV2(env);
+
+		expect(store.get("forum:tree:gen")?.length).toBeGreaterThan(0);
+		expect(store.get("forum:summary:gen")?.length).toBeGreaterThan(0);
+		expect(store.get("digest:gen")?.length).toBeGreaterThan(0);
+	});
+
+	it("invalidateForumReorderV2 bumps tree + summary but NOT digest", async () => {
+		const { kv, store } = inMemoryKV();
+		const env = makeEnv({ KV: kv });
+		await invalidateForumReorderV2(env);
+
+		expect(store.get("forum:tree:gen")?.length).toBeGreaterThan(0);
+		expect(store.get("forum:summary:gen")?.length).toBeGreaterThan(0);
+		expect(store.has("digest:gen")).toBe(false);
+	});
+
+	it("invalidateForumUpdateV2 bumps digest only when affectsDigest=true", async () => {
+		const { kv: kv1, store: s1 } = inMemoryKV();
+		const env1 = makeEnv({ KV: kv1 });
+		await invalidateForumUpdateV2(env1, { affectsDigest: true });
+		expect(s1.get("forum:tree:gen")?.length).toBeGreaterThan(0);
+		expect(s1.get("forum:summary:gen")?.length).toBeGreaterThan(0);
+		expect(s1.get("digest:gen")?.length).toBeGreaterThan(0);
+
+		const { kv: kv2, store: s2 } = inMemoryKV();
+		const env2 = makeEnv({ KV: kv2 });
+		await invalidateForumUpdateV2(env2, { affectsDigest: false });
+		expect(s2.get("forum:tree:gen")?.length).toBeGreaterThan(0);
+		expect(s2.get("forum:summary:gen")?.length).toBeGreaterThan(0);
+		expect(s2.has("digest:gen")).toBe(false);
 	});
 });

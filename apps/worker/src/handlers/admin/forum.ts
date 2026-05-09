@@ -2,6 +2,11 @@
 import { ForumType } from "@ellie/types";
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
+import {
+	invalidateForumReorderV2,
+	invalidateForumStructureV2,
+	invalidateForumUpdateV2,
+} from "../../lib/cache/invalidate";
 import type { EntityConfig } from "../../lib/crud";
 import {
 	createCreateHandler,
@@ -217,13 +222,26 @@ const forumConfig: EntityConfig = {
 
 	// Invalidate forum tree + volatile cache after any structural change
 	async afterCreate(_id, _data, env) {
-		await invalidateForumCacheAll(env);
+		await Promise.all([invalidateForumCacheAll(env), invalidateForumStructureV2(env)]);
 	},
-	async afterUpdate(_id, _data, _existing, env) {
-		await invalidateForumCacheAll(env);
+	async afterUpdate(_id, data, _existing, env) {
+		// Digest filters depend on name/status/visibility/parent_id/type only.
+		// Other field changes (description/icon/moderators/displayOrder…) do
+		// not affect digest visibility, so don't bump digest gen for those.
+		const d = data as Record<string, unknown>;
+		const affectsDigest =
+			d.name !== undefined ||
+			d.status !== undefined ||
+			d.visibility !== undefined ||
+			d.parentId !== undefined ||
+			d.type !== undefined;
+		await Promise.all([
+			invalidateForumCacheAll(env),
+			invalidateForumUpdateV2(env, { affectsDigest }),
+		]);
 	},
 	async afterDelete(_id, _existing, env) {
-		await invalidateForumCacheAll(env);
+		await Promise.all([invalidateForumCacheAll(env), invalidateForumStructureV2(env)]);
 	},
 };
 
@@ -529,6 +547,7 @@ export const merge = withEntityAuth(
 		await Promise.all([
 			recalcForumMetadata(env, targetForumId as number),
 			invalidateForumCacheAll(env),
+			invalidateForumStructureV2(env),
 			writeAdminLog(env, resolveActor(request), {
 				action: "forum.merge",
 				targetType: "forum",
@@ -642,6 +661,7 @@ export const reorder = withEntityAuth(
 		// actual changes) in parallel — they're independent.
 		await Promise.all([
 			invalidateForumCacheAll(env),
+			invalidateForumReorderV2(env),
 			changedRows.length > 0
 				? writeAdminLog(env, resolveActor(request), {
 						action: "forum.reorder",
