@@ -32,45 +32,53 @@ export function ThreadItem({ item, postsPerPage }: ThreadItemProps) {
 					<img src={iconSrc} alt="" className="opacity-70" />
 				</div>
 
-				{/* Column 1: Subject (flex) */}
-				<div className="min-w-0 flex-1 flex items-center gap-2 py-2 px-3">
-					{badges.length > 0 && <ThreadBadgeList badges={badges} />}
+				{/* Avatar column (between icon and subject) */}
+				<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0 pl-1">
+					<ForumAvatar
+						userId={thread.authorId}
+						userName={thread.authorName}
+						avatarPath={thread.authorAvatarPath}
+						shadow
+					/>
+				</Link>
+
+				{/* Column 1: Subject — inline flow so digest/pages follow title text */}
+				<div className="min-w-0 flex-1 py-2 px-3 truncate">
+					{badges.length > 0 && (
+						<span className="inline-flex items-center gap-1 align-middle mr-1.5">
+							<ThreadBadgeList badges={badges} />
+						</span>
+					)}
 					<Link
 						href={`/threads/${thread.id}`}
 						prefetch={false}
-						className="min-w-0 flex-1 truncate text-sm text-foreground hover:text-primary transition-colors"
+						className="text-sm text-foreground hover:text-primary transition-colors align-middle"
 						style={highlightStyle(hl)}
 					>
 						{thread.subject}
 					</Link>
-					{digestSrc && <img src={digestSrc} alt="digest" className="shrink-0" />}
-					<ThreadInlinePages
-						threadId={thread.id}
-						replies={thread.replies}
-						postsPerPage={postsPerPage}
-					/>
+					{digestSrc && (
+						<img src={digestSrc} alt="digest" className="inline-block align-middle ml-1.5" />
+					)}
+					<span className="align-middle ml-1">
+						<ThreadInlinePages
+							threadId={thread.id}
+							replies={thread.replies}
+							postsPerPage={postsPerPage}
+						/>
+					</span>
 				</div>
 
-				{/* Column 2: Author (fixed, left-aligned with avatar) */}
-				<div className="flex items-center gap-1.5 w-[120px] shrink-0 py-2 px-2">
-					<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0">
-						<ForumAvatar
-							userId={thread.authorId}
-							userName={thread.authorName}
-							avatarPath={thread.authorAvatarPath}
-							shadow
-						/>
-					</Link>
-					<div className="min-w-0">
-						<UserPopover userId={thread.authorId}>
-							<span className="text-xs text-foreground font-medium hover:text-primary transition-colors truncate block max-w-full cursor-pointer">
-								{thread.authorName}
-							</span>
-						</UserPopover>
-						<span className="text-xs text-muted-foreground">
-							{formatRelativeTime(thread.createdAt)}
+				{/* Column 2: Author (fixed, centered) */}
+				<div className="flex flex-col items-center justify-center w-[100px] shrink-0 py-2 text-center">
+					<UserPopover userId={thread.authorId}>
+						<span className="text-xs text-foreground font-medium hover:text-primary transition-colors truncate max-w-full cursor-pointer">
+							{thread.authorName}
 						</span>
-					</div>
+					</UserPopover>
+					<span className="text-xs text-muted-foreground">
+						{formatRelativeTime(thread.createdAt)}
+					</span>
 				</div>
 
 				{/* Column 3: Replies / Views / Recommends (fixed) */}
@@ -91,35 +99,11 @@ export function ThreadItem({ item, postsPerPage }: ThreadItemProps) {
 
 			{/* Mobile layout: two-row compact display */}
 			<div className="sm:hidden px-3 py-2">
-				{/* Row 1: Icon + badges + subject */}
-				<div className="flex items-start gap-2">
+				{/* Row 1: Icon + avatar + badges + subject */}
+				<div className="flex items-start gap-1.5">
 					{/* eslint-disable-next-line @next/next/no-img-element */}
 					<img src={iconSrc} alt="" className="opacity-70 mt-0.5 shrink-0" />
-					<div className="min-w-0 flex-1">
-						<div className="flex items-center gap-1.5">
-							{badges.length > 0 && <ThreadBadgeList badges={badges} />}
-						</div>
-						<div className="flex items-center gap-1.5">
-							<Link
-								href={`/threads/${thread.id}`}
-								prefetch={false}
-								className="min-w-0 truncate text-sm text-foreground hover:text-primary transition-colors"
-								style={highlightStyle(hl)}
-							>
-								{thread.subject}
-							</Link>
-							{digestSrc && <img src={digestSrc} alt="digest" className="shrink-0" />}
-							<ThreadInlinePages
-								threadId={thread.id}
-								replies={thread.replies}
-								postsPerPage={postsPerPage}
-							/>
-						</div>
-					</div>
-				</div>
-				{/* Row 2: avatar · author · time · stats */}
-				<div className="mt-1 ml-6 flex items-center gap-1.5 text-xs text-muted-foreground">
-					<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0">
+					<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0 mt-0.5">
 						<ForumAvatar
 							userId={thread.authorId}
 							userName={thread.authorName}
@@ -127,6 +111,36 @@ export function ThreadItem({ item, postsPerPage }: ThreadItemProps) {
 							size="xs"
 						/>
 					</Link>
+					<div className="min-w-0 flex-1">
+						{badges.length > 0 && (
+							<div className="flex items-center gap-1.5">
+								<ThreadBadgeList badges={badges} />
+							</div>
+						)}
+						<div className="truncate">
+							<Link
+								href={`/threads/${thread.id}`}
+								prefetch={false}
+								className="text-sm text-foreground hover:text-primary transition-colors align-middle"
+								style={highlightStyle(hl)}
+							>
+								{thread.subject}
+							</Link>
+							{digestSrc && (
+								<img src={digestSrc} alt="digest" className="inline-block align-middle ml-1.5" />
+							)}
+							<span className="align-middle ml-1">
+								<ThreadInlinePages
+									threadId={thread.id}
+									replies={thread.replies}
+									postsPerPage={postsPerPage}
+								/>
+							</span>
+						</div>
+					</div>
+				</div>
+				{/* Row 2: author · time · stats */}
+				<div className="mt-1 ml-6 flex items-center gap-1.5 text-xs text-muted-foreground">
 					<span className="min-w-0 truncate">
 						<UserPopover userId={thread.authorId}>
 							<span className="block truncate text-foreground hover:text-primary cursor-pointer">
