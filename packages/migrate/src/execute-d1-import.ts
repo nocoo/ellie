@@ -23,14 +23,14 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import type { Manifest } from "./load/d1-sql-builder";
 import {
 	FK_RELATIONS,
 	IMPORT_TABLE_ORDER,
 	computeManifestFingerprint,
-	isValidChunkFilename,
+	validateManifestStructure,
 } from "./load/d1-sql-builder";
 
 // ─── CLI ────────────────────────────────────────────────────────────────────
@@ -47,6 +47,7 @@ const { values } = parseArgs({
 const MANIFEST_PATH = values.manifest ?? "output/d1-import-2026-05-09/manifest.json";
 const DRY_RUN = values["dry-run"] ?? false;
 const RESUME = values.resume ?? false;
+const NPX_BIN = process.env.EXECUTOR_NPX_BIN ?? "npx";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -112,7 +113,7 @@ function wranglerExecute(
 ): { success: boolean; error?: string } {
 	try {
 		execFileSync(
-			"npx",
+			NPX_BIN,
 			["wrangler", "d1", "execute", dbName, "--remote", "--file", sqlFile, "--yes"],
 			{
 				encoding: "utf-8",
@@ -131,7 +132,7 @@ function wranglerExecute(
 function wranglerQuery(sql: string, dbName: string, cwd: string): string {
 	try {
 		return execFileSync(
-			"npx",
+			NPX_BIN,
 			["wrangler", "d1", "execute", dbName, "--remote", "--command", sql, "--yes", "--json"],
 			{
 				encoding: "utf-8",
@@ -143,20 +144,6 @@ function wranglerQuery(sql: string, dbName: string, cwd: string): string {
 	} catch (e) {
 		const err = e as { stdout?: string; stderr?: string };
 		return err.stdout || err.stderr || "";
-	}
-}
-
-// ─── Path safety ────────────────────────────────────────────────────────────
-
-function validateChunkPaths(manifest: Manifest, importDir: string): void {
-	for (const chunk of manifest.chunks) {
-		if (!isValidChunkFilename(chunk.file)) {
-			throw new Error(`Unsafe chunk filename in manifest: "${chunk.file}"`);
-		}
-		const resolved = resolve(importDir, chunk.file);
-		if (!resolved.startsWith(resolve(importDir))) {
-			throw new Error(`Path traversal detected: "${chunk.file}" resolves outside import dir`);
-		}
 	}
 }
 
@@ -340,8 +327,8 @@ log(`  Database: ${dbName}`);
 log(`  Import dir: ${importDir}`);
 log(`  Fingerprint: ${fingerprint}`);
 
-// Validate chunk file paths
-validateChunkPaths(manifest, importDir);
+// Validate manifest structure (tables.files ↔ chunks consistency + filename safety)
+validateManifestStructure(manifest);
 
 // Validate all chunk files exist in the import directory
 const missingFiles = manifest.chunks.filter((c) => !existsSync(join(importDir, c.file)));
@@ -379,12 +366,13 @@ if (DRY_RUN) {
 	process.exit(0);
 }
 
-// Build ordered chunk list
+// Build ordered chunk list from validated manifest
+const chunkMap = new Map(manifest.chunks.map((c) => [c.file, c]));
 const orderedChunks = IMPORT_TABLE_ORDER.flatMap((table) => {
 	const tableInfo = manifest.tables[table];
 	if (!tableInfo) return [];
 	return tableInfo.files.map((file) => {
-		const chunk = manifest.chunks.find((c) => c.file === file);
+		const chunk = chunkMap.get(file);
 		return { file, table, rows: chunk?.rows ?? 0, bytes: chunk?.bytes ?? 0 };
 	});
 });

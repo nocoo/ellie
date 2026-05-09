@@ -5,6 +5,8 @@
  * without pulling in the bun:sqlite runtime.
  */
 
+import { createHash } from "node:crypto";
+
 /**
  * Escape a value for inline SQL. Strings are single-quoted with internal
  * quotes doubled; numbers pass through; null becomes NULL.
@@ -170,17 +172,20 @@ export const IMPORT_TABLE_ORDER = [
 ] as const;
 
 /**
- * Compute a fingerprint string for a manifest, used to bind execution logs
- * to a specific generation run.
+ * Compute a SHA-256 fingerprint for a manifest, used to bind execution logs
+ * to a specific generation run. Covers all content fields that affect execution:
+ * production_state, tables, chunks, chunk_size, source_db, generated_at.
  */
 export function computeManifestFingerprint(manifest: Manifest): string {
-	return [
-		manifest.production_state.database.id,
-		manifest.generated_at,
-		manifest.total_chunks,
-		manifest.total_rows,
-		manifest.source_db,
-	].join("|");
+	const canonical = JSON.stringify({
+		generated_at: manifest.generated_at,
+		source_db: manifest.source_db,
+		chunk_size: manifest.chunk_size,
+		production_state: manifest.production_state,
+		tables: manifest.tables,
+		chunks: manifest.chunks,
+	});
+	return createHash("sha256").update(canonical).digest("hex");
 }
 
 /**
@@ -194,4 +199,53 @@ export function isValidChunkFilename(file: string): boolean {
 	if (file.startsWith("/")) return false;
 	if (!file.endsWith(".sql")) return false;
 	return true;
+}
+
+/**
+ * Validate manifest structural consistency:
+ *   - Every file in tables[*].files has a matching entry in chunks[]
+ *   - Every chunk is referenced by exactly one table's files list
+ *   - All filenames pass safety validation
+ * Throws on any inconsistency.
+ */
+export function validateManifestStructure(manifest: Manifest): void {
+	const chunkMap = new Map(manifest.chunks.map((c) => [c.file, c]));
+	const referencedFiles = new Set<string>();
+
+	for (const [table, tableInfo] of Object.entries(manifest.tables)) {
+		for (const file of tableInfo.files) {
+			if (!isValidChunkFilename(file)) {
+				throw new Error(`Unsafe filename in tables.${table}.files: "${file}"`);
+			}
+			if (!chunkMap.has(file)) {
+				throw new Error(
+					`tables.${table}.files references "${file}" which is not in manifest.chunks`,
+				);
+			}
+			const chunk = chunkMap.get(file);
+			if (chunk && chunk.table !== table) {
+				throw new Error(
+					`tables.${table}.files references "${file}" but chunk.table is "${chunk.table}"`,
+				);
+			}
+			referencedFiles.add(file);
+		}
+	}
+
+	for (const chunk of manifest.chunks) {
+		if (!isValidChunkFilename(chunk.file)) {
+			throw new Error(`Unsafe filename in manifest.chunks: "${chunk.file}"`);
+		}
+		if (!referencedFiles.has(chunk.file)) {
+			throw new Error(`manifest.chunks contains "${chunk.file}" not referenced by any table`);
+		}
+	}
+}
+
+/**
+ * Build an FK orphan-check SQL query from an FkRelation definition.
+ * Uses generic aliases (child/parent) for consistency.
+ */
+export function buildFkCheckQuery(fk: FkRelation): string {
+	return `SELECT COUNT(*) as cnt FROM ${fk.table} child LEFT JOIN ${fk.ref} parent ON child.${fk.col} = parent.${fk.refCol} WHERE parent.${fk.refCol} IS NULL`;
 }

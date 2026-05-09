@@ -7,6 +7,7 @@
  */
 
 import type { Database } from "bun:sqlite";
+import { FK_RELATIONS, buildFkCheckQuery } from "../load/d1-sql-builder";
 
 /** Result of a single integrity check. */
 export interface CheckResult {
@@ -77,48 +78,11 @@ interface FkCheck {
 	query: string;
 }
 
-const FK_CHECKS: FkCheck[] = [
-	{
-		name: "posts.thread_id → threads.id",
-		query:
-			"SELECT COUNT(*) as cnt FROM posts p LEFT JOIN threads t ON p.thread_id = t.id WHERE t.id IS NULL",
-	},
-	{
-		name: "posts.author_id → users.id",
-		query:
-			"SELECT COUNT(*) as cnt FROM posts p LEFT JOIN users u ON p.author_id = u.id WHERE u.id IS NULL",
-	},
-	{
-		name: "threads.forum_id → forums.id",
-		query:
-			"SELECT COUNT(*) as cnt FROM threads t LEFT JOIN forums f ON t.forum_id = f.id WHERE f.id IS NULL",
-	},
-	{
-		name: "threads.author_id → users.id",
-		query:
-			"SELECT COUNT(*) as cnt FROM threads t LEFT JOIN users u ON t.author_id = u.id WHERE u.id IS NULL",
-	},
-	{
-		name: "attachments.post_id → posts.id",
-		query:
-			"SELECT COUNT(*) as cnt FROM attachments a LEFT JOIN posts p ON a.post_id = p.id WHERE p.id IS NULL",
-	},
-	{
-		name: "attachments.thread_id → threads.id",
-		query:
-			"SELECT COUNT(*) as cnt FROM attachments a LEFT JOIN threads t ON a.thread_id = t.id WHERE t.id IS NULL",
-	},
-	{
-		name: "attachments.author_id → users.id",
-		query:
-			"SELECT COUNT(*) as cnt FROM attachments a LEFT JOIN users u ON a.author_id = u.id WHERE u.id IS NULL",
-	},
-	{
-		name: "user_checkins.user_id → users.id",
-		query:
-			"SELECT COUNT(*) as cnt FROM user_checkins c LEFT JOIN users u ON c.user_id = u.id WHERE u.id IS NULL",
-	},
-];
+/** Generated from canonical FK_RELATIONS — single source of truth. */
+const FK_CHECKS: FkCheck[] = FK_RELATIONS.map((fk) => ({
+	name: `${fk.table}.${fk.col} → ${fk.ref}.${fk.refCol}`,
+	query: buildFkCheckQuery(fk),
+}));
 
 /**
  * Verify all foreign key relationships have 0 orphans.
