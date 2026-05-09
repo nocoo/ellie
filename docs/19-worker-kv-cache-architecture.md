@@ -168,10 +168,10 @@ when it ships.
 > **Authoritative table:** docs/20 §1–§8. The full per-key reference
 > (key pattern, payload, TTL, gen, read/write paths, status) lives there.
 >
-> `stats:public:v2` is the only entry whose correctness relies on TTL
-> alone. Public stats are non-critical and slowly-moving; explicit
-> invalidation would add invalidator wiring in many admin paths for
-> marginal value.
+> `public-stats` (v1 literal key, see docs/20 §8.2) is the only entry
+> whose correctness relies on TTL alone. Public stats are non-critical
+> and slowly-moving; explicit invalidation would add invalidator wiring
+> in many admin paths for marginal value.
 
 ### 4.1 `forum:summary:v2` / `forum:meta:v2` visible-last-thread semantics
 
