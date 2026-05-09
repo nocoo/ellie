@@ -23,6 +23,7 @@ export {
 	buildFilteredUpsertSql,
 	buildInsertSql,
 	buildUpsertSql,
+	createDeletedUserPlaceholder,
 	type ExistsFilter,
 	type UpsertConfig,
 } from "./sql-builder";

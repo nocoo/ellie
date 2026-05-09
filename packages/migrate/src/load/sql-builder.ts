@@ -94,3 +94,52 @@ export function buildFilteredUpsertSql(
 	const updateSet = config.updateColumns.map((col) => `${col} = excluded.${col}`).join(", ");
 	return `INSERT INTO ${table} (${columns.join(",")}) SELECT ${placeholders} WHERE EXISTS (SELECT 1 FROM ${filter.referenceTable} WHERE ${filter.referenceColumn} = ?) ON CONFLICT(${config.conflictColumn}) DO UPDATE SET ${updateSet}`;
 }
+
+/**
+ * Create a placeholder user record for a deleted/missing author.
+ *
+ * Covers every column in TABLE_COLUMNS.users so BatchLoader won't bind NULL
+ * on NOT NULL columns. The placeholder uses status=-3 to distinguish from
+ * real users.
+ */
+export function createDeletedUserPlaceholder(uid: number): Record<string, string | number | null> {
+	return {
+		id: uid,
+		username: `[已删除用户${uid}]`,
+		email: "",
+		password_hash: "",
+		password_salt: "",
+		avatar: "",
+		status: -3, // Placeholder status
+		role: 0,
+		reg_date: 0,
+		last_login: 0,
+		threads: 0,
+		posts: 0,
+		credits: 0,
+		coins: 0,
+		signature: "",
+		group_title: "",
+		group_stars: 0,
+		group_color: "",
+		custom_title: "",
+		digest_posts: 0,
+		ol_time: 0,
+		gender: 0,
+		birth_year: 0,
+		birth_month: 0,
+		birth_day: 0,
+		reside_province: "",
+		reside_city: "",
+		graduate_school: "",
+		bio: "",
+		interest: "",
+		qq: "",
+		site: "",
+		last_activity: 0,
+		reg_ip: "",
+		last_ip: "",
+		campus: "",
+		has_avatar: 0,
+	};
+}
