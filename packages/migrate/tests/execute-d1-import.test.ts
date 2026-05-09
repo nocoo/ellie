@@ -176,10 +176,12 @@ beforeAll(() => {
 	//   succeed   — exit 0; --json queries return mock results
 	//   fail-exec — exit 1 for --file (chunk execution), exit 0 for --command (verification)
 	// FK orphan queries (containing "NOT IN") return cnt=0, others return cnt=100.
+	// When --file is passed, verifies the SQL file exists — catches CWD/path resolution bugs.
 	const fakeScript = `#!/bin/bash
 MODE="\${FAKE_WRANGLER_MODE:-succeed}"
 has_flag() { local f="$1"; shift; for a in "$@"; do [[ "$a" == "$f" ]] && return 0; done; return 1; }
 args_contain() { local n="$1"; shift; for a in "$@"; do [[ "$a" == *"$n"* ]] && return 0; done; return 1; }
+get_flag_value() { local f="$1"; shift; while [[ $# -gt 0 ]]; do if [[ "$1" == "$f" && -n "$2" ]]; then echo "$2"; return; fi; shift; done; }
 emit_json() {
   if args_contain "NOT IN" "$@"; then
     echo '[{"results":[{"cnt":0}]}]'
@@ -187,6 +189,14 @@ emit_json() {
     echo '[{"results":[{"cnt":100,"max_id":100000}]}]'
   fi
 }
+# Verify --file path exists (regression: projectRoot miscalculation made paths unresolvable)
+if has_flag "--file" "$@"; then
+  FILE_PATH=$(get_flag_value "--file" "$@")
+  if [[ -n "$FILE_PATH" && ! -f "$FILE_PATH" ]]; then
+    echo "Unable to read SQL text file \\"$FILE_PATH\\". CWD=$(pwd)" >&2
+    exit 1
+  fi
+fi
 case "$MODE" in
   succeed)
     if has_flag "--json" "$@"; then emit_json "$@"; fi
@@ -498,5 +508,21 @@ describe("executor subprocess", () => {
 
 		const doneChunks = log.chunks.filter((c: { status: string }) => c.status === "done");
 		expect(doneChunks).toHaveLength(2);
+	});
+
+	test("fake npx verifies --file paths exist (CWD regression)", () => {
+		// Regression: projectRoot was calculated as join(__dirname, "../../../..") which
+		// went 4 levels up from packages/migrate/src instead of 3, landing in the wrong
+		// directory. Wrangler couldn't find the SQL files. Now uses process.cwd() + resolve().
+		// The fake npx script checks [ -f "$FILE_PATH" ] before proceeding, so any path
+		// resolution bug will cause the succeed test to fail with "Unable to read SQL text file".
+		const manifest = makeManifest();
+		const manifestPath = setupFixture("cwd-regression", manifest);
+		const { exitCode, stdout } = runExecutor(manifestPath, [], {
+			fakeMode: "succeed",
+		});
+		expect(exitCode).toBe(0);
+		expect(stdout).not.toContain("Unable to read SQL text file");
+		expect(stdout).toContain("Import complete and verified");
 	});
 });

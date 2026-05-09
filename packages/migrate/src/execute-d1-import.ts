@@ -23,7 +23,7 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Manifest } from "./load/d1-sql-builder";
 import {
@@ -320,7 +320,7 @@ const manifest = loadManifest(MANIFEST_PATH);
 const importDir = dirname(MANIFEST_PATH);
 const dbName = manifest.production_state.database.name;
 const execLogPath = join(importDir, "execution-log.json");
-const projectRoot = join(__dirname, "../../../..");
+const projectRoot = process.cwd();
 const fingerprint = computeManifestFingerprint(manifest);
 
 log(`  Database: ${dbName}`);
@@ -418,7 +418,7 @@ for (let i = 0; i < orderedChunks.length; i++) {
 
 	const startedAt = new Date().toISOString();
 	const startMs = Date.now();
-	const sqlFilePath = join(importDir, file);
+	const sqlFilePath = resolve(join(importDir, file));
 	const result = wranglerExecute(sqlFilePath, dbName, projectRoot);
 	const durationMs = Date.now() - startMs;
 	const finishedAt = new Date().toISOString();
