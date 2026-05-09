@@ -1,5 +1,5 @@
 {
-	"captured_at": "2026-05-09T08:49:00Z",
+	"captured_at": "2026-05-09T05:58:05Z",
 	"database": {
 		"name": "tongjinet-db",
 		"id": "2b4bbcda-6a08-45bf-bbde-badfa4d73c8f"
@@ -7,6 +7,7 @@
 	"backup": {
 		"path": "reference/d1-backups/2026-05-09/tongjinet-db-before-import.sql",
 		"size_gb": 6.8,
+		"time_travel_bookmark": "000003bd-00000004-00005066-0c1aad13ee2ebef26b93d2f0ab571d30",
 		"tables_included": ["forums", "users", "threads", "posts", "attachments", "user_checkins"],
 		"tables_excluded": [
 			"threads_fts",
