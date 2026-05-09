@@ -24,6 +24,7 @@ describe("batchGet (GET /api/v1/users/batch)", () => {
 			role: 0,
 			avatar: "a.jpg",
 			avatar_path: "avatars/a.jpg",
+			campus: "四平路校区",
 		});
 		const user2 = makeD1UserRow({
 			id: 2,
@@ -32,6 +33,7 @@ describe("batchGet (GET /api/v1/users/batch)", () => {
 			role: 0,
 			avatar: "b.jpg",
 			avatar_path: "avatars/b.jpg",
+			campus: "校外人士",
 		});
 		const { db } = createMockDb({
 			allResults: {
@@ -43,10 +45,14 @@ describe("batchGet (GET /api/v1/users/batch)", () => {
 		const response = await batchGet(makeRequest("1,2"), env);
 
 		expect(response.status).toBe(200);
-		const data = (await response.json()) as { data: Array<{ id: number; username: string }> };
+		const data = (await response.json()) as {
+			data: Array<{ id: number; username: string; campus: string }>;
+		};
 		expect(data.data).toHaveLength(2);
 		expect(data.data[0].username).toBe("alice");
+		expect(data.data[0].campus).toBe("四平路校区");
 		expect(data.data[1].username).toBe("bob");
+		expect(data.data[1].campus).toBe("校外人士");
 	});
 
 	it("should filter out non-public users (status < 0)", async () => {

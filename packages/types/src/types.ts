@@ -226,6 +226,8 @@ export interface PublicUser {
 	interest: string;
 	qq: string;
 	site: string;
+	/** 校区 — campus affiliation, e.g. "四平路校区" / "校外人士". Empty if not set. */
+	campus: string;
 	// Admin-only fields (populated only for admins/mods viewing the profile)
 	regIp?: string;
 	lastIp?: string;
@@ -264,6 +266,8 @@ export interface User {
 	interest: string;
 	qq: string;
 	site: string;
+	/** 校区 — campus affiliation, e.g. "四平路校区" / "校外人士". Empty if not set. */
+	campus: string;
 	lastActivity: number;
 	/**
 	 * Email verification state — see docs/17-email-verification.md §3, §6.1.

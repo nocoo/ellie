@@ -47,6 +47,8 @@ interface D1UserRow {
 	qq: string;
 	site: string;
 	last_activity: number;
+	/** Campus affiliation (Discuz pre_common_member_profile.field1) */
+	campus: string;
 	// Email verification (docs/17-email-verification.md §6.1)
 	email_verified_at: number;
 	email_normalized: string;
@@ -162,6 +164,7 @@ export function toUser(row: Record<string, unknown>): User {
 		interest: r.interest,
 		qq: r.qq,
 		site: r.site,
+		campus: r.campus ?? "",
 		lastActivity: r.last_activity,
 		emailVerifiedAt: r.email_verified_at ?? 0,
 		emailNormalized: r.email_normalized ?? "",
@@ -437,6 +440,7 @@ export function toPublicUser(row: Record<string, unknown>, includeIp = false): P
 		interest: r.interest,
 		qq: r.qq,
 		site: r.site,
+		campus: r.campus ?? "",
 	};
 	// Admin-only: include IP fields
 	if (includeIp) {

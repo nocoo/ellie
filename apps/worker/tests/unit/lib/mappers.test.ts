@@ -48,6 +48,7 @@ describe("D1 row mappers", () => {
 				interest: "编程",
 				qq: "12345678",
 				site: "https://example.com",
+				campus: "四平路校区",
 				last_activity: 1711540800,
 				email_verified_at: 1711540900,
 				email_normalized: "alice@example.com",
@@ -87,6 +88,7 @@ describe("D1 row mappers", () => {
 				interest: "编程",
 				qq: "12345678",
 				site: "https://example.com",
+				campus: "四平路校区",
 				lastActivity: 1711540800,
 				emailVerifiedAt: 1711540900,
 				emailNormalized: "alice@example.com",
@@ -184,8 +186,46 @@ describe("D1 row mappers", () => {
 			};
 
 			const user = toUser(row);
-			// 37 base columns + purgedAt + purgedBy (D4-a tombstone fields).
-			expect(Object.keys(user)).toHaveLength(39);
+			// 37 base columns + purgedAt + purgedBy (D4-a tombstone fields) + campus.
+			expect(Object.keys(user)).toHaveLength(40);
+		});
+
+		it("should default campus to empty string when column missing", () => {
+			const row = {
+				id: 1,
+				username: "alice",
+				email: "a@b.com",
+				avatar: "",
+				avatar_path: "",
+				status: 0,
+				role: 0,
+				reg_date: 0,
+				last_login: 0,
+				threads: 0,
+				posts: 0,
+				credits: 0,
+				signature: "",
+				group_title: "",
+				group_stars: 0,
+				group_color: "",
+				custom_title: "",
+				digest_posts: 0,
+				ol_time: 0,
+				gender: 0,
+				birth_year: 0,
+				birth_month: 0,
+				birth_day: 0,
+				reside_province: "",
+				reside_city: "",
+				graduate_school: "",
+				bio: "",
+				interest: "",
+				qq: "",
+				site: "",
+				last_activity: 0,
+			};
+			expect(toUser(row).campus).toBe("");
+			expect(toPublicUser(row).campus).toBe("");
 		});
 	});
 
@@ -523,6 +563,7 @@ describe("D1 row mappers", () => {
 				interest: "编程",
 				qq: "12345",
 				site: "https://example.com",
+				campus: "嘉定校区",
 			};
 
 			const user = toPublicUser(row);
@@ -556,6 +597,7 @@ describe("D1 row mappers", () => {
 				interest: "编程",
 				qq: "12345",
 				site: "https://example.com",
+				campus: "嘉定校区",
 			});
 		});
 
@@ -627,7 +669,7 @@ describe("D1 row mappers", () => {
 			};
 
 			const user = toPublicUser(row);
-			expect(Object.keys(user)).toHaveLength(29);
+			expect(Object.keys(user)).toHaveLength(30);
 		});
 
 		it("should include regIp and lastIp when includeIp is true", () => {
@@ -667,7 +709,7 @@ describe("D1 row mappers", () => {
 			const user = toPublicUser(row, true);
 			expect(user.regIp).toBe("192.168.1.1");
 			expect(user.lastIp).toBe("10.0.0.1");
-			expect(Object.keys(user)).toHaveLength(31);
+			expect(Object.keys(user)).toHaveLength(32);
 		});
 	});
 

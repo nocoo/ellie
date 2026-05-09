@@ -651,6 +651,7 @@ describe("publicUserToUser", () => {
 			interest: "coding",
 			qq: "123456",
 			site: "https://example.com",
+			campus: "四平路校区",
 		};
 
 		const user = publicUserToUser(publicUser);
@@ -661,6 +662,7 @@ describe("publicUserToUser", () => {
 		expect(user.avatar).toBe("/avatar.png");
 		expect(user.role).toBe(0);
 		expect(user.regDate).toBe(1700000000);
+		expect(user.campus).toBe("四平路校区");
 
 		// User-only fields filled with safe defaults
 		expect(user.email).toBe("");
@@ -697,6 +699,7 @@ describe("publicUserToUser", () => {
 			interest: "",
 			qq: "",
 			site: "",
+			campus: "",
 		};
 
 		const user = publicUserToUser(publicUser);
@@ -704,5 +707,6 @@ describe("publicUserToUser", () => {
 		expect(user.username).toBe("admin");
 		expect(user.groupTitle).toBe("Admin");
 		expect(user.customTitle).toBe("Administrator");
+		expect(user.campus).toBe("");
 	});
 });
