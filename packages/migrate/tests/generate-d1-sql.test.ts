@@ -234,10 +234,17 @@ describe("CLI parameter validation", () => {
 		expect(stdout).toContain("positive integer");
 	});
 
-	test("rejects --users-chunk-size with negative value", () => {
-		// parseArgs rejects dash-prefixed values as ambiguous
+	test("rejects --users-chunk-size with negative value via parseArgs syntax", () => {
+		// parseArgs rejects dash-prefixed values as ambiguous option syntax
 		const { exitCode } = runGenerator(["--force", "--users-chunk-size", "-5"]);
 		expect(exitCode).not.toBe(0);
+	});
+
+	test("rejects --users-chunk-size=-5 via strict validation", () => {
+		// Using --flag=value syntax bypasses parseArgs ambiguity check
+		const { exitCode, stdout } = runGenerator(["--force", "--users-chunk-size=-5"]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("positive integer");
 	});
 
 	test("rejects --users-chunk-size with non-numeric string", () => {
@@ -246,14 +253,44 @@ describe("CLI parameter validation", () => {
 		expect(stdout).toContain("positive integer");
 	});
 
-	test("rejects --users-min-id with negative value", () => {
-		// parseArgs rejects dash-prefixed values as ambiguous
+	test("rejects --users-chunk-size with trailing non-numeric chars", () => {
+		const { exitCode, stdout } = runGenerator(["--force", "--users-chunk-size", "1000abc"]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("positive integer");
+	});
+
+	test("rejects --users-chunk-size with decimal", () => {
+		const { exitCode, stdout } = runGenerator(["--force", "--users-chunk-size", "1.5"]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("positive integer");
+	});
+
+	test("rejects --users-min-id with negative value via parseArgs syntax", () => {
+		// parseArgs rejects dash-prefixed values as ambiguous option syntax
 		const { exitCode } = runGenerator(["--force", "--users-min-id", "-1"]);
 		expect(exitCode).not.toBe(0);
 	});
 
+	test("rejects --users-min-id=-1 via strict validation", () => {
+		const { exitCode, stdout } = runGenerator(["--force", "--users-min-id=-1"]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("non-negative integer");
+	});
+
 	test("rejects --users-min-id with non-numeric string", () => {
 		const { exitCode, stdout } = runGenerator(["--force", "--users-min-id", "xyz"]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("non-negative integer");
+	});
+
+	test("rejects --users-min-id with trailing non-numeric chars", () => {
+		const { exitCode, stdout } = runGenerator(["--force", "--users-min-id", "183496abc"]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("non-negative integer");
+	});
+
+	test("rejects --users-min-id with decimal", () => {
+		const { exitCode, stdout } = runGenerator(["--force", "--users-min-id", "1.5"]);
 		expect(exitCode).not.toBe(0);
 		expect(stdout).toContain("non-negative integer");
 	});

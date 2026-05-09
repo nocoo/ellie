@@ -54,28 +54,31 @@ const OUT_DIR = values.out ?? "output/d1-import-2026-05-09";
 const PROD_STATE_PATH = values["production-state"] ?? "packages/migrate/production-state.json";
 const FORCE = values.force ?? false;
 const CHUNK_SIZE = 5000; // rows per SQL file (D1 has statement limits)
-const USERS_CHUNK_SIZE = values["users-chunk-size"]
-	? Number.parseInt(values["users-chunk-size"], 10)
-	: CHUNK_SIZE;
-const USERS_MIN_ID = values["users-min-id"] ? Number.parseInt(values["users-min-id"], 10) : null;
 
-// Validate CLI parameters
-if (values["users-chunk-size"] != null) {
-	if (!Number.isInteger(USERS_CHUNK_SIZE) || USERS_CHUNK_SIZE <= 0) {
+// Strict integer validation — reject trailing chars, decimals, negatives
+const STRICT_UINT_RE = /^[0-9]+$/;
+
+function parseStrictUint(raw: string, flag: string, allowZero: boolean): number {
+	if (!STRICT_UINT_RE.test(raw)) {
 		console.error(
-			`Error: --users-chunk-size must be a positive integer, got "${values["users-chunk-size"]}"`,
+			`Error: --${flag} must be a ${allowZero ? "non-negative" : "positive"} integer, got "${raw}"`,
 		);
 		process.exit(1);
 	}
-}
-if (values["users-min-id"] != null) {
-	if (!Number.isInteger(USERS_MIN_ID) || (USERS_MIN_ID as number) < 0) {
-		console.error(
-			`Error: --users-min-id must be a non-negative integer, got "${values["users-min-id"]}"`,
-		);
+	const n = Number(raw);
+	if (!allowZero && n === 0) {
+		console.error(`Error: --${flag} must be a positive integer, got "${raw}"`);
 		process.exit(1);
 	}
+	return n;
 }
+
+const USERS_CHUNK_SIZE = values["users-chunk-size"]
+	? parseStrictUint(values["users-chunk-size"], "users-chunk-size", false)
+	: CHUNK_SIZE;
+const USERS_MIN_ID = values["users-min-id"]
+	? parseStrictUint(values["users-min-id"], "users-min-id", true)
+	: null;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
