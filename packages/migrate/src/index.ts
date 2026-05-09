@@ -762,6 +762,8 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 
 		const threadResult = await migrateThreads(loader, sources, forumIds, userResult.userIds);
 		stats.threads = threadResult.total;
+		stats.forums += threadResult.missingForums; // placeholder forums
+		stats.users += threadResult.missingAuthors; // placeholder users
 		stats.skipped.threads = threadResult.skipped;
 		stats.skipped.threadMissingForums = threadResult.missingForums;
 		stats.skipped.threadMissingAuthors = threadResult.missingAuthors;
@@ -774,6 +776,7 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 			logger,
 		);
 		stats.posts = postResult.total;
+		stats.users += postResult.missingAuthors; // placeholder users
 		stats.skipped.missingAuthors = postResult.missingAuthors;
 		stats.skipped.missingThreads = postResult.missingThreads;
 
@@ -785,6 +788,8 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 			logger,
 		);
 		stats.attachments = attachResult.total;
+		stats.threads += attachResult.missingThreads; // placeholder threads
+		stats.posts += attachResult.missingPosts; // placeholder posts
 		stats.skipped.attachments = attachResult.skipped;
 		stats.skipped.attachMissingPosts = attachResult.missingPosts;
 		stats.skipped.attachMissingThreads = attachResult.missingThreads;
@@ -817,6 +822,7 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 			for (const c of intReport.checks.filter((c) => !c.passed)) {
 				log(`    FAIL: ${c.name} — expected ${c.expected}, got ${c.actual}`);
 			}
+			stats.errors.push(`Integrity verification failed: ${intReport.summary}`);
 		}
 
 		const encReport = verifyEncoding(db, 1000);
