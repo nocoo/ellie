@@ -4,6 +4,16 @@ const nextConfig: NextConfig = {
 	output: "standalone",
 	allowedDevOrigins: ["ellie.dev.hexly.ai"],
 
+	images: {
+		remotePatterns: [
+			{
+				protocol: "https",
+				hostname: "t.no.mt",
+				pathname: "/static/image/**",
+			},
+		],
+	},
+
 	// Security headers
 	async headers() {
 		return [
