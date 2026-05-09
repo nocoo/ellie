@@ -21,6 +21,8 @@ export interface ThreadDisplayItem {
 	badges: ReturnType<typeof getThreadBadges>;
 	highlight: ReturnType<typeof decodeHighlight>;
 	iconSrc: string;
+	/** Digest icon shown to the right of the title (null if not a digest thread). */
+	digestSrc: string | null;
 }
 
 export interface ThreadListState {
@@ -47,6 +49,7 @@ export function enrichThreads(threads: Thread[]): ThreadDisplayItem[] {
 		badges: filterIconRedundantBadges(getThreadBadges(thread)),
 		highlight: decodeHighlight(thread.highlight),
 		iconSrc: getThreadIconSrc(thread),
+		digestSrc: getDigestIconSrc(thread.digest),
 	}));
 }
 
@@ -71,7 +74,10 @@ export function highlightStyle(
  * Returns a CDN URL for the appropriate GIF icon.
  *
  * Priority matches forumdisplay_list.htm <td class="icn">:
- *   closed → special(1-5) → sticky(1-4) → digest → folder_new/common
+ *   closed → special(1-5) → sticky(1-4) → folder_new/common
+ *
+ * Note: digest is NOT included here — it appears to the right of the
+ * title (see getDigestIconSrc), matching the original Discuz <th> layout.
  */
 export function getThreadIconSrc(thread: {
 	closed: number;
@@ -90,7 +96,6 @@ export function getThreadIconSrc(thread: {
 	// Sticky: displayorder 1-4 → pin_1..4.gif; clamp >4 to pin_4
 	if (thread.sticky >= StickyLevel.Forum)
 		return getStaticImageUrl(`pin_${Math.min(thread.sticky, 4)}.gif`);
-	if (thread.digest > 0) return getStaticImageUrl(`digest_${Math.min(thread.digest, 3)}.gif`);
 	// folder_new: last reply within 24 hours
 	const oneDayAgo = Math.floor(Date.now() / 1000) - 86400;
 	if (thread.lastPostAt > oneDayAgo) return getStaticImageUrl("folder_new.gif");
@@ -98,7 +103,17 @@ export function getThreadIconSrc(thread: {
 }
 
 /**
- * Badge types that are already conveyed by the thread icon column.
+ * Resolve the digest icon for the title area (right of subject).
+ * Matches forumdisplay_list.htm <th> digest_N.gif inline icon.
+ * Returns null for non-digest threads.
+ */
+export function getDigestIconSrc(digest: number): string | null {
+	if (digest <= 0) return null;
+	return getStaticImageUrl(`digest_${Math.min(digest, 3)}.gif`);
+}
+
+/**
+ * Badge types that are already conveyed by icons (left column or title area).
  * These are filtered out in the thread list to avoid redundancy.
  */
 const ICON_REPRESENTED_BADGE_TYPES = new Set(["sticky", "digest", "closed", "special"]);
