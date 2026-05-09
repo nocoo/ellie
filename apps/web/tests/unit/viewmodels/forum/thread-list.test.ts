@@ -8,6 +8,7 @@ import {
 	getThreadPageUrl,
 	highlightStyle,
 	pageToPostCursor,
+	resolveThreadPostCursor,
 } from "@/viewmodels/forum/thread-list";
 import { decodeHighlight, getThreadBadges } from "@ellie/types";
 import type { Thread } from "@ellie/types";
@@ -501,6 +502,14 @@ describe("getThreadPageCount", () => {
 		// 50 replies + 1 OP = 51 posts → ceil(51/10) = 6
 		expect(getThreadPageCount(50, 10)).toBe(6);
 	});
+
+	it("returns 1 when postsPerPage is 0 (guard)", () => {
+		expect(getThreadPageCount(100, 0)).toBe(1);
+	});
+
+	it("returns 1 when postsPerPage is negative (guard)", () => {
+		expect(getThreadPageCount(100, -5)).toBe(1);
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -578,5 +587,68 @@ describe("getThreadPageUrl", () => {
 	it("returns /threads/{id}?page=N for page > 1", () => {
 		expect(getThreadPageUrl(123, 2)).toBe("/threads/123?page=2");
 		expect(getThreadPageUrl(456, 5)).toBe("/threads/456?page=5");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// resolveThreadPostCursor
+// ---------------------------------------------------------------------------
+
+describe("resolveThreadPostCursor", () => {
+	const ppp = 20; // postsPerPage
+
+	it("returns no cursor for first page (no params)", () => {
+		const result = resolveThreadPostCursor({}, ppp);
+		expect(result).toEqual({ cursor: undefined, isLastPage: false });
+	});
+
+	it("returns no cursor for page=1", () => {
+		const result = resolveThreadPostCursor({ page: "1" }, ppp);
+		expect(result).toEqual({ cursor: undefined, isLastPage: false });
+	});
+
+	it("converts page=2 to position cursor", () => {
+		const result = resolveThreadPostCursor({ page: "2" }, ppp);
+		expect(result.isLastPage).toBe(false);
+		expect(result.cursor).toBeDefined();
+		const payload = JSON.parse(atob(result.cursor as string));
+		expect(payload.position).toBe(20);
+	});
+
+	it("converts page=3 to position cursor", () => {
+		const result = resolveThreadPostCursor({ page: "3" }, ppp);
+		const payload = JSON.parse(atob(result.cursor as string));
+		expect(payload.position).toBe(40);
+	});
+
+	it("explicit cursor takes priority over page", () => {
+		const result = resolveThreadPostCursor({ cursor: "abc123", page: "5" }, ppp);
+		expect(result.cursor).toBe("abc123");
+		expect(result.isLastPage).toBe(false);
+	});
+
+	it("last=1 takes priority over page", () => {
+		const result = resolveThreadPostCursor({ last: "1", page: "3" }, ppp);
+		expect(result.cursor).toBeUndefined();
+		expect(result.isLastPage).toBe(true);
+	});
+
+	it("last=0 does NOT suppress page (only last=1 is the flag)", () => {
+		const result = resolveThreadPostCursor({ last: "0", page: "2" }, ppp);
+		expect(result.isLastPage).toBe(false);
+		expect(result.cursor).toBeDefined();
+		const payload = JSON.parse(atob(result.cursor as string));
+		expect(payload.position).toBe(20);
+	});
+
+	it("explicit cursor takes priority over last=1", () => {
+		const result = resolveThreadPostCursor({ cursor: "abc", last: "1" }, ppp);
+		expect(result.cursor).toBe("abc");
+		expect(result.isLastPage).toBe(false);
+	});
+
+	it("ignores invalid page value", () => {
+		const result = resolveThreadPostCursor({ page: "abc" }, ppp);
+		expect(result).toEqual({ cursor: undefined, isLastPage: false });
 	});
 });
