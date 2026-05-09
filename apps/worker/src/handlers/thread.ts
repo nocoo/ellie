@@ -84,6 +84,7 @@ function mapThreadRows(results: unknown[], useKvCache: boolean): Thread[] {
 				highlight: r.highlight,
 				recommends: r.recommends,
 				typeName: r.type_name,
+				isAuthorFirstThread: r.is_author_first_thread === 1,
 			};
 		}
 	} else {
@@ -112,6 +113,7 @@ function mapThreadRows(results: unknown[], useKvCache: boolean): Thread[] {
 				highlight: r.highlight,
 				recommends: r.recommends,
 				typeName: r.type_name,
+				isAuthorFirstThread: r.is_author_first_thread === 1,
 			};
 		}
 	}
@@ -143,31 +145,35 @@ interface D1ThreadRowLike {
 	author_avatar_path?: string;
 	last_poster_avatar?: string;
 	last_poster_avatar_path?: string;
+	is_author_first_thread?: number;
 }
 
 /** Get thread list query based on cache strategy */
 // Pre-compute the four SQL templates produced by getThreadListQuery so we
 // don't rebuild them on every request. The shape only depends on two booleans
 // (useKvCache, withCursor) so a 2x2 lookup is enough.
+
+/** Correlated subquery: true when no earlier visible thread by the same author exists. */
+const IS_AUTHOR_FIRST_THREAD =
+	"(CASE WHEN t.author_id > 0 AND NOT EXISTS (SELECT 1 FROM threads t2 WHERE t2.author_id = t.author_id AND t2.sticky >= 0 AND (t2.created_at < t.created_at OR (t2.created_at = t.created_at AND t2.id < t.id))) THEN 1 ELSE 0 END) AS is_author_first_thread";
+
 const THREAD_LIST_QUERY_CACHE: Readonly<
 	Record<"kv" | "join", { withCursor: string; noCursor: string; offset: string }>
 > = (() => {
 	const build = (useKvCache: boolean, withCursor: boolean): string => {
 		const selectFields = useKvCache
-			? "*"
-			: "t.*, author.avatar AS author_avatar, author.avatar_path AS author_avatar_path, lp.avatar AS last_poster_avatar, lp.avatar_path AS last_poster_avatar_path";
+			? `t.*, ${IS_AUTHOR_FIRST_THREAD}`
+			: `t.*, author.avatar AS author_avatar, author.avatar_path AS author_avatar_path, lp.avatar AS last_poster_avatar, lp.avatar_path AS last_poster_avatar_path, ${IS_AUTHOR_FIRST_THREAD}`;
 		const fromClause = useKvCache
-			? "threads"
+			? "threads t"
 			: "threads t LEFT JOIN users author ON t.author_id = author.id LEFT JOIN users lp ON t.last_poster_id = lp.id";
-		const tablePrefix = useKvCache ? "" : "t.";
-		const whereClause = useKvCache
-			? `forum_id = ? AND ${THREAD_VISIBLE}`
-			: `t.forum_id = ? AND ${threadVisible("t")}`;
+		const whereClause = `t.forum_id = ? AND ${threadVisible("t")}`;
 		if (withCursor) {
-			const cursorCondition = `(${tablePrefix}sticky < ? OR (${tablePrefix}sticky = ? AND (${tablePrefix}last_post_at < ? OR (${tablePrefix}last_post_at = ? AND ${tablePrefix}id < ?))))`;
-			return `SELECT ${selectFields} FROM ${fromClause} WHERE ${whereClause} AND ${cursorCondition} ORDER BY ${tablePrefix}sticky DESC, ${tablePrefix}last_post_at DESC, ${tablePrefix}id DESC LIMIT ?`;
+			const cursorCondition =
+				"(t.sticky < ? OR (t.sticky = ? AND (t.last_post_at < ? OR (t.last_post_at = ? AND t.id < ?))))";
+			return `SELECT ${selectFields} FROM ${fromClause} WHERE ${whereClause} AND ${cursorCondition} ORDER BY t.sticky DESC, t.last_post_at DESC, t.id DESC LIMIT ?`;
 		}
-		return `SELECT ${selectFields} FROM ${fromClause} WHERE ${whereClause} ORDER BY ${tablePrefix}sticky DESC, ${tablePrefix}last_post_at DESC, ${tablePrefix}id DESC LIMIT ?`;
+		return `SELECT ${selectFields} FROM ${fromClause} WHERE ${whereClause} ORDER BY t.sticky DESC, t.last_post_at DESC, t.id DESC LIMIT ?`;
 	};
 	const entry = (useKvCache: boolean) => {
 		const noCursor = build(useKvCache, false);

@@ -7,6 +7,11 @@ export function getStaticImageUrl(filename: string): string {
 	return `${CDN_BASE}/static/image/common/${filename}`;
 }
 
+/** Stamp image URL under /static/image/stamp/ */
+export function getStampImageUrl(filename: string): string {
+	return `${CDN_BASE}/static/image/stamp/${filename}`;
+}
+
 /** Smiley image URL under /static/image/smiley/{directory}/{filename} */
 export function getSmileyUrl(directory: string, filename: string): string {
 	return `${CDN_BASE}/static/image/smiley/${directory}/${filename}`;

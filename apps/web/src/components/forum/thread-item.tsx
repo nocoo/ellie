@@ -20,7 +20,7 @@ interface ThreadItemProps {
 }
 
 export function ThreadItem({ item, postsPerPage }: ThreadItemProps) {
-	const { thread, badges, highlight: hl, iconSrc, digestSrc } = item;
+	const { thread, badges, highlight: hl, iconSrc, digestSrc, newbieStampSrc } = item;
 
 	return (
 		<div className="border-b border-border/50 last:border-0 transition-colors hover:bg-accent/50 focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset">
@@ -58,6 +58,7 @@ export function ThreadItem({ item, postsPerPage }: ThreadItemProps) {
 						{thread.subject}
 					</Link>
 					{digestSrc && <img src={digestSrc} alt="digest" className="shrink-0" />}
+					{newbieStampSrc && <img src={newbieStampSrc} alt="new" className="shrink-0" />}
 					<span className="shrink-0">
 						<ThreadInlinePages
 							threadId={thread.id}
@@ -125,6 +126,7 @@ export function ThreadItem({ item, postsPerPage }: ThreadItemProps) {
 								{thread.subject}
 							</Link>
 							{digestSrc && <img src={digestSrc} alt="digest" className="shrink-0" />}
+							{newbieStampSrc && <img src={newbieStampSrc} alt="new" className="shrink-0" />}
 							<span className="shrink-0">
 								<ThreadInlinePages
 									threadId={thread.id}
