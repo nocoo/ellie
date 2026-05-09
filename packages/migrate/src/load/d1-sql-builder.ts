@@ -104,6 +104,8 @@ export interface Manifest {
 			continuation_min_id?: number | null;
 			continuation_max_id?: number | null;
 			effective_chunk_size?: number;
+			exact_missing_ids_file?: string;
+			exact_missing_ids_count?: number;
 			chunks: number;
 			rows: number;
 			files: string[];

@@ -516,3 +516,187 @@ describe("--tables filter", () => {
 		expect(manifest.tables.users.rows).toBe(2);
 	});
 });
+
+// ─── --missing-ids exact filter tests ────────────────────────────────────
+
+describe("--missing-ids exact filter", () => {
+	const MID_OUT = join(TEST_DIR, "output-missing-ids");
+	const IDS_DIR = join(TEST_DIR, "missing-ids");
+
+	beforeAll(() => {
+		mkdirSync(IDS_DIR, { recursive: true });
+	});
+
+	function writeIdsFile(name: string, ids: number[]): string {
+		const path = join(IDS_DIR, name);
+		writeFileSync(path, `${ids.join("\n")}\n`);
+		return path;
+	}
+
+	function runMid(args: string[] = []): { stdout: string; exitCode: number } {
+		const cmd = [
+			"bun",
+			"run",
+			join(PROJECT_ROOT, "src/generate-d1-sql.ts"),
+			"--db",
+			DB_PATH,
+			"--out",
+			MID_OUT,
+			"--production-state",
+			PROD_STATE_PATH,
+			"--force",
+			...args,
+		].join(" ");
+		try {
+			const stdout = execSync(cmd, { encoding: "utf-8", cwd: PROJECT_ROOT, timeout: 30_000 });
+			return { stdout, exitCode: 0 };
+		} catch (e) {
+			const err = e as { status: number; stdout?: string; stderr?: string };
+			return { stdout: (err.stdout ?? "") + (err.stderr ?? ""), exitCode: err.status ?? 1 };
+		}
+	}
+
+	test("exact ids include both id<=prod_max and id>prod_max; nothing else from id>max", () => {
+		// threads in fixture: ids 1, 2, 10, 50 (≤max), 51, 52 (>max). prod_max=50.
+		// Pick missing ids that mix both sides: 10 (historical hole) + 52 (incremental).
+		// id 51 must NOT appear, id 1/2 must NOT appear.
+		const idsFile = writeIdsFile("threads.txt", [10, 52]);
+		const { exitCode, stdout } = runMid(["--missing-ids", `threads=${idsFile}`]);
+		expect(exitCode).toBe(0);
+		expect(stdout).toContain("exact missing-ids mode");
+
+		const sql = readFileSync(join(MID_OUT, "threads-001.sql"), "utf-8");
+		expect(sql).toContain("INSERT OR IGNORE INTO threads");
+		expect(sql).toContain("'Old thread 10'");
+		expect(sql).toContain("'New thread 52'");
+		expect(sql).not.toContain("'New thread 51'");
+		expect(sql).not.toContain("'Old thread 1'");
+		expect(sql).not.toContain("'Old thread 2'");
+		expect(sql).not.toContain("'Prod boundary'");
+
+		const manifest: Manifest = JSON.parse(readFileSync(join(MID_OUT, "manifest.json"), "utf-8"));
+		expect(manifest.tables.threads.exact_missing_ids_file).toBe(idsFile);
+		expect(manifest.tables.threads.exact_missing_ids_count).toBe(2);
+		expect(manifest.tables.threads.rows).toBe(2);
+		expect(manifest.tables.threads.chunks).toBe(1);
+		// source_rows_after_max kept for reference
+		expect(manifest.tables.threads.source_rows_after_max).toBe(2);
+	});
+
+	test("--missing-ids on threads does not affect users (still upsert all)", () => {
+		const idsFile = writeIdsFile("threads-only.txt", [10]);
+		const { exitCode } = runMid(["--missing-ids", `threads=${idsFile}`]);
+		expect(exitCode).toBe(0);
+		const manifest: Manifest = JSON.parse(readFileSync(join(MID_OUT, "manifest.json"), "utf-8"));
+		expect(manifest.tables.users.strategy).toBe("upsert");
+		expect(manifest.tables.users.rows).toBe(3);
+		expect(manifest.tables.users.exact_missing_ids_file).toBeUndefined();
+	});
+
+	test("rejects users in --missing-ids (whitelist)", () => {
+		const idsFile = writeIdsFile("users.txt", [1]);
+		const { exitCode, stdout } = runMid(["--missing-ids", `users=${idsFile}`]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("not allowed");
+	});
+
+	test("rejects forums in --missing-ids (whitelist)", () => {
+		const idsFile = writeIdsFile("forums.txt", [1]);
+		const { exitCode, stdout } = runMid(["--missing-ids", `forums=${idsFile}`]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("not allowed");
+	});
+
+	test("rejects user_checkins in --missing-ids (whitelist)", () => {
+		const idsFile = writeIdsFile("uc.txt", [1]);
+		const { exitCode, stdout } = runMid(["--missing-ids", `user_checkins=${idsFile}`]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("not allowed");
+	});
+
+	test("rejects duplicate ID inside file", () => {
+		const idsFile = writeIdsFile("dup.txt", [10, 52, 10]);
+		const { exitCode, stdout } = runMid(["--missing-ids", `threads=${idsFile}`]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("duplicate id");
+	});
+
+	test("rejects nonexistent file", () => {
+		const { exitCode, stdout } = runMid([
+			"--missing-ids",
+			`threads=${join(IDS_DIR, "does-not-exist.txt")}`,
+		]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("file not found");
+	});
+
+	test("rejects empty file", () => {
+		const idsFile = join(IDS_DIR, "empty.txt");
+		writeFileSync(idsFile, "\n\n  \n");
+		const { exitCode, stdout } = runMid(["--missing-ids", `threads=${idsFile}`]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("empty");
+	});
+
+	test("rejects non-positive-integer line", () => {
+		const idsFile = writeIdsFile("badline.txt", [10]);
+		writeFileSync(idsFile, "10\nabc\n");
+		const { exitCode, stdout } = runMid(["--missing-ids", `threads=${idsFile}`]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("non-positive-integer");
+	});
+
+	test("rejects 0 as id", () => {
+		const idsFile = join(IDS_DIR, "zero.txt");
+		writeFileSync(idsFile, "10\n0\n");
+		const { exitCode, stdout } = runMid(["--missing-ids", `threads=${idsFile}`]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("id must be > 0");
+	});
+
+	test("rejects negative id (parseInt-style)", () => {
+		const idsFile = join(IDS_DIR, "neg.txt");
+		writeFileSync(idsFile, "10\n-5\n");
+		const { exitCode, stdout } = runMid(["--missing-ids", `threads=${idsFile}`]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("non-positive-integer");
+	});
+
+	test("rejects malformed entry (no =)", () => {
+		const { exitCode, stdout } = runMid(["--missing-ids", "threads"]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain('must be "table=file"');
+	});
+
+	test("fails when missing-id file references id absent from source DB (drift)", () => {
+		// id 999 does not exist in fixture threads
+		const idsFile = writeIdsFile("drift.txt", [10, 999]);
+		const { exitCode, stdout } = runMid(["--missing-ids", `threads=${idsFile}`]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("--missing-ids drift");
+		expect(stdout).toContain("threads");
+	});
+
+	test("multiple tables in one --missing-ids flag", () => {
+		const tFile = writeIdsFile("multi-threads.txt", [10, 52]);
+		const pFile = writeIdsFile("multi-posts.txt", [1, 100]); // id<=100 historical + id<=100 boundary
+		const { exitCode } = runMid(["--missing-ids", `threads=${tFile},posts=${pFile}`]);
+		expect(exitCode).toBe(0);
+		const manifest: Manifest = JSON.parse(readFileSync(join(MID_OUT, "manifest.json"), "utf-8"));
+		expect(manifest.tables.threads.exact_missing_ids_count).toBe(2);
+		expect(manifest.tables.posts.exact_missing_ids_count).toBe(2);
+		expect(manifest.tables.posts.rows).toBe(2);
+		const postsSql = readFileSync(join(MID_OUT, "posts-001.sql"), "utf-8");
+		expect(postsSql).toContain("'Old post'");
+		expect(postsSql).toContain("'Prod boundary post'");
+		expect(postsSql).not.toContain("'New post 101'");
+	});
+
+	test("rejects duplicate table key in --missing-ids", () => {
+		const a = writeIdsFile("dup-a.txt", [10]);
+		const b = writeIdsFile("dup-b.txt", [52]);
+		const { exitCode, stdout } = runMid(["--missing-ids", `threads=${a},threads=${b}`]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("duplicate entry for table");
+	});
+});
