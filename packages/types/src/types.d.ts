@@ -1,3 +1,4 @@
+import type { UserCheckinSummary } from "./checkin";
 /**
  * User role — maps to Doc02 users.role (from DZ adminid)
  *
@@ -141,6 +142,8 @@ export interface PublicUser {
     site: string;
     /** 校区 — campus affiliation, e.g. "四平路校区" / "校外人士". Empty if not set. */
     campus: string;
+    /** Daily check-in summary. `null` when the user has never checked in. */
+    checkin: UserCheckinSummary | null;
     regIp?: string;
     lastIp?: string;
 }
@@ -179,6 +182,8 @@ export interface User {
     site: string;
     /** 校区 — campus affiliation, e.g. "四平路校区" / "校外人士". Empty if not set. */
     campus: string;
+    /** Daily check-in summary. `null` when the user has never checked in. */
+    checkin: UserCheckinSummary | null;
     lastActivity: number;
     /**
      * Email verification state — see docs/17-email-verification.md §3, §6.1.

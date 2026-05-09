@@ -18,6 +18,19 @@ export interface UserCheckin {
 	lastCheckinAt: number; // unix seconds
 }
 
+/**
+ * Public-facing check-in summary attached to user payloads.
+ * `level` is resolved from `totalDays` via `getCheckinLevel`; null when the
+ * user has never checked in (totalDays = 0).
+ */
+export interface UserCheckinSummary {
+	totalDays: number;
+	monthDays: number;
+	streakDays: number;
+	lastCheckinAt: number; // unix seconds, 0 if never
+	level: CheckinLevel | null;
+}
+
 // ─── Moods ──────────────────────────────────────────────────
 
 /**

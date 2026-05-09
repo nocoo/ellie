@@ -11,6 +11,18 @@ export interface UserCheckin {
     lastCheckinAt: number;
 }
 /**
+ * Public-facing check-in summary attached to user payloads.
+ * `level` is resolved from `totalDays` via `getCheckinLevel`; null when the
+ * user has never checked in (totalDays = 0).
+ */
+export interface UserCheckinSummary {
+    totalDays: number;
+    monthDays: number;
+    streakDays: number;
+    lastCheckinAt: number;
+    level: CheckinLevel | null;
+}
+/**
  * Emotion codes from dsu_paulsign (pre_dsu_paulsignemot).
  * Keys = DB `mood` column values; values = Chinese display labels.
  * GIF assets: `public/emot/<code>.gif`

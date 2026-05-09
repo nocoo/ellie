@@ -652,6 +652,14 @@ describe("publicUserToUser", () => {
 			qq: "123456",
 			site: "https://example.com",
 			campus: "四平路校区",
+			avatarPath: "",
+			checkin: {
+				totalDays: 365,
+				monthDays: 28,
+				streakDays: 90,
+				lastCheckinAt: 1700001000,
+				level: { minDays: 365, level: 9, label: "以坛为家II" } as const,
+			},
 		};
 
 		const user = publicUserToUser(publicUser);
@@ -663,6 +671,8 @@ describe("publicUserToUser", () => {
 		expect(user.role).toBe(0);
 		expect(user.regDate).toBe(1700000000);
 		expect(user.campus).toBe("四平路校区");
+		expect(user.checkin?.totalDays).toBe(365);
+		expect(user.checkin?.level?.label).toBe("以坛为家II");
 
 		// User-only fields filled with safe defaults
 		expect(user.email).toBe("");
@@ -700,6 +710,8 @@ describe("publicUserToUser", () => {
 			qq: "",
 			site: "",
 			campus: "",
+			avatarPath: "",
+			checkin: null,
 		};
 
 		const user = publicUserToUser(publicUser);
@@ -708,5 +720,6 @@ describe("publicUserToUser", () => {
 		expect(user.groupTitle).toBe("Admin");
 		expect(user.customTitle).toBe("Administrator");
 		expect(user.campus).toBe("");
+		expect(user.checkin).toBeNull();
 	});
 });

@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
 	formatBirthday,
+	formatCheckinDays,
+	formatCheckinLevel,
 	formatGender,
 	formatLastActivity,
 	formatLocation,
@@ -18,9 +20,13 @@ export function UserInfoCard({ user }: { user: UserProfileData["user"] }) {
 	const location = formatLocation(user.resideProvince, user.resideCity);
 	const olTime = formatOlTime(user.olTime);
 	const lastActive = formatLastActivity(user.lastActivity);
+	const checkinLevel = formatCheckinLevel(user.checkin);
+	const checkinDays = formatCheckinDays(user.checkin?.totalDays);
 
 	// Collect all info rows — only show card if at least one field has data
 	const infoRows: { label: string; value: string }[] = [];
+	if (checkinLevel) infoRows.push({ label: "签到等级", value: checkinLevel });
+	if (checkinDays) infoRows.push({ label: "签到天数", value: checkinDays });
 	if (user.campus) infoRows.push({ label: "校区", value: user.campus });
 	if (gender) infoRows.push({ label: "性别", value: gender });
 	if (birthday) infoRows.push({ label: "生日", value: birthday });

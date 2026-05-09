@@ -10,7 +10,7 @@ export { encodeCursor, decodeCursor, encodeGenericCursor, decodeGenericCursor, D
 export { isUserMuted, isUserBanned } from "./user";
 export type { EmailNotVerifiedCtaVariant, EmailNotVerifiedDialog, EmailNotVerifiedPayload, EmailRequestCodeBody, EmailVerifyCodeBody, } from "./email-verification";
 export { EMAIL_NOT_VERIFIED_PAYLOAD, cloneEmailNotVerifiedPayload, } from "./email-verification";
-export type { UserCheckin, CheckinMood, CheckinLevel } from "./checkin";
+export type { UserCheckin, UserCheckinSummary, CheckinMood, CheckinLevel } from "./checkin";
 export { CHECKIN_MOODS, CHECKIN_LEVELS, CHECKIN_REWARD_MIN, CHECKIN_REWARD_MAX, CHECKIN_HOUR_START, CHECKIN_HOUR_END_EXCLUSIVE, CHECKIN_TIMEZONE, getCheckinLevel, } from "./checkin";
 export type { PermissionUser, PermissionForum, PermissionPost, PermissionThread, } from "./permission";
 export { canViewForum, canCreateThread, canReplyToThread, canModerate, canAccessAdmin, canManageUsers, canEditPost, canDeletePost, canDeleteThread, canManageThread, canMoveThread, } from "./permission";

@@ -97,6 +97,7 @@ describe("D1 row mappers", () => {
 				lastIp: undefined,
 				purgedAt: 0,
 				purgedBy: 0,
+				checkin: null,
 			});
 		});
 
@@ -186,8 +187,8 @@ describe("D1 row mappers", () => {
 			};
 
 			const user = toUser(row);
-			// 37 base columns + purgedAt + purgedBy (D4-a tombstone fields) + campus.
-			expect(Object.keys(user)).toHaveLength(40);
+			// 37 base columns + purgedAt + purgedBy (D4-a tombstone fields) + campus + checkin.
+			expect(Object.keys(user)).toHaveLength(41);
 		});
 
 		it("should default campus to empty string when column missing", () => {
@@ -598,6 +599,7 @@ describe("D1 row mappers", () => {
 				qq: "12345",
 				site: "https://example.com",
 				campus: "嘉定校区",
+				checkin: null,
 			});
 		});
 
@@ -669,7 +671,7 @@ describe("D1 row mappers", () => {
 			};
 
 			const user = toPublicUser(row);
-			expect(Object.keys(user)).toHaveLength(30);
+			expect(Object.keys(user)).toHaveLength(31);
 		});
 
 		it("should include regIp and lastIp when includeIp is true", () => {
@@ -709,7 +711,93 @@ describe("D1 row mappers", () => {
 			const user = toPublicUser(row, true);
 			expect(user.regIp).toBe("192.168.1.1");
 			expect(user.lastIp).toBe("10.0.0.1");
-			expect(Object.keys(user)).toHaveLength(32);
+			expect(Object.keys(user)).toHaveLength(33);
+		});
+
+		it("should build a checkin summary when LEFT JOIN columns are present", () => {
+			const row = {
+				id: 1,
+				username: "alice",
+				avatar: "",
+				avatar_path: "",
+				role: 0,
+				reg_date: 0,
+				threads: 0,
+				posts: 0,
+				credits: 0,
+				signature: "",
+				group_title: "",
+				group_stars: 0,
+				group_color: "",
+				custom_title: "",
+				digest_posts: 0,
+				ol_time: 0,
+				last_activity: 0,
+				gender: 0,
+				birth_year: 0,
+				birth_month: 0,
+				birth_day: 0,
+				reside_province: "",
+				reside_city: "",
+				graduate_school: "",
+				bio: "",
+				interest: "",
+				qq: "",
+				site: "",
+				campus: "",
+				checkin_total_days: 365,
+				checkin_month_days: 28,
+				checkin_streak_days: 90,
+				checkin_last_checkin_at: 1711612800,
+			};
+
+			const user = toPublicUser(row);
+			expect(user.checkin).not.toBeNull();
+			expect(user.checkin?.totalDays).toBe(365);
+			expect(user.checkin?.monthDays).toBe(28);
+			expect(user.checkin?.streakDays).toBe(90);
+			expect(user.checkin?.lastCheckinAt).toBe(1711612800);
+			expect(user.checkin?.level?.level).toBe(9);
+			expect(user.checkin?.level?.label).toBe("以坛为家II");
+		});
+
+		it("should default checkin to null when LEFT JOIN columns are missing or zero", () => {
+			const baseRow = {
+				id: 1,
+				username: "alice",
+				avatar: "",
+				avatar_path: "",
+				role: 0,
+				reg_date: 0,
+				threads: 0,
+				posts: 0,
+				credits: 0,
+				signature: "",
+				group_title: "",
+				group_stars: 0,
+				group_color: "",
+				custom_title: "",
+				digest_posts: 0,
+				ol_time: 0,
+				last_activity: 0,
+				gender: 0,
+				birth_year: 0,
+				birth_month: 0,
+				birth_day: 0,
+				reside_province: "",
+				reside_city: "",
+				graduate_school: "",
+				bio: "",
+				interest: "",
+				qq: "",
+				site: "",
+				campus: "",
+			};
+
+			expect(toPublicUser(baseRow).checkin).toBeNull();
+			expect(toPublicUser({ ...baseRow, checkin_total_days: 0 }).checkin).toBeNull();
+			expect(toPublicUser({ ...baseRow, checkin_total_days: null }).checkin).toBeNull();
+			expect(toUser(baseRow).checkin).toBeNull();
 		});
 	});
 
