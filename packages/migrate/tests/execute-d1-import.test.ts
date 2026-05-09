@@ -990,3 +990,83 @@ describe("verify-warning-success", () => {
 		expect(stdout).not.toContain("WARNING-only");
 	});
 });
+
+// ─── Windowed canary row count verification ────────────────────────────────
+
+describe("windowed canary row count verification", () => {
+	test("windowed upsert uses production baseline, not source_total_rows", () => {
+		// Simulate a windowed canary: source has 1M users, but canary only covers 1200.
+		// production_state says 100 users exist in remote.
+		// Fake wrangler returns cnt=100 for COUNT queries.
+		// Without the fix, this would compare 100 >= 1000000 → fail.
+		// With the fix, it compares 100 >= 100 (production baseline) → pass.
+		const manifest = makeManifest({
+			total_chunks: 1,
+			total_rows: 1200,
+			tables: {
+				users: {
+					strategy: "upsert",
+					prod_max_id: null,
+					source_total_rows: 1000000,
+					source_rows_after_max: 1200,
+					continuation_max_id: 5000,
+					chunks: 1,
+					rows: 1200,
+					files: ["users-001.sql"],
+				},
+			},
+			chunks: [
+				{
+					file: "users-001.sql",
+					table: "users",
+					rows: 1200,
+					bytes: 500,
+					strategy: "upsert" as const,
+					pk_list: [1, 2, 3],
+				},
+			],
+		});
+		const manifestPath = setupFixture("windowed-canary-pass", manifest);
+		const { exitCode, stdout } = runExecutor(manifestPath, [], { fakeMode: "succeed" });
+		expect(exitCode).toBe(0);
+		expect(stdout).toContain("windowed canary");
+		expect(stdout).toContain("Import complete and verified");
+	});
+
+	test("full upsert still uses source_total_rows (no continuation_max_id)", () => {
+		// Full upsert without windowing: source has 1M users.
+		// Fake wrangler returns cnt=100 for COUNT queries.
+		// 100 < 1000000 → verification should fail.
+		const manifest = makeManifest({
+			total_chunks: 1,
+			total_rows: 1000000,
+			tables: {
+				users: {
+					strategy: "upsert",
+					prod_max_id: null,
+					source_total_rows: 1000000,
+					source_rows_after_max: null,
+					chunks: 1,
+					rows: 1000000,
+					files: ["users-001.sql"],
+				},
+			},
+			chunks: [
+				{
+					file: "users-001.sql",
+					table: "users",
+					rows: 1000000,
+					bytes: 500,
+					strategy: "upsert" as const,
+					pk_list: [1, 2, 3],
+				},
+			],
+		});
+		const manifestPath = setupFixture("full-upsert-fail", manifest);
+		const { exitCode, stdout } = runExecutor(manifestPath, [], { fakeMode: "succeed" });
+		// Verification fails: 100 < 1000000
+		expect(exitCode).not.toBe(0);
+		expect(stdout).not.toContain("windowed canary");
+		expect(stdout).toContain("verification FAILED");
+	});
+});
