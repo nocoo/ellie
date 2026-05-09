@@ -46,6 +46,7 @@
 			".next",
 			"coverage",
 			"reference",
+			"output",
 			"*.sql",
 			"*.sql.gz",
 			".wrangler",

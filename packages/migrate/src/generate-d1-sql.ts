@@ -327,7 +327,7 @@ const manifest: Manifest = {
 	chunks: allChunks,
 };
 
-writeFileSync(`${OUT_DIR}/manifest.json`, `${JSON.stringify(manifest, null, 2)}\n`);
+writeFileSync(`${OUT_DIR}/manifest.json`, `${JSON.stringify(manifest, null, "\t")}\n`);
 
 // Summary
 log("=== Summary ===");
