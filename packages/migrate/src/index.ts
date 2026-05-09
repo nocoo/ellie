@@ -40,6 +40,7 @@ import { type SourceFiles, resolveSourceFiles } from "./extract/source-resolver"
 import { BatchLoader } from "./load/batch-insert";
 import { MigrationLogger } from "./load/logger";
 import { CHECKINS_UPSERT_COLUMNS } from "./load/schema";
+import { createDeletedUserPlaceholder } from "./load/sql-builder";
 import { verifyEncoding } from "./verify/encoding";
 import { type ExpectedCounts, verifyIntegrity } from "./verify/integrity";
 import { verifyPerformance } from "./verify/performance";
@@ -369,43 +370,7 @@ export async function migrateThreads(
 		log(`  Creating ${missingAuthorIds.size} placeholder users for deleted thread authors...`);
 		const userInserter = loader.createStreamInserter("users");
 		for (const uid of missingAuthorIds) {
-			userInserter.add({
-				id: uid,
-				username: `[已删除用户${uid}]`,
-				email: "",
-				password_hash: "",
-				password_salt: "",
-				avatar: "",
-				status: -3, // Placeholder status
-				role: 0,
-				reg_date: 0,
-				last_login: 0,
-				threads: 0,
-				posts: 0,
-				credits: 0,
-				signature: "",
-				group_title: "",
-				group_stars: 0,
-				group_color: "",
-				custom_title: "",
-				digest_posts: 0,
-				ol_time: 0,
-				gender: 0,
-				birth_year: 0,
-				birth_month: 0,
-				birth_day: 0,
-				reside_province: "",
-				reside_city: "",
-				graduate_school: "",
-				bio: "",
-				interest: "",
-				qq: "",
-				site: "",
-				last_activity: 0,
-				reg_ip: "",
-				last_ip: "",
-				campus: "",
-			});
+			userInserter.add(createDeletedUserPlaceholder(uid));
 			userIds.add(uid);
 		}
 		const placeholders = userInserter.flush();
@@ -509,43 +474,7 @@ export async function migratePosts(
 		log(`  Creating ${missingAuthorIds.size} placeholder users for deleted post authors...`);
 		const userInserter = loader.createStreamInserter("users");
 		for (const uid of missingAuthorIds) {
-			userInserter.add({
-				id: uid,
-				username: `[已删除用户${uid}]`,
-				email: "",
-				password_hash: "",
-				password_salt: "",
-				avatar: "",
-				status: -3, // Placeholder status
-				role: 0,
-				reg_date: 0,
-				last_login: 0,
-				threads: 0,
-				posts: 0,
-				credits: 0,
-				signature: "",
-				group_title: "",
-				group_stars: 0,
-				group_color: "",
-				custom_title: "",
-				digest_posts: 0,
-				ol_time: 0,
-				gender: 0,
-				birth_year: 0,
-				birth_month: 0,
-				birth_day: 0,
-				reside_province: "",
-				reside_city: "",
-				graduate_school: "",
-				bio: "",
-				interest: "",
-				qq: "",
-				site: "",
-				last_activity: 0,
-				reg_ip: "",
-				last_ip: "",
-				campus: "",
-			});
+			userInserter.add(createDeletedUserPlaceholder(uid));
 			userIds.add(uid);
 		}
 		const placeholders = userInserter.flush();
