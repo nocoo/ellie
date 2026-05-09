@@ -203,8 +203,10 @@ path) **must reflect the latest *visible* thread**, not the raw
 
 Concretely:
 - "Visible" = `THREAD_VISIBLE` SQL fragment **plus** `sticky >= 0` (i.e. not
-  a soft-hidden / recycled thread). See `fetchVisibleLastThreads` in
-  `apps/worker/src/lib/cache/forum-read.ts`.
+  a soft-hidden / recycled thread). The list snapshot uses
+  `fetchVisibleLastThreadsForSnapshot` in
+  `apps/worker/src/lib/cache/forum-read.ts`; the getById meta miss path
+  uses `fetchVisibleLastThreads` in `apps/worker/src/handlers/forum.ts`.
 - The cached row's `last_thread_id`, `last_thread_subject`, `last_post_at`,
   `last_poster`, `last_poster_id`, **avatar fields** are taken from the
   visible-last-thread query result. If no visible thread exists, all of
@@ -345,7 +347,7 @@ Implemented under `apps/worker/src/lib/cache/`:
   `forums:volatile:v1` path inside `apps/worker/src/lib/forum-cache.ts`.
 - **Phase 2 ships v2 forum read path behind a separate flag
   `USE_KV_FORUM_CACHE_V2`** (`apps/worker/src/lib/env.ts` →
-  `isForumCacheV2Enabled`). Default is **off**: the read handlers fall
+  `isKvForumCacheV2Enabled`). Default is **off**: the read handlers fall
   through to the legacy v1 path. Cutover (default-on / v1 removal) is
   intentionally **not** part of Phase 2; it happens in Phase 7 after
   `gate:full` has run green for at least one phase with the flag turned on
