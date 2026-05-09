@@ -24,6 +24,7 @@ import {
 	extractCheckin,
 	extractForum,
 	extractPost,
+	extractPostComment,
 	extractThread,
 	extractUser,
 	parseAttachmentIndex,
@@ -56,6 +57,7 @@ export interface MigrateStats {
 	threads: number;
 	posts: number;
 	attachments: number;
+	post_comments: number;
 	checkins: number;
 	skipped: { [key: string]: number };
 	errors: string[];
@@ -608,7 +610,137 @@ export async function migrateAttachments(
 	};
 }
 
-// ─── Step 6: Checkins ─────────────────────────────────────────────────────
+// ─── Step 6: Post Comments (点评) ───────────────────────────────────────────
+
+/**
+ * Migrate post_comments from pre_forum_postcomment.
+ *
+ * FKs: thread_id → threads, post_id → posts, author_id → users.
+ * Missing FK targets get placeholder rows (mirrors attachments strategy)
+ * so post_comments rows survive without dropping.
+ */
+export async function migratePostComments(
+	loader: BatchLoader,
+	sources: SourceFiles,
+	userIds: Set<number>,
+	threadIds: Set<number>,
+	postIds: Set<number>,
+): Promise<{
+	total: number;
+	missingUsers: number;
+	missingThreads: number;
+	missingPosts: number;
+}> {
+	log("=== Post Comments ===");
+
+	if (!sources.postcomments) {
+		log("  No postcomment dump found — skipping");
+		return { total: 0, missingUsers: 0, missingThreads: 0, missingPosts: 0 };
+	}
+
+	const inserter = loader.createStreamInserter("post_comments");
+	const missingUserIds = new Set<number>();
+	const missingThreadIds = new Set<number>();
+	const missingPostIds = new Set<number>();
+
+	log("  Parsing pre_forum_postcomment...");
+	await parseDumpFile(sources.postcomments, "pre_forum_postcomment", (row) => {
+		const record = extractPostComment(row);
+		if (!record) return;
+
+		const aid = record.author_id as number;
+		if (aid > 0 && !userIds.has(aid)) {
+			missingUserIds.add(aid);
+		}
+		const tid = record.thread_id as number;
+		if (tid > 0 && !threadIds.has(tid)) {
+			missingThreadIds.add(tid);
+		}
+		const pid = record.post_id as number;
+		if (pid > 0 && !postIds.has(pid)) {
+			missingPostIds.add(pid);
+		}
+
+		inserter.add(record);
+	});
+
+	const total = inserter.flush();
+
+	if (missingUserIds.size > 0) {
+		log(`  Creating ${missingUserIds.size} placeholder users for orphan post_comments...`);
+		const userInserter = loader.createStreamInserter("users");
+		for (const uid of missingUserIds) {
+			userInserter.add(createDeletedUserPlaceholder(uid));
+			userIds.add(uid);
+		}
+		const placeholders = userInserter.flush();
+		log(`  Created ${placeholders} placeholder users for post_comments`);
+	}
+
+	if (missingThreadIds.size > 0) {
+		log(`  Creating ${missingThreadIds.size} placeholder threads for orphan post_comments...`);
+		const threadInserter = loader.createStreamInserter("threads");
+		for (const tid of missingThreadIds) {
+			threadInserter.add({
+				id: tid,
+				forum_id: 0,
+				author_id: 0,
+				author_name: "",
+				subject: `[已删除主题${tid}]`,
+				created_at: 0,
+				last_post_at: 0,
+				last_poster: "",
+				replies: 0,
+				views: 0,
+				closed: 0,
+				sticky: -99,
+				digest: 0,
+				special: 0,
+				highlight: 0,
+				recommends: 0,
+				post_table_id: 0,
+				type_name: "",
+			});
+			threadIds.add(tid);
+		}
+		const placeholders = threadInserter.flush();
+		log(`  Created ${placeholders} placeholder threads for post_comments`);
+	}
+
+	if (missingPostIds.size > 0) {
+		log(`  Creating ${missingPostIds.size} placeholder posts for orphan post_comments...`);
+		const postInserter = loader.createStreamInserter("posts");
+		for (const pid of missingPostIds) {
+			postInserter.add({
+				id: pid,
+				thread_id: 0,
+				forum_id: 0,
+				author_id: 0,
+				author_name: "",
+				content: "[已删除帖子]",
+				created_at: 0,
+				is_first: 0,
+				position: 0,
+				invisible: -1,
+			});
+			postIds.add(pid);
+		}
+		const placeholders = postInserter.flush();
+		log(`  Created ${placeholders} placeholder posts for post_comments`);
+	}
+
+	log(
+		`  Post Comments: ${total} inserted, ${missingUserIds.size} missing users, ${missingThreadIds.size} missing threads, ${missingPostIds.size} missing posts`,
+	);
+	return {
+		total,
+		missingUsers: missingUserIds.size,
+		missingThreads: missingThreadIds.size,
+		missingPosts: missingPostIds.size,
+	};
+}
+
+// ─── Step 7: Checkins ─────────────────────────────────────────────────────
 
 /**
  * Migrate user_checkins from pre_dsu_paulsign + pre_dsu_paulsign2.
@@ -711,6 +843,7 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 		threads: 0,
 		posts: 0,
 		attachments: 0,
+		post_comments: 0,
 		checkins: 0,
 		skipped: {},
 		errors: [],
@@ -794,6 +927,22 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 		stats.skipped.attachMissingPosts = attachResult.missingPosts;
 		stats.skipped.attachMissingThreads = attachResult.missingThreads;
 
+		// Post comments (after posts/threads/users; placeholders auto-fill missing FKs)
+		const pcResult = await migratePostComments(
+			loader,
+			sources,
+			userResult.userIds,
+			threadResult.threadIds,
+			postResult.postIds,
+		);
+		stats.post_comments = pcResult.total;
+		stats.users += pcResult.missingUsers;
+		stats.threads += pcResult.missingThreads;
+		stats.posts += pcResult.missingPosts;
+		stats.skipped.pcMissingUsers = pcResult.missingUsers;
+		stats.skipped.pcMissingThreads = pcResult.missingThreads;
+		stats.skipped.pcMissingPosts = pcResult.missingPosts;
+
 		// Checkins (after users, uses WHERE EXISTS)
 		const checkinResult = await migrateCheckins(loader, sources);
 		stats.checkins = checkinResult.eligible;
@@ -813,6 +962,7 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 			threads: stats.threads,
 			posts: stats.posts,
 			attachments: stats.attachments,
+			post_comments: stats.post_comments,
 			checkins: stats.checkins,
 		};
 
@@ -854,6 +1004,7 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 	log(`  Threads:     ${stats.threads.toLocaleString()}`);
 	log(`  Posts:       ${stats.posts.toLocaleString()}`);
 	log(`  Attachments: ${stats.attachments.toLocaleString()}`);
+	log(`  Post Comments: ${stats.post_comments.toLocaleString()}`);
 	log(`  Checkins:    ${stats.checkins.toLocaleString()}`);
 
 	return stats;

@@ -437,11 +437,15 @@ describe("shared logic", () => {
 		expect(order.indexOf("users")).toBeLessThan(order.indexOf("threads"));
 		expect(order.indexOf("threads")).toBeLessThan(order.indexOf("posts"));
 		expect(order.indexOf("posts")).toBeLessThan(order.indexOf("attachments"));
+		expect(order.indexOf("posts")).toBeLessThan(order.indexOf("post_comments"));
+		expect(order.indexOf("threads")).toBeLessThan(order.indexOf("post_comments"));
+		expect(order.indexOf("users")).toBeLessThan(order.indexOf("post_comments"));
+		expect(order.indexOf("post_comments")).toBeLessThan(order.indexOf("user_checkins"));
 		expect(order.indexOf("users")).toBeLessThan(order.indexOf("user_checkins"));
 	});
 
-	test("FK_RELATIONS includes all 9 canonical FK checks", () => {
-		expect(FK_RELATIONS).toHaveLength(9);
+	test("FK_RELATIONS includes all 12 canonical FK checks", () => {
+		expect(FK_RELATIONS).toHaveLength(12);
 		const keys = FK_RELATIONS.map((r) => `${r.table}.${r.col}->${r.ref}.${r.refCol}`);
 		expect(keys).toContain("threads.forum_id->forums.id");
 		expect(keys).toContain("threads.author_id->users.id");
@@ -451,6 +455,9 @@ describe("shared logic", () => {
 		expect(keys).toContain("attachments.post_id->posts.id");
 		expect(keys).toContain("attachments.thread_id->threads.id");
 		expect(keys).toContain("attachments.author_id->users.id");
+		expect(keys).toContain("post_comments.thread_id->threads.id");
+		expect(keys).toContain("post_comments.post_id->posts.id");
+		expect(keys).toContain("post_comments.author_id->users.id");
 		expect(keys).toContain("user_checkins.user_id->users.id");
 	});
 
