@@ -113,12 +113,10 @@ export const recalcForums = withEntityAuth(
 
 		// Cache invalidation (docs/19 §6 row "admin statistics recalc-forums"):
 		// recalcForums rewrites aggregate fields (threads/posts/last-post)
-		// consumed by the volatile/summary layer; the tree layer is not
-		// touched because structure / visibility / description / moderators
-		// did not change.
-		// - Legacy: drop forums:volatile:v1.
-		// - v2: bump forum:summary:gen.
-		await Promise.all([bumpForumSummaryGen(env)]);
+		// consumed by the summary layer; the tree layer is not touched
+		// because structure / visibility / description / moderators did
+		// not change.
+		await bumpForumSummaryGen(env);
 
 		return jsonResponse({ updated: forumIds.length }, origin);
 	},
@@ -221,12 +219,11 @@ export const recalcThreads = withEntityAuth(
 		}
 
 		// Cache invalidation (docs/19 §6 row "admin statistics recalc-threads"):
-		// - Legacy: drop forums:volatile:v1 (last-post / counts may have
-		//   shifted as a side-effect of recalculating thread last-post).
-		// - v2: bump forum:summary:gen. Per docs/19 §3.3.1, before
-		//   thread:list:v2 / thread:meta:v2 ship (Phase 3/4) this
-		//   invalidation MUST be extended.
-		await Promise.all([bumpForumSummaryGen(env)]);
+		// bump forum:summary:gen (last-post / counts may have shifted as a
+		// side-effect of recalculating thread last-post). Per docs/19
+		// §3.3.1, before thread:list:v2 / thread:meta:v2 ship (Phase 3/4)
+		// this invalidation MUST be extended.
+		await bumpForumSummaryGen(env);
 
 		return jsonResponse({ updated: threadData.length }, origin);
 	},
@@ -312,9 +309,9 @@ export const recalcUsers = withEntityAuth(
 		}
 
 		// Cache invalidation (docs/19 §6 row "admin statistics recalc-users"):
-		// - Legacy: drop user:mini:<id> per user.
-		// - v2: drop user:mini:v2:<id> + both viewer-bucket variants of
-		//   user:public:v2:<id> per user.
+		// drop user:mini:<id> (v1) AND user:mini:v2:<id> + both viewer-bucket
+		// variants of user:public:v2:<id> per user. The v1 user-cache
+		// helpers will retire when user:mini ships its v2 schema (Phase 6).
 		// Run as a chunked best-effort sweep so a large user set doesn't
 		// fan out thousands of concurrent KV calls; KV failures are
 		// already swallowed inside the helpers.

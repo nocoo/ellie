@@ -5,7 +5,6 @@
 //   - cache HIT path = 0 D1 calls (auth verify aside)
 //   - cache MISS path writes only the requesting bucket's key
 //   - getById 403 / 404 → no KV write
-//   - flag disabled → no v2 KV interaction at all
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getAncestors, getById, list } from "../../../src/handlers/forum";
@@ -109,7 +108,7 @@ function makeD1Mock(
 					all: vi.fn(async () => ({ results: forumRows })),
 				};
 			}
-			// legacy list snapshot: SELECT f.*, u.avatar... FROM forums f LEFT JOIN users
+			// list snapshot: SELECT f.*, u.avatar... FROM forums f LEFT JOIN users
 			if (
 				sql.includes("FROM forums f") &&
 				sql.includes("LEFT JOIN users") &&
@@ -155,8 +154,7 @@ function makeD1Mock(
 					})),
 				};
 			}
-			// getById raw row (v2 path uses plain SELECT * FROM forums WHERE id = ?,
-			// legacy path may still use the LEFT JOIN form).
+			// getById raw row uses plain SELECT * FROM forums WHERE id = ?.
 			if (
 				sql.includes("FROM forums") &&
 				sql.includes("WHERE") &&
@@ -760,9 +758,3 @@ describe("forum.getAncestors — v2 cache", () => {
 		expect(res.status).toBe(200);
 	});
 });
-
-// ─── disabled flag ──────────────────────────────────────────────────
-//
-// v2 is the only forum cache path now — flag-disabled scenario removed
-// alongside USE_KV_FORUM_CACHE_V2 in commit "remove forum v2 flag +
-// legacy v1 forum cache path".

@@ -54,9 +54,10 @@ for primitives that are reused across many list views (`user:mini`,
 <domain>:<view-or-entity>:<schemaVer>:<scopeKeys...>:[g<gen>]
 ```
 - `domain`: `forum | thread | post | digest | user | pm | search | settings | stats | sys`
-- `schemaVer`: `v2`. (`v1` is reserved for the legacy `forums:tree:v1` /
-  `forums:volatile:v1` / `user:mini:` / `settings:all` / `public-stats` keys.
-  Legacy keys remain in place until §8 retires them.)
+- `schemaVer`: `v2`. (`v1` is the historical schema; the `forums:tree:v1` /
+  `forums:volatile:v1` forum cache has been removed. Any remaining `v1` keys
+  for unrelated domains — `user:mini:`, `settings:all`, `public-stats` — are
+  scheduled to migrate to the `v2` schema in their respective phases.)
 - Trailing `g<gen>`: optional generation token embedded in the key. After a
   bump, old gens are simply unreferenced and expire by TTL — no fanout delete.
 
@@ -341,25 +342,22 @@ Implemented under `apps/worker/src/lib/cache/`:
 
 ---
 
-## 8. Feature flags & legacy
+## 8. Schema migration history
 
-- The legacy `USE_KV_FORUM_CACHE` flag controls the `v1` `forums:tree:v1` /
-  `forums:volatile:v1` path inside `apps/worker/src/lib/forum-cache.ts`.
-- **Phase 2 ships v2 forum read path behind a separate flag
-  `USE_KV_FORUM_CACHE_V2`** (`apps/worker/src/lib/env.ts` →
-  `isKvForumCacheV2Enabled`). Default is **off**: the read handlers fall
-  through to the legacy v1 path. Cutover (default-on / v1 removal) is
-  intentionally **not** part of Phase 2; it happens in Phase 7 after
-  `gate:full` has run green for at least one phase with the flag turned on
-  in a controlled environment.
-- All forum write paths invalidate **both** v1 and v2 in the same fan-out
-  (see §6 below). v2 invalidation parity covers every legacy
-  `invalidateForumVolatile` / `invalidateForumCacheAll` callsite;
-  `apps/worker/src/handlers/admin/statistics.ts` is left untouched because
-  it already bumps `forum:summary:gen` directly via Phase 1.
-- `v1` keys remain in code until Phase 7 evaluates removal. Removal requires:
-  (a) `v2` shipped, (b) `gate:full` green for at least one Phase, (c) optional
-  observation window.
+- `forum:tree:v2` / `forum:summary:v2` / `forum:meta:v2` / `forums/:id/ancestors`
+  fully replaced the `v1` `forums:tree:v1` + `forums:volatile:v1` forum cache.
+  The legacy `apps/worker/src/lib/forum-cache.ts` module and the
+  `USE_KV_FORUM_CACHE_V2` feature flag have been removed. The forum read path
+  goes directly through v2 KV cache; correctness is enforced by the v2
+  invalidation matrix in §6.
+- All forum write paths invalidate v2 only via
+  `invalidateForumStructureV2` / `invalidateForumReorderV2` /
+  `invalidateForumUpdateV2({affectsDigest})` / `invalidateForumSummaryV2`.
+  `apps/worker/src/handlers/admin/statistics.ts` continues to bump
+  `forum:summary:gen` directly.
+- Any orphaned `v1` KV keys still present in production naturally expire by
+  TTL (10 min for `forums:tree:v1`, 60 s for `forums:volatile:v1`); no
+  reader path resolves them.
 
 ---
 
@@ -369,12 +367,12 @@ Implemented under `apps/worker/src/lib/cache/`:
 |-------|------------------------------------------------------------------------------------------------|----------|
 | 0     | This doc.                                                                                      | Phase 0  |
 | 1     | Foundation helpers under `apps/worker/src/lib/cache/`. Fix existing invalidation gaps (thread/post create → forum volatile; admin statistics recalc-{forums,threads,users}; admin user batch-status / batch-role / batch-recalc-counters; single recalcCounters). `search.ts` reads `general.search.enabled` via `getSetting`. `apps/admin/src/lib/api-client.ts` sets `cache: "no-store"`. **No new business cache.** | Phase 1  |
-| 2     | `forum:tree:v2` + `forum:summary:v2` + `forum:meta:v2` + `forums/:id/ancestors`, behind `USE_KV_FORUM_CACHE_V2` (default off — see §8). Visible-last-thread semantics (§4.1). v2 invalidation parity wired to every legacy `invalidateForumVolatile` / `invalidateForumCacheAll` callsite via `invalidateForumStructureV2` / `invalidateForumReorderV2` / `invalidateForumUpdateV2({affectsDigest})` / `invalidateForumSummaryV2`. Reuses `lib/cache/` from Phase 1. | Phase 2  |
+| 2     | `forum:tree:v2` + `forum:summary:v2` + `forum:meta:v2` + `forums/:id/ancestors`. Visible-last-thread semantics (§4.1). v2 invalidation wired across forum CRUD/reorder/update/merge via `invalidateForumStructureV2` / `invalidateForumReorderV2` / `invalidateForumUpdateV2({affectsDigest})` / `invalidateForumSummaryV2`. Reuses `lib/cache/` from Phase 1. v1 forum cache + `USE_KV_FORUM_CACHE_V2` flag removed in the same release; forum read path is v2-only. | Phase 2  |
 | 3     | `thread:list:v2` for `GET /api/v1/threads?forumId=…&page=1`. **Gated on §3.3.1: `recalc-threads` invalidation must be extended (per-thread/per-forum bumps OR `thread:list:gen:all`) before this phase ships.** | deferred |
 | 4     | `post:list:v2` + `thread:meta:v2`. View-count batching not included. **Same §3.3.1 gate applies for `thread:meta:v2`.** | deferred |
 | 5     | `digest:list:v2` / `digest:stats:v2` / `digest:filters:v2`.                                     | deferred |
 | 6     | `user:public:v2` + PM short private cache.                                                     | deferred |
-| 7     | Hardening: cache metrics, evaluate `v1` legacy removal, evaluate per-forum `forum:meta:gen`, evaluate `users/batch` cache, view-count batching evaluation. | deferred |
+| 7     | Hardening: cache metrics, evaluate per-forum `forum:meta:gen`, evaluate `users/batch` cache, view-count batching evaluation. | deferred |
 
 **First release = Phase 0 + 1 + 2.** Phases 3–7 are dispatched separately
 after the first release lands and is observed.

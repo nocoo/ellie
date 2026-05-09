@@ -1,10 +1,9 @@
 // Cache invalidation primitives.
 //
-// Phase 1 only ships small, primitive helpers. Domain-grouped invalidators
-// for thread / post / digest are deliberately NOT wired into business
-// handlers in this commit — they will be added alongside their respective
-// v2 caches in later phases. See docs/19 §6 for the authoritative
-// write→invalidation matrix.
+// Helpers grouped by domain (forum, user, …). Composite helpers like
+// `invalidateForumStructureV2` bundle the gen bumps documented in
+// docs/19 §6 for a given write category, so handlers call one named
+// helper instead of re-listing keys at each callsite.
 //
 // All helpers are best-effort: KV write/delete failures are swallowed so
 // they cannot block the underlying mutation. Correctness for missed
@@ -97,18 +96,15 @@ export async function bumpDigestGen(env: Env): Promise<string> {
 // ─── Composite domain helpers ──────────────────────────────────────
 //
 // These bundle the bumps documented in docs/19 §6 for the most common
-// write categories. They are exported so that future commits in Phase 1
-// can call a single helper from each handler instead of re-listing the
-// gen keys, and so that the matrix is enforced in code instead of
-// per-call. Phase 1 wires only the gaps explicitly listed in docs/19 §9.
+// write categories. Handlers call a single helper instead of re-listing
+// the gen keys, so the matrix is enforced in code rather than per-call.
 
 /**
- * Bump only `forum:summary:gen` — the safe parity for legacy callsites
- * whose mutation changes counts / last-post / today-thread metadata for
- * forums but does not have a precise forumId in scope (or where the
- * thread-list cache is not yet active in this phase). Use this whenever
- * the legacy code calls `invalidateForumVolatile(env)` without a
- * forumId-keyed thread-list invalidation.
+ * Bump only `forum:summary:gen`. Use when a mutation changes counts /
+ * last-post / today-thread metadata for forums but does not have a
+ * precise forumId in scope (and so cannot bump a per-forum thread-list
+ * gen). For callsites that DO know the forumId and want thread-list
+ * fan-out, use `invalidateForumVolatileV2` instead.
  */
 export async function invalidateForumSummaryV2(env: Env): Promise<void> {
 	await bumpForumSummaryGen(env);
@@ -116,10 +112,9 @@ export async function invalidateForumSummaryV2(env: Env): Promise<void> {
 
 /**
  * Bump everything that depends on the forum-summary aggregates after a
- * volatile thread/post change in `forumId`. Mirrors the
- * `POST /api/v1/threads` row in §6 (forum:summary:gen + thread:list:gen for
- * the affected forum). Use ONLY at callsites that already had an exact
- * `forumId` and where thread-list:v2 is wired (Phase 3+).
+ * volatile thread/post change in `forumId`: `forum:summary:gen` plus the
+ * per-forum `thread:list:gen`. Mirrors the `POST /api/v1/threads` row in
+ * docs/19 §6.
  */
 export async function invalidateForumVolatileV2(env: Env, forumId: number): Promise<void> {
 	await Promise.all([bumpForumSummaryGen(env), bumpThreadListGen(env, forumId)]);
