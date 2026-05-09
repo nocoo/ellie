@@ -1,11 +1,16 @@
 # 19 — Worker KV Cache Architecture
 
-> **Status:** v3.1 frozen — architecture doc only. No code changes in this commit.
+> **Status:** v3.2 frozen — architecture / rationale only.
 >
-> Companion to `docs/18-quality-baseline.md`. This file is the canonical reference
-> for Worker-side KV cache design. Any later change to key schema, bucket
-> rules, TTLs, or invalidation semantics must update this file in the same
-> commit.
+> **Authoritative KV reference lives in `docs/20-worker-kv-reference.md`.**
+> Per-key payload, TTL, gen wiring, read path, write path, and invalidation
+> trigger all live there. This file keeps the architecture rationale: the
+> bucket model, gen-bump algorithm, route → cache layering, phase plan, and
+> risk register. If this file and docs/20 ever disagree about a key's
+> shape / TTL / gen / CRUD, **docs/20 wins** — open a doc-fix PR against
+> this file.
+>
+> Companion to `docs/18-quality-baseline.md`.
 
 ---
 
@@ -124,19 +129,10 @@ Within one request, gens are memoized per request to avoid multiple
 
 ### 3.3 Generation key inventory
 
-| Gen key                              | Bump on                                                                      |
-|--------------------------------------|------------------------------------------------------------------------------|
-| `forum:tree:gen`                     | admin forum create / update / delete / reorder / merge                       |
-| `forum:summary:gen`                  | any thread / post create / delete / move / sticky / digest / highlight / admin forum write / admin statistics recalc-{forums,threads} |
-| `thread:list:gen:<forumId>`          | thread create in forum / move IN/OUT of forum / delete / sticky / digest / close / highlight / admin batch / admin thread CRUD / moderation full set / scoped `recalc-threads` |
-| `thread:list:gen:all`                | unscoped `admin/statistics/recalc-threads` (global thread-list invalidation; embedded into every `thread:list:v2` key alongside per-forum gen — see §3.3.1) |
-| `thread:meta:gen:<threadId>`         | thread row writes / posts count change                                       |
-| `post:list:gen:<threadId>`           | reply create / `editMyPost` / mod editPost / mod delPost / admin post.* / admin batch |
-| `digest:gen`                         | mod digest set/unset, thread delete with `digestLevel > 0`, admin forum rename or visibility change |
-
-Per-forum `forum:meta:gen:<forumId>` is **not** introduced in the first
-release. The global `forum:summary:gen` is sufficient until measured write
-frequency demands finer granularity (re-evaluate in Phase 7).
+> **Authoritative table:** docs/20 §11. The full list of gen keys, their
+> bump helpers, and the cache keys they control lives there. Keep design
+> changes (e.g. introducing a new gen dimension) in this section; keep
+> per-key facts in docs/20.
 
 ### 3.3.1 `admin/statistics/recalc-threads` and per-thread caches
 Phase 1 only invalidated `forum:summary:gen` from `recalc-threads`, which was
@@ -160,44 +156,23 @@ when it ships.
 
 
 ### 3.4 Single-key delete inventory
-Used only for stable single-entity caches:
 
-| Cache                           | Delete on                                                                     |
-|---------------------------------|-------------------------------------------------------------------------------|
-| `user:mini:v2:<id>`             | `me.updateProfile` (avatar) / admin user update / nuke / purge / ban / batch-status / batch-role / batch-recalc-counters / single recalcCounters / admin statistics recalc-users |
-| `user:public:v2:<id>:public` + `user:public:v2:<id>:staff` (always both) | same triggers as `user:mini:v2:<id>`, called via `deleteUserPublicVariants(env, id)` |
-| `settings:all:v2`               | admin settings PUT                                                            |
-| `pm:unread:v2:<userId>` + `pm:inbox:v2:<userId>:inbox:p1` | `messages.markAsRead` (incl. via GET `/messages/:id`) / `messages.create` (for receiver) / `messages.markAllRead` / `messages.remove` |
-
-**There is no wildcard delete in KV.** All variants must be enumerated.
-`deleteUserPublicVariants` is a thin helper that deletes both viewer-bucket
-variants (`public` and `staff`) every time.
+> **Authoritative list:** docs/20 §6, §7, §8 (per-domain CRUD/invalidation
+> rows). KV has no wildcard delete, so all variants must be enumerated;
+> `deleteUserPublicVariants` is a thin helper that deletes both viewer-
+> bucket variants (`public` and `staff`) every time.
 
 ---
 
 ## 4. Cache key inventory (v2)
 
-| Key                                                                                  | TTL     | Bucket             | Generation           |
-|--------------------------------------------------------------------------------------|---------|--------------------|----------------------|
-| `forum:tree:v2:<bucket>:g<gen>`                                                      | 24h     | anon/member/staff/admin | `forum:tree:gen`     |
-| `forum:summary:v2:<bucket>:g<gen>`                                                   | 5–10min | anon/member/staff/admin | `forum:summary:gen`  |
-| `forum:meta:v2:<forumId>:<bucket>:g<gen>`                                            | 10min   | anon/member/staff/admin | `forum:summary:gen`  |
-| `thread:list:v2:<forumId>:<sort>:<limitBucket>:p1:gf<forumGen>:ga<allGen>`            | 5min    | bucket-independent (forum visibility gate via `forum:meta:v2` BEFORE cache lookup) | `thread:list:gen:<forumId>` + `thread:list:gen:all` |
-| `thread:meta:v2:<threadId>:<bucket>:g<gen>`                                          | 2min    | anon/member/staff/admin | `thread:meta:gen:<threadId>` |
-| `post:list:v2:<threadId>:<limitBucket>:<bucket>:p1:g<gen>`                           | 2min    | anon/member/staff/admin | `post:list:gen:<threadId>` |
-| `digest:list:v2:<bucket>:<forumId\|all>:<level\|all>:<year\|all>:p1:g<gen>`          | 30min   | anon/member/staff/admin | `digest:gen`         |
-| `digest:stats:v2:<bucket>:g<gen>`                                                    | 1h      | anon/member/staff/admin | `digest:gen`         |
-| `digest:filters:v2:<bucket>:g<gen>`                                                  | 24h     | anon/member/staff/admin | `digest:gen`         |
-| `user:mini:v2:<id>`                                                                  | 24h     | —                  | delete               |
-| `user:public:v2:<id>:<viewerBucket>` (`viewerBucket ∈ {public, staff}`)              | 1h      | public/staff       | delete (enumerate both) |
-| `pm:inbox:v2:<userId>:<box>:p1`                                                      | 30s     | per-user           | delete               |
-| `pm:unread:v2:<userId>`                                                              | 30s     | per-user           | delete               |
-| `settings:all:v2`                                                                    | 24h     | —                  | delete               |
-| `stats:public:v2`                                                                    | 60s     | —                  | TTL only             |
-
-`stats:public:v2` is the only entry whose correctness relies on TTL alone.
-Public stats are non-critical and slowly-moving; explicit invalidation would
-add invalidator wiring in many admin paths for marginal value.
+> **Authoritative table:** docs/20 §1–§8. The full per-key reference
+> (key pattern, payload, TTL, gen, read/write paths, status) lives there.
+>
+> `stats:public:v2` is the only entry whose correctness relies on TTL
+> alone. Public stats are non-critical and slowly-moving; explicit
+> invalidation would add invalidator wiring in many admin paths for
+> marginal value.
 
 ### 4.1 `forum:summary:v2` / `forum:meta:v2` visible-last-thread semantics
 
@@ -279,40 +254,10 @@ Layering legend:
 
 ## 6. Write path → invalidation matrix
 
-| Write path                                              | Bump gen                                                                                          | Delete keys |
-|---------------------------------------------------------|---------------------------------------------------------------------------------------------------|-------------|
-| `POST /api/v1/threads`                                  | `forum:summary:gen`, `thread:list:gen:<forumId>`                                                  | — |
-| `POST /api/v1/posts`                                    | `forum:summary:gen`, `thread:list:gen:<forumId>`, `thread:meta:gen:<threadId>`, `post:list:gen:<threadId>` | — |
-| `PATCH /api/v1/me/posts/:id`                            | `post:list:gen:<threadId>`, `thread:meta:gen:<threadId>`                                          | — |
-| `DELETE /api/v1/me/posts/:id`                           | `post:list:gen:<threadId>`, `thread:meta:gen:<threadId>`, `thread:list:gen:<forumId>`, `forum:summary:gen` | — |
-| `DELETE /api/v1/me/threads/:id`                         | `forum:summary:gen`, `thread:list:gen:<forumId>`                                                  | — |
-| moderation thread sticky / digest / close / highlight   | `thread:list:gen:<forumId>`, `thread:meta:gen:<threadId>` (+ `digest:gen` when digest changes)    | — |
-| moderation thread move (forum X → Y)                    | `thread:list:gen:<X>`, `thread:list:gen:<Y>`, `forum:summary:gen`, `thread:meta:gen:<threadId>`   | — |
-| moderation thread delete                                | `forum:summary:gen`, `thread:list:gen:<forumId>` (+ `digest:gen` if digestLevel > 0)              | — |
-| moderation post edit                                    | `post:list:gen:<threadId>`, `thread:meta:gen:<threadId>`                                          | — |
-| moderation post delete                                  | `post:list:gen:<threadId>`, `thread:meta:gen:<threadId>`, `thread:list:gen:<forumId>`, `forum:summary:gen` | — |
-| `POST /api/v1/post-comments`                            | —                                                                                                 | — |
-| `POST /api/v1/checkin`                                  | —                                                                                                 | — |
-| `PATCH /api/v1/users/me` (avatar)                       | —                                                                                                 | `user:mini:v2:<userId>`, `deleteUserPublicVariants(env, userId)` |
-| `POST /api/v1/users/me/email/verify`                    | —                                                                                                 | `deleteUserPublicVariants(env, userId)` |
-| `POST /api/v1/users/me/password`                        | —                                                                                                 | — |
-| admin forum CRUD / merge                                | `forum:tree:gen`, `forum:summary:gen`, `digest:gen` (create / delete / merge always touch digest filters) | — |
-| admin forum reorder                                     | `forum:tree:gen`, `forum:summary:gen` (NOT `digest:gen` — display order is not a digest filter) | — |
-| admin forum update                                      | `forum:tree:gen`, `forum:summary:gen`; `digest:gen` only when one of `name / status / visibility / parent_id / type` is in the patch (`afterUpdate` reads DB-column-keyed `data`, so the field-presence check uses snake_case `parent_id`) | — |
-| admin thread CRUD / batch                               | `thread:list:gen:<forumId>`, `forum:summary:gen`, `thread:meta:gen:<threadId>`                    | — |
-| admin post edit                                         | `post:list:gen:<threadId>`, `thread:meta:gen:<threadId>`                                          | — |
-| admin post delete / batch-delete                        | `post:list:gen:<threadId>`, `thread:meta:gen:<threadId>`, `thread:list:gen:<forumId>`, `forum:summary:gen` | — |
-| admin user CRUD / nuke / purge / ban                    | —                                                                                                 | `user:mini:v2:<id>`, `deleteUserPublicVariants(env, id)` |
-| admin user batch-status / batch-role / batch-recalc-counters | —                                                                                            | per-id `user:mini:v2:<id>` + `deleteUserPublicVariants(env, id)` |
-| admin statistics recalc-forums                          | `forum:summary:gen`                                                                               | — |
-| admin statistics recalc-threads                         | scoped (`{forumId: N}`) → `forum:summary:gen` + `thread:list:gen:<N>`; unscoped → `forum:summary:gen` + `thread:list:gen:all` (see §3.3.1) | — |
-| admin statistics recalc-users                           | —                                                                                                 | per-id `user:mini:v2:<id>` + `deleteUserPublicVariants(env, id)` |
-| admin settings PUT                                      | —                                                                                                 | `settings:all:v2` |
-| admin announcement / report / censor / ipBan / adminLog | —                                                                                                 | — |
-| `POST /api/v1/messages` (`messages.create`)             | —                                                                                                 | `pm:unread:v2:<receiverId>`, `pm:inbox:v2:<receiverId>:inbox:p1` |
-| `POST /api/v1/messages/mark-all-read`                   | —                                                                                                 | `pm:unread:v2:<userId>`, `pm:inbox:v2:<userId>:inbox:p1`, `pm:inbox:v2:<userId>:sent:p1` |
-| `DELETE /api/v1/messages/:id`                           | —                                                                                                 | `pm:inbox:v2:<userId>:<box>:p1` |
-| `GET /api/v1/messages/:id` (writes `is_read = 1`)       | —                                                                                                 | `pm:unread:v2:<userId>`, `pm:inbox:v2:<userId>:inbox:p1` |
+> **Authoritative matrix:** docs/20 §3.1, §6, §7, §8 (per-domain
+> invalidation rows). The legacy combined matrix below has been split into
+> the per-key sections in docs/20 so each row lives next to the cache it
+> invalidates.
 
 ### 6.4 View-count semantics
 `GET /api/v1/threads/:id` currently issues a fire-and-forget
@@ -400,12 +345,20 @@ after Phase 3 lands and is observed.
 
 ## 11. How to change this baseline
 
-1. Update §2 / §3 / §4 / §5 / §6 in the same commit as the helper or
-   handler change that motivates the change.
-2. Adding a new cache key requires a row in §4 + invalidator row in §6 +
-   bucket declaration. Entries without a declared invalidator are not
-   accepted.
-3. Adding a new generation key requires a row in §3.3 with the explicit
-   bump trigger list.
-4. Schema-breaking changes bump the key suffix from `v2` to `v3` (and so
+1. **Per-key facts** (pattern, payload, TTL, gen wiring, invalidation
+   trigger) live in **docs/20**. Update docs/20 in the same commit as the
+   code change.
+2. **This file** (docs/19) covers architecture rationale: bucket model,
+   gen-bump algorithm, route → cache layering, phase plan, risk register.
+   Update §2 / §3 / §5 / §9 / §10 here when those rules change.
+3. Adding a new cache key requires:
+   - new section in docs/20 §1–§10 with key pattern, payload, TTL,
+     gen wiring, read/write paths, status;
+   - if it is gen-keyed, also a row in docs/20 §11;
+   - bucket declaration here (§2.2) when introducing a new bucket dimension.
+4. Adding a new generation key requires a row in docs/20 §11; if it
+   introduces a new dimension (e.g. per-thread vs per-forum) discuss the
+   tradeoff in §3.3.1 here.
+5. Schema-breaking changes bump the key suffix from `v2` to `v3` (and so
    on). Old `v2` payloads then expire by TTL; no migration runtime needed.
+   Document the migration step in docs/20 §12.
