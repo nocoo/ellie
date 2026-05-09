@@ -35,6 +35,7 @@ import {
 	buildFkCheckQuery,
 	computeManifestFingerprint,
 	isValidChunkFilename,
+	isWarningOnly,
 	validateManifestStructure,
 } from "../src/load/d1-sql-builder";
 
@@ -91,6 +92,7 @@ function makeManifest(overrides: Partial<Manifest> = {}): Manifest {
 				rows: 2,
 				bytes: 100,
 				strategy: "upsert" as const,
+				pk_list: [1, 2],
 			},
 			{
 				file: "users-001.sql",
@@ -98,6 +100,7 @@ function makeManifest(overrides: Partial<Manifest> = {}): Manifest {
 				rows: 3,
 				bytes: 150,
 				strategy: "upsert" as const,
+				pk_list: [1, 2, 3],
 			},
 		],
 		...overrides,
@@ -185,6 +188,21 @@ get_flag_value() { local f="$1"; shift; while [[ $# -gt 0 ]]; do if [[ "$1" == "
 emit_json() {
   if args_contain "NOT IN" "$@"; then
     echo '[{"results":[{"cnt":0}]}]'
+  elif args_contain " IN (" "$@"; then
+    # Count PKs in the IN clause: count commas + 1
+    local sql
+    for a in "$@"; do
+      if [[ "$a" == *" IN ("* ]]; then sql="$a"; break; fi
+    done
+    if [[ -n "$sql" ]]; then
+      local in_part
+      in_part=$(echo "$sql" | sed 's/.*IN (//' | sed 's/).*//')
+      local cnt
+      cnt=$(echo "$in_part" | tr ',' '\\n' | wc -l | tr -d ' ')
+      echo "[{\\"results\\":[{\\"cnt\\":$cnt}]}]"
+    else
+      echo '[{"results":[{"cnt":100,"max_id":100000}]}]'
+    fi
   else
     echo '[{"results":[{"cnt":100,"max_id":100000}]}]'
   fi
@@ -205,6 +223,37 @@ case "$MODE" in
   fail-exec)
     if has_flag "--file" "$@"; then
       echo "Error: simulated wrangler execution failure" >&2
+      exit 1
+    fi
+    if has_flag "--json" "$@"; then emit_json "$@"; fi
+    exit 0
+    ;;
+  warning-only)
+    if has_flag "--file" "$@"; then
+      echo "WARNING: This process may take some time, during which your D1 database will be unavailable to serve queries." >&2
+      exit 1
+    fi
+    if has_flag "--json" "$@"; then emit_json "$@"; fi
+    exit 0
+    ;;
+  warning-pk-mismatch)
+    if has_flag "--file" "$@"; then
+      echo "WARNING: This process may take some time, during which your D1 database will be unavailable to serve queries." >&2
+      exit 1
+    fi
+    if has_flag "--json" "$@"; then
+      if args_contain " IN " "$@"; then
+        echo '[{"results":[{"cnt":0}]}]'
+      else
+        emit_json "$@"
+      fi
+    fi
+    exit 0
+    ;;
+  warning-error)
+    if has_flag "--file" "$@"; then
+      echo "WARNING: This process may take some time, during which your D1 database will be unavailable to serve queries." >&2
+      echo "Error: SQLITE_CONSTRAINT: UNIQUE constraint failed" >&2
       exit 1
     fi
     if has_flag "--json" "$@"; then emit_json "$@"; fi
@@ -340,6 +389,7 @@ describe("validateManifestStructure", () => {
 			rows: 1,
 			bytes: 10,
 			strategy: "upsert",
+			pk_list: [1],
 		});
 		expect(() => validateManifestStructure(manifest)).toThrow("not referenced by any table");
 	});
@@ -678,5 +728,127 @@ describe("mark-done", () => {
 		expect(exitCode).not.toBe(0);
 		expect(stdout).toContain('status "done"');
 		expect(stdout).toContain("Only failed chunks");
+	});
+});
+
+// ─── isWarningOnly unit tests ───────────────────────────────────────────────
+
+describe("isWarningOnly", () => {
+	test("detects warning-only stderr with ANSI codes", () => {
+		const stderr =
+			"\x1b[33m▲ \x1b[43;33m[\x1b[43;30mWARNING\x1b[43;33m]\x1b[0m \x1b[1m⚠️ This process may take some time, during which your D1 database will be unavailable to serve queries.\x1b[0m";
+		expect(isWarningOnly(stderr)).toBe(true);
+	});
+
+	test("detects warning-only stderr without ANSI codes", () => {
+		expect(
+			isWarningOnly(
+				"WARNING: This process may take some time, during which your D1 database will be unavailable to serve queries.",
+			),
+		).toBe(true);
+	});
+
+	test("rejects stderr containing ERROR", () => {
+		expect(isWarningOnly("WARNING unavailable\nERROR: something broke")).toBe(false);
+	});
+
+	test("rejects stderr containing Error:", () => {
+		expect(isWarningOnly("WARNING unavailable\nError: SQLITE_CONSTRAINT")).toBe(false);
+	});
+
+	test("rejects stderr without warning pattern", () => {
+		expect(isWarningOnly("Some random error message")).toBe(false);
+	});
+
+	test("rejects empty stderr", () => {
+		expect(isWarningOnly("")).toBe(false);
+	});
+});
+
+// ─── Warning verification tests ────────────────────────────────────────────
+
+describe("verify-warning-success", () => {
+	test("warning-only + verify pass → done with audit fields", () => {
+		const manifest = makeManifest();
+		const manifestPath = setupFixture("warn-verify-ok", manifest);
+		const { exitCode, stdout } = runExecutor(manifestPath, ["--verify-warning-success"], {
+			fakeMode: "warning-only",
+		});
+		expect(exitCode).toBe(0);
+		expect(stdout).toContain("WARNING-only exit");
+		expect(stdout).toContain("VERIFIED OK");
+		expect(stdout).toContain("Import complete and verified");
+
+		const logPath = join(TEST_DIR, "warn-verify-ok", "execution-log.json");
+		const log = JSON.parse(readFileSync(logPath, "utf-8"));
+		const doneChunks = log.chunks.filter((c: { status: string }) => c.status === "done");
+		expect(doneChunks).toHaveLength(2);
+
+		// Check audit fields on first chunk
+		const forums = log.chunks.find((c: { file: string }) => c.file === "forums-001.sql");
+		expect(forums.warning_verified_at).toBeDefined();
+		expect(forums.warning_verification).toBeDefined();
+		expect(forums.warning_verification.mode).toBe("pk_count_and_sample");
+		expect(forums.warning_verification.pk_count.expected).toBe(2);
+		expect(forums.error).toBeUndefined();
+	});
+
+	test("warning-only + pk count mismatch → failed", () => {
+		const manifest = makeManifest();
+		const manifestPath = setupFixture("warn-pk-mismatch", manifest);
+		const { exitCode, stdout } = runExecutor(manifestPath, ["--verify-warning-success"], {
+			fakeMode: "warning-pk-mismatch",
+		});
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("VERIFICATION FAILED");
+		expect(stdout).toContain("stopped at");
+
+		const logPath = join(TEST_DIR, "warn-pk-mismatch", "execution-log.json");
+		const log = JSON.parse(readFileSync(logPath, "utf-8"));
+		const failedChunks = log.chunks.filter((c: { status: string }) => c.status === "failed");
+		expect(failedChunks.length).toBeGreaterThanOrEqual(1);
+		expect(failedChunks[0].warning_verification).toBeDefined();
+		expect(failedChunks[0].warning_verification.pk_count.actual).toBe(0);
+	});
+
+	test("stderr contains ERROR → failed even with --verify-warning-success", () => {
+		const manifest = makeManifest();
+		const manifestPath = setupFixture("warn-with-error", manifest);
+		const { exitCode, stdout } = runExecutor(manifestPath, ["--verify-warning-success"], {
+			fakeMode: "warning-error",
+		});
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("FAILED");
+		expect(stdout).not.toContain("VERIFIED OK");
+
+		const logPath = join(TEST_DIR, "warn-with-error", "execution-log.json");
+		const log = JSON.parse(readFileSync(logPath, "utf-8"));
+		const failedChunks = log.chunks.filter((c: { status: string }) => c.status === "failed");
+		expect(failedChunks.length).toBeGreaterThanOrEqual(1);
+		expect(failedChunks[0].warning_verification).toBeUndefined();
+	});
+
+	test("warning-only without --verify-warning-success flag → failed", () => {
+		const manifest = makeManifest();
+		const manifestPath = setupFixture("warn-no-flag", manifest);
+		// No --verify-warning-success flag
+		const { exitCode, stdout } = runExecutor(manifestPath, [], {
+			fakeMode: "warning-only",
+		});
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("FAILED");
+		expect(stdout).not.toContain("VERIFIED OK");
+		expect(stdout).not.toContain("WARNING-only exit");
+	});
+
+	test("error (non-warning) without flag → failed normally", () => {
+		const manifest = makeManifest();
+		const manifestPath = setupFixture("error-no-flag", manifest);
+		const { exitCode, stdout } = runExecutor(manifestPath, [], {
+			fakeMode: "fail-exec",
+		});
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("FAILED");
+		expect(stdout).not.toContain("WARNING-only");
 	});
 });

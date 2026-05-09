@@ -10,6 +10,8 @@
  *     (validates manifest fingerprint to prevent stale log reuse)
  *   - Mark-done: safely marks a verified failed chunk as done in execution-log.json
  *     (validates fingerprint, requires status=failed, records audit fields)
+ *   - Verify-warning-success: when wrangler exits non-zero with only a WARNING
+ *     (no ERROR), automatically verifies data via PK count + field sampling
  *   - Post-import verification: row counts, max IDs, FK orphan checks
  *
  * Usage:
@@ -30,11 +32,12 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import type { Manifest } from "./load/d1-sql-builder";
+import type { ChunkInfo, Manifest } from "./load/d1-sql-builder";
 import {
 	FK_RELATIONS,
 	IMPORT_TABLE_ORDER,
 	computeManifestFingerprint,
+	isWarningOnly,
 	validateManifestStructure,
 } from "./load/d1-sql-builder";
 
@@ -47,6 +50,8 @@ const { values } = parseArgs({
 		"dry-run": { type: "boolean", default: false },
 		resume: { type: "boolean", default: false },
 		"mark-done": { type: "string" },
+		"verify-warning-success": { type: "boolean", default: false },
+		"source-db": { type: "string" },
 	},
 });
 
@@ -54,6 +59,8 @@ const MANIFEST_PATH = values.manifest ?? "output/d1-import-2026-05-09/manifest.j
 const DRY_RUN = values["dry-run"] ?? false;
 const RESUME = values.resume ?? false;
 const MARK_DONE = values["mark-done"];
+const VERIFY_WARNING = values["verify-warning-success"] ?? false;
+const SOURCE_DB = values["source-db"];
 const NPX_BIN = process.env.EXECUTOR_NPX_BIN ?? "npx";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -68,6 +75,16 @@ interface ChunkExecResult {
 	error?: string;
 	manually_verified_at?: string;
 	reason?: string;
+	warning_verified_at?: string;
+	warning_verification?: {
+		mode: "pk_count_and_sample";
+		pk_count: { expected: number; actual: number };
+		samples: Array<{
+			id: number;
+			fields_checked: string[];
+			passed: boolean;
+		}>;
+	};
 }
 
 interface ExecutionLog {
@@ -119,7 +136,7 @@ function wranglerExecute(
 	sqlFile: string,
 	dbName: string,
 	cwd: string,
-): { success: boolean; error?: string } {
+): { success: boolean; error?: string; stderr?: string } {
 	try {
 		execFileSync(
 			NPX_BIN,
@@ -134,7 +151,8 @@ function wranglerExecute(
 		return { success: true };
 	} catch (e) {
 		const err = e as { stderr?: string; message?: string };
-		return { success: false, error: err.stderr || err.message || "Unknown error" };
+		const stderr = err.stderr || err.message || "Unknown error";
+		return { success: false, error: stderr, stderr };
 	}
 }
 
@@ -154,6 +172,135 @@ function wranglerQuery(sql: string, dbName: string, cwd: string): string {
 		const err = e as { stdout?: string; stderr?: string };
 		return err.stdout || err.stderr || "";
 	}
+}
+
+// ─── Warning verification ──────────────────────────────────────────────────
+
+/** Source-owned fields to sample-check per table for warning verification. */
+const SAMPLE_FIELDS: Record<string, string[]> = {
+	users: ["username", "coins", "has_avatar", "campus"],
+	forums: ["name", "description", "display_order"],
+	threads: ["subject", "author_name", "forum_id"],
+	posts: ["content", "author_name", "thread_id"],
+	attachments: ["filename", "file_size", "is_image"],
+	user_checkins: ["user_id"],
+};
+
+/** PK column per table (matches generator's conflict column). */
+function pkColumn(table: string): string {
+	return table === "user_checkins" ? "user_id" : "id";
+}
+
+/**
+ * Pick first, middle, last IDs from a pk_list for sample verification.
+ */
+function pickSampleIds(pkList: number[]): number[] {
+	if (pkList.length === 0) return [];
+	if (pkList.length === 1) return [pkList[0]];
+	if (pkList.length === 2) return [pkList[0], pkList[pkList.length - 1]];
+	const mid = Math.floor(pkList.length / 2);
+	return [pkList[0], pkList[mid], pkList[pkList.length - 1]];
+}
+
+/**
+ * Verify a warning chunk by checking PK count and sampling fields against source DB.
+ * Returns verification result with audit data, or null if verification fails.
+ */
+function verifyWarningChunk(
+	chunk: ChunkInfo,
+	dbName: string,
+	cwd: string,
+	sourceDbPath: string | undefined,
+): {
+	passed: boolean;
+	verification: NonNullable<ChunkExecResult["warning_verification"]>;
+} {
+	const pk = pkColumn(chunk.table);
+	const pkList = chunk.pk_list;
+
+	// 1. PK count check: SELECT COUNT(*) FROM table WHERE id IN (...)
+	const inClause = pkList.join(",");
+	const countSql = `SELECT COUNT(*) as cnt FROM ${chunk.table} WHERE ${pk} IN (${inClause})`;
+	const countResult = wranglerQuery(countSql, dbName, cwd);
+	const actualCount = parseWranglerScalar(countResult, "cnt");
+
+	const pkCountResult = {
+		expected: pkList.length,
+		actual: actualCount ?? 0,
+	};
+
+	const pkPassed = actualCount === pkList.length;
+
+	// 2. Sample field checks (only if source-db is available and PK count passed)
+	const sampleIds = pickSampleIds(pkList);
+	const fields = SAMPLE_FIELDS[chunk.table] ?? [];
+	const samples: NonNullable<ChunkExecResult["warning_verification"]>["samples"] = [];
+
+	if (pkPassed && sourceDbPath && fields.length > 0) {
+		// Dynamic import of bun:sqlite isn't possible; use a subprocess to read source DB
+		for (const sampleId of sampleIds) {
+			const selectFields = fields.join(",");
+			// Read expected from source DB via subprocess
+			const expectedJson = (() => {
+				try {
+					return execFileSync(
+						"bun",
+						[
+							"-e",
+							`import{Database}from"bun:sqlite";const db=new Database("${sourceDbPath}",{readonly:true});const r=db.query("SELECT ${selectFields} FROM ${chunk.table} WHERE ${pk}=${sampleId}").get();console.log(JSON.stringify(r));`,
+						],
+						{ encoding: "utf-8", timeout: 10_000, stdio: ["pipe", "pipe", "pipe"] },
+					);
+				} catch {
+					return null;
+				}
+			})();
+
+			if (!expectedJson) {
+				samples.push({ id: sampleId, fields_checked: fields, passed: false });
+				continue;
+			}
+
+			const expected = JSON.parse(expectedJson.trim()) as Record<string, unknown> | null;
+			if (!expected) {
+				samples.push({ id: sampleId, fields_checked: fields, passed: false });
+				continue;
+			}
+
+			// Read actual from remote D1
+			const remoteSql = `SELECT ${selectFields} FROM ${chunk.table} WHERE ${pk}=${sampleId}`;
+			const remoteResult = wranglerQuery(remoteSql, dbName, cwd);
+			let actual: Record<string, unknown> | null = null;
+			try {
+				const parsed = JSON.parse(remoteResult);
+				actual = parsed[0]?.results?.[0] ?? parsed[0]?.result?.[0] ?? parsed?.results?.[0] ?? null;
+			} catch {
+				actual = null;
+			}
+
+			if (!actual) {
+				samples.push({ id: sampleId, fields_checked: fields, passed: false });
+				continue;
+			}
+
+			const fieldsPassed = fields.every(
+				(f) => String(expected[f] ?? "") === String(actual[f] ?? ""),
+			);
+			samples.push({ id: sampleId, fields_checked: fields, passed: fieldsPassed });
+		}
+	}
+
+	const samplesPassed = samples.length === 0 || samples.every((s) => s.passed);
+	const passed = pkPassed && samplesPassed;
+
+	return {
+		passed,
+		verification: {
+			mode: "pk_count_and_sample",
+			pk_count: pkCountResult,
+			samples,
+		},
+	};
 }
 
 // ─── Dry-run ────────────────────────────────────────────────────────────────
@@ -323,7 +470,9 @@ function runVerification(manifest: Manifest, dbName: string, cwd: string): Verif
 
 log("=== D1 Import Executor ===");
 log(`  Manifest: ${MANIFEST_PATH}`);
-log(`  Mode: ${DRY_RUN ? "dry-run" : RESUME ? "resume" : MARK_DONE ? "mark-done" : "full"}`);
+log(
+	`  Mode: ${DRY_RUN ? "dry-run" : RESUME ? "resume" : MARK_DONE ? "mark-done" : "full"}${VERIFY_WARNING ? " +verify-warning" : ""}`,
+);
 
 const manifest = loadManifest(MANIFEST_PATH);
 const importDir = dirname(MANIFEST_PATH);
@@ -485,9 +634,39 @@ for (let i = 0; i < orderedChunks.length; i++) {
 	};
 
 	if (!result.success) {
-		chunkResult.error = result.error?.slice(0, 500);
-		failCount++;
-		log(`    FAILED in ${durationMs}ms: ${result.error?.slice(0, 200)}`);
+		// Check if this is a warning-only failure that can be verified
+		if (VERIFY_WARNING && result.stderr && isWarningOnly(result.stderr)) {
+			log(`    WARNING-only exit (${durationMs}ms), verifying...`);
+			const chunkMeta = chunkMap.get(file);
+			if (chunkMeta) {
+				const verification = verifyWarningChunk(chunkMeta, dbName, projectRoot, SOURCE_DB);
+				if (verification.passed) {
+					chunkResult.status = "done";
+					chunkResult.error = undefined;
+					chunkResult.warning_verified_at = new Date().toISOString();
+					chunkResult.warning_verification = verification.verification;
+					successCount++;
+					log(
+						`    VERIFIED OK: ${verification.verification.pk_count.actual}/${verification.verification.pk_count.expected} PKs, ${verification.verification.samples.length} samples passed`,
+					);
+				} else {
+					chunkResult.error = result.error?.slice(0, 500);
+					chunkResult.warning_verification = verification.verification;
+					failCount++;
+					log(
+						`    VERIFICATION FAILED: PK ${verification.verification.pk_count.actual}/${verification.verification.pk_count.expected}`,
+					);
+				}
+			} else {
+				chunkResult.error = result.error?.slice(0, 500);
+				failCount++;
+				log(`    FAILED in ${durationMs}ms: ${result.error?.slice(0, 200)}`);
+			}
+		} else {
+			chunkResult.error = result.error?.slice(0, 500);
+			failCount++;
+			log(`    FAILED in ${durationMs}ms: ${result.error?.slice(0, 200)}`);
+		}
 	} else {
 		successCount++;
 		log(`    OK in ${(durationMs / 1000).toFixed(1)}s`);
@@ -496,7 +675,7 @@ for (let i = 0; i < orderedChunks.length; i++) {
 	execLog.chunks.push(chunkResult);
 	saveExecutionLog(execLogPath, execLog);
 
-	if (!result.success) {
+	if (chunkResult.status === "failed") {
 		log(`\n  ⚠ Execution stopped at ${file}. Use --resume to continue from this point.`);
 		execLog.finished_at = new Date().toISOString();
 		saveExecutionLog(execLogPath, execLog);

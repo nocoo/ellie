@@ -56,6 +56,8 @@ export interface ChunkInfo {
 	rows: number;
 	bytes: number;
 	strategy: "upsert" | "insert_or_ignore";
+	/** Primary keys of all rows in this chunk, for post-execution verification. */
+	pk_list: number[];
 }
 
 /** Production state for a single table. */
@@ -104,7 +106,7 @@ export interface Manifest {
 
 /**
  * Format rows into upsert SQL chunk content.
- * Returns the full file content string and its byte size.
+ * Returns the full file content string, its byte size, and the primary key list.
  */
 export function formatUpsertChunk(
 	table: string,
@@ -112,26 +114,28 @@ export function formatUpsertChunk(
 	conflictColumn: string,
 	updateColumns: string[],
 	rows: Array<Record<string, string | number | null>>,
-): { content: string; bytes: number } {
+): { content: string; bytes: number; pk_list: number[] } {
 	const statements = rows.map((row) =>
 		buildUpsertStatement(table, columns, conflictColumn, updateColumns, row),
 	);
 	const content = `${statements.join("\n\n")}\n`;
-	return { content, bytes: Buffer.byteLength(content, "utf-8") };
+	const pk_list = rows.map((row) => row[conflictColumn] as number);
+	return { content, bytes: Buffer.byteLength(content, "utf-8"), pk_list };
 }
 
 /**
  * Format rows into INSERT OR IGNORE SQL chunk content.
- * Returns the full file content string and its byte size.
+ * Returns the full file content string, its byte size, and the primary key list.
  */
 export function formatInsertOrIgnoreChunk(
 	table: string,
 	columns: string[],
 	rows: Array<Record<string, string | number | null>>,
-): { content: string; bytes: number } {
+): { content: string; bytes: number; pk_list: number[] } {
 	const statements = rows.map((row) => buildInsertOrIgnoreStatement(table, columns, row));
 	const content = `${statements.join("\n")}\n`;
-	return { content, bytes: Buffer.byteLength(content, "utf-8") };
+	const pk_list = rows.map((row) => row.id as number);
+	return { content, bytes: Buffer.byteLength(content, "utf-8"), pk_list };
 }
 
 /** Generate a zero-padded chunk filename. */
@@ -250,4 +254,24 @@ export function validateManifestStructure(manifest: Manifest): void {
  */
 export function buildFkCheckQuery(fk: FkRelation): string {
 	return `SELECT COUNT(*) as cnt FROM ${fk.table} child LEFT JOIN ${fk.ref} parent ON child.${fk.col} = parent.${fk.refCol} WHERE parent.${fk.refCol} IS NULL`;
+}
+
+/**
+ * Detect whether stderr is a warning-only message (no actual ERROR).
+ * Returns true if stderr contains D1 unavailable warning but no error indicators.
+ */
+export function isWarningOnly(stderr: string): boolean {
+	if (!stderr) return false;
+	// Strip ANSI escape sequences for reliable pattern matching
+	// biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape sequences use \x1b
+	const clean = stderr.replace(/\x1b\[[0-9;]*m/g, "");
+	const hasWarning =
+		clean.includes("WARNING") &&
+		(clean.includes("unavailable to serve queries") || clean.includes("may take some time"));
+	const hasError =
+		clean.includes("ERROR") ||
+		clean.includes("Error:") ||
+		clean.includes("SQLITE_") ||
+		clean.includes("SQL error");
+	return hasWarning && !hasError;
 }
