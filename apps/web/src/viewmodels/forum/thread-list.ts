@@ -1,7 +1,7 @@
 // viewmodels/forum/thread-list.ts — Thread list ViewModel
 // Ref: 04d §版块主题列表 — sorting, filtering, keyset pagination, badges
 
-import { getStaticImageUrl } from "@/lib/cdn";
+import { getStampImageUrl, getStaticImageUrl } from "@/lib/cdn";
 import { StickyLevel, type Thread, decodeHighlight, getThreadBadges } from "@ellie/types";
 
 // ---------------------------------------------------------------------------
@@ -23,6 +23,8 @@ export interface ThreadDisplayItem {
 	iconSrc: string;
 	/** Digest icon shown to the right of the title (null if not a digest thread). */
 	digestSrc: string | null;
+	/** Newbie stamp shown to the right of the title (null if not the author's first thread). */
+	newbieStampSrc: string | null;
 }
 
 export interface ThreadListState {
@@ -50,6 +52,9 @@ export function enrichThreads(threads: Thread[]): ThreadDisplayItem[] {
 		highlight: decodeHighlight(thread.highlight),
 		iconSrc: getThreadIconSrc(thread),
 		digestSrc: getDigestIconSrc(thread.digest),
+		// Defensive: old KV cache payloads may lack isAuthorFirstThread (undefined at runtime).
+		// Strict equality ensures undefined is treated as false.
+		newbieStampSrc: getNewbieStampSrc(thread.isAuthorFirstThread === true),
 	}));
 }
 
@@ -110,6 +115,16 @@ export function getThreadIconSrc(thread: {
 export function getDigestIconSrc(digest: number): string | null {
 	if (digest <= 0) return null;
 	return getStaticImageUrl(`digest_${Math.min(digest, 3)}.gif`);
+}
+
+/**
+ * Resolve the newbie stamp for the title area.
+ * Shows 011.small.gif when the thread is the author's first visible thread.
+ * Returns null for non-first threads.
+ */
+export function getNewbieStampSrc(isAuthorFirstThread: boolean): string | null {
+	if (!isAuthorFirstThread) return null;
+	return getStampImageUrl("011.small.gif");
 }
 
 /**

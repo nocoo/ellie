@@ -331,7 +331,7 @@ describe("D1 row mappers", () => {
 			};
 
 			const thread = toThread(row);
-			expect(Object.keys(thread)).toHaveLength(22);
+			expect(Object.keys(thread)).toHaveLength(23);
 		});
 	});
 

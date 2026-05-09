@@ -108,6 +108,7 @@ interface D1ThreadRow {
 	type_name: string;
 	// Internal field (never exposed):
 	// post_table_id
+	is_author_first_thread?: number;
 }
 
 /** D1 row shape for posts table */
@@ -251,6 +252,7 @@ export function toThread(row: Record<string, unknown>): Thread {
 		highlight: r.highlight,
 		recommends: r.recommends,
 		typeName: r.type_name,
+		isAuthorFirstThread: r.is_author_first_thread === 1,
 	};
 }
 

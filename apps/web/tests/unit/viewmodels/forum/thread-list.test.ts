@@ -3,6 +3,7 @@ import {
 	filterIconRedundantBadges,
 	getDigestIconSrc,
 	getInlinePageItems,
+	getNewbieStampSrc,
 	getThreadIconSrc,
 	getThreadPageCount,
 	getThreadPageUrl,
@@ -25,12 +26,14 @@ function makeThread(overrides: Partial<Thread> & { id: number }): Thread {
 		authorId: 1,
 		authorName: "testuser",
 		authorAvatar: "",
+		authorAvatarPath: "",
 		subject: "Test thread",
 		createdAt: 1711600000,
 		lastPostAt: 1711610000,
 		lastPoster: "testuser",
 		lastPosterId: 1,
 		lastPosterAvatar: "",
+		lastPosterAvatarPath: "",
 		replies: 0,
 		views: 100,
 		closed: 0,
@@ -40,6 +43,7 @@ function makeThread(overrides: Partial<Thread> & { id: number }): Thread {
 		highlight: 0,
 		recommends: 0,
 		typeName: "",
+		isAuthorFirstThread: false,
 		...overrides,
 	};
 }
@@ -103,6 +107,18 @@ describe("enrichThreads", () => {
 		const items = enrichThreads(threads);
 		expect(items).toHaveLength(2);
 		expect(items[1]?.thread.id).toBe(2);
+	});
+
+	it("returns null newbieStampSrc for non-first thread", () => {
+		const threads = [makeThread({ id: 1, isAuthorFirstThread: false })];
+		const items = enrichThreads(threads);
+		expect(items[0]?.newbieStampSrc).toBeNull();
+	});
+
+	it("returns stamp URL for author first thread", () => {
+		const threads = [makeThread({ id: 1, isAuthorFirstThread: true })];
+		const items = enrichThreads(threads);
+		expect(items[0]?.newbieStampSrc).toContain("011.small.gif");
 	});
 });
 
@@ -419,6 +435,27 @@ describe("getDigestIconSrc", () => {
 	it("returns CDN URL", () => {
 		const result = getDigestIconSrc(1);
 		expect(result).toContain("https://t.no.mt/static/image/common/");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// getNewbieStampSrc
+// ---------------------------------------------------------------------------
+
+describe("getNewbieStampSrc", () => {
+	it("returns null for non-first thread", () => {
+		expect(getNewbieStampSrc(false)).toBeNull();
+	});
+
+	it("returns stamp URL for first thread", () => {
+		const result = getNewbieStampSrc(true);
+		expect(result).toContain("011.small.gif");
+	});
+
+	it("returns CDN stamp path (not common)", () => {
+		const result = getNewbieStampSrc(true);
+		expect(result).toContain("https://t.no.mt/static/image/stamp/");
+		expect(result).not.toContain("/common/");
 	});
 });
 

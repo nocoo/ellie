@@ -267,6 +267,8 @@ export interface Thread {
     highlight: number;
     recommends: number;
     typeName: string;
+    /** True when this thread is the earliest visible thread by the author. */
+    isAuthorFirstThread: boolean;
 }
 /** Maps to Doc02 posts table — 9.4M rows */
 export interface Post {

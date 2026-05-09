@@ -51,6 +51,10 @@ function parseLimit(limitParam: string | null): number {
 	return Number.isNaN(result) ? SEARCH_DEFAULT_LIMIT : result;
 }
 
+/** Correlated subquery: true when no earlier visible thread by the same author exists. */
+const IS_AUTHOR_FIRST_THREAD =
+	"(CASE WHEN t.author_id > 0 AND NOT EXISTS (SELECT 1 FROM threads t2 WHERE t2.author_id = t.author_id AND t2.sticky >= 0 AND (t2.created_at < t.created_at OR (t2.created_at = t.created_at AND t2.id < t.id))) THEN 1 ELSE 0 END) AS is_author_first_thread";
+
 /** Build search SQL query */
 function buildSearchSql(forumFilter: string, hasCursor: boolean): string {
 	const cursorCondition = hasCursor
@@ -58,7 +62,7 @@ function buildSearchSql(forumFilter: string, hasCursor: boolean): string {
 		: "";
 
 	return `
-    SELECT t.*
+    SELECT t.*, ${IS_AUTHOR_FIRST_THREAD}
     FROM threads t
     JOIN threads_fts fts ON fts.rowid = t.id
     JOIN forums f ON t.forum_id = f.id
