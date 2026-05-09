@@ -17,7 +17,18 @@ export const TEST_JWT_SECRET = "test-secret-key-for-jwt-hs256";
 export function createMockKV(initialData: Record<string, string> = {}) {
 	const store = new Map<string, string>(Object.entries(initialData));
 	return {
-		get: vi.fn(async (key: string) => store.get(key) ?? null),
+		get: vi.fn(async (key: string, type?: string) => {
+			const raw = store.get(key) ?? null;
+			if (raw === null) return null;
+			if (type === "json") {
+				try {
+					return JSON.parse(raw);
+				} catch {
+					return null;
+				}
+			}
+			return raw;
+		}),
 		put: vi.fn(async (key: string, value: string) => {
 			store.set(key, value);
 		}),
