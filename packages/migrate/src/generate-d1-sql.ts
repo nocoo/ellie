@@ -46,6 +46,8 @@ const { values } = parseArgs({
 		force: { type: "boolean", default: false },
 		"users-chunk-size": { type: "string" },
 		"users-min-id": { type: "string" },
+		"users-max-id": { type: "string" },
+		tables: { type: "string" },
 	},
 });
 
@@ -79,6 +81,17 @@ const USERS_CHUNK_SIZE = values["users-chunk-size"]
 const USERS_MIN_ID = values["users-min-id"]
 	? parseStrictUint(values["users-min-id"], "users-min-id", true)
 	: null;
+const USERS_MAX_ID = values["users-max-id"]
+	? parseStrictUint(values["users-max-id"], "users-max-id", false)
+	: null;
+const TABLES_FILTER = values.tables ? new Set(values.tables.split(",").map((t) => t.trim())) : null;
+
+if (USERS_MIN_ID != null && USERS_MAX_ID != null && USERS_MAX_ID <= USERS_MIN_ID) {
+	console.error(
+		`Error: --users-max-id (${USERS_MAX_ID}) must be greater than --users-min-id (${USERS_MIN_ID})`,
+	);
+	process.exit(1);
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -103,15 +116,19 @@ function generateUpsertChunks(
 	conflictColumn: string,
 	updateColumns: string[],
 	outDir: string,
-	opts?: { chunkSize?: number; minId?: number },
+	opts?: { chunkSize?: number; minId?: number; maxId?: number },
 ): { chunks: ChunkInfo[]; totalRows: number; generatedRows: number } {
 	const chunkSize = opts?.chunkSize ?? CHUNK_SIZE;
 	const chunks: ChunkInfo[] = [];
 	const totalRows = (db.query(`SELECT COUNT(*) as cnt FROM ${table}`).get() as { cnt: number }).cnt;
 
-	const whereClause = opts?.minId != null ? `WHERE id > ${opts.minId}` : "";
+	const conditions: string[] = [];
+	if (opts?.minId != null) conditions.push(`id > ${opts.minId}`);
+	if (opts?.maxId != null) conditions.push(`id <= ${opts.maxId}`);
+	const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
 	const generatedRows =
-		opts?.minId != null
+		conditions.length > 0
 			? (
 					db.query(`SELECT COUNT(*) as cnt FROM ${table} ${whereClause}`).get() as {
 						cnt: number;
@@ -119,9 +136,15 @@ function generateUpsertChunks(
 				).cnt
 			: totalRows;
 
-	if (opts?.minId != null) {
+	if (conditions.length > 0) {
+		const rangeDesc =
+			opts?.minId != null && opts?.maxId != null
+				? `${opts.minId} < id <= ${opts.maxId}`
+				: opts?.minId != null
+					? `id > ${opts.minId}`
+					: `id <= ${opts?.maxId}`;
 		log(
-			`  ${table}: ${totalRows.toLocaleString()} total, ${generatedRows.toLocaleString()} to generate (id > ${opts.minId}) → upsert (chunk size ${chunkSize})`,
+			`  ${table}: ${totalRows.toLocaleString()} total, ${generatedRows.toLocaleString()} to generate (${rangeDesc}) → upsert (chunk size ${chunkSize})`,
 		);
 	} else {
 		log(`  ${table}: ${totalRows.toLocaleString()} rows → upsert (all rows)`);
@@ -132,7 +155,7 @@ function generateUpsertChunks(
 
 	while (offset < generatedRows) {
 		chunkNum++;
-		const orderClause = opts?.minId != null ? "ORDER BY id" : "";
+		const orderClause = conditions.length > 0 ? "ORDER BY id" : "";
 		const rows = db
 			.query(
 				`SELECT ${columns.join(",")} FROM ${table} ${whereClause} ${orderClause} LIMIT ${chunkSize} OFFSET ${offset}`,
@@ -220,6 +243,12 @@ if (USERS_CHUNK_SIZE !== CHUNK_SIZE) {
 if (USERS_MIN_ID != null) {
 	log(`  Users min ID:      ${USERS_MIN_ID} (continuation)`);
 }
+if (USERS_MAX_ID != null) {
+	log(`  Users max ID:      ${USERS_MAX_ID} (upper bound)`);
+}
+if (TABLES_FILTER != null) {
+	log(`  Tables filter:     ${[...TABLES_FILTER].join(", ")}`);
+}
 
 // Load production state
 const prodState = loadProductionState(PROD_STATE_PATH);
@@ -249,6 +278,7 @@ const tableStats: Record<
 		source_total_rows: number;
 		source_rows_after_max: number | null;
 		continuation_min_id?: number | null;
+		continuation_max_id?: number | null;
 		effective_chunk_size?: number;
 		chunks: number;
 		rows: number;
@@ -266,6 +296,7 @@ function recordTableStats(
 	filteredRows: number | null,
 	continuationMinId?: number | null,
 	effectiveChunkSize?: number,
+	continuationMaxId?: number | null,
 ): void {
 	allChunks.push(...chunks);
 	tableStats[table] = {
@@ -274,6 +305,7 @@ function recordTableStats(
 		source_total_rows: totalRows,
 		source_rows_after_max: filteredRows,
 		...(continuationMinId != null ? { continuation_min_id: continuationMinId } : {}),
+		...(continuationMaxId != null ? { continuation_max_id: continuationMaxId } : {}),
 		...(effectiveChunkSize != null && effectiveChunkSize !== CHUNK_SIZE
 			? { effective_chunk_size: effectiveChunkSize }
 			: {}),
@@ -283,118 +315,150 @@ function recordTableStats(
 	};
 }
 
-// 1. Forums — upsert (all rows)
-log("Generating forums...");
-const forumsResult = generateUpsertChunks(
-	db,
-	"forums",
-	TABLE_COLUMNS.forums,
-	"id",
-	FORUMS_UPSERT_COLUMNS,
-	OUT_DIR,
-);
-recordTableStats("forums", "upsert", forumsResult.chunks, forumsResult.totalRows, null, null);
+/** Check if a table should be generated based on --tables filter. */
+function shouldGenerate(table: string): boolean {
+	if (TABLES_FILTER == null) return true;
+	return TABLES_FILTER.has(table);
+}
 
-// 2. Users — upsert (with optional continuation and chunk size override)
-log("Generating users...");
-const usersOpts: { chunkSize?: number; minId?: number } = {};
-if (USERS_CHUNK_SIZE !== CHUNK_SIZE) usersOpts.chunkSize = USERS_CHUNK_SIZE;
-if (USERS_MIN_ID != null) usersOpts.minId = USERS_MIN_ID;
-const usersResult = generateUpsertChunks(
-	db,
-	"users",
-	TABLE_COLUMNS.users,
-	"id",
-	USERS_UPSERT_COLUMNS,
-	OUT_DIR,
-	Object.keys(usersOpts).length > 0 ? usersOpts : undefined,
-);
-recordTableStats(
-	"users",
-	"upsert",
-	usersResult.chunks,
-	usersResult.totalRows,
-	null,
-	USERS_MIN_ID != null ? usersResult.generatedRows : null,
-	USERS_MIN_ID,
-	USERS_CHUNK_SIZE,
-);
+// 1. Forums — upsert (all rows)
+if (shouldGenerate("forums")) {
+	log("Generating forums...");
+	const forumsResult = generateUpsertChunks(
+		db,
+		"forums",
+		TABLE_COLUMNS.forums,
+		"id",
+		FORUMS_UPSERT_COLUMNS,
+		OUT_DIR,
+	);
+	recordTableStats("forums", "upsert", forumsResult.chunks, forumsResult.totalRows, null, null);
+} else {
+	log("Skipping forums (--tables filter)");
+}
+
+// 2. Users — upsert (with optional continuation, chunk size override, and max ID)
+if (shouldGenerate("users")) {
+	log("Generating users...");
+	const usersOpts: { chunkSize?: number; minId?: number; maxId?: number } = {};
+	if (USERS_CHUNK_SIZE !== CHUNK_SIZE) usersOpts.chunkSize = USERS_CHUNK_SIZE;
+	if (USERS_MIN_ID != null) usersOpts.minId = USERS_MIN_ID;
+	if (USERS_MAX_ID != null) usersOpts.maxId = USERS_MAX_ID;
+	const usersResult = generateUpsertChunks(
+		db,
+		"users",
+		TABLE_COLUMNS.users,
+		"id",
+		USERS_UPSERT_COLUMNS,
+		OUT_DIR,
+		Object.keys(usersOpts).length > 0 ? usersOpts : undefined,
+	);
+	recordTableStats(
+		"users",
+		"upsert",
+		usersResult.chunks,
+		usersResult.totalRows,
+		null,
+		USERS_MIN_ID != null || USERS_MAX_ID != null ? usersResult.generatedRows : null,
+		USERS_MIN_ID,
+		USERS_CHUNK_SIZE,
+		USERS_MAX_ID,
+	);
+} else {
+	log("Skipping users (--tables filter)");
+}
 
 // 3. Threads — incremental (id > prod max_id)
-log("Generating threads...");
-const threadsProdMaxId = prodState.tables.threads?.max_id ?? 0;
-const threadsResult = generateIncrementalChunks(
-	db,
-	"threads",
-	TABLE_COLUMNS.threads,
-	threadsProdMaxId,
-	OUT_DIR,
-);
-recordTableStats(
-	"threads",
-	"insert_or_ignore",
-	threadsResult.chunks,
-	threadsResult.totalRows,
-	threadsProdMaxId,
-	threadsResult.filteredRows,
-);
+if (shouldGenerate("threads")) {
+	log("Generating threads...");
+	const threadsProdMaxId = prodState.tables.threads?.max_id ?? 0;
+	const threadsResult = generateIncrementalChunks(
+		db,
+		"threads",
+		TABLE_COLUMNS.threads,
+		threadsProdMaxId,
+		OUT_DIR,
+	);
+	recordTableStats(
+		"threads",
+		"insert_or_ignore",
+		threadsResult.chunks,
+		threadsResult.totalRows,
+		threadsProdMaxId,
+		threadsResult.filteredRows,
+	);
+} else {
+	log("Skipping threads (--tables filter)");
+}
 
 // 4. Posts — incremental (id > prod max_id)
-log("Generating posts...");
-const postsProdMaxId = prodState.tables.posts?.max_id ?? 0;
-const postsResult = generateIncrementalChunks(
-	db,
-	"posts",
-	TABLE_COLUMNS.posts,
-	postsProdMaxId,
-	OUT_DIR,
-);
-recordTableStats(
-	"posts",
-	"insert_or_ignore",
-	postsResult.chunks,
-	postsResult.totalRows,
-	postsProdMaxId,
-	postsResult.filteredRows,
-);
+if (shouldGenerate("posts")) {
+	log("Generating posts...");
+	const postsProdMaxId = prodState.tables.posts?.max_id ?? 0;
+	const postsResult = generateIncrementalChunks(
+		db,
+		"posts",
+		TABLE_COLUMNS.posts,
+		postsProdMaxId,
+		OUT_DIR,
+	);
+	recordTableStats(
+		"posts",
+		"insert_or_ignore",
+		postsResult.chunks,
+		postsResult.totalRows,
+		postsProdMaxId,
+		postsResult.filteredRows,
+	);
+} else {
+	log("Skipping posts (--tables filter)");
+}
 
 // 5. Attachments — incremental (id > prod max_id)
-log("Generating attachments...");
-const attachProdMaxId = prodState.tables.attachments?.max_id ?? 0;
-const attachResult = generateIncrementalChunks(
-	db,
-	"attachments",
-	TABLE_COLUMNS.attachments,
-	attachProdMaxId,
-	OUT_DIR,
-);
-recordTableStats(
-	"attachments",
-	"insert_or_ignore",
-	attachResult.chunks,
-	attachResult.totalRows,
-	attachProdMaxId,
-	attachResult.filteredRows,
-);
+if (shouldGenerate("attachments")) {
+	log("Generating attachments...");
+	const attachProdMaxId = prodState.tables.attachments?.max_id ?? 0;
+	const attachResult = generateIncrementalChunks(
+		db,
+		"attachments",
+		TABLE_COLUMNS.attachments,
+		attachProdMaxId,
+		OUT_DIR,
+	);
+	recordTableStats(
+		"attachments",
+		"insert_or_ignore",
+		attachResult.chunks,
+		attachResult.totalRows,
+		attachProdMaxId,
+		attachResult.filteredRows,
+	);
+} else {
+	log("Skipping attachments (--tables filter)");
+}
 
 // 6. Checkins — upsert (all rows)
-log("Generating user_checkins...");
-const checkinsResult = generateUpsertChunks(
-	db,
-	"user_checkins",
-	TABLE_COLUMNS.user_checkins,
-	"user_id",
-	CHECKINS_UPSERT_COLUMNS,
-	OUT_DIR,
-);
-recordTableStats(
-	"user_checkins",
-	"upsert",
-	checkinsResult.chunks,
-	checkinsResult.totalRows,
-	null,
-	null,
-);
+if (shouldGenerate("user_checkins")) {
+	log("Generating user_checkins...");
+	const checkinsResult = generateUpsertChunks(
+		db,
+		"user_checkins",
+		TABLE_COLUMNS.user_checkins,
+		"user_id",
+		CHECKINS_UPSERT_COLUMNS,
+		OUT_DIR,
+	);
+	recordTableStats(
+		"user_checkins",
+		"upsert",
+		checkinsResult.chunks,
+		checkinsResult.totalRows,
+		null,
+		null,
+	);
+} else {
+	log("Skipping user_checkins (--tables filter)");
+}
 
 db.close();
 
@@ -420,7 +484,9 @@ for (const [table, info] of Object.entries(manifest.tables)) {
 			? ` (prod max_id=${info.prod_max_id}, new=${info.source_rows_after_max})`
 			: "";
 	const contNote =
-		info.continuation_min_id != null ? ` (continuation: id > ${info.continuation_min_id})` : "";
+		info.continuation_min_id != null || info.continuation_max_id != null
+			? ` (continuation: ${info.continuation_min_id != null ? `id > ${info.continuation_min_id}` : ""}${info.continuation_min_id != null && info.continuation_max_id != null ? " AND " : ""}${info.continuation_max_id != null ? `id <= ${info.continuation_max_id}` : ""})`
+			: "";
 	log(
 		`  ${table}: ${info.rows.toLocaleString()} rows → ${info.chunks} chunks (${info.strategy})${maxIdNote}${contNote}`,
 	);
