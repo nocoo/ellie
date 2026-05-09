@@ -2,9 +2,12 @@
 // Provides endpoints to fix stale data from migrations or deletions.
 
 import { withEntityAuth } from "../../lib/adminHelpers";
+import { bumpForumSummaryGen, invalidateUserCaches } from "../../lib/cache/invalidate";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
+import { invalidateForumCacheAll, invalidateForumVolatile } from "../../lib/forum-cache";
 import { jsonResponse } from "../../lib/response";
+import { invalidateUserCache } from "../../lib/user-cache";
 import { errorResponse } from "../../middleware/error";
 
 // Dummy config for auth — statistics endpoints require admin role
@@ -109,6 +112,13 @@ export const recalcForums = withEntityAuth(
 
 		await env.DB.batch(statements);
 
+		// Cache invalidation (docs/19 §6 row "admin statistics recalc-forums"):
+		// - Legacy: every forum aggregate row was rewritten — drop both
+		//   tree (visibility/structure unchanged but counts feed the tree
+		//   payload) and volatile.
+		// - v2: bump `forum:summary:gen`.
+		await Promise.all([invalidateForumCacheAll(env), bumpForumSummaryGen(env)]);
+
 		return jsonResponse({ updated: forumIds.length }, origin);
 	},
 );
@@ -209,6 +219,14 @@ export const recalcThreads = withEntityAuth(
 			await env.DB.batch(statements.slice(i, i + BATCH_SIZE));
 		}
 
+		// Cache invalidation (docs/19 §6 row "admin statistics recalc-threads"):
+		// - Legacy: drop forums:volatile:v1 (last-post / counts may have
+		//   shifted as a side-effect of recalculating thread last-post).
+		// - v2: bump forum:summary:gen. Per docs/19 §3.3.1, before
+		//   thread:list:v2 / thread:meta:v2 ship (Phase 3/4) this
+		//   invalidation MUST be extended.
+		await Promise.all([invalidateForumVolatile(env), bumpForumSummaryGen(env)]);
+
 		return jsonResponse({ updated: threadData.length }, origin);
 	},
 );
@@ -290,6 +308,21 @@ export const recalcUsers = withEntityAuth(
 		// D1 batch has a limit, chunk if needed
 		for (let i = 0; i < statements.length; i += BATCH_SIZE) {
 			await env.DB.batch(statements.slice(i, i + BATCH_SIZE));
+		}
+
+		// Cache invalidation (docs/19 §6 row "admin statistics recalc-users"):
+		// - Legacy: drop user:mini:<id> per user.
+		// - v2: drop user:mini:v2:<id> + both viewer-bucket variants of
+		//   user:public:v2:<id> per user.
+		// Run as a chunked best-effort sweep so a large user set doesn't
+		// fan out thousands of concurrent KV calls; KV failures are
+		// already swallowed inside the helpers.
+		const KV_CHUNK = 50;
+		for (let i = 0; i < userIds.length; i += KV_CHUNK) {
+			const chunk = userIds.slice(i, i + KV_CHUNK);
+			await Promise.all(
+				chunk.flatMap((uid) => [invalidateUserCache(env, uid), invalidateUserCaches(env, uid)]),
+			);
 		}
 
 		return jsonResponse({ updated: userIds.length }, origin);

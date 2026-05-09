@@ -1,8 +1,10 @@
 // Thread handlers for Cloudflare Worker
 import { type Thread, canViewForumVisibility, decodeGenericCursor } from "@ellie/types";
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
+import { invalidateForumVolatileV2 } from "../lib/cache/invalidate";
 import { applyCensorFilter } from "../lib/censor";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
+import { invalidateForumVolatile } from "../lib/forum-cache";
 import { enrichThreadsWithUserCache, toThread } from "../lib/mappers";
 import { buildNextCursor, clampLimit } from "../lib/pagination";
 import { checkPostingPermission } from "../lib/postingPermission";
@@ -529,6 +531,13 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		]),
 		env.DB.prepare("SELECT * FROM threads WHERE id = ?").bind(threadId).first(),
 	]);
+
+	// Cache invalidation (docs/19 §6 row "POST /api/v1/threads"):
+	// - Legacy v1: drop `forums:volatile:v1` (last-post + counts changed).
+	// - v2: bump `forum:summary:gen` + `thread:list:gen:<forumId>` so future
+	//   v2 caches see a fresh gen — these helpers are no-ops on consumers
+	//   until Phase 2/3 land but keep the §6 matrix wired now.
+	await Promise.all([invalidateForumVolatile(env), invalidateForumVolatileV2(env, forumId)]);
 
 	return jsonResponse(toThread(createdThread as Record<string, unknown>), origin, undefined, 201);
 });
