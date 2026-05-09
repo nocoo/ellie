@@ -12,9 +12,9 @@ Last audit: **2026-05-09**
 |---|---|
 | Total (route × method) | **134** |
 | Method breakdown | GET 58 / POST 46 / PATCH 16 / PUT 1 / DELETE 13 |
-| L2 calls scanned | 218 |
-| Routes hit | **126** (94.03%) |
-| Routes uncovered | **8** |
+| L2 calls scanned | 230 |
+| Routes hit | **133** (99.25%) |
+| Routes uncovered | **1** |
 | Exemptions | 0 |
 | Unmatched test calls | 0 |
 
@@ -117,8 +117,8 @@ _None._ Every route × method must be covered by L2.
 | ✅ | GET | `/api/v1/auth/me` | index.ts:164 |
 | ✅ | POST | `/api/v1/auth/refresh` | index.ts:158 |
 | ✅ | POST | `/api/v1/auth/register` | index.ts:167 |
-| ❌ | POST | `/api/v1/checkin` | index.ts:244 |
-| ❌ | GET | `/api/v1/checkin/status` | index.ts:241 |
+| ✅ | POST | `/api/v1/checkin` | index.ts:244 |
+| ✅ | GET | `/api/v1/checkin/status` | index.ts:241 |
 | ✅ | GET | `/api/v1/digest` | index.ts:134 |
 | ✅ | GET | `/api/v1/digest/filters` | index.ts:140 |
 | ✅ | GET | `/api/v1/digest/stats` | index.ts:137 |
@@ -132,18 +132,18 @@ _None._ Every route × method must be covered by L2.
 | ✅ | GET | `/api/v1/posting-permission` | index.ts:236 |
 | ✅ | GET | `/api/v1/posts` | index.ts:90 |
 | ✅ | POST | `/api/v1/posts` | index.ts:178 |
-| ❌ | POST | `/api/v1/posts/attachments/batch` | index.ts:100 |
+| ✅ | POST | `/api/v1/posts/attachments/batch` | index.ts:100 |
 | ✅ | POST | `/api/v1/reports` | index.ts:233 |
 | ✅ | GET | `/api/v1/search/threads` | index.ts:129 |
 | ✅ | GET | `/api/v1/settings` | index.ts:150 |
 | ✅ | GET | `/api/v1/stats` | index.ts:145 |
 | ✅ | GET | `/api/v1/threads` | index.ts:84 |
 | ✅ | POST | `/api/v1/threads` | index.ts:175 |
-| ❌ | POST | `/api/v1/upload` | index.ts:249 |
+| ✅ | POST | `/api/v1/upload` | index.ts:249 |
 | ✅ | GET | `/api/v1/users/batch` | index.ts:124 |
 | ✅ | PATCH | `/api/v1/users/me` | index.ts:183 |
-| ❌ | POST | `/api/v1/users/me/email/request-code` | index.ts:197 |
-| ❌ | POST | `/api/v1/users/me/email/verify` | index.ts:200 |
+| ✅ | POST | `/api/v1/users/me/email/request-code` | index.ts:197 |
+| ✅ | POST | `/api/v1/users/me/email/verify` | index.ts:200 |
 | ✅ | POST | `/api/v1/users/me/password` | index.ts:186 |
 | ✅ | GET | `/api/v1/users/search` | index.ts:120 |
 | ✅ | GET | `/^\/api\/admin\/admin-logs\/\d+$/` | index.ts:556 |
@@ -199,7 +199,7 @@ _None._ Every route × method must be covered by L2.
 | ✅ | GET | `/^\/api\/v1\/moderation\/users\/\d+\/status$/` | index.ts:312 |
 | ✅ | POST | `/^\/api\/v1\/moderation\/users\/\d+\/unban$/` | index.ts:330 |
 | ✅ | POST | `/^\/api\/v1\/moderation\/users\/\d+\/unmute$/` | index.ts:324 |
-| ❌ | GET | `/^\/api\/v1\/post-images\/(.+)$/` | index.ts:268 |
+| ✅ | GET | `/^\/api\/v1\/post-images\/(.+)$/` | index.ts:268 |
 | ✅ | GET | `/^\/api\/v1\/posts\/\d+$/` | index.ts:93 |
 | ✅ | GET | `/^\/api\/v1\/posts\/\d+\/attachments$/` | index.ts:96 |
 | ✅ | GET | `/^\/api\/v1\/threads\/\d+$/` | index.ts:87 |
@@ -213,13 +213,6 @@ _None._ Every route × method must be covered by L2.
 
 | Method | Pattern | Source line |
 |---|---|---|
-| POST | `/api/v1/posts/attachments/batch` | index.ts:100 |
-| POST | `/api/v1/users/me/email/request-code` | index.ts:197 |
-| POST | `/api/v1/users/me/email/verify` | index.ts:200 |
-| GET | `/api/v1/checkin/status` | index.ts:241 |
-| POST | `/api/v1/checkin` | index.ts:244 |
-| POST | `/api/v1/upload` | index.ts:249 |
-| GET | `/^\/api\/v1\/post-images\/(.+)$/` | index.ts:268 |
 | POST | `/^\/api\/admin\/users\/\d+\/purge$/` | index.ts:441 |
 
 ## 6. Unmatched L2 calls
