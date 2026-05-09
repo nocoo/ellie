@@ -3,7 +3,13 @@
 
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
-import { invalidateForumSummaryV2 } from "../../lib/cache/invalidate";
+import {
+	bumpDigestGen,
+	bumpForumSummaryGen,
+	bumpThreadListGen,
+	invalidateForumVolatileV2,
+	invalidateThreadListForForums,
+} from "../../lib/cache/invalidate";
 import { buildDeleteThreadChildStatements } from "../../lib/contentDelete";
 import type { EntityConfig } from "../../lib/crud";
 import { createGetByIdHandler, createListHandler, createUpdateHandler } from "../../lib/crud";
@@ -119,7 +125,8 @@ const threadConfig: EntityConfig = {
 
 	async afterUpdate(id, data, existing, env) {
 		// Move side effects: update posts' forum_id and adjust forum counts
-		if (data.forum_id !== undefined && data.forum_id !== existing.forum_id) {
+		const movedForum = data.forum_id !== undefined && data.forum_id !== existing.forum_id;
+		if (movedForum) {
 			const oldForumId = existing.forum_id as number;
 			const newForumId = data.forum_id as number;
 			const replies = existing.replies as number;
@@ -140,8 +147,31 @@ const threadConfig: EntityConfig = {
 				recalcForumMetadata(env, oldForumId),
 				recalcForumMetadata(env, newForumId),
 			]);
-			await Promise.all([invalidateForumSummaryV2(env)]);
 		}
+
+		// Cache invalidation matrix per docs/19 §6 thread.update row:
+		//   - forum_id change ⇒ source + target volatile bump
+		//   - any list-affecting field change ⇒ per-forum thread-list bump
+		//     for the forum the thread now lives in
+		//   - digest change ⇒ also bump digest gen (filter visibility)
+		const LIST_AFFECTING = new Set(["sticky", "digest", "closed", "highlight", "subject"]);
+		const listAffected = Object.keys(data).some((c) => LIST_AFFECTING.has(c));
+		const digestChanged = data.digest !== undefined && data.digest !== (existing.digest as number);
+
+		const ops: Promise<unknown>[] = [];
+		if (movedForum) {
+			const oldForumId = existing.forum_id as number;
+			const newForumId = data.forum_id as number;
+			ops.push(
+				invalidateForumVolatileV2(env, oldForumId),
+				invalidateForumVolatileV2(env, newForumId),
+			);
+		} else if (listAffected) {
+			const currentForumId = existing.forum_id as number;
+			ops.push(bumpThreadListGen(env, currentForumId));
+		}
+		if (digestChanged) ops.push(bumpDigestGen(env));
+		if (ops.length > 0) await Promise.all(ops);
 	},
 
 	async afterDelete(id, existing, env) {
@@ -188,7 +218,12 @@ const threadConfig: EntityConfig = {
 
 		// Recalc forum metadata after thread deletion
 		await recalcForumMetadata(env, forumId);
-		await Promise.all([invalidateForumSummaryV2(env)]);
+
+		// Volatile cache: forum summary + per-forum thread-list bumped together.
+		// If deleted thread was a digest, also bump digest gen.
+		const tail: Promise<unknown>[] = [invalidateForumVolatileV2(env, forumId)];
+		if ((existing.digest as number) > 0) tail.push(bumpDigestGen(env));
+		await Promise.all(tail);
 	},
 };
 
@@ -341,7 +376,12 @@ export const remove = withEntityAuth(
 			return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 		}
 
-		const threadRow = thread as { forum_id: number; author_id: number; replies: number };
+		const threadRow = thread as {
+			forum_id: number;
+			author_id: number;
+			replies: number;
+			digest: number;
+		};
 
 		// Query post authors before deletion for user counter updates. The total
 		// post count for the thread is just the sum of these per-author counts,
@@ -379,7 +419,9 @@ export const remove = withEntityAuth(
 
 		// Recalc forum metadata after thread deletion
 		await recalcForumMetadata(env, threadRow.forum_id);
-		await Promise.all([invalidateForumSummaryV2(env)]);
+		const tail: Promise<unknown>[] = [invalidateForumVolatileV2(env, threadRow.forum_id)];
+		if (threadRow.digest > 0) tail.push(bumpDigestGen(env));
+		await Promise.all(tail);
 
 		// F3-b: audit only after the mutation has committed.
 		await writeAdminLog(env, resolveActor(request), {
@@ -463,10 +505,10 @@ export const batchDelete = withEntityAuth(
 		const placeholders = numericIds.map(() => "?").join(",");
 		const threadRows = (
 			await env.DB.prepare(
-				`SELECT id, forum_id, author_id FROM threads WHERE id IN (${placeholders})`,
+				`SELECT id, forum_id, author_id, digest FROM threads WHERE id IN (${placeholders})`,
 			)
 				.bind(...numericIds)
-				.all<{ id: number; forum_id: number; author_id: number }>()
+				.all<{ id: number; forum_id: number; author_id: number; digest: number }>()
 		).results;
 
 		if (threadRows.length === 0) {
@@ -527,21 +569,28 @@ export const batchDelete = withEntityAuth(
 		await env.DB.batch(statements);
 
 		// Tail fan-out — independent counter decrements + per-forum recalcs +
-		// volatile cache invalidation + audit log.
-		await Promise.all([
+		// volatile cache invalidation + audit log. Per-forum thread-list bump
+		// for every affected forum; one summary bump; digest bump if any
+		// deleted thread had digest > 0.
+		const hadDigestBatch = threadRows.some((t) => t.digest > 0);
+		const affectedForumIds = Array.from(forumThreadCounts.keys());
+		const tailOps: Promise<unknown>[] = [
 			batchDecrementUserPosts(env, authorCounts),
 			...Array.from(threadAuthorCounts, ([authorId, count]) =>
 				decrementUserThreads(env, authorId, count),
 			),
 			...Array.from(forumThreadCounts.keys(), (forumId) => recalcForumMetadata(env, forumId)),
-			invalidateForumSummaryV2(env),
+			invalidateThreadListForForums(env, affectedForumIds),
+			bumpForumSummaryGen(env),
 			writeAdminLog(env, resolveActor(request), {
 				action: "thread.batch_delete",
 				targetType: "thread",
 				targetId: null,
 				details: { ids: existingIds, count: existingIds.length },
 			}),
-		]);
+		];
+		if (hadDigestBatch) tailOps.push(bumpDigestGen(env));
+		await Promise.all(tailOps);
 
 		return jsonResponse({ deleted: true, count: existingIds.length }, origin);
 	},
@@ -681,7 +730,13 @@ export const batchMove = withEntityAuth(
 			...Array.from(forumAdjustments.keys(), (forumId) => recalcForumMetadata(env, forumId)),
 			recalcForumMetadata(env, targetForumId),
 		]);
-		await Promise.all([invalidateForumSummaryV2(env)]);
+		// Per-forum thread-list bumps for every source forum + the target,
+		// plus a single summary bump.
+		const movedForumIds = [...forumAdjustments.keys(), targetForumId];
+		await Promise.all([
+			invalidateThreadListForForums(env, movedForumIds),
+			bumpForumSummaryGen(env),
+		]);
 
 		// F3-b: audit one row for the entire successful batch. fromForumIds
 		// is deduped (Map keys) so multi-source batches are searchable.

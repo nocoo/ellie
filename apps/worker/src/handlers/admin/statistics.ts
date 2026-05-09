@@ -2,7 +2,12 @@
 // Provides endpoints to fix stale data from migrations or deletions.
 
 import { withEntityAuth } from "../../lib/adminHelpers";
-import { bumpForumSummaryGen, invalidateUserCaches } from "../../lib/cache/invalidate";
+import {
+	bumpForumSummaryGen,
+	bumpThreadListGen,
+	bumpThreadListGenAll,
+	invalidateUserCaches,
+} from "../../lib/cache/invalidate";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { jsonResponse } from "../../lib/response";
@@ -220,10 +225,14 @@ export const recalcThreads = withEntityAuth(
 
 		// Cache invalidation (docs/19 §6 row "admin statistics recalc-threads"):
 		// bump forum:summary:gen (last-post / counts may have shifted as a
-		// side-effect of recalculating thread last-post). Per docs/19
-		// §3.3.1, before thread:list:v2 / thread:meta:v2 ship (Phase 3/4)
-		// this invalidation MUST be extended.
-		await bumpForumSummaryGen(env);
+		// side-effect of recalculating thread last-post). For thread:list:v2,
+		// bump per-forum gen when scoped to a single forum, else fall back to
+		// the global `thread:list:gen:all` to invalidate every per-forum
+		// thread-list cache in one write (docs/19 §3.3.1 option (b)).
+		await Promise.all([
+			bumpForumSummaryGen(env),
+			forumId ? bumpThreadListGen(env, forumId) : bumpThreadListGenAll(env),
+		]);
 
 		return jsonResponse({ updated: threadData.length }, origin);
 	},

@@ -1,6 +1,11 @@
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
-import { invalidateForumSummaryV2, invalidateUserCaches } from "../../lib/cache/invalidate";
+import {
+	bumpDigestGen,
+	bumpForumSummaryGen,
+	invalidateThreadListForForums,
+	invalidateUserCaches,
+} from "../../lib/cache/invalidate";
 import {
 	buildDeletePostChildStatements,
 	buildDeleteThreadChildStatements,
@@ -312,6 +317,8 @@ export const update = withEntityAuth(userConfig, createUpdateHandler(userConfig)
 interface ContentDeletionResult {
 	threadsDeleted: number;
 	postsDeleted: number;
+	affectedForumIds: number[];
+	hadDigestThread: boolean;
 }
 
 async function deleteUserContent(env: Env, userId: number): Promise<ContentDeletionResult> {
@@ -327,7 +334,7 @@ async function deleteUserContent(env: Env, userId: number): Promise<ContentDelet
 	// against `posts` inside the same batch would see post-delete state.
 	const [threads, standalonePosts, standaloneThreadUpdates, standalonePostIdRows] =
 		await Promise.all([
-			env.DB.prepare("SELECT id, forum_id, replies FROM threads WHERE author_id = ?")
+			env.DB.prepare("SELECT id, forum_id, replies, digest FROM threads WHERE author_id = ?")
 				.bind(userId)
 				.all(),
 			env.DB.prepare(
@@ -346,7 +353,12 @@ async function deleteUserContent(env: Env, userId: number): Promise<ContentDelet
 				.bind(userId, userId)
 				.all<{ id: number }>(),
 		]);
-	const threadRows = threads.results as { id: number; forum_id: number; replies: number }[];
+	const threadRows = threads.results as {
+		id: number;
+		forum_id: number;
+		replies: number;
+		digest: number;
+	}[];
 	const userThreadIds = threadRows.map((t) => t.id);
 	const standalonePostIds = standalonePostIdRows.results.map((r) => r.id);
 
@@ -473,6 +485,8 @@ async function deleteUserContent(env: Env, userId: number): Promise<ContentDelet
 	return {
 		threadsDeleted: threadRows.length,
 		postsDeleted: totalPostsDeleted,
+		affectedForumIds: Array.from(allAffectedForumIds),
+		hadDigestThread: threadRows.some((t) => t.digest > 0),
 	};
 }
 
@@ -526,8 +540,8 @@ export const ban = withEntityAuth(
 		// Ban + delete all content
 		const result = await deleteUserContent(env, id);
 
-		// Status update + audit log are independent.
-		await Promise.all([
+		// Status update + audit log + cache invalidation are independent.
+		const banDeleteOps: Promise<unknown>[] = [
 			env.DB.prepare("UPDATE users SET status = -1, threads = 0, posts = 0 WHERE id = ?")
 				.bind(id)
 				.run(),
@@ -542,7 +556,11 @@ export const ban = withEntityAuth(
 					deletedPosts: result.postsDeleted,
 				},
 			}),
-		]);
+			invalidateThreadListForForums(env, result.affectedForumIds),
+			bumpForumSummaryGen(env),
+		];
+		if (result.hadDigestThread) banDeleteOps.push(bumpDigestGen(env));
+		await Promise.all(banDeleteOps);
 
 		return jsonResponse(
 			{
@@ -637,13 +655,14 @@ export const nuke = withEntityAuth(
 
 		// User-counter zeroing UPDATE, volatile-cache invalidation, and the
 		// audit-log write are all independent. Fan out.
-		await Promise.all([
+		const nukeOps: Promise<unknown>[] = [
 			env.DB.prepare(
 				"UPDATE users SET status = -1, threads = 0, posts = 0, credits = 0, coins = 0 WHERE id = ?",
 			)
 				.bind(id)
 				.run(),
-			invalidateForumSummaryV2(env),
+			invalidateThreadListForForums(env, result.affectedForumIds),
+			bumpForumSummaryGen(env),
 			writeAdminLog(env, resolveActor(request), {
 				action: "user.nuke",
 				targetType: "user",
@@ -653,7 +672,9 @@ export const nuke = withEntityAuth(
 					deletedPosts: result.postsDeleted,
 				},
 			}),
-		]);
+		];
+		if (result.hadDigestThread) nukeOps.push(bumpDigestGen(env));
+		await Promise.all(nukeOps);
 
 		return jsonResponse(
 			{
@@ -715,6 +736,7 @@ export const nuke = withEntityAuth(
 interface PurgeOwnedThread {
 	id: number;
 	forum_id: number;
+	digest: number;
 }
 interface PurgeOwnedThreadPost {
 	id: number;
@@ -839,7 +861,7 @@ function buildAuthorContentWhere(
 
 async function purgePreflight(env: Env, id: number): Promise<PurgePreflight> {
 	const ownedThreadsRes = await env.DB.prepare(
-		"SELECT id, forum_id FROM threads WHERE author_id = ?",
+		"SELECT id, forum_id, digest FROM threads WHERE author_id = ?",
 	)
 		.bind(id)
 		.all();
@@ -1084,13 +1106,21 @@ export const purge = withEntityAuth(
 		}
 
 		// Cache invalidations are all independent (different keys) — fan out.
-		await Promise.all([
-			invalidateForumSummaryV2(env),
+		// Per-forum thread-list bumps for every affected forum (we KNOW the
+		// set here, so don't fall back to bumpThreadListGenAll). If any of
+		// the user's owned threads carried a non-zero digest, also bump
+		// digest gen.
+		const purgeHadDigest = pre.ownedThreads.some((t) => t.digest > 0);
+		const purgeOps: Promise<unknown>[] = [
+			invalidateThreadListForForums(env, pre.affectedForumIds),
+			bumpForumSummaryGen(env),
 			invalidateUserCache(env, id),
 			...Array.from(pre.collateralAuthorDelta.keys(), (authorId) =>
 				invalidateUserCache(env, authorId),
 			),
-		]);
+		];
+		if (purgeHadDigest) purgeOps.push(bumpDigestGen(env));
+		await Promise.all(purgeOps);
 
 		const r2Keys = Array.from(
 			new Set([...pre.attachmentKeys, ...(target.avatar_path ? [target.avatar_path] : [])]),

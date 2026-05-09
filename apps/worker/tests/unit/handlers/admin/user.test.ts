@@ -716,7 +716,7 @@ describe("admin user handlers", () => {
 					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, replies FROM threads WHERE author_id": threadRows,
+					"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": threadRows,
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": standalonePostRows,
 					"SELECT thread_id, COUNT(*) as cnt FROM posts": standaloneThreadRows,
 				},
@@ -798,7 +798,7 @@ describe("admin user handlers", () => {
 					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, replies FROM threads WHERE author_id": threadRows,
+					"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": threadRows,
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": standalonePostRows,
 					"SELECT thread_id, COUNT(*) as cnt FROM posts": standaloneThreadRows,
 					"SELECT id FROM posts WHERE author_id": standalonePostIdRows,
@@ -867,7 +867,7 @@ describe("admin user handlers", () => {
 					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, replies FROM threads WHERE author_id": threadRows,
+					"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": threadRows,
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": standalonePostRows,
 					"SELECT thread_id, COUNT(*) as cnt FROM posts": standaloneThreadRows,
 				},
@@ -907,7 +907,7 @@ describe("admin user handlers", () => {
 					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, replies FROM threads WHERE author_id": [],
+					"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": [],
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": [],
 					"SELECT thread_id, COUNT(*) as cnt FROM posts": [],
 				},
@@ -1088,7 +1088,7 @@ describe("admin user handlers", () => {
 						null,
 				},
 				allResults: {
-					"SELECT id, forum_id FROM threads WHERE author_id": [{ id: 100, forum_id: 7 }],
+					"SELECT id, forum_id, digest FROM threads WHERE author_id": [{ id: 100, forum_id: 7 }],
 					"SELECT id, author_id FROM posts WHERE thread_id IN": [
 						{ id: 150, author_id: 42 },
 						{ id: 151, author_id: 99 },
@@ -1183,7 +1183,7 @@ describe("admin user handlers", () => {
 					"SELECT COUNT(*) as cnt FROM messages": { cnt: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id FROM threads WHERE author_id": [],
+					"SELECT id, forum_id, digest FROM threads WHERE author_id": [],
 					"SELECT id, thread_id, forum_id FROM posts WHERE author_id": [],
 					"SELECT DISTINCT file_path FROM attachments": [],
 				},
@@ -1208,7 +1208,7 @@ describe("admin user handlers", () => {
 					"SELECT COUNT(*) as cnt FROM messages": { cnt: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id FROM threads WHERE author_id": [],
+					"SELECT id, forum_id, digest FROM threads WHERE author_id": [],
 					"SELECT id, thread_id, forum_id FROM posts WHERE author_id": [],
 					"SELECT DISTINCT file_path FROM attachments": [],
 				},
@@ -1237,7 +1237,7 @@ describe("admin user handlers", () => {
 					"SELECT COUNT(*) as cnt FROM messages": { cnt: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id FROM threads WHERE author_id": [],
+					"SELECT id, forum_id, digest FROM threads WHERE author_id": [],
 					"SELECT id, thread_id, forum_id FROM posts WHERE author_id": [],
 					"SELECT DISTINCT file_path FROM attachments": [],
 				},
@@ -1273,7 +1273,7 @@ describe("admin user handlers", () => {
 					"SELECT created_at, author_name, author_id FROM threads WHERE id": null,
 				},
 				allResults: {
-					"SELECT id, forum_id FROM threads WHERE author_id": [{ id: 100, forum_id: 7 }],
+					"SELECT id, forum_id, digest FROM threads WHERE author_id": [{ id: 100, forum_id: 7 }],
 					"SELECT id, thread_id, forum_id FROM posts WHERE author_id = ? AND thread_id NOT IN": [
 						{ id: 201, thread_id: 300, forum_id: 8 },
 					],
@@ -1744,7 +1744,7 @@ describe("admin user handlers", () => {
 					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, replies FROM threads WHERE author_id": threadRows,
+					"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": threadRows,
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": [],
 					"SELECT thread_id, COUNT(*) as cnt FROM posts": [],
 					"SELECT author_id, COUNT(*) as cnt FROM posts WHERE thread_id IN": [
@@ -2099,7 +2099,7 @@ describe("admin user handlers", () => {
 					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, replies FROM threads WHERE author_id": [
+					"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": [
 						{ id: 10, forum_id: 1, replies: 3 },
 					],
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": [{ forum_id: 1, cnt: 2 }],
@@ -2140,7 +2140,7 @@ describe("admin user handlers", () => {
 					"SELECT id, status, role FROM users WHERE id": { id: 42, status: 0, role: 0 },
 				},
 				allResults: {
-					"SELECT id, forum_id, replies FROM threads WHERE author_id": [
+					"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": [
 						{ id: 10, forum_id: 1, replies: 2 },
 					],
 					"SELECT forum_id, COUNT(*) as cnt FROM posts": [{ forum_id: 1, cnt: 3 }],
