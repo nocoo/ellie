@@ -24,7 +24,6 @@ import {
 	buildDeleteThreadChildStatements,
 } from "../lib/contentDelete";
 import type { Env } from "../lib/env";
-import { invalidateForumVolatile } from "../lib/forum-cache";
 import { parseIdFromPath, parsePathSegment } from "../lib/parseId";
 import {
 	getForumForPermission,
@@ -328,7 +327,7 @@ export async function moveThread(request: Request, env: Env): Promise<Response> 
 	await recalcForumMetadata(env, targetForumId);
 
 	// Invalidate volatile cache (source/target forum counts + last-post changed)
-	await Promise.all([invalidateForumVolatile(env), invalidateForumSummaryV2(env)]);
+	await invalidateForumSummaryV2(env);
 
 	return jsonResponse({ id, forumId: targetForumId, moved: true }, origin);
 }
@@ -421,7 +420,6 @@ export async function deletePost(request: Request, env: Env): Promise<Response> 
 			await recalcThreadMetadata(env, post.thread_id);
 			await recalcForumMetadata(env, post.forum_id);
 		})(),
-		invalidateForumVolatile(env),
 		invalidateForumSummaryV2(env),
 	]);
 
@@ -619,7 +617,6 @@ export async function deleteThread(request: Request, env: Env): Promise<Response
 		decrementUserThreads(env, thread.author_id),
 		batchDecrementUserPosts(env, authorCounts),
 		recalcForumMetadata(env, thread.forum_id),
-		invalidateForumVolatile(env),
 		invalidateForumSummaryV2(env),
 	]);
 
@@ -1109,7 +1106,6 @@ export async function nukeUser(request: Request, env: Env): Promise<Response> {
 		)
 			.bind(userId)
 			.run(),
-		invalidateForumVolatile(env),
 		invalidateForumSummaryV2(env),
 	]);
 

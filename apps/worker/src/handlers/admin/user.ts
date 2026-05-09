@@ -8,7 +8,6 @@ import {
 import type { EntityConfig } from "../../lib/crud";
 import { createGetByIdHandler, createListHandler, createUpdateHandler } from "../../lib/crud";
 import type { Env } from "../../lib/env";
-import { invalidateForumVolatile } from "../../lib/forum-cache";
 import { toUser } from "../../lib/mappers";
 import { parsePathSegment } from "../../lib/parseId";
 import { recalcForumMetadata, recalcThreadMetadata } from "../../lib/recalcMetadata";
@@ -644,7 +643,6 @@ export const nuke = withEntityAuth(
 			)
 				.bind(id)
 				.run(),
-			invalidateForumVolatile(env),
 			invalidateForumSummaryV2(env),
 			writeAdminLog(env, resolveActor(request), {
 				action: "user.nuke",
@@ -676,7 +674,7 @@ export const nuke = withEntityAuth(
 //   - DB cleanup + counter repair + tombstone in a single env.DB.batch().
 //   - After DB batch: recalcThreadMetadata / recalcForumMetadata for affected
 //     rows (failures throw — endpoint returns 500; R2 not yet attempted).
-//   - After recalc + invalidateForumVolatile: best-effort R2 deletes (avatar +
+//   - After recalc + invalidateForumSummaryV2: best-effort R2 deletes (avatar +
 //     attachments). R2 failures DO NOT fail the request — reported in response.
 //
 // AUDIT TABLES INTENTIONALLY NOT TOUCHED:
@@ -1087,7 +1085,6 @@ export const purge = withEntityAuth(
 
 		// Cache invalidations are all independent (different keys) — fan out.
 		await Promise.all([
-			invalidateForumVolatile(env),
 			invalidateForumSummaryV2(env),
 			invalidateUserCache(env, id),
 			...Array.from(pre.collateralAuthorDelta.keys(), (authorId) =>

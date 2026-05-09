@@ -9,7 +9,6 @@ import {
 	buildDeleteThreadChildStatements,
 } from "../lib/contentDelete";
 import type { Env } from "../lib/env";
-import { invalidateForumVolatile } from "../lib/forum-cache";
 import { parseIdFromPath } from "../lib/parseId";
 import { recalcForumMetadata, recalcThreadMetadata } from "../lib/recalcMetadata";
 import { jsonResponse } from "../lib/response";
@@ -88,7 +87,7 @@ export async function deleteMyPost(request: Request, env: Env): Promise<Response
 	// the per-thread aggregate.
 	await recalcThreadMetadata(env, post.thread_id);
 	await recalcForumMetadata(env, post.forum_id);
-	await Promise.all([invalidateForumVolatile(env), invalidateForumSummaryV2(env)]);
+	await invalidateForumSummaryV2(env);
 
 	return jsonResponse({ deleted: true, id }, origin);
 }
@@ -157,7 +156,7 @@ export async function deleteMyThread(request: Request, env: Env): Promise<Respon
 
 	// Recalc forum metadata
 	await recalcForumMetadata(env, thread.forum_id);
-	await Promise.all([invalidateForumVolatile(env), invalidateForumSummaryV2(env)]);
+	await invalidateForumSummaryV2(env);
 
 	return jsonResponse({ deleted: true, id }, origin);
 }

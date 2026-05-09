@@ -14,7 +14,6 @@ import {
 	createUpdateHandler,
 } from "../../lib/crud";
 import type { Env } from "../../lib/env";
-import { invalidateForumVolatile } from "../../lib/forum-cache";
 import { toPost } from "../../lib/mappers";
 import { parseIdFromPath } from "../../lib/parseId";
 import { recalcForumMetadata, recalcThreadMetadata } from "../../lib/recalcMetadata";
@@ -85,7 +84,7 @@ const postConfig: EntityConfig = {
 		// Recalc thread and forum metadata after post deletion
 		await recalcThreadMetadata(env, row.thread_id);
 		await recalcForumMetadata(env, row.forum_id);
-		await Promise.all([invalidateForumVolatile(env), invalidateForumSummaryV2(env)]);
+		await Promise.all([invalidateForumSummaryV2(env)]);
 	},
 };
 
@@ -320,7 +319,6 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env) => {
 	// invalidation + audit-log write are all independent.
 	await Promise.all([
 		batchDecrementUserPosts(env, authorUpdates),
-		invalidateForumVolatile(env),
 		invalidateForumSummaryV2(env),
 		writeAdminLog(env, resolveActor(request), {
 			action: "post.batch_delete",

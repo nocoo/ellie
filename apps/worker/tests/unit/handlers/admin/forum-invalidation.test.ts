@@ -1,13 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock forum-cache to spy on invalidateForumCacheAll
-vi.mock("../../../../src/lib/forum-cache", () => ({
-	invalidateForumCacheAll: vi.fn(async () => {}),
-	invalidateForumTree: vi.fn(async () => {}),
-	invalidateForumVolatile: vi.fn(async () => {}),
-	isForumCacheEnabled: vi.fn(() => true),
-}));
-
 // Mock recalcMetadata (used by merge handler)
 vi.mock("../../../../src/lib/recalcMetadata", () => ({
 	recalcForumMetadata: vi.fn(async () => {}),
@@ -27,10 +19,8 @@ import {
 	invalidateForumStructureV2,
 	invalidateForumUpdateV2,
 } from "../../../../src/lib/cache/invalidate";
-import { invalidateForumCacheAll } from "../../../../src/lib/forum-cache";
 import { createMockDb, makeD1ForumRow, makeEnv } from "../../../helpers";
 
-const mockInvalidate = invalidateForumCacheAll as ReturnType<typeof vi.fn>;
 const mockStructureV2 = invalidateForumStructureV2 as ReturnType<typeof vi.fn>;
 const mockReorderV2 = invalidateForumReorderV2 as ReturnType<typeof vi.fn>;
 const mockUpdateV2 = invalidateForumUpdateV2 as ReturnType<typeof vi.fn>;
@@ -60,7 +50,7 @@ describe("admin forum — KV cache invalidation", () => {
 		);
 
 		expect(res.status).toBe(201);
-		expect(mockInvalidate).toHaveBeenCalledTimes(1);
+
 		expect(mockStructureV2).toHaveBeenCalledTimes(1);
 	});
 
@@ -81,7 +71,7 @@ describe("admin forum — KV cache invalidation", () => {
 		);
 
 		expect(res.status).toBe(200);
-		expect(mockInvalidate).toHaveBeenCalledTimes(1);
+
 		expect(mockUpdateV2).toHaveBeenCalledTimes(1);
 		expect(mockUpdateV2).toHaveBeenCalledWith(expect.anything(), { affectsDigest: true });
 	});
@@ -182,7 +172,7 @@ describe("admin forum — KV cache invalidation", () => {
 		);
 
 		expect(res.status).toBe(200);
-		expect(mockInvalidate).toHaveBeenCalledTimes(1);
+
 		expect(mockStructureV2).toHaveBeenCalledTimes(1);
 	});
 
@@ -202,7 +192,7 @@ describe("admin forum — KV cache invalidation", () => {
 		);
 
 		expect(res.status).toBe(409);
-		expect(mockInvalidate).not.toHaveBeenCalled();
+
 		expect(mockStructureV2).not.toHaveBeenCalled();
 	});
 
@@ -226,7 +216,7 @@ describe("admin forum — KV cache invalidation", () => {
 		);
 
 		expect(res.status).toBe(200);
-		expect(mockInvalidate).toHaveBeenCalledTimes(1);
+
 		expect(mockStructureV2).toHaveBeenCalledTimes(1);
 	});
 
@@ -248,7 +238,7 @@ describe("admin forum — KV cache invalidation", () => {
 		);
 
 		expect(res.status).toBe(200);
-		expect(mockInvalidate).toHaveBeenCalledTimes(1);
+
 		expect(mockReorderV2).toHaveBeenCalledTimes(1);
 	});
 
@@ -265,7 +255,7 @@ describe("admin forum — KV cache invalidation", () => {
 		);
 
 		expect(res.status).toBe(400);
-		expect(mockInvalidate).not.toHaveBeenCalled();
+
 		expect(mockReorderV2).not.toHaveBeenCalled();
 	});
 });

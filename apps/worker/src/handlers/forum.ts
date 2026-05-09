@@ -1,4 +1,4 @@
-import { type Forum, type ModeratorInfo, canViewForumVisibility } from "@ellie/types";
+import type { Forum, ModeratorInfo } from "@ellie/types";
 import type { ForumVisibility } from "@ellie/types";
 import { computeVisibilityBucket } from "../lib/cache/bucket";
 import {
@@ -8,17 +8,10 @@ import {
 	lazyForumSnapshot,
 	mergeTreeAndSummary,
 } from "../lib/cache/forum-read";
-import { type Env, isKvForumCacheV2Enabled, isKvUserCacheEnabled } from "../lib/env";
-import {
-	type ForumTreeEntry,
-	getForumTree,
-	getForumVolatile,
-	isForumCacheEnabled,
-} from "../lib/forum-cache";
-import { enrichForumsWithUserCache, parseModeratorIds, toForum } from "../lib/mappers";
+import type { Env } from "../lib/env";
+import { parseModeratorIds, toForum } from "../lib/mappers";
 import { parseIdFromPath, parsePathSegment } from "../lib/parseId";
-import { getUserProfiles } from "../lib/user-cache";
-import { THREAD_VISIBLE, buildVisibilityContext, isForumActive } from "../lib/visibility";
+import { THREAD_VISIBLE, buildVisibilityContext } from "../lib/visibility";
 
 // Forum handlers for Cloudflare Worker
 import { jsonResponse } from "../lib/response";
@@ -60,32 +53,6 @@ interface VisibleLastThread {
 	lastPostAt: number;
 	lastPosterId: number;
 	lastPoster: string;
-}
-
-// Mirror of `D1ForumRow` from lib/mappers, kept inline so the inlined
-// row→Forum loop in `list` can field-access without a `Record<string, unknown>`
-// indirection. Runtime cast is identical to `toForum`.
-interface D1ForumRowLike {
-	id: number;
-	parent_id: number;
-	name: string;
-	description: string;
-	icon: string;
-	display_order: number;
-	threads: number;
-	posts: number;
-	type: string;
-	status: number;
-	visibility: string;
-	moderators: string;
-	moderator_ids?: string;
-	last_thread_id: number;
-	last_post_at: number;
-	last_poster: string;
-	last_poster_id: number | null;
-	last_thread_subject: string;
-	last_poster_avatar?: string;
-	last_poster_avatar_path?: string;
 }
 
 /**
@@ -168,243 +135,22 @@ function buildModeratorListFromIds(ids: number[], nameMap: Map<number, string>):
 	return out;
 }
 
-/** Batch-fetch last poster avatars via D1 when user cache is disabled. */
-async function enrichForumsWithAvatarSQL(db: D1Database, forums: Forum[]): Promise<Forum[]> {
-	const lastPosterIds = [...new Set(forums.map((f) => f.lastPosterId).filter((id) => id > 0))];
-	if (lastPosterIds.length === 0) return forums;
-
-	const placeholders = lastPosterIds.map(() => "?").join(",");
-	const avatarResult = await db
-		.prepare(`SELECT id, avatar, avatar_path FROM users WHERE id IN (${placeholders})`)
-		.bind(...lastPosterIds)
-		.all<{ id: number; avatar: string; avatar_path: string }>();
-
-	const avatarMap = new Map<number, { avatar: string; avatarPath: string }>();
-	for (const row of avatarResult.results) {
-		avatarMap.set(row.id, {
-			avatar: row.avatar ?? "",
-			avatarPath: row.avatar_path ?? "",
-		});
-	}
-
-	return forums.map((f) => {
-		const info = avatarMap.get(f.lastPosterId);
-		if (info) {
-			return { ...f, lastPosterAvatar: info.avatar, lastPosterAvatarPath: info.avatarPath };
-		}
-		return f;
-	});
-}
-
-/**
- * Legacy D1-only path for forum.list — kept on the hot path because the KV
- * forum cache is gated behind a feature flag. Single-pass row → Forum mapping
- * with mutate-in-place enrichment to avoid intermediate `.map()` allocations.
- */
-async function listForumsLegacy(env: Env, useKvUserCache: boolean): Promise<Forum[]> {
-	const cutoff24h = Math.floor(Date.now() / 1000) - 86400;
-
-	const forumQuery = useKvUserCache
-		? "SELECT * FROM forums ORDER BY display_order"
-		: `SELECT f.*, u.avatar AS last_poster_avatar, u.avatar_path AS last_poster_avatar_path
-		   FROM forums f
-		   LEFT JOIN users u ON f.last_poster_id = u.id
-		   ORDER BY f.display_order`;
-
-	const [forumResult, countResult] = await Promise.all([
-		env.DB.prepare(forumQuery).all(),
-		env.DB.prepare(
-			`SELECT forum_id, COUNT(*) AS cnt FROM threads WHERE created_at >= ? AND ${THREAD_VISIBLE} GROUP BY forum_id`,
-		)
-			.bind(cutoff24h)
-			.all<{ forum_id: number; cnt: number }>(),
-	]);
-
-	const todayMap = new Map<number, number>();
-	for (const row of countResult.results) {
-		todayMap.set(row.forum_id, row.cnt);
-	}
-
-	// First pass: build base Forum objects + collect moderator IDs + forum IDs.
-	// Inline `toForum` + the JOIN-avatar branch so each row is one allocation
-	// (no function call, no post-creation mutation). Property order matches
-	// `toForum()` so V8 keeps a single hidden class across both call sites.
-	const rawRows = forumResult.results as Record<string, unknown>[];
-	const rowCount = rawRows.length;
-	const forums: Forum[] = new Array(rowCount);
-	const moderatorIdsPerForum: number[][] = new Array(rowCount);
-	const forumIds: number[] = new Array(rowCount);
-	const allModeratorIds = new Set<number>();
-	for (let i = 0; i < rowCount; i++) {
-		const r = rawRows[i] as unknown as D1ForumRowLike;
-		const id = r.id;
-		const forum: Forum = {
-			id,
-			parentId: r.parent_id,
-			name: r.name,
-			description: r.description,
-			icon: r.icon,
-			displayOrder: r.display_order,
-			threads: r.threads,
-			posts: r.posts,
-			type: r.type as Forum["type"],
-			status: r.status,
-			visibility: (r.visibility || "public") as Forum["visibility"],
-			moderators: r.moderators,
-			moderatorList: [], // filled in pass 2
-			todayThreads: todayMap.get(id) ?? 0,
-			lastThreadId: r.last_thread_id,
-			lastPostAt: r.last_post_at,
-			lastPoster: r.last_poster,
-			lastPosterId: r.last_poster_id ?? 0,
-			lastPosterAvatar:
-				!useKvUserCache && r.last_poster_avatar !== undefined
-					? ((r.last_poster_avatar as string | undefined) ?? "")
-					: "",
-			lastPosterAvatarPath:
-				!useKvUserCache && r.last_poster_avatar !== undefined
-					? ((r.last_poster_avatar_path as string | undefined) ?? "")
-					: "",
-			lastThreadSubject: r.last_thread_subject,
-		};
-		const modIds = parseModeratorIds((r.moderator_ids as string) ?? "");
-		moderatorIdsPerForum[i] = modIds;
-		for (let j = 0; j < modIds.length; j++) allModeratorIds.add(modIds[j]);
-		forumIds[i] = id;
-		forums[i] = forum;
-	}
-
-	// fetchModeratorNames and fetchVisibleLastThreads are independent D1
-	// calls — run them in parallel to halve the round-trip latency for the
-	// legacy forum.list path.
-	const [moderatorNameMap, visibleLastThreads] = await Promise.all([
-		fetchModeratorNames(env.DB, [...allModeratorIds]),
-		fetchVisibleLastThreads(env.DB, forumIds),
-	]);
-
-	// Second pass: in-place enrich with moderator list + visible last-thread.
-	for (let i = 0; i < rowCount; i++) {
-		const forum = forums[i];
-		forum.moderatorList = buildModeratorListFromIds(moderatorIdsPerForum[i], moderatorNameMap);
-		const visible = visibleLastThreads.get(forum.id);
-		if (visible) {
-			forum.lastThreadId = visible.threadId;
-			forum.lastThreadSubject = visible.subject;
-			forum.lastPostAt = visible.lastPostAt;
-			forum.lastPosterId = visible.lastPosterId;
-			forum.lastPoster = visible.lastPoster;
-		} else {
-			forum.lastThreadId = 0;
-			forum.lastThreadSubject = "";
-			forum.lastPostAt = 0;
-			forum.lastPosterId = 0;
-			forum.lastPoster = "";
-			forum.lastPosterAvatar = "";
-		}
-	}
-
-	return forums;
-}
-
 /** GET /api/v1/forums - List all forums (no pagination) */
 export async function list(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 
-	// Kick off the (verified) auth lookup eagerly. We don't need the result
-	// until the final visibility filter, so it can run in parallel with the
-	// forum data fetch — saves one D1 round-trip on the hot path when the
-	// caller is authenticated.
-	const userPromise = optionalAuthVerified(request, env);
-
-	// ─── v2 KV cache path (gated) ────────────────────────────
-	// Bucket-aware tree + summary, lazy expansion. Cache hit ⇒ 0 SQL
-	// (auth verify aside): summary payload already carries
+	// Forum read path is v2-only: bucket-aware tree + summary, lazy expansion.
+	// Cache hit ⇒ 0 SQL (auth verify aside): summary payload already carries
 	// `lastPosterAvatar` / `lastPosterAvatarPath`.
-	if (isKvForumCacheV2Enabled(env)) {
-		const user = await userPromise;
-		const visCtx = buildVisibilityContext(user);
-		const bucket = computeVisibilityBucket(visCtx);
-		const loadSnapshot = lazyForumSnapshot(env);
-		const [tree, aggregates] = await Promise.all([
-			getForumTreeV2(env, ctx, bucket, loadSnapshot),
-			getForumSummaryV2(env, ctx, bucket, loadSnapshot),
-		]);
-		return jsonResponse(mergeTreeAndSummary(tree, aggregates), origin);
-	}
-
-	const useForumKvCache = isForumCacheEnabled(env);
-	const useKvUserCache = isKvUserCacheEnabled(env);
-
-	let forums: Forum[];
-
-	if (useForumKvCache) {
-		// ─── Two-layer KV cache path ─────────────────────────────
-		// Layer 1: structural tree (10min TTL, explicit invalidation)
-		// Layer 2: volatile data (60s TTL)
-		const tree = await getForumTree(env, ctx);
-		const forumIds = tree.map((e) => e.id);
-		const volatile = await getForumVolatile(env, ctx, forumIds);
-
-		// Merge tree + volatile into Forum objects
-		forums = tree.map((entry) => {
-			const vol = volatile[entry.id];
-			return {
-				id: entry.id,
-				parentId: entry.parentId,
-				name: entry.name,
-				description: entry.description,
-				icon: entry.icon,
-				displayOrder: entry.displayOrder,
-				status: entry.status,
-				visibility: entry.visibility as ForumVisibility,
-				type: entry.type as Forum["type"],
-				moderators: entry.moderators,
-				moderatorList: entry.moderatorList,
-				threads: vol?.threads ?? 0,
-				posts: vol?.posts ?? 0,
-				todayThreads: vol?.todayThreads ?? 0,
-				lastThreadId: vol?.lastThreadId ?? 0,
-				lastThreadSubject: vol?.lastThreadSubject ?? "",
-				lastPostAt: vol?.lastPostAt ?? 0,
-				lastPosterId: vol?.lastPosterId ?? 0,
-				lastPoster: vol?.lastPoster ?? "",
-				lastPosterAvatar: "",
-				lastPosterAvatarPath: "",
-			};
-		});
-
-		// Enrich with last poster avatars
-		if (useKvUserCache) {
-			const lastPosterIds = forums.map((f) => f.lastPosterId).filter((id) => id > 0);
-			if (lastPosterIds.length > 0) {
-				const userCache = await getUserProfiles(env, ctx, lastPosterIds);
-				forums = enrichForumsWithUserCache(forums, userCache);
-			}
-		} else {
-			forums = await enrichForumsWithAvatarSQL(env.DB, forums);
-		}
-	} else {
-		forums = await listForumsLegacy(env, useKvUserCache);
-		if (useKvUserCache) {
-			const lastPosterIds = forums.map((f) => f.lastPosterId).filter((id) => id > 0);
-			if (lastPosterIds.length > 0) {
-				const userCache = await getUserProfiles(env, ctx, lastPosterIds);
-				forums = enrichForumsWithUserCache(forums, userCache);
-			}
-		}
-	}
-
-	// Now resolve the auth lookup we started at the top.
-	const user = await userPromise;
+	const user = await optionalAuthVerified(request, env);
 	const visCtx = buildVisibilityContext(user);
-
-	// Filter by visibility and active status (both paths converge here)
-	forums = forums.filter((f) => {
-		if (!isForumActive(f)) return false;
-		return canViewForumVisibility(f.visibility as ForumVisibility, visCtx);
-	});
-
-	return jsonResponse(forums, origin);
+	const bucket = computeVisibilityBucket(visCtx);
+	const loadSnapshot = lazyForumSnapshot(env);
+	const [tree, aggregates] = await Promise.all([
+		getForumTreeV2(env, ctx, bucket, loadSnapshot),
+		getForumSummaryV2(env, ctx, bucket, loadSnapshot),
+	]);
+	return jsonResponse(mergeTreeAndSummary(tree, aggregates), origin);
 }
 
 /**
@@ -418,11 +164,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
  * Status / visibility filtering is left to the caller — this loader returns
  * the raw row whether or not the bucket can see it.
  */
-async function loadFullForumFromD1(
-	env: Env,
-	id: number,
-	useKvUserCache: boolean,
-): Promise<Forum | null> {
+async function loadFullForumFromD1(env: Env, id: number): Promise<Forum | null> {
 	// Do NOT JOIN `users` on `forums.last_poster_id` here: when the row
 	// points at a hidden / recycled thread, the visible-last-thread
 	// override below uses a different poster and the JOIN'd avatar would
@@ -484,9 +226,6 @@ async function loadFullForumFromD1(
 
 	forum.todayThreads = countResult?.cnt ?? 0;
 
-	// Avatar fallback: deleted user → empty strings, matching legacy.
-	void useKvUserCache;
-
 	return forum;
 }
 
@@ -499,66 +238,20 @@ export async function getById(
 	const origin = request.headers.get("Origin") ?? undefined;
 	const id = parseIdFromPath(request) ?? Number.NaN;
 
-	// Auth + forum row are independent at this point — fire both eagerly so
-	// they overlap in production. We don't actually need the auth result
-	// until the visibility check after the forum query resolves.
-	const userPromise = optionalAuthVerified(request, env);
-
-	// ─── v2 KV cache path (gated) ────────────────────────────
+	// Forum read path is v2-only.
 	// `forum:meta:v2:<id>:<bucket>:g<gen>`. Cache hit ⇒ 0 SQL.
 	// Miss → load row from D1, distinguish 404 (missing/inactive) vs.
 	// 403 (visible mismatch) vs. 200 (write KV). 403/404 NEVER write KV.
-	if (isKvForumCacheV2Enabled(env)) {
-		const user = await userPromise;
-		const visCtx = buildVisibilityContext(user);
-		const bucket = computeVisibilityBucket(visCtx);
-
-		const result = await getForumMetaV2(env, ctx, id, bucket, () =>
-			loadFullForumFromD1(env, id, isKvUserCacheEnabled(env)),
-		);
-
-		if (result.kind === "notFound") {
-			return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
-		}
-		if (result.kind === "forbidden") {
-			return errorResponse(
-				"FORBIDDEN",
-				403,
-				{ message: "You don't have access to this forum" },
-				origin,
-			);
-		}
-		return jsonResponse(result.forum, origin);
-	}
-
-	const useKvCache = isKvUserCacheEnabled(env);
-
-	// Choose query based on cache strategy
-	const forumQuery = useKvCache
-		? "SELECT * FROM forums WHERE id = ?"
-		: `SELECT f.*, u.avatar AS last_poster_avatar
-		   FROM forums f
-		   LEFT JOIN users u ON f.last_poster_id = u.id
-		   WHERE f.id = ?`;
-
-	const result = await env.DB.prepare(forumQuery).bind(id).first();
-
-	if (!result) {
-		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
-	}
-
-	const r = result as Record<string, unknown>;
-	let forum = toForum(r);
-
-	// Check status (cheap, sync) before paying for auth resolution.
-	if (!isForumActive(forum)) {
-		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
-	}
-
-	const user = await userPromise;
+	const user = await optionalAuthVerified(request, env);
 	const visCtx = buildVisibilityContext(user);
+	const bucket = computeVisibilityBucket(visCtx);
 
-	if (!canViewForumVisibility(forum.visibility as ForumVisibility, visCtx)) {
+	const result = await getForumMetaV2(env, ctx, id, bucket, () => loadFullForumFromD1(env, id));
+
+	if (result.kind === "notFound") {
+		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
+	}
+	if (result.kind === "forbidden") {
 		return errorResponse(
 			"FORBIDDEN",
 			403,
@@ -566,61 +259,7 @@ export async function getById(
 			origin,
 		);
 	}
-
-	// If JOIN approach, populate avatar directly from query result
-	if (!useKvCache && r.last_poster_avatar !== undefined) {
-		forum.lastPosterAvatar = (r.last_poster_avatar as string) ?? "";
-	}
-
-	// Populate moderatorList
-	const moderatorIdsStr = r.moderator_ids as string;
-	const moderatorIds = parseModeratorIds(moderatorIdsStr ?? "");
-
-	// Run the three remaining D1 calls (mod names, visible last thread, today
-	// count) in parallel — they are independent.
-	const cutoff24h = Math.floor(Date.now() / 1000) - 86400;
-	const [moderatorNameMap, visibleLastThreads, countResult] = await Promise.all([
-		moderatorIds.length > 0
-			? fetchModeratorNames(env.DB, moderatorIds)
-			: Promise.resolve(new Map<number, string>()),
-		fetchVisibleLastThreads(env.DB, [id]),
-		env.DB.prepare(
-			`SELECT COUNT(*) AS cnt FROM threads WHERE forum_id = ? AND created_at >= ? AND ${THREAD_VISIBLE}`,
-		)
-			.bind(id, cutoff24h)
-			.first<{ cnt: number }>(),
-	]);
-
-	if (moderatorIds.length > 0) {
-		forum.moderatorList = buildModeratorList(moderatorIdsStr ?? "", moderatorNameMap);
-	}
-
-	const visible = visibleLastThreads.get(id);
-	if (visible) {
-		forum.lastThreadId = visible.threadId;
-		forum.lastThreadSubject = visible.subject;
-		forum.lastPostAt = visible.lastPostAt;
-		forum.lastPosterId = visible.lastPosterId;
-		forum.lastPoster = visible.lastPoster;
-	} else {
-		// No visible threads in this forum - clear the metadata
-		forum.lastThreadId = 0;
-		forum.lastThreadSubject = "";
-		forum.lastPostAt = 0;
-		forum.lastPosterId = 0;
-		forum.lastPoster = "";
-		forum.lastPosterAvatar = "";
-	}
-
-	forum.todayThreads = countResult?.cnt ?? 0;
-
-	// Enrich with KV user cache (only if enabled)
-	if (useKvCache && forum.lastPosterId > 0) {
-		const userCache = await getUserProfiles(env, ctx, [forum.lastPosterId]);
-		forum = enrichForumsWithUserCache([forum], userCache)[0] ?? forum;
-	}
-
-	return jsonResponse(forum, origin);
+	return jsonResponse(result.forum, origin);
 }
 
 // ─── Ancestors endpoint ─────────────────────────────────────────────
@@ -649,15 +288,10 @@ interface AncestorItem {
  * GET /api/v1/forums/:id/ancestors
  *
  * Lightweight breadcrumb endpoint. Returns the target forum's context plus its
- * ancestor chain (root → parent), computed from the KV-cached forum tree.
- *
- * Visibility semantics (matches existing behavior):
- * 1. Read forum tree from KV/D1
- * 2. Filter by viewer visibility + active status
- * 3. Compute ancestors from FILTERED list
- *    - Target not in filtered list → 404
- *    - Hidden ancestor → chain terminates (don't leak names)
- * 4. Return { forum: ForumContext, ancestors: AncestorItem[] }
+ * ancestor chain (root → parent), computed from the v2 KV-cached forum tree
+ * which is already pre-filtered to active + visible nodes for the bucket.
+ * Hidden parents are absent from the tree, so the ancestor chain naturally
+ * terminates at the first hidden link.
  */
 export async function getAncestors(
 	request: Request,
@@ -675,65 +309,17 @@ export async function getAncestors(
 	// Get optional user auth for visibility filtering
 	const user = await optionalAuthVerified(request, env);
 	const visCtx = buildVisibilityContext(user);
+	const bucket = computeVisibilityBucket(visCtx);
+	const loadSnapshot = lazyForumSnapshot(env);
+	const visibleNodes = await getForumTreeV2(env, ctx, bucket, loadSnapshot);
 
-	// ─── v2 KV cache path (gated) ────────────────────────────
-	// Reuse `forum:tree:v2:<bucket>` (already pre-filtered to active +
-	// visible). Hidden parents are absent from the tree, so the ancestor
-	// chain naturally terminates at the first hidden link.
-	if (isKvForumCacheV2Enabled(env)) {
-		const bucket = computeVisibilityBucket(visCtx);
-		const loadSnapshot = lazyForumSnapshot(env);
-		const visibleNodes = await getForumTreeV2(env, ctx, bucket, loadSnapshot);
-
-		const target = visibleNodes.find((n) => n.id === forumId);
-		if (!target) {
-			return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
-		}
-
-		const byId = new Map<number, (typeof visibleNodes)[number]>();
-		for (const n of visibleNodes) byId.set(n.id, n);
-
-		const ancestors: AncestorItem[] = [];
-		let current = byId.get(target.parentId);
-		while (current) {
-			ancestors.push({ id: current.id, parentId: current.parentId, name: current.name });
-			if (current.parentId === 0 || current.parentId === current.id) break;
-			current = byId.get(current.parentId);
-		}
-		ancestors.reverse();
-
-		const forumContext: ForumContext = {
-			id: target.id,
-			parentId: target.parentId,
-			name: target.name,
-			status: target.status,
-			visibility: target.visibility,
-			type: target.type,
-			moderators: target.moderators,
-			moderatorIds: target.moderatorIds,
-			moderatorList: target.moderatorList,
-		};
-		return jsonResponse({ forum: forumContext, ancestors }, origin);
-	}
-
-	// Get forum tree (from KV cache or D1 fallback)
-	const tree = await getForumTree(env, ctx);
-
-	// Filter tree: only active + visible forums for this viewer
-	const visibleForums = tree.filter((entry) => {
-		if (!isForumActive(entry)) return false;
-		return canViewForumVisibility(entry.visibility, visCtx);
-	});
-
-	// Find target forum in the filtered set
-	const target = visibleForums.find((f) => f.id === forumId);
+	const target = visibleNodes.find((n) => n.id === forumId);
 	if (!target) {
 		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
 	}
 
-	// Compute ancestor chain from filtered list (same algorithm as findForumAncestors)
-	const byId = new Map<number, ForumTreeEntry>();
-	for (const f of visibleForums) byId.set(f.id, f);
+	const byId = new Map<number, (typeof visibleNodes)[number]>();
+	for (const n of visibleNodes) byId.set(n.id, n);
 
 	const ancestors: AncestorItem[] = [];
 	let current = byId.get(target.parentId);
@@ -742,9 +328,8 @@ export async function getAncestors(
 		if (current.parentId === 0 || current.parentId === current.id) break;
 		current = byId.get(current.parentId);
 	}
-	ancestors.reverse(); // root → parent order
+	ancestors.reverse();
 
-	// Build forum context
 	const forumContext: ForumContext = {
 		id: target.id,
 		parentId: target.parentId,
@@ -756,6 +341,5 @@ export async function getAncestors(
 		moderatorIds: target.moderatorIds,
 		moderatorList: target.moderatorList,
 	};
-
 	return jsonResponse({ forum: forumContext, ancestors }, origin);
 }

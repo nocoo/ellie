@@ -9,13 +9,6 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../../src/lib/forum-cache", () => ({
-	invalidateForumVolatile: vi.fn(async () => {}),
-	invalidateForumCacheAll: vi.fn(async () => {}),
-	invalidateForumTree: vi.fn(async () => {}),
-	isForumCacheEnabled: vi.fn(() => true),
-}));
-
 vi.mock("../../../src/lib/cache/invalidate", async () => {
 	const actual = await vi.importActual<typeof import("../../../src/lib/cache/invalidate")>(
 		"../../../src/lib/cache/invalidate",

@@ -16,7 +16,6 @@ import {
 	createUpdateHandler,
 } from "../../lib/crud";
 import type { Env } from "../../lib/env";
-import { invalidateForumCacheAll } from "../../lib/forum-cache";
 import { toForum } from "../../lib/mappers";
 import { parseIdFromPath, parsePathSegment } from "../../lib/parseId";
 import { recalcForumMetadata } from "../../lib/recalcMetadata";
@@ -222,7 +221,7 @@ const forumConfig: EntityConfig = {
 
 	// Invalidate forum tree + volatile cache after any structural change
 	async afterCreate(_id, _data, env) {
-		await Promise.all([invalidateForumCacheAll(env), invalidateForumStructureV2(env)]);
+		await invalidateForumStructureV2(env);
 	},
 	async afterUpdate(_id, data, _existing, env) {
 		// Digest filters depend on name/status/visibility/parent_id/type only.
@@ -238,13 +237,10 @@ const forumConfig: EntityConfig = {
 			d.visibility !== undefined ||
 			d.parent_id !== undefined ||
 			d.type !== undefined;
-		await Promise.all([
-			invalidateForumCacheAll(env),
-			invalidateForumUpdateV2(env, { affectsDigest }),
-		]);
+		await invalidateForumUpdateV2(env, { affectsDigest });
 	},
 	async afterDelete(_id, _existing, env) {
-		await Promise.all([invalidateForumCacheAll(env), invalidateForumStructureV2(env)]);
+		await invalidateForumStructureV2(env);
 	},
 };
 
@@ -549,7 +545,6 @@ export const merge = withEntityAuth(
 		// in parallel.
 		await Promise.all([
 			recalcForumMetadata(env, targetForumId as number),
-			invalidateForumCacheAll(env),
 			invalidateForumStructureV2(env),
 			writeAdminLog(env, resolveActor(request), {
 				action: "forum.merge",
@@ -663,7 +658,6 @@ export const reorder = withEntityAuth(
 		// Invalidate forum tree cache + write audit row (when there are
 		// actual changes) in parallel — they're independent.
 		await Promise.all([
-			invalidateForumCacheAll(env),
 			invalidateForumReorderV2(env),
 			changedRows.length > 0
 				? writeAdminLog(env, resolveActor(request), {

@@ -8,7 +8,6 @@ import {
 } from "../lib/cache/invalidate";
 import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
-import { invalidateForumVolatile } from "../lib/forum-cache";
 import { toPost } from "../lib/mappers";
 import { buildNextCursor, clampLimit } from "../lib/pagination";
 import { parseIdFromPath } from "../lib/parseId";
@@ -295,13 +294,11 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 	]);
 
 	// Cache invalidation (docs/19 §6 row "POST /api/v1/posts"):
-	// - Legacy v1: drop `forums:volatile:v1` so forum last-post / today-count
-	//   reflects the new reply.
-	// - v2: bump `forum:summary:gen` + `thread:list:gen:<forumId>` (and the
-	//   thread:meta / post:list gens for completeness; consumers land in
-	//   Phase 3/4).
+	// - Bump `forum:summary:gen` + `thread:list:gen:<forumId>` so the forum
+	//   summary reflects the new reply and threads list re-orders.
+	// - Bump thread:meta / post:list gens for completeness; consumers land in
+	//   Phase 3/4.
 	await Promise.all([
-		invalidateForumVolatile(env),
 		invalidateForumVolatileV2(env, thread.forum_id),
 		bumpThreadMetaGen(env, threadId),
 		bumpPostListGen(env, threadId),
