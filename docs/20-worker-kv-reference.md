@@ -291,9 +291,11 @@ reads or writes them yet.
     - admin user batch-status / batch-role / batch-recalc-counters
     - single `recalcCounters`
     - admin statistics `recalc-users`
-    `me.updateProfile(avatar)` is NOT yet wired to `invalidateUserCaches`
-    because the v2 reader is gated off (`USE_KV_USER_CACHE !== "true"`),
-    so v2 has no live populator to invalidate from that path.
+    `me.updateProfile(avatar)` only deletes live v1 today; the
+    Phase 6 `user:mini:v2` / `user:public:v2` readers are not yet
+    enabled, so there is nothing for `invalidateUserCaches` to
+    invalidate from this path. When Phase 6 lands, this self-service
+    avatar path MUST also call `invalidateUserCaches`.
   - Email verify (`handlers/email.ts:verifyCode`) does NOT invalidate
     user-cache today — the only user-visible field it changes is
     `email`, which is not part of `UserMiniProfile`.
