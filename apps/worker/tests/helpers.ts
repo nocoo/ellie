@@ -117,6 +117,7 @@ export function makeD1ThreadRow(overrides?: Record<string, unknown>) {
 		recommends: 0,
 		type_name: "",
 		post_table_id: 1, // internal field — should NOT appear in output
+		is_author_first_thread: 0, // derived column — default not first thread
 		// JOIN result fields (for JOIN approach)
 		author_avatar: "",
 		last_poster_avatar: "",
