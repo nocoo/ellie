@@ -526,3 +526,98 @@ describe("executor subprocess", () => {
 		expect(stdout).toContain("Import complete and verified");
 	});
 });
+
+// ─── Mark-done tests ─────────────────────────────────────────────────────
+
+describe("mark-done", () => {
+	test("marks a failed chunk as done with audit fields", () => {
+		const manifest = makeManifest();
+		const fingerprint = computeManifestFingerprint(manifest);
+		const failedLog = {
+			manifest_path: "test",
+			manifest_fingerprint: fingerprint,
+			database: "test-db",
+			started_at: "2026-05-09T00:00:00Z",
+			finished_at: "2026-05-09T00:01:00Z",
+			chunks: [
+				{
+					file: "forums-001.sql",
+					table: "forums",
+					status: "failed",
+					started_at: "2026-05-09T00:00:30Z",
+					finished_at: "2026-05-09T00:00:53Z",
+					duration_ms: 23000,
+					error: "wrangler timeout warning",
+				},
+			],
+		};
+		const manifestPath = setupFixture("mark-done-ok", manifest, {
+			executionLog: failedLog,
+		});
+		const { exitCode, stdout } = runExecutor(manifestPath, ["--mark-done", "forums-001.sql"]);
+		expect(exitCode).toBe(0);
+		expect(stdout).toContain('Marked "forums-001.sql" as done');
+
+		const logPath = join(TEST_DIR, "mark-done-ok", "execution-log.json");
+		const log = JSON.parse(readFileSync(logPath, "utf-8"));
+		const chunk = log.chunks[0];
+		expect(chunk.status).toBe("done");
+		expect(chunk.manually_verified_at).toBeDefined();
+		expect(chunk.reason).toContain("manually verified");
+		expect(chunk.error).toBeUndefined();
+	});
+
+	test("rejects mark-done when fingerprint mismatches", () => {
+		const manifest = makeManifest();
+		const staleLog = {
+			manifest_path: "test",
+			manifest_fingerprint: "0000000000000000000000000000000000000000000000000000000000000000",
+			database: "test-db",
+			started_at: "2026-05-09T00:00:00Z",
+			chunks: [
+				{
+					file: "forums-001.sql",
+					table: "forums",
+					status: "failed",
+					started_at: "",
+					finished_at: "",
+					duration_ms: 0,
+				},
+			],
+		};
+		const manifestPath = setupFixture("mark-done-fp", manifest, {
+			executionLog: staleLog,
+		});
+		const { exitCode, stdout } = runExecutor(manifestPath, ["--mark-done", "forums-001.sql"]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("fingerprint mismatch");
+	});
+
+	test("rejects mark-done on a chunk that is not failed", () => {
+		const manifest = makeManifest();
+		const fingerprint = computeManifestFingerprint(manifest);
+		const doneLog = {
+			manifest_path: "test",
+			manifest_fingerprint: fingerprint,
+			database: "test-db",
+			started_at: "2026-05-09T00:00:00Z",
+			chunks: [
+				{
+					file: "forums-001.sql",
+					table: "forums",
+					status: "done",
+					started_at: "",
+					finished_at: "",
+					duration_ms: 0,
+				},
+			],
+		};
+		const manifestPath = setupFixture("mark-done-not-failed", manifest, {
+			executionLog: doneLog,
+		});
+		const { exitCode, stdout } = runExecutor(manifestPath, ["--mark-done", "forums-001.sql"]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain('status "done"');
+		expect(stdout).toContain("Only failed chunks");
+	});
+});
