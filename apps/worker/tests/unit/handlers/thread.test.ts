@@ -102,6 +102,7 @@ describe("thread handlers", () => {
 				return {
 					bind: vi.fn((..._args: unknown[]) => ({
 						all: allSpy,
+						first: vi.fn(() => Promise.resolve({ total: 0 })),
 					})),
 				};
 			});
@@ -149,7 +150,7 @@ describe("thread handlers", () => {
 					}
 					// Thread list query
 					return {
-						bind: vi.fn(() => ({ all: allSpy })),
+						bind: vi.fn(() => ({ all: allSpy, first: vi.fn(() => Promise.resolve({ total: 0 })) })),
 					};
 				}),
 			} as unknown as D1Database;
@@ -183,6 +184,7 @@ describe("thread handlers", () => {
 			const allSpy = vi.fn(() => Promise.resolve({ results: [d1Row] }));
 			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				all: allSpy,
+				first: vi.fn(() => Promise.resolve({ total: 0 })),
 			}));
 			const prepareSpy = vi.fn((sql: string) => {
 				// Forum visibility check query
@@ -217,6 +219,7 @@ describe("thread handlers", () => {
 			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
 			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				all: allSpy,
+				first: vi.fn(() => Promise.resolve({ total: 0 })),
 			}));
 			const prepareSpy = vi.fn((sql: string) => {
 				// Forum visibility check query
@@ -274,7 +277,7 @@ describe("thread handlers", () => {
 					}
 					// Thread list query
 					return {
-						bind: vi.fn(() => ({ all: allSpy })),
+						bind: vi.fn(() => ({ all: allSpy, first: vi.fn(() => Promise.resolve({ total: 0 })) })),
 					};
 				}),
 			} as unknown as D1Database;
@@ -311,7 +314,7 @@ describe("thread handlers", () => {
 					}
 					// Thread list query
 					return {
-						bind: vi.fn(() => ({ all: allSpy })),
+						bind: vi.fn(() => ({ all: allSpy, first: vi.fn(() => Promise.resolve({ total: 0 })) })),
 					};
 				}),
 			} as unknown as D1Database;
@@ -341,7 +344,7 @@ describe("thread handlers", () => {
 					}
 					// Thread list query
 					return {
-						bind: vi.fn(() => ({ all: allSpy })),
+						bind: vi.fn(() => ({ all: allSpy, first: vi.fn(() => Promise.resolve({ total: 0 })) })),
 					};
 				}),
 			} as unknown as D1Database;
@@ -365,6 +368,7 @@ describe("thread handlers", () => {
 			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
 			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				all: allSpy,
+				first: vi.fn(() => Promise.resolve({ total: 0 })),
 			}));
 			const prepareSpy = vi.fn((sql: string) => {
 				// Forum visibility check query
@@ -397,6 +401,7 @@ describe("thread handlers", () => {
 			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
 			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				all: allSpy,
+				first: vi.fn(() => Promise.resolve({ total: 0 })),
 			}));
 			const prepareSpy = vi.fn((sql: string) => {
 				// Forum visibility check query
@@ -428,6 +433,7 @@ describe("thread handlers", () => {
 			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
 			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				all: allSpy,
+				first: vi.fn(() => Promise.resolve({ total: 0 })),
 			}));
 			const db = {
 				prepare: vi.fn((sql: string) => {
@@ -454,6 +460,7 @@ describe("thread handlers", () => {
 			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
 			const bindSpy = vi.fn((..._args: unknown[]) => ({
 				all: allSpy,
+				first: vi.fn(() => Promise.resolve({ total: 0 })),
 			}));
 			const db = {
 				prepare: vi.fn((sql: string) => {
@@ -494,7 +501,7 @@ describe("thread handlers", () => {
 					}
 					// Thread list query
 					return {
-						bind: vi.fn(() => ({ all: allSpy })),
+						bind: vi.fn(() => ({ all: allSpy, first: vi.fn(() => Promise.resolve({ total: 0 })) })),
 					};
 				}),
 			} as unknown as D1Database;
@@ -549,7 +556,7 @@ describe("thread handlers", () => {
 				}
 				// Thread list query with OFFSET
 				return {
-					bind: vi.fn(() => ({ all: allSpy })),
+					bind: vi.fn(() => ({ all: allSpy, first: vi.fn(() => Promise.resolve({ total: 0 })) })),
 				};
 			});
 			const db = { prepare: firstSpy } as unknown as D1Database;

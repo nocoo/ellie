@@ -247,6 +247,47 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 	// to D1.
 	const page1 = isPage1(cursorStr, pageParam) && isCacheableLimit(clampedLimit);
 
+	// Unified page1 loader. Both the keyset-no-cursor branch and the
+	// offset-page=1 branch share the SAME thread:list:v2 cache key, so the
+	// loader MUST emit the SAME payload regardless of which branch warmed
+	// it. We compute total + nextCursor BOTH every time; the handler
+	// branches at response shaping pick whichever is relevant.
+	//
+	// Cost: one extra COUNT(*) on cache miss for the keyset branch (which
+	// previously skipped it). This is paid only on miss; subsequent reads
+	// are KV hits.
+	const loadPage1Payload = async (): Promise<ThreadListPayloadV2> => {
+		const [countResult, dataResult] = await Promise.all([
+			env.DB.prepare(
+				`SELECT COUNT(*) as total FROM threads WHERE forum_id = ? AND ${THREAD_VISIBLE}`,
+			)
+				.bind(forumIdNum)
+				.first<{ total: number }>(),
+			env.DB.prepare(getThreadListQuery(useKvCache, false)).bind(forumIdNum, clampedLimit).all(),
+		]);
+		const total = countResult?.total ?? 0;
+		let items = mapThreadRows(dataResult.results, useKvCache);
+		if (useKvCache) {
+			items = await enrichThreadsWithUserCacheFromList(items, env, ctx);
+		}
+		// nextCursor is derived from RAW D1 rows (snake_case sticky /
+		// last_post_at / id) so cursor encoding stays stable when the
+		// mapped Thread shape evolves.
+		const nextCursor = buildNextCursor<unknown, ThreadCursorPayload>(
+			dataResult.results,
+			clampedLimit,
+			(last) => {
+				const row = last as D1ThreadRow;
+				return {
+					sticky: row.sticky,
+					lastPostAt: row.last_post_at,
+					id: row.id,
+				};
+			},
+		);
+		return { items, total, nextCursor, limit: clampedLimit };
+	};
+
 	// -------------------------------------------------------------------
 	// Branch: offset pagination (when ?page= is present and no ?cursor=)
 	// -------------------------------------------------------------------
@@ -280,7 +321,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 						ctx,
 						forumIdNum,
 						clampedLimit as 20 | 50 | 100,
-						loadOffsetPayload,
+						loadPage1Payload,
 					)
 				: await loadOffsetPayload();
 
@@ -338,7 +379,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 				ctx,
 				forumIdNum,
 				clampedLimit as 20 | 50 | 100,
-				loadKeysetPayload,
+				loadPage1Payload,
 			)
 		: await loadKeysetPayload();
 
