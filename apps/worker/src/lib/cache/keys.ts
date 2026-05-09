@@ -29,16 +29,25 @@ export function forumMetaKey(forumId: number, bucket: VisibilityBucket, gen: str
 /**
  * Thread list cache key. Only `page=1` is cached; deep pagination is no-cache.
  * `limitBucket` collapses limit values to one of the canonical buckets
- * documented in docs/19 §2.5 (e.g. `20|50|100`).
+ * documented in docs/19 §2.5 (`20|50|100`).
+ *
+ * Bucket-independent: thread-list payload has no viewer-conditional fields
+ * (see docs/19 §6 thread:list:v2 row). Forum-visibility gating happens
+ * BEFORE cache lookup via `forum:meta:v2`, so the cached payload itself
+ * is bucket-independent. If a future thread payload introduces any
+ * per-viewer field, this key MUST add a viewer dimension.
+ *
+ * Two gens are embedded so `admin/statistics/recalc-threads` can blow
+ * the entire thread-list cache via `thread:list:gen:all` without
+ * scanning every per-forum gen (docs/19 §3.3.1 option (b)).
  */
 export function threadListKey(
 	forumId: number,
-	sort: string,
 	limitBucket: number,
-	bucket: VisibilityBucket,
-	gen: string,
+	forumGen: string,
+	allGen: string,
 ): string {
-	return `thread:list:${SCHEMA}:${forumId}:${sort}:${limitBucket}:${bucket}:p1:g${gen}`;
+	return `thread:list:${SCHEMA}:${forumId}:default:${limitBucket}:p1:gf${forumGen}:ga${allGen}`;
 }
 
 export function threadMetaKey(threadId: number, bucket: VisibilityBucket, gen: string): string {
@@ -126,6 +135,17 @@ export function forumSummaryGenKey(): string {
 
 export function threadListGenKey(forumId: number): string {
 	return `thread:list:gen:${forumId}`;
+}
+
+/**
+ * Global thread-list generation. Used as the second component of
+ * `threadListKey`; bumping it invalidates EVERY per-forum thread:list:v2
+ * key in one write. Reserved for low-frequency admin operations like
+ * `recalc-threads` and `purge` fallback where the affected `forumId`
+ * set isn't known up-front (docs/19 §3.3.1 option (b)).
+ */
+export function threadListGenAllKey(): string {
+	return "thread:list:gen:all";
 }
 
 export function threadMetaGenKey(threadId: number): string {

@@ -15,6 +15,7 @@ import {
 	postListKey,
 	settingsAllKey,
 	statsPublicKey,
+	threadListGenAllKey,
 	threadListGenKey,
 	threadListKey,
 	threadMetaGenKey,
@@ -37,10 +38,9 @@ describe("cache/keys — v2 schema", () => {
 		expect(forumMetaKey(42, "staff", "t1")).toBe("forum:meta:v2:42:staff:gt1");
 	});
 
-	it("threadListKey embeds all parts incl. p1 marker", () => {
-		expect(threadListKey(7, "newest", 20, "anon", "g1")).toBe(
-			"thread:list:v2:7:newest:20:anon:p1:gg1",
-		);
+	it("threadListKey embeds forumId, default sort, limit, p1 marker, and two gens", () => {
+		expect(threadListKey(7, 20, "g1", "g2")).toBe("thread:list:v2:7:default:20:p1:gfg1:gag2");
+		expect(threadListKey(42, 50, "abc", "xyz")).toBe("thread:list:v2:42:default:50:p1:gfabc:gaxyz");
 	});
 
 	it("threadMetaKey embeds threadId/bucket/gen", () => {
@@ -90,6 +90,7 @@ describe("cache/keys — v2 schema", () => {
 		expect(forumTreeGenKey()).toBe("forum:tree:gen");
 		expect(forumSummaryGenKey()).toBe("forum:summary:gen");
 		expect(threadListGenKey(3)).toBe("thread:list:gen:3");
+		expect(threadListGenAllKey()).toBe("thread:list:gen:all");
 		expect(threadMetaGenKey(8)).toBe("thread:meta:gen:8");
 		expect(postListGenKey(8)).toBe("post:list:gen:8");
 		expect(digestGenKey()).toBe("digest:gen");
