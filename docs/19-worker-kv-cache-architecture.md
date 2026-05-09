@@ -42,7 +42,8 @@ for primitives that are reused across many list views (`user:mini`,
 - TTL is a performance safety net for unexpected miss storms and to bound
   memory inside KV. It is not a substitute for a missing invalidation hook.
 - Every cache entry must declare both a TTL and an invalidator (gen bump or
-  delete) in §6 below. Entries with no declared invalidator are not allowed.
+  delete) in §6 below, except explicitly documented low-criticality TTL-only
+  entries such as `stats:public:v2` (§4).
 
 ---
 
@@ -134,6 +135,24 @@ Within one request, gens are memoized per request to avoid multiple
 Per-forum `forum:meta:gen:<forumId>` is **not** introduced in the first
 release. The global `forum:summary:gen` is sufficient until measured write
 frequency demands finer granularity (re-evaluate in Phase 7).
+
+### 3.3.1 `admin/statistics/recalc-threads` and per-thread caches
+Phase 1 only invalidates `forum:summary:gen` from `recalc-threads`, which is
+sufficient because no per-thread / per-forum thread-list cache exists yet.
+
+**Before Phase 3 (`thread:list:v2`) or Phase 4 (`thread:meta:v2`) ships, the
+`recalc-threads` invalidation surface MUST be extended.** Choose one:
+
+- **(a) Targeted bumps** — collect all `(threadId, forumId)` rows touched by
+  the recalc, then bump `thread:list:gen:<forumId>` (deduped) and
+  `thread:meta:gen:<threadId>` for each. Best precision, more code.
+- **(b) Global thread bucket** — introduce a global `thread:list:gen:all` and
+  `thread:meta:gen:all`, embed both into the cache key alongside the
+  per-scope gen, and bump only the global one from `recalc-threads`. Simpler,
+  blows the entire thread cache on every recalc.
+
+Phase 3/4 shipping is **gated** on this decision being made and implemented.
+
 
 ### 3.4 Single-key delete inventory
 Used only for stable single-entity caches:
@@ -230,12 +249,13 @@ Layering legend:
 | `POST /api/v1/threads`                                  | `forum:summary:gen`, `thread:list:gen:<forumId>`                                                  | — |
 | `POST /api/v1/posts`                                    | `forum:summary:gen`, `thread:list:gen:<forumId>`, `thread:meta:gen:<threadId>`, `post:list:gen:<threadId>` | — |
 | `PATCH /api/v1/me/posts/:id`                            | `post:list:gen:<threadId>`, `thread:meta:gen:<threadId>`                                          | — |
-| `DELETE /api/v1/me/posts/:id`                           | `post:list:gen:<threadId>`, `thread:meta:gen:<threadId>`, `forum:summary:gen`                     | — |
+| `DELETE /api/v1/me/posts/:id`                           | `post:list:gen:<threadId>`, `thread:meta:gen:<threadId>`, `thread:list:gen:<forumId>`, `forum:summary:gen` | — |
 | `DELETE /api/v1/me/threads/:id`                         | `forum:summary:gen`, `thread:list:gen:<forumId>`                                                  | — |
 | moderation thread sticky / digest / close / highlight   | `thread:list:gen:<forumId>`, `thread:meta:gen:<threadId>` (+ `digest:gen` when digest changes)    | — |
 | moderation thread move (forum X → Y)                    | `thread:list:gen:<X>`, `thread:list:gen:<Y>`, `forum:summary:gen`, `thread:meta:gen:<threadId>`   | — |
 | moderation thread delete                                | `forum:summary:gen`, `thread:list:gen:<forumId>` (+ `digest:gen` if digestLevel > 0)              | — |
-| moderation post edit / delete                           | `post:list:gen:<threadId>`, `thread:meta:gen:<threadId>` (+ `forum:summary:gen` for delete)       | — |
+| moderation post edit                                    | `post:list:gen:<threadId>`, `thread:meta:gen:<threadId>`                                          | — |
+| moderation post delete                                  | `post:list:gen:<threadId>`, `thread:meta:gen:<threadId>`, `thread:list:gen:<forumId>`, `forum:summary:gen` | — |
 | `POST /api/v1/post-comments`                            | —                                                                                                 | — |
 | `POST /api/v1/checkin`                                  | —                                                                                                 | — |
 | `PATCH /api/v1/users/me` (avatar)                       | —                                                                                                 | `user:mini:v2:<userId>`, `deleteUserPublicVariants(env, userId)` |
@@ -244,11 +264,12 @@ Layering legend:
 | admin forum CRUD / reorder / merge                      | `forum:tree:gen`, `forum:summary:gen`                                                             | — |
 | admin forum rename or visibility change                 | `forum:tree:gen`, `forum:summary:gen`, `digest:gen`                                               | — |
 | admin thread CRUD / batch                               | `thread:list:gen:<forumId>`, `forum:summary:gen`, `thread:meta:gen:<threadId>`                    | — |
-| admin post CRUD / batch                                 | `post:list:gen:<threadId>`, `thread:meta:gen:<threadId>`                                          | — |
+| admin post edit                                         | `post:list:gen:<threadId>`, `thread:meta:gen:<threadId>`                                          | — |
+| admin post delete / batch-delete                        | `post:list:gen:<threadId>`, `thread:meta:gen:<threadId>`, `thread:list:gen:<forumId>`, `forum:summary:gen` | — |
 | admin user CRUD / nuke / purge / ban                    | —                                                                                                 | `user:mini:v2:<id>`, `deleteUserPublicVariants(env, id)` |
 | admin user batch-status / batch-role / batch-recalc-counters | —                                                                                            | per-id `user:mini:v2:<id>` + `deleteUserPublicVariants(env, id)` |
 | admin statistics recalc-forums                          | `forum:summary:gen`                                                                               | — |
-| admin statistics recalc-threads                         | `forum:summary:gen`                                                                               | — |
+| admin statistics recalc-threads                         | `forum:summary:gen` (Phase 1). **Before Phase 3/4 ships, must extend per §3.3.1: either bump per-thread/per-forum gens, or introduce `thread:list:gen:all` + `thread:meta:gen:all`.** | — |
 | admin statistics recalc-users                           | —                                                                                                 | per-id `user:mini:v2:<id>` + `deleteUserPublicVariants(env, id)` |
 | admin settings PUT                                      | —                                                                                                 | `settings:all:v2` |
 | admin announcement / report / censor / ipBan / adminLog | —                                                                                                 | — |
@@ -278,7 +299,7 @@ Implemented under `apps/worker/src/lib/cache/`:
 | `epoch.ts`           | `getGen(env, genKey) → Promise<string>` (per-request memoized); `bumpGen(env, genKey) → Promise<string>` (`${Date.now()}-${crypto.randomUUID()}`) |
 | `wrap.ts`            | `cacheGetOrSet<T>(env, ctx, key, ttl, loader, validator?)`: KV.get → optional validator → on miss/invalid call loader → `ctx.waitUntil(KV.put(...))` → return value |
 | `invalidate.ts`      | One function per write category; `deleteUserPublicVariants(env, id)`; bump-gen helpers grouped per domain |
-| `metrics.ts`         | Optional `X-Ellie-KV: hit/miss/<key>` debug header, only when `env.KV_DEBUG === "true"` or when the request is from an admin (`req` carries an admin token) |
+| `metrics.ts`         | Optional `X-Ellie-KV: hit/miss/<key>` debug header, only when `env.KV_DEBUG === "true"`. (Admin-token gating is intentionally **not** wired in Phase 7 — it would pull auth into the cache helper. Re-evaluate later.) |
 
 ### 7.1 Test ownership
 - Unit tests under `apps/worker/tests/unit/lib/cache/*.test.ts` exercise key
@@ -308,8 +329,8 @@ Implemented under `apps/worker/src/lib/cache/`:
 | 0     | This doc.                                                                                      | Phase 0  |
 | 1     | Foundation helpers under `apps/worker/src/lib/cache/`. Fix existing invalidation gaps (thread/post create → forum volatile; admin statistics recalc-{forums,threads,users}; admin user batch-status / batch-role / batch-recalc-counters; single recalcCounters). `search.ts` reads `general.search.enabled` via `getSetting`. `apps/admin/src/lib/api-client.ts` sets `cache: "no-store"`. **No new business cache.** | Phase 1  |
 | 2     | `forum:tree:v2` + `forum:summary:v2` + `forum:meta:v2` + `forums/:id/ancestors`. Reuses `lib/cache/` from Phase 1. | Phase 2  |
-| 3     | `thread:list:v2` for `GET /api/v1/threads?forumId=…&page=1`.                                   | deferred |
-| 4     | `post:list:v2` + `thread:meta:v2`. View-count batching not included.                            | deferred |
+| 3     | `thread:list:v2` for `GET /api/v1/threads?forumId=…&page=1`. **Gated on §3.3.1: `recalc-threads` invalidation must be extended (per-thread/per-forum bumps OR `thread:list:gen:all`) before this phase ships.** | deferred |
+| 4     | `post:list:v2` + `thread:meta:v2`. View-count batching not included. **Same §3.3.1 gate applies for `thread:meta:v2`.** | deferred |
 | 5     | `digest:list:v2` / `digest:stats:v2` / `digest:filters:v2`.                                     | deferred |
 | 6     | `user:public:v2` + PM short private cache.                                                     | deferred |
 | 7     | Hardening: cache metrics, evaluate `v1` legacy removal, evaluate per-forum `forum:meta:gen`, evaluate `users/batch` cache, view-count batching evaluation. | deferred |
