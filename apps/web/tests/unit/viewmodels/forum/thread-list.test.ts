@@ -521,24 +521,24 @@ describe("getInlinePageItems", () => {
 		expect(getInlinePageItems(1)).toEqual([]);
 	});
 
-	it("returns [2] for 2-page thread", () => {
-		expect(getInlinePageItems(2)).toEqual([2]);
+	it("returns [...,2] for 2-page thread", () => {
+		expect(getInlinePageItems(2)).toEqual(["ellipsis", 2]);
 	});
 
-	it("returns [2,3,4] for 4-page thread", () => {
-		expect(getInlinePageItems(4)).toEqual([2, 3, 4]);
+	it("returns [...,2,3,4] for 4-page thread", () => {
+		expect(getInlinePageItems(4)).toEqual(["ellipsis", 2, 3, 4]);
 	});
 
-	it("returns [2,3,4,5,6,7] for 7-page thread (all shown)", () => {
-		expect(getInlinePageItems(7)).toEqual([2, 3, 4, 5, 6, 7]);
+	it("returns [...,2,3,4,5,6] for 6-page thread (all shown)", () => {
+		expect(getInlinePageItems(6)).toEqual(["ellipsis", 2, 3, 4, 5, 6]);
 	});
 
-	it("returns [2,3,4,5,'ellipsis',8] for 8-page thread", () => {
-		expect(getInlinePageItems(8)).toEqual([2, 3, 4, 5, "ellipsis", 8]);
+	it("returns [...,2,3,4,5,...,7] for 7-page thread (trailing ellipsis)", () => {
+		expect(getInlinePageItems(7)).toEqual(["ellipsis", 2, 3, 4, 5, "ellipsis", 7]);
 	});
 
-	it("returns [2,3,4,5,'ellipsis',100] for 100-page thread", () => {
-		expect(getInlinePageItems(100)).toEqual([2, 3, 4, 5, "ellipsis", 100]);
+	it("returns [...,2,3,4,5,...,100] for 100-page thread", () => {
+		expect(getInlinePageItems(100)).toEqual(["ellipsis", 2, 3, 4, 5, "ellipsis", 100]);
 	});
 });
 

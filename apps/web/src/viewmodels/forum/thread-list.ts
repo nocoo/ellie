@@ -149,22 +149,24 @@ export function getThreadPageCount(replies: number, postsPerPage: number): numbe
  * Generate inline page items for display to the right of the title.
  * Only called when pageCount > 1 (single-page threads show nothing).
  *
- * Shows pages starting from 2 (page 1 is the default landing page).
- * For short page counts (≤ 6), shows all pages.
- * For longer page counts, shows 2 3 4 5 ... lastPage.
+ * Always starts with a leading ellipsis (page 1 is the default landing).
+ * For short page counts (≤ 6), shows all pages 2..pageCount.
+ * For longer page counts, shows ... 2 3 4 5 ... lastPage.
  */
 export function getInlinePageItems(pageCount: number): InlinePageItem[] {
 	if (pageCount <= 1) return [];
 
+	// Leading ellipsis always present (indicates page 1)
+	const result: InlinePageItem[] = ["ellipsis"];
+
 	// Show all pages from 2..pageCount when total is small
-	const MAX_INLINE = 6; // threshold: show all pages 2..N when N-1 <= MAX_INLINE
-	if (pageCount - 1 <= MAX_INLINE) {
-		return Array.from({ length: pageCount - 1 }, (_, i) => i + 2);
+	if (pageCount <= 6) {
+		for (let i = 2; i <= pageCount; i++) result.push(i);
+		return result;
 	}
 
-	// Show 2 3 4 5 ... lastPage
-	const head = [2, 3, 4, 5];
-	const result: InlinePageItem[] = [...head, "ellipsis", pageCount];
+	// Show ... 2 3 4 5 ... lastPage
+	result.push(2, 3, 4, 5, "ellipsis", pageCount);
 	return result;
 }
 

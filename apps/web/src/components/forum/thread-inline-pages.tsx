@@ -33,7 +33,7 @@ export function ThreadInlinePages({ threadId, replies, postsPerPage }: ThreadInl
 
 function InlinePageLink({ item, threadId }: { item: InlinePageItem; threadId: number }) {
 	if (item === "ellipsis") {
-		return <span className="px-0.5 select-none">..</span>;
+		return <span className="px-0.5 select-none">...</span>;
 	}
 	return (
 		<Link
