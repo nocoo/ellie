@@ -54,12 +54,11 @@ import {
 	invalidateForumVolatileV2,
 	invalidateUserCaches,
 } from "../../../src/lib/cache/invalidate";
-import { invalidateForumCacheAll, invalidateForumVolatile } from "../../../src/lib/forum-cache";
+import { invalidateForumVolatile } from "../../../src/lib/forum-cache";
 import { invalidateUserCache } from "../../../src/lib/user-cache";
 import { createAdminRequest, createJwtForRole, createMockDb, makeEnv } from "../../helpers";
 
 const mockInvVol = invalidateForumVolatile as ReturnType<typeof vi.fn>;
-const mockInvAll = invalidateForumCacheAll as ReturnType<typeof vi.fn>;
 const mockInvVolV2 = invalidateForumVolatileV2 as ReturnType<typeof vi.fn>;
 const mockBumpSummary = bumpForumSummaryGen as ReturnType<typeof vi.fn>;
 const mockBumpThreadMeta = bumpThreadMetaGen as ReturnType<typeof vi.fn>;
@@ -168,7 +167,7 @@ describe("Phase 1 commit 2 — thread/post create invalidation", () => {
 });
 
 describe("Phase 1 commit 2 — admin statistics invalidation", () => {
-	it("recalcForums drops both forum caches and bumps forum:summary:gen", async () => {
+	it("recalcForums drops volatile only (not tree) and bumps forum:summary:gen", async () => {
 		const { db } = createMockDb({
 			allResults: {
 				"SELECT id FROM forums": [{ id: 1 }, { id: 2 }],
@@ -181,7 +180,7 @@ describe("Phase 1 commit 2 — admin statistics invalidation", () => {
 		const req = createAdminRequest("POST", "/api/admin/statistics/recalc-forums");
 		const res = await recalcForums(req, env);
 		expect(res.status).toBe(200);
-		expect(mockInvAll).toHaveBeenCalledTimes(1);
+		expect(mockInvVol).toHaveBeenCalledTimes(1);
 		expect(mockBumpSummary).toHaveBeenCalledTimes(1);
 	});
 
