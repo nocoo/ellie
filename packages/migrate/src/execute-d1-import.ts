@@ -7,6 +7,7 @@
  *   - Ordered by table dependency: forums → users → threads → posts → attachments → user_checkins
  *   - Dry-run mode: prints execution plan without running
  *   - Resume: skips chunks already marked "done" in execution-log.json
+ *     (validates manifest fingerprint to prevent stale log reuse)
  *   - Execution log: records status, duration, errors per chunk
  *   - Post-import verification: row counts, max IDs, FK orphan checks
  *
@@ -20,11 +21,17 @@
  *     --resume
  */
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Manifest } from "./load/d1-sql-builder";
+import {
+	FK_RELATIONS,
+	IMPORT_TABLE_ORDER,
+	computeManifestFingerprint,
+	isValidChunkFilename,
+} from "./load/d1-sql-builder";
 
 // ─── CLI ────────────────────────────────────────────────────────────────────
 
@@ -41,9 +48,6 @@ const MANIFEST_PATH = values.manifest ?? "output/d1-import-2026-05-09/manifest.j
 const DRY_RUN = values["dry-run"] ?? false;
 const RESUME = values.resume ?? false;
 
-// Table execution order — FK dependency order
-const TABLE_ORDER = ["forums", "users", "threads", "posts", "attachments", "user_checkins"];
-
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface ChunkExecResult {
@@ -58,6 +62,7 @@ interface ChunkExecResult {
 
 interface ExecutionLog {
 	manifest_path: string;
+	manifest_fingerprint: string;
 	database: string;
 	started_at: string;
 	finished_at?: string;
@@ -100,15 +105,22 @@ function saveExecutionLog(path: string, execLog: ExecutionLog): void {
 	writeFileSync(path, `${JSON.stringify(execLog, null, "\t")}\n`);
 }
 
-function wranglerExecute(sqlFile: string, dbName: string): { success: boolean; error?: string } {
-	const cmd = `npx wrangler d1 execute ${dbName} --remote --file "${sqlFile}" --yes`;
+function wranglerExecute(
+	sqlFile: string,
+	dbName: string,
+	cwd: string,
+): { success: boolean; error?: string } {
 	try {
-		execSync(cmd, {
-			encoding: "utf-8",
-			cwd: join(__dirname, "../../../.."), // project root (ellie/)
-			timeout: 300_000, // 5 min per chunk
-			stdio: ["pipe", "pipe", "pipe"],
-		});
+		execFileSync(
+			"npx",
+			["wrangler", "d1", "execute", dbName, "--remote", "--file", sqlFile, "--yes"],
+			{
+				encoding: "utf-8",
+				cwd,
+				timeout: 300_000,
+				stdio: ["pipe", "pipe", "pipe"],
+			},
+		);
 		return { success: true };
 	} catch (e) {
 		const err = e as { stderr?: string; message?: string };
@@ -116,18 +128,35 @@ function wranglerExecute(sqlFile: string, dbName: string): { success: boolean; e
 	}
 }
 
-function wranglerQuery(sql: string, dbName: string): string {
-	const cmd = `npx wrangler d1 execute ${dbName} --remote --command "${sql.replace(/"/g, '\\"')}" --yes --json`;
+function wranglerQuery(sql: string, dbName: string, cwd: string): string {
 	try {
-		return execSync(cmd, {
-			encoding: "utf-8",
-			cwd: join(__dirname, "../../../.."),
-			timeout: 60_000,
-			stdio: ["pipe", "pipe", "pipe"],
-		});
+		return execFileSync(
+			"npx",
+			["wrangler", "d1", "execute", dbName, "--remote", "--command", sql, "--yes", "--json"],
+			{
+				encoding: "utf-8",
+				cwd,
+				timeout: 60_000,
+				stdio: ["pipe", "pipe", "pipe"],
+			},
+		);
 	} catch (e) {
 		const err = e as { stdout?: string; stderr?: string };
 		return err.stdout || err.stderr || "";
+	}
+}
+
+// ─── Path safety ────────────────────────────────────────────────────────────
+
+function validateChunkPaths(manifest: Manifest, importDir: string): void {
+	for (const chunk of manifest.chunks) {
+		if (!isValidChunkFilename(chunk.file)) {
+			throw new Error(`Unsafe chunk filename in manifest: "${chunk.file}"`);
+		}
+		const resolved = resolve(importDir, chunk.file);
+		if (!resolved.startsWith(resolve(importDir))) {
+			throw new Error(`Path traversal detected: "${chunk.file}" resolves outside import dir`);
+		}
 	}
 }
 
@@ -140,7 +169,7 @@ function printDryRun(manifest: Manifest, completedFiles: Set<string>): void {
 	log(`  Total rows: ${manifest.total_rows.toLocaleString()}`);
 	log("");
 
-	for (const table of TABLE_ORDER) {
+	for (const table of IMPORT_TABLE_ORDER) {
 		const tableInfo = manifest.tables[table];
 		if (!tableInfo) continue;
 
@@ -173,7 +202,6 @@ function printDryRun(manifest: Manifest, completedFiles: Set<string>): void {
 
 type VerificationCheck = VerificationResult["checks"][number];
 
-/** Parse a scalar value from wrangler --json output. */
 function parseWranglerScalar(jsonOutput: string, field: string): number | null {
 	try {
 		const parsed = JSON.parse(jsonOutput);
@@ -188,13 +216,13 @@ function parseWranglerScalar(jsonOutput: string, field: string): number | null {
 	}
 }
 
-function verifyRowCounts(manifest: Manifest, dbName: string): VerificationCheck[] {
+function verifyRowCounts(manifest: Manifest, dbName: string, cwd: string): VerificationCheck[] {
 	const checks: VerificationCheck[] = [];
-	for (const table of TABLE_ORDER) {
+	for (const table of IMPORT_TABLE_ORDER) {
 		const tableInfo = manifest.tables[table];
 		if (!tableInfo) continue;
 
-		const result = wranglerQuery(`SELECT COUNT(*) as cnt FROM ${table}`, dbName);
+		const result = wranglerQuery(`SELECT COUNT(*) as cnt FROM ${table}`, dbName, cwd);
 		const actual = parseWranglerScalar(result, "cnt");
 		if (actual === null) {
 			checks.push({ name: `${table} row count`, passed: false, details: "Failed to query" });
@@ -232,13 +260,13 @@ function verifyRowCounts(manifest: Manifest, dbName: string): VerificationCheck[
 	return checks;
 }
 
-function verifyMaxIds(manifest: Manifest, dbName: string): VerificationCheck[] {
+function verifyMaxIds(manifest: Manifest, dbName: string, cwd: string): VerificationCheck[] {
 	const checks: VerificationCheck[] = [];
 	for (const table of ["threads", "posts", "attachments"]) {
 		const tableInfo = manifest.tables[table];
 		if (!tableInfo || tableInfo.prod_max_id === null) continue;
 
-		const result = wranglerQuery(`SELECT MAX(id) as max_id FROM ${table}`, dbName);
+		const result = wranglerQuery(`SELECT MAX(id) as max_id FROM ${table}`, dbName, cwd);
 		const actual = parseWranglerScalar(result, "max_id");
 		if (actual === null) {
 			checks.push({ name: `${table} max_id`, passed: false, details: "Failed to query" });
@@ -253,20 +281,11 @@ function verifyMaxIds(manifest: Manifest, dbName: string): VerificationCheck[] {
 	return checks;
 }
 
-function verifyForeignKeys(dbName: string): VerificationCheck[] {
-	const fkDefs = [
-		{ table: "threads", col: "forum_id", ref: "forums", refCol: "id" },
-		{ table: "threads", col: "author_id", ref: "users", refCol: "id" },
-		{ table: "posts", col: "thread_id", ref: "threads", refCol: "id" },
-		{ table: "posts", col: "author_id", ref: "users", refCol: "id" },
-		{ table: "attachments", col: "thread_id", ref: "threads", refCol: "id" },
-		{ table: "attachments", col: "post_id", ref: "posts", refCol: "id" },
-		{ table: "user_checkins", col: "user_id", ref: "users", refCol: "id" },
-	];
+function verifyForeignKeys(dbName: string, cwd: string): VerificationCheck[] {
 	const checks: VerificationCheck[] = [];
-	for (const fk of fkDefs) {
+	for (const fk of FK_RELATIONS) {
 		const sql = `SELECT COUNT(*) as cnt FROM ${fk.table} WHERE ${fk.col} NOT IN (SELECT ${fk.refCol} FROM ${fk.ref})`;
-		const result = wranglerQuery(sql, dbName);
+		const result = wranglerQuery(sql, dbName, cwd);
 		const orphans = parseWranglerScalar(result, "cnt");
 		if (orphans === null) {
 			checks.push({
@@ -288,12 +307,12 @@ function verifyForeignKeys(dbName: string): VerificationCheck[] {
 	return checks;
 }
 
-function runVerification(manifest: Manifest, dbName: string): VerificationResult {
+function runVerification(manifest: Manifest, dbName: string, cwd: string): VerificationResult {
 	log("=== Post-Import Verification ===");
 	const checks = [
-		...verifyRowCounts(manifest, dbName),
-		...verifyMaxIds(manifest, dbName),
-		...verifyForeignKeys(dbName),
+		...verifyRowCounts(manifest, dbName, cwd),
+		...verifyMaxIds(manifest, dbName, cwd),
+		...verifyForeignKeys(dbName, cwd),
 	];
 
 	const allPassed = checks.every((c) => c.passed);
@@ -301,11 +320,7 @@ function runVerification(manifest: Manifest, dbName: string): VerificationResult
 		`  Overall: ${allPassed ? "PASSED" : "FAILED"} (${checks.filter((c) => c.passed).length}/${checks.length})`,
 	);
 
-	return {
-		verified_at: new Date().toISOString(),
-		checks,
-		passed: allPassed,
-	};
+	return { verified_at: new Date().toISOString(), checks, passed: allPassed };
 }
 
 // ─── Main ───────────────────────────────────────────────────────────────────
@@ -318,9 +333,15 @@ const manifest = loadManifest(MANIFEST_PATH);
 const importDir = dirname(MANIFEST_PATH);
 const dbName = manifest.production_state.database.name;
 const execLogPath = join(importDir, "execution-log.json");
+const projectRoot = join(__dirname, "../../../..");
+const fingerprint = computeManifestFingerprint(manifest);
 
 log(`  Database: ${dbName}`);
 log(`  Import dir: ${importDir}`);
+log(`  Fingerprint: ${fingerprint}`);
+
+// Validate chunk file paths
+validateChunkPaths(manifest, importDir);
 
 // Validate all chunk files exist in the import directory
 const missingFiles = manifest.chunks.filter((c) => !existsSync(join(importDir, c.file)));
@@ -332,14 +353,24 @@ if (missingFiles.length > 0) {
 	process.exit(1);
 }
 
-// Load existing execution log for resume
-const existingLog = RESUME ? loadExecutionLog(execLogPath) : null;
-const completedFiles = new Set(
-	existingLog?.chunks.filter((c) => c.status === "done").map((c) => c.file) ?? [],
-);
-
-if (RESUME && completedFiles.size > 0) {
-	log(`  Resuming: ${completedFiles.size} chunks already completed`);
+// Load existing execution log for resume — validate fingerprint
+let completedFiles = new Set<string>();
+if (RESUME) {
+	const existingLog = loadExecutionLog(execLogPath);
+	if (existingLog) {
+		if (existingLog.manifest_fingerprint !== fingerprint) {
+			console.error(
+				`Error: Execution log fingerprint mismatch.\n  Log:      ${existingLog.manifest_fingerprint}\n  Manifest: ${fingerprint}\nThe manifest has changed since the last run. Delete execution-log.json or regenerate the bundle.`,
+			);
+			process.exit(1);
+		}
+		const manifestFiles = new Set(manifest.chunks.map((c) => c.file));
+		const validDone = existingLog.chunks.filter(
+			(c) => c.status === "done" && manifestFiles.has(c.file),
+		);
+		completedFiles = new Set(validDone.map((c) => c.file));
+		log(`  Resuming: ${completedFiles.size} chunks already completed`);
+	}
 }
 
 // Dry-run mode
@@ -349,7 +380,7 @@ if (DRY_RUN) {
 }
 
 // Build ordered chunk list
-const orderedChunks = TABLE_ORDER.flatMap((table) => {
+const orderedChunks = IMPORT_TABLE_ORDER.flatMap((table) => {
 	const tableInfo = manifest.tables[table];
 	if (!tableInfo) return [];
 	return tableInfo.files.map((file) => {
@@ -358,16 +389,26 @@ const orderedChunks = TABLE_ORDER.flatMap((table) => {
 	});
 });
 
-// Verify no extra files beyond manifest
-const _manifestFiles = new Set(manifest.chunks.map((c) => c.file));
-
 // Execute
 const execLog: ExecutionLog = {
 	manifest_path: MANIFEST_PATH,
+	manifest_fingerprint: fingerprint,
 	database: dbName,
 	started_at: new Date().toISOString(),
-	chunks: existingLog?.chunks.filter((c) => c.status === "done") ?? [],
+	chunks: [],
 };
+
+// Carry over completed chunks from resume
+for (const file of completedFiles) {
+	execLog.chunks.push({
+		file,
+		table: manifest.chunks.find((c) => c.file === file)?.table ?? "unknown",
+		status: "done",
+		started_at: "",
+		finished_at: "",
+		duration_ms: 0,
+	});
+}
 
 log(`\n=== Executing ${orderedChunks.length} chunks against ${dbName} (remote) ===`);
 
@@ -390,7 +431,7 @@ for (let i = 0; i < orderedChunks.length; i++) {
 	const startedAt = new Date().toISOString();
 	const startMs = Date.now();
 	const sqlFilePath = join(importDir, file);
-	const result = wranglerExecute(sqlFilePath, dbName);
+	const result = wranglerExecute(sqlFilePath, dbName, projectRoot);
 	const durationMs = Date.now() - startMs;
 	const finishedAt = new Date().toISOString();
 
@@ -413,7 +454,6 @@ for (let i = 0; i < orderedChunks.length; i++) {
 	}
 
 	execLog.chunks.push(chunkResult);
-	// Save after every chunk for resume safety
 	saveExecutionLog(execLogPath, execLog);
 
 	if (!result.success) {
@@ -430,7 +470,7 @@ log(`  Done: ${successCount}, Skipped: ${skipCount}, Failed: ${failCount}`);
 
 // Post-import verification
 log("");
-execLog.verification = runVerification(manifest, dbName);
+execLog.verification = runVerification(manifest, dbName, projectRoot);
 saveExecutionLog(execLogPath, execLog);
 
 if (!execLog.verification.passed) {
