@@ -1,5 +1,6 @@
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
+import { invalidateUserCaches } from "../../lib/cache/invalidate";
 import {
 	buildDeletePostChildStatements,
 	buildDeleteThreadChildStatements,
@@ -249,7 +250,9 @@ const userConfig: EntityConfig = {
 		const cacheFields = ["username", "avatar", "role"];
 		const needsInvalidation = cacheFields.some((field) => data[field] !== undefined);
 		if (needsInvalidation) {
-			await invalidateUserCache(env, id);
+			// docs/19 §6 row "PATCH /api/admin/users/:id": drop legacy
+			// `user:mini:<id>` + v2 mini + both viewer-bucket public variants.
+			await Promise.all([invalidateUserCache(env, id), invalidateUserCaches(env, id)]);
 		}
 	},
 };
@@ -269,6 +272,22 @@ async function fetchTombstoneIds(env: Env, ids: number[]): Promise<number[]> {
 		.bind(...ids)
 		.all();
 	return (r.results as { id: number }[]).map((row) => row.id);
+}
+
+// ─── Cache fan-out helper for admin user batch endpoints ────────────────────
+// docs/19 §6 rows "admin user batch-status / batch-role / batch-recalc-counters
+// / single recalc-counters": drop legacy `user:mini:<id>` AND v2 mini + both
+// viewer-bucket public variants for every affected user. Chunked so a 100-id
+// batch doesn't fan out 200 concurrent KV calls; KV failures are already
+// swallowed inside the helpers (best-effort).
+const USER_CACHE_FAN_OUT_CHUNK = 50;
+async function invalidateUserCachesForIds(env: Env, ids: number[]): Promise<void> {
+	for (let i = 0; i < ids.length; i += USER_CACHE_FAN_OUT_CHUNK) {
+		const chunk = ids.slice(i, i + USER_CACHE_FAN_OUT_CHUNK);
+		await Promise.all(
+			chunk.flatMap((uid) => [invalidateUserCache(env, uid), invalidateUserCaches(env, uid)]),
+		);
+	}
 }
 
 // ─── #36 GET /api/admin/users ────────────────────────────────────────────────
@@ -1208,6 +1227,10 @@ export const batchStatus = withEntityAuth(
 			.bind(body.status, ...ids)
 			.run();
 
+		// docs/19 §6: status change must drop user:mini + user:public for
+		// every affected id (legacy v1 + v2).
+		await invalidateUserCachesForIds(env, ids);
+
 		return jsonResponse({ updated: true, count: ids.length }, origin);
 	},
 );
@@ -1266,6 +1289,10 @@ export const batchRole = withEntityAuth(
 			.bind(body.role, ...ids)
 			.run();
 
+		// docs/19 §6: role change feeds the visibility bucket and the
+		// public profile group_title — invalidate per id (legacy + v2).
+		await invalidateUserCachesForIds(env, ids);
+
 		return jsonResponse({ updated: true, count: ids.length }, origin);
 	},
 );
@@ -1315,6 +1342,10 @@ export const recalcCounters = withEntityAuth(
 		await env.DB.prepare("UPDATE users SET threads = ?, posts = ?, digest_posts = ? WHERE id = ?")
 			.bind(threads, posts, digestPosts, id)
 			.run();
+
+		// docs/19 §6: counter recalc rewrites the public profile aggregate
+		// fields — invalidate this user's caches (legacy + v2).
+		await Promise.all([invalidateUserCache(env, id), invalidateUserCaches(env, id)]);
 
 		return jsonResponse({ id, threads, posts, digestPosts }, origin);
 	},
@@ -1424,6 +1455,11 @@ export const batchRecalcCounters = withEntityAuth(
 		);
 
 		await env.DB.batch(statements);
+
+		// docs/19 §6: per-id user cache invalidation (legacy + v2). Chunked
+		// to avoid fan-out storms when called with the implicit "all active
+		// users" path.
+		await invalidateUserCachesForIds(env, userIds);
 
 		return jsonResponse({ updated: userIds.length }, origin);
 	},
