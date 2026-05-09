@@ -12,9 +12,9 @@ Last audit: **2026-05-09**
 |---|---|
 | Total (route × method) | **134** |
 | Method breakdown | GET 58 / POST 46 / PATCH 16 / PUT 1 / DELETE 13 |
-| L2 calls scanned | 230 |
-| Routes hit | **133** (99.25%) |
-| Routes uncovered | **1** |
+| L2 calls scanned | 233 |
+| Routes hit | **134** (100.00%) |
+| Routes uncovered | **0** |
 | Exemptions | 0 |
 | Unmatched test calls | 0 |
 
@@ -174,7 +174,7 @@ _None._ Every route × method must be covered by L2.
 | ✅ | PATCH | `/^\/api\/admin\/users\/\d+$/` | index.ts:450 |
 | ✅ | POST | `/^\/api\/admin\/users\/\d+\/ban$/` | index.ts:432 |
 | ✅ | POST | `/^\/api\/admin\/users\/\d+\/nuke$/` | index.ts:438 |
-| ❌ | POST | `/^\/api\/admin\/users\/\d+\/purge$/` | index.ts:441 |
+| ✅ | POST | `/^\/api\/admin\/users\/\d+\/purge$/` | index.ts:441 |
 | ✅ | POST | `/^\/api\/admin\/users\/\d+\/recalc-counters$/` | index.ts:444 |
 | ✅ | POST | `/^\/api\/admin\/users\/\d+\/unban$/` | index.ts:435 |
 | ✅ | GET | `/^\/api\/v1\/forums\/\d+$/` | index.ts:81 |
@@ -211,9 +211,7 @@ _None._ Every route × method must be covered by L2.
 
 ## 5. Uncovered queue (Phase 4 backlog)
 
-| Method | Pattern | Source line |
-|---|---|---|
-| POST | `/^\/api\/admin\/users\/\d+\/purge$/` | index.ts:441 |
+_All routes covered._ 🎉
 
 ## 6. Unmatched L2 calls
 

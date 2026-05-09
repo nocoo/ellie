@@ -235,6 +235,30 @@ describe("L2: Worker Admin API", () => {
 		});
 	});
 
+	describe("POST /api/admin/users/:id/purge", () => {
+		test("returns 400 for missing confirm body", async () => {
+			const res = await adminPost("/api/admin/users/999999/purge", {});
+			expect(res.status).toBe(400);
+			const data = await res.json();
+			// confirm is missing → "confirm must be a string"
+			expect(data.error.code).toBe("INVALID_BODY");
+		});
+
+		test("returns 400 when confirm is not 'ok'", async () => {
+			const res = await adminPost("/api/admin/users/999999/purge", { confirm: "no" });
+			expect(res.status).toBe(400);
+			const data = await res.json();
+			expect(data.error.code).toBe("CONFIRM_MISMATCH");
+		});
+
+		test("returns 404 for non-existent user", async () => {
+			const res = await adminPost("/api/admin/users/999999/purge", { confirm: "ok" });
+			expect(res.status).toBe(404);
+			const data = await res.json();
+			expect(data.error.code).toBe("USER_NOT_FOUND");
+		});
+	});
+
 	describe("POST /api/admin/users/:id/recalc-counters", () => {
 		test("returns 404 for non-existent user", async () => {
 			const res = await adminPost("/api/admin/users/999999/recalc-counters", {});
