@@ -141,7 +141,7 @@ function generateUpsertChunks(
 
 		if (rows.length === 0) break;
 
-		const { content, bytes } = formatUpsertChunk(
+		const { content, bytes, pk_list } = formatUpsertChunk(
 			table,
 			columns,
 			conflictColumn,
@@ -150,7 +150,7 @@ function generateUpsertChunks(
 		);
 		const fileName = chunkFileName(table, chunkNum);
 		writeFileSync(`${outDir}/${fileName}`, content);
-		chunks.push({ file: fileName, table, rows: rows.length, bytes, strategy: "upsert" });
+		chunks.push({ file: fileName, table, rows: rows.length, bytes, strategy: "upsert", pk_list });
 		offset += chunkSize;
 	}
 
@@ -190,10 +190,17 @@ function generateIncrementalChunks(
 
 		if (rows.length === 0) break;
 
-		const { content, bytes } = formatInsertOrIgnoreChunk(table, columns, rows);
+		const { content, bytes, pk_list } = formatInsertOrIgnoreChunk(table, columns, rows);
 		const fileName = chunkFileName(table, chunkNum);
 		writeFileSync(`${outDir}/${fileName}`, content);
-		chunks.push({ file: fileName, table, rows: rows.length, bytes, strategy: "insert_or_ignore" });
+		chunks.push({
+			file: fileName,
+			table,
+			rows: rows.length,
+			bytes,
+			strategy: "insert_or_ignore",
+			pk_list,
+		});
 		offset += CHUNK_SIZE;
 	}
 
