@@ -378,17 +378,36 @@ function verifyRowCounts(manifest: Manifest, dbName: string, cwd: string): Verif
 		}
 
 		if (tableInfo.strategy === "upsert") {
-			const passed = actual >= tableInfo.source_total_rows;
-			checks.push({
-				name: `${table} row count`,
-				passed,
-				expected: tableInfo.source_total_rows,
-				actual,
-				details: "upsert: actual >= source total",
-			});
-			log(
-				`  ${passed ? "✓" : "✗"} ${table}: ${actual} rows (expected >= ${tableInfo.source_total_rows})`,
-			);
+			// Windowed/canary upserts (continuation_max_id set) only cover a
+			// subset of the table. Don't compare against source_total_rows;
+			// instead verify that remote count >= production baseline.
+			const isWindowed = tableInfo.continuation_max_id != null;
+			if (isWindowed) {
+				const prodCount = manifest.production_state.tables[table]?.count ?? 0;
+				const passed = actual >= prodCount;
+				checks.push({
+					name: `${table} row count`,
+					passed,
+					expected: prodCount,
+					actual,
+					details: "windowed upsert: actual >= production baseline",
+				});
+				log(
+					`  ${passed ? "✓" : "✗"} ${table}: ${actual} rows (expected >= ${prodCount}, windowed canary)`,
+				);
+			} else {
+				const passed = actual >= tableInfo.source_total_rows;
+				checks.push({
+					name: `${table} row count`,
+					passed,
+					expected: tableInfo.source_total_rows,
+					actual,
+					details: "upsert: actual >= source total",
+				});
+				log(
+					`  ${passed ? "✓" : "✗"} ${table}: ${actual} rows (expected >= ${tableInfo.source_total_rows})`,
+				);
+			}
 		} else {
 			const prodCount = manifest.production_state.tables[table]?.count ?? 0;
 			const newRows = tableInfo.source_rows_after_max ?? 0;
