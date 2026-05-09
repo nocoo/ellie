@@ -76,7 +76,14 @@ export interface ForumTreeNodeV2 {
 	type: ForumType;
 	status: number;
 	visibility: ForumVisibility;
+	/** Comma-separated moderator usernames (used by canModerate permission check). */
 	moderators: string;
+	/**
+	 * Comma-separated moderator user IDs. Required by `GET /api/v1/forums/:id/ancestors`
+	 * (`ForumContext.moderatorIds`) which reuses this tree payload — keeping it
+	 * here means ancestors hits never have to fall back to D1 for moderator IDs.
+	 */
+	moderatorIds: string;
 	moderatorList: ModeratorInfo[];
 }
 
@@ -84,9 +91,9 @@ export interface ForumTreeNodeV2 {
  * Per-forum aggregate fields cached in `forum:summary:v2`. Includes the
  * last-poster avatar fields so cache hits do NOT have to round-trip to
  * `user:mini` or D1; the trade-off is up to `forum:summary` TTL of stale
- * avatar after a username/avatar change, which is acceptable for the
- * forum index view (admin path bumps `forum:summary:gen` on user-affecting
- * writes when needed).
+ * avatar/username after a user update. This is accepted on the forum
+ * index view — user-affecting writes do NOT bump `forum:summary:gen`,
+ * the avatar simply refreshes when the summary entry naturally expires.
  */
 export interface ForumAggregateV2 {
 	threads: number;
@@ -160,7 +167,7 @@ export function isForumVisibleToBucket(
  * filtering is centralized.
  */
 export function buildForumTreePayload(
-	allForums: Forum[],
+	allForums: Array<Forum & { moderatorIds: string }>,
 	bucket: VisibilityBucket,
 ): ForumTreePayloadV2 {
 	const visible = filterForumsForBucket(allForums, bucket);
@@ -175,6 +182,7 @@ export function buildForumTreePayload(
 		status: f.status,
 		visibility: f.visibility,
 		moderators: f.moderators,
+		moderatorIds: f.moderatorIds,
 		moderatorList: f.moderatorList,
 	}));
 	return { bucket, forums };

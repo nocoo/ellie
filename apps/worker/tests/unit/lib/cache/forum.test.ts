@@ -3,8 +3,8 @@
 // Covers bucket → context mapping, active+visibility filtering, payload
 // builders (tree / summary / meta), and post-cache-read shape validators.
 
-import type { Forum, ForumType, ForumVisibility } from "@ellie/types";
-import { UserRole } from "@ellie/types";
+import type { Forum, ForumVisibility } from "@ellie/types";
+import { ForumType, UserRole } from "@ellie/types";
 import { describe, expect, it } from "vitest";
 import {
 	bucketToVisibilityContext,
@@ -20,7 +20,9 @@ import {
 
 // ─── Fixtures ─────────────────────────────────────────────────────
 
-function makeForum(overrides: Partial<Forum> = {}): Forum {
+type ForumRow = Forum & { moderatorIds: string };
+
+function makeForum(overrides: Partial<ForumRow> = {}): ForumRow {
 	return {
 		id: 1,
 		parentId: 0,
@@ -30,10 +32,11 @@ function makeForum(overrides: Partial<Forum> = {}): Forum {
 		displayOrder: 0,
 		threads: 10,
 		posts: 100,
-		type: 0 as ForumType,
+		type: ForumType.Forum,
 		status: 1,
 		visibility: "public",
 		moderators: "",
+		moderatorIds: "",
 		moderatorList: [],
 		todayThreads: 2,
 		lastThreadId: 42,
@@ -154,10 +157,11 @@ describe("cache/forum — buildForumTreePayload", () => {
 			description: "d",
 			icon: "i",
 			displayOrder: 5,
-			type: 1 as ForumType,
+			type: ForumType.Sub,
 			status: 1,
 			visibility: "public",
 			moderators: "alice",
+			moderatorIds: "1",
 			moderatorList: [{ id: 1, name: "alice" }],
 		});
 		const payload = buildForumTreePayload([f], "anon");
@@ -171,16 +175,23 @@ describe("cache/forum — buildForumTreePayload", () => {
 			description: "d",
 			icon: "i",
 			displayOrder: 5,
-			type: 1,
+			type: ForumType.Sub,
 			status: 1,
 			visibility: "public",
 			moderators: "alice",
+			moderatorIds: "1",
 			moderatorList: [{ id: 1, name: "alice" }],
 		});
 		// No aggregate fields leaked through.
 		expect(node).not.toHaveProperty("threads");
 		expect(node).not.toHaveProperty("lastPostAt");
 		expect(node).not.toHaveProperty("lastPosterAvatar");
+	});
+
+	it("preserves moderatorIds (required by /forums/:id/ancestors ForumContext)", () => {
+		const f = makeForum({ id: 3, moderatorIds: "11,22,33" });
+		const payload = buildForumTreePayload([f], "anon");
+		expect(payload.forums[0].moderatorIds).toBe("11,22,33");
 	});
 
 	it("filters by bucket (admin-only forum hidden from member)", () => {
