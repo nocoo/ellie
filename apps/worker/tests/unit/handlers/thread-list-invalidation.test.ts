@@ -188,7 +188,7 @@ describe("admin thread update digest tracking", () => {
 		expect(mockDigest).toHaveBeenCalled();
 	});
 
-	it("update with subject-only change bumps per-forum thread-list, NOT digest", async () => {
+	it("update with subject-only change bumps per-forum thread-list AND summary, NOT digest", async () => {
 		const { db } = createMockDb({
 			firstResults: {
 				...adminAuthRow(),
@@ -210,6 +210,37 @@ describe("admin thread update digest tracking", () => {
 		const res = await adminThreadUpdate(req, env);
 		expect(res.status).toBe(200);
 		expect(mockThreadList).toHaveBeenCalledWith(expect.anything(), 5);
+		// Subject is part of `forum:summary:v2.lastThreadSubject`, so a
+		// subject-only update MUST also bump forum:summary:gen.
+		expect(mockSummary).toHaveBeenCalled();
+		expect(mockDigest).not.toHaveBeenCalled();
+	});
+
+	it("update with sticky-only change bumps per-forum thread-list, NOT summary, NOT digest", async () => {
+		const { db } = createMockDb({
+			firstResults: {
+				...adminAuthRow(),
+				"SELECT * FROM threads WHERE id": {
+					id: 11,
+					forum_id: 5,
+					replies: 0,
+					sticky: 0,
+					digest: 0,
+					closed: 0,
+					highlight: 0,
+					subject: "x",
+				},
+				"SELECT id FROM threads WHERE id": { id: 11 },
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = createAdminRequest("PATCH", "/api/admin/threads/11", { sticky: 1 });
+		const res = await adminThreadUpdate(req, env);
+		expect(res.status).toBe(200);
+		expect(mockThreadList).toHaveBeenCalledWith(expect.anything(), 5);
+		// sticky/closed/digest/highlight do NOT touch lastThreadSubject,
+		// so we don't pay the summary bump there — only subject does.
+		expect(mockSummary).not.toHaveBeenCalled();
 		expect(mockDigest).not.toHaveBeenCalled();
 	});
 });

@@ -325,7 +325,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 					)
 				: await loadOffsetPayload();
 
-		return paginatedResponse(payload.items, payload.total ?? 0, page, payload.limit, origin);
+		return paginatedResponse(payload.items, payload.total, page, payload.limit, origin);
 	}
 
 	// -------------------------------------------------------------------
@@ -370,7 +370,12 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 				};
 			},
 		);
-		return { items, total: null, nextCursor, limit: clampedLimit };
+		// Deep-keyset loader: only used when a cursor is present, never
+		// passed to the page1 cache. `total` is irrelevant on this path
+		// (the keyset response shape doesn't expose it), so we return 0
+		// to satisfy the tightened `ThreadListPayloadV2.total: number`
+		// contract without paying for a COUNT round-trip.
+		return { items, total: 0, nextCursor, limit: clampedLimit };
 	};
 
 	const payload = page1

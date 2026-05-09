@@ -156,9 +156,7 @@ describe("cache/thread-list-read — pure helpers", () => {
 
 	it("isThreadListPayload accepts the canonical envelope", () => {
 		expect(isThreadListPayload({ items: [], total: 0, nextCursor: null, limit: 20 })).toBe(true);
-		expect(isThreadListPayload({ items: [], total: null, nextCursor: "abc", limit: 50 })).toBe(
-			true,
-		);
+		expect(isThreadListPayload({ items: [], total: 5, nextCursor: "abc", limit: 50 })).toBe(true);
 	});
 
 	it("isThreadListPayload rejects schema drift (missing or wrong-typed fields)", () => {
@@ -167,6 +165,11 @@ describe("cache/thread-list-read — pure helpers", () => {
 		expect(isThreadListPayload({ items: [], limit: 20 })).toBe(false);
 		expect(isThreadListPayload({ items: "no", total: 0, nextCursor: null, limit: 20 })).toBe(false);
 		expect(isThreadListPayload({ items: [], total: "no", nextCursor: null, limit: 20 })).toBe(
+			false,
+		);
+		// Pre-9d39588 envelope where keyset miss wrote `total: null` —
+		// MUST be rejected so cache rebuilds on first read after deploy.
+		expect(isThreadListPayload({ items: [], total: null, nextCursor: "abc", limit: 50 })).toBe(
 			false,
 		);
 		expect(isThreadListPayload({ items: [], total: 0, nextCursor: 5, limit: 20 })).toBe(false);
