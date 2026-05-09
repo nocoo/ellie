@@ -362,4 +362,73 @@ describe("handlers/thread.list — page1 KV cache wiring", () => {
 
 		expect(getThreadListKeys(kv)).toEqual([]);
 	});
+
+	// ─── Cross-shape page1 cache contract ───────────────────────────
+	// Both keyset (no cursor) and offset (page=1) page1 requests share the
+	// SAME `thread:list:v2` cache key. Whichever shape warms the cache
+	// first must produce a payload that the OTHER shape can read back
+	// without losing `meta.total` or `nextCursor`.
+
+	it("keyset warms → offset page=1 hit: meta.total/page/limit/pages stay correct, no extra thread SELECT", async () => {
+		const { db, state } = makeD1Mock({
+			threadRows: [makeD1ThreadRow({ id: 11 }), makeD1ThreadRow({ id: 12 })],
+			totalThreads: 2,
+		});
+		const kv = createMockKV();
+		const env = makeEnv({ DB: db, KV: kv });
+
+		// 1) Keyset request warms the cache.
+		const ctx1 = createMockCtx() as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
+		const r1 = await list(makeReq("forumId=1&limit=20"), env, ctx1);
+		expect(r1.status).toBe(200);
+		await Promise.all(ctx1._waitUntilPromises);
+		const selectsAfterWarm = state.threadSelectCalls;
+		expect(selectsAfterWarm).toBe(1);
+
+		// 2) Offset page=1 request hits the SAME cache key.
+		const ctx2 = createMockCtx() as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
+		const r2 = await list(makeReq("forumId=1&page=1&limit=20"), env, ctx2);
+		expect(r2.status).toBe(200);
+		const body = (await r2.json()) as { data?: unknown[]; meta?: Record<string, unknown> };
+		expect(Array.isArray(body.data)).toBe(true);
+		// total MUST come back as 2 (not 0 / null) — proves keyset-warmed
+		// payload still carries the COUNT result.
+		expect(body.meta).toMatchObject({ total: 2, page: 1, limit: 20, pages: 1 });
+		// And we must NOT have issued another thread page SELECT.
+		expect(state.threadSelectCalls).toBe(selectsAfterWarm);
+	});
+
+	it("offset page=1 warms → keyset hit: nextCursor stays non-null when limit is full", async () => {
+		// Fill exactly `limit` rows so buildNextCursor produces a real cursor.
+		const limit = 20;
+		const rows = Array.from({ length: limit }, (_, i) => makeD1ThreadRow({ id: 100 + i }));
+		const { db, state } = makeD1Mock({ threadRows: rows, totalThreads: 200 });
+		const kv = createMockKV();
+		const env = makeEnv({ DB: db, KV: kv });
+
+		// 1) Offset page=1 request warms the cache.
+		const ctx1 = createMockCtx() as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
+		const r1 = await list(makeReq(`forumId=1&page=1&limit=${limit}`), env, ctx1);
+		expect(r1.status).toBe(200);
+		await Promise.all(ctx1._waitUntilPromises);
+		const selectsAfterWarm = state.threadSelectCalls;
+		expect(selectsAfterWarm).toBe(1);
+
+		// 2) Keyset (no cursor) request hits the SAME cache key.
+		const ctx2 = createMockCtx() as ExecutionContext & { _waitUntilPromises: Promise<unknown>[] };
+		const r2 = await list(makeReq(`forumId=1&limit=${limit}`), env, ctx2);
+		expect(r2.status).toBe(200);
+		const body = (await r2.json()) as {
+			data?: unknown[];
+			meta?: { nextCursor?: string | null };
+		};
+		expect(Array.isArray(body.data)).toBe(true);
+		// nextCursor MUST be a non-empty string — proves offset-warmed
+		// payload still carries the keyset cursor derived from raw rows.
+		const nc = body.meta?.nextCursor;
+		expect(typeof nc).toBe("string");
+		expect((nc as string).length).toBeGreaterThan(0);
+		// No additional thread page SELECT on the keyset hit.
+		expect(state.threadSelectCalls).toBe(selectsAfterWarm);
+	});
 });
