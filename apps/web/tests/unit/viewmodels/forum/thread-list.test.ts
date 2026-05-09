@@ -2,8 +2,12 @@ import {
 	enrichThreads,
 	filterIconRedundantBadges,
 	getDigestIconSrc,
+	getInlinePageItems,
 	getThreadIconSrc,
+	getThreadPageCount,
+	getThreadPageUrl,
 	highlightStyle,
+	pageToPostCursor,
 } from "@/viewmodels/forum/thread-list";
 import { decodeHighlight, getThreadBadges } from "@ellie/types";
 import type { Thread } from "@ellie/types";
@@ -467,5 +471,112 @@ describe("filterIconRedundantBadges", () => {
 		const badges = getThreadBadges(thread);
 		const filtered = filterIconRedundantBadges(badges);
 		expect(filtered).toHaveLength(0);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// getThreadPageCount
+// ---------------------------------------------------------------------------
+
+describe("getThreadPageCount", () => {
+	it("returns 1 for thread with 0 replies (OP only)", () => {
+		expect(getThreadPageCount(0, 20)).toBe(1);
+	});
+
+	it("returns 1 for thread with replies fitting in one page", () => {
+		expect(getThreadPageCount(19, 20)).toBe(1);
+	});
+
+	it("returns 2 when replies + OP span 2 pages", () => {
+		// 20 replies + 1 OP = 21 posts → ceil(21/20) = 2
+		expect(getThreadPageCount(20, 20)).toBe(2);
+	});
+
+	it("returns correct count for large thread", () => {
+		// 199 replies + 1 OP = 200 posts → ceil(200/20) = 10
+		expect(getThreadPageCount(199, 20)).toBe(10);
+	});
+
+	it("handles non-20 postsPerPage", () => {
+		// 50 replies + 1 OP = 51 posts → ceil(51/10) = 6
+		expect(getThreadPageCount(50, 10)).toBe(6);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// getInlinePageItems
+// ---------------------------------------------------------------------------
+
+describe("getInlinePageItems", () => {
+	it("returns empty for single-page thread", () => {
+		expect(getInlinePageItems(1)).toEqual([]);
+	});
+
+	it("returns [2] for 2-page thread", () => {
+		expect(getInlinePageItems(2)).toEqual([2]);
+	});
+
+	it("returns [2,3,4] for 4-page thread", () => {
+		expect(getInlinePageItems(4)).toEqual([2, 3, 4]);
+	});
+
+	it("returns [2,3,4,5,6,7] for 7-page thread (all shown)", () => {
+		expect(getInlinePageItems(7)).toEqual([2, 3, 4, 5, 6, 7]);
+	});
+
+	it("returns [2,3,4,5,'ellipsis',8] for 8-page thread", () => {
+		expect(getInlinePageItems(8)).toEqual([2, 3, 4, 5, "ellipsis", 8]);
+	});
+
+	it("returns [2,3,4,5,'ellipsis',100] for 100-page thread", () => {
+		expect(getInlinePageItems(100)).toEqual([2, 3, 4, 5, "ellipsis", 100]);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// pageToPostCursor
+// ---------------------------------------------------------------------------
+
+describe("pageToPostCursor", () => {
+	it("returns null for page 1 (first page uses no cursor)", () => {
+		expect(pageToPostCursor(1, 20)).toBeNull();
+	});
+
+	it("returns null for page 0", () => {
+		expect(pageToPostCursor(0, 20)).toBeNull();
+	});
+
+	it("returns cursor with position=20 for page 2 (postsPerPage=20)", () => {
+		const cursor = pageToPostCursor(2, 20);
+		expect(cursor).not.toBeNull();
+		const payload = JSON.parse(atob(cursor as string));
+		expect(payload.position).toBe(20);
+	});
+
+	it("returns cursor with position=40 for page 3 (postsPerPage=20)", () => {
+		const cursor = pageToPostCursor(3, 20);
+		const payload = JSON.parse(atob(cursor as string));
+		expect(payload.position).toBe(40);
+	});
+
+	it("respects custom postsPerPage", () => {
+		const cursor = pageToPostCursor(2, 50);
+		const payload = JSON.parse(atob(cursor as string));
+		expect(payload.position).toBe(50);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// getThreadPageUrl
+// ---------------------------------------------------------------------------
+
+describe("getThreadPageUrl", () => {
+	it("returns /threads/{id} for page 1", () => {
+		expect(getThreadPageUrl(123, 1)).toBe("/threads/123");
+	});
+
+	it("returns /threads/{id}?page=N for page > 1", () => {
+		expect(getThreadPageUrl(123, 2)).toBe("/threads/123?page=2");
+		expect(getThreadPageUrl(456, 5)).toBe("/threads/456?page=5");
 	});
 });

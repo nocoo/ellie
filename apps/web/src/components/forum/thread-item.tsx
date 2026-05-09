@@ -8,6 +8,7 @@ import { type ThreadDisplayItem, highlightStyle } from "@/viewmodels/forum/threa
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import Link from "next/link";
 import { ThreadBadgeList } from "./thread-badge";
+import { ThreadInlinePages } from "./thread-inline-pages";
 import { ThreadLastPostCell } from "./thread-last-post-cell";
 import { ThreadRowStats } from "./thread-row-stats";
 import { ForumAvatar } from "./user-avatar";
@@ -15,9 +16,10 @@ import { UserPopover } from "./user-popover";
 
 interface ThreadItemProps {
 	item: ThreadDisplayItem;
+	postsPerPage: number;
 }
 
-export function ThreadItem({ item }: ThreadItemProps) {
+export function ThreadItem({ item, postsPerPage }: ThreadItemProps) {
 	const { thread, badges, highlight: hl, iconSrc, digestSrc } = item;
 
 	return (
@@ -42,6 +44,11 @@ export function ThreadItem({ item }: ThreadItemProps) {
 						{thread.subject}
 					</Link>
 					{digestSrc && <img src={digestSrc} alt="digest" className="shrink-0" />}
+					<ThreadInlinePages
+						threadId={thread.id}
+						replies={thread.replies}
+						postsPerPage={postsPerPage}
+					/>
 				</div>
 
 				{/* Column 2: Author (fixed, left-aligned with avatar) */}
@@ -102,6 +109,11 @@ export function ThreadItem({ item }: ThreadItemProps) {
 								{thread.subject}
 							</Link>
 							{digestSrc && <img src={digestSrc} alt="digest" className="shrink-0" />}
+							<ThreadInlinePages
+								threadId={thread.id}
+								replies={thread.replies}
+								postsPerPage={postsPerPage}
+							/>
 						</div>
 					</div>
 				</div>

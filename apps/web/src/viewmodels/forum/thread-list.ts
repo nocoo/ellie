@@ -127,3 +127,62 @@ export function filterIconRedundantBadges(
 ): ReturnType<typeof getThreadBadges> {
 	return badges.filter((b) => !ICON_REPRESENTED_BADGE_TYPES.has(b.type));
 }
+
+// ---------------------------------------------------------------------------
+// Inline thread page links (title-right pagination)
+// ---------------------------------------------------------------------------
+
+/** A page item: a page number or an "ellipsis" sentinel. */
+export type InlinePageItem = number | "ellipsis";
+
+/**
+ * Calculate total pages for a thread.
+ * `replies` does not include the OP post, so total posts = replies + 1.
+ */
+export function getThreadPageCount(replies: number, postsPerPage: number): number {
+	return Math.ceil((replies + 1) / postsPerPage);
+}
+
+/**
+ * Generate inline page items for display to the right of the title.
+ * Only called when pageCount > 1 (single-page threads show nothing).
+ *
+ * Shows pages starting from 2 (page 1 is the default landing page).
+ * For short page counts (≤ 6), shows all pages.
+ * For longer page counts, shows 2 3 4 5 ... lastPage.
+ */
+export function getInlinePageItems(pageCount: number): InlinePageItem[] {
+	if (pageCount <= 1) return [];
+
+	// Show all pages from 2..pageCount when total is small
+	const MAX_INLINE = 6; // threshold: show all pages 2..N when N-1 <= MAX_INLINE
+	if (pageCount - 1 <= MAX_INLINE) {
+		return Array.from({ length: pageCount - 1 }, (_, i) => i + 2);
+	}
+
+	// Show 2 3 4 5 ... lastPage
+	const head = [2, 3, 4, 5];
+	const result: InlinePageItem[] = [...head, "ellipsis", pageCount];
+	return result;
+}
+
+/**
+ * Encode a page number into a post cursor string for the thread detail page.
+ * Page 1 returns null (no cursor = first page).
+ * Page N returns base64-encoded { position: (N-1) * postsPerPage }.
+ */
+export function pageToPostCursor(page: number, postsPerPage: number): string | null {
+	if (page <= 1) return null;
+	const position = (page - 1) * postsPerPage;
+	return btoa(JSON.stringify({ position }));
+}
+
+/**
+ * Build the URL for a specific page of a thread.
+ * Page 1: /threads/{id} (no query params)
+ * Page N: /threads/{id}?page={N}
+ */
+export function getThreadPageUrl(threadId: number, page: number): string {
+	if (page <= 1) return `/threads/${threadId}`;
+	return `/threads/${threadId}?page=${page}`;
+}

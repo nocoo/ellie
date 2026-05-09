@@ -8,10 +8,12 @@ import { ThreadPostsClient } from "@/components/forum/thread-posts-client";
 import { ThreadReportButton } from "@/components/forum/thread-report-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getSelfForumUser } from "@/lib/forum-self";
+import { getPostsPerPage } from "@/lib/forum-settings";
 import {
 	type ThreadDetailPageData,
 	loadThreadDetail,
 } from "@/viewmodels/forum/thread-detail.server";
+import { pageToPostCursor } from "@/viewmodels/forum/thread-list";
 import { getThreadTitle } from "@/viewmodels/forum/title.server";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { parseIntParam } from "@/viewmodels/shared/params";
@@ -21,7 +23,7 @@ import Link from "next/link";
 
 interface ThreadDetailPageProps {
 	params: Promise<{ id: string }>;
-	searchParams: Promise<{ cursor?: string; direction?: string; last?: string }>;
+	searchParams: Promise<{ cursor?: string; direction?: string; last?: string; page?: string }>;
 }
 
 export async function generateMetadata({ params }: ThreadDetailPageProps): Promise<Metadata> {
@@ -60,10 +62,21 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 	// self uses fail-soft (.catch → null) so it never breaks the page.
 	const selfPromise = getSelfForumUser().catch(() => null);
 
+	// Resolve cursor: explicit cursor takes priority over ?page=N.
+	// ?page=N is converted to a position-based cursor for the post handler.
+	let cursor = sp.cursor;
+	if (!cursor && sp.page && !sp.last) {
+		const pageNum = parseIntParam(sp.page);
+		if (pageNum != null && pageNum > 1) {
+			const postsPerPage = await getPostsPerPage();
+			cursor = pageToPostCursor(pageNum, postsPerPage) ?? undefined;
+		}
+	}
+
 	try {
 		data = await loadThreadDetail({
 			threadId,
-			cursor: sp.cursor,
+			cursor,
 			direction: sp.direction === "backward" ? "backward" : "forward",
 			last: sp.last === "1",
 		});
