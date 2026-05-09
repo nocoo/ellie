@@ -355,6 +355,44 @@ case "$MODE" in
     if has_flag "--json" "$@"; then emit_json "$@"; fi
     exit 0
     ;;
+  upload-failed)
+    if has_flag "--file" "$@"; then
+      echo "WARNING: This process may take some time, during which your D1 database will be unavailable to serve queries." >&2
+      echo 'ERROR: File could not be uploaded. Please retry.' >&2
+      echo 'Got response: <?xml version="1.0" encoding="UTF-8"?><Error><Code>InternalError</Code><Message>We encountered an internal error. Please try again.</Message></Error>' >&2
+      exit 1
+    fi
+    if has_flag "--json" "$@"; then emit_json "$@"; fi
+    exit 0
+    ;;
+  upload-failed-then-succeed)
+    if has_flag "--file" "$@"; then
+      COUNTER_FILE="\${FETCH_FAIL_COUNTER_FILE:-/tmp/fake-wrangler-counter}"
+      MAX_FAILS="\${FETCH_FAIL_COUNT:-1}"
+      CURRENT=0
+      if [[ -f "$COUNTER_FILE" ]]; then
+        CURRENT=$(cat "$COUNTER_FILE")
+      fi
+      CURRENT=$((CURRENT + 1))
+      echo "$CURRENT" > "$COUNTER_FILE"
+      if [[ "$CURRENT" -le "$MAX_FAILS" ]]; then
+        echo "WARNING: This process may take some time, during which your D1 database will be unavailable to serve queries." >&2
+        echo 'ERROR: File could not be uploaded. Please retry.' >&2
+        echo 'Got response: <?xml version="1.0" encoding="UTF-8"?><Error><Code>InternalError</Code><Message>We encountered an internal error. Please try again.</Message></Error>' >&2
+        exit 1
+      fi
+    fi
+    if has_flag "--json" "$@"; then emit_json "$@"; fi
+    exit 0
+    ;;
+  auth-error)
+    if has_flag "--file" "$@"; then
+      echo "ERROR: Authentication error [code: 10000]" >&2
+      exit 1
+    fi
+    if has_flag "--json" "$@"; then emit_json "$@"; fi
+    exit 0
+    ;;
 esac
 echo "Error: unknown FAKE_WRANGLER_MODE=$MODE" >&2
 exit 1
@@ -1123,7 +1161,7 @@ describe("fetch-failure retry", () => {
 			fetchFailCounterFile: counterFile,
 		});
 		expect(exitCode).toBe(0);
-		expect(stdout).toContain("RETRY 1/3 after fetch failed");
+		expect(stdout).toContain("RETRY 1/3 after upload failure");
 		expect(stdout).toContain("RETRY 1 succeeded");
 		expect(stdout).toContain("Import complete and verified");
 
@@ -1143,9 +1181,9 @@ describe("fetch-failure retry", () => {
 			fakeMode: "fetch-failed",
 		});
 		expect(exitCode).not.toBe(0);
-		expect(stdout).toContain("RETRY 1/3 after fetch failed");
-		expect(stdout).toContain("RETRY 2/3 after fetch failed");
-		expect(stdout).toContain("RETRY 3/3 after fetch failed");
+		expect(stdout).toContain("RETRY 1/3 after upload failure");
+		expect(stdout).toContain("RETRY 2/3 after upload failure");
+		expect(stdout).toContain("RETRY 3/3 after upload failure");
 		expect(stdout).toContain("FAILED");
 		expect(stdout).toContain("stopped at");
 
@@ -1184,10 +1222,64 @@ describe("fetch-failure retry", () => {
 			["--verify-warning-success", "--source-db", SOURCE_DB_PATH],
 			{ fakeMode: "warning-only" },
 		);
-		// Should pass (warning verification passes with fake wrangler)
-		// The point is: isWarningOnly does NOT match isFetchFailure
 		expect(exitCode).toBe(0);
 		expect(stdout).not.toContain("RETRY");
 		expect(stdout).toContain("VERIFIED OK");
+	});
+
+	test("S3/R2 InternalError upload failure → retry → success", () => {
+		const manifest = makeManifest();
+		const counterFile = join(TEST_DIR, "retry-counter-upload");
+		const manifestPath = setupFixture("retry-upload-succeed", manifest);
+		const { exitCode, stdout } = runExecutor(manifestPath, [], {
+			fakeMode: "upload-failed-then-succeed",
+			fetchFailCount: 1,
+			fetchFailCounterFile: counterFile,
+		});
+		expect(exitCode).toBe(0);
+		expect(stdout).toContain("RETRY 1/3");
+		expect(stdout).toContain("RETRY 1 succeeded");
+		expect(stdout).toContain("Import complete and verified");
+
+		const logPath = join(TEST_DIR, "retry-upload-succeed", "execution-log.json");
+		const log = JSON.parse(readFileSync(logPath, "utf-8"));
+		const forums = log.chunks.find((c: { file: string }) => c.file === "forums-001.sql");
+		expect(forums.retry_attempts).toBe(1);
+	});
+
+	test("S3/R2 InternalError exhausts retries → failure", () => {
+		const manifest = makeManifest();
+		const manifestPath = setupFixture("retry-upload-exhaust", manifest);
+		const { exitCode, stdout } = runExecutor(manifestPath, [], {
+			fakeMode: "upload-failed",
+		});
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("RETRY 1/3");
+		expect(stdout).toContain("RETRY 3/3");
+		expect(stdout).toContain("FAILED");
+		expect(stdout).toContain("stopped at");
+
+		const logPath = join(TEST_DIR, "retry-upload-exhaust", "execution-log.json");
+		const log = JSON.parse(readFileSync(logPath, "utf-8"));
+		const failedChunks = log.chunks.filter((c: { status: string }) => c.status === "failed");
+		expect(failedChunks).toHaveLength(1);
+		expect(failedChunks[0].retry_attempts).toBe(3);
+	});
+
+	test("Authentication error [code: 10000] does NOT trigger retry", () => {
+		const manifest = makeManifest();
+		const manifestPath = setupFixture("no-retry-auth", manifest);
+		const { exitCode, stdout } = runExecutor(manifestPath, [], {
+			fakeMode: "auth-error",
+		});
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("FAILED");
+		expect(stdout).not.toContain("RETRY");
+
+		const logPath = join(TEST_DIR, "no-retry-auth", "execution-log.json");
+		const log = JSON.parse(readFileSync(logPath, "utf-8"));
+		const failedChunks = log.chunks.filter((c: { status: string }) => c.status === "failed");
+		expect(failedChunks).toHaveLength(1);
+		expect(failedChunks[0].retry_attempts).toBeUndefined();
 	});
 });
