@@ -2,6 +2,8 @@ import {
 	PROFILE_TABS,
 	buildProfileStats,
 	formatBirthday,
+	formatCheckinDays,
+	formatCheckinLevel,
 	formatGender,
 	formatLastActivity,
 	formatLocation,
@@ -11,7 +13,7 @@ import {
 	getUserRoleBadgeVariant,
 	resolveTab,
 } from "@/viewmodels/forum/user-profile";
-import { UserRole, UserStatus } from "@ellie/types";
+import { UserRole, UserStatus, getCheckinLevel } from "@ellie/types";
 import type { User } from "@ellie/types";
 import { describe, expect, it } from "vitest";
 
@@ -54,6 +56,10 @@ function makeUser(overrides: Partial<User> & { id: number }): User {
 		emailVerifiedAt: 0,
 		emailNormalized: "",
 		emailChangedAt: 0,
+		campus: "",
+		checkin: null,
+		purgedAt: 0,
+		purgedBy: 0,
 		...overrides,
 	};
 }
@@ -327,5 +333,60 @@ describe("formatLastActivity", () => {
 		const result = formatLastActivity(ts);
 		expect(result).not.toBeNull();
 		expect(typeof result).toBe("string");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// formatCheckinLevel
+// ---------------------------------------------------------------------------
+
+describe("formatCheckinLevel", () => {
+	it("returns null for null checkin", () => {
+		expect(formatCheckinLevel(null)).toBeNull();
+	});
+
+	it("returns null when level is null", () => {
+		expect(
+			formatCheckinLevel({
+				totalDays: 0,
+				monthDays: 0,
+				streakDays: 0,
+				lastCheckinAt: 0,
+				level: null,
+			}),
+		).toBeNull();
+	});
+
+	it("formats level with Lv. prefix and label", () => {
+		const level = getCheckinLevel(365);
+		const result = formatCheckinLevel({
+			totalDays: 365,
+			monthDays: 28,
+			streakDays: 90,
+			lastCheckinAt: 0,
+			level,
+		});
+		expect(result).toBe("Lv.9 以坛为家II");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// formatCheckinDays
+// ---------------------------------------------------------------------------
+
+describe("formatCheckinDays", () => {
+	it("returns null for null/undefined", () => {
+		expect(formatCheckinDays(null)).toBeNull();
+		expect(formatCheckinDays(undefined)).toBeNull();
+	});
+
+	it("returns null for zero", () => {
+		expect(formatCheckinDays(0)).toBeNull();
+	});
+
+	it("formats positive days with thousands separator", () => {
+		const result = formatCheckinDays(365);
+		expect(result).toContain("365");
+		expect(result).toContain("天");
 	});
 });

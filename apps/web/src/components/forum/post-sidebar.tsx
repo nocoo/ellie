@@ -4,6 +4,7 @@
 import { getAvatarUrl } from "@/lib/avatar";
 import { getStaticImageUrl } from "@/lib/cdn";
 import { formatDate } from "@/viewmodels/forum/thread-detail";
+import { formatCheckinDays, formatCheckinLevel } from "@/viewmodels/forum/user-profile";
 import { formatNumber } from "@/viewmodels/shared/formatting";
 import type { User } from "@ellie/types";
 import { Mail } from "lucide-react";
@@ -30,6 +31,8 @@ export function PostSidebar({
 	viewerRole = 0,
 	viewerUserId = null,
 }: PostSidebarProps) {
+	const checkinLevel = author ? formatCheckinLevel(author.checkin) : null;
+	const checkinDays = author ? formatCheckinDays(author.checkin?.totalDays) : null;
 	return (
 		<div className="w-[160px] lg:w-[200px] shrink-0 bg-forum-sidebar-bg border-r border-border p-3 lg:p-4 flex flex-col items-center gap-1.5">
 			{/* Username — bold, link color */}
@@ -71,6 +74,22 @@ export function PostSidebar({
 						alt="默认头像"
 						className="block w-[120px] lg:w-[160px] h-auto"
 					/>
+				</div>
+			)}
+
+			{/* Check-in compact block — Lv. label + cumulative days, sits above stats grid */}
+			{author && (checkinLevel || checkinDays) && (
+				<div className="mt-2 w-full text-center">
+					{checkinLevel && (
+						<div className="text-xs font-medium text-forum-link truncate" title={checkinLevel}>
+							{checkinLevel}
+						</div>
+					)}
+					{checkinDays && (
+						<div className="text-2xs text-muted-foreground truncate" title={checkinDays}>
+							{checkinDays}
+						</div>
+					)}
 				</div>
 			)}
 

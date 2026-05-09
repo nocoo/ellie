@@ -2,7 +2,7 @@
 // Ref: 04a §User interface
 
 import type { User } from "@ellie/types";
-import { UserRole, UserStatus } from "@ellie/types";
+import { UserRole, UserStatus, getCheckinLevel } from "@ellie/types";
 
 export const MOCK_USERS: User[] = [
 	{
@@ -38,6 +38,13 @@ export const MOCK_USERS: User[] = [
 		qq: "12345678",
 		site: "https://tongji.net",
 		campus: "四平路校区",
+		checkin: {
+			totalDays: 365,
+			monthDays: 28,
+			streakDays: 90,
+			lastCheckinAt: 1711612800,
+			level: getCheckinLevel(365),
+		},
 		lastActivity: 1711612800,
 		emailVerifiedAt: 1711612800,
 		emailNormalized: "admin@tongji.net",
@@ -78,6 +85,7 @@ export const MOCK_USERS: User[] = [
 		qq: "",
 		site: "",
 		campus: "",
+		checkin: null,
 		lastActivity: 1711526400,
 		emailVerifiedAt: 1711526400,
 		emailNormalized: "supermod@tongji.net",
@@ -118,6 +126,7 @@ export const MOCK_USERS: User[] = [
 		qq: "",
 		site: "",
 		campus: "",
+		checkin: null,
 		lastActivity: 1711440000,
 		emailVerifiedAt: 1711440000,
 		emailNormalized: "mod@tongji.net",
@@ -158,6 +167,7 @@ export const MOCK_USERS: User[] = [
 		qq: "87654321",
 		site: "",
 		campus: "",
+		checkin: null,
 		lastActivity: 1711353600,
 		emailVerifiedAt: 1711353600,
 		emailNormalized: "zhangsan@example.com",
@@ -198,6 +208,7 @@ export const MOCK_USERS: User[] = [
 		qq: "",
 		site: "",
 		campus: "",
+		checkin: null,
 		lastActivity: 1711267200,
 		emailVerifiedAt: 1711267200,
 		emailNormalized: "lisi@example.com",
@@ -238,6 +249,7 @@ export const MOCK_USERS: User[] = [
 		qq: "",
 		site: "",
 		campus: "",
+		checkin: null,
 		lastActivity: 1609459200,
 		emailVerifiedAt: 0,
 		emailNormalized: "wangwu@example.com",
@@ -278,6 +290,7 @@ export const MOCK_USERS: User[] = [
 		qq: "",
 		site: "",
 		campus: "",
+		checkin: null,
 		lastActivity: 1451606400,
 		emailVerifiedAt: 1451606400,
 		emailNormalized: "old@example.com",

@@ -25,6 +25,10 @@ describe("batchGet (GET /api/v1/users/batch)", () => {
 			avatar: "a.jpg",
 			avatar_path: "avatars/a.jpg",
 			campus: "四平路校区",
+			checkin_total_days: 365,
+			checkin_month_days: 28,
+			checkin_streak_days: 90,
+			checkin_last_checkin_at: 1711612800,
 		});
 		const user2 = makeD1UserRow({
 			id: 2,
@@ -46,13 +50,25 @@ describe("batchGet (GET /api/v1/users/batch)", () => {
 
 		expect(response.status).toBe(200);
 		const data = (await response.json()) as {
-			data: Array<{ id: number; username: string; campus: string }>;
+			data: Array<{
+				id: number;
+				username: string;
+				campus: string;
+				checkin: {
+					totalDays: number;
+					level: { level: number; label: string } | null;
+				} | null;
+			}>;
 		};
 		expect(data.data).toHaveLength(2);
 		expect(data.data[0].username).toBe("alice");
 		expect(data.data[0].campus).toBe("四平路校区");
+		expect(data.data[0].checkin?.totalDays).toBe(365);
+		expect(data.data[0].checkin?.level?.level).toBe(9);
+		expect(data.data[0].checkin?.level?.label).toBe("以坛为家II");
 		expect(data.data[1].username).toBe("bob");
 		expect(data.data[1].campus).toBe("校外人士");
+		expect(data.data[1].checkin).toBeNull();
 	});
 
 	it("should filter out non-public users (status < 0)", async () => {
@@ -164,5 +180,21 @@ describe("batchGet (GET /api/v1/users/batch)", () => {
 
 		// Exactly 1 query regardless of how many users
 		expect(calls.length).toBe(1);
+	});
+
+	it("should LEFT JOIN user_checkins to surface check-in summary", async () => {
+		const { db, calls } = createMockDb({
+			allResults: {
+				"SELECT id, username, avatar": [],
+			},
+		});
+		const env = { ...mockEnv, DB: db };
+
+		await batchGet(makeRequest("1,2"), env);
+
+		const query = calls.find((c) => c.sql.includes("FROM users"));
+		expect(query).toBeDefined();
+		expect(query?.sql).toContain("LEFT JOIN user_checkins");
+		expect(query?.sql).toContain("checkin_total_days");
 	});
 });

@@ -11,7 +11,9 @@ import type {
 	PublicUser,
 	Thread,
 	User,
+	UserCheckinSummary,
 } from "@ellie/types";
+import { getCheckinLevel } from "@ellie/types";
 
 /** D1 row shape for users table */
 interface D1UserRow {
@@ -49,6 +51,11 @@ interface D1UserRow {
 	last_activity: number;
 	/** Campus affiliation (Discuz pre_common_member_profile.field1) */
 	campus: string;
+	// Check-in summary (LEFT JOIN user_checkins). Nullable when no row exists.
+	checkin_total_days?: number | null;
+	checkin_month_days?: number | null;
+	checkin_streak_days?: number | null;
+	checkin_last_checkin_at?: number | null;
 	// Email verification (docs/17-email-verification.md §6.1)
 	email_verified_at: number;
 	email_normalized: string;
@@ -127,6 +134,24 @@ interface D1PostRow {
 }
 
 /**
+ * Build a `UserCheckinSummary` from LEFT-joined `user_checkins` columns.
+ * Returns `null` when the user has no row (or `total_days = 0`).
+ */
+function toCheckinSummary(r: D1UserRow): UserCheckinSummary | null {
+	const totalDays = r.checkin_total_days;
+	if (totalDays == null || totalDays <= 0) {
+		return null;
+	}
+	return {
+		totalDays,
+		monthDays: r.checkin_month_days ?? 0,
+		streakDays: r.checkin_streak_days ?? 0,
+		lastCheckinAt: r.checkin_last_checkin_at ?? 0,
+		level: getCheckinLevel(totalDays),
+	};
+}
+
+/**
  * Maps a D1 user row to the frontend User type.
  * Strips password_hash, password_salt and other sensitive fields.
  */
@@ -165,6 +190,7 @@ export function toUser(row: Record<string, unknown>): User {
 		qq: r.qq,
 		site: r.site,
 		campus: r.campus ?? "",
+		checkin: toCheckinSummary(r),
 		lastActivity: r.last_activity,
 		emailVerifiedAt: r.email_verified_at ?? 0,
 		emailNormalized: r.email_normalized ?? "",
@@ -441,6 +467,7 @@ export function toPublicUser(row: Record<string, unknown>, includeIp = false): P
 		qq: r.qq,
 		site: r.site,
 		campus: r.campus ?? "",
+		checkin: toCheckinSummary(r),
 	};
 	// Admin-only: include IP fields
 	if (includeIp) {

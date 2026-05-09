@@ -1,5 +1,7 @@
 // models/types.ts — Core type definitions aligned with Doc02 D1 schema
 // Field names: snake_case (D1) -> camelCase (frontend)
+
+import type { UserCheckinSummary } from "./checkin";
 //
 // ─────────────────────────────────────────────────────────────────────────────
 // Magic Number Reference (from Discuz X3.4 source code)
@@ -228,6 +230,8 @@ export interface PublicUser {
 	site: string;
 	/** 校区 — campus affiliation, e.g. "四平路校区" / "校外人士". Empty if not set. */
 	campus: string;
+	/** Daily check-in summary. `null` when the user has never checked in. */
+	checkin: UserCheckinSummary | null;
 	// Admin-only fields (populated only for admins/mods viewing the profile)
 	regIp?: string;
 	lastIp?: string;
@@ -268,6 +272,8 @@ export interface User {
 	site: string;
 	/** 校区 — campus affiliation, e.g. "四平路校区" / "校外人士". Empty if not set. */
 	campus: string;
+	/** Daily check-in summary. `null` when the user has never checked in. */
+	checkin: UserCheckinSummary | null;
 	lastActivity: number;
 	/**
 	 * Email verification state — see docs/17-email-verification.md §3, §6.1.

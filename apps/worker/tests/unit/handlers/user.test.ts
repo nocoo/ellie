@@ -154,6 +154,12 @@ describe("user handlers", () => {
 				"reg_ip",
 				"last_ip",
 				"status",
+				// LEFT JOIN user_checkins — surfaced as alias columns so they map
+				// onto the optional fields on D1UserRow.
+				"c.total_days AS checkin_total_days",
+				"c.month_days AS checkin_month_days",
+				"c.streak_days AS checkin_streak_days",
+				"c.last_checkin_at AS checkin_last_checkin_at",
 			]);
 
 			for (const col of columns) {

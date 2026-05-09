@@ -2,7 +2,7 @@
 // Ref: 04d §UserProfile — formatting helpers, tab types
 
 import { formatLocaleDate, formatNumber } from "@/viewmodels/shared/formatting";
-import { type User, UserRole, UserStatus } from "@ellie/types";
+import { type User, type UserCheckinSummary, UserRole, UserStatus } from "@ellie/types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -135,4 +135,26 @@ export function formatOlTime(hours: number): string | null {
 /** Format Unix timestamp to relative or absolute date. */
 export function formatLastActivity(timestamp: number): string | null {
 	return formatLocaleDate(timestamp);
+}
+
+// ---------------------------------------------------------------------------
+// Check-in formatting
+// ---------------------------------------------------------------------------
+
+/**
+ * Format the check-in level label, e.g. "Lv.5 常住居民I".
+ * Returns null when the user has no resolved level (never checked in).
+ */
+export function formatCheckinLevel(checkin: UserCheckinSummary | null): string | null {
+	if (!checkin || !checkin.level) return null;
+	return `Lv.${checkin.level.level} ${checkin.level.label}`;
+}
+
+/**
+ * Format cumulative check-in days, e.g. "签到 365 天".
+ * Returns null for non-positive values.
+ */
+export function formatCheckinDays(totalDays: number | undefined | null): string | null {
+	if (!totalDays || totalDays <= 0) return null;
+	return `签到 ${formatNumber(totalDays)} 天`;
 }

@@ -118,6 +118,7 @@ export async function loadThreadDetail(params: {
 			qq: "",
 			site: "",
 			campus: "",
+			checkin: null,
 			purgedAt: 0,
 			purgedBy: 0,
 		};

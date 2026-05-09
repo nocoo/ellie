@@ -62,7 +62,7 @@ export {
 } from "./email-verification";
 
 // ─── Check-in (签到) ────────────────────────────────────────────
-export type { UserCheckin, CheckinMood, CheckinLevel } from "./checkin";
+export type { UserCheckin, UserCheckinSummary, CheckinMood, CheckinLevel } from "./checkin";
 export {
 	CHECKIN_MOODS,
 	CHECKIN_LEVELS,

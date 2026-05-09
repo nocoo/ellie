@@ -18,6 +18,15 @@ import { errorResponse } from "../middleware/error";
 const PUBLIC_USER_COLUMNS =
 	"id, username, avatar, avatar_path, role, reg_date, threads, posts, credits, coins, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, last_activity, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, campus, reg_ip, last_ip";
 
+/**
+ * LEFT JOIN to surface daily check-in stats from `user_checkins`.
+ * Aliased to `checkin_*` to match the optional fields on `D1UserRow`
+ * consumed by `toUser` / `toPublicUser`.
+ */
+const CHECKIN_JOIN_COLUMNS =
+	"c.total_days AS checkin_total_days, c.month_days AS checkin_month_days, c.streak_days AS checkin_streak_days, c.last_checkin_at AS checkin_last_checkin_at";
+const CHECKIN_JOIN_CLAUSE = "LEFT JOIN user_checkins c ON c.user_id = users.id";
+
 /** Default/max page sizes for user history endpoints */
 const DEFAULT_HISTORY_LIMIT = 20;
 const MAX_HISTORY_LIMIT = 50;
@@ -153,7 +162,9 @@ export async function batchGet(request: Request, env: Env): Promise<Response> {
 	const placeholders = uniqueIds.map(() => "?").join(",");
 	const [viewer, result] = await Promise.all([
 		viewerPromise,
-		env.DB.prepare(`SELECT ${PUBLIC_USER_COLUMNS}, status FROM users WHERE id IN (${placeholders})`)
+		env.DB.prepare(
+			`SELECT ${PUBLIC_USER_COLUMNS}, status, ${CHECKIN_JOIN_COLUMNS} FROM users ${CHECKIN_JOIN_CLAUSE} WHERE users.id IN (${placeholders})`,
+		)
 			.bind(...uniqueIds)
 			.all<Record<string, unknown>>(),
 	]);
@@ -175,7 +186,9 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 	// Fire auth + user-row queries in parallel — they're independent.
 	const [viewer, result] = await Promise.all([
 		optionalAuthVerified(request, env),
-		env.DB.prepare(`SELECT ${PUBLIC_USER_COLUMNS}, status FROM users WHERE id = ?`)
+		env.DB.prepare(
+			`SELECT ${PUBLIC_USER_COLUMNS}, status, ${CHECKIN_JOIN_COLUMNS} FROM users ${CHECKIN_JOIN_CLAUSE} WHERE users.id = ?`,
+		)
 			.bind(id)
 			.first<Record<string, unknown>>(),
 	]);
