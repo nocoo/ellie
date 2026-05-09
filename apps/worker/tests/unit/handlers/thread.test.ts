@@ -573,6 +573,103 @@ describe("thread handlers", () => {
 			expect(data.meta.total).toBe(50);
 			expect(data.meta.page).toBe(2);
 		});
+
+		it("should include NOT EXISTS derived column for is_author_first_thread in SQL", async () => {
+			let capturedSql = "";
+			const d1Row = makeD1ThreadRow();
+			const allSpy = vi.fn(() => Promise.resolve({ results: [d1Row] }));
+			const db = {
+				prepare: vi.fn((sql: string) => {
+					capturedSql = sql;
+					if (sql.includes("SELECT status, visibility FROM forums")) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
+							})),
+						};
+					}
+					return {
+						bind: vi.fn(() => ({
+							all: allSpy,
+							first: vi.fn(() => Promise.resolve({ total: 0 })),
+						})),
+					};
+				}),
+			} as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			await list(new Request("https://example.com/api/v1/threads?forumId=1"), env, getCtx());
+
+			// SQL must include the NOT EXISTS subquery and alias
+			expect(capturedSql).toContain("NOT EXISTS");
+			expect(capturedSql).toContain("AS is_author_first_thread");
+			// SQL must use t. alias (required for subquery correlation)
+			expect(capturedSql).toContain("FROM threads t");
+		});
+
+		it("should map is_author_first_thread=1 to isAuthorFirstThread=true", async () => {
+			const d1Row = makeD1ThreadRow({ is_author_first_thread: 1 });
+			const allSpy = vi.fn(() => Promise.resolve({ results: [d1Row] }));
+			const db = {
+				prepare: vi.fn((sql: string) => {
+					if (sql.includes("SELECT status, visibility FROM forums")) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
+							})),
+						};
+					}
+					return {
+						bind: vi.fn(() => ({
+							all: allSpy,
+							first: vi.fn(() => Promise.resolve({ total: 0 })),
+						})),
+					};
+				}),
+			} as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await list(
+				new Request("https://example.com/api/v1/threads?forumId=1"),
+				env,
+				getCtx(),
+			);
+
+			const data = await response.json();
+			expect(data.data[0].isAuthorFirstThread).toBe(true);
+		});
+
+		it("should map is_author_first_thread=0 to isAuthorFirstThread=false", async () => {
+			const d1Row = makeD1ThreadRow({ is_author_first_thread: 0 });
+			const allSpy = vi.fn(() => Promise.resolve({ results: [d1Row] }));
+			const db = {
+				prepare: vi.fn((sql: string) => {
+					if (sql.includes("SELECT status, visibility FROM forums")) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
+							})),
+						};
+					}
+					return {
+						bind: vi.fn(() => ({
+							all: allSpy,
+							first: vi.fn(() => Promise.resolve({ total: 0 })),
+						})),
+					};
+				}),
+			} as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await list(
+				new Request("https://example.com/api/v1/threads?forumId=1"),
+				env,
+				getCtx(),
+			);
+
+			const data = await response.json();
+			expect(data.data[0].isAuthorFirstThread).toBe(false);
+		});
 	});
 
 	describe("getById", () => {

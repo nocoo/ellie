@@ -175,6 +175,32 @@ describe("cache/thread-list-read — pure helpers", () => {
 		expect(isThreadListPayload({ items: [], total: 0, nextCursor: 5, limit: 20 })).toBe(false);
 		expect(isThreadListPayload({ items: [], total: 0, nextCursor: null, limit: "20" })).toBe(false);
 	});
+
+	it("isThreadListPayload rejects items missing isAuthorFirstThread (stale cache)", () => {
+		// Item without isAuthorFirstThread — pre-stamp KV payload
+		const staleItem = { id: 1, forumId: 10, subject: "Test" };
+		expect(isThreadListPayload({ items: [staleItem], total: 1, nextCursor: null, limit: 20 })).toBe(
+			false,
+		);
+
+		// Item with isAuthorFirstThread=false — valid
+		const validItem = { ...staleItem, isAuthorFirstThread: false };
+		expect(isThreadListPayload({ items: [validItem], total: 1, nextCursor: null, limit: 20 })).toBe(
+			true,
+		);
+
+		// Item with isAuthorFirstThread=true — valid
+		const firstItem = { ...staleItem, isAuthorFirstThread: true };
+		expect(isThreadListPayload({ items: [firstItem], total: 1, nextCursor: null, limit: 20 })).toBe(
+			true,
+		);
+
+		// Item with isAuthorFirstThread=0 (number, not boolean) — rejected
+		const numericItem = { ...staleItem, isAuthorFirstThread: 0 };
+		expect(
+			isThreadListPayload({ items: [numericItem], total: 1, nextCursor: null, limit: 20 }),
+		).toBe(false);
+	});
 });
 
 // ─── Integration: handler + cache wiring ────────────────────────────

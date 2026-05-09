@@ -333,6 +333,87 @@ describe("D1 row mappers", () => {
 			const thread = toThread(row);
 			expect(Object.keys(thread)).toHaveLength(23);
 		});
+
+		it("should map is_author_first_thread=1 to isAuthorFirstThread=true", () => {
+			const row = {
+				id: 1,
+				forum_id: 10,
+				author_id: 100,
+				author_name: "alice",
+				subject: "First Thread",
+				created_at: 1711540800,
+				last_post_at: 1711544400,
+				last_poster: "bob",
+				last_poster_id: 20,
+				replies: 0,
+				views: 0,
+				closed: 0,
+				sticky: 0,
+				digest: 0,
+				special: 0,
+				highlight: 0,
+				recommends: 0,
+				type_name: "",
+				is_author_first_thread: 1,
+			};
+
+			const thread = toThread(row);
+			expect(thread.isAuthorFirstThread).toBe(true);
+		});
+
+		it("should map is_author_first_thread=0 to isAuthorFirstThread=false", () => {
+			const row = {
+				id: 2,
+				forum_id: 10,
+				author_id: 100,
+				author_name: "alice",
+				subject: "Second Thread",
+				created_at: 1711540800,
+				last_post_at: 1711544400,
+				last_poster: "bob",
+				last_poster_id: 20,
+				replies: 0,
+				views: 0,
+				closed: 0,
+				sticky: 0,
+				digest: 0,
+				special: 0,
+				highlight: 0,
+				recommends: 0,
+				type_name: "",
+				is_author_first_thread: 0,
+			};
+
+			const thread = toThread(row);
+			expect(thread.isAuthorFirstThread).toBe(false);
+		});
+
+		it("should map missing is_author_first_thread to isAuthorFirstThread=false", () => {
+			const row = {
+				id: 3,
+				forum_id: 10,
+				author_id: 100,
+				author_name: "alice",
+				subject: "Legacy Thread",
+				created_at: 1711540800,
+				last_post_at: 1711544400,
+				last_poster: "bob",
+				last_poster_id: 20,
+				replies: 0,
+				views: 0,
+				closed: 0,
+				sticky: 0,
+				digest: 0,
+				special: 0,
+				highlight: 0,
+				recommends: 0,
+				type_name: "",
+				// is_author_first_thread intentionally omitted
+			};
+
+			const thread = toThread(row);
+			expect(thread.isAuthorFirstThread).toBe(false);
+		});
 	});
 
 	describe("toPost", () => {

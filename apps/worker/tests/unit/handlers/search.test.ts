@@ -488,6 +488,75 @@ describe("search handlers", () => {
 			expect(thread.lastPosterAvatar).toBe("");
 		});
 
+		it("includes NOT EXISTS derived column for is_author_first_thread in search SQL", async () => {
+			let capturedThreadSql = "";
+			const db = {
+				prepare: vi.fn((sql: string) => {
+					if (sql.includes("FROM settings")) {
+						return {
+							all: vi.fn(async () => ({
+								results: [
+									{
+										key: "general.search.enabled",
+										value: "true",
+										type: "boolean",
+										updated_at: 0,
+									},
+								],
+							})),
+						};
+					}
+					if (sql.includes("COUNT(*)")) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(async () => ({ cnt: 0 })),
+							})),
+						};
+					}
+					// This is the main thread SELECT query
+					capturedThreadSql = sql;
+					return {
+						bind: vi.fn(() => ({
+							all: vi.fn(async () => ({ results: [] })),
+						})),
+					};
+				}),
+			} as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			await searchThreads(
+				new Request("https://api.example.com/api/v1/search/threads?q=test"),
+				env,
+				getCtx(),
+			);
+
+			// SQL must include the NOT EXISTS subquery and alias
+			expect(capturedThreadSql).toContain("NOT EXISTS");
+			expect(capturedThreadSql).toContain("AS is_author_first_thread");
+		});
+
+		it("maps is_author_first_thread correctly in search results", async () => {
+			const firstThreadRow = makeD1ThreadRow({ id: 1, is_author_first_thread: 1 });
+			const normalThreadRow = makeD1ThreadRow({ id: 2, is_author_first_thread: 0 });
+			const db = createSearchDb({
+				searchEnabled: true,
+				searchResults: [firstThreadRow, normalThreadRow],
+				countResult: 2,
+			});
+			const env = { ...mockEnv, DB: db };
+
+			const response = await searchThreads(
+				new Request("https://api.example.com/api/v1/search/threads?q=test"),
+				env,
+				getCtx(),
+			);
+
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.data[0].isAuthorFirstThread).toBe(true);
+			expect(data.data[1].isAuthorFirstThread).toBe(false);
+		});
+
 		it("filters hidden threads (sticky < 0)", async () => {
 			// This is tested through SQL query generation - verify the SQL includes visibility check
 			let capturedSql = "";

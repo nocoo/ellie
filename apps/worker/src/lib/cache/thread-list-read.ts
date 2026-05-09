@@ -80,6 +80,11 @@ export interface ThreadListPayloadV2 {
  * miss (per `cacheGetOrSet` contract). Intentionally strict so an old
  * cache row that lacks one of the four contract fields — including a
  * pre-`9d39588` row with `total: null` — is dropped on read.
+ *
+ * Item-level check: if items are non-empty, every item must carry
+ * `isAuthorFirstThread` (boolean). Pre-stamp payloads that lack this
+ * field are treated as stale so the derived column populates on reload
+ * instead of silently defaulting to false for the entire TTL window.
  */
 export function isThreadListPayload(value: unknown): value is ThreadListPayloadV2 {
 	if (typeof value !== "object" || value === null) return false;
@@ -88,6 +93,12 @@ export function isThreadListPayload(value: unknown): value is ThreadListPayloadV
 	if (typeof v.limit !== "number") return false;
 	if (typeof v.total !== "number") return false;
 	if (v.nextCursor !== null && typeof v.nextCursor !== "string") return false;
+	// Reject stale payloads missing isAuthorFirstThread on items
+	if (v.items.length > 0) {
+		for (const item of v.items) {
+			if (typeof item.isAuthorFirstThread !== "boolean") return false;
+		}
+	}
 	return true;
 }
 
