@@ -3,6 +3,7 @@
 import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
 import { ForumFloatingActions } from "@/components/forum/forum-floating-actions";
 import { ForumHeaderClient } from "@/components/forum/forum-header-client";
+import { ForumNewPostButton } from "@/components/forum/forum-new-post-button";
 import { ForumPanel } from "@/components/forum/forum-panel";
 import { PagePagination } from "@/components/forum/page-pagination";
 import { ThreadItem } from "@/components/forum/thread-item";
@@ -119,12 +120,23 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 						</div>
 					)}
 
-					<PagePagination
-						page={data.page}
-						pages={data.pages}
-						total={data.total}
-						basePath={basePath}
-					/>
+					{/* Toolbar: new post button (left) + pagination (right) */}
+					<div className="flex items-center gap-2 py-2">
+						{data.forum && !isGroup && (
+							<ForumNewPostButton
+								forumId={data.forum.id}
+								forumName={data.forum.name}
+								selfEmailVerifiedAt={self?.emailVerifiedAt ?? null}
+							/>
+						)}
+						<PagePagination
+							page={data.page}
+							pages={data.pages}
+							total={data.total}
+							basePath={basePath}
+							className="flex flex-1 flex-wrap items-center justify-end gap-2"
+						/>
+					</div>
 
 					<Card className="py-0">
 						<CardContent className="p-0">
@@ -142,12 +154,23 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 						</CardContent>
 					</Card>
 
-					<PagePagination
-						page={data.page}
-						pages={data.pages}
-						total={data.total}
-						basePath={basePath}
-					/>
+					{/* Toolbar: same layout below the list */}
+					<div className="flex items-center gap-2 py-2">
+						{data.forum && !isGroup && (
+							<ForumNewPostButton
+								forumId={data.forum.id}
+								forumName={data.forum.name}
+								selfEmailVerifiedAt={self?.emailVerifiedAt ?? null}
+							/>
+						)}
+						<PagePagination
+							page={data.page}
+							pages={data.pages}
+							total={data.total}
+							basePath={basePath}
+							className="flex flex-1 flex-wrap items-center justify-end gap-2"
+						/>
+					</div>
 
 					{/* Floating actions with keyboard shortcuts */}
 					<ForumFloatingActions page={data.page} pages={data.pages} basePath={basePath} />
