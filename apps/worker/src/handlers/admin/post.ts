@@ -4,7 +4,11 @@
 
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
-import { invalidateForumSummaryV2 } from "../../lib/cache/invalidate";
+import {
+	bumpForumSummaryGen,
+	invalidateForumVolatileV2,
+	invalidateThreadListForForums,
+} from "../../lib/cache/invalidate";
 import { buildDeletePostChildStatements } from "../../lib/contentDelete";
 import type { EntityConfig } from "../../lib/crud";
 import {
@@ -84,7 +88,7 @@ const postConfig: EntityConfig = {
 		// Recalc thread and forum metadata after post deletion
 		await recalcThreadMetadata(env, row.thread_id);
 		await recalcForumMetadata(env, row.forum_id);
-		await Promise.all([invalidateForumSummaryV2(env)]);
+		await invalidateForumVolatileV2(env, row.forum_id);
 	},
 };
 
@@ -316,10 +320,12 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env) => {
 	]);
 
 	// Final fan-out: per-author post-count decrements + KV cache
-	// invalidation + audit-log write are all independent.
+	// invalidation + audit-log write are all independent. Per-forum
+	// thread-list bumps for every affected forum + a single summary bump.
 	await Promise.all([
 		batchDecrementUserPosts(env, authorUpdates),
-		invalidateForumSummaryV2(env),
+		invalidateThreadListForForums(env, Array.from(forumUpdates.keys())),
+		bumpForumSummaryGen(env),
 		writeAdminLog(env, resolveActor(request), {
 			action: "post.batch_delete",
 			targetType: "post",

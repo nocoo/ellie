@@ -1,7 +1,8 @@
-// Phase 2 commit 3 — v2 forum:summary:gen invalidation parity at high-risk
-// fan-out callsites. We mock `lib/cache/invalidate` so we can assert that
-// every write that previously paired legacy `invalidateForumVolatile` with
-// its v2 `invalidateForumSummaryV2` counterpart still bumps v2.
+// Phase 3 commit C — v2 forum:summary:gen + thread:list:gen invalidation
+// parity at high-risk fan-out callsites. We mock the low-level
+// `bumpForumSummaryGen` and `bumpThreadListGen` so we can assert that every
+// destructive write still bumps both gens (directly or via the
+// `invalidateForumVolatileV2` composite helper).
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,9 +10,27 @@ vi.mock("../../../src/lib/cache/invalidate", async () => {
 	const actual = await vi.importActual<typeof import("../../../src/lib/cache/invalidate")>(
 		"../../../src/lib/cache/invalidate",
 	);
+	const bumpForumSummaryGen = vi.fn(async () => "g1");
+	const bumpThreadListGen = vi.fn(async () => "g1");
+	const bumpThreadListGenAll = vi.fn(async () => "g1");
+	const bumpDigestGen = vi.fn(async () => "g1");
 	return {
 		...actual,
-		invalidateForumSummaryV2: vi.fn(async () => {}),
+		bumpForumSummaryGen,
+		bumpThreadListGen,
+		bumpThreadListGenAll,
+		bumpDigestGen,
+		// Re-derive the composites so they call the spies.
+		invalidateForumSummaryV2: vi.fn(async (_env: unknown) => {
+			await bumpForumSummaryGen();
+		}),
+		invalidateForumVolatileV2: vi.fn(async (_env: unknown, fid: number) => {
+			await Promise.all([bumpForumSummaryGen(), bumpThreadListGen(_env, fid)]);
+		}),
+		invalidateThreadListForForums: vi.fn(async (_env: unknown, fids: readonly number[]) => {
+			const unique = Array.from(new Set(fids));
+			await Promise.all(unique.map((id) => bumpThreadListGen(_env, id)));
+		}),
 		invalidateUserCaches: vi.fn(async () => {}),
 	};
 });
@@ -42,10 +61,11 @@ import {
 	deleteThread as modDeleteThread,
 	moveThread as modMoveThread,
 } from "../../../src/handlers/moderation";
-import { invalidateForumSummaryV2 } from "../../../src/lib/cache/invalidate";
+import { bumpForumSummaryGen, bumpThreadListGen } from "../../../src/lib/cache/invalidate";
 import { createAdminRequest, createJwtForRole, createMockDb, makeEnv } from "../../helpers";
 
-const mockSummaryV2 = invalidateForumSummaryV2 as ReturnType<typeof vi.fn>;
+const mockSummary = bumpForumSummaryGen as ReturnType<typeof vi.fn>;
+const mockThreadList = bumpThreadListGen as ReturnType<typeof vi.fn>;
 
 async function modToken(role: number, userId = 1): Promise<string> {
 	return createJwtForRole(role, userId);
@@ -76,8 +96,8 @@ beforeEach(() => {
 	vi.clearAllMocks();
 });
 
-describe("forum:summary:gen v2 parity — moderation handlers", () => {
-	it("moderation moveThread bumps forum:summary:gen", async () => {
+describe("forum:summary:gen + thread:list:gen v2 parity — moderation handlers", () => {
+	it("moderation moveThread bumps summary + per-forum thread-list (source + target)", async () => {
 		const token = await modToken(1);
 		const { db } = createMockDb({
 			firstResults: {
@@ -94,10 +114,13 @@ describe("forum:summary:gen v2 parity — moderation handlers", () => {
 		});
 		const res = await modMoveThread(req, env);
 		expect(res.status).toBe(200);
-		expect(mockSummaryV2).toHaveBeenCalled();
+		// Both source (1) and target (2) thread-list gens must be bumped.
+		const bumpedForumIds = mockThreadList.mock.calls.map((c) => c[1]);
+		expect(bumpedForumIds).toEqual(expect.arrayContaining([1, 2]));
+		expect(mockSummary).toHaveBeenCalled();
 	});
 
-	it("moderation deletePost bumps forum:summary:gen", async () => {
+	it("moderation deletePost bumps summary + per-forum thread-list", async () => {
 		const token = await modToken(1);
 		const { db } = createMockDb({
 			firstResults: {
@@ -118,19 +141,21 @@ describe("forum:summary:gen v2 parity — moderation handlers", () => {
 		});
 		const res = await modDeletePost(req, env);
 		expect(res.status).toBe(200);
-		expect(mockSummaryV2).toHaveBeenCalled();
+		expect(mockThreadList).toHaveBeenCalledWith(expect.anything(), 1);
+		expect(mockSummary).toHaveBeenCalled();
 	});
 
-	it("moderation deleteThread bumps forum:summary:gen", async () => {
+	it("moderation deleteThread bumps summary + per-forum thread-list", async () => {
 		const token = await modToken(1);
 		const { db } = createMockDb({
 			firstResults: {
 				...modAuthRow(1),
-				"SELECT id, forum_id, author_id, replies FROM threads": {
+				"SELECT id, forum_id, author_id, replies, digest FROM threads": {
 					id: 1,
 					forum_id: 1,
 					author_id: 10,
 					replies: 2,
+					digest: 0,
 				},
 			},
 			allResults: {
@@ -144,12 +169,13 @@ describe("forum:summary:gen v2 parity — moderation handlers", () => {
 		});
 		const res = await modDeleteThread(req, env);
 		expect(res.status).toBe(200);
-		expect(mockSummaryV2).toHaveBeenCalled();
+		expect(mockThreadList).toHaveBeenCalledWith(expect.anything(), 1);
+		expect(mockSummary).toHaveBeenCalled();
 	});
 });
 
-describe("forum:summary:gen v2 parity — admin destructive handlers", () => {
-	it("admin post remove bumps forum:summary:gen", async () => {
+describe("forum:summary:gen + thread:list:gen v2 parity — admin destructive handlers", () => {
+	it("admin post remove bumps summary + per-forum thread-list", async () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT * FROM posts WHERE id": {
@@ -165,10 +191,11 @@ describe("forum:summary:gen v2 parity — admin destructive handlers", () => {
 		const req = createAdminRequest("DELETE", "/api/admin/posts/5");
 		const res = await adminPostRemove(req, env);
 		expect(res.status).toBe(200);
-		expect(mockSummaryV2).toHaveBeenCalled();
+		expect(mockThreadList).toHaveBeenCalledWith(expect.anything(), 1);
+		expect(mockSummary).toHaveBeenCalled();
 	});
 
-	it("admin post batchDelete bumps forum:summary:gen", async () => {
+	it("admin post batchDelete bumps summary + per-forum thread-list", async () => {
 		const { db } = createMockDb({
 			allResults: {
 				"SELECT id, thread_id, forum_id, author_id, is_first FROM posts WHERE id IN": [
@@ -181,10 +208,11 @@ describe("forum:summary:gen v2 parity — admin destructive handlers", () => {
 		const req = createAdminRequest("POST", "/api/admin/posts/batch-delete", { ids: [5, 6] });
 		const res = await adminPostBatchDelete(req, env);
 		expect(res.status).toBe(200);
-		expect(mockSummaryV2).toHaveBeenCalled();
+		expect(mockThreadList).toHaveBeenCalledWith(expect.anything(), 1);
+		expect(mockSummary).toHaveBeenCalled();
 	});
 
-	it("admin thread remove bumps forum:summary:gen", async () => {
+	it("admin thread remove bumps summary + per-forum thread-list", async () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT * FROM threads WHERE id": {
@@ -192,6 +220,7 @@ describe("forum:summary:gen v2 parity — admin destructive handlers", () => {
 					forum_id: 1,
 					author_id: 10,
 					replies: 2,
+					digest: 0,
 				},
 			},
 			allResults: {
@@ -206,15 +235,16 @@ describe("forum:summary:gen v2 parity — admin destructive handlers", () => {
 		const req = createAdminRequest("DELETE", "/api/admin/threads/1");
 		const res = await adminThreadRemove(req, env);
 		expect(res.status).toBe(200);
-		expect(mockSummaryV2).toHaveBeenCalled();
+		expect(mockThreadList).toHaveBeenCalledWith(expect.anything(), 1);
+		expect(mockSummary).toHaveBeenCalled();
 	});
 
-	it("admin thread batchDelete bumps forum:summary:gen", async () => {
+	it("admin thread batchDelete bumps summary + per-forum thread-list", async () => {
 		const { db } = createMockDb({
 			allResults: {
-				"SELECT id, forum_id, author_id FROM threads WHERE id IN": [
-					{ id: 1, forum_id: 1, author_id: 10 },
-					{ id: 2, forum_id: 1, author_id: 11 },
+				"SELECT id, forum_id, author_id, digest FROM threads WHERE id IN": [
+					{ id: 1, forum_id: 1, author_id: 10, digest: 0 },
+					{ id: 2, forum_id: 1, author_id: 11, digest: 0 },
 				],
 				"SELECT thread_id, author_id, COUNT(*) as cnt FROM posts WHERE thread_id IN": [
 					{ thread_id: 1, author_id: 10, cnt: 1 },
@@ -226,10 +256,11 @@ describe("forum:summary:gen v2 parity — admin destructive handlers", () => {
 		const req = createAdminRequest("POST", "/api/admin/threads/batch-delete", { ids: [1, 2] });
 		const res = await adminThreadBatchDelete(req, env);
 		expect(res.status).toBe(200);
-		expect(mockSummaryV2).toHaveBeenCalled();
+		expect(mockThreadList).toHaveBeenCalledWith(expect.anything(), 1);
+		expect(mockSummary).toHaveBeenCalled();
 	});
 
-	it("admin user nuke bumps forum:summary:gen", async () => {
+	it("admin user nuke bumps summary (per-forum gens depend on affected set)", async () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT * FROM users WHERE id": {
@@ -242,7 +273,7 @@ describe("forum:summary:gen v2 parity — admin destructive handlers", () => {
 				"SELECT COUNT(*) as cnt FROM threads WHERE author_id": { cnt: 0 },
 			},
 			allResults: {
-				"SELECT id, forum_id FROM threads WHERE author_id": [],
+				"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": [],
 				"SELECT id, thread_id, forum_id FROM posts WHERE author_id": [],
 			},
 		});
@@ -251,10 +282,10 @@ describe("forum:summary:gen v2 parity — admin destructive handlers", () => {
 		const res = await adminUserNuke(req, env);
 		// We do not assert exact status — handler may early-exit on missing
 		// child rows in this minimal mock. We only care that IF the success
-		// path runs, summary v2 fired; AND if it short-circuited before the
-		// fan-out the spy is simply never called. So gate on status==200.
+		// path runs, summary fired (per-forum bumps depend on the affected
+		// set which is empty here).
 		if (res.status === 200) {
-			expect(mockSummaryV2).toHaveBeenCalled();
+			expect(mockSummary).toHaveBeenCalled();
 		}
 	});
 });

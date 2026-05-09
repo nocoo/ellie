@@ -771,7 +771,7 @@ describe("admin thread handlers", () => {
 			];
 			const { db, calls, batchCalls } = createMockDb({
 				allResults: {
-					"SELECT id, forum_id, author_id FROM threads WHERE id IN": threadSnapshot,
+					"SELECT id, forum_id, author_id, digest FROM threads WHERE id IN": threadSnapshot,
 					"SELECT thread_id, author_id, COUNT": postAuthorRows,
 				},
 			});
@@ -1197,7 +1197,7 @@ describe("admin thread handlers", () => {
 			// out child purge → posts → threads in one call.
 			const { db, calls } = createMockDb({
 				allResults: {
-					"SELECT id, forum_id, author_id FROM threads WHERE id IN": [
+					"SELECT id, forum_id, author_id, digest FROM threads WHERE id IN": [
 						{ id: 1, forum_id: 5, author_id: 100 },
 						{ id: 2, forum_id: 5, author_id: 101 },
 					],
@@ -1221,7 +1221,7 @@ describe("admin thread handlers", () => {
 		it("batch-delete with no existing ids does NOT write audit row", async () => {
 			const { db, calls } = createMockDb({
 				allResults: {
-					"SELECT id, forum_id, author_id FROM threads WHERE id IN": [],
+					"SELECT id, forum_id, author_id, digest FROM threads WHERE id IN": [],
 				},
 			});
 			const res = await batchDelete(

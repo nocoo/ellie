@@ -1106,7 +1106,7 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 				},
 			},
 			allResults: {
-				"SELECT id, forum_id, replies FROM threads WHERE author_id": [],
+				"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": [],
 				"SELECT forum_id, COUNT": [],
 				"SELECT thread_id, COUNT": [],
 			},
@@ -1140,7 +1140,7 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 				"SELECT COUNT(*) as cnt FROM attachments WHERE author_id": { cnt: 0 },
 			},
 			allResults: {
-				"SELECT id, forum_id, replies FROM threads WHERE author_id": [
+				"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": [
 					{ id: 30, forum_id: 1, replies: 1 },
 				],
 				"SELECT forum_id, COUNT(*) as cnt FROM posts": [{ forum_id: 1, cnt: 1 }],
@@ -1776,7 +1776,7 @@ describe("DELETE /api/v1/moderation/threads/:id", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				...mockAuthUser(1),
-				"SELECT id, forum_id, author_id, replies FROM threads": {
+				"SELECT id, forum_id, author_id, replies, digest FROM threads": {
 					id: 1,
 					forum_id: 1,
 					author_id: 10,
@@ -1797,7 +1797,7 @@ describe("DELETE /api/v1/moderation/threads/:id", () => {
 		const token = await makeModToken(3, 2);
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT id, forum_id, author_id, replies FROM threads": {
+				"SELECT id, forum_id, author_id, replies, digest FROM threads": {
 					id: 1,
 					forum_id: 1,
 					author_id: 10,
@@ -1820,7 +1820,7 @@ describe("DELETE /api/v1/moderation/threads/:id", () => {
 		const token = await makeModToken(1);
 		const { db, batchCalls } = createMockDb({
 			firstResults: {
-				"SELECT id, forum_id, author_id, replies FROM threads": {
+				"SELECT id, forum_id, author_id, replies, digest FROM threads": {
 					id: 1,
 					forum_id: 1,
 					author_id: 10,
@@ -1854,7 +1854,7 @@ describe("DELETE /api/v1/moderation/threads/:id", () => {
 		const token = await makeModToken(3, 10); // Mod, userId=10, same as author
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT id, forum_id, author_id, replies FROM threads": {
+				"SELECT id, forum_id, author_id, replies, digest FROM threads": {
 					id: 1,
 					forum_id: 1,
 					author_id: 10,
@@ -1880,7 +1880,7 @@ describe("DELETE /api/v1/moderation/threads/:id", () => {
 		const token = await makeModToken(1);
 		const { db, calls } = createMockDb({
 			firstResults: {
-				"SELECT id, forum_id, author_id, replies FROM threads": {
+				"SELECT id, forum_id, author_id, replies, digest FROM threads": {
 					id: 1,
 					forum_id: 1,
 					author_id: 10,
@@ -2418,7 +2418,7 @@ describe("nukeUser — edge cases", () => {
 				"SELECT COUNT(*) as cnt FROM attachments": { cnt: 3 },
 			},
 			allResults: {
-				"SELECT id, forum_id, replies FROM threads WHERE author_id": [
+				"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": [
 					{ id: 100, forum_id: 1, replies: 2 },
 					{ id: 101, forum_id: 2, replies: 0 },
 				],

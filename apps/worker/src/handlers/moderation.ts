@@ -18,7 +18,13 @@ import {
 	canModerate,
 	canMoveThread,
 } from "@ellie/types";
-import { invalidateForumSummaryV2 } from "../lib/cache/invalidate";
+import {
+	bumpDigestGen,
+	bumpForumSummaryGen,
+	bumpThreadListGen,
+	invalidateForumVolatileV2,
+	invalidateThreadListForForums,
+} from "../lib/cache/invalidate";
 import {
 	buildDeletePostChildStatements,
 	buildDeleteThreadChildStatements,
@@ -118,6 +124,9 @@ export async function setSticky(request: Request, env: Env): Promise<Response> {
 		.bind(stickyValue, threadId)
 		.run();
 
+	// Sticky changes affect ORDER BY in thread page1 → bump per-forum gen.
+	await bumpThreadListGen(env, thread.forumId);
+
 	return jsonResponse({ id: threadId, sticky: stickyValue }, origin);
 }
 
@@ -176,6 +185,10 @@ export async function setDigest(request: Request, env: Env): Promise<Response> {
 	}
 
 	await env.DB.prepare("UPDATE threads SET digest = ? WHERE id = ?").bind(level, threadId).run();
+
+	// Digest changes affect digest filter visibility AND thread row payload
+	// in the page1 list → bump both.
+	await Promise.all([bumpThreadListGen(env, thread.forumId), bumpDigestGen(env)]);
 
 	return jsonResponse({ id: threadId, digest: level }, origin);
 }
@@ -238,6 +251,9 @@ export async function setClose(request: Request, env: Env): Promise<Response> {
 	await env.DB.prepare("UPDATE threads SET closed = ? WHERE id = ?")
 		.bind(closedValue, threadId)
 		.run();
+
+	// `closed` is part of the cached Thread row → bump per-forum gen.
+	await bumpThreadListGen(env, thread.forumId);
 
 	return jsonResponse({ id: threadId, closed: closedValue }, origin);
 }
@@ -326,8 +342,12 @@ export async function moveThread(request: Request, env: Env): Promise<Response> 
 	await recalcForumMetadata(env, oldForumId);
 	await recalcForumMetadata(env, targetForumId);
 
-	// Invalidate volatile cache (source/target forum counts + last-post changed)
-	await invalidateForumSummaryV2(env);
+	// Invalidate volatile cache for BOTH source and target forums (counts +
+	// last-post + thread-list page1 all changed in each).
+	await Promise.all([
+		invalidateForumVolatileV2(env, oldForumId),
+		invalidateForumVolatileV2(env, targetForumId),
+	]);
 
 	return jsonResponse({ id, forumId: targetForumId, moved: true }, origin);
 }
@@ -420,7 +440,7 @@ export async function deletePost(request: Request, env: Env): Promise<Response> 
 			await recalcThreadMetadata(env, post.thread_id);
 			await recalcForumMetadata(env, post.forum_id);
 		})(),
-		invalidateForumSummaryV2(env),
+		invalidateForumVolatileV2(env, post.forum_id),
 	]);
 
 	return jsonResponse({ deleted: true, id }, origin);
@@ -531,6 +551,9 @@ export async function setHighlight(request: Request, env: Env): Promise<Response
 		.bind(highlightValue, id)
 		.run();
 
+	// Highlight is part of the cached thread row → bump per-forum gen.
+	await bumpThreadListGen(env, thread.forumId);
+
 	return jsonResponse({ id, highlight: highlightValue }, origin);
 }
 
@@ -547,10 +570,10 @@ export async function deleteThread(request: Request, env: Env): Promise<Response
 	}
 
 	const thread = await env.DB.prepare(
-		"SELECT id, forum_id, author_id, replies FROM threads WHERE id = ?",
+		"SELECT id, forum_id, author_id, replies, digest FROM threads WHERE id = ?",
 	)
 		.bind(id)
-		.first<{ id: number; forum_id: number; author_id: number; replies: number }>();
+		.first<{ id: number; forum_id: number; author_id: number; replies: number; digest: number }>();
 
 	if (!thread) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
@@ -613,12 +636,16 @@ export async function deleteThread(request: Request, env: Env): Promise<Response
 
 	// Tail fan-out: user counter decrements + forum recalc + cache
 	// invalidation are all independent. Parallelise to compress latency.
-	await Promise.all([
+	// If the deleted thread carried a non-zero digest, also bump digest gen
+	// so digest filter caches drop the row.
+	const tail: Promise<unknown>[] = [
 		decrementUserThreads(env, thread.author_id),
 		batchDecrementUserPosts(env, authorCounts),
 		recalcForumMetadata(env, thread.forum_id),
-		invalidateForumSummaryV2(env),
-	]);
+		invalidateForumVolatileV2(env, thread.forum_id),
+	];
+	if (thread.digest > 0) tail.push(bumpDigestGen(env));
+	await Promise.all(tail);
 
 	return jsonResponse({ deleted: true, id }, origin);
 }
@@ -1098,16 +1125,21 @@ export async function nukeUser(request: Request, env: Env): Promise<Response> {
 	// Delete all user content (same logic as admin nuke)
 	const result = await deleteUserContent(env, userId);
 
-	// Update user (ban + zero counters/credits) and invalidate the
-	// volatile cache in parallel — they're independent.
-	await Promise.all([
+	// Update user (ban + zero counters/credits) and invalidate caches in
+	// parallel — they're independent. Per-forum thread-list gens are bumped
+	// for every forum touched by `deleteUserContent`; if any deleted thread
+	// was a digest, also bump digest gen.
+	const tail: Promise<unknown>[] = [
 		env.DB.prepare(
 			"UPDATE users SET status = -1, threads = 0, posts = 0, credits = 0, coins = 0 WHERE id = ?",
 		)
 			.bind(userId)
 			.run(),
-		invalidateForumSummaryV2(env),
-	]);
+		invalidateThreadListForForums(env, result.affectedForumIds),
+		bumpForumSummaryGen(env),
+	];
+	if (result.hadDigestThread) tail.push(bumpDigestGen(env));
+	await Promise.all(tail);
 
 	return jsonResponse(
 		{
@@ -1128,6 +1160,8 @@ interface ContentDeletionResult {
 	threadsDeleted: number;
 	postsDeleted: number;
 	attachmentsDeleted: number;
+	affectedForumIds: number[];
+	hadDigestThread: boolean;
 }
 
 async function deleteUserContent(env: Env, userId: number): Promise<ContentDeletionResult> {
@@ -1145,11 +1179,16 @@ async function deleteUserContent(env: Env, userId: number): Promise<ContentDelet
 
 	// 1. Get user's threads to calculate forum impact
 	const threads = await env.DB.prepare(
-		"SELECT id, forum_id, replies FROM threads WHERE author_id = ?",
+		"SELECT id, forum_id, replies, digest FROM threads WHERE author_id = ?",
 	)
 		.bind(userId)
 		.all();
-	const threadRows = threads.results as { id: number; forum_id: number; replies: number }[];
+	const threadRows = threads.results as {
+		id: number;
+		forum_id: number;
+		replies: number;
+		digest: number;
+	}[];
 
 	// 2. Group forum impact from user's threads (thread count + all posts in those threads)
 	const forumThreadCounts = new Map<number, number>();
@@ -1303,5 +1342,7 @@ async function deleteUserContent(env: Env, userId: number): Promise<ContentDelet
 		threadsDeleted: threadRows.length,
 		postsDeleted: totalPostsDeleted,
 		attachmentsDeleted,
+		affectedForumIds: Array.from(allAffectedForumIds),
+		hadDigestThread: threadRows.some((t) => t.digest > 0),
 	};
 }
