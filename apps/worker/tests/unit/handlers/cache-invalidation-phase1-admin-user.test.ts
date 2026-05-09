@@ -41,10 +41,11 @@ import {
 	batchRole,
 	batchStatus,
 	recalcCounters,
+	update,
 } from "../../../src/handlers/admin/user";
 import { invalidateUserCaches } from "../../../src/lib/cache/invalidate";
 import { invalidateUserCache } from "../../../src/lib/user-cache";
-import { createAdminRequest, createMockDb, makeEnv } from "../../helpers";
+import { createAdminRequest, createMockDb, makeD1UserRow, makeEnv } from "../../helpers";
 
 const mockInvUser = invalidateUserCache as ReturnType<typeof vi.fn>;
 const mockInvUserV2 = invalidateUserCaches as ReturnType<typeof vi.fn>;
@@ -142,5 +143,60 @@ describe("Phase 1 commit 2b — admin user batch invalidation", () => {
 		expect(mockInvUserV2).toHaveBeenCalledTimes(2);
 		expect(mockInvUserV2).toHaveBeenCalledWith(env, 40);
 		expect(mockInvUserV2).toHaveBeenCalledWith(env, 41);
+	});
+});
+
+describe("Phase 1 commit 2c — admin user PATCH afterUpdate invalidation", () => {
+	// docs/19 §6 row "PATCH /api/admin/users/:id":
+	// afterUpdate must drop both legacy `user:mini:<id>` and v2 mini +
+	// public variants whenever any PublicUser-payload field or
+	// visibility-affecting field changes. `email` is intentionally NOT
+	// in the trigger set because it is not part of PublicUser.
+
+	function patch(id: number, body: Record<string, unknown>) {
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT * FROM users WHERE id": makeD1UserRow({ id }),
+				"SELECT id FROM users WHERE username": null,
+				"SELECT id, username": makeD1UserRow({ id, ...body }),
+			},
+		});
+		return { db, req: createAdminRequest("PATCH", `/api/admin/users/${id}`, body) };
+	}
+
+	it("status update invalidates legacy + v2", async () => {
+		const { db, req } = patch(50, { status: -1 });
+		const env = makeEnv({ DB: db });
+		const res = await update(req, env);
+		expect(res.status).toBe(200);
+		expect(mockInvUser).toHaveBeenCalledWith(env, 50);
+		expect(mockInvUserV2).toHaveBeenCalledWith(env, 50);
+	});
+
+	it("credits update invalidates legacy + v2", async () => {
+		const { db, req } = patch(51, { credits: 999 });
+		const env = makeEnv({ DB: db });
+		const res = await update(req, env);
+		expect(res.status).toBe(200);
+		expect(mockInvUser).toHaveBeenCalledWith(env, 51);
+		expect(mockInvUserV2).toHaveBeenCalledWith(env, 51);
+	});
+
+	it("coins update invalidates legacy + v2", async () => {
+		const { db, req } = patch(52, { coins: 7 });
+		const env = makeEnv({ DB: db });
+		const res = await update(req, env);
+		expect(res.status).toBe(200);
+		expect(mockInvUser).toHaveBeenCalledWith(env, 52);
+		expect(mockInvUserV2).toHaveBeenCalledWith(env, 52);
+	});
+
+	it("email-only update does NOT invalidate (email not in PublicUser)", async () => {
+		const { db, req } = patch(53, { email: "new@example.com" });
+		const env = makeEnv({ DB: db });
+		const res = await update(req, env);
+		expect(res.status).toBe(200);
+		expect(mockInvUser).not.toHaveBeenCalled();
+		expect(mockInvUserV2).not.toHaveBeenCalled();
 	});
 });

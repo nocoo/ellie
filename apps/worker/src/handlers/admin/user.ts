@@ -244,14 +244,20 @@ const userConfig: EntityConfig = {
 		return undefined;
 	},
 
-	// #38 afterUpdate: invalidate user cache if username/avatar/role changed
+	// #38 afterUpdate: invalidate user cache if any PublicUser-payload field
+	// or visibility-affecting field was updated (docs/19 §6 row
+	// "PATCH /api/admin/users/:id"):
+	//   - username/avatar  → user:mini + user:public payload
+	//   - role             → visibility bucket + group_title in user:public
+	//   - status           → /api/v1/users/:id 404 gating (status < 0 hides)
+	//   - credits/coins    → user:public payload aggregates
+	// `email` is NOT in PublicUser, so it is intentionally omitted.
 	afterUpdate: async (id, data, _existing, env, _origin) => {
-		// Check if any cached field was updated
-		const cacheFields = ["username", "avatar", "role"];
+		const cacheFields = ["username", "avatar", "status", "role", "credits", "coins"];
 		const needsInvalidation = cacheFields.some((field) => data[field] !== undefined);
 		if (needsInvalidation) {
-			// docs/19 §6 row "PATCH /api/admin/users/:id": drop legacy
-			// `user:mini:<id>` + v2 mini + both viewer-bucket public variants.
+			// Drop legacy `user:mini:<id>` + v2 mini + both viewer-bucket
+			// public variants.
 			await Promise.all([invalidateUserCache(env, id), invalidateUserCaches(env, id)]);
 		}
 	},
