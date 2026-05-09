@@ -6,6 +6,7 @@ import {
 	escapeSQL,
 	formatInsertOrIgnoreChunk,
 	formatUpsertChunk,
+	isFetchFailure,
 } from "../src/load/d1-sql-builder";
 import {
 	CHECKINS_UPSERT_COLUMNS,
@@ -466,5 +467,46 @@ describe("column ownership in generated SQL", () => {
 		);
 		const setMatches = sql.match(/= excluded\./g);
 		expect(setMatches).toHaveLength(FORUMS_UPSERT_COLUMNS.length);
+	});
+});
+
+// ─── isFetchFailure ───────────────────────────────────────────────────────
+
+describe("isFetchFailure", () => {
+	test("detects fetch failed with ANSI codes (real wrangler output)", () => {
+		const stderr =
+			"\x1b[33m▲ \x1b[43;33m[\x1b[43;30mWARNING\x1b[43;33m]\x1b[0m ⚠️ This process may take some time\n\n\x1b[31m✘ \x1b[41;31m[\x1b[41;97mERROR\x1b[41;31m]\x1b[0m \x1b[1mfetch failed\x1b[0m";
+		expect(isFetchFailure(stderr)).toBe(true);
+	});
+
+	test("detects fetch failed without ANSI codes", () => {
+		expect(isFetchFailure("ERROR: fetch failed")).toBe(true);
+		expect(isFetchFailure("TypeError: fetch failed")).toBe(true);
+	});
+
+	test("rejects empty stderr", () => {
+		expect(isFetchFailure("")).toBe(false);
+	});
+
+	test("rejects SQL error (does not contain fetch failed)", () => {
+		expect(isFetchFailure("Error: SQLITE_CONSTRAINT: UNIQUE constraint failed")).toBe(false);
+	});
+
+	test("rejects generic wrangler error", () => {
+		expect(isFetchFailure("Error: simulated wrangler execution failure")).toBe(false);
+	});
+
+	test("rejects warning-only (no fetch failed)", () => {
+		expect(
+			isFetchFailure(
+				"WARNING: This process may take some time, during which your D1 database will be unavailable to serve queries.",
+			),
+		).toBe(false);
+	});
+
+	test("rejects SQL error with WARNING prefix", () => {
+		expect(
+			isFetchFailure("WARNING: unavailable\nError: SQLITE_CONSTRAINT: UNIQUE constraint failed"),
+		).toBe(false);
 	});
 });
