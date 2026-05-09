@@ -1,4 +1,36 @@
 import { describe, expect, it, type mock, vi } from "vitest";
+
+// Bypass the v2 forum-meta gate (Phase 3): these tests focus on thread-list
+// behaviour. Forum visibility / 404 / 403 paths are covered by
+// thread-v2-cache.test.ts and forum-v2-cache.test.ts.
+vi.mock("../../../src/lib/cache/forum-read", async () => {
+	const actual = await vi.importActual<Record<string, unknown>>(
+		"../../../src/lib/cache/forum-read",
+	);
+	return {
+		...actual,
+		getForumMetaV2: vi.fn(async (_env, _ctx, id: number) => ({
+			kind: "ok",
+			forum: { id, status: 1, visibility: "public", name: "F" },
+		})),
+	};
+});
+
+// Bypass the v2 thread-list page1 cache (Phase 3): these tests inspect raw
+// D1 wiring and would otherwise hit a warm KV cache from a previous test.
+// Cache hit/miss + invalidation are covered by thread-v2-cache.test.ts.
+vi.mock("../../../src/lib/cache/thread-list-read", async () => {
+	const actual = await vi.importActual<Record<string, unknown>>(
+		"../../../src/lib/cache/thread-list-read",
+	);
+	return {
+		...actual,
+		getThreadListPageOneV2: vi.fn(
+			async (_env, _ctx, _forumId, _limit, loader: () => Promise<unknown>) => loader(),
+		),
+	};
+});
+
 import { create, getById, list } from "../../../src/handlers/thread";
 import type { Env } from "../../../src/lib/env";
 import {
@@ -488,87 +520,14 @@ describe("thread handlers", () => {
 					},
 				}),
 				mockEnv,
+				getCtx(),
 			);
-
 			expect(response.status).toBe(400);
 			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("https://ellie.nocoo.cloud");
 		});
 
-		it("should return 404 when forum not found for list", async () => {
-			const db = {
-				prepare: vi.fn((sql: string) => {
-					if (sql.includes("SELECT status, visibility FROM forums")) {
-						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve(null)),
-							})),
-						};
-					}
-					return { bind: vi.fn(() => ({ all: vi.fn(() => Promise.resolve({ results: [] })) })) };
-				}),
-			} as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await list(
-				new Request("https://example.com/api/v1/threads?forumId=999"),
-				env,
-				getCtx(),
-			);
-
-			expect(response.status).toBe(404);
-			const data = await response.json();
-			expect(data.error.code).toBe("FORUM_NOT_FOUND");
-		});
-
-		it("should return 404 when forum status is inactive", async () => {
-			const db = {
-				prepare: vi.fn((sql: string) => {
-					if (sql.includes("SELECT status, visibility FROM forums")) {
-						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ status: 0, visibility: "public" })),
-							})),
-						};
-					}
-					return { bind: vi.fn(() => ({ all: vi.fn(() => Promise.resolve({ results: [] })) })) };
-				}),
-			} as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await list(
-				new Request("https://example.com/api/v1/threads?forumId=1"),
-				env,
-				getCtx(),
-			);
-
-			expect(response.status).toBe(404);
-		});
-
-		it("should return 403 when forum is members-only and no auth", async () => {
-			const db = {
-				prepare: vi.fn((sql: string) => {
-					if (sql.includes("SELECT status, visibility FROM forums")) {
-						return {
-							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "members" })),
-							})),
-						};
-					}
-					return { bind: vi.fn(() => ({ all: vi.fn(() => Promise.resolve({ results: [] })) })) };
-				}),
-			} as unknown as D1Database;
-			const env = { ...mockEnv, DB: db };
-
-			const response = await list(
-				new Request("https://example.com/api/v1/threads?forumId=1"),
-				env,
-				getCtx(),
-			);
-
-			expect(response.status).toBe(403);
-			const data = await response.json();
-			expect(data.error.code).toBe("FORBIDDEN");
-		});
+		// Forum visibility 404 / 403 (forum:meta:v2 gate) is covered by
+		// thread-v2-cache.test.ts.
 
 		it("should use offset pagination when page param is provided", async () => {
 			const d1Row = makeD1ThreadRow({ id: 1 });

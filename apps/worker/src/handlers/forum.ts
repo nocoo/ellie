@@ -165,7 +165,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
  * Status / visibility filtering is left to the caller — this loader returns
  * the raw row whether or not the bucket can see it.
  */
-async function loadFullForumFromD1(env: Env, id: number): Promise<Forum | null> {
+export async function loadFullForumFromD1(env: Env, id: number): Promise<Forum | null> {
 	// Do NOT JOIN `users` on `forums.last_poster_id` here: when the row
 	// points at a hidden / recycled thread, the visible-last-thread
 	// override below uses a different poster and the JOIN'd avatar would

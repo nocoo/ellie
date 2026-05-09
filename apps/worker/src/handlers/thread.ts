@@ -1,7 +1,15 @@
 // Thread handlers for Cloudflare Worker
 import { type Thread, canViewForumVisibility, decodeGenericCursor } from "@ellie/types";
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
+import { computeVisibilityBucket } from "../lib/cache/bucket";
+import { getForumMetaV2 } from "../lib/cache/forum-read";
 import { invalidateForumVolatileV2 } from "../lib/cache/invalidate";
+import {
+	type ThreadListPayloadV2,
+	getThreadListPageOneV2,
+	isCacheableLimit,
+	isPage1,
+} from "../lib/cache/thread-list-read";
 import { applyCensorFilter } from "../lib/censor";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
 import { enrichThreadsWithUserCache, toThread } from "../lib/mappers";
@@ -19,6 +27,7 @@ import {
 } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
+import { loadFullForumFromD1 } from "./forum";
 
 /** Thread cursor payload for keyset pagination */
 interface ThreadCursorPayload {
@@ -202,27 +211,21 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid forumId" }, origin);
 	}
 
-	// Check forum visibility before listing threads (verified against DB).
-	// We fire BOTH the forum-meta lookup and the auth lookup in parallel since
-	// they're independent — in production this saves one D1 round-trip on the
-	// hot path.
-	const [user, forumRow] = await Promise.all([
-		optionalAuthVerified(request, env),
-		env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
-			.bind(forumIdNum)
-			.first<{ status: number; visibility: string }>(),
-	]);
+	// Forum-visibility gate via `forum:meta:v2`. Happens BEFORE we look at
+	// the thread-list cache so the cached payload itself can stay
+	// bucket-independent (docs/19 §6 thread:list:v2). Auth + meta read run
+	// in parallel because they're independent.
+	const userPromise = optionalAuthVerified(request, env);
+	const user = await userPromise;
 	const visCtx = buildVisibilityContext(user);
-
-	if (!forumRow) {
+	const bucket = computeVisibilityBucket(visCtx);
+	const metaResult = await getForumMetaV2(env, ctx, forumIdNum, bucket, () =>
+		loadFullForumFromD1(env, forumIdNum),
+	);
+	if (metaResult.kind === "notFound") {
 		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
 	}
-
-	// Filter by status and visibility
-	if (!isForumActive(forumRow)) {
-		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
-	}
-	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
+	if (metaResult.kind === "forbidden") {
 		return errorResponse(
 			"FORBIDDEN",
 			403,
@@ -239,33 +242,49 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 
 	const useKvCache = isKvUserCacheEnabled(env);
 
+	// page1 cache eligibility: cacheable limit bucket AND request shape is
+	// page1 (no cursor, no page or page=1). Deeper pagination falls through
+	// to D1.
+	const page1 = isPage1(cursorStr, pageParam) && isCacheableLimit(clampedLimit);
+
 	// -------------------------------------------------------------------
 	// Branch: offset pagination (when ?page= is present and no ?cursor=)
 	// -------------------------------------------------------------------
 	if (pageParam && !cursorStr) {
 		const page = Math.max(1, Number.parseInt(pageParam, 10) || 1);
-		const offset = (page - 1) * clampedLimit;
 
-		const [countResult, dataResult] = await Promise.all([
-			env.DB.prepare(
-				`SELECT COUNT(*) as total FROM threads WHERE forum_id = ? AND ${THREAD_VISIBLE}`,
-			)
-				.bind(forumIdNum)
-				.first<{ total: number }>(),
-			env.DB.prepare(getThreadListQueryWithOffset(useKvCache))
-				.bind(forumIdNum, clampedLimit, offset)
-				.all(),
-		]);
+		const loadOffsetPayload = async (): Promise<ThreadListPayloadV2> => {
+			const offset = (page - 1) * clampedLimit;
+			const [countResult, dataResult] = await Promise.all([
+				env.DB.prepare(
+					`SELECT COUNT(*) as total FROM threads WHERE forum_id = ? AND ${THREAD_VISIBLE}`,
+				)
+					.bind(forumIdNum)
+					.first<{ total: number }>(),
+				env.DB.prepare(getThreadListQueryWithOffset(useKvCache))
+					.bind(forumIdNum, clampedLimit, offset)
+					.all(),
+			]);
+			const total = countResult?.total ?? 0;
+			let items = mapThreadRows(dataResult.results, useKvCache);
+			if (useKvCache) {
+				items = await enrichThreadsWithUserCacheFromList(items, env, ctx);
+			}
+			return { items, total, nextCursor: null, limit: clampedLimit };
+		};
 
-		const total = countResult?.total ?? 0;
-		let threads = mapThreadRows(dataResult.results, useKvCache);
+		const payload =
+			page1 && page === 1
+				? await getThreadListPageOneV2(
+						env,
+						ctx,
+						forumIdNum,
+						clampedLimit as 20 | 50 | 100,
+						loadOffsetPayload,
+					)
+				: await loadOffsetPayload();
 
-		// Enrich with KV user cache (only if enabled)
-		if (useKvCache) {
-			threads = await enrichThreadsWithUserCacheFromList(threads, env, ctx);
-		}
-
-		return paginatedResponse(threads, total, page, clampedLimit, origin);
+		return paginatedResponse(payload.items, payload.total ?? 0, page, payload.limit, origin);
 	}
 
 	// -------------------------------------------------------------------
@@ -274,45 +293,56 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 	const cursor = cursorStr
 		? decodeGenericCursor<ThreadCursorPayload>(cursorStr, isThreadCursor)
 		: null;
-	const query = getThreadListQuery(useKvCache, cursor !== null);
 
-	const result: D1Result = cursor
-		? await env.DB.prepare(query)
-				.bind(
-					forumIdNum,
-					cursor.sticky,
-					cursor.sticky,
-					cursor.lastPostAt,
-					cursor.lastPostAt,
-					cursor.id,
-					clampedLimit,
-				)
-				.all()
-		: await env.DB.prepare(query).bind(forumIdNum, clampedLimit).all();
+	const loadKeysetPayload = async (): Promise<ThreadListPayloadV2> => {
+		const query = getThreadListQuery(useKvCache, cursor !== null);
+		const result: D1Result = cursor
+			? await env.DB.prepare(query)
+					.bind(
+						forumIdNum,
+						cursor.sticky,
+						cursor.sticky,
+						cursor.lastPostAt,
+						cursor.lastPostAt,
+						cursor.id,
+						clampedLimit,
+					)
+					.all()
+			: await env.DB.prepare(query).bind(forumIdNum, clampedLimit).all();
 
-	// Map D1 snake_case rows to camelCase Thread type
-	let threads = mapThreadRows(result.results, useKvCache);
+		let items = mapThreadRows(result.results, useKvCache);
+		if (useKvCache) {
+			items = await enrichThreadsWithUserCacheFromList(items, env, ctx);
+		}
+		// nextCursor MUST be derived from the raw D1 row (snake_case sticky/
+		// last_post_at/id), NOT the mapped Thread — keeps cursor encoding
+		// stable when the Thread shape evolves.
+		const nextCursor = buildNextCursor<unknown, ThreadCursorPayload>(
+			result.results,
+			clampedLimit,
+			(last) => {
+				const row = last as D1ThreadRow;
+				return {
+					sticky: row.sticky,
+					lastPostAt: row.last_post_at,
+					id: row.id,
+				};
+			},
+		);
+		return { items, total: null, nextCursor, limit: clampedLimit };
+	};
 
-	// Enrich with KV user cache (only if enabled)
-	if (useKvCache) {
-		threads = await enrichThreadsWithUserCacheFromList(threads, env, ctx);
-	}
+	const payload = page1
+		? await getThreadListPageOneV2(
+				env,
+				ctx,
+				forumIdNum,
+				clampedLimit as 20 | 50 | 100,
+				loadKeysetPayload,
+			)
+		: await loadKeysetPayload();
 
-	// Generate next cursor from raw D1 row (snake_case) — NOT from mapped Thread
-	const nextCursor = buildNextCursor<unknown, ThreadCursorPayload>(
-		result.results,
-		clampedLimit,
-		(last) => {
-			const row = last as D1ThreadRow;
-			return {
-				sticky: row.sticky,
-				lastPostAt: row.last_post_at,
-				id: row.id,
-			};
-		},
-	);
-
-	return jsonListResponse(threads, origin, nextCursor);
+	return jsonListResponse(payload.items, origin, payload.nextCursor);
 }
 
 /** Helper to enrich threads with user cache (only used when KV cache is enabled) */
