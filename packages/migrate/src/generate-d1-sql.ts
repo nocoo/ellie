@@ -59,6 +59,24 @@ const USERS_CHUNK_SIZE = values["users-chunk-size"]
 	: CHUNK_SIZE;
 const USERS_MIN_ID = values["users-min-id"] ? Number.parseInt(values["users-min-id"], 10) : null;
 
+// Validate CLI parameters
+if (values["users-chunk-size"] != null) {
+	if (!Number.isInteger(USERS_CHUNK_SIZE) || USERS_CHUNK_SIZE <= 0) {
+		console.error(
+			`Error: --users-chunk-size must be a positive integer, got "${values["users-chunk-size"]}"`,
+		);
+		process.exit(1);
+	}
+}
+if (values["users-min-id"] != null) {
+	if (!Number.isInteger(USERS_MIN_ID) || (USERS_MIN_ID as number) < 0) {
+		console.error(
+			`Error: --users-min-id must be a non-negative integer, got "${values["users-min-id"]}"`,
+		);
+		process.exit(1);
+	}
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function log(msg: string): void {
@@ -220,6 +238,8 @@ const tableStats: Record<
 		prod_max_id: number | null;
 		source_total_rows: number;
 		source_rows_after_max: number | null;
+		continuation_min_id?: number | null;
+		effective_chunk_size?: number;
 		chunks: number;
 		rows: number;
 		files: string[];
@@ -235,6 +255,7 @@ function recordTableStats(
 	prodMaxId: number | null,
 	filteredRows: number | null,
 	continuationMinId?: number | null,
+	effectiveChunkSize?: number,
 ): void {
 	allChunks.push(...chunks);
 	tableStats[table] = {
@@ -243,6 +264,9 @@ function recordTableStats(
 		source_total_rows: totalRows,
 		source_rows_after_max: filteredRows,
 		...(continuationMinId != null ? { continuation_min_id: continuationMinId } : {}),
+		...(effectiveChunkSize != null && effectiveChunkSize !== CHUNK_SIZE
+			? { effective_chunk_size: effectiveChunkSize }
+			: {}),
 		chunks: chunks.length,
 		rows: chunks.reduce((sum, c) => sum + c.rows, 0),
 		files: chunks.map((c) => c.file),
@@ -283,6 +307,7 @@ recordTableStats(
 	null,
 	USERS_MIN_ID != null ? usersResult.generatedRows : null,
 	USERS_MIN_ID,
+	USERS_CHUNK_SIZE,
 );
 
 // 3. Threads — incremental (id > prod max_id)

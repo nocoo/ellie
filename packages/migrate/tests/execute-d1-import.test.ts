@@ -525,6 +525,65 @@ describe("executor subprocess", () => {
 		expect(stdout).not.toContain("Unable to read SQL text file");
 		expect(stdout).toContain("Import complete and verified");
 	});
+	test("resume preserves original done entries including manual verification fields", () => {
+		// Regression: resume was synthesizing empty started_at/finished_at/duration_ms
+		// records for carried-over done chunks, losing audit trail and manual verification.
+		const manifest = makeManifest();
+		const fingerprint = computeManifestFingerprint(manifest);
+		const existingLog = {
+			manifest_path: "test",
+			manifest_fingerprint: fingerprint,
+			database: "test-db",
+			started_at: "2026-05-09T00:00:00Z",
+			finished_at: "2026-05-09T00:01:00Z",
+			chunks: [
+				{
+					file: "forums-001.sql",
+					table: "forums",
+					status: "done",
+					started_at: "2026-05-09T00:00:10Z",
+					finished_at: "2026-05-09T00:00:15Z",
+					duration_ms: 5000,
+				},
+				{
+					file: "users-001.sql",
+					table: "users",
+					status: "done",
+					started_at: "2026-05-09T00:00:20Z",
+					finished_at: "2026-05-09T00:00:53Z",
+					duration_ms: 33000,
+					manually_verified_at: "2026-05-09T01:00:00Z",
+					reason: "manually verified: data confirmed present in remote D1",
+				},
+			],
+		};
+		const manifestPath = setupFixture("resume-preserve", manifest, {
+			executionLog: existingLog,
+		});
+		const { exitCode, stdout } = runExecutor(manifestPath, ["--resume"], {
+			fakeMode: "succeed",
+		});
+		expect(exitCode).toBe(0);
+		expect(stdout).toContain("2 chunks already completed");
+
+		const logPath = join(TEST_DIR, "resume-preserve", "execution-log.json");
+		const log = JSON.parse(readFileSync(logPath, "utf-8"));
+
+		// forums-001 should preserve original timestamps
+		const forums = log.chunks.find((c: { file: string }) => c.file === "forums-001.sql");
+		expect(forums.status).toBe("done");
+		expect(forums.started_at).toBe("2026-05-09T00:00:10Z");
+		expect(forums.finished_at).toBe("2026-05-09T00:00:15Z");
+		expect(forums.duration_ms).toBe(5000);
+
+		// users-001 should preserve manual verification fields
+		const users = log.chunks.find((c: { file: string }) => c.file === "users-001.sql");
+		expect(users.status).toBe("done");
+		expect(users.started_at).toBe("2026-05-09T00:00:20Z");
+		expect(users.duration_ms).toBe(33000);
+		expect(users.manually_verified_at).toBe("2026-05-09T01:00:00Z");
+		expect(users.reason).toContain("manually verified");
+	});
 });
 
 // ─── Mark-done tests ─────────────────────────────────────────────────────

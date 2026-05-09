@@ -399,6 +399,7 @@ if (missingFiles.length > 0) {
 
 // Load existing execution log for resume — validate fingerprint
 let completedFiles = new Set<string>();
+let preservedChunks: ChunkExecResult[] = [];
 if (RESUME) {
 	const existingLog = loadExecutionLog(execLogPath);
 	if (existingLog) {
@@ -413,6 +414,7 @@ if (RESUME) {
 			(c) => c.status === "done" && manifestFiles.has(c.file),
 		);
 		completedFiles = new Set(validDone.map((c) => c.file));
+		preservedChunks = validDone;
 		log(`  Resuming: ${completedFiles.size} chunks already completed`);
 	}
 }
@@ -443,16 +445,9 @@ const execLog: ExecutionLog = {
 	chunks: [],
 };
 
-// Carry over completed chunks from resume
-for (const file of completedFiles) {
-	execLog.chunks.push({
-		file,
-		table: manifest.chunks.find((c) => c.file === file)?.table ?? "unknown",
-		status: "done",
-		started_at: "",
-		finished_at: "",
-		duration_ms: 0,
-	});
+// Carry over completed chunks from resume — preserve original entries
+for (const preserved of preservedChunks) {
+	execLog.chunks.push(preserved);
 }
 
 log(`\n=== Executing ${orderedChunks.length} chunks against ${dbName} (remote) ===`);

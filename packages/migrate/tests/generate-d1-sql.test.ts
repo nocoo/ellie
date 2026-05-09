@@ -224,3 +224,113 @@ describe("generate-d1-sql integration", () => {
 		expect(existsSync(join(OUT_DIR, "manifest.json"))).toBe(true);
 	});
 });
+
+// ─── CLI validation tests ────────────────────────────────────────────────
+
+describe("CLI parameter validation", () => {
+	test("rejects --users-chunk-size 0", () => {
+		const { exitCode, stdout } = runGenerator(["--force", "--users-chunk-size", "0"]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("positive integer");
+	});
+
+	test("rejects --users-chunk-size with negative value", () => {
+		// parseArgs rejects dash-prefixed values as ambiguous
+		const { exitCode } = runGenerator(["--force", "--users-chunk-size", "-5"]);
+		expect(exitCode).not.toBe(0);
+	});
+
+	test("rejects --users-chunk-size with non-numeric string", () => {
+		const { exitCode, stdout } = runGenerator(["--force", "--users-chunk-size", "abc"]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("positive integer");
+	});
+
+	test("rejects --users-min-id with negative value", () => {
+		// parseArgs rejects dash-prefixed values as ambiguous
+		const { exitCode } = runGenerator(["--force", "--users-min-id", "-1"]);
+		expect(exitCode).not.toBe(0);
+	});
+
+	test("rejects --users-min-id with non-numeric string", () => {
+		const { exitCode, stdout } = runGenerator(["--force", "--users-min-id", "xyz"]);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("non-negative integer");
+	});
+});
+
+// ─── Continuation generation tests ───────────────────────────────────────
+
+describe("continuation generation", () => {
+	const CONT_OUT = join(TEST_DIR, "output-cont");
+
+	function runGeneratorCont(args: string[] = []): { stdout: string; exitCode: number } {
+		const cmd = [
+			"bun",
+			"run",
+			join(PROJECT_ROOT, "src/generate-d1-sql.ts"),
+			"--db",
+			DB_PATH,
+			"--out",
+			CONT_OUT,
+			"--production-state",
+			PROD_STATE_PATH,
+			"--force",
+			...args,
+		].join(" ");
+		try {
+			const stdout = execSync(cmd, { encoding: "utf-8", cwd: PROJECT_ROOT, timeout: 30_000 });
+			return { stdout, exitCode: 0 };
+		} catch (e) {
+			const err = e as { status: number; stdout?: string; stderr?: string };
+			return { stdout: (err.stdout ?? "") + (err.stderr ?? ""), exitCode: err.status ?? 1 };
+		}
+	}
+
+	test("--users-min-id filters users and records continuation_min_id in manifest", () => {
+		// DB has users 1,2,3 — filter with min-id=2 should only include user 3
+		const { exitCode, stdout } = runGeneratorCont(["--users-min-id", "2"]);
+		expect(exitCode).toBe(0);
+		expect(stdout).toContain("continuation");
+
+		const manifest: Manifest = JSON.parse(readFileSync(join(CONT_OUT, "manifest.json"), "utf-8"));
+		expect(manifest.tables.users.continuation_min_id).toBe(2);
+		expect(manifest.tables.users.rows).toBe(1); // only user id=3
+		expect(manifest.tables.users.source_total_rows).toBe(3); // total in source
+
+		// SQL should only contain user 3
+		const usersSql = readFileSync(join(CONT_OUT, "users-001.sql"), "utf-8");
+		expect(usersSql).toContain("'charlie'");
+		expect(usersSql).not.toContain("'alice'");
+		expect(usersSql).not.toContain("'bob'");
+	});
+
+	test("--users-chunk-size produces smaller chunks and records effective_chunk_size", () => {
+		// DB has 3 users — with chunk size 2, should produce 2 chunks
+		const { exitCode } = runGeneratorCont(["--users-chunk-size", "2"]);
+		expect(exitCode).toBe(0);
+
+		const manifest: Manifest = JSON.parse(readFileSync(join(CONT_OUT, "manifest.json"), "utf-8"));
+		expect(manifest.tables.users.effective_chunk_size).toBe(2);
+		expect(manifest.tables.users.chunks).toBe(2); // 3 users / 2 per chunk = 2 chunks
+		expect(manifest.tables.users.files).toHaveLength(2);
+
+		// Each chunk should have at most 2 users
+		const chunk1 = readFileSync(join(CONT_OUT, "users-001.sql"), "utf-8");
+		const chunk1Matches = chunk1.match(/INSERT INTO users/g);
+		expect(chunk1Matches).toHaveLength(2);
+
+		const chunk2 = readFileSync(join(CONT_OUT, "users-002.sql"), "utf-8");
+		const chunk2Matches = chunk2.match(/INSERT INTO users/g);
+		expect(chunk2Matches).toHaveLength(1); // remaining 1 user
+	});
+
+	test("--users-min-id=0 is accepted and includes all users", () => {
+		const { exitCode } = runGeneratorCont(["--users-min-id", "0"]);
+		expect(exitCode).toBe(0);
+
+		const manifest: Manifest = JSON.parse(readFileSync(join(CONT_OUT, "manifest.json"), "utf-8"));
+		expect(manifest.tables.users.continuation_min_id).toBe(0);
+		expect(manifest.tables.users.rows).toBe(3); // all 3 users have id > 0
+	});
+});
