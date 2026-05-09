@@ -117,11 +117,13 @@ export function ThreadItem({ item }: ThreadItemProps) {
 							size="xs"
 						/>
 					</Link>
-					<UserPopover userId={thread.authorId}>
-						<span className="min-w-0 truncate text-foreground hover:text-primary cursor-pointer">
-							{thread.authorName}
-						</span>
-					</UserPopover>
+					<span className="min-w-0 truncate">
+						<UserPopover userId={thread.authorId}>
+							<span className="block truncate text-foreground hover:text-primary cursor-pointer">
+								{thread.authorName}
+							</span>
+						</UserPopover>
+					</span>
 					<span className="shrink-0">·</span>
 					<span className="shrink-0">{formatRelativeTime(thread.createdAt)}</span>
 					<span className="shrink-0 ml-auto tabular-nums">
