@@ -42,6 +42,7 @@ import {
 const TEST_DIR = join(tmpdir(), `d1-exec-test-${Date.now()}`);
 const PROJECT_ROOT = join(__dirname, "..");
 const FAKE_NPX_PATH = join(TEST_DIR, "fake-npx");
+const SOURCE_DB_PATH = join(TEST_DIR, "source.db");
 
 /** Minimal valid manifest factory. */
 function makeManifest(overrides: Partial<Manifest> = {}): Manifest {
@@ -203,6 +204,33 @@ emit_json() {
     else
       echo '[{"results":[{"cnt":100,"max_id":100000}]}]'
     fi
+  elif args_contain "COUNT" "$@"; then
+    echo '[{"results":[{"cnt":100,"max_id":100000}]}]'
+  elif args_contain "SELECT " "$@"; then
+    # Sample field query — return fixture data matching the source DB per ID
+    local sql
+    for a in "$@"; do
+      if [[ "$a" == *"SELECT "* ]]; then sql="$a"; break; fi
+    done
+    # Extract the WHERE id/user_id value
+    local qid
+    qid=$(echo "$sql" | sed -n 's/.*WHERE [a-z_]*=\\([0-9]*\\).*/\\1/p')
+    if [[ "$sql" == *"forums"* ]]; then
+      case "$qid" in
+        1) echo '[{"results":[{"name":"test-forum","description":"test-desc","display_order":1}]}]' ;;
+        2) echo '[{"results":[{"name":"test-forum-2","description":"test-desc-2","display_order":2}]}]' ;;
+        *) echo '[{"results":[{}]}]' ;;
+      esac
+    elif [[ "$sql" == *"users"* ]]; then
+      case "$qid" in
+        1) echo '[{"results":[{"username":"user-1","coins":100,"has_avatar":0,"campus":"test-campus"}]}]' ;;
+        2) echo '[{"results":[{"username":"user-2","coins":200,"has_avatar":1,"campus":"campus-2"}]}]' ;;
+        3) echo '[{"results":[{"username":"user-3","coins":300,"has_avatar":0,"campus":"campus-3"}]}]' ;;
+        *) echo '[{"results":[{}]}]' ;;
+      esac
+    else
+      echo '[{"results":[{}]}]'
+    fi
   else
     echo '[{"results":[{"cnt":100,"max_id":100000}]}]'
   fi
@@ -259,12 +287,65 @@ case "$MODE" in
     if has_flag "--json" "$@"; then emit_json "$@"; fi
     exit 0
     ;;
+  warning-sample-mismatch)
+    if has_flag "--file" "$@"; then
+      echo "WARNING: This process may take some time, during which your D1 database will be unavailable to serve queries." >&2
+      exit 1
+    fi
+    if has_flag "--json" "$@"; then
+      # Return correct PK count but wrong field values for samples
+      local sql
+      for a in "$@"; do
+        if [[ "$a" == *"SELECT "* || "$a" == *"COUNT"* || "$a" == *" IN ("* ]]; then sql="$a"; break; fi
+      done
+      if [[ "$sql" == *" IN ("* ]]; then
+        # PK count — return correct count
+        local in_part
+        in_part=$(echo "$sql" | sed 's/.*IN (//' | sed 's/).*//')
+        local cnt
+        cnt=$(echo "$in_part" | tr ',' '\\n' | wc -l | tr -d ' ')
+        echo "[{\\"results\\":[{\\"cnt\\":$cnt}]}]"
+      elif [[ "$sql" == *"COUNT"* ]]; then
+        echo '[{"results":[{"cnt":100,"max_id":100000}]}]'
+      elif [[ "$sql" == *"forums"* ]]; then
+        echo '[{"results":[{"name":"WRONG-NAME","description":"wrong","display_order":999}]}]'
+      elif [[ "$sql" == *"users"* ]]; then
+        echo '[{"results":[{"username":"WRONG-USER","coins":0,"has_avatar":1,"campus":"wrong"}]}]'
+      else
+        echo '[{"results":[{}]}]'
+      fi
+    fi
+    exit 0
+    ;;
 esac
 echo "Error: unknown FAKE_WRANGLER_MODE=$MODE" >&2
 exit 1
 `;
 	writeFileSync(FAKE_NPX_PATH, fakeScript);
 	chmodSync(FAKE_NPX_PATH, 0o755);
+
+	// Create source SQLite DB with sample rows matching fake wrangler's responses
+	const createSourceScript = join(TEST_DIR, "_create-source-db.ts");
+	writeFileSync(
+		createSourceScript,
+		`import { Database } from "bun:sqlite";
+const db = new Database(${JSON.stringify(SOURCE_DB_PATH)});
+db.exec(\`
+  CREATE TABLE forums (id INTEGER PRIMARY KEY, name TEXT, description TEXT, display_order INTEGER);
+  INSERT INTO forums VALUES (1, 'test-forum', 'test-desc', 1);
+  INSERT INTO forums VALUES (2, 'test-forum-2', 'test-desc-2', 2);
+  CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, coins INTEGER, has_avatar INTEGER, campus TEXT);
+  INSERT INTO users VALUES (1, 'user-1', 100, 0, 'test-campus');
+  INSERT INTO users VALUES (2, 'user-2', 200, 1, 'campus-2');
+  INSERT INTO users VALUES (3, 'user-3', 300, 0, 'campus-3');
+\`);
+db.close();
+`,
+	);
+	execSync(`bun ${createSourceScript}`, {
+		encoding: "utf-8",
+		timeout: 10_000,
+	});
 });
 
 afterAll(() => {
@@ -768,12 +849,14 @@ describe("isWarningOnly", () => {
 // ─── Warning verification tests ────────────────────────────────────────────
 
 describe("verify-warning-success", () => {
-	test("warning-only + verify pass → done with audit fields", () => {
+	test("warning-only + verify pass → done with audit fields and samples", () => {
 		const manifest = makeManifest();
 		const manifestPath = setupFixture("warn-verify-ok", manifest);
-		const { exitCode, stdout } = runExecutor(manifestPath, ["--verify-warning-success"], {
-			fakeMode: "warning-only",
-		});
+		const { exitCode, stdout } = runExecutor(
+			manifestPath,
+			["--verify-warning-success", "--source-db", SOURCE_DB_PATH],
+			{ fakeMode: "warning-only" },
+		);
 		expect(exitCode).toBe(0);
 		expect(stdout).toContain("WARNING-only exit");
 		expect(stdout).toContain("VERIFIED OK");
@@ -784,21 +867,36 @@ describe("verify-warning-success", () => {
 		const doneChunks = log.chunks.filter((c: { status: string }) => c.status === "done");
 		expect(doneChunks).toHaveLength(2);
 
-		// Check audit fields on first chunk
+		// Check audit fields on first chunk (forums)
 		const forums = log.chunks.find((c: { file: string }) => c.file === "forums-001.sql");
 		expect(forums.warning_verified_at).toBeDefined();
 		expect(forums.warning_verification).toBeDefined();
 		expect(forums.warning_verification.mode).toBe("pk_count_and_sample");
 		expect(forums.warning_verification.pk_count.expected).toBe(2);
 		expect(forums.error).toBeUndefined();
+		// Samples must be present and passed
+		expect(forums.warning_verification.samples.length).toBeGreaterThan(0);
+		for (const sample of forums.warning_verification.samples) {
+			expect(sample.passed).toBe(true);
+			expect(sample.fields_checked.length).toBeGreaterThan(0);
+		}
+
+		// Check users chunk also has samples
+		const users = log.chunks.find((c: { file: string }) => c.file === "users-001.sql");
+		expect(users.warning_verification.samples.length).toBeGreaterThan(0);
+		for (const sample of users.warning_verification.samples) {
+			expect(sample.passed).toBe(true);
+		}
 	});
 
 	test("warning-only + pk count mismatch → failed", () => {
 		const manifest = makeManifest();
 		const manifestPath = setupFixture("warn-pk-mismatch", manifest);
-		const { exitCode, stdout } = runExecutor(manifestPath, ["--verify-warning-success"], {
-			fakeMode: "warning-pk-mismatch",
-		});
+		const { exitCode, stdout } = runExecutor(
+			manifestPath,
+			["--verify-warning-success", "--source-db", SOURCE_DB_PATH],
+			{ fakeMode: "warning-pk-mismatch" },
+		);
 		expect(exitCode).not.toBe(0);
 		expect(stdout).toContain("VERIFICATION FAILED");
 		expect(stdout).toContain("stopped at");
@@ -811,12 +909,41 @@ describe("verify-warning-success", () => {
 		expect(failedChunks[0].warning_verification.pk_count.actual).toBe(0);
 	});
 
+	test("warning-only + sample field mismatch → failed", () => {
+		const manifest = makeManifest();
+		const manifestPath = setupFixture("warn-sample-mismatch", manifest);
+		const { exitCode, stdout } = runExecutor(
+			manifestPath,
+			["--verify-warning-success", "--source-db", SOURCE_DB_PATH],
+			{ fakeMode: "warning-sample-mismatch" },
+		);
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("VERIFICATION FAILED");
+
+		const logPath = join(TEST_DIR, "warn-sample-mismatch", "execution-log.json");
+		const log = JSON.parse(readFileSync(logPath, "utf-8"));
+		const failedChunks = log.chunks.filter((c: { status: string }) => c.status === "failed");
+		expect(failedChunks.length).toBeGreaterThanOrEqual(1);
+		// Samples should exist but have passed=false
+		const chunk = failedChunks[0];
+		expect(chunk.warning_verification).toBeDefined();
+		expect(chunk.warning_verification.pk_count.expected).toBe(
+			chunk.warning_verification.pk_count.actual,
+		);
+		expect(chunk.warning_verification.samples.length).toBeGreaterThan(0);
+		expect(chunk.warning_verification.samples.some((s: { passed: boolean }) => !s.passed)).toBe(
+			true,
+		);
+	});
+
 	test("stderr contains ERROR → failed even with --verify-warning-success", () => {
 		const manifest = makeManifest();
 		const manifestPath = setupFixture("warn-with-error", manifest);
-		const { exitCode, stdout } = runExecutor(manifestPath, ["--verify-warning-success"], {
-			fakeMode: "warning-error",
-		});
+		const { exitCode, stdout } = runExecutor(
+			manifestPath,
+			["--verify-warning-success", "--source-db", SOURCE_DB_PATH],
+			{ fakeMode: "warning-error" },
+		);
 		expect(exitCode).not.toBe(0);
 		expect(stdout).toContain("FAILED");
 		expect(stdout).not.toContain("VERIFIED OK");
@@ -839,6 +966,17 @@ describe("verify-warning-success", () => {
 		expect(stdout).toContain("FAILED");
 		expect(stdout).not.toContain("VERIFIED OK");
 		expect(stdout).not.toContain("WARNING-only exit");
+	});
+
+	test("--verify-warning-success without source-db and nonexistent manifest.source_db → fail before execution", () => {
+		const manifest = makeManifest();
+		// manifest.source_db defaults to "test.db" which doesn't exist
+		const manifestPath = setupFixture("warn-no-source-db", manifest);
+		const { exitCode, stdout } = runExecutor(manifestPath, ["--verify-warning-success"], {
+			fakeMode: "warning-only",
+		});
+		expect(exitCode).not.toBe(0);
+		expect(stdout).toContain("Source DB not found");
 	});
 
 	test("error (non-warning) without flag → failed normally", () => {

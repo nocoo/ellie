@@ -210,7 +210,7 @@ function verifyWarningChunk(
 	chunk: ChunkInfo,
 	dbName: string,
 	cwd: string,
-	sourceDbPath: string | undefined,
+	sourceDbPath: string,
 ): {
 	passed: boolean;
 	verification: NonNullable<ChunkExecResult["warning_verification"]>;
@@ -231,23 +231,23 @@ function verifyWarningChunk(
 
 	const pkPassed = actualCount === pkList.length;
 
-	// 2. Sample field checks (only if source-db is available and PK count passed)
+	// 2. Sample field checks — required for tables with sample fields
 	const sampleIds = pickSampleIds(pkList);
 	const fields = SAMPLE_FIELDS[chunk.table] ?? [];
 	const samples: NonNullable<ChunkExecResult["warning_verification"]>["samples"] = [];
 
-	if (pkPassed && sourceDbPath && fields.length > 0) {
-		// Dynamic import of bun:sqlite isn't possible; use a subprocess to read source DB
+	if (pkPassed && fields.length > 0) {
 		for (const sampleId of sampleIds) {
 			const selectFields = fields.join(",");
-			// Read expected from source DB via subprocess
+			// Read expected from source DB via subprocess — path safely injected
+			const safeDbPath = JSON.stringify(sourceDbPath);
 			const expectedJson = (() => {
 				try {
 					return execFileSync(
 						"bun",
 						[
 							"-e",
-							`import{Database}from"bun:sqlite";const db=new Database("${sourceDbPath}",{readonly:true});const r=db.query("SELECT ${selectFields} FROM ${chunk.table} WHERE ${pk}=${sampleId}").get();console.log(JSON.stringify(r));`,
+							`import{Database}from"bun:sqlite";const db=new Database(${safeDbPath},{readonly:true});const r=db.query("SELECT ${selectFields} FROM ${chunk.table} WHERE ${pk}=${sampleId}").get();console.log(JSON.stringify(r));`,
 						],
 						{ encoding: "utf-8", timeout: 10_000, stdio: ["pipe", "pipe", "pipe"] },
 					);
@@ -290,7 +290,11 @@ function verifyWarningChunk(
 		}
 	}
 
-	const samplesPassed = samples.length === 0 || samples.every((s) => s.passed);
+	// Enforce: tables with sample fields must have non-empty samples
+	const requiresSamples = fields.length > 0;
+	const samplesPassed = requiresSamples
+		? samples.length > 0 && samples.every((s) => s.passed)
+		: true;
 	const passed = pkPassed && samplesPassed;
 
 	return {
@@ -481,6 +485,24 @@ const execLogPath = join(importDir, "execution-log.json");
 const projectRoot = process.cwd();
 const fingerprint = computeManifestFingerprint(manifest);
 
+// Resolve source DB for warning verification — required when --verify-warning-success is on
+const resolvedSourceDb = SOURCE_DB ?? manifest.source_db;
+if (VERIFY_WARNING && !DRY_RUN && !MARK_DONE) {
+	if (!resolvedSourceDb) {
+		console.error(
+			"Error: --verify-warning-success requires a source DB. Provide --source-db or ensure manifest.source_db exists.",
+		);
+		process.exit(1);
+	}
+	if (!existsSync(resolvedSourceDb)) {
+		console.error(
+			`Error: Source DB not found: ${resolvedSourceDb}\nProvide --source-db with a valid path to the dry-run SQLite database.`,
+		);
+		process.exit(1);
+	}
+	log(`  Source DB: ${resolvedSourceDb}`);
+}
+
 log(`  Database: ${dbName}`);
 log(`  Import dir: ${importDir}`);
 log(`  Fingerprint: ${fingerprint}`);
@@ -639,7 +661,7 @@ for (let i = 0; i < orderedChunks.length; i++) {
 			log(`    WARNING-only exit (${durationMs}ms), verifying...`);
 			const chunkMeta = chunkMap.get(file);
 			if (chunkMeta) {
-				const verification = verifyWarningChunk(chunkMeta, dbName, projectRoot, SOURCE_DB);
+				const verification = verifyWarningChunk(chunkMeta, dbName, projectRoot, resolvedSourceDb);
 				if (verification.passed) {
 					chunkResult.status = "done";
 					chunkResult.error = undefined;
