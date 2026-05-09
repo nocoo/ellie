@@ -6,7 +6,6 @@
 
 import { type ThreadDisplayItem, highlightStyle } from "@/viewmodels/forum/thread-list";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
-import Image from "next/image";
 import Link from "next/link";
 import { ThreadBadgeList } from "./thread-badge";
 import { ThreadLastPostCell } from "./thread-last-post-cell";
@@ -19,7 +18,7 @@ interface ThreadItemProps {
 }
 
 export function ThreadItem({ item }: ThreadItemProps) {
-	const { thread, badges, highlight: hl, iconSrc } = item;
+	const { thread, badges, highlight: hl, iconSrc, digestSrc } = item;
 
 	return (
 		<div className="border-b border-border/50 last:border-0 transition-colors hover:bg-accent/50 focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset">
@@ -27,7 +26,8 @@ export function ThreadItem({ item }: ThreadItemProps) {
 			<div className="hidden sm:flex items-center">
 				{/* Thread icon column */}
 				<div className="flex items-center justify-center w-[36px] shrink-0 pl-2">
-					<Image src={iconSrc} alt="" width={16} height={16} className="opacity-70" unoptimized />
+					{/* eslint-disable-next-line @next/next/no-img-element */}
+					<img src={iconSrc} alt="" className="opacity-70" />
 				</div>
 
 				{/* Column 1: Subject (flex) */}
@@ -41,6 +41,7 @@ export function ThreadItem({ item }: ThreadItemProps) {
 					>
 						{thread.subject}
 					</Link>
+					{digestSrc && <img src={digestSrc} alt="digest" className="shrink-0" />}
 				</div>
 
 				{/* Column 2: Author (fixed, left-aligned with avatar) */}
@@ -85,26 +86,23 @@ export function ThreadItem({ item }: ThreadItemProps) {
 			<div className="sm:hidden px-3 py-2">
 				{/* Row 1: Icon + badges + subject */}
 				<div className="flex items-start gap-2">
-					<Image
-						src={iconSrc}
-						alt=""
-						width={14}
-						height={14}
-						className="opacity-70 mt-0.5 shrink-0"
-						unoptimized
-					/>
+					{/* eslint-disable-next-line @next/next/no-img-element */}
+					<img src={iconSrc} alt="" className="opacity-70 mt-0.5 shrink-0" />
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-1.5">
 							{badges.length > 0 && <ThreadBadgeList badges={badges} />}
 						</div>
-						<Link
-							href={`/threads/${thread.id}`}
-							prefetch={false}
-							className="block truncate text-sm text-foreground hover:text-primary transition-colors"
-							style={highlightStyle(hl)}
-						>
-							{thread.subject}
-						</Link>
+						<div className="flex items-center gap-1.5">
+							<Link
+								href={`/threads/${thread.id}`}
+								prefetch={false}
+								className="min-w-0 truncate text-sm text-foreground hover:text-primary transition-colors"
+								style={highlightStyle(hl)}
+							>
+								{thread.subject}
+							</Link>
+							{digestSrc && <img src={digestSrc} alt="digest" className="shrink-0" />}
+						</div>
 					</div>
 				</div>
 				{/* Row 2: avatar · author · time · stats */}

@@ -1,6 +1,7 @@
 import {
 	enrichThreads,
 	filterIconRedundantBadges,
+	getDigestIconSrc,
 	getThreadIconSrc,
 	highlightStyle,
 } from "@/viewmodels/forum/thread-list";
@@ -53,6 +54,7 @@ describe("enrichThreads", () => {
 		expect(items.length).toBe(1);
 		expect(items[0]?.thread.id).toBe(1);
 		expect(Array.isArray(items[0]?.badges)).toBe(true);
+		expect(items[0]?.digestSrc).toBeNull();
 	});
 
 	it("produces badges for sticky thread (filtered: no sticky badge)", () => {
@@ -65,8 +67,9 @@ describe("enrichThreads", () => {
 	it("produces badges for digest thread (filtered: no digest badge)", () => {
 		const threads = [makeThread({ id: 1, digest: 2 })];
 		const items = enrichThreads(threads);
-		// digest badge filtered out — icon represents it
+		// digest badge filtered out — shown as icon to the right of title
 		expect(items[0]?.badges.some((b) => b.type === "digest")).toBe(false);
+		expect(items[0]?.digestSrc).toContain("digest_2.gif");
 	});
 
 	it("produces badges for closed thread (filtered: no closed badge)", () => {
@@ -269,38 +272,29 @@ describe("getThreadIconSrc", () => {
 		expect(result).toContain("pin_4.gif");
 	});
 
-	it("returns digest icon for digest level 1", () => {
-		const result = getThreadIconSrc({
-			closed: 0,
-			special: 0,
-			sticky: StickyLevel.None,
-			digest: 1,
-			lastPostAt: Date.now() / 1000,
-		});
-		expect(result).toContain("digest_1.gif");
-	});
-
-	it("returns digest icon for digest level 3", () => {
+	it("returns folder_new for digest thread with recent reply (digest shown separately)", () => {
+		const now = Math.floor(Date.now() / 1000);
 		const result = getThreadIconSrc({
 			closed: 0,
 			special: 0,
 			sticky: StickyLevel.None,
 			digest: 3,
-			lastPostAt: Date.now() / 1000,
+			lastPostAt: now - 100,
 		});
-		expect(result).toContain("digest_3.gif");
+		// digest icon is shown to the right of the title, not in the icon column
+		expect(result).toContain("folder_new.gif");
 	});
 
-	it("caps digest level at 3 for digest icon filename", () => {
+	it("returns folder_common for digest thread with old reply", () => {
+		const now = Math.floor(Date.now() / 1000);
 		const result = getThreadIconSrc({
 			closed: 0,
 			special: 0,
 			sticky: StickyLevel.None,
-			digest: 5,
-			lastPostAt: Date.now() / 1000,
+			digest: 2,
+			lastPostAt: now - 100000,
 		});
-		// Math.min(digest, 3) = 3
-		expect(result).toContain("digest_3.gif");
+		expect(result).toContain("folder_common.gif");
 	});
 
 	it("returns folder_new for thread with recent reply (within 24 hours)", () => {
@@ -360,7 +354,7 @@ describe("getThreadIconSrc", () => {
 		expect(result).toContain("pin_1.gif");
 	});
 
-	it("prioritizes digest over recent/old", () => {
+	it("digest does not affect icon column (falls through to folder)", () => {
 		const now = Math.floor(Date.now() / 1000);
 		const result = getThreadIconSrc({
 			closed: 0,
@@ -369,7 +363,7 @@ describe("getThreadIconSrc", () => {
 			digest: 2,
 			lastPostAt: now - 100000,
 		});
-		expect(result).toContain("digest_2.gif");
+		expect(result).toContain("folder_common.gif");
 	});
 
 	it("returns CDN URLs", () => {
@@ -380,6 +374,45 @@ describe("getThreadIconSrc", () => {
 			digest: 0,
 			lastPostAt: 0,
 		});
+		expect(result).toContain("https://t.no.mt/static/image/common/");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// getDigestIconSrc
+// ---------------------------------------------------------------------------
+
+describe("getDigestIconSrc", () => {
+	it("returns null for non-digest thread (digest=0)", () => {
+		expect(getDigestIconSrc(0)).toBeNull();
+	});
+
+	it("returns null for negative digest", () => {
+		expect(getDigestIconSrc(-1)).toBeNull();
+	});
+
+	it("returns digest_1.gif for digest level 1", () => {
+		const result = getDigestIconSrc(1);
+		expect(result).toContain("digest_1.gif");
+	});
+
+	it("returns digest_2.gif for digest level 2", () => {
+		const result = getDigestIconSrc(2);
+		expect(result).toContain("digest_2.gif");
+	});
+
+	it("returns digest_3.gif for digest level 3", () => {
+		const result = getDigestIconSrc(3);
+		expect(result).toContain("digest_3.gif");
+	});
+
+	it("caps digest level at 3", () => {
+		const result = getDigestIconSrc(5);
+		expect(result).toContain("digest_3.gif");
+	});
+
+	it("returns CDN URL", () => {
+		const result = getDigestIconSrc(1);
 		expect(result).toContain("https://t.no.mt/static/image/common/");
 	});
 });
