@@ -276,4 +276,118 @@ describe("L2: Worker User Content API", () => {
 			expect(typeof data.data.allowed).toBe("boolean");
 		});
 	});
+
+	// ─── Posts attachments batch ───────────────────────────────────
+
+	describe("POST /api/v1/posts/attachments/batch", () => {
+		test("returns 400 for missing threadId", async () => {
+			const res = await workerPost("/api/v1/posts/attachments/batch", { postIds: [1, 2] });
+			expect(res.status).toBe(400);
+			const data = await res.json();
+			expect(data.error.code).toBe("INVALID_BODY");
+		});
+
+		test("returns 200 with empty array when postIds is empty", async () => {
+			const res = await workerPost("/api/v1/posts/attachments/batch", { threadId: 1, postIds: [] });
+			expect(res.status).toBe(200);
+			const data = await res.json();
+			expect(Array.isArray(data.data)).toBe(true);
+			expect(data.data).toHaveLength(0);
+		});
+
+		test("returns 400 when postIds exceeds cap", async () => {
+			const postIds = Array.from({ length: 101 }, (_, i) => i + 1);
+			const res = await workerPost("/api/v1/posts/attachments/batch", { threadId: 1, postIds });
+			expect(res.status).toBe(400);
+			const data = await res.json();
+			expect(data.error.code).toBe("INVALID_BODY");
+		});
+	});
+
+	// ─── Email verification (rev3) ─────────────────────────────────
+	//
+	// These two routes wrap a real Dove send + KV state machine. The L2 env
+	// does not provision EMAIL_VERIFY_HMAC_KEY / Dove credentials, so
+	// authenticated calls would return 500 INTERNAL_ERROR — that's still the
+	// route handler executing, but error-path coverage is more meaningful via
+	// the noauth gate (withAuthVerified rejects before any handler logic
+	// runs). We keep the 401 case as the canonical L2 hit.
+
+	describe("POST /api/v1/users/me/email/request-code", () => {
+		test("returns 401 without JWT", async () => {
+			const res = await workerPost("/api/v1/users/me/email/request-code", { email: "x@y.com" });
+			expect(res.status).toBe(401);
+		});
+	});
+
+	describe("POST /api/v1/users/me/email/verify", () => {
+		test("returns 401 without JWT", async () => {
+			const body = { email: "x@y.com", code: "000000" };
+			const res = await workerPost("/api/v1/users/me/email/verify", body);
+			expect(res.status).toBe(401);
+		});
+	});
+
+	// ─── Check-in (签到) ───────────────────────────────────────────
+
+	describe("GET /api/v1/checkin/status", () => {
+		test("returns 401 without JWT", async () => {
+			const res = await workerFetch("/api/v1/checkin/status");
+			expect(res.status).toBe(401);
+		});
+
+		test("returns 200 with status for authenticated user", async () => {
+			const jwt = await createTestJwt(100, 0);
+			const res = await workerFetch("/api/v1/checkin/status", {
+				headers: { Authorization: `Bearer ${jwt}` },
+			});
+			expect(res.status).toBe(200);
+			const data = await res.json();
+			expect(data.data).toHaveProperty("checkedInToday");
+			expect(data.data).toHaveProperty("withinWindow");
+		});
+	});
+
+	describe("POST /api/v1/checkin", () => {
+		test("returns 401 without JWT", async () => {
+			const res = await workerPost("/api/v1/checkin", { mood: "happy" });
+			expect(res.status).toBe(401);
+		});
+
+		test("returns 400 for invalid mood", async () => {
+			const jwt = await createTestJwt(100, 0);
+			const res = await workerPost("/api/v1/checkin", { mood: "bogus-mood" }, jwt);
+			expect(res.status).toBe(400);
+			const data = await res.json();
+			expect(data.error.code).toBe("CHECKIN_INVALID_MOOD");
+		});
+	});
+
+	// ─── Upload ────────────────────────────────────────────────────
+
+	describe("POST /api/v1/upload", () => {
+		test("returns 401 without JWT", async () => {
+			// Body shape doesn't matter — auth gate fires first.
+			const res = await workerPost("/api/v1/upload", {});
+			expect(res.status).toBe(401);
+		});
+	});
+
+	// ─── Post images (R2 read-through) ─────────────────────────────
+
+	describe("GET /api/v1/post-images/:key", () => {
+		test("returns 404 for invalid key shape", async () => {
+			// `validatePostImageKey` rejects anything not matching the
+			// post-images/{uuid}.{ext} contract before R2 is touched.
+			const res = await workerFetch("/api/v1/post-images/not-a-real-key");
+			expect(res.status).toBe(404);
+		});
+
+		test("returns 404 for non-existent object", async () => {
+			// Well-formed key (uuid + jpg), but no R2 object at this path.
+			const key = "00000000-0000-0000-0000-000000000000.jpg";
+			const res = await workerFetch(`/api/v1/post-images/${key}`);
+			expect(res.status).toBe(404);
+		});
+	});
 });
