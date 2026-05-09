@@ -24,6 +24,14 @@ export interface Env {
 	 */
 	USE_KV_FORUM_CACHE?: string;
 	/**
+	 * Feature flag: use the v2 forum cache (forum:tree:v2 / forum:summary:v2 /
+	 * forum:meta:v2 — bucket-aware, lazy expansion, generation-keyed). When
+	 * "true", `GET /api/v1/forums*` reads/writes the v2 KV layer; the legacy
+	 * v1 cache (USE_KV_FORUM_CACHE) and the D1 fallback remain for the
+	 * disabled path. Default: false.
+	 */
+	USE_KV_FORUM_CACHE_V2?: string;
+	/**
 	 * HMAC key for email-verification codes (docs/17 §6.2).
 	 * 6-digit codes are too small to resist offline brute-force after KV
 	 * exfiltration; HMAC with a server secret prevents that. Set via
@@ -50,6 +58,11 @@ export interface Env {
 /** Check if KV user cache is enabled */
 export function isKvUserCacheEnabled(env: Env): boolean {
 	return env.USE_KV_USER_CACHE === "true";
+}
+
+/** Check if the v2 forum KV cache is enabled. */
+export function isKvForumCacheV2Enabled(env: Env): boolean {
+	return env.USE_KV_FORUM_CACHE_V2 === "true";
 }
 
 export interface CFRequest extends Request {
