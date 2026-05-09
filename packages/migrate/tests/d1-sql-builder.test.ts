@@ -44,16 +44,20 @@ describe("escapeSQL", () => {
 		expect(escapeSQL("DROP TABLE users; --")).toBe("'DROP TABLE users; --'");
 	});
 
-	test("null bytes are stripped (D1 import parser truncates at \\x00)", () => {
-		expect(escapeSQL("before\x00after")).toBe("'beforeafter'");
-		expect(escapeSQL("\x00leading")).toBe("'leading'");
-		expect(escapeSQL("trailing\x00")).toBe("'trailing'");
-		expect(escapeSQL("\x00")).toBe("''");
-		expect(escapeSQL("no\x00null\x00bytes\x00here")).toBe("'nonullbyteshere'");
+	test("null bytes are replaced with spaces (D1 import parser truncates at \\x00)", () => {
+		expect(escapeSQL("before\x00after")).toBe("'before after'");
+		expect(escapeSQL("\x00leading")).toBe("' leading'");
+		expect(escapeSQL("trailing\x00")).toBe("'trailing '");
+		expect(escapeSQL("\x00")).toBe("' '");
+		expect(escapeSQL("no\x00null\x00bytes\x00here")).toBe("'no null bytes here'");
+	});
+
+	test("consecutive null bytes are each replaced with a space", () => {
+		expect(escapeSQL("a\x00\x00b")).toBe("'a  b'");
 	});
 
 	test("null bytes and single quotes are both handled", () => {
-		expect(escapeSQL("it's\x00 broken")).toBe("'it''s broken'");
+		expect(escapeSQL("it's\x00broken")).toBe("'it''s broken'");
 	});
 });
 
