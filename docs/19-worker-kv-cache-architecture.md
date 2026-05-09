@@ -128,7 +128,8 @@ Within one request, gens are memoized per request to avoid multiple
 |--------------------------------------|------------------------------------------------------------------------------|
 | `forum:tree:gen`                     | admin forum create / update / delete / reorder / merge                       |
 | `forum:summary:gen`                  | any thread / post create / delete / move / sticky / digest / highlight / admin forum write / admin statistics recalc-{forums,threads} |
-| `thread:list:gen:<forumId>`          | thread create in forum / move IN/OUT of forum / delete / sticky / digest / highlight / admin batch / admin thread CRUD / moderation full set |
+| `thread:list:gen:<forumId>`          | thread create in forum / move IN/OUT of forum / delete / sticky / digest / close / highlight / admin batch / admin thread CRUD / moderation full set / scoped `recalc-threads` |
+| `thread:list:gen:all`                | unscoped `admin/statistics/recalc-threads` (global thread-list invalidation; embedded into every `thread:list:v2` key alongside per-forum gen — see §3.3.1) |
 | `thread:meta:gen:<threadId>`         | thread row writes / posts count change                                       |
 | `post:list:gen:<threadId>`           | reply create / `editMyPost` / mod editPost / mod delPost / admin post.* / admin batch |
 | `digest:gen`                         | mod digest set/unset, thread delete with `digestLevel > 0`, admin forum rename or visibility change |
@@ -138,21 +139,24 @@ release. The global `forum:summary:gen` is sufficient until measured write
 frequency demands finer granularity (re-evaluate in Phase 7).
 
 ### 3.3.1 `admin/statistics/recalc-threads` and per-thread caches
-Phase 1 only invalidates `forum:summary:gen` from `recalc-threads`, which is
-sufficient because no per-thread / per-forum thread-list cache exists yet.
+Phase 1 only invalidated `forum:summary:gen` from `recalc-threads`, which was
+sufficient because no per-thread / per-forum thread-list cache existed yet.
 
-**Before Phase 3 (`thread:list:v2`) or Phase 4 (`thread:meta:v2`) ships, the
-`recalc-threads` invalidation surface MUST be extended.** Choose one:
+**Phase 3 ships option (b)** for `thread:list:v2`: a global
+`thread:list:gen:all` is embedded into the cache key alongside the per-forum
+`thread:list:gen:<forumId>`. The thread-list key is therefore stamped with
+**both** gens (`...:p1:gf<forumGen>:ga<allGen>`), and `recalc-threads` bumps
+exactly one of them:
 
-- **(a) Targeted bumps** — collect all `(threadId, forumId)` rows touched by
-  the recalc, then bump `thread:list:gen:<forumId>` (deduped) and
-  `thread:meta:gen:<threadId>` for each. Best precision, more code.
-- **(b) Global thread bucket** — introduce a global `thread:list:gen:all` and
-  `thread:meta:gen:all`, embed both into the cache key alongside the
-  per-scope gen, and bump only the global one from `recalc-threads`. Simpler,
-  blows the entire thread cache on every recalc.
+- **scoped** (`{forumId: N}`) → `bumpThreadListGen(env, N)` only.
+- **unscoped** → `bumpThreadListGenAll(env)` only — a single KV write
+  invalidates every per-forum thread-list cache in one stroke.
 
-Phase 3/4 shipping is **gated** on this decision being made and implemented.
+Option (a) (targeted per-thread/per-forum bumps after collecting touched rows)
+was rejected for `recalc-threads` because the operation is rare, low-frequency,
+and a coarse global bump is cheaper than collecting and deduping touched
+forums. Phase 4 (`thread:meta:v2`) will revisit this for `thread:meta:gen`
+when it ships.
 
 
 ### 3.4 Single-key delete inventory
@@ -178,7 +182,7 @@ variants (`public` and `staff`) every time.
 | `forum:tree:v2:<bucket>:g<gen>`                                                      | 24h     | anon/member/staff/admin | `forum:tree:gen`     |
 | `forum:summary:v2:<bucket>:g<gen>`                                                   | 5–10min | anon/member/staff/admin | `forum:summary:gen`  |
 | `forum:meta:v2:<forumId>:<bucket>:g<gen>`                                            | 10min   | anon/member/staff/admin | `forum:summary:gen`  |
-| `thread:list:v2:<forumId>:<sort>:<limitBucket>:<bucket>:p1:g<gen>`                   | 5min    | anon/member/staff/admin | `thread:list:gen:<forumId>` |
+| `thread:list:v2:<forumId>:<sort>:<limitBucket>:p1:gf<forumGen>:ga<allGen>`            | 5min    | bucket-independent (forum visibility gate via `forum:meta:v2` BEFORE cache lookup) | `thread:list:gen:<forumId>` + `thread:list:gen:all` |
 | `thread:meta:v2:<threadId>:<bucket>:g<gen>`                                          | 2min    | anon/member/staff/admin | `thread:meta:gen:<threadId>` |
 | `post:list:v2:<threadId>:<limitBucket>:<bucket>:p1:g<gen>`                           | 2min    | anon/member/staff/admin | `post:list:gen:<threadId>` |
 | `digest:list:v2:<bucket>:<forumId\|all>:<level\|all>:<year\|all>:p1:g<gen>`          | 30min   | anon/member/staff/admin | `digest:gen`         |
@@ -301,7 +305,7 @@ Layering legend:
 | admin user CRUD / nuke / purge / ban                    | —                                                                                                 | `user:mini:v2:<id>`, `deleteUserPublicVariants(env, id)` |
 | admin user batch-status / batch-role / batch-recalc-counters | —                                                                                            | per-id `user:mini:v2:<id>` + `deleteUserPublicVariants(env, id)` |
 | admin statistics recalc-forums                          | `forum:summary:gen`                                                                               | — |
-| admin statistics recalc-threads                         | `forum:summary:gen` (Phase 1). **Before Phase 3/4 ships, must extend per §3.3.1: either bump per-thread/per-forum gens, or introduce `thread:list:gen:all` + `thread:meta:gen:all`.** | — |
+| admin statistics recalc-threads                         | scoped (`{forumId: N}`) → `forum:summary:gen` + `thread:list:gen:<N>`; unscoped → `forum:summary:gen` + `thread:list:gen:all` (see §3.3.1) | — |
 | admin statistics recalc-users                           | —                                                                                                 | per-id `user:mini:v2:<id>` + `deleteUserPublicVariants(env, id)` |
 | admin settings PUT                                      | —                                                                                                 | `settings:all:v2` |
 | admin announcement / report / censor / ipBan / adminLog | —                                                                                                 | — |
@@ -368,14 +372,14 @@ Implemented under `apps/worker/src/lib/cache/`:
 | 0     | This doc.                                                                                      | Phase 0  |
 | 1     | Foundation helpers under `apps/worker/src/lib/cache/`. Fix existing invalidation gaps (thread/post create → forum volatile; admin statistics recalc-{forums,threads,users}; admin user batch-status / batch-role / batch-recalc-counters; single recalcCounters). `search.ts` reads `general.search.enabled` via `getSetting`. `apps/admin/src/lib/api-client.ts` sets `cache: "no-store"`. **No new business cache.** | Phase 1  |
 | 2     | `forum:tree:v2` + `forum:summary:v2` + `forum:meta:v2` + `forums/:id/ancestors`. Visible-last-thread semantics (§4.1). v2 invalidation wired across forum CRUD/reorder/update/merge via `invalidateForumStructureV2` / `invalidateForumReorderV2` / `invalidateForumUpdateV2({affectsDigest})` / `invalidateForumSummaryV2`. Reuses `lib/cache/` from Phase 1. v1 forum cache + `USE_KV_FORUM_CACHE_V2` flag removed in the same release; forum read path is v2-only. | Phase 2  |
-| 3     | `thread:list:v2` for `GET /api/v1/threads?forumId=…&page=1`. **Gated on §3.3.1: `recalc-threads` invalidation must be extended (per-thread/per-forum bumps OR `thread:list:gen:all`) before this phase ships.** | deferred |
+| 3     | `thread:list:v2` for `GET /api/v1/threads?forumId=…&page=1`. Two-gen scheme (`thread:list:gen:<forumId>` + `thread:list:gen:all`); bucket-independent payload guarded by `forum:meta:v2` visibility gate before cache lookup. §3.3.1 option (b) implemented for `recalc-threads`. Full invalidation matrix wired across moderation / admin / user-content write paths. | Phase 3  |
 | 4     | `post:list:v2` + `thread:meta:v2`. View-count batching not included. **Same §3.3.1 gate applies for `thread:meta:v2`.** | deferred |
 | 5     | `digest:list:v2` / `digest:stats:v2` / `digest:filters:v2`.                                     | deferred |
 | 6     | `user:public:v2` + PM short private cache.                                                     | deferred |
 | 7     | Hardening: cache metrics, evaluate per-forum `forum:meta:gen`, evaluate `users/batch` cache, view-count batching evaluation. | deferred |
 
-**First release = Phase 0 + 1 + 2.** Phases 3–7 are dispatched separately
-after the first release lands and is observed.
+**First release = Phase 0 + 1 + 2 + 3.** Phases 4–7 are dispatched separately
+after Phase 3 lands and is observed.
 
 ---
 
