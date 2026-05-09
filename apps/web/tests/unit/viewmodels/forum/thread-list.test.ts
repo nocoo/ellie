@@ -1,5 +1,10 @@
-import { enrichThreads, getThreadIconSrc, highlightStyle } from "@/viewmodels/forum/thread-list";
-import { decodeHighlight } from "@ellie/types";
+import {
+	enrichThreads,
+	filterIconRedundantBadges,
+	getThreadIconSrc,
+	highlightStyle,
+} from "@/viewmodels/forum/thread-list";
+import { decodeHighlight, getThreadBadges } from "@ellie/types";
 import type { Thread } from "@ellie/types";
 import { StickyLevel } from "@ellie/types";
 import { describe, expect, it } from "vitest";
@@ -50,25 +55,25 @@ describe("enrichThreads", () => {
 		expect(Array.isArray(items[0]?.badges)).toBe(true);
 	});
 
-	it("produces badges for sticky thread", () => {
+	it("produces badges for sticky thread (filtered: no sticky badge)", () => {
 		const threads = [makeThread({ id: 1, sticky: StickyLevel.Global })];
 		const items = enrichThreads(threads);
-		expect(items[0]?.badges.length).toBeGreaterThan(0);
-		expect(items[0]?.badges[0]?.type).toBe("sticky");
+		// sticky badge filtered out — icon represents it
+		expect(items[0]?.badges.some((b) => b.type === "sticky")).toBe(false);
 	});
 
-	it("produces badges for digest thread", () => {
+	it("produces badges for digest thread (filtered: no digest badge)", () => {
 		const threads = [makeThread({ id: 1, digest: 2 })];
 		const items = enrichThreads(threads);
-		const digestBadge = items[0]?.badges.find((b) => b.type === "digest");
-		expect(digestBadge).toBeTruthy();
+		// digest badge filtered out — icon represents it
+		expect(items[0]?.badges.some((b) => b.type === "digest")).toBe(false);
 	});
 
-	it("produces badges for closed thread", () => {
+	it("produces badges for closed thread (filtered: no closed badge)", () => {
 		const threads = [makeThread({ id: 1, closed: 1 })];
 		const items = enrichThreads(threads);
-		const closedBadge = items[0]?.badges.find((b) => b.type === "closed");
-		expect(closedBadge).toBeTruthy();
+		// closed badge filtered out — icon represents it
+		expect(items[0]?.badges.some((b) => b.type === "closed")).toBe(false);
 	});
 
 	it("returns null highlight when highlight=0", () => {
@@ -175,6 +180,50 @@ describe("getThreadIconSrc", () => {
 		expect(result).toContain("pollsmall.gif");
 	});
 
+	it("returns trade icon for special=2 thread", () => {
+		const result = getThreadIconSrc({
+			closed: 0,
+			special: 2,
+			sticky: StickyLevel.None,
+			digest: 0,
+			lastPostAt: Date.now() / 1000,
+		});
+		expect(result).toContain("tradesmall.gif");
+	});
+
+	it("returns reward icon for special=3 thread", () => {
+		const result = getThreadIconSrc({
+			closed: 0,
+			special: 3,
+			sticky: StickyLevel.None,
+			digest: 0,
+			lastPostAt: Date.now() / 1000,
+		});
+		expect(result).toContain("rewardsmall.gif");
+	});
+
+	it("returns activity icon for special=4 thread", () => {
+		const result = getThreadIconSrc({
+			closed: 0,
+			special: 4,
+			sticky: StickyLevel.None,
+			digest: 0,
+			lastPostAt: Date.now() / 1000,
+		});
+		expect(result).toContain("activitysmall.gif");
+	});
+
+	it("returns debate icon for special=5 thread", () => {
+		const result = getThreadIconSrc({
+			closed: 0,
+			special: 5,
+			sticky: StickyLevel.None,
+			digest: 0,
+			lastPostAt: Date.now() / 1000,
+		});
+		expect(result).toContain("debatesmall.gif");
+	});
+
 	it("returns pin icon for forum-level sticky", () => {
 		const result = getThreadIconSrc({
 			closed: 0,
@@ -208,7 +257,7 @@ describe("getThreadIconSrc", () => {
 		expect(result).toContain("pin_3.gif");
 	});
 
-	it("caps sticky level at 3 for pin icon filename", () => {
+	it("caps sticky level at 4 for pin icon filename", () => {
 		const result = getThreadIconSrc({
 			closed: 0,
 			special: 0,
@@ -216,8 +265,8 @@ describe("getThreadIconSrc", () => {
 			digest: 0,
 			lastPostAt: Date.now() / 1000,
 		});
-		// Math.min(sticky, 3) = 3
-		expect(result).toContain("pin_3.gif");
+		// Math.min(sticky, 4) = 4
+		expect(result).toContain("pin_4.gif");
 	});
 
 	it("returns digest icon for digest level 1", () => {
@@ -332,5 +381,58 @@ describe("getThreadIconSrc", () => {
 			lastPostAt: 0,
 		});
 		expect(result).toContain("https://t.no.mt/static/image/common/");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// filterIconRedundantBadges
+// ---------------------------------------------------------------------------
+
+describe("filterIconRedundantBadges", () => {
+	it("removes sticky badge (already shown by pin icon)", () => {
+		const thread = makeThread({ id: 1, sticky: StickyLevel.Global });
+		const badges = getThreadBadges(thread);
+		expect(badges.some((b) => b.type === "sticky")).toBe(true);
+		const filtered = filterIconRedundantBadges(badges);
+		expect(filtered.some((b) => b.type === "sticky")).toBe(false);
+	});
+
+	it("removes digest badge (already shown by digest icon)", () => {
+		const thread = makeThread({ id: 1, digest: 2 });
+		const badges = getThreadBadges(thread);
+		expect(badges.some((b) => b.type === "digest")).toBe(true);
+		const filtered = filterIconRedundantBadges(badges);
+		expect(filtered.some((b) => b.type === "digest")).toBe(false);
+	});
+
+	it("removes closed badge (already shown by folder_lock icon)", () => {
+		const thread = makeThread({ id: 1, closed: 1 });
+		const badges = getThreadBadges(thread);
+		expect(badges.some((b) => b.type === "closed")).toBe(true);
+		const filtered = filterIconRedundantBadges(badges);
+		expect(filtered.some((b) => b.type === "closed")).toBe(false);
+	});
+
+	it("removes special badge (already shown by special icon)", () => {
+		const thread = makeThread({ id: 1, special: 1 });
+		const badges = getThreadBadges(thread);
+		expect(badges.some((b) => b.type === "special")).toBe(true);
+		const filtered = filterIconRedundantBadges(badges);
+		expect(filtered.some((b) => b.type === "special")).toBe(false);
+	});
+
+	it("keeps typeName badge (no icon equivalent)", () => {
+		const thread = makeThread({ id: 1, typeName: "讨论", sticky: StickyLevel.Forum });
+		const badges = getThreadBadges(thread);
+		const filtered = filterIconRedundantBadges(badges);
+		expect(filtered.some((b) => b.type === "typeName")).toBe(true);
+		expect(filtered.some((b) => b.type === "sticky")).toBe(false);
+	});
+
+	it("returns empty array when all badges are icon-represented", () => {
+		const thread = makeThread({ id: 1, sticky: StickyLevel.Forum, digest: 1 });
+		const badges = getThreadBadges(thread);
+		const filtered = filterIconRedundantBadges(badges);
+		expect(filtered).toHaveLength(0);
 	});
 });
