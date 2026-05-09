@@ -7,6 +7,7 @@ import {
 	bumpForumTreeGen,
 	bumpPostListGen,
 	bumpThreadListGen,
+	bumpThreadListGenAll,
 	bumpThreadMetaGen,
 	deleteUserMini,
 	deleteUserPublicVariants,
@@ -15,6 +16,7 @@ import {
 	invalidateForumSummaryV2,
 	invalidateForumUpdateV2,
 	invalidateForumVolatileV2,
+	invalidateThreadListForForums,
 	invalidateUserCaches,
 } from "../../../../src/lib/cache/invalidate";
 import { makeEnv } from "../../../helpers";
@@ -112,6 +114,16 @@ describe("cache/invalidate — gen bump helpers", () => {
 		expect(store.get("thread:list:gen:9")).toBe(tok);
 	});
 
+	it("bumpThreadListGenAll writes thread:list:gen:all (global)", async () => {
+		const { kv, store } = inMemoryKV();
+		const env = makeEnv({ KV: kv });
+		const tok = await bumpThreadListGenAll(env);
+		expect(store.get("thread:list:gen:all")).toBe(tok);
+		// Must NOT touch any per-forum gen.
+		expect(store.has("thread:list:gen:1")).toBe(false);
+		expect(store.has("thread:list:gen:42")).toBe(false);
+	});
+
 	it("bumpThreadMetaGen scopes per threadId", async () => {
 		const { kv, store } = inMemoryKV();
 		const env = makeEnv({ KV: kv });
@@ -142,6 +154,25 @@ describe("cache/invalidate — composite helpers", () => {
 
 		expect(store.get("forum:summary:gen")?.length).toBeGreaterThan(0);
 		expect(store.get("thread:list:gen:4")?.length).toBeGreaterThan(0);
+	});
+
+	it("invalidateThreadListForForums bumps each per-forum gen exactly once (dedupes)", async () => {
+		const { kv, store } = inMemoryKV();
+		const env = makeEnv({ KV: kv });
+		await invalidateThreadListForForums(env, [3, 7, 3, 11, 7]);
+		expect(store.get("thread:list:gen:3")?.length).toBeGreaterThan(0);
+		expect(store.get("thread:list:gen:7")?.length).toBeGreaterThan(0);
+		expect(store.get("thread:list:gen:11")?.length).toBeGreaterThan(0);
+		// Did not touch the global gen.
+		expect(store.has("thread:list:gen:all")).toBe(false);
+	});
+
+	it("invalidateThreadListForForums is a no-op for empty input", async () => {
+		const { kv, store } = inMemoryKV();
+		const env = makeEnv({ KV: kv });
+		await invalidateThreadListForForums(env, []);
+		expect(store.size).toBe(0);
+		expect(kv.put).not.toHaveBeenCalled();
 	});
 
 	it("invalidateForumSummaryV2 bumps ONLY forum:summary:gen", async () => {

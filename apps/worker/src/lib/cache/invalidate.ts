@@ -16,6 +16,7 @@ import {
 	forumSummaryGenKey,
 	forumTreeGenKey,
 	postListGenKey,
+	threadListGenAllKey,
 	threadListGenKey,
 	threadMetaGenKey,
 	userMiniKey,
@@ -79,6 +80,39 @@ export async function bumpForumSummaryGen(env: Env): Promise<string> {
 
 export async function bumpThreadListGen(env: Env, forumId: number): Promise<string> {
 	return bumpGen(env, threadListGenKey(forumId));
+}
+
+/**
+ * Bump the global thread-list generation `thread:list:gen:all`. Embedded
+ * as the second gen component of every `thread:list:v2` key, so a single
+ * write here invalidates EVERY per-forum thread-list cache without
+ * scanning per-forum gens.
+ *
+ * Reserved for low-frequency admin operations where the affected
+ * `forumId` set isn't known up-front:
+ *   - `admin/statistics/recalc-threads`
+ *   - `admin/user/purge` fallback when affected forums can't be enumerated
+ *
+ * Per-forum mutations MUST use `bumpThreadListGen(env, forumId)` instead.
+ * See docs/19 §3.3.1 option (b).
+ */
+export async function bumpThreadListGenAll(env: Env): Promise<string> {
+	return bumpGen(env, threadListGenAllKey());
+}
+
+/**
+ * Bump per-forum `thread:list:gen` for a set of forumIds in parallel.
+ * Used by admin write paths that touch multiple forums in one operation
+ * (batch move, nuke, batch delete) so the matrix is enforced in one call.
+ * Empty input is a no-op.
+ */
+export async function invalidateThreadListForForums(
+	env: Env,
+	forumIds: readonly number[],
+): Promise<void> {
+	if (forumIds.length === 0) return;
+	const unique = Array.from(new Set(forumIds));
+	await Promise.all(unique.map((id) => bumpThreadListGen(env, id)));
 }
 
 export async function bumpThreadMetaGen(env: Env, threadId: number): Promise<string> {
