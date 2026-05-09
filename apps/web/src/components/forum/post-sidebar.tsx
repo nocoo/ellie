@@ -99,6 +99,14 @@ export function PostSidebar({
 			{/* Detail rows — aligned label:value pairs */}
 			{author && (
 				<div className="w-full space-y-1 text-xs text-muted-foreground mt-1">
+					{/* Campus — top of detail block, hidden when empty */}
+					{author.campus && (
+						<div className="flex items-baseline justify-between gap-1">
+							<span className="shrink-0 text-muted-foreground">校区:</span>
+							<span className="text-right truncate">{author.campus}</span>
+						</div>
+					)}
+
 					{/* Group title + level */}
 					{author.groupTitle && (
 						<div className="flex items-baseline justify-between gap-1">

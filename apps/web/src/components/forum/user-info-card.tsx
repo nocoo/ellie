@@ -21,6 +21,7 @@ export function UserInfoCard({ user }: { user: UserProfileData["user"] }) {
 
 	// Collect all info rows — only show card if at least one field has data
 	const infoRows: { label: string; value: string }[] = [];
+	if (user.campus) infoRows.push({ label: "校区", value: user.campus });
 	if (gender) infoRows.push({ label: "性别", value: gender });
 	if (birthday) infoRows.push({ label: "生日", value: birthday });
 	if (location) infoRows.push({ label: "居住地", value: location });

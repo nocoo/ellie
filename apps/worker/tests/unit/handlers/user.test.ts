@@ -150,6 +150,7 @@ describe("user handlers", () => {
 				"interest",
 				"qq",
 				"site",
+				"campus",
 				"reg_ip",
 				"last_ip",
 				"status",
