@@ -42,25 +42,23 @@ export function ThreadItem({ item, postsPerPage }: ThreadItemProps) {
 					/>
 				</Link>
 
-				{/* Column 1: Subject — inline flow so digest/pages follow title text */}
-				<div className="min-w-0 flex-1 py-2 px-3 truncate">
+				{/* Column 1: Subject — flex row so title truncates but accessories stay visible */}
+				<div className="min-w-0 flex-1 py-2 px-3 flex items-center gap-1.5">
 					{badges.length > 0 && (
-						<span className="inline-flex items-center gap-1 align-middle mr-1.5">
+						<span className="inline-flex items-center gap-1 shrink-0">
 							<ThreadBadgeList badges={badges} />
 						</span>
 					)}
 					<Link
 						href={`/threads/${thread.id}`}
 						prefetch={false}
-						className="text-sm text-foreground hover:text-primary transition-colors align-middle"
+						className="min-w-0 truncate text-sm text-foreground hover:text-primary transition-colors"
 						style={highlightStyle(hl)}
 					>
 						{thread.subject}
 					</Link>
-					{digestSrc && (
-						<img src={digestSrc} alt="digest" className="inline-block align-middle ml-1.5" />
-					)}
-					<span className="align-middle ml-1">
+					{digestSrc && <img src={digestSrc} alt="digest" className="shrink-0" />}
+					<span className="shrink-0">
 						<ThreadInlinePages
 							threadId={thread.id}
 							replies={thread.replies}
@@ -72,7 +70,7 @@ export function ThreadItem({ item, postsPerPage }: ThreadItemProps) {
 				{/* Column 2: Author (fixed, centered) */}
 				<div className="flex flex-col items-center justify-center w-[100px] shrink-0 py-2 text-center">
 					<UserPopover userId={thread.authorId}>
-						<span className="text-xs text-foreground font-medium hover:text-primary transition-colors truncate max-w-full cursor-pointer">
+						<span className="block text-xs text-foreground font-medium hover:text-primary transition-colors truncate max-w-full cursor-pointer">
 							{thread.authorName}
 						</span>
 					</UserPopover>
@@ -117,19 +115,17 @@ export function ThreadItem({ item, postsPerPage }: ThreadItemProps) {
 								<ThreadBadgeList badges={badges} />
 							</div>
 						)}
-						<div className="truncate">
+						<div className="flex items-center gap-1.5">
 							<Link
 								href={`/threads/${thread.id}`}
 								prefetch={false}
-								className="text-sm text-foreground hover:text-primary transition-colors align-middle"
+								className="min-w-0 truncate text-sm text-foreground hover:text-primary transition-colors"
 								style={highlightStyle(hl)}
 							>
 								{thread.subject}
 							</Link>
-							{digestSrc && (
-								<img src={digestSrc} alt="digest" className="inline-block align-middle ml-1.5" />
-							)}
-							<span className="align-middle ml-1">
+							{digestSrc && <img src={digestSrc} alt="digest" className="shrink-0" />}
+							<span className="shrink-0">
 								<ThreadInlinePages
 									threadId={thread.id}
 									replies={thread.replies}
