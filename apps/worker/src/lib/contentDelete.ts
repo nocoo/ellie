@@ -54,3 +54,25 @@ export function buildDeleteThreadChildStatements(
 		env.DB.prepare(`DELETE FROM post_comments WHERE thread_id IN (${ph})`).bind(...threadIds),
 	];
 }
+
+// ---------------------------------------------------------------------------
+// Chunked batch execution
+// ---------------------------------------------------------------------------
+
+/** Maximum statements per D1 batch call. Keeps well under D1 limits. */
+const D1_BATCH_CHUNK_SIZE = 80;
+
+/**
+ * Execute an array of D1 prepared statements in chunks, avoiding the D1
+ * batch size limit. Each chunk runs as an independent batch; callers must
+ * ensure cross-chunk ordering is acceptable.
+ */
+export async function batchChunked(
+	db: D1Database,
+	statements: D1PreparedStatement[],
+): Promise<void> {
+	if (statements.length === 0) return;
+	for (let i = 0; i < statements.length; i += D1_BATCH_CHUNK_SIZE) {
+		await db.batch(statements.slice(i, i + D1_BATCH_CHUNK_SIZE));
+	}
+}

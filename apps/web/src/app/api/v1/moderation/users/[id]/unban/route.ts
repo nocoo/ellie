@@ -30,10 +30,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 		return NextResponse.json(result);
 	} catch (err) {
 		if (err instanceof ForumApiError) return forumApiErrorToProxyResponse(err);
+		const message = err instanceof Error ? err.message : "Internal server error";
 		console.error("[moderation/users/[id]/unban/route] forumApi.postAuth error:", err);
-		return NextResponse.json(
-			{ error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
-			{ status: 500 },
-		);
+		return NextResponse.json({ error: { code: "INTERNAL_ERROR", message } }, { status: 500 });
 	}
 }
