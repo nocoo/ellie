@@ -134,6 +134,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 							pages={data.pages}
 							total={data.total}
 							basePath={basePath}
+							totalLabel="个主题"
 							className="flex flex-1 flex-wrap items-center justify-end gap-2"
 						/>
 					</div>
@@ -168,6 +169,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 							pages={data.pages}
 							total={data.total}
 							basePath={basePath}
+							totalLabel="个主题"
 							className="flex flex-1 flex-wrap items-center justify-end gap-2"
 						/>
 					</div>
