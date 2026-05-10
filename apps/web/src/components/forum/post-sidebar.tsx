@@ -100,17 +100,17 @@ export function PostSidebar({
 						<div className="text-sm font-medium text-forum-link">
 							{formatNumber(author.threads)}
 						</div>
-						<div className="text-2xs text-muted-foreground">主题</div>
+						<div className="text-[10px] leading-3 text-muted-foreground">主题</div>
 					</div>
 					<div className="py-1 px-0.5">
 						<div className="text-sm font-medium text-forum-link">{formatNumber(author.posts)}</div>
-						<div className="text-2xs text-muted-foreground">回复</div>
+						<div className="text-[10px] leading-3 text-muted-foreground">回复</div>
 					</div>
 					<div className="py-1 px-0.5">
 						<div className="text-sm font-medium text-forum-link">
 							{formatNumber(author.credits)}
 						</div>
-						<div className="text-2xs text-muted-foreground">积分</div>
+						<div className="text-[10px] leading-3 text-muted-foreground">积分</div>
 					</div>
 				</div>
 			)}
@@ -121,17 +121,16 @@ export function PostSidebar({
 					{/* Campus — top of detail block, hidden when empty */}
 					{author.campus && (
 						<div className="flex items-baseline justify-between gap-1">
-							<span className="shrink-0 text-muted-foreground">校区:</span>
+							<span className="shrink-0 text-[10px] leading-3 text-muted-foreground">校区:</span>
 							<span className="text-right truncate">{author.campus}</span>
 						</div>
 					)}
 
-					{/* Group title + level */}
+					{/* Group title — centered, no label */}
 					{author.groupTitle && (
-						<div className="flex items-baseline justify-between gap-1">
-							<span className="shrink-0 text-muted-foreground">头衔:</span>
+						<div className="flex justify-center text-center">
 							<span
-								className="font-medium text-right"
+								className="font-medium text-xs"
 								style={author.groupColor ? { color: author.groupColor } : undefined}
 							>
 								{author.groupTitle}
@@ -142,22 +141,21 @@ export function PostSidebar({
 					{/* Level */}
 					{author.groupStars > 0 && (
 						<div className="flex items-baseline justify-between gap-1">
-							<span className="shrink-0 text-muted-foreground">等级:</span>
+							<span className="shrink-0 text-[10px] leading-3 text-muted-foreground">等级:</span>
 							<span>Lv.{author.groupStars}</span>
 						</div>
 					)}
 
-					{/* Custom title */}
+					{/* Custom title — centered, no label */}
 					{author.customTitle && (
-						<div className="flex items-baseline justify-between gap-1">
-							<span className="shrink-0 text-muted-foreground">自定义:</span>
-							<span className="italic text-right truncate">{author.customTitle}</span>
+						<div className="flex justify-center text-center">
+							<span className="italic text-xs truncate">{author.customTitle}</span>
 						</div>
 					)}
 
 					{/* UID */}
 					<div className="flex items-baseline justify-between gap-1">
-						<span className="shrink-0 text-muted-foreground">UID:</span>
+						<span className="shrink-0 text-[10px] leading-3 text-muted-foreground">UID:</span>
 						<Link
 							href={`/users/${author.id}`}
 							prefetch={false}
@@ -169,20 +167,20 @@ export function PostSidebar({
 
 					{/* Credits */}
 					<div className="flex items-baseline justify-between gap-1">
-						<span className="shrink-0 text-muted-foreground">同钱:</span>
+						<span className="shrink-0 text-[10px] leading-3 text-muted-foreground">同钱:</span>
 						<span>{formatNumber(author.coins ?? 0)}</span>
 					</div>
 
 					{/* Registration date */}
 					<div className="flex items-baseline justify-between gap-1">
-						<span className="shrink-0 text-muted-foreground">注册:</span>
+						<span className="shrink-0 text-[10px] leading-3 text-muted-foreground">注册:</span>
 						<span>{formatDate(author.regDate)}</span>
 					</div>
 
 					{/* Online time */}
 					{author.olTime > 0 && (
 						<div className="flex items-baseline justify-between gap-1">
-							<span className="shrink-0 text-muted-foreground">在线:</span>
+							<span className="shrink-0 text-[10px] leading-3 text-muted-foreground">在线:</span>
 							<span>{formatNumber(author.olTime)} 小时</span>
 						</div>
 					)}
@@ -190,7 +188,7 @@ export function PostSidebar({
 					{/* Digest posts */}
 					{author.digestPosts > 0 && (
 						<div className="flex items-baseline justify-between gap-1">
-							<span className="shrink-0 text-muted-foreground">精华:</span>
+							<span className="shrink-0 text-[10px] leading-3 text-muted-foreground">精华:</span>
 							<span>{formatNumber(author.digestPosts)}</span>
 						</div>
 					)}
@@ -198,13 +196,13 @@ export function PostSidebar({
 					{/* Thread stats — first post only */}
 					{isFirst && threadViews !== undefined && (
 						<div className="flex items-baseline justify-between gap-1">
-							<span className="shrink-0 text-muted-foreground">查看:</span>
+							<span className="shrink-0 text-[10px] leading-3 text-muted-foreground">查看:</span>
 							<span>{formatNumber(threadViews)}</span>
 						</div>
 					)}
 					{isFirst && threadReplies !== undefined && (
 						<div className="flex items-baseline justify-between gap-1">
-							<span className="shrink-0 text-muted-foreground">回复:</span>
+							<span className="shrink-0 text-[10px] leading-3 text-muted-foreground">回复:</span>
 							<span>{formatNumber(threadReplies)}</span>
 						</div>
 					)}
