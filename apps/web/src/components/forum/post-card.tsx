@@ -133,6 +133,7 @@ export function PostCard({
 			postId={post.id}
 			threadClosed={threadClosed}
 			isLoggedIn={currentUserId !== null}
+			initialComments={post.comments}
 			dialogOpen={commentDialogOpen}
 			onDialogOpenChange={setCommentDialogOpen}
 		/>

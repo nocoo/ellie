@@ -14,6 +14,7 @@ import {
 	type Attachment,
 	type Forum,
 	type Post,
+	type PostComment,
 	type PublicUser,
 	type Thread,
 	type User,
@@ -29,6 +30,7 @@ import {
 	type EnrichedPost,
 	enrichPosts,
 	groupAttachmentsByPostId,
+	groupCommentsByPostId,
 	uniqueAuthorIds,
 } from "./thread-detail";
 
@@ -130,13 +132,12 @@ export async function loadThreadDetail(params: {
 	const canMove = canMoveThread(currentUser);
 	const canDelete = forum ? canDeleteThread(currentUser, thread, forum) : false;
 
-	// Fetch attachments and authors in parallel using batch endpoints
-	// (eliminates N+1: 1 batch request instead of N per-post attachment requests,
-	//  and 1 batch request instead of M per-author user requests)
+	// Fetch attachments, comments, and authors in parallel using batch endpoints
+	// (eliminates N+1: 1 batch request per resource type instead of N per-post requests)
 	const postIds = postsRes.data.map((p) => p.id);
 	const authorIds = uniqueAuthorIds(postsRes.data);
 
-	const [batchAttachmentRes, batchAuthorRes] = await Promise.all([
+	const [batchAttachmentRes, batchCommentRes, batchAuthorRes] = await Promise.all([
 		// Batch attachment fetch: POST /api/v1/posts/attachments/batch
 		postIds.length > 0
 			? forumApi
@@ -147,6 +148,16 @@ export async function loadThreadDetail(params: {
 					.then((res) => res.data)
 					.catch(() => [] as Attachment[])
 			: Promise.resolve([] as Attachment[]),
+		// Batch comment fetch: POST /api/v1/post-comments/batch
+		postIds.length > 0
+			? forumApi
+					.post<PostComment[]>("/api/v1/post-comments/batch", {
+						threadId: params.threadId,
+						postIds,
+					})
+					.then((res) => res.data)
+					.catch(() => [] as PostComment[])
+			: Promise.resolve([] as PostComment[]),
 		// Batch author fetch: GET /api/v1/users/batch?ids=1,2,3
 		authorIds.length > 0
 			? forumApi
@@ -165,14 +176,17 @@ export async function loadThreadDetail(params: {
 	]);
 
 	const allAttachments = batchAttachmentRes;
+	const allComments = batchCommentRes;
 	const authorMap = batchAuthorRes;
 
-	// Group attachments by postId and enrich posts
+	// Group attachments and comments by postId and enrich posts
 	const attachmentMap = groupAttachmentsByPostId(allAttachments);
+	const commentMap = groupCommentsByPostId(allComments);
 	const posts = enrichPosts(
 		postsRes.data,
 		authorMap,
 		attachmentMap,
+		commentMap,
 		currentUser,
 		forum ?? { moderators: "" },
 	);
