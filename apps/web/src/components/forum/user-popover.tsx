@@ -78,6 +78,8 @@ interface UserPopoverProps {
 	align?: "start" | "center" | "end";
 	/** Disable popover (just render children) */
 	disabled?: boolean;
+	/** Additional className applied to the PopoverTrigger element */
+	triggerClassName?: string;
 }
 
 interface UserPopoverData {
@@ -152,6 +154,7 @@ export function UserPopover({
 	side = "bottom",
 	align = "start",
 	disabled = false,
+	triggerClassName,
 }: UserPopoverProps) {
 	const { data: session } = useSession();
 	const toast = useForumToast();
@@ -272,7 +275,7 @@ export function UserPopover({
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger className="cursor-pointer">{children}</PopoverTrigger>
+			<PopoverTrigger className={cn("cursor-pointer", triggerClassName)}>{children}</PopoverTrigger>
 			<PopoverContent
 				side={side}
 				align={align}
