@@ -2,6 +2,8 @@
 import { FloatingActions } from "@/components/forum/floating-actions";
 import { PostCard } from "@/components/forum/post-card";
 import { ReplyDialog } from "@/components/forum/reply-dialog";
+import { ThreadModMenu } from "@/components/forum/thread-mod-menu";
+import { getStaticImageUrl } from "@/lib/cdn";
 import { buildQuoteSnippet } from "@/lib/text";
 import { preflightEmailVerifiedBlock } from "@/viewmodels/forum/email-not-verified-dispatch";
 import type { EnrichedPost } from "@/viewmodels/forum/thread-detail";
@@ -92,6 +94,15 @@ export function ThreadPostsClient({
 
 	return (
 		<>
+			{/* Thread toolbar — reply button + mod actions (before posts) */}
+			<ThreadToolbar
+				thread={thread}
+				canManageThread={canManageThread}
+				canMoveThread={canMoveThread}
+				canDeleteThread={canDeleteThread}
+				onReply={handleQuickReply}
+			/>
+
 			{/* Posts */}
 			{posts.map((post) => {
 				const isFirst = post.isFirst || post.position === 1;
@@ -102,22 +113,23 @@ export function ThreadPostsClient({
 						threadViews={isFirst ? thread.views : undefined}
 						threadReplies={isFirst ? thread.replies : undefined}
 						threadDigest={isFirst ? thread.digest : undefined}
-						threadSticky={isFirst ? thread.sticky : undefined}
-						threadHighlight={isFirst ? thread.highlight : undefined}
 						threadClosed={thread.closed === 1}
 						onReply={() => handleReply(post)}
 						canModerate={canModerateForum}
-						canManageThread={canManageThread}
-						canMoveThread={canMoveThread}
-						canDeleteThread={canDeleteThread}
 						currentUserId={currentUserId}
-						isFirstPost={isFirst}
-						threadId={thread.id}
-						forumId={thread.forumId}
 						threadAuthorId={thread.authorId}
 					/>
 				);
 			})}
+
+			{/* Thread toolbar — reply button + mod actions (after posts) */}
+			<ThreadToolbar
+				thread={thread}
+				canManageThread={canManageThread}
+				canMoveThread={canMoveThread}
+				canDeleteThread={canDeleteThread}
+				onReply={handleQuickReply}
+			/>
 
 			{/* Floating actions: scroll to top, reply button, keyboard hints */}
 			<FloatingActions
@@ -139,5 +151,59 @@ export function ThreadPostsClient({
 				quotedTime={quotedPost?.time}
 			/>
 		</>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// ThreadToolbar — reply button + mod menu, rendered before & after posts
+// ---------------------------------------------------------------------------
+
+function ThreadToolbar({
+	thread,
+	canManageThread,
+	canMoveThread,
+	canDeleteThread,
+	onReply,
+}: {
+	thread: Thread;
+	canManageThread: boolean;
+	canMoveThread: boolean;
+	canDeleteThread: boolean;
+	onReply: () => void;
+}) {
+	const showReply = thread.closed !== 1;
+	const showMod = canManageThread || canMoveThread || canDeleteThread;
+
+	if (!showReply && !showMod) return null;
+
+	return (
+		<div className="flex items-center justify-between border border-border bg-card px-3 py-1.5 -mt-px first:mt-0">
+			{/* Reply button — traditional Discuz image */}
+			{showReply ? (
+				<button type="button" onClick={onReply} className="shrink-0">
+					<img src={getStaticImageUrl("pn_reply.png")} alt="回复" className="block" />
+				</button>
+			) : (
+				<div />
+			)}
+
+			{/* Thread mod menu */}
+			{showMod && (
+				<div className="flex items-center gap-2">
+					<span className="text-xs text-muted-foreground">管理操作</span>
+					<ThreadModMenu
+						threadId={thread.id}
+						forumId={thread.forumId}
+						sticky={thread.sticky}
+						digest={thread.digest}
+						highlight={thread.highlight}
+						closed={thread.closed === 1}
+						canManageThread={canManageThread}
+						canMoveThread={canMoveThread}
+						canDeleteThread={canDeleteThread}
+					/>
+				</div>
+			)}
+		</div>
 	);
 }

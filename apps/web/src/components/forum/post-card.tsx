@@ -17,7 +17,6 @@ import { PostContent } from "@/components/forum/post-content";
 import { PostEditDialog } from "@/components/forum/post-edit-dialog";
 import { PostSidebar } from "@/components/forum/post-sidebar";
 import { ReportDialog } from "@/components/forum/report-dialog";
-import { ThreadModMenu } from "@/components/forum/thread-mod-menu";
 import { ForumAvatar } from "@/components/forum/user-avatar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -33,21 +32,10 @@ interface PostCardProps {
 	threadViews?: number;
 	threadReplies?: number;
 	threadDigest?: number;
-	threadSticky?: number;
-	threadHighlight?: number;
 	threadClosed?: boolean;
 	onReply?: () => void;
 	canModerate: boolean;
-	/** Can manage thread (sticky/highlight/digest/close) */
-	canManageThread: boolean;
-	/** Can move thread (SuperMod/Admin only) */
-	canMoveThread: boolean;
-	/** Can delete thread (SuperMod/Admin or author) */
-	canDeleteThread: boolean;
 	currentUserId: number | null;
-	isFirstPost: boolean;
-	threadId: number;
-	forumId: number;
 	/** Original thread starter's user id (for楼主 icon resolution). */
 	threadAuthorId: number;
 }
@@ -57,18 +45,10 @@ export function PostCard({
 	threadViews,
 	threadReplies,
 	threadDigest,
-	threadSticky,
-	threadHighlight,
 	threadClosed,
 	onReply,
 	canModerate,
-	canManageThread,
-	canMoveThread,
-	canDeleteThread,
 	currentUserId,
-	isFirstPost,
-	threadId,
-	forumId,
 	threadAuthorId,
 }: PostCardProps) {
 	const isFirst = post.isFirst || post.position === 1;
@@ -96,36 +76,17 @@ export function PostCard({
 	const canComment = currentUserId !== null && !threadClosed;
 
 	const actionBar = (
-		<>
-			<PostActionBar
-				onReply={onReply}
-				onComment={canComment ? () => setCommentDialogOpen(true) : undefined}
-				onEdit={canEdit ? actions.handleEdit : undefined}
-				onDelete={canDelete && !isFirst ? actions.handleDeleteClick : undefined}
-				onReport={canReport ? () => setReportDialogOpen(true) : undefined}
-				canEdit={canEdit}
-				canDelete={canDelete && !isFirst}
-				canReport={canReport}
-				canComment={canComment}
-			/>
-			{/* Thread mod menu: only on first post, for users with any management permission */}
-			{isFirstPost && (canManageThread || canMoveThread || canDeleteThread) && (
-				<div className="flex items-center gap-2 border-t border-dashed border-border bg-muted/30 px-3 py-1.5">
-					<span className="text-xs text-muted-foreground">管理操作</span>
-					<ThreadModMenu
-						threadId={threadId}
-						forumId={forumId}
-						sticky={threadSticky ?? 0}
-						digest={threadDigest ?? 0}
-						highlight={threadHighlight ?? 0}
-						closed={threadClosed ?? false}
-						canManageThread={canManageThread}
-						canMoveThread={canMoveThread}
-						canDeleteThread={canDeleteThread}
-					/>
-				</div>
-			)}
-		</>
+		<PostActionBar
+			onReply={onReply}
+			onComment={canComment ? () => setCommentDialogOpen(true) : undefined}
+			onEdit={canEdit ? actions.handleEdit : undefined}
+			onDelete={canDelete && !isFirst ? actions.handleDeleteClick : undefined}
+			onReport={canReport ? () => setReportDialogOpen(true) : undefined}
+			canEdit={canEdit}
+			canDelete={canDelete && !isFirst}
+			canReport={canReport}
+			canComment={canComment}
+		/>
 	);
 
 	const commentsSection = (
