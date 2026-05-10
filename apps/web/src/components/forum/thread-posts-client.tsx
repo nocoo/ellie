@@ -177,7 +177,7 @@ function ThreadToolbar({
 	if (!showReply && !showMod) return null;
 
 	return (
-		<div className="flex items-center justify-between border border-border bg-card px-3 py-1.5 -mt-px first:mt-0">
+		<div className="flex flex-wrap items-center justify-between gap-2 border border-border bg-card px-3 py-1.5 -mt-px first:mt-0">
 			{/* Reply button — traditional Discuz image */}
 			{showReply ? (
 				<button type="button" onClick={onReply} className="shrink-0">
@@ -189,8 +189,8 @@ function ThreadToolbar({
 
 			{/* Thread mod menu */}
 			{showMod && (
-				<div className="flex items-center gap-2">
-					<span className="text-xs text-muted-foreground">管理操作</span>
+				<div className="min-w-0 flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
+					<span className="text-xs text-muted-foreground hidden sm:inline">管理操作</span>
 					<ThreadModMenu
 						threadId={thread.id}
 						forumId={thread.forumId}
