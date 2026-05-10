@@ -55,16 +55,18 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 								{/* Avatar — rounded-rect, image fills directly */}
 								<TrackedUserAvatar uid={user.uid} username={user.username} size="md" />
 
-								{/* Meta: username, group, uid, credits, coins */}
+								{/* Meta: username, uid, role, credits, coins */}
 								<div className="text-right space-y-0.5 min-w-0">
 									<div className="flex items-center justify-end gap-2 min-w-0">
 										<span className="text-sm font-medium text-foreground truncate">
 											{user.username}
 										</span>
 										<span className="text-xs text-muted-foreground shrink-0">UID: {user.uid}</span>
+										<span className="text-xs text-muted-foreground truncate">
+											{user.groupTitle}
+										</span>
 									</div>
-									<div className="flex items-center justify-end gap-3 text-xs text-muted-foreground flex-wrap">
-										<span className="truncate">{user.groupTitle}</span>
+									<div className="flex items-center justify-end gap-3 text-xs text-muted-foreground">
 										<span className="shrink-0">积分 {user.credits}</span>
 										<span className="shrink-0">同钱 {user.coins}</span>
 									</div>
