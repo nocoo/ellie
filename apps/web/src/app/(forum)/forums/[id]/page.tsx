@@ -1,7 +1,7 @@
 // Ref: 04f §6 — RSC page, Discuz classic thread list layout with page-number pagination
 
 import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
-import { ForumFloatingActions } from "@/components/forum/forum-floating-actions";
+import { ForumFloatingToolbar } from "@/components/forum/forum-floating-toolbar";
 import { ForumHeaderClient } from "@/components/forum/forum-header-client";
 import { ForumNewPostButton } from "@/components/forum/forum-new-post-button";
 import { ForumPanel } from "@/components/forum/forum-panel";
@@ -174,8 +174,16 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 						/>
 					</div>
 
-					{/* Floating actions with keyboard shortcuts */}
-					<ForumFloatingActions page={data.page} pages={data.pages} basePath={basePath} />
+					{/* Floating toolbar with keyboard shortcuts, pagination, and new-thread */}
+					<ForumFloatingToolbar
+						page={data.page}
+						pages={data.pages}
+						basePath={basePath}
+						forumId={data.forum?.id}
+						forumName={data.forum?.name}
+						showNewThread={!!data.forum && !isGroup}
+						selfEmailVerifiedAt={self?.emailVerifiedAt ?? null}
+					/>
 				</>
 			)}
 		</div>
