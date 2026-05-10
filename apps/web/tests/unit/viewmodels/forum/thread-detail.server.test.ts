@@ -269,6 +269,12 @@ describe("loadThreadDetail", () => {
 		expect(result.posts[0].comments[0].content).toBe("Nice!");
 		// Post 201 should have 0 comments
 		expect(result.posts[1].comments).toHaveLength(0);
+
+		// Pin endpoint and body contract
+		expect(mockForumApi.post).toHaveBeenCalledWith("/api/v1/post-comments/batch", {
+			threadId: 1,
+			postIds: [200, 201],
+		});
 	});
 
 	it("returns forum as null when thread forumId not in list", async () => {
