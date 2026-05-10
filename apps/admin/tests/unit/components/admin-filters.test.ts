@@ -74,6 +74,45 @@ describe("buildSelectOptions", () => {
 		});
 		expect(first.value).toBe("");
 	});
+
+	it("deduplicates when options already contain an empty-value entry (no duplicate React keys)", () => {
+		// Regression: REPORT_STATUS_OPTIONS already includes { value: "", label: "全部状态" }.
+		// buildSelectOptions must strip it so the prepended placeholder is the only empty option.
+		const options = buildSelectOptions({
+			label: "状态",
+			options: [
+				{ value: "", label: "全部状态" },
+				{ value: "pending", label: "待处理" },
+				{ value: "resolved", label: "已处理" },
+			],
+		});
+		const emptyEntries = options.filter((o) => o.value === "");
+		expect(emptyEntries).toHaveLength(1);
+		expect(options).toEqual([
+			{ value: "", label: "全部状态" },
+			{ value: "pending", label: "待处理" },
+			{ value: "resolved", label: "已处理" },
+		]);
+	});
+
+	it("preserves non-empty option order after stripping duplicate empty entries", () => {
+		const options = buildSelectOptions({
+			label: "类型",
+			placeholder: "所有类型",
+			options: [
+				{ value: "", label: "全部类型" },
+				{ value: "thread", label: "主题" },
+				{ value: "post", label: "回帖" },
+				{ value: "user", label: "用户" },
+			],
+		});
+		expect(options).toEqual([
+			{ value: "", label: "所有类型" },
+			{ value: "thread", label: "主题" },
+			{ value: "post", label: "回帖" },
+			{ value: "user", label: "用户" },
+		]);
+	});
 });
 
 // ---------------------------------------------------------------------------

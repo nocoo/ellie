@@ -54,11 +54,16 @@ export function resolveSelectPlaceholder(filter: Pick<FilterDef, "label" | "plac
 /**
  * Build the option list for a select filter, with the empty-value option
  * (used to clear the filter) prepended.
+ *
+ * Defensively strips any existing empty-value entries from `filter.options`
+ * so the caller can pass option lists that already include an "all" entry
+ * (e.g. `REPORT_STATUS_OPTIONS`) without producing duplicate React keys.
  */
 export function buildSelectOptions(
 	filter: Pick<FilterDef, "label" | "placeholder" | "options">,
 ): { value: string; label: string }[] {
-	return [{ value: "", label: resolveSelectPlaceholder(filter) }, ...(filter.options ?? [])];
+	const filtered = (filter.options ?? []).filter((opt) => opt.value !== "");
+	return [{ value: "", label: resolveSelectPlaceholder(filter) }, ...filtered];
 }
 
 /**
