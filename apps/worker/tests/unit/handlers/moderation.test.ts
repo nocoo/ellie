@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	banUser,
 	deletePost,
@@ -2467,6 +2467,86 @@ describe("unbanUser — edge cases", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// nukeUser — step-level diagnostics
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("nukeUser — step-level error labels", () => {
+	it("tags D1 batch-delete failures with [nuke:batch-delete]", async () => {
+		const token = await makeModToken(1);
+		let batchCallCount = 0;
+		const { db } = createMockDb({
+			firstResults: {
+				...mockUser(1, 1, "admin"),
+				"SELECT id, username, status, role FROM users": {
+					id: 10,
+					username: "spammer",
+					status: 0,
+					role: 0,
+				},
+				"SELECT COUNT(*) as cnt FROM attachments WHERE author_id": { cnt: 0 },
+			},
+			allResults: {
+				"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": [
+					{ id: 100, forum_id: 1, replies: 2, digest: 0 },
+				],
+				"SELECT forum_id, COUNT": [{ forum_id: 1, cnt: 1 }],
+				"SELECT thread_id, COUNT": [{ thread_id: 200, cnt: 1 }],
+				"SELECT author_id, COUNT(*) as cnt FROM posts WHERE thread_id IN": [],
+			},
+		});
+		// Override batch to throw on the first call (the 7-stmt atomic delete batch)
+		db.batch = vi.fn(async () => {
+			batchCallCount++;
+			if (batchCallCount === 1) {
+				throw new Error("D1_ERROR: SQLITE_BUSY: database table is locked");
+			}
+			return [];
+		}) as unknown as D1Database["batch"];
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("POST", "/api/v1/moderation/users/10/nuke", token);
+		// nukeUser has no internal try-catch — the error bubbles to the
+		// router's top-level catch, so the promise rejects here.
+		await expect(nukeUser(req, env)).rejects.toThrow("[nuke:batch-delete]");
+	});
+
+	it("tags D1 counter-batch failures with [nuke:batch-counters]", async () => {
+		const token = await makeModToken(1);
+		let batchCallCount = 0;
+		const { db } = createMockDb({
+			firstResults: {
+				...mockUser(1, 1, "admin"),
+				"SELECT id, username, status, role FROM users": {
+					id: 10,
+					username: "spammer",
+					status: 0,
+					role: 0,
+				},
+				"SELECT COUNT(*) as cnt FROM attachments WHERE author_id": { cnt: 0 },
+			},
+			allResults: {
+				"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": [
+					{ id: 100, forum_id: 1, replies: 2, digest: 0 },
+				],
+				"SELECT forum_id, COUNT": [{ forum_id: 1, cnt: 1 }],
+				"SELECT thread_id, COUNT": [{ thread_id: 200, cnt: 1 }],
+				"SELECT author_id, COUNT(*) as cnt FROM posts WHERE thread_id IN": [],
+			},
+		});
+		db.batch = vi.fn(async () => {
+			batchCallCount++;
+			// 1st call = delete batch (succeeds)
+			if (batchCallCount === 2) {
+				// 2nd call = counter batch
+				throw new Error("D1_ERROR: too many SQL variables");
+			}
+			return [];
+		}) as unknown as D1Database["batch"];
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("POST", "/api/v1/moderation/users/10/nuke", token);
+		await expect(nukeUser(req, env)).rejects.toThrow("[nuke:batch-counters]");
+	});
+});
+
 // nukeUser — edge cases
 // ═══════════════════════════════════════════════════════════════════════════
 
