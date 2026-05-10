@@ -241,3 +241,52 @@ export function resolveThreadPostCursor(
 	// Default: first page
 	return { cursor: undefined, isLastPage: false };
 }
+
+/**
+ * Decode a base64 cursor to extract the page number.
+ * Cursors are `btoa(JSON.stringify({ position }))` where position = (page-1) * postsPerPage.
+ * Returns 1 if the cursor is invalid or position is non-numeric.
+ */
+export function cursorToPage(cursor: string, postsPerPage: number): number {
+	try {
+		const decoded = JSON.parse(atob(cursor));
+		const position = Number(decoded?.position);
+		if (Number.isNaN(position) || position < 0 || postsPerPage <= 0) return 1;
+		return Math.floor(position / postsPerPage) + 1;
+	} catch {
+		return 1;
+	}
+}
+
+/**
+ * Resolve the current page number from search params.
+ * Priority matches resolveThreadPostCursor: cursor > last > page > default (1).
+ * Clamps to [1, totalPages].
+ */
+export function resolveCurrentPage(
+	params: { cursor?: string; page?: string; last?: string },
+	postsPerPage: number,
+	totalPages: number,
+): number {
+	// Explicit cursor takes priority — derive page from cursor position
+	if (params.cursor) {
+		const page = cursorToPage(params.cursor, postsPerPage);
+		return Math.max(1, Math.min(page, totalPages));
+	}
+
+	// ?last=1 means the last page
+	if (params.last === "1") {
+		return totalPages;
+	}
+
+	// ?page=N
+	if (params.page) {
+		const pageNum = Number.parseInt(params.page, 10);
+		if (!Number.isNaN(pageNum)) {
+			return Math.max(1, Math.min(pageNum, totalPages));
+		}
+	}
+
+	// Default: first page
+	return 1;
+}

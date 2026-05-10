@@ -1,4 +1,5 @@
 import {
+	cursorToPage,
 	enrichThreads,
 	filterIconRedundantBadges,
 	getDigestIconSrc,
@@ -9,6 +10,7 @@ import {
 	getThreadPageUrl,
 	highlightStyle,
 	pageToPostCursor,
+	resolveCurrentPage,
 	resolveThreadPostCursor,
 } from "@/viewmodels/forum/thread-list";
 import { decodeHighlight, getThreadBadges } from "@ellie/types";
@@ -687,5 +689,143 @@ describe("resolveThreadPostCursor", () => {
 	it("ignores invalid page value", () => {
 		const result = resolveThreadPostCursor({ page: "abc" }, ppp);
 		expect(result).toEqual({ cursor: undefined, isLastPage: false });
+	});
+});
+
+// ---------------------------------------------------------------------------
+// cursorToPage
+// ---------------------------------------------------------------------------
+
+describe("cursorToPage", () => {
+	const ppp = 20;
+
+	it("returns page 1 for position 0", () => {
+		const cursor = btoa(JSON.stringify({ position: 0 }));
+		expect(cursorToPage(cursor, ppp)).toBe(1);
+	});
+
+	it("returns page 2 for position 20", () => {
+		const cursor = btoa(JSON.stringify({ position: 20 }));
+		expect(cursorToPage(cursor, ppp)).toBe(2);
+	});
+
+	it("returns page 3 for position 40", () => {
+		const cursor = btoa(JSON.stringify({ position: 40 }));
+		expect(cursorToPage(cursor, ppp)).toBe(3);
+	});
+
+	it("round-trips with pageToPostCursor", () => {
+		for (const page of [2, 3, 5, 10]) {
+			const cursor = pageToPostCursor(page, ppp);
+			expect(cursor).not.toBeNull();
+			expect(cursorToPage(cursor as string, ppp)).toBe(page);
+		}
+	});
+
+	it("returns 1 for invalid base64", () => {
+		expect(cursorToPage("not-base64!!!", ppp)).toBe(1);
+	});
+
+	it("returns 1 for missing position field", () => {
+		const cursor = btoa(JSON.stringify({ offset: 40 }));
+		expect(cursorToPage(cursor, ppp)).toBe(1);
+	});
+
+	it("returns 1 for negative position", () => {
+		const cursor = btoa(JSON.stringify({ position: -20 }));
+		expect(cursorToPage(cursor, ppp)).toBe(1);
+	});
+
+	it("returns 1 when postsPerPage is 0", () => {
+		const cursor = btoa(JSON.stringify({ position: 20 }));
+		expect(cursorToPage(cursor, 0)).toBe(1);
+	});
+
+	it("handles mid-page position (floors to page)", () => {
+		// position 25 with ppp=20 → floor(25/20)+1 = 2
+		const cursor = btoa(JSON.stringify({ position: 25 }));
+		expect(cursorToPage(cursor, ppp)).toBe(2);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// resolveCurrentPage
+// ---------------------------------------------------------------------------
+
+describe("resolveCurrentPage", () => {
+	const ppp = 20;
+	const totalPages = 10;
+
+	it("returns 1 for no params (default first page)", () => {
+		expect(resolveCurrentPage({}, ppp, totalPages)).toBe(1);
+	});
+
+	it("returns page number from ?page=N", () => {
+		expect(resolveCurrentPage({ page: "3" }, ppp, totalPages)).toBe(3);
+	});
+
+	it("clamps page above totalPages", () => {
+		expect(resolveCurrentPage({ page: "99" }, ppp, totalPages)).toBe(totalPages);
+	});
+
+	it("clamps page below 1", () => {
+		expect(resolveCurrentPage({ page: "0" }, ppp, totalPages)).toBe(1);
+		expect(resolveCurrentPage({ page: "-1" }, ppp, totalPages)).toBe(1);
+	});
+
+	it("returns totalPages for ?last=1", () => {
+		expect(resolveCurrentPage({ last: "1" }, ppp, totalPages)).toBe(totalPages);
+	});
+
+	it("last=1 takes priority over ?page", () => {
+		expect(resolveCurrentPage({ last: "1", page: "3" }, ppp, totalPages)).toBe(totalPages);
+	});
+
+	it("cursor takes priority over last and page", () => {
+		// cursor with position=40 → page 3
+		const cursor = btoa(JSON.stringify({ position: 40 }));
+		expect(resolveCurrentPage({ cursor, last: "1", page: "5" }, ppp, totalPages)).toBe(3);
+	});
+
+	it("cursor page is clamped to totalPages", () => {
+		const cursor = btoa(JSON.stringify({ position: 999 }));
+		expect(resolveCurrentPage({ cursor }, ppp, totalPages)).toBe(totalPages);
+	});
+
+	it("invalid page string falls through to default", () => {
+		expect(resolveCurrentPage({ page: "abc" }, ppp, totalPages)).toBe(1);
+	});
+
+	it("page=1 returns 1", () => {
+		expect(resolveCurrentPage({ page: "1" }, ppp, totalPages)).toBe(1);
+	});
+
+	// --- Bug scenario tests ---
+
+	it("first page: prevHref should be null (page=1)", () => {
+		const page = resolveCurrentPage({}, ppp, totalPages);
+		expect(page).toBe(1);
+		// page > 1 is false → prev disabled
+		expect(page > 1).toBe(false);
+	});
+
+	it("middle page: both prev and next available", () => {
+		const page = resolveCurrentPage({ page: "5" }, ppp, totalPages);
+		expect(page).toBe(5);
+		expect(page > 1).toBe(true); // prev available
+		expect(page < totalPages).toBe(true); // next available
+	});
+
+	it("last page: prev available, next disabled", () => {
+		const page = resolveCurrentPage({ page: "10" }, ppp, totalPages);
+		expect(page).toBe(10);
+		expect(page > 1).toBe(true); // prev available
+		expect(page < totalPages).toBe(false); // next disabled
+	});
+
+	it("last=1 gives last page with prev available", () => {
+		const page = resolveCurrentPage({ last: "1" }, ppp, totalPages);
+		expect(page).toBe(totalPages);
+		expect(page > 1).toBe(true); // prev available
 	});
 });
