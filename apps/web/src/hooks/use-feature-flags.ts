@@ -2,8 +2,12 @@
 
 // useFeatureFlags — access feature flags from settings API
 // Used by components to check posting permissions and maintenance mode
+//
+// Phase B: in-process caching now goes through `lib/ttl-cache`. Tests
+// reset state via the exported `featureFlagsCache.clear()`.
 
 import { fetchFeatureFlags } from "@/lib/forum-browser-api";
+import { createTtlCache } from "@/lib/ttl-cache";
 import { useEffect, useState } from "react";
 
 // Feature defaults for forum (subset of all feature flags)
@@ -24,29 +28,31 @@ interface FeatureFlags {
 	isLoading: boolean;
 }
 
-// Simple in-memory cache
-let cachedData: Record<string, string | number | boolean> | null = null;
-let cacheExpiry = 0;
-const CACHE_TTL = 60000; // 1 minute
+type FeatureFlagData = Record<string, string | number | boolean>;
+
+/**
+ * In-memory feature-flag cache (1 minute TTL with concurrency dedupe).
+ * Exported so tests can call `featureFlagsCache.clear()` between cases.
+ */
+export const featureFlagsCache = createTtlCache<FeatureFlagData>({
+	expirationMs: 60_000,
+	load: (_key, opts) => fetchFeatureFlags({ signal: opts?.signal }),
+});
 
 export function useFeatureFlags(): FeatureFlags {
-	const [data, setData] = useState<Record<string, string | number | boolean> | null>(cachedData);
-	const [isLoading, setIsLoading] = useState(cachedData === null);
+	// Seed from the synchronous TTL peek so a cache hit doesn't show a
+	// loading frame on second mount. Falls through to the effect below
+	// when the cache is cold or expired.
+	const initial = featureFlagsCache.peek();
+	const [data, setData] = useState<FeatureFlagData | null>(initial ?? null);
+	const [isLoading, setIsLoading] = useState(initial === undefined);
 
 	useEffect(() => {
-		// Skip if cache is still valid
-		if (cachedData && Date.now() < cacheExpiry) {
-			setData(cachedData);
-			setIsLoading(false);
-			return;
-		}
-
 		const controller = new AbortController();
 
-		fetchFeatureFlags({ signal: controller.signal })
+		featureFlagsCache
+			.get(undefined, { signal: controller.signal })
 			.then((result) => {
-				cachedData = result;
-				cacheExpiry = Date.now() + CACHE_TTL;
 				setData(result);
 				setIsLoading(false);
 			})

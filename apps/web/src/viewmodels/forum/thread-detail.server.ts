@@ -7,8 +7,8 @@ import "server-only";
 import { forumApi, publicUserToUser } from "@/lib/forum-api";
 import { getCurrentForumUser } from "@/lib/forum-auth";
 import { buildThreadBreadcrumbs } from "@/lib/forum-breadcrumbs";
-import { getForumList, getThreadById } from "@/lib/forum-data";
-import { getPostsPerPage } from "@/lib/forum-settings";
+import { getCachedForumList, getCachedThreadById } from "@/lib/forum-cache";
+import { getCachedPostsPerPage } from "@/lib/forum-cache";
 import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import {
 	type Attachment,
@@ -63,18 +63,21 @@ export async function loadThreadDetail(params: {
 	last?: boolean;
 }): Promise<ThreadDetailPageData> {
 	// Fetch current user session and posts per page setting
-	const [sessionUser, defaultLimit] = await Promise.all([getCurrentForumUser(), getPostsPerPage()]);
+	const [sessionUser, defaultLimit] = await Promise.all([
+		getCurrentForumUser(),
+		getCachedPostsPerPage(),
+	]);
 
 	// Parallel fetch: thread + posts + forums (thread & forums deduped via React cache)
 	const [thread, postsRes, forums] = await Promise.all([
-		getThreadById(params.threadId),
+		getCachedThreadById(params.threadId),
 		forumApi.getCursor<Post>("/api/v1/posts", {
 			threadId: params.threadId,
 			limit: params.limit ?? defaultLimit,
 			cursor: params.cursor,
 			last: params.last ? "1" : undefined,
 		}),
-		getForumList(),
+		getCachedForumList(),
 	]);
 
 	const forum = forums.find((f) => f.id === thread.forumId) ?? null;

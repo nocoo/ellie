@@ -11,20 +11,17 @@ vi.mock("@/lib/forum-api", () => ({
 	publicUserToUser: vi.fn((u: any) => u),
 }));
 
-vi.mock("@/lib/forum-data", async () => {
+vi.mock("@/lib/forum-cache", async () => {
 	const { forumApi } = await import("@/lib/forum-api");
 	return {
-		getForumList: async () => {
+		getCachedForumList: async () => {
 			const res = await (forumApi as any).getAll("/api/v1/forums");
 			return res.data;
 		},
-		getThreadById: vi.fn(),
+		getCachedThreadById: vi.fn(),
+		getCachedPageSize: vi.fn(async () => 20),
 	};
 });
-
-vi.mock("@/lib/forum-settings", () => ({
-	getPageSize: vi.fn(async () => 20),
-}));
 
 vi.mock("@/lib/forum-breadcrumbs", () => ({
 	buildForumBreadcrumbs: vi.fn(() => [{ label: "首页", href: "/" }]),

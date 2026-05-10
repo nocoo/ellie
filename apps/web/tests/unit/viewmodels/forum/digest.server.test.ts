@@ -11,8 +11,8 @@ vi.mock("@/lib/forum-api", () => ({
 	publicUserToUser: vi.fn((u: any) => u),
 }));
 
-vi.mock("@/lib/forum-settings", () => ({
-	getPageSize: vi.fn(async () => 20),
+vi.mock("@/lib/forum-cache", () => ({
+	getCachedPageSize: vi.fn(async () => 20),
 }));
 
 import { forumApi } from "@/lib/forum-api";

@@ -4,7 +4,7 @@
 import "server-only";
 
 import { forumApi, publicUserToUser } from "@/lib/forum-api";
-import { getPageSize } from "@/lib/forum-settings";
+import { getCachedPageSize } from "@/lib/forum-cache";
 import type { Post, PublicUser, Thread, User } from "@ellie/types";
 import { type ProfileTab, resolveTab } from "./user-profile";
 
@@ -62,7 +62,7 @@ async function fetchTabData(
 	params: { userId: number; cursor?: string; limit?: number },
 	tab: ProfileTab,
 ): Promise<TabFetchResult<Thread | Post>> {
-	const defaultLimit = await getPageSize();
+	const defaultLimit = await getCachedPageSize();
 	const limit = params.limit ?? defaultLimit;
 
 	const endpointMap: Record<ProfileTab, string> = {

@@ -1,11 +1,15 @@
 /**
- * Server-side settings helper for forum pages.
- * Fetches settings from Worker API with Next.js request-level caching.
+ * Server-only forum settings loader (unwrapped).
+ *
+ * Phase B: this file is pure-loader / pure-helpers only. RSC render-pass
+ * dedupe and the `getCachedPageSize` / `getCachedPostsPerPage`
+ * convenience wrappers live in `lib/forum-cache.ts`. Do not import React
+ * `cache()` here — the static guard
+ * (`tests/unit/architecture/no-adhoc-cache.test.ts`) forbids it.
  */
 
 import "server-only";
 
-import { cache } from "react";
 import { forumApi } from "./forum-api";
 
 // ---------------------------------------------------------------------------
@@ -31,14 +35,14 @@ const DEFAULT_POSTS_PER_PAGE = 20;
 const DEFAULT_MAX_POST_LENGTH = 50000;
 
 // ---------------------------------------------------------------------------
-// Cached settings fetch
+// Loader
 // ---------------------------------------------------------------------------
 
 /**
- * Get forum settings from Worker API.
- * Uses React cache() to dedupe requests within the same render.
+ * Fetch forum settings from the Worker API. Falls back to defaults on
+ * any error. Pure async; no in-process cache here.
  */
-export const getForumSettings = cache(async (): Promise<ForumSettings> => {
+export async function fetchForumSettings(): Promise<ForumSettings> {
 	try {
 		const { data } = await forumApi.get<SettingsResponse>("/api/v1/settings");
 
@@ -51,29 +55,12 @@ export const getForumSettings = cache(async (): Promise<ForumSettings> => {
 			),
 		};
 	} catch {
-		// Fallback to defaults if settings fetch fails
 		return {
 			pageSize: DEFAULT_PAGE_SIZE,
 			postsPerPage: DEFAULT_POSTS_PER_PAGE,
 			maxPostLength: DEFAULT_MAX_POST_LENGTH,
 		};
 	}
-});
-
-/**
- * Get just the page size setting (convenience function).
- */
-export async function getPageSize(): Promise<number> {
-	const settings = await getForumSettings();
-	return settings.pageSize;
-}
-
-/**
- * Get posts per page setting for thread detail pages.
- */
-export async function getPostsPerPage(): Promise<number> {
-	const settings = await getForumSettings();
-	return settings.postsPerPage;
 }
 
 // ---------------------------------------------------------------------------

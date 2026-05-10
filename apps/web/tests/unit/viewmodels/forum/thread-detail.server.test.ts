@@ -43,29 +43,27 @@ vi.mock("@/lib/forum-api", () => ({
 	})),
 }));
 
-// Mock forum-data cached helpers to delegate to forumApi mocks.
-// This avoids cross-file module isolation issues with React cache().
-vi.mock("@/lib/forum-data", async () => {
+// Mock forum-cache to delegate cached fetchers to forumApi mocks
+// (avoids cross-file module isolation issues with React cache()) and to
+// stub the page-size convenience helpers.
+vi.mock("@/lib/forum-cache", async () => {
 	const { forumApi } = await import("@/lib/forum-api");
 	return {
-		getThreadById: async (id: number) => {
+		getCachedThreadById: async (id: number) => {
 			const res = await (forumApi as any).get(`/api/v1/threads/${id}`);
 			return res.data;
 		},
-		getForumList: async () => {
+		getCachedForumList: async () => {
 			const res = await (forumApi as any).getAll("/api/v1/forums");
 			return res.data;
 		},
+		getCachedPostsPerPage: vi.fn(async () => 20),
 	};
 });
 
 vi.mock("@/lib/forum-auth", () => ({
 	getCurrentForumUser: vi.fn(async () => null),
 	getWorkerJwt: vi.fn(async () => null),
-}));
-
-vi.mock("@/lib/forum-settings", () => ({
-	getPostsPerPage: vi.fn(async () => 20),
 }));
 
 vi.mock("@/lib/forum-breadcrumbs", () => ({

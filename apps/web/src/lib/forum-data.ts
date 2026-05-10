@@ -1,29 +1,28 @@
 /**
- * Cached data helpers for server-only React Server Component render passes.
+ * Server-only forum data loaders (unwrapped).
  *
- * Uses React `cache()` to deduplicate identical fetches within the same RSC
- * render pass (e.g. generateMetadata + page component both needing the same
- * thread). Does NOT affect cross-request freshness — `cache: "no-store"` in
- * forum-api.ts still ensures every new page request hits the Worker.
+ * Phase B note: these are pure async loaders. RSC render-pass dedupe is
+ * applied centrally in `lib/forum-cache.ts`, not here. Do not import
+ * React `cache()` in this file — the static guard
+ * (`tests/unit/architecture/no-adhoc-cache.test.ts`) forbids it.
  */
 
 import "server-only";
 
 import type { Forum, ForumVisibility, ModeratorInfo, Thread } from "@ellie/types";
-import { cache } from "react";
 import { forumApi } from "./forum-api";
 
-/** Fetch a single thread by ID (deduplicated within same render pass). */
-export const getThreadById = cache(async (threadId: number): Promise<Thread> => {
+/** Fetch a single thread by ID. */
+export async function fetchThreadById(threadId: number): Promise<Thread> {
 	const { data } = await forumApi.get<Thread>(`/api/v1/threads/${threadId}`);
 	return data;
-});
+}
 
-/** Fetch the full forum list (deduplicated within same render pass). */
-export const getForumList = cache(async (): Promise<Forum[]> => {
+/** Fetch the full forum list. */
+export async function fetchForumList(): Promise<Forum[]> {
 	const { data } = await forumApi.getAll<Forum>("/api/v1/forums");
 	return data;
-});
+}
 
 // ─── Forum Context (ancestors endpoint) ─────────────────────────────
 
@@ -54,10 +53,10 @@ export interface ForumAncestorsData {
 }
 
 /**
- * Fetch forum context + ancestors for breadcrumbs (deduplicated within same render pass).
- * Uses the lightweight /ancestors endpoint instead of fetching the full forum list.
+ * Fetch forum context + ancestors for breadcrumbs. Uses the lightweight
+ * `/ancestors` endpoint instead of fetching the full forum list.
  */
-export const getForumAncestors = cache(async (forumId: number): Promise<ForumAncestorsData> => {
+export async function fetchForumAncestors(forumId: number): Promise<ForumAncestorsData> {
 	const { data } = await forumApi.get<ForumAncestorsData>(`/api/v1/forums/${forumId}/ancestors`);
 	return data;
-});
+}

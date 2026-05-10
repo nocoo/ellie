@@ -16,6 +16,7 @@
  */
 
 import { auth } from "@/auth";
+import { createTtlCache } from "@/lib/ttl-cache";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -125,10 +126,9 @@ export function resolveProxyAction(
 // ---------------------------------------------------------------------------
 // Settings cache for require_login flag
 // ---------------------------------------------------------------------------
-
-let requireLoginCache: boolean | null = null;
-let requireLoginCacheExpiry = 0;
-const CACHE_TTL = 60000; // 1 minute
+//
+// Phase B: cache state lives in `lib/ttl-cache`. Tests reset it via
+// the exported `clearRequireLoginCacheForTests()`.
 
 function getWorkerUrl(): string {
 	const url = process.env.WORKER_API_URL;
@@ -143,12 +143,7 @@ function getApiKey(): string {
 	return process.env.FORUM_API_KEY || "";
 }
 
-async function getRequireLogin(): Promise<boolean> {
-	// Return cached value if still valid
-	if (requireLoginCache !== null && Date.now() < requireLoginCacheExpiry) {
-		return requireLoginCache;
-	}
-
+async function loadRequireLogin(): Promise<boolean> {
 	const workerUrl = getWorkerUrl();
 	const apiKey = getApiKey();
 
@@ -167,13 +162,25 @@ async function getRequireLogin(): Promise<boolean> {
 		const data = await res.json();
 		// API returns typed values: boolean true, not string "true"
 		const value = data.data?.["features.access.require_login"];
-		requireLoginCache = value === true || value === "true";
-		requireLoginCacheExpiry = Date.now() + CACHE_TTL;
-		return requireLoginCache;
+		return value === true || value === "true";
 	} catch {
 		// On error, default to false (don't block access)
 		return false;
 	}
+}
+
+const requireLoginSettingCache = createTtlCache<boolean>({
+	expirationMs: 60_000,
+	load: () => loadRequireLogin(),
+});
+
+async function getRequireLogin(): Promise<boolean> {
+	return requireLoginSettingCache.get();
+}
+
+/** Test-only: drop the cached require_login value so the next call reloads. */
+export function clearRequireLoginCacheForTests(): void {
+	requireLoginSettingCache.clear();
 }
 
 // ---------------------------------------------------------------------------

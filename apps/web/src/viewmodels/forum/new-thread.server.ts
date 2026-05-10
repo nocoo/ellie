@@ -8,7 +8,7 @@ import "server-only";
 
 import { ForumApiError } from "@/lib/forum-api";
 import { buildNewThreadBreadcrumbsFromAncestors } from "@/lib/forum-breadcrumbs";
-import { getForumAncestors } from "@/lib/forum-data";
+import { getCachedForumAncestors } from "@/lib/forum-cache";
 import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 
 export interface NewThreadPageData {
@@ -23,7 +23,7 @@ export interface NewThreadPageData {
  */
 export async function loadNewThreadPageData(forumId: number): Promise<NewThreadPageData> {
 	try {
-		const { forum, ancestors } = await getForumAncestors(forumId);
+		const { forum, ancestors } = await getCachedForumAncestors(forumId);
 		return {
 			forumId,
 			forumName: forum.name,

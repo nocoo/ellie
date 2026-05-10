@@ -7,8 +7,8 @@ import { ThreadBadgeList } from "@/components/forum/thread-badge";
 import { ThreadPostsClient } from "@/components/forum/thread-posts-client";
 import { ThreadReportButton } from "@/components/forum/thread-report-button";
 import { Card, CardContent } from "@/components/ui/card";
+import { getCachedPostsPerPage } from "@/lib/forum-cache";
 import { getSelfForumUser } from "@/lib/forum-self";
-import { getPostsPerPage } from "@/lib/forum-settings";
 import {
 	type ThreadDetailPageData,
 	loadThreadDetail,
@@ -64,7 +64,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 
 	// Resolve cursor: explicit cursor takes priority over ?page=N.
 	// ?page=N is converted to a position-based cursor for the post handler.
-	const postsPerPage = await getPostsPerPage();
+	const postsPerPage = await getCachedPostsPerPage();
 	const { cursor, isLastPage } = resolveThreadPostCursor(sp, postsPerPage);
 
 	try {

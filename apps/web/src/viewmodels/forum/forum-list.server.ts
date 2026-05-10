@@ -3,11 +3,11 @@
 
 import "server-only";
 
-import { getForumList } from "@/lib/forum-data";
+import { getCachedForumList } from "@/lib/forum-cache";
 import type { ForumTreeNode } from "@ellie/types";
 import { buildVisibleTree } from "./forum-list";
 
 export async function loadForumList(): Promise<ForumTreeNode[]> {
-	const forums = await getForumList();
+	const forums = await getCachedForumList();
 	return buildVisibleTree(forums);
 }
