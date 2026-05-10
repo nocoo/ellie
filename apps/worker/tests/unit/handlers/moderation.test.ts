@@ -1183,11 +1183,30 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 		expect(deleteStandalone).toBeDefined();
 		expect(deleteThreads).toBeDefined();
 
-		// ── Verify batch ordering: FK purge batch comes before delete batch ──
-		// batchCalls[0] = initial user attachment delete (step 0, via .run())
-		// The DB.batch() calls are: batch A (FK purge), batch B (core delete),
-		// batch C (counter updates). Verify at least 2 batch calls exist.
-		expect(batchCalls.length).toBeGreaterThanOrEqual(2);
+		// ── Verify batch ordering: all 7 delete stmts in ONE batch ──
+		// The deletion batch is a single atomic unit. Find the batch that
+		// contains the FK purge + core deletes (7 statements).
+		const deleteBatch = batchCalls.find(
+			(batch) =>
+				batch.length === 7 &&
+				calls.some((c) => c.sql.includes("DELETE FROM attachments WHERE thread_id IN (SELECT")),
+		);
+		expect(deleteBatch).toBeDefined();
+		// Verify the batch is well under D1 limits
+		expect(deleteBatch?.length).toBeLessThanOrEqual(80);
+
+		// Verify ordering within calls: FK purge before parent deletes
+		const idxFkAtt = calls.findIndex((c) =>
+			c.sql.includes("DELETE FROM attachments WHERE thread_id IN (SELECT"),
+		);
+		const idxDeletePosts = calls.findIndex((c) =>
+			c.sql.includes("DELETE FROM posts WHERE thread_id IN (SELECT"),
+		);
+		const idxDeleteThreads = calls.findIndex((c) =>
+			c.sql.includes("DELETE FROM threads WHERE author_id"),
+		);
+		expect(idxFkAtt).toBeLessThan(idxDeletePosts);
+		expect(idxDeletePosts).toBeLessThan(idxDeleteThreads);
 
 		// ── Verify NO expanded ID arrays in delete SQL ──
 		// Old code used IN (?,?,?,...) with literal IDs; new code uses subqueries.
@@ -1283,6 +1302,10 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 		for (const batch of batchCalls) {
 			expect(batch.length).toBeLessThanOrEqual(80);
 		}
+
+		// The deletion batch must be exactly 7 statements (fixed, regardless of data size)
+		const deleteBatch = batchCalls.find((batch) => batch.length === 7);
+		expect(deleteBatch).toBeDefined();
 	});
 });
 

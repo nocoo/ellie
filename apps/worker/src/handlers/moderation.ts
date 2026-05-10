@@ -1234,42 +1234,35 @@ async function deleteUserContent(env: Env, userId: number): Promise<ContentDelet
 
 	// ── Deletion phase ──────────────────────────────────────────────
 	// Uses subquery-based DELETEs to avoid expanding large ID arrays
-	// into IN(...) placeholders. Split into ordered batches so each
-	// batch sees committed state from the prior one.
+	// into IN(...) placeholders. All 7 statements run in a single
+	// bounded batch so a partial failure rolls back atomically.
+	// D1 executes batch statements sequentially: FK children are
+	// purged before parent rows, and threads are deleted last.
 
-	// Batch A: FK child purge — attachments + post_comments referencing
-	// the user's threads and standalone posts. Must run BEFORE parent
-	// rows are deleted. Subqueries reference threads/posts that still
-	// exist at this point.
 	await env.DB.batch([
-		// Children of user's own threads (other users' attachments/comments)
+		// 1-2. FK children of user's own threads (other users' attachments/comments)
 		env.DB.prepare(
 			"DELETE FROM attachments WHERE thread_id IN (SELECT id FROM threads WHERE author_id = ?)",
 		).bind(userId),
 		env.DB.prepare(
 			"DELETE FROM post_comments WHERE thread_id IN (SELECT id FROM threads WHERE author_id = ?)",
 		).bind(userId),
-		// Children of user's standalone posts
+		// 3-4. FK children of user's standalone posts
 		env.DB.prepare(
 			"DELETE FROM attachments WHERE post_id IN (SELECT id FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?))",
 		).bind(userId, userId),
 		env.DB.prepare(
 			"DELETE FROM post_comments WHERE post_id IN (SELECT id FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?))",
 		).bind(userId, userId),
-	]);
-
-	// Batch B: Delete posts, then threads. Subqueries still reference
-	// threads (not deleted until the last statement in this batch).
-	await env.DB.batch([
-		// All posts in user's threads (any author — cascade)
+		// 5. All posts in user's threads (any author — cascade)
 		env.DB.prepare(
 			"DELETE FROM posts WHERE thread_id IN (SELECT id FROM threads WHERE author_id = ?)",
 		).bind(userId),
-		// User's standalone posts (replies in other users' threads)
+		// 6. User's standalone posts (replies in other users' threads)
 		env.DB.prepare(
 			"DELETE FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?)",
 		).bind(userId, userId),
-		// Finally delete the user's threads themselves
+		// 7. Delete the user's threads themselves
 		env.DB.prepare("DELETE FROM threads WHERE author_id = ?").bind(userId),
 	]);
 
