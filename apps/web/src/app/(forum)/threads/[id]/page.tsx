@@ -13,7 +13,7 @@ import {
 	type ThreadDetailPageData,
 	loadThreadDetail,
 } from "@/viewmodels/forum/thread-detail.server";
-import { resolveThreadPostCursor } from "@/viewmodels/forum/thread-list";
+import { getThreadPageCount, resolveThreadPostCursor } from "@/viewmodels/forum/thread-list";
 import { getThreadTitle } from "@/viewmodels/forum/title.server";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { parseIntParam } from "@/viewmodels/shared/params";
@@ -111,6 +111,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 	const thread = data.thread;
 
 	const badges = getThreadBadges(thread);
+	const threadPages = getThreadPageCount(thread.replies, postsPerPage);
 
 	return (
 		<div className="space-y-3">
@@ -172,6 +173,9 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 							: null
 					}
 					nextHref={data.nextCursor ? `/threads/${threadId}?cursor=${data.nextCursor}` : null}
+					jumpPage={
+						threadPages > 1 ? { basePath: `/threads/${threadId}`, pages: threadPages } : undefined
+					}
 				/>
 			</ModProvider>
 

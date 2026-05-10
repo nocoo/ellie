@@ -182,6 +182,7 @@ function JumpPagePopover({
 						type="number"
 						min={1}
 						max={pages}
+						aria-label="页码"
 						value={value}
 						onChange={(e) => setValue(e.target.value)}
 						onKeyDown={(e) => {
