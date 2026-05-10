@@ -8,8 +8,8 @@
 		"deploy": "wrangler deploy",
 		"tail": "wrangler tail",
 		"typecheck": "tsc --noEmit",
-		"test": "bun test",
-		"test:coverage": "bun test --coverage"
+		"test": "vitest run",
+		"test:coverage": "vitest run --coverage"
 	},
 	"dependencies": {
 		"@cloudflare/workers-types": "^4.20250320.0",
