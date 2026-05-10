@@ -5,13 +5,14 @@
 // "SQL logic error: SQLITE_ERROR" on any DELETE FROM threads (including
 // the nuke-user batch). This test verifies the corrected triggers work.
 //
-// Uses node:sqlite (Node.js 22+) to run real SQLite — not mocked.
+// Uses bun:sqlite to run real SQLite — not mocked. Runs on the bun
+// runner (see scripts/run-tests.sh) because vitest's Node 20 runner
+// lacks node:sqlite.
 
-import { DatabaseSync } from "node:sqlite";
-import { describe, expect, it } from "vitest";
+import { Database } from "bun:sqlite";
+import { describe, expect, it } from "bun:test";
 
-/** Minimal schema mirroring production threads + threads_fts. */
-function createSchema(db: DatabaseSync) {
+function createSchema(db: Database) {
 	db.exec(`
 		CREATE TABLE forums (id INTEGER PRIMARY KEY);
 		INSERT INTO forums (id) VALUES (1);
@@ -34,8 +35,7 @@ function createSchema(db: DatabaseSync) {
 	`);
 }
 
-/** Install the BROKEN triggers (content-table "delete command" style). */
-function installBrokenTriggers(db: DatabaseSync) {
+function installBrokenTriggers(db: Database) {
 	db.exec(`
 		CREATE TRIGGER threads_fts_ai AFTER INSERT ON threads BEGIN
 			INSERT INTO threads_fts(rowid, subject) VALUES (new.id, new.subject);
@@ -54,8 +54,7 @@ function installBrokenTriggers(db: DatabaseSync) {
 	`);
 }
 
-/** Install the FIXED triggers (standard DELETE for regular FTS5). */
-function installFixedTriggers(db: DatabaseSync) {
+function installFixedTriggers(db: Database) {
 	db.exec(`
 		CREATE TRIGGER threads_fts_ai AFTER INSERT ON threads BEGIN
 			INSERT INTO threads_fts(rowid, subject) VALUES (new.id, new.subject);
@@ -72,14 +71,16 @@ function installFixedTriggers(db: DatabaseSync) {
 	`);
 }
 
-function ftsMatch(db: DatabaseSync, query: string): string[] {
-	const rows = db.prepare("SELECT subject FROM threads_fts WHERE threads_fts MATCH ?").all(query);
-	return (rows as { subject: string }[]).map((r) => r.subject);
+function ftsMatch(db: Database, query: string): string[] {
+	const rows = db
+		.prepare("SELECT subject FROM threads_fts WHERE threads_fts MATCH ?")
+		.all(query) as { subject: string }[];
+	return rows.map((r) => r.subject);
 }
 
 describe("threads_fts triggers — regular FTS5 table", () => {
 	it("broken trigger: DELETE FROM threads throws SQL logic error", () => {
-		const db = new DatabaseSync(":memory:");
+		const db = new Database(":memory:");
 		createSchema(db);
 		installBrokenTriggers(db);
 
@@ -88,12 +89,12 @@ describe("threads_fts triggers — regular FTS5 table", () => {
 		);
 		expect(() => {
 			db.exec("DELETE FROM threads WHERE id = 1");
-		}).toThrow(/SQL logic error/);
+		}).toThrow(/SQL logic error|SQLITE_ERROR/);
 		db.close();
 	});
 
 	it("broken trigger: UPDATE subject throws SQL logic error", () => {
-		const db = new DatabaseSync(":memory:");
+		const db = new Database(":memory:");
 		createSchema(db);
 		installBrokenTriggers(db);
 
@@ -102,12 +103,12 @@ describe("threads_fts triggers — regular FTS5 table", () => {
 		);
 		expect(() => {
 			db.exec("UPDATE threads SET subject = 'goodbye world' WHERE id = 1");
-		}).toThrow(/SQL logic error/);
+		}).toThrow(/SQL logic error|SQLITE_ERROR/);
 		db.close();
 	});
 
 	it("fixed trigger: INSERT syncs to FTS", () => {
-		const db = new DatabaseSync(":memory:");
+		const db = new Database(":memory:");
 		createSchema(db);
 		installFixedTriggers(db);
 
@@ -119,7 +120,7 @@ describe("threads_fts triggers — regular FTS5 table", () => {
 	});
 
 	it("fixed trigger: DELETE removes from FTS without error", () => {
-		const db = new DatabaseSync(":memory:");
+		const db = new Database(":memory:");
 		createSchema(db);
 		installFixedTriggers(db);
 
@@ -138,7 +139,7 @@ describe("threads_fts triggers — regular FTS5 table", () => {
 	});
 
 	it("fixed trigger: bulk DELETE (author_id) removes all from FTS", () => {
-		const db = new DatabaseSync(":memory:");
+		const db = new Database(":memory:");
 		createSchema(db);
 		installFixedTriggers(db);
 
@@ -159,7 +160,7 @@ describe("threads_fts triggers — regular FTS5 table", () => {
 	});
 
 	it("fixed trigger: UPDATE subject syncs FTS", () => {
-		const db = new DatabaseSync(":memory:");
+		const db = new Database(":memory:");
 		createSchema(db);
 		installFixedTriggers(db);
 
@@ -173,11 +174,10 @@ describe("threads_fts triggers — regular FTS5 table", () => {
 	});
 
 	it("migration 0034 correctly replaces broken triggers", () => {
-		const db = new DatabaseSync(":memory:");
+		const db = new Database(":memory:");
 		createSchema(db);
 		installBrokenTriggers(db);
 
-		// Apply the migration fix (same SQL as 0034)
 		db.exec("DROP TRIGGER IF EXISTS threads_fts_ad");
 		db.exec("DROP TRIGGER IF EXISTS threads_fts_au");
 		db.exec(`
@@ -192,7 +192,6 @@ describe("threads_fts triggers — regular FTS5 table", () => {
 			END;
 		`);
 
-		// Now insert, update, delete should all work
 		db.exec(
 			"INSERT INTO threads (id, forum_id, author_id, subject) VALUES (1, 1, 1, 'test thread')",
 		);
