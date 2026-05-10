@@ -248,7 +248,7 @@ describe("auth", () => {
 		);
 		expect(res.status).toBe(500);
 		expect(await res.json()).toEqual({
-			error: { code: "INTERNAL_ERROR", message: "服务器内部错误" },
+			error: { code: "INTERNAL_ERROR", message: "Internal server error" },
 		});
 		expect(errSpy).toHaveBeenCalled();
 	});
@@ -536,7 +536,7 @@ describe("error handling", () => {
 		);
 		expect(res.status).toBe(500);
 		expect(await res.json()).toEqual({
-			error: { code: "INTERNAL_ERROR", message: "服务器内部错误" },
+			error: { code: "INTERNAL_ERROR", message: "Internal server error" },
 		});
 		expect(errSpy).toHaveBeenCalled();
 	});

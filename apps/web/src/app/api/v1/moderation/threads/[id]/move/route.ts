@@ -1,40 +1,12 @@
-import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
-import { ForumApiError, forumApi } from "@/lib/forum-api";
-import { getWorkerJwt } from "@/lib/forum-auth";
-import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
-import { NextResponse } from "next/server";
+import { proxyRoute } from "@/lib/forum-route-proxy";
 
 /**
  * PATCH /api/v1/moderation/threads/:id/move
  * Move thread to another forum (Mod+ only)
  */
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-	if (isMutatingMethod(request.method) && !validateOrigin(request)) {
-		return NextResponse.json(
-			{ error: { code: "CSRF_REJECTED", message: "Origin not allowed" } },
-			{ status: 403 },
-		);
-	}
-
-	const { id } = await params;
-	const jwt = await getWorkerJwt();
-	if (!jwt) {
-		return NextResponse.json(
-			{ error: { code: "NOT_AUTHENTICATED", message: "Not authenticated" } },
-			{ status: 401 },
-		);
-	}
-
-	try {
-		const body = await request.json();
-		const result = await forumApi.patchAuth(`/api/v1/moderation/threads/${id}/move`, body, jwt);
-		return NextResponse.json(result);
-	} catch (err) {
-		if (err instanceof ForumApiError) return forumApiErrorToProxyResponse(err);
-		console.error("[moderation/threads/[id]/move/route] forumApi.patchAuth error:", err);
-		return NextResponse.json(
-			{ error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
-			{ status: 500 },
-		);
-	}
-}
+export const PATCH = proxyRoute<{ id: string }>({
+	method: "PATCH",
+	path: ({ id }) => `/api/v1/moderation/threads/${id}/move`,
+	body: "json",
+	debugTag: "moderation/threads/[id]/move/route",
+});

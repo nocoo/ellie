@@ -109,7 +109,7 @@ function notAuthenticated(): Response {
 
 function internalError(): Response {
 	return NextResponse.json(
-		{ error: { code: "INTERNAL_ERROR", message: "服务器内部错误" } },
+		{ error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
 		{ status: 500 },
 	);
 }
