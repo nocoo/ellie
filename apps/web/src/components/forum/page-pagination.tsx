@@ -17,6 +17,8 @@ export interface PagePaginationProps {
 	pages: number;
 	total: number;
 	basePath: string;
+	/** Unit label appended after the total count, e.g. "个主题" → "共 1,234 个主题" */
+	totalLabel?: string;
 	className?: string;
 }
 
@@ -24,7 +26,14 @@ export interface PagePaginationProps {
 // Component
 // ---------------------------------------------------------------------------
 
-export function PagePagination({ page, pages, total, basePath, className }: PagePaginationProps) {
+export function PagePagination({
+	page,
+	pages,
+	total,
+	basePath,
+	totalLabel = "条",
+	className,
+}: PagePaginationProps) {
 	if (pages <= 1) return null;
 
 	const items = generatePageNumbers(page, pages);
@@ -94,7 +103,9 @@ export function PagePagination({ page, pages, total, basePath, className }: Page
 			</div>
 
 			<div className="flex items-center gap-3">
-				<span className="text-xs text-muted-foreground">共 {formatNumber(total ?? 0)} 条</span>
+				<span className="text-xs text-muted-foreground">
+					共 {formatNumber(total ?? 0)} {totalLabel}
+				</span>
 				<JumpToPage basePath={basePath} pages={pages} />
 			</div>
 		</div>
