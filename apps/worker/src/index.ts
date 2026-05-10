@@ -222,6 +222,9 @@ export default {
 			}
 
 			// ── Post comments (点评) routes ──────────────────
+			if (path === "/api/v1/post-comments/batch" && request.method === "POST") {
+				return await (await import("./handlers/post-comment")).batchByPostIds(request, env);
+			}
 			if (path === "/api/v1/post-comments" && request.method === "GET") {
 				return await (await import("./handlers/post-comment")).list(request, env);
 			}

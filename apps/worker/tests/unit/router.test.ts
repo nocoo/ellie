@@ -54,6 +54,7 @@ vi.mock("../../src/handlers/message", () => ({
 vi.mock("../../src/handlers/post-comment", () => ({
 	list: mockHandler(),
 	create: mockHandler(),
+	batchByPostIds: mockHandler(),
 }));
 vi.mock("../../src/handlers/report", () => ({
 	create: mockHandler(),
@@ -785,6 +786,7 @@ describe("router (src/index.ts)", () => {
 				["DELETE", "/api/v1/messages/1", "message", "remove"],
 				["GET", "/api/v1/post-comments", "post-comment", "list"],
 				["POST", "/api/v1/post-comments", "post-comment", "create"],
+				["POST", "/api/v1/post-comments/batch", "post-comment", "batchByPostIds"],
 				["POST", "/api/v1/reports", "report", "create"],
 				["GET", "/api/v1/posting-permission", "report", "checkPermission"],
 				["DELETE", "/api/v1/me/posts/1", "user-content", "deleteMyPost"],

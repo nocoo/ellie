@@ -11,6 +11,9 @@ import { buildVisibilityContext, isForumActive } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 
+/** Max post IDs per batch request */
+const MAX_BATCH_POST_IDS = 100;
+
 /** Map D1 row to API response format */
 function toPostComment(row: Record<string, unknown>) {
 	return {
@@ -87,6 +90,107 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		.all();
 
 	const comments = result.results.map((row) => toPostComment(row as Record<string, unknown>));
+
+	return jsonResponse(comments, origin);
+}
+
+/**
+ * POST /api/v1/post-comments/batch - Batch comment fetch for multiple posts
+ *
+ * Body: { threadId: number, postIds: number[] }
+ * - Validates all postIds belong to the specified thread and are visible
+ * - Single thread→forum visibility check (not per-post)
+ * - Returns all comments for the specified posts in one query
+ * - Caps at 100 post IDs
+ *
+ * Designed to eliminate N+1 per-post comment fetches in thread detail pages.
+ */
+export async function batchByPostIds(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+
+	let body: Record<string, unknown>;
+	try {
+		body = (await request.json()) as Record<string, unknown>;
+	} catch {
+		return errorResponse("INVALID_BODY", 400, undefined, origin);
+	}
+
+	const threadId = typeof body.threadId === "number" ? body.threadId : undefined;
+	const postIds = Array.isArray(body.postIds)
+		? (body.postIds as unknown[]).filter(
+				(id): id is number => typeof id === "number" && !Number.isNaN(id) && id > 0,
+			)
+		: undefined;
+
+	if (typeof threadId !== "number" || Number.isNaN(threadId) || threadId <= 0) {
+		return errorResponse(
+			"INVALID_BODY",
+			400,
+			{ message: "threadId is required (positive number)" },
+			origin,
+		);
+	}
+
+	if (!postIds || postIds.length === 0) {
+		return jsonResponse([], origin);
+	}
+
+	// Deduplicate
+	const uniquePostIds = [...new Set(postIds)];
+
+	if (uniquePostIds.length > MAX_BATCH_POST_IDS) {
+		return errorResponse(
+			"INVALID_BODY",
+			400,
+			{ message: `Too many postIds (max ${MAX_BATCH_POST_IDS})` },
+			origin,
+		);
+	}
+
+	// Auth + visibility + comments: fire all in parallel (speculative).
+	// Discard comments data if the visibility check denies.
+	const placeholders = uniquePostIds.map(() => "?").join(",");
+	const [user, visRow, commentsResult] = await Promise.all([
+		optionalAuthVerified(request, env),
+		env.DB.prepare(
+			`SELECT t.forum_id, t.sticky, f.status, f.visibility
+			 FROM threads t
+			 JOIN forums f ON f.id = t.forum_id
+			 WHERE t.id = ?`,
+		)
+			.bind(threadId)
+			.first<{ forum_id: number; sticky: number; status: number; visibility: string }>(),
+		env.DB.prepare(
+			`SELECT pc.*
+			 FROM post_comments pc
+			 INNER JOIN posts p ON p.id = pc.post_id
+			 WHERE pc.post_id IN (${placeholders}) AND p.thread_id = ? AND p.invisible = 0
+			 ORDER BY pc.post_id, pc.created_at`,
+		)
+			.bind(...uniquePostIds, threadId)
+			.all(),
+	]);
+
+	if (!visRow || visRow.sticky < 0) {
+		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
+	}
+
+	if (!isForumActive(visRow)) {
+		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
+	}
+
+	const visCtx = buildVisibilityContext(user);
+
+	if (!canViewForumVisibility(visRow.visibility as ForumVisibility, visCtx)) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "You don't have access to this content" },
+			origin,
+		);
+	}
+
+	const comments = commentsResult.results.map((r) => toPostComment(r as Record<string, unknown>));
 
 	return jsonResponse(comments, origin);
 }
