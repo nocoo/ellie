@@ -19,6 +19,8 @@ export interface HeaderUserInfo {
 	groupTitle: string;
 	/** Credit/point score */
 	credits: number;
+	/** Secondary currency (同钱) */
+	coins: number;
 	/** Unread reminder/notification count */
 	reminderCount: number;
 	/** User role (0=user, 1=admin, 2=supermod, 3=mod) */

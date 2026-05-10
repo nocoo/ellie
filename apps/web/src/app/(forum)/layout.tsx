@@ -136,6 +136,7 @@ async function loadCurrentUser(): Promise<HeaderUserInfo | null> {
 			uid: user.id,
 			groupTitle: user.groupTitle,
 			credits: user.credits,
+			coins: user.coins,
 			reminderCount: 0, // TODO: wire when messaging system is built
 			role: user.role,
 		};
