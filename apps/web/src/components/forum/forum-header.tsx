@@ -43,29 +43,7 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 				{/* Right: User info area */}
 				{user ? (
 					<div className="flex items-center gap-4">
-						{/* Meta: username, group, uid, credits */}
-						<div className="text-right space-y-0.5">
-							<div className="flex items-center justify-end gap-2">
-								<UserPopover
-									userId={user.uid}
-									viewerRole={user.role}
-									viewerUserId={user.uid}
-									side="bottom"
-									align="end"
-								>
-									<span className="text-sm font-medium text-foreground hover:text-primary transition-colors cursor-pointer">
-										{user.username}
-									</span>
-								</UserPopover>
-								<span className="text-xs text-muted-foreground">UID: {user.uid}</span>
-							</div>
-							<div className="flex items-center justify-end gap-3 text-xs text-muted-foreground">
-								<span>{user.groupTitle}</span>
-								<span>积分 {user.credits}</span>
-							</div>
-						</div>
-
-						{/* Avatar */}
+						{/* Profile card — avatar left, text right, entire area clickable */}
 						<UserPopover
 							userId={user.uid}
 							viewerRole={user.role}
@@ -73,12 +51,23 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 							side="bottom"
 							align="end"
 						>
-							<TrackedUserAvatar
-								uid={user.uid}
-								username={user.username}
-								size="md"
-								className="cursor-pointer"
-							/>
+							<div className="flex items-center gap-3 rounded-lg px-3 py-2 -mx-3 -my-2 hover:bg-accent/50 transition-colors cursor-pointer">
+								{/* Avatar — rounded-rect, image fills directly */}
+								<TrackedUserAvatar uid={user.uid} username={user.username} size="md" />
+
+								{/* Meta: username, group, uid, credits, coins */}
+								<div className="text-right space-y-0.5">
+									<div className="flex items-center justify-end gap-2">
+										<span className="text-sm font-medium text-foreground">{user.username}</span>
+										<span className="text-xs text-muted-foreground">UID: {user.uid}</span>
+									</div>
+									<div className="flex items-center justify-end gap-3 text-xs text-muted-foreground">
+										<span>{user.groupTitle}</span>
+										<span>积分 {user.credits}</span>
+										<span>同钱 {user.coins}</span>
+									</div>
+								</div>
+							</div>
 						</UserPopover>
 
 						{/* Action icons */}

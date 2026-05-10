@@ -54,7 +54,7 @@ export function TrackedUserAvatar({
 		<Avatar
 			className={cn(
 				sizeClasses[size],
-				"rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)] dark:shadow-[0_0_2px_rgba(255,255,255,0.10)]",
+				"rounded-sm after:rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)] dark:shadow-[0_0_2px_rgba(255,255,255,0.10)]",
 				className,
 			)}
 		>

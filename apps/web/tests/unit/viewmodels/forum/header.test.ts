@@ -30,7 +30,9 @@ describe("buildHeaderViewModel", () => {
 			uid: 42,
 			groupTitle: "版主",
 			credits: 500,
+			coins: 100,
 			reminderCount: 3,
+			role: 0,
 		};
 		const vm = buildHeaderViewModel(emptySettings, user);
 		expect(vm.user).toEqual(user);
