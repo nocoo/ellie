@@ -50,28 +50,25 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 							viewerUserId={user.uid}
 							side="bottom"
 							align="end"
+							triggerClassName="inline-flex items-center gap-3 rounded-lg px-3 py-2 min-w-0 max-w-[320px] hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-1 transition-colors"
 						>
-							<div className="flex items-center gap-3 rounded-lg px-3 py-2 -mx-3 -my-2 min-w-0 max-w-[320px] hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-1 transition-colors cursor-pointer">
-								{/* Avatar — rounded-rect, image fills directly */}
-								<TrackedUserAvatar uid={user.uid} username={user.username} size="md" />
+							{/* Avatar — rounded-rect, image fills directly */}
+							<TrackedUserAvatar uid={user.uid} username={user.username} size="md" />
 
-								{/* Meta: username, uid, role, credits, coins */}
-								<div className="text-right space-y-0.5 min-w-0">
-									<div className="flex items-center justify-end gap-2 min-w-0">
-										<span className="text-sm font-medium text-foreground truncate">
-											{user.username}
-										</span>
-										<span className="text-xs text-muted-foreground shrink-0">UID: {user.uid}</span>
-										<span className="text-xs text-muted-foreground truncate">
-											{user.groupTitle}
-										</span>
-									</div>
-									<div className="flex items-center justify-end gap-3 text-xs text-muted-foreground">
-										<span className="shrink-0">积分 {user.credits}</span>
-										<span className="shrink-0">同钱 {user.coins}</span>
-									</div>
-								</div>
-							</div>
+							{/* Meta: username, uid, role, credits, coins */}
+							<span className="text-right space-y-0.5 min-w-0">
+								<span className="flex items-center justify-end gap-2 min-w-0">
+									<span className="text-sm font-medium text-foreground truncate">
+										{user.username}
+									</span>
+									<span className="text-xs text-muted-foreground shrink-0">UID: {user.uid}</span>
+									<span className="text-xs text-muted-foreground truncate">{user.groupTitle}</span>
+								</span>
+								<span className="flex items-center justify-end gap-3 text-xs text-muted-foreground">
+									<span className="shrink-0">积分 {user.credits}</span>
+									<span className="shrink-0">同钱 {user.coins}</span>
+								</span>
+							</span>
 						</UserPopover>
 
 						{/* Action icons */}

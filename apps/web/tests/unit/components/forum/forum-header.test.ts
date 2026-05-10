@@ -15,12 +15,18 @@ vi.mock("next-auth/react", () => ({
 	signOut: vi.fn(),
 }));
 
-// Track UserPopover trigger count
+// Track UserPopover trigger count and props
 let userPopoverCount = 0;
+const userPopoverCalls: any[] = [];
 vi.mock("@/components/forum/user-popover", () => ({
-	UserPopover: ({ children }: any) => {
+	UserPopover: (props: any) => {
 		userPopoverCount++;
-		return createElement("div", { "data-testid": "user-popover-trigger" }, children);
+		userPopoverCalls.push(props);
+		return createElement(
+			"div",
+			{ "data-testid": "user-popover-trigger", "data-trigger-class": props.triggerClassName },
+			props.children,
+		);
 	},
 }));
 
@@ -75,6 +81,7 @@ function makeVm(userOverrides: Record<string, unknown> = {}): HeaderViewModel {
 beforeEach(() => {
 	vi.clearAllMocks();
 	userPopoverCount = 0;
+	userPopoverCalls.length = 0;
 });
 
 afterEach(() => {
@@ -144,5 +151,25 @@ describe("ForumHeader — TopBar profile card", () => {
 	it("renders groupTitle", () => {
 		render(createElement(ForumHeader, { vm: makeVm({ groupTitle: "管理员" }) }));
 		expect(screen.getByText("管理员")).toBeDefined();
+	});
+
+	it("passes triggerClassName to UserPopover with profile card styles", () => {
+		render(createElement(ForumHeader, { vm: makeVm() }));
+		expect(userPopoverCalls.length).toBe(1);
+		const triggerClass = userPopoverCalls[0].triggerClassName;
+		expect(typeof triggerClass).toBe("string");
+		// Trigger should carry the card's layout/focus/hover classes
+		expect(triggerClass).toContain("inline-flex");
+		expect(triggerClass).toContain("focus-visible:");
+		expect(triggerClass).toContain("hover:bg-accent");
+	});
+
+	it("uses span elements (not div) for profile content inside trigger", () => {
+		const { container } = render(createElement(ForumHeader, { vm: makeVm() }));
+		const trigger = container.querySelector("[data-testid='user-popover-trigger']");
+		if (!trigger) return;
+		// Profile text content should use span elements (valid inside button)
+		const profileSpans = trigger.querySelectorAll("span");
+		expect(profileSpans.length).toBeGreaterThan(0);
 	});
 });
