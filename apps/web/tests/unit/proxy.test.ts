@@ -24,6 +24,7 @@ vi.mock("@/auth", () => ({
 
 import {
 	buildRedirectUrl,
+	clearRequireLoginCacheForTests,
 	isForumAuthRoute,
 	isMessagesRoute,
 	isPublicRoute,
@@ -345,6 +346,7 @@ describe("proxy", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
+		clearRequireLoginCacheForTests();
 		process.env.WORKER_API_URL = "https://worker.example.com";
 		process.env.FORUM_API_KEY = "test-key";
 		// Mock fetch to return require_login = false

@@ -15,18 +15,18 @@ vi.mock("@/lib/forum-api", async (importOriginal) => {
 	};
 });
 
-vi.mock("@/lib/forum-data", async () => {
+vi.mock("@/lib/forum-cache", async () => {
 	const { forumApi } = await import("@/lib/forum-api");
 	return {
-		getForumList: async () => {
+		getCachedForumList: async () => {
 			const res = await (forumApi as any).getAll("/api/v1/forums");
 			return res.data;
 		},
-		getForumAncestors: async (forumId: number) => {
+		getCachedForumAncestors: async (forumId: number) => {
 			const res = await (forumApi as any).get(`/api/v1/forums/${forumId}/ancestors`);
 			return res.data;
 		},
-		getThreadById: vi.fn(),
+		getCachedThreadById: vi.fn(),
 	};
 });
 

@@ -5,8 +5,8 @@ import "server-only";
 
 import { forumApi } from "@/lib/forum-api";
 import { buildForumBreadcrumbs } from "@/lib/forum-breadcrumbs";
-import { getForumList } from "@/lib/forum-data";
-import { getPageSize } from "@/lib/forum-settings";
+import { getCachedForumList } from "@/lib/forum-cache";
+import { getCachedPageSize } from "@/lib/forum-cache";
 import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import {
 	type Forum,
@@ -46,11 +46,11 @@ export async function loadThreadList(params: {
 	limit?: number;
 }): Promise<ThreadListData> {
 	// Get page size from settings
-	const defaultLimit = await getPageSize();
+	const defaultLimit = await getCachedPageSize();
 
 	// Parallel fetch: forum tree + threads (forums deduped via React cache)
 	const [forums, threadsRes] = await Promise.all([
-		getForumList(),
+		getCachedForumList(),
 		forumApi.getCursor<Thread>("/api/v1/threads", {
 			forumId: params.forumId,
 			limit: params.limit ?? defaultLimit,
@@ -81,12 +81,12 @@ export async function loadThreadListPaged(params: {
 }): Promise<ThreadListPagedData> {
 	const page = params.page ?? 1;
 	// Get page size from settings
-	const defaultLimit = await getPageSize();
+	const defaultLimit = await getCachedPageSize();
 	const limit = params.limit ?? defaultLimit;
 
 	// Parallel fetch: forum tree + threads (forums deduped via React cache)
 	const [forums, threadsRes] = await Promise.all([
-		getForumList(),
+		getCachedForumList(),
 		forumApi.getPage<Thread>("/api/v1/threads", {
 			forumId: params.forumId,
 			page,

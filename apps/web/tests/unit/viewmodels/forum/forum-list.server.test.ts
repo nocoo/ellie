@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/forum-data", () => ({
-	getForumList: vi.fn(),
-	getThreadById: vi.fn(),
+vi.mock("@/lib/forum-cache", () => ({
+	getCachedForumList: vi.fn(),
+	getCachedThreadById: vi.fn(),
 }));
 
-import { getForumList } from "@/lib/forum-data";
+import { getCachedForumList } from "@/lib/forum-cache";
 import { loadForumList } from "@/viewmodels/forum/forum-list.server";
 
-const mockGetForumList = getForumList as ReturnType<typeof vi.fn>;
+const mockGetForumList = getCachedForumList as ReturnType<typeof vi.fn>;
 
 describe("loadForumList", () => {
 	beforeEach(() => {

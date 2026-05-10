@@ -2,6 +2,8 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { featureFlagsCache, useFeatureFlags } from "@/hooks/use-feature-flags";
+
 function jsonResponse(payload: unknown, status = 200): Response {
 	return new Response(JSON.stringify(payload), {
 		status,
@@ -9,10 +11,11 @@ function jsonResponse(payload: unknown, status = 200): Response {
 	});
 }
 
-// Must import fresh to reset module-level cache
 describe("useFeatureFlags with real React", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		// Explicit reset — do not rely on test ordering for cache state.
+		featureFlagsCache.clear();
 	});
 
 	it("fetches settings and resolves flags", async () => {
@@ -28,8 +31,6 @@ describe("useFeatureFlags with real React", () => {
 			}),
 		) as unknown as typeof fetch;
 
-		// Dynamic import to get fresh module state
-		const { useFeatureFlags } = await import("@/hooks/use-feature-flags");
 		const { result } = renderHook(() => useFeatureFlags());
 
 		await waitFor(() => {
@@ -44,16 +45,33 @@ describe("useFeatureFlags with real React", () => {
 	});
 
 	it("handles fetch error and stops loading", async () => {
-		// This test runs after the cached test above, so cache is populated
-		// We can only verify it doesn't crash
 		globalThis.fetch = vi.fn(async () => {
 			throw new Error("network");
 		}) as unknown as typeof fetch;
 
-		const { useFeatureFlags } = await import("@/hooks/use-feature-flags");
 		const { result } = renderHook(() => useFeatureFlags());
 
-		// Cache from previous test will be used
-		expect(result.current.isLoading).toBe(false);
+		// Cold cache → effect rejects → loading clears.
+		await waitFor(() => {
+			expect(result.current.isLoading).toBe(false);
+		});
+	});
+
+	it("seeds state from cached value on second mount (no loading frame)", async () => {
+		globalThis.fetch = vi.fn(async () =>
+			jsonResponse({
+				"features.content.allow_new_thread": "true",
+				"features.access.require_login": "false",
+			}),
+		) as unknown as typeof fetch;
+
+		// Prime the cache with a successful load.
+		const first = renderHook(() => useFeatureFlags());
+		await waitFor(() => expect(first.result.current.isLoading).toBe(false));
+
+		// Second mount must NOT show isLoading=true even for one render.
+		const second = renderHook(() => useFeatureFlags());
+		expect(second.result.current.isLoading).toBe(false);
+		expect(second.result.current.canCreateThread).toBe(true);
 	});
 });

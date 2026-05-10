@@ -9,8 +9,8 @@ import { PagePagination } from "@/components/forum/page-pagination";
 import { ThreadItem } from "@/components/forum/thread-item";
 import { ThreadListHeader } from "@/components/forum/thread-list-header";
 import { Card, CardContent } from "@/components/ui/card";
+import { getCachedPostsPerPage } from "@/lib/forum-cache";
 import { getSelfForumUser } from "@/lib/forum-self";
-import { getPostsPerPage } from "@/lib/forum-settings";
 import {
 	type ThreadListPagedData,
 	loadThreadListPaged,
@@ -62,7 +62,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 	// Parallel: loader + self-user fetch + postsPerPage. All independent.
 	// self uses fail-soft (.catch → null) so it never breaks the page.
 	const selfPromise = getSelfForumUser().catch(() => null);
-	const postsPerPagePromise = getPostsPerPage();
+	const postsPerPagePromise = getCachedPostsPerPage();
 
 	try {
 		data = await loadThreadListPaged({ forumId, page });

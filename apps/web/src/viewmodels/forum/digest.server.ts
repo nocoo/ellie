@@ -4,7 +4,7 @@
 import "server-only";
 
 import { forumApi } from "@/lib/forum-api";
-import { getPageSize } from "@/lib/forum-settings";
+import { getCachedPageSize } from "@/lib/forum-cache";
 import type { PaginatedResult } from "@/viewmodels/shared/pagination";
 import type { Thread } from "@ellie/types";
 
@@ -41,7 +41,7 @@ export async function loadDigestList(params: {
 	year?: number; // Filter by year
 }): Promise<DigestData> {
 	// Get page size from settings
-	const defaultLimit = await getPageSize();
+	const defaultLimit = await getCachedPageSize();
 	const limit = params.limit ?? defaultLimit;
 
 	// Build query params
