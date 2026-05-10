@@ -465,6 +465,27 @@ export default {
 				return await (await import("./handlers/admin/statistics")).recalcUsers(request, env);
 			}
 
+			// ── E1. KV Monitor (Admin) ───────────────────────
+			// Read-only + typed safe-mutation endpoints backing the
+			// `/admin/statistics/kv` page. See handlers/admin/kv.ts for
+			// sensitivity rules — auth tokens / verification codes are
+			// never returned through these routes.
+			if (path === "/api/admin/kv/overview" && request.method === "GET") {
+				return await (await import("./handlers/admin/kv")).overview(request, env);
+			}
+			if (path === "/api/admin/kv/list" && request.method === "GET") {
+				return await (await import("./handlers/admin/kv")).listFamily(request, env);
+			}
+			if (path === "/api/admin/kv/get" && request.method === "GET") {
+				return await (await import("./handlers/admin/kv")).getKey(request, env);
+			}
+			if (path === "/api/admin/kv/refresh" && request.method === "POST") {
+				return await (await import("./handlers/admin/kv")).refresh(request, env);
+			}
+			if (path === "/api/admin/kv/metrics" && request.method === "GET") {
+				return await (await import("./handlers/admin/kv")).metrics(request, env);
+			}
+
 			// ── F. Attachment (Admin) #43-#46 ────────────────
 			if (path === "/api/admin/attachments/batch-delete" && request.method === "POST") {
 				return await (await import("./handlers/admin/attachment")).batchDelete(request, env);

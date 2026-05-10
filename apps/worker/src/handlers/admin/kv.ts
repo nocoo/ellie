@@ -1,0 +1,600 @@
+// Admin KV monitor — read + safe-mutation handlers backing the
+// `/admin/statistics/kv` page. All endpoints are gated by Key B at
+// the router level (`apiKey` middleware) and additionally by
+// `withEntityAuth` for the `auth: "admin"` flag.
+//
+// Design contract (see thread #ellie-后端细节:bdcb7183 v3 plan):
+//
+// 1. Family declared in `kv-registry.ts` is the single source of truth.
+//    The handler never accepts arbitrary KV operations — every mutation
+//    is dispatched through a typed `KvRefreshAction`.
+//
+// 2. Sensitivity masking is enforced server-side, not in the front end:
+//    - `nameSensitivity: "hide"` → never return sample keys; `getKey`
+//      refuses with `KV_KEY_NAME_HIDDEN`.
+//    - `nameSensitivity: "mask"` → sample keys / `listFamily` results
+//      have their suffix masked via `maskKeyName`.
+//    - `valueSensitivity: "no-read"` → `getKey` refuses with
+//      `KV_KEY_VALUE_FORBIDDEN` even on otherwise public-name keys.
+//
+// 3. Audit log on every mutation (`writeAdminLog` actions
+//    `kv.bump_gen`, `kv.delete_key`). Audit details only carry the
+//    family + masked key + category — never the raw value.
+//
+// 4. Cloudflare KV API quirks the handler papers over:
+//    - `getWithMetadata` does NOT return expiration → for detail view
+//      we additionally `KV.list({prefix: key, limit: 1})` and look up
+//      the matching entry to surface `expiration`. Returns `null`
+//      ("unknown") when the row is not in that page.
+//    - `KV.list` is eventually-consistent and may return empty pages
+//      with `list_complete: false`. Pagination terminates ONLY on
+//      `list_complete === true`.
+//
+// 5. The `metrics` endpoint is intentionally a stub in commit A — the
+//    D1 table + accumulator land in commit B. The route is wired here
+//    so the admin UI can be built against a stable shape.
+
+import { withEntityAuth } from "../../lib/adminHelpers";
+import { resolveActor, writeAdminLog } from "../../lib/adminLog";
+import { getGen } from "../../lib/cache/epoch";
+import {
+	bumpDigestGen,
+	bumpForumSummaryGen,
+	bumpForumTreeGen,
+	bumpPostListGen,
+	bumpThreadListGen,
+	bumpThreadListGenAll,
+	bumpThreadMetaGen,
+	deleteUserMini,
+} from "../../lib/cache/invalidate";
+import {
+	KV_REGISTRY,
+	type KvFamilySpec,
+	findFamily,
+	resolveFamilyForKey,
+} from "../../lib/cache/kv-registry";
+import type { EntityConfig } from "../../lib/crud";
+import type { Env } from "../../lib/env";
+import { jsonResponse } from "../../lib/response";
+import { errorResponse } from "../../middleware/error";
+
+const kvConfig: EntityConfig = {
+	table: "forums",
+	entityName: "KV_MONITOR",
+	auth: "admin",
+	columns: "id",
+	mapper: (row) => row,
+	notFoundCode: "KV_FAMILY_NOT_FOUND",
+};
+
+// ─── Sensitivity masking helpers ──────────────────────────────────
+
+/**
+ * Hash a string to a short hex digest used to mask user identifiers
+ * inside key names. Not a security primitive — only there so two
+ * keys for the same user collapse to the same masked label so the
+ * UI can show "1 user" vs "many".
+ *
+ * Uses SubtleCrypto SHA-256 (available in Workers runtime). Returns
+ * the first 6 hex chars.
+ */
+async function shortHash(input: string): Promise<string> {
+	const data = new TextEncoder().encode(input);
+	const buf = await crypto.subtle.digest("SHA-256", data);
+	const bytes = new Uint8Array(buf);
+	let out = "";
+	for (let i = 0; i < 3; i++) {
+		out += bytes[i].toString(16).padStart(2, "0");
+	}
+	return out;
+}
+
+/**
+ * Mask the variable portion of an IPv4-style key suffix. Keeps the
+ * first two octets and replaces the rest. IPv6 fallback: keep the
+ * first 4 hex blocks.
+ */
+function maskIpSuffix(suffix: string): string {
+	if (suffix.includes(".")) {
+		const parts = suffix.split(".");
+		if (parts.length === 4) return `${parts[0]}.${parts[1]}.*.*`;
+	}
+	if (suffix.includes(":")) {
+		const parts = suffix.split(":");
+		if (parts.length >= 4) return `${parts.slice(0, 4).join(":")}::*`;
+	}
+	return "***";
+}
+
+/**
+ * Apply the family's masking rule to a raw key. Pure for `public`,
+ * async for `mask` because user-id masking uses SubtleCrypto.
+ *
+ * The handler never returns `hide` keys to clients — they're filtered
+ * out before this function is called.
+ */
+async function maskKeyName(key: string, family: KvFamilySpec): Promise<string> {
+	if (family.nameSensitivity === "public") return key;
+	if (family.nameSensitivity === "hide") return "[hidden]";
+	const suffix = key.slice(family.listPrefix.length);
+	if (suffix.length === 0) return key;
+	switch (family.family) {
+		case "login-ip":
+		case "login-lockout-ip":
+		case "reg-ip":
+		case "chk-usr-ip":
+			return `${family.listPrefix}${maskIpSuffix(suffix)}`;
+		case "online:user":
+		case "activity_throttle":
+		case "email_verify":
+		case "email_verify_lock": {
+			const h = await shortHash(suffix);
+			return `${family.listPrefix}u_${h}`;
+		}
+		default:
+			return `${family.listPrefix}***`;
+	}
+}
+
+// ─── KV.list pagination helpers ───────────────────────────────────
+
+/**
+ * Walk `KV.list({prefix})` until `list_complete === true`, collecting
+ * keys. Caller passes a per-page hard cap to avoid unbounded scans;
+ * default 5000. Returns `{keys, scannedPages, truncated}` — `truncated`
+ * means the cap was hit before pagination completed, in which case the
+ * count is a lower bound.
+ *
+ * NOTE: Cloudflare KV `list` is eventually-consistent and may return
+ * empty `keys` with `list_complete: false`. We MUST NOT short-circuit
+ * on empty pages.
+ */
+async function listAllByPrefix(
+	env: Env,
+	prefix: string,
+	hardCap = 5000,
+): Promise<{
+	keys: { name: string; expiration?: number }[];
+	truncated: boolean;
+}> {
+	const out: { name: string; expiration?: number }[] = [];
+	let cursor: string | undefined;
+	let pages = 0;
+	const PAGE_LIMIT = 1000;
+	const MAX_PAGES = Math.max(1, Math.ceil(hardCap / PAGE_LIMIT));
+	while (pages < MAX_PAGES) {
+		const result = await env.KV.list({
+			prefix,
+			cursor,
+			limit: PAGE_LIMIT,
+		});
+		for (const entry of result.keys) {
+			out.push({ name: entry.name, expiration: entry.expiration });
+			if (out.length >= hardCap) {
+				return { keys: out, truncated: !result.list_complete };
+			}
+		}
+		if (result.list_complete) {
+			return { keys: out, truncated: false };
+		}
+		cursor = result.cursor;
+		pages++;
+	}
+	return { keys: out, truncated: true };
+}
+
+// ─── Body / param parsing ─────────────────────────────────────────
+
+async function parseBody(request: Request): Promise<Record<string, unknown> | null> {
+	try {
+		const text = await request.text();
+		if (!text) return {};
+		return JSON.parse(text) as Record<string, unknown>;
+	} catch {
+		return null;
+	}
+}
+
+function readQuery(request: Request, key: string): string | null {
+	const url = new URL(request.url);
+	const v = url.searchParams.get(key);
+	return v && v.length > 0 ? v : null;
+}
+
+// ─── GET /api/admin/kv/overview ───────────────────────────────────
+//
+// Returns one row per declared family with current presence/count and
+// a small sample of (masked) key names. Counts are bounded by the
+// per-family list cap so a runaway prefix can't blow up the response.
+
+interface OverviewRow {
+	family: string;
+	displayName: string;
+	category: string;
+	status: string;
+	pattern: string;
+	ttl: number | "sticky" | "variable";
+	nameSensitivity: string;
+	valueSensitivity: string;
+	count: number;
+	truncated: boolean;
+	currentGens?: { name: string; value: string }[];
+	sampleKeys: string[];
+}
+
+const OVERVIEW_HARD_CAP = 1000;
+const OVERVIEW_SAMPLE_SIZE = 5;
+
+export const overview = withEntityAuth(
+	kvConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined;
+
+		const rows: OverviewRow[] = [];
+		for (const spec of KV_REGISTRY) {
+			const baseRow: OverviewRow = {
+				family: spec.family,
+				displayName: spec.displayName,
+				category: spec.category,
+				status: spec.status,
+				pattern: spec.pattern,
+				ttl: spec.ttl,
+				nameSensitivity: spec.nameSensitivity,
+				valueSensitivity: spec.valueSensitivity,
+				count: 0,
+				truncated: false,
+				sampleKeys: [],
+			};
+
+			// `dead-builder-reserved` and `historical` we still list to show
+			// any leftover rows; no special skip.
+			const { keys, truncated } = await listAllByPrefix(env, spec.listPrefix, OVERVIEW_HARD_CAP);
+
+			// Filter out keys that resolve to a more-specific family — this
+			// makes "user:mini:" not double-count "user:mini:v2:..." keys.
+			const owned = keys.filter((k) => resolveFamilyForKey(k.name)?.family === spec.family);
+
+			baseRow.count = owned.length;
+			baseRow.truncated = truncated;
+
+			if (spec.nameSensitivity !== "hide" && owned.length > 0) {
+				const sampleSlice = owned.slice(0, OVERVIEW_SAMPLE_SIZE);
+				baseRow.sampleKeys = await Promise.all(sampleSlice.map((k) => maskKeyName(k.name, spec)));
+			}
+
+			if (spec.genKeys && spec.genKeys.length > 0) {
+				baseRow.currentGens = await Promise.all(
+					spec.genKeys.map(async (genName) => ({
+						name: genName,
+						value: await getGen(env, genName),
+					})),
+				);
+			}
+
+			rows.push(baseRow);
+		}
+
+		return jsonResponse({ families: rows }, origin);
+	},
+);
+
+// ─── GET /api/admin/kv/list ───────────────────────────────────────
+//
+// Paginated list of keys for one family. Always applies sensitivity
+// masking to the key names; refuses entirely when `nameSensitivity ===
+// "hide"`. Returns expirations from the KV.list response (already an
+// absolute unix-second value when set).
+
+const LIST_PAGE_LIMIT = 100;
+
+export const listFamily = withEntityAuth(
+	kvConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined;
+		const familyParam = readQuery(request, "family");
+		if (!familyParam) {
+			return errorResponse("MISSING_FAMILY", 400, undefined, origin);
+		}
+		const spec = findFamily(familyParam);
+		if (!spec) {
+			return errorResponse("KV_FAMILY_NOT_FOUND", 404, undefined, origin);
+		}
+		if (spec.nameSensitivity === "hide") {
+			return errorResponse("KV_KEY_NAME_HIDDEN", 403, { family: spec.family }, origin);
+		}
+
+		const cursor = readQuery(request, "cursor") ?? undefined;
+		const limitRaw = readQuery(request, "limit");
+		const limit = Math.min(
+			Math.max(Number.parseInt(limitRaw ?? "", 10) || LIST_PAGE_LIMIT, 1),
+			LIST_PAGE_LIMIT,
+		);
+
+		const result = await env.KV.list({
+			prefix: spec.listPrefix,
+			cursor,
+			limit,
+		});
+
+		// Filter to keys actually owned by this family (handles overlapping
+		// prefixes like user:mini: vs user:mini:v2:).
+		const owned = result.keys.filter((k) => resolveFamilyForKey(k.name)?.family === spec.family);
+		const masked = await Promise.all(
+			owned.map(async (k) => ({
+				key: await maskKeyName(k.name, spec),
+				rawKey: spec.nameSensitivity === "public" ? k.name : null,
+				expiration: k.expiration ?? null,
+			})),
+		);
+
+		return jsonResponse(
+			{
+				family: spec.family,
+				keys: masked,
+				cursor: result.list_complete ? null : result.cursor,
+				listComplete: result.list_complete,
+			},
+			origin,
+		);
+	},
+);
+
+// ─── GET /api/admin/kv/get ────────────────────────────────────────
+//
+// Single key detail. Refuses when `valueSensitivity === "no-read"` so
+// auth tokens / verification codes can never leak through this path.
+
+export const getKey = withEntityAuth(
+	kvConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined;
+		const key = readQuery(request, "key");
+		if (!key) return errorResponse("MISSING_KEY", 400, undefined, origin);
+
+		const spec = resolveFamilyForKey(key);
+		if (!spec) {
+			return errorResponse("KV_FAMILY_NOT_FOUND", 404, { key }, origin);
+		}
+		if (spec.nameSensitivity === "hide") {
+			return errorResponse("KV_KEY_NAME_HIDDEN", 403, { family: spec.family }, origin);
+		}
+		if (spec.valueSensitivity === "no-read") {
+			return errorResponse("KV_KEY_VALUE_FORBIDDEN", 403, { family: spec.family }, origin);
+		}
+
+		const { value, metadata } = await env.KV.getWithMetadata(key);
+		if (value === null) {
+			return errorResponse("KV_KEY_NOT_FOUND", 404, { key }, origin);
+		}
+
+		// expiration is not on getWithMetadata — paginate list({prefix:key})
+		// for the matching entry. Best-effort; "unknown" if not in the page.
+		let expiration: number | null = null;
+		try {
+			const probe = await env.KV.list({ prefix: key, limit: 10 });
+			const hit = probe.keys.find((k) => k.name === key);
+			expiration = hit?.expiration ?? null;
+		} catch {
+			expiration = null;
+		}
+
+		// Try to parse value as JSON for the UI; fall back to raw string.
+		let parsedValue: unknown = value;
+		try {
+			parsedValue = JSON.parse(value);
+		} catch {
+			// value is a plain string (counter, token-id reference, …)
+		}
+
+		const maskedKey = await maskKeyName(key, spec);
+		return jsonResponse(
+			{
+				family: spec.family,
+				key: maskedKey,
+				rawKey: spec.nameSensitivity === "public" ? key : null,
+				value: parsedValue,
+				valueByteSize: new TextEncoder().encode(value).byteLength,
+				metadata: metadata ?? null,
+				expiration,
+			},
+			origin,
+		);
+	},
+);
+
+// ─── POST /api/admin/kv/refresh ───────────────────────────────────
+//
+// Single dispatcher for every typed `KvRefreshAction`. Body shape:
+//   { family: string, action: { kind: "...", forumId?, key?, ... } }
+// Action kind MUST match the family's declared `refresh.kind` so the
+// front end can't smuggle a different action onto a family.
+
+// Table of refresh actions that take no extra args and just call a
+// generation-bump helper. Keeping these out of the main switch caps
+// the cognitive complexity of `refresh`.
+const SIMPLE_BUMP_ACTIONS: Record<string, { gen: string; run: (env: Env) => Promise<string> }> = {
+	"bump-forum-tree": { gen: "forum:tree:gen", run: bumpForumTreeGen },
+	"bump-forum-summary": { gen: "forum:summary:gen", run: bumpForumSummaryGen },
+	"bump-thread-list-all": { gen: "thread:list:gen:all", run: bumpThreadListGenAll },
+	"bump-digest": { gen: "digest:gen", run: bumpDigestGen },
+};
+
+export const refresh = withEntityAuth(
+	kvConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined;
+		const body = await parseBody(request);
+		if (!body) return errorResponse("INVALID_BODY", 400, undefined, origin);
+
+		const familyParam = typeof body.family === "string" ? body.family : null;
+		if (!familyParam) return errorResponse("MISSING_FAMILY", 400, undefined, origin);
+		const spec = findFamily(familyParam);
+		if (!spec) return errorResponse("KV_FAMILY_NOT_FOUND", 404, undefined, origin);
+
+		const action = body.action as { kind?: string } | undefined;
+		const kind = action?.kind;
+		if (!kind || kind !== spec.refresh.kind) {
+			return errorResponse(
+				"KV_ACTION_MISMATCH",
+				400,
+				{ family: spec.family, expected: spec.refresh.kind, got: kind ?? null },
+				origin,
+			);
+		}
+
+		const actor = resolveActor(request);
+
+		// Simple no-arg bump actions are dispatched via a shared table to
+		// keep the switch below under the lint complexity budget.
+		const simpleBump = SIMPLE_BUMP_ACTIONS[spec.refresh.kind];
+		if (simpleBump) {
+			const newGen = await simpleBump.run(env);
+			await writeAdminLog(env, actor, {
+				action: "kv.bump_gen",
+				targetType: "kv_family",
+				targetId: null,
+				details: { family: spec.family, gen: simpleBump.gen, newGen },
+			});
+			return jsonResponse({ ok: true, family: spec.family, newGen }, origin);
+		}
+
+		switch (spec.refresh.kind) {
+			case "bump-thread-list-forum":
+				return refreshBumpThreadListForum(env, actor, spec, action, origin);
+			case "bump-thread-meta":
+			case "bump-post-list":
+				return refreshBumpThreadScoped(env, actor, spec, action, origin);
+			case "delete-literal":
+				return refreshDeleteLiteral(env, actor, spec, action, origin);
+			case "delete-user-mini":
+				return refreshDeleteUserMini(env, actor, spec, action, origin);
+			case "none":
+				return errorResponse("KV_ACTION_NOT_ALLOWED", 400, { family: spec.family }, origin);
+		}
+		return errorResponse("KV_ACTION_NOT_ALLOWED", 400, { family: spec.family }, origin);
+	},
+);
+
+async function refreshBumpThreadListForum(
+	env: Env,
+	actor: Awaited<ReturnType<typeof resolveActor>>,
+	spec: ReturnType<typeof findFamily> & object,
+	action: { kind?: string } | undefined,
+	origin: string | undefined,
+): Promise<Response> {
+	const forumId = Number((action as { forumId?: unknown }).forumId);
+	if (!Number.isInteger(forumId) || forumId <= 0) {
+		return errorResponse("MISSING_FORUM_ID", 400, undefined, origin);
+	}
+	const newGen = await bumpThreadListGen(env, forumId);
+	await writeAdminLog(env, actor, {
+		action: "kv.bump_gen",
+		targetType: "kv_family",
+		targetId: forumId,
+		details: { family: spec.family, gen: `thread:list:gen:${forumId}`, newGen },
+	});
+	return jsonResponse({ ok: true, family: spec.family, forumId, newGen }, origin);
+}
+
+async function refreshBumpThreadScoped(
+	env: Env,
+	actor: Awaited<ReturnType<typeof resolveActor>>,
+	spec: ReturnType<typeof findFamily> & object,
+	action: { kind?: string } | undefined,
+	origin: string | undefined,
+): Promise<Response> {
+	const threadId = Number((action as { threadId?: unknown }).threadId);
+	if (!Number.isInteger(threadId) || threadId <= 0) {
+		return errorResponse("MISSING_THREAD_ID", 400, undefined, origin);
+	}
+	const isMeta = spec.refresh.kind === "bump-thread-meta";
+	const newGen = await (isMeta ? bumpThreadMetaGen : bumpPostListGen)(env, threadId);
+	await writeAdminLog(env, actor, {
+		action: "kv.bump_gen",
+		targetType: "kv_family",
+		targetId: threadId,
+		details: {
+			family: spec.family,
+			gen: `${isMeta ? "thread:meta" : "post:list"}:gen:${threadId}`,
+			newGen,
+		},
+	});
+	return jsonResponse({ ok: true, family: spec.family, threadId, newGen }, origin);
+}
+
+async function refreshDeleteLiteral(
+	env: Env,
+	actor: Awaited<ReturnType<typeof resolveActor>>,
+	spec: ReturnType<typeof findFamily> & object,
+	action: { kind?: string } | undefined,
+	origin: string | undefined,
+): Promise<Response> {
+	const key = (action as { key?: unknown }).key;
+	if (typeof key !== "string" || key.length === 0) {
+		return errorResponse("MISSING_KEY", 400, undefined, origin);
+	}
+	const targetSpec = resolveFamilyForKey(key);
+	if (!targetSpec || targetSpec.family !== spec.family) {
+		return errorResponse("KV_KEY_FAMILY_MISMATCH", 400, { family: spec.family, key }, origin);
+	}
+	if (targetSpec.refresh.kind !== "delete-literal") {
+		return errorResponse("KV_ACTION_NOT_ALLOWED", 400, { family: spec.family }, origin);
+	}
+	await env.KV.delete(key);
+	const masked = await maskKeyName(key, targetSpec);
+	await writeAdminLog(env, actor, {
+		action: "kv.delete_key",
+		targetType: "kv_key",
+		targetId: null,
+		details: { family: spec.family, maskedKey: masked },
+	});
+	return jsonResponse({ ok: true, family: spec.family, deleted: 1 }, origin);
+}
+
+async function refreshDeleteUserMini(
+	env: Env,
+	actor: Awaited<ReturnType<typeof resolveActor>>,
+	spec: ReturnType<typeof findFamily> & object,
+	action: { kind?: string } | undefined,
+	origin: string | undefined,
+): Promise<Response> {
+	const userId = Number((action as { userId?: unknown }).userId);
+	if (!Number.isInteger(userId) || userId <= 0) {
+		return errorResponse("MISSING_USER_ID", 400, undefined, origin);
+	}
+	await deleteUserMini(env, userId);
+	await writeAdminLog(env, actor, {
+		action: "kv.delete_key",
+		targetType: "kv_key",
+		targetId: userId,
+		details: { family: spec.family },
+	});
+	return jsonResponse({ ok: true, family: spec.family, userId, deleted: 1 }, origin);
+}
+
+// ─── GET /api/admin/kv/metrics — STUB until commit B ──────────────
+//
+// Returns an empty time-series envelope so the admin UI can build
+// against the final shape. Commit B replaces the body with a D1
+// query against `kv_cache_metrics_minute`.
+
+export const metrics = withEntityAuth(
+	kvConfig,
+	async (request: Request, _env: Env): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined;
+		const family = readQuery(request, "family");
+		const minutes = Math.min(
+			Math.max(Number.parseInt(readQuery(request, "minutes") ?? "60", 10) || 60, 1),
+			1440,
+		);
+		return jsonResponse(
+			{
+				family: family ?? null,
+				minutes,
+				series: [],
+				note: "metrics not yet enabled (commit B)",
+			},
+			origin,
+		);
+	},
+);
