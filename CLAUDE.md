@@ -180,6 +180,14 @@ npx wrangler dev -c apps/worker/wrangler.toml
 
 ## Retrospective
 
+### 2026-05-10: Checkin Streak Bug from Pre-Fix Deployment
+- **Issue:** 3 users who checked in on May 9 have `streak_days=1` instead of 2, despite checking in on consecutive days (import from May 8 → new checkin May 9).
+- **Cause:** The initial Worker deployment included commit `3c36b33` which used `toLocaleString("en-US", { timeZone: "Asia/Shanghai" })` → `new Date()` for timezone conversion. In Cloudflare Workers (UTC runtime), this re-parses the Shanghai-formatted string as UTC, shifting `todayStart` by +8 hours. The fix in `bb4523c` (using `Intl.DateTimeFormat.formatToParts()` + `Date.UTC - 8h`) was committed locally but not deployed until later.
+- **Fix:** `bb4523c` is now in production (Worker `8e8a6d7d`). Future streak calculations are correct. Optional D1 repair for 3 affected users.
+- **Lessons:**
+  1. **Don't deploy code with known review blockers.** The timezone bug was identified by the reviewer as a blocker — the initial deployment should not have happened before the fix was committed and verified.
+  2. **Timezone logic in Workers must use `formatToParts()` + explicit UTC arithmetic**, never `toLocaleString → new Date()` round-trip.
+
 ### 2026-05-07: Worker Deploy Without Migration Apply
 - **Issue:** Deployed worker `f1d00be` to production; admin `/api/admin/users` immediately broke with 500 ("无法加载 users 列表")
 - **Cause:** Migration `0030_user_tombstone.sql` (adds `purged_at`/`purged_by` to `users`) was never applied to prod D1. Deployed worker's `USER_COLUMNS` SELECT references those columns → SQLite "no such column" → 500.
