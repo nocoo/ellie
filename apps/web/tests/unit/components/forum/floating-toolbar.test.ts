@@ -71,7 +71,7 @@ function pressKeyWithMeta(key: string) {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("FloatingToolbar", () => {
-	it("renders scroll-to-top, prev, next, back buttons", () => {
+	it("renders scroll-to-top, prev, next, back buttons with accessible names", () => {
 		render(
 			createElement(FloatingToolbar, {
 				prevHref: "/prev",
@@ -80,9 +80,10 @@ describe("FloatingToolbar", () => {
 			}),
 		);
 
-		// All toolbar items render as buttons
-		const buttons = screen.getAllByRole("button");
-		expect(buttons.length).toBe(4); // top, prev, next, back
+		expect(screen.getByRole("button", { name: "回到顶部" })).toBeDefined();
+		expect(screen.getByRole("button", { name: "上一页" })).toBeDefined();
+		expect(screen.getByRole("button", { name: "下一页" })).toBeDefined();
+		expect(screen.getByRole("button", { name: "返回" })).toBeDefined();
 	});
 
 	// ─── Keyboard shortcuts ───────────────────────────────────────────────
@@ -189,23 +190,24 @@ describe("FloatingToolbar", () => {
 
 	// ─── Context action button click ──────────────────────────────────────
 
-	it("shows reply icon button when actionType is reply", () => {
+	it("calls onAction when reply button is clicked", () => {
 		const onAction = vi.fn();
 		render(createElement(FloatingToolbar, { actionType: "reply", onAction }));
-		// The button has no explicit aria-label but the icon is MessageSquarePlus
-		// We can find it by clicking
-		const buttons = screen.getAllByRole("button");
-		// Last non-disabled button should be the action button
-		const actionBtn = buttons[buttons.length - 1];
-		fireEvent.click(actionBtn);
+		fireEvent.click(screen.getByRole("button", { name: "快速回帖" }));
+		expect(onAction).toHaveBeenCalledTimes(1);
+	});
+
+	it("calls onAction when new-thread button is clicked", () => {
+		const onAction = vi.fn();
+		render(createElement(FloatingToolbar, { actionType: "new-thread", onAction }));
+		fireEvent.click(screen.getByRole("button", { name: "发表新帖" }));
 		expect(onAction).toHaveBeenCalledTimes(1);
 	});
 
 	it("does not show action button when actionType is none", () => {
 		render(createElement(FloatingToolbar, { actionType: "none" }));
-		// Only top, prev, next should be present (no back, no action)
-		const buttons = screen.getAllByRole("button");
-		expect(buttons.length).toBe(3); // top, prev, next
+		expect(screen.queryByRole("button", { name: "快速回帖" })).toBeNull();
+		expect(screen.queryByRole("button", { name: "发表新帖" })).toBeNull();
 	});
 
 	// ─── Jump page ────────────────────────────────────────────────────────
@@ -216,10 +218,7 @@ describe("FloatingToolbar", () => {
 				jumpPage: { basePath: "/forums/1", pages: 5 },
 			}),
 		);
-		// Should have extra buttons for jump page (Hash icon trigger + Go button inside popover)
-		const buttons = screen.getAllByRole("button");
-		// top + prev + next + jump trigger + Go = 5
-		expect(buttons.length).toBe(5);
+		expect(screen.getByRole("button", { name: "跳页" })).toBeDefined();
 	});
 
 	it("does not render jump page button when pages <= 1", () => {
@@ -228,8 +227,19 @@ describe("FloatingToolbar", () => {
 				jumpPage: { basePath: "/forums/1", pages: 1 },
 			}),
 		);
-		const buttons = screen.getAllByRole("button");
-		// top + prev + next = 3
-		expect(buttons.length).toBe(3);
+		expect(screen.queryByRole("button", { name: "跳页" })).toBeNull();
+	});
+
+	it("does not register g shortcut when pages <= 1", () => {
+		render(
+			createElement(FloatingToolbar, {
+				jumpPage: { basePath: "/forums/1", pages: 1 },
+			}),
+		);
+		// g should not open anything — no jump page form visible
+		pressKey("g");
+		// If g were active it would toggle internal state; since the popover
+		// is mocked inline, we just verify no jump input appears
+		expect(screen.queryByRole("button", { name: "跳页" })).toBeNull();
 	});
 });

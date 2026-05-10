@@ -86,6 +86,7 @@ function ToolbarButton({
 				render={
 					<button
 						type="button"
+						aria-label={label}
 						onClick={disabled ? undefined : onClick}
 						disabled={disabled}
 						className={cn(
@@ -157,6 +158,7 @@ function JumpPagePopover({
 							render={
 								<button
 									type="button"
+									aria-label="跳页"
 									className="inline-flex items-center justify-center w-8 h-8 rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer"
 								/>
 							}
@@ -218,6 +220,7 @@ export function FloatingToolbar({
 	const router = useRouter();
 	const [showScrollTop, setShowScrollTop] = useState(false);
 	const [jumpPageOpen, setJumpPageOpen] = useState(false);
+	const canJumpPage = !!jumpPage && jumpPage.pages > 1;
 
 	// Track scroll position
 	useEffect(() => {
@@ -248,7 +251,7 @@ export function FloatingToolbar({
 		};
 		if (actionType === "reply" && onAction) keyActions.r = onAction;
 		if (actionType === "new-thread" && onAction) keyActions.n = onAction;
-		if (jumpPage) keyActions.g = () => setJumpPageOpen((prev) => !prev);
+		if (canJumpPage) keyActions.g = () => setJumpPageOpen((prev) => !prev);
 
 		const handleKeyDown = (e: KeyboardEvent) => {
 			if (isInputTarget(e) || hasModifier(e)) return;
@@ -261,7 +264,7 @@ export function FloatingToolbar({
 
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [router, prevHref, nextHref, backHref, actionType, onAction, scrollToTop, jumpPage]);
+	}, [router, prevHref, nextHref, backHref, actionType, onAction, scrollToTop, canJumpPage]);
 
 	const showAction = actionType !== "none" && onAction;
 
@@ -302,7 +305,7 @@ export function FloatingToolbar({
 					</ToolbarButton>
 
 					{/* Jump to page (page-based pagination only) */}
-					{jumpPage && jumpPage.pages > 1 && (
+					{canJumpPage && jumpPage && (
 						<JumpPagePopover
 							basePath={jumpPage.basePath}
 							pages={jumpPage.pages}
