@@ -20,7 +20,6 @@ import {
 	type User,
 	type UserRole,
 	UserStatus,
-	canDeleteThread,
 	canManageThread,
 	canModerate,
 	canMoveThread,
@@ -134,7 +133,9 @@ export async function loadThreadDetail(params: {
 	const canModerateForum = forum ? canModerate(currentUser, forum) : false;
 	const canManage = forum ? canManageThread(currentUser, forum) : false;
 	const canMove = canMoveThread(currentUser);
-	const canDelete = forum ? canDeleteThread(currentUser, thread, forum) : false;
+	// Thread delete UI: Admin/SuperMod only — author excluded per user request.
+	// Worker/API still accepts author deletes; this only hides the button.
+	const canDelete = canMove;
 
 	// Fetch attachments, comments, and authors in parallel using batch endpoints
 	// (eliminates N+1: 1 batch request per resource type instead of N per-post requests).

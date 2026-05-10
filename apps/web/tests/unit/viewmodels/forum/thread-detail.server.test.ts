@@ -184,6 +184,37 @@ describe("loadThreadDetail", () => {
 		expect(result.currentUser?.id).toBe(50);
 	});
 
+	it("does not grant canDeleteThread to thread author (UI-only restriction)", async () => {
+		// Thread author (userId=100 == mockThread.authorId) should NOT see delete button
+		mockGetCurrentForumUser.mockResolvedValue({ userId: 100, username: "user1", role: 0 });
+		const result = await loadThreadDetail({ threadId: 1 });
+		expect(result.canDeleteThread).toBe(false);
+		expect(result.canManageThread).toBe(false);
+		expect(result.canMoveThread).toBe(false);
+	});
+
+	it("grants canDeleteThread to Admin", async () => {
+		mockGetCurrentForumUser.mockResolvedValue({ userId: 50, username: "admin", role: 1 });
+		const result = await loadThreadDetail({ threadId: 1 });
+		expect(result.canDeleteThread).toBe(true);
+		expect(result.canMoveThread).toBe(true);
+	});
+
+	it("grants canDeleteThread to SuperMod", async () => {
+		mockGetCurrentForumUser.mockResolvedValue({ userId: 60, username: "supermod", role: 2 });
+		const result = await loadThreadDetail({ threadId: 1 });
+		expect(result.canDeleteThread).toBe(true);
+		expect(result.canMoveThread).toBe(true);
+	});
+
+	it("does not grant canDeleteThread to Mod", async () => {
+		mockGetCurrentForumUser.mockResolvedValue({ userId: 70, username: "mod1", role: 3 });
+		const result = await loadThreadDetail({ threadId: 1 });
+		expect(result.canDeleteThread).toBe(false);
+		// But Mod can manage thread in their forum
+		expect(result.canManageThread).toBe(true);
+	});
+
 	it("passes limit and cursor to posts API", async () => {
 		await loadThreadDetail({ threadId: 1, limit: 10, cursor: "abc" });
 		expect(mockForumApi.getCursor).toHaveBeenCalledWith("/api/v1/posts", {
