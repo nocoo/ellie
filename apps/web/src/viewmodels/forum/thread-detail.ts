@@ -57,7 +57,7 @@ export interface ThreadDetailData {
 	canManageThread: boolean;
 	/** Can move thread to another forum (SuperMod/Admin only) */
 	canMoveThread: boolean;
-	/** Can delete thread (SuperMod/Admin or author) */
+	/** Can delete thread (SuperMod/Admin only in UI) */
 	canDeleteThread: boolean;
 }
 
