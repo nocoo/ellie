@@ -1,8 +1,8 @@
 // Ref: 04f §7 — Discuz classic two-column layout with mod action bar
 
 import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
-import { KeysetPagination } from "@/components/forum/keyset-pagination";
 import { ModProvider } from "@/components/forum/mod-context";
+import { PagePagination } from "@/components/forum/page-pagination";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
 import { ThreadPostsClient } from "@/components/forum/thread-posts-client";
 import { ThreadReportButton } from "@/components/forum/thread-report-button";
@@ -13,7 +13,12 @@ import {
 	type ThreadDetailPageData,
 	loadThreadDetail,
 } from "@/viewmodels/forum/thread-detail.server";
-import { getThreadPageCount, resolveThreadPostCursor } from "@/viewmodels/forum/thread-list";
+import {
+	getThreadPageCount,
+	getThreadPageUrl,
+	resolveCurrentPage,
+	resolveThreadPostCursor,
+} from "@/viewmodels/forum/thread-list";
 import { getThreadTitle } from "@/viewmodels/forum/title.server";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { parseIntParam } from "@/viewmodels/shared/params";
@@ -112,6 +117,14 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 
 	const badges = getThreadBadges(thread);
 	const threadPages = getThreadPageCount(thread.replies, postsPerPage);
+	const basePath = `/threads/${threadId}`;
+
+	// Derive current page from search params (priority: cursor > last > page > 1)
+	const currentPage = resolveCurrentPage(sp, postsPerPage, threadPages);
+
+	// Page-based prev/next hrefs — bypass Worker cursor backward limitation
+	const prevHref = currentPage > 1 ? getThreadPageUrl(threadId, currentPage - 1) : null;
+	const nextHref = currentPage < threadPages ? getThreadPageUrl(threadId, currentPage + 1) : null;
 
 	return (
 		<div className="space-y-3">
@@ -152,6 +165,16 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 				</CardContent>
 			</Card>
 
+			{/* Top pagination */}
+			<PagePagination
+				page={currentPage}
+				pages={threadPages}
+				total={thread.replies}
+				basePath={basePath}
+				totalLabel="条回复"
+				showPageInfo
+			/>
+
 			{/* Posts - wrapped in ModProvider for permission context */}
 			<ModProvider
 				canModerate={data.canModerateForum}
@@ -167,15 +190,9 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 					canDeleteThread={data.canDeleteThread}
 					currentUserId={data.currentUser?.id ?? null}
 					selfEmailVerifiedAt={self?.emailVerifiedAt ?? null}
-					prevHref={
-						data.prevCursor
-							? `/threads/${threadId}?cursor=${data.prevCursor}&direction=backward`
-							: null
-					}
-					nextHref={data.nextCursor ? `/threads/${threadId}?cursor=${data.nextCursor}` : null}
-					jumpPage={
-						threadPages > 1 ? { basePath: `/threads/${threadId}`, pages: threadPages } : undefined
-					}
+					prevHref={prevHref}
+					nextHref={nextHref}
+					jumpPage={threadPages > 1 ? { basePath, pages: threadPages } : undefined}
 				/>
 			</ModProvider>
 
@@ -187,16 +204,14 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 				</Card>
 			)}
 
-			{/* Pagination */}
-			<KeysetPagination
-				total={data.total}
+			{/* Bottom pagination */}
+			<PagePagination
+				page={currentPage}
+				pages={threadPages}
+				total={thread.replies}
+				basePath={basePath}
 				totalLabel="条回复"
-				prevHref={
-					data.prevCursor
-						? `/threads/${threadId}?cursor=${data.prevCursor}&direction=backward`
-						: null
-				}
-				nextHref={data.nextCursor ? `/threads/${threadId}?cursor=${data.nextCursor}` : null}
+				showPageInfo
 			/>
 		</div>
 	);

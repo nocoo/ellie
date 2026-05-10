@@ -254,7 +254,7 @@ export async function loadThreadDetail(params: {
 		posts,
 		nextCursor: postsRes.meta.nextCursor,
 		prevCursor: null, // Worker v1 does not support backward pagination
-		total: postsRes.data.length,
+		total: thread.replies,
 		breadcrumbs,
 		canModerateForum,
 		canManageThread: canManage,

@@ -19,6 +19,8 @@ export interface PagePaginationProps {
 	basePath: string;
 	/** Unit label appended after the total count, e.g. "个主题" → "共 1,234 个主题" */
 	totalLabel?: string;
+	/** Show "第 X / Y 页 · 共 N totalLabel" summary. Default: false. */
+	showPageInfo?: boolean;
 	className?: string;
 }
 
@@ -32,6 +34,7 @@ export function PagePagination({
 	total,
 	basePath,
 	totalLabel = "条",
+	showPageInfo = false,
 	className,
 }: PagePaginationProps) {
 	if (pages <= 1) return null;
@@ -104,6 +107,11 @@ export function PagePagination({
 
 			<div className="flex items-center gap-3">
 				<span className="text-xs text-muted-foreground">
+					{showPageInfo && (
+						<>
+							第 {page} / {pages} 页 ·{" "}
+						</>
+					)}
 					共 {formatNumber(total ?? 0)} {totalLabel}
 				</span>
 				<JumpToPage basePath={basePath} pages={pages} />
