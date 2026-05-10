@@ -1,5 +1,5 @@
 "use client";
-import { FloatingActions } from "@/components/forum/floating-actions";
+import { FloatingToolbar } from "@/components/forum/floating-toolbar";
 import { PostCard } from "@/components/forum/post-card";
 import { ReplyDialog } from "@/components/forum/reply-dialog";
 import { ThreadModMenu } from "@/components/forum/thread-mod-menu";
@@ -131,13 +131,13 @@ export function ThreadPostsClient({
 				onReply={handleQuickReply}
 			/>
 
-			{/* Floating actions: scroll to top, reply button, keyboard hints */}
-			<FloatingActions
-				showReply={thread.closed !== 1}
-				onReply={handleQuickReply}
+			{/* Floating toolbar: scroll-to-top, prev/next page, back, reply */}
+			<FloatingToolbar
 				prevHref={prevHref}
 				nextHref={nextHref}
 				backHref={`/forums/${thread.forumId}`}
+				actionType={thread.closed !== 1 ? "reply" : "none"}
+				onAction={handleQuickReply}
 			/>
 
 			{/* Reply Dialog */}
