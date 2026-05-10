@@ -17,13 +17,11 @@ CREATE TRIGGER IF NOT EXISTS threads_fts_ai AFTER INSERT ON threads BEGIN
 END;
 
 CREATE TRIGGER IF NOT EXISTS threads_fts_ad AFTER DELETE ON threads BEGIN
-    INSERT INTO threads_fts(threads_fts, rowid, subject)
-    VALUES ('delete', old.id, old.subject);
+    DELETE FROM threads_fts WHERE rowid = old.id;
 END;
 
 CREATE TRIGGER IF NOT EXISTS threads_fts_au AFTER UPDATE OF subject ON threads BEGIN
-    INSERT INTO threads_fts(threads_fts, rowid, subject)
-    VALUES ('delete', old.id, old.subject);
+    DELETE FROM threads_fts WHERE rowid = old.id;
     INSERT INTO threads_fts(rowid, subject) VALUES (new.id, new.subject);
 END;
 
