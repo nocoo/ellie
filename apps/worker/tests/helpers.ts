@@ -39,6 +39,29 @@ export function createMockKV(initialData: Record<string, string> = {}) {
 			value: store.get(key) ?? null,
 			metadata: null,
 		})),
+		// Minimal `list` — returns all keys whose name starts with `prefix`,
+		// sorted by name (Cloudflare KV is byte-ordered). Pagination is
+		// honored if `limit` is provided. `cursor` is the next start key.
+		list: vi.fn(async (opts: { prefix?: string; cursor?: string; limit?: number } = {}) => {
+			const prefix = opts.prefix ?? "";
+			const limit = opts.limit ?? 1000;
+			const all = Array.from(store.keys())
+				.filter((k) => k.startsWith(prefix))
+				.sort();
+			const startIdx = opts.cursor
+				? Math.max(
+						0,
+						all.findIndex((k) => k > (opts.cursor as string)),
+					)
+				: 0;
+			const slice = all.slice(startIdx, startIdx + limit);
+			const list_complete = startIdx + slice.length >= all.length;
+			return {
+				keys: slice.map((name) => ({ name, expiration: undefined })),
+				list_complete,
+				cursor: list_complete ? "" : slice[slice.length - 1],
+			};
+		}),
 	} as unknown as KVNamespace;
 }
 
