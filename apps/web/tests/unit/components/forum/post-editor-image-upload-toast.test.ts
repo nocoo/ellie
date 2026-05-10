@@ -34,6 +34,13 @@ vi.mock("next/link", () => ({
 const mockFetch = vi.fn();
 globalThis.fetch = mockFetch;
 
+function jsonResponse(payload: unknown, status = 200): Response {
+	return new Response(JSON.stringify(payload), {
+		status,
+		headers: { "Content-Type": "application/json" },
+	});
+}
+
 import { ForumToastProvider } from "@/components/forum/forum-toast";
 import { PostEditor } from "@/components/forum/post-editor";
 
@@ -78,12 +85,12 @@ describe("ImageUploadButton toast integration", () => {
 	});
 
 	it("shows success toast on image upload", async () => {
-		mockFetch.mockResolvedValueOnce({
-			status: 200,
-			json: async () => ({
-				data: { url: "https://cdn.example.com/img.png", size: 1024, contentType: "image/png" },
-			}),
-		});
+		mockFetch.mockResolvedValueOnce(
+			jsonResponse(
+				{ data: { url: "https://cdn.example.com/img.png", size: 1024, contentType: "image/png" } },
+				200,
+			),
+		);
 		mockParsePostImageUploadResponse.mockReturnValueOnce({
 			kind: "success",
 			url: "https://cdn.example.com/img.png",
@@ -107,10 +114,7 @@ describe("ImageUploadButton toast integration", () => {
 	});
 
 	it("shows error toast on parsed error response", async () => {
-		mockFetch.mockResolvedValueOnce({
-			status: 413,
-			json: async () => ({ error: { message: "文件大小超过限制" } }),
-		});
+		mockFetch.mockResolvedValueOnce(jsonResponse({ error: { message: "文件大小超过限制" } }, 413));
 		mockParsePostImageUploadResponse.mockReturnValueOnce({
 			kind: "error",
 			message: "文件大小超过限制",
@@ -134,10 +138,7 @@ describe("ImageUploadButton toast integration", () => {
 	});
 
 	it("shows error toast on email-not-verified response", async () => {
-		mockFetch.mockResolvedValueOnce({
-			status: 403,
-			json: async () => ({ error: "EMAIL_NOT_VERIFIED" }),
-		});
+		mockFetch.mockResolvedValueOnce(jsonResponse({ error: "EMAIL_NOT_VERIFIED" }, 403));
 		mockParsePostImageUploadResponse.mockReturnValueOnce({
 			kind: "email-not-verified",
 			detail: { verifyUrl: "/verify" },
@@ -158,7 +159,7 @@ describe("ImageUploadButton toast integration", () => {
 			expect(errorToast).toBeTruthy();
 			expect(errorToast?.textContent).toContain("图片上传失败");
 		});
-		expect(mockDispatchEmailNotVerified).toHaveBeenCalled();
+		expect(mockDispatchEmailNotVerified).not.toHaveBeenCalled();
 	});
 
 	it("shows error toast on fetch/network failure (catch branch)", async () => {

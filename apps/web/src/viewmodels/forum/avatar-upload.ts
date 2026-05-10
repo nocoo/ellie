@@ -1,16 +1,18 @@
 /**
  * Avatar upload — parser for `/api/v1/upload` response bodies.
  *
- * The avatar uploader is one of the few client paths that must talk to the
- * upload proxy with raw multipart `fetch`. That bypasses `apiClient`'s
- * email-verification interceptor, so the response parsing has to detect the
- * docs/17 §5.4 flat `EMAIL_NOT_VERIFIED` payload here too — otherwise an
- * unverified user would silently see "上传失败" instead of the global
- * verification dialog.
+ * After Phase A the upload itself goes through `apiClient.upload`
+ * (browser facade `uploadAvatar` in `lib/forum-browser-api`), and the
+ * §5.4 EMAIL_NOT_VERIFIED dispatch happens centrally inside
+ * `apiClient`'s shared `throwForErrorBody`. This parser still classifies
+ * outcome shapes for the component's UI (success / email-not-verified /
+ * error) so the call site can render inline copy and toast without
+ * caring about transport details.
  *
  * This module is intentionally pure: no `fetch`, no React, no DOM. The
- * component just calls `parseAvatarUploadResponse(status, json)` and acts on
- * the discriminated result. Tests pin the four cases (success, wrapped
+ * facade calls `parseAvatarUploadResponse(status, json)` after
+ * `apiClient.upload` resolves or throws, and the component acts on the
+ * discriminated result. Tests pin the four cases (success, wrapped
  * error, flat §5.4, malformed body) without needing to mount anything.
  */
 

@@ -27,6 +27,13 @@ vi.mock("next/navigation", () => ({
 const mockFetch = vi.fn();
 globalThis.fetch = mockFetch;
 
+function jsonResponse(payload: unknown, status = 200): Response {
+	return new Response(JSON.stringify(payload), {
+		status,
+		headers: { "Content-Type": "application/json" },
+	});
+}
+
 import { AvatarUpload } from "@/components/forum/avatar-upload";
 import { ForumToastProvider } from "@/components/forum/forum-toast";
 
@@ -79,10 +86,9 @@ describe("AvatarUpload toast integration", () => {
 	});
 
 	it("shows success toast on avatar upload", async () => {
-		mockFetch.mockResolvedValueOnce({
-			status: 200,
-			json: async () => ({ data: { url: "/avatars/new.png", size: 1024 } }),
-		});
+		mockFetch.mockResolvedValueOnce(
+			jsonResponse({ data: { url: "/avatars/new.png", size: 1024 } }, 200),
+		);
 		mockParseAvatarUploadResponse.mockReturnValueOnce({
 			kind: "success",
 			url: "/avatars/new.png",
@@ -143,10 +149,9 @@ describe("AvatarUpload toast integration", () => {
 	});
 
 	it("shows error toast on parsed error response", async () => {
-		mockFetch.mockResolvedValueOnce({
-			status: 413,
-			json: async () => ({ error: { message: "服务器拒绝了该文件" } }),
-		});
+		mockFetch.mockResolvedValueOnce(
+			jsonResponse({ error: { message: "服务器拒绝了该文件" } }, 413),
+		);
 		mockParseAvatarUploadResponse.mockReturnValueOnce({
 			kind: "error",
 			message: "服务器拒绝了该文件",
@@ -168,10 +173,7 @@ describe("AvatarUpload toast integration", () => {
 	});
 
 	it("shows error toast on email-not-verified response", async () => {
-		mockFetch.mockResolvedValueOnce({
-			status: 403,
-			json: async () => ({ error: "EMAIL_NOT_VERIFIED" }),
-		});
+		mockFetch.mockResolvedValueOnce(jsonResponse({ error: "EMAIL_NOT_VERIFIED" }, 403));
 		mockParseAvatarUploadResponse.mockReturnValueOnce({
 			kind: "email-not-verified",
 			detail: { verifyUrl: "/verify" },
@@ -190,7 +192,9 @@ describe("AvatarUpload toast integration", () => {
 			expect(errorToast).toBeTruthy();
 			expect(errorToast?.textContent).toContain("头像上传失败");
 		});
-		expect(mockDispatchEmailNotVerified).toHaveBeenCalled();
+		// Phase A: the component must NOT call dispatchEmailNotVerified
+		// itself — global §5.4 dispatch happens centrally in apiClient.
+		expect(mockDispatchEmailNotVerified).not.toHaveBeenCalled();
 	});
 
 	it("shows error toast on network failure (catch branch)", async () => {
