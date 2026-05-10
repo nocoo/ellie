@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ApiError } from "@/lib/api-client";
+import { requestEmailVerificationCode, verifyEmailCode } from "@/lib/forum-browser-api";
 import {
 	type EmailVerificationUserView,
 	type FormState,
@@ -23,8 +25,6 @@ import {
 	initialFormState,
 	isValidCodeFormat,
 	isValidEmailFormat,
-	makeRequestCodeBody,
-	makeVerifyBody,
 	nextState,
 	pickCardMode,
 	requestCodePreflight,
@@ -156,23 +156,7 @@ function EmailVerificationForm({
 		}
 		dispatch({ type: "send_start" });
 		try {
-			const res = await fetch("/api/v1/users/me/email/request-code", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(makeRequestCodeBody(email)),
-			});
-			const body = (await res.json().catch(() => null)) as unknown;
-			if (!res.ok) {
-				const message = describeWrappedError(body, res.status);
-				dispatch({ type: "send_error", message });
-				toast.error({ title: "验证码发送失败", description: message });
-				resetCap();
-				return;
-			}
-			const data =
-				body != null && typeof body === "object"
-					? ((body as Record<string, unknown>).data as Record<string, unknown> | undefined)
-					: undefined;
+			const data = await requestEmailVerificationCode(email);
 			const sentTo = typeof data?.sent_to === "string" ? data.sent_to : email;
 			const nextResendAllowedAt =
 				typeof data?.next_resend_allowed_at === "number" ? data.next_resend_allowed_at : 0;
@@ -183,7 +167,14 @@ function EmailVerificationForm({
 			});
 			toast.success(`验证码已发送至 ${sentTo}`);
 			resetCap();
-		} catch {
+		} catch (err) {
+			if (err instanceof ApiError) {
+				const message = describeWrappedError(err.rawBody, err.status);
+				dispatch({ type: "send_error", message });
+				toast.error({ title: "验证码发送失败", description: message });
+				resetCap();
+				return;
+			}
 			dispatch({ type: "send_error", message: "网络错误，请稍后重试。" });
 			toast.error({ title: "验证码发送失败", description: "网络错误，请稍后重试。" });
 			resetCap();
@@ -194,21 +185,16 @@ function EmailVerificationForm({
 		if (isConfigError || state.kind !== "code-sent") return;
 		dispatch({ type: "verify_start" });
 		try {
-			const res = await fetch("/api/v1/users/me/email/verify", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(makeVerifyBody(email, code)),
-			});
-			if (!res.ok) {
-				const body = (await res.json().catch(() => null)) as unknown;
-				const message = describeWrappedError(body, res.status);
+			await verifyEmailCode(email, code);
+			dispatch({ type: "verify_success" });
+			toast.success("邮箱已验证");
+		} catch (err) {
+			if (err instanceof ApiError) {
+				const message = describeWrappedError(err.rawBody, err.status);
 				dispatch({ type: "verify_error", message });
 				toast.error({ title: "邮箱验证失败", description: message });
 				return;
 			}
-			dispatch({ type: "verify_success" });
-			toast.success("邮箱已验证");
-		} catch {
 			dispatch({ type: "verify_error", message: "网络错误，请稍后重试。" });
 			toast.error({ title: "邮箱验证失败", description: "网络错误，请稍后重试。" });
 		}

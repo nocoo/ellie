@@ -4,10 +4,12 @@
  * uses the same discriminated-union pattern (success / §5.4 EMAIL_NOT_VERIFIED
  * / wrapped error).
  *
- * Why a dedicated parser: the post-editor uploads via raw `fetch` (not
- * `apiClient`), so the global §5.4 dispatch interceptor doesn't fire.
- * Detect the flat `{ error: "EMAIL_NOT_VERIFIED", ... }` payload here so
- * the verification dialog can be triggered explicitly by the caller.
+ * Phase A note: the upload itself goes through `apiClient.upload` (via
+ * `uploadPostImage` in `lib/forum-browser-api`), so §5.4 dispatch is
+ * already centralized in `apiClient`. This parser keeps classifying the
+ * response shape so the editor can render inline error/toast without
+ * caring about transport details, and the `kind: "email-not-verified"`
+ * branch is intentionally non-dispatching.
  *
  * Pure: no fetch, no React, no DOM.
  */

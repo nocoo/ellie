@@ -263,4 +263,152 @@ describe("apiClient", () => {
 			expect(dispatchSpy).not.toHaveBeenCalled();
 		});
 	});
+
+	// ---------------------------------------------------------------------------
+	// Phase A: signal, upload, getRaw extensions
+	// ---------------------------------------------------------------------------
+
+	describe("RequestOptions.signal", () => {
+		it("forwards AbortSignal on JSON GET", async () => {
+			const ctrl = new AbortController();
+			await apiClient.get("/api/v1/anything", undefined, { signal: ctrl.signal });
+			const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+			expect(opts.signal).toBe(ctrl.signal);
+		});
+
+		it("forwards AbortSignal on JSON POST", async () => {
+			const ctrl = new AbortController();
+			await apiClient.post("/api/v1/anything", { a: 1 }, { signal: ctrl.signal });
+			const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+			expect(opts.signal).toBe(ctrl.signal);
+		});
+
+		it("forwards AbortSignal on getRaw", async () => {
+			mockFetchFn = vi.fn(() =>
+				Promise.resolve(
+					new Response(JSON.stringify({ "feature.x": "true" }), {
+						status: 200,
+						headers: { "Content-Type": "application/json" },
+					}),
+				),
+			);
+			globalThis.fetch = mockFetchFn as typeof fetch;
+			const ctrl = new AbortController();
+			await apiClient.getRaw("/api/v1/settings", { prefix: "feature." }, { signal: ctrl.signal });
+			const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+			expect(opts.signal).toBe(ctrl.signal);
+		});
+	});
+
+	describe("getRaw", () => {
+		it("returns the parsed JSON body verbatim (no envelope unwrap)", async () => {
+			const body = { "features.access.maintenance_mode": "false", "features.x": 1 };
+			mockFetchFn = vi.fn(() =>
+				Promise.resolve(
+					new Response(JSON.stringify(body), {
+						status: 200,
+						headers: { "Content-Type": "application/json" },
+					}),
+				),
+			);
+			globalThis.fetch = mockFetchFn as typeof fetch;
+			const result = await apiClient.getRaw<Record<string, unknown>>("/api/v1/settings");
+			expect(result).toEqual(body);
+		});
+
+		it("throws ApiError using the same wrapped-error path as envelope methods", async () => {
+			mockFetchFn = vi.fn(() =>
+				Promise.resolve(
+					new Response(JSON.stringify({ error: { code: "X", message: "bad" } }), {
+						status: 500,
+						headers: { "Content-Type": "application/json" },
+					}),
+				),
+			);
+			globalThis.fetch = mockFetchFn as typeof fetch;
+			await expect(apiClient.getRaw("/api/v1/settings")).rejects.toMatchObject({
+				status: 500,
+				code: "X",
+			});
+		});
+	});
+
+	describe("upload (multipart)", () => {
+		it("POSTs FormData without overriding Content-Type", async () => {
+			mockFetchFn = vi.fn(() =>
+				Promise.resolve(
+					new Response(
+						JSON.stringify({
+							data: { url: "/u/1.png", size: 123 },
+							meta: { timestamp: 1, requestId: "r1" },
+						}),
+						{ status: 200, headers: { "Content-Type": "application/json" } },
+					),
+				),
+			);
+			globalThis.fetch = mockFetchFn as typeof fetch;
+
+			const fd = new FormData();
+			fd.append("file", new Blob(["x"], { type: "image/png" }), "x.png");
+			fd.append("purpose", "avatar");
+			const res = await apiClient.upload<{ url: string; size: number }>("/api/v1/upload", fd);
+
+			const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+			expect(opts.method).toBe("POST");
+			// Body must be the FormData itself (browser fills boundary).
+			expect(opts.body).toBe(fd);
+			// We must NOT set Content-Type — leave it to the browser.
+			const headers = (opts.headers ?? {}) as Record<string, string>;
+			expect(headers["Content-Type"]).toBeUndefined();
+			expect(res.data.url).toBe("/u/1.png");
+		});
+
+		it("dispatches EMAIL_NOT_VERIFIED on §5.4 flat payload and throws ApiError(rawBody)", async () => {
+			const dispatchSpy = vi.fn();
+			(globalThis as { window?: unknown }).window = {
+				dispatchEvent: dispatchSpy,
+				location: { origin: "http://localhost" },
+			};
+			try {
+				const flat = {
+					...EMAIL_NOT_VERIFIED_PAYLOAD,
+					message: "Verify first",
+				};
+				mockFetchFn = vi.fn(() =>
+					Promise.resolve(
+						new Response(JSON.stringify(flat), {
+							status: 403,
+							headers: { "Content-Type": "application/json" },
+						}),
+					),
+				);
+				globalThis.fetch = mockFetchFn as typeof fetch;
+
+				const fd = new FormData();
+				fd.append("file", new Blob(["x"]), "x.png");
+				try {
+					await apiClient.upload("/api/v1/upload", fd);
+					expect.fail("expected throw");
+				} catch (err) {
+					expect(err).toBeInstanceOf(ApiError);
+					expect((err as ApiError).code).toBe("EMAIL_NOT_VERIFIED");
+					expect((err as ApiError).rawBody).toEqual(flat);
+				}
+				expect(dispatchSpy).toHaveBeenCalledTimes(1);
+				const evt = dispatchSpy.mock.calls[0][0] as CustomEvent;
+				expect(evt.type).toBe(EMAIL_NOT_VERIFIED_EVENT);
+			} finally {
+				(globalThis as { window?: unknown }).window = undefined;
+			}
+		});
+
+		it("forwards AbortSignal", async () => {
+			const ctrl = new AbortController();
+			const fd = new FormData();
+			fd.append("file", new Blob(["x"]), "x.png");
+			await apiClient.upload("/api/v1/upload", fd, { signal: ctrl.signal });
+			const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+			expect(opts.signal).toBe(ctrl.signal);
+		});
+	});
 });

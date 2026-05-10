@@ -66,19 +66,19 @@ function renderCard(email = "test@example.com") {
 	);
 }
 
-function mockFetchOk(data: Record<string, unknown> = {}) {
-	return vi.fn().mockResolvedValueOnce({
-		ok: true,
-		json: async () => ({ data }),
+function jsonResponse(payload: unknown, status = 200): Response {
+	return new Response(JSON.stringify(payload), {
+		status,
+		headers: { "Content-Type": "application/json" },
 	});
 }
 
+function mockFetchOk(data: Record<string, unknown> = {}) {
+	return vi.fn().mockResolvedValueOnce(jsonResponse({ data }, 200));
+}
+
 function mockFetchError(status: number, body: unknown = null) {
-	return vi.fn().mockResolvedValueOnce({
-		ok: false,
-		status,
-		json: async () => body,
-	});
+	return vi.fn().mockResolvedValueOnce(jsonResponse(body ?? {}, status));
 }
 
 function mockFetchNetworkError() {
@@ -177,17 +177,11 @@ describe("EmailVerificationCard toast integration", () => {
 		// First fetch: send code success
 		const fetchMock = vi
 			.fn()
-			.mockResolvedValueOnce({
-				ok: true,
-				json: async () => ({
-					data: { sent_to: "test@example.com", next_resend_allowed_at: 0 },
-				}),
-			})
+			.mockResolvedValueOnce(
+				jsonResponse({ data: { sent_to: "test@example.com", next_resend_allowed_at: 0 } }, 200),
+			)
 			// Second fetch: verify success
-			.mockResolvedValueOnce({
-				ok: true,
-				json: async () => ({}),
-			});
+			.mockResolvedValueOnce(jsonResponse({}, 200));
 		global.fetch = fetchMock;
 		renderCard();
 
@@ -236,18 +230,13 @@ describe("EmailVerificationCard toast integration", () => {
 	it("shows error toast on verify API failure", async () => {
 		const fetchMock = vi
 			.fn()
-			.mockResolvedValueOnce({
-				ok: true,
-				json: async () => ({
-					data: { sent_to: "test@example.com", next_resend_allowed_at: 0 },
-				}),
-			})
+			.mockResolvedValueOnce(
+				jsonResponse({ data: { sent_to: "test@example.com", next_resend_allowed_at: 0 } }, 200),
+			)
 			// Verify fails
-			.mockResolvedValueOnce({
-				ok: false,
-				status: 400,
-				json: async () => ({ error: { code: "CODE_INVALID", message: "验证码错误" } }),
-			});
+			.mockResolvedValueOnce(
+				jsonResponse({ error: { code: "CODE_INVALID", message: "验证码错误" } }, 400),
+			);
 		global.fetch = fetchMock;
 		renderCard();
 
@@ -287,12 +276,9 @@ describe("EmailVerificationCard toast integration", () => {
 	it("shows error toast on verify network failure", async () => {
 		const fetchMock = vi
 			.fn()
-			.mockResolvedValueOnce({
-				ok: true,
-				json: async () => ({
-					data: { sent_to: "test@example.com", next_resend_allowed_at: 0 },
-				}),
-			})
+			.mockResolvedValueOnce(
+				jsonResponse({ data: { sent_to: "test@example.com", next_resend_allowed_at: 0 } }, 200),
+			)
 			// Verify network failure
 			.mockRejectedValueOnce(new TypeError("Failed to fetch"));
 		global.fetch = fetchMock;

@@ -4,9 +4,8 @@
 // Validates client-side then uploads to /api/v1/upload with purpose=avatar
 
 import { useForumToast } from "@/components/forum/forum-toast";
+import { uploadAvatar } from "@/lib/forum-browser-api";
 import { cn } from "@/lib/utils";
-import { parseAvatarUploadResponse } from "@/viewmodels/forum/avatar-upload";
-import { dispatchEmailNotVerified } from "@/viewmodels/forum/email-not-verified-dispatch";
 import { Loader2, Upload } from "lucide-react";
 import { type DragEvent, useCallback, useState } from "react";
 
@@ -49,23 +48,8 @@ export function AvatarUpload({ currentUrl, onUploadComplete, disabled }: AvatarU
 			setIsUploading(true);
 			setError(null);
 
-			const formData = new FormData();
-			formData.append("file", file);
-			formData.append("purpose", "avatar");
-
 			try {
-				const res = await fetch("/api/v1/upload", {
-					method: "POST",
-					body: formData,
-				});
-				let json: unknown;
-				try {
-					json = await res.json();
-				} catch {
-					json = null;
-				}
-
-				const parsed = parseAvatarUploadResponse(res.status, json);
+				const parsed = await uploadAvatar(file);
 				if (parsed.kind === "success") {
 					// Add cache-busting timestamp for immediate refresh
 					const newUrl = `${parsed.url}?v=${Date.now()}`;
@@ -73,9 +57,9 @@ export function AvatarUpload({ currentUrl, onUploadComplete, disabled }: AvatarU
 					onUploadComplete(newUrl);
 					toast.success("头像已上传");
 				} else if (parsed.kind === "email-not-verified") {
-					// Hand off to the global verification dialog (same path as
-					// the api-client interceptor uses for JSON responses).
-					dispatchEmailNotVerified(parsed.detail);
+					// `apiClient.upload` already dispatched the global §5.4 event
+					// (single source of truth). Component only renders inline
+					// error + toast; do NOT re-dispatch here.
 					setError("请先验证邮箱后再上传头像");
 					toast.error({ title: "头像上传失败", description: "请先验证邮箱后再上传头像" });
 				} else {

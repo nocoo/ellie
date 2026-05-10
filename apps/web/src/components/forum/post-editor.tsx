@@ -5,12 +5,11 @@
 //
 // B3 changes (review msg=d57926b5):
 //   - Underline now actually works (extension-underline registered).
-//   - Image insert button uploads via the same-origin /api/v1/upload
-//     proxy (purpose=post-image), parses the response with the
-//     post-image-upload viewmodel, and dispatches the §5.4 verification
-//     dialog if the user is not yet email-verified — same pattern as
-//     the avatar uploader, since raw multipart fetch bypasses the
-//     api-client interceptor.
+//   - Image insert button uploads via `uploadPostImage` (Phase A
+//     `forum-browser-api` facade over `apiClient.upload`). The §5.4
+//     EMAIL_NOT_VERIFIED dialog is dispatched globally from
+//     `apiClient.upload` via the shared `throwForErrorBody` path; this
+//     component only renders inline error + toast, no re-dispatch.
 //   - Link popover replaces the old `window.prompt` flow. URL is
 //     sanitized (rejects javascript:/data:/vbscript:/file:) before
 //     handing it to Tiptap's setLink.
@@ -27,8 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { dispatchEmailNotVerified } from "@/viewmodels/forum/email-not-verified-dispatch";
-import { parsePostImageUploadResponse } from "@/viewmodels/forum/post-image-upload";
+import { uploadPostImage } from "@/lib/forum-browser-api";
 import { sanitizeUrl } from "@/viewmodels/forum/url-sanitize";
 import CharacterCount from "@tiptap/extension-character-count";
 import Image from "@tiptap/extension-image";
@@ -259,7 +257,7 @@ function LinkPopover({ editor }: { editor: Editor }) {
 }
 
 // ---------------------------------------------------------------------------
-// Image upload button — raw multipart fetch + §5.4-aware response parsing
+// Image upload button — uploadPostImage (apiClient.upload) + §5.4 dispatch in apiClient
 // ---------------------------------------------------------------------------
 
 const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/gif";
@@ -286,27 +284,13 @@ function ImageUploadButton({ editor }: { editor: Editor }) {
 			setUploading(true);
 			setError(null);
 
-			const formData = new FormData();
-			formData.append("file", file);
-			formData.append("purpose", "post-image");
-
 			try {
-				const res = await fetch("/api/v1/upload", {
-					method: "POST",
-					body: formData,
-				});
-				let json: unknown;
-				try {
-					json = await res.json();
-				} catch {
-					json = null;
-				}
-				const parsed = parsePostImageUploadResponse(res.status, json);
+				const parsed = await uploadPostImage(file);
 				if (parsed.kind === "success") {
 					editor.chain().focus().setImage({ src: parsed.url }).run();
 					toast.success("图片已上传");
 				} else if (parsed.kind === "email-not-verified") {
-					dispatchEmailNotVerified(parsed.detail);
+					// `apiClient.upload` already dispatched the global §5.4 event.
 					setError("请先验证邮箱后再上传图片");
 					toast.error({ title: "图片上传失败", description: "请先验证邮箱后再上传图片" });
 				} else {

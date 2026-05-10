@@ -6,6 +6,7 @@ import { ForumLogo } from "@/components/forum/forum-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { checkUsernameAvailability } from "@/lib/forum-browser-api";
 import {
 	type PasswordStrength,
 	canSubmitRegister,
@@ -117,18 +118,13 @@ function RegisterFormInner() {
 
 		setUsernameStatus("checking");
 		const timer = setTimeout(async () => {
-			try {
-				const res = await fetch(
-					`/api/auth/check-username?username=${encodeURIComponent(username.trim())}`,
-				);
-				const data = (await res.json()) as { available: boolean; reason?: string };
-				if (data.available) {
-					setUsernameStatus("available");
-				} else {
-					setUsernameStatus((data.reason as UsernameStatus) ?? "taken");
-				}
-			} catch {
+			const data = await checkUsernameAvailability(username.trim());
+			if (data.available) {
+				setUsernameStatus("available");
+			} else if (data.reason === "error") {
 				setUsernameStatus("error");
+			} else {
+				setUsernameStatus((data.reason as UsernameStatus) ?? "taken");
 			}
 		}, 500);
 

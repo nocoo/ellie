@@ -3,6 +3,7 @@
 // useFeatureFlags — access feature flags from settings API
 // Used by components to check posting permissions and maintenance mode
 
+import { fetchFeatureFlags } from "@/lib/forum-browser-api";
 import { useEffect, useState } from "react";
 
 // Feature defaults for forum (subset of all feature flags)
@@ -42,8 +43,7 @@ export function useFeatureFlags(): FeatureFlags {
 
 		const controller = new AbortController();
 
-		fetch("/api/v1/settings?prefix=features.", { signal: controller.signal })
-			.then((r) => r.json())
+		fetchFeatureFlags({ signal: controller.signal })
 			.then((result) => {
 				cachedData = result;
 				cacheExpiry = Date.now() + CACHE_TTL;
@@ -51,7 +51,7 @@ export function useFeatureFlags(): FeatureFlags {
 				setIsLoading(false);
 			})
 			.catch((err) => {
-				if (err.name !== "AbortError") {
+				if (err?.name !== "AbortError") {
 					console.error("Failed to fetch feature flags:", err);
 					setIsLoading(false);
 				}
