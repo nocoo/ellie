@@ -1,7 +1,7 @@
 "use client";
 
 // components/forum/thread-mod-menu.tsx — Thread moderation action bar
-// Flat inline buttons positioned at the bottom of the first post
+// Rendered inside ThreadToolbar before the first post and after the last post.
 
 import { useForumToast } from "@/components/forum/forum-toast";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -201,7 +201,7 @@ export function ThreadModMenu({
 	return (
 		<>
 			{/* Flat action bar */}
-			<div className="flex items-center gap-4 text-xs">
+			<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
 				{canManageThread && (
 					<>
 						<ForumActionButton
