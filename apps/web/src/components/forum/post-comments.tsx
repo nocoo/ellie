@@ -19,6 +19,8 @@ interface PostCommentsProps {
 	postId: number;
 	threadClosed?: boolean;
 	isLoggedIn: boolean;
+	/** SSR-provided initial comments — skips client-side fetch when present */
+	initialComments?: PostComment[];
 	/** External dialog state control */
 	dialogOpen?: boolean;
 	onDialogOpenChange?: (open: boolean) => void;
@@ -119,11 +121,12 @@ export function PostComments({
 	postId,
 	threadClosed,
 	isLoggedIn,
+	initialComments,
 	dialogOpen: externalDialogOpen,
 	onDialogOpenChange,
 }: PostCommentsProps) {
-	const [comments, setComments] = useState<PostComment[]>([]);
-	const [loading, setLoading] = useState(true);
+	const [comments, setComments] = useState<PostComment[]>(initialComments ?? []);
+	const [loading, setLoading] = useState(!initialComments);
 	const [internalDialogOpen, setInternalDialogOpen] = useState(false);
 	const [expanded, setExpanded] = useState(false);
 
@@ -146,8 +149,10 @@ export function PostComments({
 	}, [postId]);
 
 	useEffect(() => {
+		// Skip fetch when SSR-provided initialComments are available
+		if (initialComments) return;
 		fetchComments();
-	}, [fetchComments]);
+	}, [fetchComments, initialComments]);
 
 	const handleCommentSuccess = useCallback((newComment: PostComment) => {
 		// Add new comment to list immediately (optimistic update)

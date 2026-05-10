@@ -10,9 +10,10 @@ import {
 	formatDateTime,
 	formatFileSize,
 	groupAttachmentsByPostId,
+	groupCommentsByPostId,
 	uniqueAuthorIds,
 } from "@/viewmodels/forum/thread-detail";
-import type { Attachment, Post, Thread, User } from "@ellie/types";
+import type { Attachment, Post, PostComment, Thread, User } from "@ellie/types";
 import { UserRole, UserStatus } from "@ellie/types";
 import { describe, expect, it } from "vitest";
 
@@ -170,75 +171,140 @@ describe("groupAttachmentsByPostId", () => {
 });
 
 // ---------------------------------------------------------------------------
+// groupCommentsByPostId
+// ---------------------------------------------------------------------------
+
+function makeComment(overrides: Partial<PostComment> & { id: number }): PostComment {
+	return {
+		threadId: 1,
+		postId: 1,
+		authorId: 1,
+		authorName: "commenter",
+		content: "Test comment",
+		score: 0,
+		replyPostId: 0,
+		createdAt: 1711600000,
+		...overrides,
+	};
+}
+
+describe("groupCommentsByPostId", () => {
+	it("returns empty map for no comments", () => {
+		const map = groupCommentsByPostId([]);
+		expect(map.size).toBe(0);
+	});
+
+	it("groups comments by postId", () => {
+		const comments = [
+			makeComment({ id: 1, postId: 10 }),
+			makeComment({ id: 2, postId: 10 }),
+			makeComment({ id: 3, postId: 20 }),
+		];
+		const map = groupCommentsByPostId(comments);
+		expect(map.get(10)?.length).toBe(2);
+		expect(map.get(20)?.length).toBe(1);
+		expect(map.has(30)).toBe(false);
+	});
+
+	it("returns correct map for single comment", () => {
+		const comments = [makeComment({ id: 1, postId: 5 })];
+		const map = groupCommentsByPostId(comments);
+		expect(map.size).toBe(1);
+		expect(map.get(5)).toHaveLength(1);
+	});
+});
+
+// ---------------------------------------------------------------------------
 // enrichPosts
 // ---------------------------------------------------------------------------
 
 describe("enrichPosts", () => {
-	it("enriches posts with author and attachments", () => {
+	it("enriches posts with author, attachments, and comments", () => {
 		const user = makeUser({ id: 1, username: "alice" });
 		const authorMap = new Map([[1, user]]);
 		const attachmentMap = new Map([[100, [makeAttachment({ id: 1, postId: 100 })]]]);
+		const commentMap = new Map([[100, [makeComment({ id: 1, postId: 100 })]]]);
 		const posts = [makePost({ id: 100, authorId: 1 })];
 
-		const enriched = enrichPosts(posts, authorMap, attachmentMap, null, { moderators: "" });
+		const enriched = enrichPosts(posts, authorMap, attachmentMap, commentMap, null, {
+			moderators: "",
+		});
 		expect(enriched.length).toBe(1);
 		expect(enriched[0]?.author?.username).toBe("alice");
 		expect(enriched[0]?.attachments.length).toBe(1);
+		expect(enriched[0]?.comments.length).toBe(1);
 	});
 
 	it("handles missing author gracefully", () => {
 		const posts = [makePost({ id: 1, authorId: 999 })];
-		const enriched = enrichPosts(posts, new Map(), new Map(), null, { moderators: "" });
+		const enriched = enrichPosts(posts, new Map(), new Map(), new Map(), null, {
+			moderators: "",
+		});
 		expect(enriched[0]?.author).toBeNull();
 		expect(enriched[0]?.attachments).toEqual([]);
+		expect(enriched[0]?.comments).toEqual([]);
 	});
 
 	it("computes canDelete for own post", () => {
 		const currentUser = makeUser({ id: 1, role: UserRole.User });
 		const posts = [makePost({ id: 1, authorId: 1 })];
-		const enriched = enrichPosts(posts, new Map(), new Map(), currentUser, { moderators: "" });
+		const enriched = enrichPosts(posts, new Map(), new Map(), new Map(), currentUser, {
+			moderators: "",
+		});
 		expect(enriched[0]?.canDelete).toBe(true);
 	});
 
 	it("cannot delete others post as regular user", () => {
 		const currentUser = makeUser({ id: 1, role: UserRole.User });
 		const posts = [makePost({ id: 1, authorId: 2 })];
-		const enriched = enrichPosts(posts, new Map(), new Map(), currentUser, { moderators: "" });
+		const enriched = enrichPosts(posts, new Map(), new Map(), new Map(), currentUser, {
+			moderators: "",
+		});
 		expect(enriched[0]?.canDelete).toBe(false);
 	});
 
 	it("admin can delete any post", () => {
 		const admin = makeUser({ id: 99, role: UserRole.Admin });
 		const posts = [makePost({ id: 1, authorId: 1 })];
-		const enriched = enrichPosts(posts, new Map(), new Map(), admin, { moderators: "" });
+		const enriched = enrichPosts(posts, new Map(), new Map(), new Map(), admin, {
+			moderators: "",
+		});
 		expect(enriched[0]?.canDelete).toBe(true);
 	});
 
 	it("computes canEdit for own post", () => {
 		const currentUser = makeUser({ id: 1, role: UserRole.User });
 		const posts = [makePost({ id: 1, authorId: 1 })];
-		const enriched = enrichPosts(posts, new Map(), new Map(), currentUser, { moderators: "" });
+		const enriched = enrichPosts(posts, new Map(), new Map(), new Map(), currentUser, {
+			moderators: "",
+		});
 		expect(enriched[0]?.canEdit).toBe(true);
 	});
 
 	it("cannot edit others post as regular user", () => {
 		const currentUser = makeUser({ id: 1, role: UserRole.User });
 		const posts = [makePost({ id: 1, authorId: 2 })];
-		const enriched = enrichPosts(posts, new Map(), new Map(), currentUser, { moderators: "" });
+		const enriched = enrichPosts(posts, new Map(), new Map(), new Map(), currentUser, {
+			moderators: "",
+		});
 		expect(enriched[0]?.canEdit).toBe(false);
 	});
 
 	it("mod can edit posts in their moderated forum", () => {
 		const mod = makeUser({ id: 50, role: UserRole.Mod, username: "moderator" });
 		const posts = [makePost({ id: 1, authorId: 1 })];
-		const enriched = enrichPosts(posts, new Map(), new Map(), mod, { moderators: "moderator" });
+		const enriched = enrichPosts(posts, new Map(), new Map(), new Map(), mod, {
+			moderators: "moderator",
+		});
 		expect(enriched[0]?.canEdit).toBe(true);
 	});
 
 	it("super mod can delete any post", () => {
 		const superMod = makeUser({ id: 50, role: UserRole.SuperMod });
 		const posts = [makePost({ id: 1, authorId: 1 })];
-		const enriched = enrichPosts(posts, new Map(), new Map(), superMod, { moderators: "" });
+		const enriched = enrichPosts(posts, new Map(), new Map(), new Map(), superMod, {
+			moderators: "",
+		});
 		expect(enriched[0]?.canDelete).toBe(true);
 	});
 
@@ -246,7 +312,9 @@ describe("enrichPosts", () => {
 		const user = makeUser({ id: 1, signature: "<p>My signature</p>" });
 		const authorMap = new Map([[1, user]]);
 		const posts = [makePost({ id: 1, authorId: 1 })];
-		const enriched = enrichPosts(posts, authorMap, new Map(), null, { moderators: "" });
+		const enriched = enrichPosts(posts, authorMap, new Map(), new Map(), null, {
+			moderators: "",
+		});
 		expect(enriched[0]?.author).not.toBeNull();
 		// Signature should pass through filterContent
 		expect(enriched[0]?.author?.signature).toContain("My signature");
@@ -256,19 +324,23 @@ describe("enrichPosts", () => {
 		const user = makeUser({ id: 1, signature: "" });
 		const authorMap = new Map([[1, user]]);
 		const posts = [makePost({ id: 1, authorId: 1 })];
-		const enriched = enrichPosts(posts, authorMap, new Map(), null, { moderators: "" });
+		const enriched = enrichPosts(posts, authorMap, new Map(), new Map(), null, {
+			moderators: "",
+		});
 		expect(enriched[0]?.author).not.toBeNull();
 	});
 
 	it("handles null currentUser", () => {
 		const posts = [makePost({ id: 1, authorId: 1 })];
-		const enriched = enrichPosts(posts, new Map(), new Map(), null, { moderators: "" });
+		const enriched = enrichPosts(posts, new Map(), new Map(), new Map(), null, {
+			moderators: "",
+		});
 		expect(enriched[0]?.canDelete).toBe(false);
 		expect(enriched[0]?.canEdit).toBe(false);
 	});
 
 	it("returns empty array for empty posts", () => {
-		const enriched = enrichPosts([], new Map(), new Map(), null, { moderators: "" });
+		const enriched = enrichPosts([], new Map(), new Map(), new Map(), null, { moderators: "" });
 		expect(enriched).toEqual([]);
 	});
 });

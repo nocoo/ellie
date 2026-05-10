@@ -5,6 +5,7 @@ import { filterContent } from "@/lib/content-filter";
 import {
 	type Attachment,
 	type Post,
+	type PostComment,
 	type Thread,
 	canDeletePost,
 	canDeleteThread,
@@ -25,6 +26,7 @@ import type { User } from "@ellie/types";
 export interface EnrichedPost extends Post {
 	author: User | null;
 	attachments: Attachment[];
+	comments: PostComment[];
 	canDelete: boolean;
 	canEdit: boolean;
 }
@@ -67,11 +69,23 @@ export function groupAttachmentsByPostId(attachments: Attachment[]): Map<number,
 	return map;
 }
 
-/** Enrich posts with author info, attachments, and permission flags. */
+/** Group comments by their postId. */
+export function groupCommentsByPostId(comments: PostComment[]): Map<number, PostComment[]> {
+	const map = new Map<number, PostComment[]>();
+	for (const comment of comments) {
+		const list = map.get(comment.postId) ?? [];
+		list.push(comment);
+		map.set(comment.postId, list);
+	}
+	return map;
+}
+
+/** Enrich posts with author info, attachments, comments, and permission flags. */
 export function enrichPosts(
 	posts: Post[],
 	authorMap: Map<number, User>,
 	attachmentMap: Map<number, Attachment[]>,
+	commentMap: Map<number, PostComment[]>,
 	currentUser: User | null,
 	forum: { moderators: string },
 ): EnrichedPost[] {
@@ -82,6 +96,7 @@ export function enrichPosts(
 			content: filterContent(post.content),
 			author: author ? { ...author, signature: filterContent(author.signature ?? "") } : null,
 			attachments: attachmentMap.get(post.id) ?? [],
+			comments: commentMap.get(post.id) ?? [],
 			canDelete: canDeletePost(currentUser, post, forum),
 			canEdit: canEditPost(currentUser, post, forum),
 		};
