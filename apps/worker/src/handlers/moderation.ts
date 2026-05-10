@@ -26,6 +26,7 @@ import {
 	invalidateThreadListForForums,
 } from "../lib/cache/invalidate";
 import {
+	batchChunked,
 	buildDeletePostChildStatements,
 	buildDeleteThreadChildStatements,
 } from "../lib/contentDelete";
@@ -1217,102 +1218,97 @@ async function deleteUserContent(env: Env, userId: number): Promise<ContentDelet
 		cnt: number;
 	}[];
 
-	// 4b. Snapshot standalone post ids BEFORE the deletion batch — needed by
-	// `buildDeletePostChildStatements` to clear FK children (attachments +
-	// post_comments) keyed on those post ids without sub-querying `posts`
-	// inside the same batch.
-	const standalonePostIdRows = await env.DB.prepare(
-		"SELECT id FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?)",
-	)
-		.bind(userId, userId)
-		.all<{ id: number }>();
-	const standalonePostIds = standalonePostIdRows.results.map((r) => r.id);
-	const userThreadIds = threadRows.map((t) => t.id);
-
-	// 5. Collateral damage: other users' posts in the user's threads
+	// 5. Collateral damage: other users' posts in the user's threads.
+	// Uses subquery to avoid expanding thousands of thread IDs into IN(...).
 	const collateralAuthorCounts = new Map<number, number>();
 	if (threadRows.length > 0) {
-		const threadIds = threadRows.map((t) => t.id);
-		const placeholders = threadIds.map(() => "?").join(",");
 		const collateralPosts = await env.DB.prepare(
-			`SELECT author_id, COUNT(*) as cnt FROM posts WHERE thread_id IN (${placeholders}) AND author_id != ? GROUP BY author_id`,
+			"SELECT author_id, COUNT(*) as cnt FROM posts WHERE thread_id IN (SELECT id FROM threads WHERE author_id = ?) AND author_id != ? GROUP BY author_id",
 		)
-			.bind(...threadIds, userId)
+			.bind(userId, userId)
 			.all();
 		for (const row of collateralPosts.results as { author_id: number; cnt: number }[]) {
 			collateralAuthorCounts.set(row.author_id, row.cnt);
 		}
 	}
 
-	// Build batch
-	const statements: D1PreparedStatement[] = [];
+	// ── Deletion phase ──────────────────────────────────────────────
+	// Uses subquery-based DELETEs to avoid expanding large ID arrays
+	// into IN(...) placeholders. Split into ordered batches so each
+	// batch sees committed state from the prior one.
 
-	// Purge FK children (attachments + post_comments) BEFORE the parent
-	// posts/threads go away. Step 0 above already deleted attachments by
-	// THIS user (`author_id = userId`), but other users' attachments and
-	// all post_comments still reference posts/threads that this batch is
-	// about to delete. Without these prefixes the batch raises a FOREIGN
-	// KEY constraint failure (500). Keyed on snapshot ids gathered above.
-	statements.push(...buildDeleteThreadChildStatements(env, userThreadIds));
-	statements.push(...buildDeletePostChildStatements(env, standalonePostIds));
+	// Batch A: FK child purge — attachments + post_comments referencing
+	// the user's threads and standalone posts. Must run BEFORE parent
+	// rows are deleted. Subqueries reference threads/posts that still
+	// exist at this point.
+	await env.DB.batch([
+		// Children of user's own threads (other users' attachments/comments)
+		env.DB.prepare(
+			"DELETE FROM attachments WHERE thread_id IN (SELECT id FROM threads WHERE author_id = ?)",
+		).bind(userId),
+		env.DB.prepare(
+			"DELETE FROM post_comments WHERE thread_id IN (SELECT id FROM threads WHERE author_id = ?)",
+		).bind(userId),
+		// Children of user's standalone posts
+		env.DB.prepare(
+			"DELETE FROM attachments WHERE post_id IN (SELECT id FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?))",
+		).bind(userId, userId),
+		env.DB.prepare(
+			"DELETE FROM post_comments WHERE post_id IN (SELECT id FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?))",
+		).bind(userId, userId),
+	]);
 
-	// Delete all posts in user's threads (cascade)
-	for (const t of threadRows) {
-		statements.push(env.DB.prepare("DELETE FROM posts WHERE thread_id = ?").bind(t.id));
-	}
+	// Batch B: Delete posts, then threads. Subqueries still reference
+	// threads (not deleted until the last statement in this batch).
+	await env.DB.batch([
+		// All posts in user's threads (any author — cascade)
+		env.DB.prepare(
+			"DELETE FROM posts WHERE thread_id IN (SELECT id FROM threads WHERE author_id = ?)",
+		).bind(userId),
+		// User's standalone posts (replies in other users' threads)
+		env.DB.prepare(
+			"DELETE FROM posts WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads WHERE author_id = ?)",
+		).bind(userId, userId),
+		// Finally delete the user's threads themselves
+		env.DB.prepare("DELETE FROM threads WHERE author_id = ?").bind(userId),
+	]);
 
-	// Delete user's threads
-	for (const t of threadRows) {
-		statements.push(env.DB.prepare("DELETE FROM threads WHERE id = ?").bind(t.id));
-	}
+	// Batch C: Update counters — thread reply counts + forum stats.
+	// These scale with the number of affected threads/forums (bounded),
+	// but chunked for safety.
+	const counterStatements: D1PreparedStatement[] = [];
 
-	// Delete user's standalone posts (replies in other threads). Use the
-	// snapshot ids — the previous form
-	// `WHERE author_id = ? AND thread_id NOT IN (SELECT id FROM threads ...)`
-	// re-evaluates the sub-query against `threads` AFTER this same batch has
-	// already deleted the user's threads, drifting the parent delete set away
-	// from the snapshot the FK child purge above was keyed on. Snapshot id
-	// IN (...) is the only form that keeps both contracts identical.
-	if (standalonePostIds.length > 0) {
-		const ph = standalonePostIds.map(() => "?").join(",");
-		statements.push(
-			env.DB.prepare(`DELETE FROM posts WHERE id IN (${ph})`).bind(...standalonePostIds),
-		);
-	}
-
-	// Update thread reply counts for affected threads
+	// Thread reply counter adjustments
 	for (const row of standaloneThreadRows) {
-		statements.push(
-			env.DB.prepare("UPDATE threads SET replies = replies - ? WHERE id = ?").bind(
+		counterStatements.push(
+			env.DB.prepare("UPDATE threads SET replies = MAX(0, replies - ?) WHERE id = ?").bind(
 				row.cnt,
 				row.thread_id,
 			),
 		);
 	}
 
-	// Update forum counts for deleted threads
+	// Forum counter adjustments for deleted threads
 	for (const [forumId, threadCount] of forumThreadCounts) {
 		const postCount = forumPostCounts.get(forumId) ?? 0;
-		statements.push(
+		counterStatements.push(
 			env.DB.prepare(
-				"UPDATE forums SET threads = threads - ?, posts = posts - ? WHERE id = ?",
+				"UPDATE forums SET threads = MAX(0, threads - ?), posts = MAX(0, posts - ?) WHERE id = ?",
 			).bind(threadCount, postCount, forumId),
 		);
 	}
 
-	// Update forum counts for standalone posts
+	// Forum counter adjustments for standalone posts
 	for (const row of standaloneRows) {
-		statements.push(
-			env.DB.prepare("UPDATE forums SET posts = posts - ? WHERE id = ?").bind(
+		counterStatements.push(
+			env.DB.prepare("UPDATE forums SET posts = MAX(0, posts - ?) WHERE id = ?").bind(
 				row.cnt,
 				row.forum_id,
 			),
 		);
 	}
 
-	if (statements.length > 0) {
-		await env.DB.batch(statements);
-	}
+	await batchChunked(env.DB, counterStatements);
 
 	// Recalc metadata for all affected forums and threads
 	const allAffectedForumIds = new Set<number>();
@@ -1331,7 +1327,7 @@ async function deleteUserContent(env: Env, userId: number): Promise<ContentDelet
 		await recalcThreadMetadata(env, row.thread_id);
 	}
 
-	// Decrement collateral authors' post counts
+	// Decrement collateral authors' post counts (chunked)
 	await batchDecrementUserPosts(env, collateralAuthorCounts);
 
 	const totalPostsDeleted =

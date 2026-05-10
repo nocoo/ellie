@@ -1,6 +1,7 @@
 // User counter helpers — decrement thread/post counts after admin deletions.
 // Uses MAX(0, ...) to prevent negative values from stale data.
 
+import { batchChunked } from "./contentDelete";
 import type { Env } from "./env";
 
 /** Decrement a user's thread count by the specified amount. */
@@ -20,6 +21,7 @@ export async function decrementUserPosts(env: Env, userId: number, count = 1): P
 /**
  * Batch decrement post counts for multiple users.
  * Accepts a Map of userId → count to decrement.
+ * Uses chunked batching to avoid D1 statement limits.
  */
 export async function batchDecrementUserPosts(
 	env: Env,
@@ -31,5 +33,5 @@ export async function batchDecrementUserPosts(
 		env.DB.prepare("UPDATE users SET posts = MAX(0, posts - ?) WHERE id = ?").bind(count, userId),
 	);
 
-	await env.DB.batch(statements);
+	await batchChunked(env.DB, statements);
 }

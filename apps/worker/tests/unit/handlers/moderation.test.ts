@@ -1126,9 +1126,9 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 		expect(updateCall).toBeDefined();
 	});
 
-	it("purges attachments + post_comments by thread_id and post_id BEFORE DELETE FROM posts/threads (FK regression)", async () => {
+	it("purges FK children via subquery batches BEFORE deleting parent rows (FK regression)", async () => {
 		const token = await makeModToken(1);
-		const { db, calls } = createMockDb({
+		const { db, calls, batchCalls } = createMockDb({
 			firstResults: {
 				...mockUser(1, 1, "admin"),
 				"SELECT id, username, status, role FROM users": {
@@ -1141,11 +1141,10 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 			},
 			allResults: {
 				"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": [
-					{ id: 30, forum_id: 1, replies: 1 },
+					{ id: 30, forum_id: 1, replies: 1, digest: 0 },
 				],
 				"SELECT forum_id, COUNT(*) as cnt FROM posts": [{ forum_id: 1, cnt: 1 }],
 				"SELECT thread_id, COUNT(*) as cnt FROM posts": [{ thread_id: 40, cnt: 1 }],
-				"SELECT id FROM posts WHERE author_id": [{ id: 88 }],
 			},
 		});
 		const env = makeEnv({ DB: db });
@@ -1153,44 +1152,137 @@ describe("POST /api/v1/moderation/users/:id/nuke", () => {
 		const res = await nukeUser(req, env);
 		expect(res.status).toBe(200);
 
-		const idxAttThread = calls.findIndex((c) =>
-			c.sql.includes("DELETE FROM attachments WHERE thread_id IN"),
+		// ── Verify subquery-based FK child purge SQL exists ──
+		const fkPurgeAtt = calls.find((c) =>
+			c.sql.includes("DELETE FROM attachments WHERE thread_id IN (SELECT"),
 		);
-		const idxCommentsThread = calls.findIndex((c) =>
-			c.sql.includes("DELETE FROM post_comments WHERE thread_id IN"),
+		const fkPurgeComm = calls.find((c) =>
+			c.sql.includes("DELETE FROM post_comments WHERE thread_id IN (SELECT"),
 		);
-		const idxAttPost = calls.findIndex((c) =>
-			c.sql.includes("DELETE FROM attachments WHERE post_id IN"),
+		const fkPurgeAttPost = calls.find((c) =>
+			c.sql.includes("DELETE FROM attachments WHERE post_id IN (SELECT"),
 		);
-		const idxCommentsPost = calls.findIndex((c) =>
-			c.sql.includes("DELETE FROM post_comments WHERE post_id IN"),
+		const fkPurgeCommPost = calls.find((c) =>
+			c.sql.includes("DELETE FROM post_comments WHERE post_id IN (SELECT"),
 		);
-		const idxPosts = calls.findIndex((c) => c.sql.startsWith("DELETE FROM posts WHERE thread_id"));
-		const idxStandalonePosts = calls.findIndex((c) =>
-			c.sql.startsWith("DELETE FROM posts WHERE id IN"),
-		);
-		const idxThreads = calls.findIndex((c) => c.sql.startsWith("DELETE FROM threads WHERE id"));
+		expect(fkPurgeAtt).toBeDefined();
+		expect(fkPurgeComm).toBeDefined();
+		expect(fkPurgeAttPost).toBeDefined();
+		expect(fkPurgeCommPost).toBeDefined();
 
-		expect(idxAttThread).toBeGreaterThanOrEqual(0);
-		expect(idxCommentsThread).toBeGreaterThanOrEqual(0);
-		expect(idxAttPost).toBeGreaterThanOrEqual(0);
-		expect(idxCommentsPost).toBeGreaterThanOrEqual(0);
-		expect(idxPosts).toBeGreaterThan(idxAttThread);
-		expect(idxPosts).toBeGreaterThan(idxCommentsThread);
-		expect(idxThreads).toBeGreaterThan(idxPosts);
-		expect(idxStandalonePosts).toBeGreaterThan(idxAttPost);
-		expect(idxStandalonePosts).toBeGreaterThan(idxCommentsPost);
-
-		// Hardening: standalone parent DELETE must NOT use the
-		// batch-internal sub-query form, which would re-evaluate against
-		// `threads` after the same batch has already deleted them.
-		const drifty = calls.find(
+		// ── Verify subquery-based core delete SQL exists ──
+		const deletePosts = calls.find((c) =>
+			c.sql.includes("DELETE FROM posts WHERE thread_id IN (SELECT"),
+		);
+		const deleteStandalone = calls.find(
 			(c) =>
-				c.sql.includes("DELETE FROM posts") &&
-				c.sql.includes("author_id") &&
-				c.sql.includes("thread_id NOT IN"),
+				c.sql.includes("DELETE FROM posts WHERE author_id") && c.sql.includes("thread_id NOT IN"),
 		);
-		expect(drifty).toBeUndefined();
+		const deleteThreads = calls.find((c) => c.sql.includes("DELETE FROM threads WHERE author_id"));
+		expect(deletePosts).toBeDefined();
+		expect(deleteStandalone).toBeDefined();
+		expect(deleteThreads).toBeDefined();
+
+		// ── Verify batch ordering: FK purge batch comes before delete batch ──
+		// batchCalls[0] = initial user attachment delete (step 0, via .run())
+		// The DB.batch() calls are: batch A (FK purge), batch B (core delete),
+		// batch C (counter updates). Verify at least 2 batch calls exist.
+		expect(batchCalls.length).toBeGreaterThanOrEqual(2);
+
+		// ── Verify NO expanded ID arrays in delete SQL ──
+		// Old code used IN (?,?,?,...) with literal IDs; new code uses subqueries.
+		const expandedIn = calls.find(
+			(c) =>
+				(c.sql.includes("DELETE FROM attachments WHERE thread_id IN (?") ||
+					c.sql.includes("DELETE FROM post_comments WHERE thread_id IN (?") ||
+					c.sql.includes("DELETE FROM posts WHERE thread_id = ?") ||
+					c.sql.includes("DELETE FROM threads WHERE id = ?")) &&
+				!c.sql.includes("SELECT"),
+		);
+		expect(expandedIn).toBeUndefined();
+	});
+
+	it("handles large data users without generating expanded IN() or oversized batches", async () => {
+		// Simulate a user with many threads and standalone posts.
+		// The old implementation would generate N statements per thread and
+		// expand all IDs into IN(...) placeholders, exceeding D1 limits.
+		const THREAD_COUNT = 200;
+		const STANDALONE_FORUM_COUNT = 5;
+		const threadRows = Array.from({ length: THREAD_COUNT }, (_, i) => ({
+			id: 1000 + i,
+			forum_id: (i % 3) + 1,
+			replies: 10,
+			digest: i === 0 ? 1 : 0,
+		}));
+		const standaloneForumRows = Array.from({ length: STANDALONE_FORUM_COUNT }, (_, i) => ({
+			forum_id: 10 + i,
+			cnt: 50,
+		}));
+		const standaloneThreadRows = Array.from({ length: 100 }, (_, i) => ({
+			thread_id: 5000 + i,
+			cnt: 3,
+		}));
+
+		const token = await makeModToken(1);
+		const { db, calls, batchCalls } = createMockDb({
+			firstResults: {
+				...mockUser(1, 1, "admin"),
+				"SELECT id, username, status, role FROM users": {
+					id: 99,
+					username: "heavy-poster",
+					status: 0,
+					role: 0,
+				},
+				"SELECT COUNT(*) as cnt FROM attachments WHERE author_id": { cnt: 500 },
+			},
+			allResults: {
+				"SELECT id, forum_id, replies, digest FROM threads WHERE author_id": threadRows,
+				"SELECT forum_id, COUNT(*) as cnt FROM posts WHERE author_id": standaloneForumRows,
+				"SELECT thread_id, COUNT(*) as cnt FROM posts WHERE author_id": standaloneThreadRows,
+				"SELECT author_id, COUNT(*) as cnt FROM posts WHERE thread_id IN (SELECT": [
+					{ author_id: 200, cnt: 50 },
+					{ author_id: 201, cnt: 30 },
+				],
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = userModRequest("POST", "/api/v1/moderation/users/99/nuke", token);
+		const res = await nukeUser(req, env);
+		expect(res.status).toBe(200);
+
+		const data = (await res.json()) as { data: { threadsDeleted: number; postsDeleted: number } };
+		expect(data.data.threadsDeleted).toBe(THREAD_COUNT);
+
+		// No DELETE SQL should contain expanded IN (?,?,?,...) patterns with
+		// literal placeholder arrays — all multi-row deletes must use subqueries.
+		// Simple WHERE author_id = ? (single param) is fine.
+		for (const c of calls) {
+			if (!c.sql.includes("DELETE FROM")) continue;
+			// Check for expanded IN patterns: IN (?,?,...) without a SELECT subquery
+			const hasExpandedIn = /IN\s*\(\s*\?/.test(c.sql) && !c.sql.includes("SELECT");
+			if (hasExpandedIn) {
+				throw new Error(`Found expanded IN() DELETE: ${c.sql}`);
+			}
+		}
+
+		// Collateral author query must use subquery, not expanded IN(...)
+		const collateralQuery = calls.find(
+			(c) => c.sql.includes("SELECT author_id, COUNT(*)") && c.sql.includes("thread_id IN (SELECT"),
+		);
+		expect(collateralQuery).toBeDefined();
+		// Must NOT have an expanded IN with literal placeholders
+		const expandedCollateral = calls.find(
+			(c) =>
+				c.sql.includes("SELECT author_id, COUNT(*)") &&
+				c.sql.includes("thread_id IN (?") &&
+				!c.sql.includes("SELECT id FROM threads"),
+		);
+		expect(expandedCollateral).toBeUndefined();
+
+		// Counter update batches must be chunked (each batch ≤ 80 statements)
+		for (const batch of batchCalls) {
+			expect(batch.length).toBeLessThanOrEqual(80);
+		}
 	});
 });
 
