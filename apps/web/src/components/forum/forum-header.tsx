@@ -42,7 +42,7 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 
 				{/* Right: User info area */}
 				{user ? (
-					<div className="flex items-center gap-4">
+					<div className="flex items-center gap-4 min-w-0">
 						{/* Profile card — avatar left, text right, entire area clickable */}
 						<UserPopover
 							userId={user.uid}
@@ -51,20 +51,22 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 							side="bottom"
 							align="end"
 						>
-							<div className="flex items-center gap-3 rounded-lg px-3 py-2 -mx-3 -my-2 hover:bg-accent/50 transition-colors cursor-pointer">
+							<div className="flex items-center gap-3 rounded-lg px-3 py-2 -mx-3 -my-2 min-w-0 max-w-[320px] hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-1 transition-colors cursor-pointer">
 								{/* Avatar — rounded-rect, image fills directly */}
 								<TrackedUserAvatar uid={user.uid} username={user.username} size="md" />
 
 								{/* Meta: username, group, uid, credits, coins */}
-								<div className="text-right space-y-0.5">
-									<div className="flex items-center justify-end gap-2">
-										<span className="text-sm font-medium text-foreground">{user.username}</span>
-										<span className="text-xs text-muted-foreground">UID: {user.uid}</span>
+								<div className="text-right space-y-0.5 min-w-0">
+									<div className="flex items-center justify-end gap-2 min-w-0">
+										<span className="text-sm font-medium text-foreground truncate">
+											{user.username}
+										</span>
+										<span className="text-xs text-muted-foreground shrink-0">UID: {user.uid}</span>
 									</div>
-									<div className="flex items-center justify-end gap-3 text-xs text-muted-foreground">
-										<span>{user.groupTitle}</span>
-										<span>积分 {user.credits}</span>
-										<span>同钱 {user.coins}</span>
+									<div className="flex items-center justify-end gap-3 text-xs text-muted-foreground flex-wrap">
+										<span className="truncate">{user.groupTitle}</span>
+										<span className="shrink-0">积分 {user.credits}</span>
+										<span className="shrink-0">同钱 {user.coins}</span>
 									</div>
 								</div>
 							</div>
