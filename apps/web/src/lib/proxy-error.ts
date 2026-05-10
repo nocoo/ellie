@@ -33,7 +33,8 @@ export function isEmailNotVerifiedPayload(body: unknown): boolean {
 /**
  * Convert a thrown `ForumApiError` into a `NextResponse` suitable for a Next.js
  * proxy route. Forwards the docs/17 §5.4 flat payload verbatim; otherwise
- * collapses to the wrapped `{ error: { code, message } }` shape.
+ * collapses to the wrapped `{ error: { code, message, details? } }` shape,
+ * preserving `details` so D1/Worker diagnostic info is not lost.
  */
 export function forumApiErrorToProxyResponse(err: ForumApiError): NextResponse {
 	if (isEmailNotVerifiedPayload(err.rawBody)) {
@@ -41,8 +42,9 @@ export function forumApiErrorToProxyResponse(err: ForumApiError): NextResponse {
 		// `redirect_to`. The Worker's status is 403 in this case (§5.4).
 		return NextResponse.json(err.rawBody as Record<string, unknown>, { status: err.status });
 	}
-	return NextResponse.json(
-		{ error: { code: err.code, message: err.message } },
-		{ status: err.status },
-	);
+	const errorBody: Record<string, unknown> = { code: err.code, message: err.message };
+	if (err.details) {
+		errorBody.details = err.details;
+	}
+	return NextResponse.json({ error: errorBody }, { status: err.status });
 }

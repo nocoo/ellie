@@ -107,4 +107,30 @@ describe("forumApiErrorToProxyResponse", () => {
 		const body = await res.json();
 		expect(body).toEqual({ error: { code: "INTERNAL_ERROR", message: "boom" } });
 	});
+
+	it("preserves details field from Worker error (D1/runtime diagnostics)", async () => {
+		const err = new ForumApiError(500, {
+			code: "INTERNAL_ERROR",
+			message: "Internal server error",
+			details: { message: "D1_ERROR: too many SQL variables" },
+		});
+		const res = forumApiErrorToProxyResponse(err);
+		expect(res.status).toBe(500);
+		const body = await res.json();
+		expect(body).toEqual({
+			error: {
+				code: "INTERNAL_ERROR",
+				message: "Internal server error",
+				details: { message: "D1_ERROR: too many SQL variables" },
+			},
+		});
+	});
+
+	it("omits details when not present on ForumApiError", async () => {
+		const err = new ForumApiError(404, { code: "NOT_FOUND", message: "Resource not found" });
+		const res = forumApiErrorToProxyResponse(err);
+		const body = await res.json();
+		expect(body.error.details).toBeUndefined();
+		expect(body).toEqual({ error: { code: "NOT_FOUND", message: "Resource not found" } });
+	});
 });
