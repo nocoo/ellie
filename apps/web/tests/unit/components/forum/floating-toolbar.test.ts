@@ -242,4 +242,61 @@ describe("FloatingToolbar", () => {
 		// is mocked inline, we just verify no jump input appears
 		expect(screen.queryByRole("button", { name: "跳页" })).toBeNull();
 	});
+
+	// ─── Jump page submission ────────────────────────────────────────────
+
+	it("navigates to basePath?page=N when a page number is submitted via Go button", () => {
+		render(
+			createElement(FloatingToolbar, {
+				jumpPage: { basePath: "/threads/1", pages: 8 },
+			}),
+		);
+		// Open the popover by clicking the jump button
+		fireEvent.click(screen.getByRole("button", { name: "跳页" }));
+		// Fill in page number
+		const input = screen.getByRole("spinbutton", { name: "页码" });
+		fireEvent.change(input, { target: { value: "2" } });
+		// Click Go
+		fireEvent.click(screen.getByRole("button", { name: "Go" }));
+		expect(mockPush).toHaveBeenCalledWith("/threads/1?page=2");
+	});
+
+	it("navigates to basePath (no query) when page 1 is submitted", () => {
+		render(
+			createElement(FloatingToolbar, {
+				jumpPage: { basePath: "/threads/1", pages: 8 },
+			}),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "跳页" }));
+		const input = screen.getByRole("spinbutton", { name: "页码" });
+		fireEvent.change(input, { target: { value: "1" } });
+		fireEvent.click(screen.getByRole("button", { name: "Go" }));
+		expect(mockPush).toHaveBeenCalledWith("/threads/1");
+	});
+
+	it("navigates on Enter key in jump page input", () => {
+		render(
+			createElement(FloatingToolbar, {
+				jumpPage: { basePath: "/threads/1", pages: 8 },
+			}),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "跳页" }));
+		const input = screen.getByRole("spinbutton", { name: "页码" });
+		fireEvent.change(input, { target: { value: "5" } });
+		fireEvent.keyDown(input, { key: "Enter" });
+		expect(mockPush).toHaveBeenCalledWith("/threads/1?page=5");
+	});
+
+	it("does not navigate when jump page input is out of range", () => {
+		render(
+			createElement(FloatingToolbar, {
+				jumpPage: { basePath: "/threads/1", pages: 8 },
+			}),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "跳页" }));
+		const input = screen.getByRole("spinbutton", { name: "页码" });
+		fireEvent.change(input, { target: { value: "99" } });
+		fireEvent.click(screen.getByRole("button", { name: "Go" }));
+		expect(mockPush).not.toHaveBeenCalled();
+	});
 });
