@@ -554,6 +554,143 @@ describe("auth handlers", () => {
 		});
 	});
 
+	/**
+	 * Security regression tests — simulate the full register→login flow.
+	 *
+	 * These tests prove that a newly-registered user CANNOT login with a wrong
+	 * password. They use the same `hashPassword` call that `register()` uses and
+	 * then attempt login with a different password.
+	 *
+	 * Context: Task #18 (P0 security report) — "新用户注册后第一次登陆，输入任意
+	 * 密码均可登录". These tests prove the Worker password verification is correct.
+	 */
+	describe("login — register→login password integrity", () => {
+		it("rejects wrong password for newly-registered PBKDF2 user", async () => {
+			// Simulate what register() stores: hashPassword("original") → password_hash, password_salt=""
+			const registrationPassword = "my_secure_pass_123";
+			const storedHash = await hashPassword(registrationPassword);
+
+			const user = {
+				id: 100,
+				username: "newuser",
+				password_hash: storedHash,
+				password_salt: "", // empty = new PBKDF2 format (as register sets it)
+				role: 0,
+				status: 0,
+			};
+
+			const { db } = createMockDb({ firstResult: user });
+			const env = { ...mockEnv, DB: db };
+
+			// Attempt login with DIFFERENT password — must fail
+			const response = await login(
+				createLoginRequest({ username: "newuser", password: "totally_wrong_password" }),
+				env,
+			);
+
+			expect(response.status).toBe(401);
+			const data = await response.json();
+			expect(data.error.code).toBe("INVALID_CREDENTIALS");
+		});
+
+		it("accepts correct password for newly-registered PBKDF2 user", async () => {
+			const registrationPassword = "my_secure_pass_123";
+			const storedHash = await hashPassword(registrationPassword);
+
+			const user = {
+				id: 100,
+				username: "newuser",
+				password_hash: storedHash,
+				password_salt: "",
+				role: 0,
+				status: 0,
+			};
+
+			const runSpy = vi.fn(() => Promise.resolve({ success: true }));
+			const firstSpy = vi.fn(() => Promise.resolve(user));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ first: firstSpy, run: runSpy }));
+			const db = { prepare: vi.fn((_sql: string) => ({ bind: bindSpy })) } as unknown as D1Database;
+			const env = {
+				...mockEnv,
+				DB: db,
+				KV: {
+					get: vi.fn(() => Promise.resolve(null)),
+					put: vi.fn(() => Promise.resolve()),
+					delete: vi.fn(() => Promise.resolve()),
+				} as unknown as KVNamespace,
+			};
+
+			// Login with SAME password — must succeed
+			const response = await login(
+				createLoginRequest({ username: "newuser", password: registrationPassword }),
+				env,
+			);
+
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.data.user.userId).toBe(100);
+		});
+
+		it("rejects empty password string", async () => {
+			const response = await login(
+				createLoginRequest({ username: "newuser", password: "" }),
+				mockEnv,
+			);
+
+			expect(response.status).toBe(400);
+			const data = await response.json();
+			expect(data.error.code).toBe("INVALID_REQUEST");
+		});
+
+		it("rejects login when password_hash is empty (corrupt DB state)", async () => {
+			// Edge case: what if password_hash is somehow empty in DB?
+			const user = {
+				id: 100,
+				username: "newuser",
+				password_hash: "", // corrupt / empty
+				password_salt: "",
+				role: 0,
+				status: 0,
+			};
+
+			const { db } = createMockDb({ firstResult: user });
+			const env = { ...mockEnv, DB: db };
+
+			const response = await login(
+				createLoginRequest({ username: "newuser", password: "any_password" }),
+				env,
+			);
+
+			expect(response.status).toBe(401);
+			const data = await response.json();
+			expect(data.error.code).toBe("INVALID_CREDENTIALS");
+		});
+
+		it("rejects login when password_hash has invalid format (no dot separator)", async () => {
+			// Edge case: malformed hash without the "salt.hash" format
+			const user = {
+				id: 100,
+				username: "newuser",
+				password_hash: "not_a_valid_pbkdf2_hash",
+				password_salt: "",
+				role: 0,
+				status: 0,
+			};
+
+			const { db } = createMockDb({ firstResult: user });
+			const env = { ...mockEnv, DB: db };
+
+			const response = await login(
+				createLoginRequest({ username: "newuser", password: "any_password" }),
+				env,
+			);
+
+			expect(response.status).toBe(401);
+			const data = await response.json();
+			expect(data.error.code).toBe("INVALID_CREDENTIALS");
+		});
+	});
+
 	describe("refresh", () => {
 		const refreshEnv = (
 			kvStore: Map<string, string>,
