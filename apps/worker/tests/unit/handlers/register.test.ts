@@ -137,20 +137,26 @@ describe("register", () => {
 	});
 
 	it("accepts empty email (optional)", async () => {
-		const { db } = createMockDb({
-			allResults: { "SELECT id, find": [] },
-			firstResults: {
-				"SELECT value FROM settings": { value: "true" },
-				"SELECT id FROM users": { id: 999 },
-			},
-		});
-		const env = makeEnv({ DB: db, KV: createMockKV() });
+		const env = makeEnv();
 		const res = await register(
 			createRegisterRequest({ username: "validuser", password: "123456", email: "" }),
 			env,
 		);
-		// Should proceed past validation (might succeed or get other errors)
-		expect(res.status).toBe(201);
+		// Email is now required — empty should be rejected
+		expect(res.status).toBe(400);
+		const body = (await res.json()) as { error: { code: string } };
+		expect(body.error.code).toBe("INVALID_EMAIL");
+	});
+
+	it("rejects missing email → INVALID_EMAIL 400", async () => {
+		const env = makeEnv();
+		const res = await register(
+			createRegisterRequest({ username: "validuser", password: "123456" }),
+			env,
+		);
+		expect(res.status).toBe(400);
+		const body = (await res.json()) as { error: { code: string } };
+		expect(body.error.code).toBe("INVALID_EMAIL");
 	});
 
 	it("accepts Chinese + English + digits + underscore username", async () => {
@@ -163,7 +169,11 @@ describe("register", () => {
 		});
 		const env = makeEnv({ DB: db, KV: createMockKV() });
 		const res = await register(
-			createRegisterRequest({ username: "测试user_123", password: "123456" }),
+			createRegisterRequest({
+				username: "测试user_123",
+				password: "123456",
+				email: "test@example.com",
+			}),
 			env,
 		);
 		expect(res.status).toBe(201);
@@ -180,7 +190,7 @@ describe("register", () => {
 		});
 		const env = makeEnv({ DB: db, KV: createMockKV() });
 		const res = await register(
-			createRegisterRequest({ username: "badword", password: "123456" }),
+			createRegisterRequest({ username: "badword", password: "123456", email: "test@example.com" }),
 			env,
 		);
 		expect(res.status).toBe(400);
@@ -201,7 +211,11 @@ describe("register", () => {
 		const kv = createMockKV({ get: { "reg-ip:1.2.3.4": "2" } });
 		const env = makeEnv({ DB: db, KV: kv });
 		const res = await register(
-			createRegisterRequest({ username: "validuser", password: "123456" }),
+			createRegisterRequest({
+				username: "validuser",
+				password: "123456",
+				email: "test@example.com",
+			}),
 			env,
 		);
 		expect(res.status).toBe(201);
@@ -215,7 +229,11 @@ describe("register", () => {
 		const kv = createMockKV({ get: { "reg-ip:1.2.3.4": "3" } });
 		const env = makeEnv({ DB: db, KV: kv });
 		const res = await register(
-			createRegisterRequest({ username: "validuser", password: "123456" }),
+			createRegisterRequest({
+				username: "validuser",
+				password: "123456",
+				email: "test@example.com",
+			}),
 			env,
 		);
 		expect(res.status).toBe(429);
@@ -241,7 +259,11 @@ describe("register", () => {
 		const kv = createMockKV({ putCalls });
 		const env = makeEnv({ DB: db, KV: kv });
 		const res = await register(
-			createRegisterRequest({ username: "newuser", password: "mypassword" }),
+			createRegisterRequest({
+				username: "newuser",
+				password: "mypassword",
+				email: "new@example.com",
+			}),
 			env,
 		);
 
@@ -279,7 +301,11 @@ describe("register", () => {
 		});
 		const env = makeEnv({ DB: db, KV: createMockKV() });
 		const res = await register(
-			createRegisterRequest({ username: "validuser", password: "123456" }),
+			createRegisterRequest({
+				username: "validuser",
+				password: "123456",
+				email: "test@example.com",
+			}),
 			env,
 		);
 		expect(res.status).toBe(403);
@@ -297,7 +323,11 @@ describe("register", () => {
 		});
 		const env = makeEnv({ DB: db, KV: createMockKV() });
 		const res = await register(
-			createRegisterRequest({ username: "validuser", password: "123456" }),
+			createRegisterRequest({
+				username: "validuser",
+				password: "123456",
+				email: "test@example.com",
+			}),
 			env,
 		);
 		expect(res.status).toBe(201);
@@ -311,7 +341,11 @@ describe("register", () => {
 		});
 		const env = makeEnv({ DB: db, KV: createMockKV() });
 		const res = await register(
-			createRegisterRequest({ username: "validuser", password: "123456" }),
+			createRegisterRequest({
+				username: "validuser",
+				password: "123456",
+				email: "test@example.com",
+			}),
 			env,
 		);
 		expect(res.status).toBe(201);
@@ -355,12 +389,194 @@ describe("register", () => {
 
 		const env = makeEnv({ DB: throwingDb, KV: mockKv });
 		const res = await register(
-			createRegisterRequest({ username: "existinguser", password: "123456" }),
+			createRegisterRequest({
+				username: "existinguser",
+				password: "123456",
+				email: "test@example.com",
+			}),
 			env,
 		);
 		expect(res.status).toBe(409);
 		const body = (await res.json()) as { error: { code: string } };
 		expect(body.error.code).toBe("USERNAME_TAKEN");
+	});
+
+	// ── Profile fields at registration ──
+
+	it("saves profile fields when provided in registration", async () => {
+		const bindCalls: unknown[][] = [];
+		const { db } = createMockDb({
+			allResults: { "SELECT id, find": [] },
+			firstResults: { "SELECT value FROM settings": { value: "true" } },
+			runResults: {
+				"INSERT INTO users": { success: true, meta: { last_row_id: 50, changes: 1 } },
+			},
+			onBind: (params) => bindCalls.push(params),
+		});
+		const env = makeEnv({ DB: db, KV: createMockKV() });
+		const res = await register(
+			createRegisterRequest({
+				username: "newuser",
+				password: "123456",
+				email: "new@example.com",
+				profile: {
+					gender: 1,
+					campus: "四平路校区",
+					bio: "Hello!",
+				},
+			}),
+			env,
+		);
+		expect(res.status).toBe(201);
+		// Verify the INSERT included profile columns
+		const prepareCalls = (db.prepare as ReturnType<typeof vi.fn>).mock.calls;
+		const insertCall = prepareCalls.find((c: unknown[]) =>
+			(c[0] as string).includes("INSERT INTO users"),
+		);
+		expect(insertCall).toBeDefined();
+		const sql = insertCall[0] as string;
+		expect(sql).toContain("gender");
+		expect(sql).toContain("campus");
+		expect(sql).toContain("bio");
+	});
+
+	it("rejects invalid gender in profile → INVALID_BODY 400", async () => {
+		const { db } = createMockDb({
+			allResults: { "SELECT id, find": [] },
+			firstResults: { "SELECT value FROM settings": { value: "true" } },
+		});
+		const env = makeEnv({ DB: db, KV: createMockKV() });
+		const res = await register(
+			createRegisterRequest({
+				username: "newuser",
+				password: "123456",
+				email: "new@example.com",
+				profile: { gender: 5 },
+			}),
+			env,
+		);
+		expect(res.status).toBe(400);
+		const body = (await res.json()) as { error: { code: string } };
+		expect(body.error.code).toBe("INVALID_BODY");
+	});
+
+	it("rejects invalid birthYear in profile → INVALID_BODY 400", async () => {
+		const { db } = createMockDb({
+			allResults: { "SELECT id, find": [] },
+			firstResults: { "SELECT value FROM settings": { value: "true" } },
+		});
+		const env = makeEnv({ DB: db, KV: createMockKV() });
+		const res = await register(
+			createRegisterRequest({
+				username: "newuser",
+				password: "123456",
+				email: "new@example.com",
+				profile: { birthYear: 3000 },
+			}),
+			env,
+		);
+		expect(res.status).toBe(400);
+		const body = (await res.json()) as { error: { code: string } };
+		expect(body.error.code).toBe("INVALID_BODY");
+	});
+
+	it("rejects profile string exceeding max length → INVALID_BODY 400", async () => {
+		const { db } = createMockDb({
+			allResults: { "SELECT id, find": [] },
+			firstResults: { "SELECT value FROM settings": { value: "true" } },
+		});
+		const env = makeEnv({ DB: db, KV: createMockKV() });
+		const res = await register(
+			createRegisterRequest({
+				username: "newuser",
+				password: "123456",
+				email: "new@example.com",
+				profile: { bio: "x".repeat(501) },
+			}),
+			env,
+		);
+		expect(res.status).toBe(400);
+		const body = (await res.json()) as { error: { code: string } };
+		expect(body.error.code).toBe("INVALID_BODY");
+	});
+
+	it("saves campus in profile at registration", async () => {
+		const { db } = createMockDb({
+			allResults: { "SELECT id, find": [] },
+			firstResults: { "SELECT value FROM settings": { value: "true" } },
+			runResults: {
+				"INSERT INTO users": { success: true, meta: { last_row_id: 60, changes: 1 } },
+			},
+		});
+		const env = makeEnv({ DB: db, KV: createMockKV() });
+		const res = await register(
+			createRegisterRequest({
+				username: "campususer",
+				password: "123456",
+				email: "campus@example.com",
+				profile: { campus: "嘉定校区" },
+			}),
+			env,
+		);
+		expect(res.status).toBe(201);
+		const prepareCalls = (db.prepare as ReturnType<typeof vi.fn>).mock.calls;
+		const insertCall = prepareCalls.find((c: unknown[]) =>
+			(c[0] as string).includes("INSERT INTO users"),
+		);
+		expect(insertCall).toBeDefined();
+		const sql = insertCall[0] as string;
+		expect(sql).toContain("campus");
+	});
+
+	it("registers successfully without profile fields", async () => {
+		const { db } = createMockDb({
+			allResults: { "SELECT id, find": [] },
+			firstResults: { "SELECT value FROM settings": { value: "true" } },
+			runResults: {
+				"INSERT INTO users": { success: true, meta: { last_row_id: 70, changes: 1 } },
+			},
+		});
+		const env = makeEnv({ DB: db, KV: createMockKV() });
+		const res = await register(
+			createRegisterRequest({
+				username: "basicuser",
+				password: "123456",
+				email: "basic@example.com",
+			}),
+			env,
+		);
+		expect(res.status).toBe(201);
+	});
+
+	it("strips email and avatar from profile to prevent double-handling", async () => {
+		const { db } = createMockDb({
+			allResults: { "SELECT id, find": [] },
+			firstResults: { "SELECT value FROM settings": { value: "true" } },
+			runResults: {
+				"INSERT INTO users": { success: true, meta: { last_row_id: 80, changes: 1 } },
+			},
+		});
+		const env = makeEnv({ DB: db, KV: createMockKV() });
+		const res = await register(
+			createRegisterRequest({
+				username: "stripuser",
+				password: "123456",
+				email: "strip@example.com",
+				profile: { email: "override@example.com", avatar: "hacked.jpg", gender: 2 },
+			}),
+			env,
+		);
+		expect(res.status).toBe(201);
+		// Verify the INSERT doesn't double-write email but does include gender
+		const prepareCalls = (db.prepare as ReturnType<typeof vi.fn>).mock.calls;
+		const insertCall = prepareCalls.find((c: unknown[]) =>
+			(c[0] as string).includes("INSERT INTO users"),
+		);
+		const sql = insertCall[0] as string;
+		expect(sql).toContain("gender");
+		// email appears once (from the top-level field), not from profile
+		const emailMatches = sql.match(/email/g);
+		expect(emailMatches?.length).toBe(1);
 	});
 });
 

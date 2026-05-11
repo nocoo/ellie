@@ -7,6 +7,7 @@ import { hashPassword, verifyDiscuzPassword, verifyPassword } from "../lib/passw
 import { jsonResponse } from "../lib/response";
 import { withAuthVerified } from "../lib/routeHelpers";
 import { errorResponse } from "../middleware/error";
+import { DB_COLUMNS, validateProfileFields } from "./me";
 
 /**
  * Get client IP from request headers.
@@ -316,7 +317,86 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 interface RegisterInput {
 	username: string;
 	password: string;
-	email?: string;
+	email: string;
+	/** Optional profile fields — validated via shared validateProfileFields */
+	profile?: Record<string, unknown>;
+}
+
+/** Extract and validate core register fields. Returns parsed values or error Response. */
+function parseRegisterInput(
+	body: RegisterInput,
+	origin: string | undefined,
+): { username: string; password: string; email: string } | Response {
+	const username = typeof body.username === "string" ? body.username.trim() : "";
+	const password = typeof body.password === "string" ? body.password : "";
+	const email = typeof body.email === "string" ? body.email.trim() : "";
+
+	if (!username || !USERNAME_REGEX.test(username)) {
+		return errorResponse("INVALID_USERNAME", 400, undefined, origin);
+	}
+	if (!password || password.length < 6) {
+		return errorResponse("INVALID_PASSWORD", 400, undefined, origin);
+	}
+	if (!email || !EMAIL_REGEX.test(email)) {
+		return errorResponse("INVALID_EMAIL", 400, undefined, origin);
+	}
+
+	return { username, password, email };
+}
+
+/** Build INSERT columns + params for a new user, merging base fields with optional profile fields. */
+function buildInsertQuery(
+	base: { username: string; email: string; passwordHash: string; ip: string; now: number },
+	profileFields: Record<string, unknown>,
+): { sql: string; params: unknown[] } {
+	const baseColumns = [
+		"username",
+		"email",
+		"password_hash",
+		"password_salt",
+		"status",
+		"role",
+		"reg_date",
+		"last_login",
+		"last_activity",
+		"group_title",
+		"group_stars",
+		"reg_ip",
+		"last_ip",
+	];
+	const baseParams: unknown[] = [
+		base.username,
+		base.email,
+		base.passwordHash,
+		"",
+		0,
+		0,
+		base.now,
+		base.now,
+		base.now,
+		"新手上路",
+		0,
+		base.ip,
+		base.ip,
+	];
+
+	const profileColumns: string[] = [];
+	const profileParams: unknown[] = [];
+	for (const [key, value] of Object.entries(profileFields)) {
+		if (value !== undefined && DB_COLUMNS[key]) {
+			profileColumns.push(DB_COLUMNS[key]);
+			profileParams.push(value);
+		}
+	}
+
+	const allColumns = [...baseColumns, ...profileColumns];
+	const allParams = [...baseParams, ...profileParams];
+	const placeholders = allColumns.map(() => "?").join(", ");
+
+	return {
+		sql: `INSERT INTO users (${allColumns.join(", ")}) VALUES (${placeholders})`,
+		params: allParams,
+	};
 }
 
 /** POST /api/v1/auth/register - Register a new forum user */
@@ -324,21 +404,28 @@ export async function register(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	try {
 		const body = (await request.json()) as RegisterInput;
-		const username = typeof body.username === "string" ? body.username.trim() : "";
-		const password = typeof body.password === "string" ? body.password : "";
-		const email = typeof body.email === "string" ? body.email.trim() : "";
 
 		// ── Input validation (before any DB calls for efficiency) ──
-		if (!username || !USERNAME_REGEX.test(username)) {
-			return errorResponse("INVALID_USERNAME", 400, undefined, origin);
-		}
+		const parsed = parseRegisterInput(body, origin);
+		if (parsed instanceof Response) return parsed;
+		const { username, password, email } = parsed;
 
-		if (!password || password.length < 6) {
-			return errorResponse("INVALID_PASSWORD", 400, undefined, origin);
-		}
-
-		if (email && !EMAIL_REGEX.test(email)) {
-			return errorResponse("INVALID_EMAIL", 400, undefined, origin);
+		// ── Validate optional profile fields ──
+		// Exclude email/avatar from profile — email is handled above, avatar not
+		// allowed at registration (requires separate upload flow).
+		let profileFields: Record<string, unknown> = {};
+		if (body.profile && typeof body.profile === "object") {
+			// Strip email and avatar from profile to avoid double-handling
+			const { email: _e, avatar: _a, ...profileBody } = body.profile;
+			const validation = validateProfileFields(
+				profileBody,
+				origin,
+				true, // skipEmptyCheck — profile fields are all optional at registration
+			);
+			if (!validation.success) {
+				return validation.error;
+			}
+			profileFields = validation.fields;
 		}
 
 		// Independent guards: settings lookup + censor check + IP rate-limit
@@ -377,17 +464,16 @@ export async function register(request: Request, env: Env): Promise<Response> {
 		const passwordHash = await hashPassword(password);
 		const now = Math.floor(Date.now() / 1000);
 
-		// ── Insert user (UNIQUE constraint safety net) ──
+		// ── Build & execute INSERT ──
+		const { sql, params } = buildInsertQuery(
+			{ username, email, passwordHash, ip, now },
+			profileFields,
+		);
+
 		let userId: number;
 		try {
-			const insertResult = await env.DB.prepare(
-				`INSERT INTO users (
-					username, email, password_hash, password_salt,
-					status, role, reg_date, last_login, last_activity,
-					group_title, group_stars, reg_ip, last_ip
-				) VALUES (?, ?, ?, '', 0, 0, ?, ?, ?, '新手上路', 0, ?, ?)`,
-			)
-				.bind(username, email, passwordHash, now, now, now, ip, ip)
+			const insertResult = await env.DB.prepare(sql)
+				.bind(...params)
 				.run();
 			userId = Number(insertResult.meta.last_row_id);
 			if (!userId) {
