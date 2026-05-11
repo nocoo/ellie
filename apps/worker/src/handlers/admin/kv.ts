@@ -47,7 +47,6 @@ import {
 	bumpThreadListGen,
 	bumpThreadListGenAll,
 	bumpThreadMetaGen,
-	deleteUserMini,
 } from "../../lib/cache/invalidate";
 import {
 	KV_REGISTRY,
@@ -55,10 +54,11 @@ import {
 	findFamily,
 	resolveFamilyForKey,
 } from "../../lib/cache/kv-registry";
-import { recordDelete } from "../../lib/cache/metrics";
+import { flushPendingNow, recordDelete } from "../../lib/cache/metrics";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { jsonResponse } from "../../lib/response";
+import { invalidateUserCache } from "../../lib/user-cache";
 import { errorResponse } from "../../middleware/error";
 
 const kvConfig: EntityConfig = {
@@ -579,7 +579,7 @@ const SIMPLE_BUMP_ACTIONS: Record<string, { gen: string; run: (env: Env) => Prom
 
 export const refresh = withEntityAuth(
 	kvConfig,
-	async (request: Request, env: Env): Promise<Response> => {
+	async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 		const body = await parseBody(request);
 		if (!body) return errorResponse("INVALID_BODY", 400, undefined, origin);
@@ -613,19 +613,21 @@ export const refresh = withEntityAuth(
 				targetId: null,
 				details: { family: spec.family, gen: simpleBump.gen, newGen },
 			});
+			// Surface the just-recorded `bump` op in this same request.
+			if (ctx) flushPendingNow(env, ctx);
 			return jsonResponse({ ok: true, family: spec.family, newGen }, origin);
 		}
 
 		switch (spec.refresh.kind) {
 			case "bump-thread-list-forum":
-				return refreshBumpThreadListForum(env, actor, spec, action, origin);
+				return refreshBumpThreadListForum(env, actor, spec, action, origin, ctx);
 			case "bump-thread-meta":
 			case "bump-post-list":
-				return refreshBumpThreadScoped(env, actor, spec, action, origin);
+				return refreshBumpThreadScoped(env, actor, spec, action, origin, ctx);
 			case "delete-literal":
-				return refreshDeleteLiteral(env, actor, spec, action, origin);
+				return refreshDeleteLiteral(env, actor, spec, action, origin, ctx);
 			case "delete-user-mini":
-				return refreshDeleteUserMini(env, actor, spec, action, origin);
+				return refreshDeleteUserMini(env, actor, spec, action, origin, ctx);
 			case "none":
 				return errorResponse("KV_ACTION_NOT_ALLOWED", 400, { family: spec.family }, origin);
 		}
@@ -639,6 +641,7 @@ async function refreshBumpThreadListForum(
 	spec: ReturnType<typeof findFamily> & object,
 	action: { kind?: string } | undefined,
 	origin: string | undefined,
+	ctx: ExecutionContext | undefined,
 ): Promise<Response> {
 	const forumId = Number((action as { forumId?: unknown }).forumId);
 	if (!Number.isInteger(forumId) || forumId <= 0) {
@@ -651,6 +654,7 @@ async function refreshBumpThreadListForum(
 		targetId: forumId,
 		details: { family: spec.family, gen: `thread:list:gen:${forumId}`, newGen },
 	});
+	if (ctx) flushPendingNow(env, ctx);
 	return jsonResponse({ ok: true, family: spec.family, forumId, newGen }, origin);
 }
 
@@ -660,6 +664,7 @@ async function refreshBumpThreadScoped(
 	spec: ReturnType<typeof findFamily> & object,
 	action: { kind?: string } | undefined,
 	origin: string | undefined,
+	ctx: ExecutionContext | undefined,
 ): Promise<Response> {
 	const threadId = Number((action as { threadId?: unknown }).threadId);
 	if (!Number.isInteger(threadId) || threadId <= 0) {
@@ -677,6 +682,7 @@ async function refreshBumpThreadScoped(
 			newGen,
 		},
 	});
+	if (ctx) flushPendingNow(env, ctx);
 	return jsonResponse({ ok: true, family: spec.family, threadId, newGen }, origin);
 }
 
@@ -686,6 +692,7 @@ async function refreshDeleteLiteral(
 	spec: ReturnType<typeof findFamily> & object,
 	action: { kind?: string } | undefined,
 	origin: string | undefined,
+	ctx: ExecutionContext | undefined,
 ): Promise<Response> {
 	const key = (action as { key?: unknown }).key;
 	if (typeof key !== "string" || key.length === 0) {
@@ -707,6 +714,7 @@ async function refreshDeleteLiteral(
 		targetId: null,
 		details: { family: spec.family, maskedKey: masked },
 	});
+	if (ctx) flushPendingNow(env, ctx);
 	return jsonResponse({ ok: true, family: spec.family, deleted: 1 }, origin);
 }
 
@@ -716,18 +724,27 @@ async function refreshDeleteUserMini(
 	spec: ReturnType<typeof findFamily> & object,
 	action: { kind?: string } | undefined,
 	origin: string | undefined,
+	ctx: ExecutionContext | undefined,
 ): Promise<Response> {
 	const userId = Number((action as { userId?: unknown }).userId);
 	if (!Number.isInteger(userId) || userId <= 0) {
 		return errorResponse("MISSING_USER_ID", 400, undefined, origin);
 	}
-	await deleteUserMini(env, userId);
+	// `spec.family === "user:mini:v1"` (live). Route to the live v1
+	// invalidator (`lib/user-cache.ts`) which writes the literal
+	// `user:mini:<id>` key — NOT the planned-v2 `user:mini:v2:<id>`
+	// helper in `lib/cache/invalidate.ts:deleteUserMini` (that one is
+	// for the future v2 family and would silently miss the live row).
+	// `invalidateUserCache` already records `delete` against the
+	// `user:mini:v1` family; we don't double-count here.
+	await invalidateUserCache(env, userId);
 	await writeAdminLog(env, actor, {
 		action: "kv.delete_key",
 		targetType: "kv_key",
 		targetId: userId,
 		details: { family: spec.family },
 	});
+	if (ctx) flushPendingNow(env, ctx);
 	return jsonResponse({ ok: true, family: spec.family, userId, deleted: 1 }, origin);
 }
 

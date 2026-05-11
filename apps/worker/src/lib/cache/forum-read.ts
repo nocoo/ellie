@@ -44,6 +44,7 @@ import {
 	forumTreeKey,
 } from "./keys";
 import {
+	flushPendingNow,
 	recordError,
 	recordHit,
 	recordMiss,
@@ -486,7 +487,9 @@ export async function getForumMetaV2(
 		return { kind: "forbidden" };
 	}
 
-	// Best-effort write-back; never block the response.
+	// Best-effort write-back; never block the response. Flush from
+	// inside the put-then chain so the `write` op recorded after the
+	// outer scheduleMetricsFlush already swapped still lands in D1.
 	const putPromise = env.KV.put(key, JSON.stringify(payload), {
 		expirationTtl: FORUM_META_TTL,
 	})
@@ -496,6 +499,9 @@ export async function getForumMetaV2(
 		.catch((err) => {
 			recordError("forum:meta:v2");
 			console.warn(`[cache] forum:meta write-back failed key=${key}`, err);
+		})
+		.finally(() => {
+			flushPendingNow(env, ctx);
 		});
 	ctx.waitUntil(putPromise);
 	scheduleMetricsFlush(env, ctx);
