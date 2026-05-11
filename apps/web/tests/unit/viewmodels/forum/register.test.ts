@@ -547,6 +547,10 @@ describe("registerErrorMessage", () => {
 		expect(registerErrorMessage("RATE_LIMITED")).toBe("注册太频繁，请稍后再试");
 	});
 
+	it("maps EMAIL_ALREADY_IN_USE to Chinese message", () => {
+		expect(registerErrorMessage("EMAIL_ALREADY_IN_USE")).toBe("该邮箱已被其他账户绑定");
+	});
+
 	it("maps unknown code to generic message", () => {
 		expect(registerErrorMessage("SOMETHING_UNKNOWN")).toBe("注册失败，请重试");
 	});
