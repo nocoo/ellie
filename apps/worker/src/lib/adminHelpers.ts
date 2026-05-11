@@ -11,12 +11,23 @@ import type { Env } from "./env";
  *
  * Admin handlers receive (request, env) — no user identity is available.
  */
-export function withEntityAuth(
-	_config: EntityConfig,
-	handler: (request: Request, env: Env) => Promise<Response>,
-) {
-	return async (request: Request, env: Env): Promise<Response> => {
-		return handler(request, env);
+/**
+ * Admin handler signature.
+ *
+ * `ctx` is optional so existing CRUD handlers (which don't need it) keep
+ * their two-argument shape. New handlers that need to schedule async
+ * work (e.g. `flushPendingNow` after a KV bump/delete) accept the third
+ * `ExecutionContext` argument and the router passes it through.
+ */
+export type AdminHandler = (
+	request: Request,
+	env: Env,
+	ctx?: ExecutionContext,
+) => Promise<Response>;
+
+export function withEntityAuth(_config: EntityConfig, handler: AdminHandler) {
+	return async (request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> => {
+		return handler(request, env, ctx);
 	};
 }
 
@@ -26,9 +37,9 @@ export function withEntityAuth(
  */
 export function createEntityHandlers(
 	config: EntityConfig,
-	handlers: Record<string, (request: Request, env: Env) => Promise<Response>>,
-): Record<string, (request: Request, env: Env) => Promise<Response>> {
-	const wrapped: Record<string, (request: Request, env: Env) => Promise<Response>> = {};
+	handlers: Record<string, AdminHandler>,
+): Record<string, AdminHandler> {
+	const wrapped: Record<string, AdminHandler> = {};
 	for (const [name, handler] of Object.entries(handlers)) {
 		wrapped[name] = withEntityAuth(config, handler);
 	}

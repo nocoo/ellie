@@ -38,7 +38,10 @@ vi.mock("../../../../src/lib/cache/invalidate", async () => {
 		bumpThreadMetaGen: vi.fn(async () => "newgen-tm"),
 		bumpPostListGen: vi.fn(async () => "newgen-pl"),
 		bumpDigestGen: vi.fn(async () => "newgen-digest"),
-		deleteUserMini: vi.fn(async () => {}),
+		// `deleteUserMini` (v2) is intentionally NOT mocked here: the live
+		// `user:mini:v1` admin path goes through `lib/user-cache.ts ::
+		// invalidateUserCache`, which we explicitly do NOT mock so the
+		// integration-style test below exercises the real key deletion.
 	};
 });
 
@@ -50,7 +53,6 @@ import {
 	bumpForumTreeGen,
 	bumpThreadListGen,
 	bumpThreadListGenAll,
-	deleteUserMini,
 } from "../../../../src/lib/cache/invalidate";
 import { createAdminRequest, createMockKV, makeEnv } from "../../../helpers";
 
@@ -60,7 +62,6 @@ const mockBumpSummary = bumpForumSummaryGen as ReturnType<typeof vi.fn>;
 const mockBumpTLForum = bumpThreadListGen as ReturnType<typeof vi.fn>;
 const mockBumpTLAll = bumpThreadListGenAll as ReturnType<typeof vi.fn>;
 const mockBumpDigest = bumpDigestGen as ReturnType<typeof vi.fn>;
-const mockDeleteUserMini = deleteUserMini as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -200,8 +201,18 @@ describe("admin/kv — refresh dispatcher", () => {
 		);
 	});
 
-	it("delete-user-mini calls deleteUserMini for valid userId", async () => {
-		const env = makeEnv();
+	it("delete-user-mini removes the live `user:mini:<id>` key (no helper mock)", async () => {
+		// Reviewer-required regression: B.1 was deleting `user:mini:v2:<id>`
+		// because the handler called the v2 helper. The live family is v1
+		// with literal key `user:mini:<id>`. Seed that key and assert the
+		// admin refresh path actually evicts it via the real
+		// `invalidateUserCache` (no mock).
+		const env = makeEnv({
+			KV: createMockKV({
+				"user:mini:42": '{"id":42,"username":"alice"}',
+				"user:mini:43": '{"id":43,"username":"bob"}',
+			}),
+		});
 		const res = await kv.refresh(
 			refreshRequest({
 				family: "user:mini:v1",
@@ -210,7 +221,13 @@ describe("admin/kv — refresh dispatcher", () => {
 			env,
 		);
 		expect(res.status).toBe(200);
-		expect(mockDeleteUserMini).toHaveBeenCalledWith(expect.anything(), 42);
+		// The literal v1 key must be the one passed to KV.delete.
+		const deleteCalls = (env.KV.delete as ReturnType<typeof vi.fn>).mock.calls;
+		expect(deleteCalls.some((c) => c[0] === "user:mini:42")).toBe(true);
+		// And it must be gone after the call.
+		expect(await env.KV.get("user:mini:42")).toBeNull();
+		// Sibling user must remain.
+		expect(await env.KV.get("user:mini:43")).not.toBeNull();
 	});
 
 	it("rejects unknown family", async () => {

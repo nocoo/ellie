@@ -39,7 +39,10 @@ describe("withEntityAuth", () => {
 
 		expect(res.status).toBe(200);
 		expect(handler).toHaveBeenCalledTimes(1);
-		expect(handler).toHaveBeenCalledWith(req, env);
+		// `withEntityAuth` now threads an optional `ctx` (third arg) so
+		// admin handlers can schedule async work (e.g. flushPendingNow).
+		// When the caller omits ctx, handlers see `undefined`.
+		expect(handler).toHaveBeenCalledWith(req, env, undefined);
 	});
 
 	it("should return the handler's response directly", async () => {
@@ -93,6 +96,6 @@ describe("createEntityHandlers", () => {
 		const res = await wrapped.action(req, env);
 		expect(res.status).toBe(200);
 		expect(handler).toHaveBeenCalledTimes(1);
-		expect(handler).toHaveBeenCalledWith(req, env);
+		expect(handler).toHaveBeenCalledWith(req, env, undefined);
 	});
 });

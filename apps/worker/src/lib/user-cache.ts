@@ -3,6 +3,7 @@
 // Implements the caching strategy from docs/09-user-cache-refactor.md
 
 import {
+	flushPendingNow,
 	recordDelete,
 	recordError,
 	recordHit,
@@ -109,7 +110,10 @@ export async function getUserProfiles(
 				};
 				result.set(profile.id, profile);
 
-				// Non-blocking cache population
+				// Non-blocking cache population. Flush from inside the
+				// put chain so the `write` op recorded after the
+				// outer scheduleMetricsFlush has already swapped is
+				// still persisted within this request's waitUntil.
 				ctx.waitUntil(
 					env.KV.put(`${USER_CACHE_PREFIX}${profile.id}`, JSON.stringify(profile), {
 						expirationTtl: USER_CACHE_TTL,
@@ -120,6 +124,9 @@ export async function getUserProfiles(
 						.catch((err) => {
 							recordError(METRICS_FAMILY);
 							console.warn(`[user-cache] write-back failed id=${profile.id}`, err);
+						})
+						.finally(() => {
+							flushPendingNow(env, ctx);
 						}),
 				);
 			}

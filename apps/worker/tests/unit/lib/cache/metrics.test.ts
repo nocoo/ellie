@@ -12,6 +12,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	__resetMetricsForTest,
+	flushPendingNow,
 	flushSnapshot,
 	recordBump,
 	recordDelete,
@@ -153,6 +154,38 @@ describe("metrics — scheduleMetricsFlush throttle", () => {
 		const env = makeEnv();
 		const ctx = createMockCtx();
 		scheduleMetricsFlush(env, ctx);
+		expect(ctx.waitUntil).not.toHaveBeenCalled();
+	});
+});
+
+describe("metrics — flushPendingNow bypasses the throttle", () => {
+	it("flushes again within the throttle window when a write/bump/delete arrives after a swap", () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-05-11T08:00:00Z"));
+
+		const env = makeEnv();
+		const ctx = createMockCtx();
+
+		// Simulate the read/miss part of cacheGetOrSet: schedules a flush
+		// and swaps the snapshot.
+		recordRead("forum:tree:v2");
+		recordMiss("forum:tree:v2");
+		scheduleMetricsFlush(env, ctx);
+		expect(ctx.waitUntil).toHaveBeenCalledOnce();
+
+		// Now an async KV.put resolves and records `write` AFTER the
+		// initial swap. Without flushPendingNow, this counter would sit
+		// in BUCKETS until the next request arrives. flushPendingNow
+		// must force a second flush even though < 30s have elapsed.
+		recordWrite("forum:tree:v2");
+		flushPendingNow(env, ctx);
+		expect(ctx.waitUntil).toHaveBeenCalledTimes(2);
+	});
+
+	it("is a no-op when nothing is pending", () => {
+		const env = makeEnv();
+		const ctx = createMockCtx();
+		flushPendingNow(env, ctx);
 		expect(ctx.waitUntil).not.toHaveBeenCalled();
 	});
 });

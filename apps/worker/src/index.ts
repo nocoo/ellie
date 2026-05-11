@@ -471,19 +471,19 @@ export default {
 			// sensitivity rules — auth tokens / verification codes are
 			// never returned through these routes.
 			if (path === "/api/admin/kv/overview" && request.method === "GET") {
-				return await (await import("./handlers/admin/kv")).overview(request, env);
+				return await (await import("./handlers/admin/kv")).overview(request, env, ctx);
 			}
 			if (path === "/api/admin/kv/list" && request.method === "GET") {
-				return await (await import("./handlers/admin/kv")).listFamily(request, env);
+				return await (await import("./handlers/admin/kv")).listFamily(request, env, ctx);
 			}
 			if (path === "/api/admin/kv/get" && request.method === "GET") {
-				return await (await import("./handlers/admin/kv")).getKey(request, env);
+				return await (await import("./handlers/admin/kv")).getKey(request, env, ctx);
 			}
 			if (path === "/api/admin/kv/refresh" && request.method === "POST") {
-				return await (await import("./handlers/admin/kv")).refresh(request, env);
+				return await (await import("./handlers/admin/kv")).refresh(request, env, ctx);
 			}
 			if (path === "/api/admin/kv/metrics" && request.method === "GET") {
-				return await (await import("./handlers/admin/kv")).metrics(request, env);
+				return await (await import("./handlers/admin/kv")).metrics(request, env, ctx);
 			}
 
 			// ── F. Attachment (Admin) #43-#46 ────────────────

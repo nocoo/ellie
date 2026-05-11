@@ -177,6 +177,29 @@ export function scheduleMetricsFlush(env: Env, ctx: ExecutionContext): void {
 }
 
 /**
+ * Force a flush of all pending counters NOW, bypassing the
+ * `FLUSH_INTERVAL_MS` throttle. Used by:
+ *   - Tail of write-back / invalidation paths so the `write` / `bump` /
+ *     `delete` op recorded after `scheduleMetricsFlush` has already
+ *     swapped doesn't sit in BUCKETS until the next request.
+ *   - Admin manual refresh / delete handlers so the operator sees the
+ *     bump/delete reflected in the metrics page immediately.
+ *
+ * Like `scheduleMetricsFlush`, this is best-effort: failures are logged
+ * and swallowed. No-op when nothing is pending.
+ */
+export function flushPendingNow(env: Env, ctx: ExecutionContext): void {
+	if (BUCKETS.size === 0) return;
+	lastFlushAt = Date.now();
+	const snap = swapSnapshot();
+	ctx.waitUntil(
+		flushSnapshot(env, snap).catch((err) => {
+			console.warn("[kv-metrics] forced flush task crashed", err);
+		}),
+	);
+}
+
+/**
  * Test-only: reset both the in-isolate buckets and the throttle clock so
  * unit tests start from a clean state.
  */

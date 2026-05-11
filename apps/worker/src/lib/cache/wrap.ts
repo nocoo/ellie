@@ -17,6 +17,7 @@
 
 import type { Env } from "../env";
 import {
+	flushPendingNow,
 	recordError,
 	recordHit,
 	recordMiss,
@@ -78,7 +79,11 @@ export async function cacheGetOrSet<T>(
 	recordMiss(options.family);
 	const fresh = await loader();
 
-	// Best-effort write-back; never block the response.
+	// Best-effort write-back; never block the response. The `write`
+	// (or `error`) op is recorded AFTER the put resolves, so we also
+	// have to schedule a follow-up flush from inside the same waitUntil
+	// chain — the outer `scheduleMetricsFlush` below already swapped
+	// the read/miss snapshot before this put completed.
 	const putPromise = env.KV.put(key, JSON.stringify(fresh), {
 		expirationTtl: options.ttl,
 	})
@@ -88,6 +93,9 @@ export async function cacheGetOrSet<T>(
 		.catch((err) => {
 			recordError(options.family);
 			console.warn(`[cache] write-back failed key=${key}`, err);
+		})
+		.finally(() => {
+			flushPendingNow(env, ctx);
 		});
 	ctx.waitUntil(putPromise);
 	scheduleMetricsFlush(env, ctx);
