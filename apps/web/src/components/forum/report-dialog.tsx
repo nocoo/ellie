@@ -19,9 +19,9 @@ import {
 	REPORT_REASONS,
 	type ReportReason,
 	type ReportTargetType,
-	checkReportPermission,
 	submitReport,
 } from "@/viewmodels/forum/report";
+import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { AlertCircle, CheckCircle2, CircleDot, Flag, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -158,34 +158,25 @@ export function ReportDialog({
 		}
 	}, [open]);
 
-	// Check permission when dialog opens
+	// Check permission when dialog opens — uses unified write-gate
 	useEffect(() => {
 		if (!open || step.permission !== "pending") return;
 
 		const check = async () => {
 			setStep((prev) => ({ ...prev, permission: "loading" }));
-			try {
-				const result = await checkReportPermission();
-				if (result.allowed) {
-					setStep((prev) => ({ ...prev, permission: "passed" }));
-				} else {
-					setStep((prev) => ({
-						...prev,
-						permission: "failed",
-						permissionError: result.reason || "无法举报",
-					}));
-				}
-			} catch {
-				setStep((prev) => ({
-					...prev,
-					permission: "failed",
-					permissionError: "检查权限失败，请重试",
-				}));
+			// Unified write-gate preflight: checks email + posting restrictions.
+			// If blocked, the global WriteGateDialogMount handles the message.
+			const blocked = await writeGatePreflight(null, "report");
+			if (blocked) {
+				// Write-gate dialog is already showing — close the report dialog
+				onOpenChange(false);
+				return;
 			}
+			setStep((prev) => ({ ...prev, permission: "passed" }));
 		};
 
 		check();
-	}, [open, step.permission]);
+	}, [open, step.permission, onOpenChange]);
 
 	const handleCapSolve = useCallback(() => {
 		setStep((prev) => ({ ...prev, captcha: "passed" }));

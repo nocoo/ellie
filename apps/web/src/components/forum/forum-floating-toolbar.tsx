@@ -40,7 +40,7 @@ export function ForumFloatingToolbar({
 	const nextHref = page < pages ? `${basePath}?page=${page + 1}` : null;
 
 	const handleNewThread = useCallback(async () => {
-		if (await writeGatePreflight(selfEmailVerifiedAt)) return;
+		if (await writeGatePreflight(selfEmailVerifiedAt, "thread")) return;
 		setDialogOpen(true);
 	}, [selfEmailVerifiedAt]);
 

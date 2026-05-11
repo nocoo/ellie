@@ -65,7 +65,7 @@ export function ThreadPostsClient({
 		async (post?: EnrichedPost) => {
 			// Unified write-gate preflight: checks email verification AND
 			// posting restrictions before opening the editor.
-			if (await writeGatePreflight(selfEmailVerifiedAt)) return;
+			if (await writeGatePreflight(selfEmailVerifiedAt, "reply")) return;
 			if (post) {
 				// Quote reply - extract plain text snippet for quote
 				const snippet = buildQuoteSnippet(post.content);
@@ -84,7 +84,7 @@ export function ThreadPostsClient({
 	);
 
 	const handleQuickReply = useCallback(async () => {
-		if (await writeGatePreflight(selfEmailVerifiedAt)) return;
+		if (await writeGatePreflight(selfEmailVerifiedAt, "reply")) return;
 		setQuotedPost(null);
 		setReplyOpen(true);
 	}, [selfEmailVerifiedAt]);

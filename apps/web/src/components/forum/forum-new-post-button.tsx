@@ -24,7 +24,7 @@ export function ForumNewPostButton({
 	const [dialogOpen, setDialogOpen] = useState(false);
 
 	const handleClick = useCallback(async () => {
-		if (await writeGatePreflight(selfEmailVerifiedAt)) return;
+		if (await writeGatePreflight(selfEmailVerifiedAt, "thread")) return;
 		setDialogOpen(true);
 	}, [selfEmailVerifiedAt]);
 

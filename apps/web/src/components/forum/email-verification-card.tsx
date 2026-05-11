@@ -30,6 +30,7 @@ import {
 	requestCodePreflight,
 	validateCaptchaConfig,
 } from "@/viewmodels/forum/email-verification";
+import { invalidateWriteGateCache } from "@/viewmodels/forum/write-gate";
 import { useRouter } from "next/navigation";
 import { useEffect, useReducer, useRef, useState } from "react";
 
@@ -203,6 +204,7 @@ function EmailVerificationForm({
 		try {
 			await verifyEmailCode(email, code);
 			dispatch({ type: "verify_success" });
+			invalidateWriteGateCache();
 			toast.success("邮箱已验证");
 		} catch (err) {
 			if (err instanceof ApiError) {

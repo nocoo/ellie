@@ -235,12 +235,30 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 // ─── #76 GET /api/v1/posting-permission ──────────────────────
 // Comprehensive write-gate check: email verification + posting restrictions.
 // Used by the frontend write-gate preflight before opening any write dialog.
+// Accepts ?action=thread|reply|comment|message|report to check action-specific
+// content switches (allow_new_thread, allow_reply).
 // Returns { allowed: true } or { allowed: false, reason, code } so the
 // frontend can show action-specific guidance (e.g. "go verify email",
 // "go set avatar").
 
+/** Map frontend action to backend ContentType for checkPostingPermission */
+function actionToContentType(action: string | null): "thread" | "reply" | "message" {
+	switch (action) {
+		case "thread":
+			return "thread";
+		case "reply":
+		case "comment":
+			return "reply";
+		default:
+			// "message", "report", null, or unknown → "message" (no content switch checks)
+			return "message";
+	}
+}
+
 export const checkPermission = withAuthVerified(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
+	const url = new URL(request.url);
+	const action = url.searchParams.get("action");
 
 	// Check email verification first (withAuthVerified doesn't check this)
 	const emailRow = await env.DB.prepare("SELECT email_verified_at FROM users WHERE id = ?")
@@ -258,7 +276,8 @@ export const checkPermission = withAuthVerified(async (request, env, user) => {
 		);
 	}
 
-	const permissionResult = await checkPostingPermission(env, user, origin);
+	const contentType = actionToContentType(action);
+	const permissionResult = await checkPostingPermission(env, user, origin, contentType);
 
 	if (permissionResult.allowed) {
 		return jsonResponse({ allowed: true }, origin);

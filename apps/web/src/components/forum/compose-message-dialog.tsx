@@ -225,7 +225,7 @@ export function ComposeMessageDialog({
 	useEffect(() => {
 		if (!open) return;
 		let cancelled = false;
-		writeGatePreflight(null).then((blocked) => {
+		writeGatePreflight(null, "message").then((blocked) => {
 			if (!cancelled && blocked) onOpenChange(false);
 		});
 		return () => {

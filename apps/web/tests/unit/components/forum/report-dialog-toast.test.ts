@@ -5,7 +5,6 @@ import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock report viewmodel
-const mockCheckReportPermission = vi.fn(async () => ({ allowed: true }));
 const mockSubmitReport = vi.fn(async () => ({
 	id: 1,
 	type: "post",
@@ -22,8 +21,12 @@ vi.mock("@/viewmodels/forum/report", () => ({
 		}
 	},
 	REPORT_REASONS: ["垃圾广告", "违规内容", "人身攻击", "虚假信息", "侵权内容", "其他"],
-	checkReportPermission: (...args: any[]) => mockCheckReportPermission(...args),
 	submitReport: (...args: any[]) => mockSubmitReport(...args),
+}));
+
+// Mock write-gate — always allow (not blocked)
+vi.mock("@/viewmodels/forum/write-gate", () => ({
+	writeGatePreflight: () => Promise.resolve(false),
 }));
 
 // Mock cap-widget — render nothing
@@ -70,9 +73,7 @@ function renderDialog(props: Partial<Parameters<typeof ReportDialog>[0]> = {}) {
 describe("ReportDialog toast integration", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
-		mockCheckReportPermission.mockReset();
 		mockSubmitReport.mockReset();
-		mockCheckReportPermission.mockResolvedValue({ allowed: true });
 		mockSubmitReport.mockResolvedValue({ id: 1 });
 	});
 
