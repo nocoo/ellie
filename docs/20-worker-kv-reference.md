@@ -546,9 +546,18 @@ Worker's audit log records the human admin, not the proxy identity.
   - read/write/hit/miss/error sites: `lib/cache/wrap.ts`,
     `lib/cache/forum-read.ts`, `lib/user-cache.ts`, `lib/settings.ts`,
     `handlers/stats.ts`.
-  - bump/delete sites: `lib/cache/invalidate.ts` (gen bumps for
-    forum/thread/digest families) and `handlers/admin/kv.ts` (every
-    admin `refresh*` action records the bump or delete it issues).
+  - bump/delete sites: `lib/cache/invalidate.ts` records bump for the
+    families that today have a live read-side: `forum:tree:v2`,
+    `forum:summary:v2`, `forum:meta:v2`, `thread:list:v2`; and records
+    delete for `user:mini:v1` (live) plus the planned-but-pre-deleted
+    `user:public:v2`. Planned families with no live read path
+    (`bumpDigestGen`, `bumpThreadMetaGen`, `bumpPostListGen`)
+    intentionally do NOT emit metrics yet — when their read paths ship,
+    add the matching `recordBump` calls. `handlers/admin/kv.ts` runs
+    `flushPendingNow(env, ctx)` after every admin `refresh*` so any
+    metric the underlying helper / delete emitted in this request lands
+    in the same minute bucket; refresh kinds whose target family does
+    not yet emit metrics simply have nothing to flush.
 - Flush: a 30 s throttle gates `ctx.waitUntil(flushSnapshot(...))`. On
   any admin mutation (`refresh*`) and on the write-back tail of every
   cached read, `flushPendingNow(env, ctx)` bypasses the throttle so the
