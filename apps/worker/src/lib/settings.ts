@@ -1,6 +1,7 @@
 // Settings KV cache helper — read-through cache with write-invalidation
 // Single KV key "settings:all" holds all settings as JSON (< 2KB)
 
+import { recordError, recordHit, recordMiss } from "./cache/metrics";
 import type { Env } from "./env";
 
 // ─── Types ────────────────────────────────────────────────────
@@ -19,6 +20,7 @@ export type SettingsDetailMap = Record<string, SettingEntry>;
 
 const KV_KEY = "settings:all";
 const KV_TTL = 86400; // 24 hours
+const METRICS_FAMILY = "settings:all";
 
 // ─── Internal helpers ─────────────────────────────────────────
 
@@ -63,12 +65,20 @@ async function fetchAllFromDb(env: Env): Promise<SettingsRow[]> {
  */
 export async function getSettings(env: Env): Promise<SettingsMap> {
 	// Try KV cache first
-	const cached = await env.KV.get(KV_KEY);
+	let cached: string | null = null;
+	try {
+		cached = await env.KV.get(KV_KEY);
+	} catch (err) {
+		recordError(METRICS_FAMILY);
+		console.warn("[settings] KV read failed", err);
+	}
 	if (cached) {
+		recordHit(METRICS_FAMILY);
 		return JSON.parse(cached) as SettingsMap;
 	}
 
 	// Cache miss — read from D1
+	recordMiss(METRICS_FAMILY);
 	const rows = await fetchAllFromDb(env);
 	const map: SettingsMap = {};
 	for (const row of rows) {
@@ -76,7 +86,12 @@ export async function getSettings(env: Env): Promise<SettingsMap> {
 	}
 
 	// Backfill KV cache
-	await env.KV.put(KV_KEY, JSON.stringify(map), { expirationTtl: KV_TTL });
+	try {
+		await env.KV.put(KV_KEY, JSON.stringify(map), { expirationTtl: KV_TTL });
+	} catch (err) {
+		recordError(METRICS_FAMILY);
+		console.warn("[settings] KV write-back failed", err);
+	}
 
 	return map;
 }

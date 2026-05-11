@@ -271,3 +271,20 @@ CREATE INDEX IF NOT EXISTS idx_announcements_sticky ON announcements(sticky DESC
 CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id, receiver_deleted, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id, sender_deleted, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(receiver_id, is_read, receiver_deleted);
+
+-- ─── KV cache observability ───────────────────────────────────────
+-- Per-minute hit/miss/error counters keyed by registry family. Written
+-- by `lib/cache/metrics.ts` swap-then-flush; read by the admin KV
+-- monitor page. Operational table — failures must never propagate to
+-- the request path.
+
+CREATE TABLE IF NOT EXISTS kv_cache_metrics_minute (
+    family       TEXT    NOT NULL,
+    ts_minute    INTEGER NOT NULL,
+    hits         INTEGER NOT NULL DEFAULT 0,
+    misses       INTEGER NOT NULL DEFAULT 0,
+    errors       INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (family, ts_minute)
+);
+
+CREATE INDEX IF NOT EXISTS idx_kv_metrics_ts ON kv_cache_metrics_minute(ts_minute DESC);

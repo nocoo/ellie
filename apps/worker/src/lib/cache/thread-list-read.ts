@@ -156,5 +156,6 @@ export async function getThreadListPageOneV2(
 	return cacheGetOrSet(env, ctx, key, loader, {
 		ttl: THREAD_LIST_TTL,
 		validator: isThreadListPayload,
+		family: "thread:list:v2",
 	});
 }
