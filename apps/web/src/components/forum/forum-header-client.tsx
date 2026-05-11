@@ -37,7 +37,7 @@ export function ForumHeaderClient({ forum, isGroup, selfEmailVerifiedAt }: Forum
 		// This avoids a confusing flow where the user fills out a thread and only
 		// learns at submit time that they can't post. The server-side guards
 		// (withVerifiedEmail + checkPostingPermission) still backstop at write time.
-		if (await writeGatePreflight(selfEmailVerifiedAt)) return;
+		if (await writeGatePreflight(selfEmailVerifiedAt, "thread")) return;
 		setDialogOpen(true);
 	};
 

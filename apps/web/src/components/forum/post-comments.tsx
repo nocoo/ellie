@@ -212,7 +212,7 @@ export function PostComments({
 					<button
 						type="button"
 						onClick={async () => {
-							if (await writeGatePreflight(null)) return;
+							if (await writeGatePreflight(null, "comment")) return;
 							setDialogOpen(true);
 						}}
 						className="text-xs text-forum-link hover:underline cursor-pointer"

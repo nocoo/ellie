@@ -126,7 +126,7 @@ describe("ForumFloatingToolbar", () => {
 		await act(async () => {
 			fireEvent.click(screen.getByRole("button", { name: "发表新帖" }));
 		});
-		expect(mockPreflight).toHaveBeenCalledWith(12345);
+		expect(mockPreflight).toHaveBeenCalledWith(12345, "thread");
 		// Dialog should now be open
 		expect(screen.getByTestId("new-thread-dialog")).toBeDefined();
 	});
@@ -148,7 +148,7 @@ describe("ForumFloatingToolbar", () => {
 		await act(async () => {
 			fireEvent.click(screen.getByRole("button", { name: "发表新帖" }));
 		});
-		expect(mockPreflight).toHaveBeenCalledWith(0);
+		expect(mockPreflight).toHaveBeenCalledWith(0, "thread");
 		// Dialog should NOT be open
 		expect(screen.queryByTestId("new-thread-dialog")).toBeNull();
 	});

@@ -49,25 +49,63 @@ describe("write-gate", () => {
 			expect(mockClient.get).not.toHaveBeenCalled();
 		});
 
-		it("emailVerifiedAt=null falls through to API call", async () => {
+		it("emailVerifiedAt=null falls through to API call with default action", async () => {
 			mockClient.get.mockResolvedValue({ data: { allowed: true } });
 			const result = await checkWriteGate(null);
 			expect(result).toEqual({ blocked: false });
-			expect(mockClient.get).toHaveBeenCalledWith("/api/v1/posting-permission");
+			expect(mockClient.get).toHaveBeenCalledWith("/api/v1/posting-permission", {
+				action: "message",
+			});
 		});
 
 		it("emailVerifiedAt=undefined falls through to API call", async () => {
 			mockClient.get.mockResolvedValue({ data: { allowed: true } });
 			const result = await checkWriteGate(undefined);
 			expect(result).toEqual({ blocked: false });
-			expect(mockClient.get).toHaveBeenCalledWith("/api/v1/posting-permission");
+			expect(mockClient.get).toHaveBeenCalledWith("/api/v1/posting-permission", {
+				action: "message",
+			});
 		});
 
 		it("positive emailVerifiedAt falls through to API call", async () => {
 			mockClient.get.mockResolvedValue({ data: { allowed: true } });
 			const result = await checkWriteGate(1700000000);
 			expect(result).toEqual({ blocked: false });
-			expect(mockClient.get).toHaveBeenCalledWith("/api/v1/posting-permission");
+			expect(mockClient.get).toHaveBeenCalledWith("/api/v1/posting-permission", {
+				action: "message",
+			});
+		});
+
+		it("passes action='thread' to API", async () => {
+			mockClient.get.mockResolvedValue({ data: { allowed: true } });
+			await checkWriteGate(null, "thread");
+			expect(mockClient.get).toHaveBeenCalledWith("/api/v1/posting-permission", {
+				action: "thread",
+			});
+		});
+
+		it("passes action='reply' to API", async () => {
+			mockClient.get.mockResolvedValue({ data: { allowed: true } });
+			await checkWriteGate(null, "reply");
+			expect(mockClient.get).toHaveBeenCalledWith("/api/v1/posting-permission", {
+				action: "reply",
+			});
+		});
+
+		it("passes action='comment' to API", async () => {
+			mockClient.get.mockResolvedValue({ data: { allowed: true } });
+			await checkWriteGate(null, "comment");
+			expect(mockClient.get).toHaveBeenCalledWith("/api/v1/posting-permission", {
+				action: "comment",
+			});
+		});
+
+		it("passes action='report' to API", async () => {
+			mockClient.get.mockResolvedValue({ data: { allowed: true } });
+			await checkWriteGate(null, "report");
+			expect(mockClient.get).toHaveBeenCalledWith("/api/v1/posting-permission", {
+				action: "report",
+			});
 		});
 
 		it("API returns allowed: true → { blocked: false }", async () => {
@@ -116,48 +154,84 @@ describe("write-gate", () => {
 
 		// ─── Cache behavior ──────────────────────────────────────
 
-		it("second call within TTL uses cached result (no extra API call)", async () => {
+		it("second call with same action uses cached result (no extra API call)", async () => {
 			mockClient.get.mockResolvedValue({ data: { allowed: true } });
 
-			await checkWriteGate(null);
-			await checkWriteGate(null);
+			await checkWriteGate(null, "thread");
+			await checkWriteGate(null, "thread");
 
 			expect(mockClient.get).toHaveBeenCalledTimes(1);
 		});
 
-		it("cached blocked result is reused", async () => {
-			mockClient.get.mockResolvedValue({
-				data: { allowed: false, reason: "需要头像", code: "REQUIRE_AVATAR" },
+		it("different actions have independent cache entries", async () => {
+			mockClient.get.mockResolvedValue({ data: { allowed: true } });
+
+			await checkWriteGate(null, "thread");
+			await checkWriteGate(null, "reply");
+
+			expect(mockClient.get).toHaveBeenCalledTimes(2);
+			expect(mockClient.get).toHaveBeenCalledWith("/api/v1/posting-permission", {
+				action: "thread",
 			});
-
-			const first = await checkWriteGate(null);
-			const second = await checkWriteGate(null);
-
-			expect(first).toEqual(second);
-			expect(mockClient.get).toHaveBeenCalledTimes(1);
+			expect(mockClient.get).toHaveBeenCalledWith("/api/v1/posting-permission", {
+				action: "reply",
+			});
 		});
 
-		it("invalidateWriteGateCache forces fresh API call", async () => {
+		it("cached result for one action does not bleed into another", async () => {
+			// "thread" blocked, "reply" allowed
+			mockClient.get
+				.mockResolvedValueOnce({
+					data: { allowed: false, reason: "发帖暂停", code: "CONTENT_DISABLED" },
+				})
+				.mockResolvedValueOnce({ data: { allowed: true } });
+
+			const threadResult = await checkWriteGate(null, "thread");
+			const replyResult = await checkWriteGate(null, "reply");
+
+			expect(threadResult).toEqual({
+				blocked: true,
+				reason: "发帖暂停",
+				code: "CONTENT_DISABLED",
+			});
+			expect(replyResult).toEqual({ blocked: false });
+		});
+
+		it("invalidateWriteGateCache() clears all actions", async () => {
 			mockClient.get.mockResolvedValue({ data: { allowed: true } });
-			await checkWriteGate(null);
+			await checkWriteGate(null, "thread");
+			await checkWriteGate(null, "reply");
 
 			invalidateWriteGateCache();
 			mockClient.get.mockResolvedValue({
 				data: { allowed: false, reason: "新规则", code: "NEW_RULE" },
 			});
-			const result = await checkWriteGate(null);
 
-			expect(mockClient.get).toHaveBeenCalledTimes(2);
+			const result = await checkWriteGate(null, "thread");
+			expect(mockClient.get).toHaveBeenCalledTimes(3);
 			expect(result).toEqual({ blocked: true, reason: "新规则", code: "NEW_RULE" });
+		});
+
+		it("invalidateWriteGateCache(action) only clears that action", async () => {
+			mockClient.get.mockResolvedValue({ data: { allowed: true } });
+			await checkWriteGate(null, "thread");
+			await checkWriteGate(null, "reply");
+
+			invalidateWriteGateCache("thread");
+			await checkWriteGate(null, "thread"); // should re-fetch
+			await checkWriteGate(null, "reply"); // should still use cache
+
+			// 2 initial + 1 re-fetch for thread = 3
+			expect(mockClient.get).toHaveBeenCalledTimes(3);
 		});
 
 		it("fast path (emailVerifiedAt=0) bypasses cache entirely", async () => {
 			// Fill cache with allowed result
 			mockClient.get.mockResolvedValue({ data: { allowed: true } });
-			await checkWriteGate(null);
+			await checkWriteGate(null, "thread");
 
 			// Even with "allowed" in cache, emailVerifiedAt=0 should block
-			const result = await checkWriteGate(0);
+			const result = await checkWriteGate(0, "thread");
 			expect(result.blocked).toBe(true);
 			expect(result.blocked && result.code).toBe("EMAIL_NOT_VERIFIED");
 		});
@@ -215,6 +289,14 @@ describe("write-gate", () => {
 			expect(event.detail.code).toBe("EMAIL_NOT_VERIFIED");
 
 			spy.mockRestore();
+		});
+
+		it("passes action parameter through to checkWriteGate", async () => {
+			mockClient.get.mockResolvedValue({ data: { allowed: true } });
+			await writeGatePreflight(null, "thread");
+			expect(mockClient.get).toHaveBeenCalledWith("/api/v1/posting-permission", {
+				action: "thread",
+			});
 		});
 	});
 

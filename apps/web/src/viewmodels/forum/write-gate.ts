@@ -1,17 +1,18 @@
 /**
  * Write-gate — unified preflight check for all write actions.
  *
- * Before opening any write dialog (new thread, reply, comment, message),
- * the UI calls `writeGatePreflight(emailVerifiedAt)` which:
+ * Before opening any write dialog (new thread, reply, comment, message, report),
+ * the UI calls `writeGatePreflight(emailVerifiedAt, action)` which:
  *   1. Checks email verification locally (fast sync path for known state)
- *   2. Calls GET /api/v1/posting-permission for registration days / avatar / etc.
+ *   2. Calls GET /api/v1/posting-permission?action=X for content switches,
+ *      registration days, avatar, etc.
  *   3. If blocked, dispatches a global dialog event so the user sees why
  *
  * The write-gate is a UX convenience — the server-side `withVerifiedEmail` +
  * `checkPostingPermission` guards remain the security boundary.
  *
- * Cache: results are cached for CACHE_TTL_MS (30s) to avoid hitting the
- * API on every button click. `invalidateWriteGateCache()` clears the cache
+ * Cache: results are cached per action for CACHE_TTL_MS (30s) to avoid hitting
+ * the API on every button click. `invalidateWriteGateCache()` clears the cache
  * when the user takes an action that changes their permission state (e.g.
  * just verified email, just set avatar).
  */
@@ -21,6 +22,9 @@ import { ApiError, apiClient } from "@/lib/api-client";
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+/** Frontend write action types — each maps to a backend content-type check. */
+export type WriteGateAction = "thread" | "reply" | "comment" | "message" | "report";
 
 /** Result from the posting-permission API */
 export interface PostingPermissionResult {
@@ -83,17 +87,25 @@ export function codeToCtaLabel(code: string): string | undefined {
 }
 
 // ---------------------------------------------------------------------------
-// Permission cache
+// Permission cache — keyed by action
 // ---------------------------------------------------------------------------
 
 const CACHE_TTL_MS = 30_000;
 
-let cachedResult: { result: WriteGateResult; timestamp: number } | null = null;
+const cache = new Map<string, { result: WriteGateResult; timestamp: number }>();
 
-/** Clear the cached permission result — call after user takes an action
- *  that could change their permission state (verified email, set avatar). */
-export function invalidateWriteGateCache(): void {
-	cachedResult = null;
+/**
+ * Clear the cached permission results — call after user takes an action
+ * that could change their permission state (verified email, set avatar).
+ * When `action` is specified, only that action's cache entry is cleared;
+ * otherwise all entries are cleared.
+ */
+export function invalidateWriteGateCache(action?: WriteGateAction): void {
+	if (action) {
+		cache.delete(action);
+	} else {
+		cache.clear();
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -106,9 +118,13 @@ export function invalidateWriteGateCache(): void {
  *
  * @param emailVerifiedAt - Server-projected value. `0` means unverified,
  *   positive means verified, `null` means unknown (anonymous or load failed).
+ * @param action - The write action being attempted. Determines which backend
+ *   content switches are checked (e.g. allow_new_thread for "thread").
+ *   Defaults to "message" (no content switch checks).
  */
 export async function checkWriteGate(
 	emailVerifiedAt: number | null | undefined,
+	action: WriteGateAction = "message",
 ): Promise<WriteGateResult> {
 	// Fast path: if we know locally that email is unverified, don't bother
 	// with the API call. This matches the preflightEmailVerifiedBlock semantics:
@@ -121,19 +137,22 @@ export async function checkWriteGate(
 		};
 	}
 
-	// Check cache
-	if (cachedResult && Date.now() - cachedResult.timestamp < CACHE_TTL_MS) {
-		return cachedResult.result;
+	// Check cache (keyed by action)
+	const cached = cache.get(action);
+	if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+		return cached.result;
 	}
 
-	// API call
+	// API call with action parameter
 	try {
-		const res = await apiClient.get<PostingPermissionResult>("/api/v1/posting-permission");
+		const res = await apiClient.get<PostingPermissionResult>("/api/v1/posting-permission", {
+			action,
+		});
 		const data = res.data;
 
 		if (data.allowed) {
 			const result: WriteGateResult = { blocked: false };
-			cachedResult = { result, timestamp: Date.now() };
+			cache.set(action, { result, timestamp: Date.now() });
 			return result;
 		}
 
@@ -142,7 +161,7 @@ export async function checkWriteGate(
 			reason: data.reason ?? "您暂时无法操作",
 			code: data.code ?? "POSTING_RESTRICTION",
 		};
-		cachedResult = { result, timestamp: Date.now() };
+		cache.set(action, { result, timestamp: Date.now() });
 		return result;
 	} catch (err) {
 		if (err instanceof ApiError) {
@@ -168,11 +187,15 @@ export async function checkWriteGate(
  *
  * This replaces `preflightEmailVerifiedBlock` for write entry points —
  * it covers email verification AND posting restrictions in one call.
+ *
+ * @param emailVerifiedAt - Server-projected value (0=unverified, null=unknown).
+ * @param action - The write action (determines content switch checks).
  */
 export async function writeGatePreflight(
 	emailVerifiedAt: number | null | undefined,
+	action: WriteGateAction = "message",
 ): Promise<boolean> {
-	const result = await checkWriteGate(emailVerifiedAt);
+	const result = await checkWriteGate(emailVerifiedAt, action);
 	if (!result.blocked) return false;
 
 	dispatchWriteGate({ reason: result.reason, code: result.code });

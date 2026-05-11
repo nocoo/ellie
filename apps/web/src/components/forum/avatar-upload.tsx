@@ -6,6 +6,7 @@
 import { useForumToast } from "@/components/forum/forum-toast";
 import { uploadAvatar } from "@/lib/forum-browser-api";
 import { cn } from "@/lib/utils";
+import { invalidateWriteGateCache } from "@/viewmodels/forum/write-gate";
 import { Loader2, Upload } from "lucide-react";
 import { type DragEvent, useCallback, useState } from "react";
 
@@ -55,6 +56,7 @@ export function AvatarUpload({ currentUrl, onUploadComplete, disabled }: AvatarU
 					const newUrl = `${parsed.url}?v=${Date.now()}`;
 					setPreviewUrl(newUrl);
 					onUploadComplete(newUrl);
+					invalidateWriteGateCache();
 					toast.success("头像已上传");
 				} else if (parsed.kind === "email-not-verified") {
 					// `apiClient.upload` already dispatched the global §5.4 event

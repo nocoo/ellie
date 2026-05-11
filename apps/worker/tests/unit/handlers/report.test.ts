@@ -826,3 +826,155 @@ describe("report handlers — §5.4 email-verification gate", () => {
 		expect(data.data.reason).toBeTruthy();
 	});
 });
+
+// ─── Action-specific posting permission checks ─────────────────
+
+describe("GET /api/v1/posting-permission — action parameter", () => {
+	/** Helper: create a verified user with settings that disable thread/reply */
+	function makeEnvWithContentSwitches(opts: {
+		allowNewThread?: boolean;
+		allowReply?: boolean;
+	}) {
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+				"SELECT email_verified_at": { email_verified_at: 1700000000 },
+				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					status: 0,
+					avatar_path: "avatars/test.jpg",
+					has_avatar: 0,
+					reg_date: 0,
+					role: 0,
+				},
+			},
+			allResults: {
+				"SELECT key, value FROM settings": [
+					...(opts.allowNewThread === false
+						? [{ key: "features.content.allow_new_thread", value: "false" }]
+						: []),
+					...(opts.allowReply === false
+						? [{ key: "features.content.allow_reply", value: "false" }]
+						: []),
+				],
+			},
+		});
+		return makeEnv({ DB: db });
+	}
+
+	it("action=thread blocked when allow_new_thread=false", async () => {
+		const token = await makeUserToken(1, 0);
+		const env = makeEnvWithContentSwitches({ allowNewThread: false });
+		const req = new Request("https://api.example.com/api/v1/posting-permission?action=thread", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const res = await checkPermission(req, env);
+		expect(res.status).toBe(200);
+		const data = (await res.json()) as { data: { allowed: boolean; code: string } };
+		expect(data.data.allowed).toBe(false);
+		expect(data.data.code).toBe("CONTENT_DISABLED");
+	});
+
+	it("action=reply blocked when allow_reply=false", async () => {
+		const token = await makeUserToken(1, 0);
+		const env = makeEnvWithContentSwitches({ allowReply: false });
+		const req = new Request("https://api.example.com/api/v1/posting-permission?action=reply", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const res = await checkPermission(req, env);
+		expect(res.status).toBe(200);
+		const data = (await res.json()) as { data: { allowed: boolean; code: string } };
+		expect(data.data.allowed).toBe(false);
+		expect(data.data.code).toBe("CONTENT_DISABLED");
+	});
+
+	it("action=comment blocked when allow_reply=false (maps to reply)", async () => {
+		const token = await makeUserToken(1, 0);
+		const env = makeEnvWithContentSwitches({ allowReply: false });
+		const req = new Request("https://api.example.com/api/v1/posting-permission?action=comment", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const res = await checkPermission(req, env);
+		expect(res.status).toBe(200);
+		const data = (await res.json()) as { data: { allowed: boolean; code: string } };
+		expect(data.data.allowed).toBe(false);
+		expect(data.data.code).toBe("CONTENT_DISABLED");
+	});
+
+	it("action=message NOT blocked by allow_new_thread=false", async () => {
+		const token = await makeUserToken(1, 0);
+		const env = makeEnvWithContentSwitches({ allowNewThread: false, allowReply: false });
+		const req = new Request("https://api.example.com/api/v1/posting-permission?action=message", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const res = await checkPermission(req, env);
+		expect(res.status).toBe(200);
+		const data = (await res.json()) as { data: { allowed: boolean } };
+		expect(data.data.allowed).toBe(true);
+	});
+
+	it("action=report NOT blocked by allow_new_thread or allow_reply switches", async () => {
+		const token = await makeUserToken(1, 0);
+		const env = makeEnvWithContentSwitches({ allowNewThread: false, allowReply: false });
+		const req = new Request("https://api.example.com/api/v1/posting-permission?action=report", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const res = await checkPermission(req, env);
+		expect(res.status).toBe(200);
+		const data = (await res.json()) as { data: { allowed: boolean } };
+		expect(data.data.allowed).toBe(true);
+	});
+
+	it("no action parameter defaults to message (not blocked by content switches)", async () => {
+		const token = await makeUserToken(1, 0);
+		const env = makeEnvWithContentSwitches({ allowNewThread: false, allowReply: false });
+		const req = new Request("https://api.example.com/api/v1/posting-permission", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const res = await checkPermission(req, env);
+		expect(res.status).toBe(200);
+		const data = (await res.json()) as { data: { allowed: boolean } };
+		expect(data.data.allowed).toBe(true);
+	});
+
+	it("action=thread allowed when allow_new_thread=true (default)", async () => {
+		const token = await makeUserToken(1, 0);
+		const env = makeEnvWithContentSwitches({ allowNewThread: true });
+		const req = new Request("https://api.example.com/api/v1/posting-permission?action=thread", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const res = await checkPermission(req, env);
+		expect(res.status).toBe(200);
+		const data = (await res.json()) as { data: { allowed: boolean } };
+		expect(data.data.allowed).toBe(true);
+	});
+
+	it("action=thread NOT blocked when user is staff (role >= 1)", async () => {
+		const token = await makeUserToken(1, 1); // role=1 (Mod)
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status": { role: 1, status: 0, email_verified_at: 1700000000 },
+				"SELECT email_verified_at": { email_verified_at: 1700000000 },
+				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+					status: 0,
+					avatar_path: "",
+					has_avatar: 0,
+					reg_date: 0,
+					role: 1,
+				},
+			},
+			allResults: {
+				"SELECT key, value FROM settings": [
+					{ key: "features.content.allow_new_thread", value: "false" },
+				],
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = new Request("https://api.example.com/api/v1/posting-permission?action=thread", {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		const res = await checkPermission(req, env);
+		expect(res.status).toBe(200);
+		const data = (await res.json()) as { data: { allowed: boolean } };
+		expect(data.data.allowed).toBe(true);
+	});
+});
