@@ -34,6 +34,9 @@ import { invalidateWriteGateCache } from "@/viewmodels/forum/write-gate";
 import { useRouter } from "next/navigation";
 import { useEffect, useReducer, useRef, useState } from "react";
 
+// Default code TTL in seconds (matches worker CODE_TTL_SECONDS).
+const DEFAULT_CODE_TTL = 900;
+
 export interface EmailVerificationCardProps {
 	user: EmailVerificationUserView;
 	/** NEXT_PUBLIC_CAP_API_ENDPOINT — passed in so the page renders fail-closed
@@ -113,6 +116,73 @@ export function EmailVerificationCard({
 	);
 }
 
+// ── Helpers (module-level to keep EmailVerificationForm under complexity budget) ──
+
+/** Extract code-sent / verifying fields from state, with safe defaults. */
+function extractCodeFields(state: FormState): {
+	sentTo: string;
+	nextResendAllowedAt: number;
+	codeDeadline: number;
+	inlineError: string | null;
+	showCodeInput: boolean;
+} {
+	if (state.kind === "code-sent") {
+		return {
+			sentTo: state.sentTo,
+			nextResendAllowedAt: state.nextResendAllowedAt,
+			codeDeadline: state.codeDeadline,
+			inlineError: state.error,
+			showCodeInput: true,
+		};
+	}
+	if (state.kind === "verifying") {
+		return {
+			sentTo: state.sentTo,
+			nextResendAllowedAt: state.nextResendAllowedAt,
+			codeDeadline: state.codeDeadline,
+			inlineError: null,
+			showCodeInput: true,
+		};
+	}
+	return {
+		sentTo: "",
+		nextResendAllowedAt: 0,
+		codeDeadline: 0,
+		inlineError: state.kind === "idle" ? state.error : null,
+		showCodeInput: false,
+	};
+}
+
+function formatCountdown(seconds: number): string {
+	const m = Math.floor(seconds / 60);
+	const s = seconds % 60;
+	return m > 0 ? `${m}:${String(s).padStart(2, "0")}` : `${s}s`;
+}
+
+function getSendButtonLabel(
+	stateKind: FormState["kind"],
+	showCodeInput: boolean,
+	resendCooldownLeft: number,
+): string {
+	if (stateKind === "sending") return "发送中…";
+	if (!showCodeInput) return "发送验证码";
+	if (resendCooldownLeft > 0) return `重新发送 (${formatCountdown(resendCooldownLeft)})`;
+	return "重新发送验证码";
+}
+
+/** Parse optional fields from the request-code response into dispatch-ready values. */
+function parseSendCodeResponse(
+	data: { sent_to?: string; next_resend_allowed_at?: number; expires_in?: number } | undefined,
+	fallbackEmail: string,
+): { sentTo: string; nextResendAllowedAt: number; codeDeadline: number } {
+	const sentTo = typeof data?.sent_to === "string" ? data.sent_to : fallbackEmail;
+	const nextResendAllowedAt =
+		typeof data?.next_resend_allowed_at === "number" ? data.next_resend_allowed_at : 0;
+	const expiresIn = typeof data?.expires_in === "number" ? data.expires_in : DEFAULT_CODE_TTL;
+	const codeDeadline = Math.floor(Date.now() / 1000) + expiresIn;
+	return { sentTo, nextResendAllowedAt, codeDeadline };
+}
+
 interface EmailVerificationFormProps {
 	initialEmail: string;
 	emailEditable: boolean;
@@ -157,6 +227,8 @@ function EmailVerificationForm({
 
 	const isBusy = state.kind === "sending" || state.kind === "verifying";
 	const isVerified = state.kind === "verified";
+	const { sentTo, nextResendAllowedAt, codeDeadline, inlineError, showCodeInput } =
+		extractCodeFields(state);
 
 	const handleSendCode = async () => {
 		if (isConfigError || isBusy) return;
@@ -174,15 +246,9 @@ function EmailVerificationForm({
 		dispatch({ type: "send_start" });
 		try {
 			const data = await requestEmailVerificationCode(email);
-			const sentTo = typeof data?.sent_to === "string" ? data.sent_to : email;
-			const nextResendAllowedAt =
-				typeof data?.next_resend_allowed_at === "number" ? data.next_resend_allowed_at : 0;
-			dispatch({
-				type: "send_success",
-				sentTo,
-				nextResendAllowedAt,
-			});
-			toast.success(`验证码已发送至 ${sentTo}`);
+			const parsed = parseSendCodeResponse(data, email);
+			dispatch({ type: "send_success", ...parsed });
+			toast.success(`验证码已发送至 ${parsed.sentTo}`);
 			resetCap();
 		} catch (err) {
 			if (err instanceof ApiError) {
@@ -218,11 +284,18 @@ function EmailVerificationForm({
 		}
 	};
 
-	const inlineError =
-		state.kind === "idle" ? state.error : state.kind === "code-sent" ? state.error : null;
+	// ── Countdown timers ─────────────────────────────────────────────────
+	const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
 
-	const showCodeInput = state.kind === "code-sent" || state.kind === "verifying";
-	const sentTo = state.kind === "code-sent" || state.kind === "verifying" ? state.sentTo : "";
+	useEffect(() => {
+		if (!showCodeInput) return;
+		const id = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
+		return () => clearInterval(id);
+	}, [showCodeInput]);
+
+	const resendCooldownLeft = Math.max(0, nextResendAllowedAt - now);
+	const codeExpiryLeft = Math.max(0, codeDeadline - now);
+	const codeExpired = showCodeInput && codeExpiryLeft === 0;
 
 	return (
 		<Card>
@@ -273,9 +346,19 @@ function EmailVerificationForm({
 							maxLength={6}
 							value={code}
 							onChange={(e) => setCode(e.target.value)}
-							disabled={isBusy || isConfigError}
+							disabled={isBusy || isConfigError || codeExpired}
 							placeholder="6 位数字"
 						/>
+						<div className="flex items-center gap-3 text-xs text-muted-foreground">
+							{codeExpired ? (
+								<span className="text-destructive">验证码已过期，请重新发送</span>
+							) : (
+								<span>有效期剩余 {formatCountdown(codeExpiryLeft)}</span>
+							)}
+							{resendCooldownLeft > 0 && (
+								<span>{formatCountdown(resendCooldownLeft)} 后可重发</span>
+							)}
+						</div>
 					</div>
 				)}
 
@@ -294,13 +377,15 @@ function EmailVerificationForm({
 						<Button
 							type="button"
 							onClick={handleSendCode}
-							disabled={isConfigError || isBusy || !isValidEmailFormat(email) || !capToken}
+							disabled={
+								isConfigError ||
+								isBusy ||
+								!isValidEmailFormat(email) ||
+								!capToken ||
+								resendCooldownLeft > 0
+							}
 						>
-							{state.kind === "sending"
-								? "发送中…"
-								: showCodeInput
-									? "重新发送验证码"
-									: "发送验证码"}
+							{getSendButtonLabel(state.kind, showCodeInput, resendCooldownLeft)}
 						</Button>
 
 						{showCodeInput && (
@@ -308,7 +393,7 @@ function EmailVerificationForm({
 								type="button"
 								variant="default"
 								onClick={handleVerify}
-								disabled={isConfigError || isBusy || !isValidCodeFormat(code)}
+								disabled={isConfigError || isBusy || !isValidCodeFormat(code) || codeExpired}
 							>
 								{state.kind === "verifying" ? "验证中…" : "验证"}
 							</Button>

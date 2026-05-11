@@ -69,12 +69,13 @@ export async function checkUsernameAvailability(
  */
 export async function requestEmailVerificationCode(
 	email: string,
-): Promise<{ sent_to?: string; next_resend_allowed_at?: number } | undefined> {
+): Promise<{ sent_to?: string; next_resend_allowed_at?: number; expires_in?: number } | undefined> {
 	const body: EmailRequestCodeBody = { email };
-	const res = await apiClient.post<{ sent_to?: string; next_resend_allowed_at?: number }>(
-		"/api/v1/users/me/email/request-code",
-		body,
-	);
+	const res = await apiClient.post<{
+		sent_to?: string;
+		next_resend_allowed_at?: number;
+		expires_in?: number;
+	}>("/api/v1/users/me/email/request-code", body);
 	return res.data;
 }
 
