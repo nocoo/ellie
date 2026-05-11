@@ -61,7 +61,14 @@ vi.mock("@/components/ui/label", () => ({
 }));
 
 vi.mock("@/components/ui/select", () => ({
-	Select: (props: any) => createElement("select", { ...props, "data-testid": props.id }),
+	Select: ({ options, ...props }: any) =>
+		createElement(
+			"select",
+			{ ...props, "data-testid": props.id },
+			options?.map((opt: any) =>
+				createElement("option", { key: opt.value, value: opt.value }, opt.label),
+			),
+		),
 }));
 
 vi.mock("@/components/ui/textarea", () => ({
@@ -89,26 +96,34 @@ describe("RegisterForm (standalone)", () => {
 		expect(screen.getByTestId("auth-id-card")).toBeTruthy();
 	});
 
-	it("renders account fields", () => {
+	it("renders account fields including birthday", () => {
 		render(createElement(RegisterForm));
 		expect(screen.getByPlaceholderText("2-15 个字符")).toBeTruthy();
 		expect(screen.getByPlaceholderText("至少 6 个字符")).toBeTruthy();
 		expect(screen.getByPlaceholderText("再次输入密码")).toBeTruthy();
 		expect(screen.getByPlaceholderText("your@email.com")).toBeTruthy();
+		// Birthday fields are part of account section
+		expect(screen.getByPlaceholderText("年")).toBeTruthy();
+		expect(screen.getByPlaceholderText("月")).toBeTruthy();
+		expect(screen.getByPlaceholderText("日")).toBeTruthy();
 	});
 
-	it("renders profile fields section", () => {
+	it("renders profile fields collapsible section", () => {
 		render(createElement(RegisterForm));
-		// The collapsible details summary
 		expect(screen.getByText("个人资料（选填）")).toBeTruthy();
 	});
 
-	it("renders profile input fields", () => {
+	it("renders education Select fields", () => {
 		render(createElement(RegisterForm));
-		// Profile fields are inside a details element (collapsed by default)
-		// but they are in the DOM
+		// Identity type (graduateSchool) — Select
+		expect(screen.getByTestId("reg-identity")).toBeTruthy();
+		// Campus — Select
+		expect(screen.getByTestId("reg-campus")).toBeTruthy();
+	});
+
+	it("renders personal input fields", () => {
+		render(createElement(RegisterForm));
 		expect(screen.getByTestId("reg-gender")).toBeTruthy();
-		expect(screen.getByPlaceholderText("如：四平路校区")).toBeTruthy();
 		expect(screen.getByPlaceholderText("简单介绍自己")).toBeTruthy();
 		expect(screen.getByPlaceholderText("一句话签名")).toBeTruthy();
 	});
@@ -123,18 +138,51 @@ describe("RegisterForm (standalone)", () => {
 // ─── Dialog variant ──────────────────────────────────────────────────────────
 
 describe("RegisterFormDialog", () => {
-	it("renders profile fields in dialog variant", () => {
+	it("renders 3-column section headers", () => {
 		render(createElement(RegisterFormDialog, { onSuccess: vi.fn() }));
-		// Account fields
+		expect(screen.getByText("账号信息")).toBeTruthy();
+		expect(screen.getByText("教育信息")).toBeTruthy();
+		expect(screen.getByText("个人信息（选填）")).toBeTruthy();
+	});
+
+	it("renders account fields in dialog", () => {
+		render(createElement(RegisterFormDialog, { onSuccess: vi.fn() }));
 		expect(screen.getByPlaceholderText("2-15 个字符")).toBeTruthy();
 		expect(screen.getByPlaceholderText("your@email.com")).toBeTruthy();
-		// Section headers
-		expect(screen.getByText("账号信息")).toBeTruthy();
-		expect(screen.getByText("个人资料（选填）")).toBeTruthy();
-		// Profile fields
+		// Birthday in account column
+		expect(screen.getByPlaceholderText("年")).toBeTruthy();
+	});
+
+	it("renders education Select fields in dialog", () => {
+		render(createElement(RegisterFormDialog, { onSuccess: vi.fn() }));
+		// Identity type Select (graduateSchool)
+		const identitySelect = screen.getByTestId("reg-identity");
+		expect(identitySelect).toBeTruthy();
+		// Campus Select
+		const campusSelect = screen.getByTestId("reg-campus");
+		expect(campusSelect).toBeTruthy();
+	});
+
+	it("renders identity type options", () => {
+		render(createElement(RegisterFormDialog, { onSuccess: vi.fn() }));
+		expect(screen.getByText("校内人士")).toBeTruthy();
+		expect(screen.getByText("已毕业校友")).toBeTruthy();
+		// "校外人士" appears in both identity and campus options
+		expect(screen.getAllByText("校外人士").length).toBeGreaterThanOrEqual(1);
+	});
+
+	it("renders campus options", () => {
+		render(createElement(RegisterFormDialog, { onSuccess: vi.fn() }));
+		expect(screen.getByText("四平路校区")).toBeTruthy();
+		expect(screen.getByText("嘉定校区")).toBeTruthy();
+		expect(screen.getByText("沪西校区")).toBeTruthy();
+		expect(screen.getByText("沪北校区")).toBeTruthy();
+		expect(screen.getByText("其他校区")).toBeTruthy();
+	});
+
+	it("renders personal fields in dialog", () => {
+		render(createElement(RegisterFormDialog, { onSuccess: vi.fn() }));
 		expect(screen.getByTestId("reg-gender")).toBeTruthy();
-		expect(screen.getByPlaceholderText("如：四平路校区")).toBeTruthy();
-		expect(screen.getByPlaceholderText("毕业院校")).toBeTruthy();
 		expect(screen.getByPlaceholderText("爱好特长")).toBeTruthy();
 		expect(screen.getByPlaceholderText("QQ 号码")).toBeTruthy();
 		expect(screen.getByPlaceholderText("https://...")).toBeTruthy();

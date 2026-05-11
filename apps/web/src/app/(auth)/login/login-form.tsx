@@ -140,7 +140,7 @@ function LoginFormInner() {
 						</Button>
 					}
 				/>
-				<DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto" showCloseButton>
+				<DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto" showCloseButton>
 					<DialogHeader>
 						<DialogTitle>注册新账号</DialogTitle>
 						<DialogDescription>创建您的同济网论坛账号</DialogDescription>
