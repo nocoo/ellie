@@ -271,3 +271,57 @@ describe("onSuccess behavior", () => {
 		});
 	});
 });
+
+// ─── Select value submission ────────────────────────────────────────────────
+
+describe("Select values in registerUser payload", () => {
+	it("submits graduateSchool and campus from Select fields", async () => {
+		mockRegisterUser.mockResolvedValue({ success: true });
+		mockSignIn.mockResolvedValue({ ok: true });
+
+		render(createElement(RegisterFormDialog, { onSuccess: vi.fn() }));
+
+		// Fill required account fields
+		fireEvent.change(screen.getByPlaceholderText("2-15 个字符"), {
+			target: { value: "testuser" },
+		});
+		fireEvent.change(screen.getByPlaceholderText("至少 6 个字符"), {
+			target: { value: "password123" },
+		});
+		fireEvent.change(screen.getByPlaceholderText("再次输入密码"), {
+			target: { value: "password123" },
+		});
+		fireEvent.change(screen.getByPlaceholderText("your@email.com"), {
+			target: { value: "test@example.com" },
+		});
+
+		// Select identity type and campus
+		fireEvent.change(screen.getByTestId("reg-identity"), {
+			target: { value: "已毕业校友" },
+		});
+		fireEvent.change(screen.getByTestId("reg-campus"), {
+			target: { value: "嘉定校区" },
+		});
+
+		// Submit
+		fireEvent.click(screen.getByText("创建账号"));
+
+		await vi.waitFor(() => {
+			expect(mockRegisterUser).toHaveBeenCalled();
+		});
+
+		// registerUser(username, password, email, profile)
+		const [, , , profile] = mockRegisterUser.mock.calls[0];
+		expect(profile.graduateSchool).toBe("已毕业校友");
+		expect(profile.campus).toBe("嘉定校区");
+	});
+});
+
+// ─── CAP disabled ───────────────────────────────────────────────────────────
+
+describe("CAPTCHA when disabled", () => {
+	it("does not render CAP widget when env is empty", () => {
+		render(createElement(RegisterFormDialog, { onSuccess: vi.fn() }));
+		expect(screen.queryByTestId("cap-widget")).toBeNull();
+	});
+});
