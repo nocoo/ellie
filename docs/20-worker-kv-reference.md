@@ -539,9 +539,16 @@ Worker's audit log records the human admin, not the proxy identity.
 
 ### 13.3 Metrics pipeline
 
-- Source: `apps/worker/src/lib/cache/metrics.ts`. Each business-cache op
-  (`wrap.ts`, `forum-read.ts`, `user-cache.ts`) increments an in-isolate
-  bucket map keyed by `(family, op)`.
+- Source: `apps/worker/src/lib/cache/metrics.ts`. Each op increments an
+  in-isolate bucket map keyed by `(family, ts_minute, op)` — the same
+  triple used by the D1 primary key, so memory buckets already partition
+  by minute and concurrent isolates collapse on flush.
+  - read/write/hit/miss/error sites: `lib/cache/wrap.ts`,
+    `lib/cache/forum-read.ts`, `lib/user-cache.ts`, `lib/settings.ts`,
+    `handlers/stats.ts`.
+  - bump/delete sites: `lib/cache/invalidate.ts` (gen bumps for
+    forum/thread/digest families) and `handlers/admin/kv.ts` (every
+    admin `refresh*` action records the bump or delete it issues).
 - Flush: a 30 s throttle gates `ctx.waitUntil(flushSnapshot(...))`. On
   any admin mutation (`refresh*`) and on the write-back tail of every
   cached read, `flushPendingNow(env, ctx)` bypasses the throttle so the
