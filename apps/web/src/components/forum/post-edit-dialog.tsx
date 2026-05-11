@@ -2,24 +2,20 @@
 
 // components/forum/post-edit-dialog.tsx — Edit post content dialog
 //
-// B4: unified to the same shell as `new-thread-dialog.tsx` /
-// `reply-dialog.tsx` — same `max-w-[1200px]` cap, same `max-h-[90vh]`
-// content-driven height, same header/footer hierarchy. The PostEditor
-// `hideFooter` flag is on so the dialog footer is the single source of
-// truth for submit/cancel.
+// Uses EditorDialogShell for the shared dialog frame, editor area,
+// and footer. Retains its own submit logic, error handling, and
+// permission checks.
 
 import { PostEditor } from "@/components/forum/post-editor";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api-client";
 import { editMyPost, editPost } from "@/lib/moderation-api";
 import { stripHtmlTags } from "@/lib/text";
-import { cn } from "@/lib/utils";
 import { Pencil, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import { DialogErrorBanner } from "./dialog-error-banner";
 import { DialogHeroHeader } from "./dialog-hero-header";
+import { EditorDialogShell } from "./editor-dialog-shell";
 import { useForumToast } from "./forum-toast";
 
 interface PostEditDialogProps {
@@ -83,73 +79,44 @@ export function PostEditDialog({
 		[postId, isOwnPost, canModerate, onOpenChange, router, toast],
 	);
 
+	const handleShellSubmit = () => {
+		const html = editorRef.current?.getHTML() ?? "";
+		handleSubmit(html);
+	};
+
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent
-				className={cn(
-					"glass-panel",
-					"w-[calc(100vw-2rem)] sm:w-[80vw] sm:max-w-[80vw]",
-					"max-h-[90vh] sm:h-[85vh] overflow-hidden flex flex-col",
-					"rounded-xl p-0",
-				)}
-				showCloseButton={false}
-			>
-				{/* Header */}
-				<DialogHeroHeader
-					icon={<Pencil className="h-5 w-5 text-primary" />}
-					title="编辑回复"
-					description="修改回复内容"
-				/>
-
-				{/* Error display */}
-				{error && <DialogErrorBanner message={error} />}
-
-				{/* Editor area */}
-				<div
-					className="flex-1 min-h-0 px-5 py-4 flex flex-col"
-					onKeyDown={(e) => {
-						if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !submitting) {
-							e.preventDefault();
-							const html = editorRef.current?.getHTML() ?? "";
-							handleSubmit(html);
-						}
-					}}
-				>
-					<PostEditor
-						ref={editorRef}
-						initialContent={currentContent}
-						onSubmit={handleSubmit}
-						placeholder="编辑回复内容..."
-						maxLength={10000}
-						submitting={submitting}
-						canSubmit={!submitting}
-						hideFooter
+		<EditorDialogShell
+			open={open}
+			onOpenChange={onOpenChange}
+			header={
+				<>
+					<DialogHeroHeader
+						icon={<Pencil className="h-5 w-5 text-primary" />}
+						title="编辑回复"
+						description="修改回复内容"
 					/>
-				</div>
-
-				{/* Footer — stacks vertically on narrow screens, row at sm+ */}
-				<div className="px-5 py-4 border-t border-border/50 bg-muted/30">
-					<div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-						<p className="text-xs text-muted-foreground">按 Ctrl+Enter 保存</p>
-						<div className="flex items-center justify-end gap-2">
-							<Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
-								取消
-							</Button>
-							<Button
-								onClick={() => {
-									const html = editorRef.current?.getHTML() ?? "";
-									handleSubmit(html);
-								}}
-								disabled={submitting}
-								className="gap-2"
-							>
-								<Save className="h-4 w-4" />
-								{submitting ? "保存中..." : "保存"}
-							</Button>
-						</div>
-					</div>
-				</div>
-			</DialogContent>
-		</Dialog>
+					{error && <DialogErrorBanner message={error} />}
+				</>
+			}
+			onSubmit={handleShellSubmit}
+			canSubmit={!submitting}
+			submitting={submitting}
+			onCancel={() => onOpenChange(false)}
+			footerHint="按 Ctrl+Enter 保存"
+			submitLabel="保存"
+			submittingLabel="保存中..."
+			submitIcon={<Save className="h-4 w-4" />}
+		>
+			<PostEditor
+				ref={editorRef}
+				initialContent={currentContent}
+				onSubmit={handleSubmit}
+				placeholder="编辑回复内容..."
+				maxLength={10000}
+				submitting={submitting}
+				canSubmit={!submitting}
+				hideFooter
+			/>
+		</EditorDialogShell>
 	);
 }
