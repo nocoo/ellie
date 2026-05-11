@@ -59,20 +59,30 @@ jobs:
       - run: bunx playwright install --with-deps chromium
       - name: "Apply D1 migrations to test DB"
         run: bun x wrangler d1 migrations apply DB --env test --remote -c apps/worker/wrangler.toml
-      # Deploy the [env.test] worker BEFORE seeding so the L3 specs run
-      # against worker code that matches the current main HEAD. Without this
-      # the deployed test worker can drift behind main (CI never used to
-      # touch it), causing routes added on main — e.g. POST /api/v1/post-comments/batch
-      # — to 404 in CI even though the source is present, which manifests
-      # as silent SSR data-path failures (see fix(web/ssr) commit on this
-      # task).
+      # Best-effort: deploy the [env.test] worker BEFORE seeding so the L3
+      # specs run against worker code matching main HEAD. The SSR fallback
+      # in apps/web/src/viewmodels/forum/thread-detail.server.ts is the
+      # primary correctness guard; this step is an *optimization* that keeps
+      # the deployed test worker in sync when CI has the right CF token.
       #
-      # Guarded so the job still runs when CF secrets are absent (e.g. fork
-      # PRs that already skip via the job-level `if:`, or accidental secret
-      # rotation). The fork-PR case is already excluded above; this guard is
-      # a belt-and-braces against missing secrets in the trusted path.
-      - name: "Deploy ellie-test worker (only when CF secrets present)"
+      # Why `continue-on-error: true`:
+      #   - The CI `CLOUDFLARE_API_TOKEN` historically only carries D1 +
+      #     KV-read scopes (enough for `wrangler d1 migrations apply` and
+      #     reads from the L2 worker), NOT `Workers Scripts:Edit` or
+      #     `Workers KV Storage:Edit`. Without those, deploy fails with
+      #     `code: 10023 kv bindings require kv write perms`.
+      #   - Deploy permission drift must NOT block seed + L3. The SSR
+      #     fallback already lets L3 pass against a stale worker; we'd
+      #     rather see the test result than fail-stop on an infra gap.
+      #   - When @zheng-li expands the token scope to include
+      #     Workers Scripts:Edit + Workers KV Storage:Edit, this step
+      #     starts succeeding silently — no further CI changes needed.
+      #
+      # The env-presence guard remains so jobs without any CF token (e.g.
+      # an accidentally cleared secret) skip the step entirely.
+      - name: "Deploy ellie-test worker (best-effort; needs Workers+KV write scope)"
         if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
+        continue-on-error: true
         run: bun x wrangler deploy --env test -c apps/worker/wrangler.toml
       - name: "Seed test D1 (forum/thread/user fixtures)"
         run: bun x wrangler d1 execute tongjinet-db-test --remote -c apps/worker/wrangler.toml --file scripts/seed-test-db.sql
