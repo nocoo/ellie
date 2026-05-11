@@ -9,8 +9,10 @@ import { cn } from "@ellie/ui/utils";
 import {
 	Calculator,
 	ChevronUp,
+	Database,
 	FileText,
 	Filter,
+	Flag,
 	LayoutDashboard,
 	Link as LinkIcon,
 	LogOut,
@@ -36,6 +38,8 @@ import { useSidebar } from "./sidebar-context";
 
 const ICON_MAP: Record<string, ElementType> = {
 	Calculator,
+	Database,
+	Flag,
 	LayoutDashboard,
 	Settings,
 	ToggleLeft,

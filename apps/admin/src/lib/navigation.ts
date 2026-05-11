@@ -45,7 +45,10 @@ export const NAV_GROUPS: NavGroupDef[] = [
 	{
 		label: "数据统计",
 		defaultOpen: true,
-		items: [{ href: "/admin/statistics", label: "统计计算", icon: "Calculator" }],
+		items: [
+			{ href: "/admin/statistics", label: "统计计算", icon: "Calculator" },
+			{ href: "/admin/statistics/kv", label: "KV 缓存监控", icon: "Database" },
+		],
 	},
 	{
 		label: "安全管理",
@@ -84,6 +87,7 @@ export const ROUTE_LABELS: Record<string, string> = {
 	forums: "版块",
 	attachments: "附件",
 	statistics: "统计计算",
+	kv: "KV 缓存监控",
 	reports: "举报管理",
 	"ip-bans": "IP 封禁",
 	"censor-words": "敏感词",
