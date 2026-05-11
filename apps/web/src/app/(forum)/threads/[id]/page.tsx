@@ -18,6 +18,7 @@ import {
 	getThreadPageUrl,
 	resolveCurrentPage,
 	resolveThreadPostCursor,
+	validateReturnTo,
 } from "@/viewmodels/forum/thread-list";
 import { getThreadTitle } from "@/viewmodels/forum/title.server";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
@@ -28,7 +29,13 @@ import Link from "next/link";
 
 interface ThreadDetailPageProps {
 	params: Promise<{ id: string }>;
-	searchParams: Promise<{ cursor?: string; direction?: string; last?: string; page?: string }>;
+	searchParams: Promise<{
+		cursor?: string;
+		direction?: string;
+		last?: string;
+		page?: string;
+		returnTo?: string;
+	}>;
 }
 
 export async function generateMetadata({ params }: ThreadDetailPageProps): Promise<Metadata> {
@@ -123,8 +130,16 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 	const currentPage = resolveCurrentPage(sp, postsPerPage, threadPages);
 
 	// Page-based prev/next hrefs — bypass Worker cursor backward limitation
-	const prevHref = currentPage > 1 ? getThreadPageUrl(threadId, currentPage - 1) : null;
-	const nextHref = currentPage < threadPages ? getThreadPageUrl(threadId, currentPage + 1) : null;
+	const prevHref =
+		currentPage > 1 ? getThreadPageUrl(threadId, currentPage - 1, sp.returnTo) : null;
+	const nextHref =
+		currentPage < threadPages ? getThreadPageUrl(threadId, currentPage + 1, sp.returnTo) : null;
+
+	// Validate returnTo for safe back navigation (only allows same-forum paths)
+	const backHref = validateReturnTo(sp.returnTo, thread.forumId) ?? `/forums/${thread.forumId}`;
+
+	// Extra query params for pagination links (preserves returnTo across page navigation)
+	const paginationExtra = sp.returnTo ? { returnTo: sp.returnTo } : undefined;
 
 	return (
 		<div className="space-y-3">
@@ -173,6 +188,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 				basePath={basePath}
 				totalLabel="条回复"
 				showPageInfo
+				extraParams={paginationExtra}
 			/>
 
 			{/* Posts - wrapped in ModProvider for permission context */}
@@ -192,7 +208,10 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 					selfEmailVerifiedAt={self?.emailVerifiedAt ?? null}
 					prevHref={prevHref}
 					nextHref={nextHref}
-					jumpPage={threadPages > 1 ? { basePath, pages: threadPages } : undefined}
+					backHref={backHref}
+					jumpPage={
+						threadPages > 1 ? { basePath, pages: threadPages, returnTo: sp.returnTo } : undefined
+					}
 				/>
 			</ModProvider>
 
@@ -212,6 +231,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 				basePath={basePath}
 				totalLabel="条回复"
 				showPageInfo
+				extraParams={paginationExtra}
 			/>
 		</div>
 	);

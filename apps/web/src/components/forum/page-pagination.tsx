@@ -21,6 +21,8 @@ export interface PagePaginationProps {
 	totalLabel?: string;
 	/** Show "第 X / Y 页 · 共 N totalLabel" summary. Default: false. */
 	showPageInfo?: boolean;
+	/** Extra query params to append to pagination links (e.g. returnTo). */
+	extraParams?: Record<string, string>;
 	className?: string;
 }
 
@@ -35,6 +37,7 @@ export function PagePagination({
 	basePath,
 	totalLabel = "条",
 	showPageInfo = false,
+	extraParams,
 	className,
 }: PagePaginationProps) {
 	if (pages <= 1) return null;
@@ -42,7 +45,13 @@ export function PagePagination({
 	const items = generatePageNumbers(page, pages);
 
 	function href(p: number): string {
-		return p === 1 ? basePath : `${basePath}?page=${p}`;
+		const params = new URLSearchParams();
+		if (p > 1) params.set("page", String(p));
+		if (extraParams) {
+			for (const [k, v] of Object.entries(extraParams)) params.set(k, v);
+		}
+		const qs = params.toString();
+		return qs ? `${basePath}?${qs}` : basePath;
 	}
 
 	return (
@@ -114,7 +123,7 @@ export function PagePagination({
 					)}
 					共 {formatNumber(total ?? 0)} {totalLabel}
 				</span>
-				<JumpToPage basePath={basePath} pages={pages} />
+				<JumpToPage basePath={basePath} pages={pages} extraParams={extraParams} />
 			</div>
 		</div>
 	);

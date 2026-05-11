@@ -8,16 +8,24 @@ import { useState } from "react";
 interface JumpToPageProps {
 	basePath: string;
 	pages: number;
+	/** Extra query params to append to the navigation URL (e.g. returnTo). */
+	extraParams?: Record<string, string>;
 }
 
-export function JumpToPage({ basePath, pages }: JumpToPageProps) {
+export function JumpToPage({ basePath, pages, extraParams }: JumpToPageProps) {
 	const router = useRouter();
 	const [value, setValue] = useState("");
 
 	function handleGo() {
 		const page = Number.parseInt(value, 10);
 		if (Number.isNaN(page) || page < 1 || page > pages) return;
-		router.push(`${basePath}?page=${page}`);
+		const params = new URLSearchParams();
+		if (page > 1) params.set("page", String(page));
+		if (extraParams) {
+			for (const [k, v] of Object.entries(extraParams)) params.set(k, v);
+		}
+		const qs = params.toString();
+		router.push(qs ? `${basePath}?${qs}` : basePath);
 	}
 
 	return (

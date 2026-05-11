@@ -200,10 +200,47 @@ export function pageToPostCursor(page: number, postsPerPage: number): string | n
  * Build the URL for a specific page of a thread.
  * Page 1: /threads/{id} (no query params)
  * Page N: /threads/{id}?page={N}
+ * Optionally appends returnTo param to preserve forum list context.
  */
-export function getThreadPageUrl(threadId: number, page: number): string {
-	if (page <= 1) return `/threads/${threadId}`;
-	return `/threads/${threadId}?page=${page}`;
+export function getThreadPageUrl(threadId: number, page: number, returnTo?: string): string {
+	const base = `/threads/${threadId}`;
+	const params = new URLSearchParams();
+	if (page > 1) params.set("page", String(page));
+	if (returnTo) params.set("returnTo", returnTo);
+	const qs = params.toString();
+	return qs ? `${base}?${qs}` : base;
+}
+
+/**
+ * Validate a returnTo path for thread detail pages.
+ * Only allows same-forum paths: `/forums/{forumId}` or `/forums/{forumId}?page=N`.
+ * Returns the validated path or null if invalid (fallback to default).
+ */
+export function validateReturnTo(returnTo: string | undefined, forumId: number): string | null {
+	if (!returnTo) return null;
+	// Must start with /forums/{forumId}
+	const prefix = `/forums/${forumId}`;
+	if (returnTo === prefix) return returnTo;
+	// Allow /forums/{forumId}?page=N (only digits for page value)
+	if (returnTo.startsWith(`${prefix}?`)) {
+		try {
+			const url = new URL(returnTo, "http://localhost");
+			const page = url.searchParams.get("page");
+			// Only allow if the only param is page and it's a positive integer
+			if (
+				url.pathname === prefix &&
+				url.searchParams.size === 1 &&
+				page &&
+				/^\d+$/.test(page) &&
+				Number.parseInt(page, 10) > 0
+			) {
+				return returnTo;
+			}
+		} catch {
+			// Invalid URL
+		}
+	}
+	return null;
 }
 
 /**

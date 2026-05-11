@@ -14,9 +14,16 @@ interface ThreadInlinePagesProps {
 	threadId: number;
 	replies: number;
 	postsPerPage: number;
+	/** URL to return to when navigating back from the thread detail page. */
+	returnTo?: string;
 }
 
-export function ThreadInlinePages({ threadId, replies, postsPerPage }: ThreadInlinePagesProps) {
+export function ThreadInlinePages({
+	threadId,
+	replies,
+	postsPerPage,
+	returnTo,
+}: ThreadInlinePagesProps) {
 	const pageCount = getThreadPageCount(replies, postsPerPage);
 	if (pageCount <= 1) return null;
 
@@ -25,19 +32,28 @@ export function ThreadInlinePages({ threadId, replies, postsPerPage }: ThreadInl
 	return (
 		<span className="inline-flex items-center gap-0.5 shrink-0 text-xs text-muted-foreground">
 			{items.map((item, i) => (
-				<InlinePageLink key={itemKey(item, i)} item={item} threadId={threadId} />
+				<InlinePageLink
+					key={itemKey(item, i)}
+					item={item}
+					threadId={threadId}
+					returnTo={returnTo}
+				/>
 			))}
 		</span>
 	);
 }
 
-function InlinePageLink({ item, threadId }: { item: InlinePageItem; threadId: number }) {
+function InlinePageLink({
+	item,
+	threadId,
+	returnTo,
+}: { item: InlinePageItem; threadId: number; returnTo?: string }) {
 	if (item === "ellipsis") {
 		return <span className="px-0.5 select-none">...</span>;
 	}
 	return (
 		<Link
-			href={getThreadPageUrl(threadId, item)}
+			href={getThreadPageUrl(threadId, item, returnTo)}
 			prefetch={false}
 			className="px-0.5 hover:text-primary transition-colors tabular-nums"
 		>
