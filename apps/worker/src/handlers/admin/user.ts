@@ -249,6 +249,36 @@ const userConfig: EntityConfig = {
 		})),
 		// Plain string fields — type guard only. Admin must be able to set
 		// any value (including empty) without format constraint.
+		// Read-only / lifecycle-only fields — explicitly REJECTED if present
+		// in the request body (rather than silently ignored as the CRUD
+		// framework would otherwise do for unknown columns). This makes the
+		// security contract observable: a hand-crafted PATCH body containing
+		// `purgedAt` / `purgedBy` / `passwordHash` / `passwordSalt` (in any
+		// camel/snake case) gets a 400 validation error instead of a 200 with
+		// the field silently dropped. `purged_at`/`purged_by` may only be set
+		// by the dedicated /purge endpoint (tombstone consistency); password
+		// material is never PATCHable from the admin surface.
+		...(
+			[
+				["purgedAt", "purged_at"],
+				["purgedBy", "purged_by"],
+				["passwordHash", "password_hash"],
+				["passwordSalt", "password_salt"],
+				// snake_case aliases — handle clients that send the column
+				// name directly. Same reject path.
+				["purged_at", "purged_at_alias"],
+				["purged_by", "purged_by_alias"],
+				["password_hash", "password_hash_alias"],
+				["password_salt", "password_salt_alias"],
+			] as const
+		).map(([name, _column]) => ({
+			name,
+			// `column` is irrelevant here because validate always returns an
+			// error before any UPDATE SQL is generated. Use a sentinel that
+			// would never be a real column to make accidental write impossible.
+			column: "__forbidden__",
+			validate: (_v: unknown) => `${name} is read-only and cannot be set via PATCH`,
+		})),
 		...(
 			[
 				["signature", "signature"],
@@ -340,6 +370,7 @@ const userConfig: EntityConfig = {
 			"digest_posts",
 			"ol_time",
 			"last_activity",
+			"reg_date",
 			// Group / title
 			"group_title",
 			"group_stars",
