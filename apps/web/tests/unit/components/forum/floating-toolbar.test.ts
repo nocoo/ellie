@@ -299,4 +299,53 @@ describe("FloatingToolbar", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Go" }));
 		expect(mockPush).not.toHaveBeenCalled();
 	});
+
+	// ─── Jump page with returnTo ──────────────────────────────────────────
+
+	it("preserves returnTo when jumping to page > 1", () => {
+		render(
+			createElement(FloatingToolbar, {
+				jumpPage: {
+					basePath: "/threads/1",
+					pages: 8,
+					returnTo: "/forums/5?page=4",
+				},
+			}),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "跳页" }));
+		const input = screen.getByRole("spinbutton", { name: "页码" });
+		fireEvent.change(input, { target: { value: "3" } });
+		fireEvent.click(screen.getByRole("button", { name: "Go" }));
+		expect(mockPush).toHaveBeenCalledWith("/threads/1?page=3&returnTo=%2Fforums%2F5%3Fpage%3D4");
+	});
+
+	it("preserves returnTo when jumping to page 1 (no page= param)", () => {
+		render(
+			createElement(FloatingToolbar, {
+				jumpPage: {
+					basePath: "/threads/1",
+					pages: 8,
+					returnTo: "/forums/5?page=4",
+				},
+			}),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "跳页" }));
+		const input = screen.getByRole("spinbutton", { name: "页码" });
+		fireEvent.change(input, { target: { value: "1" } });
+		fireEvent.click(screen.getByRole("button", { name: "Go" }));
+		expect(mockPush).toHaveBeenCalledWith("/threads/1?returnTo=%2Fforums%2F5%3Fpage%3D4");
+	});
+
+	it("does not add returnTo when jumpPage has no returnTo", () => {
+		render(
+			createElement(FloatingToolbar, {
+				jumpPage: { basePath: "/threads/1", pages: 8 },
+			}),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "跳页" }));
+		const input = screen.getByRole("spinbutton", { name: "页码" });
+		fireEvent.change(input, { target: { value: "2" } });
+		fireEvent.click(screen.getByRole("button", { name: "Go" }));
+		expect(mockPush).toHaveBeenCalledWith("/threads/1?page=2");
+	});
 });

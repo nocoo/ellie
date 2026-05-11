@@ -137,6 +137,47 @@ describe("ThreadPostsClient", () => {
 		expect(lastCall.backHref).toBe("/forums/42");
 	});
 
+	it("passes explicit backHref to FloatingToolbar when provided", () => {
+		const thread = makeThread({ forumId: 42 });
+		render(
+			createElement(ThreadPostsClient, {
+				...defaultProps,
+				thread,
+				backHref: "/forums/42?page=4",
+			}),
+		);
+
+		const calls = floatingToolbarProps.mock.calls;
+		const lastCall = calls[calls.length - 1][0];
+		expect(lastCall.backHref).toBe("/forums/42?page=4");
+	});
+
+	it("falls back to /forums/{forumId} when backHref is omitted", () => {
+		const thread = makeThread({ forumId: 99 });
+		render(createElement(ThreadPostsClient, { ...defaultProps, thread }));
+
+		const calls = floatingToolbarProps.mock.calls;
+		const lastCall = calls[calls.length - 1][0];
+		expect(lastCall.backHref).toBe("/forums/99");
+	});
+
+	it("forwards jumpPage.returnTo to FloatingToolbar", () => {
+		const jumpPage = {
+			basePath: "/threads/1",
+			pages: 5,
+			returnTo: "/forums/10?page=3",
+		};
+		render(createElement(ThreadPostsClient, { ...defaultProps, jumpPage }));
+
+		const calls = floatingToolbarProps.mock.calls;
+		const lastCall = calls[calls.length - 1][0];
+		expect(lastCall.jumpPage).toEqual({
+			basePath: "/threads/1",
+			pages: 5,
+			returnTo: "/forums/10?page=3",
+		});
+	});
+
 	it("passes actionType=reply when thread is open", () => {
 		const thread = makeThread({ closed: 0 });
 		render(createElement(ThreadPostsClient, { ...defaultProps, thread }));
