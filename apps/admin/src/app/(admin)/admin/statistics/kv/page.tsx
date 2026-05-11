@@ -30,10 +30,11 @@
 //      the operator never gets a button that immediately tells them
 //      "needs more input".
 
+import { SectionHeader } from "@/components/admin/section-header";
 import { SegmentedSwitch } from "@/components/admin/segmented-switch";
 import { Badge } from "@ellie/ui";
 import { Button } from "@ellie/ui";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@ellie/ui";
+import { Card, CardContent } from "@ellie/ui";
 import { ConfirmDialog } from "@ellie/ui";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@ellie/ui";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@ellie/ui";
@@ -945,97 +946,92 @@ export default function KvMonitorPage() {
 			)}
 
 			{/*
-			 * Panel switcher: SegmentedSwitch (~32px) replaces the previous
-			 * shadcn Tabs (h-10 control + extra outer Card per panel). The
-			 * switch is intentionally inline-positioned at standard control
-			 * height so the page header reads as one band of controls rather
-			 * than a tall navigation strip on top of every section.
+			 * Section: 视图. SegmentedSwitch lives in the section header's
+			 * `action` slot (mimics ../pew DashboardSegment composition with
+			 * PeriodSelector). The h2 + hairline divider give the page a
+			 * group-rhythm without duplicating CardHeader/CardTitle inside
+			 * each panel — the switcher is now the panel's title.
 			 */}
-			<div className="flex items-center justify-start">
-				<SegmentedSwitch
-					ariaLabel="切换 KV 监控视图"
-					value={activeView}
-					onValueChange={setActiveView}
-					options={[
-						{ value: "overview", label: "家族总览" },
-						{ value: "metrics", label: `命中指标 (近 ${METRICS_MINUTES} 分钟)` },
-					]}
+			<section className="space-y-3">
+				<SectionHeader
+					title="视图"
+					description={
+						activeView === "overview"
+							? "每个家族对应 kv-registry.ts 中一条声明。计数是按 family pattern 的 KV.list 扫描结果（最多 1000 条），超出时以「+」标注。点击左侧箭头展开查看 key 列表与到期时间。"
+							: "Op 维度来自 kv_cache_metrics_minute 表（migration 0035）。按家族聚合，仅显示家族级总计；不存在按 key 的命中计数。"
+					}
+					action={
+						<SegmentedSwitch
+							ariaLabel="切换 KV 监控视图"
+							value={activeView}
+							onValueChange={setActiveView}
+							options={[
+								{ value: "overview", label: "家族总览" },
+								{ value: "metrics", label: `命中指标 (近 ${METRICS_MINUTES} 分钟)` },
+							]}
+						/>
+					}
 				/>
-			</div>
 
-			{activeView === "overview" && (
-				<div role="tabpanel" aria-label="家族总览">
-					<Card>
-						<CardHeader>
-							<CardTitle className="text-base">KV 家族</CardTitle>
-							<CardDescription className="text-xs">
-								每个家族对应 kv-registry.ts 中一条声明。计数是按 family pattern 的 KV.list
-								扫描结果（最多 1000 条），超出时以「+」标注。点击左侧箭头展开查看 key
-								列表与到期时间。
-							</CardDescription>
-						</CardHeader>
-						<CardContent>
-							<OverviewTable
-								rows={overviewRows}
-								loading={overviewLoading}
-								now={now}
-								expanded={expanded}
-								keyLists={keyLists}
-								busyFamily={busyFamily}
-								onToggle={handleToggle}
-								onLoadMore={handleLoadMore}
-								onView={handleView}
-								onDelete={handleAskDelete}
-								onRefreshFamily={handleRefreshFamily}
-							/>
-						</CardContent>
-					</Card>
-				</div>
-			)}
+				{activeView === "overview" && (
+					<div role="tabpanel" aria-label="家族总览">
+						<Card>
+							<CardContent>
+								<OverviewTable
+									rows={overviewRows}
+									loading={overviewLoading}
+									now={now}
+									expanded={expanded}
+									keyLists={keyLists}
+									busyFamily={busyFamily}
+									onToggle={handleToggle}
+									onLoadMore={handleLoadMore}
+									onView={handleView}
+									onDelete={handleAskDelete}
+									onRefreshFamily={handleRefreshFamily}
+								/>
+							</CardContent>
+						</Card>
+					</div>
+				)}
 
-			{activeView === "metrics" && (
-				<div role="tabpanel" aria-label="家族级命中指标">
-					<Card>
-						<CardHeader>
-							<CardTitle className="text-base">家族级命中指标</CardTitle>
-							<CardDescription className="text-xs">
-								Op 维度来自
-								<code className="mx-1">kv_cache_metrics_minute</code>
-								表（migration 0035）。按家族聚合，仅显示家族级总计；不存在按 key 的命中计数。
-							</CardDescription>
-						</CardHeader>
-						<CardContent>
-							<MetricsTable
-								summaries={summaries}
-								minutes={METRICS_MINUTES}
-								loading={metricsLoading}
-							/>
-						</CardContent>
-					</Card>
-				</div>
-			)}
+				{activeView === "metrics" && (
+					<div role="tabpanel" aria-label="家族级命中指标">
+						<Card>
+							<CardContent>
+								<MetricsTable
+									summaries={summaries}
+									minutes={METRICS_MINUTES}
+									loading={metricsLoading}
+								/>
+							</CardContent>
+						</Card>
+					</div>
+				)}
+			</section>
 
-			<Card>
-				<CardHeader>
-					<CardTitle className="text-base">说明</CardTitle>
-				</CardHeader>
-				<CardContent className="text-sm text-muted-foreground space-y-2">
-					<p>
-						<Trash2 className="mr-1 inline h-3 w-3" />
-						删除 / 失效操作会写入操作日志（<code>kv.bump_gen</code> /<code>kv.delete_key</code>）。
-					</p>
-					<p>
-						<strong>敏感家族</strong>
-						（refresh token / email_verify / IP 限流等）只展示统计与 TTL 上限，不开放 value 与 key
-						列表； server-side 由 kv-registry 的 <code>nameSensitivity</code> /
-						<code>valueSensitivity</code> 决定。
-					</p>
-					<p>
-						<strong>命中率</strong> 按 <code>hit / (hit + miss)</code> 推导，仅在家族级别有效；
-						不展示按 key 的命中数据。
-					</p>
-				</CardContent>
-			</Card>
+			<section className="space-y-3">
+				<SectionHeader title="说明" />
+				<Card>
+					<CardContent className="space-y-2 text-sm text-muted-foreground">
+						<p>
+							<Trash2 className="mr-1 inline h-3 w-3" />
+							删除 / 失效操作会写入操作日志（<code>kv.bump_gen</code> /<code>kv.delete_key</code>
+							）。
+						</p>
+						<p>
+							<strong>敏感家族</strong>
+							（refresh token / email_verify / IP 限流等）只展示统计与 TTL 上限，不开放 value 与 key
+							列表； server-side 由 kv-registry 的 <code>nameSensitivity</code> /
+							<code>valueSensitivity</code> 决定。
+						</p>
+						<p>
+							<strong>命中率</strong> 按 <code>hit / (hit + miss)</code> 推导，仅在家族级别有效；
+							不展示按 key 的命中数据。
+						</p>
+					</CardContent>
+				</Card>
+			</section>
 
 			<KeyDetailDialog
 				state={detail}
