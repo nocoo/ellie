@@ -59,6 +59,21 @@ jobs:
       - run: bunx playwright install --with-deps chromium
       - name: "Apply D1 migrations to test DB"
         run: bun x wrangler d1 migrations apply DB --env test --remote -c apps/worker/wrangler.toml
+      # Deploy the [env.test] worker BEFORE seeding so the L3 specs run
+      # against worker code that matches the current main HEAD. Without this
+      # the deployed test worker can drift behind main (CI never used to
+      # touch it), causing routes added on main — e.g. POST /api/v1/post-comments/batch
+      # — to 404 in CI even though the source is present, which manifests
+      # as silent SSR data-path failures (see fix(web/ssr) commit on this
+      # task).
+      #
+      # Guarded so the job still runs when CF secrets are absent (e.g. fork
+      # PRs that already skip via the job-level `if:`, or accidental secret
+      # rotation). The fork-PR case is already excluded above; this guard is
+      # a belt-and-braces against missing secrets in the trusted path.
+      - name: "Deploy ellie-test worker (only when CF secrets present)"
+        if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
+        run: bun x wrangler deploy --env test -c apps/worker/wrangler.toml
       - name: "Seed test D1 (forum/thread/user fixtures)"
         run: bun x wrangler d1 execute tongjinet-db-test --remote -c apps/worker/wrangler.toml --file scripts/seed-test-db.sql
       - name: "L3: Playwright E2E tests"
