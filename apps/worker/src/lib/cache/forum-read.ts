@@ -43,6 +43,7 @@ import {
 	forumTreeGenKey,
 	forumTreeKey,
 } from "./keys";
+import { recordError, recordHit, recordMiss, scheduleMetricsFlush } from "./metrics";
 import { cacheGetOrSet } from "./wrap";
 
 // ─── TTLs (docs/19 §4) ────────────────────────────────────────────
@@ -341,7 +342,7 @@ export async function getForumTreeV2(
 			const snapshot = await loadSnapshot();
 			return buildForumTreePayload(snapshot, bucket);
 		},
-		{ ttl: FORUM_TREE_TTL, validator: isForumTreePayload },
+		{ ttl: FORUM_TREE_TTL, validator: isForumTreePayload, family: "forum:tree:v2" },
 	);
 	return payload.forums;
 }
@@ -363,7 +364,7 @@ export async function getForumSummaryV2(
 			const snapshot = await loadSnapshot();
 			return buildForumSummaryPayload(snapshot, bucket);
 		},
-		{ ttl: FORUM_SUMMARY_TTL, validator: isForumSummaryPayload },
+		{ ttl: FORUM_SUMMARY_TTL, validator: isForumSummaryPayload, family: "forum:summary:v2" },
 	);
 	return payload.aggregates;
 }
@@ -447,18 +448,23 @@ export async function getForumMetaV2(
 
 	// Try cache directly (read-only). We don't use `cacheGetOrSet` here
 	// because the miss path needs to short-circuit to 404/403 without a
-	// payload to write back.
+	// payload to write back. Hit/miss/error are still tracked under the
+	// `forum:meta:v2` family so the admin monitor sees this path.
 	try {
 		const cached = (await env.KV.get(key, "json")) as unknown;
 		if (cached !== null && cached !== undefined && isForumMetaPayload(cached)) {
+			recordHit("forum:meta:v2");
+			scheduleMetricsFlush(env, ctx);
 			return { kind: "ok", forum: cached.forum };
 		}
 	} catch (err) {
 		// Fall through.
+		recordError("forum:meta:v2");
 		console.warn(`[cache] forum:meta read failed key=${key}`, err);
 	}
 
 	// Miss path: load full forum row from D1.
+	recordMiss("forum:meta:v2");
 	const forum = await loadFullForum();
 	if (forum == null) return { kind: "notFound" };
 	if (!isForumActive(forum)) return { kind: "notFound" };
@@ -476,9 +482,11 @@ export async function getForumMetaV2(
 	const putPromise = env.KV.put(key, JSON.stringify(payload), {
 		expirationTtl: FORUM_META_TTL,
 	}).catch((err) => {
+		recordError("forum:meta:v2");
 		console.warn(`[cache] forum:meta write-back failed key=${key}`, err);
 	});
 	ctx.waitUntil(putPromise);
+	scheduleMetricsFlush(env, ctx);
 
 	return { kind: "ok", forum: payload.forum };
 }

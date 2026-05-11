@@ -30,9 +30,12 @@
 //      with `list_complete: false`. Pagination terminates ONLY on
 //      `list_complete === true`.
 //
-// 5. The `metrics` endpoint is intentionally a stub in commit A — the
-//    D1 table + accumulator land in commit B. The route is wired here
-//    so the admin UI can be built against a stable shape.
+// 5. The `metrics` endpoint reads `kv_cache_metrics_minute` (added in
+//    migration 0035), populated by the in-isolate accumulator + flush
+//    in `lib/cache/metrics.ts`. Only business cache families are
+//    instrumented (forum tree/summary/meta, thread:list page1, user
+//    mini, settings, public stats); short-lived auth/rate-limit
+//    families intentionally produce no metrics rows.
 
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
@@ -732,23 +735,75 @@ async function refreshDeleteUserMini(
 // against the final shape. Commit B replaces the body with a D1
 // query against `kv_cache_metrics_minute`.
 
+// ─── GET /api/admin/kv/metrics ────────────────────────────────────
+//
+// Per-minute hit/miss/error series for one or all instrumented families.
+// Reads from `kv_cache_metrics_minute` (migration 0035), populated by the
+// in-isolate accumulator + ctx.waitUntil flush in `lib/cache/metrics.ts`.
+//
+// Query params:
+//   - `family` (optional): restrict to one registry family. When omitted
+//     the response carries all rows in the window, grouped by family.
+//   - `minutes`: window size in minutes (default 60, max 1440 = 24h).
+//
+// Response shape:
+//   { family: string | null, minutes: number,
+//     series: [{ family, tsMinute, hits, misses, errors }, ...] }
+
 export const metrics = withEntityAuth(
 	kvConfig,
-	async (request: Request, _env: Env): Promise<Response> => {
+	async (request: Request, env: Env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
 		const family = readQuery(request, "family");
 		const minutes = Math.min(
 			Math.max(Number.parseInt(readQuery(request, "minutes") ?? "60", 10) || 60, 1),
 			1440,
 		);
-		return jsonResponse(
-			{
-				family: family ?? null,
-				minutes,
-				series: [],
-				note: "metrics not yet enabled (commit B)",
-			},
-			origin,
-		);
+		const cutoff = Math.floor(Date.now() / 60_000) - minutes;
+
+		try {
+			const stmt = family
+				? env.DB.prepare(
+						`SELECT family, ts_minute, hits, misses, errors
+						 FROM kv_cache_metrics_minute
+						 WHERE ts_minute >= ? AND family = ?
+						 ORDER BY ts_minute ASC`,
+					).bind(cutoff, family)
+				: env.DB.prepare(
+						`SELECT family, ts_minute, hits, misses, errors
+						 FROM kv_cache_metrics_minute
+						 WHERE ts_minute >= ?
+						 ORDER BY family ASC, ts_minute ASC`,
+					).bind(cutoff);
+			const result = await stmt.all<{
+				family: string;
+				ts_minute: number;
+				hits: number;
+				misses: number;
+				errors: number;
+			}>();
+			const series = result.results.map((r) => ({
+				family: r.family,
+				tsMinute: r.ts_minute,
+				hits: r.hits,
+				misses: r.misses,
+				errors: r.errors,
+			}));
+			return jsonResponse({ family: family ?? null, minutes, series }, origin);
+		} catch (err) {
+			// Table may be missing on a fresh deploy before migration 0035
+			// has run. Surface that as an empty series rather than 500 so
+			// the admin page degrades gracefully.
+			console.warn("[admin/kv] metrics query failed", err);
+			return jsonResponse(
+				{
+					family: family ?? null,
+					minutes,
+					series: [],
+					note: "metrics table unavailable",
+				},
+				origin,
+			);
+		}
 	},
 );

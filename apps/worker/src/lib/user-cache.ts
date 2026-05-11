@@ -2,10 +2,12 @@
 // Used for batch-fetching user info (username, avatar, role, group info) by ID
 // Implements the caching strategy from docs/09-user-cache-refactor.md
 
+import { recordError, recordHit, recordMiss, scheduleMetricsFlush } from "./cache/metrics";
 import type { Env } from "./env";
 
 const USER_CACHE_PREFIX = "user:mini:";
 const USER_CACHE_TTL = 86400; // 24h
+const METRICS_FAMILY = "user:mini:v1";
 
 /**
  * Mini user profile cached in KV.
@@ -45,18 +47,29 @@ export async function getUserProfiles(
 
 	// Parallel KV reads
 	const cacheResults = await Promise.all(
-		uniqueIds.map(async (id) => ({
-			id,
-			data: await env.KV.get<UserMiniProfile>(`${USER_CACHE_PREFIX}${id}`, "json"),
-		})),
+		uniqueIds.map(async (id) => {
+			try {
+				const data = await env.KV.get<UserMiniProfile>(`${USER_CACHE_PREFIX}${id}`, "json");
+				return { id, data, error: false };
+			} catch (err) {
+				console.warn(`[user-cache] read failed id=${id}`, err);
+				return { id, data: null as UserMiniProfile | null, error: true };
+			}
+		}),
 	);
 
-	// Separate hits and misses
+	// Separate hits and misses, recording per-key metrics so the admin
+	// monitor sees real hit/miss ratios for the user:mini:v1 family.
 	const missedIds: number[] = [];
-	for (const { id, data } of cacheResults) {
-		if (data) {
+	for (const { id, data, error } of cacheResults) {
+		if (error) {
+			recordError(METRICS_FAMILY);
+			missedIds.push(id);
+		} else if (data) {
+			recordHit(METRICS_FAMILY);
 			result.set(id, data);
 		} else {
+			recordMiss(METRICS_FAMILY);
 			missedIds.push(id);
 		}
 	}
@@ -91,12 +104,16 @@ export async function getUserProfiles(
 				ctx.waitUntil(
 					env.KV.put(`${USER_CACHE_PREFIX}${profile.id}`, JSON.stringify(profile), {
 						expirationTtl: USER_CACHE_TTL,
+					}).catch((err) => {
+						recordError(METRICS_FAMILY);
+						console.warn(`[user-cache] write-back failed id=${profile.id}`, err);
 					}),
 				);
 			}
 		}
 	}
 
+	scheduleMetricsFlush(env, ctx);
 	return result;
 }
 

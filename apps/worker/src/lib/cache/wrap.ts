@@ -9,8 +9,14 @@
 // added in code but old payloads still live in KV), the validator returns
 // false, and the wrapper treats it as a miss. After `cacheGetOrSet`, all
 // callers see a value of type `T` that the validator accepted.
+//
+// Observability: `family` tags the call site for the in-isolate metrics
+// accumulator (`./metrics`). It MUST match a stable identifier in
+// `kv-registry.ts`. Hits / misses / errors are bumped here and flushed
+// to D1 at the end of the request via `scheduleMetricsFlush`.
 
 import type { Env } from "../env";
+import { recordError, recordHit, recordMiss, scheduleMetricsFlush } from "./metrics";
 
 export interface CacheGetOrSetOptions<T> {
 	/** TTL in seconds. Required: every cache entry must declare a TTL. */
@@ -20,6 +26,12 @@ export interface CacheGetOrSetOptions<T> {
 	 * returned. Return `false` to force a miss (re-load and re-write).
 	 */
 	validator?: (value: unknown) => value is T;
+	/**
+	 * Registry family identifier for metrics (see `kv-registry.ts`).
+	 * Recorded as hit/miss/error counters per minute. Required: every
+	 * cache call must be observable.
+	 */
+	family: string;
 }
 
 /**
@@ -42,25 +54,31 @@ export async function cacheGetOrSet<T>(
 		const cached = (await env.KV.get(key, "json")) as unknown;
 		if (cached !== null && cached !== undefined) {
 			if (!options.validator || options.validator(cached)) {
+				recordHit(options.family);
+				scheduleMetricsFlush(env, ctx);
 				return cached as T;
 			}
 		}
 	} catch (err) {
 		// KV read failure — log and fall through to loader so the handler
 		// keeps working off D1.
+		recordError(options.family);
 		console.warn(`[cache] read miss (KV error) key=${key}`, err);
 	}
 
 	// Miss path
+	recordMiss(options.family);
 	const fresh = await loader();
 
 	// Best-effort write-back; never block the response.
 	const putPromise = env.KV.put(key, JSON.stringify(fresh), {
 		expirationTtl: options.ttl,
 	}).catch((err) => {
+		recordError(options.family);
 		console.warn(`[cache] write-back failed key=${key}`, err);
 	});
 	ctx.waitUntil(putPromise);
+	scheduleMetricsFlush(env, ctx);
 
 	return fresh;
 }

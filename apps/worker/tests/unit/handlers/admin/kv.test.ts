@@ -607,16 +607,58 @@ describe("admin/kv — overview", () => {
 	});
 });
 
-describe("admin/kv — metrics stub", () => {
-	it("returns empty series envelope until commit B", async () => {
-		const env = makeEnv();
-		const req = createAdminRequest("GET", "/api/admin/kv/metrics?family=forum:tree:v2");
+describe("admin/kv — metrics", () => {
+	it("returns rows from kv_cache_metrics_minute filtered by family + minutes", async () => {
+		const tsNow = Math.floor(Date.now() / 60_000);
+		const rows = [
+			{ family: "forum:tree:v2", ts_minute: tsNow - 1, hits: 5, misses: 1, errors: 0 },
+			{ family: "forum:tree:v2", ts_minute: tsNow, hits: 7, misses: 2, errors: 0 },
+		];
+		// Mock D1 that returns the seeded rows for the metrics query
+		// regardless of bind args; assertion is on response shape.
+		const db = {
+			prepare: () => ({
+				bind: () => ({
+					all: async () => ({ results: rows }),
+				}),
+			}),
+		} as unknown as D1Database;
+		const env = makeEnv({ DB: db });
+		const req = createAdminRequest("GET", "/api/admin/kv/metrics?family=forum:tree:v2&minutes=15");
 		const res = await kv.metrics(req, env);
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as {
-			data: { series: unknown[]; note: string };
+			data: {
+				family: string | null;
+				minutes: number;
+				series: { family: string; tsMinute: number; hits: number }[];
+			};
+		};
+		expect(body.data.family).toBe("forum:tree:v2");
+		expect(body.data.minutes).toBe(15);
+		expect(body.data.series).toHaveLength(2);
+		expect(body.data.series[0].hits).toBe(5);
+		expect(body.data.series[1].hits).toBe(7);
+	});
+
+	it("degrades gracefully when D1 query throws (table missing)", async () => {
+		const db = {
+			prepare: () => ({
+				bind: () => ({
+					all: async () => {
+						throw new Error("no such table: kv_cache_metrics_minute");
+					},
+				}),
+			}),
+		} as unknown as D1Database;
+		const env = makeEnv({ DB: db });
+		const req = createAdminRequest("GET", "/api/admin/kv/metrics");
+		const res = await kv.metrics(req, env);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as {
+			data: { series: unknown[]; note?: string };
 		};
 		expect(body.data.series).toEqual([]);
-		expect(body.data.note).toContain("commit B");
+		expect(body.data.note).toContain("metrics table unavailable");
 	});
 });
