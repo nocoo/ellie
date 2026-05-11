@@ -84,17 +84,29 @@ describe("kv-registry — declarative invariants", () => {
 
 	it("each family.listPrefix resolves back to that family", () => {
 		for (const spec of KV_REGISTRY) {
-			// Construct a synthetic key under this prefix that isn't shared
-			// with another family. Use a sentinel suffix to avoid colliding
-			// with sibling prefixes (e.g. user:mini: vs user:mini:v2:).
-			const probe = `${spec.listPrefix}__probe__`;
+			// Exact (singleton) families resolve only on the literal name;
+			// prefix families resolve on a synthetic suffix that won't
+			// collide with siblings.
+			const probe = spec.keyKind === "exact" ? spec.listPrefix : `${spec.listPrefix}__probe__`;
 			const resolved = resolveFamilyForKey(probe);
-			// For families whose listPrefix is a strict prefix of another
-			// (e.g. user:mini: is a prefix of user:mini:v2:), the probe key
-			// will still start with our prefix but the v2 entry's prefix
-			// won't match because we don't include "v2:" in the probe.
 			expect(resolved?.family).toBe(spec.family);
 		}
+	});
+
+	it("singleton (exact) prefixes do not swallow siblings", () => {
+		// `settings:all` (exact) must not own `settings:all:v2:foo`.
+		const sibling = resolveFamilyForKey("settings:all:v2:something");
+		expect(sibling?.family).not.toBe("settings:all");
+		// `public-stats` (exact) must not own arbitrary `public-stats:foo`.
+		const otherKey = resolveFamilyForKey("public-stats:bogus");
+		expect(otherKey?.family).not.toBe("public-stats");
+	});
+
+	it("thread:list:gen:all routes to the global gen family, not per-forum", () => {
+		const all = resolveFamilyForKey("thread:list:gen:all");
+		expect(all?.family).toBe("gen:thread:list:all");
+		const perForum = resolveFamilyForKey("thread:list:gen:42");
+		expect(perForum?.family).toBe("gen:thread:list:per-forum");
 	});
 
 	it("session/rate-limit/throttle families with no-read values do not expose typed mutations", () => {
@@ -121,6 +133,33 @@ describe("kv-registry — declarative invariants", () => {
 					`hidden-name family ${spec.family} must declare refresh: { kind: "none" }`,
 				).toBe("none");
 			}
+		}
+	});
+
+	it("declared TTLs match the runtime constants", () => {
+		// Explicit pin so a constant change forces a registry update —
+		// the admin "when does it expire" answer would otherwise lie.
+		const expected: Record<string, number | "sticky" | "variable"> = {
+			"forum:tree:v2": 86_400, // FORUM_TREE_TTL
+			"forum:summary:v2": 600, // FORUM_SUMMARY_TTL
+			"forum:meta:v2": 600, // FORUM_META_TTL
+			"thread:list:v2": 60, // THREAD_LIST_TTL
+			"user:mini:v1": 86_400, // USER_CACHE_TTL
+			"settings:all": 86_400, // settings.ts KV_TTL
+			"public-stats": 60, // stats.ts CACHE_TTL_SECONDS
+			"stats:online_count": 300, // online-stats.ts
+			"stats:online_peak": "sticky",
+			"online:user": 900, // middleware/online.ts ONLINE_TTL
+			activity_throttle: 120, // middleware/activity.ts
+			"login-ip": 3_600,
+			"login-lockout-ip": 86_400,
+			"reg-ip": 60,
+			"chk-usr-ip": 60,
+		};
+		for (const [family, ttl] of Object.entries(expected)) {
+			const spec = KV_REGISTRY.find((s) => s.family === family);
+			expect(spec, `family ${family} missing from registry`).toBeDefined();
+			expect(spec?.ttl, `family ${family} TTL drift`).toBe(ttl);
 		}
 	});
 });

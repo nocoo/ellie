@@ -86,6 +86,18 @@ export type KvRefreshAction =
 	| { kind: "delete-user-mini"; requires: ["userId"] }
 	| { kind: "none" };
 
+/**
+ * How `listPrefix` is interpreted when listing / resolving keys.
+ *
+ * - `prefix`: family owns all keys whose name `startsWith(listPrefix)`.
+ *   This is the default for v2 cache families like `forum:tree:v2:`.
+ * - `exact`: family owns exactly ONE literal key whose name equals
+ *   `listPrefix`. This is required for singletons such as `settings:all`
+ *   and `public-stats` so they don't accidentally swallow `settings:all:v2`
+ *   etc.
+ */
+export type KvKeyKind = "prefix" | "exact";
+
 export interface KvFamilySpec {
 	/** Stable family identifier — used in API params and metrics rows. */
 	family: string;
@@ -95,6 +107,14 @@ export interface KvFamilySpec {
 	status: KvStatus;
 	/** Prefix passed to `KV.list({prefix})` to enumerate keys in this family. */
 	listPrefix: string;
+	/**
+	 * Singleton vs prefix family. Defaults to `"prefix"` when unset.
+	 * Singleton (`exact`) means this family is one literal key whose name
+	 * equals `listPrefix` — used for `settings:all`, `public-stats`,
+	 * `stats:online_count`, `stats:online_peak`, gen tokens like
+	 * `forum:tree:gen`, and the global `thread:list:gen:all`.
+	 */
+	keyKind?: KvKeyKind;
 	/** Human-readable expected key pattern — for UI tooltip only. */
 	pattern: string;
 	/**
@@ -136,7 +156,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		status: "shipped",
 		listPrefix: "forum:tree:v2:",
 		pattern: "forum:tree:v2:<bucket>:g<forumTreeGen>",
-		ttl: 3600,
+		ttl: 86_400,
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "bump-forum-tree" },
@@ -150,7 +170,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		status: "shipped",
 		listPrefix: "forum:summary:v2:",
 		pattern: "forum:summary:v2:<bucket>:g<forumSummaryGen>",
-		ttl: 60,
+		ttl: 600,
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "bump-forum-summary" },
@@ -165,7 +185,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		status: "shipped",
 		listPrefix: "forum:meta:v2:",
 		pattern: "forum:meta:v2:<forumId>:<bucket>:g<forumSummaryGen>",
-		ttl: 60,
+		ttl: 600,
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "bump-forum-summary" },
@@ -209,8 +229,9 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		category: "cache",
 		status: "shipped",
 		listPrefix: "settings:all",
+		keyKind: "exact",
 		pattern: "settings:all",
-		ttl: 600,
+		ttl: 86_400,
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "delete-literal", requires: ["key"] },
@@ -222,6 +243,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		category: "stats",
 		status: "shipped",
 		listPrefix: "public-stats",
+		keyKind: "exact",
 		pattern: "public-stats",
 		ttl: 60,
 		nameSensitivity: "public",
@@ -236,6 +258,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		category: "stats",
 		status: "shipped",
 		listPrefix: "stats:online_count",
+		keyKind: "exact",
 		pattern: "stats:online_count",
 		ttl: 300,
 		nameSensitivity: "public",
@@ -250,6 +273,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		category: "sticky-stats",
 		status: "shipped",
 		listPrefix: "stats:online_peak",
+		keyKind: "exact",
 		pattern: "stats:online_peak",
 		ttl: "sticky",
 		nameSensitivity: "public",
@@ -266,7 +290,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		status: "shipped",
 		listPrefix: "online:",
 		pattern: "online:<userId>",
-		ttl: 300,
+		ttl: 900,
 		nameSensitivity: "mask",
 		valueSensitivity: "no-read",
 		refresh: { kind: "none" },
@@ -389,6 +413,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		category: "gen",
 		status: "shipped",
 		listPrefix: "forum:tree:gen",
+		keyKind: "exact",
 		pattern: "forum:tree:gen",
 		ttl: "sticky",
 		nameSensitivity: "public",
@@ -403,6 +428,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		category: "gen",
 		status: "shipped",
 		listPrefix: "forum:summary:gen",
+		keyKind: "exact",
 		pattern: "forum:summary:gen",
 		ttl: "sticky",
 		nameSensitivity: "public",
@@ -412,18 +438,33 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 			"Generation token for forum:summary:v2 + forum:meta:v2. Bumped by volatile writes.",
 	},
 	{
+		family: "gen:thread:list:all",
+		displayName: "Gen — thread:list (global)",
+		category: "gen",
+		status: "shipped",
+		listPrefix: "thread:list:gen:all",
+		keyKind: "exact",
+		pattern: "thread:list:gen:all",
+		ttl: "sticky",
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "bump-thread-list-all" },
+		description:
+			"Global thread-list gen, bumped by writes that affect the cross-forum view (e.g. moderation moves).",
+	},
+	{
 		family: "gen:thread:list:per-forum",
 		displayName: "Gen — thread:list (per-forum)",
 		category: "gen",
 		status: "shipped",
 		listPrefix: "thread:list:gen:",
-		pattern: "thread:list:gen:<forumId> | thread:list:gen:all",
+		pattern: "thread:list:gen:<forumId>",
 		ttl: "sticky",
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "bump-thread-list-forum", requires: ["forumId"] },
 		description:
-			"Per-forum thread-list gen plus the global `thread:list:gen:all` (also matched by this prefix). UI distinguishes by suffix.",
+			"Per-forum thread-list gens. The global `thread:list:gen:all` is split into its own family above so resolveFamilyForKey routes the literal name to the global bumper.",
 	},
 	{
 		family: "gen:digest",
@@ -431,6 +472,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		category: "gen",
 		status: "shipped",
 		listPrefix: "digest:gen",
+		keyKind: "exact",
 		pattern: "digest:gen",
 		ttl: "sticky",
 		nameSensitivity: "public",
@@ -499,6 +541,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		category: "cache",
 		status: "dead-builder-reserved",
 		listPrefix: "settings:all:v2",
+		keyKind: "exact",
 		pattern: "settings:all:v2",
 		ttl: 600,
 		nameSensitivity: "public",
@@ -513,6 +556,7 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		category: "stats",
 		status: "dead-builder-reserved",
 		listPrefix: "stats:public:v2",
+		keyKind: "exact",
 		pattern: "stats:public:v2",
 		ttl: 60,
 		nameSensitivity: "public",
@@ -539,15 +583,28 @@ export function findFamily(family: string): KvFamilySpec | null {
  * admin "list" endpoint to attach a family to each returned key, so
  * the UI can render the right sensitivity badge.
  *
- * Resolution rule: longest matching `listPrefix`, with ties broken by
- * declaration order. This handles the `user:mini:` / `user:mini:v2:`
- * overlap correctly — v2 is more specific and wins for v2 keys, while
- * the v1 entry covers the bare prefix.
+ * Resolution rule:
+ *   1. An `exact` family wins iff `key === listPrefix` (singletons).
+ *   2. Otherwise the longest matching `listPrefix` (with ties broken by
+ *      declaration order) for `prefix`-kind families. `exact` families
+ *      whose `listPrefix !== key` are skipped here so that, e.g.,
+ *      `settings:all:v2:foo` is NOT swallowed by the singleton
+ *      `settings:all`.
+ *
+ * This handles overlaps like `user:mini:` / `user:mini:v2:` correctly,
+ * and the global `thread:list:gen:all` (exact) sitting next to the
+ * per-forum prefix `thread:list:gen:`.
  */
 export function resolveFamilyForKey(key: string): KvFamilySpec | null {
+	for (const spec of KV_REGISTRY) {
+		if (spec.keyKind === "exact" && spec.listPrefix === key) {
+			return spec;
+		}
+	}
 	let best: KvFamilySpec | null = null;
 	let bestLen = -1;
 	for (const spec of KV_REGISTRY) {
+		if (spec.keyKind === "exact") continue;
 		if (key.startsWith(spec.listPrefix) && spec.listPrefix.length > bestLen) {
 			best = spec;
 			bestLen = spec.listPrefix.length;
