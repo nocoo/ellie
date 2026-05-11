@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { checkUsernameAvailability } from "@/lib/forum-browser-api";
 import {
 	type PasswordStrength,
+	REGISTER_PROFILE_DEFAULTS,
+	buildRegisterProfile,
 	canSubmitRegister,
 	passwordStrength,
 	registerErrorMessage,
@@ -101,11 +103,11 @@ function RegisterFormInner() {
 	const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
 
 	const capEnabled = Boolean(CAP_API_ENDPOINT);
-	const formState = { username, password, confirmPassword, email };
+	const formState = { username, password, confirmPassword, email, ...REGISTER_PROFILE_DEFAULTS };
 	const canSubmit = canSubmitRegister(formState) && (!capEnabled || capToken);
 	const strength = passwordStrength(password);
 	const usernameError = username.trim() ? validateUsername(username) : null;
-	const emailError = email.trim() ? validateEmail(email) : null;
+	const emailError = email ? validateEmail(email) : null;
 	const passwordMismatch = confirmPassword && password !== confirmPassword;
 
 	// Debounced username availability check
@@ -139,7 +141,12 @@ function RegisterFormInner() {
 		setError(null);
 
 		try {
-			const result = await registerUser(username.trim(), password, email.trim() || undefined);
+			const result = await registerUser(
+				username.trim(),
+				password,
+				email.trim(),
+				buildRegisterProfile(formState),
+			);
 
 			if ("error" in result) {
 				setError(registerErrorMessage(result.error) ?? "注册失败");
@@ -247,7 +254,7 @@ function RegisterFormInner() {
 				{/* Email */}
 				<div className="space-y-2">
 					<Label htmlFor="email" className="text-sm">
-						邮箱 <span className="text-muted-foreground">(选填)</span>
+						邮箱
 					</Label>
 					<Input
 						id="email"

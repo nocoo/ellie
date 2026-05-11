@@ -11,9 +11,10 @@ const USER_COLUMNS =
 	"id, username, email, avatar, avatar_path, status, role, reg_date, last_login, threads, posts, credits, coins, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, campus, last_activity, email_verified_at, email_normalized, email_changed_at";
 
 /** Max lengths for text fields */
-const MAX_LENGTHS: Record<string, number> = {
+export const MAX_LENGTHS: Record<string, number> = {
 	email: 255,
 	avatar: 500,
+	campus: 100,
 	resideProvince: 50,
 	resideCity: 50,
 	graduateSchool: 100,
@@ -26,6 +27,7 @@ const MAX_LENGTHS: Record<string, number> = {
 
 /** Field name to error message mapping */
 const LENGTH_ERRORS: Record<string, string> = {
+	campus: "Campus too long",
 	resideProvince: "Province name too long",
 	resideCity: "City name too long",
 	graduateSchool: "School name too long",
@@ -37,13 +39,14 @@ const LENGTH_ERRORS: Record<string, string> = {
 };
 
 /** Field name to DB column mapping */
-const DB_COLUMNS: Record<string, string> = {
+export const DB_COLUMNS: Record<string, string> = {
 	email: "email",
 	avatar: "avatar",
 	gender: "gender",
 	birthYear: "birth_year",
 	birthMonth: "birth_month",
 	birthDay: "birth_day",
+	campus: "campus",
 	resideProvince: "reside_province",
 	resideCity: "reside_city",
 	graduateSchool: "graduate_school",
@@ -55,13 +58,13 @@ const DB_COLUMNS: Record<string, string> = {
 };
 
 /** Extract string field from body */
-function extractString(body: Record<string, unknown>, key: string): string | undefined {
+export function extractString(body: Record<string, unknown>, key: string): string | undefined {
 	const val = body[key];
 	return typeof val === "string" ? val.trim() : undefined;
 }
 
 /** Extract number field from body */
-function extractNumber(body: Record<string, unknown>, key: string): number | undefined {
+export function extractNumber(body: Record<string, unknown>, key: string): number | undefined {
 	const val = body[key];
 	return typeof val === "number" ? val : undefined;
 }
@@ -84,10 +87,12 @@ type ValidationResult =
 	| { success: true; fields: Record<string, unknown> }
 	| { success: false; error: Response };
 
-/** Validate all profile fields and return collected fields or error */
-function validateProfileFields(
+/** Validate all profile fields and return collected fields or error.
+ * @param skipEmptyCheck - If true, don't require at least one field (used by register) */
+export function validateProfileFields(
 	body: Record<string, unknown>,
 	origin: string | undefined,
+	skipEmptyCheck = false,
 ): ValidationResult {
 	// Extract fields
 	const email = extractString(body, "email");
@@ -96,6 +101,7 @@ function validateProfileFields(
 	const birthYear = extractNumber(body, "birthYear");
 	const birthMonth = extractNumber(body, "birthMonth");
 	const birthDay = extractNumber(body, "birthDay");
+	const campus = extractString(body, "campus");
 	const resideProvince = extractString(body, "resideProvince");
 	const resideCity = extractString(body, "resideCity");
 	const graduateSchool = extractString(body, "graduateSchool");
@@ -112,6 +118,7 @@ function validateProfileFields(
 		birthYear,
 		birthMonth,
 		birthDay,
+		campus,
 		resideProvince,
 		resideCity,
 		graduateSchool,
@@ -122,8 +129,8 @@ function validateProfileFields(
 		signature,
 	};
 
-	// Check at least one field provided
-	if (!Object.values(fields).some((v) => v !== undefined)) {
+	// Check at least one field provided (skipped for registration — all profile fields optional)
+	if (!skipEmptyCheck && !Object.values(fields).some((v) => v !== undefined)) {
 		return {
 			success: false,
 			error: errorResponse("INVALID_BODY", 400, { message: "At least one field required" }, origin),

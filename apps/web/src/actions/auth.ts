@@ -54,11 +54,16 @@ async function getClientIP(): Promise<string> {
 export async function registerUser(
 	username: string,
 	password: string,
-	email?: string,
+	email: string,
+	profile?: Record<string, unknown>,
 ): Promise<{ success: true } | { error: string }> {
 	try {
 		const clientIP = await getClientIP();
-		await forumApi.postWithIP("/api/v1/auth/register", { username, password, email }, clientIP);
+		await forumApi.postWithIP(
+			"/api/v1/auth/register",
+			{ username, password, email, profile },
+			clientIP,
+		);
 		return { success: true };
 	} catch (error) {
 		if (error instanceof ForumApiError) return { error: error.code };
