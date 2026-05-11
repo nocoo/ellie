@@ -359,6 +359,70 @@ export const overview = withEntityAuth(
 // absolute unix-second value when set).
 
 const LIST_PAGE_LIMIT = 100;
+const LIST_MAX_PAGES = 10;
+
+/**
+ * Paginate `KV.list` for a `prefix`-kind family until either `limit`
+ * owned keys are collected or KV reports `list_complete`. Filters out
+ * sibling families that share the same listPrefix (e.g. `user:mini:v2:*`
+ * keys are skipped when listing the `user:mini:v1` family). Bounded
+ * by `LIST_MAX_PAGES` so a pathological family of mostly-sibling keys
+ * cannot starve the request loop.
+ */
+async function collectOwnedKeys(
+	env: Env,
+	spec: KvFamilySpec,
+	limit: number,
+	startCursor: string | undefined,
+): Promise<{
+	owned: { name: string; expiration?: number }[];
+	cursor: string | undefined;
+	listComplete: boolean;
+}> {
+	const owned: { name: string; expiration?: number }[] = [];
+	let nextCursor: string | undefined = startCursor;
+	let listComplete = false;
+	for (let page = 0; page < LIST_MAX_PAGES; page++) {
+		const result = await env.KV.list({
+			prefix: spec.listPrefix,
+			cursor: nextCursor,
+			limit,
+		});
+		for (const k of result.keys) {
+			if (resolveFamilyForKey(k.name)?.family === spec.family) {
+				owned.push(k);
+				if (owned.length >= limit) break;
+			}
+		}
+		if (result.list_complete) {
+			listComplete = true;
+			nextCursor = undefined;
+			break;
+		}
+		nextCursor = result.cursor;
+		if (owned.length >= limit) break;
+	}
+	return { owned, cursor: nextCursor, listComplete };
+}
+
+async function listSingletonFamily(
+	env: Env,
+	spec: KvFamilySpec,
+	origin: string | undefined,
+): Promise<Response> {
+	const single = await env.KV.get(spec.listPrefix);
+	const keys =
+		single === null
+			? []
+			: [
+					{
+						key: await maskKeyName(spec.listPrefix, spec),
+						rawKey: spec.nameSensitivity === "public" ? spec.listPrefix : null,
+						expiration: await probeExpirationFor(env, spec.listPrefix),
+					},
+				];
+	return jsonResponse({ family: spec.family, keys, cursor: null, listComplete: true }, origin);
+}
 
 export const listFamily = withEntityAuth(
 	kvConfig,
@@ -378,18 +442,7 @@ export const listFamily = withEntityAuth(
 
 		// Singleton family: at most one key, no pagination needed.
 		if (spec.keyKind === "exact") {
-			const single = await env.KV.get(spec.listPrefix);
-			const keys =
-				single === null
-					? []
-					: [
-							{
-								key: await maskKeyName(spec.listPrefix, spec),
-								rawKey: spec.nameSensitivity === "public" ? spec.listPrefix : null,
-								expiration: await probeExpirationFor(env, spec.listPrefix),
-							},
-						];
-			return jsonResponse({ family: spec.family, keys, cursor: null, listComplete: true }, origin);
+			return listSingletonFamily(env, spec, origin);
 		}
 
 		const cursor = readQuery(request, "cursor") ?? undefined;
@@ -399,17 +452,14 @@ export const listFamily = withEntityAuth(
 			LIST_PAGE_LIMIT,
 		);
 
-		const result = await env.KV.list({
-			prefix: spec.listPrefix,
-			cursor,
-			limit,
-		});
+		const {
+			owned,
+			cursor: nextCursor,
+			listComplete,
+		} = await collectOwnedKeys(env, spec, limit, cursor);
 
-		// Filter to keys actually owned by this family (handles overlapping
-		// prefixes like user:mini: vs user:mini:v2:).
-		const owned = result.keys.filter((k) => resolveFamilyForKey(k.name)?.family === spec.family);
 		const masked = await Promise.all(
-			owned.map(async (k) => ({
+			owned.slice(0, limit).map(async (k) => ({
 				key: await maskKeyName(k.name, spec),
 				rawKey: spec.nameSensitivity === "public" ? k.name : null,
 				expiration: k.expiration ?? null,
@@ -420,8 +470,8 @@ export const listFamily = withEntityAuth(
 			{
 				family: spec.family,
 				keys: masked,
-				cursor: result.list_complete ? null : result.cursor,
-				listComplete: result.list_complete,
+				cursor: listComplete ? null : (nextCursor ?? null),
+				listComplete,
 			},
 			origin,
 		);

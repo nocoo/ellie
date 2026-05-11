@@ -202,10 +202,10 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		ttl: 60,
 		nameSensitivity: "public",
 		valueSensitivity: "public",
-		refresh: { kind: "bump-thread-list-all" },
+		refresh: { kind: "bump-thread-list-forum", requires: ["forumId"] },
 		genKeys: ["thread:list:gen:all"],
 		description:
-			"Page1 thread-list cache, gated by both per-forum and global gen. Use bump-thread-list-forum for targeted invalidation.",
+			"Page1 thread-list cache, gated by both per-forum and global gen. Default refresh is per-forum bump; the global all-gen sweep lives on the gen:thread:list:all family for cross-forum invalidation.",
 	},
 	// ─── Per-user mini cache (live v1) ─────────────────────────────
 	{
@@ -646,6 +646,7 @@ export const KV_PUT_PREFIX_ALLOWLIST: readonly string[] = [
 	"forum:tree:gen",
 	"forum:summary:gen",
 	"thread:list:gen:",
+	"thread:list:gen:all",
 	"digest:gen",
 	"thread:meta:gen:",
 	"post:list:gen:",
