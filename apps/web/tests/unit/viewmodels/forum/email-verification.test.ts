@@ -225,6 +225,33 @@ describe("nextState", () => {
 			error: null,
 		});
 	});
+
+	it("reset_to_idle from code-sent returns to idle (change-email flow)", () => {
+		const codeSent: FormState = {
+			kind: "code-sent",
+			sentTo: "x@y.io",
+			nextResendAllowedAt: 42,
+			codeDeadline: 1700000900,
+			error: null,
+		};
+		expect(nextState(codeSent, { type: "reset_to_idle" })).toEqual<FormState>({
+			kind: "idle",
+			error: null,
+		});
+	});
+
+	it("code-sent → sending on send_start (resend path)", () => {
+		const codeSent: FormState = {
+			kind: "code-sent",
+			sentTo: "x@y.io",
+			nextResendAllowedAt: 0,
+			codeDeadline: 1700000900,
+			error: null,
+		};
+		expect(nextState(codeSent, { type: "send_start" })).toEqual<FormState>({
+			kind: "sending",
+		});
+	});
 });
 
 // ─── makeRequestCodeBody / makeVerifyBody ────────────────────────────────────

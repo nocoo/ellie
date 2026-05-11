@@ -211,6 +211,7 @@ function EmailVerificationForm({
 	const [code, setCode] = useState("");
 	const [capToken, setCapToken] = useState<string | null>(null);
 	const [widgetKey, setWidgetKey] = useState(0);
+	const [isEditingEmail, setIsEditingEmail] = useState(false);
 	const resetCap = () => {
 		setCapToken(null);
 		setWidgetKey((k) => k + 1);
@@ -284,6 +285,13 @@ function EmailVerificationForm({
 		}
 	};
 
+	const handleChangeEmail = () => {
+		dispatch({ type: "reset_to_idle" });
+		setCode("");
+		setIsEditingEmail(true);
+		resetCap();
+	};
+
 	// ── Countdown timers ─────────────────────────────────────────────────
 	const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
 
@@ -320,7 +328,7 @@ function EmailVerificationForm({
 						autoComplete="email"
 						value={email}
 						onChange={(e) => setEmail(e.target.value)}
-						disabled={!emailEditable || isBusy || isConfigError}
+						disabled={(!emailEditable && !isEditingEmail) || isBusy || isConfigError}
 						placeholder="you@example.com"
 					/>
 				</div>
@@ -359,6 +367,15 @@ function EmailVerificationForm({
 								<span>{formatCountdown(resendCooldownLeft)} 后可重发</span>
 							)}
 						</div>
+						{resendCooldownLeft === 0 && !isBusy && (
+							<button
+								type="button"
+								className="self-start text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+								onClick={handleChangeEmail}
+							>
+								没收到？修改邮箱
+							</button>
+						)}
 					</div>
 				)}
 
