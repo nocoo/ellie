@@ -4,19 +4,32 @@ import {
 	canSubmitRegister,
 	passwordStrength,
 	registerErrorMessage,
+	validateBirthday,
 	validateEmail,
+	validateQQ,
+	validateSite,
 	validateUsername,
 } from "@/viewmodels/forum/register";
 import { describe, expect, it } from "vitest";
 
-/** Shorthand: merge auth fields with profile defaults for canSubmitRegister */
-function regState(auth: {
-	username: string;
-	password: string;
-	confirmPassword: string;
-	email: string;
-}) {
-	return { ...auth, ...REGISTER_PROFILE_DEFAULTS };
+/** Shorthand: merge auth + required education fields with profile defaults */
+function regState(
+	auth: {
+		username: string;
+		password: string;
+		confirmPassword: string;
+		email: string;
+	},
+	overrides: Partial<typeof REGISTER_PROFILE_DEFAULTS> = {},
+) {
+	return {
+		...auth,
+		...REGISTER_PROFILE_DEFAULTS,
+		// Education fields required for canSubmitRegister
+		graduateSchool: "校内人士",
+		campus: "四平路校区",
+		...overrides,
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -126,6 +139,139 @@ describe("validateEmail", () => {
 });
 
 // ---------------------------------------------------------------------------
+// validateBirthday
+// ---------------------------------------------------------------------------
+
+describe("validateBirthday", () => {
+	it("returns null when all empty (optional)", () => {
+		expect(validateBirthday("", "", "")).toBeNull();
+	});
+
+	it("returns error for partial fill (year only)", () => {
+		expect(validateBirthday("1990", "", "")).not.toBeNull();
+	});
+
+	it("returns error for partial fill (year + month only)", () => {
+		expect(validateBirthday("1990", "6", "")).not.toBeNull();
+	});
+
+	it("returns error for partial fill (day only)", () => {
+		expect(validateBirthday("", "", "15")).not.toBeNull();
+	});
+
+	it("returns null for valid complete date", () => {
+		expect(validateBirthday("1990", "6", "15")).toBeNull();
+	});
+
+	it("returns error for non-numeric year", () => {
+		expect(validateBirthday("abc", "6", "15")).not.toBeNull();
+	});
+
+	it("returns error for non-numeric month", () => {
+		expect(validateBirthday("1990", "ab", "15")).not.toBeNull();
+	});
+
+	it("returns error for non-numeric day", () => {
+		expect(validateBirthday("1990", "6", "xx")).not.toBeNull();
+	});
+
+	it("returns error for year before 1900", () => {
+		expect(validateBirthday("1899", "1", "1")).not.toBeNull();
+	});
+
+	it("returns error for year in future", () => {
+		const futureYear = String(new Date().getFullYear() + 1);
+		expect(validateBirthday(futureYear, "1", "1")).not.toBeNull();
+	});
+
+	it("accepts current year", () => {
+		const thisYear = String(new Date().getFullYear());
+		expect(validateBirthday(thisYear, "1", "1")).toBeNull();
+	});
+
+	it("returns error for month 0", () => {
+		expect(validateBirthday("1990", "0", "1")).not.toBeNull();
+	});
+
+	it("returns error for month 13", () => {
+		expect(validateBirthday("1990", "13", "1")).not.toBeNull();
+	});
+
+	it("returns error for day 0", () => {
+		expect(validateBirthday("1990", "1", "0")).not.toBeNull();
+	});
+
+	it("returns error for Feb 30", () => {
+		expect(validateBirthday("1990", "2", "30")).not.toBeNull();
+	});
+
+	it("accepts Feb 29 in leap year (2000)", () => {
+		expect(validateBirthday("2000", "2", "29")).toBeNull();
+	});
+
+	it("rejects Feb 29 in non-leap year (1999)", () => {
+		expect(validateBirthday("1999", "2", "29")).not.toBeNull();
+	});
+
+	it("accepts Jan 31", () => {
+		expect(validateBirthday("1990", "1", "31")).toBeNull();
+	});
+
+	it("rejects Apr 31", () => {
+		expect(validateBirthday("1990", "4", "31")).not.toBeNull();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// validateQQ
+// ---------------------------------------------------------------------------
+
+describe("validateQQ", () => {
+	it("returns null for empty (optional)", () => {
+		expect(validateQQ("")).toBeNull();
+	});
+
+	it("returns null for valid QQ number", () => {
+		expect(validateQQ("12345")).toBeNull();
+		expect(validateQQ("123456789")).toBeNull();
+	});
+
+	it("returns error for non-numeric", () => {
+		expect(validateQQ("abc123")).not.toBeNull();
+	});
+
+	it("returns error for too short (< 5 digits)", () => {
+		expect(validateQQ("1234")).not.toBeNull();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// validateSite
+// ---------------------------------------------------------------------------
+
+describe("validateSite", () => {
+	it("returns null for empty (optional)", () => {
+		expect(validateSite("")).toBeNull();
+	});
+
+	it("returns null for valid https URL", () => {
+		expect(validateSite("https://example.com")).toBeNull();
+	});
+
+	it("returns null for valid http URL", () => {
+		expect(validateSite("http://example.com")).toBeNull();
+	});
+
+	it("returns error for non-URL string", () => {
+		expect(validateSite("not-a-url")).not.toBeNull();
+	});
+
+	it("returns error for ftp protocol", () => {
+		expect(validateSite("ftp://files.example.com")).not.toBeNull();
+	});
+});
+
+// ---------------------------------------------------------------------------
 // canSubmitRegister
 // ---------------------------------------------------------------------------
 
@@ -195,7 +341,87 @@ describe("canSubmitRegister", () => {
 		).toBe(false);
 	});
 
-	it("returns true when all fields valid", () => {
+	it("returns false when graduateSchool is empty", () => {
+		expect(
+			canSubmitRegister(
+				regState(
+					{
+						username: "validuser",
+						password: "123456",
+						confirmPassword: "123456",
+						email: "u@e.com",
+					},
+					{ graduateSchool: "" },
+				),
+			),
+		).toBe(false);
+	});
+
+	it("returns false when campus is empty", () => {
+		expect(
+			canSubmitRegister(
+				regState(
+					{
+						username: "validuser",
+						password: "123456",
+						confirmPassword: "123456",
+						email: "u@e.com",
+					},
+					{ campus: "" },
+				),
+			),
+		).toBe(false);
+	});
+
+	it("returns false when birthday is partially filled", () => {
+		expect(
+			canSubmitRegister(
+				regState(
+					{
+						username: "validuser",
+						password: "123456",
+						confirmPassword: "123456",
+						email: "u@e.com",
+					},
+					{ birthYear: "1990", birthMonth: "", birthDay: "" },
+				),
+			),
+		).toBe(false);
+	});
+
+	it("returns false when QQ is non-numeric", () => {
+		expect(
+			canSubmitRegister(
+				regState(
+					{
+						username: "validuser",
+						password: "123456",
+						confirmPassword: "123456",
+						email: "u@e.com",
+					},
+					{ qq: "abc" },
+				),
+			),
+		).toBe(false);
+	});
+
+	it("returns false when site is invalid URL", () => {
+		expect(
+			canSubmitRegister(
+				regState(
+					{
+						username: "validuser",
+						password: "123456",
+						confirmPassword: "123456",
+						email: "u@e.com",
+					},
+					{ site: "not-a-url" },
+				),
+			),
+		).toBe(false);
+	});
+
+	it("returns true when all fields valid (with education)", () => {
 		expect(
 			canSubmitRegister(
 				regState({
@@ -207,6 +433,22 @@ describe("canSubmitRegister", () => {
 			),
 		).toBe(true);
 	});
+
+	it("returns true with valid birthday", () => {
+		expect(
+			canSubmitRegister(
+				regState(
+					{
+						username: "validuser",
+						password: "123456",
+						confirmPassword: "123456",
+						email: "user@example.com",
+					},
+					{ birthYear: "1990", birthMonth: "6", birthDay: "15" },
+				),
+			),
+		).toBe(true);
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -215,59 +457,51 @@ describe("canSubmitRegister", () => {
 
 describe("buildRegisterProfile", () => {
 	it("returns undefined when all fields are defaults", () => {
-		const state = regState({
-			username: "u",
-			password: "123456",
-			confirmPassword: "123456",
-			email: "u@e.com",
-		});
+		const state = regState(
+			{ username: "u", password: "123456", confirmPassword: "123456", email: "u@e.com" },
+			{ graduateSchool: "", campus: "" },
+		);
 		expect(buildRegisterProfile(state)).toBeUndefined();
 	});
 
 	it("includes gender when non-zero", () => {
-		const state = {
-			...regState({ username: "u", password: "p", confirmPassword: "p", email: "e@e.com" }),
-			gender: 1,
-		};
+		const state = regState(
+			{ username: "u", password: "p", confirmPassword: "p", email: "e@e.com" },
+			{ gender: 1, graduateSchool: "", campus: "" },
+		);
 		expect(buildRegisterProfile(state)).toEqual({ gender: 1 });
 	});
 
 	it("includes campus when non-empty", () => {
-		const state = {
-			...regState({ username: "u", password: "p", confirmPassword: "p", email: "e@e.com" }),
-			campus: " 同济大学 ",
-		};
+		const state = regState(
+			{ username: "u", password: "p", confirmPassword: "p", email: "e@e.com" },
+			{ campus: " 同济大学 ", graduateSchool: "" },
+		);
 		expect(buildRegisterProfile(state)).toEqual({ campus: "同济大学" });
 	});
 
 	it("includes numeric birthday fields", () => {
-		const state = {
-			...regState({ username: "u", password: "p", confirmPassword: "p", email: "e@e.com" }),
-			birthYear: "1990",
-			birthMonth: "6",
-			birthDay: "15",
-		};
+		const state = regState(
+			{ username: "u", password: "p", confirmPassword: "p", email: "e@e.com" },
+			{ birthYear: "1990", birthMonth: "6", birthDay: "15", graduateSchool: "", campus: "" },
+		);
 		const profile = buildRegisterProfile(state);
 		expect(profile).toEqual({ birthYear: 1990, birthMonth: 6, birthDay: 15 });
 	});
 
 	it("ignores non-numeric birthday strings", () => {
-		const state = {
-			...regState({ username: "u", password: "p", confirmPassword: "p", email: "e@e.com" }),
-			birthYear: "abc",
-			birthMonth: "",
-			birthDay: "",
-		};
+		const state = regState(
+			{ username: "u", password: "p", confirmPassword: "p", email: "e@e.com" },
+			{ birthYear: "abc", birthMonth: "", birthDay: "", graduateSchool: "", campus: "" },
+		);
 		expect(buildRegisterProfile(state)).toBeUndefined();
 	});
 
 	it("includes multiple string fields trimmed", () => {
-		const state = {
-			...regState({ username: "u", password: "p", confirmPassword: "p", email: "e@e.com" }),
-			bio: " Hello ",
-			qq: "12345",
-			site: "https://example.com",
-		};
+		const state = regState(
+			{ username: "u", password: "p", confirmPassword: "p", email: "e@e.com" },
+			{ bio: " Hello ", qq: "12345", site: "https://example.com", graduateSchool: "", campus: "" },
+		);
 		expect(buildRegisterProfile(state)).toEqual({
 			bio: "Hello",
 			qq: "12345",
@@ -276,11 +510,10 @@ describe("buildRegisterProfile", () => {
 	});
 
 	it("excludes fields that are empty strings", () => {
-		const state = {
-			...regState({ username: "u", password: "p", confirmPassword: "p", email: "e@e.com" }),
-			bio: "",
-			interest: "   ",
-		};
+		const state = regState(
+			{ username: "u", password: "p", confirmPassword: "p", email: "e@e.com" },
+			{ bio: "", interest: "   ", graduateSchool: "", campus: "" },
+		);
 		expect(buildRegisterProfile(state)).toBeUndefined();
 	});
 });

@@ -6,7 +6,7 @@
 // ---------------------------------------------------------------------------
 
 /** Username regex: 2-15 chars, Chinese/English/digits/underscore */
-const USERNAME_REGEX = /^[\u4e00-\u9fa5a-zA-Z0-9_]{2,15}$/;
+const USERNAME_REGEX = /^[一-龥a-zA-Z0-9_]{2,15}$/;
 
 /** Validate username format. Returns error message or null. */
 export function validateUsername(username: string): string | null {
@@ -48,6 +48,66 @@ export function validateEmail(email: string): string | null {
 	return null;
 }
 
+/**
+ * Validate birthday fields. Returns error message or null.
+ * All three fields must be either all empty or all valid.
+ */
+export function validateBirthday(year: string, month: string, day: string): string | null {
+	const y = year.trim();
+	const m = month.trim();
+	const d = day.trim();
+
+	// All empty — optional, OK
+	if (!y && !m && !d) return null;
+
+	// Partial fill — require all three
+	if (!y || !m || !d) return "请完整填写出生日期（年、月、日）";
+
+	// Must be numeric
+	const yNum = Number.parseInt(y, 10);
+	const mNum = Number.parseInt(m, 10);
+	const dNum = Number.parseInt(d, 10);
+
+	if (Number.isNaN(yNum) || String(yNum) !== y) return "年份须为数字";
+	if (Number.isNaN(mNum) || String(mNum) !== m) return "月份须为数字";
+	if (Number.isNaN(dNum) || String(dNum) !== d) return "日期须为数字";
+
+	// Range checks
+	const currentYear = new Date().getFullYear();
+	if (yNum < 1900 || yNum > currentYear) return `年份须在 1900–${currentYear} 之间`;
+	if (mNum < 1 || mNum > 12) return "月份须在 1–12 之间";
+
+	// Days in month (handles leap years via Date constructor)
+	const maxDay = new Date(yNum, mNum, 0).getDate();
+	if (dNum < 1 || dNum > maxDay) return `${mNum} 月最多 ${maxDay} 天`;
+
+	return null;
+}
+
+/** Validate QQ number. Returns error message or null. Empty = optional. */
+export function validateQQ(qq: string): string | null {
+	const trimmed = qq.trim();
+	if (!trimmed) return null;
+	if (!/^\d+$/.test(trimmed)) return "QQ 号码只能包含数字";
+	if (trimmed.length < 5) return "QQ 号码至少 5 位";
+	return null;
+}
+
+/** Validate site URL. Returns error message or null. Empty = optional. */
+export function validateSite(site: string): string | null {
+	const trimmed = site.trim();
+	if (!trimmed) return null;
+	try {
+		const url = new URL(trimmed);
+		if (url.protocol !== "http:" && url.protocol !== "https:") {
+			return "网站地址须以 http:// 或 https:// 开头";
+		}
+		return null;
+	} catch {
+		return "网站地址格式不正确";
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Form state
 // ---------------------------------------------------------------------------
@@ -57,7 +117,7 @@ export interface RegisterFormState {
 	password: string;
 	confirmPassword: string;
 	email: string;
-	// Optional profile fields
+	// Profile fields
 	gender: number;
 	campus: string;
 	birthYear: string;
@@ -99,6 +159,14 @@ export function canSubmitRegister(state: RegisterFormState): boolean {
 	if (state.password.length < 6) return false;
 	if (state.password !== state.confirmPassword) return false;
 	if (validateEmail(state.email) !== null) return false;
+	// Education fields are required
+	if (!state.graduateSchool.trim()) return false;
+	if (!state.campus.trim()) return false;
+	// Birthday validation (optional but must be valid if partially filled)
+	if (validateBirthday(state.birthYear, state.birthMonth, state.birthDay) !== null) return false;
+	// QQ and site format validation
+	if (validateQQ(state.qq) !== null) return false;
+	if (validateSite(state.site) !== null) return false;
 	return true;
 }
 

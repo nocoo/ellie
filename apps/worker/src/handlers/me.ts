@@ -87,6 +87,69 @@ type ValidationResult =
 	| { success: true; fields: Record<string, unknown> }
 	| { success: false; error: Response };
 
+/** Validate birthday, QQ, and site fields. Returns error Response or null if valid. */
+function validateExtendedFields(
+	birthYear: number | undefined,
+	birthMonth: number | undefined,
+	birthDay: number | undefined,
+	qq: string | undefined,
+	site: string | undefined,
+	origin: string | undefined,
+): Response | null {
+	// Birthday: if any field provided, require all three
+	const hasBirthYear = birthYear !== undefined;
+	const hasBirthMonth = birthMonth !== undefined;
+	const hasBirthDay = birthDay !== undefined;
+	if (
+		(hasBirthYear || hasBirthMonth || hasBirthDay) &&
+		!(hasBirthYear && hasBirthMonth && hasBirthDay)
+	) {
+		return errorResponse(
+			"INVALID_BODY",
+			400,
+			{ message: "Incomplete birthday — provide year, month, and day" },
+			origin,
+		);
+	}
+	const currentYear = new Date().getFullYear();
+	if (birthYear !== undefined && (birthYear < 1900 || birthYear > currentYear)) {
+		return errorResponse("INVALID_BODY", 400, { message: "Invalid birth year" }, origin);
+	}
+	if (birthMonth !== undefined && (birthMonth < 1 || birthMonth > 12)) {
+		return errorResponse("INVALID_BODY", 400, { message: "Invalid birth month" }, origin);
+	}
+	if (birthDay !== undefined && birthYear !== undefined && birthMonth !== undefined) {
+		const maxDay = new Date(birthYear, birthMonth, 0).getDate();
+		if (birthDay < 1 || birthDay > maxDay) {
+			return errorResponse("INVALID_BODY", 400, { message: "Invalid birth day" }, origin);
+		}
+	}
+
+	// QQ: numeric only
+	if (qq !== undefined && qq.length > 0 && !/^\d+$/.test(qq)) {
+		return errorResponse("INVALID_BODY", 400, { message: "QQ must be numeric" }, origin);
+	}
+
+	// Site: http/https URL
+	if (site !== undefined && site.length > 0) {
+		try {
+			const url = new URL(site);
+			if (url.protocol !== "http:" && url.protocol !== "https:") {
+				return errorResponse(
+					"INVALID_BODY",
+					400,
+					{ message: "Site must use http or https" },
+					origin,
+				);
+			}
+		} catch {
+			return errorResponse("INVALID_BODY", 400, { message: "Invalid site URL" }, origin);
+		}
+	}
+
+	return null;
+}
+
 /** Validate all profile fields and return collected fields or error.
  * @param skipEmptyCheck - If true, don't require at least one field (used by register) */
 export function validateProfileFields(
@@ -155,25 +218,9 @@ export function validateProfileFields(
 		};
 	}
 
-	// Validate birthday fields
-	if (birthYear !== undefined && (birthYear < 0 || birthYear > 2100)) {
-		return {
-			success: false,
-			error: errorResponse("INVALID_BODY", 400, { message: "Invalid birth year" }, origin),
-		};
-	}
-	if (birthMonth !== undefined && (birthMonth < 0 || birthMonth > 12)) {
-		return {
-			success: false,
-			error: errorResponse("INVALID_BODY", 400, { message: "Invalid birth month" }, origin),
-		};
-	}
-	if (birthDay !== undefined && (birthDay < 0 || birthDay > 31)) {
-		return {
-			success: false,
-			error: errorResponse("INVALID_BODY", 400, { message: "Invalid birth day" }, origin),
-		};
-	}
+	// Validate birthday, QQ, site via extracted helper
+	const extendedError = validateExtendedFields(birthYear, birthMonth, birthDay, qq, site, origin);
+	if (extendedError) return { success: false, error: extendedError };
 
 	// Validate string lengths
 	for (const key of Object.keys(LENGTH_ERRORS)) {

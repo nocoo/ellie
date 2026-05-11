@@ -410,9 +410,7 @@ export async function register(request: Request, env: Env): Promise<Response> {
 		if (parsed instanceof Response) return parsed;
 		const { username, password, email } = parsed;
 
-		// ── Validate optional profile fields ──
-		// Exclude email/avatar from profile — email is handled above, avatar not
-		// allowed at registration (requires separate upload flow).
+		// ── Validate profile fields (education fields required at registration) ──
 		let profileFields: Record<string, unknown> = {};
 		if (body.profile && typeof body.profile === "object") {
 			// Strip email and avatar from profile to avoid double-handling
@@ -420,12 +418,22 @@ export async function register(request: Request, env: Env): Promise<Response> {
 			const validation = validateProfileFields(
 				profileBody,
 				origin,
-				true, // skipEmptyCheck — profile fields are all optional at registration
+				true, // skipEmptyCheck — individual field presence checked below
 			);
 			if (!validation.success) {
 				return validation.error;
 			}
 			profileFields = validation.fields;
+		}
+
+		// Education fields are required at registration (not for PATCH /users/me)
+		const gs = profileFields.graduateSchool;
+		if (!gs || (typeof gs === "string" && !gs.trim())) {
+			return errorResponse("INVALID_BODY", 400, { message: "Identity type is required" }, origin);
+		}
+		const camp = profileFields.campus;
+		if (!camp || (typeof camp === "string" && !camp.trim())) {
+			return errorResponse("INVALID_BODY", 400, { message: "Campus is required" }, origin);
 		}
 
 		// Independent guards: settings lookup + censor check + IP rate-limit

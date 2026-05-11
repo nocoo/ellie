@@ -6,6 +6,9 @@ import { createMockDb, makeEnv } from "../../helpers";
 // Request factories
 // ---------------------------------------------------------------------------
 
+/** Required education profile fields for registration */
+const REQUIRED_PROFILE = { graduateSchool: "校内人士", campus: "四平路校区" };
+
 function createRegisterRequest(body: Record<string, unknown>) {
 	return new Request("https://example.com/api/v1/auth/register", {
 		method: "POST",
@@ -173,6 +176,7 @@ describe("register", () => {
 				username: "测试user_123",
 				password: "123456",
 				email: "test@example.com",
+				profile: REQUIRED_PROFILE,
 			}),
 			env,
 		);
@@ -190,7 +194,12 @@ describe("register", () => {
 		});
 		const env = makeEnv({ DB: db, KV: createMockKV() });
 		const res = await register(
-			createRegisterRequest({ username: "badword", password: "123456", email: "test@example.com" }),
+			createRegisterRequest({
+				username: "badword",
+				password: "123456",
+				email: "test@example.com",
+				profile: REQUIRED_PROFILE,
+			}),
 			env,
 		);
 		expect(res.status).toBe(400);
@@ -215,6 +224,7 @@ describe("register", () => {
 				username: "validuser",
 				password: "123456",
 				email: "test@example.com",
+				profile: REQUIRED_PROFILE,
 			}),
 			env,
 		);
@@ -233,6 +243,7 @@ describe("register", () => {
 				username: "validuser",
 				password: "123456",
 				email: "test@example.com",
+				profile: REQUIRED_PROFILE,
 			}),
 			env,
 		);
@@ -263,6 +274,7 @@ describe("register", () => {
 				username: "newuser",
 				password: "mypassword",
 				email: "new@example.com",
+				profile: REQUIRED_PROFILE,
 			}),
 			env,
 		);
@@ -305,6 +317,7 @@ describe("register", () => {
 				username: "validuser",
 				password: "123456",
 				email: "test@example.com",
+				profile: REQUIRED_PROFILE,
 			}),
 			env,
 		);
@@ -327,6 +340,7 @@ describe("register", () => {
 				username: "validuser",
 				password: "123456",
 				email: "test@example.com",
+				profile: REQUIRED_PROFILE,
 			}),
 			env,
 		);
@@ -345,6 +359,7 @@ describe("register", () => {
 				username: "validuser",
 				password: "123456",
 				email: "test@example.com",
+				profile: REQUIRED_PROFILE,
 			}),
 			env,
 		);
@@ -393,6 +408,7 @@ describe("register", () => {
 				username: "existinguser",
 				password: "123456",
 				email: "test@example.com",
+				profile: REQUIRED_PROFILE,
 			}),
 			env,
 		);
@@ -422,6 +438,7 @@ describe("register", () => {
 				profile: {
 					gender: 1,
 					campus: "四平路校区",
+					graduateSchool: "校内人士",
 					bio: "Hello!",
 				},
 			}),
@@ -514,7 +531,7 @@ describe("register", () => {
 				username: "campususer",
 				password: "123456",
 				email: "campus@example.com",
-				profile: { campus: "嘉定校区" },
+				profile: { campus: "嘉定校区", graduateSchool: "已毕业校友" },
 			}),
 			env,
 		);
@@ -528,7 +545,7 @@ describe("register", () => {
 		expect(sql).toContain("campus");
 	});
 
-	it("registers successfully without profile fields", async () => {
+	it("rejects registration without profile (education required) → INVALID_BODY 400", async () => {
 		const { db } = createMockDb({
 			allResults: { "SELECT id, find": [] },
 			firstResults: { "SELECT value FROM settings": { value: "true" } },
@@ -545,7 +562,9 @@ describe("register", () => {
 			}),
 			env,
 		);
-		expect(res.status).toBe(201);
+		expect(res.status).toBe(400);
+		const body = (await res.json()) as { error: { code: string } };
+		expect(body.error.code).toBe("INVALID_BODY");
 	});
 
 	it("strips email and avatar from profile to prevent double-handling", async () => {
@@ -562,7 +581,12 @@ describe("register", () => {
 				username: "stripuser",
 				password: "123456",
 				email: "strip@example.com",
-				profile: { email: "override@example.com", avatar: "hacked.jpg", gender: 2 },
+				profile: {
+					email: "override@example.com",
+					avatar: "hacked.jpg",
+					gender: 2,
+					...REQUIRED_PROFILE,
+				},
 			}),
 			env,
 		);
@@ -577,6 +601,155 @@ describe("register", () => {
 		// email appears once (from the top-level field), not from profile
 		const emailMatches = sql.match(/email/g);
 		expect(emailMatches?.length).toBe(1);
+	});
+
+	// ── Required education fields ──
+
+	it("rejects missing identity type (graduateSchool) → INVALID_BODY 400", async () => {
+		const env = makeEnv();
+		const res = await register(
+			createRegisterRequest({
+				username: "validuser",
+				password: "123456",
+				email: "test@example.com",
+				profile: { campus: "四平路校区" },
+			}),
+			env,
+		);
+		expect(res.status).toBe(400);
+		const body = (await res.json()) as { error: { code: string; details?: { message: string } } };
+		expect(body.error.code).toBe("INVALID_BODY");
+		expect(body.error.details?.message).toContain("Identity type");
+	});
+
+	it("rejects missing campus → INVALID_BODY 400", async () => {
+		const env = makeEnv();
+		const res = await register(
+			createRegisterRequest({
+				username: "validuser",
+				password: "123456",
+				email: "test@example.com",
+				profile: { graduateSchool: "校内人士" },
+			}),
+			env,
+		);
+		expect(res.status).toBe(400);
+		const body = (await res.json()) as { error: { code: string; details?: { message: string } } };
+		expect(body.error.code).toBe("INVALID_BODY");
+		expect(body.error.details?.message).toContain("Campus");
+	});
+
+	// ── Birthday validation (strengthened) ──
+
+	it("rejects incomplete birthday (only year) → INVALID_BODY 400", async () => {
+		const env = makeEnv();
+		const res = await register(
+			createRegisterRequest({
+				username: "validuser",
+				password: "123456",
+				email: "test@example.com",
+				profile: { ...REQUIRED_PROFILE, birthYear: 1990 },
+			}),
+			env,
+		);
+		expect(res.status).toBe(400);
+		const body = (await res.json()) as { error: { code: string; details?: { message: string } } };
+		expect(body.error.code).toBe("INVALID_BODY");
+		expect(body.error.details?.message).toContain("Incomplete birthday");
+	});
+
+	it("rejects birth year before 1900 → INVALID_BODY 400", async () => {
+		const env = makeEnv();
+		const res = await register(
+			createRegisterRequest({
+				username: "validuser",
+				password: "123456",
+				email: "test@example.com",
+				profile: { ...REQUIRED_PROFILE, birthYear: 1800, birthMonth: 1, birthDay: 1 },
+			}),
+			env,
+		);
+		expect(res.status).toBe(400);
+	});
+
+	it("rejects birth month 0 → INVALID_BODY 400", async () => {
+		const env = makeEnv();
+		const res = await register(
+			createRegisterRequest({
+				username: "validuser",
+				password: "123456",
+				email: "test@example.com",
+				profile: { ...REQUIRED_PROFILE, birthYear: 1990, birthMonth: 0, birthDay: 1 },
+			}),
+			env,
+		);
+		expect(res.status).toBe(400);
+	});
+
+	it("rejects Feb 30 → INVALID_BODY 400", async () => {
+		const env = makeEnv();
+		const res = await register(
+			createRegisterRequest({
+				username: "validuser",
+				password: "123456",
+				email: "test@example.com",
+				profile: { ...REQUIRED_PROFILE, birthYear: 1990, birthMonth: 2, birthDay: 30 },
+			}),
+			env,
+		);
+		expect(res.status).toBe(400);
+	});
+
+	// ── QQ validation ──
+
+	it("rejects non-numeric QQ → INVALID_BODY 400", async () => {
+		const env = makeEnv();
+		const res = await register(
+			createRegisterRequest({
+				username: "validuser",
+				password: "123456",
+				email: "test@example.com",
+				profile: { ...REQUIRED_PROFILE, qq: "abc123" },
+			}),
+			env,
+		);
+		expect(res.status).toBe(400);
+		const body = (await res.json()) as { error: { code: string; details?: { message: string } } };
+		expect(body.error.code).toBe("INVALID_BODY");
+		expect(body.error.details?.message).toContain("QQ");
+	});
+
+	// ── Site URL validation ──
+
+	it("rejects invalid site URL → INVALID_BODY 400", async () => {
+		const env = makeEnv();
+		const res = await register(
+			createRegisterRequest({
+				username: "validuser",
+				password: "123456",
+				email: "test@example.com",
+				profile: { ...REQUIRED_PROFILE, site: "not-a-url" },
+			}),
+			env,
+		);
+		expect(res.status).toBe(400);
+		const body = (await res.json()) as { error: { code: string; details?: { message: string } } };
+		expect(body.error.code).toBe("INVALID_BODY");
+		expect(body.error.details?.message).toContain("site");
+	});
+
+	it("rejects ftp site URL → INVALID_BODY 400", async () => {
+		const env = makeEnv();
+		const res = await register(
+			createRegisterRequest({
+				username: "validuser",
+				password: "123456",
+				email: "test@example.com",
+				profile: { ...REQUIRED_PROFILE, site: "ftp://files.example.com" },
+			}),
+			env,
+		);
+		expect(res.status).toBe(400);
 	});
 });
 
