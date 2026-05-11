@@ -30,13 +30,13 @@
 //      the operator never gets a button that immediately tells them
 //      "needs more input".
 
+import { SegmentedSwitch } from "@/components/admin/segmented-switch";
 import { Badge } from "@ellie/ui";
 import { Button } from "@ellie/ui";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@ellie/ui";
 import { ConfirmDialog } from "@ellie/ui";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@ellie/ui";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@ellie/ui";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ellie/ui";
 import { ChevronDown, ChevronRight, Eye, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -714,6 +714,10 @@ export default function KvMonitorPage() {
 	// Tick once a minute so "还剩 Xm" doesn't go stale while the user
 	// stares at the page.
 	const [now, setNow] = useState<number>(() => Date.now());
+	// Panel switcher between overview/metrics — controlled state replaces the
+	// previous shadcn Tabs `defaultValue`, so the SegmentedSwitch can drive
+	// which `<div role="tabpanel">` renders below.
+	const [activeView, setActiveView] = useState<"overview" | "metrics">("overview");
 	useEffect(() => {
 		const id = setInterval(() => setNow(Date.now()), 30_000);
 		return () => clearInterval(id);
@@ -940,13 +944,27 @@ export default function KvMonitorPage() {
 				</Card>
 			)}
 
-			<Tabs defaultValue="overview">
-				<TabsList>
-					<TabsTrigger value="overview">家族总览</TabsTrigger>
-					<TabsTrigger value="metrics">命中指标 (近 {METRICS_MINUTES} 分钟)</TabsTrigger>
-				</TabsList>
+			{/*
+			 * Panel switcher: SegmentedSwitch (~32px) replaces the previous
+			 * shadcn Tabs (h-10 control + extra outer Card per panel). The
+			 * switch is intentionally inline-positioned at standard control
+			 * height so the page header reads as one band of controls rather
+			 * than a tall navigation strip on top of every section.
+			 */}
+			<div className="flex items-center justify-start">
+				<SegmentedSwitch
+					ariaLabel="切换 KV 监控视图"
+					value={activeView}
+					onValueChange={setActiveView}
+					options={[
+						{ value: "overview", label: "家族总览" },
+						{ value: "metrics", label: `命中指标 (近 ${METRICS_MINUTES} 分钟)` },
+					]}
+				/>
+			</div>
 
-				<TabsContent value="overview">
+			{activeView === "overview" && (
+				<div role="tabpanel" aria-label="家族总览">
 					<Card>
 						<CardHeader>
 							<CardTitle className="text-base">KV 家族</CardTitle>
@@ -972,9 +990,11 @@ export default function KvMonitorPage() {
 							/>
 						</CardContent>
 					</Card>
-				</TabsContent>
+				</div>
+			)}
 
-				<TabsContent value="metrics">
+			{activeView === "metrics" && (
+				<div role="tabpanel" aria-label="家族级命中指标">
 					<Card>
 						<CardHeader>
 							<CardTitle className="text-base">家族级命中指标</CardTitle>
@@ -992,8 +1012,8 @@ export default function KvMonitorPage() {
 							/>
 						</CardContent>
 					</Card>
-				</TabsContent>
-			</Tabs>
+				</div>
+			)}
 
 			<Card>
 				<CardHeader>
