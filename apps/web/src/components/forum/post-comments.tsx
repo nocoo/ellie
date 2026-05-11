@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
+import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import type { PostComment } from "@ellie/types";
 import { Loader2, MessageCircle, Send } from "lucide-react";
 import Link from "next/link";
@@ -210,7 +211,10 @@ export function PostComments({
 				{!threadClosed && isLoggedIn && (
 					<button
 						type="button"
-						onClick={() => setDialogOpen(true)}
+						onClick={async () => {
+							if (await writeGatePreflight(null)) return;
+							setDialogOpen(true);
+						}}
 						className="text-xs text-forum-link hover:underline cursor-pointer"
 					>
 						+ 添加点评

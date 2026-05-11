@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 // Tests for ForumFloatingToolbar — wrapper behavior around FloatingToolbar
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,10 +11,10 @@ vi.mock("next/navigation", () => ({
 	useRouter: () => ({ push: mockPush }),
 }));
 
-// Track preflightEmailVerifiedBlock calls
-const mockPreflight = vi.fn(() => false);
-vi.mock("@/viewmodels/forum/email-not-verified-dispatch", () => ({
-	preflightEmailVerifiedBlock: (...args: unknown[]) => mockPreflight(...args),
+// Track writeGatePreflight calls (async — returns Promise<boolean>)
+const mockPreflight = vi.fn(() => Promise.resolve(false));
+vi.mock("@/viewmodels/forum/write-gate", () => ({
+	writeGatePreflight: (...args: unknown[]) => mockPreflight(...args),
 }));
 
 // Stub tooltip / popover so they just render children without portals
@@ -109,8 +109,8 @@ describe("ForumFloatingToolbar", () => {
 		expect(screen.getByRole("button", { name: "发表新帖" })).toBeDefined();
 	});
 
-	it("calls preflight and opens dialog when new-thread button is clicked", () => {
-		mockPreflight.mockReturnValue(false); // preflight passes
+	it("calls preflight and opens dialog when new-thread button is clicked", async () => {
+		mockPreflight.mockResolvedValue(false); // preflight passes
 		render(
 			createElement(ForumFloatingToolbar, {
 				page: 1,
@@ -123,14 +123,16 @@ describe("ForumFloatingToolbar", () => {
 			}),
 		);
 
-		fireEvent.click(screen.getByRole("button", { name: "发表新帖" }));
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "发表新帖" }));
+		});
 		expect(mockPreflight).toHaveBeenCalledWith(12345);
 		// Dialog should now be open
 		expect(screen.getByTestId("new-thread-dialog")).toBeDefined();
 	});
 
-	it("blocks new-thread when preflight returns true (unverified)", () => {
-		mockPreflight.mockReturnValue(true); // preflight blocks
+	it("blocks new-thread when preflight returns true (unverified)", async () => {
+		mockPreflight.mockResolvedValue(true); // preflight blocks
 		render(
 			createElement(ForumFloatingToolbar, {
 				page: 1,
@@ -143,7 +145,9 @@ describe("ForumFloatingToolbar", () => {
 			}),
 		);
 
-		fireEvent.click(screen.getByRole("button", { name: "发表新帖" }));
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "发表新帖" }));
+		});
 		expect(mockPreflight).toHaveBeenCalledWith(0);
 		// Dialog should NOT be open
 		expect(screen.queryByTestId("new-thread-dialog")).toBeNull();

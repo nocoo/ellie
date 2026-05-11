@@ -5,8 +5,8 @@ import { ReplyDialog } from "@/components/forum/reply-dialog";
 import { ThreadModMenu } from "@/components/forum/thread-mod-menu";
 import { getStaticImageUrl } from "@/lib/cdn";
 import { buildQuoteSnippet } from "@/lib/text";
-import { preflightEmailVerifiedBlock } from "@/viewmodels/forum/email-not-verified-dispatch";
 import type { EnrichedPost } from "@/viewmodels/forum/thread-detail";
+import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { formatDateTime } from "@/viewmodels/shared/formatting";
 import type { Thread } from "@ellie/types";
 import { useCallback, useEffect, useState } from "react";
@@ -62,11 +62,10 @@ export function ThreadPostsClient({
 	} | null>(null);
 
 	const handleReply = useCallback(
-		(post?: EnrichedPost) => {
-			// Phase 7-4 preflight: short-circuit unverified writers before we
-			// stage quote state / open the editor. The api-client interceptor
-			// still backstops on the actual submit if state changes.
-			if (preflightEmailVerifiedBlock(selfEmailVerifiedAt)) return;
+		async (post?: EnrichedPost) => {
+			// Unified write-gate preflight: checks email verification AND
+			// posting restrictions before opening the editor.
+			if (await writeGatePreflight(selfEmailVerifiedAt)) return;
 			if (post) {
 				// Quote reply - extract plain text snippet for quote
 				const snippet = buildQuoteSnippet(post.content);
@@ -84,8 +83,8 @@ export function ThreadPostsClient({
 		[selfEmailVerifiedAt],
 	);
 
-	const handleQuickReply = useCallback(() => {
-		if (preflightEmailVerifiedBlock(selfEmailVerifiedAt)) return;
+	const handleQuickReply = useCallback(async () => {
+		if (await writeGatePreflight(selfEmailVerifiedAt)) return;
 		setQuotedPost(null);
 		setReplyOpen(true);
 	}, [selfEmailVerifiedAt]);

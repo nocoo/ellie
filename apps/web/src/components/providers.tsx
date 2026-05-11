@@ -10,6 +10,7 @@
 
 import { EmailVerificationDialogMount } from "@/components/forum/email-verification-dialog";
 import { ForumToastProvider } from "@/components/forum/forum-toast";
+import { WriteGateDialogMount } from "@/components/forum/write-gate-dialog";
 import { AvatarProvider } from "@/contexts/avatar-context";
 import { SessionProvider } from "next-auth/react";
 import type { ReactNode } from "react";
@@ -21,6 +22,7 @@ export function Providers({ children }: { children: ReactNode }) {
 				<ForumToastProvider>
 					{children}
 					<EmailVerificationDialogMount />
+					<WriteGateDialogMount />
 				</ForumToastProvider>
 			</AvatarProvider>
 		</SessionProvider>

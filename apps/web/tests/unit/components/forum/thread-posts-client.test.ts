@@ -10,8 +10,8 @@ vi.mock("next/navigation", () => ({
 	useRouter: () => ({ push: vi.fn() }),
 }));
 
-vi.mock("@/viewmodels/forum/email-not-verified-dispatch", () => ({
-	preflightEmailVerifiedBlock: () => false,
+vi.mock("@/viewmodels/forum/write-gate", () => ({
+	writeGatePreflight: () => Promise.resolve(false),
 }));
 
 vi.mock("@/viewmodels/shared/formatting", () => ({

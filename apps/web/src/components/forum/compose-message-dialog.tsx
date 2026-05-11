@@ -23,6 +23,7 @@ import {
 	searchUsers,
 	sendMessage,
 } from "@/viewmodels/forum/messages";
+import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { AlertCircle, Loader2, Send, User, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useForumToast } from "./forum-toast";
@@ -219,6 +220,18 @@ export function ComposeMessageDialog({
 			});
 		}
 	}, [open, initialRecipient]);
+
+	// Write-gate check when dialog opens — block compose if user can't write
+	useEffect(() => {
+		if (!open) return;
+		let cancelled = false;
+		writeGatePreflight(null).then((blocked) => {
+			if (!cancelled && blocked) onOpenChange(false);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [open, onOpenChange]);
 
 	// Reset form when dialog closes
 	useEffect(() => {

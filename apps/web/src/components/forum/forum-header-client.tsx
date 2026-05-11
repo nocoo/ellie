@@ -8,7 +8,7 @@
 import { NewThreadDialog } from "@/components/forum/new-thread-dialog";
 import { SafeHtml } from "@/components/forum/safe-html";
 import { Button } from "@/components/ui/button";
-import { preflightEmailVerifiedBlock } from "@/viewmodels/forum/email-not-verified-dispatch";
+import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { formatNumber } from "@/viewmodels/shared/formatting";
 import type { Forum } from "@ellie/types";
 import { Award, PenLine } from "lucide-react";
@@ -31,13 +31,13 @@ interface ForumHeaderClientProps {
 export function ForumHeaderClient({ forum, isGroup, selfEmailVerifiedAt }: ForumHeaderClientProps) {
 	const [dialogOpen, setDialogOpen] = useState(false);
 
-	const handleNewThreadClick = () => {
-		// Preflight: if the user is unverified, fire the §5.4 dialog event
-		// and DO NOT open the editor. This avoids a confusing flow where
-		// the user fills out a thread and only learns at submit time that
-		// it can't post. The api-client interceptor still backstops if the
-		// server sees a different state at write time.
-		if (preflightEmailVerifiedBlock(selfEmailVerifiedAt)) return;
+	const handleNewThreadClick = async () => {
+		// Unified write-gate preflight: checks email verification AND posting
+		// restrictions (registration days, avatar, etc.) before opening the editor.
+		// This avoids a confusing flow where the user fills out a thread and only
+		// learns at submit time that they can't post. The server-side guards
+		// (withVerifiedEmail + checkPostingPermission) still backstop at write time.
+		if (await writeGatePreflight(selfEmailVerifiedAt)) return;
 		setDialogOpen(true);
 	};
 
