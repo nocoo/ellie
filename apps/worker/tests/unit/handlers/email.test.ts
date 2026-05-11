@@ -69,6 +69,8 @@ function makeEnv(opts: {
 	updateThrows?: Error;
 	/** If set, the next UPDATE on users reports this many changed rows. */
 	updateChanges?: number;
+	/** If set, the email_normalized uniqueness pre-check returns this row (simulating another user owns the email). */
+	emailOwner?: { id: number } | null;
 }): { env: Env; kv: KVNamespace } {
 	const dbUser = opts.dbUser;
 	const userRow =
@@ -91,6 +93,8 @@ function makeEnv(opts: {
 				userRow === null
 					? null
 					: { email_verified_at: userRow.email_verified_at, username: userRow.username },
+			// requestCode email uniqueness pre-check
+			"SELECT id FROM users WHERE email_normalized": opts.emailOwner ?? null,
 		},
 	});
 
@@ -235,6 +239,36 @@ describe("requestCode (POST /api/v1/users/me/email/request-code)", () => {
 		const res = await requestCode(await makeRequest("/x", { email: "user@example.com" }), env);
 		expect(res.status).toBe(403);
 		expect((await res.json()).error.code).toBe("EMAIL_ALREADY_VERIFIED");
+	});
+
+	it("returns 409 EMAIL_ALREADY_IN_USE when another user owns the normalized email", async () => {
+		const { env } = makeEnv({
+			dbUser: { role: 0, status: 0, email_verified_at: 0 },
+			emailOwner: { id: 999 },
+		});
+		const res = await requestCode(await makeRequest("/x", { email: "taken@example.com" }), env);
+		expect(res.status).toBe(409);
+		expect((await res.json()).error.code).toBe("EMAIL_ALREADY_IN_USE");
+	});
+
+	it("returns 409 EMAIL_ALREADY_IN_USE with case-insensitive match", async () => {
+		const { env } = makeEnv({
+			dbUser: { role: 0, status: 0, email_verified_at: 0 },
+			emailOwner: { id: 999 },
+		});
+		const res = await requestCode(await makeRequest("/x", { email: "Taken@EXAMPLE.com" }), env);
+		expect(res.status).toBe(409);
+		expect((await res.json()).error.code).toBe("EMAIL_ALREADY_IN_USE");
+	});
+
+	it("allows requestCode when no other user owns the email", async () => {
+		const { env } = makeEnv({
+			dbUser: { role: 0, status: 0, email_verified_at: 0 },
+			emailOwner: null,
+		});
+		stubDoveOk(env);
+		const res = await requestCode(await makeRequest("/x", { email: "fresh@example.com" }), env);
+		expect(res.status).toBe(200);
 	});
 
 	it("on success, persists KV record with HMAC + TTL and returns masked recipient", async () => {

@@ -417,6 +417,97 @@ describe("register", () => {
 		expect(body.error.code).toBe("USERNAME_TAKEN");
 	});
 
+	it("returns EMAIL_ALREADY_IN_USE 409 on email_normalized UNIQUE violation", async () => {
+		const mockKv = createMockKV();
+		const throwingDb = {
+			prepare: vi.fn((sql: string) => {
+				const runMock = vi.fn(async () => {
+					if (sql.includes("INSERT")) {
+						throw new Error("UNIQUE constraint failed: users.email_normalized");
+					}
+					return { success: true, meta: { last_row_id: 1, changes: 1 } };
+				});
+				const firstMock = vi.fn(async () => {
+					if (sql.includes("settings")) return { value: "true" };
+					return null;
+				});
+				const allMock = vi.fn(async () => {
+					if (sql.includes("censor_words")) return { results: [] };
+					return { results: [] };
+				});
+
+				return {
+					bind: vi.fn((..._params: unknown[]) => ({
+						first: firstMock,
+						all: allMock,
+						run: runMock,
+					})),
+					first: firstMock,
+					all: allMock,
+					run: runMock,
+				};
+			}),
+		} as unknown as D1Database;
+
+		const env = makeEnv({ DB: throwingDb, KV: mockKv });
+		const res = await register(
+			createRegisterRequest({
+				username: "newuser",
+				password: "123456",
+				email: "taken@example.com",
+				profile: REQUIRED_PROFILE,
+			}),
+			env,
+		);
+		expect(res.status).toBe(409);
+		const body = (await res.json()) as { error: { code: string } };
+		expect(body.error.code).toBe("EMAIL_ALREADY_IN_USE");
+	});
+
+	it("INSERT includes email_normalized column with lowercase value", async () => {
+		const { db } = createMockDb({
+			allResults: { "SELECT id, find": [] },
+			firstResults: { "SELECT value FROM settings": { value: "true" } },
+			runResults: {
+				"INSERT INTO users": { success: true, meta: { last_row_id: 99, changes: 1 } },
+			},
+		});
+		const env = makeEnv({ DB: db, KV: createMockKV() });
+		const res = await register(
+			createRegisterRequest({
+				username: "casetest",
+				password: "123456",
+				email: "Test@Example.COM",
+				profile: REQUIRED_PROFILE,
+			}),
+			env,
+		);
+		expect(res.status).toBe(201);
+
+		const prepareCalls = (db.prepare as ReturnType<typeof vi.fn>).mock.calls;
+		const insertCall = prepareCalls.find((c: unknown[]) =>
+			(c[0] as string).includes("INSERT INTO users"),
+		);
+		expect(insertCall).toBeDefined();
+		const sql = insertCall[0] as string;
+		expect(sql).toContain("email_normalized");
+
+		// Check actual bind calls from registration
+		const insertStmt = (db.prepare as ReturnType<typeof vi.fn>).mock.results.find(
+			(_r: unknown, i: number) =>
+				((db.prepare as ReturnType<typeof vi.fn>).mock.calls[i][0] as string).includes(
+					"INSERT INTO users",
+				),
+		);
+		expect(insertStmt).toBeDefined();
+		const boundBindMock = insertStmt.value.bind as ReturnType<typeof vi.fn>;
+		const bindArgs = boundBindMock.mock.calls[0];
+		// bindArgs should contain normalized email "test@example.com"
+		expect(bindArgs).toContain("test@example.com");
+		// And the original display email
+		expect(bindArgs).toContain("Test@Example.COM");
+	});
+
 	// ── Profile fields at registration ──
 
 	it("saves profile fields when provided in registration", async () => {
@@ -598,9 +689,10 @@ describe("register", () => {
 		);
 		const sql = insertCall[0] as string;
 		expect(sql).toContain("gender");
-		// email appears once (from the top-level field), not from profile
-		const emailMatches = sql.match(/email/g);
+		// email and email_normalized appear once each (from top-level fields), not from profile
+		const emailMatches = sql.match(/\bemail\b/g);
 		expect(emailMatches?.length).toBe(1);
+		expect(sql).toContain("email_normalized");
 	});
 
 	// ── Required education fields ──

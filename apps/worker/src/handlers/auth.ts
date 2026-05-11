@@ -1,5 +1,6 @@
 // Auth handlers for Cloudflare Worker
 import { checkCensorWords } from "../lib/censor";
+import { normalizeEmail } from "../lib/email-verify";
 import type { Env } from "../lib/env";
 import { createJwt } from "../lib/jwt";
 import { toUser } from "../lib/mappers";
@@ -346,12 +347,20 @@ function parseRegisterInput(
 
 /** Build INSERT columns + params for a new user, merging base fields with optional profile fields. */
 function buildInsertQuery(
-	base: { username: string; email: string; passwordHash: string; ip: string; now: number },
+	base: {
+		username: string;
+		email: string;
+		emailNormalized: string;
+		passwordHash: string;
+		ip: string;
+		now: number;
+	},
 	profileFields: Record<string, unknown>,
 ): { sql: string; params: unknown[] } {
 	const baseColumns = [
 		"username",
 		"email",
+		"email_normalized",
 		"password_hash",
 		"password_salt",
 		"status",
@@ -367,6 +376,7 @@ function buildInsertQuery(
 	const baseParams: unknown[] = [
 		base.username,
 		base.email,
+		base.emailNormalized,
 		base.passwordHash,
 		"",
 		0,
@@ -397,6 +407,11 @@ function buildInsertQuery(
 		sql: `INSERT INTO users (${allColumns.join(", ")}) VALUES (${placeholders})`,
 		params: allParams,
 	};
+}
+
+/** Classify a D1 UNIQUE constraint error into a structured error code. */
+function classifyUniqueConstraintError(err: Error): "EMAIL_ALREADY_IN_USE" | "USERNAME_TAKEN" {
+	return err.message.includes("email_normalized") ? "EMAIL_ALREADY_IN_USE" : "USERNAME_TAKEN";
 }
 
 /** POST /api/v1/auth/register - Register a new forum user */
@@ -471,10 +486,11 @@ export async function register(request: Request, env: Env): Promise<Response> {
 		// ── Hash password (PBKDF2-SHA256) ──
 		const passwordHash = await hashPassword(password);
 		const now = Math.floor(Date.now() / 1000);
+		const emailNormalized = normalizeEmail(email);
 
 		// ── Build & execute INSERT ──
 		const { sql, params } = buildInsertQuery(
-			{ username, email, passwordHash, ip, now },
+			{ username, email, emailNormalized, passwordHash, ip, now },
 			profileFields,
 		);
 
@@ -489,7 +505,7 @@ export async function register(request: Request, env: Env): Promise<Response> {
 			}
 		} catch (e: unknown) {
 			if (e instanceof Error && e.message.includes("UNIQUE constraint")) {
-				return errorResponse("USERNAME_TAKEN", 409, undefined, origin);
+				return errorResponse(classifyUniqueConstraintError(e), 409, undefined, origin);
 			}
 			throw e;
 		}
