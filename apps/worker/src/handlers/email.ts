@@ -106,6 +106,19 @@ export const requestCode = withAuthVerified(async (request, env, user) => {
 		return errorResponse("EMAIL_ALREADY_VERIFIED", 403, undefined, origin);
 	}
 
+	// Pre-check: reject if another user already owns this normalized email
+	// (verified or registered). Gives immediate feedback instead of waiting
+	// until verifyCode's UPDATE hits the 0029 unique index. Excludes the
+	// requesting user so re-sending to one's own pending email is not blocked.
+	const emailOwner = await env.DB.prepare(
+		"SELECT id FROM users WHERE email_normalized = ? AND email_normalized != '' AND id != ? LIMIT 1",
+	)
+		.bind(pendingEmailNormalized, user.userId)
+		.first<{ id: number }>();
+	if (emailOwner) {
+		return errorResponse("EMAIL_ALREADY_IN_USE", 409, undefined, origin);
+	}
+
 	const key = codeKvKey(user.userId);
 	const lockKey = sendLockKvKey(user.userId);
 	const now = nowSeconds();
