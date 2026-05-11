@@ -1,6 +1,6 @@
 "use client";
 
-import { NAV_GROUPS, type NavGroupDef } from "@/lib/navigation";
+import { NAV_GROUPS, type NavGroupDef, isNavItemActive } from "@/lib/navigation";
 import { VERSION_DISPLAY } from "@ellie/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@ellie/ui";
 import { Collapsible, CollapsibleTrigger } from "@ellie/ui";
@@ -113,8 +113,7 @@ function NavGroupSection({ group, pathname }: { group: NavGroup; pathname: strin
 				<div className="min-h-0 overflow-hidden">
 					<div className="flex flex-col gap-0.5 px-3">
 						{group.items.map((item) => {
-							const isActive =
-								item.href === "/admin" ? pathname === "/admin" : pathname.startsWith(item.href);
+							const isActive = isNavItemActive(pathname, item.href);
 
 							return (
 								<Link
@@ -189,8 +188,7 @@ export function Sidebar() {
 						{/* Navigation — flattened icon-only list */}
 						<nav className="flex-1 flex flex-col items-center gap-1 overflow-y-auto pt-1">
 							{allNavItems.map((item) => {
-								const isActive =
-									item.href === "/admin" ? pathname === "/admin" : pathname.startsWith(item.href);
+								const isActive = isNavItemActive(pathname, item.href);
 
 								return (
 									<Tooltip key={item.href}>

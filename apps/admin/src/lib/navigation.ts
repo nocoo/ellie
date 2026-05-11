@@ -46,7 +46,11 @@ export const NAV_GROUPS: NavGroupDef[] = [
 		label: "数据统计",
 		defaultOpen: true,
 		items: [
-			{ href: "/admin/statistics", label: "统计计算", icon: "Calculator" },
+			// `/admin/statistics/recalc` (was `/admin/statistics`). Moved out of
+			// the grouping segment so the sidebar prefix match (`/admin/statistics`)
+			// no longer double-highlights when the user is on the KV monitor page.
+			// Old path keeps a redirect for bookmarks (see app/.../statistics/page.tsx).
+			{ href: "/admin/statistics/recalc", label: "统计计算", icon: "Calculator" },
 			{ href: "/admin/statistics/kv", label: "KV 缓存监控", icon: "Database" },
 		],
 	},
@@ -86,7 +90,8 @@ export const ROUTE_LABELS: Record<string, string> = {
 	posts: "帖子",
 	forums: "版块",
 	attachments: "附件",
-	statistics: "统计计算",
+	statistics: "数据统计",
+	recalc: "统计计算",
 	kv: "KV 缓存监控",
 	reports: "举报管理",
 	"ip-bans": "IP 封禁",
@@ -104,8 +109,34 @@ export const ROUTE_LABELS: Record<string, string> = {
  * Segments that act as non-navigable group prefixes.
  * They appear in breadcrumbs as plain text (no link) even when
  * they are not the last segment.
+ *
+ * `statistics` is non-navigable because the segment is a grouping label
+ * ("数据统计"); the actual landing pages are `recalc` / `kv` underneath.
+ * The redirect from `/admin/statistics` is a compatibility shim, not a
+ * place we want to surface as a breadcrumb link.
  */
-const NON_NAVIGABLE_SEGMENTS = new Set(["admin"]);
+const NON_NAVIGABLE_SEGMENTS = new Set(["admin", "statistics"]);
+
+/**
+ * Decides whether a sidebar nav item should render in its active state for
+ * the current pathname. Pulled out as a pure function (no React) so the
+ * matching rule can be unit-tested in isolation and reused by both the
+ * expanded and collapsed sidebar variants.
+ *
+ * Rule: a nav item matches when the current pathname IS the item's href, OR
+ * when the pathname starts with `${href}/`. The trailing slash is the key
+ * detail — without it, `/admin/foo` would also match `/admin/foo-bar`, and
+ * `/admin/statistics` would match `/admin/statistics/kv` (the original
+ * double-highlight bug).
+ *
+ * `/admin` itself stays exact-match only because every other admin route is
+ * underneath it; treating it as a prefix would highlight 仪表盘 on every page.
+ */
+export function isNavItemActive(pathname: string, href: string): boolean {
+	if (href === "/admin") return pathname === "/admin";
+	if (pathname === href) return true;
+	return pathname.startsWith(`${href}/`);
+}
 
 export function breadcrumbsFromPathname(pathname: string) {
 	const segments = pathname.split("/").filter(Boolean);
