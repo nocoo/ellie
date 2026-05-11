@@ -1,6 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { __resetMetricsForTest } from "../../../src/lib/cache/metrics";
 import { getUserProfiles, invalidateUserCache } from "../../../src/lib/user-cache";
 import { createMockCtx, makeEnv } from "../../helpers";
+
+afterEach(() => {
+	__resetMetricsForTest();
+});
 
 // KV mock that supports the "json" type parameter
 function createJsonKV(initialData: Record<string, string> = {}) {
@@ -21,15 +26,32 @@ function createJsonKV(initialData: Record<string, string> = {}) {
 	} as unknown as KVNamespace;
 }
 
-// D1 mock factory
+// D1 mock factory. Distinguishes the user lookup statement from the
+// (B.1) metrics UPSERT — `getUserProfiles` always schedules a metrics
+// flush at the end, which goes through env.DB.prepare. Tests that
+// previously asserted "no DB call when fully cached" now assert that
+// no USER row was queried (the metrics row is fine and expected).
 function createMockD1(results: Record<string, unknown>[] = []) {
-	return {
-		prepare: vi.fn(() => ({
+	const userQueries: string[] = [];
+	const metricsQueries: string[] = [];
+	const prepare = vi.fn((sql: string) => {
+		const isMetrics = sql.includes("kv_cache_metrics_minute");
+		if (isMetrics) metricsQueries.push(sql);
+		else userQueries.push(sql);
+		return {
 			bind: vi.fn(() => ({
-				all: vi.fn(async () => ({ results })),
+				all: vi.fn(async () => ({ results: isMetrics ? [] : results })),
+				run: vi.fn(async () => ({ success: true })),
 			})),
-		})),
-	} as unknown as D1Database;
+		};
+	});
+	const db = { prepare } as unknown as D1Database & {
+		_userQueries: string[];
+		_metricsQueries: string[];
+	};
+	(db as unknown as { _userQueries: string[] })._userQueries = userQueries;
+	(db as unknown as { _metricsQueries: string[] })._metricsQueries = metricsQueries;
+	return db;
 }
 
 describe("user-cache", () => {
@@ -90,7 +112,10 @@ describe("user-cache", () => {
 			expect(result.size).toBe(2);
 			expect(result.get(1)?.username).toBe("alice");
 			expect(result.get(2)?.username).toBe("bob");
-			expect(db.prepare).not.toHaveBeenCalled();
+			// No USER lookup hit D1 — both ids served from KV. The metrics
+			// UPSERT may or may not be scheduled but does NOT count as a
+			// user-side query.
+			expect((db as unknown as { _userQueries: string[] })._userQueries).toEqual([]);
 		});
 
 		it("should fall back to DB for cache misses", async () => {
@@ -127,7 +152,8 @@ describe("user-cache", () => {
 			expect(result.size).toBe(2);
 			expect(result.get(1)?.username).toBe("alice");
 			expect(result.get(2)?.username).toBe("bob");
-			expect(db.prepare).toHaveBeenCalled();
+			// User-side D1 must have been queried for the cache miss.
+			expect((db as unknown as { _userQueries: string[] })._userQueries.length).toBeGreaterThan(0);
 		});
 
 		it("should populate KV cache for DB results via waitUntil", async () => {
