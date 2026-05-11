@@ -489,7 +489,112 @@ so you can recognize them in old KV dumps. None of them have a live reader.
 
 ---
 
-## 13. Cross-references
+## 13. KV monitor & metrics (admin)
+
+The admin console exposes a KV monitor at `/admin/statistics/kv` so an
+operator can see what is in KV right now, sample expirations, and trigger
+the safe refresh / expire actions defined per family in the registry.
+
+### 13.1 Registry — single source of truth
+
+`apps/worker/src/lib/cache/kv-registry.ts` declares every KV key family
+the Worker writes today (or has reserved for a future v2 migration). Each
+entry carries:
+
+- `family`, `displayName`, `category`, `status` (`shipped` / `planned` /
+  `historical` / `dead-builder-reserved`)
+- `listPrefix` + `keyKind` (`prefix` for `forum:tree:v2:` style families,
+  `exact` for singletons like `settings:all` and `public-stats`)
+- `nameSensitivity` (`public` / `mask` / `hide`) and `valueSensitivity`
+  (`public` / `mask-value` / `no-read`) — enforced server-side; the UI
+  honors the resulting 403s.
+- `refresh` — typed `KvRefreshAction` describing the only safe mutation
+  the admin UI may issue for this family. Unsupported combinations are
+  rejected by the Worker with `KV_ACTION_MISMATCH`.
+
+The architecture-guard test
+`apps/worker/tests/unit/lib/cache/kv-registry.test.ts` allowlists every
+`env.KV.put(...)` call site under `apps/worker/src` and fails when a
+write appears for a prefix that has no registry row. Add a registry row
+in the same commit as a new KV writer.
+
+### 13.2 Admin endpoints (Worker)
+
+Implemented in `apps/worker/src/handlers/admin/kv.ts`. All require an
+admin actor and audit-log every mutation.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET`  | `/api/admin/kv/overview` | Per-family rows: declared metadata + live `count` (capped scan) + `truncated` flag + sample keys (masked per `nameSensitivity`) + active gens. |
+| `GET`  | `/api/admin/kv/list?family=&cursor=&limit=` | Paginated key list for a single family. Sensitive (`hide`) families return 403. Each row carries the masked display name + raw key (when the family allows it) + absolute `expiration`. |
+| `GET`  | `/api/admin/kv/get?key=` | One key's value + metadata + size + expiration. Honors `valueSensitivity`: `mask-value` returns size/metadata only; `no-read` returns `KV_KEY_VALUE_FORBIDDEN` (403). |
+| `POST` | `/api/admin/kv/refresh` | Run a typed `KvRefreshAction`. Worker matches `kind` against the registry (`KV_ACTION_MISMATCH` on mismatch), runs the action, then calls `flushPendingNow(env, ctx)` so the bump/delete is reflected in metrics within the same request. |
+| `GET`  | `/api/admin/kv/metrics?minutes=` | Op-dimensioned series rows: `{ family, tsMinute, op, count }[]`. Op set: `read | hit | miss | write | bump | delete | error`. Never widened to a legacy `{hits, misses, errors}` shape — the UI re-derives hit-rate as `hit / (hit + miss)`. |
+
+The Next.js admin app proxies these via
+`apps/admin/src/app/api/admin/kv/{overview,list,get,refresh,metrics}/route.ts`
+using `createProxyHandler` + `adminApi.raw` (read paths) /
+`adminApiAs(admin)` (refresh), which forwards `X-Admin-Actor-*` so the
+Worker's audit log records the human admin, not the proxy identity.
+
+### 13.3 Metrics pipeline
+
+- Source: `apps/worker/src/lib/cache/metrics.ts`. Each business-cache op
+  (`wrap.ts`, `forum-read.ts`, `user-cache.ts`) increments an in-isolate
+  bucket map keyed by `(family, op)`.
+- Flush: a 30 s throttle gates `ctx.waitUntil(flushSnapshot(...))`. On
+  any admin mutation (`refresh*`) and on the write-back tail of every
+  cached read, `flushPendingNow(env, ctx)` bypasses the throttle so the
+  resulting bump/delete/write lands in the same minute bucket.
+- Sink: D1 table `kv_cache_metrics_minute` (migration
+  `apps/worker/migrations/0035_kv_cache_metrics_minute.sql`):
+  `(family TEXT, ts_minute INTEGER, op TEXT, count INTEGER)` with
+  `PRIMARY KEY (family, ts_minute, op)`. The flusher batches an
+  `INSERT ... ON CONFLICT DO UPDATE SET count = count + excluded.count`
+  so concurrent isolates collapse cleanly into the same minute row.
+- Failure mode: metrics writes log-and-swallow — they MUST NEVER
+  propagate into the request path.
+- Retention: not yet automated. ~10 families × 7 ops × 1440 min ≈ 100k
+  rows/day; trim is owned by a future scheduled job.
+
+### 13.4 Admin UI surface
+
+`apps/admin/src/app/(admin)/admin/statistics/kv/page.tsx` consumes the
+endpoints above:
+
+- **Overview table** — one expandable row per family. The "Refresh"
+  button on the family row is enabled only when a no-arg bump action
+  exists for the family (`defaultActionFor(row) !== null`); scoped /
+  per-key actions are issued from the expanded list, never from the
+  family row.
+- **Expanded key list** — paginated cursor scan (50/page) with masked
+  key + absolute expiration + a live "还剩 Xm" countdown that re-renders
+  every 30 s. `nameSensitivity === "hide"` families suppress the expand
+  button entirely.
+- **Key detail dialog** — value (or "敏感，已遮蔽" when `valueMasked`),
+  size, metadata, expiration. `valueSensitivity === "no-read"` 403s
+  surface as "敏感家族，不可读 value".
+- **Per-key delete** — typed actions only:
+  - `user:mini:v1` — parses `user:mini:<id>` and issues
+    `delete-user-mini` (which calls `invalidateUserCache(env, id)` so
+    the live v1 key is removed; see §6.1).
+  - `settings:all` / `public-stats` — `delete-literal` against the
+    exact key.
+  - All other gen-keyed families: no per-key delete; bump the family
+    instead.
+- **Metrics chart** — series consumed at op granularity. Per-key hit
+  counts intentionally do NOT exist; metrics live at family granularity
+  by design.
+
+### 13.5 Sidebar entry
+
+`apps/admin/src/lib/navigation.ts` adds `/admin/statistics/kv` ("KV 缓存
+监控") under the 数据统计 group with the `Database` icon; the
+breadcrumb `ROUTE_LABELS.kv` resolves to "KV 缓存监控".
+
+---
+
+## 14. Cross-references
 
 - **Architecture rationale:** docs/19-worker-kv-cache-architecture.md
   (gen scheme, bucket model, phase plan, risk register, route → cache
@@ -502,7 +607,7 @@ so you can recognize them in old KV dumps. None of them have a live reader.
 
 ---
 
-## 14. Updating this doc
+## 15. Updating this doc
 
 1. Any change to a KV key's pattern, payload shape, TTL, gen wiring, or
    invalidation trigger MUST land in this file in the same commit as the
