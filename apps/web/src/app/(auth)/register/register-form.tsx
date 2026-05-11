@@ -150,6 +150,7 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 	const [interest, setInterest] = useState(REGISTER_PROFILE_DEFAULTS.interest);
 	const [qq, setQq] = useState(REGISTER_PROFILE_DEFAULTS.qq);
 	const [site, setSite] = useState(REGISTER_PROFILE_DEFAULTS.site);
+	const [signature, setSignature] = useState(REGISTER_PROFILE_DEFAULTS.signature);
 
 	const capEnabled = Boolean(CAP_API_ENDPOINT);
 	const formState = {
@@ -169,7 +170,7 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 		interest,
 		qq,
 		site,
-		signature: REGISTER_PROFILE_DEFAULTS.signature,
+		signature,
 	};
 	const canSubmit = canSubmitRegister(formState) && (!capEnabled || capToken);
 	const strength = passwordStrength(password);
@@ -228,15 +229,15 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 				redirect: false,
 			});
 
-			if (onSuccess) {
-				onSuccess();
-				return;
-			}
-
 			if (signInResult?.error) {
+				// Registration succeeded but auto-login failed — redirect to login
 				window.location.href = `/login?redirect=${encodeURIComponent(callbackUrl)}`;
 			} else if (signInResult?.ok) {
-				window.location.href = callbackUrl;
+				if (onSuccess) {
+					onSuccess();
+				} else {
+					window.location.href = callbackUrl;
+				}
 			}
 		} catch {
 			setError("网络错误，请重试");
@@ -513,6 +514,22 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 					className="h-[58px] text-base"
 				/>
 			</div>
+
+			{/* Signature */}
+			<div className="space-y-2">
+				<Label htmlFor="reg-signature" className="text-sm">
+					个性签名
+				</Label>
+				<Textarea
+					id="reg-signature"
+					value={signature}
+					onChange={(e) => setSignature(e.target.value)}
+					placeholder="一句话签名"
+					disabled={loading}
+					rows={2}
+					className="text-sm"
+				/>
+			</div>
 		</>
 	);
 
@@ -578,6 +595,19 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 				{error && <AuthErrorBanner message={error} />}
 
 				{accountFields}
+
+				{/* Profile fields — collapsible section in single column */}
+				<details className="group">
+					<summary className="cursor-pointer text-sm font-medium text-foreground/80 border-b border-border pb-1.5 mb-3 select-none list-none flex items-center justify-between">
+						个人资料（选填）
+						<span className="text-xs text-muted-foreground group-open:rotate-180 transition-transform">
+							▼
+						</span>
+					</summary>
+					<div className="space-y-4">{profileFields}</div>
+				</details>
+
+				<PostingConditionsNote />
 
 				{/* Submit */}
 				<Button

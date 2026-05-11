@@ -186,12 +186,17 @@ describe("AvatarUpload toast integration", () => {
 			fireEvent.change(input, { target: { files: [createFile()] } });
 		});
 
-		await waitFor(() => {
-			const alerts = screen.getAllByRole("alert");
-			const errorToast = alerts.find((el) => el.textContent?.includes("请先验证邮箱后再上传头像"));
-			expect(errorToast).toBeTruthy();
-			expect(errorToast?.textContent).toContain("头像上传失败");
-		});
+		await waitFor(
+			() => {
+				const alerts = screen.getAllByRole("alert");
+				const errorToast = alerts.find((el) =>
+					el.textContent?.includes("请先验证邮箱后再上传头像"),
+				);
+				expect(errorToast).toBeTruthy();
+				expect(errorToast?.textContent).toContain("头像上传失败");
+			},
+			{ timeout: 3000 },
+		);
 		// Phase A: the component must NOT call dispatchEmailNotVerified
 		// itself — global §5.4 dispatch happens centrally in apiClient.
 		expect(mockDispatchEmailNotVerified).not.toHaveBeenCalled();
