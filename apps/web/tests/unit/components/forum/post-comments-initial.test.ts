@@ -117,6 +117,30 @@ describe("PostComments initialComments", () => {
 		expect(vi.mocked(apiClient.get)).not.toHaveBeenCalled();
 	});
 
+	// ─── L3 e2e regression guard ──────────────────────────────────────────
+	// Contract: only `initialComments === undefined` triggers a client-side
+	// refetch. An empty array is a successful "no comments" result and must
+	// be trusted as-is. SSR-batch failure path (see thread-detail.server.ts)
+	// returns `undefined` to opt back into client fetch — without this
+	// distinction, post-comments stays permanently empty if SSR ever fails.
+
+	it("distinguishes [] (no fetch) from undefined (fetches) — explicit contract", async () => {
+		vi.mocked(apiClient.get).mockResolvedValue({ data: sampleComments } as any);
+
+		// Pass [] explicitly — must NOT fetch.
+		const { unmount } = renderWithInitialComments([]);
+		await act(async () => {});
+		expect(vi.mocked(apiClient.get)).not.toHaveBeenCalled();
+		unmount();
+
+		// Pass undefined (omit prop) — MUST fetch.
+		renderWithInitialComments(undefined);
+		await act(async () => {});
+		await waitFor(() => {
+			expect(vi.mocked(apiClient.get)).toHaveBeenCalledTimes(1);
+		});
+	});
+
 	it("calls apiClient.get fallback when initialComments is NOT provided", async () => {
 		vi.mocked(apiClient.get).mockResolvedValue({ data: sampleComments } as any);
 

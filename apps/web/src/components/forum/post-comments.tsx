@@ -19,7 +19,17 @@ interface PostCommentsProps {
 	postId: number;
 	threadClosed?: boolean;
 	isLoggedIn: boolean;
-	/** SSR-provided initial comments — skips client-side fetch when present */
+	/**
+	 * SSR-provided initial comments.
+	 * - `PostComment[]` (incl. `[]`) — SSR batch succeeded; skip the client fetch.
+	 * - `undefined`                  — SSR batch FAILED; fall back to client fetch
+	 *                                   so we never render permanently-empty
+	 *                                   comments due to a transient SSR error.
+	 *
+	 * The distinction is the contract that backs E2E-PC-01 — see
+	 * apps/web/src/viewmodels/forum/thread-detail.server.ts batch-fetch
+	 * failure semantics.
+	 */
 	initialComments?: PostComment[];
 	/** External dialog state control */
 	dialogOpen?: boolean;
@@ -126,7 +136,10 @@ export function PostComments({
 	onDialogOpenChange,
 }: PostCommentsProps) {
 	const [comments, setComments] = useState<PostComment[]>(initialComments ?? []);
-	const [loading, setLoading] = useState(!initialComments);
+	// Loading is true ONLY when SSR did not provide data (initialComments === undefined).
+	// An empty array from SSR (`[]`) is a successful "no comments" answer and
+	// must NOT trigger a client refetch.
+	const [loading, setLoading] = useState(initialComments === undefined);
 	const [internalDialogOpen, setInternalDialogOpen] = useState(false);
 	const [expanded, setExpanded] = useState(false);
 
@@ -149,8 +162,10 @@ export function PostComments({
 	}, [postId]);
 
 	useEffect(() => {
-		// Skip fetch when SSR-provided initialComments are available
-		if (initialComments) return;
+		// Only refetch when SSR did NOT supply data. A literal empty array from
+		// SSR (`[]`) means "no comments" — we must trust it and skip the fetch.
+		// `undefined` means SSR batch failed; recover via client fetch.
+		if (initialComments !== undefined) return;
 		fetchComments();
 	}, [fetchComments, initialComments]);
 

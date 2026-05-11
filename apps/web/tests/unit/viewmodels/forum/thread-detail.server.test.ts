@@ -203,23 +203,52 @@ describe("loadThreadDetail", () => {
 		expect(result.posts[0].attachments).toEqual([]);
 	});
 
-	it("handles comment fetch failures gracefully", async () => {
+	it("handles comment fetch failures by signaling client refetch (undefined)", async () => {
 		mockForumApi.post.mockImplementation((path: string) => {
 			if (path.includes("attachments/batch")) return Promise.resolve({ data: [] });
 			if (path.includes("post-comments/batch")) return Promise.reject(new Error("fail"));
 			return Promise.resolve({ data: null });
 		});
 		const result = await loadThreadDetail({ threadId: 1 });
-		expect(result.posts[0].comments).toEqual([]);
+		// New contract (rev): SSR batch failure now surfaces as `undefined` so
+		// PostComments client fetches as fallback. The legacy silent-empty
+		// behavior was the L3 e2e regression source.
+		expect(result.posts[0].comments).toBeUndefined();
 	});
 
-	it("handles author fetch failures gracefully", async () => {
+	it("falls back to post.authorName when users/batch fails (link must still render)", async () => {
 		mockForumApi.getAll.mockImplementation((path: string) => {
 			if (path.includes("users/batch")) return Promise.reject(new Error("not found"));
 			if (path.includes("forums")) return Promise.resolve({ data: mockForums });
 			return Promise.resolve({ data: [] });
 		});
+		// Add an authorName to the post fixture so the fallback has something
+		// to construct from (production rows always carry it).
+		mockForumApi.getCursor.mockResolvedValueOnce({
+			data: [{ ...mockPosts[0], authorName: "user1" }],
+			meta: { nextCursor: null },
+		});
 		const result = await loadThreadDetail({ threadId: 1 });
+		// Author must NOT be null — E2E-PO-01 asserts the `<Link href="/users/N">`
+		// renders even when /users/batch is unreachable.
+		expect(result.posts[0].author).not.toBeNull();
+		expect(result.posts[0].author?.id).toBe(100);
+		expect(result.posts[0].author?.username).toBe("user1");
+	});
+
+	it("renders author=null when users/batch fails AND post row has no authorName (no fabrication)", async () => {
+		mockForumApi.getAll.mockImplementation((path: string) => {
+			if (path.includes("users/batch")) return Promise.reject(new Error("not found"));
+			if (path.includes("forums")) return Promise.resolve({ data: mockForums });
+			return Promise.resolve({ data: [] });
+		});
+		// Force authorName empty so the fallback has nothing to construct from.
+		mockForumApi.getCursor.mockResolvedValueOnce({
+			data: [{ ...mockPosts[0], authorName: "" }],
+			meta: { nextCursor: null },
+		});
+		const result = await loadThreadDetail({ threadId: 1 });
+		// We must NOT invent identity; null is the correct outcome here.
 		expect(result.posts[0].author).toBeNull();
 	});
 
