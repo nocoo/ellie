@@ -87,13 +87,32 @@ function StrengthBar({ strength }: { strength: PasswordStrength }) {
 }
 
 // ---------------------------------------------------------------------------
-// Gender select options
+// Select options
 // ---------------------------------------------------------------------------
 
 const GENDER_OPTIONS = [
 	{ value: 0, label: "未设置" },
 	{ value: 1, label: "男" },
 	{ value: 2, label: "女" },
+];
+
+/** DB campus values — covers all official Tongji campuses + external */
+const CAMPUS_OPTIONS = [
+	{ value: "", label: "请选择校区" },
+	{ value: "四平路校区", label: "四平路校区" },
+	{ value: "嘉定校区", label: "嘉定校区" },
+	{ value: "沪西校区", label: "沪西校区" },
+	{ value: "沪北校区", label: "沪北校区" },
+	{ value: "其他校区", label: "其他校区" },
+	{ value: "校外人士", label: "校外人士" },
+];
+
+/** Identity-type options stored in `graduateSchool` field */
+const IDENTITY_OPTIONS = [
+	{ value: "", label: "请选择" },
+	{ value: "校内人士", label: "校内人士" },
+	{ value: "已毕业校友", label: "已毕业校友" },
+	{ value: "校外人士", label: "校外人士" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -118,7 +137,7 @@ function PostingConditionsNote() {
 // ---------------------------------------------------------------------------
 
 interface RegisterFormCoreProps {
-	/** "standalone" = /register page with AuthIdCard; "dialog" = wider multi-column */
+	/** "standalone" = /register page with AuthIdCard; "dialog" = wider 3-column */
 	variant: "standalone" | "dialog";
 	/** Called on successful registration (dialog closes itself) */
 	onSuccess?: () => void;
@@ -247,9 +266,10 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 	};
 
 	// ---------------------------------------------------------------------------
-	// Shared field fragments
+	// Field fragments
 	// ---------------------------------------------------------------------------
 
+	/** Account fields: username, password, confirm, email, birthday */
 	const accountFields = (
 		<>
 			{/* Username */}
@@ -331,52 +351,6 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 				{emailError && <p className="text-xs text-destructive">{emailError}</p>}
 			</div>
 
-			{/* Cap CAPTCHA */}
-			{capEnabled && (
-				<div className="flex justify-center">
-					<CapWidget
-						apiEndpoint={CAP_API_ENDPOINT}
-						onSolve={setCapToken}
-						onError={() => setCapToken("")}
-					/>
-				</div>
-			)}
-		</>
-	);
-
-	const profileFields = (
-		<>
-			{/* Gender */}
-			<div className="space-y-2">
-				<Label htmlFor="reg-gender" className="text-sm">
-					性别
-				</Label>
-				<Select
-					id="reg-gender"
-					options={GENDER_OPTIONS}
-					value={gender}
-					onChange={(e) => setGender(Number(e.target.value))}
-					disabled={loading}
-					className="h-[58px] text-base"
-				/>
-			</div>
-
-			{/* Campus */}
-			<div className="space-y-2">
-				<Label htmlFor="reg-campus" className="text-sm">
-					校区
-				</Label>
-				<Input
-					id="reg-campus"
-					type="text"
-					value={campus}
-					onChange={(e) => setCampus(e.target.value)}
-					placeholder="如：四平路校区"
-					disabled={loading}
-					className="h-[58px] text-base"
-				/>
-			</div>
-
 			{/* Birthday */}
 			<div className="space-y-2">
 				<Label className="text-sm">出生日期</Label>
@@ -410,6 +384,61 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 					/>
 				</div>
 			</div>
+		</>
+	);
+
+	/** Education fields: identity type (graduateSchool), campus */
+	const educationFields = (
+		<>
+			{/* Identity type (stored as graduateSchool) */}
+			<div className="space-y-2">
+				<Label htmlFor="reg-identity" className="text-sm">
+					身份类型
+				</Label>
+				<Select
+					id="reg-identity"
+					options={IDENTITY_OPTIONS}
+					value={graduateSchool}
+					onChange={(e) => setGraduateSchool(e.target.value)}
+					disabled={loading}
+					className="h-[58px] text-base"
+				/>
+			</div>
+
+			{/* Campus */}
+			<div className="space-y-2">
+				<Label htmlFor="reg-campus" className="text-sm">
+					校区
+				</Label>
+				<Select
+					id="reg-campus"
+					options={CAMPUS_OPTIONS}
+					value={campus}
+					onChange={(e) => setCampus(e.target.value)}
+					disabled={loading}
+					className="h-[58px] text-base"
+				/>
+			</div>
+		</>
+	);
+
+	/** Personal fields: gender, residence, bio, interest, qq, site, signature */
+	const personalFields = (
+		<>
+			{/* Gender */}
+			<div className="space-y-2">
+				<Label htmlFor="reg-gender" className="text-sm">
+					性别
+				</Label>
+				<Select
+					id="reg-gender"
+					options={GENDER_OPTIONS}
+					value={gender}
+					onChange={(e) => setGender(Number(e.target.value))}
+					disabled={loading}
+					className="h-[58px] text-base"
+				/>
+			</div>
 
 			{/* Residence */}
 			<div className="space-y-2">
@@ -432,22 +461,6 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 						className="h-[58px] text-base flex-1"
 					/>
 				</div>
-			</div>
-
-			{/* Graduate school */}
-			<div className="space-y-2">
-				<Label htmlFor="reg-school" className="text-sm">
-					毕业学校
-				</Label>
-				<Input
-					id="reg-school"
-					type="text"
-					value={graduateSchool}
-					onChange={(e) => setGraduateSchool(e.target.value)}
-					placeholder="毕业院校"
-					disabled={loading}
-					className="h-[58px] text-base"
-				/>
 			</div>
 
 			{/* Bio */}
@@ -533,8 +546,19 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 		</>
 	);
 
+	/** CAPTCHA widget in a 58px container for visual alignment */
+	const captchaField = capEnabled ? (
+		<div className="flex items-center justify-center h-[58px]">
+			<CapWidget
+				apiEndpoint={CAP_API_ENDPOINT}
+				onSolve={setCapToken}
+				onError={() => setCapToken("")}
+			/>
+		</div>
+	) : null;
+
 	// ---------------------------------------------------------------------------
-	// Dialog variant — wide 2-column layout
+	// Dialog variant — wide 3-column layout
 	// ---------------------------------------------------------------------------
 
 	if (variant === "dialog") {
@@ -542,7 +566,7 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 			<form onSubmit={handleSubmit} className="space-y-5">
 				{error && <AuthErrorBanner message={error} />}
 
-				<div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+				<div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4">
 					{/* Left column — Account */}
 					<div className="space-y-4">
 						<p className="text-sm font-medium text-foreground/80 border-b border-border pb-1.5">
@@ -551,15 +575,24 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 						{accountFields}
 					</div>
 
-					{/* Right column — Profile */}
+					{/* Middle column — Education */}
 					<div className="space-y-4">
 						<p className="text-sm font-medium text-foreground/80 border-b border-border pb-1.5">
-							个人资料（选填）
+							教育信息
 						</p>
-						{profileFields}
+						{educationFields}
+					</div>
+
+					{/* Right column — Personal */}
+					<div className="space-y-4">
+						<p className="text-sm font-medium text-foreground/80 border-b border-border pb-1.5">
+							个人信息（选填）
+						</p>
+						{personalFields}
 					</div>
 				</div>
 
+				{captchaField}
 				<PostingConditionsNote />
 
 				{/* Submit */}
@@ -596,6 +629,8 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 
 				{accountFields}
 
+				{captchaField}
+
 				{/* Profile fields — collapsible section in single column */}
 				<details className="group">
 					<summary className="cursor-pointer text-sm font-medium text-foreground/80 border-b border-border pb-1.5 mb-3 select-none list-none flex items-center justify-between">
@@ -604,7 +639,10 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 							▼
 						</span>
 					</summary>
-					<div className="space-y-4">{profileFields}</div>
+					<div className="space-y-4">
+						{educationFields}
+						{personalFields}
+					</div>
 				</details>
 
 				<PostingConditionsNote />
