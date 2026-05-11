@@ -84,6 +84,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 	const postsPerPage = await postsPerPagePromise;
 
 	const basePath = `/forums/${forumId}`;
+	const returnTo = page > 1 ? `${basePath}?page=${page}` : basePath;
 	const isGroup = data.forum?.type === ForumType.Group;
 
 	return (
@@ -148,7 +149,12 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 							) : (
 								<div>
 									{data.items.map((item) => (
-										<ThreadItem key={item.thread.id} item={item} postsPerPage={postsPerPage} />
+										<ThreadItem
+											key={item.thread.id}
+											item={item}
+											postsPerPage={postsPerPage}
+											returnTo={returnTo}
+										/>
 									))}
 								</div>
 							)}

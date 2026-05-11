@@ -39,6 +39,7 @@ export interface FloatingToolbarProps {
 	jumpPage?: {
 		basePath: string;
 		pages: number;
+		returnTo?: string;
 	};
 }
 
@@ -123,11 +124,13 @@ function JumpPagePopover({
 	pages,
 	open,
 	onOpenChange,
+	returnTo,
 }: {
 	basePath: string;
 	pages: number;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	returnTo?: string;
 }) {
 	const router = useRouter();
 	const [value, setValue] = useState("");
@@ -146,8 +149,12 @@ function JumpPagePopover({
 		const page = Number.parseInt(value, 10);
 		if (Number.isNaN(page) || page < 1 || page > pages) return;
 		onOpenChange(false);
-		router.push(page === 1 ? basePath : `${basePath}?page=${page}`);
-	}, [value, pages, basePath, router, onOpenChange]);
+		const params = new URLSearchParams();
+		if (page > 1) params.set("page", String(page));
+		if (returnTo) params.set("returnTo", returnTo);
+		const qs = params.toString();
+		router.push(qs ? `${basePath}?${qs}` : basePath);
+	}, [value, pages, basePath, router, onOpenChange, returnTo]);
 
 	return (
 		<Popover open={open} onOpenChange={onOpenChange}>
@@ -310,6 +317,7 @@ export function FloatingToolbar({
 						<JumpPagePopover
 							basePath={jumpPage.basePath}
 							pages={jumpPage.pages}
+							returnTo={jumpPage.returnTo}
 							open={jumpPageOpen}
 							onOpenChange={setJumpPageOpen}
 						/>

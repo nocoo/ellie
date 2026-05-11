@@ -17,10 +17,15 @@ import { UserPopover } from "./user-popover";
 interface ThreadItemProps {
 	item: ThreadDisplayItem;
 	postsPerPage: number;
+	/** URL to return to when navigating back from the thread detail page. */
+	returnTo?: string;
 }
 
-export function ThreadItem({ item, postsPerPage }: ThreadItemProps) {
+export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 	const { thread, badges, highlight: hl, iconSrc, digestSrc, newbieStampSrc } = item;
+	const threadHref = returnTo
+		? `/threads/${thread.id}?returnTo=${encodeURIComponent(returnTo)}`
+		: `/threads/${thread.id}`;
 
 	return (
 		<div className="border-b border-border/50 last:border-0 transition-colors hover:bg-accent/50 focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset">
@@ -50,7 +55,7 @@ export function ThreadItem({ item, postsPerPage }: ThreadItemProps) {
 						</span>
 					)}
 					<Link
-						href={`/threads/${thread.id}`}
+						href={threadHref}
 						prefetch={false}
 						className="min-w-0 truncate text-sm text-foreground hover:text-primary transition-colors"
 						style={highlightStyle(hl)}
@@ -64,6 +69,7 @@ export function ThreadItem({ item, postsPerPage }: ThreadItemProps) {
 							threadId={thread.id}
 							replies={thread.replies}
 							postsPerPage={postsPerPage}
+							returnTo={returnTo}
 						/>
 					</span>
 				</div>
@@ -118,7 +124,7 @@ export function ThreadItem({ item, postsPerPage }: ThreadItemProps) {
 						)}
 						<div className="flex items-center gap-1.5">
 							<Link
-								href={`/threads/${thread.id}`}
+								href={threadHref}
 								prefetch={false}
 								className="min-w-0 truncate text-sm text-foreground hover:text-primary transition-colors"
 								style={highlightStyle(hl)}
@@ -132,6 +138,7 @@ export function ThreadItem({ item, postsPerPage }: ThreadItemProps) {
 									threadId={thread.id}
 									replies={thread.replies}
 									postsPerPage={postsPerPage}
+									returnTo={returnTo}
 								/>
 							</span>
 						</div>

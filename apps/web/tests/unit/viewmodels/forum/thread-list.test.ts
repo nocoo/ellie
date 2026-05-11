@@ -12,6 +12,7 @@ import {
 	pageToPostCursor,
 	resolveCurrentPage,
 	resolveThreadPostCursor,
+	validateReturnTo,
 } from "@/viewmodels/forum/thread-list";
 import { decodeHighlight, getThreadBadges } from "@ellie/types";
 import type { Thread } from "@ellie/types";
@@ -627,6 +628,22 @@ describe("getThreadPageUrl", () => {
 		expect(getThreadPageUrl(123, 2)).toBe("/threads/123?page=2");
 		expect(getThreadPageUrl(456, 5)).toBe("/threads/456?page=5");
 	});
+
+	it("appends returnTo when provided (page 1)", () => {
+		expect(getThreadPageUrl(123, 1, "/forums/5?page=4")).toBe(
+			"/threads/123?returnTo=%2Fforums%2F5%3Fpage%3D4",
+		);
+	});
+
+	it("appends returnTo alongside page param", () => {
+		const url = getThreadPageUrl(123, 3, "/forums/5");
+		expect(url).toContain("page=3");
+		expect(url).toContain("returnTo=%2Fforums%2F5");
+	});
+
+	it("omits returnTo when undefined", () => {
+		expect(getThreadPageUrl(123, 2, undefined)).toBe("/threads/123?page=2");
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -827,5 +844,63 @@ describe("resolveCurrentPage", () => {
 		const page = resolveCurrentPage({ last: "1" }, ppp, totalPages);
 		expect(page).toBe(totalPages);
 		expect(page > 1).toBe(true); // prev available
+	});
+});
+
+// ---------------------------------------------------------------------------
+// validateReturnTo
+// ---------------------------------------------------------------------------
+
+describe("validateReturnTo", () => {
+	const forumId = 5;
+
+	it("returns null for undefined returnTo", () => {
+		expect(validateReturnTo(undefined, forumId)).toBeNull();
+	});
+
+	it("accepts /forums/{forumId} (exact match)", () => {
+		expect(validateReturnTo("/forums/5", forumId)).toBe("/forums/5");
+	});
+
+	it("accepts /forums/{forumId}?page=N", () => {
+		expect(validateReturnTo("/forums/5?page=4", forumId)).toBe("/forums/5?page=4");
+	});
+
+	it("accepts /forums/{forumId}?page=1", () => {
+		expect(validateReturnTo("/forums/5?page=1", forumId)).toBe("/forums/5?page=1");
+	});
+
+	it("rejects wrong forum ID", () => {
+		expect(validateReturnTo("/forums/99", forumId)).toBeNull();
+		expect(validateReturnTo("/forums/99?page=2", forumId)).toBeNull();
+	});
+
+	it("rejects external URLs", () => {
+		expect(validateReturnTo("https://evil.com", forumId)).toBeNull();
+	});
+
+	it("rejects paths outside /forums/", () => {
+		expect(validateReturnTo("/users/1", forumId)).toBeNull();
+		expect(validateReturnTo("/", forumId)).toBeNull();
+	});
+
+	it("rejects /forums/{forumId} with extra params beyond page", () => {
+		expect(validateReturnTo("/forums/5?page=2&evil=1", forumId)).toBeNull();
+	});
+
+	it("rejects non-numeric page values", () => {
+		expect(validateReturnTo("/forums/5?page=abc", forumId)).toBeNull();
+	});
+
+	it("rejects page=0", () => {
+		expect(validateReturnTo("/forums/5?page=0", forumId)).toBeNull();
+	});
+
+	it("rejects page with negative value", () => {
+		expect(validateReturnTo("/forums/5?page=-1", forumId)).toBeNull();
+	});
+
+	it("rejects empty string", () => {
+		expect(validateReturnTo("", forumId)).toBeNull();
 	});
 });

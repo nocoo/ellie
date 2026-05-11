@@ -34,8 +34,10 @@ interface ThreadPostsClientProps {
 	prevHref?: string | null;
 	/** Next page URL for pagination */
 	nextHref?: string | null;
+	/** Back/escape URL (e.g. parent forum with page context) */
+	backHref?: string;
 	/** Jump-to-page config (page-based via ?page=N) */
-	jumpPage?: { basePath: string; pages: number };
+	jumpPage?: { basePath: string; pages: number; returnTo?: string };
 }
 
 export function ThreadPostsClient({
@@ -49,6 +51,7 @@ export function ThreadPostsClient({
 	selfEmailVerifiedAt,
 	prevHref,
 	nextHref,
+	backHref,
 	jumpPage,
 }: ThreadPostsClientProps) {
 	const [replyOpen, setReplyOpen] = useState(false);
@@ -138,7 +141,7 @@ export function ThreadPostsClient({
 			<FloatingToolbar
 				prevHref={prevHref}
 				nextHref={nextHref}
-				backHref={`/forums/${thread.forumId}`}
+				backHref={backHref ?? `/forums/${thread.forumId}`}
 				actionType={thread.closed !== 1 ? "reply" : "none"}
 				onAction={handleQuickReply}
 				jumpPage={jumpPage}
