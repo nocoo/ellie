@@ -148,6 +148,15 @@ export async function loadThreadDetail(params: {
 	//   - comments: `undefined`  → PostComments falls back to its own client fetch
 	//   - authors:  `undefined`  → enrichPosts uses post.authorName for a minimal author shape
 	//   - attachments: `[]`      → no client fallback exists today; log only
+	//
+	// Logging level: use `console.warn`, NOT `console.error`. Next.js dev
+	// mode renders every server-side `console.error` as a full-screen
+	// "Console Error" overlay, which collides with Playwright `[role="dialog"]`
+	// selectors used by L3 specs (see tests/e2e/post-crud.spec.ts strict-mode
+	// failure when `replyDialog` matched the dev overlay alongside the real
+	// reply dialog). The fallback succeeding is expected operational behavior
+	// when the deployed test worker is stale, not a programmer error — `warn`
+	// gives the same observability without triggering the dev-overlay UX.
 	const postIds = postsRes.data.map((p) => p.id);
 	const authorIds = uniqueAuthorIds(postsRes.data);
 
@@ -163,7 +172,7 @@ export async function loadThreadDetail(params: {
 					})
 					.then((res) => res.data)
 					.catch((err) => {
-						console.error(
+						console.warn(
 							"[thread-detail.server] posts/attachments/batch failed (rendering with [])",
 							{ threadId: params.threadId, postIds: postIds.length, err },
 						);
@@ -181,7 +190,7 @@ export async function loadThreadDetail(params: {
 					})
 					.then((res) => res.data as PostComment[] | undefined)
 					.catch((err) => {
-						console.error(
+						console.warn(
 							"[thread-detail.server] post-comments/batch failed (client will refetch)",
 							{ threadId: params.threadId, postIds: postIds.length, err },
 						);
@@ -205,7 +214,7 @@ export async function loadThreadDetail(params: {
 						return map as Map<number, User> | undefined;
 					})
 					.catch((err) => {
-						console.error(
+						console.warn(
 							"[thread-detail.server] users/batch failed (falling back to post.authorName)",
 							{ threadId: params.threadId, authorIds: authorIds.length, err },
 						);
