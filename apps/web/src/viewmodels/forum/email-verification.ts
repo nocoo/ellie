@@ -97,8 +97,14 @@ export function pickCardMode(user: EmailVerificationUserView): CardMode {
 export type FormState =
 	| { kind: "idle"; error: string | null }
 	| { kind: "sending" }
-	| { kind: "code-sent"; sentTo: string; nextResendAllowedAt: number; error: string | null }
-	| { kind: "verifying"; sentTo: string; nextResendAllowedAt: number }
+	| {
+			kind: "code-sent";
+			sentTo: string;
+			nextResendAllowedAt: number;
+			codeDeadline: number;
+			error: string | null;
+	  }
+	| { kind: "verifying"; sentTo: string; nextResendAllowedAt: number; codeDeadline: number }
 	| { kind: "verified" }
 	| { kind: "config-error"; reason: string };
 
@@ -112,7 +118,7 @@ export const initialFormState: FormState = { kind: "idle", error: null };
 export type FormEvent =
 	| { type: "config_invalid"; reason: string }
 	| { type: "send_start" }
-	| { type: "send_success"; sentTo: string; nextResendAllowedAt: number }
+	| { type: "send_success"; sentTo: string; nextResendAllowedAt: number; codeDeadline: number }
 	| { type: "send_error"; message: string }
 	| { type: "verify_start" }
 	| { type: "verify_success" }
@@ -149,6 +155,7 @@ export function nextState(prev: FormState, event: FormEvent): FormState {
 					kind: "code-sent",
 					sentTo: event.sentTo,
 					nextResendAllowedAt: event.nextResendAllowedAt,
+					codeDeadline: event.codeDeadline,
 					error: null,
 				};
 			}
@@ -168,6 +175,7 @@ export function nextState(prev: FormState, event: FormEvent): FormState {
 					kind: "verifying",
 					sentTo: prev.sentTo,
 					nextResendAllowedAt: prev.nextResendAllowedAt,
+					codeDeadline: prev.codeDeadline,
 				};
 			}
 			return prev;
@@ -184,6 +192,7 @@ export function nextState(prev: FormState, event: FormEvent): FormState {
 					kind: "code-sent",
 					sentTo: prev.sentTo,
 					nextResendAllowedAt: prev.nextResendAllowedAt,
+					codeDeadline: prev.codeDeadline,
 					error: event.message,
 				};
 			}

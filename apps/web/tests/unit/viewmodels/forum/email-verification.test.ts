@@ -81,19 +81,21 @@ describe("nextState", () => {
 		expect(s).toEqual<FormState>({ kind: "sending" });
 	});
 
-	it("sending → code-sent on send_success carries sentTo + nextResendAllowedAt", () => {
+	it("sending → code-sent on send_success carries sentTo + nextResendAllowedAt + codeDeadline", () => {
 		const s = nextState(
 			{ kind: "sending" },
 			{
 				type: "send_success",
 				sentTo: "x***@y.io",
 				nextResendAllowedAt: 1700000060,
+				codeDeadline: 1700000900,
 			},
 		);
 		expect(s).toEqual<FormState>({
 			kind: "code-sent",
 			sentTo: "x***@y.io",
 			nextResendAllowedAt: 1700000060,
+			codeDeadline: 1700000900,
 			error: null,
 		});
 	});
@@ -103,21 +105,33 @@ describe("nextState", () => {
 		expect(s).toEqual<FormState>({ kind: "idle", error: "boom" });
 	});
 
-	it("code-sent → verifying carries sentTo / nextResendAllowedAt forward", () => {
+	it("code-sent → verifying carries sentTo / nextResendAllowedAt / codeDeadline forward", () => {
 		const s = nextState(
-			{ kind: "code-sent", sentTo: "x***@y.io", nextResendAllowedAt: 1700000060, error: null },
+			{
+				kind: "code-sent",
+				sentTo: "x***@y.io",
+				nextResendAllowedAt: 1700000060,
+				codeDeadline: 1700000900,
+				error: null,
+			},
 			{ type: "verify_start" },
 		);
 		expect(s).toEqual<FormState>({
 			kind: "verifying",
 			sentTo: "x***@y.io",
 			nextResendAllowedAt: 1700000060,
+			codeDeadline: 1700000900,
 		});
 	});
 
 	it("verifying → verified on verify_success (terminal happy path)", () => {
 		const s = nextState(
-			{ kind: "verifying", sentTo: "x***@y.io", nextResendAllowedAt: 1700000060 },
+			{
+				kind: "verifying",
+				sentTo: "x***@y.io",
+				nextResendAllowedAt: 1700000060,
+				codeDeadline: 1700000900,
+			},
 			{ type: "verify_success" },
 		);
 		expect(s).toEqual<FormState>({ kind: "verified" });
@@ -125,20 +139,31 @@ describe("nextState", () => {
 
 	it("verifying → code-sent (with inline error) on verify_error — keeps sentTo so user can retry without re-captcha", () => {
 		const s = nextState(
-			{ kind: "verifying", sentTo: "x***@y.io", nextResendAllowedAt: 1700000060 },
+			{
+				kind: "verifying",
+				sentTo: "x***@y.io",
+				nextResendAllowedAt: 1700000060,
+				codeDeadline: 1700000900,
+			},
 			{ type: "verify_error", message: "码错" },
 		);
 		expect(s).toEqual<FormState>({
 			kind: "code-sent",
 			sentTo: "x***@y.io",
 			nextResendAllowedAt: 1700000060,
+			codeDeadline: 1700000900,
 			error: "码错",
 		});
 	});
 
 	it("verify_error → user can verify_start again from the recovered code-sent state", () => {
 		const afterError = nextState(
-			{ kind: "verifying", sentTo: "x***@y.io", nextResendAllowedAt: 42 },
+			{
+				kind: "verifying",
+				sentTo: "x***@y.io",
+				nextResendAllowedAt: 42,
+				codeDeadline: 1700000900,
+			},
 			{ type: "verify_error", message: "wrong" },
 		);
 		expect(afterError.kind).toBe("code-sent");
@@ -147,6 +172,7 @@ describe("nextState", () => {
 			kind: "verifying",
 			sentTo: "x***@y.io",
 			nextResendAllowedAt: 42,
+			codeDeadline: 1700000900,
 		});
 	});
 
@@ -154,8 +180,14 @@ describe("nextState", () => {
 		const states: FormState[] = [
 			{ kind: "idle", error: null },
 			{ kind: "sending" },
-			{ kind: "code-sent", sentTo: "x", nextResendAllowedAt: 0, error: null },
-			{ kind: "verifying", sentTo: "x", nextResendAllowedAt: 0 },
+			{
+				kind: "code-sent",
+				sentTo: "x",
+				nextResendAllowedAt: 0,
+				codeDeadline: 1700000900,
+				error: null,
+			},
+			{ kind: "verifying", sentTo: "x", nextResendAllowedAt: 0, codeDeadline: 1700000900 },
 			{ kind: "verified" },
 		];
 		for (const s of states) {
@@ -175,9 +207,14 @@ describe("nextState", () => {
 
 	it("ignores out-of-order events without changing state", () => {
 		const idle: FormState = { kind: "idle", error: null };
-		expect(nextState(idle, { type: "send_success", sentTo: "x", nextResendAllowedAt: 0 })).toBe(
-			idle,
-		);
+		expect(
+			nextState(idle, {
+				type: "send_success",
+				sentTo: "x",
+				nextResendAllowedAt: 0,
+				codeDeadline: 0,
+			}),
+		).toBe(idle);
 		expect(nextState(idle, { type: "verify_start" })).toBe(idle);
 	});
 
