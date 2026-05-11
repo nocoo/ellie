@@ -6,27 +6,19 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
-import { Ban, Loader2, Shield, Trash2, VolumeX } from "lucide-react";
+import { Shield } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useForumToast } from "./forum-toast";
+import {
+	MOD_ACTION_CONFIG,
+	type ModAction,
+	type ModActionMessage,
+	UserModActionDialog,
+	UserModActionDropdown,
+} from "./user-mod-action-controls";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -51,60 +43,6 @@ interface UserModActionsProps {
 	className?: string;
 }
 
-/** Moderation action type */
-type ModAction = "mute" | "ban" | "nuke" | "unmute" | "unban" | null;
-
-// ---------------------------------------------------------------------------
-// Config
-// ---------------------------------------------------------------------------
-
-const MOD_ACTION_CONFIG: Record<
-	Exclude<ModAction, null>,
-	{
-		title: string;
-		description: (username: string) => string;
-		confirmText: string;
-		variant: "default" | "destructive";
-		endpoint: (userId: number) => string;
-	}
-> = {
-	mute: {
-		title: "禁止发言",
-		description: (u) => `确定禁止 ${u} 发言？禁言后该用户将无法发帖和回复。`,
-		confirmText: "禁言",
-		variant: "default",
-		endpoint: (id) => `/api/v1/moderation/users/${id}/mute`,
-	},
-	unmute: {
-		title: "解除禁言",
-		description: (u) => `确定解除 ${u} 的禁言？该用户将恢复发帖权限。`,
-		confirmText: "解除禁言",
-		variant: "default",
-		endpoint: (id) => `/api/v1/moderation/users/${id}/unmute`,
-	},
-	ban: {
-		title: "封禁用户",
-		description: (u) => `确定封禁 ${u}？封禁后该用户将无法访问论坛。`,
-		confirmText: "封禁",
-		variant: "destructive",
-		endpoint: (id) => `/api/v1/moderation/users/${id}/ban`,
-	},
-	unban: {
-		title: "解除封禁",
-		description: (u) => `确定解除 ${u} 的封禁？该用户将恢复论坛访问权限。`,
-		confirmText: "解除封禁",
-		variant: "default",
-		endpoint: (id) => `/api/v1/moderation/users/${id}/unban`,
-	},
-	nuke: {
-		title: "封禁并删除内容",
-		description: (u) => `确定封禁 ${u} 并删除其所有内容？此操作不可撤销！`,
-		confirmText: "封禁并删除",
-		variant: "destructive",
-		endpoint: (id) => `/api/v1/moderation/users/${id}/nuke`,
-	},
-};
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -128,10 +66,7 @@ export function UserModActions({
 	const [userStatus, setUserStatus] = useState<number | null>(null);
 	const [modAction, setModAction] = useState<ModAction>(null);
 	const [modActionLoading, setModActionLoading] = useState(false);
-	const [modActionMessage, setModActionMessage] = useState<{
-		type: "success" | "error";
-		text: string;
-	} | null>(null);
+	const [modActionMessage, setModActionMessage] = useState<ModActionMessage | null>(null);
 
 	// Fetch user status
 	const fetchUserStatus = useCallback(async () => {
@@ -199,113 +134,39 @@ export function UserModActions({
 
 	return (
 		<>
-			<DropdownMenu>
-				<DropdownMenuTrigger
-					render={
-						variant === "icon" ? (
-							<Button variant="ghost" size="icon" className={cn("h-8 w-8", className)}>
-								<Shield className="h-4 w-4" />
-							</Button>
-						) : (
-							<Button
-								variant="ghost"
-								size={size}
-								className={cn("gap-1 text-muted-foreground", className)}
-							>
-								<Shield className="h-3.5 w-3.5" />
-								管理
-							</Button>
-						)
-					}
-				/>
-				<DropdownMenuContent align="end" className="min-w-[160px]">
-					{/* IP records feature - disabled until IP tracking is implemented in database
-					<DropdownMenuItem
-						onClick={() => {
-							window.location.href = `/admin/users/${userId}/ip-records`;
-						}}
-					>
-						<Globe className="h-4 w-4" />
-						查看 IP 记录
-					</DropdownMenuItem>
-					<DropdownMenuSeparator />
-					*/}
-					{/* Mute/Unmute */}
-					{userIsMuted ? (
-						<DropdownMenuItem onClick={() => setModAction("unmute")}>
-							<VolumeX className="h-4 w-4" />
-							解除禁言
-						</DropdownMenuItem>
+			<UserModActionDropdown
+				userIsMuted={userIsMuted}
+				userIsBanned={userIsBanned}
+				onAction={setModAction}
+				align="end"
+				trigger={
+					variant === "icon" ? (
+						<Button variant="ghost" size="icon" className={cn("h-8 w-8", className)}>
+							<Shield className="h-4 w-4" />
+						</Button>
 					) : (
-						<DropdownMenuItem onClick={() => setModAction("mute")} disabled={userIsBanned}>
-							<VolumeX className="h-4 w-4" />
-							禁止发言
-						</DropdownMenuItem>
-					)}
-					<DropdownMenuSeparator />
-					{/* Ban/Unban */}
-					{userIsBanned ? (
-						<DropdownMenuItem onClick={() => setModAction("unban")}>
-							<Ban className="h-4 w-4" />
-							解除封禁
-						</DropdownMenuItem>
-					) : (
-						<DropdownMenuItem variant="destructive" onClick={() => setModAction("ban")}>
-							<Ban className="h-4 w-4" />
-							封禁用户
-						</DropdownMenuItem>
-					)}
-					{/* Nuke (only when not already banned) */}
-					{!userIsBanned && (
-						<DropdownMenuItem variant="destructive" onClick={() => setModAction("nuke")}>
-							<Trash2 className="h-4 w-4" />
-							封禁并删除内容
-						</DropdownMenuItem>
-					)}
-				</DropdownMenuContent>
-			</DropdownMenu>
+						<Button
+							variant="ghost"
+							size={size}
+							className={cn("gap-1 text-muted-foreground", className)}
+						>
+							<Shield className="h-3.5 w-3.5" />
+							管理
+						</Button>
+					)
+				}
+			/>
 
 			{/* Confirmation dialog */}
 			{modAction && (
-				<Dialog open={!!modAction} onOpenChange={(open) => !open && setModAction(null)}>
-					<DialogContent showCloseButton={false} className="sm:max-w-[400px]">
-						<DialogHeader>
-							<DialogTitle>{MOD_ACTION_CONFIG[modAction].title}</DialogTitle>
-							<DialogDescription>
-								{MOD_ACTION_CONFIG[modAction].description(username)}
-							</DialogDescription>
-						</DialogHeader>
-						{modActionMessage && (
-							<div
-								className={cn(
-									"text-sm px-3 py-2 rounded-md",
-									modActionMessage.type === "success"
-										? "bg-success/15 text-success dark:bg-success/20"
-										: "bg-destructive/15 text-destructive dark:bg-destructive/20",
-								)}
-							>
-								{modActionMessage.text}
-							</div>
-						)}
-						<DialogFooter className="gap-2 sm:gap-0">
-							<Button
-								variant="outline"
-								disabled={modActionLoading}
-								onClick={() => setModAction(null)}
-							>
-								取消
-							</Button>
-							<Button
-								variant={MOD_ACTION_CONFIG[modAction].variant}
-								onClick={executeModAction}
-								disabled={modActionLoading}
-							>
-								{modActionLoading && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-								{MOD_ACTION_CONFIG[modAction].confirmText}
-							</Button>
-						</DialogFooter>
-					</DialogContent>
-				</Dialog>
+				<UserModActionDialog
+					modAction={modAction}
+					username={username}
+					message={modActionMessage}
+					loading={modActionLoading}
+					onClose={() => setModAction(null)}
+					onConfirm={executeModAction}
+				/>
 			)}
 		</>
 	);

@@ -8,21 +8,6 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { apiClient } from "@/lib/api-client";
 import { getAvatarUrl } from "@/lib/avatar";
@@ -32,7 +17,6 @@ import { formatLastActive, getRoleBadge } from "@/viewmodels/shared/user-display
 import type { PublicUser } from "@ellie/types";
 import { isUserBanned, isUserMuted } from "@ellie/types";
 import {
-	Ban,
 	Calendar,
 	ChevronRight,
 	Clock,
@@ -41,9 +25,7 @@ import {
 	Mail,
 	Shield,
 	Star,
-	Trash2,
 	User as UserIcon,
-	VolumeX,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -51,6 +33,13 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { useForumToast } from "./forum-toast";
 import { UserAvatar } from "./user-avatar";
+import {
+	MOD_ACTION_CONFIG,
+	type ModAction,
+	type ModActionMessage,
+	UserModActionDialog,
+	UserModActionDropdown,
+} from "./user-mod-action-controls";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -87,61 +76,6 @@ interface UserPopoverData {
 	isOnline?: boolean;
 }
 
-/** Moderation action type for confirmation dialog */
-type ModAction = "mute" | "ban" | "nuke" | "unmute" | "unban" | null;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Mod action configuration */
-const MOD_ACTION_CONFIG: Record<
-	Exclude<ModAction, null>,
-	{
-		title: string;
-		description: (username: string) => string;
-		confirmText: string;
-		variant: "default" | "destructive";
-		endpoint: (userId: number) => string;
-	}
-> = {
-	mute: {
-		title: "禁止发言",
-		description: (u) => `确定禁止 ${u} 发言？禁言后该用户将无法发帖和回复。`,
-		confirmText: "禁言",
-		variant: "default",
-		endpoint: (id) => `/api/v1/moderation/users/${id}/mute`,
-	},
-	unmute: {
-		title: "解除禁言",
-		description: (u) => `确定解除 ${u} 的禁言？该用户将恢复发帖权限。`,
-		confirmText: "解除禁言",
-		variant: "default",
-		endpoint: (id) => `/api/v1/moderation/users/${id}/unmute`,
-	},
-	ban: {
-		title: "封禁用户",
-		description: (u) => `确定封禁 ${u}？封禁后该用户将无法访问论坛。`,
-		confirmText: "封禁",
-		variant: "destructive",
-		endpoint: (id) => `/api/v1/moderation/users/${id}/ban`,
-	},
-	unban: {
-		title: "解除封禁",
-		description: (u) => `确定解除 ${u} 的封禁？该用户将恢复论坛访问权限。`,
-		confirmText: "解除封禁",
-		variant: "default",
-		endpoint: (id) => `/api/v1/moderation/users/${id}/unban`,
-	},
-	nuke: {
-		title: "封禁并删除内容",
-		description: (u) => `确定封禁 ${u} 并删除其所有内容？此操作不可撤销！`,
-		confirmText: "封禁并删除",
-		variant: "destructive",
-		endpoint: (id) => `/api/v1/moderation/users/${id}/nuke`,
-	},
-};
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -166,10 +100,7 @@ export function UserPopover({
 	// Mod action states
 	const [modAction, setModAction] = useState<ModAction>(null);
 	const [modActionLoading, setModActionLoading] = useState(false);
-	const [modActionMessage, setModActionMessage] = useState<{
-		type: "success" | "error";
-		text: string;
-	} | null>(null);
+	const [modActionMessage, setModActionMessage] = useState<ModActionMessage | null>(null);
 
 	// User status for moderation (fetched separately for admins)
 	const [userStatus, setUserStatus] = useState<number | null>(null);
@@ -358,11 +289,23 @@ export function UserPopover({
 
 								{/* Mod actions dropdown */}
 								{canManageUsers && !isSelf && (
-									<ModActionsDropdown
-										user={user}
+									<UserModActionDropdown
 										userIsMuted={userIsMuted}
 										userIsBanned={userIsBanned}
 										onAction={setModAction}
+										align="start"
+										side="top"
+										trigger={
+											<Button
+												variant="ghost"
+												size="xs"
+												className="text-xs gap-1 text-muted-foreground"
+												title="管理操作"
+											>
+												<Shield className="h-3.5 w-3.5" />
+												管理
+											</Button>
+										}
 									/>
 								)}
 							</div>
@@ -380,11 +323,11 @@ export function UserPopover({
 
 						{/* Mod action confirmation dialog */}
 						{modAction && (
-							<ModActionDialog
+							<UserModActionDialog
 								modAction={modAction}
 								username={user.username}
-								modActionMessage={modActionMessage}
-								modActionLoading={modActionLoading}
+								message={modActionMessage}
+								loading={modActionLoading}
 								onClose={() => setModAction(null)}
 								onConfirm={executeModAction}
 							/>
@@ -608,120 +551,5 @@ function AdminInfoSection({ user }: { user: PublicUser }) {
 				)}
 			</div>
 		</div>
-	);
-}
-
-/** Mod actions dropdown menu */
-function ModActionsDropdown({
-	user: _user,
-	userIsMuted,
-	userIsBanned,
-	onAction,
-}: {
-	user: PublicUser;
-	userIsMuted: boolean;
-	userIsBanned: boolean;
-	onAction: (action: ModAction) => void;
-}) {
-	return (
-		<DropdownMenu>
-			<DropdownMenuTrigger
-				render={
-					<Button
-						variant="ghost"
-						size="xs"
-						className="text-xs gap-1 text-muted-foreground"
-						title="管理操作"
-					>
-						<Shield className="h-3.5 w-3.5" />
-						管理
-					</Button>
-				}
-			/>
-			<DropdownMenuContent align="start" side="top" className="min-w-[160px]">
-				{/* Mute/Unmute */}
-				{userIsMuted ? (
-					<DropdownMenuItem onClick={() => onAction("unmute")}>
-						<VolumeX className="h-4 w-4" />
-						解除禁言
-					</DropdownMenuItem>
-				) : (
-					<DropdownMenuItem onClick={() => onAction("mute")} disabled={userIsBanned}>
-						<VolumeX className="h-4 w-4" />
-						禁止发言
-					</DropdownMenuItem>
-				)}
-				<DropdownMenuSeparator />
-				{/* Ban/Unban */}
-				{userIsBanned ? (
-					<DropdownMenuItem onClick={() => onAction("unban")}>
-						<Ban className="h-4 w-4" />
-						解除封禁
-					</DropdownMenuItem>
-				) : (
-					<DropdownMenuItem variant="destructive" onClick={() => onAction("ban")}>
-						<Ban className="h-4 w-4" />
-						封禁用户
-					</DropdownMenuItem>
-				)}
-				{/* Nuke (only when not already banned) */}
-				{!userIsBanned && (
-					<DropdownMenuItem variant="destructive" onClick={() => onAction("nuke")}>
-						<Trash2 className="h-4 w-4" />
-						封禁并删除内容
-					</DropdownMenuItem>
-				)}
-			</DropdownMenuContent>
-		</DropdownMenu>
-	);
-}
-
-/** Mod action confirmation dialog */
-function ModActionDialog({
-	modAction,
-	username,
-	modActionMessage,
-	modActionLoading,
-	onClose,
-	onConfirm,
-}: {
-	modAction: Exclude<ModAction, null>;
-	username: string;
-	modActionMessage: { type: "success" | "error"; text: string } | null;
-	modActionLoading: boolean;
-	onClose: () => void;
-	onConfirm: () => void;
-}) {
-	const config = MOD_ACTION_CONFIG[modAction];
-	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent showCloseButton={false} className="sm:max-w-[400px]">
-				<DialogHeader>
-					<DialogTitle>{config.title}</DialogTitle>
-					<DialogDescription>{config.description(username)}</DialogDescription>
-				</DialogHeader>
-				{modActionMessage && (
-					<div
-						className={cn(
-							"text-sm px-3 py-2 rounded-md",
-							modActionMessage.type === "success"
-								? "bg-success/15 text-success dark:bg-success/20"
-								: "bg-destructive/15 text-destructive dark:bg-destructive/20",
-						)}
-					>
-						{modActionMessage.text}
-					</div>
-				)}
-				<DialogFooter className="gap-2 sm:gap-0">
-					<Button variant="outline" disabled={modActionLoading} onClick={onClose}>
-						取消
-					</Button>
-					<Button variant={config.variant} onClick={onConfirm} disabled={modActionLoading}>
-						{modActionLoading && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-						{config.confirmText}
-					</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
 	);
 }
