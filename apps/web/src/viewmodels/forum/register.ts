@@ -217,6 +217,8 @@ export function registerErrorMessage(errorCode: string | null | undefined): stri
 			return "密码至少需要 6 个字符";
 		case "INVALID_EMAIL":
 			return "邮箱格式不正确";
+		case "EMAIL_ALREADY_IN_USE":
+			return "该邮箱已被其他账户绑定";
 		case "RATE_LIMITED":
 			return "注册太频繁，请稍后再试";
 		default:
