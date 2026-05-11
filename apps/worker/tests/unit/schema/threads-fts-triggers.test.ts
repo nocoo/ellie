@@ -6,12 +6,40 @@
 // the nuke-user batch). This test verifies the corrected triggers work.
 //
 // Uses node:sqlite (Node.js 22+) to run real SQLite — not mocked.
+//
+// `node:sqlite` is a Node 22+ built-in. Some CI environments (and older Node
+// runtimes) do not ship the module — importing it at top-level would crash the
+// whole test file with `No such built-in module: node:sqlite`. Guard the
+// import with a runtime feature check and skip the suite cleanly when the
+// module is unavailable; locally on Mac with Node 22+ the suite still runs.
 
-import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 
+// Runtime feature-detect node:sqlite. Use createRequire so a missing module
+// becomes a catchable throw instead of an unhandled top-level import error.
+type DatabaseSyncCtor = new (
+	path: string,
+) => {
+	exec(sql: string): void;
+	prepare(sql: string): { all(...params: unknown[]): unknown[] };
+	close(): void;
+};
+
+let DatabaseSync: DatabaseSyncCtor | null = null;
+try {
+	// eslint-disable-next-line @typescript-eslint/no-require-imports
+	const { createRequire } = require("node:module") as typeof import("node:module");
+	const req = createRequire(import.meta.url);
+	DatabaseSync = (req("node:sqlite") as { DatabaseSync: DatabaseSyncCtor }).DatabaseSync;
+} catch {
+	DatabaseSync = null;
+}
+const hasNodeSqlite = DatabaseSync !== null;
+
+type Db = InstanceType<DatabaseSyncCtor>;
+
 /** Minimal schema mirroring production threads + threads_fts. */
-function createSchema(db: DatabaseSync) {
+function createSchema(db: Db) {
 	db.exec(`
 		CREATE TABLE forums (id INTEGER PRIMARY KEY);
 		INSERT INTO forums (id) VALUES (1);
@@ -35,7 +63,7 @@ function createSchema(db: DatabaseSync) {
 }
 
 /** Install the BROKEN triggers (content-table "delete command" style). */
-function installBrokenTriggers(db: DatabaseSync) {
+function installBrokenTriggers(db: Db) {
 	db.exec(`
 		CREATE TRIGGER threads_fts_ai AFTER INSERT ON threads BEGIN
 			INSERT INTO threads_fts(rowid, subject) VALUES (new.id, new.subject);
@@ -55,7 +83,7 @@ function installBrokenTriggers(db: DatabaseSync) {
 }
 
 /** Install the FIXED triggers (standard DELETE for regular FTS5). */
-function installFixedTriggers(db: DatabaseSync) {
+function installFixedTriggers(db: Db) {
 	db.exec(`
 		CREATE TRIGGER threads_fts_ai AFTER INSERT ON threads BEGIN
 			INSERT INTO threads_fts(rowid, subject) VALUES (new.id, new.subject);
@@ -72,14 +100,17 @@ function installFixedTriggers(db: DatabaseSync) {
 	`);
 }
 
-function ftsMatch(db: DatabaseSync, query: string): string[] {
+function ftsMatch(db: Db, query: string): string[] {
 	const rows = db.prepare("SELECT subject FROM threads_fts WHERE threads_fts MATCH ?").all(query);
 	return (rows as { subject: string }[]).map((r) => r.subject);
 }
 
-describe("threads_fts triggers — regular FTS5 table", () => {
+describe.skipIf(!hasNodeSqlite)("threads_fts triggers — regular FTS5 table", () => {
+	// Inside the suite hasNodeSqlite is true, so DatabaseSync is non-null.
+	// Re-bind locally so TS narrows the type for `new DatabaseSync(...)`.
+	const SQLite = DatabaseSync as DatabaseSyncCtor;
 	it("broken trigger: DELETE FROM threads throws SQL logic error", () => {
-		const db = new DatabaseSync(":memory:");
+		const db = new SQLite(":memory:");
 		createSchema(db);
 		installBrokenTriggers(db);
 
@@ -93,7 +124,7 @@ describe("threads_fts triggers — regular FTS5 table", () => {
 	});
 
 	it("broken trigger: UPDATE subject throws SQL logic error", () => {
-		const db = new DatabaseSync(":memory:");
+		const db = new SQLite(":memory:");
 		createSchema(db);
 		installBrokenTriggers(db);
 
@@ -107,7 +138,7 @@ describe("threads_fts triggers — regular FTS5 table", () => {
 	});
 
 	it("fixed trigger: INSERT syncs to FTS", () => {
-		const db = new DatabaseSync(":memory:");
+		const db = new SQLite(":memory:");
 		createSchema(db);
 		installFixedTriggers(db);
 
@@ -119,7 +150,7 @@ describe("threads_fts triggers — regular FTS5 table", () => {
 	});
 
 	it("fixed trigger: DELETE removes from FTS without error", () => {
-		const db = new DatabaseSync(":memory:");
+		const db = new SQLite(":memory:");
 		createSchema(db);
 		installFixedTriggers(db);
 
@@ -138,7 +169,7 @@ describe("threads_fts triggers — regular FTS5 table", () => {
 	});
 
 	it("fixed trigger: bulk DELETE (author_id) removes all from FTS", () => {
-		const db = new DatabaseSync(":memory:");
+		const db = new SQLite(":memory:");
 		createSchema(db);
 		installFixedTriggers(db);
 
@@ -159,7 +190,7 @@ describe("threads_fts triggers — regular FTS5 table", () => {
 	});
 
 	it("fixed trigger: UPDATE subject syncs FTS", () => {
-		const db = new DatabaseSync(":memory:");
+		const db = new SQLite(":memory:");
 		createSchema(db);
 		installFixedTriggers(db);
 
@@ -173,7 +204,7 @@ describe("threads_fts triggers — regular FTS5 table", () => {
 	});
 
 	it("migration 0034 correctly replaces broken triggers", () => {
-		const db = new DatabaseSync(":memory:");
+		const db = new SQLite(":memory:");
 		createSchema(db);
 		installBrokenTriggers(db);
 
