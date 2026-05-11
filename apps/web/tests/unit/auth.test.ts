@@ -13,6 +13,7 @@ vi.mock("next/headers", () => ({
 }));
 
 import {
+	authorizeCredentials,
 	decodeJwtExp,
 	jwtCallback,
 	refreshWorkerToken,
@@ -669,5 +670,172 @@ describe("sessionCallback uncovered branches", () => {
 		expect(result.user.id).toBe("");
 		expect(result.user.name).toBe("");
 		expect(result.user.role).toBeUndefined();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// authorizeCredentials — security regression tests (Task #18)
+// ---------------------------------------------------------------------------
+
+describe("authorizeCredentials", () => {
+	const originalFetch = globalThis.fetch;
+	const originalEnv = { ...process.env };
+
+	beforeEach(() => {
+		process.env.WORKER_API_URL = "https://worker.example.com";
+		process.env.FORUM_API_KEY = "test-api-key";
+	});
+
+	afterEach(() => {
+		globalThis.fetch = originalFetch;
+		process.env.WORKER_API_URL = originalEnv.WORKER_API_URL;
+		process.env.FORUM_API_KEY = originalEnv.FORUM_API_KEY;
+	});
+
+	it("returns null when Worker rejects credentials (401 INVALID_CREDENTIALS)", async () => {
+		globalThis.fetch = vi.fn(() =>
+			Promise.resolve(
+				new Response(JSON.stringify({ error: { code: "INVALID_CREDENTIALS" } }), {
+					status: 401,
+					headers: { "Content-Type": "application/json" },
+				}),
+			),
+		) as typeof globalThis.fetch;
+
+		const result = await authorizeCredentials(
+			{ username: "testuser", password: "wrong_password" },
+			"127.0.0.1",
+		);
+
+		expect(result).toBeNull();
+	});
+
+	it("returns null when Worker returns non-2xx (e.g. 500 internal error)", async () => {
+		globalThis.fetch = vi.fn(() =>
+			Promise.resolve(
+				new Response(JSON.stringify({ error: { code: "INTERNAL_ERROR" } }), {
+					status: 500,
+					headers: { "Content-Type": "application/json" },
+				}),
+			),
+		) as typeof globalThis.fetch;
+
+		const result = await authorizeCredentials(
+			{ username: "testuser", password: "anything" },
+			"127.0.0.1",
+		);
+
+		expect(result).toBeNull();
+	});
+
+	it("returns banned sentinel when Worker returns USER_BANNED", async () => {
+		globalThis.fetch = vi.fn(() =>
+			Promise.resolve(
+				new Response(JSON.stringify({ error: { code: "USER_BANNED" } }), {
+					status: 403,
+					headers: { "Content-Type": "application/json" },
+				}),
+			),
+		) as typeof globalThis.fetch;
+
+		const result = await authorizeCredentials(
+			{ username: "banneduser", password: "pass" },
+			"127.0.0.1",
+		);
+
+		expect(result).toEqual({ id: "banned", name: "", banned: true });
+	});
+
+	it("returns user object on successful login (200)", async () => {
+		globalThis.fetch = vi.fn(() =>
+			Promise.resolve(
+				new Response(
+					JSON.stringify({
+						data: {
+							token: "jwt-token",
+							refreshToken: "refresh-token",
+							user: { userId: 42, username: "testuser", role: 0 },
+						},
+					}),
+					{ status: 200, headers: { "Content-Type": "application/json" } },
+				),
+			),
+		) as typeof globalThis.fetch;
+
+		const result = await authorizeCredentials(
+			{ username: "testuser", password: "correct_password" },
+			"127.0.0.1",
+		);
+
+		expect(result).toEqual({
+			id: "42",
+			name: "testuser",
+			workerJwt: "jwt-token",
+			workerRefreshToken: "refresh-token",
+			role: 0,
+		});
+	});
+
+	it("returns null when WORKER_API_URL is not configured", async () => {
+		process.env.WORKER_API_URL = "";
+
+		const result = await authorizeCredentials(
+			{ username: "testuser", password: "pass" },
+			"127.0.0.1",
+		);
+
+		expect(result).toBeNull();
+	});
+
+	it("returns null when FORUM_API_KEY is not configured", async () => {
+		process.env.FORUM_API_KEY = "";
+
+		const result = await authorizeCredentials(
+			{ username: "testuser", password: "pass" },
+			"127.0.0.1",
+		);
+
+		expect(result).toBeNull();
+	});
+
+	it("returns null when Worker response body is not valid JSON on error", async () => {
+		globalThis.fetch = vi.fn(() =>
+			Promise.resolve(new Response("not json", { status: 401 })),
+		) as typeof globalThis.fetch;
+
+		const result = await authorizeCredentials(
+			{ username: "testuser", password: "wrong" },
+			"127.0.0.1",
+		);
+
+		expect(result).toBeNull();
+	});
+
+	it("sends correct headers including X-Real-IP for rate limiting", async () => {
+		const mockFetch = vi.fn(() =>
+			Promise.resolve(
+				new Response(
+					JSON.stringify({
+						data: {
+							token: "t",
+							refreshToken: "r",
+							user: { userId: 1, username: "u", role: 0 },
+						},
+					}),
+					{ status: 200, headers: { "Content-Type": "application/json" } },
+				),
+			),
+		);
+		globalThis.fetch = mockFetch as typeof globalThis.fetch;
+
+		await authorizeCredentials({ username: "u", password: "p" }, "10.0.0.5");
+
+		const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+		expect(url).toBe("https://worker.example.com/api/v1/auth/login");
+		expect(options.method).toBe("POST");
+		const headers = options.headers as Record<string, string>;
+		expect(headers["X-Real-IP"]).toBe("10.0.0.5");
+		expect(headers["X-API-Key"]).toBe("test-api-key");
+		expect(headers["Content-Type"]).toBe("application/json");
 	});
 });

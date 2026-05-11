@@ -84,11 +84,12 @@ export function resolveProxyAction(
 
 	// Always-public routes (login, register, api/auth) are never blocked
 	if (isAlwaysPublicRoute(pathname)) {
-		// Credentials users already have a forum session — redirect away from auth pages
-		if ((pathname === "/login" || pathname === "/register") && isForumLoggedIn) {
+		// /register: credentials users already have a session — redirect away
+		if (pathname === "/register" && isForumLoggedIn) {
 			return "redirect:/";
 		}
 
+		// /login: let page.tsx handle (shows "已登录" card or login form)
 		return "next";
 	}
 

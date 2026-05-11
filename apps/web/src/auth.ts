@@ -215,6 +215,61 @@ export function signInCallback({
 // NextAuth configuration — lazy init pattern
 // ---------------------------------------------------------------------------
 
+/**
+ * Core authorize logic for the Credentials provider.
+ *
+ * Extracted from the inline `authorize` callback so it can be unit-tested
+ * independently of the NextAuth runtime. The thin wrapper inside Credentials
+ * just calls this with the resolved client IP.
+ */
+export async function authorizeCredentials(
+	credentials: { username?: string; password?: string },
+	clientIP: string,
+): Promise<User | null> {
+	const workerUrl = getWorkerUrl();
+	const apiKey = getForumApiKey();
+	if (!workerUrl || !apiKey) return null;
+
+	const res = await fetch(`${workerUrl}/api/v1/auth/login`, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			"X-API-Key": apiKey,
+			"X-Real-IP": clientIP,
+		},
+		body: JSON.stringify({
+			username: credentials.username,
+			password: credentials.password,
+		}),
+	});
+
+	if (!res.ok) {
+		const body = await res.json().catch(() => ({}));
+		const code = (body as Record<string, Record<string, unknown>>)?.error?.code;
+		if (code === "USER_BANNED") {
+			// Sentinel for signIn callback (§2.5)
+			return { id: "banned", name: "", banned: true };
+		}
+		return null; // → CredentialsSignin
+	}
+
+	const { data } = (await res.json()) as {
+		data: {
+			token: string;
+			refreshToken: string;
+			user: { userId: number; username: string; role: number };
+		};
+	};
+
+	return {
+		id: String(data.user.userId),
+		name: data.user.username,
+		workerJwt: data.token,
+		workerRefreshToken: data.refreshToken,
+		role: data.user.role,
+	};
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth(async () => ({
 	trustHost: true,
 	providers: [
@@ -224,51 +279,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth(async () => ({
 				password: { label: "Password", type: "password" },
 			},
 			async authorize(credentials) {
-				const workerUrl = getWorkerUrl();
-				const apiKey = getForumApiKey();
-				if (!workerUrl || !apiKey) return null;
-
-				// Forward client IP for Worker rate limiting
 				const clientIP = await getClientIP();
-
-				const res = await fetch(`${workerUrl}/api/v1/auth/login`, {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						"X-API-Key": apiKey,
-						"X-Real-IP": clientIP,
+				return authorizeCredentials(
+					{
+						username: credentials.username as string | undefined,
+						password: credentials.password as string | undefined,
 					},
-					body: JSON.stringify({
-						username: credentials.username,
-						password: credentials.password,
-					}),
-				});
-
-				if (!res.ok) {
-					const body = await res.json().catch(() => ({}));
-					const code = (body as Record<string, Record<string, unknown>>)?.error?.code;
-					if (code === "USER_BANNED") {
-						// Sentinel for signIn callback (§2.5)
-						return { id: "banned", name: "", banned: true };
-					}
-					return null; // → CredentialsSignin
-				}
-
-				const { data } = (await res.json()) as {
-					data: {
-						token: string;
-						refreshToken: string;
-						user: { userId: number; username: string; role: number };
-					};
-				};
-
-				return {
-					id: String(data.user.userId),
-					name: data.user.username,
-					workerJwt: data.token,
-					workerRefreshToken: data.refreshToken,
-					role: data.user.role,
-				};
+					clientIP,
+				);
 			},
 		}),
 	],
