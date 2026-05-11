@@ -16,7 +16,10 @@ import {
 	canSubmitRegister,
 	passwordStrength,
 	registerErrorMessage,
+	validateBirthday,
 	validateEmail,
+	validateQQ,
+	validateSite,
 	validateUsername,
 } from "@/viewmodels/forum/register";
 import { useSearchParams } from "next/navigation";
@@ -196,6 +199,9 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 	const usernameError = username.trim() ? validateUsername(username) : null;
 	const emailError = email ? validateEmail(email) : null;
 	const passwordMismatch = confirmPassword && password !== confirmPassword;
+	const birthdayError = validateBirthday(birthYear, birthMonth, birthDay);
+	const qqError = validateQQ(qq);
+	const siteError = validateSite(site);
 
 	// Debounced username availability check
 	useEffect(() => {
@@ -383,6 +389,9 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 						inputMode="numeric"
 					/>
 				</div>
+				{birthdayError && (birthYear || birthMonth || birthDay) && (
+					<p className="text-xs text-destructive">{birthdayError}</p>
+				)}
 			</div>
 		</>
 	);
@@ -510,6 +519,7 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 					className="h-[58px] text-base"
 					inputMode="numeric"
 				/>
+				{qqError && <p className="text-xs text-destructive">{qqError}</p>}
 			</div>
 
 			{/* Site */}
@@ -526,9 +536,8 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 					disabled={loading}
 					className="h-[58px] text-base"
 				/>
+				{siteError && <p className="text-xs text-destructive">{siteError}</p>}
 			</div>
-
-			{/* Signature */}
 			<div className="space-y-2">
 				<Label htmlFor="reg-signature" className="text-sm">
 					个性签名
@@ -631,18 +640,23 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 
 				{accountFields}
 
-				{/* Profile fields — collapsible section in single column */}
+				{/* Education fields — required, always visible */}
+				<div className="space-y-4">
+					<p className="text-sm font-medium text-foreground/80 border-b border-border pb-1.5">
+						教育信息
+					</p>
+					{educationFields}
+				</div>
+
+				{/* Personal fields — collapsible, optional */}
 				<details className="group">
 					<summary className="cursor-pointer text-sm font-medium text-foreground/80 border-b border-border pb-1.5 mb-3 select-none list-none flex items-center justify-between">
-						个人资料（选填）
+						个人信息（选填）
 						<span className="text-xs text-muted-foreground group-open:rotate-180 transition-transform">
 							▼
 						</span>
 					</summary>
-					<div className="space-y-4">
-						{educationFields}
-						{personalFields}
-					</div>
+					<div className="space-y-4">{personalFields}</div>
 				</details>
 
 				<PostingConditionsNote />

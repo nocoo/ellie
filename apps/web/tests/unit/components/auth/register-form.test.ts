@@ -110,7 +110,10 @@ describe("RegisterForm (standalone)", () => {
 
 	it("renders profile fields collapsible section", () => {
 		render(createElement(RegisterForm));
-		expect(screen.getByText("个人资料（选填）")).toBeTruthy();
+		// Education is visible (not collapsible)
+		expect(screen.getByText("教育信息")).toBeTruthy();
+		// Personal is collapsible
+		expect(screen.getByText("个人信息（选填）")).toBeTruthy();
 	});
 
 	it("renders education Select fields", () => {
@@ -132,6 +135,12 @@ describe("RegisterForm (standalone)", () => {
 		render(createElement(RegisterForm));
 		expect(screen.getByText("新用户须知")).toBeTruthy();
 		expect(screen.getByText("注册后需完成邮箱验证方可发帖")).toBeTruthy();
+	});
+
+	it("submit button is disabled when education fields are empty", () => {
+		render(createElement(RegisterForm));
+		const submitBtn = screen.getByText("创建账号");
+		expect(submitBtn.closest("button")?.disabled).toBe(true);
 	});
 });
 
@@ -222,6 +231,14 @@ describe("onSuccess behavior", () => {
 		fireEvent.change(confirmInput, { target: { value: "password123" } });
 		fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
+		// Fill required education fields
+		fireEvent.change(screen.getByTestId("reg-identity"), {
+			target: { value: "校内人士" },
+		});
+		fireEvent.change(screen.getByTestId("reg-campus"), {
+			target: { value: "四平路校区" },
+		});
+
 		// Submit
 		const submitBtn = screen.getByText("创建账号");
 		fireEvent.click(submitBtn);
@@ -258,6 +275,14 @@ describe("onSuccess behavior", () => {
 		});
 		fireEvent.change(screen.getByPlaceholderText("your@email.com"), {
 			target: { value: "test@example.com" },
+		});
+
+		// Fill required education fields
+		fireEvent.change(screen.getByTestId("reg-identity"), {
+			target: { value: "已毕业校友" },
+		});
+		fireEvent.change(screen.getByTestId("reg-campus"), {
+			target: { value: "嘉定校区" },
 		});
 
 		fireEvent.click(screen.getByText("创建账号"));
