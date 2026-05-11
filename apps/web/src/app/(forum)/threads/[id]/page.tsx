@@ -129,17 +129,25 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 	// Derive current page from search params (priority: cursor > last > page > 1)
 	const currentPage = resolveCurrentPage(sp, postsPerPage, threadPages);
 
+	// Validate returnTo once — all downstream surfaces use the validated value.
+	// Invalid returnTo is silently dropped so the next pagination click cleans it out.
+	const validReturnTo = validateReturnTo(sp.returnTo, thread.forumId);
+
 	// Page-based prev/next hrefs — bypass Worker cursor backward limitation
 	const prevHref =
-		currentPage > 1 ? getThreadPageUrl(threadId, currentPage - 1, sp.returnTo) : null;
+		currentPage > 1
+			? getThreadPageUrl(threadId, currentPage - 1, validReturnTo ?? undefined)
+			: null;
 	const nextHref =
-		currentPage < threadPages ? getThreadPageUrl(threadId, currentPage + 1, sp.returnTo) : null;
+		currentPage < threadPages
+			? getThreadPageUrl(threadId, currentPage + 1, validReturnTo ?? undefined)
+			: null;
 
-	// Validate returnTo for safe back navigation (only allows same-forum paths)
-	const backHref = validateReturnTo(sp.returnTo, thread.forumId) ?? `/forums/${thread.forumId}`;
+	// Back button / ESC target — validated returnTo or fallback to forum root
+	const backHref = validReturnTo ?? `/forums/${thread.forumId}`;
 
 	// Extra query params for pagination links (preserves returnTo across page navigation)
-	const paginationExtra = sp.returnTo ? { returnTo: sp.returnTo } : undefined;
+	const paginationExtra = validReturnTo ? { returnTo: validReturnTo } : undefined;
 
 	return (
 		<div className="space-y-3">
@@ -210,7 +218,9 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 					nextHref={nextHref}
 					backHref={backHref}
 					jumpPage={
-						threadPages > 1 ? { basePath, pages: threadPages, returnTo: sp.returnTo } : undefined
+						threadPages > 1
+							? { basePath, pages: threadPages, returnTo: validReturnTo ?? undefined }
+							: undefined
 					}
 				/>
 			</ModProvider>
