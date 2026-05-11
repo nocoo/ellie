@@ -98,10 +98,10 @@ export function AuthIdCard({ topCenter, children }: AuthIdCardProps) {
 					<div className="flex flex-1 flex-col px-6 pt-6 pb-5">{children}</div>
 
 					{/* Footer strip */}
-					<div className="flex items-center justify-center border-t border-border bg-secondary/50 py-2.5">
-						<div className="flex items-center gap-1.5">
-							<div className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-							<span className="text-2xs text-muted-foreground">安全连接</span>
+					<div className="flex items-center justify-center border-t border-border bg-secondary/50 py-2">
+						<div className="flex items-center gap-1">
+							<div className="h-1 w-1 rounded-full bg-success/70 animate-pulse" />
+							<span className="text-[10px] text-muted-foreground/60 tracking-wider">安全连接</span>
 						</div>
 					</div>
 				</div>

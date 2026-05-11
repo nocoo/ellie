@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import RegisterForm from "./register-form";
 
-export const metadata: Metadata = { title: "注册" };
+export const metadata: Metadata = { title: "注册新账号 - 同济网论坛" };
 
 /** Server component — redirect credentials users who already have a session. */
 export default async function ForumRegisterPage() {
