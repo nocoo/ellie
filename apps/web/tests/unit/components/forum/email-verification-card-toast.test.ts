@@ -6,8 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock next/navigation
 const mockRefresh = vi.fn();
+const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
-	useRouter: () => ({ refresh: mockRefresh, push: vi.fn() }),
+	useRouter: () => ({ refresh: mockRefresh, push: mockPush }),
 }));
 
 // Mock cap-widget — auto-solves with a token
@@ -61,6 +62,20 @@ function renderCard(email = "test@example.com") {
 			createElement(EmailVerificationCard, {
 				user: { email, emailVerifiedAt: 0 },
 				capApiEndpoint: "https://cap.example.com/key/",
+			}),
+		),
+	);
+}
+
+function renderCardWithRedirect(redirectTo: string, email = "test@example.com") {
+	return render(
+		createElement(
+			ForumToastProvider,
+			null,
+			createElement(EmailVerificationCard, {
+				user: { email, emailVerifiedAt: 0 },
+				capApiEndpoint: "https://cap.example.com/key/",
+				redirectAfterVerify: redirectTo,
 			}),
 		),
 	);
@@ -313,5 +328,159 @@ describe("EmailVerificationCard toast integration", () => {
 			expect(errorToast).toBeTruthy();
 			expect(errorToast?.textContent).toContain("网络错误");
 		});
+	});
+
+	// --- redirectAfterVerify ---
+
+	it("calls router.push(redirectAfterVerify) after verify success", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(
+				jsonResponse({ data: { sent_to: "test@example.com", next_resend_allowed_at: 0 } }, 200),
+			)
+			.mockResolvedValueOnce(jsonResponse({}, 200));
+		global.fetch = fetchMock;
+		renderCardWithRedirect("/");
+
+		// Wait for cap auto-solve
+		await act(async () => {
+			await new Promise((r) => setTimeout(r, 10));
+		});
+
+		// Send code
+		const sendBtn = screen.getByText("发送验证码");
+		await act(async () => {
+			fireEvent.click(sendBtn);
+		});
+
+		await waitFor(() => {
+			expect(screen.getByLabelText("code")).toBeTruthy();
+		});
+
+		// Type code + verify
+		const codeInput = screen.getByLabelText("code");
+		await act(async () => {
+			fireEvent.change(codeInput, { target: { value: "123456" } });
+		});
+
+		const verifyBtn = screen.getByText("验证");
+		await act(async () => {
+			fireEvent.click(verifyBtn);
+		});
+
+		// Wait for verified state (success banner confirms state transition)
+		await waitFor(() => {
+			expect(screen.getByRole("status")).toBeTruthy();
+		});
+
+		// After verify success, router.refresh should NOT be called
+		expect(mockRefresh).not.toHaveBeenCalled();
+
+		// router.push is called after 1.5s delay
+		await waitFor(
+			() => {
+				expect(mockPush).toHaveBeenCalledWith("/");
+			},
+			{ timeout: 3000 },
+		);
+	});
+
+	// --- CAPTCHA hidden after verify ---
+
+	it("hides CAPTCHA widget after verify success", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(
+				jsonResponse({ data: { sent_to: "test@example.com", next_resend_allowed_at: 0 } }, 200),
+			)
+			.mockResolvedValueOnce(jsonResponse({}, 200));
+		global.fetch = fetchMock;
+		renderCard();
+
+		await act(async () => {
+			await new Promise((r) => setTimeout(r, 10));
+		});
+
+		// CAPTCHA visible before verify
+		expect(screen.getByTestId("cap-widget")).toBeTruthy();
+
+		const sendBtn = screen.getByText("发送验证码");
+		await act(async () => {
+			fireEvent.click(sendBtn);
+		});
+
+		await waitFor(() => {
+			expect(screen.getByLabelText("code")).toBeTruthy();
+		});
+
+		const codeInput = screen.getByLabelText("code");
+		await act(async () => {
+			fireEvent.change(codeInput, { target: { value: "123456" } });
+		});
+
+		const verifyBtn = screen.getByText("验证");
+		await act(async () => {
+			fireEvent.click(verifyBtn);
+		});
+
+		// Wait for verified state — once the success banner is visible,
+		// the CAPTCHA should already be gone.
+		await waitFor(() => {
+			expect(screen.getByRole("status")).toBeTruthy();
+		});
+
+		expect(screen.queryByTestId("cap-widget")).toBeNull();
+	});
+
+	// --- Success banner after verify ---
+
+	it("shows success banner after verify", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(
+				jsonResponse({ data: { sent_to: "test@example.com", next_resend_allowed_at: 0 } }, 200),
+			)
+			.mockResolvedValueOnce(jsonResponse({}, 200));
+		global.fetch = fetchMock;
+		renderCard();
+
+		await act(async () => {
+			await new Promise((r) => setTimeout(r, 10));
+		});
+
+		const sendBtn = screen.getByText("发送验证码");
+		await act(async () => {
+			fireEvent.click(sendBtn);
+		});
+
+		await waitFor(() => {
+			expect(screen.getByLabelText("code")).toBeTruthy();
+		});
+
+		const codeInput = screen.getByLabelText("code");
+		await act(async () => {
+			fireEvent.change(codeInput, { target: { value: "123456" } });
+		});
+
+		const verifyBtn = screen.getByText("验证");
+		await act(async () => {
+			fireEvent.click(verifyBtn);
+		});
+
+		// Success banner appears after verify — use the toast as the first
+		// indicator (matches the passing test pattern).
+		await waitFor(() => {
+			const alerts = screen.getAllByRole("alert");
+			const successToast = alerts.find((el) => el.textContent?.includes("邮箱已验证"));
+			expect(successToast).toBeTruthy();
+		});
+
+		// Success banner in the form
+		expect(screen.getByRole("status")).toBeTruthy();
+		expect(screen.getByText("✓ 邮箱验证成功")).toBeTruthy();
+
+		// Send/verify buttons gone
+		expect(screen.queryByText("发送验证码")).toBeNull();
+		expect(screen.queryByText("验证")).toBeNull();
 	});
 });

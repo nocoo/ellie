@@ -38,9 +38,19 @@ export interface EmailVerificationCardProps {
 	/** NEXT_PUBLIC_CAP_API_ENDPOINT — passed in so the page renders fail-closed
 	 *  when env var is missing instead of crashing the client bundle. */
 	capApiEndpoint: string | undefined;
+	/**
+	 * If set, navigate to this URL after successful email verification instead
+	 * of refreshing the current page. Use `/` to redirect to the homepage
+	 * after standalone verification flow.
+	 */
+	redirectAfterVerify?: string;
 }
 
-export function EmailVerificationCard({ user, capApiEndpoint }: EmailVerificationCardProps) {
+export function EmailVerificationCard({
+	user,
+	capApiEndpoint,
+	redirectAfterVerify,
+}: EmailVerificationCardProps) {
 	const router = useRouter();
 	const mode = pickCardMode(user);
 
@@ -91,7 +101,12 @@ export function EmailVerificationCard({ user, capApiEndpoint }: EmailVerificatio
 			isConfigError={!cfg.ok}
 			configErrorReason={cfg.ok ? "" : cfg.reason}
 			onVerified={() => {
-				router.refresh();
+				if (redirectAfterVerify) {
+					// Delay to let user see the success toast before navigating away
+					setTimeout(() => router.push(redirectAfterVerify), 1500);
+				} else {
+					router.refresh();
+				}
 			}}
 		/>
 	);
@@ -140,6 +155,7 @@ function EmailVerificationForm({
 	}, [state.kind, onVerified]);
 
 	const isBusy = state.kind === "sending" || state.kind === "verifying";
+	const isVerified = state.kind === "verified";
 
 	const handleSendCode = async () => {
 		if (isConfigError || isBusy) return;
@@ -234,7 +250,7 @@ function EmailVerificationForm({
 					/>
 				</div>
 
-				{!isConfigError && (
+				{!isConfigError && !isVerified && (
 					<div className="flex flex-col gap-1">
 						<CapWidget
 							key={widgetKey}
@@ -267,26 +283,36 @@ function EmailVerificationForm({
 					</div>
 				)}
 
-				<div className="flex items-center gap-2">
-					<Button
-						type="button"
-						onClick={handleSendCode}
-						disabled={isConfigError || isBusy || !isValidEmailFormat(email) || !capToken}
-					>
-						{state.kind === "sending" ? "发送中…" : showCodeInput ? "重新发送验证码" : "发送验证码"}
-					</Button>
-
-					{showCodeInput && (
+				{isVerified ? (
+					<output className="flex items-center gap-2 rounded-md bg-success/10 p-3 text-sm text-success">
+						<span>✓ 邮箱验证成功</span>
+					</output>
+				) : (
+					<div className="flex items-center gap-2">
 						<Button
 							type="button"
-							variant="default"
-							onClick={handleVerify}
-							disabled={isConfigError || isBusy || !isValidCodeFormat(code)}
+							onClick={handleSendCode}
+							disabled={isConfigError || isBusy || !isValidEmailFormat(email) || !capToken}
 						>
-							{state.kind === "verifying" ? "验证中…" : "验证"}
+							{state.kind === "sending"
+								? "发送中…"
+								: showCodeInput
+									? "重新发送验证码"
+									: "发送验证码"}
 						</Button>
-					)}
-				</div>
+
+						{showCodeInput && (
+							<Button
+								type="button"
+								variant="default"
+								onClick={handleVerify}
+								disabled={isConfigError || isBusy || !isValidCodeFormat(code)}
+							>
+								{state.kind === "verifying" ? "验证中…" : "验证"}
+							</Button>
+						)}
+					</div>
+				)}
 			</CardContent>
 		</Card>
 	);
