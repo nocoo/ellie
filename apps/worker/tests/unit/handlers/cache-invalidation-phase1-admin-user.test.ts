@@ -192,4 +192,30 @@ describe("Phase 1 commit 2c — admin user PATCH afterUpdate invalidation", () =
 		expect(mockInvUser).not.toHaveBeenCalled();
 		expect(mockInvUserV2).not.toHaveBeenCalled();
 	});
+
+	// Extended PATCH coverage — every field exposed by `toPublicUser()`
+	// (or affecting visibility) must invalidate. Profile / group / IP
+	// fields were missing pre-extension; lock them now so a future
+	// shortened cacheFields list is caught.
+	it.each([
+		["signature", { signature: "hi" }],
+		["bio", { bio: "long bio" }],
+		["groupTitle", { groupTitle: "管理组" }],
+		["customTitle", { customTitle: "VIP" }],
+		["avatarPath", { avatarPath: "avatars/x.jpg" }],
+		["digestPosts", { digestPosts: 9 }],
+		["lastActivity", { lastActivity: 1700000000 }],
+		["gender", { gender: 1 }],
+		["regIp", { regIp: "192.168.0.1" }],
+		["lastIp", { lastIp: "::1" }],
+		["threads", { threads: 100 }],
+		["posts", { posts: 999 }],
+	])("PublicUser field %s update invalidates legacy + v2", async (_name, body) => {
+		const { db, req } = patch(60, body);
+		const env = makeEnv({ DB: db });
+		const res = await update(req, env);
+		expect(res.status).toBe(200);
+		expect(mockInvUser).toHaveBeenCalledWith(env, 60);
+		expect(mockInvUserV2).toHaveBeenCalledWith(env, 60);
+	});
 });

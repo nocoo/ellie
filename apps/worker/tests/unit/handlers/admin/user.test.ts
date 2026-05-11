@@ -638,10 +638,14 @@ describe("admin user handlers", () => {
 			expect(body.error.details.message).toBe("role must be 0, 1, 2, or 3");
 		});
 
-		it("should reject invalid email format", async () => {
+		// Admin PATCH intentionally accepts any string for `email` — admins
+		// must be able to repair malformed legacy rows. The public-facing
+		// register/update endpoints still enforce format rules.
+		it("accepts arbitrary email string (no @ format check on admin path)", async () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+					"SELECT id, username": makeD1UserRow({ id: 42, email: "notanemail" }),
 				},
 			});
 
@@ -650,9 +654,24 @@ describe("admin user handlers", () => {
 			});
 			const res = await update(request, adminEnv(db));
 
+			expect(res.status).toBe(200);
+		});
+
+		it("rejects non-string email type", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+				},
+			});
+
+			const request = createAdminRequest("PATCH", "/api/admin/users/42", {
+				email: 12345,
+			});
+			const res = await update(request, adminEnv(db));
+
 			expect(res.status).toBe(400);
 			const body = await res.json();
-			expect(body.error.details.message).toBe("email must contain @");
+			expect(body.error.details.message).toBe("email must be a string");
 		});
 
 		it("should return 404 for non-existent user", async () => {
@@ -679,6 +698,191 @@ describe("admin user handlers", () => {
 			const res = await update(request, adminEnv(db));
 
 			expect(res.status).toBe(400);
+		});
+
+		// ─── Extended admin-only PATCH fields ──────────────────
+		// Admins must be able to edit any non-sensitive `users` column.
+		// `password_hash`/`password_salt` are never selected/updated.
+		// `purgedAt`/`purgedBy` are owned by the purge endpoint.
+		// Validation here is type-only; status/role enums and uniqueness
+		// guards are kept (covered by the dedicated tests above).
+
+		it("accepts long username (no 50-char admin cap)", async () => {
+			const longName = "a".repeat(120);
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+					"SELECT id FROM users WHERE username": null,
+					"SELECT id, username": makeD1UserRow({ id: 42, username: longName }),
+				},
+			});
+			const res = await update(
+				createAdminRequest("PATCH", "/api/admin/users/42", { username: longName }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+		});
+
+		it("accepts profile string fields (signature/bio/qq/etc.)", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+					"SELECT id, username": makeD1UserRow({ id: 42 }),
+				},
+			});
+			const res = await update(
+				createAdminRequest("PATCH", "/api/admin/users/42", {
+					signature: "hi",
+					bio: "long bio text",
+					qq: "12345",
+					site: "https://x.example",
+					interest: "music",
+					customTitle: "VIP",
+					groupTitle: "管理组",
+					groupColor: "#ff0000",
+					graduateSchool: "TJU",
+					resideProvince: "Shanghai",
+					resideCity: "Shanghai",
+					campus: "四平路",
+				}),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+		});
+
+		it("accepts integer counter fields (threads/posts/digestPosts/olTime/etc.)", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+					"SELECT id, username": makeD1UserRow({ id: 42 }),
+				},
+			});
+			const res = await update(
+				createAdminRequest("PATCH", "/api/admin/users/42", {
+					threads: 100,
+					posts: 999,
+					digestPosts: 5,
+					olTime: 12345,
+					lastActivity: 1700000000,
+					regDate: 1600000000,
+					lastLogin: 1700000000,
+					emailVerifiedAt: 1700000000,
+					emailChangedAt: 0,
+					gender: 1,
+					birthYear: 1990,
+					birthMonth: 6,
+					birthDay: 15,
+					groupStars: 3,
+					avatarPath: "avatars/42.jpg",
+				}),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+		});
+
+		it("accepts IP fields (regIp/lastIp; admin-only display)", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+					"SELECT id, username": makeD1UserRow({ id: 42 }),
+				},
+			});
+			const res = await update(
+				createAdminRequest("PATCH", "/api/admin/users/42", {
+					regIp: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+					lastIp: "192.168.1.1",
+				}),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+		});
+
+		it("rejects non-integer for counter fields", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+				},
+			});
+			const res = await update(
+				createAdminRequest("PATCH", "/api/admin/users/42", { threads: 1.5 }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("threads must be an integer");
+		});
+
+		it("rejects non-string for profile fields (e.g. bio: 5)", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+				},
+			});
+			const res = await update(
+				createAdminRequest("PATCH", "/api/admin/users/42", { bio: 5 }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("bio must be a string");
+		});
+
+		it("does NOT accept purgedAt/purgedBy (owned by purge endpoint)", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+				},
+			});
+			// Body contains only ignored fields → updateFields collects nothing
+			// → empty-body 400.
+			const res = await update(
+				createAdminRequest("PATCH", "/api/admin/users/42", { purgedAt: 9999, purgedBy: 1 }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toBe("At least one field must be provided");
+		});
+
+		it("rejects EMAIL_NORMALIZED_TAKEN (partial unique index from 0029)", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+					"SELECT id FROM users WHERE email_normalized": { id: 99 },
+				},
+			});
+			const res = await update(
+				createAdminRequest("PATCH", "/api/admin/users/42", {
+					emailNormalized: "taken@example.com",
+				}),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(409);
+			const body = await res.json();
+			expect(body.error.code).toBe("EMAIL_NORMALIZED_TAKEN");
+		});
+
+		it("allows empty emailNormalized without uniqueness check (partial index excludes '')", async () => {
+			// emailNormalized = "" must NOT trigger the uniqueness query
+			// (the `WHERE email_normalized != ''` partial index allows
+			// arbitrarily many empty rows). The handler should write the
+			// empty string straight through.
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+					"SELECT id, username": makeD1UserRow({ id: 42 }),
+				},
+			});
+			const res = await update(
+				createAdminRequest("PATCH", "/api/admin/users/42", { emailNormalized: "" }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+			// No SELECT against email_normalized was issued.
+			const probed = calls.find(
+				(c) => c.sql.includes("SELECT id FROM users WHERE email_normalized") && c.sql.includes("="),
+			);
+			expect(probed).toBeUndefined();
 		});
 	});
 

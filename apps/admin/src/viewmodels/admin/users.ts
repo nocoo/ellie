@@ -21,6 +21,31 @@ export interface User {
 	lastLogin: number;
 	regIp?: string;
 	lastIp?: string;
+	// Profile fields surfaced by the admin user-edit dialog. All optional in
+	// the type because not every endpoint paints the full object.
+	signature?: string;
+	groupTitle?: string;
+	groupStars?: number;
+	groupColor?: string;
+	customTitle?: string;
+	digestPosts?: number;
+	olTime?: number;
+	lastActivity?: number;
+	gender?: number;
+	birthYear?: number;
+	birthMonth?: number;
+	birthDay?: number;
+	resideProvince?: string;
+	resideCity?: string;
+	graduateSchool?: string;
+	bio?: string;
+	interest?: string;
+	qq?: string;
+	site?: string;
+	campus?: string;
+	emailVerifiedAt?: number;
+	emailNormalized?: string;
+	emailChangedAt?: number;
 	/** D4 tombstone — unix seconds when admin purged this user. 0 if never. */
 	purgedAt?: number;
 	/** D4 tombstone — admin user id who issued purge. 0 if never. */
@@ -53,10 +78,40 @@ export interface UserUpdate {
 	username?: string;
 	email?: string;
 	avatar?: string;
+	avatarPath?: string;
 	status?: number;
 	role?: number;
 	credits?: number;
 	coins?: number;
+	threads?: number;
+	posts?: number;
+	digestPosts?: number;
+	olTime?: number;
+	lastActivity?: number;
+	regDate?: number;
+	lastLogin?: number;
+	emailVerifiedAt?: number;
+	emailChangedAt?: number;
+	emailNormalized?: string;
+	signature?: string;
+	groupTitle?: string;
+	groupStars?: number;
+	groupColor?: string;
+	customTitle?: string;
+	gender?: number;
+	birthYear?: number;
+	birthMonth?: number;
+	birthDay?: number;
+	resideProvince?: string;
+	resideCity?: string;
+	graduateSchool?: string;
+	bio?: string;
+	interest?: string;
+	qq?: string;
+	site?: string;
+	campus?: string;
+	regIp?: string;
+	lastIp?: string;
 }
 
 export interface BanResult {
