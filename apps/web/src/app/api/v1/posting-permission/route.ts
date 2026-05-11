@@ -4,7 +4,7 @@ import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
 import { NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(request: Request) {
 	let jwt: string | null;
 	try {
 		jwt = await getWorkerJwt();
@@ -23,8 +23,16 @@ export async function GET() {
 		);
 	}
 
+	// Forward action query param to the Worker so content-switch checks
+	// (allow_new_thread, allow_reply) match the actual write action.
+	const action = new URL(request.url).searchParams.get("action");
+
 	try {
-		const result = await forumApi.getAuth<unknown>("/api/v1/posting-permission", jwt);
+		const result = await forumApi.getAuth<unknown>(
+			"/api/v1/posting-permission",
+			jwt,
+			action ? { action } : undefined,
+		);
 		return NextResponse.json(result);
 	} catch (err) {
 		if (err instanceof ForumApiError) {
