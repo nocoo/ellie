@@ -28,6 +28,7 @@ import {
 } from "@ellie/types";
 import {
 	type EnrichedPost,
+	buildFallbackAuthorMap,
 	enrichPosts,
 	groupAttachmentsByPostId,
 	groupCommentsByPostId,
@@ -136,12 +137,24 @@ export async function loadThreadDetail(params: {
 	const canDelete = forum ? canDeleteThread(currentUser, thread, forum) : false;
 
 	// Fetch attachments, comments, and authors in parallel using batch endpoints
-	// (eliminates N+1: 1 batch request per resource type instead of N per-post requests)
+	// (eliminates N+1: 1 batch request per resource type instead of N per-post requests).
+	//
+	// Failure semantics (rev — see L3 e2e investigation):
+	// SSR must NOT silently swallow batch failures into empty data, otherwise
+	// downstream UI (post-comments, author link) renders permanently empty even
+	// though the worker is reachable from the browser. Each branch logs the
+	// error and returns a sentinel that downstream code can distinguish from
+	// "successfully empty":
+	//   - comments: `undefined`  → PostComments falls back to its own client fetch
+	//   - authors:  `undefined`  → enrichPosts uses post.authorName for a minimal author shape
+	//   - attachments: `[]`      → no client fallback exists today; log only
 	const postIds = postsRes.data.map((p) => p.id);
 	const authorIds = uniqueAuthorIds(postsRes.data);
 
 	const [batchAttachmentRes, batchCommentRes, batchAuthorRes] = await Promise.all([
 		// Batch attachment fetch: POST /api/v1/posts/attachments/batch
+		// No client-side fallback for attachments; log failure but keep the
+		// shape stable as `[]` so the post body still renders.
 		postIds.length > 0
 			? forumApi
 					.post<Attachment[]>("/api/v1/posts/attachments/batch", {
@@ -149,19 +162,36 @@ export async function loadThreadDetail(params: {
 						postIds,
 					})
 					.then((res) => res.data)
-					.catch(() => [] as Attachment[])
+					.catch((err) => {
+						console.error(
+							"[thread-detail.server] posts/attachments/batch failed (rendering with [])",
+							{ threadId: params.threadId, postIds: postIds.length, err },
+						);
+						return [] as Attachment[];
+					})
 			: Promise.resolve([] as Attachment[]),
 		// Batch comment fetch: POST /api/v1/post-comments/batch
+		// Failure → `undefined` so PostComments triggers a client-side refetch
+		// instead of hard-rendering an empty list.
 		postIds.length > 0
 			? forumApi
 					.post<PostComment[]>("/api/v1/post-comments/batch", {
 						threadId: params.threadId,
 						postIds,
 					})
-					.then((res) => res.data)
-					.catch(() => [] as PostComment[])
+					.then((res) => res.data as PostComment[] | undefined)
+					.catch((err) => {
+						console.error(
+							"[thread-detail.server] post-comments/batch failed (client will refetch)",
+							{ threadId: params.threadId, postIds: postIds.length, err },
+						);
+						return undefined;
+					})
 			: Promise.resolve([] as PostComment[]),
 		// Batch author fetch: GET /api/v1/users/batch?ids=1,2,3
+		// Failure → `undefined`. enrichPosts then constructs a minimal author
+		// stub from `post.authorId` + `post.authorName` so the `<Link href="/users/N">`
+		// still renders. We never invent sensitive fields (role, status, etc).
 		authorIds.length > 0
 			? forumApi
 					.getAll<PublicUser>("/api/v1/users/batch", {
@@ -172,19 +202,28 @@ export async function loadThreadDetail(params: {
 						for (const pu of res.data) {
 							map.set(pu.id, publicUserToUser(pu));
 						}
-						return map;
+						return map as Map<number, User> | undefined;
 					})
-					.catch(() => new Map<number, User>())
+					.catch((err) => {
+						console.error(
+							"[thread-detail.server] users/batch failed (falling back to post.authorName)",
+							{ threadId: params.threadId, authorIds: authorIds.length, err },
+						);
+						return undefined;
+					})
 			: Promise.resolve(new Map<number, User>()),
 	]);
 
 	const allAttachments = batchAttachmentRes;
 	const allComments = batchCommentRes;
-	const authorMap = batchAuthorRes;
+	const authorMap = batchAuthorRes ?? buildFallbackAuthorMap(postsRes.data);
 
-	// Group attachments and comments by postId and enrich posts
+	// Group attachments and comments by postId and enrich posts.
+	// `commentMap === undefined` propagates SSR batch failure into
+	// `EnrichedPost.comments === undefined`; PostComments treats that as
+	// "fetch on the client" rather than "no comments exist".
 	const attachmentMap = groupAttachmentsByPostId(allAttachments);
-	const commentMap = groupCommentsByPostId(allComments);
+	const commentMap = allComments === undefined ? undefined : groupCommentsByPostId(allComments);
 	const posts = enrichPosts(
 		postsRes.data,
 		authorMap,

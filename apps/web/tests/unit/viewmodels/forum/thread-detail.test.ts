@@ -1,4 +1,5 @@
 import {
+	buildFallbackAuthorMap,
 	checkCanDeleteThread,
 	checkCanManageThread,
 	checkCanModerate,
@@ -342,6 +343,93 @@ describe("enrichPosts", () => {
 	it("returns empty array for empty posts", () => {
 		const enriched = enrichPosts([], new Map(), new Map(), new Map(), null, { moderators: "" });
 		expect(enriched).toEqual([]);
+	});
+
+	// ─── SSR batch failure semantics (L3 e2e regression guard) ───
+	// Contract: enrichPosts must distinguish "comment batch succeeded with no
+	// rows" (Map → empty array on the post) from "comment batch failed"
+	// (undefined → undefined on the post). PostComments uses the latter to
+	// trigger a client-side refetch.
+
+	it("propagates `comments: undefined` when commentMap is undefined (SSR batch failure)", () => {
+		const posts = [makePost({ id: 100, authorId: 1 }), makePost({ id: 101, authorId: 1 })];
+		const enriched = enrichPosts(posts, new Map(), new Map(), undefined, null, {
+			moderators: "",
+		});
+		expect(enriched).toHaveLength(2);
+		expect(enriched[0]?.comments).toBeUndefined();
+		expect(enriched[1]?.comments).toBeUndefined();
+	});
+
+	it("propagates `comments: []` when commentMap is empty Map (SSR batch succeeded, no rows)", () => {
+		const posts = [makePost({ id: 100, authorId: 1 })];
+		const enriched = enrichPosts(posts, new Map(), new Map(), new Map(), null, {
+			moderators: "",
+		});
+		// Empty array, NOT undefined — client must not refetch in this case.
+		expect(enriched[0]?.comments).toEqual([]);
+		expect(enriched[0]?.comments).not.toBeUndefined();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// buildFallbackAuthorMap (L3 e2e regression guard)
+// ---------------------------------------------------------------------------
+// Contract: when the /users/batch SSR call fails, we must still render the
+// `<Link href="/users/N">` author link — E2E-PO-01 asserts on this. The
+// fallback constructs minimal User shapes from `Post.authorId` + `authorName`,
+// never inventing sensitive fields (role/email/etc).
+
+describe("buildFallbackAuthorMap", () => {
+	it("returns empty map for no posts", () => {
+		expect(buildFallbackAuthorMap([]).size).toBe(0);
+	});
+
+	it("builds a User stub from each unique authorId/authorName", () => {
+		const posts = [
+			makePost({ id: 1, authorId: 10, authorName: "alice" }),
+			makePost({ id: 2, authorId: 20, authorName: "bob" }),
+		];
+		const map = buildFallbackAuthorMap(posts);
+		expect(map.size).toBe(2);
+		expect(map.get(10)?.username).toBe("alice");
+		expect(map.get(10)?.id).toBe(10);
+		expect(map.get(20)?.username).toBe("bob");
+	});
+
+	it("dedupes by authorId — first authorName wins", () => {
+		const posts = [
+			makePost({ id: 1, authorId: 10, authorName: "alice" }),
+			makePost({ id: 2, authorId: 10, authorName: "alice-renamed" }),
+		];
+		const map = buildFallbackAuthorMap(posts);
+		expect(map.size).toBe(1);
+		expect(map.get(10)?.username).toBe("alice");
+	});
+
+	it("skips posts whose row lacks an authorName (no fabrication)", () => {
+		const posts = [makePost({ id: 1, authorId: 10, authorName: "" })];
+		const map = buildFallbackAuthorMap(posts);
+		expect(map.has(10)).toBe(false);
+	});
+
+	it("never invents privileged role — defaults to User role", () => {
+		const posts = [makePost({ id: 1, authorId: 10, authorName: "alice" })];
+		const map = buildFallbackAuthorMap(posts);
+		expect(map.get(10)?.role).toBe(UserRole.User);
+		expect(map.get(10)?.email).toBe("");
+		expect(map.get(10)?.emailNormalized).toBe("");
+	});
+
+	it("integrates with enrichPosts — fallback author flows into EnrichedPost.author", () => {
+		const posts = [makePost({ id: 100, authorId: 10, authorName: "alice" })];
+		const fallbackMap = buildFallbackAuthorMap(posts);
+		const enriched = enrichPosts(posts, fallbackMap, new Map(), new Map(), null, {
+			moderators: "",
+		});
+		expect(enriched[0]?.author).not.toBeNull();
+		expect(enriched[0]?.author?.username).toBe("alice");
+		expect(enriched[0]?.author?.id).toBe(10);
 	});
 });
 
