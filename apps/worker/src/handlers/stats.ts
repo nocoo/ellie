@@ -3,7 +3,14 @@
 // Cached in KV for 60 seconds to avoid repeated COUNT queries.
 // Only counts visible content (posts.invisible = 0, threads.sticky >= 0, users.status >= 0)
 
-import { recordError, recordHit, recordMiss } from "../lib/cache/metrics";
+import {
+	recordError,
+	recordHit,
+	recordMiss,
+	recordRead,
+	recordWrite,
+	scheduleMetricsFlush,
+} from "../lib/cache/metrics";
 import type { CFRequest, Env } from "../lib/env";
 import { jsonResponse } from "../lib/response";
 import { POST_VISIBLE, THREAD_VISIBLE, USER_ACTIVE } from "../lib/visibility";
@@ -33,11 +40,16 @@ function dayBoundaries(): { todayStart: number; yesterdayStart: number; yesterda
 }
 
 /** GET /api/v1/stats — public site statistics */
-export async function stats(request: CFRequest, env: Env): Promise<Response> {
+export async function stats(
+	request: CFRequest,
+	env: Env,
+	ctx?: ExecutionContext,
+): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	// Try KV cache first
 	let cached: string | null = null;
+	recordRead(METRICS_FAMILY);
 	try {
 		cached = await env.KV.get(CACHE_KEY);
 	} catch (err) {
@@ -46,6 +58,7 @@ export async function stats(request: CFRequest, env: Env): Promise<Response> {
 	}
 	if (cached) {
 		recordHit(METRICS_FAMILY);
+		if (ctx) scheduleMetricsFlush(env, ctx);
 		return jsonResponse(JSON.parse(cached) as PublicStats, origin);
 	}
 	recordMiss(METRICS_FAMILY);
@@ -106,10 +119,12 @@ export async function stats(request: CFRequest, env: Env): Promise<Response> {
 	// Write to KV cache (fire-and-forget)
 	try {
 		await env.KV.put(CACHE_KEY, JSON.stringify(data), { expirationTtl: CACHE_TTL_SECONDS });
+		recordWrite(METRICS_FAMILY);
 	} catch (err) {
 		recordError(METRICS_FAMILY);
 		console.warn("[stats] KV write-back failed", err);
 	}
 
+	if (ctx) scheduleMetricsFlush(env, ctx);
 	return jsonResponse(data, origin);
 }

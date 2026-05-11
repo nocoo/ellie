@@ -55,6 +55,7 @@ import {
 	findFamily,
 	resolveFamilyForKey,
 } from "../../lib/cache/kv-registry";
+import { recordDelete } from "../../lib/cache/metrics";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { jsonResponse } from "../../lib/response";
@@ -698,6 +699,7 @@ async function refreshDeleteLiteral(
 		return errorResponse("KV_ACTION_NOT_ALLOWED", 400, { family: spec.family }, origin);
 	}
 	await env.KV.delete(key);
+	recordDelete(targetSpec.family);
 	const masked = await maskKeyName(key, targetSpec);
 	await writeAdminLog(env, actor, {
 		action: "kv.delete_key",
@@ -729,15 +731,9 @@ async function refreshDeleteUserMini(
 	return jsonResponse({ ok: true, family: spec.family, userId, deleted: 1 }, origin);
 }
 
-// ─── GET /api/admin/kv/metrics — STUB until commit B ──────────────
-//
-// Returns an empty time-series envelope so the admin UI can build
-// against the final shape. Commit B replaces the body with a D1
-// query against `kv_cache_metrics_minute`.
-
 // ─── GET /api/admin/kv/metrics ────────────────────────────────────
 //
-// Per-minute hit/miss/error series for one or all instrumented families.
+// Per-minute op-dimensioned series for one or all instrumented families.
 // Reads from `kv_cache_metrics_minute` (migration 0035), populated by the
 // in-isolate accumulator + ctx.waitUntil flush in `lib/cache/metrics.ts`.
 //
@@ -748,7 +744,11 @@ async function refreshDeleteUserMini(
 //
 // Response shape:
 //   { family: string | null, minutes: number,
-//     series: [{ family, tsMinute, hits, misses, errors }, ...] }
+//     series: [{ family, tsMinute, op, count }, ...] }
+//
+// `op` is one of `read | hit | miss | write | bump | delete | error`.
+// The UI derives hit-rate as `hit / (hit + miss)` and total ops as the
+// sum across all op rows for the same (family, tsMinute).
 
 export const metrics = withEntityAuth(
 	kvConfig,
@@ -764,30 +764,28 @@ export const metrics = withEntityAuth(
 		try {
 			const stmt = family
 				? env.DB.prepare(
-						`SELECT family, ts_minute, hits, misses, errors
+						`SELECT family, ts_minute, op, count
 						 FROM kv_cache_metrics_minute
 						 WHERE ts_minute >= ? AND family = ?
-						 ORDER BY ts_minute ASC`,
+						 ORDER BY ts_minute ASC, op ASC`,
 					).bind(cutoff, family)
 				: env.DB.prepare(
-						`SELECT family, ts_minute, hits, misses, errors
+						`SELECT family, ts_minute, op, count
 						 FROM kv_cache_metrics_minute
 						 WHERE ts_minute >= ?
-						 ORDER BY family ASC, ts_minute ASC`,
+						 ORDER BY family ASC, ts_minute ASC, op ASC`,
 					).bind(cutoff);
 			const result = await stmt.all<{
 				family: string;
 				ts_minute: number;
-				hits: number;
-				misses: number;
-				errors: number;
+				op: string;
+				count: number;
 			}>();
 			const series = result.results.map((r) => ({
 				family: r.family,
 				tsMinute: r.ts_minute,
-				hits: r.hits,
-				misses: r.misses,
-				errors: r.errors,
+				op: r.op,
+				count: r.count,
 			}));
 			return jsonResponse({ family: family ?? null, minutes, series }, origin);
 		} catch (err) {

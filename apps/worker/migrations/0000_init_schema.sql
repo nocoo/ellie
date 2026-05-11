@@ -281,10 +281,9 @@ CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(receiver_id, is_read,
 CREATE TABLE IF NOT EXISTS kv_cache_metrics_minute (
     family       TEXT    NOT NULL,
     ts_minute    INTEGER NOT NULL,
-    hits         INTEGER NOT NULL DEFAULT 0,
-    misses       INTEGER NOT NULL DEFAULT 0,
-    errors       INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (family, ts_minute)
+    op           TEXT    NOT NULL,
+    count        INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (family, ts_minute, op)
 );
 
 CREATE INDEX IF NOT EXISTS idx_kv_metrics_ts ON kv_cache_metrics_minute(ts_minute DESC);

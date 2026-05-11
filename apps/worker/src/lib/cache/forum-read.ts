@@ -43,7 +43,14 @@ import {
 	forumTreeGenKey,
 	forumTreeKey,
 } from "./keys";
-import { recordError, recordHit, recordMiss, scheduleMetricsFlush } from "./metrics";
+import {
+	recordError,
+	recordHit,
+	recordMiss,
+	recordRead,
+	recordWrite,
+	scheduleMetricsFlush,
+} from "./metrics";
 import { cacheGetOrSet } from "./wrap";
 
 // ─── TTLs (docs/19 §4) ────────────────────────────────────────────
@@ -448,8 +455,9 @@ export async function getForumMetaV2(
 
 	// Try cache directly (read-only). We don't use `cacheGetOrSet` here
 	// because the miss path needs to short-circuit to 404/403 without a
-	// payload to write back. Hit/miss/error are still tracked under the
-	// `forum:meta:v2` family so the admin monitor sees this path.
+	// payload to write back. Read/hit/miss/error are still tracked under
+	// the `forum:meta:v2` family so the admin monitor sees this path.
+	recordRead("forum:meta:v2");
 	try {
 		const cached = (await env.KV.get(key, "json")) as unknown;
 		if (cached !== null && cached !== undefined && isForumMetaPayload(cached)) {
@@ -481,10 +489,14 @@ export async function getForumMetaV2(
 	// Best-effort write-back; never block the response.
 	const putPromise = env.KV.put(key, JSON.stringify(payload), {
 		expirationTtl: FORUM_META_TTL,
-	}).catch((err) => {
-		recordError("forum:meta:v2");
-		console.warn(`[cache] forum:meta write-back failed key=${key}`, err);
-	});
+	})
+		.then(() => {
+			recordWrite("forum:meta:v2");
+		})
+		.catch((err) => {
+			recordError("forum:meta:v2");
+			console.warn(`[cache] forum:meta write-back failed key=${key}`, err);
+		});
 	ctx.waitUntil(putPromise);
 	scheduleMetricsFlush(env, ctx);
 

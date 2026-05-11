@@ -608,11 +608,13 @@ describe("admin/kv — overview", () => {
 });
 
 describe("admin/kv — metrics", () => {
-	it("returns rows from kv_cache_metrics_minute filtered by family + minutes", async () => {
+	it("returns op-dimensioned rows from kv_cache_metrics_minute filtered by family + minutes", async () => {
 		const tsNow = Math.floor(Date.now() / 60_000);
 		const rows = [
-			{ family: "forum:tree:v2", ts_minute: tsNow - 1, hits: 5, misses: 1, errors: 0 },
-			{ family: "forum:tree:v2", ts_minute: tsNow, hits: 7, misses: 2, errors: 0 },
+			{ family: "forum:tree:v2", ts_minute: tsNow - 1, op: "read", count: 5 },
+			{ family: "forum:tree:v2", ts_minute: tsNow - 1, op: "hit", count: 4 },
+			{ family: "forum:tree:v2", ts_minute: tsNow - 1, op: "miss", count: 1 },
+			{ family: "forum:tree:v2", ts_minute: tsNow, op: "write", count: 2 },
 		];
 		// Mock D1 that returns the seeded rows for the metrics query
 		// regardless of bind args; assertion is on response shape.
@@ -631,14 +633,17 @@ describe("admin/kv — metrics", () => {
 			data: {
 				family: string | null;
 				minutes: number;
-				series: { family: string; tsMinute: number; hits: number }[];
+				series: { family: string; tsMinute: number; op: string; count: number }[];
 			};
 		};
 		expect(body.data.family).toBe("forum:tree:v2");
 		expect(body.data.minutes).toBe(15);
-		expect(body.data.series).toHaveLength(2);
-		expect(body.data.series[0].hits).toBe(5);
-		expect(body.data.series[1].hits).toBe(7);
+		expect(body.data.series).toHaveLength(4);
+		// Op + count round-trip through the response shape.
+		expect(body.data.series[0].op).toBe("read");
+		expect(body.data.series[0].count).toBe(5);
+		expect(body.data.series[3].op).toBe("write");
+		expect(body.data.series[3].count).toBe(2);
 	});
 
 	it("degrades gracefully when D1 query throws (table missing)", async () => {

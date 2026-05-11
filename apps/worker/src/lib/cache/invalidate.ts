@@ -22,6 +22,7 @@ import {
 	userMiniKey,
 	userPublicKey,
 } from "./keys";
+import { recordBump, recordDelete } from "./metrics";
 
 // ─── Single-key delete helpers ─────────────────────────────────────
 
@@ -33,6 +34,7 @@ export async function deleteUserMini(env: Env, userId: number): Promise<void> {
 	const key = userMiniKey(userId);
 	try {
 		await env.KV.delete(key);
+		recordDelete("user:mini:v1");
 	} catch (err) {
 		// best-effort
 		console.warn(`[cache] delete failed key=${key}`, err);
@@ -48,12 +50,20 @@ export async function deleteUserPublicVariants(env: Env, userId: number): Promis
 	const publicKey = userPublicKey(userId, "public");
 	const staffKey = userPublicKey(userId, "staff");
 	await Promise.all([
-		env.KV.delete(publicKey).catch((err) => {
-			console.warn(`[cache] delete failed key=${publicKey}`, err);
-		}),
-		env.KV.delete(staffKey).catch((err) => {
-			console.warn(`[cache] delete failed key=${staffKey}`, err);
-		}),
+		env.KV.delete(publicKey)
+			.then(() => {
+				recordDelete("user:public:v2");
+			})
+			.catch((err) => {
+				console.warn(`[cache] delete failed key=${publicKey}`, err);
+			}),
+		env.KV.delete(staffKey)
+			.then(() => {
+				recordDelete("user:public:v2");
+			})
+			.catch((err) => {
+				console.warn(`[cache] delete failed key=${staffKey}`, err);
+			}),
 	]);
 }
 
@@ -71,15 +81,25 @@ export async function invalidateUserCaches(env: Env, userId: number): Promise<vo
 // ─── Generation bump helpers (per docs/19 §3.3) ────────────────────
 
 export async function bumpForumTreeGen(env: Env): Promise<string> {
-	return bumpGen(env, forumTreeGenKey());
+	const v = await bumpGen(env, forumTreeGenKey());
+	recordBump("forum:tree:v2");
+	return v;
 }
 
 export async function bumpForumSummaryGen(env: Env): Promise<string> {
-	return bumpGen(env, forumSummaryGenKey());
+	const v = await bumpGen(env, forumSummaryGenKey());
+	recordBump("forum:summary:v2");
+	// forum:meta:v2 keys also embed `forum:summary:gen`, so the same
+	// bump invalidates both families. Reflect that in metrics so the
+	// admin monitor doesn't show meta as "never bumped".
+	recordBump("forum:meta:v2");
+	return v;
 }
 
 export async function bumpThreadListGen(env: Env, forumId: number): Promise<string> {
-	return bumpGen(env, threadListGenKey(forumId));
+	const v = await bumpGen(env, threadListGenKey(forumId));
+	recordBump("thread:list:v2");
+	return v;
 }
 
 /**
@@ -97,7 +117,9 @@ export async function bumpThreadListGen(env: Env, forumId: number): Promise<stri
  * See docs/19 §3.3.1 option (b).
  */
 export async function bumpThreadListGenAll(env: Env): Promise<string> {
-	return bumpGen(env, threadListGenAllKey());
+	const v = await bumpGen(env, threadListGenAllKey());
+	recordBump("thread:list:v2");
+	return v;
 }
 
 /**
@@ -114,6 +136,13 @@ export async function invalidateThreadListForForums(
 	const unique = Array.from(new Set(forumIds));
 	await Promise.all(unique.map((id) => bumpThreadListGen(env, id)));
 }
+
+// NOTE: bump recording is intentionally limited to families that are
+// also read-instrumented (forum tree/summary, thread list). thread-meta
+// / post-list / digest gens have no read-side counters yet — recording
+// bumps for them would produce orphan rows in the metrics table that
+// the admin UI cannot pair with hits/misses. Once those caches grow
+// read-side instrumentation, add the matching `recordBump` calls here.
 
 export async function bumpThreadMetaGen(env: Env, threadId: number): Promise<string> {
 	return bumpGen(env, threadMetaGenKey(threadId));

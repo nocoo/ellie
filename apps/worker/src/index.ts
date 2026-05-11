@@ -143,7 +143,7 @@ export default {
 
 			// ── #12b Public stats (Key A, read-only, KV-cached) ─
 			if (path === "/api/v1/stats" && request.method === "GET") {
-				return await (await import("./handlers/stats")).stats(request, env);
+				return await (await import("./handlers/stats")).stats(request, env, ctx);
 			}
 
 			// ── #12c Public settings (Key A, read-only) ─────

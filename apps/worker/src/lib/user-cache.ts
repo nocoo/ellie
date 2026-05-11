@@ -2,7 +2,15 @@
 // Used for batch-fetching user info (username, avatar, role, group info) by ID
 // Implements the caching strategy from docs/09-user-cache-refactor.md
 
-import { recordError, recordHit, recordMiss, scheduleMetricsFlush } from "./cache/metrics";
+import {
+	recordDelete,
+	recordError,
+	recordHit,
+	recordMiss,
+	recordRead,
+	recordWrite,
+	scheduleMetricsFlush,
+} from "./cache/metrics";
 import type { Env } from "./env";
 
 const USER_CACHE_PREFIX = "user:mini:";
@@ -48,6 +56,7 @@ export async function getUserProfiles(
 	// Parallel KV reads
 	const cacheResults = await Promise.all(
 		uniqueIds.map(async (id) => {
+			recordRead(METRICS_FAMILY);
 			try {
 				const data = await env.KV.get<UserMiniProfile>(`${USER_CACHE_PREFIX}${id}`, "json");
 				return { id, data, error: false };
@@ -104,10 +113,14 @@ export async function getUserProfiles(
 				ctx.waitUntil(
 					env.KV.put(`${USER_CACHE_PREFIX}${profile.id}`, JSON.stringify(profile), {
 						expirationTtl: USER_CACHE_TTL,
-					}).catch((err) => {
-						recordError(METRICS_FAMILY);
-						console.warn(`[user-cache] write-back failed id=${profile.id}`, err);
-					}),
+					})
+						.then(() => {
+							recordWrite(METRICS_FAMILY);
+						})
+						.catch((err) => {
+							recordError(METRICS_FAMILY);
+							console.warn(`[user-cache] write-back failed id=${profile.id}`, err);
+						}),
 				);
 			}
 		}
@@ -126,4 +139,5 @@ export async function getUserProfiles(
  */
 export async function invalidateUserCache(env: Env, userId: number): Promise<void> {
 	await env.KV.delete(`${USER_CACHE_PREFIX}${userId}`);
+	recordDelete(METRICS_FAMILY);
 }

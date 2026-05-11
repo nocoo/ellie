@@ -16,7 +16,14 @@
 // to D1 at the end of the request via `scheduleMetricsFlush`.
 
 import type { Env } from "../env";
-import { recordError, recordHit, recordMiss, scheduleMetricsFlush } from "./metrics";
+import {
+	recordError,
+	recordHit,
+	recordMiss,
+	recordRead,
+	recordWrite,
+	scheduleMetricsFlush,
+} from "./metrics";
 
 export interface CacheGetOrSetOptions<T> {
 	/** TTL in seconds. Required: every cache entry must declare a TTL. */
@@ -50,6 +57,7 @@ export async function cacheGetOrSet<T>(
 	options: CacheGetOrSetOptions<T>,
 ): Promise<T> {
 	// Read attempt
+	recordRead(options.family);
 	try {
 		const cached = (await env.KV.get(key, "json")) as unknown;
 		if (cached !== null && cached !== undefined) {
@@ -73,10 +81,14 @@ export async function cacheGetOrSet<T>(
 	// Best-effort write-back; never block the response.
 	const putPromise = env.KV.put(key, JSON.stringify(fresh), {
 		expirationTtl: options.ttl,
-	}).catch((err) => {
-		recordError(options.family);
-		console.warn(`[cache] write-back failed key=${key}`, err);
-	});
+	})
+		.then(() => {
+			recordWrite(options.family);
+		})
+		.catch((err) => {
+			recordError(options.family);
+			console.warn(`[cache] write-back failed key=${key}`, err);
+		});
 	ctx.waitUntil(putPromise);
 	scheduleMetricsFlush(env, ctx);
 

@@ -1,7 +1,15 @@
 // Settings KV cache helper — read-through cache with write-invalidation
 // Single KV key "settings:all" holds all settings as JSON (< 2KB)
 
-import { recordError, recordHit, recordMiss } from "./cache/metrics";
+import {
+	recordDelete,
+	recordError,
+	recordHit,
+	recordMiss,
+	recordRead,
+	recordWrite,
+	scheduleMetricsFlush,
+} from "./cache/metrics";
 import type { Env } from "./env";
 
 // ─── Types ────────────────────────────────────────────────────
@@ -62,10 +70,17 @@ async function fetchAllFromDb(env: Env): Promise<SettingsRow[]> {
 /**
  * Get all settings as a typed map (number/boolean/json values already parsed).
  * Uses KV read-through cache with 24h TTL.
+ *
+ * `ctx` is optional: when provided, the in-isolate metrics accumulator is
+ * flushed via `ctx.waitUntil` so the admin KV monitor sees per-minute
+ * counters for the `settings:all` family. Callers in cron / startup
+ * paths that have no `ExecutionContext` may omit it; the recorded
+ * counters then ride along with the next request that does pass `ctx`.
  */
-export async function getSettings(env: Env): Promise<SettingsMap> {
+export async function getSettings(env: Env, ctx?: ExecutionContext): Promise<SettingsMap> {
 	// Try KV cache first
 	let cached: string | null = null;
+	recordRead(METRICS_FAMILY);
 	try {
 		cached = await env.KV.get(KV_KEY);
 	} catch (err) {
@@ -74,6 +89,7 @@ export async function getSettings(env: Env): Promise<SettingsMap> {
 	}
 	if (cached) {
 		recordHit(METRICS_FAMILY);
+		if (ctx) scheduleMetricsFlush(env, ctx);
 		return JSON.parse(cached) as SettingsMap;
 	}
 
@@ -88,11 +104,13 @@ export async function getSettings(env: Env): Promise<SettingsMap> {
 	// Backfill KV cache
 	try {
 		await env.KV.put(KV_KEY, JSON.stringify(map), { expirationTtl: KV_TTL });
+		recordWrite(METRICS_FAMILY);
 	} catch (err) {
 		recordError(METRICS_FAMILY);
 		console.warn("[settings] KV write-back failed", err);
 	}
 
+	if (ctx) scheduleMetricsFlush(env, ctx);
 	return map;
 }
 
@@ -103,8 +121,9 @@ export async function getSetting<T extends string | number | boolean | object>(
 	env: Env,
 	key: string,
 	defaultValue: T,
+	ctx?: ExecutionContext,
 ): Promise<T> {
-	const all = await getSettings(env);
+	const all = await getSettings(env, ctx);
 	if (key in all) {
 		return all[key] as T;
 	}
@@ -150,4 +169,5 @@ export async function upsertSettings(env: Env, entries: Record<string, string>):
 
 	// Invalidate KV cache immediately
 	await env.KV.delete(KV_KEY);
+	recordDelete(METRICS_FAMILY);
 }
