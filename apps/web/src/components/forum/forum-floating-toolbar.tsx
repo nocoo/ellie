@@ -6,7 +6,7 @@
 
 import { FloatingToolbar } from "@/components/forum/floating-toolbar";
 import { NewThreadDialog } from "@/components/forum/new-thread-dialog";
-import { preflightEmailVerifiedBlock } from "@/viewmodels/forum/email-not-verified-dispatch";
+import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { useCallback, useState } from "react";
 
 interface ForumFloatingToolbarProps {
@@ -39,8 +39,8 @@ export function ForumFloatingToolbar({
 	const prevHref = page > 1 ? (page === 2 ? basePath : `${basePath}?page=${page - 1}`) : null;
 	const nextHref = page < pages ? `${basePath}?page=${page + 1}` : null;
 
-	const handleNewThread = useCallback(() => {
-		if (preflightEmailVerifiedBlock(selfEmailVerifiedAt)) return;
+	const handleNewThread = useCallback(async () => {
+		if (await writeGatePreflight(selfEmailVerifiedAt)) return;
 		setDialogOpen(true);
 	}, [selfEmailVerifiedAt]);
 

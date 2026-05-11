@@ -233,10 +233,30 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 });
 
 // ─── #76 GET /api/v1/posting-permission ──────────────────────
-// Check if current user can post (for report dialog Step 1)
+// Comprehensive write-gate check: email verification + posting restrictions.
+// Used by the frontend write-gate preflight before opening any write dialog.
+// Returns { allowed: true } or { allowed: false, reason, code } so the
+// frontend can show action-specific guidance (e.g. "go verify email",
+// "go set avatar").
 
 export const checkPermission = withAuthVerified(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
+
+	// Check email verification first (withAuthVerified doesn't check this)
+	const emailRow = await env.DB.prepare("SELECT email_verified_at FROM users WHERE id = ?")
+		.bind(user.userId)
+		.first<{ email_verified_at: number }>();
+
+	if (emailRow && emailRow.email_verified_at === 0) {
+		return jsonResponse(
+			{
+				allowed: false,
+				reason: "请先验证邮箱后再进行操作",
+				code: "EMAIL_NOT_VERIFIED",
+			},
+			origin,
+		);
+	}
 
 	const permissionResult = await checkPostingPermission(env, user, origin);
 
@@ -244,16 +264,21 @@ export const checkPermission = withAuthVerified(async (request, env, user) => {
 		return jsonResponse({ allowed: true }, origin);
 	}
 
-	// Extract reason from error response
-	// Error structure: { error: { code, message, details?: { message } } }
-	// The Chinese reason is in details.message, not error.message
+	// Extract code and reason from error response
+	// Error structure: { error: { code, message, details?: { message, code } } }
+	// The Chinese reason is in details.message, the sub-code in details.code
 	const errorBody = (await permissionResult.error.clone().json()) as {
-		error?: { message?: string; details?: { message?: string } };
+		error?: {
+			code?: string;
+			message?: string;
+			details?: { message?: string; code?: string };
+		};
 	};
 	const reason =
 		errorBody?.error?.details?.message ?? errorBody?.error?.message ?? "您暂时无法操作";
+	const code = errorBody?.error?.details?.code ?? errorBody?.error?.code ?? "POSTING_RESTRICTION";
 
-	return jsonResponse({ allowed: false, reason }, origin);
+	return jsonResponse({ allowed: false, reason, code }, origin);
 });
 
 // ─── OPTIONS handlers ────────────────────────────────────────

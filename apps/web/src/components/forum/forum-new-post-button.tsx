@@ -1,11 +1,11 @@
 "use client";
 
 // components/forum/forum-new-post-button.tsx — Discuz pn_post.png button
-// Opens the NewThreadDialog when clicked, with email verification preflight.
+// Opens the NewThreadDialog when clicked, with write-gate preflight.
 
 import { getStaticImageUrl } from "@/lib/cdn";
-import { preflightEmailVerifiedBlock } from "@/viewmodels/forum/email-not-verified-dispatch";
-import { useState } from "react";
+import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
+import { useCallback, useState } from "react";
 import { NewThreadDialog } from "./new-thread-dialog";
 
 interface ForumNewPostButtonProps {
@@ -23,10 +23,10 @@ export function ForumNewPostButton({
 }: ForumNewPostButtonProps) {
 	const [dialogOpen, setDialogOpen] = useState(false);
 
-	const handleClick = () => {
-		if (preflightEmailVerifiedBlock(selfEmailVerifiedAt)) return;
+	const handleClick = useCallback(async () => {
+		if (await writeGatePreflight(selfEmailVerifiedAt)) return;
 		setDialogOpen(true);
-	};
+	}, [selfEmailVerifiedAt]);
 
 	return (
 		<>

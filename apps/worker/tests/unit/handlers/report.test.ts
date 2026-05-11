@@ -683,6 +683,7 @@ describe("GET /api/v1/posting-permission", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+				"SELECT email_verified_at": { email_verified_at: 1700000000 },
 				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
@@ -745,12 +746,13 @@ describe("GET /api/v1/posting-permission", () => {
 		expect(res.status).toBe(403);
 	});
 
-	it("should return allowed: false with reason for new user when restriction enabled", async () => {
+	it("should return allowed: false with reason and code for new user when restriction enabled", async () => {
 		const token = await makeUserToken(1, 0);
 		const now = Math.floor(Date.now() / 1000);
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+				"SELECT email_verified_at": { email_verified_at: 1700000000 },
 				"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
 					status: 0,
 					avatar_path: "avatars/test.jpg",
@@ -770,9 +772,12 @@ describe("GET /api/v1/posting-permission", () => {
 		const req = reportRequest("GET", "/api/v1/posting-permission", token);
 		const res = await checkPermission(req, env);
 		expect(res.status).toBe(200);
-		const data = (await res.json()) as { data: { allowed: boolean; reason: string } };
+		const data = (await res.json()) as {
+			data: { allowed: boolean; reason: string; code: string };
+		};
 		expect(data.data.allowed).toBe(false);
 		expect(data.data.reason).toBeTruthy();
+		expect(data.data.code).toBeTruthy();
 	});
 });
 
@@ -793,20 +798,31 @@ describe("report handlers — §5.4 email-verification gate", () => {
 		expect(calls[0].sql).toContain("SELECT role, status, email_verified_at FROM users");
 	});
 
-	it("checkPermission: unverified user is allowed through gate (allow-list — read-style)", async () => {
-		// Allow-list regression: checkPermission stays on withAuthVerified per §5.1; an
-		// unverified user must NOT receive the §5.4 payload here. The handler may emit
-		// any non-403/EMAIL response (it is allowed to query DB, etc.).
-		const { env } = makeUnverifiedEnv(1);
-		const token = await unverifiedUserJwt(1);
+	it("checkPermission: unverified user gets { allowed: false, code: EMAIL_NOT_VERIFIED }", async () => {
+		// After the write-gate unification, checkPermission now checks email
+		// verification at the handler level (not via withVerifiedEmail middleware).
+		// An unverified user should get the posting-permission JSON format back
+		// (200 with allowed: false), NOT the §5.4 flat 403 payload.
+		const token = await makeUserToken(1, 0);
+		const { db } = createMockDb({
+			firstResults: {
+				"SELECT role, status": { role: 0, status: 0, email_verified_at: 0 },
+				"SELECT email_verified_at": { email_verified_at: 0 },
+			},
+		});
+		const env = makeEnv({ DB: db });
 		const response = await checkPermission(
 			new Request("https://example.com/api/v1/posting-permission", {
 				headers: { Authorization: `Bearer ${token}` },
 			}),
 			env,
 		);
-		// Whatever the response is, it MUST NOT be the §5.4 EmailNotVerifiedPayload.
-		const text = await response.clone().text();
-		expect(text).not.toContain("EMAIL_NOT_VERIFIED");
+		expect(response.status).toBe(200);
+		const data = (await response.json()) as {
+			data: { allowed: boolean; reason: string; code: string };
+		};
+		expect(data.data.allowed).toBe(false);
+		expect(data.data.code).toBe("EMAIL_NOT_VERIFIED");
+		expect(data.data.reason).toBeTruthy();
 	});
 });
