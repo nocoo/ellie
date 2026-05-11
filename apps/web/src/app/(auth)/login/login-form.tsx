@@ -3,13 +3,21 @@
 import { CapWidget } from "@/components/cap-widget";
 import { ForumLogo } from "@/components/forum/forum-logo";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { canSubmitLogin, loginErrorMessage } from "@/viewmodels/forum/auth";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { AuthDivider, AuthErrorBanner, AuthIdCard } from "../_components/auth-id-card";
+import { RegisterFormDialog } from "../register/register-form";
 
 const CAP_API_ENDPOINT = process.env.NEXT_PUBLIC_CAP_API_ENDPOINT ?? "";
 
@@ -23,6 +31,7 @@ function LoginFormInner() {
 	const [capToken, setCapToken] = useState("");
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(loginErrorMessage(errorFromUrl));
+	const [registerOpen, setRegisterOpen] = useState(false);
 
 	const capEnabled = Boolean(CAP_API_ENDPOINT);
 	const canSubmit = canSubmitLogin(username, password) && (!capEnabled || capToken);
@@ -122,12 +131,28 @@ function LoginFormInner() {
 
 			<AuthDivider />
 
-			{/* Register link */}
-			<Link href="/register" className="block">
-				<Button variant="outline" className="w-full h-[58px] text-base">
-					创建新账号
-				</Button>
-			</Link>
+			{/* Register dialog trigger */}
+			<Dialog open={registerOpen} onOpenChange={setRegisterOpen}>
+				<DialogTrigger
+					render={
+						<Button variant="outline" className="w-full h-[58px] text-base">
+							创建新账号
+						</Button>
+					}
+				/>
+				<DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto" showCloseButton>
+					<DialogHeader>
+						<DialogTitle>注册新账号</DialogTitle>
+						<DialogDescription>创建您的同济网论坛账号</DialogDescription>
+					</DialogHeader>
+					<RegisterFormDialog
+						onSuccess={() => {
+							setRegisterOpen(false);
+							window.location.href = callbackUrl;
+						}}
+					/>
+				</DialogContent>
+			</Dialog>
 		</AuthIdCard>
 	);
 }
