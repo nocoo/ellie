@@ -325,6 +325,236 @@ describe("admin/kv — listFamily", () => {
 		const res = await kv.listFamily(req, env);
 		expect(res.status).toBe(400);
 	});
+
+	it("singleton (exact) family returns at most one key", async () => {
+		// `settings:all` is exact; `settings:all:v2:foo` must NOT show up.
+		const env = makeEnv({
+			KV: createMockKV({
+				"settings:all": '{"siteName":"x"}',
+				"settings:all:v2:foo": "should-not-appear",
+			}),
+		});
+		const req = createAdminRequest("GET", "/api/admin/kv/list?family=settings:all");
+		const res = await kv.listFamily(req, env);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as {
+			data: { keys: { rawKey: string | null }[]; listComplete: boolean };
+		};
+		expect(body.data.keys).toHaveLength(1);
+		expect(body.data.keys[0].rawKey).toBe("settings:all");
+		expect(body.data.listComplete).toBe(true);
+	});
+
+	it("singleton family returns empty when missing", async () => {
+		const env = makeEnv();
+		const req = createAdminRequest("GET", "/api/admin/kv/list?family=public-stats");
+		const res = await kv.listFamily(req, env);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { data: { keys: unknown[] } };
+		expect(body.data.keys).toEqual([]);
+	});
+});
+
+describe("admin/kv — getKey mask-value gating", () => {
+	it("never returns raw value for mask-value family (login-ip)", async () => {
+		const env = makeEnv({ KV: createMockKV({ "login-ip:1.2.3.4": "5" }) });
+		const req = createAdminRequest("GET", "/api/admin/kv/get?key=login-ip:1.2.3.4");
+		const res = await kv.getKey(req, env);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as {
+			data: { value: unknown; valueMasked: boolean; valueByteSize: number; rawKey: string | null };
+		};
+		expect(body.data.value).toBeNull();
+		expect(body.data.valueMasked).toBe(true);
+		expect(body.data.valueByteSize).toBe(1);
+		expect(body.data.rawKey).toBeNull();
+	});
+});
+
+describe("admin/kv — bump-thread-list-all routes the global gen", () => {
+	it("dispatches via family gen:thread:list:all (not per-forum)", async () => {
+		const env = makeEnv();
+		const res = await kv.refresh(
+			refreshRequest({
+				family: "gen:thread:list:all",
+				action: { kind: "bump-thread-list-all" },
+			}),
+			env,
+		);
+		expect(res.status).toBe(200);
+		expect(mockBumpTLAll).toHaveBeenCalledOnce();
+	});
+});
+
+describe("admin/kv — overview presence + no gen seeding", () => {
+	it("annotates rows with presence and never writes gen tokens", async () => {
+		const env = makeEnv();
+		const req = createAdminRequest("GET", "/api/admin/kv/overview");
+		const res = await kv.overview(req, env);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as {
+			data: {
+				families: {
+					family: string;
+					status: string;
+					count: number;
+					presence: string;
+					currentGens?: { name: string; value: string | null }[];
+				}[];
+			};
+		};
+		// shipped-empty → "absent"; planned → "planned"; dead-builder → "dead-builder-reserved".
+		const settings = body.data.families.find((f) => f.family === "settings:all");
+		expect(settings?.presence).toBe("absent");
+		const planned = body.data.families.find((f) => f.family === "user:mini:v2");
+		expect(planned?.presence).toBe("planned");
+		const dead = body.data.families.find((f) => f.family === "settings:all:v2");
+		expect(dead?.presence).toBe("dead-builder-reserved");
+		// Hide-name shipped with 0 keys is "absent" too.
+		const refreshRow = body.data.families.find((f) => f.family === "refresh");
+		expect(refreshRow?.presence).toBe("absent");
+		// gen tokens read raw — overview MUST NOT have written any new
+		// values into KV (would change the very state we observe).
+		expect(env.KV.put as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
+		// Forum-tree row should expose gen value as null when missing.
+		const tree = body.data.families.find((f) => f.family === "forum:tree:v2");
+		expect(tree?.currentGens?.[0].value).toBeNull();
+	});
+
+	it("counts non-singleton family with masked sample keys", async () => {
+		const env = makeEnv({
+			KV: createMockKV({
+				"online:1": JSON.stringify({ at: 1 }),
+				"online:2": JSON.stringify({ at: 2 }),
+			}),
+		});
+		const req = createAdminRequest("GET", "/api/admin/kv/overview");
+		const res = await kv.overview(req, env);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as {
+			data: { families: { family: string; count: number; sampleKeys: string[] }[] };
+		};
+		const onlineRow = body.data.families.find((f) => f.family === "online:user");
+		expect(onlineRow?.count).toBe(2);
+		// `online:user` is mask, so sample keys must be hashed not raw.
+		expect(onlineRow?.sampleKeys.every((k) => k.startsWith("online:u_"))).toBe(true);
+	});
+});
+
+describe("admin/kv — refresh: per-thread bumpers", () => {
+	it("bump-thread-meta requires positive integer threadId", async () => {
+		const env = makeEnv();
+		const bad = await kv.refresh(
+			refreshRequest({
+				family: "gen:thread:meta",
+				action: { kind: "bump-thread-meta" },
+			}),
+			env,
+		);
+		expect(bad.status).toBe(400);
+		const good = await kv.refresh(
+			refreshRequest({
+				family: "gen:thread:meta",
+				action: { kind: "bump-thread-meta", threadId: 9 },
+			}),
+			env,
+		);
+		expect(good.status).toBe(200);
+	});
+
+	it("bump-post-list requires positive integer threadId", async () => {
+		const env = makeEnv();
+		const res = await kv.refresh(
+			refreshRequest({
+				family: "gen:post:list",
+				action: { kind: "bump-post-list", threadId: 11 },
+			}),
+			env,
+		);
+		expect(res.status).toBe(200);
+	});
+
+	it("delete-user-mini rejects bad userId", async () => {
+		const env = makeEnv();
+		const res = await kv.refresh(
+			refreshRequest({
+				family: "user:mini:v1",
+				action: { kind: "delete-user-mini", userId: -1 },
+			}),
+			env,
+		);
+		expect(res.status).toBe(400);
+	});
+
+	it("delete-literal rejects empty key", async () => {
+		const env = makeEnv();
+		const res = await kv.refresh(
+			refreshRequest({
+				family: "settings:all",
+				action: { kind: "delete-literal", key: "" },
+			}),
+			env,
+		);
+		expect(res.status).toBe(400);
+	});
+
+	it("rejects refresh on a `none`-action family (refresh tokens)", async () => {
+		const env = makeEnv();
+		const res = await kv.refresh(
+			refreshRequest({ family: "refresh", action: { kind: "none" } }),
+			env,
+		);
+		expect(res.status).toBe(400);
+	});
+
+	it("rejects missing family in body", async () => {
+		const env = makeEnv();
+		const res = await kv.refresh(refreshRequest({ action: { kind: "bump-digest" } }), env);
+		expect(res.status).toBe(400);
+	});
+});
+
+describe("admin/kv — getKey misc", () => {
+	it("returns 400 when key query param is missing", async () => {
+		const env = makeEnv();
+		const req = createAdminRequest("GET", "/api/admin/kv/get");
+		const res = await kv.getKey(req, env);
+		expect(res.status).toBe(400);
+	});
+
+	it("returns raw string when value is not JSON", async () => {
+		const env = makeEnv({ KV: createMockKV({ "stats:online_count": "42" }) });
+		const req = createAdminRequest("GET", "/api/admin/kv/get?key=stats:online_count");
+		const res = await kv.getKey(req, env);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { data: { value: unknown; valueMasked: boolean } };
+		expect(body.data.value).toBe(42); // JSON.parse("42") → 42
+		expect(body.data.valueMasked).toBe(false);
+	});
+});
+
+describe("admin/kv — listFamily misc", () => {
+	it("returns 404 for unknown family", async () => {
+		const env = makeEnv();
+		const req = createAdminRequest("GET", "/api/admin/kv/list?family=does-not-exist");
+		const res = await kv.listFamily(req, env);
+		expect(res.status).toBe(404);
+	});
+
+	it("paginated list honors per-page limit", async () => {
+		const initial: Record<string, string> = {};
+		for (let i = 0; i < 5; i++) initial[`user:mini:${i}`] = `{"id":${i}}`;
+		const env = makeEnv({ KV: createMockKV(initial) });
+		const req = createAdminRequest("GET", "/api/admin/kv/list?family=user:mini:v1&limit=2");
+		const res = await kv.listFamily(req, env);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as {
+			data: { keys: unknown[]; cursor: string | null; listComplete: boolean };
+		};
+		expect(body.data.keys).toHaveLength(2);
+		expect(body.data.listComplete).toBe(false);
+		expect(body.data.cursor).not.toBeNull();
+	});
 });
 
 describe("admin/kv — overview", () => {

@@ -36,7 +36,6 @@
 
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
-import { getGen } from "../../lib/cache/epoch";
 import {
 	bumpDigestGen,
 	bumpForumSummaryGen,
@@ -183,6 +182,58 @@ async function listAllByPrefix(
 	return { keys: out, truncated: true };
 }
 
+/**
+ * Look up the `expiration` for an exact key by paginating
+ * `KV.list({prefix: key})` until either the entry shows up or
+ * `list_complete === true`. Bounded by `hardCap` total scanned entries
+ * (default 1000) so a runaway prefix can't blow up the request. Returns
+ * `null` when not found within the cap or on transient errors —
+ * "unknown" is acceptable in the detail UI.
+ */
+async function probeExpirationFor(env: Env, key: string, hardCap = 1000): Promise<number | null> {
+	try {
+		let cursor: string | undefined;
+		let scanned = 0;
+		while (scanned < hardCap) {
+			const page = await env.KV.list({ prefix: key, cursor, limit: 1000 });
+			for (const entry of page.keys) {
+				if (entry.name === key) return entry.expiration ?? null;
+			}
+			scanned += page.keys.length;
+			if (page.list_complete) return null;
+			cursor = page.cursor;
+		}
+		return null;
+	} catch {
+		return null;
+	}
+}
+
+// ─── Presence classification ──────────────────────────────────────
+
+type Presence =
+	| "present"
+	| "absent"
+	| "planned"
+	| "historical"
+	| "dead-builder-reserved"
+	| "sensitive-hidden";
+
+/**
+ * Map (status, count, sensitivity) to a single presence label that the
+ * UI can render directly without re-deriving the rule. `stale` is left
+ * for commit B once metrics arrive.
+ */
+function classifyPresence(spec: KvFamilySpec, count: number): Presence {
+	if (spec.nameSensitivity === "hide" && spec.status === "shipped") {
+		return count > 0 ? "sensitive-hidden" : "absent";
+	}
+	if (spec.status === "planned") return "planned";
+	if (spec.status === "historical") return "historical";
+	if (spec.status === "dead-builder-reserved") return "dead-builder-reserved";
+	return count > 0 ? "present" : "absent";
+}
+
 // ─── Body / param parsing ─────────────────────────────────────────
 
 async function parseBody(request: Request): Promise<Record<string, unknown> | null> {
@@ -218,12 +269,27 @@ interface OverviewRow {
 	valueSensitivity: string;
 	count: number;
 	truncated: boolean;
-	currentGens?: { name: string; value: string }[];
+	presence: Presence;
+	currentGens?: { name: string; value: string | null }[];
 	sampleKeys: string[];
 }
 
 const OVERVIEW_HARD_CAP = 1000;
 const OVERVIEW_SAMPLE_SIZE = 5;
+
+/**
+ * Look up the current value of a gen token WITHOUT seeding a new one.
+ * `getGen` from epoch.ts has the side-effect of writing a new token
+ * when missing — that would change the very state the monitor is
+ * supposed to observe, so the overview reads raw KV instead.
+ */
+async function readGenRaw(env: Env, name: string): Promise<string | null> {
+	try {
+		return await env.KV.get(name);
+	} catch {
+		return null;
+	}
+}
 
 export const overview = withEntityAuth(
 	kvConfig,
@@ -243,19 +309,26 @@ export const overview = withEntityAuth(
 				valueSensitivity: spec.valueSensitivity,
 				count: 0,
 				truncated: false,
+				presence: "absent",
 				sampleKeys: [],
 			};
 
-			// `dead-builder-reserved` and `historical` we still list to show
-			// any leftover rows; no special skip.
-			const { keys, truncated } = await listAllByPrefix(env, spec.listPrefix, OVERVIEW_HARD_CAP);
+			let owned: { name: string; expiration?: number }[];
+			let truncated = false;
 
-			// Filter out keys that resolve to a more-specific family — this
-			// makes "user:mini:" not double-count "user:mini:v2:..." keys.
-			const owned = keys.filter((k) => resolveFamilyForKey(k.name)?.family === spec.family);
+			if (spec.keyKind === "exact") {
+				// Singleton family: count is 0 or 1, owned by exact name match.
+				const single = await env.KV.get(spec.listPrefix);
+				owned = single === null ? [] : [{ name: spec.listPrefix }];
+			} else {
+				const listed = await listAllByPrefix(env, spec.listPrefix, OVERVIEW_HARD_CAP);
+				truncated = listed.truncated;
+				owned = listed.keys.filter((k) => resolveFamilyForKey(k.name)?.family === spec.family);
+			}
 
 			baseRow.count = owned.length;
 			baseRow.truncated = truncated;
+			baseRow.presence = classifyPresence(spec, owned.length);
 
 			if (spec.nameSensitivity !== "hide" && owned.length > 0) {
 				const sampleSlice = owned.slice(0, OVERVIEW_SAMPLE_SIZE);
@@ -266,7 +339,7 @@ export const overview = withEntityAuth(
 				baseRow.currentGens = await Promise.all(
 					spec.genKeys.map(async (genName) => ({
 						name: genName,
-						value: await getGen(env, genName),
+						value: await readGenRaw(env, genName),
 					})),
 				);
 			}
@@ -301,6 +374,22 @@ export const listFamily = withEntityAuth(
 		}
 		if (spec.nameSensitivity === "hide") {
 			return errorResponse("KV_KEY_NAME_HIDDEN", 403, { family: spec.family }, origin);
+		}
+
+		// Singleton family: at most one key, no pagination needed.
+		if (spec.keyKind === "exact") {
+			const single = await env.KV.get(spec.listPrefix);
+			const keys =
+				single === null
+					? []
+					: [
+							{
+								key: await maskKeyName(spec.listPrefix, spec),
+								rawKey: spec.nameSensitivity === "public" ? spec.listPrefix : null,
+								expiration: await probeExpirationFor(env, spec.listPrefix),
+							},
+						];
+			return jsonResponse({ family: spec.family, keys, cursor: null, listComplete: true }, origin);
 		}
 
 		const cursor = readQuery(request, "cursor") ?? undefined;
@@ -343,6 +432,8 @@ export const listFamily = withEntityAuth(
 //
 // Single key detail. Refuses when `valueSensitivity === "no-read"` so
 // auth tokens / verification codes can never leak through this path.
+// For `valueSensitivity === "mask-value"` we return only size +
+// metadata, never the raw value (protects rate-limit counters etc.).
 
 export const getKey = withEntityAuth(
 	kvConfig,
@@ -368,17 +459,30 @@ export const getKey = withEntityAuth(
 		}
 
 		// expiration is not on getWithMetadata — paginate list({prefix:key})
-		// for the matching entry. Best-effort; "unknown" if not in the page.
-		let expiration: number | null = null;
-		try {
-			const probe = await env.KV.list({ prefix: key, limit: 10 });
-			const hit = probe.keys.find((k) => k.name === key);
-			expiration = hit?.expiration ?? null;
-		} catch {
-			expiration = null;
+		// for the matching entry. Best-effort; null means "unknown".
+		const expiration = await probeExpirationFor(env, key);
+
+		const valueByteSize = new TextEncoder().encode(value).byteLength;
+		const maskedKey = await maskKeyName(key, spec);
+
+		// `mask-value`: never return raw payload. Only size + metadata.
+		if (spec.valueSensitivity === "mask-value") {
+			return jsonResponse(
+				{
+					family: spec.family,
+					key: maskedKey,
+					rawKey: spec.nameSensitivity === "public" ? key : null,
+					value: null,
+					valueMasked: true,
+					valueByteSize,
+					metadata: metadata ?? null,
+					expiration,
+				},
+				origin,
+			);
 		}
 
-		// Try to parse value as JSON for the UI; fall back to raw string.
+		// public: try to parse value as JSON for the UI; fall back to raw string.
 		let parsedValue: unknown = value;
 		try {
 			parsedValue = JSON.parse(value);
@@ -386,14 +490,14 @@ export const getKey = withEntityAuth(
 			// value is a plain string (counter, token-id reference, …)
 		}
 
-		const maskedKey = await maskKeyName(key, spec);
 		return jsonResponse(
 			{
 				family: spec.family,
 				key: maskedKey,
 				rawKey: spec.nameSensitivity === "public" ? key : null,
 				value: parsedValue,
-				valueByteSize: new TextEncoder().encode(value).byteLength,
+				valueMasked: false,
+				valueByteSize,
 				metadata: metadata ?? null,
 				expiration,
 			},
