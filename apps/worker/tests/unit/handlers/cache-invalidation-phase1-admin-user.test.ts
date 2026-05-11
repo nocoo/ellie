@@ -218,4 +218,31 @@ describe("Phase 1 commit 2c — admin user PATCH afterUpdate invalidation", () =
 		expect(mockInvUser).toHaveBeenCalledWith(env, 60);
 		expect(mockInvUserV2).toHaveBeenCalledWith(env, 60);
 	});
+
+	// Extended PublicUser-field coverage — regDate + remaining columns
+	// surfaced by `toPublicUser()`. Locked separately so the it.each above
+	// stays focused on the original "first slice" set.
+	it.each([
+		["regDate", { regDate: 1700000000 }],
+		["groupStars", { groupStars: 5 }],
+		["groupColor", { groupColor: "#ff0000" }],
+		["birthYear", { birthYear: 1990 }],
+		["birthMonth", { birthMonth: 6 }],
+		["birthDay", { birthDay: 15 }],
+		["resideProvince", { resideProvince: "广东" }],
+		["resideCity", { resideCity: "深圳" }],
+		["graduateSchool", { graduateSchool: "清华大学" }],
+		["interest", { interest: "code" }],
+		["qq", { qq: "12345" }],
+		["site", { site: "https://example.com" }],
+		["campus", { campus: "校区" }],
+		["olTime", { olTime: 3600 }],
+	])("remaining PublicUser field %s update invalidates legacy + v2", async (_name, body) => {
+		const { db, req } = patch(61, body);
+		const env = makeEnv({ DB: db });
+		const res = await update(req, env);
+		expect(res.status).toBe(200);
+		expect(mockInvUser).toHaveBeenCalledWith(env, 61);
+		expect(mockInvUserV2).toHaveBeenCalledWith(env, 61);
+	});
 });

@@ -827,21 +827,87 @@ describe("admin user handlers", () => {
 			expect(body.error.details.message).toBe("bio must be a string");
 		});
 
-		it("does NOT accept purgedAt/purgedBy (owned by purge endpoint)", async () => {
+		it("rejects purgedAt as read-only (explicit 400)", async () => {
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
 				},
 			});
-			// Body contains only ignored fields → updateFields collects nothing
-			// → empty-body 400.
+			// purgedAt is now an explicit read-only guard, not silently
+			// ignored. The validation error fires before beforeUpdate runs.
 			const res = await update(
-				createAdminRequest("PATCH", "/api/admin/users/42", { purgedAt: 9999, purgedBy: 1 }),
+				createAdminRequest("PATCH", "/api/admin/users/42", { purgedAt: 9999 }),
 				adminEnv(db),
 			);
 			expect(res.status).toBe(400);
 			const body = await res.json();
-			expect(body.error.details.message).toBe("At least one field must be provided");
+			expect(body.error.details.message).toContain("read-only");
+		});
+
+		it("rejects purgedBy as read-only", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+				},
+			});
+			const res = await update(
+				createAdminRequest("PATCH", "/api/admin/users/42", { purgedBy: 1 }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toContain("read-only");
+		});
+
+		it("rejects passwordHash as read-only", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+				},
+			});
+			const res = await update(
+				createAdminRequest("PATCH", "/api/admin/users/42", { passwordHash: "x" }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toContain("read-only");
+		});
+
+		it("rejects snake_case purged_at as read-only", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+				},
+			});
+			const res = await update(
+				createAdminRequest("PATCH", "/api/admin/users/42", { purged_at: 1 }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toContain("read-only");
+		});
+
+		it("rejects mixed legitimate field + forbidden field with 400", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+				},
+			});
+			// Mixed body: signature is legitimate, purgedAt is forbidden.
+			// The whole request must be rejected — never silently apply
+			// signature while dropping purgedAt.
+			const res = await update(
+				createAdminRequest("PATCH", "/api/admin/users/42", {
+					signature: "hi",
+					purgedAt: 9999,
+				}),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(400);
+			const body = await res.json();
+			expect(body.error.details.message).toContain("read-only");
 		});
 
 		it("rejects EMAIL_NORMALIZED_TAKEN (partial unique index from 0029)", async () => {
