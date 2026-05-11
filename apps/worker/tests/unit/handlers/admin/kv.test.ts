@@ -115,7 +115,7 @@ describe("admin/kv — refresh dispatcher", () => {
 		expect(mockBumpSummary).toHaveBeenCalledOnce();
 	});
 
-	it("bump-thread-list-all calls bumpThreadListGenAll and audits", async () => {
+	it("thread:list:v2 rejects bump-thread-list-all (mismatch — global op lives on gen family)", async () => {
 		const env = makeEnv();
 		const res = await kv.refresh(
 			refreshRequest({
@@ -124,8 +124,10 @@ describe("admin/kv — refresh dispatcher", () => {
 			}),
 			env,
 		);
-		expect(res.status).toBe(200);
-		expect(mockBumpTLAll).toHaveBeenCalledOnce();
+		expect(res.status).toBe(400);
+		const body = (await res.json()) as { error?: { code?: string } };
+		expect(body.error?.code).toBe("KV_ACTION_MISMATCH");
+		expect(mockBumpTLAll).not.toHaveBeenCalled();
 	});
 
 	it("bump-thread-list-forum requires forumId integer > 0", async () => {
@@ -554,6 +556,29 @@ describe("admin/kv — listFamily misc", () => {
 		expect(body.data.keys).toHaveLength(2);
 		expect(body.data.listComplete).toBe(false);
 		expect(body.data.cursor).not.toBeNull();
+	});
+
+	it("loops across pages when overlapping-prefix siblings dominate the first page", async () => {
+		// `user:mini:v1` family lives under prefix `user:mini:` but
+		// `user:mini:v2:*` keys sort lexicographically AFTER `user:mini:zzz`?
+		// Actually `v2:` (0x76) > `zzz` is false: 'v' < 'z'. So put a v1
+		// key whose suffix sorts AFTER v2 siblings and ask for limit=1.
+		// Mock KV sorts by name → first page (limit=1) returns the v2
+		// sibling, which is filtered out. Loop must fetch the next page
+		// and surface the v1 key.
+		const initial: Record<string, string> = {
+			"user:mini:v2:0001": '{"id":1}', // sibling, owned by user:mini:v2
+			"user:mini:zzz": '{"id":99}', // owned by user:mini:v1 (sorts after v2:*)
+		};
+		const env = makeEnv({ KV: createMockKV(initial) });
+		const req = createAdminRequest("GET", "/api/admin/kv/list?family=user:mini:v1&limit=1");
+		const res = await kv.listFamily(req, env);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as {
+			data: { keys: { rawKey: string | null }[]; listComplete: boolean };
+		};
+		expect(body.data.keys).toHaveLength(1);
+		expect(body.data.keys[0].rawKey).toBe("user:mini:zzz");
 	});
 });
 

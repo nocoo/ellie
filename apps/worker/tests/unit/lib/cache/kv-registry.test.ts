@@ -93,6 +93,25 @@ describe("kv-registry — declarative invariants", () => {
 		}
 	});
 
+	it("thread:list:v2 main refresh defaults to per-forum bump (not global all-gen)", async () => {
+		// Regression guard: the global `bump-thread-list-all` sweep must
+		// stay on the dedicated `gen:thread:list:all` family. The page-1
+		// thread-list cache should default to a per-forum bump so the
+		// admin button doesn't nuke every forum's cache by accident.
+		const spec = KV_REGISTRY.find((s) => s.family === "thread:list:v2");
+		expect(spec).toBeTruthy();
+		expect(spec?.refresh.kind).toBe("bump-thread-list-forum");
+		const allGen = KV_REGISTRY.find((s) => s.family === "gen:thread:list:all");
+		expect(allGen?.refresh.kind).toBe("bump-thread-list-all");
+	});
+
+	it("thread:list:gen:all is explicitly listed in the put-prefix allowlist", () => {
+		// Documentation strength: the exact gen key has its own family,
+		// so the allowlist should reference it explicitly even though
+		// the broader `thread:list:gen:` prefix already covers it.
+		expect(KV_PUT_PREFIX_ALLOWLIST).toContain("thread:list:gen:all");
+	});
+
 	it("singleton (exact) prefixes do not swallow siblings", () => {
 		// `settings:all` (exact) must not own `settings:all:v2:foo`.
 		const sibling = resolveFamilyForKey("settings:all:v2:something");
