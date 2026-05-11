@@ -96,7 +96,7 @@ const GENDER_OPTIONS = [
 	{ value: 2, label: "女" },
 ];
 
-/** DB campus values — covers all official Tongji campuses + external */
+/** 4 official Tongji campuses (四平路/嘉定/沪西/沪北) + 2 historical/identity compat values */
 const CAMPUS_OPTIONS = [
 	{ value: "", label: "请选择校区" },
 	{ value: "四平路校区", label: "四平路校区" },
@@ -592,17 +592,19 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 					</div>
 				</div>
 
-				{captchaField}
 				<PostingConditionsNote />
 
-				{/* Submit */}
-				<Button
-					type="submit"
-					disabled={!canSubmit || loading}
-					className="w-full h-[58px] text-base"
-				>
-					{loading ? "注册中..." : "创建账号"}
-				</Button>
+				{/* CAPTCHA + Submit — side by side on wide screens, stacked on narrow */}
+				<div className="flex flex-col sm:flex-row gap-3">
+					{captchaField}
+					<Button
+						type="submit"
+						disabled={!canSubmit || loading}
+						className="h-[58px] text-base flex-1"
+					>
+						{loading ? "注册中..." : "创建账号"}
+					</Button>
+				</div>
 			</form>
 		);
 	}
@@ -629,8 +631,6 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 
 				{accountFields}
 
-				{captchaField}
-
 				{/* Profile fields — collapsible section in single column */}
 				<details className="group">
 					<summary className="cursor-pointer text-sm font-medium text-foreground/80 border-b border-border pb-1.5 mb-3 select-none list-none flex items-center justify-between">
@@ -646,6 +646,9 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 				</details>
 
 				<PostingConditionsNote />
+
+				{/* CAPTCHA above submit */}
+				{captchaField}
 
 				{/* Submit */}
 				<Button

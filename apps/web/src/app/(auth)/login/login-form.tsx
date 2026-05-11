@@ -108,9 +108,9 @@ function LoginFormInner() {
 					/>
 				</div>
 
-				{/* Cap CAPTCHA */}
+				{/* Cap CAPTCHA — 58px container for visual alignment */}
 				{capEnabled && (
-					<div className="flex justify-center">
+					<div className="flex items-center justify-center h-[58px]">
 						<CapWidget
 							apiEndpoint={CAP_API_ENDPOINT}
 							onSolve={setCapToken}
