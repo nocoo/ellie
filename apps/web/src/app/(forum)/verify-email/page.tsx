@@ -51,6 +51,7 @@ export default async function VerifyEmailPage() {
 			<EmailVerificationCard
 				user={toEmailVerificationUserView(self)}
 				capApiEndpoint={process.env.NEXT_PUBLIC_CAP_API_ENDPOINT}
+				redirectAfterVerify="/"
 			/>
 		</div>
 	);
