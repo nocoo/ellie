@@ -208,8 +208,8 @@ describe("resolveProxyAction", () => {
 	// Credentials user redirect from /login and /register
 	// -----------------------------------------------------------------------
 
-	it("redirects forum user on /login to /", () => {
-		expect(resolveProxyAction(makeUrl("/login"), forumSession())).toBe("redirect:/");
+	it("passes forum user on /login through to page (shows 已登录 card)", () => {
+		expect(resolveProxyAction(makeUrl("/login"), forumSession())).toBe("next");
 	});
 
 	it("redirects forum user on /register to /", () => {
