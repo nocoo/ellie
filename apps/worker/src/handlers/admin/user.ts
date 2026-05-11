@@ -155,6 +155,24 @@ const userConfig: EntityConfig = {
 	enrichListRows: enrichUserListRowsWithCounts,
 
 	// #38 update fields
+	//
+	// Admin-side PATCH: gives operators full editing access to every editable
+	// `users` column. Validation is intentionally **type-only** (string vs
+	// number-integer) rather than format-bound — admins must be able to
+	// repair legacy/inconsistent rows that the public-facing endpoints would
+	// reject (long usernames, ASCII-only emails missing `@`, etc.). The
+	// invariants we DO keep are:
+	//   - `status` and `role` remain enums (visibility / cache buckets read
+	//     these; a stray value would corrupt user:public viewer routing).
+	//   - `username` non-empty + uniqueness pre-check (DB has UNIQUE; without
+	//     this guard an operator typo becomes a 500).
+	//   - `emailNormalized` non-empty uniqueness pre-check (matching the
+	//     partial unique index `users_email_normalized_uniq` from migration
+	//     0029 — `WHERE email_normalized != ''`).
+	// Sensitive / lifecycle-only columns are NOT exposed:
+	//   - `password_hash` / `password_salt` (never SELECTed; auth-only).
+	//   - `purged_at` / `purged_by` (only the purge endpoint may write these
+	//     to keep tombstones consistent with status=-99).
 	updateFields: [
 		{
 			name: "username",
@@ -162,27 +180,23 @@ const userConfig: EntityConfig = {
 			validate: (v) => {
 				if (typeof v !== "string") return "username must be a string";
 				if (v.trim().length === 0) return "username cannot be empty";
-				if (v.length > 50) return "username must be at most 50 characters";
 				return null;
 			},
 		},
 		{
 			name: "email",
 			column: "email",
-			validate: (v) => {
-				if (typeof v !== "string") return "email must be a string";
-				if (!v.includes("@")) return "email must contain @";
-				if (v.length > 255) return "email must be at most 255 characters";
-				return null;
-			},
+			validate: (v) => (typeof v === "string" ? null : "email must be a string"),
 		},
 		{
 			name: "avatar",
 			column: "avatar",
-			validate: (v) => {
-				if (typeof v !== "string") return "avatar must be a string";
-				return null;
-			},
+			validate: (v) => (typeof v === "string" ? null : "avatar must be a string"),
+		},
+		{
+			name: "avatarPath",
+			column: "avatar_path",
+			validate: (v) => (typeof v === "string" ? null : "avatarPath must be a string"),
 		},
 		{
 			name: "status",
@@ -202,27 +216,65 @@ const userConfig: EntityConfig = {
 				return null;
 			},
 		},
-		{
-			name: "credits",
-			column: "credits",
-			validate: (v) => {
-				if (typeof v !== "number") return "credits must be a number";
-				if (!Number.isInteger(v)) return "credits must be an integer";
+		// Counter-style integer fields — admin can rewrite any of them; per-id
+		// recalc-counters endpoint exists for the source-of-truth path. Type
+		// guard only.
+		...(
+			[
+				["credits", "credits"],
+				["coins", "coins"],
+				["threads", "threads"],
+				["posts", "posts"],
+				["digestPosts", "digest_posts"],
+				["groupStars", "group_stars"],
+				["olTime", "ol_time"],
+				["lastActivity", "last_activity"],
+				["regDate", "reg_date"],
+				["lastLogin", "last_login"],
+				["emailVerifiedAt", "email_verified_at"],
+				["emailChangedAt", "email_changed_at"],
+				["gender", "gender"],
+				["birthYear", "birth_year"],
+				["birthMonth", "birth_month"],
+				["birthDay", "birth_day"],
+			] as const
+		).map(([name, column]) => ({
+			name,
+			column,
+			validate: (v: unknown) => {
+				if (typeof v !== "number") return `${name} must be a number`;
+				if (!Number.isInteger(v)) return `${name} must be an integer`;
 				return null;
 			},
-		},
-		{
-			name: "coins",
-			column: "coins",
-			validate: (v) => {
-				if (typeof v !== "number") return "coins must be a number";
-				if (!Number.isInteger(v)) return "coins must be an integer";
-				return null;
-			},
-		},
+		})),
+		// Plain string fields — type guard only. Admin must be able to set
+		// any value (including empty) without format constraint.
+		...(
+			[
+				["signature", "signature"],
+				["groupTitle", "group_title"],
+				["groupColor", "group_color"],
+				["customTitle", "custom_title"],
+				["resideProvince", "reside_province"],
+				["resideCity", "reside_city"],
+				["graduateSchool", "graduate_school"],
+				["bio", "bio"],
+				["interest", "interest"],
+				["qq", "qq"],
+				["site", "site"],
+				["campus", "campus"],
+				["regIp", "reg_ip"],
+				["lastIp", "last_ip"],
+				["emailNormalized", "email_normalized"],
+			] as const
+		).map(([name, column]) => ({
+			name,
+			column,
+			validate: (v: unknown) => (typeof v === "string" ? null : `${name} must be a string`),
+		})),
 	],
 
-	// #38 beforeUpdate: ALREADY_PURGED guard + username uniqueness.
+	// #38 beforeUpdate: ALREADY_PURGED guard + username/emailNormalized uniqueness.
 	// D4-a: PATCH /api/admin/users/:id is the canonical attack surface for
 	// hand-crafted writes (e.g. resurrecting a tombstone), so the guard sits
 	// inside beforeUpdate where it cannot be bypassed by a future updateFields
@@ -233,7 +285,7 @@ const userConfig: EntityConfig = {
 			return errorResponse("ALREADY_PURGED", 409, undefined, origin);
 		}
 
-		// Username uniqueness check
+		// Username uniqueness check (DB has UNIQUE on `username`).
 		if (data.username !== undefined) {
 			const existingRow = await env.DB.prepare(
 				"SELECT id FROM users WHERE username = ? AND id != ?",
@@ -245,19 +297,72 @@ const userConfig: EntityConfig = {
 			}
 		}
 
+		// emailNormalized uniqueness — partial unique index from migration
+		// 0029 only constrains non-empty values:
+		//   CREATE UNIQUE INDEX users_email_normalized_uniq
+		//     ON users(email_normalized) WHERE email_normalized != ''
+		// Pre-check non-empty values against other ids to surface a clean
+		// 409 instead of letting D1 raise a 500 constraint failure.
+		if (typeof data.email_normalized === "string" && data.email_normalized !== "") {
+			const existingRow = await env.DB.prepare(
+				"SELECT id FROM users WHERE email_normalized = ? AND id != ?",
+			)
+				.bind(data.email_normalized, id)
+				.first();
+			if (existingRow) {
+				return errorResponse("EMAIL_NORMALIZED_TAKEN", 409, undefined, origin);
+			}
+		}
+
 		return undefined;
 	},
 
 	// #38 afterUpdate: invalidate user cache if any PublicUser-payload field
-	// or visibility-affecting field was updated (docs/19 §6 row
-	// "PATCH /api/admin/users/:id"):
-	//   - username/avatar  → user:mini + user:public payload
-	//   - role             → visibility bucket + group_title in user:public
-	//   - status           → /api/v1/users/:id 404 gating (status < 0 hides)
-	//   - credits/coins    → user:public payload aggregates
-	// `email` is NOT in PublicUser, so it is intentionally omitted.
+	// or visibility-affecting field was updated. The trigger set is the
+	// union of (`toPublicUser` output ∪ visibility/status gate). `email`
+	// stays out (not part of PublicUser, not used for visibility). Adding
+	// any new field to `updateFields` above that lands in `toPublicUser`
+	// also requires adding it here.
 	afterUpdate: async (id, data, _existing, env, _origin) => {
-		const cacheFields = ["username", "avatar", "status", "role", "credits", "coins"];
+		const cacheFields = [
+			// Identity / display
+			"username",
+			"avatar",
+			"avatar_path",
+			// Visibility / status gate
+			"status",
+			"role",
+			// Aggregates surfaced by user:public
+			"credits",
+			"coins",
+			"threads",
+			"posts",
+			"digest_posts",
+			"ol_time",
+			"last_activity",
+			// Group / title
+			"group_title",
+			"group_stars",
+			"group_color",
+			"custom_title",
+			// Profile fields exposed by toPublicUser
+			"signature",
+			"gender",
+			"birth_year",
+			"birth_month",
+			"birth_day",
+			"reside_province",
+			"reside_city",
+			"graduate_school",
+			"bio",
+			"interest",
+			"qq",
+			"site",
+			"campus",
+			// IP fields are exposed when includeIp=true (admin/self bucket)
+			"reg_ip",
+			"last_ip",
+		];
 		const needsInvalidation = cacheFields.some((field) => data[field] !== undefined);
 		if (needsInvalidation) {
 			// Drop legacy `user:mini:<id>` + v2 mini + both viewer-bucket
