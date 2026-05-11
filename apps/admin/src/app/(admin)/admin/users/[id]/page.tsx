@@ -14,6 +14,7 @@ import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { AdminPagination } from "@/components/admin/admin-pagination";
+import { SegmentedSwitch } from "@/components/admin/segmented-switch";
 import { UserAvatar } from "@/components/admin/user-avatar";
 import { UserEditDialog } from "@/components/admin/user-edit-dialog";
 import { extractErrorMessage } from "@/lib/admin-error";
@@ -35,7 +36,6 @@ import { formatNumber } from "@ellie/shared";
 import { Badge } from "@ellie/ui";
 import { Button } from "@ellie/ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@ellie/ui";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ellie/ui";
 import { ArrowLeft, Loader2, Pencil, Shield, ShieldOff, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -68,6 +68,10 @@ export default function UserDetailPage() {
 	const [editOpen, setEditOpen] = useState(false);
 	const [editLoading, setEditLoading] = useState(false);
 	const [editError, setEditError] = useState<string | null>(null);
+	// Controlled state for the threads/posts panel switch — mirrors the pattern
+	// used on the KV monitor page so both screens use the same compact
+	// SegmentedSwitch instead of the previous tall shadcn Tabs.
+	const [activeContentTab, setActiveContentTab] = useState<"threads" | "posts">("threads");
 
 	const [unbanLoading, setUnbanLoading] = useState(false);
 	const [banDialogOpen, setBanDialogOpen] = useState(false);
@@ -291,44 +295,59 @@ export default function UserDetailPage() {
 					<CardTitle>用户内容</CardTitle>
 				</CardHeader>
 				<CardContent>
-					<Tabs defaultValue="threads">
-						<TabsList>
-							<TabsTrigger value="threads">主题（{formatNumber(user.threads)}）</TabsTrigger>
-							<TabsTrigger value="posts">帖子（{formatNumber(user.posts)}）</TabsTrigger>
-						</TabsList>
+					<div className="space-y-3">
+						<SegmentedSwitch
+							ariaLabel="切换用户内容视图"
+							value={activeContentTab}
+							onValueChange={setActiveContentTab}
+							options={[
+								{
+									value: "threads",
+									label: `主题（${formatNumber(user.threads)}）`,
+								},
+								{
+									value: "posts",
+									label: `帖子（${formatNumber(user.posts)}）`,
+								},
+							]}
+						/>
 
-						<TabsContent value="threads" className="mt-4 space-y-2">
-							{state.threadsError && (
-								<AdminInlineMessage variant="error" text={state.threadsError} />
-							)}
-							<AdminDataTable<Thread>
-								columns={threadColumns}
-								data={state.threads}
-								getRowId={(t) => t.id}
-								loading={state.threadsLoading}
-								emptyMessage="此用户没有主题"
-							/>
-							<AdminPagination
-								pagination={state.threadsPagination}
-								onPageChange={actions.setThreadsPage}
-							/>
-						</TabsContent>
+						{activeContentTab === "threads" && (
+							<div role="tabpanel" aria-label="用户主题列表" className="space-y-2">
+								{state.threadsError && (
+									<AdminInlineMessage variant="error" text={state.threadsError} />
+								)}
+								<AdminDataTable<Thread>
+									columns={threadColumns}
+									data={state.threads}
+									getRowId={(t) => t.id}
+									loading={state.threadsLoading}
+									emptyMessage="此用户没有主题"
+								/>
+								<AdminPagination
+									pagination={state.threadsPagination}
+									onPageChange={actions.setThreadsPage}
+								/>
+							</div>
+						)}
 
-						<TabsContent value="posts" className="mt-4 space-y-2">
-							{state.postsError && <AdminInlineMessage variant="error" text={state.postsError} />}
-							<AdminDataTable<UserDetailPost>
-								columns={postColumns}
-								data={state.posts}
-								getRowId={(p) => p.id}
-								loading={state.postsLoading}
-								emptyMessage="此用户没有帖子"
-							/>
-							<AdminPagination
-								pagination={state.postsPagination}
-								onPageChange={actions.setPostsPage}
-							/>
-						</TabsContent>
-					</Tabs>
+						{activeContentTab === "posts" && (
+							<div role="tabpanel" aria-label="用户帖子列表" className="space-y-2">
+								{state.postsError && <AdminInlineMessage variant="error" text={state.postsError} />}
+								<AdminDataTable<UserDetailPost>
+									columns={postColumns}
+									data={state.posts}
+									getRowId={(p) => p.id}
+									loading={state.postsLoading}
+									emptyMessage="此用户没有帖子"
+								/>
+								<AdminPagination
+									pagination={state.postsPagination}
+									onPageChange={actions.setPostsPage}
+								/>
+							</div>
+						)}
+					</div>
 				</CardContent>
 			</Card>
 
