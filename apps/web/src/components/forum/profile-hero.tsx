@@ -31,10 +31,12 @@ interface ProfileHeroProps {
 		resideProvince: string;
 		resideCity: string;
 		graduateSchool: string;
+		campus: string;
 		bio: string;
 		interest: string;
 		qq: string;
 		site: string;
+		signature: string;
 	};
 }
 

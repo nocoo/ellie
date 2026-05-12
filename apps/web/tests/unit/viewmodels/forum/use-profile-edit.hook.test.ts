@@ -40,10 +40,12 @@ const defaultData = {
 	resideProvince: "北京",
 	resideCity: "朝阳",
 	graduateSchool: "PKU",
+	campus: "燕园",
 	bio: "hi",
 	interest: "code",
 	qq: "123",
 	site: "https://x.com",
+	signature: "—",
 };
 
 describe("useProfileEdit hook", () => {

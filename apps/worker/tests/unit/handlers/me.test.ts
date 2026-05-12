@@ -35,12 +35,14 @@ describe("user self-service handlers", () => {
 		});
 
 		it("should update email", async () => {
+			// Email is no longer editable via PATCH /users/me — the dedicated
+			// email verification endpoint owns that mutation. Profile PATCH
+			// must reject any body that carries `email`, even when the user
+			// is already verified.
 			const token = await createJwtForRole(0, 42);
-			const updatedUser = makeD1UserRow({ id: 42, email: "new@example.com" });
 			const { db } = createMockDb({
 				firstResults: {
 					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-					"SELECT id, username, email": updatedUser,
 				},
 			});
 
@@ -53,9 +55,60 @@ describe("user self-service handlers", () => {
 				{ ...mockEnv, DB: db },
 			);
 
+			expect(response.status).toBe(400);
+			const body = await response.json();
+			expect(body.error.code).toBe("EMAIL_NOT_EDITABLE_HERE");
+		});
+
+		it("rejects an explicit email field even when paired with other fields", async () => {
+			const token = await createJwtForRole(0, 42);
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+				},
+			});
+
+			const response = await updateProfile(
+				new Request("https://example.com/api/v1/users/me", {
+					method: "PATCH",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ email: "x@y.com", bio: "hi" }),
+				}),
+				{ ...mockEnv, DB: db },
+			);
+
+			expect(response.status).toBe(400);
+			const body = await response.json();
+			expect(body.error.code).toBe("EMAIL_NOT_EDITABLE_HERE");
+		});
+
+		it("should update campus and signature (newly added profile fields)", async () => {
+			const token = await createJwtForRole(0, 42);
+			const updatedUser = makeD1UserRow({
+				id: 42,
+				campus: "四平路校区",
+				signature: "Hello world",
+			});
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+					"SELECT id, username, email": updatedUser,
+				},
+			});
+
+			const response = await updateProfile(
+				new Request("https://example.com/api/v1/users/me", {
+					method: "PATCH",
+					headers: { Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ campus: "四平路校区", signature: "Hello world" }),
+				}),
+				{ ...mockEnv, DB: db },
+			);
+
 			expect(response.status).toBe(200);
 			const body = await response.json();
-			expect(body.data.email).toBe("new@example.com");
+			expect(body.data.campus).toBe("四平路校区");
+			expect(body.data.signature).toBe("Hello world");
 		});
 
 		it("should update avatar", async () => {
@@ -104,7 +157,11 @@ describe("user self-service handlers", () => {
 			expect(body.error.code).toBe("INVALID_BODY");
 		});
 
-		it("should reject invalid email format", async () => {
+		it("should reject invalid email format (still rejected as EMAIL_NOT_EDITABLE_HERE before validator runs)", async () => {
+			// The email-not-editable guard runs before the validator, so even
+			// a clearly invalid email surfaces as EMAIL_NOT_EDITABLE_HERE here.
+			// Email format validation still lives in `validateProfileFields`
+			// and is exercised through the registration path.
 			const token = await createJwtForRole(0, 42);
 			const { db } = createMockDb({
 				firstResults: {
@@ -123,10 +180,10 @@ describe("user self-service handlers", () => {
 
 			expect(response.status).toBe(400);
 			const body = await response.json();
-			expect(body.error.details.message).toBe("Invalid email format");
+			expect(body.error.code).toBe("EMAIL_NOT_EDITABLE_HERE");
 		});
 
-		it("should reject empty email", async () => {
+		it("should reject empty email (also caught by the not-editable guard)", async () => {
 			const token = await createJwtForRole(0, 42);
 			const { db } = createMockDb({
 				firstResults: {
@@ -144,6 +201,8 @@ describe("user self-service handlers", () => {
 			);
 
 			expect(response.status).toBe(400);
+			const body = await response.json();
+			expect(body.error.code).toBe("EMAIL_NOT_EDITABLE_HERE");
 		});
 
 		it("should handle malformed JSON", async () => {
@@ -181,7 +240,7 @@ describe("user self-service handlers", () => {
 				new Request("https://example.com/api/v1/users/me", {
 					method: "PATCH",
 					headers: { Authorization: `Bearer ${token}` },
-					body: JSON.stringify({ email: "new@example.com" }),
+					body: JSON.stringify({ bio: "still here" }),
 				}),
 				{ ...mockEnv, DB: db },
 			);
