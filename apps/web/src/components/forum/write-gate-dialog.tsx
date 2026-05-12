@@ -17,12 +17,15 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import {
 	WRITE_GATE_EVENT,
 	type WriteGateEventDetail,
 	codeToCtaLabel,
 	codeToRedirect,
+	getWriteGateOnboardingSteps,
 } from "@/viewmodels/forum/write-gate";
+import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -60,6 +63,7 @@ export function WriteGateDialogMount() {
 
 	const ctaLabel = codeToCtaLabel(detail.code);
 	const redirectTo = codeToRedirect(detail.code);
+	const onboardingSteps = getWriteGateOnboardingSteps(detail.code);
 
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
@@ -68,6 +72,42 @@ export function WriteGateDialogMount() {
 					<DialogTitle>无法发送内容</DialogTitle>
 					<DialogDescription>{detail.reason}</DialogDescription>
 				</DialogHeader>
+				{onboardingSteps.length > 0 && (
+					<ol aria-label="发帖前的引导步骤" className="flex items-start gap-2 px-1 py-2 text-xs">
+						{onboardingSteps.map((step, idx) => (
+							<li
+								key={step.label}
+								data-testid={`write-gate-step-${idx + 1}`}
+								data-status={step.status}
+								className="flex flex-1 flex-col items-center gap-1 text-center"
+							>
+								<span
+									aria-hidden="true"
+									className={cn(
+										"flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-medium",
+										step.status === "done" && "border-green-600 bg-green-600 text-white",
+										step.status === "current" &&
+											"border-primary bg-primary text-primary-foreground",
+										step.status === "pending" &&
+											"border-muted-foreground/40 bg-muted text-muted-foreground",
+									)}
+								>
+									{step.status === "done" ? <Check className="h-3.5 w-3.5" /> : idx + 1}
+								</span>
+								<span
+									className={cn(
+										"leading-tight",
+										step.status === "done" && "text-green-600",
+										step.status === "current" && "font-medium text-foreground",
+										step.status === "pending" && "text-muted-foreground",
+									)}
+								>
+									{step.label}
+								</span>
+							</li>
+						))}
+					</ol>
+				)}
 				<DialogFooter>
 					<DialogClose render={<Button variant="outline" />}>知道了</DialogClose>
 					{ctaLabel && redirectTo && (

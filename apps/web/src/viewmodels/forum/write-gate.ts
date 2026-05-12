@@ -87,6 +87,53 @@ export function codeToCtaLabel(code: string): string | undefined {
 }
 
 // ---------------------------------------------------------------------------
+// Onboarding progress — pure viewmodel helper for WriteGateDialog
+// ---------------------------------------------------------------------------
+
+/** Status of a single onboarding step. */
+export type OnboardingStepStatus = "done" | "current" | "pending";
+
+/** A single onboarding step shown in the write-gate dialog progress strip. */
+export interface OnboardingStep {
+	label: string;
+	status: OnboardingStepStatus;
+}
+
+/**
+ * Map a write-gate restriction code to the three onboarding steps new users
+ * must complete before they can post: verify email → set avatar → wait one
+ * full day since registration.
+ *
+ * Only the three "new user" codes produce a non-empty array; any other
+ * restriction (content switch off, banned, etc.) returns `[]` so the dialog
+ * doesn't show misleading progress for unrelated blocks.
+ */
+export function getWriteGateOnboardingSteps(code: string): OnboardingStep[] {
+	switch (code) {
+		case "EMAIL_NOT_VERIFIED":
+			return [
+				{ label: "验证邮箱", status: "current" },
+				{ label: "设置头像", status: "pending" },
+				{ label: "注册满一天", status: "pending" },
+			];
+		case "REQUIRE_AVATAR":
+			return [
+				{ label: "验证邮箱", status: "done" },
+				{ label: "设置头像", status: "current" },
+				{ label: "注册满一天", status: "pending" },
+			];
+		case "MIN_REGISTRATION_DAYS":
+			return [
+				{ label: "验证邮箱", status: "done" },
+				{ label: "设置头像", status: "done" },
+				{ label: "注册满一天", status: "current" },
+			];
+		default:
+			return [];
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Permission cache — keyed by action
 // ---------------------------------------------------------------------------
 
