@@ -38,9 +38,15 @@ const LENGTH_ERRORS: Record<string, string> = {
 	signature: "Signature too long",
 };
 
-/** Field name to DB column mapping */
+/** Field name to DB column mapping.
+ *
+ * Email is intentionally NOT in this map: editing the email address goes
+ * through the dedicated email-verification flow (see handlers/email.ts).
+ * Profile PATCH must never write `users.email` so that "email is only
+ * editable from the verification page" (req 1c, msg=c0ddbe6d) holds at
+ * the API layer, not just in the UI.
+ */
 export const DB_COLUMNS: Record<string, string> = {
-	email: "email",
 	avatar: "avatar",
 	gender: "gender",
 	birthYear: "birth_year",
@@ -231,7 +237,12 @@ export function validateProfileFields(
 	return { success: true, fields };
 }
 
-/** PATCH /api/v1/users/me — Update own profile */
+/** PATCH /api/v1/users/me — Update own profile.
+ *
+ * Email is rejected here on purpose: user-initiated email changes flow
+ * through the dedicated email verification endpoints (see handlers/email.ts).
+ * Profile PATCH must NOT be a back-door for changing email even when
+ * `withVerifiedEmail` allows the call. */
 export const updateProfile = withVerifiedEmail(async (request, env, user) => {
 	const origin = request.headers.get("Origin") ?? undefined;
 
@@ -240,6 +251,17 @@ export const updateProfile = withVerifiedEmail(async (request, env, user) => {
 		body = (await request.json()) as Record<string, unknown>;
 	} catch {
 		return errorResponse("INVALID_BODY", 400, undefined, origin);
+	}
+
+	// Reject any attempt to write `email` here — even an empty string. The
+	// only sanctioned email-edit path is the verification flow.
+	if (Object.prototype.hasOwnProperty.call(body, "email")) {
+		return errorResponse(
+			"EMAIL_NOT_EDITABLE_HERE",
+			400,
+			{ message: "Email can only be changed from the email verification page" },
+			origin,
+		);
 	}
 
 	// Validate all fields

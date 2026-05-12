@@ -36,10 +36,12 @@ describe("createDefaultFormData", () => {
 		expect(form.resideProvince).toBe("");
 		expect(form.resideCity).toBe("");
 		expect(form.graduateSchool).toBe("");
+		expect(form.campus).toBe("");
 		expect(form.bio).toBe("");
 		expect(form.interest).toBe("");
 		expect(form.qq).toBe("");
 		expect(form.site).toBe("");
+		expect(form.signature).toBe("");
 	});
 });
 
@@ -57,10 +59,12 @@ describe("createFormDataFromUser", () => {
 			resideProvince: "北京",
 			resideCity: "朝阳区",
 			graduateSchool: "清华大学",
+			campus: "四平路校区",
 			bio: "Hello world",
 			interest: "编程",
 			qq: "12345678",
 			site: "https://example.com",
+			signature: "签名",
 		};
 
 		const form = createFormDataFromUser(user);
@@ -72,10 +76,12 @@ describe("createFormDataFromUser", () => {
 		expect(form.resideProvince).toBe("北京");
 		expect(form.resideCity).toBe("朝阳区");
 		expect(form.graduateSchool).toBe("清华大学");
+		expect(form.campus).toBe("四平路校区");
 		expect(form.bio).toBe("Hello world");
 		expect(form.interest).toBe("编程");
 		expect(form.qq).toBe("12345678");
 		expect(form.site).toBe("https://example.com");
+		expect(form.signature).toBe("签名");
 	});
 
 	it("creates independent copy (no reference sharing)", () => {
@@ -87,17 +93,21 @@ describe("createFormDataFromUser", () => {
 			resideProvince: "北京",
 			resideCity: "朝阳区",
 			graduateSchool: "清华大学",
+			campus: "校外人士",
 			bio: "Hello",
 			interest: "编程",
 			qq: "123",
 			site: "https://example.com",
+			signature: "原签名",
 		};
 
 		const form = createFormDataFromUser(user);
 		form.bio = "Changed";
+		form.signature = "新签名";
 
 		// Original should not be affected
 		expect(user.bio).toBe("Hello");
+		expect(user.signature).toBe("原签名");
 	});
 });
 
@@ -115,10 +125,12 @@ describe("buildProfilePayload", () => {
 			resideProvince: "上海",
 			resideCity: "浦东",
 			graduateSchool: "复旦大学",
+			campus: "邯郸校区",
 			bio: "Test bio",
 			interest: "音乐",
 			qq: "87654321",
 			site: "https://test.com",
+			signature: "Test sig",
 		};
 
 		const payload = buildProfilePayload(form);
@@ -130,10 +142,12 @@ describe("buildProfilePayload", () => {
 		expect(payload.resideProvince).toBe("上海");
 		expect(payload.resideCity).toBe("浦东");
 		expect(payload.graduateSchool).toBe("复旦大学");
+		expect(payload.campus).toBe("邯郸校区");
 		expect(payload.bio).toBe("Test bio");
 		expect(payload.interest).toBe("音乐");
 		expect(payload.qq).toBe("87654321");
 		expect(payload.site).toBe("https://test.com");
+		expect(payload.signature).toBe("Test sig");
 	});
 
 	it("converts falsy birth values to 0", () => {
@@ -145,10 +159,12 @@ describe("buildProfilePayload", () => {
 			resideProvince: "",
 			resideCity: "",
 			graduateSchool: "",
+			campus: "",
 			bio: "",
 			interest: "",
 			qq: "",
 			site: "",
+			signature: "",
 		};
 
 		const payload = buildProfilePayload(form);
@@ -156,6 +172,12 @@ describe("buildProfilePayload", () => {
 		expect(payload.birthYear).toBe(0);
 		expect(payload.birthMonth).toBe(0);
 		expect(payload.birthDay).toBe(0);
+	});
+
+	it("never includes email in payload (req 1c — email only via verification page)", () => {
+		const form = createDefaultFormData();
+		const payload = buildProfilePayload(form) as Record<string, unknown>;
+		expect("email" in payload).toBe(false);
 	});
 });
 
@@ -294,12 +316,17 @@ describe("useProfileEdit state contracts", () => {
 			"resideProvince",
 			"resideCity",
 			"graduateSchool",
+			"campus",
 			"bio",
 			"interest",
 			"qq",
 			"site",
+			"signature",
 		];
-		expect(expectedFormKeys.length).toBe(11);
+		expect(expectedFormKeys.length).toBe(13);
+		// Email is intentionally absent — it's only editable from the
+		// dedicated email verification page (msg=c0ddbe6d).
+		expect(expectedFormKeys).not.toContain("email");
 	});
 });
 
@@ -336,10 +363,12 @@ describe("submitProfileUpdate", () => {
 			resideProvince: "北京",
 			resideCity: "朝阳",
 			graduateSchool: "PKU",
+			campus: "燕园",
 			bio: "hi",
 			interest: "code",
 			qq: "123",
 			site: "https://x.com",
+			signature: "—",
 		};
 
 		await submitProfileUpdate(form);

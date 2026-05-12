@@ -15,7 +15,14 @@ import { useCallback, useEffect, useState } from "react";
 // ---------------------------------------------------------------------------
 
 /**
- * Profile form data shape
+ * Profile form data shape.
+ *
+ * NOTE — `email` is intentionally absent: per spec (msg=c0ddbe6d), the
+ * email address is only editable from the dedicated email-verification
+ * page, not from the general profile form. The worker enforces this with
+ * `EMAIL_NOT_EDITABLE_HERE`. `avatar` continues to live in its own upload
+ * widget. Admin-only fields (status/role/counters/IP/group) are not part
+ * of public profile and stay out of this shape.
  */
 export interface ProfileFormData {
 	gender: number;
@@ -25,10 +32,12 @@ export interface ProfileFormData {
 	resideProvince: string;
 	resideCity: string;
 	graduateSchool: string;
+	campus: string;
 	bio: string;
 	interest: string;
 	qq: string;
 	site: string;
+	signature: string;
 }
 
 /**
@@ -104,10 +113,12 @@ export function createDefaultFormData(): ProfileFormData {
 		resideProvince: "",
 		resideCity: "",
 		graduateSchool: "",
+		campus: "",
 		bio: "",
 		interest: "",
 		qq: "",
 		site: "",
+		signature: "",
 	};
 }
 
@@ -124,10 +135,12 @@ export function createFormDataFromUser(user: ProfileFormData): ProfileFormData {
 		resideProvince: user.resideProvince,
 		resideCity: user.resideCity,
 		graduateSchool: user.graduateSchool,
+		campus: user.campus,
 		bio: user.bio,
 		interest: user.interest,
 		qq: user.qq,
 		site: user.site,
+		signature: user.signature,
 	};
 }
 
@@ -144,10 +157,12 @@ export function buildProfilePayload(form: ProfileFormData): ProfileFormData {
 		resideProvince: form.resideProvince,
 		resideCity: form.resideCity,
 		graduateSchool: form.graduateSchool,
+		campus: form.campus,
 		bio: form.bio,
 		interest: form.interest,
 		qq: form.qq,
 		site: form.site,
+		signature: form.signature,
 	};
 }
 

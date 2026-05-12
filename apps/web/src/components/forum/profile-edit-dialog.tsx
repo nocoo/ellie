@@ -35,10 +35,12 @@ export interface ProfileEditDialogProps {
 		resideProvince: string;
 		resideCity: string;
 		graduateSchool: string;
+		campus: string;
 		bio: string;
 		interest: string;
 		qq: string;
 		site: string;
+		signature: string;
 	};
 }
 
@@ -208,16 +210,29 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 							教育经历
 						</h3>
 
-						<div className="grid gap-2">
-							<Label htmlFor="edit-school">毕业学校</Label>
-							<Input
-								id="edit-school"
-								value={state.form.graduateSchool}
-								onChange={(e) => actions.setField("graduateSchool", e.target.value)}
-								maxLength={100}
-								placeholder="学校名称"
-								disabled={state.submitting}
-							/>
+						<div className="grid gap-4">
+							<div className="grid gap-2">
+								<Label htmlFor="edit-school">毕业学校</Label>
+								<Input
+									id="edit-school"
+									value={state.form.graduateSchool}
+									onChange={(e) => actions.setField("graduateSchool", e.target.value)}
+									maxLength={100}
+									placeholder="学校名称"
+									disabled={state.submitting}
+								/>
+							</div>
+							<div className="grid gap-2">
+								<Label htmlFor="edit-campus">校区</Label>
+								<Input
+									id="edit-campus"
+									value={state.form.campus}
+									onChange={(e) => actions.setField("campus", e.target.value)}
+									maxLength={100}
+									placeholder="如：四平路校区 / 校外人士"
+									disabled={state.submitting}
+								/>
+							</div>
 						</div>
 					</div>
 
@@ -285,6 +300,19 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 									placeholder="你喜欢什么..."
 									disabled={state.submitting}
 									rows={3}
+									className="resize-none"
+								/>
+							</div>
+							<div className="grid gap-2">
+								<Label htmlFor="edit-signature">个性签名</Label>
+								<Textarea
+									id="edit-signature"
+									value={state.form.signature}
+									onChange={(e) => actions.setField("signature", e.target.value)}
+									maxLength={1000}
+									placeholder="发帖/回帖时显示在你内容下方的一句话"
+									disabled={state.submitting}
+									rows={2}
 									className="resize-none"
 								/>
 							</div>
