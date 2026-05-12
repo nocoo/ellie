@@ -47,6 +47,7 @@
 			"coverage",
 			"reference",
 			"output",
+			"test-results",
 			"*.sql",
 			"*.sql.gz",
 			".wrangler",
