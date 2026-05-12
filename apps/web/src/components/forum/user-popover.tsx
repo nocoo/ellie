@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { apiClient } from "@/lib/api-client";
 import { getAvatarUrl } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
+import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { formatLocaleDate, formatNumber } from "@/viewmodels/shared/formatting";
 import { formatLastActive, getRoleBadge } from "@/viewmodels/shared/user-display";
 import type { PublicUser } from "@ellie/types";
@@ -29,6 +30,7 @@ import {
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { useForumToast } from "./forum-toast";
@@ -91,6 +93,7 @@ export function UserPopover({
 	triggerClassName,
 }: UserPopoverProps) {
 	const { data: session } = useSession();
+	const router = useRouter();
 	const toast = useForumToast();
 	const [open, setOpen] = useState(false);
 	const [loading, setLoading] = useState(false);
@@ -278,13 +281,17 @@ export function UserPopover({
 							<div className="flex items-center gap-1">
 								{/* Send message */}
 								{!isSelf && (
-									<Link
-										href={`/messages?to=${user.id}`}
+									<button
+										type="button"
+										onClick={async () => {
+											if (await writeGatePreflight(null, "message")) return;
+											router.push(`/messages?to=${user.id}`);
+										}}
 										className="inline-flex items-center justify-center h-6 px-2 rounded-lg text-xs font-medium gap-1 hover:bg-muted transition-colors"
 									>
 										<Mail className="h-3.5 w-3.5" />
 										发站内信
-									</Link>
+									</button>
 								)}
 
 								{/* Mod actions dropdown */}

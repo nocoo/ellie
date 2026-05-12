@@ -17,6 +17,7 @@ import {
 	fetchUnreadCount,
 	markAllMessagesRead,
 } from "@/viewmodels/forum/messages";
+import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { CheckCheck, Mail, PenLine, Send, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -446,7 +447,8 @@ export function MessagesPageClient({
 	};
 
 	// Handle compose
-	const handleCompose = useCallback(() => {
+	const handleCompose = useCallback(async () => {
+		if (await writeGatePreflight(null, "message")) return;
 		// Reset recipient before opening
 		setComposeRecipient(undefined);
 		setIsComposeOpen(true);
@@ -462,12 +464,21 @@ export function MessagesPageClient({
 
 	// Auto-open compose dialog with pre-filled recipient from ?to=N parameter
 	useEffect(() => {
-		if (initialRecipient) {
+		if (!initialRecipient) return;
+		let cancelled = false;
+		writeGatePreflight(null, "message").then((blocked) => {
+			if (cancelled) return;
+			if (blocked) {
+				router.replace("/messages", { scroll: false });
+				return;
+			}
 			setComposeRecipient(initialRecipient);
 			setIsComposeOpen(true);
-			// Clear the URL parameter
 			router.replace("/messages", { scroll: false });
-		}
+		});
+		return () => {
+			cancelled = true;
+		};
 	}, [initialRecipient, router]);
 
 	// Handle delete
