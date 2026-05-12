@@ -12,12 +12,26 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAvatarUrl, useAvatarVersion } from "@/contexts/avatar-context";
 import { cn } from "@/lib/utils";
+import { CAMPUS_OPTIONS, IDENTITY_OPTIONS } from "@/viewmodels/forum/profile-options";
 import { GENDER_OPTIONS, useProfileEdit } from "@/viewmodels/forum/use-profile-edit";
 import { Save, User as UserIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AvatarUpload } from "./avatar-upload";
 import { DialogErrorBanner } from "./dialog-error-banner";
 import { DialogHeroHeader } from "./dialog-hero-header";
+
+// ---------------------------------------------------------------------------
+// Section heading — keep all section titles visually identical (small dot + label)
+// ---------------------------------------------------------------------------
+
+function SectionHeading({ children }: { children: React.ReactNode }) {
+	return (
+		<h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+			<span className="h-1 w-1 rounded-full bg-primary" />
+			{children}
+		</h3>
+	);
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -83,7 +97,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 			<DialogContent
 				className={cn(
 					"glass-panel",
-					"w-[calc(100vw-2rem)] sm:w-[520px]",
+					"w-[calc(100vw-2rem)] sm:w-[640px] lg:w-[760px] sm:max-w-[760px]",
 					"max-h-[85vh] overflow-hidden flex flex-col",
 					"rounded-xl p-0",
 				)}
@@ -105,10 +119,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 				<div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
 					{/* Avatar Section */}
 					<div className="space-y-4">
-						<h3 className="text-sm font-medium text-foreground flex items-center gap-2">
-							<span className="h-1 w-1 rounded-full bg-primary" />
-							头像
-						</h3>
+						<SectionHeading>头像</SectionHeading>
 						<AvatarUpload
 							currentUrl={avatarUrl}
 							onUploadComplete={handleAvatarUploadComplete}
@@ -118,10 +129,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 
 					{/* Basic Info Section */}
 					<div className="space-y-4">
-						<h3 className="text-sm font-medium text-foreground flex items-center gap-2">
-							<span className="h-1 w-1 rounded-full bg-primary" />
-							基本信息
-						</h3>
+						<SectionHeading>基本信息</SectionHeading>
 
 						<div className="grid gap-4">
 							<div className="grid gap-2">
@@ -172,10 +180,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 
 					{/* Location Section */}
 					<div className="space-y-4">
-						<h3 className="text-sm font-medium text-foreground flex items-center gap-2">
-							<span className="h-1 w-1 rounded-full bg-primary" />
-							居住地
-						</h3>
+						<SectionHeading>居住地</SectionHeading>
 
 						<div className="grid grid-cols-2 gap-4">
 							<div className="grid gap-2">
@@ -205,31 +210,26 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 
 					{/* Education Section */}
 					<div className="space-y-4">
-						<h3 className="text-sm font-medium text-foreground flex items-center gap-2">
-							<span className="h-1 w-1 rounded-full bg-primary" />
-							教育经历
-						</h3>
+						<SectionHeading>教育经历</SectionHeading>
 
 						<div className="grid gap-4">
 							<div className="grid gap-2">
-								<Label htmlFor="edit-school">毕业学校</Label>
-								<Input
+								<Label htmlFor="edit-school">身份类型</Label>
+								<Select
 									id="edit-school"
 									value={state.form.graduateSchool}
 									onChange={(e) => actions.setField("graduateSchool", e.target.value)}
-									maxLength={100}
-									placeholder="学校名称"
+									options={IDENTITY_OPTIONS}
 									disabled={state.submitting}
 								/>
 							</div>
 							<div className="grid gap-2">
 								<Label htmlFor="edit-campus">校区</Label>
-								<Input
+								<Select
 									id="edit-campus"
 									value={state.form.campus}
 									onChange={(e) => actions.setField("campus", e.target.value)}
-									maxLength={100}
-									placeholder="如：四平路校区 / 校外人士"
+									options={CAMPUS_OPTIONS}
 									disabled={state.submitting}
 								/>
 							</div>
@@ -238,10 +238,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 
 					{/* Contact Section */}
 					<div className="space-y-4">
-						<h3 className="text-sm font-medium text-foreground flex items-center gap-2">
-							<span className="h-1 w-1 rounded-full bg-primary" />
-							联系方式
-						</h3>
+						<SectionHeading>联系方式</SectionHeading>
 
 						<div className="grid gap-4">
 							<div className="grid gap-2">
@@ -271,10 +268,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
 
 					{/* Bio Section */}
 					<div className="space-y-4">
-						<h3 className="text-sm font-medium text-foreground flex items-center gap-2">
-							<span className="h-1 w-1 rounded-full bg-primary" />
-							个人简介
-						</h3>
+						<SectionHeading>个人简介</SectionHeading>
 
 						<div className="grid gap-4">
 							<div className="grid gap-2">
