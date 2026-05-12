@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { checkUsernameAvailability } from "@/lib/forum-browser-api";
+import { CAMPUS_OPTIONS, IDENTITY_OPTIONS } from "@/viewmodels/forum/profile-options";
 import {
 	type PasswordStrength,
 	REGISTER_PROFILE_DEFAULTS,
@@ -99,24 +100,8 @@ const GENDER_OPTIONS = [
 	{ value: 2, label: "女" },
 ];
 
-/** 4 official Tongji campuses (四平路/嘉定/沪西/沪北) + 2 historical/identity compat values */
-const CAMPUS_OPTIONS = [
-	{ value: "", label: "请选择校区" },
-	{ value: "四平路校区", label: "四平路校区" },
-	{ value: "嘉定校区", label: "嘉定校区" },
-	{ value: "沪西校区", label: "沪西校区" },
-	{ value: "沪北校区", label: "沪北校区" },
-	{ value: "其他校区", label: "其他校区" },
-	{ value: "校外人士", label: "校外人士" },
-];
-
-/** Identity-type options stored in `graduateSchool` field */
-const IDENTITY_OPTIONS = [
-	{ value: "", label: "请选择" },
-	{ value: "校内人士", label: "校内人士" },
-	{ value: "已毕业校友", label: "已毕业校友" },
-	{ value: "校外人士", label: "校外人士" },
-];
+// CAMPUS_OPTIONS / IDENTITY_OPTIONS now live in viewmodels/forum/profile-options
+// so register and profile-edit share the same source of truth.
 
 // ---------------------------------------------------------------------------
 // Posting conditions info
