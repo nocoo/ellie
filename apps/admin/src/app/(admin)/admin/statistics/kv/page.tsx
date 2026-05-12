@@ -31,6 +31,7 @@
 //      "needs more input".
 
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
+import { JsonCodeBlock } from "@/components/admin/json-code-block";
 import { SectionHeader } from "@/components/admin/section-header";
 import { SegmentedSwitch } from "@/components/admin/segmented-switch";
 import { extractErrorMessage } from "@/lib/admin-error";
@@ -629,9 +630,11 @@ function KeyDetailDialog({
 }) {
 	return (
 		<Dialog open={state.open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-w-2xl">
-				<DialogHeader>
-					<DialogTitle className="font-mono text-sm">{state.rawKey ?? "Key 详情"}</DialogTitle>
+			<DialogContent className="w-[calc(100vw-2rem)] max-w-5xl overflow-hidden">
+				<DialogHeader className="min-w-0">
+					<DialogTitle className="break-all font-mono text-sm">
+						{state.rawKey ?? "Key 详情"}
+					</DialogTitle>
 					<DialogDescription className="text-xs">家族 {state.family ?? "—"}</DialogDescription>
 				</DialogHeader>
 				{state.loading && (
@@ -642,7 +645,7 @@ function KeyDetailDialog({
 				)}
 				{state.error && <div className="text-xs text-destructive">加载失败：{state.error}</div>}
 				{state.data && (
-					<div className="space-y-3 text-xs">
+					<div className="min-w-0 space-y-3 text-xs">
 						<div>
 							<span className="text-muted-foreground">过期：</span>
 							{formatExpiration(state.data.expiration, now)}
@@ -652,23 +655,17 @@ function KeyDetailDialog({
 							{formatBytes(state.data.valueByteSize)}
 						</div>
 						{state.data.metadata !== null && (
-							<div>
+							<div className="min-w-0">
 								<span className="text-muted-foreground">Metadata：</span>
-								<pre className="mt-1 max-h-32 overflow-auto rounded bg-muted p-2 font-mono">
-									{JSON.stringify(state.data.metadata, null, 2)}
-								</pre>
+								<JsonCodeBlock value={state.data.metadata} maxHeightClassName="max-h-32" />
 							</div>
 						)}
-						<div>
+						<div className="min-w-0">
 							<span className="text-muted-foreground">Value：</span>
 							{state.data.valueMasked ? (
 								<span className="ml-1 text-muted-foreground italic">敏感，已遮蔽</span>
 							) : (
-								<pre className="mt-1 max-h-80 overflow-auto rounded bg-muted p-2 font-mono">
-									{typeof state.data.value === "string"
-										? state.data.value
-										: JSON.stringify(state.data.value, null, 2)}
-								</pre>
+								<JsonCodeBlock value={state.data.value} maxHeightClassName="max-h-[60vh]" />
 							)}
 						</div>
 					</div>
