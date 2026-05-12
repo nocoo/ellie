@@ -4,6 +4,7 @@
 
 import { ReportDialog } from "@/components/forum/report-dialog";
 import { Button } from "@/components/ui/button";
+import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { Flag } from "lucide-react";
 import { useState } from "react";
 
@@ -30,7 +31,10 @@ export function UserReportButton({ userId, isOwnProfile, isLoggedIn }: UserRepor
 				size="sm"
 				className="gap-1.5"
 				aria-label="举报用户"
-				onClick={() => setOpen(true)}
+				onClick={async () => {
+					if (await writeGatePreflight(null, "report")) return;
+					setOpen(true);
+				}}
 			>
 				<Flag className="h-3.5 w-3.5" />
 				<span className="hidden sm:inline">举报用户</span>

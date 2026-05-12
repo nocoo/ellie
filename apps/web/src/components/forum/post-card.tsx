@@ -23,6 +23,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { getStaticImageUrl } from "@/lib/cdn";
 import { type EnrichedPost, floorLabel } from "@/viewmodels/forum/thread-detail";
 import { usePostActions } from "@/viewmodels/forum/use-post-actions";
+import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import Link from "next/link";
 import { useState } from "react";
@@ -78,10 +79,24 @@ export function PostCard({
 	const actionBar = (
 		<PostActionBar
 			onReply={onReply}
-			onComment={canComment ? () => setCommentDialogOpen(true) : undefined}
+			onComment={
+				canComment
+					? async () => {
+							if (await writeGatePreflight(null, "comment")) return;
+							setCommentDialogOpen(true);
+						}
+					: undefined
+			}
 			onEdit={canEdit ? actions.handleEdit : undefined}
 			onDelete={canDelete && !isFirst ? actions.handleDeleteClick : undefined}
-			onReport={canReport ? () => setReportDialogOpen(true) : undefined}
+			onReport={
+				canReport
+					? async () => {
+							if (await writeGatePreflight(null, "report")) return;
+							setReportDialogOpen(true);
+						}
+					: undefined
+			}
 			canEdit={canEdit}
 			canDelete={canDelete && !isFirst}
 			canReport={canReport}
