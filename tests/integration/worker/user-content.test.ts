@@ -347,6 +347,13 @@ describe("L2: Worker User Content API", () => {
 		});
 	});
 
+	describe("POST /api/v1/users/me/email/correct", () => {
+		test("returns 401 without JWT", async () => {
+			const res = await workerPost("/api/v1/users/me/email/correct", { email: "x@y.com" });
+			expect(res.status).toBe(401);
+		});
+	});
+
 	// ─── Check-in (签到) ───────────────────────────────────────────
 
 	describe("GET /api/v1/checkin/status", () => {

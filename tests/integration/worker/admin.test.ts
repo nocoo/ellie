@@ -266,6 +266,38 @@ describe("L2: Worker Admin API", () => {
 		});
 	});
 
+	// ─── Check-ins (Admin) — Phase E ─────────────────────────────
+	//
+	// Three user-scoped endpoints. L2 hits the auth-passed handler path
+	// and asserts the canonical not-found / validation responses; deeper
+	// behavior (recompute semantics, audit log) is unit-tested in
+	// apps/worker/tests/unit/handlers/admin/checkin.test.ts.
+
+	describe("GET /api/admin/users/:id/checkins", () => {
+		test("returns 404 for non-existent user", async () => {
+			const res = await adminGet("/api/admin/users/999999/checkins");
+			expect(res.status).toBe(404);
+		});
+	});
+
+	describe("PATCH /api/admin/users/:id/checkins/:dateLocal", () => {
+		test("returns 400 for invalid calendar date", async () => {
+			const res = await adminPatch("/api/admin/users/999999/checkins/2026-02-31", {
+				checkedIn: true,
+			});
+			expect(res.status).toBe(400);
+		});
+	});
+
+	describe("PATCH /api/admin/users/:id/checkins/streak", () => {
+		test("returns 404 for non-existent user", async () => {
+			const res = await adminPatch("/api/admin/users/999999/checkins/streak", {
+				streakDays: 7,
+			});
+			expect(res.status).toBe(404);
+		});
+	});
+
 	describe("POST /api/admin/users/batch-status", () => {
 		test("returns 400 for missing params", async () => {
 			const res = await adminPost("/api/admin/users/batch-status", {});

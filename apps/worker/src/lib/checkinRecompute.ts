@@ -62,12 +62,19 @@ export interface RecomputeResult {
  * but does have history, one is inserted; if history is empty + reset is
  * allowed, the existing row (if any) is overwritten with zeros.
  *
- * `mood` / `message` / `last_reward` are intentionally NOT touched — they
- * carry user-supplied free text from the most recent check-in moment, not
- * derivable from history without losing the latest user intent. Admin
- * cannot "see what the user typed" through recompute; that would require a
- * separate audit trail per check-in. Existing values are preserved on
- * UPDATE; for fresh INSERT they default to empty.
+ * `mood` / `message` / `last_reward` are intentionally NOT touched on the
+ * non-empty UPDATE path — they carry user-supplied free text from the most
+ * recent check-in moment, not derivable from history without losing the
+ * latest user intent. Admin cannot "see what the user typed" through
+ * recompute; that would require a separate audit trail per check-in.
+ * Existing values are preserved on UPDATE; for fresh INSERT they default
+ * to empty.
+ *
+ * The empty-reset path (allowEmptyReset=true on empty history) is
+ * different: it zeroes ALL counters including `last_reward`, because the
+ * user genuinely has no check-in state — preserving a stale `last_reward`
+ * after the last history row was deleted would misrepresent the truth.
+ * `mood` / `message` are still cleared to '' there for the same reason.
  */
 export async function recomputeFromHistory(
 	env: Env,
@@ -96,7 +103,8 @@ export async function recomputeFromHistory(
 				skipped: true,
 			};
 		}
-		// Reset: zero the aggregate (preserve mood/message free text).
+		// Reset: zero the aggregate. last_reward is also zeroed here (see
+		// fn-doc) because no history rows means there is no "last" reward.
 		await env.DB.prepare(
 			`INSERT INTO user_checkins (user_id, total_days, month_days, streak_days, reward_total, last_reward, mood, message, last_checkin_at)
 			 VALUES (?, 0, 0, 0, 0, 0, '', '', 0)
