@@ -357,7 +357,7 @@ export const update = withEntityAuth(
 					details.before = diff.before;
 					details.after = diff.after;
 				}
-				await writeAdminLog(env, resolveActor(request), {
+				await writeAdminLog(env, resolveActor(request, env), {
 					action: "thread.update",
 					targetType: "thread",
 					targetId: id,
@@ -435,7 +435,7 @@ export const remove = withEntityAuth(
 		await Promise.all(tail);
 
 		// F3-b: audit only after the mutation has committed.
-		await writeAdminLog(env, resolveActor(request), {
+		await writeAdminLog(env, resolveActor(request, env), {
 			action: "thread.delete",
 			targetType: "thread",
 			targetId: id,
@@ -593,7 +593,7 @@ export const batchDelete = withEntityAuth(
 			...Array.from(forumThreadCounts.keys(), (forumId) => recalcForumMetadata(env, forumId)),
 			invalidateThreadListForForums(env, affectedForumIds),
 			bumpForumSummaryGen(env),
-			writeAdminLog(env, resolveActor(request), {
+			writeAdminLog(env, resolveActor(request, env), {
 				action: "thread.batch_delete",
 				targetType: "thread",
 				targetId: null,
@@ -753,7 +753,7 @@ export const batchMove = withEntityAuth(
 		// is deduped (Map keys) so multi-source batches are searchable.
 		const movedIds = movable.map((t) => t.id);
 		const fromForumIds = Array.from(forumAdjustments.keys());
-		await writeAdminLog(env, resolveActor(request), {
+		await writeAdminLog(env, resolveActor(request, env), {
 			action: "thread.batch_move",
 			targetType: "thread",
 			targetId: null,

@@ -600,7 +600,7 @@ export const refresh = withEntityAuth(
 			);
 		}
 
-		const actor = resolveActor(request);
+		const actor = resolveActor(request, env);
 
 		// Simple no-arg bump actions are dispatched via a shared table to
 		// keep the switch below under the lint complexity budget.

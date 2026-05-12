@@ -279,7 +279,7 @@ export const setCheckinDay = withEntityAuth(
 		}
 
 		const checkedIn = body.checkedIn;
-		const actor = resolveActor(request);
+		const actor = resolveActor(request, env);
 
 		if (checkedIn) {
 			// Upsert minimal history row. created_at = Shanghai noon of
@@ -388,7 +388,7 @@ export const setStreak = withEntityAuth(checkinConfig, async (request, env): Pro
 		.bind(streakDays, userId)
 		.run();
 
-	const actor = resolveActor(request);
+	const actor = resolveActor(request, env);
 	await writeAdminLog(env, actor, {
 		action: "checkin.streak_edit",
 		targetType: "user",

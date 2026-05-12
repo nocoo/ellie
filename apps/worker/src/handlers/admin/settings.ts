@@ -258,7 +258,7 @@ async function bulkUpdateSettings(request: Request, env: Env): Promise<Response>
 	}
 
 	if (changedKeys.length > 0) {
-		await writeAdminLog(env, resolveActor(request), {
+		await writeAdminLog(env, resolveActor(request, env), {
 			action: "setting.update",
 			targetType: "setting",
 			targetId: null,

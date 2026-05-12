@@ -207,7 +207,7 @@ export const create = withEntityAuth(
 			} catch {
 				// best-effort
 			}
-			await writeAdminLog(env, resolveActor(request), {
+			await writeAdminLog(env, resolveActor(request, env), {
 				action: "censor_word.create",
 				targetType: "censor_word",
 				targetId: newId,
@@ -267,7 +267,7 @@ export const update = withEntityAuth(
 				after[field] = incoming ?? null;
 			}
 			if (changedFields.length > 0) {
-				await writeAdminLog(env, resolveActor(request), {
+				await writeAdminLog(env, resolveActor(request, env), {
 					action: "censor_word.update",
 					targetType: "censor_word",
 					targetId: id,
@@ -298,7 +298,7 @@ export const remove = withEntityAuth(
 		}
 		const res = await censorRemoveInner(request, env);
 		if (res.status >= 200 && res.status < 300 && id !== null && existing) {
-			await writeAdminLog(env, resolveActor(request), {
+			await writeAdminLog(env, resolveActor(request, env), {
 				action: "censor_word.delete",
 				targetType: "censor_word",
 				targetId: id,
@@ -356,7 +356,7 @@ export const batchDelete = withEntityAuth(
 		const res = await censorBatchDeleteInner(innerReq, env);
 
 		if (res.status >= 200 && res.status < 300 && existingIds.length > 0) {
-			await writeAdminLog(env, resolveActor(request), {
+			await writeAdminLog(env, resolveActor(request, env), {
 				action: "censor_word.batch_delete",
 				targetType: "censor_word",
 				targetId: null,

@@ -297,7 +297,7 @@ export const update = withEntityAuth(
 		// pending → pending or terminal → pending revert is not currently logged
 		// (low-risk, no-op observers); resolved/dismissed both get a row.
 		if (status === "resolved" || status === "dismissed") {
-			await writeAdminLog(env, resolveActor(request), {
+			await writeAdminLog(env, resolveActor(request, env), {
 				action: status === "resolved" ? "report.resolve" : "report.dismiss",
 				targetType: "report",
 				targetId: id,
@@ -377,7 +377,7 @@ export const batchDelete = withEntityAuth(
 			// rows that existed at the moment of the SELECT is the exact set
 			// the inner CRUD handler will have deleted. No need to re-parse
 			// inner's response body.
-			await writeAdminLog(env, resolveActor(request), {
+			await writeAdminLog(env, resolveActor(request, env), {
 				action: "report.batch_delete",
 				targetType: "report",
 				targetId: null,

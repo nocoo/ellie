@@ -1,4 +1,5 @@
 // Online tracking middleware — records authenticated users as online in KV
+import { extractTrustedClientIp } from "../lib/clientIp";
 import type { Env } from "../lib/env";
 import type { AuthUser } from "./auth";
 
@@ -27,9 +28,13 @@ export function trackOnline(
 	user: AuthUser,
 ): void {
 	const key = `online:${user.userId}`;
+	// Use the unified trusted-IP extractor so server-to-Worker BFF calls (which
+	// arrive without `CF-Connecting-IP` but with `X-Real-IP`) record the real
+	// user IP. Empty string is acceptable here: the online tracker is a soft
+	// signal, and empty is preferable to a forged value.
 	const data: OnlineUserData = {
 		uid: user.userId,
-		ip: request.headers.get("CF-Connecting-IP") || "",
+		ip: extractTrustedClientIp(request, env) ?? "",
 		page: new URL(request.url).pathname,
 		ts: Math.floor(Date.now() / 1000),
 	};
