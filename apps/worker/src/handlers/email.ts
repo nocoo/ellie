@@ -411,12 +411,18 @@ export const correctPendingEmail = withAuthVerified(async (request, env, user) =
 	const newEmailNormalized = normalizeEmail(submittedEmail);
 
 	// Load the row so we can return precise error codes (verified vs.
-	// already-corrected) instead of a generic 0-rows-affected.
+	// already-corrected vs. unchanged) instead of a generic 0-rows-affected.
+	// We also need `email_normalized` to reject same-as-current submissions —
+	// otherwise the user could waste their one-shot correction on a no-op.
 	const row = await env.DB.prepare(
-		"SELECT email_verified_at, email_changed_at FROM users WHERE id = ?",
+		"SELECT email_verified_at, email_changed_at, email_normalized FROM users WHERE id = ?",
 	)
 		.bind(user.userId)
-		.first<{ email_verified_at: number; email_changed_at: number }>();
+		.first<{
+			email_verified_at: number;
+			email_changed_at: number;
+			email_normalized: string;
+		}>();
 	if (!row) {
 		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
 	}
@@ -425,6 +431,11 @@ export const correctPendingEmail = withAuthVerified(async (request, env, user) =
 	}
 	if (row.email_changed_at > 0) {
 		return errorResponse("EMAIL_CORRECTION_USED", 403, undefined, origin);
+	}
+	// Same-as-current guard. Compare normalized forms so casing / whitespace
+	// noise doesn't sneak through and burn the one-shot correction.
+	if (row.email_normalized === newEmailNormalized) {
+		return errorResponse("EMAIL_UNCHANGED", 400, undefined, origin);
 	}
 
 	// Pre-check uniqueness against other users so we can return a clean 409

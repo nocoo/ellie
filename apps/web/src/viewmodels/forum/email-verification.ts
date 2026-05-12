@@ -291,6 +291,8 @@ export function mapErrorCode(code: string, fallback?: string): string {
 			return "邮箱已通过验证，无法再纠错。";
 		case "EMAIL_CORRECTION_USED":
 			return "已经使用过一次纠错机会，无法再次修改。如需调整请联系管理员。";
+		case "EMAIL_UNCHANGED":
+			return "新邮箱与当前邮箱相同，无需纠错。";
 
 		// ── Code (request-code resend throttle) ──
 		case "CODE_RESEND_THROTTLED":
