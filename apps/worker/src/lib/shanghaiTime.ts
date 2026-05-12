@@ -73,10 +73,14 @@ export function isWithinCheckinWindow(): boolean {
 
 /**
  * Validate that an arbitrary string matches the canonical `YYYY-MM-DD`
- * shape used by `checkin_history.date_local`. This is a syntactic check
- * only — it does NOT verify the date is a real calendar day, but it does
- * reject obvious junk before it reaches the DB. Admin endpoints that
- * accept a `dateLocal` parameter from the request body should gate on this.
+ * shape used by `checkin_history.date_local` AND represents a real
+ * calendar day. Rejecting impossible dates like `2026-02-31` here
+ * matters because admin-supplied history rows feed back into
+ * `recomputeFromHistory`, which would otherwise produce aggregates
+ * that cannot be reproduced from any real calendar walk.
+ *
+ * The bound year window (2000-2100) is wide enough for any plausible
+ * forum lifetime but narrow enough to catch obvious typos / overflow.
  */
 export function isValidShanghaiDateLocal(s: unknown): s is string {
 	if (typeof s !== "string") return false;
@@ -85,5 +89,44 @@ export function isValidShanghaiDateLocal(s: unknown): s is string {
 	if (m < 1 || m > 12) return false;
 	if (d < 1 || d > 31) return false;
 	if (y < 2000 || y > 2100) return false;
+	// Real-calendar guard: round-trip through Date.UTC and check the
+	// fields survived. Catches Feb 30/31, Apr 31, etc. The UTC date is
+	// only used for shape validation; no timezone semantics involved.
+	const t = Date.UTC(y, m - 1, d);
+	const back = new Date(t);
+	if (back.getUTCFullYear() !== y || back.getUTCMonth() + 1 !== m || back.getUTCDate() !== d) {
+		return false;
+	}
 	return true;
+}
+
+/**
+ * Convert a canonical `YYYY-MM-DD` Shanghai date to the unix second of
+ * Shanghai-local 12:00 (noon) on that day. Used by admin history fill so
+ * `checkin_history.created_at` lands at a stable business-noon timestamp
+ * — that lets `recomputeFromHistory` derive `user_checkins.last_checkin_at`
+ * without time-travel artifacts (e.g. a 5/12 admin filling 5/8 history
+ * would otherwise leave last_checkin_at pointing at 5/12).
+ *
+ * Caller MUST validate the input via `isValidShanghaiDateLocal` first;
+ * this function does no shape checking and returns NaN on garbage.
+ */
+export function shanghaiNoonUnix(dateLocal: string): number {
+	const [y, m, d] = dateLocal.split("-").map(Number);
+	// Shanghai is UTC+8 (no DST), so Shanghai 12:00 = UTC 04:00.
+	return Math.floor(Date.UTC(y, m - 1, d, 4, 0, 0) / 1000);
+}
+
+/**
+ * Return the Shanghai-local date one day before `dateLocal`, in canonical
+ * `YYYY-MM-DD` form. Used by the streak walker in `recomputeFromHistory`
+ * to traverse adjacent days. Caller MUST validate input.
+ */
+export function shanghaiPrevDay(dateLocal: string): string {
+	const [y, m, d] = dateLocal.split("-").map(Number);
+	const prev = new Date(Date.UTC(y, m - 1, d) - 86400_000);
+	const py = prev.getUTCFullYear();
+	const pm = String(prev.getUTCMonth() + 1).padStart(2, "0");
+	const pd = String(prev.getUTCDate()).padStart(2, "0");
+	return `${py}-${pm}-${pd}`;
 }

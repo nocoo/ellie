@@ -18,6 +18,8 @@ import {
 	isValidShanghaiDateLocal,
 	isWithinCheckinWindow,
 	shanghaiDateLocal,
+	shanghaiNoonUnix,
+	shanghaiPrevDay,
 	shanghaiTodayStartUnix,
 } from "../../../src/lib/shanghaiTime";
 
@@ -149,5 +151,52 @@ describe("shanghaiTime — isValidShanghaiDateLocal", () => {
 		expect(isValidShanghaiDateLocal("2026-05-00")).toBe(false);
 		expect(isValidShanghaiDateLocal("1999-05-12")).toBe(false);
 		expect(isValidShanghaiDateLocal("2101-05-12")).toBe(false);
+	});
+
+	it("rejects impossible calendar days (real-calendar guard)", () => {
+		// Reviewer ask: 2026-02-31 must 400, not silently accepted.
+		// Without the round-trip guard the recompute can't reproduce it
+		// from any real calendar walk, leaving aggregates desynced.
+		expect(isValidShanghaiDateLocal("2026-02-31")).toBe(false);
+		expect(isValidShanghaiDateLocal("2026-02-30")).toBe(false);
+		expect(isValidShanghaiDateLocal("2026-02-29")).toBe(false); // not a leap year
+		expect(isValidShanghaiDateLocal("2026-04-31")).toBe(false);
+		expect(isValidShanghaiDateLocal("2026-06-31")).toBe(false);
+		expect(isValidShanghaiDateLocal("2026-09-31")).toBe(false);
+		expect(isValidShanghaiDateLocal("2026-11-31")).toBe(false);
+	});
+
+	it("accepts leap-day in actual leap years", () => {
+		expect(isValidShanghaiDateLocal("2024-02-29")).toBe(true);
+		expect(isValidShanghaiDateLocal("2028-02-29")).toBe(true);
+	});
+});
+
+describe("shanghaiTime — shanghaiNoonUnix", () => {
+	it("returns Shanghai 12:00 as unix seconds (= UTC 04:00 same day)", () => {
+		// 2026-05-12 12:00 Shanghai = 2026-05-12 04:00 UTC
+		const expected = Math.floor(Date.UTC(2026, 4, 12, 4, 0, 0) / 1000);
+		expect(shanghaiNoonUnix("2026-05-12")).toBe(expected);
+	});
+
+	it("handles year boundary correctly", () => {
+		const expected = Math.floor(Date.UTC(2026, 0, 1, 4, 0, 0) / 1000);
+		expect(shanghaiNoonUnix("2026-01-01")).toBe(expected);
+	});
+});
+
+describe("shanghaiTime — shanghaiPrevDay", () => {
+	it("returns the day before in YYYY-MM-DD form", () => {
+		expect(shanghaiPrevDay("2026-05-12")).toBe("2026-05-11");
+	});
+
+	it("crosses month boundary", () => {
+		expect(shanghaiPrevDay("2026-05-01")).toBe("2026-04-30");
+		expect(shanghaiPrevDay("2026-03-01")).toBe("2026-02-28"); // not leap
+		expect(shanghaiPrevDay("2024-03-01")).toBe("2024-02-29"); // leap
+	});
+
+	it("crosses year boundary", () => {
+		expect(shanghaiPrevDay("2026-01-01")).toBe("2025-12-31");
 	});
 });

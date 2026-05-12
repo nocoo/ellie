@@ -606,6 +606,22 @@ export default {
 				return await (await import("./handlers/admin/announcement")).remove(request, env);
 			}
 
+			// ── M. Checkins (Admin) — Phase E ───────────────
+			// User-scoped only. No global list endpoint by design — admin
+			// reaches checkin state through the user-detail page.
+			if (path.match(/^\/api\/admin\/users\/\d+\/checkins$/) && request.method === "GET") {
+				return await (await import("./handlers/admin/checkin")).getUserCheckins(request, env);
+			}
+			if (
+				path.match(/^\/api\/admin\/users\/\d+\/checkins\/streak$/) &&
+				request.method === "PATCH"
+			) {
+				return await (await import("./handlers/admin/checkin")).setStreak(request, env);
+			}
+			if (path.match(/^\/api\/admin\/users\/\d+\/checkins\/[^/]+$/) && request.method === "PATCH") {
+				return await (await import("./handlers/admin/checkin")).setCheckinDay(request, env);
+			}
+
 			// ── 404 — Not Found ─────────────────────────────
 			return errorResponse("NOT_FOUND", 404, { path }, origin);
 		} catch (err) {
