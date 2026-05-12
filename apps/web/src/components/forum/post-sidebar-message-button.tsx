@@ -1,31 +1,40 @@
 // post-sidebar-message-button.tsx — "发站内信" button with write-gate preflight
-// Extracted from post-sidebar to keep the sidebar server-renderable while
-// gating navigation behind writeGatePreflight.
+// Opens ComposeMessageDialog in-place instead of navigating away,
+// so the user stays on the current thread page.
 
 "use client";
 
+import { ComposeMessageDialog } from "@/components/forum/compose-message-dialog";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { Mail } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 interface PostSidebarMessageButtonProps {
 	userId: number;
+	username: string;
 }
 
-export function PostSidebarMessageButton({ userId }: PostSidebarMessageButtonProps) {
-	const router = useRouter();
+export function PostSidebarMessageButton({ userId, username }: PostSidebarMessageButtonProps) {
+	const [open, setOpen] = useState(false);
 
 	return (
-		<button
-			type="button"
-			onClick={async () => {
-				if (await writeGatePreflight(null, "message")) return;
-				router.push(`/messages?to=${userId}`);
-			}}
-			className="flex items-center gap-1 text-xs text-forum-link hover:underline"
-		>
-			<Mail className="h-3.5 w-3.5" />
-			发站内信
-		</button>
+		<>
+			<button
+				type="button"
+				onClick={async () => {
+					if (await writeGatePreflight(null, "message")) return;
+					setOpen(true);
+				}}
+				className="flex items-center gap-1 text-xs text-forum-link hover:underline"
+			>
+				<Mail className="h-3.5 w-3.5" />
+				发站内信
+			</button>
+			<ComposeMessageDialog
+				open={open}
+				onOpenChange={setOpen}
+				initialRecipient={{ id: userId, username }}
+			/>
+		</>
 	);
 }

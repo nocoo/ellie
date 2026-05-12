@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
-// Tests that write-gate preflight blocks post-sidebar "发站内信" navigation.
+// Tests that post-sidebar "发站内信" opens ComposeMessageDialog in place
+// (no navigation), gated by writeGatePreflight.
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,11 +12,14 @@ vi.mock("@/viewmodels/forum/write-gate", () => ({
 	writeGatePreflight: (...args: any[]) => mockWriteGatePreflight(...args),
 }));
 
-// ─── Router mock ────────────────────────────────────────────────────────────
+// ─── ComposeMessageDialog mock — track open state and props ─────────────────
 
-const mockRouterPush = vi.fn();
-vi.mock("next/navigation", () => ({
-	useRouter: () => ({ push: mockRouterPush, refresh: vi.fn() }),
+const composeDialogProps = vi.fn();
+vi.mock("@/components/forum/compose-message-dialog", () => ({
+	ComposeMessageDialog: (props: any) => {
+		composeDialogProps(props);
+		return props.open ? createElement("div", { "data-testid": "compose-dialog" }) : null;
+	},
 }));
 
 // ─── Import ─────────────────────────────────────────────────────────────────
@@ -31,8 +35,8 @@ describe("PostSidebarMessageButton write-gate", () => {
 	});
 	afterEach(cleanup);
 
-	it("navigates to /messages?to=N when write-gate allows", async () => {
-		render(createElement(PostSidebarMessageButton, { userId: 99 }));
+	it("opens compose dialog in place when write-gate allows", async () => {
+		render(createElement(PostSidebarMessageButton, { userId: 99, username: "Alice" }));
 
 		fireEvent.click(screen.getByText("发站内信"));
 
@@ -40,19 +44,24 @@ describe("PostSidebarMessageButton write-gate", () => {
 			expect(mockWriteGatePreflight).toHaveBeenCalledWith(null, "message");
 		});
 		await waitFor(() => {
-			expect(mockRouterPush).toHaveBeenCalledWith("/messages?to=99");
+			expect(screen.getByTestId("compose-dialog")).toBeTruthy();
 		});
+
+		// Verify initialRecipient is passed correctly
+		const lastCall = composeDialogProps.mock.calls.at(-1)?.[0];
+		expect(lastCall?.initialRecipient).toEqual({ id: 99, username: "Alice" });
+		expect(lastCall?.open).toBe(true);
 	});
 
-	it("does NOT navigate when write-gate blocks", async () => {
+	it("does NOT open dialog when write-gate blocks", async () => {
 		mockWriteGatePreflight.mockResolvedValue(true); // blocked
-		render(createElement(PostSidebarMessageButton, { userId: 99 }));
+		render(createElement(PostSidebarMessageButton, { userId: 99, username: "Alice" }));
 
 		fireEvent.click(screen.getByText("发站内信"));
 
 		await waitFor(() => {
 			expect(mockWriteGatePreflight).toHaveBeenCalledWith(null, "message");
 		});
-		expect(mockRouterPush).not.toHaveBeenCalled();
+		expect(screen.queryByTestId("compose-dialog")).toBeNull();
 	});
 });
