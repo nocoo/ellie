@@ -31,6 +31,28 @@ export interface UserCheckinSummary {
 	level: CheckinLevel | null;
 }
 
+/**
+ * One row of the `checkin_history` table (migration 0036). Used by the
+ * admin user-detail check-in panel to show the per-day audit log behind
+ * the rolling aggregates in `user_checkins`.
+ *
+ * `dateLocal` is the Asia/Shanghai local day in `YYYY-MM-DD` form — the
+ * composite PK with `userId` is what gives the at-most-one-per-day
+ * idempotency guarantee the public POST handler relies on.
+ *
+ * `createdAt` is server-side unix seconds at insert time. Useful when
+ * the admin needs to distinguish "checked in on day D" from "the request
+ * landed at server-time T" (e.g. a 23:59:55 POST that lands at 00:00:01).
+ */
+export interface CheckinHistoryEntry {
+	userId: number;
+	dateLocal: string; // YYYY-MM-DD, Asia/Shanghai local day
+	mood: string;
+	message: string;
+	reward: number;
+	createdAt: number; // unix seconds
+}
+
 // ─── Moods ──────────────────────────────────────────────────
 
 /**
