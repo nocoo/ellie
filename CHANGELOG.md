@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2026-05-12
+
+### Added
+
+- **KV Monitor admin panel**: Full admin UI for inspecting Worker KV state — overview, per-family key listing, key detail with sensitivity masking, per-key delete, and manual refresh (`apps/admin` + `apps/worker`)
+- **KV metrics pipeline**: D1-backed op-dimension metrics (read/write/bump/delete) with in-request accumulator flush and admin metrics API (`/api/admin/kv/metrics`)
+- **Write-gate preflight**: Unified permission check before all write actions (post, reply, report, message, comment) with action-aware cache isolation
+- **Registration enhancements**: Email required at registration, profile fields (birthday, QQ, site, education), anti-bot CAPTCHA, email uniqueness pre-check
+- **Email verification UX**: Resend cooldown, code expiry countdown, redirect after verify, "修改邮箱" entry
+- **Post-comments batch endpoint**: `POST /api/v1/post-comments/batch` for SSR thread detail
+- **User profile fields**: Campus and check-in summary exposed via API and shown in user info / post sidebar
+- **Newbie stamp**: Visual indicator for author's first thread
+- **FloatingToolbar**: Unified floating toolbar component replacing old FloatingActions
+- **Thread page links**: Inline page links with `?page=N` support and jump-to-page input
+- **Discuz thread icons**: Thread status icons replacing user avatars in thread list
+- **Data migration tooling**: D1 import executor with dry-run/resume/verification, upsert loader, source resolver, post-comments pipeline, bounded retry
+
+### Fixed
+
+- **Login page**: Show "已登录" card for authenticated users instead of silent redirect
+- **Thread pagination**: Convert from cursor-based to page-based; fix last/page priority resolution
+- **Nuke user**: Subquery-based deletes with chunked batches and step-level error labels
+- **FTS5 triggers**: Fix delete/update triggers for regular `threads_fts` table
+- **Mobile layout**: Author truncation, avatar shadow, UserPopover shrinkable container, toolbar overflow protection
+- **SSR fallback**: Surface batch-fetch failures and recover via fallback; demote SSR fallback logs to `console.warn`
+
+### Changed
+
+- **Forum route proxy**: Migrated all Next.js route handlers to shared `proxyRoute` helper with architecture guard
+- **API client refactor**: Funnel all client network calls through `apiClient` with static guard + React cache TTL boundaries
+- **Header profile card**: Redesigned layout with coins display
+- **Forum list toolbar**: Rearranged with new post button
+- **Worker KV cache**: Forum v2 two-generation scheme with full invalidation parity; thread:list:v2 schema
+- **Quality infrastructure**: 6DQ gate scripts (`gate:g1`/`gate:g2`/`gate:full`), L2 100% coverage gate, L2 route×method coverage audit
+- **Admin UI**: SectionHeader/SegmentedSwitch components, sidebar split for statistics/KV sections, user-edit field expansion
+
 ## [1.2.5] - 2026-05-07
 
 ### Added
