@@ -42,7 +42,7 @@ import { ConfirmDialog } from "@ellie/ui";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@ellie/ui";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@ellie/ui";
 import { ChevronDown, ChevronRight, Eye, Loader2, RefreshCw, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Wire types — mirrored from `apps/worker/src/handlers/admin/kv.ts`.
@@ -469,8 +469,8 @@ function OverviewTable({
 					const refreshable =
 						refreshAction !== null && row.status === "shipped" && row.presence === "present";
 					return (
-						<>
-							<TableRow key={row.family}>
+						<Fragment key={row.family}>
+							<TableRow>
 								<TableCell>
 									<Button
 										size="sm"
@@ -536,7 +536,7 @@ function OverviewTable({
 									</TableCell>
 								</TableRow>
 							)}
-						</>
+						</Fragment>
 					);
 				})}
 			</TableBody>
