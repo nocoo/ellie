@@ -34,11 +34,11 @@ function makeVm(overrides: Partial<HomeFooterViewModel> = {}): HomeFooterViewMod
 describe("HomeFooter", () => {
 	afterEach(cleanup);
 
-	it("renders online stats with peak record", () => {
+	it("renders online stats with formatted peak record", () => {
 		render(createElement(HomeFooter, { vm: makeVm() }));
 
-		expect(screen.getByText("42")).toBeTruthy();
-		expect(screen.getByText("10985")).toBeTruthy();
+		// totalOnline=42 stays as-is, peakOnline=10985 should be formatted with thousand separator
+		expect(screen.getByText(/10,985/)).toBeTruthy();
 		expect(screen.getByText(/2011-9-29/)).toBeTruthy();
 	});
 
