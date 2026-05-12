@@ -16,6 +16,7 @@ import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { AdminPagination } from "@/components/admin/admin-pagination";
 import { SegmentedSwitch } from "@/components/admin/segmented-switch";
 import { UserAvatar } from "@/components/admin/user-avatar";
+import { UserCheckinPanel } from "@/components/admin/user-checkin-panel";
 import { UserEditDialog } from "@/components/admin/user-edit-dialog";
 import { extractErrorMessage } from "@/lib/admin-error";
 import { FIRST_POST_VARIANT, userRoleVariant, userStatusVariant } from "@/viewmodels/admin/badges";
@@ -350,6 +351,9 @@ export default function UserDetailPage() {
 					</div>
 				</CardContent>
 			</Card>
+
+			{/* Check-in panel (Phase F) — only meaningful for non-tombstoned users */}
+			{user.status !== -99 && <UserCheckinPanel userId={user.id} />}
 
 			{/* Danger zone */}
 			<Card>
