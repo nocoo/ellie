@@ -30,8 +30,11 @@
 //      the operator never gets a button that immediately tells them
 //      "needs more input".
 
+import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { SectionHeader } from "@/components/admin/section-header";
 import { SegmentedSwitch } from "@/components/admin/segmented-switch";
+import { extractErrorMessage } from "@/lib/admin-error";
+import { readAdminKvJson } from "@/lib/admin-kv-fetch";
 import { Badge } from "@ellie/ui";
 import { Button } from "@ellie/ui";
 import { Card, CardContent } from "@ellie/ui";
@@ -694,8 +697,10 @@ const CLOSED_CONFIRM: ConfirmState = { open: false, row: null, rawKey: null, act
 export default function KvMonitorPage() {
 	const [overviewRows, setOverviewRows] = useState<OverviewRow[]>([]);
 	const [overviewLoading, setOverviewLoading] = useState(true);
+	const [overviewError, setOverviewError] = useState<string | null>(null);
 	const [metricsRows, setMetricsRows] = useState<MetricsRow[]>([]);
 	const [metricsLoading, setMetricsLoading] = useState(true);
+	const [metricsError, setMetricsError] = useState<string | null>(null);
 	const [busyFamily, setBusyFamily] = useState<string | null>(null);
 	const [notice, setNotice] = useState<string | null>(null);
 
@@ -726,10 +731,25 @@ export default function KvMonitorPage() {
 
 	const loadOverview = useCallback(async () => {
 		setOverviewLoading(true);
+		setOverviewError(null);
 		try {
-			const res = await fetch("/api/admin/kv/overview");
-			const json = (await res.json()) as { data?: { families: OverviewRow[] } };
-			setOverviewRows(json.data?.families ?? []);
+			// Worker design contract: even when local KV has zero keys, the
+			// overview endpoint returns the full KV_REGISTRY with count=0
+			// rows. An empty `families` array is therefore an anomaly, not a
+			// valid empty state — surface it as an error instead of letting
+			// the table render the misleading "无 KV 家族数据" placeholder.
+			const data = await readAdminKvJson<{ families: OverviewRow[] }>("/api/admin/kv/overview");
+			if (data.families.length === 0) {
+				setOverviewRows([]);
+				setOverviewError(
+					"接口返回空 registry（kv-registry 应至少包含已声明的家族）。请检查 worker 是否正常启动并加载到 kv-registry。",
+				);
+				return;
+			}
+			setOverviewRows(data.families);
+		} catch (err) {
+			setOverviewRows([]);
+			setOverviewError(extractErrorMessage(err, "加载 KV 总览失败"));
 		} finally {
 			setOverviewLoading(false);
 		}
@@ -737,10 +757,18 @@ export default function KvMonitorPage() {
 
 	const loadMetrics = useCallback(async () => {
 		setMetricsLoading(true);
+		setMetricsError(null);
 		try {
-			const res = await fetch(`/api/admin/kv/metrics?minutes=${METRICS_MINUTES}`);
-			const json = (await res.json()) as { data?: { series: MetricsRow[] } };
-			setMetricsRows(json.data?.series ?? []);
+			const data = await readAdminKvJson<{ series: MetricsRow[] }>(
+				`/api/admin/kv/metrics?minutes=${METRICS_MINUTES}`,
+			);
+			// Empty `series` is a valid state (no metrics in the window) —
+			// don't promote it to an error. The MetricsTable's own empty
+			// state ("最近 N 分钟暂无指标") handles this correctly.
+			setMetricsRows(data.series);
+		} catch (err) {
+			setMetricsRows([]);
+			setMetricsError(extractErrorMessage(err, "加载 KV 命中指标失败"));
 		} finally {
 			setMetricsLoading(false);
 		}
@@ -974,7 +1002,8 @@ export default function KvMonitorPage() {
 				/>
 
 				{activeView === "overview" && (
-					<div role="tabpanel" aria-label="家族总览">
+					<div role="tabpanel" aria-label="家族总览" className="space-y-3">
+						{overviewError && <AdminInlineMessage variant="error" text={overviewError} />}
 						<Card>
 							<CardContent>
 								<OverviewTable
@@ -996,7 +1025,8 @@ export default function KvMonitorPage() {
 				)}
 
 				{activeView === "metrics" && (
-					<div role="tabpanel" aria-label="家族级命中指标">
+					<div role="tabpanel" aria-label="家族级命中指标" className="space-y-3">
+						{metricsError && <AdminInlineMessage variant="error" text={metricsError} />}
 						<Card>
 							<CardContent>
 								<MetricsTable
