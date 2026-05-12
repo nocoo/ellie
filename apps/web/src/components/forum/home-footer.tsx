@@ -58,19 +58,17 @@ function FriendLinksSection({ vm }: { vm: HomeFooterViewModel }) {
 
 			{/* Links grid */}
 			<div className="px-4 py-3">
-				<div className="flex flex-wrap gap-x-1.5 gap-y-1 text-sm">
-					{vm.friendLinks.map((link, idx) => (
-						<span key={link.label} className="inline-flex items-center">
-							<Link
-								href={link.href}
-								target="_blank"
-								rel="noopener noreferrer"
-								className="text-muted-foreground hover:text-primary transition-colors"
-							>
-								{link.label}
-							</Link>
-							{idx < vm.friendLinks.length - 1 && <span className="text-border mx-1.5">|</span>}
-						</span>
+				<div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-x-4 gap-y-2 text-sm">
+					{vm.friendLinks.map((link) => (
+						<Link
+							key={link.label}
+							href={link.href}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="text-muted-foreground hover:text-primary transition-colors truncate"
+						>
+							{link.label}
+						</Link>
 					))}
 				</div>
 			</div>
