@@ -690,7 +690,7 @@ export const ban = withEntityAuth(
 			// Simple ban — status update + audit log are independent.
 			await Promise.all([
 				env.DB.prepare("UPDATE users SET status = -1 WHERE id = ?").bind(id).run(),
-				writeAdminLog(env, resolveActor(request), {
+				writeAdminLog(env, resolveActor(request, env), {
 					action: "user.ban",
 					targetType: "user",
 					targetId: id,
@@ -708,7 +708,7 @@ export const ban = withEntityAuth(
 			env.DB.prepare("UPDATE users SET status = -1, threads = 0, posts = 0 WHERE id = ?")
 				.bind(id)
 				.run(),
-			writeAdminLog(env, resolveActor(request), {
+			writeAdminLog(env, resolveActor(request, env), {
 				action: "user.ban",
 				targetType: "user",
 				targetId: id,
@@ -779,7 +779,7 @@ export const unban = withEntityAuth(
 		// Status UPDATE + audit log are independent.
 		await Promise.all([
 			env.DB.prepare("UPDATE users SET status = 0 WHERE id = ?").bind(id).run(),
-			writeAdminLog(env, resolveActor(request), {
+			writeAdminLog(env, resolveActor(request, env), {
 				action: "user.unban",
 				targetType: "user",
 				targetId: id,
@@ -826,7 +826,7 @@ export const nuke = withEntityAuth(
 				.run(),
 			invalidateThreadListForForums(env, result.affectedForumIds),
 			bumpForumSummaryGen(env),
-			writeAdminLog(env, resolveActor(request), {
+			writeAdminLog(env, resolveActor(request, env), {
 				action: "user.nuke",
 				targetType: "user",
 				targetId: id,
@@ -1290,7 +1290,7 @@ export const purge = withEntityAuth(
 		);
 		const r2 = await purgeR2Cleanup(env, r2Keys);
 
-		await writeAdminLog(env, resolveActor(request), {
+		await writeAdminLog(env, resolveActor(request, env), {
 			action: "user.purge",
 			targetType: "user",
 			targetId: id,

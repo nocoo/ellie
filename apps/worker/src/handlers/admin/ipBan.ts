@@ -4,6 +4,7 @@
 
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
+import { extractTrustedClientIp } from "../../lib/clientIp";
 import type { EntityConfig } from "../../lib/crud";
 import {
 	createBatchDeleteHandler,
@@ -279,11 +280,9 @@ export const create = withEntityAuth(
 			return errorResponse("INVALID_BODY", 400, { message: "Invalid JSON body" }, origin);
 		}
 
-		// Self-ban check: compare with CF-Connecting-IP (or fallback headers)
-		const requestIp =
-			request.headers.get("CF-Connecting-IP") ??
-			request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ??
-			null;
+		// Self-ban check: use the unified trusted-IP extractor so the admin BFF's
+		// `X-Real-IP` header is honored when the request is server-to-Worker.
+		const requestIp = extractTrustedClientIp(request, env);
 		if (requestIp && typeof body.ip === "string" && ipMatchesRule(requestIp, body.ip)) {
 			return errorResponse("IP_BAN_SELF", 400, undefined, origin);
 		}
@@ -300,7 +299,7 @@ export const create = withEntityAuth(
 			} catch {
 				// best-effort
 			}
-			await writeAdminLog(env, resolveActor(request), {
+			await writeAdminLog(env, resolveActor(request, env), {
 				action: "ip_ban.create",
 				targetType: "ip_ban",
 				targetId: newId,
@@ -368,7 +367,7 @@ export const update = withEntityAuth(
 				after.expiresAt = body.expiresAt ?? null;
 			}
 			if (changedFields.length > 0) {
-				await writeAdminLog(env, resolveActor(request), {
+				await writeAdminLog(env, resolveActor(request, env), {
 					action: "ip_ban.update",
 					targetType: "ip_ban",
 					targetId: id,
@@ -409,7 +408,7 @@ export const remove = withEntityAuth(
 		const res = await ipBanRemoveInner(request, env);
 
 		if (res.status >= 200 && res.status < 300 && id !== null && existing) {
-			await writeAdminLog(env, resolveActor(request), {
+			await writeAdminLog(env, resolveActor(request, env), {
 				action: "ip_ban.delete",
 				targetType: "ip_ban",
 				targetId: id,
@@ -473,7 +472,7 @@ export const batchDelete = withEntityAuth(
 		const res = await ipBanBatchDeleteInner(innerReq, env);
 
 		if (res.status >= 200 && res.status < 300 && existingIds.length > 0) {
-			await writeAdminLog(env, resolveActor(request), {
+			await writeAdminLog(env, resolveActor(request, env), {
 				action: "ip_ban.batch_delete",
 				targetType: "ip_ban",
 				targetId: null,

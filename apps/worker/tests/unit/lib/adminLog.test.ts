@@ -15,11 +15,12 @@ import {
 	sanitizeAdminLogDetails,
 	writeAdminLog,
 } from "../../../src/lib/adminLog";
-import { makeEnv } from "../../helpers";
+import { TEST_ADMIN_API_KEY, TEST_API_KEY, makeEnv } from "../../helpers";
 
 // ─── resolveActor ─────────────────────────────────────────────────
 
 describe("resolveActor", () => {
+	const env = makeEnv();
 	function req(headers: Record<string, string>): Request {
 		return new Request("https://api.example.com/api/admin/users/1", { headers });
 	}
@@ -31,6 +32,7 @@ describe("resolveActor", () => {
 				"X-Admin-Actor-Email": "alice@example.com",
 				"CF-Connecting-IP": "1.2.3.4",
 			}),
+			env,
 		);
 		expect(actor).toEqual({
 			adminId: SYSTEM_ACTOR_ID,
@@ -43,39 +45,66 @@ describe("resolveActor", () => {
 	it("falls back to email when name header missing", () => {
 		const actor = resolveActor(
 			req({ "X-Admin-Actor-Email": "alice@example.com", "CF-Connecting-IP": "1.2.3.4" }),
+			env,
 		);
 		expect(actor.adminName).toBe("alice@example.com");
 		expect(actor.adminEmail).toBe("alice@example.com");
 	});
 
 	it("returns empty adminEmail when X-Admin-Actor-Email header absent", () => {
-		const actor = resolveActor(req({ "CF-Connecting-IP": "1.2.3.4" }));
+		const actor = resolveActor(req({ "CF-Connecting-IP": "1.2.3.4" }), env);
 		expect(actor.adminEmail).toBe("");
 	});
 
 	it("trims whitespace around X-Admin-Actor-Email", () => {
-		const actor = resolveActor(req({ "X-Admin-Actor-Email": "  bob@example.com  " }));
+		const actor = resolveActor(req({ "X-Admin-Actor-Email": "  bob@example.com  " }), env);
 		expect(actor.adminEmail).toBe("bob@example.com");
 	});
 
 	it("falls back to system when both name and email missing", () => {
-		const actor = resolveActor(req({ "CF-Connecting-IP": "1.2.3.4" }));
+		const actor = resolveActor(req({ "CF-Connecting-IP": "1.2.3.4" }), env);
 		expect(actor.adminName).toBe(SYSTEM_ACTOR_NAME);
 	});
 
-	it("uses X-Forwarded-For first segment when CF-Connecting-IP missing", () => {
-		const actor = resolveActor(req({ "X-Forwarded-For": "10.0.0.1, 10.0.0.2" }));
+	it("uses X-Forwarded-For first segment when CF-Connecting-IP missing (non-prod)", () => {
+		// XFF fallback only honored outside production; helpers default ENV='test'.
+		const actor = resolveActor(req({ "X-Forwarded-For": "10.0.0.1, 10.0.0.2" }), env);
 		expect(actor.ip).toBe("10.0.0.1");
 	});
 
+	it("ignores X-Forwarded-For in production (no trusted source → empty)", () => {
+		const prodEnv = makeEnv({ ENVIRONMENT: "production" });
+		const actor = resolveActor(req({ "X-Forwarded-For": "10.0.0.1, 10.0.0.2" }), prodEnv);
+		expect(actor.ip).toBe("");
+	});
+
+	it("trusts X-Real-IP only when request carries Key A or Key B", () => {
+		const prodEnv = makeEnv({ ENVIRONMENT: "production" });
+		// Without API key → not trusted, ip empty
+		expect(resolveActor(req({ "X-Real-IP": "5.5.5.5" }), prodEnv).ip).toBe("");
+		// With Key A (forum) → trusted
+		expect(
+			resolveActor(req({ "X-Real-IP": "5.5.5.5", "X-API-Key": TEST_API_KEY }), prodEnv).ip,
+		).toBe("5.5.5.5");
+		// With Key B (admin) → trusted
+		expect(
+			resolveActor(req({ "X-Real-IP": "5.5.5.5", "X-API-Key": TEST_ADMIN_API_KEY }), prodEnv).ip,
+		).toBe("5.5.5.5");
+		// With wrong key → not trusted
+		expect(resolveActor(req({ "X-Real-IP": "5.5.5.5", "X-API-Key": "bogus" }), prodEnv).ip).toBe(
+			"",
+		);
+	});
+
 	it("ip falls back to empty string when both ip headers missing", () => {
-		const actor = resolveActor(req({}));
+		const actor = resolveActor(req({}), env);
 		expect(actor.ip).toBe("");
 	});
 
 	it("trims whitespace in headers", () => {
 		const actor = resolveActor(
 			req({ "X-Admin-Actor-Name": "  Bob  ", "CF-Connecting-IP": "  9.9.9.9  " }),
+			env,
 		);
 		expect(actor.adminName).toBe("Bob");
 		expect(actor.ip).toBe("9.9.9.9");

@@ -147,7 +147,7 @@ export const update = withEntityAuth(
 			// No-op skip: only "content" is updateable on posts; if it didn't
 			// actually change value, don't emit an audit row.
 			if (contentChanged) {
-				await writeAdminLog(env, resolveActor(request), {
+				await writeAdminLog(env, resolveActor(request, env), {
 					action: "post.update",
 					targetType: "post",
 					targetId: id,
@@ -195,7 +195,7 @@ export const remove = withEntityAuth(
 		const res = await removeInner(request, env);
 
 		if (res.status >= 200 && res.status < 300 && id !== null && existing) {
-			await writeAdminLog(env, resolveActor(request), {
+			await writeAdminLog(env, resolveActor(request, env), {
 				action: "post.delete",
 				targetType: "post",
 				targetId: id,
@@ -326,7 +326,7 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env) => {
 		batchDecrementUserPosts(env, authorUpdates),
 		invalidateThreadListForForums(env, Array.from(forumUpdates.keys())),
 		bumpForumSummaryGen(env),
-		writeAdminLog(env, resolveActor(request), {
+		writeAdminLog(env, resolveActor(request, env), {
 			action: "post.batch_delete",
 			targetType: "post",
 			targetId: null,

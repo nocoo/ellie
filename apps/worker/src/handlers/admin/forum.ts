@@ -339,7 +339,7 @@ export const create = withEntityAuth(
 				// best-effort
 			}
 			const description = typeof body.description === "string" ? body.description : "";
-			await writeAdminLog(env, resolveActor(request), {
+			await writeAdminLog(env, resolveActor(request, env), {
 				action: "forum.create",
 				targetType: "forum",
 				targetId: newId,
@@ -407,7 +407,7 @@ export const update = withEntityAuth(
 					details.before = diff.before;
 					details.after = diff.after;
 				}
-				await writeAdminLog(env, resolveActor(request), {
+				await writeAdminLog(env, resolveActor(request, env), {
 					action: "forum.update",
 					targetType: "forum",
 					targetId: id,
@@ -442,7 +442,7 @@ export const remove = withEntityAuth(
 		const res = await removeInner(request, env);
 
 		if (res.status >= 200 && res.status < 300 && id !== null && existing) {
-			await writeAdminLog(env, resolveActor(request), {
+			await writeAdminLog(env, resolveActor(request, env), {
 				action: "forum.delete",
 				targetType: "forum",
 				targetId: id,
@@ -541,7 +541,7 @@ export const merge = withEntityAuth(
 		await Promise.all([
 			recalcForumMetadata(env, targetForumId as number),
 			invalidateForumStructureV2(env),
-			writeAdminLog(env, resolveActor(request), {
+			writeAdminLog(env, resolveActor(request, env), {
 				action: "forum.merge",
 				targetType: "forum",
 				targetId: sourceId,
@@ -655,7 +655,7 @@ export const reorder = withEntityAuth(
 		await Promise.all([
 			invalidateForumReorderV2(env),
 			changedRows.length > 0
-				? writeAdminLog(env, resolveActor(request), {
+				? writeAdminLog(env, resolveActor(request, env), {
 						action: "forum.reorder",
 						targetType: "forum",
 						targetId: null,

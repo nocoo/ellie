@@ -1,7 +1,7 @@
 // adminLog.ts — F1: write-side helper for the admin_logs audit trail.
 //
 // Scope (F1):
-//   - resolveActor(request): pull (adminId, adminName, ip) from proxy headers,
+//   - resolveActor(request, env): pull (adminId, adminName, ip) from proxy headers,
 //     falling back to the system actor (id=0, name="system") when the call did
 //     not come through the Next admin proxy.
 //   - sanitizeAdminLogDetails(input): turn a handler-provided details object
@@ -16,6 +16,7 @@
 //   - Failure-path audit (e.g. user.ban_failed). If we want that later it will
 //     be a separate action; F1 only writes after the mutation succeeds.
 
+import { extractTrustedClientIp } from "./clientIp";
 import type { Env } from "./env";
 
 // ─── Constants ────────────────────────────────────────────────────
@@ -69,7 +70,10 @@ export interface AdminLogActor {
  * Direct Worker calls authenticated only by Key B carry no headers and are
  * recorded as the system actor.
  *
- * IP precedence: `CF-Connecting-IP` → first segment of `X-Forwarded-For` → "".
+ * IP precedence: delegated to `extractTrustedClientIp(request, env)` so admin
+ * BFF mutations carry the originating admin's IP via `X-Real-IP` (only trusted
+ * when the request is server-to-Worker, i.e. carries Key A/B). Empty string is
+ * accepted — better to log "IP unknown" than a forged value.
  * Name precedence: `X-Admin-Actor-Name` → full `X-Admin-Actor-Email` → "system".
  * Email: trimmed `X-Admin-Actor-Email`, or "" when absent. The full address is
  * preserved (no local-part extraction) so audit consumers can rebuild the
@@ -79,16 +83,13 @@ export interface AdminLogActor {
  * users.id available); the email is preserved alongside via adminEmail and
  * persisted into details.actorEmail by writeAdminLog().
  */
-export function resolveActor(request: Request): AdminLogActor {
+export function resolveActor(request: Request, env: Env): AdminLogActor {
 	const headerEmail = request.headers.get("X-Admin-Actor-Email")?.trim() ?? "";
 	const headerName = request.headers.get("X-Admin-Actor-Name")?.trim() ?? "";
 
 	const adminName = headerName || headerEmail || SYSTEM_ACTOR_NAME;
 
-	const cfIp = request.headers.get("CF-Connecting-IP")?.trim() ?? "";
-	const xff = request.headers.get("X-Forwarded-For") ?? "";
-	const xffFirst = xff.split(",")[0]?.trim() ?? "";
-	const ip = cfIp || xffFirst || "";
+	const ip = extractTrustedClientIp(request, env) ?? "";
 
 	return {
 		adminId: SYSTEM_ACTOR_ID,

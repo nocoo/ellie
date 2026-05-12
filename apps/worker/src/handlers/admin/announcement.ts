@@ -337,7 +337,7 @@ export const create = withEntityAuth(
 			}
 			const title = typeof body.title === "string" ? body.title : "";
 			const content = typeof body.content === "string" ? body.content : "";
-			await writeAdminLog(env, resolveActor(request), {
+			await writeAdminLog(env, resolveActor(request, env), {
 				action: "announcement.create",
 				targetType: "announcement",
 				targetId: newId,
@@ -440,7 +440,7 @@ export const update = withEntityAuth(
 		if (res.status >= 200 && res.status < 300 && id !== null && existing) {
 			const details = buildAnnouncementUpdateDetails(body, existing);
 			if (details) {
-				await writeAdminLog(env, resolveActor(request), {
+				await writeAdminLog(env, resolveActor(request, env), {
 					action: "announcement.update",
 					targetType: "announcement",
 					targetId: id,
@@ -474,7 +474,7 @@ export const remove = withEntityAuth(
 		if (res.status >= 200 && res.status < 300 && id !== null && existing) {
 			const title = typeof existing.title === "string" ? existing.title : "";
 			const content = typeof existing.content === "string" ? existing.content : "";
-			await writeAdminLog(env, resolveActor(request), {
+			await writeAdminLog(env, resolveActor(request, env), {
 				action: "announcement.delete",
 				targetType: "announcement",
 				targetId: id,
@@ -534,7 +534,7 @@ export const batchDelete = withEntityAuth(
 		const res = await announcementBatchDeleteInner(innerReq, env);
 
 		if (res.status >= 200 && res.status < 300 && existingIds.length > 0) {
-			await writeAdminLog(env, resolveActor(request), {
+			await writeAdminLog(env, resolveActor(request, env), {
 				action: "announcement.batch_delete",
 				targetType: "announcement",
 				targetId: null,

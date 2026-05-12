@@ -2,6 +2,7 @@
 import { canViewForumVisibility } from "@ellie/types";
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
+import { extractTrustedClientIp } from "../lib/clientIp";
 import type { Env } from "../lib/env";
 import { clampLimit } from "../lib/pagination";
 import { checkPostingPermission } from "../lib/postingPermission";
@@ -293,8 +294,11 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 
 	const now = Math.floor(Date.now() / 1000);
 
-	// Get client IP (if available from CF headers)
-	const ip = request.headers.get("CF-Connecting-IP") ?? "";
+	// Use the unified trusted-IP extractor; server-to-Worker BFF calls
+	// (forum-api.ts) forward the user's real IP via `X-Real-IP` and would
+	// otherwise be lost since `CF-Connecting-IP` reflects the BFF egress.
+	// Empty string remains acceptable when no trusted source is present.
+	const ip = extractTrustedClientIp(request, env) ?? "";
 
 	// Insert comment
 	const insertResult = await env.DB.prepare(

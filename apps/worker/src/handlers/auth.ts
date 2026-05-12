@@ -1,5 +1,6 @@
 // Auth handlers for Cloudflare Worker
 import { checkCensorWords } from "../lib/censor";
+import { extractTrustedClientIp } from "../lib/clientIp";
 import { normalizeEmail } from "../lib/email-verify";
 import type { Env } from "../lib/env";
 import { createJwt } from "../lib/jwt";
@@ -10,33 +11,9 @@ import { withAuthVerified } from "../lib/routeHelpers";
 import { errorResponse } from "../middleware/error";
 import { DB_COLUMNS, validateProfileFields } from "./me";
 
-/**
- * Get client IP from request headers.
- *
- * Priority:
- * 1. CF-Connecting-IP - Cloudflare sets this for direct requests to Worker (cannot be spoofed)
- * 2. X-Real-IP - Next.js proxy forwards this from Vercel's x-real-ip header
- *
- * SECURITY: We do NOT trust X-Forwarded-For because it can be spoofed by clients.
- * - CF-Connecting-IP is set by Cloudflare and cannot be spoofed
- * - X-Real-IP is set by our Next.js proxy from Vercel's trusted x-real-ip
- * - X-Forwarded-For can contain spoofed values prepended by malicious clients
- *
- * Returns null if no valid IP found (should reject request to prevent rate limit bypass).
- */
-function getClientIP(request: Request): string | null {
-	// Direct Cloudflare access - always trustworthy
-	const cfIP = request.headers.get("CF-Connecting-IP");
-	if (cfIP) return cfIP;
-
-	// Next.js proxy forwarding client IP from Vercel's x-real-ip
-	// This is set by our trusted server, not by the client
-	const realIP = request.headers.get("X-Real-IP");
-	if (realIP) return realIP;
-
-	// Do NOT fall back to X-Forwarded-For as it can be spoofed
-	return null;
-}
+// Login/register IP source — see lib/clientIp.ts for the full trust model.
+// auth must HARD-REJECT when no trustworthy IP is present, otherwise the
+// per-IP rate limit can be bypassed by stripping headers.
 
 interface LoginInput {
 	username: string;
@@ -66,7 +43,7 @@ export async function login(request: Request, env: Env): Promise<Response> {
 
 		// ── Rate limiting: 5 attempts per hour per IP, lockout 24h after 5 consecutive failures ──
 		// NOTE: Only IP-based rate limiting to prevent DoS via username lockout attacks
-		const ip = getClientIP(request);
+		const ip = extractTrustedClientIp(request, env);
 		if (!ip) {
 			return errorResponse("INVALID_REQUEST", 400, { message: "Missing client IP" }, origin);
 		}
@@ -454,7 +431,7 @@ export async function register(request: Request, env: Env): Promise<Response> {
 		// Independent guards: settings lookup + censor check + IP rate-limit
 		// counter. Run them in parallel — saves up to 2 D1/KV round-trips on
 		// the registration hot path.
-		const ip = getClientIP(request);
+		const ip = extractTrustedClientIp(request, env);
 		if (!ip) {
 			return errorResponse("INVALID_REQUEST", 400, { message: "Missing client IP" }, origin);
 		}
@@ -551,7 +528,7 @@ export async function checkUsername(request: Request, env: Env): Promise<Respons
 	}
 
 	// ── IP rate limiting: max 30 checks per minute ──
-	const ip = getClientIP(request);
+	const ip = extractTrustedClientIp(request, env);
 	if (!ip) {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Missing client IP" }, origin);
 	}
