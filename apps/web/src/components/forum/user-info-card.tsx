@@ -31,7 +31,7 @@ export function UserInfoCard({ user }: { user: UserProfileData["user"] }) {
 	if (gender) infoRows.push({ label: "性别", value: gender });
 	if (birthday) infoRows.push({ label: "生日", value: birthday });
 	if (location) infoRows.push({ label: "居住地", value: location });
-	if (user.graduateSchool) infoRows.push({ label: "毕业学校", value: user.graduateSchool });
+	if (user.graduateSchool) infoRows.push({ label: "身份类型", value: user.graduateSchool });
 	if (user.qq) infoRows.push({ label: "QQ", value: user.qq });
 	if (user.site) infoRows.push({ label: "个人网站", value: user.site });
 	if (olTime) infoRows.push({ label: "在线时间", value: olTime });

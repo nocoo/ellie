@@ -68,7 +68,7 @@ export function codeToRedirect(code: string): string | undefined {
 		case "EMAIL_NOT_VERIFIED":
 			return "/verify-email";
 		case "REQUIRE_AVATAR":
-			return "/me";
+			return "/me#avatar";
 		default:
 			return undefined;
 	}
