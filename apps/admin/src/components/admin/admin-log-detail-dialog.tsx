@@ -17,6 +17,7 @@ import {
 	DialogTitle,
 } from "@ellie/ui";
 import Link from "next/link";
+import { ADMIN_WIDE_DIALOG_BODY_CLASS, ADMIN_WIDE_DIALOG_CONTENT_CLASS } from "./dialog-presets";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -39,14 +40,14 @@ export function AdminLogDetailDialog({ open, onOpenChange, log }: AdminLogDetail
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-2xl">
-				<DialogHeader>
+			<DialogContent className={ADMIN_WIDE_DIALOG_CONTENT_CLASS}>
+				<DialogHeader className="min-w-0">
 					<DialogTitle>操作日志详情</DialogTitle>
 					<DialogDescription>只读审计记录</DialogDescription>
 				</DialogHeader>
 
 				{log && (
-					<div className="grid gap-3 py-2 text-sm">
+					<div className={`${ADMIN_WIDE_DIALOG_BODY_CLASS} grid gap-3 py-2 text-sm`}>
 						<DetailRow label="ID" value={String(log.id)} />
 						<DetailRow label="时间" value={formatLogTime(log.createdAt)} />
 						<DetailRow

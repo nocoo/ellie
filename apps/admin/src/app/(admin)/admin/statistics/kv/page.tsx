@@ -31,6 +31,10 @@
 //      "needs more input".
 
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
+import {
+	ADMIN_WIDE_DIALOG_BODY_CLASS,
+	ADMIN_WIDE_DIALOG_CONTENT_CLASS,
+} from "@/components/admin/dialog-presets";
 import { JsonCodeBlock } from "@/components/admin/json-code-block";
 import { SectionHeader } from "@/components/admin/section-header";
 import { SegmentedSwitch } from "@/components/admin/segmented-switch";
@@ -630,7 +634,7 @@ function KeyDetailDialog({
 }) {
 	return (
 		<Dialog open={state.open} onOpenChange={onOpenChange}>
-			<DialogContent className="w-[calc(100vw-2rem)] max-w-5xl overflow-hidden">
+			<DialogContent className={ADMIN_WIDE_DIALOG_CONTENT_CLASS}>
 				<DialogHeader className="min-w-0">
 					<DialogTitle className="break-all font-mono text-sm">
 						{state.rawKey ?? "Key 详情"}
@@ -645,7 +649,7 @@ function KeyDetailDialog({
 				)}
 				{state.error && <div className="text-xs text-destructive">加载失败：{state.error}</div>}
 				{state.data && (
-					<div className="min-w-0 space-y-3 text-xs">
+					<div className={`${ADMIN_WIDE_DIALOG_BODY_CLASS} space-y-3 text-xs`}>
 						<div>
 							<span className="text-muted-foreground">过期：</span>
 							{formatExpiration(state.data.expiration, now)}

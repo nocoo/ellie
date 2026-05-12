@@ -5,6 +5,10 @@ import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
+import {
+	ADMIN_WIDE_DIALOG_BODY_CLASS,
+	ADMIN_WIDE_DIALOG_CONTENT_CLASS,
+} from "@/components/admin/dialog-presets";
 import { reportStatusVariant, reportTypeVariant } from "@/viewmodels/admin/badges";
 import {
 	REPORT_STATUS_OPTIONS,
@@ -414,14 +418,14 @@ export default function ReportsPage() {
 
 			{/* Detail dialog */}
 			<Dialog open={detailReport !== null} onOpenChange={(open) => !open && setDetailReport(null)}>
-				<DialogContent className="sm:max-w-lg">
-					<DialogHeader>
+				<DialogContent className={ADMIN_WIDE_DIALOG_CONTENT_CLASS}>
+					<DialogHeader className="min-w-0">
 						<DialogTitle>举报详情 #{detailReport?.id}</DialogTitle>
 						<DialogDescription>查看举报的详细信息</DialogDescription>
 					</DialogHeader>
 					{detailReport && (
-						<div className="space-y-4 py-2">
-							<div className="grid grid-cols-[100px_1fr] gap-2 text-sm">
+						<div className={`${ADMIN_WIDE_DIALOG_BODY_CLASS} space-y-4 py-2`}>
+							<div className="grid grid-cols-[100px_1fr] gap-2 text-sm [&>span:nth-child(even)]:min-w-0 [&>span:nth-child(even)]:break-words">
 								<span className="text-muted-foreground">类型</span>
 								<span>
 									<Badge variant={reportTypeVariant(detailReport.type)}>
