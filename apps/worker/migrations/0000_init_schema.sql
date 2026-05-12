@@ -287,3 +287,28 @@ CREATE TABLE IF NOT EXISTS kv_cache_metrics_minute (
 );
 
 CREATE INDEX IF NOT EXISTS idx_kv_metrics_ts ON kv_cache_metrics_minute(ts_minute DESC);
+
+-- ─── Check-in history (mirror of migration 0036) ──────────────────
+-- Per-day audit log appended by `POST /api/v1/checkin` on success.
+-- The aggregate `user_checkins` row from migration 0033 keeps rolling
+-- totals; this table records one row per actual check-in keyed by
+-- Asia/Shanghai local day (`YYYY-MM-DD` text). Composite PK gives the
+-- at-most-one-per-day uniqueness the public POST handler relies on
+-- via `ON CONFLICT(user_id, date_local) DO NOTHING`.
+--
+-- Mirrored here so a fresh DB built from 0000_init_schema.sql (or the
+-- shared `packages/db/src/schema.ts`) has the table even before
+-- migration 0036 runs — Phase E admin endpoints will refuse to start
+-- against a schema missing this table.
+
+CREATE TABLE IF NOT EXISTS checkin_history (
+    user_id    INTEGER NOT NULL,
+    date_local TEXT    NOT NULL,
+    mood       TEXT    NOT NULL DEFAULT '',
+    message    TEXT    NOT NULL DEFAULT '',
+    reward     INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, date_local)
+);
+
+CREATE INDEX IF NOT EXISTS idx_checkin_history_date ON checkin_history(date_local);

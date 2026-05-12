@@ -236,6 +236,24 @@ export const TABLES = {
 			last_checkin_at INTEGER NOT NULL DEFAULT 0
 		);
 	`,
+
+	// Per-day check-in audit log (mirror of migration 0036). The aggregate
+	// `user_checkins` row above keeps rolling totals; this table records one
+	// row per actual check-in keyed by Asia/Shanghai local day in
+	// `YYYY-MM-DD` text form. Composite PK (user_id, date_local) gives the
+	// at-most-one-per-day uniqueness the public POST handler relies on via
+	// `ON CONFLICT(user_id, date_local) DO NOTHING`.
+	checkin_history: `
+		CREATE TABLE IF NOT EXISTS checkin_history (
+			user_id    INTEGER NOT NULL,
+			date_local TEXT    NOT NULL,
+			mood       TEXT    NOT NULL DEFAULT '',
+			message    TEXT    NOT NULL DEFAULT '',
+			reward     INTEGER NOT NULL DEFAULT 0,
+			created_at INTEGER NOT NULL,
+			PRIMARY KEY (user_id, date_local)
+		);
+	`,
 };
 
 export const INDEXES = {
@@ -309,5 +327,12 @@ export const INDEXES = {
 
 	user_checkins: [
 		"CREATE INDEX IF NOT EXISTS idx_user_checkins_last ON user_checkins(last_checkin_at);",
+	],
+
+	// Mirror of migration 0036 — admin date-range queries on
+	// `checkin_history` filter by `date_local` first; the composite PK
+	// already covers the per-user lookup path.
+	checkin_history: [
+		"CREATE INDEX IF NOT EXISTS idx_checkin_history_date ON checkin_history(date_local);",
 	],
 };
