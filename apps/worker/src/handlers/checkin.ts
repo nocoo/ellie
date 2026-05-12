@@ -9,13 +9,18 @@ import {
 	CHECKIN_MOODS,
 	CHECKIN_REWARD_MAX,
 	CHECKIN_REWARD_MIN,
-	CHECKIN_TIMEZONE,
 	type CheckinMood,
 	type UserCheckin,
 	getCheckinLevel,
 } from "@ellie/types";
 import { jsonResponse } from "../lib/response";
 import { withAuth, withAuthVerified } from "../lib/routeHelpers";
+import {
+	getShanghaiParts,
+	isWithinCheckinWindow,
+	shanghaiDateLocal,
+	shanghaiTodayStartUnix,
+} from "../lib/shanghaiTime";
 import { errorResponse } from "../middleware/error";
 
 // ─── D1 Row Shape ───────────────────────────────────────────
@@ -50,68 +55,10 @@ function toUserCheckin(row: D1CheckinRow): UserCheckin {
 
 // ─── Timezone-safe helpers ──────────────────────────────────
 //
-// Cloudflare Workers run in UTC. A naïve toLocaleString → new Date()
-// round-trip re-parses the formatted string as local (UTC) time,
-// shifting the Shanghai date boundary by 8 hours. We use
-// Intl.DateTimeFormat.formatToParts() to extract Shanghai-local fields
-// directly and compute Unix timestamps via Date.UTC.
-
-interface ShanghaiParts {
-	year: number;
-	month: number; // 1-12
-	day: number;
-	hour: number; // 0-23
-}
-
-const shanghaiFmt = new Intl.DateTimeFormat("en-US", {
-	timeZone: CHECKIN_TIMEZONE,
-	year: "numeric",
-	month: "numeric",
-	day: "numeric",
-	hour: "numeric",
-	hour12: false,
-});
-
-/** Extract Shanghai year/month/day/hour from a timestamp (defaults to now). */
-function getShanghaiParts(date?: Date): ShanghaiParts {
-	const parts = shanghaiFmt.formatToParts(date ?? new Date());
-	const map: Record<string, number> = {};
-	for (const p of parts) {
-		if (p.type !== "literal") map[p.type] = Number(p.value);
-	}
-	return {
-		year: map.year,
-		month: map.month,
-		day: map.day,
-		// Intl hour12:false may yield 24 for midnight — normalize to 0
-		hour: map.hour === 24 ? 0 : map.hour,
-	};
-}
-
-/** Start-of-day (00:00:00) in Asia/Shanghai as unix seconds. */
-function shanghaiTodayStartUnix(): number {
-	const { year, month, day } = getShanghaiParts();
-	return Math.floor(Date.UTC(year, month - 1, day) / 1000) - 8 * 3600;
-}
-
-/**
- * Asia/Shanghai local day formatted as `YYYY-MM-DD`. This is the canonical
- * key used by the `checkin_history` table (migration 0036) — text rather
- * than an integer day-key so admin queries read naturally and the unique
- * constraint is collation-stable. Defaults to "now".
- */
-function shanghaiDateLocal(date?: Date): string {
-	const { year, month, day } = getShanghaiParts(date);
-	const mm = String(month).padStart(2, "0");
-	const dd = String(day).padStart(2, "0");
-	return `${year}-${mm}-${dd}`;
-}
-
-/** Check if the current Asia/Shanghai hour is within the checkin window. */
-function isWithinCheckinWindow(): boolean {
-	const { hour } = getShanghaiParts();
-	return hour >= CHECKIN_HOUR_START && hour < CHECKIN_HOUR_END_EXCLUSIVE;
-}
+// Shanghai-local date primitives moved to `lib/shanghaiTime.ts` so the
+// admin checkin endpoints (Phase E) and the public POST/GET below share
+// one source of truth for the day boundary. Drift between the two would
+// break the per-day uniqueness contract on `checkin_history`.
 
 /** Random integer in [min, max] (inclusive). */
 function randInt(min: number, max: number): number {
