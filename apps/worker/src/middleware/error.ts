@@ -82,6 +82,7 @@ function getStatusMessage(code: string): string {
 		EMAIL_CORRECTION_USED:
 			"Email has already been corrected once — only one correction is allowed before verification",
 		EMAIL_NOT_CORRECTABLE: "Email is already verified — corrections are no longer allowed",
+		EMAIL_UNCHANGED: "New email is the same as the current email — nothing to correct",
 		EMAIL_PROVIDER_FAILED: "Failed to send verification email — please try again",
 		CAPTCHA_REQUIRED: "Captcha verification is required",
 		CAPTCHA_INVALID: "Captcha verification failed — please refresh and try again",

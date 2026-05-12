@@ -707,32 +707,42 @@ describe("verifyCode (POST /api/v1/users/me/email/verify)", () => {
  *     callers swap in throws / zero-changes.
  */
 function makeCorrectEnv(opts: {
-	row: { email_verified_at: number; email_changed_at: number } | null;
+	row: { email_verified_at: number; email_changed_at: number; email_normalized?: string } | null;
 	emailOwner?: { id: number } | null;
 	updateThrows?: Error;
 	updateChanges?: number;
-	freshRow?: { email_verified_at: number; email_changed_at: number } | null;
+	freshRow?: {
+		email_verified_at: number;
+		email_changed_at: number;
+		email_normalized?: string;
+	} | null;
 }): { env: Env; kv: KVNamespace; calls: { sql: string; params: unknown[] }[] } {
 	const { db: baseDb, calls } = createMockDb({
 		firstResults: {
 			"SELECT role, status FROM users": opts.row === null ? null : { role: 0, status: 0 },
 			// Row read by correctPendingEmail itself
-			"SELECT email_verified_at, email_changed_at FROM users": opts.row,
+			"SELECT email_verified_at, email_changed_at, email_normalized FROM users": opts.row,
+			// The handler's race re-read is narrower (no email_normalized) — both
+			// shapes are populated so freshRow flows through whichever the
+			// implementation picks.
+			"SELECT email_verified_at, email_changed_at FROM users": opts.freshRow ?? opts.row,
 			// Pre-check uniqueness against other users
 			"SELECT id FROM users WHERE email_normalized": opts.emailOwner ?? null,
 		},
 	});
 
-	// Track how many times we've answered the (email_verified_at, email_changed_at)
-	// SELECT so the second read (after a zero-changes UPDATE) can return a
-	// different row simulating a concurrent change.
+	// Track how many times we've answered the row SELECT so the second read
+	// (after a zero-changes UPDATE) can return a different row simulating a
+	// concurrent change.
 	let rowReads = 0;
 	const origPrepare = baseDb.prepare;
 	const db = {
 		...baseDb,
 		prepare: (sql: string) => {
 			const stmt = origPrepare(sql);
-			if (sql.startsWith("SELECT email_verified_at, email_changed_at FROM users")) {
+			if (
+				sql.startsWith("SELECT email_verified_at, email_changed_at, email_normalized FROM users")
+			) {
 				const origBind = stmt.bind;
 				stmt.bind = (...params: unknown[]) => {
 					const bound = origBind(...params);
@@ -818,6 +828,30 @@ describe("correctPendingEmail (POST /api/v1/users/me/email/correct)", () => {
 		const res = await correctPendingEmail(req, env);
 		expect(res.status).toBe(404);
 		expect((await res.json()).error.code).toBe("USER_NOT_FOUND");
+	});
+
+	it("returns 400 EMAIL_UNCHANGED when the new email matches the current normalized email (case/whitespace-insensitive), without consuming the one-shot or touching KV", async () => {
+		const { env, kv, calls } = makeCorrectEnv({
+			row: {
+				email_verified_at: 0,
+				email_changed_at: 0,
+				email_normalized: "alice@example.com",
+			},
+		});
+		// Seed a pending KV envelope so we can assert it's untouched on the
+		// EMAIL_UNCHANGED short-circuit.
+		await kv.put(codeKvKey(7), "{}");
+		const req = await makeRequest("/x", { email: "  ALICE@Example.com  " });
+		const res = await correctPendingEmail(req, env);
+		expect(res.status).toBe(400);
+		expect((await res.json()).error.code).toBe("EMAIL_UNCHANGED");
+
+		// No UPDATE was issued — the one-shot correction is preserved.
+		const updateCall = calls.find((c) => c.sql.startsWith("UPDATE users SET email"));
+		expect(updateCall).toBeUndefined();
+
+		// Pending KV envelope must not be evicted on the unchanged short-circuit.
+		expect(await kv.get(codeKvKey(7))).toBe("{}");
 	});
 
 	it("returns 403 EMAIL_NOT_CORRECTABLE when the email is already verified", async () => {

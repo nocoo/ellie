@@ -321,6 +321,13 @@ function EmailVerificationForm({
 			setCorrectionError("邮箱格式无效，请检查后重试。");
 			return;
 		}
+		// Same-as-current guard. Mirrors the Worker check so users can never
+		// burn their one-shot correction on a no-op submit (e.g. just pressing
+		// 保存 without editing the pre-filled address).
+		if (trimmed.toLowerCase() === initialEmail.trim().toLowerCase()) {
+			setCorrectionError("新邮箱与当前邮箱相同，无需纠错。");
+			return;
+		}
 		setCorrectionBusy(true);
 		setCorrectionError(null);
 		try {
@@ -416,7 +423,11 @@ function EmailVerificationForm({
 										type="button"
 										size="sm"
 										onClick={handleCorrect}
-										disabled={correctionBusy || !isValidEmailFormat(correctionEmail)}
+										disabled={
+											correctionBusy ||
+											!isValidEmailFormat(correctionEmail) ||
+											correctionEmail.trim().toLowerCase() === initialEmail.trim().toLowerCase()
+										}
 									>
 										{correctionBusy ? "保存中…" : "保存（仅一次机会）"}
 									</Button>
