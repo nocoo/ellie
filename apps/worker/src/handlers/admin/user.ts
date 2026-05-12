@@ -327,6 +327,33 @@ const userConfig: EntityConfig = {
 			}
 		}
 
+		// Phase C (C1 precise): admin email writes can intentionally bypass the
+		// partial UNIQUE index on `email_normalized`. The flow is:
+		//
+		//   - Admin PATCH includes `email` but NOT `emailNormalized` → we
+		//     auto-set `email_normalized = ''`. The partial index from 0029
+		//     (`WHERE email_normalized != ''`) ignores empty strings, so the
+		//     raw `email` column may now collide with another user without
+		//     constraint failure. This is the operator escape hatch for legacy
+		//     / merged accounts where the same address is intentionally shared.
+		//
+		//   - Admin PATCH explicitly provides `emailNormalized` (any value) →
+		//     we do NOT touch it. A non-empty value still goes through the
+		//     uniqueness pre-check below and surfaces a clean 409 if taken;
+		//     an explicit empty string is honoured as-is.
+		//
+		// Login / forgot-password do NOT key on `email_normalized` (login is
+		// by username; the only readers of `email_normalized` are the email
+		// verify/correct flows, which gate on `email_verified_at = 0` and
+		// uniqueness — both safe with empty strings). So clearing it for
+		// admin-managed rows is a localized escape hatch, not a global change.
+		if (
+			typeof data.email === "string" &&
+			!Object.prototype.hasOwnProperty.call(data, "email_normalized")
+		) {
+			data.email_normalized = "";
+		}
+
 		// emailNormalized uniqueness — partial unique index from migration
 		// 0029 only constrains non-empty values:
 		//   CREATE UNIQUE INDEX users_email_normalized_uniq
