@@ -950,6 +950,111 @@ describe("admin user handlers", () => {
 			);
 			expect(probed).toBeUndefined();
 		});
+
+		// ─── Phase C (C1 precise): admin email duplicate escape hatch ──────
+		//
+		// When an operator updates `email` WITHOUT also providing
+		// `emailNormalized`, the handler auto-clears `email_normalized` to ''
+		// so the partial UNIQUE index on `email_normalized` (0029, predicate
+		// `WHERE email_normalized != ''`) does not block deliberately-shared
+		// addresses (e.g. legacy / merged accounts). When the operator DOES
+		// supply `emailNormalized`, we leave it alone and the existing
+		// uniqueness pre-check still runs.
+		it("auto-sets email_normalized='' when admin PATCH includes email but omits emailNormalized", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+					"SELECT id, username": makeD1UserRow({ id: 42, email: "shared@example.com" }),
+				},
+			});
+			const res = await update(
+				createAdminRequest("PATCH", "/api/admin/users/42", { email: "shared@example.com" }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+
+			// The UPDATE must include both columns; the auto-cleared
+			// email_normalized parameter is bound as ''.
+			const updateCall = calls.find(
+				(c) => c.sql.startsWith("UPDATE users SET") && c.sql.includes("email"),
+			);
+			expect(updateCall).toBeDefined();
+			expect(updateCall?.sql).toContain("email = ?");
+			expect(updateCall?.sql).toContain("email_normalized = ?");
+			// One of the bound params is the cleared empty string.
+			expect(updateCall?.params).toContain("");
+
+			// Crucially: NO uniqueness pre-check should fire — clearing to ''
+			// is the whole point of the escape hatch.
+			const probed = calls.find(
+				(c) => c.sql.includes("SELECT id FROM users WHERE email_normalized") && c.sql.includes("="),
+			);
+			expect(probed).toBeUndefined();
+		});
+
+		it("does NOT touch email_normalized when admin PATCH provides both email and emailNormalized (still pre-checked)", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+					"SELECT id, username": makeD1UserRow({ id: 42, email: "new@example.com" }),
+				},
+			});
+			const res = await update(
+				createAdminRequest("PATCH", "/api/admin/users/42", {
+					email: "new@example.com",
+					emailNormalized: "new@example.com",
+				}),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+
+			// The explicit non-empty emailNormalized must trigger the
+			// uniqueness pre-check (no override happened).
+			const probed = calls.find(
+				(c) => c.sql.includes("SELECT id FROM users WHERE email_normalized") && c.sql.includes("="),
+			);
+			expect(probed).toBeDefined();
+			expect(probed?.params[0]).toBe("new@example.com");
+		});
+
+		it("still rejects EMAIL_NORMALIZED_TAKEN when admin PATCH provides explicit duplicated emailNormalized alongside email", async () => {
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+					"SELECT id FROM users WHERE email_normalized": { id: 99 },
+				},
+			});
+			const res = await update(
+				createAdminRequest("PATCH", "/api/admin/users/42", {
+					email: "dup@example.com",
+					emailNormalized: "dup@example.com",
+				}),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(409);
+			const body = await res.json();
+			expect(body.error.code).toBe("EMAIL_NORMALIZED_TAKEN");
+		});
+
+		it("does NOT touch email_normalized when admin PATCH only changes other fields (no email present)", async () => {
+			// Sanity: the auto-clear must be gated on `email` being in the
+			// payload — touching `username` alone must not blow away
+			// `email_normalized` for the row.
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }),
+					"SELECT id, username": makeD1UserRow({ id: 42, username: "renamed" }),
+				},
+			});
+			const res = await update(
+				createAdminRequest("PATCH", "/api/admin/users/42", { username: "renamed" }),
+				adminEnv(db),
+			);
+			expect(res.status).toBe(200);
+
+			const updateCall = calls.find((c) => c.sql.startsWith("UPDATE users SET"));
+			expect(updateCall?.sql).not.toContain("email_normalized = ?");
+		});
 	});
 
 	// ─── ban ──────────────────────────────────────────────────
