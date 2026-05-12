@@ -24,6 +24,7 @@ import {
 	codeToCtaLabel,
 	codeToRedirect,
 	dispatchWriteGate,
+	getWriteGateOnboardingSteps,
 	invalidateWriteGateCache,
 	writeGatePreflight,
 } from "@/viewmodels/forum/write-gate";
@@ -342,6 +343,40 @@ describe("write-gate", () => {
 
 		it("unknown code → undefined", () => {
 			expect(codeToCtaLabel("SOME_UNKNOWN")).toBeUndefined();
+		});
+	});
+
+	// ─── Onboarding progress ────────────────────────────────────
+
+	describe("getWriteGateOnboardingSteps", () => {
+		it("EMAIL_NOT_VERIFIED → step 1 current, others pending", () => {
+			expect(getWriteGateOnboardingSteps("EMAIL_NOT_VERIFIED")).toEqual([
+				{ label: "验证邮箱", status: "current" },
+				{ label: "设置头像", status: "pending" },
+				{ label: "注册满一天", status: "pending" },
+			]);
+		});
+
+		it("REQUIRE_AVATAR → step 1 done, step 2 current, step 3 pending", () => {
+			expect(getWriteGateOnboardingSteps("REQUIRE_AVATAR")).toEqual([
+				{ label: "验证邮箱", status: "done" },
+				{ label: "设置头像", status: "current" },
+				{ label: "注册满一天", status: "pending" },
+			]);
+		});
+
+		it("MIN_REGISTRATION_DAYS → first two done, last current", () => {
+			expect(getWriteGateOnboardingSteps("MIN_REGISTRATION_DAYS")).toEqual([
+				{ label: "验证邮箱", status: "done" },
+				{ label: "设置头像", status: "done" },
+				{ label: "注册满一天", status: "current" },
+			]);
+		});
+
+		it("unknown code → empty array (no progress shown)", () => {
+			expect(getWriteGateOnboardingSteps("CONTENT_DISABLED")).toEqual([]);
+			expect(getWriteGateOnboardingSteps("POSTING_RESTRICTION")).toEqual([]);
+			expect(getWriteGateOnboardingSteps("")).toEqual([]);
 		});
 	});
 });
