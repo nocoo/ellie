@@ -32,6 +32,14 @@ export interface EmailVerificationUserView {
 	email: string;
 	/** Unix seconds when the current email was verified. 0 means unverified. */
 	emailVerifiedAt: number;
+	/**
+	 * Unix seconds of the most recent pre-verification email correction.
+	 * 0 means "never corrected" — only one correction is allowed before the
+	 * user verifies, so any non-zero value disables the in-card correction
+	 * affordance. Optional for back-compat with callers that haven't been
+	 * updated yet (treated as 0 = never corrected).
+	 */
+	emailChangedAt?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -279,6 +287,10 @@ export function mapErrorCode(code: string, fallback?: string): string {
 			return "该邮箱已被其他账户绑定。";
 		case "EMAIL_ALREADY_VERIFIED":
 			return "该邮箱已经验证过了。";
+		case "EMAIL_NOT_CORRECTABLE":
+			return "邮箱已通过验证，无法再纠错。";
+		case "EMAIL_CORRECTION_USED":
+			return "已经使用过一次纠错机会，无法再次修改。如需调整请联系管理员。";
 
 		// ── Code (request-code resend throttle) ──
 		case "CODE_RESEND_THROTTLED":

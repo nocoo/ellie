@@ -17,7 +17,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiError } from "@/lib/api-client";
-import { requestEmailVerificationCode, verifyEmailCode } from "@/lib/forum-browser-api";
+import {
+	correctPendingEmailAddress,
+	requestEmailVerificationCode,
+	verifyEmailCode,
+} from "@/lib/forum-browser-api";
 import {
 	type EmailVerificationUserView,
 	type FormState,
@@ -94,6 +98,7 @@ export function EmailVerificationCard({
 	}
 
 	// ── Form branch (unbound / unverified) ───────────────────────────────────
+	const showCorrection = mode.kind === "unverified" && (user.emailChangedAt ?? 0) === 0;
 	return (
 		<EmailVerificationForm
 			initialEmail={mode.kind === "unverified" ? mode.email : ""}
@@ -104,6 +109,8 @@ export function EmailVerificationCard({
 			capApiEndpoint={cfg.ok ? cfg.apiEndpoint : ""}
 			isConfigError={!cfg.ok}
 			configErrorReason={cfg.ok ? "" : cfg.reason}
+			showCorrection={showCorrection}
+			onCorrected={() => router.refresh()}
 			onVerified={() => {
 				if (redirectAfterVerify) {
 					// Delay to let user see the success toast before navigating away
@@ -192,6 +199,13 @@ interface EmailVerificationFormProps {
 	capApiEndpoint: string;
 	isConfigError: boolean;
 	configErrorReason: string;
+	/**
+	 * Show the one-shot "纠错一次" affordance. Only set when the user is
+	 * unverified AND has not used their correction yet (`emailChangedAt === 0`).
+	 */
+	showCorrection: boolean;
+	/** Called after a successful correction so the parent can `router.refresh()`. */
+	onCorrected: () => void;
 	onVerified: () => void;
 }
 
@@ -204,6 +218,8 @@ function EmailVerificationForm({
 	capApiEndpoint,
 	isConfigError,
 	configErrorReason,
+	showCorrection,
+	onCorrected,
 	onVerified,
 }: EmailVerificationFormProps) {
 	const toast = useForumToast();
@@ -212,6 +228,12 @@ function EmailVerificationForm({
 	const [capToken, setCapToken] = useState<string | null>(null);
 	const [widgetKey, setWidgetKey] = useState(0);
 	const [isEditingEmail, setIsEditingEmail] = useState(false);
+	// One-shot correction sub-flow — orthogonal to the request-code state
+	// machine. Local state is fine because there's no shared transition.
+	const [correctionOpen, setCorrectionOpen] = useState(false);
+	const [correctionEmail, setCorrectionEmail] = useState(initialEmail);
+	const [correctionBusy, setCorrectionBusy] = useState(false);
+	const [correctionError, setCorrectionError] = useState<string | null>(null);
 	const resetCap = () => {
 		setCapToken(null);
 		setWidgetKey((k) => k + 1);
@@ -292,6 +314,36 @@ function EmailVerificationForm({
 		resetCap();
 	};
 
+	const handleCorrect = async () => {
+		if (correctionBusy) return;
+		const trimmed = correctionEmail.trim();
+		if (!isValidEmailFormat(trimmed)) {
+			setCorrectionError("邮箱格式无效，请检查后重试。");
+			return;
+		}
+		setCorrectionBusy(true);
+		setCorrectionError(null);
+		try {
+			await correctPendingEmailAddress(trimmed);
+			toast.success(`邮箱已更新为 ${trimmed}`);
+			// Surface to the parent so it can re-fetch the user (the new
+			// `emailChangedAt` will hide this affordance on next render).
+			onCorrected();
+		} catch (err) {
+			if (err instanceof ApiError) {
+				const message = describeWrappedError(err.rawBody, err.status);
+				setCorrectionError(message);
+				toast.error({ title: "邮箱纠错失败", description: message });
+			} else {
+				const message = "网络错误，请稍后重试。";
+				setCorrectionError(message);
+				toast.error({ title: "邮箱纠错失败", description: message });
+			}
+		} finally {
+			setCorrectionBusy(false);
+		}
+	};
+
 	// ── Countdown timers ─────────────────────────────────────────────────
 	const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
 
@@ -317,6 +369,72 @@ function EmailVerificationForm({
 						className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-destructive text-sm"
 					>
 						{configErrorReason}
+					</div>
+				)}
+
+				{showCorrection && !isConfigError && (
+					<div className="rounded-md border border-amber-300/60 bg-amber-50/60 p-3 text-amber-900 text-xs dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+						{!correctionOpen ? (
+							<div className="flex flex-wrap items-center justify-between gap-2">
+								<span>注册邮箱写错了？验证前可以纠错一次。</span>
+								<button
+									type="button"
+									className="underline underline-offset-2 hover:text-amber-700 dark:hover:text-amber-100"
+									onClick={() => {
+										setCorrectionOpen(true);
+										setCorrectionEmail(initialEmail);
+										setCorrectionError(null);
+									}}
+								>
+									纠错一次
+								</button>
+							</div>
+						) : (
+							<div className="flex flex-col gap-2">
+								<Label
+									htmlFor="correction-email"
+									className="text-xs text-amber-900 dark:text-amber-200"
+								>
+									正确的邮箱地址
+								</Label>
+								<Input
+									id="correction-email"
+									type="email"
+									autoComplete="email"
+									value={correctionEmail}
+									onChange={(e) => setCorrectionEmail(e.target.value)}
+									disabled={correctionBusy}
+									placeholder="you@example.com"
+								/>
+								{correctionError && (
+									<div role="alert" className="text-destructive">
+										{correctionError}
+									</div>
+								)}
+								<div className="flex items-center gap-2">
+									<Button
+										type="button"
+										size="sm"
+										onClick={handleCorrect}
+										disabled={correctionBusy || !isValidEmailFormat(correctionEmail)}
+									>
+										{correctionBusy ? "保存中…" : "保存（仅一次机会）"}
+									</Button>
+									<Button
+										type="button"
+										size="sm"
+										variant="ghost"
+										onClick={() => {
+											setCorrectionOpen(false);
+											setCorrectionError(null);
+										}}
+										disabled={correctionBusy}
+									>
+										取消
+									</Button>
+								</div>
+							</div>
+						)}
 					</div>
 				)}
 

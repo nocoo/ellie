@@ -84,6 +84,22 @@ export async function verifyEmailCode(email: string, code: string): Promise<void
 	await apiClient.post<unknown>("/api/v1/users/me/email/verify", body);
 }
 
+/**
+ * One-shot pre-verification correction. Allowed once while
+ * `email_verified_at = 0 AND email_changed_at = 0`. Throws ApiError on
+ * non-2xx so the caller can render a precise message via
+ * `describeWrappedError(err.rawBody, err.status)`.
+ */
+export async function correctPendingEmailAddress(
+	email: string,
+): Promise<{ email?: string; email_changed_at?: number } | undefined> {
+	const res = await apiClient.post<{ email?: string; email_changed_at?: number }>(
+		"/api/v1/users/me/email/correct",
+		{ email },
+	);
+	return res.data;
+}
+
 // ---------------------------------------------------------------------------
 // File uploads (avatar, post image)
 // ---------------------------------------------------------------------------

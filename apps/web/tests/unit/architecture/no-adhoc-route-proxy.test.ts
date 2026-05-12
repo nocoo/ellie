@@ -90,6 +90,7 @@ const ALLOWLIST: Record<string, string> = {
 	"app/api/v1/users/me/password/route.ts": "body sanitization before dispatch",
 	"app/api/v1/users/me/email/request-code/route.ts": "body sanitization before dispatch",
 	"app/api/v1/users/me/email/verify/route.ts": "body sanitization before dispatch",
+	"app/api/v1/users/me/email/correct/route.ts": "body sanitization before dispatch",
 
 	// Group F — mixed handler shape (multiple methods with divergent
 	// auth/body strategies in one file).
