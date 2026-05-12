@@ -94,6 +94,19 @@ function shanghaiTodayStartUnix(): number {
 	return Math.floor(Date.UTC(year, month - 1, day) / 1000) - 8 * 3600;
 }
 
+/**
+ * Asia/Shanghai local day formatted as `YYYY-MM-DD`. This is the canonical
+ * key used by the `checkin_history` table (migration 0036) — text rather
+ * than an integer day-key so admin queries read naturally and the unique
+ * constraint is collation-stable. Defaults to "now".
+ */
+function shanghaiDateLocal(date?: Date): string {
+	const { year, month, day } = getShanghaiParts(date);
+	const mm = String(month).padStart(2, "0");
+	const dd = String(day).padStart(2, "0");
+	return `${year}-${mm}-${dd}`;
+}
+
 /** Check if the current Asia/Shanghai hour is within the checkin window. */
 function isWithinCheckinWindow(): boolean {
 	const { hour } = getShanghaiParts();
@@ -270,7 +283,22 @@ export const perform = withAuthVerified(async (request, env, user) => {
 		"UPDATE users SET coins = coins + ? WHERE id = ? AND changes() > 0",
 	).bind(reward, user.userId);
 
-	const results = await env.DB.batch([checkinSql, coinsSql]);
+	// Phase D: per-day audit row in `checkin_history` (migration 0036). The
+	// composite PK (user_id, date_local) plus `ON CONFLICT DO NOTHING`
+	// double-binds the same idempotency the aggregate UPDATE provides — if
+	// two requests race and both pass the early duplicate check, only one
+	// `checkin_history` row survives, matching the at-most-one-per-day
+	// contract the aggregate streak depends on. The history is intentionally
+	// in the same `env.DB.batch` so a partial failure leaves no half-state
+	// (D1 batches are atomic).
+	const todayDateLocal = shanghaiDateLocal();
+	const historySql = env.DB.prepare(
+		`INSERT INTO checkin_history (user_id, date_local, mood, message, reward, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(user_id, date_local) DO NOTHING`,
+	).bind(user.userId, todayDateLocal, mood, message, reward, nowUnix);
+
+	const results = await env.DB.batch([checkinSql, coinsSql, historySql]);
 
 	// ── Concurrent duplicate guard ──────────────────────────
 	// If the conditional write was a no-op (another request already

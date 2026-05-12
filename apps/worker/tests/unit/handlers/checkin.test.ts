@@ -262,7 +262,7 @@ describe("POST /api/v1/checkin", () => {
 
 		// Verify batch was called (transaction)
 		expect(batchCalls).toHaveLength(1);
-		expect(batchCalls[0]).toHaveLength(2); // checkin INSERT + coins UPDATE
+		expect(batchCalls[0]).toHaveLength(3); // checkin INSERT + coins UPDATE + history INSERT
 	});
 
 	it("performs returning-user checkin with streak increment", async () => {
@@ -302,9 +302,9 @@ describe("POST /api/v1/checkin", () => {
 		expect(data.reward).toBeGreaterThanOrEqual(20);
 		expect(data.reward).toBeLessThanOrEqual(500);
 
-		// Verify batch (UPDATE checkin + UPDATE coins)
+		// Verify batch (UPDATE checkin + UPDATE coins + INSERT history)
 		expect(batchCalls).toHaveLength(1);
-		expect(batchCalls[0]).toHaveLength(2);
+		expect(batchCalls[0]).toHaveLength(3);
 	});
 
 	it("resets streak when last checkin was more than a day ago", async () => {
@@ -448,6 +448,7 @@ describe("POST /api/v1/checkin", () => {
 			return [
 				{ success: true, results: [], meta: { changes: 0, last_row_id: 0 } },
 				{ success: true, results: [], meta: { changes: 0, last_row_id: 0 } },
+				{ success: true, results: [], meta: { changes: 0, last_row_id: 0 } },
 			];
 		}) as typeof db.batch;
 		const env = makeEnv({ DB: db });
@@ -528,5 +529,43 @@ describe("POST /api/v1/checkin", () => {
 		expect(insertCall?.sql).toContain("DO NOTHING");
 		const coinsCall = calls.find((c) => c.sql.includes("UPDATE users SET coins"));
 		expect(coinsCall?.sql).toContain("changes() > 0");
+	});
+
+	// ─── Phase D: per-day audit row in checkin_history ────────────────
+	//
+	// Every successful POST appends one row to `checkin_history` (composite
+	// PK on (user_id, date_local)) inside the same atomic batch as the
+	// aggregate UPDATE/INSERT. The day key is the Asia/Shanghai local day
+	// in YYYY-MM-DD form, derived from the same `getShanghaiParts()`
+	// primitive that drives `shanghaiTodayStartUnix()` — so a 23:59:55 POST
+	// (Shanghai) and the aggregate it touches both reference the same day.
+	it("appends a checkin_history row with Shanghai-local YYYY-MM-DD date and ON CONFLICT DO NOTHING", async () => {
+		// `mockShanghaiTime` pins Shanghai to 2026-05-08 12:00 (UTC=04:00),
+		// so date_local must be the corresponding `YYYY-MM-DD` string.
+		mockShanghaiTime(12);
+		const { db, calls } = createMockDb({
+			firstResults: {
+				"SELECT role, status FROM users": { role: 0, status: 0 },
+			},
+		});
+		const env = makeEnv({ DB: db });
+		const req = await createAuthRequest("POST", "/api/v1/checkin", {
+			mood: "kx",
+			message: "phase-d",
+		});
+
+		const res = await perform(req, env);
+		expect(res.status).toBe(200);
+
+		const historyCall = calls.find((c) => c.sql.includes("INSERT INTO checkin_history"));
+		expect(historyCall).toBeDefined();
+		expect(historyCall?.sql).toContain("ON CONFLICT(user_id, date_local) DO NOTHING");
+		// Bound params: (user_id, date_local, mood, message, reward, created_at)
+		expect(typeof historyCall?.params[0]).toBe("number");
+		expect(historyCall?.params[1]).toBe("2026-05-08");
+		expect(historyCall?.params[2]).toBe("kx");
+		expect(historyCall?.params[3]).toBe("phase-d");
+		expect(typeof historyCall?.params[4]).toBe("number");
+		expect(typeof historyCall?.params[5]).toBe("number");
 	});
 });
