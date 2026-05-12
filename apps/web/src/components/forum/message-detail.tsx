@@ -8,6 +8,7 @@ import type { BreadcrumbItem } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ApiError, type Message, deleteMessage, fetchMessage } from "@/viewmodels/forum/messages";
+import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { ArrowLeft, Loader2, Reply, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -105,8 +106,9 @@ export function MessageDetailClient({ messageId, breadcrumbs }: MessageDetailCli
 	};
 
 	// Handle reply - reply to the other party in the conversation
-	const handleReply = () => {
+	const handleReply = async () => {
 		if (!message) return;
+		if (await writeGatePreflight(null, "message")) return;
 
 		// If I'm the sender, reply to the receiver; otherwise reply to the sender
 		const isSender = currentUserId === message.senderId;
