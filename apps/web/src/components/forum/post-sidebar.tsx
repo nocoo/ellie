@@ -7,8 +7,8 @@ import { formatDate } from "@/viewmodels/forum/thread-detail";
 import { formatCheckinDays, formatCheckinLevel } from "@/viewmodels/forum/user-profile";
 import { formatNumber } from "@/viewmodels/shared/formatting";
 import type { User } from "@ellie/types";
-import { Mail } from "lucide-react";
 import Link from "next/link";
+import { PostSidebarMessageButton } from "./post-sidebar-message-button";
 import { UserAvatar } from "./user-avatar";
 import { UserPopover } from "./user-popover";
 
@@ -209,17 +209,10 @@ export function PostSidebar({
 				</div>
 			)}
 
-			{/* Message link */}
+			{/* Message link — gated by writeGatePreflight */}
 			{author && (
 				<div className="flex items-center gap-3 mt-1 self-start">
-					<Link
-						href={`/messages?to=${author.id}`}
-						prefetch={false}
-						className="flex items-center gap-1 text-xs text-forum-link hover:underline"
-					>
-						<Mail className="h-3.5 w-3.5" />
-						发站内信
-					</Link>
+					<PostSidebarMessageButton userId={author.id} />
 				</div>
 			)}
 		</div>
