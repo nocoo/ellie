@@ -34,7 +34,7 @@ vi.mock("../../../src/lib/dove", () => ({
 	},
 }));
 
-import { requestCode, verifyCode } from "../../../src/handlers/email";
+import { correctPendingEmail, requestCode, verifyCode } from "../../../src/handlers/email";
 import {
 	CODE_TTL_SECONDS,
 	type CodeRecord,
@@ -692,5 +692,210 @@ describe("verifyCode (POST /api/v1/users/me/email/verify)", () => {
 		const res = await verifyCode(req, env);
 		expect(res.status).toBe(400);
 		expect((await res.json()).error.code).toBe("INVALID_BODY");
+	});
+});
+
+// ───────────────────────── correctPendingEmail ─────────────────────────
+
+/**
+ * Build an env tailored to the `correctPendingEmail` handler. Different from
+ * `makeEnv` in two ways:
+ *   - the row read uses `(email_verified_at, email_changed_at)` not
+ *     `(email_verified_at, username)`, so we key the firstResult on the new
+ *     SELECT prefix;
+ *   - the UPDATE binds 4 params (email, normalized, ts, userId) and we let
+ *     callers swap in throws / zero-changes.
+ */
+function makeCorrectEnv(opts: {
+	row: { email_verified_at: number; email_changed_at: number } | null;
+	emailOwner?: { id: number } | null;
+	updateThrows?: Error;
+	updateChanges?: number;
+	freshRow?: { email_verified_at: number; email_changed_at: number } | null;
+}): { env: Env; kv: KVNamespace; calls: { sql: string; params: unknown[] }[] } {
+	const { db: baseDb, calls } = createMockDb({
+		firstResults: {
+			"SELECT role, status FROM users": opts.row === null ? null : { role: 0, status: 0 },
+			// Row read by correctPendingEmail itself
+			"SELECT email_verified_at, email_changed_at FROM users": opts.row,
+			// Pre-check uniqueness against other users
+			"SELECT id FROM users WHERE email_normalized": opts.emailOwner ?? null,
+		},
+	});
+
+	// Track how many times we've answered the (email_verified_at, email_changed_at)
+	// SELECT so the second read (after a zero-changes UPDATE) can return a
+	// different row simulating a concurrent change.
+	let rowReads = 0;
+	const origPrepare = baseDb.prepare;
+	const db = {
+		...baseDb,
+		prepare: (sql: string) => {
+			const stmt = origPrepare(sql);
+			if (sql.startsWith("SELECT email_verified_at, email_changed_at FROM users")) {
+				const origBind = stmt.bind;
+				stmt.bind = (...params: unknown[]) => {
+					const bound = origBind(...params);
+					bound.first = async () => {
+						rowReads += 1;
+						if (rowReads === 1) return opts.row;
+						return opts.freshRow ?? opts.row;
+					};
+					return bound;
+				};
+			}
+			if (sql.startsWith("UPDATE users SET email")) {
+				const origBind = stmt.bind;
+				stmt.bind = (...params: unknown[]) => {
+					const bound = origBind(...params);
+					bound.run = async () => {
+						if (opts.updateThrows) throw opts.updateThrows;
+						return {
+							success: true,
+							meta: { last_row_id: 1, changes: opts.updateChanges ?? 1 },
+						};
+					};
+					return bound;
+				};
+			}
+			return stmt;
+		},
+	} as unknown as D1Database;
+
+	const kv = createMockKV({});
+	const env: Env = {
+		API_KEY: "k",
+		ADMIN_API_KEY: "k",
+		DB: db,
+		ENVIRONMENT: "test",
+		JWT_SECRET,
+		KV: kv,
+		R2: {} as R2Bucket,
+		EMAIL_VERIFY_HMAC_KEY: HMAC_KEY,
+	};
+	return { env, kv, calls };
+}
+
+describe("correctPendingEmail (POST /api/v1/users/me/email/correct)", () => {
+	it("returns 401 without JWT", async () => {
+		const { env } = makeCorrectEnv({ row: { email_verified_at: 0, email_changed_at: 0 } });
+		const req = new Request("https://example.com/x", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ email: "new@example.com" }),
+		});
+		const res = await correctPendingEmail(req, env);
+		expect(res.status).toBe(401);
+	});
+
+	it("returns 400 INVALID_BODY for malformed JSON", async () => {
+		const { env } = makeCorrectEnv({ row: { email_verified_at: 0, email_changed_at: 0 } });
+		const token = await createJwt(
+			{ userId: 7, role: 0, exp: Math.floor(Date.now() / 1000) + 3600 },
+			JWT_SECRET,
+		);
+		const req = new Request("https://example.com/x", {
+			method: "POST",
+			headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+			body: "not json",
+		});
+		const res = await correctPendingEmail(req, env);
+		expect(res.status).toBe(400);
+		expect((await res.json()).error.code).toBe("INVALID_BODY");
+	});
+
+	it("returns 400 EMAIL_INVALID for malformed email", async () => {
+		const { env } = makeCorrectEnv({ row: { email_verified_at: 0, email_changed_at: 0 } });
+		const req = await makeRequest("/x", { email: "not-an-email" });
+		const res = await correctPendingEmail(req, env);
+		expect(res.status).toBe(400);
+		expect((await res.json()).error.code).toBe("EMAIL_INVALID");
+	});
+
+	it("returns 404 USER_NOT_FOUND when the row is missing", async () => {
+		const { env } = makeCorrectEnv({ row: null });
+		const req = await makeRequest("/x", { email: "new@example.com" });
+		const res = await correctPendingEmail(req, env);
+		expect(res.status).toBe(404);
+		expect((await res.json()).error.code).toBe("USER_NOT_FOUND");
+	});
+
+	it("returns 403 EMAIL_NOT_CORRECTABLE when the email is already verified", async () => {
+		const { env } = makeCorrectEnv({
+			row: { email_verified_at: 1700000000, email_changed_at: 0 },
+		});
+		const req = await makeRequest("/x", { email: "new@example.com" });
+		const res = await correctPendingEmail(req, env);
+		expect(res.status).toBe(403);
+		expect((await res.json()).error.code).toBe("EMAIL_NOT_CORRECTABLE");
+	});
+
+	it("returns 403 EMAIL_CORRECTION_USED when correction was already used", async () => {
+		const { env } = makeCorrectEnv({
+			row: { email_verified_at: 0, email_changed_at: 1700000000 },
+		});
+		const req = await makeRequest("/x", { email: "new@example.com" });
+		const res = await correctPendingEmail(req, env);
+		expect(res.status).toBe(403);
+		expect((await res.json()).error.code).toBe("EMAIL_CORRECTION_USED");
+	});
+
+	it("returns 409 EMAIL_ALREADY_IN_USE when another user owns the normalized email", async () => {
+		const { env } = makeCorrectEnv({
+			row: { email_verified_at: 0, email_changed_at: 0 },
+			emailOwner: { id: 99 },
+		});
+		const req = await makeRequest("/x", { email: "new@example.com" });
+		const res = await correctPendingEmail(req, env);
+		expect(res.status).toBe(409);
+		expect((await res.json()).error.code).toBe("EMAIL_ALREADY_IN_USE");
+	});
+
+	it("returns 409 EMAIL_ALREADY_IN_USE on partial-unique-index throw at UPDATE time", async () => {
+		const { env } = makeCorrectEnv({
+			row: { email_verified_at: 0, email_changed_at: 0 },
+			updateThrows: new Error("UNIQUE constraint failed: users.email_normalized"),
+		});
+		const req = await makeRequest("/x", { email: "new@example.com" });
+		const res = await correctPendingEmail(req, env);
+		expect(res.status).toBe(409);
+		expect((await res.json()).error.code).toBe("EMAIL_ALREADY_IN_USE");
+	});
+
+	it("re-derives a precise error code on a 0-changes race (correction used between SELECT and UPDATE)", async () => {
+		const { env } = makeCorrectEnv({
+			row: { email_verified_at: 0, email_changed_at: 0 },
+			updateChanges: 0,
+			freshRow: { email_verified_at: 0, email_changed_at: 1700000001 },
+		});
+		const req = await makeRequest("/x", { email: "new@example.com" });
+		const res = await correctPendingEmail(req, env);
+		expect(res.status).toBe(403);
+		expect((await res.json()).error.code).toBe("EMAIL_CORRECTION_USED");
+	});
+
+	it("succeeds and writes new email + email_changed_at, dropping any pending KV code", async () => {
+		const { env, kv, calls } = makeCorrectEnv({
+			row: { email_verified_at: 0, email_changed_at: 0 },
+		});
+		// Seed a pre-existing pending verification envelope so we can prove
+		// it's evicted (would otherwise mismatch on next verify).
+		await kv.put(codeKvKey(7), "{}");
+		const req = await makeRequest("/x", { email: "  NEW@example.com  " });
+		const res = await correctPendingEmail(req, env);
+		expect(res.status).toBe(200);
+		const body = await res.json();
+		expect(body.data.email_changed_at).toBeGreaterThan(0);
+
+		const updateCall = calls.find((c) => c.sql.startsWith("UPDATE users SET email"));
+		expect(updateCall).toBeDefined();
+		// (email, email_normalized, email_changed_at, userId)
+		expect(updateCall?.params[0]).toBe("NEW@example.com");
+		expect(updateCall?.params[1]).toBe("new@example.com");
+		expect(typeof updateCall?.params[2]).toBe("number");
+		expect(updateCall?.params[3]).toBe(7);
+
+		// Pending KV code envelope must be dropped.
+		expect(await kv.get(codeKvKey(7))).toBeNull();
 	});
 });

@@ -364,3 +364,118 @@ export const verifyCode = withAuthVerified(async (request, env, user) => {
 
 	return jsonResponse({ verified: true, verified_at: now }, origin);
 });
+
+/**
+ * POST /api/v1/users/me/email/correct
+ *
+ * Body: `{ email: "new@example.com" }`
+ *
+ * One-shot pre-verification email correction. The user is allowed to fix a
+ * typo in the registered email address ONCE before they verify it. This is
+ * useful when registration captured a wrong address and the verification
+ * code therefore can never arrive.
+ *
+ * Guards (single conditional UPDATE):
+ *   - `email_verified_at = 0`   — verified users go through admin support
+ *     instead; surfaced as `EMAIL_NOT_CORRECTABLE`.
+ *   - `email_changed_at = 0`    — only one correction is allowed; surfaced as
+ *     `EMAIL_CORRECTION_USED`.
+ *
+ * On success the new address is written to both `email` and
+ * `email_normalized`, and `email_changed_at` is stamped to "now". Writing the
+ * normalized form (rather than clearing it) keeps the new address protected
+ * by the partial UNIQUE index on `email_normalized`, while the old address is
+ * naturally released.
+ *
+ * Any pending verification code in KV is invalidated — it was issued for the
+ * old address and would silently fail the email-mismatch guard otherwise.
+ *
+ * NB: this endpoint exists explicitly because `PATCH /api/v1/users/me`
+ * rejects an `email` field with `EMAIL_NOT_EDITABLE_HERE`. The verified-
+ * email change flow (post-verification) is intentionally out of scope.
+ */
+export const correctPendingEmail = withAuthVerified(async (request, env, user) => {
+	const origin = request.headers.get("Origin") ?? undefined;
+
+	let body: Record<string, unknown>;
+	try {
+		body = (await request.json()) as Record<string, unknown>;
+	} catch {
+		return errorResponse("INVALID_BODY", 400, undefined, origin);
+	}
+
+	const submittedEmail = typeof body.email === "string" ? body.email.trim() : "";
+	if (!isValidEmail(submittedEmail)) {
+		return errorResponse("EMAIL_INVALID", 400, undefined, origin);
+	}
+	const newEmailNormalized = normalizeEmail(submittedEmail);
+
+	// Load the row so we can return precise error codes (verified vs.
+	// already-corrected) instead of a generic 0-rows-affected.
+	const row = await env.DB.prepare(
+		"SELECT email_verified_at, email_changed_at FROM users WHERE id = ?",
+	)
+		.bind(user.userId)
+		.first<{ email_verified_at: number; email_changed_at: number }>();
+	if (!row) {
+		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
+	}
+	if (row.email_verified_at > 0) {
+		return errorResponse("EMAIL_NOT_CORRECTABLE", 403, undefined, origin);
+	}
+	if (row.email_changed_at > 0) {
+		return errorResponse("EMAIL_CORRECTION_USED", 403, undefined, origin);
+	}
+
+	// Pre-check uniqueness against other users so we can return a clean 409
+	// before hitting the partial unique index.
+	const owner = await env.DB.prepare(
+		"SELECT id FROM users WHERE email_normalized = ? AND email_normalized != '' AND id != ? LIMIT 1",
+	)
+		.bind(newEmailNormalized, user.userId)
+		.first<{ id: number }>();
+	if (owner) {
+		return errorResponse("EMAIL_ALREADY_IN_USE", 409, undefined, origin);
+	}
+
+	const now = nowSeconds();
+	try {
+		const result = await env.DB.prepare(
+			"UPDATE users SET email = ?, email_normalized = ?, email_changed_at = ? WHERE id = ? AND email_verified_at = 0 AND email_changed_at = 0",
+		)
+			.bind(submittedEmail, newEmailNormalized, now, user.userId)
+			.run();
+
+		const changes = (result.meta as { changes?: number } | undefined)?.changes ?? 0;
+		if (changes === 0) {
+			// Lost the race — re-derive a precise code from a fresh row read.
+			const fresh = await env.DB.prepare(
+				"SELECT email_verified_at, email_changed_at FROM users WHERE id = ?",
+			)
+				.bind(user.userId)
+				.first<{ email_verified_at: number; email_changed_at: number }>();
+			if (!fresh) return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
+			if (fresh.email_verified_at > 0) {
+				return errorResponse("EMAIL_NOT_CORRECTABLE", 403, undefined, origin);
+			}
+			return errorResponse("EMAIL_CORRECTION_USED", 403, undefined, origin);
+		}
+	} catch (err) {
+		if (isEmailUniqueViolation(err)) {
+			return errorResponse("EMAIL_ALREADY_IN_USE", 409, undefined, origin);
+		}
+		throw err;
+	}
+
+	// Drop any pending code envelope — it was HMAC-bound to the old normalized
+	// email and would only confuse the user (mismatch on next verify).
+	await env.KV.delete(codeKvKey(user.userId));
+
+	return jsonResponse(
+		{
+			email: maskEmail(newEmailNormalized),
+			email_changed_at: now,
+		},
+		origin,
+	);
+});

@@ -321,6 +321,8 @@ describe("mapErrorCode", () => {
 		"EMAIL_INVALID",
 		"EMAIL_ALREADY_IN_USE",
 		"EMAIL_ALREADY_VERIFIED",
+		"EMAIL_NOT_CORRECTABLE",
+		"EMAIL_CORRECTION_USED",
 		// Code throttle (request-code)
 		"CODE_RESEND_THROTTLED",
 		// Code (verify)

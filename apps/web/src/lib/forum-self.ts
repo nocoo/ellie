@@ -47,6 +47,12 @@ export interface SelfForumUser {
 	username: string;
 	email: string;
 	emailVerifiedAt: number;
+	/**
+	 * Unix seconds of the most recent pre-verification email correction.
+	 * Drives the "纠错一次" affordance in `EmailVerificationCard` — non-zero
+	 * means the one-shot correction has already been used.
+	 */
+	emailChangedAt: number;
 }
 
 /**
@@ -60,6 +66,7 @@ export function projectSelfForumUser(user: User): SelfForumUser {
 		username: user.username,
 		email: user.email,
 		emailVerifiedAt: user.emailVerifiedAt,
+		emailChangedAt: user.emailChangedAt,
 	};
 }
 
@@ -72,6 +79,7 @@ export function toEmailVerificationUserView(self: SelfForumUser): EmailVerificat
 	return {
 		email: self.email,
 		emailVerifiedAt: self.emailVerifiedAt,
+		emailChangedAt: self.emailChangedAt,
 	};
 }
 

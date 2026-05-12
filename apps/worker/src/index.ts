@@ -200,6 +200,11 @@ export default {
 			if (path === "/api/v1/users/me/email/verify" && request.method === "POST") {
 				return await (await import("./handlers/email")).verifyCode(request, env);
 			}
+			// Pre-verification correction — allowed once while the email is
+			// still unverified. See `correctPendingEmail` for guard semantics.
+			if (path === "/api/v1/users/me/email/correct" && request.method === "POST") {
+				return await (await import("./handlers/email")).correctPendingEmail(request, env);
+			}
 
 			// ── Private messaging routes (#70-#74) ──────────
 			if (path === "/api/v1/messages" && request.method === "GET") {

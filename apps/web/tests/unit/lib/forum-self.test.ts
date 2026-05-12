@@ -79,12 +79,13 @@ function makeUser(overrides: Partial<User> = {}): User {
 }
 
 describe("projectSelfForumUser — narrow projection", () => {
-	it("keeps only id, username, email, emailVerifiedAt", () => {
+	it("keeps only id, username, email, emailVerifiedAt, emailChangedAt", () => {
 		const u = makeUser({
 			id: 7,
 			username: "bob",
 			email: "bob@example.com",
 			emailVerifiedAt: 1700000000,
+			emailChangedAt: 1699999999,
 			// Noise fields that must NOT leak through.
 			signature: "leak",
 			credits: 999,
@@ -95,6 +96,7 @@ describe("projectSelfForumUser — narrow projection", () => {
 			username: "bob",
 			email: "bob@example.com",
 			emailVerifiedAt: 1700000000,
+			emailChangedAt: 1699999999,
 		});
 	});
 
@@ -107,6 +109,11 @@ describe("projectSelfForumUser — narrow projection", () => {
 		const u = makeUser({ email: "", emailVerifiedAt: 0 });
 		expect(projectSelfForumUser(u).email).toBe("");
 	});
+
+	it("preserves emailChangedAt=0 sentinel for never-corrected users", () => {
+		const u = makeUser({ emailChangedAt: 0 });
+		expect(projectSelfForumUser(u).emailChangedAt).toBe(0);
+	});
 });
 
 describe("toEmailVerificationUserView", () => {
@@ -116,14 +123,27 @@ describe("toEmailVerificationUserView", () => {
 			username: "bob",
 			email: "bob@example.com",
 			emailVerifiedAt: 1700000000,
+			emailChangedAt: 0,
 		});
 		expect(view).toEqual({
 			email: "bob@example.com",
 			emailVerifiedAt: 1700000000,
+			emailChangedAt: 0,
 		});
 		// Sanity — should not have id/username.
 		expect(view).not.toHaveProperty("id");
 		expect(view).not.toHaveProperty("username");
+	});
+
+	it("forwards emailChangedAt so the card can hide the correction affordance", () => {
+		const view = toEmailVerificationUserView({
+			id: 7,
+			username: "bob",
+			email: "bob@example.com",
+			emailVerifiedAt: 0,
+			emailChangedAt: 1700000000,
+		});
+		expect(view.emailChangedAt).toBe(1700000000);
 	});
 });
 
@@ -149,6 +169,7 @@ describe("getSelfForumUser", () => {
 			username: "carol",
 			email: "c@x.io",
 			emailVerifiedAt: 123,
+			emailChangedAt: 0,
 		});
 		expect(mockGetAuth).toHaveBeenCalledWith("/api/v1/auth/me", "jwt-abc");
 	});

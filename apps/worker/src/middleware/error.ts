@@ -79,6 +79,9 @@ function getStatusMessage(code: string): string {
 		EMAIL_CODE_EMAIL_MISMATCH:
 			"Submitted email does not match the address the code was sent to — request a new code",
 		EMAIL_ALREADY_IN_USE: "Email address is already in use",
+		EMAIL_CORRECTION_USED:
+			"Email has already been corrected once — only one correction is allowed before verification",
+		EMAIL_NOT_CORRECTABLE: "Email is already verified — corrections are no longer allowed",
 		EMAIL_PROVIDER_FAILED: "Failed to send verification email — please try again",
 		CAPTCHA_REQUIRED: "Captcha verification is required",
 		CAPTCHA_INVALID: "Captcha verification failed — please refresh and try again",
