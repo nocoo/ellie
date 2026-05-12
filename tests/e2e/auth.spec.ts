@@ -90,19 +90,25 @@ test.describe("E2E-AU: Auth Flow", () => {
 	});
 
 	/**
-	 * E2E-AU-05: Logged-in user redirected from login page
+	 * E2E-AU-05: Logged-in user sees "already logged in" card on /login
 	 * Given I am logged in
 	 * When I navigate to /login
-	 * Then I should be redirected away
+	 * Then I should stay on /login
+	 * And I should see the "already logged in" card with my username
 	 */
-	test("E2E-AU-05: logged-in user redirected from login page", async ({ page, loginAs }) => {
+	test("E2E-AU-05: logged-in user sees already-logged-in card", async ({ page, loginAs }) => {
 		// Login first (uses e2etest user)
 		await loginAs("e2etest");
 
-		// Try to navigate to login page
+		// Navigate to login page
 		await page.goto("/login");
+		await page.waitForLoadState("networkidle");
 
-		// Should be redirected away from login page
-		await expect(page).not.toHaveURL(/\/login/, { timeout: 5000 });
+		// Should stay on /login (no redirect — shows AlreadyLoggedIn card instead)
+		await expect(page).toHaveURL(/\/login/);
+
+		// Should see the "already logged in" card
+		await expect(page.getByText("你已登录")).toBeVisible({ timeout: 5000 });
+		await expect(page.getByText("前往首页")).toBeVisible();
 	});
 });

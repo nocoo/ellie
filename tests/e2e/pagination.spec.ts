@@ -38,9 +38,11 @@ test.describe("E2E-PG: Pagination", () => {
 
 	/**
 	 * E2E-PG-02: Thread Post List Pagination
-	 * Given I am on a thread with many replies
-	 * Then I should see pagination controls
-	 * And I should be able to navigate to page 2
+	 * Given I am on a thread with many replies (25 posts, postsPerPage=20 → 2 pages)
+	 * Then I should see page-number pagination controls
+	 * When I click page 2
+	 * Then URL should update with ?page=2
+	 * And I should still see post cards
 	 */
 	test("E2E-PG-02: thread page has pagination for posts", async ({ page, loginAs }) => {
 		await loginAs("e2etest");
@@ -51,23 +53,16 @@ test.describe("E2E-PG: Pagination", () => {
 		// Should have posts
 		await expect(threadPage.postCards.first()).toBeVisible();
 
-		// Thread page uses keyset (cursor) pagination — look for cursor links or 下一页 button
-		const cursorLinks = page.locator('a[href*="cursor="]');
-		const nextButton = page.getByRole("link", { name: /下一页/ });
+		// Thread page uses PagePagination (page-number mode) — look for ?page=N links
+		const page2Link = page.locator('a[href*="/threads/662174?page=2"]');
 
-		const hasCursorLinks = (await cursorLinks.count()) > 0;
-		const hasNextButton = await nextButton.isVisible().catch(() => false);
+		await expect(page2Link.first()).toBeVisible({ timeout: 5000 });
 
-		// Should have some form of pagination
-		expect(hasCursorLinks || hasNextButton).toBe(true);
+		// Click page 2
+		await page2Link.first().click();
+		await page.waitForURL(/\/threads\/662174\?page=2/);
 
-		// Click next page if available
-		if (hasNextButton) {
-			await nextButton.click();
-			await page.waitForURL(/cursor=/);
-
-			// Should still have post cards
-			await expect(threadPage.postCards.first()).toBeVisible();
-		}
+		// Should still have post cards on page 2
+		await expect(threadPage.postCards.first()).toBeVisible();
 	});
 });
