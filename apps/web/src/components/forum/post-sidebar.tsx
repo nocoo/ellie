@@ -212,7 +212,7 @@ export function PostSidebar({
 			{/* Message link — gated by writeGatePreflight */}
 			{author && (
 				<div className="flex items-center gap-3 mt-1 self-start">
-					<PostSidebarMessageButton userId={author.id} />
+					<PostSidebarMessageButton userId={author.id} username={author.username} />
 				</div>
 			)}
 		</div>
