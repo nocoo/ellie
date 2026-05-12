@@ -322,8 +322,8 @@ describe("write-gate", () => {
 			expect(codeToRedirect("EMAIL_NOT_VERIFIED")).toBe("/verify-email");
 		});
 
-		it("REQUIRE_AVATAR → /me", () => {
-			expect(codeToRedirect("REQUIRE_AVATAR")).toBe("/me");
+		it("REQUIRE_AVATAR → /me#avatar", () => {
+			expect(codeToRedirect("REQUIRE_AVATAR")).toBe("/me#avatar");
 		});
 
 		it("unknown code → undefined", () => {

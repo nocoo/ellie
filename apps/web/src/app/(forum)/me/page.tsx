@@ -1,12 +1,11 @@
 // Route: /me — the authenticated user's "self" page.
 //
-// Phase 6 C-4 scope (per reviewer msg 0bb2fc12)
-// ---------------------------------------------
-// This is intentionally a small landing page that renders the
-// EmailVerificationCard inside a `#email` section so the dialog/banner
-// CTAs from Phase 7 can deep-link to `/me#email`. More /me sections will
-// land in later phases (profile, notifications, etc.) — this commit
-// establishes the route + auth gate + email card mount only.
+// Currently renders two anchored sections:
+//   #email  — EmailVerificationCard (deep-linked from EMAIL_NOT_VERIFIED CTA)
+//   #avatar — MeAvatarSection (deep-linked from REQUIRE_AVATAR CTA so the
+//             user lands directly on the avatar uploader, not the email card).
+//
+// More /me sections will land in later phases (profile, notifications, etc.).
 //
 // Auth model
 // ----------
@@ -24,6 +23,7 @@
 // long-lived client store to keep in sync.
 
 import { EmailVerificationCard } from "@/components/forum/email-verification-card";
+import { MeAvatarSection } from "@/components/forum/me-avatar-section";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { getSelfForumUser, toEmailVerificationUserView } from "@/lib/forum-self";
 import type { Metadata } from "next";
@@ -57,6 +57,13 @@ export default async function MePage() {
 					user={toEmailVerificationUserView(self)}
 					capApiEndpoint={process.env.NEXT_PUBLIC_CAP_API_ENDPOINT}
 				/>
+			</section>
+
+			{/* The id="avatar" anchor is the deep-link target for the
+			    REQUIRE_AVATAR write-gate CTA — `/me#avatar` lands the user
+			    directly on the avatar uploader instead of the email card. */}
+			<section id="avatar" aria-labelledby="avatar-section-heading" className="scroll-mt-20">
+				<MeAvatarSection userId={self.id} />
 			</section>
 		</div>
 	);
