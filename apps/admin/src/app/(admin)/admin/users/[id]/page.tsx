@@ -14,6 +14,7 @@ import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { AdminPagination } from "@/components/admin/admin-pagination";
+import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
 import { SegmentedSwitch } from "@/components/admin/segmented-switch";
 import { UserAvatar } from "@/components/admin/user-avatar";
 import { UserCheckinPanel } from "@/components/admin/user-checkin-panel";
@@ -259,9 +260,15 @@ export default function UserDetailPage() {
 						{/* 登录 IP — persistent users.reg_ip / users.last_ip */}
 						<dl className="grid grid-cols-[7rem_1fr] gap-y-2 text-sm">
 							<dt className="text-muted-foreground">注册 IP</dt>
-							<dd className="font-mono">{fmtIp(user.regIp)}</dd>
+							<dd className="font-mono">
+								{fmtIp(user.regIp)}
+								<IpLookupInline ip={user.regIp} />
+							</dd>
 							<dt className="text-muted-foreground">上次登录 IP</dt>
-							<dd className="font-mono">{fmtIp(user.lastIp)}</dd>
+							<dd className="font-mono">
+								{fmtIp(user.lastIp)}
+								<IpLookupInline ip={user.lastIp} />
+							</dd>
 						</dl>
 
 						{/* G.5: current online soft signal — only shown when worker
@@ -274,7 +281,10 @@ export default function UserDetailPage() {
 								</div>
 								<dl className="grid grid-cols-[7rem_1fr] gap-y-2 text-sm">
 									<dt className="text-muted-foreground">当前在线 IP</dt>
-									<dd className="font-mono">{fmtIp(user.onlineIp)}</dd>
+									<dd className="font-mono">
+										{fmtIp(user.onlineIp)}
+										<IpLookupInline ip={user.onlineIp} />
+									</dd>
 									{user.onlinePage && (
 										<>
 											<dt className="text-muted-foreground">当前页面</dt>
