@@ -15,6 +15,7 @@
 //   - IP_LOOKUP_UPSTREAM_<status> — other non-2xx upstream.
 
 import { apiClient } from "@/lib/api-client";
+import { ApiError } from "@ellie/shared";
 
 // ---------------------------------------------------------------------------
 // Types — must stay in lockstep with the worker payload.
@@ -93,4 +94,37 @@ export function describeInvalidIpReason(reason: string | undefined): string {
 		default:
 			return "IP 无效";
 	}
+}
+
+/**
+ * Map any error thrown by `lookupIp` to a Chinese, user-facing message.
+ * Layered by `ApiError.code` per docs/20 §13A.1; falls back to the error
+ * message (or a generic label) for non-ApiError values so the UI never
+ * surfaces raw stack traces.
+ */
+export function describeIpLookupError(err: unknown): string {
+	if (err instanceof ApiError) {
+		switch (err.code) {
+			case "INVALID_IP": {
+				const reason =
+					typeof err.details?.reason === "string" ? (err.details.reason as string) : undefined;
+				return describeInvalidIpReason(reason);
+			}
+			case "IP_LOOKUP_NOT_CONFIGURED":
+				return "IP 查询服务未配置";
+			case "IP_LOOKUP_TIMEOUT":
+				return "上游超时，请稍后重试";
+			case "IP_LOOKUP_PARSE_FAILED":
+				return "上游响应解析失败";
+			case "IP_LOOKUP_TRANSPORT_ERROR":
+				return "网络错误，请稍后重试";
+			default:
+				if (err.code.startsWith("IP_LOOKUP_UPSTREAM_")) {
+					return `上游错误（${err.code.replace("IP_LOOKUP_UPSTREAM_", "")}）`;
+				}
+				return err.message || "查询失败";
+		}
+	}
+	if (err instanceof Error && err.message) return err.message;
+	return "查询失败";
 }

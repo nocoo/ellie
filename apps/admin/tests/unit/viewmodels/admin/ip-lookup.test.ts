@@ -10,9 +10,11 @@ import { apiClient } from "@/lib/api-client";
 import {
 	type IpLookupNormalized,
 	describeInvalidIpReason,
+	describeIpLookupError,
 	formatIpLookupSummary,
 	lookupIp,
 } from "@/viewmodels/admin/ip-lookup";
+import { ApiError } from "@ellie/shared";
 
 const mockGet = apiClient.get as ReturnType<typeof vi.fn>;
 
@@ -130,5 +132,49 @@ describe("describeInvalidIpReason", () => {
 	it("falls back for unknown / undefined reasons", () => {
 		expect(describeInvalidIpReason(undefined)).toBe("IP 无效");
 		expect(describeInvalidIpReason("something_else")).toBe("IP 无效");
+	});
+});
+
+describe("describeIpLookupError", () => {
+	it("maps INVALID_IP using details.reason", () => {
+		const e = new ApiError(400, {
+			code: "INVALID_IP",
+			message: "x",
+			details: { reason: "private" },
+		});
+		expect(describeIpLookupError(e)).toBe("私网地址");
+	});
+
+	it("maps INVALID_IP without reason to generic IP 无效", () => {
+		const e = new ApiError(400, { code: "INVALID_IP", message: "x" });
+		expect(describeIpLookupError(e)).toBe("IP 无效");
+	});
+
+	it.each([
+		["IP_LOOKUP_NOT_CONFIGURED", "IP 查询服务未配置"],
+		["IP_LOOKUP_TIMEOUT", "上游超时，请稍后重试"],
+		["IP_LOOKUP_PARSE_FAILED", "上游响应解析失败"],
+		["IP_LOOKUP_TRANSPORT_ERROR", "网络错误，请稍后重试"],
+	])("maps %s → %s", (code, msg) => {
+		expect(describeIpLookupError(new ApiError(500, code, "raw"))).toBe(msg);
+	});
+
+	it("maps IP_LOOKUP_UPSTREAM_<status> with status suffix", () => {
+		expect(describeIpLookupError(new ApiError(502, "IP_LOOKUP_UPSTREAM_502", "x"))).toBe(
+			"上游错误（502）",
+		);
+	});
+
+	it("falls back to err.message for unknown ApiError code", () => {
+		expect(describeIpLookupError(new ApiError(500, "WEIRD", "boom"))).toBe("boom");
+	});
+
+	it("uses Error.message for non-ApiError Errors", () => {
+		expect(describeIpLookupError(new Error("network down"))).toBe("network down");
+	});
+
+	it("falls back to 查询失败 for non-Error values", () => {
+		expect(describeIpLookupError("string")).toBe("查询失败");
+		expect(describeIpLookupError(undefined)).toBe("查询失败");
 	});
 });
