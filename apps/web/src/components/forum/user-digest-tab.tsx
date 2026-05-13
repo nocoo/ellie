@@ -12,7 +12,7 @@ export function UserDigestTab({
 	forumsById: UserProfileData["forumsById"];
 }) {
 	if (digest.items.length === 0) {
-		return <ForumEmptyState>暂无精华帖</ForumEmptyState>;
+		return <ForumEmptyState>暂无精华</ForumEmptyState>;
 	}
 
 	return (
