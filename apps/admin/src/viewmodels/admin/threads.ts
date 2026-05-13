@@ -158,6 +158,19 @@ export function digestLabel(level: number): string {
 	}
 }
 
+// Phase H.2 — list page surfaces forum name per row. The worker returns
+// `forumId` only (no denormalised name), so the page fetches the flat forum
+// list on mount and resolves names client-side.
+//
+// Falls back to `#<id>` so the column never renders empty / "undefined" when
+// the forum list is still loading or a thread points at a forum that was
+// since hidden. Callers can branch on the fallback (it always starts with
+// "#") if they want to render a placeholder differently.
+export function forumNameById(forums: { id: number; name: string }[], forumId: number): string {
+	for (const f of forums) if (f.id === forumId) return f.name;
+	return `#${forumId}`;
+}
+
 // ---------------------------------------------------------------------------
 // API functions
 // ---------------------------------------------------------------------------
