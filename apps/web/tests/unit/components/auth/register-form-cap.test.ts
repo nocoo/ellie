@@ -1,13 +1,34 @@
 // @vitest-environment happy-dom
 // Tests for register form CAPTCHA layout when CAP is enabled.
 // Separate file because CAP_API_ENDPOINT is a module-level constant —
-// vi.hoisted must set the env before the component module is evaluated.
+// must set the env AND reset the module cache before each test, since
+// the web vitest config runs with `isolate: false` (shared worker +
+// module cache across files). Without `vi.resetModules()` the
+// register-form module evaluated by another test file would survive
+// with CAP disabled and our `getByTestId("cap-widget")` assertions
+// would silently fail.
 import { cleanup, render, screen } from "@testing-library/react";
 import { createElement } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Set CAP env BEFORE any module evaluation
-vi.hoisted(() => {
+const ORIGINAL_CAP_ENV = process.env.NEXT_PUBLIC_CAP_API_ENDPOINT;
+
+beforeAll(() => {
+	process.env.NEXT_PUBLIC_CAP_API_ENDPOINT = "https://cap.example.com";
+});
+
+afterAll(() => {
+	if (ORIGINAL_CAP_ENV === undefined) {
+		Reflect.deleteProperty(process.env, "NEXT_PUBLIC_CAP_API_ENDPOINT");
+	} else {
+		process.env.NEXT_PUBLIC_CAP_API_ENDPOINT = ORIGINAL_CAP_ENV;
+	}
+});
+
+beforeEach(() => {
+	// Force re-evaluation of the register-form module so the
+	// module-level `CAP_API_ENDPOINT` constant picks up our env.
+	vi.resetModules();
 	process.env.NEXT_PUBLIC_CAP_API_ENDPOINT = "https://cap.example.com";
 });
 
@@ -72,25 +93,32 @@ vi.mock("@/components/ui/textarea", () => ({
 	Textarea: (props: any) => createElement("textarea", { ...props, "data-testid": props.id }),
 }));
 
-// Import AFTER mocks and env setup
-import RegisterForm, { RegisterFormDialog } from "@/app/(auth)/register/register-form";
+// Static import is intentionally avoided — see beforeEach. Use
+// `loadRegisterForm()` inside each test to dynamically import after the
+// module cache has been reset.
+async function loadRegisterForm() {
+	return await import("@/app/(auth)/register/register-form");
+}
 
 afterEach(cleanup);
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
 describe("CAPTCHA layout when CAP is enabled", () => {
-	it("renders CAP widget in dialog variant", () => {
+	it("renders CAP widget in dialog variant", async () => {
+		const { RegisterFormDialog } = await loadRegisterForm();
 		render(createElement(RegisterFormDialog, { onSuccess: vi.fn() }));
 		expect(screen.getByTestId("cap-widget")).toBeTruthy();
 	});
 
-	it("renders CAP widget in standalone variant", () => {
+	it("renders CAP widget in standalone variant", async () => {
+		const { default: RegisterForm } = await loadRegisterForm();
 		render(createElement(RegisterForm));
 		expect(screen.getByTestId("cap-widget")).toBeTruthy();
 	});
 
-	it("CAP widget and submit button share a parent container (dialog)", () => {
+	it("CAP widget and submit button share a parent container (dialog)", async () => {
+		const { RegisterFormDialog } = await loadRegisterForm();
 		render(createElement(RegisterFormDialog, { onSuccess: vi.fn() }));
 
 		const capWidget = screen.getByTestId("cap-widget");
@@ -102,7 +130,8 @@ describe("CAPTCHA layout when CAP is enabled", () => {
 		expect(capContainer?.parentElement).toBe(submitButton?.parentElement);
 	});
 
-	it("CAP widget appears before submit button in DOM order (standalone)", () => {
+	it("CAP widget appears before submit button in DOM order (standalone)", async () => {
+		const { default: RegisterForm } = await loadRegisterForm();
 		render(createElement(RegisterForm));
 
 		const capWidget = screen.getByTestId("cap-widget");
@@ -113,7 +142,8 @@ describe("CAPTCHA layout when CAP is enabled", () => {
 		expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 	});
 
-	it("PostingConditionsNote appears before CAPTCHA in DOM order (dialog)", () => {
+	it("PostingConditionsNote appears before CAPTCHA in DOM order (dialog)", async () => {
+		const { RegisterFormDialog } = await loadRegisterForm();
 		render(createElement(RegisterFormDialog, { onSuccess: vi.fn() }));
 
 		const note = screen.getByText("新用户须知");
