@@ -15,6 +15,7 @@ import {
 	threadHighlightVariant,
 	threadStickyVariant,
 } from "@/viewmodels/admin/badges";
+import { type Forum, fetchForums } from "@/viewmodels/admin/forums";
 import {
 	type Thread,
 	type ThreadUpdate,
@@ -22,63 +23,97 @@ import {
 	batchMoveThreads,
 	deleteThread,
 	digestLabel,
+	fetchThreads,
+	forumNameById,
 	stickyLabel,
 	updateThread,
 } from "@/viewmodels/admin/threads";
-import { formatNumber } from "@ellie/shared";
+import { formatDate, formatNumber } from "@ellie/shared";
 import { Badge } from "@ellie/ui";
 import { Button } from "@ellie/ui";
 import { Lock, Pencil, Trash2, Unlock } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Filter definitions
 // ---------------------------------------------------------------------------
+//
+// Phase H.2 added two more filters:
+//   - `authorName` (search, like) — mirrors the worker `like` filter on
+//     `author_name`. We use a search input because most operators only
+//     remember a fragment of the username.
+//   - `forumId` (select, exact) — sourced from `fetchForums()` so the
+//     operator can scope the list to a single forum / sub. Groups are
+//     dropped because threads cannot live in groups.
 
-const FILTERS: FilterDef[] = [
-	{ key: "search", label: "搜索主题...", type: "search" },
-	{
-		key: "sticky",
-		label: "置顶状态",
-		type: "select",
-		options: [
-			{ value: "0", label: "未置顶" },
-			{ value: "1", label: "版块置顶" },
-			{ value: "2", label: "全局置顶" },
-			{ value: "3", label: "分类置顶" },
-		],
-	},
-	{
-		key: "digest",
-		label: "精华状态",
-		type: "select",
-		options: [
-			{ value: "0", label: "非精华" },
-			{ value: "1", label: "精华 I" },
-			{ value: "2", label: "精华 II" },
-			{ value: "3", label: "精华 III" },
-		],
-	},
-	{
-		key: "closed",
-		label: "锁定状态",
-		type: "select",
-		options: [
-			{ value: "0", label: "开放" },
-			{ value: "1", label: "已锁定" },
-		],
-	},
-	{
-		key: "highlighted",
-		label: "高亮状态",
-		type: "select",
-		options: [
-			{ value: "0", label: "未高亮" },
-			{ value: "1", label: "已高亮" },
-		],
-	},
-];
+// Build the FILTERS array given the loaded forum list. `forums = []` produces
+// only the static filters, so the page can render before the forum fetch
+// resolves without flashing an empty select.
+function buildFilters(forums: Forum[]): FilterDef[] {
+	const forumOpts = forums
+		.filter((f) => f.type !== "group")
+		.slice()
+		.sort((a, b) => {
+			if (a.parentId !== b.parentId) return a.parentId - b.parentId;
+			return a.displayOrder - b.displayOrder;
+		})
+		.map((f) => ({
+			value: String(f.id),
+			label: `${f.type === "sub" ? "  └ " : ""}${f.name}`,
+		}));
+	return [
+		{ key: "search", label: "搜索主题...", type: "search" },
+		{ key: "authorName", label: "作者名称...", type: "search" },
+		{
+			key: "forumId",
+			label: "所在版块",
+			type: "select",
+			placeholder: "全部版块",
+			options: forumOpts,
+		},
+		{
+			key: "sticky",
+			label: "置顶状态",
+			type: "select",
+			options: [
+				{ value: "0", label: "未置顶" },
+				{ value: "1", label: "版块置顶" },
+				{ value: "2", label: "全局置顶" },
+				{ value: "3", label: "分类置顶" },
+			],
+		},
+		{
+			key: "digest",
+			label: "精华状态",
+			type: "select",
+			options: [
+				{ value: "0", label: "非精华" },
+				{ value: "1", label: "精华 I" },
+				{ value: "2", label: "精华 II" },
+				{ value: "3", label: "精华 III" },
+			],
+		},
+		{
+			key: "closed",
+			label: "锁定状态",
+			type: "select",
+			options: [
+				{ value: "0", label: "开放" },
+				{ value: "1", label: "已锁定" },
+			],
+		},
+		{
+			key: "highlighted",
+			label: "高亮状态",
+			type: "select",
+			options: [
+				{ value: "0", label: "未高亮" },
+				{ value: "1", label: "已高亮" },
+			],
+		},
+	];
+}
 
 const BATCH_ACTIONS: BatchAction[] = [
 	{ key: "move", label: "批量移动" },
@@ -103,12 +138,20 @@ export default function ThreadsPage() {
 	const [loading, setLoading] = useState(true);
 	const [filters, setFilters] = useState<Record<string, string>>({
 		search: "",
+		authorName: "",
+		forumId: "",
 		sticky: "",
 		digest: "",
 		closed: "",
 		highlighted: "",
 	});
 	const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
+
+	// Phase H.2 — flat forum list, fetched once on mount. Drives both the
+	// `forumId` filter dropdown and the row-level forum-name column. We
+	// don't block the table on this fetch (it just renders `#<id>` until
+	// the names arrive) — operators usually scan by subject, not forum.
+	const [forums, setForums] = useState<Forum[]>([]);
 
 	const [editThread, setEditThread] = useState<Thread | null>(null);
 	const [editLoading, setEditLoading] = useState(false);
@@ -139,23 +182,34 @@ export default function ThreadsPage() {
 		async (page = 1) => {
 			setLoading(true);
 			try {
-				const params = new URLSearchParams();
-				params.set("page", String(page));
-				params.set("limit", String(pagination.limit));
-				if (filters.search) params.set("subject", filters.search);
-				if (filters.sticky) params.set("sticky", filters.sticky);
-				if (filters.digest) params.set("digest", filters.digest);
-				if (filters.closed) params.set("closed", filters.closed);
-				if (filters.highlighted) params.set("highlighted", filters.highlighted);
-
-				const res = await fetch(`/api/admin/threads?${params.toString()}`);
-				const json = await res.json();
-				setData(json.data ?? []);
+				// Phase H.2 — route through the viewmodel so filter passthrough
+				// (incl. the boolean `highlighted` normalisation) is shared with
+				// every other caller. The page no longer hand-rolls the
+				// URLSearchParams encoding; that contract lives in
+				// `buildThreadSearchParams`.
+				const forumIdNum = filters.forumId ? Number(filters.forumId) : undefined;
+				const stickyNum = filters.sticky ? Number(filters.sticky) : undefined;
+				const digestNum = filters.digest ? Number(filters.digest) : undefined;
+				const closedNum = filters.closed ? Number(filters.closed) : undefined;
+				const highlightedNum: 0 | 1 | undefined =
+					filters.highlighted === "1" ? 1 : filters.highlighted === "0" ? 0 : undefined;
+				const res = await fetchThreads({
+					page,
+					limit: pagination.limit,
+					subject: filters.search || undefined,
+					authorName: filters.authorName || undefined,
+					forumId: forumIdNum,
+					sticky: stickyNum,
+					digest: digestNum,
+					closed: closedNum,
+					highlighted: highlightedNum,
+				});
+				setData(res.data ?? []);
 				setPagination({
-					page: json.meta?.page ?? page,
-					pages: json.meta?.pages ?? 0,
-					total: json.meta?.total ?? 0,
-					limit: json.meta?.limit ?? 100,
+					page: res.meta?.page ?? page,
+					pages: res.meta?.pages ?? 0,
+					total: res.meta?.total ?? 0,
+					limit: res.meta?.limit ?? 100,
 				});
 			} catch {
 				setData([]);
@@ -170,6 +224,25 @@ export default function ThreadsPage() {
 		fetchData(1);
 	}, [fetchData]);
 
+	// Forum list is independent of pagination/filter state — fetch once,
+	// silently fall back to an empty list if it fails (row column will
+	// show `#<id>` and the forum filter will only have the empty option).
+	useEffect(() => {
+		let cancelled = false;
+		fetchForums()
+			.then((res) => {
+				if (!cancelled) setForums(res.data ?? []);
+			})
+			.catch(() => {
+				if (!cancelled) setForums([]);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	const filterDefs = useMemo(() => buildFilters(forums), [forums]);
+
 	const handlePageChange = useCallback((page: number) => fetchData(page), [fetchData]);
 
 	const handleFilterChange = useCallback((key: string, value: string) => {
@@ -177,7 +250,15 @@ export default function ThreadsPage() {
 	}, []);
 
 	const handleClearFilters = useCallback(() => {
-		setFilters({ search: "", sticky: "", digest: "", closed: "", highlighted: "" });
+		setFilters({
+			search: "",
+			authorName: "",
+			forumId: "",
+			sticky: "",
+			digest: "",
+			closed: "",
+			highlighted: "",
+		});
 	}, []);
 
 	const handleEditSave = useCallback(
@@ -323,12 +404,24 @@ export default function ThreadsPage() {
 			key: "subject",
 			header: "标题",
 			cell: (row) => (
-				<Link
-					href={`/admin/threads/${row.id}`}
-					className="font-medium text-foreground hover:underline"
-				>
-					{row.subject}
-				</Link>
+				<div className="flex flex-col gap-0.5">
+					<Link
+						href={`/admin/threads/${row.id}`}
+						className="font-medium text-foreground hover:underline"
+					>
+						{row.subject}
+					</Link>
+					{row.typeName && (
+						<span className="text-xs text-muted-foreground">类型：{row.typeName}</span>
+					)}
+				</div>
+			),
+		},
+		{
+			key: "forum",
+			header: "版块",
+			cell: (row) => (
+				<span className="text-sm text-muted-foreground">{forumNameById(forums, row.forumId)}</span>
 			),
 		},
 		{
@@ -359,7 +452,7 @@ export default function ThreadsPage() {
 			key: "status",
 			header: "状态",
 			cell: (row) => (
-				<div className="flex gap-1">
+				<div className="flex flex-wrap gap-1">
 					{row.sticky > 0 && (
 						<Badge variant={threadStickyVariant(row.sticky)}>{stickyLabel(row.sticky)}</Badge>
 					)}
@@ -372,9 +465,38 @@ export default function ThreadsPage() {
 			),
 		},
 		{
+			key: "createdAt",
+			header: "创建于",
+			cell: (row) => (
+				<span className="text-sm text-muted-foreground">{formatDate(row.createdAt) || "—"}</span>
+			),
+		},
+		{
 			key: "lastPost",
 			header: "最后回复",
-			cell: (row) => (row.lastPostAt ? new Date(row.lastPostAt * 1000).toLocaleDateString() : "—"),
+			cell: (row) => {
+				if (!row.lastPostAt) return <span className="text-muted-foreground">—</span>;
+				const date = formatDate(row.lastPostAt);
+				// `lastPoster` is "" when the worker hasn't joined the user
+				// row (e.g. user since deleted). Fall back to the date alone
+				// so we never render "by " with a blank author.
+				return (
+					<div className="flex flex-col gap-0.5 text-sm">
+						<span>{date}</span>
+						{row.lastPoster && (
+							<span className="text-xs text-muted-foreground">
+								{row.lastPosterId > 0 ? (
+									<Link href={`/admin/users/${row.lastPosterId}`} className="hover:underline">
+										{row.lastPoster}
+									</Link>
+								) : (
+									row.lastPoster
+								)}
+							</span>
+						)}
+					</div>
+				);
+			},
 		},
 		{
 			key: "actions",
@@ -425,7 +547,7 @@ export default function ThreadsPage() {
 			</div>
 
 			<AdminFilters
-				filters={FILTERS}
+				filters={filterDefs}
 				values={filters}
 				onFilterChange={handleFilterChange}
 				onClearAll={handleClearFilters}

@@ -1,4 +1,9 @@
-import { buildThreadSearchParams, digestLabel, stickyLabel } from "@/viewmodels/admin/threads";
+import {
+	buildThreadSearchParams,
+	digestLabel,
+	forumNameById,
+	stickyLabel,
+} from "@/viewmodels/admin/threads";
 import { describe, expect, it } from "vitest";
 
 describe("threads", () => {
@@ -22,6 +27,17 @@ describe("threads", () => {
 		it("omits empty authorName", () => {
 			const params = buildThreadSearchParams({ authorName: "" });
 			expect(params.authorName).toBeUndefined();
+		});
+
+		// Phase H.2 — list page now offers an `authorName` search input and
+		// a `forumId` select. Pin the passthrough so a future filter
+		// refactor can't quietly drop these without tripping the test.
+		it("passes authorName through when non-empty (worker `like` filter)", () => {
+			expect(buildThreadSearchParams({ authorName: "alice" }).authorName).toBe("alice");
+		});
+
+		it("passes forumId through as a number (worker `exact int` filter)", () => {
+			expect(buildThreadSearchParams({ forumId: 42 }).forumId).toBe(42);
 		});
 
 		it("includes subject when provided", () => {
@@ -79,6 +95,30 @@ describe("threads", () => {
 		it("returns empty for 0 or other", () => {
 			expect(digestLabel(0)).toBe("");
 			expect(digestLabel(99)).toBe("");
+		});
+	});
+
+	// Phase H.2 — list-row forum column resolves the flat forum list
+	// client-side. The fallback to "#<id>" is intentional and must hold
+	// across an empty list (page rendered before fetch settled) and an
+	// unknown id (forum since hidden / deleted), so the column never
+	// renders empty.
+	describe("forumNameById", () => {
+		const forums = [
+			{ id: 1, name: "公告" },
+			{ id: 5, name: "技术讨论" },
+		];
+
+		it("returns the forum name when id is present", () => {
+			expect(forumNameById(forums, 5)).toBe("技术讨论");
+		});
+
+		it('falls back to "#<id>" when id is missing from the list', () => {
+			expect(forumNameById(forums, 99)).toBe("#99");
+		});
+
+		it('falls back to "#<id>" when the forum list is empty', () => {
+			expect(forumNameById([], 7)).toBe("#7");
 		});
 	});
 });
