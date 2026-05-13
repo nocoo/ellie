@@ -5,8 +5,8 @@
 // Pipeline:
 //   1. Validate `ip` query param (presence + shape + non-private/reserved).
 //      All validation failures collapse to `INVALID_IP` with a discriminator
-//      `details.reason: "missing" | "malformed" | "private" | "reserved"` so
-//      the admin UI shows a single normalized message.
+//      `details.reason: "missing" | "malformed" | "private" | "reserved" |
+//      "upstream_invalid"` so the admin UI shows a single normalized message.
 //   2. Cache lookup in `ip-lookup:<ip>` (KV). Hit → return cached payload
 //      with `cached: true`.
 //   3. Miss → fetch upstream `https://echo.nocoo.cloud/api/ip?ip=<ip>` with
@@ -59,6 +59,10 @@ const RESERVED_V4_RANGES: Array<[number, number]> = [
 	[ipv4ToInt("169.254.0.0"), ipv4ToInt("169.254.255.255")],
 	// 100.64.0.0/10 (CGNAT)
 	[ipv4ToInt("100.64.0.0"), ipv4ToInt("100.127.255.255")],
+	// 192.0.2.0/24 / 198.51.100.0/24 / 203.0.113.0/24 (TEST-NET docs)
+	[ipv4ToInt("192.0.2.0"), ipv4ToInt("192.0.2.255")],
+	[ipv4ToInt("198.51.100.0"), ipv4ToInt("198.51.100.255")],
+	[ipv4ToInt("203.0.113.0"), ipv4ToInt("203.0.113.255")],
 	// 224.0.0.0/4 (multicast)
 	[ipv4ToInt("224.0.0.0"), ipv4ToInt("239.255.255.255")],
 	// 240.0.0.0/4 (reserved future)
@@ -133,23 +137,33 @@ function validateIp(raw: string | null): ValidationOk | ValidationFail {
 /**
  * Cache envelope persisted to KV. `raw` is the upstream JSON when small
  * enough to keep verbatim; otherwise `rawTruncated: true` and `raw === {}`.
- * `normalized` is whatever the upstream returns flattened to the fields
- * the UI cares about (country / region / city / asn / org). We never
- * synthesize fields the upstream did not provide — missing values stay
- * `null`.
+ *
+ * `normalized` follows the actual echo.nocoo upstream shape, which nests
+ * geo data under `raw.location.{country, province, city, isp, iso2}`. We
+ * keep `asn` / `org` as optional fields so future provider extensions
+ * can flow through without a schema bump, but they are NOT synthesized
+ * if absent. The upstream sentinel `"0"` (used for unknown city/isp) is
+ * folded to `null` in normalized; raw stays verbatim.
  */
 interface IpLookupCachedPayload {
 	ip: string;
 	normalized: {
 		country: string | null;
+		countryIso2: string | null;
 		region: string | null;
 		city: string | null;
+		isp: string | null;
 		asn: string | null;
 		org: string | null;
 	};
 	raw: Record<string, unknown>;
 	rawTruncated: boolean;
 	fetchedAt: number;
+}
+
+/** Treat the upstream sentinel `"0"` (unknown) as null. */
+function nullIfSentinel(s: string | null): string | null {
+	return s === "0" ? null : s;
 }
 
 function pickString(obj: Record<string, unknown>, ...keys: string[]): string | null {
@@ -161,13 +175,51 @@ function pickString(obj: Record<string, unknown>, ...keys: string[]): string | n
 	return null;
 }
 
+function pickLocationString(
+	location: Record<string, unknown> | null,
+	top: Record<string, unknown>,
+	locKeys: string[],
+	topKeys: string[],
+): string | null {
+	if (location) {
+		const v = pickString(location, ...locKeys);
+		if (v !== null) return v;
+	}
+	return pickString(top, ...topKeys);
+}
+
 function buildNormalized(raw: Record<string, unknown>): IpLookupCachedPayload["normalized"] {
+	const loc =
+		raw.location && typeof raw.location === "object" && !Array.isArray(raw.location)
+			? (raw.location as Record<string, unknown>)
+			: null;
+
 	return {
-		country: pickString(raw, "country", "country_name", "countryName"),
-		region: pickString(raw, "region", "region_name", "regionName", "state"),
-		city: pickString(raw, "city"),
-		asn: pickString(raw, "asn", "as", "autonomous_system_number"),
-		org: pickString(raw, "org", "organization", "isp", "as_name"),
+		country: nullIfSentinel(
+			pickLocationString(loc, raw, ["country", "country_name"], ["country", "country_name"]),
+		),
+		countryIso2: nullIfSentinel(
+			pickLocationString(
+				loc,
+				raw,
+				["iso2", "country_code", "countryCode"],
+				["iso2", "country_code", "countryCode"],
+			),
+		),
+		region: nullIfSentinel(
+			pickLocationString(
+				loc,
+				raw,
+				["province", "region", "region_name", "state"],
+				["region", "region_name", "state"],
+			),
+		),
+		city: nullIfSentinel(pickLocationString(loc, raw, ["city"], ["city"])),
+		isp: nullIfSentinel(
+			pickLocationString(loc, raw, ["isp", "org", "organization"], ["isp", "org", "organization"]),
+		),
+		asn: nullIfSentinel(pickString(raw, "asn", "as", "autonomous_system_number")),
+		org: nullIfSentinel(pickString(raw, "org", "organization", "as_name")),
 	};
 }
 
@@ -193,7 +245,7 @@ async function fetchUpstream(
 	ip: string,
 ): Promise<
 	| { ok: true; rawText: string; parsed: Record<string, unknown> }
-	| { ok: false; code: string; status: number }
+	| { ok: false; code: string; status: number; reason?: string }
 > {
 	const url = `https://echo.nocoo.cloud/api/ip?ip=${encodeURIComponent(ip)}`;
 	let res: Response;
@@ -215,6 +267,26 @@ async function fetchUpstream(
 	}
 
 	if (!res.ok) {
+		// Special case: upstream 400 with an invalid_ip token in the body
+		// should surface to the admin as INVALID_IP, not "upstream failed".
+		// We only read a small slice of the body to avoid pulling large
+		// HTML error pages into worker memory.
+		if (res.status === 400) {
+			let snippet = "";
+			try {
+				snippet = (await res.text()).slice(0, 512).toLowerCase();
+			} catch {
+				/* ignore */
+			}
+			if (snippet.includes("invalid_ip") || snippet.includes("invalid ip")) {
+				return {
+					ok: false,
+					code: "INVALID_IP",
+					status: 400,
+					reason: "upstream_invalid",
+				};
+			}
+		}
 		return {
 			ok: false,
 			code: `IP_LOOKUP_UPSTREAM_${res.status}`,
@@ -248,7 +320,9 @@ function buildPayload(
 	rawText: string,
 	parsed: Record<string, unknown>,
 ): IpLookupCachedPayload {
-	const truncated = rawText.length > RAW_MAX_BYTES;
+	// Cap by byte length, not JS string length — non-ASCII bodies (CJK
+	// city/isp names) would otherwise undercount and slip past the cap.
+	const truncated = new TextEncoder().encode(rawText).byteLength > RAW_MAX_BYTES;
 	return {
 		ip,
 		normalized: buildNormalized(parsed),
@@ -284,6 +358,14 @@ async function lookupHandler(
 	// Miss → upstream
 	const upstream = await fetchUpstream(env, ip);
 	if (!upstream.ok) {
+		if (upstream.code === "INVALID_IP") {
+			return errorResponse(
+				"INVALID_IP",
+				400,
+				{ reason: upstream.reason ?? "upstream_invalid" },
+				origin,
+			);
+		}
 		const status = upstream.code === "IP_LOOKUP_TIMEOUT" ? 504 : 502;
 		return errorResponse(upstream.code, status, { upstreamStatus: upstream.status }, origin);
 	}

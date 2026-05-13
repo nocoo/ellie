@@ -21,7 +21,7 @@
 //      register the family or extend the allowlist.
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
 	KV_PUT_PREFIX_ALLOWLIST,
@@ -184,6 +184,20 @@ describe("kv-registry — declarative invariants", () => {
 });
 
 describe("kv-registry — architecture guard", () => {
+	it("ip-lookup family is registered, allowlisted, and documented in docs/20", () => {
+		const spec = KV_REGISTRY.find((s) => s.family === "ip-lookup");
+		expect(spec, "ip-lookup family missing from KV_REGISTRY").toBeDefined();
+		expect(spec?.listPrefix).toBe("ip-lookup:");
+		expect(spec?.ttl).toBe(86_400);
+		expect(KV_PUT_PREFIX_ALLOWLIST).toContain("ip-lookup:");
+
+		// docs/20 must mention the family. Simple existence check; we
+		// deliberately do not parse the markdown structure.
+		const docsPath = resolve(SRC_ROOT, "../../../docs/20-worker-kv-reference.md");
+		const docs = readFileSync(docsPath, "utf8");
+		expect(docs.includes("`ip-lookup:<ip>`")).toBe(true);
+	});
+
 	it("every literal KV-key prefix in apps/worker/src is covered by KV_PUT_PREFIX_ALLOWLIST", () => {
 		const files = walk(SRC_ROOT);
 		const found = new Set<string>();
