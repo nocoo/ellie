@@ -310,6 +310,24 @@ export interface User {
 	 * this user (`author_id`). Populated only on the admin user list.
 	 */
 	attachmentsCount?: number;
+	/**
+	 * Admin user-detail-only soft signal — current online IP from the
+	 * `online:<uid>` KV entry written by the online-tracker middleware.
+	 * Present only when KV holds a fresh (TTL-window, ≤15min) snapshot.
+	 * Distinct from `lastIp` (persistent last-login IP). UI label:
+	 * "当前在线 IP".
+	 */
+	onlineIp?: string;
+	/**
+	 * Admin user-detail-only soft signal — last URL pathname seen by the
+	 * online tracker for this user. Same TTL gate as `onlineIp`.
+	 */
+	onlinePage?: string;
+	/**
+	 * Admin user-detail-only soft signal — unix seconds of the most recent
+	 * online-tracker write. Same TTL gate as `onlineIp`.
+	 */
+	onlineTs?: number;
 }
 
 /** Moderator info for display */

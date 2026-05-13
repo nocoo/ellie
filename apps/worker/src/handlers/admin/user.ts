@@ -11,7 +11,7 @@ import {
 	buildDeleteThreadChildStatements,
 } from "../../lib/contentDelete";
 import type { EntityConfig } from "../../lib/crud";
-import { createGetByIdHandler, createListHandler, createUpdateHandler } from "../../lib/crud";
+import { createListHandler, createUpdateHandler } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { toUser } from "../../lib/mappers";
 import { parsePathSegment } from "../../lib/parseId";
@@ -468,8 +468,69 @@ async function invalidateUserCachesForIds(env: Env, ids: number[]): Promise<void
 export const list = withEntityAuth(userConfig, createListHandler(userConfig));
 
 // ─── #37 GET /api/admin/users/:id ────────────────────────────────────────────
+// G.5: enrich the detail payload with the `online:<uid>` KV soft signal so the
+// admin UI can show "当前在线 IP / 页面 / 心跳" alongside the persistent
+// `last_ip` ("上次登录 IP"). Treated strictly as a soft signal:
+//   - KV miss → fields absent (UI hides the section).
+//   - Shape guard: ip/page must be string, ts must be number; otherwise treated
+//     as miss. Defends against hand-poked / corrupt KV values.
+//   - Freshness guard: `Date.now()/1000 - ts <= 900` (TTL window). KV TTL is
+//     authoritative on Cloudflare's side, but a leftover/clock-skew row should
+//     not be presented as "currently online".
+// Falls through to a non-enriched response on any KV failure (offline) so the
+// detail endpoint never breaks because of a soft-signal lookup.
 
-export const getById = withEntityAuth(userConfig, createGetByIdHandler(userConfig));
+const ONLINE_TTL_SEC = 900;
+
+interface OnlineSnapshot {
+	ip: string;
+	page: string;
+	ts: number;
+}
+
+async function readOnlineSnapshot(env: Env, userId: number): Promise<OnlineSnapshot | null> {
+	let raw: unknown;
+	try {
+		raw = await env.KV.get(`online:${userId}`, "json");
+	} catch {
+		return null;
+	}
+	if (!raw || typeof raw !== "object") return null;
+	const r = raw as Record<string, unknown>;
+	if (typeof r.ip !== "string" || typeof r.page !== "string" || typeof r.ts !== "number") {
+		return null;
+	}
+	const nowSec = Math.floor(Date.now() / 1000);
+	if (nowSec - r.ts > ONLINE_TTL_SEC) return null;
+	return { ip: r.ip, page: r.page, ts: r.ts };
+}
+
+export const getById = withEntityAuth(
+	userConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined;
+		const id = parsePathSegment(request, 0);
+		if (id === null) {
+			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid user ID" }, origin);
+		}
+
+		const row = await env.DB.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`)
+			.bind(id)
+			.first<Record<string, unknown>>();
+		if (!row) {
+			return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
+		}
+
+		const online = await readOnlineSnapshot(env, id);
+		if (online) {
+			row.online_ip = online.ip;
+			row.online_page = online.page;
+			row.online_ts = online.ts;
+		}
+
+		return jsonResponse(toUser(row), origin);
+	},
+);
 
 // ─── #38 PATCH /api/admin/users/:id ──────────────────────────────────────────
 

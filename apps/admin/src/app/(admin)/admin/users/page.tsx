@@ -111,8 +111,10 @@ const BATCH_ACTIONS: BatchAction[] = [
 export default function UsersPage() {
 	// Read initial search / IP filters from URL query params. The IP
 	// filters are populated only by the user-detail page's "查询注册 IP" /
-	// "查询最近 IP" buttons (D3) — `AdminFilters` does not expose any
-	// free-form IP input to limit PII surface.
+	// "查询上次登录 IP" buttons (G.6) — `AdminFilters` does not expose any
+	// free-form IP input to limit PII surface. Query param names stay
+	// `regIp` / `lastIp` for backward compatibility; only display copy was
+	// updated in G.5.
 	const searchParams = useSearchParams();
 	const router = useRouter();
 	const initialSearch = searchParams.get("search") ?? "";
@@ -137,7 +139,7 @@ export default function UsersPage() {
 	const ipBanner = state.filters.regIp
 		? `正在查看注册 IP 为 ${state.filters.regIp} 的用户`
 		: state.filters.lastIp
-			? `正在查看最近 IP 为 ${state.filters.lastIp} 的用户`
+			? `正在查看上次登录 IP 为 ${state.filters.lastIp} 的用户`
 			: null;
 
 	// -----------------------------------------------------------------------

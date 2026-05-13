@@ -255,37 +255,41 @@ export default function UserDetailPage() {
 					<CardHeader>
 						<CardTitle>元信息</CardTitle>
 					</CardHeader>
-					<CardContent className="space-y-3">
+					<CardContent className="space-y-4">
+						{/* 登录 IP — persistent users.reg_ip / users.last_ip */}
 						<dl className="grid grid-cols-[7rem_1fr] gap-y-2 text-sm">
 							<dt className="text-muted-foreground">注册 IP</dt>
 							<dd className="font-mono">{fmtIp(user.regIp)}</dd>
-							<dt className="text-muted-foreground">最近 IP</dt>
+							<dt className="text-muted-foreground">上次登录 IP</dt>
 							<dd className="font-mono">{fmtIp(user.lastIp)}</dd>
 						</dl>
-						<div className="flex flex-wrap gap-2">
-							{user.regIp && user.regIp.trim().length > 0 && (
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={() =>
-										router.push(`/admin/users?regIp=${encodeURIComponent(user.regIp ?? "")}`)
-									}
-								>
-									查询注册 IP
-								</Button>
-							)}
-							{user.lastIp && user.lastIp.trim().length > 0 && (
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={() =>
-										router.push(`/admin/users?lastIp=${encodeURIComponent(user.lastIp ?? "")}`)
-									}
-								>
-									查询最近 IP
-								</Button>
-							)}
-						</div>
+
+						{/* G.5: current online soft signal — only shown when worker
+						    attached a fresh `online:<uid>` KV snapshot (TTL ≤15min).
+						    Whole block hides when the user is not currently online. */}
+						{user.onlineIp && user.onlineIp.trim().length > 0 && (
+							<div className="border-t pt-3">
+								<div className="mb-2 text-xs text-muted-foreground">
+									当前在线 · 软指标 · TTL 15min
+								</div>
+								<dl className="grid grid-cols-[7rem_1fr] gap-y-2 text-sm">
+									<dt className="text-muted-foreground">当前在线 IP</dt>
+									<dd className="font-mono">{fmtIp(user.onlineIp)}</dd>
+									{user.onlinePage && (
+										<>
+											<dt className="text-muted-foreground">当前页面</dt>
+											<dd className="break-all font-mono">{user.onlinePage}</dd>
+										</>
+									)}
+									{user.onlineTs && user.onlineTs > 0 && (
+										<>
+											<dt className="text-muted-foreground">心跳时间</dt>
+											<dd>{fmtTimestamp(user.onlineTs)}</dd>
+										</>
+									)}
+								</dl>
+							</div>
+						)}
 					</CardContent>
 				</Card>
 			</div>

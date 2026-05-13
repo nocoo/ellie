@@ -70,6 +70,12 @@ interface D1UserRow {
 	// absent on detail / non-admin queries).
 	messages_count?: number;
 	attachments_count?: number;
+	// G.5: admin user-detail enrichment — `online:<uid>` KV soft signal,
+	// only attached by the admin getById handler when KV has a fresh
+	// (TTL-window) entry. Absent everywhere else.
+	online_ip?: string;
+	online_page?: string;
+	online_ts?: number;
 	// Sensitive fields (never exposed): password_hash, password_salt
 }
 
@@ -204,6 +210,10 @@ export function toUser(row: Record<string, unknown>): User {
 		// rather than misleadingly `0`.
 		...(r.messages_count !== undefined ? { messagesCount: r.messages_count } : {}),
 		...(r.attachments_count !== undefined ? { attachmentsCount: r.attachments_count } : {}),
+		// G.5: only emitted when admin getById attached a fresh online snapshot.
+		...(r.online_ip !== undefined ? { onlineIp: r.online_ip } : {}),
+		...(r.online_page !== undefined ? { onlinePage: r.online_page } : {}),
+		...(r.online_ts !== undefined ? { onlineTs: r.online_ts } : {}),
 	};
 }
 
