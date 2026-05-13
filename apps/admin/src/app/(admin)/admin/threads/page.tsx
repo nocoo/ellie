@@ -21,10 +21,13 @@ import {
 	type ThreadUpdate,
 	batchDeleteThreads,
 	batchMoveThreads,
+	buildThreadsListQuery,
 	deleteThread,
 	digestLabel,
+	emptyThreadsListFilters,
 	fetchThreads,
 	forumNameById,
+	parseThreadsListQuery,
 	stickyLabel,
 	updateThread,
 } from "@/viewmodels/admin/threads";
@@ -33,6 +36,7 @@ import { Badge } from "@ellie/ui";
 import { Button } from "@ellie/ui";
 import { Lock, Pencil, Trash2, Unlock } from "lucide-react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 // ---------------------------------------------------------------------------
@@ -128,6 +132,15 @@ const BATCH_ACTIONS: BatchAction[] = [
 // ---------------------------------------------------------------------------
 
 export default function ThreadsPage() {
+	// Phase H.3.1 — initial filter state is seeded from the URL query so
+	// inbound links (e.g. forum breadcrumb on the detail page →
+	// `/admin/threads?forumId=5`) apply the filter on first render. We
+	// read `useSearchParams()` ONCE during initial state — no useEffect
+	// loop. Subsequent filter changes are written back via `router.replace`.
+	const router = useRouter();
+	const pathname = usePathname();
+	const searchParams = useSearchParams();
+
 	const [data, setData] = useState<Thread[]>([]);
 	const [pagination, setPagination] = useState<PaginationInfo>({
 		page: 1,
@@ -136,15 +149,10 @@ export default function ThreadsPage() {
 		limit: 100,
 	});
 	const [loading, setLoading] = useState(true);
-	const [filters, setFilters] = useState<Record<string, string>>({
-		search: "",
-		authorName: "",
-		forumId: "",
-		sticky: "",
-		digest: "",
-		closed: "",
-		highlighted: "",
-	});
+	const [filters, setFilters] = useState<Record<string, string>>(() => ({
+		...emptyThreadsListFilters(),
+		...parseThreadsListQuery(searchParams),
+	}));
 	const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
 
 	// Phase H.2 — flat forum list, fetched once on mount. Drives both the
@@ -245,21 +253,35 @@ export default function ThreadsPage() {
 
 	const handlePageChange = useCallback((page: number) => fetchData(page), [fetchData]);
 
-	const handleFilterChange = useCallback((key: string, value: string) => {
-		setFilters((prev) => ({ ...prev, [key]: value }));
-	}, []);
+	// Phase H.3.1 — keep URL in sync with filter state. Done in the change
+	// handlers (not an effect) so there is no read-from-URL → set-state →
+	// write-URL cycle: the URL is purely an OUTPUT once mounted. We use
+	// `router.replace` so filter changes don't bloat back-button history.
+	const syncFiltersToUrl = useCallback(
+		(next: Record<string, string>) => {
+			const flat = buildThreadsListQuery(next);
+			const qs = new URLSearchParams(flat).toString();
+			router.replace(qs ? `${pathname}?${qs}` : pathname);
+		},
+		[router, pathname],
+	);
+
+	const handleFilterChange = useCallback(
+		(key: string, value: string) => {
+			setFilters((prev) => {
+				const next = { ...prev, [key]: value };
+				syncFiltersToUrl(next);
+				return next;
+			});
+		},
+		[syncFiltersToUrl],
+	);
 
 	const handleClearFilters = useCallback(() => {
-		setFilters({
-			search: "",
-			authorName: "",
-			forumId: "",
-			sticky: "",
-			digest: "",
-			closed: "",
-			highlighted: "",
-		});
-	}, []);
+		const next = emptyThreadsListFilters();
+		setFilters(next);
+		syncFiltersToUrl(next);
+	}, [syncFiltersToUrl]);
 
 	const handleEditSave = useCallback(
 		async (id: number, update: ThreadUpdate) => {
