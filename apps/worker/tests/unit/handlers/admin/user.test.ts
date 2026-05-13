@@ -541,6 +541,28 @@ describe("admin user handlers", () => {
 				expect(body.data.onlineIp).toBeUndefined();
 			});
 
+			it("omits online fields when ts is in the future (G.5.1: clock-skew/poked guard)", async () => {
+				const { db } = createMockDb({
+					firstResults: { "FROM users WHERE id": makeD1UserRow({ id: 42 }) },
+				});
+				const env = envWithKV(db, {
+					"online:42": JSON.stringify({
+						uid: 42,
+						ip: "203.0.113.7",
+						page: "/thread/123",
+						ts: nowSec + 600,
+					}),
+				});
+
+				const res = await getById(createAdminRequest("GET", "/api/admin/users/42"), env);
+				const body = await res.json();
+
+				expect(res.status).toBe(200);
+				expect(body.data.onlineIp).toBeUndefined();
+				expect(body.data.onlinePage).toBeUndefined();
+				expect(body.data.onlineTs).toBeUndefined();
+			});
+
 			it("omits online fields when KV miss", async () => {
 				const { db } = createMockDb({
 					firstResults: { "FROM users WHERE id": makeD1UserRow({ id: 42 }) },
