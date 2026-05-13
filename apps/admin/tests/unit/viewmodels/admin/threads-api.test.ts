@@ -45,6 +45,50 @@ describe("threads API functions", () => {
 		expect(t.id).toBe(42);
 	});
 
+	// H.1 — Phase H lifted the admin Thread interface to mirror the worker
+	// `toThread` mapper output. This test pins every newly-surfaced field so a
+	// future viewmodel slim-down can't silently drop forum/last-poster/type
+	// information the UI now relies on.
+	it("fetchThread preserves all Phase-H fields (forum / last poster / type / flags)", async () => {
+		mockGet.mockResolvedValue({
+			data: {
+				id: 42,
+				subject: "hello",
+				forumId: 7,
+				authorId: 1,
+				authorName: "alice",
+				authorAvatar: "https://cdn.example.com/a.png",
+				authorAvatarPath: "avatars/1.png",
+				replies: 3,
+				views: 10,
+				sticky: 1,
+				closed: 0,
+				digest: 2,
+				highlight: 0,
+				lastPostAt: 1_700_000_500,
+				lastPoster: "bob",
+				lastPosterId: 2,
+				lastPosterAvatar: "",
+				lastPosterAvatarPath: "",
+				createdAt: 1_700_000_000,
+				typeName: "公告",
+				special: 1,
+				recommends: 5,
+				isAuthorFirstThread: true,
+			},
+		});
+		const t = await fetchThread(42);
+		expect(t.forumId).toBe(7);
+		expect(t.lastPoster).toBe("bob");
+		expect(t.lastPosterId).toBe(2);
+		expect(t.typeName).toBe("公告");
+		expect(t.special).toBe(1);
+		expect(t.recommends).toBe(5);
+		expect(t.isAuthorFirstThread).toBe(true);
+		expect(t.authorAvatar).toBe("https://cdn.example.com/a.png");
+		expect(t.authorAvatarPath).toBe("avatars/1.png");
+	});
+
 	it("updateThread calls patch", async () => {
 		mockPatch.mockResolvedValue({ data: { id: 1, sticky: 1 } });
 		const t = await updateThread(1, { sticky: 1 });
