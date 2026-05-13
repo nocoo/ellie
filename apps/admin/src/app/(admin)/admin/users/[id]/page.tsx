@@ -260,13 +260,13 @@ export default function UserDetailPage() {
 						{/* 登录 IP — persistent users.reg_ip / users.last_ip */}
 						<dl className="grid grid-cols-[7rem_1fr] gap-y-2 text-sm">
 							<dt className="text-muted-foreground">注册 IP</dt>
-							<dd className="font-mono">
-								{fmtIp(user.regIp)}
+							<dd>
+								<span className="font-mono">{fmtIp(user.regIp)}</span>
 								<IpLookupInline ip={user.regIp} />
 							</dd>
 							<dt className="text-muted-foreground">上次登录 IP</dt>
-							<dd className="font-mono">
-								{fmtIp(user.lastIp)}
+							<dd>
+								<span className="font-mono">{fmtIp(user.lastIp)}</span>
 								<IpLookupInline ip={user.lastIp} />
 							</dd>
 						</dl>
@@ -281,8 +281,8 @@ export default function UserDetailPage() {
 								</div>
 								<dl className="grid grid-cols-[7rem_1fr] gap-y-2 text-sm">
 									<dt className="text-muted-foreground">当前在线 IP</dt>
-									<dd className="font-mono">
-										{fmtIp(user.onlineIp)}
+									<dd>
+										<span className="font-mono">{fmtIp(user.onlineIp)}</span>
 										<IpLookupInline ip={user.onlineIp} />
 									</dd>
 									{user.onlinePage && (
