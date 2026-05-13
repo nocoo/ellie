@@ -170,4 +170,52 @@ describe("AdminFilters — multiple search filters", () => {
 		expect(subjectInput.value).toBe("");
 		expect(authorInput.value).toBe("");
 	});
+
+	it("parent re-renders with the same '' value do NOT clobber a pending unsubmitted buffer", () => {
+		// Phase H.2.1.1 regression pin:
+		//   1. Search filter is empty in parent (`values.search === ""`).
+		//   2. User types "hel" into the subject box — local buffer holds
+		//      it, parent NOT yet notified (search submits on Enter).
+		//   3. Some OTHER filter changes (e.g. operator picks a forumId),
+		//      so the page re-renders with a new `values` object whose
+		//      `search` is still "".
+		//   4. Naive parent→local sync compared only `parentVal === ""`
+		//      and would snap `local` back to "" — vanishing the user's
+		//      pending input. This test pins the fix: only an actual
+		//      non-empty → "" transition counts as a parent-driven clear.
+		const { rerender } = render(
+			<AdminFilters
+				filters={SEARCH_FILTERS}
+				values={{ search: "", authorName: "", forumId: "" }}
+				onFilterChange={() => {}}
+			/>,
+		);
+		const subjectInput = screen.getByPlaceholderText("搜索主题...") as HTMLInputElement;
+		act(() => {
+			fireEvent.change(subjectInput, { target: { value: "hel" } });
+		});
+		expect(subjectInput.value).toBe("hel");
+
+		// Parent re-renders because an unrelated filter changed. `search`
+		// is still "" in BOTH old and new values, so this must not be
+		// treated as a clear.
+		rerender(
+			<AdminFilters
+				filters={SEARCH_FILTERS}
+				values={{ search: "", authorName: "", forumId: "7" }}
+				onFilterChange={() => {}}
+			/>,
+		);
+		expect(subjectInput.value).toBe("hel");
+
+		// And a further unrelated re-render still preserves the pending buffer.
+		rerender(
+			<AdminFilters
+				filters={SEARCH_FILTERS}
+				values={{ search: "", authorName: "", forumId: "9" }}
+				onFilterChange={() => {}}
+			/>,
+		);
+		expect(subjectInput.value).toBe("hel");
+	});
 });

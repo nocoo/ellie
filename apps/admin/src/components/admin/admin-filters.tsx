@@ -4,7 +4,7 @@ import { Button } from "@ellie/ui";
 import { Input } from "@ellie/ui";
 import { Select } from "@ellie/ui";
 import { Search, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -162,31 +162,46 @@ export function AdminFilters({ filters, values, onFilterChange, onClearAll }: Ad
 		return initial;
 	});
 
-	// Sync local input state with parent `values` whenever the parent
-	// resets a key (e.g. clear-all wipes `values[key]` to "") so the
-	// input visually clears too. This intentionally tracks the parent in
-	// one direction: parent → local. Local edits still wait for Enter
-	// to propagate the other way.
+	// H.2.1.1 — the parent→local sync must only fire on an actual
+	// TRANSITION of `values[key]` from non-empty to empty (the real
+	// "parent cleared this filter" signal). The naive version compared
+	// only the current `parentVal` to "", which would fire every time
+	// the parent re-rendered with `values.search === ""` — including
+	// while the user was typing into an unsubmitted search box. The
+	// bug: type "hel" into the subject box (local="hel",
+	// parent.search=""), then change the forum dropdown → parent
+	// rebuilds `values` (new object identity, search still "") → effect
+	// fires and snaps local back to "" → user's pending text vanishes.
+	//
+	// We track the previous values via `useRef` and only treat
+	// `prev[key] !== "" && current[key] === ""` as a parent-driven
+	// clear. Initial mount sees prev === current, so no spurious clear.
+	const prevValuesRef = useRef(values);
 	useEffect(() => {
-		setSearchInputs((prev) => {
-			const next: Record<string, string> = { ...prev };
+		const prev = prevValuesRef.current;
+		const cur = values;
+		prevValuesRef.current = cur;
+		setSearchInputs((prevState) => {
+			const next: Record<string, string> = { ...prevState };
 			let changed = false;
 			for (const f of filters) {
 				if (f.type !== "search") continue;
-				const parentVal = values[f.key] ?? "";
-				// If parent cleared the key (parentVal === "") but the local
-				// buffer still holds text, snap local to the parent so the
-				// input shows empty. We also seed any newly-introduced
-				// search keys (e.g. filter list grew at runtime).
+				// Seed any newly-introduced search key with the current
+				// parent value (filter list may grow at runtime).
 				if (!(f.key in next)) {
-					next[f.key] = parentVal;
+					next[f.key] = cur[f.key] ?? "";
 					changed = true;
-				} else if (parentVal === "" && next[f.key] !== "") {
+					continue;
+				}
+				// Treat only an actual prev→cur clear as a parent reset.
+				const prevVal = prev[f.key] ?? "";
+				const curVal = cur[f.key] ?? "";
+				if (prevVal !== "" && curVal === "" && next[f.key] !== "") {
 					next[f.key] = "";
 					changed = true;
 				}
 			}
-			return changed ? next : prev;
+			return changed ? next : prevState;
 		});
 	}, [filters, values]);
 
