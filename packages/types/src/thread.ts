@@ -12,6 +12,19 @@ export interface ThreadBadge {
 	variant: "destructive" | "warning" | "default" | "success" | "secondary";
 }
 
+/**
+ * Minimal structural input for `getThreadBadges`.
+ *
+ * Anything carrying these five fields can produce display badges, so both the
+ * full `Thread` and the trimmer `PostThreadSummary` (used by the user profile
+ * "回复" tab) flow through the same helper without union types or casts at the
+ * call site.
+ */
+export type ThreadBadgeSource = Pick<
+	Thread,
+	"typeName" | "sticky" | "digest" | "closed" | "special"
+>;
+
 /** Special type badge mapping (04e §1) */
 const SPECIAL_BADGES: Record<number, { label: string; variant: ThreadBadge["variant"] }> = {
 	1: { label: "投票", variant: "default" },
@@ -22,7 +35,7 @@ const SPECIAL_BADGES: Record<number, { label: string; variant: ThreadBadge["vari
 };
 
 /** Compute display badges for a thread (typeName, sticky, digest, closed, special). */
-export function getThreadBadges(thread: Thread): ThreadBadge[] {
+export function getThreadBadges(thread: ThreadBadgeSource): ThreadBadge[] {
 	const badges: ThreadBadge[] = [];
 
 	// Type classification badge (shown first, before sticky/digest)

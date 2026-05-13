@@ -19,6 +19,10 @@ vi.mock("@/lib/forum-api", () => ({
 
 vi.mock("@/lib/forum-cache", () => ({
 	getCachedPageSize: vi.fn(async () => 20),
+	getCachedForumList: vi.fn(async () => [
+		{ id: 1, name: "灌水区" },
+		{ id: 2, name: "技术区" },
+	]),
 }));
 
 import { forumApi } from "@/lib/forum-api";
@@ -110,5 +114,12 @@ describe("loadUserProfile", () => {
 		mockForumApi.getCursor.mockResolvedValue({ data: [], meta: { nextCursor: null } });
 		const result = await loadUserProfile({ userId: 42, tab: "threads", cursor: "prev" });
 		expect(result.threads.prevCursor).toBe("prev");
+	});
+
+	it("builds forumsById from the cached forum list", async () => {
+		const result = await loadUserProfile({ userId: 42 });
+		// Map is forumId → name; covers every forum from the cached list so
+		// each row can resolve its board chip without an extra request.
+		expect(result.forumsById).toEqual({ 1: "灌水区", 2: "技术区" });
 	});
 });
