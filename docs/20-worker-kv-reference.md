@@ -54,6 +54,7 @@ Code anchors are paths under `apps/worker/src/`.
 | Auth      | `refresh:<token>`, `login-ip:<ip>`, `login-lockout-ip:<ip>`, `reg-ip:<ip>`, `chk-usr-ip:<ip>` |
 | Email     | `email_verify:<userId>`, `email_verify_lock:<userId>`                                      |
 | Activity  | `activity_throttle:<userId>`                                                               |
+| IP lookup | `ip-lookup:<ip>` *(shipped, Phase G.6)*                                                    |
 | Generation| `forum:tree:gen`, `forum:summary:gen`, `thread:list:gen:<forumId>`, `thread:list:gen:all`, `thread:meta:gen:<threadId>`, `post:list:gen:<threadId>`, `digest:gen` |
 
 ---
@@ -607,6 +608,63 @@ endpoints above:
 `apps/admin/src/lib/navigation.ts` adds `/admin/statistics/kv` ("KV 缓存
 监控") under the 数据统计 group with the `Database` icon; the
 breadcrumb `ROUTE_LABELS.kv` resolves to "KV 缓存监控".
+
+---
+
+## 13A. IP lookup cache (Phase G.6)
+
+### 13A.1 `ip-lookup:<ip>` — shipped
+
+- **Builder:** literal — `ip-lookup:${ip}` in
+  `apps/worker/src/handlers/admin/ip-lookup.ts`.
+- **Payload (`IpLookupCachedPayload`):**
+  - `ip: string` — the queried IP (echoed back).
+  - `normalized: { country, countryIso2, region, city, isp, asn, org }`,
+    each `string | null`. Read first from `raw.location.{country,
+    province, city, isp, iso2}`; falls back to upstream top-level keys.
+    The upstream sentinel `"0"` (unknown city / unknown ISP) is folded
+    to `null`. `asn` / `org` are kept as optional contract fields for
+    future provider extensions and stay `null` for the current echo
+    upstream which does not return them.
+  - `raw: Record<string, unknown>` — verbatim upstream JSON when its
+    serialized byte length is ≤ 8 KiB; otherwise replaced with `{}`.
+  - `rawTruncated: boolean` — `true` iff `raw` was dropped due to the
+    8 KiB byte cap. Truncation guards against pathological provider
+    payloads bloating KV.
+  - `fetchedAt: number` — unix seconds at write time.
+- **TTL:** 86 400 s (24 h) — `IP_LOOKUP_TTL_SEC` in the handler.
+- **Read:** `GET /api/admin/ip-lookup?ip=<addr>` — manual `KV.get(...,
+  "json")` plus a shape guard that rejects malformed payloads and
+  falls through to upstream fetch.
+- **Write:** read-through with `ctx.waitUntil(env.KV.put(...))`. Uses
+  the registry allowlist via `ip-lookup:` prefix
+  (`apps/worker/src/lib/cache/kv-registry.ts → KV_PUT_PREFIX_ALLOWLIST`).
+- **Upstream:** `https://echo.nocoo.cloud/api/ip?ip=<ip>` with
+  `X-Api-Key: <env.IP_LOOKUP_API_KEY>` header and a 5 s
+  `AbortSignal.timeout`. The secret is set ONLY via
+  `wrangler secret put IP_LOOKUP_API_KEY` and never lives in tracked
+  `.dev.vars`/`.dev.vars.example` or in the admin BFF.
+- **Validation:** the handler rejects missing / malformed IPs as well
+  as private (10/8, 172.16/12, 192.168/16, fc00::/7) and reserved
+  ranges (0/8, 127/8, 169.254/16, 100.64/10, 192.0.2/24, 198.51.100/24,
+  203.0.113/24, 224/4, 240/4, ::, ::1, fe80::/10, 2001:db8::/32). All
+  validation paths return `INVALID_IP` with a discriminator
+  `details.reason: "missing" | "malformed" | "private" | "reserved" |
+  "upstream_invalid"`.
+- **Error envelope:**
+  - 400 `INVALID_IP` — local validation, or upstream 400 + body
+    containing `invalid_ip` (`details.reason = "upstream_invalid"`).
+  - 502 `IP_LOOKUP_PARSE_FAILED` — non-plain-object body or non-JSON.
+  - 502 `IP_LOOKUP_UPSTREAM_<status>` — other non-2xx upstream.
+  - 502 `IP_LOOKUP_TRANSPORT_ERROR` — non-timeout transport failure.
+  - 503 `IP_LOOKUP_NOT_CONFIGURED` — `IP_LOOKUP_API_KEY` unset.
+  - 504 `IP_LOOKUP_TIMEOUT` — `AbortSignal.timeout` fired.
+- **Invalidation:** none — TTL only. The 24 h window matches the
+  expected churn rate of geolocation data and avoids blowing up KV
+  when admins pivot through many user IPs.
+- **Sensitivity:** registered with `nameSensitivity: "mask"` and
+  `valueSensitivity: "mask-value"` so the KV admin UI never displays
+  raw IPs or geo blobs in clear text.
 
 ---
 
