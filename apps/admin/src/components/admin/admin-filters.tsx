@@ -4,7 +4,7 @@ import { Button } from "@ellie/ui";
 import { Input } from "@ellie/ui";
 import { Select } from "@ellie/ui";
 import { Search, X } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -142,40 +142,100 @@ export function normalizeNumRangeBound(raw: string): string | null {
 // ---------------------------------------------------------------------------
 
 export function AdminFilters({ filters, values, onFilterChange, onClearAll }: AdminFiltersProps) {
-	const [searchInput, setSearchInput] = useState(values.search ?? "");
+	// H.2.1 — search inputs are per-filter-key, not a single shared slot.
+	// The previous implementation kept one `searchInput` state and hard-coded
+	// `onFilterChange("search", …)` in both submit and clear, so any page
+	// that defined more than one `type: "search"` filter would have both
+	// boxes share a single buffer AND every submit overwrite `values.search`
+	// regardless of which box was used — making the "secondary" search
+	// box completely non-functional.
+	//
+	// Local input state holds the pending (un-submitted) text per filter
+	// key. It mirrors `values[key]` on mount and stays in sync when the
+	// parent clears the filter (e.g. "清除筛选" → values=empty); local
+	// keystrokes are NOT pushed up until the user presses Enter or clicks
+	// the inline `<X>` clear button. This preserves the existing "search
+	// triggers on submit, not per-keystroke" UX.
+	const [searchInputs, setSearchInputs] = useState<Record<string, string>>(() => {
+		const initial: Record<string, string> = {};
+		for (const f of filters) if (f.type === "search") initial[f.key] = values[f.key] ?? "";
+		return initial;
+	});
+
+	// Sync local input state with parent `values` whenever the parent
+	// resets a key (e.g. clear-all wipes `values[key]` to "") so the
+	// input visually clears too. This intentionally tracks the parent in
+	// one direction: parent → local. Local edits still wait for Enter
+	// to propagate the other way.
+	useEffect(() => {
+		setSearchInputs((prev) => {
+			const next: Record<string, string> = { ...prev };
+			let changed = false;
+			for (const f of filters) {
+				if (f.type !== "search") continue;
+				const parentVal = values[f.key] ?? "";
+				// If parent cleared the key (parentVal === "") but the local
+				// buffer still holds text, snap local to the parent so the
+				// input shows empty. We also seed any newly-introduced
+				// search keys (e.g. filter list grew at runtime).
+				if (!(f.key in next)) {
+					next[f.key] = parentVal;
+					changed = true;
+				} else if (parentVal === "" && next[f.key] !== "") {
+					next[f.key] = "";
+					changed = true;
+				}
+			}
+			return changed ? next : prev;
+		});
+	}, [filters, values]);
 
 	const hasActiveFilters = Object.values(values).some((v) => v !== "");
 
+	const handleSearchInputChange = useCallback((key: string, value: string) => {
+		setSearchInputs((prev) => ({ ...prev, [key]: value }));
+	}, []);
+
 	const handleSearchSubmit = useCallback(
-		(e: React.FormEvent) => {
+		(key: string, e: React.FormEvent) => {
 			e.preventDefault();
-			onFilterChange("search", searchInput);
+			onFilterChange(key, searchInputs[key] ?? "");
 		},
-		[searchInput, onFilterChange],
+		[searchInputs, onFilterChange],
 	);
 
-	const handleSearchClear = useCallback(() => {
-		setSearchInput("");
-		onFilterChange("search", "");
-	}, [onFilterChange]);
+	const handleSearchClear = useCallback(
+		(key: string) => {
+			setSearchInputs((prev) => ({ ...prev, [key]: "" }));
+			onFilterChange(key, "");
+		},
+		[onFilterChange],
+	);
 
 	return (
 		<div className="flex flex-wrap items-center gap-2">
 			{filters.map((filter) => {
 				if (filter.type === "search") {
+					const inputVal = searchInputs[filter.key] ?? "";
 					return (
-						<form key={filter.key} onSubmit={handleSearchSubmit} className="relative">
+						<form
+							key={filter.key}
+							onSubmit={(e) => handleSearchSubmit(filter.key, e)}
+							className="relative"
+						>
 							<Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 							<Input
 								placeholder={filter.label}
-								value={searchInput}
-								onChange={(e) => setSearchInput(e.target.value)}
+								value={inputVal}
+								onChange={(e) => handleSearchInputChange(filter.key, e.target.value)}
+								aria-label={filter.label}
 								className="w-[200px] pl-8 pr-8"
 							/>
-							{searchInput && (
+							{inputVal && (
 								<button
 									type="button"
-									onClick={handleSearchClear}
+									onClick={() => handleSearchClear(filter.key)}
+									aria-label={`清除${filter.label}`}
 									className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
 								>
 									<X className="h-3.5 w-3.5" />
