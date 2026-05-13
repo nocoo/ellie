@@ -4,14 +4,11 @@ import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { PostEditDialog } from "@/components/admin/post-edit-dialog";
 import { PostFloor } from "@/components/admin/post-floor";
+import { ThreadDetailHeader } from "@/components/admin/thread-detail-header";
 import { ThreadEditDialog } from "@/components/admin/thread-edit-dialog";
 import { useBreadcrumbOverride } from "@/components/layout/breadcrumb-context";
 import { extractErrorMessage } from "@/lib/admin-error";
-import {
-	threadClosedVariant,
-	threadDigestVariant,
-	threadStickyVariant,
-} from "@/viewmodels/admin/badges";
+import { type Forum, fetchForums } from "@/viewmodels/admin/forums";
 import type { PostUpdate } from "@/viewmodels/admin/posts";
 import { deletePost, updatePost } from "@/viewmodels/admin/posts";
 import {
@@ -19,18 +16,9 @@ import {
 	type ThreadDetailData,
 	loadThreadDetail,
 } from "@/viewmodels/admin/thread-detail";
-import {
-	type ThreadUpdate,
-	deleteThread,
-	digestLabel,
-	stickyLabel,
-	updateThread,
-} from "@/viewmodels/admin/threads";
-import { formatNumber } from "@ellie/shared";
-import { Badge } from "@ellie/ui";
+import { type ThreadUpdate, deleteThread, updateThread } from "@/viewmodels/admin/threads";
 import { Button } from "@ellie/ui";
-import { ArrowLeft, Loader2, Pencil, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -46,6 +34,11 @@ export default function ThreadDetailPage() {
 	const [data, setData] = useState<ThreadDetailData | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+
+	// Phase H.3 — flat forum list, fetched once for the header breadcrumb.
+	// We don't block the page on it; the breadcrumb falls back to `#<id>`
+	// while the fetch is in flight and on failure.
+	const [forums, setForums] = useState<Forum[]>([]);
 
 	// Dialog states
 	const [editThread, setEditThread] = useState(false);
@@ -92,6 +85,23 @@ export default function ThreadDetailPage() {
 	useEffect(() => {
 		fetchData(1);
 	}, [fetchData]);
+
+	// Phase H.3 — forum list is independent of the thread fetch; silently
+	// fall back to an empty list if the call fails (header will show
+	// `#<id>` for the current forum, no crash).
+	useEffect(() => {
+		let cancelled = false;
+		fetchForums()
+			.then((res) => {
+				if (!cancelled) setForums(res.data ?? []);
+			})
+			.catch(() => {
+				if (!cancelled) setForums([]);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
 
 	const handlePageChange = useCallback((page: number) => fetchData(page), [fetchData]);
 
@@ -224,63 +234,14 @@ export default function ThreadDetailPage() {
 				返回主题列表
 			</Button>
 
-			{/* Thread header */}
-			<div className="rounded-xl bg-secondary p-1 overflow-x-auto p-4 md:p-6">
-				<div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-					<div className="space-y-2 min-w-0">
-						<h1 className="text-xl md:text-2xl font-semibold text-foreground break-words">
-							{thread.subject}
-						</h1>
-						<div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-							<span>
-								作者:{" "}
-								{thread.authorId > 0 ? (
-									<Link
-										href={`/admin/users/${thread.authorId}`}
-										className="text-primary hover:underline"
-									>
-										{thread.authorName}
-									</Link>
-								) : (
-									thread.authorName
-								)}
-							</span>
-							<span>·</span>
-							<span>{new Date(thread.createdAt * 1000).toLocaleString()}</span>
-							<span>·</span>
-							<span>{formatNumber(thread.replies)} 回复</span>
-							<span>·</span>
-							<span>{formatNumber(thread.views)} 浏览</span>
-						</div>
-						<div className="flex flex-wrap gap-1.5">
-							{thread.sticky > 0 && (
-								<Badge variant={threadStickyVariant(thread.sticky)}>
-									{stickyLabel(thread.sticky)}
-								</Badge>
-							)}
-							{thread.closed > 0 && (
-								<Badge variant={threadClosedVariant(thread.closed)}>已锁定</Badge>
-							)}
-							{thread.digest > 0 && (
-								<Badge variant={threadDigestVariant(thread.digest)}>
-									{digestLabel(thread.digest)}
-								</Badge>
-							)}
-						</div>
-					</div>
-
-					<div className="flex gap-2 shrink-0">
-						<Button variant="outline" size="sm" onClick={() => setEditThread(true)}>
-							<Pencil className="mr-2 h-4 w-4" />
-							编辑
-						</Button>
-						<Button variant="destructive" size="sm" onClick={handleDeleteThread}>
-							<Trash2 className="mr-2 h-4 w-4" />
-							删除
-						</Button>
-					</div>
-				</div>
-			</div>
+			{/* Thread header — H.3: forum breadcrumb + meta chips + highlight
+			    badge live in <ThreadDetailHeader>. */}
+			<ThreadDetailHeader
+				thread={thread}
+				forums={forums}
+				onEdit={() => setEditThread(true)}
+				onDelete={handleDeleteThread}
+			/>
 
 			{/* Posts list */}
 			<div className="space-y-3">

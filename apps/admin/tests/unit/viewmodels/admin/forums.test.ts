@@ -1,5 +1,6 @@
 import {
 	type Forum,
+	buildForumBreadcrumb,
 	buildForumTree,
 	flattenForumTree,
 	statusLabel,
@@ -107,6 +108,54 @@ describe("forums", () => {
 			const tree = buildForumTree(forums);
 			expect(tree[0].children[0].id).toBe(3);
 			expect(tree[0].children[1].id).toBe(2);
+		});
+	});
+
+	// Phase H.3 — admin thread detail page renders a forum breadcrumb by
+	// walking the `parentId` chain. The viewmodel owns that chain build so
+	// the page stays declarative and the fallback behaviour is testable
+	// without rendering React.
+	describe("buildForumBreadcrumb", () => {
+		const mk = (id: number, parentId: number, name: string) => ({ id, parentId, name });
+
+		it("returns the full chain root-first when every parent resolves", () => {
+			const forums = [mk(1, 0, "技术区"), mk(2, 1, "前端"), mk(3, 2, "React")];
+			expect(buildForumBreadcrumb(forums, 3)).toEqual([
+				{ id: 1, name: "技术区" },
+				{ id: 2, name: "前端" },
+				{ id: 3, name: "React" },
+			]);
+		});
+
+		it("returns a single-item chain for a root forum", () => {
+			const forums = [mk(1, 0, "公告")];
+			expect(buildForumBreadcrumb(forums, 1)).toEqual([{ id: 1, name: "公告" }]);
+		});
+
+		it('falls back to [{id, name: "#<id>"}] when the forumId is missing', () => {
+			expect(buildForumBreadcrumb([], 7)).toEqual([{ id: 7, name: "#7" }]);
+			const forums = [mk(1, 0, "技术区")];
+			expect(buildForumBreadcrumb(forums, 99)).toEqual([{ id: 99, name: "#99" }]);
+		});
+
+		it("returns the resolved prefix when the parent chain breaks mid-walk", () => {
+			// forum 3's parent (id=2) is missing — chain stops at the orphan.
+			const forums = [mk(1, 0, "技术区"), mk(3, 2, "React")];
+			expect(buildForumBreadcrumb(forums, 3)).toEqual([{ id: 3, name: "React" }]);
+		});
+
+		it("is cycle-safe — does not hang when parentId loops back", () => {
+			// 1 → 2 → 1 (malformed data). Loop is bounded by forums.length and
+			// guarded by `seen`, so the chain terminates rather than spinning.
+			const forums = [
+				{ id: 1, parentId: 2, name: "A" },
+				{ id: 2, parentId: 1, name: "B" },
+			];
+			const chain = buildForumBreadcrumb(forums, 1);
+			// We don't pin the exact length — only that the call returns and
+			// includes the starting node.
+			expect(chain[chain.length - 1]).toEqual({ id: 1, name: "A" });
+			expect(chain.length).toBeLessThanOrEqual(forums.length + 1);
 		});
 	});
 
