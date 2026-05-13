@@ -12,7 +12,7 @@ export default defineConfig({
 		name: "admin",
 		root: __dirname,
 		pool: "threads",
-		include: ["tests/**/*.test.ts"],
+		include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
 		environment: "node",
 		coverage: {
 			provider: "v8",
