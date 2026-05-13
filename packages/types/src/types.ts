@@ -405,6 +405,42 @@ export interface Post {
 	position: number;
 }
 
+/**
+ * Subset of `Thread` fields needed to render a post-history row alongside its
+ * parent thread on the user profile page.
+ *
+ * The user profile "回复" tab joins `posts` with `threads` (the SQL already
+ * inner-joins for visibility); this carries the joined columns up to the
+ * frontend so it can show the same forum-list-style row (icon → title →
+ * forum → replies/views → time) without a second `/threads/:id` lookup.
+ */
+export interface PostThreadSummary {
+	id: number;
+	forumId: number;
+	subject: string;
+	replies: number;
+	views: number;
+	createdAt: number;
+	lastPostAt: number;
+	closed: number;
+	sticky: StickyLevel;
+	digest: number;
+	special: number;
+	highlight: number;
+	typeName: string;
+}
+
+/**
+ * Composite item for the user profile "回复" tab.
+ *
+ * `post` is the user's reply event (used for time + cursor); `thread` is the
+ * parent thread (used for the forum-list-style title/forum/stats row).
+ */
+export interface UserPostHistoryItem {
+	post: Post;
+	thread: PostThreadSummary;
+}
+
 /** Maps to Doc02 attachments table — 78K rows */
 export interface Attachment {
 	id: number;
