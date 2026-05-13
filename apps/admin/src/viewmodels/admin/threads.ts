@@ -4,20 +4,48 @@ import { type PaginatedResponse, apiClient } from "@/lib/api-client";
 // Types
 // ---------------------------------------------------------------------------
 
+// Mirror of the worker `toThread` mapper output
+// (`apps/worker/src/lib/mappers.ts`). The worker admin list/detail endpoints
+// return `columns: "*"` and pass each row through `toThread`, so dropping
+// fields here only loses information in the UI — the bytes are already on
+// the wire. The fields below were previously absent from the admin viewmodel
+// and re-added in Phase H.1 so list / detail pages can render parity with
+// the user-facing forum (forum link, last poster, type chip, etc.).
 export interface Thread {
 	id: number;
 	subject: string;
 	forumId: number;
 	authorId: number;
 	authorName: string;
+	/** Avatar URL — populated by worker from the user KV cache; "" if unknown. */
+	authorAvatar: string;
+	/** R2 key for the avatar; "" if unknown. Mirrors `authorAvatar` semantics. */
+	authorAvatarPath: string;
 	replies: number;
 	views: number;
 	sticky: number;
 	closed: number;
 	digest: number;
 	highlight: number;
+	/** Last reply timestamp (unix seconds). 0 when the thread has no replies. */
 	lastPostAt: number;
+	/** Username of the most recent poster; "" when no reply yet. */
+	lastPoster: string;
+	/** User id of the most recent poster; 0 when no reply yet. */
+	lastPosterId: number;
+	/** Avatar URL of the most recent poster; "" if unknown. */
+	lastPosterAvatar: string;
+	/** R2 key for the last-poster avatar; "" if unknown. */
+	lastPosterAvatarPath: string;
 	createdAt: number;
+	/** Thread type chip (e.g. "公告", "投票"); "" when unset. */
+	typeName: string;
+	/** Forum-specific special flag (1=announcement, 2=poll, …); 0 default. */
+	special: number;
+	/** Editorial recommendations counter. */
+	recommends: number;
+	/** True when this thread is the author's first thread in any forum. */
+	isAuthorFirstThread: boolean;
 }
 
 export interface ThreadFilters {
