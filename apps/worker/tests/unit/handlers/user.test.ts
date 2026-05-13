@@ -369,20 +369,37 @@ describe("user handlers", () => {
 	});
 
 	describe("listPosts", () => {
-		it("should return posts for a valid user", async () => {
-			const rows = [
-				{
-					id: 200,
-					thread_id: 10,
-					forum_id: 1,
-					author_id: 123,
-					author_name: "testuser",
-					content: "<p>Hello</p>",
-					created_at: 1711540800,
-					is_first: 0,
-					position: 2,
-				},
-			];
+		/** Build a joined posts/threads row with all `thread_*` aliased columns. */
+		const makePostJoinRow = (overrides?: Record<string, unknown>) => ({
+			// post columns
+			id: 200,
+			thread_id: 10,
+			forum_id: 1,
+			author_id: 123,
+			author_name: "testuser",
+			content: "<p>Hello</p>",
+			created_at: 1711540800,
+			is_first: 0,
+			position: 2,
+			// thread join columns (aliased)
+			thread_id_for_link: 10,
+			thread_forum_id: 1,
+			thread_subject: "原帖标题",
+			thread_replies: 5,
+			thread_views: 42,
+			thread_created_at: 1711000000,
+			thread_last_post_at: 1711540800,
+			thread_closed: 0,
+			thread_sticky: 0,
+			thread_digest: 0,
+			thread_special: 0,
+			thread_highlight: 0,
+			thread_type_name: "",
+			...overrides,
+		});
+
+		it("should return UserPostHistoryItem with post+thread for a valid user", async () => {
+			const rows = [makePostJoinRow()];
 			const allSpy = vi.fn(() => Promise.resolve({ results: rows }));
 			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
 			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
@@ -397,9 +414,36 @@ describe("user handlers", () => {
 			expect(response.status).toBe(200);
 			const data = await response.json();
 			expect(data.data).toHaveLength(1);
-			expect(data.data[0].id).toBe(200);
-			expect(data.data[0].threadId).toBe(10);
-			expect(data.data[0].content).toBe("<p>Hello</p>");
+			// New shape: { post, thread }
+			expect(data.data[0].post.id).toBe(200);
+			expect(data.data[0].post.threadId).toBe(10);
+			expect(data.data[0].post.content).toBe("<p>Hello</p>");
+			expect(data.data[0].thread.id).toBe(10);
+			expect(data.data[0].thread.subject).toBe("原帖标题");
+			expect(data.data[0].thread.replies).toBe(5);
+			expect(data.data[0].thread.views).toBe(42);
+			expect(data.data[0].thread.forumId).toBe(1);
+		});
+
+		it("should select thread columns with explicit thread_* aliases (no field collisions)", async () => {
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			await listPosts(new Request("https://example.com/api/v1/users/123/posts"), env);
+
+			const sql = prepareSpy.mock.calls[0][0] as string;
+			// Must NOT use SELECT p.*, t.* (would collide on id/forum_id/created_at)
+			expect(sql).not.toContain("p.*");
+			expect(sql).not.toContain("t.*");
+			// Must alias key thread columns to avoid clashing with post columns
+			expect(sql).toContain("t.id AS thread_id_for_link");
+			expect(sql).toContain("t.subject AS thread_subject");
+			expect(sql).toContain("t.replies AS thread_replies");
+			expect(sql).toContain("t.views AS thread_views");
+			expect(sql).toContain("t.created_at AS thread_created_at");
 		});
 
 		it("should return empty array when user has no posts", async () => {
@@ -613,6 +657,20 @@ describe("user handlers", () => {
 					created_at: 1711540800,
 					is_first: 0,
 					position: 2,
+					// joined thread columns
+					thread_id_for_link: 10,
+					thread_forum_id: 1,
+					thread_subject: "原帖",
+					thread_replies: 0,
+					thread_views: 0,
+					thread_created_at: 1711000000,
+					thread_last_post_at: 1711540800,
+					thread_closed: 0,
+					thread_sticky: 0,
+					thread_digest: 0,
+					thread_special: 0,
+					thread_highlight: 0,
+					thread_type_name: "",
 				},
 			];
 			const allSpy = vi.fn(() => Promise.resolve({ results: rows }));
@@ -629,6 +687,50 @@ describe("user handlers", () => {
 			expect(response.status).toBe(200);
 			const data = await response.json();
 			expect(data.meta.nextCursor).not.toBeNull();
+		});
+
+		it("should anchor nextCursor on post.createdAt+post.id (not thread.*)", async () => {
+			// Post and thread deliberately have different created_at/id so we
+			// can prove the cursor follows the post columns.
+			const rows = [
+				{
+					id: 200,
+					thread_id: 10,
+					forum_id: 1,
+					author_id: 123,
+					author_name: "testuser",
+					content: "<p>Hello</p>",
+					created_at: 1711540800, // post created_at
+					is_first: 0,
+					position: 2,
+					thread_id_for_link: 10,
+					thread_forum_id: 1,
+					thread_subject: "原帖",
+					thread_replies: 0,
+					thread_views: 0,
+					thread_created_at: 1700000000, // older — must NOT leak into cursor
+					thread_last_post_at: 1711540800,
+					thread_closed: 0,
+					thread_sticky: 0,
+					thread_digest: 0,
+					thread_special: 0,
+					thread_highlight: 0,
+					thread_type_name: "",
+				},
+			];
+			const allSpy = vi.fn(() => Promise.resolve({ results: rows }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await listPosts(
+				new Request("https://example.com/api/v1/users/123/posts?limit=1"),
+				env,
+			);
+			const data = await response.json();
+			const decoded = JSON.parse(atob(data.meta.nextCursor as string));
+			expect(decoded).toEqual({ createdAt: 1711540800, id: 200 });
 		});
 	});
 

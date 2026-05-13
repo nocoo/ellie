@@ -8,10 +8,13 @@ import type {
 	Forum,
 	IpBan,
 	Post,
+	PostThreadSummary,
 	PublicUser,
+	StickyLevel,
 	Thread,
 	User,
 	UserCheckinSummary,
+	UserPostHistoryItem,
 } from "@ellie/types";
 import { getCheckinLevel } from "@ellie/types";
 
@@ -309,6 +312,52 @@ export function toPost(row: Record<string, unknown>): Post {
 		isFirst: r.is_first === 1,
 		position: r.position,
 	};
+}
+
+/**
+ * Maps a D1 row that joins `posts` with `threads` (using explicit `thread_*`
+ * aliases) to a `UserPostHistoryItem`.
+ *
+ * The SQL is expected to project `p.*` for post columns and the aliased
+ * `t.id AS thread_id_for_link`, `t.subject AS thread_subject`, etc., so the
+ * raw `p.*` fields are not overwritten by `t.*` of the same name.
+ */
+export function toUserPostHistoryItem(row: Record<string, unknown>): UserPostHistoryItem {
+	const r = row as unknown as D1PostRow & D1ThreadJoinRow;
+	const post = toPost(row);
+	const thread: PostThreadSummary = {
+		id: r.thread_id_for_link,
+		forumId: r.thread_forum_id,
+		subject: r.thread_subject,
+		replies: r.thread_replies,
+		views: r.thread_views,
+		createdAt: r.thread_created_at,
+		lastPostAt: r.thread_last_post_at,
+		closed: r.thread_closed,
+		sticky: r.thread_sticky as StickyLevel,
+		digest: r.thread_digest,
+		special: r.thread_special,
+		highlight: r.thread_highlight,
+		typeName: r.thread_type_name ?? "",
+	};
+	return { post, thread };
+}
+
+/** Row shape for the joined thread columns used by `toUserPostHistoryItem`. */
+interface D1ThreadJoinRow {
+	thread_id_for_link: number;
+	thread_forum_id: number;
+	thread_subject: string;
+	thread_replies: number;
+	thread_views: number;
+	thread_created_at: number;
+	thread_last_post_at: number;
+	thread_closed: number;
+	thread_sticky: number;
+	thread_digest: number;
+	thread_special: number;
+	thread_highlight: number;
+	thread_type_name: string | null;
 }
 
 /** D1 row shape for attachments table */

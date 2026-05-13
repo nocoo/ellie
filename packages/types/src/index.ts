@@ -14,6 +14,8 @@ export type {
 	ForumVisibility,
 	Thread,
 	Post,
+	PostThreadSummary,
+	UserPostHistoryItem,
 	PostComment,
 	Attachment,
 	IpBan,

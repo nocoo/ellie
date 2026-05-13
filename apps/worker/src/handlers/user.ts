@@ -1,6 +1,6 @@
 import { decodeGenericCursor } from "@ellie/types";
 import type { Env } from "../lib/env";
-import { toPost, toPublicUser, toThread } from "../lib/mappers";
+import { toPublicUser, toThread, toUserPostHistoryItem } from "../lib/mappers";
 import { buildNextCursor, clampLimit } from "../lib/pagination";
 import { parseIdFromPath, parsePathSegment } from "../lib/parseId";
 import { jsonResponse } from "../lib/response";
@@ -63,12 +63,18 @@ function parseUserIdFromParent(request: Request): number {
  * Centralising it removes ~120 lines of near-identical code and makes
  * adding a new history endpoint a one-liner.
  */
-async function runUserHistoryQuery<T extends { createdAt: number; id: number }>(
+async function runUserHistoryQuery<T>(
 	request: Request,
 	env: Env,
 	opts: {
 		buildQuery: (forumFilter: string, withCursor: boolean) => string;
 		mapper: (row: Record<string, unknown>) => T;
+		/**
+		 * Extract the keyset cursor from a mapped item. Default: read top-level
+		 * `createdAt` + `id`. Composite items (e.g. `{ post, thread }`) must
+		 * override this so the cursor stays anchored on the leading table.
+		 */
+		cursorOf?: (item: T) => UserHistoryCursor;
 	},
 ): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
@@ -104,10 +110,13 @@ async function runUserHistoryQuery<T extends { createdAt: number; id: number }>(
 		items[i] = opts.mapper(result.results[i] as Record<string, unknown>);
 	}
 
-	const nextCursor = buildNextCursor<T, UserHistoryCursor>(items, clampedLimit, (last) => ({
-		createdAt: last.createdAt,
-		id: last.id,
-	}));
+	const cursorOf =
+		opts.cursorOf ??
+		((last: T) => {
+			const r = last as unknown as UserHistoryCursor;
+			return { createdAt: r.createdAt, id: r.id };
+		});
+	const nextCursor = buildNextCursor<T, UserHistoryCursor>(items, clampedLimit, cursorOf);
 
 	return jsonResponse(items, origin, { nextCursor });
 }
@@ -259,23 +268,39 @@ export async function listThreads(request: Request, env: Env): Promise<Response>
 	});
 }
 
-/** GET /api/v1/users/:id/posts - List user's posts with keyset pagination */
+/**
+ * GET /api/v1/users/:id/posts - List user's posts with keyset pagination.
+ *
+ * Each item is a `UserPostHistoryItem` ({ post, thread }) so the profile page
+ * can render a forum-list-style row (title/forum/replies/views/time) without
+ * an extra per-row thread lookup. The thread columns are projected with
+ * explicit `thread_*` aliases so they cannot collide with `p.*`. The cursor
+ * stays anchored on `p.created_at, p.id` — joined thread fields must never
+ * influence pagination order.
+ */
 export async function listPosts(request: Request, env: Env): Promise<Response> {
+	const postColumns =
+		"p.id, p.thread_id, p.forum_id, p.author_id, p.author_name, p.content, p.created_at, p.is_first, p.position";
+	const threadColumns =
+		"t.id AS thread_id_for_link, t.forum_id AS thread_forum_id, t.subject AS thread_subject, t.replies AS thread_replies, t.views AS thread_views, t.created_at AS thread_created_at, t.last_post_at AS thread_last_post_at, t.closed AS thread_closed, t.sticky AS thread_sticky, t.digest AS thread_digest, t.special AS thread_special, t.highlight AS thread_highlight, t.type_name AS thread_type_name";
+	const selectColumns = `${postColumns}, ${threadColumns}`;
 	return runUserHistoryQuery(request, env, {
 		buildQuery: (forumFilter, withCursor) =>
 			withCursor
-				? `SELECT p.* FROM posts p
+				? `SELECT ${selectColumns} FROM posts p
 				   INNER JOIN threads t ON p.thread_id = t.id
 				   INNER JOIN forums f ON t.forum_id = f.id
 				   WHERE p.author_id = ? AND ${postVisible("p")} AND ${threadVisible("t")} AND ${forumFilter}
 				   AND (p.created_at < ? OR (p.created_at = ? AND p.id < ?))
 				   ORDER BY p.created_at DESC, p.id DESC LIMIT ?`
-				: `SELECT p.* FROM posts p
+				: `SELECT ${selectColumns} FROM posts p
 				   INNER JOIN threads t ON p.thread_id = t.id
 				   INNER JOIN forums f ON t.forum_id = f.id
 				   WHERE p.author_id = ? AND ${postVisible("p")} AND ${threadVisible("t")} AND ${forumFilter}
 				   ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
-		mapper: (row) => toPost(row),
+		mapper: (row) => toUserPostHistoryItem(row),
+		// Cursor must follow the leading table (posts), not the joined thread.
+		cursorOf: (item) => ({ createdAt: item.post.createdAt, id: item.post.id }),
 	});
 }
 
