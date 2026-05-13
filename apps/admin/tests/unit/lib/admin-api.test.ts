@@ -204,4 +204,61 @@ describe("adminApiAs", () => {
 		// Name still comes from actor since caller did not override.
 		expect(headers["X-Admin-Actor-Name"]).toBe("Alice");
 	});
+
+	// ─── G.2: X-Real-IP propagation when bound to a request ───────────
+
+	function reqWithHeaders(headers: Record<string, string>): Request {
+		return new Request("https://admin.example.com/api/admin/x", { headers });
+	}
+
+	it("forwards X-Real-IP from CF-Connecting-IP on mutations", async () => {
+		const req = reqWithHeaders({ "CF-Connecting-IP": "203.0.113.7" });
+		const api = adminApiAs(actor, req);
+		await api.raw("POST", "/api/admin/users/1/ban");
+		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+		const headers = opts.headers as Record<string, string>;
+		expect(headers["X-Real-IP"]).toBe("203.0.113.7");
+	});
+
+	it("forwards X-Real-IP on GET (read-only path) too", async () => {
+		const req = reqWithHeaders({ "CF-Connecting-IP": "203.0.113.8" });
+		const api = adminApiAs(actor, req);
+		await api.raw("GET", "/api/admin/users/1");
+		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+		const headers = opts.headers as Record<string, string>;
+		expect(headers["X-Real-IP"]).toBe("203.0.113.8");
+		// GET still must not carry actor identity headers.
+		expect(headers["X-Admin-Actor-Email"]).toBeUndefined();
+	});
+
+	it("falls back to X-Forwarded-For first segment when CF header missing", async () => {
+		const req = reqWithHeaders({ "X-Forwarded-For": "198.51.100.5, 10.0.0.1" });
+		const api = adminApiAs(actor, req);
+		await api.raw("PATCH", "/api/admin/users/1");
+		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+		expect((opts.headers as Record<string, string>)["X-Real-IP"]).toBe("198.51.100.5");
+	});
+
+	it("omits X-Real-IP when no IP header is present", async () => {
+		const req = reqWithHeaders({});
+		const api = adminApiAs(actor, req);
+		await api.raw("POST", "/api/admin/x");
+		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+		expect((opts.headers as Record<string, string>)["X-Real-IP"]).toBeUndefined();
+	});
+
+	it("omits X-Real-IP when no request is bound", async () => {
+		const api = adminApiAs(actor);
+		await api.raw("POST", "/api/admin/x");
+		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+		expect((opts.headers as Record<string, string>)["X-Real-IP"]).toBeUndefined();
+	});
+
+	it("respects caller override of X-Real-IP", async () => {
+		const req = reqWithHeaders({ "CF-Connecting-IP": "203.0.113.7" });
+		const api = adminApiAs(actor, req);
+		await api.raw("POST", "/api/admin/x", null, { "X-Real-IP": "127.0.0.1" });
+		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+		expect((opts.headers as Record<string, string>)["X-Real-IP"]).toBe("127.0.0.1");
+	});
 });

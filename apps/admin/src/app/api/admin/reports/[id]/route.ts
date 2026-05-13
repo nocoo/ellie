@@ -1,8 +1,8 @@
-import { adminApi, adminApiAs, createProxyHandler, passthrough } from "@/lib/admin-proxy";
+import { adminApiAs, createProxyHandler, passthrough } from "@/lib/admin-proxy";
 
-export const GET = createProxyHandler(async (_request, _admin, context) => {
+export const GET = createProxyHandler(async (request, admin, context) => {
 	const { id } = await context.params;
-	const res = await adminApi.raw("GET", `/api/admin/reports/${id}`);
+	const res = await adminApiAs(admin, request).raw("GET", `/api/admin/reports/${id}`);
 	return passthrough(res);
 });
 
@@ -18,7 +18,7 @@ export const PATCH = createProxyHandler(async (request, admin, context) => {
 		handlerName: admin.name || admin.email,
 	};
 
-	const api = adminApiAs(admin);
+	const api = adminApiAs(admin, request);
 	const res = await api.raw("PATCH", `/api/admin/reports/${id}`, enrichedBody);
 	return passthrough(res);
 });

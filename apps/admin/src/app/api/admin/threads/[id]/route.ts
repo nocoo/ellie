@@ -1,22 +1,22 @@
-import { adminApi, adminApiAs, createProxyHandler, passthrough } from "@/lib/admin-proxy";
+import { adminApiAs, createProxyHandler, passthrough } from "@/lib/admin-proxy";
 
-export const GET = createProxyHandler(async (_request, _admin, context) => {
+export const GET = createProxyHandler(async (request, admin, context) => {
 	const { id } = await context.params;
-	const res = await adminApi.raw("GET", `/api/admin/threads/${id}`);
+	const res = await adminApiAs(admin, request).raw("GET", `/api/admin/threads/${id}`);
 	return passthrough(res);
 });
 
 export const PATCH = createProxyHandler(async (request, admin, context) => {
 	const { id } = await context.params;
 	const body = await request.json();
-	const api = adminApiAs(admin);
+	const api = adminApiAs(admin, request);
 	const res = await api.raw("PATCH", `/api/admin/threads/${id}`, body);
 	return passthrough(res);
 });
 
-export const DELETE = createProxyHandler(async (_request, admin, context) => {
+export const DELETE = createProxyHandler(async (request, admin, context) => {
 	const { id } = await context.params;
-	const api = adminApiAs(admin);
+	const api = adminApiAs(admin, request);
 	const res = await api.raw("DELETE", `/api/admin/threads/${id}`);
 	return passthrough(res);
 });
