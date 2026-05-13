@@ -97,7 +97,7 @@ export function JsonCodeBlock({
 	// `whitespace-pre` keeps JSON indentation intact — wrapping would break
 	// nested levels visually.
 	const baseClass = cn(
-		"mt-1 max-w-full overflow-auto rounded bg-muted p-3 font-mono text-xs leading-5",
+		"mt-1 max-w-full overflow-auto rounded bg-background p-3 font-mono text-xs leading-5",
 		"whitespace-pre",
 		maxHeightClassName ?? "max-h-[60vh]",
 		className,
