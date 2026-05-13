@@ -1,7 +1,10 @@
 import {
 	buildThreadSearchParams,
+	buildThreadsListQuery,
 	digestLabel,
+	emptyThreadsListFilters,
 	forumNameById,
+	parseThreadsListQuery,
 	stickyLabel,
 } from "@/viewmodels/admin/threads";
 import { describe, expect, it } from "vitest";
@@ -119,6 +122,85 @@ describe("threads", () => {
 
 		it('falls back to "#<id>" when the forum list is empty', () => {
 			expect(forumNameById([], 7)).toBe("#7");
+		});
+	});
+
+	// Phase H.3.1 — list page persists filter state to URL so breadcrumbs
+	// (and shareable links / back-forward) actually apply the filter on
+	// arrival. Two pure functions live in the viewmodel so the URL contract
+	// is testable without rendering React + Next router.
+	describe("parseThreadsListQuery", () => {
+		const sp = (entries: Record<string, string>) => ({
+			get: (key: string) => (key in entries ? entries[key] : null),
+		});
+
+		it("returns empty filters when no keys are present", () => {
+			expect(parseThreadsListQuery(sp({}))).toEqual(emptyThreadsListFilters());
+		});
+
+		it("reads forumId from the query (matches breadcrumb link target)", () => {
+			expect(parseThreadsListQuery(sp({ forumId: "5" })).forumId).toBe("5");
+		});
+
+		it("reads every known filter key", () => {
+			const f = parseThreadsListQuery(
+				sp({
+					search: "hello",
+					authorName: "alice",
+					forumId: "5",
+					sticky: "1",
+					digest: "2",
+					closed: "1",
+					highlighted: "0",
+				}),
+			);
+			expect(f).toEqual({
+				search: "hello",
+				authorName: "alice",
+				forumId: "5",
+				sticky: "1",
+				digest: "2",
+				closed: "1",
+				highlighted: "0",
+			});
+		});
+
+		it('treats empty string values as "not set" (drops back to "")', () => {
+			expect(parseThreadsListQuery(sp({ forumId: "" })).forumId).toBe("");
+		});
+
+		it("ignores unknown query keys", () => {
+			const f = parseThreadsListQuery(sp({ forumId: "5", evil: "drop tables" }));
+			expect(f.forumId).toBe("5");
+			expect((f as Record<string, unknown>).evil).toBeUndefined();
+		});
+	});
+
+	describe("buildThreadsListQuery", () => {
+		it("omits empty filters entirely", () => {
+			expect(buildThreadsListQuery(emptyThreadsListFilters())).toEqual({});
+		});
+
+		it("emits only the set filters", () => {
+			expect(
+				buildThreadsListQuery({
+					...emptyThreadsListFilters(),
+					forumId: "5",
+					authorName: "alice",
+				}),
+			).toEqual({ forumId: "5", authorName: "alice" });
+		});
+
+		it("round-trips with parseThreadsListQuery", () => {
+			const filters = {
+				...emptyThreadsListFilters(),
+				search: "hello",
+				forumId: "5",
+				highlighted: "1",
+			};
+			const flat = buildThreadsListQuery(filters);
+			const params = new URLSearchParams(flat);
+			expect(parseThreadsListQuery(params)).toEqual(filters);
 		});
 	});
 });

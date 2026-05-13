@@ -66,7 +66,11 @@ export function ThreadDetailHeader({ thread, forums, onEdit, onDelete }: ThreadD
 				<div className="space-y-2 min-w-0">
 					{/* Forum breadcrumb — root-first, current forum is the tail.
 					    Last segment is non-linked so it reads as the "you are
-					    here" anchor for the thread. */}
+					    here" anchor for the thread. Non-last segments link to
+					    the threads list filtered by that forum
+					    (`/admin/threads?forumId=<id>`) because admin doesn't
+					    have per-forum detail routes — H.3.1 reviewer feedback.
+					 */}
 					<nav aria-label="版块路径" className="flex flex-wrap items-center gap-1 text-xs">
 						{breadcrumb.map((node, idx) => {
 							const isLast = idx === breadcrumb.length - 1;
@@ -77,7 +81,7 @@ export function ThreadDetailHeader({ thread, forums, onEdit, onDelete }: ThreadD
 										<span className="text-muted-foreground">{node.name}</span>
 									) : (
 										<Link
-											href={`/admin/forums/${node.id}`}
+											href={`/admin/threads?forumId=${node.id}`}
 											className="text-primary hover:underline"
 										>
 											{node.name}

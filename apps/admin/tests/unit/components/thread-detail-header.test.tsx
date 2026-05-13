@@ -130,14 +130,22 @@ describe("ThreadDetailHeader — Phase H.3", () => {
 			expect(idxRoot).toBeGreaterThanOrEqual(0);
 			expect(idxMid).toBeGreaterThan(idxRoot);
 			expect(idxLast).toBeGreaterThan(idxMid);
-			// Non-last segments are links; last is plain.
+			// H.3.1: non-last segments link into the threads list filtered by
+			// that forum (admin doesn't have per-forum detail routes). Last
+			// segment is plain text — the "you are here" anchor.
 			expect(screen.getByRole("link", { name: "技术区" }).getAttribute("href")).toBe(
-				"/admin/forums/1",
+				"/admin/threads?forumId=1",
 			);
 			expect(screen.getByRole("link", { name: "前端" }).getAttribute("href")).toBe(
-				"/admin/forums/2",
+				"/admin/threads?forumId=2",
 			);
 			expect(screen.queryByRole("link", { name: "React" })).toBeNull();
+			// Defensive: there must be NO `/admin/forums/<id>` href in the
+			// breadcrumb anywhere — those routes don't exist (H.3 regression
+			// pin from reviewer).
+			for (const link of screen.getAllByRole("link")) {
+				expect(link.getAttribute("href")).not.toMatch(/^\/admin\/forums\/\d+/);
+			}
 		});
 
 		it('falls back to "#<id>" when the current forum is unknown', () => {
