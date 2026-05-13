@@ -39,6 +39,17 @@ export interface Env {
 	 * a single `code` string variable.
 	 */
 	DOVE_TEMPLATE_SLUG?: string;
+	/**
+	 * API key for the IP-lookup upstream at `https://echo.nocoo.cloud/api/ip`
+	 * (Phase G.6, see docs/20 §ip-lookup). Sent as `X-Api-Key` header.
+	 *
+	 * Set ONLY via `wrangler secret put IP_LOOKUP_API_KEY` — do NOT add to
+	 * tracked `.dev.vars` / `.dev.vars.example` (admin BFF must never touch
+	 * this secret). When unset, the admin ip-lookup handler returns 503
+	 * `IP_LOOKUP_NOT_CONFIGURED` so the UI can show a clean configuration
+	 * notice instead of leaking unauthenticated upstream calls.
+	 */
+	IP_LOOKUP_API_KEY?: string;
 }
 
 /** Check if KV user cache is enabled */

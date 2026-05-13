@@ -491,6 +491,14 @@ export default {
 				return await (await import("./handlers/admin/kv")).metrics(request, env, ctx);
 			}
 
+			// ── E2. IP Lookup (Admin, Phase G.6) ─────────────
+			// Read-through cache wrapping the echo.nocoo.cloud /api/ip
+			// upstream. Secret (IP_LOOKUP_API_KEY) lives only in worker
+			// env; admin BFF proxies the call but never sees the key.
+			if (path === "/api/admin/ip-lookup" && request.method === "GET") {
+				return await (await import("./handlers/admin/ip-lookup")).lookup(request, env, ctx);
+			}
+
 			// ── F. Attachment (Admin) #43-#46 ────────────────
 			if (path === "/api/admin/attachments/batch-delete" && request.method === "POST") {
 				return await (await import("./handlers/admin/attachment")).batchDelete(request, env);
