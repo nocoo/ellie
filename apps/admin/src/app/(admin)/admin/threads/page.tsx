@@ -35,9 +35,10 @@ import { formatDate, formatNumber } from "@ellie/shared";
 import { Badge } from "@ellie/ui";
 import { Button } from "@ellie/ui";
 import { Lock, Pencil, Trash2, Unlock } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Filter definitions
@@ -132,6 +133,26 @@ const BATCH_ACTIONS: BatchAction[] = [
 // ---------------------------------------------------------------------------
 
 export default function ThreadsPage() {
+	// Phase H.3.2 — `ThreadsPageInner` uses `useSearchParams()`, which in
+	// Next App Router REQUIRES a Suspense boundary in any ancestor. Without
+	// it, `next build` would fail with "useSearchParams() should be wrapped
+	// in a suspense boundary at /admin/threads". Wrapping here keeps the
+	// constraint local to this page rather than forcing every parent layout
+	// to opt-in.
+	return (
+		<Suspense
+			fallback={
+				<div className="flex items-center justify-center py-20">
+					<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+				</div>
+			}
+		>
+			<ThreadsPageInner />
+		</Suspense>
+	);
+}
+
+function ThreadsPageInner() {
 	// Phase H.3.1 — initial filter state is seeded from the URL query so
 	// inbound links (e.g. forum breadcrumb on the detail page →
 	// `/admin/threads?forumId=5`) apply the filter on first render. We
