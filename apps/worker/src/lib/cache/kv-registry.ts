@@ -222,6 +222,28 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		description:
 			"Live v1 user mini cache (lib/user-cache.ts). NOT the planned v2 family. Listed under prefix 'user:mini:' which also includes the planned v2 entries — UI filters them out.",
 	},
+	// ─── IP lookup cache (Phase G.6) ───────────────────────────────
+	{
+		family: "ip-lookup",
+		displayName: "IP lookup result (echo.nocoo.cloud)",
+		category: "cache",
+		status: "shipped",
+		listPrefix: "ip-lookup:",
+		pattern: "ip-lookup:<ip>",
+		ttl: 86_400,
+		// Suffix is the queried IP — masked in admin UI like other ip-keyed
+		// families (login-ip / reg-ip).
+		nameSensitivity: "mask",
+		// Value contains geo / ASN / raw upstream payload — not strictly
+		// secret but PII-adjacent. Flag as mask-value so the KV monitor
+		// scrubs shape rather than dumping raw to a non-handler page;
+		// the dedicated admin ip-lookup handler is the only intended
+		// reader and returns the cached payload directly.
+		valueSensitivity: "mask-value",
+		refresh: { kind: "delete-literal", requires: ["key"] },
+		description:
+			"Read-through cache of admin ip-lookup queries (handlers/admin/ip-lookup.ts). Suffix is the queried IP. Populated only via the admin handler — public callers never touch this prefix.",
+	},
 	// ─── Settings + public stats (literal keys) ────────────────────
 	{
 		family: "settings:all",
@@ -630,6 +652,7 @@ export const KV_PUT_PREFIX_ALLOWLIST: readonly string[] = [
 	"forum:meta:v2:",
 	"thread:list:v2:",
 	"user:mini:",
+	"ip-lookup:",
 	"settings:all",
 	"public-stats",
 	"stats:online_count",
