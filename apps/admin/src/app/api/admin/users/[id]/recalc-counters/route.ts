@@ -1,7 +1,8 @@
-import { adminApi, createProxyHandler, passthrough } from "@/lib/admin-proxy";
+import { adminApiAs, createProxyHandler, passthrough } from "@/lib/admin-proxy";
 
-export const POST = createProxyHandler(async (_request, _admin, context) => {
+export const POST = createProxyHandler(async (request, admin, context) => {
 	const { id } = await context.params;
-	const res = await adminApi.raw("POST", `/api/admin/users/${id}/recalc-counters`);
+	const api = adminApiAs(admin, request);
+	const res = await api.raw("POST", `/api/admin/users/${id}/recalc-counters`);
 	return passthrough(res);
 });

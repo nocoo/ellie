@@ -1,7 +1,10 @@
-import { adminApi, createProxyHandler, passthrough } from "@/lib/admin-proxy";
+import { adminApiAs, createProxyHandler, passthrough } from "@/lib/admin-proxy";
 
-export const GET = createProxyHandler(async (request) => {
+export const GET = createProxyHandler(async (request, admin) => {
 	const url = new URL(request.url);
-	const res = await adminApi.raw("GET", `/api/admin/threads?${url.searchParams.toString()}`);
+	const res = await adminApiAs(admin, request).raw(
+		"GET",
+		`/api/admin/threads?${url.searchParams.toString()}`,
+	);
 	return passthrough(res);
 });

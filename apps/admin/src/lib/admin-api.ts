@@ -206,21 +206,30 @@ export const adminApi = {
 };
 
 // ---------------------------------------------------------------------------
-// Actor-bound client — F1 audit logging infrastructure.
+// Actor-bound client — F1 audit logging + G.2 client-IP propagation.
 //
-// `adminApiAs(admin)` returns a thin wrapper that pre-binds the audit headers
-// (`X-Admin-Actor-Email` / `X-Admin-Actor-Name`) on every mutation call. GET
-// and HEAD requests deliberately skip the headers so read-only proxy calls
-// don't carry the operator identity (audit log only records mutations).
+// `adminApiAs(admin, request?)` returns a thin wrapper that pre-binds:
+//   * Audit headers `X-Admin-Actor-Email` / `X-Admin-Actor-Name` on every
+//     mutation call (POST/PUT/PATCH/DELETE). GET/HEAD intentionally skip the
+//     audit headers so read-only proxy calls don't carry operator identity
+//     into the admin audit log.
+//   * `X-Real-IP` on EVERY method (including GET) when `request` is provided.
+//     The Worker's trust ladder accepts `X-Real-IP` only when the request
+//     carries Key A or Key B (`isServerToWorkerRequest`); the admin BFF
+//     always uses Key B, so this is the channel by which Worker handlers see
+//     the operator's real IP for both reads (online-tracking, audit) and
+//     writes (admin_logs row IP).
 //
 // Use case (admin route handler):
-//   const api = adminApiAs(admin);
+//   const api = adminApiAs(admin, request);
 //   const res = await api.raw("POST", `/api/admin/users/${id}/purge`, body);
 //
 // The wrapper purposely re-uses `adminApi.raw` so the underlying auth/key
 // plumbing stays in one place. Each method merges caller-supplied
-// extraHeaders on top of the actor headers (caller wins on conflict).
+// extraHeaders on top of the actor / IP headers (caller wins on conflict).
 // ---------------------------------------------------------------------------
+
+import { extractClientIp } from "./client-ip";
 
 const MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -238,7 +247,8 @@ export interface AdminApiClient {
 	): Promise<Response>;
 }
 
-export function adminApiAs(actor: ActorIdentity): AdminApiClient {
+export function adminApiAs(actor: ActorIdentity, request?: Request): AdminApiClient {
+	const realIp = request ? extractClientIp(request) : "";
 	return {
 		async raw(
 			method: string,
@@ -257,6 +267,9 @@ export function adminApiAs(actor: ActorIdentity): AdminApiClient {
 				if (merged["X-Admin-Actor-Name"] === undefined) {
 					merged["X-Admin-Actor-Name"] = actor.name;
 				}
+			}
+			if (realIp && merged["X-Real-IP"] === undefined) {
+				merged["X-Real-IP"] = realIp;
 			}
 			return adminApi.raw(method, path, body, merged);
 		},

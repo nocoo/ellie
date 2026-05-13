@@ -4,11 +4,12 @@
 // an admin toggles a day for this user). The UI surfaces that warning
 // next to the control.
 
-import { adminApi, createProxyHandler, passthrough } from "@/lib/admin-proxy";
+import { adminApiAs, createProxyHandler, passthrough } from "@/lib/admin-proxy";
 
-export const PATCH = createProxyHandler(async (request, _admin, context) => {
+export const PATCH = createProxyHandler(async (request, admin, context) => {
 	const { id } = await context.params;
 	const body = await request.json();
-	const res = await adminApi.raw("PATCH", `/api/admin/users/${id}/checkins/streak`, body);
+	const api = adminApiAs(admin, request);
+	const res = await api.raw("PATCH", `/api/admin/users/${id}/checkins/streak`, body);
 	return passthrough(res);
 });

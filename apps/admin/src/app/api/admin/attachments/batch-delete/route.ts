@@ -1,7 +1,8 @@
-import { adminApi, createProxyHandler, passthrough } from "@/lib/admin-proxy";
+import { adminApiAs, createProxyHandler, passthrough } from "@/lib/admin-proxy";
 
-export const POST = createProxyHandler(async (request) => {
+export const POST = createProxyHandler(async (request, admin) => {
 	const body = await request.json();
-	const res = await adminApi.raw("POST", "/api/admin/attachments/batch-delete", body);
+	const api = adminApiAs(admin, request);
+	const res = await api.raw("POST", "/api/admin/attachments/batch-delete", body);
 	return passthrough(res);
 });
