@@ -2,30 +2,54 @@
 // incoming admin BFF request so we can forward it to the Worker as
 // `X-Real-IP`.
 //
-// Deployment topology: admin BFF (Next.js, Node) runs in Docker behind a
-// Cloudflare orange-cloud DNS record. CF strips any client-set
-// `CF-Connecting-IP` and rewrites it to the real edge client IP, so this
-// header is the canonical source. We accept `X-Forwarded-For` first segment
-// only as a fallback (e.g. when the BFF is reached directly during local
-// dev), and return empty string when neither is present — callers always
-// forward whatever we return verbatim, and Worker's trust ladder will still
-// require the request to carry Key B (we do that via the admin API key) for
-// `X-Real-IP` to be honored.
+// Production deployment topology mirrors G.1's contract on the Worker side:
+// admin BFF (Next.js, Node) runs in Docker behind a Cloudflare orange-cloud
+// DNS record. CF rewrites `CF-Connecting-IP` to the real client IP and that
+// is the ONLY trustworthy header in production. `X-Forwarded-For` is
+// client-controllable from the public internet (a reverse proxy in front of
+// the BFF can pass arbitrary user-supplied XFF through), so honoring it in
+// production would let an attacker upgrade a forged inbound header into a
+// Key-B-signed `X-Real-IP` going into the Worker — which the Worker trusts.
 //
-// We deliberately do NOT mirror the Worker's "production guard" here: the
-// admin BFF only ever talks to the Worker server-to-server with Key B, and
-// Worker re-validates trust on its side via `extractTrustedClientIp`.
+// Trust ladder (must stay aligned with `apps/worker/src/lib/clientIp.ts`):
+//   1. `CF-Connecting-IP` — always trusted.
+//   2. First segment of `X-Forwarded-For` — ONLY accepted outside
+//      production (`NODE_ENV !== "production"`) so local dev / vitest stays
+//      ergonomic. The opts toggle exists for tests that need to exercise
+//      the production branch explicitly.
+//
+// Returns `""` when no trustworthy source is present. Callers always
+// forward whatever we return verbatim and the Worker re-validates trust on
+// its side via `extractTrustedClientIp` (which also gates X-Real-IP behind
+// Key A/B).
 
 import type { NextRequest } from "next/server";
 
-export function extractClientIp(request: NextRequest | Request): string {
+export interface ExtractClientIpOptions {
+	/**
+	 * Allow `X-Forwarded-For` (first hop) outside production. Defaults to
+	 * true so local dev / vitest don't have to pass it explicitly. Set to
+	 * false to simulate the production branch in tests regardless of
+	 * NODE_ENV.
+	 */
+	allowXffInNonProd?: boolean;
+}
+
+export function extractClientIp(
+	request: NextRequest | Request,
+	opts: ExtractClientIpOptions = {},
+): string {
 	const headers = request.headers;
 	const cf = headers.get("cf-connecting-ip")?.trim();
 	if (cf) return cf;
-	const xff = headers.get("x-forwarded-for");
-	if (xff) {
-		const first = xff.split(",")[0]?.trim();
-		if (first) return first;
+
+	if (opts.allowXffInNonProd !== false && process.env.NODE_ENV !== "production") {
+		const xff = headers.get("x-forwarded-for");
+		if (xff) {
+			const first = xff.split(",")[0]?.trim();
+			if (first) return first;
+		}
 	}
+
 	return "";
 }
