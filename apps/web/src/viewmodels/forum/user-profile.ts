@@ -18,9 +18,9 @@ export interface ProfileStats {
 }
 
 export const PROFILE_TABS: { key: ProfileTab; label: string }[] = [
-	{ key: "threads", label: "发帖历史" },
-	{ key: "posts", label: "回帖历史" },
-	{ key: "digest", label: "精华帖" },
+	{ key: "threads", label: "主题" },
+	{ key: "posts", label: "回复" },
+	{ key: "digest", label: "精华" },
 ];
 
 // ---------------------------------------------------------------------------

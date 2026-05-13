@@ -46,19 +46,27 @@ interface UserProfileListRowProps {
 	forumsById: Readonly<Record<number, string>>;
 	/** Whether to use `createdAt` (default) or `lastPostAt ?? createdAt` for the displayed time. */
 	timeSource?: "created" | "lastPost";
+	/**
+	 * Explicit override for the displayed time (Unix seconds). When provided,
+	 * this wins over `timeSource` — e.g. the 回复 tab passes the user's reply
+	 * timestamp here rather than mutating the underlying thread's `createdAt`.
+	 */
+	displayTime?: number;
 }
 
 export function UserProfileListRow({
 	thread,
 	forumsById,
 	timeSource = "created",
+	displayTime,
 }: UserProfileListRowProps) {
 	const badges = filterIconRedundantBadges(getThreadBadges(thread));
 	const hl = decodeHighlight(thread.highlight);
 	const iconSrc = getThreadIconSrc(thread);
 	const digestSrc = getDigestIconSrc(thread.digest);
 	const time =
-		timeSource === "lastPost" ? (thread.lastPostAt ?? thread.createdAt) : thread.createdAt;
+		displayTime ??
+		(timeSource === "lastPost" ? (thread.lastPostAt ?? thread.createdAt) : thread.createdAt);
 	const forumName = forumsById[thread.forumId];
 
 	const titleLink = (

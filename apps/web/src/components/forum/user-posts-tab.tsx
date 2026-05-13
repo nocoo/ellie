@@ -17,16 +17,17 @@ export function UserPostsTab({
 
 	// Worker returns UserPostHistoryItem = { post, thread }. The shared row
 	// renders the parent thread (title/forum/replies/views), and the *time*
-	// uses the user's reply timestamp (post.createdAt) so the row reflects
-	// when this user actually replied, not when the thread was created.
+	// is supplied explicitly via `displayTime = post.createdAt` so the row
+	// reflects when this user actually replied, without mutating the
+	// thread's own `createdAt`.
 	return (
 		<div>
 			{posts.items.map(({ post, thread }) => (
 				<UserProfileListRow
 					key={post.id}
-					thread={{ ...thread, createdAt: post.createdAt }}
+					thread={thread}
 					forumsById={forumsById}
-					timeSource="created"
+					displayTime={post.createdAt}
 				/>
 			))}
 		</div>

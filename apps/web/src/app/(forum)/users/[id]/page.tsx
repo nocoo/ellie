@@ -112,7 +112,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 							<p className="text-lg font-semibold text-foreground">
 								{formatCompactNumber(data.user.posts)}
 							</p>
-							<p className="mt-1 text-xs text-muted-foreground">回帖数</p>
+							<p className="mt-1 text-xs text-muted-foreground">回复数</p>
 						</CardContent>
 					</Card>
 				</Link>
@@ -122,7 +122,7 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 							<p className="text-lg font-semibold text-foreground">
 								{formatCompactNumber(data.user.digestPosts)}
 							</p>
-							<p className="mt-1 text-xs text-muted-foreground">精华帖</p>
+							<p className="mt-1 text-xs text-muted-foreground">精华</p>
 						</CardContent>
 					</Card>
 				</Link>
