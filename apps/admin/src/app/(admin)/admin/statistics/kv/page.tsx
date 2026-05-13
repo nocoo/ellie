@@ -529,7 +529,7 @@ function OverviewTable({
 							</TableRow>
 							{isExpanded && (
 								<TableRow>
-									<TableCell colSpan={8} className="bg-muted/30 p-0">
+									<TableCell colSpan={8} className="bg-background/30 p-0">
 										<ExpandedKeyList
 											row={row}
 											state={keyLists[row.family] ?? EMPTY_KEY_LIST}

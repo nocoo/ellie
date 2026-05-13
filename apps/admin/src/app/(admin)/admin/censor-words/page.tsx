@@ -305,7 +305,7 @@ export default function CensorWordsPage() {
 						{testLoading ? "测试中..." : "测试"}
 					</Button>
 					{testResult && (
-						<div className="rounded-md border bg-muted/50 p-3 text-sm">
+						<div className="rounded-md border bg-secondary p-3 text-sm">
 							<p className="mb-1">
 								<span className="font-medium">过滤结果:</span> {testResult.censored}
 							</p>

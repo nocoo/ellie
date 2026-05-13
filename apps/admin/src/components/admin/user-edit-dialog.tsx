@@ -304,7 +304,7 @@ function TextareaField(props: {
 				disabled={props.disabled}
 				rows={props.rows ?? 3}
 				className={cn(
-					"flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm",
+					"flex w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm",
 					"shadow-sm placeholder:text-muted-foreground focus-visible:outline-none",
 					"focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
 				)}
@@ -813,11 +813,11 @@ export function UserEditDialog({
 							<div className="grid gap-4 lg:grid-cols-2 text-sm">
 								<div className="grid gap-1 min-w-0">
 									<Label className="text-muted-foreground">清除时间</Label>
-									<div className="px-3 py-2 rounded-md bg-muted/50 font-mono">{user.purgedAt}</div>
+									<div className="px-3 py-2 rounded-md bg-secondary font-mono">{user.purgedAt}</div>
 								</div>
 								<div className="grid gap-1 min-w-0">
 									<Label className="text-muted-foreground">操作管理员 ID</Label>
-									<div className="px-3 py-2 rounded-md bg-muted/50 font-mono">
+									<div className="px-3 py-2 rounded-md bg-secondary font-mono">
 										{user.purgedBy ?? 0}
 									</div>
 								</div>
@@ -827,7 +827,7 @@ export function UserEditDialog({
 				</div>
 
 				{/* Footer */}
-				<div className="px-5 py-4 border-t border-border/50 bg-muted/30">
+				<div className="px-5 py-4 border-t border-border/50 bg-background/30">
 					<div className="flex items-center justify-end gap-2">
 						<Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading}>
 							取消
