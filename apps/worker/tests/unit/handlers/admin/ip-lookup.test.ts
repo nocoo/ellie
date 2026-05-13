@@ -420,6 +420,13 @@ describe("admin/ip-lookup — IPv6 validation", () => {
 		expect(body.error.details?.reason).toBe("reserved");
 	});
 
+	it("doc-block 2001:db8::1 → reserved", async () => {
+		const env = makeEnv({ IP_LOOKUP_API_KEY: "k" });
+		const res = await ipLookup.lookup(req("?ip=2001%3Adb8%3A%3A1"), env, createMockCtx());
+		const body = (await res.json()) as { error: { details?: { reason: string } } };
+		expect(body.error.details?.reason).toBe("reserved");
+	});
+
 	it("global v6 2606:4700:4700::1111 → fetches upstream", async () => {
 		const env = makeEnv({ IP_LOOKUP_API_KEY: "k" });
 		globalThis.fetch = (async () => jsonOk({ country: "DE" })) as unknown as typeof fetch;

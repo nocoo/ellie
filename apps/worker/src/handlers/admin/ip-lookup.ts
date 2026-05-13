@@ -113,6 +113,8 @@ function validateIpv6(ip: string): ValidationOk | ValidationFail {
 	if (/^fc/.test(host) || /^fd/.test(host)) return { ok: false, reason: "private" };
 	// fe80::/10 link-local
 	if (/^fe[89ab]/.test(host)) return { ok: false, reason: "reserved" };
+	// 2001:db8::/32 documentation block (RFC 3849)
+	if (/^2001:0*db8(:|$)/.test(host)) return { ok: false, reason: "reserved" };
 	return { ok: true, ip: host };
 }
 
@@ -269,8 +271,11 @@ async function fetchUpstream(
 	if (!res.ok) {
 		// Special case: upstream 400 with an invalid_ip token in the body
 		// should surface to the admin as INVALID_IP, not "upstream failed".
-		// We only read a small slice of the body to avoid pulling large
-		// HTML error pages into worker memory.
+		// We read the body in full and only inspect the first 512 chars
+		// for the token; the body itself is not retained anywhere. This
+		// is NOT a streaming partial read — if the upstream ever returns
+		// pathologically large 400 bodies, switch to a `Reader.read()`
+		// loop with an early break.
 		if (res.status === 400) {
 			let snippet = "";
 			try {
