@@ -85,7 +85,7 @@ describe("JsonCodeBlock — pinned class tokens", () => {
 
 	it("uses code-block container tokens (mono, muted bg, scroll, height cap)", () => {
 		expect(SOURCE).toContain("font-mono");
-		expect(SOURCE).toContain("bg-muted");
+		expect(SOURCE).toContain("bg-background");
 		expect(SOURCE).toContain("overflow-auto");
 		expect(SOURCE).toContain("max-w-full");
 		expect(SOURCE).toContain("max-h-[60vh]");
