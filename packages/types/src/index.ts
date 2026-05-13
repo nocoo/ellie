@@ -32,7 +32,7 @@ export {
 } from "./forum";
 
 // ─── Thread ──────────────────────────────────────────────────
-export type { ThreadBadge, HighlightStyle } from "./thread";
+export type { ThreadBadge, ThreadBadgeSource, HighlightStyle } from "./thread";
 export { getThreadBadges, decodeHighlight } from "./thread";
 
 // ─── Pagination ──────────────────────────────────────────────
