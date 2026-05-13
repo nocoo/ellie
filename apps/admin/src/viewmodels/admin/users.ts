@@ -61,6 +61,17 @@ export interface User {
 	 * `attachments` rows uploaded by this user (`author_id`).
 	 */
 	attachmentsCount?: number;
+	/**
+	 * Admin user-detail-only soft signal — current online IP from the
+	 * `online:<uid>` KV entry. Present only when worker found a fresh
+	 * (≤15min TTL window) snapshot. Distinct from `lastIp` (persistent
+	 * last-login IP). UI label: "当前在线 IP".
+	 */
+	onlineIp?: string;
+	/** Admin user-detail-only — last URL pathname seen by the online tracker. */
+	onlinePage?: string;
+	/** Admin user-detail-only — unix seconds of the most recent online tracker write. */
+	onlineTs?: number;
 }
 
 export interface UserFilters {
