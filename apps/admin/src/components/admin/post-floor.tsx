@@ -55,7 +55,7 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 	return (
 		<div className="rounded-[var(--radius-card,14px)] bg-secondary overflow-hidden">
 			{/* Floor header */}
-			<div className="flex items-center justify-between border-b border-border/50 bg-muted/30 px-4 py-2">
+			<div className="flex items-center justify-between border-b border-border/50 bg-background/30 px-4 py-2">
 				<div className="flex items-center gap-2 text-sm text-muted-foreground">
 					<span className="font-mono font-medium text-foreground">#{post.position}</span>
 					{post.isFirst && <Badge variant={FIRST_POST_VARIANT}>楼主</Badge>}
@@ -93,7 +93,7 @@ export function PostFloor({ post, onEdit, onDelete }: PostFloorProps) {
 
 			<div className="flex flex-col md:flex-row">
 				{/* Author sidebar */}
-				<div className="flex md:flex-col items-center md:items-center gap-3 md:gap-2 border-b md:border-b-0 md:border-r p-4 md:w-48 md:shrink-0 bg-muted/10">
+				<div className="flex md:flex-col items-center md:items-center gap-3 md:gap-2 border-b md:border-b-0 md:border-r p-4 md:w-48 md:shrink-0 bg-background/10">
 					{/* Avatar — falls back to default tavatar.gif via UserAvatar onError. */}
 					<UserAvatar
 						uid={author?.id ?? post.authorId}
