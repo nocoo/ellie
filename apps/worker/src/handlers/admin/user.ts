@@ -501,7 +501,12 @@ async function readOnlineSnapshot(env: Env, userId: number): Promise<OnlineSnaps
 		return null;
 	}
 	const nowSec = Math.floor(Date.now() / 1000);
-	if (nowSec - r.ts > ONLINE_TTL_SEC) return null;
+	// G.5.1: reject both stale (ts beyond TTL window) and impossible-future
+	// timestamps. The online tracker is a same-worker writer so any negative
+	// age is hand-poked / corrupt KV — must not be presented as "currently
+	// online".
+	const age = nowSec - r.ts;
+	if (age < 0 || age > ONLINE_TTL_SEC) return null;
 	return { ip: r.ip, page: r.page, ts: r.ts };
 }
 
