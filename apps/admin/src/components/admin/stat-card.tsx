@@ -32,7 +32,7 @@ export function StatCard({ label, value, icon: Icon, subItems }: StatCardProps) 
 					</p>
 				</div>
 				{Icon && (
-					<div className="rounded-md bg-card p-2">
+					<div className="rounded-md bg-background p-2">
 						<Icon className="h-5 w-5" strokeWidth={1.5} />
 					</div>
 				)}
