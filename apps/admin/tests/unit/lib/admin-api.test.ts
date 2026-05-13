@@ -231,12 +231,32 @@ describe("adminApiAs", () => {
 		expect(headers["X-Admin-Actor-Email"]).toBeUndefined();
 	});
 
-	it("falls back to X-Forwarded-For first segment when CF header missing", async () => {
-		const req = reqWithHeaders({ "X-Forwarded-For": "198.51.100.5, 10.0.0.1" });
-		const api = adminApiAs(actor, req);
-		await api.raw("PATCH", "/api/admin/users/1");
-		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
-		expect((opts.headers as Record<string, string>)["X-Real-IP"]).toBe("198.51.100.5");
+	it("falls back to X-Forwarded-For first segment when CF header missing (non-prod)", async () => {
+		const prevNodeEnv = process.env.NODE_ENV;
+		(process.env as Record<string, string | undefined>).NODE_ENV = "test";
+		try {
+			const req = reqWithHeaders({ "X-Forwarded-For": "198.51.100.5, 10.0.0.1" });
+			const api = adminApiAs(actor, req);
+			await api.raw("PATCH", "/api/admin/users/1");
+			const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+			expect((opts.headers as Record<string, string>)["X-Real-IP"]).toBe("198.51.100.5");
+		} finally {
+			(process.env as Record<string, string | undefined>).NODE_ENV = prevNodeEnv;
+		}
+	});
+
+	it("does NOT inject X-Real-IP from XFF in production (anti-spoof)", async () => {
+		const prevNodeEnv = process.env.NODE_ENV;
+		(process.env as Record<string, string | undefined>).NODE_ENV = "production";
+		try {
+			const req = reqWithHeaders({ "X-Forwarded-For": "198.51.100.5, 10.0.0.1" });
+			const api = adminApiAs(actor, req);
+			await api.raw("POST", "/api/admin/users/1/ban");
+			const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+			expect((opts.headers as Record<string, string>)["X-Real-IP"]).toBeUndefined();
+		} finally {
+			(process.env as Record<string, string | undefined>).NODE_ENV = prevNodeEnv;
+		}
 	});
 
 	it("omits X-Real-IP when no IP header is present", async () => {
