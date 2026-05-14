@@ -172,7 +172,15 @@ function ModeratorLinks({ mods }: { mods: { id: number; name: string }[] }) {
  * When the last poster is anonymous / missing (`lastPosterId <= 0`), the
  * avatar slot is dropped entirely and the text spans both grid columns —
  * otherwise the text would slide into the 32px avatar cell and squeeze the
- * column. */
+ * column.
+ *
+ * Date and username are rendered as **separate spans** so a long username
+ * can `truncate` without eating the date — the previous single-span layout
+ * let `min-w-0 truncate` swallow the timestamp on long names. The username
+ * itself is a plain `<Link>` to `/users/:id` (no `UserPopover` wrap) — the
+ * popover's `PopoverTrigger` is a `<button>`, and nesting `<a>` inside
+ * `<button>` is invalid interactive markup. The avatar already provides
+ * profile navigation on hover, and the popover is reachable from there. */
 function LastPostPreview({ forum }: { forum: ForumTreeNode }) {
 	if (forum.lastPostAt <= 0) return null;
 	const hasAvatar = forum.lastPosterId > 0;
@@ -193,14 +201,19 @@ function LastPostPreview({ forum }: { forum: ForumTreeNode }) {
 				>
 					{forum.lastThreadSubject || "最新主题"}
 				</Link>
-				<span className="truncate">
-					{formatDateTime(forum.lastPostAt)}{" "}
+				<span className="flex items-baseline gap-1 min-w-0">
+					<span className="whitespace-nowrap shrink-0" data-testid="last-post-date">
+						{formatDateTime(forum.lastPostAt)}
+					</span>
 					{forum.lastPosterId > 0 ? (
-						<UserPopover userId={forum.lastPosterId}>
-							<span className="text-forum-link hover:underline cursor-pointer">
-								{forum.lastPoster}
-							</span>
-						</UserPopover>
+						<Link
+							href={`/users/${forum.lastPosterId}`}
+							prefetch={false}
+							className="relative z-10 text-forum-link hover:underline truncate min-w-0"
+							data-testid="last-poster-link"
+						>
+							{forum.lastPoster}
+						</Link>
 					) : (
 						<span className="text-forum-link">{forum.lastPoster}</span>
 					)}
@@ -282,8 +295,20 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 					{forum.lastPostAt > 0 && (
 						<>
 							<span className="text-muted-foreground/50">·</span>
-							<span className="truncate">
-								{forum.lastPoster} {formatDateTime(forum.lastPostAt)}
+							<span className="truncate min-w-0">
+								{forum.lastPosterId > 0 ? (
+									<Link
+										href={`/users/${forum.lastPosterId}`}
+										prefetch={false}
+										className="text-forum-link hover:underline"
+										data-testid="last-poster-link-mobile"
+									>
+										{forum.lastPoster}
+									</Link>
+								) : (
+									forum.lastPoster
+								)}{" "}
+								{formatDateTime(forum.lastPostAt)}
 							</span>
 						</>
 					)}
@@ -336,7 +361,18 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 						>
 							{forum.lastThreadSubject || "最新主题"}
 						</Link>{" "}
-						<span className="shrink-0">{forum.lastPoster}</span>
+						{forum.lastPosterId > 0 ? (
+							<Link
+								href={`/users/${forum.lastPosterId}`}
+								prefetch={false}
+								className="shrink-0 text-forum-link hover:underline"
+								data-testid="last-poster-link-grid"
+							>
+								{forum.lastPoster}
+							</Link>
+						) : (
+							<span className="shrink-0">{forum.lastPoster}</span>
+						)}
 					</div>
 				)}
 			</div>

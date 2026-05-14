@@ -115,3 +115,73 @@ describe("ForumCard ForumStats — anti-wrap guard", () => {
 		expect(inlineEls[0].className).toContain("whitespace-nowrap");
 	});
 });
+
+describe("ForumCard LastPostPreview — clickable username + layout split", () => {
+	const lastPostForum = makeForum({
+		lastThreadId: 999,
+		lastThreadSubject: "招商银行第八季数字金融训练营 (2025校招提前批)招募公告",
+		lastPostAt: 1_710_925_680,
+		lastPoster: "麻小麻",
+		lastPosterId: 12345,
+	});
+
+	it("wide-layout last-poster username is a Link to /users/:id (no nested interactives)", () => {
+		// Username MUST be wrapped in a real <Link> — previously it was only
+		// hover-popover bait, leaving keyboard/click users no way to reach the
+		// profile. Reviewer's constraint: no nested interactive markup, so we
+		// dropped UserPopover here entirely (avatar still has its own link).
+		render(createElement(ForumCard, { forum: lastPostForum, layout: "wide" }));
+		const link = screen.getByTestId("last-poster-link");
+		expect(link.tagName).toBe("A");
+		expect(link.getAttribute("href")).toBe("/users/12345");
+		expect(link.textContent).toBe("麻小麻");
+	});
+
+	it("wide-layout date and username are in separate spans (date never gets eaten)", () => {
+		// The previous single `<span class="truncate">` could swallow the
+		// timestamp on long usernames. Pinning the date in its own
+		// whitespace-nowrap span keeps it readable regardless of name width.
+		render(createElement(ForumCard, { forum: lastPostForum, layout: "wide" }));
+		const date = screen.getByTestId("last-post-date");
+		expect(date.tagName).toBe("SPAN");
+		expect(date.className).toContain("whitespace-nowrap");
+		// Date text is the formatted timestamp from the mock (`t=...`).
+		expect(date.textContent).toBe(`t=${lastPostForum.lastPostAt}`);
+	});
+
+	it("wide-layout falls back to plain text when lastPosterId === 0", () => {
+		// Anonymous/unknown poster: no link, no nested-interactive risk, and
+		// the avatar slot is dropped (LastPosterAvatarLink returns null).
+		render(
+			createElement(ForumCard, {
+				forum: makeForum({
+					lastThreadId: 1,
+					lastThreadSubject: "Hi",
+					lastPostAt: 100,
+					lastPoster: "guest",
+					lastPosterId: 0,
+				}),
+				layout: "wide",
+			}),
+		);
+		expect(screen.queryByTestId("last-poster-link")).toBeNull();
+	});
+
+	it("mobile compact stack also exposes a clickable username link", () => {
+		// The mobile path (sm:hidden block) renders separately and used to have
+		// no link at all. Same regression class — make sure it's covered.
+		render(createElement(ForumCard, { forum: lastPostForum, layout: "wide" }));
+		const link = screen.getByTestId("last-poster-link-mobile");
+		expect(link.tagName).toBe("A");
+		expect(link.getAttribute("href")).toBe("/users/12345");
+	});
+
+	it("grid-layout last-poster username is a Link to /users/:id", () => {
+		// Grid layout (used by groups with >10 children) had the same bug:
+		// username was a bare `<span>`. Codify it.
+		render(createElement(ForumCard, { forum: lastPostForum, layout: "grid" }));
+		const link = screen.getByTestId("last-poster-link-grid");
+		expect(link.tagName).toBe("A");
+		expect(link.getAttribute("href")).toBe("/users/12345");
+	});
+});
