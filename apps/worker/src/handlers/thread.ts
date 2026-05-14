@@ -158,6 +158,25 @@ interface D1ThreadRowLike {
 const IS_AUTHOR_FIRST_THREAD =
 	"(CASE WHEN t.author_id > 0 AND NOT EXISTS (SELECT 1 FROM threads t2 WHERE t2.author_id = t.author_id AND t2.sticky >= 0 AND (t2.created_at < t.created_at OR (t2.created_at = t.created_at AND t2.id < t.id))) THEN 1 ELSE 0 END) AS is_author_first_thread";
 
+/**
+ * Sort rank for thread lists. Discuz `sticky` values are
+ * {0,1,2,3} = {normal, forum-pinned, site-wide announcement,
+ * category-pinned}. The user-facing requirement is that site-wide
+ * announcements (sticky=2) appear at the very top of every forum's
+ * list, including forums that contain a category-pinned thread
+ * (sticky=3). We remap sticky=2 to rank 4 so it sorts above 3
+ * without migrating the underlying column. ORDER BY and the keyset
+ * cursor comparison MUST both use this expression — otherwise deep
+ * pagination would skip rows. Cursor payloads also encode the
+ * remapped rank (see `stickyRank`).
+ */
+const STICKY_RANK_EXPR = `CASE WHEN t.sticky = ${STICKY_GLOBAL} THEN 4 ELSE t.sticky END`;
+
+/** JS-side mirror of STICKY_RANK_EXPR — used for cursor payload encoding. */
+function stickyRank(sticky: number): number {
+	return sticky === STICKY_GLOBAL ? 4 : sticky;
+}
+
 const THREAD_LIST_QUERY_CACHE: Readonly<
 	Record<"kv" | "join", { withCursor: string; noCursor: string; offset: string }>
 > = (() => {
@@ -169,12 +188,12 @@ const THREAD_LIST_QUERY_CACHE: Readonly<
 			? "threads t"
 			: "threads t LEFT JOIN users author ON t.author_id = author.id LEFT JOIN users lp ON t.last_poster_id = lp.id";
 		const whereClause = `(t.forum_id = ? OR t.sticky = ${STICKY_GLOBAL}) AND ${threadVisible("t")}`;
+		const orderBy = `ORDER BY ${STICKY_RANK_EXPR} DESC, t.last_post_at DESC, t.id DESC`;
 		if (withCursor) {
-			const cursorCondition =
-				"(t.sticky < ? OR (t.sticky = ? AND (t.last_post_at < ? OR (t.last_post_at = ? AND t.id < ?))))";
-			return `SELECT ${selectFields} FROM ${fromClause} WHERE ${whereClause} AND ${cursorCondition} ORDER BY t.sticky DESC, t.last_post_at DESC, t.id DESC LIMIT ?`;
+			const cursorCondition = `(${STICKY_RANK_EXPR} < ? OR (${STICKY_RANK_EXPR} = ? AND (t.last_post_at < ? OR (t.last_post_at = ? AND t.id < ?))))`;
+			return `SELECT ${selectFields} FROM ${fromClause} WHERE ${whereClause} AND ${cursorCondition} ${orderBy} LIMIT ?`;
 		}
-		return `SELECT ${selectFields} FROM ${fromClause} WHERE ${whereClause} ORDER BY t.sticky DESC, t.last_post_at DESC, t.id DESC LIMIT ?`;
+		return `SELECT ${selectFields} FROM ${fromClause} WHERE ${whereClause} ${orderBy} LIMIT ?`;
 	};
 	const entry = (useKvCache: boolean) => {
 		const noCursor = build(useKvCache, false);
@@ -279,14 +298,16 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		}
 		// nextCursor is derived from RAW D1 rows (snake_case sticky /
 		// last_post_at / id) so cursor encoding stays stable when the
-		// mapped Thread shape evolves.
+		// mapped Thread shape evolves. `sticky` here is the SORT RANK
+		// (see STICKY_RANK_EXPR) — sticky=2 is encoded as 4 so the
+		// keyset comparator matches ORDER BY.
 		const nextCursor = buildNextCursor<unknown, ThreadCursorPayload>(
 			dataResult.results,
 			clampedLimit,
 			(last) => {
 				const row = last as D1ThreadRow;
 				return {
-					sticky: row.sticky,
+					sticky: stickyRank(row.sticky),
 					lastPostAt: row.last_post_at,
 					id: row.id,
 				};
@@ -364,14 +385,16 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		}
 		// nextCursor MUST be derived from the raw D1 row (snake_case sticky/
 		// last_post_at/id), NOT the mapped Thread — keeps cursor encoding
-		// stable when the Thread shape evolves.
+		// stable when the Thread shape evolves. `sticky` here is the SORT
+		// RANK (see STICKY_RANK_EXPR) — sticky=2 is encoded as 4 so the
+		// keyset comparator matches ORDER BY.
 		const nextCursor = buildNextCursor<unknown, ThreadCursorPayload>(
 			result.results,
 			clampedLimit,
 			(last) => {
 				const row = last as D1ThreadRow;
 				return {
-					sticky: row.sticky,
+					sticky: stickyRank(row.sticky),
 					lastPostAt: row.last_post_at,
 					id: row.id,
 				};

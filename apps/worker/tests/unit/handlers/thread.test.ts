@@ -718,12 +718,14 @@ describe("thread handlers", () => {
 			).toBe(true);
 		});
 
-		it("ORDER BY puts higher sticky first so sticky=2 (global) sorts above sticky=1 (forum-pin)", async () => {
+		it("ORDER BY ranks global sticky above category sticky so sticky=2 sorts above sticky=3", async () => {
 			// We can't run real SQL here, but the handler's ORDER BY clause
 			// is the contract that guarantees global stickies render first.
-			// Assert it's still `t.sticky DESC, t.last_post_at DESC, t.id DESC`
-			// so a sticky=2 row always precedes sticky=1 / 0 rows with any
-			// timestamp.
+			// Discuz `sticky` is {0,1,2,3} = {normal, forum-pin, global,
+			// category-pin}. User requirement: global (sticky=2) wins even
+			// over category-pin (sticky=3). We remap sticky=2 → rank 4 in
+			// the ORDER BY CASE so it sorts above 3 without migrating the
+			// column.
 			const sqls: string[] = [];
 			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
 			const db = {
@@ -749,8 +751,126 @@ describe("thread handlers", () => {
 			await list(new Request("https://example.com/api/v1/threads?forumId=42"), env, getCtx());
 
 			expect(
-				sqls.some((s) => s.includes("ORDER BY t.sticky DESC, t.last_post_at DESC, t.id DESC")),
+				sqls.some(
+					(s) =>
+						s.includes("ORDER BY CASE WHEN t.sticky = 2 THEN 4 ELSE t.sticky END DESC") &&
+						s.includes("t.last_post_at DESC, t.id DESC"),
+				),
 			).toBe(true);
+		});
+
+		it("keyset cursor condition uses the same sticky-rank CASE so deep pages don't skip sticky=3", async () => {
+			// If ORDER BY uses CASE-remapped rank but the cursor predicate
+			// keeps raw `t.sticky`, deep pagination after sticky=2 would
+			// skip every sticky=3 row (rank 3 < cursor value 4, but
+			// raw 3 < raw 2 is false). Both expressions must match.
+			const sqls: string[] = [];
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const db = {
+				prepare: vi.fn((sql: string) => {
+					sqls.push(sql);
+					if (sql.includes("SELECT status, visibility FROM forums")) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
+							})),
+						};
+					}
+					return {
+						bind: vi.fn(() => ({
+							all: allSpy,
+							first: vi.fn(() => Promise.resolve({ total: 0 })),
+						})),
+					};
+				}),
+			} as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			// Build a cursor payload — value doesn't matter, we just need
+			// the query path that injects the cursor predicate.
+			const cursor = Buffer.from(
+				JSON.stringify({ sticky: 4, lastPostAt: 1700000000, id: 999 }),
+			).toString("base64");
+			await list(
+				new Request(`https://example.com/api/v1/threads?forumId=42&cursor=${cursor}`),
+				env,
+				getCtx(),
+			);
+
+			expect(
+				sqls.some(
+					(s) =>
+						s.includes("CASE WHEN t.sticky = 2 THEN 4 ELSE t.sticky END < ?") &&
+						s.includes("CASE WHEN t.sticky = 2 THEN 4 ELSE t.sticky END = ?"),
+				),
+			).toBe(true);
+		});
+
+		it("nextCursor encodes sticky=2 rows as rank 4 so deep pagination over sticky=3 lands correctly", async () => {
+			// When the last row on page 1 is a sticky=2 announcement, the
+			// next-cursor sticky field must be 4 (the SQL rank), not 2.
+			// Otherwise the cursor `< ?` comparison would discard sticky=3
+			// rows on page 2.
+			const sqls: string[] = [];
+			const allSpy = vi.fn(() =>
+				Promise.resolve({
+					results: [
+						{
+							id: 1071193,
+							forum_id: 999,
+							sticky: 2,
+							last_post_at: 1700000000,
+							author_id: 1,
+							author_name: "x",
+							subject: "全站公告",
+							created_at: 1700000000,
+							last_poster: "x",
+							last_poster_id: 1,
+							replies: 0,
+							views: 0,
+							closed: 0,
+							digest: 0,
+							special: 0,
+							highlight: 0,
+							recommends: 0,
+							type_name: "",
+						},
+					],
+				}),
+			);
+			const db = {
+				prepare: vi.fn((sql: string) => {
+					sqls.push(sql);
+					if (sql.includes("SELECT status, visibility FROM forums")) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
+							})),
+						};
+					}
+					return {
+						bind: vi.fn(() => ({
+							all: allSpy,
+							first: vi.fn(() => Promise.resolve({ total: 1 })),
+						})),
+					};
+				}),
+			} as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			// limit=1 forces buildNextCursor to emit a non-null cursor.
+			const res = await list(
+				new Request("https://example.com/api/v1/threads?forumId=114&limit=1"),
+				env,
+				getCtx(),
+			);
+			const body = (await res.json()) as { meta?: { nextCursor?: string | null } };
+			expect(body.meta?.nextCursor).toBeTruthy();
+			const decoded = JSON.parse(
+				Buffer.from(body.meta?.nextCursor as string, "base64").toString("utf8"),
+			);
+			expect(decoded.sticky).toBe(4);
+			expect(decoded.id).toBe(1071193);
 		});
 	});
 
