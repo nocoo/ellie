@@ -96,8 +96,8 @@ describe("USERS_UPSERT_COLUMNS", () => {
 });
 
 describe("FORUMS_UPSERT_COLUMNS", () => {
-	test("has 14 Discuz-owned columns", () => {
-		expect(FORUMS_UPSERT_COLUMNS).toHaveLength(14);
+	test("has 18 Discuz-owned columns (14 base + 4 thread_types_* from migration 0038)", () => {
+		expect(FORUMS_UPSERT_COLUMNS).toHaveLength(18);
 	});
 
 	test("all columns exist in TABLE_COLUMNS.forums", () => {

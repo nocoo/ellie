@@ -20,7 +20,11 @@ export const TABLE_DDL: string[] = [
   status          INTEGER NOT NULL DEFAULT 1,
   last_thread_id  INTEGER NOT NULL DEFAULT 0,
   last_post_at    INTEGER NOT NULL DEFAULT 0,
-  last_poster     TEXT    NOT NULL DEFAULT ''
+  last_poster     TEXT    NOT NULL DEFAULT '',
+  thread_types_enabled  INTEGER NOT NULL DEFAULT 0,
+  thread_types_required INTEGER NOT NULL DEFAULT 0,
+  thread_types_listable INTEGER NOT NULL DEFAULT 0,
+  thread_types_prefix   INTEGER NOT NULL DEFAULT 0
 )`,
 
 	`CREATE TABLE IF NOT EXISTS users (
@@ -59,7 +63,9 @@ export const TABLE_DDL: string[] = [
   special       INTEGER NOT NULL DEFAULT 0,
   highlight     INTEGER NOT NULL DEFAULT 0,
   recommends    INTEGER NOT NULL DEFAULT 0,
-  post_table_id INTEGER NOT NULL DEFAULT 0
+  post_table_id INTEGER NOT NULL DEFAULT 0,
+  type_name     TEXT    NOT NULL DEFAULT '',
+  type_id       INTEGER NOT NULL DEFAULT 0
 )`,
 
 	`CREATE TABLE IF NOT EXISTS posts (
@@ -89,6 +95,18 @@ export const TABLE_DDL: string[] = [
   downloads   INTEGER NOT NULL DEFAULT 0,
   created_at  INTEGER NOT NULL DEFAULT 0
 )`,
+
+	// Discuz 主题分类 (thread categories). See migration
+	// 0038_thread_categories.sql. PK = Discuz typeid (imported as-is).
+	`CREATE TABLE IF NOT EXISTS forum_thread_types (
+  id              INTEGER PRIMARY KEY,
+  forum_id        INTEGER NOT NULL REFERENCES forums(id),
+  name            TEXT    NOT NULL,
+  display_order   INTEGER NOT NULL DEFAULT 0,
+  icon            TEXT    NOT NULL DEFAULT '',
+  enabled         INTEGER NOT NULL DEFAULT 1,
+  moderator_only  INTEGER NOT NULL DEFAULT 0
+)`,
 ];
 
 /** DDL statements to create all indexes. Applied after data load for performance. */
@@ -108,10 +126,21 @@ export const INDEX_DDL: string[] = [
 	// attachments indexes
 	"CREATE INDEX IF NOT EXISTS idx_attachments_post ON attachments(post_id)",
 	"CREATE INDEX IF NOT EXISTS idx_attachments_thread ON attachments(thread_id)",
+
+	// forum_thread_types / 主题分类 (migration 0038).
+	"CREATE INDEX IF NOT EXISTS idx_forum_thread_types_forum ON forum_thread_types(forum_id, display_order, id)",
+	"CREATE INDEX IF NOT EXISTS idx_threads_forum_type ON threads(forum_id, type_id, last_post_at DESC, id DESC)",
 ];
 
 /** Table names in FK dependency order (for migration). */
-export const TABLE_ORDER = ["forums", "users", "threads", "posts", "attachments"] as const;
+export const TABLE_ORDER = [
+	"forums",
+	"users",
+	"threads",
+	"posts",
+	"attachments",
+	"forum_thread_types",
+] as const;
 export type TableName = (typeof TABLE_ORDER)[number];
 
 /** Column names for each table (in INSERT order). */
@@ -130,6 +159,10 @@ export const TABLE_COLUMNS: Record<TableName, string[]> = {
 		"last_thread_id",
 		"last_post_at",
 		"last_poster",
+		"thread_types_enabled",
+		"thread_types_required",
+		"thread_types_listable",
+		"thread_types_prefix",
 	],
 	users: [
 		"id",
@@ -166,6 +199,8 @@ export const TABLE_COLUMNS: Record<TableName, string[]> = {
 		"highlight",
 		"recommends",
 		"post_table_id",
+		"type_name",
+		"type_id",
 	],
 	posts: [
 		"id",
@@ -192,5 +227,14 @@ export const TABLE_COLUMNS: Record<TableName, string[]> = {
 		"has_thumb",
 		"downloads",
 		"created_at",
+	],
+	forum_thread_types: [
+		"id",
+		"forum_id",
+		"name",
+		"display_order",
+		"icon",
+		"enabled",
+		"moderator_only",
 	],
 };
