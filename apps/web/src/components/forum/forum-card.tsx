@@ -71,7 +71,7 @@ function ForumStats({
 }: { threads: number; posts: number; variant: "desktop" | "inline" }) {
 	if (variant === "desktop") {
 		return (
-			<div className="flex flex-col items-end self-start text-xs text-muted-foreground tabular-nums leading-5">
+			<div className="flex flex-col items-end self-start text-sm text-muted-foreground tabular-nums leading-5">
 				<span className="whitespace-nowrap" data-testid="forum-stats-desktop">
 					<span className="text-foreground font-medium">{formatCount(threads)}</span>
 					{" / "}
@@ -96,13 +96,13 @@ function TodayThreadBadge({
 	if (variant === "pill") {
 		// Fixed line-height pill so it never bumps the row height.
 		return (
-			<span className="inline-flex items-center h-4 rounded-full bg-forum-accent/10 px-1.5 text-2xs font-medium text-forum-accent leading-none">
+			<span className="inline-flex items-center h-4 rounded-full bg-forum-accent/10 px-1.5 text-xs font-medium text-forum-accent leading-none">
 				+{formatCount(count)}
 			</span>
 		);
 	}
 	return (
-		<span className="text-xs text-forum-accent font-medium">
+		<span className="text-sm text-forum-accent font-medium">
 			{variant === "parenthesized" ? `(${formatCount(count)})` : `+${formatCount(count)}`}
 		</span>
 	);
@@ -123,7 +123,7 @@ function ForumMetaLine({
 }) {
 	if (items.length === 0) return null;
 	return (
-		<div className="mt-1 flex items-baseline gap-1 flex-wrap text-xs leading-5">
+		<div className="mt-1 flex items-baseline gap-1 flex-wrap text-sm leading-5">
 			<span className="text-muted-foreground/80">{label}</span>
 			{items.map((item, i) => (
 				<span key={item.id} className="inline-flex items-baseline gap-1">
@@ -185,7 +185,7 @@ function LastPostPreview({ forum }: { forum: ForumTreeNode }) {
 	if (forum.lastPostAt <= 0) return null;
 	const hasAvatar = forum.lastPosterId > 0;
 	return (
-		<div className="grid grid-cols-[32px_minmax(0,1fr)] items-start gap-2 text-xs text-muted-foreground self-start">
+		<div className="grid grid-cols-[32px_minmax(0,1fr)] items-start gap-2 text-sm text-muted-foreground self-start">
 			{hasAvatar && (
 				<LastPosterAvatarLink
 					userId={forum.lastPosterId}
@@ -256,7 +256,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 					{forum.description && (
 						<SafeHtml
 							html={forum.description}
-							className="mt-1 block text-xs text-muted-foreground leading-5 line-clamp-1"
+							className="mt-1 block text-sm text-muted-foreground leading-5 line-clamp-1"
 						/>
 					)}
 					<SubForumLinks forums={forum.children} />
@@ -288,7 +288,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 					</Link>
 					<TodayThreadBadge count={forum.todayThreads} variant="pill" />
 				</div>
-				<div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+				<div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
 					<span className="tabular-nums shrink-0">
 						<ForumStats threads={forum.threads} posts={forum.posts} variant="inline" />
 					</span>
@@ -341,14 +341,14 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 					</Link>
 					<TodayThreadBadge count={forum.todayThreads} variant="plus" />
 				</div>
-				<div className="mt-1 text-xs text-muted-foreground tabular-nums leading-5">
+				<div className="mt-1 text-sm text-muted-foreground tabular-nums leading-5">
 					<ForumStats threads={forum.threads} posts={forum.posts} variant="inline" />
 				</div>
 
 				<ModeratorLinks mods={forum.moderatorList ?? []} />
 
 				{forum.lastPostAt > 0 && (
-					<div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+					<div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
 						<LastPosterAvatarLink
 							userId={forum.lastPosterId}
 							userName={forum.lastPoster}

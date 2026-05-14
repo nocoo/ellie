@@ -185,3 +185,51 @@ describe("ForumCard LastPostPreview — clickable username + layout split", () =
 		expect(link.getAttribute("href")).toBe("/users/12345");
 	});
 });
+
+describe("ForumCard font baseline — match home-footer text-sm, no text-2xs", () => {
+	// Reviewer wants the homepage forum area to share the home-footer's
+	// text-sm baseline (the user's reference point). These tests pin the
+	// exact classes on the load-bearing spots in forum-card so a future
+	// "let's shrink it back to text-xs" change becomes a visible regression
+	// instead of a silent CSS drift.
+	const lastPostForum = makeForum({
+		lastThreadId: 999,
+		lastThreadSubject: "Hello",
+		lastPostAt: 100,
+		lastPoster: "alice",
+		lastPosterId: 1,
+	});
+
+	it("desktop ForumStats column uses text-sm (was text-xs)", () => {
+		render(createElement(ForumCard, { forum: lastPostForum, layout: "wide" }));
+		// The wrapper carries the size class; the inner span only owns
+		// whitespace-nowrap. Walk to the parent <div> and check that.
+		const inner = screen.getByTestId("forum-stats-desktop");
+		const wrapper = inner.parentElement;
+		expect(wrapper?.className).toContain("text-sm");
+		expect(wrapper?.className).not.toContain("text-xs");
+	});
+
+	it("LastPostPreview wrapper uses text-sm (was text-xs)", () => {
+		render(createElement(ForumCard, { forum: lastPostForum, layout: "wide" }));
+		// Date span sits inside the LastPostPreview's outer grid; that grid
+		// owns the text-sm class. Walk up to find it.
+		const date = screen.getByTestId("last-post-date");
+		// date span → outer flex span → flex-col div → outer grid div
+		const grid = date.parentElement?.parentElement?.parentElement;
+		expect(grid?.className).toContain("text-sm");
+		expect(grid?.className).not.toContain("text-xs");
+	});
+
+	it("TodayThreadBadge pill uses text-xs (was text-2xs — no sub-12px)", () => {
+		const withToday = makeForum({ todayThreads: 5 });
+		render(createElement(ForumCard, { forum: withToday, layout: "wide" }));
+		// Badge text appears as `+5` or `(5)`; walk to the inline span.
+		const pillCandidates = screen.getAllByText(/^[+(]5[)]?$/);
+		// At least one wrapper must use text-xs and never text-2xs.
+		const hasTextXs = pillCandidates.some((el) => el.className.includes("text-xs"));
+		const hasText2xs = pillCandidates.some((el) => el.className.includes("text-2xs"));
+		expect(hasTextXs).toBe(true);
+		expect(hasText2xs).toBe(false);
+	});
+});
