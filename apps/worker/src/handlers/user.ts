@@ -277,6 +277,12 @@ export async function listThreads(request: Request, env: Env): Promise<Response>
  * explicit `thread_*` aliases so they cannot collide with `p.*`. The cursor
  * stays anchored on `p.created_at, p.id` — joined thread fields must never
  * influence pagination order.
+ *
+ * Filters out the user's own thread first-posts (`p.is_first = 0`): "回复"
+ * means *replies*, so a user's own opening post belongs in the 主题 tab and
+ * would otherwise duplicate-display here. Without this filter the 回复 tab
+ * mixes in subjects the user authored, which is exactly the regression
+ * reported on the user-profile page.
  */
 export async function listPosts(request: Request, env: Env): Promise<Response> {
 	const postColumns =
@@ -290,13 +296,13 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 				? `SELECT ${selectColumns} FROM posts p
 				   INNER JOIN threads t ON p.thread_id = t.id
 				   INNER JOIN forums f ON t.forum_id = f.id
-				   WHERE p.author_id = ? AND ${postVisible("p")} AND ${threadVisible("t")} AND ${forumFilter}
+				   WHERE p.author_id = ? AND p.is_first = 0 AND ${postVisible("p")} AND ${threadVisible("t")} AND ${forumFilter}
 				   AND (p.created_at < ? OR (p.created_at = ? AND p.id < ?))
 				   ORDER BY p.created_at DESC, p.id DESC LIMIT ?`
 				: `SELECT ${selectColumns} FROM posts p
 				   INNER JOIN threads t ON p.thread_id = t.id
 				   INNER JOIN forums f ON t.forum_id = f.id
-				   WHERE p.author_id = ? AND ${postVisible("p")} AND ${threadVisible("t")} AND ${forumFilter}
+				   WHERE p.author_id = ? AND p.is_first = 0 AND ${postVisible("p")} AND ${threadVisible("t")} AND ${forumFilter}
 				   ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
 		mapper: (row) => toUserPostHistoryItem(row),
 		// Cursor must follow the leading table (posts), not the joined thread.
