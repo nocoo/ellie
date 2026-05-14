@@ -179,8 +179,9 @@ function ModeratorLinks({ mods }: { mods: { id: number; name: string }[] }) {
  * let `min-w-0 truncate` swallow the timestamp on long names. The username
  * itself is a plain `<Link>` to `/users/:id` (no `UserPopover` wrap) — the
  * popover's `PopoverTrigger` is a `<button>`, and nesting `<a>` inside
- * `<button>` is invalid interactive markup. The avatar already provides
- * profile navigation on hover, and the popover is reachable from there. */
+ * `<button>` is invalid interactive markup. The avatar also links to the
+ * profile (see `LastPosterAvatarLink`), so users have a redundant entry
+ * point even without a popover here. */
 function LastPostPreview({ forum }: { forum: ForumTreeNode }) {
 	if (forum.lastPostAt <= 0) return null;
 	const hasAvatar = forum.lastPosterId > 0;
@@ -294,20 +295,20 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 					</span>
 					{forum.lastPostAt > 0 && (
 						<>
-							<span className="text-muted-foreground/50">·</span>
-							<span className="truncate min-w-0">
-								{forum.lastPosterId > 0 ? (
-									<Link
-										href={`/users/${forum.lastPosterId}`}
-										prefetch={false}
-										className="text-forum-link hover:underline"
-										data-testid="last-poster-link-mobile"
-									>
-										{forum.lastPoster}
-									</Link>
-								) : (
-									forum.lastPoster
-								)}{" "}
+							<span className="text-muted-foreground/50 shrink-0">·</span>
+							{forum.lastPosterId > 0 ? (
+								<Link
+									href={`/users/${forum.lastPosterId}`}
+									prefetch={false}
+									className="text-forum-link hover:underline truncate min-w-0"
+									data-testid="last-poster-link-mobile"
+								>
+									{forum.lastPoster}
+								</Link>
+							) : (
+								<span className="truncate min-w-0">{forum.lastPoster}</span>
+							)}
+							<span className="shrink-0 whitespace-nowrap" data-testid="last-post-date-mobile">
 								{formatDateTime(forum.lastPostAt)}
 							</span>
 						</>
@@ -357,7 +358,8 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 						<Link
 							href={`/threads/${forum.lastThreadId}`}
 							prefetch={false}
-							className="relative z-10 text-forum-link hover:underline truncate"
+							className="relative z-10 text-forum-link hover:underline truncate min-w-0 flex-1"
+							data-testid="grid-last-thread-link"
 						>
 							{forum.lastThreadSubject || "最新主题"}
 						</Link>{" "}

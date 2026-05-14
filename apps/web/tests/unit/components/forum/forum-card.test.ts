@@ -176,6 +176,24 @@ describe("ForumCard LastPostPreview — clickable username + layout split", () =
 		expect(link.getAttribute("href")).toBe("/users/12345");
 	});
 
+	it("mobile compact stack also splits date into its own no-wrap span", () => {
+		// Reviewer caught: mobile previously wrapped `username + date` in one
+		// `truncate` span, so a long username could still eat the timestamp.
+		// Same fix as desktop — date is its own `shrink-0 whitespace-nowrap`
+		// sibling, username is `truncate min-w-0`.
+		render(createElement(ForumCard, { forum: lastPostForum, layout: "wide" }));
+		const date = screen.getByTestId("last-post-date-mobile");
+		expect(date.tagName).toBe("SPAN");
+		expect(date.className).toContain("whitespace-nowrap");
+		expect(date.className).toContain("shrink-0");
+		// Username link is a sibling, not an ancestor — guarantees they can't
+		// be collapsed back into one truncate span.
+		const link = screen.getByTestId("last-poster-link-mobile");
+		expect(link.parentElement).toBe(date.parentElement);
+		expect(link.className).toContain("truncate");
+		expect(link.className).toContain("min-w-0");
+	});
+
 	it("grid-layout last-poster username is a Link to /users/:id", () => {
 		// Grid layout (used by groups with >10 children) had the same bug:
 		// username was a bare `<span>`. Codify it.
@@ -183,6 +201,24 @@ describe("ForumCard LastPostPreview — clickable username + layout split", () =
 		const link = screen.getByTestId("last-poster-link-grid");
 		expect(link.tagName).toBe("A");
 		expect(link.getAttribute("href")).toBe("/users/12345");
+	});
+
+	it("grid-layout thread title link gets min-w-0 + flex-1 so name can shrink", () => {
+		// Reviewer caught: thread title is a flex child but only had `truncate`,
+		// no `min-w-0/flex-1`. With long titles + a username sibling, the
+		// flexbox couldn't shrink the title (default min-width:auto on flex
+		// items) and the username could push the title off-screen. Pinning
+		// min-w-0 + flex-1 lets the title shrink correctly while the username
+		// stays at intrinsic width via shrink-0.
+		render(createElement(ForumCard, { forum: lastPostForum, layout: "grid" }));
+		const title = screen.getByTestId("grid-last-thread-link");
+		expect(title.tagName).toBe("A");
+		expect(title.className).toContain("min-w-0");
+		expect(title.className).toContain("flex-1");
+		expect(title.className).toContain("truncate");
+		// Username sibling stays intrinsic-width.
+		const userLink = screen.getByTestId("last-poster-link-grid");
+		expect(userLink.className).toContain("shrink-0");
 	});
 });
 
