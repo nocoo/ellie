@@ -7,6 +7,7 @@ import {
 	bumpDigestGen,
 	bumpForumSummaryGen,
 	bumpThreadListGen,
+	bumpThreadListGenAll,
 	invalidateForumVolatileV2,
 	invalidateThreadListForForums,
 } from "../../lib/cache/invalidate";
@@ -19,6 +20,7 @@ import { parseIdFromPath } from "../../lib/parseId";
 import { recalcForumMetadata } from "../../lib/recalcMetadata";
 import { jsonResponse } from "../../lib/response";
 import { batchDecrementUserPosts, decrementUserThreads } from "../../lib/userCounters";
+import { STICKY_FORUM, STICKY_GLOBAL } from "../../lib/visibility";
 
 import { errorResponse } from "../../middleware/error";
 
@@ -149,6 +151,34 @@ const threadConfig: EntityConfig = {
 			]);
 		}
 
+		// Sticky singleton enforcement: at most ONE thread can be sticky=global
+		// site-wide. When this update promotes a thread to global, demote any
+		// other existing globals to forum-pinned. Mirrors the moderation
+		// handler's behavior so both write paths converge on the same invariant.
+		// `data.sticky` is already coerced to a number by validateAndCollectFields.
+		const newSticky = data.sticky as number | undefined;
+		const prevSticky = existing.sticky as number;
+		const promotedToGlobal = newSticky === STICKY_GLOBAL && prevSticky !== STICKY_GLOBAL;
+		const demotedFromGlobal =
+			newSticky !== undefined && newSticky !== STICKY_GLOBAL && prevSticky === STICKY_GLOBAL;
+		let demotedForumIds: number[] = [];
+		if (promotedToGlobal) {
+			const others = await env.DB.prepare(
+				`SELECT id, forum_id FROM threads WHERE sticky = ${STICKY_GLOBAL} AND id != ?`,
+			)
+				.bind(id)
+				.all<{ id: number; forum_id: number }>();
+			const rows = others.results ?? [];
+			if (rows.length > 0) {
+				demotedForumIds = rows.map((r) => r.forum_id);
+				await env.DB.prepare(
+					`UPDATE threads SET sticky = ${STICKY_FORUM} WHERE sticky = ${STICKY_GLOBAL} AND id != ?`,
+				)
+					.bind(id)
+					.run();
+			}
+		}
+
 		// Cache invalidation matrix per docs/19 §6 thread.update row:
 		//   - forum_id change ⇒ source + target volatile bump
 		//   - any list-affecting field change ⇒ per-forum thread-list bump
@@ -162,11 +192,16 @@ const threadConfig: EntityConfig = {
 		//     change `lastThreadSubject` and the summary refresh would be
 		//     pure overhead.
 		//   - digest change ⇒ also bump digest gen (filter visibility)
+		//   - global sticky transition (TO or FROM sticky=2) ⇒ ALSO bump
+		//     thread:list:gen:all so every forum's page1 cache drops the
+		//     stale global pin. Normal sticky changes (forum/none) MUST
+		//     NOT trigger the all-gen bump.
 		const LIST_AFFECTING = new Set(["sticky", "digest", "closed", "highlight", "subject"]);
 		const listAffected = Object.keys(data).some((c) => LIST_AFFECTING.has(c));
 		const digestChanged = data.digest !== undefined && data.digest !== (existing.digest as number);
 		const subjectChanged =
 			data.subject !== undefined && data.subject !== (existing.subject as string);
+		const globalTransition = promotedToGlobal || demotedFromGlobal;
 
 		const ops: Promise<unknown>[] = [];
 		if (movedForum) {
@@ -180,6 +215,16 @@ const threadConfig: EntityConfig = {
 			const currentForumId = existing.forum_id as number;
 			ops.push(bumpThreadListGen(env, currentForumId));
 			if (subjectChanged) ops.push(bumpForumSummaryGen(env));
+		}
+		if (globalTransition) {
+			// Per-forum bumps for any forum where an old global was demoted.
+			// The current thread's forum is already covered by the listAffected
+			// / movedForum branches above. The all-gen bump is the cross-forum
+			// fan-out.
+			if (demotedForumIds.length > 0) {
+				ops.push(invalidateThreadListForForums(env, demotedForumIds));
+			}
+			ops.push(bumpThreadListGenAll(env));
 		}
 		if (digestChanged) ops.push(bumpDigestGen(env));
 		if (ops.length > 0) await Promise.all(ops);

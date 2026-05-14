@@ -22,6 +22,7 @@ import {
 	bumpDigestGen,
 	bumpForumSummaryGen,
 	bumpThreadListGen,
+	bumpThreadListGenAll,
 	invalidateForumVolatileV2,
 	invalidateThreadListForForums,
 } from "../lib/cache/invalidate";
@@ -45,6 +46,7 @@ import {
 	decrementUserPosts,
 	decrementUserThreads,
 } from "../lib/userCounters";
+import { STICKY_FORUM, STICKY_GLOBAL, STICKY_NONE } from "../lib/visibility";
 import { moderationMiddleware } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 
@@ -56,9 +58,9 @@ function parseThreadIdFromModPath(request: Request): number | null {
 }
 
 const STICKY_MAP: Record<string, number> = {
-	none: 0,
-	forum: 1,
-	global: 2,
+	none: STICKY_NONE,
+	forum: STICKY_FORUM,
+	global: STICKY_GLOBAL,
 };
 
 // ─── PATCH /api/v1/moderation/threads/:id/sticky ─────────────────
@@ -121,12 +123,64 @@ export async function setSticky(request: Request, env: Env): Promise<Response> {
 	}
 
 	const stickyValue = STICKY_MAP[level];
+
+	// Read the current sticky so we can tell whether this write affects the
+	// site-wide global slot. Transitions in either direction (promote TO
+	// global OR demote FROM global) must invalidate every forum's page1
+	// cache, because a global pin appears at the top of every forum's
+	// thread list.
+	const prevRow = await env.DB.prepare("SELECT sticky FROM threads WHERE id = ?")
+		.bind(threadId)
+		.first<{ sticky: number }>();
+	const prevSticky = prevRow?.sticky ?? STICKY_NONE;
+
+	// Singleton enforcement: at most ONE thread can be sticky=global
+	// site-wide. When promoting to global, demote any existing global
+	// stickies down to forum-pinned (preserving the moderator intent that
+	// the thread should remain visible at the top of its own forum).
+	// We collect every forum_id touched by the demotion so we can fan-out
+	// thread-list cache invalidation precisely.
+	let demotedForumIds: number[] = [];
+	if (stickyValue === STICKY_GLOBAL) {
+		const existing = await env.DB.prepare(
+			`SELECT id, forum_id FROM threads WHERE sticky = ${STICKY_GLOBAL} AND id != ?`,
+		)
+			.bind(threadId)
+			.all<{ id: number; forum_id: number }>();
+		const rows = existing.results ?? [];
+		if (rows.length > 0) {
+			demotedForumIds = rows.map((r) => r.forum_id);
+			await env.DB.prepare(
+				`UPDATE threads SET sticky = ${STICKY_FORUM} WHERE sticky = ${STICKY_GLOBAL} AND id != ?`,
+			)
+				.bind(threadId)
+				.run();
+		}
+	}
+
 	await env.DB.prepare("UPDATE threads SET sticky = ? WHERE id = ?")
 		.bind(stickyValue, threadId)
 		.run();
 
-	// Sticky changes affect ORDER BY in thread page1 → bump per-forum gen.
-	await bumpThreadListGen(env, thread.forumId);
+	// Invalidation matrix:
+	//   - global transition (TO or FROM sticky=2):
+	//       bump per-forum gen for the target thread's forum, every forum
+	//       where an old global was demoted, AND the all-forum gen so
+	//       every forum's page1 cache drops the now-stale global pin.
+	//   - non-global update (forum/none ↔ forum/none):
+	//       only bump per-forum gen. We must NOT bump all-gen here, or a
+	//       routine per-forum sticky toggle would invalidate every other
+	//       forum's page1 cache.
+	const isGlobalTransition = stickyValue === STICKY_GLOBAL || prevSticky === STICKY_GLOBAL;
+	if (isGlobalTransition) {
+		const forumIds = new Set<number>([thread.forumId, ...demotedForumIds]);
+		await Promise.all([
+			invalidateThreadListForForums(env, Array.from(forumIds)),
+			bumpThreadListGenAll(env),
+		]);
+	} else {
+		await bumpThreadListGen(env, thread.forumId);
+	}
 
 	return jsonResponse({ id: threadId, sticky: stickyValue }, origin);
 }
