@@ -18,8 +18,8 @@ describe("schema", () => {
 		expect(TABLE_DDL).toHaveLength(5);
 	});
 
-	test("INDEX_DDL has 8 indexes", () => {
-		expect(INDEX_DDL).toHaveLength(8);
+	test("INDEX_DDL has 9 indexes", () => {
+		expect(INDEX_DDL).toHaveLength(9);
 	});
 
 	test("TABLE_ORDER matches TABLE_COLUMNS keys", () => {
@@ -65,7 +65,7 @@ describe("BatchLoader", () => {
 		loader.close();
 	});
 
-	test("createIndexes creates all 8 indexes", () => {
+	test("createIndexes creates all 9 indexes", () => {
 		const loader = new BatchLoader({ dbPath: TEST_DB });
 		loader.createTables();
 		loader.createIndexes();
@@ -75,7 +75,7 @@ describe("BatchLoader", () => {
 			.query("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_%'")
 			.all() as { name: string }[];
 
-		expect(indexes).toHaveLength(8);
+		expect(indexes).toHaveLength(9);
 		loader.close();
 	});
 
