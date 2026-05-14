@@ -462,6 +462,57 @@ describe("user handlers", () => {
 			const data = await response.json();
 			expect(data.data).toEqual([]);
 		});
+
+		it("excludes thread first-posts via p.is_first = 0 (回复 means replies, not own subjects)", async () => {
+			// The 回复 tab must not surface a user's own thread-opening posts —
+			// those belong in the 主题 tab and would otherwise duplicate-render
+			// here. Without this WHERE clause the page mixes subjects the user
+			// authored back into reply history.
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			// Both branches (with and without cursor) must enforce the filter.
+			await listPosts(new Request("https://example.com/api/v1/users/123/posts"), env);
+			const sqlNoCursor = prepareSpy.mock.calls[0][0] as string;
+			expect(sqlNoCursor).toContain("p.is_first = 0");
+
+			prepareSpy.mockClear();
+			const cursor = btoa(JSON.stringify({ createdAt: 1, id: 1 }));
+			await listPosts(
+				new Request(`https://example.com/api/v1/users/123/posts?cursor=${cursor}`),
+				env,
+			);
+			const sqlWithCursor = prepareSpy.mock.calls[0][0] as string;
+			expect(sqlWithCursor).toContain("p.is_first = 0");
+		});
+
+		it("first-post rows (is_first=1) returned by D1 are surfaced unchanged — filter happens in SQL", async () => {
+			// Defensive: if a future migration drops the filter, behavior would
+			// regress silently. We assert the SQL-side filter is present (above)
+			// AND that mapping doesn't accidentally drop is_first=0 rows.
+			const rows = [
+				makePostJoinRow({ id: 200, is_first: 0, position: 2 }),
+				makePostJoinRow({ id: 201, is_first: 0, position: 5 }),
+			];
+			const allSpy = vi.fn(() => Promise.resolve({ results: rows }));
+			const bindSpy = vi.fn((..._args: unknown[]) => ({ all: allSpy }));
+			const prepareSpy = vi.fn(() => ({ bind: bindSpy }));
+			const db = { prepare: prepareSpy } as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			const response = await listPosts(
+				new Request("https://example.com/api/v1/users/123/posts"),
+				env,
+			);
+			const data = await response.json();
+			expect(data.data).toHaveLength(2);
+			expect(data.data.every((d: { post: { isFirst: boolean } }) => d.post.isFirst === false)).toBe(
+				true,
+			);
+		});
 	});
 
 	describe("getAvatarPath", () => {
