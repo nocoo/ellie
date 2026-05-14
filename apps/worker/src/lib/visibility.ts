@@ -19,6 +19,20 @@ import type { ForumVisibility, VisibilityContext } from "@ellie/types";
  */
 export const THREAD_VISIBLE = "sticky >= 0";
 
+// ─── Sticky levels ──────────────────────────────────────────
+// Mirror Discuz `displayorder`: 0 normal, 1 forum-pinned, 2 site-wide
+// announcement (visible at the top of every forum), 3 category-pinned.
+// Centralized so call sites don't sprinkle magic numbers.
+
+/** Site-wide announcement: appears on top of every forum's thread list. */
+export const STICKY_GLOBAL = 2;
+
+/** Per-forum pinned thread: appears only in its own forum's list. */
+export const STICKY_FORUM = 1;
+
+/** Normal (unpinned) thread. */
+export const STICKY_NONE = 0;
+
 /**
  * SQL condition for visible posts.
  * invisible = 0: Normal visible posts
