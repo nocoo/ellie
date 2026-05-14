@@ -12,7 +12,7 @@ import type {
 	User,
 	UserPostHistoryItem,
 } from "@ellie/types";
-import { type ProfileTab, resolveTab } from "./user-profile";
+import { type ProfileTab, isUserPostHistoryItem, resolveTab } from "./user-profile";
 
 import { type PaginatedResult, emptyPage } from "@/viewmodels/shared/pagination";
 
@@ -24,12 +24,31 @@ import { type PaginatedResult, emptyPage } from "@/viewmodels/shared/pagination"
  */
 export type ForumNameMap = Readonly<Record<number, string>>;
 
+/**
+ * Discriminator for the posts tab response shape:
+ * - `"history"`: Worker returned `UserPostHistoryItem[]` ({ post, thread })
+ *   — the new shape that supports rendering forum-list-style rows directly.
+ * - `"legacy"`: Worker returned the old `Post[]` shape (no joined thread
+ *   columns). The page must NOT cast or N+1-fetch; it should render a
+ *   "backend upgrade pending" notice and suppress pagination, so users on
+ *   a partially-deployed environment see a clear explanation instead of
+ *   a runtime TypeError or a fake row.
+ */
+export type PostsShape = "history" | "legacy";
+
 export interface UserProfileData {
 	user: User;
 	tab: ProfileTab;
 	threads: PaginatedResult<Thread>;
 	posts: PaginatedResult<UserPostHistoryItem>;
 	digest: PaginatedResult<Thread>;
+	/**
+	 * Discriminates the response from `/api/v1/users/:id/posts`. `legacy` means
+	 * the deployed Worker hasn't been upgraded to return `{ post, thread }`
+	 * yet; in that state `posts` is always `emptyPage()` and pagination is
+	 * suppressed regardless of the user's actual reply count.
+	 */
+	postsShape: PostsShape;
 	/** forumId → name, scoped to whichever forums show up in this page's items. */
 	forumsById: ForumNameMap;
 }
@@ -54,14 +73,28 @@ export async function loadUserProfile(params: {
 
 	const user = publicUserToUser(publicUser);
 
-	// Merge tab results with user-derived totals (only when fetch succeeded)
+	// Merge tab results with user-derived totals (only when fetch succeeded
+	// AND the shape matches what the UI expects).
 	const totalMap: Record<ProfileTab, number> = {
 		threads: user.threads,
 		posts: user.posts,
 		digest: user.digestPosts,
 	};
-	const total = tabResult.ok ? totalMap[tab] : 0;
-	const tabPage = { ...tabResult, total };
+	const postsShape: PostsShape =
+		tab === "posts" && "postsShape" in tabResult && tabResult.postsShape
+			? tabResult.postsShape
+			: "history";
+	// In legacy mode the worker hasn't been upgraded; suppress total so the
+	// pagination UI doesn't claim there are pages the user can't reach. The
+	// accompanying UserPostsTab notice explains what the user is seeing.
+	const showUserTotal = tabResult.ok && !(tab === "posts" && postsShape === "legacy");
+	const total = showUserTotal ? totalMap[tab] : 0;
+	const tabPage: PaginatedResult<Thread | UserPostHistoryItem> = {
+		items: tabResult.items,
+		nextCursor: tabResult.nextCursor,
+		prevCursor: tabResult.prevCursor,
+		total,
+	};
 
 	return {
 		user,
@@ -69,6 +102,7 @@ export async function loadUserProfile(params: {
 		threads: tab === "threads" ? (tabPage as PaginatedResult<Thread>) : emptyPage(),
 		posts: tab === "posts" ? (tabPage as PaginatedResult<UserPostHistoryItem>) : emptyPage(),
 		digest: tab === "digest" ? (tabPage as PaginatedResult<Thread>) : emptyPage(),
+		postsShape,
 		forumsById,
 	};
 }
@@ -83,7 +117,11 @@ async function loadForumNameMap(): Promise<ForumNameMap> {
 	return map;
 }
 
-type TabFetchResult<T> = PaginatedResult<T> & { ok: boolean };
+type TabFetchResult<T> = PaginatedResult<T> & {
+	ok: boolean;
+	/** Only set when fetching the posts tab. */
+	postsShape?: PostsShape;
+};
 
 /** Fetch page size then tab-specific data. Runs in parallel with user fetch. */
 async function fetchTabData(
@@ -133,17 +171,42 @@ async function fetchTabData(
 		};
 	}
 
-	// posts — Worker returns UserPostHistoryItem ({ post, thread })
-	const res = await forumApi.getCursor<UserPostHistoryItem>(endpointMap[tab], {
+	// posts — Worker SHOULD return UserPostHistoryItem ({ post, thread }), but
+	// we runtime-check before trusting that contract. A partially-deployed
+	// environment that still returns plain `Post[]` would otherwise crash at
+	// render with "Cannot read properties of undefined (reading 'createdAt')".
+	const res = await forumApi.getCursor<unknown>(endpointMap[tab], {
 		limit,
 		cursor: params.cursor,
 	});
+	const rawItems = Array.isArray(res.data) ? res.data : [];
+	// Empty response is ambiguous (could be either shape with 0 items) — treat
+	// as "history" so we don't pessimize the normal "user has zero replies"
+	// case. Only flip to legacy when we actually see a non-history item.
+	const allHistoryShape =
+		rawItems.length === 0 || rawItems.every((it) => isUserPostHistoryItem(it));
+	if (!allHistoryShape) {
+		// Suppress items, cursors and total — UserPostsTab will render a
+		// "backend upgrade pending" notice in this branch.
+		return {
+			...emptyPage(),
+			ok: true,
+			postsShape: "legacy",
+		};
+	}
+	// Filter out any individual malformed item (defense-in-depth) even when
+	// the overall shape passes — keeps render purely on valid data.
+	const items: UserPostHistoryItem[] = [];
+	for (const it of rawItems) {
+		if (isUserPostHistoryItem(it)) items.push(it);
+	}
 	return {
 		ok: true,
-		items: res.data,
+		items,
 		nextCursor: res.meta.nextCursor,
 		prevCursor: params.cursor ?? null,
 		total: 0,
+		postsShape: "history",
 	};
 }
 

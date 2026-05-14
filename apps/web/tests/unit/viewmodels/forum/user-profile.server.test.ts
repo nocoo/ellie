@@ -40,6 +40,36 @@ const mockUser = {
 	digestPosts: 2,
 };
 
+/**
+ * Helper: build a full PostThreadSummary-shaped fixture that satisfies
+ * `isUserPostHistoryItem`. Keep the per-test overrides surgical so each
+ * scenario reads as data-driven rather than copy-pasted.
+ */
+function makeHistoryItem(
+	postOverrides: Record<string, unknown> = {},
+	threadOverrides: Record<string, unknown> = {},
+) {
+	return {
+		post: { id: 10, createdAt: 123, ...postOverrides },
+		thread: {
+			id: 1,
+			forumId: 1,
+			subject: "T",
+			replies: 0,
+			views: 0,
+			createdAt: 100,
+			lastPostAt: 100,
+			closed: 0,
+			sticky: 0,
+			digest: 0,
+			special: 0,
+			highlight: 0,
+			typeName: "",
+			...threadOverrides,
+		},
+	};
+}
+
 describe("loadUserProfile", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -57,10 +87,14 @@ describe("loadUserProfile", () => {
 	});
 
 	it("fetches posts tab", async () => {
-		mockForumApi.getCursor.mockResolvedValue({ data: [{ id: 10 }], meta: { nextCursor: null } });
+		mockForumApi.getCursor.mockResolvedValue({
+			data: [makeHistoryItem()],
+			meta: { nextCursor: null },
+		});
 		const result = await loadUserProfile({ userId: 42, tab: "posts" });
 		expect(result.tab).toBe("posts");
 		expect(result.posts.items.length).toBe(1);
+		expect(result.postsShape).toBe("history");
 		expect(result.threads.items.length).toBe(0);
 	});
 
@@ -121,5 +155,90 @@ describe("loadUserProfile", () => {
 		// Map is forumId → name; covers every forum from the cached list so
 		// each row can resolve its board chip without an extra request.
 		expect(result.forumsById).toEqual({ 1: "灌水区", 2: "技术区" });
+	});
+
+	describe("posts tab — backend shape compatibility", () => {
+		it("flags legacy Post[] payload as postsShape='legacy' and suppresses items/total", async () => {
+			// Old Worker returns flat Post objects without the joined `thread`.
+			// The loader must NOT cast — render would crash on `post.createdAt`.
+			mockForumApi.getCursor.mockResolvedValue({
+				data: [
+					{ id: 10, threadId: 1, createdAt: 111, content: "hi" },
+					{ id: 11, threadId: 1, createdAt: 112, content: "yo" },
+				],
+				meta: { nextCursor: "should-be-suppressed" },
+			});
+			const result = await loadUserProfile({ userId: 42, tab: "posts" });
+			expect(result.postsShape).toBe("legacy");
+			expect(result.posts.items).toEqual([]);
+			expect(result.posts.nextCursor).toBeNull();
+			expect(result.posts.prevCursor).toBeNull();
+			// Total must NOT show user.posts (20) — pagination shouldn't claim
+			// pages the user can't actually navigate to.
+			expect(result.posts.total).toBe(0);
+		});
+
+		it("accepts new UserPostHistoryItem shape and exposes postsShape='history'", async () => {
+			mockForumApi.getCursor.mockResolvedValue({
+				data: [
+					makeHistoryItem(
+						{ id: 50, createdAt: 200 },
+						{ id: 1, forumId: 1, subject: "Hello", replies: 1, views: 2, lastPostAt: 200 },
+					),
+				],
+				meta: { nextCursor: "next" },
+			});
+			const result = await loadUserProfile({ userId: 42, tab: "posts" });
+			expect(result.postsShape).toBe("history");
+			expect(result.posts.items.length).toBe(1);
+			expect(result.posts.nextCursor).toBe("next");
+			expect(result.posts.total).toBe(20); // user.posts
+		});
+
+		it("partial thread (missing fields the row reads) is rejected as legacy", async () => {
+			// `post`+`thread` envelopes look right but `thread.replies` is gone.
+			// `formatCompactNumber(thread.replies)` in UserProfileListRow would
+			// crash on this — the guard must catch it BEFORE we render.
+			mockForumApi.getCursor.mockResolvedValue({
+				data: [
+					{
+						post: { id: 50, createdAt: 200 },
+						thread: { id: 1, forumId: 1, subject: "Hello" /* replies/views/... missing */ },
+					},
+				],
+				meta: { nextCursor: null },
+			});
+			const result = await loadUserProfile({ userId: 42, tab: "posts" });
+			expect(result.postsShape).toBe("legacy");
+			expect(result.posts.items).toEqual([]);
+		});
+
+		it("missing thread.lastPostAt is rejected as legacy", async () => {
+			mockForumApi.getCursor.mockResolvedValue({
+				data: [
+					makeHistoryItem(
+						{},
+						{
+							lastPostAt: undefined as unknown as number,
+						},
+					),
+				],
+				meta: { nextCursor: null },
+			});
+			const result = await loadUserProfile({ userId: 42, tab: "posts" });
+			expect(result.postsShape).toBe("legacy");
+		});
+
+		it("empty data array is treated as history shape (zero replies), not legacy", async () => {
+			mockForumApi.getCursor.mockResolvedValue({ data: [], meta: { nextCursor: null } });
+			const result = await loadUserProfile({ userId: 42, tab: "posts" });
+			expect(result.postsShape).toBe("history");
+			expect(result.posts.items).toEqual([]);
+		});
+
+		it("non-posts tabs always report postsShape='history' (default)", async () => {
+			const result = await loadUserProfile({ userId: 42, tab: "threads" });
+			expect(result.postsShape).toBe("history");
+		});
 	});
 });
