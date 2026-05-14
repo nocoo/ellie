@@ -44,7 +44,8 @@ run_bg unit       bun run test:coverage
 run_bg bun_tests  bun test \
   tests/unit/loader.test.ts \
   tests/unit/verify.test.ts \
-  tests/unit/migration-0029-schema.test.ts
+  tests/unit/migration-0029-schema.test.ts \
+  tests/unit/migration-0036-schema.test.ts
 
 wait_stage typecheck
 wait_stage lint
