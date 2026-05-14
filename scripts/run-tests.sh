@@ -16,6 +16,8 @@ bun test \
   "$PWD/tests/unit/loader.test.ts" \
   "$PWD/tests/unit/verify.test.ts" \
   "$PWD/tests/unit/migration-0029-schema.test.ts" \
+  "$PWD/tests/unit/migration-0036-schema.test.ts" \
+  "$PWD/tests/unit/migration-0037-schema.test.ts" \
   >"$blog" 2>&1 &
 b=$!
 
