@@ -228,6 +228,8 @@ export const INDEX_DDL: string[] = [
 	"CREATE INDEX IF NOT EXISTS idx_threads_author ON threads(author_id, created_at DESC)",
 	"CREATE INDEX IF NOT EXISTS idx_threads_latest ON threads(last_post_at DESC)",
 	"CREATE INDEX IF NOT EXISTS idx_threads_digest ON threads(digest, last_post_at DESC) WHERE digest > 0",
+	// Site-wide announcement cross-forum lookup (migration 0037).
+	"CREATE INDEX IF NOT EXISTS idx_threads_sticky ON threads(sticky, last_post_at DESC, id DESC)",
 
 	// posts indexes
 	"CREATE INDEX IF NOT EXISTS idx_posts_thread ON posts(thread_id, position)",

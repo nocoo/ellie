@@ -280,6 +280,10 @@ export const INDEXES = {
 		"CREATE INDEX IF NOT EXISTS idx_threads_author ON threads(author_id);",
 		"CREATE INDEX IF NOT EXISTS idx_threads_latest ON threads(last_post_at DESC);",
 		"CREATE INDEX IF NOT EXISTS idx_threads_last_poster_id ON threads(last_poster_id);",
+		// Site-wide announcement (sticky=2) cross-forum lookup. See
+		// migration 0037_idx_threads_sticky.sql; the OR'd WHERE in
+		// /api/v1/threads needs this to avoid a full-table scan.
+		"CREATE INDEX IF NOT EXISTS idx_threads_sticky ON threads(sticky, last_post_at DESC, id DESC);",
 	],
 
 	posts: [
