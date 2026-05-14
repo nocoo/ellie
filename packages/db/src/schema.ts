@@ -21,7 +21,11 @@ export const TABLES = {
 			last_post_at INTEGER NOT NULL DEFAULT 0,
 			last_poster TEXT NOT NULL DEFAULT '',
 			last_poster_id INTEGER NOT NULL DEFAULT 0,
-			last_thread_subject TEXT NOT NULL DEFAULT ''
+			last_thread_subject TEXT NOT NULL DEFAULT '',
+			thread_types_enabled  INTEGER NOT NULL DEFAULT 0,
+			thread_types_required INTEGER NOT NULL DEFAULT 0,
+			thread_types_listable INTEGER NOT NULL DEFAULT 0,
+			thread_types_prefix   INTEGER NOT NULL DEFAULT 0
 		);
 	`,
 
@@ -88,7 +92,8 @@ export const TABLES = {
 			highlight INTEGER NOT NULL DEFAULT 0,
 			recommends INTEGER NOT NULL DEFAULT 0,
 			post_table_id INTEGER NOT NULL DEFAULT 0,
-			type_name TEXT NOT NULL DEFAULT ''
+			type_name TEXT NOT NULL DEFAULT '',
+			type_id INTEGER NOT NULL DEFAULT 0
 		);
 	`,
 
@@ -254,6 +259,24 @@ export const TABLES = {
 			PRIMARY KEY (user_id, date_local)
 		);
 	`,
+
+	// Discuz 主题分类 (thread categories). PK reuses the source
+	// `pre_forum_threadclass.typeid` directly so per-thread `type_id`
+	// references survive the migration unchanged. enabled=0 rows are
+	// tombstones — kept so the legacy threads they reference can still
+	// resolve a typeName, but hidden from the admin/post-picker UIs.
+	// See migration 0038_thread_categories.sql.
+	forum_thread_types: `
+		CREATE TABLE IF NOT EXISTS forum_thread_types (
+			id              INTEGER PRIMARY KEY,
+			forum_id        INTEGER NOT NULL,
+			name            TEXT    NOT NULL,
+			display_order   INTEGER NOT NULL DEFAULT 0,
+			icon            TEXT    NOT NULL DEFAULT '',
+			enabled         INTEGER NOT NULL DEFAULT 1,
+			moderator_only  INTEGER NOT NULL DEFAULT 0
+		);
+	`,
 };
 
 export const INDEXES = {
@@ -284,6 +307,10 @@ export const INDEXES = {
 		// migration 0037_idx_threads_sticky.sql; the OR'd WHERE in
 		// /api/v1/threads needs this to avoid a full-table scan.
 		"CREATE INDEX IF NOT EXISTS idx_threads_sticky ON threads(sticky, last_post_at DESC, id DESC);",
+		// Per-forum category filter (主题分类). See migration
+		// 0038_thread_categories.sql; covers the `forum_id=? AND type_id=?`
+		// thread-list query shape index-only including the ORDER BY.
+		"CREATE INDEX IF NOT EXISTS idx_threads_forum_type ON threads(forum_id, type_id, last_post_at DESC, id DESC);",
 	],
 
 	posts: [
@@ -338,5 +365,13 @@ export const INDEXES = {
 	// already covers the per-user lookup path.
 	checkin_history: [
 		"CREATE INDEX IF NOT EXISTS idx_checkin_history_date ON checkin_history(date_local);",
+	],
+
+	// Per-forum category list (admin / picker / list-filter pill).
+	// Composite (forum_id, display_order, id) lets the picker query
+	// return rows in admin-defined order with a deterministic tiebreak
+	// and stay index-only. See migration 0038_thread_categories.sql.
+	forum_thread_types: [
+		"CREATE INDEX IF NOT EXISTS idx_forum_thread_types_forum ON forum_thread_types(forum_id, display_order, id);",
 	],
 };

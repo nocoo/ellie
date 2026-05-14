@@ -14,12 +14,12 @@ function cleanup() {
 }
 
 describe("schema", () => {
-	test("TABLE_DDL has 5 tables", () => {
-		expect(TABLE_DDL).toHaveLength(5);
+	test("TABLE_DDL has 6 tables", () => {
+		expect(TABLE_DDL).toHaveLength(6);
 	});
 
-	test("INDEX_DDL has 9 indexes", () => {
-		expect(INDEX_DDL).toHaveLength(9);
+	test("INDEX_DDL has 11 indexes", () => {
+		expect(INDEX_DDL).toHaveLength(11);
 	});
 
 	test("TABLE_ORDER matches TABLE_COLUMNS keys", () => {
@@ -46,7 +46,7 @@ describe("BatchLoader", () => {
 	beforeEach(cleanup);
 	afterEach(cleanup);
 
-	test("createTables creates all 5 tables", () => {
+	test("createTables creates all 6 tables", () => {
 		const loader = new BatchLoader({ dbPath: TEST_DB });
 		loader.createTables();
 
@@ -61,11 +61,12 @@ describe("BatchLoader", () => {
 		expect(tableNames).toContain("threads");
 		expect(tableNames).toContain("posts");
 		expect(tableNames).toContain("attachments");
+		expect(tableNames).toContain("forum_thread_types");
 
 		loader.close();
 	});
 
-	test("createIndexes creates all 9 indexes", () => {
+	test("createIndexes creates all 11 indexes", () => {
 		const loader = new BatchLoader({ dbPath: TEST_DB });
 		loader.createTables();
 		loader.createIndexes();
@@ -75,7 +76,7 @@ describe("BatchLoader", () => {
 			.query("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_%'")
 			.all() as { name: string }[];
 
-		expect(indexes).toHaveLength(9);
+		expect(indexes).toHaveLength(11);
 		loader.close();
 	});
 
@@ -98,6 +99,11 @@ describe("BatchLoader", () => {
 				last_thread_id: 5,
 				last_post_at: 1700000000,
 				last_poster: "admin",
+				type_name: "",
+				thread_types_enabled: 0,
+				thread_types_required: 0,
+				thread_types_listable: 0,
+				thread_types_prefix: 0,
 			},
 			{
 				id: 2,
@@ -113,6 +119,11 @@ describe("BatchLoader", () => {
 				last_thread_id: 3,
 				last_post_at: 1700000100,
 				last_poster: "user1",
+				type_name: "",
+				thread_types_enabled: 0,
+				thread_types_required: 0,
+				thread_types_listable: 0,
+				thread_types_prefix: 0,
 			},
 		]);
 
@@ -219,6 +230,10 @@ describe("StreamInserter", () => {
 				last_thread_id: 0,
 				last_post_at: 0,
 				last_poster: "",
+				thread_types_enabled: 0,
+				thread_types_required: 0,
+				thread_types_listable: 0,
+				thread_types_prefix: 0,
 			});
 		}
 
@@ -298,6 +313,10 @@ describe("StreamInserter", () => {
 				last_thread_id: 0,
 				last_post_at: 0,
 				last_poster: "",
+				thread_types_enabled: 0,
+				thread_types_required: 0,
+				thread_types_listable: 0,
+				thread_types_prefix: 0,
 			},
 		]);
 		loader.insertRows("users", [
@@ -336,6 +355,8 @@ describe("StreamInserter", () => {
 				highlight: 0,
 				recommends: 0,
 				post_table_id: 0,
+				type_name: "",
+				type_id: 0,
 			},
 		]);
 		loader.insertRows("posts", [

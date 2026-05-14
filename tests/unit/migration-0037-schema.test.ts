@@ -75,8 +75,13 @@ describe("migration 0037 — idx_threads_sticky drift guard", () => {
 		// silently kill the MULTI-INDEX OR plan: SQLite needs an
 		// equality probe on the leading column to enter index range
 		// scan on the sticky=2 side of the OR.
-		const wrongOrder =
-			/CREATE\s+INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?idx_threads_sticky[\s\S]*?ON\s+threads\s*\(\s*(?:forum_id|last_post_at|id)\s*,/i;
+		//
+		// We anchor the search to the `idx_threads_sticky` statement
+		// itself (terminated by `)` or end-of-line) so unrelated
+		// indexes that happen to lead with forum_id (e.g. the
+		// 0038 idx_threads_forum_type) cannot satisfy the regex.
+		const stickyStmt =
+			/CREATE\s+INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?idx_threads_sticky\b[^;)]*?ON\s+threads\s*\(([^)]*)\)/i;
 		for (const path of [
 			migrationPath,
 			baselinePath,
@@ -85,7 +90,11 @@ describe("migration 0037 — idx_threads_sticky drift guard", () => {
 			scriptsLoaderPath,
 		]) {
 			const src = readFileSync(path, "utf8");
-			expect(src).not.toMatch(wrongOrder);
+			const m = src.match(stickyStmt);
+			expect(m).not.toBeNull();
+			const cols = m?.[1] ?? "";
+			// First column inside the parens must be `sticky`.
+			expect(cols.trim()).toMatch(/^sticky\b/i);
 		}
 	});
 });
