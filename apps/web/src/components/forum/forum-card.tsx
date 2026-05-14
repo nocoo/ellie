@@ -6,8 +6,13 @@
 // Wide layout uses a fixed CSS grid template so the icon, info, stats, and
 // last-post columns line up across rows regardless of name/description length.
 // - <640px:  single-column mobile compact stack
-// - 640–1023: `36px minmax(0,1fr) 96px`  — stats anchor stays put, last-post hidden
-// - >=1024:   `36px minmax(0,1fr) 104px 240px` — full 4-column row
+// - 640–1023: `36px minmax(0,1fr) 112px`  — stats anchor stays put, last-post hidden
+// - >=1024:   `36px minmax(0,1fr) 120px 240px` — full 4-column row
+//
+// Stats column width (112/120px) is sized to fit a 6-digit + 6-digit pair on
+// one line at the body font size; ForumStats also pins `whitespace-nowrap` on
+// the inner span to defend against future font-size changes. Numbers like
+// `71,254 / 195,347` (回收站) used to wrap at the `/` and force a 2-line row.
 //
 // `<ForumMetaLine>` and `<LastPostPreview>` keep the visual rhythm centralised
 // so future tweaks don't have to chase 2 layouts.
@@ -46,7 +51,19 @@ function LastPosterAvatarLink({
 	);
 }
 
-/** Forum thread/post count display — desktop column or inline meta. */
+/** Forum thread/post count display — desktop column or inline meta.
+ *
+ * `whitespace-nowrap` on the inner `<span>` is load-bearing: without it,
+ * 5–6 digit counts (e.g. `71,254 / 195,347` from 回收站) wrap at the `/`,
+ * pushing the row to two lines and breaking column alignment. The outer
+ * column is widened to fit a 6-digit + 6-digit pair on one line at the
+ * common breakpoints — see `ForumCardWide` grid template.
+ *
+ * `data-testid` hooks let `forum-card.test.ts` assert the no-wrap class is
+ * still present after refactors; the homepage regression that prompted
+ * this fix is exactly the kind of CSS regression that silently degrades
+ * without a guard.
+ */
 function ForumStats({
 	threads,
 	posts,
@@ -55,7 +72,7 @@ function ForumStats({
 	if (variant === "desktop") {
 		return (
 			<div className="flex flex-col items-end self-start text-xs text-muted-foreground tabular-nums leading-5">
-				<span>
+				<span className="whitespace-nowrap" data-testid="forum-stats-desktop">
 					<span className="text-foreground font-medium">{formatCount(threads)}</span>
 					{" / "}
 					{formatCount(posts)}
@@ -64,9 +81,9 @@ function ForumStats({
 		);
 	}
 	return (
-		<>
+		<span className="whitespace-nowrap" data-testid="forum-stats-inline">
 			{formatCount(threads)} 帖 / {formatCount(posts)} 回
-		</>
+		</span>
 	);
 }
 
@@ -203,11 +220,11 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 			{/*
 			 * Desktop ≥640: CSS grid template ensures stats / last-post columns
 			 * line up across rows regardless of name length.
-			 *  sm  (640–1023): 36px | 1fr | 96px            (last-post hidden)
-			 *  lg  (>=1024) : 36px | 1fr | 104px | 240px   (full)
+			 *  sm  (640–1023): 36px | 1fr | 112px           (last-post hidden)
+			 *  lg  (>=1024) : 36px | 1fr | 120px | 240px  (full)
 			 * Top-aligned so multi-line info doesn't push the avatar baseline.
 			 */}
-			<div className="hidden sm:grid sm:grid-cols-[36px_minmax(0,1fr)_96px] lg:grid-cols-[36px_minmax(0,1fr)_104px_240px] items-start gap-x-4 gap-y-1 px-4 py-3.5">
+			<div className="hidden sm:grid sm:grid-cols-[36px_minmax(0,1fr)_112px] lg:grid-cols-[36px_minmax(0,1fr)_120px_240px] items-start gap-x-4 gap-y-1 px-4 py-3.5">
 				<div className="self-start pt-0.5">
 					<ForumIcon hasActivity={forum.todayThreads > 0} />
 				</div>
@@ -259,7 +276,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 					<TodayThreadBadge count={forum.todayThreads} variant="pill" />
 				</div>
 				<div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-					<span className="tabular-nums">
+					<span className="tabular-nums shrink-0">
 						<ForumStats threads={forum.threads} posts={forum.posts} variant="inline" />
 					</span>
 					{forum.lastPostAt > 0 && (
