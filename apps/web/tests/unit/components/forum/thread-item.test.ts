@@ -84,6 +84,8 @@ function makeDisplayItem(overrides: Record<string, unknown> = {}) {
 		iconSrc: "/static/folder_common.gif",
 		digestSrc: null,
 		newbieStampSrc: null,
+		isGlobalAnnouncement: false,
+		...overrides,
 	};
 }
 
@@ -156,5 +158,76 @@ describe("ThreadItem — returnTo propagation", () => {
 		expect(calls.length).toBeGreaterThan(0);
 		const allUndefined = calls.every((call: any[]) => call[0].returnTo === undefined);
 		expect(allUndefined).toBe(true);
+	});
+});
+
+// ─── Global announcement (sticky=2) icon ──────────────────────────────────────
+// Phase 2 of 全站公告: when isGlobalAnnouncement is true, the left-column
+// row icon must be a red lucide Megaphone with aria-label="全站公告" instead
+// of the classic Discuz folder/pin gif. Forum-pinned (sticky=1) and
+// category-pinned (sticky=3) rows must keep their pin gif via iconSrc and
+// MUST NOT render the megaphone — see reviewer constraint
+// #ellie-数据同步MBP:5fc0db50 ("红色 icon 只替代/增强 sticky=2").
+describe("ThreadItem — global announcement icon", () => {
+	it("renders red Megaphone with aria-label=全站公告 when isGlobalAnnouncement=true", () => {
+		const item = makeDisplayItem({ isGlobalAnnouncement: true });
+		render(createElement(ThreadItem, { item, postsPerPage: 15 }));
+
+		// Desktop + mobile layouts both render the row → expect 2 megaphones.
+		const icons = screen.getAllByLabelText("全站公告");
+		expect(icons.length).toBe(2);
+		for (const icon of icons) {
+			// lucide-react renders as <svg>; the text-destructive class is what
+			// paints it red. The class lookup is brittle on purpose: if the
+			// class name changes we want this test to flag it.
+			expect(icon.tagName.toLowerCase()).toBe("svg");
+			expect(icon.getAttribute("class") ?? "").toContain("text-destructive");
+		}
+	});
+
+	it("renders classic <img> icon (no megaphone) when isGlobalAnnouncement=false", () => {
+		const item = makeDisplayItem({ isGlobalAnnouncement: false });
+		render(createElement(ThreadItem, { item, postsPerPage: 15 }));
+
+		expect(screen.queryByLabelText("全站公告")).toBeNull();
+		// The classic folder/pin gif is rendered via <img alt=""> — assert at
+		// least one such image is present.
+		const imgs = document.querySelectorAll("img[src='/static/folder_common.gif']");
+		expect(imgs.length).toBeGreaterThan(0);
+	});
+
+	it("forum-pin (sticky=1) and category-pin (sticky=3) keep their pin gif via iconSrc", () => {
+		// The VM is responsible for producing iconSrc=pin_N.gif and
+		// isGlobalAnnouncement=false for sticky=1/3. Simulate that here so
+		// ThreadItem cannot accidentally swap the gif for a megaphone.
+		const item = makeDisplayItem({
+			isGlobalAnnouncement: false,
+			iconSrc: "/static/pin_3.gif",
+		});
+		render(createElement(ThreadItem, { item, postsPerPage: 15 }));
+
+		expect(screen.queryByLabelText("全站公告")).toBeNull();
+		const imgs = document.querySelectorAll("img[src='/static/pin_3.gif']");
+		expect(imgs.length).toBeGreaterThan(0);
+	});
+
+	it("preserves desktop 36px icon column wrapper for global announcements", () => {
+		// Reviewer constraint: column width must not jump when the megaphone
+		// replaces the gif. Assert the wrapper class still includes w-[36px].
+		const item = makeDisplayItem({ isGlobalAnnouncement: true });
+		render(createElement(ThreadItem, { item, postsPerPage: 15 }));
+
+		const icon = screen.getAllByLabelText("全站公告")[0];
+		// Walk up to the wrapper div with the fixed width.
+		let el: HTMLElement | null = icon;
+		let found = false;
+		while (el && el.tagName.toLowerCase() !== "body") {
+			if ((el.getAttribute("class") ?? "").includes("w-[36px]")) {
+				found = true;
+				break;
+			}
+			el = el.parentElement;
+		}
+		expect(found).toBe(true);
 	});
 });

@@ -123,6 +123,31 @@ describe("enrichThreads", () => {
 		const items = enrichThreads(threads);
 		expect(items[0]?.newbieStampSrc).toContain("011.small.gif");
 	});
+
+	// isGlobalAnnouncement — drives the red Megaphone icon in the row.
+	// Only sticky=2 (Global) flips this on; sticky=1 (Forum) and sticky=3
+	// (Category) must keep the classic pin gif via iconSrc and leave this
+	// flag false so the icon column never replaces a category-pin row's
+	// pin_3.gif with the announcement megaphone.
+	it("marks isGlobalAnnouncement=true only for sticky=Global (2)", () => {
+		const items = enrichThreads([makeThread({ id: 1, sticky: StickyLevel.Global })]);
+		expect(items[0]?.isGlobalAnnouncement).toBe(true);
+	});
+
+	it("marks isGlobalAnnouncement=false for sticky=None (0)", () => {
+		const items = enrichThreads([makeThread({ id: 1, sticky: StickyLevel.None })]);
+		expect(items[0]?.isGlobalAnnouncement).toBe(false);
+	});
+
+	it("marks isGlobalAnnouncement=false for sticky=Forum (1)", () => {
+		const items = enrichThreads([makeThread({ id: 1, sticky: StickyLevel.Forum })]);
+		expect(items[0]?.isGlobalAnnouncement).toBe(false);
+	});
+
+	it("marks isGlobalAnnouncement=false for sticky=Category (3)", () => {
+		const items = enrichThreads([makeThread({ id: 1, sticky: StickyLevel.Category })]);
+		expect(items[0]?.isGlobalAnnouncement).toBe(false);
+	});
 });
 
 // ---------------------------------------------------------------------------
