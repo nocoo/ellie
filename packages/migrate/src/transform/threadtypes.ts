@@ -38,6 +38,12 @@
  *        b:0 / b:1            — native PHP bool
  *        s:1:"0" / s:1:"1"    — string-encoded admin-form value
  *      Both must coerce to the JS bool.
+ *   3. `enabled` is derived from `types.size > 0`, NOT the legacy
+ *      top-level `status` key. The admin write path stopped emitting
+ *      `status` for re-saved forums (fid=134 + fid=147 have 5 admin
+ *      categories each but no `status`); inferring "disabled" from a
+ *      missing key would silently hide the category UI. The raw bit is
+ *      preserved as `rawStatusEnabled` for dry-run sanity-check only.
  *
  * Byte-vs-char correctness:
  *   PHP serialize string lengths are byte counts (UTF-8 in this DB).
@@ -59,8 +65,27 @@ const TEXT_ENCODER = new TextEncoder();
 
 /** Parsed result for one forum's `threadtypes` payload. */
 export type ThreadTypesConfig = {
-	/** forums.thread_types_enabled — top-level `status` key. */
+	/**
+	 * forums.thread_types_enabled — true iff this forum currently has at
+	 * least one admin-configured category. Derived from `types.size > 0`,
+	 * NOT from the legacy top-level `status` key.
+	 *
+	 * Discuz's admin write path stopped emitting `status` somewhere along
+	 * the way (fid=134 + fid=147 in the live dump are admin-re-saved
+	 * forums with 5 categories each but no `status` key). Inferring
+	 * enabled from `status` would silently disable the category UI on
+	 * those forums; the load-side acceptance criterion (fid=134/147 must
+	 * surface 5 enabled categories each) makes the `types`-derived
+	 * definition authoritative.
+	 *
+	 * The raw legacy bit is preserved as `rawStatusEnabled` for the
+	 * dry-run sanity check (parity between historical `status` and the
+	 * new derivation) — callers should NOT consume it for any production
+	 * decision.
+	 */
 	enabled: boolean;
+	/** Raw `status` key value; informational only, see `enabled` doc. */
+	rawStatusEnabled: boolean;
 	/** forums.thread_types_required — selecting a type is mandatory. */
 	required: boolean;
 	/** forums.thread_types_listable — show category strip on forum index. */
@@ -78,6 +103,7 @@ export type ThreadTypesConfig = {
 /** Empty config used when the input is empty/null/unparseable. */
 export const EMPTY_THREADTYPES_CONFIG: ThreadTypesConfig = Object.freeze({
 	enabled: false,
+	rawStatusEnabled: false,
 	required: false,
 	listable: false,
 	prefix: false,
@@ -408,7 +434,10 @@ export function parseThreadTypes(raw: string | null | undefined): ThreadTypesCon
 	}
 
 	return {
-		enabled: statusRange ? coerceBoolByteRange(bytes, statusRange.start, statusRange.end) : false,
+		enabled: types.size > 0,
+		rawStatusEnabled: statusRange
+			? coerceBoolByteRange(bytes, statusRange.start, statusRange.end)
+			: false,
 		required: requiredRange
 			? coerceBoolByteRange(bytes, requiredRange.start, requiredRange.end)
 			: false,

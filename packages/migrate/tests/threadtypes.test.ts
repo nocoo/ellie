@@ -12,25 +12,34 @@ import {
  * parser is the actual PHP-serialized payload as it would arrive after
  * `parser.ts` unescapes the dump value.
  *
+ * `enabled` semantics (reviewer pin e408cbf0): driven by
+ * `types.size > 0`, NOT the legacy `status` key. The raw `status` bit
+ * is surfaced as `rawStatusEnabled` for dry-run parity logging only.
+ *
  * fid=134 (跳蚤市场, current) shows the modern admin shape:
- *   • status absent → enabled defaults false; admin re-saved via newer UI
- *     drops the legacy `status` key (this is a known Discuz quirk, see
- *     header in src/transform/threadtypes.ts).
+ *   • status absent → rawStatusEnabled=false, but enabled=true because
+ *     5 admin-configured categories exist. Admin re-saved via the
+ *     newer UI drops the legacy `status` key — a known Discuz quirk.
  *   • required, listable as b:1
  *   • prefix as s:1:"1"          ← reviewer pin #2 (must coerce to true)
  *   • types: i:561..i:565 → 5 entries, all non-zero typeids
  *
  * fid=113 (电脑技术, legacy) shows the admin's older write path:
  *   • Leading junk key i:0;b:0; — must not crash the parser.
- *   • No status/required/listable keys (all default false).
+ *   • No status/required/listable/prefix keys; enabled=true via types
+ *     (the forum has 3 categories), but the three per-feature flags
+ *     stay false so the Web UI keeps the data + retains prefix
+ *     rendering capability without forcing the picker or showing the
+ *     filter strip (reviewer pin e408cbf0).
  *   • types is a:3 with KEYS i:0/i:1/i:2 — reviewer pin #1: these are
  *     LEGITIMATE typeids (PUB/REQ/Completed), NOT "no-category". The
  *     parser must preserve `0` as a real key.
  *
  * fid=147 (求职就业, synthesized minimal) covers the cleanest current
  * shape: status=b:1, required=b:0, listable=b:1, prefix=b:0, 5 types
- * with non-zero ids — the verify artifact expects fid=147 to surface 5
- * enabled categories per the reviewer's acceptance criterion.
+ * with non-zero ids — both the legacy status bit AND the types-derived
+ * `enabled` agree (enabled=true, rawStatusEnabled=true), satisfying the
+ * verify artifact's acceptance criterion for fid=147.
  */
 const FIXTURE_FID_134 =
 	'a:6:{s:8:"required";b:1;s:8:"listable";b:1;s:6:"prefix";s:1:"1";s:5:"types";a:5:{i:561;s:12:"校园代理";i:562;s:12:"房屋租赁";i:563;s:12:"学习资料";i:564;s:12:"电子通讯";i:565;s:12:"生活资料";}s:5:"icons";a:5:{i:561;s:0:"";i:562;s:0:"";i:563;s:0:"";i:564;s:0:"";i:565;s:0:"";}s:10:"moderators";a:5:{i:561;N;i:562;N;i:563;N;i:564;N;i:565;N;}}';
@@ -114,16 +123,15 @@ describe("parseThreadTypes — fid=134 (跳蚤市场, modern admin shape)", () =
 		expect(result.listable).toBe(true);
 	});
 
-	test("status key absent → enabled defaults to false (admin re-saved without it)", () => {
-		// The verify artifact's acceptance criterion (fid=134 has 5
-		// enabled categories) is satisfied by the `types` map having
-		// 5 entries even when the top-level `status` key is missing.
-		// We deliberately do NOT infer `enabled` from `types.size > 0`
-		// because the reviewer wants tombstones (enabled=0 categories
-		// merged in from pre_forum_threadclass) to still surface in
-		// `forum_thread_types`. enabled/required/listable/prefix must
-		// reflect ONLY the current admin config.
-		expect(result.enabled).toBe(false);
+	test("status key absent → enabled now derived from types.size (reviewer e408cbf0)", () => {
+		// Updated semantics: enabled = types.size > 0, NOT raw `status`.
+		// fid=134 has 5 admin-configured categories so the forum's
+		// category UI must be ON, even though the admin re-save dropped
+		// the legacy `status` key. rawStatusEnabled stays false here to
+		// flag the dry-run sanity-check (parity between legacy bit and
+		// the new derivation).
+		expect(result.enabled).toBe(true);
+		expect(result.rawStatusEnabled).toBe(false);
 	});
 
 	test("types map has 5 entries with correct names", () => {
@@ -169,8 +177,15 @@ describe("parseThreadTypes — fid=113 (legacy admin shape with i:0 keys)", () =
 		expect(result.types.get(2)).toBe("Completed");
 	});
 
-	test("no status/required/listable/prefix keys → all default false", () => {
-		expect(result.enabled).toBe(false);
+	test("no status/required/listable/prefix keys → required/listable/prefix default false; enabled from types", () => {
+		// fid=113 has 3 categories (PUB/REQ/Completed) so the forum
+		// itself must be enabled — but with required/listable/prefix
+		// false, the Web UI can keep the data + retain prefix-rendering
+		// capability without forcing the picker or showing a filter
+		// strip. The four forum flags are deliberately independent
+		// (reviewer e408cbf0).
+		expect(result.enabled).toBe(true);
+		expect(result.rawStatusEnabled).toBe(false);
 		expect(result.required).toBe(false);
 		expect(result.listable).toBe(false);
 		expect(result.prefix).toBe(false);
@@ -185,8 +200,10 @@ describe("parseThreadTypes — fid=113 (legacy admin shape with i:0 keys)", () =
 describe("parseThreadTypes — fid=147 (clean current shape)", () => {
 	const result = parseThreadTypes(FIXTURE_FID_147);
 
-	test("all four bool fields parse correctly (b:1 and b:0 mix)", () => {
+	test("all four bool fields parse correctly (b:1 and b:0 mix); enabled aligned with types", () => {
+		// fid=147 has explicit status=b:1 AND 5 types — both paths agree.
 		expect(result.enabled).toBe(true);
+		expect(result.rawStatusEnabled).toBe(true);
 		expect(result.required).toBe(false);
 		expect(result.listable).toBe(true);
 		expect(result.prefix).toBe(false);
