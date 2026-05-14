@@ -20,6 +20,7 @@ import { jsonListResponse, jsonResponse, paginatedResponse } from "../lib/respon
 import { withVerifiedEmail } from "../lib/routeHelpers";
 import { getUserProfiles } from "../lib/user-cache";
 import {
+	STICKY_GLOBAL,
 	THREAD_VISIBLE,
 	buildVisibilityContext,
 	isForumActive,
@@ -167,7 +168,7 @@ const THREAD_LIST_QUERY_CACHE: Readonly<
 		const fromClause = useKvCache
 			? "threads t"
 			: "threads t LEFT JOIN users author ON t.author_id = author.id LEFT JOIN users lp ON t.last_poster_id = lp.id";
-		const whereClause = `t.forum_id = ? AND ${threadVisible("t")}`;
+		const whereClause = `(t.forum_id = ? OR t.sticky = ${STICKY_GLOBAL}) AND ${threadVisible("t")}`;
 		if (withCursor) {
 			const cursorCondition =
 				"(t.sticky < ? OR (t.sticky = ? AND (t.last_post_at < ? OR (t.last_post_at = ? AND t.id < ?))))";
@@ -265,7 +266,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 	const loadPage1Payload = async (): Promise<ThreadListPayloadV2> => {
 		const [countResult, dataResult] = await Promise.all([
 			env.DB.prepare(
-				`SELECT COUNT(*) as total FROM threads WHERE forum_id = ? AND ${THREAD_VISIBLE}`,
+				`SELECT COUNT(*) as total FROM threads WHERE (forum_id = ? OR sticky = ${STICKY_GLOBAL}) AND ${THREAD_VISIBLE}`,
 			)
 				.bind(forumIdNum)
 				.first<{ total: number }>(),
@@ -304,7 +305,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 			const offset = (page - 1) * clampedLimit;
 			const [countResult, dataResult] = await Promise.all([
 				env.DB.prepare(
-					`SELECT COUNT(*) as total FROM threads WHERE forum_id = ? AND ${THREAD_VISIBLE}`,
+					`SELECT COUNT(*) as total FROM threads WHERE (forum_id = ? OR sticky = ${STICKY_GLOBAL}) AND ${THREAD_VISIBLE}`,
 				)
 					.bind(forumIdNum)
 					.first<{ total: number }>(),

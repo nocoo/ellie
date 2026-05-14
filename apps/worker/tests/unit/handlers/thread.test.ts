@@ -670,6 +670,88 @@ describe("thread handlers", () => {
 			const data = await response.json();
 			expect(data.data[0].isAuthorFirstThread).toBe(false);
 		});
+
+		it("WHERE clause includes global-sticky escape hatch so sticky=2 surfaces in every forum", async () => {
+			// The site-wide announcement (sticky=2) MUST appear at the top of
+			// every forum's thread list. The implementation enforces this by
+			// widening the WHERE clause from `forum_id = ?` to
+			// `(forum_id = ? OR sticky = 2)` on both the data SELECT and the
+			// COUNT, so that a global thread anchored to any forum still
+			// joins the result set when listing any *other* forum.
+			const sqls: string[] = [];
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const db = {
+				prepare: vi.fn((sql: string) => {
+					sqls.push(sql);
+					if (sql.includes("SELECT status, visibility FROM forums")) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
+							})),
+						};
+					}
+					return {
+						bind: vi.fn(() => ({
+							all: allSpy,
+							first: vi.fn(() => Promise.resolve({ total: 0 })),
+						})),
+					};
+				}),
+			} as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			await list(new Request("https://example.com/api/v1/threads?forumId=42"), env, getCtx());
+
+			// Data SELECT carries the aliased global clause.
+			expect(
+				sqls.some(
+					(s) => s.includes("FROM threads t") && s.includes("t.forum_id = ? OR t.sticky = 2"),
+				),
+			).toBe(true);
+			// COUNT carries the unaliased version (per reviewer pin: COUNT has no alias).
+			expect(
+				sqls.some(
+					(s) =>
+						s.includes("SELECT COUNT(*) as total FROM threads") &&
+						s.includes("(forum_id = ? OR sticky = 2)"),
+				),
+			).toBe(true);
+		});
+
+		it("ORDER BY puts higher sticky first so sticky=2 (global) sorts above sticky=1 (forum-pin)", async () => {
+			// We can't run real SQL here, but the handler's ORDER BY clause
+			// is the contract that guarantees global stickies render first.
+			// Assert it's still `t.sticky DESC, t.last_post_at DESC, t.id DESC`
+			// so a sticky=2 row always precedes sticky=1 / 0 rows with any
+			// timestamp.
+			const sqls: string[] = [];
+			const allSpy = vi.fn(() => Promise.resolve({ results: [] }));
+			const db = {
+				prepare: vi.fn((sql: string) => {
+					sqls.push(sql);
+					if (sql.includes("SELECT status, visibility FROM forums")) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
+							})),
+						};
+					}
+					return {
+						bind: vi.fn(() => ({
+							all: allSpy,
+							first: vi.fn(() => Promise.resolve({ total: 0 })),
+						})),
+					};
+				}),
+			} as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+
+			await list(new Request("https://example.com/api/v1/threads?forumId=42"), env, getCtx());
+
+			expect(
+				sqls.some((s) => s.includes("ORDER BY t.sticky DESC, t.last_post_at DESC, t.id DESC")),
+			).toBe(true);
+		});
 	});
 
 	describe("getById", () => {
