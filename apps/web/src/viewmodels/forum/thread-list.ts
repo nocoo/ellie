@@ -25,6 +25,15 @@ export interface ThreadDisplayItem {
 	digestSrc: string | null;
 	/** Newbie stamp shown to the right of the title (null if not the author's first thread). */
 	newbieStampSrc: string | null;
+	/**
+	 * True when this thread is a site-wide announcement (sticky=2).
+	 * The list row swaps its left-column folder gif for a red lucide
+	 * Megaphone icon so global announcements stand out on every
+	 * forum's list. Forum-pinned (1) and category-pinned (3) sticky
+	 * rows keep their classic pin_N.gif — see review thread for the
+	 * UI invariants this field exists to satisfy.
+	 */
+	isGlobalAnnouncement: boolean;
 }
 
 export interface ThreadListState {
@@ -55,6 +64,7 @@ export function enrichThreads(threads: Thread[]): ThreadDisplayItem[] {
 		// Defensive: old KV cache payloads may lack isAuthorFirstThread (undefined at runtime).
 		// Strict equality ensures undefined is treated as false.
 		newbieStampSrc: getNewbieStampSrc(thread.isAuthorFirstThread === true),
+		isGlobalAnnouncement: thread.sticky === StickyLevel.Global,
 	}));
 }
 

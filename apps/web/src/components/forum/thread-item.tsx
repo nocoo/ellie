@@ -6,6 +6,7 @@
 
 import { type ThreadDisplayItem, highlightStyle } from "@/viewmodels/forum/thread-list";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
+import { Megaphone } from "lucide-react";
 import Link from "next/link";
 import { ThreadBadgeList } from "./thread-badge";
 import { ThreadInlinePages } from "./thread-inline-pages";
@@ -21,8 +22,48 @@ interface ThreadItemProps {
 	returnTo?: string;
 }
 
+/**
+ * Left-column row icon: red Megaphone for site-wide announcements
+ * (sticky=2), classic Discuz folder/pin gif otherwise.
+ *
+ * The Megaphone is rendered at `h-4 w-4` (16px) to match the visual
+ * footprint of the Discuz gifs (~14–15px square) so the desktop
+ * 36px-wide icon column and the mobile row height don't jump when
+ * a global announcement appears in the list. `role="img"` +
+ * `aria-label` covers screen readers; no extra explanatory text.
+ */
+function ThreadRowIcon({
+	iconSrc,
+	isGlobalAnnouncement,
+	extraClass = "",
+}: {
+	iconSrc: string;
+	isGlobalAnnouncement: boolean;
+	extraClass?: string;
+}) {
+	if (isGlobalAnnouncement) {
+		return (
+			<Megaphone
+				role="img"
+				aria-label="全站公告"
+				className={`text-destructive h-4 w-4 shrink-0 ${extraClass}`.trim()}
+			/>
+		);
+	}
+	// eslint-disable-next-line @next/next/no-img-element
+	return <img src={iconSrc} alt="" className={`opacity-70 ${extraClass}`.trim()} />;
+}
+
 export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
-	const { thread, badges, highlight: hl, iconSrc, digestSrc, newbieStampSrc } = item;
+	const {
+		thread,
+		badges,
+		highlight: hl,
+		iconSrc,
+		digestSrc,
+		newbieStampSrc,
+		isGlobalAnnouncement,
+	} = item;
 	const threadHref = returnTo
 		? `/threads/${thread.id}?returnTo=${encodeURIComponent(returnTo)}`
 		: `/threads/${thread.id}`;
@@ -33,8 +74,7 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 			<div className="hidden sm:flex items-center">
 				{/* Thread icon column */}
 				<div className="flex items-center justify-center w-[36px] shrink-0 pl-2">
-					{/* eslint-disable-next-line @next/next/no-img-element */}
-					<img src={iconSrc} alt="" className="opacity-70" />
+					<ThreadRowIcon iconSrc={iconSrc} isGlobalAnnouncement={isGlobalAnnouncement} />
 				</div>
 
 				{/* Avatar column (between icon and subject) */}
@@ -106,8 +146,11 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 			<div className="sm:hidden px-3 py-2">
 				{/* Row 1: Icon + avatar + badges + subject */}
 				<div className="flex items-start gap-1.5">
-					{/* eslint-disable-next-line @next/next/no-img-element */}
-					<img src={iconSrc} alt="" className="opacity-70 mt-0.5 shrink-0" />
+					<ThreadRowIcon
+						iconSrc={iconSrc}
+						isGlobalAnnouncement={isGlobalAnnouncement}
+						extraClass="mt-0.5 shrink-0"
+					/>
 					<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0 mt-0.5">
 						<ForumAvatar
 							userId={thread.authorId}
