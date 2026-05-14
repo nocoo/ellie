@@ -1,7 +1,11 @@
 // components/forum/user-profile-list-row.tsx
 // Shared forum-list-style row for the three user profile tabs (主题/回复/精华).
 //
-// Layout — desktop (sm+): [Icon] [Title (link, truncate)] [Forum chip (link)] [N回 N览] [time]
+// Layout — desktop (sm+): grid with 5 explicit columns so every tab aligns
+//   exactly: [Icon] [主题] [板块] [回复 · 查看] [时间]
+//   The grid template is exported via `PROFILE_ROW_GRID_COLS` so the optional
+//   `UserProfileListHeader` (rendered once per tab) reuses the same template
+//   and stays in column alignment regardless of which tab is active.
 // Layout — mobile (<sm):
 //   Row1: [Icon] [Title (link, truncate)] [time]
 //   Row2:        [Forum chip] · N回 · N览
@@ -21,6 +25,15 @@ import { formatCompactNumber, formatRelativeTime } from "@/viewmodels/shared/for
 import type { ThreadBadgeSource } from "@ellie/types";
 import { decodeHighlight, getThreadBadges } from "@ellie/types";
 import Link from "next/link";
+
+/**
+ * Shared desktop grid template for the profile-list row + header. Centralizing
+ * the column widths here is what guarantees the three tabs render exactly the
+ * same column geometry — change in one place, all tabs follow.
+ *
+ * Columns: Icon(28px) | 主题(flex) | 板块(8rem) | 回复·查看(7rem) | 时间(5.5rem)
+ */
+export const PROFILE_ROW_GRID_COLS = "28px minmax(0,1fr) 8rem 7rem 5.5rem";
 
 /**
  * Minimal structural source for a profile-list row.
@@ -84,27 +97,31 @@ export function UserProfileListRow({
 		<Link
 			href={`/forums/${thread.forumId}`}
 			prefetch={false}
-			className="shrink-0 text-xs text-muted-foreground hover:text-primary transition-colors truncate max-w-[8rem]"
+			className="text-xs text-muted-foreground hover:text-primary transition-colors truncate"
 		>
 			{forumName}
 		</Link>
 	) : null;
 
-	const stats = (
-		<span className="shrink-0 tabular-nums text-xs text-muted-foreground">
-			{formatCompactNumber(thread.replies)}回 · {formatCompactNumber(thread.views)}览
-		</span>
-	);
+	const statsText = `${formatCompactNumber(thread.replies)}回 · ${formatCompactNumber(thread.views)}览`;
 
 	return (
-		<div className="border-b border-border/50 last:border-0 transition-colors hover:bg-accent/50">
-			{/* Desktop layout: single row */}
-			<div className="hidden sm:flex items-center gap-2 px-2 py-2">
-				{/* Icon */}
-				{/* eslint-disable-next-line @next/next/no-img-element */}
-				<img src={iconSrc} alt="" className="shrink-0 opacity-70" />
-				{/* Title + badges + digest icon */}
-				<div className="min-w-0 flex-1 flex items-center gap-1.5">
+		<div
+			className="border-b border-border/50 last:border-0 transition-colors hover:bg-accent/50"
+			data-testid="user-profile-list-row"
+		>
+			{/* Desktop layout: explicit 5-column grid so all three tabs align. */}
+			<div
+				className="hidden sm:grid items-center gap-2 px-2 py-2"
+				style={{ gridTemplateColumns: PROFILE_ROW_GRID_COLS }}
+			>
+				{/* Col 1: Icon */}
+				<div className="flex justify-center" data-testid="row-col-icon">
+					{/* eslint-disable-next-line @next/next/no-img-element */}
+					<img src={iconSrc} alt="" className="shrink-0 opacity-70" />
+				</div>
+				{/* Col 2: 主题 (title + badges + digest icon) */}
+				<div className="min-w-0 flex items-center gap-1.5" data-testid="row-col-title">
 					{badges.length > 0 && (
 						<span className="inline-flex items-center gap-1 shrink-0">
 							<ThreadBadgeList badges={badges} />
@@ -116,14 +133,24 @@ export function UserProfileListRow({
 						<img src={digestSrc} alt="digest" className="shrink-0" />
 					)}
 				</div>
-				{/* Forum chip */}
-				{forumChip}
-				{/* Stats */}
-				{stats}
-				{/* Time */}
-				<span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+				{/* Col 3: 板块 */}
+				<div className="min-w-0 text-xs" data-testid="row-col-forum">
+					{forumChip ?? <span className="text-muted-foreground/60">—</span>}
+				</div>
+				{/* Col 4: 回复 · 查看 */}
+				<div
+					className="tabular-nums text-xs text-muted-foreground text-right"
+					data-testid="row-col-stats"
+				>
+					{statsText}
+				</div>
+				{/* Col 5: 时间 */}
+				<div
+					className="tabular-nums text-xs text-muted-foreground text-right"
+					data-testid="row-col-time"
+				>
 					{formatRelativeTime(time)}
-				</span>
+				</div>
 			</div>
 
 			{/* Mobile layout: two-row compact */}
@@ -153,10 +180,34 @@ export function UserProfileListRow({
 				{/* Row 2: forum chip · stats */}
 				<div className="mt-1 ml-6 flex items-center gap-1.5 text-xs text-muted-foreground">
 					{forumChip}
-					{forumChip && stats && <span className="shrink-0">·</span>}
-					{stats}
+					{forumChip && <span className="shrink-0">·</span>}
+					<span className="tabular-nums shrink-0">{statsText}</span>
 				</div>
 			</div>
+		</div>
+	);
+}
+
+/**
+ * Desktop-only column header for the profile-list, reusing the same grid
+ * template so the labels line up over the data columns. Hidden on mobile —
+ * the mobile layout is two-row compact and doesn't benefit from a header.
+ *
+ * Rendered once per tab, above the list of rows. Three tabs share this
+ * header so column widths never drift independently.
+ */
+export function UserProfileListHeader() {
+	return (
+		<div
+			className="hidden sm:grid items-center gap-2 px-2 py-1.5 border-b border-border text-xs text-muted-foreground bg-muted/30"
+			style={{ gridTemplateColumns: PROFILE_ROW_GRID_COLS }}
+			data-testid="user-profile-list-header"
+		>
+			<div />
+			<div>主题</div>
+			<div>板块</div>
+			<div className="text-right">回复 · 查看</div>
+			<div className="text-right">时间</div>
 		</div>
 	);
 }

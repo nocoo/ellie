@@ -163,4 +163,32 @@ describe("UserProfileListRow", () => {
 		// Desktop + mobile each render once, so multiple matches.
 		expect(screen.getAllByText(/99回 · 1234览/).length).toBeGreaterThan(0);
 	});
+
+	it("desktop layout exposes the 5-column grid (icon/title/forum/stats/time)", () => {
+		// The three profile tabs share PROFILE_ROW_GRID_COLS — these data-testid
+		// hooks are how we guarantee no future refactor silently collapses the
+		// row back to a single flex line.
+		render(
+			createElement(UserProfileListRow, {
+				thread: makeThread(),
+				forumsById,
+			}),
+		);
+		expect(screen.getByTestId("row-col-icon")).toBeTruthy();
+		expect(screen.getByTestId("row-col-title")).toBeTruthy();
+		expect(screen.getByTestId("row-col-forum")).toBeTruthy();
+		expect(screen.getByTestId("row-col-stats")).toBeTruthy();
+		expect(screen.getByTestId("row-col-time")).toBeTruthy();
+	});
+
+	it("UserProfileListHeader renders the four labeled columns above the rows", async () => {
+		const { UserProfileListHeader } = await import("@/components/forum/user-profile-list-row");
+		render(createElement(UserProfileListHeader));
+		const header = screen.getByTestId("user-profile-list-header");
+		// Header text must include all four column labels — icon column is blank.
+		expect(header.textContent).toContain("主题");
+		expect(header.textContent).toContain("板块");
+		expect(header.textContent).toContain("回复 · 查看");
+		expect(header.textContent).toContain("时间");
+	});
 });

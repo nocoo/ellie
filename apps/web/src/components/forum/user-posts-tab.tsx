@@ -1,7 +1,10 @@
 // components/forum/user-posts-tab.tsx — Posts (reply history) tab for user profile page
 
 import { ForumEmptyState } from "@/components/forum/empty-state";
-import { UserProfileListRow } from "@/components/forum/user-profile-list-row";
+import {
+	UserProfileListHeader,
+	UserProfileListRow,
+} from "@/components/forum/user-profile-list-row";
 import { isUserPostHistoryItem } from "@/viewmodels/forum/user-profile";
 import type { UserProfileData } from "@/viewmodels/forum/user-profile.server";
 
@@ -14,12 +17,23 @@ export function UserPostsTab({
 	postsShape: UserProfileData["postsShape"];
 	forumsById: UserProfileData["forumsById"];
 }) {
-	// Partially-deployed environment safeguard: the deployed Worker still
-	// returns the old `Post[]` shape, so we cannot render the thread-derived
-	// row (title/forum/replies/views). Pagination is also suppressed upstream
-	// in this state to avoid claiming there are pages the user can't see.
+	// Partially-deployed environment ERROR state: the deployed Worker still
+	// returns the old `Post[]` shape (without joined thread columns), so we
+	// can't render the forum-list row at all. Show a clear error — not a
+	// fake empty/"暂不可用" — so it's obvious this is a deployment problem,
+	// not a "user has no replies" outcome. Pagination is suppressed upstream
+	// in this state. Scoped to THIS tab only so the rest of the profile page
+	// (hero/stats/主题/精华) stays usable while Worker catches up.
 	if (postsShape === "legacy") {
-		return <ForumEmptyState>回复列表暂不可用：后端接口待升级后显示</ForumEmptyState>;
+		return (
+			<div
+				role="alert"
+				className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-3 text-sm text-destructive"
+				data-testid="posts-legacy-error"
+			>
+				回复列表加载失败：Worker 接口未同步至新数据形态，请先部署后端更新
+			</div>
+		);
 	}
 
 	if (posts.items.length === 0) {
@@ -39,6 +53,7 @@ export function UserPostsTab({
 	// skipped instead of crashing the row with a TypeError on missing fields.
 	return (
 		<div>
+			<UserProfileListHeader />
 			{posts.items.map((item) => {
 				if (!isUserPostHistoryItem(item)) return null;
 				return (
