@@ -35,11 +35,15 @@ import {
  *     LEGITIMATE typeids (PUB/REQ/Completed), NOT "no-category". The
  *     parser must preserve `0` as a real key.
  *
- * fid=147 (求职就业, synthesized minimal) covers the cleanest current
- * shape: status=b:1, required=b:0, listable=b:1, prefix=b:0, 5 types
- * with non-zero ids — both the legacy status bit AND the types-derived
- * `enabled` agree (enabled=true, rawStatusEnabled=true), satisfying the
- * verify artifact's acceptance criterion for fid=147.
+ * fid=147 (春运信息, real dump payload) is the strongest regression
+ * anchor for the new `enabled` semantics: the row carries 5 admin
+ * categories (求购/出售/换票/同路/信息, typeids 76/77/79/81/83) but no
+ * top-level `status` key. The four feature flags all parse true
+ * (required/listable b:1, prefix s:1:"1"). If anyone ever flips
+ * `enabled` back to legacy `status`-derived, this fixture will fail —
+ * fid=134 only catches the `prefix=s:1:"1"` path, fid=147 catches the
+ * `status-absent + types-present` path that is the majority of live
+ * forums per dry-run.
  */
 const FIXTURE_FID_134 =
 	'a:6:{s:8:"required";b:1;s:8:"listable";b:1;s:6:"prefix";s:1:"1";s:5:"types";a:5:{i:561;s:12:"校园代理";i:562;s:12:"房屋租赁";i:563;s:12:"学习资料";i:564;s:12:"电子通讯";i:565;s:12:"生活资料";}s:5:"icons";a:5:{i:561;s:0:"";i:562;s:0:"";i:563;s:0:"";i:564;s:0:"";i:565;s:0:"";}s:10:"moderators";a:5:{i:561;N;i:562;N;i:563;N;i:564;N;i:565;N;}}';
@@ -48,7 +52,7 @@ const FIXTURE_FID_113 =
 	'a:3:{i:0;b:0;s:5:"types";a:3:{i:0;s:3:"PUB";i:1;s:3:"REQ";i:2;s:9:"Completed";}s:5:"icons";a:3:{i:0;s:0:"";i:1;s:0:"";i:2;s:0:"";}}';
 
 const FIXTURE_FID_147 =
-	'a:7:{s:6:"status";b:1;s:8:"required";b:0;s:8:"listable";b:1;s:6:"prefix";b:0;s:5:"types";a:5:{i:701;s:12:"全职招聘";i:702;s:12:"实习招聘";i:703;s:12:"求职咨询";i:704;s:12:"简历指导";i:705;s:12:"面经分享";}s:5:"icons";a:5:{i:701;s:0:"";i:702;s:0:"";i:703;s:0:"";i:704;s:0:"";i:705;s:0:"";}s:10:"moderators";a:5:{i:701;N;i:702;N;i:703;N;i:704;N;i:705;N;}}';
+	'a:5:{s:8:"required";b:1;s:8:"listable";b:1;s:6:"prefix";s:1:"1";s:5:"types";a:5:{i:76;s:4:"求购";i:77;s:4:"出售";i:79;s:4:"换票";i:81;s:4:"同路";i:83;s:4:"信息";}s:5:"icons";a:5:{i:76;s:0:"";i:77;s:0:"";i:79;s:0:"";i:81;s:0:"";i:83;s:0:"";}}';
 
 describe("coerceSerializedBool", () => {
 	test("b:1 → true (reviewer pin #2: native PHP bool)", () => {
@@ -197,25 +201,34 @@ describe("parseThreadTypes — fid=113 (legacy admin shape with i:0 keys)", () =
 	});
 });
 
-describe("parseThreadTypes — fid=147 (clean current shape)", () => {
+describe("parseThreadTypes — fid=147 (real dump, status absent + 5 types)", () => {
 	const result = parseThreadTypes(FIXTURE_FID_147);
 
-	test("all four bool fields parse correctly (b:1 and b:0 mix); enabled aligned with types", () => {
-		// fid=147 has explicit status=b:1 AND 5 types — both paths agree.
+	test("enabled true via types.size; rawStatusEnabled false (no status key in dump)", () => {
+		// Reviewer pin eb0e5afe: this is the strongest regression
+		// anchor against re-introducing `enabled = legacy status`.
+		// fid=147 in the live dump has NO `status` key but 5 admin
+		// categories — the forum's category UI must stay ON.
 		expect(result.enabled).toBe(true);
-		expect(result.rawStatusEnabled).toBe(true);
-		expect(result.required).toBe(false);
-		expect(result.listable).toBe(true);
-		expect(result.prefix).toBe(false);
+		expect(result.rawStatusEnabled).toBe(false);
 	});
 
-	test("types map has 5 entries with non-zero typeids", () => {
+	test('all three feature flags parse true (required b:1, listable b:1, prefix s:1:"1")', () => {
+		expect(result.required).toBe(true);
+		expect(result.listable).toBe(true);
+		expect(result.prefix).toBe(true);
+	});
+
+	test("types map has 5 entries with real dump typeids 76/77/79/81/83", () => {
 		// Per acceptance criterion: fid=147 verify artifact must show
 		// 5 enabled categories. The parser surface is the 5 typeids;
 		// `enabled=true` plus 5 types is what the transform converts
 		// into 5 forum_thread_types rows with enabled=1.
 		expect(result.types.size).toBe(5);
-		expect([...result.types.keys()]).toEqual([701, 702, 703, 704, 705]);
+		expect([...result.types.keys()]).toEqual([76, 77, 79, 81, 83]);
+		expect(result.types.get(76)).toBe("求购");
+		expect(result.types.get(77)).toBe("出售");
+		expect(result.types.get(83)).toBe("信息");
 	});
 });
 
@@ -339,5 +352,105 @@ describe("parseThreadTypes — boundary forms", () => {
 		// is unparseable past the truncation point).
 		const raw = 'a:1:{s:5:"types";a:1:{i:1;s:3:"foo";';
 		expect(() => parseThreadTypes(raw)).not.toThrow();
+	});
+
+	test('legacy GBK byte-count strings (s:4:"求购" actual UTF-8 6) decode correctly', () => {
+		// Reviewer pin eb0e5afe + parser fallback in readPhpStringExtent:
+		// historical Discuz wrote `s:N:` lengths counting GBK bytes (one
+		// CJK char = 2 bytes), but the column was later migrated to UTF-8
+		// (one CJK char = 3 bytes). The declared `N` no longer matches
+		// the actual UTF-8 byte length on legacy rows.
+		//
+		// Test isolates a *single* GBK-counted entry so the regression
+		// surface is unambiguous — fid=147 fixture above exercises the
+		// same code path inside a real 5-category dump. Without the
+		// fallback, the parser walks past the actual closing `"` and
+		// loses subsequent entries; with it, the next-token sentinel
+		// (`";<a/b/d/i/s/N/}>`) recovers alignment.
+		const raw = 'a:1:{s:5:"types";a:2:{i:76;s:4:"求购";i:77;s:4:"出售";}}';
+		const result = parseThreadTypes(raw);
+		expect(result.types.size).toBe(2);
+		expect(result.types.get(76)).toBe("求购");
+		expect(result.types.get(77)).toBe("出售");
+	});
+
+	test('legacy GBK byte-count with mixed ASCII + CJK content (s:19:"Linux/Unix开发/内核")', () => {
+		// Real fixture pattern from `pre_forum_threadtype.name` in the
+		// dump: declared length 19 (GBK: 10 ASCII + 4 CJK × 2 + 1 = 19),
+		// actual UTF-8 bytes 20 (10 ASCII + 4 CJK × 3 = wait, recompute:
+		// "Linux/Unix" = 10 bytes, "开发" = 6, "/" = 1, "内核" = 6 → 23).
+		// Either way actual ≠ 19. The fallback must still recover.
+		const inner = "Linux/Unix开发/内核";
+		const raw = `a:1:{s:5:"types";a:1:{i:42;s:19:"${inner}";}}`;
+		const result = parseThreadTypes(raw);
+		expect(result.types.get(42)).toBe(inner);
+	});
+
+	test('GBK string at end of array recovers via `";}` sentinel', () => {
+		// Exercises the `BYTE_CLOSE` branch of PHP_TOKEN_START_BYTES:
+		// when a GBK-counted string is the LAST entry of an array, the
+		// sentinel after the closing `";` is `}`, not another token start
+		// byte. The scan must accept this so trailing-CJK rows don't get
+		// dropped.
+		const raw = 'a:1:{s:5:"types";a:1:{i:1;s:4:"测试";}}';
+		const result = parseThreadTypes(raw);
+		expect(result.types.get(1)).toBe("测试");
+	});
+
+	test("GBK fallback gives up cleanly when no sentinel is found (truncated CJK)", () => {
+		// If a corrupted dump cuts off mid-string with no recoverable
+		// `";<token>` sentinel, the fallback hits end-of-buffer and the
+		// extent collapses to bytes.length. The outer parser must not
+		// throw; the types map is empty (no valid entry could be read).
+		const raw = 'a:1:{s:5:"types";a:1:{i:1;s:4:"未结尾';
+		expect(() => parseThreadTypes(raw)).not.toThrow();
+	});
+
+	test("non-int/non-string key in icons map is skipped (defensive)", () => {
+		// Parallel to the types-map test above. Drift guard: if a
+		// corrupted dump sneaks an `N`-keyed entry into icons, the
+		// decoder must skip it without throwing.
+		const raw = 'a:1:{s:5:"icons";a:1:{N;s:0:"";}}';
+		const result = parseThreadTypes(raw);
+		expect(result.icons.size).toBe(0);
+	});
+
+	test("non-string value inside icons map is skipped (defensive)", () => {
+		// Icons should always be strings. A non-string (e.g. int) value
+		// gets dropped rather than coerced to a numeric "icon path".
+		const raw = 'a:1:{s:5:"icons";a:1:{i:1;i:99;}}';
+		const result = parseThreadTypes(raw);
+		expect(result.icons.size).toBe(0);
+	});
+
+	test("non-int/non-string key in moderators map is skipped (defensive)", () => {
+		// Parallel to types/icons. Bad keys must not throw the entry
+		// into moderatorOnly.
+		const raw = 'a:1:{s:10:"moderators";a:1:{N;s:1:"1";}}';
+		const result = parseThreadTypes(raw);
+		expect(result.moderatorOnly.size).toBe(0);
+	});
+
+	test("explicit `status` key surfaces as rawStatusEnabled (parity branch)", () => {
+		// Although the new semantics derive `enabled` from `types.size`,
+		// the legacy `status` bit is still surfaced as rawStatusEnabled
+		// so the dry-run sanity check can flag parity drift. This guards
+		// the `statusRange ? coerceBoolByteRange(...) : false` branch on
+		// the truthy side.
+		const raw = 'a:1:{s:6:"status";b:1;}';
+		const result = parseThreadTypes(raw);
+		expect(result.rawStatusEnabled).toBe(true);
+		// No `types` key → enabled false (new semantics).
+		expect(result.enabled).toBe(false);
+	});
+
+	test("empty-name entry in types map is dropped (`if (name)` false branch)", () => {
+		// `s:0:""` decodes to an empty string. The parser treats empty
+		// names as junk (Discuz never writes a typeid → "" tuple in real
+		// admin flows) and drops them rather than letting a blank chip
+		// reach the UI.
+		const raw = 'a:1:{s:5:"types";a:1:{i:1;s:0:"";}}';
+		const result = parseThreadTypes(raw);
+		expect(result.types.size).toBe(0);
 	});
 });

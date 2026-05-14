@@ -183,6 +183,26 @@ const THREADTYPE_COLS = {
 	name: 3,
 } as const;
 
+/**
+ * Column indices for pre_forum_threadclass INSERT VALUES (verified
+ * against DDL `(typeid, fid, name, displayorder, icon, moderators)` in
+ * reference/db/2026-05-14/db_tongji_main_full.sql.gz).
+ *
+ * threadclass is the per-forum admin-category table. Compared to
+ * `pre_forum_threadtype` (a tiny ~15-row global table mapping typeid →
+ * label used historically for cross-forum threads), threadclass is
+ * scoped to a specific forum via `fid` and is the source-of-truth for
+ * the per-forum admin UI Discuz exposes today.
+ */
+const THREADCLASS_COLS = {
+	typeid: 0,
+	fid: 1,
+	name: 2,
+	displayorder: 3,
+	icon: 4,
+	moderators: 5,
+} as const;
+
 /** Data from pre_common_member or pre_common_member_archive for one user. */
 export interface MemberData {
 	status: number;
@@ -335,6 +355,33 @@ export function parseThreadTypeRow(row: ParsedRow): { typeid: number; name: stri
 	return {
 		typeid: Number(row[THREADTYPE_COLS.typeid]),
 		name: row[THREADTYPE_COLS.name] ?? "",
+	};
+}
+
+/**
+ * One row of `pre_forum_threadclass` — the per-forum admin category
+ * definition. `moderators=1` flips the moderator-only flag at the
+ * per-row level (independent of `forumfield.threadtypes.moderators`
+ * which is a parallel admin path).
+ */
+export interface ThreadClassRow {
+	typeid: number;
+	fid: number;
+	name: string;
+	displayorder: number;
+	icon: string;
+	moderators: number;
+}
+
+/** Parse a pre_forum_threadclass row. */
+export function parseThreadClassRow(row: ParsedRow): ThreadClassRow {
+	return {
+		typeid: Number(row[THREADCLASS_COLS.typeid]) || 0,
+		fid: Number(row[THREADCLASS_COLS.fid]) || 0,
+		name: row[THREADCLASS_COLS.name] ?? "",
+		displayorder: Number(row[THREADCLASS_COLS.displayorder]) || 0,
+		icon: row[THREADCLASS_COLS.icon] ?? "",
+		moderators: Number(row[THREADCLASS_COLS.moderators]) || 0,
 	};
 }
 
