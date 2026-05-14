@@ -1,7 +1,10 @@
 // components/forum/user-digest-tab.tsx — Digest threads tab for user profile page
 
 import { ForumEmptyState } from "@/components/forum/empty-state";
-import { UserProfileListRow } from "@/components/forum/user-profile-list-row";
+import {
+	UserProfileListHeader,
+	UserProfileListRow,
+} from "@/components/forum/user-profile-list-row";
 import type { UserProfileData } from "@/viewmodels/forum/user-profile.server";
 
 export function UserDigestTab({
@@ -17,6 +20,7 @@ export function UserDigestTab({
 
 	return (
 		<div>
+			<UserProfileListHeader />
 			{digest.items.map((thread) => (
 				<UserProfileListRow
 					key={thread.id}

@@ -17,6 +17,7 @@ vi.mock("@/components/forum/user-profile-list-row", () => ({
 		rowProps(props);
 		return createElement("div", { "data-testid": "row" }, props.thread?.subject ?? "");
 	},
+	UserProfileListHeader: () => createElement("div", { "data-testid": "row-header" }),
 }));
 
 vi.mock("@/components/forum/empty-state", () => ({
@@ -64,9 +65,11 @@ function makeItem(
 const forumsById = { 1: "灌水区" } as const;
 
 describe("UserPostsTab", () => {
-	it("shows legacy notice when postsShape === 'legacy', regardless of items", () => {
+	it("shows error state when postsShape === 'legacy', regardless of items", () => {
 		// Even if (in some inconsistent state) items leaked through, legacy
-		// shape must hard-block rendering rows since we can't trust them.
+		// shape must hard-block rendering rows since we can't trust them. The
+		// fallback must read as a deployment ERROR — not a soft empty state —
+		// so it's obvious this isn't "user has no replies".
 		render(
 			createElement(UserPostsTab, {
 				posts: emptyPosts(),
@@ -74,8 +77,13 @@ describe("UserPostsTab", () => {
 				forumsById,
 			}),
 		);
-		expect(screen.getByTestId("empty").textContent).toBe("回复列表暂不可用：后端接口待升级后显示");
+		const errorEl = screen.getByTestId("posts-legacy-error");
+		expect(errorEl.textContent).toBe(
+			"回复列表加载失败：Worker 接口未同步至新数据形态，请先部署后端更新",
+		);
+		expect(errorEl.getAttribute("role")).toBe("alert");
 		expect(screen.queryByTestId("row")).toBeNull();
+		expect(screen.queryByTestId("empty")).toBeNull();
 	});
 
 	it("shows '暂无回复' when history-shape but items is empty", () => {
