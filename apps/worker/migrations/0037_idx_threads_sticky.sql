@@ -1,0 +1,32 @@
+-- 0037_idx_threads_sticky.sql — site-wide announcement read-path index
+--
+-- Phase 1 of 全站公告 (site-wide announcement) widens the thread-list
+-- WHERE from `forum_id = ?` to `(forum_id = ? OR sticky = 2)` so a
+-- sticky=2 row appears in every forum's list. Without a sticky index
+-- the OR makes SQLite/D1 fall back to a covering scan of
+-- `idx_threads_forum`, which on prod D1 (~986k threads) measured
+-- ~77ms COUNT / ~51ms SELECT per request — unacceptable for a
+-- hot list endpoint.
+--
+-- With this index, SQLite picks a MULTI-INDEX OR plan: one branch
+-- walks `idx_threads_forum (forum_id, sticky DESC, last_post_at DESC)`
+-- for the per-forum side, the other walks
+-- `idx_threads_sticky (sticky, last_post_at DESC, id DESC)` for the
+-- `sticky = 2` side. Both branches stay index-only; the only cost is
+-- a small temp sort over the union (forum rows + 1 announcement),
+-- not the whole threads table.
+--
+-- Column order rationale: leading `sticky` gives the MULTI-INDEX OR
+-- a usable equality probe; trailing `(last_post_at DESC, id DESC)`
+-- matches the ORDER BY used by the thread-list query so the planner
+-- can use this index for streaming reads (e.g. global recent-posts
+-- views) without a separate sort pass.
+--
+-- Drift guard: tests/unit/migration-0037-schema.test.ts pins this
+-- exact CREATE INDEX statement across the live-migration path AND
+-- the fresh-DB bootstrap paths (0000_init_schema.sql + packages/db
+-- schema mirrors). All three MUST stay in lockstep — otherwise
+-- replayed DBs and freshly-built test DBs diverge on index
+-- coverage and the perf regression silently comes back.
+
+CREATE INDEX IF NOT EXISTS idx_threads_sticky ON threads(sticky, last_post_at DESC, id DESC);
