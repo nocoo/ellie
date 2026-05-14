@@ -184,7 +184,11 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 					{data.tab === "threads" ? (
 						<UserThreadsTab threads={data.threads} forumsById={data.forumsById} />
 					) : data.tab === "posts" ? (
-						<UserPostsTab posts={data.posts} forumsById={data.forumsById} />
+						<UserPostsTab
+							posts={data.posts}
+							postsShape={data.postsShape}
+							forumsById={data.forumsById}
+						/>
 					) : (
 						<UserDigestTab digest={data.digest} forumsById={data.forumsById} />
 					)}

@@ -2,7 +2,13 @@
 // Ref: 04d §UserProfile — formatting helpers, tab types
 
 import { formatLocaleDate, formatNumber } from "@/viewmodels/shared/formatting";
-import { type User, type UserCheckinSummary, UserRole, UserStatus } from "@ellie/types";
+import {
+	type User,
+	type UserCheckinSummary,
+	type UserPostHistoryItem,
+	UserRole,
+	UserStatus,
+} from "@ellie/types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -86,6 +92,61 @@ export function resolveTab(raw: string | undefined): ProfileTab {
 	if (raw === "posts") return "posts";
 	if (raw === "digest") return "digest";
 	return "threads";
+}
+
+/**
+ * Runtime guard for the new `UserPostHistoryItem` shape (`{ post, thread }`).
+ *
+ * Defends against a partially-deployed environment where the web app already
+ * imports the new type but the Worker still returns plain `Post[]` — we must
+ * NOT cast such payloads or destructure `item.post`, both would crash at
+ * render time.
+ *
+ * The guard validates EVERY field `UserProfileListRow` actually reads, not
+ * just the discriminating pair `{post, thread}`. In particular `replies`,
+ * `views`, `lastPostAt`, `closed/sticky/digest/special/highlight` and
+ * `typeName` are all required — `formatCompactNumber(thread.replies)` and
+ * the badge helpers would otherwise throw on a partial payload that happens
+ * to carry `post`/`thread` envelopes but missing inner fields. Lives in this
+ * non-server-only module so `UserPostsTab` can reuse the same check.
+ */
+export function isUserPostHistoryItem(value: unknown): value is UserPostHistoryItem {
+	if (!value || typeof value !== "object") return false;
+	const v = value as { post?: unknown; thread?: unknown };
+	if (!v.post || typeof v.post !== "object") return false;
+	if (!v.thread || typeof v.thread !== "object") return false;
+	const p = v.post as { id?: unknown; createdAt?: unknown };
+	if (typeof p.id !== "number" || typeof p.createdAt !== "number") return false;
+	const t = v.thread as {
+		id?: unknown;
+		forumId?: unknown;
+		subject?: unknown;
+		replies?: unknown;
+		views?: unknown;
+		createdAt?: unknown;
+		lastPostAt?: unknown;
+		closed?: unknown;
+		sticky?: unknown;
+		digest?: unknown;
+		special?: unknown;
+		highlight?: unknown;
+		typeName?: unknown;
+	};
+	return (
+		typeof t.id === "number" &&
+		typeof t.forumId === "number" &&
+		typeof t.subject === "string" &&
+		typeof t.replies === "number" &&
+		typeof t.views === "number" &&
+		typeof t.createdAt === "number" &&
+		typeof t.lastPostAt === "number" &&
+		typeof t.closed === "number" &&
+		typeof t.sticky === "number" &&
+		typeof t.digest === "number" &&
+		typeof t.special === "number" &&
+		typeof t.highlight === "number" &&
+		typeof t.typeName === "string"
+	);
 }
 
 // ---------------------------------------------------------------------------
