@@ -52,6 +52,25 @@
  *   JS — slicing the JS string by 12 would walk past the end. We parse
  *   on a Uint8Array (UTF-8 bytes) and decode strings via TextDecoder.
  *
+ * Legacy GBK byte-count quirk (reviewer pin eb0e5afe):
+ *   Historical Discuz wrote `s:N:` lengths counting GBK bytes (one CJK
+ *   char = 2 bytes), but the column storage was migrated to UTF-8 (one
+ *   CJK char = 3 bytes) by a later DB-level encoding change. The
+ *   declared `N` no longer matches the actual UTF-8 content length.
+ *   Example from fid=147 live dump: `s:4:"求购"` declares 4 bytes but
+ *   UTF-8 "求购" is 6 bytes. Newer admin re-saves (e.g. fid=134
+ *   "校园代理") were written under UTF-8 storage and have correct counts.
+ *
+ *   Strategy: try the declared length first; if the byte immediately
+ *   after is not `"`, fall back to scanning forward for the canonical
+ *   `";<next-token-start>` sentinel where next-token-start ∈
+ *   {a, b, d, i, s, N, }} — every PHP-serialized string is followed
+ *   by `;`, and the byte after must start a valid token or close the
+ *   parent array. This preserves the existing safe behaviour for
+ *   strings whose declared lengths are correct (including the
+ *   embedded-`";` test fixture, which the fast path accepts before any
+ *   scan happens).
+ *
  * Deliberate non-goals:
  *   • Not a general PHP-unserialize implementation; only the keys this
  *     migration needs are extracted (status/required/listable/prefix +
@@ -141,6 +160,88 @@ function readDigits(bytes: Uint8Array, start: number): { value: number; next: nu
 	return { value: v, next: i };
 }
 
+/**
+ * Bytes that can legitimately appear immediately after a string token's
+ * `";` separator: another value/key token's leading byte (`a`/`b`/`d`/`i`/`s`/`N`)
+ * or the closing brace of the enclosing array (`}`). Used as the sentinel
+ * for the GBK-byte-count fallback in {@link readPhpStringExtent}.
+ *
+ * Anchoring on a 2-byte `";` plus one of these 7 bytes makes false-positive
+ * collisions on real UTF-8 content astronomically unlikely — none of the
+ * 7 ASCII bytes appear in the middle of a UTF-8 multi-byte sequence
+ * (those bytes are all ≥ 0x80), so any in-content `";X` would require a
+ * literal ASCII `"` followed by `;` followed by one of `abdisN}` at exactly
+ * the wrong offset. We've audited the live dump fixtures and none trip
+ * this; the embedded-`";` unit test (which DOES contain `";def`) is safely
+ * caught by the fast path because its declared length is correct.
+ */
+const PHP_TOKEN_START_BYTES = new Set<number>([
+	BYTE_a,
+	BYTE_b,
+	BYTE_d,
+	BYTE_i,
+	BYTE_s,
+	BYTE_N,
+	BYTE_CLOSE,
+]);
+
+/**
+ * Locate the byte range of a `s:<len>:"..."` token's inner content.
+ *
+ * Returns:
+ *   • `contentStart` — first byte of the inner UTF-8 content
+ *   • `contentEnd`   — byte index of the closing `"` (exclusive end of content)
+ *   • `afterClose`   — byte index one past the closing `"` (i.e. the `;`)
+ *
+ * Honours the declared `<len>` on the fast path. If the byte at
+ * `contentStart + len` is NOT the closing `"`, the dump was written with
+ * legacy GBK byte counts and we scan forward for the `";<token-start>`
+ * sentinel. See header comment for the encoding-mismatch rationale.
+ *
+ * Caller must have already verified `bytes[start] === BYTE_s`.
+ */
+function readPhpStringExtent(
+	bytes: Uint8Array,
+	start: number,
+): { contentStart: number; contentEnd: number; afterClose: number } {
+	const { value: declaredLen, next } = readDigits(bytes, start + 2);
+	// `next` points to `:`, then `"`. Skip both.
+	const contentStart = next + 2;
+	// Fast path: declared length matches UTF-8 byte length. The byte at
+	// (contentStart + declaredLen) must be `"`; the byte after must be
+	// `;` (PHP always terminates scalars with `;`).
+	const fastEnd = contentStart + declaredLen;
+	if (
+		fastEnd < bytes.length &&
+		bytes[fastEnd] === BYTE_QUOTE &&
+		// `;` either present, or `}` follows directly if the previous
+		// caller stripped the `;` already (we'd never see that here but
+		// guard defensively against malformed input).
+		(fastEnd + 1 >= bytes.length ||
+			bytes[fastEnd + 1] === BYTE_SEMI ||
+			bytes[fastEnd + 1] === BYTE_CLOSE)
+	) {
+		return { contentStart, contentEnd: fastEnd, afterClose: fastEnd + 1 };
+	}
+	// Fallback: scan forward for `";<token-start>` sentinel. The legacy
+	// GBK count is always ≤ actual UTF-8 length (CJK chars in GBK are
+	// 2 bytes, in UTF-8 they're 3+), so the real end is at or after
+	// `fastEnd`. Start scanning at fastEnd for efficiency.
+	let i = Math.max(contentStart, fastEnd);
+	while (i + 2 < bytes.length) {
+		if (bytes[i] === BYTE_QUOTE && bytes[i + 1] === BYTE_SEMI) {
+			const after = bytes[i + 2];
+			if (PHP_TOKEN_START_BYTES.has(after)) {
+				return { contentStart, contentEnd: i, afterClose: i + 1 };
+			}
+		}
+		i++;
+	}
+	// Final fallback: end of buffer. The caller's downstream walk will
+	// likely surface an empty/truncated map but won't crash.
+	return { contentStart, contentEnd: bytes.length, afterClose: bytes.length };
+}
+
 /** Find the byte index of the matching `}` for the `{` at `openBrace`. */
 function findMatchingClose(bytes: Uint8Array, openBrace: number): number {
 	// We can't just count `{`/`}` because string contents may contain
@@ -175,14 +276,13 @@ function readTokenEnd(bytes: Uint8Array, start: number): number {
 	}
 	// N (null literal) — exactly 1 byte
 	if (c === BYTE_N) return start + 1;
-	// s:N:"..." — declared byte length lets us jump past quotes safely
+	// s:N:"..." — declared byte length may be GBK-counted in legacy dumps,
+	// so delegate to readPhpStringExtent which handles both UTF-8 and GBK
+	// byte counts. Return position past the closing `"` (caller advances
+	// past the trailing `;`).
 	if (c === BYTE_s) {
-		// Format: s:<len>:"<bytes>"
-		// start + 2 is the first digit of <len>
-		const { value: len, next } = readDigits(bytes, start + 2);
-		// next points to the `:`, then `"`, then content of `len` bytes, then `"`
-		const contentStart = next + 2;
-		return contentStart + len + 1; // +1 past closing quote
+		const { afterClose } = readPhpStringExtent(bytes, start);
+		return afterClose;
 	}
 	// a:N:{...} — walk braces using key/value tokens
 	if (c === BYTE_a) {
@@ -201,13 +301,16 @@ function readTokenEnd(bytes: Uint8Array, start: number): number {
 /**
  * Decode a `s:N:"..."` token starting at byte `start` to its inner
  * string content (UTF-8 → JS string). Returns null on malformed input.
+ *
+ * Honours the declared `<len>` when it matches; falls back to the
+ * `";<token-start>` sentinel scan for legacy GBK-counted lengths
+ * (see header comment + {@link readPhpStringExtent}).
  */
 function decodePhpStringAt(bytes: Uint8Array, start: number): string | null {
 	if (bytes[start] !== BYTE_s) return null;
-	const { value: len, next } = readDigits(bytes, start + 2);
-	const contentStart = next + 2; // skip `:` then `"`
-	if (contentStart + len > bytes.length) return null;
-	return TEXT_DECODER.decode(bytes.subarray(contentStart, contentStart + len));
+	const { contentStart, contentEnd } = readPhpStringExtent(bytes, start);
+	if (contentEnd > bytes.length || contentStart > contentEnd) return null;
+	return TEXT_DECODER.decode(bytes.subarray(contentStart, contentEnd));
 }
 
 /**

@@ -22,6 +22,7 @@ import {
 	parseMemberRow,
 	parseProfileRow,
 	parseStatusRow,
+	parseThreadClassRow,
 	parseThreadTypeRow,
 	parseUsergroupRow,
 } from "../src/extract/extractors";
@@ -850,6 +851,53 @@ describe("parseThreadTypeRow", () => {
 		const r = row({ 0: "1" });
 		const result = parseThreadTypeRow(r);
 		expect(result.name).toBe("");
+	});
+});
+
+// ─── parseThreadClassRow ─────────────────────────────────────────────────────
+
+describe("parseThreadClassRow", () => {
+	// pre_forum_threadclass shape (columns 0-5): typeid, fid, name,
+	// displayorder, icon, moderators. Per-forum admin write path; rows
+	// are joined with forumfield.threadtypes by (fid, typeid) to build
+	// forum_thread_types. The parser is a thin coercer — empty / null
+	// columns must default to 0 / "" rather than NaN.
+	test("parses full row with all columns populated", () => {
+		const r = row({ 0: "76", 1: "147", 2: "求购", 3: "1", 4: "icon.png", 5: "0" });
+		expect(parseThreadClassRow(r)).toEqual({
+			typeid: 76,
+			fid: 147,
+			name: "求购",
+			displayorder: 1,
+			icon: "icon.png",
+			moderators: 0,
+		});
+	});
+
+	test("defaults numeric columns to 0 when missing/non-numeric", () => {
+		// A row with only typeid and name populated mirrors the legacy
+		// admin write path that occasionally omits trailing fields. The
+		// `Number(x) || 0` coercion must produce 0 (not NaN) so the
+		// insert doesn't bind a NaN to a NOT NULL INTEGER column.
+		const r = row({ 0: "5", 2: "Test" });
+		const result = parseThreadClassRow(r);
+		expect(result).toEqual({
+			typeid: 5,
+			fid: 0,
+			name: "Test",
+			displayorder: 0,
+			icon: "",
+			moderators: 0,
+		});
+	});
+
+	test("name and icon default to empty string for null-ish columns", () => {
+		// `??` fallback covers the case where a column is literally
+		// missing from the dump (sparse rows in legacy admin tables).
+		const r = row({ 0: "1", 1: "100" });
+		const result = parseThreadClassRow(r);
+		expect(result.name).toBe("");
+		expect(result.icon).toBe("");
 	});
 });
 
