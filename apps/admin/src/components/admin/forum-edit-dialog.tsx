@@ -8,6 +8,7 @@ import { Label } from "@ellie/ui";
 import { Select } from "@ellie/ui";
 import { useCallback, useEffect, useState } from "react";
 import { AdminInlineMessage } from "./admin-inline-message";
+import { ForumThreadTypesPanel } from "./forum-thread-types-panel";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -58,6 +59,10 @@ export function ForumEditDialog({
 	const [status, setStatus] = useState(1);
 	const [type, setType] = useState<ForumType>("forum");
 	const [parentId, setParentId] = useState(0);
+	// Bumped each time the dialog re-opens on a (possibly different) forum,
+	// so the embedded ForumThreadTypesPanel can collapse + drop its cached
+	// payload instead of flashing the previous forum's data.
+	const [threadTypesResetKey, setThreadTypesResetKey] = useState(0);
 
 	// Reset form when dialog opens with new forum
 	useEffect(() => {
@@ -69,6 +74,7 @@ export function ForumEditDialog({
 			setStatus(forum.status);
 			setType(forum.type);
 			setParentId(forum.parentId);
+			setThreadTypesResetKey((k) => k + 1);
 		}
 	}, [open, forum]);
 
@@ -226,6 +232,13 @@ export function ForumEditDialog({
 							/>
 						</div>
 					</div>
+
+					{/* 主题分类 (Phase 3 / #8) — collapsible region. Only renders
+					   under non-group forums; a "分区" container doesn't host
+					   threads so the picker would be inert. */}
+					{type !== "group" && (
+						<ForumThreadTypesPanel forumId={forum?.id ?? null} resetKey={threadTypesResetKey} />
+					)}
 				</div>
 
 				<DialogFooter>
