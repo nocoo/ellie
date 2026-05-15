@@ -232,12 +232,13 @@ export function useThreadSubmit({
 		subject.trim().length > 0 && !subjectValidation.valid
 			? (subjectValidation.error ?? null)
 			: null;
-	// typeIdError surfaces ONLY after a submit attempt — picker should
-	// not glow red just because the user hasn't touched it yet. So we
-	// derive it from the persisted `error` string when it's the required
-	// marker, plus a forward-looking guard for the submit button.
+	// Picker is required and nothing selected → surface inline hint
+	// immediately (reviewer pin msg fec9f031: required-未选 必须显示 inline
+	// 提示而不是只有 submit 后才出现，因为 canSubmit 会先把按钮禁掉).
+	// Intentionally NOT routed through `state.error` so the dialog's top
+	// red banner doesn't get a permanent occupant.
 	const typeIdMissing = typeIdRequired && (typeId == null || typeId <= 0);
-	const typeIdError = typeIdMissing && error === TYPE_REQUIRED_ERROR ? TYPE_REQUIRED_ERROR : null;
+	const typeIdError: string | null = typeIdMissing ? TYPE_REQUIRED_ERROR : null;
 	const canSubmit = canSubmitThread(
 		subject,
 		submitting,
@@ -269,9 +270,11 @@ export function useThreadSubmit({
 
 			// Required 主题分类 pre-flight — never round-trip to the Worker
 			// when we know the picker is unsatisfied (reviewer pin msg
-			// 9154cc68: "required 客户端本地阻断且不发请求").
+			// 9154cc68: "required 客户端本地阻断且不发请求"). The inline
+			// picker hint is already on screen via `typeIdError`; we
+			// deliberately do NOT route this through `state.error` so the
+			// dialog's top red banner stays empty for clean states.
 			if (typeIdRequired && (typeId == null || typeId <= 0)) {
-				setError(TYPE_REQUIRED_ERROR);
 				return;
 			}
 
