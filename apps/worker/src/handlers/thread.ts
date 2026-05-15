@@ -18,6 +18,7 @@ import { checkPostingPermission } from "../lib/postingPermission";
 import { getQueryParam } from "../lib/queryString";
 import { jsonListResponse, jsonResponse, paginatedResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
+import { coerceTypeIdInput, resolveAndValidateTypeId } from "../lib/threadType";
 import { getUserProfiles } from "../lib/user-cache";
 import {
 	STICKY_GLOBAL,
@@ -217,6 +218,60 @@ function getThreadListQueryWithOffset(useKvCache: boolean): string {
 	return THREAD_LIST_QUERY_CACHE[useKvCache ? "kv" : "join"].offset;
 }
 
+// ─── typeId-filtered query variants ──────────────────────────────────
+//
+// When the caller passes `?typeId=N`, the list must be scoped to one
+// (forumId, typeId) pair. Reviewer pin (msg 11e374e8): "filtered list
+// 不带全站公告" — the global-announcement merge (sticky=STICKY_GLOBAL)
+// is INTENTIONALLY DROPPED. Site-wide announcements are not bound to
+// any thread type, so leaking them into a category-filtered view would
+// re-introduce the same cross-type contamination the synthetic id
+// migration set out to remove.
+//
+// `idx_threads_forum_type` (created in 0038/0039 path) makes the
+// (forum_id, type_id) lookup an index seek; the ORDER BY tail is the
+// same sticky-rank/last_post_at/id triple as the unfiltered query so
+// the keyset cursor remains compatible.
+const THREAD_LIST_TYPE_QUERY_CACHE: Readonly<
+	Record<"kv" | "join", { withCursor: string; noCursor: string; offset: string }>
+> = (() => {
+	const build = (useKvCache: boolean, withCursor: boolean): string => {
+		const selectFields = useKvCache
+			? `t.*, ${IS_AUTHOR_FIRST_THREAD}`
+			: `t.*, author.avatar AS author_avatar, author.avatar_path AS author_avatar_path, lp.avatar AS last_poster_avatar, lp.avatar_path AS last_poster_avatar_path, ${IS_AUTHOR_FIRST_THREAD}`;
+		const fromClause = useKvCache
+			? "threads t"
+			: "threads t LEFT JOIN users author ON t.author_id = author.id LEFT JOIN users lp ON t.last_poster_id = lp.id";
+		// Hard-bind both forum_id AND type_id; site-wide announcements are
+		// NOT merged (see header comment).
+		const whereClause = `t.forum_id = ? AND t.type_id = ? AND ${threadVisible("t")}`;
+		const orderBy = `ORDER BY ${STICKY_RANK_EXPR} DESC, t.last_post_at DESC, t.id DESC`;
+		if (withCursor) {
+			const cursorCondition = `(${STICKY_RANK_EXPR} < ? OR (${STICKY_RANK_EXPR} = ? AND (t.last_post_at < ? OR (t.last_post_at = ? AND t.id < ?))))`;
+			return `SELECT ${selectFields} FROM ${fromClause} WHERE ${whereClause} AND ${cursorCondition} ${orderBy} LIMIT ?`;
+		}
+		return `SELECT ${selectFields} FROM ${fromClause} WHERE ${whereClause} ${orderBy} LIMIT ?`;
+	};
+	const entry = (useKvCache: boolean) => {
+		const noCursor = build(useKvCache, false);
+		return {
+			withCursor: build(useKvCache, true),
+			noCursor,
+			offset: `${noCursor} OFFSET ?`,
+		};
+	};
+	return { kv: entry(true), join: entry(false) };
+})();
+
+function getThreadListTypeQuery(useKvCache: boolean, withCursor: boolean): string {
+	const e = THREAD_LIST_TYPE_QUERY_CACHE[useKvCache ? "kv" : "join"];
+	return withCursor ? e.withCursor : e.noCursor;
+}
+
+function getThreadListTypeQueryWithOffset(useKvCache: boolean): string {
+	return THREAD_LIST_TYPE_QUERY_CACHE[useKvCache ? "kv" : "join"].offset;
+}
+
 /** GET /api/v1/threads - List threads with keyset or offset pagination */
 export async function list(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
@@ -227,6 +282,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 	const cursorStr = getQueryParam(rawUrl, "cursor");
 	const pageParam = getQueryParam(rawUrl, "page");
 	const limitParam = getQueryParam(rawUrl, "limit");
+	const typeIdParam = getQueryParam(rawUrl, "typeId");
 
 	if (!forumId) {
 		return errorResponse("INVALID_REQUEST", 400, { message: "forumId is required" }, origin);
@@ -235,6 +291,15 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 	const forumIdNum = Number.parseInt(forumId, 10);
 	if (Number.isNaN(forumIdNum)) {
 		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid forumId" }, origin);
+	}
+
+	// Pre-parse typeId. We can reject negative / non-integer input now;
+	// the (forum_id, type_id) row check waits until after the visibility
+	// gate so we don't betray "this typeId exists but you can't see the
+	// forum" via timing.
+	const typeIdInput = coerceTypeIdInput(typeIdParam);
+	if (typeIdInput.kind === "invalid") {
+		return errorResponse("INVALID_REQUEST", 400, { message: typeIdInput.message }, origin);
 	}
 
 	// Forum-visibility gate via `forum:meta:v2`. Happens BEFORE we look at
@@ -268,10 +333,30 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 
 	const useKvCache = isKvUserCacheEnabled(env);
 
+	// typeId filter resolution. Has to happen AFTER the visibility gate
+	// so we don't betray "this typeId exists but you can't see the
+	// forum"; happens BEFORE caching/branching because the reviewer pin
+	// (msg b03d4af3) requires typeId-filtered requests to bypass page1
+	// KV — different cache key shape, different invalidation strategy,
+	// not worth the complexity in the first cut.
+	const typeResolution =
+		typeIdInput.kind === "ok"
+			? await resolveAndValidateTypeId(env, forumIdNum, typeIdInput.value, {
+					enabled: metaResult.forum.threadTypes.enabled,
+				})
+			: ({ kind: "noTypeRequested" } as const);
+	if (typeResolution.kind === "invalid") {
+		return errorResponse("INVALID_REQUEST", 400, { message: typeResolution.message }, origin);
+	}
+	// Synthetic id for the SQL bind. `null` means "no filter" — original
+	// global-merge behaviour applies.
+	const typeIdFilter = typeResolution.kind === "ok" ? typeResolution.row.id : null;
+
 	// page1 cache eligibility: cacheable limit bucket AND request shape is
 	// page1 (no cursor, no page or page=1). Deeper pagination falls through
-	// to D1.
-	const page1 = isPage1(cursorStr, pageParam) && isCacheableLimit(clampedLimit);
+	// to D1. typeId-filtered requests bypass the page1 cache entirely.
+	const page1 =
+		typeIdFilter === null && isPage1(cursorStr, pageParam) && isCacheableLimit(clampedLimit);
 
 	// Unified page1 loader. Both the keyset-no-cursor branch and the
 	// offset-page=1 branch share the SAME thread:list:v2 cache key, so the
@@ -324,16 +409,30 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 
 		const loadOffsetPayload = async (): Promise<ThreadListPayloadV2> => {
 			const offset = (page - 1) * clampedLimit;
-			const [countResult, dataResult] = await Promise.all([
-				env.DB.prepare(
-					`SELECT COUNT(*) as total FROM threads WHERE (forum_id = ? OR sticky = ${STICKY_GLOBAL}) AND ${THREAD_VISIBLE}`,
-				)
-					.bind(forumIdNum)
-					.first<{ total: number }>(),
-				env.DB.prepare(getThreadListQueryWithOffset(useKvCache))
-					.bind(forumIdNum, clampedLimit, offset)
-					.all(),
-			]);
+			const [countResult, dataResult] =
+				typeIdFilter !== null
+					? await Promise.all([
+							// Filtered count: exact (forum_id, type_id) — no global
+							// announcement merge, matches the SQL builder.
+							env.DB.prepare(
+								`SELECT COUNT(*) as total FROM threads WHERE forum_id = ? AND type_id = ? AND ${THREAD_VISIBLE}`,
+							)
+								.bind(forumIdNum, typeIdFilter)
+								.first<{ total: number }>(),
+							env.DB.prepare(getThreadListTypeQueryWithOffset(useKvCache))
+								.bind(forumIdNum, typeIdFilter, clampedLimit, offset)
+								.all(),
+						])
+					: await Promise.all([
+							env.DB.prepare(
+								`SELECT COUNT(*) as total FROM threads WHERE (forum_id = ? OR sticky = ${STICKY_GLOBAL}) AND ${THREAD_VISIBLE}`,
+							)
+								.bind(forumIdNum)
+								.first<{ total: number }>(),
+							env.DB.prepare(getThreadListQueryWithOffset(useKvCache))
+								.bind(forumIdNum, clampedLimit, offset)
+								.all(),
+						]);
 			const total = countResult?.total ?? 0;
 			let items = mapThreadRows(dataResult.results, useKvCache);
 			if (useKvCache) {
@@ -364,20 +463,39 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 		: null;
 
 	const loadKeysetPayload = async (): Promise<ThreadListPayloadV2> => {
-		const query = getThreadListQuery(useKvCache, cursor !== null);
-		const result: D1Result = cursor
-			? await env.DB.prepare(query)
-					.bind(
-						forumIdNum,
-						cursor.sticky,
-						cursor.sticky,
-						cursor.lastPostAt,
-						cursor.lastPostAt,
-						cursor.id,
-						clampedLimit,
-					)
-					.all()
-			: await env.DB.prepare(query).bind(forumIdNum, clampedLimit).all();
+		const result: D1Result =
+			typeIdFilter !== null
+				? cursor
+					? await env.DB.prepare(getThreadListTypeQuery(useKvCache, true))
+							.bind(
+								forumIdNum,
+								typeIdFilter,
+								cursor.sticky,
+								cursor.sticky,
+								cursor.lastPostAt,
+								cursor.lastPostAt,
+								cursor.id,
+								clampedLimit,
+							)
+							.all()
+					: await env.DB.prepare(getThreadListTypeQuery(useKvCache, false))
+							.bind(forumIdNum, typeIdFilter, clampedLimit)
+							.all()
+				: cursor
+					? await env.DB.prepare(getThreadListQuery(useKvCache, true))
+							.bind(
+								forumIdNum,
+								cursor.sticky,
+								cursor.sticky,
+								cursor.lastPostAt,
+								cursor.lastPostAt,
+								cursor.id,
+								clampedLimit,
+							)
+							.all()
+					: await env.DB.prepare(getThreadListQuery(useKvCache, false))
+							.bind(forumIdNum, clampedLimit)
+							.all();
 
 		let items = mapThreadRows(result.results, useKvCache);
 		if (useKvCache) {
