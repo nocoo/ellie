@@ -12,6 +12,8 @@ export type {
 	User,
 	Forum,
 	ForumVisibility,
+	ForumThreadType,
+	ForumThreadTypeConfig,
 	Thread,
 	Post,
 	PostThreadSummary,

@@ -246,6 +246,43 @@ export interface ModeratorInfo {
 }
 /** Forum visibility level */
 export type ForumVisibility = "public" | "members" | "staff" | "admin";
+/**
+ * Per-forum thread-category configuration switches (Doc forums.thread_types_*).
+ *
+ * Always returned as part of `Forum` so the web layer can decide in a single
+ * round trip whether to render the category filter / picker / required hint
+ * (reviewer pin msg b03d4af3 + 4b64ac64).
+ *
+ *   • enabled  — admin master switch; gates every other option
+ *   • required — posting requires a non-zero category
+ *   • listable — list endpoint accepts `typeId` filter
+ *   • prefix   — render the category as a subject prefix (UI hint)
+ */
+export interface ForumThreadTypeConfig {
+    enabled: boolean;
+    required: boolean;
+    listable: boolean;
+    prefix: boolean;
+}
+/**
+ * Public DTO for one row of `forum_thread_types` (a 主题分类).
+ *
+ * `id` is the D1 SYNTHETIC global id minted by 0039 — what threads.type_id
+ * stores and what every public API (list filter, post create body) takes.
+ * The Discuz-local `source_typeid` is admin/debug-only and intentionally
+ * NOT exposed here.
+ *
+ * Tombstone rows (enabled=false) appear so the web can render historical
+ * thread badges; create/required validation accepts only enabled rows.
+ */
+export interface ForumThreadType {
+    id: number;
+    name: string;
+    displayOrder: number;
+    icon: string;
+    enabled: boolean;
+    moderatorOnly: boolean;
+}
 /** Maps to Doc02 forums table — 213 rows */
 export interface Forum {
     id: number;
@@ -269,6 +306,8 @@ export interface Forum {
     lastPosterAvatar: string;
     lastPosterAvatarPath: string;
     lastThreadSubject: string;
+    /** Per-forum thread-category configuration; always returned. */
+    threadTypes: ForumThreadTypeConfig;
 }
 /** Maps to Doc02 threads table — 790K rows */
 export interface Thread {
