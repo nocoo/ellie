@@ -10,6 +10,7 @@ import { getAvatarValue } from "../transform/avatar";
 import { bbcodeToHtml } from "../transform/bbcode";
 import { validateEncoding } from "../transform/encoding";
 import { mapPassword } from "../transform/password";
+import type { ThreadTypesConfig } from "../transform/threadtypes";
 import type { ParsedRow } from "./parser";
 
 // ─── Forums ────────────────────────────────────────────────────────────────────
@@ -64,10 +65,16 @@ export function parseLastPost(lastpost: string | null): {
 /**
  * Extract a forum row. All forums are migrated (status passed through).
  * Returns null only for the undefined/corrupt row edge case.
+ *
+ * `threadTypesConfigs` is the per-forum 主题分类 config map built by
+ * the orchestrator from `pre_forum_forumfield.threadtypes`. Forums not
+ * in the map (no admin-configured categories) get all four
+ * `thread_types_*` flags set to 0 — same as the schema default.
  */
 export function extractForum(
 	row: ParsedRow,
 	forumFields: Map<number, { description: string; icon: string; moderators: string }>,
+	threadTypesConfigs?: Map<number, ThreadTypesConfig>,
 ): RowRecord | null {
 	const fid = Number(row[FORUM_COLS.fid]);
 	if (!fid) return null; // Skip corrupt/undefined rows
@@ -75,6 +82,7 @@ export function extractForum(
 	const status = Number(row[FORUM_COLS.status]) || 0;
 	const lastpost = parseLastPost(row[FORUM_COLS.lastpost] ?? null);
 	const fields = forumFields.get(fid);
+	const ttc = threadTypesConfigs?.get(fid);
 
 	return {
 		id: fid,
@@ -92,6 +100,15 @@ export function extractForum(
 		last_post_at: lastpost.lastPostAt,
 		last_poster: lastpost.lastPoster,
 		last_thread_subject: lastpost.lastThreadSubject,
+		// 主题分类 flags — see migration 0038 + transform/threadtypes.ts.
+		// `enabled` is derived from `types.size > 0` (NOT legacy `status`),
+		// matching reviewer pin e408cbf0. The other three flags are
+		// independent so a forum can keep e.g. prefix rendering without
+		// forcing the picker (fid=113 pattern).
+		thread_types_enabled: ttc?.enabled ? 1 : 0,
+		thread_types_required: ttc?.required ? 1 : 0,
+		thread_types_listable: ttc?.listable ? 1 : 0,
+		thread_types_prefix: ttc?.prefix ? 1 : 0,
 	};
 }
 
@@ -507,11 +524,25 @@ const THREAD_COLS = {
 
 /**
  * Extract a thread row. All threads are migrated (status passed through).
- * Optionally resolves typeid → type_name via threadTypeMap.
+ *
+ * `threadTypeMap` is the (legacy) global `pre_forum_threadtype` map
+ * used to resolve typeid → display name; `forumThreadTypeMap` is the
+ * per-forum admin-configured map built from `pre_forum_forumfield.threadtypes`
+ * (migration 0038). When both have an entry, the per-forum map wins —
+ * Discuz's modern admin path stores name overrides in `forumfield.types`,
+ * not in the global `pre_forum_threadtype` table.
+ *
+ * `type_id` is the **raw** Discuz `pre_forum_thread.typeid` — written
+ * straight through to D1 without coercion. Threads with `typeid=0`
+ * stay 0 (worker layer renders "无分类"); we never auto-promote 0 to
+ * a synthetic PUB row, even on forums (e.g. fid=113) whose admin
+ * categories include typeid=0 as a legitimate ID. The thread row is
+ * source-of-truth for what category the user picked at post time.
  */
 export function extractThread(
 	row: ParsedRow,
 	threadTypeMap?: Map<number, string>,
+	forumThreadTypeMap?: Map<number, Map<number, string>>,
 ): RowRecord | null {
 	const tid = Number(row[THREAD_COLS.tid]);
 	if (!tid) return null; // Skip corrupt rows
@@ -521,10 +552,21 @@ export function extractThread(
 	const recommendAdd = Number(row[THREAD_COLS.recommend_add]) || 0;
 	const recommendSub = Number(row[THREAD_COLS.recommend_sub]) || 0;
 	const typeid = Number(row[THREAD_COLS.typeid]) || 0;
+	const fid = Number(row[THREAD_COLS.fid]) || 0;
+
+	// Name resolution: per-forum map (forumfield.types — admin-current
+	// or threadclass-tombstone) takes priority over the legacy global
+	// `pre_forum_threadtype` map. Falls back to "" when neither knows
+	// the typeid (e.g. typeid=0 → no category badge in UI).
+	let typeName = "";
+	if (typeid > 0) {
+		const perForum = forumThreadTypeMap?.get(fid)?.get(typeid);
+		typeName = perForum ?? threadTypeMap?.get(typeid) ?? "";
+	}
 
 	return {
 		id: tid,
-		forum_id: Number(row[THREAD_COLS.fid]),
+		forum_id: fid,
 		author_id: Number(row[THREAD_COLS.authorid]),
 		author_name: row[THREAD_COLS.author] ?? "",
 		subject: row[THREAD_COLS.subject] ?? "",
@@ -540,7 +582,8 @@ export function extractThread(
 		highlight: Number(row[THREAD_COLS.highlight]) || 0,
 		recommends: recommendAdd - recommendSub,
 		post_table_id: Number(row[THREAD_COLS.posttableid]) || 0,
-		type_name: (typeid > 0 && threadTypeMap?.get(typeid)) || "",
+		type_name: typeName,
+		type_id: typeid,
 	};
 }
 

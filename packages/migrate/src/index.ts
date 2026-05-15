@@ -19,6 +19,7 @@ import {
 	type MemberFieldForumData,
 	type ProfileData,
 	type StatusData,
+	type ThreadClassRow,
 	type UsergroupData,
 	extractAttachment,
 	extractCheckin,
@@ -33,6 +34,7 @@ import {
 	parseMemberRow,
 	parseProfileRow,
 	parseStatusRow,
+	parseThreadClassRow,
 	parseThreadTypeRow,
 	parseUsergroupRow,
 } from "./extract/extractors";
@@ -42,6 +44,11 @@ import { BatchLoader } from "./load/batch-insert";
 import { MigrationLogger } from "./load/logger";
 import { CHECKINS_UPSERT_COLUMNS } from "./load/schema";
 import { createDeletedUserPlaceholder } from "./load/sql-builder";
+import {
+	buildForumThreadTypeNameMap,
+	buildForumThreadTypeRows,
+} from "./transform/forum-thread-types";
+import { type ThreadTypesConfig, parseThreadTypes } from "./transform/threadtypes";
 import { verifyEncoding } from "./verify/encoding";
 import { type ExpectedCounts, verifyIntegrity } from "./verify/integrity";
 import { verifyPerformance } from "./verify/performance";
@@ -71,17 +78,28 @@ function log(msg: string): void {
 
 // ─── Step 1: Forums ─────────────────────────────────────────────────────────
 
-export async function migrateForums(loader: BatchLoader, sources: SourceFiles): Promise<number> {
+export async function migrateForums(
+	loader: BatchLoader,
+	sources: SourceFiles,
+): Promise<{
+	total: number;
+	forumTypeConfigs: Map<number, ThreadTypesConfig>;
+}> {
 	log("=== Forums ===");
 
 	log("  Parsing pre_forum_forumfield...");
 	const forumFields = new Map<number, { description: string; icon: string; moderators: string }>();
+	// Per-forum 主题分类 config parsed from forumfield.threadtypes
+	// (PHP-serialized). Built here so `extractForum` can emit the four
+	// thread_types_* flag columns in the same pass. See migration 0038.
+	const forumTypeConfigs = new Map<number, ThreadTypesConfig>();
 	await parseDumpFile(sources.forums, "pre_forum_forumfield", (row) => {
-		// forumfield columns verified from DDL: fid=0, description=1, password=2, icon=3, ...moderators=8
+		// forumfield columns verified from DDL: fid=0, description=1, password=2, icon=3, ...moderators=8, ...threadtypes=10
 		const fid = Number(row[0]);
 		const description = row[1] ?? "";
 		const icon = row[3] ?? "";
 		const rawMods = row[8] ?? "";
+		const threadtypes = row[10] ?? "";
 		// Moderators are tab-separated in DZ; normalize to comma-separated
 		const moderators = rawMods
 			.split("\t")
@@ -89,18 +107,98 @@ export async function migrateForums(loader: BatchLoader, sources: SourceFiles): 
 			.filter(Boolean)
 			.join(", ");
 		forumFields.set(fid, { description, icon, moderators });
+		// Only retain configs with at least one parsed type (saves
+		// memory on the long tail of forums with no admin categories
+		// while preserving full fidelity for the four flag columns).
+		if (threadtypes) {
+			const cfg = parseThreadTypes(threadtypes);
+			if (cfg.enabled || cfg.required || cfg.listable || cfg.prefix || cfg.types.size > 0) {
+				forumTypeConfigs.set(fid, cfg);
+			}
+		}
 	});
-	log(`  Collected ${forumFields.size} forum field records`);
+	log(
+		`  Collected ${forumFields.size} forum field records (${forumTypeConfigs.size} with thread_types)`,
+	);
 
 	log("  Parsing pre_forum_forum...");
 	const inserter = loader.createStreamInserter("forums");
 	await parseDumpFile(sources.forums, "pre_forum_forum", (row) => {
-		const record = extractForum(row, forumFields);
+		const record = extractForum(row, forumFields, forumTypeConfigs);
 		if (record) inserter.add(record);
 	});
 	const total = inserter.flush();
 	log(`  Forums: ${total} rows inserted`);
-	return total;
+	return { total, forumTypeConfigs };
+}
+
+// ─── Step 1b: forum_thread_types ─────────────────────────────────────────────
+
+/**
+ * Build & insert `forum_thread_types` rows + return the per-forum
+ * (typeid → name) resolution map used by `migrateThreads` to fill
+ * `threads.type_name`.
+ *
+ * Inputs come from two Discuz sources (see transform/forum-thread-types):
+ *   • forumTypeConfigs — parsed from `pre_forum_forumfield.threadtypes`,
+ *     produced as a side effect of `migrateForums`.
+ *   • pre_forum_threadclass — parsed here.
+ *
+ * Reviewer merge policy (msg 73d85116):
+ *   • Enabled-set names + display_order come from forumfield.types.
+ *   • threadclass only fills in tombstone rows (typeids dropped from
+ *     forumfield.types but still referenced by old `thread.typeid`),
+ *     plus icon / display_order / moderator fallbacks for enabled rows.
+ */
+export async function migrateForumThreadTypes(
+	loader: BatchLoader,
+	sources: SourceFiles,
+	forumTypeConfigs: Map<number, ThreadTypesConfig>,
+): Promise<{
+	total: number;
+	forumThreadTypeNameMap: Map<number, Map<number, string>>;
+	threadClassRowCount: number;
+}> {
+	log("=== Forum thread types ===");
+
+	log("  Parsing pre_forum_threadclass...");
+	const threadClassByForum = new Map<number, ThreadClassRow[]>();
+	try {
+		await parseDumpFile(sources.forums, "pre_forum_threadclass", (row) => {
+			const cls = parseThreadClassRow(row);
+			if (!cls.typeid || !cls.fid) return;
+			const arr = threadClassByForum.get(cls.fid);
+			if (arr) arr.push(cls);
+			else threadClassByForum.set(cls.fid, [cls]);
+		});
+	} catch {
+		// Table may not exist in older dumps — that's OK; tombstones
+		// won't be populated but the enabled-set still loads.
+	}
+	const classRowCount = [...threadClassByForum.values()].reduce((n, arr) => n + arr.length, 0);
+	log(`  Collected ${classRowCount} threadclass rows across ${threadClassByForum.size} forums`);
+
+	// Reviewer pin a42e7d1f: a non-empty forumfield.types config but
+	// zero threadclass rows is a strong signal that the dump source is
+	// missing pre_forum_threadclass (e.g. a future split dump that
+	// hasn't been updated). Without threadclass, historical typeids
+	// dropped from forumfield.types lose their tombstone — old threads
+	// would render an empty type_name. Promote to WARN so it isn't
+	// buried in the per-step counts.
+	if (forumTypeConfigs.size > 0 && classRowCount === 0) {
+		log(
+			"  WARN: pre_forum_threadclass yielded 0 rows but forumfield.threadtypes is non-empty — historical tombstones will be missing. Verify the dump source includes pre_forum_threadclass.",
+		);
+	}
+
+	const rows = buildForumThreadTypeRows(forumTypeConfigs, threadClassByForum);
+	const forumThreadTypeNameMap = buildForumThreadTypeNameMap(forumTypeConfigs, threadClassByForum);
+
+	const inserter = loader.createStreamInserter("forum_thread_types");
+	for (const r of rows) inserter.add(r);
+	const total = inserter.flush();
+	log(`  forum_thread_types: ${total} rows inserted`);
+	return { total, forumThreadTypeNameMap, threadClassRowCount: classRowCount };
 }
 
 // ─── Step 2: Users ──────────────────────────────────────────────────────────
@@ -273,12 +371,18 @@ export async function migrateThreads(
 	sources: SourceFiles,
 	forumIds: Set<number>,
 	userIds: Set<number>,
+	forumThreadTypeNameMap?: Map<number, Map<number, string>>,
 ): Promise<{
 	total: number;
 	skipped: number;
 	threadIds: Set<number>;
 	missingForums: number;
 	missingAuthors: number;
+	unmappedTypeids: {
+		total: number;
+		distinct: number;
+		topByCount: Array<{ fid: number; typeid: number; count: number }>;
+	};
 }> {
 	log("=== Threads ===");
 
@@ -302,9 +406,15 @@ export async function migrateThreads(
 	const missingForumIds = new Set<number>();
 	const missingAuthorIds = new Set<number>();
 	let skipped = 0;
+	// Reviewer pin 51fa5901: track typeids that have no name resolution
+	// from either source (forumfield.types or threadclass). Reported in
+	// the dry-run summary so we don't silently drop these — a high
+	// count indicates either a missing dump source or a parser regression.
+	const unmappedCounts = new Map<string, { fid: number; typeid: number; count: number }>();
+	let unmappedTotal = 0;
 
 	const processThreadRow = (row: ParsedRow) => {
-		const record = extractThread(row, threadTypeMap);
+		const record = extractThread(row, threadTypeMap, forumThreadTypeNameMap);
 		if (record) {
 			inserter.add(record);
 			threadIds.add(record.id as number);
@@ -316,6 +426,15 @@ export async function migrateThreads(
 			const aid = record.author_id as number;
 			if (!userIds.has(aid)) {
 				missingAuthorIds.add(aid);
+			}
+
+			const typeid = record.type_id as number;
+			if (typeid > 0 && !record.type_name) {
+				unmappedTotal++;
+				const key = `${fid}:${typeid}`;
+				const entry = unmappedCounts.get(key);
+				if (entry) entry.count++;
+				else unmappedCounts.set(key, { fid, typeid, count: 1 });
 			}
 		} else {
 			skipped++;
@@ -379,12 +498,30 @@ export async function migrateThreads(
 		log(`  Created ${placeholders} placeholder users`);
 	}
 
+	// Build unmapped typeid report (top 20 by count, deterministic ordering).
+	const unmappedTopByCount = [...unmappedCounts.values()]
+		.sort((a, b) => b.count - a.count || a.fid - b.fid || a.typeid - b.typeid)
+		.slice(0, 20);
+	if (unmappedTotal > 0) {
+		log(
+			`  Unmapped typeids: ${unmappedTotal} threads across ${unmappedCounts.size} (fid,typeid) pairs (top: ${unmappedTopByCount
+				.slice(0, 5)
+				.map((e) => `fid=${e.fid} typeid=${e.typeid} ×${e.count}`)
+				.join(", ")})`,
+		);
+	}
+
 	return {
 		total,
 		skipped,
 		threadIds,
 		missingForums: missingForumIds.size,
 		missingAuthors: missingAuthorIds.size,
+		unmappedTypeids: {
+			total: unmappedTotal,
+			distinct: unmappedCounts.size,
+			topByCount: unmappedTopByCount,
+		},
 	};
 }
 
@@ -879,7 +1016,17 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 		loader.createTables();
 
 		// Migrate in FK dependency order, collecting ID sets for orphan detection
-		stats.forums = await migrateForums(loader, sources);
+		const forumsResult = await migrateForums(loader, sources);
+		stats.forums = forumsResult.total;
+
+		const forumThreadTypesResult = await migrateForumThreadTypes(
+			loader,
+			sources,
+			forumsResult.forumTypeConfigs,
+		);
+		// Tracked under skipped for now to avoid widening the public Stats
+		// shape; the count is also visible in the per-step log line.
+		stats.skipped.forum_thread_types = forumThreadTypesResult.total;
 
 		const userResult = await migrateUsers(loader, sources);
 		stats.users = userResult.total;
@@ -893,13 +1040,21 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 			for (const r of forumRows) forumIds.add(r.id);
 		}
 
-		const threadResult = await migrateThreads(loader, sources, forumIds, userResult.userIds);
+		const threadResult = await migrateThreads(
+			loader,
+			sources,
+			forumIds,
+			userResult.userIds,
+			forumThreadTypesResult.forumThreadTypeNameMap,
+		);
 		stats.threads = threadResult.total;
 		stats.forums += threadResult.missingForums; // placeholder forums
 		stats.users += threadResult.missingAuthors; // placeholder users
 		stats.skipped.threads = threadResult.skipped;
 		stats.skipped.threadMissingForums = threadResult.missingForums;
 		stats.skipped.threadMissingAuthors = threadResult.missingAuthors;
+		stats.skipped.threadUnmappedTypeids = threadResult.unmappedTypeids.total;
+		stats.skipped.threadUnmappedTypeidPairs = threadResult.unmappedTypeids.distinct;
 
 		const postResult = await migratePosts(
 			loader,

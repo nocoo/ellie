@@ -130,6 +130,10 @@ describe("extractForum", () => {
 			last_post_at: 1700000000,
 			last_poster: "admin",
 			last_thread_subject: "Last thread",
+			thread_types_enabled: 0,
+			thread_types_required: 0,
+			thread_types_listable: 0,
+			thread_types_prefix: 0,
 		});
 	});
 
@@ -417,6 +421,7 @@ describe("extractThread", () => {
 			recommends: 7, // 10 - 3
 			post_table_id: 0,
 			type_name: "",
+			type_id: 0,
 		});
 	});
 
