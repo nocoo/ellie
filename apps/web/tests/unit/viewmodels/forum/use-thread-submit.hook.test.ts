@@ -203,4 +203,177 @@ describe("useThreadSubmit hook", () => {
 		const alert = screen.queryByRole("alert");
 		expect(alert).toBeNull();
 	});
+
+	// -------------------------------------------------------------------------
+	// 主题分类 — typeId picker integration
+	// -------------------------------------------------------------------------
+
+	describe("typeId picker", () => {
+		it("initial typeId is null", () => {
+			const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
+			expect(result.current.state.typeId).toBeNull();
+		});
+
+		it("setTypeId updates state", () => {
+			const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
+			act(() => {
+				result.current.actions.setTypeId(11);
+			});
+			expect(result.current.state.typeId).toBe(11);
+		});
+
+		it("setTypeId(null) clears the selection", () => {
+			const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
+			act(() => {
+				result.current.actions.setTypeId(11);
+			});
+			act(() => {
+				result.current.actions.setTypeId(null);
+			});
+			expect(result.current.state.typeId).toBeNull();
+		});
+
+		it("reset clears typeId", () => {
+			const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
+			act(() => {
+				result.current.actions.setTypeId(11);
+			});
+			act(() => {
+				result.current.actions.reset();
+			});
+			expect(result.current.state.typeId).toBeNull();
+		});
+
+		it("required + null typeId — canSubmit is false even with valid subject", () => {
+			const { result } = renderHook(() => useThreadSubmit({ forumId: 1, typeIdRequired: true }), {
+				wrapper,
+			});
+			act(() => {
+				result.current.actions.setSubject("Valid Title Here");
+			});
+			expect(result.current.validation.canSubmit).toBe(false);
+		});
+
+		it("required + positive typeId — canSubmit becomes true", () => {
+			const { result } = renderHook(() => useThreadSubmit({ forumId: 1, typeIdRequired: true }), {
+				wrapper,
+			});
+			act(() => {
+				result.current.actions.setSubject("Valid Title Here");
+				result.current.actions.setTypeId(11);
+			});
+			expect(result.current.validation.canSubmit).toBe(true);
+		});
+
+		it("required + handleSubmit without typeId — sets error AND skips request", async () => {
+			const { result } = renderHook(() => useThreadSubmit({ forumId: 1, typeIdRequired: true }), {
+				wrapper,
+			});
+			act(() => {
+				result.current.actions.setSubject("Valid Title Here");
+			});
+			await act(async () => {
+				await result.current.actions.handleSubmit("<p>Long enough content here</p>");
+			});
+			expect(result.current.state.error).toBe("请选择主题分类");
+			expect(result.current.validation.typeIdError).toBe("请选择主题分类");
+			expect(mockPost).not.toHaveBeenCalled();
+		});
+
+		it("not required + handleSubmit without typeId — request goes through without typeId", async () => {
+			const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
+			act(() => {
+				result.current.actions.setSubject("Valid Title Here");
+			});
+			await act(async () => {
+				await result.current.actions.handleSubmit("<p>Long enough content here</p>");
+			});
+			expect(mockPost).toHaveBeenCalledWith("/api/v1/threads", {
+				forumId: 1,
+				subject: "Valid Title Here",
+				content: "<p>Long enough content here</p>",
+			});
+		});
+
+		it("handleSubmit with positive typeId — includes typeId in body", async () => {
+			const { result } = renderHook(() => useThreadSubmit({ forumId: 1, typeIdRequired: true }), {
+				wrapper,
+			});
+			act(() => {
+				result.current.actions.setSubject("Valid Title Here");
+				result.current.actions.setTypeId(11);
+			});
+			await act(async () => {
+				await result.current.actions.handleSubmit("<p>Long enough content here</p>");
+			});
+			expect(mockPost).toHaveBeenCalledWith("/api/v1/threads", {
+				forumId: 1,
+				subject: "Valid Title Here",
+				content: "<p>Long enough content here</p>",
+				typeId: 11,
+			});
+		});
+
+		it("typeIdError is null until a submit attempt", () => {
+			const { result } = renderHook(() => useThreadSubmit({ forumId: 1, typeIdRequired: true }), {
+				wrapper,
+			});
+			act(() => {
+				result.current.actions.setSubject("Valid Title Here");
+			});
+			expect(result.current.validation.typeIdError).toBeNull();
+		});
+	});
+
+	// -------------------------------------------------------------------------
+	// Server-side typeId error → mapCreateThreadTypeError
+	// -------------------------------------------------------------------------
+
+	describe("server typeId error mapping", () => {
+		it("maps invalid/disabled typeId server message to friendly Chinese", async () => {
+			mockPost.mockRejectedValueOnce(
+				Object.assign(new Error("INVALID_BODY"), {
+					details: { message: "type not found" },
+				}),
+			);
+			const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
+			act(() => {
+				result.current.actions.setSubject("Valid Title Here");
+				result.current.actions.setTypeId(11);
+			});
+			await act(async () => {
+				await result.current.actions.handleSubmit("<p>Long enough content here</p>");
+			});
+			expect(result.current.state.error).toBe("主题分类不存在或已停用，请重新选择");
+		});
+
+		it("maps required-from-server to friendly Chinese", async () => {
+			mockPost.mockRejectedValueOnce(
+				Object.assign(new Error("INVALID_BODY"), {
+					details: { message: "主题分类必选" },
+				}),
+			);
+			const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
+			act(() => {
+				result.current.actions.setSubject("Valid Title Here");
+				result.current.actions.setTypeId(11);
+			});
+			await act(async () => {
+				await result.current.actions.handleSubmit("<p>Long enough content here</p>");
+			});
+			expect(result.current.state.error).toBe("请选择主题分类");
+		});
+
+		it("falls back to generic getErrorMessage when not a typeId problem", async () => {
+			mockPost.mockRejectedValueOnce(new Error("network failure"));
+			const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
+			act(() => {
+				result.current.actions.setSubject("Valid Title Here");
+			});
+			await act(async () => {
+				await result.current.actions.handleSubmit("<p>Long enough content here</p>");
+			});
+			expect(result.current.state.error).toBe("Error: createThread");
+		});
+	});
 });

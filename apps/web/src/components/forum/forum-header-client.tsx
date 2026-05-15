@@ -8,6 +8,7 @@
 import { NewThreadDialog } from "@/components/forum/new-thread-dialog";
 import { SafeHtml } from "@/components/forum/safe-html";
 import { Button } from "@/components/ui/button";
+import type { ForumThreadTypesPublic } from "@/viewmodels/forum/thread-types";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { formatNumber } from "@/viewmodels/shared/formatting";
 import type { Forum } from "@ellie/types";
@@ -26,9 +27,16 @@ interface ForumHeaderClientProps {
 	 * api-client interceptor backstop.
 	 */
 	selfEmailVerifiedAt: number | null;
+	/** Server-injected 主题分类 payload (null when feature off / load failed). */
+	threadTypes?: ForumThreadTypesPublic | null;
 }
 
-export function ForumHeaderClient({ forum, isGroup, selfEmailVerifiedAt }: ForumHeaderClientProps) {
+export function ForumHeaderClient({
+	forum,
+	isGroup,
+	selfEmailVerifiedAt,
+	threadTypes = null,
+}: ForumHeaderClientProps) {
 	const [dialogOpen, setDialogOpen] = useState(false);
 
 	const handleNewThreadClick = async () => {
@@ -98,6 +106,7 @@ export function ForumHeaderClient({ forum, isGroup, selfEmailVerifiedAt }: Forum
 				onOpenChange={setDialogOpen}
 				forumId={forum.id}
 				forumName={forum.name}
+				threadTypes={threadTypes}
 			/>
 		</>
 	);

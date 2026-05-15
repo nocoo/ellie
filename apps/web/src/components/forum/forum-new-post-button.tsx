@@ -4,6 +4,7 @@
 // Opens the NewThreadDialog when clicked, with write-gate preflight.
 
 import { getStaticImageUrl } from "@/lib/cdn";
+import type { ForumThreadTypesPublic } from "@/viewmodels/forum/thread-types";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { useCallback, useState } from "react";
 import { NewThreadDialog } from "./new-thread-dialog";
@@ -12,6 +13,8 @@ interface ForumNewPostButtonProps {
 	forumId: number;
 	forumName: string;
 	selfEmailVerifiedAt: number | null;
+	/** Server-injected 主题分类 payload (null when feature off / load failed). */
+	threadTypes?: ForumThreadTypesPublic | null;
 }
 
 const postIconSrc = getStaticImageUrl("pn_post.png");
@@ -20,6 +23,7 @@ export function ForumNewPostButton({
 	forumId,
 	forumName,
 	selfEmailVerifiedAt,
+	threadTypes = null,
 }: ForumNewPostButtonProps) {
 	const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -43,6 +47,7 @@ export function ForumNewPostButton({
 				onOpenChange={setDialogOpen}
 				forumId={forumId}
 				forumName={forumName}
+				threadTypes={threadTypes}
 			/>
 		</>
 	);
