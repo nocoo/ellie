@@ -40,6 +40,10 @@ function createTestDb(): BatchLoader {
 			last_thread_id: 1,
 			last_post_at: 1700000000,
 			last_poster: "admin",
+			thread_types_enabled: 0,
+			thread_types_required: 0,
+			thread_types_listable: 0,
+			thread_types_prefix: 0,
 		},
 	]);
 
@@ -95,6 +99,8 @@ function createTestDb(): BatchLoader {
 			highlight: 0,
 			recommends: 5,
 			post_table_id: 0,
+			type_name: "",
+			type_id: 0,
 		},
 		{
 			id: 2,
@@ -114,6 +120,8 @@ function createTestDb(): BatchLoader {
 			highlight: 0,
 			recommends: 0,
 			post_table_id: 0,
+			type_name: "",
+			type_id: 0,
 		},
 	]);
 
