@@ -260,16 +260,17 @@ export const TABLES = {
 		);
 	`,
 
-	// Discuz 主题分类 (thread categories). PK reuses the source
-	// `pre_forum_threadclass.typeid` directly so per-thread `type_id`
-	// references survive the migration unchanged. enabled=0 rows are
+	// Discuz 主题分类 (thread categories). `id` is a SYNTHETIC global id
+	// minted by `migrateForumThreadTypes`; `source_typeid` preserves the
+	// per-forum local Discuz typeid for admin/debug. enabled=0 rows are
 	// tombstones — kept so the legacy threads they reference can still
 	// resolve a typeName, but hidden from the admin/post-picker UIs.
-	// See migration 0038_thread_categories.sql.
+	// See migrations 0038_thread_categories.sql + 0039_thread_categories_synthetic_id.sql.
 	forum_thread_types: `
 		CREATE TABLE IF NOT EXISTS forum_thread_types (
 			id              INTEGER PRIMARY KEY,
 			forum_id        INTEGER NOT NULL,
+			source_typeid   INTEGER NOT NULL DEFAULT 0,
 			name            TEXT    NOT NULL,
 			display_order   INTEGER NOT NULL DEFAULT 0,
 			icon            TEXT    NOT NULL DEFAULT '',
@@ -373,5 +374,6 @@ export const INDEXES = {
 	// and stay index-only. See migration 0038_thread_categories.sql.
 	forum_thread_types: [
 		"CREATE INDEX IF NOT EXISTS idx_forum_thread_types_forum ON forum_thread_types(forum_id, display_order, id);",
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_forum_thread_types_source ON forum_thread_types(forum_id, source_typeid);",
 	],
 };

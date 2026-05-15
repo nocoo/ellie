@@ -96,11 +96,15 @@ export const TABLE_DDL: string[] = [
   created_at  INTEGER NOT NULL DEFAULT 0
 )`,
 
-	// Discuz 主题分类 (thread categories). See migration
-	// 0038_thread_categories.sql. PK = Discuz typeid (imported as-is).
+	// Discuz 主题分类 (thread categories). `id` is a SYNTHETIC global id
+	// minted by `migrateForumThreadTypes`; `source_typeid` preserves the
+	// per-forum local Discuz typeid for admin/debug. enabled=0 = tombstone
+	// (legacy threads only). See migrations 0038_thread_categories.sql +
+	// 0039_thread_categories_synthetic_id.sql.
 	`CREATE TABLE IF NOT EXISTS forum_thread_types (
   id              INTEGER PRIMARY KEY,
   forum_id        INTEGER NOT NULL REFERENCES forums(id),
+  source_typeid   INTEGER NOT NULL DEFAULT 0,
   name            TEXT    NOT NULL,
   display_order   INTEGER NOT NULL DEFAULT 0,
   icon            TEXT    NOT NULL DEFAULT '',
@@ -127,8 +131,12 @@ export const INDEX_DDL: string[] = [
 	"CREATE INDEX IF NOT EXISTS idx_attachments_post ON attachments(post_id)",
 	"CREATE INDEX IF NOT EXISTS idx_attachments_thread ON attachments(thread_id)",
 
-	// forum_thread_types / 主题分类 (migration 0038).
+	// forum_thread_types / 主题分类 (migrations 0038 + 0039).
+	// idx_forum_thread_types_forum: per-forum picker/list ordering.
+	// idx_forum_thread_types_source: natural-key UNIQUE on (forum_id,
+	//   source_typeid) — catches double-mints of the synthetic id.
 	"CREATE INDEX IF NOT EXISTS idx_forum_thread_types_forum ON forum_thread_types(forum_id, display_order, id)",
+	"CREATE UNIQUE INDEX IF NOT EXISTS idx_forum_thread_types_source ON forum_thread_types(forum_id, source_typeid)",
 	"CREATE INDEX IF NOT EXISTS idx_threads_forum_type ON threads(forum_id, type_id, last_post_at DESC, id DESC)",
 ];
 
@@ -231,6 +239,7 @@ export const TABLE_COLUMNS: Record<TableName, string[]> = {
 	forum_thread_types: [
 		"id",
 		"forum_id",
+		"source_typeid",
 		"name",
 		"display_order",
 		"icon",

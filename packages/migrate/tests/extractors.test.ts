@@ -953,6 +953,88 @@ describe("extractThread with threadTypeMap", () => {
 	});
 });
 
+// ─── extractThread synthetic-id translation (migration 0039) ─────────────────
+
+describe("extractThread synthetic-id translation", () => {
+	function threadRow(overrides: Record<number, string> = {}): ParsedRow {
+		return row({
+			0: "1000",
+			1: "113", // fid
+			2: "0",
+			3: "1", // source typeid
+			7: "u",
+			8: "1",
+			9: "S",
+			10: "1700000000",
+			11: "1700000001",
+			12: "r",
+			13: "0",
+			14: "0",
+			15: "0",
+			16: "0",
+			17: "0",
+			19: "0",
+			22: "0",
+			25: "0",
+			26: "0",
+			...overrides,
+		});
+	}
+
+	test("translates raw source typeid to synthetic id via syntheticIdMap", () => {
+		// fid=113 source_typeid=1 → synthetic id 42 (the mint allocator
+		// is monotonic across forums; 42 is just an arbitrary post-mint
+		// value chosen for the test).
+		const synth = new Map<number, Map<number, number>>();
+		synth.set(113, new Map([[1, 42]]));
+		const result = extractThread(threadRow(), undefined, undefined, synth);
+		expect(result?.type_id).toBe(42);
+	});
+
+	test("falls back to 0 when source typeid has no synthetic-id mapping (unmapped historical typeid)", () => {
+		// Reviewer pin 51fa5901: threads referencing a typeid neither
+		// forumfield nor threadclass declared end up uncategorised in
+		// D1; the unmapped-counts tracker in migrateThreads catches the
+		// volume.
+		const synth = new Map<number, Map<number, number>>();
+		synth.set(113, new Map([[5, 100]])); // mapped: 5; row uses 1 → unmapped
+		const result = extractThread(threadRow(), undefined, undefined, synth);
+		expect(result?.type_id).toBe(0);
+	});
+
+	test("source typeid 0 stays 0 even if syntheticIdMap is provided (no category)", () => {
+		const synth = new Map<number, Map<number, number>>();
+		synth.set(113, new Map([[0, 999]])); // pathological — should be ignored
+		const result = extractThread(threadRow({ 3: "0" }), undefined, undefined, synth);
+		expect(result?.type_id).toBe(0);
+	});
+
+	test("syntheticIdMap is keyed by (fid, source_typeid) — same source typeid in different forums maps independently", () => {
+		// This is the entire reason 0039 exists: typeid=1 in fid=111 ≠
+		// typeid=1 in fid=113. Each gets its own synthetic id.
+		const synth = new Map<number, Map<number, number>>();
+		synth.set(111, new Map([[1, 7]]));
+		synth.set(113, new Map([[1, 8]]));
+
+		const inFid111 = extractThread(threadRow({ 1: "111" }), undefined, undefined, synth);
+		const inFid113 = extractThread(threadRow({ 1: "113" }), undefined, undefined, synth);
+
+		expect(inFid111?.type_id).toBe(7);
+		expect(inFid113?.type_id).toBe(8);
+	});
+
+	test("name resolution still uses source typeid (not synthetic) since name maps key by source", () => {
+		const synth = new Map<number, Map<number, number>>();
+		synth.set(113, new Map([[1, 42]]));
+		const perForum = new Map<number, Map<number, string>>();
+		perForum.set(113, new Map([[1, "讨论"]]));
+
+		const result = extractThread(threadRow(), undefined, perForum, synth);
+		expect(result?.type_name).toBe("讨论");
+		expect(result?.type_id).toBe(42);
+	});
+});
+
 // ─── extractUser with extras ─────────────────────────────────────────────────
 
 describe("extractUser with extras", () => {

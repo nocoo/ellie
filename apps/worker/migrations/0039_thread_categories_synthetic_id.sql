@@ -1,0 +1,79 @@
+-- 0039_thread_categories_synthetic_id.sql — switch forum_thread_types
+-- to a synthetic global PK with the source typeid preserved as a
+-- separate column.
+--
+-- ┌─ Why this migration exists ─────────────────────────────────────────┐
+-- │ 0038 was committed under the assumption that Discuz `typeid` is    │
+-- │ globally unique, so it reused `typeid` as `forum_thread_types.id`. │
+-- │ A dry-run on `reference/db/2026-05-14/db_tongji_main_full.sql.gz`  │
+-- │ proved that assumption wrong:                                      │
+-- │   • forumfield.types defines typeid=0 inside fid=113 (PUB)         │
+-- │   • typeid=1 appears in forums 111 + 113                           │
+-- │   • typeid=2 appears in forums 113 + 134                           │
+-- │ Discuz `typeid` is a per-forum local id; it is the admin who       │
+-- │ assigned the number, scoped to that fid alone. Inserting all       │
+-- │ combinations into a single-PK D1 table fails with a UNIQUE         │
+-- │ constraint violation, and even when it doesn't, post-migration     │
+-- │ admins/web/worker would render two forums' "type 1" as the same    │
+-- │ row.                                                               │
+-- │                                                                    │
+-- │ 0038 has not been applied to production yet. This migration is a   │
+-- │ forward correction: 0000→...→0038→0039 is the only supported       │
+-- │ replay path. Do NOT skip 0038 even on empty boxes — the migrate    │
+-- │ ledger must stay sequential or `_migrations` will drift from the   │
+-- │ live schema.                                                       │
+-- └─────────────────────────────────────────────────────────────────────┘
+--
+-- Final shape after 0039:
+--   forum_thread_types (
+--     id            INTEGER PRIMARY KEY,         -- D1 SYNTHETIC global id
+--     forum_id      INTEGER NOT NULL,
+--     source_typeid INTEGER NOT NULL DEFAULT 0,  -- Discuz local typeid
+--     name          TEXT    NOT NULL,
+--     display_order INTEGER NOT NULL DEFAULT 0,
+--     icon          TEXT    NOT NULL DEFAULT '',
+--     enabled       INTEGER NOT NULL DEFAULT 1,
+--     moderator_only INTEGER NOT NULL DEFAULT 0
+--   );
+--   UNIQUE INDEX (forum_id, source_typeid) — natural key.
+--
+-- Synthetic id is allocated deterministically by `migrateForumThreadTypes`
+-- per `(forum_id ASC, source_typeid ASC)`; admin-created rows get
+-- `max(id)+1` from SQLite's plain INTEGER PRIMARY KEY (no AUTOINCREMENT,
+-- same constraint as 0038).
+--
+-- threads.type_id remains an INTEGER column on the `threads` table; its
+-- value is now the SYNTHETIC `forum_thread_types.id`, never the source
+-- typeid. The migrate path writes the synthetic id; admin/web/API filters
+-- accept the synthetic id only. Source typeid is kept for admin/debug
+-- and recovery via the new `source_typeid` column on `forum_thread_types`.
+--
+-- 0038 created the column with the wrong semantics and 0038 may not yet
+-- have populated any rows on prod (if 0038 was never applied this is a
+-- no-op for the data path). Either way the schema-only ALTER below is
+-- safe: the column is added with DEFAULT 0, and the unique index is
+-- created on an empty table or one without source_typeid collisions.
+--
+-- Drift guard: tests/unit/migration-0039-schema.test.ts pins this exact
+-- statement set across the live-migration path AND the fresh-DB
+-- bootstrap paths (0000_init_schema.sql + 3 schema mirrors).
+
+-- ─── Add source_typeid column ────────────────────────────────────────
+-- Default 0 so the ALTER succeeds even if 0038 had already inserted
+-- rows on a staging environment. The migrate path overwrites this for
+-- every imported row; only admin-created rows post-import keep the
+-- default (admins working through the web UI never need to set it).
+ALTER TABLE forum_thread_types ADD COLUMN source_typeid INTEGER NOT NULL DEFAULT 0;
+
+-- ─── Natural key uniqueness ──────────────────────────────────────────
+-- (forum_id, source_typeid) is the source-side natural key. The unique
+-- index serves three purposes:
+--   1. Enforces "an admin cannot create two categories with the same
+--      source typeid in the same forum" at the storage layer.
+--   2. Provides O(log N) lookup for admin/debug paths that want to
+--      reverse-resolve `(fid, source_typeid) → synthetic id`.
+--   3. Catches migration regressions early: any future drift that
+--      double-mints a (fid, source_typeid) pair fails the INSERT
+--      instead of producing duplicate rows.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_forum_thread_types_source
+  ON forum_thread_types(forum_id, source_typeid);

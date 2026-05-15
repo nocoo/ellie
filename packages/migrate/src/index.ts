@@ -44,10 +44,7 @@ import { BatchLoader } from "./load/batch-insert";
 import { MigrationLogger } from "./load/logger";
 import { CHECKINS_UPSERT_COLUMNS } from "./load/schema";
 import { createDeletedUserPlaceholder } from "./load/sql-builder";
-import {
-	buildForumThreadTypeNameMap,
-	buildForumThreadTypeRows,
-} from "./transform/forum-thread-types";
+import { buildForumThreadTypeRows } from "./transform/forum-thread-types";
 import { type ThreadTypesConfig, parseThreadTypes } from "./transform/threadtypes";
 import { verifyEncoding } from "./verify/encoding";
 import { type ExpectedCounts, verifyIntegrity } from "./verify/integrity";
@@ -137,7 +134,8 @@ export async function migrateForums(
 /**
  * Build & insert `forum_thread_types` rows + return the per-forum
  * (typeid → name) resolution map used by `migrateThreads` to fill
- * `threads.type_name`.
+ * `threads.type_name`, plus the (fid, source_typeid → synthetic id)
+ * translation map used to write `threads.type_id`.
  *
  * Inputs come from two Discuz sources (see transform/forum-thread-types):
  *   • forumTypeConfigs — parsed from `pre_forum_forumfield.threadtypes`,
@@ -149,6 +147,11 @@ export async function migrateForums(
  *   • threadclass only fills in tombstone rows (typeids dropped from
  *     forumfield.types but still referenced by old `thread.typeid`),
  *     plus icon / display_order / moderator fallbacks for enabled rows.
+ *
+ * Synthetic-id semantics (migration 0039): `forum_thread_types.id` is a
+ * minted global counter, not the source Discuz typeid. The source value
+ * is preserved in `forum_thread_types.source_typeid` and surfaced in
+ * the dry-run mapping artifact for debug.
  */
 export async function migrateForumThreadTypes(
 	loader: BatchLoader,
@@ -157,7 +160,9 @@ export async function migrateForumThreadTypes(
 ): Promise<{
 	total: number;
 	forumThreadTypeNameMap: Map<number, Map<number, string>>;
+	syntheticIdMap: Map<number, Map<number, number>>;
 	threadClassRowCount: number;
+	mappingArtifact: ReturnType<typeof buildForumThreadTypeRows>;
 }> {
 	log("=== Forum thread types ===");
 
@@ -191,14 +196,36 @@ export async function migrateForumThreadTypes(
 		);
 	}
 
-	const rows = buildForumThreadTypeRows(forumTypeConfigs, threadClassByForum);
-	const forumThreadTypeNameMap = buildForumThreadTypeNameMap(forumTypeConfigs, threadClassByForum);
+	const result = buildForumThreadTypeRows(forumTypeConfigs, threadClassByForum);
 
 	const inserter = loader.createStreamInserter("forum_thread_types");
-	for (const r of rows) inserter.add(r);
+	for (const r of result.rows) inserter.add(r);
 	const total = inserter.flush();
 	log(`  forum_thread_types: ${total} rows inserted`);
-	return { total, forumThreadTypeNameMap, threadClassRowCount: classRowCount };
+	if (result.sourceTypeidGlobalDuplicates.length > 0) {
+		// Reviewer pin 3d056b39 #4: surface the cross-forum source_typeid
+		// collisions that were the entire reason 0039 exists. A non-zero
+		// count is expected on real Discuz data; zero would actually be
+		// surprising and worth checking the parser.
+		log(
+			`  source_typeid global duplicates: ${result.sourceTypeidGlobalDuplicates.length} (expected: typeid 0/1/2 reuse across fids)`,
+		);
+	}
+	if (result.zeroTypeidDefinitions.length > 0) {
+		// reviewer pin c5d10236: source_typeid=0 is intentionally NOT
+		// emitted as an enabled row; record what we skipped so admin/debug
+		// has a clear trail.
+		log(
+			`  zero-typeid definitions skipped: ${result.zeroTypeidDefinitions.length} (kept in mapping artifact only)`,
+		);
+	}
+	return {
+		total,
+		forumThreadTypeNameMap: result.nameMap,
+		syntheticIdMap: result.syntheticIdMap,
+		threadClassRowCount: classRowCount,
+		mappingArtifact: result,
+	};
 }
 
 // ─── Step 2: Users ──────────────────────────────────────────────────────────
@@ -372,6 +399,7 @@ export async function migrateThreads(
 	forumIds: Set<number>,
 	userIds: Set<number>,
 	forumThreadTypeNameMap?: Map<number, Map<number, string>>,
+	syntheticIdMap?: Map<number, Map<number, number>>,
 ): Promise<{
 	total: number;
 	skipped: number;
@@ -406,15 +434,20 @@ export async function migrateThreads(
 	const missingForumIds = new Set<number>();
 	const missingAuthorIds = new Set<number>();
 	let skipped = 0;
-	// Reviewer pin 51fa5901: track typeids that have no name resolution
-	// from either source (forumfield.types or threadclass). Reported in
-	// the dry-run summary so we don't silently drop these — a high
-	// count indicates either a missing dump source or a parser regression.
+	// Reviewer pin 51fa5901: track source typeids that have no synthetic-id
+	// mapping (i.e. forum_thread_types has no row for this (fid, source_typeid)
+	// pair) — these are exactly the typeids historical threads reference but
+	// neither forumfield.types nor threadclass declared. A high count
+	// indicates either a missing dump source or a parser regression. The
+	// synthetic-id rewrite (0039) collapses the previous "unmapped name"
+	// signal into "unmapped synthetic id" — same intent, more accurate
+	// reporting since the synthetic-id map and the name map are now built
+	// from the exact same union of sources.
 	const unmappedCounts = new Map<string, { fid: number; typeid: number; count: number }>();
 	let unmappedTotal = 0;
 
 	const processThreadRow = (row: ParsedRow) => {
-		const record = extractThread(row, threadTypeMap, forumThreadTypeNameMap);
+		const record = extractThread(row, threadTypeMap, forumThreadTypeNameMap, syntheticIdMap);
 		if (record) {
 			inserter.add(record);
 			threadIds.add(record.id as number);
@@ -428,13 +461,17 @@ export async function migrateThreads(
 				missingAuthorIds.add(aid);
 			}
 
-			const typeid = record.type_id as number;
-			if (typeid > 0 && !record.type_name) {
+			// Re-read raw source typeid; record.type_id is now the
+			// synthetic id (0 when unmapped). The "unmapped" predicate
+			// is `source typeid > 0 AND synthetic id is 0` — the source
+			// asked for a category but we had no row for it.
+			const sourceTypeid = Number(row[3]) || 0; // THREAD_COLS.typeid = 3
+			if (sourceTypeid > 0 && (record.type_id as number) === 0) {
 				unmappedTotal++;
-				const key = `${fid}:${typeid}`;
+				const key = `${fid}:${sourceTypeid}`;
 				const entry = unmappedCounts.get(key);
 				if (entry) entry.count++;
-				else unmappedCounts.set(key, { fid, typeid, count: 1 });
+				else unmappedCounts.set(key, { fid, typeid: sourceTypeid, count: 1 });
 			}
 		} else {
 			skipped++;
@@ -1028,6 +1065,83 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 		// shape; the count is also visible in the per-step log line.
 		stats.skipped.forum_thread_types = forumThreadTypesResult.total;
 
+		// Reviewer pin 3d056b39 #4: dump the synthetic-id mapping for
+		// post-dry-run inspection. Includes:
+		//   • rows: the exact `forum_thread_types` records inserted, in
+		//     mint order (deterministic across runs).
+		//   • globalCollisions:
+		//       sourceTypeidGlobalDuplicates — source typeids that appear
+		//         in 2+ forums (the bug 0039 fixes; 0/1/2 are expected).
+		//       syntheticIdAfterMint — synthetic ids that were assigned
+		//         to multiple rows (should always be empty; non-empty =
+		//         mint regression).
+		//       forumSourcePairs — duplicate (forum_id, source_typeid)
+		//         pairs that would violate the new UNIQUE INDEX.
+		//   • zeroTypeidDefinitions — source_typeid=0 rows we skipped.
+		//   • perForumReconciliation — per-fid breakdown so reviewer can
+		//     spot-check fid=134 / 147 / 113 against the dump.
+		{
+			const { writeFileSync } = await import("node:fs");
+			const { join } = await import("node:path");
+			const ma = forumThreadTypesResult.mappingArtifact;
+
+			// Compute globalCollisions.syntheticIdAfterMint and
+			// .forumSourcePairs from the row set itself — defensive
+			// integrity check rather than trusting the builder.
+			const syntheticIdSeen = new Map<number, number>();
+			const pairSeen = new Map<string, number>();
+			const syntheticIdDupes: Array<{ id: number; count: number }> = [];
+			const pairDupes: Array<{ forum_id: number; source_typeid: number; count: number }> = [];
+			for (const r of ma.rows) {
+				const id = r.id as number;
+				const fid = r.forum_id as number;
+				const st = r.source_typeid as number;
+				syntheticIdSeen.set(id, (syntheticIdSeen.get(id) ?? 0) + 1);
+				const key = `${fid}:${st}`;
+				pairSeen.set(key, (pairSeen.get(key) ?? 0) + 1);
+			}
+			for (const [id, count] of syntheticIdSeen) {
+				if (count > 1) syntheticIdDupes.push({ id, count });
+			}
+			for (const [key, count] of pairSeen) {
+				if (count > 1) {
+					const [fid, st] = key.split(":").map(Number);
+					pairDupes.push({ forum_id: fid as number, source_typeid: st as number, count });
+				}
+			}
+			if (syntheticIdDupes.length > 0) {
+				log(
+					`  WARN: synthetic id collisions detected post-mint: ${syntheticIdDupes.length} (this is a mint regression — investigate)`,
+				);
+			}
+			if (pairDupes.length > 0) {
+				log(
+					`  WARN: (forum_id, source_typeid) duplicates detected: ${pairDupes.length} (would violate the 0039 UNIQUE INDEX)`,
+				);
+			}
+
+			const artifact = {
+				generated_at: new Date().toISOString(),
+				summary: {
+					rows: ma.rows.length,
+					forums: ma.perForumReconciliation.length,
+					sourceTypeidGlobalDuplicates: ma.sourceTypeidGlobalDuplicates.length,
+					zeroTypeidDefinitions: ma.zeroTypeidDefinitions.length,
+				},
+				rows: ma.rows,
+				globalCollisions: {
+					sourceTypeidGlobalDuplicates: ma.sourceTypeidGlobalDuplicates,
+					syntheticIdAfterMint: syntheticIdDupes,
+					forumSourcePairs: pairDupes,
+				},
+				zeroTypeidDefinitions: ma.zeroTypeidDefinitions,
+				perForumReconciliation: ma.perForumReconciliation,
+			};
+			const artifactPath = join(outputDir, "forum_thread_types_mapping.json");
+			writeFileSync(artifactPath, JSON.stringify(artifact, null, 2), "utf8");
+			log(`  Mapping artifact: ${artifactPath}`);
+		}
+
 		const userResult = await migrateUsers(loader, sources);
 		stats.users = userResult.total;
 
@@ -1046,6 +1160,7 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 			forumIds,
 			userResult.userIds,
 			forumThreadTypesResult.forumThreadTypeNameMap,
+			forumThreadTypesResult.syntheticIdMap,
 		);
 		stats.threads = threadResult.total;
 		stats.forums += threadResult.missingForums; // placeholder forums
