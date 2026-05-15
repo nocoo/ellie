@@ -186,7 +186,7 @@ function SearchStatsBar({ vm }: { vm: HeaderViewModel }) {
 							}
 						}}
 					/>
-					<kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 flex h-5 items-center rounded border border-border bg-muted px-1.5 text-2xs font-medium text-muted-foreground">
+					<kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 flex h-5 items-center rounded border border-border bg-muted px-1.5 text-xs font-medium text-muted-foreground">
 						/
 					</kbd>
 				</div>

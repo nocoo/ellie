@@ -109,12 +109,7 @@ export function ForumAvatar({
 				alt={userName}
 				className="rounded-sm"
 			/>
-			<AvatarFallback
-				className={cn(
-					"rounded-sm bg-muted p-0 overflow-hidden",
-					size === "xs" ? "text-2xs" : "text-xs",
-				)}
-			>
+			<AvatarFallback className={cn("rounded-sm bg-muted p-0 overflow-hidden", "text-xs")}>
 				<img src={getStaticImageUrl("tavatar.gif")} alt="" className="h-full w-full object-cover" />
 			</AvatarFallback>
 		</Avatar>

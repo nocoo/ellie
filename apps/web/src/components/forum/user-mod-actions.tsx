@@ -183,14 +183,14 @@ interface UserStatusBadgeProps {
 export function UserStatusBadge({ status }: UserStatusBadgeProps) {
 	if (status === -1) {
 		return (
-			<Badge variant="destructive" className="text-2xs">
+			<Badge variant="destructive" className="text-xs">
 				已封禁
 			</Badge>
 		);
 	}
 	if (status === -2) {
 		return (
-			<Badge variant="outline" className="text-2xs text-forum-accent border-forum-accent">
+			<Badge variant="outline" className="text-xs text-forum-accent border-forum-accent">
 				已禁言
 			</Badge>
 		);

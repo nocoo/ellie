@@ -105,7 +105,7 @@ function ToolbarButton({
 			<TooltipContent side="top">
 				{label}
 				{shortcut && (
-					<kbd className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded bg-background/20 px-1 font-mono text-[10px]">
+					<kbd className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded bg-background/20 px-1 font-mono text-xs">
 						{shortcut}
 					</kbd>
 				)}
@@ -176,7 +176,7 @@ function JumpPagePopover({
 				</TooltipTrigger>
 				<TooltipContent side="top">
 					跳页
-					<kbd className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded bg-background/20 px-1 font-mono text-[10px]">
+					<kbd className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded bg-background/20 px-1 font-mono text-xs">
 						g
 					</kbd>
 				</TooltipContent>

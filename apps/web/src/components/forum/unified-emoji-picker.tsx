@@ -271,7 +271,7 @@ export function UnifiedEmojiPicker({ onSelect }: UnifiedEmojiPickerProps) {
 				{activeTab !== "recent" && recent.length > 0 && (
 					<div className="border-t px-2 py-1.5 bg-muted/20">
 						<div className="flex items-center gap-0.5">
-							<span className="text-2xs text-muted-foreground mr-1.5">Recent:</span>
+							<span className="text-xs text-muted-foreground mr-1.5">Recent:</span>
 							{recent.slice(0, 8).map((item, idx) => (
 								<button
 									key={`quick-${item.type}-${item.value}-${idx}`}

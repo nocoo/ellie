@@ -45,7 +45,8 @@ export function ThreadBadgeList({ badges }: ThreadBadgeListProps) {
 				<Badge
 					key={`${badge.type}-${badge.label}`}
 					variant={toBadgeVariant(badge.variant)}
-					className="text-2xs px-1 py-0 leading-tight"
+					className="text-xs px-1 py-0 leading-tight"
+					data-testid="thread-badge"
 				>
 					{badge.label}
 				</Badge>
