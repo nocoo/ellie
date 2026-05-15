@@ -24,6 +24,14 @@ vi.mock("../../../../src/lib/cache/invalidate", async (importOriginal) => {
 	};
 });
 
+vi.mock("../../../../src/lib/adminLog", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../../../../src/lib/adminLog")>();
+	return {
+		...actual,
+		writeAdminLog: vi.fn(async () => {}),
+	};
+});
+
 import {
 	create,
 	list,
@@ -32,6 +40,7 @@ import {
 	update,
 	updateConfig,
 } from "../../../../src/handlers/admin/forumThreadType";
+import { writeAdminLog } from "../../../../src/lib/adminLog";
 import {
 	bumpForumSummaryGen,
 	bumpForumTreeGen,
@@ -42,6 +51,7 @@ import { createMockDb, makeEnv } from "../../../helpers";
 const mockTree = bumpForumTreeGen as ReturnType<typeof vi.fn>;
 const mockSummary = bumpForumSummaryGen as ReturnType<typeof vi.fn>;
 const mockList = bumpThreadListGen as ReturnType<typeof vi.fn>;
+const mockAudit = writeAdminLog as ReturnType<typeof vi.fn>;
 
 interface ForumGateOverrides {
 	id?: number;
@@ -1242,5 +1252,432 @@ describe("admin/forumThreadType — unknown field rejection (P2)", () => {
 			adminEnv(db),
 		);
 		expect(res.status).toBe(400);
+	});
+});
+
+// ─── G: admin_logs audit ───────────────────────────────────────────
+//
+// Pins (msg 1f794df4): each write path emits an admin_logs entry via
+// writeAdminLog AFTER the mutation commits. Payload must carry forumId
+// + (when row-scoped) threadTypeId + sourceTypeid + the action's key
+// summary (changedFields/before/after/mode/mutated/changedFlags).
+// Validation failures must NOT audit (writeAdminLog is post-mutation).
+
+describe("admin/forumThreadType — G audit", () => {
+	it("create: emits thread_type.create with forumId/threadTypeId/sourceTypeid/name", async () => {
+		const { db } = createMockDb({
+			firstResults: {
+				"FROM forums WHERE id": forumGateRow(),
+				"forum_thread_types WHERE id = ?": typeRow({
+					id: 100,
+					source_typeid: 100,
+					name: "X",
+					display_order: 2,
+					moderator_only: 0,
+					icon: "",
+				}),
+			},
+			runResults: {
+				"INSERT INTO forum_thread_types": {
+					success: true,
+					meta: { last_row_id: 100, changes: 1 },
+				},
+			},
+		});
+		const res = await create(
+			new Request("https://api.example.com/api/admin/forums/1/thread-types", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ name: "X", displayOrder: 2 }),
+			}),
+			adminEnv(db),
+		);
+		expect(res.status).toBe(201);
+		expect(mockAudit).toHaveBeenCalledTimes(1);
+		const call = mockAudit.mock.calls[0]?.[2];
+		expect(call).toMatchObject({
+			action: "thread_type.create",
+			targetType: "forum_thread_type",
+			targetId: 100,
+			details: expect.objectContaining({
+				forumId: 1,
+				threadTypeId: 100,
+				sourceTypeid: 100,
+				name: "X",
+				displayOrder: 2,
+				moderatorOnly: false,
+				iconLength: 0,
+			}),
+		});
+	});
+
+	it("create: validation failure (empty name) does NOT audit", async () => {
+		const { db } = createMockDb({});
+		await create(
+			new Request("https://api.example.com/api/admin/forums/1/thread-types", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ name: "" }),
+			}),
+			adminEnv(db),
+		);
+		expect(mockAudit).not.toHaveBeenCalled();
+	});
+
+	it("update: emits thread_type.update with changedFields/before/after diff", async () => {
+		// Pre-row name="old", post-row name="new" + display_order changed
+		// (handled via the "WHERE id = ?" SELECT being shared between
+		// loadTypeRow pre and re-read post — both return the same stub,
+		// so we instead simulate a name-only diff via a fresh mock).
+		let nthRead = 0;
+		const { db } = createMockDb({
+			firstResults: {
+				"FROM forum_thread_types WHERE id": typeRow({
+					id: 11,
+					forum_id: 1,
+					source_typeid: 7,
+					name: "old",
+					display_order: 0,
+					icon: "",
+					moderator_only: 0,
+					enabled: 1,
+				}),
+			},
+		});
+		// Override loadTypeRow re-read so 2nd call returns the post-update row.
+		const origPrepare = db.prepare;
+		(db as unknown as { prepare: typeof origPrepare }).prepare = ((sql: string) => {
+			const stmt = origPrepare.call(db, sql) as ReturnType<typeof origPrepare>;
+			if (sql.includes("FROM forum_thread_types WHERE id")) {
+				const origBind = stmt.bind.bind(stmt);
+				stmt.bind = ((...args: unknown[]) => {
+					const ret = origBind(...args);
+					ret.first = vi.fn(async () => {
+						nthRead++;
+						return nthRead === 1
+							? typeRow({
+									id: 11,
+									forum_id: 1,
+									source_typeid: 7,
+									name: "old",
+									display_order: 0,
+									icon: "",
+									moderator_only: 0,
+									enabled: 1,
+								})
+							: typeRow({
+									id: 11,
+									forum_id: 1,
+									source_typeid: 7,
+									name: "new",
+									display_order: 0,
+									icon: "",
+									moderator_only: 0,
+									enabled: 1,
+								});
+					});
+					return ret;
+				}) as typeof stmt.bind;
+			}
+			return stmt;
+		}) as typeof origPrepare;
+
+		const res = await update(
+			new Request("https://api.example.com/api/admin/forum-thread-types/11", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ name: "new" }),
+			}),
+			adminEnv(db),
+		);
+		expect(res.status).toBe(200);
+		expect(mockAudit).toHaveBeenCalledTimes(1);
+		const call = mockAudit.mock.calls[0]?.[2];
+		expect(call).toMatchObject({
+			action: "thread_type.update",
+			targetType: "forum_thread_type",
+			targetId: 11,
+			details: expect.objectContaining({
+				forumId: 1,
+				threadTypeId: 11,
+				sourceTypeid: 7,
+				changedFields: ["name"],
+				before: { name: "old" },
+				after: { name: "new" },
+			}),
+		});
+	});
+
+	it("update: pure no-op (no actual UPDATE) does NOT audit (matches PATCH-elsewhere early return)", async () => {
+		const { db } = createMockDb({
+			firstResults: {
+				"FROM forum_thread_types WHERE id": typeRow({
+					id: 11,
+					forum_id: 1,
+					source_typeid: 0,
+					name: "x",
+				}),
+			},
+		});
+		const res = await update(
+			new Request("https://api.example.com/api/admin/forum-thread-types/11", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ name: "x" }),
+			}),
+			adminEnv(db),
+		);
+		expect(res.status).toBe(200);
+		// Pin: when collectUpdateFields filters all fields out (incoming
+		// values == existing), the handler returns early before audit.
+		// updateConfig + soft-disable still audit no-ops because their
+		// admin intent is more semantically meaningful.
+		expect(mockAudit).not.toHaveBeenCalled();
+	});
+
+	it("update: 404 on missing row does NOT audit", async () => {
+		const { db } = createMockDb({ firstResults: {} });
+		await update(
+			new Request("https://api.example.com/api/admin/forum-thread-types/99", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ name: "x" }),
+			}),
+			adminEnv(db),
+		);
+		expect(mockAudit).not.toHaveBeenCalled();
+	});
+
+	it("delete (hard): emits thread_type.delete with mode=hard_delete + mutated=true", async () => {
+		const { db } = createMockDb({
+			firstResults: {
+				"FROM forum_thread_types WHERE id": typeRow({
+					id: 11,
+					forum_id: 1,
+					source_typeid: 7,
+					name: "Q",
+				}),
+				"COUNT(*) as cnt FROM threads": { cnt: 0 },
+			},
+		});
+		const res = await remove(
+			new Request("https://api.example.com/api/admin/forum-thread-types/11", {
+				method: "DELETE",
+			}),
+			adminEnv(db),
+		);
+		expect(res.status).toBe(200);
+		expect(mockAudit).toHaveBeenCalledTimes(1);
+		expect(mockAudit.mock.calls[0]?.[2]).toMatchObject({
+			action: "thread_type.delete",
+			targetType: "forum_thread_type",
+			targetId: 11,
+			details: expect.objectContaining({
+				forumId: 1,
+				threadTypeId: 11,
+				sourceTypeid: 7,
+				name: "Q",
+				mode: "hard_delete",
+				mutated: true,
+				threadCount: 0,
+			}),
+		});
+	});
+
+	it("delete (soft-disable): emits mode=soft_disable + mutated=true + threadCount", async () => {
+		const { db } = createMockDb({
+			firstResults: {
+				"FROM forum_thread_types WHERE id": typeRow({
+					id: 11,
+					forum_id: 1,
+					source_typeid: 7,
+					name: "Q",
+					enabled: 1,
+				}),
+				"COUNT(*) as cnt FROM threads": { cnt: 42 },
+			},
+		});
+		const res = await remove(
+			new Request("https://api.example.com/api/admin/forum-thread-types/11", {
+				method: "DELETE",
+			}),
+			adminEnv(db),
+		);
+		expect(res.status).toBe(200);
+		expect(mockAudit).toHaveBeenCalledTimes(1);
+		expect(mockAudit.mock.calls[0]?.[2]).toMatchObject({
+			action: "thread_type.delete",
+			targetType: "forum_thread_type",
+			targetId: 11,
+			details: expect.objectContaining({
+				forumId: 1,
+				threadTypeId: 11,
+				sourceTypeid: 7,
+				mode: "soft_disable",
+				mutated: true,
+				threadCount: 42,
+			}),
+		});
+	});
+
+	it("delete (already-disabled with refs): audits with mutated=false", async () => {
+		const { db } = createMockDb({
+			firstResults: {
+				"FROM forum_thread_types WHERE id": typeRow({
+					id: 11,
+					forum_id: 1,
+					source_typeid: 7,
+					enabled: 0,
+				}),
+				"COUNT(*) as cnt FROM threads": { cnt: 5 },
+			},
+		});
+		const res = await remove(
+			new Request("https://api.example.com/api/admin/forum-thread-types/11", {
+				method: "DELETE",
+			}),
+			adminEnv(db),
+		);
+		expect(res.status).toBe(200);
+		expect(mockAudit).toHaveBeenCalledTimes(1);
+		const details = mockAudit.mock.calls[0]?.[2]?.details as {
+			mutated: boolean;
+			mode: string;
+		};
+		expect(details.mode).toBe("soft_disable");
+		expect(details.mutated).toBe(false);
+	});
+
+	it("reorder: emits thread_type.reorder with target=forum + orderedIds", async () => {
+		const { db } = createMockDb({
+			allResults: {
+				"FROM forum_thread_types WHERE forum_id": [{ id: 11 }, { id: 22 }, { id: 33 }],
+			},
+		});
+		const res = await reorder(
+			new Request("https://api.example.com/api/admin/forums/1/thread-types/reorder", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ ids: [22, 33, 11] }),
+			}),
+			adminEnv(db),
+		);
+		expect(res.status).toBe(200);
+		expect(mockAudit).toHaveBeenCalledTimes(1);
+		expect(mockAudit.mock.calls[0]?.[2]).toMatchObject({
+			action: "thread_type.reorder",
+			targetType: "forum",
+			targetId: 1,
+			details: expect.objectContaining({
+				forumId: 1,
+				count: 3,
+				orderedIds: [22, 33, 11],
+			}),
+		});
+	});
+
+	it("reorder: validation failure (foreign id) does NOT audit", async () => {
+		const { db } = createMockDb({
+			allResults: {
+				"FROM forum_thread_types WHERE forum_id": [{ id: 11 }, { id: 22 }],
+			},
+		});
+		await reorder(
+			new Request("https://api.example.com/api/admin/forums/1/thread-types/reorder", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ ids: [11, 99] }),
+			}),
+			adminEnv(db),
+		);
+		expect(mockAudit).not.toHaveBeenCalled();
+	});
+
+	it("updateConfig: real change emits thread_type.config with changedFlags + before/after", async () => {
+		// Pre: enabled=0, listable=0. Post: enabled=1, listable=1.
+		let nth = 0;
+		const { db } = createMockDb({
+			firstResults: { "FROM forums WHERE id": forumGateRow({ enabled: 0, required: 0 }) },
+		});
+		const origPrepare = db.prepare;
+		(db as unknown as { prepare: typeof origPrepare }).prepare = ((sql: string) => {
+			const stmt = origPrepare.call(db, sql) as ReturnType<typeof origPrepare>;
+			if (sql.includes("FROM forums WHERE id")) {
+				const origBind = stmt.bind.bind(stmt);
+				stmt.bind = ((...args: unknown[]) => {
+					const ret = origBind(...args);
+					ret.first = vi.fn(async () => {
+						nth++;
+						return nth === 1
+							? forumGateRow({ enabled: 0, required: 0, listable: 0 })
+							: forumGateRow({ enabled: 1, required: 0, listable: 1 });
+					});
+					return ret;
+				}) as typeof stmt.bind;
+			}
+			return stmt;
+		}) as typeof origPrepare;
+
+		const res = await updateConfig(
+			new Request("https://api.example.com/api/admin/forums/1/thread-types-config", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ enabled: true, listable: true }),
+			}),
+			adminEnv(db),
+		);
+		expect(res.status).toBe(200);
+		expect(mockAudit).toHaveBeenCalledTimes(1);
+		const audited = mockAudit.mock.calls[0]?.[2];
+		expect(audited).toMatchObject({
+			action: "thread_type.config",
+			targetType: "forum",
+			targetId: 1,
+			details: expect.objectContaining({
+				forumId: 1,
+				mutated: true,
+				before: { enabled: false, required: false, listable: false, prefix: false },
+				after: { enabled: true, required: false, listable: true, prefix: false },
+			}),
+		});
+		const flags = (audited?.details as { changedFlags: string[] }).changedFlags;
+		expect(new Set(flags)).toEqual(new Set(["enabled", "listable"]));
+	});
+
+	it("updateConfig: no-op still audits with mutated=false + empty changedFlags", async () => {
+		const { db } = createMockDb({
+			firstResults: { "FROM forums WHERE id": forumGateRow({ enabled: 1 }) },
+		});
+		const res = await updateConfig(
+			new Request("https://api.example.com/api/admin/forums/1/thread-types-config", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ enabled: true }),
+			}),
+			adminEnv(db),
+		);
+		expect(res.status).toBe(200);
+		expect(mockAudit).toHaveBeenCalledTimes(1);
+		const details = mockAudit.mock.calls[0]?.[2]?.details as {
+			mutated: boolean;
+			changedFlags: string[];
+		};
+		expect(details.mutated).toBe(false);
+		expect(details.changedFlags).toEqual([]);
+	});
+
+	it("updateConfig: validation failure does NOT audit", async () => {
+		const { db } = createMockDb({
+			firstResults: { "FROM forums WHERE id": forumGateRow({ enabled: 0, required: 0 }) },
+		});
+		await updateConfig(
+			new Request("https://api.example.com/api/admin/forums/1/thread-types-config", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ required: true }),
+			}),
+			adminEnv(db),
+		);
+		expect(mockAudit).not.toHaveBeenCalled();
 	});
 });

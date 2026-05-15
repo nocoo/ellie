@@ -31,13 +31,25 @@
 //   • Delete with referencing threads becomes a soft-disable (enabled=0,
 //     row kept as a tombstone for legacy renderers). Soft-disable counts
 //     as an enabled-set change → same invalidation as a hard delete.
-//   • Audit log entries for these endpoints land in the G commit.
+//   • G — every write path emits an `admin_logs` entry via writeAdminLog
+//     after the mutation succeeds. Actions:
+//       thread_type.create      / target=forum_thread_type
+//       thread_type.update      / target=forum_thread_type (with diff)
+//       thread_type.delete      / target=forum_thread_type (mode + mutated)
+//       thread_type.reorder     / target=forum   (orderedIds)
+//       thread_type.config      / target=forum   (changedFlags + before/after)
+//     Payload always carries `forumId` + (when row-scoped) `threadTypeId`
+//     and `sourceTypeid`, so audit consumers can join back without a row
+//     re-read. updateConfig / soft-disable also log no-op calls with
+//     `mutated:false` so the admin's intent is recorded even when the
+//     handler short-circuits.
 //
 // `sourceTypeid` is exposed on the admin list/get/create payloads
 // (per msg bb4aae2a) but the public `/forums/:id/thread-types` continues
 // to suppress it (see handlers/forum.ts).
 
 import { withEntityAuth } from "../../lib/adminHelpers";
+import { resolveActor, writeAdminLog } from "../../lib/adminLog";
 import {
 	bumpForumSummaryGen,
 	bumpForumTreeGen,
@@ -214,6 +226,24 @@ interface CreateBody {
 }
 
 /**
+ * Build the audit payload for `thread_type.create`. Pulled out of the
+ * handler so the create flow stays under biome's cognitive complexity
+ * cap. Mirrors the row's post-rewrite state — `sourceTypeid` is the
+ * synthetic id for default-create, the supplied number otherwise.
+ */
+function buildCreateAuditDetails(forumId: number, created: ThreadTypeRow): Record<string, unknown> {
+	return {
+		forumId,
+		threadTypeId: created.id,
+		sourceTypeid: created.source_typeid,
+		name: created.name,
+		displayOrder: created.display_order,
+		moderatorOnly: created.moderator_only === 1,
+		iconLength: created.icon ? created.icon.length : 0,
+	};
+}
+
+/**
  * POST /api/admin/forums/:forumId/thread-types
  * Body: { name, displayOrder?, icon?, moderatorOnly?, sourceTypeid? }
  *
@@ -382,6 +412,18 @@ export const create = withEntityAuth(
 				origin,
 			);
 		}
+
+		// Audit: F-G — audit only after the mutation succeeded (writeAdminLog
+		// is best-effort and never throws). `sourceTypeid` reflects the
+		// post-rewrite value (newId for default-create; the supplied number
+		// otherwise) so audit consumers see the row's true natural key.
+		await writeAdminLog(env, resolveActor(request, env), {
+			action: "thread_type.create",
+			targetType: "forum_thread_type",
+			targetId: newId,
+			details: buildCreateAuditDetails(forumId, created),
+		});
+
 		return jsonResponse(rowToDto(created), origin, undefined, 201);
 	},
 );
@@ -577,7 +619,53 @@ export const update = withEntityAuth(
 		const after = await loadTypeRow(env, id);
 		// `after` should never be null here (we just updated by id), but
 		// fall back to the pre-update row if D1 throws on the re-read.
-		return jsonResponse(rowToDto(after ?? existing), origin);
+		const finalRow = after ?? existing;
+
+		// Audit: record the field-level diff so consumers can see what
+		// each PATCH actually changed without re-reading both row versions.
+		const changedFields: string[] = [];
+		const before: Record<string, unknown> = {};
+		const afterDiff: Record<string, unknown> = {};
+		if (existing.name !== finalRow.name) {
+			changedFields.push("name");
+			before.name = existing.name;
+			afterDiff.name = finalRow.name;
+		}
+		if (existing.display_order !== finalRow.display_order) {
+			changedFields.push("displayOrder");
+			before.displayOrder = existing.display_order;
+			afterDiff.displayOrder = finalRow.display_order;
+		}
+		if ((existing.icon ?? "") !== (finalRow.icon ?? "")) {
+			changedFields.push("icon");
+			before.iconLength = (existing.icon ?? "").length;
+			afterDiff.iconLength = (finalRow.icon ?? "").length;
+		}
+		if (existing.moderator_only !== finalRow.moderator_only) {
+			changedFields.push("moderatorOnly");
+			before.moderatorOnly = existing.moderator_only === 1;
+			afterDiff.moderatorOnly = finalRow.moderator_only === 1;
+		}
+		if (existing.enabled !== finalRow.enabled) {
+			changedFields.push("enabled");
+			before.enabled = existing.enabled === 1;
+			afterDiff.enabled = finalRow.enabled === 1;
+		}
+		await writeAdminLog(env, resolveActor(request, env), {
+			action: "thread_type.update",
+			targetType: "forum_thread_type",
+			targetId: id,
+			details: {
+				forumId: existing.forum_id,
+				threadTypeId: id,
+				sourceTypeid: existing.source_typeid,
+				changedFields,
+				before,
+				after: afterDiff,
+			},
+		});
+
+		return jsonResponse(rowToDto(finalRow), origin);
 	},
 );
 
@@ -619,12 +707,29 @@ export const remove = withEntityAuth(
 		if (referenced) {
 			// Soft-disable preserves the row for type_name resolution but
 			// removes it from the picker.
-			if (existing.enabled === 1) {
+			const wasEnabled = existing.enabled === 1;
+			if (wasEnabled) {
 				await env.DB.prepare("UPDATE forum_thread_types SET enabled = 0 WHERE id = ?")
 					.bind(id)
 					.run();
 				await Promise.all([bumpForumTreeGen(env), bumpThreadListGen(env, existing.forum_id)]);
 			}
+			// Audit even the no-op case (already-disabled with refs) so the
+			// admin's intent is recorded; `mutated` distinguishes the two.
+			await writeAdminLog(env, resolveActor(request, env), {
+				action: "thread_type.delete",
+				targetType: "forum_thread_type",
+				targetId: id,
+				details: {
+					forumId: existing.forum_id,
+					threadTypeId: id,
+					sourceTypeid: existing.source_typeid,
+					name: existing.name,
+					mode: "soft_disable",
+					mutated: wasEnabled,
+					threadCount: refs?.cnt ?? 0,
+				},
+			});
 			return jsonResponse(
 				{
 					deleted: false,
@@ -638,6 +743,21 @@ export const remove = withEntityAuth(
 
 		await env.DB.prepare("DELETE FROM forum_thread_types WHERE id = ?").bind(id).run();
 		await Promise.all([bumpForumTreeGen(env), bumpThreadListGen(env, existing.forum_id)]);
+
+		await writeAdminLog(env, resolveActor(request, env), {
+			action: "thread_type.delete",
+			targetType: "forum_thread_type",
+			targetId: id,
+			details: {
+				forumId: existing.forum_id,
+				threadTypeId: id,
+				sourceTypeid: existing.source_typeid,
+				name: existing.name,
+				mode: "hard_delete",
+				mutated: true,
+				threadCount: 0,
+			},
+		});
 
 		return jsonResponse({ deleted: true, softDisabled: false, id }, origin);
 	},
@@ -744,6 +864,17 @@ export const reorder = withEntityAuth(
 
 		await Promise.all([bumpForumTreeGen(env), bumpThreadListGen(env, forumId)]);
 
+		await writeAdminLog(env, resolveActor(request, env), {
+			action: "thread_type.reorder",
+			targetType: "forum",
+			targetId: forumId,
+			details: {
+				forumId,
+				count: orderedIds.length,
+				orderedIds,
+			},
+		});
+
 		return jsonResponse({ updated: true, count: orderedIds.length }, origin);
 	},
 );
@@ -755,6 +886,45 @@ interface ConfigBody {
 	required?: unknown;
 	listable?: unknown;
 	prefix?: unknown;
+}
+
+interface ForumGateLike {
+	thread_types_enabled: number;
+	thread_types_required: number;
+	thread_types_listable: number;
+	thread_types_prefix: number;
+}
+
+/**
+ * Materialize the 4-switch audit diff from before / after forum gate
+ * snapshots. Pulled out of the handler so updateConfig stays under
+ * biome's cognitive complexity cap.
+ */
+function diffForumConfig(
+	before: ForumGateLike,
+	after: ForumGateLike,
+): {
+	beforeCfg: { enabled: boolean; required: boolean; listable: boolean; prefix: boolean };
+	afterCfg: { enabled: boolean; required: boolean; listable: boolean; prefix: boolean };
+	changedFlags: string[];
+} {
+	const beforeCfg = {
+		enabled: before.thread_types_enabled === 1,
+		required: before.thread_types_required === 1,
+		listable: before.thread_types_listable === 1,
+		prefix: before.thread_types_prefix === 1,
+	};
+	const afterCfg = {
+		enabled: after.thread_types_enabled === 1,
+		required: after.thread_types_required === 1,
+		listable: after.thread_types_listable === 1,
+		prefix: after.thread_types_prefix === 1,
+	};
+	const changedFlags: string[] = [];
+	for (const k of ["enabled", "required", "listable", "prefix"] as const) {
+		if (beforeCfg[k] !== afterCfg[k]) changedFlags.push(k);
+	}
+	return { beforeCfg, afterCfg, changedFlags };
 }
 
 /**
@@ -869,15 +1039,27 @@ export const updateConfig = withEntityAuth(
 		}
 
 		const after = (await loadForumGate(env, forumId)) ?? forum;
+
+		// Audit even no-op calls so we can see who tried to flip what.
+		// `mutated` distinguishes the noop from a real write.
+		const { beforeCfg, afterCfg, changedFlags } = diffForumConfig(forum, after);
+		await writeAdminLog(env, resolveActor(request, env), {
+			action: "thread_type.config",
+			targetType: "forum",
+			targetId: forumId,
+			details: {
+				forumId,
+				mutated: changed,
+				changedFlags,
+				before: beforeCfg,
+				after: afterCfg,
+			},
+		});
+
 		return jsonResponse(
 			{
 				forumId,
-				config: {
-					enabled: after.thread_types_enabled === 1,
-					required: after.thread_types_required === 1,
-					listable: after.thread_types_listable === 1,
-					prefix: after.thread_types_prefix === 1,
-				},
+				config: afterCfg,
 			},
 			origin,
 		);
