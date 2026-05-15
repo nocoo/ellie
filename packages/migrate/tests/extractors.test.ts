@@ -1033,6 +1033,60 @@ describe("extractThread synthetic-id translation", () => {
 		expect(result?.type_name).toBe("讨论");
 		expect(result?.type_id).toBe(42);
 	});
+
+	test("syntheticIdMap miss: legacy global threadTypeMap is NOT consulted (reviewer pin b9d1861d)", () => {
+		// Bug pinned by review of dry-run on 2026-05-14 dump: 305 threads
+		// landed with `type_id=0 AND type_name<>''` because the legacy
+		// global `pre_forum_threadtype` table happens to define typeid=4
+		// as "团购" (an activity-ish global label), and that name was
+		// flowing through the per-forum miss → legacy fallback path.
+		// Under the synthetic-id regime, `type_id=0` MUST equal "no
+		// category"; carrying any name there is a data-quality bug.
+		const synth = new Map<number, Map<number, number>>();
+		synth.set(113, new Map([[5, 100]])); // mapped: only typeid 5
+		const perForum = new Map<number, Map<number, string>>();
+		perForum.set(113, new Map([[5, "ValidName"]]));
+		const legacyGlobal = new Map<number, string>();
+		legacyGlobal.set(1, "LegacyGlobalLabel"); // would be the bug source
+
+		// Row uses source typeid=1 → not in synth → must produce
+		// type_id=0 AND type_name="" even though legacyGlobal has a name.
+		const result = extractThread(threadRow(), legacyGlobal, perForum, synth);
+		expect(result?.type_id).toBe(0);
+		expect(result?.type_name).toBe("");
+	});
+
+	test("syntheticIdMap miss + per-forum miss: still empty even if per-forum has other typeids", () => {
+		// Same scenario but per-forum map has the typeid as a tombstone
+		// name without a synthetic-id mint. Should never happen in the
+		// real pipeline (the maps are built from the same source union),
+		// but we pin behaviour: synthetic-id is the source of truth for
+		// "category exists".
+		const synth = new Map<number, Map<number, number>>();
+		synth.set(113, new Map()); // empty mint set for this fid
+		const perForum = new Map<number, Map<number, string>>();
+		perForum.set(113, new Map([[1, "OrphanedName"]]));
+
+		const result = extractThread(threadRow(), undefined, perForum, synth);
+		expect(result?.type_id).toBe(0);
+		expect(result?.type_name).toBe("");
+	});
+
+	test("syntheticIdMap NOT provided: legacy fallback chain still works (test/back-compat path)", () => {
+		// Old call sites that don't pass syntheticIdMap should still see
+		// the pre-0039 name resolution (per-forum first, then legacy
+		// global). This keeps existing single-arg test fixtures and any
+		// non-migrate callers green.
+		const legacyGlobal = new Map<number, string>();
+		legacyGlobal.set(1, "GlobalName");
+
+		const result = extractThread(threadRow(), legacyGlobal);
+		expect(result?.type_name).toBe("GlobalName");
+		// type_id is 0 because no synthetic map was provided — that's
+		// fine; this path is for callers that don't care about D1's
+		// synthetic-id translation (mostly tests).
+		expect(result?.type_id).toBe(0);
+	});
 });
 
 // ─── extractUser with extras ─────────────────────────────────────────────────
