@@ -166,4 +166,20 @@ describe("PostComments initialComments", () => {
 			expect(screen.getByText("I agree")).toBeTruthy();
 		});
 	});
+
+	// ─── Font baseline (14/12) ────────────────────────────────────────────
+	// Per zheng-li msg=79ecfd3d, auxiliary meta info (timestamps, usernames,
+	// stats) must be text-xs (12px). The comment timestamp used to be
+	// text-2xs (banned per house rule — 12px is the floor); pin text-xs
+	// here so it can never silently regress.
+
+	it("comment timestamp uses text-xs (12px floor, was text-2xs)", async () => {
+		renderWithInitialComments(sampleComments);
+		await act(async () => {});
+
+		const times = screen.getAllByTestId("post-comment-time");
+		expect(times.length).toBeGreaterThan(0);
+		expect(times[0].className).toContain("text-xs");
+		expect(times[0].className).not.toContain("text-2xs");
+	});
 });

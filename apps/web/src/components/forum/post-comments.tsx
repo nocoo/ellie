@@ -237,7 +237,10 @@ export function PostComments({
 							{comment.authorName}
 						</Link>
 						<span className="text-forum-text break-all">{comment.content}</span>
-						<span className="text-2xs text-muted-foreground flex-shrink-0 ml-auto">
+						<span
+							className="text-xs text-muted-foreground flex-shrink-0 ml-auto"
+							data-testid="post-comment-time"
+						>
 							{formatCommentTime(comment.createdAt)}
 						</span>
 					</div>
