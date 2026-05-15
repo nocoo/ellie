@@ -216,6 +216,56 @@ describe("ForumFloatingToolbar", () => {
 		expect(nextBtn.hasAttribute("disabled")).toBe(true);
 	});
 
+	// ─── extraParams preservation (#9 slice 2 typeId) ────────────────────
+
+	it("preserves extraParams (typeId) when navigating prev to page 1", () => {
+		render(
+			createElement(ForumFloatingToolbar, {
+				page: 2,
+				pages: 5,
+				basePath: "/forums/1",
+				extraParams: { typeId: "11" },
+			}),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "上一页" }));
+		// page=1 omits `?page=`, but typeId stays
+		expect(mockPush).toHaveBeenCalledWith("/forums/1?typeId=11");
+	});
+
+	it("preserves extraParams (typeId) when navigating next", () => {
+		render(
+			createElement(ForumFloatingToolbar, {
+				page: 2,
+				pages: 5,
+				basePath: "/forums/1",
+				extraParams: { typeId: "11" },
+			}),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+		expect(mockPush).toHaveBeenCalledWith("/forums/1?page=3&typeId=11");
+	});
+
+	it("strips existing query from basePath before re-encoding (safety net)", () => {
+		render(
+			createElement(ForumFloatingToolbar, {
+				page: 2,
+				pages: 5,
+				basePath: "/forums/1?typeId=99", // someone passed pre-built basePath
+				extraParams: { typeId: "11" },
+			}),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+		// extraParams wins (matches the active filter), no duplicate typeId.
+		// Order: existing query keys precede newly-set page, then extraParams
+		// overrides typeId in-place. The important guarantee is "no duplicate
+		// typeId, no `typeId=99`".
+		const pushed = mockPush.mock.calls[0][0] as string;
+		expect(pushed.startsWith("/forums/1?")).toBe(true);
+		const params = new URLSearchParams(pushed.split("?")[1]);
+		expect(params.getAll("typeId")).toEqual(["11"]);
+		expect(params.get("page")).toBe("3");
+	});
+
 	// ─── Jump page only when pages > 1 ───────────────────────────────────
 
 	it("shows jump page button when pages > 1", () => {

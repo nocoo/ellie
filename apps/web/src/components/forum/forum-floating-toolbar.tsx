@@ -22,6 +22,11 @@ interface ForumFloatingToolbarProps {
 	showNewThread?: boolean;
 	/** Server-side emailVerifiedAt for preflight check */
 	selfEmailVerifiedAt?: number | null;
+	/**
+	 * Extra query params to preserve on prev/next/jump links — used by
+	 * the 主题分类 filter to keep `?typeId=N` across page changes.
+	 */
+	extraParams?: Record<string, string>;
 }
 
 export function ForumFloatingToolbar({
@@ -33,11 +38,12 @@ export function ForumFloatingToolbar({
 	forumName,
 	showNewThread = false,
 	selfEmailVerifiedAt = null,
+	extraParams,
 }: ForumFloatingToolbarProps) {
 	const [dialogOpen, setDialogOpen] = useState(false);
 
-	const prevHref = page > 1 ? (page === 2 ? basePath : `${basePath}?page=${page - 1}`) : null;
-	const nextHref = page < pages ? `${basePath}?page=${page + 1}` : null;
+	const prevHref = page > 1 ? buildPageHref(basePath, page - 1, extraParams) : null;
+	const nextHref = page < pages ? buildPageHref(basePath, page + 1, extraParams) : null;
 
 	const handleNewThread = useCallback(async () => {
 		if (await writeGatePreflight(selfEmailVerifiedAt, "thread")) return;
@@ -52,7 +58,7 @@ export function ForumFloatingToolbar({
 				backHref={backHref}
 				actionType={showNewThread ? "new-thread" : "none"}
 				onAction={showNewThread ? handleNewThread : undefined}
-				jumpPage={pages > 1 ? { basePath, pages } : undefined}
+				jumpPage={pages > 1 ? { basePath, pages, extraParams } : undefined}
 			/>
 			{showNewThread && forumId != null && forumName && (
 				<NewThreadDialog
@@ -64,4 +70,29 @@ export function ForumFloatingToolbar({
 			)}
 		</>
 	);
+}
+
+/**
+ * Build a page link that preserves arbitrary extra query params (e.g.
+ * `?typeId=N` from the 主题分类 filter).
+ *
+ * Page 1 is encoded as the bare `basePath` + extra params (no `?page=1`)
+ * — matching the pagination convention used everywhere else on the
+ * list page. We strip any existing query string off `basePath` first so
+ * an upstream caller that passes a pre-built URL doesn't double-encode.
+ */
+function buildPageHref(
+	basePath: string,
+	page: number,
+	extraParams: Record<string, string> | undefined,
+): string {
+	const [path, existingQs = ""] = basePath.split("?");
+	const params = new URLSearchParams(existingQs);
+	if (page > 1) params.set("page", String(page));
+	else params.delete("page");
+	if (extraParams) {
+		for (const [k, v] of Object.entries(extraParams)) params.set(k, v);
+	}
+	const qs = params.toString();
+	return qs ? `${path}?${qs}` : path;
 }

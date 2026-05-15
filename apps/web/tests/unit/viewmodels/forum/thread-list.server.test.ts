@@ -214,4 +214,35 @@ describe("loadThreadListPaged", () => {
 		expect(result.pages).toBe(1);
 		expect(result.total).toBe(0);
 	});
+
+	// ── 主题分类 typeId plumbing (#9 slice 2) ──────────────────────
+	describe("typeId filter", () => {
+		it("omits typeId from threads query when null/undefined", async () => {
+			await loadThreadListPaged({ forumId: 1, typeId: null });
+			expect(mockForumApi.getPage).toHaveBeenCalledWith("/api/v1/threads", {
+				forumId: 1,
+				page: 1,
+				limit: 20,
+			});
+		});
+
+		it("omits typeId when 0 (no-filter sentinel)", async () => {
+			await loadThreadListPaged({ forumId: 1, typeId: 0 });
+			expect(mockForumApi.getPage).toHaveBeenCalledWith("/api/v1/threads", {
+				forumId: 1,
+				page: 1,
+				limit: 20,
+			});
+		});
+
+		it("forwards positive typeId to the Worker", async () => {
+			await loadThreadListPaged({ forumId: 1, page: 2, typeId: 11 });
+			expect(mockForumApi.getPage).toHaveBeenCalledWith("/api/v1/threads", {
+				forumId: 1,
+				page: 2,
+				limit: 20,
+				typeId: 11,
+			});
+		});
+	});
 });
