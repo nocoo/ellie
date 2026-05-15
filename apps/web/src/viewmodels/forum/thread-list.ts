@@ -60,11 +60,21 @@ export interface ThreadListState {
 
 /**
  * Enrich a raw Thread array with computed badges and highlight styles.
+ *
+ * `includeTypeNameBadge` controls whether the leading prefix badge is
+ * surfaced for this list — it propagates straight into `getThreadBadges`.
+ * Forum-list callers wire this from `shouldShowTypeNameBadge(threadTypes)`
+ * so prefix=false forums hide the badge while prefix=true forums keep
+ * showing historical disabled/tombstone typeNames via the denorm field.
  */
-export function enrichThreads(threads: Thread[]): ThreadDisplayItem[] {
+export function enrichThreads(
+	threads: Thread[],
+	options: { includeTypeNameBadge?: boolean } = {},
+): ThreadDisplayItem[] {
+	const { includeTypeNameBadge = true } = options;
 	return threads.map((thread) => ({
 		thread,
-		badges: filterIconRedundantBadges(getThreadBadges(thread)),
+		badges: filterIconRedundantBadges(getThreadBadges(thread, { includeTypeNameBadge })),
 		highlight: decodeHighlight(thread.highlight),
 		iconSrc: getThreadIconSrc(thread),
 		digestSrc: getDigestIconSrc(thread.digest),

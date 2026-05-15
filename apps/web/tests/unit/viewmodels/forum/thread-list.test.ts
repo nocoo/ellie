@@ -148,6 +148,63 @@ describe("enrichThreads", () => {
 		const items = enrichThreads([makeThread({ id: 1, sticky: StickyLevel.Category })]);
 		expect(items[0]?.isGlobalAnnouncement).toBe(false);
 	});
+
+	// -----------------------------------------------------------------------
+	// includeTypeNameBadge option (forum-level prefix switch)
+	// -----------------------------------------------------------------------
+
+	describe("includeTypeNameBadge option", () => {
+		it("default keeps typeName badge for prefix-on forums (no config wired)", () => {
+			const items = enrichThreads([makeThread({ id: 1, typeName: "求购" })]);
+			expect(items[0]?.badges.some((b) => b.type === "typeName")).toBe(true);
+		});
+
+		it("explicit true keeps typeName badge (prefix=true forum)", () => {
+			const items = enrichThreads([makeThread({ id: 1, typeName: "求购" })], {
+				includeTypeNameBadge: true,
+			});
+			expect(items[0]?.badges.some((b) => b.type === "typeName")).toBe(true);
+		});
+
+		it("explicit false suppresses typeName badge (prefix=false forum)", () => {
+			const items = enrichThreads([makeThread({ id: 1, typeName: "求购" })], {
+				includeTypeNameBadge: false,
+			});
+			expect(items[0]?.badges.some((b) => b.type === "typeName")).toBe(false);
+		});
+
+		it("explicit false does not affect other enrichment (icons, highlight)", () => {
+			const items = enrichThreads(
+				[makeThread({ id: 1, typeName: "求购", digest: 2, highlight: 0xff0000 })],
+				{ includeTypeNameBadge: false },
+			);
+			expect(items[0]?.digestSrc).toContain("digest_2.gif");
+			expect(items[0]?.highlight?.color).toBe("#ff0000");
+		});
+
+		it("explicit true preserves historical disabled typeName (denorm survives)", () => {
+			// Thread carries the typeName denorm from when the category was
+			// active. Even after the category was disabled or deleted, the
+			// prefix badge keeps showing as long as the forum still has
+			// `thread_types_prefix=true` and the caller passes through.
+			const items = enrichThreads([makeThread({ id: 1, typeName: "已停用分类" })], {
+				includeTypeNameBadge: true,
+			});
+			const typeNameBadge = items[0]?.badges.find((b) => b.type === "typeName");
+			expect(typeNameBadge?.label).toBe("已停用分类");
+		});
+
+		it("empty typeName produces no badge regardless of option", () => {
+			const itemsOn = enrichThreads([makeThread({ id: 1, typeName: "" })], {
+				includeTypeNameBadge: true,
+			});
+			const itemsOff = enrichThreads([makeThread({ id: 1, typeName: "" })], {
+				includeTypeNameBadge: false,
+			});
+			expect(itemsOn[0]?.badges.some((b) => b.type === "typeName")).toBe(false);
+			expect(itemsOff[0]?.badges.some((b) => b.type === "typeName")).toBe(false);
+		});
+	});
 });
 
 // ---------------------------------------------------------------------------
