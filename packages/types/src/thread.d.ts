@@ -13,8 +13,19 @@ export interface ThreadBadge {
  * call site.
  */
 export type ThreadBadgeSource = Pick<Thread, "typeName" | "sticky" | "digest" | "closed" | "special">;
+/**
+ * Optional knobs for `getThreadBadges`.
+ *
+ * `includeTypeNameBadge` defaults to `true` so historical callers see no
+ * behavior change. Pass `false` to suppress the leading prefix badge on
+ * forums whose `thread_types_prefix` switch is off.
+ */
+export interface GetThreadBadgesOptions {
+    /** When `false`, omit the leading `typeName` (prefix) badge. Default `true`. */
+    includeTypeNameBadge?: boolean;
+}
 /** Compute display badges for a thread (typeName, sticky, digest, closed, special). */
-export declare function getThreadBadges(thread: ThreadBadgeSource): ThreadBadge[];
+export declare function getThreadBadges(thread: ThreadBadgeSource, options?: GetThreadBadgesOptions): ThreadBadge[];
 export interface HighlightStyle {
     color: string | null;
     bold: boolean;

@@ -87,6 +87,14 @@ export async function loadThreadListPaged(params: {
 	 * Worker; we omit the param entirely when not set.
 	 */
 	typeId?: number | null;
+	/**
+	 * Whether the prefix (typeName) badge should be surfaced on rows.
+	 * Caller wires this from `shouldShowTypeNameBadge(threadTypes)` so
+	 * forums with `thread_types_prefix=false` hide the badge regardless
+	 * of denorm content. Defaults to `true` — callers that haven't
+	 * wired thread-types config yet keep the historical behavior.
+	 */
+	includeTypeNameBadge?: boolean;
 }): Promise<ThreadListPagedData> {
 	const page = params.page ?? 1;
 	// Get page size from settings
@@ -122,7 +130,9 @@ export async function loadThreadListPaged(params: {
 	return {
 		forum,
 		forums,
-		items: enrichThreads(threadsRes.data),
+		items: enrichThreads(threadsRes.data, {
+			includeTypeNameBadge: params.includeTypeNameBadge,
+		}),
 		page: threadsRes.meta.page ?? page,
 		pages: threadsRes.meta.pages ?? 1,
 		total: threadsRes.meta.total ?? 0,

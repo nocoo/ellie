@@ -129,6 +129,58 @@ describe("getThreadBadges", () => {
 		const types = badges.map((b) => b.type);
 		expect(types).toEqual(["typeName", "sticky", "digest", "closed", "special"]);
 	});
+
+	// -----------------------------------------------------------------------
+	// includeTypeNameBadge option (forum-level prefix switch)
+	// -----------------------------------------------------------------------
+
+	describe("includeTypeNameBadge option", () => {
+		it("defaults to true — typeName badge is included when omitted", () => {
+			const badges = getThreadBadges(makeThread({ typeName: "讨论" }));
+			expect(badges[0]).toEqual({ type: "typeName", label: "讨论", variant: "secondary" });
+		});
+
+		it("explicit true keeps typeName badge", () => {
+			const badges = getThreadBadges(makeThread({ typeName: "讨论" }), {
+				includeTypeNameBadge: true,
+			});
+			expect(badges.find((b) => b.type === "typeName")).toBeDefined();
+		});
+
+		it("explicit false suppresses typeName badge but keeps the rest", () => {
+			const thread = makeThread({
+				typeName: "讨论",
+				sticky: StickyLevel.Forum,
+				digest: 1,
+			});
+			const badges = getThreadBadges(thread, { includeTypeNameBadge: false });
+			const types = badges.map((b) => b.type);
+			expect(types).not.toContain("typeName");
+			expect(types).toContain("sticky");
+			expect(types).toContain("digest");
+		});
+
+		it("false with empty typeName is a no-op (no badge anyway)", () => {
+			const badges = getThreadBadges(makeThread({ typeName: "" }), {
+				includeTypeNameBadge: false,
+			});
+			expect(badges.find((b) => b.type === "typeName")).toBeUndefined();
+		});
+
+		it("true preserves historical disabled/tombstone denorm typeName", () => {
+			// thread.typeName is the only source of truth for historical
+			// categories — even if the corresponding row was disabled or
+			// deleted, the prefix badge keeps showing via the denorm field.
+			const badges = getThreadBadges(makeThread({ typeName: "已停用分类" }), {
+				includeTypeNameBadge: true,
+			});
+			expect(badges[0]).toEqual({
+				type: "typeName",
+				label: "已停用分类",
+				variant: "secondary",
+			});
+		});
+	});
 });
 
 // ---------------------------------------------------------------------------

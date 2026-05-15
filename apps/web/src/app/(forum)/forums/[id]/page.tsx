@@ -22,6 +22,7 @@ import {
 	coerceTypeIdParam,
 	normalizeTypeId,
 	shouldShowFilter,
+	shouldShowTypeNameBadge,
 } from "@/viewmodels/forum/thread-types";
 import { getForumTitle } from "@/viewmodels/forum/title.server";
 import { parseIntParam, parsePageParam } from "@/viewmodels/shared/params";
@@ -92,6 +93,10 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 			forumId,
 			page,
 			typeId: normalizedTypeId,
+			// Respect the per-forum `thread_types_prefix` switch: when off,
+			// suppress the prefix badge on every list row. `null` payload
+			// (loader fail-soft) keeps the historical default (badge on).
+			includeTypeNameBadge: shouldShowTypeNameBadge(threadTypes),
 		});
 	} catch (e) {
 		error = e instanceof Error ? e.message : "Failed to load threads";

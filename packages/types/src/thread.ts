@@ -34,12 +34,35 @@ const SPECIAL_BADGES: Record<number, { label: string; variant: ThreadBadge["vari
 	5: { label: "辩论", variant: "default" },
 };
 
+/**
+ * Optional knobs for `getThreadBadges`.
+ *
+ * `includeTypeNameBadge` defaults to `true` so the helper's historical
+ * behavior is unchanged for every caller that doesn't opt in. Forum-list
+ * callers that know the forum's `thread_types_prefix` switch can pass
+ * `false` to suppress the prefix badge without touching the denorm
+ * `thread.typeName` field — that way historical disabled/tombstone
+ * categories still surface on forums that keep the prefix toggle on
+ * (reviewer msg 94b13fd4: required-vs-prefix is an explicit caller
+ * decision, not a default change in this helper).
+ */
+export interface GetThreadBadgesOptions {
+	/** When `false`, omit the leading `typeName` (prefix) badge. Default `true`. */
+	includeTypeNameBadge?: boolean;
+}
+
 /** Compute display badges for a thread (typeName, sticky, digest, closed, special). */
-export function getThreadBadges(thread: ThreadBadgeSource): ThreadBadge[] {
+export function getThreadBadges(
+	thread: ThreadBadgeSource,
+	options: GetThreadBadgesOptions = {},
+): ThreadBadge[] {
+	const { includeTypeNameBadge = true } = options;
 	const badges: ThreadBadge[] = [];
 
-	// Type classification badge (shown first, before sticky/digest)
-	if (thread.typeName) {
+	// Type classification badge (shown first, before sticky/digest).
+	// Suppressed when the forum has `thread_types_prefix=false` — caller
+	// passes `includeTypeNameBadge: false` for those forums.
+	if (includeTypeNameBadge && thread.typeName) {
 		badges.push({
 			type: "typeName",
 			label: thread.typeName,

@@ -245,4 +245,55 @@ describe("loadThreadListPaged", () => {
 			});
 		});
 	});
+
+	// ── prefix badge plumbing (#9 slice 4) ─────────────────────────
+	describe("includeTypeNameBadge", () => {
+		const threadsWithType = [{ ...mockThreads[0], typeName: "求购" }];
+
+		it("default surfaces the typeName badge on enriched items (no config)", async () => {
+			mockForumApi.getPage.mockResolvedValue({
+				data: threadsWithType,
+				meta: { page: 1, pages: 1, total: 1, limit: 20 },
+			});
+			const result = await loadThreadListPaged({ forumId: 1 });
+			expect(result.items[0]?.badges.some((b) => b.type === "typeName")).toBe(true);
+		});
+
+		it("includeTypeNameBadge=true surfaces the typeName badge (prefix=true forum)", async () => {
+			mockForumApi.getPage.mockResolvedValue({
+				data: threadsWithType,
+				meta: { page: 1, pages: 1, total: 1, limit: 20 },
+			});
+			const result = await loadThreadListPaged({
+				forumId: 1,
+				includeTypeNameBadge: true,
+			});
+			expect(result.items[0]?.badges.some((b) => b.type === "typeName")).toBe(true);
+		});
+
+		it("includeTypeNameBadge=false suppresses the typeName badge (prefix=false forum)", async () => {
+			mockForumApi.getPage.mockResolvedValue({
+				data: threadsWithType,
+				meta: { page: 1, pages: 1, total: 1, limit: 20 },
+			});
+			const result = await loadThreadListPaged({
+				forumId: 1,
+				includeTypeNameBadge: false,
+			});
+			expect(result.items[0]?.badges.some((b) => b.type === "typeName")).toBe(false);
+		});
+
+		it("includeTypeNameBadge=true keeps historical disabled typeName visible", async () => {
+			mockForumApi.getPage.mockResolvedValue({
+				data: [{ ...mockThreads[0], typeName: "已停用分类" }],
+				meta: { page: 1, pages: 1, total: 1, limit: 20 },
+			});
+			const result = await loadThreadListPaged({
+				forumId: 1,
+				includeTypeNameBadge: true,
+			});
+			const badge = result.items[0]?.badges.find((b) => b.type === "typeName");
+			expect(badge?.label).toBe("已停用分类");
+		});
+	});
 });
