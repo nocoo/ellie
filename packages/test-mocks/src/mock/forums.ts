@@ -28,6 +28,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPosterAvatar: "",
 		lastPosterAvatarPath: "",
 		lastThreadSubject: "",
+		threadTypes: { enabled: false, required: false, listable: false, prefix: false },
 	},
 	{
 		id: 10,
@@ -51,6 +52,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPosterAvatar: "",
 		lastPosterAvatarPath: "",
 		lastThreadSubject: "同济大学2026年春季招生公告",
+		threadTypes: { enabled: false, required: false, listable: false, prefix: false },
 	},
 	{
 		id: 11,
@@ -74,6 +76,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPosterAvatar: "",
 		lastPosterAvatarPath: "",
 		lastThreadSubject: "高等数学期末复习资料分享",
+		threadTypes: { enabled: false, required: false, listable: false, prefix: false },
 	},
 	{
 		id: 110,
@@ -97,6 +100,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPosterAvatar: "",
 		lastPosterAvatarPath: "",
 		lastThreadSubject: "2026考研数学真题解析",
+		threadTypes: { enabled: false, required: false, listable: false, prefix: false },
 	},
 	{
 		id: 12,
@@ -120,6 +124,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPosterAvatar: "",
 		lastPosterAvatarPath: "",
 		lastThreadSubject: "出MacBook Pro 2024款",
+		threadTypes: { enabled: false, required: false, listable: false, prefix: false },
 	},
 
 	// ─── Group 2: 技术讨论 ──────────────────────────────
@@ -145,6 +150,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPosterAvatar: "",
 		lastPosterAvatarPath: "",
 		lastThreadSubject: "",
+		threadTypes: { enabled: false, required: false, listable: false, prefix: false },
 	},
 	{
 		id: 20,
@@ -168,6 +174,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPosterAvatar: "",
 		lastPosterAvatarPath: "",
 		lastThreadSubject: "Rust异步编程最佳实践",
+		threadTypes: { enabled: false, required: false, listable: false, prefix: false },
 	},
 	{
 		id: 21,
@@ -191,6 +198,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPosterAvatar: "",
 		lastPosterAvatarPath: "",
 		lastThreadSubject: "推荐一个好用的CLI工具",
+		threadTypes: { enabled: false, required: false, listable: false, prefix: false },
 	},
 
 	// ─── Group 3: 站务管理 ──────────────────────────────
@@ -216,6 +224,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPosterAvatar: "",
 		lastPosterAvatarPath: "",
 		lastThreadSubject: "",
+		threadTypes: { enabled: false, required: false, listable: false, prefix: false },
 	},
 	{
 		id: 30,
@@ -239,6 +248,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPosterAvatar: "",
 		lastPosterAvatarPath: "",
 		lastThreadSubject: "论坛升级维护公告",
+		threadTypes: { enabled: false, required: false, listable: false, prefix: false },
 	},
 	{
 		id: 31,
@@ -262,6 +272,7 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPosterAvatar: "",
 		lastPosterAvatarPath: "",
 		lastThreadSubject: "建议增加夜间模式",
+		threadTypes: { enabled: false, required: false, listable: false, prefix: false },
 	},
 
 	// Hidden forum for testing
@@ -287,5 +298,6 @@ export const MOCK_FORUMS: Forum[] = [
 		lastPosterAvatar: "",
 		lastPosterAvatarPath: "",
 		lastThreadSubject: "",
+		threadTypes: { enabled: false, required: false, listable: false, prefix: false },
 	},
 ];

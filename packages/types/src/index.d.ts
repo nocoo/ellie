@@ -1,6 +1,6 @@
 export { VERSION, VERSION_DISPLAY } from "./version";
 export * from "./types";
-export type { PublicUser, User, Forum, ForumVisibility, Thread, Post, PostThreadSummary, UserPostHistoryItem, PostComment, Attachment, IpBan, CensorWord, } from "./types";
+export type { PublicUser, User, Forum, ForumVisibility, ForumThreadType, ForumThreadTypeConfig, Thread, Post, PostThreadSummary, UserPostHistoryItem, PostComment, Attachment, IpBan, CensorWord, } from "./types";
 export type { ForumTreeNode, VisibilityContext } from "./forum";
 export { buildForumTree, filterVisibleForums, findForumAncestors, canViewForum as canViewForumVisibility, } from "./forum";
 export type { ThreadBadge, ThreadBadgeSource, HighlightStyle } from "./thread";
