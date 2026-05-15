@@ -344,3 +344,104 @@ export async function getAncestors(
 	};
 	return jsonResponse({ forum: forumContext, ancestors }, origin);
 }
+
+// ─── Thread types endpoint ──────────────────────────────────────────
+
+/** One row of `forum_thread_types` as exposed on the public DTO. */
+interface PublicThreadType {
+	id: number;
+	name: string;
+	displayOrder: number;
+}
+
+/**
+ * Public thread-types payload for one forum.
+ *
+ *   • config flags mirror `forums.thread_types_*` — match Forum.threadTypes
+ *     so callers that already have the Forum DTO can drop a redundant fetch.
+ *   • `types` — only **enabled** rows from `forum_thread_types`. Tombstones
+ *     (enabled=0) are intentionally excluded; they are render-only via the
+ *     thread.type_name denorm column. Admin/debug endpoints get the full
+ *     row set including source_typeid.
+ *
+ * Reviewer pin (msg b03d4af3 #1, #5): `id` is the synthetic global id, the
+ * Discuz-local source_typeid is admin-only and not surfaced here.
+ */
+interface ThreadTypesPayload {
+	enabled: boolean;
+	required: boolean;
+	listable: boolean;
+	prefix: boolean;
+	types: PublicThreadType[];
+}
+
+/**
+ * GET /api/v1/forums/:forumId/thread-types
+ *
+ * Returns the per-forum 主题分类 picker payload. Visibility is enforced via
+ * the v2 forum:meta cache path (same 403/404 semantics as `getById`); the
+ * thread-types row set is then read from D1 — there is no dedicated KV
+ * cache for it yet, so an admin add/remove takes effect immediately
+ * without a `forum:tree:gen` bump.
+ *
+ * Reviewer pin: empty `types[]` is valid (forum may have config switches
+ * on but no rows — UI simply shows no picker entries).
+ */
+export async function getThreadTypes(
+	request: Request,
+	env: Env,
+	ctx: ExecutionContext,
+): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+
+	const forumId = parsePathSegment(request, 1);
+	if (!forumId || forumId <= 0) {
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid forum ID" }, origin);
+	}
+
+	// Reuse the v2 meta path for visibility / 403 / 404 semantics. Cheap
+	// because cold-start populates `forum:meta:v2` and warm hits cost 0
+	// SQL — the only D1 cost specific to this endpoint is the row read.
+	const user = await optionalAuthVerified(request, env);
+	const visCtx = buildVisibilityContext(user);
+	const bucket = computeVisibilityBucket(visCtx);
+	const meta = await getForumMetaV2(env, ctx, forumId, bucket, () =>
+		loadFullForumFromD1(env, forumId),
+	);
+	if (meta.kind === "notFound") {
+		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
+	}
+	if (meta.kind === "forbidden") {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "You don't have access to this forum" },
+			origin,
+		);
+	}
+
+	const cfg = meta.forum.threadTypes;
+	const rows = await env.DB.prepare(
+		`SELECT id, name, display_order
+		 FROM forum_thread_types
+		 WHERE forum_id = ? AND enabled = 1
+		 ORDER BY display_order ASC, id ASC`,
+	)
+		.bind(forumId)
+		.all<{ id: number; name: string; display_order: number }>();
+
+	const types: PublicThreadType[] = rows.results.map((r) => ({
+		id: r.id,
+		name: r.name,
+		displayOrder: r.display_order,
+	}));
+
+	const payload: ThreadTypesPayload = {
+		enabled: cfg.enabled,
+		required: cfg.required,
+		listable: cfg.listable,
+		prefix: cfg.prefix,
+		types,
+	};
+	return jsonResponse(payload, origin);
+}
