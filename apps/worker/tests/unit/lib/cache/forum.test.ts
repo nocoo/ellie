@@ -306,8 +306,18 @@ describe("cache/forum — buildForumMetaPayload", () => {
 // ─── Validators ───────────────────────────────────────────────────
 
 describe("cache/forum — validators", () => {
+	const tt = { enabled: false, required: false, listable: false, prefix: false };
+	const node = (overrides: Record<string, unknown> = {}) => ({
+		id: 1,
+		parentId: 0,
+		name: "n",
+		threadTypes: tt,
+		...overrides,
+	});
+
 	it("isForumTreePayload: accepts well-formed payload", () => {
 		expect(isForumTreePayload({ bucket: "anon", forums: [] })).toBe(true);
+		expect(isForumTreePayload({ bucket: "anon", forums: [node()] })).toBe(true);
 	});
 	it("isForumTreePayload: rejects null/non-object/missing fields", () => {
 		expect(isForumTreePayload(null)).toBe(false);
@@ -318,6 +328,28 @@ describe("cache/forum — validators", () => {
 		expect(isForumTreePayload({ forums: [] })).toBe(false);
 		expect(isForumTreePayload({ bucket: 1, forums: [] })).toBe(false);
 		expect(isForumTreePayload({ bucket: "anon", forums: "nope" })).toBe(false);
+	});
+	it("isForumTreePayload: rejects pre-threadTypes node payload (KV schema drift)", () => {
+		// A `forum:tree:v2` payload written before commit ba100da6 lacks
+		// `threadTypes` on each node — must be rejected so the read path
+		// falls back to D1 and re-writes under the new shape.
+		expect(
+			isForumTreePayload({ bucket: "anon", forums: [{ id: 1, parentId: 0, name: "n" }] }),
+		).toBe(false);
+		// Partial threadTypes (e.g. missing `prefix`) is still drift.
+		expect(
+			isForumTreePayload({
+				bucket: "anon",
+				forums: [node({ threadTypes: { enabled: false, required: false, listable: false } })],
+			}),
+		).toBe(false);
+		// Non-boolean members (truthy but wrong type) are drift.
+		expect(
+			isForumTreePayload({
+				bucket: "anon",
+				forums: [node({ threadTypes: { enabled: 0, required: 0, listable: 0, prefix: 0 } })],
+			}),
+		).toBe(false);
 	});
 
 	it("isForumSummaryPayload: accepts well-formed payload", () => {
@@ -333,7 +365,7 @@ describe("cache/forum — validators", () => {
 	});
 
 	it("isForumMetaPayload: accepts well-formed payload", () => {
-		expect(isForumMetaPayload({ bucket: "anon", forum: { id: 1 } })).toBe(true);
+		expect(isForumMetaPayload({ bucket: "anon", forum: { id: 1, threadTypes: tt } })).toBe(true);
 	});
 	it("isForumMetaPayload: rejects bad shapes", () => {
 		expect(isForumMetaPayload(null)).toBe(false);
@@ -341,5 +373,17 @@ describe("cache/forum — validators", () => {
 		expect(isForumMetaPayload({ forum: {} })).toBe(false);
 		expect(isForumMetaPayload({ bucket: "anon", forum: null })).toBe(false);
 		expect(isForumMetaPayload({ bucket: 0, forum: {} })).toBe(false);
+	});
+	it("isForumMetaPayload: rejects pre-threadTypes forum payload (KV schema drift)", () => {
+		// `forum:meta:v2` payload written before commit ba100da6 lacks
+		// `forum.threadTypes` — getThreadTypes() would NPE on
+		// `cfg.enabled`. Must be rejected.
+		expect(isForumMetaPayload({ bucket: "anon", forum: { id: 1 } })).toBe(false);
+		expect(
+			isForumMetaPayload({
+				bucket: "anon",
+				forum: { id: 1, threadTypes: { enabled: true, required: true, listable: true } },
+			}),
+		).toBe(false);
 	});
 });
