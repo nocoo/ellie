@@ -23,6 +23,7 @@ import {
 	type ForumAncestorsData,
 	fetchForumAncestors,
 	fetchForumList,
+	fetchForumThreadTypes,
 	fetchThreadById,
 } from "./forum-data";
 import { type ForumSettings, fetchForumSettings } from "./forum-settings";
@@ -34,6 +35,7 @@ import { type ForumSettings, fetchForumSettings } from "./forum-settings";
 export const getCachedThreadById = cache(fetchThreadById);
 export const getCachedForumList = cache(fetchForumList);
 export const getCachedForumAncestors = cache(fetchForumAncestors);
+export const getCachedForumThreadTypes = cache(fetchForumThreadTypes);
 
 // ---------------------------------------------------------------------------
 // Forum settings

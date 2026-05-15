@@ -9,6 +9,7 @@
 
 import "server-only";
 
+import type { ForumThreadTypesPublic } from "@/viewmodels/forum/thread-types";
 import type { Forum, ForumVisibility, ModeratorInfo, Thread } from "@ellie/types";
 import { forumApi } from "./forum-api";
 
@@ -58,5 +59,24 @@ export interface ForumAncestorsData {
  */
 export async function fetchForumAncestors(forumId: number): Promise<ForumAncestorsData> {
 	const { data } = await forumApi.get<ForumAncestorsData>(`/api/v1/forums/${forumId}/ancestors`);
+	return data;
+}
+
+// ─── Forum Thread Types (主题分类) ──────────────────────────────────
+
+/**
+ * Fetch the public 主题分类 payload for a forum.
+ *
+ * Returns `{enabled, required, listable, prefix, types}` — only enabled
+ * rows. Most forums have all-zero config; callers MUST treat empty /
+ * disabled payloads as "no UI" rather than rendering an empty filter
+ * (see `viewmodels/forum/thread-types.ts` predicates).
+ *
+ * Wrapped by `getCachedForumThreadTypes` in `lib/forum-cache.ts`.
+ */
+export async function fetchForumThreadTypes(forumId: number): Promise<ForumThreadTypesPublic> {
+	const { data } = await forumApi.get<ForumThreadTypesPublic>(
+		`/api/v1/forums/${forumId}/thread-types`,
+	);
 	return data;
 }

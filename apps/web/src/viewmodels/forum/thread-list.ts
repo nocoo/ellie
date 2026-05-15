@@ -14,6 +14,13 @@ export interface ThreadListFilters {
 	forumId?: number;
 	sort: ThreadSort;
 	digestOnly: boolean;
+	/**
+	 * Optional 主题分类 filter — used by the list page to narrow
+	 * `/api/v1/threads` results. `null` / `undefined` means no filter.
+	 * Source URL param: `?typeId=N`. See
+	 * `viewmodels/forum/thread-types.ts` for whitelist coercion.
+	 */
+	typeId?: number | null;
 }
 
 export interface ThreadDisplayItem {
