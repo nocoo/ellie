@@ -367,6 +367,33 @@ export default {
 			if (path === "/api/admin/forums/reorder" && request.method === "POST") {
 				return await (await import("./handlers/admin/forum")).reorder(request, env);
 			}
+			// F: thread-type CRUD must be matched BEFORE the bare /forums/:id
+			// routes so /api/admin/forums/123/thread-types isn't shadowed by
+			// the /api/admin/forums/:id GET / PATCH / DELETE routes below.
+			if (path.match(/^\/api\/admin\/forums\/\d+\/thread-types$/) && request.method === "GET") {
+				return await (await import("./handlers/admin/forumThreadType")).list(request, env);
+			}
+			if (path.match(/^\/api\/admin\/forums\/\d+\/thread-types$/) && request.method === "POST") {
+				return await (await import("./handlers/admin/forumThreadType")).create(request, env);
+			}
+			if (
+				path.match(/^\/api\/admin\/forums\/\d+\/thread-types\/reorder$/) &&
+				request.method === "PATCH"
+			) {
+				return await (await import("./handlers/admin/forumThreadType")).reorder(request, env);
+			}
+			if (
+				path.match(/^\/api\/admin\/forums\/\d+\/thread-types-config$/) &&
+				request.method === "PATCH"
+			) {
+				return await (await import("./handlers/admin/forumThreadType")).updateConfig(request, env);
+			}
+			if (path.match(/^\/api\/admin\/forum-thread-types\/\d+$/) && request.method === "PATCH") {
+				return await (await import("./handlers/admin/forumThreadType")).update(request, env);
+			}
+			if (path.match(/^\/api\/admin\/forum-thread-types\/\d+$/) && request.method === "DELETE") {
+				return await (await import("./handlers/admin/forumThreadType")).remove(request, env);
+			}
 			if (path === "/api/admin/forums" && request.method === "GET") {
 				return await (await import("./handlers/admin/forum")).list(request, env);
 			}

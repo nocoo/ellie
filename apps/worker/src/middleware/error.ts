@@ -93,6 +93,11 @@ function getStatusMessage(code: string): string {
 		INVALID_BODY: "Request body is invalid or missing required fields",
 		FORUM_NOT_FOUND: "Forum not found",
 		FORUM_HAS_THREADS: "Cannot delete forum that contains threads",
+		THREAD_TYPE_NOT_FOUND: "Thread type not found",
+		THREAD_TYPE_DUPLICATE_SOURCE_TYPEID:
+			"A thread type with this sourceTypeid already exists in this forum",
+		THREAD_TYPE_REQUIRED_NEEDS_ENABLED: "thread_types_required=1 requires thread_types_enabled=1",
+		THREAD_TYPE_FORUM_MISMATCH: "Thread type does not belong to this forum",
 		BATCH_LIMIT_EXCEEDED: "Batch operation exceeds maximum size",
 		SELF_BAN: "Cannot ban yourself",
 		SELF_ROLE_CHANGE: "Cannot change your own role",
