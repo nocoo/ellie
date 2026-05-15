@@ -75,7 +75,12 @@ export function UserInfoCard({ user }: { user: UserProfileData["user"] }) {
 								</Badge>
 							)}
 							{user.customTitle && (
-								<span className="text-muted-foreground italic text-xs">{user.customTitle}</span>
+								<span
+									className="text-muted-foreground italic text-sm"
+									data-testid="user-info-custom-title"
+								>
+									{user.customTitle}
+								</span>
 							)}
 						</div>
 					)}
@@ -91,12 +96,18 @@ export function UserInfoCard({ user }: { user: UserProfileData["user"] }) {
 											href={row.value.startsWith("http") ? row.value : `https://${row.value}`}
 											target="_blank"
 											rel="noopener noreferrer"
-											className="text-primary hover:underline truncate text-xs"
+											className="text-primary hover:underline truncate text-sm"
+											data-testid="user-info-value"
 										>
 											{row.value}
 										</a>
 									) : (
-										<span className="text-foreground truncate text-xs">{row.value}</span>
+										<span
+											className="text-foreground truncate text-sm"
+											data-testid="user-info-value"
+										>
+											{row.value}
+										</span>
 									)}
 								</div>
 							))}
