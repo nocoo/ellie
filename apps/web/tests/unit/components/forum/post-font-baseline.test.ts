@@ -231,3 +231,6 @@ describe("PostContent meta bar — 14/12 baseline", () => {
 // Note: comment timestamp's `text-xs` baseline assertion lives in
 // post-comments-initial.test.ts (alongside the existing PostComments tests
 // that already have the right mock setup for that component).
+//
+// Note: PostSidebar's 14/12 assertions live in post-sidebar-font.test.ts —
+// this file's hoisted PostSidebar mock prevents asserting against its real DOM.

@@ -162,7 +162,8 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 							return active ? (
 								<span
 									key={t.key}
-									className="inline-flex h-8 items-center border-b-2 border-primary px-2 text-xs font-medium text-foreground"
+									className="inline-flex h-8 items-center border-b-2 border-primary px-2 text-sm font-medium text-foreground"
+									data-testid="user-profile-tab-active"
 								>
 									{label}
 								</span>
@@ -170,7 +171,8 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 								<Link
 									key={t.key}
 									href={`/users/${userId}?tab=${t.key}`}
-									className="inline-flex h-8 items-center border-b-2 border-transparent px-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+									className="inline-flex h-8 items-center border-b-2 border-transparent px-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+									data-testid="user-profile-tab-inactive"
 								>
 									{label}
 								</Link>
