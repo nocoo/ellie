@@ -30,6 +30,30 @@ describe("threadType — coerceTypeIdInput", () => {
 		expect(coerceTypeIdInput(1.5).kind).toBe("invalid");
 		expect(coerceTypeIdInput(Number.NaN).kind).toBe("invalid");
 	});
+	it("strict string parsing — rejects partial/garbage suffixes (reviewer pin msg b4221d27)", () => {
+		// `Number.parseInt` would silently accept these as 1 / 1 / 0 / 1.
+		// We want a hard 400 instead — otherwise a typo in the URL would
+		// resolve to category 1 in both the list filter AND the create path.
+		expect(coerceTypeIdInput("1abc").kind).toBe("invalid");
+		expect(coerceTypeIdInput("1.5").kind).toBe("invalid");
+		expect(coerceTypeIdInput("01").kind).toBe("invalid"); // leading zero
+		expect(coerceTypeIdInput("0x1").kind).toBe("invalid");
+		expect(coerceTypeIdInput("+1").kind).toBe("invalid");
+		expect(coerceTypeIdInput(" 1").kind).toBe("invalid"); // leading space
+		expect(coerceTypeIdInput("1 ").kind).toBe("invalid"); // trailing space
+		expect(coerceTypeIdInput("1\n").kind).toBe("invalid");
+	});
+	it("invalid for non-string / non-number values", () => {
+		expect(coerceTypeIdInput({}).kind).toBe("invalid");
+		expect(coerceTypeIdInput([]).kind).toBe("invalid");
+		expect(coerceTypeIdInput([1]).kind).toBe("invalid");
+		expect(coerceTypeIdInput(true).kind).toBe("invalid");
+		expect(coerceTypeIdInput(false).kind).toBe("invalid");
+	});
+	it("invalid for non-finite numbers", () => {
+		expect(coerceTypeIdInput(Number.POSITIVE_INFINITY).kind).toBe("invalid");
+		expect(coerceTypeIdInput(Number.NEGATIVE_INFINITY).kind).toBe("invalid");
+	});
 });
 
 describe("threadType — resolveAndValidateTypeId", () => {
