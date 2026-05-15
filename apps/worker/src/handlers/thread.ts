@@ -683,6 +683,16 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		return errorResponse("INVALID_BODY", 400, { message: "content is required" }, origin);
 	}
 
+	// Pre-parse `typeId` BEFORE censor / DB hits — a malformed typeId is a
+	// caller bug we can reject without spending any further resources.
+	// `coerceTypeIdInput` short-circuits null/undefined/"" to "absent" so
+	// older clients that omit typeId remain unaffected.
+	const typeIdParse = coerceTypeIdInput(body.typeId);
+	if (typeIdParse.kind === "invalid") {
+		return errorResponse("INVALID_BODY", 400, { message: typeIdParse.message }, origin);
+	}
+	const typeIdInput = typeIdParse.kind === "ok" ? typeIdParse.value : null;
+
 	// Censor word check — subject + content (independent, run in parallel)
 	const [subjectCheck, contentCheck] = await Promise.all([
 		applyCensorFilter(subject.trim(), env),
@@ -696,10 +706,21 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 
 	// Forum visibility query + author-name lookup are independent of each
 	// other and of the censor checks above — fire both in parallel.
+	// SELECT widened with `thread_types_enabled` / `thread_types_required`
+	// so we can validate `body.typeId` without an extra D1 hit (the create
+	// path doesn't go through the cached forum:meta:v2 reader).
 	const [forum, authorRow] = await Promise.all([
-		env.DB.prepare("SELECT id, status, visibility FROM forums WHERE id = ?")
+		env.DB.prepare(
+			"SELECT id, status, visibility, thread_types_enabled, thread_types_required FROM forums WHERE id = ?",
+		)
 			.bind(forumId)
-			.first<{ id: number; status: number; visibility: string }>(),
+			.first<{
+				id: number;
+				status: number;
+				visibility: string;
+				thread_types_enabled: number;
+				thread_types_required: number;
+			}>(),
 		env.DB.prepare("SELECT username FROM users WHERE id = ?")
 			.bind(user.userId)
 			.first<{ username: string }>(),
@@ -723,15 +744,55 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		);
 	}
 
+	// Resolve typeId against the forum gate. Reuses the same
+	// `resolveAndValidateTypeId` helper as the GET filter (msg b4221d27)
+	// so that "disabled forum / cross-forum / tombstoned row / not in this
+	// forum" all surface identical 4xx semantics.
+	//
+	// `forum.thread_types_required = 1` adds one extra rule on top of the
+	// resolver: a missing typeId is a 400 (forum requires picking a
+	// category before posting). The resolver itself doesn't enforce
+	// "required" because the list-filter path treats absent typeId as
+	// "no filter" — we only check it here on create.
+	const typeResolution = await resolveAndValidateTypeId(env, forumId, typeIdInput, {
+		enabled: forum.thread_types_enabled === 1,
+	});
+	if (typeResolution.kind === "invalid") {
+		return errorResponse("INVALID_BODY", 400, { message: typeResolution.message }, origin);
+	}
+	if (
+		typeResolution.kind === "noTypeRequested" &&
+		forum.thread_types_enabled === 1 &&
+		forum.thread_types_required === 1
+	) {
+		return errorResponse("INVALID_BODY", 400, { message: "Forum requires a thread type" }, origin);
+	}
+	// Reviewer pin (msg 4f1464c8): denorm columns must be `0 / ""` when no
+	// type is selected — never NULL. The synthetic id stays the same as
+	// the value we wrote on import.
+	const insertTypeId = typeResolution.kind === "ok" ? typeResolution.row.id : 0;
+	const insertTypeName = typeResolution.kind === "ok" ? typeResolution.row.name : "";
+
 	const authorName = authorRow?.username ?? `user_${user.userId}`;
 
 	const now = Math.floor(Date.now() / 1000);
 
 	// Step 1: Insert thread (with last_poster_id for user cache)
 	const threadResult = await env.DB.prepare(
-		"INSERT INTO threads (forum_id, author_id, author_name, subject, created_at, last_post_at, last_poster, last_poster_id, replies, views, closed, sticky, digest) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0)",
+		"INSERT INTO threads (forum_id, author_id, author_name, subject, created_at, last_post_at, last_poster, last_poster_id, replies, views, closed, sticky, digest, type_id, type_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, ?, ?)",
 	)
-		.bind(forumId, user.userId, authorName, filteredSubject, now, now, authorName, user.userId)
+		.bind(
+			forumId,
+			user.userId,
+			authorName,
+			filteredSubject,
+			now,
+			now,
+			authorName,
+			user.userId,
+			insertTypeId,
+			insertTypeName,
+		)
 		.run();
 
 	const threadId = threadResult.meta.last_row_id;
