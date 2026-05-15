@@ -261,7 +261,7 @@ describe("D1 row mappers", () => {
 			expect(forum.lastThreadSubject).toBe("Hello World");
 		});
 
-		it("should output exactly 20 fields", () => {
+		it("should output exactly 22 fields (21 base + threadTypes)", () => {
 			const row = {
 				id: 1,
 				parent_id: 0,
@@ -284,7 +284,72 @@ describe("D1 row mappers", () => {
 			};
 
 			const forum = toForum(row);
-			expect(Object.keys(forum)).toHaveLength(21);
+			expect(Object.keys(forum)).toHaveLength(22);
+		});
+
+		it("threadTypes defaults all-false when columns absent", () => {
+			// Older SELECT paths that omit thread_types_* columns must still
+			// produce a valid Forum DTO (web layer relies on the field always
+			// being present — see ForumThreadTypeConfig contract).
+			const forum = toForum({
+				id: 1,
+				parent_id: 0,
+				name: "General",
+				description: "",
+				icon: "",
+				display_order: 0,
+				threads: 0,
+				posts: 0,
+				type: "forum",
+				status: 0,
+				visibility: "public",
+				moderators: "",
+				moderator_ids: "",
+				last_thread_id: 0,
+				last_post_at: 0,
+				last_poster: "",
+				last_poster_id: 0,
+				last_thread_subject: "",
+			});
+			expect(forum.threadTypes).toEqual({
+				enabled: false,
+				required: false,
+				listable: false,
+				prefix: false,
+			});
+		});
+
+		it("threadTypes maps INTEGER 0/1 columns to booleans independently", () => {
+			const forum = toForum({
+				id: 1,
+				parent_id: 0,
+				name: "General",
+				description: "",
+				icon: "",
+				display_order: 0,
+				threads: 0,
+				posts: 0,
+				type: "forum",
+				status: 0,
+				visibility: "public",
+				moderators: "",
+				moderator_ids: "",
+				last_thread_id: 0,
+				last_post_at: 0,
+				last_poster: "",
+				last_poster_id: 0,
+				last_thread_subject: "",
+				thread_types_enabled: 1,
+				thread_types_required: 0,
+				thread_types_listable: 1,
+				thread_types_prefix: 0,
+			});
+			expect(forum.threadTypes).toEqual({
+				enabled: true,
+				required: false,
+				listable: true,
+				prefix: false,
+			});
 		});
 	});
 
