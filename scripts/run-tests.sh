@@ -18,6 +18,8 @@ bun test \
   "$PWD/tests/unit/migration-0029-schema.test.ts" \
   "$PWD/tests/unit/migration-0036-schema.test.ts" \
   "$PWD/tests/unit/migration-0037-schema.test.ts" \
+  "$PWD/tests/unit/migration-0038-schema.test.ts" \
+  "$PWD/tests/unit/migration-0039-schema.test.ts" \
   >"$blog" 2>&1 &
 b=$!
 
