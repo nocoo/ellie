@@ -542,6 +542,42 @@ const THREAD_COLS = {
  * `type_id` is written as 0 = "no category" — same behaviour as Discuz
  * uncategorised threads.
  */
+/**
+ * Resolve a thread's display name (`type_name`) under the
+ * synthetic-id regime introduced by migration 0039.
+ *
+ * Reviewer pin b9d1861d: when `syntheticIdMap` is provided we must NOT
+ * fall back to the legacy global `threadTypeMap`. That table is
+ * fid=0 / activity-ish, not a per-forum 主题分类 source — falling back
+ * to it produces `type_id=0 AND type_name<>''` rows (the "name without
+ * id" data-quality bug surfaced by the dry-run).
+ *
+ * Resolution rules:
+ *   • sourceTypeid=0 → no category, ""
+ *   • syntheticIdMap provided + miss → unmapped, "" (no legacy fallback)
+ *   • syntheticIdMap provided + hit → name from per-forum map
+ *   • syntheticIdMap NOT provided (legacy/test compat) → per-forum then
+ *     legacy global, same as pre-0039.
+ */
+function resolveThreadTypeName(
+	sourceTypeid: number,
+	syntheticId: number,
+	fid: number,
+	threadTypeMap: Map<number, string> | undefined,
+	forumThreadTypeMap: Map<number, Map<number, string>> | undefined,
+	syntheticIdMap: Map<number, Map<number, number>> | undefined,
+): string {
+	if (sourceTypeid <= 0) return "";
+	if (syntheticIdMap) {
+		// Under the synthetic-id regime: only resolve a name when the mint
+		// produced an id. Unmapped → no name (legacy global is not a
+		// reliable per-forum source).
+		return syntheticId > 0 ? (forumThreadTypeMap?.get(fid)?.get(sourceTypeid) ?? "") : "";
+	}
+	// Legacy / test compat path — keep the original priority chain.
+	return forumThreadTypeMap?.get(fid)?.get(sourceTypeid) ?? threadTypeMap?.get(sourceTypeid) ?? "";
+}
+
 export function extractThread(
 	row: ParsedRow,
 	threadTypeMap?: Map<number, string>,
@@ -558,21 +594,22 @@ export function extractThread(
 	const sourceTypeid = Number(row[THREAD_COLS.typeid]) || 0;
 	const fid = Number(row[THREAD_COLS.fid]) || 0;
 
-	// Name resolution: per-forum map (forumfield.types — admin-current
-	// or threadclass-tombstone) takes priority over the legacy global
-	// `pre_forum_threadtype` map. Falls back to "" when neither knows
-	// the typeid (e.g. source_typeid=0 → no category badge in UI).
-	let typeName = "";
-	if (sourceTypeid > 0) {
-		const perForum = forumThreadTypeMap?.get(fid)?.get(sourceTypeid);
-		typeName = perForum ?? threadTypeMap?.get(sourceTypeid) ?? "";
-	}
-
 	// Synthetic-id translation: D1 stores synthetic global ids in
 	// threads.type_id. Unknown source typeids fall through to 0 ("no
 	// category") rather than carrying a meaningless raw value into the
 	// foreign-key-like column.
-	const typeId = sourceTypeid > 0 ? (syntheticIdMap?.get(fid)?.get(sourceTypeid) ?? 0) : 0;
+	const syntheticId = sourceTypeid > 0 ? (syntheticIdMap?.get(fid)?.get(sourceTypeid) ?? 0) : 0;
+
+	const typeName = resolveThreadTypeName(
+		sourceTypeid,
+		syntheticId,
+		fid,
+		threadTypeMap,
+		forumThreadTypeMap,
+		syntheticIdMap,
+	);
+
+	const typeId = syntheticId;
 
 	return {
 		id: tid,

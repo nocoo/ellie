@@ -413,6 +413,18 @@ export async function migrateThreads(
 		total: number;
 		distinct: number;
 		topByCount: Array<{ fid: number; typeid: number; count: number }>;
+		// Reviewer pin b9d1861d: full top-20 + per-forum hit-rate must
+		// land in a deliverable artifact, not just run.log.
+		topByCountFull: Array<{ fid: number; typeid: number; count: number }>;
+		perForumHitRate: Array<{
+			fid: number;
+			withSourceTypeid: number;
+			mapped: number;
+			unmapped: number;
+			hitRate: number; // mapped / withSourceTypeid (0..1, 4-decimal)
+		}>;
+		rawSourceTypeidTotal: number; // raw threads with source typeid > 0
+		mappedTotal: number; // raw - unmapped
 	};
 }> {
 	log("=== Threads ===");
@@ -448,6 +460,14 @@ export async function migrateThreads(
 	// from the exact same union of sources.
 	const unmappedCounts = new Map<string, { fid: number; typeid: number; count: number }>();
 	let unmappedTotal = 0;
+	// Reviewer pin b9d1861d: per-forum hit-rate (mapped / raw-source-typeid)
+	// is the operational signal for "did synthetic-id mint cover this
+	// forum's historical typeids". A forum with low hit rate either
+	// lost forumfield/threadclass rows in the dump or has typeids that
+	// only existed in legacy global threadtype (which we now refuse to
+	// resolve under the synthetic-id regime).
+	const perForumStats = new Map<number, { withSourceTypeid: number; mapped: number }>();
+	let rawSourceTypeidTotal = 0;
 
 	const processThreadRow = (row: ParsedRow) => {
 		const record = extractThread(row, threadTypeMap, forumThreadTypeNameMap, syntheticIdMap);
@@ -469,12 +489,20 @@ export async function migrateThreads(
 			// is `source typeid > 0 AND synthetic id is 0` — the source
 			// asked for a category but we had no row for it.
 			const sourceTypeid = Number(row[3]) || 0; // THREAD_COLS.typeid = 3
-			if (sourceTypeid > 0 && (record.type_id as number) === 0) {
-				unmappedTotal++;
-				const key = `${fid}:${sourceTypeid}`;
-				const entry = unmappedCounts.get(key);
-				if (entry) entry.count++;
-				else unmappedCounts.set(key, { fid, typeid: sourceTypeid, count: 1 });
+			if (sourceTypeid > 0) {
+				rawSourceTypeidTotal++;
+				const stats = perForumStats.get(fid) ?? { withSourceTypeid: 0, mapped: 0 };
+				stats.withSourceTypeid++;
+				if ((record.type_id as number) !== 0) {
+					stats.mapped++;
+				} else {
+					unmappedTotal++;
+					const key = `${fid}:${sourceTypeid}`;
+					const entry = unmappedCounts.get(key);
+					if (entry) entry.count++;
+					else unmappedCounts.set(key, { fid, typeid: sourceTypeid, count: 1 });
+				}
+				perForumStats.set(fid, stats);
 			}
 		} else {
 			skipped++;
@@ -547,15 +575,34 @@ export async function migrateThreads(
 	}
 
 	// Build unmapped typeid report (top 20 by count, deterministic ordering).
-	const unmappedTopByCount = [...unmappedCounts.values()]
-		.sort((a, b) => b.count - a.count || a.fid - b.fid || a.typeid - b.typeid)
-		.slice(0, 20);
+	const sortedPairs = [...unmappedCounts.values()].sort(
+		(a, b) => b.count - a.count || a.fid - b.fid || a.typeid - b.typeid,
+	);
+	const unmappedTopByCount = sortedPairs.slice(0, 5);
+	const unmappedTopByCountFull = sortedPairs.slice(0, 20);
+	const perForumHitRate = [...perForumStats.entries()]
+		.map(([fid, s]) => ({
+			fid,
+			withSourceTypeid: s.withSourceTypeid,
+			mapped: s.mapped,
+			unmapped: s.withSourceTypeid - s.mapped,
+			hitRate:
+				s.withSourceTypeid > 0 ? Math.round((s.mapped / s.withSourceTypeid) * 10000) / 10000 : 0,
+		}))
+		.sort((a, b) => a.fid - b.fid);
 	if (unmappedTotal > 0) {
 		log(
 			`  Unmapped typeids: ${unmappedTotal} threads across ${unmappedCounts.size} (fid,typeid) pairs (top: ${unmappedTopByCount
-				.slice(0, 5)
 				.map((e) => `fid=${e.fid} typeid=${e.typeid} ×${e.count}`)
 				.join(", ")})`,
+		);
+		log(
+			`  Raw source typeid coverage: ${rawSourceTypeidTotal - unmappedTotal}/${rawSourceTypeidTotal} mapped (${
+				rawSourceTypeidTotal > 0
+					? Math.round(((rawSourceTypeidTotal - unmappedTotal) / rawSourceTypeidTotal) * 10000) /
+						100
+					: 0
+			}%)`,
 		);
 	}
 
@@ -569,6 +616,10 @@ export async function migrateThreads(
 			total: unmappedTotal,
 			distinct: unmappedCounts.size,
 			topByCount: unmappedTopByCount,
+			topByCountFull: unmappedTopByCountFull,
+			perForumHitRate,
+			rawSourceTypeidTotal,
+			mappedTotal: rawSourceTypeidTotal - unmappedTotal,
 		},
 	};
 }
@@ -1228,6 +1279,39 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 		stats.skipped.threadMissingAuthors = threadResult.missingAuthors;
 		stats.skipped.threadUnmappedTypeids = threadResult.unmappedTypeids.total;
 		stats.skipped.threadUnmappedTypeidPairs = threadResult.unmappedTypeids.distinct;
+
+		// Reviewer pin b9d1861d: emit a thread-typeid coverage artifact
+		// next to forum_thread_types_mapping.json so reviewers can
+		// inspect full top-20 unmapped pairs and per-forum hit-rate
+		// without grepping run.log. Always written — same `outputDir`
+		// the migration logger uses (next to the DB).
+		{
+			const { writeFileSync } = await import("node:fs");
+			const { join } = await import("node:path");
+			const utReport = {
+				generated_at: new Date().toISOString(),
+				summary: {
+					threadsTotal: threadResult.total,
+					rawSourceTypeidTotal: threadResult.unmappedTypeids.rawSourceTypeidTotal,
+					mappedTotal: threadResult.unmappedTypeids.mappedTotal,
+					unmappedTotal: threadResult.unmappedTypeids.total,
+					unmappedDistinctPairs: threadResult.unmappedTypeids.distinct,
+					mappedRate:
+						threadResult.unmappedTypeids.rawSourceTypeidTotal > 0
+							? Math.round(
+									(threadResult.unmappedTypeids.mappedTotal /
+										threadResult.unmappedTypeids.rawSourceTypeidTotal) *
+										10000,
+								) / 10000
+							: 0,
+				},
+				topByCount: threadResult.unmappedTypeids.topByCountFull,
+				perForumHitRate: threadResult.unmappedTypeids.perForumHitRate,
+			};
+			const utPath = join(outputDir, "thread_type_unmapped.json");
+			writeFileSync(utPath, JSON.stringify(utReport, null, 2), "utf8");
+			log(`  Unmapped thread-type artifact: ${utPath}`);
+		}
 
 		const postResult = await migratePosts(
 			loader,
