@@ -56,17 +56,27 @@ export function PostContent({
 					/>
 					<span>发表于 {formatDateTime(post.createdAt)}</span>
 
-					{/* Digest badge — only first post when digest > 0 */}
+					{/* Digest badge — only first post when digest > 0.
+					 * `text-xs` keeps the badge in the meta-tier 12px alongside the
+					 * timestamp/floor row instead of jumping back to 14px. Only the
+					 * font-size is overridden; padding/variant stay shadcn default. */}
 					{isFirst && threadDigest !== undefined && threadDigest > 0 && (
-						<Badge variant="destructive" className="text-sm px-2 py-0.5">
+						<Badge
+							variant="destructive"
+							className="text-xs px-2 py-0.5"
+							data-testid="post-content-digest-badge"
+						>
 							精华
 						</Badge>
 					)}
 
 					{/* Floor — right-aligned with superscript # */}
-					<span className="ml-auto font-medium text-muted-foreground">
+					<span
+						className="ml-auto font-medium text-muted-foreground"
+						data-testid="post-content-floor"
+					>
 						{floorLabel(post.position, isFirst)}
-						<sup className="text-2xs">#</sup>
+						<sup className="text-xs">#</sup>
 					</span>
 				</div>
 

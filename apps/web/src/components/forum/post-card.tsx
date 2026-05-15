@@ -167,14 +167,23 @@ export function PostCard({
 							<Link
 								href={`/users/${post.authorId}`}
 								prefetch={false}
-								className="text-sm font-medium text-forum-link hover:underline truncate"
+								className="text-xs font-medium text-forum-link hover:underline truncate"
+								data-testid="post-card-mobile-author"
 							>
 								{post.author.username}
 							</Link>
 						) : (
-							<span className="text-sm font-medium text-muted-foreground truncate">未知用户</span>
+							<span
+								className="text-xs font-medium text-muted-foreground truncate"
+								data-testid="post-card-mobile-author"
+							>
+								未知用户
+							</span>
 						)}
-						<span className="text-2xs text-muted-foreground flex items-center gap-1">
+						<span
+							className="text-xs text-muted-foreground flex items-center gap-1"
+							data-testid="post-card-mobile-time"
+						>
 							<PostAuthorStatusIcon
 								role={post.author?.role}
 								isThreadAuthor={post.author?.id !== undefined && post.author.id === threadAuthorId}
@@ -182,9 +191,12 @@ export function PostCard({
 							{formatRelativeTime(post.createdAt)}
 						</span>
 					</div>
-					<span className="ml-auto text-xs font-medium text-muted-foreground shrink-0">
+					<span
+						className="ml-auto text-xs font-medium text-muted-foreground shrink-0"
+						data-testid="post-card-mobile-floor"
+					>
 						{floorLabel(post.position, isFirst)}
-						<sup className="text-2xs">#</sup>
+						<sup className="text-xs">#</sup>
 					</span>
 				</div>
 
