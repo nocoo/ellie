@@ -354,7 +354,9 @@ function StatItem({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="bg-card/80 py-2 px-1 text-center">
 			<div className="text-sm font-semibold text-foreground">{value}</div>
-			<div className="text-2xs text-muted-foreground">{label}</div>
+			<div className="text-xs text-muted-foreground" data-testid="user-popover-stat-label">
+				{label}
+			</div>
 		</div>
 	);
 }
@@ -446,12 +448,12 @@ function UserHeader({
 								{user.username}
 							</Link>
 							{roleBadge && (
-								<Badge variant={roleBadge.variant} className="text-2xs">
+								<Badge variant={roleBadge.variant} className="text-xs">
 									{roleBadge.label}
 								</Badge>
 							)}
 							{isSelf && (
-								<Badge variant="outline" className="text-2xs">
+								<Badge variant="outline" className="text-xs">
 									我
 								</Badge>
 							)}
@@ -502,12 +504,12 @@ function UserStatusBadges({
 	return (
 		<div className="mt-1">
 			{userIsBanned && (
-				<Badge variant="destructive" className="text-2xs">
+				<Badge variant="destructive" className="text-xs">
 					已封禁
 				</Badge>
 			)}
 			{userIsMuted && !userIsBanned && (
-				<Badge variant="outline" className="text-2xs text-forum-accent border-forum-accent">
+				<Badge variant="outline" className="text-xs text-forum-accent border-forum-accent">
 					已禁言
 				</Badge>
 			)}
@@ -519,7 +521,7 @@ function UserStatusBadges({
 function AdminInfoSection({ user }: { user: PublicUser }) {
 	return (
 		<div className="px-4 py-2 border-t border-border/50 bg-muted/30">
-			<p className="text-2xs text-muted-foreground mb-2 flex items-center gap-1">
+			<p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
 				<Shield className="h-3 w-3" />
 				管理员信息
 			</p>
@@ -527,13 +529,13 @@ function AdminInfoSection({ user }: { user: PublicUser }) {
 				{user.regIp && (
 					<div className="flex justify-between">
 						<span className="text-muted-foreground">注册 IP</span>
-						<span className="text-foreground font-mono text-2xs">{user.regIp}</span>
+						<span className="text-foreground font-mono text-xs">{user.regIp}</span>
 					</div>
 				)}
 				{user.lastIp && (
 					<div className="flex justify-between">
 						<span className="text-muted-foreground">最后 IP</span>
-						<span className="text-foreground font-mono text-2xs">{user.lastIp}</span>
+						<span className="text-foreground font-mono text-xs">{user.lastIp}</span>
 					</div>
 				)}
 				{user.qq && (
