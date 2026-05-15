@@ -171,7 +171,10 @@ export async function migrateForumThreadTypes(
 	try {
 		await parseDumpFile(sources.forums, "pre_forum_threadclass", (row) => {
 			const cls = parseThreadClassRow(row);
-			if (!cls.typeid || !cls.fid) return;
+			// Reject only rows with no usable forum scope. typeid=0 IS a
+			// legitimate Discuz value (PUB in fid=113); we keep it so
+			// `zeroTypeidDefinitions` captures threadclass-side definitions.
+			if (cls.fid <= 0 || !Number.isFinite(cls.fid)) return;
 			const arr = threadClassByForum.get(cls.fid);
 			if (arr) arr.push(cls);
 			else threadClassByForum.set(cls.fid, [cls]);
@@ -516,6 +519,14 @@ export async function migrateThreads(
 				last_post_at: 0,
 				last_poster: "",
 				last_thread_subject: "",
+				// 0038/0039 thread-types feature flags — placeholder forums
+				// for deleted parents never expose the picker, so all four
+				// flags are 0. NOT NULL columns must be set explicitly
+				// because the stream inserter resolves missing keys to NULL.
+				thread_types_enabled: 0,
+				thread_types_required: 0,
+				thread_types_listable: 0,
+				thread_types_prefix: 0,
 			});
 			forumIds.add(fid);
 		}
@@ -743,6 +754,11 @@ export async function migrateAttachments(
 				recommends: 0,
 				post_table_id: 0,
 				type_name: "",
+				// 0039 synthetic-id column on threads: orphan placeholders
+				// have no real category, so type_id stays at the schema
+				// default (0). NOT NULL must be set explicitly because the
+				// stream inserter resolves missing keys to NULL.
+				type_id: 0,
 			});
 			threadIds.add(tid);
 		}
@@ -874,6 +890,11 @@ export async function migratePostComments(
 				recommends: 0,
 				post_table_id: 0,
 				type_name: "",
+				// 0039 synthetic-id column on threads: orphan placeholders
+				// have no real category, so type_id stays at the schema
+				// default (0). NOT NULL must be set explicitly because the
+				// stream inserter resolves missing keys to NULL.
+				type_id: 0,
 			});
 			threadIds.add(tid);
 		}
@@ -1120,6 +1141,42 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 				);
 			}
 
+			// Per-forum table: list each forum's rows in a directly-readable
+			// shape (`source_typeid → synthetic_id → name → enabled`) so a
+			// reviewer can spot-check fid=134 / 147 / 113 against the dump
+			// without joining `rows` themselves. Keyed by fid (string —
+			// JSON object keys) so the artifact serializes deterministically
+			// when sorted ascending.
+			const perForumRowsTable: Record<
+				string,
+				Array<{
+					source_typeid: number;
+					synthetic_id: number;
+					name: string;
+					enabled: number;
+					display_order: number;
+					moderator_only: number;
+					icon: string;
+				}>
+			> = {};
+			const sortedFids = [...new Set(ma.rows.map((r) => r.forum_id as number))].sort(
+				(a, b) => a - b,
+			);
+			for (const fid of sortedFids) {
+				perForumRowsTable[String(fid)] = ma.rows
+					.filter((r) => (r.forum_id as number) === fid)
+					.map((r) => ({
+						source_typeid: r.source_typeid as number,
+						synthetic_id: r.id as number,
+						name: r.name as string,
+						enabled: r.enabled as number,
+						display_order: r.display_order as number,
+						moderator_only: r.moderator_only as number,
+						icon: r.icon as string,
+					}))
+					.sort((a, b) => a.source_typeid - b.source_typeid);
+			}
+
 			const artifact = {
 				generated_at: new Date().toISOString(),
 				summary: {
@@ -1129,6 +1186,7 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 					zeroTypeidDefinitions: ma.zeroTypeidDefinitions.length,
 				},
 				rows: ma.rows,
+				perForumRowsTable,
 				globalCollisions: {
 					sourceTypeidGlobalDuplicates: ma.sourceTypeidGlobalDuplicates,
 					syntheticIdAfterMint: syntheticIdDupes,

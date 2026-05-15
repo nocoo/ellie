@@ -31,10 +31,14 @@
  *   • `id`             — D1 SYNTHETIC global id minted here.
  *   • `source_typeid`  — Discuz local typeid preserved for admin/debug.
  *
- * Mint algorithm: sort the union of forum-side typeid sources by
- * `(forum_id ASC, source_typeid ASC)` and increment a counter starting
- * at 1. Deterministic across runs given the same parsed inputs, which
- * matters for dry-run diffability and for test fixtures.
+ * Mint algorithm: forums sorted ascending by fid; within each forum,
+ * the union of (forumfield.types ∪ threadclass) typeids minus typeid=0
+ * is sorted ascending by `source_typeid` and assigned synthetic ids
+ * monotonically. `display_order` is decoupled from mint order:
+ * forumfield-driven enabled rows use forumfield iteration order so the
+ * picker UI matches admin; tombstone rows preserve threadclass.
+ * displayorder. Deterministic across runs given the same parsed inputs,
+ * which matters for dry-run diffability and for test fixtures.
  *
  * source_typeid=0 exception (reviewer pin c5d10236): Discuz allows a
  * type with typeid=0 (we observed it in fid=113 PUB), but we do NOT
@@ -238,81 +242,136 @@ interface MintCounter {
 	next: number;
 }
 
+interface ForumMintOutcome {
+	enabledRows: number;
+	tombstoneRows: number;
+}
+
+/** Build forumfield iteration index → preserves admin's picker order. */
+function buildFfDisplayOrder(cfg: ThreadTypesConfig | undefined): Map<number, number> {
+	const ffDisplayOrder = new Map<number, number>();
+	if (cfg) {
+		let i = 0;
+		for (const typeid of cfg.types.keys()) ffDisplayOrder.set(typeid, i++);
+	}
+	return ffDisplayOrder;
+}
+
+/** Union of typeids from both sources minus typeid=0, sorted ASC. */
+function buildMintTypeids(
+	cfg: ThreadTypesConfig | undefined,
+	classRows: ThreadClassRow[],
+): number[] {
+	const mintTypeids = new Set<number>();
+	if (cfg) {
+		for (const t of cfg.types.keys()) if (t !== 0) mintTypeids.add(t);
+	}
+	for (const r of classRows) if (r.typeid !== 0) mintTypeids.add(r.typeid);
+	return [...mintTypeids].sort((a, b) => a - b);
+}
+
+/** Build the enabled (forumfield-driven) row record. */
+function buildEnabledRow(
+	syntheticId: number,
+	fid: number,
+	typeid: number,
+	cfg: ThreadTypesConfig,
+	cls: ThreadClassRow | undefined,
+	resolved: Map<number, string>,
+	displayOrder: number,
+): RowRecord {
+	const ffIcon = cfg.icons.get(typeid) ?? "";
+	const icon = ffIcon || cls?.icon || "";
+	const moderatorOnly = cfg.moderatorOnly.has(typeid) || (cls?.moderators ?? 0) > 0 ? 1 : 0;
+	return {
+		id: syntheticId,
+		forum_id: fid,
+		source_typeid: typeid,
+		name: resolved.get(typeid) ?? "",
+		display_order: displayOrder,
+		icon,
+		enabled: 1,
+		moderator_only: moderatorOnly,
+	};
+}
+
+/** Build the tombstone (threadclass-only) row record. */
+function buildTombstoneRow(
+	syntheticId: number,
+	fid: number,
+	typeid: number,
+	cls: ThreadClassRow,
+): RowRecord {
+	return {
+		id: syntheticId,
+		forum_id: fid,
+		source_typeid: typeid,
+		name: cls.name,
+		display_order: cls.displayorder,
+		icon: cls.icon,
+		enabled: 0,
+		moderator_only: cls.moderators > 0 ? 1 : 0,
+	};
+}
+
 /**
- * Mint enabled rows in forumfield.types iteration order. Skips typeid=0
- * (reviewer pin c5d10236). Returns count of rows added.
+ * Mint all rows for one forum.
+ *
+ * Mint order (synthetic id assignment): source_typeid ASC across the
+ * union of forumfield.types and threadclass typeids, both excluding
+ * typeid=0 (reviewer pin c5d10236). Combined with the outer fid-asc
+ * loop this yields the documented `(forum_id ASC, source_typeid ASC)`
+ * mint order — i.e. row.id is monotonically increasing within a forum.
+ *
+ * `display_order` is intentionally DECOUPLED from mint order:
+ *   - enabled rows use forumfield.types iteration index (0..n-1) so the
+ *     picker UI reproduces what the Discuz admin saw.
+ *   - tombstone rows preserve the legacy threadclass.displayorder.
+ *
+ * Returns enabled / tombstone row counts for the reconciliation
+ * artifact.
  */
-function mintEnabledRows(
+function mintForumRows(
 	fid: number,
 	cfg: ThreadTypesConfig | undefined,
 	resolved: Map<number, string>,
 	classByTypeid: Map<number, ThreadClassRow>,
-	rows: RowRecord[],
-	fidSyntheticIds: Map<number, number>,
-	seen: Set<number>,
-	counter: MintCounter,
-): number {
-	if (!cfg) return 0;
-	let displayOrder = 0;
-	let enabledRows = 0;
-	for (const typeid of cfg.types.keys()) {
-		seen.add(typeid);
-		if (typeid === 0) continue;
-		const cls = classByTypeid.get(typeid);
-		const ffIcon = cfg.icons.get(typeid) ?? "";
-		const icon = ffIcon || cls?.icon || "";
-		const moderatorOnly = cfg.moderatorOnly.has(typeid) || (cls?.moderators ?? 0) > 0 ? 1 : 0;
-		const syntheticId = counter.next++;
-		fidSyntheticIds.set(typeid, syntheticId);
-		rows.push({
-			id: syntheticId,
-			forum_id: fid,
-			source_typeid: typeid,
-			name: resolved.get(typeid) ?? "",
-			display_order: displayOrder++,
-			icon,
-			enabled: 1,
-			moderator_only: moderatorOnly,
-		});
-		enabledRows++;
-	}
-	return enabledRows;
-}
-
-/**
- * Mint tombstone rows for typeids that exist only in threadclass. Sorted
- * ascending so synthetic-id allocation is deterministic. Skips typeid=0.
- */
-function mintTombstoneRows(
-	fid: number,
 	classRows: ThreadClassRow[],
 	rows: RowRecord[],
 	fidSyntheticIds: Map<number, number>,
-	seen: Set<number>,
 	counter: MintCounter,
-): number {
-	const tombstoneCandidates = classRows
-		.filter((c) => !seen.has(c.typeid))
-		.sort((a, b) => a.typeid - b.typeid);
+): ForumMintOutcome {
+	const ffDisplayOrder = buildFfDisplayOrder(cfg);
+	const sortedMintTypeids = buildMintTypeids(cfg, classRows);
+
+	let enabledRows = 0;
 	let tombstoneRows = 0;
-	for (const cls of tombstoneCandidates) {
-		seen.add(cls.typeid);
-		if (cls.typeid === 0) continue;
+	for (const typeid of sortedMintTypeids) {
 		const syntheticId = counter.next++;
-		fidSyntheticIds.set(cls.typeid, syntheticId);
-		rows.push({
-			id: syntheticId,
-			forum_id: fid,
-			source_typeid: cls.typeid,
-			name: cls.name,
-			display_order: cls.displayorder,
-			icon: cls.icon,
-			enabled: 0,
-			moderator_only: cls.moderators > 0 ? 1 : 0,
-		});
-		tombstoneRows++;
+		fidSyntheticIds.set(typeid, syntheticId);
+
+		const isEnabled = cfg?.types.has(typeid) ?? false;
+		const cls = classByTypeid.get(typeid);
+
+		if (isEnabled && cfg) {
+			rows.push(
+				buildEnabledRow(
+					syntheticId,
+					fid,
+					typeid,
+					cfg,
+					cls,
+					resolved,
+					ffDisplayOrder.get(typeid) ?? 0,
+				),
+			);
+			enabledRows++;
+		} else if (cls) {
+			rows.push(buildTombstoneRow(syntheticId, fid, typeid, cls));
+			tombstoneRows++;
+		}
 	}
-	return tombstoneRows;
+	return { enabledRows, tombstoneRows };
 }
 
 /** Project (typeid → fids) tracker into the public duplicates diagnostic. */
@@ -333,9 +392,10 @@ function aggregateGlobalDuplicates(
  * Build `forum_thread_types` rows for the entire migration with synthetic
  * global IDs and full diagnostics.
  *
- * Mint order: forums sorted ascending by fid; within each forum,
- * forumfield.types iteration order first (enabled rows), then remaining
- * threadclass typeids in ascending order (tombstones).
+ * Mint order: forums sorted ascending by fid; within each forum, the
+ * union of (forumfield.types ∪ threadclass) typeids minus typeid=0,
+ * sorted ascending. Synthetic id is monotonically increasing across the
+ * whole pipeline. `display_order` is decoupled — see `mintForumRows`.
  * source_typeid=0 is excluded from emitted rows entirely, but kept as a
  * zeroTypeidDefinition diagnostic.
  */
@@ -370,18 +430,16 @@ export function buildForumThreadTypeRows(
 		captureZeroTypeidDefinitions(fid, cfg, classByTypeid, zeroTypeidDefinitions);
 
 		const fidSyntheticIds = new Map<number, number>();
-		const seen = new Set<number>();
-		const enabledRows = mintEnabledRows(
+		const { enabledRows, tombstoneRows } = mintForumRows(
 			fid,
 			cfg,
 			resolved,
 			classByTypeid,
+			classRows,
 			rows,
 			fidSyntheticIds,
-			seen,
 			counter,
 		);
-		const tombstoneRows = mintTombstoneRows(fid, classRows, rows, fidSyntheticIds, seen, counter);
 
 		if (fidSyntheticIds.size > 0) syntheticIdMap.set(fid, fidSyntheticIds);
 
