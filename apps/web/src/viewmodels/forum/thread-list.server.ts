@@ -78,20 +78,34 @@ export async function loadThreadListPaged(params: {
 	forumId: number;
 	page?: number;
 	limit?: number;
+	/**
+	 * Optional 主题分类 filter. Caller is responsible for normalizing
+	 * against the public thread-types payload (see
+	 * `viewmodels/forum/thread-types.ts#normalizeTypeId`) so we don't
+	 * round-trip stale / disabled / cross-forum ids to the Worker.
+	 * `null` / `undefined` / `0` are all treated as "no filter" by the
+	 * Worker; we omit the param entirely when not set.
+	 */
+	typeId?: number | null;
 }): Promise<ThreadListPagedData> {
 	const page = params.page ?? 1;
 	// Get page size from settings
 	const defaultLimit = await getCachedPageSize();
 	const limit = params.limit ?? defaultLimit;
 
+	const threadsQuery: Record<string, number> = {
+		forumId: params.forumId,
+		page,
+		limit,
+	};
+	if (params.typeId != null && params.typeId > 0) {
+		threadsQuery.typeId = params.typeId;
+	}
+
 	// Parallel fetch: forum tree + threads (forums deduped via React cache)
 	const [forums, threadsRes] = await Promise.all([
 		getCachedForumList(),
-		forumApi.getPage<Thread>("/api/v1/threads", {
-			forumId: params.forumId,
-			page,
-			limit,
-		}),
+		forumApi.getPage<Thread>("/api/v1/threads", threadsQuery),
 	]);
 
 	// Build forum tree and find current forum

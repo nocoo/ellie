@@ -40,6 +40,8 @@ export interface FloatingToolbarProps {
 		basePath: string;
 		pages: number;
 		returnTo?: string;
+		/** Extra query params to preserve on the jump URL (e.g. `?typeId=N`). */
+		extraParams?: Record<string, string>;
 	};
 }
 
@@ -125,12 +127,14 @@ function JumpPagePopover({
 	open,
 	onOpenChange,
 	returnTo,
+	extraParams,
 }: {
 	basePath: string;
 	pages: number;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	returnTo?: string;
+	extraParams?: Record<string, string>;
 }) {
 	const router = useRouter();
 	const [value, setValue] = useState("");
@@ -151,10 +155,13 @@ function JumpPagePopover({
 		onOpenChange(false);
 		const params = new URLSearchParams();
 		if (page > 1) params.set("page", String(page));
+		if (extraParams) {
+			for (const [k, v] of Object.entries(extraParams)) params.set(k, v);
+		}
 		if (returnTo) params.set("returnTo", returnTo);
 		const qs = params.toString();
 		router.push(qs ? `${basePath}?${qs}` : basePath);
-	}, [value, pages, basePath, router, onOpenChange, returnTo]);
+	}, [value, pages, basePath, router, onOpenChange, returnTo, extraParams]);
 
 	return (
 		<Popover open={open} onOpenChange={onOpenChange}>
@@ -318,6 +325,7 @@ export function FloatingToolbar({
 							basePath={jumpPage.basePath}
 							pages={jumpPage.pages}
 							returnTo={jumpPage.returnTo}
+							extraParams={jumpPage.extraParams}
 							open={jumpPageOpen}
 							onOpenChange={setJumpPageOpen}
 						/>

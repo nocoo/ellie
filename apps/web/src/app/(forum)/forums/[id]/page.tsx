@@ -8,13 +8,21 @@ import { ForumPanel } from "@/components/forum/forum-panel";
 import { PagePagination } from "@/components/forum/page-pagination";
 import { ThreadItem } from "@/components/forum/thread-item";
 import { ThreadListHeader } from "@/components/forum/thread-list-header";
+import { ThreadTypeFilter } from "@/components/forum/thread-type-filter";
 import { Card, CardContent } from "@/components/ui/card";
-import { getCachedPostsPerPage } from "@/lib/forum-cache";
+import { getCachedForumThreadTypes, getCachedPostsPerPage } from "@/lib/forum-cache";
 import { getSelfForumUser } from "@/lib/forum-self";
 import {
 	type ThreadListPagedData,
 	loadThreadListPaged,
 } from "@/viewmodels/forum/thread-list.server";
+import {
+	type ForumThreadTypesPublic,
+	buildForumListReturnTo,
+	coerceTypeIdParam,
+	normalizeTypeId,
+	shouldShowFilter,
+} from "@/viewmodels/forum/thread-types";
 import { getForumTitle } from "@/viewmodels/forum/title.server";
 import { parseIntParam, parsePageParam } from "@/viewmodels/shared/params";
 import { ForumType } from "@ellie/types";
@@ -23,7 +31,7 @@ import Link from "next/link";
 
 interface ForumThreadsPageProps {
 	params: Promise<{ id: string }>;
-	searchParams: Promise<{ page?: string }>;
+	searchParams: Promise<{ page?: string; typeId?: string }>;
 }
 
 export async function generateMetadata({ params }: ForumThreadsPageProps): Promise<Metadata> {
@@ -42,6 +50,11 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 	const sp = await searchParams;
 	const forumId = parseIntParam(id);
 	const page = parsePageParam(sp.page);
+	// Strict positive-integer parse — non-numeric / 0 / signs / leading
+	// zeros all become null. Whitelist normalization against the public
+	// payload happens AFTER we fetch the payload so we can drop stale /
+	// disabled / cross-forum ids without round-tripping to the Worker.
+	const rawTypeId = coerceTypeIdParam(sp.typeId);
 
 	if (forumId == null) {
 		return (
@@ -58,14 +71,28 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 
 	let data: ThreadListPagedData;
 	let error: string | null = null;
+	let threadTypes: ForumThreadTypesPublic | null = null;
 
-	// Parallel: loader + self-user fetch + postsPerPage. All independent.
-	// self uses fail-soft (.catch → null) so it never breaks the page.
+	// Parallel: loader + self-user fetch + postsPerPage + thread-types
+	// config. All independent. self uses fail-soft (.catch → null); the
+	// thread-types config also fails soft because most forums won't even
+	// have category UI — a 404 / outage there should not break the list.
 	const selfPromise = getSelfForumUser().catch(() => null);
 	const postsPerPagePromise = getCachedPostsPerPage();
+	const threadTypesPromise = getCachedForumThreadTypes(forumId).catch(() => null);
 
 	try {
-		data = await loadThreadListPaged({ forumId, page });
+		// Fetch the type payload first so we can whitelist-normalize the
+		// typeId before passing it to the threads loader. This avoids a
+		// 400 round-trip when the URL carries a stale / disabled id.
+		threadTypes = await threadTypesPromise;
+		const normalizedTypeId = normalizeTypeId(rawTypeId, threadTypes);
+
+		data = await loadThreadListPaged({
+			forumId,
+			page,
+			typeId: normalizedTypeId,
+		});
 	} catch (e) {
 		error = e instanceof Error ? e.message : "Failed to load threads";
 		data = {
@@ -83,8 +110,23 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 	const self = await selfPromise;
 	const postsPerPage = await postsPerPagePromise;
 
+	// Re-derive the effective typeId for URL builders: only set if the
+	// page actually filtered. After the catch path threadTypes may be
+	// null — that's fine, normalizeTypeId returns null and the rest of
+	// the UI behaves as no-filter.
+	const activeTypeId = normalizeTypeId(rawTypeId, threadTypes);
+	// `basePath` is the bare forum path — page-pagination + jump-to-page
+	// + floating toolbar all take typeId separately via `extraParams` so
+	// they can append `?page=N&typeId=N` in canonical order.
 	const basePath = `/forums/${forumId}`;
-	const returnTo = page > 1 ? `${basePath}?page=${page}` : basePath;
+	const returnTo = buildForumListReturnTo({
+		forumId,
+		page: data.page,
+		typeId: activeTypeId,
+	});
+	const paginationExtraParams: Record<string, string> | undefined =
+		activeTypeId != null && activeTypeId > 0 ? { typeId: String(activeTypeId) } : undefined;
+	const showFilter = shouldShowFilter(threadTypes);
 	const isGroup = data.forum?.type === ForumType.Group;
 
 	return (
@@ -121,6 +163,15 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 						</div>
 					)}
 
+					{/* 主题分类 filter pills — only when forum enables listable categories. */}
+					{showFilter && threadTypes && (
+						<ThreadTypeFilter
+							forumId={forumId}
+							types={threadTypes.types}
+							activeTypeId={activeTypeId}
+						/>
+					)}
+
 					{/* Toolbar: new post button (left) + pagination (right) */}
 					<div className="flex items-center gap-2 py-2">
 						{data.forum && !isGroup && (
@@ -136,6 +187,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 							total={data.total}
 							basePath={basePath}
 							totalLabel="个主题"
+							extraParams={paginationExtraParams}
 							className="flex flex-1 flex-wrap items-center justify-end gap-2"
 						/>
 					</div>
@@ -176,6 +228,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 							total={data.total}
 							basePath={basePath}
 							totalLabel="个主题"
+							extraParams={paginationExtraParams}
 							className="flex flex-1 flex-wrap items-center justify-end gap-2"
 						/>
 					</div>
@@ -189,6 +242,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 						forumName={data.forum?.name}
 						showNewThread={!!data.forum && !isGroup}
 						selfEmailVerifiedAt={self?.emailVerifiedAt ?? null}
+						extraParams={paginationExtraParams}
 					/>
 				</>
 			)}
