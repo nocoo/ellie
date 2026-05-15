@@ -1,5 +1,19 @@
 -- 0038_thread_categories.sql — Restore Discuz 主题分类 (thread categories)
 --
+-- ⚠️  PARTIALLY SUPERSEDED BY 0039_thread_categories_synthetic_id.sql.
+--    0038 originally treated `forum_thread_types.id` as the imported
+--    Discuz `typeid`. A dry-run on 2026-05-14 proved Discuz typeids are
+--    forum-LOCAL (typeid=1 reused across fid=111+113, etc.). 0039 adds
+--    `source_typeid` and forces `id` to be a synthetic global id minted
+--    by `migrateForumThreadTypes`. The replay sequence stays
+--    0000→...→0038→0039 (do NOT skip 0038 even on empty boxes — the
+--    migrate ledger must remain sequential or `_migrations` will drift
+--    from the live schema).
+--
+-- The remainder of this header documents the original 0038 design;
+-- treat any "PK reuses Discuz typeid" wording below as superseded by
+-- 0039.
+--
 -- Discuz lets each forum (fid) optionally publish a list of named
 -- categories ("主题分类"). When enabled on a forum:
 --   • the listing page shows a category filter,

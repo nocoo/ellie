@@ -232,13 +232,15 @@ export const TABLE_DDL: string[] = [
   last_checkin_at INTEGER NOT NULL DEFAULT 0
 )`,
 
-	// Discuz 主题分类 (thread categories). PK reuses the source typeid
-	// directly so per-thread type_id references survive the migration
-	// unchanged. enabled=0 = tombstone (legacy threads only).
-	// See migration 0038_thread_categories.sql.
+	// Discuz 主题分类 (thread categories). `id` is a SYNTHETIC global id
+	// minted by `migrateForumThreadTypes`; `source_typeid` preserves the
+	// per-forum local Discuz typeid for admin/debug. enabled=0 = tombstone
+	// (legacy threads only). See migrations 0038_thread_categories.sql +
+	// 0039_thread_categories_synthetic_id.sql.
 	`CREATE TABLE IF NOT EXISTS forum_thread_types (
   id              INTEGER PRIMARY KEY,
   forum_id        INTEGER NOT NULL REFERENCES forums(id),
+  source_typeid   INTEGER NOT NULL DEFAULT 0,
   name            TEXT    NOT NULL,
   display_order   INTEGER NOT NULL DEFAULT 0,
   icon            TEXT    NOT NULL DEFAULT '',
@@ -274,8 +276,11 @@ export const INDEX_DDL: string[] = [
 	"CREATE INDEX IF NOT EXISTS idx_user_checkins_last ON user_checkins(last_checkin_at)",
 
 	// forum_thread_types index (admin/picker/list-filter lookup).
-	// See migration 0038_thread_categories.sql.
+	// See migrations 0038 + 0039.
 	"CREATE INDEX IF NOT EXISTS idx_forum_thread_types_forum ON forum_thread_types(forum_id, display_order, id)",
+	// Natural-key uniqueness from 0039: (forum_id, source_typeid) is the
+	// Discuz-side identity. UNIQUE catches double-mints in regression.
+	"CREATE UNIQUE INDEX IF NOT EXISTS idx_forum_thread_types_source ON forum_thread_types(forum_id, source_typeid)",
 	// Per-forum category filter (主题分类). Same migration; covers
 	// `forum_id=? AND type_id=?` thread-list shape.
 	"CREATE INDEX IF NOT EXISTS idx_threads_forum_type ON threads(forum_id, type_id, last_post_at DESC, id DESC)",
@@ -431,6 +436,7 @@ export const TABLE_COLUMNS: Record<TableName, string[]> = {
 	forum_thread_types: [
 		"id",
 		"forum_id",
+		"source_typeid",
 		"name",
 		"display_order",
 		"icon",

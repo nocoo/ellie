@@ -532,17 +532,21 @@ const THREAD_COLS = {
  * Discuz's modern admin path stores name overrides in `forumfield.types`,
  * not in the global `pre_forum_threadtype` table.
  *
- * `type_id` is the **raw** Discuz `pre_forum_thread.typeid` — written
- * straight through to D1 without coercion. Threads with `typeid=0`
- * stay 0 (worker layer renders "无分类"); we never auto-promote 0 to
- * a synthetic PUB row, even on forums (e.g. fid=113) whose admin
- * categories include typeid=0 as a legitimate ID. The thread row is
- * source-of-truth for what category the user picked at post time.
+ * `type_id` is the **synthetic** D1 id allocated by
+ * `migrateForumThreadTypes` (migration 0039), looked up via
+ * `(fid, source_typeid) → synthetic id` in `syntheticIdMap`. The raw
+ * Discuz `pre_forum_thread.typeid` is forum-LOCAL and CANNOT be used
+ * directly as a global FK — typeid=1 in fid=111 and fid=113 are
+ * different categories. When the source typeid has no synthetic-id
+ * mapping (typeid=0, or a typeid neither side defined for this forum),
+ * `type_id` is written as 0 = "no category" — same behaviour as Discuz
+ * uncategorised threads.
  */
 export function extractThread(
 	row: ParsedRow,
 	threadTypeMap?: Map<number, string>,
 	forumThreadTypeMap?: Map<number, Map<number, string>>,
+	syntheticIdMap?: Map<number, Map<number, number>>,
 ): RowRecord | null {
 	const tid = Number(row[THREAD_COLS.tid]);
 	if (!tid) return null; // Skip corrupt rows
@@ -551,18 +555,24 @@ export function extractThread(
 	const closed = Number(row[THREAD_COLS.closed]) || 0;
 	const recommendAdd = Number(row[THREAD_COLS.recommend_add]) || 0;
 	const recommendSub = Number(row[THREAD_COLS.recommend_sub]) || 0;
-	const typeid = Number(row[THREAD_COLS.typeid]) || 0;
+	const sourceTypeid = Number(row[THREAD_COLS.typeid]) || 0;
 	const fid = Number(row[THREAD_COLS.fid]) || 0;
 
 	// Name resolution: per-forum map (forumfield.types — admin-current
 	// or threadclass-tombstone) takes priority over the legacy global
 	// `pre_forum_threadtype` map. Falls back to "" when neither knows
-	// the typeid (e.g. typeid=0 → no category badge in UI).
+	// the typeid (e.g. source_typeid=0 → no category badge in UI).
 	let typeName = "";
-	if (typeid > 0) {
-		const perForum = forumThreadTypeMap?.get(fid)?.get(typeid);
-		typeName = perForum ?? threadTypeMap?.get(typeid) ?? "";
+	if (sourceTypeid > 0) {
+		const perForum = forumThreadTypeMap?.get(fid)?.get(sourceTypeid);
+		typeName = perForum ?? threadTypeMap?.get(sourceTypeid) ?? "";
 	}
+
+	// Synthetic-id translation: D1 stores synthetic global ids in
+	// threads.type_id. Unknown source typeids fall through to 0 ("no
+	// category") rather than carrying a meaningless raw value into the
+	// foreign-key-like column.
+	const typeId = sourceTypeid > 0 ? (syntheticIdMap?.get(fid)?.get(sourceTypeid) ?? 0) : 0;
 
 	return {
 		id: tid,
@@ -583,7 +593,7 @@ export function extractThread(
 		recommends: recommendAdd - recommendSub,
 		post_table_id: Number(row[THREAD_COLS.posttableid]) || 0,
 		type_name: typeName,
-		type_id: typeid,
+		type_id: typeId,
 	};
 }
 
