@@ -75,7 +75,9 @@ describe("buildForumThreadTypeRows — enabled-set only (no threadclass)", () =>
 		const result = buildForumThreadTypeRows(new Map([[147, cfg]]), new Map());
 		expect(result.rows).toHaveLength(3);
 		// Synthetic ids start at 1 and increment in mint order
-		// (forumfield.types iteration order within the forum).
+		// (source_typeid ASC within the forum). For this fixture the
+		// forumfield iteration order already matches source_typeid ASC,
+		// so id and source_typeid line up 1:1.
 		expect(result.rows.map((r) => r.id)).toEqual([1, 2, 3]);
 		// source_typeid is the original Discuz typeid.
 		expect(result.rows.map((r) => r.source_typeid)).toEqual([76, 77, 79]);
@@ -89,7 +91,12 @@ describe("buildForumThreadTypeRows — enabled-set only (no threadclass)", () =>
 		expect(result.syntheticIdMap.get(147)?.get(79)).toBe(3);
 	});
 
-	test("preserves forumfield.types iteration order as display_order (independent of source typeid)", () => {
+	test("display_order tracks forumfield iteration order; mint order tracks source_typeid ASC", () => {
+		// Reviewer pin (3b432ac4 #1): mint order is decoupled from
+		// display_order. forumfield is iterated in admin's pick order
+		// (100, 5, 55) for display, but synthetic id is assigned in
+		// source_typeid ASC (5, 55, 100) so admin/debug paths can
+		// assume a strict monotonic mint within a forum.
 		const cfg = makeConfig({
 			types: [
 				[100, "C"],
@@ -98,10 +105,12 @@ describe("buildForumThreadTypeRows — enabled-set only (no threadclass)", () =>
 			],
 		});
 		const result = buildForumThreadTypeRows(new Map([[10, cfg]]), new Map());
-		expect(result.rows.map((r) => [r.source_typeid, r.display_order])).toEqual([
-			[100, 0],
-			[5, 1],
-			[55, 2],
+		// Rows sorted by source_typeid ASC (5, 55, 100); each gets
+		// the next synthetic id.
+		expect(result.rows.map((r) => [r.source_typeid, r.id, r.display_order])).toEqual([
+			[5, 1, 1], // ff iteration index 1 (B)
+			[55, 2, 2], // ff iteration index 2 (A)
+			[100, 3, 0], // ff iteration index 0 (C)
 		]);
 	});
 });

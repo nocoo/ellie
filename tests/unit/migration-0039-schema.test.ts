@@ -14,8 +14,10 @@ import { join } from "node:path";
  * across fid=113+134, typeid=0 in PUB fid=113), causing a UNIQUE
  * constraint failure on the single-PK table. 0039 splits the identity:
  *   • `id`              — D1 synthetic global id, minted by
- *                          `migrateForumThreadTypes` over
- *                          (forum_id ASC, source_typeid ASC).
+ *                          `migrateForumThreadTypes` over the union of
+ *                          (forumfield.types ∪ threadclass) source
+ *                          typeids in (fid ASC, source_typeid ASC) order,
+ *                          excluding source_typeid=0.
  *   • `source_typeid`   — Discuz local typeid preserved for admin/debug
  *                          and recovery. NEW column added by 0039.
  *   • UNIQUE(forum_id, source_typeid) — enforces the natural key and
@@ -109,17 +111,14 @@ describe("migration 0039 — synthetic-id correction drift guard", () => {
 		}
 	});
 
-	test("0039 ALTER survives a forum_thread_types table with multiple source_typeid=0 rows pre-mint", () => {
-		// Reviewer pin #3: the forward `ALTER TABLE ... ADD COLUMN
-		// source_typeid INTEGER NOT NULL DEFAULT 0` must succeed even if
-		// 0038 had inserted any rows. The default 0 means N inserted rows
-		// all start with source_typeid=0; the UNIQUE INDEX would then
-		// reject (forum_id=X, source_typeid=0) duplicates inside the same
-		// forum.
-		//
-		// On prod 0038 was never applied with data, so the live path is
-		// safe; this test pins the safety condition for staging boxes
-		// that may have stray rows.
+	test("0039 ALTER survives a forum_thread_types table with one source_typeid=0 row per fid", () => {
+		// Reviewer pin (3b432ac4 #2): the forward `ALTER TABLE ... ADD
+		// COLUMN source_typeid INTEGER NOT NULL DEFAULT 0` is safe ONLY
+		// when no single fid has multiple rows under 0038. The supported
+		// path is empty / never-populated 0038 (prod) or single-row-per-
+		// forum residue. Cross-forum rows that DEFAULT to 0 are still
+		// distinct under (forum_id, source_typeid) because forum_id
+		// differs, so the UNIQUE INDEX accepts them.
 		const db = new Database(":memory:");
 		try {
 			// Bootstrap 0038 shape (id reused as Discuz typeid).
@@ -134,10 +133,10 @@ describe("migration 0039 — synthetic-id correction drift guard", () => {
 					moderator_only  INTEGER NOT NULL DEFAULT 0
 				);
 			`);
-			// Worst-case: two rows from different forums (which is how
-			// 0038's bug actually manifested — typeid=1 reused across
-			// fid=111 and fid=113). Both end up with source_typeid=0
-			// after the bare ALTER ADD COLUMN.
+			// Cross-forum residue: typeid=1 reused across fid=111 and
+			// fid=113 (the exact 0038 bug shape). Both rows DEFAULT to
+			// source_typeid=0 after the bare ALTER ADD COLUMN, but
+			// forum_id differs so the UNIQUE INDEX still passes.
 			db.prepare("INSERT INTO forum_thread_types (id, forum_id, name) VALUES (?, ?, ?)").run(
 				1,
 				111,
@@ -153,9 +152,6 @@ describe("migration 0039 — synthetic-id correction drift guard", () => {
 			const sql0039 = readFileSync(migrationPath, "utf8");
 			expect(() => db.exec(sql0039)).not.toThrow();
 
-			// Both rows now have source_typeid=0 — but the natural key is
-			// (forum_id, source_typeid), and forum_id differs (111 vs 113),
-			// so the UNIQUE index does NOT collide.
 			const rows = db
 				.prepare("SELECT id, forum_id, source_typeid FROM forum_thread_types ORDER BY id")
 				.all() as Array<{ id: number; forum_id: number; source_typeid: number }>;
@@ -163,6 +159,57 @@ describe("migration 0039 — synthetic-id correction drift guard", () => {
 				{ id: 1, forum_id: 111, source_typeid: 0 },
 				{ id: 2, forum_id: 113, source_typeid: 0 },
 			]);
+		} finally {
+			db.close();
+		}
+	});
+
+	test("0039 ALTER FAILS on out-of-scope populated 0038 (multiple rows in same fid)", () => {
+		// Reviewer pin (3b432ac4 #2): explicitly pin the failure mode so
+		// the supported scope is unambiguous. If a staging box somehow
+		// inserted multiple rows for the same fid under 0038, the bare
+		// ALTER + UNIQUE INDEX path will collide. There is no in-
+		// migration backfill — the recovery path is to wipe the table
+		// and re-run the migrate pipeline.
+		const db = new Database(":memory:");
+		try {
+			db.exec(`
+				CREATE TABLE forum_thread_types (
+					id              INTEGER PRIMARY KEY,
+					forum_id        INTEGER NOT NULL,
+					name            TEXT    NOT NULL,
+					display_order   INTEGER NOT NULL DEFAULT 0,
+					icon            TEXT    NOT NULL DEFAULT '',
+					enabled         INTEGER NOT NULL DEFAULT 1,
+					moderator_only  INTEGER NOT NULL DEFAULT 0
+				);
+			`);
+			// Two rows in the SAME fid — both DEFAULT to source_typeid=0
+			// post-ALTER, which collides on the UNIQUE INDEX.
+			db.prepare("INSERT INTO forum_thread_types (id, forum_id, name) VALUES (?, ?, ?)").run(
+				1,
+				111,
+				"Question",
+			);
+			db.prepare("INSERT INTO forum_thread_types (id, forum_id, name) VALUES (?, ?, ?)").run(
+				2,
+				111,
+				"Answer",
+			);
+
+			// Apply 0039 statements individually so errors on the UNIQUE
+			// INDEX surface — `db.exec` on a multi-statement script can
+			// swallow late errors.
+			const sql0039 = readFileSync(migrationPath, "utf8");
+			const statements = sql0039
+				.split(/;\s*\n/)
+				.map((s) => s.trim())
+				.filter((s) => s && !s.split("\n").every((l) => l.startsWith("--") || l === ""));
+			expect(() => {
+				for (const stmt of statements) {
+					db.exec(`${stmt};`);
+				}
+			}).toThrow(/UNIQUE|constraint/i);
 		} finally {
 			db.close();
 		}

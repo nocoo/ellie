@@ -37,10 +37,14 @@
 --   );
 --   UNIQUE INDEX (forum_id, source_typeid) — natural key.
 --
--- Synthetic id is allocated deterministically by `migrateForumThreadTypes`
--- per `(forum_id ASC, source_typeid ASC)`; admin-created rows get
--- `max(id)+1` from SQLite's plain INTEGER PRIMARY KEY (no AUTOINCREMENT,
--- same constraint as 0038).
+-- Synthetic id is allocated deterministically by `migrateForumThreadTypes`:
+-- forums sorted ASC by fid; within each forum the union of
+-- (forumfield.types ∪ threadclass) source typeids minus typeid=0 is sorted
+-- ASC by source_typeid and assigned a monotonically increasing id starting
+-- at 1. `display_order` is decoupled from mint order — see
+-- `mintForumRows` in packages/migrate/src/transform/forum-thread-types.ts.
+-- Admin-created rows post-migration get `max(id)+1` from SQLite's plain
+-- INTEGER PRIMARY KEY (no AUTOINCREMENT, same constraint as 0038).
 --
 -- threads.type_id remains an INTEGER column on the `threads` table; its
 -- value is now the SYNTHETIC `forum_thread_types.id`, never the source
@@ -48,11 +52,20 @@
 -- accept the synthetic id only. Source typeid is kept for admin/debug
 -- and recovery via the new `source_typeid` column on `forum_thread_types`.
 --
--- 0038 created the column with the wrong semantics and 0038 may not yet
--- have populated any rows on prod (if 0038 was never applied this is a
--- no-op for the data path). Either way the schema-only ALTER below is
--- safe: the column is added with DEFAULT 0, and the unique index is
--- created on an empty table or one without source_typeid collisions.
+-- ─── Operational scope: empty / never-populated 0038 only ───────────
+-- This migration is a forward CORRECTION, not a backfill. It assumes one
+-- of:
+--   (a) 0038 was applied to an empty table (prod path — 0038 was never
+--       paired with a populated migrate run on prod), or
+--   (b) the table is freshly bootstrapped from a schema mirror that
+--       already includes source_typeid (test/dev path).
+-- If a staging environment somehow ran a populated 0038 and ended up with
+-- multiple rows in the same forum, the bare `ADD COLUMN ... DEFAULT 0`
+-- below leaves all those rows at `(forum_id=X, source_typeid=0)` and the
+-- subsequent UNIQUE INDEX creation will FAIL on those forums. There is
+-- intentionally no in-migration backfill — the recovery path is to wipe
+-- and re-run the migrate pipeline. The drift-guard test only pins the
+-- empty / single-row-per-forum cases that match the supported scope.
 --
 -- Drift guard: tests/unit/migration-0039-schema.test.ts pins this exact
 -- statement set across the live-migration path AND the fresh-DB
