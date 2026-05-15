@@ -218,11 +218,18 @@ interface CreateBody {
  * Body: { name, displayOrder?, icon?, moderatorOnly?, sourceTypeid? }
  *
  * Returns the newly created admin DTO with the synthetic id D1 picked.
- * `sourceTypeid` defaults to 0 for admin-created rows (Discuz-local
- * typeids only matter for migrated rows). The (forum_id, source_typeid)
- * UNIQUE INDEX from migration 0039 still applies — we surface a 409
- * with `THREAD_TYPE_DUPLICATE_SOURCE_TYPEID` if the admin tries to
- * pick a non-zero sourceTypeid that collides.
+ * `sourceTypeid` defaults to 0 in the request body (admins working
+ * through the web UI don't set it). Internally we two-step write so
+ * the row's persisted `source_typeid` ends up equal to the synthetic
+ * `id` — see comment block at the placeholder-rewrite below for the
+ * full rationale and the reviewer pin (msg fefddfcc, P0). The (forum_id,
+ * source_typeid) UNIQUE INDEX from migration 0039 is the natural key,
+ * and reusing the synthetic id keeps it unique without a sequence
+ * allocator.
+ *
+ * If the admin explicitly passes a non-zero `sourceTypeid` (e.g. during
+ * a manual backfill that mirrors a Discuz local id), we surface a 409
+ * with `THREAD_TYPE_DUPLICATE_SOURCE_TYPEID` if it collides.
  */
 export const create = withEntityAuth(
 	threadTypeAuthConfig,
@@ -239,6 +246,21 @@ export const create = withEntityAuth(
 			body = (await request.json()) as CreateBody;
 		} catch {
 			return errorResponse("INVALID_BODY", 400, { message: "Invalid JSON body" }, origin);
+		}
+
+		// Reviewer pin (msg fefddfcc, P2): reject unknown fields so a
+		// typo doesn't silently no-op. The allow-list mirrors CreateBody.
+		const allowedCreate = new Set([
+			"name",
+			"displayOrder",
+			"icon",
+			"moderatorOnly",
+			"sourceTypeid",
+		]);
+		for (const k of Object.keys(body as Record<string, unknown>)) {
+			if (!allowedCreate.has(k)) {
+				return errorResponse("INVALID_BODY", 400, { message: `Unknown field: ${k}` }, origin);
+			}
 		}
 
 		const nameErr = validateNameField(body.name);
@@ -280,10 +302,10 @@ export const create = withEntityAuth(
 		}
 
 		// Reject duplicate (forum_id, source_typeid) when sourceTypeid is
-		// non-zero. We allow many rows at sourceTypeid=0 (admin-created
-		// rows that never had a Discuz origin) — same convention as the
-		// migrate path which uses 0 as the placeholder for newly-minted
-		// rows on a fresh DB.
+		// non-zero. The 0039 UNIQUE INDEX `(forum_id, source_typeid)` is
+		// authoritative — admins explicitly setting a non-zero sourceTypeid
+		// (e.g. typing back the Discuz local id during a backfill) must
+		// not collide.
 		if (sourceTypeid !== 0) {
 			const dup = await env.DB.prepare(
 				"SELECT id FROM forum_thread_types WHERE forum_id = ? AND source_typeid = ?",
@@ -300,6 +322,24 @@ export const create = withEntityAuth(
 			}
 		}
 
+		// Reviewer pin (msg fefddfcc, P0):
+		// `(forum_id, source_typeid)` is UNIQUE (migration 0039). The
+		// previous draft assumed many rows at source_typeid=0 per forum
+		// were OK — they are NOT; the second admin-created row in the
+		// same forum would crash with `UNIQUE constraint failed`.
+		//
+		// Two-step write for admin-created rows (sourceTypeid = 0):
+		//   1. INSERT with placeholder source_typeid=0 to get the
+		//      synthetic id D1 mints (last_row_id).
+		//   2. UPDATE source_typeid = newId immediately so the natural
+		//      key is unique forever after. The synthetic id is itself
+		//      globally unique, so reusing it as source_typeid keeps the
+		//      (forum_id, source_typeid) pair unique without any clever
+		//      sequence allocator.
+		// Migrated rows always carry the real Discuz typeid in
+		// source_typeid, never 0 (forumfield typeid=0 is filtered out
+		// upstream — see 0039 header), so the placeholder-0 transient
+		// row in step 1 cannot collide with a migrated row.
 		const insertRes = await env.DB.prepare(
 			`INSERT INTO forum_thread_types
 			   (forum_id, source_typeid, name, display_order, icon, enabled, moderator_only)
@@ -316,6 +356,15 @@ export const create = withEntityAuth(
 				{ message: "Failed to create thread type" },
 				origin,
 			);
+		}
+
+		// Step 2 of the placeholder-0 dance: rewrite source_typeid to the
+		// synthetic id so the (forum_id, source_typeid) pair stays unique
+		// across future inserts.
+		if (sourceTypeid === 0) {
+			await env.DB.prepare("UPDATE forum_thread_types SET source_typeid = ? WHERE id = ?")
+				.bind(newId, newId)
+				.run();
 		}
 
 		// Same-commit invalidation: enabled-set changed for this forum.
@@ -481,6 +530,17 @@ export const update = withEntityAuth(
 			return errorResponse("INVALID_BODY", 400, { message: "Invalid JSON body" }, origin);
 		}
 
+		// Reviewer pin (msg fefddfcc, P2): reject unknown fields. Of
+		// note, `sourceTypeid` is intentionally NOT in this allow-list —
+		// we never want a PATCH to silently drop a stray sourceTypeid;
+		// the structural identity is set at create time and not editable.
+		const allowedUpdate = new Set(["name", "displayOrder", "icon", "moderatorOnly", "enabled"]);
+		for (const k of Object.keys(body as Record<string, unknown>)) {
+			if (!allowedUpdate.has(k)) {
+				return errorResponse("INVALID_BODY", 400, { message: `Unknown field: ${k}` }, origin);
+			}
+		}
+
 		const existing = await loadTypeRow(env, id);
 		if (!existing) {
 			return errorResponse("THREAD_TYPE_NOT_FOUND", 404, undefined, origin);
@@ -585,18 +645,17 @@ export const remove = withEntityAuth(
 
 // ─── Reorder ──────────────────────────────────────────────────────
 
-interface ReorderItem {
-	id: number;
-	displayOrder: number;
-}
-
 /**
  * PATCH /api/admin/forums/:forumId/thread-types/reorder
- * Body: { orders: [{ id, displayOrder }, ...] }
+ * Body: { ids: [n, n, ...] }
  *
- * Batches per-row UPDATE statements. Items are validated to belong to
- * `forumId` (a foreign id is rejected, not silently moved) so a typo'd
- * payload cannot reorder another forum's rows.
+ * Reviewer pin (msg fefddfcc, P1 + earlier 4b64ac64):
+ *   The payload is the COMPLETE ordered set of ids for this forum.
+ *   We reject any partial / extra / duplicate / cross-forum list and
+ *   rewrite `display_order = i` for the i-th id in the array. This
+ *   is the only way to keep the order space dense (0..N-1, no holes,
+ *   no ties) and to prevent a UI that only submitted a partial drag
+ *   from leaving the picker in an unpredictable state.
  */
 export const reorder = withEntityAuth(
 	threadTypeAuthConfig,
@@ -608,23 +667,23 @@ export const reorder = withEntityAuth(
 			return errorResponse("INVALID_REQUEST", 400, { message: "Invalid forum ID" }, origin);
 		}
 
-		let body: { orders?: unknown };
+		let body: { ids?: unknown };
 		try {
-			body = (await request.json()) as { orders?: unknown };
+			body = (await request.json()) as { ids?: unknown };
 		} catch {
 			return errorResponse("INVALID_BODY", 400, { message: "Invalid JSON body" }, origin);
 		}
 
-		const orders = body.orders;
-		if (!Array.isArray(orders) || orders.length === 0) {
+		const ids = body.ids;
+		if (!Array.isArray(ids) || ids.length === 0) {
 			return errorResponse(
 				"INVALID_BODY",
 				400,
-				{ message: "orders must be a non-empty array" },
+				{ message: "ids must be a non-empty array" },
 				origin,
 			);
 		}
-		if (orders.length > MAX_REORDER_ITEMS) {
+		if (ids.length > MAX_REORDER_ITEMS) {
 			return errorResponse(
 				"BATCH_LIMIT_EXCEEDED",
 				400,
@@ -632,53 +691,60 @@ export const reorder = withEntityAuth(
 				origin,
 			);
 		}
-		const items: ReorderItem[] = [];
-		for (const it of orders) {
-			if (
-				typeof it !== "object" ||
-				it === null ||
-				!isNonNegInt((it as ReorderItem).id) ||
-				!isNonNegInt((it as ReorderItem).displayOrder)
-			) {
+		// Validate each entry is a positive integer; reject duplicates.
+		const seen = new Set<number>();
+		for (const v of ids) {
+			if (!isNonNegInt(v) || v <= 0) {
 				return errorResponse(
 					"INVALID_BODY",
 					400,
-					{ message: "Each order must have non-negative integer id and displayOrder" },
+					{ message: "Each id must be a positive integer" },
 					origin,
 				);
 			}
-			items.push(it as ReorderItem);
-		}
-
-		const ids = items.map((i) => i.id);
-		const placeholders = ids.map(() => "?").join(",");
-		const owned = await env.DB.prepare(
-			`SELECT id, forum_id FROM forum_thread_types WHERE id IN (${placeholders})`,
-		)
-			.bind(...ids)
-			.all<{ id: number; forum_id: number }>();
-		const ownedMap = new Map<number, number>((owned.results ?? []).map((r) => [r.id, r.forum_id]));
-		for (const id of ids) {
-			const ownerForum = ownedMap.get(id);
-			if (ownerForum === undefined) {
-				return errorResponse("THREAD_TYPE_NOT_FOUND", 404, { id }, origin);
+			if (seen.has(v)) {
+				return errorResponse("INVALID_BODY", 400, { message: `Duplicate id: ${v}` }, origin);
 			}
-			if (ownerForum !== forumId) {
+			seen.add(v);
+		}
+		const orderedIds = ids as number[];
+
+		// Pull the canonical id set for this forum and require the
+		// request to match it EXACTLY (no missing, no extra). Partial
+		// reorder is rejected so display_order stays dense.
+		const owned = await env.DB.prepare("SELECT id FROM forum_thread_types WHERE forum_id = ?")
+			.bind(forumId)
+			.all<{ id: number }>();
+		const ownedSet = new Set<number>((owned.results ?? []).map((r) => r.id));
+
+		if (orderedIds.length !== ownedSet.size) {
+			return errorResponse(
+				"INVALID_BODY",
+				400,
+				{
+					message: `ids must include every thread type in this forum (got ${orderedIds.length}, expected ${ownedSet.size})`,
+				},
+				origin,
+			);
+		}
+		for (const id of orderedIds) {
+			if (!ownedSet.has(id)) {
+				// Either id doesn't exist at all OR it lives in another
+				// forum — either way the reorder isn't well-formed for
+				// this forum.
 				return errorResponse("THREAD_TYPE_FORUM_MISMATCH", 400, { id }, origin);
 			}
 		}
 
-		const stmts = items.map((i) =>
-			env.DB.prepare("UPDATE forum_thread_types SET display_order = ? WHERE id = ?").bind(
-				i.displayOrder,
-				i.id,
-			),
+		// Dense rewrite: display_order = array index.
+		const stmts = orderedIds.map((id, idx) =>
+			env.DB.prepare("UPDATE forum_thread_types SET display_order = ? WHERE id = ?").bind(idx, id),
 		);
 		await env.DB.batch(stmts);
 
 		await Promise.all([bumpForumTreeGen(env), bumpThreadListGen(env, forumId)]);
 
-		return jsonResponse({ updated: true, count: items.length }, origin);
+		return jsonResponse({ updated: true, count: orderedIds.length }, origin);
 	},
 );
 

@@ -179,11 +179,15 @@ describe("admin/forumThreadType.create", () => {
 		expect(res.status).toBe(409);
 	});
 
-	it("inserts row and bumps tree+thread-list (enabled-set changed)", async () => {
+	it("inserts row, rewrites source_typeid=newId, bumps tree+thread-list", async () => {
+		// Reviewer pin (msg fefddfcc, P0): admin-created row with default
+		// sourceTypeid=0 must do INSERT (placeholder 0) + UPDATE
+		// source_typeid=newId so the (forum_id, source_typeid) UNIQUE
+		// INDEX from migration 0039 doesn't blow up on the second create.
 		const { db, calls } = createMockDb({
 			firstResults: {
 				"FROM forums WHERE id": forumGateRow(),
-				"forum_thread_types WHERE id = ?": typeRow({ id: 100, name: "X" }),
+				"forum_thread_types WHERE id = ?": typeRow({ id: 100, source_typeid: 100, name: "X" }),
 			},
 			runResults: {
 				"INSERT INTO forum_thread_types": {
@@ -201,17 +205,127 @@ describe("admin/forumThreadType.create", () => {
 			adminEnv(db),
 		);
 		expect(res.status).toBe(201);
-		const body = await res.json<{ data: { id: number; name: string } }>();
+		const body = await res.json<{ data: { id: number; sourceTypeid: number; name: string } }>();
 		expect(body.data.id).toBe(100);
+		// Returned DTO must carry sourceTypeid=newId (not the transient 0).
+		expect(body.data.sourceTypeid).toBe(100);
 
-		// Pin the INSERT shape — admin-created rows have sourceTypeid=0
-		// and enabled=1 by default.
+		// Pin: INSERT writes placeholder source_typeid=0; admin-created
+		// rows still default to enabled=1.
 		const insertCall = calls.find((c) => c.sql.includes("INSERT INTO forum_thread_types"));
 		expect(insertCall).toBeDefined();
 		expect(insertCall?.params).toEqual([1, 0, "X", 2, "", 1]);
 
+		// Pin: the placeholder is rewritten to the synthetic id immediately
+		// after, with bind order (newId, newId).
+		const updateCall = calls.find((c) =>
+			c.sql.includes("UPDATE forum_thread_types SET source_typeid"),
+		);
+		expect(updateCall).toBeDefined();
+		expect(updateCall?.params).toEqual([100, 100]);
+
 		expect(mockTree).toHaveBeenCalledTimes(1);
 		expect(mockList).toHaveBeenCalledWith(expect.anything(), 1);
+	});
+
+	it("create with explicit non-zero sourceTypeid → no placeholder rewrite", async () => {
+		// When admin explicitly carries a Discuz-side sourceTypeid (e.g.
+		// during a manual backfill), INSERT keeps that value and we must
+		// NOT issue the placeholder UPDATE — the natural key is already
+		// pinned to the supplied number.
+		const { db, calls } = createMockDb({
+			firstResults: {
+				"FROM forums WHERE id": forumGateRow(),
+				"WHERE forum_id = ? AND source_typeid": null, // no dup
+				"forum_thread_types WHERE id = ?": typeRow({
+					id: 100,
+					source_typeid: 7,
+					name: "X",
+				}),
+			},
+			runResults: {
+				"INSERT INTO forum_thread_types": {
+					success: true,
+					meta: { last_row_id: 100, changes: 1 },
+				},
+			},
+		});
+		const res = await create(
+			new Request("https://api.example.com/api/admin/forums/1/thread-types", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ name: "X", sourceTypeid: 7 }),
+			}),
+			adminEnv(db),
+		);
+		expect(res.status).toBe(201);
+		// Pin: INSERT carried the supplied 7; no source_typeid UPDATE.
+		const insertCall = calls.find((c) => c.sql.includes("INSERT INTO forum_thread_types"));
+		expect(insertCall?.params).toEqual([1, 7, "X", 0, "", 0]);
+		expect(
+			calls.find((c) => c.sql.includes("UPDATE forum_thread_types SET source_typeid")),
+		).toBeUndefined();
+	});
+
+	it("two consecutive default creates in same forum each get unique source_typeid", async () => {
+		// Behavioral pin: the second admin-default-create in the same
+		// forum cannot collide on the (forum_id, source_typeid) UNIQUE
+		// INDEX. We can't run a real D1 from here, but we can pin that
+		// the rewrite UPDATE fires for BOTH calls with bind order
+		// (newId, newId) — which is what makes the natural key safe.
+		const insertedIds = [101, 102];
+		let n = 0;
+		const { db, calls } = createMockDb({
+			firstResults: {
+				"FROM forums WHERE id": forumGateRow(),
+				"forum_thread_types WHERE id = ?": typeRow({ id: 999, source_typeid: 999 }),
+			},
+			runResults: {
+				"INSERT INTO forum_thread_types": {
+					success: true,
+					meta: { last_row_id: 0, changes: 1 },
+				},
+			},
+		});
+		// Override INSERT's run() to advance last_row_id per call.
+		const origPrepare = db.prepare;
+		(db as unknown as { prepare: typeof origPrepare }).prepare = ((sql: string) => {
+			const stmt = origPrepare.call(db, sql) as ReturnType<typeof origPrepare>;
+			if (sql.includes("INSERT INTO forum_thread_types")) {
+				const origBind = stmt.bind.bind(stmt);
+				stmt.bind = ((...args: unknown[]) => {
+					const ret = origBind(...args);
+					const id = insertedIds[n++] ?? 0;
+					ret.run = vi.fn(async () => ({ success: true, meta: { last_row_id: id } }));
+					return ret;
+				}) as typeof stmt.bind;
+			}
+			return stmt;
+		}) as typeof origPrepare;
+
+		await create(
+			new Request("https://api.example.com/api/admin/forums/1/thread-types", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ name: "A" }),
+			}),
+			adminEnv(db),
+		);
+		await create(
+			new Request("https://api.example.com/api/admin/forums/1/thread-types", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ name: "B" }),
+			}),
+			adminEnv(db),
+		);
+
+		const updates = calls.filter((c) =>
+			c.sql.includes("UPDATE forum_thread_types SET source_typeid"),
+		);
+		expect(updates).toHaveLength(2);
+		expect(updates[0]?.params).toEqual([101, 101]);
+		expect(updates[1]?.params).toEqual([102, 102]);
 	});
 });
 
@@ -385,71 +499,127 @@ describe("admin/forumThreadType.remove", () => {
 
 // ─── reorder ──────────────────────────────────────────────────────
 
-describe("admin/forumThreadType.reorder", () => {
+describe("admin/forumThreadType.reorder (full-set semantics)", () => {
+	// Reviewer pin (msg fefddfcc, P1 + earlier 4b64ac64): the payload
+	// is the COMPLETE ordered set of ids for this forum. Partial /
+	// extra / duplicate / cross-forum lists are all rejected; happy
+	// path rewrites display_order = i for the i-th id.
+
 	it("400 on empty array", async () => {
 		const { db } = createMockDb({});
 		const res = await reorder(
 			new Request("https://api.example.com/api/admin/forums/1/thread-types/reorder", {
 				method: "PATCH",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ orders: [] }),
+				body: JSON.stringify({ ids: [] }),
 			}),
 			adminEnv(db),
 		);
 		expect(res.status).toBe(400);
 	});
 
-	it("rejects rows belonging to a different forum (no silent move)", async () => {
+	it("400 when payload is partial (missing one of the canonical ids)", async () => {
 		const { db } = createMockDb({
 			allResults: {
-				"FROM forum_thread_types WHERE id IN": [
-					{ id: 11, forum_id: 1 },
-					{ id: 22, forum_id: 99 },
-				],
+				"FROM forum_thread_types WHERE forum_id": [{ id: 11 }, { id: 22 }, { id: 33 }],
 			},
 		});
 		const res = await reorder(
 			new Request("https://api.example.com/api/admin/forums/1/thread-types/reorder", {
 				method: "PATCH",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					orders: [
-						{ id: 11, displayOrder: 0 },
-						{ id: 22, displayOrder: 1 },
-					],
-				}),
+				body: JSON.stringify({ ids: [22, 11] }),
+			}),
+			adminEnv(db),
+		);
+		expect(res.status).toBe(400);
+		const body = await res.json<{ error: { details?: { message?: string } } }>();
+		expect(body.error.details?.message).toMatch(/got 2.*expected 3/);
+		expect(mockTree).not.toHaveBeenCalled();
+	});
+
+	it("400 when payload contains an extra id (more than canonical)", async () => {
+		const { db } = createMockDb({
+			allResults: {
+				"FROM forum_thread_types WHERE forum_id": [{ id: 11 }, { id: 22 }],
+			},
+		});
+		const res = await reorder(
+			new Request("https://api.example.com/api/admin/forums/1/thread-types/reorder", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ ids: [11, 22, 33] }),
 			}),
 			adminEnv(db),
 		);
 		expect(res.status).toBe(400);
 		expect(mockTree).not.toHaveBeenCalled();
-		expect(mockList).not.toHaveBeenCalled();
 	});
 
-	it("happy path: bumps tree + thread-list", async () => {
-		const { db, batchCalls } = createMockDb({
+	it("400 on duplicate ids", async () => {
+		const { db } = createMockDb({});
+		const res = await reorder(
+			new Request("https://api.example.com/api/admin/forums/1/thread-types/reorder", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ ids: [11, 22, 11] }),
+			}),
+			adminEnv(db),
+		);
+		expect(res.status).toBe(400);
+		const body = await res.json<{ error: { details?: { message?: string } } }>();
+		expect(body.error.details?.message).toMatch(/Duplicate id/);
+	});
+
+	it("rejects an id from another forum (no silent move)", async () => {
+		// Canonical set for forum 1 is { 11, 22 }. A request that swaps
+		// in id 99 (which doesn't belong to this forum) must 400.
+		const { db } = createMockDb({
 			allResults: {
-				"FROM forum_thread_types WHERE id IN": [
-					{ id: 11, forum_id: 1 },
-					{ id: 22, forum_id: 1 },
-				],
+				"FROM forum_thread_types WHERE forum_id": [{ id: 11 }, { id: 22 }],
 			},
 		});
 		const res = await reorder(
 			new Request("https://api.example.com/api/admin/forums/1/thread-types/reorder", {
 				method: "PATCH",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					orders: [
-						{ id: 11, displayOrder: 0 },
-						{ id: 22, displayOrder: 1 },
-					],
-				}),
+				body: JSON.stringify({ ids: [11, 99] }),
+			}),
+			adminEnv(db),
+		);
+		expect(res.status).toBe(400);
+		const body = await res.json<{ error: { code: string } }>();
+		expect(body.error.code).toBe("THREAD_TYPE_FORUM_MISMATCH");
+		expect(mockTree).not.toHaveBeenCalled();
+	});
+
+	it("happy path: writes display_order = array index for each id; bumps tree + thread-list", async () => {
+		const { db, calls, batchCalls } = createMockDb({
+			allResults: {
+				"FROM forum_thread_types WHERE forum_id": [{ id: 11 }, { id: 22 }, { id: 33 }],
+			},
+		});
+		const res = await reorder(
+			new Request("https://api.example.com/api/admin/forums/1/thread-types/reorder", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ ids: [22, 33, 11] }),
 			}),
 			adminEnv(db),
 		);
 		expect(res.status).toBe(200);
 		expect(batchCalls).toHaveLength(1);
+
+		// Pin: each UPDATE binds (idx, id) — so the array order becomes
+		// the dense display_order 0..N-1.
+		const updateCalls = calls.filter((c) =>
+			c.sql.includes("UPDATE forum_thread_types SET display_order"),
+		);
+		expect(updateCalls).toHaveLength(3);
+		expect(updateCalls[0]?.params).toEqual([0, 22]);
+		expect(updateCalls[1]?.params).toEqual([1, 33]);
+		expect(updateCalls[2]?.params).toEqual([2, 11]);
+
 		expect(mockTree).toHaveBeenCalledTimes(1);
 		expect(mockList).toHaveBeenCalledWith(expect.anything(), 1);
 	});
@@ -967,7 +1137,7 @@ describe("admin/forumThreadType.reorder — extra branches", () => {
 			new Request("https://api.example.com/api/admin/forums/abc/thread-types/reorder", {
 				method: "PATCH",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ orders: [{ id: 1, displayOrder: 0 }] }),
+				body: JSON.stringify({ ids: [1] }),
 			}),
 			adminEnv(db),
 		);
@@ -976,12 +1146,12 @@ describe("admin/forumThreadType.reorder — extra branches", () => {
 
 	it("400 when over MAX_REORDER_ITEMS", async () => {
 		const { db } = createMockDb({});
-		const orders = Array.from({ length: 201 }, (_, i) => ({ id: i + 1, displayOrder: i }));
+		const ids = Array.from({ length: 201 }, (_, i) => i + 1);
 		const res = await reorder(
 			new Request("https://api.example.com/api/admin/forums/1/thread-types/reorder", {
 				method: "PATCH",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ orders }),
+				body: JSON.stringify({ ids }),
 			}),
 			adminEnv(db),
 		);
@@ -990,48 +1160,84 @@ describe("admin/forumThreadType.reorder — extra branches", () => {
 		expect(body.error.code).toBe("BATCH_LIMIT_EXCEEDED");
 	});
 
-	it("400 when an item has invalid shape (non-int id)", async () => {
+	it("400 when an id is not a positive integer (string)", async () => {
 		const { db } = createMockDb({});
 		const res = await reorder(
 			new Request("https://api.example.com/api/admin/forums/1/thread-types/reorder", {
 				method: "PATCH",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ orders: [{ id: "x", displayOrder: 0 }] }),
+				body: JSON.stringify({ ids: ["x"] }),
 			}),
 			adminEnv(db),
 		);
 		expect(res.status).toBe(400);
 	});
 
-	it("404 when an id is missing from the DB", async () => {
-		const { db } = createMockDb({
-			allResults: {
-				"FROM forum_thread_types WHERE id IN": [{ id: 11, forum_id: 1 }],
-			},
-		});
-		const res = await reorder(
-			new Request("https://api.example.com/api/admin/forums/1/thread-types/reorder", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					orders: [
-						{ id: 11, displayOrder: 0 },
-						{ id: 999, displayOrder: 1 },
-					],
-				}),
-			}),
-			adminEnv(db),
-		);
-		expect(res.status).toBe(404);
-	});
-
-	it("400 on non-array orders", async () => {
+	it("400 when id is 0 (must be positive)", async () => {
 		const { db } = createMockDb({});
 		const res = await reorder(
 			new Request("https://api.example.com/api/admin/forums/1/thread-types/reorder", {
 				method: "PATCH",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ orders: "nope" }),
+				body: JSON.stringify({ ids: [0] }),
+			}),
+			adminEnv(db),
+		);
+		expect(res.status).toBe(400);
+	});
+
+	it("400 on non-array ids", async () => {
+		const { db } = createMockDb({});
+		const res = await reorder(
+			new Request("https://api.example.com/api/admin/forums/1/thread-types/reorder", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ ids: "nope" }),
+			}),
+			adminEnv(db),
+		);
+		expect(res.status).toBe(400);
+	});
+});
+
+describe("admin/forumThreadType — unknown field rejection (P2)", () => {
+	it("create rejects unknown fields", async () => {
+		const { db } = createMockDb({});
+		const res = await create(
+			new Request("https://api.example.com/api/admin/forums/1/thread-types", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ name: "X", bogus: 1 }),
+			}),
+			adminEnv(db),
+		);
+		expect(res.status).toBe(400);
+		const body = await res.json<{ error: { details?: { message?: string } } }>();
+		expect(body.error.details?.message).toMatch(/Unknown field/);
+	});
+
+	it("update rejects sourceTypeid (structural identity, never editable)", async () => {
+		const { db } = createMockDb({});
+		const res = await update(
+			new Request("https://api.example.com/api/admin/forum-thread-types/11", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ sourceTypeid: 99 }),
+			}),
+			adminEnv(db),
+		);
+		expect(res.status).toBe(400);
+		const body = await res.json<{ error: { details?: { message?: string } } }>();
+		expect(body.error.details?.message).toMatch(/Unknown field: sourceTypeid/);
+	});
+
+	it("update rejects unknown fields generally", async () => {
+		const { db } = createMockDb({});
+		const res = await update(
+			new Request("https://api.example.com/api/admin/forum-thread-types/11", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ bogus: true }),
 			}),
 			adminEnv(db),
 		);
