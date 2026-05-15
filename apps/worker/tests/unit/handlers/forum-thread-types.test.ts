@@ -97,8 +97,22 @@ describe("getThreadTypes", () => {
 		});
 		const all = vi.fn().mockResolvedValue({
 			results: [
-				{ id: 11, name: "Question", display_order: 0 },
-				{ id: 12, name: "Answer", display_order: 1 },
+				{
+					id: 11,
+					name: "Question",
+					display_order: 0,
+					icon: "❓",
+					enabled: 1,
+					moderator_only: 0,
+				},
+				{
+					id: 12,
+					name: "Answer",
+					display_order: 1,
+					icon: "",
+					enabled: 1,
+					moderator_only: 1,
+				},
 			],
 		});
 		const bind = vi.fn().mockReturnValue({ all });
@@ -116,17 +130,34 @@ describe("getThreadTypes", () => {
 			listable: true,
 			prefix: false,
 			types: [
-				{ id: 11, name: "Question", displayOrder: 0 },
-				{ id: 12, name: "Answer", displayOrder: 1 },
+				{
+					id: 11,
+					name: "Question",
+					displayOrder: 0,
+					icon: "❓",
+					enabled: true,
+					moderatorOnly: false,
+				},
+				{
+					id: 12,
+					name: "Answer",
+					displayOrder: 1,
+					icon: "",
+					enabled: true,
+					moderatorOnly: true,
+				},
 			],
 		});
 
 		// Pin: only enabled rows surface (tombstones excluded). The SQL
 		// must filter on `enabled = 1` and order by display_order then id —
-		// regression-guard the WHERE clause directly.
+		// regression-guard the WHERE clause directly. Also pin the column
+		// list so the full ForumThreadType DTO surface stays available.
 		const sql = (prepare.mock.calls[0]?.[0] ?? "") as string;
 		expect(sql).toMatch(/WHERE\s+forum_id\s*=\s*\?\s+AND\s+enabled\s*=\s*1/i);
 		expect(sql).toMatch(/ORDER\s+BY\s+display_order\s+ASC\s*,\s*id\s+ASC/i);
+		expect(sql).toMatch(/icon/);
+		expect(sql).toMatch(/moderator_only/);
 		expect(bind).toHaveBeenCalledWith(7);
 	});
 
@@ -159,7 +190,17 @@ describe("getThreadTypes", () => {
 			forum: makeForum({ id: 7 }),
 		});
 		const all = vi.fn().mockResolvedValue({
-			results: [{ id: 11, name: "Q", display_order: 0, source_typeid: 999 }],
+			results: [
+				{
+					id: 11,
+					name: "Q",
+					display_order: 0,
+					icon: "",
+					enabled: 1,
+					moderator_only: 0,
+					source_typeid: 999,
+				},
+			],
 		});
 		const env = makeEnv({
 			DB: {
@@ -172,8 +213,44 @@ describe("getThreadTypes", () => {
 		const body = (await res.json()) as {
 			data: { types: Array<Record<string, unknown>> };
 		};
-		expect(body.data.types[0]).toEqual({ id: 11, name: "Q", displayOrder: 0 });
+		expect(body.data.types[0]).toEqual({
+			id: 11,
+			name: "Q",
+			displayOrder: 0,
+			icon: "",
+			enabled: true,
+			moderatorOnly: false,
+		});
 		expect("source_typeid" in body.data.types[0]).toBe(false);
 		expect("typeId" in body.data.types[0]).toBe(false);
+	});
+
+	it("falls back to empty icon when DB returns NULL", async () => {
+		mockGetMeta.mockResolvedValue({
+			kind: "ok",
+			forum: makeForum({ id: 7 }),
+		});
+		const all = vi.fn().mockResolvedValue({
+			results: [
+				{
+					id: 11,
+					name: "Q",
+					display_order: 0,
+					icon: null,
+					enabled: 1,
+					moderator_only: 0,
+				},
+			],
+		});
+		const env = makeEnv({
+			DB: {
+				prepare: vi.fn().mockReturnValue({ bind: vi.fn().mockReturnValue({ all }) }),
+			} as unknown as D1Database,
+		});
+		const ctx = createMockCtx();
+		const req = new Request("https://api.example.com/api/v1/forums/7/thread-types");
+		const res = await getThreadTypes(req, env, ctx);
+		const body = (await res.json()) as { data: { types: Array<{ icon: string }> } };
+		expect(body.data.types[0].icon).toBe("");
 	});
 });
