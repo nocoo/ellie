@@ -102,6 +102,17 @@ interface D1ForumRow {
 	last_poster: string;
 	last_poster_id: number;
 	last_thread_subject: string;
+	/**
+	 * Thread-category configuration switches (Doc forums.thread_types_*).
+	 * Stored as INTEGER 0/1 in D1; toForum() projects to booleans on
+	 * Forum.threadTypes (always present, see types ForumThreadTypeConfig).
+	 * Optional on the row shape so a SELECT that omits these columns still
+	 * type-checks; toForum() defaults missing values to 0.
+	 */
+	thread_types_enabled?: number;
+	thread_types_required?: number;
+	thread_types_listable?: number;
+	thread_types_prefix?: number;
 }
 
 /** D1 row shape for threads table */
@@ -245,6 +256,12 @@ export function toForum(row: Record<string, unknown>): Forum {
 		lastPosterAvatar: "", // Will be populated from KV cache
 		lastPosterAvatarPath: "", // Will be populated from KV cache
 		lastThreadSubject: r.last_thread_subject,
+		threadTypes: {
+			enabled: (r.thread_types_enabled ?? 0) === 1,
+			required: (r.thread_types_required ?? 0) === 1,
+			listable: (r.thread_types_listable ?? 0) === 1,
+			prefix: (r.thread_types_prefix ?? 0) === 1,
+		},
 	};
 }
 

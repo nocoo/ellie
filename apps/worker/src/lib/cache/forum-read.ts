@@ -255,6 +255,12 @@ function buildSnapshotRow(raw: Record<string, unknown>, ctx: BuildRowCtx): Forum
 		lastPosterAvatar: av?.avatar ?? "",
 		lastPosterAvatarPath: av?.avatarPath ?? "",
 		lastThreadSubject: v?.subject ?? "",
+		threadTypes: {
+			enabled: ((raw.thread_types_enabled as number | undefined) ?? 0) === 1,
+			required: ((raw.thread_types_required as number | undefined) ?? 0) === 1,
+			listable: ((raw.thread_types_listable as number | undefined) ?? 0) === 1,
+			prefix: ((raw.thread_types_prefix as number | undefined) ?? 0) === 1,
+		},
 	};
 }
 
@@ -413,6 +419,7 @@ export function mergeTreeAndSummary(
 			lastPosterId: agg?.lastPosterId ?? 0,
 			lastPosterAvatar: agg?.lastPosterAvatar ?? "",
 			lastPosterAvatarPath: agg?.lastPosterAvatarPath ?? "",
+			threadTypes: node.threadTypes,
 		};
 	}
 	return out;

@@ -85,6 +85,14 @@ export interface ForumTreeNodeV2 {
 	 */
 	moderatorIds: string;
 	moderatorList: ModeratorInfo[];
+	/**
+	 * Per-forum 主题分类 configuration. Lives on the tree node (structural,
+	 * not an aggregate) so the public mergeTreeAndSummary path emits it
+	 * with no summary lookup. Admin toggles MUST bump `forum:tree:gen` for
+	 * the change to surface within the 24h tree TTL — see
+	 * `invalidateForumStructureV2`.
+	 */
+	threadTypes: import("@ellie/types").ForumThreadTypeConfig;
 }
 
 /**
@@ -184,6 +192,7 @@ export function buildForumTreePayload(
 		moderators: f.moderators,
 		moderatorIds: f.moderatorIds,
 		moderatorList: f.moderatorList,
+		threadTypes: f.threadTypes,
 	}));
 	return { bucket, forums };
 }
