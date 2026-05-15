@@ -265,7 +265,7 @@ describe("useThreadSubmit hook", () => {
 			expect(result.current.validation.canSubmit).toBe(true);
 		});
 
-		it("required + handleSubmit without typeId — sets error AND skips request", async () => {
+		it("required + handleSubmit without typeId — skips request (inline hint already on screen)", async () => {
 			const { result } = renderHook(() => useThreadSubmit({ forumId: 1, typeIdRequired: true }), {
 				wrapper,
 			});
@@ -275,8 +275,11 @@ describe("useThreadSubmit hook", () => {
 			await act(async () => {
 				await result.current.actions.handleSubmit("<p>Long enough content here</p>");
 			});
-			expect(result.current.state.error).toBe("请选择主题分类");
+			// Inline hint surfaces via validation.typeIdError immediately
+			// (even before this submit attempt). state.error stays clean —
+			// no top red banner for the required-but-untouched path.
 			expect(result.current.validation.typeIdError).toBe("请选择主题分类");
+			expect(result.current.state.error).toBeNull();
 			expect(mockPost).not.toHaveBeenCalled();
 		});
 
@@ -314,13 +317,28 @@ describe("useThreadSubmit hook", () => {
 			});
 		});
 
-		it("typeIdError is null until a submit attempt", () => {
+		it("typeIdError is visible immediately when required + nothing selected", () => {
 			const { result } = renderHook(() => useThreadSubmit({ forumId: 1, typeIdRequired: true }), {
 				wrapper,
 			});
-			act(() => {
-				result.current.actions.setSubject("Valid Title Here");
+			// Even without setSubject / handleSubmit, the inline hint
+			// surfaces so users can see why the button is disabled.
+			expect(result.current.validation.typeIdError).toBe("请选择主题分类");
+		});
+
+		it("typeIdError clears once a positive typeId is selected", () => {
+			const { result } = renderHook(() => useThreadSubmit({ forumId: 1, typeIdRequired: true }), {
+				wrapper,
 			});
+			expect(result.current.validation.typeIdError).toBe("请选择主题分类");
+			act(() => {
+				result.current.actions.setTypeId(11);
+			});
+			expect(result.current.validation.typeIdError).toBeNull();
+		});
+
+		it("typeIdError stays null when picker is not required", () => {
+			const { result } = renderHook(() => useThreadSubmit({ forumId: 1 }), { wrapper });
 			expect(result.current.validation.typeIdError).toBeNull();
 		});
 	});
