@@ -1,4 +1,4 @@
-import type { Forum, ModeratorInfo } from "@ellie/types";
+import type { Forum, ForumThreadType, ModeratorInfo } from "@ellie/types";
 import type { ForumVisibility } from "@ellie/types";
 import { computeVisibilityBucket } from "../lib/cache/bucket";
 import {
@@ -347,13 +347,6 @@ export async function getAncestors(
 
 // ─── Thread types endpoint ──────────────────────────────────────────
 
-/** One row of `forum_thread_types` as exposed on the public DTO. */
-interface PublicThreadType {
-	id: number;
-	name: string;
-	displayOrder: number;
-}
-
 /**
  * Public thread-types payload for one forum.
  *
@@ -366,13 +359,20 @@ interface PublicThreadType {
  *
  * Reviewer pin (msg b03d4af3 #1, #5): `id` is the synthetic global id, the
  * Discuz-local source_typeid is admin-only and not surfaced here.
+ *
+ * Reviewer pin (msg 07f1ad4e P1): rows are emitted as the shared
+ * `ForumThreadType` DTO (id, name, displayOrder, icon, enabled,
+ * moderatorOnly). The public endpoint only ever returns enabled rows so
+ * `enabled` is structurally redundant on the wire — kept to match the
+ * shared shape and to give #9 / future moderator UI room without a DTO
+ * change.
  */
 interface ThreadTypesPayload {
 	enabled: boolean;
 	required: boolean;
 	listable: boolean;
 	prefix: boolean;
-	types: PublicThreadType[];
+	types: ForumThreadType[];
 }
 
 /**
@@ -422,18 +422,28 @@ export async function getThreadTypes(
 
 	const cfg = meta.forum.threadTypes;
 	const rows = await env.DB.prepare(
-		`SELECT id, name, display_order
+		`SELECT id, name, display_order, icon, enabled, moderator_only
 		 FROM forum_thread_types
 		 WHERE forum_id = ? AND enabled = 1
 		 ORDER BY display_order ASC, id ASC`,
 	)
 		.bind(forumId)
-		.all<{ id: number; name: string; display_order: number }>();
+		.all<{
+			id: number;
+			name: string;
+			display_order: number;
+			icon: string | null;
+			enabled: number;
+			moderator_only: number;
+		}>();
 
-	const types: PublicThreadType[] = rows.results.map((r) => ({
+	const types: ForumThreadType[] = rows.results.map((r) => ({
 		id: r.id,
 		name: r.name,
 		displayOrder: r.display_order,
+		icon: r.icon ?? "",
+		enabled: r.enabled === 1,
+		moderatorOnly: r.moderator_only === 1,
 	}));
 
 	const payload: ThreadTypesPayload = {
