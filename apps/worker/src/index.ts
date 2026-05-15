@@ -78,6 +78,11 @@ export default {
 			if (path.match(/^\/api\/v1\/forums\/\d+\/ancestors$/) && request.method === "GET") {
 				return await (await import("./handlers/forum")).getAncestors(request, env, ctx);
 			}
+			// Thread-types endpoint — same registration-before-:id rule as
+			// ancestors so /thread-types is not parsed as a forum ID.
+			if (path.match(/^\/api\/v1\/forums\/\d+\/thread-types$/) && request.method === "GET") {
+				return await (await import("./handlers/forum")).getThreadTypes(request, env, ctx);
+			}
 			if (path.match(/^\/api\/v1\/forums\/\d+$/) && request.method === "GET") {
 				return await (await import("./handlers/forum")).getById(request, env, ctx);
 			}
