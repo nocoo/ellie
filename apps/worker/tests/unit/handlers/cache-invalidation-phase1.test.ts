@@ -67,7 +67,7 @@ describe("Phase 1 commit 2 — thread/post create invalidation", () => {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-				"SELECT id, status, visibility FROM forums": {
+				"FROM forums WHERE id": {
 					id: 1,
 					status: 1,
 					visibility: "public",
