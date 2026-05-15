@@ -6,6 +6,7 @@
 
 import { FloatingToolbar } from "@/components/forum/floating-toolbar";
 import { NewThreadDialog } from "@/components/forum/new-thread-dialog";
+import type { ForumThreadTypesPublic } from "@/viewmodels/forum/thread-types";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { useCallback, useState } from "react";
 
@@ -27,6 +28,8 @@ interface ForumFloatingToolbarProps {
 	 * the 主题分类 filter to keep `?typeId=N` across page changes.
 	 */
 	extraParams?: Record<string, string>;
+	/** Server-injected 主题分类 payload (null when feature off / load failed). */
+	threadTypes?: ForumThreadTypesPublic | null;
 }
 
 export function ForumFloatingToolbar({
@@ -39,6 +42,7 @@ export function ForumFloatingToolbar({
 	showNewThread = false,
 	selfEmailVerifiedAt = null,
 	extraParams,
+	threadTypes = null,
 }: ForumFloatingToolbarProps) {
 	const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -66,6 +70,7 @@ export function ForumFloatingToolbar({
 					onOpenChange={setDialogOpen}
 					forumId={forumId}
 					forumName={forumName}
+					threadTypes={threadTypes}
 				/>
 			)}
 		</>

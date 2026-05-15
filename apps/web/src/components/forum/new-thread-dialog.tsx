@@ -5,9 +5,11 @@
 // MVVM: This is the View layer. State and logic are in useThreadSubmit hook.
 
 import { PostEditor } from "@/components/forum/post-editor";
+import { ThreadTypePicker } from "@/components/forum/thread-type-picker";
 import { Button } from "@/components/ui/button";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { cn } from "@/lib/utils";
+import { type ForumThreadTypesPublic, shouldShowPicker } from "@/viewmodels/forum/thread-types";
 import { useThreadSubmit } from "@/viewmodels/forum/use-thread-submit";
 import { PenLine, Send, XCircle } from "lucide-react";
 import { useRef } from "react";
@@ -20,16 +22,34 @@ interface NewThreadDialogProps {
 	onOpenChange: (open: boolean) => void;
 	forumId: number;
 	forumName: string;
+	/**
+	 * Server-injected 主题分类 payload for this forum. `null` means the
+	 * forum has no per-forum config, the loader failed soft, or thread
+	 * types are disabled — in any of those cases the picker stays
+	 * hidden and submission falls back to the plain (no-typeId) path
+	 * (reviewer pin msg 9154cc68: server-injected to all entries).
+	 */
+	threadTypes?: ForumThreadTypesPublic | null;
 }
 
-export function NewThreadDialog({ open, onOpenChange, forumId, forumName }: NewThreadDialogProps) {
+export function NewThreadDialog({
+	open,
+	onOpenChange,
+	forumId,
+	forumName,
+	threadTypes = null,
+}: NewThreadDialogProps) {
 	const { canCreateThread } = useFeatureFlags();
 	const editorRef = useRef<{ getHTML: () => string } | null>(null);
+
+	const showPicker = shouldShowPicker(threadTypes);
+	const typeIdRequired = !!(showPicker && threadTypes?.required);
 
 	// Use ViewModel hook for thread submission
 	const { state, actions, validation } = useThreadSubmit({
 		forumId,
 		onSuccess: () => onOpenChange(false),
+		typeIdRequired,
 	});
 
 	// Reset state when dialog closes
@@ -79,6 +99,18 @@ export function NewThreadDialog({ open, onOpenChange, forumId, forumName }: NewT
 					/>
 
 					{state.error && <DialogErrorBanner message={state.error} />}
+
+					{/* 主题分类 picker — only when the host forum has it on. */}
+					{showPicker && threadTypes && (
+						<ThreadTypePicker
+							types={threadTypes.types}
+							value={state.typeId}
+							onChange={actions.setTypeId}
+							required={typeIdRequired}
+							error={validation.typeIdError}
+							disabled={state.submitting}
+						/>
+					)}
 
 					{/* Subject input */}
 					<div className="px-5 pt-4">

@@ -192,4 +192,54 @@ describe("submitThread", () => {
 		});
 		expect(id).toBe(999);
 	});
+
+	it("omits typeId when null/undefined", async () => {
+		await submitThread(5, "Hello World", "<p>body</p>", null);
+		expect((apiClient as any).post).toHaveBeenCalledWith("/api/v1/threads", {
+			forumId: 5,
+			subject: "Hello World",
+			content: "<p>body</p>",
+		});
+	});
+
+	it("omits typeId when 0", async () => {
+		await submitThread(5, "Hello World", "<p>body</p>", 0);
+		expect((apiClient as any).post).toHaveBeenCalledWith("/api/v1/threads", {
+			forumId: 5,
+			subject: "Hello World",
+			content: "<p>body</p>",
+		});
+	});
+
+	it("includes typeId when positive", async () => {
+		await submitThread(5, "Hello World", "<p>body</p>", 11);
+		expect((apiClient as any).post).toHaveBeenCalledWith("/api/v1/threads", {
+			forumId: 5,
+			subject: "Hello World",
+			content: "<p>body</p>",
+			typeId: 11,
+		});
+	});
+});
+
+// ---------------------------------------------------------------------------
+// canSubmitThread typeId required
+// ---------------------------------------------------------------------------
+
+describe("canSubmitThread typeId required", () => {
+	it("returns false when required but typeId is null", () => {
+		expect(canSubmitThread("Valid Title", false, 4, 100, true, null)).toBe(false);
+	});
+
+	it("returns false when required but typeId is 0", () => {
+		expect(canSubmitThread("Valid Title", false, 4, 100, true, 0)).toBe(false);
+	});
+
+	it("returns true when required and typeId is positive", () => {
+		expect(canSubmitThread("Valid Title", false, 4, 100, true, 11)).toBe(true);
+	});
+
+	it("returns true when not required and typeId is null", () => {
+		expect(canSubmitThread("Valid Title", false, 4, 100, false, null)).toBe(true);
+	});
 });

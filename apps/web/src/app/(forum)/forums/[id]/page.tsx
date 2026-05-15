@@ -139,6 +139,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 					forum={data.forum}
 					isGroup={isGroup}
 					selfEmailVerifiedAt={self?.emailVerifiedAt ?? null}
+					threadTypes={threadTypes}
 				/>
 			)}
 
@@ -179,6 +180,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 								forumId={data.forum.id}
 								forumName={data.forum.name}
 								selfEmailVerifiedAt={self?.emailVerifiedAt ?? null}
+								threadTypes={threadTypes}
 							/>
 						)}
 						<PagePagination
@@ -220,6 +222,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 								forumId={data.forum.id}
 								forumName={data.forum.name}
 								selfEmailVerifiedAt={self?.emailVerifiedAt ?? null}
+								threadTypes={threadTypes}
 							/>
 						)}
 						<PagePagination
@@ -243,6 +246,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 						showNewThread={!!data.forum && !isGroup}
 						selfEmailVerifiedAt={self?.emailVerifiedAt ?? null}
 						extraParams={paginationExtraParams}
+						threadTypes={threadTypes}
 					/>
 				</>
 			)}
