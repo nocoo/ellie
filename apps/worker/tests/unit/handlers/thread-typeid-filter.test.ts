@@ -139,6 +139,23 @@ describe("GET /api/v1/threads — typeId filter", () => {
 		expect(res.status).toBe(400);
 	});
 
+	it("typeId=1abc → 400 (strict parse, NOT silently treated as 1) — reviewer pin msg b4221d27", async () => {
+		// Regression pin: the previous `Number.parseInt` path accepted
+		// "1abc" as 1 and would have dispatched to forum_thread_types
+		// with id=1. After tightening, this MUST 400 before any D1 hit.
+		const { db, calls } = makeDb({ typeRow: null });
+		const env = { ...mockEnv, DB: db };
+		const res = await list(
+			new Request("https://x/api/v1/threads?forumId=1&typeId=1abc"),
+			env,
+			createMockCtx(),
+		);
+		expect(res.status).toBe(400);
+		// No row lookup, no list query.
+		expect(calls.find((c) => c.sql.includes("forum_thread_types"))).toBeUndefined();
+		expect(calls.find((c) => c.sql.includes("ORDER BY"))).toBeUndefined();
+	});
+
 	it("typeId !== 0 with forum thread_types_enabled=0 → 400 (forumDisabled, no D1 row lookup)", async () => {
 		metaForumPayload.enabled = false;
 		const { db, calls } = makeDb({ typeRow: null });

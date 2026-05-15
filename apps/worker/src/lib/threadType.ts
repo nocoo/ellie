@@ -68,19 +68,42 @@ export interface ForumThreadTypesGate {
  * Coerce a query-string / body input into a non-negative integer typeId,
  * or `null` if the input was absent (`undefined` / `null` / `""`).
  *
- * Returns the discriminated `invalid` shape for non-integer / negative
- * input so the caller can 400 early without dispatching to D1.
+ * Strict parsing — reviewer pin (msg b4221d27): `Number.parseInt` happily
+ * eats trailing junk (`"1abc"` → 1, `"1.5"` → 1) which would silently
+ * resolve a malformed input to category 1 in both the list filter and
+ * the create path. We instead require:
+ *   - `undefined` / `null` / `""` → absent (caller decides if missing OK)
+ *   - string MUST match `/^(0|[1-9]\d*)$/` — no leading zeros (apart from
+ *     bare "0"), no decimal point, no sign, no trailing chars or
+ *     whitespace. The query string / JSON body has already trimmed any
+ *     transport-layer wrappers; if a caller sends padding it's their bug.
+ *   - number MUST be a non-negative integer (no NaN, no fractions, no
+ *     negatives, no Infinity).
+ *   - everything else (objects, arrays, booleans) → invalid.
+ *
+ * Returns the discriminated `invalid` shape so the caller can 400 early
+ * without dispatching to D1.
  */
 export function coerceTypeIdInput(
 	raw: unknown,
 ): { kind: "absent" } | { kind: "ok"; value: number } | { kind: "invalid"; message: string } {
-	if (raw == null) return { kind: "absent" };
-	if (typeof raw === "string" && raw.length === 0) return { kind: "absent" };
-	const n = typeof raw === "number" ? raw : Number.parseInt(String(raw), 10);
-	if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
-		return { kind: "invalid", message: "typeId must be a non-negative integer" };
+	if (raw === undefined || raw === null) return { kind: "absent" };
+	if (typeof raw === "string") {
+		if (raw.length === 0) return { kind: "absent" };
+		// Strict: bare "0" or non-zero digit string with no leading zero.
+		// Rejects "1abc", "1.5", " 1", "1 ", "+1", "-1", "01", "0x1", etc.
+		if (!/^(0|[1-9]\d*)$/.test(raw)) {
+			return { kind: "invalid", message: "typeId must be a non-negative integer" };
+		}
+		return { kind: "ok", value: Number.parseInt(raw, 10) };
 	}
-	return { kind: "ok", value: n };
+	if (typeof raw === "number") {
+		if (!Number.isInteger(raw) || raw < 0) {
+			return { kind: "invalid", message: "typeId must be a non-negative integer" };
+		}
+		return { kind: "ok", value: raw };
+	}
+	return { kind: "invalid", message: "typeId must be a non-negative integer" };
 }
 
 /**
