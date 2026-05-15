@@ -222,12 +222,11 @@ describe("ForumCard LastPostPreview — clickable username + layout split", () =
 	});
 });
 
-describe("ForumCard font baseline — match home-footer text-sm, no text-2xs", () => {
-	// Reviewer wants the homepage forum area to share the home-footer's
-	// text-sm baseline (the user's reference point). These tests pin the
-	// exact classes on the load-bearing spots in forum-card so a future
-	// "let's shrink it back to text-xs" change becomes a visible regression
-	// instead of a silent CSS drift.
+describe("ForumCard font baseline — 14/12 mix aligned with thread-list page", () => {
+	// Reviewer口径 (zheng-li msg=c5e029ab + reviewer msg=4b6f58cb):
+	// 帖子列表页的字号是 14/12 组合 — 主帖标题/板块名/子版面名/末贴标题/描述/今日徽章 14px (text-sm),
+	// 时间/阅读量/回复量/用户名(含版主) 12px (text-xs).
+	// 首页 forum-card 必须沿用同一口径。
 	const lastPostForum = makeForum({
 		lastThreadId: 999,
 		lastThreadSubject: "Hello",
@@ -236,25 +235,89 @@ describe("ForumCard font baseline — match home-footer text-sm, no text-2xs", (
 		lastPosterId: 1,
 	});
 
-	it("desktop ForumStats column uses text-sm (was text-xs)", () => {
+	it("desktop ForumStats column wrapper uses text-xs (stats are 12px)", () => {
 		render(createElement(ForumCard, { forum: lastPostForum, layout: "wide" }));
 		// The wrapper carries the size class; the inner span only owns
 		// whitespace-nowrap. Walk to the parent <div> and check that.
 		const inner = screen.getByTestId("forum-stats-desktop");
 		const wrapper = inner.parentElement;
-		expect(wrapper?.className).toContain("text-sm");
-		expect(wrapper?.className).not.toContain("text-xs");
+		expect(wrapper?.className).toContain("text-xs");
+		expect(wrapper?.className).not.toContain("text-sm");
 	});
 
-	it("LastPostPreview wrapper uses text-sm (was text-xs)", () => {
+	it("LastPostPreview outer wrapper stays text-sm (thread title is 14px)", () => {
 		render(createElement(ForumCard, { forum: lastPostForum, layout: "wide" }));
 		// Date span sits inside the LastPostPreview's outer grid; that grid
-		// owns the text-sm class. Walk up to find it.
+		// owns the text-sm class so the last-thread title inherits 14px.
 		const date = screen.getByTestId("last-post-date");
-		// date span → outer flex span → flex-col div → outer grid div
+		// date span → outer flex span (last-post-meta) → flex-col div → outer grid div
 		const grid = date.parentElement?.parentElement?.parentElement;
 		expect(grid?.className).toContain("text-sm");
-		expect(grid?.className).not.toContain("text-xs");
+	});
+
+	it("LastPostPreview meta row (date + username) uses text-xs", () => {
+		// Date and username sit inside a dedicated meta span that owns text-xs
+		// so they render at 12px while the sibling thread-title link stays 14px.
+		render(createElement(ForumCard, { forum: lastPostForum, layout: "wide" }));
+		const meta = screen.getByTestId("last-post-meta");
+		expect(meta.className).toContain("text-xs");
+		// Both date and username must live inside the meta span (so they inherit 12px).
+		const date = screen.getByTestId("last-post-date");
+		const userLink = screen.getByTestId("last-poster-link");
+		expect(meta.contains(date)).toBe(true);
+		expect(meta.contains(userLink)).toBe(true);
+	});
+
+	it("mobile compact meta row uses text-xs (stats + username + date are 12px)", () => {
+		render(createElement(ForumCard, { forum: lastPostForum, layout: "wide" }));
+		const row = screen.getByTestId("mobile-meta-row");
+		expect(row.className).toContain("text-xs");
+		expect(row.className).not.toContain("text-sm");
+	});
+
+	it("grid layout stats row uses text-xs (12px stats)", () => {
+		render(createElement(ForumCard, { forum: lastPostForum, layout: "grid" }));
+		const row = screen.getByTestId("grid-stats-row");
+		expect(row.className).toContain("text-xs");
+		expect(row.className).not.toContain("text-sm");
+	});
+
+	it("grid layout last-post row wrapper stays text-sm (thread title is 14px)", () => {
+		render(createElement(ForumCard, { forum: lastPostForum, layout: "grid" }));
+		const row = screen.getByTestId("grid-last-post-row");
+		expect(row.className).toContain("text-sm");
+		// Title link inherits — confirm no explicit text-xs override on it.
+		const title = screen.getByTestId("grid-last-thread-link");
+		expect(title.className).not.toContain("text-xs");
+	});
+
+	it("grid layout username Link is text-xs (usernames are 12px even inside a 14px row)", () => {
+		render(createElement(ForumCard, { forum: lastPostForum, layout: "grid" }));
+		const userLink = screen.getByTestId("last-poster-link-grid");
+		expect(userLink.className).toContain("text-xs");
+	});
+
+	it("SubForumLinks row stays text-sm (sub-forum names are 14px navigation)", () => {
+		const withChildren = makeForum({
+			children: [{ id: 11, name: "子版面 A" } as never, { id: 12, name: "子版面 B" } as never],
+		});
+		render(createElement(ForumCard, { forum: withChildren, layout: "wide" }));
+		const row = screen.getByTestId("forum-meta-子版面");
+		expect(row.className).toContain("text-sm");
+		expect(row.className).not.toContain("text-xs");
+	});
+
+	it("ModeratorLinks row uses text-xs (moderator usernames are 12px per username rule)", () => {
+		const withMods = makeForum({
+			moderatorList: [
+				{ id: 1, name: "mod-a" },
+				{ id: 2, name: "mod-b" },
+			],
+		});
+		render(createElement(ForumCard, { forum: withMods, layout: "wide" }));
+		const row = screen.getByTestId("forum-meta-版主");
+		expect(row.className).toContain("text-xs");
+		expect(row.className).not.toContain("text-sm");
 	});
 
 	it("TodayThreadBadge pill uses text-xs (was text-2xs — no sub-12px)", () => {

@@ -71,7 +71,7 @@ function ForumStats({
 }: { threads: number; posts: number; variant: "desktop" | "inline" }) {
 	if (variant === "desktop") {
 		return (
-			<div className="flex flex-col items-end self-start text-sm text-muted-foreground tabular-nums leading-5">
+			<div className="flex flex-col items-end self-start text-xs text-muted-foreground tabular-nums leading-5">
 				<span className="whitespace-nowrap" data-testid="forum-stats-desktop">
 					<span className="text-foreground font-medium">{formatCount(threads)}</span>
 					{" / "}
@@ -111,19 +111,30 @@ function TodayThreadBadge({
 /**
  * Inline label + dot-separated link list — used for both 子版面 and 版主.
  * No badges; layered text colour only so the homepage stays calm.
+ *
+ * The optional `className` lets callers tag the row with a font-size:
+ * `SubForumLinks` keeps the default (text-sm — sub-forum entries are
+ * primary navigation), while `ModeratorLinks` opts into `text-xs`
+ * because moderator usernames belong to the auxiliary meta tier
+ * (matches the thread-list page's 12px treatment of usernames).
  */
 function ForumMetaLine({
 	label,
 	items,
 	renderItem,
+	className = "",
 }: {
 	label: string;
 	items: { id: number; name: string }[];
 	renderItem: (item: { id: number; name: string }) => React.ReactNode;
+	className?: string;
 }) {
 	if (items.length === 0) return null;
 	return (
-		<div className="mt-1 flex items-baseline gap-1 flex-wrap text-sm leading-5">
+		<div
+			className={`mt-1 flex items-baseline gap-1 flex-wrap leading-5${className ? ` ${className}` : ""}`}
+			data-testid={`forum-meta-${label}`}
+		>
 			<span className="text-muted-foreground/80">{label}</span>
 			{items.map((item, i) => (
 				<span key={item.id} className="inline-flex items-baseline gap-1">
@@ -140,6 +151,7 @@ function SubForumLinks({ forums }: { forums: { id: number; name: string }[] }) {
 		<ForumMetaLine
 			label="子版面"
 			items={forums}
+			className="text-sm"
 			renderItem={(sub) => (
 				<Link
 					href={`/forums/${sub.id}`}
@@ -158,6 +170,7 @@ function ModeratorLinks({ mods }: { mods: { id: number; name: string }[] }) {
 		<ForumMetaLine
 			label="版主"
 			items={mods}
+			className="text-xs"
 			renderItem={(mod) => (
 				<UserPopover userId={mod.id}>
 					<span className="text-forum-link hover:underline cursor-pointer">{mod.name}</span>
@@ -202,7 +215,7 @@ function LastPostPreview({ forum }: { forum: ForumTreeNode }) {
 				>
 					{forum.lastThreadSubject || "最新主题"}
 				</Link>
-				<span className="flex items-baseline gap-1 min-w-0">
+				<span className="flex items-baseline gap-1 min-w-0 text-xs" data-testid="last-post-meta">
 					<span className="whitespace-nowrap shrink-0" data-testid="last-post-date">
 						{formatDateTime(forum.lastPostAt)}
 					</span>
@@ -289,7 +302,10 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 					</Link>
 					<TodayThreadBadge count={forum.todayThreads} variant="pill" />
 				</div>
-				<div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+				<div
+					className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground"
+					data-testid="mobile-meta-row"
+				>
 					<span className="tabular-nums shrink-0">
 						<ForumStats threads={forum.threads} posts={forum.posts} variant="inline" />
 					</span>
@@ -342,14 +358,20 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 					</Link>
 					<TodayThreadBadge count={forum.todayThreads} variant="plus" />
 				</div>
-				<div className="mt-1 text-sm text-muted-foreground tabular-nums leading-5">
+				<div
+					className="mt-1 text-xs text-muted-foreground tabular-nums leading-5"
+					data-testid="grid-stats-row"
+				>
 					<ForumStats threads={forum.threads} posts={forum.posts} variant="inline" />
 				</div>
 
 				<ModeratorLinks mods={forum.moderatorList ?? []} />
 
 				{forum.lastPostAt > 0 && (
-					<div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+					<div
+						className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground"
+						data-testid="grid-last-post-row"
+					>
 						<LastPosterAvatarLink
 							userId={forum.lastPosterId}
 							userName={forum.lastPoster}
@@ -367,13 +389,13 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 							<Link
 								href={`/users/${forum.lastPosterId}`}
 								prefetch={false}
-								className="shrink-0 text-forum-link hover:underline"
+								className="shrink-0 text-xs text-forum-link hover:underline"
 								data-testid="last-poster-link-grid"
 							>
 								{forum.lastPoster}
 							</Link>
 						) : (
-							<span className="shrink-0">{forum.lastPoster}</span>
+							<span className="shrink-0 text-xs">{forum.lastPoster}</span>
 						)}
 					</div>
 				)}
