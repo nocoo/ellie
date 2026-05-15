@@ -43,12 +43,17 @@ export function PostSidebar({
 					viewerUserId={viewerUserId}
 					align="start"
 				>
-					<span className="text-sm font-bold text-forum-link hover:underline cursor-pointer">
+					<span
+						className="text-xs font-bold text-forum-link hover:underline cursor-pointer"
+						data-testid="post-sidebar-author"
+					>
 						{author.username}
 					</span>
 				</UserPopover>
 			) : (
-				<span className="text-sm text-muted-foreground">未知用户</span>
+				<span className="text-xs text-muted-foreground" data-testid="post-sidebar-author">
+					未知用户
+				</span>
 			)}
 
 			{/* Avatar — photo-frame: white padding + shadow */}
@@ -86,7 +91,11 @@ export function PostSidebar({
 						</div>
 					)}
 					{checkinDays && (
-						<div className="text-2xs text-muted-foreground truncate" title={checkinDays}>
+						<div
+							className="text-xs text-muted-foreground truncate"
+							title={checkinDays}
+							data-testid="post-sidebar-checkin-days"
+						>
 							{checkinDays}
 						</div>
 					)}
@@ -100,17 +109,17 @@ export function PostSidebar({
 						<div className="text-sm font-medium text-forum-link">
 							{formatNumber(author.threads)}
 						</div>
-						<div className="text-[10px] leading-3 text-muted-foreground">主题</div>
+						<div className="text-xs leading-3 text-muted-foreground">主题</div>
 					</div>
 					<div className="py-1 px-0.5">
 						<div className="text-sm font-medium text-forum-link">{formatNumber(author.posts)}</div>
-						<div className="text-[10px] leading-3 text-muted-foreground">回复</div>
+						<div className="text-xs leading-3 text-muted-foreground">回复</div>
 					</div>
 					<div className="py-1 px-0.5">
 						<div className="text-sm font-medium text-forum-link">
 							{formatNumber(author.credits)}
 						</div>
-						<div className="text-[10px] leading-3 text-muted-foreground">积分</div>
+						<div className="text-xs leading-3 text-muted-foreground">积分</div>
 					</div>
 				</div>
 			)}
@@ -121,7 +130,7 @@ export function PostSidebar({
 					{/* Campus — top of detail block, hidden when empty */}
 					{author.campus && (
 						<div className="flex items-baseline justify-between gap-1">
-							<span className="shrink-0 text-[10px] leading-3 text-muted-foreground">校区:</span>
+							<span className="shrink-0 text-xs leading-3 text-muted-foreground">校区:</span>
 							<span className="text-right truncate">{author.campus}</span>
 						</div>
 					)}
@@ -141,7 +150,7 @@ export function PostSidebar({
 					{/* Level */}
 					{author.groupStars > 0 && (
 						<div className="flex items-baseline justify-between gap-1">
-							<span className="shrink-0 text-[10px] leading-3 text-muted-foreground">等级:</span>
+							<span className="shrink-0 text-xs leading-3 text-muted-foreground">等级:</span>
 							<span>Lv.{author.groupStars}</span>
 						</div>
 					)}
@@ -155,7 +164,7 @@ export function PostSidebar({
 
 					{/* UID */}
 					<div className="flex items-baseline justify-between gap-1">
-						<span className="shrink-0 text-[10px] leading-3 text-muted-foreground">UID:</span>
+						<span className="shrink-0 text-xs leading-3 text-muted-foreground">UID:</span>
 						<Link
 							href={`/users/${author.id}`}
 							prefetch={false}
@@ -167,20 +176,20 @@ export function PostSidebar({
 
 					{/* Credits */}
 					<div className="flex items-baseline justify-between gap-1">
-						<span className="shrink-0 text-[10px] leading-3 text-muted-foreground">同钱:</span>
+						<span className="shrink-0 text-xs leading-3 text-muted-foreground">同钱:</span>
 						<span>{formatNumber(author.coins ?? 0)}</span>
 					</div>
 
 					{/* Registration date */}
 					<div className="flex items-baseline justify-between gap-1">
-						<span className="shrink-0 text-[10px] leading-3 text-muted-foreground">注册:</span>
+						<span className="shrink-0 text-xs leading-3 text-muted-foreground">注册:</span>
 						<span>{formatDate(author.regDate)}</span>
 					</div>
 
 					{/* Online time */}
 					{author.olTime > 0 && (
 						<div className="flex items-baseline justify-between gap-1">
-							<span className="shrink-0 text-[10px] leading-3 text-muted-foreground">在线:</span>
+							<span className="shrink-0 text-xs leading-3 text-muted-foreground">在线:</span>
 							<span>{formatNumber(author.olTime)} 小时</span>
 						</div>
 					)}
@@ -188,7 +197,7 @@ export function PostSidebar({
 					{/* Digest posts */}
 					{author.digestPosts > 0 && (
 						<div className="flex items-baseline justify-between gap-1">
-							<span className="shrink-0 text-[10px] leading-3 text-muted-foreground">精华:</span>
+							<span className="shrink-0 text-xs leading-3 text-muted-foreground">精华:</span>
 							<span>{formatNumber(author.digestPosts)}</span>
 						</div>
 					)}
@@ -196,13 +205,13 @@ export function PostSidebar({
 					{/* Thread stats — first post only */}
 					{isFirst && threadViews !== undefined && (
 						<div className="flex items-baseline justify-between gap-1">
-							<span className="shrink-0 text-[10px] leading-3 text-muted-foreground">查看:</span>
+							<span className="shrink-0 text-xs leading-3 text-muted-foreground">查看:</span>
 							<span>{formatNumber(threadViews)}</span>
 						</div>
 					)}
 					{isFirst && threadReplies !== undefined && (
 						<div className="flex items-baseline justify-between gap-1">
-							<span className="shrink-0 text-[10px] leading-3 text-muted-foreground">回复:</span>
+							<span className="shrink-0 text-xs leading-3 text-muted-foreground">回复:</span>
 							<span>{formatNumber(threadReplies)}</span>
 						</div>
 					)}
