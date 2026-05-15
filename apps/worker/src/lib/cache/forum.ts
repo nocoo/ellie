@@ -242,16 +242,42 @@ export function buildForumMetaPayload(
 
 // ─── Validators (post-cache-read shape guards) ─────────────────────
 //
-// These are intentionally narrow — they verify the top-level shape only.
-// The KV payload is JSON we wrote ourselves in the same release, so deep
-// validation would be paranoia; the goal is to guard against a stale
-// payload from a previous schema slipping through (e.g. someone forgot
-// to bump `forum:tree:gen` on a payload-shape change).
+// Narrow validators that guard against a stale schema slipping through —
+// e.g. an old KV payload written before a structural-field addition.
+//
+// Depth: top-level shape PLUS the structural fields callers are about to
+// dereference unconditionally. The current trigger is `Forum.threadTypes`
+// becoming non-optional (commit `ba100da6`): old `forum:tree:v2` and
+// `forum:meta:v2` payloads in production KV pre-date that field, so a
+// cache hit would either echo `threadTypes: undefined` to clients or
+// crash `cfg.enabled` reads in `getThreadTypes`. We deep-check enough to
+// reject those payloads so they fall back to D1 and re-write under the
+// new shape. No key version bump needed — validator-miss is the recovery
+// path.
+
+/** True iff `t` is `{ enabled, required, listable, prefix }` all booleans. */
+function isThreadTypeConfig(t: unknown): boolean {
+	if (!t || typeof t !== "object") return false;
+	const c = t as Record<string, unknown>;
+	return (
+		typeof c.enabled === "boolean" &&
+		typeof c.required === "boolean" &&
+		typeof c.listable === "boolean" &&
+		typeof c.prefix === "boolean"
+	);
+}
 
 export function isForumTreePayload(value: unknown): value is ForumTreePayloadV2 {
 	if (!value || typeof value !== "object") return false;
 	const v = value as Partial<ForumTreePayloadV2>;
-	return typeof v.bucket === "string" && Array.isArray(v.forums);
+	if (typeof v.bucket !== "string" || !Array.isArray(v.forums)) return false;
+	// Reject pre-threadTypes payloads. Empty `forums` is legal — the bucket
+	// may legitimately have nothing visible, and there's no field to check.
+	for (const node of v.forums) {
+		if (!node || typeof node !== "object") return false;
+		if (!isThreadTypeConfig((node as unknown as Record<string, unknown>).threadTypes)) return false;
+	}
+	return true;
 }
 
 export function isForumSummaryPayload(value: unknown): value is ForumSummaryPayloadV2 {
@@ -263,5 +289,8 @@ export function isForumSummaryPayload(value: unknown): value is ForumSummaryPayl
 export function isForumMetaPayload(value: unknown): value is ForumMetaPayloadV2 {
 	if (!value || typeof value !== "object") return false;
 	const v = value as Partial<ForumMetaPayloadV2>;
-	return typeof v.bucket === "string" && v.forum != null && typeof v.forum === "object";
+	if (typeof v.bucket !== "string" || v.forum == null || typeof v.forum !== "object") return false;
+	// Reject pre-threadTypes payloads — getThreadTypes() dereferences
+	// `meta.forum.threadTypes.enabled` unconditionally.
+	return isThreadTypeConfig((v.forum as unknown as Record<string, unknown>).threadTypes);
 }

@@ -288,6 +288,7 @@ describe("forum.list — v2 cache", () => {
 					moderators: "",
 					moderatorIds: "",
 					moderatorList: [],
+					threadTypes: { enabled: false, required: false, listable: false, prefix: false },
 				},
 			],
 		});
@@ -694,6 +695,7 @@ describe("forum.getById — v2 cache", () => {
 					lastPosterAvatar: "cached.png",
 					lastPosterAvatarPath: "/c.png",
 					lastThreadSubject: "h",
+					threadTypes: { enabled: false, required: false, listable: false, prefix: false },
 				},
 			}),
 		};
