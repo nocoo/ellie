@@ -16,9 +16,14 @@ export type ThreadBadgeSource = Pick<Thread, "typeName" | "sticky" | "digest" | 
 /**
  * Optional knobs for `getThreadBadges`.
  *
- * `includeTypeNameBadge` defaults to `true` so historical callers see no
- * behavior change. Pass `false` to suppress the leading prefix badge on
- * forums whose `thread_types_prefix` switch is off.
+ * `includeTypeNameBadge` defaults to `true` so the helper's historical
+ * behavior is unchanged for every caller that doesn't opt in. Forum-list
+ * callers that know the forum's `thread_types_prefix` switch can pass
+ * `false` to suppress the prefix badge without touching the denorm
+ * `thread.typeName` field — that way historical disabled/tombstone
+ * categories still surface on forums that keep the prefix toggle on
+ * (reviewer msg 94b13fd4: required-vs-prefix is an explicit caller
+ * decision, not a default change in this helper).
  */
 export interface GetThreadBadgesOptions {
     /** When `false`, omit the leading `typeName` (prefix) badge. Default `true`. */
