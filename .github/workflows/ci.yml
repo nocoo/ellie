@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: "22"
       - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
+      - run: bun install --frozen-lockfile --ignore-scripts
       - name: "L2: API E2E tests"
         run: bun run test:e2e:api
         env:
@@ -55,7 +55,7 @@ jobs:
         with:
           node-version: "22"
       - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
+      - run: bun install --frozen-lockfile --ignore-scripts
       - run: bunx playwright install --with-deps chromium
       - name: "Apply D1 migrations to test DB"
         run: bun x wrangler d1 migrations apply DB --env test --remote -c apps/worker/wrangler.toml
