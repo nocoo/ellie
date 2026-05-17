@@ -16,7 +16,15 @@ export default defineConfig({
 	reporter: "html",
 
 	expect: {
-		timeout: process.env.CI ? 15_000 : 5_000,
+		// Match CI's 15s expect.timeout in local runs too. The prior 5s value
+		// was a fast-feedback default for individual devs running a single spec,
+		// but the autoresearch loop (and `bun run test:e2e:browser`) executes the
+		// full suite against a Turbopack dev server, where the first paint after
+		// a route compile can legitimately take 6–12s. With 5s we flake on every
+		// full run; with 15s the suite is stable and we still surface real
+		// product regressions because the *navigation* timeout (30s) is what
+		// catches genuine hangs.
+		timeout: 15_000,
 	},
 
 	use: {
