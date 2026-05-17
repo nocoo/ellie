@@ -176,6 +176,60 @@ function stopServer(): void {
 	serverProcess = null;
 }
 
+// ─── Route prewarm ─────────────────────────────────────────────
+
+/**
+ * Hit each heavy dynamic route once so Turbopack compiles it before
+ * Playwright starts launching tests in parallel.
+ *
+ * Without this, the first test to navigate to `/forums/[id]` or
+ * `/threads/[id]` can wait 20–30 s on Turbopack first-compile, which trips
+ * Playwright's 30 s navigationTimeout and the 5 s expect timeout — cascading
+ * into ~half the suite failing on cold runs.
+ *
+ * Each prewarm is fire-and-forget with a generous timeout; we don't fail the
+ * runner if a route returns non-2xx (e.g. /me redirects to /login when
+ * unauthenticated, which is fine — the compile still happened).
+ */
+async function prewarmRoutes(): Promise<void> {
+	const routes = [
+		"/",
+		"/login",
+		"/forums/1",
+		"/forums/114",
+		"/threads/1",
+		"/users/100",
+		"/me",
+		"/search",
+		"/digest",
+		"/messages",
+	];
+	console.log(`🔥 Prewarming ${routes.length} routes…`);
+	const started = Date.now();
+	// Sequential rather than parallel: parallel compiles fight for the same
+	// Turbopack worker pool and end up just as slow but with worse log noise.
+	for (const route of routes) {
+		const t0 = Date.now();
+		try {
+			const controller = new AbortController();
+			const kill = setTimeout(() => controller.abort(), 60_000);
+			const res = await fetch(`${BASE_URL}${route}`, {
+				redirect: "manual",
+				signal: controller.signal,
+			});
+			clearTimeout(kill);
+			// Drain body so the connection closes and the server is free.
+			await res.text().catch(() => {});
+			console.log(`   ✓ ${route} → ${res.status} (${Date.now() - t0}ms)`);
+		} catch (err) {
+			console.log(
+				`   ⚠ ${route} prewarm error: ${err instanceof Error ? err.message : err}`,
+			);
+		}
+	}
+	console.log(`   prewarm done in ${Date.now() - started}ms`);
+}
+
 // ─── Playwright ────────────────────────────────────────────────
 
 async function runPlaywright(): Promise<number> {
@@ -216,6 +270,7 @@ async function main(): Promise<void> {
 		await loadEnv();
 		validateAndOverride();
 		await startServer();
+		await prewarmRoutes();
 		exitCode = await runPlaywright();
 	} catch (err) {
 		console.error("❌ L3 runner failed:", err instanceof Error ? err.message : err);
