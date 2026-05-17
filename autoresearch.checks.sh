@@ -1,20 +1,19 @@
 #!/usr/bin/env bash
-# Autoresearch gate: ensure handler/lib unit tests still pass after each kept change.
-# Runs only the worker tests most relevant to list-loading optimisations.
-# Full L1 (`bun run test`) should be invoked manually before a major refactor PR.
+# Autoresearch backpressure: lightweight gates that catch obvious breakage
+# without paying the full L3 bench cost twice. Runs after every passing
+# benchmark in run_experiment.
 set -euo pipefail
 cd "$(dirname "$0")"
 
 {
-  bunx vitest run --experimental.fsModuleCache \
-    -c apps/worker/vitest.config.ts \
-    tests/unit/handlers/forum.test.ts \
-    tests/unit/handlers/thread.test.ts \
-    tests/unit/handlers/forum-cache-avatar.test.ts \
-    tests/unit/handlers/forum-ancestors.test.ts \
-    tests/unit/lib
-  # Keep typecheck on the gate — we shipped a session where buildNextCursor
-  # broke `bun run typecheck` while leaving vitest green; the autoresearch
-  # bench would then "keep" a state that fails CI typecheck.
+  # Typecheck the whole monorepo — catches type regressions introduced by new
+  # test fixtures / page-object helpers.
   bash scripts/typecheck.sh
+
+  # Biome on the e2e dir only — full repo lint is slow and not the gate's job.
+  # `--no-errors-on-unmatched` keeps this resilient if the dir is empty.
+  bunx biome check --error-on-warnings tests/e2e || {
+    echo "[checks] biome failed on tests/e2e"
+    exit 1
+  }
 } >/tmp/autoresearch_checks.log 2>&1
