@@ -38,8 +38,11 @@ const E2E_TEST_USER = {
  *
  * Anti-cheating note:
  *   - The captured cookies are the genuine output of the real product login.
- *   - Tests that explicitly verify the login form (E2E-AU-01..05) do NOT call
- *     `loginAs()` and so are not affected.
+ *   - The auth spec (E2E-AU-*) MUST use `loginViaForm()` instead of
+ *     `loginAs()` so its regression coverage actually exercises the
+ *     /login form + NextAuth credentials callback, not just cookie
+ *     injection. `loginAs()` is for the much larger set of non-auth
+ *     specs that only need to *be* logged in.
  *   - If the cached cookies ever fail (e.g. JWT expired mid-run), the catch
  *     block re-runs the form flow and refreshes the cache.
  */
@@ -84,8 +87,25 @@ export interface TestFixtures {
 	/** Navigate to a path and wait for network idle */
 	navigateTo: (path: string) => Promise<void>;
 
-	/** Log in as a specific user via login form */
+	/**
+	 * Log in as a specific user.
+	 *
+	 * Performance shortcut for non-auth tests: after the first form login of
+	 * the playwright run, subsequent calls inject the captured storageState
+	 * instead of replaying the form. DO NOT use this in auth.spec.ts — use
+	 * `loginViaForm` so the regression actually drives the UI.
+	 */
 	loginAs: (username: string) => Promise<void>;
+
+	/**
+	 * Log in as a specific user by driving the /login form end-to-end.
+	 *
+	 * Always exercises the real UI + NextAuth credentials callback, never
+	 * touches the cached storageState, and does not populate it either.
+	 * Use this exclusively in auth.spec.ts (E2E-AU-*) where the login flow
+	 * itself is under test.
+	 */
+	loginViaForm: (username: string) => Promise<void>;
 }
 
 export const test = base.extend<TestFixtures>({
@@ -95,6 +115,15 @@ export const test = base.extend<TestFixtures>({
 			await page.waitForLoadState("networkidle");
 		};
 		await use(navigateTo);
+	},
+
+	loginViaForm: async ({ page }, use) => {
+		const loginViaForm = async (_username: string) => {
+			// Always drive the real form. Intentionally bypasses the storageState
+			// cache so auth-spec assertions cover the login UI + callback.
+			await performFormLogin(page);
+		};
+		await use(loginViaForm);
 	},
 
 	loginAs: async ({ page, context }, use) => {

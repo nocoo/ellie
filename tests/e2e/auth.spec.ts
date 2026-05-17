@@ -51,9 +51,11 @@ test.describe("E2E-AU: Auth Flow", () => {
 	 * Then I should be redirected to /
 	 * And I should see my username in navbar
 	 */
-	test("E2E-AU-03: login success redirects to home", async ({ page, loginAs }) => {
-		// Login with valid credentials (uses e2etest user)
-		await loginAs("e2etest");
+	test("E2E-AU-03: login success redirects to home", async ({ page, loginViaForm }) => {
+		// Login with valid credentials via the real form (uses e2etest user).
+		// Intentionally not `loginAs` — this spec is the regression for the
+		// /login form + NextAuth callback, not for the cached-cookie fastpath.
+		await loginViaForm("e2etest");
 
 		// Should be redirected away from login page
 		await expect(page).not.toHaveURL(/\/login/);
@@ -96,9 +98,11 @@ test.describe("E2E-AU: Auth Flow", () => {
 	 * Then I should stay on /login
 	 * And I should see the "already logged in" card with my username
 	 */
-	test("E2E-AU-05: logged-in user sees already-logged-in card", async ({ page, loginAs }) => {
-		// Login first (uses e2etest user)
-		await loginAs("e2etest");
+	test("E2E-AU-05: logged-in user sees already-logged-in card", async ({ page, loginViaForm }) => {
+		// Login first via the real form (uses e2etest user). The already-logged-in
+		// card behaviour belongs to the auth surface, so we don't take the cached-
+		// cookie shortcut here either.
+		await loginViaForm("e2etest");
 
 		// Navigate to login page
 		await page.goto("/login");
