@@ -9,7 +9,7 @@ export class ForumPage {
 
 	async goto(forumId: number) {
 		await this.page.goto(`/forums/${forumId}`);
-		await this.page.waitForLoadState("networkidle");
+		await this.page.waitForLoadState("load");
 	}
 
 	/** Forum title heading */

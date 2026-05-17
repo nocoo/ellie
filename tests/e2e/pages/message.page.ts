@@ -7,7 +7,17 @@ export class MessagePage {
 
 	async goto() {
 		await this.page.goto("/messages");
-		await this.page.waitForLoadState("networkidle");
+		// /messages issues an async fetch for the inbox list; "load" returns
+		// before that resolves and the message list / empty state is mounted.
+		// We can't rely on networkidle either (HMR websockets keep the network
+		// busy), so wait explicitly for the content shape the tests check.
+		await this.page
+			.locator('a[href^="/messages/"], :text("收信箱为空"), :text("发信箱为空")')
+			.first()
+			.waitFor({ state: "visible", timeout: 15_000 })
+			.catch(() => {
+				/* fall through — the test's own assertions will surface the failure */
+			});
 	}
 
 	/** Page heading — h1 "站内信" */
