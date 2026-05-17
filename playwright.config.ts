@@ -9,7 +9,12 @@ const BASE_URL = `http://localhost:${PORT}`;
 export default defineConfig({
 	testDir: "tests/e2e",
 	forbidOnly: !!process.env.CI,
-	retries: process.env.CI ? 2 : 0,
+	// Local was 0 retries; CI uses 2. The autoresearch full-suite bench mirrors
+	// CI behaviour and is acutely sensitive to single-test flakes: stateful
+	// tests depend on `stateless` passing in full, so one flake costs ~10
+	// reported failures. 1 retry is enough to absorb the occasional
+	// per-test jitter without disguising deterministic regressions.
+	retries: process.env.CI ? 2 : 1,
 	// Force single worker to ensure stateful tests (thread/post) never run concurrently
 	// This prevents cross-file race conditions when creating threads/posts
 	workers: 1,
