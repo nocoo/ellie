@@ -343,12 +343,11 @@ export const changePassword = withAuthVerified(async (request, env, user) => {
 		return errorResponse("USER_NOT_FOUND", 404, undefined, origin);
 	}
 
-	// Verify old password and pre-compute the new hash in parallel.
-	// hashPassword is the slow step (PBKDF2) and the new hash is needed on
-	// every success path; pre-computing it lets the verify and hash work
-	// overlap. On failure we discard the hash — acceptable cost since the
-	// failure case is also rate-limited at the IP layer.
-	const newHashPromise = hashPassword(newPassword);
+	// Verify the old password BEFORE hashing the new one. Speculatively
+	// pre-computing the new hash (PBKDF2) on every request would turn a
+	// wrong-old-password attempt by an already-authenticated user into a
+	// CPU amplification vector — this route has no IP rate-limit of its
+	// own, so we must not do extra crypto work on the failure path.
 	let isValid = false;
 	if (row.password_salt) {
 		isValid = await verifyDiscuzPassword(oldPassword, row.password_hash, row.password_salt);
@@ -357,12 +356,10 @@ export const changePassword = withAuthVerified(async (request, env, user) => {
 	}
 
 	if (!isValid) {
-		// Drain the in-flight hash so we don't leak an unhandled rejection.
-		newHashPromise.catch(() => {});
 		return errorResponse("WRONG_PASSWORD", 401, undefined, origin);
 	}
 
-	const newHash = await newHashPromise;
+	const newHash = await hashPassword(newPassword);
 	await env.DB.prepare("UPDATE users SET password_hash = ?, password_salt = '' WHERE id = ?")
 		.bind(newHash, user.userId)
 		.run();
