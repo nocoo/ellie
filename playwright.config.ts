@@ -48,7 +48,7 @@ export default defineConfig({
 		{
 			name: "stateless",
 			testMatch:
-				/\/(navigation|navigation-extra|auth|search|system|redirect|pagination|message|user-journey|search-interaction|digest-filter|dialog-layout|not-found|user-actions|misc-coverage)\.spec\.ts/,
+				/\/(navigation|navigation-extra|auth|search|system|redirect|pagination|message|user-journey|search-interaction|digest-filter|dialog-layout|not-found|user-actions|misc-coverage|already-logged-in)\.spec\.ts/,
 			fullyParallel: true, // Tests within same file can run in parallel
 			use: { ...devices["Desktop Chrome"] },
 		},
