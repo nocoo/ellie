@@ -36,6 +36,14 @@ test.describe("E2E-SI: Search Interaction", () => {
 	 * Then I should navigate to the thread page
 	 */
 	test("E2E-SI-02: clicking search result navigates to thread", async ({ page, loginAs }) => {
+		// Marks this test as 3× the per-test timeout. Search is the slowest
+		// route in dev mode: the worker /api/v1/search call itself can take
+		// 5–10 s, the search page renders results progressively, and then we
+		// have to wait on yet another Turbopack compile of /threads/[id] when
+		// the user clicks through. Without test.slow() this trips the 30s
+		// default test timeout intermittently.
+		test.slow();
+
 		await loginAs("e2etest");
 
 		// Go directly to search with a query that should return results
