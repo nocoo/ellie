@@ -192,6 +192,11 @@ async function runPlaywright(): Promise<number> {
 			// so a stray admin spec can't be sent against the forum dev server.
 			"--project=stateless",
 			"--project=stateful",
+			// Forward any extra CLI args (e.g. --reporter=json, file filters) that
+			// were passed to run-l3.ts itself. Lets the autoresearch bench harness
+			// (scripts/bench-l3.ts) ask for the JSON reporter without duplicating
+			// server lifecycle code here.
+			...process.argv.slice(2),
 		],
 		cwd: REPO_ROOT,
 		stdout: "inherit",

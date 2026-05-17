@@ -1,54 +1,73 @@
-# Autoresearch Rules — Ellie List Loading Performance
+# Autoresearch Rules — L3 (Playwright) coverage growth & stability
 
 ## Goal
-Find and remove performance bottlenecks affecting **list loading** across web,
-admin and worker layers. Refactor duplicated code into shared helpers when it
-helps clarity or hot-path performance, but **do not change behaviour** and
-**do not break tests** (L1, L2, L3).
+Grow the **passing L3 (browser E2E) test count** while keeping the suite
+**stable** (no regressions in previously-passing tests). The starting baseline
+suffers from Turbopack cold-compile cascades that time-out heavy routes; the
+first job is to stabilise the existing suite, then add new cases that exercise
+under-covered user journeys.
 
 ## Primary Metric
-- `total_µs` from `bun scripts/bench-list.ts` — combined wall time of N
-  iterations of representative list handlers (forum.list + thread.list with
-  varied dataset sizes).
-- Lower is better.
+- `passing_l3` — number of L3 specs that ended in `passed` per
+  `bun scripts/bench-l3.ts`.
+- Higher is better.
 
-## Secondary Metrics (monitoring only)
-- `forum_list_µs` — per-call time for forum tree list
-- `thread_list_µs` — per-call time for thread list
-- `worker_test_ms` — duration of `bunx vitest run -c apps/worker/vitest.config.ts`
-  on a smoke subset (only run on the gate, not every iteration)
+## Secondary Metrics (monitoring)
+- `failing_l3` — must **not** regress against the running best. A keep is only
+  valid if `failing_l3` ≤ best-so-far.
+- `flaky_l3` — runs that needed a retry. Treat increases as suspicious.
+- `total_l3`, `skipped_l3` — sanity.
+
+## Scope
+- Forum-side L3 only (`tests/e2e/*.spec.ts`, projects `stateless` + `stateful`).
+- Admin L3 (`tests/e2e/admin/*.spec.ts`) needs a separate dev server on
+  :7032 and is **excluded from the bench**. Admin spec additions are still
+  welcome but must be sanity-checked manually with `bun run test:e2e:admin`
+  before keeping.
 
 ## Hard Gates (must pass)
-1. The benchmark itself must finish without errors and JSON output of handlers
-   must keep the same shape (the bench includes a sanity check).
-2. Worker unit tests for the touched handlers must pass:
-   `bunx vitest run -c apps/worker/vitest.config.ts tests/unit/handlers/forum.test.ts tests/unit/handlers/thread.test.ts tests/unit/lib`
-   Run this gate **before keeping** any change that modifies
-   `apps/worker/src/handlers/forum.ts`, `apps/worker/src/handlers/thread.ts`, or
-   anything under `apps/worker/src/lib/`.
-3. Once per ~10 keeps (or before a meaningful refactor PR), run full L1
-   `bun run test` to make sure nothing else regressed.
+1. Bench runs to completion and the JSON report is produced.
+2. `passing_l3` must not decrease. If a change makes a previously-passing test
+   regress, discard it.
+3. `failing_l3` must not increase.
+4. New spec files MUST be additive — do **not** modify existing spec files
+   except to fix obvious flakes (e.g. selector races) or to upgrade outdated
+   selectors. Document any such fix in the commit body.
 
 ## Anti-Cheating Guardrails
-- Do **not** short-circuit handlers to skip work for benchmark inputs.
-- Do **not** memoize cross-call (handler must remain stateless per request)
-  unless the cache is also valid in production (KV-backed, TTL'd, etc.).
-- Do **not** edit `scripts/bench-list.ts` to make it cheaper to run unless the
-  change is clearly fairer (e.g. measuring more representative work). Any edit
-  to the bench must keep the same set of operations.
-- Optimisations should generalise: if a change only helps the bench's exact
-  dataset shape, reject it.
-- Behavioural changes require new/updated unit tests in the same commit.
+- Do not add tests that assert nothing useful (`expect(true).toBe(true)`,
+  trivial `expect(page).toBeTruthy()`).
+- Do not skip / xfail tests to boost the passing count.
+- Do not raise expect/test timeouts to mask real product regressions. Timeout
+  bumps are only acceptable as part of an explicit Turbopack cold-compile
+  stabilisation (e.g. a server prewarm step). Document the rationale.
+- New tests must hit real product code paths and assert visible behaviour
+  (page text, navigation outcome, network response). No mocking of the dev
+  server.
+- Do **not** modify `scripts/bench-l3.ts` or `playwright.config.ts` to
+  artificially count more tests. Changes to those files must keep the same
+  measurement semantics (status == "passed" => +1).
+- Do **not** make the bench cheaper (e.g. by filtering to a subset of specs).
 
 ## Useful Commands
-- Bench: `bun scripts/bench-list.ts`
-- Worker handler tests: `bunx vitest run -c apps/worker/vitest.config.ts tests/unit/handlers tests/unit/lib`
-- Full L1: `bun run test`
+- Bench: `bun scripts/bench-l3.ts`
+- Single spec dev cycle:
+  `bun run scripts/run-l3.ts -g "<grep>" --reporter=list`
+- Full forum L3 (manual): `bun run test:e2e:browser`
+- Admin L3 (manual, separate server on :7032): `bun run test:e2e:admin`
+- L1 sanity (occasional): `bun run test`
 
-## Notes
-- Worker handlers are mostly pure functions that take `(Request, Env, ctx)` and
-  talk to a mocked `D1Database` in benches. We can therefore measure handler
-  cost directly without a worker runtime.
-- The bench also covers admin/web shared code transitively (mappers,
-  pagination, response builders, censor, visibility) which are imported by the
-  same handlers.
+## Backpressure Checks
+`autoresearch.checks.sh` runs lightweight gates that catch obvious breakage
+without paying the full bench cost twice:
+- typecheck (`bash scripts/typecheck.sh`)
+- biome lint on the touched test files (best-effort)
+
+## Notes / Known Issues
+- Turbopack first-compile of `/forums/[id]`, `/threads/[id]`, `/users/[id]`,
+  `/me`, `/search` can exceed Playwright's default 30 s navigation timeout in
+  parallel runs. The first stabilisation iteration prewarms those routes
+  after the dev server is ready (`scripts/run-l3.ts`).
+- The bench is intentionally tolerant of failures — it always reports the
+  metric. The autoresearch operator must reject runs where `failing_l3`
+  regresses.

@@ -61,3 +61,4 @@ target/
 scripts/*-import.sql
 scripts/*-data.sql
 **/import-*.sql
+.autoresearch/
