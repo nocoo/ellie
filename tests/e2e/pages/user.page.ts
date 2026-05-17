@@ -9,7 +9,7 @@ export class UserPage {
 
 	async goto(userId: number) {
 		await this.page.goto(`/users/${userId}`);
-		await this.page.waitForLoadState("networkidle");
+		await this.page.waitForLoadState("load");
 	}
 
 	/** User avatar image */
@@ -70,12 +70,12 @@ export class UserPage {
 	/** Navigate to threads tab */
 	async goToThreadsTab() {
 		await this.threadsCard.click();
-		await this.page.waitForLoadState("networkidle");
+		await this.page.waitForLoadState("load");
 	}
 
 	/** Navigate to posts tab */
 	async goToPostsTab() {
 		await this.postsCard.click();
-		await this.page.waitForLoadState("networkidle");
+		await this.page.waitForLoadState("load");
 	}
 }

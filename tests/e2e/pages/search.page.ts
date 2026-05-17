@@ -9,7 +9,7 @@ export class SearchPage {
 
 	async goto() {
 		await this.page.goto("/search");
-		await this.page.waitForLoadState("networkidle");
+		await this.page.waitForLoadState("load");
 	}
 
 	/** Search input field - specifically the one in the main content (name="q") */
@@ -45,6 +45,6 @@ export class SearchPage {
 	async search(query: string) {
 		await this.searchInput.fill(query);
 		await this.searchButton.click();
-		await this.page.waitForLoadState("networkidle");
+		await this.page.waitForLoadState("load");
 	}
 }

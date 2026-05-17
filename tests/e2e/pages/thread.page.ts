@@ -9,7 +9,16 @@ export class ThreadPage {
 
 	async goto(threadId: number) {
 		await this.page.goto(`/threads/${threadId}`);
-		await this.page.waitForLoadState("networkidle");
+		// /threads/[id] is data-heavy: post content streams in via an async
+		// fetch after "load" fires. Wait explicitly for post-card content or
+		// an empty/error state to surface, so callers don't race the fetch.
+		await this.page
+			.locator('h1, [data-testid="post-card"], .bg-card, :text("该帖子不存在")')
+			.first()
+			.waitFor({ state: "visible", timeout: 15_000 })
+			.catch(() => {
+				/* fall through — callers will surface their own assertion errors */
+			});
 	}
 
 	/** Thread subject heading */
