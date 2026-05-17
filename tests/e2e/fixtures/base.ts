@@ -53,9 +53,13 @@ export const test = base.extend<TestFixtures>({
 			await page.fill(FORM.passwordInput, testUser.password);
 			await page.click(FORM.submitButton);
 
-			// Wait for redirect away from login page
+			// Wait for redirect away from login page.
+			// 30s mirrors playwright.config's navigationTimeout — NextAuth's
+			// credentials callback can take 5–10s on a Turbopack-cold dev server
+			// (CSRF compile + first call to the worker), and 15s was occasionally
+			// too tight in the autoresearch full-suite runs.
 			await page.waitForURL((url) => !url.pathname.includes("/login"), {
-				timeout: 15000,
+				timeout: 30000,
 			});
 		};
 		await use(loginAs);
