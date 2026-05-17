@@ -62,3 +62,4 @@ scripts/*-import.sql
 scripts/*-data.sql
 **/import-*.sql
 .autoresearch/
+tests/e2e/.auth/
