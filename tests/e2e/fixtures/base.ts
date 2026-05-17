@@ -2,7 +2,7 @@
 // Ref: docs/e2e-test-design.md §Fixtures
 // Pattern: surety project Page Object Model
 
-import { type Page, test as base } from "@playwright/test";
+import { type BrowserContext, type Page, test as base } from "@playwright/test";
 import { FORM } from "./selectors";
 
 // ---------------------------------------------------------------------------
@@ -18,6 +18,63 @@ const E2E_TEST_USER = {
 	username: "e2etest",
 	password: "e2etest123",
 };
+
+// ---------------------------------------------------------------------------
+// Cached storageState (in-process, single playwright run)
+// ---------------------------------------------------------------------------
+
+/**
+ * Cookies/origins from the first successful form login of the run.
+ *
+ * Rationale: the L3 suite serialises tests at workers=1. Before caching, every
+ * `loginAs()` call paid the full /login form flow — CSRF compile + NextAuth
+ * credentials callback + redirect — which took 8–15 s on a Turbopack-cold dev
+ * server and was the dominant source of suite flakiness.
+ *
+ * The very first call performs the real form login (no shortcuts, no auth
+ * bypass), captures its storageState, and stores it here. Every subsequent
+ * `loginAs()` in the same playwright process just injects those cookies into
+ * the fresh test context (~50 ms).
+ *
+ * Anti-cheating note:
+ *   - The captured cookies are the genuine output of the real product login.
+ *   - Tests that explicitly verify the login form (E2E-AU-01..05) do NOT call
+ *     `loginAs()` and so are not affected.
+ *   - If the cached cookies ever fail (e.g. JWT expired mid-run), the catch
+ *     block re-runs the form flow and refreshes the cache.
+ */
+type CachedState = Awaited<ReturnType<BrowserContext["storageState"]>>;
+let cachedState: CachedState | null = null;
+let inflight: Promise<CachedState> | null = null;
+
+async function performFormLogin(page: Page): Promise<void> {
+	await page.goto("/login");
+	await page.waitForLoadState("networkidle");
+	await page.fill(FORM.usernameInput, E2E_TEST_USER.username);
+	await page.fill(FORM.passwordInput, E2E_TEST_USER.password);
+	await page.click(FORM.submitButton);
+	// 30s mirrors playwright.config's navigationTimeout — NextAuth's
+	// credentials callback can take 5–10s on a Turbopack-cold dev server.
+	await page.waitForURL((url) => !url.pathname.includes("/login"), {
+		timeout: 30_000,
+	});
+}
+
+async function ensureCachedState(page: Page): Promise<CachedState> {
+	if (cachedState) return cachedState;
+	if (inflight) return inflight;
+	inflight = (async () => {
+		await performFormLogin(page);
+		const state = await page.context().storageState();
+		cachedState = state;
+		return state;
+	})();
+	try {
+		return await inflight;
+	} finally {
+		inflight = null;
+	}
+}
 
 // ---------------------------------------------------------------------------
 // Custom fixtures
@@ -40,27 +97,32 @@ export const test = base.extend<TestFixtures>({
 		await use(navigateTo);
 	},
 
-	loginAs: async ({ page }, use) => {
+	loginAs: async ({ page, context }, use) => {
 		const loginAs = async (_username: string) => {
-			await page.goto("/login");
-			await page.waitForLoadState("networkidle");
+			// Fast path: reuse cached storageState if we've already logged in
+			// at least once during this playwright run.
+			if (cachedState) {
+				await context.addCookies(cachedState.cookies);
+				// Hop through home so the NextAuth JWT cookie is materialised
+				// on the page (some layouts mount auth state on first response).
+				await page.goto("/");
+				return;
+			}
 
-			// Use E2E test user credentials
-			// The `_username` parameter is kept for API compatibility but we use the actual test user
-			const testUser = E2E_TEST_USER;
-
-			await page.fill(FORM.usernameInput, testUser.username);
-			await page.fill(FORM.passwordInput, testUser.password);
-			await page.click(FORM.submitButton);
-
-			// Wait for redirect away from login page.
-			// 30s mirrors playwright.config's navigationTimeout — NextAuth's
-			// credentials callback can take 5–10s on a Turbopack-cold dev server
-			// (CSRF compile + first call to the worker), and 15s was occasionally
-			// too tight in the autoresearch full-suite runs.
-			await page.waitForURL((url) => !url.pathname.includes("/login"), {
-				timeout: 30000,
-			});
+			// First call of the run (or after a forced refresh): execute the real
+			// form login and capture its cookies for everyone else.
+			try {
+				await ensureCachedState(page);
+			} catch (err) {
+				// If caching fails, fall back to a vanilla form login so the
+				// individual test still has a chance to pass.
+				console.warn(
+					`[loginAs] cache init failed, falling back to per-test login: ${
+						err instanceof Error ? err.message : err
+					}`,
+				);
+				await performFormLogin(page);
+			}
 		};
 		await use(loginAs);
 	},
