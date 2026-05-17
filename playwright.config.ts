@@ -12,8 +12,13 @@ export default defineConfig({
 	// Local was 0 retries; CI uses 2. The autoresearch full-suite bench mirrors
 	// CI behaviour and is acutely sensitive to single-test flakes: stateful
 	// tests depend on `stateless` passing in full, so one flake costs ~10
-	// reported failures. 1 retry is enough to absorb the occasional
-	// per-test jitter without disguising deterministic regressions.
+	// reported failures. 1 retry is enough to absorb the occasional per-test
+	// jitter without disguising deterministic regressions.
+	//
+	// Honesty caveat: with retries=1, `passing_l3` reports tests that needed
+	// a retry as passed. Use `passing_first_try_l3` / `flaky_l3` from
+	// scripts/bench-l3.ts to see real stability. Do NOT describe a green
+	// bench run as "0 flaky" unless flaky_l3 actually reads 0.
 	retries: process.env.CI ? 2 : 1,
 	// Force single worker to ensure stateful tests (thread/post) never run concurrently
 	// This prevents cross-file race conditions when creating threads/posts

@@ -9,7 +9,14 @@
  *   - Emit METRIC lines that the autoresearch harness can parse.
  *
  * Primary metric:
- *   passing_l3 — number of L3 tests that ended in "passed".
+ *   passing_l3 — number of L3 tests that ended in "passed" (incl. after retry).
+ *
+ * Honesty metric:
+ *   passing_first_try_l3 — tests that passed on the first attempt, no retry.
+ *   flaky_l3              — tests that passed only after a retry.
+ *   Use these to spot real stability regressions: passing_l3 can stay flat
+ *   while passing_first_try_l3 drops, which means we're hiding flakiness
+ *   behind the local retries=1 setting in playwright.config.ts.
  *
  * Hard gates (encoded as non-zero exit when violated):
  *   - No test ended in "failed" / "timedOut".
@@ -22,8 +29,8 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync, mkdirSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dir, "..");
 const REPORT = resolve(ROOT, ".autoresearch/l3-report.json");
@@ -44,55 +51,78 @@ const env = {
 // which causes the child to block on `console.log` and eventually time out
 // every test. Inheriting forwards directly to our parent (run_experiment),
 // which streams output without back-pressure.
-spawnSync(
-	"bun",
-	["run", "scripts/run-l3.ts", "--reporter=list,json"],
-	{ stdio: "inherit", env, cwd: ROOT },
-);
+spawnSync("bun", ["run", "scripts/run-l3.ts", "--reporter=list,json"], {
+	stdio: "inherit",
+	env,
+	cwd: ROOT,
+});
 
 if (!existsSync(REPORT)) {
 	console.error("\n[bench-l3] No playwright JSON report produced — failing.");
 	process.exit(2);
 }
 
-let report: any;
+// Minimal shape of the playwright JSON reporter we care about.
+interface PwTestResult {
+	status?: string;
+}
+interface PwTest {
+	results?: PwTestResult[];
+}
+interface PwSpec {
+	title?: string;
+	ok?: boolean;
+	tests?: PwTest[];
+}
+interface PwNode {
+	title?: string;
+	suites?: PwNode[];
+	specs?: PwSpec[];
+}
+
+let report: PwNode;
 try {
-	report = JSON.parse(readFileSync(REPORT, "utf-8"));
+	report = JSON.parse(readFileSync(REPORT, "utf-8")) as PwNode;
 } catch (e) {
 	console.error("[bench-l3] Failed to parse JSON report:", e);
 	process.exit(2);
 }
 
 let passed = 0;
+let passedFirstTry = 0;
 let failed = 0;
 let flaky = 0;
 let skipped = 0;
 let total = 0;
 const failedTitles: string[] = [];
 
-function walk(node: any, trail: string[] = []) {
+function tallySpec(spec: PwSpec, trail: string[]) {
+	for (const t of spec.tests ?? []) {
+		total++;
+		const results = t.results ?? [];
+		const last = results[results.length - 1];
+		const status = last?.status ?? "unknown";
+		if (status === "skipped") {
+			skipped++;
+		} else if (spec.ok && status === "passed") {
+			passed++;
+			if (results.length > 1) {
+				flaky++;
+			} else {
+				passedFirstTry++;
+			}
+		} else {
+			failed++;
+			failedTitles.push(`${[...trail, spec.title ?? ""].join(" › ")} [${status}]`);
+		}
+	}
+}
+
+function walk(node: PwNode | undefined, trail: string[] = []) {
 	if (!node) return;
 	const here = node.title ? [...trail, node.title] : trail;
 	if (Array.isArray(node.suites)) for (const s of node.suites) walk(s, here);
-	if (Array.isArray(node.specs)) {
-		for (const spec of node.specs) {
-			for (const t of spec.tests ?? []) {
-				total++;
-				const results = t.results ?? [];
-				const last = results[results.length - 1];
-				const status = last?.status ?? "unknown";
-				if (status === "skipped") {
-					skipped++;
-				} else if (spec.ok && status === "passed") {
-					passed++;
-					if (results.length > 1) flaky++;
-				} else {
-					failed++;
-					failedTitles.push(`${[...here, spec.title].join(" › ")} [${status}]`);
-				}
-			}
-		}
-	}
+	if (Array.isArray(node.specs)) for (const spec of node.specs) tallySpec(spec, here);
 }
 
 walk(report);
@@ -104,9 +134,10 @@ if (failedTitles.length) {
 }
 
 console.log(
-	`\n[bench-l3] total=${total} passed=${passed} failed=${failed} skipped=${skipped} flaky=${flaky}`,
+	`\n[bench-l3] total=${total} passed=${passed} (first-try=${passedFirstTry}, after-retry=${flaky}) failed=${failed} skipped=${skipped}`,
 );
 console.log(`METRIC passing_l3=${passed}`);
+console.log(`METRIC passing_first_try_l3=${passedFirstTry}`);
 console.log(`METRIC failing_l3=${failed}`);
 console.log(`METRIC skipped_l3=${skipped}`);
 console.log(`METRIC total_l3=${total}`);
@@ -121,7 +152,7 @@ if (failed > 0) {
 	// vs discard based on both metrics.
 }
 if (passed === 0) {
-	console.error(`[bench-l3] no tests passed — runner failure.`);
+	console.error("[bench-l3] no tests passed — runner failure.");
 	process.exit(1);
 }
 process.exit(0);
