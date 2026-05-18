@@ -1,6 +1,7 @@
 "use client";
 
 import { ThemeToggle } from "@/components/theme-toggle";
+import { VERSION_DISPLAY } from "@ellie/types";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
@@ -110,7 +111,7 @@ function LoginContent() {
 									Ellie 管理后台
 								</span>
 								<span className="text-[10px] font-medium uppercase tracking-widest text-primary-foreground/60">
-									v0.1
+									{VERSION_DISPLAY}
 								</span>
 							</div>
 							{/* Barcode row */}
