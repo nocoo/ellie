@@ -119,12 +119,13 @@ function buildRatingPmBody(opts: {
 
 /**
  * Build the public URL fragment that appears in the PM body. The web
- * BFF maps `/thread/:id#post-:id` to the canonical permalink; we keep
- * it as a relative path here since the Worker doesn't know the deployed
- * web origin.
+ * app serves threads at `/threads/[id]` (plural — see
+ * apps/web/src/app/(forum)/threads/[id]/page.tsx); we keep it as a
+ * relative path here since the Worker doesn't know the deployed web
+ * origin.
  */
 function buildPostUrl(threadId: number, postId: number): string {
-	return `/thread/${threadId}#post-${postId}`;
+	return `/threads/${threadId}#post-${postId}`;
 }
 
 /** Compute the per-dimension aggregate for a single post (active rows only). */

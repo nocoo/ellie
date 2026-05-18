@@ -470,7 +470,7 @@ describe("post-rating create handler", () => {
 	});
 
 	it("should write a 3rd PM-insert statement when notifyAuthor=true", async () => {
-		const { env, batchCalls } = buildEnv();
+		const { env, batchCalls, calls } = buildEnv();
 		const token = await jwtFor(0);
 		const request = makeRateRequest(5, token, {
 			dimension: "coins",
@@ -481,6 +481,16 @@ describe("post-rating create handler", () => {
 		const response = await postRating.create(request, env);
 		expect(response.status).toBe(201);
 		expect((batchCalls[0] as unknown[]).length).toBe(3);
+
+		// PM body must include the canonical web permalink `/threads/<id>#post-<id>`
+		// (plural — apps/web/src/app/(forum)/threads/[id]/page.tsx). The singular
+		// `/thread/...` form would 404 in the deployed web app.
+		const pmInsert = calls.find((c) => c.sql.includes("INSERT INTO messages"));
+		expect(pmInsert).toBeDefined();
+		const pmBody = pmInsert?.params[5] as string;
+		// thread_id is mocked to 7 and postId is 5 (see buildEnv default + makeRateRequest).
+		expect(pmBody).toContain("/threads/7#post-5");
+		expect(pmBody).not.toMatch(/\/thread\/\d/);
 	});
 
 	it("should sanitize BBCode/HTML in reason for both stored row and PM body", async () => {
