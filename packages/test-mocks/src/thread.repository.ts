@@ -3,7 +3,7 @@
 
 import { decodeCursor, encodeCursor } from "@ellie/types";
 import type { Thread } from "@ellie/types";
-import { StickyLevel } from "@ellie/types";
+import { EMPTY_RATING_AGGREGATE, StickyLevel } from "@ellie/types";
 import type { MockDataStore } from "./mock/store";
 import type {
 	CreateThreadInput,
@@ -153,6 +153,7 @@ export function createMockThreadRepository(store: MockDataStore): ThreadReposito
 				createdAt: now,
 				isFirst: true,
 				position: 1,
+				ratingAggregate: EMPTY_RATING_AGGREGATE,
 			});
 
 			return thread;

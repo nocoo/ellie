@@ -8,6 +8,7 @@ import type {
 	Forum,
 	IpBan,
 	Post,
+	PostRatingAggregate,
 	PostThreadSummary,
 	PublicUser,
 	StickyLevel,
@@ -16,7 +17,7 @@ import type {
 	UserCheckinSummary,
 	UserPostHistoryItem,
 } from "@ellie/types";
-import { getCheckinLevel } from "@ellie/types";
+import { EMPTY_RATING_AGGREGATE, getCheckinLevel } from "@ellie/types";
 
 /** D1 row shape for users table */
 interface D1UserRow {
@@ -315,8 +316,16 @@ export function toThread(row: Record<string, unknown>): Thread {
 	};
 }
 
-/** Maps a D1 post row to the frontend Post type. Converts is_first INTEGER to boolean. */
-export function toPost(row: Record<string, unknown>): Post {
+/** Maps a D1 post row to the frontend Post type. Converts is_first INTEGER to boolean.
+ *
+ * `ratingAggregate` (docs/22 §6.3) is attached by the caller — `post.list` and
+ * `post.getById` each fetch the active-row aggregate(s) in a single batch
+ * query alongside the main read. Defaults to the empty zero-state so the
+ * field is never absent on the wire. */
+export function toPost(
+	row: Record<string, unknown>,
+	ratingAggregate: PostRatingAggregate = EMPTY_RATING_AGGREGATE,
+): Post {
 	const r = row as unknown as D1PostRow;
 	return {
 		id: r.id,
@@ -328,6 +337,7 @@ export function toPost(row: Record<string, unknown>): Post {
 		createdAt: r.created_at,
 		isFirst: r.is_first === 1,
 		position: r.position,
+		ratingAggregate,
 	};
 }
 

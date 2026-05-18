@@ -595,3 +595,480 @@ describe("post-rating create handler", () => {
 		expect(payload.data.aggregate.total).toBe(3);
 	});
 });
+
+// ───────────────────────────────────────────────────────────
+// Phase 3 — listByPost (GET /api/v1/posts/:postId/ratings)
+// ───────────────────────────────────────────────────────────
+
+interface BuildListEnvOpts {
+	postRow?: Record<string, unknown> | null;
+	rows?: Record<string, unknown>[];
+	aggregate?: Record<string, unknown> | null;
+	viewerRole?: number | null;
+	viewerStatus?: number;
+	viewerEmailVerifiedAt?: number | null;
+}
+
+function buildListEnv(opts: BuildListEnvOpts = {}) {
+	const postRow =
+		"postRow" in opts
+			? opts.postRow
+			: {
+					post_id: 5,
+					thread_id: 7,
+					author_id: 20,
+					author_name: "bob",
+					invisible: 0,
+					thread_subject: "Hello",
+					sticky: 0,
+					forum_id: 1,
+					forum_status: 1,
+					forum_visibility: "public",
+				};
+
+	const aggregate = opts.aggregate ?? {
+		total: 2,
+		credits_count: 1,
+		credits_sum: 5,
+		coins_count: 1,
+		coins_sum: 3,
+	};
+
+	const rows = opts.rows ?? [
+		{
+			id: 11,
+			post_id: 5,
+			thread_id: 7,
+			rater_id: 30,
+			rater_name: "carol",
+			dimension: 2,
+			score: 3,
+			reason: "ok",
+			created_at: 1_700_000_100,
+			revoked_at: 0,
+		},
+		{
+			id: 10,
+			post_id: 5,
+			thread_id: 7,
+			rater_id: 31,
+			rater_name: "dave",
+			dimension: 1,
+			score: 5,
+			reason: "great",
+			created_at: 1_700_000_000,
+			revoked_at: 0,
+		},
+	];
+
+	const firstResults: Record<string, unknown> = {
+		"FROM posts p": postRow,
+		"COUNT(*) AS total": aggregate,
+	};
+	if (opts.viewerRole !== undefined && opts.viewerRole !== null) {
+		// `optionalAuthVerified` uses `SELECT role, status FROM users WHERE id = ?`
+		// (no email_verified_at — that's the requireVerifiedEmail path).
+		firstResults["SELECT role, status FROM users"] = {
+			role: opts.viewerRole,
+			status: opts.viewerStatus ?? 0,
+		};
+	}
+
+	const { db, calls } = createMockDb({
+		firstResults,
+		allResults: {
+			"WHERE post_id = ? AND revoked_at = 0": rows,
+		},
+	});
+	return { env: makeEnv({ DB: db }), calls };
+}
+
+function makeListRequest(postId: number, token?: string): Request {
+	const headers: Record<string, string> = {};
+	if (token) headers.Authorization = `Bearer ${token}`;
+	return new Request(`https://api.example.com/api/v1/posts/${postId}/ratings`, {
+		method: "GET",
+		headers,
+	});
+}
+
+describe("post-rating listByPost handler", () => {
+	it("should 404 when the post does not exist", async () => {
+		const { env } = buildListEnv({ postRow: null });
+		const response = await postRating.listByPost(makeListRequest(5), env);
+		expect(response.status).toBe(404);
+		const body = (await response.json()) as { error: { code: string } };
+		expect(body.error.code).toBe("POST_NOT_FOUND");
+	});
+
+	it("should 404 (not leak details) when the post is invisible", async () => {
+		const { env } = buildListEnv({
+			postRow: {
+				post_id: 5,
+				thread_id: 7,
+				author_id: 20,
+				author_name: "bob",
+				invisible: 1,
+				thread_subject: "Hello",
+				sticky: 0,
+				forum_id: 1,
+				forum_status: 1,
+				forum_visibility: "public",
+			},
+		});
+		const response = await postRating.listByPost(makeListRequest(5), env);
+		expect(response.status).toBe(404);
+	});
+
+	it("should 404 when the post is anonymous (author_id=0)", async () => {
+		const { env } = buildListEnv({
+			postRow: {
+				post_id: 5,
+				thread_id: 7,
+				author_id: 0,
+				author_name: "Anonymous",
+				invisible: 0,
+				thread_subject: "Hello",
+				sticky: 0,
+				forum_id: 1,
+				forum_status: 1,
+				forum_visibility: "public",
+			},
+		});
+		const response = await postRating.listByPost(makeListRequest(5), env);
+		expect(response.status).toBe(404);
+	});
+
+	it("should 404 when the thread is hidden (sticky<0)", async () => {
+		const { env } = buildListEnv({
+			postRow: {
+				post_id: 5,
+				thread_id: 7,
+				author_id: 20,
+				author_name: "bob",
+				invisible: 0,
+				thread_subject: "Hello",
+				sticky: -1,
+				forum_id: 1,
+				forum_status: 1,
+				forum_visibility: "public",
+			},
+		});
+		const response = await postRating.listByPost(makeListRequest(5), env);
+		expect(response.status).toBe(404);
+	});
+
+	it("should 404 when the forum is inactive", async () => {
+		const { env } = buildListEnv({
+			postRow: {
+				post_id: 5,
+				thread_id: 7,
+				author_id: 20,
+				author_name: "bob",
+				invisible: 0,
+				thread_subject: "Hello",
+				sticky: 0,
+				forum_id: 1,
+				forum_status: 0,
+				forum_visibility: "public",
+			},
+		});
+		const response = await postRating.listByPost(makeListRequest(5), env);
+		expect(response.status).toBe(404);
+	});
+
+	it("should 403 FORBIDDEN when anon viewer hits staff-only forum", async () => {
+		const { env } = buildListEnv({
+			postRow: {
+				post_id: 5,
+				thread_id: 7,
+				author_id: 20,
+				author_name: "bob",
+				invisible: 0,
+				thread_subject: "Hello",
+				sticky: 0,
+				forum_id: 1,
+				forum_status: 1,
+				forum_visibility: "staff",
+			},
+		});
+		const response = await postRating.listByPost(makeListRequest(5), env);
+		expect(response.status).toBe(403);
+	});
+
+	it("should return aggregate + active items for an anon viewer (canRevoke=false)", async () => {
+		const { env } = buildListEnv();
+		const response = await postRating.listByPost(makeListRequest(5), env);
+		expect(response.status).toBe(200);
+		const body = (await response.json()) as {
+			data: {
+				postId: number;
+				threadId: number;
+				aggregate: { total: number; credits: { sum: number }; coins: { sum: number } };
+				items: Array<{ id: number; dimension: string; canRevoke: boolean }>;
+			};
+		};
+		expect(body.data.postId).toBe(5);
+		expect(body.data.threadId).toBe(7);
+		expect(body.data.aggregate.total).toBe(2);
+		expect(body.data.aggregate.credits.sum).toBe(5);
+		expect(body.data.aggregate.coins.sum).toBe(3);
+		expect(body.data.items).toHaveLength(2);
+		expect(body.data.items.every((r) => r.canRevoke === false)).toBe(true);
+	});
+
+	it("should set canRevoke=true only for Admin/SuperMod viewers", async () => {
+		// Mod (role=3) — cannot revoke
+		const modJwt = await createJwtForRole(3, 100);
+		const { env: envMod } = buildListEnv({ viewerRole: 3 });
+		const respMod = await postRating.listByPost(makeListRequest(5, modJwt), envMod);
+		expect(respMod.status).toBe(200);
+		const bodyMod = (await respMod.json()) as {
+			data: { items: Array<{ canRevoke: boolean }> };
+		};
+		expect(bodyMod.data.items.every((r) => r.canRevoke === false)).toBe(true);
+
+		// SuperMod (role=2) — can revoke
+		const smJwt = await createJwtForRole(2, 101);
+		const { env: envSm } = buildListEnv({ viewerRole: 2 });
+		const respSm = await postRating.listByPost(makeListRequest(5, smJwt), envSm);
+		const bodySm = (await respSm.json()) as {
+			data: { items: Array<{ canRevoke: boolean }> };
+		};
+		expect(bodySm.data.items.every((r) => r.canRevoke === true)).toBe(true);
+
+		// Admin (role=1) — can revoke
+		const adminJwt = await createJwtForRole(1, 102);
+		const { env: envAdmin } = buildListEnv({ viewerRole: 1 });
+		const respAdmin = await postRating.listByPost(makeListRequest(5, adminJwt), envAdmin);
+		const bodyAdmin = (await respAdmin.json()) as {
+			data: { items: Array<{ canRevoke: boolean }> };
+		};
+		expect(bodyAdmin.data.items.every((r) => r.canRevoke === true)).toBe(true);
+	});
+
+	it("should bind the ratings query with revoked_at = 0 (active rows only)", async () => {
+		const { env, calls } = buildListEnv();
+		await postRating.listByPost(makeListRequest(5), env);
+		const ratingsCall = calls.find(
+			(c) => c.sql.includes("FROM post_ratings") && c.sql.includes("WHERE post_id = ?"),
+		);
+		expect(ratingsCall).toBeDefined();
+		expect(ratingsCall?.sql).toContain("revoked_at = 0");
+	});
+
+	it("should map dimension ints to keys in items", async () => {
+		const { env } = buildListEnv();
+		const response = await postRating.listByPost(makeListRequest(5), env);
+		const body = (await response.json()) as {
+			data: { items: Array<{ id: number; dimension: string }> };
+		};
+		const byId = new Map(body.data.items.map((i) => [i.id, i]));
+		expect(byId.get(11)?.dimension).toBe("coins");
+		expect(byId.get(10)?.dimension).toBe("credits");
+	});
+});
+
+// ───────────────────────────────────────────────────────────
+// Phase 3 — revoke (POST /api/v1/posts/:postId/ratings/:ratingId/revoke)
+// ───────────────────────────────────────────────────────────
+
+interface BuildRevokeEnvOpts {
+	role?: number;
+	userId?: number;
+	ratingRow?: Record<string, unknown> | null;
+	updateMeta?: { changes: number };
+}
+
+function buildRevokeEnv(opts: BuildRevokeEnvOpts = {}) {
+	const role = opts.role ?? 1; // Admin by default
+	const userId = opts.userId ?? 99;
+
+	const ratingRow =
+		"ratingRow" in opts
+			? opts.ratingRow
+			: {
+					id: 50,
+					post_id: 5,
+					rater_id: 30,
+					dimension: 2,
+					score: 4,
+					revoked_at: 0,
+					author_id: 20,
+				};
+
+	const { db, calls, batchCalls } = createMockDb({
+		firstResults: {
+			"SELECT role, status, email_verified_at": {
+				role,
+				status: 0,
+				email_verified_at: 1_700_000_000,
+			},
+			"FROM post_ratings r": ratingRow,
+		},
+	});
+
+	const updateMeta = opts.updateMeta ?? { changes: 1 };
+	const original = db.batch;
+	(db as { batch: typeof original }).batch = (async (stmts: unknown[]) => {
+		batchCalls.push(stmts);
+		return stmts.map((_, i) => ({
+			success: true,
+			results: [],
+			meta:
+				i === 0 ? { changes: updateMeta.changes, last_row_id: 0 } : { changes: 1, last_row_id: 0 },
+		}));
+	}) as typeof db.batch;
+
+	return { env: makeEnv({ DB: db }), calls, batchCalls, userId };
+}
+
+function makeRevokeRequest(postId: number, ratingId: number, token: string): Request {
+	return new Request(`https://api.example.com/api/v1/posts/${postId}/ratings/${ratingId}/revoke`, {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${token}`,
+			"Content-Type": "application/json",
+		},
+	});
+}
+
+describe("post-rating revoke handler", () => {
+	it("should require authentication", async () => {
+		const env = makeEnv();
+		const request = new Request("https://api.example.com/api/v1/posts/5/ratings/50/revoke", {
+			method: "POST",
+		});
+		const response = await postRating.revoke(request, env);
+		expect(response.status).toBe(401);
+	});
+
+	it("should 403 EMAIL_NOT_VERIFIED for unverified users", async () => {
+		const { env, userId } = makeUnverifiedEnv();
+		const token = await unverifiedUserJwt(userId);
+		const response = await postRating.revoke(makeRevokeRequest(5, 50, token), env);
+		await expectEmailNotVerifiedResponse(response);
+	});
+
+	it("should 403 FORBIDDEN_MOD_ONLY for User role", async () => {
+		const { env } = buildRevokeEnv({ role: 0 });
+		const token = await createJwtForRole(0, 99);
+		const response = await postRating.revoke(makeRevokeRequest(5, 50, token), env);
+		expect(response.status).toBe(403);
+		const body = (await response.json()) as { error: { code: string } };
+		expect(body.error.code).toBe("FORBIDDEN_MOD_ONLY");
+	});
+
+	it("should 403 FORBIDDEN_MOD_ONLY for Mod role (per docs/22 §3 — Admin/SuperMod only)", async () => {
+		const { env } = buildRevokeEnv({ role: 3 });
+		const token = await createJwtForRole(3, 99);
+		const response = await postRating.revoke(makeRevokeRequest(5, 50, token), env);
+		expect(response.status).toBe(403);
+	});
+
+	it("should 404 when the rating does not exist", async () => {
+		const { env } = buildRevokeEnv({ ratingRow: null });
+		const token = await createJwtForRole(1, 99);
+		const response = await postRating.revoke(makeRevokeRequest(5, 50, token), env);
+		expect(response.status).toBe(404);
+	});
+
+	it("should 404 when the rating is already revoked", async () => {
+		const { env } = buildRevokeEnv({
+			ratingRow: {
+				id: 50,
+				post_id: 5,
+				rater_id: 30,
+				dimension: 2,
+				score: 4,
+				revoked_at: 1_700_000_999,
+				author_id: 20,
+			},
+		});
+		const token = await createJwtForRole(1, 99);
+		const response = await postRating.revoke(makeRevokeRequest(5, 50, token), env);
+		expect(response.status).toBe(404);
+	});
+
+	it("should 404 when the soft-revoke UPDATE returns changes=0 (race)", async () => {
+		const { env } = buildRevokeEnv({ updateMeta: { changes: 0 } });
+		const token = await createJwtForRole(1, 99);
+		const response = await postRating.revoke(makeRevokeRequest(5, 50, token), env);
+		expect(response.status).toBe(404);
+	});
+
+	it("should 204 + refund author coins on success", async () => {
+		const { env, batchCalls, calls } = buildRevokeEnv();
+		const token = await createJwtForRole(1, 99);
+		const response = await postRating.revoke(makeRevokeRequest(5, 50, token), env);
+		expect(response.status).toBe(204);
+		expect(batchCalls.length).toBe(1);
+		expect((batchCalls[0] as unknown[]).length).toBe(2);
+		// The refund UPDATE must hit `users` and subtract the score on `coins`
+		// (dimension=2), guarded by EXISTS so a no-op revoke won't double-refund.
+		const refundCall = calls.find((c) => c.sql.includes("UPDATE users") && c.sql.includes("coins"));
+		expect(refundCall).toBeDefined();
+		expect(refundCall?.sql).toContain("EXISTS");
+		expect(refundCall?.sql).toContain("revoked_at = ?");
+		// params: [score, authorId, ratingId, revokedAt, revokedBy]
+		expect(refundCall?.params[0]).toBe(4); // score
+		expect(refundCall?.params[1]).toBe(20); // author_id
+		expect(refundCall?.params[2]).toBe(50); // ratingId
+		expect(refundCall?.params[4]).toBe(99); // revoked_by
+	});
+
+	it("should refund credits column when dimension=1", async () => {
+		const { env, calls } = buildRevokeEnv({
+			ratingRow: {
+				id: 50,
+				post_id: 5,
+				rater_id: 30,
+				dimension: 1, // credits
+				score: 10,
+				revoked_at: 0,
+				author_id: 20,
+			},
+		});
+		const token = await createJwtForRole(1, 99);
+		const response = await postRating.revoke(makeRevokeRequest(5, 50, token), env);
+		expect(response.status).toBe(204);
+		const refundCall = calls.find(
+			(c) => c.sql.includes("UPDATE users") && c.sql.includes("credits"),
+		);
+		expect(refundCall).toBeDefined();
+		expect(refundCall?.params[0]).toBe(10);
+	});
+});
+
+// ───────────────────────────────────────────────────────────
+// Phase 3 — loadAggregatesForPosts (batch helper)
+// ───────────────────────────────────────────────────────────
+
+describe("loadAggregatesForPosts", () => {
+	it("returns an empty map when called with [] (no SQL run)", async () => {
+		const { db, calls } = createMockDb();
+		const map = await postRating.loadAggregatesForPosts(makeEnv({ DB: db }), []);
+		expect(map.size).toBe(0);
+		expect(calls.length).toBe(0);
+	});
+
+	it("groups counts/sums by post_id and excludes revoked rows via the SQL", async () => {
+		const { db, calls } = createMockDb({
+			allResults: {
+				"GROUP BY post_id": [
+					{ post_id: 5, total: 2, credits_count: 1, credits_sum: 5, coins_count: 1, coins_sum: 3 },
+					{ post_id: 6, total: 1, credits_count: 0, credits_sum: 0, coins_count: 1, coins_sum: 4 },
+				],
+			},
+		});
+		const map = await postRating.loadAggregatesForPosts(makeEnv({ DB: db }), [5, 6, 7]);
+		expect(map.size).toBe(2);
+		expect(map.get(5)?.total).toBe(2);
+		expect(map.get(6)?.coins.sum).toBe(4);
+		expect(map.has(7)).toBe(false); // No row → caller falls back to empty
+		const call = calls[0];
+		expect(call?.sql).toContain("revoked_at = 0");
+		expect(call?.sql).toContain("GROUP BY post_id");
+		expect(call?.params).toEqual([5, 6, 7]);
+	});
+});

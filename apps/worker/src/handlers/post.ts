@@ -17,6 +17,11 @@ import { withVerifiedEmail } from "../lib/routeHelpers";
 import { POST_VISIBLE, buildVisibilityContext, isForumActive } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
+import {
+	EMPTY_RATING_AGGREGATE,
+	loadAggregateForPost,
+	loadAggregatesForPosts,
+} from "./post-rating";
 
 /** Post cursor payload for keyset pagination */
 interface PostCursorPayload {
@@ -111,8 +116,15 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		result = await stmt.bind(threadIdNum, clampedLimit).all();
 	}
 
-	// Map D1 snake_case rows to camelCase Post type
-	const posts = result.results.map((row) => toPost(row as Record<string, unknown>));
+	// Map D1 snake_case rows to camelCase Post type. Per-post rating aggregate
+	// is fetched in a single GROUP BY (docs/22 §6.3) so we avoid N+1.
+	const postIds = result.results.map((row) => (row as { id: number }).id);
+	const aggregates = await loadAggregatesForPosts(env, postIds);
+	const posts = result.results.map((row) => {
+		const r = row as Record<string, unknown>;
+		const agg = aggregates.get(r.id as number) ?? EMPTY_RATING_AGGREGATE;
+		return toPost(r, agg);
+	});
 
 	// Generate next cursor from raw D1 row (position is same in both)
 	const nextCursor = lastPage
@@ -175,7 +187,8 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 		);
 	}
 
-	return jsonResponse(toPost(postRow), origin);
+	const aggregate = await loadAggregateForPost(env, id);
+	return jsonResponse(toPost(postRow, aggregate), origin);
 }
 
 /** POST /api/v1/posts - Reply to a thread (requires auth) */

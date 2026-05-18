@@ -100,6 +100,17 @@ export default {
 			if (path.match(/^\/api\/v1\/posts\/\d+\/rate$/) && request.method === "POST") {
 				return await (await import("./handlers/post-rating")).create(request, env);
 			}
+			// Post rating list — same ordering constraint as /rate.
+			if (path.match(/^\/api\/v1\/posts\/\d+\/ratings$/) && request.method === "GET") {
+				return await (await import("./handlers/post-rating")).listByPost(request, env);
+			}
+			// Post rating revoke.
+			if (
+				path.match(/^\/api\/v1\/posts\/\d+\/ratings\/\d+\/revoke$/) &&
+				request.method === "POST"
+			) {
+				return await (await import("./handlers/post-rating")).revoke(request, env);
+			}
 			if (path.match(/^\/api\/v1\/posts\/\d+$/) && request.method === "GET") {
 				return await (await import("./handlers/post")).getById(request, env);
 			}
