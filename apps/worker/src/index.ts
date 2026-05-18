@@ -95,6 +95,11 @@ export default {
 			if (path === "/api/v1/posts" && request.method === "GET") {
 				return await (await import("./handlers/post")).list(request, env);
 			}
+			// Post rating (评分) create — must be registered BEFORE the GET-by-id
+			// regex below or the "/rate" suffix would be parsed as a post id.
+			if (path.match(/^\/api\/v1\/posts\/\d+\/rate$/) && request.method === "POST") {
+				return await (await import("./handlers/post-rating")).create(request, env);
+			}
 			if (path.match(/^\/api\/v1\/posts\/\d+$/) && request.method === "GET") {
 				return await (await import("./handlers/post")).getById(request, env);
 			}
