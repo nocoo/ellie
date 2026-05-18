@@ -51,6 +51,7 @@ D1 数据库 → Worker API（唯一入口） → CLI 客户端 (Rust TUI, Key A
 |------|------|------|
 | 08 | [通用设置](./08-general-settings.md) | settings 表设计、KV 缓存策略、管理/公共 API 端点、前端设置页面 |
 | 09 | [用户信息缓存重构](./09-user-cache-refactor.md) | 数据库规范化（ID 代替 Name）、KV 用户缓存、批量查询、缓存失效策略 |
+| 22 | [帖子评分](./22-post-rating.md) | 同钱/积分双维度评分、权限矩阵、滚动 24h 额度、撤销、ETL（packages/migrate） |
 
 ### 管理功能
 
