@@ -14,7 +14,7 @@ import { useForumToast } from "@/components/forum/forum-toast";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { ApiError, fetchPostRatings, revokePostRating } from "@/viewmodels/forum/rating-reasons";
+import { fetchPostRatings, revokePostRating } from "@/viewmodels/forum/rating-reasons";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import type { PostRatingAggregate, PostRatingRow, PostRatingsResponse } from "@ellie/types";
 import { Award, ChevronDown, Coins, Loader2, Undo2 } from "lucide-react";
@@ -39,11 +39,26 @@ interface DetailState {
 }
 
 /**
+ * Duck-typed ApiError shape — see post-rating-dialog.tsx for the rationale.
+ * Both files share the same vitest isolate:false collision risk against
+ * `@/viewmodels/forum/rating-reasons` mock factories.
+ */
+function isApiErrorLike(err: unknown): err is { code?: string; message: string; status?: number } {
+	return (
+		typeof err === "object" &&
+		err !== null &&
+		"code" in err &&
+		"message" in err &&
+		typeof (err as { message: unknown }).message === "string"
+	);
+}
+
+/**
  * Map ApiError code for revoke calls. Worker returns 404 when the row was
  * already revoked; everything else falls through to the default copy.
  */
 function mapRevokeError(err: unknown): string {
-	if (!(err instanceof ApiError)) return "网络错误，请重试";
+	if (!isApiErrorLike(err)) return "网络错误，请重试";
 	switch (err.code) {
 		case "NOT_FOUND":
 		case "RATING_NOT_FOUND":
@@ -80,7 +95,7 @@ export function PostRatingSummary({ postId, aggregate }: PostRatingSummaryProps)
 				freshAggregate: response.aggregate,
 			});
 		} catch (err) {
-			const message = err instanceof ApiError ? err.message : "加载失败";
+			const message = isApiErrorLike(err) ? err.message : "加载失败";
 			setDetail((prev) => ({ ...prev, loading: false, error: message }));
 		}
 	}, [postId]);

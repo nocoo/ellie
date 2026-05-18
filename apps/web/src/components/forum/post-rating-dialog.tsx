@@ -31,7 +31,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
-	ApiError,
 	RATING_REASONS_BY_DIMENSION,
 	RATING_SCORE_PRESETS,
 	submitPostRating,
@@ -50,9 +49,32 @@ import { useEffect, useId, useMemo, useState } from "react";
 
 // ─── Error code → user copy ───────────────────────────────────────────────────
 
+/**
+ * Duck-typed ApiError shape — matches `ApiError` from `@/lib/api-client`
+ * without relying on `instanceof` against the re-exported class. We use
+ * duck-typing here (not `instanceof`) because vitest with `isolate: false`
+ * shares a worker between test files; if one file mocks
+ * `@/viewmodels/forum/rating-reasons` with a local `class FakeApiError` and
+ * another doesn't, the `ApiError` symbol imported by this component can be
+ * bound to one class while the thrown error is an instance of a different
+ * class — `instanceof` then returns false and the error falls into the
+ * default "网络错误" branch (real bug surfaced by CI msg=4ad2b0cd /
+ * msg=6d200215). Production behaviour is identical: any error coming out
+ * of `apiClient` carries `code` + `status` fields by construction.
+ */
+function isApiErrorLike(err: unknown): err is { code?: string; message: string; status?: number } {
+	return (
+		typeof err === "object" &&
+		err !== null &&
+		"code" in err &&
+		"message" in err &&
+		typeof (err as { message: unknown }).message === "string"
+	);
+}
+
 /** Map Worker error codes to user-facing strings. */
 function mapSubmitError(err: unknown): string {
-	if (!(err instanceof ApiError)) return "网络错误，请重试";
+	if (!isApiErrorLike(err)) return "网络错误，请重试";
 	switch (err.code) {
 		case "RATING_SELF":
 		case "SELF_RATING":
