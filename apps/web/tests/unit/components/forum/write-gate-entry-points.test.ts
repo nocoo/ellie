@@ -60,6 +60,10 @@ vi.mock("@/components/forum/post-edit-dialog", () => ({
 	PostEditDialog: () => null,
 }));
 
+vi.mock("@/components/forum/post-rating-dialog", () => ({
+	PostRatingDialog: () => null,
+}));
+
 vi.mock("@/components/forum/post-content", () => ({
 	PostContent: ({ actionBar, comments }: any) =>
 		createElement("div", { "data-testid": "post-content" }, actionBar, comments),
