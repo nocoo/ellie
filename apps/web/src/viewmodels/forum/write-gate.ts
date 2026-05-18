@@ -17,7 +17,7 @@
  * just verified email, just set avatar).
  */
 
-import { ApiError, apiClient } from "@/lib/api-client";
+import { apiClient } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -47,6 +47,33 @@ export type WriteGateResult = { blocked: false } | { blocked: true; reason: stri
 export interface WriteGateEventDetail {
 	reason: string;
 	code: string;
+}
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Duck-typed ApiError check.
+ *
+ * We deliberately do NOT use `err instanceof ApiError` here. Under vitest
+ * `isolate: false` (the monorepo's root `bun run test`), sibling test files
+ * that mock `@/lib/api-client` with a local `class FakeApiError` can shift
+ * the module-cache binding of `ApiError` between test runs in the same
+ * worker — leaving `err instanceof ApiError` returning `false` for an error
+ * that *is* an ApiError thrown by the real client. The structural check is
+ * behaviour-equivalent because every error produced by `apiClient` carries
+ * `code` + `message` + `status` fields by construction. See CI failure on
+ * 9248ab73 / 58ca60c7 and the matching fix in `post-rating-{dialog,summary}`.
+ */
+function isApiErrorLike(err: unknown): err is { code?: string; message: string; status?: number } {
+	return (
+		typeof err === "object" &&
+		err !== null &&
+		"code" in err &&
+		"message" in err &&
+		typeof (err as { message: unknown }).message === "string"
+	);
 }
 
 // ---------------------------------------------------------------------------
@@ -218,7 +245,7 @@ export async function checkWriteGate(
 		cache.set(action, { result, timestamp: Date.now() });
 		return result;
 	} catch (err) {
-		if (err instanceof ApiError) {
+		if (isApiErrorLike(err)) {
 			// If the API returns an auth error, don't cache — user may need
 			// to re-login.
 			return {
