@@ -70,6 +70,8 @@ const ALLOWLIST: Record<string, string> = {
 	// strategy would send `{}` + `application/json`. Defer until helper
 	// gains `body:"none"` or Worker confirms equivalence.
 	"app/api/v1/messages/[id]/route.ts": "DELETE sends undefined wire body (no Content-Type)",
+	"app/api/v1/posts/[id]/ratings/[ratingId]/revoke/route.ts":
+		"Worker returns 204 no-body; proxyRoute always JSON-encodes the success payload",
 
 	// Group C — optional-auth (forwards JWT only when session exists; falls
 	// back to anonymous Worker call). proxyRoute today is auth=required or
@@ -78,6 +80,8 @@ const ALLOWLIST: Record<string, string> = {
 	"app/api/v1/users/[id]/route.ts": "optional auth (anonymous fallback)",
 	"app/api/v1/users/search/route.ts":
 		"no-auth GET with query passthrough (Worker call without JWT)",
+	"app/api/v1/posts/[id]/ratings/route.ts":
+		"optional auth (anonymous fallback for per-row canRevoke decision)",
 
 	// Group D — custom error mapping or response transform that does not
 	// fit `onForumApiError` / `transform` defaults yet.
