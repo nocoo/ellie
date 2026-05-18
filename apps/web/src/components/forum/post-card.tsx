@@ -16,6 +16,7 @@ import { PostComments } from "@/components/forum/post-comments";
 import { PostContent } from "@/components/forum/post-content";
 import { PostEditDialog } from "@/components/forum/post-edit-dialog";
 import { PostRatingDialog } from "@/components/forum/post-rating-dialog";
+import { PostRatingSummary } from "@/components/forum/post-rating-summary";
 import { PostSidebar } from "@/components/forum/post-sidebar";
 import { ReportDialog } from "@/components/forum/report-dialog";
 import { ForumAvatar } from "@/components/forum/user-avatar";
@@ -26,7 +27,13 @@ import { type EnrichedPost, floorLabel } from "@/viewmodels/forum/thread-detail"
 import { usePostActions } from "@/viewmodels/forum/use-post-actions";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
-import { RatingDimension, type UserRole, canRateDimension } from "@ellie/types";
+import {
+	EMPTY_RATING_AGGREGATE,
+	type PostRatingAggregate,
+	RatingDimension,
+	type UserRole,
+	canRateDimension,
+} from "@ellie/types";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -96,6 +103,12 @@ export function PostCard({
 	const [ratingDialogOpen, setRatingDialogOpen] = useState(false);
 	const [ratingDialogDimension, setRatingDialogDimension] = useState<RatingDimension>(
 		RatingDimension.Coins,
+	);
+	// Rating aggregate state — seeded from SSR enrichment, refreshed
+	// optimistically on successful create. The detail popover owns its own
+	// fresh aggregate from `GET /:id/ratings` to keep revoke math consistent.
+	const [ratingAggregate, setRatingAggregate] = useState<PostRatingAggregate>(
+		post.ratingAggregate ?? EMPTY_RATING_AGGREGATE,
 	);
 	// Can report: logged in and not own post
 	const canReport = currentUserId !== null && !isOwnPost;
@@ -170,6 +183,14 @@ export function PostCard({
 		/>
 	);
 
+	// Rating summary — only rendered when at least one un-revoked rating
+	// exists. Detail popover lazy-fetches its own up-to-date aggregate to
+	// keep revoke math in sync even after multiple optimistic updates.
+	const ratingSummary =
+		ratingAggregate.total > 0 ? (
+			<PostRatingSummary postId={post.id} aggregate={ratingAggregate} />
+		) : null;
+
 	return (
 		<div id={`post-${post.id}`} className="border border-border bg-card -mt-px first:mt-0">
 			{/* Desktop: two-column layout */}
@@ -189,6 +210,7 @@ export function PostCard({
 						author={post.author}
 						actionBar={actionBar}
 						comments={commentsSection}
+						ratingSummary={ratingSummary}
 					/>
 				</div>
 			</div>
@@ -263,6 +285,7 @@ export function PostCard({
 					author={post.author}
 					actionBar={actionBar}
 					comments={commentsSection}
+					ratingSummary={ratingSummary}
 				/>
 			</div>
 			{/* Edit dialog */}
@@ -306,6 +329,7 @@ export function PostCard({
 					postId={post.id}
 					defaultDimension={ratingDialogDimension}
 					canRateCredits={canRateCredits}
+					onSuccess={(response) => setRatingAggregate(response.aggregate)}
 				/>
 			)}
 		</div>

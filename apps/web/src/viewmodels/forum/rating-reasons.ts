@@ -14,6 +14,7 @@ import { ApiError, apiClient } from "@/lib/api-client";
 import type {
 	CreatePostRatingRequest,
 	CreatePostRatingResponse,
+	PostRatingsResponse,
 	RatingDimensionKey,
 } from "@ellie/types";
 
@@ -62,6 +63,23 @@ export async function submitPostRating(
 		body,
 	);
 	return result.data;
+}
+
+/**
+ * Fetch the aggregate + per-row detail for a post. Server enforces visibility
+ * and decides `canRevoke` per row based on the current viewer's role.
+ */
+export async function fetchPostRatings(postId: number): Promise<PostRatingsResponse> {
+	const result = await apiClient.get<PostRatingsResponse>(`/api/v1/posts/${postId}/ratings`);
+	return result.data;
+}
+
+/**
+ * Revoke a specific rating row. Worker returns 204 — the proxy reshapes that
+ * into an empty 200 JSON envelope, so we ignore the response body.
+ */
+export async function revokePostRating(postId: number, ratingId: number): Promise<void> {
+	await apiClient.post<unknown>(`/api/v1/posts/${postId}/ratings/${ratingId}/revoke`);
 }
 
 export { ApiError };
