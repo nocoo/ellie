@@ -157,6 +157,25 @@ function loadMapping(dbPath: string): {
 
 async function main() {
 	const opts = parseCliArgs(process.argv.slice(2));
+	// Fail fast on bad numeric flags — otherwise mkdirSync/statSync succeed
+	// and the user gets a confusing chunk error 30s into the dump parse.
+	if (
+		!Number.isFinite(opts.chunkSize) ||
+		!Number.isInteger(opts.chunkSize) ||
+		opts.chunkSize <= 0
+	) {
+		console.error(`--chunk-size must be a positive integer, got ${opts.chunkSize}`);
+		process.exit(2);
+	}
+	if (
+		!Number.isFinite(opts.reasonMax) ||
+		!Number.isInteger(opts.reasonMax) ||
+		opts.reasonMax <= 0
+	) {
+		console.error(`--reason-max must be a positive integer, got ${opts.reasonMax}`);
+		process.exit(2);
+	}
+
 	log(`Dump:        ${opts.dump}`);
 	log(`Mapping DB:  ${opts.mappingDb}`);
 	log(`Output dir:  ${opts.outputDir}`);
