@@ -91,6 +91,7 @@ const defaultProps = {
 	canMoveThread: false,
 	canDeleteThread: false,
 	currentUserId: null,
+	currentUserRole: null,
 	selfEmailVerifiedAt: null,
 };
 

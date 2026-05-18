@@ -25,6 +25,7 @@ import { type EnrichedPost, floorLabel } from "@/viewmodels/forum/thread-detail"
 import { usePostActions } from "@/viewmodels/forum/use-post-actions";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
+import { RatingDimension, type UserRole, canRateDimension } from "@ellie/types";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -37,6 +38,21 @@ interface PostCardProps {
 	onReply?: () => void;
 	canModerate: boolean;
 	currentUserId: number | null;
+	/**
+	 * Real session role of the current viewer (server-projected via NextAuth
+	 * cookie). `null` for anonymous or when the loader couldn't resolve it.
+	 * Drives the `same钱 / 积分` action-bar entries — Worker still enforces
+	 * the gate, this only decides which entry to render and what default
+	 * dimension the dialog opens with.
+	 */
+	currentUserRole: UserRole | null;
+	/**
+	 * Server-projected `emailVerifiedAt` of the current viewer. `0` means
+	 * unverified (write-gate blocks), positive means verified, `null` means
+	 * anonymous or fail-soft. Passed through to `writeGatePreflight` for
+	 * the rating entry (same semantics as reply/thread).
+	 */
+	selfEmailVerifiedAt: number | null;
 	/** Original thread starter's user id (for楼主 icon resolution). */
 	threadAuthorId: number;
 }
@@ -50,6 +66,8 @@ export function PostCard({
 	onReply,
 	canModerate,
 	currentUserId,
+	currentUserRole,
+	selfEmailVerifiedAt,
 	threadAuthorId,
 }: PostCardProps) {
 	const isFirst = post.isFirst || post.position === 1;
@@ -76,6 +94,33 @@ export function PostCard({
 	// Can comment: logged in and thread not closed
 	const canComment = currentUserId !== null && !threadClosed;
 
+	// Rating entry visibility (docs/22 §7.1):
+	//  - Logged in, non-self, non-anonymous author (authorId > 0).
+	//    `invisible` is server-filtered before the row reaches the client,
+	//    so we don't re-check it here.
+	//  - 同钱 is open to every authenticated role; 积分 additionally needs
+	//    role ∈ {Mod, SuperMod, Admin}.
+	//  - Email-unverified users still see the entry; the dialog (via
+	//    `writeGatePreflight`) surfaces §5.4 verbatim instead of silently
+	//    hiding the feature.
+	const isRateableTarget = currentUserId !== null && !isOwnPost && post.authorId > 0;
+	const canRateCoins = isRateableTarget;
+	const canRateCredits =
+		isRateableTarget &&
+		currentUserRole !== null &&
+		canRateDimension(currentUserRole, RatingDimension.Credits);
+
+	const openRatingDialog = async (_dimension: RatingDimension) => {
+		// Write-gate preflight — handles email verification + posting
+		// restrictions. The dispatched dialog matches reply/comment/report so
+		// users get the same §5.4 / posting-restriction copy across surfaces.
+		if (await writeGatePreflight(selfEmailVerifiedAt, "rating")) return;
+		// Phase 4.3 wires the dialog open here (passing the staged dimension).
+		// Until then, the click is a no-op after the gate passes — visible
+		// progress in 4.2 is purely the action-bar entry + the preflight wire,
+		// not the dialog itself.
+	};
+
 	const actionBar = (
 		<PostActionBar
 			onReply={onReply}
@@ -87,6 +132,8 @@ export function PostCard({
 						}
 					: undefined
 			}
+			onRateCoins={canRateCoins ? () => openRatingDialog(RatingDimension.Coins) : undefined}
+			onRateCredits={canRateCredits ? () => openRatingDialog(RatingDimension.Credits) : undefined}
 			onEdit={canEdit ? actions.handleEdit : undefined}
 			onDelete={canDelete && !isFirst ? actions.handleDeleteClick : undefined}
 			onReport={
@@ -101,6 +148,8 @@ export function PostCard({
 			canDelete={canDelete && !isFirst}
 			canReport={canReport}
 			canComment={canComment}
+			canRateCoins={canRateCoins}
+			canRateCredits={canRateCredits}
 		/>
 	);
 
@@ -237,6 +286,12 @@ export function PostCard({
 				targetType="post"
 				targetId={post.id}
 			/>
+			{/*
+			 * PostRatingDialog mounts here in Phase 4.3 — the action-bar
+			 * onRateCoins/onRateCredits handlers already do the write-gate
+			 * preflight; 4.3 just owns the dialog state and posts to
+			 * `/api/v1/posts/:id/rate`.
+			 */}
 		</div>
 	);
 }

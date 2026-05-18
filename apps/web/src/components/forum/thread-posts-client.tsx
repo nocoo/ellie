@@ -8,7 +8,7 @@ import { buildQuoteSnippet } from "@/lib/text";
 import type { EnrichedPost } from "@/viewmodels/forum/thread-detail";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { formatDateTime } from "@/viewmodels/shared/formatting";
-import type { Thread } from "@ellie/types";
+import type { Thread, UserRole } from "@ellie/types";
 import { useCallback, useEffect, useState } from "react";
 
 interface ThreadPostsClientProps {
@@ -22,6 +22,13 @@ interface ThreadPostsClientProps {
 	/** Can delete thread (SuperMod/Admin or author) */
 	canDeleteThread: boolean;
 	currentUserId: number | null;
+	/**
+	 * Real session role of the current viewer. `null` for anonymous or when
+	 * the loader couldn't resolve it. Forwarded into `PostCard` so the
+	 * rating action-bar entries (docs/22 §7.1) can decide whether to show
+	 * the 积分 button. Worker still enforces the permission gate.
+	 */
+	currentUserRole: UserRole | null;
 	/**
 	 * Server-side projected `emailVerifiedAt` for the current user.
 	 * `null` means anonymous OR the loader fail-soft pathed (server
@@ -48,6 +55,7 @@ export function ThreadPostsClient({
 	canMoveThread,
 	canDeleteThread,
 	currentUserId,
+	currentUserRole,
 	selfEmailVerifiedAt,
 	prevHref,
 	nextHref,
@@ -122,6 +130,8 @@ export function ThreadPostsClient({
 						onReply={() => handleReply(post)}
 						canModerate={canModerateForum}
 						currentUserId={currentUserId}
+						currentUserRole={currentUserRole}
+						selfEmailVerifiedAt={selfEmailVerifiedAt}
 						threadAuthorId={thread.authorId}
 					/>
 				);
