@@ -222,9 +222,7 @@ async function prewarmRoutes(): Promise<void> {
 			await res.text().catch(() => {});
 			console.log(`   ✓ ${route} → ${res.status} (${Date.now() - t0}ms)`);
 		} catch (err) {
-			console.log(
-				`   ⚠ ${route} prewarm error: ${err instanceof Error ? err.message : err}`,
-			);
+			console.log(`   ⚠ ${route} prewarm error: ${err instanceof Error ? err.message : err}`);
 		}
 	}
 	console.log(`   prewarm done in ${Date.now() - started}ms`);
