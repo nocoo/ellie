@@ -132,6 +132,14 @@ function getStatusMessage(code: string): string {
 		CHECKIN_INVALID_MOOD: "Invalid mood — must be one of the predefined emotion codes",
 		CHECKIN_OUTSIDE_WINDOW: "Check-in is not available at this time",
 		CHECKIN_ALREADY_DONE: "Already checked in today",
+		// Post rating (评分) errors — docs/22-post-rating.md §6.2
+		RATING_PERMISSION_DENIED: "Your role cannot rate this dimension",
+		RATING_SELF: "You cannot rate your own post",
+		RATING_INVALID_POST: "This post cannot be rated",
+		RATING_DUPLICATE: "You have already rated this post in this dimension",
+		RATING_DAILY_LIMIT: "Daily rating quota has been exhausted",
+		RATING_SCORE_OUT_OF_RANGE: "Rating score is out of the allowed range",
+		RATING_REASON_TOO_LONG: "Rating reason is too long",
 	};
 
 	return messages[code] || "An error occurred";
