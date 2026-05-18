@@ -137,6 +137,8 @@ describe("PostCard mobile header — 14/12 baseline", () => {
 				post: makePost() as any,
 				canModerate: false,
 				currentUserId: null,
+				currentUserRole: null,
+				selfEmailVerifiedAt: null,
 				threadAuthorId: 7,
 			}),
 		);
@@ -151,6 +153,8 @@ describe("PostCard mobile header — 14/12 baseline", () => {
 				post: makePost({ author: null }) as any,
 				canModerate: false,
 				currentUserId: null,
+				currentUserRole: null,
+				selfEmailVerifiedAt: null,
 				threadAuthorId: 7,
 			}),
 		);
@@ -165,6 +169,8 @@ describe("PostCard mobile header — 14/12 baseline", () => {
 				post: makePost() as any,
 				canModerate: false,
 				currentUserId: null,
+				currentUserRole: null,
+				selfEmailVerifiedAt: null,
 				threadAuthorId: 7,
 			}),
 		);
@@ -179,6 +185,8 @@ describe("PostCard mobile header — 14/12 baseline", () => {
 				post: makePost() as any,
 				canModerate: false,
 				currentUserId: null,
+				currentUserRole: null,
+				selfEmailVerifiedAt: null,
 				threadAuthorId: 7,
 			}),
 		);

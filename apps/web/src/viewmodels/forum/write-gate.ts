@@ -23,8 +23,15 @@ import { ApiError, apiClient } from "@/lib/api-client";
 // Types
 // ---------------------------------------------------------------------------
 
-/** Frontend write action types — each maps to a backend content-type check. */
-export type WriteGateAction = "thread" | "reply" | "comment" | "message" | "report";
+/**
+ * Frontend write action types — each maps to a backend content-type check.
+ *
+ * Note: `"rating"` is a Worker-side no-op for content switches (falls through
+ * to the "message" content-type default in `actionToContentType`), but we use
+ * it as a distinct action key so the cache slot, the §5.4 dispatch reason,
+ * and the future content-switch is kept separable from comments/reports.
+ */
+export type WriteGateAction = "thread" | "reply" | "comment" | "message" | "report" | "rating";
 
 /** Result from the posting-permission API */
 export interface PostingPermissionResult {
