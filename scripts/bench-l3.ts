@@ -22,8 +22,8 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync, mkdirSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dir, "..");
 const REPORT = resolve(ROOT, ".autoresearch/l3-report.json");
@@ -44,18 +44,29 @@ const env = {
 // which causes the child to block on `console.log` and eventually time out
 // every test. Inheriting forwards directly to our parent (run_experiment),
 // which streams output without back-pressure.
-spawnSync(
-	"bun",
-	["run", "scripts/run-l3.ts", "--reporter=list,json"],
-	{ stdio: "inherit", env, cwd: ROOT },
-);
+spawnSync("bun", ["run", "scripts/run-l3.ts", "--reporter=list,json"], {
+	stdio: "inherit",
+	env,
+	cwd: ROOT,
+});
 
 if (!existsSync(REPORT)) {
 	console.error("\n[bench-l3] No playwright JSON report produced — failing.");
 	process.exit(2);
 }
 
-let report: any;
+// Minimal shape of the Playwright JSON reporter output we depend on.
+// We only model the fields walk() reads; everything else stays untyped.
+type PlaywrightTestResult = { status?: string };
+type PlaywrightTest = { results?: PlaywrightTestResult[] };
+type PlaywrightSpec = { title?: string; ok?: boolean; tests?: PlaywrightTest[] };
+type PlaywrightNode = {
+	title?: string;
+	suites?: PlaywrightNode[];
+	specs?: PlaywrightSpec[];
+};
+
+let report: PlaywrightNode;
 try {
 	report = JSON.parse(readFileSync(REPORT, "utf-8"));
 } catch (e) {
@@ -70,29 +81,29 @@ let skipped = 0;
 let total = 0;
 const failedTitles: string[] = [];
 
-function walk(node: any, trail: string[] = []) {
+function classifySpec(spec: PlaywrightSpec, here: string[]) {
+	for (const t of spec.tests ?? []) {
+		total++;
+		const results = t.results ?? [];
+		const last = results[results.length - 1];
+		const status = last?.status ?? "unknown";
+		if (status === "skipped") {
+			skipped++;
+		} else if (spec.ok && status === "passed") {
+			passed++;
+			if (results.length > 1) flaky++;
+		} else {
+			failed++;
+			failedTitles.push(`${[...here, spec.title].join(" › ")} [${status}]`);
+		}
+	}
+}
+
+function walk(node: PlaywrightNode | undefined, trail: string[] = []) {
 	if (!node) return;
 	const here = node.title ? [...trail, node.title] : trail;
 	if (Array.isArray(node.suites)) for (const s of node.suites) walk(s, here);
-	if (Array.isArray(node.specs)) {
-		for (const spec of node.specs) {
-			for (const t of spec.tests ?? []) {
-				total++;
-				const results = t.results ?? [];
-				const last = results[results.length - 1];
-				const status = last?.status ?? "unknown";
-				if (status === "skipped") {
-					skipped++;
-				} else if (spec.ok && status === "passed") {
-					passed++;
-					if (results.length > 1) flaky++;
-				} else {
-					failed++;
-					failedTitles.push(`${[...here, spec.title].join(" › ")} [${status}]`);
-				}
-			}
-		}
-	}
+	if (Array.isArray(node.specs)) for (const spec of node.specs) classifySpec(spec, here);
 }
 
 walk(report);
@@ -121,7 +132,7 @@ if (failed > 0) {
 	// vs discard based on both metrics.
 }
 if (passed === 0) {
-	console.error(`[bench-l3] no tests passed — runner failure.`);
+	console.error("[bench-l3] no tests passed — runner failure.");
 	process.exit(1);
 }
 process.exit(0);
