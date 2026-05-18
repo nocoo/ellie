@@ -30,6 +30,12 @@ interface PostContentProps {
 	actionBar?: ReactNode;
 	/** Post comments section, rendered after action bar */
 	comments?: ReactNode;
+	/**
+	 * Post rating summary (aggregate + lazy detail popover), rendered
+	 * between comments and action-bar. Omitted when the post has no
+	 * ratings yet — the caller is responsible for the zero-state check.
+	 */
+	ratingSummary?: ReactNode;
 }
 
 export function PostContent({
@@ -40,6 +46,7 @@ export function PostContent({
 	author,
 	actionBar,
 	comments,
+	ratingSummary,
 }: PostContentProps) {
 	return (
 		<div className="flex-1 min-w-0 flex flex-col" suppressHydrationWarning>
@@ -151,6 +158,9 @@ export function PostContent({
 
 			{/* Post comments section - above action bar */}
 			{comments}
+
+			{/* Rating summary — aggregate row + lazy-loaded detail popover. */}
+			{ratingSummary}
 
 			{/* Action bar rendered INSIDE this component to avoid hydration issues.
 			    Unclosed tags in dangerouslySetInnerHTML can cause the browser to
