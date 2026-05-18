@@ -1,13 +1,14 @@
 // Post rating (评分) handlers for Cloudflare Worker.
 //
-// Phase 2 (docs/22-post-rating.md §6.2): create-rating endpoint only.
-// GET ratings / revoke endpoints land in Phase 3.
+// Phase 2 (docs/22-post-rating.md §6.2): create-rating endpoint.
+// Phase 3 (docs/22-post-rating.md §6.3 / §6.4): listByPost + revoke + posts list/get aggregate.
 
 import {
 	type CreatePostRatingResponse,
 	EMPTY_RATING_AGGREGATE,
 	type PostRatingAggregate,
 	type PostRatingRow,
+	type PostRatingsResponse,
 	RATING_QUOTA_WINDOW_SECONDS,
 	RATING_REASON_MAX_LENGTH,
 	RatingDimension,
@@ -27,6 +28,7 @@ import type { Env } from "../lib/env";
 import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
 import { buildVisibilityContext, isForumActive } from "../lib/visibility";
+import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 
 // ─── Constants ──────────────────────────────────────────────
@@ -578,3 +580,294 @@ async function createRating(
 	const payload: CreatePostRatingResponse = { rating: created, aggregate };
 	return jsonResponse(payload, origin, undefined, 201);
 }
+
+// ─── GET /api/v1/posts/:postId/ratings ──────────────────────
+
+/** SQL block for the post → thread → forum join used by all rating endpoints. */
+const POST_CHAIN_SQL = `SELECT
+	p.id            AS post_id,
+	p.thread_id     AS thread_id,
+	p.author_id     AS author_id,
+	p.author_name   AS author_name,
+	p.invisible     AS invisible,
+	t.subject       AS thread_subject,
+	t.sticky        AS sticky,
+	t.forum_id      AS forum_id,
+	f.status        AS forum_status,
+	f.visibility    AS forum_visibility
+ FROM posts p
+ JOIN threads t ON t.id = p.thread_id
+ JOIN forums  f ON f.id = t.forum_id
+ WHERE p.id = ?`;
+
+/**
+ * Apply the docs/22 §6.3 visibility precedence for the public ratings list:
+ * unknown post / invisible / anonymous / sticky<0 / forum inactive → 404 so
+ * we don't disclose that the post exists. Staff-only forum without access → 403.
+ */
+function rejectListVisibility(
+	postRow: PostChainRow | null,
+	user: { userId: number; role: number } | null,
+	origin: string | undefined,
+): Response | null {
+	if (!postRow) return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
+	if (postRow.invisible !== 0 || postRow.author_id === 0) {
+		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
+	}
+	if (postRow.sticky < 0) return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
+	if (!isForumActive({ status: postRow.forum_status })) {
+		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
+	}
+	const visCtx = buildVisibilityContext(user);
+	if (!canViewForumVisibility(postRow.forum_visibility as ForumVisibility, visCtx)) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "You don't have access to this content" },
+			origin,
+		);
+	}
+	return null;
+}
+
+/**
+ * `GET /api/v1/posts/:postId/ratings` — optional auth.
+ *
+ * Returns the per-post aggregate + the active (`revoked_at = 0`) rating rows.
+ * `canRevoke` is server-decided based on the viewer's current DB role so the
+ * client never has to enumerate role permissions.
+ *
+ * Visibility gating matches the comments/post-by-id endpoints — see
+ * {@link rejectListVisibility}; 404 hides the existence of invisible/hidden posts.
+ */
+export async function listByPost(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+	const url = new URL(request.url);
+	const match = url.pathname.match(/^\/api\/v1\/posts\/(\d+)\/ratings$/);
+	if (!match) {
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid path" }, origin);
+	}
+	const postId = Number.parseInt(match[1] ?? "", 10);
+	if (!Number.isFinite(postId) || postId <= 0) {
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid postId" }, origin);
+	}
+
+	// Auth (DB-verified) runs in parallel with the post-chain JOIN.
+	const userPromise = optionalAuthVerified(request, env);
+	const postRow = await env.DB.prepare(POST_CHAIN_SQL).bind(postId).first<PostChainRow>();
+	const user = await userPromise;
+
+	const gate = rejectListVisibility(postRow, user, origin);
+	if (gate) return gate;
+	// Non-null after `rejectListVisibility` short-circuited.
+	const chain = postRow as PostChainRow;
+
+	// Active rows only; default 200-row limit is enough for a single post.
+	const rowsResult = await env.DB.prepare(
+		`SELECT id, post_id, thread_id, rater_id, rater_name, dimension, score, reason, created_at, revoked_at
+		 FROM post_ratings
+		 WHERE post_id = ? AND revoked_at = 0
+		 ORDER BY created_at DESC
+		 LIMIT 200`,
+	)
+		.bind(postId)
+		.all();
+
+	const viewerRole = (user?.role ?? null) as UserRole | null;
+	const items = rowsResult.results.map((raw) =>
+		toPostRatingRow(
+			raw as unknown as {
+				id: number;
+				post_id: number;
+				thread_id: number;
+				rater_id: number;
+				rater_name: string;
+				dimension: number;
+				score: number;
+				reason: string;
+				created_at: number;
+				revoked_at: number;
+			},
+			viewerRole,
+		),
+	);
+
+	const aggregate = await loadAggregate(env, postId);
+	const payload: PostRatingsResponse = {
+		postId,
+		threadId: chain.thread_id,
+		aggregate,
+		items,
+	};
+	return jsonResponse(payload, origin);
+}
+
+// ─── POST /api/v1/posts/:postId/ratings/:ratingId/revoke ────
+
+/**
+ * Soft-revoke a rating and refund the author's credits/coins.
+ *
+ * Guarded D1 batch (docs/22 §6.4):
+ *   1. `UPDATE post_ratings SET revoked_at=?, revoked_by=? WHERE id=? AND post_id=? AND revoked_at=0`.
+ *      Inspect `meta.changes` afterwards — 0 ⇒ already revoked or wrong post → 404.
+ *   2. `UPDATE users SET coins/credits = coins/credits - ? WHERE id=? AND EXISTS (
+ *         SELECT 1 FROM post_ratings WHERE id=? AND revoked_at=?
+ *      )` — the EXISTS guard makes the refund a no-op when step 1 didn't fire,
+ *      preventing double-refund on a duplicate revoke (D1 batches don't auto-rollback
+ *      on changes()=0; we have to gate every follow-up statement on the soft-revoke).
+ *
+ * Role gate: docs/22 §3 — Admin / SuperMod only.
+ */
+export const revoke = withVerifiedEmail((request, env, user) => revokeRating(request, env, user));
+
+interface RatingRowForRevoke {
+	id: number;
+	post_id: number;
+	rater_id: number;
+	dimension: number;
+	score: number;
+	revoked_at: number;
+	author_id: number;
+}
+
+async function revokeRating(
+	request: Request,
+	env: Env,
+	user: { userId: number; role: number },
+): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+	const url = new URL(request.url);
+	const match = url.pathname.match(/^\/api\/v1\/posts\/(\d+)\/ratings\/(\d+)\/revoke$/);
+	if (!match) {
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid path" }, origin);
+	}
+	const postId = Number.parseInt(match[1] ?? "", 10);
+	const ratingId = Number.parseInt(match[2] ?? "", 10);
+	if (!Number.isFinite(postId) || postId <= 0 || !Number.isFinite(ratingId) || ratingId <= 0) {
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid id" }, origin);
+	}
+
+	if (!canRevokeRating(user.role as UserRole)) {
+		return errorResponse("FORBIDDEN_MOD_ONLY", 403, undefined, origin);
+	}
+
+	// Load the rating row (active or not) joined with author_id so we know
+	// who to refund. We still trust step 1's `changes()` for the actual
+	// transition; this read just produces the refund parameters.
+	const row = await env.DB.prepare(
+		`SELECT r.id, r.post_id, r.rater_id, r.dimension, r.score, r.revoked_at, p.author_id
+		 FROM post_ratings r
+		 JOIN posts p ON p.id = r.post_id
+		 WHERE r.id = ? AND r.post_id = ?`,
+	)
+		.bind(ratingId, postId)
+		.first<RatingRowForRevoke>();
+
+	if (!row || row.revoked_at !== 0) {
+		// Don't disclose "already revoked" vs "missing" — both 404 by spec.
+		return errorResponse("NOT_FOUND", 404, undefined, origin);
+	}
+
+	const now = Math.floor(Date.now() / 1000);
+	const userColumn = row.dimension === RatingDimension.Credits ? "credits" : "coins";
+
+	const updateRating = env.DB.prepare(
+		`UPDATE post_ratings
+		 SET revoked_at = ?, revoked_by = ?
+		 WHERE id = ? AND post_id = ? AND revoked_at = 0`,
+	).bind(now, user.userId, ratingId, postId);
+
+	// Refund guarded by EXISTS: only refund when this very rating is now
+	// revoked at `now` by this user. A second revoke attempt (already-revoked
+	// row) leaves `revoked_at ≠ now`, the EXISTS short-circuits, and the
+	// author does NOT lose points again.
+	const refundAuthor = env.DB.prepare(
+		`UPDATE users
+		 SET ${userColumn} = ${userColumn} - ?
+		 WHERE id = ?
+		   AND EXISTS (
+			SELECT 1 FROM post_ratings
+			WHERE id = ? AND revoked_at = ? AND revoked_by = ?
+		 )`,
+	).bind(row.score, row.author_id, ratingId, now, user.userId);
+
+	const batchResults = await env.DB.batch([updateRating, refundAuthor]);
+	const updateMeta = batchResults[0]?.meta as { changes?: number } | undefined;
+	if (!updateMeta || (updateMeta.changes ?? 0) === 0) {
+		// Lost the race — somebody else revoked between our SELECT and UPDATE.
+		return errorResponse("NOT_FOUND", 404, undefined, origin);
+	}
+
+	// Structured log so future ops can grep without an audit_logs table.
+	console.warn(
+		"post_rating.revoke",
+		JSON.stringify({
+			actorId: user.userId,
+			ratingId,
+			postId,
+			dimension: row.dimension,
+			score: row.score,
+			raterId: row.rater_id,
+			authorId: row.author_id,
+			at: now,
+		}),
+	);
+
+	return new Response(null, { status: 204 });
+}
+
+// ─── Aggregate batch (for posts list / get) ─────────────────
+
+/**
+ * Fetch active-row aggregates for a batch of post ids in a single SQL pass.
+ * Returns a Map keyed by postId; posts with no ratings are absent — callers
+ * should fall back to `EMPTY_RATING_AGGREGATE`.
+ */
+export async function loadAggregatesForPosts(
+	env: Env,
+	postIds: number[],
+): Promise<Map<number, PostRatingAggregate>> {
+	const map = new Map<number, PostRatingAggregate>();
+	if (postIds.length === 0) return map;
+
+	const placeholders = postIds.map(() => "?").join(",");
+	const result = await env.DB.prepare(
+		`SELECT
+			post_id,
+			COUNT(*) AS total,
+			COALESCE(SUM(CASE WHEN dimension = 1 THEN 1 ELSE 0 END), 0) AS credits_count,
+			COALESCE(SUM(CASE WHEN dimension = 1 THEN score ELSE 0 END), 0) AS credits_sum,
+			COALESCE(SUM(CASE WHEN dimension = 2 THEN 1 ELSE 0 END), 0) AS coins_count,
+			COALESCE(SUM(CASE WHEN dimension = 2 THEN score ELSE 0 END), 0) AS coins_sum
+		 FROM post_ratings
+		 WHERE revoked_at = 0
+		   AND post_id IN (${placeholders})
+		 GROUP BY post_id`,
+	)
+		.bind(...postIds)
+		.all<{
+			post_id: number;
+			total: number;
+			credits_count: number;
+			credits_sum: number;
+			coins_count: number;
+			coins_sum: number;
+		}>();
+
+	for (const row of result.results) {
+		map.set(row.post_id, {
+			total: row.total,
+			credits: { count: row.credits_count, sum: row.credits_sum },
+			coins: { count: row.coins_count, sum: row.coins_sum },
+		});
+	}
+	return map;
+}
+
+/** Single-post variant used by `GET /api/v1/posts/:id`. */
+export async function loadAggregateForPost(env: Env, postId: number): Promise<PostRatingAggregate> {
+	return loadAggregate(env, postId);
+}
+
+/** Re-export the zero-state so callers can use the same constant. */
+export { EMPTY_RATING_AGGREGATE };

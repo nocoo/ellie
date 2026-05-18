@@ -2,6 +2,7 @@
 // Ref: 04a §Post interface
 
 import type { Post } from "@ellie/types";
+import { EMPTY_RATING_AGGREGATE } from "@ellie/types";
 
 export const MOCK_POSTS: Post[] = [
 	// Thread 50001 — 招生简章
@@ -16,6 +17,7 @@ export const MOCK_POSTS: Post[] = [
 		createdAt: 1711526400,
 		isFirst: true,
 		position: 1,
+		ratingAggregate: EMPTY_RATING_AGGREGATE,
 	},
 	{
 		id: 100002,
@@ -27,6 +29,7 @@ export const MOCK_POSTS: Post[] = [
 		createdAt: 1711530000,
 		isFirst: false,
 		position: 2,
+		ratingAggregate: EMPTY_RATING_AGGREGATE,
 	},
 	{
 		id: 100003,
@@ -38,6 +41,7 @@ export const MOCK_POSTS: Post[] = [
 		createdAt: 1711533600,
 		isFirst: false,
 		position: 3,
+		ratingAggregate: EMPTY_RATING_AGGREGATE,
 	},
 
 	// Thread 50002 — 高数复习
@@ -52,6 +56,7 @@ export const MOCK_POSTS: Post[] = [
 		createdAt: 1711353600,
 		isFirst: true,
 		position: 1,
+		ratingAggregate: EMPTY_RATING_AGGREGATE,
 	},
 	{
 		id: 100011,
@@ -63,6 +68,7 @@ export const MOCK_POSTS: Post[] = [
 		createdAt: 1711357200,
 		isFirst: false,
 		position: 2,
+		ratingAggregate: EMPTY_RATING_AGGREGATE,
 	},
 
 	// Thread 50010 — TypeScript
@@ -77,6 +83,7 @@ export const MOCK_POSTS: Post[] = [
 		createdAt: 1711526400,
 		isFirst: true,
 		position: 1,
+		ratingAggregate: EMPTY_RATING_AGGREGATE,
 	},
 	{
 		id: 100021,
@@ -88,6 +95,7 @@ export const MOCK_POSTS: Post[] = [
 		createdAt: 1711530000,
 		isFirst: false,
 		position: 2,
+		ratingAggregate: EMPTY_RATING_AGGREGATE,
 	},
 
 	// Thread 50012 — React help
@@ -102,6 +110,7 @@ export const MOCK_POSTS: Post[] = [
 		createdAt: 1711180800,
 		isFirst: true,
 		position: 1,
+		ratingAggregate: EMPTY_RATING_AGGREGATE,
 	},
 	{
 		id: 100031,
@@ -114,5 +123,6 @@ export const MOCK_POSTS: Post[] = [
 		createdAt: 1711184400,
 		isFirst: false,
 		position: 2,
+		ratingAggregate: EMPTY_RATING_AGGREGATE,
 	},
 ];

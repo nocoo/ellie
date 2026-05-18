@@ -3,6 +3,7 @@
 
 import { decodeCursor, encodeCursor } from "@ellie/types";
 import type { Post } from "@ellie/types";
+import { EMPTY_RATING_AGGREGATE } from "@ellie/types";
 import type { MockDataStore } from "./mock/store";
 import type { CreatePostInput, PaginatedResult, PostListParams, PostRepository } from "./types";
 
@@ -82,6 +83,7 @@ export function createMockPostRepository(store: MockDataStore): PostRepository {
 				createdAt: now,
 				isFirst: false,
 				position: maxPosition + 1,
+				ratingAggregate: EMPTY_RATING_AGGREGATE,
 			};
 			store.posts.push(post);
 

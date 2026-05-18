@@ -1,4 +1,5 @@
 import type { UserCheckinSummary } from "./checkin";
+import type { PostRatingAggregate } from "./rating";
 /**
  * User role — maps to Doc02 users.role (from DZ adminid)
  *
@@ -347,6 +348,12 @@ export interface Post {
     createdAt: number;
     isFirst: boolean;
     position: number;
+    /**
+     * Per-post per-dimension rating aggregate (docs/22 §6.3). Always present;
+     * posts with no ratings carry a zero-state aggregate so the UI never has
+     * to null-check this field.
+     */
+    ratingAggregate: PostRatingAggregate;
 }
 /**
  * Subset of `Thread` fields needed to render a post-history row alongside its

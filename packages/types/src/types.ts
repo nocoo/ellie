@@ -2,6 +2,7 @@
 // Field names: snake_case (D1) -> camelCase (frontend)
 
 import type { UserCheckinSummary } from "./checkin";
+import type { PostRatingAggregate } from "./rating";
 //
 // ─────────────────────────────────────────────────────────────────────────────
 // Magic Number Reference (from Discuz X3.4 source code)
@@ -444,6 +445,12 @@ export interface Post {
 	createdAt: number;
 	isFirst: boolean;
 	position: number;
+	/**
+	 * Per-post per-dimension rating aggregate (docs/22 §6.3). Always present;
+	 * posts with no ratings carry a zero-state aggregate so the UI never has
+	 * to null-check this field.
+	 */
+	ratingAggregate: PostRatingAggregate;
 }
 
 /**

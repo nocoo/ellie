@@ -580,7 +580,7 @@ describe("D1 row mappers", () => {
 			expect(post.isFirst).toBe(false);
 		});
 
-		it("should output exactly 9 fields", () => {
+		it("should output exactly 10 fields (incl. ratingAggregate, docs/22)", () => {
 			const row = {
 				id: 1,
 				thread_id: 0,
@@ -594,7 +594,12 @@ describe("D1 row mappers", () => {
 			};
 
 			const post = toPost(row);
-			expect(Object.keys(post)).toHaveLength(9);
+			expect(Object.keys(post)).toHaveLength(10);
+			expect(post.ratingAggregate).toEqual({
+				total: 0,
+				credits: { count: 0, sum: 0 },
+				coins: { count: 0, sum: 0 },
+			});
 		});
 	});
 
