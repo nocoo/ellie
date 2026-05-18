@@ -142,8 +142,12 @@ export function PostRatingDialog({
 		Math.abs(parsedScore) >= bounds.min &&
 		Math.abs(parsedScore) <= bounds.max;
 
+	// Reason is optional (docs/22 §7.2 — predefined dropdown + manual input,
+	// no required check). Worker accepts empty string and PM template renders
+	// "（无）" when reason is empty. We only block when the trimmed value
+	// exceeds RATING_REASON_MAX_LENGTH.
 	const reasonTrimmed = reason.trim();
-	const reasonValid = reasonTrimmed.length > 0 && reasonTrimmed.length <= RATING_REASON_MAX_LENGTH;
+	const reasonValid = reasonTrimmed.length <= RATING_REASON_MAX_LENGTH;
 
 	const canSubmit = !submitting && scoreValid && reasonValid;
 
@@ -321,11 +325,11 @@ export function PostRatingDialog({
 							id={reasonInputId}
 							value={reason}
 							onChange={(e) => setReason(e.target.value)}
-							placeholder="请输入评分理由（必填，最多 40 字）"
+							placeholder={`请输入评分理由（可选，最多 ${RATING_REASON_MAX_LENGTH} 字）`}
 							maxLength={RATING_REASON_MAX_LENGTH}
 							rows={2}
 							disabled={submitting}
-							aria-invalid={reason !== "" && !reasonValid}
+							aria-invalid={reasonTrimmed.length > RATING_REASON_MAX_LENGTH}
 						/>
 						<p
 							className={cn(

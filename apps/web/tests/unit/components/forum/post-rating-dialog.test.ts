@@ -133,17 +133,32 @@ describe("PostRatingDialog", () => {
 		expect(coinsBtn?.getAttribute("aria-selected")).toBe("true");
 	});
 
-	it("disables submit until score AND reason are both valid", () => {
+	it("disables submit until a valid score is picked (reason is optional)", () => {
 		renderDialog();
 		const submit = screen.getByText("提交评分").closest("button") as HTMLButtonElement;
 		expect(submit.disabled).toBe(true);
 
 		fireEvent.click(screen.getByText("+5"));
-		expect(submit.disabled).toBe(true); // still no reason
-
-		const textarea = screen.getByPlaceholderText(/请输入评分理由/);
-		fireEvent.change(textarea, { target: { value: "ok" } });
+		// reason is optional — submit becomes enabled as soon as score is valid
 		expect(submit.disabled).toBe(false);
+	});
+
+	it("allows submit with empty reason and posts reason='' to the API", async () => {
+		mockSubmit.mockResolvedValue({
+			rating: { id: 2, score: 2, dimension: "coins" },
+			aggregate: { total: 1, credits: { count: 0, sum: 0 }, coins: { count: 1, sum: 2 } },
+		});
+		renderDialog();
+		fireEvent.click(screen.getByText("+2"));
+		fireEvent.click(screen.getByText("提交评分"));
+		await waitFor(() => {
+			expect(mockSubmit).toHaveBeenCalledWith(42, {
+				dimension: "coins",
+				score: 2,
+				reason: "",
+				notifyAuthor: true,
+			});
+		});
 	});
 
 	it("rejects score=0 even if typed in custom input", () => {
