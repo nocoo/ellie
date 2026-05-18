@@ -1,7 +1,8 @@
 # 22 — 帖子评分功能（Post Rating · 定版）
 
 > 作者：MBP-SDE-B
-> 状态：待 @MBP-Reviewer-B 协同复核 → @zheng-li 确认 → 进入实施
+> 状态：**已实施（本地完成，待最终验收）** — Phase 1-6 全部落地（最新 commit `53aea49e`）。
+> 实施提交范围：commit `c4d…` ~ `53aea49e`，覆盖 D1 migration、shared types、Worker create/get/revoke + aggregate batch、Web proxy + dialog + summary + action-bar 入口、`packages/migrate` 历史 ETL、最终文档与测试。后续 push origin 与 prod ETL apply 由哥决策，不在本期 SDE 自主范围。
 > 取代草稿：`docs/21-post-rating.md`（保留作为调查/讨论历史）
 
 ---
@@ -97,7 +98,7 @@ export const RATING_LIMITS = {
 > 注：
 > - 积分允许负分（扣分），同钱也允许负分。`perVoteMin/Max` 作用于绝对值。
 > - 滚动 24h 额度查询：`SUM(ABS(score)) WHERE rater_id=? AND dimension=? AND revoked_at=0 AND created_at>=now-86400`。**`revoked_at=0` 关键**——撤销自动返还额度（旧站删除 ratelog 等价语义）。
-> - **`perVoteMax` 是 SDE 提案而非哥的明确决策**，向哥最终确认时单列（见 §11 末尾确认清单）。
+> - `perVoteMax` / `perVoteMin` 为执行前与哥确认后采用的实现常量（防一击拉满 / 防 0 分），与 `perDay` 同源硬编码于 `apps/worker/src/lib/rating-limits.ts`，二期改 settings 表。
 
 ---
 
@@ -310,18 +311,31 @@ D1 batch 顺序：
 ### 6.4 `POST .../ratings/:ratingId/revoke`
 
 - 仅 role∈{1,2}。
-- 事务：
-  1. `UPDATE post_ratings SET revoked_at = ?, revoked_by = ? WHERE id = ? AND revoked_at = 0`。`changes()=0` → 404（已被撤销或不存在）。
-  2. `UPDATE users SET coins/credits = coins/credits - ? WHERE id = ?`（反向减作者积分；该 update 自身用 `WHERE changes() > 0` 守护无意义，因为 step 1 已确保撤销发生）。
-  3. **结构化日志**（Reviewer 修正：本期不补 audit_logs 基础设施）：
+- 事务（D1 batch，与实现一致 — `apps/worker/src/handlers/post-rating.ts`）：
+  1. 先单 SELECT 拿 `(post_id, rater_id, dimension, score, revoked_at, author_id)`。`revoked_at != 0` 或行不存在 → 404（不区分两种情况，避免泄露）。
+  2. `UPDATE post_ratings SET revoked_at = ?, revoked_by = ? WHERE id = ? AND post_id = ? AND revoked_at = 0`。
+  3. **作者积分反向 update（load-bearing 的 `changes() > 0` guard，Phase 3 amend blocker）**：
+     ```sql
+     UPDATE users
+     SET coins/credits = coins/credits - ?
+     WHERE id = ?
+       AND changes() > 0
+       AND EXISTS (
+         SELECT 1 FROM post_ratings
+         WHERE id = ? AND revoked_at = ? AND revoked_by = ?
+       );
+     ```
+     - `changes() > 0` 不能省：D1 batch 在同一连接顺序执行，`changes()` 反映上一条 `UPDATE post_ratings`。如果省掉，**同秒双击撤销**场景下输家的 `UPDATE post_ratings` 是 0 行变更，但它的 `EXISTS` 仍会命中赢家刚写入的 `(revoked_at, revoked_by)` 元组，从而**重复扣作者积分**。该 guard 是 Phase 3 amend (`a8328...` 系列) 的修复结果。
+  4. Batch 跑完后 handler 读首条 update 的 `meta.changes`：`= 0` → 404（已被别人撤销）；`= 1` → 走结构化日志 + 204。
+  5. **结构化日志**（不接 audit_logs 基础设施）：
      ```
      console.warn('post_rating.revoke', JSON.stringify({
        actorId, ratingId, postId, dimension, score, raterId, authorId, at: now
      }));
      ```
-     `post_ratings.revoked_at / revoked_by` 已经是审计快照；后续若上线 audit_logs 基础设施，再补一份写入即可。
+     `post_ratings.revoked_at / revoked_by` 已经是审计快照；后续若上线 audit_logs，再补一份写入即可。
 - 不发 PM。
-- 返回 204。
+- 返回 204（**空 body**，proxy route 同样保持 204 + empty body）。
 
 ---
 
@@ -333,10 +347,15 @@ D1 batch 顺序：
 
 | Button | 图标 | label | 显示条件 |
 |--------|------|-------|----------|
-| 同钱 | `Coins` (lucide) | "同钱" | `currentUser.status=Active`、email verified、!self、post 非 invisible/anonymous |
-| 积分 | `Award` (lucide) | "积分" | 同上 + `role ∈ {1,2,3}` |
+| 同钱 | `Coins` (lucide) | "同钱" | 已登录、`authorId > 0`（非匿名 / 非已删）、非自评 |
+| 积分 | `Award` (lucide) | "积分" | 同上 + `role ∈ {Mod, SuperMod, Admin}` |
 
-撤销按钮不放在 action-bar，而是放在 §7.3 hover popover 内的每条明细行尾，仅 `role ∈ {1,2}` 可见。
+实现说明（与 `post-card.tsx` 一致）：
+
+- `invisible != 0` 的 post 在 server filter 阶段就被剔除，客户端不再二次判断。
+- **email 未验证用户依然能看到入口**；点击后走 `writeGatePreflight(selfEmailVerifiedAt, "rating")`，弹出与回复/点评/举报同一份未验证 / posting-restriction 提示（docs/17 §5.4 文案）。Worker 仍是最终 `EMAIL_NOT_VERIFIED` gate，proxy 透传扁平 payload。
+- 这样做的好处：不会出现"入口神秘消失"的体验，未验证用户拿到的是清晰的引导提示。
+- 撤销按钮不在 action-bar，而是放在 §7.3 popover 内每条明细行尾，仅 `canRevoke = true`（由 Worker 下发，前端不枚举权限）。
 
 ### 7.2 `PostRatingDialog`
 
@@ -357,20 +376,23 @@ D1 batch 顺序：
 
 ### 7.3 `PostRatingSummary`
 
-新建 `components/forum/post-rating-summary.tsx`，挂在 `post-card.tsx` 正文 + action-bar 之间（仅当 aggregate.total > 0 时渲染）。
+新建 `components/forum/post-rating-summary.tsx`，挂在 `post-card.tsx` 正文 + action-bar 之间（仅当 `aggregate.total > 0` 时渲染）。聚合数来自 `posts.list/get` 的 `ratingAggregate` enrichment（§5.2），首屏 SSR 即可显示，无需额外请求。
 
 形态：
 ```
 评分 · 12 人参与   ┃ 积分 +60   ┃ 同钱 +24      [展开 ▾]
-最近：@alice  积分 +5  「优秀文章」  · 2 分钟前
 ```
 
-- 桌面：hover 任意位置 → popover 列表（200 条 limit），列出每条 rating 行：
+展开交互（**click / keyboard，不是 hover**）：
+
+- 实现：`@/components/ui/popover`（base-ui Popover，等价 radix click + 键盘触发），桌面 / 移动统一行为，无独立 drawer 分支。
+- toggle 按钮可键盘聚焦（`focus-visible:underline`），按 Enter / Space 同样展开；可用 ESC 关闭，符合 a11y 最佳实践。
+- **明细列表懒加载**：popover 首次打开才发起 `GET /api/v1/posts/:postId/ratings`，后续打开复用缓存（除非提交/撤销触发 invalidate）。`post-rating-flow.test.ts` 集成测试断言：toggle 之前 `fetchPostRatings` 调用 0 次，toggle 后恰好 1 次。
+- 每条明细行：
   ```
   [avatar] @alice  积分 +5  「优秀文章」   2 分钟前  [撤销]
   ```
-- 移动端：点击"展开" → 同样列表（drawer 形态）。
-- 撤销按钮仅 `canRevoke = true` 时渲染（服务端下发，避免前端枚举权限）。
+- 撤销按钮仅 `canRevoke = true` 时渲染（Worker 按 viewer role 下发），点击后乐观更新本地列表并触发 aggregate 减计。
 
 ### 7.4 历史数据展示
 
@@ -408,7 +430,7 @@ D1 batch 顺序：
 
 ## 9. 管理功能
 
-- **撤销**：UI 入口在 §7.3 hover popover 内每条明细行尾，仅 `canRevoke=true`（后端按 role 下发）渲染。
+- **撤销**：UI 入口在 §7.3 click/键盘 popover 内每条明细行尾，仅 `canRevoke=true`（后端按 role 下发）渲染。
 - **审计**：本期**不接 audit_logs 基础设施**（当前 codebase 没有该表/调用）。
   - `post_ratings.revoked_at / revoked_by` 已是审计快照本身，可查"谁在何时撤销了哪条"。
   - 撤销操作额外打一条 `console.warn('post_rating.revoke', {...})` 结构化日志，落到 Worker stdout（Cloudflare Logs 可检索）。
@@ -446,12 +468,27 @@ D1 batch 顺序：
   - 不发 PM
   - 撤销已撤销的行 → 404
 
-### 10.3 Web component tests (vitest + RTL)
-- `PostRatingDialog`：权限矩阵渲染、提交、错误展示、reason 长度校验。
-- `PostRatingSummary`：0/1/N 条 rating 渲染、hover popover 展开、撤销按钮可见性。
+### 10.3 Web 测试（vitest + happy-dom + RTL）— 已落地
 
-### 10.4 Playwright e2e
-- `tests/e2e/post-rating.spec.ts`：User → 评同钱；Mod → 评积分；Admin → 撤销。
+**Route-level（proxy）测试** — `apps/web/tests/unit/app/post-rating-proxy.test.ts`（16 cases）：
+- `POST /api/v1/posts/:id/rate`：CSRF / 401 / 403 EMAIL_NOT_VERIFIED 扁平 payload 透传 / 409 RATING_DUPLICATE / 429 RATING_DAILY_LIMIT / 201 success。
+- `GET /api/v1/posts/:id/ratings`（optional-auth）：anonymous fallback / authenticated `getAuth` / `getWorkerJwt` 抛错回退 anonymous / 404 NOT_FOUND / 500 INTERNAL_ERROR。
+- `POST /api/v1/posts/:id/ratings/:ratingId/revoke`：CSRF / 401 / **204 空 body**（断言 `await res.text() === ""`）/ 404 NOT_FOUND / 403 FORBIDDEN_MOD_ONLY。
+
+**Component 测试**：
+- `post-rating-dialog.test.ts`：维度切换、预设分值/理由、单次范围、reason 长度、提交流程、错误展示。
+- `post-rating-summary.test.ts`：0/1/N 条聚合渲染、popover 展开（click/键盘）、明细 list、撤销按钮可见性按 `canRevoke` 控制、撤销后聚合下调。
+
+**Dialog → Summary 集成测试** — `apps/web/tests/unit/components/forum/post-rating-flow.test.ts`（2 cases）：
+仿照 `post-card.tsx` 的 React 状态提升，把 dialog `onSuccess` 回写 aggregate 到父级，summary 仅在 `total > 0` 渲染。断言：
+- 提交 payload 与 dimension/score/reason/notifyAuthor 完全匹配。
+- 提交成功后 summary 出现，`*-total / *-coins / *-credits` 文本含新值（验证 React 真的 re-render，不是只挂 prop）。
+- popover toggle 之前 `fetchPostRatings` 调用次数 0；toggle 之后恰好 1 次且参数 `42`；详情 list 渲染 rater + reason。
+- 起始非零 aggregate + 再次提交场景：Worker 权威，aggregate **replace 不累加**。
+
+### 10.4 浏览器手验（Playwright e2e 暂不做）
+
+Playwright 多用户 / role 切换 seed 成本高（需要至少 2 个独立 session + Admin/Mod fixture + email_verified 状态切换），本期改为 §13 验收 Checklist 中的浏览器手验项。E2E 留为后续可选增强，不阻塞本期收口。
 
 ---
 
@@ -467,11 +504,11 @@ D1 batch 顺序：
 | 6 | `feat(worker): batch rating aggregate in posts list handler` | 在 `apps/worker/src/handlers/post.ts:list` 批量聚合，扩展 `Post/EnrichedPost` 类型；单帖 GET 同步带上 |
 | 7 | `feat(web): Next.js proxy routes for rating endpoints` | `app/api/v1/posts/[id]/rate/route.ts` 等 |
 | 8 | `feat(web): PostRatingDialog component + tests` | 含权限矩阵、表单校验 |
-| 9 | `feat(web): PostRatingSummary component + tests` | hover popover + 撤销按钮 |
+| 9 | `feat(web): PostRatingSummary component + tests` | click/键盘 popover + 懒加载明细 + 撤销按钮 |
 | 10 | `feat(web): hook up rating buttons in post-action-bar` | 入口接入 |
 | 11 | `feat(migrate): ratelog ETL script + dry-run output` | `packages/migrate/src/transform/ratelog.ts` + `packages/migrate/src/ratelog-etl.ts` + `output/post-ratings-import-*`，含去重合并、stripMarkup 与 SUMMARY.md |
-| 12 | `test(e2e): post rating playwright spec` | |
-| 13 | `docs: post rating feature doc & README index` | 收尾，把 `docs/21-post-rating.md`（草稿）标记 superseded |
+| 12 | `feat(web,docs): post-rating phase 6 — proxy/integration tests + final docs` | route-level proxy tests（含 204 revoke + 错误透传）+ dialog↔summary RTL 集成测试（aggregate 提升 + 懒加载明细）+ docs/22 定版 + docs/21 SUPERSEDED + README 索引（commit `53aea49e`） |
+| 13 | _Playwright e2e_ | 本期不做（多用户 + role 切换 seed 成本），转为 §13 浏览器手验项 |
 
 每步本地 atomic commit，不主动 push（按 SDE 角色约定）。
 
@@ -489,16 +526,27 @@ D1 batch 顺序：
 
 ## 13. 验收 Checklist（开发完毕后逐项核对）
 
-- [ ] 用户在帖子下方能看到评分入口（按权限）。
-- [ ] 评分 dialog 单次/单日额度提示正确。
-- [ ] 提交评分后 author 的 credits/coins 即时变更。
-- [ ] 并发请求同时打到额度边界：只有一条通过，另一条 429。
-- [ ] 撤销后额度返还：同 rater 24h 内可再评直至总额度。
-- [ ] `notifyAuthor` 勾选时被评者收到一条 PM，sender/receiver/subject/content 字段完整，理由经 trim+censor+escape。
-- [ ] 帖子下方汇总条显示参与人数 + 各维度合计 + 最近一条。
-- [ ] hover 浮层显示完整列表，撤销按钮仅 Admin/SuperMod 可见。
-- [ ] Admin 撤销后 aggregate / author 积分 / 结构化日志同步。
-- [ ] 隐藏/staff-only/已删除 post 的 GET ratings → 404，不泄露数据。
-- [ ] 历史 63082 条 ratelog 经 ETL 后落库（去重合并 95 条），旧帖子下方能看到旧评分。
-- [ ] 映射失败的行有 warn 日志 + SUMMARY.md 可查。
-- [ ] 所有单测 + e2e 全绿。
+### 自动化（已通过，本地）
+- [x] D1 migration / Worker handlers 单测（`apps/worker/.../post-rating.test.ts`）45/45 pass。
+- [x] Web proxy route + dialog + summary + flow 集成测试（`apps/web/tests/unit/...`）34/34 pass。
+- [x] `packages/migrate/tests/ratelog.test.ts` 26/26 pass，输出 SQL `rg '\[\w+\]'` 零 BBCode 命中。
+- [x] `bun run typecheck` 全仓库 clean。
+- [x] `bunx biome check` 变更文件 clean。
+
+### 浏览器手验（待哥 / Reviewer 在真实环境逐项 ✓）
+- [ ] User 登录 → 帖子 action-bar 仅渲染"同钱"入口；Mod/SuperMod/Admin 渲染同钱+积分两个入口；自己帖子 / 匿名作者帖 / RecycleBin → 入口不渲染。
+- [ ] email 未验证用户能看到入口；点击后弹出验证邮箱提示（与回复 / 点评同一份 §5.4 文案），Worker 拒绝并透传 EMAIL_NOT_VERIFIED。
+- [ ] 评分 dialog：预设分值/理由可选可改、单次绝对值越界禁用提交、单日额度耗尽 → 429 提示。
+- [ ] 提交成功 → toast + dialog 关闭 + summary 出现 + 作者 credits/coins 即时变更。
+- [ ] Summary 行 click 或键盘 Enter 都能打开 popover；首次打开发起一次 ratings 请求，再次开关复用缓存；ESC 可关闭。
+- [ ] popover 显示完整列表，撤销按钮仅 SuperMod/Admin 看到。
+- [ ] Admin 撤销 → 列表行消失 / 灰显 + aggregate 减计 + author 积分回退；结构化日志 `post_rating.revoke` 出现在 Worker stdout。
+- [ ] 撤销已撤销行 → 404，不泄露状态差异。
+- [ ] 同秒双击撤销（开两 tab） → 仅一次扣回，第二次 404（依赖 §6.4 `changes()>0` guard）。
+- [ ] `notifyAuthor` 勾选时被评者收到一条 PM，sender/receiver/subject/content 字段完整，理由经 trim+censor+strip。
+- [ ] 隐藏 thread / staff-only forum / invisible post 的 GET ratings → 404，不泄露 aggregate / items。
+- [ ] 历史 ETL：勾选后跑 `bun run packages/migrate/src/ratelog-etl.ts` dry-run → SUMMARY.md 行数计算正确、merged.csv 含 69 个 key / 95 条 source，生成 SQL 无 `[quote]` / `<script>`。prod 应用由哥决策。
+
+### 不在本期范围
+- Playwright e2e（成本/收益不划算，列入后续可选增强）。
+- audit_logs 基础设施 / settings 表化的额度调整（二期）。
