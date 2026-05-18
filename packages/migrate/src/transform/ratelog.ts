@@ -42,6 +42,20 @@ export function extcreditsToDimension(extcredits: number): RatingDimension | nul
 	return null;
 }
 
+/**
+ * Strip BBCode-style tags `[b]...[/b]` and HTML tags so the reason becomes
+ * plain text. Mirrors `stripMarkup()` in
+ * `apps/worker/src/handlers/post-rating.ts` so the legacy import lands in
+ * `post_ratings.reason` with the same shape as new writes — the public
+ * hover list cannot expose raw `[quote]…[/quote]` from imported rows.
+ */
+export function stripMarkup(input: string): string {
+	return input
+		.replace(/\[\/?[a-zA-Z][a-zA-Z0-9]*(?:=[^\]]*)?\]/g, "") // BBCode-ish tags
+		.replace(/<[^>]+>/g, "") // HTML tags
+		.replace(/[\r\n\t]+/g, " "); // collapse whitespace to a space
+}
+
 /** Raw ratelog row from the dump parser. `score` is signed; `dateline` is epoch seconds. */
 export interface RatelogRawRow {
 	pid: number;
@@ -69,8 +83,9 @@ export interface NormalizedRatelogRow {
  *
  * - Filters out `extcredits` outside {1, 2} (Discuz had 8 slots; only 1
  *   and 2 are populated for the ratelog in our dump).
- * - Trims the reason and collapses internal whitespace to a single space
- *   (matches Worker `stripMarkup` semantics for legacy content).
+ * - Strips BBCode/HTML tags and collapses internal whitespace (mirrors
+ *   Worker `stripMarkup()` so legacy reasons land as plain text — without
+ *   this `[quote]...[/quote]` would leak into the public hover list).
  * - Hard-caps reason length at `reasonMaxLength` to satisfy the D1 column
  *   constraint and `RATING_REASON_MAX_LENGTH` from shared types.
  */
@@ -85,10 +100,10 @@ export function normalizeRatelogRow(
 	// rows from imported legacy data). These would never map anyway.
 	if (raw.uid <= 0 || raw.pid <= 0) return null;
 
-	const trimmedReason = raw.reason
-		.replace(/[\r\n\t]+/g, " ")
-		.trim()
-		.slice(0, reasonMaxLength);
+	// trim → strip markup → trim again → cap, mirroring Worker processReason
+	// minus censor (we don't run the prod censor list on legacy bulk import;
+	// historical content has been live for years already).
+	const cleanedReason = stripMarkup(raw.reason.trim()).trim().slice(0, reasonMaxLength);
 
 	return {
 		pid: raw.pid,
@@ -97,7 +112,7 @@ export function normalizeRatelogRow(
 		dimension,
 		dateline: raw.dateline,
 		score: raw.score,
-		reason: trimmedReason,
+		reason: cleanedReason,
 	};
 }
 

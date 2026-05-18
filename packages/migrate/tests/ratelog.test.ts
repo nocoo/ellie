@@ -23,6 +23,7 @@ import {
 	renderMergedCsv,
 	renderSummaryMarkdown,
 	sqlString,
+	stripMarkup,
 } from "../src/transform/ratelog";
 
 const REASON_MAX = 40;
@@ -89,6 +90,50 @@ describe("normalizeRatelogRow", () => {
 	it("preserves negative scores", () => {
 		const norm = normalizeRatelogRow(rawRow({ score: -7 }), REASON_MAX);
 		expect(norm?.score).toBe(-7);
+	});
+
+	it("strips BBCode tags (matches Worker stripMarkup)", () => {
+		const norm = normalizeRatelogRow(
+			rawRow({ reason: "[quote]争取有一个强迫的体格[/quote]" }),
+			REASON_MAX,
+		);
+		expect(norm?.reason).toBe("争取有一个强迫的体格");
+	});
+
+	it("strips paired BBCode + HTML tags + script bodies are preserved as text minus tags", () => {
+		const norm = normalizeRatelogRow(
+			rawRow({ reason: "[b]great[/b] <script>x</script><b>post</b>" }),
+			REASON_MAX,
+		);
+		// Tags removed; only inner text remains. Worker stripMarkup does NOT
+		// drop script-bodies (it strips tags only) — we mirror that.
+		expect(norm?.reason).toBe("great xpost");
+	});
+
+	it("strips BBCode with attribute syntax e.g. [color=red]…[/color]", () => {
+		const norm = normalizeRatelogRow(
+			rawRow({ reason: "[color=red]nice[/color][url=http://x]link[/url]" }),
+			REASON_MAX,
+		);
+		expect(norm?.reason).toBe("nicelink");
+	});
+
+	it("caps reason length AFTER stripping markup", () => {
+		// Without the inner tag the body is 50 chars; with the cap at 40 it
+		// should slice to 40 — proves cap runs after stripMarkup, not before.
+		const body = "a".repeat(50);
+		const norm = normalizeRatelogRow(rawRow({ reason: `[b]${body}[/b]` }), REASON_MAX);
+		expect(norm?.reason.length).toBe(REASON_MAX);
+		expect(norm?.reason).toBe("a".repeat(REASON_MAX));
+	});
+});
+
+describe("stripMarkup", () => {
+	it("removes BBCode-ish tags and HTML tags, collapses whitespace", () => {
+		expect(stripMarkup("[b]hi[/b]")).toBe("hi");
+		expect(stripMarkup("<i>hi</i>")).toBe("hi");
+		expect(stripMarkup("[quote=abc;1]x[/quote]")).toBe("x");
+		expect(stripMarkup("a\n\tb\r\nc")).toBe("a b c");
 	});
 });
 
