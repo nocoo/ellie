@@ -15,6 +15,7 @@ import { PostAuthorStatusIcon } from "@/components/forum/post-author-status-icon
 import { PostComments } from "@/components/forum/post-comments";
 import { PostContent } from "@/components/forum/post-content";
 import { PostEditDialog } from "@/components/forum/post-edit-dialog";
+import { PostRatingDialog } from "@/components/forum/post-rating-dialog";
 import { PostSidebar } from "@/components/forum/post-sidebar";
 import { ReportDialog } from "@/components/forum/report-dialog";
 import { ForumAvatar } from "@/components/forum/user-avatar";
@@ -89,6 +90,13 @@ export function PostCard({
 	const [reportDialogOpen, setReportDialogOpen] = useState(false);
 	// Comment dialog state
 	const [commentDialogOpen, setCommentDialogOpen] = useState(false);
+	// Rating dialog state — `dimension` stages which tab opens (action-bar
+	// entry pre-selects 同钱/积分); the dialog locks the toggle if the
+	// viewer can't rate the other dimension.
+	const [ratingDialogOpen, setRatingDialogOpen] = useState(false);
+	const [ratingDialogDimension, setRatingDialogDimension] = useState<RatingDimension>(
+		RatingDimension.Coins,
+	);
 	// Can report: logged in and not own post
 	const canReport = currentUserId !== null && !isOwnPost;
 	// Can comment: logged in and thread not closed
@@ -110,15 +118,13 @@ export function PostCard({
 		currentUserRole !== null &&
 		canRateDimension(currentUserRole, RatingDimension.Credits);
 
-	const openRatingDialog = async (_dimension: RatingDimension) => {
+	const openRatingDialog = async (dimension: RatingDimension) => {
 		// Write-gate preflight — handles email verification + posting
 		// restrictions. The dispatched dialog matches reply/comment/report so
 		// users get the same §5.4 / posting-restriction copy across surfaces.
 		if (await writeGatePreflight(selfEmailVerifiedAt, "rating")) return;
-		// Phase 4.3 wires the dialog open here (passing the staged dimension).
-		// Until then, the click is a no-op after the gate passes — visible
-		// progress in 4.2 is purely the action-bar entry + the preflight wire,
-		// not the dialog itself.
+		setRatingDialogDimension(dimension);
+		setRatingDialogOpen(true);
 	};
 
 	const actionBar = (
@@ -287,11 +293,21 @@ export function PostCard({
 				targetId={post.id}
 			/>
 			{/*
-			 * PostRatingDialog mounts here in Phase 4.3 — the action-bar
-			 * onRateCoins/onRateCredits handlers already do the write-gate
-			 * preflight; 4.3 just owns the dialog state and posts to
-			 * `/api/v1/posts/:id/rate`.
+			 * PostRatingDialog — coins/credits entry from the action-bar.
+			 * Permission only decides the entry visibility + default
+			 * dimension; Worker is the final 403/EMAIL_NOT_VERIFIED gate.
+			 * Phase 4.4 will mount PostRatingSummary alongside so the
+			 * aggregate refreshes after `onSuccess` fires.
 			 */}
+			{isRateableTarget && (
+				<PostRatingDialog
+					open={ratingDialogOpen}
+					onOpenChange={setRatingDialogOpen}
+					postId={post.id}
+					defaultDimension={ratingDialogDimension}
+					canRateCredits={canRateCredits}
+				/>
+			)}
 		</div>
 	);
 }
