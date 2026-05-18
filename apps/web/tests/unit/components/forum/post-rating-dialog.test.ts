@@ -1,45 +1,40 @@
 // @vitest-environment happy-dom
 // Tests for PostRatingDialog — submit happy path, dimension lock, score
 // validation, reason length cap, error code → user-copy mapping.
+//
+// Mock strategy (reviewer guidance msg=e91ac78e + msg=90aecd8e):
+// We avoid any module-level `vi.mock` so this file does not share a
+// `vi.mock` factory cache slot with sibling tests under vitest
+// `isolate: false` (the monorepo's root `bun run test`). Both the
+// previous `vi.mock("@/viewmodels/forum/rating-reasons", ...)` and a
+// would-be `vi.mock("@/lib/api-client", ...)` would interleave with
+// other test files in the same worker (`post-rating-flow`,
+// `post-rating-summary`, `write-gate`, every `*-toast` test) — leading
+// to "mock function called 0 times" failures even though the click
+// fired and the real submit path ran.
+//
+// Instead we stub the global `fetch` so the real `apiClient.post` runs
+// and the real `submitPostRating` viewmodel runs, and we assert on the
+// observable HTTP request (URL + JSON body) and on rendered output.
+// Production behaviour is identical: `apiClient` is the only network
+// surface for browser code, and its envelope shape (`{ data, meta }`)
+// is exactly what we hand back here.
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// ─── Mocks ────────────────────────────────────────────────────────────────────
+// ─── Fetch stub ──────────────────────────────────────────────────────────────
 
-const mockSubmit = vi.fn();
-vi.mock("@/viewmodels/forum/rating-reasons", () => {
-	class FakeApiError extends Error {
-		code?: string;
-		status?: number;
-		constructor(status: number, code: string, message: string) {
-			super(message);
-			this.status = status;
-			this.code = code;
-			this.message = message;
-		}
-	}
-	return {
-		ApiError: FakeApiError,
-		RATING_REASONS_BY_DIMENSION: {
-			coins: ["热心助人", "优秀文章"],
-			credits: ["内容优秀", "灌水"],
-		},
-		RATING_SCORE_PRESETS: {
-			coins: [1, 2, 5, -1, -2],
-			credits: [10, 20, -10],
-		},
-		submitPostRating: (...args: any[]) => mockSubmit(...args),
-		fetchPostRatings: vi.fn(),
-		revokePostRating: vi.fn(),
-	};
+const fetchMock = vi.fn<(input: string, init?: RequestInit) => Promise<Response>>();
+
+beforeEach(() => {
+	fetchMock.mockReset();
+	vi.stubGlobal("fetch", fetchMock);
 });
-
-// Reach into the mocked module to grab the ApiError class for assertions
-async function getFakeApiError(): Promise<typeof Error> {
-	const mod = (await import("@/viewmodels/forum/rating-reasons")) as { ApiError: typeof Error };
-	return mod.ApiError;
-}
+afterEach(() => {
+	vi.unstubAllGlobals();
+	cleanup();
+});
 
 vi.mock("next/navigation", () => ({
 	useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
@@ -48,6 +43,34 @@ vi.mock("next/navigation", () => ({
 import { ForumToastProvider } from "@/components/forum/forum-toast";
 import { PostRatingDialog } from "@/components/forum/post-rating-dialog";
 import { RatingDimension } from "@ellie/types";
+
+// Build a `Response` for the `{ data, meta }` envelope `apiClient` expects.
+function envelopeResponse(data: unknown, status = 200): Response {
+	const body = JSON.stringify({ data, meta: { timestamp: 0, requestId: "test" } });
+	return new Response(body, {
+		status,
+		headers: { "Content-Type": "application/json" },
+	});
+}
+
+// Build an error `Response` matching the Worker's wrapped error envelope:
+//   { error: { code, message } }
+// `throwForErrorBody` in `apiClient` turns this into `new ApiError(status, code, message)`.
+function errorResponse(status: number, code: string, message: string): Response {
+	const body = JSON.stringify({ error: { code, message } });
+	return new Response(body, {
+		status,
+		headers: { "Content-Type": "application/json" },
+	});
+}
+
+// Extract the JSON body sent by `apiClient.post`. Test asserts on this
+// instead of the deprecated mockSubmit args.
+function postedBody(call: [string, RequestInit | undefined]): unknown {
+	const init = call[1];
+	if (!init?.body) return undefined;
+	return JSON.parse(init.body as string);
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -78,11 +101,6 @@ function renderDialog(props: Partial<Parameters<typeof PostRatingDialog>[0]> = {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("PostRatingDialog", () => {
-	beforeEach(() => {
-		mockSubmit.mockReset();
-	});
-	afterEach(cleanup);
-
 	it("renders coins dimension by default and shows preset chips", () => {
 		renderDialog();
 		// The dimension tab "同钱" should be selected (button text)
@@ -94,10 +112,12 @@ describe("PostRatingDialog", () => {
 	});
 
 	it("submits with score + reason + notifyAuthor=true by default", async () => {
-		mockSubmit.mockResolvedValue({
-			rating: { id: 1, score: 5, dimension: "coins" },
-			aggregate: { total: 1, credits: { count: 0, sum: 0 }, coins: { count: 1, sum: 5 } },
-		});
+		fetchMock.mockResolvedValue(
+			envelopeResponse({
+				rating: { id: 1, score: 5, dimension: "coins" },
+				aggregate: { total: 1, credits: { count: 0, sum: 0 }, coins: { count: 1, sum: 5 } },
+			}),
+		);
 		const { onSuccess, onOpenChange } = renderDialog();
 
 		fireEvent.click(screen.getByText("+5"));
@@ -107,12 +127,16 @@ describe("PostRatingDialog", () => {
 		fireEvent.click(screen.getByText("提交评分"));
 
 		await waitFor(() => {
-			expect(mockSubmit).toHaveBeenCalledWith(42, {
-				dimension: "coins",
-				score: 5,
-				reason: "优秀文章",
-				notifyAuthor: true,
-			});
+			expect(fetchMock).toHaveBeenCalled();
+		});
+		const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+		expect(url).toContain("/api/v1/posts/42/rate");
+		expect(init.method).toBe("POST");
+		expect(postedBody([url, init])).toEqual({
+			dimension: "coins",
+			score: 5,
+			reason: "优秀文章",
+			notifyAuthor: true,
 		});
 		await waitFor(() => {
 			expect(onSuccess).toHaveBeenCalled();
@@ -144,20 +168,25 @@ describe("PostRatingDialog", () => {
 	});
 
 	it("allows submit with empty reason and posts reason='' to the API", async () => {
-		mockSubmit.mockResolvedValue({
-			rating: { id: 2, score: 2, dimension: "coins" },
-			aggregate: { total: 1, credits: { count: 0, sum: 0 }, coins: { count: 1, sum: 2 } },
-		});
+		fetchMock.mockResolvedValue(
+			envelopeResponse({
+				rating: { id: 2, score: 2, dimension: "coins" },
+				aggregate: { total: 1, credits: { count: 0, sum: 0 }, coins: { count: 1, sum: 2 } },
+			}),
+		);
 		renderDialog();
 		fireEvent.click(screen.getByText("+2"));
 		fireEvent.click(screen.getByText("提交评分"));
 		await waitFor(() => {
-			expect(mockSubmit).toHaveBeenCalledWith(42, {
-				dimension: "coins",
-				score: 2,
-				reason: "",
-				notifyAuthor: true,
-			});
+			expect(fetchMock).toHaveBeenCalled();
+		});
+		const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+		expect(url).toContain("/api/v1/posts/42/rate");
+		expect(postedBody([url, init])).toEqual({
+			dimension: "coins",
+			score: 2,
+			reason: "",
+			notifyAuthor: true,
 		});
 	});
 
@@ -172,12 +201,7 @@ describe("PostRatingDialog", () => {
 	});
 
 	it("surfaces RATING_DUPLICATE error code as user copy", async () => {
-		const FakeApiError = (await getFakeApiError()) as unknown as new (
-			s: number,
-			c: string,
-			m: string,
-		) => Error;
-		mockSubmit.mockRejectedValue(new FakeApiError(409, "RATING_DUPLICATE", "duplicate"));
+		fetchMock.mockResolvedValue(errorResponse(409, "RATING_DUPLICATE", "duplicate"));
 		renderDialog();
 
 		fireEvent.click(screen.getByText("+5"));
@@ -191,12 +215,7 @@ describe("PostRatingDialog", () => {
 	});
 
 	it("surfaces RATING_DAILY_LIMIT error code as user copy", async () => {
-		const FakeApiError = (await getFakeApiError()) as unknown as new (
-			s: number,
-			c: string,
-			m: string,
-		) => Error;
-		mockSubmit.mockRejectedValue(new FakeApiError(429, "RATING_DAILY_LIMIT", "too many"));
+		fetchMock.mockResolvedValue(errorResponse(429, "RATING_DAILY_LIMIT", "too many"));
 		renderDialog();
 
 		fireEvent.click(screen.getByText("+5"));
