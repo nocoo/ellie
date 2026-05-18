@@ -104,3 +104,28 @@ export {
 	canManageThread,
 	canMoveThread,
 } from "./permission";
+
+// ─── Post rating (评分) — docs/22 ──────────────────────────────
+export type {
+	RatingDimensionKey,
+	PostRatingRow,
+	PostRatingDimensionAggregate,
+	PostRatingAggregate,
+	PostRatingsResponse,
+	CreatePostRatingRequest,
+	CreatePostRatingResponse,
+} from "./rating";
+export {
+	RatingDimension,
+	RATING_DIMENSION_KEYS,
+	RATING_LIMITS,
+	RATING_REASON_MAX_LENGTH,
+	RATING_QUOTA_WINDOW_SECONDS,
+	EMPTY_RATING_AGGREGATE,
+	ratingDimensionToKey,
+	ratingKeyToDimension,
+	getRatingPerDayCap,
+	getRatingPerVoteBounds,
+	canRateDimension,
+	canRevokeRating,
+} from "./rating";

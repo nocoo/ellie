@@ -278,6 +278,27 @@ export const TABLES = {
 			moderator_only  INTEGER NOT NULL DEFAULT 0
 		);
 	`,
+
+	// Mirror of migration 0040_create_post_ratings.sql. One row per active
+	// or revoked rating event (post 评分). The partial unique index on
+	// (rater_id, post_id, dimension) WHERE revoked_at=0 enforces the
+	// "one active rating per dimension" rule and intentionally lets a
+	// revoked row be replaced by a fresh one. See docs/22-post-rating.md §5.1.
+	post_ratings: `
+		CREATE TABLE IF NOT EXISTS post_ratings (
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			post_id     INTEGER NOT NULL,
+			thread_id   INTEGER NOT NULL,
+			rater_id    INTEGER NOT NULL,
+			rater_name  TEXT    NOT NULL,
+			dimension   INTEGER NOT NULL,
+			score       INTEGER NOT NULL,
+			reason      TEXT    NOT NULL DEFAULT '',
+			created_at  INTEGER NOT NULL,
+			revoked_at  INTEGER NOT NULL DEFAULT 0,
+			revoked_by  INTEGER NOT NULL DEFAULT 0
+		);
+	`,
 };
 
 export const INDEXES = {
@@ -375,5 +396,17 @@ export const INDEXES = {
 	forum_thread_types: [
 		"CREATE INDEX IF NOT EXISTS idx_forum_thread_types_forum ON forum_thread_types(forum_id, display_order, id);",
 		"CREATE UNIQUE INDEX IF NOT EXISTS idx_forum_thread_types_source ON forum_thread_types(forum_id, source_typeid);",
+	],
+
+	// Post ratings (评分) — mirrors migration 0040. Composite
+	// (post_id, revoked_at, created_at) covers the per-post aggregate +
+	// hover-list read; partial indexes on the active subset keep both
+	// the rolling-24h quota scan and the "one active rating per
+	// (rater, post, dim)" uniqueness tight. See docs/22-post-rating.md §5.1.
+	post_ratings: [
+		"CREATE INDEX IF NOT EXISTS idx_post_ratings_post ON post_ratings(post_id, revoked_at, created_at);",
+		"CREATE INDEX IF NOT EXISTS idx_post_ratings_thread ON post_ratings(thread_id, revoked_at, created_at);",
+		"CREATE INDEX IF NOT EXISTS idx_post_ratings_rater_dim_time ON post_ratings(rater_id, dimension, created_at) WHERE revoked_at = 0;",
+		"CREATE UNIQUE INDEX IF NOT EXISTS uq_post_ratings_active ON post_ratings(rater_id, post_id, dimension) WHERE revoked_at = 0;",
 	],
 };
