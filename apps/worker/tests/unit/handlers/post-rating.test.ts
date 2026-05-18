@@ -1005,9 +1005,11 @@ describe("post-rating revoke handler", () => {
 		expect(batchCalls.length).toBe(1);
 		expect((batchCalls[0] as unknown[]).length).toBe(2);
 		// The refund UPDATE must hit `users` and subtract the score on `coins`
-		// (dimension=2), guarded by EXISTS so a no-op revoke won't double-refund.
+		// (dimension=2), guarded by `changes() > 0` AND EXISTS so a no-op
+		// revoke (same-second double-click) won't double-refund the author.
 		const refundCall = calls.find((c) => c.sql.includes("UPDATE users") && c.sql.includes("coins"));
 		expect(refundCall).toBeDefined();
+		expect(refundCall?.sql).toContain("changes() > 0");
 		expect(refundCall?.sql).toContain("EXISTS");
 		expect(refundCall?.sql).toContain("revoked_at = ?");
 		// params: [score, authorId, ratingId, revokedAt, revokedBy]

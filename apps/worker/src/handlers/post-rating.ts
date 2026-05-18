@@ -777,14 +777,20 @@ async function revokeRating(
 		 WHERE id = ? AND post_id = ? AND revoked_at = 0`,
 	).bind(now, user.userId, ratingId, postId);
 
-	// Refund guarded by EXISTS: only refund when this very rating is now
-	// revoked at `now` by this user. A second revoke attempt (already-revoked
-	// row) leaves `revoked_at ≠ now`, the EXISTS short-circuits, and the
-	// author does NOT lose points again.
+	// Refund guarded by `changes() > 0` on the preceding statement: D1 batches
+	// run on the same connection sequentially, so `changes()` here reflects
+	// the row-count of the immediately preceding UPDATE post_ratings. The
+	// EXISTS clause additionally requires the rating to be revoked by this
+	// actor at `now`. The `changes() > 0` guard is the load-bearing one — it
+	// closes a same-second double-click race where two concurrent revokes by
+	// the same Admin would both see `revoked_at=0`, the loser's step 1 would
+	// set changes=0, but its EXISTS alone would still match the winner's
+	// (revoked_at, revoked_by) tuple and double-refund the author.
 	const refundAuthor = env.DB.prepare(
 		`UPDATE users
 		 SET ${userColumn} = ${userColumn} - ?
 		 WHERE id = ?
+		   AND changes() > 0
 		   AND EXISTS (
 			SELECT 1 FROM post_ratings
 			WHERE id = ? AND revoked_at = ? AND revoked_by = ?
