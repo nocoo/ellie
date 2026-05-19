@@ -16,7 +16,12 @@ import { Label } from "@/components/ui/label";
 import { canSubmitLogin, loginErrorMessage } from "@/viewmodels/forum/auth";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
-import { AuthDivider, AuthErrorBanner, AuthIdCard } from "../_components/auth-id-card";
+import {
+	AuthDivider,
+	AuthErrorBanner,
+	AuthHelpHint,
+	AuthIdCard,
+} from "../_components/auth-id-card";
 import { RegisterFormDialog } from "../register/register-form";
 
 const CAP_API_ENDPOINT = process.env.NEXT_PUBLIC_CAP_API_ENDPOINT ?? "";
@@ -153,6 +158,11 @@ function LoginFormInner() {
 					/>
 				</DialogContent>
 			</Dialog>
+
+			{/* Contact-admin hint — rendered only after CAPTCHA solve to keep
+			    the email hidden from naive scrapers. When CAP is disabled
+			    (e.g. local dev), the hint stays hidden by design. */}
+			<AuthHelpHint visible={capEnabled && Boolean(capToken)} />
 		</AuthIdCard>
 	);
 }
