@@ -796,6 +796,35 @@ describe("post-rating listByPost handler", () => {
 		expect(response.status).toBe(403);
 	});
 
+	// Regression for the thread-555588 bug: sticky=2 (STICKY_GLOBAL) site-wide
+	// announcement must be readable from any visibility context, including
+	// `/posts/:id/ratings`. Before the fix this returned 403 FORBIDDEN, which
+	// caused the lazy-loaded PostRatingSummary on the web client to fail even
+	// though the announcement title was visible in every forum's list.
+	it("should 200 for anon viewer when sticky=GLOBAL even on staff-only source forum (regression: 555588)", async () => {
+		const { env } = buildListEnv({
+			postRow: {
+				post_id: 5,
+				thread_id: 7,
+				author_id: 20,
+				author_name: "bob",
+				invisible: 0,
+				thread_subject: "Site-wide announcement",
+				sticky: 2, // STICKY_GLOBAL
+				forum_id: 1,
+				forum_status: 1,
+				forum_visibility: "staff",
+			},
+		});
+		const response = await postRating.listByPost(makeListRequest(5), env);
+		expect(response.status).toBe(200);
+		const body = (await response.json()) as {
+			data: { postId: number; threadId: number };
+		};
+		expect(body.data.postId).toBe(5);
+		expect(body.data.threadId).toBe(7);
+	});
+
 	it("should return aggregate + active items for an anon viewer (canRevoke=false)", async () => {
 		const { env } = buildListEnv();
 		const response = await postRating.listByPost(makeListRequest(5), env);
