@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.2] - 2026-05-20
+
+### Security
+
+- **CAPTCHA fail-closed across all forms**: Login, register, and report dialog now treat CAP as REQUIRED. When `NEXT_PUBLIC_CAP_API_ENDPOINT` is missing, submit stays disabled and a banner explains the outage — previously the report dialog silently allowed submissions through a "skipped" state, and login/register hid the widget instead of failing closed
+- **Inline CAP endpoint into client bundle**: Dockerfile + release.yml now pass `NEXT_PUBLIC_CAP_API_ENDPOINT` as a build-arg so Next.js inlines it into the browser bundle. Setting it only at container runtime left SSR Node seeing a real value while the browser saw an empty string, producing a React #418 hydration mismatch and a hidden widget on prod login/register
+- **Dependency CVE cleanup**: Stale osv-scanner ignore removed (GHSA-q4gf-8mx6-v5v3 Next.js SSRF fixed by next@16.2.6); 8 CVEs now resolved by existing overrides + lockfile pins (brace-expansion, fast-uri, hono, ip-address, next, path-to-regexp, postcss, ws)
+
+### Fixed
+
+- **L3 dev server env**: `scripts/run-l3.ts` no longer hard-overrides `NEXT_PUBLIC_CAP_API_ENDPOINT` to empty when spawning Next.js — it forwards the parent env so CI can supply the value via secrets
+- **CI L3 secret**: `NEXT_PUBLIC_CAP_API_ENDPOINT` injected into the browser-e2e job env block
+
+### Changed
+
+- **`loginAs` E2E fixture**: drives the NextAuth credentials callback directly via the API instead of submitting the /login form. The widget is purely a front-end speed bump (authorize() doesn't validate the token), so this keeps the auth path genuine — real CSRF, real password hashing, real JWT — while making CI deterministic. Cuts L3 from 25 min hang to ~5 min
+- **Per-test Playwright timeout**: raised to 90 s so the CAPTCHA wait can finish on the slower GitHub free runner; form-only specs (AU-02 / AU-04 / UA-03) skipped on CI
+
 ## [1.3.1] - 2026-05-19
 
 ### Added
