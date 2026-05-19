@@ -3,7 +3,6 @@
 // Pattern: surety project Page Object Model
 
 import { type BrowserContext, type Page, test as base } from "@playwright/test";
-import { FORM } from "./selectors";
 
 // ---------------------------------------------------------------------------
 // E2E Test Credentials
@@ -48,30 +47,43 @@ let cachedState: CachedState | null = null;
 let inflight: Promise<CachedState> | null = null;
 
 async function performFormLogin(page: Page): Promise<void> {
-	await page.goto("/login");
-	await page.waitForLoadState("networkidle");
-	await page.fill(FORM.usernameInput, E2E_TEST_USER.username);
-	await page.fill(FORM.passwordInput, E2E_TEST_USER.password);
-	// CAPTCHA is fail-closed — the submit button stays disabled until Cap.js
-	// auto-PoW solves and emits the `solve` event. On the GitHub free runner
-	// the PoW can take 30–45 s (free-tier CPU + cold widget bundle), so the
-	// 20 s budget that works locally is not enough. 60 s leaves headroom while
-	// still failing fast if the endpoint is unreachable.
-	await page.locator(FORM.submitButton).waitFor({ state: "visible" });
-	await page.waitForFunction(
-		(sel) => {
-			const btn = document.querySelector(sel) as HTMLButtonElement | null;
-			return btn !== null && !btn.disabled;
+	// CAP CAPTCHA is fail-closed in the UI: the submit button never enables
+	// until Cap.js's auto-PoW emits a token, which on the free GitHub runner
+	// can take 60+ s and routinely blew the L3 job budget. Since NextAuth's
+	// authorize() doesn't validate the CAP token (the widget is purely a
+	// front-end speed bump against bots), we skip the widget entirely and
+	// drive the credentials callback directly through the API. This keeps the
+	// auth path real (real password hashing, real JWT mint, real cookies)
+	// while making `loginAs` deterministic and ~10× faster.
+	const baseURL = page.url().startsWith("http") ? new URL(page.url()).origin : "";
+	const origin = baseURL || "http://localhost:27031";
+
+	const csrfRes = await page.request.get(`${origin}/api/auth/csrf`);
+	if (!csrfRes.ok()) {
+		throw new Error(`csrf fetch failed: ${csrfRes.status()}`);
+	}
+	const { csrfToken } = (await csrfRes.json()) as { csrfToken: string };
+
+	const signInRes = await page.request.post(`${origin}/api/auth/callback/credentials`, {
+		form: {
+			csrfToken,
+			username: E2E_TEST_USER.username,
+			password: E2E_TEST_USER.password,
+			callbackUrl: `${origin}/`,
+			json: "true",
 		},
-		FORM.submitButton,
-		{ timeout: 60_000 },
-	);
-	await page.click(FORM.submitButton);
-	// 30s mirrors playwright.config's navigationTimeout — NextAuth's
-	// credentials callback can take 5–10s on a Turbopack-cold dev server.
-	await page.waitForURL((url) => !url.pathname.includes("/login"), {
-		timeout: 30_000,
+		headers: {
+			"content-type": "application/x-www-form-urlencoded",
+			accept: "application/json",
+		},
 	});
+	if (!signInRes.ok()) {
+		throw new Error(`credentials callback failed: ${signInRes.status()}`);
+	}
+
+	// Materialise the session cookie on the page so later navigations see it.
+	await page.goto("/");
+	await page.waitForLoadState("networkidle");
 }
 
 async function ensureCachedState(page: Page): Promise<CachedState> {
