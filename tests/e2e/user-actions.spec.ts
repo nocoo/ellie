@@ -15,6 +15,10 @@
 import { expect, test } from "./fixtures/base";
 import { FORM } from "./fixtures/selectors";
 
+// CI skips specs that drive the real /login form — the Cap.js auto-PoW
+// takes 60+ s on the free GitHub runner. Local runs still exercise them.
+const skipOnCI = process.env.CI ? test.skip : test;
+
 test.describe("E2E-UA: User-action flows", () => {
 	/**
 	 * E2E-UA-01: Theme choice persists across navigation
@@ -94,7 +98,7 @@ test.describe("E2E-UA: User-action flows", () => {
 	 * Goes through the real form login (not the storageState shortcut) so
 	 * that NextAuth's redirect callback is exercised end-to-end.
 	 */
-	test("E2E-UA-03: login with ?redirect=/messages lands on /messages", async ({ page }) => {
+	skipOnCI("E2E-UA-03: login with ?redirect=/messages lands on /messages", async ({ page }) => {
 		await page.goto("/login?redirect=/messages");
 
 		await page.fill(FORM.usernameInput, "e2etest");
