@@ -47,6 +47,13 @@ ENV AUTH_SECRET=placeholder
 ENV AUTH_GOOGLE_ID=placeholder
 ENV AUTH_GOOGLE_SECRET=placeholder
 
+# NEXT_PUBLIC_* variables must be inlined at build time — Next.js bakes them
+# into the client bundle. Setting them only at runtime leaves SSR Node seeing
+# the value while the browser bundle sees an empty string, which produces a
+# hydration mismatch (React #418) and hides client-side widgets like CAPTCHA.
+ARG NEXT_PUBLIC_CAP_API_ENDPOINT=""
+ENV NEXT_PUBLIC_CAP_API_ENDPOINT=${NEXT_PUBLIC_CAP_API_ENDPOINT}
+
 RUN if [ "$APP" = "admin" ]; then \
       bun run build:admin; \
     else \

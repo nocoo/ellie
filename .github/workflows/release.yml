@@ -64,7 +64,9 @@ jobs:
         with:
           context: .
           push: true
-          build-args: APP=web
+          build-args: |
+            APP=web
+            NEXT_PUBLIC_CAP_API_ENDPOINT=${{ secrets.NEXT_PUBLIC_CAP_API_ENDPOINT }}
           tags: ${{ steps.meta-web.outputs.tags }}
           labels: ${{ steps.meta-web.outputs.labels }}
           cache-from: type=gha,scope=ellie-web
@@ -85,7 +87,9 @@ jobs:
         with:
           context: .
           push: true
-          build-args: APP=admin
+          build-args: |
+            APP=admin
+            NEXT_PUBLIC_CAP_API_ENDPOINT=${{ secrets.NEXT_PUBLIC_CAP_API_ENDPOINT }}
           tags: ${{ steps.meta-admin.outputs.tags }}
           labels: ${{ steps.meta-admin.outputs.labels }}
           cache-from: type=gha,scope=ellie-admin

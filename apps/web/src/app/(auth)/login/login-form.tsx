@@ -38,8 +38,8 @@ function LoginFormInner() {
 	const [error, setError] = useState<string | null>(loginErrorMessage(errorFromUrl));
 	const [registerOpen, setRegisterOpen] = useState(false);
 
-	const capEnabled = Boolean(CAP_API_ENDPOINT);
-	const canSubmit = canSubmitLogin(username, password) && (!capEnabled || capToken);
+	const capConfigured = Boolean(CAP_API_ENDPOINT);
+	const canSubmit = canSubmitLogin(username, password) && capConfigured && Boolean(capToken);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -113,8 +113,9 @@ function LoginFormInner() {
 					/>
 				</div>
 
-				{/* Cap CAPTCHA — 58px container for visual alignment */}
-				{capEnabled && (
+				{/* Cap CAPTCHA — required. When endpoint is missing, fail-closed:
+				    show an error banner and the submit button stays disabled. */}
+				{capConfigured ? (
 					<div className="flex items-center justify-center h-[58px]">
 						<CapWidget
 							apiEndpoint={CAP_API_ENDPOINT}
@@ -122,6 +123,8 @@ function LoginFormInner() {
 							onError={() => setCapToken("")}
 						/>
 					</div>
+				) : (
+					<AuthErrorBanner message="人机验证服务未就绪，暂时无法登录，请稍后再试或联系管理员。" />
 				)}
 
 				{/* Submit */}
@@ -160,9 +163,8 @@ function LoginFormInner() {
 			</Dialog>
 
 			{/* Contact-admin hint — rendered only after CAPTCHA solve to keep
-			    the email hidden from naive scrapers. When CAP is disabled
-			    (e.g. local dev), the hint stays hidden by design. */}
-			<AuthHelpHint visible={capEnabled && Boolean(capToken)} />
+			    the email hidden from naive scrapers. */}
+			<AuthHelpHint visible={capConfigured && Boolean(capToken)} />
 		</AuthIdCard>
 	);
 }

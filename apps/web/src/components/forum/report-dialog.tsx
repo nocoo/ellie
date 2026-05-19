@@ -98,9 +98,11 @@ type Step = "permission" | "captcha" | "reason";
 interface StepState {
 	permission: "pending" | "loading" | "passed" | "failed";
 	permissionError?: string;
-	captcha: "pending" | "passed" | "skipped";
+	captcha: "pending" | "passed";
 	reason: ReportReason | null;
 }
+
+const CAP_CONFIGURED = Boolean(CAP_API_ENDPOINT);
 
 export function ReportDialog({
 	open,
@@ -117,7 +119,7 @@ export function ReportDialog({
 	const toast = useForumToast();
 	const [step, setStep] = useState<StepState>({
 		permission: "pending",
-		captcha: CAP_API_ENDPOINT ? "pending" : "skipped",
+		captcha: "pending",
 		reason: null,
 	});
 	const [submitting, setSubmitting] = useState(false);
@@ -149,7 +151,7 @@ export function ReportDialog({
 			}
 			setStep({
 				permission: "pending",
-				captcha: CAP_API_ENDPOINT ? "pending" : "skipped",
+				captcha: "pending",
 				reason: null,
 			});
 			setSubmitting(false);
@@ -192,7 +194,8 @@ export function ReportDialog({
 
 	const canSubmit =
 		step.permission === "passed" &&
-		(step.captcha === "passed" || step.captcha === "skipped") &&
+		CAP_CONFIGURED &&
+		step.captcha === "passed" &&
 		step.reason !== null;
 
 	const handleSubmit = async () => {
@@ -228,14 +231,11 @@ export function ReportDialog({
 	};
 
 	// Step indicator helper
-	const getStepIcon = (
-		_stepName: Step,
-		state: "pending" | "loading" | "passed" | "failed" | "skipped",
-	) => {
+	const getStepIcon = (_stepName: Step, state: "pending" | "loading" | "passed" | "failed") => {
 		if (state === "loading") {
 			return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />;
 		}
-		if (state === "passed" || state === "skipped") {
+		if (state === "passed") {
 			return <CheckCircle2 className="h-4 w-4 text-success" />;
 		}
 		if (state === "failed") {
@@ -273,8 +273,15 @@ export function ReportDialog({
 						)}
 					</div>
 
-					{/* Step 2: Captcha (only show if enabled and permission passed) */}
-					{CAP_API_ENDPOINT && step.permission === "passed" && (
+					{/* Step 2: Captcha — REQUIRED. If CAP is not configured, fail-closed
+					    with an error so the user knows reporting is unavailable. */}
+					{step.permission === "passed" && !CAP_CONFIGURED && (
+						<div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+							<AlertCircle className="h-4 w-4 shrink-0" />
+							<span>人机验证服务未就绪，暂时无法举报，请稍后再试或联系管理员。</span>
+						</div>
+					)}
+					{CAP_CONFIGURED && step.permission === "passed" && (
 						<div className="space-y-2">
 							<div className="flex items-center gap-2 text-sm font-medium">
 								{getStepIcon("captcha", step.captcha)}
@@ -293,50 +300,49 @@ export function ReportDialog({
 						</div>
 					)}
 
-					{/* Step 3: Reason selection (only show if previous steps passed) */}
-					{step.permission === "passed" &&
-						(step.captcha === "passed" || step.captcha === "skipped") && (
-							<div className="space-y-2">
-								<div className="flex items-center gap-2 text-sm font-medium">
-									{step.reason ? (
-										<CheckCircle2 className="h-4 w-4 text-success" />
-									) : (
-										<CircleDot className="h-4 w-4 text-muted-foreground" />
-									)}
-									<span>选择举报理由</span>
-								</div>
-								<div className="space-y-2 pl-6">
-									{REPORT_REASONS.map((reason) => (
-										<button
-											key={reason}
-											type="button"
-											className={cn(
-												"w-full flex items-center gap-3 px-3 py-2 rounded-lg border transition-colors text-left text-sm",
-												step.reason === reason
-													? "border-primary bg-primary/5"
-													: "border-border hover:border-primary/50",
-											)}
-											onClick={() => handleReasonSelect(reason)}
-											disabled={submitting}
-										>
-											<div
-												className={cn(
-													"h-4 w-4 rounded-full border-2 flex items-center justify-center",
-													step.reason === reason
-														? "border-primary bg-primary"
-														: "border-muted-foreground/50",
-												)}
-											>
-												{step.reason === reason && (
-													<div className="h-1.5 w-1.5 rounded-full bg-primary-foreground" />
-												)}
-											</div>
-											<span>{reason}</span>
-										</button>
-									))}
-								</div>
+					{/* Step 3: Reason selection (only after CAPTCHA passes) */}
+					{step.permission === "passed" && CAP_CONFIGURED && step.captcha === "passed" && (
+						<div className="space-y-2">
+							<div className="flex items-center gap-2 text-sm font-medium">
+								{step.reason ? (
+									<CheckCircle2 className="h-4 w-4 text-success" />
+								) : (
+									<CircleDot className="h-4 w-4 text-muted-foreground" />
+								)}
+								<span>选择举报理由</span>
 							</div>
-						)}
+							<div className="space-y-2 pl-6">
+								{REPORT_REASONS.map((reason) => (
+									<button
+										key={reason}
+										type="button"
+										className={cn(
+											"w-full flex items-center gap-3 px-3 py-2 rounded-lg border transition-colors text-left text-sm",
+											step.reason === reason
+												? "border-primary bg-primary/5"
+												: "border-border hover:border-primary/50",
+										)}
+										onClick={() => handleReasonSelect(reason)}
+										disabled={submitting}
+									>
+										<div
+											className={cn(
+												"h-4 w-4 rounded-full border-2 flex items-center justify-center",
+												step.reason === reason
+													? "border-primary bg-primary"
+													: "border-muted-foreground/50",
+											)}
+										>
+											{step.reason === reason && (
+												<div className="h-1.5 w-1.5 rounded-full bg-primary-foreground" />
+											)}
+										</div>
+										<span>{reason}</span>
+									</button>
+								))}
+							</div>
+						</div>
+					)}
 
 					{/* Success message */}
 					{success && (
