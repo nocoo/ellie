@@ -164,7 +164,7 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 	const [site, setSite] = useState(REGISTER_PROFILE_DEFAULTS.site);
 	const [signature, setSignature] = useState(REGISTER_PROFILE_DEFAULTS.signature);
 
-	const capEnabled = Boolean(CAP_API_ENDPOINT);
+	const capConfigured = Boolean(CAP_API_ENDPOINT);
 	const formState = {
 		username,
 		password,
@@ -184,7 +184,7 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 		site,
 		signature,
 	};
-	const canSubmit = canSubmitRegister(formState) && (!capEnabled || capToken);
+	const canSubmit = canSubmitRegister(formState) && capConfigured && Boolean(capToken);
 	const strength = passwordStrength(password);
 	const usernameError = username.trim() ? validateUsername(username) : null;
 	const emailError = email ? validateEmail(email) : null;
@@ -545,8 +545,10 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 		</>
 	);
 
-	/** CAPTCHA widget in a 58px container for visual alignment */
-	const captchaField = capEnabled ? (
+	/** CAPTCHA widget in a 58px container for visual alignment.
+	 *  Fail-closed: when CAP is not configured, show an error banner instead
+	 *  of silently allowing registration. */
+	const captchaField = capConfigured ? (
 		<div className="flex items-center justify-center h-[58px]">
 			<CapWidget
 				apiEndpoint={CAP_API_ENDPOINT}
@@ -554,7 +556,9 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 				onError={() => setCapToken("")}
 			/>
 		</div>
-	) : null;
+	) : (
+		<AuthErrorBanner message="人机验证服务未就绪，暂时无法注册，请稍后再试或联系管理员。" />
+	);
 
 	// ---------------------------------------------------------------------------
 	// Dialog variant — wide 3-column layout
@@ -674,9 +678,8 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 			</a>
 
 			{/* Contact-admin hint — only rendered after CAPTCHA solve to keep
-			    the email hidden from naive scrapers. When CAP is disabled
-			    (e.g. local dev), the hint stays hidden by design. */}
-			<AuthHelpHint visible={capEnabled && Boolean(capToken)} />
+			    the email hidden from naive scrapers. */}
+			<AuthHelpHint visible={capConfigured && Boolean(capToken)} />
 		</AuthIdCard>
 	);
 }
