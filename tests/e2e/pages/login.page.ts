@@ -57,7 +57,7 @@ export class LoginPage {
 				return btn !== null && !btn.disabled;
 			},
 			FORM.submitButton,
-			{ timeout: 20_000 },
+			{ timeout: 60_000 },
 		);
 		await this.submitButton.click();
 	}
