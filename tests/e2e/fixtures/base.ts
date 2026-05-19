@@ -52,6 +52,18 @@ async function performFormLogin(page: Page): Promise<void> {
 	await page.waitForLoadState("networkidle");
 	await page.fill(FORM.usernameInput, E2E_TEST_USER.username);
 	await page.fill(FORM.passwordInput, E2E_TEST_USER.password);
+	// CAPTCHA is fail-closed — the submit button stays disabled until Cap.js
+	// auto-PoW solves and emits the `solve` event (~1–3 s on CI). Wait for
+	// the button to enable instead of clicking blindly.
+	await page.locator(FORM.submitButton).waitFor({ state: "visible" });
+	await page.waitForFunction(
+		(sel) => {
+			const btn = document.querySelector(sel) as HTMLButtonElement | null;
+			return btn !== null && !btn.disabled;
+		},
+		FORM.submitButton,
+		{ timeout: 20_000 },
+	);
 	await page.click(FORM.submitButton);
 	// 30s mirrors playwright.config's navigationTimeout — NextAuth's
 	// credentials callback can take 5–10s on a Turbopack-cold dev server.

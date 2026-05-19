@@ -40,8 +40,8 @@ test.describe("E2E-AU: Auth Flow", () => {
 		// Fill credentials
 		await loginPage.fillCredentials("admin", "admin");
 
-		// Submit button should be enabled
-		await expect(loginPage.submitButton).toBeEnabled();
+		// Submit button should be enabled after CAPTCHA auto-solves (~1-3s on CI)
+		await expect(loginPage.submitButton).toBeEnabled({ timeout: 20_000 });
 	});
 
 	/**

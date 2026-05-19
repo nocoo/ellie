@@ -48,8 +48,17 @@ export class LoginPage {
 		await this.fillPassword(password);
 	}
 
-	/** Submit the login form */
+	/** Submit the login form (waits for CAPTCHA to solve and button to enable). */
 	async submit() {
+		await this.submitButton.waitFor({ state: "visible" });
+		await this.page.waitForFunction(
+			(sel) => {
+				const btn = document.querySelector(sel) as HTMLButtonElement | null;
+				return btn !== null && !btn.disabled;
+			},
+			FORM.submitButton,
+			{ timeout: 20_000 },
+		);
 		await this.submitButton.click();
 	}
 
