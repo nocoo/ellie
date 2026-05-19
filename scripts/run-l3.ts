@@ -136,9 +136,13 @@ async function startServer(): Promise<void> {
 			// we don't want in E2E). Auth-related env vars are supplied via
 			// apps/web/.env.test which Next.js loads when NODE_ENV=test.
 			NODE_ENV: "test",
-			// Belt-and-suspenders: also set directly in process.env in case
-			// Next.js loads it before reading .env.test.
-			NEXT_PUBLIC_CAP_API_ENDPOINT: "",
+			// CAPTCHA is fail-closed: an empty endpoint disables the form submit.
+			// If the caller supplies NEXT_PUBLIC_CAP_API_ENDPOINT (CI does, via the
+			// repo secret), forward it so the dev server renders a working widget
+			// and the auth E2E tests can submit. Local runs without the var stay
+			// fail-closed and the auth specs are expected to be skipped/run
+			// against a configured cap mock separately.
+			NEXT_PUBLIC_CAP_API_ENDPOINT: process.env.NEXT_PUBLIC_CAP_API_ENDPOINT ?? "",
 		},
 	});
 	await waitForServer();
