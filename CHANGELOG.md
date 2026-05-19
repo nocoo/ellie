@@ -2,6 +2,57 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.1] - 2026-05-19
+
+### Added
+
+- **Post rating system** (6 phases): `post_ratings` D1 schema + shared types/limits; Worker create/read/revoke APIs with guarded quota batch + PM notification; aggregate in posts list/get; Next.js proxy routes + ActionBar entry + dialog wired into PostCard; summary + revoke UI; migrate ETL dry-run for legacy ratelog (with BBCode/HTML strip)
+- **Forum thread types (Discuz 主题分类)**: D1 migrations 0038/0039 restore thread categories; `forum_thread_types` table + 4-switch config; admin CRUD + reorder + audit logging; Worker `GET /forums/:id/thread-types` + typeId filter/validation/denorm on threads; web picker in NewThreadDialog + list filter UI + prefix display
+- **Site-wide announcements**: `sticky=2` read-path with cross-forum visibility (post-rating list included), enforced singleton with cache invalidation, red Megaphone icon, dedicated `idx_threads_sticky` index
+- **Admin IP-lookup**: Worker endpoint + KV cache; admin BFF passthrough + viewmodel; user-detail inline ip-lookup panel; unified trusted client-IP extractor with operator real-IP forwarding
+- **Admin user-detail enrichments**: Check-in panel + history-based recompute via user-scoped checkin endpoints; meta card semantic upgrade; threads list enriched with forum/type/lastPoster/createdAt + author/forum filters; thread-detail with forum breadcrumb + highlight badge + grouped meta chips
+- **Email correction**: One-shot pre-verification email correction with same-email rejection
+- **Profile fields**: Campus + signature on `PATCH /me` (email rejected); duplicate-email allowance via auto-cleared `email_normalized`
+- **Check-in history table**: Per-day `checkin_history` written by public POST; extracted `shanghaiTime` helpers + `CheckinHistoryEntry` type
+- **Contact-admin hint**: CAPTCHA-gated hint on login & register
+- **User profile lists**: Unified shared row + `forumName` map across tabs; `/users/:id/posts` joins thread fields as `UserPostHistoryItem`; 5-col grid layout
+- **L3 E2E coverage**: Bench harness + rules; suite stabilised and grown from 21/41 to 62/62 passing (header/footer, already-logged-in, navigation, not-found, theme/logout, etc.)
+- **Migrate tooling**: Local pre_forum_thread loader, thread-categories prod-import generator, read-only typeid coverage stats helper
+
+### Changed
+
+- **WriteGateDialog**: Show 3-step onboarding progress; `/me` lands `REQUIRE_AVATAR` CTA directly on an avatar uploader; profile edit dialog widened with unified identity/campus fields
+- **Forum-card UI**: Clickable last-poster username, split date span, mobile last-post date split, grid title flex shrink, prevent stats wrap on 5-6 digit counts, baseline aligned to home-footer text-sm
+- **B05 background semantics**: Replace `bg-muted`/`bg-card` misuse with `bg-background`/`bg-secondary` across admin (login, kv stats, censor-words, json-code-block, post-floor, user-edit-dialog, stat-card icon, nav-links-editor) + ui table component
+- **Font baseline**: Align post-card/content/comments, post-sidebar, user-detail tabs/info-card, forum-card to 14/12 mix; clear remaining `text-2xs`/`text-[10px]` to 12px floor
+- **Online stats**: Thousand-separator formatting; friend links pipe layout → responsive grid; sidebar message dialog opens in place
+- **Admin dialogs**: Unified wide-dialog width via shared preset; KV monitor `KeyDetailDialog` width cap + JSON syntax highlight
+- **Sticky priority**: `sticky=2` (site announcement) outranks `sticky=3` (category pin)
+
+### Fixed
+
+- **Worker**: Sticky=GLOBAL read pass-through extended to post-rating list; PM permalink uses `/threads/<id>` (plural); refund UPDATE guarded by `changes() > 0`; strict integer parsing in `coerceTypeIdInput`; admin thread-type create UNIQUE-safety + reorder full-set; tighten `forum:tree:v2`/`forum:meta:v2` KV validators; ip-lookup IPv6 doc-block + echo upstream shape; reject future ts in online snapshot guard; exclude thread first-posts from `/users/:id/posts`
+- **Web**: Duck-type `ApiError` in write-gate + post-rating components; post-rating reason optional; guard posts tab against legacy `Post[]` payload; admin login uses `VERSION_DISPLAY` instead of hardcoded badge; admin/threads wraps `useSearchParams` page in Suspense; admin filters per-key local state for multi-search; only treat real non-empty→'' transitions as parent-driven clears
+- **Migrate**: Strip BBCode/HTML in legacy reason; kill `type_id=0` + `type_name<>''` mismatch; placeholder thread/forum NOT NULL fixes; GBK byte-count fallback; derive `threadtypes.enabled` from `types.size`; reviewer pins
+- **KV monitor**: Use Fragment with key on `OverviewTable` rows; surface fetch errors instead of silent empty page
+- **Check-in**: Sync `checkin_history` schema baseline + drift test; reject same-email correction so one-shot is not wasted
+
+### Performance
+
+- **`idx_threads_sticky`**: Keeps `/api/v1/threads` off full-table scan as the threads table grows
+
+### Security
+
+- **CI**: Pass `--ignore-scripts` to `bun install` (Shai-Hulud defense)
+- **CAPTCHA gating**: Contact-admin hint protected by CAPTCHA on login & register
+- **Admin XFF**: Gated behind non-production in client-IP helper
+
+### Chore
+
+- Bump `brace-expansion` + `ws` to patched versions
+- Remove autoresearch scratch files
+- Ignore `test-results/` in biome config
+
 ## [1.3.0] - 2026-05-12
 
 ### Added
