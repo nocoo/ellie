@@ -14,7 +14,12 @@ import { parseIdFromPath } from "../lib/parseId";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
-import { POST_VISIBLE, buildVisibilityContext, isForumActive } from "../lib/visibility";
+import {
+	POST_VISIBLE,
+	buildVisibilityContext,
+	canReadThreadContent,
+	isForumActive,
+} from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 import {
@@ -76,7 +81,13 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
 
-	if (!canViewForumVisibility(row.visibility as ForumVisibility, visCtx)) {
+	if (
+		!canReadThreadContent({
+			sticky: row.sticky,
+			forumVisibility: row.visibility as ForumVisibility,
+			visCtx,
+		})
+	) {
 		return errorResponse(
 			"FORBIDDEN",
 			403,
@@ -178,7 +189,13 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
 
-	if (!canViewForumVisibility(visRow.visibility as ForumVisibility, visCtx)) {
+	if (
+		!canReadThreadContent({
+			sticky: visRow.sticky,
+			forumVisibility: visRow.visibility as ForumVisibility,
+			visCtx,
+		})
+	) {
 		return errorResponse(
 			"FORBIDDEN",
 			403,

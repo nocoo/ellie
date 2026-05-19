@@ -1,11 +1,10 @@
 // Attachment handlers for Cloudflare Worker (public)
-import { canViewForumVisibility } from "@ellie/types";
 import type { ForumVisibility } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { toAttachment } from "../lib/mappers";
 import { parsePathSegment } from "../lib/parseId";
 import { jsonResponse } from "../lib/response";
-import { buildVisibilityContext, isForumActive } from "../lib/visibility";
+import { buildVisibilityContext, canReadThreadContent, isForumActive } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 
@@ -58,7 +57,13 @@ async function verifyThreadVisibility(
 	const user = await userPromise;
 	const visCtx = buildVisibilityContext(user);
 
-	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
+	if (
+		!canReadThreadContent({
+			sticky: thread.sticky,
+			forumVisibility: forumRow.visibility as ForumVisibility,
+			visCtx,
+		})
+	) {
 		return {
 			allowed: false,
 			response: errorResponse(
