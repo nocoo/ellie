@@ -40,8 +40,10 @@ test.describe("E2E-AU: Auth Flow", () => {
 		// Fill credentials
 		await loginPage.fillCredentials("admin", "admin");
 
-		// Submit button should be enabled after CAPTCHA auto-solves (~1-3s on CI)
-		await expect(loginPage.submitButton).toBeEnabled({ timeout: 20_000 });
+		// Submit button should be enabled after CAPTCHA auto-solves. PoW
+		// completes in seconds locally but can take 30–45 s on the free GitHub
+		// runner, so give it the same 60 s budget as the form-login helper.
+		await expect(loginPage.submitButton).toBeEnabled({ timeout: 60_000 });
 	});
 
 	/**

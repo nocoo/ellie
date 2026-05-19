@@ -53,8 +53,10 @@ async function performFormLogin(page: Page): Promise<void> {
 	await page.fill(FORM.usernameInput, E2E_TEST_USER.username);
 	await page.fill(FORM.passwordInput, E2E_TEST_USER.password);
 	// CAPTCHA is fail-closed — the submit button stays disabled until Cap.js
-	// auto-PoW solves and emits the `solve` event (~1–3 s on CI). Wait for
-	// the button to enable instead of clicking blindly.
+	// auto-PoW solves and emits the `solve` event. On the GitHub free runner
+	// the PoW can take 30–45 s (free-tier CPU + cold widget bundle), so the
+	// 20 s budget that works locally is not enough. 60 s leaves headroom while
+	// still failing fast if the endpoint is unreachable.
 	await page.locator(FORM.submitButton).waitFor({ state: "visible" });
 	await page.waitForFunction(
 		(sel) => {
@@ -62,7 +64,7 @@ async function performFormLogin(page: Page): Promise<void> {
 			return btn !== null && !btn.disabled;
 		},
 		FORM.submitButton,
-		{ timeout: 20_000 },
+		{ timeout: 60_000 },
 	);
 	await page.click(FORM.submitButton);
 	// 30s mirrors playwright.config's navigationTimeout — NextAuth's
