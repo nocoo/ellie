@@ -3,11 +3,15 @@ import { describe, expect, it } from "vitest";
 import {
 	FORUM_ACTIVE,
 	POST_VISIBLE,
+	STICKY_FORUM,
+	STICKY_GLOBAL,
+	STICKY_NONE,
 	THREAD_VISIBLE,
 	USER_ACTIVE,
 	buildForumFilter,
 	buildForumVisibilityFilter,
 	buildVisibilityContext,
+	canReadThreadContent,
 	canViewForumVisibility,
 	forumActive,
 	isForumActive,
@@ -174,5 +178,140 @@ describe("isForumActive", () => {
 	it("returns false for null/undefined", () => {
 		expect(isForumActive(null)).toBe(false);
 		expect(isForumActive(undefined)).toBe(false);
+	});
+});
+
+// ─── canReadThreadContent ──────────────────────────────────
+//
+// Regression coverage for the site-wide-announcement read-vs-list mismatch
+// (sticky === STICKY_GLOBAL must be readable from any visibility context, but
+// non-global threads still gate on source forum visibility).
+
+describe("canReadThreadContent", () => {
+	const guest = { isLoggedIn: false, role: UserRole.User };
+	const member = { isLoggedIn: true, role: UserRole.User };
+	const mod = { isLoggedIn: true, role: UserRole.Mod };
+	const admin = { isLoggedIn: true, role: UserRole.Admin };
+
+	it("sticky=GLOBAL is readable for any viewer regardless of source forum visibility", () => {
+		// Guest viewing a staff-only forum's announcement — must still be allowed
+		expect(
+			canReadThreadContent({
+				sticky: STICKY_GLOBAL,
+				forumVisibility: "staff",
+				visCtx: guest,
+			}),
+		).toBe(true);
+		// Guest viewing an admin-only forum's announcement — must still be allowed
+		expect(
+			canReadThreadContent({
+				sticky: STICKY_GLOBAL,
+				forumVisibility: "admin",
+				visCtx: guest,
+			}),
+		).toBe(true);
+		// Member viewing a staff-only forum's announcement
+		expect(
+			canReadThreadContent({
+				sticky: STICKY_GLOBAL,
+				forumVisibility: "staff",
+				visCtx: member,
+			}),
+		).toBe(true);
+		// Member viewing a members-only forum's announcement
+		expect(
+			canReadThreadContent({
+				sticky: STICKY_GLOBAL,
+				forumVisibility: "members",
+				visCtx: guest,
+			}),
+		).toBe(true);
+	});
+
+	it("sticky=GLOBAL is also readable for staff/admin (no regression)", () => {
+		expect(
+			canReadThreadContent({
+				sticky: STICKY_GLOBAL,
+				forumVisibility: "admin",
+				visCtx: admin,
+			}),
+		).toBe(true);
+		expect(
+			canReadThreadContent({
+				sticky: STICKY_GLOBAL,
+				forumVisibility: "staff",
+				visCtx: mod,
+			}),
+		).toBe(true);
+	});
+
+	it("non-global threads still gate on source forum visibility (regression guard)", () => {
+		// Normal thread in staff-only forum — guest must be denied
+		expect(
+			canReadThreadContent({
+				sticky: STICKY_NONE,
+				forumVisibility: "staff",
+				visCtx: guest,
+			}),
+		).toBe(false);
+		// Forum-pinned (not global) thread in staff-only forum — guest must be denied
+		expect(
+			canReadThreadContent({
+				sticky: STICKY_FORUM,
+				forumVisibility: "staff",
+				visCtx: guest,
+			}),
+		).toBe(false);
+		// Members-only forum — guest must be denied for normal threads
+		expect(
+			canReadThreadContent({
+				sticky: STICKY_NONE,
+				forumVisibility: "members",
+				visCtx: guest,
+			}),
+		).toBe(false);
+		// Admin-only forum — even Mod must be denied for non-global threads
+		expect(
+			canReadThreadContent({
+				sticky: STICKY_NONE,
+				forumVisibility: "admin",
+				visCtx: mod,
+			}),
+		).toBe(false);
+	});
+
+	it("non-global threads pass through to canViewForumVisibility (positive paths)", () => {
+		// Public forum is readable by anyone
+		expect(
+			canReadThreadContent({
+				sticky: STICKY_NONE,
+				forumVisibility: "public",
+				visCtx: guest,
+			}),
+		).toBe(true);
+		// Members-only forum is readable by logged-in user
+		expect(
+			canReadThreadContent({
+				sticky: STICKY_NONE,
+				forumVisibility: "members",
+				visCtx: member,
+			}),
+		).toBe(true);
+		// Staff forum readable by Mod
+		expect(
+			canReadThreadContent({
+				sticky: STICKY_FORUM,
+				forumVisibility: "staff",
+				visCtx: mod,
+			}),
+		).toBe(true);
+		// Admin forum readable by Admin
+		expect(
+			canReadThreadContent({
+				sticky: STICKY_FORUM,
+				forumVisibility: "admin",
+				visCtx: admin,
+			}),
+		).toBe(true);
 	});
 });

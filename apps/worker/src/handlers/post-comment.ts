@@ -8,7 +8,7 @@ import { clampLimit } from "../lib/pagination";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
-import { buildVisibilityContext, isForumActive } from "../lib/visibility";
+import { buildVisibilityContext, canReadThreadContent, isForumActive } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 
@@ -72,7 +72,13 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	const user = await userPromise;
 	const visCtx = buildVisibilityContext(user);
 
-	if (!canViewForumVisibility(row.visibility as ForumVisibility, visCtx)) {
+	if (
+		!canReadThreadContent({
+			sticky: row.sticky,
+			forumVisibility: row.visibility as ForumVisibility,
+			visCtx,
+		})
+	) {
 		return errorResponse(
 			"FORBIDDEN",
 			403,
@@ -182,7 +188,13 @@ export async function batchByPostIds(request: Request, env: Env): Promise<Respon
 
 	const visCtx = buildVisibilityContext(user);
 
-	if (!canViewForumVisibility(visRow.visibility as ForumVisibility, visCtx)) {
+	if (
+		!canReadThreadContent({
+			sticky: visRow.sticky,
+			forumVisibility: visRow.visibility as ForumVisibility,
+			visCtx,
+		})
+	) {
 		return errorResponse(
 			"FORBIDDEN",
 			403,

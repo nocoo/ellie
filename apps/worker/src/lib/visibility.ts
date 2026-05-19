@@ -178,3 +178,36 @@ export function canViewForumVisibility(
 			return false;
 	}
 }
+
+/**
+ * Whether a viewer can READ a thread's content (thread row, posts, attachments,
+ * post-comments) given the source forum's visibility level and the thread's
+ * sticky flag.
+ *
+ * Rule: site-wide announcements (sticky === STICKY_GLOBAL) are readable from
+ * any visibility context. Discuz's "全站公告" / `displayorder=2` is shown at
+ * the top of every forum's thread list (see `list()` in `handlers/thread.ts`,
+ * SQL `(forum_id = ? OR sticky = STICKY_GLOBAL)`), so the read path has to
+ * match — otherwise the title is visible but the detail / posts / comments /
+ * attachments all 403 with "Access denied".
+ *
+ * Non-global threads still gate on source forum visibility.
+ *
+ * Forum-status (`isForumActive`) and thread-row visibility (`sticky >= 0`)
+ * are intentionally NOT folded in here. Callers keep checking those
+ * separately so a deleted / paused source forum (status ≠ 1) or a hidden
+ * thread (sticky < 0) is still treated as not-found even if it was a
+ * global announcement before.
+ *
+ * Write paths (create post / reply / rate) are NOT covered by this helper —
+ * they must keep using `canViewForumVisibility` directly so posting to a
+ * non-public source forum still requires the appropriate role.
+ */
+export function canReadThreadContent(args: {
+	sticky: number;
+	forumVisibility: ForumVisibility;
+	visCtx: VisibilityContext;
+}): boolean {
+	if (args.sticky === STICKY_GLOBAL) return true;
+	return canViewForumVisibility(args.forumVisibility, args.visCtx);
+}

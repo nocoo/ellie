@@ -24,6 +24,7 @@ import {
 	STICKY_GLOBAL,
 	THREAD_VISIBLE,
 	buildVisibilityContext,
+	canReadThreadContent,
 	isForumActive,
 	threadVisible,
 } from "../lib/visibility";
@@ -610,7 +611,13 @@ export async function getById(
 	if (!isForumActive(forumRow)) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
-	if (!canViewForumVisibility(forumRow.visibility as ForumVisibility, visCtx)) {
+	if (
+		!canReadThreadContent({
+			sticky: r.sticky as number,
+			forumVisibility: forumRow.visibility as ForumVisibility,
+			visCtx,
+		})
+	) {
 		return errorResponse(
 			"FORBIDDEN",
 			403,
