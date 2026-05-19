@@ -20,6 +20,13 @@ export default defineConfig({
 	workers: 1,
 	reporter: "html",
 
+	// Per-test timeout. Default (30s) is not enough for the auth specs: the
+	// Cap.js auto-PoW takes up to 60 s on the free GitHub runner, and the
+	// loginAs fixture waits for the submit button to enable before clicking.
+	// 90 s leaves headroom for that wait + the NextAuth credentials callback
+	// + first-compile navigation, while still cutting off true hangs.
+	timeout: 90_000,
+
 	expect: {
 		// Match CI's 15s expect.timeout in local runs too. The prior 5s value
 		// was a fast-feedback default for individual devs running a single spec,
