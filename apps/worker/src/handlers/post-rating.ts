@@ -27,7 +27,7 @@ import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
 import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
-import { buildVisibilityContext, isForumActive } from "../lib/visibility";
+import { buildVisibilityContext, canReadThreadContent, isForumActive } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 
@@ -619,7 +619,13 @@ function rejectListVisibility(
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
 	const visCtx = buildVisibilityContext(user);
-	if (!canViewForumVisibility(postRow.forum_visibility as ForumVisibility, visCtx)) {
+	if (
+		!canReadThreadContent({
+			sticky: postRow.sticky,
+			forumVisibility: postRow.forum_visibility as ForumVisibility,
+			visCtx,
+		})
+	) {
 		return errorResponse(
 			"FORBIDDEN",
 			403,
