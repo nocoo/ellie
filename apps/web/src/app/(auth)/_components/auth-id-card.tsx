@@ -8,7 +8,7 @@
 // login-form / register-form so visual output stays identical.
 
 import { ThemeToggle } from "@/components/theme-toggle";
-import type { CSSProperties, ReactNode } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import { AuthBarcode } from "./auth-barcode";
 
 interface AuthIdCardProps {
@@ -130,5 +130,63 @@ export function AuthDivider({ label = "或" }: { label?: string }) {
 			<span className="text-xs text-muted-foreground">{label}</span>
 			<div className="h-px flex-1 bg-border" />
 		</div>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// AuthHelpHint — Contact-admin row gated on CAPTCHA success.
+//
+// Anti-scrape design (two layers):
+//
+//   1. **Render gate** — the row is only mounted when `visible === true`,
+//      which the caller flips after the Cap.js widget emits a non-empty
+//      token. Bots that just GET the SSR HTML never see it because CAP
+//      solve is a client-only side effect.
+//
+//   2. **Bundle obfuscation** — the email address is stored only as a
+//      `Uint8Array` of character codes. A statically inlined string
+//      concatenation can be constant-folded by Next/SWC into the literal
+//      that appears verbatim in the compiled client chunk. Storing the
+//      bytes in a typed array and reconstructing them at runtime via
+//      `String.fromCharCode(...)` is opaque to the optimizer — the full
+//      literal never appears in the source or the bundle. For extra
+//      safety we defer assembly to a `useEffect` so the string only
+//      materializes on the client after mount, gated by `visible`.
+//
+// Caller wires `visible={Boolean(capToken)}` (or simply omits when CAP is
+// disabled, in which case the hint stays hidden).
+// ---------------------------------------------------------------------------
+
+// Character codes for the help mailbox. Stored as a TypedArray so SWC has
+// no reason to fold this into a string literal at build time.
+const HELP_EMAIL_CODES = new Uint8Array([
+	104, 101, 108, 112, 64, 116, 111, 110, 103, 106, 105, 46, 110, 101, 116,
+]);
+
+function buildHelpEmail(): string {
+	// Spread keeps SWC from seeing a constant array whose contents it
+	// could pre-compute; the final string is built on the client at call
+	// time.
+	return String.fromCharCode(...HELP_EMAIL_CODES);
+}
+
+export function AuthHelpHint({ visible }: { visible: boolean }) {
+	// Assemble the email on the client only, on mount. Together with the
+	// render gate this means the literal address never exists in the
+	// shipped bundle and only materializes after a real user reaches this
+	// branch.
+	const [email, setEmail] = useState("");
+	useEffect(() => {
+		if (visible && !email) setEmail(buildHelpEmail());
+	}, [visible, email]);
+
+	if (!visible || !email) return null;
+	return (
+		<p className="mt-4 text-center text-xs text-muted-foreground" data-testid="auth-help-hint">
+			如遇问题，请发邮件到:{" "}
+			<a href={`mailto:${email}`} className="text-primary hover:underline">
+				{email}
+			</a>
+		</p>
 	);
 }

@@ -25,7 +25,12 @@ import {
 } from "@/viewmodels/forum/register";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { AuthDivider, AuthErrorBanner, AuthIdCard } from "../_components/auth-id-card";
+import {
+	AuthDivider,
+	AuthErrorBanner,
+	AuthHelpHint,
+	AuthIdCard,
+} from "../_components/auth-id-card";
 
 const CAP_API_ENDPOINT = process.env.NEXT_PUBLIC_CAP_API_ENDPOINT ?? "";
 
@@ -667,6 +672,11 @@ function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 					已有账号，去登录
 				</Button>
 			</a>
+
+			{/* Contact-admin hint — only rendered after CAPTCHA solve to keep
+			    the email hidden from naive scrapers. When CAP is disabled
+			    (e.g. local dev), the hint stays hidden by design. */}
+			<AuthHelpHint visible={capEnabled && Boolean(capToken)} />
 		</AuthIdCard>
 	);
 }

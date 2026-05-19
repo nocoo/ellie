@@ -44,6 +44,8 @@ vi.mock("@/app/(auth)/_components/auth-id-card", () => ({
 		createElement("div", { "data-testid": "auth-id-card" }, children),
 	AuthDivider: () => createElement("hr"),
 	AuthErrorBanner: ({ message }: any) => createElement("div", { role: "alert" }, message),
+	AuthHelpHint: ({ visible }: any) =>
+		visible ? createElement("div", { "data-testid": "auth-help-hint" }) : null,
 }));
 
 // Mock UI components to simple HTML equivalents
