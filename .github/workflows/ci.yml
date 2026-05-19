@@ -49,6 +49,7 @@ jobs:
       FORUM_API_KEY: ${{ secrets.API_KEY }}
       JWT_SECRET: ${{ secrets.JWT_SECRET }}
       AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+      NEXT_PUBLIC_CAP_API_ENDPOINT: ${{ secrets.NEXT_PUBLIC_CAP_API_ENDPOINT }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
