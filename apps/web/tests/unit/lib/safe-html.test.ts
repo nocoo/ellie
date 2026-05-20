@@ -132,4 +132,35 @@ describe("sanitizeInlineHtml", () => {
 		const result = sanitizeInlineHtml('<a href="vbscript:alert(1)">xss</a>');
 		expect(result).not.toContain("vbscript:");
 	});
+
+	// ── Attribute injection via quote escape ────────────────────────
+	// Regression: single-quoted attribute values containing `"` previously
+	// escaped the attribute context when re-emitted with double quotes,
+	// e.g. `<a title='x" onclick="alert(1)' href="/">` would expand to
+	// `<a title="x" onclick="alert(1)" href="/">`. Attribute values must be
+	// HTML-escaped on output.
+
+	test("escapes double quotes in single-quoted attribute values", () => {
+		const result = sanitizeInlineHtml(`<a title='x" onclick="alert(1)' href="/">x</a>`);
+		// The injected `"` must be HTML-escaped so it can't close the attribute.
+		expect(result).not.toMatch(/"\s+onclick\s*=/);
+		expect(result).toContain('title="x&quot; onclick=&quot;alert(1)"');
+	});
+
+	test("escapes & and quotes in attribute values", () => {
+		const result = sanitizeInlineHtml(`<a title='a&b"c' href="/">x</a>`);
+		expect(result).toContain('title="a&amp;b&quot;c"');
+	});
+
+	test("escapes quotes in font color attribute", () => {
+		const result = sanitizeInlineHtml(`<font color='red" onerror="alert(1)'>x</font>`);
+		expect(result).not.toMatch(/"\s+onerror\s*=/);
+	});
+
+	test("escapes quotes in href attribute", () => {
+		const result = sanitizeInlineHtml(`<a href='/safe" onclick="alert(1)'>x</a>`);
+		// The unescaped quote followed by an event handler must not appear.
+		expect(result).not.toMatch(/"\s+onclick\s*=/);
+		expect(result).toContain("&quot;");
+	});
 });

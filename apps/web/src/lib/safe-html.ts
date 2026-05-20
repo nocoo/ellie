@@ -30,6 +30,20 @@ const ATTR_RE = /([a-zA-Z-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
 /** Only allow safe CSS properties inside style="..." (color only). */
 const SAFE_STYLE_RE = /^\s*color\s*:\s*[^;]+;?\s*$/i;
 
+/**
+ * Escape a string for safe inclusion inside a double-quoted HTML attribute.
+ * Without this, a single-quoted source value like `title='x" onclick="alert(1)'`
+ * would be rewritten as `title="x" onclick="alert(1)"` and break out of the
+ * attribute context, injecting arbitrary attributes.
+ */
+function escapeAttr(value: string): string {
+	return value
+		.replace(/&/g, "&amp;")
+		.replace(/"/g, "&quot;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;");
+}
+
 /** Sanitize an attribute value to prevent javascript: URLs etc. */
 function isSafeValue(attr: string, value: string): boolean {
 	if (attr === "href") {
@@ -82,7 +96,7 @@ export function sanitizeInlineHtml(html: string | undefined | null): string {
 			const attrName = attrMatch[1].toLowerCase();
 			const attrValue = attrMatch[2] ?? attrMatch[3] ?? "";
 			if (allowedAttrs.has(attrName) && isSafeValue(attrName, attrValue)) {
-				safeAttrs.push(`${attrName}="${attrValue}"`);
+				safeAttrs.push(`${attrName}="${escapeAttr(attrValue)}"`);
 			}
 		}
 
