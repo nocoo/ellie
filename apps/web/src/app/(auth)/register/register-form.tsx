@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { checkUsernameAvailability } from "@/lib/forum-browser-api";
+import { safeRedirect } from "@/lib/safe-redirect";
 import { CAMPUS_OPTIONS, IDENTITY_OPTIONS } from "@/viewmodels/forum/profile-options";
 import {
 	type PasswordStrength,
@@ -138,7 +139,7 @@ interface RegisterFormCoreProps {
 
 function RegisterFormCore({ variant, onSuccess }: RegisterFormCoreProps) {
 	const searchParams = useSearchParams();
-	const callbackUrl = searchParams.get("redirect") ?? "/";
+	const callbackUrl = safeRedirect(searchParams.get("redirect"));
 
 	const [username, setUsername] = useState("");
 	const [password, setPassword] = useState("");
