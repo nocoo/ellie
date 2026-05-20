@@ -19,6 +19,42 @@ const { window } = parseHTML("<!DOCTYPE html><html><body></body></html>");
 const purify = DOMPurify(window as any);
 
 // ---------------------------------------------------------------------------
+// HTML entity decoding (legacy CETagParser content)
+// ---------------------------------------------------------------------------
+
+/**
+ * Decode HTML entities by parsing into a synthetic `<div>` and reading
+ * `.textContent` — this handles named refs (`&lt;`, `&quot;`, …), numeric
+ * refs (`&#60;`), and hex refs (`&#x3c;`) uniformly, without a hand-rolled
+ * lookup map. Returns the input unchanged if no entities decode.
+ *
+ * If `repeat` is true, decode up to twice (for content that was
+ * double-encoded during legacy migration).
+ *
+ * NOTE: linkedom's `<textarea>.value` does NOT decode entities the way
+ * jsdom/browsers do; `div.textContent` after `innerHTML=` does. We use the
+ * div variant so the pipeline behaves identically to a browser.
+ */
+function decodeHtmlEntities(input: string, repeat = true): string {
+	if (!input || !input.includes("&")) return input;
+	const decode = (s: string): string => {
+		const doc = parseHTML("<!DOCTYPE html><html><body></body></html>");
+		const div = doc.document.createElement("div");
+		div.innerHTML = s;
+		return div.textContent ?? s;
+	};
+	let result = decode(input);
+	// Double-encoded posts surface as `&amp;lt;` in the source, which becomes
+	// `&lt;` after the first pass — at that point the comment markers are
+	// still encoded and would never match `RE_CETAGPARSER_DECODED`. Decode
+	// once more so the markers reach the strip step as real `<!--`.
+	if (repeat && /&(?:lt|gt|amp|quot|#\d+|#x[0-9a-f]+);/i.test(result) && result !== input) {
+		result = decode(result);
+	}
+	return result;
+}
+
+// ---------------------------------------------------------------------------
 // Edit notice transformation
 // ---------------------------------------------------------------------------
 
@@ -175,8 +211,12 @@ const RE_CETAGPARSER_URL = /&lt;!--\s*CETagParser\s+~\/?url[^&]*&gt;/gi;
 const RE_CETAGPARSER_GENERIC = /&lt;!--\s*CETagParser\s+[^&]*&gt;/gi;
 
 /**
- * Clean up CETagParser artifacts from legacy Discuz content.
- * These are HTML-encoded template markers that weren't properly processed.
+ * Legacy cleanup for already-encoded CETagParser markers.
+ *
+ * NOTE: this is the **fallback path** used when content somehow reaches the
+ * filter still entity-encoded — the modern path (see `processLegacyCETagParser`)
+ * decodes entities first and then strips real `<!-- … -->` comments instead.
+ * Kept exported for back-compat and the existing test suite.
  */
 function cleanupCETagParser(html: string): string {
 	let result = html;
@@ -188,6 +228,136 @@ function cleanupCETagParser(html: string): string {
 	result = result.replace(RE_CETAGPARSER_GENERIC, "");
 
 	return result;
+}
+
+// Match decoded `<!-- CETagParser ... -->` comments AND the Discuz variant
+// that omits the closing `-->` and instead terminates at a newline. Discuz
+// inserts these comments before/after every formatting tag, so they often
+// hug a \r\n that should disappear with them. The alternation handles both:
+//   1. proper `<!-- CETagParser … -->\n` (rare, but possible)
+//   2. unterminated `<!-- CETagParser …\n` (the production norm)
+const RE_CETAGPARSER_DECODED = /<!--\s*CETagParser\s+(?:[^>]*?-->|[^\r\n]*?(?=\r?\n|$))\r?\n?/gi;
+
+/**
+ * Strip real `<!-- CETagParser … -->` comments from decoded content while
+ * leaving the adjacent `<font>`/`<a>` tags intact.
+ */
+function stripCETagParserComments(html: string): string {
+	return html.replace(RE_CETAGPARSER_DECODED, "");
+}
+
+/**
+ * Decode entity-encoded CETagParser content into renderable HTML.
+ *
+ * Pipeline (legacy branch only):
+ *  1. Decode HTML entities (up to 2× for double-encoded migrations).
+ *  2. Strip `<!-- CETagParser … -->` comments — they should never reach
+ *     `dangerouslySetInnerHTML` as visible text.
+ *  3. Sanitize via a text-level whitelist tailored to CETagParser output
+ *     (font/a + a tight attribute allowlist). We do NOT use DOMPurify
+ *     here because the linkedom-backed DOMPurify in this file is a silent
+ *     no-op (linkedom doesn't implement `document.implementation`), and
+ *     swapping in jsdom is out of scope for this fix.
+ */
+function processLegacyCETagParser(html: string): string {
+	let result = decodeHtmlEntities(html, true);
+	result = stripCETagParserComments(result);
+	result = sanitizeLegacyHtml(result);
+	return result;
+}
+
+// ---------------------------------------------------------------------------
+// Text-level whitelist sanitizer (legacy CETagParser branch only)
+// ---------------------------------------------------------------------------
+
+// Tags allowed inside decoded CETagParser content. CETagParser only emits
+// <font> and <a>; we additionally permit a small inline-formatting set in
+// case the post mixed in pre-encoded inline HTML.
+const LEGACY_TAG_ALLOWLIST: Record<string, Set<string>> = {
+	font: new Set(["color", "size", "face"]),
+	a: new Set(["href", "title", "target", "rel"]),
+	br: new Set(),
+	strong: new Set(),
+	b: new Set(),
+	em: new Set(),
+	i: new Set(),
+	u: new Set(),
+	s: new Set(),
+	span: new Set(),
+	p: new Set(),
+	div: new Set(),
+};
+
+const LEGACY_TAG_RE = /<\/?([a-zA-Z][a-zA-Z0-9]*)\b([^>]*)?\/?>/g;
+const LEGACY_ATTR_RE = /([a-zA-Z-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g;
+
+function isSafeLegacyHref(value: string): boolean {
+	const trimmed = value.trim().toLowerCase();
+	return !/^(javascript|data|vbscript)\s*:/i.test(trimmed);
+}
+
+/**
+ * Strip every tag outside `LEGACY_TAG_ALLOWLIST`, drop disallowed attributes,
+ * and reject `javascript:` / `data:` / `vbscript:` hrefs. Content of stripped
+ * tags is preserved (textContent style) — except `<script>` / `<style>`
+ * blocks, whose textContent IS the payload and gets removed wholesale.
+ */
+function sanitizeLegacyHtml(html: string): string {
+	// 1. Drop the entire <script>…</script> / <style>…</style> block (content
+	//    and tags), since the contents themselves would execute / restyle.
+	let result = html.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, "");
+	result = result.replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, "");
+	// Defensive: also drop dangling open tags with no closing pair.
+	result = result.replace(/<script\b[^>]*>/gi, "");
+	result = result.replace(/<style\b[^>]*>/gi, "");
+
+	// 2. Walk every tag; whitelist-or-strip.
+	return result.replace(LEGACY_TAG_RE, (match, tagName: string, attrString: string) => {
+		const tag = tagName.toLowerCase();
+		const allowed = LEGACY_TAG_ALLOWLIST[tag];
+		if (!allowed) return ""; // strip unknown tags, keep inner text
+		if (match.startsWith("</")) return `</${tag}>`;
+		if (allowed.size === 0) return `<${tag}>`;
+
+		const safeAttrs = collectSafeLegacyAttrs(attrString || "", allowed);
+		if (tag === "a") forceLinkSafetyAttrs(safeAttrs);
+
+		const attrStr = safeAttrs.length > 0 ? ` ${safeAttrs.join(" ")}` : "";
+		return `<${tag}${attrStr}>`;
+	});
+}
+
+function collectSafeLegacyAttrs(raw: string, allowed: Set<string>): string[] {
+	const safeAttrs: string[] = [];
+	LEGACY_ATTR_RE.lastIndex = 0;
+	for (let m = LEGACY_ATTR_RE.exec(raw); m !== null; m = LEGACY_ATTR_RE.exec(raw)) {
+		const attrName = m[1].toLowerCase();
+		const attrValue = m[2] ?? m[3] ?? m[4] ?? "";
+		if (!isSafeLegacyAttr(attrName, attrValue, allowed)) continue;
+		safeAttrs.push(`${attrName}="${escapeAttr(attrValue)}"`);
+	}
+	return safeAttrs;
+}
+
+function isSafeLegacyAttr(name: string, value: string, allowed: Set<string>): boolean {
+	if (!allowed.has(name)) return false;
+	if (/^on/i.test(name)) return false; // event handlers
+	if (name === "href" && !isSafeLegacyHref(value)) return false;
+	if (/javascript\s*:/i.test(value)) return false;
+	return true;
+}
+
+function forceLinkSafetyAttrs(safeAttrs: string[]): void {
+	if (!safeAttrs.some((a) => a.startsWith("rel="))) {
+		safeAttrs.push('rel="nofollow noopener"');
+	}
+	if (!safeAttrs.some((a) => a.startsWith("target="))) {
+		safeAttrs.push('target="_blank"');
+	}
+}
+
+function escapeAttr(value: string): string {
+	return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 }
 
 // ---------------------------------------------------------------------------
@@ -361,13 +531,16 @@ function escapeHtml(str: string): string {
 /**
  * Apply all content transformations for display.
  *
- * Pipeline order:
- * 1. HTML sanitization (DOMPurify whitelist — MUST BE FIRST)
- * 2. Legacy URL rewriting (fix old bbs.tongji.net image URLs)
- * 3. Edit notices (before BBCode cleanup to avoid orphan tag issues)
- * 4. Legacy BBCode cleanup
- * 5. CETagParser cleanup
- * 6. Smiley codes
+ * Two branches:
+ * - **Legacy CETagParser branch** — when content contains the `CETagParser`
+ *   marker, decode entities (1–2×), strip comments, then sanitize. This
+ *   exposes the originally-encoded `<font>` and `<a>` tags so the browser
+ *   renders them as structural HTML instead of literal text.
+ * - **Modern branch** — sanitize → URL rewrite → edit notices → BBCode →
+ *   (no-op) CETagParser cleanup → smileys.
+ *
+ * Both branches finish with the same downstream transformations
+ * (URL rewrite, edit notices, BBCode, smileys).
  *
  * @param content - Raw HTML content from database
  * @returns Transformed and sanitized HTML ready for rendering
@@ -375,24 +548,22 @@ function escapeHtml(str: string): string {
 export function filterContent(content: string): string {
 	if (!content) return content;
 
-	let result = content;
+	let result: string;
+	if (content.includes("CETagParser")) {
+		// Legacy branch — decode + strip + sanitize (security-critical pass).
+		result = processLegacyCETagParser(content);
+	} else {
+		// Modern branch — content is already structural HTML; sanitize once.
+		result = sanitizeHtml(content);
+	}
 
-	// 1. SECURITY: Sanitize HTML first to remove malicious scripts/attributes
-	result = sanitizeHtml(result);
-
-	// 2. Rewrite legacy URLs (fix old bbs.tongji.net image URLs)
 	result = rewriteLegacyUrls(result);
-
-	// 3. Transform edit notices
 	result = transformEditNotices(result);
-
-	// 4. Clean up legacy BBCode
 	result = cleanupLegacyBBCode(result);
-
-	// 5. Clean up CETagParser artifacts
+	// `cleanupCETagParser` is a no-op on the legacy branch (comments already
+	// stripped) and on the modern branch (no CETagParser present), but we
+	// keep it for defense in depth against partial migration leftovers.
 	result = cleanupCETagParser(result);
-
-	// 6. Replace smiley codes with images
 	result = replaceSmileyCodesWithImages(result);
 
 	return result;

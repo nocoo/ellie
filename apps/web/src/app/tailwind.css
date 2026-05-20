@@ -424,6 +424,39 @@ div.quote .quote-header a:hover {
 	margin: 0.5rem 0;
 }
 
+/* Legacy Discuz <font size=N> — map HTML font-size attribute (1..7) to
+   Tailwind text-* tokens so prose typography doesn't override them.
+   `:where(.prose)` keeps specificity at (0,1,1) so user content wins over
+   the typography plugin's default `font` reset. */
+:where(.prose) font[size="1"] {
+	font-size: var(--text-xs);
+	line-height: 1rem;
+}
+:where(.prose) font[size="2"] {
+	font-size: var(--text-sm);
+	line-height: 1.25rem;
+}
+:where(.prose) font[size="3"] {
+	font-size: var(--text-base);
+	line-height: 1.5rem;
+}
+:where(.prose) font[size="4"] {
+	font-size: var(--text-lg);
+	line-height: 1.75rem;
+}
+:where(.prose) font[size="5"] {
+	font-size: var(--text-xl);
+	line-height: 1.75rem;
+}
+:where(.prose) font[size="6"] {
+	font-size: var(--text-2xl);
+	line-height: 2rem;
+}
+:where(.prose) font[size="7"] {
+	font-size: var(--text-3xl);
+	line-height: 2.25rem;
+}
+
 /* ==========================================================================
    Glass Morphism (Modals)
    ========================================================================== */
