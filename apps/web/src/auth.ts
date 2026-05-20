@@ -12,6 +12,8 @@ import type { JWT } from "next-auth/jwt";
 import Credentials from "next-auth/providers/credentials";
 import { headers } from "next/headers";
 
+import { extractClientIp } from "@/lib/client-ip";
+
 // ---------------------------------------------------------------------------
 // Environment helpers (only accessed at runtime, server-side)
 // ---------------------------------------------------------------------------
@@ -27,39 +29,14 @@ function getForumApiKey(): string {
 /**
  * Get client IP from request headers.
  *
- * SECURITY: Only trusts platform-specific headers that cannot be spoofed:
- * - Cloudflare: CF-Connecting-IP (set by Cloudflare edge proxy)
- * - Generic reverse proxy: x-real-ip
- *
- * x-forwarded-for is ONLY used in development mode for local testing
- * convenience, as it can be spoofed by clients in production.
- *
- * In production without a trusted header, returns empty string so Worker
- * rejects the request (prevents rate limit bypass).
+ * Delegates to {@link extractClientIp}. SECURITY: only `CF-Connecting-IP`
+ * is trusted in production; inbound `X-Real-IP` is ignored to prevent
+ * Key-A-signed rate-limit bypass (the Worker trusts X-Real-IP when it
+ * comes from Key A/B).
  */
 async function getClientIP(): Promise<string> {
 	const h = await headers();
-
-	// Cloudflare sets CF-Connecting-IP to the real client IP
-	const cfIP = h.get("cf-connecting-ip");
-	if (cfIP) return cfIP;
-
-	// Generic reverse proxy header
-	const realIP = h.get("x-real-ip");
-	if (realIP) return realIP;
-
-	// SECURITY: Only allow x-forwarded-for fallback in development
-	// In production, this header can be spoofed by clients
-	if (process.env.NODE_ENV === "development") {
-		const xff = h.get("x-forwarded-for");
-		if (xff) {
-			const firstIP = xff.split(",")[0]?.trim();
-			if (firstIP) return firstIP;
-		}
-	}
-
-	// No trusted IP found - Worker will reject rate-limited requests
-	return "";
+	return extractClientIp(h);
 }
 
 // ---------------------------------------------------------------------------
