@@ -1,6 +1,7 @@
 "use client";
 
 import { ForumDistChart } from "@/components/admin/analytics/forum-dist-chart";
+import { LoginAttemptsPanel } from "@/components/admin/analytics/login-attempts-panel";
 import { TrendChart } from "@/components/admin/analytics/trend-chart";
 import { StatCard } from "@/components/admin/stat-card";
 import {
@@ -219,6 +220,9 @@ export default function AnalyticsPage() {
 					)}
 				</CardContent>
 			</Card>
+
+			{/* ── Today's login-attempt audit (P4) ───────────────── */}
+			<LoginAttemptsPanel />
 		</div>
 	);
 }

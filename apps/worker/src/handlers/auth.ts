@@ -1,3 +1,8 @@
+import {
+	type LoginHistoryErrorCode,
+	type LoginHistoryKind,
+	scheduleLoginHistory,
+} from "../lib/analytics/loginHistory";
 // Auth handlers for Cloudflare Worker
 import { checkCensorWords } from "../lib/censor";
 import { extractTrustedClientIp } from "../lib/clientIp";
@@ -15,6 +20,15 @@ import { DB_COLUMNS, validateProfileFields } from "./me";
 // auth must HARD-REJECT when no trustworthy IP is present, otherwise the
 // per-IP rate limit can be bypassed by stripping headers.
 
+// Admin analytics login_history audit log (P4) is wired through these
+// handlers. The collector contract pins:
+//   - rows are written ONLY after trust-edge resolution (we have a usable
+//     ip + a parsed username) so the audit trail is meaningful;
+//   - every write goes through `scheduleLoginHistory(env, ctx?, row)` —
+//     when `ctx` is undefined (test stubs), it is a documented no-op.
+// See `apps/worker/src/lib/analytics/loginHistory.ts` for the full
+// branches-that-write contract and the matching tests.
+
 interface LoginInput {
 	username: string;
 	password: string;
@@ -26,13 +40,43 @@ interface AuthUser {
 	role: number;
 }
 
-/** POST /api/v1/auth/login - Login with password upgrade */
-export async function login(request: Request, env: Env): Promise<Response> {
+/** Build a LoginHistoryRow stub for the helper. Helpers below thread the variable fields. */
+function authAuditRow(
+	username: string,
+	userId: number | null,
+	ok: 0 | 1,
+	kind: LoginHistoryKind,
+	errorCode: LoginHistoryErrorCode,
+	ip: string,
+	request: Request,
+) {
+	return {
+		userId,
+		username,
+		ok,
+		kind,
+		errorCode,
+		ip,
+		userAgent: request.headers.get("User-Agent"),
+		createdAt: Math.floor(Date.now() / 1000),
+	};
+}
+
+/**
+ * POST /api/v1/auth/login - Login with password upgrade
+ *
+ * `ctx` is OPTIONAL so the existing 2-arg call sites (tests, internal
+ * re-entries) keep compiling. When the router passes a real
+ * ExecutionContext, the analytics audit log writes are deferred onto
+ * `ctx.waitUntil`; without `ctx`, the audit write is a documented no-op.
+ */
+export async function login(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	try {
 		const { username, password } = (await request.json()) as LoginInput;
 
 		if (!username || !password) {
+			// Body-shape failure — no usable username slot, do NOT audit.
 			return errorResponse(
 				"INVALID_REQUEST",
 				400,
@@ -45,6 +89,7 @@ export async function login(request: Request, env: Env): Promise<Response> {
 		// NOTE: Only IP-based rate limiting to prevent DoS via username lockout attacks
 		const ip = extractTrustedClientIp(request, env);
 		if (!ip) {
+			// Trust-edge failure — no usable ip slot, do NOT audit.
 			return errorResponse("INVALID_REQUEST", 400, { message: "Missing client IP" }, origin);
 		}
 
@@ -65,6 +110,11 @@ export async function login(request: Request, env: Env): Promise<Response> {
 		]);
 
 		if (ipLocked) {
+			scheduleLoginHistory(
+				env,
+				ctx,
+				authAuditRow(username, null, 0, "login", "LOCKED_OUT_IP", ip, request),
+			);
 			return errorResponse(
 				"RATE_LIMITED",
 				429,
@@ -78,6 +128,11 @@ export async function login(request: Request, env: Env): Promise<Response> {
 		if (ipAttempts >= 5) {
 			// Trigger 24-hour lockout for this IP
 			await env.KV.put(ipLockoutKey, "1", { expirationTtl: 24 * 60 * 60 });
+			scheduleLoginHistory(
+				env,
+				ctx,
+				authAuditRow(username, null, 0, "login", "RATE_LIMITED_IP", ip, request),
+			);
 			return errorResponse(
 				"RATE_LIMITED",
 				429,
@@ -89,6 +144,11 @@ export async function login(request: Request, env: Env): Promise<Response> {
 		if (!result) {
 			// Increment rate limit counter on invalid username
 			await env.KV.put(ipRateLimitKey, String(ipAttempts + 1), { expirationTtl: 3600 });
+			scheduleLoginHistory(
+				env,
+				ctx,
+				authAuditRow(username, null, 0, "login", "INVALID_CREDENTIALS", ip, request),
+			);
 			return errorResponse("INVALID_CREDENTIALS", 401, undefined, origin);
 		}
 
@@ -103,6 +163,11 @@ export async function login(request: Request, env: Env): Promise<Response> {
 
 		// Check if user is banned
 		if (user.status !== 0) {
+			scheduleLoginHistory(
+				env,
+				ctx,
+				authAuditRow(username, user.id, 0, "login", "USER_BANNED", ip, request),
+			);
 			return errorResponse("USER_BANNED", 403, undefined, origin);
 		}
 
@@ -119,6 +184,11 @@ export async function login(request: Request, env: Env): Promise<Response> {
 		if (!isValid) {
 			// Increment rate limit counter on failed password verification
 			await env.KV.put(ipRateLimitKey, String(ipAttempts + 1), { expirationTtl: 3600 });
+			scheduleLoginHistory(
+				env,
+				ctx,
+				authAuditRow(username, user.id, 0, "login", "INVALID_CREDENTIALS", ip, request),
+			);
 			return errorResponse("INVALID_CREDENTIALS", 401, undefined, origin);
 		}
 
@@ -159,6 +229,8 @@ export async function login(request: Request, env: Env): Promise<Response> {
 			env.JWT_SECRET,
 		);
 		const [token] = await Promise.all([tokenPromise, ...sideEffects]);
+
+		scheduleLoginHistory(env, ctx, authAuditRow(username, user.id, 1, "login", "", ip, request));
 
 		return jsonResponse(
 			{
@@ -391,13 +463,23 @@ function classifyUniqueConstraintError(err: Error): "EMAIL_ALREADY_IN_USE" | "US
 	return err.message.includes("email_normalized") ? "EMAIL_ALREADY_IN_USE" : "USERNAME_TAKEN";
 }
 
-/** POST /api/v1/auth/register - Register a new forum user */
-export async function register(request: Request, env: Env): Promise<Response> {
+/**
+ * POST /api/v1/auth/register - Register a new forum user
+ *
+ * `ctx` is OPTIONAL so existing 2-arg call sites keep compiling. See
+ * `login()` above for the audit-write contract.
+ */
+export async function register(
+	request: Request,
+	env: Env,
+	ctx?: ExecutionContext,
+): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	try {
 		const body = (await request.json()) as RegisterInput;
 
 		// ── Input validation (before any DB calls for efficiency) ──
+		// Body-shape failures do NOT audit — username slot is untrusted.
 		const parsed = parseRegisterInput(body, origin);
 		if (parsed instanceof Response) return parsed;
 		const { username, password, email } = parsed;
@@ -433,6 +515,7 @@ export async function register(request: Request, env: Env): Promise<Response> {
 		// the registration hot path.
 		const ip = extractTrustedClientIp(request, env);
 		if (!ip) {
+			// Trust-edge failure — no usable ip slot, do NOT audit.
 			return errorResponse("INVALID_REQUEST", 400, { message: "Missing client IP" }, origin);
 		}
 		const rateLimitKey = `reg-ip:${ip}`;
@@ -448,15 +531,30 @@ export async function register(request: Request, env: Env): Promise<Response> {
 		// Default to true if setting doesn't exist
 		const allowRegistration = registrationSetting?.value !== "false";
 		if (!allowRegistration) {
+			scheduleLoginHistory(
+				env,
+				ctx,
+				authAuditRow(username, null, 0, "register", "REGISTRATION_DISABLED", ip, request),
+			);
 			return errorResponse("REGISTRATION_DISABLED", 403, undefined, origin);
 		}
 
 		if (censorResult.matched && censorResult.action === "ban") {
+			scheduleLoginHistory(
+				env,
+				ctx,
+				authAuditRow(username, null, 0, "register", "USERNAME_BANNED", ip, request),
+			);
 			return errorResponse("USERNAME_BANNED", 400, undefined, origin);
 		}
 
 		const currentCount = Number.parseInt(rateCountRaw ?? "0", 10);
 		if (currentCount >= 3) {
+			scheduleLoginHistory(
+				env,
+				ctx,
+				authAuditRow(username, null, 0, "register", "RATE_LIMITED", ip, request),
+			);
 			return errorResponse("RATE_LIMITED", 429, undefined, origin);
 		}
 
@@ -482,7 +580,13 @@ export async function register(request: Request, env: Env): Promise<Response> {
 			}
 		} catch (e: unknown) {
 			if (e instanceof Error && e.message.includes("UNIQUE constraint")) {
-				return errorResponse(classifyUniqueConstraintError(e), 409, undefined, origin);
+				const code = classifyUniqueConstraintError(e);
+				scheduleLoginHistory(
+					env,
+					ctx,
+					authAuditRow(username, null, 0, "register", code, ip, request),
+				);
+				return errorResponse(code, 409, undefined, origin);
 			}
 			throw e;
 		}
@@ -500,6 +604,8 @@ export async function register(request: Request, env: Env): Promise<Response> {
 		await env.KV.put(rateLimitKey, String(currentCount + 1), {
 			expirationTtl: 3600,
 		});
+
+		scheduleLoginHistory(env, ctx, authAuditRow(username, userId, 1, "register", "", ip, request));
 
 		return jsonResponse(
 			{

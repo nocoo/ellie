@@ -144,3 +144,117 @@ export const RANGE_LABELS: Record<AnalyticsRange, string> = {
 	"30d": "近 30 天",
 	"90d": "近 90 天",
 };
+
+// ---------------------------------------------------------------------------
+// Login-history (P4) — types + parsers
+// ---------------------------------------------------------------------------
+
+/**
+ * KPI card payload from GET /api/admin/analytics/today/logins.
+ * Aggregate-only — the response body is KV-cached on the worker (60s)
+ * with NO ip / ua / username. Field shapes mirror the worker handler.
+ */
+export interface TodayLoginsKpi {
+	now: number;
+	dayStart: number;
+	totalAttempts: number;
+	successAttempts: number;
+	failedAttempts: number;
+	uniqueUsers: number;
+	uniqueIps: number;
+	loginAttempts: number;
+	registerAttempts: number;
+}
+
+export function parseTodayLoginsKpi(raw: unknown): TodayLoginsKpi {
+	const o = (raw ?? {}) as Record<string, unknown>;
+	return {
+		now: asNumber(o.now),
+		dayStart: asNumber(o.dayStart),
+		totalAttempts: asNumber(o.totalAttempts),
+		successAttempts: asNumber(o.successAttempts),
+		failedAttempts: asNumber(o.failedAttempts),
+		uniqueUsers: asNumber(o.uniqueUsers),
+		uniqueIps: asNumber(o.uniqueIps),
+		loginAttempts: asNumber(o.loginAttempts),
+		registerAttempts: asNumber(o.registerAttempts),
+	};
+}
+
+/** Single masked row from GET /api/admin/analytics/today/logins/list. */
+export interface LoginAttemptListRow {
+	id: number;
+	userId: number | null;
+	username: string;
+	ok: 0 | 1;
+	kind: string;
+	errorCode: string;
+	/** First two octets of IPv4 retained; rest is `x` — never raw. */
+	ipMasked: string;
+	botClass: string;
+	createdAt: number;
+}
+
+export interface LoginAttemptList {
+	page: number;
+	limit: number;
+	total: number;
+	rows: LoginAttemptListRow[];
+}
+
+export function parseLoginAttemptList(raw: unknown): LoginAttemptList {
+	const o = (raw ?? {}) as Record<string, unknown>;
+	const rows = Array.isArray(o.rows) ? o.rows : [];
+	return {
+		page: asNumber(o.page, 1),
+		limit: asNumber(o.limit, 20),
+		total: asNumber(o.total),
+		rows: rows.map((r) => {
+			const x = (r ?? {}) as Record<string, unknown>;
+			const okRaw = asNumber(x.ok);
+			return {
+				id: asNumber(x.id),
+				userId:
+					typeof x.userId === "number" && Number.isFinite(x.userId) ? (x.userId as number) : null,
+				username: asString(x.username),
+				ok: (okRaw === 1 ? 1 : 0) as 0 | 1,
+				kind: asString(x.kind),
+				errorCode: asString(x.errorCode),
+				ipMasked: asString(x.ipMasked),
+				botClass: asString(x.botClass),
+				createdAt: asNumber(x.createdAt),
+			};
+		}),
+	};
+}
+
+/** Reveal response — single row with RAW ip + ua + username. */
+export interface LoginAttemptReveal {
+	id: number;
+	userId: number | null;
+	username: string;
+	ok: 0 | 1;
+	kind: string;
+	errorCode: string;
+	ip: string;
+	userAgent: string;
+	botClass: string;
+	createdAt: number;
+}
+
+export function parseLoginAttemptReveal(raw: unknown): LoginAttemptReveal {
+	const o = (raw ?? {}) as Record<string, unknown>;
+	const okRaw = asNumber(o.ok);
+	return {
+		id: asNumber(o.id),
+		userId: typeof o.userId === "number" && Number.isFinite(o.userId) ? (o.userId as number) : null,
+		username: asString(o.username),
+		ok: (okRaw === 1 ? 1 : 0) as 0 | 1,
+		kind: asString(o.kind),
+		errorCode: asString(o.errorCode),
+		ip: asString(o.ip),
+		userAgent: asString(o.userAgent),
+		botClass: asString(o.botClass),
+		createdAt: asNumber(o.createdAt),
+	};
+}

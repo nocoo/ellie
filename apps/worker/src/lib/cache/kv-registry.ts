@@ -649,6 +649,25 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		refresh: { kind: "none" },
 		description: "Daily check-in count series. 300s TTL.",
 	},
+	{
+		// P4 — admin "今日登录尝试" KPI card. Single literal key holding
+		// aggregate-only counts for the local-day window (Asia/Shanghai).
+		// Value MUST NEVER contain ip / ua / username — list and reveal
+		// endpoints read D1 in realtime and are explicitly no-store.
+		family: "analytics:today-logins",
+		displayName: "Analytics today-logins KPI",
+		category: "stats",
+		status: "shipped",
+		listPrefix: "analytics:today-logins",
+		keyKind: "exact",
+		pattern: "analytics:today-logins",
+		ttl: 60,
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "none" },
+		description:
+			"Today's login/register KPI counters (Asia/Shanghai). Aggregate-only — value carries NO ip / ua / username. 60s TTL. The masked list + reveal endpoints serve D1 realtime and never touch KV.",
+	},
 ];
 
 /**
@@ -740,6 +759,8 @@ export const KV_PUT_PREFIX_ALLOWLIST: readonly string[] = [
 	"analytics:trend:",
 	"analytics:forum-dist:",
 	"analytics:checkin:",
+	// Admin login-history KPI (P4).
+	"analytics:today-logins",
 ];
 
 /**
