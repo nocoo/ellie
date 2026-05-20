@@ -221,6 +221,11 @@ INSERT OR REPLACE INTO _test_marker (key, value) VALUES ('env', 'test');
 -- Indexes
 -- ============================================================================
 
+-- Users indexes
+-- Admin analytics: daily new-registrations trend bucket. See migration
+-- 0041_idx_analytics_trend.sql.
+CREATE INDEX IF NOT EXISTS idx_users_reg_date ON users(reg_date);
+
 -- Threads indexes
 CREATE INDEX IF NOT EXISTS idx_threads_forum ON threads(forum_id, sticky DESC, last_post_at DESC);
 CREATE INDEX IF NOT EXISTS idx_threads_author ON threads(author_id, created_at DESC);
@@ -231,10 +236,17 @@ CREATE INDEX IF NOT EXISTS idx_threads_last_poster_id ON threads(last_poster_id)
 -- 0037_idx_threads_sticky.sql for rationale; without this the OR'd
 -- WHERE in /api/v1/threads scans ~1M rows per cache miss.
 CREATE INDEX IF NOT EXISTS idx_threads_sticky ON threads(sticky, last_post_at DESC, id DESC);
+-- Admin analytics: global new-threads trend (date bucket over created_at).
+-- See migration 0041_idx_analytics_trend.sql.
+CREATE INDEX IF NOT EXISTS idx_threads_created ON threads(created_at DESC);
 
 -- Posts indexes
 CREATE INDEX IF NOT EXISTS idx_posts_thread ON posts(thread_id, position);
 CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_id, created_at DESC);
+-- Admin analytics: global posts trend + per-forum distribution. See
+-- migration 0041_idx_analytics_trend.sql.
+CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_forum_created ON posts(forum_id, created_at DESC);
 
 -- Attachments indexes
 CREATE INDEX IF NOT EXISTS idx_attachments_post ON attachments(post_id);

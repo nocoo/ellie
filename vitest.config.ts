@@ -33,6 +33,7 @@ export default defineConfig({
 						"tests/unit/migration-0037-schema.test.ts",
 						"tests/unit/migration-0038-schema.test.ts",
 						"tests/unit/migration-0039-schema.test.ts",
+						"tests/unit/migration-0041-schema.test.ts",
 					],
 					environment: "node",
 				},

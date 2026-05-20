@@ -1,0 +1,78 @@
+-- 0041_idx_analytics_trend.sql — admin analytics trend indexes
+--
+-- Phase 1 of the admin analytics dashboard (see #ellie-数据统计 plan v3)
+-- relies on time-bucket aggregation against the existing source-of-truth
+-- business tables. Without dedicated time-leading indexes, the
+-- aggregation queries fall back to full-table scans on D1 production
+-- data (~270k users, ~990k threads, ~14M posts).
+--
+-- This migration adds four indexes that cover every read path the
+-- query-only dashboard (phase P2) introduces. No row data changes —
+-- pure index add, safe to roll back.
+--
+-- ---------------------------------------------------------------------
+-- 1) idx_users_reg_date ON users(reg_date)
+-- ---------------------------------------------------------------------
+-- Powers the daily-new-registrations trend:
+--   SELECT date(reg_date,'unixepoch','+08:00') AS d, COUNT(*)
+--   FROM users WHERE reg_date >= ? GROUP BY d ORDER BY d
+-- Selectivity: monotonically increasing, so a B-tree on `reg_date`
+-- alone lets the planner do an index range scan over the requested
+-- window without touching the table. ~270k rows today, low write rate
+-- on users (mostly per-registration), so the index maintenance cost
+-- is negligible.
+--
+-- ---------------------------------------------------------------------
+-- 2) idx_posts_created ON posts(created_at DESC)
+-- ---------------------------------------------------------------------
+-- Powers the global posts trend:
+--   SELECT date(created_at,'unixepoch','+08:00') AS d, COUNT(*)
+--   FROM posts WHERE created_at >= ? GROUP BY d ORDER BY d
+-- The existing `idx_posts_author (author_id, created_at DESC)` is
+-- author-leading, so it cannot answer a query without an `author_id`
+-- filter — the planner would fall back to a `posts` full scan
+-- (~14M rows on prod). DESC matches the natural recency of the trend
+-- window so the scan stays sequential on disk.
+--
+-- ---------------------------------------------------------------------
+-- 3) idx_posts_forum_created ON posts(forum_id, created_at DESC)
+-- ---------------------------------------------------------------------
+-- Powers the per-forum post-distribution and per-forum-trend charts:
+--   SELECT forum_id, COUNT(*) FROM posts
+--   WHERE created_at >= ? GROUP BY forum_id
+--   ORDER BY COUNT(*) DESC
+-- and
+--   SELECT date(created_at,'unixepoch','+08:00') AS d, COUNT(*)
+--   FROM posts WHERE forum_id = ? AND created_at >= ?
+--   GROUP BY d ORDER BY d
+-- Column order: leading `forum_id` makes the second query an index
+-- range scan with no sort; the first query can still use it as a
+-- covering scan because forum_id is highly cardinal (~hundreds of
+-- forums vs ~14M posts). For a global breakdown SQLite can stream
+-- distinct prefixes off the B-tree.
+--
+-- ---------------------------------------------------------------------
+-- 4) idx_threads_created ON threads(created_at DESC)
+-- ---------------------------------------------------------------------
+-- Powers the global new-threads trend:
+--   SELECT date(created_at,'unixepoch','+08:00') AS d, COUNT(*)
+--   FROM threads WHERE created_at >= ? GROUP BY d ORDER BY d
+-- Existing `idx_threads_author (author_id, created_at DESC)` is
+-- author-leading and useless without an author filter; `idx_threads_latest
+-- (last_post_at DESC)` is on `last_post_at`, not `created_at`. Without
+-- this index a global-trend query scans the full threads table
+-- (~990k rows).
+--
+-- ---------------------------------------------------------------------
+-- Drift guard: tests/unit/migration-0041-schema.test.ts pins these
+-- four CREATE INDEX statements across the live-migration path AND the
+-- fresh-DB bootstrap paths (0000_init_schema.sql + packages/db schema
+-- mirrors + packages/migrate/scripts loaders). All four mirrors MUST
+-- stay in lockstep — otherwise replayed DBs and freshly-built test DBs
+-- diverge on index coverage and the analytics trend endpoints silently
+-- regress to full-table scans.
+
+CREATE INDEX IF NOT EXISTS idx_users_reg_date ON users(reg_date);
+CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_forum_created ON posts(forum_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_threads_created ON threads(created_at DESC);
