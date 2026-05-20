@@ -79,9 +79,6 @@ describe("PostSidebar — 14/12 baseline", () => {
 		render(
 			createElement(PostSidebar, {
 				author: makeAuthor(),
-				isFirst: true,
-				threadViews: 100,
-				threadReplies: 5,
 			}),
 		);
 		const author = screen.getByTestId("post-sidebar-author");
@@ -93,7 +90,6 @@ describe("PostSidebar — 14/12 baseline", () => {
 		render(
 			createElement(PostSidebar, {
 				author: null,
-				isFirst: false,
 			}),
 		);
 		const author = screen.getByTestId("post-sidebar-author");
@@ -105,7 +101,6 @@ describe("PostSidebar — 14/12 baseline", () => {
 		render(
 			createElement(PostSidebar, {
 				author: makeAuthor(),
-				isFirst: true,
 			}),
 		);
 		const days = screen.getByTestId("post-sidebar-checkin-days");
@@ -117,7 +112,6 @@ describe("PostSidebar — 14/12 baseline", () => {
 		render(
 			createElement(PostSidebar, {
 				author: makeAuthor(),
-				isFirst: true,
 			}),
 		);
 		for (const label of ["主题", "回复", "积分"]) {
@@ -127,16 +121,13 @@ describe("PostSidebar — 14/12 baseline", () => {
 		}
 	});
 
-	it("detail row labels (UID/同钱/注册/精华/在线/查看) use text-xs (was text-[10px])", () => {
+	it("detail row labels (UID/同钱/注册/精华/在线) use text-xs (was text-[10px])", () => {
 		render(
 			createElement(PostSidebar, {
 				author: makeAuthor(),
-				isFirst: true,
-				threadViews: 100,
-				threadReplies: 5,
 			}),
 		);
-		for (const label of ["UID:", "同钱:", "注册:", "精华:", "在线:", "查看:"]) {
+		for (const label of ["UID:", "同钱:", "注册:", "精华:", "在线:"]) {
 			const el = screen.getByText(label);
 			expect(el.className).toContain("text-xs");
 			expect(el.className).not.toContain("text-[10px]");
@@ -147,7 +138,6 @@ describe("PostSidebar — 14/12 baseline", () => {
 		const { container } = render(
 			createElement(PostSidebar, {
 				author: makeAuthor({ campus: "北校区", groupStars: 3 }),
-				isFirst: false,
 			}),
 		);
 		expect(screen.queryByText("校区:")).toBeNull();

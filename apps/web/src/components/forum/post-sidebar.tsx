@@ -14,23 +14,13 @@ import { UserPopover } from "./user-popover";
 
 interface PostSidebarProps {
 	author: User | null;
-	isFirst: boolean;
-	threadViews?: number;
-	threadReplies?: number;
 	/** Current viewer's role for popover permission checks */
 	viewerRole?: number;
 	/** Current viewer's user ID */
 	viewerUserId?: number | null;
 }
 
-export function PostSidebar({
-	author,
-	isFirst,
-	threadViews,
-	threadReplies,
-	viewerRole = 0,
-	viewerUserId = null,
-}: PostSidebarProps) {
+export function PostSidebar({ author, viewerRole = 0, viewerUserId = null }: PostSidebarProps) {
 	const checkinLevel = author ? formatCheckinLevel(author.checkin) : null;
 	const checkinDays = author ? formatCheckinDays(author.checkin?.totalDays) : null;
 	return (
@@ -141,11 +131,11 @@ export function PostSidebar({
 						</div>
 					)}
 
-					{/* Group title — centered, no label */}
+					{/* Group title — no label, right-aligned to match campus */}
 					{author.groupTitle && (
-						<div className="flex justify-center text-center">
+						<div className="flex justify-end">
 							<span
-								className="font-medium text-xs"
+								className="font-medium text-xs truncate"
 								style={author.groupColor ? { color: author.groupColor } : undefined}
 							>
 								{author.groupTitle}
@@ -197,20 +187,6 @@ export function PostSidebar({
 						<div className="flex items-baseline justify-between gap-1">
 							<span className="shrink-0 text-xs leading-3 text-muted-foreground">精华:</span>
 							<span>{formatNumber(author.digestPosts)}</span>
-						</div>
-					)}
-
-					{/* Thread stats — first post only */}
-					{isFirst && threadViews !== undefined && (
-						<div className="flex items-baseline justify-between gap-1">
-							<span className="shrink-0 text-xs leading-3 text-muted-foreground">查看:</span>
-							<span>{formatNumber(threadViews)}</span>
-						</div>
-					)}
-					{isFirst && threadReplies !== undefined && (
-						<div className="flex items-baseline justify-between gap-1">
-							<span className="shrink-0 text-xs leading-3 text-muted-foreground">回复:</span>
-							<span>{formatNumber(threadReplies)}</span>
 						</div>
 					)}
 				</div>

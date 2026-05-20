@@ -39,8 +39,6 @@ import { useState } from "react";
 
 interface PostCardProps {
 	post: EnrichedPost;
-	threadViews?: number;
-	threadReplies?: number;
 	threadDigest?: number;
 	threadClosed?: boolean;
 	onReply?: () => void;
@@ -67,8 +65,6 @@ interface PostCardProps {
 
 export function PostCard({
 	post,
-	threadViews,
-	threadReplies,
 	threadDigest,
 	threadClosed,
 	onReply,
@@ -195,12 +191,7 @@ export function PostCard({
 		<div id={`post-${post.id}`} className="border border-border bg-card -mt-px first:mt-0">
 			{/* Desktop: two-column layout */}
 			<div className="hidden md:flex">
-				<PostSidebar
-					author={post.author}
-					isFirst={isFirst}
-					threadViews={threadViews}
-					threadReplies={threadReplies}
-				/>
+				<PostSidebar author={post.author} />
 				<div className="flex-1 min-w-0 flex flex-col">
 					<PostContent
 						post={post}
