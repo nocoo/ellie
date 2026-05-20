@@ -123,8 +123,6 @@ export function ThreadPostsClient({
 					<PostCard
 						key={post.id}
 						post={post}
-						threadViews={isFirst ? thread.views : undefined}
-						threadReplies={isFirst ? thread.replies : undefined}
 						threadDigest={isFirst ? thread.digest : undefined}
 						threadClosed={thread.closed === 1}
 						onReply={() => handleReply(post)}
