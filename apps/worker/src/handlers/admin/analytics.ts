@@ -9,7 +9,9 @@
 // Time-bucketing rule: every "day" boundary is **Asia/Shanghai local
 // midnight** (UTC+8, fixed offset, no DST). The forum is operated in
 // CST so admins expect "今天" to mean local-midnight-to-now, not
-// UTC-midnight-to-now. We resolve buckets in SQL via the offset:
+// UTC-midnight-to-now. For sources that store a unix-second
+// `created_at` (`users.reg_date`, `threads.created_at`,
+// `posts.created_at`) we resolve buckets in SQL via the offset:
 //
 //   day_local = (created_at + 8*3600) / 86400  (integer division)
 //
@@ -17,6 +19,15 @@
 // datetime(created_at, 'unixepoch', '+8 hours'))` while keeping the
 // numeric range scan cheap. The handler then formats each day key as
 // `YYYY-MM-DD` for the UI.
+//
+// Checkin endpoints are an exception: `checkin_history` already
+// carries a canonical Shanghai-local `date_local` TEXT column
+// (YYYY-MM-DD, migration 0036) with a dedicated index
+// `idx_checkin_history_date`. Overview's "今日签到" and the checkin
+// trend therefore query `WHERE date_local = ?` / `WHERE date_local >=
+// ? AND date_local <= ?` directly — they MUST NOT fall back to
+// `created_at`, which is a Shanghai-noon stamp that drifts from the
+// write-side day-key semantics and bypasses the existing index.
 //
 // KV cache: every endpoint goes through `cacheGetOrSet` with an
 // endpoint-scoped family registered in `kv-registry.ts`. TTLs are
