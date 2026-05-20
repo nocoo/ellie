@@ -328,3 +328,42 @@ CREATE TABLE IF NOT EXISTS checkin_history (
 );
 
 CREATE INDEX IF NOT EXISTS idx_checkin_history_date ON checkin_history(date_local);
+
+-- ─── Login history (mirror of migration 0042) ─────────────────────
+-- Per-attempt audit log appended by `auth.ts` login/register handlers
+-- after trust-edge resolution. Powers the admin analytics "今日登录"
+-- KPI + masked detail list + audit-logged reveal endpoint. Failures
+-- are deferred onto `ctx.waitUntil` and MUST NEVER reach the response
+-- path — see `apps/worker/src/lib/analytics/loginHistory.ts`.
+--
+-- Mirrored here so a fresh DB built from 0000_init_schema.sql (or the
+-- shared `packages/db/src/schema.ts`) has the table even before
+-- migration 0042 runs — Phase P4 admin endpoints will refuse to start
+-- against a schema missing this table. Runtime-only audit table: NOT
+-- imported from MySQL, so the loader mirrors intentionally skip it.
+
+CREATE TABLE IF NOT EXISTS login_history (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER,
+    username    TEXT    NOT NULL,
+    ok          INTEGER NOT NULL,
+    kind        TEXT    NOT NULL,
+    error_code  TEXT    NOT NULL DEFAULT '',
+    ip          TEXT    NOT NULL DEFAULT '',
+    user_agent  TEXT    NOT NULL DEFAULT '',
+    bot_class   TEXT    NOT NULL DEFAULT 'unknown',
+    created_at  INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_login_history_created
+    ON login_history(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_login_history_user_created
+    ON login_history(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_login_history_kind_created
+    ON login_history(kind, created_at DESC);
+-- Partial index over failure rows only — admin "失败明细" filter only
+-- ever queries `error_code != ''`, so the partial WHERE keeps the
+-- active subset tight instead of fattening every successful login.
+CREATE INDEX IF NOT EXISTS idx_login_history_error_created
+    ON login_history(error_code, created_at DESC)
+    WHERE error_code != '';

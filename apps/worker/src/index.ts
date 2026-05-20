@@ -1,3 +1,4 @@
+import { cleanupLoginHistory } from "./lib/analytics/loginHistory";
 // Ellie API Worker — Cloudflare Worker with D1 + KV
 // 85 endpoints: 20 public + 5 moderation + 60 admin
 import type { CFRequest, Env } from "./lib/env";
@@ -173,8 +174,11 @@ export default {
 			}
 
 			// ── Auth routes (#12-#15) ────────────────────────
+			// `ctx` is forwarded to login/register so the analytics
+			// login_history audit log can defer its INSERT onto
+			// `ctx.waitUntil`. Other auth routes don't audit yet.
 			if (path === "/api/v1/auth/login" && request.method === "POST") {
-				return await (await import("./handlers/auth")).login(request, env);
+				return await (await import("./handlers/auth")).login(request, env, ctx);
 			}
 			if (path === "/api/v1/auth/refresh" && request.method === "POST") {
 				return await (await import("./handlers/auth")).refresh(request, env);
@@ -186,7 +190,7 @@ export default {
 				return await (await import("./handlers/auth")).me(request, env);
 			}
 			if (path === "/api/v1/auth/register" && request.method === "POST") {
-				return await (await import("./handlers/auth")).register(request, env);
+				return await (await import("./handlers/auth")).register(request, env, ctx);
 			}
 			if (path === "/api/v1/auth/check-username" && request.method === "GET") {
 				return await (await import("./handlers/auth")).checkUsername(request, env);
@@ -541,6 +545,39 @@ export default {
 				);
 			}
 
+			// ── E0a. Login-history audit (P4) ────────────────
+			// Three endpoints behind the admin Key-B gate. KPI is KV-
+			// cached (aggregate only — no PII). The masked list and the
+			// reveal endpoint read D1 realtime and respond no-store.
+			// Reveal is POST (CSRF + X-Admin-Actor-* header injection
+			// via adminApiAs.raw("POST", ...)). 404 / 400 from reveal do
+			// NOT writeAdminLog — only the successful un-mask leaves an
+			// audit trail (`analytics.login_history.reveal`).
+			if (path === "/api/admin/analytics/today/logins" && request.method === "GET") {
+				return await (await import("./handlers/admin/loginHistory")).getTodayLoginsKpi(
+					request,
+					env,
+					ctx,
+				);
+			}
+			if (path === "/api/admin/analytics/today/logins/list" && request.method === "GET") {
+				return await (await import("./handlers/admin/loginHistory")).getTodayLoginsList(
+					request,
+					env,
+					ctx,
+				);
+			}
+			if (
+				path.match(/^\/api\/admin\/analytics\/login-history\/\d+\/reveal$/) &&
+				request.method === "POST"
+			) {
+				return await (await import("./handlers/admin/loginHistory")).revealLoginHistory(
+					request,
+					env,
+					ctx,
+				);
+			}
+
 			// ── E1. KV Monitor (Admin) ───────────────────────
 			// Read-only + typed safe-mutation endpoints backing the
 			// `/admin/statistics/kv` page. See handlers/admin/kv.ts for
@@ -713,8 +750,38 @@ export default {
 		}
 	},
 
-	/** Scheduled handler — runs every 5 minutes to aggregate online stats */
-	async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-		ctx.waitUntil(aggregateOnlineStats(env));
+	/**
+	 * Scheduled handler — dispatched on `event.cron` to keep jobs independent.
+	 *
+	 *   - "* /5 * * * *"  → aggregateOnlineStats (P3, every 5 minutes)
+	 *   - "0 19 * * *"    → cleanupLoginHistory  (P4, 19:00 UTC = 03:00 Asia/Shanghai)
+	 *
+	 * (The first cron string is escaped above so this JSDoc block does not
+	 * close prematurely; the real schedule in wrangler.toml has no space.)
+	 *
+	 * Each job is fired through `ctx.waitUntil` so the scheduled invocation
+	 * returns immediately; failures inside one job log via the worker's
+	 * scheduled-error path but never block the other.
+	 */
+	async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+		switch (event.cron) {
+			case "*/5 * * * *":
+				ctx.waitUntil(aggregateOnlineStats(env));
+				return;
+			case "0 19 * * *":
+				ctx.waitUntil(
+					cleanupLoginHistory(env).catch((err) => {
+						// Surface to the platform log — cron retention failure is
+						// operational, never user-visible.
+						console.warn("[cron] cleanupLoginHistory failed", err);
+					}),
+				);
+				return;
+			default:
+				// Unknown cron — log so an accidental wrangler.toml drift is
+				// surfaced rather than silently swallowed.
+				console.warn("[cron] unknown schedule fired", { cron: event.cron });
+				return;
+		}
 	},
 };

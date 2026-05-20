@@ -31,8 +31,13 @@ DOVE_BASE_URL = "https://dove.hexly.ai"
 DOVE_PROJECT_ID = "vKOrSPha4wtzkWlJSAV8d"
 DOVE_TEMPLATE_SLUG = "verify-email"
 
+# Two cron triggers:
+#   - "*/5 * * * *"  → aggregateOnlineStats (P3, every 5 minutes)
+#   - "0 19 * * *"   → cleanupLoginHistory  (P4, 19:00 UTC = 03:00 Asia/Shanghai)
+# Cron strings are UTC. The scheduled() handler dispatches on `event.cron`
+# so failure of one job never blocks the other.
 [triggers]
-crons = ["*/5 * * * *"]
+crons = ["*/5 * * * *", "0 19 * * *"]
 
 # ─── Test Environment ───────────────────────────────────────────
 # D1 Isolation: L2/L3 tests MUST use [env.test] to avoid touching production data.

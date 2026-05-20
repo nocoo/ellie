@@ -5,7 +5,10 @@ import {
 	RANGE_LABELS,
 	parseCheckinTrend,
 	parseForumDist,
+	parseLoginAttemptList,
+	parseLoginAttemptReveal,
 	parseOverview,
+	parseTodayLoginsKpi,
 	parseTrend,
 } from "@/viewmodels/admin/analytics";
 import { describe, expect, it } from "vitest";
@@ -216,6 +219,189 @@ describe("analytics viewmodel", () => {
 		it("handles null and undefined input", () => {
 			expect(parseCheckinTrend(null, "7d")).toEqual({ range: "7d", series: [] });
 			expect(parseCheckinTrend(undefined, "30d")).toEqual({ range: "30d", series: [] });
+		});
+	});
+
+	describe("parseTodayLoginsKpi", () => {
+		it("parses a complete payload", () => {
+			const raw = {
+				now: 1_700_000_000,
+				dayStart: 1_699_900_000,
+				totalAttempts: 42,
+				successAttempts: 30,
+				failedAttempts: 12,
+				uniqueUsers: 25,
+				uniqueIps: 18,
+				loginAttempts: 35,
+				registerAttempts: 7,
+			};
+			const result = parseTodayLoginsKpi(raw);
+			expect(result.totalAttempts).toBe(42);
+			expect(result.successAttempts).toBe(30);
+			expect(result.failedAttempts).toBe(12);
+			expect(result.uniqueUsers).toBe(25);
+			expect(result.uniqueIps).toBe(18);
+			expect(result.loginAttempts).toBe(35);
+			expect(result.registerAttempts).toBe(7);
+			expect(result.now).toBe(1_700_000_000);
+			expect(result.dayStart).toBe(1_699_900_000);
+		});
+
+		it("defaults missing fields to zero", () => {
+			const result = parseTodayLoginsKpi({});
+			expect(result.totalAttempts).toBe(0);
+			expect(result.successAttempts).toBe(0);
+			expect(result.failedAttempts).toBe(0);
+			expect(result.uniqueUsers).toBe(0);
+			expect(result.uniqueIps).toBe(0);
+			expect(result.loginAttempts).toBe(0);
+			expect(result.registerAttempts).toBe(0);
+		});
+
+		it("handles null and undefined input", () => {
+			expect(parseTodayLoginsKpi(null).totalAttempts).toBe(0);
+			expect(parseTodayLoginsKpi(undefined).totalAttempts).toBe(0);
+		});
+
+		it("coerces non-finite values to zero", () => {
+			const result = parseTodayLoginsKpi({
+				now: Number.NaN,
+				totalAttempts: Number.POSITIVE_INFINITY,
+				successAttempts: "30" as unknown as number,
+			});
+			expect(result.now).toBe(0);
+			expect(result.totalAttempts).toBe(0);
+			expect(result.successAttempts).toBe(0);
+		});
+	});
+
+	describe("parseLoginAttemptList", () => {
+		it("parses a complete payload with masked rows", () => {
+			const raw = {
+				page: 1,
+				limit: 20,
+				total: 2,
+				rows: [
+					{
+						id: 100,
+						userId: 7,
+						username: "alice",
+						ok: 1,
+						kind: "login",
+						errorCode: "",
+						ipMasked: "1.2.x.x",
+						botClass: "human",
+						createdAt: 1000,
+					},
+					{
+						id: 99,
+						userId: null,
+						username: "bob",
+						ok: 0,
+						kind: "login",
+						errorCode: "INVALID_CREDENTIALS",
+						ipMasked: "2001:db8::x",
+						botClass: "ua-bot",
+						createdAt: 999,
+					},
+				],
+			};
+			const result = parseLoginAttemptList(raw);
+			expect(result.page).toBe(1);
+			expect(result.limit).toBe(20);
+			expect(result.total).toBe(2);
+			expect(result.rows).toHaveLength(2);
+			expect(result.rows[0].ipMasked).toBe("1.2.x.x");
+			expect(result.rows[0].ok).toBe(1);
+			expect(result.rows[1].userId).toBeNull();
+			expect(result.rows[1].ok).toBe(0);
+		});
+
+		it("defaults page/limit/total to safe values when missing", () => {
+			const result = parseLoginAttemptList({});
+			expect(result.page).toBe(1);
+			expect(result.limit).toBe(20);
+			expect(result.total).toBe(0);
+			expect(result.rows).toEqual([]);
+		});
+
+		it("handles non-array rows", () => {
+			expect(parseLoginAttemptList({ rows: "nope" }).rows).toEqual([]);
+		});
+
+		it("handles null and undefined input", () => {
+			expect(parseLoginAttemptList(null).rows).toEqual([]);
+			expect(parseLoginAttemptList(undefined).rows).toEqual([]);
+		});
+
+		it("coerces ok to 0/1 only", () => {
+			const result = parseLoginAttemptList({
+				rows: [
+					{ id: 1, ok: 99 }, // invalid → fallback 0
+					{ id: 2, ok: 1 },
+					{ id: 3, ok: "yes" as unknown as number }, // string → asNumber → 0
+				],
+			});
+			expect(result.rows[0].ok).toBe(0);
+			expect(result.rows[1].ok).toBe(1);
+			expect(result.rows[2].ok).toBe(0);
+		});
+
+		it("preserves non-finite userId as null", () => {
+			const result = parseLoginAttemptList({
+				rows: [
+					{ id: 1, userId: Number.NaN },
+					{ id: 2, userId: "5" as unknown as number },
+				],
+			});
+			expect(result.rows[0].userId).toBeNull();
+			expect(result.rows[1].userId).toBeNull();
+		});
+	});
+
+	describe("parseLoginAttemptReveal", () => {
+		it("parses a complete payload including raw ip/ua/username", () => {
+			const raw = {
+				id: 42,
+				userId: 7,
+				username: "alice",
+				ok: 0,
+				kind: "login",
+				errorCode: "INVALID_CREDENTIALS",
+				ip: "203.0.113.45",
+				userAgent: "Mozilla/5.0",
+				botClass: "human",
+				createdAt: 1700,
+			};
+			const result = parseLoginAttemptReveal(raw);
+			expect(result.id).toBe(42);
+			expect(result.userId).toBe(7);
+			expect(result.username).toBe("alice");
+			expect(result.ok).toBe(0);
+			expect(result.errorCode).toBe("INVALID_CREDENTIALS");
+			expect(result.ip).toBe("203.0.113.45");
+			expect(result.userAgent).toBe("Mozilla/5.0");
+		});
+
+		it("defaults missing fields to safe empties", () => {
+			const result = parseLoginAttemptReveal({});
+			expect(result.id).toBe(0);
+			expect(result.userId).toBeNull();
+			expect(result.username).toBe("");
+			expect(result.ok).toBe(0);
+			expect(result.ip).toBe("");
+			expect(result.userAgent).toBe("");
+		});
+
+		it("handles null and undefined input", () => {
+			expect(parseLoginAttemptReveal(null).ip).toBe("");
+			expect(parseLoginAttemptReveal(undefined).userAgent).toBe("");
+		});
+
+		it("coerces ok=1 only when strictly 1", () => {
+			expect(parseLoginAttemptReveal({ ok: 1 }).ok).toBe(1);
+			expect(parseLoginAttemptReveal({ ok: 2 }).ok).toBe(0);
+			expect(parseLoginAttemptReveal({ ok: 0 }).ok).toBe(0);
 		});
 	});
 });

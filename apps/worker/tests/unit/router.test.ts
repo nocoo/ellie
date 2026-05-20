@@ -198,6 +198,10 @@ vi.mock("../../src/handlers/admin/announcement", () => ({
 vi.mock("../../src/lib/online-stats", () => ({
 	aggregateOnlineStats: vi.fn(async () => {}),
 }));
+vi.mock("../../src/lib/analytics/loginHistory", () => ({
+	cleanupLoginHistory: vi.fn(async () => 0),
+	scheduleLoginHistory: vi.fn(),
+}));
 
 // Mock maintenance middleware — default to disabled
 const checkMaintenanceMock = vi.fn(async () => null);
@@ -684,14 +688,84 @@ describe("router (src/index.ts)", () => {
 	// ─── Scheduled Handler ──────────────────────────────────────────
 
 	describe("scheduled", () => {
-		it("should call aggregateOnlineStats via waitUntil", async () => {
+		it("dispatches the */5 cron to aggregateOnlineStats via waitUntil", async () => {
+			const onlineStats = await import("../../src/lib/online-stats");
+			const loginHistory = await import("../../src/lib/analytics/loginHistory");
+			(onlineStats.aggregateOnlineStats as ReturnType<typeof vi.fn>).mockClear();
+			(loginHistory.cleanupLoginHistory as ReturnType<typeof vi.fn>).mockClear();
 			const env = makeEnv();
 			const ctx = makeCtx();
-			const event = {} as ScheduledEvent;
+			const event = { cron: "*/5 * * * *" } as ScheduledEvent;
 
 			await worker.scheduled(event, env, ctx);
 
 			expect(ctx.waitUntil).toHaveBeenCalledTimes(1);
+			expect(onlineStats.aggregateOnlineStats).toHaveBeenCalledTimes(1);
+			expect(loginHistory.cleanupLoginHistory).not.toHaveBeenCalled();
+		});
+
+		it("dispatches the 03:00 Asia/Shanghai cron to cleanupLoginHistory via waitUntil", async () => {
+			const onlineStats = await import("../../src/lib/online-stats");
+			const loginHistory = await import("../../src/lib/analytics/loginHistory");
+			(onlineStats.aggregateOnlineStats as ReturnType<typeof vi.fn>).mockClear();
+			(loginHistory.cleanupLoginHistory as ReturnType<typeof vi.fn>).mockClear();
+			const env = makeEnv();
+			const ctx = makeCtx();
+			const event = { cron: "0 19 * * *" } as ScheduledEvent;
+
+			await worker.scheduled(event, env, ctx);
+
+			expect(ctx.waitUntil).toHaveBeenCalledTimes(1);
+			expect(loginHistory.cleanupLoginHistory).toHaveBeenCalledTimes(1);
+			expect(onlineStats.aggregateOnlineStats).not.toHaveBeenCalled();
+		});
+
+		it("swallows cleanupLoginHistory rejection so cron does not bubble", async () => {
+			const loginHistory = await import("../../src/lib/analytics/loginHistory");
+			const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+			(loginHistory.cleanupLoginHistory as ReturnType<typeof vi.fn>).mockImplementationOnce(
+				async () => {
+					throw new Error("D1 outage");
+				},
+			);
+			const tasks: Promise<unknown>[] = [];
+			const ctx = {
+				waitUntil: vi.fn((p: Promise<unknown>) => {
+					tasks.push(p);
+				}),
+				passThroughOnException: vi.fn(),
+			} as unknown as ExecutionContext;
+			const env = makeEnv();
+			const event = { cron: "0 19 * * *" } as ScheduledEvent;
+
+			await worker.scheduled(event, env, ctx);
+			// Drain the waitUntil-queued promise so the inner catch runs.
+			await Promise.all(tasks);
+
+			expect(warn).toHaveBeenCalledWith("[cron] cleanupLoginHistory failed", expect.any(Error));
+			warn.mockRestore();
+		});
+
+		it("logs a warning on an unknown cron schedule (drift safety net)", async () => {
+			const onlineStats = await import("../../src/lib/online-stats");
+			const loginHistory = await import("../../src/lib/analytics/loginHistory");
+			(onlineStats.aggregateOnlineStats as ReturnType<typeof vi.fn>).mockClear();
+			(loginHistory.cleanupLoginHistory as ReturnType<typeof vi.fn>).mockClear();
+			const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+			const env = makeEnv();
+			const ctx = makeCtx();
+			const event = { cron: "1 2 3 4 5" } as ScheduledEvent;
+
+			await worker.scheduled(event, env, ctx);
+
+			expect(ctx.waitUntil).not.toHaveBeenCalled();
+			expect(onlineStats.aggregateOnlineStats).not.toHaveBeenCalled();
+			expect(loginHistory.cleanupLoginHistory).not.toHaveBeenCalled();
+			expect(warn).toHaveBeenCalledWith(
+				"[cron] unknown schedule fired",
+				expect.objectContaining({ cron: "1 2 3 4 5" }),
+			);
+			warn.mockRestore();
 		});
 	});
 

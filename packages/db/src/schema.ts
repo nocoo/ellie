@@ -299,6 +299,29 @@ export const TABLES = {
 			revoked_by  INTEGER NOT NULL DEFAULT 0
 		);
 	`,
+
+	// Mirror of migration 0042_create_login_history.sql. Per-attempt audit
+	// log appended by `auth.ts` login/register handlers AFTER trust-edge
+	// resolution. Runtime-only audit table — not imported from MySQL.
+	// Powers the admin analytics "今日登录" KPI + masked detail list +
+	// audit-logged reveal endpoint. See
+	// `apps/worker/src/lib/analytics/loginHistory.ts` for the
+	// schedule-then-waitUntil call-site contract; failures MUST NEVER
+	// reach the response path.
+	login_history: `
+		CREATE TABLE IF NOT EXISTS login_history (
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id     INTEGER,
+			username    TEXT    NOT NULL,
+			ok          INTEGER NOT NULL,
+			kind        TEXT    NOT NULL,
+			error_code  TEXT    NOT NULL DEFAULT '',
+			ip          TEXT    NOT NULL DEFAULT '',
+			user_agent  TEXT    NOT NULL DEFAULT '',
+			bot_class   TEXT    NOT NULL DEFAULT 'unknown',
+			created_at  INTEGER NOT NULL
+		);
+	`,
 };
 
 export const INDEXES = {
@@ -419,5 +442,17 @@ export const INDEXES = {
 		"CREATE INDEX IF NOT EXISTS idx_post_ratings_thread ON post_ratings(thread_id, revoked_at, created_at);",
 		"CREATE INDEX IF NOT EXISTS idx_post_ratings_rater_dim_time ON post_ratings(rater_id, dimension, created_at) WHERE revoked_at = 0;",
 		"CREATE UNIQUE INDEX IF NOT EXISTS uq_post_ratings_active ON post_ratings(rater_id, post_id, dimension) WHERE revoked_at = 0;",
+	],
+
+	// Login history (mirror of migration 0042). Three time-leading
+	// indexes cover the dashboard read paths; a partial index over
+	// failure rows keeps the active subset of `error_code != ''` tight
+	// for the "失败明细" filter. Drift guard:
+	// tests/unit/migration-0042-schema.test.ts pins the partial WHERE.
+	login_history: [
+		"CREATE INDEX IF NOT EXISTS idx_login_history_created ON login_history(created_at DESC);",
+		"CREATE INDEX IF NOT EXISTS idx_login_history_user_created ON login_history(user_id, created_at DESC);",
+		"CREATE INDEX IF NOT EXISTS idx_login_history_kind_created ON login_history(kind, created_at DESC);",
+		"CREATE INDEX IF NOT EXISTS idx_login_history_error_created ON login_history(error_code, created_at DESC) WHERE error_code != '';",
 	],
 };
