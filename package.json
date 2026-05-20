@@ -95,18 +95,21 @@
 		"*.{ts,tsx,js,jsx,json,css,md}": ["biome check --error-on-warnings --no-errors-on-unmatched"]
 	},
 	"dependencies": {
-		"defu": "^6.1.6",
 		"dompurify": "^3.4.0",
 		"fast-uri": "^3.1.2",
 		"hono": "^4.12.18"
 	},
 	"overrides": {
 		"brace-expansion": "^5.0.6",
+		"cookie": "^0.7.2",
+		"defu": "^6.1.7",
 		"dompurify": "^3.4.0",
+		"esbuild": "^0.25.0",
 		"fast-uri": "^3.1.2",
 		"hono": "^4.12.18",
 		"ip-address": "^10.1.1",
 		"postcss": "^8.5.10",
+		"undici": "^6.23.0",
 		"ws": "^8.20.1"
 	}
 }

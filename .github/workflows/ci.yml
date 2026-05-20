@@ -16,6 +16,26 @@ jobs:
       lint-command: "bun run lint"
     secrets: inherit
 
+  security-scan:
+    name: "G2 Security Scan (OSV)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - name: "Install osv-scanner"
+        run: |
+          curl -sSL -o /tmp/osv-scanner \
+            https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64
+          chmod +x /tmp/osv-scanner
+          sudo mv /tmp/osv-scanner /usr/local/bin/osv-scanner
+      - name: "Scan bun.lock for known vulnerabilities"
+        run: osv-scanner scan --lockfile bun.lock
+      - name: "Scan Cargo.lock (Rust CLI)"
+        if: hashFiles('packages/cli-rs/Cargo.lock') != ''
+        run: osv-scanner scan --lockfile packages/cli-rs/Cargo.lock
+
   api-e2e:
     name: "L2 API E2E"
     runs-on: ubuntu-latest
