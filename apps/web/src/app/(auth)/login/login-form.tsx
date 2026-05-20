@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { safeRedirect } from "@/lib/safe-redirect";
 import { canSubmitLogin, loginErrorMessage } from "@/viewmodels/forum/auth";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
@@ -28,7 +29,7 @@ const CAP_API_ENDPOINT = process.env.NEXT_PUBLIC_CAP_API_ENDPOINT ?? "";
 
 function LoginFormInner() {
 	const searchParams = useSearchParams();
-	const callbackUrl = searchParams.get("redirect") ?? "/";
+	const callbackUrl = safeRedirect(searchParams.get("redirect"));
 	const errorFromUrl = searchParams.get("error");
 
 	const [username, setUsername] = useState("");
