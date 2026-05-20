@@ -518,6 +518,29 @@ export default {
 				return await (await import("./handlers/admin/statistics")).recalcUsers(request, env);
 			}
 
+			// ── E0. Analytics (Admin) — P2 query-only dashboard ──
+			// Pure read-through against business tables (users, threads,
+			// posts, checkin_history) with KV cache. Time-leading indexes
+			// added in migration 0041 keep trend queries off full table
+			// scans. See handlers/admin/analytics.ts for the per-endpoint
+			// SQL shape and cache family.
+			if (path === "/api/admin/analytics/overview" && request.method === "GET") {
+				return await (await import("./handlers/admin/analytics")).getOverview(request, env, ctx);
+			}
+			if (path === "/api/admin/analytics/trend" && request.method === "GET") {
+				return await (await import("./handlers/admin/analytics")).getTrend(request, env, ctx);
+			}
+			if (path === "/api/admin/analytics/forum-dist" && request.method === "GET") {
+				return await (await import("./handlers/admin/analytics")).getForumDist(request, env, ctx);
+			}
+			if (path === "/api/admin/analytics/checkin" && request.method === "GET") {
+				return await (await import("./handlers/admin/analytics")).getCheckinTrend(
+					request,
+					env,
+					ctx,
+				);
+			}
+
 			// ── E1. KV Monitor (Admin) ───────────────────────
 			// Read-only + typed safe-mutation endpoints backing the
 			// `/admin/statistics/kv` page. See handlers/admin/kv.ts for
