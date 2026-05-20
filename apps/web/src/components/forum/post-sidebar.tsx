@@ -127,11 +127,17 @@ export function PostSidebar({
 			{/* Detail rows — aligned label:value pairs */}
 			{author && (
 				<div className="w-full space-y-1 text-xs text-muted-foreground mt-1">
-					{/* Campus — top of detail block, hidden when empty */}
+					{/* Campus — no label, right-aligned */}
 					{author.campus && (
-						<div className="flex items-baseline justify-between gap-1">
-							<span className="shrink-0 text-xs leading-3 text-muted-foreground">校区:</span>
+						<div className="flex justify-end">
 							<span className="text-right truncate">{author.campus}</span>
+						</div>
+					)}
+
+					{/* Level — no label, right-aligned to match campus */}
+					{author.groupStars > 0 && (
+						<div className="flex justify-end">
+							<span>Lv.{author.groupStars}</span>
 						</div>
 					)}
 
@@ -144,14 +150,6 @@ export function PostSidebar({
 							>
 								{author.groupTitle}
 							</span>
-						</div>
-					)}
-
-					{/* Level */}
-					{author.groupStars > 0 && (
-						<div className="flex items-baseline justify-between gap-1">
-							<span className="shrink-0 text-xs leading-3 text-muted-foreground">等级:</span>
-							<span>Lv.{author.groupStars}</span>
 						</div>
 					)}
 

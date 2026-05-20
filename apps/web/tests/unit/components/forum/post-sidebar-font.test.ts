@@ -143,17 +143,21 @@ describe("PostSidebar — 14/12 baseline", () => {
 		}
 	});
 
-	it("optional 校区 / 等级 row labels also use text-xs when present", () => {
-		render(
+	it("optional 校区 / 等级 row values render right-aligned without labels", () => {
+		const { container } = render(
 			createElement(PostSidebar, {
 				author: makeAuthor({ campus: "北校区", groupStars: 3 }),
 				isFirst: false,
 			}),
 		);
-		for (const label of ["校区:", "等级:"]) {
-			const el = screen.getByText(label);
-			expect(el.className).toContain("text-xs");
-			expect(el.className).not.toContain("text-[10px]");
-		}
+		expect(screen.queryByText("校区:")).toBeNull();
+		expect(screen.queryByText("等级:")).toBeNull();
+
+		const campus = screen.getByText("北校区");
+		expect(campus.parentElement?.className).toContain("justify-end");
+
+		const rightAligned = container.querySelectorAll("div.justify-end");
+		const levelRow = Array.from(rightAligned).find((el) => el.textContent === "Lv.3");
+		expect(levelRow).toBeTruthy();
 	});
 });
