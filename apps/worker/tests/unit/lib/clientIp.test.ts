@@ -68,6 +68,41 @@ describe("extractTrustedClientIp", () => {
 		expect(ip).toBeNull();
 	});
 
+	it("trusts X-Real-IP when opts.trustXRealIp=true and there's no Key A/B (P5 ingest opt-in)", () => {
+		// Caller (e.g. analytics ingest handler) has already verified its
+		// own non-Key-A/B secret (X-Ingest-Key) and is opting in to
+		// trusting X-Real-IP. This branch MUST NOT be reachable from a
+		// non-secret-verified code path — `analyticsIngest.test.ts`
+		// covers the boundary that the flag never reaches here when the
+		// secret check fails. Here we only pin the helper's contract.
+		const env = makeEnv({ ENVIRONMENT: "production" });
+		const ip = extractTrustedClientIp(req({ "X-Real-IP": "7.7.7.7" }), env, {
+			trustXRealIp: true,
+		});
+		expect(ip).toBe("7.7.7.7");
+	});
+
+	it("default opts.trustXRealIp=false still rejects X-Real-IP without Key A/B", () => {
+		// Pin the default: any caller that does NOT explicitly set
+		// trustXRealIp gets the same anti-spoof behaviour as before P5.
+		const env = makeEnv({ ENVIRONMENT: "production" });
+		const ip = extractTrustedClientIp(req({ "X-Real-IP": "7.7.7.7" }), env, {});
+		expect(ip).toBeNull();
+	});
+
+	it("trustXRealIp=true does NOT override CF-Connecting-IP priority", () => {
+		// CF-Connecting-IP is set by the Cloudflare edge and CANNOT be
+		// spoofed; it must win even when an opt-in caller is willing to
+		// trust X-Real-IP.
+		const env = makeEnv({ ENVIRONMENT: "production" });
+		const ip = extractTrustedClientIp(
+			req({ "CF-Connecting-IP": "1.1.1.1", "X-Real-IP": "7.7.7.7" }),
+			env,
+			{ trustXRealIp: true },
+		);
+		expect(ip).toBe("1.1.1.1");
+	});
+
 	it("ignores X-Forwarded-For in production even when present", () => {
 		const env = makeEnv({ ENVIRONMENT: "production" });
 		const ip = extractTrustedClientIp(req({ "X-Forwarded-For": "9.9.9.9, 8.8.8.8" }), env);

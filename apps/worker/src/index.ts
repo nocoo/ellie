@@ -1,6 +1,9 @@
-import { cleanupLoginHistory } from "./lib/analytics/loginHistory";
 // Ellie API Worker — Cloudflare Worker with D1 + KV
 // 85 endpoints: 20 public + 5 moderation + 60 admin
+import { cleanupAnalyticsDailyTargets } from "./lib/analytics/cleanup";
+import { setFlushSink } from "./lib/analytics/collect";
+import { d1FlushSink } from "./lib/analytics/flushSink-d1";
+import { cleanupLoginHistory } from "./lib/analytics/loginHistory";
 import type { CFRequest, Env } from "./lib/env";
 import { aggregateOnlineStats } from "./lib/online-stats";
 import { trackActivity } from "./middleware/activity";
@@ -10,6 +13,16 @@ import { configureAllowedOrigins, corsHeaders } from "./middleware/cors";
 import { errorResponse } from "./middleware/error";
 import { checkMaintenance } from "./middleware/maintenance";
 import { trackOnline } from "./middleware/online";
+
+// ─── Boot-time wiring ─────────────────────────────────────────────
+//
+// The analytics page-view collector is shape-only (an in-memory bucket
+// Map keyed by the rollup PK) — it does not know how to persist. We
+// bind the D1 sink here at module load so the very first sample of the
+// worker lifetime can drain into `analytics_daily_targets` on the next
+// `scheduleFlush(env, ctx)` tick. Tests swap this back to the noop sink
+// via `resetFlushSink()` in their own setup.
+setFlushSink(d1FlushSink);
 
 // ─── Router ───────────────────────────────────────────────────────
 
@@ -56,6 +69,22 @@ export default {
 			// ── #1 Health check (no auth, no cache) ──────────
 			if (path === "/api/live" && request.method === "GET") {
 				return await (await import("./handlers/live")).live(request, env);
+			}
+
+			// ── P5 analytics ingest — INSIDE the secret gate but
+			//    OUTSIDE the Key-A `validateApiKey` gate (reviewer pin).
+			//
+			// The web proxy POSTs page-view samples here with the shared
+			// `X-Ingest-Key` secret. The handler itself enforces a
+			// constant-time secret compare + strict body whitelist; we
+			// dispatch it ahead of `validateApiKey` so the public Next
+			// runtime can reach it without holding the forum API key.
+			if (path === "/api/internal/analytics/ingest" && request.method === "POST") {
+				return await (await import("./handlers/internal/analyticsIngest")).analyticsIngestHandler(
+					request,
+					env,
+					ctx,
+				);
 			}
 
 			// API Key gate — all routes below require a valid X-API-Key header
@@ -578,6 +607,25 @@ export default {
 				);
 			}
 
+			// ── E0b. Page-view aggregate audit (P5) ──────────
+			// Backs the "今日访问名单" panel. KPI is KV-cached on the
+			// aggregate-only payload (no ip/ua/username); the list is
+			// realtime no-store. Both behind the admin Key-B gate.
+			if (path === "/api/admin/analytics/today/visits" && request.method === "GET") {
+				return await (await import("./handlers/admin/todayVisits")).getTodayVisitsKpi(
+					request,
+					env,
+					ctx,
+				);
+			}
+			if (path === "/api/admin/analytics/today/visits/list" && request.method === "GET") {
+				return await (await import("./handlers/admin/todayVisits")).getTodayVisitsList(
+					request,
+					env,
+					ctx,
+				);
+			}
+
 			// ── E1. KV Monitor (Admin) ───────────────────────
 			// Read-only + typed safe-mutation endpoints backing the
 			// `/admin/statistics/kv` page. See handlers/admin/kv.ts for
@@ -774,6 +822,14 @@ export default {
 						// Surface to the platform log — cron retention failure is
 						// operational, never user-visible.
 						console.warn("[cron] cleanupLoginHistory failed", err);
+					}),
+				);
+				ctx.waitUntil(
+					cleanupAnalyticsDailyTargets(env).catch((err) => {
+						// P5: prune `analytics_daily_targets` rows whose
+						// `last_seen_at` is older than DEFAULT_RETENTION_HOURS (48h).
+						// Same operational-only failure contract.
+						console.warn("[cron] cleanupAnalyticsDailyTargets failed", err);
 					}),
 				);
 				return;

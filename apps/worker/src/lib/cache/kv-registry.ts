@@ -668,6 +668,28 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		description:
 			"Today's login/register KPI counters (Asia/Shanghai). Aggregate-only — value carries NO ip / ua / username. 60s TTL. The masked list + reveal endpoints serve D1 realtime and never touch KV.",
 	},
+	{
+		// P5 — admin "今日访问名单" KPI card. Single literal key holding
+		// aggregate-only counters (totals + bot-class breakdown +
+		// activeUsers/anonPresent) for the local-day window
+		// (Asia/Shanghai). Value MUST NEVER contain ip / ua / target
+		// labels — the realtime list endpoint serves D1 directly and is
+		// always no-store. There is no reveal endpoint: the aggregate
+		// does not persist ip/ua so there is nothing to un-mask.
+		family: "analytics:today-visits",
+		displayName: "Analytics today-visits KPI",
+		category: "stats",
+		status: "shipped",
+		listPrefix: "analytics:today-visits",
+		keyKind: "exact",
+		pattern: "analytics:today-visits",
+		ttl: 60,
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "none" },
+		description:
+			"Today's page-view KPI counters (Asia/Shanghai). Aggregate-only — value carries NO ip / ua / target labels. 60s TTL. The list endpoint serves D1 realtime and never touches KV.",
+	},
 ];
 
 /**
@@ -761,6 +783,8 @@ export const KV_PUT_PREFIX_ALLOWLIST: readonly string[] = [
 	"analytics:checkin:",
 	// Admin login-history KPI (P4).
 	"analytics:today-logins",
+	// Admin today-visits KPI (P5).
+	"analytics:today-visits",
 ];
 
 /**

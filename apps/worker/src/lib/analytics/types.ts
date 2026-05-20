@@ -1,14 +1,21 @@
-// Analytics collector public types (P3, contract only).
+// Analytics collector public types.
 //
-// These types are the contract surface for the analytics pipeline:
-//   ingest route (P-ingest) → recordPageView() → in-isolate bucket
-//                          → scheduleFlush(env, ctx) → flushSink → D1 (P3.5)
+// These types are the contract surface for the analytics pipeline,
+// wired end-to-end as of P5:
 //
-// P3 ships ONLY the in-isolate aggregation + flush contract; the ingest
-// route, the D1 sink, and the trust-edge (which headers / keys the
-// ingest endpoint trusts) all land in later phases. Keeping the types
-// minimal here lets the ingest PR import them without depending on any
-// trust-edge / runtime concerns we haven't reviewed yet.
+//   ingest route (POST /api/internal/analytics/ingest)
+//     → recordPageView()
+//     → in-isolate bucket
+//     → scheduleFlush(env, ctx)
+//     → flushSink (D1 UPSERT into `analytics_daily_targets`)
+//
+// The collector itself is contract-only: it owns no trust-edge concerns
+// and never reads request-scoped signals. Trust-edge ownership lives
+// in the ingest route (`apps/worker/src/handlers/internal/analyticsIngest.ts`),
+// and the production D1 sink is installed by `apps/worker/src/index.ts`
+// via `setFlushSink(d1FlushSink)`. Keeping the types minimal here lets
+// the ingest handler and the D1 sink import them without depending on
+// each other's runtime concerns.
 
 /**
  * Coarse classification of a User-Agent string. The collector does NOT
@@ -47,12 +54,16 @@ export type BotClass = "bot_search" | "bot_other" | "human" | "unknown";
  *     visits so admins do not see login-form traffic mixed into
  *     forum-engagement metrics. The ingest route MUST classify
  *     these paths as `auth_page`, not `other`.
- *   - `other`:     any matched path that doesn't fall into the
- *     buckets above. Used as a small tail; the proxy plan excludes
- *     `_next`, `favicon.ico`, `/api`, and other static assets at
- *     the matcher level, so no `static` bucket is needed here.
- *     If the matcher ever needs to widen, prefer adding a named
- *     bucket over re-using `other`.
+ *   - `other`:     a narrow tail used ONLY for explicitly known bucket
+ *     fall-throughs — the bare container index pages of the id-bearing
+ *     prefixes (`/threads`, `/forums`, `/users`) and known-prefix tails
+ *     whose id is non-numeric (e.g. `/threads/new`, `/forums/foo`,
+ *     `/users/abc`). **Unknown roots MUST NOT land here**: the Web
+ *     proxy's `classifyPathKind` (`apps/web/src/proxy.ts`) is
+ *     fail-closed for unknown roots (`/random`, future stray `/admin/*`
+ *     proxied through the forum app, etc.) and returns `null` so no
+ *     sample is emitted at all. Widening `other` would silently weaken
+ *     the D0 v2 allowlist gate — prefer adding a named bucket instead.
  */
 export type PathKind =
 	| "thread"
@@ -89,10 +100,10 @@ export interface PageViewSample {
 /**
  * Aggregate row drained from the in-isolate bucket. One row per
  * (dateLocal, pathKind, targetId, userId, botClass) tuple — the same
- * primary key the future `analytics_daily_targets` table will use.
+ * primary key the `analytics_daily_targets` D1 table uses.
  *
- * This shape is the contract handed to `FlushSink` implementations; the
- * D1 implementation lands in a later phase.
+ * This shape is the contract handed to `FlushSink` implementations;
+ * the production D1 sink lives in `flushSink-d1.ts`.
  */
 export interface AggregateRow {
 	dateLocal: string;

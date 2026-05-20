@@ -322,6 +322,29 @@ export const TABLES = {
 			created_at  INTEGER NOT NULL
 		);
 	`,
+
+	// Mirror of migration 0043_create_analytics_daily_targets.sql. Per
+	// (date_local, path_kind, target_id, user_id, bot_class) page-view
+	// counter, written via UPSERT by the worker collector flush sink and
+	// swept on a 48h cron. Powers the admin "今日访问名单" KPI + list
+	// panel. Runtime-only counter table — NOT imported from MySQL.
+	// `count` is monotonically incremented; `last_seen_at` drives the
+	// retention sweep. No label / ip / ua columns — list endpoint
+	// resolves target labels by batched lookup at read time so renames
+	// in source data do NOT corrupt historical aggregates.
+	analytics_daily_targets: `
+		CREATE TABLE IF NOT EXISTS analytics_daily_targets (
+			date_local      TEXT    NOT NULL,
+			path_kind       TEXT    NOT NULL,
+			target_id       INTEGER NOT NULL,
+			user_id         INTEGER NOT NULL,
+			bot_class       TEXT    NOT NULL,
+			count           INTEGER NOT NULL DEFAULT 0,
+			first_seen_at   INTEGER NOT NULL,
+			last_seen_at    INTEGER NOT NULL,
+			PRIMARY KEY (date_local, path_kind, target_id, user_id, bot_class)
+		);
+	`,
 };
 
 export const INDEXES = {
@@ -454,5 +477,15 @@ export const INDEXES = {
 		"CREATE INDEX IF NOT EXISTS idx_login_history_user_created ON login_history(user_id, created_at DESC);",
 		"CREATE INDEX IF NOT EXISTS idx_login_history_kind_created ON login_history(kind, created_at DESC);",
 		"CREATE INDEX IF NOT EXISTS idx_login_history_error_created ON login_history(error_code, created_at DESC) WHERE error_code != '';",
+	],
+
+	// analytics_daily_targets (mirror of migration 0043). List endpoint
+	// shape: WHERE date_local=? AND path_kind=? GROUP BY target_id ⇒
+	// covering composite index. Retention sweep: DELETE WHERE
+	// last_seen_at < cutoff ⇒ leading-column index. Drift guard:
+	// tests/unit/migration-0043-schema.test.ts pins both shapes.
+	analytics_daily_targets: [
+		"CREATE INDEX IF NOT EXISTS idx_analytics_daily_targets_list ON analytics_daily_targets(date_local, path_kind, target_id);",
+		"CREATE INDEX IF NOT EXISTS idx_analytics_daily_targets_last_seen ON analytics_daily_targets(last_seen_at);",
 	],
 };
