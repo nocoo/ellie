@@ -134,20 +134,20 @@ describe("PostSidebar — 14/12 baseline", () => {
 		}
 	});
 
-	it("optional 校区 / 等级 row values render right-aligned without labels", () => {
-		const { container } = render(
+	it("campus and group title render centered in the identity card, no labels", () => {
+		render(
 			createElement(PostSidebar, {
-				author: makeAuthor({ campus: "北校区", groupStars: 3 }),
+				author: makeAuthor({ campus: "四平路校区", groupTitle: "同济人 Lv.2" }),
 			}),
 		);
 		expect(screen.queryByText("校区:")).toBeNull();
 		expect(screen.queryByText("等级:")).toBeNull();
 
-		const campus = screen.getByText("北校区");
-		expect(campus.parentElement?.className).toContain("justify-end");
+		const campus = screen.getByText("四平路校区");
+		expect(campus.className).toContain("truncate");
+		expect(campus.parentElement?.className).toContain("text-center");
 
-		const rightAligned = container.querySelectorAll("div.justify-end");
-		const levelRow = Array.from(rightAligned).find((el) => el.textContent === "Lv.3");
-		expect(levelRow).toBeTruthy();
+		const group = screen.getByText("同济人 Lv.2");
+		expect(group.parentElement?.className).toContain("text-center");
 	});
 });
