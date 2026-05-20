@@ -258,3 +258,158 @@ export function parseLoginAttemptReveal(raw: unknown): LoginAttemptReveal {
 		createdAt: asNumber(o.createdAt),
 	};
 }
+
+// ---------------------------------------------------------------------------
+// Today-visits (P5) — types + parsers
+// ---------------------------------------------------------------------------
+
+/**
+ * Path-kind enum mirrors the worker's `PathKind`. The 10 buckets are
+ * frozen by the strict body whitelist on
+ * `/api/internal/analytics/ingest`; the admin UI uses the same set for
+ * filter pills and for the list-row link routing rules.
+ */
+export const PATH_KIND_VALUES = [
+	"thread",
+	"forum",
+	"user",
+	"home",
+	"digest",
+	"search",
+	"checkin",
+	"messages",
+	"auth_page",
+	"other",
+] as const;
+export type PathKind = (typeof PATH_KIND_VALUES)[number];
+
+export function isPathKind(v: unknown): v is PathKind {
+	return typeof v === "string" && (PATH_KIND_VALUES as readonly string[]).includes(v);
+}
+
+export const PATH_KIND_LABELS: Record<PathKind, string> = {
+	thread: "主题",
+	forum: "板块",
+	user: "用户",
+	home: "首页",
+	digest: "精华",
+	search: "搜索",
+	checkin: "签到",
+	messages: "私信",
+	auth_page: "登录/注册",
+	other: "其他",
+};
+
+export interface PathKindBreakdownEntry {
+	pathKind: PathKind;
+	views: number;
+	targets: number;
+}
+
+/**
+ * KPI card payload from GET /api/admin/analytics/today/visits.
+ *
+ * Aggregate-only — KV-cached on the worker (60s) with NO ip / ua /
+ * username. The `activeUsers + anonPresent` sum is intentionally
+ * labeled "活跃用户/访客（含匿名）" in the UI (reviewer pin); the
+ * aggregate has NO per-session dedup, so we do NOT claim "独立访客".
+ */
+export interface TodayVisitsKpi {
+	now: number;
+	dateLocal: string;
+	totalViews: number;
+	humanViews: number;
+	botSearchViews: number;
+	botOtherViews: number;
+	unknownViews: number;
+	distinctTargets: number;
+	activeUsers: number;
+	/** 1 if any row has user_id = 0 (anonymous bucket), else 0. */
+	anonPresent: 0 | 1;
+	byPathKind: PathKindBreakdownEntry[];
+}
+
+export function parseTodayVisitsKpi(raw: unknown): TodayVisitsKpi {
+	const o = (raw ?? {}) as Record<string, unknown>;
+	const anonRaw = asNumber(o.anonPresent);
+	const breakdownRaw = Array.isArray(o.byPathKind) ? o.byPathKind : [];
+	const byPathKind: PathKindBreakdownEntry[] = [];
+	for (const e of breakdownRaw) {
+		const x = (e ?? {}) as Record<string, unknown>;
+		if (isPathKind(x.pathKind)) {
+			byPathKind.push({
+				pathKind: x.pathKind,
+				views: asNumber(x.views),
+				targets: asNumber(x.targets),
+			});
+		}
+	}
+	return {
+		now: asNumber(o.now),
+		dateLocal: asString(o.dateLocal),
+		totalViews: asNumber(o.totalViews),
+		humanViews: asNumber(o.humanViews),
+		botSearchViews: asNumber(o.botSearchViews),
+		botOtherViews: asNumber(o.botOtherViews),
+		unknownViews: asNumber(o.unknownViews),
+		distinctTargets: asNumber(o.distinctTargets),
+		activeUsers: asNumber(o.activeUsers),
+		anonPresent: (anonRaw === 1 ? 1 : 0) as 0 | 1,
+		byPathKind,
+	};
+}
+
+/**
+ * Per (path_kind, target_id) rollup row from
+ * GET /api/admin/analytics/today/visits/list. Label is empty for
+ * non-id-bearing buckets (home/digest/search/checkin/messages/...).
+ */
+export interface TodayVisitsListRow {
+	pathKind: PathKind;
+	targetId: number;
+	label: string;
+	views: number;
+	humanViews: number;
+	botSearchViews: number;
+	botOtherViews: number;
+	unknownViews: number;
+	uniqueUsers: number;
+	firstSeenAt: number;
+	lastSeenAt: number;
+}
+
+export interface TodayVisitsList {
+	page: number;
+	limit: number;
+	total: number;
+	rows: TodayVisitsListRow[];
+}
+
+export function parseTodayVisitsList(raw: unknown): TodayVisitsList {
+	const o = (raw ?? {}) as Record<string, unknown>;
+	const rows = Array.isArray(o.rows) ? o.rows : [];
+	return {
+		page: asNumber(o.page, 1),
+		limit: asNumber(o.limit, 20),
+		total: asNumber(o.total),
+		rows: rows
+			.map((r) => {
+				const x = (r ?? {}) as Record<string, unknown>;
+				if (!isPathKind(x.pathKind)) return null;
+				return {
+					pathKind: x.pathKind,
+					targetId: asNumber(x.targetId),
+					label: asString(x.label),
+					views: asNumber(x.views),
+					humanViews: asNumber(x.humanViews),
+					botSearchViews: asNumber(x.botSearchViews),
+					botOtherViews: asNumber(x.botOtherViews),
+					unknownViews: asNumber(x.unknownViews),
+					uniqueUsers: asNumber(x.uniqueUsers),
+					firstSeenAt: asNumber(x.firstSeenAt),
+					lastSeenAt: asNumber(x.lastSeenAt),
+				} satisfies TodayVisitsListRow;
+			})
+			.filter((r): r is TodayVisitsListRow => r !== null),
+	};
+}

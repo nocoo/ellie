@@ -1,19 +1,20 @@
 // Analytics page-view collector (P3).
 //
 // ────────────────────────────────────────────────────────────────
-// SCOPE BOUNDARY — P3 contract only
+// SCOPE BOUNDARY — collector contract
 // ────────────────────────────────────────────────────────────────
-// This module ships ONLY the in-isolate aggregation + flush contract.
-// It is intentionally:
+// This module ships the in-isolate aggregation + flush contract.
+// P3 established the contract; P5 wires it end-to-end:
 //
-//   - NOT wired to any HTTP route. The future ingest endpoint
-//     (P-ingest) will call `recordPageView(sample)` and
-//     `scheduleFlush(env, ctx)` from inside its handler.
-//   - NOT writing to any D1 table. The default `FlushSink` is a no-op
-//     that drains the bucket without persisting. The real D1 sink
-//     (`analytics_daily_targets` UPSERT) lands with the table migration
-//     in a later phase (P3.5 / P4); only then will `setFlushSink` be
-//     swapped to a persisting implementation.
+//   - Called from the internal ingest route
+//     (`apps/worker/src/handlers/internal/analyticsIngest.ts`), which
+//     invokes `recordPageView(sample)` and `scheduleFlush(env, ctx)`
+//     from inside its handler after the trust-edge checks.
+//   - Production binds the D1 sink in `apps/worker/src/index.ts` via
+//     `setFlushSink(d1FlushSink)`. The default `FlushSink` in this
+//     module is a no-op test/dev fallback that drains the bucket
+//     without persisting — it is ONLY used when no production sink
+//     has been installed (unit-test stubs, dev isolates that opt out).
 //   - NOT reading any request-scoped trust signal. `recordPageView`
 //     takes a fully-resolved `PageViewSample`. The ingest route owns
 //     the trust edge (which header counts as the client IP, whether to
@@ -145,10 +146,10 @@ function parseBucketKey(
 
 /**
  * Record one resolved page-view sample. The collector accumulates by
- * the canonical primary key the future `analytics_daily_targets` table
- * will use: `(dateLocal, pathKind, targetId, userId, botClass)`. For
- * each key the bucket tracks `count` (monotonic), `firstSeenAt` (min
- * over samples), and `lastSeenAt` (max over samples).
+ * the canonical primary key of the `analytics_daily_targets` table:
+ * `(dateLocal, pathKind, targetId, userId, botClass)`. For each key
+ * the bucket tracks `count` (monotonic), `firstSeenAt` (min over
+ * samples), and `lastSeenAt` (max over samples).
  *
  * Pure memory op — no IO, no env, no logging. Safe to call from any
  * handler. Trust-edge concerns (which header counts as the user_id,
@@ -210,9 +211,11 @@ export function pendingBucketSize(): number {
 
 /**
  * Sink contract handed a drained snapshot. The default implementation
- * is a no-op — P3 ships ONLY the contract boundary; the D1
- * implementation arrives with the `analytics_daily_targets` migration
- * in a later phase. Tests inject their own sink via `setFlushSink`.
+ * is a no-op kept for unit-test stubs / dev isolates that opt out of
+ * persistence. Production swaps it for the D1 UPSERT sink
+ * (`flushSink-d1.ts`) via `setFlushSink(d1FlushSink)` in
+ * `apps/worker/src/index.ts`. Tests inject their own sink via
+ * `setFlushSink`.
  *
  * Sinks MUST NOT throw. Errors that bubble out of a sink are caught
  * inside `scheduleFlush` and logged but do not propagate to the
@@ -221,17 +224,19 @@ export function pendingBucketSize(): number {
 export type FlushSink = (env: Env, rows: AggregateRow[]) => Promise<void>;
 
 const NOOP_SINK: FlushSink = async () => {
-	// Contract boundary only — the real D1 persistence sink lands with
-	// the analytics_daily_targets migration. Keeping this empty in P3
-	// is intentional and documented above.
+	// Default fallback: drain without persisting. The production D1
+	// sink (`flushSink-d1.ts`) is installed by `index.ts` via
+	// `setFlushSink(d1FlushSink)`; this no-op remains the safe default
+	// for unit-test stubs that have not opted into a sink.
 };
 
 let activeSink: FlushSink = NOOP_SINK;
 
 /**
- * Install a flush sink. Used by the future P3.5 D1 module to swap in
- * the UPSERT implementation, and by tests to assert what was drained.
- * Production code outside that one swap point MUST NOT call this.
+ * Install a flush sink. `apps/worker/src/index.ts` swaps in the D1
+ * UPSERT sink at module load; tests use this entry point to assert
+ * what was drained. Production code outside that one swap point MUST
+ * NOT call this.
  */
 export function setFlushSink(sink: FlushSink): void {
 	activeSink = sink;
@@ -262,10 +267,10 @@ let lastFlushAt = 0;
  * boot flushes immediately. Always safe to call — no-op when the
  * bucket is empty or the throttle window has not elapsed.
  *
- * The drained snapshot is handed to the active `FlushSink`. With the
- * default no-op sink (P3), the snapshot is simply discarded — that's
- * the documented contract boundary. Once the D1 sink ships, the same
- * call site will start persisting.
+ * The drained snapshot is handed to the active `FlushSink`. Production
+ * binds the D1 UPSERT sink in `apps/worker/src/index.ts`; with the
+ * default no-op sink (unit-test stubs / dev opt-out), the snapshot is
+ * simply discarded.
  */
 export function scheduleFlush(env: Env, ctx: ExecutionContext): void {
 	if (BUCKETS.size === 0) return;

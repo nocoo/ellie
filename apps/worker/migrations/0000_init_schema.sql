@@ -367,3 +367,32 @@ CREATE INDEX IF NOT EXISTS idx_login_history_kind_created
 CREATE INDEX IF NOT EXISTS idx_login_history_error_created
     ON login_history(error_code, created_at DESC)
     WHERE error_code != '';
+
+-- ----------------------------------------------------------------------
+-- analytics_daily_targets (mirror of migration 0043)
+--
+-- Phase P5 — admin analytics page-view aggregate. Per (date_local,
+-- path_kind, target_id, user_id, bot_class) counter, written via UPSERT
+-- by the worker collector flush sink and swept by a 48h cron. Powers
+-- the admin "今日访问名单" KPI + list panel. Runtime-only counter table
+-- — NOT imported from MySQL, so loader mirrors intentionally skip it.
+-- Same posture pattern as login_history / checkin_history /
+-- kv_cache_metrics_minute. See
+-- apps/worker/src/lib/analytics/{flushSink-d1.ts, cleanup.ts}.
+
+CREATE TABLE IF NOT EXISTS analytics_daily_targets (
+    date_local      TEXT    NOT NULL,
+    path_kind       TEXT    NOT NULL,
+    target_id       INTEGER NOT NULL,
+    user_id         INTEGER NOT NULL,
+    bot_class       TEXT    NOT NULL,
+    count           INTEGER NOT NULL DEFAULT 0,
+    first_seen_at   INTEGER NOT NULL,
+    last_seen_at    INTEGER NOT NULL,
+    PRIMARY KEY (date_local, path_kind, target_id, user_id, bot_class)
+);
+
+CREATE INDEX IF NOT EXISTS idx_analytics_daily_targets_list
+    ON analytics_daily_targets(date_local, path_kind, target_id);
+CREATE INDEX IF NOT EXISTS idx_analytics_daily_targets_last_seen
+    ON analytics_daily_targets(last_seen_at);
