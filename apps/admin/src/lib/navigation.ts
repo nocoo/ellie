@@ -46,6 +46,10 @@ export const NAV_GROUPS: NavGroupDef[] = [
 		label: "数据统计",
 		defaultOpen: true,
 		items: [
+			// Admin analytics dashboard (P2). Query-only against business
+			// tables, KV-cached at 60s / 5min; see worker
+			// `handlers/admin/analytics.ts`.
+			{ href: "/admin/analytics", label: "数据分析", icon: "BarChart3" },
 			// `/admin/statistics/recalc` (was `/admin/statistics`). Moved out of
 			// the grouping segment so the sidebar prefix match (`/admin/statistics`)
 			// no longer double-highlights when the user is on the KV monitor page.
@@ -90,6 +94,7 @@ export const ROUTE_LABELS: Record<string, string> = {
 	posts: "帖子",
 	forums: "版块",
 	attachments: "附件",
+	analytics: "数据分析",
 	statistics: "数据统计",
 	recalc: "统计计算",
 	kv: "KV 缓存监控",

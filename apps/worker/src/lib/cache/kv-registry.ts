@@ -587,6 +587,68 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		description:
 			"Reserved for the v2 public-stats schema migration. Live key remains 'public-stats'.",
 	},
+
+	// ─── Admin analytics dashboard (P2) ────────────────────────────
+	// All four families are read-through caches over business tables
+	// (users, threads, posts, checkin_history). TTLs are short because
+	// the dashboard is the only consumer and tolerates staleness in
+	// the seconds-to-minutes range. `refresh: none` — drift is
+	// controlled by TTL, not by manual bumps.
+	{
+		family: "analytics:overview",
+		displayName: "Analytics overview (today KPIs)",
+		category: "stats",
+		status: "shipped",
+		listPrefix: "analytics:overview",
+		keyKind: "exact",
+		pattern: "analytics:overview",
+		ttl: 60,
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "none" },
+		description:
+			"Per-isolate KPI snapshot (new users/threads/posts/checkins today, Asia/Shanghai). Read-through with 60s TTL.",
+	},
+	{
+		family: "analytics:trend",
+		displayName: "Analytics trend series",
+		category: "stats",
+		status: "shipped",
+		listPrefix: "analytics:trend:",
+		pattern: "analytics:trend:<metric>:<range>",
+		ttl: 300,
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "none" },
+		description:
+			"Time-bucketed trend per metric (users|threads|posts|checkins) × range (7d|30d|90d). 300s TTL.",
+	},
+	{
+		family: "analytics:forum-dist",
+		displayName: "Analytics per-forum post distribution",
+		category: "stats",
+		status: "shipped",
+		listPrefix: "analytics:forum-dist:",
+		pattern: "analytics:forum-dist:<range>",
+		ttl: 300,
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "none" },
+		description: "Top-N forums by post count in the window. 300s TTL.",
+	},
+	{
+		family: "analytics:checkin",
+		displayName: "Analytics check-in trend",
+		category: "stats",
+		status: "shipped",
+		listPrefix: "analytics:checkin:",
+		pattern: "analytics:checkin:<range>",
+		ttl: 300,
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "none" },
+		description: "Daily check-in count series. 300s TTL.",
+	},
 ];
 
 /**
@@ -673,6 +735,11 @@ export const KV_PUT_PREFIX_ALLOWLIST: readonly string[] = [
 	"digest:gen",
 	"thread:meta:gen:",
 	"post:list:gen:",
+	// Admin analytics dashboard (P2 — query-only caches).
+	"analytics:overview",
+	"analytics:trend:",
+	"analytics:forum-dist:",
+	"analytics:checkin:",
 ];
 
 /**

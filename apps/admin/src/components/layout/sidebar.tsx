@@ -7,6 +7,7 @@ import { Collapsible, CollapsibleTrigger } from "@ellie/ui";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@ellie/ui";
 import { cn } from "@ellie/ui/utils";
 import {
+	BarChart3,
 	Calculator,
 	ChevronUp,
 	Database,
@@ -37,6 +38,7 @@ import { useSidebar } from "./sidebar-context";
 // ---------------------------------------------------------------------------
 
 const ICON_MAP: Record<string, ElementType> = {
+	BarChart3,
 	Calculator,
 	Database,
 	Flag,
