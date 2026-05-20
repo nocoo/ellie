@@ -318,6 +318,10 @@ export const INDEXES = {
 		// flow. Drift guard: tests/unit/migration-0029-schema.test.ts pins
 		// this string to the migration file.
 		"CREATE UNIQUE INDEX IF NOT EXISTS users_email_normalized_uniq ON users(email_normalized) WHERE email_normalized != '';",
+		// Admin analytics: daily new-registrations trend bucket. See
+		// migration 0041_idx_analytics_trend.sql. Drift guard:
+		// tests/unit/migration-0041-schema.test.ts.
+		"CREATE INDEX IF NOT EXISTS idx_users_reg_date ON users(reg_date);",
 	],
 
 	threads: [
@@ -333,11 +337,18 @@ export const INDEXES = {
 		// 0038_thread_categories.sql; covers the `forum_id=? AND type_id=?`
 		// thread-list query shape index-only including the ORDER BY.
 		"CREATE INDEX IF NOT EXISTS idx_threads_forum_type ON threads(forum_id, type_id, last_post_at DESC, id DESC);",
+		// Admin analytics: daily new-threads trend bucket. See migration
+		// 0041_idx_analytics_trend.sql.
+		"CREATE INDEX IF NOT EXISTS idx_threads_created ON threads(created_at DESC);",
 	],
 
 	posts: [
 		"CREATE INDEX IF NOT EXISTS idx_posts_thread ON posts(thread_id, created_at);",
 		"CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_id);",
+		// Admin analytics: daily posts trend + per-forum distribution.
+		// See migration 0041_idx_analytics_trend.sql.
+		"CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC);",
+		"CREATE INDEX IF NOT EXISTS idx_posts_forum_created ON posts(forum_id, created_at DESC);",
 	],
 
 	attachments: [
