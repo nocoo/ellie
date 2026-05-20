@@ -72,25 +72,53 @@ export function PostSidebar({ author, viewerRole = 0, viewerUserId = null }: Pos
 				</div>
 			)}
 
-			{/* Check-in compact block — Lv. label + cumulative days, sits above stats grid */}
-			{author && (checkinLevel || checkinDays) && (
-				<div className="mt-2 w-full text-center">
-					{checkinLevel && (
-						<div className="text-xs font-medium text-forum-link truncate" title={checkinLevel}>
-							{checkinLevel}
-						</div>
-					)}
-					{checkinDays && (
-						<div
-							className="text-xs text-muted-foreground truncate"
-							title={checkinDays}
-							data-testid="post-sidebar-checkin-days"
-						>
-							{checkinDays}
-						</div>
-					)}
-				</div>
-			)}
+			{/* Identity card — checkin level/days + campus + group title + custom title,
+			   centered as a single block to set it apart from the data list below. */}
+			{author &&
+				(checkinLevel ||
+					checkinDays ||
+					author.campus ||
+					author.groupTitle ||
+					author.customTitle) && (
+					<div className="mt-2 w-full text-center space-y-0.5">
+						{checkinLevel && (
+							<div className="text-xs font-medium text-forum-link truncate" title={checkinLevel}>
+								{checkinLevel}
+							</div>
+						)}
+						{checkinDays && (
+							<div
+								className="text-xs text-muted-foreground truncate"
+								title={checkinDays}
+								data-testid="post-sidebar-checkin-days"
+							>
+								{checkinDays}
+							</div>
+						)}
+						{author.campus && (
+							<div className="text-xs text-muted-foreground truncate" title={author.campus}>
+								{author.campus}
+							</div>
+						)}
+						{author.groupTitle && (
+							<div
+								className="text-xs font-medium truncate"
+								style={author.groupColor ? { color: author.groupColor } : undefined}
+								title={author.groupTitle}
+							>
+								{author.groupTitle}
+							</div>
+						)}
+						{author.customTitle && (
+							<div
+								className="text-xs italic text-muted-foreground truncate"
+								title={author.customTitle}
+							>
+								{author.customTitle}
+							</div>
+						)}
+					</div>
+				)}
 
 			{/* Stats grid — 3 columns with vertical dividers, no border */}
 			{author && (
@@ -114,42 +142,9 @@ export function PostSidebar({ author, viewerRole = 0, viewerUserId = null }: Pos
 				</div>
 			)}
 
-			{/* Detail rows — aligned label:value pairs */}
+			{/* Detail rows — aligned label:value pairs, separated from identity card above */}
 			{author && (
-				<div className="w-full space-y-1 text-xs text-muted-foreground mt-1">
-					{/* Campus — no label, right-aligned */}
-					{author.campus && (
-						<div className="flex justify-end">
-							<span className="text-right truncate">{author.campus}</span>
-						</div>
-					)}
-
-					{/* Level — no label, right-aligned to match campus */}
-					{author.groupStars > 0 && (
-						<div className="flex justify-end">
-							<span>Lv.{author.groupStars}</span>
-						</div>
-					)}
-
-					{/* Group title — no label, right-aligned to match campus */}
-					{author.groupTitle && (
-						<div className="flex justify-end">
-							<span
-								className="font-medium text-xs truncate"
-								style={author.groupColor ? { color: author.groupColor } : undefined}
-							>
-								{author.groupTitle}
-							</span>
-						</div>
-					)}
-
-					{/* Custom title — centered, no label */}
-					{author.customTitle && (
-						<div className="flex justify-center text-center">
-							<span className="italic text-xs truncate">{author.customTitle}</span>
-						</div>
-					)}
-
+				<div className="w-full space-y-1 text-xs text-muted-foreground mt-2 pt-2 border-t border-border/50">
 					{/* UID */}
 					<div className="flex items-baseline justify-between gap-1">
 						<span className="shrink-0 text-xs leading-3 text-muted-foreground">UID:</span>
