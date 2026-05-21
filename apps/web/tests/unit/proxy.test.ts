@@ -29,6 +29,7 @@ import {
 	isMessagesRoute,
 	isPublicRoute,
 	proxy,
+	resolveForumUserId,
 	resolveProxyAction,
 } from "@/proxy";
 
@@ -403,5 +404,225 @@ describe("proxy", () => {
 		mockAuth.mockResolvedValue(null);
 		const result = await proxy(makeMockNextRequest("/messages"));
 		expect(result.type).toBe("redirect");
+	});
+
+	it("calls event.waitUntil with the ingest promise on a `next` action", async () => {
+		mockAuth.mockResolvedValue({ user: { id: "42", name: "user" } });
+		const waitUntil = vi.fn();
+		const event = { waitUntil } as unknown as Parameters<typeof proxy>[1];
+		await proxy(makeMockNextRequest("/threads/new"), event);
+		expect(waitUntil).toHaveBeenCalledTimes(1);
+		const arg = waitUntil.mock.calls[0]?.[0];
+		expect(arg).toBeInstanceOf(Promise);
+	});
+
+	it("skips ingest dispatch when event is not provided (test-stub path)", async () => {
+		// `proxy(req)` (no second arg) MUST NOT throw and MUST NOT touch
+		// any ingest sink. The earlier proxy.test cases already cover the
+		// happy `next` action; this case only asserts no event.waitUntil
+		// is needed.
+		mockAuth.mockResolvedValue({ user: { id: 7 } });
+		const result = await proxy(makeMockNextRequest("/"));
+		expect(result.type).toBe("next");
+	});
+
+	it("resolves anonymous userId=0 when session.user.id is null/undefined", async () => {
+		mockAuth.mockResolvedValue({ user: { id: null, provider: "credentials" } });
+		const waitUntil = vi.fn();
+		const event = { waitUntil } as unknown as Parameters<typeof proxy>[1];
+		await proxy(makeMockNextRequest("/"), event);
+		// We don't peek inside the payload (that lives in proxy-analytics),
+		// but we want the resolveForumUserId(null) → 0 branch to execute.
+		expect(waitUntil).toHaveBeenCalled();
+	});
+
+	it("resolves userId=0 when session.user.id is a non-numeric string", async () => {
+		mockAuth.mockResolvedValue({ user: { id: "abc", provider: "credentials" } });
+		const waitUntil = vi.fn();
+		const event = { waitUntil } as unknown as Parameters<typeof proxy>[1];
+		await proxy(makeMockNextRequest("/"), event);
+		expect(waitUntil).toHaveBeenCalled();
+	});
+
+	it("resolves userId from numeric session.user.id under credentials provider", async () => {
+		mockAuth.mockResolvedValue({ user: { id: 123, provider: "credentials" } });
+		const waitUntil = vi.fn();
+		const event = { waitUntil } as unknown as Parameters<typeof proxy>[1];
+		await proxy(makeMockNextRequest("/"), event);
+		expect(waitUntil).toHaveBeenCalled();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// resolveForumUserId — credentials-only provider gate (D0 v2)
+// ---------------------------------------------------------------------------
+
+describe("resolveForumUserId — credentials-only provider gate", () => {
+	it("returns 0 when session is null", () => {
+		expect(resolveForumUserId(null)).toBe(0);
+	});
+
+	it("returns 0 when session.user is missing", () => {
+		expect(resolveForumUserId({})).toBe(0);
+	});
+
+	it("returns 0 when provider is missing (D0 v2: fail-closed)", () => {
+		expect(resolveForumUserId({ user: { id: 42 } })).toBe(0);
+	});
+
+	it("returns 0 when provider is null", () => {
+		expect(resolveForumUserId({ user: { id: 42, provider: null } })).toBe(0);
+	});
+
+	it("returns 0 when provider is google (OAuth id is NOT a forum user_id)", () => {
+		expect(resolveForumUserId({ user: { id: 42, provider: "google" } })).toBe(0);
+		expect(resolveForumUserId({ user: { id: "42", provider: "google" } })).toBe(0);
+	});
+
+	it("returns 0 when provider is unknown / spoofed", () => {
+		expect(resolveForumUserId({ user: { id: 42, provider: "anything" } })).toBe(0);
+	});
+
+	it("returns the numeric id under provider=credentials (positive int)", () => {
+		expect(resolveForumUserId({ user: { id: 42, provider: "credentials" } })).toBe(42);
+		expect(resolveForumUserId({ user: { id: "42", provider: "credentials" } })).toBe(42);
+	});
+
+	it("returns 0 for non-numeric id under credentials", () => {
+		expect(resolveForumUserId({ user: { id: "abc", provider: "credentials" } })).toBe(0);
+		expect(resolveForumUserId({ user: { id: null, provider: "credentials" } })).toBe(0);
+		expect(resolveForumUserId({ user: { id: undefined, provider: "credentials" } })).toBe(0);
+	});
+
+	it("returns 0 for non-positive id under credentials", () => {
+		expect(resolveForumUserId({ user: { id: 0, provider: "credentials" } })).toBe(0);
+		expect(resolveForumUserId({ user: { id: -1, provider: "credentials" } })).toBe(0);
+		expect(resolveForumUserId({ user: { id: "0", provider: "credentials" } })).toBe(0);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// proxy() — end-to-end ingest body assertions (D0 v2 credentials-only)
+// ---------------------------------------------------------------------------
+
+describe("proxy() — end-to-end ingest body assertions", () => {
+	const originalFetch = globalThis.fetch;
+	const originalEnv = { ...process.env };
+
+	function makeMockNextRequest(pathname: string, search = "") {
+		const url = new URL(`${pathname}${search}`, "https://example.com");
+		return {
+			headers: { get: () => null },
+			nextUrl: url,
+		} as any;
+	}
+
+	/**
+	 * Build a fetch spy that:
+	 *   - returns require_login=false JSON for the settings endpoint
+	 *   - records calls to /api/internal/analytics/ingest so the test can
+	 *     inspect the body posted under D0 v2 provider gating.
+	 */
+	function makeFetchSpy(): {
+		spy: ReturnType<typeof vi.fn>;
+		captured: Array<{ url: string; body: unknown }>;
+	} {
+		const captured: Array<{ url: string; body: unknown }> = [];
+		const spy = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = typeof input === "string" ? input : input.toString();
+			if (url.includes("/api/internal/analytics/ingest")) {
+				captured.push({ url, body: JSON.parse(String(init?.body ?? "{}")) });
+				return new Response("{}", { status: 200 });
+			}
+			return new Response(JSON.stringify({ data: { "features.access.require_login": false } }), {
+				status: 200,
+			});
+		});
+		return { spy, captured };
+	}
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		clearRequireLoginCacheForTests();
+		process.env.WORKER_API_URL = "https://worker.example.com";
+		process.env.FORUM_API_KEY = "test-key";
+		process.env.ANALYTICS_INGEST_KEY = "ingest-secret";
+	});
+
+	afterEach(() => {
+		globalThis.fetch = originalFetch;
+		process.env.WORKER_API_URL = originalEnv.WORKER_API_URL;
+		process.env.FORUM_API_KEY = originalEnv.FORUM_API_KEY;
+		process.env.ANALYTICS_INGEST_KEY = originalEnv.ANALYTICS_INGEST_KEY;
+	});
+
+	it("posts user_id=42 when session is credentials+42", async () => {
+		const { spy, captured } = makeFetchSpy();
+		globalThis.fetch = spy as unknown as typeof fetch;
+		mockAuth.mockResolvedValue({ user: { id: 42, provider: "credentials" } });
+		const pending: Array<Promise<unknown>> = [];
+		const event = {
+			waitUntil: (p: Promise<unknown>) => pending.push(p),
+		} as unknown as Parameters<typeof proxy>[1];
+		await proxy(makeMockNextRequest("/"), event);
+		await Promise.all(pending);
+		expect(captured).toHaveLength(1);
+		expect(captured[0]?.body).toEqual({ path_kind: "home", target_id: 0, user_id: 42 });
+	});
+
+	it("posts user_id=0 when session is google+42 (OAuth id MUST NOT leak in)", async () => {
+		const { spy, captured } = makeFetchSpy();
+		globalThis.fetch = spy as unknown as typeof fetch;
+		mockAuth.mockResolvedValue({ user: { id: 42, provider: "google" } });
+		const pending: Array<Promise<unknown>> = [];
+		const event = {
+			waitUntil: (p: Promise<unknown>) => pending.push(p),
+		} as unknown as Parameters<typeof proxy>[1];
+		await proxy(makeMockNextRequest("/"), event);
+		await Promise.all(pending);
+		expect(captured).toHaveLength(1);
+		expect(captured[0]?.body).toEqual({ path_kind: "home", target_id: 0, user_id: 0 });
+	});
+
+	it("posts user_id=0 when provider is missing", async () => {
+		const { spy, captured } = makeFetchSpy();
+		globalThis.fetch = spy as unknown as typeof fetch;
+		mockAuth.mockResolvedValue({ user: { id: 42 } });
+		const pending: Array<Promise<unknown>> = [];
+		const event = {
+			waitUntil: (p: Promise<unknown>) => pending.push(p),
+		} as unknown as Parameters<typeof proxy>[1];
+		await proxy(makeMockNextRequest("/"), event);
+		await Promise.all(pending);
+		expect(captured).toHaveLength(1);
+		expect(captured[0]?.body).toEqual({ path_kind: "home", target_id: 0, user_id: 0 });
+	});
+
+	it("posts user_id=0 for anonymous (no session)", async () => {
+		const { spy, captured } = makeFetchSpy();
+		globalThis.fetch = spy as unknown as typeof fetch;
+		mockAuth.mockResolvedValue(null);
+		const pending: Array<Promise<unknown>> = [];
+		const event = {
+			waitUntil: (p: Promise<unknown>) => pending.push(p),
+		} as unknown as Parameters<typeof proxy>[1];
+		await proxy(makeMockNextRequest("/"), event);
+		await Promise.all(pending);
+		expect(captured).toHaveLength(1);
+		expect(captured[0]?.body).toEqual({ path_kind: "home", target_id: 0, user_id: 0 });
+	});
+
+	it("does NOT post an ingest call for unknown roots (D0 v2 fail-closed)", async () => {
+		const { spy, captured } = makeFetchSpy();
+		globalThis.fetch = spy as unknown as typeof fetch;
+		mockAuth.mockResolvedValue({ user: { id: 42, provider: "credentials" } });
+		const pending: Array<Promise<unknown>> = [];
+		const event = {
+			waitUntil: (p: Promise<unknown>) => pending.push(p),
+		} as unknown as Parameters<typeof proxy>[1];
+		// /random is unknown — must NOT classify, therefore no ingest POST.
+		await proxy(makeMockNextRequest("/random"), event);
+		await Promise.all(pending);
+		expect(captured).toHaveLength(0);
 	});
 });

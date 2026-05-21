@@ -122,10 +122,19 @@ export const INDEX_DDL: string[] = [
 	"CREATE INDEX IF NOT EXISTS idx_threads_digest ON threads(digest, last_post_at DESC) WHERE digest > 0",
 	// Site-wide announcement cross-forum lookup (migration 0037).
 	"CREATE INDEX IF NOT EXISTS idx_threads_sticky ON threads(sticky, last_post_at DESC, id DESC)",
+	// Admin analytics trend bucket (migration 0041).
+	"CREATE INDEX IF NOT EXISTS idx_threads_created ON threads(created_at DESC)",
 
 	// posts indexes
 	"CREATE INDEX IF NOT EXISTS idx_posts_thread ON posts(thread_id, position)",
 	"CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_id, created_at DESC)",
+	// Admin analytics trend + per-forum distribution (migration 0041).
+	"CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC)",
+	"CREATE INDEX IF NOT EXISTS idx_posts_forum_created ON posts(forum_id, created_at DESC)",
+
+	// users indexes
+	// Admin analytics: daily new-registrations trend (migration 0041).
+	"CREATE INDEX IF NOT EXISTS idx_users_reg_date ON users(reg_date)",
 
 	// attachments indexes
 	"CREATE INDEX IF NOT EXISTS idx_attachments_post ON attachments(post_id)",

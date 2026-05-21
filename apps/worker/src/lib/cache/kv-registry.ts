@@ -587,6 +587,109 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		description:
 			"Reserved for the v2 public-stats schema migration. Live key remains 'public-stats'.",
 	},
+
+	// ─── Admin analytics dashboard (P2) ────────────────────────────
+	// All four families are read-through caches over business tables
+	// (users, threads, posts, checkin_history). TTLs are short because
+	// the dashboard is the only consumer and tolerates staleness in
+	// the seconds-to-minutes range. `refresh: none` — drift is
+	// controlled by TTL, not by manual bumps.
+	{
+		family: "analytics:overview",
+		displayName: "Analytics overview (today KPIs)",
+		category: "stats",
+		status: "shipped",
+		listPrefix: "analytics:overview",
+		keyKind: "exact",
+		pattern: "analytics:overview",
+		ttl: 60,
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "none" },
+		description:
+			"Per-isolate KPI snapshot (new users/threads/posts/checkins today, Asia/Shanghai). Read-through with 60s TTL.",
+	},
+	{
+		family: "analytics:trend",
+		displayName: "Analytics trend series",
+		category: "stats",
+		status: "shipped",
+		listPrefix: "analytics:trend:",
+		pattern: "analytics:trend:<metric>:<range>",
+		ttl: 300,
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "none" },
+		description:
+			"Time-bucketed trend per metric (users|threads|posts|checkins) × range (7d|30d|90d). 300s TTL.",
+	},
+	{
+		family: "analytics:forum-dist",
+		displayName: "Analytics per-forum post distribution",
+		category: "stats",
+		status: "shipped",
+		listPrefix: "analytics:forum-dist:",
+		pattern: "analytics:forum-dist:<range>",
+		ttl: 300,
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "none" },
+		description: "Top-N forums by post count in the window. 300s TTL.",
+	},
+	{
+		family: "analytics:checkin",
+		displayName: "Analytics check-in trend",
+		category: "stats",
+		status: "shipped",
+		listPrefix: "analytics:checkin:",
+		pattern: "analytics:checkin:<range>",
+		ttl: 300,
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "none" },
+		description: "Daily check-in count series. 300s TTL.",
+	},
+	{
+		// P4 — admin "今日登录尝试" KPI card. Single literal key holding
+		// aggregate-only counts for the local-day window (Asia/Shanghai).
+		// Value MUST NEVER contain ip / ua / username — list and reveal
+		// endpoints read D1 in realtime and are explicitly no-store.
+		family: "analytics:today-logins",
+		displayName: "Analytics today-logins KPI",
+		category: "stats",
+		status: "shipped",
+		listPrefix: "analytics:today-logins",
+		keyKind: "exact",
+		pattern: "analytics:today-logins",
+		ttl: 60,
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "none" },
+		description:
+			"Today's login/register KPI counters (Asia/Shanghai). Aggregate-only — value carries NO ip / ua / username. 60s TTL. The masked list + reveal endpoints serve D1 realtime and never touch KV.",
+	},
+	{
+		// P5 — admin "今日访问名单" KPI card. Single literal key holding
+		// aggregate-only counters (totals + bot-class breakdown +
+		// activeUsers/anonPresent) for the local-day window
+		// (Asia/Shanghai). Value MUST NEVER contain ip / ua / target
+		// labels — the realtime list endpoint serves D1 directly and is
+		// always no-store. There is no reveal endpoint: the aggregate
+		// does not persist ip/ua so there is nothing to un-mask.
+		family: "analytics:today-visits",
+		displayName: "Analytics today-visits KPI",
+		category: "stats",
+		status: "shipped",
+		listPrefix: "analytics:today-visits",
+		keyKind: "exact",
+		pattern: "analytics:today-visits",
+		ttl: 60,
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "none" },
+		description:
+			"Today's page-view KPI counters (Asia/Shanghai). Aggregate-only — value carries NO ip / ua / target labels. 60s TTL. The list endpoint serves D1 realtime and never touches KV.",
+	},
 ];
 
 /**
@@ -673,6 +776,15 @@ export const KV_PUT_PREFIX_ALLOWLIST: readonly string[] = [
 	"digest:gen",
 	"thread:meta:gen:",
 	"post:list:gen:",
+	// Admin analytics dashboard (P2 — query-only caches).
+	"analytics:overview",
+	"analytics:trend:",
+	"analytics:forum-dist:",
+	"analytics:checkin:",
+	// Admin login-history KPI (P4).
+	"analytics:today-logins",
+	// Admin today-visits KPI (P5).
+	"analytics:today-visits",
 ];
 
 /**

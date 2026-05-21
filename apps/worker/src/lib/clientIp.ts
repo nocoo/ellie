@@ -32,6 +32,20 @@ export interface ExtractClientIpOptions {
 	 * vitest unit tests don't have to pass it explicitly.
 	 */
 	allowXffInNonProd?: boolean;
+	/**
+	 * Explicit opt-in for endpoints that authenticate via a NON Key A/B
+	 * secret and therefore cannot be classified as server-to-Worker by
+	 * `isServerToWorkerRequest`. Example: the P5 analytics ingest route
+	 * authenticates with its own `X-Ingest-Key` and only sets this flag
+	 * AFTER the secret has been constant-time verified.
+	 *
+	 * Callers MUST verify their own secret BEFORE passing this flag — the
+	 * helper does not know how the caller authenticated, only that the
+	 * caller has earned the right to trust `X-Real-IP`. Tests must pin
+	 * that no untrusted code path can reach the helper with this flag
+	 * set.
+	 */
+	trustXRealIp?: boolean;
 }
 
 export function isServerToWorkerRequest(request: Request, env: Env): boolean {
@@ -45,8 +59,12 @@ export function isServerToWorkerRequest(request: Request, env: Env): boolean {
  *
  * Priority:
  *   1. `CF-Connecting-IP` — always trusted (set by Cloudflare edge).
- *   2. `X-Real-IP` — only when `isServerToWorkerRequest(request, env)` is
- *      true (i.e. the upstream is our own admin / forum BFF using Key A/B).
+ *   2. `X-Real-IP` — trusted when EITHER
+ *        - `isServerToWorkerRequest(request, env)` is true (the upstream
+ *          is our own admin / forum BFF using Key A/B), OR
+ *        - `opts.trustXRealIp === true` — explicit caller opt-in for
+ *          endpoints that authenticate via a non-Key-A/B secret. The
+ *          caller MUST have verified its own secret before passing this.
  *   3. First segment of `X-Forwarded-For` — only when running outside
  *      production AND `opts.allowXffInNonProd !== false`.
  *
@@ -66,7 +84,7 @@ export function extractTrustedClientIp(
 	if (cf) return cf;
 
 	const realIp = request.headers.get("X-Real-IP")?.trim();
-	if (realIp && isServerToWorkerRequest(request, env)) {
+	if (realIp && (isServerToWorkerRequest(request, env) || opts.trustXRealIp === true)) {
 		return realIp;
 	}
 

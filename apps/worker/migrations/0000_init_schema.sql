@@ -221,6 +221,11 @@ INSERT OR REPLACE INTO _test_marker (key, value) VALUES ('env', 'test');
 -- Indexes
 -- ============================================================================
 
+-- Users indexes
+-- Admin analytics: daily new-registrations trend bucket. See migration
+-- 0041_idx_analytics_trend.sql.
+CREATE INDEX IF NOT EXISTS idx_users_reg_date ON users(reg_date);
+
 -- Threads indexes
 CREATE INDEX IF NOT EXISTS idx_threads_forum ON threads(forum_id, sticky DESC, last_post_at DESC);
 CREATE INDEX IF NOT EXISTS idx_threads_author ON threads(author_id, created_at DESC);
@@ -231,10 +236,17 @@ CREATE INDEX IF NOT EXISTS idx_threads_last_poster_id ON threads(last_poster_id)
 -- 0037_idx_threads_sticky.sql for rationale; without this the OR'd
 -- WHERE in /api/v1/threads scans ~1M rows per cache miss.
 CREATE INDEX IF NOT EXISTS idx_threads_sticky ON threads(sticky, last_post_at DESC, id DESC);
+-- Admin analytics: global new-threads trend (date bucket over created_at).
+-- See migration 0041_idx_analytics_trend.sql.
+CREATE INDEX IF NOT EXISTS idx_threads_created ON threads(created_at DESC);
 
 -- Posts indexes
 CREATE INDEX IF NOT EXISTS idx_posts_thread ON posts(thread_id, position);
 CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_id, created_at DESC);
+-- Admin analytics: global posts trend + per-forum distribution. See
+-- migration 0041_idx_analytics_trend.sql.
+CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_forum_created ON posts(forum_id, created_at DESC);
 
 -- Attachments indexes
 CREATE INDEX IF NOT EXISTS idx_attachments_post ON attachments(post_id);
@@ -316,3 +328,71 @@ CREATE TABLE IF NOT EXISTS checkin_history (
 );
 
 CREATE INDEX IF NOT EXISTS idx_checkin_history_date ON checkin_history(date_local);
+
+-- ─── Login history (mirror of migration 0042) ─────────────────────
+-- Per-attempt audit log appended by `auth.ts` login/register handlers
+-- after trust-edge resolution. Powers the admin analytics "今日登录"
+-- KPI + masked detail list + audit-logged reveal endpoint. Failures
+-- are deferred onto `ctx.waitUntil` and MUST NEVER reach the response
+-- path — see `apps/worker/src/lib/analytics/loginHistory.ts`.
+--
+-- Mirrored here so a fresh DB built from 0000_init_schema.sql (or the
+-- shared `packages/db/src/schema.ts`) has the table even before
+-- migration 0042 runs — Phase P4 admin endpoints will refuse to start
+-- against a schema missing this table. Runtime-only audit table: NOT
+-- imported from MySQL, so the loader mirrors intentionally skip it.
+
+CREATE TABLE IF NOT EXISTS login_history (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER,
+    username    TEXT    NOT NULL,
+    ok          INTEGER NOT NULL,
+    kind        TEXT    NOT NULL,
+    error_code  TEXT    NOT NULL DEFAULT '',
+    ip          TEXT    NOT NULL DEFAULT '',
+    user_agent  TEXT    NOT NULL DEFAULT '',
+    bot_class   TEXT    NOT NULL DEFAULT 'unknown',
+    created_at  INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_login_history_created
+    ON login_history(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_login_history_user_created
+    ON login_history(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_login_history_kind_created
+    ON login_history(kind, created_at DESC);
+-- Partial index over failure rows only — admin "失败明细" filter only
+-- ever queries `error_code != ''`, so the partial WHERE keeps the
+-- active subset tight instead of fattening every successful login.
+CREATE INDEX IF NOT EXISTS idx_login_history_error_created
+    ON login_history(error_code, created_at DESC)
+    WHERE error_code != '';
+
+-- ----------------------------------------------------------------------
+-- analytics_daily_targets (mirror of migration 0043)
+--
+-- Phase P5 — admin analytics page-view aggregate. Per (date_local,
+-- path_kind, target_id, user_id, bot_class) counter, written via UPSERT
+-- by the worker collector flush sink and swept by a 48h cron. Powers
+-- the admin "今日访问名单" KPI + list panel. Runtime-only counter table
+-- — NOT imported from MySQL, so loader mirrors intentionally skip it.
+-- Same posture pattern as login_history / checkin_history /
+-- kv_cache_metrics_minute. See
+-- apps/worker/src/lib/analytics/{flushSink-d1.ts, cleanup.ts}.
+
+CREATE TABLE IF NOT EXISTS analytics_daily_targets (
+    date_local      TEXT    NOT NULL,
+    path_kind       TEXT    NOT NULL,
+    target_id       INTEGER NOT NULL,
+    user_id         INTEGER NOT NULL,
+    bot_class       TEXT    NOT NULL,
+    count           INTEGER NOT NULL DEFAULT 0,
+    first_seen_at   INTEGER NOT NULL,
+    last_seen_at    INTEGER NOT NULL,
+    PRIMARY KEY (date_local, path_kind, target_id, user_id, bot_class)
+);
+
+CREATE INDEX IF NOT EXISTS idx_analytics_daily_targets_list
+    ON analytics_daily_targets(date_local, path_kind, target_id);
+CREATE INDEX IF NOT EXISTS idx_analytics_daily_targets_last_seen
+    ON analytics_daily_targets(last_seen_at);

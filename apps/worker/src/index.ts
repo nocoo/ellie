@@ -1,5 +1,9 @@
 // Ellie API Worker — Cloudflare Worker with D1 + KV
 // 85 endpoints: 20 public + 5 moderation + 60 admin
+import { cleanupAnalyticsDailyTargets } from "./lib/analytics/cleanup";
+import { setFlushSink } from "./lib/analytics/collect";
+import { d1FlushSink } from "./lib/analytics/flushSink-d1";
+import { cleanupLoginHistory } from "./lib/analytics/loginHistory";
 import type { CFRequest, Env } from "./lib/env";
 import { aggregateOnlineStats } from "./lib/online-stats";
 import { trackActivity } from "./middleware/activity";
@@ -9,6 +13,16 @@ import { configureAllowedOrigins, corsHeaders } from "./middleware/cors";
 import { errorResponse } from "./middleware/error";
 import { checkMaintenance } from "./middleware/maintenance";
 import { trackOnline } from "./middleware/online";
+
+// ─── Boot-time wiring ─────────────────────────────────────────────
+//
+// The analytics page-view collector is shape-only (an in-memory bucket
+// Map keyed by the rollup PK) — it does not know how to persist. We
+// bind the D1 sink here at module load so the very first sample of the
+// worker lifetime can drain into `analytics_daily_targets` on the next
+// `scheduleFlush(env, ctx)` tick. Tests swap this back to the noop sink
+// via `resetFlushSink()` in their own setup.
+setFlushSink(d1FlushSink);
 
 // ─── Router ───────────────────────────────────────────────────────
 
@@ -55,6 +69,22 @@ export default {
 			// ── #1 Health check (no auth, no cache) ──────────
 			if (path === "/api/live" && request.method === "GET") {
 				return await (await import("./handlers/live")).live(request, env);
+			}
+
+			// ── P5 analytics ingest — INSIDE the secret gate but
+			//    OUTSIDE the Key-A `validateApiKey` gate (reviewer pin).
+			//
+			// The web proxy POSTs page-view samples here with the shared
+			// `X-Ingest-Key` secret. The handler itself enforces a
+			// constant-time secret compare + strict body whitelist; we
+			// dispatch it ahead of `validateApiKey` so the public Next
+			// runtime can reach it without holding the forum API key.
+			if (path === "/api/internal/analytics/ingest" && request.method === "POST") {
+				return await (await import("./handlers/internal/analyticsIngest")).analyticsIngestHandler(
+					request,
+					env,
+					ctx,
+				);
 			}
 
 			// API Key gate — all routes below require a valid X-API-Key header
@@ -173,8 +203,11 @@ export default {
 			}
 
 			// ── Auth routes (#12-#15) ────────────────────────
+			// `ctx` is forwarded to login/register so the analytics
+			// login_history audit log can defer its INSERT onto
+			// `ctx.waitUntil`. Other auth routes don't audit yet.
 			if (path === "/api/v1/auth/login" && request.method === "POST") {
-				return await (await import("./handlers/auth")).login(request, env);
+				return await (await import("./handlers/auth")).login(request, env, ctx);
 			}
 			if (path === "/api/v1/auth/refresh" && request.method === "POST") {
 				return await (await import("./handlers/auth")).refresh(request, env);
@@ -186,7 +219,7 @@ export default {
 				return await (await import("./handlers/auth")).me(request, env);
 			}
 			if (path === "/api/v1/auth/register" && request.method === "POST") {
-				return await (await import("./handlers/auth")).register(request, env);
+				return await (await import("./handlers/auth")).register(request, env, ctx);
 			}
 			if (path === "/api/v1/auth/check-username" && request.method === "GET") {
 				return await (await import("./handlers/auth")).checkUsername(request, env);
@@ -518,6 +551,81 @@ export default {
 				return await (await import("./handlers/admin/statistics")).recalcUsers(request, env);
 			}
 
+			// ── E0. Analytics (Admin) — P2 query-only dashboard ──
+			// Pure read-through against business tables (users, threads,
+			// posts, checkin_history) with KV cache. Time-leading indexes
+			// added in migration 0041 keep trend queries off full table
+			// scans. See handlers/admin/analytics.ts for the per-endpoint
+			// SQL shape and cache family.
+			if (path === "/api/admin/analytics/overview" && request.method === "GET") {
+				return await (await import("./handlers/admin/analytics")).getOverview(request, env, ctx);
+			}
+			if (path === "/api/admin/analytics/trend" && request.method === "GET") {
+				return await (await import("./handlers/admin/analytics")).getTrend(request, env, ctx);
+			}
+			if (path === "/api/admin/analytics/forum-dist" && request.method === "GET") {
+				return await (await import("./handlers/admin/analytics")).getForumDist(request, env, ctx);
+			}
+			if (path === "/api/admin/analytics/checkin" && request.method === "GET") {
+				return await (await import("./handlers/admin/analytics")).getCheckinTrend(
+					request,
+					env,
+					ctx,
+				);
+			}
+
+			// ── E0a. Login-history audit (P4) ────────────────
+			// Three endpoints behind the admin Key-B gate. KPI is KV-
+			// cached (aggregate only — no PII). The masked list and the
+			// reveal endpoint read D1 realtime and respond no-store.
+			// Reveal is POST (CSRF + X-Admin-Actor-* header injection
+			// via adminApiAs.raw("POST", ...)). 404 / 400 from reveal do
+			// NOT writeAdminLog — only the successful un-mask leaves an
+			// audit trail (`analytics.login_history.reveal`).
+			if (path === "/api/admin/analytics/today/logins" && request.method === "GET") {
+				return await (await import("./handlers/admin/loginHistory")).getTodayLoginsKpi(
+					request,
+					env,
+					ctx,
+				);
+			}
+			if (path === "/api/admin/analytics/today/logins/list" && request.method === "GET") {
+				return await (await import("./handlers/admin/loginHistory")).getTodayLoginsList(
+					request,
+					env,
+					ctx,
+				);
+			}
+			if (
+				path.match(/^\/api\/admin\/analytics\/login-history\/\d+\/reveal$/) &&
+				request.method === "POST"
+			) {
+				return await (await import("./handlers/admin/loginHistory")).revealLoginHistory(
+					request,
+					env,
+					ctx,
+				);
+			}
+
+			// ── E0b. Page-view aggregate audit (P5) ──────────
+			// Backs the "今日访问名单" panel. KPI is KV-cached on the
+			// aggregate-only payload (no ip/ua/username); the list is
+			// realtime no-store. Both behind the admin Key-B gate.
+			if (path === "/api/admin/analytics/today/visits" && request.method === "GET") {
+				return await (await import("./handlers/admin/todayVisits")).getTodayVisitsKpi(
+					request,
+					env,
+					ctx,
+				);
+			}
+			if (path === "/api/admin/analytics/today/visits/list" && request.method === "GET") {
+				return await (await import("./handlers/admin/todayVisits")).getTodayVisitsList(
+					request,
+					env,
+					ctx,
+				);
+			}
+
 			// ── E1. KV Monitor (Admin) ───────────────────────
 			// Read-only + typed safe-mutation endpoints backing the
 			// `/admin/statistics/kv` page. See handlers/admin/kv.ts for
@@ -690,8 +798,46 @@ export default {
 		}
 	},
 
-	/** Scheduled handler — runs every 5 minutes to aggregate online stats */
-	async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-		ctx.waitUntil(aggregateOnlineStats(env));
+	/**
+	 * Scheduled handler — dispatched on `event.cron` to keep jobs independent.
+	 *
+	 *   - "* /5 * * * *"  → aggregateOnlineStats (P3, every 5 minutes)
+	 *   - "0 19 * * *"    → cleanupLoginHistory  (P4, 19:00 UTC = 03:00 Asia/Shanghai)
+	 *
+	 * (The first cron string is escaped above so this JSDoc block does not
+	 * close prematurely; the real schedule in wrangler.toml has no space.)
+	 *
+	 * Each job is fired through `ctx.waitUntil` so the scheduled invocation
+	 * returns immediately; failures inside one job log via the worker's
+	 * scheduled-error path but never block the other.
+	 */
+	async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+		switch (event.cron) {
+			case "*/5 * * * *":
+				ctx.waitUntil(aggregateOnlineStats(env));
+				return;
+			case "0 19 * * *":
+				ctx.waitUntil(
+					cleanupLoginHistory(env).catch((err) => {
+						// Surface to the platform log — cron retention failure is
+						// operational, never user-visible.
+						console.warn("[cron] cleanupLoginHistory failed", err);
+					}),
+				);
+				ctx.waitUntil(
+					cleanupAnalyticsDailyTargets(env).catch((err) => {
+						// P5: prune `analytics_daily_targets` rows whose
+						// `last_seen_at` is older than DEFAULT_RETENTION_HOURS (48h).
+						// Same operational-only failure contract.
+						console.warn("[cron] cleanupAnalyticsDailyTargets failed", err);
+					}),
+				);
+				return;
+			default:
+				// Unknown cron — log so an accidental wrangler.toml drift is
+				// surfaced rather than silently swallowed.
+				console.warn("[cron] unknown schedule fired", { cron: event.cron });
+				return;
+		}
 	},
 };

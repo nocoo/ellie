@@ -1,5 +1,6 @@
 // client-ip.ts — Forum BFF helper: extract the originating client IP so we
-// can forward it to the Worker as `X-Real-IP` (for per-IP rate limiting).
+// can forward it to the Worker as `X-Real-IP` (for per-IP rate limiting and
+// analytics ingest).
 //
 // Deployment topology: Forum BFF (Next.js, Node) runs in Docker behind a
 // Cloudflare orange-cloud DNS record. CF rewrites `CF-Connecting-IP` to the
@@ -20,10 +21,15 @@
 //   1. `CF-Connecting-IP` — always trusted.
 //   2. First segment of `X-Forwarded-For` — ONLY accepted outside
 //      production (NODE_ENV !== "production").
+//   3. `X-Real-IP` — ONLY accepted outside production (dev convenience for
+//      `curl -H` testing of the analytics proxy path).
 //
 // Returns `""` when no trustworthy source is present. The Worker then
-// hard-rejects rate-limited endpoints (login/register), preventing a
-// silently-forged IP from being treated as a real one.
+// hard-rejects rate-limited endpoints (login/register) or falls back to
+// its own (no-op) extractor for analytics, preventing a silently-forged
+// IP from being treated as a real one.
+
+import type { NextRequest } from "next/server";
 
 export interface ExtractClientIpOptions {
 	/**
@@ -65,6 +71,35 @@ export function extractClientIp(
 			const first = xff.split(",")[0]?.trim();
 			if (first) return first;
 		}
+	}
+
+	return "";
+}
+
+/**
+ * Resolve the trusted client IP from a Next.js proxy request.
+ *
+ * Used by the analytics ingest path (`apps/web/src/proxy.ts`). Returns the
+ * empty string when no trusted source is available — the caller MUST treat
+ * that as "do not forward any IP" rather than substituting an alternative
+ * (e.g. headers.get("x-forwarded-for")).
+ *
+ * Differs from {@link extractClientIp} in that, outside production, it
+ * also accepts an inbound `X-Real-IP` (dev convenience for `curl -H`
+ * testing). NEVER applied when `process.env.NODE_ENV === "production"`.
+ */
+export function resolveTrustedClientIp(request: NextRequest): string {
+	const cf = request.headers.get("cf-connecting-ip");
+	if (cf && cf.length > 0) return cf;
+
+	if (process.env.NODE_ENV !== "production") {
+		const xff = request.headers.get("x-forwarded-for");
+		if (xff) {
+			const first = xff.split(",")[0]?.trim();
+			if (first) return first;
+		}
+		const realIp = request.headers.get("x-real-ip");
+		if (realIp && realIp.length > 0) return realIp;
 	}
 
 	return "";
