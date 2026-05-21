@@ -290,7 +290,13 @@ export function isForumMetaPayload(value: unknown): value is ForumMetaPayloadV2 
 	if (!value || typeof value !== "object") return false;
 	const v = value as Partial<ForumMetaPayloadV2>;
 	if (typeof v.bucket !== "string" || v.forum == null || typeof v.forum !== "object") return false;
+	const forum = v.forum as unknown as Record<string, unknown>;
 	// Reject pre-threadTypes payloads — getThreadTypes() dereferences
 	// `meta.forum.threadTypes.enabled` unconditionally.
-	return isThreadTypeConfig((v.forum as unknown as Record<string, unknown>).threadTypes);
+	if (!isThreadTypeConfig(forum.threadTypes)) return false;
+	// Reject pre-announcement payloads (mig 0044). Old entries lack the
+	// field and would echo `undefined` to clients; force a miss so the
+	// payload is rewritten with the column populated.
+	if (typeof forum.announcement !== "string") return false;
+	return true;
 }

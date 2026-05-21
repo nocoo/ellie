@@ -678,6 +678,7 @@ describe("forum.getById — v2 cache", () => {
 					parentId: 0,
 					name: "Cached",
 					description: "d",
+					announcement: "",
 					icon: "",
 					displayOrder: 1,
 					threads: 5,

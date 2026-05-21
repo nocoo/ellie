@@ -261,8 +261,35 @@ describe("D1 row mappers", () => {
 			expect(forum.lastThreadSubject).toBe("Hello World");
 		});
 
-		it("should output exactly 22 fields (21 base + threadTypes)", () => {
+		it("should output exactly 23 fields (22 base + threadTypes)", () => {
 			const row = {
+				id: 1,
+				parent_id: 0,
+				name: "General",
+				description: "",
+				announcement: "",
+				icon: "",
+				display_order: 0,
+				threads: 0,
+				posts: 0,
+				type: "forum",
+				status: 0,
+				visibility: "public",
+				moderators: "",
+				moderator_ids: "",
+				last_thread_id: 0,
+				last_post_at: 0,
+				last_poster: "",
+				last_poster_id: 0,
+				last_thread_subject: "",
+			};
+
+			const forum = toForum(row);
+			expect(Object.keys(forum)).toHaveLength(23);
+		});
+
+		it("announcement defaults to empty string when column missing (pre-mig-0044 row)", () => {
+			const forum = toForum({
 				id: 1,
 				parent_id: 0,
 				name: "General",
@@ -281,10 +308,34 @@ describe("D1 row mappers", () => {
 				last_poster: "",
 				last_poster_id: 0,
 				last_thread_subject: "",
-			};
+			});
+			expect(forum.announcement).toBe("");
+		});
 
-			const forum = toForum(row);
-			expect(Object.keys(forum)).toHaveLength(22);
+		it("announcement passes through verbatim when present on row", () => {
+			const html = '<strong>Hi</strong><img src="https://x/y.png" alt="">';
+			const forum = toForum({
+				id: 1,
+				parent_id: 0,
+				name: "General",
+				description: "",
+				announcement: html,
+				icon: "",
+				display_order: 0,
+				threads: 0,
+				posts: 0,
+				type: "forum",
+				status: 0,
+				visibility: "public",
+				moderators: "",
+				moderator_ids: "",
+				last_thread_id: 0,
+				last_post_at: 0,
+				last_poster: "",
+				last_poster_id: 0,
+				last_thread_subject: "",
+			});
+			expect(forum.announcement).toBe(html);
 		});
 
 		it("threadTypes defaults all-false when columns absent", () => {
