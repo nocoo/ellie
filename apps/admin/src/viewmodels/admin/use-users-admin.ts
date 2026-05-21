@@ -122,6 +122,12 @@ export interface UsersAdminState {
 	purgeBatchError: string | null;
 	/** Last completed batch outcome — null until the first run resolves. */
 	purgeBatchSummary: PurgeBatchOutcome | null;
+	/**
+	 * Currently-open user detail dialog target. `null` = dialog closed.
+	 * The list page reads this to drive `<UserDetailDialog>` open/close
+	 * without disturbing pagination/filter/selection (task #9 Phase C).
+	 */
+	detailUserId: number | null;
 }
 
 /**
@@ -157,6 +163,24 @@ export interface UsersAdminActions {
 	 * list and clears the selection only when at least one purge ran.
 	 */
 	handlePurgeBatchConfirm: () => Promise<void>;
+	/**
+	 * Open the user-detail dialog for a single user (task #9 Phase C).
+	 * Does NOT touch filters / pagination / selection — purely UI state.
+	 */
+	openDetail: (userId: number) => void;
+	/** Close the detail dialog without touching other state. */
+	closeDetail: () => void;
+	/**
+	 * Re-fetch the current page using the current filters and limit.
+	 * Used by `<UserDetailDialog onChanged>` to refresh row data after
+	 * an in-dialog mutation (edit / ban / unban / purge) so the table
+	 * doesn't show stale status badges once the dialog closes. Selection
+	 * is intentionally left alone — even if a purged id is still in
+	 * `selectedIds`, subsequent batch actions ignore non-existent ids
+	 * server-side, and forcibly clearing here would surprise operators
+	 * who explicitly selected for follow-up.
+	 */
+	reloadCurrentPage: () => Promise<void>;
 }
 
 /**
@@ -389,6 +413,10 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 	const [purgeBatchError, setPurgeBatchError] = useState<string | null>(null);
 	const [purgeBatchSummary, setPurgeBatchSummary] = useState<PurgeBatchOutcome | null>(null);
 
+	// Detail dialog state (task #9 Phase C). Lives next to filters/
+	// selection so closing the dialog never resets either.
+	const [detailUserId, setDetailUserId] = useState<number | null>(null);
+
 	// -------------------------------------------------------------------------
 	// Data fetching
 	// -------------------------------------------------------------------------
@@ -530,6 +558,22 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 	}, [selectedIds, fetchData, pagination.page]);
 
 	// -------------------------------------------------------------------------
+	// Detail dialog (Phase C of task #9)
+	// -------------------------------------------------------------------------
+
+	const openDetail = useCallback((id: number) => {
+		setDetailUserId(id);
+	}, []);
+
+	const closeDetail = useCallback(() => {
+		setDetailUserId(null);
+	}, []);
+
+	const reloadCurrentPage = useCallback(async () => {
+		await fetchData(pagination.page);
+	}, [fetchData, pagination.page]);
+
+	// -------------------------------------------------------------------------
 	// Return
 	// -------------------------------------------------------------------------
 
@@ -547,6 +591,7 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 			purgeBatchLoading,
 			purgeBatchError,
 			purgeBatchSummary,
+			detailUserId,
 		},
 		actions: {
 			fetchData,
@@ -561,6 +606,9 @@ export function useUsersAdmin(options: UseUsersAdminOptions = {}): UseUsersAdmin
 			closePurgeBatchDialog,
 			clearPurgeBatchSummary,
 			handlePurgeBatchConfirm,
+			openDetail,
+			closeDetail,
+			reloadCurrentPage,
 		},
 	};
 }
