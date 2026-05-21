@@ -4,6 +4,7 @@ import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-ta
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminLogDetailDialog } from "@/components/admin/admin-log-detail-dialog";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
+import { PageHeader } from "@/components/layout/page-header";
 import {
 	type AdminLog,
 	type AdminLogFilters,
@@ -250,11 +251,8 @@ export default function AdminLogsPage() {
 	// -----------------------------------------------------------------------
 
 	return (
-		<div className="space-y-4">
-			<div>
-				<h1 className="text-2xl font-semibold text-foreground">操作日志</h1>
-				<p className="mt-1 text-sm text-muted-foreground">管理员操作审计记录（只读）</p>
-			</div>
+		<div className="space-y-6 md:space-y-8">
+			<PageHeader title="操作日志" subtitle="管理员操作审计记录（只读）" />
 
 			<AdminFilters
 				filters={FILTERS}

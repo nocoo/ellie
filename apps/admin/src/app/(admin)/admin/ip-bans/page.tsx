@@ -6,6 +6,7 @@ import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-ta
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { IpBanCreateDialog } from "@/components/admin/ip-ban-create-dialog";
+import { PageHeader } from "@/components/layout/page-header";
 import { ipBanExpiryVariant, ipBanStateVariant } from "@/viewmodels/admin/badges";
 import type { IpBan, IpBanCreate, IpBanUpdate, IpCheckResult } from "@/viewmodels/admin/ip-bans";
 import { formatExpiry } from "@/viewmodels/admin/ip-bans";
@@ -299,17 +300,17 @@ export default function IpBansPage() {
 	// ---------------------------------------------------------------------------
 
 	return (
-		<div className="space-y-4">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-2xl font-semibold text-foreground">IP 封禁</h1>
-					<p className="mt-1 text-sm text-muted-foreground">管理 IP 地址封禁</p>
-				</div>
-				<Button onClick={() => setCreateDialogOpen(true)}>
-					<Plus className="mr-2 h-4 w-4" />
-					添加封禁
-				</Button>
-			</div>
+		<div className="space-y-6 md:space-y-8">
+			<PageHeader
+				title="IP 封禁"
+				subtitle="管理 IP 地址封禁"
+				action={
+					<Button onClick={() => setCreateDialogOpen(true)}>
+						<Plus className="mr-2 h-4 w-4" />
+						添加封禁
+					</Button>
+				}
+			/>
 
 			{/* IP Check Tool */}
 			<div className="rounded-xl bg-secondary p-1 overflow-x-auto p-4">
