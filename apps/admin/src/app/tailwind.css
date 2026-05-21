@@ -122,25 +122,25 @@
    Light Mode (default)
    ========================================================================== */
 :root {
-	/* Surfaces: L0 → L1 → L2 (B-5 spec) */
-	--background: 220 14% 94%; /* L0: page base ~#EDEEF2 */
-	--foreground: 0 0% 12%;
-	--card: 220 14% 97%; /* L1: floating island ~#F6F7F8 */
-	--card-foreground: 0 0% 12%;
-	--secondary: 0 0% 100%; /* L2: inner cards (pure white) */
-	--secondary-foreground: 0 0% 12%;
+	/* Surfaces: L0 → L1 → L2 — cool-blue tinted, mirrors pew dashboard */
+	--background: 220 22% 95%; /* L0: page base, tinted cool-blue */
+	--foreground: 220 14% 12%;
+	--card: 220 22% 97%; /* L1: floating island */
+	--card-foreground: 220 14% 12%;
+	--secondary: 0 0% 100%; /* L2: inner cards / chart surfaces (pure white) */
+	--secondary-foreground: 220 14% 12%;
 	--popover: 0 0% 100%;
-	--popover-foreground: 0 0% 12%;
+	--popover-foreground: 220 14% 12%;
 
 	/* Primary: Cyan (Admin theme) */
 	--primary: 186 72% 38%;
 	--primary-foreground: 0 0% 100%;
 
 	/* UI states */
-	--muted: 220 14% 90%; /* hover background */
-	--muted-foreground: 0 0% 45%;
-	--accent: 220 14% 88%; /* selected state */
-	--accent-foreground: 0 0% 12%;
+	--muted: 220 18% 92%; /* hover background */
+	--muted-foreground: 220 8% 38%;
+	--accent: 220 18% 90%; /* selected state */
+	--accent-foreground: 220 14% 12%;
 	--destructive: 0 72% 51%;
 	--destructive-foreground: 0 0% 100%;
 	--success: 142 71% 45%;
@@ -149,9 +149,16 @@
 	--badge-red-foreground: 0 0% 100%;
 
 	/* Borders & inputs (L3) */
-	--border: 220 13% 88%; /* ~#E0E2E7 */
-	--input: 220 13% 88%;
+	--border: 220 16% 86%;
+	--input: 220 16% 86%;
 	--ring: 186 72% 38%;
+
+	/* Chart series — referenced by Recharts components as full CSS colors */
+	--color-chart-primary: hsl(186 72% 42%); /* cyan */
+	--color-chart-secondary: hsl(142 60% 42%); /* green */
+	--color-chart-tertiary: hsl(32 90% 50%); /* amber */
+	--color-chart-quaternary: hsl(270 70% 60%); /* violet */
+	--color-chart-quinary: hsl(340 75% 55%); /* magenta */
 
 	/* Radius (B-5 spec) */
 	--radius: 0.75rem; /* 12px - shadcn standard */
@@ -204,6 +211,13 @@
 	--border: 0 0% 16%; /* #292929 */
 	--input: 0 0% 18%; /* #2e2e2e */
 	--ring: 217 91% 60%;
+
+	/* Chart series — brighter variants for dark surfaces */
+	--color-chart-primary: hsl(186 70% 55%);
+	--color-chart-secondary: hsl(142 55% 55%);
+	--color-chart-tertiary: hsl(32 90% 60%);
+	--color-chart-quaternary: hsl(270 70% 68%);
+	--color-chart-quinary: hsl(340 75% 65%);
 
 	/* Forum-specific */
 	--forum-sidebar-bg: 210 10% 13%;
