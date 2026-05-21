@@ -316,7 +316,51 @@ describe("scheduleFlush", () => {
 		expect(pendingBucketSize()).toBe(0);
 	});
 
-	it("after a flush the next scheduleFlush within the window is a no-op", async () => {
+	it("schedules a tail flush when called inside the throttle window with a non-empty bucket", async () => {
+		// Reviewer pin (msg=mergep5-task3): inside the throttle window
+		// the bucket is not yet drained, but a tail flush MUST be queued
+		// onto ctx.waitUntil so that low-traffic isolates can't pin the
+		// last samples in memory until they are evicted.
+		const sink = vi.fn(async () => {});
+		setFlushSink(sink);
+
+		recordPageView(makeSample());
+		const { ctx, tasks } = mockCtx();
+		scheduleFlush(mockEnv(), ctx);
+		await Promise.all(tasks);
+		expect(sink).toHaveBeenCalledTimes(1);
+
+		// Drive timers manually so we can prove the deferred flush fires.
+		vi.useFakeTimers();
+		try {
+			recordPageView(makeSample());
+			const { ctx: ctx2, tasks: tasks2 } = mockCtx();
+			scheduleFlush(mockEnv(), ctx2);
+			// One tail flush queued (a Promise still pending).
+			expect(tasks2).toHaveLength(1);
+			// The bucket still holds the new sample until the tail fires.
+			expect(pendingBucketSize()).toBe(1);
+
+			// Repeated calls inside the same window coalesce onto the same
+			// tail flush — no extra waitUntil entries.
+			recordPageView(makeSample());
+			scheduleFlush(mockEnv(), ctx2);
+			scheduleFlush(mockEnv(), ctx2);
+			expect(tasks2).toHaveLength(1);
+			expect(pendingBucketSize()).toBe(1);
+
+			// Advance past the throttle window — tail flush runs.
+			await vi.advanceTimersByTimeAsync(_internal.FLUSH_INTERVAL_MS);
+			await Promise.all(tasks2);
+			expect(sink).toHaveBeenCalledTimes(2);
+			// Bucket drained by the tail flush.
+			expect(pendingBucketSize()).toBe(0);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("after a flush the next scheduleFlush within the window defers a tail flush", async () => {
 		const sink = vi.fn(async () => {});
 		setFlushSink(sink);
 
@@ -325,24 +369,57 @@ describe("scheduleFlush", () => {
 		scheduleFlush(mockEnv(), ctx);
 		await Promise.all(tasks);
 
-		// Add a new sample after the flush. The throttle should still
-		// be engaged, so a second scheduleFlush within FLUSH_INTERVAL_MS
-		// must NOT drain.
+		// Add a new sample after the flush. The throttle is still engaged,
+		// so the second scheduleFlush queues a tail flush rather than
+		// draining immediately.
 		recordPageView(makeSample());
 		const { ctx: ctx2, tasks: tasks2 } = mockCtx();
 		scheduleFlush(mockEnv(), ctx2);
-		expect(tasks2).toHaveLength(0);
+		expect(tasks2).toHaveLength(1);
 		// The bucket still holds the new sample.
 		expect(pendingBucketSize()).toBe(1);
 
-		// resetFlushThrottle simulates passing the 30s window — without
-		// it, the next call would also be throttled.
+		// resetFlushThrottle simulates passing the 30s window — clears
+		// the deferred flag, so the next call drains immediately.
 		resetFlushThrottle();
 		const { ctx: ctx3, tasks: tasks3 } = mockCtx();
 		scheduleFlush(mockEnv(), ctx3);
 		expect(tasks3).toHaveLength(1);
 		await Promise.all(tasks3);
 		expect(sink).toHaveBeenCalledTimes(2);
+	});
+
+	it("tail flush is a no-op when the bucket has been drained by another path", async () => {
+		// Race tolerance: if something else drains the bucket between the
+		// tail scheduling and its firing, the tail must NOT call the sink
+		// with an empty snapshot.
+		const sink = vi.fn(async () => {});
+		setFlushSink(sink);
+
+		recordPageView(makeSample());
+		const { ctx, tasks } = mockCtx();
+		scheduleFlush(mockEnv(), ctx);
+		await Promise.all(tasks);
+		expect(sink).toHaveBeenCalledTimes(1);
+
+		vi.useFakeTimers();
+		try {
+			recordPageView(makeSample());
+			const { ctx: ctx2, tasks: tasks2 } = mockCtx();
+			scheduleFlush(mockEnv(), ctx2);
+			expect(tasks2).toHaveLength(1);
+
+			// Drain manually before the tail fires.
+			swapBuckets();
+			expect(pendingBucketSize()).toBe(0);
+
+			await vi.advanceTimersByTimeAsync(_internal.FLUSH_INTERVAL_MS);
+			await Promise.all(tasks2);
+			// Tail observed empty bucket → did NOT call the sink again.
+			expect(sink).toHaveBeenCalledTimes(1);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("catches and swallows sink failures so they never reach the request hot path", async () => {
