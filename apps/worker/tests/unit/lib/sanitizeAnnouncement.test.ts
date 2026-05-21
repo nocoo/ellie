@@ -317,6 +317,31 @@ describe("sanitizeForumAnnouncement — control chars + text escaping", () => {
 	});
 });
 
+describe("sanitizeForumAnnouncement — quote-aware tag boundary", () => {
+	it('keeps title containing `>` intact (anchor: title="a>b")', () => {
+		const { html } = sanitizeForumAnnouncement('<a href="https://x.com" title="a>b">x</a>');
+		// Both attrs preserved, no leakage of attr text into body.
+		expect(html).toContain('href="https://x.com"');
+		expect(html).toContain('title="a&gt;b"');
+		expect(html).toContain(">x</a>");
+		// No stray quote/text escaped into output as content.
+		expect(html).not.toContain("b&quot;");
+		expect(html).not.toMatch(/b"&gt;/);
+	});
+
+	it("keeps img src/alt containing `>` intact", () => {
+		const { html } = sanitizeForumAnnouncement(
+			'<img src="https://x.com/a>b.png" alt="x>y" width="10">',
+		);
+		expect(html).toContain('src="https://x.com/a&gt;b.png"');
+		expect(html).toContain('alt="x&gt;y"');
+		expect(html).toContain('width="10"');
+		// Tag terminates cleanly; no escaped `>` leaks out as body text
+		// after the tag closes.
+		expect(html).toBe('<img src="https://x.com/a&gt;b.png" alt="x&gt;y" width="10" />');
+	});
+});
+
 describe("sanitizeForumAnnouncement — structure", () => {
 	it("preserves allowed structural tags p/br/span/ul/ol/li", () => {
 		const input = "<p>hi<br/></p><ul><li>a</li></ul><ol><li>b</li></ol><span>c</span>";
