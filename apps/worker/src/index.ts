@@ -113,6 +113,11 @@ export default {
 			if (path.match(/^\/api\/v1\/forums\/\d+\/thread-types$/) && request.method === "GET") {
 				return await (await import("./handlers/forum")).getThreadTypes(request, env, ctx);
 			}
+			// Announcement edit (moderator-only). Registered before the bare
+			// /:id GET so the regex doesn't shadow it.
+			if (path.match(/^\/api\/v1\/forums\/\d+\/announcement$/) && request.method === "PATCH") {
+				return await (await import("./handlers/forum")).setAnnouncement(request, env);
+			}
 			if (path.match(/^\/api\/v1\/forums\/\d+$/) && request.method === "GET") {
 				return await (await import("./handlers/forum")).getById(request, env, ctx);
 			}

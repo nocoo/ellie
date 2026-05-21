@@ -1,5 +1,6 @@
 import type { Forum, ForumThreadType, ModeratorInfo } from "@ellie/types";
 import type { ForumVisibility } from "@ellie/types";
+import { canModerate } from "@ellie/types";
 import { computeVisibilityBucket } from "../lib/cache/bucket";
 import {
 	getForumMetaV2,
@@ -8,14 +9,17 @@ import {
 	lazyForumSnapshot,
 	mergeTreeAndSummary,
 } from "../lib/cache/forum-read";
+import { invalidateForumUpdateV2 } from "../lib/cache/invalidate";
 import type { Env } from "../lib/env";
 import { parseModeratorIds, toForum } from "../lib/mappers";
 import { parseIdFromPath, parsePathSegment } from "../lib/parseId";
+import { getForumForPermission, getUserForPermission } from "../lib/permissionHelpers";
+import { prepareAnnouncement } from "../lib/sanitizeAnnouncement";
 import { THREAD_VISIBLE, buildVisibilityContext } from "../lib/visibility";
 
 // Forum handlers for Cloudflare Worker
 import { jsonResponse } from "../lib/response";
-import { optionalAuthVerified } from "../middleware/auth";
+import { moderationMiddleware, optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 
 /** Fetch moderator names by IDs in a single query (batched for SQLite limits) */
@@ -454,4 +458,99 @@ export async function getThreadTypes(
 		types,
 	};
 	return jsonResponse(payload, origin);
+}
+
+// ─── PATCH /api/v1/forums/:id/announcement ────────────────────────
+//
+// Updates the public-facing forum announcement (the "本版规则" card
+// at the top of a forum's thread list). Permission model:
+//   1. `moderationMiddleware` — role ∈ {Admin, SuperMod, Mod} + not banned
+//      + email verified (matches sticky / digest / close endpoints).
+//   2. `canModerate(user, forum)` — Admin/SuperMod always pass; Mod must
+//      have their username in `forum.moderators` (per-forum scope).
+//
+// Body: `{ announcement: string }` (4 KiB max post-sanitize). Empty
+// string clears the announcement. The Worker is the security boundary —
+// the Web UI hides the edit button for non-moderators but that is UX
+// polish only; this endpoint is the only gate that matters.
+//
+// Cache invalidation: announcement is a non-digest-affecting field, so
+// we use `invalidateForumUpdateV2(env, { affectsDigest: false })` which
+// bumps tree + summary gens but not digest gen.
+export async function setAnnouncement(request: Request, env: Env): Promise<Response> {
+	const origin = request.headers.get("Origin") ?? undefined;
+
+	const authResult = await moderationMiddleware(request, env);
+	if (authResult instanceof Response) return authResult;
+
+	const forumId = parsePathSegment(request, 1);
+	if (forumId === null) {
+		return errorResponse("INVALID_REQUEST", 400, { message: "Invalid forum ID" }, origin);
+	}
+
+	let body: Record<string, unknown>;
+	try {
+		body = (await request.json()) as Record<string, unknown>;
+	} catch {
+		return errorResponse("INVALID_BODY", 400, { message: "Invalid JSON body" }, origin);
+	}
+
+	const prepared = prepareAnnouncement(body.announcement);
+	if (!prepared.ok) {
+		if (prepared.code === "INVALID_TYPE") {
+			return errorResponse(
+				"INVALID_BODY",
+				400,
+				{ message: "announcement must be a string" },
+				origin,
+			);
+		}
+		if (prepared.code === "TOO_LONG") {
+			return errorResponse(
+				"PAYLOAD_TOO_LARGE",
+				400,
+				{ message: "announcement exceeds 4 KiB after sanitize" },
+				origin,
+			);
+		}
+	}
+
+	// `prepared.ok === true` from here on. Fetch user + forum for the
+	// per-forum permission check. Both queries are required and run in
+	// parallel — a Mod's scope is determined by `forum.moderators`.
+	const [user, forum] = await Promise.all([
+		getUserForPermission(env, authResult.user.userId),
+		getForumForPermission(env, forumId),
+	]);
+
+	if (!forum) {
+		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
+	}
+	if (!user) {
+		return errorResponse(
+			"INTERNAL_ERROR",
+			500,
+			{ message: "Failed to fetch permission data" },
+			origin,
+		);
+	}
+
+	if (!canModerate(user, forum)) {
+		return errorResponse(
+			"FORBIDDEN",
+			403,
+			{ message: "No permission to moderate this forum" },
+			origin,
+		);
+	}
+
+	// `prepared.html` is the sanitized payload that will live in D1.
+	// Length is already capped to 4 KiB UTF-8 by `prepareAnnouncement`.
+	await env.DB.prepare("UPDATE forums SET announcement = ? WHERE id = ?")
+		.bind(prepared.html ?? "", forumId)
+		.run();
+
+	await invalidateForumUpdateV2(env, { affectsDigest: false });
+
+	return jsonResponse({ id: forumId, announcement: prepared.html ?? "" }, origin);
 }
