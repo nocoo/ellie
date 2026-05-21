@@ -227,7 +227,7 @@ export default function ThreadDetailPage() {
 	};
 
 	return (
-		<div className="space-y-4">
+		<div className="space-y-6 md:space-y-8">
 			{/* Back button */}
 			<Button variant="ghost" size="sm" onClick={() => router.push("/admin/threads")}>
 				<ArrowLeft className="mr-2 h-4 w-4" />

@@ -6,6 +6,7 @@ import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-ta
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { CensorWordCreateDialog } from "@/components/admin/censor-word-create-dialog";
+import { PageHeader } from "@/components/layout/page-header";
 import { censorActionVariant } from "@/viewmodels/admin/badges";
 import {
 	type CensorWord,
@@ -249,17 +250,17 @@ export default function CensorWordsPage() {
 	];
 
 	return (
-		<div className="space-y-4">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-2xl font-semibold text-foreground">敏感词</h1>
-					<p className="mt-1 text-sm text-muted-foreground">管理敏感词过滤规则</p>
-				</div>
-				<Button onClick={() => setCreateDialogOpen(true)}>
-					<Plus className="mr-2 h-4 w-4" />
-					添加敏感词
-				</Button>
-			</div>
+		<div className="space-y-6 md:space-y-8">
+			<PageHeader
+				title="敏感词"
+				subtitle="管理敏感词过滤规则"
+				action={
+					<Button onClick={() => setCreateDialogOpen(true)}>
+						<Plus className="mr-2 h-4 w-4" />
+						添加敏感词
+					</Button>
+				}
+			/>
 
 			<AdminFilters
 				filters={FILTERS}

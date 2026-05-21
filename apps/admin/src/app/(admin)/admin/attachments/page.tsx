@@ -4,6 +4,7 @@ import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
+import { PageHeader } from "@/components/layout/page-header";
 import { getAttachmentThumbUrl, getAttachmentUrl } from "@/lib/cdn";
 import {
 	type Attachment,
@@ -519,17 +520,11 @@ export default function AttachmentsPage() {
 	// -----------------------------------------------------------------------
 
 	return (
-		<div className="space-y-4">
-			{/* Header */}
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-2xl font-semibold text-foreground">附件管理</h1>
-					<p className="mt-1 text-sm text-muted-foreground">
-						共 {stats.total} 个附件 · {stats.images} 张图片 · {stats.files} 个文件
-					</p>
-				</div>
-				<div className="flex items-center gap-2">
-					{/* View mode toggle */}
+		<div className="space-y-6 md:space-y-8">
+			<PageHeader
+				title="附件管理"
+				subtitle={`共 ${stats.total} 个附件 · ${stats.images} 张图片 · ${stats.files} 个文件`}
+				action={
 					<div className="flex items-center rounded-lg bg-secondary p-1">
 						<button
 							type="button"
@@ -558,8 +553,8 @@ export default function AttachmentsPage() {
 							<List className="h-4 w-4" />
 						</button>
 					</div>
-				</div>
-			</div>
+				}
+			/>
 
 			{/* Filters */}
 			<AdminFilters
