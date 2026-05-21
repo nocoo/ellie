@@ -17,6 +17,8 @@ vi.mock("../../src/handlers/forum", () => ({
 	list: mockHandler(),
 	getById: mockHandler(),
 	getAncestors: mockHandler(),
+	getThreadTypes: mockHandler(),
+	setAnnouncement: mockHandler(),
 }));
 vi.mock("../../src/handlers/thread", () => ({
 	list: mockHandler(),
@@ -906,6 +908,7 @@ describe("router (src/index.ts)", () => {
 				["GET", "/api/v1/forums", "forum", "list"],
 				["GET", "/api/v1/forums/1", "forum", "getById"],
 				["GET", "/api/v1/forums/1/ancestors", "forum", "getAncestors"],
+				["GET", "/api/v1/forums/1/thread-types", "forum", "getThreadTypes"],
 				["GET", "/api/v1/threads", "thread", "list"],
 				["GET", "/api/v1/threads/1", "thread", "getById"],
 				["GET", "/api/v1/posts", "post", "list"],
@@ -951,6 +954,7 @@ describe("router (src/index.ts)", () => {
 			it.each([
 				["POST", "/api/v1/threads", "thread", "create"],
 				["POST", "/api/v1/posts", "post", "create"],
+				["PATCH", "/api/v1/forums/1/announcement", "forum", "setAnnouncement"],
 				["PATCH", "/api/v1/users/me", "me", "updateProfile"],
 				["POST", "/api/v1/users/me/password", "me", "changePassword"],
 				["GET", "/api/v1/messages", "message", "list"],

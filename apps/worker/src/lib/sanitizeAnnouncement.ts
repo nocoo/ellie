@@ -371,6 +371,27 @@ interface TokenizerState {
 	stats: SanitizeStats;
 }
 
+// Quote-aware scan for the closing `>` of a tag. A bare `>` inside a
+// quoted attribute value (e.g. `title="a>b"`) does NOT terminate the
+// tag — browsers consume the quoted value first and only treat the
+// next unquoted `>` as the end. Returns -1 if no terminator exists.
+function findTagEnd(input: string, from: number): number {
+	let quote: '"' | "'" | null = null;
+	for (let i = from; i < input.length; i++) {
+		const ch = input[i];
+		if (quote !== null) {
+			if (ch === quote) quote = null;
+			continue;
+		}
+		if (ch === '"' || ch === "'") {
+			quote = ch;
+			continue;
+		}
+		if (ch === ">") return i;
+	}
+	return -1;
+}
+
 function handleLooseLessThan(st: TokenizerState): boolean {
 	const peek = st.input[st.i + 1];
 	if (
@@ -511,7 +532,7 @@ export function sanitizeForumAnnouncement(raw: string): SanitizeResult {
 		}
 		if (handleLooseLessThan(st)) continue;
 
-		const close = input.indexOf(">", st.i);
+		const close = findTagEnd(input, st.i + 1);
 		if (close === -1) {
 			st.out.push(escapeText(input.slice(st.i)));
 			break;
