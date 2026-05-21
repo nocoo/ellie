@@ -12,11 +12,12 @@ export default defineConfig({
 		name: "web",
 		root: __dirname,
 		pool: "threads",
-		isolate: false,
+		isolate: true,
 		include: ["tests/**/*.test.ts"],
 		exclude: [],
 		passWithNoTests: true,
 		environment: "node",
+		setupFiles: ["./tests/setup.ts"],
 		coverage: {
 			provider: "v8",
 			include: [
