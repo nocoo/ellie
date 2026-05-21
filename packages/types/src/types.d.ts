@@ -290,6 +290,16 @@ export interface Forum {
     parentId: number;
     name: string;
     description: string;
+    /**
+     * Long-form HTML announcement shown in the forum-page top card below
+     * `description`. Set by forum moderators / SuperMod / Admin via the
+     * web edit dialog; **server-side sanitized** before write. Empty
+     * string means "no announcement card" — UI hides the section.
+     *
+     * Restored from legacy Discuz `pre_forum_forumfield.rules`; see
+     * migration 0044 for column semantics and allowlist rules.
+     */
+    announcement: string;
     icon: string;
     displayOrder: number;
     threads: number;

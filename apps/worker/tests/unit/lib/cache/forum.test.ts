@@ -28,6 +28,7 @@ function makeForum(overrides: Partial<ForumRow> = {}): ForumRow {
 		parentId: 0,
 		name: "test",
 		description: "desc",
+		announcement: "",
 		icon: "",
 		displayOrder: 0,
 		threads: 10,
@@ -365,7 +366,9 @@ describe("cache/forum — validators", () => {
 	});
 
 	it("isForumMetaPayload: accepts well-formed payload", () => {
-		expect(isForumMetaPayload({ bucket: "anon", forum: { id: 1, threadTypes: tt } })).toBe(true);
+		expect(
+			isForumMetaPayload({ bucket: "anon", forum: { id: 1, threadTypes: tt, announcement: "" } }),
+		).toBe(true);
 	});
 	it("isForumMetaPayload: rejects bad shapes", () => {
 		expect(isForumMetaPayload(null)).toBe(false);
@@ -383,6 +386,24 @@ describe("cache/forum — validators", () => {
 			isForumMetaPayload({
 				bucket: "anon",
 				forum: { id: 1, threadTypes: { enabled: true, required: true, listable: true } },
+			}),
+		).toBe(false);
+	});
+	it("isForumMetaPayload: rejects pre-announcement forum payload (mig 0044 drift)", () => {
+		// Payloads written before migration 0044 lack `forum.announcement`.
+		// Must be rejected so the meta read path falls back to D1 and
+		// rewrites with the populated column.
+		expect(isForumMetaPayload({ bucket: "anon", forum: { id: 1, threadTypes: tt } })).toBe(false);
+		expect(
+			isForumMetaPayload({
+				bucket: "anon",
+				forum: { id: 1, threadTypes: tt, announcement: null },
+			}),
+		).toBe(false);
+		expect(
+			isForumMetaPayload({
+				bucket: "anon",
+				forum: { id: 1, threadTypes: tt, announcement: 123 },
 			}),
 		).toBe(false);
 	});

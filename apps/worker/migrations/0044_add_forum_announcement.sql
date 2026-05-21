@@ -1,0 +1,28 @@
+-- 0044_add_forum_announcement.sql — restore per-forum announcement card
+--
+-- Restores the legacy Discuz `pre_forum_forumfield.rules` payload (long
+-- HTML announcement set by forum moderators — welcome line, link index,
+-- 版规) as a first-class column on the modern `forums` table. The
+-- existing `forums.description` field already holds the short tagline
+-- (mapped from Discuz `pre_forum_forumfield.description`) and is NOT
+-- touched by this migration.
+--
+-- Naming rationale: `announcement` describes what the field actually
+-- contains (welcome / 版规 / links — a free-form moderator broadcast),
+-- which is clearer than reusing the legacy `rules` label. The column
+-- complements `description` rather than replacing it.
+--
+-- Content shape: sanitized HTML (img / a / strong / em / br / font /
+-- p / ul / ol / li / span allowed; all `on*` attrs stripped; href/src
+-- whitelist of http/https/mailto + same-site relative). Sanitization is
+-- enforced server-side at write time (Worker PATCH) and also at
+-- backfill time (scripts/import-forum-announcements-2026-05-22.ts).
+--
+-- Display: rendered in the forum-page top card below `description`. Not
+-- displayed in the admin console. Empty string ('') means "no
+-- announcement card"; the web does not render an empty section.
+--
+-- Coverage at backfill time: 31/211 forums in source data are
+-- non-empty; max length 1459 chars (fid=306). 4 KiB column-side guard
+-- in the Worker write path leaves comfortable headroom.
+ALTER TABLE forums ADD COLUMN announcement TEXT NOT NULL DEFAULT '';

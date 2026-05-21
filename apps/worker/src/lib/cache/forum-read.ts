@@ -237,6 +237,7 @@ function buildSnapshotRow(raw: Record<string, unknown>, ctx: BuildRowCtx): Forum
 		parentId: raw.parent_id as number,
 		name: raw.name as string,
 		description: raw.description as string,
+		announcement: (raw.announcement as string) ?? "",
 		icon: raw.icon as string,
 		displayOrder: raw.display_order as number,
 		threads: raw.threads as number,
@@ -402,6 +403,11 @@ export function mergeTreeAndSummary(
 			parentId: node.parentId,
 			name: node.name,
 			description: node.description,
+			// `announcement` lives only on the per-forum meta payload — the
+			// forum index list doesn't render it and we don't pay the
+			// cache-payload cost on the tree node. Default to '' here so the
+			// list-shaped `Forum` is still type-complete.
+			announcement: "",
 			icon: node.icon,
 			displayOrder: node.displayOrder,
 			type: node.type,

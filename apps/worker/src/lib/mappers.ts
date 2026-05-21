@@ -89,6 +89,7 @@ interface D1ForumRow {
 	parent_id: number;
 	name: string;
 	description: string;
+	announcement: string;
 	icon: string;
 	display_order: number;
 	threads: number;
@@ -240,6 +241,7 @@ export function toForum(row: Record<string, unknown>): Forum {
 		parentId: r.parent_id,
 		name: r.name,
 		description: r.description,
+		announcement: r.announcement ?? "",
 		icon: r.icon,
 		displayOrder: r.display_order,
 		threads: r.threads,
