@@ -11,9 +11,10 @@
 //                                                         //           onSearchIp=undefined,
 //                                                         //           onChanged=undefined
 //      Behaviour is byte-equivalent to the pre-extraction page —
-//      BackLink renders, IP search button (when wired in a later
-//      iteration) falls back to `router.push("/admin/users?regIp=…")`,
-//      mutations only call `reloadUser()` internally.
+//      BackLink renders, the "搜索同 IP 用户" button falls back to
+//      `router.push("/admin/users?regIp=…" or "?lastIp=…")` because no
+//      list page is mounted to intercept it; mutations only call
+//      `reloadUser()` internally.
 //
 //   2. Dialog `UserDetailDialog` (Phase C):
 //        <UserDetailPanel
@@ -60,7 +61,7 @@ import {
 } from "@/viewmodels/admin/users";
 import { formatNumber } from "@ellie/shared";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@ellie/ui";
-import { ArrowLeft, Loader2, Pencil, Shield, ShieldOff, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, Pencil, Search, Shield, ShieldOff, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -101,12 +102,12 @@ export interface UserDetailPanelProps {
 	showBack?: boolean;
 
 	/**
-	 * Handle "搜索同 IP 用户" intent from the panel. Reserved for Phase C —
-	 * the dialog wrapper will pass this so an IP-cell action button can
-	 * update the list page's filter state in-place and close the dialog
-	 * without leaving the route. Phase B does NOT wire any UI to it;
-	 * declaring it now keeps the public API stable so Phase C only adds
-	 * call sites, not new props.
+	 * Handle "搜索同 IP 用户" intent from the panel. Wired by the
+	 * `UserDetailDialog` wrapper so a click on the per-IP-row button
+	 * updates the list page's filter state in-place and closes the
+	 * dialog without leaving the route. When undefined (route fallback
+	 * mode) the panel falls back to `router.push("/admin/users?regIp=…"
+	 * or "?lastIp=…")`, with `URLSearchParams` to encode IPv6 colons.
 	 */
 	onSearchIp?: (kind: "regIp" | "lastIp", ip: string) => void;
 
@@ -128,16 +129,29 @@ export interface UserDetailPanelProps {
 export function UserDetailPanel({
 	userId,
 	showBack = true,
-	// `onSearchIp` is declared on the prop interface for Phase C but no
-	// UI wires it yet. Marked unused here so eslint stays happy while the
-	// API stays stable across the two phases.
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	onSearchIp: _onSearchIp,
+	onSearchIp,
 	onChanged,
 }: UserDetailPanelProps) {
 	const router = useRouter();
 
 	const { state, actions } = useUserDetail({ userId });
+
+	// "搜索同 IP 用户" handler — dialog mode calls `onSearchIp` so the
+	// list page mutates its filter state in-place (Phase C). Route
+	// fallback navigates to `/admin/users?<kind>=<ip>`; we go through
+	// `URLSearchParams` so an IPv6 address's colons get encoded as `%3A`
+	// instead of looking like a URL port.
+	const handleSearchIp = (kind: "regIp" | "lastIp", ip: string | undefined | null) => {
+		const trimmed = (ip ?? "").trim();
+		if (!trimmed) return;
+		if (onSearchIp) {
+			onSearchIp(kind, trimmed);
+			return;
+		}
+		const params = new URLSearchParams();
+		params.set(kind, trimmed);
+		router.push(`/admin/users?${params.toString()}`);
+	};
 
 	const [editOpen, setEditOpen] = useState(false);
 	const [editLoading, setEditLoading] = useState(false);
@@ -333,17 +347,48 @@ export function UserDetailPanel({
 						<CardTitle>元信息</CardTitle>
 					</CardHeader>
 					<CardContent className="space-y-4">
-						{/* 登录 IP — persistent users.reg_ip / users.last_ip */}
+						{/* 登录 IP — persistent users.reg_ip / users.last_ip.
+						    The 搜索同 IP 用户 button only renders when the
+						    matching IP is non-empty so empty cells never
+						    produce a navigation that would land on an empty
+						    list. Dialog mode goes through `onSearchIp` (no
+						    navigation, dialog closes itself); route mode
+						    falls back to `router.push` with URL-encoded
+						    params so IPv6 colons survive. */}
 						<dl className="grid grid-cols-[7rem_1fr] gap-y-2 text-sm">
 							<dt className="text-muted-foreground">注册 IP</dt>
 							<dd>
 								<span className="font-mono">{fmtIp(user.regIp)}</span>
 								<IpLookupInline ip={user.regIp} />
+								{user.regIp && user.regIp.trim().length > 0 && (
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										className="ml-2 h-7 px-2 text-xs"
+										onClick={() => handleSearchIp("regIp", user.regIp)}
+									>
+										<Search className="mr-1 h-3 w-3" />
+										搜索同 IP 用户
+									</Button>
+								)}
 							</dd>
 							<dt className="text-muted-foreground">上次登录 IP</dt>
 							<dd>
 								<span className="font-mono">{fmtIp(user.lastIp)}</span>
 								<IpLookupInline ip={user.lastIp} />
+								{user.lastIp && user.lastIp.trim().length > 0 && (
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										className="ml-2 h-7 px-2 text-xs"
+										onClick={() => handleSearchIp("lastIp", user.lastIp)}
+									>
+										<Search className="mr-1 h-3 w-3" />
+										搜索同 IP 用户
+									</Button>
+								)}
 							</dd>
 						</dl>
 
