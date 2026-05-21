@@ -2,6 +2,7 @@
 
 import { ForumDistChart } from "@/components/admin/analytics/forum-dist-chart";
 import { LoginAttemptsPanel } from "@/components/admin/analytics/login-attempts-panel";
+import { TodayVisitsPanel } from "@/components/admin/analytics/today-visits-panel";
 import { TrendChart } from "@/components/admin/analytics/trend-chart";
 import { StatCard } from "@/components/admin/stat-card";
 import {
@@ -220,6 +221,9 @@ export default function AnalyticsPage() {
 					)}
 				</CardContent>
 			</Card>
+
+			{/* ── Today's page-view audit (P5) ───────────────────── */}
+			<TodayVisitsPanel />
 
 			{/* ── Today's login-attempt audit (P4) ───────────────── */}
 			<LoginAttemptsPanel />
