@@ -65,6 +65,25 @@ const FILTERS: FilterDef[] = [
  * request leaves the browser.
  */
 const ADVANCED_FILTERS: FilterDef[] = [
+	// IP search — `regIp` / `lastIp` map to worker `users.reg_ip` /
+	// `users.last_ip` exact-match filters (apps/worker/src/handlers/admin/
+	// user.ts L112-137). Two independent fields, not a combined "IP" input,
+	// because the worker treats them as distinct columns. Free-form text
+	// (not `type: "search"` aria-hidden via Search icon) so the operator can
+	// clear / replace the value the same way as the "搜索用户..." box.
+	// IPv6 fits in a 200px input (longest 39 chars). Until G.6 button-driven
+	// flow gets explicit IPv6 normalisation, exact-match is the worker
+	// contract — the operator must type the full address.
+	{
+		key: "regIp",
+		label: "注册 IP",
+		type: "search",
+	},
+	{
+		key: "lastIp",
+		label: "上次登录 IP",
+		type: "search",
+	},
 	{
 		key: "regDate",
 		label: "注册时间",
