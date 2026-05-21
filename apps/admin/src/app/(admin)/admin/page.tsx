@@ -1,4 +1,6 @@
 import { StatCard } from "@/components/admin/stat-card";
+import { PageHeader } from "@/components/layout/page-header";
+import { Section } from "@/components/layout/section";
 import { type DashboardStats, activeForums } from "@/viewmodels/admin/dashboard";
 import { fetchDashboardStats } from "@/viewmodels/admin/dashboard.server";
 import { FileText, MessageSquare, MessagesSquare, Users } from "lucide-react";
@@ -30,11 +32,8 @@ export default async function DashboardPage() {
 	}
 
 	return (
-		<div className="space-y-6">
-			<div>
-				<h1 className="text-2xl font-semibold text-foreground">仪表盘</h1>
-				<p className="mt-1 text-sm text-muted-foreground">论坛数据一览</p>
-			</div>
+		<div className="space-y-6 md:space-y-8">
+			<PageHeader title="仪表盘" subtitle="论坛数据一览" />
 
 			{error && (
 				<div className="rounded-[var(--radius-card,14px)] bg-destructive/10 p-4 text-sm text-destructive">
@@ -44,60 +43,61 @@ export default async function DashboardPage() {
 
 			{stats && (
 				<>
-					{/* Stats Cards — 4 columns */}
-					<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-						<StatCard label="用户总数" value={stats.users.total} icon={Users} />
-						<StatCard label="主题总数" value={stats.threads.total} icon={FileText} />
-						<StatCard label="今日发帖" value={stats.posts.today} icon={MessageSquare} />
-						<StatCard label="活跃版块" value={activeForums(stats)} icon={MessagesSquare} />
-					</div>
-
-					{/* Detail Cards — 2x2 grid */}
-					<div className="grid gap-4 sm:grid-cols-2">
-						<StatCard
-							label="用户"
-							value={stats.users.total}
-							icon={Users}
-							subItems={[
-								{ label: "今日", value: stats.users.today },
-								{ label: "已封禁", value: stats.users.banned },
-							]}
-						/>
-						<StatCard
-							label="内容"
-							value={stats.threads.total + stats.posts.total}
-							icon={FileText}
-							subItems={[
-								{ label: "主题", value: stats.threads.total },
-								{ label: "今日主题", value: stats.threads.today },
-								{ label: "帖子", value: stats.posts.total },
-								{ label: "今日帖子", value: stats.posts.today },
-							]}
-						/>
-						<StatCard
-							label="版块"
-							value={stats.forums.total}
-							icon={MessagesSquare}
-							subItems={[{ label: "隐藏", value: stats.forums.hidden }]}
-						/>
-
-						{/* Quick Links */}
-						<div className="rounded-[var(--radius-card,14px)] bg-secondary p-4 md:p-5">
-							<p className="text-xs md:text-sm text-muted-foreground">快捷入口</p>
-							<ul className="mt-3 space-y-2">
-								{QUICK_LINKS.map((link) => (
-									<li key={link.href}>
-										<Link
-											href={link.href}
-											className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-										>
-											{link.label} &rarr;
-										</Link>
-									</li>
-								))}
-							</ul>
+					<Section title="概览">
+						<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+							<StatCard label="用户总数" value={stats.users.total} icon={Users} />
+							<StatCard label="主题总数" value={stats.threads.total} icon={FileText} />
+							<StatCard label="今日发帖" value={stats.posts.today} icon={MessageSquare} />
+							<StatCard label="活跃版块" value={activeForums(stats)} icon={MessagesSquare} />
 						</div>
-					</div>
+					</Section>
+
+					<Section title="详细">
+						<div className="grid gap-4 sm:grid-cols-2">
+							<StatCard
+								label="用户"
+								value={stats.users.total}
+								icon={Users}
+								subItems={[
+									{ label: "今日", value: stats.users.today },
+									{ label: "已封禁", value: stats.users.banned },
+								]}
+							/>
+							<StatCard
+								label="内容"
+								value={stats.threads.total + stats.posts.total}
+								icon={FileText}
+								subItems={[
+									{ label: "主题", value: stats.threads.total },
+									{ label: "今日主题", value: stats.threads.today },
+									{ label: "帖子", value: stats.posts.total },
+									{ label: "今日帖子", value: stats.posts.today },
+								]}
+							/>
+							<StatCard
+								label="版块"
+								value={stats.forums.total}
+								icon={MessagesSquare}
+								subItems={[{ label: "隐藏", value: stats.forums.hidden }]}
+							/>
+
+							<div className="rounded-[var(--radius-card,14px)] bg-secondary p-4 md:p-5">
+								<p className="text-xs md:text-sm text-muted-foreground">快捷入口</p>
+								<ul className="mt-3 space-y-2">
+									{QUICK_LINKS.map((link) => (
+										<li key={link.href}>
+											<Link
+												href={link.href}
+												className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+											>
+												{link.label} &rarr;
+											</Link>
+										</li>
+									))}
+								</ul>
+							</div>
+						</div>
+					</Section>
 				</>
 			)}
 		</div>

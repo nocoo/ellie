@@ -8,6 +8,7 @@ import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { ThreadBatchMoveDialog } from "@/components/admin/thread-batch-move-dialog";
 import { ThreadEditDialog } from "@/components/admin/thread-edit-dialog";
+import { PageHeader } from "@/components/layout/page-header";
 import { extractErrorMessage } from "@/lib/admin-error";
 import {
 	threadClosedVariant,
@@ -583,11 +584,8 @@ function ThreadsPageInner() {
 	];
 
 	return (
-		<div className="space-y-4">
-			<div>
-				<h1 className="text-2xl font-semibold text-foreground">主题</h1>
-				<p className="mt-1 text-sm text-muted-foreground">管理论坛主题</p>
-			</div>
+		<div className="space-y-6 md:space-y-8">
+			<PageHeader title="主题" subtitle="管理论坛主题" />
 
 			<AdminFilters
 				filters={filterDefs}

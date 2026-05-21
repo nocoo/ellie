@@ -9,6 +9,7 @@ import {
 	ADMIN_WIDE_DIALOG_BODY_CLASS,
 	ADMIN_WIDE_DIALOG_CONTENT_CLASS,
 } from "@/components/admin/dialog-presets";
+import { PageHeader } from "@/components/layout/page-header";
 import { reportStatusVariant, reportTypeVariant } from "@/viewmodels/admin/badges";
 import {
 	REPORT_STATUS_OPTIONS,
@@ -366,17 +367,17 @@ export default function ReportsPage() {
 	// ---------------------------------------------------------------------------
 
 	return (
-		<div className="space-y-4">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-2xl font-semibold text-foreground">举报管理</h1>
-					<p className="mt-1 text-sm text-muted-foreground">处理用户举报的主题、回帖与用户</p>
-				</div>
-				<Button variant="outline" onClick={() => fetchData(pagination.page)} disabled={loading}>
-					<RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-					刷新
-				</Button>
-			</div>
+		<div className="space-y-6 md:space-y-8">
+			<PageHeader
+				title="举报管理"
+				subtitle="处理用户举报的主题、回帖与用户"
+				action={
+					<Button variant="outline" onClick={() => fetchData(pagination.page)} disabled={loading}>
+						<RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+						刷新
+					</Button>
+				}
+			/>
 
 			<AdminFilters
 				filters={FILTERS}

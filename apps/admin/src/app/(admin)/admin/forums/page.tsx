@@ -6,6 +6,7 @@ import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { ForumCreateDialog } from "@/components/admin/forum-create-dialog";
 import { ForumEditDialog } from "@/components/admin/forum-edit-dialog";
 import { ForumMergeDialog } from "@/components/admin/forum-merge-dialog";
+import { PageHeader } from "@/components/layout/page-header";
 import { extractErrorMessage } from "@/lib/admin-error";
 import { forumStatusVariant, forumTypeVariant } from "@/viewmodels/admin/badges";
 import {
@@ -430,20 +431,17 @@ export default function ForumsPage() {
 	};
 
 	return (
-		<div className="space-y-4">
-			{/* Header */}
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-2xl font-semibold text-foreground">版块管理</h1>
-					<p className="mt-1 text-sm text-muted-foreground">
-						{stats.groups} 个分区 · {stats.forums} 个版块 · {stats.subs} 个子版块
-					</p>
-				</div>
-				<Button onClick={() => setCreateOpen(true)}>
-					<Plus className="mr-2 h-4 w-4" />
-					创建版块
-				</Button>
-			</div>
+		<div className="space-y-6 md:space-y-8">
+			<PageHeader
+				title="版块管理"
+				subtitle={`${stats.groups} 个分区 · ${stats.forums} 个版块 · ${stats.subs} 个子版块`}
+				action={
+					<Button onClick={() => setCreateOpen(true)}>
+						<Plus className="mr-2 h-4 w-4" />
+						创建版块
+					</Button>
+				}
+			/>
 
 			{/* Filters */}
 			<AdminFilters
