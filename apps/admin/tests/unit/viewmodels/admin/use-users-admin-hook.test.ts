@@ -400,6 +400,63 @@ describe("useUsersAdmin", () => {
 	// Batch F — handleClearFilters resets advanced range keys too
 	// ----------------------------------------------------------------------
 
+	// ----------------------------------------------------------------------
+	// IP search filters (#9 Phase A) — pin that `regIp` / `lastIp` reach
+	// the worker as exact-match query params, not just the viewmodel
+	// state. The list page exposes these as `type: "search"` inputs in
+	// the 高级过滤器 panel; this hook test guards the wire format.
+	// ----------------------------------------------------------------------
+
+	describe("IP filters", () => {
+		it("regIp / lastIp survive into the fetch URL when set", async () => {
+			const { result } = renderHook(() =>
+				useUsersAdmin({
+					initialFilters: { regIp: "1.2.3.4", lastIp: "::1" },
+				}),
+			);
+			await waitFor(() => expect(result.current.state.loading).toBe(false), { interval: 5 });
+
+			const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+			expect(fetchCall).toContain("regIp=1.2.3.4");
+			// `::1` (IPv6 loopback) must URL-encode the colons; URLSearchParams
+			// re-emits them as `%3A` so the worker side reads the original
+			// value back intact.
+			expect(fetchCall).toContain("lastIp=%3A%3A1");
+		});
+
+		it("handleFilterChange('regIp', ...) updates state and triggers a re-fetch", async () => {
+			const { result } = renderHook(() => useUsersAdmin());
+			await waitFor(() => expect(result.current.state.loading).toBe(false), { interval: 5 });
+
+			(global.fetch as ReturnType<typeof vi.fn>).mockClear();
+
+			await act(async () => {
+				result.current.actions.handleFilterChange("regIp", "10.0.0.1");
+			});
+
+			await waitFor(() => expect(result.current.state.filters.regIp).toBe("10.0.0.1"), {
+				interval: 5,
+			});
+
+			const lastCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+			expect(lastCall).toContain("regIp=10.0.0.1");
+		});
+
+		it("clearing regIp via empty-string filter change drops it from the URL", async () => {
+			const { result } = renderHook(() => useUsersAdmin({ initialFilters: { regIp: "1.2.3.4" } }));
+			await waitFor(() => expect(result.current.state.loading).toBe(false), { interval: 5 });
+
+			await act(async () => {
+				result.current.actions.handleFilterChange("regIp", "");
+			});
+
+			await waitFor(() => expect(result.current.state.filters.regIp).toBe(""), { interval: 5 });
+
+			const lastCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+			expect(lastCall).not.toContain("regIp=");
+		});
+	});
+
 	it("handleClearFilters resets basic + advanced range keys", async () => {
 		const { result } = renderHook(() =>
 			useUsersAdmin({
