@@ -1,5 +1,6 @@
 "use client";
 
+import { ChartTooltip } from "@/components/admin/analytics/chart-tooltip";
 import { DashboardResponsiveContainer } from "@/components/admin/analytics/responsive-container";
 import type { AnalyticsTrendPoint } from "@/viewmodels/admin/analytics";
 import { useId } from "react";
@@ -45,13 +46,8 @@ export function TrendChart({
 					<XAxis dataKey="date" tick={{ fontSize: 11 }} minTickGap={24} />
 					<YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={32} />
 					<Tooltip
-						contentStyle={{
-							background: "var(--background)",
-							borderRadius: 8,
-							border: "1px solid var(--border)",
-							fontSize: 12,
-						}}
-						formatter={(value) => [Number(value), valueLabel]}
+						cursor={{ stroke: "hsl(var(--border))", strokeDasharray: "3 3" }}
+						content={<ChartTooltip formatter={(value) => [Number(value), valueLabel]} />}
 					/>
 					<Area type="monotone" dataKey="count" stroke={color} strokeWidth={2} fill={fillRef} />
 				</AreaChart>
