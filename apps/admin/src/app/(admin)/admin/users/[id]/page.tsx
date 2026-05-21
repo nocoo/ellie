@@ -210,7 +210,7 @@ export default function UserDetailPage() {
 	// -----------------------------------------------------------------------
 
 	return (
-		<div className="space-y-4">
+		<div className="space-y-6 md:space-y-8">
 			<BackLink />
 
 			{/* Header */}
