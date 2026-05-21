@@ -43,11 +43,13 @@ export interface UserDetailDialogProps {
 	onClose: () => void;
 
 	/**
-	 * Update the list page's IP filter in-place. Called when the panel
-	 * triggers an "搜索同 IP 用户" intent (Phase C only declares the
-	 * upstream contract — no panel JSX wires this yet; the dialog still
-	 * passes the prop so once a button is added the wrapper does not
-	 * need touching).
+	 * Update the list page's IP filter in-place. Called when the panel's
+	 * 搜索同 IP 用户 button (wired in Phase C.1 — see `UserDetailPanel`'s
+	 * `handleSearchIp`) is clicked. The list page's
+	 * `handleDialogSearchIp` clears both IP keys before applying the new
+	 * one so the worker never sees an AND of `regIp` + `lastIp`, and
+	 * closes the dialog so the operator lands directly on the freshly
+	 * filtered list.
 	 */
 	onSearchIp?: (kind: "regIp" | "lastIp", ip: string) => void;
 
