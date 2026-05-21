@@ -50,6 +50,19 @@ export interface Env {
 	 * notice instead of leaking unauthenticated upstream calls.
 	 */
 	IP_LOOKUP_API_KEY?: string;
+	/**
+	 * Shared secret for the P5 admin-analytics page-view ingest endpoint
+	 * at `POST /api/internal/analytics/ingest`. Verified constant-time
+	 * against the inbound `X-Ingest-Key` header BEFORE any header trust
+	 * (X-Real-IP) or collector dispatch. When undefined the ingest route
+	 * returns 503 `INGEST_NOT_CONFIGURED` so the deployment can't
+	 * accidentally accept anonymous samples.
+	 *
+	 * Set ONLY via `wrangler secret put ANALYTICS_INGEST_KEY` — do NOT
+	 * add to tracked `.dev.vars` / `.dev.vars.example`, and the web side
+	 * MUST keep this server-only (never `NEXT_PUBLIC_*`).
+	 */
+	ANALYTICS_INGEST_KEY?: string;
 }
 
 /** Check if KV user cache is enabled */

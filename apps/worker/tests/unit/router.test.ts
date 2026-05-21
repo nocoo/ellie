@@ -198,6 +198,33 @@ vi.mock("../../src/handlers/admin/announcement", () => ({
 vi.mock("../../src/lib/online-stats", () => ({
 	aggregateOnlineStats: vi.fn(async () => {}),
 }));
+vi.mock("../../src/lib/analytics/loginHistory", () => ({
+	cleanupLoginHistory: vi.fn(async () => 0),
+	scheduleLoginHistory: vi.fn(),
+}));
+// P5 wiring — the worker boot binds the D1 flush sink at module load
+// and the 19:00-UTC cron co-fires the analytics-daily-targets cleanup
+// alongside the login-history cleanup. The tests must not exercise D1.
+vi.mock("../../src/lib/analytics/collect", () => ({
+	setFlushSink: vi.fn(),
+	resetFlushSink: vi.fn(),
+}));
+vi.mock("../../src/lib/analytics/flushSink-d1", () => ({
+	d1FlushSink: vi.fn(async () => {}),
+}));
+vi.mock("../../src/lib/analytics/cleanup", () => ({
+	cleanupAnalyticsDailyTargets: vi.fn(async () => 0),
+	DEFAULT_RETENTION_HOURS: 48,
+}));
+// P5 internal ingest + admin today/visits handlers — keep router-only
+// scope; do not invoke the real handlers.
+vi.mock("../../src/handlers/internal/analyticsIngest", () => ({
+	analyticsIngestHandler: mockHandler(),
+}));
+vi.mock("../../src/handlers/admin/todayVisits", () => ({
+	getTodayVisitsKpi: mockHandler(),
+	getTodayVisitsList: mockHandler(),
+}));
 
 // Mock maintenance middleware — default to disabled
 const checkMaintenanceMock = vi.fn(async () => null);
@@ -274,6 +301,7 @@ const MODULE_PATHS: Record<string, string> = {
 	"admin/report": "../../src/handlers/admin/report",
 	"admin/adminLog": "../../src/handlers/admin/adminLog",
 	"admin/announcement": "../../src/handlers/admin/announcement",
+	"admin/todayVisits": "../../src/handlers/admin/todayVisits",
 };
 
 async function expectHandlerCalled(mod: string, fn: string): Promise<void> {
@@ -684,14 +712,161 @@ describe("router (src/index.ts)", () => {
 	// ─── Scheduled Handler ──────────────────────────────────────────
 
 	describe("scheduled", () => {
-		it("should call aggregateOnlineStats via waitUntil", async () => {
+		it("dispatches the */5 cron to aggregateOnlineStats via waitUntil", async () => {
+			const onlineStats = await import("../../src/lib/online-stats");
+			const loginHistory = await import("../../src/lib/analytics/loginHistory");
+			(onlineStats.aggregateOnlineStats as ReturnType<typeof vi.fn>).mockClear();
+			(loginHistory.cleanupLoginHistory as ReturnType<typeof vi.fn>).mockClear();
 			const env = makeEnv();
 			const ctx = makeCtx();
-			const event = {} as ScheduledEvent;
+			const event = { cron: "*/5 * * * *" } as ScheduledEvent;
 
 			await worker.scheduled(event, env, ctx);
 
 			expect(ctx.waitUntil).toHaveBeenCalledTimes(1);
+			expect(onlineStats.aggregateOnlineStats).toHaveBeenCalledTimes(1);
+			expect(loginHistory.cleanupLoginHistory).not.toHaveBeenCalled();
+		});
+
+		it("dispatches the 03:00 Asia/Shanghai cron to cleanupLoginHistory + cleanupAnalyticsDailyTargets via waitUntil", async () => {
+			const onlineStats = await import("../../src/lib/online-stats");
+			const loginHistory = await import("../../src/lib/analytics/loginHistory");
+			const analyticsCleanup = await import("../../src/lib/analytics/cleanup");
+			(onlineStats.aggregateOnlineStats as ReturnType<typeof vi.fn>).mockClear();
+			(loginHistory.cleanupLoginHistory as ReturnType<typeof vi.fn>).mockClear();
+			(analyticsCleanup.cleanupAnalyticsDailyTargets as ReturnType<typeof vi.fn>).mockClear();
+			const env = makeEnv();
+			const ctx = makeCtx();
+			const event = { cron: "0 19 * * *" } as ScheduledEvent;
+
+			await worker.scheduled(event, env, ctx);
+
+			// Both retention jobs are queued via waitUntil so a failure in
+			// one does not block the other (P5 reviewer pin).
+			expect(ctx.waitUntil).toHaveBeenCalledTimes(2);
+			expect(loginHistory.cleanupLoginHistory).toHaveBeenCalledTimes(1);
+			expect(analyticsCleanup.cleanupAnalyticsDailyTargets).toHaveBeenCalledTimes(1);
+			expect(onlineStats.aggregateOnlineStats).not.toHaveBeenCalled();
+		});
+
+		it("swallows cleanupAnalyticsDailyTargets rejection independently of cleanupLoginHistory", async () => {
+			const loginHistory = await import("../../src/lib/analytics/loginHistory");
+			const analyticsCleanup = await import("../../src/lib/analytics/cleanup");
+			const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+			(loginHistory.cleanupLoginHistory as ReturnType<typeof vi.fn>).mockResolvedValueOnce(0);
+			(
+				analyticsCleanup.cleanupAnalyticsDailyTargets as ReturnType<typeof vi.fn>
+			).mockImplementationOnce(async () => {
+				throw new Error("D1 outage");
+			});
+			const tasks: Promise<unknown>[] = [];
+			const ctx = {
+				waitUntil: vi.fn((p: Promise<unknown>) => {
+					tasks.push(p);
+				}),
+				passThroughOnException: vi.fn(),
+			} as unknown as ExecutionContext;
+			const env = makeEnv();
+			const event = { cron: "0 19 * * *" } as ScheduledEvent;
+
+			await worker.scheduled(event, env, ctx);
+			await Promise.all(tasks);
+
+			expect(warn).toHaveBeenCalledWith(
+				"[cron] cleanupAnalyticsDailyTargets failed",
+				expect.any(Error),
+			);
+			warn.mockRestore();
+		});
+
+		it("swallows cleanupLoginHistory rejection so cron does not bubble", async () => {
+			const loginHistory = await import("../../src/lib/analytics/loginHistory");
+			const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+			(loginHistory.cleanupLoginHistory as ReturnType<typeof vi.fn>).mockImplementationOnce(
+				async () => {
+					throw new Error("D1 outage");
+				},
+			);
+			const tasks: Promise<unknown>[] = [];
+			const ctx = {
+				waitUntil: vi.fn((p: Promise<unknown>) => {
+					tasks.push(p);
+				}),
+				passThroughOnException: vi.fn(),
+			} as unknown as ExecutionContext;
+			const env = makeEnv();
+			const event = { cron: "0 19 * * *" } as ScheduledEvent;
+
+			await worker.scheduled(event, env, ctx);
+			// Drain the waitUntil-queued promise so the inner catch runs.
+			await Promise.all(tasks);
+
+			expect(warn).toHaveBeenCalledWith("[cron] cleanupLoginHistory failed", expect.any(Error));
+			warn.mockRestore();
+		});
+
+		it("logs a warning on an unknown cron schedule (drift safety net)", async () => {
+			const onlineStats = await import("../../src/lib/online-stats");
+			const loginHistory = await import("../../src/lib/analytics/loginHistory");
+			(onlineStats.aggregateOnlineStats as ReturnType<typeof vi.fn>).mockClear();
+			(loginHistory.cleanupLoginHistory as ReturnType<typeof vi.fn>).mockClear();
+			const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+			const env = makeEnv();
+			const ctx = makeCtx();
+			const event = { cron: "1 2 3 4 5" } as ScheduledEvent;
+
+			await worker.scheduled(event, env, ctx);
+
+			expect(ctx.waitUntil).not.toHaveBeenCalled();
+			expect(onlineStats.aggregateOnlineStats).not.toHaveBeenCalled();
+			expect(loginHistory.cleanupLoginHistory).not.toHaveBeenCalled();
+			expect(warn).toHaveBeenCalledWith(
+				"[cron] unknown schedule fired",
+				expect.objectContaining({ cron: "1 2 3 4 5" }),
+			);
+			warn.mockRestore();
+		});
+	});
+
+	// ─── P5 Ingest Route Order ──────────────────────────────────────
+
+	describe("P5 analytics ingest route order", () => {
+		it("dispatches POST /api/internal/analytics/ingest WITHOUT a forum API key", async () => {
+			// The web proxy reaches the ingest endpoint with only its
+			// shared `X-Ingest-Key` secret — it never holds the forum
+			// `X-API-Key`. The router MUST register this route AHEAD of
+			// `validateApiKey` (reviewer pin).
+			const env = makeEnv();
+			const ctx = makeCtx();
+			const request = new Request("https://api.example.com/api/internal/analytics/ingest", {
+				method: "POST",
+				// Intentionally NO X-API-Key header.
+			}) as CFRequest;
+
+			const response = await worker.fetch(request, env, ctx);
+
+			// The mocked handler returns 200; the real handler enforces
+			// secret + body whitelist. Either way, the response is NOT
+			// the 401 emitted by `validateApiKey`, which proves the
+			// dispatch happened ahead of the Key-A gate.
+			expect(response.status).not.toBe(401);
+			const ingest = await import("../../src/handlers/internal/analyticsIngest");
+			expect(ingest.analyticsIngestHandler).toHaveBeenCalledTimes(1);
+		});
+
+		it("returns 404 for non-POST on the ingest path (not handled by router)", async () => {
+			// Only POST is wired. GET falls through to the API-key gate
+			// → 401, or, with a key, to the 404 fallback — the handler
+			// MUST NOT be invoked.
+			const env = makeEnv();
+			const ctx = makeCtx();
+			const request = makeRequest("GET", "/api/internal/analytics/ingest");
+
+			const response = await worker.fetch(request, env, ctx);
+
+			expect(response.status).toBe(404);
+			const ingest = await import("../../src/handlers/internal/analyticsIngest");
+			expect(ingest.analyticsIngestHandler).not.toHaveBeenCalled();
 		});
 	});
 
@@ -905,6 +1080,14 @@ describe("router (src/index.ts)", () => {
 				["PATCH", "/api/admin/announcements/1", "admin/announcement", "update"],
 				["DELETE", "/api/admin/announcements/1", "admin/announcement", "remove"],
 				["POST", "/api/admin/announcements/batch-delete", "admin/announcement", "batchDelete"],
+				// Today-visits (P5)
+				["GET", "/api/admin/analytics/today/visits", "admin/todayVisits", "getTodayVisitsKpi"],
+				[
+					"GET",
+					"/api/admin/analytics/today/visits/list",
+					"admin/todayVisits",
+					"getTodayVisitsList",
+				],
 			])("%s %s → %s.%s", async (method, path, mod, fn) => {
 				const request = makeAdminRequest(method, path);
 				const response = await worker.fetch(request, makeEnv(), makeCtx());

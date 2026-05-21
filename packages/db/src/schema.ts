@@ -299,6 +299,52 @@ export const TABLES = {
 			revoked_by  INTEGER NOT NULL DEFAULT 0
 		);
 	`,
+
+	// Mirror of migration 0042_create_login_history.sql. Per-attempt audit
+	// log appended by `auth.ts` login/register handlers AFTER trust-edge
+	// resolution. Runtime-only audit table — not imported from MySQL.
+	// Powers the admin analytics "今日登录" KPI + masked detail list +
+	// audit-logged reveal endpoint. See
+	// `apps/worker/src/lib/analytics/loginHistory.ts` for the
+	// schedule-then-waitUntil call-site contract; failures MUST NEVER
+	// reach the response path.
+	login_history: `
+		CREATE TABLE IF NOT EXISTS login_history (
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id     INTEGER,
+			username    TEXT    NOT NULL,
+			ok          INTEGER NOT NULL,
+			kind        TEXT    NOT NULL,
+			error_code  TEXT    NOT NULL DEFAULT '',
+			ip          TEXT    NOT NULL DEFAULT '',
+			user_agent  TEXT    NOT NULL DEFAULT '',
+			bot_class   TEXT    NOT NULL DEFAULT 'unknown',
+			created_at  INTEGER NOT NULL
+		);
+	`,
+
+	// Mirror of migration 0043_create_analytics_daily_targets.sql. Per
+	// (date_local, path_kind, target_id, user_id, bot_class) page-view
+	// counter, written via UPSERT by the worker collector flush sink and
+	// swept on a 48h cron. Powers the admin "今日访问名单" KPI + list
+	// panel. Runtime-only counter table — NOT imported from MySQL.
+	// `count` is monotonically incremented; `last_seen_at` drives the
+	// retention sweep. No label / ip / ua columns — list endpoint
+	// resolves target labels by batched lookup at read time so renames
+	// in source data do NOT corrupt historical aggregates.
+	analytics_daily_targets: `
+		CREATE TABLE IF NOT EXISTS analytics_daily_targets (
+			date_local      TEXT    NOT NULL,
+			path_kind       TEXT    NOT NULL,
+			target_id       INTEGER NOT NULL,
+			user_id         INTEGER NOT NULL,
+			bot_class       TEXT    NOT NULL,
+			count           INTEGER NOT NULL DEFAULT 0,
+			first_seen_at   INTEGER NOT NULL,
+			last_seen_at    INTEGER NOT NULL,
+			PRIMARY KEY (date_local, path_kind, target_id, user_id, bot_class)
+		);
+	`,
 };
 
 export const INDEXES = {
@@ -318,6 +364,10 @@ export const INDEXES = {
 		// flow. Drift guard: tests/unit/migration-0029-schema.test.ts pins
 		// this string to the migration file.
 		"CREATE UNIQUE INDEX IF NOT EXISTS users_email_normalized_uniq ON users(email_normalized) WHERE email_normalized != '';",
+		// Admin analytics: daily new-registrations trend bucket. See
+		// migration 0041_idx_analytics_trend.sql. Drift guard:
+		// tests/unit/migration-0041-schema.test.ts.
+		"CREATE INDEX IF NOT EXISTS idx_users_reg_date ON users(reg_date);",
 	],
 
 	threads: [
@@ -333,11 +383,18 @@ export const INDEXES = {
 		// 0038_thread_categories.sql; covers the `forum_id=? AND type_id=?`
 		// thread-list query shape index-only including the ORDER BY.
 		"CREATE INDEX IF NOT EXISTS idx_threads_forum_type ON threads(forum_id, type_id, last_post_at DESC, id DESC);",
+		// Admin analytics: daily new-threads trend bucket. See migration
+		// 0041_idx_analytics_trend.sql.
+		"CREATE INDEX IF NOT EXISTS idx_threads_created ON threads(created_at DESC);",
 	],
 
 	posts: [
 		"CREATE INDEX IF NOT EXISTS idx_posts_thread ON posts(thread_id, created_at);",
 		"CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_id);",
+		// Admin analytics: daily posts trend + per-forum distribution.
+		// See migration 0041_idx_analytics_trend.sql.
+		"CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC);",
+		"CREATE INDEX IF NOT EXISTS idx_posts_forum_created ON posts(forum_id, created_at DESC);",
 	],
 
 	attachments: [
@@ -408,5 +465,27 @@ export const INDEXES = {
 		"CREATE INDEX IF NOT EXISTS idx_post_ratings_thread ON post_ratings(thread_id, revoked_at, created_at);",
 		"CREATE INDEX IF NOT EXISTS idx_post_ratings_rater_dim_time ON post_ratings(rater_id, dimension, created_at) WHERE revoked_at = 0;",
 		"CREATE UNIQUE INDEX IF NOT EXISTS uq_post_ratings_active ON post_ratings(rater_id, post_id, dimension) WHERE revoked_at = 0;",
+	],
+
+	// Login history (mirror of migration 0042). Three time-leading
+	// indexes cover the dashboard read paths; a partial index over
+	// failure rows keeps the active subset of `error_code != ''` tight
+	// for the "失败明细" filter. Drift guard:
+	// tests/unit/migration-0042-schema.test.ts pins the partial WHERE.
+	login_history: [
+		"CREATE INDEX IF NOT EXISTS idx_login_history_created ON login_history(created_at DESC);",
+		"CREATE INDEX IF NOT EXISTS idx_login_history_user_created ON login_history(user_id, created_at DESC);",
+		"CREATE INDEX IF NOT EXISTS idx_login_history_kind_created ON login_history(kind, created_at DESC);",
+		"CREATE INDEX IF NOT EXISTS idx_login_history_error_created ON login_history(error_code, created_at DESC) WHERE error_code != '';",
+	],
+
+	// analytics_daily_targets (mirror of migration 0043). List endpoint
+	// shape: WHERE date_local=? AND path_kind=? GROUP BY target_id ⇒
+	// covering composite index. Retention sweep: DELETE WHERE
+	// last_seen_at < cutoff ⇒ leading-column index. Drift guard:
+	// tests/unit/migration-0043-schema.test.ts pins both shapes.
+	analytics_daily_targets: [
+		"CREATE INDEX IF NOT EXISTS idx_analytics_daily_targets_list ON analytics_daily_targets(date_local, path_kind, target_id);",
+		"CREATE INDEX IF NOT EXISTS idx_analytics_daily_targets_last_seen ON analytics_daily_targets(last_seen_at);",
 	],
 };
