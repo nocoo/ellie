@@ -1,5 +1,6 @@
 "use client";
 
+import { PageHeader } from "@/components/layout/page-header";
 import { updateSettings } from "@/viewmodels/admin/settings";
 import { Button } from "@ellie/ui";
 import { RotateCcw, Save } from "lucide-react";
@@ -73,12 +74,8 @@ export function LinkListSettings({
 	}, [dirty, settingKey, currentValue, router]);
 
 	return (
-		<div className="space-y-6">
-			{/* Page header */}
-			<div>
-				<h1 className="text-2xl font-semibold text-foreground">{title}</h1>
-				<p className="mt-1 text-sm text-muted-foreground">{description}</p>
-			</div>
+		<div className="space-y-6 md:space-y-8">
+			<PageHeader title={title} subtitle={description} />
 
 			{/* Action bar */}
 			<div className="flex items-center justify-end gap-2">
