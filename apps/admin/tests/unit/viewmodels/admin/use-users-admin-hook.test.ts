@@ -457,6 +457,144 @@ describe("useUsersAdmin", () => {
 		});
 	});
 
+	// ----------------------------------------------------------------------
+	// Detail dialog (#9 Phase C). Three invariants the reviewer locked
+	// (msg=8d651cac):
+	//   1. Opening detail does not trigger a router push (no navigation):
+	//      `openDetail` only flips `detailUserId`; it does not re-fetch the
+	//      list or mutate filters / page / selection.
+	//   2. Closing the dialog must not lose list state: filters / page /
+	//      selection survive a close.
+	//   3. The list-page wiring (`handleDialogSearchIp` in
+	//      apps/admin/src/app/(admin)/admin/users/page.tsx) sets the
+	//      requested IP filter, clears the other IP filter, and calls
+	//      `closeDetail` — modelled here directly against the hook so the
+	//      contract holds independent of the page render.
+	// ----------------------------------------------------------------------
+
+	describe("detail dialog (Phase C)", () => {
+		it("openDetail only flips detailUserId — no list re-fetch, no filter/selection mutation", async () => {
+			const { result } = renderHook(() => useUsersAdmin({ initialFilters: { search: "alice" } }));
+			await waitFor(() => expect(result.current.state.loading).toBe(false), { interval: 5 });
+
+			// Snapshot the pieces of state that must survive opening the
+			// dialog. Selection is set explicitly to prove it survives.
+			act(() => {
+				result.current.actions.setSelectedIds(new Set([1, 2]));
+			});
+			const beforeFilters = result.current.state.filters;
+			const beforePage = result.current.state.pagination.page;
+			const beforeSelected = result.current.state.selectedIds;
+
+			(global.fetch as ReturnType<typeof vi.fn>).mockClear();
+
+			act(() => {
+				result.current.actions.openDetail(42);
+			});
+
+			expect(result.current.state.detailUserId).toBe(42);
+			// Re-fetch must NOT have been triggered by opening the dialog
+			// — that's the "no router push, no list disturbance" invariant.
+			expect(global.fetch).not.toHaveBeenCalled();
+			expect(result.current.state.filters).toBe(beforeFilters);
+			expect(result.current.state.pagination.page).toBe(beforePage);
+			expect(result.current.state.selectedIds).toBe(beforeSelected);
+		});
+
+		it("closeDetail preserves filters, pagination, and selection", async () => {
+			mockFetchSuccess([MOCK_USER], { page: 1, pages: 3 });
+			const { result } = renderHook(() => useUsersAdmin({ initialFilters: { search: "alice" } }));
+			await waitFor(() => expect(result.current.state.loading).toBe(false), { interval: 5 });
+
+			// Advance to page 2 + select ids + open detail; then close.
+			mockFetchSuccess([{ ...MOCK_USER, id: 2 }], { page: 2, pages: 3 });
+			await act(async () => {
+				await result.current.actions.fetchData(2);
+			});
+			act(() => {
+				result.current.actions.setSelectedIds(new Set([1, 2]));
+				result.current.actions.openDetail(2);
+			});
+
+			const beforeFilters = result.current.state.filters;
+			const beforePage = result.current.state.pagination.page;
+			const beforeSelected = result.current.state.selectedIds;
+
+			(global.fetch as ReturnType<typeof vi.fn>).mockClear();
+			act(() => {
+				result.current.actions.closeDetail();
+			});
+
+			expect(result.current.state.detailUserId).toBeNull();
+			// Close must not re-fetch — `reloadCurrentPage` is the explicit
+			// refresh path; raw close leaves the table untouched.
+			expect(global.fetch).not.toHaveBeenCalled();
+			expect(result.current.state.filters).toBe(beforeFilters);
+			expect(result.current.state.pagination.page).toBe(beforePage);
+			expect(result.current.state.selectedIds).toBe(beforeSelected);
+		});
+
+		it("dialog IP search updates the list filter and closes the dialog (no router)", async () => {
+			const { result } = renderHook(() => useUsersAdmin({ initialFilters: { regIp: "1.1.1.1" } }));
+			await waitFor(() => expect(result.current.state.loading).toBe(false), { interval: 5 });
+
+			act(() => {
+				result.current.actions.openDetail(7);
+			});
+			expect(result.current.state.detailUserId).toBe(7);
+
+			// Mirror `handleDialogSearchIp` in users/page.tsx — clear both
+			// IP keys before applying the new one so the worker never sees
+			// a combined regIp + lastIp AND filter that would return zero.
+			await act(async () => {
+				result.current.actions.handleFilterChange("regIp", "");
+				result.current.actions.handleFilterChange("lastIp", "");
+				result.current.actions.handleFilterChange("lastIp", "9.9.9.9");
+				result.current.actions.closeDetail();
+			});
+
+			await waitFor(() => expect(result.current.state.filters.lastIp).toBe("9.9.9.9"), {
+				interval: 5,
+			});
+			expect(result.current.state.filters.regIp).toBe("");
+			expect(result.current.state.detailUserId).toBeNull();
+
+			// Worker contract: only the freshly-set IP key reaches the URL.
+			const lastCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+			expect(lastCall).toContain("lastIp=9.9.9.9");
+			expect(lastCall).not.toContain("regIp=");
+		});
+
+		it("reloadCurrentPage re-fetches the active page without touching filters/selection", async () => {
+			mockFetchSuccess([MOCK_USER], { page: 1, pages: 3 });
+			const { result } = renderHook(() => useUsersAdmin({ initialFilters: { search: "alice" } }));
+			await waitFor(() => expect(result.current.state.loading).toBe(false), { interval: 5 });
+
+			mockFetchSuccess([{ ...MOCK_USER, id: 2 }], { page: 2, pages: 3 });
+			await act(async () => {
+				await result.current.actions.fetchData(2);
+			});
+			act(() => {
+				result.current.actions.setSelectedIds(new Set([2]));
+			});
+
+			const beforeFilters = result.current.state.filters;
+			const beforeSelected = result.current.state.selectedIds;
+
+			(global.fetch as ReturnType<typeof vi.fn>).mockClear();
+			await act(async () => {
+				await result.current.actions.reloadCurrentPage();
+			});
+
+			// One re-fetch on the same page; no filter or selection change.
+			expect(global.fetch).toHaveBeenCalledTimes(1);
+			const lastCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+			expect(lastCall).toContain("page=2");
+			expect(result.current.state.filters).toBe(beforeFilters);
+			expect(result.current.state.selectedIds).toBe(beforeSelected);
+		});
+	});
+
 	it("handleClearFilters resets basic + advanced range keys", async () => {
 		const { result } = renderHook(() =>
 			useUsersAdmin({

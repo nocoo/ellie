@@ -10,17 +10,17 @@ import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import { AdminPagination } from "@/components/admin/admin-pagination";
 import { UserAvatar } from "@/components/admin/user-avatar";
+import { UserDetailDialog } from "@/components/admin/user-detail-dialog";
 import { UserEditDialog } from "@/components/admin/user-edit-dialog";
 import { PageHeader } from "@/components/layout/page-header";
 import { userRoleVariant, userStatusVariant } from "@/viewmodels/admin/badges";
 import { formatPurgeBatchSummary, useUsersAdmin } from "@/viewmodels/admin/use-users-admin";
 import { type User, roleLabel, statusLabel } from "@/viewmodels/admin/users";
 import { formatNumber } from "@ellie/shared";
-import { Badge } from "@ellie/ui";
-import { Button } from "@ellie/ui";
+import { Badge, Button } from "@ellie/ui";
 import { Eye, Pencil } from "lucide-react";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useCallback } from "react";
 
 // ---------------------------------------------------------------------------
 // Filter definitions
@@ -53,10 +53,11 @@ const FILTERS: FilterDef[] = [
 ];
 
 /**
- * 高级过滤器 (Batch F of task #15). Rendered in a separate section below
- * the basic filter row so the primary search/status/role surface stays
- * compact. The 5 range filters mirror the worker `range` filters
- * registered in Batch E (param naming `${key}Min` / `${key}Max`):
+ * 高级过滤器 (Batch F of task #15 + IP search from task #9 Phase A).
+ * Rendered in a separate section below the basic filter row so the
+ * primary search/status/role surface stays compact. The 5 range filters
+ * mirror the worker `range` filters registered in Batch E (param naming
+ * `${key}Min` / `${key}Max`):
  *   regDate / lastLogin → daterange (00:00:00 / 23:59:59 unix seconds)
  *   threads / posts / credits → numrange
  *
@@ -65,15 +66,15 @@ const FILTERS: FilterDef[] = [
  * request leaves the browser.
  */
 const ADVANCED_FILTERS: FilterDef[] = [
-	// IP search — `regIp` / `lastIp` map to worker `users.reg_ip` /
-	// `users.last_ip` exact-match filters (apps/worker/src/handlers/admin/
-	// user.ts L112-137). Two independent fields, not a combined "IP" input,
-	// because the worker treats them as distinct columns. Free-form text
-	// (not `type: "search"` aria-hidden via Search icon) so the operator can
-	// clear / replace the value the same way as the "搜索用户..." box.
-	// IPv6 fits in a 200px input (longest 39 chars). Until G.6 button-driven
-	// flow gets explicit IPv6 normalisation, exact-match is the worker
-	// contract — the operator must type the full address.
+	// IP search (task #9 Phase A). `regIp` / `lastIp` map to worker
+	// `users.reg_ip` / `users.last_ip` exact-match filters (apps/worker/
+	// src/handlers/admin/user.ts L112-137). Two independent fields, not a
+	// combined "IP" input, because the worker treats them as distinct
+	// columns. Inputs reuse the existing `type: "search"` filter
+	// (submit-on-Enter + inline clear `<X>`); per-key local input state
+	// in AdminFilters (H.2.1) keeps the two boxes from sharing a buffer.
+	// IPv6 fits the 200px input (longest 39 chars); the worker contract
+	// is exact-match so the operator must type the full address.
 	{
 		key: "regIp",
 		label: "注册 IP",
@@ -130,13 +131,13 @@ const BATCH_ACTIONS: BatchAction[] = [
 
 export default function UsersPage() {
 	// Read initial search / IP filters from URL query params. The IP
-	// filters are populated only by the user-detail page's "查询注册 IP" /
-	// "查询上次登录 IP" buttons (G.6) — `AdminFilters` does not expose any
-	// free-form IP input to limit PII surface. Query param names stay
-	// `regIp` / `lastIp` for backward compatibility; only display copy was
-	// updated in G.5.
+	// filter inputs are now exposed in the 高级过滤器 panel (task #9
+	// Phase A), so `regIp` / `lastIp` query keys serve two purposes:
+	// (1) deep-link / bookmark restore, (2) the `<UserDetailDialog>`'s
+	// `onSearchIp` callback can update them in-place without route
+	// changes. Query param names match the worker `users.reg_ip` /
+	// `users.last_ip` exact-match filter contract.
 	const searchParams = useSearchParams();
-	const router = useRouter();
 	const initialSearch = searchParams.get("search") ?? "";
 	const initialRegIp = searchParams.get("regIp") ?? "";
 	const initialLastIp = searchParams.get("lastIp") ?? "";
@@ -163,6 +164,39 @@ export default function UsersPage() {
 			: null;
 
 	// -----------------------------------------------------------------------
+	// Detail dialog wiring (task #9 Phase C)
+	// -----------------------------------------------------------------------
+
+	// Reset both IP filters before applying the new one so switching
+	// from `regIp` to `lastIp` (or vice versa) does not leave both set
+	// (worker would AND them and find nothing). Then close the dialog
+	// so the operator lands on the freshly filtered list rather than
+	// re-reading the same user.
+	const handleDialogSearchIp = useCallback(
+		(kind: "regIp" | "lastIp", ip: string) => {
+			actions.handleFilterChange("regIp", "");
+			actions.handleFilterChange("lastIp", "");
+			actions.handleFilterChange(kind, ip);
+			actions.closeDetail();
+		},
+		[actions],
+	);
+
+	// Refresh the current page after any mutation inside the dialog so
+	// row badges (status / role / counts) reflect reality once the
+	// dialog closes. Purge also closes the dialog — the user is
+	// tombstoned and is about to drop off the list on reload anyway.
+	const handleDialogChanged = useCallback(
+		(event: { kind: "edit" | "ban" | "unban" | "purge"; userId: number }) => {
+			void actions.reloadCurrentPage();
+			if (event.kind === "purge") {
+				actions.closeDetail();
+			}
+		},
+		[actions],
+	);
+
+	// -----------------------------------------------------------------------
 	// Column definitions
 	// -----------------------------------------------------------------------
 
@@ -171,13 +205,14 @@ export default function UsersPage() {
 			key: "user",
 			header: "用户",
 			cell: (row) => (
-				<Link
-					href={`/admin/users/${row.id}`}
+				<button
+					type="button"
+					onClick={() => actions.openDetail(row.id)}
 					className="flex items-center gap-2 text-foreground hover:underline"
 				>
 					<UserAvatar uid={row.id} username={row.username} avatarPath={row.avatarPath} size={32} />
 					<span className="font-medium">{row.username}</span>
-				</Link>
+				</button>
 			),
 		},
 		{ key: "email", header: "邮箱", cell: (row) => row.email },
@@ -240,7 +275,7 @@ export default function UsersPage() {
 						className="h-8 w-8"
 						aria-label={`查看用户「${row.username}」详情`}
 						title={`查看用户「${row.username}」详情`}
-						onClick={() => router.push(`/admin/users/${row.id}`)}
+						onClick={() => actions.openDetail(row.id)}
 					>
 						<Eye className="h-4 w-4" />
 					</Button>
@@ -351,6 +386,19 @@ export default function UsersPage() {
 				loading={state.editLoading}
 				error={state.editError}
 				onSave={actions.handleEditSave}
+			/>
+
+			{/*
+			 * Task #9 Phase C — user detail mounted in a wide dialog so the
+			 * list page's pagination / filter / selection state survives
+			 * open/close. Standalone `/admin/users/[id]` route is preserved
+			 * as a deep-link fallback (no behaviour change there).
+			 */}
+			<UserDetailDialog
+				userId={state.detailUserId}
+				onClose={actions.closeDetail}
+				onSearchIp={handleDialogSearchIp}
+				onChanged={handleDialogChanged}
 			/>
 
 			{/*
