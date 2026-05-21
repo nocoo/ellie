@@ -320,7 +320,7 @@ function KpiCell({
 				? "text-destructive"
 				: "text-foreground";
 	return (
-		<div className="rounded-md bg-secondary p-3">
+		<div className="rounded-md bg-muted p-3">
 			<p className="text-xs text-muted-foreground">{label}</p>
 			<p className={`mt-1 text-xl font-semibold tabular-nums ${toneCls}`}>{value}</p>
 			{hint && <p className="mt-0.5 text-[10px] text-muted-foreground">{hint}</p>}
