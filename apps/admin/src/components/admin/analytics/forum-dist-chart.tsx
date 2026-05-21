@@ -1,5 +1,6 @@
 "use client";
 
+import { ChartTooltip } from "@/components/admin/analytics/chart-tooltip";
 import { DashboardResponsiveContainer } from "@/components/admin/analytics/responsive-container";
 import type { AnalyticsForumDistRow } from "@/viewmodels/admin/analytics";
 import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
@@ -26,13 +27,8 @@ export function ForumDistChart({ rows, limit = 12 }: ForumDistChartProps) {
 					<XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
 					<YAxis dataKey="forumName" type="category" tick={{ fontSize: 11 }} width={140} />
 					<Tooltip
-						contentStyle={{
-							background: "var(--background)",
-							borderRadius: 8,
-							border: "1px solid var(--border)",
-							fontSize: 12,
-						}}
-						formatter={(value) => [Number(value), "回复数"]}
+						cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
+						content={<ChartTooltip formatter={(value) => [Number(value), "回复数"]} />}
 					/>
 					<Bar dataKey="posts" fill="var(--color-chart-secondary, #10b981)" radius={[0, 4, 4, 0]} />
 				</BarChart>
