@@ -262,10 +262,52 @@ const FLUSH_INTERVAL_MS = 30_000;
 let lastFlushAt = 0;
 
 /**
+ * Set while a tail flush is pending inside the throttle window. Without
+ * this guard, low-traffic isolates that go quiet right after a flush
+ * would leave the bucket pinned in memory until a new request happens
+ * to arrive (and, if the isolate is evicted first, the samples are
+ * lost). Subsequent `scheduleFlush` calls within the same window
+ * short-circuit on this flag so we never queue more than one tail
+ * flush per window.
+ */
+let deferredFlushPending = false;
+
+/**
+ * Indirection so tests can fake the deferred-flush timer with
+ * `vi.useFakeTimers()`. Production paths through `setTimeout`/
+ * `clearTimeout` — Workers expose both as globals.
+ */
+const timers = {
+	setTimeout: (fn: () => void, ms: number): ReturnType<typeof setTimeout> => setTimeout(fn, ms),
+	now: (): number => Date.now(),
+};
+
+/**
+ * Drain the bucket through the active sink. Extracted so both the
+ * eager (in-window) and tail (deferred) flush paths share the exact
+ * same swap-before-sink discipline.
+ */
+function drainOnce(env: Env): Promise<void> {
+	const snap = swapBuckets();
+	const sink = activeSink;
+	return sink(env, snap).catch((err) => {
+		console.warn("[analytics] flush sink crashed", err);
+	});
+}
+
+/**
  * Defer a flush onto `ctx.waitUntil`. Throttled at one flush per
  * `FLUSH_INTERVAL_MS` per isolate; the very first call after isolate
  * boot flushes immediately. Always safe to call — no-op when the
- * bucket is empty or the throttle window has not elapsed.
+ * bucket is empty.
+ *
+ * Throttle-window semantics: if the throttle is engaged but the bucket
+ * is non-empty, `scheduleFlush` schedules a single tail flush via
+ * `setTimeout` to fire when the current window ends. This bounds
+ * worst-case staleness to `FLUSH_INTERVAL_MS` even on low-traffic
+ * isolates that would otherwise pin samples in memory indefinitely.
+ * Repeated `scheduleFlush` calls inside the same window coalesce onto
+ * that one tail flush.
  *
  * The drained snapshot is handed to the active `FlushSink`. Production
  * binds the D1 UPSERT sink in `apps/worker/src/index.ts`; with the
@@ -274,16 +316,30 @@ let lastFlushAt = 0;
  */
 export function scheduleFlush(env: Env, ctx: ExecutionContext): void {
 	if (BUCKETS.size === 0) return;
-	const now = Date.now();
-	if (lastFlushAt !== 0 && now - lastFlushAt < FLUSH_INTERVAL_MS) return;
+	const now = timers.now();
+	if (lastFlushAt !== 0 && now - lastFlushAt < FLUSH_INTERVAL_MS) {
+		// Throttle engaged. Make sure a tail flush is queued so the
+		// bucket cannot get stuck behind a quiet period.
+		if (deferredFlushPending) return;
+		deferredFlushPending = true;
+		const remaining = Math.max(0, FLUSH_INTERVAL_MS - (now - lastFlushAt));
+		ctx.waitUntil(
+			new Promise<void>((resolve) => {
+				timers.setTimeout(() => {
+					deferredFlushPending = false;
+					if (BUCKETS.size === 0) {
+						resolve();
+						return;
+					}
+					lastFlushAt = timers.now();
+					drainOnce(env).finally(() => resolve());
+				}, remaining);
+			}),
+		);
+		return;
+	}
 	lastFlushAt = now;
-	const snap = swapBuckets();
-	const sink = activeSink;
-	ctx.waitUntil(
-		sink(env, snap).catch((err) => {
-			console.warn("[analytics] flush sink crashed", err);
-		}),
-	);
+	ctx.waitUntil(drainOnce(env));
 }
 
 /**
@@ -293,6 +349,7 @@ export function scheduleFlush(env: Env, ctx: ExecutionContext): void {
  */
 export function resetFlushThrottle(): void {
 	lastFlushAt = 0;
+	deferredFlushPending = false;
 }
 
 // ─── Test-only internals ───────────────────────────────────────
@@ -307,4 +364,5 @@ export const _internal = {
 	bucketKey,
 	NOOP_SINK,
 	FLUSH_INTERVAL_MS,
+	timers,
 };
