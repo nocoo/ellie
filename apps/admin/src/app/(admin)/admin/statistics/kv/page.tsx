@@ -38,6 +38,7 @@ import {
 import { JsonCodeBlock } from "@/components/admin/json-code-block";
 import { SectionHeader } from "@/components/admin/section-header";
 import { SegmentedSwitch } from "@/components/admin/segmented-switch";
+import { PageHeader } from "@/components/layout/page-header";
 import { extractErrorMessage } from "@/lib/admin-error";
 import { readAdminKvJson } from "@/lib/admin-kv-fetch";
 import { Badge } from "@ellie/ui";
@@ -945,28 +946,25 @@ export default function KvMonitorPage() {
 	const isBusy = busyFamily !== null;
 
 	return (
-		<div className="space-y-6">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-2xl font-semibold text-foreground">KV 缓存监控</h1>
-					<p className="mt-1 text-sm text-muted-foreground">
-						查看 Worker KV 中各业务缓存家族的存量、TTL 与命中指标；展开家族可看 key 列表 /
-						过期时间， 敏感家族仅展示数量与 TTL，不展开 value。
-					</p>
-				</div>
-				<Button
-					variant="outline"
-					size="sm"
-					onClick={() => {
-						void loadOverview();
-						void loadMetrics();
-					}}
-					disabled={overviewLoading || metricsLoading || isBusy}
-				>
-					<RefreshCw className="mr-2 h-4 w-4" />
-					重新加载
-				</Button>
-			</div>
+		<div className="space-y-6 md:space-y-8">
+			<PageHeader
+				title="KV 缓存监控"
+				subtitle="查看 Worker KV 中各业务缓存家族的存量、TTL 与命中指标；展开家族可看 key 列表 / 过期时间，敏感家族仅展示数量与 TTL，不展开 value。"
+				action={
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => {
+							void loadOverview();
+							void loadMetrics();
+						}}
+						disabled={overviewLoading || metricsLoading || isBusy}
+					>
+						<RefreshCw className="mr-2 h-4 w-4" />
+						重新加载
+					</Button>
+				}
+			/>
 
 			{notice && (
 				<Card>

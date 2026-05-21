@@ -1,6 +1,7 @@
 "use client";
 
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
+import { PageHeader } from "@/components/layout/page-header";
 import { STATISTICS_DONE_VARIANT } from "@/viewmodels/admin/badges";
 import { Badge } from "@ellie/ui";
 import { Button } from "@ellie/ui";
@@ -92,13 +93,11 @@ export default function StatisticsPage() {
 	}, []);
 
 	return (
-		<div className="space-y-6">
-			<div>
-				<h1 className="text-2xl font-semibold text-foreground">统计计算</h1>
-				<p className="mt-1 text-sm text-muted-foreground">
-					重新计算数据库中的统计数据。当数据迁移或批量操作后出现统计不准确时使用。
-				</p>
-			</div>
+		<div className="space-y-6 md:space-y-8">
+			<PageHeader
+				title="统计计算"
+				subtitle="重新计算数据库中的统计数据。当数据迁移或批量操作后出现统计不准确时使用。"
+			/>
 
 			<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
 				{RECALC_TASKS.map((task) => {
