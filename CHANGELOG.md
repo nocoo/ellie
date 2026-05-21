@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0] - 2026-05-21
+
+### Added
+
+- **Admin analytics platform (P1–P5)**: trend-query indexes on D1 (P1); dashboard query-only endpoints + UI cards for KPIs/trends (P2); in-isolate event collector with explicit flush contract on the Worker (P3); today-login-history audit endpoints + admin UI with mask + per-row "查看完整" reveal that writes `analytics.login_history.reveal` to the audit log (P4); page-view ingest pipeline + today-visits admin panel with per-target detail and 10-bucket `path_kind` filter (P5)
+- **Admin UI primitives**: `PageHeader` (title + subtitle + optional action slot) and `Section` (label + hairline + action slot) as the two structural building blocks for every admin page; shared `ChartTooltip` primitive replaces the previously invisible default Recharts tooltip on light cards
+
+### Changed
+
+- **Admin L0 background switched to cool-blue palette** + new chart tokens, replacing the warm-grey system across the admin app
+- **`Card` primitive simplified**: dropped the soft ring border, surface is now plain L2 white — relies on shadow + spacing instead of a hairline ring
+- **Admin pages adopt `PageHeader` + `Section`**: dashboard, content (censor-words/attachments/forums/reports/threads), users + access (users/ip-bans/logs), statistics (recalc/kv), settings (general/features/nav-links/friend-links), and analytics all migrated to the same structural rhythm
+- **Forum identity surface refresh**: post sidebar campus/level rows aligned; redundant thread stats removed and group title right-aligned; identity rows merged into a centered card above the data list
+
+### Security
+
+- **Forum BFF stops trusting inbound `X-Real-IP`**: client IP is now derived from the trusted edge headers only, closing a header-spoof window in the Next.js forum proxy
+- **Login/register success guards against open redirect**: post-auth navigation only honours same-origin destinations; cross-origin or scheme-mismatched `next=` params are dropped
+- **HTML attribute values escaped in `sanitizeInlineHtml`**: attribute context now goes through proper escaping, eliminating an XSS vector when callers pass user-controlled attribute values
+- **Legacy Discuz `CETagParser` posts rendered safely**: legacy CE-tagged bodies pass through the same sanitisation pipeline as modern posts instead of being injected raw
+
+### Fixed
+
+- **Worker analytics queue tail flush**: idle isolates now flush their bucket on tail instead of leaving the last batch stuck until the next event arrives
+- **`loginHistory` list page-param NaN guard**: `?page=` is coerced and clamped, so a non-numeric value no longer 500s the endpoint
+- **Nested `KpiCell` contrast on white cards**: KpiCells switched from `bg-secondary` to `bg-muted` so they remain visible inside the new white `Card` surface
+- **`TodayVisitsPanel` actually mounts** on the analytics page (previously the import existed but the component was not rendered)
+
+### Performance
+
+- **D1 trend-query indexes** added for the admin analytics dashboard (P1), avoiding full-table scans on the daily-trend queries
+
+### Chore
+
+- **Dependency cleanup**: removed zero-use deps and pinned patched transitive versions (lockfile-level fixes for known advisories)
+- **Migrate tooling**: 2026-05-20 incremental D1 sync generator; read-only audit of `users.email` / `reg_ip` against the 2026-05-20 dump; backfill dry-run generator + SQLite validator for the same columns
+- **Web test isolation**: per-file isolation + raised `waitFor` timeout to stabilise flakey pre-commit runs
+
 ## [1.3.2] - 2026-05-20
 
 ### Security
