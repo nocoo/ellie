@@ -487,6 +487,28 @@ describe("loginHistory — list handler", () => {
 		expect(db._calls[0].binds).toHaveLength(1);
 	});
 
+	it("falls back to page=1 on non-numeric page", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(Date.UTC(2026, 0, 1, 4, 0, 0));
+
+		const db = makeMockDb({
+			canned: [{ first: { total: 0 } }, { all: { results: [] } }],
+		});
+		const env = makeEnv({ DB: db as unknown as D1Database });
+
+		const res = await getTodayLoginsList(
+			createAdminRequest("GET", "/api/admin/analytics/today/logins/list?page=abc"),
+			env,
+		);
+		expect(res.status).toBe(200);
+		// OFFSET bind is last; must be 0 (= (1 - 1) * limit), not NaN.
+		const dataBinds = db._calls[1].binds;
+		const offsetBind = dataBinds[dataBinds.length - 1];
+		expect(offsetBind).toBe(0);
+		const body = (await res.json()) as { data: { page: number } };
+		expect(body.data.page).toBe(1);
+	});
+
 	it("handles missing results array and null count gracefully", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(Date.UTC(2026, 0, 1, 4, 0, 0));

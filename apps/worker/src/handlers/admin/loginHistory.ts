@@ -249,7 +249,7 @@ async function listHandler(request: Request, env: Env): Promise<Response> {
 		params.push(errorCodeFilter);
 	}
 
-	const page = Math.max(1, Number.parseInt(url.searchParams.get("page") ?? "1", 10));
+	const page = Math.max(1, Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1);
 	const rawLimit = Number.parseInt(
 		url.searchParams.get("limit") ?? String(LIST_PAGE_SIZE_DEFAULT),
 		10,
