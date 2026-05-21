@@ -5,6 +5,8 @@ import { LoginAttemptsPanel } from "@/components/admin/analytics/login-attempts-
 import { TodayVisitsPanel } from "@/components/admin/analytics/today-visits-panel";
 import { TrendChart } from "@/components/admin/analytics/trend-chart";
 import { StatCard } from "@/components/admin/stat-card";
+import { PageHeader } from "@/components/layout/page-header";
+import { Section } from "@/components/layout/section";
 import {
 	ANALYTICS_RANGES,
 	ANALYTICS_TREND_METRICS,
@@ -118,115 +120,123 @@ export default function AnalyticsPage() {
 	}, [loadCheckin]);
 
 	return (
-		<div className="space-y-6">
-			<div>
-				<h1 className="text-2xl font-semibold text-foreground">数据分析</h1>
-				<p className="mt-1 text-sm text-muted-foreground">
-					今日 KPI 与近期趋势（基于业务表实时聚合，KV 缓存 60s ~ 5min）
-				</p>
-			</div>
+		<div className="space-y-6 md:space-y-8">
+			<PageHeader
+				title="数据分析"
+				subtitle="今日 KPI 与近期趋势（基于业务表实时聚合，KV 缓存 60s ~ 5min）"
+			/>
 
-			{/* ── KPI cards ─────────────────────────────────────── */}
-			{overviewError && (
-				<div className="rounded-[var(--radius-card,14px)] bg-destructive/10 p-4 text-sm text-destructive">
-					今日 KPI 加载失败：{overviewError}
-				</div>
-			)}
-			{overview && (
-				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-					<StatCard label="今日新注册" value={overview.today.newUsers} icon={Users} />
-					<StatCard label="今日新主题" value={overview.today.newThreads} icon={FileText} />
-					<StatCard label="今日新回复" value={overview.today.newPosts} icon={MessageSquare} />
-					<StatCard label="今日签到" value={overview.today.checkins} icon={CalendarCheck} />
-				</div>
-			)}
+			<Section title="今日 KPI">
+				{overviewError && (
+					<div className="rounded-[var(--radius-card,14px)] bg-destructive/10 p-4 text-sm text-destructive">
+						今日 KPI 加载失败：{overviewError}
+					</div>
+				)}
+				{overview && (
+					<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+						<StatCard label="今日新注册" value={overview.today.newUsers} icon={Users} />
+						<StatCard label="今日新主题" value={overview.today.newThreads} icon={FileText} />
+						<StatCard label="今日新回复" value={overview.today.newPosts} icon={MessageSquare} />
+						<StatCard label="今日签到" value={overview.today.checkins} icon={CalendarCheck} />
+					</div>
+				)}
+			</Section>
 
-			{/* ── Range selector (shared across all trend charts) ─ */}
-			<div className="flex flex-wrap items-center gap-2">
-				<span className="text-sm text-muted-foreground">时间范围:</span>
-				{ANALYTICS_RANGES.map((r) => (
-					<button
-						type="button"
-						key={r}
-						onClick={() => setRange(r)}
-						className={`rounded-md border px-3 py-1 text-sm transition-colors ${
-							range === r
-								? "border-primary bg-primary/10 text-foreground"
-								: "border-border text-muted-foreground hover:bg-accent"
-						}`}
-					>
-						{RANGE_LABELS[r]}
-					</button>
-				))}
-			</div>
-
-			{/* ── Trend chart with metric switcher ───────────────── */}
-			<Card>
-				<CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-					<CardTitle className="text-base font-semibold">趋势曲线</CardTitle>
-					<div className="flex flex-wrap gap-2">
-						{ANALYTICS_TREND_METRICS.map((m) => (
+			<Section
+				title="趋势"
+				action={
+					<div className="flex flex-wrap items-center gap-2">
+						{ANALYTICS_RANGES.map((r) => (
 							<button
 								type="button"
-								key={m}
-								onClick={() => setMetric(m)}
+								key={r}
+								onClick={() => setRange(r)}
 								className={`rounded-md border px-3 py-1 text-xs transition-colors ${
-									metric === m
+									range === r
 										? "border-primary bg-primary/10 text-foreground"
 										: "border-border text-muted-foreground hover:bg-accent"
 								}`}
 							>
-								{METRIC_LABELS[m]}
+								{RANGE_LABELS[r]}
 							</button>
 						))}
 					</div>
-				</CardHeader>
-				<CardContent>
-					{trendError && <p className="text-sm text-destructive">趋势加载失败：{trendError}</p>}
-					{trend && <TrendChart series={trend.series} valueLabel={METRIC_LABELS[trend.metric]} />}
-				</CardContent>
-			</Card>
+				}
+			>
+				<div className="space-y-4 md:space-y-6">
+					<Card>
+						<CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+							<CardTitle className="text-base font-semibold">趋势曲线</CardTitle>
+							<div className="flex flex-wrap gap-2">
+								{ANALYTICS_TREND_METRICS.map((m) => (
+									<button
+										type="button"
+										key={m}
+										onClick={() => setMetric(m)}
+										className={`rounded-md border px-3 py-1 text-xs transition-colors ${
+											metric === m
+												? "border-primary bg-primary/10 text-foreground"
+												: "border-border text-muted-foreground hover:bg-accent"
+										}`}
+									>
+										{METRIC_LABELS[m]}
+									</button>
+								))}
+							</div>
+						</CardHeader>
+						<CardContent>
+							{trendError && <p className="text-sm text-destructive">趋势加载失败：{trendError}</p>}
+							{trend && (
+								<TrendChart series={trend.series} valueLabel={METRIC_LABELS[trend.metric]} />
+							)}
+						</CardContent>
+					</Card>
 
-			{/* ── Per-forum distribution ─────────────────────────── */}
-			<Card>
-				<CardHeader>
-					<CardTitle className="text-base font-semibold">
-						{RANGE_LABELS[range]} 各版块发帖分布
-					</CardTitle>
-				</CardHeader>
-				<CardContent>
-					{forumDistError && (
-						<p className="text-sm text-destructive">分布加载失败：{forumDistError}</p>
-					)}
-					{forumDist && forumDist.rows.length > 0 && <ForumDistChart rows={forumDist.rows} />}
-					{forumDist && forumDist.rows.length === 0 && (
-						<p className="text-sm text-muted-foreground">该时段暂无发帖数据。</p>
-					)}
-				</CardContent>
-			</Card>
+					<Card>
+						<CardHeader>
+							<CardTitle className="text-base font-semibold">
+								{RANGE_LABELS[range]} 各版块发帖分布
+							</CardTitle>
+						</CardHeader>
+						<CardContent>
+							{forumDistError && (
+								<p className="text-sm text-destructive">分布加载失败：{forumDistError}</p>
+							)}
+							{forumDist && forumDist.rows.length > 0 && <ForumDistChart rows={forumDist.rows} />}
+							{forumDist && forumDist.rows.length === 0 && (
+								<p className="text-sm text-muted-foreground">该时段暂无发帖数据。</p>
+							)}
+						</CardContent>
+					</Card>
 
-			{/* ── Check-in trend ─────────────────────────────────── */}
-			<Card>
-				<CardHeader>
-					<CardTitle className="text-base font-semibold">{RANGE_LABELS[range]} 签到趋势</CardTitle>
-				</CardHeader>
-				<CardContent>
-					{checkinError && <p className="text-sm text-destructive">签到加载失败：{checkinError}</p>}
-					{checkin && (
-						<TrendChart
-							series={checkin.series}
-							color="var(--color-chart-tertiary, #f59e0b)"
-							valueLabel="签到"
-						/>
-					)}
-				</CardContent>
-			</Card>
+					<Card>
+						<CardHeader>
+							<CardTitle className="text-base font-semibold">
+								{RANGE_LABELS[range]} 签到趋势
+							</CardTitle>
+						</CardHeader>
+						<CardContent>
+							{checkinError && (
+								<p className="text-sm text-destructive">签到加载失败：{checkinError}</p>
+							)}
+							{checkin && (
+								<TrendChart
+									series={checkin.series}
+									color="var(--color-chart-tertiary, #f59e0b)"
+									valueLabel="签到"
+								/>
+							)}
+						</CardContent>
+					</Card>
+				</div>
+			</Section>
 
-			{/* ── Today's page-view audit (P5) ───────────────────── */}
-			<TodayVisitsPanel />
-
-			{/* ── Today's login-attempt audit (P4) ───────────────── */}
-			<LoginAttemptsPanel />
+			<Section title="审计">
+				<div className="space-y-4 md:space-y-6">
+					<TodayVisitsPanel />
+					<LoginAttemptsPanel />
+				</div>
+			</Section>
 		</div>
 	);
 }
