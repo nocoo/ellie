@@ -27,6 +27,11 @@ vi.mock("@/lib/forum-breadcrumbs", () => ({
 	buildForumBreadcrumbs: vi.fn(() => [{ label: "首页", href: "/" }]),
 }));
 
+vi.mock("@/viewmodels/forum/settings.server", () => ({
+	fetchPublicSettings: vi.fn(async () => ({})),
+	getStr: vi.fn((_settings: any, _key: string, fallback: string) => fallback),
+}));
+
 import { forumApi } from "@/lib/forum-api";
 import { loadThreadList, loadThreadListPaged } from "@/viewmodels/forum/thread-list.server";
 

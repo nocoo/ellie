@@ -171,6 +171,11 @@ describe("buildForumBreadcrumbs", () => {
 		expect(items[1]).toEqual({ label: "技术分区", href: "/forums/1" });
 		expect(items[2]).toEqual({ label: "前端开发", href: "/forums/10" });
 	});
+
+	it("uses custom homeLabel when provided", () => {
+		const items = buildForumBreadcrumbs([], "My Forum");
+		expect(items).toEqual([{ label: "My Forum", href: "/", icon: "home" }]);
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -204,6 +209,11 @@ describe("buildThreadBreadcrumbs", () => {
 		const last = items[items.length - 1];
 		expect(last).toEqual({ label: "My Post" });
 	});
+
+	it("uses custom homeLabel when provided", () => {
+		const items = buildThreadBreadcrumbs([], "Post", "Custom Site");
+		expect(items[0]).toEqual({ label: "Custom Site", href: "/", icon: "home" });
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -228,6 +238,11 @@ describe("buildUserBreadcrumbs", () => {
 	it("username item has no href", () => {
 		const items = buildUserBreadcrumbs("bob");
 		expect(items[2]?.href).toBeUndefined();
+	});
+
+	it("uses custom homeLabel when provided", () => {
+		const items = buildUserBreadcrumbs("alice", "My Site");
+		expect(items[0]).toEqual({ label: "My Site", href: "/", icon: "home" });
 	});
 });
 
@@ -267,6 +282,11 @@ describe("buildForumBreadcrumbsFromAncestors", () => {
 		const last = items[items.length - 1];
 		expect(last?.href).toBeUndefined();
 		expect(last?.label).toBe("Current");
+	});
+
+	it("uses custom homeLabel when provided", () => {
+		const items = buildForumBreadcrumbsFromAncestors([], "Forum", "Custom Home");
+		expect(items[0]).toEqual({ label: "Custom Home", href: "/", icon: "home" });
 	});
 });
 
@@ -350,5 +370,10 @@ describe("buildNewThreadBreadcrumbsFromAncestors", () => {
 		);
 		const last = items[items.length - 1];
 		expect(last).toEqual({ label: "发表主题" });
+	});
+
+	it("uses custom homeLabel when provided", () => {
+		const items = buildNewThreadBreadcrumbsFromAncestors([], 5, "技术分区", "Custom Site");
+		expect(items[0]).toEqual({ label: "Custom Site", href: "/", icon: "home" });
 	});
 });

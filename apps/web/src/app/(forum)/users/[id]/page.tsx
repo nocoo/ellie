@@ -9,6 +9,7 @@ import { UserThreadsTab } from "@/components/forum/user-threads-tab";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { buildUserBreadcrumbs } from "@/lib/forum-breadcrumbs";
+import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 import { getUserTitle } from "@/viewmodels/forum/title.server";
 import { PROFILE_TABS } from "@/viewmodels/forum/user-profile";
 import { type UserProfileData, loadUserProfile } from "@/viewmodels/forum/user-profile.server";
@@ -82,7 +83,9 @@ export default async function UserProfilePage({ params, searchParams }: UserProf
 
 	const activeData =
 		data.tab === "threads" ? data.threads : data.tab === "posts" ? data.posts : data.digest;
-	const breadcrumbs = buildUserBreadcrumbs(data.user.username);
+	const settings = await fetchPublicSettings();
+	const homeLabel = getStr(settings, "general.site.home_label", "同济网论坛");
+	const breadcrumbs = buildUserBreadcrumbs(data.user.username, homeLabel);
 
 	return (
 		<div className="space-y-4">

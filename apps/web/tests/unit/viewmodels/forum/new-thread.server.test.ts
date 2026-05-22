@@ -30,6 +30,11 @@ vi.mock("@/lib/forum-cache", async () => {
 	};
 });
 
+vi.mock("@/viewmodels/forum/settings.server", () => ({
+	fetchPublicSettings: vi.fn(async () => ({})),
+	getStr: vi.fn((_settings: any, _key: string, fallback: string) => fallback),
+}));
+
 import { ForumApiError, forumApi } from "@/lib/forum-api";
 import { loadNewThreadPageData } from "@/viewmodels/forum/new-thread.server";
 

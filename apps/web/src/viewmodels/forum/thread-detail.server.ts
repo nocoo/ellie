@@ -25,6 +25,7 @@ import {
 	canMoveThread,
 	findForumAncestors,
 } from "@ellie/types";
+import { fetchPublicSettings, getStr } from "./settings.server";
 import {
 	type EnrichedPost,
 	buildFallbackAuthorMap,
@@ -245,7 +246,9 @@ export async function loadThreadDetail(params: {
 
 	// Build breadcrumbs from forum ancestors
 	const ancestors = findForumAncestors(forums, thread.forumId);
-	const breadcrumbs = buildThreadBreadcrumbs(ancestors, thread.subject);
+	const settings = await fetchPublicSettings();
+	const homeLabel = getStr(settings, "general.site.home_label", "同济网论坛");
+	const breadcrumbs = buildThreadBreadcrumbs(ancestors, thread.subject, homeLabel);
 
 	return {
 		thread,

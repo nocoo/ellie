@@ -16,6 +16,7 @@ import {
 	filterVisibleForums,
 	findForumAncestors,
 } from "@ellie/types";
+import { fetchPublicSettings, getStr } from "./settings.server";
 import { type ThreadDisplayItem, type ThreadSort, enrichThreads } from "./thread-list";
 
 export interface ThreadListData {
@@ -111,9 +112,10 @@ export async function loadThreadListPaged(params: {
 	}
 
 	// Parallel fetch: forum tree + threads (forums deduped via React cache)
-	const [forums, threadsRes] = await Promise.all([
+	const [forums, threadsRes, settings] = await Promise.all([
 		getCachedForumList(),
 		forumApi.getPage<Thread>("/api/v1/threads", threadsQuery),
+		fetchPublicSettings(),
 	]);
 
 	// Build forum tree and find current forum
@@ -125,7 +127,8 @@ export async function loadThreadListPaged(params: {
 
 	// Build breadcrumbs from forum ancestors
 	const ancestors = findForumAncestors(forums, params.forumId);
-	const breadcrumbs = buildForumBreadcrumbs(ancestors);
+	const homeLabel = getStr(settings, "general.site.home_label", "同济网论坛");
+	const breadcrumbs = buildForumBreadcrumbs(ancestors, homeLabel);
 
 	return {
 		forum,

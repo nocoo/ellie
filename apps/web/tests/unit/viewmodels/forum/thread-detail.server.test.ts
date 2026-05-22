@@ -66,6 +66,11 @@ vi.mock("@/lib/forum-auth", () => ({
 	getWorkerJwt: vi.fn(async () => null),
 }));
 
+vi.mock("@/viewmodels/forum/settings.server", () => ({
+	fetchPublicSettings: vi.fn(async () => ({})),
+	getStr: vi.fn((_settings: any, _key: string, fallback: string) => fallback),
+}));
+
 vi.mock("@/lib/forum-breadcrumbs", () => ({
 	buildThreadBreadcrumbs: vi.fn(() => [{ label: "首页", href: "/" }, { label: "Test" }]),
 }));

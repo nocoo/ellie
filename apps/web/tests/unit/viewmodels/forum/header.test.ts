@@ -77,6 +77,31 @@ describe("buildHeaderViewModel", () => {
 			{ label: "About", href: "/about" },
 		]);
 	});
+
+	it("uses homeLabel from settings in default nav tabs", () => {
+		const settings = { "general.site.home_label": "My Forum" };
+		const vm = buildHeaderViewModel(settings);
+		expect(vm.navTabs[0]).toEqual({ label: "My Forum", href: "/" });
+		expect(vm.homeLabel).toBe("My Forum");
+	});
+
+	it("default nav tabs first item uses fallback homeLabel", () => {
+		const vm = buildHeaderViewModel(emptySettings);
+		expect(vm.navTabs[0]).toEqual({ label: "同济网论坛", href: "/" });
+		expect(vm.homeLabel).toBe("同济网论坛");
+	});
+
+	it("includes logoLight, logoDark, logoAlt from settings", () => {
+		const settings = {
+			"general.site.logo_light": "https://example.com/light.png",
+			"general.site.logo_dark": "https://example.com/dark.png",
+			"general.site.name": "TestForum",
+		};
+		const vm = buildHeaderViewModel(settings);
+		expect(vm.logoLight).toBe("https://example.com/light.png");
+		expect(vm.logoDark).toBe("https://example.com/dark.png");
+		expect(vm.logoAlt).toBe("TestForum");
+	});
 });
 
 // ---------------------------------------------------------------------------

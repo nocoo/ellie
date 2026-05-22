@@ -77,6 +77,56 @@ describe("buildGlobalFooterViewModel", () => {
 		const vm = buildGlobalFooterViewModel(emptySettings);
 		expect(vm.siteName).toBe("Ellie");
 	});
+
+	it("reads copyrightYears from settings", () => {
+		const settings = { "general.site.copyright_years": "2020-2026" };
+		const vm = buildGlobalFooterViewModel(settings);
+		expect(vm.copyrightYears).toBe("2020-2026");
+	});
+
+	it("defaults copyrightYears to 2001-2013", () => {
+		const vm = buildGlobalFooterViewModel(emptySettings);
+		expect(vm.copyrightYears).toBe("2001-2013");
+	});
+
+	it("reads brand logo URLs from settings", () => {
+		const settings = {
+			"general.site.logo_light": "https://cdn.example.com/logo-light.png",
+			"general.site.logo_dark": "https://cdn.example.com/logo-dark.png",
+		};
+		const vm = buildGlobalFooterViewModel(settings);
+		expect(vm.logoLight).toBe("https://cdn.example.com/logo-light.png");
+		expect(vm.logoDark).toBe("https://cdn.example.com/logo-dark.png");
+	});
+
+	it("reads footer background URLs from settings", () => {
+		const settings = {
+			"general.site.footer_bg_light": "https://cdn.example.com/bg-light.png",
+			"general.site.footer_bg_dark": "https://cdn.example.com/bg-dark.png",
+		};
+		const vm = buildGlobalFooterViewModel(settings);
+		expect(vm.bgLight).toBe("https://cdn.example.com/bg-light.png");
+		expect(vm.bgDark).toBe("https://cdn.example.com/bg-dark.png");
+	});
+
+	it("uses fallback brand URLs when settings are empty", () => {
+		const vm = buildGlobalFooterViewModel(emptySettings);
+		expect(vm.logoLight).toContain("Logo-light");
+		expect(vm.logoDark).toContain("Logo-dark");
+		expect(vm.bgLight).toContain("Bg-shanghai-light");
+		expect(vm.bgDark).toContain("Bg-shanghai-dark");
+	});
+
+	it("reads homeLabel from settings", () => {
+		const settings = { "general.site.home_label": "My Site" };
+		const vm = buildGlobalFooterViewModel(settings);
+		expect(vm.homeLabel).toBe("My Site");
+	});
+
+	it("defaults homeLabel to 同济网论坛", () => {
+		const vm = buildGlobalFooterViewModel(emptySettings);
+		expect(vm.homeLabel).toBe("同济网论坛");
+	});
 });
 
 // ---------------------------------------------------------------------------

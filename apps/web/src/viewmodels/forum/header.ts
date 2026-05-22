@@ -67,8 +67,7 @@ export interface HeaderViewModel {
 // Navigation tabs — fallback default when settings unavailable
 // ---------------------------------------------------------------------------
 
-const DEFAULT_NAV_TABS: HeaderNavTab[] = [
-	{ label: "同济网论坛", href: "/" },
+const DEFAULT_NAV_TABS_TAIL: HeaderNavTab[] = [
 	{ label: "就业实习", href: "/forums/2" },
 	{ label: "导读", href: "/digest" },
 	{ label: "考研", href: "/forums/3" },
@@ -129,10 +128,12 @@ export function buildHeaderViewModel(
 		[],
 	);
 
+	const homeLabel = getStr(settings, "general.site.home_label", "同济网论坛");
+
 	const navTabs: HeaderNavTab[] =
 		headerLinks.length > 0
 			? headerLinks.map((link) => ({ label: link.label, href: link.url }))
-			: DEFAULT_NAV_TABS;
+			: [{ label: homeLabel, href: "/" }, ...DEFAULT_NAV_TABS_TAIL];
 
 	return {
 		user,
@@ -146,6 +147,6 @@ export function buildHeaderViewModel(
 		),
 		logoDark: getStr(settings, "general.site.logo_dark", "https://t.no.mt/ellie/Logo-dark-2.png"),
 		logoAlt: getStr(settings, "general.site.name", "Ellie"),
-		homeLabel: getStr(settings, "general.site.home_label", "同济网论坛"),
+		homeLabel,
 	};
 }
