@@ -8,15 +8,31 @@
 // batch, returning the latest snapshot. A separate GET surfaces the current
 // snapshot without advancing.
 //
-// Reviewer guard rails (msg=d646977b) baked in here:
+// Reviewer guard rails (msg=d646977b, msg=92086575) baked in here:
 //   - per-kind singleton:        single KV key `stats:recalc-job:<kind>`.
-//   - state must survive 503:    each tick checkpoints under that key with a
-//                                lease; a stranded `running` job past
-//                                `leaseUntil` is reclaimable on the next POST.
+//   - state must survive 503:    each tick stakes a short lease under
+//                                that key before running `advance`; a
+//                                worker death between stake and finish
+//                                leaves a stale lease that the next POST
+//                                reclaims after `JOB_LEASE_SECONDS`.
+//   - lease is NOT the running   `leaseUntil` only represents an
+//     marker:                    in-flight `advance` window. Idle running
+//                                jobs persist with `leaseUntil:null` so
+//                                the next POST can advance immediately
+//                                (this was wrong in the first cut and
+//                                broke the "one POST = one batch" driver).
 //   - schema/version pinned:     `payload.v = 1` so future migrations can
 //                                detect older state.
 //   - GET is read-only:          this file exposes `readJob`, never advances.
-//   - `reset: true` body opens   a fresh job over a `done` / `failed` one.
+//   - `reset: true` opens fresh  a `done` / `failed` job. Running jobs are
+//                                NEVER reset by a POST — we return
+//                                `code:"running"` (→ 409) so the operator
+//                                must wait or let the in-flight tick die.
+//   - KV writes are not silent:  `writeJob` propagates errors. A dropped
+//                                checkpoint would cause the next tick to
+//                                replay the same cursor, so the caller
+//                                surfaces the failure instead of
+//                                pretending the write succeeded.
 //
 // Per-kind tickers live in `handlers/admin/statistics.ts`. They build the
 // initial payload (total estimate + cursor=0 + params from the request) and
@@ -78,8 +94,13 @@ export type StatsJobStatus = "running" | "done" | "failed";
  *                   mismatched rows, so this diverges from `processed`).
  *   - `lastBatchUpdated` — rows mutated in the most recent tick. Useful for
  *                   the card's per-batch readout.
- *   - `leaseUntil` — unix ms; while running and within lease, duplicate
- *                   POSTs return the snapshot without advancing.
+ *   - `leaseUntil` — unix ms; non-null ONLY while a single `advance`
+ *                   call is executing. A concurrent POST that sees a
+ *                   non-null lease past `now` returns `code:"locked"`
+ *                   (→ 409). An idle running job between batches has
+ *                   `leaseUntil: null`. A stranded lease (worker died
+ *                   mid-`advance`) is reclaimable once `now` is past
+ *                   the staked value.
  */
 export interface StatsJobPayload {
 	v: number;
@@ -149,22 +170,29 @@ export async function readJob(env: Env, kind: StatsJobKind): Promise<StatsJobPay
 /**
  * Persist a snapshot under the per-kind key with a 24h TTL. We renew the
  * TTL on every write so an active job near the 24h mark doesn't expire
- * mid-run. Wrap in try/catch so KV hiccups never bubble into an HTTP error
- * mid-tick — the worst case is a single missed update.
+ * mid-run.
+ *
+ * Reviewer pin (msg=92086575, A.1): writes MUST NOT be silently
+ * swallowed — a successful D1 mutation paired with a dropped KV
+ * checkpoint causes the UI to repeat the same cursor on the next tick.
+ * Errors propagate; the caller in `tickJob` decides how to surface them.
  */
 export async function writeJob(env: Env, payload: StatsJobPayload): Promise<void> {
-	try {
-		await env.KV.put(statsJobKey(payload.kind), JSON.stringify(payload), {
-			expirationTtl: JOB_KV_TTL_SECONDS,
-		});
-	} catch (err) {
-		console.warn(`[stats-job] write failed kind=${payload.kind}`, err);
-	}
+	await env.KV.put(statsJobKey(payload.kind), JSON.stringify(payload), {
+		expirationTtl: JOB_KV_TTL_SECONDS,
+	});
 }
 
 /**
  * Helper for `initialize` implementations — bundles the boilerplate so
  * tickers can focus on cursor/total estimation.
+ *
+ * Reviewer pin (msg=92086575, A.1): an idle-running job MUST persist
+ * with `leaseUntil: null`. The lease window only represents an
+ * in-flight `advance` call; pre-stamping a 60s lease at initialization
+ * was wrong — it locked out the very next POST and broke the
+ * "one POST = one batch" UI driver. The framing in `tickJob` re-stamps
+ * the lease just before invoking `advance` and clears it after.
  */
 export function makeInitialPayload(args: {
 	kind: StatsJobKind;
@@ -188,7 +216,7 @@ export function makeInitialPayload(args: {
 		startedAt: now,
 		lastTickAt: now,
 		finishedAt: null,
-		leaseUntil: now + JOB_LEASE_SECONDS * 1000,
+		leaseUntil: null,
 		error: null,
 		params: args.params ?? {},
 	};
@@ -199,30 +227,62 @@ export function makeInitialPayload(args: {
 // ---------------------------------------------------------------------------
 
 /**
- * Outcome reported back to the HTTP handler. The route layer turns this into
- * a `jsonNoStoreResponse({ data: payload }, ...)` (or an errorResponse on
- * `code === "LOCKED"`).
+ * Outcome reported back to the HTTP handler. The route layer turns this
+ * into `jsonNoStoreResponse(payload, ...)` on `ok`, a 409
+ * `errorResponse("RUNNING_JOB_EXISTS"|"CONCURRENT_TICK", ...)` on
+ * `running` / `locked`, and a 500/JSON-payload error response on `error`.
+ *
+ * The four codes have distinct meanings (msg=92086575):
+ *   - `ok`        — normal initialize OR advance OR terminal-snapshot read.
+ *   - `locked`    — another in-flight `advance` is holding the lease right
+ *                   now; caller should retry shortly (409).
+ *   - `running`   — operator tried `reset:true` while the job is still
+ *                   running; we refuse rather than tear down a live
+ *                   tick (409). `reset` is for `done` / `failed` only.
+ *   - `error`     — `advance` or `writeJob` threw. Payload reflects the
+ *                   failed state (status=failed, error=...).
  */
 export type TickResult =
 	| { code: "ok"; payload: StatsJobPayload; advanced: boolean }
 	| { code: "locked"; payload: StatsJobPayload }
+	| { code: "running"; payload: StatsJobPayload }
 	| { code: "error"; payload: StatsJobPayload; error: string };
 
 /**
  * POST entry point. Behaviour per `(current state, body.reset)`:
- *   - no payload OR `reset:true`             → `initialize` then return.
- *   - status="running" AND lease active       → return current snapshot
- *                                               with `code:"locked"` so the
- *                                               UI shows the existing job
- *                                               and the route emits 409.
- *   - status="running" AND lease expired      → reclaim: refresh lease,
- *                                               advance one batch.
- *   - status="done"/"failed" without reset    → return snapshot, no advance.
+ *   - no payload                              → `initialize`, return ok.
+ *   - status="done"/"failed", no reset        → return snapshot, no advance.
+ *   - status="done"/"failed", reset:true      → `initialize`, return ok.
+ *   - status="running", reset:true            → return `code:"running"`
+ *                                               (refuse to tear down a
+ *                                               live job; 409).
+ *   - status="running", leaseUntil > now      → concurrent in-flight
+ *                                               `advance`; return
+ *                                               `code:"locked"` (409).
+ *   - status="running", lease null/expired    → stake a fresh lease,
+ *                                               run one `advance` batch,
+ *                                               clear lease, persist.
  *
- * Throws from `initialize` propagate to the caller (these are
- * setup-time errors, not job errors). Throws from `advance` are caught
- * here, the payload is flipped to `failed`, and `code:"error"` is
- * returned so the UI surfaces the message.
+ * Lease semantics (msg=92086575, A.1): `leaseUntil` represents ONLY the
+ * window in which a single `advance` is executing. It is staked
+ * immediately before `advance` (and persisted so a truly concurrent
+ * POST sees `locked`) and cleared after the call returns — whether
+ * `advance` succeeded, failed, or pushed the job to `done`. An idle
+ * running job between batches therefore has `leaseUntil: null` and the
+ * next POST advances without waiting 60s. The 60s horizon only matters
+ * when a previous tick was killed mid-call (503 / OOM) — the next POST
+ * still finds the stale lease, sees it has passed `now`, and takes over.
+ *
+ * Errors:
+ *   - Throws from `initialize` propagate to the caller (setup errors).
+ *   - Throws from `advance` are caught here; payload is flipped to
+ *     `failed` and `code:"error"` is returned.
+ *   - Throws from `writeJob` (the lease stake, the final persist, or
+ *     the failed-status persist) bubble up — a dropped checkpoint
+ *     means the next tick would replay the same cursor, so we surface
+ *     it instead of silently succeeding.
+ *   - Throws from `finalize` are logged but do NOT roll the job back
+ *     to `failed`; the data is correct, only a cache bump went wrong.
  */
 export async function tickJob(
 	env: Env,
@@ -233,35 +293,54 @@ export async function tickJob(
 	const reset = body.reset === true;
 	const current = await readJob(env, ticker.kind);
 
-	// (1) New job (no payload, or operator asked to reset).
-	if (!current || reset) {
+	// (1) No payload at all → first POST opens a fresh job.
+	if (!current) {
 		const initial = await ticker.initialize(env, body);
 		await writeJob(env, initial);
-		// First POST does NOT advance — it only stakes the lease and
-		// commits the initial payload. The UI then either polls (GET) or
-		// re-POSTs to start advancing. This keeps initialize cheap and
-		// guarantees the first card render shows status=running before
-		// the first batch runs.
+		// initialize does not advance — it only commits the initial
+		// payload so the UI sees status=running on the first card render.
+		// The next POST starts the first batch.
 		return { code: "ok", payload: initial, advanced: false };
 	}
 
-	// (2) Already finished (done or failed) — do nothing without reset.
+	// (2) Terminal states. reset:true reopens; otherwise return snapshot.
 	if (current.status === "done" || current.status === "failed") {
+		if (reset) {
+			const initial = await ticker.initialize(env, body);
+			await writeJob(env, initial);
+			return { code: "ok", payload: initial, advanced: false };
+		}
 		return { code: "ok", payload: current, advanced: false };
 	}
 
-	// (3) Active lease — duplicate POST guard. Returns `locked` so the
-	//     route layer emits 409 and the UI can fall back to GET polling.
+	// (3) Running + reset:true → refuse. We do not silently tear down a
+	//     live job; the operator must wait for it to land (or explicitly
+	//     wait for the in-flight tick to die and the lease to expire).
+	if (reset) {
+		return { code: "running", payload: current };
+	}
+
+	// (4) Concurrent in-flight advance — another POST is mid-tick and
+	//     holds the lease. Return `locked` (route → 409). Note this is
+	//     NOT "running job exists" — it's "another tick is executing
+	//     right now"; the same POST will succeed once the holder
+	//     finishes (advance) or the lease expires (crash takeover).
 	if (current.leaseUntil !== null && current.leaseUntil > now) {
 		return { code: "locked", payload: current };
 	}
 
-	// (4) Lease expired OR null — reclaim and advance one batch.
+	// (5) Stake a fresh lease before running advance so a truly
+	//     concurrent second POST sees `locked` rather than racing on
+	//     the same batch. Persisting first matters: if the worker
+	//     dies between stake and advance, the next POST sees a stale
+	//     lease and can take over after `JOB_LEASE_SECONDS`.
 	const reclaimed: StatsJobPayload = {
 		...current,
 		leaseUntil: now + JOB_LEASE_SECONDS * 1000,
 		lastTickAt: now,
 	};
+	await writeJob(env, reclaimed);
+
 	let next: StatsJobPayload;
 	try {
 		next = await ticker.advance(env, reclaimed);
@@ -274,26 +353,34 @@ export async function tickJob(
 			finishedAt: now,
 			lastTickAt: now,
 		};
+		// If this write itself fails, surface the throw — the caller
+		// will produce a 500 and the next tick will still see the old
+		// (running, stale-lease) payload and can take over.
 		await writeJob(env, failed);
 		return { code: "error", payload: failed, error: failed.error ?? "unknown" };
 	}
 
-	// Persist before running finalize so the UI sees `done` as soon as
-	// the final batch lands, even if cache invalidation hiccups.
-	await writeJob(env, next);
+	// Framework — not the ticker — is responsible for clearing the
+	// lease after advance. An idle running job between batches has
+	// leaseUntil=null so the very next POST can advance immediately.
+	const checkpointed: StatsJobPayload = {
+		...next,
+		leaseUntil: null,
+	};
+	await writeJob(env, checkpointed);
 
-	if (next.status === "done" && ticker.finalize) {
+	if (checkpointed.status === "done" && ticker.finalize) {
 		try {
-			await ticker.finalize(env, next);
+			await ticker.finalize(env, checkpointed);
 		} catch (err) {
 			// Finalize failure shouldn't roll the job back to failed —
 			// the data is correct, only the cache bump went wrong. Log
 			// and let the caller see `done`.
-			console.warn(`[stats-job] finalize failed kind=${next.kind}`, err);
+			console.warn(`[stats-job] finalize failed kind=${checkpointed.kind}`, err);
 		}
 	}
 
-	return { code: "ok", payload: next, advanced: true };
+	return { code: "ok", payload: checkpointed, advanced: true };
 }
 
 // ---------------------------------------------------------------------------

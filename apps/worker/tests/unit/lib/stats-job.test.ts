@@ -1,16 +1,23 @@
 // Stats recalc-job state machine tests.
 //
-// Reviewer guard rails (msg=d646977b) under test:
+// Reviewer guard rails (msg=d646977b, msg=92086575) under test:
 //   - per-kind singleton:        readJob / writeJob target `stats:recalc-job:<kind>`
 //                                and never read across kinds.
-//   - state must survive 503:    a stranded `running` payload whose `leaseUntil`
-//                                has passed is reclaimable on the next POST.
-//   - duplicate POST guard:      while the lease is active, tickJob must NOT
-//                                advance; it returns `code:"locked"`.
 //   - schema version pinned:     v1 payload only; future versions read back as
 //                                null so a corrupt write can't block all jobs.
-//   - reset gate:                `body.reset === true` reopens a `done`/`failed`
-//                                job; without it, no advance.
+//   - lease ≠ running marker:    `leaseUntil` is non-null ONLY while a single
+//                                `advance` call is mid-flight. An idle running
+//                                job persists with leaseUntil:null so the very
+//                                next POST can advance immediately (no 60s wait).
+//                                A concurrent in-flight tick (lease > now) is
+//                                what returns `code:"locked"`; a stale lease
+//                                past `now` is reclaimed (503-survival path).
+//   - reset gate:                `reset:true` reopens `done`/`failed` only.
+//                                Running jobs return `code:"running"` (→ 409)
+//                                so a live tick is never silently torn down.
+//   - writeJob never silent:     a dropped checkpoint would replay the same
+//                                cursor on the next tick; KV write failures
+//                                propagate up through `tickJob`.
 //   - finalize on done:          framing invokes ticker.finalize exactly once
 //                                on the `running → done` transition, and a
 //                                throw from finalize does NOT roll the job
@@ -49,7 +56,7 @@ function snapshot(overrides: Partial<StatsJobPayload> = {}): StatsJobPayload {
 		startedAt: 1_700_000_000_000,
 		lastTickAt: 1_700_000_000_000,
 		finishedAt: null,
-		leaseUntil: 1_700_000_000_000 + JOB_LEASE_SECONDS * 1000,
+		leaseUntil: null,
 		error: null,
 		params: {},
 		...overrides,
@@ -57,33 +64,27 @@ function snapshot(overrides: Partial<StatsJobPayload> = {}): StatsJobPayload {
 }
 
 // Minimal ticker — initialize/advance just shuffle counters so we can
-// assert which one was invoked.
+// assert which one was invoked. The framework now strips leaseUntil
+// after advance, so ticker doesn't need to think about it.
 function makeTicker(
 	overrides: Partial<StatsJobTicker> = {},
 ): StatsJobTicker & { initSpy: ReturnType<typeof vi.fn>; advanceSpy: ReturnType<typeof vi.fn> } {
 	const initSpy = vi.fn(async () =>
 		makeInitialPayload({ kind: "threads", total: 5_000, now: 1_700_000_000_000 }),
 	);
-	const advanceSpy = vi.fn(async (_env, prev: StatsJobPayload) => ({
-		...prev,
-		cursor: prev.cursor + DEFAULT_BATCH_SIZE,
-		processed: prev.processed + DEFAULT_BATCH_SIZE,
-		updated: prev.updated + 42,
-		lastBatchUpdated: 42,
-		// stop when we've covered total
-		status:
-			prev.total !== null && prev.processed + DEFAULT_BATCH_SIZE >= prev.total
-				? ("done" as const)
-				: ("running" as const),
-		finishedAt:
-			prev.total !== null && prev.processed + DEFAULT_BATCH_SIZE >= prev.total
-				? 1_700_000_000_999
-				: null,
-		leaseUntil:
-			prev.total !== null && prev.processed + DEFAULT_BATCH_SIZE >= prev.total
-				? null
-				: prev.leaseUntil,
-	}));
+	const advanceSpy = vi.fn(async (_env, prev: StatsJobPayload) => {
+		const newProcessed = prev.processed + DEFAULT_BATCH_SIZE;
+		const isDone = prev.total !== null && newProcessed >= prev.total;
+		return {
+			...prev,
+			cursor: prev.cursor + DEFAULT_BATCH_SIZE,
+			processed: newProcessed,
+			updated: prev.updated + 42,
+			lastBatchUpdated: 42,
+			status: isDone ? ("done" as const) : ("running" as const),
+			finishedAt: isDone ? 1_700_000_000_999 : null,
+		};
+	});
 	return {
 		kind: "threads",
 		initialize: initSpy,
@@ -123,7 +124,6 @@ describe("stats-job KV CRUD", () => {
 
 	it("readJob rejects cross-kind reads (kind field mismatch)", async () => {
 		const env = makeEnv();
-		// Direct KV put with mismatched `kind` to simulate a poisoned write.
 		await env.KV.put(statsJobKey("threads"), JSON.stringify(snapshot({ kind: "users" })));
 		expect(await readJob(env, "threads")).toBeNull();
 	});
@@ -145,10 +145,22 @@ describe("stats-job KV CRUD", () => {
 		await env.KV.put(statsJobKey("threads"), JSON.stringify(bad));
 		expect(await readJob(env, "threads")).toBeNull();
 	});
+
+	it("writeJob propagates KV errors (no silent swallow)", async () => {
+		// A dropped checkpoint would cause the next tick to replay the
+		// same cursor and double-update — `writeJob` must throw so the
+		// caller can surface it (reviewer pin msg=92086575).
+		const env = makeEnv();
+		const boom = new Error("KV PUT 503");
+		(env.KV.put as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+			throw boom;
+		});
+		await expect(writeJob(env, snapshot())).rejects.toThrow("KV PUT 503");
+	});
 });
 
 // ---------------------------------------------------------------------------
-// tickJob — start, lease, reset, advance
+// tickJob — start
 // ---------------------------------------------------------------------------
 
 describe("tickJob — start", () => {
@@ -164,12 +176,15 @@ describe("tickJob — start", () => {
 		expect(result.advanced).toBe(false);
 		expect(result.payload.cursor).toBe(0);
 		expect(result.payload.status).toBe("running");
+		// Reviewer pin (msg=92086575): no preset lease on initialize —
+		// the very next POST must be able to advance immediately.
+		expect(result.payload.leaseUntil).toBeNull();
 		expect(ticker.initSpy).toHaveBeenCalledTimes(1);
 		expect(ticker.advanceSpy).not.toHaveBeenCalled();
 
-		// Persisted under the per-kind key.
 		const persisted = await readJob(env, "threads");
 		expect(persisted?.cursor).toBe(0);
+		expect(persisted?.leaseUntil).toBeNull();
 	});
 
 	it("forwards the request body to initialize so per-kind params land in payload.params", async () => {
@@ -188,15 +203,59 @@ describe("tickJob — start", () => {
 		if (result.code !== "ok") throw new Error("expected ok");
 		expect(result.payload.params).toEqual({ forumId: 7 });
 	});
-});
 
-describe("tickJob — duplicate POST guard (active lease)", () => {
-	it("returns code:'locked' and does NOT advance while lease is still in the future", async () => {
+	it("second POST immediately after initialize advances (no 60s lease wait)", async () => {
+		// This is the core regression test for the A.1 fix: previously
+		// `makeInitialPayload` pre-stamped a 60s lease which made the
+		// next POST hit `locked`. The driver only advances "1 batch per
+		// POST", so the UI must be able to issue back-to-back POSTs.
 		const env = makeEnv();
 		const ticker = makeTicker();
-
-		// Prime KV with a running snapshot whose lease is still active.
 		const now = 1_700_000_000_000;
+
+		const first = await tickJob(env, ticker, {}, now);
+		if (first.code !== "ok") throw new Error("expected ok");
+		expect(first.advanced).toBe(false);
+
+		const second = await tickJob(env, ticker, {}, now + 100); // 100ms later
+		if (second.code !== "ok") throw new Error("expected ok on second POST");
+		expect(second.advanced).toBe(true);
+		expect(second.payload.cursor).toBe(DEFAULT_BATCH_SIZE);
+		// Idle running job has no lease after advance returns.
+		expect(second.payload.leaseUntil).toBeNull();
+	});
+
+	it("third POST immediately after advance advances again (lease cleared each tick)", async () => {
+		const env = makeEnv();
+		const ticker = makeTicker();
+		const now = 1_700_000_000_000;
+
+		await tickJob(env, ticker, {}, now); // initialize
+		const second = await tickJob(env, ticker, {}, now + 100);
+		if (second.code !== "ok") throw new Error("expected ok");
+
+		const third = await tickJob(env, ticker, {}, now + 200);
+		if (third.code !== "ok") throw new Error("expected ok on third POST");
+		expect(third.advanced).toBe(true);
+		expect(third.payload.cursor).toBe(DEFAULT_BATCH_SIZE * 2);
+		expect(third.payload.leaseUntil).toBeNull();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// tickJob — concurrency guard
+// ---------------------------------------------------------------------------
+
+describe("tickJob — concurrent in-flight advance", () => {
+	it("returns code:'locked' when another tick has staked the lease and is still mid-call", async () => {
+		// Simulate the in-flight state directly: a payload whose
+		// leaseUntil is set in the future represents a tick currently
+		// inside `ticker.advance(...)`. The lease is staked + persisted
+		// BEFORE advance runs, so any concurrent POST observes it.
+		const env = makeEnv();
+		const ticker = makeTicker();
+		const now = 1_700_000_000_000;
+
 		await writeJob(env, snapshot({ leaseUntil: now + 30_000, lastTickAt: now }));
 
 		const result = await tickJob(env, ticker, {}, now);
@@ -206,11 +265,13 @@ describe("tickJob — duplicate POST guard (active lease)", () => {
 		expect(ticker.advanceSpy).not.toHaveBeenCalled();
 	});
 
-	it("reclaims and advances once the lease has expired (503-survival path)", async () => {
+	it("reclaims and advances when a stale lease has passed (worker died mid-advance)", async () => {
 		const env = makeEnv();
 		const ticker = makeTicker();
-
 		const now = 1_700_000_000_000;
+
+		// leaseUntil is in the past → previous tick crashed without
+		// clearing the lease. We must take over.
 		await writeJob(env, snapshot({ leaseUntil: now - 1, lastTickAt: now - 60_000 }));
 
 		const result = await tickJob(env, ticker, {}, now);
@@ -220,12 +281,41 @@ describe("tickJob — duplicate POST guard (active lease)", () => {
 		expect(result.advanced).toBe(true);
 		expect(ticker.advanceSpy).toHaveBeenCalledTimes(1);
 
-		// The reclaimed payload passed to advance must have a fresh lease.
+		// The payload passed to advance carries a fresh stake; the
+		// persisted post-advance snapshot has it cleared.
 		const passed = ticker.advanceSpy.mock.calls[0][1] as StatsJobPayload;
 		expect(passed.leaseUntil).toBe(now + JOB_LEASE_SECONDS * 1000);
 		expect(passed.lastTickAt).toBe(now);
+		expect(result.payload.leaseUntil).toBeNull();
+	});
+
+	it("persists the lease stake to KV BEFORE advance runs (so a concurrent POST sees `locked`)", async () => {
+		const env = makeEnv();
+		const now = 1_700_000_000_000;
+		let observedLeaseDuringAdvance: number | null | undefined;
+
+		// Inside `advance`, peek at what KV currently holds — that's
+		// what a hypothetical second POST would see at this moment.
+		const ticker: StatsJobTicker = {
+			kind: "threads",
+			initialize: vi.fn(),
+			advance: vi.fn(async (envInner, prev) => {
+				const persisted = await readJob(envInner, "threads");
+				observedLeaseDuringAdvance = persisted?.leaseUntil;
+				return { ...prev, cursor: prev.cursor + 1, processed: prev.processed + 1 };
+			}),
+		};
+
+		await writeJob(env, snapshot({ leaseUntil: null }));
+		await tickJob(env, ticker, {}, now);
+
+		expect(observedLeaseDuringAdvance).toBe(now + JOB_LEASE_SECONDS * 1000);
 	});
 });
+
+// ---------------------------------------------------------------------------
+// tickJob — terminal states + reset
+// ---------------------------------------------------------------------------
 
 describe("tickJob — terminal states", () => {
 	it("returns the snapshot without advancing when status is 'done' and reset is absent", async () => {
@@ -275,6 +365,7 @@ describe("tickJob — terminal states", () => {
 		expect(result.advanced).toBe(false);
 		expect(result.payload.status).toBe("running");
 		expect(result.payload.cursor).toBe(0);
+		expect(result.payload.leaseUntil).toBeNull();
 		expect(ticker.initSpy).toHaveBeenCalledTimes(1);
 		expect(ticker.advanceSpy).not.toHaveBeenCalled();
 	});
@@ -294,8 +385,47 @@ describe("tickJob — terminal states", () => {
 	});
 });
 
+describe("tickJob — running + reset:true refusal", () => {
+	it("refuses to tear down a live running job: returns code:'running' (→ 409)", async () => {
+		// Reviewer pin (msg=92086575): the previous `!current || reset`
+		// branch silently overwrote a running job. That's a footgun if a
+		// dialog auto-sends reset:true on retry. We now require running
+		// to land or fail before reset is accepted.
+		const env = makeEnv();
+		const ticker = makeTicker();
+		const now = 1_700_000_000_000;
+
+		await writeJob(env, snapshot({ status: "running", leaseUntil: null }));
+
+		const result = await tickJob(env, ticker, { reset: true }, now);
+
+		expect(result.code).toBe("running");
+		expect(ticker.initSpy).not.toHaveBeenCalled();
+		expect(ticker.advanceSpy).not.toHaveBeenCalled();
+
+		// State is unchanged on disk.
+		const persisted = await readJob(env, "threads");
+		expect(persisted?.status).toBe("running");
+		expect(persisted?.cursor).toBe(0);
+	});
+
+	it("refuses even when the running job has a stale lease (operator must wait or let it die)", async () => {
+		const env = makeEnv();
+		const ticker = makeTicker();
+		const now = 1_700_000_000_000;
+
+		await writeJob(env, snapshot({ status: "running", leaseUntil: now - 1 }));
+
+		const result = await tickJob(env, ticker, { reset: true }, now);
+
+		expect(result.code).toBe("running");
+		expect(ticker.initSpy).not.toHaveBeenCalled();
+		expect(ticker.advanceSpy).not.toHaveBeenCalled();
+	});
+});
+
 // ---------------------------------------------------------------------------
-// tickJob — error path (advance throws)
+// tickJob — error path (advance throws / writeJob throws)
 // ---------------------------------------------------------------------------
 
 describe("tickJob — advance throw → failed", () => {
@@ -308,7 +438,7 @@ describe("tickJob — advance throw → failed", () => {
 			}),
 		});
 
-		await writeJob(env, snapshot({ leaseUntil: now - 1 }));
+		await writeJob(env, snapshot({ leaseUntil: null }));
 
 		const result = await tickJob(env, ticker, {}, now);
 
@@ -319,8 +449,6 @@ describe("tickJob — advance throw → failed", () => {
 		expect(result.payload.leaseUntil).toBeNull();
 		expect(result.payload.finishedAt).toBe(now);
 
-		// Persisted as failed so the next POST without reset returns a
-		// terminal snapshot rather than re-running advance.
 		const persisted = await readJob(env, "threads");
 		expect(persisted?.status).toBe("failed");
 		expect(persisted?.error).toBe("D1 timeout");
@@ -337,11 +465,38 @@ describe("tickJob — advance throw → failed", () => {
 			}),
 		});
 
-		await writeJob(env, snapshot({ leaseUntil: now - 1 }));
+		await writeJob(env, snapshot({ leaseUntil: null }));
 
 		const result = await tickJob(env, ticker, {}, now);
 		if (result.code !== "error") throw new Error("expected error");
 		expect(result.error).toBe("plain string");
+	});
+});
+
+describe("tickJob — writeJob throws", () => {
+	it("propagates KV write failure during the post-advance checkpoint (no silent success)", async () => {
+		const env = makeEnv();
+		const now = 1_700_000_000_000;
+		const ticker = makeTicker();
+
+		// Pre-seed an idle running job so we go through the advance path.
+		await writeJob(env, snapshot({ leaseUntil: null }));
+
+		// First put = lease stake (no-op is fine; tickJob carries the
+		// staked snapshot in memory). Second put = post-advance
+		// checkpoint (must propagate). We don't recreate the in-memory
+		// store impl because no other code in this test path reads it.
+		const putMock = env.KV.put as ReturnType<typeof vi.fn>;
+		putMock.mockImplementationOnce(async () => {
+			// lease stake — allow
+		});
+		putMock.mockImplementationOnce(async () => {
+			throw new Error("KV PUT 503");
+		});
+
+		await expect(tickJob(env, ticker, {}, now)).rejects.toThrow("KV PUT 503");
+		// advance did run before the failing checkpoint.
+		expect(ticker.advanceSpy).toHaveBeenCalledTimes(1);
 	});
 });
 
@@ -355,7 +510,6 @@ describe("tickJob — finalize", () => {
 		const now = 1_700_000_000_000;
 		const finalize = vi.fn(async () => undefined);
 
-		// Configure ticker so the next advance completes the job in one step.
 		const ticker: StatsJobTicker = {
 			kind: "threads",
 			initialize: vi.fn(),
@@ -364,18 +518,19 @@ describe("tickJob — finalize", () => {
 				status: "done",
 				processed: prev.total ?? 0,
 				finishedAt: now,
-				leaseUntil: null,
 			})),
 			finalize,
 		};
 
-		await writeJob(env, snapshot({ leaseUntil: now - 1, total: 1000 }));
+		await writeJob(env, snapshot({ leaseUntil: null, total: 1000 }));
 
 		const result = await tickJob(env, ticker, {}, now);
 
 		expect(result.code).toBe("ok");
 		if (result.code !== "ok") throw new Error("unreachable");
 		expect(result.payload.status).toBe("done");
+		// Framework strips leaseUntil even for `done` transitions.
+		expect(result.payload.leaseUntil).toBeNull();
 		expect(finalize).toHaveBeenCalledTimes(1);
 	});
 
@@ -391,12 +546,11 @@ describe("tickJob — finalize", () => {
 				...prev,
 				cursor: prev.cursor + 1000,
 				processed: prev.processed + 1000,
-				// Still running — half-way through.
 			})),
 			finalize,
 		};
 
-		await writeJob(env, snapshot({ leaseUntil: now - 1, total: 10_000 }));
+		await writeJob(env, snapshot({ leaseUntil: null, total: 10_000 }));
 
 		await tickJob(env, ticker, {}, now);
 
@@ -414,14 +568,13 @@ describe("tickJob — finalize", () => {
 				status: "done",
 				processed: prev.total ?? 0,
 				finishedAt: now,
-				leaseUntil: null,
 			})),
 			finalize: vi.fn(async () => {
 				throw new Error("cache bump failed");
 			}),
 		};
 
-		await writeJob(env, snapshot({ leaseUntil: now - 1, total: 1000 }));
+		await writeJob(env, snapshot({ leaseUntil: null, total: 1000 }));
 
 		const result = await tickJob(env, ticker, {}, now);
 
@@ -429,7 +582,6 @@ describe("tickJob — finalize", () => {
 		if (result.code !== "ok") throw new Error("unreachable");
 		expect(result.payload.status).toBe("done");
 
-		// Persisted as done, not failed — finalize is best-effort.
 		const persisted = await readJob(env, "threads");
 		expect(persisted?.status).toBe("done");
 	});
@@ -440,7 +592,7 @@ describe("tickJob — finalize", () => {
 // ---------------------------------------------------------------------------
 
 describe("makeInitialPayload", () => {
-	it("produces a v1 running payload with cursor=0 and a fresh lease", () => {
+	it("produces a v1 running payload with cursor=0 and leaseUntil=null", () => {
 		const now = 1_700_000_000_000;
 		const p = makeInitialPayload({ kind: "users", total: 12_345, now });
 
@@ -455,7 +607,9 @@ describe("makeInitialPayload", () => {
 		expect(p.lastTickAt).toBe(now);
 		expect(p.finishedAt).toBeNull();
 		expect(p.error).toBeNull();
-		expect(p.leaseUntil).toBe(now + JOB_LEASE_SECONDS * 1000);
+		// Reviewer pin (msg=92086575): no preset lease — only an
+		// in-flight `advance` window holds a non-null lease.
+		expect(p.leaseUntil).toBeNull();
 		expect(p.batchSize).toBe(DEFAULT_BATCH_SIZE);
 		expect(p.params).toEqual({});
 	});
