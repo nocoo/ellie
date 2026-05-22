@@ -27,8 +27,31 @@ import { errorResponse } from "../../middleware/error";
 // ─── Column list (never SELECT * — excludes password_hash, password_salt) ────
 
 // D4-a: purged_at/purged_by added for tombstone tracking.
+//
+// Admin reads must reflect ground truth, not the denormalized counters on
+// `users`. `threads`/`posts`/`digest_posts` can drift whenever something
+// writes to `threads`/`posts` without going through the admin-side counter
+// pipelines (ad-hoc SQL repair, bulk reassignment, etc.). We replace those
+// three columns with correlated subqueries so admin list/detail always show
+// live values; the recalc-counters endpoint becomes a write-back convenience
+// rather than a load-bearing read path. Other "denormalized" fields stay as
+// cached columns:
+//   - `credits` / `coins` / `ol_time` are running totals from transactional
+//     writes (no SQL ground-truth source to recompute from)
+//   - `last_login` / `last_activity` are event timestamps written at the
+//     moment of the event — they cannot drift, only be missed if the
+//     writer fails to fire
+// The public user mini/public caches keep reading the cached columns —
+// this change is admin-only.
 const USER_COLUMNS =
-	"id, username, email, avatar, avatar_path, status, role, reg_date, last_login, threads, posts, credits, coins, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, campus, last_activity, email_verified_at, email_normalized, email_changed_at, reg_ip, last_ip, purged_at, purged_by";
+	"id, username, email, avatar, avatar_path, status, role, reg_date, last_login," +
+	" (SELECT COUNT(*) FROM threads t WHERE t.author_id = users.id) AS threads," +
+	" (SELECT COUNT(*) FROM posts p WHERE p.author_id = users.id) AS posts," +
+	" credits, coins, signature, group_title, group_stars, group_color, custom_title," +
+	" (SELECT COUNT(*) FROM threads t WHERE t.author_id = users.id AND t.digest > 0) AS digest_posts," +
+	" ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city," +
+	" graduate_school, bio, interest, qq, site, campus, last_activity, email_verified_at," +
+	" email_normalized, email_changed_at, reg_ip, last_ip, purged_at, purged_by";
 
 // ─── List enrichment: per-user messages / attachments counts ────────────────
 
