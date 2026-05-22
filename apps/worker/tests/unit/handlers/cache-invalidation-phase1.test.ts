@@ -156,18 +156,31 @@ describe("Phase 1 commit 2 — thread/post create invalidation", () => {
 });
 
 describe("Phase 1 commit 2 — admin statistics invalidation", () => {
-	it("recalcForums bumps forum:summary:gen", async () => {
+	it("recalcForums bumps forum:summary:gen on the done transition (updated > 0)", async () => {
+		// Job-mode (msg=b7eda60a fix): cache invalidation moved into
+		// ticker.finalize, which fires when the job reaches `done` after
+		// updating at least one forum. We drive: initialize -> advance
+		// with 1 forum -> short final batch -> status:done -> finalize
+		// bumps `forum:summary:gen` once (gated on `updated > 0`).
 		const { db } = createMockDb({
+			firstResults: {
+				"SELECT COUNT(*) as cnt FROM forums": { cnt: 1 },
+			},
 			allResults: {
-				"SELECT id FROM forums": [{ id: 1 }, { id: 2 }],
-				"SELECT forum_id, COUNT(*) as cnt FROM threads": [],
-				"SELECT forum_id, COUNT(*) as cnt FROM posts": [],
-				"SELECT t1.forum_id, t1.id, t1.subject": [],
+				"FROM forums WHERE id >": [{ id: 1 }],
+				"FROM threads WHERE forum_id IN": [],
+				"FROM posts WHERE forum_id IN": [],
+				"ROW_NUMBER() OVER": [],
 			},
 		});
 		const env = makeEnv({ DB: db });
-		const req = createAdminRequest("POST", "/api/admin/statistics/recalc-forums");
-		const res = await recalcForums(req, env);
+		// 1) Initialize.
+		await recalcForums(createAdminRequest("POST", "/api/admin/statistics/recalc-forums"), env);
+		// 2) Advance — 1-forum batch, short final → status:done.
+		const res = await recalcForums(
+			createAdminRequest("POST", "/api/admin/statistics/recalc-forums"),
+			env,
+		);
 		expect(res.status).toBe(200);
 		expect(mockBumpSummary).toHaveBeenCalledTimes(1);
 	});
