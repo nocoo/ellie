@@ -1,10 +1,16 @@
-// Admin analytics handler unit tests (P2 query-only).
+// Admin analytics handler unit tests (P2 query-only, KV-bypass).
 //
 // SQL shape pinning per reviewer (msg=176f4860): we don't depend on
 // SQLite planner output; we assert the exact SQL string (whitespace-
-// collapsed) + bind params + KV cache family + cache hit/miss
-// behaviour. Index correctness is guarded separately by
+// collapsed) + bind params. Index correctness is guarded separately by
 // `tests/unit/migration-0041-schema.test.ts`.
+//
+// Cache policy: all four handlers bypass KV and respond with
+// `Cache-Control: no-store, private`. Admins need immediate feedback
+// after moderation actions, so the prior 60s-300s cache layer was
+// removed. The tests below assert (1) D1 is hit on every call,
+// (2) no KV.get / KV.put happens, and (3) the response header includes
+// no-store, private.
 
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -278,13 +284,20 @@ describe("GET /api/admin/analytics/overview", () => {
 		expect(checkinBind).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 	});
 
-	it("cache hit short-circuits the DB and reuses the validator", async () => {
+	it("bypasses KV: never reads or writes the cache", async () => {
 		const cached = {
 			now: 1_700_000_000,
 			today: { newUsers: 1, newThreads: 2, newPosts: 3, checkins: 4 },
 		};
 		const kv = createMockKV({ "analytics:overview": JSON.stringify(cached) });
-		const db = makeMockDb({});
+		const db = makeMockDb({
+			canned: [
+				{ results: [{ cnt: 11 }] },
+				{ results: [{ cnt: 22 }] },
+				{ results: [{ cnt: 33 }] },
+				{ results: [{ cnt: 44 }] },
+			],
+		});
 		const env = makeEnv({ DB: db, KV: kv });
 		const ctx = makeCtx();
 		const res = await getOverview(
@@ -293,29 +306,15 @@ describe("GET /api/admin/analytics/overview", () => {
 			ctx,
 		);
 		expect(res.status).toBe(200);
-		expect(db._calls).toEqual([]);
-		expect(kv.get).toHaveBeenCalledWith("analytics:overview", "json");
-	});
-
-	it("cache miss writes back through ctx.waitUntil with the registry TTL", async () => {
-		const db = makeMockDb({
-			canned: [
-				{ results: [{ cnt: 0 }] },
-				{ results: [{ cnt: 0 }] },
-				{ results: [{ cnt: 0 }] },
-				{ results: [{ cnt: 0 }] },
-			],
-		});
-		const kv = createMockKV();
-		const env = makeEnv({ DB: db, KV: kv });
-		const ctx = makeCtx();
-		await getOverview(createAdminRequest("GET", "/api/admin/analytics/overview"), env, ctx);
-		// Drain pending writes.
-		await Promise.all(ctx._promises);
-		expect(kv.put).toHaveBeenCalled();
-		const [key, , putOpts] = (kv.put as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
-		expect(key).toBe("analytics:overview");
-		expect((putOpts as { expirationTtl: number }).expirationTtl).toBe(_internal.OVERVIEW_TTL_SEC);
+		// D1 is hit even though a cached entry exists.
+		expect(db._calls).toHaveLength(4);
+		const body = (await res.json()) as { data: { today: { newUsers: number } } };
+		expect(body.data.today.newUsers).toBe(11);
+		// KV is never touched on the read path.
+		expect(kv.get).not.toHaveBeenCalled();
+		expect(kv.put).not.toHaveBeenCalled();
+		// No-store header on every response.
+		expect(res.headers.get("Cache-Control")).toBe("no-store, private");
 	});
 });
 
@@ -400,61 +399,62 @@ describe("GET /api/admin/analytics/trend", () => {
 	});
 
 	it("fills missing days with 0 to produce a continuous series", async () => {
-		// Anchor now to a specific UTC time.
-		vi.useFakeTimers();
-		try {
-			vi.setSystemTime(new Date("2026-01-10T08:00:00.000Z")); // 16:00 UTC+8.
-			const todayLocal = Math.floor(
-				(Math.floor(Date.UTC(2026, 0, 10, 0, 0, 0) / 1000) - 8 * 3600 + 8 * 3600) / 86400,
-			);
-			const day3Ago = todayLocal - 3;
-			const day1Ago = todayLocal - 1;
-			const db = makeMockDb({
-				canned: [
-					{
-						results: [
-							{ day_local: day3Ago, count: 9 },
-							{ day_local: day1Ago, count: 4 },
-						],
-					},
-				],
-			});
-			const env = makeEnv({ DB: db });
-			const ctx = makeCtx();
-			const res = await getTrend(
-				createAdminRequest("GET", "/api/admin/analytics/trend?metric=users&range=7d"),
-				env,
-				ctx,
-			);
-			expect(res.status).toBe(200);
-			const body = (await res.json()) as {
-				data: { series: Array<{ date: string; count: number }> };
-			};
-			expect(body.data.series).toHaveLength(7);
-			// 0-counts present.
-			expect(body.data.series.filter((p) => p.count === 0)).toHaveLength(5);
-			// Real-data days preserved.
-			expect(body.data.series[3]).toEqual({ date: expect.any(String), count: 9 });
-			expect(body.data.series[5]).toEqual({ date: expect.any(String), count: 4 });
-		} finally {
-			vi.useRealTimers();
-		}
+		// Compute today_local for `Date.now()` so the mocked rows line up
+		// with the live (un-mocked) clock used inside the handler.
+		const nowSec = Math.floor(Date.now() / 1000);
+		const todayLocal = Math.floor((nowSec + 8 * 3600) / 86400);
+		const day3Ago = todayLocal - 3;
+		const day1Ago = todayLocal - 1;
+		const db = makeMockDb({
+			canned: [
+				{
+					results: [
+						{ day_local: day3Ago, count: 9 },
+						{ day_local: day1Ago, count: 4 },
+					],
+				},
+			],
+		});
+		const env = makeEnv({ DB: db });
+		const ctx = makeCtx();
+		const res = await getTrend(
+			createAdminRequest("GET", "/api/admin/analytics/trend?metric=users&range=7d"),
+			env,
+			ctx,
+		);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as {
+			data: { series: Array<{ date: string; count: number }> };
+		};
+		expect(body.data.series).toHaveLength(7);
+		// 0-counts present.
+		expect(body.data.series.filter((p) => p.count === 0)).toHaveLength(5);
+		// Real-data days preserved (positions 3 and 5 in the 7-day window).
+		expect(body.data.series[3].count).toBe(9);
+		expect(body.data.series[5].count).toBe(4);
 	});
 
-	it("caches under analytics:trend:<metric>:<range> with TREND_TTL_SEC", async () => {
+	it("bypasses KV: never reads or writes the cache", async () => {
 		const db = makeMockDb({ canned: [{ results: [] }] });
-		const kv = createMockKV();
+		const kv = createMockKV({
+			"analytics:trend:posts:30d": JSON.stringify({
+				metric: "posts",
+				range: "30d",
+				series: [{ date: "2026-01-01", count: 99 }],
+			}),
+		});
 		const env = makeEnv({ DB: db, KV: kv });
 		const ctx = makeCtx();
-		await getTrend(
+		const res = await getTrend(
 			createAdminRequest("GET", "/api/admin/analytics/trend?metric=posts&range=30d"),
 			env,
 			ctx,
 		);
-		await Promise.all(ctx._promises);
-		const [key, , putOpts] = (kv.put as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
-		expect(key).toBe("analytics:trend:posts:30d");
-		expect((putOpts as { expirationTtl: number }).expirationTtl).toBe(_internal.TREND_TTL_SEC);
+		expect(res.status).toBe(200);
+		expect(db._calls).toHaveLength(1);
+		expect(kv.get).not.toHaveBeenCalled();
+		expect(kv.put).not.toHaveBeenCalled();
+		expect(res.headers.get("Cache-Control")).toBe("no-store, private");
 	});
 });
 
@@ -557,29 +557,35 @@ describe("GET /api/admin/analytics/checkin", () => {
 		expect(b.error.code).toBe("INVALID_RANGE");
 	});
 
-	it("caches under analytics:checkin:<range> with CHECKIN_TTL_SEC", async () => {
+	it("bypasses KV: never reads or writes the cache", async () => {
 		const db = makeMockDb({ canned: [{ results: [] }] });
-		const kv = createMockKV();
+		const kv = createMockKV({
+			"analytics:checkin:7d": JSON.stringify({
+				range: "7d",
+				series: [{ date: "2026-01-01", count: 99 }],
+			}),
+		});
 		const env = makeEnv({ DB: db, KV: kv });
 		const ctx = makeCtx();
-		await getCheckinTrend(
+		const res = await getCheckinTrend(
 			createAdminRequest("GET", "/api/admin/analytics/checkin?range=7d"),
 			env,
 			ctx,
 		);
-		await Promise.all(ctx._promises);
-		const [key, , putOpts] = (kv.put as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
-		expect(key).toBe("analytics:checkin:7d");
-		expect((putOpts as { expirationTtl: number }).expirationTtl).toBe(_internal.CHECKIN_TTL_SEC);
+		expect(res.status).toBe(200);
+		expect(db._calls).toHaveLength(1);
+		expect(kv.get).not.toHaveBeenCalled();
+		expect(kv.put).not.toHaveBeenCalled();
+		expect(res.headers.get("Cache-Control")).toBe("no-store, private");
 	});
 });
 
-// ─── ctx=undefined fallback (no cache) ──────────────────────────
+// ─── ctx is irrelevant (handlers don't call waitUntil) ─────────
 //
-// Every handler accepts an optional ExecutionContext. When the router
-// passes it the handler caches via `cacheGetOrSet`; when the router
-// doesn't (e.g. internal callers, future migration paths) the handler
-// must still serve a fresh DB-direct response.
+// All four handlers bypass KV; ExecutionContext is unused on the read
+// path. Pinning that the handler still serves a fresh DB-direct
+// response when ctx is undefined documents the contract for callers
+// that hand a partial environment (e.g. ad-hoc internal scripts).
 
 describe("analytics — ctx=undefined fallback", () => {
 	it("overview falls back to a direct loader call", async () => {
@@ -644,11 +650,6 @@ describe("analytics — ctx=undefined fallback", () => {
 
 describe("analytics — range defaults", () => {
 	it("trend defaults to 7d when range param is omitted", async () => {
-		const db = makeMockDb({ canned: [{ results: [] }] });
-		const env = makeEnv({ DB: db });
-		const ctx = makeCtx();
-		await getTrend(createAdminRequest("GET", "/api/admin/analytics/trend?metric=users"), env, ctx);
-		// fillDaily ran for 7-day window — series length is the proxy.
 		const body = await (
 			await getTrend(
 				createAdminRequest("GET", "/api/admin/analytics/trend?metric=users"),
@@ -675,232 +676,49 @@ describe("analytics — range defaults", () => {
 	});
 });
 
-// ─── KV payload validators — drift defence ──────────────────────
+// ─── KV-bypass cross-check ───────────────────────────────────────
 //
-// Each endpoint registers a validator with cacheGetOrSet. If a future
-// schema change rolls out against a populated KV the validator should
-// reject the stale payload and fall through to the loader. We exercise
-// that path by seeding KV with a payload that fails validation.
+// The KV layer is removed for these four admin endpoints. Verify
+// from the cross-cutting angle: regardless of what's in KV, the
+// handler reads D1 and returns no-store. (Per-endpoint asserts above
+// cover specific endpoints.)
 
-describe("analytics — validator rejects stale KV payload", () => {
-	it("overview validator falls through on shape mismatch", async () => {
-		const kv = createMockKV({ "analytics:overview": JSON.stringify({ bogus: true }) });
-		const db = makeMockDb({
-			canned: [
-				{ results: [{ cnt: 7 }] },
-				{ results: [{ cnt: 7 }] },
-				{ results: [{ cnt: 7 }] },
-				{ results: [{ cnt: 7 }] },
-			],
-		});
-		const env = makeEnv({ DB: db, KV: kv });
-		const ctx = makeCtx();
-		const res = await getOverview(
-			createAdminRequest("GET", "/api/admin/analytics/overview"),
-			env,
-			ctx,
-		);
-		expect(res.status).toBe(200);
-		expect(db._calls).toHaveLength(4);
-	});
-
-	it("trend validator falls through on shape mismatch", async () => {
-		const kv = createMockKV({
-			"analytics:trend:users:7d": JSON.stringify({ metric: "users", range: "7d", series: "nope" }),
-		});
-		const db = makeMockDb({ canned: [{ results: [] }] });
-		const env = makeEnv({ DB: db, KV: kv });
-		const ctx = makeCtx();
-		const res = await getTrend(
-			createAdminRequest("GET", "/api/admin/analytics/trend?metric=users&range=7d"),
-			env,
-			ctx,
-		);
-		expect(res.status).toBe(200);
-		expect(db._calls).toHaveLength(1);
-	});
-
-	it("forum-dist validator falls through on shape mismatch", async () => {
-		const kv = createMockKV({
-			"analytics:forum-dist:7d": JSON.stringify({ range: "7d", rows: [{ forumId: "x" }] }),
-		});
-		const db = makeMockDb({ canned: [{ results: [] }] });
-		const env = makeEnv({ DB: db, KV: kv });
-		const ctx = makeCtx();
-		const res = await getForumDist(
-			createAdminRequest("GET", "/api/admin/analytics/forum-dist?range=7d"),
-			env,
-			ctx,
-		);
-		expect(res.status).toBe(200);
-		expect(db._calls).toHaveLength(1);
-	});
-
-	it("checkin validator falls through on shape mismatch", async () => {
-		const kv = createMockKV({
-			"analytics:checkin:7d": JSON.stringify({ range: "lolcat", series: [] }),
-		});
-		const db = makeMockDb({ canned: [{ results: [] }] });
-		const env = makeEnv({ DB: db, KV: kv });
-		const ctx = makeCtx();
-		const res = await getCheckinTrend(
-			createAdminRequest("GET", "/api/admin/analytics/checkin?range=7d"),
-			env,
-			ctx,
-		);
-		expect(res.status).toBe(200);
-		expect(db._calls).toHaveLength(1);
-	});
-
-	it("trend validator rejects malformed series elements", async () => {
-		const kv = createMockKV({
-			"analytics:trend:users:7d": JSON.stringify({
-				metric: "users",
-				range: "7d",
-				series: [null],
-			}),
-		});
-		const db = makeMockDb({ canned: [{ results: [] }] });
-		const env = makeEnv({ DB: db, KV: kv });
-		const ctx = makeCtx();
-		const res = await getTrend(
-			createAdminRequest("GET", "/api/admin/analytics/trend?metric=users&range=7d"),
-			env,
-			ctx,
-		);
-		expect(res.status).toBe(200);
-		expect(db._calls).toHaveLength(1);
-	});
-
-	it("forum-dist validator rejects malformed row elements", async () => {
-		const kv = createMockKV({
-			"analytics:forum-dist:7d": JSON.stringify({ range: "7d", rows: [null] }),
-		});
-		const db = makeMockDb({ canned: [{ results: [] }] });
-		const env = makeEnv({ DB: db, KV: kv });
-		const ctx = makeCtx();
-		const res = await getForumDist(
-			createAdminRequest("GET", "/api/admin/analytics/forum-dist?range=7d"),
-			env,
-			ctx,
-		);
-		expect(res.status).toBe(200);
-		expect(db._calls).toHaveLength(1);
-	});
-
-	it("checkin validator rejects malformed series elements", async () => {
-		const kv = createMockKV({
-			"analytics:checkin:7d": JSON.stringify({ range: "7d", series: [null] }),
-		});
-		const db = makeMockDb({ canned: [{ results: [] }] });
-		const env = makeEnv({ DB: db, KV: kv });
-		const ctx = makeCtx();
-		const res = await getCheckinTrend(
-			createAdminRequest("GET", "/api/admin/analytics/checkin?range=7d"),
-			env,
-			ctx,
-		);
-		expect(res.status).toBe(200);
-		expect(db._calls).toHaveLength(1);
-	});
-
-	// Each of these hits a distinct short-circuit branch inside the
-	// validators so branch coverage on analytics.ts stays above the
-	// 90% global threshold even as the validators stay defensive.
+describe("analytics — KV bypass invariant", () => {
 	it.each([
-		// Overview short-circuits.
-		["analytics:overview", JSON.stringify(null)],
-		["analytics:overview", JSON.stringify("scalar")],
-		["analytics:overview", JSON.stringify(42)],
-		["analytics:overview", JSON.stringify({ now: "x" })],
-		["analytics:overview", JSON.stringify({ now: 1, today: null })],
-		["analytics:overview", JSON.stringify({ now: 1, today: "scalar" })],
-		["analytics:overview", JSON.stringify({ now: 1, today: { newUsers: "x" } })],
-		["analytics:overview", JSON.stringify({ now: 1, today: { newUsers: 1, newThreads: "x" } })],
-		[
-			"analytics:overview",
-			JSON.stringify({ now: 1, today: { newUsers: 1, newThreads: 1, newPosts: "x" } }),
-		],
-		[
-			"analytics:overview",
-			JSON.stringify({
-				now: 1,
-				today: { newUsers: 1, newThreads: 1, newPosts: 1, checkins: "x" },
-			}),
-		],
-		// Trend short-circuits.
-		["analytics:trend:users:7d", JSON.stringify(null)],
-		["analytics:trend:users:7d", JSON.stringify("scalar")],
-		["analytics:trend:users:7d", JSON.stringify({ metric: "bogus" })],
-		["analytics:trend:users:7d", JSON.stringify({ metric: "users", range: 7 })],
-		["analytics:trend:users:7d", JSON.stringify({ metric: "users", range: "999d" })],
-		[
-			"analytics:trend:users:7d",
-			JSON.stringify({ metric: "users", range: "7d", series: { not: "array" } }),
-		],
-		[
-			"analytics:trend:users:7d",
-			JSON.stringify({ metric: "users", range: "7d", series: [{ date: 1, count: 1 }] }),
-		],
-		[
-			"analytics:trend:users:7d",
-			JSON.stringify({ metric: "users", range: "7d", series: [{ date: "x", count: "y" }] }),
-		],
-		// Forum-dist short-circuits.
-		["analytics:forum-dist:7d", JSON.stringify(null)],
-		["analytics:forum-dist:7d", JSON.stringify("scalar")],
-		["analytics:forum-dist:7d", JSON.stringify({ range: 7 })],
-		["analytics:forum-dist:7d", JSON.stringify({ range: "7d" })],
-		["analytics:forum-dist:7d", JSON.stringify({ range: "7d", rows: { not: "array" } })],
-		[
-			"analytics:forum-dist:7d",
-			JSON.stringify({ range: "7d", rows: [{ forumId: 1, forumName: 1, posts: 1 }] }),
-		],
-		[
-			"analytics:forum-dist:7d",
-			JSON.stringify({ range: "7d", rows: [{ forumId: "x", forumName: "n", posts: 1 }] }),
-		],
-		[
-			"analytics:forum-dist:7d",
-			JSON.stringify({ range: "7d", rows: [{ forumId: 1, forumName: "n", posts: "x" }] }),
-		],
-		// Checkin short-circuits.
-		["analytics:checkin:7d", JSON.stringify(null)],
-		["analytics:checkin:7d", JSON.stringify("scalar")],
-		["analytics:checkin:7d", JSON.stringify({ range: 7 })],
-		["analytics:checkin:7d", JSON.stringify({ range: "7d" })],
-		["analytics:checkin:7d", JSON.stringify({ range: "7d", series: { not: "array" } })],
-		["analytics:checkin:7d", JSON.stringify({ range: "7d", series: [{ date: 1, count: 1 }] })],
-	])("validator short-circuit %s falls through to loader", async (key, raw) => {
-		const kv = createMockKV({ [key]: raw });
-		const db = makeMockDb({
+		{
+			handler: getOverview,
+			path: "/api/admin/analytics/overview",
 			canned: [
 				{ results: [{ cnt: 0 }] },
 				{ results: [{ cnt: 0 }] },
 				{ results: [{ cnt: 0 }] },
 				{ results: [{ cnt: 0 }] },
 			],
-		});
+		},
+		{
+			handler: getTrend,
+			path: "/api/admin/analytics/trend?metric=users&range=7d",
+			canned: [{ results: [] }],
+		},
+		{
+			handler: getForumDist,
+			path: "/api/admin/analytics/forum-dist?range=7d",
+			canned: [{ results: [] }],
+		},
+		{
+			handler: getCheckinTrend,
+			path: "/api/admin/analytics/checkin?range=7d",
+			canned: [{ results: [] }],
+		},
+	])("$path: never reads/writes KV and replies no-store", async ({ handler, path, canned }) => {
+		const kv = createMockKV();
+		const db = makeMockDb({ canned });
 		const env = makeEnv({ DB: db, KV: kv });
 		const ctx = makeCtx();
-
-		let handler: typeof getOverview;
-		let path: string;
-		if (key === "analytics:overview") {
-			handler = getOverview;
-			path = "/api/admin/analytics/overview";
-		} else if (key.startsWith("analytics:trend")) {
-			handler = getTrend;
-			path = "/api/admin/analytics/trend?metric=users&range=7d";
-		} else if (key.startsWith("analytics:forum-dist")) {
-			handler = getForumDist;
-			path = "/api/admin/analytics/forum-dist?range=7d";
-		} else {
-			handler = getCheckinTrend;
-			path = "/api/admin/analytics/checkin?range=7d";
-		}
 		const res = await handler(createAdminRequest("GET", path), env, ctx);
 		expect(res.status).toBe(200);
-		expect(db._calls.length).toBeGreaterThan(0);
+		expect(kv.get).not.toHaveBeenCalled();
+		expect(kv.put).not.toHaveBeenCalled();
+		expect(res.headers.get("Cache-Control")).toBe("no-store, private");
 	});
 });
