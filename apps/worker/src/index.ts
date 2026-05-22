@@ -555,6 +555,9 @@ export default {
 			if (path === "/api/admin/statistics/recalc-users" && request.method === "POST") {
 				return await (await import("./handlers/admin/statistics")).recalcUsers(request, env);
 			}
+			if (path === "/api/admin/statistics/recalc-post-forums" && request.method === "POST") {
+				return await (await import("./handlers/admin/statistics")).recalcPostForumIds(request, env);
+			}
 
 			// ── E0. Analytics (Admin) — P2 query-only dashboard ──
 			// Pure read-through against business tables (users, threads,

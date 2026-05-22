@@ -6,7 +6,7 @@ import { STATISTICS_DONE_VARIANT } from "@/viewmodels/admin/badges";
 import { Badge } from "@ellie/ui";
 import { Button } from "@ellie/ui";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@ellie/ui";
-import { CheckCircle, Database, Loader2, MessageSquare, Users } from "lucide-react";
+import { CheckCircle, Database, Loader2, MessageSquare, RefreshCw, Users } from "lucide-react";
 import { useCallback, useState } from "react";
 
 // ---------------------------------------------------------------------------
@@ -24,6 +24,7 @@ interface RecalcTask {
 
 interface RecalcResult {
 	updated?: number;
+	remaining?: number;
 	forumId?: number | null;
 }
 
@@ -52,6 +53,13 @@ const RECALC_TASKS: RecalcTask[] = [
 		description: "重新计算所有用户的主题数、回帖数和精华帖数",
 		icon: <Users className="h-5 w-5" />,
 		endpoint: "/api/admin/statistics/recalc-users",
+	},
+	{
+		key: "post-forums",
+		title: "帖子版块同步",
+		description: "将帖子的版块归属同步为其所属主题的当前版块（修复历史数据不一致）",
+		icon: <RefreshCw className="h-5 w-5" />,
+		endpoint: "/api/admin/statistics/recalc-post-forums",
 	},
 ];
 
@@ -143,7 +151,11 @@ export default function StatisticsPage() {
 									</Button>
 									{hasResult && (
 										<span className="text-xs text-muted-foreground">
-											{result.updated === -1 ? "执行失败" : `已更新 ${result.updated} 条记录`}
+											{result.updated === -1
+												? "执行失败"
+												: result.remaining
+													? `已更新 ${result.updated} 条，剩余 ${result.remaining} 条`
+													: `已更新 ${result.updated} 条记录`}
 										</span>
 									)}
 								</div>
@@ -168,6 +180,10 @@ export default function StatisticsPage() {
 					</p>
 					<p>
 						<strong>用户统计</strong>：计算每个用户的发帖数、回帖数和精华帖数。
+					</p>
+					<p>
+						<strong>帖子版块同步</strong>
+						：将帖子的版块归属同步为其所属主题的当前版块。每次最多处理 5 万条，如有剩余需多次执行。
 					</p>
 					<p className="text-xs">
 						注意：这些操作可能需要一些时间，具体取决于数据量大小。建议在低峰期执行。
