@@ -471,70 +471,123 @@ export const recalcThreads = withEntityAuth(
 );
 
 // ─── POST /api/admin/statistics/recalc-users ─────────────────────────────────
-// Recalculate all user counters: threads, posts, digest_posts.
+// Job-mode driver — one POST advances ONE batch of active users (cursor =
+// users.id ORDER BY id LIMIT batchSize). Per reviewer msg=8ad628d5:
+//   - No `body.ids` scope. Phase C only supports full active sweep so we
+//     never have to persist an unbounded id list in KV. Small-range manual
+//     fixes can use single-user admin endpoints.
+//   - Cache invalidation runs INSIDE each successful advance (after the D1
+//     UPDATE), chunked at KV_CHUNK=50 — finalize cannot know which user
+//     ids each batch touched without round-tripping them through KV.
+//   - Per-batch aggregates use `author_id IN (...) GROUP BY author_id` in
+//     IN_CHUNK=500 chunks to stay under D1's 999-param ceiling. No
+//     per-user N+1 queries; no full-table GROUP BY scans.
+//   - If KV invalidate throws, let it bubble — tickJob marks the job as
+//     `error` and cursor does not advance; the next POST retries the
+//     same batch with the same checkpointed cursor (idempotent UPDATE).
 
-export const recalcUsers = withEntityAuth(
-	statsConfig,
-	async (request: Request, env: Env): Promise<Response> => {
-		const origin = request.headers.get("Origin") ?? undefined;
+const KV_CHUNK = 50;
 
-		let body: Record<string, unknown> = {};
-		try {
-			const text = await request.text();
-			if (text) body = JSON.parse(text) as Record<string, unknown>;
-		} catch {
-			// Empty body is fine
+interface UserBatchRow {
+	id: number;
+}
+
+interface UserCountRow {
+	author_id: number;
+	cnt: number;
+}
+
+async function fetchUserCounts(
+	env: Env,
+	userIds: number[],
+	sqlForChunk: (placeholders: string) => string,
+): Promise<Map<number, number>> {
+	const map = new Map<number, number>();
+	for (const chunk of chunkIds(userIds)) {
+		if (chunk.length === 0) continue;
+		const placeholders = chunk.map(() => "?").join(",");
+		const result = await env.DB.prepare(sqlForChunk(placeholders))
+			.bind(...chunk)
+			.all();
+		for (const row of result.results as unknown as UserCountRow[]) {
+			map.set(row.author_id, row.cnt);
+		}
+	}
+	return map;
+}
+
+async function invalidateUsersChunked(env: Env, userIds: number[]): Promise<void> {
+	for (let i = 0; i < userIds.length; i += KV_CHUNK) {
+		const chunk = userIds.slice(i, i + KV_CHUNK);
+		await Promise.all(
+			chunk.flatMap((uid) => [invalidateUserCache(env, uid), invalidateUserCaches(env, uid)]),
+		);
+	}
+}
+
+export const usersTicker: StatsJobTicker = {
+	kind: "users",
+	initialize: async (env) => {
+		// Active users only — status>=0 mirrors the legacy handler's scope.
+		const row = await env.DB.prepare("SELECT COUNT(*) as cnt FROM users WHERE status >= 0").first<{
+			cnt: number;
+		}>();
+		const total = row?.cnt ?? 0;
+		return makeInitialPayload({ kind: "users", total, params: {} });
+	},
+
+	advance: async (env, prev) => {
+		const batchSize = prev.batchSize;
+		const now = Date.now();
+
+		// (1) Page through active users by id > cursor ORDER BY id.
+		const usersResult = await env.DB.prepare(
+			"SELECT id FROM users WHERE status >= 0 AND id > ? ORDER BY id LIMIT ?",
+		)
+			.bind(prev.cursor, batchSize)
+			.all();
+		const batch = usersResult.results as unknown as UserBatchRow[];
+
+		// Empty batch = terminal. Maintain the monotonic processed
+		// invariant we locked in Phase B.1.
+		if (batch.length === 0) {
+			const processed = Math.max(prev.processed, prev.total ?? prev.processed);
+			return {
+				...prev,
+				status: "done",
+				processed,
+				total: Math.max(prev.total ?? 0, processed),
+				lastBatchUpdated: 0,
+				finishedAt: now,
+				lastTickAt: now,
+			};
 		}
 
-		// Get user IDs to update
-		let userIds: number[];
-		if (Array.isArray(body.ids) && body.ids.length > 0) {
-			userIds = body.ids.map((id) => Number(id)).filter((id) => !Number.isNaN(id));
-		} else {
-			// Get all active users
-			const result = await env.DB.prepare("SELECT id FROM users WHERE status >= 0").all();
-			userIds = result.results.map((r) => (r as { id: number }).id);
-		}
+		const userIds = batch.map((u) => u.id);
 
-		if (userIds.length === 0) {
-			return jsonNoStoreResponse({ updated: 0 }, origin);
-		}
+		// (2) Batch-scoped author aggregates via IN (...) chunks.
+		const [threadMap, postMap, digestMap] = await Promise.all([
+			fetchUserCounts(
+				env,
+				userIds,
+				(ph) =>
+					`SELECT author_id, COUNT(*) as cnt FROM threads WHERE author_id IN (${ph}) GROUP BY author_id`,
+			),
+			fetchUserCounts(
+				env,
+				userIds,
+				(ph) =>
+					`SELECT author_id, COUNT(*) as cnt FROM posts WHERE author_id IN (${ph}) GROUP BY author_id`,
+			),
+			fetchUserCounts(
+				env,
+				userIds,
+				(ph) =>
+					`SELECT author_id, COUNT(*) as cnt FROM threads WHERE digest > 0 AND author_id IN (${ph}) GROUP BY author_id`,
+			),
+		]);
 
-		// Build maps using full table scans (avoids WHERE IN parameter limits)
-		// Get thread counts per user
-		const threadCounts = await env.DB.prepare(
-			"SELECT author_id, COUNT(*) as cnt FROM threads GROUP BY author_id",
-		).all();
-		const threadMap = new Map(
-			threadCounts.results.map((r) => [
-				(r as { author_id: number }).author_id,
-				(r as { cnt: number }).cnt,
-			]),
-		);
-
-		// Get post counts per user
-		const postCounts = await env.DB.prepare(
-			"SELECT author_id, COUNT(*) as cnt FROM posts GROUP BY author_id",
-		).all();
-		const postMap = new Map(
-			postCounts.results.map((r) => [
-				(r as { author_id: number }).author_id,
-				(r as { cnt: number }).cnt,
-			]),
-		);
-
-		// Get digest counts per user
-		const digestCounts = await env.DB.prepare(
-			"SELECT author_id, COUNT(*) as cnt FROM threads WHERE digest > 0 GROUP BY author_id",
-		).all();
-		const digestMap = new Map(
-			digestCounts.results.map((r) => [
-				(r as { author_id: number }).author_id,
-				(r as { cnt: number }).cnt,
-			]),
-		);
-
-		// Batch update all users
+		// (3) Batched UPDATE.
 		const statements = userIds.map((uid) =>
 			env.DB.prepare("UPDATE users SET threads = ?, posts = ?, digest_posts = ? WHERE id = ?").bind(
 				threadMap.get(uid) ?? 0,
@@ -543,28 +596,52 @@ export const recalcUsers = withEntityAuth(
 				uid,
 			),
 		);
-
-		// D1 batch has a limit, chunk if needed
 		for (let i = 0; i < statements.length; i += BATCH_SIZE) {
 			await env.DB.batch(statements.slice(i, i + BATCH_SIZE));
 		}
 
-		// Cache invalidation (docs/19 §6 row "admin statistics recalc-users"):
-		// drop user:mini:<id> (v1) AND user:mini:v2:<id> + both viewer-bucket
-		// variants of user:public:v2:<id> per user. The v1 user-cache
-		// helpers will retire when user:mini ships its v2 schema (Phase 6).
-		// Run as a chunked best-effort sweep so a large user set doesn't
-		// fan out thousands of concurrent KV calls; KV failures are
-		// already swallowed inside the helpers.
-		const KV_CHUNK = 50;
-		for (let i = 0; i < userIds.length; i += KV_CHUNK) {
-			const chunk = userIds.slice(i, i + KV_CHUNK);
-			await Promise.all(
-				chunk.flatMap((uid) => [invalidateUserCache(env, uid), invalidateUserCaches(env, uid)]),
-			);
-		}
+		// (4) Per-batch cache invalidation (docs/19 §6 row "admin
+		// statistics recalc-users"): drop user:mini (v1) + user:mini:v2 +
+		// both viewer-bucket variants of user:public:v2 for every user we
+		// just touched. Runs inside the lease — if KV throws, advance
+		// throws → tickJob marks `error` and cursor stays put for retry.
+		await invalidateUsersChunked(env, userIds);
 
-		return jsonNoStoreResponse({ updated: userIds.length }, origin);
+		const nextCursor = batch[batch.length - 1]?.id ?? prev.cursor;
+		const newProcessed = prev.processed + batch.length;
+		const isFinal = batch.length < batchSize;
+		const terminalProcessed = isFinal ? Math.max(newProcessed, prev.total ?? 0) : newProcessed;
+		const terminalTotal = isFinal ? Math.max(prev.total ?? 0, terminalProcessed) : prev.total;
+
+		return {
+			...prev,
+			cursor: nextCursor,
+			processed: terminalProcessed,
+			total: terminalTotal,
+			updated: prev.updated + batch.length,
+			lastBatchUpdated: batch.length,
+			status: isFinal ? "done" : "running",
+			finishedAt: isFinal ? now : null,
+			lastTickAt: now,
+		};
+	},
+
+	// No `finalize` for users — cache invalidation is per-batch (we lose
+	// the user-id set the moment we leave `advance`). Finalize would have
+	// no useful work to do; omitting it keeps the framework's
+	// running->done path clean.
+};
+
+export const recalcUsers = withEntityAuth(
+	statsConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined;
+		const body = await readJsonBody(request);
+		if (body === null) {
+			return errorResponse("INVALID_BODY", 400, undefined, origin);
+		}
+		const result = await tickJob(env, usersTicker, body);
+		return tickResultToResponse(result, origin);
 	},
 );
 
