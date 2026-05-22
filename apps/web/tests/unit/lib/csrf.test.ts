@@ -35,6 +35,19 @@ describe("csrf", () => {
 			expect(origins).toContain("http://localhost:7031");
 			expect(origins).toContain("http://localhost:3000");
 		});
+
+		it("expands ALLOWED_ORIGINS comma-separated list", () => {
+			process.env.ALLOWED_ORIGINS = "https://a.example.com,https://b.example.com";
+			const origins = getAllowedOrigins();
+			expect(origins).toContain("https://a.example.com");
+			expect(origins).toContain("https://b.example.com");
+		});
+
+		it("handles ALLOWED_ORIGINS unset gracefully", () => {
+			process.env.ALLOWED_ORIGINS = undefined;
+			const origins = getAllowedOrigins();
+			expect(origins).toContain("http://localhost:7031");
+		});
 	});
 
 	describe("validateOrigin", () => {

@@ -17,6 +17,7 @@ export function getAllowedOrigins(): string[] {
 	return [
 		process.env.AUTH_URL,
 		process.env.NEXT_PUBLIC_SITE_URL,
+		...(process.env.ALLOWED_ORIGINS?.split(",") ?? []),
 		"http://localhost:7031",
 		"http://localhost:27031",
 		"http://localhost:3000",
