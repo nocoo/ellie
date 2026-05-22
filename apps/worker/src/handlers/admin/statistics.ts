@@ -377,19 +377,18 @@ export const threadsTicker: StatsJobTicker = {
 		}
 		const batch = threadsResult.results as ThreadBatchRow[];
 
-		// Empty batch = nothing left to do; mark done. Total counts can
-		// drift between initialize and the final tick (inserts/deletes);
-		// `processed` is the monotonic count of rows we actually walked
-		// past, so never let a stale denominator pull it down. If `total`
-		// turned out to be a low estimate, bump it up to `processed` so
-		// the UI card lands at 100% without a >100% overshoot.
+		// Empty batch = nothing left to do; mark done. `processed` is the
+		// real count of rows we walked past during this job — neither
+		// `total` (best-effort estimate captured at initialize, may drift
+		// either way) nor anything else should mutate it on the terminal
+		// transition. On done we renormalize `total = processed` so the
+		// UI denominator equals the numerator (100% without overshoot).
+		// See reviewer note msg=b43a2bc9 (Phase C.1).
 		if (batch.length === 0) {
-			const processed = Math.max(prev.processed, prev.total ?? prev.processed);
 			return {
 				...prev,
 				status: "done",
-				processed,
-				total: Math.max(prev.total ?? 0, processed),
+				total: prev.processed,
 				lastBatchUpdated: 0,
 				finishedAt: now,
 				lastTickAt: now,
@@ -422,18 +421,17 @@ export const threadsTicker: StatsJobTicker = {
 		const nextCursor = batch[batch.length - 1]?.id ?? prev.cursor;
 		const newProcessed = prev.processed + batch.length;
 		const isFinal = batch.length < batchSize;
-		// On the terminal short batch keep `processed` monotonic — the
-		// real number of rows we walked past — and bump `total` up if it
-		// was an underestimate. Mirror the empty-batch branch so the UI
-		// can read either snapshot consistently.
-		const terminalProcessed = isFinal ? Math.max(newProcessed, prev.total ?? 0) : newProcessed;
-		const terminalTotal = isFinal ? Math.max(prev.total ?? 0, terminalProcessed) : prev.total;
+		// Phase C.1: on the terminal short batch, `processed` is the real
+		// walked count (newProcessed). `total` is renormalized to
+		// newProcessed so the UI denominator equals the numerator. Mid-run
+		// ticks (non-terminal) keep `total` as the initialize estimate so
+		// the card can still render a percentage while running.
 
 		return {
 			...prev,
 			cursor: nextCursor,
-			processed: terminalProcessed,
-			total: terminalTotal,
+			processed: newProcessed,
+			total: isFinal ? newProcessed : prev.total,
 			updated: prev.updated + batch.length,
 			lastBatchUpdated: batch.length,
 			status: isFinal ? "done" : "running",
@@ -548,15 +546,15 @@ export const usersTicker: StatsJobTicker = {
 			.all();
 		const batch = usersResult.results as unknown as UserBatchRow[];
 
-		// Empty batch = terminal. Maintain the monotonic processed
-		// invariant we locked in Phase B.1.
+		// Empty batch = terminal. `processed` is the real walked count.
+		// `total` is renormalized to processed on done so the UI
+		// denominator equals the numerator. See Phase C.1 (reviewer
+		// msg=b43a2bc9).
 		if (batch.length === 0) {
-			const processed = Math.max(prev.processed, prev.total ?? prev.processed);
 			return {
 				...prev,
 				status: "done",
-				processed,
-				total: Math.max(prev.total ?? 0, processed),
+				total: prev.processed,
 				lastBatchUpdated: 0,
 				finishedAt: now,
 				lastTickAt: now,
@@ -603,21 +601,24 @@ export const usersTicker: StatsJobTicker = {
 		// (4) Per-batch cache invalidation (docs/19 §6 row "admin
 		// statistics recalc-users"): drop user:mini (v1) + user:mini:v2 +
 		// both viewer-bucket variants of user:public:v2 for every user we
-		// just touched. Runs inside the lease — if KV throws, advance
-		// throws → tickJob marks `error` and cursor stays put for retry.
+		// just touched. Per helper contracts: the v1 `invalidateUserCache`
+		// call propagates KV errors — if it throws, advance throws and
+		// tickJob marks the job `error` with cursor unchanged so the next
+		// POST retries the same batch (idempotent UPDATE). The v2
+		// `invalidateUserCaches` call is best-effort and swallows KV
+		// failures internally per cache/invalidate.ts contract; a v2 KV
+		// outage will NOT fail the tick but does log via console.warn.
 		await invalidateUsersChunked(env, userIds);
 
 		const nextCursor = batch[batch.length - 1]?.id ?? prev.cursor;
 		const newProcessed = prev.processed + batch.length;
 		const isFinal = batch.length < batchSize;
-		const terminalProcessed = isFinal ? Math.max(newProcessed, prev.total ?? 0) : newProcessed;
-		const terminalTotal = isFinal ? Math.max(prev.total ?? 0, terminalProcessed) : prev.total;
 
 		return {
 			...prev,
 			cursor: nextCursor,
-			processed: terminalProcessed,
-			total: terminalTotal,
+			processed: newProcessed,
+			total: isFinal ? newProcessed : prev.total,
 			updated: prev.updated + batch.length,
 			lastBatchUpdated: batch.length,
 			status: isFinal ? "done" : "running",

@@ -231,8 +231,10 @@ describe("admin statistics handlers", () => {
 			expect(tick1.status).toBe(200);
 			const body1 = (await tick1.json()) as { data: StatsJobPayload };
 			expect(body1.data.status).toBe("done");
-			// Processed pinned to total on terminal transition.
-			expect(body1.data.processed).toBe(5000);
+			// Phase C.1: processed is the real walked count (unchanged),
+			// total is renormalized to processed on done.
+			expect(body1.data.processed).toBe(4999);
+			expect(body1.data.total).toBe(4999);
 			expect(body1.data.finishedAt).not.toBeNull();
 			expect(body1.data.leaseUntil).toBeNull();
 
@@ -320,6 +322,76 @@ describe("admin statistics handlers", () => {
 			expect(body.data.updated).toBe(100);
 			// Must be ≥ processed → 0% < percent ≤ 100%, never >100%.
 			expect(body.data.processed).toBeLessThanOrEqual(body.data.total ?? 0);
+		});
+
+		// C.1 regression — `processed` must NOT be inflated when `total`
+		// turns out to be an overestimate (e.g. rows deleted mid-run). The
+		// previous Phase B.1 logic clamped `processed` up to `total` on
+		// done, locking in the wrong reading. Phase C.1 (reviewer
+		// msg=b43a2bc9) keeps `processed` as the real walked count and
+		// renormalizes `total` down to processed on the terminal tick.
+
+		it("C.1: threads empty terminal with OVERESTIMATED total normalizes total down to processed", async () => {
+			const { db } = createMockDb({
+				allResults: {
+					"FROM threads WHERE id >": [],
+				},
+			});
+			const env = makeEnv({ DB: db });
+			// total=10_000 (initialize estimate), but only 11 rows actually
+			// walked (most threads deleted between initialize and tick).
+			// `processed` must stay at 11, NOT inflate to 10_000.
+			await writeJob(env, {
+				...makeInitialPayload({ kind: "threads", total: 10_000, now: 1_700_000_000_000 }),
+				cursor: 9_999,
+				processed: 11,
+				updated: 11,
+			});
+
+			const res = await statistics.recalcThreads(
+				createAdminRequest("POST", "/api/admin/statistics/recalc-threads"),
+				env,
+			);
+			expect(res.status).toBe(200);
+			const body = (await res.json()) as { data: StatsJobPayload };
+			expect(body.data.status).toBe("done");
+			expect(body.data.processed).toBe(11);
+			expect(body.data.total).toBe(11);
+			expect(body.data.updated).toBe(11);
+		});
+
+		it("C.1: threads short final with OVERESTIMATED total normalizes total down to processed", async () => {
+			const { db } = createMockDb({
+				allResults: {
+					// 1 row returned, batchSize 1000 → short final batch.
+					"FROM threads WHERE id >": [
+						{ id: 500, created_at: 1_700_000_000, author_name: "alice", author_id: 1 },
+					],
+					"FROM posts WHERE thread_id IN": [],
+					"ROW_NUMBER() OVER": [],
+				},
+			});
+			const env = makeEnv({ DB: db });
+			// total=10_000 (overestimate). newProcessed = 99 + 1 = 100.
+			// On the terminal short batch, `processed` must NOT be
+			// inflated to 10_000; `total` must be renormalized to 100.
+			await writeJob(env, {
+				...makeInitialPayload({ kind: "threads", total: 10_000, now: 1_700_000_000_000 }),
+				cursor: 400,
+				processed: 99,
+				updated: 99,
+			});
+
+			const res = await statistics.recalcThreads(
+				createAdminRequest("POST", "/api/admin/statistics/recalc-threads"),
+				env,
+			);
+			expect(res.status).toBe(200);
+			const body = (await res.json()) as { data: StatsJobPayload };
+			expect(body.data.status).toBe("done");
+			expect(body.data.processed).toBe(100);
+			expect(body.data.total).toBe(100);
+			expect(body.data.updated).toBe(100);
 		});
 
 		it("reset:true reopens a done job and re-initializes total", async () => {
@@ -676,7 +748,15 @@ describe("admin statistics handlers", () => {
 			expect(body.data.total).toBe(4242);
 		});
 
-		it("advance: KV invalidate failure surfaces as 500 RECALC_FAILED with cursor unchanged", async () => {
+		// Phase C.1 (msg=b43a2bc9) — the v1/v2 KV invalidate contracts
+		// differ: `invalidateUserCache` (v1, user-cache.ts:147) is a raw
+		// `await env.KV.delete(...)` that propagates KV errors, while
+		// `deleteUserMini` / `deleteUserPublicVariants` (v2,
+		// cache/invalidate.ts) wrap KV.delete in try/catch + console.warn
+		// and swallow failures. So only v1 errors should fail the tick.
+		// We assert each side explicitly instead of accepting both 200/500.
+
+		it("advance: v1 KV invalidate failure surfaces as 500 RECALC_FAILED with cursor unchanged", async () => {
 			const { db } = createMockDb({
 				allResults: {
 					"FROM users WHERE status >= 0 AND id >": [{ id: 10 }],
@@ -690,31 +770,71 @@ describe("admin statistics handlers", () => {
 				...makeInitialPayload({ kind: "users", total: 100, now: 1_700_000_000_000 }),
 				batchSize: 10,
 			});
-			// Force a KV write failure for the v1 user cache key — the
-			// invalidate helpers go through KV.put/delete via the
-			// user-cache module; easiest path is to make KV.delete throw.
+			// Fail only the v1 `user:mini:<id>` key. v1's helper does a
+			// raw `await env.KV.delete(...)` so the error propagates →
+			// advance throws → tickJob marks the job `failed` with the
+			// cursor unchanged for the next POST to retry (idempotent
+			// UPDATE).
 			const kv = env.KV as KVNamespace & { delete: ReturnType<typeof vi.fn> };
-			(kv.delete as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
-				throw new Error("KV DELETE 503");
+			(kv.delete as ReturnType<typeof vi.fn>).mockImplementation(async (key: string) => {
+				if (
+					typeof key === "string" &&
+					key.startsWith("user:mini:") &&
+					!key.startsWith("user:mini:v2:")
+				) {
+					throw new Error("KV DELETE 503 (v1)");
+				}
+				// other keys (v2 user:mini:v2 / user:public:v2) succeed.
 			});
 			const res = await statistics.recalcUsers(
 				createAdminRequest("POST", "/api/admin/statistics/recalc-users"),
 				env,
 			);
-			// Helpers may swallow KV errors internally (best-effort); if
-			// so the tick succeeds. We only assert the cursor never
-			// regresses — either the tick reports failed with cursor
-			// untouched, or it reports running with cursor advanced. Both
-			// are valid outcomes given the helpers' contract.
-			expect([200, 500]).toContain(res.status);
+			expect(res.status).toBe(500);
 			const persisted = await readJob(env, "users");
-			expect(persisted).not.toBeNull();
-			if (res.status === 500) {
-				expect(persisted?.status).toBe("failed");
-				expect(persisted?.cursor).toBe(0);
-			} else {
-				expect(persisted?.cursor).toBe(10);
-			}
+			expect(persisted?.status).toBe("failed");
+			expect(persisted?.cursor).toBe(0);
+		});
+
+		it("advance: v2-only KV invalidate failure is swallowed and tick still succeeds", async () => {
+			const { db } = createMockDb({
+				allResults: {
+					"FROM users WHERE status >= 0 AND id >": [{ id: 10 }],
+					"FROM threads WHERE author_id IN": [],
+					"FROM posts WHERE author_id IN": [],
+					"FROM threads WHERE digest > 0 AND author_id IN": [],
+				},
+			});
+			const env = makeEnv({ DB: db });
+			await writeJob(env, {
+				...makeInitialPayload({ kind: "users", total: 100, now: 1_700_000_000_000 }),
+				batchSize: 10,
+			});
+			// Fail ONLY the v2 keys (`user:mini:v2:<id>` /
+			// `user:public:v2:<id>:*`). Per cache/invalidate.ts these
+			// helpers swallow KV errors and log via console.warn. The
+			// tick must still succeed and the cursor must advance.
+			const kv = env.KV as KVNamespace & { delete: ReturnType<typeof vi.fn> };
+			(kv.delete as ReturnType<typeof vi.fn>).mockImplementation(async (key: string) => {
+				if (
+					typeof key === "string" &&
+					(key.startsWith("user:mini:v2:") || key.startsWith("user:public:v2:"))
+				) {
+					throw new Error("KV DELETE 503 (v2)");
+				}
+				// v1 user:mini:<id> succeeds.
+			});
+			const res = await statistics.recalcUsers(
+				createAdminRequest("POST", "/api/admin/statistics/recalc-users"),
+				env,
+			);
+			expect(res.status).toBe(200);
+			const body = (await res.json()) as { data: StatsJobPayload };
+			// 1 row, batchSize=10 → short final batch → done.
+			expect(body.data.status).toBe("done");
+			expect(body.data.processed).toBe(1);
+			const persisted = await readJob(env, "users");
+			expect(persisted?.cursor).toBe(10);
 		});
 
 		it("advance: cache invalidate fans out in KV_CHUNK=50 chunks (>50 ids)", async () => {
@@ -789,7 +909,7 @@ describe("admin statistics handlers", () => {
 			expect(body.data.status).toBe("running");
 		});
 
-		it("advance: short final batch with adequate total keeps newProcessed (no underestimate bump)", async () => {
+		it("C.1: users short final with OVERESTIMATED total normalizes total down to processed", async () => {
 			const { db } = createMockDb({
 				allResults: {
 					"FROM users WHERE status >= 0 AND id >": [{ id: 10 }],
@@ -799,8 +919,12 @@ describe("admin statistics handlers", () => {
 				},
 			});
 			const env = makeEnv({ DB: db });
-			// total=1000 > newProcessed=11; terminal short batch lands
-			// processed=1000 (total wins the max), total stays 1000.
+			// total=1000 (overestimate; e.g. many users deleted mid-run).
+			// newProcessed = prev.processed (10) + 1 = 11. On the terminal
+			// short batch, `processed` must NOT be inflated to 1000 just
+			// because total said so — `processed` is the real walked
+			// count. `total` is renormalized to processed on done so the
+			// UI denominator equals the numerator.
 			await writeJob(env, {
 				...makeInitialPayload({ kind: "users", total: 1_000, now: 1_700_000_000_000 }),
 				cursor: 9,
@@ -814,8 +938,8 @@ describe("admin statistics handlers", () => {
 			expect(res.status).toBe(200);
 			const body = (await res.json()) as { data: StatsJobPayload };
 			expect(body.data.status).toBe("done");
-			expect(body.data.processed).toBe(1000);
-			expect(body.data.total).toBe(1000);
+			expect(body.data.processed).toBe(11);
+			expect(body.data.total).toBe(11);
 			expect(body.data.updated).toBe(11);
 		});
 
