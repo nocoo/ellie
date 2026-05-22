@@ -11,6 +11,7 @@ import {
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { jsonNoStoreResponse } from "../../lib/response";
+import { STATS_JOB_KINDS, type StatsJobKind, readJob } from "../../lib/stats-job";
 import { invalidateUserCache } from "../../lib/user-cache";
 import { errorResponse } from "../../middleware/error";
 
@@ -389,5 +390,33 @@ export const recalcPostForumIds = withEntityAuth(
 		}
 
 		return jsonNoStoreResponse({ updated: totalUpdated, remaining }, origin);
+	},
+);
+
+// ─── GET /api/admin/statistics/job/:kind ─────────────────────────────────────
+// Read-only snapshot of the per-kind recalc job (see lib/stats-job.ts).
+// This is the polling surface the admin UI uses to render the progress
+// card without advancing the job. POST drives advancement; GET never
+// writes to KV. Returns `null` data when no job has ever started (or its
+// 24h TTL expired).
+
+function parseStatsJobKind(value: string): StatsJobKind | null {
+	return (STATS_JOB_KINDS as readonly string[]).includes(value) ? (value as StatsJobKind) : null;
+}
+
+export const getStatsJob = withEntityAuth(
+	statsConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined;
+		const url = new URL(request.url);
+		// Path shape: /api/admin/statistics/job/<kind>
+		const segments = url.pathname.split("/").filter(Boolean);
+		const rawKind = segments[segments.length - 1] ?? "";
+		const kind = parseStatsJobKind(rawKind);
+		if (!kind) {
+			return errorResponse("INVALID_KIND", 400, { kind: rawKind }, origin);
+		}
+		const payload = await readJob(env, kind);
+		return jsonNoStoreResponse(payload, origin);
 	},
 );
