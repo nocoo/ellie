@@ -5,7 +5,7 @@
  */
 
 import type { SettingsMap } from "./settings.server";
-import { getArr } from "./settings.server";
+import { getArr, getStr } from "./settings.server";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -57,6 +57,9 @@ export interface HeaderViewModel {
 	navTabs: HeaderNavTab[];
 	hotKeywords: HotKeyword[];
 	stats: HeaderStats;
+	logoLight: string;
+	logoDark: string;
+	logoAlt: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -135,5 +138,12 @@ export function buildHeaderViewModel(
 		navTabs,
 		hotKeywords: HOT_KEYWORDS,
 		stats,
+		logoLight: getStr(
+			settings,
+			"general.site.logo_light",
+			"https://t.no.mt/ellie/Logo-light-2.png",
+		),
+		logoDark: getStr(settings, "general.site.logo_dark", "https://t.no.mt/ellie/Logo-dark-2.png"),
+		logoAlt: getStr(settings, "general.site.name", "Ellie"),
 	};
 }

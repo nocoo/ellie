@@ -71,7 +71,13 @@ function AuthControls({ className }: { className?: string }) {
 	);
 }
 
-export function ForumNavbar() {
+interface ForumNavbarProps {
+	logoLight?: string;
+	logoDark?: string;
+	logoAlt?: string;
+}
+
+export function ForumNavbar({ logoLight, logoDark, logoAlt }: ForumNavbarProps = {}) {
 	const isMobile = useIsMobile();
 	const [open, setOpen] = useState(false);
 
@@ -81,7 +87,7 @@ export function ForumNavbar() {
 				{/* Left: Logo + nav links */}
 				<div className="flex items-center gap-6">
 					<Link href="/" className="flex items-center gap-2">
-						<ForumLogo height={24} />
+						<ForumLogo height={24} lightSrc={logoLight} darkSrc={logoDark} alt={logoAlt} />
 					</Link>
 
 					{/* Desktop nav */}
@@ -109,7 +115,7 @@ export function ForumNavbar() {
 							</SheetTrigger>
 							<SheetContent side="right" className="w-64">
 								<SheetTitle className="flex items-center">
-									<ForumLogo height={24} />
+									<ForumLogo height={24} lightSrc={logoLight} darkSrc={logoDark} alt={logoAlt} />
 								</SheetTitle>
 								<nav className="mt-6 flex flex-col gap-4">
 									<NavLinks onClick={() => setOpen(false)} />
