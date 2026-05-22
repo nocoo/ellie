@@ -21,7 +21,7 @@ import type { Env } from "../../lib/env";
 import { toPost } from "../../lib/mappers";
 import { parseIdFromPath } from "../../lib/parseId";
 import { recalcForumMetadata, recalcThreadMetadata } from "../../lib/recalcMetadata";
-import { jsonResponse } from "../../lib/response";
+import { jsonNoStoreResponse } from "../../lib/response";
 import { batchDecrementUserPosts, decrementUserPosts } from "../../lib/userCounters";
 import { errorResponse } from "../../middleware/error";
 
@@ -273,7 +273,7 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env) => {
 	const skipped = postRows.filter((p) => p.is_first === 1).map((p) => p.id);
 
 	if (deletable.length === 0) {
-		return jsonResponse({ deleted: true, count: 0, skipped }, origin);
+		return jsonNoStoreResponse({ deleted: true, count: 0, skipped }, origin);
 	}
 
 	// Aggregate count updates by thread, forum, and author
@@ -338,5 +338,5 @@ export const batchDelete = withEntityAuth(postConfig, async (request, env) => {
 		}),
 	]);
 
-	return jsonResponse({ deleted: true, count: deletable.length, skipped }, origin);
+	return jsonNoStoreResponse({ deleted: true, count: deletable.length, skipped }, origin);
 });

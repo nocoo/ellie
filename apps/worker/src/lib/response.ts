@@ -97,3 +97,21 @@ export function paginatedResponse<T>(
 		pages: Math.ceil(total / limit),
 	});
 }
+
+/**
+ * No-store variant of {@link paginatedResponse} for admin CRUD endpoints.
+ */
+export function paginatedNoStoreResponse<T>(
+	data: T[],
+	total: number,
+	page: number,
+	limit: number,
+	origin?: string,
+): Response {
+	return jsonNoStoreResponse(data, origin, {
+		total,
+		page,
+		limit,
+		pages: Math.ceil(total / limit),
+	});
+}

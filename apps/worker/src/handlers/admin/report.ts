@@ -8,7 +8,7 @@ import type { EntityConfig } from "../../lib/crud";
 import { createBatchDeleteHandler } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { parseIdFromPath } from "../../lib/parseId";
-import { jsonResponse, paginatedResponse } from "../../lib/response";
+import { jsonNoStoreResponse, paginatedNoStoreResponse } from "../../lib/response";
 
 import { errorResponse } from "../../middleware/error";
 
@@ -187,7 +187,7 @@ export const list = withEntityAuth(
 				.all(),
 		]);
 
-		return paginatedResponse(
+		return paginatedNoStoreResponse(
 			result.results.map((r) => toReportWithJoin(r as Record<string, unknown>)),
 			countResult?.total ?? 0,
 			page,
@@ -222,7 +222,7 @@ export const getById = withEntityAuth(
 			return errorResponse("REPORT_NOT_FOUND", 404, undefined, origin);
 		}
 
-		return jsonResponse(toReportWithJoin(result as Record<string, unknown>), origin);
+		return jsonNoStoreResponse(toReportWithJoin(result as Record<string, unknown>), origin);
 	},
 );
 
@@ -313,7 +313,7 @@ export const update = withEntityAuth(
 			.bind(id)
 			.first();
 
-		return jsonResponse(toReport(updated as Record<string, unknown>), origin);
+		return jsonNoStoreResponse(toReport(updated as Record<string, unknown>), origin);
 	},
 );
 
