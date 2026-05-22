@@ -5,6 +5,8 @@
 // the dialog open with a §5.4 preflight when the parent server page can
 // reliably tell us the user is unverified — see `selfEmailVerifiedAt`.
 
+import { AnnouncementCard } from "@/components/forum/announcement-card";
+import { AnnouncementEditDialog } from "@/components/forum/announcement-edit-dialog";
 import { NewThreadDialog } from "@/components/forum/new-thread-dialog";
 import { SafeHtml } from "@/components/forum/safe-html";
 import { Button } from "@/components/ui/button";
@@ -12,7 +14,7 @@ import type { ForumThreadTypesPublic } from "@/viewmodels/forum/thread-types";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { formatNumber } from "@/viewmodels/shared/formatting";
 import type { Forum } from "@ellie/types";
-import { Award, PenLine } from "lucide-react";
+import { Award, Megaphone, PenLine } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -29,6 +31,13 @@ interface ForumHeaderClientProps {
 	selfEmailVerifiedAt: number | null;
 	/** Server-injected 主题分类 payload (null when feature off / load failed). */
 	threadTypes?: ForumThreadTypesPublic | null;
+	/**
+	 * Server-computed permission flag — true when the current user has
+	 * Mod-or-higher rights on this specific forum (Admin / SuperMod
+	 * unconditional; Mod must appear in `forum.moderators`). UX-only;
+	 * the Worker enforces the real boundary.
+	 */
+	canEditAnnouncement?: boolean;
 }
 
 export function ForumHeaderClient({
@@ -36,8 +45,10 @@ export function ForumHeaderClient({
 	isGroup,
 	selfEmailVerifiedAt,
 	threadTypes = null,
+	canEditAnnouncement = false,
 }: ForumHeaderClientProps) {
 	const [dialogOpen, setDialogOpen] = useState(false);
+	const [announcementDialogOpen, setAnnouncementDialogOpen] = useState(false);
 
 	const handleNewThreadClick = async () => {
 		// Unified write-gate preflight: checks email verification AND posting
@@ -53,18 +64,34 @@ export function ForumHeaderClient({
 		<>
 			<div className="rounded-sm border border-border bg-gradient-to-br from-primary/5 via-background to-primary/[0.02]">
 				<div className="p-4">
-					{/* Top: Forum name + New thread button */}
+					{/* Top: Forum name + action buttons */}
 					<div className="flex items-center justify-between gap-4">
 						<h1 className="text-lg font-semibold text-foreground">{forum.name}</h1>
-						{!isGroup && (
-							<Button
-								onClick={handleNewThreadClick}
-								className="shrink-0 gap-2 bg-primary hover:bg-primary/90"
-							>
-								<PenLine className="h-4 w-4" />
-								发表新帖
-							</Button>
-						)}
+						<div className="flex items-center gap-2 shrink-0">
+							{/* Empty-state announcement creation entry — only when
+							    moderator AND there is no announcement yet. Non-empty
+							    state owns its own edit button inside the card. */}
+							{canEditAnnouncement && !forum.announcement && (
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => setAnnouncementDialogOpen(true)}
+									className="gap-1.5"
+								>
+									<Megaphone className="h-4 w-4" />
+									添加公告
+								</Button>
+							)}
+							{!isGroup && (
+								<Button
+									onClick={handleNewThreadClick}
+									className="gap-2 bg-primary hover:bg-primary/90"
+								>
+									<PenLine className="h-4 w-4" />
+									发表新帖
+								</Button>
+							)}
+						</div>
 					</div>
 
 					{/* Description */}
@@ -74,6 +101,14 @@ export function ForumHeaderClient({
 							className="mt-2 text-sm text-muted-foreground leading-relaxed"
 						/>
 					)}
+
+					{/* Announcement card (populated state) */}
+					<AnnouncementCard
+						forumId={forum.id}
+						forumName={forum.name}
+						announcement={forum.announcement}
+						canEdit={canEditAnnouncement}
+					/>
 
 					{/* Stats row */}
 					{!isGroup && (
@@ -108,6 +143,19 @@ export function ForumHeaderClient({
 				forumName={forum.name}
 				threadTypes={threadTypes}
 			/>
+
+			{/* Announcement edit dialog for the empty-state entry. The
+			    populated card embeds its own dialog instance so the two
+			    don't share state. */}
+			{canEditAnnouncement && !forum.announcement && (
+				<AnnouncementEditDialog
+					open={announcementDialogOpen}
+					onOpenChange={setAnnouncementDialogOpen}
+					forumId={forum.id}
+					forumName={forum.name}
+					initialAnnouncement=""
+				/>
+			)}
 		</>
 	);
 }
