@@ -18,7 +18,7 @@ describe("admin thread handlers", () => {
 		it("should list threads with pagination", async () => {
 			const { db } = createMockDb({
 				allResults: {
-					"FROM threads": [makeD1ThreadRow({ id: 1 }), makeD1ThreadRow({ id: 2 })],
+					"SELECT * FROM threads": [makeD1ThreadRow({ id: 1 }), makeD1ThreadRow({ id: 2 })],
 				},
 				firstResults: {
 					"SELECT COUNT": { total: 2 },
@@ -38,7 +38,7 @@ describe("admin thread handlers", () => {
 
 		it("should filter by forumId", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM threads": [] },
+				allResults: { "SELECT * FROM threads": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -52,7 +52,7 @@ describe("admin thread handlers", () => {
 
 		it("should filter by authorId", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM threads": [] },
+				allResults: { "SELECT * FROM threads": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -66,7 +66,7 @@ describe("admin thread handlers", () => {
 
 		it("should search by authorName (LIKE)", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM threads": [] },
+				allResults: { "SELECT * FROM threads": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -80,7 +80,7 @@ describe("admin thread handlers", () => {
 
 		it("should search by subject (LIKE)", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM threads": [] },
+				allResults: { "SELECT * FROM threads": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -94,7 +94,7 @@ describe("admin thread handlers", () => {
 
 		it("should filter by sticky level", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM threads": [] },
+				allResults: { "SELECT * FROM threads": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -108,7 +108,7 @@ describe("admin thread handlers", () => {
 
 		it("should filter by closed state", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM threads": [] },
+				allResults: { "SELECT * FROM threads": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -122,7 +122,7 @@ describe("admin thread handlers", () => {
 
 		it("should filter by digest level", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM threads": [] },
+				allResults: { "SELECT * FROM threads": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -136,7 +136,7 @@ describe("admin thread handlers", () => {
 
 		it("should filter by highlight", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM threads": [] },
+				allResults: { "SELECT * FROM threads": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -150,7 +150,7 @@ describe("admin thread handlers", () => {
 
 		it("should paginate with page 2", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM threads": [] },
+				allResults: { "SELECT * FROM threads": [] },
 				firstResults: { "SELECT COUNT(*) as total": { total: 50 } },
 			});
 

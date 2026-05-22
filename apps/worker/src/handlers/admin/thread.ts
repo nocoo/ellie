@@ -26,11 +26,43 @@ import { errorResponse } from "../../middleware/error";
 
 // ─── Entity config ───────────────────────────────────────────────
 
+// Admin reads must reflect ground truth, not the denormalized counter / last-
+// post columns on `threads`. Those can drift whenever something writes to
+// `posts` without going through the admin moderation/delete pipelines that
+// maintain `threads.replies` / `threads.last_*` (e.g. ad-hoc SQL repair,
+// bulk reassignment). We replace the cached `replies` and `last_*` columns
+// with correlated subqueries so the admin console always shows live values.
+// `views` stays as the cached column — it's incremented from analytics
+// pings, not from a SQL-rebuildable source.
+//
+// The public thread list/detail caches keep reading the cached columns —
+// public reads stay hot. This change is admin-only.
+const THREAD_LIVE_SELECT = [
+	"id",
+	"forum_id",
+	"author_id",
+	"author_name",
+	"subject",
+	"created_at",
+	"(SELECT p.created_at FROM posts p WHERE p.thread_id = threads.id AND p.invisible = 0 ORDER BY p.position DESC LIMIT 1) AS last_post_at",
+	"(SELECT p.author_name FROM posts p WHERE p.thread_id = threads.id AND p.invisible = 0 ORDER BY p.position DESC LIMIT 1) AS last_poster",
+	"(SELECT p.author_id FROM posts p WHERE p.thread_id = threads.id AND p.invisible = 0 ORDER BY p.position DESC LIMIT 1) AS last_poster_id",
+	"(SELECT CASE WHEN COUNT(*) > 0 THEN COUNT(*) - 1 ELSE 0 END FROM posts p WHERE p.thread_id = threads.id) AS replies",
+	"views",
+	"closed",
+	"sticky",
+	"digest",
+	"special",
+	"highlight",
+	"recommends",
+	"type_name",
+].join(", ");
+
 const threadConfig: EntityConfig = {
 	table: "threads",
 	entityName: "THREAD",
 	auth: "moderator",
-	columns: "*",
+	columns: THREAD_LIVE_SELECT,
 	mapper: toThread,
 	notFoundCode: "THREAD_NOT_FOUND",
 	filters: [
