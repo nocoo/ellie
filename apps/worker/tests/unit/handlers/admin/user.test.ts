@@ -411,6 +411,36 @@ describe("admin user handlers", () => {
 			// userConfig (username → posts → credits).
 			expect(countCall?.params).toEqual(["%alice%", 10, 500]);
 		});
+
+		it("uses derived-table wrapper so range filters bind to live subquery aliases, not stale physical columns", async () => {
+			const { db, calls } = createMockDb({
+				allResults: { "FROM users": [] },
+				firstResults: { "SELECT COUNT": { total: 0 } },
+			});
+
+			await list(
+				createAdminRequest("GET", "/api/admin/users?postsMin=10&threadsMax=50"),
+				adminEnv(db),
+			);
+
+			const countCall = calls.find((c) => c.sql.includes("COUNT(*)"));
+			const dataCall = calls.find((c) => c.sql.includes("LIMIT") && c.sql.includes("FROM"));
+
+			// Both queries must wrap the inner SELECT in a derived table so
+			// WHERE resolves `posts`/`threads` to the correlated-subquery
+			// aliases rather than the physical (cached) users.posts / users.threads.
+			expect(countCall?.sql).toMatch(/FROM \(SELECT .+ FROM users\) AS _t/);
+			expect(dataCall?.sql).toMatch(/FROM \(SELECT .+ FROM users\) AS _t/);
+
+			// The outer SELECT should be `*` (all columns from the derived table)
+			expect(dataCall?.sql).toMatch(/^SELECT \* FROM/);
+
+			// Filter clauses still present in the outer WHERE
+			expect(countCall?.sql).toContain("posts >= ?");
+			expect(countCall?.sql).toContain("threads <= ?");
+			expect(countCall?.params).toContain(10);
+			expect(countCall?.params).toContain(50);
+		});
 	});
 
 	// ─── getById ──────────────────────────────────────────────

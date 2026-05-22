@@ -130,6 +130,7 @@ const userConfig: EntityConfig = {
 	columns: USER_COLUMNS,
 	mapper: toUser,
 	notFoundCode: "USER_NOT_FOUND",
+	useSubqueryWrapper: true,
 
 	// #36 filters
 	filters: [
