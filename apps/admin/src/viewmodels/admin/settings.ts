@@ -59,7 +59,42 @@ export const SETTING_GROUPS: SettingGroupDef[] = [
 		fields: [
 			{ key: "general.site.name", label: "站点名称", placeholder: "Ellie" },
 			{ key: "general.site.subtitle", label: "站点描述", placeholder: "Ellie admin console" },
+			{
+				key: "general.site.home_label",
+				label: "首页标签",
+				placeholder: "同济网论坛",
+				hint: "面包屑和导航栏中的站名",
+			},
+			{
+				key: "general.site.logo_light",
+				label: "Logo (浅色)",
+				inputType: "url",
+				placeholder: "https://t.no.mt/ellie/Logo-light-2.png",
+			},
+			{
+				key: "general.site.logo_dark",
+				label: "Logo (深色)",
+				inputType: "url",
+				placeholder: "https://t.no.mt/ellie/Logo-dark-2.png",
+			},
+			{
+				key: "general.site.footer_bg_light",
+				label: "页脚背景 (浅色)",
+				inputType: "url",
+				placeholder: "https://t.no.mt/ellie/Bg-shanghai-light.png",
+			},
+			{
+				key: "general.site.footer_bg_dark",
+				label: "页脚背景 (深色)",
+				inputType: "url",
+				placeholder: "https://t.no.mt/ellie/Bg-shanghai-dark.png",
+			},
 			{ key: "general.site.copyright", label: "版权持有者", placeholder: "同济网" },
+			{
+				key: "general.site.copyright_years",
+				label: "版权年份",
+				placeholder: "2001-2013",
+			},
 			{ key: "general.site.powered_by", label: "页脚署名", placeholder: "Powered by Ellie" },
 		],
 	},
