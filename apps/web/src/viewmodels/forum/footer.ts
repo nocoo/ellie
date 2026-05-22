@@ -49,6 +49,11 @@ export interface GlobalFooterViewModel {
 	version: string;
 	copyrightYears: string;
 	copyrightHolder: string;
+	logoLight: string;
+	logoDark: string;
+	logoAlt: string;
+	bgLight: string;
+	bgDark: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -99,7 +104,24 @@ export function buildGlobalFooterViewModel(settings: SettingsMap): GlobalFooterV
 		icpNumber: getStr(settings, "general.site.icp_number", ""),
 		poweredBy: getStr(settings, "general.site.powered_by", "Discuz! X3.2"),
 		version: VERSION_DISPLAY,
-		copyrightYears: "2001-2013",
+		copyrightYears: getStr(settings, "general.site.copyright_years", "2001-2013"),
 		copyrightHolder: getStr(settings, "general.site.copyright", "Comsenz Inc."),
+		logoLight: getStr(
+			settings,
+			"general.site.logo_light",
+			"https://t.no.mt/ellie/Logo-light-2.png",
+		),
+		logoDark: getStr(settings, "general.site.logo_dark", "https://t.no.mt/ellie/Logo-dark-2.png"),
+		logoAlt: getStr(settings, "general.site.name", "Ellie"),
+		bgLight: getStr(
+			settings,
+			"general.site.footer_bg_light",
+			"https://t.no.mt/ellie/Bg-shanghai-light.png",
+		),
+		bgDark: getStr(
+			settings,
+			"general.site.footer_bg_dark",
+			"https://t.no.mt/ellie/Bg-shanghai-dark.png",
+		),
 	};
 }

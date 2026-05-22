@@ -14,13 +14,6 @@ interface SiteFooterProps {
 }
 
 // ---------------------------------------------------------------------------
-// Background image URLs — light & dark variants
-// ---------------------------------------------------------------------------
-
-const BG_LIGHT = "https://t.no.mt/ellie/Bg-shanghai-light.png";
-const BG_DARK = "https://t.no.mt/ellie/Bg-shanghai-dark.png";
-
-// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -32,7 +25,7 @@ export function SiteFooter({ vm }: SiteFooterProps) {
 				<div>
 					{/* Branding + copyright */}
 					<div className="mb-3">
-						<ForumLogo height={70} />
+						<ForumLogo height={70} lightSrc={vm.logoLight} darkSrc={vm.logoDark} alt={vm.logoAlt} />
 					</div>
 					<p className="text-xs text-muted-foreground leading-relaxed">
 						&copy; {vm.copyrightYears} {vm.copyrightHolder}, All rights reserved.
@@ -55,8 +48,8 @@ export function SiteFooter({ vm }: SiteFooterProps) {
 						className="w-full aspect-[1200/600] bg-contain bg-bottom bg-no-repeat"
 						style={
 							{
-								"--bg-light": `url(${BG_LIGHT})`,
-								"--bg-dark": `url(${BG_DARK})`,
+								"--bg-light": `url(${vm.bgLight})`,
+								"--bg-dark": `url(${vm.bgDark})`,
 								backgroundImage: "var(--bg-light)",
 							} as React.CSSProperties
 						}
