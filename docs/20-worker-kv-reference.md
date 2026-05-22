@@ -49,7 +49,7 @@ Code anchors are paths under `apps/worker/src/`.
 | User      | `user:mini:` *(shipped, v1 schema)*; `user:public:v2` *(planned, Phase 6)*                 |
 | PM        | `pm:inbox:v2`, `pm:unread:v2` *(planned, Phase 6)*                                         |
 | Settings  | `settings:all` *(shipped, v1 schema)*                                                      |
-| Stats     | `public-stats` *(shipped, v1 schema)*; `stats:online_count`, `stats:online_peak`           |
+| Stats     | `public-stats` *(shipped, v1 schema)*; `stats:online_count`, `stats:online_peak`; `stats:recalc-job:<kind>` *(shipped, v1 schema)* |
 | Online    | `online:<userId>`                                                                          |
 | Auth      | `refresh:<token>`, `login-ip:<ip>`, `login-lockout-ip:<ip>`, `reg-ip:<ip>`, `chk-usr-ip:<ip>` |
 | Email     | `email_verify:<userId>`, `email_verify_lock:<userId>`                                      |
@@ -393,6 +393,95 @@ reads or writes them yet.
 - **Write:** request middleware on every authenticated request
   (`ctx.waitUntil`).
 - **Invalidation:** TTL only.
+
+### 8.6 `stats:recalc-job:<kind>` — shipped (v1 schema)
+
+- **Builder:** `statsJobKey(kind)` in `apps/worker/src/lib/stats-job.ts`
+  produces `stats:recalc-job:<kind>` where `<kind>` ∈
+  `{forums, threads, users, post-forums}` — per-kind singleton.
+- **Source modules:**
+  - State machine: `apps/worker/src/lib/stats-job.ts` (framing,
+    lease/mutex, reset gate, error capture, KV CRUD).
+  - Per-kind tickers: `apps/worker/src/handlers/admin/statistics.ts`
+    (each owns `initialize(env, params) → payload` for the initial
+    cursor/total estimate and `runOneBatch(prev) → next` for the
+    actual D1 advance).
+- **Payload (`StatsJobPayload`, v=1):**
+  - `v: 1` — schema lock; future versions are rejected by
+    `isJobPayload` (worker) and `isSnapshot` (admin) so a v2 payload
+    cannot be misread as v1.
+  - `kind: "forums" | "threads" | "users" | "post-forums"` — must
+    match the URL kind segment; cross-kind payloads are refused at
+    both ends.
+  - `status: "running" | "done" | "failed"`.
+  - `cursor: number` — opaque to the framing layer; each ticker
+    interprets it (typically last-seen primary key id).
+  - `processed: number` — rows the cursor has advanced past
+    (scan progress).
+  - `total: number | null` — best-effort denominator for the UI
+    progress bar; null when the kind cannot cheaply estimate it.
+  - `updated: number` — rows actually mutated (cumulative).
+    Diverges from `processed` on `recalc-post-forums`, which only
+    updates rows whose forum disagrees with their thread.
+  - `lastBatchUpdated: number` — rows mutated in the most recent
+    tick; used for the card's per-batch readout.
+  - `batchSize: number` — rows per tick; defaults to
+    `DEFAULT_BATCH_SIZE = 1000`, may be overridden per-kind via
+    `params.batchSize`.
+  - `startedAt: number` / `lastTickAt: number` /
+    `finishedAt: number | null` — epoch ms.
+  - `leaseUntil: number | null` — non-null **only** while a single
+    `advance` call is executing (60s horizon —
+    `JOB_LEASE_SECONDS`). An idle `running` job between batches has
+    `leaseUntil:null`, so the next POST advances immediately. A
+    stranded lease (worker died mid-`advance`) is reclaimable once
+    `now` is past the staked value. Lease is **not** a "running"
+    marker.
+  - `error: string | null` — terminal failure message on `failed`.
+  - `params: Record<string, unknown>` — opaque per-ticker config
+    (e.g. `{forumId}` to scope `recalc-threads`); must be a plain
+    object (rejected if null / array / primitive).
+- **TTL:** 86 400 s (24 h) — `JOB_KV_TTL_SECONDS`. Keeps a finished
+  card visible to the operator.
+- **Read:**
+  - `GET /api/admin/statistics/job/<kind>` → read-only snapshot.
+    Returns `{data: null, meta}` when no KV state exists yet.
+  - The state machine's `readJob(env, kind)` is also called at the
+    head of every `tickJob` to drive the gate logic below.
+- **Write:**
+  - `POST /api/admin/statistics/recalc-<kind>` advances one batch.
+    On the first POST the per-kind ticker's `initialize` runs and
+    commits the initial payload at cursor 0 (no advance — the next
+    POST starts the first batch).
+  - Each non-initialize tick stakes a `leaseUntil = now + 60s`
+    before calling `runOneBatch`, then writes the next snapshot
+    (clearing the lease).
+- **Gate / state transitions** (full table in `tickJob` comment):
+  - no payload + POST → `initialize`, return `ok`.
+  - terminal (`done` / `failed`) + `!reset` → return snapshot,
+    **no advance** (the UI hides the primary button on terminal
+    states so this is not a clickable no-op).
+  - terminal + `reset:true` → `initialize`, return `ok`.
+  - `running` + `reset:true` → return `code:"running"` (→ 409
+    `RUNNING_JOB_EXISTS`). Running jobs are never silently reset.
+  - `running` + live lease (concurrent advance) → return
+    `code:"locked"` (→ 409 `CONCURRENT_TICK`). The same POST
+    succeeds once the holder finishes or the lease expires.
+  - `running` + idle lease → stake fresh lease, advance one batch,
+    write back.
+- **Wire envelopes:**
+  - 2xx → `{data: StatsJobPayload | null, meta}` from
+    `jsonNoStoreResponse`. GET against a kind with no KV state
+    returns `data: null`.
+  - 4xx/5xx → flat `{error:{code, message?, details?}}` from
+    `errorResponse`. 409 `CONCURRENT_TICK` / `RUNNING_JOB_EXISTS`
+    and 500 `RECALC_FAILED` carry `details.payload: StatsJobPayload`
+    so the UI can keep its snapshot in sync without a follow-up GET.
+- **Invalidation:** TTL only (24h). `done` / `failed` payloads stay
+  readable for the card; the next POST with `reset:true` overwrites
+  the slot via `initialize`.
+- **Architecture rationale:** docs/19 §6.5 (state machine, lease
+  semantics, reset gate, terminal handling, UI auto-advance).
 
 ---
 

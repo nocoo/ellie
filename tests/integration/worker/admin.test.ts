@@ -345,6 +345,26 @@ describe("L2: Worker Admin API", () => {
 		});
 	});
 
+	describe("POST /api/admin/statistics/recalc-post-forums", () => {
+		test("advances the post-forums sync job", async () => {
+			// First POST initializes the job (returns the v=1 snapshot at
+			// cursor 0). We only assert the wire contract here — the
+			// state-machine semantics are covered by worker unit tests.
+			const res = await adminPost("/api/admin/statistics/recalc-post-forums", {});
+			expect(res.status).toBe(200);
+		});
+	});
+
+	describe("GET /api/admin/statistics/job/:kind", () => {
+		test("reads the per-kind job snapshot without advancing", async () => {
+			// `data` is either the StatsJobPayload (when a prior POST has
+			// initialised the slot) or null (no KV state yet). Either is
+			// a valid 2xx response — the route is read-only.
+			const res = await adminGet("/api/admin/statistics/job/forums");
+			expect(res.status).toBe(200);
+		});
+	});
+
 	// ─── Admin Attachments ─────────────────────────────────────────
 
 	describe("GET /api/admin/attachments", () => {
