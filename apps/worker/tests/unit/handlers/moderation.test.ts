@@ -487,7 +487,7 @@ describe("PATCH /api/v1/moderation/threads/:id/move", () => {
 
 	it("should move thread and return moved=true for Admin", async () => {
 		const token = await makeModToken(1);
-		const { db, batchCalls } = createMockDb({
+		const { db, batchCalls, calls } = createMockDb({
 			firstResults: {
 				...mockUser(1, 1, "admin"),
 				"SELECT id, forum_id, replies FROM threads": { id: 1, forum_id: 1, replies: 5 },
@@ -505,6 +505,17 @@ describe("PATCH /api/v1/moderation/threads/:id/move", () => {
 		expect(data.data.forumId).toBe(2);
 		// batch should have been called with 4 statements
 		expect(batchCalls.length).toBe(1);
+
+		// Recommended-threads cleanup must be part of the move batch — a
+		// stale row pointing at the old forum_id would otherwise survive
+		// the move and surface on `GET /forums/<old>/recommended-threads`
+		// until the JOIN filtered it. Spec: migration 0045 + reviewer
+		// msg a629d81c.
+		const recCleanup = calls.find((c) =>
+			c.sql.includes("DELETE FROM forum_recommended_threads WHERE thread_id = ?"),
+		);
+		expect(recCleanup).toBeDefined();
+		expect(recCleanup?.params).toEqual([1]);
 	});
 
 	it("should move thread for SuperMod", async () => {

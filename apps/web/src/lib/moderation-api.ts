@@ -41,6 +41,38 @@ export async function deleteThread(threadId: number): Promise<void> {
 	await apiClient.delete(`/api/v1/moderation/threads/${threadId}`);
 }
 
+// ─── Recommended-threads card (Mod+) ─────────────────────────────
+//
+// `POST /api/v1/moderation/threads/:id/recommend` adds the thread to its
+// forum's recommended-threads allowlist (migration 0045). The worker
+// returns 200 with `{forumId, threadId, recommended: true}` and is
+// idempotent (INSERT OR IGNORE). The data layer is uncapped; the
+// forum-page card display layer slices to the newest 6.
+//
+// `DELETE /api/v1/moderation/threads/:id/recommend` removes the row and
+// returns `{recommended: false}`. Also idempotent — a DELETE on a
+// missing row still returns 200 so a double-click on "取消推荐" is safe.
+export interface RecommendToggleResponse {
+	forumId: number;
+	threadId: number;
+	recommended: boolean;
+}
+
+export async function recommendThread(threadId: number): Promise<RecommendToggleResponse> {
+	const { data } = await apiClient.post<RecommendToggleResponse>(
+		`/api/v1/moderation/threads/${threadId}/recommend`,
+		undefined,
+	);
+	return data;
+}
+
+export async function unrecommendThread(threadId: number): Promise<RecommendToggleResponse> {
+	const { data } = await apiClient.delete<RecommendToggleResponse>(
+		`/api/v1/moderation/threads/${threadId}/recommend`,
+	);
+	return data;
+}
+
 // ─── Post Management (Mod+) ──────────────────────────────────────
 
 export async function deletePost(postId: number): Promise<void> {

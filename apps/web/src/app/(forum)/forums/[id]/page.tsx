@@ -5,6 +5,7 @@ import { ForumFloatingToolbar } from "@/components/forum/forum-floating-toolbar"
 import { ForumHeaderClient } from "@/components/forum/forum-header-client";
 import { ForumNewPostButton } from "@/components/forum/forum-new-post-button";
 import { ForumPanel } from "@/components/forum/forum-panel";
+import { ForumRecommendedCard } from "@/components/forum/forum-recommended-card";
 import { PagePagination } from "@/components/forum/page-pagination";
 import { ThreadItem } from "@/components/forum/thread-item";
 import { ThreadListHeader } from "@/components/forum/thread-list-header";
@@ -12,6 +13,10 @@ import { ThreadTypeFilter } from "@/components/forum/thread-type-filter";
 import { Card, CardContent } from "@/components/ui/card";
 import { getCachedForumThreadTypes, getCachedPostsPerPage } from "@/lib/forum-cache";
 import { getSelfForumUser } from "@/lib/forum-self";
+import {
+	type RecommendedThreadItem,
+	loadRecommendedThreads,
+} from "@/viewmodels/forum/recommended-threads.server";
 import {
 	type ThreadListPagedData,
 	loadThreadListPaged,
@@ -75,12 +80,18 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 	let threadTypes: ForumThreadTypesPublic | null = null;
 
 	// Parallel: loader + self-user fetch + postsPerPage + thread-types
-	// config. All independent. self uses fail-soft (.catch → null); the
-	// thread-types config also fails soft because most forums won't even
-	// have category UI — a 404 / outage there should not break the list.
+	// config + recommended threads. All independent. self uses fail-soft
+	// (.catch → null); the thread-types config also fails soft because
+	// most forums won't even have category UI — a 404 / outage there
+	// should not break the list. `recommendedThreadsPromise` is also
+	// fail-soft: the recommended card is decorative and must never block
+	// the page if its endpoint 500s or 404s on a private-forum probe.
 	const selfPromise = getSelfForumUser().catch(() => null);
 	const postsPerPagePromise = getCachedPostsPerPage();
 	const threadTypesPromise = getCachedForumThreadTypes(forumId).catch(() => null);
+	const recommendedThreadsPromise = loadRecommendedThreads(forumId)
+		.then((res) => res.threads)
+		.catch(() => [] as RecommendedThreadItem[]);
 
 	try {
 		// Fetch the type payload first so we can whitelist-normalize the
@@ -114,6 +125,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 
 	const self = await selfPromise;
 	const postsPerPage = await postsPerPagePromise;
+	const recommendedThreads = await recommendedThreadsPromise;
 
 	// Re-derive the effective typeId for URL builders: only set if the
 	// page actually filtered. After the catch path threadTypes may be
@@ -159,6 +171,12 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 					canEditAnnouncement={canEditAnnouncement}
 				/>
 			)}
+
+			{/* Per-forum "推荐主题" card. Rendered below the forum header
+			    and above the thread list / error banner so it stays
+			    visible on the type-filter views too. Self-hides when the
+			    backend returns zero recommendations. */}
+			<ForumRecommendedCard threads={recommendedThreads} />
 
 			{error && (
 				<div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">

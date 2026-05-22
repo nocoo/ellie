@@ -345,6 +345,24 @@ export const TABLES = {
 			PRIMARY KEY (date_local, path_kind, target_id, user_id, bot_class)
 		);
 	`,
+
+	// Mirror of migration 0045_create_forum_recommended_threads.sql.
+	// Per-forum "推荐主题" allowlist powering the forum-page top card
+	// and the thread-detail `isRecommended` flag. Data layer is
+	// uncapped; display layer (`GET /api/v1/forums/:id/recommended-threads`)
+	// always returns at most 6 rows ordered by `thread_id DESC`.
+	// `recommended_by = 0` is the legacy-import sentinel; live moderator
+	// actions write `users.id`. Composite PK enforces idempotent
+	// recommend toggles.
+	forum_recommended_threads: `
+		CREATE TABLE IF NOT EXISTS forum_recommended_threads (
+			forum_id        INTEGER NOT NULL,
+			thread_id       INTEGER NOT NULL,
+			recommended_at  INTEGER NOT NULL,
+			recommended_by  INTEGER NOT NULL,
+			PRIMARY KEY (forum_id, thread_id)
+		);
+	`,
 };
 
 export const INDEXES = {
@@ -487,5 +505,14 @@ export const INDEXES = {
 	analytics_daily_targets: [
 		"CREATE INDEX IF NOT EXISTS idx_analytics_daily_targets_list ON analytics_daily_targets(date_local, path_kind, target_id);",
 		"CREATE INDEX IF NOT EXISTS idx_analytics_daily_targets_last_seen ON analytics_daily_targets(last_seen_at);",
+	],
+
+	// forum_recommended_threads (mirror of migration 0045). Display
+	// path: `ORDER BY thread_id DESC LIMIT 6` per forum — covered by
+	// the descending composite. `EXISTS(... forum_id=? AND thread_id=?)`
+	// for thread-detail `isRecommended` is satisfied by the PK alone, so
+	// no thread_id-only secondary index is needed.
+	forum_recommended_threads: [
+		"CREATE INDEX IF NOT EXISTS idx_forum_recommended_threads_forum_tid ON forum_recommended_threads(forum_id, thread_id DESC);",
 	],
 };

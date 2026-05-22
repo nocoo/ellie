@@ -211,6 +211,7 @@ function ThreadToolbar({
 						digest={thread.digest}
 						highlight={thread.highlight}
 						closed={thread.closed === 1}
+						isRecommended={thread.isRecommended}
 						canManageThread={canManageThread}
 						canMoveThread={canMoveThread}
 						canDeleteThread={canDeleteThread}

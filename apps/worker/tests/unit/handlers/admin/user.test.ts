@@ -1232,11 +1232,12 @@ describe("admin user handlers", () => {
 
 			// Verify batch was called
 			expect(batchCalls.length).toBe(1);
-			// 9 base statements + 2 child purges keyed on user's thread_ids
-			// (DELETE attachments + DELETE post_comments) - 1 standalone
-			// posts DELETE skipped because no `SELECT id FROM posts` mock
-			// returns []. So: 9 - 1 + 2 = 10.
-			expect(batchCalls[0].length).toBe(10);
+			// 9 base statements + 3 child purges keyed on user's thread_ids
+			// (DELETE attachments + DELETE post_comments +
+			//  DELETE forum_recommended_threads, see migration 0045) -
+			// 1 standalone posts DELETE skipped because no
+			// `SELECT id FROM posts` mock returns []. So: 9 - 1 + 3 = 11.
+			expect(batchCalls[0].length).toBe(11);
 		});
 
 		it("should return 404 for non-existent user", async () => {
@@ -1379,11 +1380,12 @@ describe("admin user handlers", () => {
 
 			// Verify batch was called
 			expect(batchCalls.length).toBe(1);
-			// 6 base statements + 2 child purges keyed on user's thread_ids
-			// (DELETE attachments + DELETE post_comments) - 1 standalone
-			// posts DELETE skipped because no `SELECT id FROM posts` mock
-			// returns []. So: 6 - 1 + 2 = 7.
-			expect(batchCalls[0].length).toBe(7);
+			// 6 base statements + 3 child purges keyed on user's thread_ids
+			// (DELETE attachments + DELETE post_comments +
+			//  DELETE forum_recommended_threads, see migration 0045) -
+			// 1 standalone posts DELETE skipped because no
+			// `SELECT id FROM posts` mock returns []. So: 6 - 1 + 3 = 8.
+			expect(batchCalls[0].length).toBe(8);
 		});
 
 		it("should return 404 for non-existent user", async () => {

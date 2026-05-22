@@ -396,3 +396,23 @@ CREATE INDEX IF NOT EXISTS idx_analytics_daily_targets_list
     ON analytics_daily_targets(date_local, path_kind, target_id);
 CREATE INDEX IF NOT EXISTS idx_analytics_daily_targets_last_seen
     ON analytics_daily_targets(last_seen_at);
+
+-- ─── Forum recommended threads (mirror of migration 0045) ─────────
+-- Per-forum "推荐主题" allowlist powering the forum-page top card and
+-- the thread-detail `isRecommended` flag. Data layer holds N rows per
+-- forum; display layer caps at `ORDER BY thread_id DESC LIMIT 6`. See
+-- migration 0045_create_forum_recommended_threads.sql for the design
+-- and read-path contract; see apps/worker/src/handlers/recommended.ts
+-- for the runtime contract. `recommended_by = 0` is the system-import
+-- sentinel reserved for the legacy backfill.
+
+CREATE TABLE IF NOT EXISTS forum_recommended_threads (
+    forum_id        INTEGER NOT NULL,
+    thread_id       INTEGER NOT NULL,
+    recommended_at  INTEGER NOT NULL,
+    recommended_by  INTEGER NOT NULL,
+    PRIMARY KEY (forum_id, thread_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_forum_recommended_threads_forum_tid
+    ON forum_recommended_threads(forum_id, thread_id DESC);
