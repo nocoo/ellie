@@ -220,3 +220,55 @@ describe("sanitizeRichHtml — stack closure", () => {
 		expect(sanitizeRichHtml("</p>text</span>")).toBe("text");
 	});
 });
+
+describe("sanitizeRichHtml — entity round-trip (no double-escape)", () => {
+	// Mirror of `apps/worker/tests/unit/lib/sanitizeAnnouncement.test.ts`
+	// "entity round-trip" suite. The Worker sanitizes on the write path,
+	// the Web sanitizer is preview + defense-in-depth — both must produce
+	// identical output for the legacy fid=306 case (reviewer msg 3ab6a827).
+
+	test("does not double-escape &amp; inside href query string", () => {
+		const html = sanitizeRichHtml('<a href="http://x.test/?a=1&amp;b=2">x</a>');
+		expect(html).toContain('href="http://x.test/?a=1&amp;b=2"');
+		expect(html).not.toContain("amp;amp;");
+	});
+
+	test("decodes &nbsp; in text to literal NBSP, not &amp;nbsp;", () => {
+		const html = sanitizeRichHtml("foo&nbsp;bar");
+		const NBSP = String.fromCharCode(0xa0);
+		expect(html).toBe(`foo${NBSP}bar`);
+		expect(html).not.toContain("&nbsp;");
+		expect(html).not.toContain("&amp;nbsp;");
+	});
+
+	test("decodes &amp;/&lt;/&gt;/&quot; round-trip cleanly", () => {
+		const html = sanitizeRichHtml("a &amp; b &lt; c &gt; d");
+		expect(html).toBe("a &amp; b &lt; c &gt; d");
+		expect(sanitizeRichHtml(html)).toBe(html);
+	});
+
+	test("is idempotent: sanitize(sanitize(x)) === sanitize(x)", () => {
+		const input = '<a href="http://x.test/?a=1&amp;b=2" title="A&amp;B">x&nbsp;y &lt;tag&gt;</a>';
+		const once = sanitizeRichHtml(input);
+		const twice = sanitizeRichHtml(once);
+		expect(twice).toBe(once);
+	});
+
+	test("still blocks javascript: hiding behind &amp;#106; (double entity)", () => {
+		const html = sanitizeRichHtml('<a href="&amp;#106;avascript:alert(1)">x</a>');
+		expect(html).not.toContain("javascript");
+		expect(html).not.toContain("alert");
+	});
+
+	test("still blocks javascript: hiding behind numeric entity", () => {
+		const html = sanitizeRichHtml('<a href="&#106;avascript:alert(1)">x</a>');
+		expect(html).not.toContain("javascript");
+		expect(html).not.toContain("alert");
+	});
+
+	test("does not let entity-encoded `<` smuggle a tag through text", () => {
+		const html = sanitizeRichHtml("foo &lt;script&gt;bar");
+		expect(html).toBe("foo &lt;script&gt;bar");
+		expect(html).not.toMatch(/<script/i);
+	});
+});

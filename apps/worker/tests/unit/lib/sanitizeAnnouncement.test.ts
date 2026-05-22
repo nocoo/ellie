@@ -317,6 +317,73 @@ describe("sanitizeForumAnnouncement — control chars + text escaping", () => {
 	});
 });
 
+describe("sanitizeForumAnnouncement — entity round-trip (no double-escape)", () => {
+	// Reviewer msg 3ab6a827: legacy Discuz announcements contain
+	// pre-escaped entities like `&amp;` in href and `&nbsp;` in text.
+	// Re-escaping them turns `&amp;` into `&amp;amp;` (visible bug in
+	// fid=306, where `forum.php?mod=forumdisplay&amp;fid=134` was
+	// rendering with literal `&amp;amp;` in the URL) and `&nbsp;` into
+	// `&amp;nbsp;` (literal "&nbsp;" displayed instead of NBSP).
+	// The sanitizer must decode known entities once before re-escaping
+	// so its output is idempotent.
+
+	it("does not double-escape &amp; inside href query string", () => {
+		const { html } = sanitizeForumAnnouncement('<a href="http://x.test/?a=1&amp;b=2">x</a>');
+		expect(html).toContain('href="http://x.test/?a=1&amp;b=2"');
+		expect(html).not.toContain("amp;amp;");
+	});
+
+	it("decodes &nbsp; in text to literal NBSP, not &amp;nbsp;", () => {
+		const { html } = sanitizeForumAnnouncement("foo&nbsp;bar");
+		// U+00A0 NBSP, not the literal six-char sequence "&nbsp;".
+		expect(html).toBe("foo bar");
+		expect(html).not.toContain("&nbsp;");
+		expect(html).not.toContain("&amp;nbsp;");
+	});
+
+	it("decodes &amp;/&lt;/&gt;/&quot; round-trip cleanly", () => {
+		// `&amp;` should become `&amp;` (decoded then re-escaped),
+		// `&lt;` / `&gt;` re-escaped, `&quot;` re-escaped in attr context.
+		const { html } = sanitizeForumAnnouncement("a &amp; b &lt; c &gt; d");
+		expect(html).toBe("a &amp; b &lt; c &gt; d");
+		// And again — running twice yields the same bytes.
+		const { html: pass2 } = sanitizeForumAnnouncement(html);
+		expect(pass2).toBe(html);
+	});
+
+	it("is idempotent: sanitize(sanitize(x)) === sanitize(x)", () => {
+		const input = '<a href="http://x.test/?a=1&amp;b=2" title="A&amp;B">x&nbsp;y &lt;tag&gt;</a>';
+		const once = sanitizeForumAnnouncement(input).html;
+		const twice = sanitizeForumAnnouncement(once).html;
+		expect(twice).toBe(once);
+	});
+
+	it("still blocks javascript: hiding behind &amp;#106; (double entity)", () => {
+		// `&amp;#106;avascript:` decodes to `&#106;avascript:` which then
+		// decodes to `javascript:` — `isSafeUrl` runs decodeEntities
+		// once, which catches the first layer; the URL still fails the
+		// scheme test because the second layer leaves `&#106;avascript:`
+		// (not a recognized scheme). Either way the attribute is dropped.
+		const { html } = sanitizeForumAnnouncement('<a href="&amp;#106;avascript:alert(1)">x</a>');
+		expect(html).not.toContain("javascript");
+		expect(html).not.toContain("alert");
+	});
+
+	it("still blocks javascript: hiding behind numeric entity", () => {
+		const { html } = sanitizeForumAnnouncement('<a href="&#106;avascript:alert(1)">x</a>');
+		expect(html).not.toContain("javascript");
+		expect(html).not.toContain("alert");
+	});
+
+	it("does not let entity-encoded `<` smuggle a tag through text", () => {
+		// Decoding entities in text could in principle re-introduce a `<`
+		// that then gets re-escaped — but it must NOT be parsed as a tag.
+		const { html } = sanitizeForumAnnouncement("foo &lt;script&gt;bar");
+		expect(html).toBe("foo &lt;script&gt;bar");
+		expect(html).not.toMatch(/<script/i);
+	});
+});
+
 describe("sanitizeForumAnnouncement — quote-aware tag boundary", () => {
 	it('keeps title containing `>` intact (anchor: title="a>b")', () => {
 		const { html } = sanitizeForumAnnouncement('<a href="https://x.com" title="a>b">x</a>');
