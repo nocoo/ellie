@@ -4,7 +4,7 @@
  * Discuz MySQL snapshot into D1 `forum_recommended_threads`. DRY-RUN
  * ONLY — emits SQL + report artifacts; does not touch production D1.
  *
- * Source:  pre_forum_forumrecommend on tongji.nocoo.cloud (live).
+ * Source:  pre_forum_forumrecommend on the legacy VPS (via SSH).
  *          Only `position = 1` (active recommendations) are taken; the
  *          `position = 0` archived rows are intentionally dropped.
  *
@@ -77,7 +77,17 @@ import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 
-const SSH = ["/usr/bin/ssh", "-p", "52722", "nocoo@tongji.nocoo.cloud"];
+function bail(msg: string): never {
+	console.error(`ERROR: ${msg}`);
+	process.exit(1);
+}
+
+const SSH_HOST = process.env.MIGRATION_SSH_HOST ?? bail("Set MIGRATION_SSH_HOST");
+const SSH_PORT = process.env.MIGRATION_SSH_PORT ?? "22";
+const SSH_USER = process.env.MIGRATION_SSH_USER ?? bail("Set MIGRATION_SSH_USER");
+const MYSQL_DB = process.env.MIGRATION_MYSQL_DB ?? "db_main";
+
+const SSH = ["/usr/bin/ssh", "-p", SSH_PORT, `${SSH_USER}@${SSH_HOST}`];
 const OUT_DIR = "reference/forum-recommended-threads-2026-05-22";
 const SNAPSHOT_DIR = `${OUT_DIR}/snapshot`;
 const SQL_DIR = `${OUT_DIR}/sql`;
@@ -129,7 +139,7 @@ SELECT fid, tid, position
 FROM pre_forum_forumrecommend
 ORDER BY fid, tid
 `.trim();
-	const out = sshExec(`sudo -n mysql -u root db_tongji_main -B -e "${sql.replace(/"/g, '\\"')}"`);
+	const out = sshExec(`sudo -n mysql -u root ${MYSQL_DB} -B -e "${sql.replace(/"/g, '\\"')}"`);
 	const lines = out.split("\n").filter((l) => l.length > 0);
 	const header = lines.shift();
 	if (header !== "fid\ttid\tposition") {
@@ -291,8 +301,8 @@ function main(): void {
 		generated_at: new Date().toISOString(),
 		import_epoch_seconds: importNow,
 		source: {
-			host: "tongji.nocoo.cloud",
-			db: "db_tongji_main",
+			host: SSH_HOST,
+			db: MYSQL_DB,
 			table: "pre_forum_forumrecommend",
 			filter: "position = 1",
 		},

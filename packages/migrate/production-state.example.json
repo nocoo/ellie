@@ -1,0 +1,46 @@
+{
+	"captured_at": "2026-01-01T00:00:00Z",
+	"database": {
+		"name": "your-d1-database",
+		"id": "00000000-0000-0000-0000-000000000000"
+	},
+	"backup": {
+		"path": "reference/d1-backups/YYYY-MM-DD/backup.sql",
+		"size_gb": 0,
+		"time_travel_bookmark": "000000000-00000000-00000000-00000000000000000000000000000000",
+		"tables_included": ["forums", "users", "threads", "posts", "attachments", "user_checkins"],
+		"tables_excluded": [
+			"threads_fts",
+			"threads_fts_content",
+			"threads_fts_idx",
+			"threads_fts_docsize",
+			"threads_fts_config"
+		]
+	},
+	"tables": {
+		"forums": {
+			"count": 0,
+			"max_id": 0
+		},
+		"users": {
+			"count": 0,
+			"max_id": 0
+		},
+		"threads": {
+			"count": 0,
+			"max_id": 0
+		},
+		"posts": {
+			"count": 0,
+			"max_id": 0
+		},
+		"attachments": {
+			"count": 0,
+			"max_id": 0
+		},
+		"user_checkins": {
+			"count": 0,
+			"max_id": 0
+		}
+	}
+}

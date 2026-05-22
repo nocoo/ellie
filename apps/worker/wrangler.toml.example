@@ -1,0 +1,79 @@
+# Ellie Cloudflare Worker configuration
+# Copy to wrangler.toml and fill in your resource IDs.
+#
+# Setup:
+#   1. cp wrangler.toml.example wrangler.toml
+#   2. Create a D1 database:  wrangler d1 create <db-name>
+#   3. Create a KV namespace: wrangler kv namespace create <ns-name>
+#   4. Create an R2 bucket:   wrangler r2 bucket create <bucket-name>
+#   5. Fill in the IDs below
+#   6. Set secrets:
+#        wrangler secret put API_KEY
+#        wrangler secret put ADMIN_API_KEY
+#        wrangler secret put JWT_SECRET
+#        wrangler secret put DOVE_WEBHOOK_TOKEN
+
+name = "ellie"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "YOUR_D1_DATABASE_NAME"
+database_id = "YOUR_D1_DATABASE_ID"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "YOUR_KV_NAMESPACE_ID"
+preview_id = "YOUR_KV_PREVIEW_ID"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "your-bucket"
+
+[vars]
+ENVIRONMENT = "production"
+ALLOWED_ORIGINS = "https://your-domain.example"
+
+# Dove email relay configuration
+# Webhook URL = ${DOVE_BASE_URL}/api/webhook/${DOVE_PROJECT_ID}/send
+# The bearer token is a secret — set via: wrangler secret put DOVE_WEBHOOK_TOKEN
+DOVE_BASE_URL = "https://your-email-relay.example"
+DOVE_PROJECT_ID = "YOUR_DOVE_PROJECT_ID"
+DOVE_TEMPLATE_SLUG = "verify-email"
+
+# Cron triggers (UTC):
+#   - "*/5 * * * *"  → aggregateOnlineStats (every 5 minutes)
+#   - "0 19 * * *"   → cleanupLoginHistory  (19:00 UTC)
+[triggers]
+crons = ["*/5 * * * *", "0 19 * * *"]
+
+# ─── Test Environment ───────────────────────────────────────────
+# D1 Isolation: L2/L3 tests MUST use [env.test] to avoid touching production data.
+# Run with: wrangler dev --env test --remote
+
+[env.test]
+name = "ellie-test"
+
+[[env.test.d1_databases]]
+binding = "DB"
+database_name = "YOUR_TEST_D1_DATABASE_NAME"
+database_id = "YOUR_TEST_D1_DATABASE_ID"
+
+[[env.test.kv_namespaces]]
+binding = "KV"
+id = "YOUR_TEST_KV_NAMESPACE_ID"
+preview_id = "YOUR_TEST_KV_PREVIEW_ID"
+
+[[env.test.r2_buckets]]
+binding = "R2"
+bucket_name = "your-test-bucket"
+preview_bucket_name = "your-test-bucket"
+
+[env.test.vars]
+ENVIRONMENT = "test"
+ALLOWED_ORIGINS = "*"
+DOVE_BASE_URL = "https://your-email-relay.example"
+DOVE_PROJECT_ID = "YOUR_DOVE_PROJECT_ID"
+DOVE_TEMPLATE_SLUG = "verify-email"
+DOVE_WEBHOOK_TOKEN = "test-token-not-real"

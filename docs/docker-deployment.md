@@ -1,6 +1,6 @@
 # Docker Deployment
 
-Ellie deploys to a self-hosted Docker host (jp2.nocoo.cloud) behind Cloudflare.
+Ellie deploys to a self-hosted Docker host behind Cloudflare.
 
 ## Architecture
 
@@ -15,7 +15,7 @@ Browser ──HTTPS──▶ Cloudflare ──HTTPS + mTLS──▶ proxy-caddy 
 - **Admin** (console): Next.js 16 standalone, Bun runtime, port 7032
 - **Worker**: Cloudflare Worker (D1 + KV), deployed separately via `bun run worker:deploy`
 - **Edge**: Cloudflare proxy + Universal SSL
-- **Origin**: jp2.nocoo.cloud (Azure Japan), shared `proxy-caddy` terminates TLS with Cloudflare Origin Certificate (`*.hexly.ai`) and enforces Authenticated Origin Pulls (mTLS)
+- **Origin**: Deploy server, shared `proxy-caddy` terminates TLS with Cloudflare Origin Certificate and enforces Authenticated Origin Pulls (mTLS)
 - **Image registry**: GitHub Container Registry (GHCR)
 
 ## Dockerfile
@@ -46,11 +46,11 @@ Three stages:
 
 Release steps:
 1. Build & push two images to GHCR: `ellie-web:latest` + `:sha`, `ellie-admin:latest` + `:sha`
-2. SSH to jp2: `docker compose pull web admin && docker compose up -d --no-deps web admin`
+2. SSH to deploy server: `docker compose pull web admin && docker compose up -d --no-deps web admin`
 3. In-container health check: `GET /api/live` on each container
 4. External smoke test: `curl https://ellie.hexly.ai/api/live` and `https://ellie-admin.hexly.ai/api/live`
 
-## Server-Side Setup (jp2, one-time)
+## Server-Side Setup (one-time)
 
 ### Prerequisites
 
@@ -142,15 +142,15 @@ After editing: `cd /opt/proxy && docker compose exec caddy caddy reload --config
 
 ### Cloudflare DNS
 
-Add two A records pointing to jp2's public IP (proxied):
-- `ellie.hexly.ai` → jp2 IP
-- `ellie-admin.hexly.ai` → jp2 IP
+Add two A records pointing to your server's public IP (proxied):
+- `ellie.hexly.ai` → server IP
+- `ellie-admin.hexly.ai` → server IP
 
 ## GitHub Actions Secrets
 
 | Name | Purpose |
 |------|---------|
-| `VPS_HOST` | jp2 hostname / IP |
+| `VPS_HOST` | Deploy server hostname / IP |
 | `VPS_USER` | SSH user |
 | `VPS_SSH_KEY` | SSH deploy private key |
 | `GHCR_PULL_USER` | GHCR pull account |
@@ -163,7 +163,7 @@ Image push uses the workflow's built-in `GITHUB_TOKEN` — no extra config neede
 Images are tagged both `:latest` and `:<commit-sha>`. To rollback:
 
 ```bash
-# On jp2
+# On deploy server
 cd /opt/ellie
 # Edit docker-compose.yml to pin a specific sha, then:
 docker compose pull web admin

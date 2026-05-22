@@ -54,6 +54,11 @@ target/
 # Wrangler
 .wrangler/
 
+# OS junk
+.DS_Store
+*.swp
+*.swo
+
 # Tools
 .claude/
 .superset/
@@ -63,3 +68,9 @@ scripts/*-data.sql
 **/import-*.sql
 .autoresearch/
 tests/e2e/.auth/
+
+# Wrangler config (contains resource IDs — use wrangler.toml.example)
+apps/worker/wrangler.toml
+
+# Migration state (contains real DB IDs)
+packages/migrate/production-state.json

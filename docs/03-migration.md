@@ -105,7 +105,7 @@
 
 ## 概述
 
-从 tongji.nocoo.cloud 的 Discuz! X3.4 MySQL 数据库迁移到 Cloudflare D1。
+从 legacy Discuz! X3.4 MySQL 数据库迁移到 Cloudflare D1。
 
 - **数据源**：`reference/db/` 中的 MySQL dump 文件（`.sql.gz`）
 - **目标**：本地 SQLite 文件 → Cloudflare D1

@@ -1,6 +1,6 @@
 # Ellie CD — triggered after CI succeeds on main.
 # Builds Docker images for web + admin, pushes to GHCR,
-# then SSHs into jp2.nocoo.cloud to pull and restart.
+# then SSHs into the deploy server to pull and restart.
 name: Release
 
 on:
@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   build-and-deploy:
-    name: Build images & deploy to jp2
+    name: Build images & deploy
     runs-on: ubuntu-latest
     timeout-minutes: 25
     # Only run when triggered by a successful CI run, OR manual dispatch.
@@ -95,8 +95,8 @@ jobs:
           cache-from: type=gha,scope=ellie-admin
           cache-to: type=gha,mode=max,scope=ellie-admin
 
-      # ── Deploy to jp2 ──
-      - name: Deploy to jp2.nocoo.cloud
+      # ── Deploy ──
+      - name: Deploy to production server
         uses: appleboy/ssh-action@v1
         env:
           IMAGE_SHA: ${{ steps.sha.outputs.value }}
@@ -176,7 +176,6 @@ jobs:
             echo ""
             echo "- Web image: \`ghcr.io/${{ github.repository_owner }}/ellie-web:${{ steps.sha.outputs.value }}\`"
             echo "- Admin image: \`ghcr.io/${{ github.repository_owner }}/ellie-admin:${{ steps.sha.outputs.value }}\`"
-            echo "- Host: jp2.nocoo.cloud"
             echo "- Web URL: https://ellie.hexly.ai/"
             echo "- Admin URL: https://ellie-admin.hexly.ai/"
           } >> "$GITHUB_STEP_SUMMARY"

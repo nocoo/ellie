@@ -4,7 +4,7 @@
  * D1 `forums.announcement`. DRY-RUN ONLY — produces SQL + report artifacts;
  * does not touch production D1.
  *
- * Source:  pre_forum_forumfield.rules on tongji.nocoo.cloud (live).
+ * Source:  pre_forum_forumfield.rules on the legacy VPS (via SSH).
  * Target:  D1 `forums.announcement` column (added in migration 0044).
  * SQL emitted: only `UPDATE forums SET announcement=? WHERE id=?` per row.
  *
@@ -23,7 +23,17 @@ import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { sanitizeForumAnnouncement } from "../apps/worker/src/lib/sanitizeAnnouncement";
 
-const SSH = ["/usr/bin/ssh", "-p", "52722", "nocoo@tongji.nocoo.cloud"];
+function bail(msg: string): never {
+	console.error(`ERROR: ${msg}`);
+	process.exit(1);
+}
+
+const SSH_HOST = process.env.MIGRATION_SSH_HOST ?? bail("Set MIGRATION_SSH_HOST");
+const SSH_PORT = process.env.MIGRATION_SSH_PORT ?? "22";
+const SSH_USER = process.env.MIGRATION_SSH_USER ?? bail("Set MIGRATION_SSH_USER");
+const MYSQL_DB = process.env.MIGRATION_MYSQL_DB ?? "db_main";
+
+const SSH = ["/usr/bin/ssh", "-p", SSH_PORT, `${SSH_USER}@${SSH_HOST}`];
 const OUT_DIR = "reference/forum-announcement-2026-05-22";
 const SNAPSHOT_DIR = `${OUT_DIR}/snapshot`;
 const SQL_DIR = `${OUT_DIR}/sql`;
@@ -68,7 +78,7 @@ FROM pre_forum_forumfield
 WHERE rules <> ''
 ORDER BY fid
 `.trim();
-	const out = sshExec(`sudo -n mysql -u root db_tongji_main -B -e "${sql.replace(/"/g, '\\"')}"`);
+	const out = sshExec(`sudo -n mysql -u root ${MYSQL_DB} -B -e "${sql.replace(/"/g, '\\"')}"`);
 	const lines = out.split("\n").filter((l) => l.length > 0);
 	// First line is header: "fid\trules_hex"
 	const header = lines.shift();
@@ -200,8 +210,8 @@ ${JSON.stringify(sampleFid306Stats, null, 2)}
 	const report = {
 		generated_at: new Date().toISOString(),
 		source: {
-			host: "tongji.nocoo.cloud",
-			db: "db_tongji_main",
+			host: SSH_HOST,
+			db: MYSQL_DB,
 			table: "pre_forum_forumfield",
 			field: "rules",
 		},

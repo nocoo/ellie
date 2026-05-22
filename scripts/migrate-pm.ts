@@ -2,17 +2,30 @@
 /**
  * Migrate Discuz UCenter PMs to D1
  *
+ * Required env vars:
+ *   MIGRATION_SSH_HOST  — VPS hostname
+ *   MIGRATION_SSH_USER  — SSH username (optional, defaults to current user)
+ *   MIGRATION_MYSQL_DB  — UCenter database name (default: db_ucenter)
+ *   MIGRATION_MYSQL_MAIN_DB — Main Discuz database (default: db_main)
+ *
  * Usage:
- * 1. First export from MySQL on tongji.nocoo.cloud:
- *    sudo mysql db_tongji_ucenter -N -e "SELECT ... INTO OUTFILE '/tmp/pms.csv' ..."
- * 2. Copy to local: scp tongji.nocoo.cloud:/tmp/pms.csv ./scripts/pms.csv
- * 3. Run this script: bun scripts/migrate-pm.ts
+ * 1. Set env vars (or export in shell)
+ * 2. Run: bun scripts/migrate-pm.ts
  */
 
 import { $ } from "bun";
 
-const BATCH_SIZE = 500; // D1 batch limit consideration
-const _CSV_FILE = "./scripts/pms.csv";
+function bail(msg: string): never {
+	console.error(`ERROR: ${msg}`);
+	process.exit(1);
+}
+
+const SSH_HOST = process.env.MIGRATION_SSH_HOST ?? bail("Set MIGRATION_SSH_HOST");
+const SSH_USER = process.env.MIGRATION_SSH_USER ?? process.env.USER ?? "root";
+const MYSQL_UC_DB = process.env.MIGRATION_MYSQL_DB ?? "db_ucenter";
+const MYSQL_MAIN_DB = process.env.MIGRATION_MYSQL_MAIN_DB ?? "db_main";
+
+const BATCH_SIZE = 500;
 
 interface PmRow {
 	id: number;
@@ -31,7 +44,7 @@ interface PmRow {
 async function exportFromMysql() {
 	console.log("Exporting from MySQL...");
 
-	const result = await $`/usr/bin/ssh tongji.nocoo.cloud "sudo mysql db_tongji_ucenter -N -B -e '
+	const result = await $`/usr/bin/ssh ${SSH_USER}@${SSH_HOST} "sudo mysql ${MYSQL_UC_DB} -N -B -e '
 SELECT
     p.pmid,
     p.msgfromid,
@@ -45,8 +58,8 @@ SELECT
     0,
     p.dateline
 FROM uc_pms p
-LEFT JOIN db_tongji_main.pre_common_member u1 ON p.msgfromid = u1.uid
-LEFT JOIN db_tongji_main.pre_common_member u2 ON p.msgtoid = u2.uid
+LEFT JOIN ${MYSQL_MAIN_DB}.pre_common_member u1 ON p.msgfromid = u1.uid
+LEFT JOIN ${MYSQL_MAIN_DB}.pre_common_member u2 ON p.msgtoid = u2.uid
 WHERE p.delstatus = 0
 ORDER BY p.pmid
 '"`.text();
@@ -107,7 +120,7 @@ async function importToD1(rows: PmRow[]) {
 		console.log(`Batch ${i + 1}/${totalBatches}: importing rows ${start + 1}-${end}...`);
 
 		try {
-			await $`cd apps/worker && npx wrangler d1 execute tongjinet-db --remote --file=../../${batchFile} -c wrangler.toml`.quiet();
+			await $`cd apps/worker && npx wrangler d1 execute YOUR_D1_DATABASE --remote --file=../../${batchFile} -c wrangler.toml`.quiet();
 			console.log(`  ✓ Batch ${i + 1} imported successfully`);
 		} catch (err) {
 			console.error(`  ✗ Batch ${i + 1} failed:`, err);

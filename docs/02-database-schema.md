@@ -2,7 +2,7 @@
 
 Ellie 的 Cloudflare D1 数据库 schema，从 Discuz! X3.4 映射而来。
 
-数据源：`tongji.nocoo.cloud` — MySQL 8.0.42，数据库 `db_tongji_main` 和 `db_tongji_ucenter`。
+数据源：Legacy Discuz MySQL — MySQL 8.0.42，数据库 `db_main` 和 `db_ucenter`。
 
 ## 概述
 
@@ -653,7 +653,7 @@ CREATE INDEX idx_messages_unread ON messages(receiver_id, is_read, receiver_dele
 
 ---
 
-## 数据量（tongji.nocoo.cloud）
+## 数据量（Legacy MySQL Source）
 
 | Table | Rows | Data Size | Compressed Dump |
 |-------|------|-----------|-----------------|

@@ -3,7 +3,7 @@
 ## 项目概述
 
 Ellie 是一个将 Discuz! X3.4 论坛数据迁移到 Cloudflare 平台并重建前端的项目。
-- 源站：tongji.nocoo.cloud（MySQL 8.0, ~1170万行数据）
+- 源站：Legacy Discuz MySQL server（MySQL 8.0, ~1170万行数据）
 - 目标：Cloudflare D1（SQLite）+ R2（文件存储）
 
 ## 系统架构

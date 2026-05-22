@@ -166,7 +166,7 @@ async function main() {
 	);
 	console.log("\nTo apply, run:");
 	console.log(
-		"  cd apps/worker && npx wrangler d1 execute tongjinet-db --remote -c wrangler.toml --file=../../reference/db/import-comments.sql",
+		"  cd apps/worker && npx wrangler d1 execute YOUR_D1_DATABASE --remote -c wrangler.toml --file=../../reference/db/import-comments.sql",
 	);
 }
 

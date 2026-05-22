@@ -437,7 +437,7 @@ try {
 		console.log("   To apply to production D1 (one chunk at a time):");
 		console.log(`   for f in ${outDir}/import-checkins-*.sql; do`);
 		console.log('     echo "Executing $f ..."');
-		console.log("     npx wrangler d1 execute tongjinet-db --remote \\");
+		console.log("     npx wrangler d1 execute YOUR_D1_DATABASE --remote \\");
 		console.log('       -c apps/worker/wrangler.toml --file="$f"');
 		console.log("   done");
 	} else {
