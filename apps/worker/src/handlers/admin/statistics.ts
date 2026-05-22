@@ -10,7 +10,7 @@ import {
 } from "../../lib/cache/invalidate";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
-import { jsonResponse } from "../../lib/response";
+import { jsonNoStoreResponse } from "../../lib/response";
 import { invalidateUserCache } from "../../lib/user-cache";
 import { errorResponse } from "../../middleware/error";
 
@@ -41,7 +41,7 @@ export const recalcForums = withEntityAuth(
 		const forumIds = forums.results.map((r) => (r as { id: number }).id);
 
 		if (forumIds.length === 0) {
-			return jsonResponse({ updated: 0 }, origin);
+			return jsonNoStoreResponse({ updated: 0 }, origin);
 		}
 
 		// Calculate thread counts per forum
@@ -123,7 +123,7 @@ export const recalcForums = withEntityAuth(
 		// not change.
 		await bumpForumSummaryGen(env);
 
-		return jsonResponse({ updated: forumIds.length }, origin);
+		return jsonNoStoreResponse({ updated: forumIds.length }, origin);
 	},
 );
 
@@ -168,7 +168,7 @@ export const recalcThreads = withEntityAuth(
 		}>;
 
 		if (threadData.length === 0) {
-			return jsonResponse({ updated: 0 }, origin);
+			return jsonNoStoreResponse({ updated: 0 }, origin);
 		}
 
 		// Build maps using full table scans (no WHERE IN limitation)
@@ -234,7 +234,7 @@ export const recalcThreads = withEntityAuth(
 			forumId ? bumpThreadListGen(env, forumId) : bumpThreadListGenAll(env),
 		]);
 
-		return jsonResponse({ updated: threadData.length }, origin);
+		return jsonNoStoreResponse({ updated: threadData.length }, origin);
 	},
 );
 
@@ -265,7 +265,7 @@ export const recalcUsers = withEntityAuth(
 		}
 
 		if (userIds.length === 0) {
-			return jsonResponse({ updated: 0 }, origin);
+			return jsonNoStoreResponse({ updated: 0 }, origin);
 		}
 
 		// Build maps using full table scans (avoids WHERE IN parameter limits)
@@ -332,6 +332,6 @@ export const recalcUsers = withEntityAuth(
 			);
 		}
 
-		return jsonResponse({ updated: userIds.length }, origin);
+		return jsonNoStoreResponse({ updated: userIds.length }, origin);
 	},
 );

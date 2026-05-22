@@ -20,7 +20,7 @@ import type { Env } from "../../lib/env";
 import { toForum } from "../../lib/mappers";
 import { parseIdFromPath, parsePathSegment } from "../../lib/parseId";
 import { recalcForumMetadata } from "../../lib/recalcMetadata";
-import { jsonResponse } from "../../lib/response";
+import { jsonNoStoreResponse } from "../../lib/response";
 
 import { errorResponse } from "../../middleware/error";
 
@@ -592,7 +592,7 @@ export const merge = withEntityAuth(
 			}),
 		]);
 
-		return jsonResponse(
+		return jsonNoStoreResponse(
 			{
 				merged: true,
 				sourceForumId: sourceId,
@@ -702,6 +702,6 @@ export const reorder = withEntityAuth(
 				: Promise.resolve(),
 		]);
 
-		return jsonResponse({ updated: true, count: orders.length }, origin);
+		return jsonNoStoreResponse({ updated: true, count: orders.length }, origin);
 	},
 );

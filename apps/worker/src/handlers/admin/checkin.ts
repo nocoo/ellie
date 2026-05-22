@@ -30,7 +30,7 @@ import { resolveActor, writeAdminLog } from "../../lib/adminLog";
 import { recomputeFromHistory } from "../../lib/checkinRecompute";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
-import { jsonResponse } from "../../lib/response";
+import { jsonNoStoreResponse } from "../../lib/response";
 import {
 	isValidShanghaiDateLocal,
 	shanghaiDateLocal,
@@ -212,7 +212,7 @@ export const getUserCheckins = withEntityAuth(
 
 		const historyRows = history.results ?? [];
 
-		return jsonResponse(
+		return jsonNoStoreResponse(
 			{
 				userId,
 				username: guard.username,
@@ -317,7 +317,7 @@ export const setCheckinDay = withEntityAuth(
 			},
 		});
 
-		return jsonResponse(
+		return jsonNoStoreResponse(
 			{
 				userId,
 				dateLocal,
@@ -399,7 +399,7 @@ export const setStreak = withEntityAuth(checkinConfig, async (request, env): Pro
 		},
 	});
 
-	return jsonResponse(
+	return jsonNoStoreResponse(
 		{
 			userId,
 			streakDays,

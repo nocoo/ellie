@@ -7,7 +7,7 @@ import { withEntityAuth } from "../../lib/adminHelpers";
 import type { EntityConfig } from "../../lib/crud";
 import { createGetByIdHandler } from "../../lib/crud";
 import type { Env } from "../../lib/env";
-import { paginatedResponse } from "../../lib/response";
+import { paginatedNoStoreResponse } from "../../lib/response";
 
 import { errorResponse } from "../../middleware/error";
 
@@ -146,7 +146,7 @@ export const list = withEntityAuth(
 				.all(),
 		]);
 
-		return paginatedResponse(
+		return paginatedNoStoreResponse(
 			result.results.map((r) => toAdminLog(r as Record<string, unknown>)),
 			countResult?.total ?? 0,
 			page,

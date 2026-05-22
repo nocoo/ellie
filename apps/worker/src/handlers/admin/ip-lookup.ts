@@ -31,7 +31,7 @@
 // values are PII-adjacent geo/ASN data.
 
 import type { Env } from "../../lib/env";
-import { jsonResponse } from "../../lib/response";
+import { jsonNoStoreResponse } from "../../lib/response";
 import { errorResponse } from "../../middleware/error";
 
 /** Cache TTL for ip-lookup KV entries (24h). Mirrors KV registry spec. */
@@ -357,7 +357,7 @@ async function lookupHandler(
 	// Cache hit
 	const cached = await readCached(env, ip);
 	if (cached) {
-		return jsonResponse({ ...cached, cached: true }, origin);
+		return jsonNoStoreResponse({ ...cached, cached: true }, origin);
 	}
 
 	// Miss → upstream
@@ -387,7 +387,7 @@ async function lookupHandler(
 		ctx.waitUntil(putPromise);
 	}
 
-	return jsonResponse({ ...payload, cached: false }, origin);
+	return jsonNoStoreResponse({ ...payload, cached: false }, origin);
 }
 
 export const lookup = lookupHandler;

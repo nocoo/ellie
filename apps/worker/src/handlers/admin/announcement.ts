@@ -14,7 +14,7 @@ import {
 } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { parseIdFromPath } from "../../lib/parseId";
-import { paginatedResponse } from "../../lib/response";
+import { paginatedNoStoreResponse } from "../../lib/response";
 
 import { errorResponse } from "../../middleware/error";
 
@@ -292,7 +292,7 @@ export const list = withEntityAuth(
 				.all(),
 		]);
 
-		return paginatedResponse(
+		return paginatedNoStoreResponse(
 			result.results.map((r) => toAnnouncement(r as Record<string, unknown>)),
 			countResult?.total ?? 0,
 			page,

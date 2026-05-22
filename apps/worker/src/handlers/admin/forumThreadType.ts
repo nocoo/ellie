@@ -58,7 +58,7 @@ import {
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { parsePathSegment } from "../../lib/parseId";
-import { jsonResponse } from "../../lib/response";
+import { jsonNoStoreResponse } from "../../lib/response";
 import { errorResponse } from "../../middleware/error";
 
 // EntityConfig is only used as the auth wrapper key for `withEntityAuth`;
@@ -199,7 +199,7 @@ export const list = withEntityAuth(
 			.bind(forumId)
 			.all<ThreadTypeRow>();
 
-		return jsonResponse(
+		return jsonNoStoreResponse(
 			{
 				forumId,
 				config: {
@@ -424,7 +424,7 @@ export const create = withEntityAuth(
 			details: buildCreateAuditDetails(forumId, created),
 		});
 
-		return jsonResponse(rowToDto(created), origin, undefined, 201);
+		return jsonNoStoreResponse(rowToDto(created), origin, undefined, 201);
 	},
 );
 
@@ -597,7 +597,7 @@ export const update = withEntityAuth(
 		if (sets.length === 0) {
 			// No-op update: still return the row (matches PATCH semantics
 			// elsewhere in admin handlers).
-			return jsonResponse(rowToDto(existing), origin);
+			return jsonNoStoreResponse(rowToDto(existing), origin);
 		}
 
 		binds.push(id);
@@ -665,7 +665,7 @@ export const update = withEntityAuth(
 			},
 		});
 
-		return jsonResponse(rowToDto(finalRow), origin);
+		return jsonNoStoreResponse(rowToDto(finalRow), origin);
 	},
 );
 
@@ -730,7 +730,7 @@ export const remove = withEntityAuth(
 					threadCount: refs?.cnt ?? 0,
 				},
 			});
-			return jsonResponse(
+			return jsonNoStoreResponse(
 				{
 					deleted: false,
 					softDisabled: true,
@@ -759,7 +759,7 @@ export const remove = withEntityAuth(
 			},
 		});
 
-		return jsonResponse({ deleted: true, softDisabled: false, id }, origin);
+		return jsonNoStoreResponse({ deleted: true, softDisabled: false, id }, origin);
 	},
 );
 
@@ -875,7 +875,7 @@ export const reorder = withEntityAuth(
 			},
 		});
 
-		return jsonResponse({ updated: true, count: orderedIds.length }, origin);
+		return jsonNoStoreResponse({ updated: true, count: orderedIds.length }, origin);
 	},
 );
 
@@ -1056,7 +1056,7 @@ export const updateConfig = withEntityAuth(
 			},
 		});
 
-		return jsonResponse(
+		return jsonNoStoreResponse(
 			{
 				forumId,
 				config: afterCfg,

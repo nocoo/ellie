@@ -5,7 +5,7 @@
 import { errorResponse } from "../middleware/error";
 import type { Env } from "./env";
 import { parseIdFromPath } from "./parseId";
-import { jsonResponse, paginatedResponse } from "./response";
+import { jsonNoStoreResponse, paginatedNoStoreResponse } from "./response";
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -337,7 +337,7 @@ export function createListHandler(config: EntityConfig) {
 				.all();
 			const rows = result.results as Record<string, unknown>[];
 			const enriched = config.enrichListRows ? await config.enrichListRows(rows, env) : rows;
-			return jsonResponse(
+			return jsonNoStoreResponse(
 				enriched.map((r) => config.mapper(r)),
 				origin,
 			);
@@ -366,7 +366,7 @@ export function createListHandler(config: EntityConfig) {
 		const rows = result.results as Record<string, unknown>[];
 		const enriched = config.enrichListRows ? await config.enrichListRows(rows, env) : rows;
 
-		return paginatedResponse(
+		return paginatedNoStoreResponse(
 			enriched.map((r) => config.mapper(r)),
 			countResult?.total ?? 0,
 			page,
@@ -387,7 +387,7 @@ export function createGetByIdHandler(config: EntityConfig) {
 		const row = await fetchRow(env, config.table, config.columns, id);
 		if (!row) return errorResponse(config.notFoundCode ?? "NOT_FOUND", 404, undefined, origin);
 
-		return jsonResponse(config.mapper(row as Record<string, unknown>), origin);
+		return jsonNoStoreResponse(config.mapper(row as Record<string, unknown>), origin);
 	};
 }
 
@@ -423,7 +423,12 @@ export function createCreateHandler(config: EntityConfig) {
 		if (config.afterCreate && newId) await config.afterCreate(newId, data, env, origin);
 
 		const row = await fetchRow(env, config.table, config.columns, newId);
-		return jsonResponse(config.mapper(row as Record<string, unknown>), origin, undefined, 201);
+		return jsonNoStoreResponse(
+			config.mapper(row as Record<string, unknown>),
+			origin,
+			undefined,
+			201,
+		);
 	};
 }
 
@@ -467,7 +472,7 @@ export function createUpdateHandler(config: EntityConfig) {
 			await config.afterUpdate(id, data, existing as Record<string, unknown>, env, origin);
 
 		const row = await fetchRow(env, config.table, config.columns, id);
-		return jsonResponse(config.mapper(row as Record<string, unknown>), origin);
+		return jsonNoStoreResponse(config.mapper(row as Record<string, unknown>), origin);
 	};
 }
 
@@ -504,7 +509,7 @@ export function createRemoveHandler(config: EntityConfig) {
 		if (config.afterDelete)
 			await config.afterDelete(id, existing as Record<string, unknown>, env, origin);
 
-		return jsonResponse({ deleted: true, id }, origin);
+		return jsonNoStoreResponse({ deleted: true, id }, origin);
 	};
 }
 
@@ -584,6 +589,6 @@ export function createBatchDeleteHandler(config: EntityConfig) {
 		);
 		const count = results.reduce<number>((sum, n) => sum + n, 0);
 
-		return jsonResponse({ deleted: true, count }, origin);
+		return jsonNoStoreResponse({ deleted: true, count }, origin);
 	};
 }

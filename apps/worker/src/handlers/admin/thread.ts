@@ -18,7 +18,7 @@ import type { Env } from "../../lib/env";
 import { toThread } from "../../lib/mappers";
 import { parseIdFromPath } from "../../lib/parseId";
 import { recalcForumMetadata } from "../../lib/recalcMetadata";
-import { jsonResponse } from "../../lib/response";
+import { jsonNoStoreResponse } from "../../lib/response";
 import { batchDecrementUserPosts, decrementUserThreads } from "../../lib/userCounters";
 import { STICKY_FORUM, STICKY_GLOBAL } from "../../lib/visibility";
 
@@ -523,7 +523,7 @@ export const remove = withEntityAuth(
 			},
 		});
 
-		return jsonResponse({ deleted: true, id, postsDeleted }, origin);
+		return jsonNoStoreResponse({ deleted: true, id, postsDeleted }, origin);
 	},
 );
 
@@ -600,7 +600,7 @@ export const batchDelete = withEntityAuth(
 		).results;
 
 		if (threadRows.length === 0) {
-			return jsonResponse({ deleted: true, count: 0 }, origin);
+			return jsonNoStoreResponse({ deleted: true, count: 0 }, origin);
 		}
 
 		const existingIds = threadRows.map((t) => t.id);
@@ -680,7 +680,7 @@ export const batchDelete = withEntityAuth(
 		if (hadDigestBatch) tailOps.push(bumpDigestGen(env));
 		await Promise.all(tailOps);
 
-		return jsonResponse({ deleted: true, count: existingIds.length }, origin);
+		return jsonNoStoreResponse({ deleted: true, count: existingIds.length }, origin);
 	},
 );
 
@@ -755,13 +755,13 @@ export const batchMove = withEntityAuth(
 
 		const threadRows = threads.results as { id: number; forum_id: number; replies: number }[];
 		if (threadRows.length === 0) {
-			return jsonResponse({ moved: true, count: 0, forumId: targetForumId }, origin);
+			return jsonNoStoreResponse({ moved: true, count: 0, forumId: targetForumId }, origin);
 		}
 
 		// Filter out threads already in the target forum
 		const movable = threadRows.filter((t) => t.forum_id !== targetForumId);
 		if (movable.length === 0) {
-			return jsonResponse({ moved: true, count: 0, forumId: targetForumId }, origin);
+			return jsonNoStoreResponse({ moved: true, count: 0, forumId: targetForumId }, origin);
 		}
 
 		// Group by old forum for count adjustments
@@ -842,6 +842,9 @@ export const batchMove = withEntityAuth(
 			},
 		});
 
-		return jsonResponse({ moved: true, count: movable.length, forumId: targetForumId }, origin);
+		return jsonNoStoreResponse(
+			{ moved: true, count: movable.length, forumId: targetForumId },
+			origin,
+		);
 	},
 );
