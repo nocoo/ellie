@@ -267,4 +267,32 @@ describe("L2: Worker Moderation API", () => {
 			expect(res.status).toBe(403);
 		});
 	});
+
+	// ─── Forum-scoped moderation ───────────────────────────────────
+
+	describe("PATCH /api/v1/forums/:id/announcement", () => {
+		test("returns 401 without JWT", async () => {
+			// Moderator-only edit. Smoke covers the dispatcher → auth path;
+			// detailed permission semantics are owned by unit tests in
+			// apps/worker/tests/unit/handlers/forum.test.ts.
+			const res = await workerPatch("/api/v1/forums/1/announcement", {
+				announcement: "x",
+			});
+			expect(res.status).toBe(401);
+		});
+	});
+
+	describe("POST /api/v1/moderation/threads/:id/recommend", () => {
+		test("returns 401 without JWT", async () => {
+			const res = await workerPost("/api/v1/moderation/threads/1/recommend", {});
+			expect(res.status).toBe(401);
+		});
+	});
+
+	describe("DELETE /api/v1/moderation/threads/:id/recommend", () => {
+		test("returns 401 without JWT", async () => {
+			const res = await workerDelete("/api/v1/moderation/threads/1/recommend");
+			expect(res.status).toBe(401);
+		});
+	});
 });

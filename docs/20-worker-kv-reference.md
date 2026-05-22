@@ -425,9 +425,11 @@ reads or writes them yet.
     updates rows whose forum disagrees with their thread.
   - `lastBatchUpdated: number` — rows mutated in the most recent
     tick; used for the card's per-batch readout.
-  - `batchSize: number` — rows per tick; defaults to
-    `DEFAULT_BATCH_SIZE = 1000`, may be overridden per-kind via
-    `params.batchSize`.
+  - `batchSize: number` — rows per tick; payload reserves the field
+    so a ticker or future internal caller can override it via
+    `makeInitialPayload({batchSize})`. Currently shipped endpoints
+    do **not** read it from the request body — every public POST
+    initialises with `DEFAULT_BATCH_SIZE = 1000`.
   - `startedAt: number` / `lastTickAt: number` /
     `finishedAt: number | null` — epoch ms.
   - `leaseUntil: number | null` — non-null **only** while a single
