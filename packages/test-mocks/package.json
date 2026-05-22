@@ -1,6 +1,6 @@
 {
 	"name": "@ellie/test-mocks",
-	"version": "1.5.0",
+	"version": "1.6.0",
 	"description": "Mock repositories for unit testing only - not used in production",
 	"private": true,
 	"type": "module",

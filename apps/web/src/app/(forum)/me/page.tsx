@@ -43,7 +43,10 @@ export default async function MePage() {
 
 	const settings = await fetchPublicSettings();
 	const homeLabel = getStr(settings, "general.site.home_label", "同济网论坛");
-	const breadcrumbs = [{ label: homeLabel, href: "/", icon: "home" as const }, { label: "我的账号" }];
+	const breadcrumbs = [
+		{ label: homeLabel, href: "/", icon: "home" as const },
+		{ label: "我的账号" },
+	];
 
 	return (
 		<div className="flex flex-col gap-4">

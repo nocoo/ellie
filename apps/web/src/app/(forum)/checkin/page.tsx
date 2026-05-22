@@ -77,7 +77,10 @@ export default async function CheckinPage() {
 		);
 	}
 
-	const breadcrumbs = [{ label: homeLabel, href: "/", icon: "home" as const }, { label: "每日签到" }];
+	const breadcrumbs = [
+		{ label: homeLabel, href: "/", icon: "home" as const },
+		{ label: "每日签到" },
+	];
 
 	return (
 		<div className="flex flex-col gap-4">

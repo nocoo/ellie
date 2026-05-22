@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0] - 2026-05-22
+
+### Added
+
+- **Site branding configurable via settings**: logo (light/dark), footer background (light/dark), home label, and copyright years are now read from `general.site.*` KV settings with hardcoded defaults as fallback
+- **Admin brand settings form**: new fields in the 站点品牌 group (home_label, logo_light, logo_dark, footer_bg_light, footer_bg_dark, copyright_years) so admins can configure branding from the UI
+- **Admin statistics job-mode recalc (Phase A–F)**: KV-backed state machine for forums, threads, users, and post-forum-IDs recalculation with polling progress cards and lease-based concurrency
+
+### Fixed
+
+- **`general.site.home_label` wired end-to-end**: all breadcrumb callers (thread-list, thread-detail, new-thread, user-profile, messages, checkin, me, search, digest, verify-email) and the default header nav tab now follow the configured home label
+- **Auth page metadata fail-soft**: login/register `generateMetadata()` catches Worker failures and falls back to the default title instead of propagating errors
+
+### Removed
+
+- Dead `buildNewThreadBreadcrumbs` function (superseded by `buildNewThreadBreadcrumbsFromAncestors`)
+
 ## [1.5.0] - 2026-05-22
 
 ### Added

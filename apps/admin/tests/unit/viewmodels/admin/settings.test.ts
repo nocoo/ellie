@@ -18,7 +18,7 @@ describe("settings", () => {
 		it("站点品牌 group contains brand configuration fields", () => {
 			const brandGroup = SETTING_GROUPS.find((g) => g.prefix === "general.site");
 			expect(brandGroup).toBeDefined();
-			const keys = brandGroup!.fields.map((f) => f.key);
+			const keys = brandGroup?.fields.map((f) => f.key);
 			expect(keys).toContain("general.site.home_label");
 			expect(keys).toContain("general.site.logo_light");
 			expect(keys).toContain("general.site.logo_dark");
@@ -28,7 +28,8 @@ describe("settings", () => {
 		});
 
 		it("logo and background fields use url inputType", () => {
-			const brandGroup = SETTING_GROUPS.find((g) => g.prefix === "general.site")!;
+			const brandGroup = SETTING_GROUPS.find((g) => g.prefix === "general.site");
+			expect(brandGroup).toBeDefined();
 			const urlKeys = [
 				"general.site.logo_light",
 				"general.site.logo_dark",
@@ -36,7 +37,7 @@ describe("settings", () => {
 				"general.site.footer_bg_dark",
 			];
 			for (const key of urlKeys) {
-				const field = brandGroup.fields.find((f) => f.key === key);
+				const field = brandGroup?.fields.find((f) => f.key === key);
 				expect(field?.inputType).toBe("url");
 			}
 		});
