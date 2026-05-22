@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2026-05-22
+
+### Added
+
+- **CSRF `ALLOWED_ORIGINS` env var**: comma-separated extra origins can be added without code changes
+- **Recommended threads React cache**: `loadRecommendedThreads` wrapped with `cache()` to deduplicate within a single RSC render pass
+
+### Fixed
+
+- **Forum announcement not displaying**: tree cache now carries the `announcement` field so the forum list endpoint returns real content instead of always-empty string
+- **Announcement button size mismatch**: "添加公告" button uses default size matching "发表新帖"
+- **Recommended threads layout**: switched to 2-column grid (3 per column) with right-aligned metadata and proper text truncation
+- **Forum page section order**: sub-forums now appear above recommended threads
+
 ## [1.4.0] - 2026-05-21
 
 ### Added
