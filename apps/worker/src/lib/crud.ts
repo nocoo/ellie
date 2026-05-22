@@ -91,6 +91,18 @@ export interface EntityConfig {
 	notFoundCode?: string;
 
 	/**
+	 * Wrap the SELECT in a derived table so that WHERE/ORDER BY resolve column
+	 * names against SELECT-list aliases rather than physical table columns.
+	 *
+	 * Enable when `columns` contains correlated subqueries whose aliases
+	 * collide with physical column names (e.g. `(SELECT COUNT(*) …) AS threads`
+	 * vs the cached `users.threads` column). Without wrapping, SQLite's WHERE
+	 * binds to the physical column; with wrapping, the outer WHERE sees only
+	 * the aliased output of the inner SELECT.
+	 */
+	useSubqueryWrapper?: boolean;
+
+	/**
 	 * Optional list-only enrichment hook. Runs *after* the page query
 	 * (so it sees only the page's rows, never N×filter explosion) and
 	 * *before* `mapper`. Use to attach virtual columns assembled from
@@ -306,9 +318,20 @@ export function createListHandler(config: EntityConfig) {
 		const sort =
 			sortParam && config.allowedSorts?.[sortParam] ? config.allowedSorts[sortParam] : defaultSort;
 
+		// When useSubqueryWrapper is set, wrap the inner SELECT in a derived
+		// table so that WHERE/ORDER BY resolve column references against the
+		// SELECT-list aliases (e.g. correlated subquery outputs) rather than
+		// physical table columns. Without this, SQLite binds WHERE names to
+		// the base table's physical columns — which may be stale cached values
+		// that differ from the live-computed aliases in the SELECT list.
+		const fromClause = config.useSubqueryWrapper
+			? `(SELECT ${config.columns} FROM ${config.table}) AS _t`
+			: config.table;
+		const selectExpr = config.useSubqueryWrapper ? "*" : config.columns;
+
 		if (config.listPaginated === false) {
 			const result = await env.DB.prepare(
-				`SELECT ${config.columns} FROM ${config.table} ${whereClause} ORDER BY ${sort}`,
+				`SELECT ${selectExpr} FROM ${fromClause} ${whereClause} ORDER BY ${sort}`,
 			)
 				.bind(...params)
 				.all();
@@ -330,11 +353,11 @@ export function createListHandler(config: EntityConfig) {
 		}
 
 		const [countResult, result] = await Promise.all([
-			env.DB.prepare(`SELECT COUNT(*) as total FROM ${config.table} ${whereClause}`)
+			env.DB.prepare(`SELECT COUNT(*) as total FROM ${fromClause} ${whereClause}`)
 				.bind(...params)
 				.first<{ total: number }>(),
 			env.DB.prepare(
-				`SELECT ${config.columns} FROM ${config.table} ${whereClause} ORDER BY ${sort} LIMIT ? OFFSET ?`,
+				`SELECT ${selectExpr} FROM ${fromClause} ${whereClause} ORDER BY ${sort} LIMIT ? OFFSET ?`,
 			)
 				.bind(...params, limit, (page - 1) * limit)
 				.all(),
