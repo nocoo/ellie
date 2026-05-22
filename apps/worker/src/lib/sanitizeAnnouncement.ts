@@ -107,7 +107,7 @@ const NAMED_ENTITY_MAP: Record<string, string> = {
 	colon: ":",
 	sol: "/",
 	tab: "\t",
-	nbsp: " ",
+	nbsp: " ",
 };
 
 function decodeNumericEntity(lower: string): string | null {
@@ -127,13 +127,16 @@ function decodeNumericEntity(lower: string): string | null {
 	return null;
 }
 
-/** Decode a small set of numeric and named HTML entities for URL-attr
- * normalisation. We deliberately do NOT decode `<`/`>` because the
- * tokenizer needs raw angle brackets to detect tag boundaries. The goal
- * here is solely to defeat scheme confusables in attribute values
- * (`&#x6a;avascript:`, `&#106;avascript:`, `&colon;`).
+/** Decode a small set of numeric and named HTML entities so the
+ * sanitizer's output is canonical (not double-escaped). The same
+ * routine guards URL attributes against scheme confusables
+ * (`&#x6a;avascript:`, `&#106;avascript:`, `&colon;`) AND defeats the
+ * round-trip bug where legacy `&amp;` in href becomes `&amp;amp;` after
+ * re-escaping. We deliberately do NOT decode here for use during tag
+ * tokenisation — the tokenizer needs raw angle brackets to detect tag
+ * boundaries; decoding happens at the output stage instead.
  */
-function decodeAttrEntities(s: string): string {
+function decodeEntities(s: string): string {
 	return s.replace(/&(#x?[0-9a-f]+|[a-z]+);?/gi, (m, body: string) => {
 		const lower = body.toLowerCase();
 		const named = NAMED_ENTITY_MAP[lower];
@@ -161,7 +164,7 @@ function isSafeUrl(rawValue: string): boolean {
 	// Strip leading/trailing whitespace AND any C0 control chars first;
 	// browsers will, and `javascript:` would otherwise tunnel
 	// through. Decode entities so the scheme check sees the real string.
-	const decoded = stripControlCharsForUrl(decodeAttrEntities(rawValue));
+	const decoded = stripControlCharsForUrl(decodeEntities(rawValue));
 	const trimmed = decoded.trim();
 	if (trimmed === "") return false;
 	// Site-relative
@@ -262,8 +265,15 @@ function parseAttrs(inside: string): Attr[] {
 	return out;
 }
 
+// Output escape routines. We decode any HTML entities the input
+// already contained, then re-escape the structural specials. This
+// makes the sanitizer idempotent — running it twice on the same
+// content produces identical bytes — and stops legacy `&amp;` from
+// becoming `&amp;amp;` on every round-trip. Decoding is safe because
+// the tag tokenizer has already split structural `<`/`>` from text
+// content; only entity sequences remain to be normalised here.
 function escapeAttrValue(v: string): string {
-	return v
+	return decodeEntities(v)
 		.replace(/&/g, "&amp;")
 		.replace(/"/g, "&quot;")
 		.replace(/</g, "&lt;")
@@ -271,7 +281,7 @@ function escapeAttrValue(v: string): string {
 }
 
 function escapeText(t: string): string {
-	return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+	return decodeEntities(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 interface SanitizeStats {

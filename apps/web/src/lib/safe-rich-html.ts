@@ -81,7 +81,7 @@ const NAMED_ENTITY_MAP: Record<string, string> = {
 	colon: ":",
 	sol: "/",
 	tab: "\t",
-	nbsp: " ",
+	nbsp: " ",
 };
 
 function decodeNumericEntity(lower: string): string | null {
@@ -101,7 +101,7 @@ function decodeNumericEntity(lower: string): string | null {
 	return null;
 }
 
-function decodeAttrEntities(s: string): string {
+function decodeEntities(s: string): string {
 	return s.replace(/&(#x?[0-9a-f]+|[a-z]+);?/gi, (m, body: string) => {
 		const lower = body.toLowerCase();
 		const named = NAMED_ENTITY_MAP[lower];
@@ -123,7 +123,7 @@ function stripControlCharsForUrl(s: string): string {
 }
 
 function isSafeUrl(rawValue: string): boolean {
-	const decoded = stripControlCharsForUrl(decodeAttrEntities(rawValue));
+	const decoded = stripControlCharsForUrl(decodeEntities(rawValue));
 	const trimmed = decoded.trim();
 	if (trimmed === "") return false;
 	if (trimmed.startsWith("/") && !trimmed.startsWith("//")) return true;
@@ -209,8 +209,13 @@ function parseAttrs(inside: string): Attr[] {
 	return out;
 }
 
+// Output escape routines. We decode any HTML entities the input
+// already contained, then re-escape the structural specials. This
+// makes the sanitizer idempotent and stops legacy `&amp;` from
+// becoming `&amp;amp;` on every round-trip. Mirror of Worker
+// `sanitizeAnnouncement.ts:escapeAttrValue/escapeText`.
 function escapeAttrValue(v: string): string {
-	return v
+	return decodeEntities(v)
 		.replace(/&/g, "&amp;")
 		.replace(/"/g, "&quot;")
 		.replace(/</g, "&lt;")
@@ -218,7 +223,7 @@ function escapeAttrValue(v: string): string {
 }
 
 function escapeText(t: string): string {
-	return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+	return decodeEntities(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function isBannedAttr(name: string): boolean {
