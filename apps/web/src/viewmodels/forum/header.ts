@@ -60,6 +60,7 @@ export interface HeaderViewModel {
 	logoLight: string;
 	logoDark: string;
 	logoAlt: string;
+	homeLabel: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -145,5 +146,6 @@ export function buildHeaderViewModel(
 		),
 		logoDark: getStr(settings, "general.site.logo_dark", "https://t.no.mt/ellie/Logo-dark-2.png"),
 		logoAlt: getStr(settings, "general.site.name", "Ellie"),
+		homeLabel: getStr(settings, "general.site.home_label", "同济网论坛"),
 	};
 }

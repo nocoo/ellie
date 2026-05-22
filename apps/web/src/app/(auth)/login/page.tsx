@@ -1,9 +1,14 @@
 import { auth } from "@/auth";
+import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 import type { Metadata } from "next";
 import AlreadyLoggedIn from "./already-logged-in";
 import LoginForm from "./login-form";
 
-export const metadata: Metadata = { title: "登录 - 同济网论坛" };
+export async function generateMetadata(): Promise<Metadata> {
+	const settings = await fetchPublicSettings();
+	const homeLabel = getStr(settings, "general.site.home_label", "同济网论坛");
+	return { title: `登录 - ${homeLabel}` };
+}
 
 /** Server component — show "已登录" card when session exists, login form otherwise. */
 export default async function ForumLoginPage() {

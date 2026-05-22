@@ -5,7 +5,11 @@ import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import type { Forum } from "@ellie/types";
 import type { AncestorItem } from "./forum-data";
 
-const HOME: BreadcrumbItem = { label: "同济网论坛", href: "/", icon: "home" };
+const DEFAULT_HOME_LABEL = "同济网论坛";
+
+function makeHome(label: string = DEFAULT_HOME_LABEL): BreadcrumbItem {
+	return { label, href: "/", icon: "home" };
+}
 
 /** Map an array of {id, name} objects to linked breadcrumb items. */
 function forumCrumbs(items: { id: number; name: string }[]): BreadcrumbItem[] {
@@ -17,10 +21,11 @@ function forumCrumbs(items: { id: number; name: string }[]): BreadcrumbItem[] {
  * ancestors = [root, ..., parent, self] (from findForumAncestors).
  * → [首页, ...each ancestor with href, current forum without href]
  */
-export function buildForumBreadcrumbs(ancestors: Forum[]): BreadcrumbItem[] {
-	if (ancestors.length === 0) return [HOME];
+export function buildForumBreadcrumbs(ancestors: Forum[], homeLabel?: string): BreadcrumbItem[] {
+	const home = makeHome(homeLabel);
+	if (ancestors.length === 0) return [home];
 	const last = ancestors[ancestors.length - 1] as Forum;
-	return [HOME, ...forumCrumbs(ancestors.slice(0, -1)), { label: last.name }];
+	return [home, ...forumCrumbs(ancestors.slice(0, -1)), { label: last.name }];
 }
 
 /**
@@ -28,16 +33,20 @@ export function buildForumBreadcrumbs(ancestors: Forum[]): BreadcrumbItem[] {
  * ancestors = forum ancestor chain for thread.forumId.
  * → [首页, ...all forum ancestors with href, thread subject without href]
  */
-export function buildThreadBreadcrumbs(ancestors: Forum[], subject: string): BreadcrumbItem[] {
-	return [HOME, ...forumCrumbs(ancestors), { label: subject }];
+export function buildThreadBreadcrumbs(
+	ancestors: Forum[],
+	subject: string,
+	homeLabel?: string,
+): BreadcrumbItem[] {
+	return [makeHome(homeLabel), ...forumCrumbs(ancestors), { label: subject }];
 }
 
 /**
  * Build breadcrumbs for a user profile page.
  * → [首页, 用户, username]
  */
-export function buildUserBreadcrumbs(username: string): BreadcrumbItem[] {
-	return [HOME, { label: "用户" }, { label: username }];
+export function buildUserBreadcrumbs(username: string, homeLabel?: string): BreadcrumbItem[] {
+	return [makeHome(homeLabel), { label: "用户" }, { label: username }];
 }
 
 // ─── Ancestors-endpoint breadcrumb builders ────────────────────────
@@ -50,8 +59,9 @@ export function buildUserBreadcrumbs(username: string): BreadcrumbItem[] {
 export function buildForumBreadcrumbsFromAncestors(
 	ancestors: AncestorItem[],
 	forumName: string,
+	homeLabel?: string,
 ): BreadcrumbItem[] {
-	return [HOME, ...forumCrumbs(ancestors), { label: forumName }];
+	return [makeHome(homeLabel), ...forumCrumbs(ancestors), { label: forumName }];
 }
 
 /**
@@ -64,9 +74,10 @@ export function buildThreadBreadcrumbsFromAncestors(
 	forumId: number,
 	forumName: string,
 	subject: string,
+	homeLabel?: string,
 ): BreadcrumbItem[] {
 	return [
-		HOME,
+		makeHome(homeLabel),
 		...forumCrumbs(ancestors),
 		{ label: forumName, href: `/forums/${forumId}` },
 		{ label: subject },
@@ -82,9 +93,10 @@ export function buildNewThreadBreadcrumbsFromAncestors(
 	ancestors: AncestorItem[],
 	forumId: number,
 	forumName: string,
+	homeLabel?: string,
 ): BreadcrumbItem[] {
 	return [
-		HOME,
+		makeHome(homeLabel),
 		...forumCrumbs(ancestors),
 		{ label: forumName, href: `/forums/${forumId}` },
 		{ label: "发表主题" },

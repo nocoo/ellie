@@ -54,6 +54,7 @@ export interface GlobalFooterViewModel {
 	logoAlt: string;
 	bgLight: string;
 	bgDark: string;
+	homeLabel: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -123,5 +124,6 @@ export function buildGlobalFooterViewModel(settings: SettingsMap): GlobalFooterV
 			"general.site.footer_bg_dark",
 			"https://t.no.mt/ellie/Bg-shanghai-dark.png",
 		),
+		homeLabel: getStr(settings, "general.site.home_label", "同济网论坛"),
 	};
 }
