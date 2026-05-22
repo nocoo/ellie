@@ -41,8 +41,6 @@ const statsConfig: EntityConfig = {
 // batchSize is at the default 1000.
 const IN_CHUNK = 500;
 const BATCH_SIZE = 500;
-const POST_FORUM_FETCH_LIMIT = 5000;
-const POST_FORUM_MAX_ROWS = 50000;
 
 // ─── Shared utility — parse JSON body & route TickResult ─────────────────────
 
@@ -647,56 +645,160 @@ export const recalcUsers = withEntityAuth(
 );
 
 // ─── POST /api/admin/statistics/recalc-post-forums ──────────────────────────
-// Sync posts.forum_id to match their thread's current forum_id.
-// Processes in batches to stay within D1 CPU limits.
+// Sync posts.forum_id to match their thread's current forum_id. Job-mode
+// driver — one POST advances ONE batch of posts (cursor = posts.id ORDER
+// BY id LIMIT batchSize). Per reviewer msg=376c0bee (Phase D):
+//   - No more `POST_FORUM_MAX_ROWS=50000` hard cap; full sweep is driven
+//     by repeated POSTs until cursor reaches the last post.
+//   - No `WHERE p.forum_id != t.forum_id` JOIN inside the batch SELECT.
+//     Per tick we pull `(id, thread_id, forum_id)` for the next slab of
+//     posts, look up `threads.forum_id` for those threadIds via `IN (...)`
+//     in IN_CHUNK chunks, then compare in JS. Only mismatched posts are
+//     UPDATE-ed; cursor still advances by every post we SCANNED so the
+//     job terminates predictably.
+//   - No per-tick `remaining` COUNT join — the old handler ran an
+//     expensive `JOIN threads ON ...` at the end of every request. The
+//     job snapshot already carries `processed` (scanned) and `updated`
+//     (mismatched), which are what the card needs.
+//   - `processed` diverges from `updated`: `processed = posts scanned`
+//     (real walked count, matches cursor); `updated = mismatched posts
+//     actually written`. The card must surface both.
+//   - finalize bumps `forum:summary:gen` only when `updated > 0`. If the
+//     full sweep found no mismatches, no cache invalidation is needed.
+
+interface PostBatchRow {
+	id: number;
+	thread_id: number;
+	forum_id: number;
+}
+
+interface ThreadForumRow {
+	id: number;
+	forum_id: number;
+}
+
+async function fetchThreadForums(env: Env, threadIds: number[]): Promise<Map<number, number>> {
+	const map = new Map<number, number>();
+	for (const chunk of chunkIds(threadIds)) {
+		if (chunk.length === 0) continue;
+		const placeholders = chunk.map(() => "?").join(",");
+		const sql = `SELECT id, forum_id FROM threads WHERE id IN (${placeholders})`;
+		const result = await env.DB.prepare(sql)
+			.bind(...chunk)
+			.all();
+		for (const row of result.results as unknown as ThreadForumRow[]) {
+			map.set(row.id, row.forum_id);
+		}
+	}
+	return map;
+}
+
+export const postForumsTicker: StatsJobTicker = {
+	kind: "post-forums",
+	initialize: async (env) => {
+		// total = best-effort denominator for the progress bar. We use the
+		// full posts.COUNT(*) (every post the cursor will eventually
+		// walk), not the mismatched count — the new sweep advances
+		// `processed` per scanned post, not per mismatched post.
+		const row = await env.DB.prepare("SELECT COUNT(*) as cnt FROM posts").first<{
+			cnt: number;
+		}>();
+		const total = row?.cnt ?? 0;
+		return makeInitialPayload({ kind: "post-forums", total, params: {} });
+	},
+
+	advance: async (env, prev) => {
+		const batchSize = prev.batchSize;
+		const now = Date.now();
+
+		// (1) Page through posts by `id > cursor` — pull (id, thread_id,
+		//     forum_id) so we can decide mismatch in JS without a
+		//     batch-level JOIN.
+		const postsResult = await env.DB.prepare(
+			"SELECT id, thread_id, forum_id FROM posts WHERE id > ? ORDER BY id LIMIT ?",
+		)
+			.bind(prev.cursor, batchSize)
+			.all();
+		const batch = postsResult.results as unknown as PostBatchRow[];
+
+		// Empty batch = terminal. `processed` is the real scanned count,
+		// `total` renormalizes to processed on done (Phase C.1 contract).
+		if (batch.length === 0) {
+			return {
+				...prev,
+				status: "done",
+				total: prev.processed,
+				lastBatchUpdated: 0,
+				finishedAt: now,
+				lastTickAt: now,
+			};
+		}
+
+		// (2) Look up canonical forum_id per thread for this batch only.
+		const threadIds = Array.from(new Set(batch.map((p) => p.thread_id)));
+		const threadForumMap = await fetchThreadForums(env, threadIds);
+
+		// (3) Compute mismatches in JS — posts whose thread is missing
+		//     (orphaned) are skipped (no canonical forum to copy).
+		const mismatched: { id: number; forum_id: number }[] = [];
+		for (const post of batch) {
+			const canonical = threadForumMap.get(post.thread_id);
+			if (canonical === undefined) continue;
+			if (post.forum_id !== canonical) {
+				mismatched.push({ id: post.id, forum_id: canonical });
+			}
+		}
+
+		// (4) Batched UPDATE only for mismatched posts.
+		if (mismatched.length > 0) {
+			const statements = mismatched.map((row) =>
+				env.DB.prepare("UPDATE posts SET forum_id = ? WHERE id = ?").bind(row.forum_id, row.id),
+			);
+			for (let i = 0; i < statements.length; i += BATCH_SIZE) {
+				await env.DB.batch(statements.slice(i, i + BATCH_SIZE));
+			}
+		}
+
+		const nextCursor = batch[batch.length - 1]?.id ?? prev.cursor;
+		const newProcessed = prev.processed + batch.length;
+		const newUpdated = prev.updated + mismatched.length;
+		const isFinal = batch.length < batchSize;
+
+		return {
+			...prev,
+			cursor: nextCursor,
+			processed: newProcessed,
+			total: isFinal ? newProcessed : prev.total,
+			updated: newUpdated,
+			lastBatchUpdated: mismatched.length,
+			status: isFinal ? "done" : "running",
+			finishedAt: isFinal ? now : null,
+			lastTickAt: now,
+		};
+	},
+
+	finalize: async (env, payload) => {
+		// Cache invalidation (docs/19 §6 row "admin statistics
+		// recalc-post-forums"): bump forum:summary:gen ONLY when the
+		// sweep actually corrected at least one post. A full sweep that
+		// found nothing wrong has no side effects — skip the bump so
+		// healthy systems don't churn the summary cache every nightly run.
+		if (payload.updated > 0) {
+			await bumpForumSummaryGen(env);
+		}
+	},
+};
 
 export const recalcPostForumIds = withEntityAuth(
 	statsConfig,
 	async (request: Request, env: Env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
-
-		let totalUpdated = 0;
-
-		while (totalUpdated < POST_FORUM_MAX_ROWS) {
-			const mismatched = await env.DB.prepare(`
-				SELECT p.id, t.forum_id
-				FROM posts p
-				JOIN threads t ON t.id = p.thread_id
-				WHERE p.forum_id != t.forum_id
-				LIMIT ?
-			`)
-				.bind(POST_FORUM_FETCH_LIMIT)
-				.all();
-
-			const rows = mismatched.results as Array<{ id: number; forum_id: number }>;
-			if (rows.length === 0) break;
-
-			for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-				const chunk = rows.slice(i, i + BATCH_SIZE);
-				const statements = chunk.map((row) =>
-					env.DB.prepare("UPDATE posts SET forum_id = ? WHERE id = ?").bind(row.forum_id, row.id),
-				);
-				await env.DB.batch(statements);
-			}
-
-			totalUpdated += rows.length;
-
-			if (rows.length < POST_FORUM_FETCH_LIMIT) break;
+		const body = await readJsonBody(request);
+		if (body === null) {
+			return errorResponse("INVALID_BODY", 400, undefined, origin);
 		}
-
-		const remainingResult = await env.DB.prepare(`
-			SELECT COUNT(*) as cnt
-			FROM posts p
-			JOIN threads t ON t.id = p.thread_id
-			WHERE p.forum_id != t.forum_id
-		`).first<{ cnt: number }>();
-		const remaining = remainingResult?.cnt ?? 0;
-
-		if (totalUpdated > 0) {
-			await bumpForumSummaryGen(env);
-		}
-
-		return jsonNoStoreResponse({ updated: totalUpdated, remaining }, origin);
+		const result = await tickJob(env, postForumsTicker, body);
+		return tickResultToResponse(result, origin);
 	},
 );
 
