@@ -259,65 +259,76 @@ export function createMockDb(config?: {
 	const calls: { sql: string; params: unknown[] }[] = [];
 	const batchCalls: unknown[][] = [];
 
+	// Two-pass substring match so `"SELECT * FROM <table>"` keys keep working
+	// after handlers migrated to explicit-column selects (live-COUNT subqueries
+	// on admin forums/threads/users). Pass 1: direct `sql.includes(key)` for the
+	// exact key. Pass 2: if the key starts with `SELECT * `, also try
+	// `sql.includes(key.slice("SELECT * ".length))` so tests can keep using the
+	// generic key for both `SELECT *` and explicit-column variants of the same
+	// table read. Direct matches always win; the fallback only fires when no
+	// direct match is found, preserving the more-specific `SELECT id FROM ...`
+	// merge target lookup.
+	function matchFirst(sql: string): unknown {
+		if (!config?.firstResults) return null;
+		for (const [key, val] of Object.entries(config.firstResults)) {
+			if (sql.includes(key)) return val;
+		}
+		for (const [key, val] of Object.entries(config.firstResults)) {
+			if (key.startsWith("SELECT * ") && sql.includes(key.slice("SELECT * ".length))) {
+				return val;
+			}
+		}
+		return null;
+	}
+	function matchAll(sql: string): unknown[] | null {
+		if (!config?.allResults) return null;
+		for (const [key, val] of Object.entries(config.allResults)) {
+			if (sql.includes(key)) return val;
+		}
+		for (const [key, val] of Object.entries(config.allResults)) {
+			if (key.startsWith("SELECT * ") && sql.includes(key.slice("SELECT * ".length))) {
+				return val;
+			}
+		}
+		return null;
+	}
+	function matchRun(sql: string): unknown {
+		if (!config?.runResults) return null;
+		for (const [key, val] of Object.entries(config.runResults)) {
+			if (sql.includes(key)) return val;
+		}
+		return null;
+	}
+
 	const db = {
 		prepare: vi.fn((sql: string) => {
 			return {
 				bind: vi.fn((...params: unknown[]) => {
 					calls.push({ sql, params });
 					return {
-						first: vi.fn(async () => {
-							if (config?.firstResults) {
-								for (const [key, val] of Object.entries(config.firstResults)) {
-									if (sql.includes(key)) return val;
-								}
-							}
-							return null;
-						}),
+						first: vi.fn(async () => matchFirst(sql)),
 						all: vi.fn(async () => {
-							if (config?.allResults) {
-								for (const [key, val] of Object.entries(config.allResults)) {
-									if (sql.includes(key)) return { results: val };
-								}
-							}
-							return { results: [] };
+							const r = matchAll(sql);
+							return { results: r ?? [] };
 						}),
 						run: vi.fn(async () => {
-							if (config?.runResults) {
-								for (const [key, val] of Object.entries(config.runResults)) {
-									if (sql.includes(key)) return val;
-								}
-							}
-							return { success: true, meta: { last_row_id: 1, changes: 1 } };
+							return matchRun(sql) ?? { success: true, meta: { last_row_id: 1, changes: 1 } };
 						}),
 					};
 				}),
 				// Also support parameterless calls
 				first: vi.fn(async () => {
 					calls.push({ sql, params: [] });
-					if (config?.firstResults) {
-						for (const [key, val] of Object.entries(config.firstResults)) {
-							if (sql.includes(key)) return val;
-						}
-					}
-					return null;
+					return matchFirst(sql);
 				}),
 				all: vi.fn(async () => {
 					calls.push({ sql, params: [] });
-					if (config?.allResults) {
-						for (const [key, val] of Object.entries(config.allResults)) {
-							if (sql.includes(key)) return { results: val };
-						}
-					}
-					return { results: [] };
+					const r = matchAll(sql);
+					return { results: r ?? [] };
 				}),
 				run: vi.fn(async () => {
 					calls.push({ sql, params: [] });
-					if (config?.runResults) {
-						for (const [key, val] of Object.entries(config.runResults)) {
-							if (sql.includes(key)) return val;
-						}
-					}
-					return { success: true, meta: { last_row_id: 1, changes: 1 } };
+					return matchRun(sql) ?? { success: true, meta: { last_row_id: 1, changes: 1 } };
 				}),
 			} as unknown as D1PreparedStatement;
 		}),

@@ -51,11 +51,49 @@ function validateStatus(value: unknown): string | null {
 
 // ─── Entity config ───────────────────────────────────────────────
 
+// Admin reads must reflect ground truth, not the denormalized counter columns
+// on `forums`. Those can drift whenever something writes to `threads`/`posts`
+// without going through the admin merge/delete pipelines that maintain
+// `forums.threads`/`forums.posts` (e.g. ad-hoc SQL repair, bulk reassignment).
+// We replace the cached counter columns with correlated subqueries so the
+// admin console always shows the live row counts. `last_thread_id`,
+// `last_post_at`, `last_poster`, `last_poster_id`, `last_thread_subject` come
+// from a correlated SELECT that picks the most recently active visible thread,
+// mirroring `recalcForumMetadata`.
+//
+// The public forum tree cache (`forum:tree:v2`) keeps reading the cached
+// columns — public reads stay hot. This change is admin-only.
+const FORUM_LIVE_SELECT = [
+	"id",
+	"parent_id",
+	"name",
+	"description",
+	"announcement",
+	"icon",
+	"display_order",
+	"(SELECT COUNT(*) FROM threads t WHERE t.forum_id = forums.id) AS threads",
+	"(SELECT COUNT(*) FROM posts p WHERE p.forum_id = forums.id) AS posts",
+	"type",
+	"status",
+	"(SELECT t.id FROM threads t WHERE t.forum_id = forums.id AND t.sticky >= 0 ORDER BY t.last_post_at DESC LIMIT 1) AS last_thread_id",
+	"(SELECT t.last_post_at FROM threads t WHERE t.forum_id = forums.id AND t.sticky >= 0 ORDER BY t.last_post_at DESC LIMIT 1) AS last_post_at",
+	"(SELECT t.last_poster FROM threads t WHERE t.forum_id = forums.id AND t.sticky >= 0 ORDER BY t.last_post_at DESC LIMIT 1) AS last_poster",
+	"(SELECT t.last_poster_id FROM threads t WHERE t.forum_id = forums.id AND t.sticky >= 0 ORDER BY t.last_post_at DESC LIMIT 1) AS last_poster_id",
+	"(SELECT t.subject FROM threads t WHERE t.forum_id = forums.id AND t.sticky >= 0 ORDER BY t.last_post_at DESC LIMIT 1) AS last_thread_subject",
+	"moderators",
+	"moderator_ids",
+	"visibility",
+	"thread_types_enabled",
+	"thread_types_required",
+	"thread_types_listable",
+	"thread_types_prefix",
+].join(", ");
+
 const forumConfig: EntityConfig = {
 	table: "forums",
 	entityName: "FORUM",
 	auth: "admin",
-	columns: "*",
+	columns: FORUM_LIVE_SELECT,
 	mapper: toForum,
 	listPaginated: false,
 	listSort: "parent_id, display_order",
