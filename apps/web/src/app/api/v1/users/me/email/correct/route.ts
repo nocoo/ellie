@@ -10,8 +10,9 @@
 // throttled by the one-shot guard — a caller can flip the address at most
 // once per account before re-verifying.
 
+import { extractClientIp } from "@/lib/client-ip";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
-import { ForumApiError, forumApi } from "@/lib/forum-api";
+import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
 import { NextResponse } from "next/server";
@@ -43,12 +44,21 @@ export async function POST(request: Request) {
 	}
 
 	try {
+		const client: ClientContext = {
+			ip: extractClientIp(request) || undefined,
+			userAgent: request.headers.get("User-Agent") || undefined,
+		};
 		const raw = (await request.json()) as Partial<Record<string, unknown>>;
 		// Project explicitly — never spread. The Worker only consumes `email`;
 		// drop everything else here so a future client field addition cannot
 		// accidentally leak through.
 		const body = { email: raw.email as string };
-		const result = await forumApi.postAuth<unknown>("/api/v1/users/me/email/correct", body, jwt);
+		const result = await forumApi.postAuth<unknown>(
+			"/api/v1/users/me/email/correct",
+			body,
+			jwt,
+			client,
+		);
 		return NextResponse.json(result);
 	} catch (err) {
 		if (err instanceof ForumApiError) {

@@ -59,6 +59,12 @@ vi.mock("@/lib/csrf", async () => {
 	};
 });
 
+vi.mock("@/lib/client-ip", () => ({
+	extractClientIp: () => "",
+}));
+
+const emptyClient = { ip: undefined, userAgent: undefined };
+
 beforeEach(() => {
 	getMock.mockReset();
 	getAuthMock.mockReset();
@@ -274,7 +280,7 @@ describe("auth", () => {
 		const handler = proxyRoute<Record<string, never>>({ method: "GET", path: () => "/me" });
 		const res = await handler(makeRequest("https://web.example.com/api/v1/me"), paramsFor({}));
 		expect(res.status).toBe(200);
-		expect(getAuthMock).toHaveBeenCalledWith("/me", "jwt-abc", undefined);
+		expect(getAuthMock).toHaveBeenCalledWith("/me", "jwt-abc", undefined, emptyClient);
 	});
 });
 
@@ -299,7 +305,7 @@ describe("body strategies", () => {
 			paramsFor({}),
 		);
 		expect(res.status).toBe(200);
-		expect(postAuthMock).toHaveBeenCalledWith("/threads", { title: "hello" }, "jwt-x");
+		expect(postAuthMock).toHaveBeenCalledWith("/threads", { title: "hello" }, "jwt-x", emptyClient);
 	});
 
 	it('"json" reads request.json() and forwards on PATCH', async () => {
@@ -318,7 +324,12 @@ describe("body strategies", () => {
 			paramsFor({ id: "42" }),
 		);
 		expect(res.status).toBe(200);
-		expect(patchAuthMock).toHaveBeenCalledWith("/threads/42", { title: "renamed" }, "jwt-x");
+		expect(patchAuthMock).toHaveBeenCalledWith(
+			"/threads/42",
+			{ title: "renamed" },
+			"jwt-x",
+			emptyClient,
+		);
 	});
 
 	it('"empty" forwards {} as body on POST without reading request', async () => {
@@ -338,7 +349,7 @@ describe("body strategies", () => {
 			paramsFor({}),
 		);
 		expect(res.status).toBe(200);
-		expect(postAuthMock).toHaveBeenCalledWith("/checkin", {}, "jwt-x");
+		expect(postAuthMock).toHaveBeenCalledWith("/checkin", {}, "jwt-x", emptyClient);
 	});
 
 	it('"empty" forwards {} as body on DELETE', async () => {
@@ -357,7 +368,7 @@ describe("body strategies", () => {
 			paramsFor({ id: "9" }),
 		);
 		expect(res.status).toBe(200);
-		expect(deleteAuthMock).toHaveBeenCalledWith("/threads/9", {}, "jwt-x");
+		expect(deleteAuthMock).toHaveBeenCalledWith("/threads/9", {}, "jwt-x", emptyClient);
 	});
 
 	it("returns 400 BAD_REQUEST when JSON body is invalid", async () => {
@@ -396,7 +407,12 @@ describe("query strategies", () => {
 			makeRequest("https://web.example.com/api/v1/threads?cursor=abc&limit=20"),
 			paramsFor({}),
 		);
-		expect(getAuthMock).toHaveBeenCalledWith("/threads", "jwt-x", { cursor: "abc", limit: "20" });
+		expect(getAuthMock).toHaveBeenCalledWith(
+			"/threads",
+			"jwt-x",
+			{ cursor: "abc", limit: "20" },
+			emptyClient,
+		);
 	});
 
 	it("passes undefined when search is empty", async () => {
@@ -404,7 +420,7 @@ describe("query strategies", () => {
 		getAuthMock.mockResolvedValue({ list: [] });
 		const handler = proxyRoute<Record<string, never>>({ method: "GET", path: () => "/threads" });
 		await handler(makeRequest("https://web.example.com/api/v1/threads"), paramsFor({}));
-		expect(getAuthMock).toHaveBeenCalledWith("/threads", "jwt-x", undefined);
+		expect(getAuthMock).toHaveBeenCalledWith("/threads", "jwt-x", undefined, emptyClient);
 	});
 
 	it("allowlist mode picks only the listed keys", async () => {
@@ -419,7 +435,7 @@ describe("query strategies", () => {
 			makeRequest("https://web.example.com/api/v1/threads?cursor=abc&limit=20&secret=oops"),
 			paramsFor({}),
 		);
-		expect(getAuthMock).toHaveBeenCalledWith("/threads", "jwt-x", { cursor: "abc" });
+		expect(getAuthMock).toHaveBeenCalledWith("/threads", "jwt-x", { cursor: "abc" }, emptyClient);
 	});
 
 	it('"none" skips query forwarding even when searchParams are present', async () => {
@@ -431,7 +447,7 @@ describe("query strategies", () => {
 			query: "none",
 		});
 		await handler(makeRequest("https://web.example.com/api/v1/threads?cursor=abc"), paramsFor({}));
-		expect(getAuthMock).toHaveBeenCalledWith("/threads", "jwt-x", undefined);
+		expect(getAuthMock).toHaveBeenCalledWith("/threads", "jwt-x", undefined, emptyClient);
 	});
 });
 

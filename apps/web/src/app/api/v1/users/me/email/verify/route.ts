@@ -5,8 +5,9 @@
 // was already burned at request-code time). docs/17 §5.4 flat payload is
 // forwarded verbatim via `forumApiErrorToProxyResponse`.
 
+import { extractClientIp } from "@/lib/client-ip";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
-import { ForumApiError, forumApi } from "@/lib/forum-api";
+import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
 import type { EmailVerifyCodeBody } from "@ellie/types";
@@ -39,6 +40,10 @@ export async function POST(request: Request) {
 	}
 
 	try {
+		const client: ClientContext = {
+			ip: extractClientIp(request) || undefined,
+			userAgent: request.headers.get("User-Agent") || undefined,
+		};
 		const raw = (await request.json()) as Partial<Record<string, unknown>>;
 		// Explicitly project to `EmailVerifyCodeBody` — never spread the raw
 		// body. The verify step is captcha-free per docs/17 §7.3; if a caller
@@ -49,7 +54,12 @@ export async function POST(request: Request) {
 			email: raw.email as string,
 			code: raw.code as string,
 		};
-		const result = await forumApi.postAuth<unknown>("/api/v1/users/me/email/verify", body, jwt);
+		const result = await forumApi.postAuth<unknown>(
+			"/api/v1/users/me/email/verify",
+			body,
+			jwt,
+			client,
+		);
 		return NextResponse.json(result);
 	} catch (err) {
 		if (err instanceof ForumApiError) {

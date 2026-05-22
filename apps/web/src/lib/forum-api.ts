@@ -90,6 +90,14 @@ export interface PagePaginatedResponse<T> {
 // Core request function
 // ---------------------------------------------------------------------------
 
+/** Client context forwarded by BFF proxy routes so the Worker sees the real user. */
+export interface ClientContext {
+	/** Client IP forwarded as X-Real-IP */
+	ip?: string;
+	/** Client User-Agent forwarded as X-Real-User-Agent */
+	userAgent?: string;
+}
+
 interface RequestOptions {
 	method: string;
 	path: string;
@@ -98,6 +106,27 @@ interface RequestOptions {
 	bearerToken?: string;
 	/** Client IP to forward to Worker for rate limiting (X-Real-IP header) */
 	clientIP?: string;
+	/** Client User-Agent to forward as X-Real-User-Agent */
+	clientUA?: string;
+}
+
+function buildHeaders(opts: RequestOptions): Record<string, string> {
+	const headers: Record<string, string> = {
+		"X-API-Key": getApiKey(),
+	};
+	if (opts.bearerToken) {
+		headers.Authorization = `Bearer ${opts.bearerToken}`;
+	}
+	if (opts.clientIP) {
+		headers["X-Real-IP"] = opts.clientIP;
+	}
+	if (opts.clientUA) {
+		headers["X-Real-User-Agent"] = opts.clientUA;
+	}
+	if (opts.body !== undefined) {
+		headers["Content-Type"] = "application/json";
+	}
+	return headers;
 }
 
 async function request<T>(
@@ -113,22 +142,7 @@ async function request<T>(
 		}
 	}
 
-	const headers: Record<string, string> = {
-		"X-API-Key": getApiKey(),
-	};
-
-	if (opts.bearerToken) {
-		headers.Authorization = `Bearer ${opts.bearerToken}`;
-	}
-
-	// Forward client IP for rate limiting (Worker uses X-Real-IP as fallback)
-	if (opts.clientIP) {
-		headers["X-Real-IP"] = opts.clientIP;
-	}
-
-	if (opts.body !== undefined) {
-		headers["Content-Type"] = "application/json";
-	}
+	const headers = buildHeaders(opts);
 
 	const res = await fetch(url.toString(), {
 		method: opts.method,
@@ -235,8 +249,16 @@ export const forumApi = {
 		path: string,
 		bearerToken: string,
 		searchParams?: Record<string, string | number | boolean | undefined | null>,
+		client?: ClientContext,
 	): Promise<ApiResponse<T>> {
-		const result = await request<T>({ method: "GET", path, searchParams, bearerToken });
+		const result = await request<T>({
+			method: "GET",
+			path,
+			searchParams,
+			bearerToken,
+			clientIP: client?.ip,
+			clientUA: client?.userAgent,
+		});
 		return { data: result.data, meta: result.meta as ApiMeta };
 	},
 
@@ -247,8 +269,13 @@ export const forumApi = {
 	},
 
 	/** POST with client IP forwarding (for rate-limited endpoints like login/register) */
-	async postWithIP<T>(path: string, body: unknown, clientIP: string): Promise<ApiResponse<T>> {
-		const result = await request<T>({ method: "POST", path, body, clientIP });
+	async postWithIP<T>(
+		path: string,
+		body: unknown,
+		clientIP: string,
+		clientUA?: string,
+	): Promise<ApiResponse<T>> {
+		const result = await request<T>({ method: "POST", path, body, clientIP, clientUA });
 		return { data: result.data, meta: result.meta as ApiMeta };
 	},
 
@@ -257,26 +284,63 @@ export const forumApi = {
 		path: string,
 		searchParams: Record<string, string | number | boolean | undefined | null>,
 		clientIP: string,
+		clientUA?: string,
 	): Promise<ApiResponse<T>> {
-		const result = await request<T>({ method: "GET", path, searchParams, clientIP });
+		const result = await request<T>({ method: "GET", path, searchParams, clientIP, clientUA });
 		return { data: result.data, meta: result.meta as ApiMeta };
 	},
 
 	/** POST with Bearer token (authenticated Worker API call) */
-	async postAuth<T>(path: string, body: unknown, bearerToken: string): Promise<ApiResponse<T>> {
-		const result = await request<T>({ method: "POST", path, body, bearerToken });
+	async postAuth<T>(
+		path: string,
+		body: unknown,
+		bearerToken: string,
+		client?: ClientContext,
+	): Promise<ApiResponse<T>> {
+		const result = await request<T>({
+			method: "POST",
+			path,
+			body,
+			bearerToken,
+			clientIP: client?.ip,
+			clientUA: client?.userAgent,
+		});
 		return { data: result.data, meta: result.meta as ApiMeta };
 	},
 
 	/** PATCH with Bearer token (authenticated Worker API call) */
-	async patchAuth<T>(path: string, body: unknown, bearerToken: string): Promise<ApiResponse<T>> {
-		const result = await request<T>({ method: "PATCH", path, body, bearerToken });
+	async patchAuth<T>(
+		path: string,
+		body: unknown,
+		bearerToken: string,
+		client?: ClientContext,
+	): Promise<ApiResponse<T>> {
+		const result = await request<T>({
+			method: "PATCH",
+			path,
+			body,
+			bearerToken,
+			clientIP: client?.ip,
+			clientUA: client?.userAgent,
+		});
 		return { data: result.data, meta: result.meta as ApiMeta };
 	},
 
 	/** DELETE with Bearer token (authenticated Worker API call) */
-	async deleteAuth<T>(path: string, body: unknown, bearerToken: string): Promise<ApiResponse<T>> {
-		const result = await request<T>({ method: "DELETE", path, body, bearerToken });
+	async deleteAuth<T>(
+		path: string,
+		body: unknown,
+		bearerToken: string,
+		client?: ClientContext,
+	): Promise<ApiResponse<T>> {
+		const result = await request<T>({
+			method: "DELETE",
+			path,
+			body,
+			bearerToken,
+			clientIP: client?.ip,
+			clientUA: client?.userAgent,
+		});
 		return { data: result.data, meta: result.meta as ApiMeta };
 	},
 };

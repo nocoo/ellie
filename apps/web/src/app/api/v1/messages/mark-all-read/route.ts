@@ -1,5 +1,6 @@
+import { extractClientIp } from "@/lib/client-ip";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
-import { ForumApiError, forumApi } from "@/lib/forum-api";
+import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 // Proxy route: POST /api/v1/messages/mark-all-read
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
@@ -32,7 +33,16 @@ export async function POST(request: Request) {
 	}
 
 	try {
-		const result = await forumApi.postAuth<unknown>("/api/v1/messages/mark-all-read", {}, jwt);
+		const client: ClientContext = {
+			ip: extractClientIp(request) || undefined,
+			userAgent: request.headers.get("User-Agent") || undefined,
+		};
+		const result = await forumApi.postAuth<unknown>(
+			"/api/v1/messages/mark-all-read",
+			{},
+			jwt,
+			client,
+		);
 		return NextResponse.json(result);
 	} catch (err) {
 		if (err instanceof ForumApiError) {

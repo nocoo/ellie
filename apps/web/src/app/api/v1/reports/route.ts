@@ -1,6 +1,7 @@
 // Proxy route: POST /api/v1/reports
+import { extractClientIp } from "@/lib/client-ip";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
-import { ForumApiError, forumApi } from "@/lib/forum-api";
+import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
 import { NextResponse } from "next/server";
@@ -33,8 +34,12 @@ export async function POST(request: Request) {
 	}
 
 	try {
+		const client: ClientContext = {
+			ip: extractClientIp(request) || undefined,
+			userAgent: request.headers.get("User-Agent") || undefined,
+		};
 		const body = await request.json();
-		const result = await forumApi.postAuth<unknown>("/api/v1/reports", body, jwt);
+		const result = await forumApi.postAuth<unknown>("/api/v1/reports", body, jwt, client);
 		return NextResponse.json(result, { status: 201 });
 	} catch (err) {
 		if (err instanceof ForumApiError) {

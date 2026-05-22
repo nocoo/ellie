@@ -1,11 +1,12 @@
+import { extractClientIp } from "@/lib/client-ip";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
-import { ForumApiError, forumApi } from "@/lib/forum-api";
+import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 // Proxy route: GET/DELETE /api/v1/messages/:id
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
 import { NextResponse } from "next/server";
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
 	const jwt = await getWorkerJwt();
 	if (!jwt) {
 		return NextResponse.json(
@@ -14,9 +15,19 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 		);
 	}
 
+	const client: ClientContext = {
+		ip: extractClientIp(request) || undefined,
+		userAgent: request.headers.get("User-Agent") || undefined,
+	};
+
 	try {
 		const { id } = await params;
-		const result = await forumApi.getAuth<unknown>(`/api/v1/messages/${id}`, jwt);
+		const result = await forumApi.getAuth<unknown>(
+			`/api/v1/messages/${id}`,
+			jwt,
+			undefined,
+			client,
+		);
 		return NextResponse.json(result);
 	} catch (err) {
 		if (err instanceof ForumApiError) {
@@ -46,9 +57,19 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 		);
 	}
 
+	const client: ClientContext = {
+		ip: extractClientIp(request) || undefined,
+		userAgent: request.headers.get("User-Agent") || undefined,
+	};
+
 	try {
 		const { id } = await params;
-		const result = await forumApi.deleteAuth<unknown>(`/api/v1/messages/${id}`, undefined, jwt);
+		const result = await forumApi.deleteAuth<unknown>(
+			`/api/v1/messages/${id}`,
+			undefined,
+			jwt,
+			client,
+		);
 		return NextResponse.json(result);
 	} catch (err) {
 		if (err instanceof ForumApiError) {

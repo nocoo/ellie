@@ -6,12 +6,13 @@
  * admins/mods can see IP fields.
  */
 
-import { forumApi } from "@/lib/forum-api";
+import { extractClientIp } from "@/lib/client-ip";
+import { type ClientContext, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import type { PublicUser } from "@ellie/types";
 import { NextResponse } from "next/server";
 
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
 	const { id } = await context.params;
 	const userId = Number.parseInt(id, 10);
 
@@ -22,11 +23,16 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 		);
 	}
 
+	const client: ClientContext = {
+		ip: extractClientIp(request) || undefined,
+		userAgent: request.headers.get("User-Agent") || undefined,
+	};
+
 	try {
 		// Try to get JWT for authenticated requests (admins see IP fields)
 		const jwt = await getWorkerJwt();
 		const result = jwt
-			? await forumApi.getAuth<PublicUser>(`/api/v1/users/${userId}`, jwt)
+			? await forumApi.getAuth<PublicUser>(`/api/v1/users/${userId}`, jwt, undefined, client)
 			: await forumApi.get<PublicUser>(`/api/v1/users/${userId}`);
 		return NextResponse.json({ data: result.data, meta: result.meta });
 	} catch (err) {

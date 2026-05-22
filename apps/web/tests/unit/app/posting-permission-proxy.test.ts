@@ -19,6 +19,12 @@ vi.mock("@/lib/forum-auth", () => ({
 	getWorkerJwt: () => getWorkerJwtMock(),
 }));
 
+vi.mock("@/lib/client-ip", () => ({
+	extractClientIp: () => "",
+}));
+
+const emptyClient = { ip: undefined, userAgent: undefined };
+
 // ─── Setup ───────────────────────────────────────────────────────
 
 beforeEach(() => {
@@ -59,9 +65,14 @@ describe("GET /api/v1/posting-permission proxy route", () => {
 		const req = new Request("https://localhost/api/v1/posting-permission?action=thread");
 		const res = await GET(req);
 		expect(res.status).toBe(200);
-		expect(getAuthMock).toHaveBeenCalledWith("/api/v1/posting-permission", "test-jwt", {
-			action: "thread",
-		});
+		expect(getAuthMock).toHaveBeenCalledWith(
+			"/api/v1/posting-permission",
+			"test-jwt",
+			{
+				action: "thread",
+			},
+			emptyClient,
+		);
 	});
 
 	it("forwards ?action=reply to Worker via searchParams", async () => {
@@ -71,9 +82,14 @@ describe("GET /api/v1/posting-permission proxy route", () => {
 		const req = new Request("https://localhost/api/v1/posting-permission?action=reply");
 		const res = await GET(req);
 		expect(res.status).toBe(200);
-		expect(getAuthMock).toHaveBeenCalledWith("/api/v1/posting-permission", "test-jwt", {
-			action: "reply",
-		});
+		expect(getAuthMock).toHaveBeenCalledWith(
+			"/api/v1/posting-permission",
+			"test-jwt",
+			{
+				action: "reply",
+			},
+			emptyClient,
+		);
 	});
 
 	it("omits searchParams when no action is provided", async () => {
@@ -83,7 +99,12 @@ describe("GET /api/v1/posting-permission proxy route", () => {
 		const req = new Request("https://localhost/api/v1/posting-permission");
 		const res = await GET(req);
 		expect(res.status).toBe(200);
-		expect(getAuthMock).toHaveBeenCalledWith("/api/v1/posting-permission", "test-jwt", undefined);
+		expect(getAuthMock).toHaveBeenCalledWith(
+			"/api/v1/posting-permission",
+			"test-jwt",
+			undefined,
+			emptyClient,
+		);
 	});
 
 	it("returns ForumApiError as proxy response", async () => {

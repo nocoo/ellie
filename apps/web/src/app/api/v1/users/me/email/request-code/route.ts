@@ -5,8 +5,9 @@
 // (same model as login/register). The Worker still has JWT auth + 60s throttle +
 // 5 attempt limit + HMAC code signing as abuse protection.
 
+import { extractClientIp } from "@/lib/client-ip";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
-import { ForumApiError, forumApi } from "@/lib/forum-api";
+import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
 import type { EmailRequestCodeBody } from "@ellie/types";
@@ -39,6 +40,10 @@ export async function POST(request: Request) {
 	}
 
 	try {
+		const client: ClientContext = {
+			ip: extractClientIp(request) || undefined,
+			userAgent: request.headers.get("User-Agent") || undefined,
+		};
 		const raw = (await request.json()) as Partial<Record<string, unknown>>;
 		const body: EmailRequestCodeBody = {
 			email: raw.email as string,
@@ -47,6 +52,7 @@ export async function POST(request: Request) {
 			"/api/v1/users/me/email/request-code",
 			body,
 			jwt,
+			client,
 		);
 		return NextResponse.json(result);
 	} catch (err) {

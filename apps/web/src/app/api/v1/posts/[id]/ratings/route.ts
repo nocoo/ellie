@@ -7,12 +7,13 @@
 // or broken, so the popover still renders aggregate + reasons for
 // public/unverified visitors.
 
-import { ForumApiError, forumApi } from "@/lib/forum-api";
+import { extractClientIp } from "@/lib/client-ip";
+import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
 import { NextResponse } from "next/server";
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
 	const { id } = await params;
 
 	let jwt: string | null = null;
@@ -26,10 +27,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 		jwt = null;
 	}
 
+	const client: ClientContext = {
+		ip: extractClientIp(request) || undefined,
+		userAgent: request.headers.get("User-Agent") || undefined,
+	};
+
 	try {
 		const path = `/api/v1/posts/${id}/ratings`;
 		const result = jwt
-			? await forumApi.getAuth<unknown>(path, jwt)
+			? await forumApi.getAuth<unknown>(path, jwt, undefined, client)
 			: await forumApi.get<unknown>(path);
 		return NextResponse.json(result);
 	} catch (err) {

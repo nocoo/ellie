@@ -35,6 +35,12 @@ vi.mock("@/lib/forum-auth", () => ({
 	getWorkerJwt: () => getWorkerJwtMock(),
 }));
 
+vi.mock("@/lib/client-ip", () => ({
+	extractClientIp: () => "",
+}));
+
+const emptyClient = { ip: undefined, userAgent: undefined };
+
 beforeEach(() => {
 	postAuthMock.mockReset();
 	getMock.mockReset();
@@ -144,7 +150,12 @@ describe("POST /api/v1/posts/:id/rate", () => {
 		const { POST } = await import("@/app/api/v1/posts/[id]/rate/route");
 		const res = await POST(makeJsonRequest(url, sampleBody), { params });
 		expect(res.status).toBe(201);
-		expect(postAuthMock).toHaveBeenCalledWith("/api/v1/posts/42/rate", sampleBody, "jwt-abc");
+		expect(postAuthMock).toHaveBeenCalledWith(
+			"/api/v1/posts/42/rate",
+			sampleBody,
+			"jwt-abc",
+			emptyClient,
+		);
 		expect(await res.json()).toEqual(workerResponse);
 	});
 });
@@ -179,7 +190,12 @@ describe("GET /api/v1/posts/:id/ratings", () => {
 		const { GET } = await import("@/app/api/v1/posts/[id]/ratings/route");
 		const res = await GET(makeGetRequest(url), { params });
 		expect(res.status).toBe(200);
-		expect(getAuthMock).toHaveBeenCalledWith("/api/v1/posts/42/ratings", "jwt-abc");
+		expect(getAuthMock).toHaveBeenCalledWith(
+			"/api/v1/posts/42/ratings",
+			"jwt-abc",
+			undefined,
+			emptyClient,
+		);
 		expect(getMock).not.toHaveBeenCalled();
 	});
 
@@ -247,7 +263,12 @@ describe("POST /api/v1/posts/:id/ratings/:ratingId/revoke (204 channel)", () => 
 		// 204 must have an empty body — no stray "{}" payload.
 		const text = await res.text();
 		expect(text).toBe("");
-		expect(postAuthMock).toHaveBeenCalledWith("/api/v1/posts/42/ratings/7/revoke", {}, "jwt-abc");
+		expect(postAuthMock).toHaveBeenCalledWith(
+			"/api/v1/posts/42/ratings/7/revoke",
+			{},
+			"jwt-abc",
+			emptyClient,
+		);
 	});
 
 	it("forwards 404 NOT_FOUND verbatim (already-revoked / non-existent row)", async () => {

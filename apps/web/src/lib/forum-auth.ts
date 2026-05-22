@@ -16,7 +16,7 @@ import "server-only";
 import { getToken } from "@auth/core/jwt";
 import { headers } from "next/headers";
 
-import { type ApiResponse, ForumApiError, forumApi } from "@/lib/forum-api";
+import { type ApiResponse, type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 
 function getAuthSecret(): string {
 	const secret = process.env.AUTH_SECRET;
@@ -108,6 +108,7 @@ export async function getSessionProvider(): Promise<string | null> {
 export async function authPatch<T>(
 	path: string,
 	body: unknown,
+	client?: ClientContext,
 ): Promise<ApiResponse<T> | { error: "NOT_AUTHENTICATED" }> {
 	const token = await getSessionToken();
 	if (!token || token.provider !== "credentials") return { error: "NOT_AUTHENTICATED" };
@@ -117,7 +118,7 @@ export async function authPatch<T>(
 	if (!workerJwt) return { error: "NOT_AUTHENTICATED" };
 
 	try {
-		return await forumApi.patchAuth<T>(path, body, workerJwt);
+		return await forumApi.patchAuth<T>(path, body, workerJwt, client);
 	} catch (error) {
 		if (!(error instanceof ForumApiError) || error.code !== "TOKEN_EXPIRED") {
 			throw error;
@@ -133,7 +134,7 @@ export async function authPatch<T>(
 				refreshToken: string;
 			}>("/api/v1/auth/refresh", { refreshToken });
 
-			return await forumApi.patchAuth<T>(path, body, refreshResult.data.token);
+			return await forumApi.patchAuth<T>(path, body, refreshResult.data.token, client);
 		} catch {
 			return { error: "NOT_AUTHENTICATED" };
 		}

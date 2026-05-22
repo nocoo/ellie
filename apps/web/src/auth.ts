@@ -39,6 +39,11 @@ async function getClientIP(): Promise<string> {
 	return extractClientIp(h);
 }
 
+async function getClientUA(): Promise<string | undefined> {
+	const h = await headers();
+	return h.get("User-Agent") || undefined;
+}
+
 // ---------------------------------------------------------------------------
 // Pure helpers (testable without next-auth runtime)
 // ---------------------------------------------------------------------------
@@ -202,18 +207,24 @@ export function signInCallback({
 export async function authorizeCredentials(
 	credentials: { username?: string; password?: string },
 	clientIP: string,
+	clientUA?: string,
 ): Promise<User | null> {
 	const workerUrl = getWorkerUrl();
 	const apiKey = getForumApiKey();
 	if (!workerUrl || !apiKey) return null;
 
+	const headers: Record<string, string> = {
+		"Content-Type": "application/json",
+		"X-API-Key": apiKey,
+		"X-Real-IP": clientIP,
+	};
+	if (clientUA) {
+		headers["X-Real-User-Agent"] = clientUA;
+	}
+
 	const res = await fetch(`${workerUrl}/api/v1/auth/login`, {
 		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			"X-API-Key": apiKey,
-			"X-Real-IP": clientIP,
-		},
+		headers,
 		body: JSON.stringify({
 			username: credentials.username,
 			password: credentials.password,
@@ -257,12 +268,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth(async () => ({
 			},
 			async authorize(credentials) {
 				const clientIP = await getClientIP();
+				const clientUA = await getClientUA();
 				return authorizeCredentials(
 					{
 						username: credentials.username as string | undefined,
 						password: credentials.password as string | undefined,
 					},
 					clientIP,
+					clientUA,
 				);
 			},
 		}),

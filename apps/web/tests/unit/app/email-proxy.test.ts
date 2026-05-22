@@ -29,6 +29,12 @@ vi.mock("@/lib/forum-auth", () => ({
 	getWorkerJwt: () => getWorkerJwtMock(),
 }));
 
+vi.mock("@/lib/client-ip", () => ({
+	extractClientIp: () => "",
+}));
+
+const emptyClient = { ip: undefined, userAgent: undefined };
+
 beforeEach(() => {
 	postAuthMock.mockReset();
 	getWorkerJwtMock.mockReset();
@@ -81,6 +87,7 @@ describe("POST /api/v1/users/me/email/request-code", () => {
 			"/api/v1/users/me/email/request-code",
 			{ email: "x@y.io" },
 			"jwt-abc",
+			emptyClient,
 		);
 	});
 

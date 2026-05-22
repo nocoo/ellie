@@ -11,8 +11,9 @@
  * downgraded to 400, breaking the global verification dialog dispatch.
  */
 
+import { extractClientIp } from "@/lib/client-ip";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
-import { ForumApiError } from "@/lib/forum-api";
+import { type ClientContext, ForumApiError } from "@/lib/forum-api";
 import { authPatch } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
 import type { User } from "@ellie/types";
@@ -27,6 +28,11 @@ export async function PATCH(request: Request) {
 		);
 	}
 
+	const client: ClientContext = {
+		ip: extractClientIp(request) || undefined,
+		userAgent: request.headers.get("User-Agent") || undefined,
+	};
+
 	let body: Record<string, unknown>;
 	try {
 		body = (await request.json()) as Record<string, unknown>;
@@ -38,10 +44,9 @@ export async function PATCH(request: Request) {
 	}
 
 	try {
-		const result = await authPatch<User>("/api/v1/users/me", body);
+		const result = await authPatch<User>("/api/v1/users/me", body, client);
 
 		if ("error" in result) {
-			// Only NOT_AUTHENTICATED is returned this way (session missing/expired).
 			return NextResponse.json(
 				{ error: { code: result.error, message: "Not authenticated" } },
 				{ status: 401 },

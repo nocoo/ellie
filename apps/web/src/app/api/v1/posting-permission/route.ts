@@ -1,5 +1,6 @@
 // Proxy route: GET /api/v1/posting-permission
-import { ForumApiError, forumApi } from "@/lib/forum-api";
+import { extractClientIp } from "@/lib/client-ip";
+import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
 import { NextResponse } from "next/server";
@@ -27,11 +28,17 @@ export async function GET(request: Request) {
 	// (allow_new_thread, allow_reply) match the actual write action.
 	const action = new URL(request.url).searchParams.get("action");
 
+	const client: ClientContext = {
+		ip: extractClientIp(request) || undefined,
+		userAgent: request.headers.get("User-Agent") || undefined,
+	};
+
 	try {
 		const result = await forumApi.getAuth<unknown>(
 			"/api/v1/posting-permission",
 			jwt,
 			action ? { action } : undefined,
+			client,
 		);
 		return NextResponse.json(result);
 	} catch (err) {

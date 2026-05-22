@@ -19,6 +19,11 @@ async function getClientIP(): Promise<string> {
 	return extractClientIp(h);
 }
 
+async function getClientUA(): Promise<string | undefined> {
+	const h = await headers();
+	return h.get("User-Agent") || undefined;
+}
+
 export async function registerUser(
 	username: string,
 	password: string,
@@ -27,10 +32,12 @@ export async function registerUser(
 ): Promise<{ success: true } | { error: string }> {
 	try {
 		const clientIP = await getClientIP();
+		const clientUA = await getClientUA();
 		await forumApi.postWithIP(
 			"/api/v1/auth/register",
 			{ username, password, email, profile },
 			clientIP,
+			clientUA,
 		);
 		return { success: true };
 	} catch (error) {

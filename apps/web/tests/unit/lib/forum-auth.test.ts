@@ -124,7 +124,7 @@ describe("forum-auth", () => {
 			mockGetToken.mockResolvedValue({ provider: "credentials", workerJwt: "jwt" });
 			mockPatchAuth.mockResolvedValue({ data: { patched: true } });
 			expect(await authPatch("/test", { y: 2 })).toEqual({ data: { patched: true } });
-			expect(mockPatchAuth).toHaveBeenCalledWith("/test", { y: 2 }, "jwt");
+			expect(mockPatchAuth).toHaveBeenCalledWith("/test", { y: 2 }, "jwt", undefined);
 		});
 
 		it("re-throws non-TOKEN_EXPIRED ForumApiError so callers can preserve status/rawBody", async () => {

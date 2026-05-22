@@ -32,6 +32,12 @@ vi.mock("@/lib/forum-auth", () => ({
 	getWorkerJwt: () => getWorkerJwtMock(),
 }));
 
+vi.mock("@/lib/client-ip", () => ({
+	extractClientIp: () => "",
+}));
+
+const mockRequest = new Request("https://web.example.com/api/v1/forums");
+
 beforeEach(() => {
 	getAllMock.mockReset();
 	getAuthMock.mockReset();
@@ -48,7 +54,7 @@ describe("GET /api/v1/forums", () => {
 		const ok = { data: [{ id: 1, name: "General" }], meta: { timestamp: 0, requestId: "r1" } };
 		getAllMock.mockResolvedValue(ok);
 		const { GET } = await import("@/app/api/v1/forums/route");
-		const res = await GET();
+		const res = await GET(mockRequest);
 		expect(res.status).toBe(200);
 		expect(getAllMock).toHaveBeenCalledTimes(1);
 		expect(getAllMock).toHaveBeenCalledWith("/api/v1/forums");
@@ -61,10 +67,13 @@ describe("GET /api/v1/forums", () => {
 		const ok = { data: [{ id: 2, name: "Private" }], meta: { timestamp: 1, requestId: "r2" } };
 		getAuthMock.mockResolvedValue(ok);
 		const { GET } = await import("@/app/api/v1/forums/route");
-		const res = await GET();
+		const res = await GET(mockRequest);
 		expect(res.status).toBe(200);
 		expect(getAuthMock).toHaveBeenCalledTimes(1);
-		expect(getAuthMock).toHaveBeenCalledWith("/api/v1/forums", "jwt-abc");
+		expect(getAuthMock).toHaveBeenCalledWith("/api/v1/forums", "jwt-abc", undefined, {
+			ip: undefined,
+			userAgent: undefined,
+		});
 		expect(getAllMock).not.toHaveBeenCalled();
 		expect(await res.json()).toEqual(ok);
 	});
@@ -74,7 +83,7 @@ describe("GET /api/v1/forums", () => {
 		const ok = { data: [], meta: { timestamp: 0, requestId: "r3" } };
 		getAllMock.mockResolvedValue(ok);
 		const { GET } = await import("@/app/api/v1/forums/route");
-		const res = await GET();
+		const res = await GET(mockRequest);
 		// Must NOT 500 — public forum list should still load.
 		expect(res.status).toBe(200);
 		expect(getAllMock).toHaveBeenCalledTimes(1);
@@ -87,7 +96,7 @@ describe("GET /api/v1/forums", () => {
 		err.rawBody = { error: { code: "DB_UNAVAILABLE", message: "DB down" } };
 		getAllMock.mockRejectedValue(err);
 		const { GET } = await import("@/app/api/v1/forums/route");
-		const res = await GET();
+		const res = await GET(mockRequest);
 		expect(res.status).toBe(503);
 		expect(await res.json()).toEqual({
 			error: { code: "DB_UNAVAILABLE", message: "DB down" },
@@ -98,7 +107,7 @@ describe("GET /api/v1/forums", () => {
 		getWorkerJwtMock.mockResolvedValue(null);
 		getAllMock.mockRejectedValue(new Error("network blew up"));
 		const { GET } = await import("@/app/api/v1/forums/route");
-		const res = await GET();
+		const res = await GET(mockRequest);
 		expect(res.status).toBe(500);
 		const body = await res.json();
 		expect(body).toEqual({

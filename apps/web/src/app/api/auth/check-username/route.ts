@@ -17,10 +17,12 @@ export async function GET(request: Request) {
 
 	try {
 		const clientIP = extractClientIp(request);
+		const clientUA = request.headers.get("User-Agent") || undefined;
 		const result = await forumApi.getWithIP<{ available: boolean; reason?: string }>(
 			"/api/v1/auth/check-username",
 			{ username },
 			clientIP,
+			clientUA,
 		);
 		return NextResponse.json(result.data);
 	} catch {

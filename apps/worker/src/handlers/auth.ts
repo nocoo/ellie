@@ -6,6 +6,7 @@ import {
 // Auth handlers for Cloudflare Worker
 import { checkCensorWords } from "../lib/censor";
 import { extractTrustedClientIp } from "../lib/clientIp";
+import { extractTrustedUserAgent } from "../lib/clientUa";
 import { normalizeEmail } from "../lib/email-verify";
 import type { Env } from "../lib/env";
 import { createJwt } from "../lib/jwt";
@@ -49,6 +50,7 @@ function authAuditRow(
 	errorCode: LoginHistoryErrorCode,
 	ip: string,
 	request: Request,
+	env: Env,
 ) {
 	return {
 		userId,
@@ -57,7 +59,7 @@ function authAuditRow(
 		kind,
 		errorCode,
 		ip,
-		userAgent: request.headers.get("User-Agent"),
+		userAgent: extractTrustedUserAgent(request, env),
 		createdAt: Math.floor(Date.now() / 1000),
 	};
 }
@@ -113,7 +115,7 @@ export async function login(request: Request, env: Env, ctx?: ExecutionContext):
 			scheduleLoginHistory(
 				env,
 				ctx,
-				authAuditRow(username, null, 0, "login", "LOCKED_OUT_IP", ip, request),
+				authAuditRow(username, null, 0, "login", "LOCKED_OUT_IP", ip, request, env),
 			);
 			return errorResponse(
 				"RATE_LIMITED",
@@ -131,7 +133,7 @@ export async function login(request: Request, env: Env, ctx?: ExecutionContext):
 			scheduleLoginHistory(
 				env,
 				ctx,
-				authAuditRow(username, null, 0, "login", "RATE_LIMITED_IP", ip, request),
+				authAuditRow(username, null, 0, "login", "RATE_LIMITED_IP", ip, request, env),
 			);
 			return errorResponse(
 				"RATE_LIMITED",
@@ -147,7 +149,7 @@ export async function login(request: Request, env: Env, ctx?: ExecutionContext):
 			scheduleLoginHistory(
 				env,
 				ctx,
-				authAuditRow(username, null, 0, "login", "INVALID_CREDENTIALS", ip, request),
+				authAuditRow(username, null, 0, "login", "INVALID_CREDENTIALS", ip, request, env),
 			);
 			return errorResponse("INVALID_CREDENTIALS", 401, undefined, origin);
 		}
@@ -166,7 +168,7 @@ export async function login(request: Request, env: Env, ctx?: ExecutionContext):
 			scheduleLoginHistory(
 				env,
 				ctx,
-				authAuditRow(username, user.id, 0, "login", "USER_BANNED", ip, request),
+				authAuditRow(username, user.id, 0, "login", "USER_BANNED", ip, request, env),
 			);
 			return errorResponse("USER_BANNED", 403, undefined, origin);
 		}
@@ -187,7 +189,7 @@ export async function login(request: Request, env: Env, ctx?: ExecutionContext):
 			scheduleLoginHistory(
 				env,
 				ctx,
-				authAuditRow(username, user.id, 0, "login", "INVALID_CREDENTIALS", ip, request),
+				authAuditRow(username, user.id, 0, "login", "INVALID_CREDENTIALS", ip, request, env),
 			);
 			return errorResponse("INVALID_CREDENTIALS", 401, undefined, origin);
 		}
@@ -230,7 +232,11 @@ export async function login(request: Request, env: Env, ctx?: ExecutionContext):
 		);
 		const [token] = await Promise.all([tokenPromise, ...sideEffects]);
 
-		scheduleLoginHistory(env, ctx, authAuditRow(username, user.id, 1, "login", "", ip, request));
+		scheduleLoginHistory(
+			env,
+			ctx,
+			authAuditRow(username, user.id, 1, "login", "", ip, request, env),
+		);
 
 		return jsonResponse(
 			{
@@ -534,7 +540,7 @@ export async function register(
 			scheduleLoginHistory(
 				env,
 				ctx,
-				authAuditRow(username, null, 0, "register", "REGISTRATION_DISABLED", ip, request),
+				authAuditRow(username, null, 0, "register", "REGISTRATION_DISABLED", ip, request, env),
 			);
 			return errorResponse("REGISTRATION_DISABLED", 403, undefined, origin);
 		}
@@ -543,7 +549,7 @@ export async function register(
 			scheduleLoginHistory(
 				env,
 				ctx,
-				authAuditRow(username, null, 0, "register", "USERNAME_BANNED", ip, request),
+				authAuditRow(username, null, 0, "register", "USERNAME_BANNED", ip, request, env),
 			);
 			return errorResponse("USERNAME_BANNED", 400, undefined, origin);
 		}
@@ -553,7 +559,7 @@ export async function register(
 			scheduleLoginHistory(
 				env,
 				ctx,
-				authAuditRow(username, null, 0, "register", "RATE_LIMITED", ip, request),
+				authAuditRow(username, null, 0, "register", "RATE_LIMITED", ip, request, env),
 			);
 			return errorResponse("RATE_LIMITED", 429, undefined, origin);
 		}
@@ -584,7 +590,7 @@ export async function register(
 				scheduleLoginHistory(
 					env,
 					ctx,
-					authAuditRow(username, null, 0, "register", code, ip, request),
+					authAuditRow(username, null, 0, "register", code, ip, request, env),
 				);
 				return errorResponse(code, 409, undefined, origin);
 			}
@@ -605,7 +611,11 @@ export async function register(
 			expirationTtl: 3600,
 		});
 
-		scheduleLoginHistory(env, ctx, authAuditRow(username, userId, 1, "register", "", ip, request));
+		scheduleLoginHistory(
+			env,
+			ctx,
+			authAuditRow(username, userId, 1, "register", "", ip, request, env),
+		);
 
 		return jsonResponse(
 			{

@@ -222,7 +222,11 @@ export async function analyticsIngestHandler(
 	// though ingest does not currently persist it. Prefixed with `_` so the
 	// linter does not flag the unused binding.
 	const _ip = extractTrustedClientIp(request, env, { trustXRealIp: true }) ?? "";
-	const ua = request.headers.get("User-Agent") ?? request.headers.get("user-agent") ?? "";
+	const ua =
+		request.headers.get("X-Real-User-Agent") ??
+		request.headers.get("User-Agent") ??
+		request.headers.get("user-agent") ??
+		"";
 	const botClass = parseBotClass(ua);
 	const nowSec = Math.floor(Date.now() / 1000);
 

@@ -9,12 +9,13 @@
 // AUTH_SECRET in dev), fall back to the public listing rather than 500ing
 // the move-thread dialog.
 
-import { ForumApiError, forumApi } from "@/lib/forum-api";
+import { extractClientIp } from "@/lib/client-ip";
+import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
 import { NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(request: Request) {
 	let jwt: string | null = null;
 	try {
 		jwt = await getWorkerJwt();
@@ -25,9 +26,14 @@ export async function GET() {
 		jwt = null;
 	}
 
+	const client: ClientContext = {
+		ip: extractClientIp(request) || undefined,
+		userAgent: request.headers.get("User-Agent") || undefined,
+	};
+
 	try {
 		const result = jwt
-			? await forumApi.getAuth<unknown>("/api/v1/forums", jwt)
+			? await forumApi.getAuth<unknown>("/api/v1/forums", jwt, undefined, client)
 			: await forumApi.getAll<unknown>("/api/v1/forums");
 		return NextResponse.json(result);
 	} catch (err) {

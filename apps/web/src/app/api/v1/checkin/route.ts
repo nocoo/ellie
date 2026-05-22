@@ -1,5 +1,6 @@
+import { extractClientIp } from "@/lib/client-ip";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
-import { ForumApiError, forumApi } from "@/lib/forum-api";
+import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 // Proxy route: POST /api/v1/checkin
 // Browser → Next.js → Worker (perform daily checkin)
 import { getWorkerJwt } from "@/lib/forum-auth";
@@ -14,6 +15,11 @@ export async function POST(request: Request) {
 			{ status: 403 },
 		);
 	}
+
+	const client: ClientContext = {
+		ip: extractClientIp(request) || undefined,
+		userAgent: request.headers.get("User-Agent") || undefined,
+	};
 
 	let jwt: string | null;
 	try {
@@ -35,7 +41,7 @@ export async function POST(request: Request) {
 
 	try {
 		const body = await request.json();
-		const result = await forumApi.postAuth<unknown>("/api/v1/checkin", body, jwt);
+		const result = await forumApi.postAuth<unknown>("/api/v1/checkin", body, jwt, client);
 		return NextResponse.json(result);
 	} catch (err) {
 		if (err instanceof ForumApiError) {

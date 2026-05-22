@@ -37,8 +37,9 @@
 
 import "server-only";
 
+import { extractClientIp } from "@/lib/client-ip";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
-import { ForumApiError, forumApi } from "@/lib/forum-api";
+import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
 import { type NextRequest, NextResponse } from "next/server";
@@ -178,19 +179,19 @@ interface DispatchInput {
 	jwt: string | null;
 	body: unknown;
 	query: FlatQuery | undefined;
+	client: ClientContext;
 }
 
 async function dispatch(input: DispatchInput): Promise<unknown> {
-	const { method, path, jwt, body, query } = input;
+	const { method, path, jwt, body, query, client } = input;
 	if (method === "GET") {
-		if (jwt) return forumApi.getAuth<unknown>(path, jwt, query);
+		if (jwt) return forumApi.getAuth<unknown>(path, jwt, query, client);
 		return forumApi.get<unknown>(path, query);
 	}
-	// All non-GET verbs in scope require auth — checked by the caller.
 	if (!jwt) throw new Error("dispatch: missing jwt for non-GET verb");
-	if (method === "POST") return forumApi.postAuth<unknown>(path, body, jwt);
-	if (method === "PATCH") return forumApi.patchAuth<unknown>(path, body, jwt);
-	return forumApi.deleteAuth<unknown>(path, body, jwt);
+	if (method === "POST") return forumApi.postAuth<unknown>(path, body, jwt, client);
+	if (method === "PATCH") return forumApi.patchAuth<unknown>(path, body, jwt, client);
+	return forumApi.deleteAuth<unknown>(path, body, jwt, client);
 }
 
 // ---------------------------------------------------------------------------
@@ -218,6 +219,17 @@ function validateOptions<P>(opts: ProxyRouteOptions<P>): void {
 }
 
 // ---------------------------------------------------------------------------
+// Client context
+// ---------------------------------------------------------------------------
+
+function buildClientContext(request: NextRequest): ClientContext {
+	return {
+		ip: extractClientIp(request) || undefined,
+		userAgent: request.headers.get("User-Agent") || undefined,
+	};
+}
+
+// ---------------------------------------------------------------------------
 // Public factory
 // ---------------------------------------------------------------------------
 
@@ -235,7 +247,10 @@ export function proxyRoute<P>(opts: ProxyRouteOptions<P>): ProxyRouteHandler<P> 
 		// 1. CSRF
 		if (csrfBlocks(request, csrf)) return csrfRejected();
 
-		// 2. Auth
+		// 2. Extract client context for Worker forwarding
+		const client = buildClientContext(request);
+
+		// 3. Auth
 		let jwt: string | null = null;
 		if (auth === "required") {
 			try {
@@ -247,11 +262,11 @@ export function proxyRoute<P>(opts: ProxyRouteOptions<P>): ProxyRouteHandler<P> 
 			if (!jwt) return notAuthenticated();
 		}
 
-		// 3. Resolve dynamic path
+		// 4. Resolve dynamic path
 		const params = await ctx.params;
 		const path = opts.path(params);
 
-		// 4. Body / query
+		// 5. Body / query
 		let body: unknown = undefined;
 		if (opts.method !== "GET") {
 			try {
@@ -266,9 +281,16 @@ export function proxyRoute<P>(opts: ProxyRouteOptions<P>): ProxyRouteHandler<P> 
 		}
 		const flatQuery = opts.method === "GET" ? pickQuery(request, query) : undefined;
 
-		// 5. Dispatch + error mapping
+		// 6. Dispatch + error mapping
 		try {
-			const result = await dispatch({ method: opts.method, path, jwt, body, query: flatQuery });
+			const result = await dispatch({
+				method: opts.method,
+				path,
+				jwt,
+				body,
+				query: flatQuery,
+				client,
+			});
 			return NextResponse.json(transform(result), { status: successStatus });
 		} catch (err) {
 			if (err instanceof ForumApiError) return onForumApiError(err);
