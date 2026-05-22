@@ -23,17 +23,15 @@ test.describe("E2E-PG: Pagination", () => {
 		// Should have thread items
 		await expect(forumPage.threadItems.first()).toBeVisible();
 
-		// Look for pagination — could be page numbers or load-more button
-		const pagination = page.locator('nav[aria-label="pagination"], [data-testid="pagination"]');
-		const pageLinks = page.locator('a[href*="page="]');
+		// Pagination uses path-segment format: /forums/114/2, /forums/114/3, etc.
+		const pageLinks = page.locator('a[href*="/forums/114/"]');
 		const loadMore = page.locator('button:has-text("加载更多"), button:has-text("下一页")');
 
-		const hasPagination = await pagination.isVisible().catch(() => false);
 		const hasPageLinks = (await pageLinks.count()) > 0;
 		const hasLoadMore = await loadMore.isVisible().catch(() => false);
 
 		// At least one pagination mechanism should exist
-		expect(hasPagination || hasPageLinks || hasLoadMore).toBe(true);
+		expect(hasPageLinks || hasLoadMore).toBe(true);
 	});
 
 	/**
@@ -53,14 +51,14 @@ test.describe("E2E-PG: Pagination", () => {
 		// Should have posts
 		await expect(threadPage.postCards.first()).toBeVisible();
 
-		// Thread page uses PagePagination (page-number mode) — look for ?page=N links
-		const page2Link = page.locator('a[href*="/threads/662174?page=2"]');
+		// Thread page uses path-segment pagination: /threads/662174/2
+		const page2Link = page.locator('a[href$="/threads/662174/2"]');
 
 		await expect(page2Link.first()).toBeVisible({ timeout: 5000 });
 
 		// Click page 2
 		await page2Link.first().click();
-		await page.waitForURL(/\/threads\/662174\?page=2/);
+		await page.waitForURL(/\/threads\/662174\/2/);
 
 		// Should still have post cards on page 2
 		await expect(threadPage.postCards.first()).toBeVisible();
