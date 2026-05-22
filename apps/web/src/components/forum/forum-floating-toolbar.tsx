@@ -78,23 +78,23 @@ export function ForumFloatingToolbar({
 }
 
 /**
- * Build a page link that preserves arbitrary extra query params (e.g.
- * `?typeId=N` from the 主题分类 filter).
+ * Build a page link in path-segment canonical form, preserving arbitrary
+ * extra query params (e.g. `?typeId=N` from the 主题分类 filter).
  *
- * Page 1 is encoded as the bare `basePath` + extra params (no `?page=1`)
- * — matching the pagination convention used everywhere else on the
- * list page. We strip any existing query string off `basePath` first so
- * an upstream caller that passes a pre-built URL doesn't double-encode.
+ * Page 1 → bare `basePath`; page N → `${basePath}/${N}`. We strip any
+ * existing query string off `basePath` first so an upstream caller that
+ * passes a pre-built URL doesn't double-encode.
  */
 function buildPageHref(
 	basePath: string,
 	page: number,
 	extraParams: Record<string, string> | undefined,
 ): string {
-	const [path, existingQs = ""] = basePath.split("?");
+	const [pathOnly, existingQs = ""] = basePath.split("?");
+	const path = page > 1 ? `${pathOnly}/${page}` : pathOnly;
 	const params = new URLSearchParams(existingQs);
-	if (page > 1) params.set("page", String(page));
-	else params.delete("page");
+	// Legacy callers might pass `?page=N` already baked into basePath — clear it.
+	params.delete("page");
 	if (extraParams) {
 		for (const [k, v] of Object.entries(extraParams)) params.set(k, v);
 	}

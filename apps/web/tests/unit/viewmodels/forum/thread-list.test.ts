@@ -706,25 +706,22 @@ describe("getThreadPageUrl", () => {
 		expect(getThreadPageUrl(123, 1)).toBe("/threads/123");
 	});
 
-	it("returns /threads/{id}?page=N for page > 1", () => {
-		expect(getThreadPageUrl(123, 2)).toBe("/threads/123?page=2");
-		expect(getThreadPageUrl(456, 5)).toBe("/threads/456?page=5");
+	it("returns /threads/{id}/{N} for page > 1 (path-segment canonical)", () => {
+		expect(getThreadPageUrl(123, 2)).toBe("/threads/123/2");
+		expect(getThreadPageUrl(456, 5)).toBe("/threads/456/5");
 	});
 
 	it("appends returnTo when provided (page 1)", () => {
-		expect(getThreadPageUrl(123, 1, "/forums/5?page=4")).toBe(
-			"/threads/123?returnTo=%2Fforums%2F5%3Fpage%3D4",
-		);
+		expect(getThreadPageUrl(123, 1, "/forums/5/4")).toBe("/threads/123?returnTo=%2Fforums%2F5%2F4");
 	});
 
-	it("appends returnTo alongside page param", () => {
+	it("appends returnTo alongside page segment", () => {
 		const url = getThreadPageUrl(123, 3, "/forums/5");
-		expect(url).toContain("page=3");
-		expect(url).toContain("returnTo=%2Fforums%2F5");
+		expect(url).toBe("/threads/123/3?returnTo=%2Fforums%2F5");
 	});
 
 	it("omits returnTo when undefined", () => {
-		expect(getThreadPageUrl(123, 2, undefined)).toBe("/threads/123?page=2");
+		expect(getThreadPageUrl(123, 2, undefined)).toBe("/threads/123/2");
 	});
 });
 
@@ -944,17 +941,23 @@ describe("validateReturnTo", () => {
 		expect(validateReturnTo("/forums/5", forumId)).toBe("/forums/5");
 	});
 
-	it("accepts /forums/{forumId}?page=N", () => {
-		expect(validateReturnTo("/forums/5?page=4", forumId)).toBe("/forums/5?page=4");
+	it("accepts /forums/{forumId}/{N} for N >= 2 (path-segment canonical)", () => {
+		expect(validateReturnTo("/forums/5/4", forumId)).toBe("/forums/5/4");
+		expect(validateReturnTo("/forums/5/2", forumId)).toBe("/forums/5/2");
 	});
 
-	it("accepts /forums/{forumId}?page=1", () => {
-		expect(validateReturnTo("/forums/5?page=1", forumId)).toBe("/forums/5?page=1");
+	it("rejects /forums/{forumId}/1 (page=1 is not canonical with segment)", () => {
+		expect(validateReturnTo("/forums/5/1", forumId)).toBeNull();
+	});
+
+	it("rejects legacy /forums/{forumId}?page=N (query-page is no longer canonical)", () => {
+		expect(validateReturnTo("/forums/5?page=4", forumId)).toBeNull();
+		expect(validateReturnTo("/forums/5?page=1", forumId)).toBeNull();
 	});
 
 	it("rejects wrong forum ID", () => {
 		expect(validateReturnTo("/forums/99", forumId)).toBeNull();
-		expect(validateReturnTo("/forums/99?page=2", forumId)).toBeNull();
+		expect(validateReturnTo("/forums/99/2", forumId)).toBeNull();
 	});
 
 	it("rejects external URLs", () => {
@@ -966,20 +969,25 @@ describe("validateReturnTo", () => {
 		expect(validateReturnTo("/", forumId)).toBeNull();
 	});
 
-	it("rejects /forums/{forumId} with extra params beyond page", () => {
-		expect(validateReturnTo("/forums/5?page=2&evil=1", forumId)).toBeNull();
+	it("rejects /forums/{forumId} with extra query params", () => {
+		expect(validateReturnTo("/forums/5?evil=1", forumId)).toBeNull();
+		expect(validateReturnTo("/forums/5/2?evil=1", forumId)).toBeNull();
 	});
 
-	it("rejects non-numeric page values", () => {
-		expect(validateReturnTo("/forums/5?page=abc", forumId)).toBeNull();
+	it("rejects non-numeric page segment", () => {
+		expect(validateReturnTo("/forums/5/abc", forumId)).toBeNull();
 	});
 
-	it("rejects page=0", () => {
-		expect(validateReturnTo("/forums/5?page=0", forumId)).toBeNull();
+	it("rejects page=0 segment", () => {
+		expect(validateReturnTo("/forums/5/0", forumId)).toBeNull();
 	});
 
-	it("rejects page with negative value", () => {
-		expect(validateReturnTo("/forums/5?page=-1", forumId)).toBeNull();
+	it("rejects negative page segment", () => {
+		expect(validateReturnTo("/forums/5/-1", forumId)).toBeNull();
+	});
+
+	it("rejects leading-zero page segment", () => {
+		expect(validateReturnTo("/forums/5/02", forumId)).toBeNull();
 	});
 
 	it("rejects empty string", () => {
