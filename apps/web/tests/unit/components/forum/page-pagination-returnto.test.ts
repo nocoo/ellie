@@ -48,14 +48,14 @@ afterEach(() => {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("PagePagination — extraParams.returnTo", () => {
-	it("page links include returnTo from extraParams", () => {
+	it("page links include returnTo from extraParams (path-segment canonical)", () => {
 		render(
 			createElement(PagePagination, {
 				page: 1,
 				pages: 5,
 				total: 100,
 				basePath: "/threads/42",
-				extraParams: { returnTo: "/forums/5?page=4" },
+				extraParams: { returnTo: "/forums/5/4" },
 			}),
 		);
 
@@ -63,19 +63,18 @@ describe("PagePagination — extraParams.returnTo", () => {
 		const link2 = screen.getByText("2").closest("a");
 		expect(link2).not.toBeNull();
 		const href2 = link2?.getAttribute("href");
-		expect(href2).toContain("page=2");
-		expect(href2).toContain("returnTo");
-		expect(href2).toContain(encodeURIComponent("/forums/5?page=4"));
+		// Path-segment canonical: /threads/42/2?returnTo=...
+		expect(href2).toBe(`/threads/42/2?returnTo=${encodeURIComponent("/forums/5/4")}`);
 	});
 
-	it("page 1 link omits page= param but keeps returnTo", () => {
+	it("page 1 link omits page segment but keeps returnTo", () => {
 		render(
 			createElement(PagePagination, {
 				page: 3,
 				pages: 5,
 				total: 100,
 				basePath: "/threads/42",
-				extraParams: { returnTo: "/forums/5?page=4" },
+				extraParams: { returnTo: "/forums/5/4" },
 			}),
 		);
 
@@ -83,10 +82,10 @@ describe("PagePagination — extraParams.returnTo", () => {
 		const link1 = screen.getByText("1").closest("a");
 		expect(link1).not.toBeNull();
 		const href1 = link1?.getAttribute("href");
-		// Page 1 should NOT have page=1
-		expect(href1).not.toContain("page=1");
-		// But should have returnTo
-		expect(href1).toContain("returnTo");
+		// Page 1 must use bare basePath, not /threads/42/1
+		expect(href1).not.toContain("/threads/42/1");
+		expect(href1).toContain("/threads/42?returnTo=");
+		expect(href1).toContain(encodeURIComponent("/forums/5/4"));
 	});
 
 	it("page links have no returnTo when extraParams is omitted", () => {
@@ -102,12 +101,12 @@ describe("PagePagination — extraParams.returnTo", () => {
 		const link2 = screen.getByText("2").closest("a");
 		expect(link2).not.toBeNull();
 		const href2 = link2?.getAttribute("href");
-		expect(href2).toBe("/threads/42?page=2");
+		expect(href2).toBe("/threads/42/2");
 		expect(href2).not.toContain("returnTo");
 	});
 
 	it("passes extraParams to JumpToPage", () => {
-		const extraParams = { returnTo: "/forums/5?page=4" };
+		const extraParams = { returnTo: "/forums/5/4" };
 		render(
 			createElement(PagePagination, {
 				page: 1,
@@ -121,7 +120,7 @@ describe("PagePagination — extraParams.returnTo", () => {
 		const calls = jumpToPageProps.mock.calls;
 		expect(calls.length).toBeGreaterThan(0);
 		const lastCall = calls[calls.length - 1][0];
-		expect(lastCall.extraParams).toEqual({ returnTo: "/forums/5?page=4" });
+		expect(lastCall.extraParams).toEqual({ returnTo: "/forums/5/4" });
 	});
 
 	it("does not pass extraParams to JumpToPage when omitted", () => {

@@ -45,13 +45,16 @@ export function PagePagination({
 	const items = generatePageNumbers(page, pages);
 
 	function href(p: number): string {
+		// Path-segment canonical (reviewer pin):
+		//   page 1 → bare basePath
+		//   page N → `${basePath}/${N}`
+		// extraParams (e.g. returnTo, typeId) stay as query.
+		const path = p > 1 ? `${basePath}/${p}` : basePath;
+		if (!extraParams) return path;
 		const params = new URLSearchParams();
-		if (p > 1) params.set("page", String(p));
-		if (extraParams) {
-			for (const [k, v] of Object.entries(extraParams)) params.set(k, v);
-		}
+		for (const [k, v] of Object.entries(extraParams)) params.set(k, v);
 		const qs = params.toString();
-		return qs ? `${basePath}?${qs}` : basePath;
+		return qs ? `${path}?${qs}` : path;
 	}
 
 	return (

@@ -145,8 +145,8 @@ describe("thread-types viewmodel — pure helpers", () => {
 			expect(buildForumListUrl({ forumId: 134, page: 1 })).toBe("/forums/134");
 		});
 
-		it("emits ?page=N for page > 1", () => {
-			expect(buildForumListUrl({ forumId: 134, page: 3 })).toBe("/forums/134?page=3");
+		it("emits /forums/{id}/{N} path-segment for page > 1", () => {
+			expect(buildForumListUrl({ forumId: 134, page: 3 })).toBe("/forums/134/3");
 		});
 
 		it("emits ?typeId=N when typeId positive", () => {
@@ -159,9 +159,15 @@ describe("thread-types viewmodel — pure helpers", () => {
 			expect(buildForumListUrl({ forumId: 134, typeId: 0 })).toBe("/forums/134");
 		});
 
-		it("emits both page and typeId in stable order", () => {
+		it("emits path-segment page with typeId query", () => {
 			expect(buildForumListUrl({ forumId: 134, page: 4, typeId: 11 })).toBe(
-				"/forums/134?page=4&typeId=11",
+				"/forums/134/4?typeId=11",
+			);
+		});
+
+		it("page=1 + typeId omits page segment", () => {
+			expect(buildForumListUrl({ forumId: 134, page: 1, typeId: 11 })).toBe(
+				"/forums/134?typeId=11",
 			);
 		});
 	});
