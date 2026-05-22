@@ -5,9 +5,13 @@ import AlreadyLoggedIn from "./already-logged-in";
 import LoginForm from "./login-form";
 
 export async function generateMetadata(): Promise<Metadata> {
-	const settings = await fetchPublicSettings();
-	const homeLabel = getStr(settings, "general.site.home_label", "同济网论坛");
-	return { title: `登录 - ${homeLabel}` };
+	try {
+		const settings = await fetchPublicSettings();
+		const homeLabel = getStr(settings, "general.site.home_label", "同济网论坛");
+		return { title: `登录 - ${homeLabel}` };
+	} catch {
+		return { title: "登录 - 同济网论坛" };
+	}
 }
 
 /** Server component — show "已登录" card when session exists, login form otherwise. */
