@@ -174,6 +174,7 @@ describe("cache/forum — buildForumTreePayload", () => {
 			parentId: 1,
 			name: "kids",
 			description: "d",
+			announcement: "",
 			icon: "i",
 			displayOrder: 5,
 			type: ForumType.Sub,
@@ -312,6 +313,7 @@ describe("cache/forum — validators", () => {
 		id: 1,
 		parentId: 0,
 		name: "n",
+		announcement: "",
 		threadTypes: tt,
 		...overrides,
 	});
