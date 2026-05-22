@@ -172,19 +172,27 @@ describe("Phase 1 commit 2 — admin statistics invalidation", () => {
 		expect(mockBumpSummary).toHaveBeenCalledTimes(1);
 	});
 
-	it("recalcThreads bumps forum:summary:gen", async () => {
+	it("recalcThreads bumps forum:summary:gen on the done transition", async () => {
+		// Phase B job-mode: cache invalidation moved into ticker.finalize,
+		// which fires when the job reaches `done` (an empty batch).
+		// The test seeds COUNT(*)=0 so initialize -> total:0, and a follow-up
+		// POST returns an empty batch -> status:done -> finalize bumps cache.
 		const { db } = createMockDb({
+			firstResults: {
+				"SELECT COUNT(*) as cnt FROM threads": { cnt: 0 },
+			},
 			allResults: {
-				"SELECT id, created_at, author_name, author_id FROM threads": [
-					{ id: 1, created_at: 1, author_name: "a", author_id: 10 },
-				],
-				"SELECT thread_id, COUNT(*)": [],
-				"SELECT p1.thread_id": [],
+				"FROM threads WHERE id >": [],
 			},
 		});
 		const env = makeEnv({ DB: db });
-		const req = createAdminRequest("POST", "/api/admin/statistics/recalc-threads");
-		const res = await recalcThreads(req, env);
+		// 1) Initialize.
+		await recalcThreads(createAdminRequest("POST", "/api/admin/statistics/recalc-threads"), env);
+		// 2) First advance — empty batch transitions to done and finalize fires.
+		const res = await recalcThreads(
+			createAdminRequest("POST", "/api/admin/statistics/recalc-threads"),
+			env,
+		);
 		expect(res.status).toBe(200);
 		expect(mockBumpSummary).toHaveBeenCalledTimes(1);
 	});

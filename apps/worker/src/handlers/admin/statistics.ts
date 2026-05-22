@@ -11,7 +11,16 @@ import {
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { jsonNoStoreResponse } from "../../lib/response";
-import { STATS_JOB_KINDS, type StatsJobKind, readJob } from "../../lib/stats-job";
+import {
+	STATS_JOB_KINDS,
+	type StatsJobKind,
+	type StatsJobPayload,
+	type StatsJobTicker,
+	type TickResult,
+	makeInitialPayload,
+	readJob,
+	tickJob,
+} from "../../lib/stats-job";
 import { invalidateUserCache } from "../../lib/user-cache";
 import { errorResponse } from "../../middleware/error";
 
@@ -25,11 +34,83 @@ const statsConfig: EntityConfig = {
 	notFoundCode: "NOT_FOUND",
 };
 
-// D1 has a limit of 999 parameters per query
-const _MAX_PARAMS = 500;
+// D1 has a hard limit of 999 bound parameters per prepared statement.
+// IN_CHUNK keeps every per-batch aggregate query comfortably under that
+// limit even when `batchSize` is bumped to 1000+ in a later iteration.
+// 500 lets us run the per-batch aggregate as at most 2 SQL calls when
+// batchSize is at the default 1000.
+const IN_CHUNK = 500;
 const BATCH_SIZE = 500;
 const POST_FORUM_FETCH_LIMIT = 5000;
 const POST_FORUM_MAX_ROWS = 50000;
+
+// ─── Shared utility — parse JSON body & route TickResult ─────────────────────
+
+/**
+ * Parse the request body once for every POST that drives a job. We accept
+ * empty bodies (no `Content-Type`, no payload) so the admin UI's "start"
+ * button can fire a body-less POST. Invalid JSON yields `null` so the
+ * caller can return 400.
+ */
+async function readJsonBody(request: Request): Promise<Record<string, unknown> | null> {
+	const text = await request.text();
+	if (!text) return {};
+	try {
+		const parsed = JSON.parse(text);
+		if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+			return parsed as Record<string, unknown>;
+		}
+		// JSON primitives / arrays aren't a valid body shape here.
+		return null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Translate a `TickResult` into an HTTP response.
+ *
+ * Code → status:
+ *   - `ok`       → 200, body = payload (full snapshot)
+ *   - `locked`   → 409 `CONCURRENT_TICK` — another in-flight advance.
+ *   - `running`  → 409 `RUNNING_JOB_EXISTS` — `reset:true` refused on a
+ *                  live job.
+ *   - `error`    → 500 `RECALC_FAILED` — `advance` threw; payload contains
+ *                  the failed state and `error` carries the message.
+ *
+ * The full payload travels in `details` for the two 409s so the admin UI
+ * can keep the card in sync without re-polling.
+ */
+function tickResultToResponse(result: TickResult, origin: string | undefined): Response {
+	switch (result.code) {
+		case "ok":
+			return jsonNoStoreResponse(result.payload, origin);
+		case "locked":
+			return errorResponse(
+				"CONCURRENT_TICK",
+				409,
+				{ payload: result.payload as unknown as Record<string, unknown> },
+				origin,
+			);
+		case "running":
+			return errorResponse(
+				"RUNNING_JOB_EXISTS",
+				409,
+				{ payload: result.payload as unknown as Record<string, unknown> },
+				origin,
+			);
+		case "error":
+			return errorResponse(
+				"RECALC_FAILED",
+				500,
+				{
+					error: result.error,
+					payload: result.payload as unknown as Record<string, unknown>,
+				},
+				origin,
+			);
+	}
+}
 
 // ─── POST /api/admin/statistics/recalc-forums ────────────────────────────────
 // Recalculate all forum counters: threads, posts, last_thread_id, etc.
@@ -131,113 +212,250 @@ export const recalcForums = withEntityAuth(
 );
 
 // ─── POST /api/admin/statistics/recalc-threads ───────────────────────────────
-// Recalculate all thread counters: replies, last_post_at, last_poster.
+// Job-mode driver — one POST advances ONE batch of `DEFAULT_BATCH_SIZE`
+// threads (cursor = threads.id). The framework in lib/stats-job.ts owns
+// lease/reset/done semantics; this file only supplies the ticker
+// (initialize + advance + finalize) that knows the SQL shape.
+//
+// Per-tick SQL plan (Phase B, reviewer-approved msg=f316ea10):
+//   1. Page through threads by id   — `WHERE [forum_id=?] AND id > ?
+//                                      ORDER BY id LIMIT batchSize`
+//      so each batch lands a fresh slab of rows; cursor advances
+//      monotonically; nothing depends on a full table scan.
+//   2. Reply counts (batch-scoped)  — `WHERE thread_id IN (...)` in
+//      chunks of IN_CHUNK so we never breach D1's 999-param ceiling.
+//   3. Last post (batch-scoped)     — same `IN (...)` filter, then
+//      `ROW_NUMBER() OVER (PARTITION BY thread_id ORDER BY created_at
+//      DESC, id DESC)` and keep `rn=1`. Window scope = the batch only;
+//      no global self-join on `posts`.
+//   4. Batched UPDATE              — one D1 batch per chunk of 500.
+//
+// `done` transition handles cache invalidation in `finalize` (runs
+// outside the lease so a slow KV bump can't strand the lease).
+
+interface RecalcThreadsParams {
+	forumId: number | null;
+}
+
+function parseRecalcThreadsParams(body: Record<string, unknown>): RecalcThreadsParams {
+	const raw = body.forumId;
+	if (typeof raw === "number" && Number.isFinite(raw) && raw > 0 && Number.isInteger(raw)) {
+		return { forumId: raw };
+	}
+	return { forumId: null };
+}
+
+function readRecalcThreadsParams(payload: StatsJobPayload): RecalcThreadsParams {
+	const raw = (payload.params as { forumId?: unknown }).forumId;
+	return typeof raw === "number" && raw > 0 ? { forumId: raw } : { forumId: null };
+}
+
+/**
+ * Chunk an array of ids into IN-list batches that stay under the D1
+ * 999-parameter ceiling. Returns the chunks unchanged when ≤ IN_CHUNK.
+ */
+function chunkIds<T>(ids: T[], size: number = IN_CHUNK): T[][] {
+	if (ids.length <= size) return [ids];
+	const out: T[][] = [];
+	for (let i = 0; i < ids.length; i += size) out.push(ids.slice(i, i + size));
+	return out;
+}
+
+interface ThreadBatchRow {
+	id: number;
+	created_at: number;
+	author_name: string;
+	author_id: number;
+}
+
+interface ReplyCountRow {
+	thread_id: number;
+	cnt: number;
+}
+
+interface LastPostRow {
+	thread_id: number;
+	created_at: number;
+	author_name: string;
+	author_id: number;
+}
+
+async function fetchReplyCounts(env: Env, threadIds: number[]): Promise<Map<number, number>> {
+	const map = new Map<number, number>();
+	for (const chunk of chunkIds(threadIds)) {
+		if (chunk.length === 0) continue;
+		const placeholders = chunk.map(() => "?").join(",");
+		const sql = `SELECT thread_id, COUNT(*) - 1 as cnt FROM posts WHERE thread_id IN (${placeholders}) GROUP BY thread_id`;
+		const result = await env.DB.prepare(sql)
+			.bind(...chunk)
+			.all();
+		for (const row of result.results as unknown as ReplyCountRow[]) {
+			map.set(row.thread_id, Math.max(0, row.cnt));
+		}
+	}
+	return map;
+}
+
+async function fetchLastPosts(env: Env, threadIds: number[]): Promise<Map<number, LastPostRow>> {
+	const map = new Map<number, LastPostRow>();
+	for (const chunk of chunkIds(threadIds)) {
+		if (chunk.length === 0) continue;
+		const placeholders = chunk.map(() => "?").join(",");
+		// Window function scoped to the IN (...) batch only. Tiebreak on
+		// `id DESC` for posts with identical `created_at` (legacy seed
+		// rows) so the result is deterministic.
+		const sql = `
+			SELECT thread_id, created_at, author_name, author_id FROM (
+				SELECT
+					thread_id,
+					created_at,
+					author_name,
+					author_id,
+					ROW_NUMBER() OVER (
+						PARTITION BY thread_id
+						ORDER BY created_at DESC, id DESC
+					) AS rn
+				FROM posts
+				WHERE thread_id IN (${placeholders})
+			)
+			WHERE rn = 1
+		`;
+		const result = await env.DB.prepare(sql)
+			.bind(...chunk)
+			.all();
+		for (const row of result.results as unknown as LastPostRow[]) {
+			map.set(row.thread_id, row);
+		}
+	}
+	return map;
+}
+
+export const threadsTicker: StatsJobTicker = {
+	kind: "threads",
+	initialize: async (env, body) => {
+		const params = parseRecalcThreadsParams(body);
+		// total is best-effort — a single COUNT(*) is O(rows-in-scope)
+		// in SQLite but runs once per job (not per tick).
+		let total: number;
+		if (params.forumId !== null) {
+			const row = await env.DB.prepare("SELECT COUNT(*) as cnt FROM threads WHERE forum_id = ?")
+				.bind(params.forumId)
+				.first<{ cnt: number }>();
+			total = row?.cnt ?? 0;
+		} else {
+			const row = await env.DB.prepare("SELECT COUNT(*) as cnt FROM threads").first<{
+				cnt: number;
+			}>();
+			total = row?.cnt ?? 0;
+		}
+		return makeInitialPayload({
+			kind: "threads",
+			total,
+			params: { forumId: params.forumId },
+		});
+	},
+
+	advance: async (env, prev) => {
+		const params = readRecalcThreadsParams(prev);
+		const batchSize = prev.batchSize;
+		const now = Date.now();
+
+		// (1) Pull the next slab of threads by `id > cursor`.
+		let threadsResult: D1Result;
+		if (params.forumId !== null) {
+			threadsResult = await env.DB.prepare(
+				"SELECT id, created_at, author_name, author_id FROM threads WHERE forum_id = ? AND id > ? ORDER BY id LIMIT ?",
+			)
+				.bind(params.forumId, prev.cursor, batchSize)
+				.all();
+		} else {
+			threadsResult = await env.DB.prepare(
+				"SELECT id, created_at, author_name, author_id FROM threads WHERE id > ? ORDER BY id LIMIT ?",
+			)
+				.bind(prev.cursor, batchSize)
+				.all();
+		}
+		const batch = threadsResult.results as ThreadBatchRow[];
+
+		// Empty batch = nothing left to do; mark done. Total counts can
+		// drift between initialize and the final tick (deletes/inserts);
+		// pin processed to total on the terminal transition so the UI
+		// card lands at 100%.
+		if (batch.length === 0) {
+			return {
+				...prev,
+				status: "done",
+				processed: prev.total ?? prev.processed,
+				lastBatchUpdated: 0,
+				finishedAt: now,
+				lastTickAt: now,
+			};
+		}
+
+		const threadIds = batch.map((t) => t.id);
+
+		// (2) + (3) Batch-scoped aggregates via IN (...) chunks.
+		const [replyMap, lastPostMap] = await Promise.all([
+			fetchReplyCounts(env, threadIds),
+			fetchLastPosts(env, threadIds),
+		]);
+
+		// (4) Batched UPDATE — chunk into D1 batches of 500 statements
+		// to stay within the runtime's batch-statement ceiling.
+		const statements = batch.map((thread) => {
+			const lastPost = lastPostMap.get(thread.id);
+			const lastPostAt = lastPost?.created_at ?? thread.created_at;
+			const lastPoster = lastPost?.author_name ?? thread.author_name;
+			const lastPosterId = lastPost?.author_id ?? thread.author_id;
+			return env.DB.prepare(
+				"UPDATE threads SET replies = ?, last_post_at = ?, last_poster = ?, last_poster_id = ? WHERE id = ?",
+			).bind(replyMap.get(thread.id) ?? 0, lastPostAt, lastPoster, lastPosterId, thread.id);
+		});
+		for (let i = 0; i < statements.length; i += BATCH_SIZE) {
+			await env.DB.batch(statements.slice(i, i + BATCH_SIZE));
+		}
+
+		const nextCursor = batch[batch.length - 1]?.id ?? prev.cursor;
+		const newProcessed = prev.processed + batch.length;
+		const isFinal = batch.length < batchSize;
+
+		return {
+			...prev,
+			cursor: nextCursor,
+			processed: isFinal ? (prev.total ?? newProcessed) : newProcessed,
+			updated: prev.updated + batch.length,
+			lastBatchUpdated: batch.length,
+			status: isFinal ? "done" : "running",
+			finishedAt: isFinal ? now : null,
+			lastTickAt: now,
+		};
+	},
+
+	finalize: async (env, payload) => {
+		// Cache invalidation (docs/19 §6 row "admin statistics
+		// recalc-threads"): bump forum:summary:gen (last-post / counts
+		// may have shifted as a side-effect of recalculating thread
+		// last-post). For thread:list:v2, bump per-forum gen when
+		// scoped to a single forum, else fall back to the global
+		// `thread:list:gen:all`.
+		const params = readRecalcThreadsParams(payload);
+		await Promise.all([
+			bumpForumSummaryGen(env),
+			params.forumId !== null ? bumpThreadListGen(env, params.forumId) : bumpThreadListGenAll(env),
+		]);
+	},
+};
 
 export const recalcThreads = withEntityAuth(
 	statsConfig,
 	async (request: Request, env: Env): Promise<Response> => {
 		const origin = request.headers.get("Origin") ?? undefined;
-
-		let body: Record<string, unknown> = {};
-		try {
-			const text = await request.text();
-			if (text) body = JSON.parse(text) as Record<string, unknown>;
-		} catch {
+		const body = await readJsonBody(request);
+		if (body === null) {
 			return errorResponse("INVALID_BODY", 400, undefined, origin);
 		}
-
-		// Optional: limit to specific forum
-		const forumId = typeof body.forumId === "number" && body.forumId > 0 ? body.forumId : null;
-
-		// Get threads to update
-		let threads: D1Result;
-		if (forumId) {
-			threads = await env.DB.prepare(
-				"SELECT id, created_at, author_name, author_id FROM threads WHERE forum_id = ?",
-			)
-				.bind(forumId)
-				.all();
-		} else {
-			threads = await env.DB.prepare(
-				"SELECT id, created_at, author_name, author_id FROM threads",
-			).all();
-		}
-
-		const threadData = threads.results as Array<{
-			id: number;
-			created_at: number;
-			author_name: string;
-			author_id: number;
-		}>;
-
-		if (threadData.length === 0) {
-			return jsonNoStoreResponse({ updated: 0 }, origin);
-		}
-
-		// Build maps using full table scans (no WHERE IN limitation)
-		// Get reply counts per thread (count - 1 for excluding first post)
-		const replyCounts = await env.DB.prepare(
-			"SELECT thread_id, COUNT(*) - 1 as cnt FROM posts GROUP BY thread_id",
-		).all();
-		const replyMap = new Map(
-			replyCounts.results.map((r) => [
-				(r as { thread_id: number }).thread_id,
-				Math.max(0, (r as { cnt: number }).cnt),
-			]),
-		);
-
-		// Get last post info per thread using a subquery
-		const lastPosts = await env.DB.prepare(`
-			SELECT p1.thread_id, p1.created_at, p1.author_name, p1.author_id
-			FROM posts p1
-			INNER JOIN (
-				SELECT thread_id, MAX(created_at) as max_created_at
-				FROM posts
-				GROUP BY thread_id
-			) p2 ON p1.thread_id = p2.thread_id AND p1.created_at = p2.max_created_at
-		`).all();
-		const lastPostMap = new Map(
-			lastPosts.results.map((r) => [
-				(r as { thread_id: number }).thread_id,
-				r as { created_at: number; author_name: string; author_id: number },
-			]),
-		);
-
-		// Batch update all threads
-		const statements = threadData.map((thread) => {
-			const lastPost = lastPostMap.get(thread.id);
-			// If no posts, fall back to thread's own creation info
-			const lastPostAt = lastPost?.created_at ?? thread.created_at;
-			const lastPoster = lastPost?.author_name ?? thread.author_name;
-			const lastPosterId = lastPost?.author_id ?? thread.author_id;
-
-			return env.DB.prepare(`
-				UPDATE threads SET
-					replies = ?,
-					last_post_at = ?,
-					last_poster = ?,
-					last_poster_id = ?
-				WHERE id = ?
-			`).bind(replyMap.get(thread.id) ?? 0, lastPostAt, lastPoster, lastPosterId, thread.id);
-		});
-
-		// D1 batch has a limit, chunk if needed
-		for (let i = 0; i < statements.length; i += BATCH_SIZE) {
-			await env.DB.batch(statements.slice(i, i + BATCH_SIZE));
-		}
-
-		// Cache invalidation (docs/19 §6 row "admin statistics recalc-threads"):
-		// bump forum:summary:gen (last-post / counts may have shifted as a
-		// side-effect of recalculating thread last-post). For thread:list:v2,
-		// bump per-forum gen when scoped to a single forum, else fall back to
-		// the global `thread:list:gen:all` to invalidate every per-forum
-		// thread-list cache in one write (docs/19 §3.3.1 option (b)).
-		await Promise.all([
-			bumpForumSummaryGen(env),
-			forumId ? bumpThreadListGen(env, forumId) : bumpThreadListGenAll(env),
-		]);
-
-		return jsonNoStoreResponse({ updated: threadData.length }, origin);
+		const result = await tickJob(env, threadsTicker, body);
+		return tickResultToResponse(result, origin);
 	},
 );
 
