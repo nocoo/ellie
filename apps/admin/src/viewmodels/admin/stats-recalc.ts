@@ -73,12 +73,21 @@ export interface WorkerErrorBody {
  * Conservative structural check — anything not exactly matching the v1
  * snapshot shape is rejected. Used to extract `details.payload` from
  * 409/500 error responses without trusting the wire blindly.
+ *
+ * Aligned with worker `apps/worker/src/lib/stats-job.ts isJobPayload`:
+ *   - `v === 1` exactly (future versions must not be rendered as-if v1).
+ *   - `params` is a plain object (never null or array).
+ *   - `kind` is one of the four known kinds.
+ *   - `status` is one of the three known statuses.
+ *   - nullable fields (`total` / `finishedAt` / `leaseUntil`) only
+ *     allow `null` or `number`.
  */
 export function isSnapshot(value: unknown): value is StatsJobSnapshot {
 	if (!value || typeof value !== "object") return false;
 	const v = value as Record<string, unknown>;
+	if (v.v !== 1) return false;
+	if (!params_isPlainObject(v.params)) return false;
 	return (
-		typeof v.v === "number" &&
 		typeof v.kind === "string" &&
 		(STATS_JOB_KINDS as readonly string[]).includes(v.kind as string) &&
 		typeof v.status === "string" &&
@@ -95,6 +104,10 @@ export function isSnapshot(value: unknown): value is StatsJobSnapshot {
 		(v.leaseUntil === null || typeof v.leaseUntil === "number") &&
 		(v.error === null || typeof v.error === "string")
 	);
+}
+
+function params_isPlainObject(value: unknown): boolean {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**

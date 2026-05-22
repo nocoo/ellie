@@ -89,11 +89,18 @@ function RecalcCard({ config }: { config: CardConfig }) {
 	const status = snapshot?.status ?? null;
 	const isTerminal = status === "done" || status === "failed";
 	const isRunning = status === "running";
+	const isDone = status === "done";
+	// Done is terminal-success; the primary button is hidden in favour of
+	// the 「重置」 ghost action so a stray click can't fire a no-op POST
+	// (per reviewer msg=5c975973). Failed still shows 「重试」 — the
+	// next POST will see status="failed" and refuse to advance without
+	// reset:true, but the operator is asking explicitly so we surface
+	// the button and let the soft 409 / reset flow take over.
+	const showPrimary = !isDone;
 
 	let primaryLabel = "开始计算";
 	if (isPosting) primaryLabel = "正在请求…";
-	else if (isRunning) primaryLabel = "推进一批";
-	else if (status === "done") primaryLabel = "已完成";
+	else if (isRunning) primaryLabel = "运行中（自动推进）";
 	else if (status === "failed") primaryLabel = "重试";
 
 	return (
@@ -170,10 +177,19 @@ function RecalcCard({ config }: { config: CardConfig }) {
 				{error && <p className="text-xs text-destructive">请求错误：{error}</p>}
 
 				<div className="flex items-center justify-between gap-2">
-					<Button variant="outline" size="sm" onClick={onPrimary} disabled={isPosting}>
-						{isPosting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-						{primaryLabel}
-					</Button>
+					{showPrimary ? (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={onPrimary}
+							disabled={isPosting || isRunning}
+						>
+							{isPosting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+							{primaryLabel}
+						</Button>
+					) : (
+						<span className="text-xs text-muted-foreground">已完成，无需进一步操作</span>
+					)}
 					{isTerminal && (
 						<Button
 							variant="ghost"
@@ -211,7 +227,7 @@ export default function StatisticsPage() {
 		<div className="space-y-6 md:space-y-8">
 			<PageHeader
 				title="统计计算"
-				subtitle="分批重新计算数据库中的统计数据。点击「推进一批」直到状态变为「已完成」；后台保持 KV 状态，可随时关闭窗口再回来。"
+				subtitle="分批重新计算数据库中的统计数据。点击「开始计算」后由前端自动以 ~1.5s 间隔推进，可随时关闭窗口再回来——KV 状态会保留 24h。"
 			/>
 
 			<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

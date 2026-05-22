@@ -88,6 +88,28 @@ describe("isSnapshot", () => {
 	it("rejects when leaseUntil is a string", () => {
 		expect(isSnapshot({ ...snap(), leaseUntil: "soon" } as unknown)).toBe(false);
 	});
+
+	it("rejects future schema versions (v !== 1)", () => {
+		// Strict v1 lock per reviewer msg=5c975973 P1 — a v2 payload must
+		// not be rendered as-if v1 just because the field types overlap.
+		expect(isSnapshot({ ...snap(), v: 2 } as unknown)).toBe(false);
+		expect(isSnapshot({ ...snap(), v: 0 } as unknown)).toBe(false);
+		expect(isSnapshot({ ...snap(), v: "1" } as unknown)).toBe(false);
+	});
+
+	it("rejects when params is null", () => {
+		expect(isSnapshot({ ...snap(), params: null } as unknown)).toBe(false);
+	});
+
+	it("rejects when params is an array", () => {
+		// Arrays are typeof "object" — guard must explicitly reject them.
+		expect(isSnapshot({ ...snap(), params: [] } as unknown)).toBe(false);
+	});
+
+	it("rejects when params is a primitive", () => {
+		expect(isSnapshot({ ...snap(), params: 0 } as unknown)).toBe(false);
+		expect(isSnapshot({ ...snap(), params: "x" } as unknown)).toBe(false);
+	});
 });
 
 describe("extractSnapshotFromError", () => {

@@ -3,19 +3,14 @@
 // Unit tests for `useStatsRecalc` — the Phase E ViewModel hook driving
 // each recalc card on /admin/statistics/recalc.
 //
-// Plumbing covered:
-//   - initial GET hydrates the snapshot
-//   - `start()` / `advance()` / `reset()` POST shapes
-//   - single in-flight POST guard (second click while posting is a no-op)
-//   - 409 CONCURRENT_TICK / RUNNING_JOB_EXISTS are soft conflicts:
-//     extract embedded payload, clear error, keep polling
-//   - 500 RECALC_FAILED surfaces the embedded payload + error message
-//   - network throw surfaces a hard error
-//   - non-JSON body surfaces a hard error
-//   - polling auto-advances while running, stops on terminal
-//
-// `pollIntervalMs: 50` keeps the timing tight; tests await state
-// transitions with `waitFor` rather than asserting on timer fire counts.
+// Wire-contract notes (E.1 fix per reviewer msg=5c975973):
+//   - 2xx body is the worker envelope `{data, meta}`. `data === null`
+//     means "no job yet" (fresh GET). `data === snapshot` is real
+//     progress.
+//   - 4xx/5xx body is the flat `{error:{code, details:{payload?}}}`
+//     shape from `errorResponse`, NOT envelope-wrapped.
+//   - `parseRecalcResponse` takes `expectedKind` and rejects any
+//     snapshot whose `kind` does not match.
 
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -49,6 +44,11 @@ function snap(overrides: Partial<StatsJobSnapshot> = {}): StatsJobSnapshot {
 	};
 }
 
+/** Envelope-wrap a snapshot the way the worker actually returns 2xx. */
+function envelope<T>(data: T) {
+	return { data, meta: { timestamp: 0, requestId: "test-req" } };
+}
+
 /** Helper to mint a `Response`-ish object for vi.fn fetch. */
 function mockResponse(body: unknown, init?: { status?: number; ok?: boolean }) {
 	const status = init?.status ?? 200;
@@ -58,6 +58,10 @@ function mockResponse(body: unknown, init?: { status?: number; ok?: boolean }) {
 		statusText: status === 500 ? "Internal" : "OK",
 		json: async () => body,
 	} as Response;
+}
+
+function mockOk(snapshot: StatsJobSnapshot | null) {
+	return mockResponse(envelope(snapshot));
 }
 
 function mockNonJson(status = 500) {
@@ -87,29 +91,65 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("parseRecalcResponse", () => {
-	it("returns snapshot on a 2xx valid body", async () => {
+	it("returns snapshot on a 2xx enveloped body", async () => {
 		const s = snap();
-		const out = await parseRecalcResponse(mockResponse(s));
+		const out = await parseRecalcResponse(mockOk(s), "forums");
 		expect(out.kind).toBe("snapshot");
 		if (out.kind === "snapshot") expect(out.snapshot).toEqual(s);
 	});
 
-	it("returns hard on a 2xx non-snapshot body", async () => {
-		const out = await parseRecalcResponse(mockResponse({ not: "snapshot" }));
+	it("returns empty on a 2xx body with data:null (no job yet)", async () => {
+		const out = await parseRecalcResponse(mockOk(null), "forums");
+		expect(out.kind).toBe("empty");
+	});
+
+	it("rejects a cross-kind snapshot on 2xx as a hard error", async () => {
+		const s = snap({ kind: "users" });
+		const out = await parseRecalcResponse(mockOk(s), "forums");
+		expect(out.kind).toBe("hard");
+		if (out.kind === "hard") {
+			expect(out.message).toContain("forums");
+			expect(out.message).toContain("users");
+			// Cross-kind payload is dropped, never assigned to the card.
+			expect(out.snapshot).toBe(null);
+		}
+	});
+
+	it("returns hard on a 2xx body without a `data` field", async () => {
+		const out = await parseRecalcResponse(mockResponse({ meta: {} }), "forums");
 		expect(out.kind).toBe("hard");
 	});
 
-	it("returns soft on 409 CONCURRENT_TICK with embedded payload", async () => {
+	it("returns hard on a 2xx body with data of wrong shape", async () => {
+		const out = await parseRecalcResponse(mockResponse({ data: { not: "snap" } }), "forums");
+		expect(out.kind).toBe("hard");
+	});
+
+	it("returns hard on a 2xx primitive body", async () => {
+		const out = await parseRecalcResponse(mockResponse(null), "forums");
+		expect(out.kind).toBe("hard");
+	});
+
+	it("returns soft on 409 CONCURRENT_TICK with matching kind payload", async () => {
 		const s = snap({ status: "running", processed: 10 });
 		const body = { error: { code: "CONCURRENT_TICK", details: { payload: s } } };
-		const out = await parseRecalcResponse(mockResponse(body, { status: 409, ok: false }));
+		const out = await parseRecalcResponse(mockResponse(body, { status: 409, ok: false }), "forums");
 		expect(out.kind).toBe("soft");
 		if (out.kind === "soft") expect(out.snapshot).toEqual(s);
 	});
 
+	it("drops cross-kind payload on a soft 409", async () => {
+		const body = {
+			error: { code: "CONCURRENT_TICK", details: { payload: snap({ kind: "users" }) } },
+		};
+		const out = await parseRecalcResponse(mockResponse(body, { status: 409, ok: false }), "forums");
+		expect(out.kind).toBe("soft");
+		if (out.kind === "soft") expect(out.snapshot).toBe(null);
+	});
+
 	it("returns soft on 409 RUNNING_JOB_EXISTS", async () => {
 		const body = { error: { code: "RUNNING_JOB_EXISTS", details: { payload: snap() } } };
-		const out = await parseRecalcResponse(mockResponse(body, { status: 409, ok: false }));
+		const out = await parseRecalcResponse(mockResponse(body, { status: 409, ok: false }), "forums");
 		expect(out.kind).toBe("soft");
 	});
 
@@ -118,7 +158,7 @@ describe("parseRecalcResponse", () => {
 		const body = {
 			error: { code: "RECALC_FAILED", details: { payload: failed, error: "boom" } },
 		};
-		const out = await parseRecalcResponse(mockResponse(body, { status: 500, ok: false }));
+		const out = await parseRecalcResponse(mockResponse(body, { status: 500, ok: false }), "forums");
 		expect(out.kind).toBe("hard");
 		if (out.kind === "hard") {
 			expect(out.snapshot).toEqual(failed);
@@ -126,27 +166,39 @@ describe("parseRecalcResponse", () => {
 		}
 	});
 
+	it("drops cross-kind embedded payload on a hard error", async () => {
+		const body = {
+			error: {
+				code: "RECALC_FAILED",
+				details: { payload: snap({ kind: "threads" }), error: "boom" },
+			},
+		};
+		const out = await parseRecalcResponse(mockResponse(body, { status: 500, ok: false }), "forums");
+		expect(out.kind).toBe("hard");
+		if (out.kind === "hard") expect(out.snapshot).toBe(null);
+	});
+
 	it("returns hard on body parse failure", async () => {
-		const out = await parseRecalcResponse(mockNonJson(502));
+		const out = await parseRecalcResponse(mockNonJson(502), "forums");
 		expect(out.kind).toBe("hard");
 		if (out.kind === "hard") expect(out.snapshot).toBe(null);
 	});
 
 	it("uses error.message when details.error is missing", async () => {
 		const body = { error: { code: "WHATEVER", message: "fallback message" } };
-		const out = await parseRecalcResponse(mockResponse(body, { status: 400, ok: false }));
+		const out = await parseRecalcResponse(mockResponse(body, { status: 400, ok: false }), "forums");
 		expect(out.kind).toBe("hard");
 		if (out.kind === "hard") expect(out.message).toBe("fallback message");
 	});
 
 	it("falls back to code when no message", async () => {
 		const body = { error: { code: "WEIRD" } };
-		const out = await parseRecalcResponse(mockResponse(body, { status: 400, ok: false }));
+		const out = await parseRecalcResponse(mockResponse(body, { status: 400, ok: false }), "forums");
 		if (out.kind === "hard") expect(out.message).toBe("WEIRD");
 	});
 
 	it("falls back to HTTP status when error envelope absent", async () => {
-		const out = await parseRecalcResponse(mockResponse({}, { status: 418, ok: false }));
+		const out = await parseRecalcResponse(mockResponse({}, { status: 418, ok: false }), "forums");
 		if (out.kind === "hard") expect(out.message).toBe("HTTP 418");
 	});
 });
@@ -174,9 +226,9 @@ describe("shouldAutoAdvance", () => {
 // ---------------------------------------------------------------------------
 
 describe("useStatsRecalc — lifecycle", () => {
-	it("fetches initial snapshot on mount", async () => {
+	it("fetches initial snapshot on mount (real envelope wire shape)", async () => {
 		const s = snap({ status: "done" });
-		fetchMock.mockResolvedValueOnce(mockResponse(s));
+		fetchMock.mockResolvedValueOnce(mockOk(s));
 
 		const { result } = renderHook(() =>
 			useStatsRecalc({ kind: "forums", pollIntervalMs: 999_999, autoAdvance: false }),
@@ -194,6 +246,21 @@ describe("useStatsRecalc — lifecycle", () => {
 		);
 	});
 
+	it("initial GET with data:null lands as snapshot:null without error", async () => {
+		fetchMock.mockResolvedValueOnce(mockOk(null));
+
+		const { result } = renderHook(() =>
+			useStatsRecalc({ kind: "post-forums", pollIntervalMs: 999_999, autoAdvance: false }),
+		);
+
+		await waitFor(() => {
+			expect(result.current.state.loading).toBe(false);
+		});
+
+		expect(result.current.state.snapshot).toBe(null);
+		expect(result.current.state.error).toBe(null);
+	});
+
 	it("surfaces a network throw on the initial GET", async () => {
 		fetchMock.mockRejectedValueOnce(new Error("offline"));
 		const { result } = renderHook(() =>
@@ -205,12 +272,11 @@ describe("useStatsRecalc — lifecycle", () => {
 		expect(result.current.state.error).toBe("offline");
 	});
 
-	it("start() POSTs with no body and updates snapshot", async () => {
-		// Initial GET returns no snapshot (404-ish) → loading clears, no
-		// snapshot. Then start() POSTs.
-		fetchMock.mockResolvedValueOnce(mockResponse({}, { status: 404, ok: false }));
-		const initial = snap({ status: "running" });
-		fetchMock.mockResolvedValueOnce(mockResponse(initial));
+	it("start() POSTs with no body and updates snapshot via envelope", async () => {
+		// Initial GET → data:null (no job yet).
+		fetchMock.mockResolvedValueOnce(mockOk(null));
+		const initial = snap({ kind: "users", status: "running" });
+		fetchMock.mockResolvedValueOnce(mockOk(initial));
 
 		const { result } = renderHook(() =>
 			useStatsRecalc({ kind: "users", pollIntervalMs: 999_999, autoAdvance: false }),
@@ -228,14 +294,14 @@ describe("useStatsRecalc — lifecycle", () => {
 			"/api/admin/statistics/recalc-users",
 			expect.objectContaining({ method: "POST", body: undefined }),
 		);
-		expect(result.current.state.snapshot?.kind).toBe("forums");
+		expect(result.current.state.snapshot?.kind).toBe("users");
 	});
 
 	it("reset() POSTs {reset:true}", async () => {
-		const done = snap({ status: "done" });
-		fetchMock.mockResolvedValueOnce(mockResponse(done));
-		const fresh = snap({ status: "running", processed: 0 });
-		fetchMock.mockResolvedValueOnce(mockResponse(fresh));
+		const done = snap({ kind: "threads", status: "done" });
+		fetchMock.mockResolvedValueOnce(mockOk(done));
+		const fresh = snap({ kind: "threads", status: "running", processed: 0 });
+		fetchMock.mockResolvedValueOnce(mockOk(fresh));
 
 		const { result } = renderHook(() =>
 			useStatsRecalc({ kind: "threads", pollIntervalMs: 999_999, autoAdvance: false }),
@@ -256,10 +322,8 @@ describe("useStatsRecalc — lifecycle", () => {
 	});
 
 	it("treats 409 CONCURRENT_TICK as a soft conflict — clears error, keeps payload", async () => {
-		// Initial GET returns running.
 		const running = snap({ status: "running", processed: 100 });
-		fetchMock.mockResolvedValueOnce(mockResponse(running));
-		// advance() races into a concurrent tick.
+		fetchMock.mockResolvedValueOnce(mockOk(running));
 		const updated = snap({ status: "running", processed: 250 });
 		const body = { error: { code: "CONCURRENT_TICK", details: { payload: updated } } };
 		fetchMock.mockResolvedValueOnce(mockResponse(body, { status: 409, ok: false }));
@@ -279,8 +343,30 @@ describe("useStatsRecalc — lifecycle", () => {
 		expect(result.current.state.snapshot?.processed).toBe(250);
 	});
 
+	it("rejects a cross-kind 2xx snapshot — sets error, drops payload", async () => {
+		fetchMock.mockResolvedValueOnce(mockOk(null)); // initial GET
+		// POST returns a snapshot belonging to a DIFFERENT kind. The
+		// `users` card must not start showing `forums` progress — instead
+		// the parser flags this as a hard contract error.
+		fetchMock.mockResolvedValueOnce(mockOk(snap({ kind: "forums" })));
+
+		const { result } = renderHook(() =>
+			useStatsRecalc({ kind: "users", pollIntervalMs: 999_999, autoAdvance: false }),
+		);
+		await waitFor(() => {
+			expect(result.current.state.loading).toBe(false);
+		});
+
+		await act(async () => {
+			await result.current.actions.advance();
+		});
+
+		expect(result.current.state.error).toContain("kind");
+		expect(result.current.state.snapshot).toBe(null);
+	});
+
 	it("surfaces a hard error on 500 with the embedded failed snapshot", async () => {
-		fetchMock.mockResolvedValueOnce(mockResponse(snap({ status: "running" })));
+		fetchMock.mockResolvedValueOnce(mockOk(snap({ status: "running" })));
 		const failed = snap({ status: "failed", error: "boom" });
 		const body = {
 			error: { code: "RECALC_FAILED", details: { payload: failed, error: "boom" } },
@@ -303,9 +389,8 @@ describe("useStatsRecalc — lifecycle", () => {
 	});
 
 	it("guards against a second POST while one is in flight", async () => {
-		fetchMock.mockResolvedValueOnce(mockResponse(snap({ status: "running" })));
+		fetchMock.mockResolvedValueOnce(mockOk(snap({ status: "running" })));
 
-		// Slow POST resolves only when we release the deferred.
 		let resolveFetch: (v: Response) => void = () => {};
 		const slow = new Promise<Response>((r) => {
 			resolveFetch = r;
@@ -319,7 +404,6 @@ describe("useStatsRecalc — lifecycle", () => {
 			expect(result.current.state.loading).toBe(false);
 		});
 
-		// Kick off two parallel advance() calls; the second one must early-return.
 		let firstPromise!: Promise<void>;
 		let secondPromise!: Promise<void>;
 		await act(async () => {
@@ -327,13 +411,11 @@ describe("useStatsRecalc — lifecycle", () => {
 			secondPromise = result.current.actions.advance();
 		});
 
-		// The second call is a no-op — only ONE POST should be queued.
 		expect(fetchMock).toHaveBeenCalledTimes(2); // 1 GET + 1 POST
 		expect(result.current.state.isPosting).toBe(true);
 
-		// Release the slow POST.
 		await act(async () => {
-			resolveFetch(mockResponse(snap({ status: "running", processed: 1 })));
+			resolveFetch(mockOk(snap({ status: "running", processed: 1 })));
 			await firstPromise;
 			await secondPromise;
 		});
@@ -347,9 +429,9 @@ describe("useStatsRecalc — lifecycle", () => {
 		const s2 = snap({ status: "running", processed: 100 });
 		const s3 = snap({ status: "done", processed: 200 });
 		fetchMock
-			.mockResolvedValueOnce(mockResponse(s1)) // initial GET
-			.mockResolvedValueOnce(mockResponse(s2)) // 1st auto-advance POST
-			.mockResolvedValueOnce(mockResponse(s3)); // 2nd auto-advance POST → done
+			.mockResolvedValueOnce(mockOk(s1)) // initial GET
+			.mockResolvedValueOnce(mockOk(s2)) // 1st auto-advance POST
+			.mockResolvedValueOnce(mockOk(s3)); // 2nd auto-advance POST → done
 
 		const { result } = renderHook(() =>
 			useStatsRecalc({ kind: "forums", pollIntervalMs: 20, autoAdvance: true }),
@@ -358,15 +440,14 @@ describe("useStatsRecalc — lifecycle", () => {
 			expect(result.current.state.snapshot?.status).toBe("done");
 		});
 
-		// At least the initial GET + two POSTs.
 		expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(3);
 	});
 
 	it("refresh() does a GET without posting", async () => {
 		const s = snap({ status: "done" });
-		fetchMock.mockResolvedValueOnce(mockResponse(s));
+		fetchMock.mockResolvedValueOnce(mockOk(s));
 		const refreshed = snap({ status: "done", lastTickAt: 1_700_000_999_999 });
-		fetchMock.mockResolvedValueOnce(mockResponse(refreshed));
+		fetchMock.mockResolvedValueOnce(mockOk(refreshed));
 
 		const { result } = renderHook(() =>
 			useStatsRecalc({ kind: "forums", pollIntervalMs: 999_999, autoAdvance: false }),
@@ -388,7 +469,7 @@ describe("useStatsRecalc — lifecycle", () => {
 	});
 
 	it("surfaces a network throw on POST", async () => {
-		fetchMock.mockResolvedValueOnce(mockResponse(snap({ status: "running" })));
+		fetchMock.mockResolvedValueOnce(mockOk(snap({ status: "running" })));
 		fetchMock.mockRejectedValueOnce(new Error("post failed"));
 
 		const { result } = renderHook(() =>
@@ -404,8 +485,6 @@ describe("useStatsRecalc — lifecycle", () => {
 	});
 
 	it("exports ParsedResponse and isSnapshot for downstream consumers", () => {
-		// Smoke-import — keeps the names in scope so coverage sees them and
-		// the type re-export is verified at compile time.
 		const x: ParsedResponse = { kind: "soft", snapshot: null };
 		expect(x.kind).toBe("soft");
 		expect(isSnapshot(snap())).toBe(true);

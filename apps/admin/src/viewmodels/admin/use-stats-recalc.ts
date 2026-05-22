@@ -86,19 +86,39 @@ export interface UseStatsRecalcOptions {
 /**
  * Parse a fetch Response into either a snapshot or a structured error.
  *
+ * Wire contract (E.1 fix per reviewer msg=5c975973):
+ *   - 2xx body is the worker envelope `{data, meta}` from
+ *     `jsonNoStoreResponse`. We unwrap `data` before validating:
+ *       - `data === null`               → fresh kind, no job yet
+ *                                          (GET before first POST)
+ *       - `data` matches `isSnapshot`   → real progress
+ *       - anything else on 2xx          → hard contract error
+ *   - 4xx/5xx body is the FLAT error shape from `errorResponse`
+ *     (NOT envelope-wrapped). 409 details.payload carries the snapshot
+ *     for soft conflicts; 500 RECALC_FAILED carries the failed snapshot
+ *     plus an error message.
+ *
  * Branches:
- *   - 2xx body that matches `isSnapshot`        → `{ kind:"snapshot", snapshot }`
- *   - 409 with `error.code === CONCURRENT_TICK` → `{ kind:"soft", snapshot? }`
- *     or `RUNNING_JOB_EXISTS`
- *   - any other non-2xx                         → `{ kind:"hard", message, snapshot? }`
- *   - body parse failure                        → `{ kind:"hard", message }`
+ *   - 2xx + data:null                          → `{ kind:"empty" }`
+ *   - 2xx + data:snapshot (kind matches)       → `{ kind:"snapshot", snapshot }`
+ *   - 2xx + data:snapshot (cross-kind)         → `{ kind:"hard", message }`
+ *     (a forums card MUST NOT render a users snapshot — guards against
+ *     proxy / wiring mistakes that would silently show the wrong job)
+ *   - 2xx without `data` field or wrong shape  → `{ kind:"hard", message }`
+ *   - 409 CONCURRENT_TICK / RUNNING_JOB_EXISTS → `{ kind:"soft", snapshot? }`
+ *   - any other non-2xx                        → `{ kind:"hard", message, snapshot? }`
+ *   - body parse failure                       → `{ kind:"hard", message }`
  */
 export type ParsedResponse =
 	| { kind: "snapshot"; snapshot: StatsJobSnapshot }
+	| { kind: "empty" }
 	| { kind: "soft"; snapshot: StatsJobSnapshot | null }
 	| { kind: "hard"; message: string; snapshot: StatsJobSnapshot | null };
 
-export async function parseRecalcResponse(res: Response): Promise<ParsedResponse> {
+export async function parseRecalcResponse(
+	res: Response,
+	expectedKind: StatsJobKind,
+): Promise<ParsedResponse> {
 	let body: unknown;
 	try {
 		body = await res.json();
@@ -111,17 +131,37 @@ export async function parseRecalcResponse(res: Response): Promise<ParsedResponse
 	}
 
 	if (res.ok) {
-		if (isSnapshot(body)) return { kind: "snapshot", snapshot: body };
-		// Treat an OK without a snapshot shape as a hard failure — the
-		// proxy / worker contract must always return one on 2xx.
-		return { kind: "hard", message: "返回数据格式无效", snapshot: null };
+		// Worker 2xx envelope: `{data, meta}` from jsonNoStoreResponse.
+		if (!body || typeof body !== "object" || !("data" in (body as object))) {
+			return { kind: "hard", message: "返回数据格式无效", snapshot: null };
+		}
+		const data = (body as { data: unknown }).data;
+		if (data === null) {
+			// GET against a kind with no KV state yet — not an error.
+			return { kind: "empty" };
+		}
+		if (!isSnapshot(data)) {
+			return { kind: "hard", message: "返回数据格式无效", snapshot: null };
+		}
+		if (data.kind !== expectedKind) {
+			// Hard contract bug: a kind="forums" card must never accept a
+			// snapshot for another kind. Surface as a hard error so the
+			// card lights up red and we notice the mis-wiring.
+			return {
+				kind: "hard",
+				message: `kind 不匹配：期望 ${expectedKind}，收到 ${data.kind}`,
+				snapshot: null,
+			};
+		}
+		return { kind: "snapshot", snapshot: data };
 	}
 
-	// Non-OK. Pull `details.payload` if present (409 + 500 paths).
+	// Non-OK. Flat error shape `{error:{code, details:{payload?}}}`.
 	const embedded = extractSnapshotFromError(body);
+	const embeddedSafe = embedded && embedded.kind === expectedKind ? embedded : null;
 	const code = (body as WorkerErrorBody | undefined)?.error?.code ?? "";
 	if (isSoftConflictCode(code)) {
-		return { kind: "soft", snapshot: embedded };
+		return { kind: "soft", snapshot: embeddedSafe };
 	}
 	const detailsErr = (body as WorkerErrorBody | undefined)?.error?.details?.error;
 	const fallbackMsg = (body as WorkerErrorBody | undefined)?.error?.message;
@@ -130,7 +170,7 @@ export async function parseRecalcResponse(res: Response): Promise<ParsedResponse
 		(typeof fallbackMsg === "string" && fallbackMsg) ||
 		code ||
 		`HTTP ${res.status}`;
-	return { kind: "hard", message, snapshot: embedded };
+	return { kind: "hard", message, snapshot: embeddedSafe };
 }
 
 /**
@@ -190,6 +230,13 @@ export function useStatsRecalc({
 				setSnapshot(parsed.snapshot);
 				setError(null);
 				return;
+			case "empty":
+				// Kind has no KV state yet (fresh GET before first POST).
+				// Clear any prior error and keep snapshot null so the card
+				// shows the 「尚未开始」 placeholder.
+				setSnapshot(null);
+				setError(null);
+				return;
 			case "soft":
 				if (parsed.snapshot) setSnapshot(parsed.snapshot);
 				setError(null);
@@ -208,7 +255,7 @@ export function useStatsRecalc({
 	const refresh = useCallback(async () => {
 		try {
 			const res = await fetch(jobEndpoint(kind), { method: "GET" });
-			applyParsed(await parseRecalcResponse(res));
+			applyParsed(await parseRecalcResponse(res, kind));
 		} catch (err) {
 			if (cancelledRef.current) return;
 			setError(err instanceof Error ? err.message : "网络错误");
@@ -232,7 +279,7 @@ export function useStatsRecalc({
 					headers: { "Content-Type": "application/json" },
 					body: body ? JSON.stringify(body) : undefined,
 				});
-				applyParsed(await parseRecalcResponse(res));
+				applyParsed(await parseRecalcResponse(res, kind));
 			} catch (err) {
 				if (cancelledRef.current) return;
 				setError(err instanceof Error ? err.message : "网络错误");
