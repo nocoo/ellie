@@ -89,19 +89,17 @@ function RecalcCard({ config }: { config: CardConfig }) {
 	const status = snapshot?.status ?? null;
 	const isTerminal = status === "done" || status === "failed";
 	const isRunning = status === "running";
-	const isDone = status === "done";
-	// Done is terminal-success; the primary button is hidden in favour of
-	// the 「重置」 ghost action so a stray click can't fire a no-op POST
-	// (per reviewer msg=5c975973). Failed still shows 「重试」 — the
-	// next POST will see status="failed" and refuse to advance without
-	// reset:true, but the operator is asking explicitly so we surface
-	// the button and let the soft 409 / reset flow take over.
-	const showPrimary = !isDone;
+	// Both done and failed are terminal — the worker `tickJob` returns
+	// the current snapshot without advancing for either when reset is
+	// not set (see apps/worker/src/lib/stats-job.ts:307). To prevent a
+	// stray click from firing a no-op POST we hide the primary button
+	// on either terminal state and force the operator through the
+	// 「重置」 ghost action (per reviewer msg=5c975973 + msg=a4d18bc4).
+	const showPrimary = !isTerminal;
 
 	let primaryLabel = "开始计算";
 	if (isPosting) primaryLabel = "正在请求…";
 	else if (isRunning) primaryLabel = "运行中（自动推进）";
-	else if (status === "failed") primaryLabel = "重试";
 
 	return (
 		<Card>
@@ -188,7 +186,9 @@ function RecalcCard({ config }: { config: CardConfig }) {
 							{primaryLabel}
 						</Button>
 					) : (
-						<span className="text-xs text-muted-foreground">已完成，无需进一步操作</span>
+						<span className="text-xs text-muted-foreground">
+							{status === "failed" ? "任务已失败，请「重置」后重试" : "已完成，无需进一步操作"}
+						</span>
 					)}
 					{isTerminal && (
 						<Button
