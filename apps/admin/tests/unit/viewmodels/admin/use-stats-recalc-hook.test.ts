@@ -125,6 +125,16 @@ describe("parseRecalcResponse", () => {
 		expect(out.kind).toBe("hard");
 	});
 
+	it("returns hard on a 2xx body with legacy {data:{updated:N}} shape (regression msg=b7eda60a)", async () => {
+		// Production-detected: pre-task-#19 `recalcForums` returned
+		// `{data:{updated:178}}`. After Phase E the admin parser
+		// requires StatsJobPayload; legacy shape must be rejected as
+		// hard error, never silently treated as a partial snapshot.
+		const out = await parseRecalcResponse(mockResponse({ data: { updated: 178 } }), "forums");
+		expect(out.kind).toBe("hard");
+		if (out.kind === "hard") expect(out.snapshot).toBe(null);
+	});
+
 	it("returns hard on a 2xx primitive body", async () => {
 		const out = await parseRecalcResponse(mockResponse(null), "forums");
 		expect(out.kind).toBe("hard");

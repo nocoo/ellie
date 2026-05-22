@@ -10,41 +10,101 @@ import {
 import { createAdminRequest, createMockDb, makeEnv } from "../../../helpers";
 
 describe("admin statistics handlers", () => {
-	// ─── recalcForums ───────────────────────────────────────────────
+	// ─── recalcForums (job-mode) ────────────────────────────────────
+	//
+	// Handler is a thin wrapper around `tickJob` + `forumsTicker`.
+	// Each POST drives exactly one phase of the state machine:
+	//   - first POST (no payload) → initialize (count total, no advance)
+	//   - subsequent POSTs        → advance one batch of forums
+	//   - empty / short batch     → mark done + finalize cache bump
+	// Tests assert the snapshot returned in the response body and the
+	// SQL shape (no global self-join, scoped `IN (...)` aggregates).
+	// Replaces the legacy one-shot `{updated:N}` handler — line-protocol
+	// regression for msg=b7eda60a (production-detected: legacy shape
+	// crashed the new admin parser with "返回数据格式无效").
 
-	describe("recalcForums", () => {
-		it("should return updated=0 when no forums exist", async () => {
-			const { db } = createMockDb({
-				allResults: {
-					"SELECT id FROM forums": [],
+	describe("recalcForums (job-mode)", () => {
+		it("rejects invalid JSON body with 400", async () => {
+			const { db } = createMockDb();
+			const env = makeEnv({ DB: db });
+			await deleteJob(env, "forums");
+			const request = new Request("https://api.example.com/api/admin/statistics/recalc-forums", {
+				method: "POST",
+				headers: {
+					"X-API-Key": "test-admin-api-key",
+					"Content-Type": "application/json",
+				},
+				body: "invalid json",
+			});
+			const response = await statistics.recalcForums(request, env);
+			expect(response.status).toBe(400);
+		});
+
+		it("initialize: first POST counts total and returns running snapshot (no advance)", async () => {
+			const { db, batchCalls } = createMockDb({
+				firstResults: {
+					"SELECT COUNT(*) as cnt FROM forums": { cnt: 12 },
 				},
 			});
 			const env = makeEnv({ DB: db });
+			await deleteJob(env, "forums");
 			const request = createAdminRequest("POST", "/api/admin/statistics/recalc-forums");
 			const response = await statistics.recalcForums(request, env);
 			expect(response.status).toBe(200);
-			const body = (await response.json()) as { data: { updated: number } };
+			const body = (await response.json()) as { data: StatsJobPayload };
+			// Job-mode snapshot — NOT the legacy {updated:N} shape that
+			// triggered msg=b7eda60a in production.
+			expect(body.data.v).toBe(1);
+			expect(body.data.kind).toBe("forums");
+			expect(body.data.status).toBe("running");
+			expect(body.data.cursor).toBe(0);
+			expect(body.data.processed).toBe(0);
 			expect(body.data.updated).toBe(0);
+			expect(body.data.total).toBe(12);
+			expect(body.data.params).toEqual({});
+			// Initialize must NOT run any UPDATE batches.
+			expect(batchCalls.length).toBe(0);
+			// Lease is null on idle running (Phase A.1 invariant).
+			expect(body.data.leaseUntil).toBeNull();
 		});
 
-		it("should recalculate forum counters", async () => {
+		it("initialize on empty forums table records total=0 and stays running", async () => {
 			const { db } = createMockDb({
+				firstResults: {
+					"SELECT COUNT(*) as cnt FROM forums": { cnt: 0 },
+				},
+			});
+			const env = makeEnv({ DB: db });
+			await deleteJob(env, "forums");
+			const response = await statistics.recalcForums(
+				createAdminRequest("POST", "/api/admin/statistics/recalc-forums"),
+				env,
+			);
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as { data: StatsJobPayload };
+			expect(body.data.status).toBe("running");
+			expect(body.data.total).toBe(0);
+			expect(body.data.processed).toBe(0);
+		});
+
+		it("advance: processes one batch of forums and moves cursor", async () => {
+			const { db, batchCalls, calls } = createMockDb({
 				allResults: {
-					"SELECT id FROM forums": [{ id: 1 }, { id: 2 }],
-					"SELECT forum_id, COUNT(*) as cnt FROM threads": [
+					"FROM forums WHERE id >": [{ id: 1 }, { id: 2 }],
+					"FROM threads WHERE forum_id IN": [
 						{ forum_id: 1, cnt: 10 },
 						{ forum_id: 2, cnt: 5 },
 					],
-					"SELECT forum_id, COUNT(*) as cnt FROM posts": [
+					"FROM posts WHERE forum_id IN": [
 						{ forum_id: 1, cnt: 100 },
 						{ forum_id: 2, cnt: 50 },
 					],
-					"SELECT t1.forum_id": [
+					"ROW_NUMBER() OVER": [
 						{
 							forum_id: 1,
 							id: 42,
 							subject: "Latest",
-							last_post_at: 1711544400,
+							last_post_at: 1_711_544_400,
 							last_poster: "bob",
 							last_poster_id: 20,
 						},
@@ -52,11 +112,235 @@ describe("admin statistics handlers", () => {
 				},
 			});
 			const env = makeEnv({ DB: db });
-			const request = createAdminRequest("POST", "/api/admin/statistics/recalc-forums");
-			const response = await statistics.recalcForums(request, env);
+			// Seed: total 10 forums, cursor 0, batchSize 2 → batch is the
+			// 2 mock rows, batch.length (2) < batchSize (2) is false →
+			// non-terminal so we can assert mid-run shape.
+			await writeJob(env, {
+				...makeInitialPayload({ kind: "forums", total: 10, now: 1_700_000_000_000 }),
+				batchSize: 2,
+			});
+
+			const response = await statistics.recalcForums(
+				createAdminRequest("POST", "/api/admin/statistics/recalc-forums"),
+				env,
+			);
 			expect(response.status).toBe(200);
-			const body = (await response.json()) as { data: { updated: number } };
+			const body = (await response.json()) as { data: StatsJobPayload };
+			expect(body.data.status).toBe("running");
+			expect(body.data.cursor).toBe(2); // last id in batch
+			expect(body.data.processed).toBe(2);
 			expect(body.data.updated).toBe(2);
+			expect(body.data.lastBatchUpdated).toBe(2);
+			expect(body.data.total).toBe(10); // unchanged on non-final tick
+			expect(body.data.leaseUntil).toBeNull();
+
+			// We must have run at least one D1 UPDATE batch.
+			expect(batchCalls.length).toBeGreaterThan(0);
+
+			// SQL plan invariants: no global GROUP BY scan, no global
+			// self-join. Aggregates must be IN (...) batch-scoped.
+			const sawGlobalThreadsGroupBy = calls.some(
+				(c) => c.sql.includes("FROM threads GROUP BY forum_id") && !c.sql.includes("forum_id IN"),
+			);
+			expect(sawGlobalThreadsGroupBy).toBe(false);
+			const sawGlobalPostsGroupBy = calls.some(
+				(c) => c.sql.includes("FROM posts GROUP BY forum_id") && !c.sql.includes("forum_id IN"),
+			);
+			expect(sawGlobalPostsGroupBy).toBe(false);
+			const sawWindow = calls.some(
+				(c) => c.sql.includes("ROW_NUMBER()") && c.sql.includes("WHERE forum_id IN"),
+			);
+			expect(sawWindow).toBe(true);
+
+			// UPDATE bind order must match the column order in the SQL:
+			// threads, posts, last_thread_id, last_post_at, last_poster,
+			// last_poster_id, last_thread_subject, id.
+			const updateForum1 = calls.find(
+				(c) => c.sql.includes("UPDATE forums SET") && c.params[c.params.length - 1] === 1,
+			);
+			expect(updateForum1?.params).toEqual([10, 100, 42, 1_711_544_400, "bob", 20, "Latest", 1]);
+
+			// Forum 2 has no last-thread row → fallback zeros / empty.
+			const updateForum2 = calls.find(
+				(c) => c.sql.includes("UPDATE forums SET") && c.params[c.params.length - 1] === 2,
+			);
+			expect(updateForum2?.params).toEqual([5, 50, 0, 0, "", 0, "", 2]);
+		});
+
+		it("advance: empty batch transitions to done and renormalizes total to processed", async () => {
+			const { db } = createMockDb({
+				allResults: {
+					"FROM forums WHERE id >": [],
+				},
+			});
+			const env = makeEnv({ DB: db });
+			// total=999 (initialize estimate); only 7 forums actually walked
+			// (most deleted between initialize and tick). Phase C.1: processed
+			// stays at 7, total renormalises down to 7.
+			await writeJob(env, {
+				...makeInitialPayload({ kind: "forums", total: 999, now: 1_700_000_000_000 }),
+				cursor: 7,
+				processed: 7,
+				updated: 7,
+			});
+
+			const tick1 = await statistics.recalcForums(
+				createAdminRequest("POST", "/api/admin/statistics/recalc-forums"),
+				env,
+			);
+			expect(tick1.status).toBe(200);
+			const body1 = (await tick1.json()) as { data: StatsJobPayload };
+			expect(body1.data.status).toBe("done");
+			expect(body1.data.processed).toBe(7);
+			expect(body1.data.total).toBe(7);
+			expect(body1.data.finishedAt).not.toBeNull();
+			expect(body1.data.leaseUntil).toBeNull();
+
+			// Second POST on the same done job returns the snapshot unchanged.
+			const tick2 = await statistics.recalcForums(
+				createAdminRequest("POST", "/api/admin/statistics/recalc-forums"),
+				env,
+			);
+			expect(tick2.status).toBe(200);
+			const body2 = (await tick2.json()) as { data: StatsJobPayload };
+			expect(body2.data.status).toBe("done");
+			expect(body2.data.finishedAt).toBe(body1.data.finishedAt);
+		});
+
+		it("advance: short final batch transitions to done with renormalised total", async () => {
+			const { db } = createMockDb({
+				allResults: {
+					// 1 row returned, batchSize 1000 → short final batch.
+					"FROM forums WHERE id >": [{ id: 9 }],
+					"FROM threads WHERE forum_id IN": [{ forum_id: 9, cnt: 3 }],
+					"FROM posts WHERE forum_id IN": [{ forum_id: 9, cnt: 30 }],
+					"ROW_NUMBER() OVER": [],
+				},
+			});
+			const env = makeEnv({ DB: db });
+			await writeJob(env, {
+				...makeInitialPayload({ kind: "forums", total: 50, now: 1_700_000_000_000 }),
+				cursor: 8,
+				processed: 8,
+				updated: 8,
+			});
+
+			const res = await statistics.recalcForums(
+				createAdminRequest("POST", "/api/admin/statistics/recalc-forums"),
+				env,
+			);
+			expect(res.status).toBe(200);
+			const body = (await res.json()) as { data: StatsJobPayload };
+			expect(body.data.status).toBe("done");
+			expect(body.data.processed).toBe(9);
+			expect(body.data.total).toBe(9);
+			expect(body.data.updated).toBe(9);
+			expect(body.data.lastBatchUpdated).toBe(1);
+		});
+
+		it("finalize bumps forum:summary:gen only when updated > 0", async () => {
+			// Initialize on an empty forums table → advance hits empty batch
+			// immediately → status=done with updated=0 → finalize must NOT
+			// touch forum:summary:gen (no churn for no-op sweeps).
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT COUNT(*) as cnt FROM forums": { cnt: 0 },
+				},
+				allResults: {
+					"FROM forums WHERE id >": [],
+				},
+			});
+			const env = makeEnv({ DB: db });
+			await deleteJob(env, "forums");
+
+			// Tick 1 — initialize, running snapshot.
+			await statistics.recalcForums(
+				createAdminRequest("POST", "/api/admin/statistics/recalc-forums"),
+				env,
+			);
+			const initialGen = await env.KV.get("forum:summary:gen");
+
+			// Tick 2 — advance hits empty batch, done with updated=0.
+			const res = await statistics.recalcForums(
+				createAdminRequest("POST", "/api/admin/statistics/recalc-forums"),
+				env,
+			);
+			expect(res.status).toBe(200);
+			const body = (await res.json()) as { data: StatsJobPayload };
+			expect(body.data.status).toBe("done");
+			expect(body.data.updated).toBe(0);
+
+			// forum:summary:gen must be unchanged (no bump for no-op sweep).
+			const finalGen = await env.KV.get("forum:summary:gen");
+			expect(finalGen).toBe(initialGen);
+		});
+
+		it("finalize bumps forum:summary:gen when updated > 0 on done transition", async () => {
+			// Initialize (total=1) → advance walks 1 forum → short final
+			// batch → done with updated=1 → finalize MUST bump
+			// forum:summary:gen exactly once (outside the lease).
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT COUNT(*) as cnt FROM forums": { cnt: 1 },
+				},
+				allResults: {
+					"FROM forums WHERE id >": [{ id: 1 }],
+					"FROM threads WHERE forum_id IN": [{ forum_id: 1, cnt: 0 }],
+					"FROM posts WHERE forum_id IN": [{ forum_id: 1, cnt: 0 }],
+					"ROW_NUMBER() OVER": [],
+				},
+			});
+			const env = makeEnv({ DB: db });
+			await deleteJob(env, "forums");
+
+			// Tick 1 — initialize (no bump yet).
+			await statistics.recalcForums(
+				createAdminRequest("POST", "/api/admin/statistics/recalc-forums"),
+				env,
+			);
+			const genBeforeBatch = await env.KV.get("forum:summary:gen");
+
+			// Tick 2 — advance writes 1 forum → done → finalize bumps.
+			const res = await statistics.recalcForums(
+				createAdminRequest("POST", "/api/admin/statistics/recalc-forums"),
+				env,
+			);
+			expect(res.status).toBe(200);
+			const body = (await res.json()) as { data: StatsJobPayload };
+			expect(body.data.status).toBe("done");
+			expect(body.data.updated).toBe(1);
+
+			const genAfter = await env.KV.get("forum:summary:gen");
+			expect(genAfter).not.toBe(genBeforeBatch);
+		});
+
+		it("response body is StatsJobPayload, NOT the legacy {updated:N} shape", async () => {
+			// Regression line-pin for msg=b7eda60a (production: legacy
+			// `{data:{updated:178}}` shape crashed admin parser with
+			// "返回数据格式无效"). Every 2xx response from this endpoint
+			// must now be a full StatsJobPayload with v/kind/status fields.
+			const { db } = createMockDb({
+				firstResults: {
+					"SELECT COUNT(*) as cnt FROM forums": { cnt: 5 },
+				},
+			});
+			const env = makeEnv({ DB: db });
+			await deleteJob(env, "forums");
+			const res = await statistics.recalcForums(
+				createAdminRequest("POST", "/api/admin/statistics/recalc-forums"),
+				env,
+			);
+			expect(res.status).toBe(200);
+			const body = (await res.json()) as { data: Record<string, unknown> };
+			// New required fields present.
+			expect(body.data.v).toBe(1);
+			expect(body.data.kind).toBe("forums");
+			expect(body.data.status).toBe("running");
+			// Legacy keys must NOT be the response's primary shape — they
+			// can appear as job-snapshot fields, but never as the only key.
+			expect(Object.keys(body.data)).toContain("cursor");
+			expect(Object.keys(body.data)).toContain("processed");
+			expect(Object.keys(body.data)).toContain("batchSize");
 		});
 	});
 
