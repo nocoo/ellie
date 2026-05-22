@@ -69,8 +69,5 @@ scripts/*-data.sql
 .autoresearch/
 tests/e2e/.auth/
 
-# Wrangler config (contains resource IDs — use wrangler.toml.example)
-apps/worker/wrangler.toml
-
 # Migration state (contains real DB IDs)
 packages/migrate/production-state.json
