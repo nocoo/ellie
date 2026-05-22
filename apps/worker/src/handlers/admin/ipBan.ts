@@ -16,7 +16,7 @@ import {
 import type { Env } from "../../lib/env";
 import { toIpBan } from "../../lib/mappers";
 import { parseIdFromPath } from "../../lib/parseId";
-import { jsonResponse, paginatedResponse } from "../../lib/response";
+import { jsonNoStoreResponse, paginatedNoStoreResponse } from "../../lib/response";
 
 import { errorResponse } from "../../middleware/error";
 
@@ -247,7 +247,7 @@ export const list = withEntityAuth(
 				.all(),
 		]);
 
-		return paginatedResponse(
+		return paginatedNoStoreResponse(
 			result.results.map((r) => toIpBan(r as Record<string, unknown>)),
 			countResult?.total ?? 0,
 			page,
@@ -521,12 +521,12 @@ export const checkIp = withEntityAuth(
 		}
 
 		if (matches.length === 0) {
-			return jsonResponse({ banned: false }, origin);
+			return jsonNoStoreResponse({ banned: false }, origin);
 		}
 
 		// Sort by specificity descending — most specific rule first
 		matches.sort((a, b) => b.specificity - a.specificity);
 
-		return jsonResponse({ banned: true, matchedRule: toIpBan(matches[0].ban) }, origin);
+		return jsonNoStoreResponse({ banned: true, matchedRule: toIpBan(matches[0].ban) }, origin);
 	},
 );

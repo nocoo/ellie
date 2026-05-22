@@ -71,6 +71,7 @@ export interface ForumTreeNodeV2 {
 	parentId: number;
 	name: string;
 	description: string;
+	announcement: string;
 	icon: string;
 	displayOrder: number;
 	type: ForumType;
@@ -184,6 +185,7 @@ export function buildForumTreePayload(
 		parentId: f.parentId,
 		name: f.name,
 		description: f.description,
+		announcement: f.announcement,
 		icon: f.icon,
 		displayOrder: f.displayOrder,
 		type: f.type,
@@ -271,11 +273,12 @@ export function isForumTreePayload(value: unknown): value is ForumTreePayloadV2 
 	if (!value || typeof value !== "object") return false;
 	const v = value as Partial<ForumTreePayloadV2>;
 	if (typeof v.bucket !== "string" || !Array.isArray(v.forums)) return false;
-	// Reject pre-threadTypes payloads. Empty `forums` is legal — the bucket
-	// may legitimately have nothing visible, and there's no field to check.
+	// Reject pre-threadTypes or pre-announcement payloads.
 	for (const node of v.forums) {
 		if (!node || typeof node !== "object") return false;
-		if (!isThreadTypeConfig((node as unknown as Record<string, unknown>).threadTypes)) return false;
+		const n = node as unknown as Record<string, unknown>;
+		if (!isThreadTypeConfig(n.threadTypes)) return false;
+		if (typeof n.announcement !== "string") return false;
 	}
 	return true;
 }

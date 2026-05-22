@@ -120,41 +120,13 @@ describe("loginHistory — pure helpers", () => {
 		expect(_internal.maskIp("::1")).toBe("unknown"); // leading-empty v6 fragment
 	});
 
-	it("isTodayLoginsKpi rejects non-object / null / missing fields", () => {
-		expect(_internal.isTodayLoginsKpi(null)).toBe(false);
-		expect(_internal.isTodayLoginsKpi(undefined)).toBe(false);
-		expect(_internal.isTodayLoginsKpi("not-an-object")).toBe(false);
-		expect(_internal.isTodayLoginsKpi(42)).toBe(false);
-		// Object but missing fields → false on first typeof check.
-		expect(_internal.isTodayLoginsKpi({})).toBe(false);
-		// One missing field at the end of the chain.
-		expect(
-			_internal.isTodayLoginsKpi({
-				now: 0,
-				dayStart: 0,
-				totalAttempts: 0,
-				successAttempts: 0,
-				failedAttempts: 0,
-				uniqueUsers: 0,
-				uniqueIps: 0,
-				loginAttempts: 0,
-				// registerAttempts missing
-			}),
-		).toBe(false);
-		// All numeric → true.
-		expect(
-			_internal.isTodayLoginsKpi({
-				now: 0,
-				dayStart: 0,
-				totalAttempts: 0,
-				successAttempts: 0,
-				failedAttempts: 0,
-				uniqueUsers: 0,
-				uniqueIps: 0,
-				loginAttempts: 0,
-				registerAttempts: 0,
-			}),
-		).toBe(true);
+	it("isTodayLoginsKpi removed (KV bypass): loginHistoryConfig.mapper is identity", () => {
+		// The previous KPI validator (`isTodayLoginsKpi`) was removed when this
+		// endpoint stopped writing through KV — admin moderation needs realtime
+		// counters, so we return no-store every time. This test pins the
+		// removal so a future refactor that re-introduces a KPI validator must
+		// also re-add the corresponding KV bypass.
+		expect(_internal as Record<string, unknown>).not.toHaveProperty("isTodayLoginsKpi");
 	});
 
 	it("loginHistoryConfig.mapper returns the row unchanged (identity)", () => {
@@ -232,7 +204,7 @@ describe("loginHistory — KPI handler", () => {
 		expect(kpiCalls[0].binds).toEqual([dayStart]);
 	});
 
-	it("writes through KV cache under family `analytics:today-logins`", async () => {
+	it("bypasses KV: never reads or writes the cache and replies no-store", async () => {
 		const nowMs = Date.UTC(2026, 0, 1, 4, 0, 0);
 		vi.useFakeTimers();
 		vi.setSystemTime(nowMs);
@@ -252,26 +224,32 @@ describe("loginHistory — KPI handler", () => {
 				},
 			],
 		});
-		const kv = createMockKV();
+		const kv = createMockKV({
+			"analytics:today-logins": JSON.stringify({ totalAttempts: 999 }),
+		});
 		const env = makeEnv({ DB: db as unknown as D1Database, KV: kv });
 		const ctx = makeCtx();
 
-		await getTodayLoginsKpi(
+		const res = await getTodayLoginsKpi(
 			createAdminRequest("GET", "/api/admin/analytics/today/logins"),
 			env,
 			ctx,
 		);
-
-		// cacheGetOrSet defers the put via ctx.waitUntil — drain.
 		await Promise.all(ctx._promises);
 
-		// Internal contract: registered KV key is exact literal.
-		expect(_internal.KPI_KV_KEY).toBe("analytics:today-logins");
-		expect(_internal.KPI_FAMILY).toBe("analytics:today-logins");
-		expect(_internal.KPI_TTL_SEC).toBe(60);
-		// We don't assert raw put args — wrap layer rotates by family + key —
-		// but at minimum a put occurred.
-		expect(kv.put).toHaveBeenCalled();
+		expect(res.status).toBe(200);
+		expect(res.headers.get("Cache-Control")).toBe("no-store, private");
+		expect(kv.get).not.toHaveBeenCalled();
+		expect(kv.put).not.toHaveBeenCalled();
+
+		// Pinned removal of the cache wiring constants — see test above.
+		expect(_internal as Record<string, unknown>).not.toHaveProperty("KPI_KV_KEY");
+		expect(_internal as Record<string, unknown>).not.toHaveProperty("KPI_FAMILY");
+		expect(_internal as Record<string, unknown>).not.toHaveProperty("KPI_TTL_SEC");
+
+		// And the D1 KPI loader was actually invoked (no stale KV short-circuit).
+		const kpiCalls = db._calls.filter((c) => c.sql.includes("FROM login_history"));
+		expect(kpiCalls).toHaveLength(1);
 	});
 
 	it("loads from D1 when ctx is absent (no cache layer)", async () => {

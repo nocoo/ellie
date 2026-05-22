@@ -10,7 +10,7 @@ import {
 } from "../../lib/cache/invalidate";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
-import { jsonResponse } from "../../lib/response";
+import { jsonNoStoreResponse } from "../../lib/response";
 import { invalidateUserCache } from "../../lib/user-cache";
 import { errorResponse } from "../../middleware/error";
 
@@ -27,6 +27,8 @@ const statsConfig: EntityConfig = {
 // D1 has a limit of 999 parameters per query
 const _MAX_PARAMS = 500;
 const BATCH_SIZE = 500;
+const POST_FORUM_FETCH_LIMIT = 5000;
+const POST_FORUM_MAX_ROWS = 50000;
 
 // ─── POST /api/admin/statistics/recalc-forums ────────────────────────────────
 // Recalculate all forum counters: threads, posts, last_thread_id, etc.
@@ -41,7 +43,7 @@ export const recalcForums = withEntityAuth(
 		const forumIds = forums.results.map((r) => (r as { id: number }).id);
 
 		if (forumIds.length === 0) {
-			return jsonResponse({ updated: 0 }, origin);
+			return jsonNoStoreResponse({ updated: 0 }, origin);
 		}
 
 		// Calculate thread counts per forum
@@ -123,7 +125,7 @@ export const recalcForums = withEntityAuth(
 		// not change.
 		await bumpForumSummaryGen(env);
 
-		return jsonResponse({ updated: forumIds.length }, origin);
+		return jsonNoStoreResponse({ updated: forumIds.length }, origin);
 	},
 );
 
@@ -168,7 +170,7 @@ export const recalcThreads = withEntityAuth(
 		}>;
 
 		if (threadData.length === 0) {
-			return jsonResponse({ updated: 0 }, origin);
+			return jsonNoStoreResponse({ updated: 0 }, origin);
 		}
 
 		// Build maps using full table scans (no WHERE IN limitation)
@@ -234,7 +236,7 @@ export const recalcThreads = withEntityAuth(
 			forumId ? bumpThreadListGen(env, forumId) : bumpThreadListGenAll(env),
 		]);
 
-		return jsonResponse({ updated: threadData.length }, origin);
+		return jsonNoStoreResponse({ updated: threadData.length }, origin);
 	},
 );
 
@@ -265,7 +267,7 @@ export const recalcUsers = withEntityAuth(
 		}
 
 		if (userIds.length === 0) {
-			return jsonResponse({ updated: 0 }, origin);
+			return jsonNoStoreResponse({ updated: 0 }, origin);
 		}
 
 		// Build maps using full table scans (avoids WHERE IN parameter limits)
@@ -332,6 +334,60 @@ export const recalcUsers = withEntityAuth(
 			);
 		}
 
-		return jsonResponse({ updated: userIds.length }, origin);
+		return jsonNoStoreResponse({ updated: userIds.length }, origin);
+	},
+);
+
+// ─── POST /api/admin/statistics/recalc-post-forums ──────────────────────────
+// Sync posts.forum_id to match their thread's current forum_id.
+// Processes in batches to stay within D1 CPU limits.
+
+export const recalcPostForumIds = withEntityAuth(
+	statsConfig,
+	async (request: Request, env: Env): Promise<Response> => {
+		const origin = request.headers.get("Origin") ?? undefined;
+
+		let totalUpdated = 0;
+
+		while (totalUpdated < POST_FORUM_MAX_ROWS) {
+			const mismatched = await env.DB.prepare(`
+				SELECT p.id, t.forum_id
+				FROM posts p
+				JOIN threads t ON t.id = p.thread_id
+				WHERE p.forum_id != t.forum_id
+				LIMIT ?
+			`)
+				.bind(POST_FORUM_FETCH_LIMIT)
+				.all();
+
+			const rows = mismatched.results as Array<{ id: number; forum_id: number }>;
+			if (rows.length === 0) break;
+
+			for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+				const chunk = rows.slice(i, i + BATCH_SIZE);
+				const statements = chunk.map((row) =>
+					env.DB.prepare("UPDATE posts SET forum_id = ? WHERE id = ?").bind(row.forum_id, row.id),
+				);
+				await env.DB.batch(statements);
+			}
+
+			totalUpdated += rows.length;
+
+			if (rows.length < POST_FORUM_FETCH_LIMIT) break;
+		}
+
+		const remainingResult = await env.DB.prepare(`
+			SELECT COUNT(*) as cnt
+			FROM posts p
+			JOIN threads t ON t.id = p.thread_id
+			WHERE p.forum_id != t.forum_id
+		`).first<{ cnt: number }>();
+		const remaining = remainingResult?.cnt ?? 0;
+
+		if (totalUpdated > 0) {
+			await bumpForumSummaryGen(env);
+		}
+
+		return jsonNoStoreResponse({ updated: totalUpdated, remaining }, origin);
 	},
 );

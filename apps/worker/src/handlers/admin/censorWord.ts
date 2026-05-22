@@ -14,7 +14,7 @@ import {
 import type { Env } from "../../lib/env";
 import { toCensorWord } from "../../lib/mappers";
 import { parseIdFromPath } from "../../lib/parseId";
-import { jsonResponse } from "../../lib/response";
+import { jsonNoStoreResponse } from "../../lib/response";
 
 import { errorResponse } from "../../middleware/error";
 
@@ -393,6 +393,6 @@ export const test = withEntityAuth(
 		}
 
 		const result = await checkCensorWords(content, env);
-		return jsonResponse(result, origin);
+		return jsonNoStoreResponse(result, origin);
 	},
 );

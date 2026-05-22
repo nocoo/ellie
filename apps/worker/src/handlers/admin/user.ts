@@ -16,7 +16,7 @@ import type { Env } from "../../lib/env";
 import { toUser } from "../../lib/mappers";
 import { parsePathSegment } from "../../lib/parseId";
 import { recalcForumMetadata, recalcThreadMetadata } from "../../lib/recalcMetadata";
-import { jsonResponse } from "../../lib/response";
+import { jsonNoStoreResponse } from "../../lib/response";
 import { invalidateUserCache } from "../../lib/user-cache";
 import { batchDecrementUserPosts } from "../../lib/userCounters";
 import { buildTombstoneStatement } from "../../lib/userTombstone";
@@ -27,8 +27,31 @@ import { errorResponse } from "../../middleware/error";
 // ─── Column list (never SELECT * — excludes password_hash, password_salt) ────
 
 // D4-a: purged_at/purged_by added for tombstone tracking.
+//
+// Admin reads must reflect ground truth, not the denormalized counters on
+// `users`. `threads`/`posts`/`digest_posts` can drift whenever something
+// writes to `threads`/`posts` without going through the admin-side counter
+// pipelines (ad-hoc SQL repair, bulk reassignment, etc.). We replace those
+// three columns with correlated subqueries so admin list/detail always show
+// live values; the recalc-counters endpoint becomes a write-back convenience
+// rather than a load-bearing read path. Other "denormalized" fields stay as
+// cached columns:
+//   - `credits` / `coins` / `ol_time` are running totals from transactional
+//     writes (no SQL ground-truth source to recompute from)
+//   - `last_login` / `last_activity` are event timestamps written at the
+//     moment of the event — they cannot drift, only be missed if the
+//     writer fails to fire
+// The public user mini/public caches keep reading the cached columns —
+// this change is admin-only.
 const USER_COLUMNS =
-	"id, username, email, avatar, avatar_path, status, role, reg_date, last_login, threads, posts, credits, coins, signature, group_title, group_stars, group_color, custom_title, digest_posts, ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city, graduate_school, bio, interest, qq, site, campus, last_activity, email_verified_at, email_normalized, email_changed_at, reg_ip, last_ip, purged_at, purged_by";
+	"id, username, email, avatar, avatar_path, status, role, reg_date, last_login," +
+	" (SELECT COUNT(*) FROM threads t WHERE t.author_id = users.id) AS threads," +
+	" (SELECT COUNT(*) FROM posts p WHERE p.author_id = users.id) AS posts," +
+	" credits, coins, signature, group_title, group_stars, group_color, custom_title," +
+	" (SELECT COUNT(*) FROM threads t WHERE t.author_id = users.id AND t.digest > 0) AS digest_posts," +
+	" ol_time, gender, birth_year, birth_month, birth_day, reside_province, reside_city," +
+	" graduate_school, bio, interest, qq, site, campus, last_activity, email_verified_at," +
+	" email_normalized, email_changed_at, reg_ip, last_ip, purged_at, purged_by";
 
 // ─── List enrichment: per-user messages / attachments counts ────────────────
 
@@ -107,6 +130,7 @@ const userConfig: EntityConfig = {
 	columns: USER_COLUMNS,
 	mapper: toUser,
 	notFoundCode: "USER_NOT_FOUND",
+	useSubqueryWrapper: true,
 
 	// #36 filters
 	filters: [
@@ -533,7 +557,7 @@ export const getById = withEntityAuth(
 			row.online_ts = online.ts;
 		}
 
-		return jsonResponse(toUser(row), origin);
+		return jsonNoStoreResponse(toUser(row), origin);
 	},
 );
 
@@ -763,7 +787,7 @@ export const ban = withEntityAuth(
 					details: { mode: "ban", deletedContent: false },
 				}),
 			]);
-			return jsonResponse({ banned: true, id, contentDeleted: false }, origin);
+			return jsonNoStoreResponse({ banned: true, id, contentDeleted: false }, origin);
 		}
 
 		// Ban + delete all content
@@ -791,7 +815,7 @@ export const ban = withEntityAuth(
 		if (result.hadDigestThread) banDeleteOps.push(bumpDigestGen(env));
 		await Promise.all(banDeleteOps);
 
-		return jsonResponse(
+		return jsonNoStoreResponse(
 			{
 				banned: true,
 				id,
@@ -853,7 +877,7 @@ export const unban = withEntityAuth(
 			}),
 		]);
 
-		return jsonResponse({ unbanned: true, id, previousStatus: existing.status }, origin);
+		return jsonNoStoreResponse({ unbanned: true, id, previousStatus: existing.status }, origin);
 	},
 );
 
@@ -905,7 +929,7 @@ export const nuke = withEntityAuth(
 		if (result.hadDigestThread) nukeOps.push(bumpDigestGen(env));
 		await Promise.all(nukeOps);
 
-		return jsonResponse(
+		return jsonNoStoreResponse(
 			{
 				nuked: true,
 				id,
@@ -1371,7 +1395,7 @@ export const purge = withEntityAuth(
 			},
 		});
 
-		return jsonResponse(
+		return jsonNoStoreResponse(
 			{
 				purged: true,
 				id,
@@ -1410,7 +1434,7 @@ export const batchFetch = withEntityAuth(
 			.filter((n) => !Number.isNaN(n));
 
 		if (ids.length === 0) {
-			return jsonResponse([], origin);
+			return jsonNoStoreResponse([], origin);
 		}
 		if (ids.length > MAX_BATCH_FETCH) {
 			return errorResponse(
@@ -1428,7 +1452,7 @@ export const batchFetch = withEntityAuth(
 			.bind(...ids)
 			.all();
 
-		return jsonResponse(
+		return jsonNoStoreResponse(
 			result.results.map((r) => toUser(r as Record<string, unknown>)),
 			origin,
 		);
@@ -1476,7 +1500,7 @@ export const batchStatus = withEntityAuth(
 		const ids = body.ids.map((id) => Number(id)).filter((id) => !Number.isNaN(id));
 
 		if (ids.length === 0) {
-			return jsonResponse({ updated: true, count: 0 }, origin);
+			return jsonNoStoreResponse({ updated: true, count: 0 }, origin);
 		}
 
 		// D4-b: refuse if any target is already tombstoned. Whole batch fails
@@ -1495,7 +1519,7 @@ export const batchStatus = withEntityAuth(
 		// every affected id (legacy v1 + v2).
 		await invalidateUserCachesForIds(env, ids);
 
-		return jsonResponse({ updated: true, count: ids.length }, origin);
+		return jsonNoStoreResponse({ updated: true, count: ids.length }, origin);
 	},
 );
 
@@ -1539,7 +1563,7 @@ export const batchRole = withEntityAuth(
 		const ids = body.ids.map((id) => Number(id)).filter((id) => !Number.isNaN(id));
 
 		if (ids.length === 0) {
-			return jsonResponse({ updated: true, count: 0 }, origin);
+			return jsonNoStoreResponse({ updated: true, count: 0 }, origin);
 		}
 
 		// D4-b: ALREADY_PURGED guard — same shape as batchStatus.
@@ -1557,7 +1581,7 @@ export const batchRole = withEntityAuth(
 		// public profile group_title — invalidate per id (legacy + v2).
 		await invalidateUserCachesForIds(env, ids);
 
-		return jsonResponse({ updated: true, count: ids.length }, origin);
+		return jsonNoStoreResponse({ updated: true, count: ids.length }, origin);
 	},
 );
 
@@ -1611,7 +1635,7 @@ export const recalcCounters = withEntityAuth(
 		// fields — invalidate this user's caches (legacy + v2).
 		await Promise.all([invalidateUserCache(env, id), invalidateUserCaches(env, id)]);
 
-		return jsonResponse({ id, threads, posts, digestPosts }, origin);
+		return jsonNoStoreResponse({ id, threads, posts, digestPosts }, origin);
 	},
 );
 
@@ -1662,7 +1686,7 @@ export const batchRecalcCounters = withEntityAuth(
 		}
 
 		if (userIds.length === 0) {
-			return jsonResponse({ updated: 0 }, origin);
+			return jsonNoStoreResponse({ updated: 0 }, origin);
 		}
 
 		// Batch recalculate: for each user, compute counts and update
@@ -1725,7 +1749,7 @@ export const batchRecalcCounters = withEntityAuth(
 		// users" path.
 		await invalidateUserCachesForIds(env, userIds);
 
-		return jsonResponse({ updated: userIds.length }, origin);
+		return jsonNoStoreResponse({ updated: userIds.length }, origin);
 	},
 );
 
@@ -1744,7 +1768,7 @@ export const listStaff = withEntityAuth(
 			`SELECT ${USER_COLUMNS} FROM users WHERE role > 0 ORDER BY role ASC, username ASC`,
 		).all();
 
-		return jsonResponse(
+		return jsonNoStoreResponse(
 			result.results.map((r) => toUser(r as Record<string, unknown>)),
 			origin,
 		);

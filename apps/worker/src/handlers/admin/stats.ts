@@ -2,7 +2,7 @@
 import { withEntityAuth } from "../../lib/adminHelpers";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
-import { jsonResponse } from "../../lib/response";
+import { jsonNoStoreResponse } from "../../lib/response";
 const statsConfig: EntityConfig = {
 	table: "",
 	entityName: "STATS",
@@ -29,7 +29,7 @@ async function getStats(request: Request, env: Env): Promise<Response> {
 
 	const count = (i: number) => (results[i].results[0] as Record<string, number>).cnt;
 
-	return jsonResponse(
+	return jsonNoStoreResponse(
 		{
 			users: { total: count(0), today: count(1), banned: count(2) },
 			threads: { total: count(3), today: count(4) },

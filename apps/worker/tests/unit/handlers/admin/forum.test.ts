@@ -460,7 +460,7 @@ describe("admin forum handlers", () => {
 		it("should update description field", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"FROM forums WHERE id": makeD1ForumRow({ id: 42, description: "updated" }),
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42, description: "updated" }),
 				},
 			});
 
@@ -481,7 +481,7 @@ describe("admin forum handlers", () => {
 		it("should update icon field", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
 				},
 			});
 
@@ -502,7 +502,7 @@ describe("admin forum handlers", () => {
 		it("should update displayOrder field", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
 				},
 			});
 
@@ -523,7 +523,7 @@ describe("admin forum handlers", () => {
 		it("should update parentId field", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
 				},
 			});
 
@@ -544,7 +544,7 @@ describe("admin forum handlers", () => {
 		it("should update type field", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
 				},
 			});
 
@@ -565,7 +565,7 @@ describe("admin forum handlers", () => {
 		it("should update visibility field", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
 				},
 			});
 
@@ -586,7 +586,7 @@ describe("admin forum handlers", () => {
 		it("should reject invalid visibility value", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
 				},
 			});
 
@@ -605,7 +605,7 @@ describe("admin forum handlers", () => {
 		it("should update moderators field", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
 				},
 			});
 
@@ -626,7 +626,7 @@ describe("admin forum handlers", () => {
 		it("should reject non-string moderators value", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
 				},
 			});
 
@@ -645,7 +645,7 @@ describe("admin forum handlers", () => {
 		it("should update moderatorIds field", async () => {
 			const { db, calls } = createMockDb({
 				firstResults: {
-					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
 				},
 			});
 
@@ -666,7 +666,7 @@ describe("admin forum handlers", () => {
 		it("should reject invalid moderatorIds format", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
 				},
 			});
 
@@ -685,7 +685,7 @@ describe("admin forum handlers", () => {
 		it("should accept empty moderatorIds", async () => {
 			const { db } = createMockDb({
 				firstResults: {
-					"FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
+					"SELECT * FROM forums WHERE id": makeD1ForumRow({ id: 42 }),
 				},
 			});
 

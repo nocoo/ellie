@@ -5,7 +5,7 @@ import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
-import { jsonResponse } from "../../lib/response";
+import { jsonNoStoreResponse } from "../../lib/response";
 import { type SettingsDetailMap, getSettingsDetailed, upsertSettings } from "../../lib/settings";
 import { errorResponse } from "../../middleware/error";
 
@@ -180,10 +180,10 @@ async function listSettings(request: Request, env: Env): Promise<Response> {
 				filtered[key] = entry;
 			}
 		}
-		return jsonResponse(filtered, origin);
+		return jsonNoStoreResponse(filtered, origin);
 	}
 
-	return jsonResponse(all, origin);
+	return jsonNoStoreResponse(all, origin);
 }
 
 /**
@@ -271,7 +271,7 @@ async function bulkUpdateSettings(request: Request, env: Env): Promise<Response>
 		});
 	}
 
-	return jsonResponse({ updated: entries.length }, origin);
+	return jsonNoStoreResponse({ updated: entries.length }, origin);
 }
 
 // ─── Audit helpers ──────────────────────────────────────────

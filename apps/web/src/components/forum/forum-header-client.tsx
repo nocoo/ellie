@@ -74,9 +74,8 @@ export function ForumHeaderClient({
 							{canEditAnnouncement && !forum.announcement && (
 								<Button
 									variant="outline"
-									size="sm"
 									onClick={() => setAnnouncementDialogOpen(true)}
-									className="gap-1.5"
+									className="gap-2"
 								>
 									<Megaphone className="h-4 w-4" />
 									添加公告

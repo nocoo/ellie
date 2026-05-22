@@ -57,7 +57,7 @@ import {
 import { flushPendingNow, recordDelete } from "../../lib/cache/metrics";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
-import { jsonResponse } from "../../lib/response";
+import { jsonNoStoreResponse } from "../../lib/response";
 import { invalidateUserCache } from "../../lib/user-cache";
 import { errorResponse } from "../../middleware/error";
 
@@ -351,7 +351,7 @@ export const overview = withEntityAuth(
 			rows.push(baseRow);
 		}
 
-		return jsonResponse({ families: rows }, origin);
+		return jsonNoStoreResponse({ families: rows }, origin);
 	},
 );
 
@@ -425,7 +425,10 @@ async function listSingletonFamily(
 						expiration: await probeExpirationFor(env, spec.listPrefix),
 					},
 				];
-	return jsonResponse({ family: spec.family, keys, cursor: null, listComplete: true }, origin);
+	return jsonNoStoreResponse(
+		{ family: spec.family, keys, cursor: null, listComplete: true },
+		origin,
+	);
 }
 
 export const listFamily = withEntityAuth(
@@ -470,7 +473,7 @@ export const listFamily = withEntityAuth(
 			})),
 		);
 
-		return jsonResponse(
+		return jsonNoStoreResponse(
 			{
 				family: spec.family,
 				keys: masked,
@@ -521,7 +524,7 @@ export const getKey = withEntityAuth(
 
 		// `mask-value`: never return raw payload. Only size + metadata.
 		if (spec.valueSensitivity === "mask-value") {
-			return jsonResponse(
+			return jsonNoStoreResponse(
 				{
 					family: spec.family,
 					key: maskedKey,
@@ -544,7 +547,7 @@ export const getKey = withEntityAuth(
 			// value is a plain string (counter, token-id reference, …)
 		}
 
-		return jsonResponse(
+		return jsonNoStoreResponse(
 			{
 				family: spec.family,
 				key: maskedKey,
@@ -615,7 +618,7 @@ export const refresh = withEntityAuth(
 			});
 			// Surface the just-recorded `bump` op in this same request.
 			if (ctx) flushPendingNow(env, ctx);
-			return jsonResponse({ ok: true, family: spec.family, newGen }, origin);
+			return jsonNoStoreResponse({ ok: true, family: spec.family, newGen }, origin);
 		}
 
 		switch (spec.refresh.kind) {
@@ -655,7 +658,7 @@ async function refreshBumpThreadListForum(
 		details: { family: spec.family, gen: `thread:list:gen:${forumId}`, newGen },
 	});
 	if (ctx) flushPendingNow(env, ctx);
-	return jsonResponse({ ok: true, family: spec.family, forumId, newGen }, origin);
+	return jsonNoStoreResponse({ ok: true, family: spec.family, forumId, newGen }, origin);
 }
 
 async function refreshBumpThreadScoped(
@@ -683,7 +686,7 @@ async function refreshBumpThreadScoped(
 		},
 	});
 	if (ctx) flushPendingNow(env, ctx);
-	return jsonResponse({ ok: true, family: spec.family, threadId, newGen }, origin);
+	return jsonNoStoreResponse({ ok: true, family: spec.family, threadId, newGen }, origin);
 }
 
 async function refreshDeleteLiteral(
@@ -715,7 +718,7 @@ async function refreshDeleteLiteral(
 		details: { family: spec.family, maskedKey: masked },
 	});
 	if (ctx) flushPendingNow(env, ctx);
-	return jsonResponse({ ok: true, family: spec.family, deleted: 1 }, origin);
+	return jsonNoStoreResponse({ ok: true, family: spec.family, deleted: 1 }, origin);
 }
 
 async function refreshDeleteUserMini(
@@ -745,7 +748,7 @@ async function refreshDeleteUserMini(
 		details: { family: spec.family },
 	});
 	if (ctx) flushPendingNow(env, ctx);
-	return jsonResponse({ ok: true, family: spec.family, userId, deleted: 1 }, origin);
+	return jsonNoStoreResponse({ ok: true, family: spec.family, userId, deleted: 1 }, origin);
 }
 
 // ─── GET /api/admin/kv/metrics ────────────────────────────────────
@@ -804,13 +807,13 @@ export const metrics = withEntityAuth(
 				op: r.op,
 				count: r.count,
 			}));
-			return jsonResponse({ family: family ?? null, minutes, series }, origin);
+			return jsonNoStoreResponse({ family: family ?? null, minutes, series }, origin);
 		} catch (err) {
 			// Table may be missing on a fresh deploy before migration 0035
 			// has run. Surface that as an empty series rather than 500 so
 			// the admin page degrades gracefully.
 			console.warn("[admin/kv] metrics query failed", err);
-			return jsonResponse(
+			return jsonNoStoreResponse(
 				{
 					family: family ?? null,
 					minutes,

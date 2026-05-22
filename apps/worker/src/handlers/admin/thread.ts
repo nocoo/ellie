@@ -18,7 +18,7 @@ import type { Env } from "../../lib/env";
 import { toThread } from "../../lib/mappers";
 import { parseIdFromPath } from "../../lib/parseId";
 import { recalcForumMetadata } from "../../lib/recalcMetadata";
-import { jsonResponse } from "../../lib/response";
+import { jsonNoStoreResponse } from "../../lib/response";
 import { batchDecrementUserPosts, decrementUserThreads } from "../../lib/userCounters";
 import { STICKY_FORUM, STICKY_GLOBAL } from "../../lib/visibility";
 
@@ -26,11 +26,43 @@ import { errorResponse } from "../../middleware/error";
 
 // ─── Entity config ───────────────────────────────────────────────
 
+// Admin reads must reflect ground truth, not the denormalized counter / last-
+// post columns on `threads`. Those can drift whenever something writes to
+// `posts` without going through the admin moderation/delete pipelines that
+// maintain `threads.replies` / `threads.last_*` (e.g. ad-hoc SQL repair,
+// bulk reassignment). We replace the cached `replies` and `last_*` columns
+// with correlated subqueries so the admin console always shows live values.
+// `views` stays as the cached column — it's incremented from analytics
+// pings, not from a SQL-rebuildable source.
+//
+// The public thread list/detail caches keep reading the cached columns —
+// public reads stay hot. This change is admin-only.
+const THREAD_LIVE_SELECT = [
+	"id",
+	"forum_id",
+	"author_id",
+	"author_name",
+	"subject",
+	"created_at",
+	"(SELECT p.created_at FROM posts p WHERE p.thread_id = threads.id AND p.invisible = 0 ORDER BY p.position DESC LIMIT 1) AS last_post_at",
+	"(SELECT p.author_name FROM posts p WHERE p.thread_id = threads.id AND p.invisible = 0 ORDER BY p.position DESC LIMIT 1) AS last_poster",
+	"(SELECT p.author_id FROM posts p WHERE p.thread_id = threads.id AND p.invisible = 0 ORDER BY p.position DESC LIMIT 1) AS last_poster_id",
+	"(SELECT CASE WHEN COUNT(*) > 0 THEN COUNT(*) - 1 ELSE 0 END FROM posts p WHERE p.thread_id = threads.id) AS replies",
+	"views",
+	"closed",
+	"sticky",
+	"digest",
+	"special",
+	"highlight",
+	"recommends",
+	"type_name",
+].join(", ");
+
 const threadConfig: EntityConfig = {
 	table: "threads",
 	entityName: "THREAD",
 	auth: "moderator",
-	columns: "*",
+	columns: THREAD_LIVE_SELECT,
 	mapper: toThread,
 	notFoundCode: "THREAD_NOT_FOUND",
 	filters: [
@@ -491,7 +523,7 @@ export const remove = withEntityAuth(
 			},
 		});
 
-		return jsonResponse({ deleted: true, id, postsDeleted }, origin);
+		return jsonNoStoreResponse({ deleted: true, id, postsDeleted }, origin);
 	},
 );
 
@@ -568,7 +600,7 @@ export const batchDelete = withEntityAuth(
 		).results;
 
 		if (threadRows.length === 0) {
-			return jsonResponse({ deleted: true, count: 0 }, origin);
+			return jsonNoStoreResponse({ deleted: true, count: 0 }, origin);
 		}
 
 		const existingIds = threadRows.map((t) => t.id);
@@ -648,7 +680,7 @@ export const batchDelete = withEntityAuth(
 		if (hadDigestBatch) tailOps.push(bumpDigestGen(env));
 		await Promise.all(tailOps);
 
-		return jsonResponse({ deleted: true, count: existingIds.length }, origin);
+		return jsonNoStoreResponse({ deleted: true, count: existingIds.length }, origin);
 	},
 );
 
@@ -723,13 +755,13 @@ export const batchMove = withEntityAuth(
 
 		const threadRows = threads.results as { id: number; forum_id: number; replies: number }[];
 		if (threadRows.length === 0) {
-			return jsonResponse({ moved: true, count: 0, forumId: targetForumId }, origin);
+			return jsonNoStoreResponse({ moved: true, count: 0, forumId: targetForumId }, origin);
 		}
 
 		// Filter out threads already in the target forum
 		const movable = threadRows.filter((t) => t.forum_id !== targetForumId);
 		if (movable.length === 0) {
-			return jsonResponse({ moved: true, count: 0, forumId: targetForumId }, origin);
+			return jsonNoStoreResponse({ moved: true, count: 0, forumId: targetForumId }, origin);
 		}
 
 		// Group by old forum for count adjustments
@@ -810,6 +842,9 @@ export const batchMove = withEntityAuth(
 			},
 		});
 
-		return jsonResponse({ moved: true, count: movable.length, forumId: targetForumId }, origin);
+		return jsonNoStoreResponse(
+			{ moved: true, count: movable.length, forumId: targetForumId },
+			origin,
+		);
 	},
 );

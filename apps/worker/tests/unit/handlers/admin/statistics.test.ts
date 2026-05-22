@@ -207,4 +207,49 @@ describe("admin statistics handlers", () => {
 			expect(response.status).toBe(200);
 		});
 	});
+
+	// ─── recalcPostForumIds ────────────────────────────────────
+
+	describe("recalcPostForumIds", () => {
+		it("should return updated=0 and remaining=0 when no mismatches", async () => {
+			const { db } = createMockDb({
+				allResults: {
+					"SELECT p.id, t.forum_id": [],
+				},
+				firstResults: {
+					"SELECT COUNT(*) as cnt": { cnt: 0 },
+				},
+			});
+			const env = makeEnv({ DB: db });
+			const request = createAdminRequest("POST", "/api/admin/statistics/recalc-post-forums");
+			const response = await statistics.recalcPostForumIds(request, env);
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as { data: { updated: number; remaining: number } };
+			expect(body.data.updated).toBe(0);
+			expect(body.data.remaining).toBe(0);
+		});
+
+		it("should fix mismatched posts and report remaining", async () => {
+			const { db, batchCalls } = createMockDb({
+				allResults: {
+					"SELECT p.id, t.forum_id": [
+						{ id: 101, forum_id: 5 },
+						{ id: 102, forum_id: 5 },
+						{ id: 103, forum_id: 7 },
+					],
+				},
+				firstResults: {
+					"SELECT COUNT(*) as cnt": { cnt: 1200 },
+				},
+			});
+			const env = makeEnv({ DB: db });
+			const request = createAdminRequest("POST", "/api/admin/statistics/recalc-post-forums");
+			const response = await statistics.recalcPostForumIds(request, env);
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as { data: { updated: number; remaining: number } };
+			expect(body.data.updated).toBe(3);
+			expect(body.data.remaining).toBe(1200);
+			expect(batchCalls.length).toBeGreaterThan(0);
+		});
+	});
 });

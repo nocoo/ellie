@@ -280,6 +280,7 @@ describe("forum.list — v2 cache", () => {
 					parentId: 0,
 					name: "Root",
 					description: "d",
+					announcement: "",
 					icon: "i",
 					displayOrder: 1,
 					type: "forum",

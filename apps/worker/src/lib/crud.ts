@@ -5,7 +5,7 @@
 import { errorResponse } from "../middleware/error";
 import type { Env } from "./env";
 import { parseIdFromPath } from "./parseId";
-import { jsonResponse, paginatedResponse } from "./response";
+import { jsonNoStoreResponse, paginatedNoStoreResponse } from "./response";
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -89,6 +89,18 @@ export interface EntityConfig {
 	batchLimit?: number;
 	/** 404 error code (default: NOT_FOUND) */
 	notFoundCode?: string;
+
+	/**
+	 * Wrap the SELECT in a derived table so that WHERE/ORDER BY resolve column
+	 * names against SELECT-list aliases rather than physical table columns.
+	 *
+	 * Enable when `columns` contains correlated subqueries whose aliases
+	 * collide with physical column names (e.g. `(SELECT COUNT(*) …) AS threads`
+	 * vs the cached `users.threads` column). Without wrapping, SQLite's WHERE
+	 * binds to the physical column; with wrapping, the outer WHERE sees only
+	 * the aliased output of the inner SELECT.
+	 */
+	useSubqueryWrapper?: boolean;
 
 	/**
 	 * Optional list-only enrichment hook. Runs *after* the page query
@@ -306,15 +318,26 @@ export function createListHandler(config: EntityConfig) {
 		const sort =
 			sortParam && config.allowedSorts?.[sortParam] ? config.allowedSorts[sortParam] : defaultSort;
 
+		// When useSubqueryWrapper is set, wrap the inner SELECT in a derived
+		// table so that WHERE/ORDER BY resolve column references against the
+		// SELECT-list aliases (e.g. correlated subquery outputs) rather than
+		// physical table columns. Without this, SQLite binds WHERE names to
+		// the base table's physical columns — which may be stale cached values
+		// that differ from the live-computed aliases in the SELECT list.
+		const fromClause = config.useSubqueryWrapper
+			? `(SELECT ${config.columns} FROM ${config.table}) AS _t`
+			: config.table;
+		const selectExpr = config.useSubqueryWrapper ? "*" : config.columns;
+
 		if (config.listPaginated === false) {
 			const result = await env.DB.prepare(
-				`SELECT ${config.columns} FROM ${config.table} ${whereClause} ORDER BY ${sort}`,
+				`SELECT ${selectExpr} FROM ${fromClause} ${whereClause} ORDER BY ${sort}`,
 			)
 				.bind(...params)
 				.all();
 			const rows = result.results as Record<string, unknown>[];
 			const enriched = config.enrichListRows ? await config.enrichListRows(rows, env) : rows;
-			return jsonResponse(
+			return jsonNoStoreResponse(
 				enriched.map((r) => config.mapper(r)),
 				origin,
 			);
@@ -330,11 +353,11 @@ export function createListHandler(config: EntityConfig) {
 		}
 
 		const [countResult, result] = await Promise.all([
-			env.DB.prepare(`SELECT COUNT(*) as total FROM ${config.table} ${whereClause}`)
+			env.DB.prepare(`SELECT COUNT(*) as total FROM ${fromClause} ${whereClause}`)
 				.bind(...params)
 				.first<{ total: number }>(),
 			env.DB.prepare(
-				`SELECT ${config.columns} FROM ${config.table} ${whereClause} ORDER BY ${sort} LIMIT ? OFFSET ?`,
+				`SELECT ${selectExpr} FROM ${fromClause} ${whereClause} ORDER BY ${sort} LIMIT ? OFFSET ?`,
 			)
 				.bind(...params, limit, (page - 1) * limit)
 				.all(),
@@ -343,7 +366,7 @@ export function createListHandler(config: EntityConfig) {
 		const rows = result.results as Record<string, unknown>[];
 		const enriched = config.enrichListRows ? await config.enrichListRows(rows, env) : rows;
 
-		return paginatedResponse(
+		return paginatedNoStoreResponse(
 			enriched.map((r) => config.mapper(r)),
 			countResult?.total ?? 0,
 			page,
@@ -364,7 +387,7 @@ export function createGetByIdHandler(config: EntityConfig) {
 		const row = await fetchRow(env, config.table, config.columns, id);
 		if (!row) return errorResponse(config.notFoundCode ?? "NOT_FOUND", 404, undefined, origin);
 
-		return jsonResponse(config.mapper(row as Record<string, unknown>), origin);
+		return jsonNoStoreResponse(config.mapper(row as Record<string, unknown>), origin);
 	};
 }
 
@@ -400,7 +423,12 @@ export function createCreateHandler(config: EntityConfig) {
 		if (config.afterCreate && newId) await config.afterCreate(newId, data, env, origin);
 
 		const row = await fetchRow(env, config.table, config.columns, newId);
-		return jsonResponse(config.mapper(row as Record<string, unknown>), origin, undefined, 201);
+		return jsonNoStoreResponse(
+			config.mapper(row as Record<string, unknown>),
+			origin,
+			undefined,
+			201,
+		);
 	};
 }
 
@@ -444,7 +472,7 @@ export function createUpdateHandler(config: EntityConfig) {
 			await config.afterUpdate(id, data, existing as Record<string, unknown>, env, origin);
 
 		const row = await fetchRow(env, config.table, config.columns, id);
-		return jsonResponse(config.mapper(row as Record<string, unknown>), origin);
+		return jsonNoStoreResponse(config.mapper(row as Record<string, unknown>), origin);
 	};
 }
 
@@ -481,7 +509,7 @@ export function createRemoveHandler(config: EntityConfig) {
 		if (config.afterDelete)
 			await config.afterDelete(id, existing as Record<string, unknown>, env, origin);
 
-		return jsonResponse({ deleted: true, id }, origin);
+		return jsonNoStoreResponse({ deleted: true, id }, origin);
 	};
 }
 
@@ -561,6 +589,6 @@ export function createBatchDeleteHandler(config: EntityConfig) {
 		);
 		const count = results.reduce<number>((sum, n) => sum + n, 0);
 
-		return jsonResponse({ deleted: true, count }, origin);
+		return jsonNoStoreResponse({ deleted: true, count }, origin);
 	};
 }
