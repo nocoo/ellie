@@ -225,6 +225,80 @@ describe("admin statistics handlers", () => {
 			expect(body2.data.finishedAt).toBe(body1.data.finishedAt);
 		});
 
+		// B.1 — monotonic `processed` invariant on the done transition.
+		// `total` is a best-effort denominator captured at initialize();
+		// rows can be inserted/deleted while the job runs. `processed` is
+		// the number of rows actually walked past and must never go
+		// backward. If `total` ends up smaller than the real count, it
+		// must be bumped up — not used to pull `processed` down.
+
+		it("done transition keeps processed monotonic when total underestimates (empty batch)", async () => {
+			const { db } = createMockDb({
+				allResults: {
+					"FROM threads WHERE id >": [],
+				},
+			});
+			const env = makeEnv({ DB: db });
+			// total was 100 at initialize, but we already walked 250 rows
+			// (e.g. many new threads inserted mid-run).
+			await writeJob(env, {
+				...makeInitialPayload({ kind: "threads", total: 100, now: 1_700_000_000_000 }),
+				cursor: 9999,
+				processed: 250,
+				updated: 250,
+			});
+
+			const res = await statistics.recalcThreads(
+				createAdminRequest("POST", "/api/admin/statistics/recalc-threads"),
+				env,
+			);
+			expect(res.status).toBe(200);
+			const body = (await res.json()) as { data: StatsJobPayload };
+			expect(body.data.status).toBe("done");
+			// Must not regress: processed stays at the real walked count.
+			expect(body.data.processed).toBe(250);
+			// Denominator bumped up so percent never overshoots 100%.
+			expect(body.data.total).toBe(250);
+			// updated/processed must remain consistent (no spurious diff).
+			expect(body.data.updated).toBe(250);
+		});
+
+		it("done transition keeps processed monotonic on short final batch when total underestimates", async () => {
+			const { db } = createMockDb({
+				allResults: {
+					// 1 row returned, batchSize 1000 → short final batch.
+					"FROM threads WHERE id >": [
+						{ id: 500, created_at: 1_700_000_000, author_name: "alice", author_id: 1 },
+					],
+					"FROM posts WHERE thread_id IN": [],
+					"ROW_NUMBER() OVER": [],
+				},
+			});
+			const env = makeEnv({ DB: db });
+			// prev.processed = 99, prev.total = 50 (stale low estimate).
+			// New batch is 1 row, batchSize default = 1000 → isFinal = true.
+			// newProcessed = 99 + 1 = 100; must NOT be clamped to total=50.
+			await writeJob(env, {
+				...makeInitialPayload({ kind: "threads", total: 50, now: 1_700_000_000_000 }),
+				cursor: 400,
+				processed: 99,
+				updated: 99,
+			});
+
+			const res = await statistics.recalcThreads(
+				createAdminRequest("POST", "/api/admin/statistics/recalc-threads"),
+				env,
+			);
+			expect(res.status).toBe(200);
+			const body = (await res.json()) as { data: StatsJobPayload };
+			expect(body.data.status).toBe("done");
+			expect(body.data.processed).toBe(100);
+			expect(body.data.total).toBe(100);
+			expect(body.data.updated).toBe(100);
+			// Must be ≥ processed → 0% < percent ≤ 100%, never >100%.
+			expect(body.data.processed).toBeLessThanOrEqual(body.data.total ?? 0);
+		});
+
 		it("reset:true reopens a done job and re-initializes total", async () => {
 			const { db } = createMockDb({
 				firstResults: {

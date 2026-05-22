@@ -378,14 +378,18 @@ export const threadsTicker: StatsJobTicker = {
 		const batch = threadsResult.results as ThreadBatchRow[];
 
 		// Empty batch = nothing left to do; mark done. Total counts can
-		// drift between initialize and the final tick (deletes/inserts);
-		// pin processed to total on the terminal transition so the UI
-		// card lands at 100%.
+		// drift between initialize and the final tick (inserts/deletes);
+		// `processed` is the monotonic count of rows we actually walked
+		// past, so never let a stale denominator pull it down. If `total`
+		// turned out to be a low estimate, bump it up to `processed` so
+		// the UI card lands at 100% without a >100% overshoot.
 		if (batch.length === 0) {
+			const processed = Math.max(prev.processed, prev.total ?? prev.processed);
 			return {
 				...prev,
 				status: "done",
-				processed: prev.total ?? prev.processed,
+				processed,
+				total: Math.max(prev.total ?? 0, processed),
 				lastBatchUpdated: 0,
 				finishedAt: now,
 				lastTickAt: now,
@@ -418,11 +422,18 @@ export const threadsTicker: StatsJobTicker = {
 		const nextCursor = batch[batch.length - 1]?.id ?? prev.cursor;
 		const newProcessed = prev.processed + batch.length;
 		const isFinal = batch.length < batchSize;
+		// On the terminal short batch keep `processed` monotonic — the
+		// real number of rows we walked past — and bump `total` up if it
+		// was an underestimate. Mirror the empty-batch branch so the UI
+		// can read either snapshot consistently.
+		const terminalProcessed = isFinal ? Math.max(newProcessed, prev.total ?? 0) : newProcessed;
+		const terminalTotal = isFinal ? Math.max(prev.total ?? 0, terminalProcessed) : prev.total;
 
 		return {
 			...prev,
 			cursor: nextCursor,
-			processed: isFinal ? (prev.total ?? newProcessed) : newProcessed,
+			processed: terminalProcessed,
+			total: terminalTotal,
 			updated: prev.updated + batch.length,
 			lastBatchUpdated: batch.length,
 			status: isFinal ? "done" : "running",
