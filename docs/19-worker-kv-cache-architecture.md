@@ -268,6 +268,72 @@ must not silently drop the view increment. View-count batching is a
 **separate** optimization task and is intentionally out of scope for the
 first release.
 
+### 6.5 `stats:recalc-job:<kind>` — admin recalc state machine
+
+The four `/api/admin/statistics/recalc-{forums,threads,users,post-forums}`
+endpoints used to do all work in a single Worker request and routinely
+timed out (503) on six-figure tables. The current model splits every
+recalc into batches (`DEFAULT_BATCH_SIZE = 1000`); each POST advances
+exactly one batch and returns the latest snapshot. A separate GET
+surfaces the snapshot without advancing.
+
+**Per-kind singleton:** state lives under `stats:recalc-job:<kind>` —
+one of `forums` / `threads` / `users` / `post-forums`. Payload `v=1`
+(see docs/20 §8.6 for the field-by-field shape). TTL 24h so a
+finished card stays visible to the operator.
+
+**Lease, not a running marker.** `payload.leaseUntil` is non-null
+only while a single `advance` call is executing (60s horizon —
+`JOB_LEASE_SECONDS`). An idle `running` job between batches has
+`leaseUntil:null`, so the next POST can advance immediately — this
+is the "one POST = one batch" driver. A worker death mid-advance
+leaves a stale lease that the next POST reclaims once `now` is past
+the staked value. Concurrent POSTs that see a live lease return
+`409 CONCURRENT_TICK` (soft — the UI keeps the payload and polls).
+
+**Reset gate.** Terminal `done` / `failed` jobs can be reopened by
+POSTing `{reset:true}` (re-`initialize`s the payload at cursor 0).
+Running jobs are **never** silently torn down — a POST with
+`reset:true` against a running job returns `409 RUNNING_JOB_EXISTS`,
+and the operator must wait or let the in-flight tick die.
+
+**Done / failed are both terminal.** `tickJob` returns the current
+snapshot without advancing for either when `reset` is not set, so
+the admin UI hides the primary button on both terminal states and
+forces the operator through the 「重置」 ghost action. The 24h KV TTL
+keeps the card readable in the meantime.
+
+**Wire envelope.** 2xx responses use the standard `{data, meta}`
+envelope from `jsonNoStoreResponse`. `data === null` on the GET
+endpoint means "no KV state yet" (fresh kind before any POST) and
+the UI renders 「尚未开始」 instead of an error. 4xx/5xx use the flat
+`{error:{code, details:{payload?}}}` shape from `errorResponse`;
+409 `CONCURRENT_TICK` / `RUNNING_JOB_EXISTS` and 500 `RECALC_FAILED`
+all carry `details.payload` so the UI can keep its snapshot in sync
+without a follow-up GET.
+
+**UI behaviour** (`apps/admin/src/viewmodels/admin/use-stats-recalc.ts`):
+
+- Each of the 4 cards owns its own hook instance, KV state, and
+  in-flight POST lock (`isPostingRef`). The polling timer (~1.5s
+  while `status === "running"`) auto-POSTs the next batch and
+  skips ticks whenever a POST is already in flight, so a slow
+  batch never causes the timer to double-stack.
+- `parseRecalcResponse(res, expectedKind)` unwraps the envelope,
+  validates `isSnapshot` against the strict v1 shape (rejects
+  `v !== 1`, non-plain `params`), and refuses cross-kind payloads
+  (a forums card cannot render a users snapshot, on 2xx or
+  embedded 409/500).
+- Two progress rows are shown side-by-side and must stay distinct:
+  `processed/total` (scan progress; `recalc-post-forums` only mutates
+  rows whose forum disagrees with their thread, so its `updated`
+  diverges from `processed`) and `updated/lastBatchUpdated` (rows
+  actually mutated, cumulative and per-batch).
+- 409 soft conflicts clear the error banner and keep the embedded
+  payload. The error banner only lights on a true failure: 500
+  `RECALC_FAILED`, a non-snapshot 2xx body, a kind mismatch, or a
+  network throw.
+
 ---
 
 ## 7. Foundation modules

@@ -73,6 +73,15 @@ describe("L2: Worker Public API", () => {
 		});
 	});
 
+	describe("GET /api/v1/forums/:id/recommended-threads", () => {
+		test("returns 404 for non-existent forum", async () => {
+			// Route is public (Key A only); 404 is the canonical empty-input
+			// signal — guarantees the dispatcher reached the handler.
+			const res = await workerFetch("/api/v1/forums/999999/recommended-threads");
+			expect(res.status).toBe(404);
+		});
+	});
+
 	// ─── Threads ───────────────────────────────────────────────────
 
 	describe("GET /api/v1/threads", () => {

@@ -225,6 +225,31 @@ const ADMIN_ENDPOINTS = [
 		path: "/api/admin/statistics/recalc-users",
 		file: "admin/statistics/recalc-users/route.ts",
 	},
+	{
+		method: "POST",
+		path: "/api/admin/statistics/recalc-post-forums",
+		file: "admin/statistics/recalc-post-forums/route.ts",
+	},
+	{
+		method: "GET",
+		path: "/api/admin/statistics/job/forums",
+		file: "admin/statistics/job/forums/route.ts",
+	},
+	{
+		method: "GET",
+		path: "/api/admin/statistics/job/threads",
+		file: "admin/statistics/job/threads/route.ts",
+	},
+	{
+		method: "GET",
+		path: "/api/admin/statistics/job/users",
+		file: "admin/statistics/job/users/route.ts",
+	},
+	{
+		method: "GET",
+		path: "/api/admin/statistics/job/post-forums",
+		file: "admin/statistics/job/post-forums/route.ts",
+	},
 
 	// Attachments
 	{ method: "GET", path: "/api/admin/attachments", file: "admin/attachments/route.ts" },

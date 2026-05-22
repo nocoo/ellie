@@ -2,167 +2,238 @@
 
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { PageHeader } from "@/components/layout/page-header";
-import { STATISTICS_DONE_VARIANT } from "@/viewmodels/admin/badges";
-import { Badge } from "@ellie/ui";
-import { Button } from "@ellie/ui";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@ellie/ui";
-import { CheckCircle, Database, Loader2, MessageSquare, RefreshCw, Users } from "lucide-react";
+import {
+	type StatsJobKind,
+	formatPercent,
+	formatProcessedTotal,
+	formatTickTime,
+	percentValue,
+	snapshotStatusLabel,
+	snapshotStatusVariant,
+} from "@/viewmodels/admin/stats-recalc";
+import { useStatsRecalc } from "@/viewmodels/admin/use-stats-recalc";
+import {
+	Badge,
+	Button,
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@ellie/ui";
+import { Database, Loader2, MessageSquare, RefreshCw, RotateCcw, Users } from "lucide-react";
 import { useCallback, useState } from "react";
 
 // ---------------------------------------------------------------------------
-// Types
+// Card config
 // ---------------------------------------------------------------------------
 
-interface RecalcTask {
-	key: string;
+interface CardConfig {
+	kind: StatsJobKind;
 	title: string;
 	description: string;
 	icon: React.ReactNode;
-	endpoint: string;
-	body?: Record<string, unknown>;
+	/** Hint shown under the rows row when post-forums `processed != updated`. */
+	processedSemantics?: string;
 }
 
-interface RecalcResult {
-	updated?: number;
-	remaining?: number;
-	forumId?: number | null;
-}
-
-// ---------------------------------------------------------------------------
-// Task definitions
-// ---------------------------------------------------------------------------
-
-const RECALC_TASKS: RecalcTask[] = [
+const CARDS: CardConfig[] = [
 	{
-		key: "forums",
+		kind: "forums",
 		title: "版块统计",
 		description: "重新计算所有版块的主题数、帖子数和最后活动信息",
 		icon: <Database className="h-5 w-5" />,
-		endpoint: "/api/admin/statistics/recalc-forums",
 	},
 	{
-		key: "threads",
+		kind: "threads",
 		title: "主题统计",
-		description: "重新计算所有主题的回复数和最后回复信息",
+		description: "分批重新计算所有主题的回复数和最后回复信息（job 模式）",
 		icon: <MessageSquare className="h-5 w-5" />,
-		endpoint: "/api/admin/statistics/recalc-threads",
 	},
 	{
-		key: "users",
+		kind: "users",
 		title: "用户统计",
-		description: "重新计算所有用户的主题数、回帖数和精华帖数",
+		description: "分批重新计算所有用户的主题数、回帖数和精华帖数（job 模式）",
 		icon: <Users className="h-5 w-5" />,
-		endpoint: "/api/admin/statistics/recalc-users",
 	},
 	{
-		key: "post-forums",
+		kind: "post-forums",
 		title: "帖子版块同步",
-		description: "将帖子的版块归属同步为其所属主题的当前版块（修复历史数据不一致）",
+		description: "将帖子的版块归属同步为其所属主题的当前版块（job 模式，已移除 5 万条上限）",
 		icon: <RefreshCw className="h-5 w-5" />,
-		endpoint: "/api/admin/statistics/recalc-post-forums",
+		processedSemantics: "扫描数 ≠ 修正数：post-forums 只更新与所属主题不一致的帖子。",
 	},
 ];
 
 // ---------------------------------------------------------------------------
-// Page component
+// One card
+// ---------------------------------------------------------------------------
+
+function RecalcCard({ config }: { config: CardConfig }) {
+	const { state, actions } = useStatsRecalc({ kind: config.kind });
+	const { snapshot, loading, isPosting, error } = state;
+
+	const [resetOpen, setResetOpen] = useState(false);
+
+	const onPrimary = useCallback(() => {
+		if (isPosting) return;
+		void actions.advance();
+	}, [actions, isPosting]);
+
+	const onReset = useCallback(() => {
+		if (isPosting) return;
+		setResetOpen(false);
+		void actions.reset();
+	}, [actions, isPosting]);
+
+	const status = snapshot?.status ?? null;
+	const isTerminal = status === "done" || status === "failed";
+	const isRunning = status === "running";
+	// Both done and failed are terminal — the worker `tickJob` returns
+	// the current snapshot without advancing for either when reset is
+	// not set (see apps/worker/src/lib/stats-job.ts:307). To prevent a
+	// stray click from firing a no-op POST we hide the primary button
+	// on either terminal state and force the operator through the
+	// 「重置」 ghost action (per reviewer msg=5c975973 + msg=a4d18bc4).
+	const showPrimary = !isTerminal;
+
+	let primaryLabel = "开始计算";
+	if (isPosting) primaryLabel = "正在请求…";
+	else if (isRunning) primaryLabel = "运行中（自动推进）";
+
+	return (
+		<Card>
+			<CardHeader className="pb-3">
+				<div className="flex items-center justify-between">
+					<div className="flex items-center gap-2">
+						<div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+							{config.icon}
+						</div>
+						<CardTitle className="text-base">{config.title}</CardTitle>
+					</div>
+					{status && (
+						<Badge variant={snapshotStatusVariant(status)}>{snapshotStatusLabel(status)}</Badge>
+					)}
+				</div>
+				<CardDescription className="text-xs">{config.description}</CardDescription>
+			</CardHeader>
+			<CardContent className="space-y-3">
+				{loading && !snapshot ? (
+					<div className="flex items-center text-xs text-muted-foreground">
+						<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+						加载状态中…
+					</div>
+				) : snapshot ? (
+					<div className="space-y-2">
+						{/* Progress bar */}
+						<div>
+							<div className="flex items-center justify-between text-xs">
+								<span className="text-muted-foreground">
+									扫描进度 {formatProcessedTotal(snapshot.processed, snapshot.total)}
+								</span>
+								<span className="font-medium tabular-nums">
+									{formatPercent(snapshot.processed, snapshot.total)}
+								</span>
+							</div>
+							<div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-muted">
+								<div
+									className="h-full bg-primary transition-all"
+									style={{ width: `${percentValue(snapshot.processed, snapshot.total)}%` }}
+								/>
+							</div>
+						</div>
+						{/* Updated rows */}
+						<div className="flex items-center justify-between text-xs">
+							<span className="text-muted-foreground">累计修正</span>
+							<span className="font-medium tabular-nums">
+								{snapshot.updated.toLocaleString("zh-CN")}
+							</span>
+						</div>
+						<div className="flex items-center justify-between text-xs">
+							<span className="text-muted-foreground">本批修正</span>
+							<span className="font-medium tabular-nums">
+								{snapshot.lastBatchUpdated.toLocaleString("zh-CN")}
+							</span>
+						</div>
+						<div className="flex items-center justify-between text-xs">
+							<span className="text-muted-foreground">最后一次 tick</span>
+							<span className="font-medium tabular-nums">
+								{formatTickTime(snapshot.lastTickAt)}
+							</span>
+						</div>
+						{config.processedSemantics && (
+							<p className="text-[10px] text-muted-foreground">{config.processedSemantics}</p>
+						)}
+						{snapshot.status === "failed" && snapshot.error && (
+							<p className="text-xs text-destructive">job 错误：{snapshot.error}</p>
+						)}
+					</div>
+				) : (
+					<p className="text-xs text-muted-foreground">尚未开始</p>
+				)}
+
+				{error && <p className="text-xs text-destructive">请求错误：{error}</p>}
+
+				<div className="flex items-center justify-between gap-2">
+					{showPrimary ? (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={onPrimary}
+							disabled={isPosting || isRunning}
+						>
+							{isPosting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+							{primaryLabel}
+						</Button>
+					) : (
+						<span className="text-xs text-muted-foreground">
+							{status === "failed" ? "任务已失败，请「重置」后重试" : "已完成，无需进一步操作"}
+						</span>
+					)}
+					{isTerminal && (
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={() => setResetOpen(true)}
+							disabled={isPosting}
+						>
+							<RotateCcw className="mr-1 h-4 w-4" />
+							重置
+						</Button>
+					)}
+				</div>
+			</CardContent>
+
+			<AdminConfirmDialog
+				open={resetOpen}
+				onOpenChange={(open) => !isPosting && setResetOpen(open)}
+				title={`重置${config.title}`}
+				description={`确定要重置${config.title}任务吗？这会丢弃当前进度并从头开始。`}
+				variant="destructive"
+				confirmLabel="重置"
+				loading={isPosting}
+				onConfirm={onReset}
+			/>
+		</Card>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Page
 // ---------------------------------------------------------------------------
 
 export default function StatisticsPage() {
-	const [runningTask, setRunningTask] = useState<string | null>(null);
-	const [results, setResults] = useState<Record<string, RecalcResult | null>>({});
-	const [confirmDialog, setConfirmDialog] = useState<{
-		open: boolean;
-		task: RecalcTask | null;
-	}>({ open: false, task: null });
-
-	const handleRunTask = useCallback(async (task: RecalcTask) => {
-		setRunningTask(task.key);
-		setResults((prev) => ({ ...prev, [task.key]: null }));
-
-		try {
-			const res = await fetch(task.endpoint, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: task.body ? JSON.stringify(task.body) : undefined,
-			});
-			const json = await res.json();
-			// API returns { data: { updated: ... }, meta: { ... } }
-			setResults((prev) => ({ ...prev, [task.key]: json.data ?? json }));
-		} catch {
-			setResults((prev) => ({ ...prev, [task.key]: { updated: -1 } }));
-		} finally {
-			setRunningTask(null);
-			setConfirmDialog({ open: false, task: null });
-		}
-	}, []);
-
-	const openConfirm = useCallback((task: RecalcTask) => {
-		setConfirmDialog({ open: true, task });
-	}, []);
-
 	return (
 		<div className="space-y-6 md:space-y-8">
 			<PageHeader
 				title="统计计算"
-				subtitle="重新计算数据库中的统计数据。当数据迁移或批量操作后出现统计不准确时使用。"
+				subtitle="分批重新计算数据库中的统计数据。点击「开始计算」后由前端自动以 ~1.5s 间隔推进，可随时关闭窗口再回来——KV 状态会保留 24h。"
 			/>
 
 			<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-				{RECALC_TASKS.map((task) => {
-					const isRunning = runningTask === task.key;
-					const result = results[task.key];
-					const hasResult = result !== undefined && result !== null;
-
-					return (
-						<Card key={task.key}>
-							<CardHeader className="pb-3">
-								<div className="flex items-center justify-between">
-									<div className="flex items-center gap-2">
-										<div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-											{task.icon}
-										</div>
-										<CardTitle className="text-base">{task.title}</CardTitle>
-									</div>
-									{hasResult && result.updated !== -1 && (
-										<Badge variant={STATISTICS_DONE_VARIANT}>
-											<CheckCircle className="mr-1 h-3 w-3" />
-											完成
-										</Badge>
-									)}
-								</div>
-								<CardDescription className="text-xs">{task.description}</CardDescription>
-							</CardHeader>
-							<CardContent>
-								<div className="flex items-center justify-between">
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={() => openConfirm(task)}
-										disabled={runningTask !== null}
-									>
-										{isRunning ? (
-											<>
-												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-												计算中...
-											</>
-										) : (
-											"开始计算"
-										)}
-									</Button>
-									{hasResult && (
-										<span className="text-xs text-muted-foreground">
-											{result.updated === -1
-												? "执行失败"
-												: result.remaining
-													? `已更新 ${result.updated} 条，剩余 ${result.remaining} 条`
-													: `已更新 ${result.updated} 条记录`}
-										</span>
-									)}
-								</div>
-							</CardContent>
-						</Card>
-					);
-				})}
+				{CARDS.map((card) => (
+					<RecalcCard key={card.kind} config={card} />
+				))}
 			</div>
 
 			<Card>
@@ -171,36 +242,21 @@ export default function StatisticsPage() {
 				</CardHeader>
 				<CardContent className="text-sm text-muted-foreground space-y-2">
 					<p>
-						<strong>版块统计</strong>：计算每个版块的主题数量、帖子数量，以及最后发帖信息（最后主题
-						ID、最后发帖时间、最后发帖人）。
+						<strong>job 模式</strong>
+						：版块/主题/用户/帖子版块同步都以 KV 为状态机，每次 POST 推进一批，超时不会丢失进度。
 					</p>
 					<p>
-						<strong>主题统计</strong>
-						：计算每个主题的回复数量，以及最后回复信息（最后回复时间、最后回复人）。
+						<strong>扫描 vs 修正</strong>
+						：版块/主题/用户的「扫描数」基本等于「修正数」；帖子版块同步只更新与所属主题不一致的帖子，两者差距是历史不一致条数。
 					</p>
 					<p>
-						<strong>用户统计</strong>：计算每个用户的发帖数、回帖数和精华帖数。
+						<strong>并发安全</strong>
+						：同一类型同一时刻只允许一个 tick 在执行。前端已限制单 in-flight，遇到 409
+						会自动重试，不会变红灯。
 					</p>
-					<p>
-						<strong>帖子版块同步</strong>
-						：将帖子的版块归属同步为其所属主题的当前版块。每次最多处理 5 万条，如有剩余需多次执行。
-					</p>
-					<p className="text-xs">
-						注意：这些操作可能需要一些时间，具体取决于数据量大小。建议在低峰期执行。
-					</p>
+					<p className="text-xs">建议在低峰期执行；推进期间页面会以约 1.5 秒间隔自动轮询。</p>
 				</CardContent>
 			</Card>
-
-			<AdminConfirmDialog
-				open={confirmDialog.open}
-				onOpenChange={(open) => setConfirmDialog((d) => ({ ...d, open }))}
-				title={`重新计算${confirmDialog.task?.title ?? ""}`}
-				description={`确定要重新计算${confirmDialog.task?.title ?? ""}吗？这将覆盖现有的统计数据。`}
-				variant="default"
-				confirmLabel="开始计算"
-				loading={runningTask !== null}
-				onConfirm={() => confirmDialog.task && handleRunTask(confirmDialog.task)}
-			/>
 		</div>
 	);
 }

@@ -581,6 +581,13 @@ export default {
 			if (path === "/api/admin/statistics/recalc-post-forums" && request.method === "POST") {
 				return await (await import("./handlers/admin/statistics")).recalcPostForumIds(request, env);
 			}
+			// Read-only progress snapshot for the KV-backed recalc job
+			// state machine (see lib/stats-job.ts). The admin UI polls
+			// this endpoint between POST ticks to render the progress
+			// card without advancing the job.
+			if (path.match(/^\/api\/admin\/statistics\/job\/[a-z-]+$/) && request.method === "GET") {
+				return await (await import("./handlers/admin/statistics")).getStatsJob(request, env);
+			}
 
 			// ── E0. Analytics (Admin) — P2 query-only dashboard ──
 			// Pure read-through against business tables (users, threads,

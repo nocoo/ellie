@@ -405,42 +405,57 @@ describe("admin statistics recalc-threads gen invalidation", () => {
 		};
 	}
 
-	it("recalc-threads with no forumId scope bumps thread:list:gen:all (global)", async () => {
+	it("recalc-threads with no forumId scope bumps thread:list:gen:all (global) on done", async () => {
+		// Phase B job-mode: invalidation runs in ticker.finalize on the
+		// `done` transition (empty batch). Seed total=0 so the first
+		// follow-up POST returns an empty batch and triggers finalize.
 		const { db } = createMockDb({
-			firstResults: adminAuthRow(),
+			firstResults: {
+				...adminAuthRow(),
+				"SELECT COUNT(*) as cnt FROM threads": { cnt: 0 },
+			},
 			allResults: {
-				"SELECT id, created_at, author_name, author_id FROM threads": [
-					{ id: 1, created_at: 1, author_name: "a", author_id: 1 },
-				],
-				"SELECT thread_id, COUNT(*) - 1 as cnt FROM posts": [],
-				"SELECT p1.thread_id, p1.created_at": [],
+				"FROM threads WHERE id >": [],
 			},
 		});
 		const env = makeEnv({ DB: db });
-		const req = createAdminRequest("POST", "/api/admin/statistics/recalc-threads", {});
-		const res = await adminRecalcThreads(req, env);
+		// 1) Initialize.
+		await adminRecalcThreads(
+			createAdminRequest("POST", "/api/admin/statistics/recalc-threads", {}),
+			env,
+		);
+		// 2) First advance — empty batch -> done -> finalize fires.
+		const res = await adminRecalcThreads(
+			createAdminRequest("POST", "/api/admin/statistics/recalc-threads", {}),
+			env,
+		);
 		expect(res.status).toBe(200);
 		expect(mockSummary).toHaveBeenCalled();
 		expect(mockThreadListAll).toHaveBeenCalled();
 		expect(mockThreadList).not.toHaveBeenCalled();
 	});
 
-	it("recalc-threads scoped to forumId bumps per-forum gen, NOT global", async () => {
+	it("recalc-threads scoped to forumId bumps per-forum gen, NOT global, on done", async () => {
+		// Same shape as above but with `forumId` in the body — finalize
+		// reads it back from `params` and routes to per-forum gen.
 		const { db } = createMockDb({
-			firstResults: adminAuthRow(),
+			firstResults: {
+				...adminAuthRow(),
+				"SELECT COUNT(*) as cnt FROM threads WHERE forum_id": { cnt: 0 },
+			},
 			allResults: {
-				"SELECT id, created_at, author_name, author_id FROM threads WHERE forum_id": [
-					{ id: 1, created_at: 1, author_name: "a", author_id: 1 },
-				],
-				"SELECT thread_id, COUNT(*) - 1 as cnt FROM posts": [],
-				"SELECT p1.thread_id, p1.created_at": [],
+				"FROM threads WHERE forum_id = ? AND id >": [],
 			},
 		});
 		const env = makeEnv({ DB: db });
-		const req = createAdminRequest("POST", "/api/admin/statistics/recalc-threads", {
-			forumId: 42,
-		});
-		const res = await adminRecalcThreads(req, env);
+		await adminRecalcThreads(
+			createAdminRequest("POST", "/api/admin/statistics/recalc-threads", { forumId: 42 }),
+			env,
+		);
+		const res = await adminRecalcThreads(
+			createAdminRequest("POST", "/api/admin/statistics/recalc-threads", { forumId: 42 }),
+			env,
+		);
 		expect(res.status).toBe(200);
 		expect(mockSummary).toHaveBeenCalled();
 		expect(mockThreadList).toHaveBeenCalledWith(expect.anything(), 42);

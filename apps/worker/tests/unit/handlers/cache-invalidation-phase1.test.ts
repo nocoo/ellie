@@ -172,35 +172,55 @@ describe("Phase 1 commit 2 — admin statistics invalidation", () => {
 		expect(mockBumpSummary).toHaveBeenCalledTimes(1);
 	});
 
-	it("recalcThreads bumps forum:summary:gen", async () => {
+	it("recalcThreads bumps forum:summary:gen on the done transition", async () => {
+		// Phase B job-mode: cache invalidation moved into ticker.finalize,
+		// which fires when the job reaches `done` (an empty batch).
+		// The test seeds COUNT(*)=0 so initialize -> total:0, and a follow-up
+		// POST returns an empty batch -> status:done -> finalize bumps cache.
 		const { db } = createMockDb({
+			firstResults: {
+				"SELECT COUNT(*) as cnt FROM threads": { cnt: 0 },
+			},
 			allResults: {
-				"SELECT id, created_at, author_name, author_id FROM threads": [
-					{ id: 1, created_at: 1, author_name: "a", author_id: 10 },
-				],
-				"SELECT thread_id, COUNT(*)": [],
-				"SELECT p1.thread_id": [],
+				"FROM threads WHERE id >": [],
 			},
 		});
 		const env = makeEnv({ DB: db });
-		const req = createAdminRequest("POST", "/api/admin/statistics/recalc-threads");
-		const res = await recalcThreads(req, env);
+		// 1) Initialize.
+		await recalcThreads(createAdminRequest("POST", "/api/admin/statistics/recalc-threads"), env);
+		// 2) First advance — empty batch transitions to done and finalize fires.
+		const res = await recalcThreads(
+			createAdminRequest("POST", "/api/admin/statistics/recalc-threads"),
+			env,
+		);
 		expect(res.status).toBe(200);
 		expect(mockBumpSummary).toHaveBeenCalledTimes(1);
 	});
 
-	it("recalcUsers invalidates per-id user caches (legacy + v2)", async () => {
+	it("recalcUsers invalidates per-id user caches (legacy + v2) on each batch", async () => {
+		// Phase C job-mode: cache invalidation moved INSIDE advance (per
+		// batch), not finalize. We drive: initialize -> advance with 2
+		// users -> isFinal=true (2 < batchSize=1000) -> done after the
+		// in-batch invalidate fires.
 		const { db } = createMockDb({
+			firstResults: {
+				"SELECT COUNT(*) as cnt FROM users WHERE status >= 0": { cnt: 2 },
+			},
 			allResults: {
-				"SELECT id FROM users WHERE status >= 0": [{ id: 10 }, { id: 11 }],
-				"SELECT author_id, COUNT(*) as cnt FROM threads": [],
-				"SELECT author_id, COUNT(*) as cnt FROM posts": [],
-				"SELECT author_id, COUNT(*) as cnt FROM threads WHERE digest > 0": [],
+				"FROM users WHERE status >= 0 AND id >": [{ id: 10 }, { id: 11 }],
+				"FROM threads WHERE author_id IN": [],
+				"FROM posts WHERE author_id IN": [],
+				"FROM threads WHERE digest > 0 AND author_id IN": [],
 			},
 		});
 		const env = makeEnv({ DB: db });
-		const req = createAdminRequest("POST", "/api/admin/statistics/recalc-users");
-		const res = await recalcUsers(req, env);
+		// 1) Initialize.
+		await recalcUsers(createAdminRequest("POST", "/api/admin/statistics/recalc-users"), env);
+		// 2) Advance — 2-user batch, short final → status:done.
+		const res = await recalcUsers(
+			createAdminRequest("POST", "/api/admin/statistics/recalc-users"),
+			env,
+		);
 		expect(res.status).toBe(200);
 		expect(mockInvUser).toHaveBeenCalledTimes(2);
 		expect(mockInvUser).toHaveBeenCalledWith(env, 10);
