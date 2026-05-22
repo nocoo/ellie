@@ -149,9 +149,14 @@ describe("searchUsers", () => {
 });
 
 describe("buildMessagesBreadcrumbs", () => {
-	it("returns home and messages breadcrumbs", () => {
+	it("returns home and messages breadcrumbs with default label", () => {
 		const bc = buildMessagesBreadcrumbs();
-		expect(bc).toEqual([{ label: "首页", href: "/" }, { label: "站内信" }]);
+		expect(bc).toEqual([{ label: "同济网论坛", href: "/" }, { label: "站内信" }]);
+	});
+
+	it("uses custom homeLabel when provided", () => {
+		const bc = buildMessagesBreadcrumbs("My Forum");
+		expect(bc[0].label).toBe("My Forum");
 	});
 });
 

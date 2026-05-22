@@ -4,6 +4,7 @@
 import { MessagesPageClient } from "@/components/forum/messages-page";
 import { forumApi } from "@/lib/forum-api";
 import { buildMessagesBreadcrumbs } from "@/viewmodels/forum/messages";
+import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 import type { PublicUser } from "@ellie/types";
 import type { Metadata } from "next";
 
@@ -27,7 +28,9 @@ async function getRecipientInfo(
 
 export default async function MessagesRoute({ searchParams }: MessagesRouteProps) {
 	const params = await searchParams;
-	const breadcrumbs = buildMessagesBreadcrumbs();
+	const settings = await fetchPublicSettings();
+	const homeLabel = getStr(settings, "general.site.home_label", "同济网论坛");
+	const breadcrumbs = buildMessagesBreadcrumbs(homeLabel);
 	const initialBox = params.box === "outbox" ? "outbox" : "inbox";
 	const toId = params.to ? Number.parseInt(params.to, 10) : undefined;
 

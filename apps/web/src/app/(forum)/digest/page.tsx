@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { digestLabel } from "@/viewmodels/forum/digest";
 import { type DigestData, loadDigestList } from "@/viewmodels/forum/digest.server";
+import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 import { getThreadBadges } from "@ellie/types";
 import { Award } from "lucide-react";
 import type { Metadata } from "next";
@@ -54,6 +55,8 @@ interface DigestPageProps {
 
 export default async function DigestPage({ searchParams }: DigestPageProps) {
 	const sp = await searchParams;
+	const settings = await fetchPublicSettings();
+	const homeLabel = getStr(settings, "general.site.home_label", "同济网论坛");
 
 	// Parse level filter (0 = all, 1/2/3 = specific level)
 	const level = sp.level ? Number.parseInt(sp.level, 10) : 0;
@@ -97,7 +100,7 @@ export default async function DigestPage({ searchParams }: DigestPageProps) {
 	}
 
 	const breadcrumbs = [
-		{ label: "首页", href: "/" },
+		{ label: homeLabel, href: "/" },
 		{ label: "精华帖", href: "/digest" },
 	];
 

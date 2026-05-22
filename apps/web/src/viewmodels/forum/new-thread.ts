@@ -5,9 +5,6 @@
  * Layout only — no real submission logic (see post-editor.ts for that).
  */
 
-import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
-import type { Forum } from "@ellie/types";
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -72,21 +69,3 @@ export const EDITOR_TOOL_ACTIONS: EditorToolAction[] = [
 
 /** Max characters for the thread subject */
 export const SUBJECT_MAX_LENGTH = 80;
-
-// ---------------------------------------------------------------------------
-// Breadcrumb builder
-// ---------------------------------------------------------------------------
-
-/**
- * Build breadcrumbs for the new-thread page.
- * → [首页, ...forum ancestors with href, current forum with href, 发表主题]
- */
-export function buildNewThreadBreadcrumbs(ancestors: Forum[]): BreadcrumbItem[] {
-	const HOME: BreadcrumbItem = { label: "首页", href: "/" };
-	const items: BreadcrumbItem[] = [HOME];
-	for (const forum of ancestors) {
-		items.push({ label: forum.name, href: `/forums/${forum.id}` });
-	}
-	items.push({ label: "发表主题" });
-	return items;
-}

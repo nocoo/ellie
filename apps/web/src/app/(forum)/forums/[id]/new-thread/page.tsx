@@ -4,6 +4,7 @@
 import { NewThreadForm } from "@/components/forum/new-thread-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { loadNewThreadPageData } from "@/viewmodels/forum/new-thread.server";
+import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 import { parseIntParam } from "@/viewmodels/shared/params";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -41,7 +42,9 @@ export default async function NewThreadPage({ params }: NewThreadPageProps) {
 		);
 	}
 
-	let breadcrumbs = [{ label: "首页", href: "/" }, { label: "发表主题" }];
+	const settings = await fetchPublicSettings();
+	const homeLabel = getStr(settings, "general.site.home_label", "同济网论坛");
+	let breadcrumbs = [{ label: homeLabel, href: "/" }, { label: "发表主题" }];
 
 	try {
 		const data = await loadNewThreadPageData(forumId);

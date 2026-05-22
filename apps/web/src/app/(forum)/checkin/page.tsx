@@ -8,6 +8,7 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
+import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 import type { CheckinLevel, UserCheckin } from "@ellie/types";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -23,13 +24,15 @@ interface CheckinStatusResponse {
 
 export default async function CheckinPage() {
 	const jwt = await getWorkerJwt();
+	const settings = await fetchPublicSettings();
+	const homeLabel = getStr(settings, "general.site.home_label", "同济网论坛");
 
 	if (!jwt) {
 		// Not logged in — show a message with login link
 		return (
 			<div className="flex flex-col gap-4">
 				<Breadcrumbs
-					items={[{ label: "首页", href: "/", icon: "home" as const }, { label: "每日签到" }]}
+					items={[{ label: homeLabel, href: "/", icon: "home" as const }, { label: "每日签到" }]}
 				/>
 				<Card>
 					<CardHeader>
@@ -56,7 +59,7 @@ export default async function CheckinPage() {
 	} catch {
 		// API unreachable — show error card instead of a misleading "ready" state
 		const breadcrumbs = [
-			{ label: "首页", href: "/", icon: "home" as const },
+			{ label: homeLabel, href: "/", icon: "home" as const },
 			{ label: "每日签到" },
 		];
 		return (
@@ -74,7 +77,7 @@ export default async function CheckinPage() {
 		);
 	}
 
-	const breadcrumbs = [{ label: "首页", href: "/", icon: "home" as const }, { label: "每日签到" }];
+	const breadcrumbs = [{ label: homeLabel, href: "/", icon: "home" as const }, { label: "每日签到" }];
 
 	return (
 		<div className="flex flex-col gap-4">

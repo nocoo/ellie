@@ -184,6 +184,6 @@ export { ApiError };
 // Breadcrumbs
 // ---------------------------------------------------------------------------
 
-export function buildMessagesBreadcrumbs(): BreadcrumbItem[] {
-	return [{ label: "首页", href: "/" }, { label: "站内信" }];
+export function buildMessagesBreadcrumbs(homeLabel = "同济网论坛"): BreadcrumbItem[] {
+	return [{ label: homeLabel, href: "/" }, { label: "站内信" }];
 }

@@ -26,6 +26,7 @@ import { EmailVerificationCard } from "@/components/forum/email-verification-car
 import { MeAvatarSection } from "@/components/forum/me-avatar-section";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { getSelfForumUser, toEmailVerificationUserView } from "@/lib/forum-self";
+import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
@@ -40,7 +41,9 @@ export default async function MePage() {
 		redirect("/login?redirect=/me");
 	}
 
-	const breadcrumbs = [{ label: "首页", href: "/", icon: "home" as const }, { label: "我的账号" }];
+	const settings = await fetchPublicSettings();
+	const homeLabel = getStr(settings, "general.site.home_label", "同济网论坛");
+	const breadcrumbs = [{ label: homeLabel, href: "/", icon: "home" as const }, { label: "我的账号" }];
 
 	return (
 		<div className="flex flex-col gap-4">

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { type SearchData, loadSearchResults } from "@/viewmodels/forum/search.server";
+import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 import { formatCompactNumber, formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { getThreadBadges } from "@ellie/types";
 import type { Metadata } from "next";
@@ -24,6 +25,8 @@ export async function generateMetadata({ searchParams }: SearchPageProps): Promi
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {
 	const sp = await searchParams;
+	const settings = await fetchPublicSettings();
+	const homeLabel = getStr(settings, "general.site.home_label", "同济网论坛");
 
 	let data: SearchData;
 	let error: string | null = null;
@@ -58,7 +61,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 				<div className="py-2">
 					<Breadcrumbs
 						items={[
-							{ label: "首页", href: "/" },
+							{ label: homeLabel, href: "/" },
 							{ label: "搜索", href: "/search" },
 						]}
 					/>
@@ -74,7 +77,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 	}
 
 	const breadcrumbs = [
-		{ label: "首页", href: "/" },
+		{ label: homeLabel, href: "/" },
 		{ label: "搜索", href: "/search" },
 	];
 

@@ -32,6 +32,7 @@
 import { EmailVerificationCard } from "@/components/forum/email-verification-card";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { getSelfForumUser, toEmailVerificationUserView } from "@/lib/forum-self";
+import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
@@ -43,7 +44,9 @@ export default async function VerifyEmailPage() {
 		redirect("/login?redirect=/verify-email");
 	}
 
-	const breadcrumbs = [{ label: "首页", href: "/", icon: "home" as const }, { label: "邮箱验证" }];
+	const settings = await fetchPublicSettings();
+	const homeLabel = getStr(settings, "general.site.home_label", "同济网论坛");
+	const breadcrumbs = [{ label: homeLabel, href: "/", icon: "home" as const }, { label: "邮箱验证" }];
 
 	return (
 		<div className="flex flex-col gap-4">

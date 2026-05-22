@@ -4,7 +4,6 @@ import {
 	GROUP_OPTIONS,
 	POST_TYPE_TABS,
 	SUBJECT_MAX_LENGTH,
-	buildNewThreadBreadcrumbs,
 } from "@/viewmodels/forum/new-thread";
 import { describe, expect, it } from "vitest";
 
@@ -48,58 +47,5 @@ describe("EDITOR_TOOL_ACTIONS", () => {
 describe("SUBJECT_MAX_LENGTH", () => {
 	it("is 80", () => {
 		expect(SUBJECT_MAX_LENGTH).toBe(80);
-	});
-});
-
-describe("buildNewThreadBreadcrumbs", () => {
-	it("returns home + ancestors + 发表主题", () => {
-		const ancestors = [
-			{
-				id: 1,
-				parentId: 0,
-				name: "Root",
-				status: 1,
-				threads: 0,
-				posts: 0,
-				displayOrder: 1,
-				moderators: "",
-				description: "",
-				redirect: "",
-				icon: "",
-				rules: "",
-				lastThreadId: 0,
-				lastPostAt: 0,
-				lastPostBy: "",
-				todayPosts: 0,
-			},
-			{
-				id: 2,
-				parentId: 1,
-				name: "Sub",
-				status: 1,
-				threads: 0,
-				posts: 0,
-				displayOrder: 1,
-				moderators: "",
-				description: "",
-				redirect: "",
-				icon: "",
-				rules: "",
-				lastThreadId: 0,
-				lastPostAt: 0,
-				lastPostBy: "",
-				todayPosts: 0,
-			},
-		];
-		const bc = buildNewThreadBreadcrumbs(ancestors);
-		expect(bc[0]).toEqual({ label: "首页", href: "/" });
-		expect(bc[1]).toEqual({ label: "Root", href: "/forums/1" });
-		expect(bc[2]).toEqual({ label: "Sub", href: "/forums/2" });
-		expect(bc[3]).toEqual({ label: "发表主题" });
-	});
-
-	it("returns home + 发表主题 for empty ancestors", () => {
-		const bc = buildNewThreadBreadcrumbs([]);
-		expect(bc).toEqual([{ label: "首页", href: "/" }, { label: "发表主题" }]);
 	});
 });
