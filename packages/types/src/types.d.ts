@@ -346,6 +346,14 @@ export interface Thread {
     typeName: string;
     /** True when this thread is the earliest visible thread by the author. */
     isAuthorFirstThread: boolean;
+    /**
+     * True when this thread appears in its forum's `forum_recommended_threads`
+     * allowlist (migration 0045). Drives the "已推荐 / 推荐" toggle label on
+     * the thread-detail mod menu. Populated by `thread.getById` via an
+     * `EXISTS` probe on the composite PK; list-view payloads do not carry
+     * this field (it is not part of the forum-page thread list).
+     */
+    isRecommended: boolean;
 }
 /** Maps to Doc02 posts table — 9.4M rows */
 export interface Post {

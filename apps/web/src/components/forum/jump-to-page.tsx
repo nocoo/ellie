@@ -19,13 +19,18 @@ export function JumpToPage({ basePath, pages, extraParams }: JumpToPageProps) {
 	function handleGo() {
 		const page = Number.parseInt(value, 10);
 		if (Number.isNaN(page) || page < 1 || page > pages) return;
-		const params = new URLSearchParams();
-		if (page > 1) params.set("page", String(page));
-		if (extraParams) {
-			for (const [k, v] of Object.entries(extraParams)) params.set(k, v);
+		// Path-segment canonical:
+		//   page 1 → bare basePath
+		//   page N → `${basePath}/${N}`
+		const path = page > 1 ? `${basePath}/${page}` : basePath;
+		if (!extraParams) {
+			router.push(path);
+			return;
 		}
+		const params = new URLSearchParams();
+		for (const [k, v] of Object.entries(extraParams)) params.set(k, v);
 		const qs = params.toString();
-		router.push(qs ? `${basePath}?${qs}` : basePath);
+		router.push(qs ? `${path}?${qs}` : path);
 	}
 
 	return (

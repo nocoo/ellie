@@ -23,6 +23,7 @@ import {
 	bumpForumSummaryGen,
 	bumpThreadListGen,
 	bumpThreadListGenAll,
+	bumpThreadMetaGen,
 	invalidateForumVolatileV2,
 	invalidateThreadListForForums,
 } from "../lib/cache/invalidate";
@@ -379,7 +380,17 @@ export async function moveThread(request: Request, env: Env): Promise<Response> 
 	const oldForumId = thread.forum_id;
 	const postCount = thread.replies + 1;
 
-	// Move thread + posts, adjust forum counts
+	// Move thread + posts, adjust forum counts.
+	//
+	// Also drop any `forum_recommended_threads` row keyed to this
+	// thread: a recommendation is per-forum and the thread is leaving
+	// the source forum. Without this the GET list query would silently
+	// drop the row (its `t.forum_id = r.forum_id` join wins), but the
+	// orphaned row would still occupy the composite PK slot and prevent
+	// a moderator from re-recommending the thread in the new forum
+	// without an explicit DELETE. Use thread_id (not the composite key)
+	// so a stray row in another forum from a prior bug would also be
+	// cleaned up — recommendation is conceptually a single-forum binding.
 	await env.DB.batch([
 		env.DB.prepare("UPDATE threads SET forum_id = ? WHERE id = ?").bind(targetForumId, id),
 		env.DB.prepare("UPDATE posts SET forum_id = ? WHERE thread_id = ?").bind(targetForumId, id),
@@ -391,6 +402,7 @@ export async function moveThread(request: Request, env: Env): Promise<Response> 
 			postCount,
 			targetForumId,
 		),
+		env.DB.prepare("DELETE FROM forum_recommended_threads WHERE thread_id = ?").bind(id),
 	]);
 
 	// Recalc metadata for both forums
@@ -398,10 +410,14 @@ export async function moveThread(request: Request, env: Env): Promise<Response> 
 	await recalcForumMetadata(env, targetForumId);
 
 	// Invalidate volatile cache for BOTH source and target forums (counts +
-	// last-post + thread-list page1 all changed in each).
+	// last-post + thread-list page1 all changed in each). Also bump the
+	// thread meta gen — `isRecommended` flips from true→false when the
+	// thread leaves the source forum (the recommendation row above is
+	// dropped), so any cached thread-detail payload must miss.
 	await Promise.all([
 		invalidateForumVolatileV2(env, oldForumId),
 		invalidateForumVolatileV2(env, targetForumId),
+		bumpThreadMetaGen(env, id),
 	]);
 
 	return jsonResponse({ id, forumId: targetForumId, moved: true }, origin);

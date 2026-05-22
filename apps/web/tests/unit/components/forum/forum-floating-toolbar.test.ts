@@ -168,7 +168,7 @@ describe("ForumFloatingToolbar", () => {
 		expect(mockPush).toHaveBeenCalledWith("/forums/1");
 	});
 
-	it("computes prevHref with page param when page > 2", () => {
+	it("computes prevHref with path-segment when page > 2", () => {
 		render(
 			createElement(ForumFloatingToolbar, {
 				page: 4,
@@ -177,10 +177,10 @@ describe("ForumFloatingToolbar", () => {
 			}),
 		);
 		fireEvent.click(screen.getByRole("button", { name: "上一页" }));
-		expect(mockPush).toHaveBeenCalledWith("/forums/1?page=3");
+		expect(mockPush).toHaveBeenCalledWith("/forums/1/3");
 	});
 
-	it("computes nextHref correctly", () => {
+	it("computes nextHref correctly (path-segment)", () => {
 		render(
 			createElement(ForumFloatingToolbar, {
 				page: 2,
@@ -189,7 +189,7 @@ describe("ForumFloatingToolbar", () => {
 			}),
 		);
 		fireEvent.click(screen.getByRole("button", { name: "下一页" }));
-		expect(mockPush).toHaveBeenCalledWith("/forums/1?page=3");
+		expect(mockPush).toHaveBeenCalledWith("/forums/1/3");
 	});
 
 	it("disables prevHref when page=1", () => {
@@ -242,7 +242,7 @@ describe("ForumFloatingToolbar", () => {
 			}),
 		);
 		fireEvent.click(screen.getByRole("button", { name: "下一页" }));
-		expect(mockPush).toHaveBeenCalledWith("/forums/1?page=3&typeId=11");
+		expect(mockPush).toHaveBeenCalledWith("/forums/1/3?typeId=11");
 	});
 
 	it("strips existing query from basePath before re-encoding (safety net)", () => {
@@ -256,14 +256,12 @@ describe("ForumFloatingToolbar", () => {
 		);
 		fireEvent.click(screen.getByRole("button", { name: "下一页" }));
 		// extraParams wins (matches the active filter), no duplicate typeId.
-		// Order: existing query keys precede newly-set page, then extraParams
-		// overrides typeId in-place. The important guarantee is "no duplicate
-		// typeId, no `typeId=99`".
+		// Path is now /forums/1/3 (segment-canonical) with no stale page= query.
 		const pushed = mockPush.mock.calls[0][0] as string;
-		expect(pushed.startsWith("/forums/1?")).toBe(true);
+		expect(pushed.startsWith("/forums/1/3?")).toBe(true);
 		const params = new URLSearchParams(pushed.split("?")[1]);
 		expect(params.getAll("typeId")).toEqual(["11"]);
-		expect(params.get("page")).toBe("3");
+		expect(params.get("page")).toBeNull();
 	});
 
 	// ─── Jump page only when pages > 1 ───────────────────────────────────

@@ -11,6 +11,8 @@ const mockSetThreadDigest = vi.fn(async () => {});
 const mockSetThreadHighlight = vi.fn(async () => {});
 const mockMoveThread = vi.fn(async () => {});
 const mockDeleteThread = vi.fn(async () => {});
+const mockRecommendThread = vi.fn(async () => {});
+const mockUnrecommendThread = vi.fn(async () => {});
 vi.mock("@/lib/moderation-api", () => ({
 	setThreadClosed: (...args: any[]) => mockSetThreadClosed(...args),
 	setThreadSticky: (...args: any[]) => mockSetThreadSticky(...args),
@@ -18,6 +20,8 @@ vi.mock("@/lib/moderation-api", () => ({
 	setThreadHighlight: (...args: any[]) => mockSetThreadHighlight(...args),
 	moveThread: (...args: any[]) => mockMoveThread(...args),
 	deleteThread: (...args: any[]) => mockDeleteThread(...args),
+	recommendThread: (...args: any[]) => mockRecommendThread(...args),
+	unrecommendThread: (...args: any[]) => mockUnrecommendThread(...args),
 }));
 
 vi.mock("@/lib/api-client", () => ({
@@ -120,6 +124,7 @@ function renderMenu(props: Partial<Parameters<typeof ThreadModMenu>[0]> = {}) {
 				digest: 0,
 				highlight: 0,
 				closed: false,
+				isRecommended: false,
 				canManageThread: true,
 				canMoveThread: true,
 				canDeleteThread: true,
@@ -237,6 +242,81 @@ describe("ThreadModMenu toast integration", () => {
 			const errorToast = alerts.find((el) => el.textContent?.includes("操作失败"));
 			expect(errorToast).toBeTruthy();
 			expect(errorToast?.textContent).toContain("移动失败");
+		});
+	});
+
+	// --- Recommend ---
+
+	it("shows 推荐 label when not yet recommended and calls recommendThread", async () => {
+		renderMenu({ isRecommended: false });
+
+		// Verify the affirmative label is rendered (not "取消推荐").
+		expect(screen.getByTestId("action-推荐")).toBeTruthy();
+		expect(screen.queryByTestId("action-取消推荐")).toBeNull();
+
+		const btn = screen.getByTestId("action-推荐");
+		await act(async () => {
+			fireEvent.click(btn);
+		});
+
+		await waitFor(() => {
+			expect(screen.getByText("已设为推荐")).toBeTruthy();
+		});
+		expect(mockRecommendThread).toHaveBeenCalledWith(1);
+		expect(mockUnrecommendThread).not.toHaveBeenCalled();
+	});
+
+	it("shows 取消推荐 label when already recommended and calls unrecommendThread", async () => {
+		renderMenu({ isRecommended: true });
+
+		expect(screen.getByTestId("action-取消推荐")).toBeTruthy();
+		expect(screen.queryByTestId("action-推荐")).toBeNull();
+
+		const btn = screen.getByTestId("action-取消推荐");
+		await act(async () => {
+			fireEvent.click(btn);
+		});
+
+		await waitFor(() => {
+			expect(screen.getByText("已取消推荐")).toBeTruthy();
+		});
+		expect(mockUnrecommendThread).toHaveBeenCalledWith(1);
+		expect(mockRecommendThread).not.toHaveBeenCalled();
+	});
+
+	it("shows error toast labelled 推荐失败 on failure to recommend", async () => {
+		const { ApiError } = await import("@/lib/api-client");
+		mockRecommendThread.mockRejectedValueOnce(new ApiError("无权限"));
+
+		renderMenu({ isRecommended: false });
+
+		await act(async () => {
+			fireEvent.click(screen.getByTestId("action-推荐"));
+		});
+
+		await waitFor(() => {
+			const alerts = screen.getAllByRole("alert");
+			const errorToast = alerts.find((el) => el.textContent?.includes("无权限"));
+			expect(errorToast).toBeTruthy();
+			expect(errorToast?.textContent).toContain("推荐失败");
+		});
+	});
+
+	it("shows error toast labelled 取消推荐失败 on failure to unrecommend", async () => {
+		const { ApiError } = await import("@/lib/api-client");
+		mockUnrecommendThread.mockRejectedValueOnce(new ApiError("无权限"));
+
+		renderMenu({ isRecommended: true });
+
+		await act(async () => {
+			fireEvent.click(screen.getByTestId("action-取消推荐"));
+		});
+
+		await waitFor(() => {
+			const alerts = screen.getAllByRole("alert");
+			const errorToast = alerts.find((el) => el.textContent?.includes("无权限"));
+			expect(errorToast).toBeTruthy();
+			expect(errorToast?.textContent).toContain("取消推荐失败");
 		});
 	});
 

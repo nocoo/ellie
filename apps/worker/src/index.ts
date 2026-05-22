@@ -118,6 +118,12 @@ export default {
 			if (path.match(/^\/api\/v1\/forums\/\d+\/announcement$/) && request.method === "PATCH") {
 				return await (await import("./handlers/forum")).setAnnouncement(request, env);
 			}
+			// Recommended-threads list (public). Same registration-before-:id
+			// rule as ancestors/announcement so the suffix is not parsed as a
+			// forum id.
+			if (path.match(/^\/api\/v1\/forums\/\d+\/recommended-threads$/) && request.method === "GET") {
+				return await (await import("./handlers/recommended")).listRecommendedThreads(request, env);
+			}
 			if (path.match(/^\/api\/v1\/forums\/\d+$/) && request.method === "GET") {
 				return await (await import("./handlers/forum")).getById(request, env, ctx);
 			}
@@ -364,6 +370,23 @@ export default {
 				request.method === "PATCH"
 			) {
 				return await (await import("./handlers/moderation")).setHighlight(request, env);
+			}
+			// Recommend / un-recommend MUST match BEFORE the bare DELETE
+			// /api/v1/moderation/threads/:id below — otherwise the
+			// `/recommend` suffix would be consumed by the regex
+			// `^\/api\/v1\/moderation\/threads\/\d+$` and silently delete
+			// the thread instead of toggling its recommendation.
+			if (
+				path.match(/^\/api\/v1\/moderation\/threads\/\d+\/recommend$/) &&
+				request.method === "POST"
+			) {
+				return await (await import("./handlers/recommended")).addRecommend(request, env);
+			}
+			if (
+				path.match(/^\/api\/v1\/moderation\/threads\/\d+\/recommend$/) &&
+				request.method === "DELETE"
+			) {
+				return await (await import("./handlers/recommended")).removeRecommend(request, env);
 			}
 			if (path.match(/^\/api\/v1\/moderation\/threads\/\d+$/) && request.method === "DELETE") {
 				return await (await import("./handlers/moderation")).deleteThread(request, env);

@@ -88,6 +88,11 @@ function mapThreadRows(results: unknown[], useKvCache: boolean): Thread[] {
 				recommends: r.recommends,
 				typeName: r.type_name,
 				isAuthorFirstThread: r.is_author_first_thread === 1,
+				// List views do not surface the recommended-card flag —
+				// it is only read by the thread-detail mod menu. Default
+				// false so the Thread type stays uniform without paying
+				// for a per-row EXISTS probe in forum/profile lists.
+				isRecommended: false,
 			};
 		}
 	} else {
@@ -117,6 +122,7 @@ function mapThreadRows(results: unknown[], useKvCache: boolean): Thread[] {
 				recommends: r.recommends,
 				typeName: r.type_name,
 				isAuthorFirstThread: r.is_author_first_thread === 1,
+				isRecommended: false,
 			};
 		}
 	}
@@ -573,14 +579,26 @@ export async function getById(
 	const useKvCache = isKvUserCacheEnabled(env);
 
 	// Choose query based on cache strategy (include forum_id for visibility check)
-	// Only return visible threads (sticky >= 0)
+	// Only return visible threads (sticky >= 0).
+	//
+	// `is_recommended` is a one-row EXISTS probe on the
+	// `forum_recommended_threads` composite PK (migration 0045). The
+	// thread-detail mod menu reads it to render the "推荐 / 已推荐"
+	// toggle without a second round-trip. The probe is bound to the
+	// thread row's own forum_id so a stale row in another forum (from a
+	// past move-without-cleanup bug) cannot lie about the current state.
 	const threadQuery = useKvCache
-		? `SELECT * FROM threads WHERE id = ? AND ${THREAD_VISIBLE}`
+		? `SELECT t.*,
+		          EXISTS(SELECT 1 FROM forum_recommended_threads r
+		                  WHERE r.forum_id = t.forum_id AND r.thread_id = t.id) AS is_recommended
+		     FROM threads t WHERE t.id = ? AND ${threadVisible("t")}`
 		: `SELECT t.*,
 		          author.avatar AS author_avatar,
 		          author.avatar_path AS author_avatar_path,
 		          lp.avatar AS last_poster_avatar,
-		          lp.avatar_path AS last_poster_avatar_path
+		          lp.avatar_path AS last_poster_avatar_path,
+		          EXISTS(SELECT 1 FROM forum_recommended_threads r
+		                  WHERE r.forum_id = t.forum_id AND r.thread_id = t.id) AS is_recommended
 		   FROM threads t
 		   LEFT JOIN users author ON t.author_id = author.id
 		   LEFT JOIN users lp ON t.last_poster_id = lp.id

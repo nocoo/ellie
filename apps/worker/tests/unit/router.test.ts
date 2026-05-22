@@ -79,6 +79,15 @@ vi.mock("../../src/handlers/moderation", () => ({
 	unbanUser: mockHandler(),
 	nukeUser: mockHandler(),
 }));
+// `recommended` handlers MUST mount BEFORE the bare DELETE
+// /api/v1/moderation/threads/:id route (see src/index.ts:374-390).
+// Pin both mocks here so dispatch + order asserts can inspect them
+// without crossing module boundaries.
+vi.mock("../../src/handlers/recommended", () => ({
+	addRecommend: mockHandler(),
+	removeRecommend: mockHandler(),
+	listRecommendedThreads: mockHandler(),
+}));
 vi.mock("../../src/handlers/user-content", () => ({
 	deleteMyPost: mockHandler(),
 	deleteMyThread: mockHandler(),
@@ -289,6 +298,7 @@ const MODULE_PATHS: Record<string, string> = {
 	"post-comment": "../../src/handlers/post-comment",
 	report: "../../src/handlers/report",
 	moderation: "../../src/handlers/moderation",
+	recommended: "../../src/handlers/recommended",
 	"user-content": "../../src/handlers/user-content",
 	"admin/forum": "../../src/handlers/admin/forum",
 	"admin/thread": "../../src/handlers/admin/thread",
@@ -909,6 +919,7 @@ describe("router (src/index.ts)", () => {
 				["GET", "/api/v1/forums/1", "forum", "getById"],
 				["GET", "/api/v1/forums/1/ancestors", "forum", "getAncestors"],
 				["GET", "/api/v1/forums/1/thread-types", "forum", "getThreadTypes"],
+				["GET", "/api/v1/forums/1/recommended-threads", "recommended", "listRecommendedThreads"],
 				["GET", "/api/v1/threads", "thread", "list"],
 				["GET", "/api/v1/threads/1", "thread", "getById"],
 				["GET", "/api/v1/posts", "post", "list"],
@@ -986,6 +997,8 @@ describe("router (src/index.ts)", () => {
 				["PATCH", "/api/v1/moderation/threads/1/close", "moderation", "setClose"],
 				["PATCH", "/api/v1/moderation/threads/1/move", "moderation", "moveThread"],
 				["PATCH", "/api/v1/moderation/threads/1/highlight", "moderation", "setHighlight"],
+				["POST", "/api/v1/moderation/threads/1/recommend", "recommended", "addRecommend"],
+				["DELETE", "/api/v1/moderation/threads/1/recommend", "recommended", "removeRecommend"],
 				["DELETE", "/api/v1/moderation/threads/1", "moderation", "deleteThread"],
 				["DELETE", "/api/v1/moderation/posts/1", "moderation", "deletePost"],
 				["PATCH", "/api/v1/moderation/posts/1", "moderation", "editPost"],
@@ -1001,6 +1014,69 @@ describe("router (src/index.ts)", () => {
 				const response = await worker.fetch(request, makeEnv(), makeCtx());
 				expect(response.status).toBe(200);
 				await expectHandlerCalled(mod, fn);
+			});
+		});
+
+		// ─── Recommend route order pin ─────────────────────────────────
+		//
+		// D0 v2 hard requirement (msg=a629d81c / Blocker 5): the new
+		// `^/api/v1/moderation/threads/\d+/recommend$` routes MUST be
+		// matched BEFORE the bare `^/api/v1/moderation/threads/\d+$`
+		// DELETE route. Otherwise the regex
+		// `^/api/v1/moderation/threads/\d+$` would never match
+		// `/recommend` URLs — true, but the inverse trap is a future
+		// refactor that loosens the bare path to a `^/api/v1/.../\d+`
+		// prefix or drops the `$` anchor, silently routing
+		// `DELETE /recommend` to `deleteThread` and nuking the thread
+		// on what looked like an unrecommend click. This describe
+		// block pins the actual handler dispatch so any such drift
+		// fails loudly.
+		describe("recommend route order (DELETE /recommend must not fall into deleteThread)", () => {
+			it("POST /recommend → recommended.addRecommend, NOT moderation.deleteThread", async () => {
+				const request = makeRequest("POST", "/api/v1/moderation/threads/123/recommend");
+				const response = await worker.fetch(request, makeEnv(), makeCtx());
+				expect(response.status).toBe(200);
+				const recommended = await import("../../src/handlers/recommended");
+				const moderation = await import("../../src/handlers/moderation");
+				expect(recommended.addRecommend).toHaveBeenCalledTimes(1);
+				expect(moderation.deleteThread).not.toHaveBeenCalled();
+			});
+
+			it("DELETE /recommend → recommended.removeRecommend, NOT moderation.deleteThread", async () => {
+				const request = makeRequest("DELETE", "/api/v1/moderation/threads/123/recommend");
+				const response = await worker.fetch(request, makeEnv(), makeCtx());
+				expect(response.status).toBe(200);
+				const recommended = await import("../../src/handlers/recommended");
+				const moderation = await import("../../src/handlers/moderation");
+				expect(recommended.removeRecommend).toHaveBeenCalledTimes(1);
+				expect(moderation.deleteThread).not.toHaveBeenCalled();
+			});
+
+			it("bare DELETE /threads/:id (no /recommend suffix) still routes to deleteThread", async () => {
+				// Negative control: confirms the order-pin above does not
+				// accidentally swallow the legitimate delete-thread route.
+				const request = makeRequest("DELETE", "/api/v1/moderation/threads/123");
+				const response = await worker.fetch(request, makeEnv(), makeCtx());
+				expect(response.status).toBe(200);
+				const recommended = await import("../../src/handlers/recommended");
+				const moderation = await import("../../src/handlers/moderation");
+				expect(moderation.deleteThread).toHaveBeenCalledTimes(1);
+				expect(recommended.removeRecommend).not.toHaveBeenCalled();
+			});
+
+			it("GET /api/v1/forums/:id/recommended-threads → recommended.listRecommendedThreads, NOT forum.getById", async () => {
+				// The public read uses the suffix `/recommended-threads`
+				// which lexically prefixes nothing else — but the bare
+				// `^/api/v1/forums/\d+$` route would happily match the
+				// `1` in `/forums/1/recommended-threads` if a future
+				// regex regression drops the `$` anchor. Pin it.
+				const request = makeRequest("GET", "/api/v1/forums/1/recommended-threads");
+				const response = await worker.fetch(request, makeEnv(), makeCtx());
+				expect(response.status).toBe(200);
+				const recommended = await import("../../src/handlers/recommended");
+				const forum = await import("../../src/handlers/forum");
+				expect(recommended.listRecommendedThreads).toHaveBeenCalledTimes(1);
+				expect(forum.getById).not.toHaveBeenCalled();
 			});
 		});
 

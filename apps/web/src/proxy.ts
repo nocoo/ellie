@@ -17,6 +17,7 @@
 
 import { auth } from "@/auth";
 import { resolveTrustedClientIp } from "@/lib/client-ip";
+import { resolveLegacyDiscuzRedirect } from "@/lib/legacy-url";
 import { createTtlCache } from "@/lib/ttl-cache";
 import { NextResponse } from "next/server";
 import type { NextFetchEvent, NextRequest } from "next/server";
@@ -422,6 +423,17 @@ export async function tryRecordPageView(args: {
 // ---------------------------------------------------------------------------
 
 export async function proxy(request: NextRequest, event?: NextFetchEvent) {
+	// Legacy Discuz URL → canonical path-segment URL. MUST run BEFORE
+	// auth() / require_login / analytics so legacy hits never trigger
+	// session lookups or page-view ingest (they're pre-content). The
+	// helper is pure: it only inspects the URL and decides if a 301
+	// applies. Unknown / canonical URLs return null and we fall
+	// through to the normal proxy flow.
+	const legacy = resolveLegacyDiscuzRedirect(request.nextUrl);
+	if (legacy) {
+		return NextResponse.redirect(new URL(legacy.destination, request.nextUrl.origin), 301);
+	}
+
 	// Fetch require_login setting (cached, from Worker API)
 	const requireLogin = await getRequireLogin();
 

@@ -488,7 +488,8 @@ describe("D1 row mappers", () => {
 			};
 
 			const thread = toThread(row);
-			expect(Object.keys(thread)).toHaveLength(23);
+			// 23 base fields + 1 for `isRecommended` (migration 0045).
+			expect(Object.keys(thread)).toHaveLength(24);
 		});
 
 		it("should map is_author_first_thread=1 to isAuthorFirstThread=true", () => {

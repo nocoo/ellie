@@ -11,12 +11,23 @@ import {
 	type StickyLevel,
 	deleteThread,
 	moveThread,
+	recommendThread,
 	setThreadClosed,
 	setThreadDigest,
 	setThreadHighlight,
 	setThreadSticky,
+	unrecommendThread,
 } from "@/lib/moderation-api";
-import { ArrowRight, Highlighter, Lock, LockOpen, Pin, Star, Trash2 } from "lucide-react";
+import {
+	ArrowRight,
+	BookmarkPlus,
+	Highlighter,
+	Lock,
+	LockOpen,
+	Pin,
+	Star,
+	Trash2,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { DigestDialog } from "./digest-dialog";
@@ -40,7 +51,13 @@ interface ThreadModMenuProps {
 	highlight: number;
 	/** Is thread currently closed? */
 	closed: boolean;
-	/** Can user manage thread (sticky/highlight/digest/close)? */
+	/**
+	 * Is the thread currently in its forum's recommended-threads allowlist?
+	 * Drives the "推荐 / 已推荐" toggle label. Source: thread payload from
+	 * `GET /api/v1/threads/:id` (migration 0045 EXISTS probe).
+	 */
+	isRecommended: boolean;
+	/** Can user manage thread (sticky/highlight/digest/close/recommend)? */
 	canManageThread: boolean;
 	/** Can user move thread? (SuperMod/Admin only) */
 	canMoveThread: boolean;
@@ -59,6 +76,7 @@ export function ThreadModMenu({
 	digest,
 	highlight,
 	closed,
+	isRecommended,
 	canManageThread,
 	canMoveThread,
 	canDeleteThread,
@@ -90,6 +108,34 @@ export function ThreadModMenu({
 			setLoading(false);
 		}
 	}, [threadId, closed, router, toast]);
+
+	// Recommend toggle — both verbs are idempotent on the worker (POST is
+	// INSERT OR IGNORE, DELETE returns 200 on missing). The button only
+	// drives label/action; the source of truth is `thread.isRecommended`
+	// which refreshes after `router.refresh()`.
+	const handleToggleRecommend = useCallback(async () => {
+		setLoading(true);
+		setError(null);
+		try {
+			if (isRecommended) {
+				await unrecommendThread(threadId);
+				toast.success("已取消推荐");
+			} else {
+				await recommendThread(threadId);
+				toast.success("已设为推荐");
+			}
+			router.refresh();
+		} catch (err) {
+			const message = err instanceof ApiError ? err.message : "操作失败";
+			setError(message);
+			toast.error({
+				title: isRecommended ? "取消推荐失败" : "推荐失败",
+				description: message,
+			});
+		} finally {
+			setLoading(false);
+		}
+	}, [threadId, isRecommended, router, toast]);
 
 	const handleStickyChange = useCallback(
 		async (level: StickyLevel) => {
@@ -220,6 +266,12 @@ export function ThreadModMenu({
 							icon={Star}
 							label="精华"
 							onClick={() => setDigestDialogOpen(true)}
+							disabled={loading}
+						/>
+						<ForumActionButton
+							icon={BookmarkPlus}
+							label={isRecommended ? "取消推荐" : "推荐"}
+							onClick={handleToggleRecommend}
 							disabled={loading}
 						/>
 						<ForumActionButton

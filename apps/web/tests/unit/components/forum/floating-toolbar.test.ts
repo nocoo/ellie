@@ -245,7 +245,7 @@ describe("FloatingToolbar", () => {
 
 	// ─── Jump page submission ────────────────────────────────────────────
 
-	it("navigates to basePath?page=N when a page number is submitted via Go button", () => {
+	it("navigates to basePath/N when a page number is submitted via Go button (path-segment canonical)", () => {
 		render(
 			createElement(FloatingToolbar, {
 				jumpPage: { basePath: "/threads/1", pages: 8 },
@@ -258,7 +258,7 @@ describe("FloatingToolbar", () => {
 		fireEvent.change(input, { target: { value: "2" } });
 		// Click Go
 		fireEvent.click(screen.getByRole("button", { name: "Go" }));
-		expect(mockPush).toHaveBeenCalledWith("/threads/1?page=2");
+		expect(mockPush).toHaveBeenCalledWith("/threads/1/2");
 	});
 
 	it("navigates to basePath (no query) when page 1 is submitted", () => {
@@ -284,7 +284,7 @@ describe("FloatingToolbar", () => {
 		const input = screen.getByRole("spinbutton", { name: "页码" });
 		fireEvent.change(input, { target: { value: "5" } });
 		fireEvent.keyDown(input, { key: "Enter" });
-		expect(mockPush).toHaveBeenCalledWith("/threads/1?page=5");
+		expect(mockPush).toHaveBeenCalledWith("/threads/1/5");
 	});
 
 	it("does not navigate when jump page input is out of range", () => {
@@ -302,13 +302,13 @@ describe("FloatingToolbar", () => {
 
 	// ─── Jump page with returnTo ──────────────────────────────────────────
 
-	it("preserves returnTo when jumping to page > 1", () => {
+	it("preserves returnTo when jumping to page > 1 (path-segment canonical)", () => {
 		render(
 			createElement(FloatingToolbar, {
 				jumpPage: {
 					basePath: "/threads/1",
 					pages: 8,
-					returnTo: "/forums/5?page=4",
+					returnTo: "/forums/5/4",
 				},
 			}),
 		);
@@ -316,16 +316,16 @@ describe("FloatingToolbar", () => {
 		const input = screen.getByRole("spinbutton", { name: "页码" });
 		fireEvent.change(input, { target: { value: "3" } });
 		fireEvent.click(screen.getByRole("button", { name: "Go" }));
-		expect(mockPush).toHaveBeenCalledWith("/threads/1?page=3&returnTo=%2Fforums%2F5%3Fpage%3D4");
+		expect(mockPush).toHaveBeenCalledWith("/threads/1/3?returnTo=%2Fforums%2F5%2F4");
 	});
 
-	it("preserves returnTo when jumping to page 1 (no page= param)", () => {
+	it("preserves returnTo when jumping to page 1 (no page segment)", () => {
 		render(
 			createElement(FloatingToolbar, {
 				jumpPage: {
 					basePath: "/threads/1",
 					pages: 8,
-					returnTo: "/forums/5?page=4",
+					returnTo: "/forums/5/4",
 				},
 			}),
 		);
@@ -333,7 +333,7 @@ describe("FloatingToolbar", () => {
 		const input = screen.getByRole("spinbutton", { name: "页码" });
 		fireEvent.change(input, { target: { value: "1" } });
 		fireEvent.click(screen.getByRole("button", { name: "Go" }));
-		expect(mockPush).toHaveBeenCalledWith("/threads/1?returnTo=%2Fforums%2F5%3Fpage%3D4");
+		expect(mockPush).toHaveBeenCalledWith("/threads/1?returnTo=%2Fforums%2F5%2F4");
 	});
 
 	it("does not add returnTo when jumpPage has no returnTo", () => {
@@ -346,6 +346,6 @@ describe("FloatingToolbar", () => {
 		const input = screen.getByRole("spinbutton", { name: "页码" });
 		fireEvent.change(input, { target: { value: "2" } });
 		fireEvent.click(screen.getByRole("button", { name: "Go" }));
-		expect(mockPush).toHaveBeenCalledWith("/threads/1?page=2");
+		expect(mockPush).toHaveBeenCalledWith("/threads/1/2");
 	});
 });

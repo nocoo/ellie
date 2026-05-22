@@ -79,6 +79,7 @@ function makeThread(overrides: Record<string, unknown> = {}) {
 		recommends: 0,
 		typeName: "",
 		isAuthorFirstThread: false,
+		isRecommended: false,
 		...overrides,
 	};
 }
