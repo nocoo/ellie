@@ -29,18 +29,17 @@
 // `created_at`, which is a Shanghai-noon stamp that drifts from the
 // write-side day-key semantics and bypasses the existing index.
 //
-// KV cache: every endpoint goes through `cacheGetOrSet` with an
-// endpoint-scoped family registered in `kv-registry.ts`. TTLs are
-// conservative (60s overview, 300s the rest) — the dashboard is read
-// often but tolerates stale-by-minutes data. Validators guard against
-// shape drift after a code change ships against pre-existing KV
-// payloads.
+// Cache policy: admin dashboards must never serve stale data — admins
+// need immediate feedback after moderation actions. All four endpoints
+// query D1 directly on every request and respond with
+// `Cache-Control: no-store, private`. (Previously these went through
+// `cacheGetOrSet`; that wrapper was removed because the dashboard's
+// correctness requirement outweighs the ~60-300s TTL benefit.)
 
 import { withEntityAuth } from "../../lib/adminHelpers";
-import { cacheGetOrSet } from "../../lib/cache/wrap";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
-import { jsonResponse } from "../../lib/response";
+import { jsonNoStoreResponse } from "../../lib/response";
 import { errorResponse } from "../../middleware/error";
 
 // ─── Constants ───────────────────────────────────────────────────
@@ -55,12 +54,6 @@ type Range = (typeof ALLOWED_RANGES)[number];
 
 const ALLOWED_METRICS = ["users", "threads", "posts", "checkins"] as const;
 type TrendMetric = (typeof ALLOWED_METRICS)[number];
-
-/** TTLs — pinned to KV registry. Drift caught by `kv-registry.test.ts`. */
-const OVERVIEW_TTL_SEC = 60;
-const TREND_TTL_SEC = 300;
-const FORUM_DIST_TTL_SEC = 300;
-const CHECKIN_TTL_SEC = 300;
 
 /** Forum-dist row cap — avoid sending hundreds of low-traffic forums. */
 const FORUM_DIST_LIMIT = 50;
@@ -165,11 +158,7 @@ function fillDailyByIso(
 	return out;
 }
 
-// ─── Validators ──────────────────────────────────────────────────
-//
-// Each `cacheGetOrSet` payload is shape-validated on read; a schema
-// drift after a code change ships against pre-existing KV entries
-// would otherwise silently feed the UI stale-shape data.
+// ─── Payload types ───────────────────────────────────────────────
 
 interface OverviewPayload {
 	now: number;
@@ -181,39 +170,10 @@ interface OverviewPayload {
 	};
 }
 
-function isOverviewPayload(v: unknown): v is OverviewPayload {
-	if (!v || typeof v !== "object") return false;
-	const o = v as Record<string, unknown>;
-	if (typeof o.now !== "number") return false;
-	const t = o.today as Record<string, unknown> | undefined;
-	if (!t || typeof t !== "object") return false;
-	return (
-		typeof t.newUsers === "number" &&
-		typeof t.newThreads === "number" &&
-		typeof t.newPosts === "number" &&
-		typeof t.checkins === "number"
-	);
-}
-
 interface TrendPayload {
 	metric: TrendMetric;
 	range: Range;
 	series: Array<{ date: string; count: number }>;
-}
-
-function isTrendPayload(v: unknown): v is TrendPayload {
-	if (!v || typeof v !== "object") return false;
-	const o = v as Record<string, unknown>;
-	if (!(ALLOWED_METRICS as readonly string[]).includes(o.metric as string)) return false;
-	if (!(ALLOWED_RANGES as readonly string[]).includes(o.range as string)) return false;
-	if (!Array.isArray(o.series)) return false;
-	return o.series.every(
-		(p) =>
-			p &&
-			typeof p === "object" &&
-			typeof (p as Record<string, unknown>).date === "string" &&
-			typeof (p as Record<string, unknown>).count === "number",
-	);
 }
 
 interface ForumDistPayload {
@@ -221,39 +181,9 @@ interface ForumDistPayload {
 	rows: Array<{ forumId: number; forumName: string; posts: number }>;
 }
 
-function isForumDistPayload(v: unknown): v is ForumDistPayload {
-	if (!v || typeof v !== "object") return false;
-	const o = v as Record<string, unknown>;
-	if (!(ALLOWED_RANGES as readonly string[]).includes(o.range as string)) return false;
-	if (!Array.isArray(o.rows)) return false;
-	return o.rows.every((r) => {
-		if (!r || typeof r !== "object") return false;
-		const x = r as Record<string, unknown>;
-		return (
-			typeof x.forumId === "number" &&
-			typeof x.forumName === "string" &&
-			typeof x.posts === "number"
-		);
-	});
-}
-
 interface CheckinPayload {
 	range: Range;
 	series: Array<{ date: string; count: number }>;
-}
-
-function isCheckinPayload(v: unknown): v is CheckinPayload {
-	if (!v || typeof v !== "object") return false;
-	const o = v as Record<string, unknown>;
-	if (!(ALLOWED_RANGES as readonly string[]).includes(o.range as string)) return false;
-	if (!Array.isArray(o.series)) return false;
-	return o.series.every(
-		(p) =>
-			p &&
-			typeof p === "object" &&
-			typeof (p as Record<string, unknown>).date === "string" &&
-			typeof (p as Record<string, unknown>).count === "number",
-	);
 }
 
 // ─── Queries ─────────────────────────────────────────────────────
@@ -439,31 +369,13 @@ async function loadCheckinTrend(env: Env, nowSec: number, range: Range): Promise
 
 // ─── Handlers ────────────────────────────────────────────────────
 
-async function overviewHandler(
-	request: Request,
-	env: Env,
-	ctx?: ExecutionContext,
-): Promise<Response> {
+async function overviewHandler(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
-	if (!ctx) {
-		// Defensive: every admin endpoint is called with ctx by the router.
-		// Without it `cacheGetOrSet` cannot schedule the KV write-back, so
-		// we fall back to a direct loader call (no cache).
-		const payload = await loadOverview(env, Math.floor(Date.now() / 1000));
-		return jsonResponse(payload, origin);
-	}
-	const nowSec = Math.floor(Date.now() / 1000);
-	const payload = await cacheGetOrSet<OverviewPayload>(
-		env,
-		ctx,
-		"analytics:overview",
-		() => loadOverview(env, nowSec),
-		{ ttl: OVERVIEW_TTL_SEC, validator: isOverviewPayload, family: "analytics:overview" },
-	);
-	return jsonResponse(payload, origin);
+	const payload = await loadOverview(env, Math.floor(Date.now() / 1000));
+	return jsonNoStoreResponse(payload, origin);
 }
 
-async function trendHandler(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
+async function trendHandler(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const metric = parseMetric(url);
@@ -474,74 +386,30 @@ async function trendHandler(request: Request, env: Env, ctx?: ExecutionContext):
 	if (!range) {
 		return errorResponse("INVALID_RANGE", 400, { allowed: [...ALLOWED_RANGES] }, origin);
 	}
-	const nowSec = Math.floor(Date.now() / 1000);
-	if (!ctx) {
-		const payload = await loadTrend(env, nowSec, metric, range);
-		return jsonResponse(payload, origin);
-	}
-	const key = `analytics:trend:${metric}:${range}`;
-	const payload = await cacheGetOrSet<TrendPayload>(
-		env,
-		ctx,
-		key,
-		() => loadTrend(env, nowSec, metric, range),
-		{ ttl: TREND_TTL_SEC, validator: isTrendPayload, family: "analytics:trend" },
-	);
-	return jsonResponse(payload, origin);
+	const payload = await loadTrend(env, Math.floor(Date.now() / 1000), metric, range);
+	return jsonNoStoreResponse(payload, origin);
 }
 
-async function forumDistHandler(
-	request: Request,
-	env: Env,
-	ctx?: ExecutionContext,
-): Promise<Response> {
+async function forumDistHandler(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const range = parseRange(url);
 	if (!range) {
 		return errorResponse("INVALID_RANGE", 400, { allowed: [...ALLOWED_RANGES] }, origin);
 	}
-	const nowSec = Math.floor(Date.now() / 1000);
-	if (!ctx) {
-		const payload = await loadForumDist(env, nowSec, range);
-		return jsonResponse(payload, origin);
-	}
-	const key = `analytics:forum-dist:${range}`;
-	const payload = await cacheGetOrSet<ForumDistPayload>(
-		env,
-		ctx,
-		key,
-		() => loadForumDist(env, nowSec, range),
-		{ ttl: FORUM_DIST_TTL_SEC, validator: isForumDistPayload, family: "analytics:forum-dist" },
-	);
-	return jsonResponse(payload, origin);
+	const payload = await loadForumDist(env, Math.floor(Date.now() / 1000), range);
+	return jsonNoStoreResponse(payload, origin);
 }
 
-async function checkinHandler(
-	request: Request,
-	env: Env,
-	ctx?: ExecutionContext,
-): Promise<Response> {
+async function checkinHandler(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
 	const range = parseRange(url);
 	if (!range) {
 		return errorResponse("INVALID_RANGE", 400, { allowed: [...ALLOWED_RANGES] }, origin);
 	}
-	const nowSec = Math.floor(Date.now() / 1000);
-	if (!ctx) {
-		const payload = await loadCheckinTrend(env, nowSec, range);
-		return jsonResponse(payload, origin);
-	}
-	const key = `analytics:checkin:${range}`;
-	const payload = await cacheGetOrSet<CheckinPayload>(
-		env,
-		ctx,
-		key,
-		() => loadCheckinTrend(env, nowSec, range),
-		{ ttl: CHECKIN_TTL_SEC, validator: isCheckinPayload, family: "analytics:checkin" },
-	);
-	return jsonResponse(payload, origin);
+	const payload = await loadCheckinTrend(env, Math.floor(Date.now() / 1000), range);
+	return jsonNoStoreResponse(payload, origin);
 }
 
 export const getOverview = withEntityAuth(analyticsConfig, overviewHandler);
@@ -560,10 +428,6 @@ export const _internal = {
 	loadTrend,
 	loadForumDist,
 	loadCheckinTrend,
-	OVERVIEW_TTL_SEC,
-	TREND_TTL_SEC,
-	FORUM_DIST_TTL_SEC,
-	CHECKIN_TTL_SEC,
 	ALLOWED_METRICS,
 	ALLOWED_RANGES,
 	FORUM_DIST_LIMIT,

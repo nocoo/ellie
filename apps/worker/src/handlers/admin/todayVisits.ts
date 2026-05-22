@@ -3,9 +3,10 @@
 // Two handlers backing the `今日访问名单` panel on the analytics dashboard:
 //
 //   - GET /api/admin/analytics/today/visits
-//       KPI aggregates for today (Asia/Shanghai). KV-cached under family
-//       `analytics:today-visits` (60s TTL). Aggregate-only — value carries
-//       NO ip / ua / username. The dashboard's "活跃用户/访客（含匿名）"
+//       KPI aggregates for today (Asia/Shanghai). Serves D1 realtime
+//       with `Cache-Control: no-store, private` — admins need immediate
+//       feedback after moderation actions. Aggregate-only — value
+//       carries NO ip / ua / username. The dashboard's "活跃用户/访客（含匿名）"
 //       counter is computed as:
 //
 //         activeUsers  = COUNT(DISTINCT user_id WHERE user_id > 0)
@@ -35,21 +36,15 @@
 
 import { withEntityAuth } from "../../lib/adminHelpers";
 import type { PathKind } from "../../lib/analytics/types";
-import { cacheGetOrSet } from "../../lib/cache/wrap";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
-import { jsonResponse } from "../../lib/response";
-import { buildJsonHeaders } from "../../middleware/cors";
+import { jsonNoStoreResponse } from "../../lib/response";
 import { errorResponse } from "../../middleware/error";
 
 // ─── Constants ────────────────────────────────────────────────────
 
 const LOCAL_TZ_OFFSET_SEC = 8 * 3600;
 const SEC_PER_DAY = 86_400;
-
-const KPI_TTL_SEC = 60;
-const KPI_KV_KEY = "analytics:today-visits";
-const KPI_FAMILY = "analytics:today-visits";
 
 const LIST_PAGE_SIZE_MAX = 100;
 const LIST_PAGE_SIZE_DEFAULT = 20;
@@ -93,23 +88,7 @@ function shanghaiDateLocal(nowSec: number): string {
 	return `${y}-${m}-${day}`;
 }
 
-/** No-store/private JSON response — used by the list endpoint. */
-function jsonNoStoreResponse<T>(data: T, origin?: string): Response {
-	const headers = buildJsonHeaders(origin);
-	headers["Cache-Control"] = "no-store, private";
-	return new Response(
-		JSON.stringify({
-			data,
-			meta: {
-				timestamp: Date.now(),
-				requestId: crypto.randomUUID(),
-			},
-		}),
-		{ headers },
-	);
-}
-
-// ─── KPI shape + validator ───────────────────────────────────────
+// ─── KPI shape ───────────────────────────────────────────────────
 
 interface PathKindBreakdownEntry {
 	pathKind: PathKind;
@@ -132,34 +111,6 @@ interface TodayVisitsKpi {
 	/** 1 if at least one row has user_id = 0 (anonymous bucket), else 0. */
 	anonPresent: 0 | 1;
 	byPathKind: PathKindBreakdownEntry[];
-}
-
-function isTodayVisitsKpi(v: unknown): v is TodayVisitsKpi {
-	if (!v || typeof v !== "object") return false;
-	const o = v as Record<string, unknown>;
-	if (typeof o.now !== "number") return false;
-	if (typeof o.dateLocal !== "string") return false;
-	for (const k of [
-		"totalViews",
-		"humanViews",
-		"botSearchViews",
-		"botOtherViews",
-		"unknownViews",
-		"distinctTargets",
-		"activeUsers",
-	] as const) {
-		if (typeof o[k] !== "number") return false;
-	}
-	if (o.anonPresent !== 0 && o.anonPresent !== 1) return false;
-	if (!Array.isArray(o.byPathKind)) return false;
-	for (const e of o.byPathKind) {
-		if (!e || typeof e !== "object") return false;
-		const x = e as Record<string, unknown>;
-		if (typeof x.pathKind !== "string" || !PATH_KIND_VALUES.has(x.pathKind as PathKind))
-			return false;
-		if (typeof x.views !== "number" || typeof x.targets !== "number") return false;
-	}
-	return true;
 }
 
 // ─── List shape ──────────────────────────────────────────────────
@@ -423,23 +374,11 @@ async function resolveLabels(
 
 // ─── Handlers ────────────────────────────────────────────────────
 
-/** GET /api/admin/analytics/today/visits — KPI card (KV-cached). */
-async function kpiHandler(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
+/** GET /api/admin/analytics/today/visits — KPI card (no-store). */
+async function kpiHandler(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
-	const nowSec = Math.floor(Date.now() / 1000);
-	let payload: TodayVisitsKpi;
-	if (!ctx) {
-		payload = await loadKpi(env, nowSec);
-	} else {
-		payload = await cacheGetOrSet<TodayVisitsKpi>(
-			env,
-			ctx,
-			KPI_KV_KEY,
-			() => loadKpi(env, nowSec),
-			{ ttl: KPI_TTL_SEC, validator: isTodayVisitsKpi, family: KPI_FAMILY },
-		);
-	}
-	return jsonResponse(payload, origin);
+	const payload = await loadKpi(env, Math.floor(Date.now() / 1000));
+	return jsonNoStoreResponse(payload, origin);
 }
 
 /** GET /api/admin/analytics/today/visits/list — realtime, no-store. */
@@ -489,11 +428,7 @@ export const _internal = {
 	loadKpi,
 	loadListPage,
 	resolveLabels,
-	isTodayVisitsKpi,
 	todayVisitsConfig,
-	KPI_KV_KEY,
-	KPI_FAMILY,
-	KPI_TTL_SEC,
 	LIST_PAGE_SIZE_MAX,
 	LIST_PAGE_SIZE_DEFAULT,
 	PATH_KIND_VALUES,

@@ -3,8 +3,8 @@
 //
 //   - GET  /api/admin/analytics/today/logins
 //       KPI aggregates for "today" (Asia/Shanghai). Aggregate-only;
-//       cached in KV under family `analytics:today-logins` so the
-//       cache value carries NO ip / ua / username — only counts.
+//       serves D1 realtime with `Cache-Control: no-store, private`
+//       so admins see immediate counters after moderation actions.
 //   - GET  /api/admin/analytics/today/logins/list
 //       Paginated, masked detail list. Reads D1 in realtime (no KV).
 //       Response is `Cache-Control: no-store, private`.
@@ -27,46 +27,15 @@
 
 import { withEntityAuth } from "../../lib/adminHelpers";
 import { resolveActor, writeAdminLog } from "../../lib/adminLog";
-import { cacheGetOrSet } from "../../lib/cache/wrap";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
-import { jsonResponse } from "../../lib/response";
-import { buildJsonHeaders } from "../../middleware/cors";
+import { jsonNoStoreResponse } from "../../lib/response";
 import { errorResponse } from "../../middleware/error";
-
-// ─── Local helper: build a no-store JSON response ───────────────
-//
-// The shared `jsonResponse` builder injects {data, meta:{timestamp,
-// requestId, ...}} and uses `buildJsonHeaders` — but its 3rd argument
-// is `meta` (merged into the envelope), NOT extra HTTP headers. The
-// list + reveal endpoints serve realtime audit data and MUST send
-// `Cache-Control: no-store, private` so neither browsers nor any CDN
-// in front of the worker can replay one admin's masked list to
-// another admin. We construct the Response manually here to attach
-// the header without forking jsonResponse just for two callsites.
-function jsonNoStoreResponse<T>(data: T, origin?: string): Response {
-	const headers = buildJsonHeaders(origin);
-	headers["Cache-Control"] = "no-store, private";
-	return new Response(
-		JSON.stringify({
-			data,
-			meta: {
-				timestamp: Date.now(),
-				requestId: crypto.randomUUID(),
-			},
-		}),
-		{ headers },
-	);
-}
 
 // ─── Constants ───────────────────────────────────────────────────
 
 const LOCAL_TZ_OFFSET_SEC = 8 * 3600;
 const SEC_PER_DAY = 86_400;
-
-const KPI_TTL_SEC = 60;
-const KPI_KV_KEY = "analytics:today-logins";
-const KPI_FAMILY = "analytics:today-logins";
 
 const LIST_PAGE_SIZE_MAX = 100;
 const LIST_PAGE_SIZE_DEFAULT = 20;
@@ -110,7 +79,7 @@ function maskIp(ip: string): string {
 	return "unknown";
 }
 
-// ─── KPI shape + validator ──────────────────────────────────────
+// ─── KPI shape ──────────────────────────────────────────────────
 
 interface TodayLoginsKpi {
 	now: number;
@@ -122,22 +91,6 @@ interface TodayLoginsKpi {
 	uniqueIps: number; // distinct ip among all rows
 	loginAttempts: number; // kind = 'login'
 	registerAttempts: number; // kind = 'register'
-}
-
-function isTodayLoginsKpi(v: unknown): v is TodayLoginsKpi {
-	if (!v || typeof v !== "object") return false;
-	const o = v as Record<string, unknown>;
-	return (
-		typeof o.now === "number" &&
-		typeof o.dayStart === "number" &&
-		typeof o.totalAttempts === "number" &&
-		typeof o.successAttempts === "number" &&
-		typeof o.failedAttempts === "number" &&
-		typeof o.uniqueUsers === "number" &&
-		typeof o.uniqueIps === "number" &&
-		typeof o.loginAttempts === "number" &&
-		typeof o.registerAttempts === "number"
-	);
 }
 
 // ─── Loaders ─────────────────────────────────────────────────────
@@ -200,23 +153,11 @@ interface MaskedListRow {
 
 // ─── Handlers ────────────────────────────────────────────────────
 
-/** GET /api/admin/analytics/today/logins — KPI card (KV-cached). */
-async function kpiHandler(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
+/** GET /api/admin/analytics/today/logins — KPI card (no-store). */
+async function kpiHandler(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
-	const nowSec = Math.floor(Date.now() / 1000);
-	let payload: TodayLoginsKpi;
-	if (!ctx) {
-		payload = await loadKpi(env, nowSec);
-	} else {
-		payload = await cacheGetOrSet<TodayLoginsKpi>(
-			env,
-			ctx,
-			KPI_KV_KEY,
-			() => loadKpi(env, nowSec),
-			{ ttl: KPI_TTL_SEC, validator: isTodayLoginsKpi, family: KPI_FAMILY },
-		);
-	}
-	return jsonResponse(payload, origin);
+	const payload = await loadKpi(env, Math.floor(Date.now() / 1000));
+	return jsonNoStoreResponse(payload, origin);
 }
 
 /** GET /api/admin/analytics/today/logins/list — masked detail list. */
@@ -410,11 +351,7 @@ export const _internal = {
 	localTodayStart,
 	maskIp,
 	loadKpi,
-	isTodayLoginsKpi,
 	loginHistoryConfig,
-	KPI_KV_KEY,
-	KPI_FAMILY,
-	KPI_TTL_SEC,
 	LIST_PAGE_SIZE_MAX,
 	LIST_PAGE_SIZE_DEFAULT,
 };

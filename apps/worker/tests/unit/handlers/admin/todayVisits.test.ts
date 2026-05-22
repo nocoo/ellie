@@ -257,26 +257,30 @@ describe("todayVisits — KPI handler", () => {
 		expect(body.data.byPathKind).toEqual([{ pathKind: "thread", views: 1, targets: 1 }]);
 	});
 
-	it("writes through KV cache under family `analytics:today-visits`", async () => {
+	it("bypasses KV: never reads or writes the cache and replies no-store", async () => {
 		vi.setSystemTime(Date.UTC(2026, 0, 1, 4, 0, 0));
 		const db = makeMockDb({
 			batchQueue: [[{ results: [{ anon_present: 0 }] }, { results: [] }]],
 		});
-		const kv = createMockKV();
+		const kv = createMockKV({
+			"analytics:today-visits": JSON.stringify({ totalViews: 999 }),
+		});
 		const env = makeEnv({ DB: db as unknown as D1Database, KV: kv });
 		const ctx = makeCtx();
 
-		await getTodayVisitsKpi(
+		const res = await getTodayVisitsKpi(
 			createAdminRequest("GET", "/api/admin/analytics/today/visits"),
 			env,
 			ctx,
 		);
 		await Promise.all(ctx._promises);
 
-		expect(_internal.KPI_KV_KEY).toBe("analytics:today-visits");
-		expect(_internal.KPI_FAMILY).toBe("analytics:today-visits");
-		expect(_internal.KPI_TTL_SEC).toBe(60);
-		expect(kv.put).toHaveBeenCalled();
+		expect(res.status).toBe(200);
+		expect(res.headers.get("Cache-Control")).toBe("no-store, private");
+		expect(kv.get).not.toHaveBeenCalled();
+		expect(kv.put).not.toHaveBeenCalled();
+		// D1 was hit even though KV held a payload.
+		expect(db._calls.length).toBeGreaterThan(0);
 	});
 
 	it("loads from D1 when ctx is absent (no cache layer, no KV write)", async () => {
@@ -691,106 +695,5 @@ describe("todayVisits — sparse SQL fallbacks", () => {
 		const userRow = body.data.rows.find((r) => r.pathKind === "user");
 		expect(forumRow?.label).toBe("");
 		expect(userRow?.label).toBe("");
-	});
-});
-
-describe("isTodayVisitsKpi (cache validator)", () => {
-	const { isTodayVisitsKpi } = _internal;
-
-	const VALID = {
-		now: 1700000000,
-		dateLocal: "2026-01-01",
-		totalViews: 10,
-		humanViews: 8,
-		botSearchViews: 1,
-		botOtherViews: 0,
-		unknownViews: 1,
-		distinctTargets: 3,
-		activeUsers: 2,
-		anonPresent: 1 as 0 | 1,
-		byPathKind: [{ pathKind: "thread" as const, views: 5, targets: 2 }],
-	};
-
-	it("accepts a complete payload", () => {
-		expect(isTodayVisitsKpi(VALID)).toBe(true);
-	});
-
-	it("accepts anonPresent=0 and empty byPathKind", () => {
-		expect(isTodayVisitsKpi({ ...VALID, anonPresent: 0, byPathKind: [] })).toBe(true);
-	});
-
-	it("rejects null/undefined/primitive", () => {
-		expect(isTodayVisitsKpi(null)).toBe(false);
-		expect(isTodayVisitsKpi(undefined)).toBe(false);
-		expect(isTodayVisitsKpi("x")).toBe(false);
-		expect(isTodayVisitsKpi(123)).toBe(false);
-	});
-
-	it("rejects non-number `now`", () => {
-		expect(isTodayVisitsKpi({ ...VALID, now: "x" })).toBe(false);
-	});
-
-	it("rejects non-string `dateLocal`", () => {
-		expect(isTodayVisitsKpi({ ...VALID, dateLocal: 20260101 })).toBe(false);
-	});
-
-	it("rejects non-number numeric fields", () => {
-		for (const k of [
-			"totalViews",
-			"humanViews",
-			"botSearchViews",
-			"botOtherViews",
-			"unknownViews",
-			"distinctTargets",
-			"activeUsers",
-		]) {
-			expect(isTodayVisitsKpi({ ...VALID, [k]: "x" })).toBe(false);
-		}
-	});
-
-	it("rejects anonPresent outside {0,1}", () => {
-		expect(isTodayVisitsKpi({ ...VALID, anonPresent: 2 })).toBe(false);
-		expect(isTodayVisitsKpi({ ...VALID, anonPresent: -1 })).toBe(false);
-		expect(isTodayVisitsKpi({ ...VALID, anonPresent: "1" })).toBe(false);
-	});
-
-	it("rejects non-array byPathKind", () => {
-		expect(isTodayVisitsKpi({ ...VALID, byPathKind: {} })).toBe(false);
-		expect(isTodayVisitsKpi({ ...VALID, byPathKind: "x" })).toBe(false);
-	});
-
-	it("rejects byPathKind entry that is not an object", () => {
-		expect(isTodayVisitsKpi({ ...VALID, byPathKind: [null] })).toBe(false);
-		expect(isTodayVisitsKpi({ ...VALID, byPathKind: ["x"] })).toBe(false);
-	});
-
-	it("rejects byPathKind entry with non-string pathKind", () => {
-		expect(
-			isTodayVisitsKpi({ ...VALID, byPathKind: [{ pathKind: 1, views: 0, targets: 0 }] }),
-		).toBe(false);
-	});
-
-	it("rejects byPathKind entry with unknown pathKind", () => {
-		expect(
-			isTodayVisitsKpi({
-				...VALID,
-				byPathKind: [{ pathKind: "not_a_kind", views: 0, targets: 0 }],
-			}),
-		).toBe(false);
-	});
-
-	it("rejects byPathKind entry with non-number views/targets", () => {
-		expect(
-			isTodayVisitsKpi({
-				...VALID,
-				byPathKind: [{ pathKind: "thread", views: "x", targets: 0 }],
-			}),
-		).toBe(false);
-		expect(
-			isTodayVisitsKpi({
-				...VALID,
-				byPathKind: [{ pathKind: "thread", views: 0, targets: "x" }],
-			}),
-		).toBe(false);
 	});
 });
