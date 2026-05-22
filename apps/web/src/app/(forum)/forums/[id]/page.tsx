@@ -173,12 +173,6 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 				/>
 			)}
 
-			{/* Per-forum "推荐主题" card. Rendered below the forum header
-			    and above the thread list / error banner so it stays
-			    visible on the type-filter views too. Self-hides when the
-			    backend returns zero recommendations. */}
-			<ForumRecommendedCard threads={recommendedThreads} />
-
 			{error && (
 				<div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
 					{error}
@@ -193,12 +187,15 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 			) : (
 				/* Regular forum — thread list */
 				<>
-					{/* Sub-forums above thread list */}
+					{/* Sub-forums above recommended threads */}
 					{data.forum && data.forum.children.length > 0 && (
 						<div className="overflow-hidden rounded-sm border border-border bg-card">
 							<ForumPanel forums={data.forum.children} layout="auto" />
 						</div>
 					)}
+
+					{/* Per-forum "推荐主题" card — below sub-forums, above thread list */}
+					<ForumRecommendedCard threads={recommendedThreads} />
 
 					{/* 主题分类 filter pills — only when forum enables listable categories. */}
 					{showFilter && threadTypes && (
