@@ -18,6 +18,7 @@
 
 import "server-only";
 
+import { loadRecommendedThreads } from "@/viewmodels/forum/recommended-threads.server";
 import { cache } from "react";
 import {
 	type ForumAncestorsData,
@@ -36,6 +37,7 @@ export const getCachedThreadById = cache(fetchThreadById);
 export const getCachedForumList = cache(fetchForumList);
 export const getCachedForumAncestors = cache(fetchForumAncestors);
 export const getCachedForumThreadTypes = cache(fetchForumThreadTypes);
+export const getCachedRecommendedThreads = cache(loadRecommendedThreads);
 
 // ---------------------------------------------------------------------------
 // Forum settings

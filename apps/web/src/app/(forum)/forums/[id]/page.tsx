@@ -11,12 +11,13 @@ import { ThreadItem } from "@/components/forum/thread-item";
 import { ThreadListHeader } from "@/components/forum/thread-list-header";
 import { ThreadTypeFilter } from "@/components/forum/thread-type-filter";
 import { Card, CardContent } from "@/components/ui/card";
-import { getCachedForumThreadTypes, getCachedPostsPerPage } from "@/lib/forum-cache";
-import { getSelfForumUser } from "@/lib/forum-self";
 import {
-	type RecommendedThreadItem,
-	loadRecommendedThreads,
-} from "@/viewmodels/forum/recommended-threads.server";
+	getCachedForumThreadTypes,
+	getCachedPostsPerPage,
+	getCachedRecommendedThreads,
+} from "@/lib/forum-cache";
+import { getSelfForumUser } from "@/lib/forum-self";
+import type { RecommendedThreadItem } from "@/viewmodels/forum/recommended-threads.server";
 import {
 	type ThreadListPagedData,
 	loadThreadListPaged,
@@ -89,7 +90,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 	const selfPromise = getSelfForumUser().catch(() => null);
 	const postsPerPagePromise = getCachedPostsPerPage();
 	const threadTypesPromise = getCachedForumThreadTypes(forumId).catch(() => null);
-	const recommendedThreadsPromise = loadRecommendedThreads(forumId)
+	const recommendedThreadsPromise = getCachedRecommendedThreads(forumId)
 		.then((res) => res.threads)
 		.catch(() => [] as RecommendedThreadItem[]);
 
