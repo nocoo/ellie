@@ -34,11 +34,11 @@ export function ForumRecommendedCard({ threads }: ForumRecommendedCardProps) {
 				<ThumbsUp className="h-4 w-4 text-primary" />
 				推荐主题
 			</div>
-			<ul className="mt-2 space-y-1">
+			<ul className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
 				{threads.map((t) => (
 					<li
 						key={t.id}
-						className="flex items-baseline gap-2 text-sm text-foreground/90 leading-relaxed"
+						className="flex items-baseline gap-2 text-sm text-foreground/90 leading-relaxed min-w-0"
 					>
 						<Link
 							href={`/threads/${t.id}`}
@@ -47,7 +47,7 @@ export function ForumRecommendedCard({ threads }: ForumRecommendedCardProps) {
 						>
 							{t.subject}
 						</Link>
-						<span className="shrink-0 text-xs text-muted-foreground">
+						<span className="ml-auto shrink-0 text-xs text-muted-foreground">
 							{t.authorName} · {t.replies} 回复
 						</span>
 					</li>
