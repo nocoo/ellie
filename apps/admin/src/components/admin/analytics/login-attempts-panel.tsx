@@ -3,24 +3,13 @@
 /**
  * Today's login-attempt audit panel (P4).
  *
- * KPI summary card row + masked detail list with a per-row "查看完整"
- * (reveal) button. The reveal goes through the POST BFF proxy which
- * causes the worker to writeAdminLog with action
- * `analytics.login_history.reveal`. Network errors leave the row's
- * masked view intact.
- *
- * This component is self-contained — it manages its own fetch state for
- * (a) the KPI card, (b) the paginated masked list, and (c) the modal
- * holding the revealed raw row. Page integration just renders it.
+ * KPI summary card row + detail list with raw IP/UA (admin-only, no masking).
  */
 
 import {
 	type LoginAttemptList,
-	type LoginAttemptListRow,
-	type LoginAttemptReveal,
 	type TodayLoginsKpi,
 	parseLoginAttemptList,
-	parseLoginAttemptReveal,
 	parseTodayLoginsKpi,
 } from "@/viewmodels/admin/analytics";
 import { Card, CardContent, CardHeader, CardTitle } from "@ellie/ui";
@@ -36,17 +25,6 @@ async function fetchJson<T>(url: string, parse: (raw: unknown) => T): Promise<T>
 	if (!res.ok) throw new Error(`HTTP ${res.status}`);
 	const body = (await res.json()) as { data?: unknown };
 	return parse(body.data);
-}
-
-async function postReveal(id: number): Promise<LoginAttemptReveal> {
-	const res = await fetch(`/api/admin/analytics/login-history/${id}/reveal`, {
-		method: "POST",
-		credentials: "include",
-		headers: { "Content-Type": "application/json" },
-	});
-	if (!res.ok) throw new Error(`HTTP ${res.status}`);
-	const body = (await res.json()) as { data?: unknown };
-	return parseLoginAttemptReveal(body.data);
 }
 
 // ---------------------------------------------------------------------------
@@ -70,102 +48,6 @@ function okBadge(ok: 0 | 1, errorCode: string): { label: string; cls: string } {
 }
 
 // ---------------------------------------------------------------------------
-// Reveal modal — tiny overlay, no portal lib needed.
-// ---------------------------------------------------------------------------
-
-function RevealModal({
-	revealed,
-	error,
-	onClose,
-}: {
-	revealed: LoginAttemptReveal | null;
-	error: string | null;
-	onClose: () => void;
-}) {
-	if (!revealed && !error) return null;
-	return (
-		<div
-			className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-			onClick={onClose}
-			onKeyDown={(e) => {
-				if (e.key === "Escape") onClose();
-			}}
-			// biome-ignore lint/a11y/useSemanticElements: native <dialog> requires ref + showModal/close imperative API which conflicts with the React-controlled open/close pattern used here.
-			role="dialog"
-			aria-modal="true"
-			tabIndex={-1}
-		>
-			<div
-				className="w-full max-w-lg rounded-[var(--radius-card,14px)] bg-card p-5 shadow-lg"
-				onClick={(e) => e.stopPropagation()}
-				onKeyDown={(e) => e.stopPropagation()}
-				role="document"
-			>
-				<div className="mb-3 flex items-center justify-between">
-					<h2 className="text-base font-semibold">登录尝试详情</h2>
-					<button
-						type="button"
-						onClick={onClose}
-						className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
-					>
-						关闭
-					</button>
-				</div>
-				{error ? (
-					<p className="text-sm text-destructive">{error}</p>
-				) : revealed ? (
-					<dl className="space-y-2 text-sm">
-						<div className="flex justify-between gap-4">
-							<dt className="text-muted-foreground">用户</dt>
-							<dd className="font-medium text-foreground break-all text-right">
-								{revealed.userId !== null ? (
-									<Link
-										href={`/admin/users/${revealed.userId}`}
-										className="hover:text-primary hover:underline"
-									>
-										{revealed.username || `#${revealed.userId}`}
-										<span className="ml-1 text-xs text-muted-foreground">(#{revealed.userId})</span>
-									</Link>
-								) : (
-									<span>{revealed.username || "—"}</span>
-								)}
-							</dd>
-						</div>
-						<div className="flex justify-between gap-4">
-							<dt className="text-muted-foreground">类型</dt>
-							<dd>{revealed.kind}</dd>
-						</div>
-						<div className="flex justify-between gap-4">
-							<dt className="text-muted-foreground">结果</dt>
-							<dd>{revealed.ok === 1 ? "成功" : revealed.errorCode || "失败"}</dd>
-						</div>
-						<div className="flex justify-between gap-4">
-							<dt className="text-muted-foreground">IP</dt>
-							<dd className="font-mono break-all text-right">{revealed.ip || "—"}</dd>
-						</div>
-						<div className="flex justify-between gap-4">
-							<dt className="text-muted-foreground">UA</dt>
-							<dd className="break-all text-right text-xs">{revealed.userAgent || "—"}</dd>
-						</div>
-						<div className="flex justify-between gap-4">
-							<dt className="text-muted-foreground">Bot 分类</dt>
-							<dd>{revealed.botClass || "—"}</dd>
-						</div>
-						<div className="flex justify-between gap-4">
-							<dt className="text-muted-foreground">时间</dt>
-							<dd>{formatTs(revealed.createdAt)}</dd>
-						</div>
-					</dl>
-				) : null}
-				<p className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
-					本次查看已写入审计日志（analytics.login_history.reveal）。
-				</p>
-			</div>
-		</div>
-	);
-}
-
-// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -184,10 +66,6 @@ export function LoginAttemptsPanel() {
 	const [page, setPage] = useState(1);
 	const [okFilter, setOkFilter] = useState<OkFilter>("");
 	const [kindFilter, setKindFilter] = useState<KindFilter>("");
-
-	const [revealed, setRevealed] = useState<LoginAttemptReveal | null>(null);
-	const [revealError, setRevealError] = useState<string | null>(null);
-	const [revealingId, setRevealingId] = useState<number | null>(null);
 
 	const loadKpi = useCallback(async () => {
 		try {
@@ -224,20 +102,6 @@ export function LoginAttemptsPanel() {
 		loadList();
 	}, [loadList]);
 
-	const onReveal = useCallback(async (row: LoginAttemptListRow) => {
-		setRevealingId(row.id);
-		setRevealError(null);
-		setRevealed(null);
-		try {
-			const r = await postReveal(row.id);
-			setRevealed(r);
-		} catch (e) {
-			setRevealError(e instanceof Error ? e.message : "查看失败");
-		} finally {
-			setRevealingId(null);
-		}
-	}, []);
-
 	const totalPages = list ? Math.max(1, Math.ceil(list.total / list.limit)) : 1;
 
 	return (
@@ -266,7 +130,7 @@ export function LoginAttemptsPanel() {
 			{/* ── Detail list with reveal ─────────────────────────────────── */}
 			<Card>
 				<CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-					<CardTitle className="text-base font-semibold">登录明细（IP 已脱敏）</CardTitle>
+					<CardTitle className="text-base font-semibold">登录明细</CardTitle>
 					<div className="flex flex-wrap items-center gap-2 text-xs">
 						<FilterGroup
 							value={okFilter}
@@ -309,8 +173,8 @@ export function LoginAttemptsPanel() {
 										<th className="py-2 pr-3">类型</th>
 										<th className="py-2 pr-3">结果</th>
 										<th className="py-2 pr-3">IP</th>
+										<th className="py-2 pr-3">UA</th>
 										<th className="py-2 pr-3">Bot</th>
-										<th className="py-2 pr-3"> </th>
 									</tr>
 								</thead>
 								<tbody>
@@ -344,18 +208,14 @@ export function LoginAttemptsPanel() {
 														{badge.label}
 													</span>
 												</td>
-												<td className="py-2 pr-3 font-mono">{row.ipMasked}</td>
-												<td className="py-2 pr-3">{row.botClass || "—"}</td>
-												<td className="py-2 pr-3">
-													<button
-														type="button"
-														onClick={() => onReveal(row)}
-														disabled={revealingId === row.id}
-														className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50"
-													>
-														{revealingId === row.id ? "查询中…" : "查看完整"}
-													</button>
+												<td className="py-2 pr-3 font-mono">{row.ip}</td>
+												<td
+													className="max-w-[200px] truncate py-2 pr-3 text-xs text-muted-foreground"
+													title={row.userAgent}
+												>
+													{row.userAgent || "—"}
 												</td>
+												<td className="py-2 pr-3">{row.botClass || "—"}</td>
 											</tr>
 										);
 									})}
@@ -390,15 +250,6 @@ export function LoginAttemptsPanel() {
 					)}
 				</CardContent>
 			</Card>
-
-			<RevealModal
-				revealed={revealed}
-				error={revealError}
-				onClose={() => {
-					setRevealed(null);
-					setRevealError(null);
-				}}
-			/>
 		</>
 	);
 }

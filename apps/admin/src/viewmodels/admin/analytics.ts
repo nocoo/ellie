@@ -181,7 +181,7 @@ export function parseTodayLoginsKpi(raw: unknown): TodayLoginsKpi {
 	};
 }
 
-/** Single masked row from GET /api/admin/analytics/today/logins/list. */
+/** Single row from GET /api/admin/analytics/today/logins/list. */
 export interface LoginAttemptListRow {
 	id: number;
 	userId: number | null;
@@ -189,8 +189,8 @@ export interface LoginAttemptListRow {
 	ok: 0 | 1;
 	kind: string;
 	errorCode: string;
-	/** First two octets of IPv4 retained; rest is `x` — never raw. */
-	ipMasked: string;
+	ip: string;
+	userAgent: string;
 	botClass: string;
 	createdAt: number;
 }
@@ -220,42 +220,12 @@ export function parseLoginAttemptList(raw: unknown): LoginAttemptList {
 				ok: (okRaw === 1 ? 1 : 0) as 0 | 1,
 				kind: asString(x.kind),
 				errorCode: asString(x.errorCode),
-				ipMasked: asString(x.ipMasked),
+				ip: asString(x.ip),
+				userAgent: asString(x.userAgent),
 				botClass: asString(x.botClass),
 				createdAt: asNumber(x.createdAt),
 			};
 		}),
-	};
-}
-
-/** Reveal response — single row with RAW ip + ua + username. */
-export interface LoginAttemptReveal {
-	id: number;
-	userId: number | null;
-	username: string;
-	ok: 0 | 1;
-	kind: string;
-	errorCode: string;
-	ip: string;
-	userAgent: string;
-	botClass: string;
-	createdAt: number;
-}
-
-export function parseLoginAttemptReveal(raw: unknown): LoginAttemptReveal {
-	const o = (raw ?? {}) as Record<string, unknown>;
-	const okRaw = asNumber(o.ok);
-	return {
-		id: asNumber(o.id),
-		userId: typeof o.userId === "number" && Number.isFinite(o.userId) ? (o.userId as number) : null,
-		username: asString(o.username),
-		ok: (okRaw === 1 ? 1 : 0) as 0 | 1,
-		kind: asString(o.kind),
-		errorCode: asString(o.errorCode),
-		ip: asString(o.ip),
-		userAgent: asString(o.userAgent),
-		botClass: asString(o.botClass),
-		createdAt: asNumber(o.createdAt),
 	};
 }
 

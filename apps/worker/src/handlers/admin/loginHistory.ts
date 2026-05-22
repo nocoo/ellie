@@ -1,4 +1,4 @@
-// Admin login-history endpoints (P4) — three handlers for the
+// Admin login-history endpoints (P4) — two handlers for the
 // auth-attempt audit trail surfaced on the analytics dashboard:
 //
 //   - GET  /api/admin/analytics/today/logins
@@ -6,31 +6,17 @@
 //       serves D1 realtime with `Cache-Control: no-store, private`
 //       so admins see immediate counters after moderation actions.
 //   - GET  /api/admin/analytics/today/logins/list
-//       Paginated, masked detail list. Reads D1 in realtime (no KV).
+//       Paginated detail list with raw IP + UA. Admin-only.
 //       Response is `Cache-Control: no-store, private`.
-//   - POST /api/admin/analytics/login-history/:id/reveal
-//       Reveal raw ip + ua for ONE row. Writes admin_logs row
-//       (`analytics.login_history.reveal`) on the success path and
-//       returns `Cache-Control: no-store, private`. 404 / 400 do NOT
-//       write to admin_logs.
 //
-// The reveal endpoint is POST (not GET) so the Next admin proxy's
-// `adminApiAs(admin, request).raw("POST", ...)` injects the
-// `X-Admin-Actor-Email` / `X-Admin-Actor-Name` headers needed for
-// `resolveActor` to record a non-system actor. CSRF is auto-enforced
-// by the BFF on POST methods.
-//
-// All three handlers are gated by `withEntityAuth(loginHistoryConfig)`
+// Both handlers are gated by `withEntityAuth(loginHistoryConfig)`
 // — Key B verification happens at the router level (apiKey middleware);
-// the wrapper is here only for the factory pattern (see
-// `apps/worker/src/lib/adminHelpers.ts`).
+// the wrapper is here only for the factory pattern.
 
 import { withEntityAuth } from "../../lib/adminHelpers";
-import { resolveActor, writeAdminLog } from "../../lib/adminLog";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { jsonNoStoreResponse } from "../../lib/response";
-import { errorResponse } from "../../middleware/error";
 
 // ─── Constants ───────────────────────────────────────────────────
 
@@ -139,14 +125,15 @@ async function loadKpi(env: Env, nowSec: number): Promise<TodayLoginsKpi> {
 
 // ─── List shape ──────────────────────────────────────────────────
 
-interface MaskedListRow {
+interface ListRow {
 	id: number;
 	userId: number | null;
 	username: string;
 	ok: 0 | 1;
 	kind: string;
 	errorCode: string;
-	ipMasked: string;
+	ip: string;
+	userAgent: string;
 	botClass: string;
 	createdAt: number;
 }
@@ -160,7 +147,7 @@ async function kpiHandler(request: Request, env: Env): Promise<Response> {
 	return jsonNoStoreResponse(payload, origin);
 }
 
-/** GET /api/admin/analytics/today/logins/list — masked detail list. */
+/** GET /api/admin/analytics/today/logins/list — detail list (raw IP, admin-only). */
 async function listHandler(request: Request, env: Env): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const url = new URL(request.url);
@@ -208,7 +195,7 @@ async function listHandler(request: Request, env: Env): Promise<Response> {
 			.bind(...params)
 			.first<{ total: number }>(),
 		env.DB.prepare(
-			`SELECT id, user_id, username, ok, kind, error_code, ip, bot_class, created_at
+			`SELECT id, user_id, username, ok, kind, error_code, ip, user_agent, bot_class, created_at
 			 FROM login_history
 			 WHERE ${where}
 			 ORDER BY created_at DESC
@@ -223,19 +210,21 @@ async function listHandler(request: Request, env: Env): Promise<Response> {
 				kind: string;
 				error_code: string;
 				ip: string;
+				user_agent: string;
 				bot_class: string;
 				created_at: number;
 			}>(),
 	]);
 
-	const rows: MaskedListRow[] = (listResult.results ?? []).map((r) => ({
+	const rows: ListRow[] = (listResult.results ?? []).map((r) => ({
 		id: r.id,
 		userId: r.user_id,
 		username: r.username,
 		ok: r.ok,
 		kind: r.kind,
 		errorCode: r.error_code,
-		ipMasked: maskIp(r.ip),
+		ip: r.ip,
+		userAgent: r.user_agent,
 		botClass: r.bot_class,
 		createdAt: r.created_at,
 	}));
@@ -251,100 +240,10 @@ async function listHandler(request: Request, env: Env): Promise<Response> {
 	);
 }
 
-/** POST /api/admin/analytics/login-history/:id/reveal — un-mask one row. */
-async function revealHandler(request: Request, env: Env): Promise<Response> {
-	const origin = request.headers.get("Origin") ?? undefined;
-	// Method gate: BFF GET / HEAD must not reach this code, but pin it
-	// for defense-in-depth — a misconfigured proxy must NOT reveal data.
-	if (request.method !== "POST") {
-		return errorResponse(
-			"METHOD_NOT_ALLOWED",
-			405,
-			{ message: "POST required for reveal" },
-			origin,
-		);
-	}
-
-	const url = new URL(request.url);
-	const match = url.pathname.match(/\/login-history\/(\d+)\/reveal$/);
-	if (!match) {
-		return errorResponse("INVALID_REQUEST", 400, { message: "Bad path" }, origin);
-	}
-	const id = Number.parseInt(match[1], 10);
-	if (!Number.isFinite(id) || id <= 0) {
-		return errorResponse("INVALID_REQUEST", 400, { message: "Bad login_history id" }, origin);
-	}
-
-	const row = await env.DB.prepare(
-		`SELECT id, user_id, username, ok, kind, error_code, ip, user_agent, bot_class, created_at
-		 FROM login_history
-		 WHERE id = ?`,
-	)
-		.bind(id)
-		.first<{
-			id: number;
-			user_id: number | null;
-			username: string;
-			ok: 0 | 1;
-			kind: string;
-			error_code: string;
-			ip: string;
-			user_agent: string;
-			bot_class: string;
-			created_at: number;
-		}>();
-
-	if (!row) {
-		// Critical: 404 does NOT writeAdminLog. We refuse to leave a trail
-		// for IDs the admin probed but couldn't see.
-		return errorResponse("LOGIN_HISTORY_NOT_FOUND", 404, undefined, origin);
-	}
-
-	// Success path: write admin_logs BEFORE returning so a downstream
-	// network blip never returns the reveal without an audit row. Best-
-	// effort by contract (writeAdminLog is fire-and-forget on the catch
-	// side), but we still await so the row is in flight before we
-	// respond.
-	await writeAdminLog(env, resolveActor(request, env), {
-		action: "analytics.login_history.reveal",
-		targetType: "login_history",
-		targetId: row.id,
-		// Intentionally exclude raw ip / ua / username from `details` —
-		// the audit trail records WHO revealed WHICH row, not the
-		// underlying PII (that is already on the login_history row
-		// itself, accessible via the same admin endpoint).
-		details: {
-			loginHistoryId: row.id,
-			ok: row.ok,
-			kind: row.kind,
-			errorCode: row.error_code,
-			botClass: row.bot_class,
-			createdAt: row.created_at,
-		},
-	});
-
-	return jsonNoStoreResponse(
-		{
-			id: row.id,
-			userId: row.user_id,
-			username: row.username,
-			ok: row.ok,
-			kind: row.kind,
-			errorCode: row.error_code,
-			ip: row.ip,
-			userAgent: row.user_agent,
-			botClass: row.bot_class,
-			createdAt: row.created_at,
-		},
-		origin,
-	);
-}
-
 // ─── Exports (router wires by name) ─────────────────────────────
 
 export const getTodayLoginsKpi = withEntityAuth(loginHistoryConfig, kpiHandler);
 export const getTodayLoginsList = withEntityAuth(loginHistoryConfig, listHandler);
-export const revealLoginHistory = withEntityAuth(loginHistoryConfig, revealHandler);
 
 // Pure helpers — exported for unit tests only.
 export const _internal = {

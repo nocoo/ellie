@@ -9,7 +9,6 @@ import {
 	parseCheckinTrend,
 	parseForumDist,
 	parseLoginAttemptList,
-	parseLoginAttemptReveal,
 	parseOverview,
 	parseTodayLoginsKpi,
 	parseTodayVisitsKpi,
@@ -294,7 +293,8 @@ describe("analytics viewmodel", () => {
 						ok: 1,
 						kind: "login",
 						errorCode: "",
-						ipMasked: "1.2.x.x",
+						ip: "1.2.3.4",
+						userAgent: "Mozilla/5.0",
 						botClass: "human",
 						createdAt: 1000,
 					},
@@ -305,7 +305,8 @@ describe("analytics viewmodel", () => {
 						ok: 0,
 						kind: "login",
 						errorCode: "INVALID_CREDENTIALS",
-						ipMasked: "2001:db8::x",
+						ip: "2001:db8:abcd:1234::5",
+						userAgent: "curl/7.0",
 						botClass: "ua-bot",
 						createdAt: 999,
 					},
@@ -316,7 +317,7 @@ describe("analytics viewmodel", () => {
 			expect(result.limit).toBe(20);
 			expect(result.total).toBe(2);
 			expect(result.rows).toHaveLength(2);
-			expect(result.rows[0].ipMasked).toBe("1.2.x.x");
+			expect(result.rows[0].ip).toBe("1.2.3.4");
 			expect(result.rows[0].ok).toBe(1);
 			expect(result.rows[1].userId).toBeNull();
 			expect(result.rows[1].ok).toBe(0);
@@ -361,52 +362,6 @@ describe("analytics viewmodel", () => {
 			});
 			expect(result.rows[0].userId).toBeNull();
 			expect(result.rows[1].userId).toBeNull();
-		});
-	});
-
-	describe("parseLoginAttemptReveal", () => {
-		it("parses a complete payload including raw ip/ua/username", () => {
-			const raw = {
-				id: 42,
-				userId: 7,
-				username: "alice",
-				ok: 0,
-				kind: "login",
-				errorCode: "INVALID_CREDENTIALS",
-				ip: "203.0.113.45",
-				userAgent: "Mozilla/5.0",
-				botClass: "human",
-				createdAt: 1700,
-			};
-			const result = parseLoginAttemptReveal(raw);
-			expect(result.id).toBe(42);
-			expect(result.userId).toBe(7);
-			expect(result.username).toBe("alice");
-			expect(result.ok).toBe(0);
-			expect(result.errorCode).toBe("INVALID_CREDENTIALS");
-			expect(result.ip).toBe("203.0.113.45");
-			expect(result.userAgent).toBe("Mozilla/5.0");
-		});
-
-		it("defaults missing fields to safe empties", () => {
-			const result = parseLoginAttemptReveal({});
-			expect(result.id).toBe(0);
-			expect(result.userId).toBeNull();
-			expect(result.username).toBe("");
-			expect(result.ok).toBe(0);
-			expect(result.ip).toBe("");
-			expect(result.userAgent).toBe("");
-		});
-
-		it("handles null and undefined input", () => {
-			expect(parseLoginAttemptReveal(null).ip).toBe("");
-			expect(parseLoginAttemptReveal(undefined).userAgent).toBe("");
-		});
-
-		it("coerces ok=1 only when strictly 1", () => {
-			expect(parseLoginAttemptReveal({ ok: 1 }).ok).toBe(1);
-			expect(parseLoginAttemptReveal({ ok: 2 }).ok).toBe(0);
-			expect(parseLoginAttemptReveal({ ok: 0 }).ok).toBe(0);
 		});
 	});
 

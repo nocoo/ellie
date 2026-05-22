@@ -627,16 +627,6 @@ export default {
 					ctx,
 				);
 			}
-			if (
-				path.match(/^\/api\/admin\/analytics\/login-history\/\d+\/reveal$/) &&
-				request.method === "POST"
-			) {
-				return await (await import("./handlers/admin/loginHistory")).revealLoginHistory(
-					request,
-					env,
-					ctx,
-				);
-			}
 
 			// ── E0b. Page-view aggregate audit (P5) ──────────
 			// Backs the "今日访问名单" panel. KPI is KV-cached on the

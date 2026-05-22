@@ -15,7 +15,6 @@
 //   Admin login-history audit (P4):
 //     GET  /api/admin/analytics/today/logins
 //     GET  /api/admin/analytics/today/logins/list
-//     POST /api/admin/analytics/login-history/:id/reveal
 //
 //   Admin today's visits aggregate (P5):
 //     GET  /api/admin/analytics/today/visits
@@ -27,7 +26,7 @@
 // existing handler unit tests under apps/worker/tests/unit/handlers.
 
 import { describe, expect, test } from "bun:test";
-import { adminGet, adminPost, getWorkerUrl } from "../setup";
+import { adminGet, getWorkerUrl } from "../setup";
 
 const WORKER_URL = getWorkerUrl();
 
@@ -107,16 +106,6 @@ describe("L2: Worker analytics API", () => {
 		test("accepts ok / kind / errorCode filter combinations", async () => {
 			const res = await adminGet("/api/admin/analytics/today/logins/list?ok=1&kind=login");
 			expect(res.status).toBe(200);
-		});
-	});
-
-	describe("POST /api/admin/analytics/login-history/:id/reveal", () => {
-		test("returns 404 for a non-existent login_history id", async () => {
-			// Reveal is POST-only; non-existent rows must not write an
-			// admin_logs trail (the handler explicitly short-circuits on
-			// NOT_FOUND so probed-but-invisible IDs leave no audit row).
-			const res = await adminPost("/api/admin/analytics/login-history/9999999/reveal", {});
-			expect(res.status).toBe(404);
 		});
 	});
 

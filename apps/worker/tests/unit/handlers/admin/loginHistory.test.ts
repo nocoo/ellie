@@ -4,24 +4,17 @@
 //   - maskIp(): IPv4 keep-2-octet, IPv6 keep-2-group, pass-through on
 //     malformed input.
 //   - localTodayStart(): Asia/Shanghai (UTC+8) local midnight anchoring.
-//   - kpiHandler: KV cache key + family + TTL via cacheGetOrSet, SQL
-//     shape (single-pass conditional SUMs over today's window).
+//   - kpiHandler: SQL shape (single-pass conditional SUMs over today's window).
 //   - listHandler: filter binding (ok / kind / errorCode), pagination
-//     clamps, IP masking on response, `Cache-Control: no-store, private`.
-//   - revealHandler: method gate (405 on GET), id validation (400),
-//     row-not-found path (404, NO writeAdminLog), success path
-//     (admin_logs row inserted with action
-//     `analytics.login_history.reveal`, details EXCLUDE ip/ua/username,
-//     response is no-store + carries raw ip/ua/username).
+//     clamps, raw IP in response, `Cache-Control: no-store, private`.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	_internal,
 	getTodayLoginsKpi,
 	getTodayLoginsList,
-	revealLoginHistory,
 } from "../../../../src/handlers/admin/loginHistory";
-import { TEST_ADMIN_API_KEY, createAdminRequest, createMockKV, makeEnv } from "../../../helpers";
+import { createAdminRequest, createMockKV, makeEnv } from "../../../helpers";
 
 // ─── Local helpers ─────────────────────────────────────────────
 
@@ -314,7 +307,7 @@ describe("loginHistory — KPI handler", () => {
 describe("loginHistory — list handler", () => {
 	afterEach(() => vi.useRealTimers());
 
-	it("paginates + masks IPs, sets Cache-Control: no-store, private", async () => {
+	it("paginates with raw IPs, sets Cache-Control: no-store, private", async () => {
 		const nowMs = Date.UTC(2026, 0, 1, 4, 0, 0);
 		vi.useFakeTimers();
 		vi.setSystemTime(nowMs);
@@ -333,6 +326,7 @@ describe("loginHistory — list handler", () => {
 								kind: "login",
 								error_code: "",
 								ip: "1.2.3.4",
+								user_agent: "Mozilla/5.0",
 								bot_class: "human",
 								created_at: 1000,
 							},
@@ -344,6 +338,7 @@ describe("loginHistory — list handler", () => {
 								kind: "login",
 								error_code: "INVALID_CREDENTIALS",
 								ip: "2001:db8:cafe:1234::1",
+								user_agent: "curl/7.0",
 								bot_class: "ua-bot",
 								created_at: 999,
 							},
@@ -368,7 +363,8 @@ describe("loginHistory — list handler", () => {
 				total: number;
 				rows: Array<{
 					id: number;
-					ipMasked: string;
+					ip: string;
+					userAgent: string;
 					username: string;
 					userId: number | null;
 				}>;
@@ -378,10 +374,8 @@ describe("loginHistory — list handler", () => {
 		expect(body.data.limit).toBe(20);
 		expect(body.data.total).toBe(2);
 		expect(body.data.rows).toHaveLength(2);
-		expect(body.data.rows[0].ipMasked).toBe("1.2.x.x");
-		expect(body.data.rows[1].ipMasked).toBe("2001:db8::x");
-		// Raw `ip` field must NOT be on the masked list response.
-		expect(JSON.stringify(body.data.rows[0])).not.toMatch(/1\.2\.3\.4/);
+		expect(body.data.rows[0].ip).toBe("1.2.3.4");
+		expect(body.data.rows[1].ip).toBe("2001:db8:cafe:1234::1");
 	});
 
 	it("binds filters ok/kind/errorCode when supplied", async () => {
@@ -506,118 +500,5 @@ describe("loginHistory — list handler", () => {
 		};
 		expect(body.data.total).toBe(0);
 		expect(body.data.rows).toEqual([]);
-	});
-});
-
-// ─── Reveal handler ─────────────────────────────────────────────
-
-describe("loginHistory — reveal handler", () => {
-	it("405 on GET (method gate)", async () => {
-		const env = makeEnv();
-		const res = await revealLoginHistory(
-			createAdminRequest("GET", "/api/admin/analytics/login-history/1/reveal"),
-			env,
-		);
-		expect(res.status).toBe(405);
-	});
-
-	it("400 on missing id segment", async () => {
-		const env = makeEnv();
-		const res = await revealLoginHistory(
-			createAdminRequest("POST", "/api/admin/analytics/login-history/abc/reveal"),
-			env,
-		);
-		expect(res.status).toBe(400);
-	});
-
-	it("400 on non-positive id", async () => {
-		// Path regex `\d+` rejects '-1', so id=0 is the smallest reachable
-		// numeric id that must still be rejected by the in-handler guard.
-		const env = makeEnv();
-		const res = await revealLoginHistory(
-			createAdminRequest("POST", "/api/admin/analytics/login-history/0/reveal"),
-			env,
-		);
-		expect(res.status).toBe(400);
-	});
-
-	it("404 without writing admin_logs when row absent", async () => {
-		const db = makeMockDb({ canned: [{ first: null }] });
-		const env = makeEnv({ DB: db as unknown as D1Database });
-
-		const res = await revealLoginHistory(
-			createAdminRequest("POST", "/api/admin/analytics/login-history/9999/reveal"),
-			env,
-		);
-		expect(res.status).toBe(404);
-		// Only one DB call (the SELECT) — no admin_logs INSERT.
-		expect(db._calls).toHaveLength(1);
-		expect(db._calls[0].sql).toContain("FROM login_history");
-	});
-
-	it("writes admin_logs on success with action and details excluding ip/ua/username", async () => {
-		const row = {
-			id: 42,
-			user_id: 7,
-			username: "alice",
-			ok: 0 as 0 | 1,
-			kind: "login",
-			error_code: "INVALID_CREDENTIALS",
-			ip: "203.0.113.45",
-			user_agent: "Mozilla/5.0 (X11; Linux) Chrome/120 ua-leak",
-			bot_class: "human",
-			created_at: 1700,
-		};
-		const db = makeMockDb({
-			canned: [{ first: row }, { run: { success: true, meta: { changes: 1, last_row_id: 1 } } }],
-		});
-		const env = makeEnv({ DB: db as unknown as D1Database });
-
-		// Reveal request carries the admin actor email header that the BFF
-		// would inject via adminApiAs(admin, request).raw("POST", ...).
-		const req = new Request("https://api.example.com/api/admin/analytics/login-history/42/reveal", {
-			method: "POST",
-			headers: {
-				"X-API-Key": TEST_ADMIN_API_KEY,
-				"X-Admin-Actor-Email": "ops@hexly.ai",
-				"X-Admin-Actor-Name": "ops",
-			},
-		});
-		const res = await revealLoginHistory(req, env);
-		expect(res.status).toBe(200);
-		expect(res.headers.get("Cache-Control")).toBe("no-store, private");
-
-		// Body returns the full row (ip + ua + username) for the legitimate admin caller.
-		const body = (await res.json()) as { data: Record<string, unknown> };
-		expect(body.data.id).toBe(42);
-		expect(body.data.ip).toBe(row.ip);
-		expect(body.data.userAgent).toBe(row.user_agent);
-		expect(body.data.username).toBe(row.username);
-
-		// admin_logs INSERT must have happened.
-		expect(db._calls).toHaveLength(2);
-		const insert = db._calls[1];
-		expect(insert.sql).toContain("INSERT INTO admin_logs");
-		// Binds shape: (admin_id, admin_name, action, target_type, target_id, details, ip, created_at)
-		expect(insert.binds[0]).toBe(0); // SYSTEM_ACTOR_ID — admin sessions are email-keyed
-		expect(insert.binds[1]).toBe("ops"); // X-Admin-Actor-Name
-		expect(insert.binds[2]).toBe("analytics.login_history.reveal");
-		expect(insert.binds[3]).toBe("login_history");
-		expect(insert.binds[4]).toBe(42);
-		const detailsJson = insert.binds[5] as string;
-		const details = JSON.parse(detailsJson);
-		// EXCLUDE: raw ip, user_agent, username.
-		expect(details).not.toHaveProperty("ip");
-		expect(details).not.toHaveProperty("userAgent");
-		expect(details).not.toHaveProperty("user_agent");
-		expect(details).not.toHaveProperty("username");
-		// INCLUDE: contextual non-PII fields + auto-merged actorEmail.
-		expect(details.loginHistoryId).toBe(42);
-		expect(details.ok).toBe(0);
-		expect(details.kind).toBe("login");
-		expect(details.errorCode).toBe("INVALID_CREDENTIALS");
-		expect(details.botClass).toBe("human");
-		expect(details.createdAt).toBe(1700);
-		expect(details.actorEmail).toBe("ops@hexly.ai");
 	});
 });
