@@ -47,6 +47,7 @@ function makeThread(overrides: Partial<Thread> & { id: number }): Thread {
 		recommends: 0,
 		typeName: "",
 		isAuthorFirstThread: false,
+		isRecommended: false,
 		...overrides,
 	};
 }

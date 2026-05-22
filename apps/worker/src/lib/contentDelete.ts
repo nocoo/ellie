@@ -40,8 +40,19 @@ export function buildDeletePostChildStatements(env: Env, postIds: number[]): D1P
  * WHERE id IN (...)` statement to prevent FK violations on
  * `attachments.thread_id` and `post_comments.thread_id`.
  *
- * Note: this only purges attachments/post_comments — the caller still owns
- * deleting the posts themselves (and the threads after that).
+ * Also purges `forum_recommended_threads` rows pointing at these threads.
+ * That table is not FK-enforced (D1 FK is off, and we declined ON DELETE
+ * CASCADE in migration 0045 to keep teardown explicit), but the public
+ * GET list query joins onto `threads` so an orphan row would be silently
+ * filtered. We still clean it up here so the (forum_id, thread_id) PK
+ * slot is freed and a moderator can re-recommend a future thread that
+ * happens to reuse the id without hitting an "INSERT OR IGNORE silently
+ * succeeded but did nothing" state. Spec: migration 0045 + handler
+ * `recommended.ts`.
+ *
+ * Note: this only purges attachments/post_comments/recommendations — the
+ * caller still owns deleting the posts themselves (and the threads
+ * after that).
  */
 export function buildDeleteThreadChildStatements(
 	env: Env,
@@ -52,6 +63,9 @@ export function buildDeleteThreadChildStatements(
 	return [
 		env.DB.prepare(`DELETE FROM attachments WHERE thread_id IN (${ph})`).bind(...threadIds),
 		env.DB.prepare(`DELETE FROM post_comments WHERE thread_id IN (${ph})`).bind(...threadIds),
+		env.DB.prepare(`DELETE FROM forum_recommended_threads WHERE thread_id IN (${ph})`).bind(
+			...threadIds,
+		),
 	];
 }
 
