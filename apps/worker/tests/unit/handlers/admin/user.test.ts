@@ -31,7 +31,7 @@ describe("admin user handlers", () => {
 		it("should list users with pagination", async () => {
 			const { db } = createMockDb({
 				allResults: {
-					"FROM users": [makeD1UserRow({ id: 1 }), makeD1UserRow({ id: 2 })],
+					"SELECT * FROM users": [makeD1UserRow({ id: 1 }), makeD1UserRow({ id: 2 })],
 				},
 				firstResults: { "SELECT COUNT": { total: 2 } },
 			});
@@ -53,7 +53,9 @@ describe("admin user handlers", () => {
 			// the field actually reaches the client and is mapped to camelCase.
 			const { db, calls } = createMockDb({
 				allResults: {
-					"FROM users": [makeD1UserRow({ id: 1, avatar: "x.png", avatar_path: "avatars/u1.jpg" })],
+					"SELECT * FROM users": [
+						makeD1UserRow({ id: 1, avatar: "x.png", avatar_path: "avatars/u1.jpg" }),
+					],
 				},
 				firstResults: { "SELECT COUNT": { total: 1 } },
 			});
@@ -85,7 +87,7 @@ describe("admin user handlers", () => {
 		it("attaches messagesCount and attachmentsCount to each list row", async () => {
 			const { db } = createMockDb({
 				allResults: {
-					"FROM users": [
+					"SELECT * FROM users": [
 						makeD1UserRow({ id: 10 }),
 						makeD1UserRow({ id: 11 }),
 						makeD1UserRow({ id: 12 }),
@@ -122,7 +124,7 @@ describe("admin user handlers", () => {
 			// page row IDs and nothing from the request URL.
 			const { db, calls } = createMockDb({
 				allResults: {
-					"FROM users": [makeD1UserRow({ id: 100 }), makeD1UserRow({ id: 200 })],
+					"SELECT * FROM users": [makeD1UserRow({ id: 100 }), makeD1UserRow({ id: 200 })],
 					"WHERE sender_id IN": [],
 					"WHERE receiver_id IN": [],
 					"FROM attachments WHERE author_id IN": [],
@@ -151,7 +153,7 @@ describe("admin user handlers", () => {
 
 		it("enrichment fires no count SQL when the page is empty", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM users": [] },
+				allResults: { "SELECT * FROM users": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -168,7 +170,7 @@ describe("admin user handlers", () => {
 			// (`sender_id OR receiver_id`).
 			const { db } = createMockDb({
 				allResults: {
-					"FROM users": [makeD1UserRow({ id: 7 })],
+					"SELECT * FROM users": [makeD1UserRow({ id: 7 })],
 					"WHERE sender_id IN": [{ uid: 7, cnt: 11 }],
 					"WHERE receiver_id IN": [{ uid: 7, cnt: 22 }],
 					"FROM attachments WHERE author_id IN": [],
@@ -186,7 +188,7 @@ describe("admin user handlers", () => {
 
 		it("should filter by username (LIKE)", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM users": [] },
+				allResults: { "SELECT * FROM users": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -202,7 +204,7 @@ describe("admin user handlers", () => {
 
 		it("should filter by email (LIKE)", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM users": [] },
+				allResults: { "SELECT * FROM users": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -218,7 +220,7 @@ describe("admin user handlers", () => {
 
 		it("should filter by status", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM users": [] },
+				allResults: { "SELECT * FROM users": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -231,7 +233,7 @@ describe("admin user handlers", () => {
 
 		it("should filter by role", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM users": [] },
+				allResults: { "SELECT * FROM users": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -244,7 +246,7 @@ describe("admin user handlers", () => {
 
 		it("should filter by regIp (exact)", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM users": [] },
+				allResults: { "SELECT * FROM users": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -262,7 +264,7 @@ describe("admin user handlers", () => {
 
 		it("should filter by lastIp (exact)", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM users": [] },
+				allResults: { "SELECT * FROM users": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -297,7 +299,7 @@ describe("admin user handlers", () => {
 
 		it("filters by regDateMin / regDateMax (range, inclusive)", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM users": [] },
+				allResults: { "SELECT * FROM users": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -313,7 +315,7 @@ describe("admin user handlers", () => {
 
 		it("filters by lastLoginMin alone applies only the lower bound", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM users": [] },
+				allResults: { "SELECT * FROM users": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -333,7 +335,7 @@ describe("admin user handlers", () => {
 			// guard. Otherwise legit "any time including never-logged-in"
 			// queries would silently match-everything via missing WHERE.
 			const { db, calls } = createMockDb({
-				allResults: { "FROM users": [] },
+				allResults: { "SELECT * FROM users": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -346,7 +348,7 @@ describe("admin user handlers", () => {
 
 		it("treats creditsMin=0 as a real bound (not falsy-dropped)", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM users": [] },
+				allResults: { "SELECT * FROM users": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -362,7 +364,7 @@ describe("admin user handlers", () => {
 
 		it("filters by threadsMin / threadsMax (range, integer parsing)", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM users": [] },
+				allResults: { "SELECT * FROM users": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -378,7 +380,7 @@ describe("admin user handlers", () => {
 
 		it("filters by postsMax alone applies only the upper bound", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM users": [] },
+				allResults: { "SELECT * FROM users": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -392,7 +394,7 @@ describe("admin user handlers", () => {
 
 		it("combines multiple range filters with existing string filters via AND", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM users": [] },
+				allResults: { "SELECT * FROM users": [] },
 				firstResults: { "SELECT COUNT": { total: 0 } },
 			});
 
@@ -416,7 +418,7 @@ describe("admin user handlers", () => {
 	describe("getById", () => {
 		it("should return user by ID", async () => {
 			const { db } = createMockDb({
-				firstResults: { "FROM users WHERE id": makeD1UserRow({ id: 42 }) },
+				firstResults: { "SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }) },
 			});
 
 			const res = await getById(createAdminRequest("GET", "/api/admin/users/42"), adminEnv(db));
@@ -428,7 +430,7 @@ describe("admin user handlers", () => {
 
 		it("should return 404 for non-existent user", async () => {
 			const { db } = createMockDb({
-				firstResults: { "FROM users WHERE id": null },
+				firstResults: { "SELECT * FROM users WHERE id": null },
 			});
 
 			const res = await getById(createAdminRequest("GET", "/api/admin/users/999"), adminEnv(db));
@@ -438,13 +440,13 @@ describe("admin user handlers", () => {
 
 		it("should never expose password fields", async () => {
 			const { db, calls } = createMockDb({
-				firstResults: { "FROM users WHERE id": makeD1UserRow({ id: 1 }) },
+				firstResults: { "SELECT * FROM users WHERE id": makeD1UserRow({ id: 1 }) },
 			});
 
 			await getById(createAdminRequest("GET", "/api/admin/users/1"), adminEnv(db));
 
 			// Verify SQL uses explicit columns, not SELECT *
-			const selectCall = calls.find((c) => c.sql.includes("FROM users WHERE id"));
+			const selectCall = calls.find((c) => /FROM users\s+WHERE id/.test(c.sql));
 			expect(selectCall?.sql).not.toContain("SELECT *");
 			expect(selectCall?.sql).not.toContain("password");
 		});
@@ -471,7 +473,7 @@ describe("admin user handlers", () => {
 
 			it("attaches onlineIp/onlinePage/onlineTs when KV holds a fresh snapshot", async () => {
 				const { db } = createMockDb({
-					firstResults: { "FROM users WHERE id": makeD1UserRow({ id: 42 }) },
+					firstResults: { "SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }) },
 				});
 				const env = envWithKV(db, {
 					"online:42": JSON.stringify({
@@ -493,7 +495,7 @@ describe("admin user handlers", () => {
 
 			it("omits online fields when ts is older than 15min TTL window", async () => {
 				const { db } = createMockDb({
-					firstResults: { "FROM users WHERE id": makeD1UserRow({ id: 42 }) },
+					firstResults: { "SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }) },
 				});
 				const env = envWithKV(db, {
 					"online:42": JSON.stringify({
@@ -515,7 +517,7 @@ describe("admin user handlers", () => {
 
 			it("omits online fields when KV value fails shape guard (ip not string)", async () => {
 				const { db } = createMockDb({
-					firstResults: { "FROM users WHERE id": makeD1UserRow({ id: 42 }) },
+					firstResults: { "SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }) },
 				});
 				const env = envWithKV(db, {
 					"online:42": JSON.stringify({ uid: 42, ip: 12345, page: "/x", ts: nowSec }),
@@ -530,7 +532,7 @@ describe("admin user handlers", () => {
 
 			it("omits online fields when KV value is corrupt JSON", async () => {
 				const { db } = createMockDb({
-					firstResults: { "FROM users WHERE id": makeD1UserRow({ id: 42 }) },
+					firstResults: { "SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }) },
 				});
 				const env = envWithKV(db, { "online:42": "not-json{{" });
 
@@ -543,7 +545,7 @@ describe("admin user handlers", () => {
 
 			it("omits online fields when ts is in the future (G.5.1: clock-skew/poked guard)", async () => {
 				const { db } = createMockDb({
-					firstResults: { "FROM users WHERE id": makeD1UserRow({ id: 42 }) },
+					firstResults: { "SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }) },
 				});
 				const env = envWithKV(db, {
 					"online:42": JSON.stringify({
@@ -565,7 +567,7 @@ describe("admin user handlers", () => {
 
 			it("omits online fields when KV miss", async () => {
 				const { db } = createMockDb({
-					firstResults: { "FROM users WHERE id": makeD1UserRow({ id: 42 }) },
+					firstResults: { "SELECT * FROM users WHERE id": makeD1UserRow({ id: 42 }) },
 				});
 				const env = envWithKV(db, {});
 
@@ -1921,7 +1923,7 @@ describe("admin user handlers", () => {
 		it("should return users matching provided IDs", async () => {
 			const { db } = createMockDb({
 				allResults: {
-					"FROM users WHERE id IN": [makeD1UserRow({ id: 10 }), makeD1UserRow({ id: 20 })],
+					"SELECT * FROM users WHERE id IN": [makeD1UserRow({ id: 10 }), makeD1UserRow({ id: 20 })],
 				},
 			});
 
@@ -1937,7 +1939,7 @@ describe("admin user handlers", () => {
 
 		it("should return empty array for no matching IDs", async () => {
 			const { db } = createMockDb({
-				allResults: { "FROM users WHERE id IN": [] },
+				allResults: { "SELECT * FROM users WHERE id IN": [] },
 			});
 
 			const res = await batchFetch(
@@ -1992,7 +1994,7 @@ describe("admin user handlers", () => {
 
 		it("should pass correct SQL with IN clause", async () => {
 			const { db, calls } = createMockDb({
-				allResults: { "FROM users WHERE id IN": [makeD1UserRow({ id: 5 })] },
+				allResults: { "SELECT * FROM users WHERE id IN": [makeD1UserRow({ id: 5 })] },
 			});
 
 			await batchFetch(
@@ -2268,7 +2270,7 @@ describe("admin user handlers", () => {
 					"SELECT id, status FROM users WHERE id": { id: 42, status: 0 },
 					"FROM posts WHERE author_id": { cnt: 20 },
 					"digest > 0": { cnt: 2 },
-					"FROM threads WHERE author_id": { cnt: 5 },
+					"SELECT * FROM threads WHERE author_id": { cnt: 5 },
 				},
 			});
 
@@ -2442,7 +2444,7 @@ describe("admin user handlers", () => {
 		it("should return staff users (role > 0)", async () => {
 			const { db } = createMockDb({
 				allResults: {
-					"FROM users WHERE role > 0": [
+					"SELECT * FROM users WHERE role > 0": [
 						makeD1UserRow({ id: 1, role: 1, username: "admin" }),
 						makeD1UserRow({ id: 2, role: 2, username: "supermod" }),
 						makeD1UserRow({ id: 3, role: 3, username: "mod" }),
@@ -2462,7 +2464,7 @@ describe("admin user handlers", () => {
 
 		it("should return empty array when no staff users exist", async () => {
 			const { db } = createMockDb({
-				allResults: { "FROM users WHERE role > 0": [] },
+				allResults: { "SELECT * FROM users WHERE role > 0": [] },
 			});
 
 			const res = await listStaff(
