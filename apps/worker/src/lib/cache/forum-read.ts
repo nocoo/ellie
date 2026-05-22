@@ -403,11 +403,7 @@ export function mergeTreeAndSummary(
 			parentId: node.parentId,
 			name: node.name,
 			description: node.description,
-			// `announcement` lives only on the per-forum meta payload — the
-			// forum index list doesn't render it and we don't pay the
-			// cache-payload cost on the tree node. Default to '' here so the
-			// list-shaped `Forum` is still type-complete.
-			announcement: "",
+			announcement: node.announcement,
 			icon: node.icon,
 			displayOrder: node.displayOrder,
 			type: node.type,
