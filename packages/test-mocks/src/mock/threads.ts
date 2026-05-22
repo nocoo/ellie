@@ -30,6 +30,7 @@ export const MOCK_THREADS: Thread[] = [
 		recommends: 32,
 		typeName: "",
 		isAuthorFirstThread: false,
+		isRecommended: false,
 	},
 	{
 		id: 50005,
@@ -55,6 +56,7 @@ export const MOCK_THREADS: Thread[] = [
 		recommends: 8,
 		typeName: "",
 		isAuthorFirstThread: false,
+		isRecommended: false,
 	},
 	{
 		id: 50006,
@@ -80,6 +82,7 @@ export const MOCK_THREADS: Thread[] = [
 		recommends: 15,
 		typeName: "",
 		isAuthorFirstThread: false,
+		isRecommended: false,
 	},
 
 	// Forum 11 — 学习交流
@@ -107,6 +110,7 @@ export const MOCK_THREADS: Thread[] = [
 		recommends: 67,
 		typeName: "",
 		isAuthorFirstThread: false,
+		isRecommended: false,
 	},
 	{
 		id: 50007,
@@ -132,6 +136,7 @@ export const MOCK_THREADS: Thread[] = [
 		recommends: 23,
 		typeName: "求助",
 		isAuthorFirstThread: false,
+		isRecommended: false,
 	},
 
 	// Forum 20 — 编程开发
@@ -159,6 +164,7 @@ export const MOCK_THREADS: Thread[] = [
 		recommends: 19,
 		typeName: "",
 		isAuthorFirstThread: false,
+		isRecommended: false,
 	},
 	{
 		id: 50012,
@@ -184,6 +190,7 @@ export const MOCK_THREADS: Thread[] = [
 		recommends: 2,
 		typeName: "求助",
 		isAuthorFirstThread: false,
+		isRecommended: false,
 	},
 
 	// Closed thread
@@ -211,6 +218,7 @@ export const MOCK_THREADS: Thread[] = [
 		recommends: -3,
 		typeName: "",
 		isAuthorFirstThread: false,
+		isRecommended: false,
 	},
 
 	// Special type threads
@@ -238,6 +246,7 @@ export const MOCK_THREADS: Thread[] = [
 		recommends: 25,
 		typeName: "",
 		isAuthorFirstThread: false,
+		isRecommended: false,
 	},
 	{
 		id: 50021,
@@ -263,5 +272,6 @@ export const MOCK_THREADS: Thread[] = [
 		recommends: 1,
 		typeName: "",
 		isAuthorFirstThread: false,
+		isRecommended: false,
 	},
 ];

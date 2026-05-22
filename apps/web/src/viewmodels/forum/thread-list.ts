@@ -224,48 +224,42 @@ export function pageToPostCursor(page: number, postsPerPage: number): string | n
 }
 
 /**
- * Build the URL for a specific page of a thread.
- * Page 1: /threads/{id} (no query params)
- * Page N: /threads/{id}?page={N}
- * Optionally appends returnTo param to preserve forum list context.
+ * Build the URL for a specific page of a thread (path-segment canonical).
+ *
+ * Page 1: `/threads/{id}` (no segment)
+ * Page N: `/threads/{id}/{N}`
+ * Optionally appends `?returnTo=...` to preserve forum list context.
  */
 export function getThreadPageUrl(threadId: number, page: number, returnTo?: string): string {
 	const base = `/threads/${threadId}`;
+	const path = page > 1 ? `${base}/${page}` : base;
+	if (!returnTo) return path;
 	const params = new URLSearchParams();
-	if (page > 1) params.set("page", String(page));
-	if (returnTo) params.set("returnTo", returnTo);
-	const qs = params.toString();
-	return qs ? `${base}?${qs}` : base;
+	params.set("returnTo", returnTo);
+	return `${path}?${params.toString()}`;
 }
 
 /**
  * Validate a returnTo path for thread detail pages.
- * Only allows same-forum paths: `/forums/{forumId}` or `/forums/{forumId}?page=N`.
- * Returns the validated path or null if invalid (fallback to default).
+ *
+ * Only allows same-forum paths in path-segment canonical form:
+ *   • `/forums/{forumId}`
+ *   • `/forums/{forumId}/{page}` where page is a positive integer >= 2
+ *
+ * Returns the validated path or null if invalid (caller falls back to
+ * `/forums/{forumId}`). Trailing slashes / extra query params / page=1 /
+ * legacy `?page=N` are all rejected so we never round-trip non-canonical
+ * URLs through `returnTo`.
  */
 export function validateReturnTo(returnTo: string | undefined, forumId: number): string | null {
 	if (!returnTo) return null;
-	// Must start with /forums/{forumId}
 	const prefix = `/forums/${forumId}`;
 	if (returnTo === prefix) return returnTo;
-	// Allow /forums/{forumId}?page=N (only digits for page value)
-	if (returnTo.startsWith(`${prefix}?`)) {
-		try {
-			const url = new URL(returnTo, "http://localhost");
-			const page = url.searchParams.get("page");
-			// Only allow if the only param is page and it's a positive integer
-			if (
-				url.pathname === prefix &&
-				url.searchParams.size === 1 &&
-				page &&
-				/^\d+$/.test(page) &&
-				Number.parseInt(page, 10) > 0
-			) {
-				return returnTo;
-			}
-		} catch {
-			// Invalid URL
-		}
+	// `/forums/{forumId}/{page}` where page >= 2 (no leading zero)
+	const m = new RegExp(`^/forums/${forumId}/([1-9]\\d*)$`).exec(returnTo);
+	if (m) {
+		const page = Number.parseInt(m[1], 10);
+		if (page >= 2) return returnTo;
 	}
 	return null;
 }

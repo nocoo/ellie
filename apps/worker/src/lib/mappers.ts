@@ -140,6 +140,10 @@ interface D1ThreadRow {
 	// Internal field (never exposed):
 	// post_table_id
 	is_author_first_thread?: number;
+	// Optional — only populated by `thread.getById`. Forum/profile/list
+	// queries omit the EXISTS probe, in which case the mapper defaults
+	// to `false`.
+	is_recommended?: number;
 }
 
 /** D1 row shape for posts table */
@@ -315,6 +319,7 @@ export function toThread(row: Record<string, unknown>): Thread {
 		recommends: r.recommends,
 		typeName: r.type_name,
 		isAuthorFirstThread: r.is_author_first_thread === 1,
+		isRecommended: r.is_recommended === 1,
 	};
 }
 

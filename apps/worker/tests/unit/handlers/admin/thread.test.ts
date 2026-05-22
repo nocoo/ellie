@@ -630,11 +630,12 @@ describe("admin thread handlers", () => {
 			expect(body.data.postsDeleted).toBe(11);
 
 			// Two batches now: (1) DELETE attachments + DELETE post_comments
-			// (FK child purge keyed on thread_id) + DELETE posts + DELETE thread
-			// + UPDATE forum, and (2) batchDecrementUserPosts for the per-author
-			// post-count updates derived from the GROUP BY.
+			// + DELETE forum_recommended_threads (FK child purge keyed on
+			// thread_id, see migration 0045) + DELETE posts + DELETE thread
+			// + UPDATE forum, and (2) batchDecrementUserPosts for the
+			// per-author post-count updates derived from the GROUP BY.
 			expect(batchCalls.length).toBe(2);
-			expect(batchCalls[0].length).toBe(5);
+			expect(batchCalls[0].length).toBe(6);
 		});
 
 		it("should return 404 for non-existent thread", async () => {

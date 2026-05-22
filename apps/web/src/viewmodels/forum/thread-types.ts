@@ -143,14 +143,15 @@ export function shouldShowTypeNameBadge(payload: ForumThreadTypesPublic | null):
 /**
  * Build the canonical forum list URL for a given forumId / page / typeId.
  *
- * Conventions (reviewer pin msg 6717fc27 #3):
- *   • Page 1 omits `?page=1` (matches existing pagination convention)
+ * Conventions (path-segment canonical — reviewer pin):
+ *   • Page 1 (or undefined): bare path `/forums/:fid`
+ *   • Page >= 2:            `/forums/:fid/:page`
  *   • `typeId=null` or `typeId=0` omits the `typeId` query
  *   • Switching `typeId` should reset to page 1 (callers do that BEFORE
  *     calling this builder; the builder is path-agnostic)
  *
- * Order of params is stable (`page` before `typeId`) so URLs are
- * deduplicatable by string equality.
+ * Extra query params (currently only `typeId`) are appended after the
+ * page segment. URLs are deduplicatable by string equality.
  */
 export function buildForumListUrl(opts: {
 	forumId: number;
@@ -158,11 +159,11 @@ export function buildForumListUrl(opts: {
 	typeId?: number | null;
 }): string {
 	const base = `/forums/${opts.forumId}`;
+	const path = opts.page != null && opts.page > 1 ? `${base}/${opts.page}` : base;
 	const params = new URLSearchParams();
-	if (opts.page != null && opts.page > 1) params.set("page", String(opts.page));
 	if (opts.typeId != null && opts.typeId > 0) params.set("typeId", String(opts.typeId));
 	const qs = params.toString();
-	return qs ? `${base}?${qs}` : base;
+	return qs ? `${path}?${qs}` : path;
 }
 
 /**
