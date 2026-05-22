@@ -79,13 +79,15 @@ function makeUser(overrides: Partial<User> = {}): User {
 }
 
 describe("projectSelfForumUser — narrow projection", () => {
-	it("keeps only id, username, email, emailVerifiedAt, emailChangedAt", () => {
+	it("keeps only id, username, email, emailVerifiedAt, emailChangedAt, role, status", () => {
 		const u = makeUser({
 			id: 7,
 			username: "bob",
 			email: "bob@example.com",
 			emailVerifiedAt: 1700000000,
 			emailChangedAt: 1699999999,
+			role: 2,
+			status: 0,
 			// Noise fields that must NOT leak through.
 			signature: "leak",
 			credits: 999,
@@ -97,7 +99,22 @@ describe("projectSelfForumUser — narrow projection", () => {
 			email: "bob@example.com",
 			emailVerifiedAt: 1700000000,
 			emailChangedAt: 1699999999,
+			role: 2,
+			status: 0,
 		});
+	});
+
+	it("forwards role / status for forum-scope permission checks", () => {
+		// canModerate() needs both fields — Admin / SuperMod gate purely on
+		// role, but the Mod path also requires status to be active before
+		// the moderators-CSV check fires. Pin that the projection forwards
+		// them verbatim so canEditAnnouncement on the forum page stays accurate.
+		const admin = projectSelfForumUser(makeUser({ role: 3, status: 0 }));
+		expect(admin.role).toBe(3);
+		expect(admin.status).toBe(0);
+		const banned = projectSelfForumUser(makeUser({ role: 2, status: 1 }));
+		expect(banned.role).toBe(2);
+		expect(banned.status).toBe(1);
 	});
 
 	it("preserves emailVerifiedAt=0 sentinel for unverified users", () => {
@@ -161,7 +178,14 @@ describe("getSelfForumUser", () => {
 	it("returns the projected SelfForumUser on success", async () => {
 		mockGetWorkerJwt.mockResolvedValue("jwt-abc");
 		mockGetAuth.mockResolvedValue({
-			data: makeUser({ id: 99, username: "carol", email: "c@x.io", emailVerifiedAt: 123 }),
+			data: makeUser({
+				id: 99,
+				username: "carol",
+				email: "c@x.io",
+				emailVerifiedAt: 123,
+				role: 1,
+				status: 0,
+			}),
 			meta: {},
 		});
 		expect(await getSelfForumUser()).toEqual({
@@ -170,6 +194,8 @@ describe("getSelfForumUser", () => {
 			email: "c@x.io",
 			emailVerifiedAt: 123,
 			emailChangedAt: 0,
+			role: 1,
+			status: 0,
 		});
 		expect(mockGetAuth).toHaveBeenCalledWith("/api/v1/auth/me", "jwt-abc");
 	});

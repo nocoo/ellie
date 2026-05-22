@@ -53,6 +53,17 @@ export interface SelfForumUser {
 	 * means the one-shot correction has already been used.
 	 */
 	emailChangedAt: number;
+	/**
+	 * Role and status fields are needed for forum-scope permission
+	 * decisions (e.g. `canModerate(user, forum)` for the announcement
+	 * edit affordance). Anonymous viewers never reach this shape — see
+	 * `getSelfForumUser` which returns `null` on any auth failure — so
+	 * UI consumers can treat any non-null `SelfForumUser` as a logged-in
+	 * forum identity. The numeric values match the `UserRole` /
+	 * `UserStatus` enums in `@ellie/types`.
+	 */
+	role: number;
+	status: number;
 }
 
 /**
@@ -67,6 +78,8 @@ export function projectSelfForumUser(user: User): SelfForumUser {
 		email: user.email,
 		emailVerifiedAt: user.emailVerifiedAt,
 		emailChangedAt: user.emailChangedAt,
+		role: user.role,
+		status: user.status,
 	};
 }
 

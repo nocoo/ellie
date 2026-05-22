@@ -26,7 +26,7 @@ import {
 } from "@/viewmodels/forum/thread-types";
 import { getForumTitle } from "@/viewmodels/forum/title.server";
 import { parseIntParam, parsePageParam } from "@/viewmodels/shared/params";
-import { ForumType } from "@ellie/types";
+import { ForumType, canModerate } from "@ellie/types";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -134,6 +134,17 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 	const showFilter = shouldShowFilter(threadTypes);
 	const isGroup = data.forum?.type === ForumType.Group;
 
+	// UX-only permission flag: hide the announcement edit affordance
+	// from non-moderators. The Worker still enforces the real boundary
+	// via `moderationMiddleware` + `canModerate` before any write.
+	const canEditAnnouncement =
+		data.forum != null &&
+		self != null &&
+		canModerate(
+			{ id: self.id, username: self.username, role: self.role, status: self.status },
+			{ moderators: data.forum.moderators },
+		);
+
 	return (
 		<div className="space-y-2">
 			{/* Breadcrumbs */}
@@ -145,6 +156,7 @@ export default async function ForumThreadsPage({ params, searchParams }: ForumTh
 					isGroup={isGroup}
 					selfEmailVerifiedAt={self?.emailVerifiedAt ?? null}
 					threadTypes={threadTypes}
+					canEditAnnouncement={canEditAnnouncement}
 				/>
 			)}
 
