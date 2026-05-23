@@ -63,9 +63,9 @@ function addToRecent(emoji: RecentEmoji, current: RecentEmoji[]): RecentEmoji[] 
 // ---------------------------------------------------------------------------
 
 const FORUM_TABS = [
-	{ id: "default", name: "Default" },
-	{ id: "coolmonkey", name: "Coolmonkey" },
-	{ id: "comcom", name: "Tusiji" },
+	{ id: "default", name: "默认" },
+	{ id: "coolmonkey", name: "酷猴" },
+	{ id: "comcom", name: "兔斯基" },
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -154,7 +154,7 @@ export function UnifiedEmojiPicker({ onSelect }: UnifiedEmojiPickerProps) {
 				<div className="flex border-b bg-muted/30">
 					<TabButton active={activeTab === "forum"} onClick={() => setActiveTab("forum")}>
 						<span className="mr-1.5">🎭</span>
-						Forum
+						论坛
 					</TabButton>
 					<TabButton active={activeTab === "unicode"} onClick={() => setActiveTab("unicode")}>
 						<span className="mr-1.5">😀</span>
@@ -162,7 +162,7 @@ export function UnifiedEmojiPicker({ onSelect }: UnifiedEmojiPickerProps) {
 					</TabButton>
 					<TabButton active={activeTab === "recent"} onClick={() => setActiveTab("recent")}>
 						<span className="mr-1.5">⏰</span>
-						Recent
+						最近
 					</TabButton>
 				</div>
 
@@ -209,7 +209,7 @@ export function UnifiedEmojiPicker({ onSelect }: UnifiedEmojiPickerProps) {
 								<Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
 								<input
 									type="text"
-									placeholder="Search smileys..."
+									placeholder="搜索表情..."
 									value={searchQuery}
 									onChange={(e) => setSearchQuery(e.target.value)}
 									className="w-full h-7 pl-7 pr-2 text-xs bg-muted/50 rounded border-0 outline-none focus:ring-1 focus:ring-primary/50"
@@ -237,7 +237,7 @@ export function UnifiedEmojiPicker({ onSelect }: UnifiedEmojiPickerProps) {
 							))}
 							{filteredSmileys.length === 0 && (
 								<div className="col-span-8 py-4 text-center text-xs text-muted-foreground">
-									No smileys found
+									没有找到表情
 								</div>
 							)}
 						</div>
@@ -271,8 +271,8 @@ export function UnifiedEmojiPicker({ onSelect }: UnifiedEmojiPickerProps) {
 							</div>
 						) : (
 							<div className="py-8 text-center text-sm text-muted-foreground">
-								No recent emojis
-								<p className="text-xs mt-1">Select an emoji to see it here</p>
+								暂无最近使用
+								<p className="text-xs mt-1">选择表情后会显示在这里</p>
 							</div>
 						)}
 					</div>
@@ -282,7 +282,7 @@ export function UnifiedEmojiPicker({ onSelect }: UnifiedEmojiPickerProps) {
 				{activeTab !== "recent" && recent.length > 0 && (
 					<div className="border-t px-2 py-1.5 bg-muted/20">
 						<div className="flex items-center gap-0.5">
-							<span className="text-xs text-muted-foreground mr-1.5">Recent:</span>
+							<span className="text-xs text-muted-foreground mr-1.5">最近：</span>
 							{recent.slice(0, 8).map((item, idx) => (
 								<button
 									key={`quick-${item.type}-${item.value}-${idx}`}

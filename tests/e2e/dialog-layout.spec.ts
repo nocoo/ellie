@@ -131,13 +131,14 @@ test.describe("E2E-DL: Dialog layout (B4)", () => {
 		await assertDialogFitsViewport(dialog, DESKTOP);
 		await assertFooterFitsDialog(dialog);
 
-		// Smiley toolbar button — replaces the old always-on panel. Aria
-		// label set in `SmileyPicker`.
+		// Single emoji toolbar entry — `UnifiedEmojiPicker` (Forum +
+		// Emoji + Recent), named "插入表情" (aria-label + tooltip).
 		const smileyTrigger = dialog.getByRole("button", { name: "插入表情" });
 		await expect(smileyTrigger).toBeVisible();
 		await smileyTrigger.click();
-		// Popover content lives outside the dialog (Portal). Look for the
-		// 默认 / 酷猴 / 兔斯基 tab text emitted by SmileyPanelContent.
+		// Popover content lives outside the dialog (Portal). The forum
+		// tab is the default landing view, so its pack labels
+		// 默认 / 酷猴 / 兔斯基 must be visible immediately.
 		await expect(page.getByText("酷猴", { exact: true }).first()).toBeVisible({
 			timeout: 5000,
 		});
