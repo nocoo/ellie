@@ -33,6 +33,9 @@ export const STICKY_FORUM = 1;
 /** Normal (unpinned) thread. */
 export const STICKY_NONE = 0;
 
+/** Pending moderator review (hidden from public, visible to author + staff). */
+export const STICKY_MODERATED = -2;
+
 /**
  * SQL condition for visible posts.
  * invisible = 0: Normal visible posts
@@ -210,4 +213,35 @@ export function canReadThreadContent(args: {
 }): boolean {
 	if (args.sticky === STICKY_GLOBAL) return true;
 	return canViewForumVisibility(args.forumVisibility, args.visCtx);
+}
+
+/**
+ * Whether a viewer can see a moderated thread (sticky === STICKY_MODERATED).
+ *
+ * Allowed viewers:
+ * - The thread's author
+ * - A forum moderator (role=Mod AND userId in forum.moderator_ids)
+ * - Super moderator (role=SuperMod)
+ * - Admin (role=Admin)
+ *
+ * Everyone else gets 404 (not 403, to avoid leaking existence).
+ */
+export function canViewModeratedThread(args: {
+	authorId: number;
+	forumModeratorIds: string;
+	user: { userId: number; role: number } | null;
+}): boolean {
+	if (!args.user) return false;
+	if (args.user.userId === args.authorId) return true;
+	if (args.user.role === UserRole.Admin || args.user.role === UserRole.SuperMod) return true;
+	if (args.user.role === UserRole.Mod) {
+		const ids = args.forumModeratorIds
+			? args.forumModeratorIds
+					.split(",")
+					.map((s) => Number.parseInt(s.trim(), 10))
+					.filter((n) => !Number.isNaN(n))
+			: [];
+		return ids.includes(args.user.userId);
+	}
+	return false;
 }

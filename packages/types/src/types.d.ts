@@ -354,6 +354,7 @@ export interface Thread {
      * this field (it is not part of the forum-page thread list).
      */
     isRecommended: boolean;
+    moderationStatus?: "pending_review";
 }
 /** Maps to Doc02 posts table — 9.4M rows */
 export interface Post {

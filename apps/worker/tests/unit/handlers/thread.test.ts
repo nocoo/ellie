@@ -141,10 +141,12 @@ describe("thread handlers", () => {
 			const db = {
 				prepare: vi.fn((sql: string) => {
 					// Forum visibility check query
-					if (sql.includes("SELECT status, visibility FROM forums")) {
+					if (sql.includes("FROM forums WHERE id")) {
 						return {
 							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
+								first: vi.fn(() =>
+									Promise.resolve({ status: 1, visibility: "public", moderator_ids: "" }),
+								),
 							})),
 						};
 					}
@@ -268,10 +270,12 @@ describe("thread handlers", () => {
 			const db = {
 				prepare: vi.fn((sql: string) => {
 					// Forum visibility check query
-					if (sql.includes("SELECT status, visibility FROM forums")) {
+					if (sql.includes("FROM forums WHERE id")) {
 						return {
 							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
+								first: vi.fn(() =>
+									Promise.resolve({ status: 1, visibility: "public", moderator_ids: "" }),
+								),
 							})),
 						};
 					}
@@ -305,10 +309,12 @@ describe("thread handlers", () => {
 			const db = {
 				prepare: vi.fn((sql: string) => {
 					// Forum visibility check query
-					if (sql.includes("SELECT status, visibility FROM forums")) {
+					if (sql.includes("FROM forums WHERE id")) {
 						return {
 							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
+								first: vi.fn(() =>
+									Promise.resolve({ status: 1, visibility: "public", moderator_ids: "" }),
+								),
 							})),
 						};
 					}
@@ -335,10 +341,12 @@ describe("thread handlers", () => {
 			const db = {
 				prepare: vi.fn((sql: string) => {
 					// Forum visibility check query
-					if (sql.includes("SELECT status, visibility FROM forums")) {
+					if (sql.includes("FROM forums WHERE id")) {
 						return {
 							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
+								first: vi.fn(() =>
+									Promise.resolve({ status: 1, visibility: "public", moderator_ids: "" }),
+								),
 							})),
 						};
 					}
@@ -438,10 +446,12 @@ describe("thread handlers", () => {
 			const db = {
 				prepare: vi.fn((sql: string) => {
 					// Forum visibility check query
-					if (sql.includes("SELECT status, visibility FROM forums")) {
+					if (sql.includes("FROM forums WHERE id")) {
 						return {
 							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
+								first: vi.fn(() =>
+									Promise.resolve({ status: 1, visibility: "public", moderator_ids: "" }),
+								),
 							})),
 						};
 					}
@@ -465,10 +475,12 @@ describe("thread handlers", () => {
 			const db = {
 				prepare: vi.fn((sql: string) => {
 					// Forum visibility check query
-					if (sql.includes("SELECT status, visibility FROM forums")) {
+					if (sql.includes("FROM forums WHERE id")) {
 						return {
 							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
+								first: vi.fn(() =>
+									Promise.resolve({ status: 1, visibility: "public", moderator_ids: "" }),
+								),
 							})),
 						};
 					}
@@ -492,10 +504,12 @@ describe("thread handlers", () => {
 			const db = {
 				prepare: vi.fn((sql: string) => {
 					// Forum visibility check query
-					if (sql.includes("SELECT status, visibility FROM forums")) {
+					if (sql.includes("FROM forums WHERE id")) {
 						return {
 							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
+								first: vi.fn(() =>
+									Promise.resolve({ status: 1, visibility: "public", moderator_ids: "" }),
+								),
 							})),
 						};
 					}
@@ -888,10 +902,12 @@ describe("thread handlers", () => {
 						};
 					}
 					// Forum visibility check query
-					if (sql.includes("SELECT status, visibility FROM forums")) {
+					if (sql.includes("FROM forums WHERE id")) {
 						return {
 							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
+								first: vi.fn(() =>
+									Promise.resolve({ status: 1, visibility: "public", moderator_ids: "" }),
+								),
 							})),
 						};
 					}
@@ -1012,10 +1028,12 @@ describe("thread handlers", () => {
 							})),
 						};
 					}
-					if (sql.includes("SELECT status, visibility FROM forums")) {
+					if (sql.includes("FROM forums WHERE id")) {
 						return {
 							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ status: 0, visibility: "public" })),
+								first: vi.fn(() =>
+									Promise.resolve({ status: 0, visibility: "public", moderator_ids: "" }),
+								),
 							})),
 						};
 					}
@@ -1057,10 +1075,12 @@ describe("thread handlers", () => {
 							})),
 						};
 					}
-					if (sql.includes("SELECT status, visibility FROM forums")) {
+					if (sql.includes("FROM forums WHERE id")) {
 						return {
 							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "members" })),
+								first: vi.fn(() =>
+									Promise.resolve({ status: 1, visibility: "members", moderator_ids: "" }),
+								),
 							})),
 						};
 					}

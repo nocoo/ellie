@@ -22,9 +22,11 @@ import { coerceTypeIdInput, resolveAndValidateTypeId } from "../lib/threadType";
 import { getUserProfiles } from "../lib/user-cache";
 import {
 	STICKY_GLOBAL,
+	STICKY_MODERATED,
 	THREAD_VISIBLE,
 	buildVisibilityContext,
 	canReadThreadContent,
+	canViewModeratedThread,
 	isForumActive,
 	threadVisible,
 } from "../lib/visibility";
@@ -579,7 +581,9 @@ export async function getById(
 	const useKvCache = isKvUserCacheEnabled(env);
 
 	// Choose query based on cache strategy (include forum_id for visibility check)
-	// Only return visible threads (sticky >= 0).
+	// Return visible threads (sticky >= 0) plus moderated threads (sticky = -2)
+	// for post-fetch authorization against the requesting user.
+	const threadFilter = `(${threadVisible("t")} OR t.sticky = ${STICKY_MODERATED})`;
 	//
 	// `is_recommended` is a one-row EXISTS probe on the
 	// `forum_recommended_threads` composite PK (migration 0045). The
@@ -591,7 +595,7 @@ export async function getById(
 		? `SELECT t.*,
 		          EXISTS(SELECT 1 FROM forum_recommended_threads r
 		                  WHERE r.forum_id = t.forum_id AND r.thread_id = t.id) AS is_recommended
-		     FROM threads t WHERE t.id = ? AND ${threadVisible("t")}`
+		     FROM threads t WHERE t.id = ? AND ${threadFilter}`
 		: `SELECT t.*,
 		          author.avatar AS author_avatar,
 		          author.avatar_path AS author_avatar_path,
@@ -602,7 +606,7 @@ export async function getById(
 		   FROM threads t
 		   LEFT JOIN users author ON t.author_id = author.id
 		   LEFT JOIN users lp ON t.last_poster_id = lp.id
-		   WHERE t.id = ? AND ${threadVisible("t")}`;
+		   WHERE t.id = ? AND ${threadFilter}`;
 
 	// Auth is independent of the thread row — fire it eagerly so it overlaps
 	// with both the thread query and (later) the forum visibility query.
@@ -620,18 +624,33 @@ export async function getById(
 	// Forum query and auth resolution can also overlap.
 	const [user, forumRow] = await Promise.all([
 		userPromise,
-		env.DB.prepare("SELECT status, visibility FROM forums WHERE id = ?")
+		env.DB.prepare("SELECT status, visibility, moderator_ids FROM forums WHERE id = ?")
 			.bind(forumId)
-			.first<{ status: number; visibility: string }>(),
+			.first<{ status: number; visibility: string; moderator_ids: string }>(),
 	]);
 	const visCtx = buildVisibilityContext(user);
 
 	if (!isForumActive(forumRow)) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
-	if (
+
+	const sticky = r.sticky as number;
+
+	// Moderated threads: only author / forum mod / super-mod / admin may view.
+	// Return 404 (not 403) so existence is not leaked.
+	if (sticky === STICKY_MODERATED) {
+		if (
+			!canViewModeratedThread({
+				authorId: r.author_id as number,
+				forumModeratorIds: forumRow.moderator_ids ?? "",
+				user,
+			})
+		) {
+			return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
+		}
+	} else if (
 		!canReadThreadContent({
-			sticky: r.sticky as number,
+			sticky,
 			forumVisibility: forumRow.visibility as ForumVisibility,
 			visCtx,
 		})
@@ -644,10 +663,17 @@ export async function getById(
 		);
 	}
 
-	// Fire-and-forget: increment view count (don't await)
-	void env.DB.prepare("UPDATE threads SET views = views + 1 WHERE id = ?").bind(id).run();
+	// Fire-and-forget: increment view count (don't await).
+	// Skip for moderated threads — internal viewers shouldn't inflate counts.
+	if (sticky !== STICKY_MODERATED) {
+		void env.DB.prepare("UPDATE threads SET views = views + 1 WHERE id = ?").bind(id).run();
+	}
 
 	let thread = toThread(r);
+
+	if (sticky === STICKY_MODERATED) {
+		thread.moderationStatus = "pending_review";
+	}
 
 	// If JOIN approach, populate avatars directly from query result
 	if (!useKvCache) {
