@@ -1,17 +1,19 @@
 /**
  * Public settings server-only reader.
  * Used by forum Server Components to read typed settings via Key A.
+ *
+ * The actual fetch is defined in `lib/public-settings.ts` (a pure loader
+ * with no cache). RSC render-pass deduplication is handled by
+ * `lib/forum-cache.ts` which wraps it with React `cache()`.
  */
 
 import "server-only";
-import { forumApi } from "@/lib/forum-api";
+import { getCachedPublicSettings } from "@/lib/forum-cache";
+import type { SettingsMap } from "@/lib/public-settings";
 
-export type SettingsMap = Record<string, string | number | boolean | object>;
+export type { SettingsMap };
 
-export async function fetchPublicSettings(): Promise<SettingsMap> {
-	const res = await forumApi.get<SettingsMap>("/api/v1/settings");
-	return res.data;
-}
+export const fetchPublicSettings = getCachedPublicSettings;
 
 /* ── Typed accessor helpers ── */
 

@@ -28,6 +28,7 @@ import {
 	fetchThreadById,
 } from "./forum-data";
 import { type ForumSettings, fetchForumSettings } from "./forum-settings";
+import { type SettingsMap, fetchPublicSettingsRaw } from "./public-settings";
 
 // ---------------------------------------------------------------------------
 // Forum data (deduplicated within the same RSC render pass)
@@ -44,6 +45,7 @@ export const getCachedRecommendedThreads = cache(loadRecommendedThreads);
 // ---------------------------------------------------------------------------
 
 export const getCachedForumSettings = cache(fetchForumSettings);
+export const getCachedPublicSettings = cache(fetchPublicSettingsRaw);
 
 /** Convenience: page size from cached settings. */
 export async function getCachedPageSize(): Promise<number> {
@@ -59,5 +61,5 @@ export async function getCachedPostsPerPage(): Promise<number> {
 
 // Re-export the data shape types so callers don't need to import the
 // underlying loader modules.
-export type { ForumAncestorsData, ForumSettings };
+export type { ForumAncestorsData, ForumSettings, SettingsMap };
 export type { AncestorItem, ForumContext } from "./forum-data";
