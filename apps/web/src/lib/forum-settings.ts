@@ -44,7 +44,9 @@ const DEFAULT_MAX_POST_LENGTH = 50000;
  */
 export async function fetchForumSettings(): Promise<ForumSettings> {
 	try {
-		const { data } = await forumApi.get<SettingsResponse>("/api/v1/settings", { revalidate: 60 });
+		const { data } = await forumApi.get<SettingsResponse>("/api/v1/settings", undefined, {
+			revalidate: 60,
+		});
 
 		return {
 			pageSize: parseNumber(data["general.pagination.page_size"], DEFAULT_PAGE_SIZE),

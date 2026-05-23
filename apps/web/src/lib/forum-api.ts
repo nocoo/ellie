@@ -203,30 +203,23 @@ async function request<T>(
 // ---------------------------------------------------------------------------
 
 export interface GetOptions {
-	searchParams?: Record<string, string | number | boolean | undefined | null>;
 	/** Next.js ISR revalidation interval in seconds. Omit for no-store. */
 	revalidate?: number;
-}
-
-function isGetOptions(v: unknown): v is GetOptions {
-	return v != null && typeof v === "object" && "revalidate" in v;
 }
 
 export const forumApi = {
 	/** GET single resource: { data: T, meta } */
 	async get<T>(
 		path: string,
-		searchParamsOrOpts?: Record<string, string | number | boolean | undefined | null> | GetOptions,
+		searchParams?: Record<string, string | number | boolean | undefined | null>,
+		options?: GetOptions,
 	): Promise<ApiResponse<T>> {
-		let searchParams: Record<string, string | number | boolean | undefined | null> | undefined;
-		let revalidate: number | undefined;
-		if (isGetOptions(searchParamsOrOpts)) {
-			searchParams = searchParamsOrOpts.searchParams;
-			revalidate = searchParamsOrOpts.revalidate;
-		} else {
-			searchParams = searchParamsOrOpts;
-		}
-		const result = await request<T>({ method: "GET", path, searchParams, revalidate });
+		const result = await request<T>({
+			method: "GET",
+			path,
+			searchParams,
+			revalidate: options?.revalidate,
+		});
 		return { data: result.data, meta: result.meta as ApiMeta };
 	},
 

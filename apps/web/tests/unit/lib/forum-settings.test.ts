@@ -95,7 +95,7 @@ describe("forum-settings (via lib/forum-cache)", () => {
 		it("passes revalidate option to forumApi.get", async () => {
 			mockGet.mockResolvedValue({ data: {} });
 			await getCachedPublicSettings();
-			expect(mockGet).toHaveBeenCalledWith("/api/v1/settings", { revalidate: 60 });
+			expect(mockGet).toHaveBeenCalledWith("/api/v1/settings", undefined, { revalidate: 60 });
 		});
 	});
 });

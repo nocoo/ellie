@@ -14,6 +14,6 @@ import { forumApi } from "./forum-api";
 export type SettingsMap = Record<string, string | number | boolean | object>;
 
 export async function fetchPublicSettingsRaw(): Promise<SettingsMap> {
-	const res = await forumApi.get<SettingsMap>("/api/v1/settings", { revalidate: 60 });
+	const res = await forumApi.get<SettingsMap>("/api/v1/settings", undefined, { revalidate: 60 });
 	return res.data;
 }

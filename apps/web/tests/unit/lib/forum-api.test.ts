@@ -163,15 +163,15 @@ describe("forumApi request construction", () => {
 	});
 
 	it("uses next.revalidate when GetOptions.revalidate is provided", async () => {
-		await forumApi.get("/api/v1/settings", { revalidate: 60 });
+		await forumApi.get("/api/v1/settings", undefined, { revalidate: 60 });
 
 		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
 		expect(opts.cache).toBeUndefined();
 		expect((opts as Record<string, unknown>).next).toEqual({ revalidate: 60 });
 	});
 
-	it("passes searchParams from GetOptions correctly", async () => {
-		await forumApi.get("/api/v1/settings", { revalidate: 30, searchParams: { key: "test" } });
+	it("passes searchParams and options as separate arguments", async () => {
+		await forumApi.get("/api/v1/settings", { key: "test" }, { revalidate: 30 });
 
 		const [url, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
 		const parsed = new URL(url);
@@ -187,6 +187,17 @@ describe("forumApi request construction", () => {
 		expect(parsed.searchParams.get("page")).toBe("1");
 		expect(parsed.searchParams.get("limit")).toBe("10");
 		expect(opts.cache).toBe("no-store");
+	});
+
+	it("does not misinterpret searchParams containing 'revalidate' key as options", async () => {
+		await forumApi.get("/api/v1/users", { revalidate: "1", username: "foo" });
+
+		const [url, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
+		const parsed = new URL(url);
+		expect(parsed.searchParams.get("revalidate")).toBe("1");
+		expect(parsed.searchParams.get("username")).toBe("foo");
+		expect(opts.cache).toBe("no-store");
+		expect((opts as Record<string, unknown>).next).toBeUndefined();
 	});
 });
 
