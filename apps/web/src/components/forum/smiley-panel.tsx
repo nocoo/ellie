@@ -88,10 +88,18 @@ interface SmileyPickerProps {
 /**
  * Toolbar button that opens the smiley grid in a popover. Used by
  * `PostEditor`'s Insert group.
+ *
+ * UX guarantees (req msg=c3dceecc):
+ *   - PopoverContent has a fixed `w-[300px]` so the panel never paints
+ *     at 0-width while the smiley images load in. The 12-col grid
+ *     inside SmileyPanelContent is sized to fit that width.
+ *   - Selecting a smiley closes the popover so the just-inserted
+ *     character is not hidden behind the panel.
  */
 export function SmileyPicker({ onSelect }: SmileyPickerProps) {
+	const [open, setOpen] = useState(false);
 	return (
-		<Popover>
+		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger
 				render={
 					<button
@@ -104,8 +112,18 @@ export function SmileyPicker({ onSelect }: SmileyPickerProps) {
 					</button>
 				}
 			/>
-			<PopoverContent className="w-auto p-0" align="end" sideOffset={8}>
-				<SmileyPanelContent onSelect={onSelect} />
+			<PopoverContent
+				className="w-[300px] p-0"
+				align="end"
+				sideOffset={8}
+				data-testid="smiley-picker-popover"
+			>
+				<SmileyPanelContent
+					onSelect={(code) => {
+						onSelect(code);
+						setOpen(false);
+					}}
+				/>
 			</PopoverContent>
 		</Popover>
 	);
