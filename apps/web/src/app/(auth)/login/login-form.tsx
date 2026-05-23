@@ -73,9 +73,12 @@ function LoginFormInner() {
 				setLoading(false);
 				submittingRef.current = false;
 			} else if (result?.ok) {
-				// Success: keep the button disabled until the browser navigates
-				// away. Do NOT clear `submittingRef` or `loading` — that would
-				// re-enable the button during the redirect window.
+				// Success: switch to the redirecting state. We keep
+				// `submittingRef` locked (do NOT release it) so any click
+				// during the redirect window is a no-op. `loading` is
+				// cleared so the label can flip to "正在跳转..."; the
+				// button stays disabled because `busy = loading || redirecting`
+				// is still true via `redirecting`.
 				setLoading(false);
 				setRedirecting(true);
 				window.location.href = callbackUrl;
