@@ -449,9 +449,9 @@ export async function proxy(request: NextRequest, event?: NextFetchEvent) {
 		// `event.waitUntil`; if no event was provided (older runtime or a
 		// test stub), we skip ingest entirely rather than awaiting in the
 		// hot path.
+		const clientIp = resolveTrustedClientIp(request);
 		if (event) {
 			const userId = resolveForumUserId(forumSession);
-			const clientIp = resolveTrustedClientIp(request);
 			const userAgent = request.headers.get("user-agent") ?? "";
 			event.waitUntil(
 				tryRecordPageView({
@@ -462,7 +462,11 @@ export async function proxy(request: NextRequest, event?: NextFetchEvent) {
 				}),
 			);
 		}
-		return NextResponse.next();
+		const requestHeaders = new Headers(request.headers);
+		if (clientIp) {
+			requestHeaders.set("x-forwarded-client-ip", clientIp);
+		}
+		return NextResponse.next({ request: { headers: requestHeaders } });
 	}
 	const target = action.replace("redirect:", "");
 	return NextResponse.redirect(buildRedirectUrl(request, target));

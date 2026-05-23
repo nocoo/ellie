@@ -18,11 +18,14 @@
 //
 // Trust ladder (kept in lockstep with worker/src/lib/clientIp.ts and
 // admin/src/lib/client-ip.ts):
-//   1. `CF-Connecting-IP` — always trusted.
-//   2. First segment of `X-Forwarded-For` — ONLY accepted outside
+//   1. `x-forwarded-client-ip` — set by our own proxy.ts from the raw
+//      NextRequest's `CF-Connecting-IP`. Route handlers receive this via
+//      `NextResponse.next({ request: { headers } })`. Trusted because
+//      only our proxy can set it (Cloudflare strips unknown headers from
+//      external requests before they reach the origin).
+//   2. `CF-Connecting-IP` — direct trust from Cloudflare edge.
+//   3. First segment of `X-Forwarded-For` — ONLY accepted outside
 //      production (NODE_ENV !== "production").
-//   3. `X-Real-IP` — ONLY accepted outside production (dev convenience for
-//      `curl -H` testing of the analytics proxy path).
 //
 // Returns `""` when no trustworthy source is present. The Worker then
 // hard-rejects rate-limited endpoints (login/register) or falls back to
@@ -61,6 +64,9 @@ export function extractClientIp(
 		typeof (source as { headers: ReadOnlyHeaders }).headers?.get === "function"
 			? (source as { headers: ReadOnlyHeaders }).headers
 			: (source as ReadOnlyHeaders);
+
+	const proxyIp = headers.get("x-forwarded-client-ip")?.trim();
+	if (proxyIp) return proxyIp;
 
 	const cf = headers.get("cf-connecting-ip")?.trim();
 	if (cf) return cf;
