@@ -10,6 +10,7 @@ import {
 	getCachedForumSettings,
 	getCachedPageSize,
 	getCachedPostsPerPage,
+	getCachedPublicSettings,
 } from "@/lib/forum-cache";
 
 const mockGet = forumApi.get as ReturnType<typeof vi.fn>;
@@ -80,6 +81,21 @@ describe("forum-settings (via lib/forum-cache)", () => {
 		it("returns postsPerPage from settings", async () => {
 			mockGet.mockResolvedValue({ data: { "general.pagination.posts_per_page": 40 } });
 			expect(await getCachedPostsPerPage()).toBe(40);
+		});
+	});
+
+	describe("getCachedPublicSettings", () => {
+		it("returns raw settings map from API", async () => {
+			const rawData = { "features.access.maintenance_mode": false, "general.site.name": "Ellie" };
+			mockGet.mockResolvedValue({ data: rawData });
+			const result = await getCachedPublicSettings();
+			expect(result).toEqual(rawData);
+		});
+
+		it("passes revalidate option to forumApi.get", async () => {
+			mockGet.mockResolvedValue({ data: {} });
+			await getCachedPublicSettings();
+			expect(mockGet).toHaveBeenCalledWith("/api/v1/settings", { revalidate: 60 });
 		});
 	});
 });
