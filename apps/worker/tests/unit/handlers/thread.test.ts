@@ -1025,10 +1025,12 @@ describe("thread handlers", () => {
 							})),
 						};
 					}
-					if (sql.includes("SELECT status, visibility FROM forums")) {
+					if (sql.includes("FROM forums WHERE id")) {
 						return {
 							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
+								first: vi.fn(() =>
+									Promise.resolve({ status: 1, visibility: "public", moderator_ids: "" }),
+								),
 							})),
 						};
 					}
@@ -1244,10 +1246,12 @@ describe("thread handlers", () => {
 							})),
 						};
 					}
-					if (sql.includes("SELECT status, visibility FROM forums")) {
+					if (sql.includes("FROM forums WHERE id")) {
 						return {
 							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "members" })),
+								first: vi.fn(() =>
+									Promise.resolve({ status: 1, visibility: "members", moderator_ids: "" }),
+								),
 							})),
 						};
 					}
