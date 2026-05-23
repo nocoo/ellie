@@ -4,12 +4,14 @@ import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
+import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
 import { SegmentedSwitch } from "@/components/admin/segmented-switch";
 import { PageHeader } from "@/components/layout/page-header";
 import { extractErrorMessage } from "@/lib/admin-error";
 import { getAttachmentThumbUrl, getAttachmentUrl } from "@/lib/cdn";
 import type { Attachment } from "@/viewmodels/admin/attachments";
 import { formatFileSize } from "@/viewmodels/admin/attachments";
+import { userRoleVariant } from "@/viewmodels/admin/badges";
 import type { Post } from "@/viewmodels/admin/posts";
 import {
 	TAB_LABELS,
@@ -24,7 +26,7 @@ import {
 } from "@/viewmodels/admin/recent";
 import type { Thread } from "@/viewmodels/admin/threads";
 import { type User, roleLabel } from "@/viewmodels/admin/users";
-import { formatDate } from "@ellie/shared";
+import { formatDate, formatNumber } from "@ellie/shared";
 import { Badge, Button, Lightbox, type LightboxImage } from "@ellie/ui";
 import { FileIcon, Loader2, Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -485,7 +487,7 @@ function UsersTab({
 				cell: (row) => (
 					<Link
 						href={`/admin/users/${row.id}`}
-						className="font-medium text-primary hover:underline"
+						className="font-medium text-foreground hover:underline"
 					>
 						{row.username}
 					</Link>
@@ -495,7 +497,7 @@ function UsersTab({
 			{
 				key: "role",
 				header: "角色",
-				cell: (row) => <Badge variant="secondary">{roleLabel(row.role)}</Badge>,
+				cell: (row) => <Badge variant={userRoleVariant(row.role)}>{roleLabel(row.role)}</Badge>,
 			},
 			{
 				key: "regDate",
@@ -506,7 +508,10 @@ function UsersTab({
 				key: "regIp",
 				header: "注册 IP",
 				cell: (row) => (
-					<span className="text-xs text-muted-foreground font-mono">{row.regIp || "—"}</span>
+					<div className="flex items-center gap-1">
+						<span className="font-mono text-sm">{row.regIp || "—"}</span>
+						{row.regIp && <IpLookupInline ip={row.regIp} />}
+					</div>
 				),
 			},
 		],
@@ -558,7 +563,7 @@ function ThreadsTab({
 				cell: (row) => (
 					<Link
 						href={`/admin/threads/${row.id}`}
-						className="font-medium text-primary hover:underline line-clamp-1"
+						className="font-medium text-foreground hover:underline"
 					>
 						{row.subject}
 					</Link>
@@ -567,11 +572,17 @@ function ThreadsTab({
 			{
 				key: "author",
 				header: "作者",
-				cell: (row) => (
-					<Link href={`/admin/users/${row.authorId}`} className="text-sm hover:underline">
-						{row.authorName}
-					</Link>
-				),
+				cell: (row) =>
+					row.authorId > 0 ? (
+						<Link
+							href={`/admin/users/${row.authorId}`}
+							className="text-sm text-primary hover:underline"
+						>
+							{row.authorName}
+						</Link>
+					) : (
+						<span className="text-sm text-muted-foreground">{row.authorName}</span>
+					),
 			},
 			{
 				key: "createdAt",
@@ -581,14 +592,14 @@ function ThreadsTab({
 			{
 				key: "replies",
 				header: "回复",
-				cell: (row) => row.replies,
-				className: "text-center",
+				cell: (row) => formatNumber(row.replies),
+				className: "text-right tabular-nums",
 			},
 			{
 				key: "views",
 				header: "浏览",
-				cell: (row) => row.views,
-				className: "text-center",
+				cell: (row) => formatNumber(row.views),
+				className: "text-right tabular-nums",
 			},
 			{
 				key: "actions",
@@ -597,13 +608,13 @@ function ThreadsTab({
 					<Button
 						variant="ghost"
 						size="icon"
-						className="h-7 w-7 text-destructive hover:text-destructive"
+						className="h-8 w-8 text-destructive hover:text-destructive"
 						onClick={() => onDelete(row.id, row.subject)}
 					>
 						<Trash2 className="h-4 w-4" />
 					</Button>
 				),
-				className: "w-10",
+				className: "w-auto whitespace-nowrap",
 			},
 		],
 		[onDelete],
@@ -666,7 +677,7 @@ function PostsTab({
 				cell: (row) => (
 					<Link
 						href={`/admin/users/${row.authorId}`}
-						className="text-sm hover:underline whitespace-nowrap"
+						className="text-sm text-primary hover:underline whitespace-nowrap"
 					>
 						{row.authorName}
 					</Link>
@@ -696,13 +707,13 @@ function PostsTab({
 					<Button
 						variant="ghost"
 						size="icon"
-						className="h-7 w-7 text-destructive hover:text-destructive"
+						className="h-8 w-8 text-destructive hover:text-destructive"
 						onClick={() => onDelete(row.id)}
 					>
 						<Trash2 className="h-4 w-4" />
 					</Button>
 				),
-				className: "w-10",
+				className: "w-auto whitespace-nowrap",
 			},
 		],
 		[onDelete],
@@ -829,13 +840,13 @@ function AttachmentsTab({
 					<Button
 						variant="ghost"
 						size="icon"
-						className="h-7 w-7 text-destructive hover:text-destructive"
+						className="h-8 w-8 text-destructive hover:text-destructive"
 						onClick={() => onDelete(row.id, row.filename)}
 					>
 						<Trash2 className="h-4 w-4" />
 					</Button>
 				),
-				className: "w-10",
+				className: "w-auto whitespace-nowrap",
 			},
 		],
 		[onDelete, handlePreview],
