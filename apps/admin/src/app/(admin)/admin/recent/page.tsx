@@ -592,13 +592,13 @@ function ThreadsTab({
 			{
 				key: "replies",
 				header: "回复",
-				cell: (row) => formatNumber(row.replies),
+				cell: (row) => formatNumber(row.replies ?? 0),
 				className: "text-right tabular-nums",
 			},
 			{
 				key: "views",
 				header: "浏览",
-				cell: (row) => formatNumber(row.views),
+				cell: (row) => formatNumber(row.views ?? 0),
 				className: "text-right tabular-nums",
 			},
 			{
