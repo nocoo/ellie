@@ -56,5 +56,8 @@ export async function d1FlushSink(env: Env, rows: AggregateRow[]): Promise<void>
 			r.lastSeenAt,
 		),
 	);
-	await env.DB.batch(statements);
+	const FLUSH_BATCH_SIZE = 100;
+	for (let i = 0; i < statements.length; i += FLUSH_BATCH_SIZE) {
+		await env.DB.batch(statements.slice(i, i + FLUSH_BATCH_SIZE));
+	}
 }

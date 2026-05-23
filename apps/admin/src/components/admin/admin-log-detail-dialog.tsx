@@ -1,5 +1,6 @@
 "use client";
 
+import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
 import {
 	type AdminLog,
 	formatLogTime,
@@ -87,7 +88,15 @@ export function AdminLogDetailDialog({ open, onOpenChange, log }: AdminLogDetail
 								)
 							}
 						/>
-						<DetailRow label="IP" value={<span className="font-mono">{log.ip || "—"}</span>} />
+						<DetailRow
+							label="IP"
+							value={
+								<div>
+									<span className="font-mono">{log.ip || "—"}</span>
+									{log.ip && <IpLookupInline ip={log.ip} />}
+								</div>
+							}
+						/>
 
 						<div className="grid gap-1.5">
 							<span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">

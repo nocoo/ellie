@@ -59,7 +59,7 @@ function formatTs(ts: number): string {
  * Render the row's link target per the frozen routing rules.
  * Returns a React node — anchor / link / span — never null.
  */
-function RowTarget({ row }: { row: TodayVisitsListRow }) {
+function RowTarget({ row, siteHost }: { row: TodayVisitsListRow; siteHost: string }) {
 	const label =
 		row.label || (row.targetId > 0 ? `#${row.targetId}` : PATH_KIND_LABELS[row.pathKind]);
 	if (row.pathKind === "thread" && row.targetId > 0) {
@@ -87,7 +87,7 @@ function RowTarget({ row }: { row: TodayVisitsListRow }) {
 	if (row.pathKind === "forum" && row.targetId > 0) {
 		return (
 			<a
-				href={`/forums/${row.targetId}`}
+				href={`${siteHost}/forums/${row.targetId}`}
 				target="_blank"
 				rel="noopener noreferrer"
 				className="text-foreground hover:text-primary hover:underline"
@@ -118,6 +118,8 @@ export function TodayVisitsPanel() {
 	const [page, setPage] = useState(1);
 	const [pathKindFilter, setPathKindFilter] = useState<PathKindFilter>("");
 
+	const [siteHost, setSiteHost] = useState("");
+
 	const loadKpi = useCallback(async () => {
 		try {
 			setKpi(await fetchJson("/api/admin/analytics/today/visits", parseTodayVisitsKpi));
@@ -147,6 +149,13 @@ export function TodayVisitsPanel() {
 
 	useEffect(() => {
 		loadKpi();
+		fetch("/api/admin/settings?prefix=general.site", { credentials: "include" })
+			.then((r) => (r.ok ? r.json() : null))
+			.then((body: { data?: Record<string, { value: string }> } | null) => {
+				const host = body?.data?.["general.site.host"]?.value;
+				if (host) setSiteHost(host.replace(/\/$/, ""));
+			})
+			.catch(() => {});
 	}, [loadKpi]);
 	useEffect(() => {
 		loadList();
@@ -243,7 +252,7 @@ export function TodayVisitsPanel() {
 												{PATH_KIND_LABELS[row.pathKind]}
 											</td>
 											<td className="py-2 pr-3 break-all">
-												<RowTarget row={row} />
+												<RowTarget row={row} siteHost={siteHost} />
 											</td>
 											<td className="py-2 pr-3 tabular-nums">{row.views}</td>
 											<td className="py-2 pr-3 tabular-nums">{row.humanViews}</td>

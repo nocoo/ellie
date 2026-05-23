@@ -70,7 +70,7 @@ export function UserDetailDialog({
 	const open = userId !== null;
 	return (
 		<Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-			<DialogContent className="w-[calc(100vw-2rem)] max-w-6xl overflow-hidden">
+			<DialogContent className="w-[calc(100vw-2rem)] max-w-[90vw] overflow-hidden">
 				<DialogHeader className="min-w-0">
 					<DialogTitle>用户详情</DialogTitle>
 				</DialogHeader>

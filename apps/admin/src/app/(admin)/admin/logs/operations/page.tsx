@@ -4,6 +4,7 @@ import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-ta
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminLogDetailDialog } from "@/components/admin/admin-log-detail-dialog";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
+import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
 import { PageHeader } from "@/components/layout/page-header";
 import {
 	type AdminLog,
@@ -224,7 +225,12 @@ export default function AdminLogsPage() {
 		{
 			key: "ip",
 			header: "IP",
-			cell: (row) => <span className="font-mono text-xs">{row.ip || "—"}</span>,
+			cell: (row) => (
+				<div>
+					<span className="font-mono text-xs">{row.ip || "—"}</span>
+					{row.ip && <IpLookupInline ip={row.ip} />}
+				</div>
+			),
 		},
 		{
 			key: "details",

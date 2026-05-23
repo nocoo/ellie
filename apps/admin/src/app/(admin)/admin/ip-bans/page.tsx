@@ -6,6 +6,7 @@ import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-ta
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { IpBanCreateDialog } from "@/components/admin/ip-ban-create-dialog";
+import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
 import { PageHeader } from "@/components/layout/page-header";
 import { ipBanExpiryVariant, ipBanStateVariant } from "@/viewmodels/admin/badges";
 import type { IpBan, IpBanCreate, IpBanUpdate, IpCheckResult } from "@/viewmodels/admin/ip-bans";
@@ -234,7 +235,12 @@ export default function IpBansPage() {
 		{
 			key: "ip",
 			header: "IP / 范围",
-			cell: (row) => <span className="font-mono text-sm">{row.ip}</span>,
+			cell: (row) => (
+				<div>
+					<span className="font-mono text-sm">{row.ip}</span>
+					<IpLookupInline ip={row.ip} />
+				</div>
+			),
 		},
 		{
 			key: "reason",

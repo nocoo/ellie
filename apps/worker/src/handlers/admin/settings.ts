@@ -25,6 +25,7 @@ const ALLOWED_KEYS = new Set([
 	// general.site
 	"general.site.name",
 	"general.site.subtitle",
+	"general.site.host",
 	"general.site.copyright",
 	"general.site.powered_by",
 	"general.site.logo_light",

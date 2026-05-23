@@ -60,6 +60,13 @@ export const SETTING_GROUPS: SettingGroupDef[] = [
 			{ key: "general.site.name", label: "站点名称", placeholder: "Ellie" },
 			{ key: "general.site.subtitle", label: "站点描述", placeholder: "Ellie admin console" },
 			{
+				key: "general.site.host",
+				label: "站点域名",
+				inputType: "url",
+				placeholder: "https://bbs.tongji.net",
+				hint: "公开站点的完整地址（含协议），用于后台跳转链接",
+			},
+			{
 				key: "general.site.home_label",
 				label: "首页标签",
 				placeholder: "同济网论坛",

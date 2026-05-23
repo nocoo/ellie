@@ -6,6 +6,7 @@
  * KPI summary card row + detail list with raw IP/UA (admin-only, no masking).
  */
 
+import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
 import {
 	type LoginAttemptList,
 	type TodayLoginsKpi,
@@ -208,7 +209,10 @@ export function LoginAttemptsPanel() {
 														{badge.label}
 													</span>
 												</td>
-												<td className="py-2 pr-3 font-mono">{row.ip}</td>
+												<td className="py-2 pr-3 font-mono">
+													{row.ip}
+													<IpLookupInline ip={row.ip} />
+												</td>
 												<td
 													className="max-w-[200px] truncate py-2 pr-3 text-xs text-muted-foreground"
 													title={row.userAgent}
