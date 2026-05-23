@@ -443,13 +443,15 @@ export async function proxy(request: NextRequest, event?: NextFetchEvent) {
 	const action = resolveProxyAction(request.nextUrl, forumSession, requireLogin);
 
 	if (action === "next") {
-		// P5 analytics ingest: only on a successful `next` (the request
-		// actually reaches the page). Redirects do NOT count — they are
-		// pre-content. The dispatch is fire-and-forget via
-		// `event.waitUntil`; if no event was provided (older runtime or a
-		// test stub), we skip ingest entirely rather than awaiting in the
-		// hot path.
 		const clientIp = resolveTrustedClientIp(request);
+		if (request.nextUrl.pathname.startsWith("/api/auth")) {
+			console.log(
+				"[proxy:auth] path=%s cf-connecting-ip=%s clientIp=%s",
+				request.nextUrl.pathname,
+				request.headers.get("cf-connecting-ip"),
+				clientIp,
+			);
+		}
 		if (event) {
 			const userId = resolveForumUserId(forumSession);
 			const userAgent = request.headers.get("user-agent") ?? "";

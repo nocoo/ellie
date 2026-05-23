@@ -36,7 +36,14 @@ function getForumApiKey(): string {
  */
 async function getClientIP(): Promise<string> {
 	const h = await headers();
-	return extractClientIp(h);
+	const ip = extractClientIp(h);
+	console.log(
+		"[auth:getClientIP] x-forwarded-client-ip=%s cf-connecting-ip=%s resolved=%s",
+		h.get("x-forwarded-client-ip"),
+		h.get("cf-connecting-ip"),
+		ip,
+	);
+	return ip;
 }
 
 async function getClientUA(): Promise<string | undefined> {
