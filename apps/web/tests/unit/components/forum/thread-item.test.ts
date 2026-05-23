@@ -36,7 +36,8 @@ vi.mock("@/components/forum/thread-last-post-cell", () => ({
 }));
 
 vi.mock("@/components/forum/thread-row-stats", () => ({
-	ThreadRowStats: () => createElement("div"),
+	ThreadRowStats: (props: { variant: "desktop" | "mobile" }) =>
+		createElement("div", { "data-testid": `thread-row-stats-${props.variant}` }),
 }));
 
 vi.mock("@/components/forum/user-avatar", () => ({
@@ -230,5 +231,25 @@ describe("ThreadItem — global announcement icon", () => {
 			el = el.parentElement;
 		}
 		expect(found).toBe(true);
+	});
+});
+
+// ─── Mobile trim contract (reviewer freeze msg=8b90cb85) ─────────────────────
+// On iPhone the thread list row drops 阅读 / 回复 / 推荐数 — those numbers are
+// secondary. Desktop branch is untouched and continues to render
+// ThreadRowStats inside its own column. Asserting via stable data-testid
+// (not class strings) per reviewer's "不要只靠 class 字符串测试" rule.
+describe("ThreadItem — iPhone mobile-trim contract", () => {
+	it("only the desktop ThreadRowStats slot is rendered; mobile variant is absent", () => {
+		const item = makeDisplayItem();
+		render(createElement(ThreadItem, { item, postsPerPage: 15 }));
+		expect(screen.getAllByTestId("thread-row-stats-desktop").length).toBe(1);
+		expect(screen.queryByTestId("thread-row-stats-mobile")).toBeNull();
+	});
+
+	it("global-announcement row also has no mobile-stats slot", () => {
+		const item = makeDisplayItem({ isGlobalAnnouncement: true });
+		render(createElement(ThreadItem, { item, postsPerPage: 15 }));
+		expect(screen.queryByTestId("thread-row-stats-mobile")).toBeNull();
 	});
 });

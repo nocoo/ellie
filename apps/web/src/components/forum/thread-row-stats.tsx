@@ -20,7 +20,10 @@ interface ThreadRowStatsProps {
 export function ThreadRowStats({ replies, views, recommends, variant }: ThreadRowStatsProps) {
 	if (variant === "desktop") {
 		return (
-			<div className="flex flex-col items-center justify-center w-[80px] shrink-0 py-2 text-center tabular-nums">
+			<div
+				className="flex flex-col items-center justify-center w-[80px] shrink-0 py-2 text-center tabular-nums"
+				data-testid="thread-row-stats-desktop"
+			>
 				<span className="text-xs text-foreground font-medium">
 					{formatCompactNumber(replies)} / {formatCompactNumber(views)}
 				</span>
@@ -36,9 +39,12 @@ export function ThreadRowStats({ replies, views, recommends, variant }: ThreadRo
 		);
 	}
 
-	// mobile — fragment content for inside an existing wrapper span
+	// mobile — fragment content for inside an existing wrapper span. Wrapped
+	// in a `<span data-testid="thread-row-stats-mobile">` so callers that
+	// removed this variant on mobile (per reviewer freeze msg=8b90cb85) can
+	// pin the absence via testid rather than text-content regex.
 	return (
-		<>
+		<span data-testid="thread-row-stats-mobile">
 			{formatCompactNumber(replies)} 回 / {formatCompactNumber(views)} 览
 			{recommends > 0 && (
 				<span className="inline-flex items-center gap-0.5 ml-1.5 text-destructive">
@@ -46,6 +52,6 @@ export function ThreadRowStats({ replies, views, recommends, variant }: ThreadRo
 					{formatCompactNumber(recommends)}
 				</span>
 			)}
-		</>
+		</span>
 	);
 }

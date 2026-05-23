@@ -187,7 +187,8 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 						</div>
 					</div>
 				</div>
-				{/* Row 2: author · time · stats */}
+				{/* Row 2: author · time — stats (回/览/recommends) are secondary
+				    info hidden on mobile per reviewer freeze (msg 8b90cb85). */}
 				<div className="mt-1 ml-6 flex items-center gap-1.5 text-xs text-muted-foreground">
 					<span className="min-w-0 truncate">
 						<UserPopover userId={thread.authorId}>
@@ -198,14 +199,6 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 					</span>
 					<span className="shrink-0">·</span>
 					<span className="shrink-0">{formatRelativeTime(thread.createdAt)}</span>
-					<span className="shrink-0 ml-auto tabular-nums">
-						<ThreadRowStats
-							replies={thread.replies}
-							views={thread.views}
-							recommends={thread.recommends}
-							variant="mobile"
-						/>
-					</span>
 				</div>
 			</div>
 		</div>

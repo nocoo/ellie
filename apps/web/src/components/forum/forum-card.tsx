@@ -95,14 +95,16 @@ function TodayThreadBadge({
 	if (count <= 0) return null;
 	if (variant === "pill") {
 		// Fixed line-height pill so it never bumps the row height.
+		// `shrink-0` keeps the pill at intrinsic width even when a long
+		// forum name truncates inside a `flex items-center` mobile row.
 		return (
-			<span className="inline-flex items-center h-4 rounded-full bg-forum-accent/10 px-1.5 text-xs font-medium text-forum-accent leading-none">
+			<span className="inline-flex items-center h-4 rounded-full bg-forum-accent/10 px-1.5 text-xs font-medium text-forum-accent leading-none shrink-0">
 				+{formatCount(count)}
 			</span>
 		);
 	}
 	return (
-		<span className="text-sm text-forum-accent font-medium">
+		<span className="text-sm text-forum-accent font-medium shrink-0">
 			{variant === "parenthesized" ? `(${formatCount(count)})` : `+${formatCount(count)}`}
 		</span>
 	);
@@ -243,7 +245,10 @@ function LastPostPreview({ forum }: { forum: ForumTreeNode }) {
 
 function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 	return (
-		<div className="relative transition-colors hover:bg-accent focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset">
+		<div
+			className="relative transition-colors hover:bg-accent focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset"
+			data-testid="forum-card"
+		>
 			{/*
 			 * Desktop ≥640: CSS grid template ensures stats / last-post columns
 			 * line up across rows regardless of name length.
@@ -289,47 +294,35 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 				</div>
 			</div>
 
-			{/* Mobile <640: compact 2-row stack. */}
+			{/* Mobile <640: compact stack. Per reviewer freeze (msg 8b90cb85),
+			    iPhone view hides secondary information: 回/览 stats, last-poster
+			    username, sub-forums and moderator meta. We keep what signals
+			    activity: today-pill (new threads) and last-post-time.
+			    Layout constraints: forum name `min-w-0 truncate`, badges/pills
+			    `shrink-0` so a long version name can't push the today-pill or
+			    icon out of the viewport. */}
 			<div className="sm:hidden px-3 py-2.5">
 				<div className="flex items-center gap-2">
 					<ForumIcon hasActivity={forum.todayThreads > 0} />
 					<Link
 						href={`/forums/${forum.id}`}
 						prefetch={false}
-						className="text-sm font-bold text-foreground hover:text-destructive transition-colors"
+						className="text-sm font-bold text-foreground hover:text-destructive transition-colors truncate min-w-0"
 					>
 						{forum.name}
 					</Link>
 					<TodayThreadBadge count={forum.todayThreads} variant="pill" />
 				</div>
-				<div
-					className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground"
-					data-testid="mobile-meta-row"
-				>
-					<span className="tabular-nums shrink-0">
-						<ForumStats threads={forum.threads} posts={forum.posts} variant="inline" />
-					</span>
-					{forum.lastPostAt > 0 && (
-						<>
-							<span className="text-muted-foreground/50 shrink-0">·</span>
-							{forum.lastPosterId > 0 ? (
-								<Link
-									href={`/users/${forum.lastPosterId}`}
-									prefetch={false}
-									className="text-forum-link hover:underline truncate min-w-0"
-									data-testid="last-poster-link-mobile"
-								>
-									{forum.lastPoster}
-								</Link>
-							) : (
-								<span className="truncate min-w-0">{forum.lastPoster}</span>
-							)}
-							<span className="shrink-0 whitespace-nowrap" data-testid="last-post-date-mobile">
-								{formatDateTime(forum.lastPostAt)}
-							</span>
-						</>
-					)}
-				</div>
+				{forum.lastPostAt > 0 && (
+					<div
+						className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground"
+						data-testid="mobile-meta-row"
+					>
+						<span className="shrink-0 whitespace-nowrap" data-testid="last-post-date-mobile">
+							{formatDateTime(forum.lastPostAt)}
+						</span>
+					</div>
+				)}
 			</div>
 		</div>
 	);
@@ -342,7 +335,10 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 
 function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 	return (
-		<div className="relative flex items-start gap-2.5 px-4 py-3 transition-colors hover:bg-accent focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset">
+		<div
+			className="relative flex items-start gap-2.5 px-4 py-3 transition-colors hover:bg-accent focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset"
+			data-testid="forum-card"
+		>
 			<div className="mt-0.5 shrink-0">
 				<ForumIcon hasActivity={forum.todayThreads > 0} />
 			</div>
@@ -352,35 +348,55 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 					<Link
 						href={`/forums/${forum.id}`}
 						prefetch={false}
-						className="text-sm font-bold text-foreground hover:text-destructive transition-colors"
+						className="text-sm font-bold text-foreground hover:text-destructive transition-colors truncate min-w-0"
 					>
 						{forum.name}
 					</Link>
-					<TodayThreadBadge count={forum.todayThreads} variant="plus" />
+					<span className="shrink-0">
+						<TodayThreadBadge count={forum.todayThreads} variant="plus" />
+					</span>
 				</div>
+				{/* Mobile (<640px) hides 回/览 stats per reviewer freeze; desktop keeps. */}
 				<div
-					className="mt-1 text-xs text-muted-foreground tabular-nums leading-5"
+					className="mt-1 text-xs text-muted-foreground tabular-nums leading-5 hidden sm:block"
 					data-testid="grid-stats-row"
 				>
 					<ForumStats threads={forum.threads} posts={forum.posts} variant="inline" />
 				</div>
 
-				<ModeratorLinks mods={forum.moderatorList ?? []} />
+				{/* Moderator line is auxiliary meta — desktop only on the grid card. */}
+				<div className="hidden sm:block">
+					<ModeratorLinks mods={forum.moderatorList ?? []} />
+				</div>
 
 				{forum.lastPostAt > 0 && (
 					<div
 						className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground"
 						data-testid="grid-last-post-row"
 					>
-						<LastPosterAvatarLink
-							userId={forum.lastPosterId}
-							userName={forum.lastPoster}
-							avatarPath={forum.lastPosterAvatarPath}
-						/>
+						{/* Reviewer freeze (msg=8b90cb85, follow-up ad33321c): on
+						    mobile the grid cell is aligned with the wide layout —
+						    we only keep the freshness signal (last-post timestamp)
+						    and drop the thread title, avatar and last-poster
+						    username, all of which are secondary on a 320–375px
+						    viewport. The desktop branch is unchanged. */}
+						<span
+							className="sm:hidden shrink-0 whitespace-nowrap text-xs"
+							data-testid="grid-last-post-date-mobile"
+						>
+							{formatDateTime(forum.lastPostAt)}
+						</span>
+						<span className="hidden sm:inline-flex items-center gap-1.5">
+							<LastPosterAvatarLink
+								userId={forum.lastPosterId}
+								userName={forum.lastPoster}
+								avatarPath={forum.lastPosterAvatarPath}
+							/>
+						</span>
 						<Link
 							href={`/threads/${forum.lastThreadId}`}
 							prefetch={false}
-							className="relative z-10 text-forum-link hover:underline truncate min-w-0 flex-1"
+							className="hidden sm:block relative z-10 text-forum-link hover:underline truncate min-w-0 flex-1"
 							data-testid="grid-last-thread-link"
 						>
 							{forum.lastThreadSubject || "最新主题"}
@@ -389,13 +405,13 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 							<Link
 								href={`/users/${forum.lastPosterId}`}
 								prefetch={false}
-								className="shrink-0 text-xs text-forum-link hover:underline"
+								className="hidden sm:inline shrink-0 text-xs text-forum-link hover:underline"
 								data-testid="last-poster-link-grid"
 							>
 								{forum.lastPoster}
 							</Link>
 						) : (
-							<span className="shrink-0 text-xs">{forum.lastPoster}</span>
+							<span className="hidden sm:inline shrink-0 text-xs">{forum.lastPoster}</span>
 						)}
 					</div>
 				)}

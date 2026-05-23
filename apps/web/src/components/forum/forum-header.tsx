@@ -32,31 +32,63 @@ interface ForumHeaderProps {
 function TopBar({ vm }: { vm: HeaderViewModel }) {
 	const user = vm.user;
 
+	// Mobile (<640px) collapses TopBar from h-[90px] to h-14 to free vertical
+	// space on iPhone. The desktop branch is unchanged: logo height stays at
+	// 70px and the full UserPopover trigger keeps the username/credits row.
+	//
+	// On mobile we drop the inline username/UID/credits/coins meta and the
+	// width/theme toggles — the popover content already exposes the full
+	// user identity once the avatar is tapped. WidthToggle is meaningless on
+	// a phone (no horizontal split). ThemeToggle is dropped on mobile too:
+	// iOS already follows the system theme and the toggle has no popover
+	// override here, so a per-tab manual override is not reachable from the
+	// mobile branch (acceptable trade-off — re-add later if there is real
+	// demand).
 	return (
 		<div>
-			<div className="width-container flex items-center justify-between !py-0 h-[90px]">
-				{/* Left: Logo */}
-				<Link href="/" className="flex-shrink-0">
-					<ForumLogo height={70} lightSrc={vm.logoLight} darkSrc={vm.logoDark} alt={vm.logoAlt} />
+			<div
+				className="width-container flex items-center justify-between !py-0 h-14 sm:h-[90px]"
+				data-testid="forum-top-bar"
+			>
+				{/* Left: Logo — min-w-0 so a long user-name slot can't crush the logo on phones */}
+				<Link href="/" className="flex-shrink-0 min-w-0">
+					{/* Mobile logo height capped via class so the inline `height={70}` doesn't
+					    push the bar back to 90px. `max-h-9` (=36px) + `sm:max-h-none` keeps the
+					    desktop visual unchanged. */}
+					<ForumLogo
+						height={70}
+						lightSrc={vm.logoLight}
+						darkSrc={vm.logoDark}
+						alt={vm.logoAlt}
+						className="max-h-9 sm:max-h-none"
+					/>
 				</Link>
 
 				{/* Right: User info area */}
 				{user ? (
-					<div className="flex items-center gap-4 min-w-0">
-						{/* Profile card — avatar left, text right, entire area clickable */}
+					<div
+						className="flex items-center gap-2 sm:gap-4 min-w-0 shrink-0"
+						data-testid="forum-top-bar-user"
+					>
+						{/* Profile card — avatar + (sm+) meta. shrink-0 keeps the avatar
+						    cluster intact on small screens; only the meta text collapses. */}
 						<UserPopover
 							userId={user.uid}
 							viewerRole={user.role}
 							viewerUserId={user.uid}
 							side="bottom"
 							align="end"
-							triggerClassName="inline-flex items-center gap-3 rounded-lg px-3 py-2 min-w-0 max-w-[320px] hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-1 transition-colors"
+							triggerClassName="inline-flex items-center gap-3 rounded-lg px-1 py-1 sm:px-3 sm:py-2 min-w-0 sm:max-w-[320px] shrink-0 hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-1 transition-colors"
 						>
 							{/* Avatar — rounded-rect, image fills directly */}
 							<TrackedUserAvatar uid={user.uid} username={user.username} size="md" />
 
-							{/* Meta: username, uid, role, credits, coins */}
-							<span className="text-right space-y-0.5 min-w-0">
+							{/* Meta: hidden on mobile (popover content carries identity);
+							    desktop unchanged. */}
+							<span
+								className="hidden sm:block text-right space-y-0.5 min-w-0"
+								data-testid="forum-top-bar-user-meta"
+							>
 								<span className="flex items-center justify-end gap-2 min-w-0">
 									<span className="text-sm font-medium text-foreground truncate">
 										{user.username}
@@ -71,10 +103,15 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 							</span>
 						</UserPopover>
 
-						{/* Action icons */}
-						<div className="flex items-center gap-1">
-							<WidthToggle />
-							<ThemeToggle />
+						{/* Action icons — WidthToggle + ThemeToggle desktop only */}
+						<div className="flex items-center gap-1 shrink-0">
+							<span
+								className="hidden sm:inline-flex items-center gap-1"
+								data-testid="forum-top-bar-desktop-toggles"
+							>
+								<WidthToggle />
+								<ThemeToggle />
+							</span>
 							<MessageBadgeIcon />
 							<button
 								type="button"
@@ -87,9 +124,13 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 						</div>
 					</div>
 				) : (
-					<div className="flex items-center gap-3 text-sm">
-						<WidthToggle />
-						<ThemeToggle />
+					// Guest: keep 登录/注册 inline on all sizes (short enough),
+					// hide width/theme toggles on mobile only.
+					<div className="flex items-center gap-3 text-sm shrink-0">
+						<span className="hidden sm:inline-flex items-center gap-3">
+							<WidthToggle />
+							<ThemeToggle />
+						</span>
 						<Link
 							href="/login"
 							className="font-medium text-primary hover:text-primary/80 transition-colors"
@@ -117,9 +158,20 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 function NavBar({ vm }: { vm: HeaderViewModel }) {
 	const pathname = usePathname();
 
+	// Mobile: horizontal scroll instead of wrap. Reviewer constraint (msg
+	// 8b90cb85): "不折行、不撑出 body 横向滚动". `overflow-x-auto` on the
+	// inner scroll container localizes the horizontal scroll to the nav
+	// strip — body still passes the `documentElement.scrollWidth <=
+	// innerWidth + 1` invariant because the overflow is clipped by the
+	// `nav-gradient` parent's default `overflow-x` (visible→hidden override
+	// below). `whitespace-nowrap` on every link guarantees a single-line
+	// tab row. `touch-pan-x` opts into native momentum-scroll on iOS.
 	return (
-		<div className="nav-gradient">
-			<div className="relative z-10 flex items-center px-4 h-[40px]">
+		<div className="nav-gradient overflow-x-hidden">
+			<div
+				className="relative z-10 flex items-center px-4 h-[40px] overflow-x-auto touch-pan-x [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+				data-testid="forum-nav-bar"
+			>
 				{vm.navTabs.map((tab) => {
 					const isActive = tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
 
@@ -128,9 +180,10 @@ function NavBar({ vm }: { vm: HeaderViewModel }) {
 							key={tab.href}
 							href={tab.href}
 							className={cn(
-								"h-full flex items-center px-4 text-sm font-bold text-dz-nav-text transition-colors hover:bg-white/10",
+								"h-full flex items-center px-4 text-sm font-bold text-dz-nav-text transition-colors hover:bg-white/10 whitespace-nowrap shrink-0",
 								isActive && "bg-white/10",
 							)}
+							data-testid="forum-nav-link"
 						>
 							{tab.label}
 						</Link>
@@ -148,8 +201,12 @@ function NavBar({ vm }: { vm: HeaderViewModel }) {
 function SearchStatsBar({ vm }: { vm: HeaderViewModel }) {
 	const s = vm.stats;
 
+	// Hidden entirely on mobile (<640px). The 320px search input + 5-segment
+	// stats row cannot fit on a 375px iPhone, and both pieces are secondary:
+	// search has a dedicated `/search` page reachable from the nav, and the
+	// stats are vanity numbers. Desktop branch unchanged.
 	return (
-		<div>
+		<div className="hidden sm:block" data-testid="forum-search-stats-bar">
 			<div className="width-container flex items-center justify-between !py-2 h-[44px]">
 				{/* Left: Modern search input with / shortcut */}
 				<div className="relative w-[320px]">

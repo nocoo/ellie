@@ -96,19 +96,23 @@ describe("ForumCard ForumStats — anti-wrap guard", () => {
 		expect(desktopEls[0].textContent).toContain("195,347");
 	});
 
-	it("mobile inline variant also pins whitespace-nowrap (same regression class)", () => {
-		// The mobile compact stack uses the inline variant. Same 5–6 digit
-		// counts can wrap at the `/` and push the meta line to 2 rows on
-		// narrow phones. Reviewer asked to widen the fix to inline too.
+	it("mobile inline variant — wide layout: stats are intentionally hidden on mobile (no `forum-stats-inline` in the sm:hidden block)", () => {
+		// Mobile freeze (msg 8b90cb85): iPhone forum-index hides secondary
+		// info — 帖/回 counts go away. We assert that the wide layout's
+		// `sm:hidden` block no longer renders any inline ForumStats node.
+		// The desktop column (`forum-stats-desktop`) is unchanged.
 		render(createElement(ForumCard, { forum: makeForum(), layout: "wide" }));
-		const inlineEls = screen.getAllByTestId("forum-stats-inline");
-		expect(inlineEls.length).toBeGreaterThan(0);
-		expect(inlineEls[0].className).toContain("whitespace-nowrap");
+		const inlineEls = screen.queryAllByTestId("forum-stats-inline");
+		expect(inlineEls.length).toBe(0);
+		// Desktop column survives so wide layout still shows counts ≥640px.
+		expect(screen.getAllByTestId("forum-stats-desktop").length).toBeGreaterThan(0);
 	});
 
-	it("grid layout inline variant also pins whitespace-nowrap", () => {
-		// The grid layout (compact 2-col cell, used when a group has >10 children)
-		// also renders ForumStats with variant="inline". Same anti-wrap guard.
+	it("grid layout inline variant pins whitespace-nowrap (mobile-hidden wrapper still renders the inner span)", () => {
+		// Grid layout's stats row is wrapped in `hidden sm:block` for mobile,
+		// but the inner inline-variant span is still in the DOM (happy-dom
+		// doesn't evaluate CSS visibility). The anti-wrap guard on that span
+		// must remain — that's the original homepage regression's home.
 		render(createElement(ForumCard, { forum: makeForum(), layout: "grid" }));
 		const inlineEls = screen.getAllByTestId("forum-stats-inline");
 		expect(inlineEls.length).toBeGreaterThan(0);
@@ -167,31 +171,25 @@ describe("ForumCard LastPostPreview — clickable username + layout split", () =
 		expect(screen.queryByTestId("last-poster-link")).toBeNull();
 	});
 
-	it("mobile compact stack also exposes a clickable username link", () => {
-		// The mobile path (sm:hidden block) renders separately and used to have
-		// no link at all. Same regression class — make sure it's covered.
+	it("mobile compact stack — wide layout: last-poster link and inline stats are intentionally absent (iPhone freeze)", () => {
+		// Reviewer freeze (msg 8b90cb85): on iPhone the per-forum row drops
+		// secondary info — last-poster username, inline 帖/回 stats, sub-forum
+		// + moderator meta. Only icon, name, today-pill and last-post date
+		// remain. We assert the link DOM is not produced inside the
+		// `sm:hidden` mobile block; desktop links continue to work via
+		// `last-poster-link` (covered above).
 		render(createElement(ForumCard, { forum: lastPostForum, layout: "wide" }));
-		const link = screen.getByTestId("last-poster-link-mobile");
-		expect(link.tagName).toBe("A");
-		expect(link.getAttribute("href")).toBe("/users/12345");
+		expect(screen.queryByTestId("last-poster-link-mobile")).toBeNull();
+		// last-post date span remains so users still see freshness signal.
+		expect(screen.getByTestId("last-post-date-mobile")).not.toBeNull();
 	});
 
-	it("mobile compact stack also splits date into its own no-wrap span", () => {
-		// Reviewer caught: mobile previously wrapped `username + date` in one
-		// `truncate` span, so a long username could still eat the timestamp.
-		// Same fix as desktop — date is its own `shrink-0 whitespace-nowrap`
-		// sibling, username is `truncate min-w-0`.
+	it("mobile compact stack — wide layout: date span keeps no-wrap class (freshness pin)", () => {
 		render(createElement(ForumCard, { forum: lastPostForum, layout: "wide" }));
 		const date = screen.getByTestId("last-post-date-mobile");
 		expect(date.tagName).toBe("SPAN");
 		expect(date.className).toContain("whitespace-nowrap");
 		expect(date.className).toContain("shrink-0");
-		// Username link is a sibling, not an ancestor — guarantees they can't
-		// be collapsed back into one truncate span.
-		const link = screen.getByTestId("last-poster-link-mobile");
-		expect(link.parentElement).toBe(date.parentElement);
-		expect(link.className).toContain("truncate");
-		expect(link.className).toContain("min-w-0");
 	});
 
 	it("grid-layout last-poster username is a Link to /users/:id", () => {
@@ -268,7 +266,9 @@ describe("ForumCard font baseline — 14/12 mix aligned with thread-list page", 
 		expect(meta.contains(userLink)).toBe(true);
 	});
 
-	it("mobile compact meta row uses text-xs (stats + username + date are 12px)", () => {
+	it("mobile compact meta row uses text-xs (date span)", () => {
+		// Mobile meta row now carries only the last-post-date; row still uses
+		// text-xs so the date renders at 12px alongside its desktop sibling.
 		render(createElement(ForumCard, { forum: lastPostForum, layout: "wide" }));
 		const row = screen.getByTestId("mobile-meta-row");
 		expect(row.className).toContain("text-xs");
@@ -330,5 +330,73 @@ describe("ForumCard font baseline — 14/12 mix aligned with thread-list page", 
 		const hasText2xs = pillCandidates.some((el) => el.className.includes("text-2xs"));
 		expect(hasTextXs).toBe(true);
 		expect(hasText2xs).toBe(false);
+	});
+});
+
+// ─── Mobile trim contract (reviewer freeze msg=8b90cb85) ─────────────────────
+// iPhone-targeted polish removes secondary information from the forum-index
+// row. These pins make sure a future "tidy up" can't re-introduce the
+// removed pieces without breaking the gate.
+describe("ForumCard — iPhone mobile-trim contract", () => {
+	it("wide layout mobile name uses `min-w-0 truncate`, today-pill is shrink-0 (no overflow on long names)", () => {
+		const longName = makeForum({ name: "一二三四五六七八九十一二三四五六七", todayThreads: 5 });
+		render(createElement(ForumCard, { forum: longName, layout: "wide" }));
+		const nameLinks = screen.getAllByText(longName.name);
+		// The `sm:hidden` mobile block has its own copy of the name link.
+		// At least one must carry truncate + min-w-0 to defend against
+		// overflowing a 320–375px viewport.
+		const hasTruncate = nameLinks.some(
+			(el) => el.className.includes("truncate") && el.className.includes("min-w-0"),
+		);
+		expect(hasTruncate).toBe(true);
+		// Today pill keeps shrink-0 so the long name can't push it out.
+		const pills = screen.getAllByText(/^\+?5$|^\(5\)$/);
+		const pillShrink = pills.some((el) => el.className.includes("shrink-0"));
+		// Wide layout uses `variant="pill"` which inherits shrink-0 via the
+		// wrapper; either inline-flex shrink or an ancestor shrink-0 counts.
+		const pillOrAncestorShrink =
+			pillShrink ||
+			pills.some((el) => {
+				let p: HTMLElement | null = el;
+				for (let i = 0; i < 4 && p; i++) {
+					if ((p.className ?? "").includes("shrink-0")) return true;
+					p = p.parentElement;
+				}
+				return false;
+			});
+		expect(pillOrAncestorShrink).toBe(true);
+	});
+
+	it("grid layout: stats row, moderator line, thread-title link, and last-poster username are wrapped in `hidden sm:*`; only date is mobile-visible (mobile parity with wide)", () => {
+		const withMods = makeForum({
+			moderatorList: [{ id: 1, name: "mod-a" }],
+			lastThreadId: 9,
+			lastThreadSubject: "Title",
+			lastPostAt: 100,
+			lastPoster: "alice",
+			lastPosterId: 1,
+		});
+		render(createElement(ForumCard, { forum: withMods, layout: "grid" }));
+		const statsRow = screen.getByTestId("grid-stats-row");
+		expect(statsRow.className).toContain("hidden");
+		expect(statsRow.className).toMatch(/sm:(block|inline)/);
+		const userLink = screen.getByTestId("last-poster-link-grid");
+		expect(userLink.className).toContain("hidden");
+		expect(userLink.className).toMatch(/sm:(block|inline)/);
+		// Thread title link is desktop-only on mobile per reviewer follow-up
+		// msg=ad33321c — grid mobile now mirrors wide mobile (date only).
+		const titleLink = screen.getByTestId("grid-last-thread-link");
+		expect(titleLink.className).toContain("hidden");
+		expect(titleLink.className).toMatch(/sm:(block|inline)/);
+		// Moderator line: walk up from the rendered moderator label.
+		const modRow = screen.getByTestId("forum-meta-版主");
+		// Wrapper div carries hidden sm:block.
+		const wrapper = modRow.parentElement;
+		expect(wrapper?.className).toContain("hidden");
+		// The mobile-visible piece: grid's last-post date carries `sm:hidden`
+		// (visible only on mobile) so the freshness signal stays — and class
+		// assertions hold under happy-dom's no-media-query environment.
+		const mobileDate = screen.getByTestId("grid-last-post-date-mobile");
+		expect(mobileDate.className).toContain("sm:hidden");
 	});
 });

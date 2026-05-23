@@ -67,10 +67,25 @@ export default defineConfig({
 			use: { ...devices["Desktop Chrome"] },
 		},
 		{
+			// Mobile layout drift guard — iPhone-targeted polish (msg=037192fa).
+			// Runs only `mobile-layout.spec.ts`. Explicit allowlist guarantees
+			// that desktop-only specs cannot accidentally run inside a 390×844
+			// viewport, and the dedicated project name lets `run-l3.ts` opt-in
+			// the gate without affecting `--project=admin`. Default mobile
+			// device is iPhone 14 (390×844); the spec itself iterates through
+			// 320 / 375 / 390 / 430 widths via `page.setViewportSize` so a
+			// single project covers the 4 reviewer-required viewports.
+			name: "mobile",
+			testMatch: /\/mobile-layout\.spec\.ts/,
+			fullyParallel: true,
+			use: { ...devices["iPhone 14"] },
+		},
+		{
 			// Admin specs live under tests/e2e/admin/ and target apps/admin on
 			// port 7032. They are run only by scripts/run-l3-admin.ts; the
-			// forum runner explicitly passes --project=stateless --project=stateful
-			// so this project never executes against the forum dev server.
+			// forum runner explicitly passes --project=stateless / --project=stateful
+			// / --project=mobile so this `admin` project never executes against
+			// the forum dev server.
 			name: "admin",
 			testDir: "tests/e2e/admin",
 			testMatch: /.*\.spec\.ts/,
