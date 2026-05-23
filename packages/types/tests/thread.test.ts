@@ -130,6 +130,18 @@ describe("getThreadBadges", () => {
 		expect(types).toEqual(["typeName", "sticky", "digest", "closed", "special"]);
 	});
 
+	it("includes moderation badge for pending_review threads", () => {
+		const badges = getThreadBadges(
+			makeThread({ sticky: StickyLevel.Moderating, moderationStatus: "pending_review" }),
+		);
+		expect(badges).toContainEqual({ type: "moderation", label: "审核中", variant: "warning" });
+	});
+
+	it("does not include moderation badge for normal threads", () => {
+		const badges = getThreadBadges(makeThread());
+		expect(badges.find((b) => b.type === "moderation")).toBeUndefined();
+	});
+
 	// -----------------------------------------------------------------------
 	// includeTypeNameBadge option (forum-level prefix switch)
 	// -----------------------------------------------------------------------

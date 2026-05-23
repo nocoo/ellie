@@ -354,6 +354,11 @@ export interface Thread {
      * this field (it is not part of the forum-page thread list).
      */
     isRecommended: boolean;
+    /**
+     * Present only when the thread is under moderation (sticky = -2).
+     * Value is "pending_review" — signals the frontend to display "审核中".
+     * Undefined for normal visible threads.
+     */
     moderationStatus?: "pending_review";
 }
 /** Maps to Doc02 posts table — 9.4M rows */

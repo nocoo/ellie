@@ -27,8 +27,8 @@ describe("batchByPostIds", () => {
 
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
-				"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				"FROM threads WHERE id": { forum_id: 1, sticky: 0, author_id: 10 },
+				"FROM forums WHERE id": { status: 1, visibility: "public", moderator_ids: "" },
 			},
 			allResults: {
 				"FROM attachments a": [att1, att2, att3],
@@ -57,8 +57,8 @@ describe("batchByPostIds", () => {
 	it("should deduplicate post IDs", async () => {
 		const { db, calls } = createMockDb({
 			firstResults: {
-				"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
-				"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				"FROM threads WHERE id": { forum_id: 1, sticky: 0, author_id: 10 },
+				"FROM forums WHERE id": { status: 1, visibility: "public", moderator_ids: "" },
 			},
 			allResults: {
 				"FROM attachments a": [],
@@ -101,7 +101,7 @@ describe("batchByPostIds", () => {
 	it("should return 404 when thread is hidden (sticky < 0)", async () => {
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: -1 },
+				"FROM threads WHERE id": { forum_id: 1, sticky: -1, author_id: 10 },
 			},
 		});
 		const env = { ...mockEnv, DB: db };
@@ -114,8 +114,8 @@ describe("batchByPostIds", () => {
 	it("should return 404 when forum is inactive", async () => {
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
-				"SELECT status, visibility FROM forums WHERE id": { status: 0, visibility: "public" },
+				"FROM threads WHERE id": { forum_id: 1, sticky: 0, author_id: 10 },
+				"FROM forums WHERE id": { status: 0, visibility: "public", moderator_ids: "" },
 			},
 		});
 		const env = { ...mockEnv, DB: db };
@@ -129,8 +129,8 @@ describe("batchByPostIds", () => {
 		const att1 = makeD1AttachmentRow({ id: 1, post_id: 10 });
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
-				"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				"FROM threads WHERE id": { forum_id: 1, sticky: 0, author_id: 10 },
+				"FROM forums WHERE id": { status: 1, visibility: "public", moderator_ids: "" },
 			},
 			allResults: {
 				// Only post 10 belongs to thread 1; post 99 does not
@@ -156,8 +156,8 @@ describe("batchByPostIds", () => {
 		});
 		const { db } = createMockDb({
 			firstResults: {
-				"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
-				"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				"FROM threads WHERE id": { forum_id: 1, sticky: 0, author_id: 10 },
+				"FROM forums WHERE id": { status: 1, visibility: "public", moderator_ids: "" },
 			},
 			allResults: {
 				"FROM attachments a": [att],
@@ -180,8 +180,8 @@ describe("batchByPostIds", () => {
 		const postIds = [10, 20, 30, 40, 50];
 		const { db, calls } = createMockDb({
 			firstResults: {
-				"SELECT forum_id, sticky FROM threads WHERE id": { forum_id: 1, sticky: 0 },
-				"SELECT status, visibility FROM forums WHERE id": { status: 1, visibility: "public" },
+				"FROM threads WHERE id": { forum_id: 1, sticky: 0, author_id: 10 },
+				"FROM forums WHERE id": { status: 1, visibility: "public", moderator_ids: "" },
 			},
 			allResults: {
 				"SELECT id FROM posts WHERE id IN": postIds.map((id) => ({ id })),

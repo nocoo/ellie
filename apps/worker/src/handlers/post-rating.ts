@@ -27,7 +27,13 @@ import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
 import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
-import { buildVisibilityContext, canReadThreadContent, isForumActive } from "../lib/visibility";
+import {
+	STICKY_MODERATED,
+	buildVisibilityContext,
+	canReadThreadContent,
+	canViewModeratedThread,
+	isForumActive,
+} from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 
@@ -273,9 +279,11 @@ interface PostChainRow {
 	invisible: number;
 	thread_subject: string;
 	sticky: number;
+	thread_author_id: number;
 	forum_id: number;
 	forum_status: number;
 	forum_visibility: string;
+	forum_moderator_ids: string;
 }
 
 /**
@@ -592,9 +600,11 @@ const POST_CHAIN_SQL = `SELECT
 	p.invisible     AS invisible,
 	t.subject       AS thread_subject,
 	t.sticky        AS sticky,
+	t.author_id     AS thread_author_id,
 	t.forum_id      AS forum_id,
 	f.status        AS forum_status,
-	f.visibility    AS forum_visibility
+	f.visibility    AS forum_visibility,
+	f.moderator_ids AS forum_moderator_ids
  FROM posts p
  JOIN threads t ON t.id = p.thread_id
  JOIN forums  f ON f.id = t.forum_id
@@ -614,9 +624,22 @@ function rejectListVisibility(
 	if (postRow.invisible !== 0 || postRow.author_id === 0) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
-	if (postRow.sticky < 0) return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
+	if (postRow.sticky < 0 && postRow.sticky !== STICKY_MODERATED) {
+		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
+	}
 	if (!isForumActive({ status: postRow.forum_status })) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
+	}
+	if (postRow.sticky === STICKY_MODERATED) {
+		if (
+			!canViewModeratedThread({
+				authorId: postRow.thread_author_id,
+				forumModeratorIds: postRow.forum_moderator_ids ?? "",
+				user,
+			})
+		) {
+			return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
+		}
 	}
 	const visCtx = buildVisibilityContext(user);
 	if (

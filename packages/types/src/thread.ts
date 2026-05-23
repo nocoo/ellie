@@ -22,7 +22,7 @@ export interface ThreadBadge {
  */
 export type ThreadBadgeSource = Pick<
 	Thread,
-	"typeName" | "sticky" | "digest" | "closed" | "special"
+	"typeName" | "sticky" | "digest" | "closed" | "special" | "moderationStatus"
 >;
 
 /** Special type badge mapping (04e §1) */
@@ -81,6 +81,11 @@ export function getThreadBadges(
 		badges.push({ type: "sticky", label: "分类置顶", variant: "warning" });
 	if (thread.sticky === StickyLevel.Forum)
 		badges.push({ type: "sticky", label: "置顶", variant: "default" });
+
+	// Moderation status badge
+	if (thread.moderationStatus === "pending_review") {
+		badges.push({ type: "moderation", label: "审核中", variant: "warning" });
+	}
 
 	// Digest badge (1~3 levels)
 	if (thread.digest > 0) {

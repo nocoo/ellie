@@ -4,7 +4,13 @@ import type { Env } from "../lib/env";
 import { toAttachment } from "../lib/mappers";
 import { parsePathSegment } from "../lib/parseId";
 import { jsonResponse } from "../lib/response";
-import { buildVisibilityContext, canReadThreadContent, isForumActive } from "../lib/visibility";
+import {
+	STICKY_MODERATED,
+	buildVisibilityContext,
+	canReadThreadContent,
+	canViewModeratedThread,
+	isForumActive,
+} from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 
@@ -33,21 +39,21 @@ async function verifyThreadVisibility(
 	// in production when the caller is logged in.
 	const userPromise = optionalAuthVerified(request, env);
 
-	// Check thread visibility (sticky >= 0)
+	// Check thread visibility (sticky >= 0 or moderated)
 	const thread = await db
-		.prepare("SELECT forum_id, sticky FROM threads WHERE id = ?")
+		.prepare("SELECT forum_id, sticky, author_id FROM threads WHERE id = ?")
 		.bind(threadId)
-		.first<{ forum_id: number; sticky: number }>();
+		.first<{ forum_id: number; sticky: number; author_id: number }>();
 
-	if (!thread || thread.sticky < 0) {
+	if (!thread || (thread.sticky < 0 && thread.sticky !== STICKY_MODERATED)) {
 		return { allowed: false, response: errorResponse(notFoundCode, 404, undefined, origin) };
 	}
 
 	// Check forum status and visibility
 	const forumRow = await db
-		.prepare("SELECT status, visibility FROM forums WHERE id = ?")
+		.prepare("SELECT status, visibility, moderator_ids FROM forums WHERE id = ?")
 		.bind(thread.forum_id)
-		.first<{ status: number; visibility: string }>();
+		.first<{ status: number; visibility: string; moderator_ids: string }>();
 
 	if (!isForumActive(forumRow)) {
 		return { allowed: false, response: errorResponse(notFoundCode, 404, undefined, origin) };
@@ -55,6 +61,19 @@ async function verifyThreadVisibility(
 
 	// Resolve auth (already in-flight)
 	const user = await userPromise;
+
+	if (thread.sticky === STICKY_MODERATED) {
+		if (
+			!canViewModeratedThread({
+				authorId: thread.author_id,
+				forumModeratorIds: forumRow.moderator_ids ?? "",
+				user,
+			})
+		) {
+			return { allowed: false, response: errorResponse(notFoundCode, 404, undefined, origin) };
+		}
+	}
+
 	const visCtx = buildVisibilityContext(user);
 
 	if (

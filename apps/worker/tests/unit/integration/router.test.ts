@@ -652,15 +652,21 @@ describe.skipIf(!canRunIntegration)("worker router integration", () => {
 					if (sql.includes("SELECT") && sql.includes("threads") && sql.includes("WHERE id")) {
 						return {
 							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ forum_id: 1, sticky: 0 })),
+								first: vi.fn(() => Promise.resolve({ forum_id: 1, sticky: 0, author_id: 99 })),
 							})),
 						};
 					}
 					// Forum visibility check query
-					if (sql.includes("SELECT status, visibility FROM forums")) {
+					if (sql.includes("FROM forums") && sql.includes("WHERE id")) {
 						return {
 							bind: vi.fn(() => ({
-								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
+								first: vi.fn(() =>
+									Promise.resolve({
+										status: 1,
+										visibility: "public",
+										moderator_ids: "",
+									}),
+								),
 							})),
 						};
 					}

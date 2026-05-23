@@ -8,7 +8,13 @@ import { clampLimit } from "../lib/pagination";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
-import { buildVisibilityContext, canReadThreadContent, isForumActive } from "../lib/visibility";
+import {
+	STICKY_MODERATED,
+	buildVisibilityContext,
+	canReadThreadContent,
+	canViewModeratedThread,
+	isForumActive,
+} from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 
@@ -52,16 +58,23 @@ export async function list(request: Request, env: Env): Promise<Response> {
 
 	// Single JOIN query: post → thread → forum (replaces 3 serial queries)
 	const row = await env.DB.prepare(
-		`SELECT t.forum_id, t.sticky, f.status, f.visibility
+		`SELECT t.forum_id, t.sticky, t.author_id, f.status, f.visibility, f.moderator_ids
 		 FROM posts p
 		 JOIN threads t ON t.id = p.thread_id
 		 JOIN forums f ON f.id = t.forum_id
 		 WHERE p.id = ? AND p.invisible = 0`,
 	)
 		.bind(postIdNum)
-		.first<{ forum_id: number; sticky: number; status: number; visibility: string }>();
+		.first<{
+			forum_id: number;
+			sticky: number;
+			author_id: number;
+			status: number;
+			visibility: string;
+			moderator_ids: string;
+		}>();
 
-	if (!row || row.sticky < 0) {
+	if (!row || (row.sticky < 0 && row.sticky !== STICKY_MODERATED)) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
 
@@ -70,6 +83,19 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	}
 
 	const user = await userPromise;
+
+	if (row.sticky === STICKY_MODERATED) {
+		if (
+			!canViewModeratedThread({
+				authorId: row.author_id,
+				forumModeratorIds: row.moderator_ids ?? "",
+				user,
+			})
+		) {
+			return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
+		}
+	}
+
 	const visCtx = buildVisibilityContext(user);
 
 	if (
@@ -160,13 +186,20 @@ export async function batchByPostIds(request: Request, env: Env): Promise<Respon
 	const [user, visRow, commentsResult] = await Promise.all([
 		optionalAuthVerified(request, env),
 		env.DB.prepare(
-			`SELECT t.forum_id, t.sticky, f.status, f.visibility
+			`SELECT t.forum_id, t.sticky, t.author_id, f.status, f.visibility, f.moderator_ids
 			 FROM threads t
 			 JOIN forums f ON f.id = t.forum_id
 			 WHERE t.id = ?`,
 		)
 			.bind(threadId)
-			.first<{ forum_id: number; sticky: number; status: number; visibility: string }>(),
+			.first<{
+				forum_id: number;
+				sticky: number;
+				author_id: number;
+				status: number;
+				visibility: string;
+				moderator_ids: string;
+			}>(),
 		env.DB.prepare(
 			`SELECT pc.*
 			 FROM post_comments pc
@@ -178,12 +211,24 @@ export async function batchByPostIds(request: Request, env: Env): Promise<Respon
 			.all(),
 	]);
 
-	if (!visRow || visRow.sticky < 0) {
+	if (!visRow || (visRow.sticky < 0 && visRow.sticky !== STICKY_MODERATED)) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 	}
 
 	if (!isForumActive(visRow)) {
 		return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
+	}
+
+	if (visRow.sticky === STICKY_MODERATED) {
+		if (
+			!canViewModeratedThread({
+				authorId: visRow.author_id,
+				forumModeratorIds: visRow.moderator_ids ?? "",
+				user,
+			})
+		) {
+			return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
+		}
 	}
 
 	const visCtx = buildVisibilityContext(user);

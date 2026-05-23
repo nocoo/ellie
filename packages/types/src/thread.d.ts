@@ -12,7 +12,7 @@ export interface ThreadBadge {
  * "回复" tab) flow through the same helper without union types or casts at the
  * call site.
  */
-export type ThreadBadgeSource = Pick<Thread, "typeName" | "sticky" | "digest" | "closed" | "special">;
+export type ThreadBadgeSource = Pick<Thread, "typeName" | "sticky" | "digest" | "closed" | "special" | "moderationStatus">;
 /**
  * Optional knobs for `getThreadBadges`.
  *

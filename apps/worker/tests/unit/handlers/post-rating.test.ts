@@ -758,6 +758,50 @@ describe("post-rating listByPost handler", () => {
 		expect(response.status).toBe(404);
 	});
 
+	it("should 404 for anon viewer on moderated thread (sticky=-2)", async () => {
+		const { env } = buildListEnv({
+			postRow: {
+				post_id: 5,
+				thread_id: 7,
+				author_id: 20,
+				author_name: "bob",
+				invisible: 0,
+				thread_subject: "Hello",
+				sticky: -2,
+				forum_id: 1,
+				forum_status: 1,
+				forum_visibility: "public",
+				thread_author_id: 20,
+				forum_moderator_ids: "50",
+			},
+		});
+		const response = await postRating.listByPost(makeListRequest(5), env);
+		expect(response.status).toBe(404);
+	});
+
+	it("should 200 for thread author on moderated thread (sticky=-2)", async () => {
+		const jwt = await jwtFor(0, 20);
+		const { env } = buildListEnv({
+			postRow: {
+				post_id: 5,
+				thread_id: 7,
+				author_id: 20,
+				author_name: "bob",
+				invisible: 0,
+				thread_subject: "Hello",
+				sticky: -2,
+				forum_id: 1,
+				forum_status: 1,
+				forum_visibility: "public",
+				thread_author_id: 20,
+				forum_moderator_ids: "50",
+			},
+			viewerRole: 0,
+		});
+		const response = await postRating.listByPost(makeListRequest(5, jwt), env);
+		expect(response.status).toBe(200);
+	});
+
 	it("should 404 when the forum is inactive", async () => {
 		const { env } = buildListEnv({
 			postRow: {
