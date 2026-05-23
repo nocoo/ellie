@@ -217,7 +217,7 @@ describe("adminApiAs", () => {
 		await api.raw("POST", "/api/admin/users/1/ban");
 		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
 		const headers = opts.headers as Record<string, string>;
-		expect(headers["X-Real-IP"]).toBe("203.0.113.7");
+		expect(headers["X-Ellie-Client-IP"]).toBe("203.0.113.7");
 	});
 
 	it("forwards X-Real-IP on GET (read-only path) too", async () => {
@@ -226,7 +226,7 @@ describe("adminApiAs", () => {
 		await api.raw("GET", "/api/admin/users/1");
 		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
 		const headers = opts.headers as Record<string, string>;
-		expect(headers["X-Real-IP"]).toBe("203.0.113.8");
+		expect(headers["X-Ellie-Client-IP"]).toBe("203.0.113.8");
 		// GET still must not carry actor identity headers.
 		expect(headers["X-Admin-Actor-Email"]).toBeUndefined();
 	});
@@ -239,7 +239,7 @@ describe("adminApiAs", () => {
 			const api = adminApiAs(actor, req);
 			await api.raw("PATCH", "/api/admin/users/1");
 			const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
-			expect((opts.headers as Record<string, string>)["X-Real-IP"]).toBe("198.51.100.5");
+			expect((opts.headers as Record<string, string>)["X-Ellie-Client-IP"]).toBe("198.51.100.5");
 		} finally {
 			(process.env as Record<string, string | undefined>).NODE_ENV = prevNodeEnv;
 		}
@@ -253,7 +253,7 @@ describe("adminApiAs", () => {
 			const api = adminApiAs(actor, req);
 			await api.raw("POST", "/api/admin/users/1/ban");
 			const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
-			expect((opts.headers as Record<string, string>)["X-Real-IP"]).toBeUndefined();
+			expect((opts.headers as Record<string, string>)["X-Ellie-Client-IP"]).toBeUndefined();
 		} finally {
 			(process.env as Record<string, string | undefined>).NODE_ENV = prevNodeEnv;
 		}
@@ -264,21 +264,21 @@ describe("adminApiAs", () => {
 		const api = adminApiAs(actor, req);
 		await api.raw("POST", "/api/admin/x");
 		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
-		expect((opts.headers as Record<string, string>)["X-Real-IP"]).toBeUndefined();
+		expect((opts.headers as Record<string, string>)["X-Ellie-Client-IP"]).toBeUndefined();
 	});
 
 	it("omits X-Real-IP when no request is bound", async () => {
 		const api = adminApiAs(actor);
 		await api.raw("POST", "/api/admin/x");
 		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
-		expect((opts.headers as Record<string, string>)["X-Real-IP"]).toBeUndefined();
+		expect((opts.headers as Record<string, string>)["X-Ellie-Client-IP"]).toBeUndefined();
 	});
 
 	it("respects caller override of X-Real-IP", async () => {
 		const req = reqWithHeaders({ "CF-Connecting-IP": "203.0.113.7" });
 		const api = adminApiAs(actor, req);
-		await api.raw("POST", "/api/admin/x", null, { "X-Real-IP": "127.0.0.1" });
+		await api.raw("POST", "/api/admin/x", null, { "X-Ellie-Client-IP": "127.0.0.1" });
 		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
-		expect((opts.headers as Record<string, string>)["X-Real-IP"]).toBe("127.0.0.1");
+		expect((opts.headers as Record<string, string>)["X-Ellie-Client-IP"]).toBe("127.0.0.1");
 	});
 });

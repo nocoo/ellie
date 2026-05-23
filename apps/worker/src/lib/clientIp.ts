@@ -87,7 +87,7 @@ export function extractTrustedClientIp(
 	// For server-to-worker requests, X-Real-IP is the real client IP
 	// (forwarded by the BFF). CF-Connecting-IP is just the BFF egress IP.
 	if (isServer) {
-		const realIp = request.headers.get("X-Real-IP")?.trim();
+		const realIp = request.headers.get("X-Ellie-Client-IP")?.trim();
 		if (realIp) return realIp;
 	}
 

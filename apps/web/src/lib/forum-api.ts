@@ -118,7 +118,7 @@ function buildHeaders(opts: RequestOptions): Record<string, string> {
 		headers.Authorization = `Bearer ${opts.bearerToken}`;
 	}
 	if (opts.clientIP) {
-		headers["X-Real-IP"] = opts.clientIP;
+		headers["X-Ellie-Client-IP"] = opts.clientIP;
 	}
 	if (opts.clientUA) {
 		headers["X-Real-User-Agent"] = opts.clientUA;

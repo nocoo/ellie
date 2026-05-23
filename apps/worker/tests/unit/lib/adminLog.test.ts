@@ -81,19 +81,22 @@ describe("resolveActor", () => {
 	it("trusts X-Real-IP only when request carries Key A or Key B", () => {
 		const prodEnv = makeEnv({ ENVIRONMENT: "production" });
 		// Without API key → not trusted, ip empty
-		expect(resolveActor(req({ "X-Real-IP": "5.5.5.5" }), prodEnv).ip).toBe("");
+		expect(resolveActor(req({ "X-Ellie-Client-IP": "5.5.5.5" }), prodEnv).ip).toBe("");
 		// With Key A (forum) → trusted
 		expect(
-			resolveActor(req({ "X-Real-IP": "5.5.5.5", "X-API-Key": TEST_API_KEY }), prodEnv).ip,
+			resolveActor(req({ "X-Ellie-Client-IP": "5.5.5.5", "X-API-Key": TEST_API_KEY }), prodEnv).ip,
 		).toBe("5.5.5.5");
 		// With Key B (admin) → trusted
 		expect(
-			resolveActor(req({ "X-Real-IP": "5.5.5.5", "X-API-Key": TEST_ADMIN_API_KEY }), prodEnv).ip,
+			resolveActor(
+				req({ "X-Ellie-Client-IP": "5.5.5.5", "X-API-Key": TEST_ADMIN_API_KEY }),
+				prodEnv,
+			).ip,
 		).toBe("5.5.5.5");
 		// With wrong key → not trusted
-		expect(resolveActor(req({ "X-Real-IP": "5.5.5.5", "X-API-Key": "bogus" }), prodEnv).ip).toBe(
-			"",
-		);
+		expect(
+			resolveActor(req({ "X-Ellie-Client-IP": "5.5.5.5", "X-API-Key": "bogus" }), prodEnv).ip,
+		).toBe("");
 	});
 
 	it("ip falls back to empty string when both ip headers missing", () => {

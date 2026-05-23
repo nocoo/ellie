@@ -36,14 +36,7 @@ function getForumApiKey(): string {
  */
 async function getClientIP(): Promise<string> {
 	const h = await headers();
-	const ip = extractClientIp(h);
-	console.log(
-		"[auth:getClientIP] x-forwarded-client-ip=%s cf-connecting-ip=%s resolved=%s",
-		h.get("x-forwarded-client-ip"),
-		h.get("cf-connecting-ip"),
-		ip,
-	);
-	return ip;
+	return extractClientIp(h);
 }
 
 async function getClientUA(): Promise<string | undefined> {
@@ -223,7 +216,7 @@ export async function authorizeCredentials(
 	const headers: Record<string, string> = {
 		"Content-Type": "application/json",
 		"X-API-Key": apiKey,
-		"X-Real-IP": clientIP,
+		"X-Ellie-Client-IP": clientIP,
 	};
 	if (clientUA) {
 		headers["X-Real-User-Agent"] = clientUA;

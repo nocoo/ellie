@@ -405,7 +405,7 @@ export async function tryRecordPageView(args: {
 			"Content-Type": "application/json",
 			"X-Ingest-Key": cfg.key,
 		};
-		if (args.clientIp) headers["X-Real-IP"] = args.clientIp;
+		if (args.clientIp) headers["X-Ellie-Client-IP"] = args.clientIp;
 		if (args.userAgent) headers["User-Agent"] = args.userAgent;
 		await fetch(cfg.url, {
 			method: "POST",
@@ -444,14 +444,6 @@ export async function proxy(request: NextRequest, event?: NextFetchEvent) {
 
 	if (action === "next") {
 		const clientIp = resolveTrustedClientIp(request);
-		if (request.nextUrl.pathname.startsWith("/api/auth")) {
-			console.log(
-				"[proxy:auth] path=%s cf-connecting-ip=%s clientIp=%s",
-				request.nextUrl.pathname,
-				request.headers.get("cf-connecting-ip"),
-				clientIp,
-			);
-		}
 		if (event) {
 			const userId = resolveForumUserId(forumSession);
 			const userAgent = request.headers.get("user-agent") ?? "";

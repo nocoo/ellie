@@ -37,7 +37,7 @@ describe("extractTrustedClientIp", () => {
 		const ip = extractTrustedClientIp(
 			req({
 				"CF-Connecting-IP": "1.1.1.1",
-				"X-Real-IP": "2.2.2.2",
+				"X-Ellie-Client-IP": "2.2.2.2",
 				"X-Forwarded-For": "3.3.3.3",
 				"X-API-Key": TEST_API_KEY,
 			}),
@@ -51,7 +51,7 @@ describe("extractTrustedClientIp", () => {
 		const ip = extractTrustedClientIp(
 			req({
 				"CF-Connecting-IP": "1.1.1.1",
-				"X-Real-IP": "2.2.2.2",
+				"X-Ellie-Client-IP": "2.2.2.2",
 				"X-Forwarded-For": "3.3.3.3",
 			}),
 			env,
@@ -62,7 +62,7 @@ describe("extractTrustedClientIp", () => {
 	it("trusts X-Real-IP when request carries Key A", () => {
 		const env = makeEnv({ ENVIRONMENT: "production" });
 		const ip = extractTrustedClientIp(
-			req({ "X-Real-IP": "5.5.5.5", "X-API-Key": TEST_API_KEY }),
+			req({ "X-Ellie-Client-IP": "5.5.5.5", "X-API-Key": TEST_API_KEY }),
 			env,
 		);
 		expect(ip).toBe("5.5.5.5");
@@ -71,7 +71,7 @@ describe("extractTrustedClientIp", () => {
 	it("trusts X-Real-IP when request carries Key B", () => {
 		const env = makeEnv({ ENVIRONMENT: "production" });
 		const ip = extractTrustedClientIp(
-			req({ "X-Real-IP": "5.5.5.5", "X-API-Key": TEST_ADMIN_API_KEY }),
+			req({ "X-Ellie-Client-IP": "5.5.5.5", "X-API-Key": TEST_ADMIN_API_KEY }),
 			env,
 		);
 		expect(ip).toBe("5.5.5.5");
@@ -79,7 +79,7 @@ describe("extractTrustedClientIp", () => {
 
 	it("REJECTS X-Real-IP without server-to-worker auth (anti-spoof)", () => {
 		const env = makeEnv({ ENVIRONMENT: "production" });
-		const ip = extractTrustedClientIp(req({ "X-Real-IP": "5.5.5.5" }), env);
+		const ip = extractTrustedClientIp(req({ "X-Ellie-Client-IP": "5.5.5.5" }), env);
 		expect(ip).toBeNull();
 	});
 
@@ -91,7 +91,7 @@ describe("extractTrustedClientIp", () => {
 		// covers the boundary that the flag never reaches here when the
 		// secret check fails. Here we only pin the helper's contract.
 		const env = makeEnv({ ENVIRONMENT: "production" });
-		const ip = extractTrustedClientIp(req({ "X-Real-IP": "7.7.7.7" }), env, {
+		const ip = extractTrustedClientIp(req({ "X-Ellie-Client-IP": "7.7.7.7" }), env, {
 			trustXRealIp: true,
 		});
 		expect(ip).toBe("7.7.7.7");
@@ -101,7 +101,7 @@ describe("extractTrustedClientIp", () => {
 		// Pin the default: any caller that does NOT explicitly set
 		// trustXRealIp gets the same anti-spoof behaviour as before P5.
 		const env = makeEnv({ ENVIRONMENT: "production" });
-		const ip = extractTrustedClientIp(req({ "X-Real-IP": "7.7.7.7" }), env, {});
+		const ip = extractTrustedClientIp(req({ "X-Ellie-Client-IP": "7.7.7.7" }), env, {});
 		expect(ip).toBeNull();
 	});
 
@@ -111,7 +111,7 @@ describe("extractTrustedClientIp", () => {
 		// just the BFF egress IP.
 		const env = makeEnv({ ENVIRONMENT: "production" });
 		const ip = extractTrustedClientIp(
-			req({ "CF-Connecting-IP": "1.1.1.1", "X-Real-IP": "7.7.7.7" }),
+			req({ "CF-Connecting-IP": "1.1.1.1", "X-Ellie-Client-IP": "7.7.7.7" }),
 			env,
 			{ trustXRealIp: true },
 		);

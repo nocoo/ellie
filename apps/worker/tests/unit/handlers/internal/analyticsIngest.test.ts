@@ -223,7 +223,7 @@ describe("analyticsIngestHandler — 401 trust boundary", () => {
 
 		const res = await analyticsIngestHandler(
 			makeRequest({
-				headers: { "X-Real-IP": "5.5.5.5", "User-Agent": "Mozilla/5.0" },
+				headers: { "X-Ellie-Client-IP": "5.5.5.5", "User-Agent": "Mozilla/5.0" },
 				body: { path_kind: "home", target_id: 0, user_id: 0 },
 			}),
 			env,
@@ -248,7 +248,7 @@ describe("analyticsIngestHandler — 401 trust boundary", () => {
 			makeRequest({
 				headers: {
 					"X-Ingest-Key": wrongKey,
-					"X-Real-IP": "5.5.5.5",
+					"X-Ellie-Client-IP": "5.5.5.5",
 					"User-Agent": "Mozilla/5.0",
 				},
 				body: { path_kind: "home", target_id: 0, user_id: 0 },
@@ -319,7 +319,7 @@ describe("analyticsIngestHandler — success path", () => {
 			makeRequest({
 				headers: {
 					"X-Ingest-Key": INGEST_KEY,
-					"X-Real-IP": "7.7.7.7",
+					"X-Ellie-Client-IP": "7.7.7.7",
 					"User-Agent": "Mozilla/5.0 (X11; Linux)",
 				},
 				body: { path_kind: "thread", target_id: 42, user_id: 7 },
@@ -389,7 +389,7 @@ describe("analyticsIngestHandler — success path", () => {
 			makeRequest({
 				headers: {
 					"X-Ingest-Key": INGEST_KEY,
-					"X-Real-IP": "9.9.9.9",
+					"X-Ellie-Client-IP": "9.9.9.9",
 					"User-Agent": "Mozilla/5.0",
 				},
 				body: { path_kind: "home", target_id: 0, user_id: 0 },

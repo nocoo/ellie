@@ -353,7 +353,7 @@ describe("forumApi.postWithIP()", () => {
 		expect(result.data).toEqual({ token: "jwt" });
 
 		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
-		expect((opts.headers as Record<string, string>)["X-Real-IP"]).toBe("1.2.3.4");
+		expect((opts.headers as Record<string, string>)["X-Ellie-Client-IP"]).toBe("1.2.3.4");
 		expect(opts.method).toBe("POST");
 	});
 });
@@ -382,7 +382,7 @@ describe("forumApi.getWithIP()", () => {
 
 		const [url, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
 		expect(url).toContain("username=bob");
-		expect((opts.headers as Record<string, string>)["X-Real-IP"]).toBe("5.6.7.8");
+		expect((opts.headers as Record<string, string>)["X-Ellie-Client-IP"]).toBe("5.6.7.8");
 		expect(opts.method).toBe("GET");
 	});
 });

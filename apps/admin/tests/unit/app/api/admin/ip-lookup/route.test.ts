@@ -135,6 +135,6 @@ describe("admin ip-lookup BFF proxy — G.6.2", () => {
 		await GET(makeReq("?ip=8.8.8.8", "198.51.100.7"), { params: Promise.resolve({}) });
 		const [, opts] = mockFetchFn.mock.calls[0] as [string, RequestInit];
 		const headers = opts.headers as Record<string, string>;
-		expect(headers["X-Real-IP"]).toBe("198.51.100.7");
+		expect(headers["X-Ellie-Client-IP"]).toBe("198.51.100.7");
 	});
 });

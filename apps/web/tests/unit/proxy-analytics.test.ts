@@ -203,7 +203,7 @@ describe("tryRecordPageView", () => {
 		expect(init.method).toBe("POST");
 		const headers = init.headers as Record<string, string>;
 		expect(headers["X-Ingest-Key"]).toBe("secret-key");
-		expect(headers["X-Real-IP"]).toBe("9.9.9.9");
+		expect(headers["X-Ellie-Client-IP"]).toBe("9.9.9.9");
 		expect(headers["User-Agent"]).toBe("Mozilla/5.0 (X11; Linux)");
 		expect(headers["Content-Type"]).toBe("application/json");
 		expect(init.cache).toBe("no-store");
@@ -222,7 +222,7 @@ describe("tryRecordPageView", () => {
 		});
 		const init = fetchSpy.mock.calls[0][1] as RequestInit;
 		const headers = init.headers as Record<string, string>;
-		expect(headers["X-Real-IP"]).toBeUndefined();
+		expect(headers["X-Ellie-Client-IP"]).toBeUndefined();
 		expect(headers["X-Ingest-Key"]).toBe("secret");
 	});
 

@@ -268,8 +268,8 @@ export function adminApiAs(actor: ActorIdentity, request?: Request): AdminApiCli
 					merged["X-Admin-Actor-Name"] = actor.name;
 				}
 			}
-			if (realIp && merged["X-Real-IP"] === undefined) {
-				merged["X-Real-IP"] = realIp;
+			if (realIp && merged["X-Ellie-Client-IP"] === undefined) {
+				merged["X-Ellie-Client-IP"] = realIp;
 			}
 			return adminApi.raw(method, path, body, merged);
 		},

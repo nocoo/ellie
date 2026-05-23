@@ -834,7 +834,7 @@ describe("authorizeCredentials", () => {
 		expect(url).toBe("https://worker.example.com/api/v1/auth/login");
 		expect(options.method).toBe("POST");
 		const headers = options.headers as Record<string, string>;
-		expect(headers["X-Real-IP"]).toBe("10.0.0.5");
+		expect(headers["X-Ellie-Client-IP"]).toBe("10.0.0.5");
 		expect(headers["X-API-Key"]).toBe("test-api-key");
 		expect(headers["Content-Type"]).toBe("application/json");
 	});
