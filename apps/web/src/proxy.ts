@@ -465,6 +465,8 @@ export async function proxy(request: NextRequest, event?: NextFetchEvent) {
 		const requestHeaders = new Headers(request.headers);
 		if (clientIp) {
 			requestHeaders.set("x-forwarded-client-ip", clientIp);
+		} else {
+			requestHeaders.delete("x-forwarded-client-ip");
 		}
 		return NextResponse.next({ request: { headers: requestHeaders } });
 	}
