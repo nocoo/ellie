@@ -19,9 +19,8 @@
 //     border that highlights on focus-within instead. The inner blue
 //     ProseMirror outline is killed via tailwind.css.
 
-import { EmojiPicker } from "@/components/forum/emoji-picker";
 import { useForumToast } from "@/components/forum/forum-toast";
-import { SmileyPicker } from "@/components/forum/smiley-panel";
+import { UnifiedEmojiPicker } from "@/components/forum/unified-emoji-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -426,8 +425,20 @@ function Toolbar({ editor }: { editor: Editor }) {
 				{/* Insert */}
 				<LinkPopover editor={editor} />
 				<ImageUploadButton editor={editor} />
-				<SmileyPicker onSelect={(code) => editor.chain().focus().insertContent(`${code} `).run()} />
-				<EmojiPicker onSelect={(emoji) => editor.chain().focus().insertContent(emoji).run()} />
+				{/*
+				 * Single emoji entry — `UnifiedEmojiPicker` opens onto the
+				 * forum-default smiley group (laugh / smile / cry / cool / …
+				 * the 16 numbered + 90 named entries in `SMILEY_PACKS.default`)
+				 * so the legacy Discuz vocabulary is what users see first.
+				 * Unicode emoji and a recent-used row are reachable via the
+				 * inner Forum / Emoji / Recent tabs. The picker emits raw
+				 * tokens (`:laugh:` for forum smileys, `😀` for Unicode) —
+				 * we add a trailing space so the next character a user types
+				 * does not collide with the closing `:`.
+				 */}
+				<UnifiedEmojiPicker
+					onSelect={(token) => editor.chain().focus().insertContent(`${token} `).run()}
+				/>
 			</div>
 		</TooltipProvider>
 	);

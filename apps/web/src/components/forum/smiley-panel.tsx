@@ -1,18 +1,18 @@
 "use client";
 
-// SmileyPicker — popover trigger + tabbed smiley panel for PostEditor.
+// SmileyPanelContent — raw tabbed smiley grid (no popover).
 //
-// Old behaviour: a permanently-mounted panel pinned to the bottom of
-// the editor, eating ~140px of vertical space inside reply / new-thread
-// dialogs. The B4 dialog overhaul replaces that with an Insert/Smiley
-// toolbar button so the editor body actually gets the height it needs.
-// `SmileyPanelContent` is exported for callers (or tests) that want the
-// raw grid without the popover wrapper.
+// History: this used to also export a `SmileyPicker` popover wrapper
+// that was mounted directly in `PostEditor`'s toolbar. After the
+// task-#4 unification (req msg=0c9265c6) the editor now shows a single
+// emoji entry point — `UnifiedEmojiPicker` — which embeds Forum
+// (default / coolmonkey / comcom) + Unicode + Recent in one panel.
+// `SmileyPanelContent` is kept as a reusable primitive: it is still
+// useful for callers that want the raw forum-smiley grid without the
+// popover chrome (e.g. an in-page embed or a test harness).
 
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SMILEY_PACKS, getSmileyImageUrl } from "@/lib/smiley";
 import { cn } from "@/lib/utils";
-import { Smile as SmileIcon } from "lucide-react";
 import { useState } from "react";
 
 const TABS = [
@@ -78,53 +78,5 @@ export function SmileyPanelContent({ onSelect, className }: SmileyPanelContentPr
 				))}
 			</div>
 		</div>
-	);
-}
-
-interface SmileyPickerProps {
-	onSelect: (code: string) => void;
-}
-
-/**
- * Toolbar button that opens the smiley grid in a popover. Used by
- * `PostEditor`'s Insert group.
- *
- * UX guarantees (req msg=c3dceecc):
- *   - PopoverContent has a fixed `w-[300px]` so the panel never paints
- *     at 0-width while the smiley images load in. The 12-col grid
- *     inside SmileyPanelContent is sized to fit that width.
- *   - Selecting a smiley closes the popover so the just-inserted
- *     character is not hidden behind the panel.
- */
-export function SmileyPicker({ onSelect }: SmileyPickerProps) {
-	const [open, setOpen] = useState(false);
-	return (
-		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger
-				render={
-					<button
-						type="button"
-						aria-label="插入表情"
-						title="插入表情"
-						className="inline-flex h-7 w-7 items-center justify-center rounded text-xs font-medium text-muted-foreground transition-colors hover:bg-muted"
-					>
-						<SmileIcon className="h-3.5 w-3.5" />
-					</button>
-				}
-			/>
-			<PopoverContent
-				className="w-[300px] p-0"
-				align="end"
-				sideOffset={8}
-				data-testid="smiley-picker-popover"
-			>
-				<SmileyPanelContent
-					onSelect={(code) => {
-						onSelect(code);
-						setOpen(false);
-					}}
-				/>
-			</PopoverContent>
-		</Popover>
 	);
 }
