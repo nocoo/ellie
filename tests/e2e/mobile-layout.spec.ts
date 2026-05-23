@@ -251,13 +251,13 @@ test.describe("E2E-MOB-05: desktop is not regressed", () => {
 		// NavBar bbox — desktop must keep the centered, max-content-width
 		// layout (no edge padding). `.nav-gradient` is the blue strip; on
 		// desktop `margin-inline: auto` keeps it centered. Width <= 1200px
-		// (--content-max-width) and left > 0 (centered, not flush).
+		// (--content-max-width) and x > 0 (centered, not flush).
 		const navStrip = page.locator(".nav-gradient").first();
 		await expect(navStrip).toBeVisible({ timeout: 15_000 });
 		const navBox = await navStrip.boundingBox();
 		expect(navBox).not.toBeNull();
 		if (navBox) {
-			expect(navBox.left).toBeGreaterThan(0);
+			expect(navBox.x).toBeGreaterThan(0);
 			expect(navBox.width).toBeLessThanOrEqual(1200 + 1);
 		}
 
@@ -337,7 +337,7 @@ test.describe("E2E-MOB-06: NavBar mobile padding (no edge-to-edge)", () => {
 		if (!box) return;
 		// Must leave at least a 1rem (≈16px) margin on each side per
 		// reviewer freeze — the blue strip aligns with content cards.
-		expect(box.left).toBeGreaterThanOrEqual(8);
+		expect(box.x).toBeGreaterThanOrEqual(8);
 		expect(box.width).toBeLessThanOrEqual(375 - 8);
 	});
 });
