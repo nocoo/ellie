@@ -518,11 +518,36 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 			{/* Toolbar */}
 			{editor && !disabled && <Toolbar editor={editor} />}
 
-			{/* Editor area — grows to fill the dialog body, scrolls internally */}
-			<EditorContent
-				editor={editor}
-				className="tiptap-content min-h-[180px] flex-1 overflow-y-auto px-3 py-2 text-sm"
-			/>
+			{/* Editor area — grows to fill the dialog body, scrolls internally.
+			    A click anywhere in this region (including padding / empty
+			    whitespace below the last paragraph) should focus the tiptap
+			    editor at the end of the document, so the entire visible
+			    surface acts like one big input. Without this handler, only
+			    the actual ProseMirror text rows accept focus and clicks on
+			    the surrounding padding do nothing. Keyboard users already
+			    reach the editor via Tab — the click handler here is a
+			    pointer-only affordance that mirrors what tiptap's own
+			    surface does, so no key handler is needed. */}
+			{/* biome-ignore lint/a11y/useKeyWithClickEvents: pointer-only focus shim; keyboard users reach the editor via Tab */}
+			<div
+				className="tiptap-content-wrap flex flex-1 min-h-0 cursor-text flex-col overflow-y-auto"
+				onClick={(e) => {
+					if (!editor || disabled) return;
+					// If the click landed on the ProseMirror surface (or a
+					// child of it) tiptap already handles focus + caret
+					// placement. Only step in when the click is in the
+					// surrounding wrapper / padding so we don't fight the
+					// editor's own selection logic.
+					const target = e.target as HTMLElement | null;
+					if (target?.closest(".ProseMirror")) return;
+					editor.chain().focus("end").run();
+				}}
+			>
+				<EditorContent
+					editor={editor}
+					className="tiptap-content min-h-[180px] flex-1 px-3 py-2 text-sm"
+				/>
+			</div>
 			{!hideFooter && (
 				<div className="flex items-center justify-between border-t px-3 py-2">
 					<span className="text-xs text-muted-foreground">
