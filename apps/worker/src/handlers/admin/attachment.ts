@@ -26,6 +26,7 @@ const attachmentConfig: EntityConfig = {
 		{ param: "threadId", column: "thread_id", type: "exact", parse: "int" },
 		{ param: "authorId", column: "author_id", type: "exact", parse: "int" },
 		{ param: "isImage", column: "is_image", type: "exact", parse: "boolean" },
+		{ param: "createdAt", column: "created_at", type: "range" },
 	],
 	canDelete: true,
 	batchDelete: true,

@@ -79,6 +79,7 @@ const threadConfig: EntityConfig = {
 		// admin list also exposes a `highlighted=0|1` boolean filter that
 		// translates to `highlight = 0` / `highlight > 0`.
 		{ param: "highlighted", column: "highlight", type: "positive" },
+		{ param: "createdAt", column: "created_at", type: "range" },
 	],
 	listSort: "id DESC",
 	updateFields: [

@@ -40,6 +40,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
 			{ href: "/admin/threads", label: "主题", icon: "FileText" },
 			{ href: "/admin/forums", label: "版块", icon: "MessagesSquare" },
 			{ href: "/admin/attachments", label: "附件", icon: "Paperclip" },
+			{ href: "/admin/recent", label: "增量", icon: "Clock" },
 		],
 	},
 	{
@@ -94,6 +95,7 @@ export const ROUTE_LABELS: Record<string, string> = {
 	posts: "帖子",
 	forums: "版块",
 	attachments: "附件",
+	recent: "增量",
 	analytics: "数据分析",
 	statistics: "数据统计",
 	recalc: "统计计算",

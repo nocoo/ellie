@@ -39,6 +39,7 @@ const postConfig: EntityConfig = {
 		{ param: "authorId", column: "author_id", type: "exact", parse: "int" },
 		{ param: "authorName", column: "author_name", type: "like" },
 		{ param: "content", column: "content", type: "like" },
+		{ param: "createdAt", column: "created_at", type: "range" },
 	],
 	allowedSorts: {
 		position_asc: "position ASC",
