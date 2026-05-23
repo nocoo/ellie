@@ -14,6 +14,7 @@ import {
 	fetchRecentPosts,
 	fetchRecentThreads,
 	fetchRecentUsers,
+	shanghaiDateStringToUnix,
 	timeRangeToBounds,
 } from "@/viewmodels/admin/recent";
 
@@ -31,6 +32,46 @@ describe("recent viewmodel", () => {
 	describe("TIME_RANGE_LABELS", () => {
 		it("contains all four ranges", () => {
 			expect(Object.keys(TIME_RANGE_LABELS)).toEqual(["today", "7d", "30d", "custom"]);
+		});
+	});
+
+	describe("shanghaiDateStringToUnix", () => {
+		it("converts 2026-01-15 to Shanghai midnight", () => {
+			const unix = shanghaiDateStringToUnix("2026-01-15");
+			const date = new Date(unix * 1000);
+			const parts = new Intl.DateTimeFormat("en-US", {
+				timeZone: "Asia/Shanghai",
+				year: "numeric",
+				month: "2-digit",
+				day: "2-digit",
+				hour: "2-digit",
+				minute: "2-digit",
+				second: "2-digit",
+				hour12: false,
+			}).formatToParts(date);
+			const get = (type: string) => parts.find((p) => p.type === type)?.value;
+			expect(get("year")).toBe("2026");
+			expect(get("month")).toBe("01");
+			expect(get("day")).toBe("15");
+			expect(get("hour")).toBe("00");
+			expect(get("minute")).toBe("00");
+			expect(get("second")).toBe("00");
+		});
+
+		it("endOfDay returns 23:59:59 Shanghai time", () => {
+			const unix = shanghaiDateStringToUnix("2026-01-15", true);
+			const date = new Date(unix * 1000);
+			const parts = new Intl.DateTimeFormat("en-US", {
+				timeZone: "Asia/Shanghai",
+				hour: "2-digit",
+				minute: "2-digit",
+				second: "2-digit",
+				hour12: false,
+			}).formatToParts(date);
+			const get = (type: string) => parts.find((p) => p.type === type)?.value;
+			expect(get("hour")).toBe("23");
+			expect(get("minute")).toBe("59");
+			expect(get("second")).toBe("59");
 		});
 	});
 
@@ -54,10 +95,10 @@ describe("recent viewmodel", () => {
 			expect(month.min).toBeLessThan(week.min);
 		});
 
-		it("uses customStart and customEnd for custom range", () => {
-			const { min, max } = timeRangeToBounds("custom", 1000, 2000);
-			expect(min).toBe(1000);
-			expect(max).toBe(2000);
+		it("uses customStart and customEnd date strings", () => {
+			const { min, max } = timeRangeToBounds("custom", "2026-03-01", "2026-03-05");
+			expect(min).toBe(shanghaiDateStringToUnix("2026-03-01"));
+			expect(max).toBe(shanghaiDateStringToUnix("2026-03-05", true));
 		});
 
 		it("defaults custom min to 0 if not provided", () => {
@@ -66,7 +107,7 @@ describe("recent viewmodel", () => {
 		});
 
 		it("defaults custom max to now if not provided", () => {
-			const { max } = timeRangeToBounds("custom", 1000);
+			const { max } = timeRangeToBounds("custom", "2026-01-01");
 			const nowSecs = Math.floor(Date.now() / 1000);
 			expect(max).toBeGreaterThanOrEqual(nowSecs - 2);
 			expect(max).toBeLessThanOrEqual(nowSecs + 2);
@@ -116,12 +157,13 @@ describe("recent viewmodel", () => {
 			});
 		});
 
-		it("fetchRecentPosts calls getList with createdAtMin/Max", async () => {
+		it("fetchRecentPosts excludes first posts via isFirst=0", async () => {
 			mockGetList.mockResolvedValue({ data: [], meta });
 			await fetchRecentPosts(500, 900);
 			expect(mockGetList).toHaveBeenCalledWith("/api/admin/posts", {
 				createdAtMin: 500,
 				createdAtMax: 900,
+				isFirst: 0,
 				page: 1,
 				limit: 20,
 			});

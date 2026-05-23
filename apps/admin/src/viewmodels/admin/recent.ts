@@ -29,66 +29,63 @@ export const TIME_RANGE_LABELS: Record<TimeRange, string> = {
 // Time helpers (Asia/Shanghai)
 // ---------------------------------------------------------------------------
 
-function shanghaiNow(): Date {
+/**
+ * Extract year/month/day in Asia/Shanghai from a real Date, then compute the
+ * UTC unix seconds for that Shanghai date at 00:00:00 CST (= UTC-8h).
+ *
+ * This avoids the broken pattern of constructing a "fake UTC Date" from
+ * Shanghai parts and then formatting it with Asia/Shanghai again.
+ */
+function shanghaiMidnightUnix(realDate: Date): number {
 	const parts = new Intl.DateTimeFormat("en-US", {
 		timeZone: "Asia/Shanghai",
 		year: "numeric",
 		month: "2-digit",
 		day: "2-digit",
-		hour: "2-digit",
-		minute: "2-digit",
-		second: "2-digit",
-		hour12: false,
-	}).formatToParts(new Date());
+	}).formatToParts(realDate);
 
-	const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "0";
-	return new Date(
-		Date.UTC(
-			Number(get("year")),
-			Number(get("month")) - 1,
-			Number(get("day")),
-			Number(get("hour")),
-			Number(get("minute")),
-			Number(get("second")),
-		),
-	);
+	const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? "0");
+	const utcMidnight = Date.UTC(get("year"), get("month") - 1, get("day"));
+	return Math.floor((utcMidnight - 8 * 3600_000) / 1000);
 }
 
-function shanghaiStartOfDay(date: Date): number {
-	const parts = new Intl.DateTimeFormat("en-US", {
-		timeZone: "Asia/Shanghai",
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-	}).formatToParts(date);
-
-	const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "0";
-	const utcMidnight = Date.UTC(Number(get("year")), Number(get("month")) - 1, Number(get("day")));
-	return Math.floor((utcMidnight - 8 * 3600 * 1000) / 1000);
+/**
+ * Parse a "YYYY-MM-DD" date string as Shanghai midnight (start of day) or
+ * end of day (23:59:59 CST). Returns unix seconds.
+ */
+export function shanghaiDateStringToUnix(dateStr: string, endOfDay = false): number {
+	const parts = dateStr.split("-").map(Number);
+	const utcMidnight = Date.UTC(parts[0] ?? 0, (parts[1] ?? 1) - 1, parts[2] ?? 1);
+	const shanghaiMidnight = Math.floor((utcMidnight - 8 * 3600_000) / 1000);
+	return endOfDay ? shanghaiMidnight + 86400 - 1 : shanghaiMidnight;
 }
 
 export function timeRangeToBounds(
 	range: TimeRange,
-	customStart?: number,
-	customEnd?: number,
+	customStart?: string,
+	customEnd?: string,
 ): { min: number; max: number } {
 	if (range === "custom") {
-		return { min: customStart ?? 0, max: customEnd ?? Math.floor(Date.now() / 1000) };
+		const min = customStart ? shanghaiDateStringToUnix(customStart) : 0;
+		const max = customEnd
+			? shanghaiDateStringToUnix(customEnd, true)
+			: Math.floor(Date.now() / 1000);
+		return { min, max };
 	}
 
-	const now = shanghaiNow();
+	const now = new Date();
 	const max = Math.floor(Date.now() / 1000);
 
 	let min: number;
 	switch (range) {
 		case "today":
-			min = shanghaiStartOfDay(now);
+			min = shanghaiMidnightUnix(now);
 			break;
 		case "7d":
-			min = shanghaiStartOfDay(new Date(now.getTime() - 6 * 86400 * 1000));
+			min = shanghaiMidnightUnix(new Date(now.getTime() - 6 * 86400_000));
 			break;
 		case "30d":
-			min = shanghaiStartOfDay(new Date(now.getTime() - 29 * 86400 * 1000));
+			min = shanghaiMidnightUnix(new Date(now.getTime() - 29 * 86400_000));
 			break;
 	}
 
@@ -136,6 +133,7 @@ export async function fetchRecentPosts(
 	return apiClient.getList<Post>("/api/admin/posts", {
 		createdAtMin: min,
 		createdAtMax: max,
+		isFirst: 0,
 		page,
 		limit,
 	});

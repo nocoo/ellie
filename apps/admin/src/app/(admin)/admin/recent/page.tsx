@@ -106,14 +106,7 @@ function RecentPageInner() {
 
 	// Resolve bounds from current range settings
 	const bounds = useMemo(() => {
-		if (timeRange === "custom") {
-			const min = customStart ? Math.floor(new Date(customStart).getTime() / 1000) : 0;
-			const max = customEnd
-				? Math.floor(new Date(`${customEnd}T23:59:59`).getTime() / 1000)
-				: Math.floor(Date.now() / 1000);
-			return { min, max };
-		}
-		return timeRangeToBounds(timeRange);
+		return timeRangeToBounds(timeRange, customStart || undefined, customEnd || undefined);
 	}, [timeRange, customStart, customEnd]);
 
 	// Track latest fetch to avoid stale state
@@ -699,21 +692,16 @@ function PostsTab({
 			{
 				key: "actions",
 				header: "",
-				cell: (row) =>
-					!row.isFirst ? (
-						<Button
-							variant="ghost"
-							size="icon"
-							className="h-7 w-7 text-destructive hover:text-destructive"
-							onClick={() => onDelete(row.id)}
-						>
-							<Trash2 className="h-4 w-4" />
-						</Button>
-					) : (
-						<Badge variant="secondary" className="text-xs">
-							首帖
-						</Badge>
-					),
+				cell: (row) => (
+					<Button
+						variant="ghost"
+						size="icon"
+						className="h-7 w-7 text-destructive hover:text-destructive"
+						onClick={() => onDelete(row.id)}
+					>
+						<Trash2 className="h-4 w-4" />
+					</Button>
+				),
 				className: "w-10",
 			},
 		],
