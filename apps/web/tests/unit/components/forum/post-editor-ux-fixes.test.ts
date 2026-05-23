@@ -2,23 +2,25 @@
 //
 // UX fixes for the forum new-thread / reply editor — req zheng-li
 // msg=c3dceecc (UX rev 1) + msg=0c9265c6 (default smiley group as the
-// landing tab). These tests pin the contract on the SHARED `PostEditor`
-// path (mounted by both `NewThreadDialog` and `ReplyDialog`, so one
-// surface covers both entry points):
+// landing tab) + reviewer msg=017bd790 (named emoji trigger; preserve
+// Unicode insertion shape). These tests pin the contract on the SHARED
+// `PostEditor` path (mounted by both `NewThreadDialog` and `ReplyDialog`,
+// so one surface covers both entry points):
 //
 //   1. Click anywhere inside the editor body — not just the existing
 //      text rows — focuses the tiptap editor.
-//   2. The unified emoji picker (the only emoji entry point on the
-//      toolbar) opens with a stable, non-zero width and on the forum
-//      default smiley group, so `laugh.gif` & friends are the first
-//      thing the user sees.
-//   3. Picking a forum smiley inserts the token (e.g. `:laugh: `) so
-//      the existing renderer round-trips it back to a CDN <img>; the
-//      popover closes after the pick.
-//   4. Picking a Unicode emoji from the inner Emoji tab still inserts
-//      the native character and closes the popover.
+//   2. The unified emoji picker is the only emoji entry point on the
+//      toolbar and is discoverable as a NAMED button (aria-label
+//      "插入表情" + tooltip) — no anonymous icon buttons.
+//   3. Picking a forum smiley inserts the raw token followed by a
+//      single space (`:laugh: `) and closes the popover.
+//   4. Picking a Unicode emoji inserts the native character WITHOUT a
+//      trailing space (`😀`, matching the pre-unification EmojiPicker
+//      behavior) and closes the popover.
+//   5. Default forum group lands on first open, with `laugh.gif`
+//      pointing at the canonical CDN.
 
-import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -76,22 +78,35 @@ function renderEditor(onSubmit = vi.fn()) {
 }
 
 async function openUnifiedPicker() {
-	// The toolbar now has exactly one emoji entry — the Smile-icon
-	// trigger rendered by UnifiedEmojiPicker. Reach it via a tag-name
-	// + svg lookup so we don't depend on the aria-label wording.
-	const trigger = await waitFor(() => {
-		const buttons = Array.from(document.querySelectorAll("button"));
-		const smile = buttons.find(
-			(b) =>
-				b.querySelector("svg.lucide-smile") !== null && b.closest('input[type="file"]') === null,
-		);
-		if (!smile) throw new Error("unified picker trigger not mounted");
-		return smile as HTMLButtonElement;
-	});
+	// Toolbar exposes exactly one emoji entry point — a named button
+	// with aria-label "插入表情" (reviewer msg=017bd790). Reach it by
+	// accessible name so the test no longer depends on the lucide icon
+	// class string.
+	const trigger = (await waitFor(() =>
+		screen.getByRole("button", { name: "插入表情" }),
+	)) as HTMLButtonElement;
 	await act(async () => {
 		fireEvent.click(trigger);
 	});
 	return trigger;
+}
+
+/**
+ * Submit the editor and return the HTML that the editor handed to
+ * `onSubmit`. We use this to read back what tiptap's `insertContent`
+ * actually wrote into the document — happy-dom doesn't render the
+ * ProseMirror text node faithfully, but tiptap's own `getHTML()`
+ * returns the canonical serialized form.
+ */
+function submitAndReadHtml(onSubmit: ReturnType<typeof vi.fn>): string {
+	const submit = screen.getByRole("button", { name: "提交" });
+	act(() => {
+		fireEvent.click(submit);
+	});
+	expect(onSubmit).toHaveBeenCalled();
+	const lastCall = onSubmit.mock.calls.at(-1) as [string] | undefined;
+	if (!lastCall) throw new Error("onSubmit was not invoked");
+	return lastCall[0];
 }
 
 describe("PostEditor — editor wrapper click-to-focus", () => {
@@ -141,19 +156,32 @@ describe("PostEditor — unified emoji entry point", () => {
 		cleanup();
 	});
 
-	it("renders exactly one emoji entry point on the toolbar (no duplicate pickers)", async () => {
+	it("exposes exactly one NAMED emoji button on the toolbar (no duplicates, no anonymous icon)", async () => {
 		renderEditor();
 		await waitFor(() => {
 			// Sanity — make sure the editor mounted first so the toolbar exists.
 			if (!document.querySelector(".ProseMirror")) throw new Error("editor not ready");
 		});
-		const smileTriggers = Array.from(document.querySelectorAll("button")).filter(
-			(b) => b.querySelector("svg.lucide-smile") !== null,
+
+		// The named button must exist exactly once.
+		const named = screen.getAllByRole("button", { name: "插入表情" });
+		expect(named.length).toBe(1);
+
+		// And there must be no anonymous Smile-icon button (a duplicate
+		// emoji entry that escaped the unification).
+		const buttons = Array.from(document.querySelectorAll("button"));
+		const namedSet = new Set(named);
+		const anonymousSmile = buttons.find(
+			(b) =>
+				!namedSet.has(b) &&
+				b.querySelector("svg.lucide-smile") !== null &&
+				!b.getAttribute("aria-label"),
 		);
-		expect(smileTriggers.length).toBe(1);
+		expect(anonymousSmile).toBeUndefined();
+
 		// And no stray emoji-mart 😀 trigger (the old standalone EmojiPicker)
 		// hanging around outside the unified popover.
-		const standaloneEmojiButton = Array.from(document.querySelectorAll("button")).find(
+		const standaloneEmojiButton = buttons.find(
 			(b) =>
 				b.textContent?.trim() === "😀" &&
 				b.getAttribute("data-testid") !== "mock-emoji-mart-select",
@@ -179,8 +207,8 @@ describe("PostEditor — unified emoji entry point", () => {
 		expect(laugh.src).toBe("https://t.no.mt/static/image/smiley/default/laugh.gif");
 	});
 
-	it("picking a forum smiley inserts the raw token (`:laugh: `) and closes the popover", async () => {
-		renderEditor();
+	it("picking a forum smiley inserts `:laugh: ` (with trailing space) and closes the popover", async () => {
+		const { onSubmit } = renderEditor();
 		await openUnifiedPicker();
 
 		const laughBtn = (await waitFor(() => {
@@ -193,18 +221,23 @@ describe("PostEditor — unified emoji entry point", () => {
 			fireEvent.click(laughBtn);
 		});
 
-		// The picker forwards the raw token `code`; the PostEditor toolbar
-		// wraps it with a trailing space before calling insertContent. We
-		// don't have a tiptap programmatic readback under happy-dom that
-		// is reliable, but we CAN assert the popover closed (popup unmount
-		// = open=false propagated through controlled state).
+		// Popover closes after pick.
 		await waitFor(() => {
 			expect(document.querySelector('img[alt=":laugh:"]')).toBeNull();
 		});
+
+		// And the editor body now contains the raw token with a trailing
+		// space. We read it back via the submit-onSubmit path so we are
+		// asking tiptap for its canonical HTML, not happy-dom's view of
+		// ProseMirror's intermediate text node.
+		const html = submitAndReadHtml(onSubmit);
+		expect(html).toContain(":laugh: ");
+		// And no double-space / no extra `:laugh::laugh:`.
+		expect(html).not.toContain(":laugh:  ");
 	});
 
-	it("picking a Unicode emoji from the Emoji tab closes the popover", async () => {
-		renderEditor();
+	it("picking a Unicode emoji inserts `😀` WITHOUT a trailing space and closes the popover", async () => {
+		const { onSubmit } = renderEditor();
 		await openUnifiedPicker();
 
 		// Switch to the inner Emoji tab.
@@ -230,8 +263,16 @@ describe("PostEditor — unified emoji entry point", () => {
 			fireEvent.click(pick);
 		});
 
+		// Popover closed.
 		await waitFor(() => {
 			expect(document.querySelector('[data-testid="mock-emoji-mart"]')).toBeNull();
 		});
+
+		// And the body received the native character with NO trailing
+		// space (this is the regression-guard zheng-li/Reviewer-B asked
+		// for: the old EmojiPicker inserted `😀`, not `😀 `).
+		const html = submitAndReadHtml(onSubmit);
+		expect(html).toContain("😀");
+		expect(html).not.toContain("😀 ");
 	});
 });

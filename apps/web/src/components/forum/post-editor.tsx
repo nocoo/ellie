@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { uploadPostImage } from "@/lib/forum-browser-api";
+import { emojiTokenToInsertion } from "@/viewmodels/forum/post-editor";
 import { sanitizeUrl } from "@/viewmodels/forum/url-sanitize";
 import CharacterCount from "@tiptap/extension-character-count";
 import Image from "@tiptap/extension-image";
@@ -431,13 +432,20 @@ function Toolbar({ editor }: { editor: Editor }) {
 				 * the 16 numbered + 90 named entries in `SMILEY_PACKS.default`)
 				 * so the legacy Discuz vocabulary is what users see first.
 				 * Unicode emoji and a recent-used row are reachable via the
-				 * inner Forum / Emoji / Recent tabs. The picker emits raw
-				 * tokens (`:laugh:` for forum smileys, `😀` for Unicode) —
-				 * we add a trailing space so the next character a user types
-				 * does not collide with the closing `:`.
+				 * inner Forum / Emoji / Recent tabs.
+				 *
+				 * Insertion rule (req msg=017bd790): forum smiley codes
+				 * (`:laugh:` / `:1:` / `{:2_133:}` / `{:3_149:}`) get a
+				 * trailing space because `:` would otherwise collide with
+				 * the next typed character; Unicode emoji (`😀`) is
+				 * inserted as-is to preserve the pre-unification
+				 * EmojiPicker behavior. `emojiTokenToInsertion` is the
+				 * single source of truth for that split — see its tests.
 				 */}
 				<UnifiedEmojiPicker
-					onSelect={(token) => editor.chain().focus().insertContent(`${token} `).run()}
+					onSelect={(token) =>
+						editor.chain().focus().insertContent(emojiTokenToInsertion(token)).run()
+					}
 				/>
 			</div>
 		</TooltipProvider>

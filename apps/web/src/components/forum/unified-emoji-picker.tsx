@@ -4,6 +4,7 @@
 // Features: Tab switching, search, recent usage tracking with localStorage
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SMILEY_PACKS, getSmileyImageUrl } from "@/lib/smiley";
 import { cn } from "@/lib/utils";
 import data from "@emoji-mart/data";
@@ -135,9 +136,19 @@ export function UnifiedEmojiPicker({ onSelect }: UnifiedEmojiPickerProps) {
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger className="inline-flex h-7 w-7 items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0">
-				<Smile className="h-3.5 w-3.5" />
-			</PopoverTrigger>
+			<Tooltip>
+				<TooltipTrigger
+					render={
+						<PopoverTrigger
+							aria-label="插入表情"
+							className="inline-flex h-7 w-7 items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
+						>
+							<Smile className="h-3.5 w-3.5" />
+						</PopoverTrigger>
+					}
+				/>
+				<TooltipContent>插入表情</TooltipContent>
+			</Tooltip>
 			<PopoverContent className="w-[320px] p-0 overflow-hidden" align="end" sideOffset={8}>
 				{/* Main tabs */}
 				<div className="flex border-b bg-muted/30">
