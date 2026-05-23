@@ -108,6 +108,8 @@ interface RequestOptions {
 	clientIP?: string;
 	/** Client User-Agent to forward as X-Real-User-Agent */
 	clientUA?: string;
+	/** Next.js ISR revalidation interval in seconds. When set, replaces cache: "no-store". */
+	revalidate?: number;
 }
 
 function buildHeaders(opts: RequestOptions): Record<string, string> {
@@ -148,7 +150,9 @@ async function request<T>(
 		method: opts.method,
 		headers,
 		body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-		cache: "no-store",
+		...(opts.revalidate != null
+			? { next: { revalidate: opts.revalidate } }
+			: { cache: "no-store" as const }),
 	});
 
 	const text = await res.text();
@@ -198,13 +202,31 @@ async function request<T>(
 // Public API methods
 // ---------------------------------------------------------------------------
 
+export interface GetOptions {
+	searchParams?: Record<string, string | number | boolean | undefined | null>;
+	/** Next.js ISR revalidation interval in seconds. Omit for no-store. */
+	revalidate?: number;
+}
+
+function isGetOptions(v: unknown): v is GetOptions {
+	return v != null && typeof v === "object" && "revalidate" in v;
+}
+
 export const forumApi = {
 	/** GET single resource: { data: T, meta } */
 	async get<T>(
 		path: string,
-		searchParams?: Record<string, string | number | boolean | undefined | null>,
+		searchParamsOrOpts?: Record<string, string | number | boolean | undefined | null> | GetOptions,
 	): Promise<ApiResponse<T>> {
-		const result = await request<T>({ method: "GET", path, searchParams });
+		let searchParams: Record<string, string | number | boolean | undefined | null> | undefined;
+		let revalidate: number | undefined;
+		if (isGetOptions(searchParamsOrOpts)) {
+			searchParams = searchParamsOrOpts.searchParams;
+			revalidate = searchParamsOrOpts.revalidate;
+		} else {
+			searchParams = searchParamsOrOpts;
+		}
+		const result = await request<T>({ method: "GET", path, searchParams, revalidate });
 		return { data: result.data, meta: result.meta as ApiMeta };
 	},
 
