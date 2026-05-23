@@ -988,33 +988,86 @@ describe("thread handlers", () => {
 			const d1Row = makeD1ThreadRow({ id: 42 });
 			const db = createGetByIdMockDb(d1Row);
 			const env = { ...mockEnv, DB: db };
+			const ctx = getCtx() as ReturnType<typeof getCtx> & {
+				_waitUntilPromises: Promise<unknown>[];
+			};
 
-			await getById(new Request("https://example.com/api/v1/threads/42"), env, getCtx());
+			await getById(new Request("https://example.com/api/v1/threads/42"), env, ctx);
 
-			// Should call prepare for UPDATE threads SET views
+			// The view-bump now runs inside `ctx.waitUntil` (see
+			// `scheduleThreadViewIncrement`). Drain so the prepare chain
+			// executes, then assert the exact UPDATE SQL hit D1 with the
+			// thread id bound. Pinning the SQL + bind here catches
+			// regressions where the helper drifts (column rename,
+			// conditional clause).
+			await Promise.all(ctx._waitUntilPromises);
 			const updateCall = (db.prepare as ReturnType<typeof mock>).mock.calls.find((c) =>
 				(c[0] as string).includes("UPDATE threads SET views"),
 			);
-			expect(updateCall?.[0] as string).toContain("UPDATE threads SET views");
+			expect(updateCall?.[0] as string).toBe("UPDATE threads SET views = views + 1 WHERE id = ?");
+			expect(ctx.waitUntil).toHaveBeenCalled();
 		});
 
 		it("should increment views even if UPDATE fails (fire-and-forget)", async () => {
+			// D1 reject must not break the user-visible 200 response, and
+			// must not surface as an unhandled rejection on the
+			// waitUntil-bound promise. The helper swallows the error into
+			// `console.warn` — see `lib/thread-views.test.ts` for the
+			// helper-level assertion; here we just verify the handler
+			// doesn't regress.
 			const d1Row = makeD1ThreadRow({ id: 42 });
-			const db = createGetByIdMockDb(d1Row);
+			const db = {
+				prepare: vi.fn((sql: string) => {
+					if (sql.includes("FROM threads") && sql.includes("WHERE")) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve(d1Row)),
+							})),
+						};
+					}
+					if (sql.includes("SELECT status, visibility FROM forums")) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "public" })),
+							})),
+						};
+					}
+					if (sql.includes("UPDATE threads SET views")) {
+						return {
+							bind: vi.fn(() => ({
+								run: vi.fn(() => Promise.reject(new Error("D1 unavailable"))),
+							})),
+						};
+					}
+					return {
+						bind: vi.fn(() => ({
+							first: vi.fn(() => Promise.resolve(null)),
+						})),
+					};
+				}),
+			} as unknown as D1Database;
 			const env = { ...mockEnv, DB: db };
+			const ctx = getCtx() as ReturnType<typeof getCtx> & {
+				_waitUntilPromises: Promise<unknown>[];
+			};
+			const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
 			const response = await getById(
 				new Request("https://example.com/api/v1/threads/42"),
 				env,
-				getCtx(),
+				ctx,
 			);
 
 			// Should still return 200 despite UPDATE failure
 			expect(response.status).toBe(200);
-			const updateCall = (db.prepare as ReturnType<typeof mock>).mock.calls.find((c) =>
-				(c[0] as string).includes("UPDATE threads SET views"),
+			// And the waitUntil-bound promise must resolve, not reject —
+			// otherwise we're back to swallowed unhandled rejections.
+			await expect(Promise.all(ctx._waitUntilPromises)).resolves.toEqual([undefined]);
+			expect(warnSpy).toHaveBeenCalledWith(
+				"[thread-views] increment failed",
+				expect.objectContaining({ threadId: 42 }),
 			);
-			expect(updateCall).toBeDefined();
+			warnSpy.mockRestore();
 		});
 
 		it("should return 404 when forum is inactive for getById", async () => {
@@ -1109,6 +1162,120 @@ describe("thread handlers", () => {
 			expect(response.status).toBe(403);
 			const data = await response.json();
 			expect(data.error.code).toBe("FORBIDDEN");
+		});
+
+		it("should NOT schedule a view bump when getById early-returns 404 (thread missing)", async () => {
+			// Early-return paths must not increment views — otherwise a
+			// 404 probe loop could still inflate counts. Pin this
+			// behavior here so future refactors of `getById` can't
+			// accidentally move `scheduleThreadViewIncrement` above the
+			// existence/visibility checks.
+			const db = createGetByIdMockDb(null);
+			const env = { ...mockEnv, DB: db };
+			const ctx = getCtx();
+
+			const response = await getById(
+				new Request("https://example.com/api/v1/threads/999"),
+				env,
+				ctx,
+			);
+
+			expect(response.status).toBe(404);
+			expect(ctx.waitUntil).not.toHaveBeenCalled();
+			const updateCall = (db.prepare as ReturnType<typeof mock>).mock.calls.find((c) =>
+				(c[0] as string).includes("UPDATE threads SET views"),
+			);
+			expect(updateCall).toBeUndefined();
+		});
+
+		it("should NOT schedule a view bump when forum is inactive (404)", async () => {
+			const d1Row = makeD1ThreadRow({ id: 1 });
+			const db = {
+				prepare: vi.fn((sql: string) => {
+					if (sql.includes("FROM threads") && sql.includes("WHERE")) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve(d1Row)),
+							})),
+						};
+					}
+					if (sql.includes("SELECT status, visibility FROM forums")) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 0, visibility: "public" })),
+							})),
+						};
+					}
+					if (sql.includes("UPDATE threads SET views")) {
+						return {
+							bind: vi.fn(() => ({
+								run: vi.fn(() => Promise.resolve({ success: true })),
+							})),
+						};
+					}
+					return {
+						bind: vi.fn(() => ({
+							first: vi.fn(() => Promise.resolve(null)),
+						})),
+					};
+				}),
+			} as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+			const ctx = getCtx();
+
+			const response = await getById(new Request("https://example.com/api/v1/threads/1"), env, ctx);
+
+			expect(response.status).toBe(404);
+			expect(ctx.waitUntil).not.toHaveBeenCalled();
+			const updateCall = (db.prepare as ReturnType<typeof mock>).mock.calls.find((c) =>
+				(c[0] as string).includes("UPDATE threads SET views"),
+			);
+			expect(updateCall).toBeUndefined();
+		});
+
+		it("should NOT schedule a view bump when visibility denies access (403)", async () => {
+			const d1Row = makeD1ThreadRow({ id: 1 });
+			const db = {
+				prepare: vi.fn((sql: string) => {
+					if (sql.includes("FROM threads") && sql.includes("WHERE")) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve(d1Row)),
+							})),
+						};
+					}
+					if (sql.includes("SELECT status, visibility FROM forums")) {
+						return {
+							bind: vi.fn(() => ({
+								first: vi.fn(() => Promise.resolve({ status: 1, visibility: "members" })),
+							})),
+						};
+					}
+					if (sql.includes("UPDATE threads SET views")) {
+						return {
+							bind: vi.fn(() => ({
+								run: vi.fn(() => Promise.resolve({ success: true })),
+							})),
+						};
+					}
+					return {
+						bind: vi.fn(() => ({
+							first: vi.fn(() => Promise.resolve(null)),
+						})),
+					};
+				}),
+			} as unknown as D1Database;
+			const env = { ...mockEnv, DB: db };
+			const ctx = getCtx();
+
+			const response = await getById(new Request("https://example.com/api/v1/threads/1"), env, ctx);
+
+			expect(response.status).toBe(403);
+			expect(ctx.waitUntil).not.toHaveBeenCalled();
+			const updateCall = (db.prepare as ReturnType<typeof mock>).mock.calls.find((c) =>
+				(c[0] as string).includes("UPDATE threads SET views"),
+			);
+			expect(updateCall).toBeUndefined();
 		});
 	});
 

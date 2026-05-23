@@ -18,6 +18,7 @@ import { checkPostingPermission } from "../lib/postingPermission";
 import { getQueryParam } from "../lib/queryString";
 import { jsonListResponse, jsonResponse, paginatedResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
+import { scheduleThreadViewIncrement } from "../lib/thread-views";
 import { coerceTypeIdInput, resolveAndValidateTypeId } from "../lib/threadType";
 import { getUserProfiles } from "../lib/user-cache";
 import {
@@ -663,10 +664,13 @@ export async function getById(
 		);
 	}
 
-	// Fire-and-forget: increment view count (don't await).
+	// Schedule the view-count bump under ctx.waitUntil so the UPDATE
+	// stays bound to the Worker lifecycle. The previous fire-and-forget
+	// `void DB.run()` could be cancelled when the response returned,
+	// causing low-traffic threads to stay pinned at views=0.
 	// Skip for moderated threads — internal viewers shouldn't inflate counts.
 	if (sticky !== STICKY_MODERATED) {
-		void env.DB.prepare("UPDATE threads SET views = views + 1 WHERE id = ?").bind(id).run();
+		scheduleThreadViewIncrement(env, ctx, id);
 	}
 
 	let thread = toThread(r);
