@@ -12,10 +12,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const hoisted = vi.hoisted(() => ({
 	searchParamsValue: "" as string,
+	routerReplace: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
 	useSearchParams: () => new URLSearchParams(hoisted.searchParamsValue),
+	usePathname: () => "/admin/analytics",
+	useRouter: () => ({
+		replace: hoisted.routerReplace,
+		push: vi.fn(),
+		back: vi.fn(),
+		forward: vi.fn(),
+		refresh: vi.fn(),
+		prefetch: vi.fn(),
+	}),
 }));
 
 // Stub each tab to a sentinel so we can assert which one is mounted without
@@ -45,6 +55,7 @@ afterEach(() => {
 	cleanup();
 	vi.restoreAllMocks();
 	hoisted.searchParamsValue = "";
+	hoisted.routerReplace.mockReset();
 });
 
 async function loadPage() {
@@ -107,6 +118,36 @@ describe("AnalyticsPage — tab layout", () => {
 		fireEvent.click(auditTab);
 		expect(await screen.findByTestId("audit-tab")).toBeTruthy();
 		expect(screen.queryByTestId("trend-tab")).toBeNull();
+	});
+
+	it("writes the active tab back to the URL via router.replace", async () => {
+		const Page = await loadPage();
+		render(<Page />);
+		await screen.findByTestId("trend-tab");
+		const loginTab = screen
+			.getAllByRole("tab")
+			.find((el) => el.textContent?.includes("登录")) as HTMLElement;
+		fireEvent.click(loginTab);
+		expect(hoisted.routerReplace).toHaveBeenCalledTimes(1);
+		expect(hoisted.routerReplace).toHaveBeenCalledWith("/admin/analytics?tab=login");
+	});
+
+	it("preserves other query params when writing the tab back to the URL", async () => {
+		hoisted.searchParamsValue = "foo=bar";
+		const Page = await loadPage();
+		render(<Page />);
+		await screen.findByTestId("trend-tab");
+		const auditTab = screen
+			.getAllByRole("tab")
+			.find((el) => el.textContent?.includes("审计")) as HTMLElement;
+		fireEvent.click(auditTab);
+		expect(hoisted.routerReplace).toHaveBeenCalledTimes(1);
+		const url = hoisted.routerReplace.mock.calls[0][0] as string;
+		expect(url.startsWith("/admin/analytics?")).toBe(true);
+		// Order-insensitive — URLSearchParams doesn't guarantee key order.
+		const replacedParams = new URLSearchParams(url.split("?")[1]);
+		expect(replacedParams.get("foo")).toBe("bar");
+		expect(replacedParams.get("tab")).toBe("audit");
 	});
 
 	it("keeps the 今日 KPI row above the tabs and shared across tab switches", async () => {

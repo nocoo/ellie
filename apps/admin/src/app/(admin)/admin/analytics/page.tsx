@@ -15,8 +15,14 @@
 // Switching tabs unmounts the previous tab, so an idle tab does not poll
 // or hold stale data in memory.
 //
-// URL state: `?tab=trend|audit|login` so deep links land on the right tab.
-// Unknown values fall back to `trend` without mutating the URL.
+// URL state: `?tab=trend|audit|login`. Two-way binding:
+//   - On mount and whenever the URL changes externally (back/forward,
+//     direct edit, programmatic navigation) we read `?tab=` and sync
+//     local state.
+//   - On click the active tab is written back via `router.replace` so
+//     reload / link sharing / browser history all preserve the choice.
+//   - Unknown values fall back to `trend` (the next click writes the
+//     normalized value back to the URL).
 
 import { AuditTab } from "@/components/admin/analytics/tabs/audit-tab";
 import { LoginTab } from "@/components/admin/analytics/tabs/login-tab";
@@ -28,7 +34,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Section } from "@/components/layout/section";
 import { type AnalyticsOverview, parseOverview } from "@/viewmodels/admin/analytics";
 import { CalendarCheck, FileText, MessageSquare, Users } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 // ---------------------------------------------------------------------------
@@ -75,8 +81,31 @@ async function fetchJson<T>(url: string, parse: (raw: unknown) => T): Promise<T>
 
 function AnalyticsPageInner(): React.JSX.Element {
 	const searchParams = useSearchParams();
+	const pathname = usePathname();
+	const router = useRouter();
 	const initialTab = useMemo(() => parseTab(searchParams.get("tab")), [searchParams]);
 	const [activeTab, setActiveTab] = useState<AnalyticsTab>(initialTab);
+
+	// Keep local state in sync if the URL changes externally (back/forward,
+	// direct address-bar edit, or programmatic navigation).
+	useEffect(() => {
+		setActiveTab(initialTab);
+	}, [initialTab]);
+
+	const handleTabChange = useCallback(
+		(next: AnalyticsTab) => {
+			setActiveTab(next);
+			// Mirror the tab into the URL so the choice survives reload /
+			// link sharing / browser history. Use `replace` to avoid piling
+			// up history entries on every click. Preserve any other query
+			// params that the page might rely on in the future.
+			const params = new URLSearchParams(searchParams.toString());
+			params.set("tab", next);
+			const qs = params.toString();
+			router.replace(qs ? `${pathname}?${qs}` : pathname);
+		},
+		[searchParams, pathname, router],
+	);
 
 	const [overview, setOverview] = useState<AnalyticsOverview | null>(null);
 	const [overviewError, setOverviewError] = useState<string | null>(null);
@@ -127,7 +156,7 @@ function AnalyticsPageInner(): React.JSX.Element {
 						<SegmentedSwitch
 							ariaLabel="切换数据分析视图"
 							value={activeTab}
-							onValueChange={setActiveTab}
+							onValueChange={handleTabChange}
 							options={tabOptions}
 						/>
 					}
