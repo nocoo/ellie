@@ -69,7 +69,10 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 		: `/threads/${thread.id}`;
 
 	return (
-		<div className="border-b border-border/50 last:border-0 transition-colors hover:bg-accent/50 focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset">
+		<div
+			className="border-b border-border/50 last:border-0 transition-colors hover:bg-accent/50 focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-inset"
+			data-testid="thread-item"
+		>
 			{/* Desktop layout: single row with columns */}
 			<div className="hidden sm:flex items-center">
 				{/* Thread icon column */}
