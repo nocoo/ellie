@@ -20,6 +20,7 @@ import {
 	type User,
 	type UserRole,
 	UserStatus,
+	canEditThreadSubject,
 	canManageThread,
 	canModerate,
 	canMoveThread,
@@ -52,6 +53,8 @@ export interface ThreadDetailPageData {
 	canMoveThread: boolean;
 	/** Can delete thread (SuperMod/Admin or author) */
 	canDeleteThread: boolean;
+	/** Can edit thread subject (author on open thread, or moderator/admin) */
+	canEditSubject: boolean;
 	/** Current user info (for permission checks in client components) */
 	currentUser: User | null;
 }
@@ -149,6 +152,15 @@ export async function loadThreadDetail(params: {
 	// Thread delete UI: Admin/SuperMod only — author excluded per user request.
 	// Worker/API still accepts author deletes; this only hides the button.
 	const canDelete = canMove;
+	// Pencil pen entry next to <h1> — author (active + open) OR moderator/admin.
+	// Worker enforces the same predicate; this gate only controls visibility.
+	const canEditSubject = forum
+		? canEditThreadSubject(
+				currentUser,
+				{ id: thread.id, authorId: thread.authorId, closed: thread.closed },
+				forum,
+			)
+		: false;
 
 	// Fetch attachments, comments, and authors in parallel using batch endpoints
 	// (eliminates N+1: 1 batch request per resource type instead of N per-post requests).
@@ -287,6 +299,7 @@ export async function loadThreadDetail(params: {
 		canManageThread: canManage,
 		canMoveThread: canMove,
 		canDeleteThread: canDelete,
+		canEditSubject,
 		currentUser,
 	};
 }

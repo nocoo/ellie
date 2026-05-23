@@ -41,6 +41,32 @@ export async function deleteThread(threadId: number): Promise<void> {
 	await apiClient.delete(`/api/v1/moderation/threads/${threadId}`);
 }
 
+// ─── Thread Subject Edit (Author + Moderator) ────────────────────
+//
+// `PATCH /api/v1/threads/:id` is the unified subject-edit endpoint.
+// Both thread authors (on open threads) and moderators converge on this
+// one Worker handler, gated by `canEditThreadSubject`. The Worker:
+//   - rejects empty / >200-char subjects with INVALID_BODY
+//   - rejects banned content with CONTENT_BANNED
+//   - returns `{ id, updated: boolean }` — `updated: false` when the
+//     value is a semantic no-op (unchanged after trim + censor)
+// Server-side cache invalidation (thread-meta + thread-list + forum-summary)
+// is handled by the Worker; the caller then `router.refresh()` to refetch.
+export interface EditThreadSubjectResponse {
+	id: number;
+	updated: boolean;
+}
+
+export async function editThreadSubject(
+	threadId: number,
+	subject: string,
+): Promise<EditThreadSubjectResponse> {
+	const { data } = await apiClient.patch<EditThreadSubjectResponse>(`/api/v1/threads/${threadId}`, {
+		subject,
+	});
+	return data;
+}
+
 // ─── Recommended-threads card (Mod+) ─────────────────────────────
 //
 // `POST /api/v1/moderation/threads/:id/recommend` adds the thread to its

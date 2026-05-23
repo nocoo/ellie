@@ -25,6 +25,9 @@ vi.mock("../../src/handlers/thread", () => ({
 	getById: mockHandler(),
 	create: mockHandler(),
 }));
+vi.mock("../../src/handlers/thread-edit", () => ({
+	editThreadSubject: mockHandler(),
+}));
 vi.mock("../../src/handlers/post", () => ({
 	list: mockHandler(),
 	getById: mockHandler(),
@@ -285,6 +288,7 @@ import worker from "../../src/index";
 const MODULE_PATHS: Record<string, string> = {
 	forum: "../../src/handlers/forum",
 	thread: "../../src/handlers/thread",
+	"thread-edit": "../../src/handlers/thread-edit",
 	post: "../../src/handlers/post",
 	attachment: "../../src/handlers/attachment",
 	user: "../../src/handlers/user",
@@ -982,6 +986,7 @@ describe("router (src/index.ts)", () => {
 				["DELETE", "/api/v1/me/posts/1", "user-content", "deleteMyPost"],
 				["DELETE", "/api/v1/me/threads/1", "user-content", "deleteMyThread"],
 				["PATCH", "/api/v1/me/posts/1", "user-content", "editMyPost"],
+				["PATCH", "/api/v1/threads/1", "thread-edit", "editThreadSubject"],
 			])("%s %s → %s.%s", async (method, path, mod, fn) => {
 				const request = makeRequest(method, path);
 				const response = await worker.fetch(request, makeEnv(), makeCtx());

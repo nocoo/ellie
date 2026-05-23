@@ -8,6 +8,7 @@ import {
 	deleteThread,
 	editMyPost,
 	editPost,
+	editThreadSubject,
 	moveThread,
 	setThreadClosed,
 	setThreadDigest,
@@ -148,6 +149,24 @@ describe("moderation-api", () => {
 			expect(patchSpy).toHaveBeenCalledWith("/api/v1/me/posts/400", {
 				content: "my updated post",
 			});
+		});
+	});
+
+	// ─── Thread Subject Edit (author + moderator) ──────────────────
+
+	describe("editThreadSubject", () => {
+		it("calls PATCH /api/v1/threads/:id with body { subject }", async () => {
+			patchSpy.mockResolvedValueOnce({ data: { id: 42, updated: true }, meta: {} });
+			await editThreadSubject(42, "Hello new title");
+			expect(patchSpy).toHaveBeenCalledWith("/api/v1/threads/42", {
+				subject: "Hello new title",
+			});
+		});
+
+		it("returns the parsed { id, updated } envelope unwrapped", async () => {
+			patchSpy.mockResolvedValueOnce({ data: { id: 7, updated: false }, meta: {} });
+			const result = await editThreadSubject(7, "Same as before");
+			expect(result).toEqual({ id: 7, updated: false });
 		});
 	});
 });

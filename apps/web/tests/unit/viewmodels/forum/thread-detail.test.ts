@@ -1,6 +1,7 @@
 import {
 	buildFallbackAuthorMap,
 	checkCanDeleteThread,
+	checkCanEditSubject,
 	checkCanManageThread,
 	checkCanModerate,
 	checkCanMoveThread,
@@ -579,6 +580,76 @@ describe("checkCanDeleteThread", () => {
 	it("returns false for mod deleting others thread", () => {
 		const mod = makeUser({ id: 99, role: UserRole.Mod });
 		expect(checkCanDeleteThread(mod, { authorId: 1 }, { moderators: "mod" })).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// checkCanEditSubject — author + moderator matrix for the Pencil pen entry
+//
+// Freeze msg=a8ee78db Directive 1 — the web ViewModel MUST forward to the
+// `canEditThreadSubject` shared permission. This matrix covers the visible
+// cells driving the gate:
+//   - author / open thread        → allowed
+//   - author / closed thread      → blocked (only mods can edit closed)
+//   - mod-in-forum                → allowed regardless of closed/author
+//   - unrelated logged-in user    → blocked
+//   - null user (anonymous)       → blocked
+// The exhaustive matrix lives in packages/types/tests/permission.test.ts;
+// this test only pins the wrapper forwarding contract.
+// ---------------------------------------------------------------------------
+
+describe("checkCanEditSubject", () => {
+	const forumNoMods = { moderators: "" };
+	const forumWithAlice = { moderators: "alice" };
+
+	it("returns false for null user", () => {
+		expect(checkCanEditSubject(null, { id: 5, authorId: 1, closed: 0 }, forumNoMods)).toBe(false);
+	});
+
+	it("returns true for active author on an open thread", () => {
+		const author = makeUser({ id: 1, role: UserRole.User, status: UserStatus.Active });
+		expect(checkCanEditSubject(author, { id: 5, authorId: 1, closed: 0 }, forumNoMods)).toBe(true);
+	});
+
+	it("returns false for active author on a CLOSED thread", () => {
+		const author = makeUser({ id: 1, role: UserRole.User, status: UserStatus.Active });
+		expect(checkCanEditSubject(author, { id: 5, authorId: 1, closed: 1 }, forumNoMods)).toBe(false);
+	});
+
+	it("returns true for mod-in-forum even on a CLOSED thread (closed gate is author-only)", () => {
+		const mod = makeUser({ id: 99, username: "alice", role: UserRole.Mod });
+		expect(checkCanEditSubject(mod, { id: 5, authorId: 1, closed: 1 }, forumWithAlice)).toBe(true);
+	});
+
+	it("returns true for admin regardless of forum.moderators / closed", () => {
+		const admin = makeUser({ id: 99, role: UserRole.Admin });
+		expect(checkCanEditSubject(admin, { id: 5, authorId: 1, closed: 1 }, forumNoMods)).toBe(true);
+	});
+
+	it("returns true for super-mod regardless of forum.moderators / closed", () => {
+		const superMod = makeUser({ id: 99, role: UserRole.SuperMod });
+		expect(checkCanEditSubject(superMod, { id: 5, authorId: 1, closed: 1 }, forumNoMods)).toBe(
+			true,
+		);
+	});
+
+	it("returns false for unrelated logged-in user (not author, not mod-in-forum)", () => {
+		const stranger = makeUser({
+			id: 88,
+			username: "bob",
+			role: UserRole.User,
+			status: UserStatus.Active,
+		});
+		expect(checkCanEditSubject(stranger, { id: 5, authorId: 1, closed: 0 }, forumWithAlice)).toBe(
+			false,
+		);
+	});
+
+	it("returns false for mod-NOT-in-forum (closed thread, mod role but moderators string doesn't include them)", () => {
+		const modElsewhere = makeUser({ id: 99, username: "carol", role: UserRole.Mod });
+		expect(
+			checkCanEditSubject(modElsewhere, { id: 5, authorId: 1, closed: 0 }, forumWithAlice),
+		).toBe(false);
 	});
 });
 

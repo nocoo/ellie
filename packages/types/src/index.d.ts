@@ -13,6 +13,6 @@ export { EMAIL_NOT_VERIFIED_PAYLOAD, cloneEmailNotVerifiedPayload, } from "./ema
 export type { UserCheckin, UserCheckinSummary, CheckinHistoryEntry, CheckinMood, CheckinLevel, } from "./checkin";
 export { CHECKIN_MOODS, CHECKIN_LEVELS, CHECKIN_REWARD_MIN, CHECKIN_REWARD_MAX, CHECKIN_HOUR_START, CHECKIN_HOUR_END_EXCLUSIVE, CHECKIN_TIMEZONE, getCheckinLevel, } from "./checkin";
 export type { PermissionUser, PermissionForum, PermissionPost, PermissionThread, } from "./permission";
-export { canViewForum, canCreateThread, canReplyToThread, canModerate, canAccessAdmin, canManageUsers, canEditPost, canDeletePost, canDeleteThread, canManageThread, canMoveThread, } from "./permission";
+export { canViewForum, canCreateThread, canReplyToThread, canModerate, canAccessAdmin, canManageUsers, canEditPost, canDeletePost, canDeleteThread, canManageThread, canEditThreadSubject, canMoveThread, } from "./permission";
 export type { RatingDimensionKey, PostRatingRow, PostRatingDimensionAggregate, PostRatingAggregate, PostRatingsResponse, CreatePostRatingRequest, CreatePostRatingResponse, } from "./rating";
 export { RatingDimension, RATING_DIMENSION_KEYS, RATING_LIMITS, RATING_REASON_MAX_LENGTH, RATING_QUOTA_WINDOW_SECONDS, EMPTY_RATING_AGGREGATE, ratingDimensionToKey, ratingKeyToDimension, getRatingPerDayCap, getRatingPerVoteBounds, canRateDimension, canRevokeRating, } from "./rating";

@@ -6,6 +6,7 @@ import { PagePagination } from "@/components/forum/page-pagination";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
 import { ThreadPostsClient } from "@/components/forum/thread-posts-client";
 import { ThreadReportButton } from "@/components/forum/thread-report-button";
+import { ThreadTitleEditButton } from "@/components/forum/thread-title-edit-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getCachedPostsPerPage } from "@/lib/forum-cache";
 import { getSelfForumUser } from "@/lib/forum-self";
@@ -101,6 +102,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 			canManageThread: false,
 			canMoveThread: false,
 			canDeleteThread: false,
+			canEditSubject: false,
 			currentUser: null,
 		};
 	}
@@ -163,6 +165,9 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 						<div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
 							<ThreadBadgeList badges={badges} />
 							<h1 className="text-base font-semibold text-foreground">{thread.subject}</h1>
+							{data.canEditSubject && (
+								<ThreadTitleEditButton threadId={thread.id} currentSubject={thread.subject} />
+							)}
 						</div>
 						<ThreadReportButton
 							threadId={thread.id}

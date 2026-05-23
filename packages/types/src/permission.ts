@@ -146,6 +146,34 @@ export function canManageThread(user: PermissionUser | null, forum: PermissionFo
 }
 
 /**
+ * Can user edit this thread's subject (title)?
+ * - Moderators (Admin / SuperMod / Mod-in-scope): always allowed, even on
+ *   closed threads — moderation operations must remain available after a
+ *   thread is closed for discussion.
+ * - Author: only when account is Active and the thread is not closed.
+ *   `thread.closed === 1` indicates the thread is closed for further
+ *   discussion; authors lose the title-edit affordance in that state to
+ *   mirror the "no new replies" semantic.
+ * - Anonymous / inactive / unrelated users: no.
+ *
+ * Deliberately narrower than {@link canEditPost}: editing a thread's title
+ * is more disruptive (changes list/breadcrumb display, search hits) than
+ * editing a single post body, so the "closed" gate is enforced for
+ * non-moderator authors.
+ */
+export function canEditThreadSubject(
+	user: PermissionUser | null,
+	thread: PermissionThread,
+	forum: PermissionForum,
+): boolean {
+	if (!user) return false;
+	if (canModerate(user, forum)) return true;
+	if (user.status !== UserStatus.Active) return false;
+	if (user.id !== thread.authorId) return false;
+	return thread.closed === 0;
+}
+
+/**
  * Can user move thread to another forum?
  * - Admin/SuperMod: yes
  * - Mod: no (per permission matrix)

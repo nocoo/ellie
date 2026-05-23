@@ -435,6 +435,14 @@ export default {
 				return await (await import("./handlers/user-content")).editMyPost(request, env);
 			}
 
+			// ── Thread title edit (Key A + JWT) — author or moderator ─
+			// Unified PATCH /api/v1/threads/:id (body: { subject }) covers
+			// both surfaces. Admin console uses /api/admin/threads/:id and
+			// stays separate (more fields + admin_logs audit).
+			if (path.match(/^\/api\/v1\/threads\/\d+$/) && request.method === "PATCH") {
+				return await (await import("./handlers/thread-edit")).editThreadSubject(request, env);
+			}
+
 			// ══════════════════════════════════════════════════
 			// Admin endpoints (#18-#61)
 			// All go through adminAuth via withEntityAuth wrapper

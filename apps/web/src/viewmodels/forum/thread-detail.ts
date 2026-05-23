@@ -12,6 +12,7 @@ import {
 	canDeletePost,
 	canDeleteThread,
 	canEditPost,
+	canEditThreadSubject,
 	canManageThread,
 	canModerate,
 	canMoveThread,
@@ -59,6 +60,25 @@ export interface ThreadDetailData {
 	canMoveThread: boolean;
 	/** Can delete thread (SuperMod/Admin only in UI) */
 	canDeleteThread: boolean;
+	/** Can edit thread subject (author on open thread, or moderator/admin) */
+	canEditSubject: boolean;
+}
+
+/**
+ * Check if a user can edit a thread's subject.
+ *
+ * Mirrors the worker-side `canEditThreadSubject` permission:
+ *   - moderator (Admin/SuperMod/Mod-in-forum) always allowed
+ *   - else active author on a non-closed thread
+ *
+ * Used by `thread-detail.server.ts` to gate the Pencil pen icon (PC only).
+ */
+export function checkCanEditSubject(
+	user: User | null,
+	thread: { id: number; authorId: number; closed: number },
+	forum: { moderators: string },
+): boolean {
+	return canEditThreadSubject(user, thread, forum);
 }
 
 // ---------------------------------------------------------------------------

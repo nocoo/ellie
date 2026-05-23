@@ -11,6 +11,7 @@ import {
 	canDeletePost,
 	canDeleteThread,
 	canEditPost,
+	canEditThreadSubject,
 	canManageThread,
 	canManageUsers,
 	canModerate,
@@ -352,5 +353,52 @@ describe("canMoveThread", () => {
 
 	it("returns true for supermod", () => {
 		expect(canMoveThread(superMod)).toBe(true);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// canEditThreadSubject — author + closed gate, mod always allowed
+// ---------------------------------------------------------------------------
+
+describe("canEditThreadSubject", () => {
+	it("returns false for anonymous", () => {
+		expect(canEditThreadSubject(null, openThread, forumWithMod)).toBe(false);
+	});
+
+	it("returns true for active author on open thread", () => {
+		expect(canEditThreadSubject(activeUser, openThread, forumNoMods)).toBe(true);
+	});
+
+	it("returns false for active author on CLOSED thread", () => {
+		// The author loses the title-edit affordance once the thread is
+		// closed — only moderators can keep modifying it from that point on.
+		expect(canEditThreadSubject(activeUser, closedThread, forumNoMods)).toBe(false);
+	});
+
+	it("returns false for banned author even on open thread", () => {
+		const bannedAuthorThread: PermissionThread = { id: 200, authorId: bannedUser.id, closed: 0 };
+		expect(canEditThreadSubject(bannedUser, bannedAuthorThread, forumNoMods)).toBe(false);
+	});
+
+	it("returns false for unrelated active user", () => {
+		const someoneElsesThread: PermissionThread = { id: 200, authorId: 999, closed: 0 };
+		expect(canEditThreadSubject(activeUser, someoneElsesThread, forumNoMods)).toBe(false);
+	});
+
+	it("returns true for mod-in-forum even on closed thread", () => {
+		expect(canEditThreadSubject(mod, closedThread, forumWithMod)).toBe(true);
+	});
+
+	it("returns false for mod-out-of-forum on someone else's thread", () => {
+		const someoneElsesThread: PermissionThread = { id: 200, authorId: 999, closed: 0 };
+		expect(canEditThreadSubject(modNotInForum, someoneElsesThread, forumWithMod)).toBe(false);
+	});
+
+	it("returns true for admin on closed thread (cross-forum)", () => {
+		expect(canEditThreadSubject(admin, closedThread, forumNoMods)).toBe(true);
+	});
+
+	it("returns true for supermod on closed thread (cross-forum)", () => {
+		expect(canEditThreadSubject(superMod, closedThread, forumNoMods)).toBe(true);
 	});
 });

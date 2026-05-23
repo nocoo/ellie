@@ -102,6 +102,7 @@ export {
 	canDeletePost,
 	canDeleteThread,
 	canManageThread,
+	canEditThreadSubject,
 	canMoveThread,
 } from "./permission";
 
