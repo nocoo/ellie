@@ -140,4 +140,39 @@ describe("scheduleThreadViewIncrement", () => {
 		// wrap a second waitUntil around this helper.
 		expect((ctx.waitUntil as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(2);
 	});
+
+	it("survives a synchronous throw from env.DB.prepare", async () => {
+		// Regression guard: an earlier implementation called `prepare`
+		// synchronously in the argument expression of `ctx.waitUntil(...)`.
+		// If `prepare` (or `bind`) ever throws synchronously — a plausible
+		// future change if the D1 binding adds eager argument validation —
+		// the helper must still register a waitUntil-bound task that
+		// resolves and emits a warn, NOT propagate the throw into the
+		// request hot path. Implementation must wrap the chain in
+		// `Promise.resolve().then(...)` to convert sync throws into
+		// rejected promises.
+		const boom = new Error("prepare exploded synchronously");
+		const db = {
+			prepare: vi.fn(() => {
+				throw boom;
+			}),
+		} as unknown as D1Database;
+		const env = makeEnv({ DB: db });
+		const ctx = createMockCtx() as ReturnType<typeof createMockCtx> & {
+			_waitUntilPromises: Promise<unknown>[];
+		};
+
+		expect(() => scheduleThreadViewIncrement(env, ctx, 5)).not.toThrow();
+
+		// A waitUntil-bound task must have been registered even though
+		// `prepare` threw, and it must resolve (not reject).
+		expect((ctx.waitUntil as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
+		await expect(Promise.all(ctx._waitUntilPromises)).resolves.toEqual([undefined]);
+
+		expect(warnSpy).toHaveBeenCalledTimes(1);
+		expect(warnSpy).toHaveBeenCalledWith("[thread-views] increment failed", {
+			threadId: 5,
+			err: boom,
+		});
+	});
 });

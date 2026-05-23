@@ -40,19 +40,28 @@ import type { Env } from "./env";
  * via `console.warn` and never propagate to the caller — view bumps
  * are best-effort by design and must never fail the user-visible
  * detail request.
+ *
+ * Implementation note: the D1 chain (`prepare → bind → run`) is wrapped
+ * in `Promise.resolve().then(...)` so a synchronous throw from
+ * `prepare` or `bind` (e.g. a future binding implementation that
+ * validates argument types eagerly) is converted into a rejected
+ * Promise. Without this indirection a synchronous throw would bypass
+ * the `.catch` handler AND the `ctx.waitUntil` registration entirely,
+ * propagating into the request hot path and breaking the user-visible
+ * 200 response.
  */
 export function scheduleThreadViewIncrement(
 	env: Env,
 	ctx: ExecutionContext,
 	threadId: number,
 ): void {
-	ctx.waitUntil(
-		env.DB.prepare("UPDATE threads SET views = views + 1 WHERE id = ?")
-			.bind(threadId)
-			.run()
-			.then(() => undefined)
-			.catch((err: unknown) => {
-				console.warn("[thread-views] increment failed", { threadId, err });
-			}),
-	);
+	const task = Promise.resolve()
+		.then(() =>
+			env.DB.prepare("UPDATE threads SET views = views + 1 WHERE id = ?").bind(threadId).run(),
+		)
+		.then(() => undefined)
+		.catch((err: unknown) => {
+			console.warn("[thread-views] increment failed", { threadId, err });
+		});
+	ctx.waitUntil(task);
 }
