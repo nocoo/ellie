@@ -103,15 +103,22 @@ function TopBar({ vm }: { vm: HeaderViewModel }) {
 							</span>
 						</UserPopover>
 
-						{/* Action icons — WidthToggle + ThemeToggle desktop only */}
+						{/* Action icons — WidthToggle + ThemeToggle desktop only.
+						    NOTE: the desktop-toggles wrapper is intentionally a `<div>`
+						    (not `<span>`). Several L3 specs scope by
+						    `div.flex.items-center.gap-1 :has(span)` on the user-profile
+						    page to disambiguate the tab nav from anywhere else; a
+						    `<span>` wrapper here would make the action-icons div
+						    consistently match that selector and crash strict-mode
+						    `expect(...).toBeVisible()` with a 2-element collision. */}
 						<div className="flex items-center gap-1 shrink-0">
-							<span
+							<div
 								className="hidden sm:inline-flex items-center gap-1"
 								data-testid="forum-top-bar-desktop-toggles"
 							>
 								<WidthToggle />
 								<ThemeToggle />
-							</span>
+							</div>
 							<MessageBadgeIcon />
 							<button
 								type="button"

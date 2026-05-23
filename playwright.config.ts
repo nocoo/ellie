@@ -75,10 +75,21 @@ export default defineConfig({
 			// device is iPhone 14 (390×844); the spec itself iterates through
 			// 320 / 375 / 390 / 430 widths via `page.setViewportSize` so a
 			// single project covers the 4 reviewer-required viewports.
+			//
+			// Browser pin: we take the iPhone 14 viewport / DPR / userAgent /
+			// touch capability profile but force `browserName: "chromium"`.
+			// `devices["iPhone 14"]` defaults to webkit; CI only installs
+			// chromium (`playwright install --with-deps chromium`) so a webkit
+			// default would fail to launch with `Executable doesn't exist at
+			// .../webkit-*/pw_run.sh`. Mobile drift here is a CSS / DOM
+			// invariant — viewport width + the `hidden sm:*` Tailwind tokens —
+			// not a webkit-specific rendering quirk, so chromium-mobile
+			// emulation covers the gate without dragging the CI runner image
+			// onto a second browser binary.
 			name: "mobile",
 			testMatch: /\/mobile-layout\.spec\.ts/,
 			fullyParallel: true,
-			use: { ...devices["iPhone 14"] },
+			use: { ...devices["iPhone 14"], browserName: "chromium" },
 		},
 		{
 			// Admin specs live under tests/e2e/admin/ and target apps/admin on
