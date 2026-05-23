@@ -1,31 +1,68 @@
 "use client";
 
-import { ForumDistChart } from "@/components/admin/analytics/forum-dist-chart";
-import { LoginAttemptsPanel } from "@/components/admin/analytics/login-attempts-panel";
-import { TodayVisitsPanel } from "@/components/admin/analytics/today-visits-panel";
-import { TrendChart } from "@/components/admin/analytics/trend-chart";
+// Admin data analytics page (`/admin/analytics`).
+//
+// Layout:
+//   1. PageHeader — page-wide
+//   2. "今日 KPI" — page-wide (4 StatCards), shown across all tabs so the
+//      operator always sees today's headline numbers
+//   3. SegmentedSwitch — 3 tabs:
+//        - 趋势 (TrendTab):  trend curves, forum distribution, checkin trend
+//        - 审计 (AuditTab):  TodayVisitsPanel — per-target page-view feed
+//        - 登录 (LoginTab):  LoginAttemptsPanel — login attempt audit log
+//
+// Each tab is a separate client component that owns its own fetch state.
+// Switching tabs unmounts the previous tab, so an idle tab does not poll
+// or hold stale data in memory.
+//
+// URL state: `?tab=trend|audit|login`. Two-way binding:
+//   - On mount and whenever the URL changes externally (back/forward,
+//     direct edit, programmatic navigation) we read `?tab=` and sync
+//     local state.
+//   - On click the active tab is written back via `router.replace` so
+//     reload / link sharing / browser history all preserve the choice.
+//   - Unknown values fall back to `trend` (the next click writes the
+//     normalized value back to the URL).
+
+import { AuditTab } from "@/components/admin/analytics/tabs/audit-tab";
+import { LoginTab } from "@/components/admin/analytics/tabs/login-tab";
+import { TrendTab } from "@/components/admin/analytics/tabs/trend-tab";
+import { SectionHeader } from "@/components/admin/section-header";
+import { SegmentedSwitch } from "@/components/admin/segmented-switch";
 import { StatCard } from "@/components/admin/stat-card";
 import { PageHeader } from "@/components/layout/page-header";
 import { Section } from "@/components/layout/section";
-import {
-	ANALYTICS_RANGES,
-	ANALYTICS_TREND_METRICS,
-	type AnalyticsCheckinTrend,
-	type AnalyticsForumDist,
-	type AnalyticsOverview,
-	type AnalyticsRange,
-	type AnalyticsTrend,
-	type AnalyticsTrendMetric,
-	METRIC_LABELS,
-	RANGE_LABELS,
-	parseCheckinTrend,
-	parseForumDist,
-	parseOverview,
-	parseTrend,
-} from "@/viewmodels/admin/analytics";
-import { Card, CardContent, CardHeader, CardTitle } from "@ellie/ui";
+import { type AnalyticsOverview, parseOverview } from "@/viewmodels/admin/analytics";
 import { CalendarCheck, FileText, MessageSquare, Users } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+
+// ---------------------------------------------------------------------------
+// Tab identity — single source of truth for the tab keys and labels.
+// ---------------------------------------------------------------------------
+
+const ANALYTICS_TABS = ["trend", "audit", "login"] as const;
+type AnalyticsTab = (typeof ANALYTICS_TABS)[number];
+const DEFAULT_TAB: AnalyticsTab = "trend";
+
+const TAB_LABELS: Record<AnalyticsTab, string> = {
+	trend: "趋势",
+	audit: "审计",
+	login: "登录",
+};
+
+const TAB_DESCRIPTIONS: Record<AnalyticsTab, string> = {
+	trend: "近期注册 / 主题 / 回复 / 签到趋势曲线与版块发帖分布。",
+	audit: "今日 PV / 活跃用户与按 path_kind 切片的实时访问明细。",
+	login: "登录尝试审计日志：成功 / 失败 / 风控拦截分组与详情。",
+};
+
+function parseTab(raw: string | null): AnalyticsTab {
+	if (raw && (ANALYTICS_TABS as readonly string[]).includes(raw)) {
+		return raw as AnalyticsTab;
+	}
+	return DEFAULT_TAB;
+}
 
 // ---------------------------------------------------------------------------
 // API
@@ -42,21 +79,36 @@ async function fetchJson<T>(url: string, parse: (raw: unknown) => T): Promise<T>
 // Page
 // ---------------------------------------------------------------------------
 
-export default function AnalyticsPage() {
+function AnalyticsPageInner(): React.JSX.Element {
+	const searchParams = useSearchParams();
+	const pathname = usePathname();
+	const router = useRouter();
+	const initialTab = useMemo(() => parseTab(searchParams.get("tab")), [searchParams]);
+	const [activeTab, setActiveTab] = useState<AnalyticsTab>(initialTab);
+
+	// Keep local state in sync if the URL changes externally (back/forward,
+	// direct address-bar edit, or programmatic navigation).
+	useEffect(() => {
+		setActiveTab(initialTab);
+	}, [initialTab]);
+
+	const handleTabChange = useCallback(
+		(next: AnalyticsTab) => {
+			setActiveTab(next);
+			// Mirror the tab into the URL so the choice survives reload /
+			// link sharing / browser history. Use `replace` to avoid piling
+			// up history entries on every click. Preserve any other query
+			// params that the page might rely on in the future.
+			const params = new URLSearchParams(searchParams.toString());
+			params.set("tab", next);
+			const qs = params.toString();
+			router.replace(qs ? `${pathname}?${qs}` : pathname);
+		},
+		[searchParams, pathname, router],
+	);
+
 	const [overview, setOverview] = useState<AnalyticsOverview | null>(null);
 	const [overviewError, setOverviewError] = useState<string | null>(null);
-
-	const [metric, setMetric] = useState<AnalyticsTrendMetric>("users");
-	const [range, setRange] = useState<AnalyticsRange>("7d");
-
-	const [trend, setTrend] = useState<AnalyticsTrend | null>(null);
-	const [trendError, setTrendError] = useState<string | null>(null);
-
-	const [forumDist, setForumDist] = useState<AnalyticsForumDist | null>(null);
-	const [forumDistError, setForumDistError] = useState<string | null>(null);
-
-	const [checkin, setCheckin] = useState<AnalyticsCheckinTrend | null>(null);
-	const [checkinError, setCheckinError] = useState<string | null>(null);
 
 	const loadOverview = useCallback(async () => {
 		try {
@@ -67,57 +119,11 @@ export default function AnalyticsPage() {
 		}
 	}, []);
 
-	const loadTrend = useCallback(async () => {
-		try {
-			setTrend(
-				await fetchJson(`/api/admin/analytics/trend?metric=${metric}&range=${range}`, (raw) =>
-					parseTrend(raw, metric, range),
-				),
-			);
-			setTrendError(null);
-		} catch (e) {
-			setTrendError(e instanceof Error ? e.message : "加载失败");
-		}
-	}, [metric, range]);
-
-	const loadForumDist = useCallback(async () => {
-		try {
-			setForumDist(
-				await fetchJson(`/api/admin/analytics/forum-dist?range=${range}`, (raw) =>
-					parseForumDist(raw, range),
-				),
-			);
-			setForumDistError(null);
-		} catch (e) {
-			setForumDistError(e instanceof Error ? e.message : "加载失败");
-		}
-	}, [range]);
-
-	const loadCheckin = useCallback(async () => {
-		try {
-			setCheckin(
-				await fetchJson(`/api/admin/analytics/checkin?range=${range}`, (raw) =>
-					parseCheckinTrend(raw, range),
-				),
-			);
-			setCheckinError(null);
-		} catch (e) {
-			setCheckinError(e instanceof Error ? e.message : "加载失败");
-		}
-	}, [range]);
-
 	useEffect(() => {
 		loadOverview();
 	}, [loadOverview]);
-	useEffect(() => {
-		loadTrend();
-	}, [loadTrend]);
-	useEffect(() => {
-		loadForumDist();
-	}, [loadForumDist]);
-	useEffect(() => {
-		loadCheckin();
-	}, [loadCheckin]);
+
+	const tabOptions = ANALYTICS_TABS.map((value) => ({ value, label: TAB_LABELS[value] }));
 
 	return (
 		<div className="space-y-6 md:space-y-8">
@@ -142,101 +148,45 @@ export default function AnalyticsPage() {
 				)}
 			</Section>
 
-			<Section
-				title="趋势"
-				action={
-					<div className="flex flex-wrap items-center gap-2">
-						{ANALYTICS_RANGES.map((r) => (
-							<button
-								type="button"
-								key={r}
-								onClick={() => setRange(r)}
-								className={`rounded-md border px-3 py-1 text-xs transition-colors ${
-									range === r
-										? "border-primary bg-primary/10 text-foreground"
-										: "border-border text-muted-foreground hover:bg-accent"
-								}`}
-							>
-								{RANGE_LABELS[r]}
-							</button>
-						))}
+			<section className="space-y-3">
+				<SectionHeader
+					title="分析视图"
+					description={TAB_DESCRIPTIONS[activeTab]}
+					action={
+						<SegmentedSwitch
+							ariaLabel="切换数据分析视图"
+							value={activeTab}
+							onValueChange={handleTabChange}
+							options={tabOptions}
+						/>
+					}
+				/>
+
+				{activeTab === "trend" && (
+					<div role="tabpanel" aria-label={TAB_LABELS.trend}>
+						<TrendTab />
 					</div>
-				}
-			>
-				<div className="space-y-4 md:space-y-6">
-					<Card>
-						<CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-							<CardTitle className="text-base font-semibold">趋势曲线</CardTitle>
-							<div className="flex flex-wrap gap-2">
-								{ANALYTICS_TREND_METRICS.map((m) => (
-									<button
-										type="button"
-										key={m}
-										onClick={() => setMetric(m)}
-										className={`rounded-md border px-3 py-1 text-xs transition-colors ${
-											metric === m
-												? "border-primary bg-primary/10 text-foreground"
-												: "border-border text-muted-foreground hover:bg-accent"
-										}`}
-									>
-										{METRIC_LABELS[m]}
-									</button>
-								))}
-							</div>
-						</CardHeader>
-						<CardContent>
-							{trendError && <p className="text-sm text-destructive">趋势加载失败：{trendError}</p>}
-							{trend && (
-								<TrendChart series={trend.series} valueLabel={METRIC_LABELS[trend.metric]} />
-							)}
-						</CardContent>
-					</Card>
-
-					<Card>
-						<CardHeader>
-							<CardTitle className="text-base font-semibold">
-								{RANGE_LABELS[range]} 各版块发帖分布
-							</CardTitle>
-						</CardHeader>
-						<CardContent>
-							{forumDistError && (
-								<p className="text-sm text-destructive">分布加载失败：{forumDistError}</p>
-							)}
-							{forumDist && forumDist.rows.length > 0 && <ForumDistChart rows={forumDist.rows} />}
-							{forumDist && forumDist.rows.length === 0 && (
-								<p className="text-sm text-muted-foreground">该时段暂无发帖数据。</p>
-							)}
-						</CardContent>
-					</Card>
-
-					<Card>
-						<CardHeader>
-							<CardTitle className="text-base font-semibold">
-								{RANGE_LABELS[range]} 签到趋势
-							</CardTitle>
-						</CardHeader>
-						<CardContent>
-							{checkinError && (
-								<p className="text-sm text-destructive">签到加载失败：{checkinError}</p>
-							)}
-							{checkin && (
-								<TrendChart
-									series={checkin.series}
-									color="var(--color-chart-tertiary, #f59e0b)"
-									valueLabel="签到"
-								/>
-							)}
-						</CardContent>
-					</Card>
-				</div>
-			</Section>
-
-			<Section title="审计">
-				<div className="space-y-4 md:space-y-6">
-					<TodayVisitsPanel />
-					<LoginAttemptsPanel />
-				</div>
-			</Section>
+				)}
+				{activeTab === "audit" && (
+					<div role="tabpanel" aria-label={TAB_LABELS.audit}>
+						<AuditTab />
+					</div>
+				)}
+				{activeTab === "login" && (
+					<div role="tabpanel" aria-label={TAB_LABELS.login}>
+						<LoginTab />
+					</div>
+				)}
+			</section>
 		</div>
+	);
+}
+
+export default function AnalyticsPage(): React.JSX.Element {
+	// `useSearchParams` requires a Suspense boundary in the Next.js App Router.
+	return (
+		<Suspense fallback={<div className="text-sm text-muted-foreground">加载中...</div>}>
+			<AnalyticsPageInner />
+		</Suspense>
 	);
 }

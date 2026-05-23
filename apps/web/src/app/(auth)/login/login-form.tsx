@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { safeRedirect } from "@/lib/safe-redirect";
 import { canSubmitLogin, loginErrorMessage } from "@/viewmodels/forum/auth";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import {
 	AuthDivider,
 	AuthErrorBanner,
@@ -36,15 +36,26 @@ function LoginFormInner() {
 	const [password, setPassword] = useState("");
 	const [capToken, setCapToken] = useState("");
 	const [loading, setLoading] = useState(false);
+	// `redirecting` keeps the button disabled during the post-success window
+	// between `setLoading(false)` and the browser actually navigating away —
+	// without it, a fast double-click could fire a second signIn request.
+	const [redirecting, setRedirecting] = useState(false);
 	const [error, setError] = useState<string | null>(loginErrorMessage(errorFromUrl));
 	const [registerOpen, setRegisterOpen] = useState(false);
 
+	// Synchronous in-flight lock: React state updates are async, so two rapid
+	// clicks within the same tick can both pass an `if (loading) return` gate.
+	// A ref-backed boolean closes that race.
+	const submittingRef = useRef(false);
+
 	const capConfigured = Boolean(CAP_API_ENDPOINT);
 	const canSubmit = canSubmitLogin(username, password) && capConfigured && Boolean(capToken);
+	const busy = loading || redirecting;
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
-		if (!canSubmit || loading) return;
+		if (!canSubmit || submittingRef.current || redirecting) return;
+		submittingRef.current = true;
 
 		setLoading(true);
 		setError(null);
@@ -59,15 +70,33 @@ function LoginFormInner() {
 
 			if (result?.error) {
 				setError(loginErrorMessage(result.error) ?? "登录失败");
+				setLoading(false);
+				submittingRef.current = false;
 			} else if (result?.ok) {
+				// Success: switch to the redirecting state. We keep
+				// `submittingRef` locked (do NOT release it) so any click
+				// during the redirect window is a no-op. `loading` is
+				// cleared so the label can flip to "正在跳转..."; the
+				// button stays disabled because `busy = loading || redirecting`
+				// is still true via `redirecting`.
+				setLoading(false);
+				setRedirecting(true);
 				window.location.href = callbackUrl;
+			} else {
+				// Defensive: neither ok nor error (shouldn't happen with
+				// redirect:false, but treat as a recoverable failure).
+				setError("登录失败");
+				setLoading(false);
+				submittingRef.current = false;
 			}
 		} catch {
 			setError("网络错误，请重试");
-		} finally {
 			setLoading(false);
+			submittingRef.current = false;
 		}
 	};
+
+	const submitLabel = redirecting ? "正在跳转..." : loading ? "登录中..." : "登录";
 
 	return (
 		<AuthIdCard topCenter="Since 2002">
@@ -91,7 +120,7 @@ function LoginFormInner() {
 						value={username}
 						onChange={(e) => setUsername(e.target.value)}
 						placeholder="请输入用户名"
-						disabled={loading}
+						disabled={busy}
 						autoComplete="username"
 						className="h-[58px] text-base"
 					/>
@@ -108,7 +137,7 @@ function LoginFormInner() {
 						value={password}
 						onChange={(e) => setPassword(e.target.value)}
 						placeholder="请输入密码"
-						disabled={loading}
+						disabled={busy}
 						autoComplete="current-password"
 						className="h-[58px] text-base"
 					/>
@@ -131,10 +160,11 @@ function LoginFormInner() {
 				{/* Submit */}
 				<Button
 					type="submit"
-					disabled={!canSubmit || loading}
+					disabled={!canSubmit || busy}
+					aria-busy={busy}
 					className="w-full h-[58px] text-base"
 				>
-					{loading ? "登录中..." : "登录"}
+					{submitLabel}
 				</Button>
 			</form>
 

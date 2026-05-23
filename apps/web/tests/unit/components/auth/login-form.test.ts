@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
-// Tests for LoginForm — register dialog trigger + CAP fail-closed behavior
-import { cleanup, render, screen } from "@testing-library/react";
+// Tests for LoginForm — register dialog trigger + CAP fail-closed behavior +
+// submit-disable lock (success / failure / exception double-click protection).
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,17 +17,32 @@ afterAll(() => {
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
+const hoisted = vi.hoisted(() => ({
+	canSubmitLogin: vi.fn(() => false),
+	signIn: vi.fn(),
+}));
+
 vi.mock("next/navigation", () => ({
 	useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("@/viewmodels/forum/auth", () => ({
-	canSubmitLogin: () => false,
-	loginErrorMessage: () => null,
+	canSubmitLogin: (...args: unknown[]) => hoisted.canSubmitLogin(...args),
+	loginErrorMessage: (raw: unknown) => (raw ? `err:${String(raw)}` : null),
 }));
 
+vi.mock("next-auth/react", () => ({
+	signIn: (...args: unknown[]) => hoisted.signIn(...args),
+}));
+
+// CapWidget mock: capture onSolve so tests can drive the token from outside
+// the component via `act()`.
+let capturedOnSolve: ((t: string) => void) | null = null;
 vi.mock("@/components/cap-widget", () => ({
-	CapWidget: () => createElement("div", { "data-testid": "cap-widget" }),
+	CapWidget: ({ onSolve }: { onSolve?: (t: string) => void }) => {
+		capturedOnSolve = onSolve ?? null;
+		return createElement("div", { "data-testid": "cap-widget" });
+	},
 }));
 
 vi.mock("@/components/forum/forum-logo", () => ({
@@ -165,5 +181,174 @@ describe("LoginForm — fail-closed when CAP not configured", () => {
 		render(createElement(LoginForm));
 		const submitBtn = screen.getByText("登录");
 		expect(submitBtn.closest("button")?.disabled).toBe(true);
+	});
+});
+
+// ─── Submit-disable lock (success / failure / exception, double-click) ───────
+
+describe("LoginForm — submit button disable lock", () => {
+	const realLocation = window.location;
+	let assignedHref: string | null;
+
+	beforeEach(() => {
+		vi.resetModules();
+		vi.clearAllMocks();
+		assignedHref = null;
+		process.env.NEXT_PUBLIC_CAP_API_ENDPOINT = "https://cap.example.com";
+		// CAP token + non-empty username/password gate canSubmit on the
+		// production path; we mock canSubmitLogin → true so the only gate
+		// left is the in-flight lock under test.
+		hoisted.canSubmitLogin.mockReturnValue(true);
+		// Replace window.location with a stub that records assignments
+		// without actually navigating in happy-dom.
+		Object.defineProperty(window, "location", {
+			configurable: true,
+			value: {
+				...realLocation,
+				assign: (url: string) => {
+					assignedHref = url;
+				},
+				replace: (url: string) => {
+					assignedHref = url;
+				},
+				get href() {
+					return assignedHref ?? "";
+				},
+				set href(url: string) {
+					assignedHref = url;
+				},
+			},
+		});
+	});
+
+	afterEach(() => {
+		Object.defineProperty(window, "location", {
+			configurable: true,
+			value: realLocation,
+		});
+	});
+
+	function submitForm(container: HTMLElement) {
+		const form = container.querySelector("form");
+		if (!form) throw new Error("form not found");
+		fireEvent.submit(form);
+	}
+
+	function getSubmitButton(): HTMLButtonElement {
+		const btn = screen
+			.getAllByRole("button")
+			.find((b) => /登录|登录中|正在跳转/.test(b.textContent ?? "")) as HTMLButtonElement;
+		if (!btn) throw new Error("submit button not found");
+		return btn;
+	}
+
+	async function flush() {
+		// Drain microtasks for: dynamic import → signIn promise → setState batch.
+		for (let i = 0; i < 5; i++) await Promise.resolve();
+	}
+
+	async function mountReady() {
+		const { default: LoginForm } = await loadLoginForm();
+		const utils = render(createElement(LoginForm));
+		// Drive the CAP token through the captured onSolve so canSubmit=true.
+		await act(async () => {
+			capturedOnSolve?.("test-token");
+		});
+		return utils;
+	}
+
+	it("becomes disabled immediately after submit (in-flight)", async () => {
+		// Pending signIn so we can observe the in-flight state.
+		let resolveSignIn!: (v: unknown) => void;
+		hoisted.signIn.mockImplementation(
+			() =>
+				new Promise((r) => {
+					resolveSignIn = r;
+				}),
+		);
+		const { container } = await mountReady();
+		await act(async () => {
+			submitForm(container);
+			await flush();
+		});
+		const btn = getSubmitButton();
+		expect(btn.disabled).toBe(true);
+		expect(btn.textContent).toContain("登录中");
+		// cleanup
+		await act(async () => {
+			resolveSignIn({ ok: true });
+			await flush();
+		});
+	});
+
+	it("ref-lock: rapid double-submit only fires signIn once", async () => {
+		let resolveSignIn!: (v: unknown) => void;
+		hoisted.signIn.mockImplementation(
+			() =>
+				new Promise((r) => {
+					resolveSignIn = r;
+				}),
+		);
+		const { container } = await mountReady();
+		const form = container.querySelector("form");
+		if (!form) throw new Error("form not found");
+		// Two synchronous submits before any await — this is the race the
+		// ref-lock must win.
+		await act(async () => {
+			fireEvent.submit(form);
+			fireEvent.submit(form);
+			await flush();
+		});
+		expect(hoisted.signIn).toHaveBeenCalledTimes(1);
+		await act(async () => {
+			resolveSignIn({ ok: true });
+			await flush();
+		});
+	});
+
+	it("failure path: button re-enables and exposes the error", async () => {
+		hoisted.signIn.mockResolvedValue({ error: "CredentialsSignin" });
+		const { container } = await mountReady();
+		await act(async () => {
+			submitForm(container);
+			await flush();
+		});
+		const btn = getSubmitButton();
+		expect(btn.disabled).toBe(false);
+		expect(btn.textContent?.trim()).toBe("登录");
+		// Error banner rendered (loginErrorMessage mock → "err:<raw>")
+		expect(screen.getByRole("alert").textContent).toContain("err:CredentialsSignin");
+	});
+
+	it("exception path: button re-enables and shows network error", async () => {
+		hoisted.signIn.mockRejectedValue(new Error("boom"));
+		const { container } = await mountReady();
+		await act(async () => {
+			submitForm(container);
+			await flush();
+		});
+		const btn = getSubmitButton();
+		expect(btn.disabled).toBe(false);
+		expect(btn.textContent?.trim()).toBe("登录");
+		expect(screen.getByRole("alert").textContent).toContain("网络错误");
+	});
+
+	it("success path: button stays disabled during redirect window (no second signIn)", async () => {
+		hoisted.signIn.mockResolvedValue({ ok: true });
+		const { container } = await mountReady();
+		await act(async () => {
+			submitForm(container);
+			await flush();
+		});
+		const btn = getSubmitButton();
+		expect(btn.disabled).toBe(true);
+		expect(btn.textContent).toContain("正在跳转");
+		expect(assignedHref).toBe("/");
+		// Attempt a second submit during the redirect window — must not call signIn again.
+		await act(async () => {
+			submitForm(container);
+			await flush();
+		});
+		expect(hoisted.signIn).toHaveBeenCalledTimes(1);
 	});
 });
