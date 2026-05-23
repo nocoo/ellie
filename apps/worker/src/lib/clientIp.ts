@@ -58,13 +58,15 @@ export function isServerToWorkerRequest(request: Request, env: Env): boolean {
  * Extract a trustworthy client IP from the request.
  *
  * Priority:
- *   1. `CF-Connecting-IP` — always trusted (set by Cloudflare edge).
- *   2. `X-Real-IP` — trusted when EITHER
- *        - `isServerToWorkerRequest(request, env)` is true (the upstream
- *          is our own admin / forum BFF using Key A/B), OR
- *        - `opts.trustXRealIp === true` — explicit caller opt-in for
- *          endpoints that authenticate via a non-Key-A/B secret. The
- *          caller MUST have verified its own secret before passing this.
+ *   1. For server-to-worker requests (Key A/B present) OR when
+ *      `opts.trustXRealIp` is explicitly set: prefer `X-Real-IP` — the
+ *      BFF forwards the real client IP (resolved from CF-Connecting-IP
+ *      on the BFF side) via this header. `CF-Connecting-IP` on the
+ *      Worker's inbound request is merely the BFF server's egress IP
+ *      (useless for rate limiting / audit).
+ *   2. `CF-Connecting-IP` — trusted for direct-to-Worker requests (set
+ *      by Cloudflare edge). Also serves as fallback when X-Real-IP is
+ *      absent on a server-to-worker request (shouldn't normally happen).
  *   3. First segment of `X-Forwarded-For` — only when running outside
  *      production AND `opts.allowXffInNonProd !== false`.
  *
@@ -80,13 +82,20 @@ export function extractTrustedClientIp(
 	env: Env,
 	opts: ExtractClientIpOptions = {},
 ): string | null {
+	const isServer = isServerToWorkerRequest(request, env) || opts.trustXRealIp === true;
+
+	// For server-to-worker requests, X-Real-IP is the real client IP
+	// (forwarded by the BFF). CF-Connecting-IP is just the BFF egress IP.
+	if (isServer) {
+		const realIp = request.headers.get("X-Real-IP")?.trim();
+		if (realIp) return realIp;
+	}
+
 	const cf = request.headers.get("CF-Connecting-IP")?.trim();
 	if (cf) return cf;
 
-	const realIp = request.headers.get("X-Real-IP")?.trim();
-	if (realIp && (isServerToWorkerRequest(request, env) || opts.trustXRealIp === true)) {
-		return realIp;
-	}
+	// Non-server requests: X-Real-IP is not trusted (client-controlled)
+	// so we skip it entirely.
 
 	if (opts.allowXffInNonProd !== false && env.ENVIRONMENT !== "production") {
 		const xff = request.headers.get("X-Forwarded-For");

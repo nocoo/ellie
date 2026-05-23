@@ -30,7 +30,9 @@ describe("isServerToWorkerRequest", () => {
 });
 
 describe("extractTrustedClientIp", () => {
-	it("prefers CF-Connecting-IP over everything", () => {
+	it("for server-to-worker requests, prefers X-Real-IP over CF-Connecting-IP", () => {
+		// When the BFF forwards a request with Key A, X-Real-IP carries the
+		// real client IP while CF-Connecting-IP is just the BFF egress IP.
 		const env = makeEnv({ ENVIRONMENT: "production" });
 		const ip = extractTrustedClientIp(
 			req({
@@ -38,6 +40,19 @@ describe("extractTrustedClientIp", () => {
 				"X-Real-IP": "2.2.2.2",
 				"X-Forwarded-For": "3.3.3.3",
 				"X-API-Key": TEST_API_KEY,
+			}),
+			env,
+		);
+		expect(ip).toBe("2.2.2.2");
+	});
+
+	it("for non-server requests, uses CF-Connecting-IP (ignores X-Real-IP)", () => {
+		const env = makeEnv({ ENVIRONMENT: "production" });
+		const ip = extractTrustedClientIp(
+			req({
+				"CF-Connecting-IP": "1.1.1.1",
+				"X-Real-IP": "2.2.2.2",
+				"X-Forwarded-For": "3.3.3.3",
 			}),
 			env,
 		);
@@ -90,17 +105,17 @@ describe("extractTrustedClientIp", () => {
 		expect(ip).toBeNull();
 	});
 
-	it("trustXRealIp=true does NOT override CF-Connecting-IP priority", () => {
-		// CF-Connecting-IP is set by the Cloudflare edge and CANNOT be
-		// spoofed; it must win even when an opt-in caller is willing to
-		// trust X-Real-IP.
+	it("trustXRealIp=true prefers X-Real-IP over CF-Connecting-IP", () => {
+		// When an opt-in caller (e.g. analytics ingest) trusts X-Real-IP,
+		// it carries the real client IP from the BFF; CF-Connecting-IP is
+		// just the BFF egress IP.
 		const env = makeEnv({ ENVIRONMENT: "production" });
 		const ip = extractTrustedClientIp(
 			req({ "CF-Connecting-IP": "1.1.1.1", "X-Real-IP": "7.7.7.7" }),
 			env,
 			{ trustXRealIp: true },
 		);
-		expect(ip).toBe("1.1.1.1");
+		expect(ip).toBe("7.7.7.7");
 	});
 
 	it("ignores X-Forwarded-For in production even when present", () => {
@@ -113,6 +128,12 @@ describe("extractTrustedClientIp", () => {
 		const env = makeEnv({ ENVIRONMENT: "test" });
 		const ip = extractTrustedClientIp(req({ "X-Forwarded-For": "9.9.9.9, 8.8.8.8" }), env);
 		expect(ip).toBe("9.9.9.9");
+	});
+
+	it("returns null when X-Forwarded-For has empty first segment in non-prod", () => {
+		const env = makeEnv({ ENVIRONMENT: "test" });
+		const ip = extractTrustedClientIp(req({ "X-Forwarded-For": " , 8.8.8.8" }), env);
+		expect(ip).toBeNull();
 	});
 
 	it("opts.allowXffInNonProd=false suppresses the dev/test fallback", () => {

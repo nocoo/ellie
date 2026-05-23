@@ -21,6 +21,13 @@ import { DB_COLUMNS, validateProfileFields } from "./me";
 // auth must HARD-REJECT when no trustworthy IP is present, otherwise the
 // per-IP rate limit can be bypassed by stripping headers.
 
+// IPs exempt from per-IP rate limiting. The BFF origin server IP is
+// whitelisted because, until the CF-Connecting-IP forwarding chain is
+// fully resolved through proxy-caddy, all login traffic appears to come
+// from the single VPS egress IP, which would otherwise hit the 5-attempt
+// lockout and block ALL users.
+const RATE_LIMIT_IP_WHITELIST: ReadonlySet<string> = new Set(["74.226.88.37"]);
+
 // Admin analytics login_history audit log (P4) is wired through these
 // handlers. The collector contract pins:
 //   - rows are written ONLY after trust-edge resolution (we have a usable
@@ -95,6 +102,11 @@ export async function login(request: Request, env: Env, ctx?: ExecutionContext):
 			return errorResponse("INVALID_REQUEST", 400, { message: "Missing client IP" }, origin);
 		}
 
+		// BFF server IP whitelist — when CF-Connecting-IP resolution fails on
+		// the web side (e.g. proxy-caddy strips the header), all login requests
+		// arrive with the VPS origin IP. Whitelisting prevents a global lockout.
+		const ipWhitelisted = RATE_LIMIT_IP_WHITELIST.has(ip);
+
 		const ipLockoutKey = `login-lockout-ip:${ip}`;
 		const ipRateLimitKey = `login-ip:${ip}`;
 
@@ -102,8 +114,8 @@ export async function login(request: Request, env: Env, ctx?: ExecutionContext):
 		// reads. Fan them out so the slowest dominates instead of summing the
 		// three round-trips.
 		const [ipLocked, ipAttemptsStr, result] = await Promise.all([
-			env.KV.get(ipLockoutKey),
-			env.KV.get(ipRateLimitKey),
+			ipWhitelisted ? Promise.resolve(null) : env.KV.get(ipLockoutKey),
+			ipWhitelisted ? Promise.resolve(null) : env.KV.get(ipRateLimitKey),
 			env.DB.prepare(
 				"SELECT id, username, password_hash, password_salt, role, status FROM users WHERE username = ?",
 			)
@@ -531,7 +543,7 @@ export async function register(
 				"SELECT value FROM settings WHERE key = 'features.registration.allow_new_user'",
 			).first<{ value: string }>(),
 			checkCensorWords(username, env),
-			env.KV.get(rateLimitKey),
+			RATE_LIMIT_IP_WHITELIST.has(ip) ? Promise.resolve(null) : env.KV.get(rateLimitKey),
 		]);
 
 		// Default to true if setting doesn't exist
@@ -649,7 +661,10 @@ export async function checkUsername(request: Request, env: Env): Promise<Respons
 		return errorResponse("INVALID_REQUEST", 400, { message: "Missing client IP" }, origin);
 	}
 	const rateLimitKey = `chk-usr-ip:${ip}`;
-	const currentCount = Number.parseInt((await env.KV.get(rateLimitKey)) ?? "0", 10);
+	const ipWhitelisted = RATE_LIMIT_IP_WHITELIST.has(ip);
+	const currentCount = ipWhitelisted
+		? 0
+		: Number.parseInt((await env.KV.get(rateLimitKey)) ?? "0", 10);
 	if (currentCount >= 30) {
 		return errorResponse("RATE_LIMITED", 429, undefined, origin);
 	}
