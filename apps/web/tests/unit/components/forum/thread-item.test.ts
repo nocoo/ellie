@@ -234,6 +234,35 @@ describe("ThreadItem — global announcement icon", () => {
 	});
 });
 
+// ─── Mobile avatar position (reviewer freeze msg=5a91dfd3) ──────────────────
+// iPhone polish wave 2: avatar moves out of Row 1 (icon + title) and into
+// Row 2 alongside the username. Row 1 must no longer carry an avatar; Row 2
+// must contain a stable `thread-item-mobile-avatar-link` testid pointing at
+// /users/<authorId>.
+describe("ThreadItem — iPhone avatar moved to Row 2", () => {
+	it("mobile Row 2 contains an avatar link to /users/<authorId>", () => {
+		const item = makeDisplayItem();
+		render(createElement(ThreadItem, { item, postsPerPage: 15 }));
+		const link = screen.getByTestId("thread-item-mobile-avatar-link") as HTMLAnchorElement;
+		expect(link).toBeDefined();
+		expect(link.getAttribute("href")).toBe("/users/1");
+	});
+
+	it("mobile branch root carries `sm:hidden` (toggles off on desktop)", () => {
+		const item = makeDisplayItem();
+		const { container } = render(createElement(ThreadItem, { item, postsPerPage: 15 }));
+		// Locate the mobile branch root by walking the `thread-item` wrapper.
+		const root = container.querySelector('[data-testid="thread-item"]');
+		expect(root).not.toBeNull();
+		// First level children: desktop (hidden sm:flex) + mobile (sm:hidden)
+		const mobileBranch = root?.querySelector(".sm\\:hidden");
+		expect(mobileBranch).not.toBeNull();
+		// The avatar link must live inside the mobile branch.
+		const link = mobileBranch?.querySelector('[data-testid="thread-item-mobile-avatar-link"]');
+		expect(link).not.toBeNull();
+	});
+});
+
 // ─── Mobile trim contract (reviewer freeze msg=8b90cb85) ─────────────────────
 // On iPhone the thread list row drops 阅读 / 回复 / 推荐数 — those numbers are
 // secondary. Desktop branch is untouched and continues to render

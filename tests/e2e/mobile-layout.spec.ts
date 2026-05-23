@@ -232,4 +232,319 @@ test.describe("E2E-MOB-05: desktop is not regressed", () => {
 		// SearchStatsBar is `hidden sm:block` — it must be visible on desktop.
 		await expect(page.getByTestId("forum-search-stats-bar")).toBeVisible();
 	});
+
+	// Reviewer-requested @1280 PC-not-regressed gates for wave-2 mobile polish
+	// (msg=5a91dfd3). Each assertion has a mobile counterpart elsewhere; the
+	// point of this test is to prove the desktop branch is intact.
+	test("@1280: footer logo + nav-bar bbox + post-content meta + new-post button stay visible", async ({
+		page,
+		loginAs,
+	}) => {
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await loginAs("e2etest");
+		// Land on a populated forum first so we can pin both the new-post
+		// button and (later) the PostContent meta bar on a real thread.
+		const forumPage = new ForumPage(page);
+		await forumPage.goto(POPULATED_FORUM_ID);
+		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
+
+		// NavBar bbox — desktop must keep the centered, max-content-width
+		// layout (no edge padding). `.nav-gradient` is the blue strip; on
+		// desktop `margin-inline: auto` keeps it centered. Width <= 1200px
+		// (--content-max-width) and left > 0 (centered, not flush).
+		const navStrip = page.locator(".nav-gradient").first();
+		await expect(navStrip).toBeVisible({ timeout: 15_000 });
+		const navBox = await navStrip.boundingBox();
+		expect(navBox).not.toBeNull();
+		if (navBox) {
+			expect(navBox.left).toBeGreaterThan(0);
+			expect(navBox.width).toBeLessThanOrEqual(1200 + 1);
+		}
+
+		// New-post image button must be visible on desktop (mobile token is
+		// `hidden sm:inline-block`). Existence-conditional so the gate still
+		// holds when the forum is rendered as a group / read-only.
+		const newPostBtn = page.getByTestId("forum-new-post-button");
+		const newPostCount = await newPostBtn.count();
+		if (newPostCount > 0) {
+			await expect(newPostBtn.first()).toBeVisible({ timeout: 15_000 });
+		} else {
+			test.info().annotations.push({
+				type: "skip-reason",
+				description:
+					"Populated forum has no new-post button (likely group/read-only). " +
+					"Unit test still pins `hidden sm:inline-block` token.",
+			});
+		}
+
+		// Open the first thread to validate PostContent meta bar PC visibility.
+		const firstThread = page.getByTestId("thread-item").first();
+		const tCount = await firstThread.count();
+		if (tCount > 0) {
+			// At 1280px the desktop `hidden sm:flex` branch is the visible one,
+			// so the canonical desktop title link is the right click target.
+			await firstThread.locator('a[href^="/threads/"]').first().click();
+			await page.waitForLoadState("load");
+			const meta = page.getByTestId("post-content-meta-bar");
+			const metaCount = await meta.count();
+			if (metaCount > 0) {
+				await expect(meta.first()).toBeVisible({ timeout: 15_000 });
+			} else {
+				test.info().annotations.push({
+					type: "skip-reason",
+					description: "Opened thread has no posts — PostContent meta bar PC gate skipped.",
+				});
+			}
+		} else {
+			test.info().annotations.push({
+				type: "skip-reason",
+				description: "Populated forum has no threads — PostContent meta bar PC gate skipped.",
+			});
+		}
+
+		// Footer logo wrap is `hidden sm:block` — must be visible on desktop.
+		// Scroll the footer into view; site-footer sits below the thread list.
+		await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+		await expect(page.getByTestId("site-footer-logo-wrap")).toBeVisible();
+	});
+});
+
+// ─── Wave 2: iPhone polish per reviewer freeze msg=5a91dfd3 ─────────────────
+// 1. NavBar shouldn't go edge-to-edge on mobile (must leave content-card padding).
+// 2. Recommended-thread card hides author + reply meta on mobile (existence-conditional).
+// 3. ForumNewPostButton hidden on mobile.
+// 4. ThreadItem mobile avatar lives next to username (Row 2), not next to title.
+// 5. Thread-detail breadcrumb collapses intermediate forum-ancestors on mobile.
+// 6. PostContent top meta bar hidden on mobile (PostCard mobile header already
+//    carries avatar/author/time/floor — would be a duplicate).
+// 7. SiteFooter logo hidden on mobile.
+//
+// All data-dependent assertions follow the rule "loginAs + isLoaded then
+// existence-conditional skip" learned from CI run 26324987257.
+
+test.describe("E2E-MOB-06: NavBar mobile padding (no edge-to-edge)", () => {
+	test("@375: nav-gradient strip has left > 0 (leaves content-card edge padding)", async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 375, height: 667 });
+		await page.goto("/");
+		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
+
+		const navStrip = page.locator(".nav-gradient").first();
+		await expect(navStrip).toBeVisible({ timeout: 15_000 });
+		const box = await navStrip.boundingBox();
+		expect(box).not.toBeNull();
+		if (!box) return;
+		// Must leave at least a 1rem (≈16px) margin on each side per
+		// reviewer freeze — the blue strip aligns with content cards.
+		expect(box.left).toBeGreaterThanOrEqual(8);
+		expect(box.width).toBeLessThanOrEqual(375 - 8);
+	});
+});
+
+test.describe("E2E-MOB-07: recommended threads — mobile meta hidden", () => {
+	test("@375: when 推荐主题 renders, author/reply meta spans are not visible", async ({
+		page,
+		loginAs,
+	}) => {
+		await page.setViewportSize({ width: 375, height: 667 });
+		await loginAs("e2etest");
+		const forumPage = new ForumPage(page);
+		await forumPage.goto(POPULATED_FORUM_ID);
+		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
+
+		const meta = page.getByTestId("forum-recommended-meta");
+		const metaCount = await meta.count();
+		if (metaCount === 0) {
+			test.info().annotations.push({
+				type: "skip-reason",
+				description:
+					"No recommended threads on the populated forum — unit tests still pin `hidden sm:inline`.",
+			});
+			return;
+		}
+		for (let i = 0; i < metaCount; i++) {
+			await expect(meta.nth(i)).toBeHidden();
+		}
+	});
+});
+
+test.describe("E2E-MOB-08: forum-new-post-button hidden on mobile", () => {
+	test("@375: the pn_post.png image button is not visible on a forum page", async ({
+		page,
+		loginAs,
+	}) => {
+		await page.setViewportSize({ width: 375, height: 667 });
+		await loginAs("e2etest");
+		const forumPage = new ForumPage(page);
+		await forumPage.goto(POPULATED_FORUM_ID);
+		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
+
+		const button = page.getByTestId("forum-new-post-button");
+		const count = await button.count();
+		if (count === 0) {
+			test.info().annotations.push({
+				type: "skip-reason",
+				description:
+					"Forum page rendered without a new-post-button (likely an isGroup forum on the CI test backend).",
+			});
+			return;
+		}
+		// Page renders the button twice (top + bottom toolbars); both must be
+		// CSS-hidden by the `hidden sm:inline-block` class.
+		for (let i = 0; i < count; i++) {
+			await expect(button.nth(i)).toBeHidden();
+		}
+	});
+});
+
+test.describe("E2E-MOB-09: ThreadItem mobile avatar moved to username row", () => {
+	test("@375: thread-item-mobile-avatar-link is visible and shares Y with the username", async ({
+		page,
+		loginAs,
+	}) => {
+		await page.setViewportSize({ width: 375, height: 667 });
+		await loginAs("e2etest");
+		const forumPage = new ForumPage(page);
+		await forumPage.goto(POPULATED_FORUM_ID);
+		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
+		await expect(page.getByTestId("thread-item").first()).toBeVisible({ timeout: 15_000 });
+
+		const avatarLink = page.getByTestId("thread-item-mobile-avatar-link").first();
+		const avatarCount = await avatarLink.count();
+		if (avatarCount === 0) {
+			test.info().annotations.push({
+				type: "skip-reason",
+				description: "Thread list rendered empty on the mobile branch.",
+			});
+			return;
+		}
+		await expect(avatarLink).toBeVisible({ timeout: 15_000 });
+
+		// Avatar Y must roughly match the username row (Row 2). Walk the
+		// avatar's parent flex row and assert at least one sibling carrying
+		// the username text shares the Y coordinate (within 8px slack).
+		const avatarBox = await avatarLink.boundingBox();
+		expect(avatarBox).not.toBeNull();
+		if (!avatarBox) return;
+		const parent = avatarLink.locator("xpath=..");
+		const siblingTops = await parent
+			.locator("> *")
+			.evaluateAll((els: Element[]) =>
+				els.map((el) => (el as HTMLElement).getBoundingClientRect().top),
+			);
+		const minTop = Math.min(...siblingTops);
+		const maxTop = Math.max(...siblingTops);
+		expect(maxTop - minTop).toBeLessThanOrEqual(8);
+	});
+});
+
+test.describe("E2E-MOB-10: thread detail breadcrumb collapses intermediate ancestors", () => {
+	test("@375: breadcrumb-segment-mobile-hidden tokens are present (or chain is short)", async ({
+		page,
+		loginAs,
+	}) => {
+		await page.setViewportSize({ width: 375, height: 667 });
+		await loginAs("e2etest");
+		const forumPage = new ForumPage(page);
+		await forumPage.goto(POPULATED_FORUM_ID);
+		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
+		// Open the first thread to land on the detail page.
+		const firstThreadLink = page.getByTestId("thread-item").first();
+		const threadCount = await firstThreadLink.count();
+		if (threadCount === 0) {
+			test.info().annotations.push({
+				type: "skip-reason",
+				description:
+					"No threads on the populated forum — cannot exercise thread-detail breadcrumb.",
+			});
+			return;
+		}
+		// Mobile branch exposes a stable `thread-item-mobile-title-link`
+		// testid for the title link. Going through `'a[href^="/threads/"]'`
+		// is unsafe here because the ThreadItem DOM emits the desktop
+		// branch first (hidden by `hidden sm:flex` at 375px) and `.first()`
+		// would resolve to that desktop link, which Playwright will wait
+		// for to become visible and then time out.
+		const titleLink = page.getByTestId("thread-item-mobile-title-link").first();
+		await titleLink.click();
+		await page.waitForLoadState("load");
+
+		// Visible segments (testid="breadcrumb-segment") must include the
+		// current page's non-linked label. Hidden segments (if any) must
+		// carry `hidden sm:inline-flex` so desktop is unaffected.
+		await expect(page.getByTestId("breadcrumb-segment").first()).toBeVisible({
+			timeout: 15_000,
+		});
+		const hidden = page.getByTestId("breadcrumb-segment-mobile-hidden");
+		const hiddenCount = await hidden.count();
+		// On a thread under a deep forum-ancestor tree we should see at
+		// least one mobile-hidden segment; on a shallow chain (home →
+		// forum → thread) hiddenCount may legitimately be 0.
+		for (let i = 0; i < hiddenCount; i++) {
+			await expect(hidden.nth(i)).toBeHidden();
+		}
+	});
+});
+
+test.describe("E2E-MOB-11: PostContent meta bar hidden on mobile", () => {
+	test("@375: the duplicated 发表于/floor meta row is not visible on a post", async ({
+		page,
+		loginAs,
+	}) => {
+		await page.setViewportSize({ width: 375, height: 667 });
+		await loginAs("e2etest");
+		const forumPage = new ForumPage(page);
+		await forumPage.goto(POPULATED_FORUM_ID);
+		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
+		const firstThread = page.getByTestId("thread-item").first();
+		const tCount = await firstThread.count();
+		if (tCount === 0) {
+			test.info().annotations.push({
+				type: "skip-reason",
+				description: "No thread to open — cannot validate post meta bar.",
+			});
+			return;
+		}
+		// Click via the stable mobile testid; the desktop title link is
+		// `hidden sm:flex` at 375px and would cause Playwright to wait
+		// for visibility forever.
+		await page.getByTestId("thread-item-mobile-title-link").first().click();
+		await page.waitForLoadState("load");
+
+		// PostContent meta bar carries a stable testid; on mobile it lives
+		// inside `hidden md:flex` and must not be visible.
+		const meta = page.getByTestId("post-content-meta-bar");
+		const metaCount = await meta.count();
+		if (metaCount === 0) {
+			test.info().annotations.push({
+				type: "skip-reason",
+				description: "No posts rendered on the opened thread.",
+			});
+			return;
+		}
+		for (let i = 0; i < metaCount; i++) {
+			await expect(meta.nth(i)).toBeHidden();
+		}
+	});
+});
+
+test.describe("E2E-MOB-12: SiteFooter logo hidden on mobile", () => {
+	test("@375: site-footer-logo-wrap is not visible (background image still mounts)", async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 375, height: 667 });
+		await page.goto("/");
+		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
+
+		const footer = page.getByTestId("site-footer");
+		await expect(footer).toBeAttached({ timeout: 15_000 });
+		// Logo wrap exists in the DOM (rendered server-side) but the
+		// `hidden sm:block` token must hide it on mobile.
+		const logoWrap = page.getByTestId("site-footer-logo-wrap");
+		await expect(logoWrap).toBeHidden();
+		// Background wrapper is always mounted; its mobile-tuned offsets
+		// are pinned by the unit test, here we only confirm it's attached.
+		await expect(page.getByTestId("site-footer-bg-wrap")).toBeAttached();
+	});
 });

@@ -151,8 +151,10 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 
 	return (
 		<div className="space-y-3">
-			{/* Breadcrumbs */}
-			<BreadcrumbBar items={data.breadcrumbs} />
+			{/* Breadcrumbs — mobile collapses intermediate forum-ancestor links
+			    (首页 → 分区A → 分区B → 版块 → 主题  becomes  首页 → 版块 → 主题)
+			    per reviewer freeze msg=5a91dfd3. Desktop unchanged. */}
+			<BreadcrumbBar items={data.breadcrumbs} mobileCompact="hide-intermediate" />
 
 			{/* Thread header (simplified — views/replies now in first post sidebar) */}
 			<Card size="sm" className="bg-gradient-to-br from-muted/40 via-background to-muted/20">

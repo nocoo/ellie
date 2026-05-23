@@ -34,7 +34,12 @@ export function ForumRecommendedCard({ threads }: ForumRecommendedCardProps) {
 				<ThumbsUp className="h-4 w-4 text-primary" />
 				推荐主题
 			</div>
-			<ul className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
+			{/* Mobile: single column to avoid title truncation at 320/375. Desktop
+			    keeps the original 2-column grid. */}
+			<ul
+				className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1"
+				data-testid="forum-recommended-list"
+			>
 				{threads.map((t) => (
 					<li
 						key={t.id}
@@ -47,7 +52,12 @@ export function ForumRecommendedCard({ threads }: ForumRecommendedCardProps) {
 						>
 							{t.subject}
 						</Link>
-						<span className="ml-auto shrink-0 text-xs text-muted-foreground">
+						{/* Author + reply meta — hidden on mobile per reviewer freeze
+						    msg=5a91dfd3. Desktop unchanged. */}
+						<span
+							className="ml-auto shrink-0 text-xs text-muted-foreground hidden sm:inline"
+							data-testid="forum-recommended-meta"
+						>
 							{t.authorName} · {t.replies} 回复
 						</span>
 					</li>

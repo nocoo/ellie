@@ -34,10 +34,16 @@ export function ForumNewPostButton({
 
 	return (
 		<>
+			{/* Hidden on mobile per reviewer freeze msg=5a91dfd3 — the floating
+			    toolbar already exposes 发表新帖 on phones, and the toolbar
+			    image button is visually large on a 375px viewport. Desktop
+			    unchanged: `sm:inline-block` matches the implicit default for
+			    a <button> without flex. */}
 			<button
 				type="button"
 				onClick={handleClick}
-				className="shrink-0 hover:opacity-80 transition-opacity cursor-pointer"
+				data-testid="forum-new-post-button"
+				className="shrink-0 hover:opacity-80 transition-opacity cursor-pointer hidden sm:inline-block"
 			>
 				{/* eslint-disable-next-line @next/next/no-img-element */}
 				<img src={postIconSrc} alt="发表新帖" />

@@ -79,4 +79,27 @@ describe("ForumRecommendedCard", () => {
 		expect(items[0]?.textContent).toContain("first-in-array");
 		expect(items[1]?.textContent).toContain("second-in-array");
 	});
+
+	// ─── iPhone mobile-trim contract (reviewer freeze msg=5a91dfd3) ─────
+	// On phones the author+reply meta span is hidden (`hidden sm:inline`)
+	// and the list grid collapses from 2 columns to 1 so long subjects
+	// don't truncate at 320/375px.
+	it("author + reply meta span carries `hidden sm:inline` (mobile hidden)", () => {
+		const threads = [makeItem({ authorName: "alice", replies: 9 })];
+		render(createElement(ForumRecommendedCard, { threads }));
+		const meta = screen.getByTestId("forum-recommended-meta");
+		expect(meta.className).toContain("hidden");
+		expect(meta.className).toContain("sm:inline");
+		// Text content still rendered (so desktop unchanged).
+		expect(meta.textContent).toContain("alice");
+		expect(meta.textContent).toContain("9 回复");
+	});
+
+	it("list grid is `grid-cols-1 sm:grid-cols-2` (mobile single column)", () => {
+		const threads = [makeItem()];
+		render(createElement(ForumRecommendedCard, { threads }));
+		const list = screen.getByTestId("forum-recommended-list");
+		expect(list.className).toContain("grid-cols-1");
+		expect(list.className).toContain("sm:grid-cols-2");
+	});
 });

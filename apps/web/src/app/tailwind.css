@@ -266,16 +266,25 @@
 }
 
 /* Navigation gradient */
+/* Mobile-first: leave 1rem (= --content-px) inline margin so the blue bar
+   aligns with .width-container content cards instead of going edge-to-edge.
+   At ≥640px we restore `margin-inline: auto` so the desktop layout is
+   visually unchanged (max-width:1200 centered as before). */
 .nav-gradient {
 	position: relative;
 	max-width: var(--content-max-width);
-	margin-inline: auto;
+	margin-inline: 1rem;
 	border-radius: calc(var(--radius) - 2px);
 	overflow: hidden;
 	background-image: url("https://t.no.mt/ellie/bg-menu-light2.jpg");
 	background-size: auto 100%;
 	background-repeat: repeat-x;
 	background-position: center;
+}
+@media (min-width: 640px) {
+	.nav-gradient {
+		margin-inline: auto;
+	}
 }
 :root[data-width-mode="full"] .nav-gradient {
 	max-width: none;

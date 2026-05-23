@@ -51,8 +51,16 @@ export function PostContent({
 	return (
 		<div className="flex-1 min-w-0 flex flex-col" suppressHydrationWarning>
 			<div className="p-3 lg:p-4 flex flex-col flex-1" suppressHydrationWarning>
-				{/* Top meta bar — dashed bottom border */}
-				<div className="flex items-center gap-2 pb-2 border-b border-dashed border-border text-xs text-muted-foreground">
+				{/* Top meta bar — dashed bottom border.
+				    Hidden on mobile per reviewer freeze msg=5a91dfd3: the mobile
+				    compact header in PostCard already renders avatar + author +
+				    time + floor, so this row is a duplicate on phones. Desktop
+				    keeps it. `md:flex` matches PostCard's `md:hidden` / `md:flex`
+				    breakpoint so the two layouts toggle as a single switch. */}
+				<div
+					className="hidden md:flex items-center gap-2 pb-2 border-b border-dashed border-border text-xs text-muted-foreground"
+					data-testid="post-content-meta-bar"
+				>
 					<PostAuthorStatusIcon
 						role={author?.role}
 						isThreadAuthor={

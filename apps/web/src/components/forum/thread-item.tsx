@@ -147,21 +147,15 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 
 			{/* Mobile layout: two-row compact display */}
 			<div className="sm:hidden px-3 py-2">
-				{/* Row 1: Icon + avatar + badges + subject */}
+				{/* Row 1: Icon + badges + subject (avatar moved to Row 2 per
+				    reviewer freeze msg=5a91dfd3 — keeps the title area free
+				    of the avatar visual on phones). */}
 				<div className="flex items-start gap-1.5">
 					<ThreadRowIcon
 						iconSrc={iconSrc}
 						isGlobalAnnouncement={isGlobalAnnouncement}
 						extraClass="mt-0.5 shrink-0"
 					/>
-					<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0 mt-0.5">
-						<ForumAvatar
-							userId={thread.authorId}
-							userName={thread.authorName}
-							avatarPath={thread.authorAvatarPath}
-							size="xs"
-						/>
-					</Link>
 					<div className="min-w-0 flex-1">
 						{badges.length > 0 && (
 							<div className="flex items-center gap-1.5">
@@ -174,6 +168,7 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 								prefetch={false}
 								className="min-w-0 truncate text-sm text-foreground hover:text-primary transition-colors"
 								style={highlightStyle(hl)}
+								data-testid="thread-item-mobile-title-link"
 							>
 								{thread.subject}
 							</Link>
@@ -190,9 +185,24 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 						</div>
 					</div>
 				</div>
-				{/* Row 2: author · time — stats (回/览/recommends) are secondary
-				    info hidden on mobile per reviewer freeze (msg 8b90cb85). */}
-				<div className="mt-1 ml-6 flex items-center gap-1.5 text-xs text-muted-foreground">
+				{/* Row 2: avatar + author · time — stats (回/览/recommends) are
+				    secondary info hidden on mobile per reviewer freeze
+				    (msg 8b90cb85). Avatar lives here (left of the username)
+				    per reviewer freeze msg=5a91dfd3. */}
+				<div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+					<Link
+						href={`/users/${thread.authorId}`}
+						prefetch={false}
+						className="shrink-0"
+						data-testid="thread-item-mobile-avatar-link"
+					>
+						<ForumAvatar
+							userId={thread.authorId}
+							userName={thread.authorName}
+							avatarPath={thread.authorAvatarPath}
+							size="xs"
+						/>
+					</Link>
 					<span className="min-w-0 truncate">
 						<UserPopover userId={thread.authorId}>
 							<span className="block truncate text-foreground hover:text-primary cursor-pointer">
