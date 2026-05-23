@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.1] - 2026-05-23
+
+### Added
+
+- **IP lookup buttons in admin tables**: login attempts, IP bans, operation logs, and log detail dialog now show inline IP lookup via `IpLookupInline`
+- **`general.site.host` setting**: configurable site domain used for absolute forum links in analytics audit tab
+- **ISR caching for `forumApi`**: `revalidate` option + `React.cache()` deduplication for `fetchPublicSettings`
+
+### Fixed
+
+- **User detail dialog width**: widened from `max-w-6xl` (1152px) to `max-w-[90vw]` for better data visibility
+- **Analytics audit forum links**: now use absolute URLs (from `general.site.host`) instead of relative paths that resolved against the admin host
+- **D1 analytics flush sink**: chunked into batches of 100 to avoid SQLite variable/statement limits on high-traffic windows
+- **Post editor UX**: focus behavior, popover sizing, close-on-pick for emoji/smiley panels
+- **Login double-click prevention**: disabled submit button during pending `signIn()` call
+- **`forumApi.get()` signature**: refactored to unambiguous 3-arg signature
+- **IP header forwarding**: renamed `X-Real-IP` to `X-Ellie-Client-IP` to bypass Cloudflare header overwrite; strip client-supplied `X-Forwarded-Client-IP` to prevent spoofing
+
+### Changed
+
+- **Admin analytics**: split into 趋势 / 审计 / 登录 tabs with two-way `?tab=` URL state
+
+### Chores
+
+- Dependency bumps: lint-staged 17.0.5, @playwright/test 1.60.0, @types/bun 1.3.14, tiptap 3.23.6, vitest 4.1.7, dompurify 3.4.5, hono 4.12.22
+- CI smoke test URLs updated to bbs.tongji.net / admin.tongji.net
+
 ## [1.6.0] - 2026-05-22
 
 ### Added
