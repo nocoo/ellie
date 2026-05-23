@@ -5,8 +5,9 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockPush = vi.fn();
+const mockRefresh = vi.fn();
 vi.mock("next/navigation", () => ({
-	useRouter: () => ({ refresh: vi.fn(), push: mockPush }),
+	useRouter: () => ({ refresh: mockRefresh, push: mockPush }),
 }));
 
 const mockPost = vi.fn(async () => ({ data: { id: 42 } }));
@@ -66,6 +67,7 @@ describe("useReplySubmit hook", () => {
 		});
 		expect(onClose).toHaveBeenCalled();
 		expect(mockPush).toHaveBeenCalledWith("/threads/123?last=1#post-42");
+		expect(mockRefresh).toHaveBeenCalled();
 		expect(result.current.state.submitting).toBe(true);
 	});
 
