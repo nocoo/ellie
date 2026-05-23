@@ -20,6 +20,7 @@
 // project covers all four reviewer-required viewports.
 
 import { expect, test } from "./fixtures/base";
+import { ForumPage } from "./pages/forum.page";
 
 // Reviewer-required viewport widths. Heights mirror common iPhone aspect
 // ratios but the assertions only care about width.
@@ -32,12 +33,20 @@ const MOBILE_WIDTHS = [
 
 const POPULATED_FORUM_ID = 114;
 
-test.describe("E2E-MOB-01: forum index — anonymous, no horizontal body scroll", () => {
+test.describe("E2E-MOB-01: forum index — no horizontal body scroll", () => {
+	// Reviewer follow-up msg=a9145195: CI runs forum L3 with require_login
+	// enabled, so anonymous `/` does render the header (MOB-02 covers that
+	// branch) but the real forum-index content (ForumCard list) is only
+	// rendered to authenticated visitors. We therefore log in before
+	// measuring documentElement.scrollWidth so the gate exercises the actual
+	// homepage layout, not a stripped-down anonymous variant.
 	for (const vp of MOBILE_WIDTHS) {
 		test(`@${vp.width} (${vp.label}): documentElement.scrollWidth <= innerWidth + 1`, async ({
 			page,
+			loginAs,
 		}) => {
 			await page.setViewportSize({ width: vp.width, height: vp.height });
+			await loginAs("e2etest");
 			await page.goto("/");
 			// Wait for the header AND at least one forum-card to be visible
 			// before measuring scrollWidth — `header` alone leaves the body
@@ -110,8 +119,17 @@ test.describe("E2E-MOB-02: header — anonymous viewport doesn't wrap", () => {
 });
 
 test.describe("E2E-MOB-03: forum index card hides secondary info on mobile", () => {
-	test("`forum-stats-inline` (帖/回) is not in the mobile wide layout", async ({ page }) => {
+	// Reviewer follow-up msg=a9145195: same require_login constraint as MOB-01 —
+	// `forum-card` is only rendered to logged-in users on CI. Without
+	// `loginAs` the test waits 15 s for a card that the production gate
+	// never renders, then fails. Login first so the assertions run against
+	// the real mobile branch of the wide / grid forum cards.
+	test("`forum-stats-inline` (帖/回) is not in the mobile wide layout", async ({
+		page,
+		loginAs,
+	}) => {
 		await page.setViewportSize({ width: 390, height: 844 });
+		await loginAs("e2etest");
 		await page.goto("/");
 		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
 		await expect(page.locator('[data-testid="forum-card"]').first()).toBeVisible({
@@ -147,10 +165,26 @@ test.describe("E2E-MOB-03: forum index card hides secondary info on mobile", () 
 });
 
 test.describe("E2E-MOB-04: thread list mobile row hides 阅读/回复/推荐数", () => {
-	test("mobile thread row does not render a ThreadRowStats mobile span", async ({ page }) => {
+	test("mobile thread row does not render a ThreadRowStats mobile span", async ({
+		page,
+		loginAs,
+	}) => {
 		await page.setViewportSize({ width: 375, height: 667 });
-		await page.goto(`/forums/${POPULATED_FORUM_ID}`);
+		// Reviewer follow-up msg=a9145195: anonymous /forums/114 on a
+		// require_login deployment renders the auth gate instead of the
+		// real thread list. The previous `toHaveCount(0)` then passed
+		// vacuously because no `thread-row-stats-mobile` testid exists
+		// on the login page either. Authenticate, navigate, and wait for
+		// the real thread list to materialise via the ForumPage page
+		// object so the absence assertion has real signal.
+		await loginAs("e2etest");
+		const forumPage = new ForumPage(page);
+		await forumPage.goto(POPULATED_FORUM_ID);
 		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
+		// Wait for at least one real thread row before asserting the
+		// stats span is absent — guarantees we're on the populated
+		// forum-114 thread list, not a fallback / loading state.
+		await expect(forumPage.threadItems.first()).toBeVisible({ timeout: 15_000 });
 
 		// `ThreadRowStats variant="mobile"` always emits a stable testid
 		// (`thread-row-stats-mobile`) when rendered. The mobile (sm:hidden)
