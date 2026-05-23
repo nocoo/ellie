@@ -640,21 +640,22 @@ function rejectListVisibility(
 		) {
 			return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 		}
-	}
-	const visCtx = buildVisibilityContext(user);
-	if (
-		!canReadThreadContent({
-			sticky: postRow.sticky,
-			forumVisibility: postRow.forum_visibility as ForumVisibility,
-			visCtx,
-		})
-	) {
-		return errorResponse(
-			"FORBIDDEN",
-			403,
-			{ message: "You don't have access to this content" },
-			origin,
-		);
+	} else {
+		const visCtx = buildVisibilityContext(user);
+		if (
+			!canReadThreadContent({
+				sticky: postRow.sticky,
+				forumVisibility: postRow.forum_visibility as ForumVisibility,
+				visCtx,
+			})
+		) {
+			return errorResponse(
+				"FORBIDDEN",
+				403,
+				{ message: "You don't have access to this content" },
+				origin,
+			);
+		}
 	}
 	return null;
 }

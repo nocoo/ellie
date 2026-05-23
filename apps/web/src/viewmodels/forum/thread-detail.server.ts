@@ -5,7 +5,7 @@
 import "server-only";
 
 import { forumApi, publicUserToUser } from "@/lib/forum-api";
-import { getCurrentForumUser } from "@/lib/forum-auth";
+import { getCurrentForumUser, getWorkerJwt } from "@/lib/forum-auth";
 import { buildThreadBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import { getCachedForumList, getCachedThreadById } from "@/lib/forum-cache";
 import { getCachedPostsPerPage } from "@/lib/forum-cache";
@@ -63,21 +63,33 @@ export async function loadThreadDetail(params: {
 	limit?: number;
 	last?: boolean;
 }): Promise<ThreadDetailPageData> {
-	// Fetch current user session and posts per page setting
-	const [sessionUser, defaultLimit] = await Promise.all([
+	// Fetch current user session, JWT, and posts per page setting
+	const [sessionUser, jwt, defaultLimit] = await Promise.all([
 		getCurrentForumUser(),
+		getWorkerJwt(),
 		getCachedPostsPerPage(),
 	]);
 
 	// Parallel fetch: thread + posts + forums (thread & forums deduped via React cache)
+	// When a JWT is available, use authenticated calls so moderated threads (sticky=-2)
+	// resolve for their author / forum mods / staff.
 	const [thread, postsRes, forums] = await Promise.all([
-		getCachedThreadById(params.threadId),
-		forumApi.getCursor<Post>("/api/v1/posts", {
-			threadId: params.threadId,
-			limit: params.limit ?? defaultLimit,
-			cursor: params.cursor,
-			last: params.last ? "1" : undefined,
-		}),
+		jwt
+			? forumApi.getAuth<Thread>(`/api/v1/threads/${params.threadId}`, jwt).then((r) => r.data)
+			: getCachedThreadById(params.threadId),
+		jwt
+			? forumApi.getCursorAuth<Post>("/api/v1/posts", jwt, {
+					threadId: params.threadId,
+					limit: params.limit ?? defaultLimit,
+					cursor: params.cursor,
+					last: params.last ? "1" : undefined,
+				})
+			: forumApi.getCursor<Post>("/api/v1/posts", {
+					threadId: params.threadId,
+					limit: params.limit ?? defaultLimit,
+					cursor: params.cursor,
+					last: params.last ? "1" : undefined,
+				}),
 		getCachedForumList(),
 	]);
 
@@ -167,11 +179,17 @@ export async function loadThreadDetail(params: {
 		// No client-side fallback for attachments; log failure but keep the
 		// shape stable as `[]` so the post body still renders.
 		postIds.length > 0
-			? forumApi
-					.post<Attachment[]>("/api/v1/posts/attachments/batch", {
-						threadId: params.threadId,
-						postIds,
-					})
+			? (jwt
+					? forumApi.postAuth<Attachment[]>(
+							"/api/v1/posts/attachments/batch",
+							{ threadId: params.threadId, postIds },
+							jwt,
+						)
+					: forumApi.post<Attachment[]>("/api/v1/posts/attachments/batch", {
+							threadId: params.threadId,
+							postIds,
+						})
+				)
 					.then((res) => res.data)
 					.catch((err) => {
 						console.warn(
@@ -185,11 +203,17 @@ export async function loadThreadDetail(params: {
 		// Failure → `undefined` so PostComments triggers a client-side refetch
 		// instead of hard-rendering an empty list.
 		postIds.length > 0
-			? forumApi
-					.post<PostComment[]>("/api/v1/post-comments/batch", {
-						threadId: params.threadId,
-						postIds,
-					})
+			? (jwt
+					? forumApi.postAuth<PostComment[]>(
+							"/api/v1/post-comments/batch",
+							{ threadId: params.threadId, postIds },
+							jwt,
+						)
+					: forumApi.post<PostComment[]>("/api/v1/post-comments/batch", {
+							threadId: params.threadId,
+							postIds,
+						})
+				)
 					.then((res) => res.data as PostComment[] | undefined)
 					.catch((err) => {
 						console.warn(

@@ -94,23 +94,23 @@ export async function list(request: Request, env: Env): Promise<Response> {
 		) {
 			return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 		}
-	}
+	} else {
+		const visCtx = buildVisibilityContext(user);
 
-	const visCtx = buildVisibilityContext(user);
-
-	if (
-		!canReadThreadContent({
-			sticky: row.sticky,
-			forumVisibility: row.visibility as ForumVisibility,
-			visCtx,
-		})
-	) {
-		return errorResponse(
-			"FORBIDDEN",
-			403,
-			{ message: "You don't have access to this content" },
-			origin,
-		);
+		if (
+			!canReadThreadContent({
+				sticky: row.sticky,
+				forumVisibility: row.visibility as ForumVisibility,
+				visCtx,
+			})
+		) {
+			return errorResponse(
+				"FORBIDDEN",
+				403,
+				{ message: "You don't have access to this content" },
+				origin,
+			);
+		}
 	}
 
 	// Clamp limit
@@ -229,23 +229,23 @@ export async function batchByPostIds(request: Request, env: Env): Promise<Respon
 		) {
 			return errorResponse("THREAD_NOT_FOUND", 404, undefined, origin);
 		}
-	}
+	} else {
+		const visCtx = buildVisibilityContext(user);
 
-	const visCtx = buildVisibilityContext(user);
-
-	if (
-		!canReadThreadContent({
-			sticky: visRow.sticky,
-			forumVisibility: visRow.visibility as ForumVisibility,
-			visCtx,
-		})
-	) {
-		return errorResponse(
-			"FORBIDDEN",
-			403,
-			{ message: "You don't have access to this content" },
-			origin,
-		);
+		if (
+			!canReadThreadContent({
+				sticky: visRow.sticky,
+				forumVisibility: visRow.visibility as ForumVisibility,
+				visCtx,
+			})
+		) {
+			return errorResponse(
+				"FORBIDDEN",
+				403,
+				{ message: "You don't have access to this content" },
+				origin,
+			);
+		}
 	}
 
 	const comments = commentsResult.results.map((r) => toPostComment(r as Record<string, unknown>));

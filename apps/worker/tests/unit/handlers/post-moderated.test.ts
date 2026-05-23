@@ -232,6 +232,19 @@ describe("post.list — moderated thread (sticky=-2) visibility", () => {
 		const response = await postHandler.list(req, makeEnv(db));
 		expect(response.status).toBe(403);
 	});
+
+	it("thread author can list posts even on staff-only forum when moderated", async () => {
+		const jwt = await createJwtForRole(UserRole.User, THREAD_AUTHOR_ID);
+		const db = createMockDb({
+			visRow: { ...visRow, visibility: "staff" },
+			userRole: UserRole.User,
+		});
+		const req = new Request("https://x.com/api/v1/posts?threadId=1", {
+			headers: { Authorization: `Bearer ${jwt}` },
+		});
+		const response = await postHandler.list(req, makeEnv(db));
+		expect(response.status).toBe(200);
+	});
 });
 
 describe("post.getById — moderated thread (sticky=-2) visibility", () => {
@@ -301,6 +314,20 @@ describe("post.getById — moderated thread (sticky=-2) visibility", () => {
 		});
 		const response = await postHandler.getById(req, makeEnv(db));
 		expect(response.status).toBe(403);
+	});
+
+	it("thread author can view post on staff-only forum when moderated", async () => {
+		const jwt = await createJwtForRole(UserRole.User, THREAD_AUTHOR_ID);
+		const db = createMockDb({
+			visRow: { ...visRow, visibility: "staff" },
+			userRole: UserRole.User,
+			posts: [makeD1PostRow({ thread_id: 1 })],
+		});
+		const req = new Request("https://x.com/api/v1/posts/1", {
+			headers: { Authorization: `Bearer ${jwt}` },
+		});
+		const response = await postHandler.getById(req, makeEnv(db));
+		expect(response.status).toBe(200);
 	});
 });
 

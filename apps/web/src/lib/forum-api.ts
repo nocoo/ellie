@@ -247,6 +247,22 @@ export const forumApi = {
 		};
 	},
 
+	/** GET list with keyset cursor pagination + Bearer token */
+	async getCursorAuth<T>(
+		path: string,
+		bearerToken: string,
+		searchParams?: Record<string, string | number | boolean | undefined | null>,
+	): Promise<CursorPaginatedResponse<T>> {
+		const result = await request<T[]>({ method: "GET", path, searchParams, bearerToken });
+		return {
+			data: result.data,
+			meta: {
+				...(result.meta as ApiMeta),
+				nextCursor: (result.meta as CursorMeta).nextCursor ?? null,
+			},
+		};
+	},
+
 	/** GET list with offset pagination: { data: T[], meta: { total, page, limit, pages } } */
 	async getPage<T>(
 		path: string,

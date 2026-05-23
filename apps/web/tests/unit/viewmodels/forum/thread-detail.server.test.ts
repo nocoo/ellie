@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/forum-api", () => ({
 	forumApi: {
 		get: vi.fn(),
+		getAuth: vi.fn(),
 		getAll: vi.fn(),
 		getCursor: vi.fn(),
+		getCursorAuth: vi.fn(),
 		getPage: vi.fn(),
 		post: vi.fn(),
 		postAuth: vi.fn(),
@@ -76,11 +78,12 @@ vi.mock("@/lib/forum-breadcrumbs", () => ({
 }));
 
 import { forumApi } from "@/lib/forum-api";
-import { getCurrentForumUser } from "@/lib/forum-auth";
+import { getCurrentForumUser, getWorkerJwt } from "@/lib/forum-auth";
 import { loadThreadDetail } from "@/viewmodels/forum/thread-detail.server";
 
 const mockForumApi = forumApi as any;
 const mockGetCurrentForumUser = getCurrentForumUser as ReturnType<typeof vi.fn>;
+const mockGetWorkerJwt = getWorkerJwt as ReturnType<typeof vi.fn>;
 
 const mockThread = {
 	id: 1,
@@ -398,5 +401,48 @@ describe("loadThreadDetail", () => {
 		// post: 1 attachments/batch + 1 comments/batch = 2 (constant)
 		expect(mockForumApi.post).toHaveBeenCalledTimes(2);
 		// Total: 6 — same as 3 posts. N+1 is gone.
+	});
+
+	it("uses authenticated Worker calls (Bearer) when session JWT is available", async () => {
+		const jwt = "test-worker-jwt-token";
+		mockGetWorkerJwt.mockResolvedValue(jwt);
+		mockGetCurrentForumUser.mockResolvedValue({ userId: 100, username: "author", role: 0 });
+
+		mockForumApi.getAuth.mockResolvedValue({ data: mockThread });
+		mockForumApi.getCursorAuth.mockResolvedValue({
+			data: mockPosts,
+			meta: { nextCursor: null },
+		});
+		mockForumApi.postAuth.mockImplementation((path: string) => {
+			if (path.includes("attachments/batch")) return Promise.resolve({ data: [] });
+			if (path.includes("post-comments/batch")) return Promise.resolve({ data: [] });
+			return Promise.resolve({ data: null });
+		});
+
+		await loadThreadDetail({ threadId: 1 });
+
+		// Thread fetch uses getAuth with Bearer
+		expect(mockForumApi.getAuth).toHaveBeenCalledWith("/api/v1/threads/1", jwt);
+		// Posts fetch uses getCursorAuth with Bearer
+		expect(mockForumApi.getCursorAuth).toHaveBeenCalledWith(
+			"/api/v1/posts",
+			jwt,
+			expect.objectContaining({ threadId: 1 }),
+		);
+		// Batch endpoints use postAuth with Bearer
+		expect(mockForumApi.postAuth).toHaveBeenCalledWith(
+			"/api/v1/posts/attachments/batch",
+			expect.objectContaining({ threadId: 1 }),
+			jwt,
+		);
+		expect(mockForumApi.postAuth).toHaveBeenCalledWith(
+			"/api/v1/post-comments/batch",
+			expect.objectContaining({ threadId: 1 }),
+			jwt,
+		);
+		// Unauthenticated methods should NOT be called for thread/posts/batch
+		expect(mockForumApi.get).not.toHaveBeenCalledWith(expect.stringContaining("/api/v1/threads/"));
+		expect(mockForumApi.getCursor).not.toHaveBeenCalled();
+		expect(mockForumApi.post).not.toHaveBeenCalled();
 	});
 });

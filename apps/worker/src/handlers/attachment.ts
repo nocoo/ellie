@@ -72,26 +72,26 @@ async function verifyThreadVisibility(
 		) {
 			return { allowed: false, response: errorResponse(notFoundCode, 404, undefined, origin) };
 		}
-	}
+	} else {
+		const visCtx = buildVisibilityContext(user);
 
-	const visCtx = buildVisibilityContext(user);
-
-	if (
-		!canReadThreadContent({
-			sticky: thread.sticky,
-			forumVisibility: forumRow.visibility as ForumVisibility,
-			visCtx,
-		})
-	) {
-		return {
-			allowed: false,
-			response: errorResponse(
-				"FORBIDDEN",
-				403,
-				{ message: "You don't have access to this content" },
-				origin,
-			),
-		};
+		if (
+			!canReadThreadContent({
+				sticky: thread.sticky,
+				forumVisibility: forumRow.visibility as ForumVisibility,
+				visCtx,
+			})
+		) {
+			return {
+				allowed: false,
+				response: errorResponse(
+					"FORBIDDEN",
+					403,
+					{ message: "You don't have access to this content" },
+					origin,
+				),
+			};
+		}
 	}
 
 	return { allowed: true, forumId: thread.forum_id };
