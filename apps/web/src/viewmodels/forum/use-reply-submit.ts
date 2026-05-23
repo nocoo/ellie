@@ -167,6 +167,7 @@ export function useReplySubmit({
 				onClose?.();
 				toast.success("回复已发布");
 				router.push(`/threads/${threadId}?last=1#post-${post.id}`);
+				router.refresh();
 			} catch (err) {
 				const code = err instanceof ApiError ? err.code : undefined;
 				const message = getErrorMessage(code, "reply");
