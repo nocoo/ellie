@@ -656,7 +656,7 @@ function PostsTab({
 				header: "内容",
 				cell: (row) => (
 					<span className="line-clamp-2 text-sm">
-						{row.content.replace(/\[.*?\]/g, "").slice(0, 120)}
+						{(row.content ?? "").replace(/\[.*?\]/g, "").slice(0, 120)}
 					</span>
 				),
 			},
