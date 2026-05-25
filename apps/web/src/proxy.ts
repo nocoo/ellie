@@ -407,12 +407,14 @@ export async function tryRecordPageView(args: {
 		};
 		if (args.clientIp) headers["X-Ellie-Client-IP"] = args.clientIp;
 		if (args.userAgent) headers["User-Agent"] = args.userAgent;
-		await fetch(cfg.url, {
+		const res = await fetch(cfg.url, {
 			method: "POST",
 			headers,
 			body: JSON.stringify(body),
 			cache: "no-store",
+			signal: AbortSignal.timeout(5000),
 		});
+		await res.body?.cancel();
 	} catch {
 		// Swallow — observability MUST NOT throw on the request hot path.
 	}
