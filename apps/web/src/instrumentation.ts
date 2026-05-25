@@ -36,6 +36,7 @@ export async function register() {
 			if (!res.ok) {
 				console.warn(`[keepalive] Worker ping returned ${res.status}`);
 			}
+			await res.body?.cancel();
 		} catch {
 			// Transient network failure — tolerate silently, next tick retries
 		}
