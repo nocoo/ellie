@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.2] - 2026-05-26
+
+### Added
+
+- **Thread title editing**: authors and moderators can now edit thread titles via inline dialog
+- **Admin 增量管理 page**: review recent content (threads/posts) with filters
+
+### Fixed
+
+- **Memory leak: keepalive fetch**: instrumentation ping every 10s now consumes response body to prevent socket buffer accumulation
+- **Memory leak: analytics ingest fetch**: proxy page-view POST now consumes response body and adds 5s timeout
+- **Admin user detail dialog width**: widened to 80vw to properly utilize screen space
+- **Reply submit navigation**: added `router.refresh()` after reply submit
+- **Moderated thread visibility**: aligned across all endpoints for author/staff
+- **Thread view counter**: wrapped D1 chain in Promise.resolve and bound to ctx.waitUntil
+- **Mobile E2E tests**: fixed BoundingBox property access, auth gates, and forum-card assumptions
+
+### Changed
+
+- **Mobile layout polish**: iPhone-targeted improvements (wave 2) including unified emoji/smiley picker
+
 ## [1.6.1] - 2026-05-23
 
 ### Added
