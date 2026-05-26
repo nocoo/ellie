@@ -41,6 +41,7 @@ const PERSIST_TO = ".wrangler/state/e2e";
 const PERSIST_ABS = resolve(REPO_ROOT, PERSIST_TO);
 const WRANGLER_CONFIG = "apps/worker/wrangler.toml";
 const SEED_FILE = "scripts/seed-test-db.sql";
+const WRANGLER_BIN = resolve(REPO_ROOT, "apps/worker/node_modules/.bin/wrangler");
 
 // Test-only secrets injected directly into the local Worker via --var. These
 // match the defaults used by tests/integration/setup.ts, so no .dev.vars file
@@ -66,7 +67,7 @@ function cleanupTestState(): void {
 async function runWranglerOnce(args: string[], label: string, timeoutMs: number): Promise<void> {
 	console.log(`▶ ${label}`);
 	const proc = spawn({
-		cmd: ["bunx", "wrangler", ...args],
+		cmd: [WRANGLER_BIN, ...args],
 		cwd: REPO_ROOT,
 		stdout: "inherit",
 		stderr: "inherit",
@@ -136,8 +137,7 @@ async function startWorker(): Promise<void> {
 	console.log("🚀 Starting Worker (wrangler dev --local)…");
 	workerProcess = spawn({
 		cmd: [
-			"bunx",
-			"wrangler",
+			WRANGLER_BIN,
 			"dev",
 			"-c",
 			WRANGLER_CONFIG,

@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.3] - 2026-05-26
+
+### Chores
+
+- Dependency updates: hono 4.12.23, lucide-react 1.16.0, tailwind-merge 3.6.0, @base-ui/react 1.5.0, @cap.js/widget 0.1.53, @cloudflare/workers-types 4.20260525.1, @radix-ui/* patches/minors
+- Major upgrades: @types/node 22→25, bun 1.3.11→1.3.14
+
 ## [1.6.2] - 2026-05-26
 
 ### Added

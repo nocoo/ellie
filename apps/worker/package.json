@@ -1,6 +1,6 @@
 {
 	"name": "@ellie/worker",
-	"version": "1.6.2",
+	"version": "1.6.3",
 	"private": true,
 	"type": "module",
 	"scripts": {
@@ -21,6 +21,6 @@
 		"@types/crypto-js": "^4.2.2",
 		"bun-types": "latest",
 		"typescript": "^5.9",
-		"wrangler": "^4.0.0"
+		"wrangler": "^3.114.0"
 	}
 }
