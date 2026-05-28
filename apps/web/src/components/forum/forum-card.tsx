@@ -19,7 +19,7 @@
 
 import { getStaticImageUrl } from "@/lib/cdn";
 import { formatCount } from "@/viewmodels/forum/forum-list";
-import { formatDateTime } from "@/viewmodels/shared/formatting";
+import { formatDateTime, formatDateTimeMobile } from "@/viewmodels/shared/formatting";
 import type { ForumTreeNode } from "@ellie/types";
 import Link from "next/link";
 import { SafeHtml } from "./safe-html";
@@ -239,6 +239,85 @@ function LastPostPreview({ forum }: { forum: ForumTreeNode }) {
 	);
 }
 
+/** Mobile-only Row 2 — keeps every forum/sub-forum row at exactly 2 lines on
+ * 320–375px viewports. Shared by both `ForumCardWide` and `ForumCardGrid` so a
+ * single helper owns the contract: 16px avatar (xs) + truncated thread title
+ * (`flex-1`) + bounded meta (`max-w-[42%] shrink-0`) holding truncated username
+ * and a `whitespace-nowrap` compact date.
+ *
+ * Empty state (`lastPostAt <= 0`) renders a single "暂无最新主题" line so the row
+ * height stays at 2 lines instead of collapsing to 1 — reviewer freeze
+ * msg=efa3c2e9. Drops the avatar/user/date when empty.
+ *
+ * Date format is `formatDateTimeMobile` (HH:mm / MM-DD / YYYY-MM-DD), not the
+ * full `formatDateTime`, because at 12px the long form crowds the title on
+ * 320px viewports.
+ *
+ * `data-testid` hooks: `mobile-last-thread-link`, `mobile-last-poster-link`,
+ * `mobile-last-post-date`, `mobile-last-post-empty` — used by both the unit
+ * tests and the `mobile-layout.spec.ts` e2e to pin the 2-line contract.
+ */
+function MobileLastPostLine({ forum }: { forum: ForumTreeNode }) {
+	if (forum.lastPostAt <= 0) {
+		return (
+			<div
+				className="mt-1 flex items-center text-xs text-muted-foreground leading-5"
+				data-testid="mobile-last-post-empty"
+			>
+				<span className="truncate min-w-0">暂无最新主题</span>
+			</div>
+		);
+	}
+	const hasAvatar = forum.lastPosterId > 0;
+	return (
+		<div
+			className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground leading-5 min-w-0"
+			data-testid="mobile-last-post-row"
+		>
+			{hasAvatar && (
+				<span className="shrink-0">
+					<ForumAvatar
+						userId={forum.lastPosterId}
+						userName={forum.lastPoster}
+						avatarPath={forum.lastPosterAvatarPath}
+						size="xs"
+					/>
+				</span>
+			)}
+			<Link
+				href={`/threads/${forum.lastThreadId}`}
+				prefetch={false}
+				className="relative z-10 text-forum-link hover:underline truncate min-w-0 flex-1"
+				data-testid="mobile-last-thread-link"
+			>
+				{forum.lastThreadSubject || "最新主题"}
+			</Link>
+			<span className="flex items-center gap-1 shrink-0 max-w-[42%] min-w-0">
+				{hasAvatar ? (
+					<Link
+						href={`/users/${forum.lastPosterId}`}
+						prefetch={false}
+						className="relative z-10 text-forum-link hover:underline truncate min-w-0"
+						data-testid="mobile-last-poster-link"
+					>
+						{forum.lastPoster}
+					</Link>
+				) : (
+					<span className="text-forum-link truncate min-w-0" data-testid="mobile-last-poster-link">
+						{forum.lastPoster}
+					</span>
+				)}
+				<span
+					className="whitespace-nowrap tabular-nums shrink-0"
+					data-testid="mobile-last-post-date"
+				>
+					{formatDateTimeMobile(forum.lastPostAt)}
+				</span>
+			</span>
+		</div>
+	);
+}
+
 // ---------------------------------------------------------------------------
 // Wide layout — one forum per row, fixed grid template for column alignment
 // ---------------------------------------------------------------------------
@@ -294,13 +373,15 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 				</div>
 			</div>
 
-			{/* Mobile <640: compact stack. Per reviewer freeze (msg 8b90cb85),
-			    iPhone view hides secondary information: 回/览 stats, last-poster
-			    username, sub-forums and moderator meta. We keep what signals
-			    activity: today-pill (new threads) and last-post-time.
-			    Layout constraints: forum name `min-w-0 truncate`, badges/pills
-			    `shrink-0` so a long version name can't push the today-pill or
-			    icon out of the viewport. */}
+			{/* Mobile <640: compact 2-row stack.
+			    Row 1: icon + name + today-pill (single line).
+			    Row 2: shared MobileLastPostLine (avatar + thread title +
+			    user/date) or "暂无最新主题" empty state. Reviewer freeze
+			    msg=efa3c2e9 reversed the earlier msg=8b90cb85 freeze to
+			    surface the latest-thread context per哥's "右侧空间利用"
+			    requirement, while keeping every row at exactly 2 lines via
+			    `truncate min-w-0` on the title and `max-w-[42%] shrink-0`
+			    on the user/date meta. */}
 			<div className="sm:hidden px-3 py-2.5">
 				<div className="flex items-center gap-2">
 					<ForumIcon hasActivity={forum.todayThreads > 0} />
@@ -313,16 +394,7 @@ function ForumCardWide({ forum }: { forum: ForumTreeNode }) {
 					</Link>
 					<TodayThreadBadge count={forum.todayThreads} variant="pill" />
 				</div>
-				{forum.lastPostAt > 0 && (
-					<div
-						className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground"
-						data-testid="mobile-meta-row"
-					>
-						<span className="shrink-0 whitespace-nowrap" data-testid="last-post-date-mobile">
-							{formatDateTime(forum.lastPostAt)}
-						</span>
-					</div>
-				)}
+				<MobileLastPostLine forum={forum} />
 			</div>
 		</div>
 	);
@@ -344,11 +416,19 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 			</div>
 
 			<div className="min-w-0 flex-1">
-				<div className="flex items-baseline gap-1.5 flex-wrap">
+				{/* Row 1 — name + today badge. Mobile uses `flex-nowrap` so a
+				    long forum name + badge can't wrap to a 2nd line and break
+				    the 2-row mobile density contract (reviewer freeze
+				    msg=683d8fff). Desktop keeps `flex-wrap` so wider rows can
+				    relax — the wide grid template already absorbs the slack. */}
+				<div
+					className="flex flex-nowrap sm:flex-wrap items-baseline gap-1.5"
+					data-testid="grid-row1"
+				>
 					<Link
 						href={`/forums/${forum.id}`}
 						prefetch={false}
-						className="text-sm font-bold text-foreground hover:text-destructive transition-colors truncate min-w-0"
+						className="text-sm font-bold text-foreground hover:text-destructive transition-colors truncate min-w-0 flex-1 sm:flex-initial"
 					>
 						{forum.name}
 					</Link>
@@ -369,24 +449,14 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 					<ModeratorLinks mods={forum.moderatorList ?? []} />
 				</div>
 
+				{/* Desktop last-post row (>=sm). Mobile uses MobileLastPostLine
+				    below so wide/grid stay aligned at 2-row density. */}
 				{forum.lastPostAt > 0 && (
 					<div
-						className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground"
+						className="mt-1 hidden sm:flex items-center gap-1.5 text-sm text-muted-foreground"
 						data-testid="grid-last-post-row"
 					>
-						{/* Reviewer freeze (msg=8b90cb85, follow-up ad33321c): on
-						    mobile the grid cell is aligned with the wide layout —
-						    we only keep the freshness signal (last-post timestamp)
-						    and drop the thread title, avatar and last-poster
-						    username, all of which are secondary on a 320–375px
-						    viewport. The desktop branch is unchanged. */}
-						<span
-							className="sm:hidden shrink-0 whitespace-nowrap text-xs"
-							data-testid="grid-last-post-date-mobile"
-						>
-							{formatDateTime(forum.lastPostAt)}
-						</span>
-						<span className="hidden sm:inline-flex items-center gap-1.5">
+						<span className="inline-flex items-center gap-1.5">
 							<LastPosterAvatarLink
 								userId={forum.lastPosterId}
 								userName={forum.lastPoster}
@@ -396,25 +466,32 @@ function ForumCardGrid({ forum }: { forum: ForumTreeNode }) {
 						<Link
 							href={`/threads/${forum.lastThreadId}`}
 							prefetch={false}
-							className="hidden sm:block relative z-10 text-forum-link hover:underline truncate min-w-0 flex-1"
+							className="relative z-10 text-forum-link hover:underline truncate min-w-0 flex-1"
 							data-testid="grid-last-thread-link"
 						>
 							{forum.lastThreadSubject || "最新主题"}
-						</Link>{" "}
+						</Link>
 						{forum.lastPosterId > 0 ? (
 							<Link
 								href={`/users/${forum.lastPosterId}`}
 								prefetch={false}
-								className="hidden sm:inline shrink-0 text-xs text-forum-link hover:underline"
+								className="shrink-0 text-xs text-forum-link hover:underline"
 								data-testid="last-poster-link-grid"
 							>
 								{forum.lastPoster}
 							</Link>
 						) : (
-							<span className="hidden sm:inline shrink-0 text-xs">{forum.lastPoster}</span>
+							<span className="shrink-0 text-xs">{forum.lastPoster}</span>
 						)}
 					</div>
 				)}
+
+				{/* Mobile Row 2 (<640px): shared helper keeps grid in sync with
+				    wide layout — avatar + thread title + user/date, or empty
+				    state so the row never collapses to 1 line. */}
+				<div className="sm:hidden">
+					<MobileLastPostLine forum={forum} />
+				</div>
 			</div>
 		</div>
 	);

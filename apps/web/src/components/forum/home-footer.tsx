@@ -26,9 +26,17 @@ function OnlineStatsBar({ vm }: { vm: HomeFooterViewModel }) {
 
 	return (
 		<div className="rounded-sm border-l-[3px] border-l-success bg-card px-4 py-2.5">
-			<p className="text-sm text-foreground">
-				在线会员 - 总计 <span className="font-bold">{formatNumber(s.totalOnline)}</span> 人在线 -
-				最高记录是 <span className="font-bold">{formatNumber(s.peakOnline)}</span> 于 {s.peakDate}.
+			{/* Single-line online stats. Per哥 + reviewer freeze msg=efa3c2e9:
+			    drop "在线会员 - 总计 " prefix only; keep the numeric/peak/date
+			    payload. `whitespace-nowrap overflow-hidden text-ellipsis`
+			    guarantees the line never wraps even at 320px when the peak
+			    date string drifts long. */}
+			<p
+				className="text-sm text-foreground whitespace-nowrap overflow-hidden text-ellipsis"
+				data-testid="online-stats-line"
+			>
+				<span className="font-bold">{formatNumber(s.totalOnline)}</span> 人在线 - 最高记录是{" "}
+				<span className="font-bold">{formatNumber(s.peakOnline)}</span> 于 {s.peakDate}.
 			</p>
 		</div>
 	);

@@ -120,68 +120,79 @@ test.describe("E2E-MOB-02: header — anonymous viewport doesn't wrap", () => {
 	});
 });
 
-test.describe("E2E-MOB-03: forum index card hides secondary info on mobile", () => {
-	// Reviewer follow-up msg=7c954e60: hard-pinning the existence of a
-	// `[data-testid="forum-card"]` here couples the e2e gate to CI test-data
-	// shape, which is unstable. Unit tests already pin the wide / grid
-	// hidden-on-mobile class tokens (forum-card.test.ts). This e2e now only
-	// validates the *renderable contract*: if at least one ForumCard appears,
-	// the mobile hidden assertions must hold; if no ForumCard is rendered
-	// (empty backend / data drift), we still gate that the real homepage
-	// loaded, then skip the data-dependent absence checks.
-	test("`forum-stats-inline` (帖/回) is not in the mobile wide layout", async ({
-		page,
-		loginAs,
-	}) => {
-		await page.setViewportSize({ width: 390, height: 844 });
-		await loginAs("e2etest");
-		const homePage = new HomePage(page);
-		await homePage.goto();
-		await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
-		expect(await homePage.isLoaded()).toBe(true);
+test.describe("E2E-MOB-03: forum index card surfaces 2-row mobile latest-post line", () => {
+	// Reviewer freeze msg=efa3c2e9 reversed the earlier msg=8b90cb85 "hide
+	// secondary info" contract — 哥 wanted the right-side space populated with
+	// the latest thread title / poster / time, but still kept at a strict
+	// 2-line per card density. This e2e gates that, when at least one
+	// ForumCard renders, the mobile Row 2 helper is visible, the text never
+	// wraps, and there is no horizontal scroll at 320 / 375 widths.
+	for (const width of [320, 375] as const) {
+		test(`@${width}px: Row 2 visible, single-line, no horizontal scroll`, async ({
+			page,
+			loginAs,
+		}) => {
+			await page.setViewportSize({ width, height: 720 });
+			await loginAs("e2etest");
+			const homePage = new HomePage(page);
+			await homePage.goto();
+			await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
+			expect(await homePage.isLoaded()).toBe(true);
 
-		const card = page.locator('[data-testid="forum-card"]').first();
-		const hasCard = (await card.count()) > 0;
-		if (!hasCard) {
-			test.info().annotations.push({
-				type: "skip-reason",
-				description:
-					"No forum-card rendered on the CI homepage (empty forum tree). " +
-					"Unit-test mobile hidden contract still pins the wide/grid tokens.",
-			});
-			return;
-		}
+			const card = page.locator('[data-testid="forum-card"]').first();
+			const hasCard = (await card.count()) > 0;
+			if (!hasCard) {
+				test.info().annotations.push({
+					type: "skip-reason",
+					description:
+						"No forum-card rendered on the CI homepage (empty forum tree). " +
+						"Unit-test mobile 2-row contract still pins the helper class tokens.",
+				});
+				return;
+			}
+			await expect(card).toBeVisible({ timeout: 15_000 });
 
-		// At least one ForumCard is rendered. Validate the mobile hidden
-		// contract end-to-end against the real layout.
-		await expect(card).toBeVisible({ timeout: 15_000 });
+			// 1) No horizontal scroll — page-level invariant under 320/375.
+			const overflowing = await page.evaluate(
+				() => document.documentElement.scrollWidth > window.innerWidth,
+			);
+			expect(overflowing).toBe(false);
 
-		// In the mobile (`sm:hidden`) wide-layout block, the inline stats span
-		// was removed entirely. Grid layout still emits the span but wraps
-		// the whole stats row in `hidden sm:block`, so it must not be
-		// reported as visible.
-		const inlineStats = page.getByTestId("forum-stats-inline");
-		// Count = 0 OR none visible. We can't strictly require count=0
-		// because grid layout still produces the inner span (hidden via
-		// ancestor), so we assert visibility instead.
-		const count = await inlineStats.count();
-		for (let i = 0; i < count; i++) {
-			await expect(inlineStats.nth(i)).toBeHidden();
-		}
+			// 2) Stats (帖/回) wide-layout inline span stays hidden — moved
+			// to Row 2 budget instead.
+			const inlineStats = page.getByTestId("forum-stats-inline");
+			const statsCount = await inlineStats.count();
+			for (let i = 0; i < statsCount; i++) {
+				await expect(inlineStats.nth(i)).toBeHidden();
+			}
 
-		// Last-poster mobile link (wide layout) must be entirely absent in
-		// the mobile branch's DOM — easier to assert than visibility.
-		await expect(page.getByTestId("last-poster-link-mobile")).toHaveCount(0);
+			// 3) Mobile Row 2: either the real latest-post row OR the empty
+			// placeholder must be visible — both keep the card at 2 lines.
+			const rowOrEmpty = page
+				.locator('[data-testid="mobile-last-post-row"], [data-testid="mobile-last-post-empty"]')
+				.first();
+			await expect(rowOrEmpty).toBeVisible({ timeout: 5_000 });
 
-		// Grid layout: thread title link is now `hidden sm:block`, so even
-		// when the panel uses the grid variant the title must not be visible
-		// on a 390px viewport. Reviewer follow-up msg=ad33321c.
-		const gridTitle = page.getByTestId("grid-last-thread-link");
-		const gridCount = await gridTitle.count();
-		for (let i = 0; i < gridCount; i++) {
-			await expect(gridTitle.nth(i)).toBeHidden();
-		}
-	});
+			// 4) If Row 2 surfaced the populated variant, thread/poster/date
+			// must each be visible and single-line. Title link `truncate`
+			// guarantees no wrap even with long subjects.
+			const populatedRow = page.getByTestId("mobile-last-post-row").first();
+			if ((await populatedRow.count()) > 0 && (await populatedRow.isVisible())) {
+				const title = populatedRow.getByTestId("mobile-last-thread-link");
+				const date = populatedRow.getByTestId("mobile-last-post-date");
+				await expect(title).toBeVisible();
+				await expect(date).toBeVisible();
+				// Single-line height check — `getBoundingClientRect().height`
+				// should stay within ~1.5× a 12px line. Tailwind `leading-5`
+				// gives ~20px line-height; we cap at 26px so the test stays
+				// robust against subpixel rounding without admitting a wrap.
+				const titleHeight = await title.evaluate((el) => el.getBoundingClientRect().height);
+				expect(titleHeight).toBeLessThan(26);
+				const dateHeight = await date.evaluate((el) => el.getBoundingClientRect().height);
+				expect(dateHeight).toBeLessThan(26);
+			}
+		});
+	}
 });
 
 test.describe("E2E-MOB-04: thread list mobile row hides 阅读/回复/推荐数", () => {
@@ -547,4 +558,38 @@ test.describe("E2E-MOB-12: SiteFooter logo hidden on mobile", () => {
 		// are pinned by the unit test, here we only confirm it's attached.
 		await expect(page.getByTestId("site-footer-bg-wrap")).toBeAttached();
 	});
+});
+
+test.describe("E2E-MOB-13: home-footer online stats — single line, no wrap", () => {
+	// 哥的反馈 + reviewer freeze msg=efa3c2e9: 移除 "在线会员 - 总计 " 前缀后，
+	// 整段统计应在 320 / 375 上单行不折行。前缀已不再渲染；whitespace-nowrap +
+	// text-ellipsis 兜底防御文案漂移。
+	for (const width of [320, 375] as const) {
+		test(`@${width}px: online-stats-line stays single-line and drops prefix`, async ({
+			page,
+			loginAs,
+		}) => {
+			await page.setViewportSize({ width, height: 720 });
+			await loginAs("e2etest");
+			const homePage = new HomePage(page);
+			await homePage.goto();
+			await expect(page.locator("header").first()).toBeVisible({ timeout: 15_000 });
+			expect(await homePage.isLoaded()).toBe(true);
+
+			const line = page.getByTestId("online-stats-line");
+			await expect(line).toBeVisible({ timeout: 10_000 });
+
+			// 1) Prefix is gone — `textContent` must not start with "在线会员".
+			const text = (await line.textContent())?.trim() ?? "";
+			expect(text.startsWith("在线会员")).toBe(false);
+			// 2) Numeric payload survives.
+			expect(text).toMatch(/人在线/);
+
+			// 3) Single-line height — `text-sm` (14px) + `leading-5` (20px) at
+			// padding y=10px sits well below 32px. If the line wraps the
+			// height jumps to ~40+ px.
+			const height = await line.evaluate((el) => el.getBoundingClientRect().height);
+			expect(height).toBeLessThan(32);
+		});
+	}
 });

@@ -42,6 +42,30 @@ describe("HomeFooter", () => {
 		expect(screen.getByText(/2011-9-29/)).toBeTruthy();
 	});
 
+	it("drops '在线会员 - 总计 ' prefix but keeps numeric payload (reviewer msg=efa3c2e9)", () => {
+		// 哥 + reviewer freeze: the long prefix was the culprit for the 320/375
+		// line-wrap; delete the prefix only, keep totalOnline / peakOnline /
+		// peakDate so the bar still carries actionable information.
+		const { container } = render(createElement(HomeFooter, { vm: makeVm() }));
+		expect(container.textContent ?? "").not.toContain("在线会员 - 总计");
+		// Numeric/peak/date payload survives.
+		expect(container.textContent ?? "").toMatch(/人在线/);
+		expect(container.textContent ?? "").toMatch(/最高记录是/);
+		expect(container.textContent ?? "").toMatch(/2011-9-29/);
+	});
+
+	it("online stats line uses single-line guard (whitespace-nowrap + ellipsis)", () => {
+		// Defence in depth: even after the prefix removal, the bar must never
+		// wrap at 320px. e2e pins single-line height; this unit pin guards the
+		// Tailwind class itself so a future refactor can't silently re-wrap.
+		render(createElement(HomeFooter, { vm: makeVm() }));
+		const line = screen.getByTestId("online-stats-line");
+		expect(line.tagName).toBe("P");
+		expect(line.className).toContain("whitespace-nowrap");
+		expect(line.className).toContain("overflow-hidden");
+		expect(line.className).toContain("text-ellipsis");
+	});
+
 	it("hides friend links section when no links configured", () => {
 		const { container } = render(createElement(HomeFooter, { vm: makeVm({ friendLinks: [] }) }));
 

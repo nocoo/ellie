@@ -25,6 +25,7 @@ vi.mock("@/viewmodels/forum/forum-list", () => ({
 
 vi.mock("@/viewmodels/shared/formatting", () => ({
 	formatDateTime: (t: number) => `t=${t}`,
+	formatDateTimeMobile: (t: number) => `m=${t}`,
 }));
 
 vi.mock("@/components/forum/safe-html", () => ({
@@ -171,25 +172,81 @@ describe("ForumCard LastPostPreview — clickable username + layout split", () =
 		expect(screen.queryByTestId("last-poster-link")).toBeNull();
 	});
 
-	it("mobile compact stack — wide layout: last-poster link and inline stats are intentionally absent (iPhone freeze)", () => {
-		// Reviewer freeze (msg 8b90cb85): on iPhone the per-forum row drops
-		// secondary info — last-poster username, inline 帖/回 stats, sub-forum
-		// + moderator meta. Only icon, name, today-pill and last-post date
-		// remain. We assert the link DOM is not produced inside the
-		// `sm:hidden` mobile block; desktop links continue to work via
-		// `last-poster-link` (covered above).
+	it("mobile compact stack — wide layout: surfaces 2-row latest-post line (title + user + date)", () => {
+		// Reviewer freeze msg=efa3c2e9 reversed the earlier msg=8b90cb85 trim —
+		// 哥的反馈是「右侧空间没利用」，移动端要恢复最新帖子标题/用户/时间，但
+		// 严格 2 行密度。MobileLastPostLine 必须渲染 thread link + poster link +
+		// 短日期，并且 thread link 抗截断、meta 区固定不挤压标题。
 		render(createElement(ForumCard, { forum: lastPostForum, layout: "wide" }));
-		expect(screen.queryByTestId("last-poster-link-mobile")).toBeNull();
-		// last-post date span remains so users still see freshness signal.
-		expect(screen.getByTestId("last-post-date-mobile")).not.toBeNull();
-	});
+		const threadLink = screen.getByTestId("mobile-last-thread-link");
+		expect(threadLink.tagName).toBe("A");
+		expect(threadLink.getAttribute("href")).toBe("/threads/999");
+		expect(threadLink.className).toContain("truncate");
+		expect(threadLink.className).toContain("min-w-0");
+		expect(threadLink.className).toContain("flex-1");
 
-	it("mobile compact stack — wide layout: date span keeps no-wrap class (freshness pin)", () => {
-		render(createElement(ForumCard, { forum: lastPostForum, layout: "wide" }));
-		const date = screen.getByTestId("last-post-date-mobile");
-		expect(date.tagName).toBe("SPAN");
+		const posterLink = screen.getByTestId("mobile-last-poster-link");
+		expect(posterLink.tagName).toBe("A");
+		expect(posterLink.getAttribute("href")).toBe("/users/12345");
+		expect(posterLink.className).toContain("truncate");
+		expect(posterLink.className).toContain("min-w-0");
+
+		const date = screen.getByTestId("mobile-last-post-date");
 		expect(date.className).toContain("whitespace-nowrap");
 		expect(date.className).toContain("shrink-0");
+		expect(date.className).toContain("tabular-nums");
+		// Date uses the compact mobile formatter (`m=...`), never the long
+		// `formatDateTime` form — that would crowd the title at 320px.
+		expect(date.textContent).toBe(`m=${lastPostForum.lastPostAt}`);
+	});
+
+	it("mobile compact stack — wide layout: meta region is width-capped so title keeps space", () => {
+		// `max-w-[42%]` on the meta wrapper guarantees the title link always has
+		// at least ~58% of the row width to truncate gracefully — otherwise long
+		// usernames would push the title off-screen even with `flex-1`.
+		render(createElement(ForumCard, { forum: lastPostForum, layout: "wide" }));
+		const date = screen.getByTestId("mobile-last-post-date");
+		const metaWrapper = date.parentElement;
+		expect(metaWrapper?.className).toContain("max-w-[42%]");
+		expect(metaWrapper?.className).toContain("shrink-0");
+	});
+
+	it("mobile compact stack — wide layout: empty state renders 2-row placeholder", () => {
+		// `lastPostAt === 0` would collapse the row to 1 line without an empty
+		// state. Reviewer pin: render "暂无最新主题" so every card keeps the same
+		// 2-line height on mobile.
+		render(createElement(ForumCard, { forum: makeForum(), layout: "wide" }));
+		const empty = screen.getByTestId("mobile-last-post-empty");
+		expect(empty.textContent).toBe("暂无最新主题");
+		expect(screen.queryByTestId("mobile-last-thread-link")).toBeNull();
+		expect(screen.queryByTestId("mobile-last-poster-link")).toBeNull();
+		expect(screen.queryByTestId("mobile-last-post-date")).toBeNull();
+	});
+
+	it("mobile compact stack — wide layout: avatar slot is dropped for anonymous poster", () => {
+		// When `lastPosterId <= 0` there is no avatar to render, but the thread
+		// title and timestamp still surface so users see freshness signal.
+		render(
+			createElement(ForumCard, {
+				forum: makeForum({
+					lastThreadId: 1,
+					lastThreadSubject: "Hi",
+					lastPostAt: 100,
+					lastPoster: "guest",
+					lastPosterId: 0,
+				}),
+				layout: "wide",
+			}),
+		);
+		// `ForumAvatar` mock renders `data-testid="avatar"`. With the anonymous
+		// poster, the mobile branch should not render an avatar node inside the
+		// mobile row (other rows like the wide-layout sm:flex still might).
+		const row = screen.getByTestId("mobile-last-post-row");
+		expect(row.querySelector("[data-testid=avatar]")).toBeNull();
+		expect(screen.getByTestId("mobile-last-thread-link").textContent).toBe("Hi");
+		// Anonymous poster name renders as plain span, not a Link.
+		const poster = screen.getByTestId("mobile-last-poster-link");
+		expect(poster.tagName).toBe("SPAN");
 	});
 
 	it("grid-layout last-poster username is a Link to /users/:id", () => {
@@ -266,11 +323,11 @@ describe("ForumCard font baseline — 14/12 mix aligned with thread-list page", 
 		expect(meta.contains(userLink)).toBe(true);
 	});
 
-	it("mobile compact meta row uses text-xs (date span)", () => {
-		// Mobile meta row now carries only the last-post-date; row still uses
-		// text-xs so the date renders at 12px alongside its desktop sibling.
+	it("mobile compact row (Row 2) uses text-xs (date + username at 12px)", () => {
+		// Mobile Row 2 carries thread-link, poster-link and compact date in
+		// 12px so the auxiliary meta stays tighter than the 14px Row 1 name.
 		render(createElement(ForumCard, { forum: lastPostForum, layout: "wide" }));
-		const row = screen.getByTestId("mobile-meta-row");
+		const row = screen.getByTestId("mobile-last-post-row");
 		expect(row.className).toContain("text-xs");
 		expect(row.className).not.toContain("text-sm");
 	});
@@ -333,27 +390,21 @@ describe("ForumCard font baseline — 14/12 mix aligned with thread-list page", 
 	});
 });
 
-// ─── Mobile trim contract (reviewer freeze msg=8b90cb85) ─────────────────────
-// iPhone-targeted polish removes secondary information from the forum-index
-// row. These pins make sure a future "tidy up" can't re-introduce the
-// removed pieces without breaking the gate.
-describe("ForumCard — iPhone mobile-trim contract", () => {
+// ─── Mobile 2-row contract (reviewer freeze msg=efa3c2e9) ────────────────────
+// Reversed the earlier msg=8b90cb85 "hide everything" freeze: the per-row
+// auxiliary content (latest thread title + user + short date) is now visible
+// on mobile, but bounded so every card stays at exactly 2 lines.
+describe("ForumCard — mobile 2-row contract", () => {
 	it("wide layout mobile name uses `min-w-0 truncate`, today-pill is shrink-0 (no overflow on long names)", () => {
 		const longName = makeForum({ name: "一二三四五六七八九十一二三四五六七", todayThreads: 5 });
 		render(createElement(ForumCard, { forum: longName, layout: "wide" }));
 		const nameLinks = screen.getAllByText(longName.name);
-		// The `sm:hidden` mobile block has its own copy of the name link.
-		// At least one must carry truncate + min-w-0 to defend against
-		// overflowing a 320–375px viewport.
 		const hasTruncate = nameLinks.some(
 			(el) => el.className.includes("truncate") && el.className.includes("min-w-0"),
 		);
 		expect(hasTruncate).toBe(true);
-		// Today pill keeps shrink-0 so the long name can't push it out.
 		const pills = screen.getAllByText(/^\+?5$|^\(5\)$/);
 		const pillShrink = pills.some((el) => el.className.includes("shrink-0"));
-		// Wide layout uses `variant="pill"` which inherits shrink-0 via the
-		// wrapper; either inline-flex shrink or an ancestor shrink-0 counts.
 		const pillOrAncestorShrink =
 			pillShrink ||
 			pills.some((el) => {
@@ -367,7 +418,35 @@ describe("ForumCard — iPhone mobile-trim contract", () => {
 		expect(pillOrAncestorShrink).toBe(true);
 	});
 
-	it("grid layout: stats row, moderator line, thread-title link, and last-poster username are wrapped in `hidden sm:*`; only date is mobile-visible (mobile parity with wide)", () => {
+	it("grid layout Row 1 (name + today badge) is flex-nowrap on mobile, flex-wrap on sm+", () => {
+		// Reviewer freeze msg=683d8fff: grid mobile Row 1 used to be
+		// `flex-wrap`, which let a long forum name push the today-badge to a
+		// 2nd line and broke the 2-row mobile density contract. Pin the new
+		// mobile-only `flex-nowrap` + `sm:flex-wrap` tokens, the name link's
+		// `flex-1 min-w-0 truncate`, and the badge wrapper's `shrink-0` so a
+		// future refactor can't silently re-introduce the wrap.
+		const longName = makeForum({
+			name: "一二三四五六七八九十一二三四五六七",
+			todayThreads: 5,
+		});
+		render(createElement(ForumCard, { forum: longName, layout: "grid" }));
+		const row1 = screen.getByTestId("grid-row1");
+		expect(row1.className).toContain("flex-nowrap");
+		expect(row1.className).toContain("sm:flex-wrap");
+		const nameLink = row1.querySelector("a");
+		expect(nameLink).not.toBeNull();
+		expect(nameLink?.className).toContain("flex-1");
+		expect(nameLink?.className).toContain("min-w-0");
+		expect(nameLink?.className).toContain("truncate");
+		// Today badge wrapper keeps shrink-0 — guards against name pushing it out.
+		const badgeText = screen.getAllByText(/^[+(]?5[)]?$/);
+		const wrapper = badgeText.find((el) =>
+			el.parentElement?.classList.contains("shrink-0"),
+		)?.parentElement;
+		expect(wrapper?.className).toContain("shrink-0");
+	});
+
+	it("grid layout: mobile Row 2 surfaces shared MobileLastPostLine; desktop row stays `hidden sm:flex`", () => {
 		const withMods = makeForum({
 			moderatorList: [{ id: 1, name: "mod-a" }],
 			lastThreadId: 9,
@@ -377,26 +456,31 @@ describe("ForumCard — iPhone mobile-trim contract", () => {
 			lastPosterId: 1,
 		});
 		render(createElement(ForumCard, { forum: withMods, layout: "grid" }));
+		// Stats/moderator rows are still desktop-only — they are *not* part of
+		// the 2-row mobile budget; only Row 2 latest-post info is.
 		const statsRow = screen.getByTestId("grid-stats-row");
 		expect(statsRow.className).toContain("hidden");
 		expect(statsRow.className).toMatch(/sm:(block|inline)/);
-		const userLink = screen.getByTestId("last-poster-link-grid");
-		expect(userLink.className).toContain("hidden");
-		expect(userLink.className).toMatch(/sm:(block|inline)/);
-		// Thread title link is desktop-only on mobile per reviewer follow-up
-		// msg=ad33321c — grid mobile now mirrors wide mobile (date only).
-		const titleLink = screen.getByTestId("grid-last-thread-link");
-		expect(titleLink.className).toContain("hidden");
-		expect(titleLink.className).toMatch(/sm:(block|inline)/);
-		// Moderator line: walk up from the rendered moderator label.
 		const modRow = screen.getByTestId("forum-meta-版主");
-		// Wrapper div carries hidden sm:block.
-		const wrapper = modRow.parentElement;
-		expect(wrapper?.className).toContain("hidden");
-		// The mobile-visible piece: grid's last-post date carries `sm:hidden`
-		// (visible only on mobile) so the freshness signal stays — and class
-		// assertions hold under happy-dom's no-media-query environment.
-		const mobileDate = screen.getByTestId("grid-last-post-date-mobile");
-		expect(mobileDate.className).toContain("sm:hidden");
+		expect(modRow.parentElement?.className).toContain("hidden");
+		// Desktop grid last-post row stays `hidden sm:flex` so it does not
+		// double up with the mobile shared helper.
+		const desktopGridRow = screen.getByTestId("grid-last-post-row");
+		expect(desktopGridRow.className).toContain("hidden");
+		expect(desktopGridRow.className).toMatch(/sm:(block|flex|inline)/);
+		// Mobile shared helper produces the new 2-row latest-post line.
+		expect(screen.getByTestId("mobile-last-thread-link").getAttribute("href")).toBe("/threads/9");
+		expect(screen.getByTestId("mobile-last-poster-link").getAttribute("href")).toBe("/users/1");
+		expect(screen.getByTestId("mobile-last-post-date").textContent).toBe("m=100");
+	});
+
+	it("grid layout empty state: mobile Row 2 shows '暂无最新主题' to keep 2-row density", () => {
+		// `lastPostAt === 0` — desktop drops its grid-last-post-row entirely
+		// (it's gated on `lastPostAt > 0`), but mobile must still render the
+		// empty-state placeholder so the card stays at 2 lines.
+		render(createElement(ForumCard, { forum: makeForum(), layout: "grid" }));
+		expect(screen.queryByTestId("grid-last-post-row")).toBeNull();
+		const empty = screen.getByTestId("mobile-last-post-empty");
+		expect(empty.textContent).toBe("暂无最新主题");
 	});
 });

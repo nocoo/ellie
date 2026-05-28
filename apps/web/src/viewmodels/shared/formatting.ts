@@ -58,6 +58,31 @@ export function formatDateTime(timestamp: number): string {
 }
 
 /**
+ * Compact date/time for narrow mobile cells (320–375px).
+ * Same day → "HH:mm"; same year → "MM-DD"; older → "YYYY-MM-DD".
+ * Reserves at most 10 chars so it never crowds a sibling truncated title.
+ * Returns empty string for zero timestamps.
+ */
+export function formatDateTimeMobile(timestamp: number): string {
+	if (timestamp <= 0) return "";
+	const d = new Date(timestamp * 1000);
+	const now = new Date();
+	const sameDay =
+		d.getFullYear() === now.getFullYear() &&
+		d.getMonth() === now.getMonth() &&
+		d.getDate() === now.getDate();
+	if (sameDay) {
+		const h = String(d.getHours()).padStart(2, "0");
+		const m = String(d.getMinutes()).padStart(2, "0");
+		return `${h}:${m}`;
+	}
+	const mm = String(d.getMonth() + 1).padStart(2, "0");
+	const dd = String(d.getDate()).padStart(2, "0");
+	if (d.getFullYear() === now.getFullYear()) return `${mm}-${dd}`;
+	return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+/**
  * Format timestamp to locale date with zero-padding: "2024/01/05".
  * Returns null for zero/negative timestamps.
  * Used for profile "last activity" displays.

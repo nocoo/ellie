@@ -2,11 +2,12 @@ import {
 	formatCompactNumber,
 	formatDate,
 	formatDateTime,
+	formatDateTimeMobile,
 	formatLocaleDate,
 	formatNumber,
 	formatRelativeTime,
 } from "@/viewmodels/shared/formatting";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("formatNumber", () => {
 	it("formats numbers with thousand separators", () => {
@@ -67,6 +68,63 @@ describe("formatDateTime", () => {
 	it("formats timestamp with zero-padded time", () => {
 		const result = formatDateTime(1058140800);
 		expect(result).toMatch(/^\d{4}-\d{1,2}-\d{1,2} \d{2}:\d{2}$/);
+	});
+});
+
+describe("formatDateTimeMobile", () => {
+	// Pin "now" to 2026-06-15 12:30 local time so all branch tests are
+	// deterministic regardless of the actual CI calendar (reviewer freeze
+	// msg=683d8fff: previous tests assumed CI never runs on Jan 1).
+	const FIXED_NOW = new Date(2026, 5, 15, 12, 30, 0); // local-time June 15
+
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(FIXED_NOW);
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("returns empty string for 0", () => {
+		expect(formatDateTimeMobile(0)).toBe("");
+	});
+
+	it("treats negative timestamps as zero (defence against 1969 fallback)", () => {
+		// Unix epoch math turns negative seconds into pre-1970 dates. The
+		// homepage feed never produces negative `lastPostAt`, but the formatter
+		// has no business pretending those dates are real — return empty so
+		// callers (e.g. MobileLastPostLine) trip their `<= 0` branch instead.
+		expect(formatDateTimeMobile(-1)).toBe("");
+		expect(formatDateTimeMobile(-1_000_000)).toBe("");
+	});
+
+	it("returns HH:mm for same-day timestamps", () => {
+		// 2026-06-15 09:05 local — same day as the fixed `now`.
+		const sameDay = new Date(2026, 5, 15, 9, 5, 0).getTime() / 1000;
+		expect(formatDateTimeMobile(sameDay)).toBe("09:05");
+	});
+
+	it("returns MM-DD for same-year, different-day timestamps", () => {
+		// 2026-01-07 noon — same year as `now`, different day.
+		const sameYear = new Date(2026, 0, 7, 12, 0, 0).getTime() / 1000;
+		expect(formatDateTimeMobile(sameYear)).toBe("01-07");
+	});
+
+	it("returns YYYY-MM-DD for previous-year timestamps", () => {
+		// 2025-12-31 — last year relative to `now`.
+		const prevYear = new Date(2025, 11, 31, 23, 59, 0).getTime() / 1000;
+		expect(formatDateTimeMobile(prevYear)).toBe("2025-12-31");
+	});
+
+	it("stays at most 10 characters wide (defence vs title crowding)", () => {
+		// Cap is the longest branch (YYYY-MM-DD = 10 chars).
+		const prevYear = new Date(2025, 11, 31).getTime() / 1000;
+		const sameYear = new Date(2026, 0, 7).getTime() / 1000;
+		const sameDay = new Date(2026, 5, 15, 9, 5, 0).getTime() / 1000;
+		expect(formatDateTimeMobile(prevYear).length).toBeLessThanOrEqual(10);
+		expect(formatDateTimeMobile(sameYear).length).toBeLessThanOrEqual(10);
+		expect(formatDateTimeMobile(sameDay).length).toBeLessThanOrEqual(10);
 	});
 });
 
