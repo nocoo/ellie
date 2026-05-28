@@ -154,8 +154,12 @@ async function startWorker(): Promise<void> {
 			`JWT_SECRET:${TEST_JWT_SECRET}`,
 		],
 		cwd: REPO_ROOT,
-		stdout: "pipe",
-		stderr: "pipe",
+		// "inherit" prevents wrangler from blocking on full stdout/stderr pipe
+		// buffers during boot. The previous "pipe" config let the parent's
+		// undrained pipes fill, which made wrangler block on writes and never
+		// reach the ready state — the pre-commit hook then hit a 60s timeout.
+		stdout: "inherit",
+		stderr: "inherit",
 		env: {
 			...process.env,
 			NODE_ENV: "test",
@@ -218,19 +222,127 @@ async function runTests(): Promise<number> {
 
 // ─── Main ──────────────────────────────────────────────────────
 
-async function main(): Promise<void> {
-	let exitCode = 1;
+type RunOutcome =
+	| { kind: "success" }
+	| { kind: "setup-failure"; reason: string }
+	| { kind: "worker-failure"; reason: string }
+	| { kind: "test-failure"; exitCode: number };
+
+async function runOnce(attempt: number, totalAttempts: number): Promise<RunOutcome> {
+	console.log(`▶ L2 attempt ${attempt}/${totalAttempts}`);
+	// Setup steps (cleanup / migrate / seed) must not be retried — failures
+	// there indicate a real problem with the migrations or seed data, not a
+	// transient workerd flake.
 	try {
 		cleanupTestState();
 		await initDatabase();
 		await seedDatabase();
-		await startWorker();
-		exitCode = await runTests();
 	} catch (err) {
-		console.error("❌ L2 runner failed:", err instanceof Error ? err.message : err);
+		const reason = err instanceof Error ? err.message : String(err);
+		return { kind: "setup-failure", reason };
+	}
+
+	// Worker startup is retried: startup timeout or premature exit is the
+	// observable form of the wrangler/workerd transient crash.
+	try {
+		await startWorker();
+	} catch (err) {
+		const reason = err instanceof Error ? err.message : String(err);
+		return { kind: "worker-failure", reason };
+	}
+
+	const exitCode = await runTests();
+	if (exitCode === 0) return { kind: "success" };
+
+	// Distinguish a real assertion regression from a workerd mid-run crash:
+	// if the worker is no longer responding by the time the tests exit non-
+	// zero, the failures are likely cascading ECONNRESET/ConnectionRefused
+	// from a workerd crash (the wrangler parent process may still be alive
+	// while the inner userWorker is dead, so exitCode alone is not enough).
+	if (workerProcess?.exitCode != null) {
+		return {
+			kind: "worker-failure",
+			reason: `worker died during tests (exit code ${workerProcess.exitCode})`,
+		};
+	}
+	if (!(await isWorkerAlive())) {
+		return {
+			kind: "worker-failure",
+			reason: "worker stopped responding to /api/live mid-run",
+		};
+	}
+	return { kind: "test-failure", exitCode };
+}
+
+async function isWorkerAlive(): Promise<boolean> {
+	try {
+		const res = await fetch(`${BASE_URL}/api/live`);
+		return res.ok;
+	} catch {
+		return false;
+	}
+}
+
+function parseAttempts(): number {
+	const raw = process.env.L2_ATTEMPTS;
+	if (!raw) return 3;
+	const n = Number(raw);
+	if (!Number.isInteger(n) || n < 1) {
+		console.warn(`⚠️  L2_ATTEMPTS="${raw}" is not a positive integer, falling back to 3`);
+		return 3;
+	}
+	return n;
+}
+
+async function main(): Promise<void> {
+	const totalAttempts = parseAttempts();
+	let exitCode = 1;
+	let lastFailure = "L2 runner failed";
+
+	for (let attempt = 1; attempt <= totalAttempts; attempt++) {
+		let outcome: RunOutcome;
+		try {
+			outcome = await runOnce(attempt, totalAttempts);
+		} catch (err) {
+			outcome = {
+				kind: "worker-failure",
+				reason: err instanceof Error ? err.message : String(err),
+			};
+		} finally {
+			stopWorker();
+		}
+
+		if (outcome.kind === "success") {
+			exitCode = 0;
+			break;
+		}
+		if (outcome.kind === "setup-failure") {
+			// Migration / seed errors are real; retrying would just mask them.
+			console.error(`❌ Setup failed — not retrying: ${outcome.reason}`);
+			exitCode = 1;
+			lastFailure = `setup failure: ${outcome.reason}`;
+			break;
+		}
+		if (outcome.kind === "test-failure") {
+			// Real test regression — don't mask it with retries.
+			console.error(
+				`❌ Tests failed (exit ${outcome.exitCode}) with worker still alive — not retrying`,
+			);
+			exitCode = outcome.exitCode;
+			lastFailure = `tests exited with code ${outcome.exitCode}`;
+			break;
+		}
+		// worker-failure → retry if attempts remain
+		console.warn(`⚠️  L2 attempt ${attempt}/${totalAttempts} worker failure: ${outcome.reason}`);
+		lastFailure = outcome.reason;
 		exitCode = 1;
-	} finally {
-		stopWorker();
+		if (attempt < totalAttempts) {
+			await new Promise((r) => setTimeout(r, 1000));
+		}
+	}
+
+	if (exitCode !== 0) {
+		console.error(`❌ L2 runner failed after ${totalAttempts} attempt(s): ${lastFailure}`);
 	}
 	process.exit(exitCode);
 }
