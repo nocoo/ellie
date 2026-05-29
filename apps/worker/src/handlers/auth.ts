@@ -14,6 +14,7 @@ import { toUser } from "../lib/mappers";
 import { hashPassword, verifyDiscuzPassword, verifyPassword } from "../lib/password";
 import { jsonResponse } from "../lib/response";
 import { withAuthVerified } from "../lib/routeHelpers";
+import { incrementStatsOnUserRegister } from "../lib/stats-counter";
 import { errorResponse } from "../middleware/error";
 import { DB_COLUMNS, validateProfileFields } from "./me";
 
@@ -622,6 +623,11 @@ export async function register(
 		await env.KV.put(rateLimitKey, String(currentCount + 1), {
 			expirationTtl: 3600,
 		});
+
+		// Increment pre-computed stats counter (fire-and-forget on error)
+		incrementStatsOnUserRegister(env).catch((e) =>
+			console.warn("[auth:register] stats counter increment failed", e),
+		);
 
 		scheduleLoginHistory(
 			env,

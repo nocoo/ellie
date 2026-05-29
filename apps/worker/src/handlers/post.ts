@@ -14,6 +14,7 @@ import { parseIdFromPath } from "../lib/parseId";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
+import { incrementStatsOnPostCreate } from "../lib/stats-counter";
 import {
 	POST_VISIBLE,
 	STICKY_MODERATED,
@@ -376,6 +377,10 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		invalidateForumVolatileV2(env, thread.forum_id),
 		bumpThreadMetaGen(env, threadId),
 		bumpPostListGen(env, threadId),
+		// Increment pre-computed stats counters (fire-and-forget on error)
+		incrementStatsOnPostCreate(env).catch((e) =>
+			console.warn("[post:create] stats counter increment failed", e),
+		),
 	]);
 
 	return jsonResponse(toPost(createdPost as Record<string, unknown>), origin, undefined, 201);

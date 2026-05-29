@@ -18,6 +18,7 @@ import { checkPostingPermission } from "../lib/postingPermission";
 import { getQueryParam } from "../lib/queryString";
 import { jsonListResponse, jsonResponse, paginatedResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
+import { incrementStatsOnThreadCreate } from "../lib/stats-counter";
 import { scheduleThreadViewIncrement } from "../lib/thread-views";
 import { coerceTypeIdInput, resolveAndValidateTypeId } from "../lib/threadType";
 import { getUserProfiles } from "../lib/user-cache";
@@ -874,7 +875,13 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 	// Cache invalidation (docs/19 §6 row "POST /api/v1/threads"):
 	// Bump `forum:summary:gen` + `thread:list:gen:<forumId>` so future v2
 	// caches see a fresh gen.
-	await invalidateForumVolatileV2(env, forumId);
+	await Promise.all([
+		invalidateForumVolatileV2(env, forumId),
+		// Increment pre-computed stats counters (fire-and-forget on error)
+		incrementStatsOnThreadCreate(env).catch((e) =>
+			console.warn("[thread:create] stats counter increment failed", e),
+		),
+	]);
 
 	return jsonResponse(toThread(createdThread as Record<string, unknown>), origin, undefined, 201);
 });
