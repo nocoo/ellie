@@ -6,6 +6,7 @@ import { d1FlushSink } from "./lib/analytics/flushSink-d1";
 import { cleanupLoginHistory } from "./lib/analytics/loginHistory";
 import type { CFRequest, Env } from "./lib/env";
 import { aggregateOnlineStats } from "./lib/online-stats";
+import { checkAndRolloverDailyStats } from "./lib/stats-rollover";
 import { trackActivity } from "./middleware/activity";
 import { validateApiKey } from "./middleware/apiKey";
 import { authMiddleware } from "./middleware/auth";
@@ -851,6 +852,12 @@ export default {
 		switch (event.cron) {
 			case "*/5 * * * *":
 				ctx.waitUntil(aggregateOnlineStats(env));
+				// Check for day rollover and rotate today/yesterday posts counters
+				ctx.waitUntil(
+					checkAndRolloverDailyStats(env).catch((err) => {
+						console.warn("[cron] checkAndRolloverDailyStats failed", err);
+					}),
+				);
 				return;
 			case "0 19 * * *":
 				ctx.waitUntil(

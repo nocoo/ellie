@@ -212,6 +212,9 @@ vi.mock("../../src/handlers/admin/announcement", () => ({
 vi.mock("../../src/lib/online-stats", () => ({
 	aggregateOnlineStats: vi.fn(async () => {}),
 }));
+vi.mock("../../src/lib/stats-rollover", () => ({
+	checkAndRolloverDailyStats: vi.fn(async () => {}),
+}));
 vi.mock("../../src/lib/analytics/loginHistory", () => ({
 	cleanupLoginHistory: vi.fn(async () => 0),
 	scheduleLoginHistory: vi.fn(),
@@ -728,19 +731,22 @@ describe("router (src/index.ts)", () => {
 	// ─── Scheduled Handler ──────────────────────────────────────────
 
 	describe("scheduled", () => {
-		it("dispatches the */5 cron to aggregateOnlineStats via waitUntil", async () => {
+		it("dispatches the */5 cron to aggregateOnlineStats + checkAndRolloverDailyStats via waitUntil", async () => {
 			const onlineStats = await import("../../src/lib/online-stats");
 			const loginHistory = await import("../../src/lib/analytics/loginHistory");
+			const statsRollover = await import("../../src/lib/stats-rollover");
 			(onlineStats.aggregateOnlineStats as ReturnType<typeof vi.fn>).mockClear();
 			(loginHistory.cleanupLoginHistory as ReturnType<typeof vi.fn>).mockClear();
+			(statsRollover.checkAndRolloverDailyStats as ReturnType<typeof vi.fn>).mockClear();
 			const env = makeEnv();
 			const ctx = makeCtx();
 			const event = { cron: "*/5 * * * *" } as ScheduledEvent;
 
 			await worker.scheduled(event, env, ctx);
 
-			expect(ctx.waitUntil).toHaveBeenCalledTimes(1);
+			expect(ctx.waitUntil).toHaveBeenCalledTimes(2);
 			expect(onlineStats.aggregateOnlineStats).toHaveBeenCalledTimes(1);
+			expect(statsRollover.checkAndRolloverDailyStats).toHaveBeenCalledTimes(1);
 			expect(loginHistory.cleanupLoginHistory).not.toHaveBeenCalled();
 		});
 
