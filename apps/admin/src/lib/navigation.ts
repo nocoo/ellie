@@ -57,6 +57,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
 			// Old path keeps a redirect for bookmarks (see app/.../statistics/page.tsx).
 			{ href: "/admin/statistics/recalc", label: "统计计算", icon: "Calculator" },
 			{ href: "/admin/statistics/kv", label: "KV 缓存监控", icon: "Database" },
+			{ href: "/admin/statistics/calibrate", label: "统计校准", icon: "Scale" },
 		],
 	},
 	{
@@ -99,6 +100,7 @@ export const ROUTE_LABELS: Record<string, string> = {
 	analytics: "数据分析",
 	statistics: "数据统计",
 	recalc: "统计计算",
+	calibrate: "统计校准",
 	kv: "KV 缓存监控",
 	reports: "举报管理",
 	"ip-bans": "IP 封禁",
