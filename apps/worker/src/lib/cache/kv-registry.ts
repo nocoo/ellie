@@ -304,6 +304,36 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		description:
 			"All-time online peak. Sticky (no TTL) — only ever rewritten when new peak observed.",
 	},
+	{
+		family: "stats:today_posts",
+		displayName: "Today's posts counter",
+		category: "stats",
+		status: "shipped",
+		listPrefix: "stats:today_posts",
+		keyKind: "exact",
+		pattern: "stats:today_posts",
+		ttl: 86_400,
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "delete-literal", requires: ["key"] },
+		description:
+			"Incremented on each post/thread creation. Reset to 0 daily by cron; old value moves to settings.stats.yesterday_posts.",
+	},
+	{
+		family: "stats:today_date",
+		displayName: "Today's date marker",
+		category: "stats",
+		status: "shipped",
+		listPrefix: "stats:today_date",
+		keyKind: "exact",
+		pattern: "stats:today_date",
+		ttl: 86_400,
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "delete-literal", requires: ["key"] },
+		description:
+			"YYYY-MM-DD in Asia/Shanghai. Used by cron to detect day rollover for stats:today_posts.",
+	},
 	// ─── Online presence + activity throttle ───────────────────────
 	{
 		family: "online:user",
@@ -657,6 +687,8 @@ export const KV_PUT_PREFIX_ALLOWLIST: readonly string[] = [
 	"public-stats",
 	"stats:online_count",
 	"stats:online_peak",
+	"stats:today_posts",
+	"stats:today_date",
 	"online:",
 	"activity_throttle:",
 	"refresh:",

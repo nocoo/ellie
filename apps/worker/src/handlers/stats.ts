@@ -1,7 +1,7 @@
 // Public stats handler — GET /api/v1/stats
 // Returns site-wide statistics for the forum header/footer.
-// Cached in KV for 60 seconds to avoid repeated COUNT queries.
-// Only counts visible content (posts.invisible = 0, threads.sticky >= 0, users.status >= 0)
+// Cached in KV for 600 seconds. Reads pre-computed counters from settings table
+// and KV instead of running expensive COUNT(*) queries.
 
 import {
 	recordError,
@@ -13,7 +13,6 @@ import {
 } from "../lib/cache/metrics";
 import type { CFRequest, Env } from "../lib/env";
 import { jsonResponse } from "../lib/response";
-import { POST_VISIBLE, THREAD_VISIBLE, USER_ACTIVE } from "../lib/visibility";
 
 const CACHE_KEY = "public-stats";
 const CACHE_TTL_SECONDS = 600;
@@ -25,19 +24,18 @@ export interface PublicStats {
 	totalThreads: number;
 	totalPosts: number;
 	totalMembers: number;
-	newestMember: string;
 	totalOnline: number;
 	peakOnline: number;
 	peakDate: string;
 }
 
-/** Compute the UTC start-of-day timestamp for today and yesterday. */
-function dayBoundaries(): { todayStart: number; yesterdayStart: number; yesterdayEnd: number } {
-	const nowSec = Math.floor(Date.now() / 1000);
-	const todayStart = nowSec - (nowSec % 86400);
-	const yesterdayStart = todayStart - 86400;
-	return { todayStart, yesterdayStart, yesterdayEnd: todayStart };
-}
+// Settings keys for pre-computed counters
+const STATS_SETTINGS_KEYS = [
+	"stats.total_threads",
+	"stats.total_posts",
+	"stats.total_members",
+	"stats.yesterday_posts",
+] as const;
 
 /** GET /api/v1/stats — public site statistics */
 export async function stats(
@@ -63,34 +61,16 @@ export async function stats(
 	}
 	recordMiss(METRICS_FAMILY);
 
-	const { todayStart, yesterdayStart, yesterdayEnd } = dayBoundaries();
-
-	// Parallel fetch: D1 batch + KV online stats
-	// Only count visible content:
-	// - posts.invisible = 0 (visible posts only)
-	// - threads.sticky >= 0 (visible threads only)
-	// - users.status >= 0 (normal users only, excludes banned/placeholder)
-	const [dbResults, onlineCount, peakData] = await Promise.all([
-		env.DB.batch([
-			// 0: today's visible posts (replies)
-			env.DB.prepare(
-				`SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ? AND ${POST_VISIBLE}`,
-			).bind(todayStart),
-			// 1: yesterday's visible posts (replies)
-			env.DB.prepare(
-				`SELECT COUNT(*) AS cnt FROM posts WHERE created_at >= ? AND created_at < ? AND ${POST_VISIBLE}`,
-			).bind(yesterdayStart, yesterdayEnd),
-			// 2: total visible threads
-			env.DB.prepare(`SELECT COUNT(*) AS cnt FROM threads WHERE ${THREAD_VISIBLE}`),
-			// 3: total visible posts (replies)
-			env.DB.prepare(`SELECT COUNT(*) AS cnt FROM posts WHERE ${POST_VISIBLE}`),
-			// 4: total normal members (excludes banned/placeholder/archived users)
-			env.DB.prepare(`SELECT COUNT(*) AS cnt FROM users WHERE ${USER_ACTIVE}`),
-			// 5: newest normal member (excludes banned/placeholder users)
-			env.DB.prepare(
-				`SELECT username FROM users WHERE ${USER_ACTIVE} ORDER BY reg_date DESC LIMIT 1`,
-			),
-		]),
+	// Parallel fetch: settings from D1 + KV counters
+	const [settingsResult, todayPostsStr, onlineCount, peakData] = await Promise.all([
+		// Read pre-computed counters from settings table
+		env.DB.prepare(
+			`SELECT key, value FROM settings WHERE key IN (${STATS_SETTINGS_KEYS.map(() => "?").join(", ")})`,
+		)
+			.bind(...STATS_SETTINGS_KEYS)
+			.all<{ key: string; value: string }>(),
+		// Today's posts counter from KV (incremented on each post)
+		env.KV.get("stats:today_posts"),
 		// Current online count (aggregated by cron)
 		env.KV.get("stats:online_count"),
 		// Historical peak (no TTL)
@@ -100,16 +80,18 @@ export async function stats(
 		} | null>,
 	]);
 
-	const count = (i: number) => (dbResults[i].results[0] as Record<string, number>).cnt;
-	const newestRow = dbResults[5].results[0] as Record<string, string> | undefined;
+	// Parse settings into a map
+	const settingsMap = new Map<string, number>();
+	for (const row of settingsResult.results) {
+		settingsMap.set(row.key, Number.parseInt(row.value, 10) || 0);
+	}
 
 	const data: PublicStats = {
-		todayPosts: count(0),
-		yesterdayPosts: count(1),
-		totalThreads: count(2),
-		totalPosts: count(3),
-		totalMembers: count(4),
-		newestMember: newestRow?.username ?? "",
+		todayPosts: todayPostsStr ? Number.parseInt(todayPostsStr, 10) : 0,
+		yesterdayPosts: settingsMap.get("stats.yesterday_posts") ?? 0,
+		totalThreads: settingsMap.get("stats.total_threads") ?? 0,
+		totalPosts: settingsMap.get("stats.total_posts") ?? 0,
+		totalMembers: settingsMap.get("stats.total_members") ?? 0,
 		// Online stats from KV (populated by cron aggregation)
 		totalOnline: onlineCount ? Number.parseInt(onlineCount, 10) : 0,
 		peakOnline: peakData?.count ?? 0,

@@ -15,38 +15,36 @@ function createRequest(path = "/api/v1/stats"): Request {
 	});
 }
 
-function makeStatsDb(counts: number[], newestUsername = "newbie") {
-	const stmts = [
-		// 0: todayPosts
-		{ results: [{ cnt: counts[0] ?? 0 }] },
-		// 1: yesterdayPosts
-		{ results: [{ cnt: counts[1] ?? 0 }] },
-		// 2: totalThreads
-		{ results: [{ cnt: counts[2] ?? 0 }] },
-		// 3: totalPosts
-		{ results: [{ cnt: counts[3] ?? 0 }] },
-		// 4: totalMembers
-		{ results: [{ cnt: counts[4] ?? 0 }] },
-		// 5: newestMember
-		{ results: newestUsername ? [{ username: newestUsername }] : [] },
+/**
+ * Create a mock DB that returns settings rows for stats counters.
+ */
+function makeStatsDb(counters: {
+	totalThreads?: number;
+	totalPosts?: number;
+	totalMembers?: number;
+	yesterdayPosts?: number;
+}) {
+	const settingsRows = [
+		{ key: "stats.total_threads", value: String(counters.totalThreads ?? 0) },
+		{ key: "stats.total_posts", value: String(counters.totalPosts ?? 0) },
+		{ key: "stats.total_members", value: String(counters.totalMembers ?? 0) },
+		{ key: "stats.yesterday_posts", value: String(counters.yesterdayPosts ?? 0) },
 	];
 
 	return {
 		prepare: vi.fn((_sql: string) => ({
 			bind: vi.fn(() => ({
-				all: vi.fn(async () => {
-					// Not used by batch — included for completeness
-					return { results: [] };
-				}),
+				all: vi.fn(async () => ({ results: settingsRows })),
 			})),
-			all: vi.fn(async () => ({ results: [] })),
+			all: vi.fn(async () => ({ results: settingsRows })),
 		})),
-		batch: vi.fn(async () => stmts),
+		batch: vi.fn(async () => []),
 	} as unknown as D1Database;
 }
 
 function makeKv(options?: {
 	cachedValue?: string;
+	todayPosts?: string;
 	onlineCount?: string;
 	peakData?: { count: number; date: string } | null;
 }) {
@@ -54,6 +52,9 @@ function makeKv(options?: {
 		get: vi.fn(async (key: string, type?: string) => {
 			if (key === "public-stats") {
 				return options?.cachedValue ?? null;
+			}
+			if (key === "stats:today_posts") {
+				return options?.todayPosts ?? null;
 			}
 			if (key === "stats:online_count") {
 				return options?.onlineCount ?? null;
@@ -72,9 +73,14 @@ function makeKv(options?: {
 
 describe("public stats handler", () => {
 	describe("GET /api/v1/stats", () => {
-		it("should return correct stats from DB when cache is empty", async () => {
-			const db = makeStatsDb([5, 12, 3000, 9000000, 500], "latest_user");
-			const kv = makeKv();
+		it("should return correct stats from settings and KV when cache is empty", async () => {
+			const db = makeStatsDb({
+				totalThreads: 3000,
+				totalPosts: 9000000,
+				totalMembers: 500,
+				yesterdayPosts: 12,
+			});
+			const kv = makeKv({ todayPosts: "5" });
 			const env = makeEnv({ DB: db, KV: kv });
 			const request = createRequest();
 
@@ -89,16 +95,20 @@ describe("public stats handler", () => {
 			expect(data.totalThreads).toBe(3000);
 			expect(data.totalPosts).toBe(9000000);
 			expect(data.totalMembers).toBe(500);
-			expect(data.newestMember).toBe("latest_user");
 			// Online stats return 0 (placeholder)
 			expect(data.totalOnline).toBe(0);
 			expect(data.peakOnline).toBe(0);
 			expect(data.peakDate).toBe("");
 		});
 
-		it("should write result to KV cache after DB query", async () => {
-			const db = makeStatsDb([1, 2, 100, 200, 50], "someone");
-			const kv = makeKv();
+		it("should write result to KV cache after reading settings", async () => {
+			const db = makeStatsDb({
+				totalThreads: 100,
+				totalPosts: 200,
+				totalMembers: 50,
+				yesterdayPosts: 2,
+			});
+			const kv = makeKv({ todayPosts: "1" });
 			const env = makeEnv({ DB: db, KV: kv });
 			const request = createRequest();
 
@@ -122,12 +132,11 @@ describe("public stats handler", () => {
 				totalThreads: 7777,
 				totalPosts: 5555,
 				totalMembers: 1234,
-				newestMember: "cached_user",
 				totalOnline: 0,
 				peakOnline: 0,
 				peakDate: "",
 			};
-			const db = makeStatsDb([0, 0, 0, 0, 0]);
+			const db = makeStatsDb({});
 			const kv = makeKv({ cachedValue: JSON.stringify(cachedStats) });
 			const env = makeEnv({ DB: db, KV: kv });
 			const request = createRequest();
@@ -138,25 +147,19 @@ describe("public stats handler", () => {
 			const body = (await response.json()) as { data: PublicStats };
 
 			expect(body.data.todayPosts).toBe(99);
-			expect(body.data.newestMember).toBe("cached_user");
-			// DB batch should NOT have been called
-			expect(db.batch).not.toHaveBeenCalled();
+			expect(body.data.totalMembers).toBe(1234);
+			// DB prepare should NOT have been called (cache hit)
+			expect(db.prepare).not.toHaveBeenCalled();
 		});
 
-		it("should handle empty users table gracefully", async () => {
-			const stmts = [
-				{ results: [{ cnt: 0 }] }, // todayPosts
-				{ results: [{ cnt: 0 }] }, // yesterdayPosts
-				{ results: [{ cnt: 0 }] }, // totalThreads
-				{ results: [{ cnt: 0 }] }, // totalPosts
-				{ results: [{ cnt: 0 }] }, // totalMembers
-				{ results: [] }, // newestMember - no users
-			];
+		it("should handle missing settings gracefully (return 0)", async () => {
+			// DB returns empty results
 			const db = {
 				prepare: vi.fn(() => ({
-					bind: vi.fn(() => ({})),
+					bind: vi.fn(() => ({
+						all: vi.fn(async () => ({ results: [] })),
+					})),
 				})),
-				batch: vi.fn(async () => stmts),
 			} as unknown as D1Database;
 			const kv = makeKv();
 			const env = makeEnv({ DB: db, KV: kv });
@@ -166,12 +169,15 @@ describe("public stats handler", () => {
 
 			expect(response.status).toBe(200);
 			const body = (await response.json()) as { data: PublicStats };
-			expect(body.data.newestMember).toBe("");
 			expect(body.data.totalMembers).toBe(0);
+			expect(body.data.totalPosts).toBe(0);
+			expect(body.data.totalThreads).toBe(0);
+			expect(body.data.yesterdayPosts).toBe(0);
+			expect(body.data.todayPosts).toBe(0);
 		});
 
 		it("should include meta with timestamp and requestId", async () => {
-			const db = makeStatsDb([0, 0, 0, 0, 0]);
+			const db = makeStatsDb({});
 			const kv = makeKv();
 			const env = makeEnv({ DB: db, KV: kv });
 			const request = createRequest();
@@ -184,20 +190,22 @@ describe("public stats handler", () => {
 			expect(typeof body.meta.requestId).toBe("string");
 		});
 
-		it("should use batch query for efficiency (single DB roundtrip)", async () => {
-			const db = makeStatsDb([1, 2, 3, 4, 5]);
+		it("should read settings with single query (no batch needed)", async () => {
+			const db = makeStatsDb({ totalThreads: 100 });
 			const kv = makeKv();
 			const env = makeEnv({ DB: db, KV: kv });
 			const request = createRequest();
 
 			await stats(request, env);
 
-			// Should use batch (1 call) instead of individual queries
-			expect(db.batch).toHaveBeenCalledTimes(1);
+			// Should use prepare (for settings query)
+			expect(db.prepare).toHaveBeenCalledTimes(1);
+			// Should NOT use batch (old implementation)
+			expect(db.batch).not.toHaveBeenCalled();
 		});
 
 		it("should return online stats from KV", async () => {
-			const db = makeStatsDb([0, 0, 0, 0, 0]);
+			const db = makeStatsDb({});
 			const kv = makeKv({
 				onlineCount: "42",
 				peakData: { count: 100, date: "2024-03-31" },
@@ -215,7 +223,7 @@ describe("public stats handler", () => {
 		});
 
 		it("should return 0 for online stats when KV has no data", async () => {
-			const db = makeStatsDb([0, 0, 0, 0, 0]);
+			const db = makeStatsDb({});
 			const kv = makeKv({ onlineCount: undefined, peakData: null });
 			const env = makeEnv({ DB: db, KV: kv });
 			const request = createRequest();
@@ -227,6 +235,19 @@ describe("public stats handler", () => {
 			expect(body.data.totalOnline).toBe(0);
 			expect(body.data.peakOnline).toBe(0);
 			expect(body.data.peakDate).toBe("");
+		});
+
+		it("should return 0 for todayPosts when KV key is missing", async () => {
+			const db = makeStatsDb({ totalThreads: 100 });
+			const kv = makeKv({ todayPosts: undefined });
+			const env = makeEnv({ DB: db, KV: kv });
+			const request = createRequest();
+
+			const response = await stats(request, env);
+
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as { data: PublicStats };
+			expect(body.data.todayPosts).toBe(0);
 		});
 	});
 });
