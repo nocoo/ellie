@@ -11,7 +11,6 @@ export interface SiteStats {
 	totalThreads: number;
 	totalPosts: number;
 	totalMembers: number;
-	newestMember: string;
 	totalOnline: number;
 	peakOnline: number;
 	peakDate: string;

@@ -23,7 +23,6 @@ describe("loadSiteStats", () => {
 		totalThreads: 1000,
 		totalPosts: 5000,
 		totalMembers: 200,
-		newestMember: "newbie",
 		totalOnline: 50,
 		peakOnline: 100,
 		peakDate: "2025-01-01",

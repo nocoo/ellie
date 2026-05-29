@@ -48,7 +48,6 @@ export interface HeaderStats {
 	totalThreads: number;
 	totalPosts: number;
 	totalMembers: number;
-	newestMember: string;
 }
 
 /** Aggregated header data consumed by header components */
@@ -110,7 +109,6 @@ export const DEFAULT_STATS: HeaderStats = {
 	totalThreads: 0,
 	totalPosts: 0,
 	totalMembers: 0,
-	newestMember: "",
 };
 
 // ---------------------------------------------------------------------------

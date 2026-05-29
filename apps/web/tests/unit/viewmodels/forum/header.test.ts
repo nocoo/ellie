@@ -21,7 +21,6 @@ describe("buildHeaderViewModel", () => {
 		expect(vm.stats.yesterdayPosts).toBe(0);
 		expect(vm.stats.totalThreads).toBe(0);
 		expect(vm.stats.totalMembers).toBe(0);
-		expect(vm.stats.newestMember).toBe("");
 	});
 
 	it("uses provided user when given", () => {
@@ -43,8 +42,8 @@ describe("buildHeaderViewModel", () => {
 			todayPosts: 10,
 			yesterdayPosts: 20,
 			totalThreads: 5000,
+			totalPosts: 1000,
 			totalMembers: 1234,
-			newestMember: "bob",
 		};
 		const vm = buildHeaderViewModel(emptySettings, null, stats);
 		expect(vm.stats).toEqual(stats);
@@ -109,11 +108,10 @@ describe("buildHeaderViewModel", () => {
 // ---------------------------------------------------------------------------
 
 describe("DEFAULT_STATS", () => {
-	it("has all fields set to zero/empty", () => {
+	it("has all fields set to zero", () => {
 		expect(DEFAULT_STATS.todayPosts).toBe(0);
 		expect(DEFAULT_STATS.yesterdayPosts).toBe(0);
 		expect(DEFAULT_STATS.totalThreads).toBe(0);
 		expect(DEFAULT_STATS.totalMembers).toBe(0);
-		expect(DEFAULT_STATS.newestMember).toBe("");
 	});
 });

@@ -107,7 +107,6 @@ async function loadStats(): Promise<HeaderStats> {
 			totalThreads: data.totalThreads,
 			totalPosts: data.totalPosts,
 			totalMembers: data.totalMembers,
-			newestMember: data.newestMember,
 		};
 	} catch {
 		// Graceful degradation — show zeroes instead of crashing
@@ -117,7 +116,6 @@ async function loadStats(): Promise<HeaderStats> {
 			totalThreads: 0,
 			totalPosts: 0,
 			totalMembers: 0,
-			newestMember: "",
 		};
 	}
 }
