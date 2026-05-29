@@ -38,8 +38,8 @@ export async function checkAndRolloverDailyStats(env: Env): Promise<void> {
 
 	// First run or same day — nothing to do
 	if (!storedDate) {
-		// Initialize the date marker on first run
-		await env.KV.put(KV_TODAY_DATE, currentDate, { expirationTtl: 86_400 });
+		// Initialize the date marker on first run (no TTL — marker persists indefinitely)
+		await env.KV.put(KV_TODAY_DATE, currentDate);
 		return;
 	}
 
@@ -60,10 +60,10 @@ export async function checkAndRolloverDailyStats(env: Env): Promise<void> {
 		.bind(String(todayPosts), Math.floor(Date.now() / 1000), SETTINGS_YESTERDAY_POSTS)
 		.run();
 
-	// Reset today's counter and update date marker
+	// Reset today's counter and update date marker (no TTL — marker persists indefinitely)
 	await Promise.all([
-		env.KV.put(KV_TODAY_POSTS, "0", { expirationTtl: 86_400 }),
-		env.KV.put(KV_TODAY_DATE, currentDate, { expirationTtl: 86_400 }),
+		env.KV.put(KV_TODAY_POSTS, "0"),
+		env.KV.put(KV_TODAY_DATE, currentDate),
 	]);
 
 	console.log(`[stats-rollover] Rolled over ${todayPosts} posts to yesterday`);

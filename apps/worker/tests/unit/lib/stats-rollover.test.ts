@@ -52,10 +52,8 @@ describe("stats-rollover", () => {
 
 			await checkAndRolloverDailyStats(env);
 
-			// Should set today's date
-			expect(kv.put).toHaveBeenCalledWith("stats:today_date", "2026-05-30", {
-				expirationTtl: 86400,
-			});
+			// Should set today's date (no TTL)
+			expect(kv.put).toHaveBeenCalledWith("stats:today_date", "2026-05-30");
 		});
 
 		it("does nothing when same day", async () => {
@@ -92,13 +90,11 @@ describe("stats-rollover", () => {
 			// Should update settings.stats.yesterday_posts to 42
 			expect(db.prepare).toHaveBeenCalledTimes(1);
 
-			// Should reset today_posts to 0
-			expect(kv.put).toHaveBeenCalledWith("stats:today_posts", "0", { expirationTtl: 86400 });
+			// Should reset today_posts to 0 (no TTL)
+			expect(kv.put).toHaveBeenCalledWith("stats:today_posts", "0");
 
-			// Should update today_date to new date
-			expect(kv.put).toHaveBeenCalledWith("stats:today_date", "2026-05-31", {
-				expirationTtl: 86400,
-			});
+			// Should update today_date to new date (no TTL)
+			expect(kv.put).toHaveBeenCalledWith("stats:today_date", "2026-05-31");
 		});
 
 		it("handles missing today_posts gracefully (defaults to 0)", async () => {

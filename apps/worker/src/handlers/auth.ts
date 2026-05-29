@@ -624,9 +624,11 @@ export async function register(
 			expirationTtl: 3600,
 		});
 
-		// Increment pre-computed stats counter (fire-and-forget on error)
-		incrementStatsOnUserRegister(env).catch((e) =>
-			console.warn("[auth:register] stats counter increment failed", e),
+		// Increment pre-computed stats counter (background, non-blocking)
+		ctx?.waitUntil(
+			incrementStatsOnUserRegister(env).catch((e) =>
+				console.warn("[auth:register] stats counter increment failed", e),
+			),
 		);
 
 		scheduleLoginHistory(

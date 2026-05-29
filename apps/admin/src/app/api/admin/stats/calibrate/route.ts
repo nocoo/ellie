@@ -6,7 +6,7 @@ export const GET = createProxyHandler(async (request, admin) => {
 });
 
 export const POST = createProxyHandler(async (request, admin) => {
-	const body = await request.text();
+	const body = await request.json();
 	const res = await adminApiAs(admin, request).raw("POST", "/api/admin/stats/calibrate", body);
 	return passthrough(res);
 });
