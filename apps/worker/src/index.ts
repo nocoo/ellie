@@ -765,6 +765,20 @@ export default {
 				return await (await import("./handlers/admin/settings")).bulkUpdate(request, env);
 			}
 
+			// ── I-2. Stats Calibration (Admin) #64-#65 ──────
+			if (path === "/api/admin/stats/calibrate" && request.method === "GET") {
+				return await (await import("./handlers/admin/statsCalibrate")).handleCalibrateGet(
+					request,
+					env,
+				);
+			}
+			if (path === "/api/admin/stats/calibrate" && request.method === "POST") {
+				return await (await import("./handlers/admin/statsCalibrate")).handleCalibratePost(
+					request,
+					env,
+				);
+			}
+
 			// ── J. Reports (Admin) §6 ───────────────────────
 			if (path === "/api/admin/reports/batch-delete" && request.method === "POST") {
 				return await (await import("./handlers/admin/report")).batchDelete(request, env);
