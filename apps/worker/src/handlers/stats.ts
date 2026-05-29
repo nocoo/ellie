@@ -16,7 +16,7 @@ import { jsonResponse } from "../lib/response";
 import { POST_VISIBLE, THREAD_VISIBLE, USER_ACTIVE } from "../lib/visibility";
 
 const CACHE_KEY = "public-stats";
-const CACHE_TTL_SECONDS = 60;
+const CACHE_TTL_SECONDS = 600;
 const METRICS_FAMILY = "public-stats";
 
 export interface PublicStats {
