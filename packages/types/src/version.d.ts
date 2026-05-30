@@ -1,2 +1,2 @@
-export declare const VERSION = "1.6.3";
-export declare const VERSION_DISPLAY = "v1.6.3";
+export declare const VERSION = "1.6.4";
+export declare const VERSION_DISPLAY = "v1.6.4";

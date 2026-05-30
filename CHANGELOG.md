@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.4] - 2026-05-30
+
+### Changed
+
+- **Stats optimization**: Replaced expensive COUNT(*) queries in `/api/v1/stats` with pre-computed counters stored in settings table and KV. Reduces D1 row reads from ~49B/day to near-zero for this endpoint.
+
+### Added
+
+- **Stats counters**: Pre-computed counters for totalThreads, totalPosts, totalMembers, yesterdayPosts, todayPosts
+- **Stats increment logic**: Automatic counter increment on thread/post creation and user registration
+- **Daily rollover**: Cron-based daily rollover for today/yesterday posts at midnight Beijing time
+- **Admin stats calibration page**: `/admin/statistics/calibrate` for viewing stored vs real values and manual adjustment
+
+### Fixed
+
+- **Stats cache TTL**: Increased from 60s to 600s as first-line optimization
+- **Rollover TTL issue**: Removed TTL from date marker and today_posts to prevent data loss if cron is down
+
+### Removed
+
+- **newestMember field**: Removed unused "newest member" display from stats
+
 ## [1.6.3] - 2026-05-26
 
 ### Chores
