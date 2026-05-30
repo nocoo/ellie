@@ -123,7 +123,11 @@ export default {
 			// rule as ancestors/announcement so the suffix is not parsed as a
 			// forum id.
 			if (path.match(/^\/api\/v1\/forums\/\d+\/recommended-threads$/) && request.method === "GET") {
-				return await (await import("./handlers/recommended")).listRecommendedThreads(request, env);
+				return await (await import("./handlers/recommended")).listRecommendedThreads(
+					request,
+					env,
+					ctx,
+				);
 			}
 			if (path.match(/^\/api\/v1\/forums\/\d+$/) && request.method === "GET") {
 				return await (await import("./handlers/forum")).getById(request, env, ctx);

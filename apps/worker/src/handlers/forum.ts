@@ -10,6 +10,15 @@ import {
 	mergeTreeAndSummary,
 } from "../lib/cache/forum-read";
 import { invalidateForumUpdateV2 } from "../lib/cache/invalidate";
+import {
+	recordDelete,
+	recordError,
+	recordHit,
+	recordMiss,
+	recordRead,
+	recordWrite,
+	scheduleMetricsFlush,
+} from "../lib/cache/metrics";
 import type { Env } from "../lib/env";
 import { parseModeratorIds, toForum } from "../lib/mappers";
 import { parseIdFromPath, parsePathSegment } from "../lib/parseId";
@@ -21,6 +30,25 @@ import { THREAD_VISIBLE, buildVisibilityContext } from "../lib/visibility";
 import { jsonResponse } from "../lib/response";
 import { moderationMiddleware, optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
+
+// ─── Thread types cache ───────────────────────────────────────────
+const THREAD_TYPES_CACHE_TTL = 86_400; // 24h
+const THREAD_TYPES_METRICS_FAMILY = "thread-types";
+
+function threadTypesCacheKey(forumId: number): string {
+	return `thread-types:${forumId}`;
+}
+
+/** Invalidate thread types cache for a forum. Export for admin handler. */
+export async function invalidateThreadTypesCache(env: Env, forumId: number): Promise<void> {
+	try {
+		await env.KV.delete(threadTypesCacheKey(forumId));
+		recordDelete(THREAD_TYPES_METRICS_FAMILY);
+	} catch (err) {
+		recordError(THREAD_TYPES_METRICS_FAMILY);
+		console.warn("[thread-types] KV delete failed", err);
+	}
+}
 
 /** Fetch moderator names by IDs in a single query (batched for SQLite limits) */
 async function fetchModeratorNames(
@@ -384,9 +412,8 @@ interface ThreadTypesPayload {
  *
  * Returns the per-forum 主题分类 picker payload. Visibility is enforced via
  * the v2 forum:meta cache path (same 403/404 semantics as `getById`); the
- * thread-types row set is then read from D1 — there is no dedicated KV
- * cache for it yet, so an admin add/remove takes effect immediately
- * without a `forum:tree:gen` bump.
+ * thread-types row set is cached in KV for 24h. Admin add/remove invalidates
+ * the cache.
  *
  * Reviewer pin: empty `types[]` is valid (forum may have config switches
  * on but no rows — UI simply shows no picker entries).
@@ -424,6 +451,22 @@ export async function getThreadTypes(
 		);
 	}
 
+	// Try KV cache first (thread types rarely change)
+	const cacheKey = threadTypesCacheKey(forumId);
+	recordRead(THREAD_TYPES_METRICS_FAMILY);
+	try {
+		const cached = await env.KV.get(cacheKey);
+		if (cached) {
+			recordHit(THREAD_TYPES_METRICS_FAMILY);
+			scheduleMetricsFlush(env, ctx);
+			return jsonResponse(JSON.parse(cached) as ThreadTypesPayload, origin);
+		}
+	} catch (err) {
+		recordError(THREAD_TYPES_METRICS_FAMILY);
+		console.warn("[thread-types] KV read failed", err);
+	}
+	recordMiss(THREAD_TYPES_METRICS_FAMILY);
+
 	const cfg = meta.forum.threadTypes;
 	const rows = await env.DB.prepare(
 		`SELECT id, name, display_order, icon, enabled, moderator_only
@@ -457,6 +500,17 @@ export async function getThreadTypes(
 		prefix: cfg.prefix,
 		types,
 	};
+
+	// Write to KV cache
+	try {
+		await env.KV.put(cacheKey, JSON.stringify(payload), { expirationTtl: THREAD_TYPES_CACHE_TTL });
+		recordWrite(THREAD_TYPES_METRICS_FAMILY);
+	} catch (err) {
+		recordError(THREAD_TYPES_METRICS_FAMILY);
+		console.warn("[thread-types] KV write failed", err);
+	}
+
+	scheduleMetricsFlush(env, ctx);
 	return jsonResponse(payload, origin);
 }
 

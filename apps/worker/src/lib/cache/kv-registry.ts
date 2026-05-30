@@ -274,6 +274,36 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		description:
 			"Available filter options (years, forums with digest threads) per visibility bucket.",
 	},
+	// ─── Recommended threads cache (per forum) ─────────────────────
+	{
+		family: "recommended:threads",
+		displayName: "Recommended threads (per forum)",
+		category: "cache",
+		status: "shipped",
+		listPrefix: "recommended:threads:",
+		pattern: "recommended:threads:<forumId>",
+		ttl: 86_400,
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "delete-literal", requires: ["key"] },
+		description:
+			"Cached recommended threads list for each forum. Invalidated on recommend/unrecommend.",
+	},
+	// ─── Thread types cache (per forum) ────────────────────────────
+	{
+		family: "thread-types",
+		displayName: "Thread types (per forum)",
+		category: "cache",
+		status: "shipped",
+		listPrefix: "thread-types:",
+		pattern: "thread-types:<forumId>",
+		ttl: 86_400,
+		nameSensitivity: "public",
+		valueSensitivity: "public",
+		refresh: { kind: "delete-literal", requires: ["key"] },
+		description:
+			"Cached thread types (主题分类) list for each forum. Invalidated on admin changes.",
+	},
 	// ─── Settings + public stats (literal keys) ────────────────────
 	{
 		family: "settings:all",
@@ -715,6 +745,8 @@ export const KV_PUT_PREFIX_ALLOWLIST: readonly string[] = [
 	"ip-lookup:",
 	"digest:stats:",
 	"digest:filters:",
+	"recommended:threads:",
+	"thread-types:",
 	"settings:all",
 	"public-stats",
 	"stats:online_count",

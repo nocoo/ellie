@@ -60,6 +60,7 @@ import type { Env } from "../../lib/env";
 import { parsePathSegment } from "../../lib/parseId";
 import { jsonNoStoreResponse } from "../../lib/response";
 import { errorResponse } from "../../middleware/error";
+import { invalidateThreadTypesCache } from "../forum";
 
 // EntityConfig is only used as the auth wrapper key for `withEntityAuth`;
 // CRUD here is custom because the table is forum-scoped and delete needs
@@ -400,8 +401,13 @@ export const create = withEntityAuth(
 		// Same-commit invalidation: enabled-set changed for this forum.
 		// forum:tree:v2 carries Forum.threadTypes (config flags); the
 		// per-forum thread-list cache is bumped because future payloads
-		// may surface the type set / type filter pill.
-		await Promise.all([bumpForumTreeGen(env), bumpThreadListGen(env, forumId)]);
+		// may surface the type set / type filter pill. Also invalidate
+		// the public thread-types KV cache.
+		await Promise.all([
+			bumpForumTreeGen(env),
+			bumpThreadListGen(env, forumId),
+			invalidateThreadTypesCache(env, forumId),
+		]);
 
 		const created = await loadTypeRow(env, newId);
 		if (!created) {
@@ -609,8 +615,12 @@ export const update = withEntityAuth(
 		// enabled set, display order, or display name. Pure icon /
 		// moderator_only changes don't need the thread-list bump (filter
 		// payload doesn't show them yet) but we still bump tree so the
-		// admin tree picker reflects the new icon promptly.
-		const ops: Promise<unknown>[] = [bumpForumTreeGen(env)];
+		// admin tree picker reflects the new icon promptly. Also invalidate
+		// the public thread-types KV cache.
+		const ops: Promise<unknown>[] = [
+			bumpForumTreeGen(env),
+			invalidateThreadTypesCache(env, existing.forum_id),
+		];
 		if (enabledSetChanged || displayOrderOrNameChanged) {
 			ops.push(bumpThreadListGen(env, existing.forum_id));
 		}
@@ -712,7 +722,11 @@ export const remove = withEntityAuth(
 				await env.DB.prepare("UPDATE forum_thread_types SET enabled = 0 WHERE id = ?")
 					.bind(id)
 					.run();
-				await Promise.all([bumpForumTreeGen(env), bumpThreadListGen(env, existing.forum_id)]);
+				await Promise.all([
+					bumpForumTreeGen(env),
+					bumpThreadListGen(env, existing.forum_id),
+					invalidateThreadTypesCache(env, existing.forum_id),
+				]);
 			}
 			// Audit even the no-op case (already-disabled with refs) so the
 			// admin's intent is recorded; `mutated` distinguishes the two.
@@ -742,7 +756,11 @@ export const remove = withEntityAuth(
 		}
 
 		await env.DB.prepare("DELETE FROM forum_thread_types WHERE id = ?").bind(id).run();
-		await Promise.all([bumpForumTreeGen(env), bumpThreadListGen(env, existing.forum_id)]);
+		await Promise.all([
+			bumpForumTreeGen(env),
+			bumpThreadListGen(env, existing.forum_id),
+			invalidateThreadTypesCache(env, existing.forum_id),
+		]);
 
 		await writeAdminLog(env, resolveActor(request, env), {
 			action: "thread_type.delete",
@@ -862,7 +880,11 @@ export const reorder = withEntityAuth(
 		);
 		await env.DB.batch(stmts);
 
-		await Promise.all([bumpForumTreeGen(env), bumpThreadListGen(env, forumId)]);
+		await Promise.all([
+			bumpForumTreeGen(env),
+			bumpThreadListGen(env, forumId),
+			invalidateThreadTypesCache(env, forumId),
+		]);
 
 		await writeAdminLog(env, resolveActor(request, env), {
 			action: "thread_type.reorder",
@@ -1030,11 +1052,13 @@ export const updateConfig = withEntityAuth(
 			// embed `forum:summary:gen` so bumping summary rolls meta too
 			// (see comment on bumpForumSummaryGen). The per-forum
 			// thread-list bump keeps the typeId-filter cache slice
-			// consistent in case the picker just got disabled.
+			// consistent in case the picker just got disabled. Also
+			// invalidate the public thread-types KV cache.
 			await Promise.all([
 				bumpForumTreeGen(env),
 				bumpForumSummaryGen(env),
 				bumpThreadListGen(env, forumId),
+				invalidateThreadTypesCache(env, forumId),
 			]);
 		}
 

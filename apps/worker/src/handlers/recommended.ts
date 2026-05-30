@@ -4,6 +4,7 @@
 //
 //   GET    /api/v1/forums/:id/recommended-threads
 //          Public list, capped at 6 newest threads (by `thread_id DESC`).
+//          Cached in KV for 24h, keyed by forumId.
 //
 //   POST   /api/v1/moderation/threads/:id/recommend
 //          Moderator action — INSERT OR IGNORE. Idempotent. No cap.
@@ -33,6 +34,15 @@
 import { canModerate } from "@ellie/types";
 import type { ForumVisibility } from "@ellie/types";
 import { bumpThreadMetaGen } from "../lib/cache/invalidate";
+import {
+	recordDelete,
+	recordError,
+	recordHit,
+	recordMiss,
+	recordRead,
+	recordWrite,
+	scheduleMetricsFlush,
+} from "../lib/cache/metrics";
 import type { Env } from "../lib/env";
 import { parsePathSegment } from "../lib/parseId";
 import {
@@ -73,11 +83,35 @@ export interface RecommendedThreadsResponse {
 // not in the writer.
 const DISPLAY_LIMIT = 6;
 
+// ─── Cache constants ──────────────────────────────────────────────
+const RECOMMENDED_CACHE_TTL = 86_400; // 24h
+const METRICS_FAMILY = "recommended:threads";
+
+/** Build KV cache key for recommended threads */
+function recommendedCacheKey(forumId: number): string {
+	return `recommended:threads:${forumId}`;
+}
+
+/** Invalidate recommended threads cache for a forum */
+async function invalidateRecommendedCache(env: Env, forumId: number): Promise<void> {
+	try {
+		await env.KV.delete(recommendedCacheKey(forumId));
+		recordDelete(METRICS_FAMILY);
+	} catch (err) {
+		recordError(METRICS_FAMILY);
+		console.warn("[recommended] KV delete failed", err);
+	}
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/v1/forums/:id/recommended-threads
 // ---------------------------------------------------------------------------
 
-export async function listRecommendedThreads(request: Request, env: Env): Promise<Response> {
+export async function listRecommendedThreads(
+	request: Request,
+	env: Env,
+	ctx?: ExecutionContext,
+): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 	const forumId = parsePathSegment(request, 1);
 	if (forumId === null || forumId <= 0) {
@@ -102,6 +136,22 @@ export async function listRecommendedThreads(request: Request, env: Env): Promis
 		// enumerate staff/admin forums.
 		return errorResponse("FORUM_NOT_FOUND", 404, undefined, origin);
 	}
+
+	// Try KV cache first
+	const cacheKey = recommendedCacheKey(forumId);
+	recordRead(METRICS_FAMILY);
+	try {
+		const cached = await env.KV.get(cacheKey);
+		if (cached) {
+			recordHit(METRICS_FAMILY);
+			if (ctx) scheduleMetricsFlush(env, ctx);
+			return jsonResponse(JSON.parse(cached) as RecommendedThreadsResponse, origin);
+		}
+	} catch (err) {
+		recordError(METRICS_FAMILY);
+		console.warn("[recommended] KV read failed", err);
+	}
+	recordMiss(METRICS_FAMILY);
 
 	// Display query: cap to 6 newest threads, dropping rows that point
 	// at a thread that was moved/deleted/hidden. The `t.forum_id = r.forum_id`
@@ -146,6 +196,17 @@ export async function listRecommendedThreads(request: Request, env: Env): Promis
 	}));
 
 	const payload: RecommendedThreadsResponse = { forumId, threads };
+
+	// Write to KV cache
+	try {
+		await env.KV.put(cacheKey, JSON.stringify(payload), { expirationTtl: RECOMMENDED_CACHE_TTL });
+		recordWrite(METRICS_FAMILY);
+	} catch (err) {
+		recordError(METRICS_FAMILY);
+		console.warn("[recommended] KV write failed", err);
+	}
+
+	if (ctx) scheduleMetricsFlush(env, ctx);
 	return jsonResponse(payload, origin);
 }
 
@@ -206,14 +267,15 @@ export async function addRecommend(request: Request, env: Env): Promise<Response
 	// Invalidate ONLY thread meta gen — recommend/unrecommend flips the
 	// `isRecommended` flag carried inside the thread-detail payload and
 	// nothing else. Per D0 freeze (reviewer msg d9c01f23): the recommend
-	// list endpoint is uncached (independent D1 query, no KV gen), the
-	// forum summary / forum:meta:v2 / page-1 thread-list payloads are
-	// untouched, so calling `invalidateForumVolatileV2` here would
-	// pointlessly bump forum_summary + thread:list caches that this
-	// action does not change. Forum-page recommended card refresh is
-	// driven by RSC `router.refresh()` on the client after toggle, which
-	// re-hits the independent endpoint.
-	await bumpThreadMetaGen(env, threadId);
+	// list endpoint is now cached in KV (recommended:threads:<forumId>),
+	// so we invalidate that cache here. Forum summary / forum:meta:v2 /
+	// page-1 thread-list payloads are untouched, so calling
+	// `invalidateForumVolatileV2` here would pointlessly bump
+	// forum_summary + thread:list caches that this action does not change.
+	await Promise.all([
+		bumpThreadMetaGen(env, threadId),
+		invalidateRecommendedCache(env, thread.forumId),
+	]);
 
 	return jsonResponse({ forumId: thread.forumId, threadId, recommended: true }, origin);
 }
@@ -267,9 +329,11 @@ export async function removeRecommend(request: Request, env: Env): Promise<Respo
 		.run();
 
 	// Same scope as the POST path: only `isRecommended` in the thread
-	// payload flips. No KV gen for the public list, no forum:summary
-	// change. See the POST comment for the freeze rationale.
-	await bumpThreadMetaGen(env, threadId);
+	// payload flips. Invalidate KV cache for the recommended list.
+	await Promise.all([
+		bumpThreadMetaGen(env, threadId),
+		invalidateRecommendedCache(env, thread.forumId),
+	]);
 
 	return jsonResponse({ forumId: thread.forumId, threadId, recommended: false }, origin);
 }

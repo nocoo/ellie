@@ -36,7 +36,7 @@ import {
 	invalidateForumVolatileV2,
 } from "../../../src/lib/cache/invalidate";
 import { createJwt } from "../../../src/lib/jwt";
-import { TEST_JWT_SECRET, createMockDb, makeEnv } from "../../helpers";
+import { TEST_JWT_SECRET, createMockCtx, createMockDb, createMockKV, makeEnv } from "../../helpers";
 
 const mockBumpThreadMeta = bumpThreadMetaGen as ReturnType<typeof vi.fn>;
 const mockBumpSummary = bumpForumSummaryGen as ReturnType<typeof vi.fn>;
@@ -538,5 +538,66 @@ describe("GET recommended list — visibility gate + cap + ordering", () => {
 		const env = makeEnv({ DB: db });
 		const res = await listRecommendedThreads(listRequest(1, token), env);
 		expect(res.status).toBe(200);
+	});
+
+	it("returns cached data on KV hit without querying D1 for rows", async () => {
+		const cachedPayload = {
+			forumId: 1,
+			threads: [
+				{
+					id: 999,
+					subject: "cached",
+					authorId: 1,
+					authorName: "x",
+					replies: 0,
+					lastPostAt: 0,
+					recommendedAt: 0,
+				},
+			],
+		};
+		const kv = createMockKV({ "recommended:threads:1": JSON.stringify(cachedPayload) });
+		const { db, calls } = createMockDb({
+			firstResults: { ...mockForumVis(1, "public") },
+		});
+		const env = makeEnv({ DB: db, KV: kv });
+		const ctx = createMockCtx();
+
+		const res = await listRecommendedThreads(listRequest(1), env, ctx);
+
+		expect(res.status).toBe(200);
+		const data = (await res.json()) as { data: typeof cachedPayload };
+		expect(data.data.threads[0].id).toBe(999);
+		// Should NOT query D1 for recommended threads (only visibility check)
+		const recommendQuery = calls.find((c) => c.sql.includes("forum_recommended_threads"));
+		expect(recommendQuery).toBeUndefined();
+	});
+
+	it("writes to KV cache after D1 query on cache miss", async () => {
+		const rows = [
+			{
+				id: 123,
+				subject: "test",
+				author_id: 1,
+				author_name: "a",
+				replies: 0,
+				last_post_at: 0,
+				recommended_at: 0,
+			},
+		];
+		const kv = createMockKV({});
+		const { db } = createMockDb({
+			firstResults: { ...mockForumVis(1, "public") },
+			allResults: { "FROM forum_recommended_threads r": rows },
+		});
+		const env = makeEnv({ DB: db, KV: kv });
+		const ctx = createMockCtx();
+
+		const res = await listRecommendedThreads(listRequest(1), env, ctx);
+
+		expect(res.status).toBe(200);
+		expect(kv.put).toHaveBeenCalledTimes(1);
+		const putCall = (kv.put as ReturnType<typeof vi.fn>).mock.calls[0];
+		expect(putCall[0]).toBe("recommended:threads:1");
+		expect((putCall[2] as { expirationTtl: number }).expirationTtl).toBe(86400);
 	});
 });

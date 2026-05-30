@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getThreadTypes } from "../../../src/handlers/forum";
-import { createMockCtx, makeEnv } from "../../helpers";
+import { createMockCtx, createMockKV, makeEnv } from "../../helpers";
 
 // We mock the v2 forum:meta path so the test focuses on:
 //   1. Visibility / 403 / 404 propagation from getForumMetaV2
@@ -252,5 +252,67 @@ describe("getThreadTypes", () => {
 		const res = await getThreadTypes(req, env, ctx);
 		const body = (await res.json()) as { data: { types: Array<{ icon: string }> } };
 		expect(body.data.types[0].icon).toBe("");
+	});
+
+	it("returns cached data on KV hit without querying D1 for rows", async () => {
+		const cachedPayload = {
+			enabled: true,
+			required: false,
+			listable: true,
+			prefix: false,
+			types: [
+				{ id: 88, name: "Cached", displayOrder: 0, icon: "", enabled: true, moderatorOnly: false },
+			],
+		};
+		mockGetMeta.mockResolvedValue({
+			kind: "ok",
+			forum: makeForum({ id: 5 }),
+		});
+		const kv = createMockKV({ "thread-types:5": JSON.stringify(cachedPayload) });
+		const all = vi.fn();
+		const prepare = vi.fn().mockReturnValue({ bind: vi.fn().mockReturnValue({ all }) });
+		const env = makeEnv({ DB: { prepare } as unknown as D1Database, KV: kv });
+		const ctx = createMockCtx();
+
+		const req = new Request("https://api.example.com/api/v1/forums/5/thread-types");
+		const res = await getThreadTypes(req, env, ctx);
+
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { data: typeof cachedPayload };
+		expect(body.data.types[0].id).toBe(88);
+		// DB all() should not be called (cache hit)
+		expect(all).not.toHaveBeenCalled();
+	});
+
+	it("writes to KV cache after D1 query on cache miss", async () => {
+		mockGetMeta.mockResolvedValue({
+			kind: "ok",
+			forum: makeForum({
+				id: 3,
+				threadTypes: { enabled: true, required: false, listable: false, prefix: true },
+			}),
+		});
+		const all = vi.fn().mockResolvedValue({
+			results: [
+				{ id: 77, name: "Fresh", display_order: 0, icon: "", enabled: 1, moderator_only: 0 },
+			],
+		});
+		const kv = createMockKV({});
+		const env = makeEnv({
+			DB: {
+				prepare: vi.fn().mockReturnValue({ bind: vi.fn().mockReturnValue({ all }) }),
+			} as unknown as D1Database,
+			KV: kv,
+		});
+		const ctx = createMockCtx();
+
+		const req = new Request("https://api.example.com/api/v1/forums/3/thread-types");
+		const res = await getThreadTypes(req, env, ctx);
+
+		expect(res.status).toBe(200);
+		expect(kv.put).toHaveBeenCalledTimes(1);
+		const putCall = (kv.put as ReturnType<typeof vi.fn>).mock.calls[0];
+		expect(putCall[0]).toBe("thread-types:3");
+		expect((putCall[2] as { expirationTtl: number }).expirationTtl).toBe(86400);
 	});
 });
