@@ -341,9 +341,9 @@ describe("admin thread handlers", () => {
 			const res = await update(req, adminEnv(db));
 
 			expect(res.status).toBe(200);
-			// afterUpdate hook fires batch for moving posts and adjusting forum counts
+			// afterUpdate hook fires batch for moving posts, adjusting forum counts, and deleting recommendation
 			expect(batchCalls.length).toBe(1);
-			expect(batchCalls[0].length).toBe(3); // update posts, decrement old, increment new
+			expect(batchCalls[0].length).toBe(4); // update posts, decrement old, increment new, delete recommended
 		});
 
 		it("should reject move to non-existent target forum", async () => {
@@ -850,9 +850,9 @@ describe("admin thread handlers", () => {
 			expect(body.data.count).toBe(2);
 			expect(body.data.forumId).toBe(10);
 
-			// Verify batch: 2 thread updates + 2 post updates + 1 decrement old + 1 increment new = 6
+			// Verify batch: 2 thread updates + 2 post updates + 2 delete recommended + 1 decrement old + 1 increment new = 8
 			expect(batchCalls.length).toBe(1);
-			expect(batchCalls[0].length).toBe(6);
+			expect(batchCalls[0].length).toBe(8);
 		});
 
 		it("should return count 0 when all threads already in target forum", async () => {
@@ -1033,9 +1033,9 @@ describe("admin thread handlers", () => {
 			expect(res.status).toBe(200);
 			expect(body.data.count).toBe(3);
 
-			// 3 thread updates + 3 post updates + 2 old forum decrements + 1 new forum increment = 9
+			// 3 thread updates + 3 post updates + 3 delete recommended + 2 old forum decrements + 1 new forum increment = 12
 			expect(batchCalls.length).toBe(1);
-			expect(batchCalls[0].length).toBe(9);
+			expect(batchCalls[0].length).toBe(12);
 		});
 	});
 

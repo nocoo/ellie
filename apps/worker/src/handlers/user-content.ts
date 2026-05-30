@@ -19,6 +19,7 @@ import {
 } from "../lib/userCounters";
 import { requireVerifiedEmail } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
+import { invalidateRecommendedCache } from "./recommended";
 
 // ─── DELETE /api/v1/me/posts/:id ─────────────────────────────────
 
@@ -154,9 +155,12 @@ export async function deleteMyThread(request: Request, env: Env): Promise<Respon
 	await decrementUserThreads(env, thread.author_id);
 	await batchDecrementUserPosts(env, authorCounts);
 
-	// Recalc forum metadata
+	// Recalc forum metadata and invalidate caches
 	await recalcForumMetadata(env, thread.forum_id);
-	await invalidateForumVolatileV2(env, thread.forum_id);
+	await Promise.all([
+		invalidateForumVolatileV2(env, thread.forum_id),
+		invalidateRecommendedCache(env, thread.forum_id),
+	]);
 
 	return jsonResponse({ deleted: true, id }, origin);
 }

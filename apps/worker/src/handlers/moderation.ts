@@ -50,6 +50,7 @@ import {
 import { STICKY_FORUM, STICKY_GLOBAL, STICKY_NONE } from "../lib/visibility";
 import { moderationMiddleware } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
+import { invalidateRecommendedCache } from "./recommended";
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
@@ -414,10 +415,13 @@ export async function moveThread(request: Request, env: Env): Promise<Response> 
 	// thread meta gen — `isRecommended` flips from true→false when the
 	// thread leaves the source forum (the recommendation row above is
 	// dropped), so any cached thread-detail payload must miss.
+	// The recommendation row was deleted above, so invalidate the source
+	// forum's recommended cache as well.
 	await Promise.all([
 		invalidateForumVolatileV2(env, oldForumId),
 		invalidateForumVolatileV2(env, targetForumId),
 		bumpThreadMetaGen(env, id),
+		invalidateRecommendedCache(env, oldForumId),
 	]);
 
 	return jsonResponse({ id, forumId: targetForumId, moved: true }, origin);
@@ -708,12 +712,14 @@ export async function deleteThread(request: Request, env: Env): Promise<Response
 	// Tail fan-out: user counter decrements + forum recalc + cache
 	// invalidation are all independent. Parallelise to compress latency.
 	// If the deleted thread carried a non-zero digest, also bump digest gen
-	// so digest filter caches drop the row.
+	// so digest filter caches drop the row. Also invalidate recommended
+	// cache since the thread may have been recommended.
 	const tail: Promise<unknown>[] = [
 		decrementUserThreads(env, thread.author_id),
 		batchDecrementUserPosts(env, authorCounts),
 		recalcForumMetadata(env, thread.forum_id),
 		invalidateForumVolatileV2(env, thread.forum_id),
+		invalidateRecommendedCache(env, thread.forum_id),
 	];
 	if (thread.digest > 0) tail.push(bumpDigestGen(env));
 	await Promise.all(tail);

@@ -168,6 +168,9 @@ const threadConfig: EntityConfig = {
 			const replies = existing.replies as number;
 			const postCount = replies + 1;
 
+			// Move thread + posts, adjust forum counts.
+			// Also drop any forum_recommended_threads row — a recommendation is
+			// per-forum and the thread is leaving the source forum.
 			await env.DB.batch([
 				env.DB.prepare("UPDATE posts SET forum_id = ? WHERE thread_id = ?").bind(newForumId, id),
 				env.DB.prepare(
@@ -176,6 +179,7 @@ const threadConfig: EntityConfig = {
 				env.DB.prepare(
 					"UPDATE forums SET threads = threads + 1, posts = posts + ? WHERE id = ?",
 				).bind(postCount, newForumId),
+				env.DB.prepare("DELETE FROM forum_recommended_threads WHERE thread_id = ?").bind(id),
 			]);
 
 			// Recalc metadata for both old and new forums (independent — parallel)
@@ -792,7 +796,9 @@ export const batchMove = withEntityAuth(
 		// Build batch statements
 		const statements: D1PreparedStatement[] = [];
 
-		// Update each thread's forum_id
+		// Update each thread's forum_id and remove recommendation rows
+		// (a recommendation is per-forum; threads leaving the source forum
+		// lose their recommendation status)
 		for (const t of movable) {
 			statements.push(
 				env.DB.prepare("UPDATE threads SET forum_id = ? WHERE id = ?").bind(targetForumId, t.id),
@@ -802,6 +808,9 @@ export const batchMove = withEntityAuth(
 					targetForumId,
 					t.id,
 				),
+			);
+			statements.push(
+				env.DB.prepare("DELETE FROM forum_recommended_threads WHERE thread_id = ?").bind(t.id),
 			);
 		}
 
