@@ -198,10 +198,10 @@ export default {
 				return await (await import("./handlers/digest")).list(request, env);
 			}
 			if (path === "/api/v1/digest/stats" && request.method === "GET") {
-				return await (await import("./handlers/digest")).stats(request, env);
+				return await (await import("./handlers/digest")).stats(request, env, ctx);
 			}
 			if (path === "/api/v1/digest/filters" && request.method === "GET") {
-				return await (await import("./handlers/digest")).filters(request, env);
+				return await (await import("./handlers/digest")).filters(request, env, ctx);
 			}
 
 			// ── #12b Public stats (Key A, read-only, KV-cached) ─

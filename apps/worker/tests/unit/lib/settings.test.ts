@@ -93,9 +93,9 @@ describe("settings cache helper", () => {
 
 			// Should have read from DB
 			expect(db.prepare).toHaveBeenCalled();
-			// Should backfill KV with TTL
+			// Should backfill KV with TTL (15 minutes)
 			expect(kv.put).toHaveBeenCalledWith("settings:all", expect.any(String), {
-				expirationTtl: 86400,
+				expirationTtl: 900,
 			});
 		});
 

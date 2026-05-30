@@ -121,8 +121,8 @@ describe("public stats handler", () => {
 			const cached = JSON.parse(putCall[1] as string) as PublicStats;
 			expect(cached.todayPosts).toBe(1);
 			expect(cached.totalMembers).toBe(50);
-			// TTL = 600 seconds
-			expect((putCall[2] as { expirationTtl: number }).expirationTtl).toBe(600);
+			// TTL = 900 seconds (15 minutes)
+			expect((putCall[2] as { expirationTtl: number }).expirationTtl).toBe(900);
 		});
 
 		it("should return cached data without hitting DB", async () => {

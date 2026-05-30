@@ -21,7 +21,7 @@ import type { CFRequest, Env } from "../lib/env";
 import { jsonResponse } from "../lib/response";
 
 const CACHE_KEY = "public-stats";
-const CACHE_TTL_SECONDS = 600;
+const CACHE_TTL_SECONDS = 900; // 15 minutes
 const METRICS_FAMILY = "public-stats";
 
 export interface PublicStats {

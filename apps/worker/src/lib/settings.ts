@@ -27,7 +27,7 @@ export type SettingsDetailMap = Record<string, SettingEntry>;
 // ─── Constants ────────────────────────────────────────────────
 
 const KV_KEY = "settings:all";
-const KV_TTL = 86400; // 24 hours
+const KV_TTL = 900; // 15 minutes
 const METRICS_FAMILY = "settings:all";
 
 // ─── Internal helpers ─────────────────────────────────────────

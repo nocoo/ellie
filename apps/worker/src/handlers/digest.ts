@@ -1,4 +1,13 @@
 import { decodeGenericCursor } from "@ellie/types";
+import { computeVisibilityBucket } from "../lib/cache/bucket";
+import {
+	recordError,
+	recordHit,
+	recordMiss,
+	recordRead,
+	recordWrite,
+	scheduleMetricsFlush,
+} from "../lib/cache/metrics";
 import type { Env } from "../lib/env";
 import { toThread } from "../lib/mappers";
 import { buildNextCursor, clampLimit } from "../lib/pagination";
@@ -10,6 +19,9 @@ import {
 	threadVisible,
 } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
+
+// ─── Cache TTL ────────────────────────────────────────────────────
+const DIGEST_CACHE_TTL = 3600; // 1 hour
 
 /** Digest cursor payload for keyset pagination */
 interface DigestCursorPayload {
@@ -156,12 +168,30 @@ export async function list(request: Request, env: Env): Promise<Response> {
 }
 
 /** GET /api/v1/digest/stats - Get digest statistics */
-export async function stats(request: Request, env: Env): Promise<Response> {
+export async function stats(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	// Get user auth for visibility filtering (verified against DB)
 	const user = await optionalAuthVerified(request, env);
 	const visCtx = buildVisibilityContext(user);
+	const bucket = computeVisibilityBucket(visCtx);
+
+	// Try KV cache first (keyed by visibility bucket)
+	const cacheKey = `digest:stats:${bucket}`;
+	recordRead("digest:stats");
+	try {
+		const cached = await env.KV.get(cacheKey);
+		if (cached) {
+			recordHit("digest:stats");
+			if (ctx) scheduleMetricsFlush(env, ctx);
+			return jsonResponse(JSON.parse(cached), origin);
+		}
+	} catch (err) {
+		recordError("digest:stats");
+		console.warn("[digest:stats] KV read failed", err);
+	}
+	recordMiss("digest:stats");
+
 	const forumFilter = buildForumVisibilityFilter(visCtx);
 
 	// Only count visible threads (sticky >= 0) from visible forums (status = 1)
@@ -176,24 +206,55 @@ export async function stats(request: Request, env: Env): Promise<Response> {
 		 WHERE t.digest > 0 AND ${threadVisible("t")} AND ${forumActive("f")} AND ${forumFilter}`,
 	).first<{ total: number; level1: number; level2: number; level3: number }>();
 
-	return jsonResponse(
-		{
-			total: result?.total ?? 0,
-			level1: result?.level1 ?? 0,
-			level2: result?.level2 ?? 0,
-			level3: result?.level3 ?? 0,
-		},
-		origin,
-	);
+	const data = {
+		total: result?.total ?? 0,
+		level1: result?.level1 ?? 0,
+		level2: result?.level2 ?? 0,
+		level3: result?.level3 ?? 0,
+	};
+
+	// Write to KV cache
+	try {
+		await env.KV.put(cacheKey, JSON.stringify(data), { expirationTtl: DIGEST_CACHE_TTL });
+		recordWrite("digest:stats");
+	} catch (err) {
+		recordError("digest:stats");
+		console.warn("[digest:stats] KV write failed", err);
+	}
+
+	if (ctx) scheduleMetricsFlush(env, ctx);
+	return jsonResponse(data, origin);
 }
 
 /** GET /api/v1/digest/filters - Get available filter options (years and forums with digest threads) */
-export async function filters(request: Request, env: Env): Promise<Response> {
+export async function filters(
+	request: Request,
+	env: Env,
+	ctx?: ExecutionContext,
+): Promise<Response> {
 	const origin = request.headers.get("Origin") ?? undefined;
 
 	// Get user auth for visibility filtering (verified against DB)
 	const user = await optionalAuthVerified(request, env);
 	const visCtx = buildVisibilityContext(user);
+	const bucket = computeVisibilityBucket(visCtx);
+
+	// Try KV cache first (keyed by visibility bucket)
+	const cacheKey = `digest:filters:${bucket}`;
+	recordRead("digest:filters");
+	try {
+		const cached = await env.KV.get(cacheKey);
+		if (cached) {
+			recordHit("digest:filters");
+			if (ctx) scheduleMetricsFlush(env, ctx);
+			return jsonResponse(JSON.parse(cached), origin);
+		}
+	} catch (err) {
+		recordError("digest:filters");
+		console.warn("[digest:filters] KV read failed", err);
+	}
+	recordMiss("digest:filters");
+
 	const forumFilter = buildForumVisibilityFilter(visCtx);
 
 	// Two independent aggregate queries — run in parallel to halve the
@@ -226,5 +287,17 @@ export async function filters(request: Request, env: Env): Promise<Response> {
 		digestCount: r.digest_count,
 	}));
 
-	return jsonResponse({ years, forums }, origin);
+	const data = { years, forums };
+
+	// Write to KV cache
+	try {
+		await env.KV.put(cacheKey, JSON.stringify(data), { expirationTtl: DIGEST_CACHE_TTL });
+		recordWrite("digest:filters");
+	} catch (err) {
+		recordError("digest:filters");
+		console.warn("[digest:filters] KV write failed", err);
+	}
+
+	if (ctx) scheduleMetricsFlush(env, ctx);
+	return jsonResponse(data, origin);
 }

@@ -58,10 +58,10 @@ import { cacheGetOrSet } from "./wrap";
 
 /** Structural tree — long TTL, correctness from `forum:tree:gen`. */
 export const FORUM_TREE_TTL = 86_400; // 24h
-/** Aggregates incl. last-poster avatar — short TTL, correctness from `forum:summary:gen`. */
-export const FORUM_SUMMARY_TTL = 600; // 10min
-/** Single-forum view — same gen as summary; 10min. */
-export const FORUM_META_TTL = 600; // 10min
+/** Aggregates incl. last-poster avatar — long TTL, correctness from `forum:summary:gen`. */
+export const FORUM_SUMMARY_TTL = 86_400; // 24h
+/** Single-forum view — same gen as summary; 24h. */
+export const FORUM_META_TTL = 86_400; // 24h
 
 // ─── Snapshot row (D1) ────────────────────────────────────────────
 

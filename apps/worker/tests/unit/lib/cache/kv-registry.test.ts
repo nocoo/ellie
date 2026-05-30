@@ -160,12 +160,14 @@ describe("kv-registry — declarative invariants", () => {
 		// the admin "when does it expire" answer would otherwise lie.
 		const expected: Record<string, number | "sticky" | "variable"> = {
 			"forum:tree:v2": 86_400, // FORUM_TREE_TTL
-			"forum:summary:v2": 600, // FORUM_SUMMARY_TTL
-			"forum:meta:v2": 600, // FORUM_META_TTL
+			"forum:summary:v2": 86_400, // FORUM_SUMMARY_TTL
+			"forum:meta:v2": 86_400, // FORUM_META_TTL
 			"thread:list:v2": 60, // THREAD_LIST_TTL
 			"user:mini:v1": 86_400, // USER_CACHE_TTL
-			"settings:all": 86_400, // settings.ts KV_TTL
-			"public-stats": 60, // stats.ts CACHE_TTL_SECONDS
+			"digest:stats": 3600, // DIGEST_CACHE_TTL
+			"digest:filters": 3600, // DIGEST_CACHE_TTL
+			"settings:all": 900, // settings.ts KV_TTL
+			"public-stats": 900, // stats.ts CACHE_TTL_SECONDS
 			"stats:online_count": 300, // online-stats.ts
 			"stats:online_peak": "sticky",
 			"online:user": 900, // middleware/online.ts ONLINE_TTL

@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, type vi } from "vitest";
 import * as digest from "../../../src/handlers/digest";
-import { createJwtForRole, createMockDb, makeEnv } from "../../helpers";
+import {
+	createJwtForRole,
+	createMockCtx,
+	createMockDb,
+	createMockKV,
+	makeEnv,
+} from "../../helpers";
 
 describe("digest handlers", () => {
 	// ─── list ───────────────────────────────────────────────────────
@@ -208,6 +214,43 @@ describe("digest handlers", () => {
 			const response = await digest.stats(request, env);
 			expect(response.status).toBe(200);
 		});
+
+		it("should return cached data when KV hit", async () => {
+			const cachedData = { total: 77, level1: 40, level2: 27, level3: 10 };
+			const kv = createMockKV({ "digest:stats:anon": JSON.stringify(cachedData) });
+			const { db } = createMockDb({});
+			const env = makeEnv({ DB: db, KV: kv });
+			const ctx = createMockCtx();
+			const request = new Request("https://api.example.com/api/v1/digest/stats");
+
+			const response = await digest.stats(request, env, ctx);
+
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as { data: typeof cachedData };
+			expect(body.data.total).toBe(77);
+			expect(kv.get).toHaveBeenCalled();
+			expect(kv.put).not.toHaveBeenCalled();
+		});
+
+		it("should write to KV cache after D1 read on miss", async () => {
+			const kv = createMockKV({});
+			const { db } = createMockDb({
+				firstResults: {
+					SELECT: { total: 55, level1: 30, level2: 20, level3: 5 },
+				},
+			});
+			const env = makeEnv({ DB: db, KV: kv });
+			const ctx = createMockCtx();
+			const request = new Request("https://api.example.com/api/v1/digest/stats");
+
+			const response = await digest.stats(request, env, ctx);
+
+			expect(response.status).toBe(200);
+			expect(kv.put).toHaveBeenCalledTimes(1);
+			const putCall = (kv.put as ReturnType<typeof vi.fn>).mock.calls[0];
+			expect(putCall[0]).toBe("digest:stats:anon");
+			expect((putCall[2] as { expirationTtl: number }).expirationTtl).toBe(3600);
+		});
 	});
 
 	// ─── filters ────────────────────────────────────────────────────
@@ -269,6 +312,48 @@ describe("digest handlers", () => {
 			});
 			const response = await digest.filters(request, env);
 			expect(response.status).toBe(200);
+		});
+
+		it("should return cached data when KV hit", async () => {
+			const cachedData = {
+				years: [2025, 2024],
+				forums: [{ id: 5, name: "Cached", digestCount: 99 }],
+			};
+			const kv = createMockKV({ "digest:filters:anon": JSON.stringify(cachedData) });
+			const { db } = createMockDb({});
+			const env = makeEnv({ DB: db, KV: kv });
+			const ctx = createMockCtx();
+			const request = new Request("https://api.example.com/api/v1/digest/filters");
+
+			const response = await digest.filters(request, env, ctx);
+
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as { data: typeof cachedData };
+			expect(body.data.years).toEqual([2025, 2024]);
+			expect(body.data.forums[0].name).toBe("Cached");
+			expect(kv.get).toHaveBeenCalled();
+			expect(kv.put).not.toHaveBeenCalled();
+		});
+
+		it("should write to KV cache after D1 read on miss", async () => {
+			const kv = createMockKV({});
+			const { db } = createMockDb({
+				allResults: {
+					"SELECT DISTINCT strftime": [{ year: "2026" }],
+					"SELECT f.id, f.name": [{ id: 3, name: "New", digest_count: 7 }],
+				},
+			});
+			const env = makeEnv({ DB: db, KV: kv });
+			const ctx = createMockCtx();
+			const request = new Request("https://api.example.com/api/v1/digest/filters");
+
+			const response = await digest.filters(request, env, ctx);
+
+			expect(response.status).toBe(200);
+			expect(kv.put).toHaveBeenCalledTimes(1);
+			const putCall = (kv.put as ReturnType<typeof vi.fn>).mock.calls[0];
+			expect(putCall[0]).toBe("digest:filters:anon");
+			expect((putCall[2] as { expirationTtl: number }).expirationTtl).toBe(3600);
 		});
 	});
 });
