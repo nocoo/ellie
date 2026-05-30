@@ -13,6 +13,9 @@ import type { Env } from "../../lib/env";
 import { jsonNoStoreResponse } from "../../lib/response";
 import { errorResponse } from "../../middleware/error";
 
+// KV key for public stats cache
+const PUBLIC_STATS_CACHE_KEY = "public-stats";
+
 // ─── Types ───────────────────────────────────────────────────
 
 interface CounterRow {
@@ -129,6 +132,9 @@ async function handleApplyReal(env: Env, origin?: string): Promise<Response> {
 		),
 	]);
 
+	// Invalidate public-stats cache so the new values appear immediately
+	await env.KV.delete(PUBLIC_STATS_CACHE_KEY).catch(() => {});
+
 	return jsonNoStoreResponse({ success: true } satisfies CalibratePostResponse, origin);
 }
 
@@ -157,6 +163,8 @@ async function handleApplyOffsets(
 
 	if (updates.length > 0) {
 		await env.DB.batch(updates);
+		// Invalidate public-stats cache so the new values appear immediately
+		await env.KV.delete(PUBLIC_STATS_CACHE_KEY).catch(() => {});
 	}
 
 	return jsonNoStoreResponse({ success: true } satisfies CalibratePostResponse, origin);

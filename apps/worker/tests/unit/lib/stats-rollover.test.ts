@@ -20,6 +20,9 @@ function makeKv(initialState: Record<string, string> = {}) {
 		put: vi.fn(async (key: string, value: string) => {
 			store[key] = value;
 		}),
+		delete: vi.fn(async (key: string) => {
+			delete store[key];
+		}),
 		_store: store,
 	} as unknown as KVNamespace & { _store: Record<string, string> };
 }

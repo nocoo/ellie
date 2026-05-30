@@ -6,6 +6,7 @@ import type { Env } from "./env";
 const KV_TODAY_POSTS = "stats:today_posts";
 const KV_TODAY_DATE = "stats:today_date";
 const SETTINGS_YESTERDAY_POSTS = "stats.yesterday_posts";
+const PUBLIC_STATS_CACHE_KEY = "public-stats";
 
 /**
  * Get current date in Asia/Shanghai timezone as YYYY-MM-DD.
@@ -60,8 +61,12 @@ export async function checkAndRolloverDailyStats(env: Env): Promise<void> {
 		.bind(String(todayPosts), Math.floor(Date.now() / 1000), SETTINGS_YESTERDAY_POSTS)
 		.run();
 
-	// Reset today's counter and update date marker (no TTL — marker persists indefinitely)
-	await Promise.all([env.KV.put(KV_TODAY_POSTS, "0"), env.KV.put(KV_TODAY_DATE, currentDate)]);
+	// Reset today's counter, update date marker, and invalidate public-stats cache
+	await Promise.all([
+		env.KV.put(KV_TODAY_POSTS, "0"),
+		env.KV.put(KV_TODAY_DATE, currentDate),
+		env.KV.delete(PUBLIC_STATS_CACHE_KEY).catch(() => {}),
+	]);
 
 	console.log(`[stats-rollover] Rolled over ${todayPosts} posts to yesterday`);
 }
