@@ -34,13 +34,16 @@ const statsConfig: EntityConfig = {
 	notFoundCode: "NOT_FOUND",
 };
 
-// D1 has a hard limit of 999 bound parameters per prepared statement.
-// IN_CHUNK keeps every per-batch aggregate query comfortably under that
-// limit even when `batchSize` is bumped to 1000+ in a later iteration.
-// 500 lets us run the per-batch aggregate as at most 2 SQL calls when
-// batchSize is at the default 1000.
-const IN_CHUNK = 500;
-const BATCH_SIZE = 500;
+// D1 caps a prepared statement at 100 bound variables (not the 999 SQLite
+// default). IN_CHUNK must stay strictly below 100 for `WHERE col IN (?,?,…)`
+// aggregates — 500 produced `D1_ERROR: too many SQL variables at offset 282`
+// in production. 90 leaves headroom for any extra params the surrounding
+// query might add later while still letting a 1000-row batch finish in ~12
+// chunks.
+const IN_CHUNK = 90;
+// Per-batch UPDATE chunk for `env.DB.batch(...)`. 4 vars/statement × 90 = 360
+// vars per batched call, matching the per-statement aggregate ceiling.
+const BATCH_SIZE = 90;
 
 // ─── Shared utility — parse JSON body & route TickResult ─────────────────────
 
@@ -349,12 +352,12 @@ export const recalcForums = withEntityAuth(
 //      so each batch lands a fresh slab of rows; cursor advances
 //      monotonically; nothing depends on a full table scan.
 //   2. Reply counts (batch-scoped)  — `WHERE thread_id IN (...)` in
-//      chunks of IN_CHUNK so we never breach D1's 999-param ceiling.
+//      chunks of IN_CHUNK so we never breach D1's 100-param ceiling.
 //   3. Last post (batch-scoped)     — same `IN (...)` filter, then
 //      `ROW_NUMBER() OVER (PARTITION BY thread_id ORDER BY created_at
 //      DESC, id DESC)` and keep `rn=1`. Window scope = the batch only;
 //      no global self-join on `posts`.
-//   4. Batched UPDATE              — one D1 batch per chunk of 500.
+//   4. Batched UPDATE              — one D1 batch per chunk of BATCH_SIZE.
 //
 // `done` transition handles cache invalidation in `finalize` (runs
 // outside the lease so a slow KV bump can't strand the lease).
@@ -378,7 +381,7 @@ function readRecalcThreadsParams(payload: StatsJobPayload): RecalcThreadsParams 
 
 /**
  * Chunk an array of ids into IN-list batches that stay under the D1
- * 999-parameter ceiling. Returns the chunks unchanged when ≤ IN_CHUNK.
+ * 100-parameter ceiling. Returns the chunks unchanged when ≤ IN_CHUNK.
  */
 function chunkIds<T>(ids: T[], size: number = IN_CHUNK): T[][] {
 	if (ids.length <= size) return [ids];
@@ -604,7 +607,7 @@ export const recalcThreads = withEntityAuth(
 //     UPDATE), chunked at KV_CHUNK=50 — finalize cannot know which user
 //     ids each batch touched without round-tripping them through KV.
 //   - Per-batch aggregates use `author_id IN (...) GROUP BY author_id` in
-//     IN_CHUNK=500 chunks to stay under D1's 999-param ceiling. No
+//     IN_CHUNK=90 chunks to stay under D1's 100-param ceiling. No
 //     per-user N+1 queries; no full-table GROUP BY scans.
 //   - If KV invalidate throws, let it bubble — tickJob marks the job as
 //     `error` and cursor does not advance; the next POST retries the

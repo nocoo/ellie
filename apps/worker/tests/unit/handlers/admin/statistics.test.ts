@@ -848,11 +848,12 @@ describe("admin statistics handlers", () => {
 			expect(updateCall?.params).toEqual([0, 1_700_000_001, "alice", 1, 100]);
 		});
 
-		it("chunkIds chunks IN-list batches at IN_CHUNK (501 ids → 2 chunks)", async () => {
-			// IN_CHUNK = 500; a 501-row batch must produce 2 IN (...) calls
-			// per aggregate (replies, lastPost). We don't care about
-			// terminal status here — only the SQL plan.
-			const rows = Array.from({ length: 501 }, (_, i) => ({
+		it("chunkIds chunks IN-list batches at IN_CHUNK (91 ids → 2 chunks)", async () => {
+			// IN_CHUNK = 90 (D1 caps a prepared statement at 100 bound
+			// vars). A 91-row batch must produce 2 IN (...) calls per
+			// aggregate (replies, lastPost). We don't care about terminal
+			// status here — only the SQL plan.
+			const rows = Array.from({ length: 91 }, (_, i) => ({
 				id: i + 1,
 				created_at: 1_700_000_000,
 				author_name: "x",
@@ -868,7 +869,7 @@ describe("admin statistics handlers", () => {
 			const env = makeEnv({ DB: db });
 			await writeJob(env, {
 				...makeInitialPayload({ kind: "threads", total: 1000, now: 1_700_000_000_000 }),
-				batchSize: 501,
+				batchSize: 91,
 			});
 			const response = await statistics.recalcThreads(
 				createAdminRequest("POST", "/api/admin/statistics/recalc-threads"),
@@ -881,8 +882,8 @@ describe("admin statistics handlers", () => {
 			);
 			expect(replyCalls.length).toBe(2);
 			expect(windowCalls.length).toBe(2);
-			// First chunk: 500 params; second: 1 param.
-			expect(replyCalls[0]?.params.length).toBe(500);
+			// First chunk: 90 params; second: 1 param.
+			expect(replyCalls[0]?.params.length).toBe(90);
 			expect(replyCalls[1]?.params.length).toBe(1);
 		});
 	});
@@ -1152,10 +1153,10 @@ describe("admin statistics handlers", () => {
 			expect(deleteCalls).toBeGreaterThanOrEqual(75);
 		});
 
-		it("advance: IN-list chunks at IN_CHUNK (501 users → 2 chunks per aggregate)", async () => {
-			// 501 user ids force chunkIds to emit 2 IN-list chunks per
+		it("advance: IN-list chunks at IN_CHUNK (91 users → 2 chunks per aggregate)", async () => {
+			// 91 user ids force chunkIds to emit 2 IN-list chunks per
 			// aggregate (replies/posts/digests = 3 queries × 2 chunks).
-			const users = Array.from({ length: 501 }, (_, i) => ({ id: 1 + i }));
+			const users = Array.from({ length: 91 }, (_, i) => ({ id: 1 + i }));
 			const { db, calls } = createMockDb({
 				allResults: {
 					"FROM users WHERE status >= 0 AND id >": users,
@@ -1167,7 +1168,7 @@ describe("admin statistics handlers", () => {
 			const env = makeEnv({ DB: db });
 			await writeJob(env, {
 				...makeInitialPayload({ kind: "users", total: 1_000, now: 1_700_000_000_000 }),
-				batchSize: 501,
+				batchSize: 91,
 			});
 			const res = await statistics.recalcUsers(
 				createAdminRequest("POST", "/api/admin/statistics/recalc-users"),
@@ -1579,15 +1580,15 @@ describe("admin statistics handlers", () => {
 			expect(body.data.total).toBe(8_888);
 		});
 
-		it("advance: IN-list chunks at IN_CHUNK (501 distinct thread ids → 2 chunks)", async () => {
-			// 501 posts each with a unique thread_id → 501 distinct
-			// thread ids → 2 IN-list lookups against threads.
-			const posts = Array.from({ length: 501 }, (_, i) => ({
+		it("advance: IN-list chunks at IN_CHUNK (91 distinct thread ids → 2 chunks)", async () => {
+			// 91 posts each with a unique thread_id → 91 distinct thread
+			// ids → 2 IN-list lookups against threads (IN_CHUNK=90).
+			const posts = Array.from({ length: 91 }, (_, i) => ({
 				id: 1000 + i,
 				thread_id: 1 + i,
 				forum_id: 7,
 			}));
-			const threads = Array.from({ length: 501 }, (_, i) => ({ id: 1 + i, forum_id: 7 }));
+			const threads = Array.from({ length: 91 }, (_, i) => ({ id: 1 + i, forum_id: 7 }));
 			const { db, calls } = createMockDb({
 				allResults: {
 					"FROM posts WHERE id >": posts,
@@ -1601,7 +1602,7 @@ describe("admin statistics handlers", () => {
 					total: 1_000,
 					now: 1_700_000_000_000,
 				}),
-				batchSize: 501,
+				batchSize: 91,
 			});
 			const res = await statistics.recalcPostForumIds(
 				createAdminRequest("POST", "/api/admin/statistics/recalc-post-forums"),
@@ -1610,8 +1611,8 @@ describe("admin statistics handlers", () => {
 			expect(res.status).toBe(200);
 			const inListCalls = calls.filter((c) => /FROM threads WHERE id IN \(/.test(c.sql));
 			expect(inListCalls.length).toBe(2);
-			// First chunk: 500 params; second: 1.
-			expect(inListCalls[0]?.params.length).toBe(500);
+			// First chunk: 90 params; second: 1.
+			expect(inListCalls[0]?.params.length).toBe(90);
 			expect(inListCalls[1]?.params.length).toBe(1);
 		});
 	});
