@@ -1,6 +1,11 @@
 // Admin stats calibration handler — GET/POST /api/admin/stats/calibrate
 // Allows admin to view stored counter values, run COUNT(*) queries,
 // and apply offsets or real values to the stored counters.
+//
+// SEMANTIC NOTE: These counters represent HISTORICAL CUMULATIVE totals.
+// The "real" values from COUNT(*) are full table counts (not filtered by
+// visibility/status). This matches the counter semantics — "total ever
+// created" rather than "currently visible".
 
 import { withEntityAuth } from "../../lib/adminHelpers";
 import type { EntityConfig } from "../../lib/crud";

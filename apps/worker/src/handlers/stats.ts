@@ -2,6 +2,12 @@
 // Returns site-wide statistics for the forum header/footer.
 // Cached in KV for 600 seconds. Reads pre-computed counters from settings table
 // and KV instead of running expensive COUNT(*) queries.
+//
+// SEMANTIC NOTE: These counters represent HISTORICAL CUMULATIVE totals, not
+// currently visible content. Counts increment on create but do NOT decrement
+// on delete/ban/hide. This is intentional — the numbers reflect "total ever
+// created" rather than "currently visible". Use admin calibration page to
+// manually adjust if needed.
 
 import {
 	recordError,

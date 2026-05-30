@@ -61,8 +61,8 @@ describe("stats-counter", () => {
 			expect(boundKeys).toContain("stats.total_threads");
 			expect(boundKeys).toContain("stats.total_posts");
 
-			// Should increment KV today_posts
-			expect(kv.put).toHaveBeenCalledWith("stats:today_posts", "1", { expirationTtl: 86400 });
+			// Should increment KV today_posts (no TTL)
+			expect(kv.put).toHaveBeenCalledWith("stats:today_posts", "1");
 		});
 	});
 
@@ -79,8 +79,8 @@ describe("stats-counter", () => {
 			const boundKey = db._bindCalls[0][1];
 			expect(boundKey).toBe("stats.total_posts");
 
-			// Should increment KV today_posts
-			expect(kv.put).toHaveBeenCalledWith("stats:today_posts", "1", { expirationTtl: 86400 });
+			// Should increment KV today_posts (no TTL)
+			expect(kv.put).toHaveBeenCalledWith("stats:today_posts", "1");
 		});
 
 		it("increments existing today_posts value", async () => {
@@ -93,8 +93,8 @@ describe("stats-counter", () => {
 
 			await incrementStatsOnPostCreate(env);
 
-			// Should increment to 6
-			expect(kv.put).toHaveBeenCalledWith("stats:today_posts", "6", { expirationTtl: 86400 });
+			// Should increment to 6 (no TTL)
+			expect(kv.put).toHaveBeenCalledWith("stats:today_posts", "6");
 		});
 	});
 

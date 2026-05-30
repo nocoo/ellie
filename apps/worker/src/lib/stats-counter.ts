@@ -1,6 +1,10 @@
 // lib/stats-counter.ts — Increment pre-computed stats counters
 // These counters are stored in settings table and KV for fast reads.
 // Manual calibration is available in admin panel.
+//
+// SEMANTIC NOTE: Counters represent HISTORICAL CUMULATIVE totals. They
+// increment on create but do NOT decrement on delete/ban/hide. This is
+// intentional — the numbers reflect "total ever created".
 
 import type { Env } from "./env";
 
@@ -20,11 +24,12 @@ async function incrementSettingsCounter(env: Env, key: string): Promise<void> {
  * Increment the today's posts counter in KV.
  * KV get→put is not atomic, so slight undercounting is possible under high concurrency.
  * This is acceptable since admin can calibrate.
+ * No TTL — rollover cron handles reset at midnight Beijing time.
  */
 async function incrementTodayPosts(env: Env): Promise<void> {
 	const current = await env.KV.get("stats:today_posts");
 	const newValue = (current ? Number.parseInt(current, 10) : 0) + 1;
-	await env.KV.put("stats:today_posts", String(newValue), { expirationTtl: 86_400 });
+	await env.KV.put("stats:today_posts", String(newValue));
 }
 
 /**
