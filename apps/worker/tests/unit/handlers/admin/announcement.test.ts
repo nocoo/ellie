@@ -225,6 +225,50 @@ describe("admin announcement handlers", () => {
 			const response = await announcement.create(request, env);
 			expect(response.status).toBe(201);
 		});
+
+		it("should reject non-string forumIds", async () => {
+			const { db } = createMockDb();
+			const env = makeEnv({ DB: db });
+			const request = createAdminRequest("POST", "/api/admin/announcements", {
+				title: "Test",
+				forumIds: 123,
+			});
+			const response = await announcement.create(request, env);
+			expect(response.status).toBe(400);
+		});
+
+		it("should reject non-number sticky", async () => {
+			const { db } = createMockDb();
+			const env = makeEnv({ DB: db });
+			const request = createAdminRequest("POST", "/api/admin/announcements", {
+				title: "Test",
+				sticky: "high",
+			});
+			const response = await announcement.create(request, env);
+			expect(response.status).toBe(400);
+		});
+
+		it("should reject non-number startAt", async () => {
+			const { db } = createMockDb();
+			const env = makeEnv({ DB: db });
+			const request = createAdminRequest("POST", "/api/admin/announcements", {
+				title: "Test",
+				startAt: "tomorrow",
+			});
+			const response = await announcement.create(request, env);
+			expect(response.status).toBe(400);
+		});
+
+		it("should reject non-number endAt", async () => {
+			const { db } = createMockDb();
+			const env = makeEnv({ DB: db });
+			const request = createAdminRequest("POST", "/api/admin/announcements", {
+				title: "Test",
+				endAt: "next week",
+			});
+			const response = await announcement.create(request, env);
+			expect(response.status).toBe(400);
+		});
 	});
 
 	// ─── update ─────────────────────────────────────────────────────

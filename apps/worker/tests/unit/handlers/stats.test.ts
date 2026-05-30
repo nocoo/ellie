@@ -249,5 +249,46 @@ describe("public stats handler", () => {
 			const body = (await response.json()) as { data: PublicStats };
 			expect(body.data.todayPosts).toBe(0);
 		});
+
+		it("should handle KV read failure gracefully", async () => {
+			const db = makeStatsDb({ totalThreads: 100 });
+			const kv = {
+				get: vi.fn(async (key: string) => {
+					if (key === "public-stats") {
+						throw new Error("KV read error");
+					}
+					return null;
+				}),
+				put: vi.fn(async () => {}),
+			} as unknown as KVNamespace;
+			const env = makeEnv({ DB: db, KV: kv });
+			const request = createRequest();
+
+			const response = await stats(request, env);
+
+			// Should still return 200 with data from DB
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as { data: PublicStats };
+			expect(body.data.totalThreads).toBe(100);
+		});
+
+		it("should handle KV write failure gracefully", async () => {
+			const db = makeStatsDb({ totalThreads: 100 });
+			const kv = {
+				get: vi.fn(async () => null),
+				put: vi.fn(async () => {
+					throw new Error("KV write error");
+				}),
+			} as unknown as KVNamespace;
+			const env = makeEnv({ DB: db, KV: kv });
+			const request = createRequest();
+
+			const response = await stats(request, env);
+
+			// Should still return 200 with data from DB
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as { data: PublicStats };
+			expect(body.data.totalThreads).toBe(100);
+		});
 	});
 });

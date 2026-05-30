@@ -61,10 +61,7 @@ export async function checkAndRolloverDailyStats(env: Env): Promise<void> {
 		.run();
 
 	// Reset today's counter and update date marker (no TTL — marker persists indefinitely)
-	await Promise.all([
-		env.KV.put(KV_TODAY_POSTS, "0"),
-		env.KV.put(KV_TODAY_DATE, currentDate),
-	]);
+	await Promise.all([env.KV.put(KV_TODAY_POSTS, "0"), env.KV.put(KV_TODAY_DATE, currentDate)]);
 
 	console.log(`[stats-rollover] Rolled over ${todayPosts} posts to yesterday`);
 }

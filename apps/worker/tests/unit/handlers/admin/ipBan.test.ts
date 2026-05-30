@@ -90,6 +90,29 @@ describe("admin ipBan handlers", () => {
 			const countCall = calls.find((c) => c.sql.includes("COUNT"));
 			expect(countCall?.sql).not.toContain("expires_at");
 		});
+
+		it("should reject invalid page number", async () => {
+			const { db } = createMockDb({});
+			const env = makeEnv({ DB: db });
+			const request = createAdminRequest("GET", "/api/admin/ip-bans?page=0");
+
+			const response = await list(request, env);
+
+			expect(response.status).toBe(400);
+			const body = (await response.json()) as Record<string, unknown>;
+			const error = body.error as Record<string, unknown>;
+			expect(error.code).toBe("INVALID_REQUEST");
+		});
+
+		it("should reject NaN page", async () => {
+			const { db } = createMockDb({});
+			const env = makeEnv({ DB: db });
+			const request = createAdminRequest("GET", "/api/admin/ip-bans?page=abc");
+
+			const response = await list(request, env);
+
+			expect(response.status).toBe(400);
+		});
 	});
 
 	// ─── getById ────────────────────────────────────────────
@@ -143,6 +166,26 @@ describe("admin ipBan handlers", () => {
 			const response = await create(request, env);
 
 			expect(response.status).toBe(201);
+		});
+
+		it("should reject invalid JSON body", async () => {
+			const { db } = createMockDb({});
+			const env = makeEnv({ DB: db });
+			const request = new Request("https://api.example.com/api/admin/ip-bans", {
+				method: "POST",
+				headers: {
+					"X-API-Key": "test-api-key",
+					"Content-Type": "application/json",
+				},
+				body: "not valid json{",
+			});
+
+			const response = await create(request, env);
+
+			expect(response.status).toBe(400);
+			const body = (await response.json()) as Record<string, unknown>;
+			const error = body.error as Record<string, unknown>;
+			expect(error.code).toBe("INVALID_BODY");
 		});
 
 		it("should reject duplicate IP", async () => {

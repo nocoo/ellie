@@ -62,6 +62,22 @@ describe("cache/epoch — getGen", () => {
 		const v = await getGen(env, "k");
 		expect(v.length).toBeGreaterThan(0);
 	});
+
+	it("swallows KV.put failure when seeding and returns token anyway", async () => {
+		const env = makeEnv({
+			KV: {
+				get: vi.fn(async () => null), // Empty — triggers seed path
+				put: vi.fn(async () => {
+					throw new Error("kv write down");
+				}),
+				delete: vi.fn(async () => {}),
+			} as unknown as KVNamespace,
+		});
+
+		// Should return a valid token even though put failed
+		const v = await getGen(env, "k");
+		expect(v).toMatch(/^\d+-/);
+	});
 });
 
 describe("cache/epoch — bumpGen", () => {
