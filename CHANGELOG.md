@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.6] - 2026-05-30
+
+### Fixed
+
+- **Stats recalc batches**: Cap IN-list chunks at D1's 100-bound-variable ceiling (was sized for SQLite's 999 default). Lowered `IN_CHUNK`/`BATCH_SIZE` from 500 to 90, fixing `D1_ERROR: too many SQL variables at offset 282` on all four recalc jobs (forums / threads / users / post-forums).
+
 ## [1.6.4] - 2026-05-30
 
 ### Changed
