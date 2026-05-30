@@ -244,20 +244,21 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		description:
 			"Read-through cache of admin ip-lookup queries (handlers/admin/ip-lookup.ts). Suffix is the queried IP. Populated only via the admin handler — public callers never touch this prefix.",
 	},
-	// ─── Digest cache (visibility-bucketed) ───────────────────────
+	// ─── Digest cache (visibility-bucketed, gen-keyed) ───────────────
 	{
 		family: "digest:stats",
 		displayName: "Digest stats (per visibility bucket)",
 		category: "cache",
 		status: "shipped",
 		listPrefix: "digest:stats:",
-		pattern: "digest:stats:<bucket>",
+		pattern: "digest:stats:<bucket>:<gen>",
 		ttl: 3600,
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "bump-digest" },
 		genKeys: ["digest:gen"],
-		description: "Aggregate digest thread counts (total, level1-3) per visibility bucket.",
+		description:
+			"Aggregate digest thread counts (total, level1-3) per visibility bucket. Gen-keyed for instant invalidation on digest changes.",
 	},
 	{
 		family: "digest:filters",
@@ -265,14 +266,14 @@ export const KV_REGISTRY: readonly KvFamilySpec[] = [
 		category: "cache",
 		status: "shipped",
 		listPrefix: "digest:filters:",
-		pattern: "digest:filters:<bucket>",
+		pattern: "digest:filters:<bucket>:<gen>",
 		ttl: 3600,
 		nameSensitivity: "public",
 		valueSensitivity: "public",
 		refresh: { kind: "bump-digest" },
 		genKeys: ["digest:gen"],
 		description:
-			"Available filter options (years, forums with digest threads) per visibility bucket.",
+			"Available filter options (years, forums with digest threads) per visibility bucket. Gen-keyed for instant invalidation.",
 	},
 	// ─── Recommended threads cache (per forum) ─────────────────────
 	{

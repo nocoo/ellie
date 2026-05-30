@@ -1,5 +1,6 @@
 import { decodeGenericCursor } from "@ellie/types";
 import { computeVisibilityBucket } from "../lib/cache/bucket";
+import { digestFiltersKey, digestGenKey, digestStatsKey } from "../lib/cache/keys";
 import {
 	recordError,
 	recordHit,
@@ -176,8 +177,9 @@ export async function stats(request: Request, env: Env, ctx?: ExecutionContext):
 	const visCtx = buildVisibilityContext(user);
 	const bucket = computeVisibilityBucket(visCtx);
 
-	// Try KV cache first (keyed by visibility bucket)
-	const cacheKey = `digest:stats:${bucket}`;
+	// Read digest:gen first, then build gen-based cache key
+	const gen = (await env.KV.get(digestGenKey())) ?? "0";
+	const cacheKey = digestStatsKey(bucket, gen);
 	recordRead("digest:stats");
 	try {
 		const cached = await env.KV.get(cacheKey);
@@ -213,7 +215,7 @@ export async function stats(request: Request, env: Env, ctx?: ExecutionContext):
 		level3: result?.level3 ?? 0,
 	};
 
-	// Write to KV cache
+	// Write to KV cache (gen-based key auto-invalidates when gen bumps)
 	try {
 		await env.KV.put(cacheKey, JSON.stringify(data), { expirationTtl: DIGEST_CACHE_TTL });
 		recordWrite("digest:stats");
@@ -239,8 +241,9 @@ export async function filters(
 	const visCtx = buildVisibilityContext(user);
 	const bucket = computeVisibilityBucket(visCtx);
 
-	// Try KV cache first (keyed by visibility bucket)
-	const cacheKey = `digest:filters:${bucket}`;
+	// Read digest:gen first, then build gen-based cache key
+	const gen = (await env.KV.get(digestGenKey())) ?? "0";
+	const cacheKey = digestFiltersKey(bucket, gen);
 	recordRead("digest:filters");
 	try {
 		const cached = await env.KV.get(cacheKey);
@@ -289,7 +292,7 @@ export async function filters(
 
 	const data = { years, forums };
 
-	// Write to KV cache
+	// Write to KV cache (gen-based key auto-invalidates when gen bumps)
 	try {
 		await env.KV.put(cacheKey, JSON.stringify(data), { expirationTtl: DIGEST_CACHE_TTL });
 		recordWrite("digest:filters");

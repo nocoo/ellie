@@ -217,7 +217,11 @@ describe("digest handlers", () => {
 
 		it("should return cached data when KV hit", async () => {
 			const cachedData = { total: 77, level1: 40, level2: 27, level3: 10 };
-			const kv = createMockKV({ "digest:stats:anon": JSON.stringify(cachedData) });
+			// Gen-based key: digest:stats:v2:anon:g123
+			const kv = createMockKV({
+				"digest:gen": "123",
+				"digest:stats:v2:anon:g123": JSON.stringify(cachedData),
+			});
 			const { db } = createMockDb({});
 			const env = makeEnv({ DB: db, KV: kv });
 			const ctx = createMockCtx();
@@ -233,6 +237,7 @@ describe("digest handlers", () => {
 		});
 
 		it("should write to KV cache after D1 read on miss", async () => {
+			// Gen returns "0" by default (falsy fallback); cache key uses g0
 			const kv = createMockKV({});
 			const { db } = createMockDb({
 				firstResults: {
@@ -248,7 +253,8 @@ describe("digest handlers", () => {
 			expect(response.status).toBe(200);
 			expect(kv.put).toHaveBeenCalledTimes(1);
 			const putCall = (kv.put as ReturnType<typeof vi.fn>).mock.calls[0];
-			expect(putCall[0]).toBe("digest:stats:anon");
+			// Gen-based key with fallback gen "0"
+			expect(putCall[0]).toBe("digest:stats:v2:anon:g0");
 			expect((putCall[2] as { expirationTtl: number }).expirationTtl).toBe(3600);
 		});
 	});
@@ -319,7 +325,11 @@ describe("digest handlers", () => {
 				years: [2025, 2024],
 				forums: [{ id: 5, name: "Cached", digestCount: 99 }],
 			};
-			const kv = createMockKV({ "digest:filters:anon": JSON.stringify(cachedData) });
+			// Gen-based key: digest:filters:v2:anon:g456
+			const kv = createMockKV({
+				"digest:gen": "456",
+				"digest:filters:v2:anon:g456": JSON.stringify(cachedData),
+			});
 			const { db } = createMockDb({});
 			const env = makeEnv({ DB: db, KV: kv });
 			const ctx = createMockCtx();
@@ -336,6 +346,7 @@ describe("digest handlers", () => {
 		});
 
 		it("should write to KV cache after D1 read on miss", async () => {
+			// Gen returns "0" by default (falsy fallback); cache key uses g0
 			const kv = createMockKV({});
 			const { db } = createMockDb({
 				allResults: {
@@ -352,7 +363,8 @@ describe("digest handlers", () => {
 			expect(response.status).toBe(200);
 			expect(kv.put).toHaveBeenCalledTimes(1);
 			const putCall = (kv.put as ReturnType<typeof vi.fn>).mock.calls[0];
-			expect(putCall[0]).toBe("digest:filters:anon");
+			// Gen-based key with fallback gen "0"
+			expect(putCall[0]).toBe("digest:filters:v2:anon:g0");
 			expect((putCall[2] as { expirationTtl: number }).expirationTtl).toBe(3600);
 		});
 	});
