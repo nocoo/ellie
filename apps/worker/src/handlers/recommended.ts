@@ -93,7 +93,7 @@ function recommendedCacheKey(forumId: number): string {
 }
 
 /** Invalidate recommended threads cache for a forum */
-async function invalidateRecommendedCache(env: Env, forumId: number): Promise<void> {
+export async function invalidateRecommendedCache(env: Env, forumId: number): Promise<void> {
 	try {
 		await env.KV.delete(recommendedCacheKey(forumId));
 		recordDelete(METRICS_FAMILY);

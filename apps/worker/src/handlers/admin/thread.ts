@@ -21,6 +21,7 @@ import { recalcForumMetadata } from "../../lib/recalcMetadata";
 import { jsonNoStoreResponse } from "../../lib/response";
 import { batchDecrementUserPosts, decrementUserThreads } from "../../lib/userCounters";
 import { STICKY_FORUM, STICKY_GLOBAL } from "../../lib/visibility";
+import { invalidateRecommendedCache } from "../recommended";
 
 import { errorResponse } from "../../middleware/error";
 
@@ -243,6 +244,9 @@ const threadConfig: EntityConfig = {
 			ops.push(
 				invalidateForumVolatileV2(env, oldForumId),
 				invalidateForumVolatileV2(env, newForumId),
+				// Invalidate recommended cache: moving a thread out of a forum
+				// should remove it from that forum's recommended list display.
+				invalidateRecommendedCache(env, oldForumId),
 			);
 		} else if (listAffected) {
 			const currentForumId = existing.forum_id as number;
@@ -310,7 +314,11 @@ const threadConfig: EntityConfig = {
 
 		// Volatile cache: forum summary + per-forum thread-list bumped together.
 		// If deleted thread was a digest, also bump digest gen.
-		const tail: Promise<unknown>[] = [invalidateForumVolatileV2(env, forumId)];
+		// Also invalidate recommended cache in case the deleted thread was recommended.
+		const tail: Promise<unknown>[] = [
+			invalidateForumVolatileV2(env, forumId),
+			invalidateRecommendedCache(env, forumId),
+		];
 		if ((existing.digest as number) > 0) tail.push(bumpDigestGen(env));
 		await Promise.all(tail);
 	},
@@ -671,6 +679,7 @@ export const batchDelete = withEntityAuth(
 			...Array.from(forumThreadCounts.keys(), (forumId) => recalcForumMetadata(env, forumId)),
 			invalidateThreadListForForums(env, affectedForumIds),
 			bumpForumSummaryGen(env),
+			...affectedForumIds.map((forumId) => invalidateRecommendedCache(env, forumId)),
 			writeAdminLog(env, resolveActor(request, env), {
 				action: "thread.batch_delete",
 				targetType: "thread",
@@ -820,11 +829,14 @@ export const batchMove = withEntityAuth(
 			recalcForumMetadata(env, targetForumId),
 		]);
 		// Per-forum thread-list bumps for every source forum + the target,
-		// plus a single summary bump.
+		// plus a single summary bump. Also invalidate recommended cache for
+		// source forums (threads moved out may have been recommended there).
 		const movedForumIds = [...forumAdjustments.keys(), targetForumId];
+		const sourceForumIds = Array.from(forumAdjustments.keys());
 		await Promise.all([
 			invalidateThreadListForForums(env, movedForumIds),
 			bumpForumSummaryGen(env),
+			...sourceForumIds.map((forumId) => invalidateRecommendedCache(env, forumId)),
 		]);
 
 		// F3-b: audit one row for the entire successful batch. fromForumIds
