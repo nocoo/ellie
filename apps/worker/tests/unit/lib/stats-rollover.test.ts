@@ -115,5 +115,45 @@ describe("stats-rollover", () => {
 			// Should update settings with 0
 			expect(db.prepare).toHaveBeenCalledTimes(1);
 		});
+
+		it("preserves orphaned today_posts when date marker is missing", async () => {
+			vi.setSystemTime(new Date("2026-05-30T02:00:00Z"));
+
+			const db = makeDb();
+			const kv = makeKv({
+				// No today_date (marker missing)
+				"stats:today_posts": "17", // But posts have accumulated
+			});
+			const env = makeEnv({ DB: db, KV: kv });
+
+			await checkAndRolloverDailyStats(env);
+
+			// Should move orphaned posts to yesterday
+			expect(db.prepare).toHaveBeenCalledTimes(1);
+			// Should reset today_posts
+			expect(kv.put).toHaveBeenCalledWith("stats:today_posts", "0");
+			// Should initialize date marker
+			expect(kv.put).toHaveBeenCalledWith("stats:today_date", "2026-05-30");
+			// Should invalidate public-stats cache
+			expect(kv.delete).toHaveBeenCalledWith("public-stats");
+		});
+
+		it("just initializes marker when both marker and posts are missing", async () => {
+			vi.setSystemTime(new Date("2026-05-30T02:00:00Z"));
+
+			const db = makeDb();
+			const kv = makeKv({
+				// Empty state — first deploy
+			});
+			const env = makeEnv({ DB: db, KV: kv });
+
+			await checkAndRolloverDailyStats(env);
+
+			// Should NOT call DB (no posts to move)
+			expect(db.prepare).not.toHaveBeenCalled();
+			// Should only initialize date marker
+			expect(kv.put).toHaveBeenCalledTimes(1);
+			expect(kv.put).toHaveBeenCalledWith("stats:today_date", "2026-05-30");
+		});
 	});
 });

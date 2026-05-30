@@ -35,12 +35,33 @@ function getShanghaiDate(): string {
  */
 export async function checkAndRolloverDailyStats(env: Env): Promise<void> {
 	const currentDate = getShanghaiDate();
-	const storedDate = await env.KV.get(KV_TODAY_DATE);
+	const [storedDate, todayPostsStr] = await Promise.all([
+		env.KV.get(KV_TODAY_DATE),
+		env.KV.get(KV_TODAY_POSTS),
+	]);
 
-	// First run or same day — nothing to do
 	if (!storedDate) {
-		// Initialize the date marker on first run (no TTL — marker persists indefinitely)
-		await env.KV.put(KV_TODAY_DATE, currentDate);
+		// Date marker missing (first deploy, KV cleared, etc.)
+		// Check if today_posts has accumulated value that would be lost
+		const todayPosts = todayPostsStr ? Number.parseInt(todayPostsStr, 10) : 0;
+		if (todayPosts > 0) {
+			// Conservative handling: move orphaned today_posts to yesterday
+			// rather than silently discarding them
+			console.log(
+				`[stats-rollover] Date marker missing but today_posts=${todayPosts}. Moving to yesterday as fallback.`,
+			);
+			await env.DB.prepare("UPDATE settings SET value = ?, updated_at = ? WHERE key = ?")
+				.bind(String(todayPosts), Math.floor(Date.now() / 1000), SETTINGS_YESTERDAY_POSTS)
+				.run();
+			await Promise.all([
+				env.KV.put(KV_TODAY_POSTS, "0"),
+				env.KV.put(KV_TODAY_DATE, currentDate),
+				env.KV.delete(PUBLIC_STATS_CACHE_KEY).catch(() => {}),
+			]);
+		} else {
+			// No accumulated posts — just initialize the date marker
+			await env.KV.put(KV_TODAY_DATE, currentDate);
+		}
 		return;
 	}
 
@@ -53,7 +74,6 @@ export async function checkAndRolloverDailyStats(env: Env): Promise<void> {
 	console.log(`[stats-rollover] Day changed: ${storedDate} → ${currentDate}`);
 
 	// Get today's posts count before reset
-	const todayPostsStr = await env.KV.get(KV_TODAY_POSTS);
 	const todayPosts = todayPostsStr ? Number.parseInt(todayPostsStr, 10) : 0;
 
 	// Move today's posts to yesterday in settings table
