@@ -544,15 +544,17 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 		stats.skipped.attachMissingPosts = attachResult.missingPosts;
 		stats.skipped.attachMissingThreads = attachResult.missingThreads;
 
-		// Backfill denormalized flags (e.g. threads.anonymous_* mirroring
-		// posts.anonymous). Runs before index creation; idempotent.
-		log("Applying post-load backfills...");
-		loader.applyPostLoadBackfills();
-
 		// Create indexes after all data is loaded (much faster)
 		log("Creating indexes...");
 		loader.createIndexes();
 		log("Indexes created");
+
+		// Backfill denormalized flags (e.g. threads.anonymous_* mirroring
+		// posts.anonymous). MUST run AFTER createIndexes() — the
+		// correlated EXISTS subquery needs idx_posts_thread or it
+		// full-scans posts per thread row. Idempotent.
+		log("Applying post-load backfills...");
+		loader.applyPostLoadBackfills();
 
 		// Run verification suite per docs/03-migration.md
 		log("=== Verification ===");

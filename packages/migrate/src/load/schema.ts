@@ -299,10 +299,15 @@ export const INDEX_DDL: string[] = [
 ];
 
 /**
- * Post-load SQL run AFTER all data is inserted but BEFORE indexes are built.
+ * Post-load SQL run AFTER all data is inserted AND after indexes are built.
  *
  * Use for backfills that derive denormalized values from already-loaded rows.
- * They must be idempotent (safe to re-run) and tolerant of partial loads.
+ * They must be idempotent (safe to re-run).
+ *
+ * Order is important: the second UPDATE below uses a correlated EXISTS
+ * subquery on `posts`. Without `idx_posts_thread` it SCANs posts per thread
+ * row, which on real-volume data (9.5M posts × 1M threads) hangs the
+ * import. So callers MUST invoke this after createIndexes().
  *
  * Current contents — mig 0048 thread-anonymous mirror: posts.anonymous can
  * only land via extractPost(); threads have no anonymous column in the

@@ -72,10 +72,9 @@ export class BatchLoader {
 	}
 
 	/**
-	 * Run post-load backfills. Call AFTER all rows are inserted and BEFORE
-	 * indexes are built (some backfills are easier without indexes;
-	 * existence-check sub-queries are tolerant of the missing indexes
-	 * because data volumes here are small).
+	 * Run post-load backfills. Call AFTER all rows are inserted AND after
+	 * indexes are built (POST_LOAD_DDL uses correlated subqueries on posts
+	 * that hang without idx_posts_thread).
 	 */
 	applyPostLoadBackfills(): void {
 		for (const ddl of POST_LOAD_DDL) {
