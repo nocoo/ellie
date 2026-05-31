@@ -395,6 +395,12 @@ interface ThreadBatchRow {
 	created_at: number;
 	author_name: string;
 	author_id: number;
+	/**
+	 * threads.anonymous_author (mig 0048). Used as fallback for
+	 * anonymous_last_poster when no posts remain — same convention as
+	 * recalcThreadMetadata().
+	 */
+	anonymous_author: number;
 }
 
 interface ReplyCountRow {
@@ -407,6 +413,8 @@ interface LastPostRow {
 	created_at: number;
 	author_name: string;
 	author_id: number;
+	/** Discuz pre_forum_post.anonymous (mig 0047); 1 = anonymous post. */
+	anonymous: number;
 }
 
 async function fetchReplyCounts(env: Env, threadIds: number[]): Promise<Map<number, number>> {
@@ -434,12 +442,13 @@ async function fetchLastPosts(env: Env, threadIds: number[]): Promise<Map<number
 		// `id DESC` for posts with identical `created_at` (legacy seed
 		// rows) so the result is deterministic.
 		const sql = `
-			SELECT thread_id, created_at, author_name, author_id FROM (
+			SELECT thread_id, created_at, author_name, author_id, anonymous FROM (
 				SELECT
 					thread_id,
 					created_at,
 					author_name,
 					author_id,
+					anonymous,
 					ROW_NUMBER() OVER (
 						PARTITION BY thread_id
 						ORDER BY created_at DESC, id DESC
@@ -493,13 +502,13 @@ export const threadsTicker: StatsJobTicker = {
 		let threadsResult: D1Result;
 		if (params.forumId !== null) {
 			threadsResult = await env.DB.prepare(
-				"SELECT id, created_at, author_name, author_id FROM threads WHERE forum_id = ? AND id > ? ORDER BY id LIMIT ?",
+				"SELECT id, created_at, author_name, author_id, anonymous_author FROM threads WHERE forum_id = ? AND id > ? ORDER BY id LIMIT ?",
 			)
 				.bind(params.forumId, prev.cursor, batchSize)
 				.all();
 		} else {
 			threadsResult = await env.DB.prepare(
-				"SELECT id, created_at, author_name, author_id FROM threads WHERE id > ? ORDER BY id LIMIT ?",
+				"SELECT id, created_at, author_name, author_id, anonymous_author FROM threads WHERE id > ? ORDER BY id LIMIT ?",
 			)
 				.bind(prev.cursor, batchSize)
 				.all();
@@ -539,9 +548,27 @@ export const threadsTicker: StatsJobTicker = {
 			const lastPostAt = lastPost?.created_at ?? thread.created_at;
 			const lastPoster = lastPost?.author_name ?? thread.author_name;
 			const lastPosterId = lastPost?.author_id ?? thread.author_id;
+			// Mirror recalcThreadMetadata(): anonymous_last_poster reflects the
+			// post we just denormalized (or threads.anonymous_author as the
+			// fallback when no posts exist).
+			const anonLast =
+				lastPost !== undefined
+					? lastPost.anonymous === 1
+						? 1
+						: 0
+					: thread.anonymous_author === 1
+						? 1
+						: 0;
 			return env.DB.prepare(
-				"UPDATE threads SET replies = ?, last_post_at = ?, last_poster = ?, last_poster_id = ? WHERE id = ?",
-			).bind(replyMap.get(thread.id) ?? 0, lastPostAt, lastPoster, lastPosterId, thread.id);
+				"UPDATE threads SET replies = ?, last_post_at = ?, last_poster = ?, last_poster_id = ?, anonymous_last_poster = ? WHERE id = ?",
+			).bind(
+				replyMap.get(thread.id) ?? 0,
+				lastPostAt,
+				lastPoster,
+				lastPosterId,
+				anonLast,
+				thread.id,
+			);
 		});
 		for (let i = 0; i < statements.length; i += BATCH_SIZE) {
 			await env.DB.batch(statements.slice(i, i + BATCH_SIZE));

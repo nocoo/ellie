@@ -435,6 +435,52 @@ describe("admin statistics handlers", () => {
 			}
 		});
 
+		it("propagates posts.anonymous onto threads.anonymous_last_poster (mig 0048)", async () => {
+			// Without this propagation, every recalc would silently reset the
+			// anonymous_last_poster denorm to 0, and the next forum-index hit
+			// would leak the original author of an anonymous reply.
+			const { db, calls } = createMockDb({
+				allResults: {
+					"FROM threads WHERE id >": [
+						{
+							id: 10,
+							created_at: 1_700_000_000,
+							author_name: "alice",
+							author_id: 1,
+							anonymous_author: 0,
+						},
+					],
+					"FROM posts WHERE thread_id IN": [{ thread_id: 10, cnt: 3 }],
+					"ROW_NUMBER() OVER": [
+						{
+							thread_id: 10,
+							created_at: 1_700_000_500,
+							author_name: "carol",
+							author_id: 3,
+							anonymous: 1,
+						},
+					],
+				},
+			});
+			const env = makeEnv({ DB: db });
+
+			await writeJob(env, {
+				...makeInitialPayload({ kind: "threads", total: 100, now: 1_700_000_000_000 }),
+				batchSize: 5,
+			});
+
+			const response = await statistics.recalcThreads(
+				createAdminRequest("POST", "/api/admin/statistics/recalc-threads"),
+				env,
+			);
+			expect(response.status).toBe(200);
+
+			// Bound params for the UPDATE land in `calls`. anonymous_last_poster
+			// (5th param) must be 1 because the latest post is anonymous.
+			const updateCall = calls.find((c) => c.sql.includes("UPDATE threads SET replies"));
+			expect(updateCall?.params).toEqual([3, 1_700_000_500, "carol", 3, 1, 10]);
+		});
+
 		it("advance: second POST processes one batch and moves cursor", async () => {
 			const { db, batchCalls, calls } = createMockDb({
 				allResults: {
@@ -844,8 +890,9 @@ describe("admin statistics handlers", () => {
 			// since lastPost was empty (4-arg fallback path).
 			const updateCall = calls.find((c) => c.sql.includes("UPDATE threads SET replies"));
 			expect(updateCall).toBeDefined();
-			// bind order: replies=0, last_post_at=1_700_000_001, last_poster="alice", last_poster_id=1, id=100
-			expect(updateCall?.params).toEqual([0, 1_700_000_001, "alice", 1, 100]);
+			// bind order: replies=0, last_post_at, last_poster, last_poster_id,
+			// anonymous_last_poster (fallback to thread.anonymous_author=0), id.
+			expect(updateCall?.params).toEqual([0, 1_700_000_001, "alice", 1, 0, 100]);
 		});
 
 		it("chunkIds chunks IN-list batches at IN_CHUNK (91 ids → 2 chunks)", async () => {
