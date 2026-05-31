@@ -48,4 +48,3 @@ WHERE last_poster_id != 0
       AND p.anonymous = 1
       AND p.created_at = threads.last_post_at
   );
-
