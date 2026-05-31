@@ -570,6 +570,25 @@ describe("extractPost", () => {
 		expect(result?.is_first).toBe(0);
 	});
 
+	// ─── Anonymous flag (mig 0047) ────────────────────────────────────
+	test("extracts anonymous=1 from column 12", () => {
+		const result = extractPost(postRow({ 12: "1" }));
+		expect(result).not.toBeNull();
+		expect(result?.anonymous).toBe(1);
+	});
+
+	test("non-anonymous posts emit anonymous=0", () => {
+		const result = extractPost(postRow({ 12: "0" }));
+		expect(result?.anonymous).toBe(0);
+	});
+
+	test("normalizes truthy-but-non-1 anonymous values to 0 (defensive)", () => {
+		// Discuz only ever writes 0 or 1, but stay safe against future
+		// schema drift where someone uses 2 / "yes" / etc.
+		expect(extractPost(postRow({ 12: "2" }))?.anonymous).toBe(0);
+		expect(extractPost(postRow({ 12: "" }))?.anonymous).toBe(0);
+	});
+
 	test("Chinese content passes through correctly", () => {
 		const result = extractPost(postRow({ 8: "你好世界 [b]测试[/b]" }));
 		expect(result).not.toBeNull();

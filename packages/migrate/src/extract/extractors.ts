@@ -656,7 +656,8 @@ const POST_COLS = {
 	message: 8,
 	// useip: 9, port: 10,
 	invisible: 11,
-	// anonymous: 12, usesig: 13,
+	anonymous: 12,
+	// usesig: 13,
 	htmlon: 14,
 	bbcodeoff: 15,
 	// smileyoff: 16, parseurloff: 17, attachment: 18,
@@ -720,6 +721,10 @@ export function extractPost(row: ParsedRow, stats?: PostExtractionStats): RowRec
 		is_first: Number(row[POST_COLS.first]) || 0,
 		position: Number(row[POST_COLS.position]) || 0,
 		invisible,
+		// Discuz pre_forum_post.anonymous (mig 0047). Loader writes this
+		// into posts.anonymous so a re-import / supplemental load preserves
+		// the flag instead of re-leaking the original author.
+		anonymous: Number(row[POST_COLS.anonymous]) === 1 ? 1 : 0,
 	};
 }
 

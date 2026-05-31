@@ -252,7 +252,7 @@ describe("buildInsertSql", () => {
 	test("produces parameterized INSERT", () => {
 		const sql = buildInsertSql("posts", TABLE_COLUMNS.posts);
 		expect(sql).toBe(
-			"INSERT INTO posts (id,thread_id,forum_id,author_id,author_name,content,created_at,is_first,position,invisible) VALUES (?,?,?,?,?,?,?,?,?,?)",
+			"INSERT INTO posts (id,thread_id,forum_id,author_id,author_name,content,created_at,is_first,position,invisible,anonymous) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
 		);
 	});
 

@@ -404,6 +404,7 @@ export const TABLE_COLUMNS: Record<TableName, string[]> = {
 		"is_first",
 		"position",
 		"invisible",
+		"anonymous",
 	],
 	attachments: [
 		"id",
