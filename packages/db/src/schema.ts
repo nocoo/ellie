@@ -93,7 +93,9 @@ export const TABLES = {
 			recommends INTEGER NOT NULL DEFAULT 0,
 			post_table_id INTEGER NOT NULL DEFAULT 0,
 			type_name TEXT NOT NULL DEFAULT '',
-			type_id INTEGER NOT NULL DEFAULT 0
+			type_id INTEGER NOT NULL DEFAULT 0,
+			anonymous_author INTEGER NOT NULL DEFAULT 0,
+			anonymous_last_poster INTEGER NOT NULL DEFAULT 0
 		);
 	`,
 
@@ -108,7 +110,8 @@ export const TABLES = {
 			created_at INTEGER NOT NULL,
 			is_first INTEGER NOT NULL DEFAULT 0,
 			position INTEGER NOT NULL DEFAULT 0,
-			invisible INTEGER NOT NULL DEFAULT 0
+			invisible INTEGER NOT NULL DEFAULT 0,
+			anonymous INTEGER NOT NULL DEFAULT 0
 		);
 	`,
 
