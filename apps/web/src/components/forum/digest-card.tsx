@@ -47,6 +47,10 @@ function getTitleStyle(highlight: number): CSSProperties | undefined {
 export function DigestCard({ thread, badges }: DigestCardProps) {
 	const borderClass = getDigestBorderClass(thread.digest);
 	const titleStyle = getTitleStyle(thread.highlight);
+	// Anonymous: worker masks authorId=0 / authorName="匿名" when
+	// threads.anonymous_author=1; honour both signals so a stale payload
+	// (no anonymousAuthor field) still degrades safely.
+	const isAnonAuthor = thread.anonymousAuthor === 1 || thread.authorId === 0;
 
 	return (
 		<div
@@ -56,14 +60,20 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 			<div className="hidden sm:flex items-center">
 				{/* Column 1: Avatar + Title (flex) */}
 				<div className="min-w-0 flex-1 flex items-center gap-3 py-2 px-3">
-					<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0">
-						<ForumAvatar
-							userId={thread.authorId}
-							userName={thread.authorName}
-							avatarPath={thread.authorAvatarPath}
-							shadow
-						/>
-					</Link>
+					{isAnonAuthor ? (
+						<div className="shrink-0">
+							<ForumAvatar userId={0} userName="匿名" avatarPath="" shadow />
+						</div>
+					) : (
+						<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0">
+							<ForumAvatar
+								userId={thread.authorId}
+								userName={thread.authorName}
+								avatarPath={thread.authorAvatarPath}
+								shadow
+							/>
+						</Link>
+					)}
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-2">
 							{badges.length > 0 && <ThreadBadgeList badges={badges} />}
@@ -81,11 +91,17 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 
 				{/* Column 2: Author + Time (fixed) */}
 				<div className="flex flex-col items-center justify-center w-[100px] shrink-0 py-2 text-center">
-					<UserPopover userId={thread.authorId}>
-						<span className="text-xs text-foreground font-medium hover:text-primary transition-colors truncate max-w-full cursor-pointer">
-							{thread.authorName}
+					{isAnonAuthor ? (
+						<span className="text-xs text-muted-foreground font-medium truncate max-w-full">
+							匿名
 						</span>
-					</UserPopover>
+					) : (
+						<UserPopover userId={thread.authorId}>
+							<span className="text-xs text-foreground font-medium hover:text-primary transition-colors truncate max-w-full cursor-pointer">
+								{thread.authorName}
+							</span>
+						</UserPopover>
+					)}
 					<span className="text-xs text-muted-foreground">
 						{formatRelativeTime(thread.createdAt)}
 					</span>
@@ -112,13 +128,19 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 			<div className="sm:hidden px-3 py-2">
 				{/* Row 1: Avatar + badges + subject */}
 				<div className="flex items-center gap-2">
-					<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0">
-						<ForumAvatar
-							userId={thread.authorId}
-							userName={thread.authorName}
-							avatarPath={thread.authorAvatarPath}
-						/>
-					</Link>
+					{isAnonAuthor ? (
+						<div className="shrink-0">
+							<ForumAvatar userId={0} userName="匿名" avatarPath="" />
+						</div>
+					) : (
+						<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0">
+							<ForumAvatar
+								userId={thread.authorId}
+								userName={thread.authorName}
+								avatarPath={thread.authorAvatarPath}
+							/>
+						</Link>
+					)}
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-1.5">
 							{badges.length > 0 && <ThreadBadgeList badges={badges} />}
@@ -135,11 +157,15 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 				</div>
 				{/* Row 2: author · time · stats */}
 				<div className="mt-1 ml-8 flex items-center gap-1.5 text-xs text-muted-foreground">
-					<UserPopover userId={thread.authorId}>
-						<span className="text-foreground hover:text-primary cursor-pointer">
-							{thread.authorName}
-						</span>
-					</UserPopover>
+					{isAnonAuthor ? (
+						<span className="text-muted-foreground">匿名</span>
+					) : (
+						<UserPopover userId={thread.authorId}>
+							<span className="text-foreground hover:text-primary cursor-pointer">
+								{thread.authorName}
+							</span>
+						</UserPopover>
+					)}
 					<span>·</span>
 					<span>{formatRelativeTime(thread.createdAt)}</span>
 					<span className="ml-auto tabular-nums">

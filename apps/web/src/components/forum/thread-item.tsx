@@ -67,6 +67,11 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 	const threadHref = returnTo
 		? `/threads/${thread.id}?returnTo=${encodeURIComponent(returnTo)}`
 		: `/threads/${thread.id}`;
+	// Anonymous-aware author rendering. The worker masks authorId to 0 and
+	// authorName to "匿名" when threads.anonymous_author=1; both signals are
+	// honored so a stale payload (no anonymousAuthor field yet) still
+	// degrades safely.
+	const isAnonAuthor = thread.anonymousAuthor === 1 || thread.authorId === 0;
 
 	return (
 		<div
@@ -81,14 +86,20 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 				</div>
 
 				{/* Avatar column (between icon and subject) */}
-				<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0 pl-1">
-					<ForumAvatar
-						userId={thread.authorId}
-						userName={thread.authorName}
-						avatarPath={thread.authorAvatarPath}
-						shadow
-					/>
-				</Link>
+				{isAnonAuthor ? (
+					<div className="shrink-0 pl-1">
+						<ForumAvatar userId={0} userName="匿名" avatarPath="" shadow />
+					</div>
+				) : (
+					<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0 pl-1">
+						<ForumAvatar
+							userId={thread.authorId}
+							userName={thread.authorName}
+							avatarPath={thread.authorAvatarPath}
+							shadow
+						/>
+					</Link>
+				)}
 
 				{/* Column 1: Subject — flex row so title truncates but accessories stay visible */}
 				<div className="min-w-0 flex-1 py-2 px-3 flex items-center gap-1.5">
@@ -119,11 +130,17 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 
 				{/* Column 2: Author (fixed, centered) */}
 				<div className="flex flex-col items-center justify-center w-[100px] shrink-0 py-2 text-center">
-					<UserPopover userId={thread.authorId}>
-						<span className="block text-xs text-foreground font-medium hover:text-primary transition-colors truncate max-w-full cursor-pointer">
-							{thread.authorName}
+					{isAnonAuthor ? (
+						<span className="block text-xs text-muted-foreground font-medium truncate max-w-full">
+							匿名
 						</span>
-					</UserPopover>
+					) : (
+						<UserPopover userId={thread.authorId}>
+							<span className="block text-xs text-foreground font-medium hover:text-primary transition-colors truncate max-w-full cursor-pointer">
+								{thread.authorName}
+							</span>
+						</UserPopover>
+					)}
 					<span className="text-xs text-muted-foreground">
 						{formatRelativeTime(thread.createdAt)}
 					</span>
@@ -190,25 +207,35 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 				    (msg 8b90cb85). Avatar lives here (left of the username)
 				    per reviewer freeze msg=5a91dfd3. */}
 				<div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-					<Link
-						href={`/users/${thread.authorId}`}
-						prefetch={false}
-						className="shrink-0"
-						data-testid="thread-item-mobile-avatar-link"
-					>
-						<ForumAvatar
-							userId={thread.authorId}
-							userName={thread.authorName}
-							avatarPath={thread.authorAvatarPath}
-							size="xs"
-						/>
-					</Link>
+					{isAnonAuthor ? (
+						<div className="shrink-0" data-testid="thread-item-mobile-avatar-link">
+							<ForumAvatar userId={0} userName="匿名" avatarPath="" size="xs" />
+						</div>
+					) : (
+						<Link
+							href={`/users/${thread.authorId}`}
+							prefetch={false}
+							className="shrink-0"
+							data-testid="thread-item-mobile-avatar-link"
+						>
+							<ForumAvatar
+								userId={thread.authorId}
+								userName={thread.authorName}
+								avatarPath={thread.authorAvatarPath}
+								size="xs"
+							/>
+						</Link>
+					)}
 					<span className="min-w-0 truncate">
-						<UserPopover userId={thread.authorId}>
-							<span className="block truncate text-foreground hover:text-primary cursor-pointer">
-								{thread.authorName}
-							</span>
-						</UserPopover>
+						{isAnonAuthor ? (
+							<span className="block truncate text-muted-foreground">匿名</span>
+						) : (
+							<UserPopover userId={thread.authorId}>
+								<span className="block truncate text-foreground hover:text-primary cursor-pointer">
+									{thread.authorName}
+								</span>
+							</UserPopover>
+						)}
 					</span>
 					<span className="shrink-0">·</span>
 					<span className="shrink-0">{formatRelativeTime(thread.createdAt)}</span>

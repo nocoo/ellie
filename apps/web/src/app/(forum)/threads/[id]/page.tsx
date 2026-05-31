@@ -183,12 +183,16 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 							版块
 						</Link>
 						<span>·</span>
-						<Link
-							href={`/users/${thread.authorId}`}
-							className="hover:text-primary transition-colors"
-						>
-							{thread.authorName}
-						</Link>
+						{thread.anonymousAuthor === 1 || thread.authorId === 0 ? (
+							<span className="text-muted-foreground">匿名</span>
+						) : (
+							<Link
+								href={`/users/${thread.authorId}`}
+								className="hover:text-primary transition-colors"
+							>
+								{thread.authorName}
+							</Link>
+						)}
 						<span>·</span>
 						<span>{formatRelativeTime(thread.createdAt)}</span>
 					</div>
