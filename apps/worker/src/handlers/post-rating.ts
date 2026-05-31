@@ -277,6 +277,13 @@ interface PostChainRow {
 	author_id: number;
 	author_name: string;
 	invisible: number;
+	/**
+	 * 1 = anonymous post (mig 0047). Ratings on anonymous posts are
+	 * rejected the same way Discuz did — preserves the "anonymous" social
+	 * contract (no rating-driven score/credit attribution to the real
+	 * author).
+	 */
+	anonymous: number;
 	thread_subject: string;
 	sticky: number;
 	thread_author_id: number;
@@ -297,7 +304,7 @@ function rejectPostChain(
 	user: { userId: number; role: number },
 	origin: string | undefined,
 ): Response | null {
-	if (postRow.invisible !== 0 || postRow.author_id === 0) {
+	if (postRow.invisible !== 0 || postRow.author_id === 0 || postRow.anonymous === 1) {
 		return errorResponse("RATING_INVALID_POST", 403, undefined, origin);
 	}
 	if (postRow.author_id === user.userId) {
@@ -483,6 +490,7 @@ async function createRating(
 				p.author_id     AS author_id,
 				p.author_name   AS author_name,
 				p.invisible     AS invisible,
+				p.anonymous     AS anonymous,
 				t.subject       AS thread_subject,
 				t.sticky        AS sticky,
 				t.forum_id      AS forum_id,
@@ -598,6 +606,7 @@ const POST_CHAIN_SQL = `SELECT
 	p.author_id     AS author_id,
 	p.author_name   AS author_name,
 	p.invisible     AS invisible,
+	p.anonymous     AS anonymous,
 	t.subject       AS thread_subject,
 	t.sticky        AS sticky,
 	t.author_id     AS thread_author_id,
@@ -621,7 +630,7 @@ function rejectListVisibility(
 	origin: string | undefined,
 ): Response | null {
 	if (!postRow) return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
-	if (postRow.invisible !== 0 || postRow.author_id === 0) {
+	if (postRow.invisible !== 0 || postRow.author_id === 0 || postRow.anonymous === 1) {
 		return errorResponse("POST_NOT_FOUND", 404, undefined, origin);
 	}
 	if (postRow.sticky < 0 && postRow.sticky !== STICKY_MODERATED) {

@@ -334,6 +334,38 @@ describe("post-rating create handler", () => {
 		expect(body.error.code).toBe("RATING_INVALID_POST");
 	});
 
+	it("should reject anonymous=1 post (mig 0047) with RATING_INVALID_POST", async () => {
+		// posts.anonymous=1 with a real author_id — Discuz anonymous flag.
+		// Without the anonymous-aware guard, the rating handler would credit
+		// the real author and contradict the anonymous social contract.
+		const { env } = buildEnv({
+			postRow: {
+				post_id: 5,
+				thread_id: 7,
+				author_id: 340271,
+				author_name: "小牧童",
+				invisible: 0,
+				anonymous: 1,
+				thread_subject: "X",
+				sticky: 0,
+				forum_id: 1,
+				forum_status: 1,
+				forum_visibility: "public",
+			},
+		});
+		const token = await jwtFor(0);
+		const request = makeRateRequest(5, token, {
+			dimension: "coins",
+			score: 1,
+			reason: "",
+			notifyAuthor: false,
+		});
+		const response = await postRating.create(request, env);
+		expect(response.status).toBe(403);
+		const body = (await response.json()) as { error: { code: string } };
+		expect(body.error.code).toBe("RATING_INVALID_POST");
+	});
+
 	it("should reject self-rate with RATING_SELF", async () => {
 		const { env } = buildEnv({
 			userId: 20, // same as default author_id
@@ -728,6 +760,26 @@ describe("post-rating listByPost handler", () => {
 				author_id: 0,
 				author_name: "Anonymous",
 				invisible: 0,
+				thread_subject: "Hello",
+				sticky: 0,
+				forum_id: 1,
+				forum_status: 1,
+				forum_visibility: "public",
+			},
+		});
+		const response = await postRating.listByPost(makeListRequest(5), env);
+		expect(response.status).toBe(404);
+	});
+
+	it("should 404 when the post has anonymous=1 (mig 0047) even with a real author_id", async () => {
+		const { env } = buildListEnv({
+			postRow: {
+				post_id: 5,
+				thread_id: 7,
+				author_id: 340271,
+				author_name: "小牧童",
+				invisible: 0,
+				anonymous: 1,
 				thread_subject: "Hello",
 				sticky: 0,
 				forum_id: 1,
