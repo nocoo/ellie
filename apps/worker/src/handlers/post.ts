@@ -360,7 +360,7 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 	const [, createdPost] = await Promise.all([
 		env.DB.batch([
 			env.DB.prepare(
-				"UPDATE threads SET replies = replies + 1, last_post_at = ?, last_poster = ?, last_poster_id = ? WHERE id = ?",
+				"UPDATE threads SET replies = replies + 1, last_post_at = ?, last_poster = ?, last_poster_id = ?, anonymous_last_poster = 0 WHERE id = ?",
 			).bind(now, authorName, user.userId, threadId),
 			env.DB.prepare(
 				"UPDATE forums SET posts = posts + 1, last_post_at = ?, last_poster = ?, last_poster_id = ? WHERE id = ?",

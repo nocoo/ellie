@@ -216,7 +216,8 @@ export async function searchThreads(
 	const items = hasMore ? result.results.slice(0, -1) : result.results;
 
 	// Map to Thread type using existing mapper
-	const threads = items.map((row) => toThread(row as Record<string, unknown>));
+	const viewer = user ? { userId: user.userId, role: user.role } : null;
+	const threads = items.map((row) => toThread(row as Record<string, unknown>, viewer));
 
 	// 7. Enrich with user cache (avatars)
 	const enrichedThreads = await enrichWithUserCache(env, ctx, threads);

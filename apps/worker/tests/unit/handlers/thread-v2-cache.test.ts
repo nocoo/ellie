@@ -183,14 +183,21 @@ describe("cache/thread-list-read — pure helpers", () => {
 			false,
 		);
 
-		// Item with isAuthorFirstThread=false — valid
-		const validItem = { ...staleItem, isAuthorFirstThread: false };
+		// Item with isAuthorFirstThread but no anonymousAuthor (mig 0048
+		// pre-stamp) — still stale.
+		const preMaskItem = { ...staleItem, isAuthorFirstThread: false };
+		expect(
+			isThreadListPayload({ items: [preMaskItem], total: 1, nextCursor: null, limit: 20 }),
+		).toBe(false);
+
+		// Item with both flags — valid
+		const validItem = { ...staleItem, isAuthorFirstThread: false, anonymousAuthor: 0 };
 		expect(isThreadListPayload({ items: [validItem], total: 1, nextCursor: null, limit: 20 })).toBe(
 			true,
 		);
 
-		// Item with isAuthorFirstThread=true — valid
-		const firstItem = { ...staleItem, isAuthorFirstThread: true };
+		// Item with isAuthorFirstThread=true and anonymousAuthor=1 — valid
+		const firstItem = { ...staleItem, isAuthorFirstThread: true, anonymousAuthor: 1 };
 		expect(isThreadListPayload({ items: [firstItem], total: 1, nextCursor: null, limit: 20 })).toBe(
 			true,
 		);

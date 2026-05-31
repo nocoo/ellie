@@ -307,6 +307,7 @@ describe("forum.list — v2 cache", () => {
 					lastPosterId: 7,
 					lastPosterAvatar: "cached-avatar.png",
 					lastPosterAvatarPath: "/cached/avatar.png",
+					anonAware: 1,
 				},
 			},
 		});
@@ -699,6 +700,7 @@ describe("forum.getById — v2 cache", () => {
 					lastThreadSubject: "h",
 					threadTypes: { enabled: false, required: false, listable: false, prefix: false },
 				},
+				anonAware: 1,
 			}),
 		};
 		const kv = createMockKV(initial);

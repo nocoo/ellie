@@ -18,7 +18,7 @@ import {
 	canViewForumVisibility,
 } from "@ellie/types";
 import type { Env } from "../env";
-import { parseModeratorIds } from "../mappers";
+import { ANONYMOUS_AUTHOR_NAME, parseModeratorIds } from "../mappers";
 import { THREAD_VISIBLE, isForumActive } from "../visibility";
 import { bumpGen, getGen } from "./epoch";
 import {
@@ -229,8 +229,15 @@ function buildSnapshotRow(raw: Record<string, unknown>, ctx: BuildRowCtx): Forum
 	// Apply visible-last-thread override. If no visible thread exists,
 	// all last-* + avatar fields default to cleared values (no
 	// last-thread / last-poster shown for that forum).
+	//
+	// Forum cache is shared across all viewers (bucket-independent), so
+	// anonymous-last-poster threads are rendered with masked values for
+	// everyone — staff/self can still see the real author by clicking into
+	// the thread detail (which is viewer-aware). Same trade-off as
+	// thread:list:v2 (docs/19 §6).
 	const v = ctx.visible;
-	const av = v ? ctx.avatarMap.get(v.lastPosterId) : undefined;
+	const isAnonLast = v?.anonymousLastPoster === 1;
+	const av = v && !isAnonLast ? ctx.avatarMap.get(v.lastPosterId) : undefined;
 
 	return {
 		id,
@@ -251,10 +258,10 @@ function buildSnapshotRow(raw: Record<string, unknown>, ctx: BuildRowCtx): Forum
 		todayThreads: ctx.todayMap.get(id) ?? 0,
 		lastThreadId: v?.threadId ?? 0,
 		lastPostAt: v?.lastPostAt ?? 0,
-		lastPoster: v?.lastPoster ?? "",
-		lastPosterId: v?.lastPosterId ?? 0,
-		lastPosterAvatar: av?.avatar ?? "",
-		lastPosterAvatarPath: av?.avatarPath ?? "",
+		lastPoster: isAnonLast ? ANONYMOUS_AUTHOR_NAME : (v?.lastPoster ?? ""),
+		lastPosterId: isAnonLast ? 0 : (v?.lastPosterId ?? 0),
+		lastPosterAvatar: isAnonLast ? "" : (av?.avatar ?? ""),
+		lastPosterAvatarPath: isAnonLast ? "" : (av?.avatarPath ?? ""),
 		lastThreadSubject: v?.subject ?? "",
 		threadTypes: {
 			enabled: ((raw.thread_types_enabled as number | undefined) ?? 0) === 1,
@@ -271,6 +278,8 @@ interface VisibleLastThreadRow {
 	lastPostAt: number;
 	lastPosterId: number;
 	lastPoster: string;
+	/** 1 = the thread's last post is anonymous; the renderer masks lastPoster*. */
+	anonymousLastPoster: number;
 }
 
 /**
@@ -290,7 +299,7 @@ async function fetchVisibleLastThreadsForSnapshot(
 		const batch = forumIds.slice(i, i + BATCH_SIZE);
 		const placeholders = batch.map(() => "?").join(",");
 		const res = await env.DB.prepare(
-			`SELECT t.forum_id, t.id as thread_id, t.subject, t.last_post_at, t.last_poster_id, t.last_poster
+			`SELECT t.forum_id, t.id as thread_id, t.subject, t.last_post_at, t.last_poster_id, t.last_poster, t.anonymous_last_poster
 			 FROM threads t
 			 INNER JOIN (
 				 SELECT forum_id, MAX(last_post_at) as max_post_at
@@ -309,6 +318,7 @@ async function fetchVisibleLastThreadsForSnapshot(
 				last_post_at: number;
 				last_poster_id: number;
 				last_poster: string;
+				anonymous_last_poster: number;
 			}>();
 		for (const row of res.results) {
 			if (!out.has(row.forum_id)) {
@@ -318,6 +328,7 @@ async function fetchVisibleLastThreadsForSnapshot(
 					lastPostAt: row.last_post_at,
 					lastPosterId: row.last_poster_id,
 					lastPoster: row.last_poster,
+					anonymousLastPoster: row.anonymous_last_poster === 1 ? 1 : 0,
 				});
 			}
 		}

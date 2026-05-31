@@ -176,6 +176,11 @@ interface D1ThreadRow {
 	highlight: number;
 	recommends: number;
 	type_name: string;
+	// Anonymous denormalized flags (migration 0048). Optional on the row
+	// shape so internal SELECTs that don't project them still typecheck;
+	// toThread() defaults missing values to 0 (= not anonymous).
+	anonymous_author?: number;
+	anonymous_last_poster?: number;
 	// Internal field (never exposed):
 	// post_table_id
 	is_author_first_thread?: number;
@@ -337,21 +342,35 @@ export function parseModeratorIds(moderatorIds: string): number[] {
 	return out;
 }
 
-/** Maps a D1 thread row to the frontend Thread type. Strips post_table_id. */
-export function toThread(row: Record<string, unknown>): Thread {
+/** Maps a D1 thread row to the frontend Thread type. Strips post_table_id.
+ *
+ * `viewer` (optional) gates anonymous masking: when `row.anonymous_author === 1`
+ * and the viewer is neither staff nor the original author, `authorId` is
+ * zeroed and `authorName` becomes `ANONYMOUS_AUTHOR_NAME`. Same logic for
+ * `lastPoster` / `lastPosterId` keyed on `anonymous_last_poster`. Both flags
+ * are always projected so the frontend can render the "匿名" badge / hide the
+ * profile link without an extra RPC.
+ *
+ * Callers that omit `viewer` (e.g. internal/admin reads) skip masking. */
+export function toThread(row: Record<string, unknown>, viewer?: ViewerContext | null): Thread {
 	const r = row as unknown as D1ThreadRow;
+	const anonAuthor = r.anonymous_author === 1 ? 1 : 0;
+	const anonLastPoster = r.anonymous_last_poster === 1 ? 1 : 0;
+	const unmaskAuthor = anonAuthor === 0 || shouldUnmaskAnonymous(r.author_id, viewer);
+	const unmaskLastPoster =
+		anonLastPoster === 0 || shouldUnmaskAnonymous(r.last_poster_id ?? 0, viewer);
 	return {
 		id: r.id,
 		forumId: r.forum_id,
-		authorId: r.author_id,
-		authorName: r.author_name,
+		authorId: unmaskAuthor ? r.author_id : 0,
+		authorName: unmaskAuthor ? r.author_name : ANONYMOUS_AUTHOR_NAME,
 		authorAvatar: "", // Will be populated from KV cache
 		authorAvatarPath: "", // Will be populated from KV cache
 		subject: r.subject,
 		createdAt: r.created_at,
 		lastPostAt: r.last_post_at,
-		lastPoster: r.last_poster,
-		lastPosterId: r.last_poster_id ?? 0,
+		lastPoster: unmaskLastPoster ? r.last_poster : ANONYMOUS_AUTHOR_NAME,
+		lastPosterId: unmaskLastPoster ? (r.last_poster_id ?? 0) : 0,
 		lastPosterAvatar: "", // Will be populated from KV cache
 		lastPosterAvatarPath: "", // Will be populated from KV cache
 		replies: r.replies,
@@ -363,6 +382,8 @@ export function toThread(row: Record<string, unknown>): Thread {
 		highlight: r.highlight,
 		recommends: r.recommends,
 		typeName: r.type_name,
+		anonymousAuthor: anonAuthor,
+		anonymousLastPoster: anonLastPoster,
 		isAuthorFirstThread: r.is_author_first_thread === 1,
 		isRecommended: r.is_recommended === 1,
 	};

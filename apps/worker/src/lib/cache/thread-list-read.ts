@@ -97,6 +97,11 @@ export function isThreadListPayload(value: unknown): value is ThreadListPayloadV
 	if (v.items.length > 0) {
 		for (const item of v.items) {
 			if (typeof item.isAuthorFirstThread !== "boolean") return false;
+			// Anonymous masking (migration 0048): a thread missing the
+			// `anonymousAuthor` flag predates the masking work — treat as
+			// stale so the next read refills with masked values instead of
+			// keeping the unmasked author for the rest of the TTL window.
+			if (typeof item.anonymousAuthor !== "number") return false;
 		}
 	}
 	return true;

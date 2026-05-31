@@ -20,7 +20,7 @@ import {
 	scheduleMetricsFlush,
 } from "../lib/cache/metrics";
 import type { Env } from "../lib/env";
-import { parseModeratorIds, toForum } from "../lib/mappers";
+import { ANONYMOUS_AUTHOR_NAME, parseModeratorIds, toForum } from "../lib/mappers";
 import { parseIdFromPath, parsePathSegment } from "../lib/parseId";
 import { getForumForPermission, getUserForPermission } from "../lib/permissionHelpers";
 import { prepareAnnouncement } from "../lib/sanitizeAnnouncement";
@@ -85,6 +85,8 @@ interface VisibleLastThread {
 	lastPostAt: number;
 	lastPosterId: number;
 	lastPoster: string;
+	/** 1 = the thread's last post is anonymous; the caller masks lastPoster*. */
+	anonymousLastPoster: number;
 }
 
 /**
@@ -111,7 +113,7 @@ async function fetchVisibleLastThreads(
 		// Use a simpler approach: join with a subquery that gets max last_post_at per forum
 		const batchResult = await db
 			.prepare(
-				`SELECT t.forum_id, t.id as thread_id, t.subject, t.last_post_at, t.last_poster_id, t.last_poster
+				`SELECT t.forum_id, t.id as thread_id, t.subject, t.last_post_at, t.last_poster_id, t.last_poster, t.anonymous_last_poster
 				 FROM threads t
 				 INNER JOIN (
 					 SELECT forum_id, MAX(last_post_at) as max_post_at
@@ -130,6 +132,7 @@ async function fetchVisibleLastThreads(
 				last_post_at: number;
 				last_poster_id: number;
 				last_poster: string;
+				anonymous_last_poster: number;
 			}>();
 
 		for (const row of batchResult.results) {
@@ -142,6 +145,7 @@ async function fetchVisibleLastThreads(
 					lastPostAt: row.last_post_at,
 					lastPosterId: row.last_poster_id,
 					lastPoster: row.last_poster,
+					anonymousLastPoster: row.anonymous_last_poster === 1 ? 1 : 0,
 				});
 			}
 		}
@@ -233,19 +237,31 @@ export async function loadFullForumFromD1(env: Env, id: number): Promise<Forum |
 		forum.lastThreadId = visible.threadId;
 		forum.lastThreadSubject = visible.subject;
 		forum.lastPostAt = visible.lastPostAt;
-		forum.lastPosterId = visible.lastPosterId;
-		forum.lastPoster = visible.lastPoster;
-
-		// Resolve the visible poster's avatar in a single targeted lookup.
-		if (visible.lastPosterId > 0) {
-			const av = await env.DB.prepare("SELECT avatar, avatar_path FROM users WHERE id = ?")
-				.bind(visible.lastPosterId)
-				.first<{ avatar: string | null; avatar_path: string | null }>();
-			forum.lastPosterAvatar = (av?.avatar ?? "") || "";
-			forum.lastPosterAvatarPath = (av?.avatar_path ?? "") || "";
-		} else {
+		// Anonymous last poster: forum-tree/summary cache is shared across
+		// all viewers (bucket-independent), so we mask aggressively here.
+		// Staff/self viewers see the masked label on the forum index and can
+		// click into the thread detail to see the real author. Same trade-off
+		// as thread:list:v2 (docs/19 §6).
+		if (visible.anonymousLastPoster === 1) {
+			forum.lastPosterId = 0;
+			forum.lastPoster = ANONYMOUS_AUTHOR_NAME;
 			forum.lastPosterAvatar = "";
 			forum.lastPosterAvatarPath = "";
+		} else {
+			forum.lastPosterId = visible.lastPosterId;
+			forum.lastPoster = visible.lastPoster;
+
+			// Resolve the visible poster's avatar in a single targeted lookup.
+			if (visible.lastPosterId > 0) {
+				const av = await env.DB.prepare("SELECT avatar, avatar_path FROM users WHERE id = ?")
+					.bind(visible.lastPosterId)
+					.first<{ avatar: string | null; avatar_path: string | null }>();
+				forum.lastPosterAvatar = (av?.avatar ?? "") || "";
+				forum.lastPosterAvatarPath = (av?.avatar_path ?? "") || "";
+			} else {
+				forum.lastPosterAvatar = "";
+				forum.lastPosterAvatarPath = "";
+			}
 		}
 	} else {
 		forum.lastThreadId = 0;

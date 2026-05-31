@@ -70,6 +70,7 @@ describe("recalcMetadata", () => {
 						created_at: 1700000000,
 						author_name: "bob",
 						author_id: 20,
+						anonymous: 0,
 					},
 				},
 			});
@@ -87,7 +88,29 @@ describe("recalcMetadata", () => {
 				(c) => c.sql.includes("UPDATE threads SET last_post_at") && c.params.includes(10),
 			);
 			expect(updateCall).toBeDefined();
-			expect(updateCall?.params).toEqual([1700000000, "bob", 20, 10]);
+			// Params: last_post_at, last_poster, last_poster_id, anonymous_last_poster, threadId
+			expect(updateCall?.params).toEqual([1700000000, "bob", 20, 0, 10]);
+		});
+
+		it("propagates anonymous flag onto threads.anonymous_last_poster", async () => {
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT created_at, author_name, author_id": {
+						created_at: 1700000000,
+						author_name: "alice",
+						author_id: 99,
+						anonymous: 1,
+					},
+				},
+			});
+			const env = makeEnv({ DB: db });
+
+			await recalcThreadMetadata(env, 11);
+
+			const updateCall = calls.find(
+				(c) => c.sql.includes("UPDATE threads SET last_post_at") && c.params.includes(11),
+			);
+			expect(updateCall?.params).toEqual([1700000000, "alice", 99, 1, 11]);
 		});
 
 		it("should fall back to thread creation info when no visible posts remain", async () => {
@@ -122,6 +145,7 @@ describe("recalcMetadata", () => {
 										created_at: 1600000000,
 										author_name: "original_author",
 										author_id: 30,
+										anonymous_author: 0,
 									}),
 							};
 						},
@@ -147,7 +171,7 @@ describe("recalcMetadata", () => {
 
 			const updateCall = calls.find((c) => c.sql.includes("UPDATE threads SET last_post_at"));
 			expect(updateCall).toBeDefined();
-			expect(updateCall?.params).toEqual([1600000000, "original_author", 30, 20]);
+			expect(updateCall?.params).toEqual([1600000000, "original_author", 30, 0, 20]);
 		});
 
 		it("should only consider visible posts (invisible = 0)", async () => {

@@ -44,6 +44,7 @@ import {
 	scheduleMetricsFlush,
 } from "../lib/cache/metrics";
 import type { Env } from "../lib/env";
+import { ANONYMOUS_AUTHOR_NAME } from "../lib/mappers";
 import { parsePathSegment } from "../lib/parseId";
 import {
 	getForumForPermission,
@@ -162,6 +163,7 @@ export async function listRecommendedThreads(
 		        t.subject     AS subject,
 		        t.author_id   AS author_id,
 		        t.author_name AS author_name,
+		        t.anonymous_author AS anonymous_author,
 		        t.replies     AS replies,
 		        t.last_post_at AS last_post_at,
 		        r.recommended_at AS recommended_at
@@ -180,20 +182,27 @@ export async function listRecommendedThreads(
 			subject: string;
 			author_id: number;
 			author_name: string;
+			anonymous_author: number;
 			replies: number;
 			last_post_at: number;
 			recommended_at: number;
 		}>();
 
-	const threads: RecommendedThreadRow[] = rows.results.map((r) => ({
-		id: r.id,
-		subject: r.subject,
-		authorId: r.author_id,
-		authorName: r.author_name,
-		replies: r.replies,
-		lastPostAt: r.last_post_at,
-		recommendedAt: r.recommended_at,
-	}));
+	// Recommended cards are forum-bucket-shared, so mask anonymous authors
+	// the same way the forum-summary cache does. Staff still see masked here;
+	// they can click into the thread detail for the real author.
+	const threads: RecommendedThreadRow[] = rows.results.map((r) => {
+		const isAnon = r.anonymous_author === 1;
+		return {
+			id: r.id,
+			subject: r.subject,
+			authorId: isAnon ? 0 : r.author_id,
+			authorName: isAnon ? ANONYMOUS_AUTHOR_NAME : r.author_name,
+			replies: r.replies,
+			lastPostAt: r.last_post_at,
+			recommendedAt: r.recommended_at,
+		};
+	});
 
 	const payload: RecommendedThreadsResponse = { forumId, threads };
 

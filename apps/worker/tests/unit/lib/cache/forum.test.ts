@@ -248,6 +248,7 @@ describe("cache/forum — buildForumSummaryPayload", () => {
 			lastPosterId: 9,
 			lastPosterAvatar: "b.png",
 			lastPosterAvatarPath: "/avatars/b.png",
+			anonAware: 1,
 		});
 	});
 
@@ -291,10 +292,10 @@ describe("cache/forum — buildForumMetaPayload", () => {
 		expect(buildForumMetaPayload(f, "staff")).toBeNull();
 	});
 
-	it("returns {bucket, forum} for active + visible", () => {
+	it("returns {bucket, forum, anonAware} for active + visible", () => {
 		const f = makeForum({ id: 5, status: 1, visibility: "members" });
 		const payload = buildForumMetaPayload(f, "member");
-		expect(payload).toEqual({ bucket: "member", forum: f });
+		expect(payload).toEqual({ bucket: "member", forum: f, anonAware: 1 });
 	});
 
 	it("admin sees admin-only active forum", () => {
@@ -356,8 +357,12 @@ describe("cache/forum — validators", () => {
 	});
 
 	it("isForumSummaryPayload: accepts well-formed payload", () => {
+		// Empty aggregates: pass-through (no entries to validate).
 		expect(isForumSummaryPayload({ bucket: "member", aggregates: {} })).toBe(true);
-		expect(isForumSummaryPayload({ bucket: "admin", aggregates: { 1: {} } })).toBe(true);
+		// Populated aggregates require `anonAware: 1` on the first entry.
+		expect(isForumSummaryPayload({ bucket: "admin", aggregates: { 1: { anonAware: 1 } } })).toBe(
+			true,
+		);
 	});
 	it("isForumSummaryPayload: rejects bad shapes", () => {
 		expect(isForumSummaryPayload(null)).toBe(false);
@@ -366,10 +371,19 @@ describe("cache/forum — validators", () => {
 		expect(isForumSummaryPayload({ bucket: "x", aggregates: null })).toBe(false);
 		expect(isForumSummaryPayload({ bucket: 0, aggregates: {} })).toBe(false);
 	});
+	it("isForumSummaryPayload: rejects pre-mask aggregates (mig 0048)", () => {
+		// Aggregate without `anonAware` is from a build that may have
+		// leaked the original last-poster of an anonymous reply.
+		expect(isForumSummaryPayload({ bucket: "anon", aggregates: { 1: {} } })).toBe(false);
+	});
 
 	it("isForumMetaPayload: accepts well-formed payload", () => {
 		expect(
-			isForumMetaPayload({ bucket: "anon", forum: { id: 1, threadTypes: tt, announcement: "" } }),
+			isForumMetaPayload({
+				bucket: "anon",
+				forum: { id: 1, threadTypes: tt, announcement: "" },
+				anonAware: 1,
+			}),
 		).toBe(true);
 	});
 	it("isForumMetaPayload: rejects bad shapes", () => {
@@ -378,6 +392,15 @@ describe("cache/forum — validators", () => {
 		expect(isForumMetaPayload({ forum: {} })).toBe(false);
 		expect(isForumMetaPayload({ bucket: "anon", forum: null })).toBe(false);
 		expect(isForumMetaPayload({ bucket: 0, forum: {} })).toBe(false);
+	});
+	it("isForumMetaPayload: rejects pre-mask payload missing anonAware (mig 0048)", () => {
+		expect(
+			isForumMetaPayload({
+				bucket: "anon",
+				forum: { id: 1, threadTypes: tt, announcement: "" },
+				// anonAware intentionally absent
+			}),
+		).toBe(false);
 	});
 	it("isForumMetaPayload: rejects pre-threadTypes forum payload (KV schema drift)", () => {
 		// `forum:meta:v2` payload written before commit ba100da6 lacks

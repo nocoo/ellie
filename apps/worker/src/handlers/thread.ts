@@ -12,7 +12,7 @@ import {
 } from "../lib/cache/thread-list-read";
 import { applyCensorFilter } from "../lib/censor";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
-import { enrichThreadsWithUserCache, toThread } from "../lib/mappers";
+import { ANONYMOUS_AUTHOR_NAME, enrichThreadsWithUserCache, toThread } from "../lib/mappers";
 import { buildNextCursor, clampLimit } from "../lib/pagination";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { getQueryParam } from "../lib/queryString";
@@ -57,80 +57,98 @@ interface D1ThreadRow {
 	last_post_at: number;
 }
 
-/** Map D1 rows to Thread objects with optional avatar enrichment */
-function mapThreadRows(results: unknown[], useKvCache: boolean): Thread[] {
+/** Map an `AuthUser | null` (the optionalAuth shape) onto the
+ * `ViewerContext | null` used by the toThread/mapThreadRows masking. */
+function toViewer(user: { userId: number; role: number } | null): {
+	userId: number;
+	role: number;
+} | null {
+	return user ? { userId: user.userId, role: user.role } : null;
+}
+
+/** Map D1 rows to Thread objects with optional avatar enrichment.
+ *
+ * `viewer` gates anonymous masking: rows with `anonymous_author = 1` have
+ * authorId/authorName replaced unless viewer is staff or the author; same
+ * for `anonymous_last_poster = 1` on lastPoster*. Exported for unit tests;
+ * production callers stay within this module. */
+export function mapThreadRows(
+	results: unknown[],
+	useKvCache: boolean,
+	viewer: { userId: number; role: number } | null,
+): Thread[] {
 	// Inline toThread + avatar fan-out into one allocation per row — avoids
 	// a function call and a 4-field post-creation mutation when JOIN data is
 	// present. Property order matches toThread() so V8 can keep a single
 	// hidden class for both call sites.
+	const isStaff = viewer !== null && (viewer.role === 1 || viewer.role === 2 || viewer.role === 3);
+	const viewerId = viewer?.userId ?? 0;
 	const n = results.length;
 	const out = new Array<Thread>(n);
-	if (useKvCache) {
-		for (let i = 0; i < n; i++) {
-			const r = results[i] as unknown as D1ThreadRowLike;
-			out[i] = {
-				id: r.id,
-				forumId: r.forum_id,
-				authorId: r.author_id,
-				authorName: r.author_name,
-				authorAvatar: "",
-				authorAvatarPath: "",
-				subject: r.subject,
-				createdAt: r.created_at,
-				lastPostAt: r.last_post_at,
-				lastPoster: r.last_poster,
-				lastPosterId: r.last_poster_id ?? 0,
-				lastPosterAvatar: "",
-				lastPosterAvatarPath: "",
-				replies: r.replies,
-				views: r.views,
-				closed: r.closed,
-				sticky: r.sticky,
-				digest: r.digest,
-				special: r.special,
-				highlight: r.highlight,
-				recommends: r.recommends,
-				typeName: r.type_name,
-				isAuthorFirstThread: r.is_author_first_thread === 1,
-				// List views do not surface the recommended-card flag —
-				// it is only read by the thread-detail mod menu. Default
-				// false so the Thread type stays uniform without paying
-				// for a per-row EXISTS probe in forum/profile lists.
-				isRecommended: false,
-			};
-		}
-	} else {
-		for (let i = 0; i < n; i++) {
-			const r = results[i] as unknown as D1ThreadRowLike;
-			out[i] = {
-				id: r.id,
-				forumId: r.forum_id,
-				authorId: r.author_id,
-				authorName: r.author_name,
-				authorAvatar: (r.author_avatar as string | undefined) ?? "",
-				authorAvatarPath: (r.author_avatar_path as string | undefined) ?? "",
-				subject: r.subject,
-				createdAt: r.created_at,
-				lastPostAt: r.last_post_at,
-				lastPoster: r.last_poster,
-				lastPosterId: r.last_poster_id ?? 0,
-				lastPosterAvatar: (r.last_poster_avatar as string | undefined) ?? "",
-				lastPosterAvatarPath: (r.last_poster_avatar_path as string | undefined) ?? "",
-				replies: r.replies,
-				views: r.views,
-				closed: r.closed,
-				sticky: r.sticky,
-				digest: r.digest,
-				special: r.special,
-				highlight: r.highlight,
-				recommends: r.recommends,
-				typeName: r.type_name,
-				isAuthorFirstThread: r.is_author_first_thread === 1,
-				isRecommended: false,
-			};
-		}
+	for (let i = 0; i < n; i++) {
+		out[i] = mapOneThreadRow(results[i] as D1ThreadRowLike, useKvCache, isStaff, viewerId);
 	}
 	return out;
+}
+
+/** Per-row mapper extracted so {@link mapThreadRows} stays under the
+ * cognitive-complexity ceiling. Inlined call site keeps the V8 hidden-class
+ * shape stable. */
+function mapOneThreadRow(
+	r: D1ThreadRowLike,
+	useKvCache: boolean,
+	isStaff: boolean,
+	viewerId: number,
+): Thread {
+	const anonAuthor = r.anonymous_author === 1 ? 1 : 0;
+	const anonLast = r.anonymous_last_poster === 1 ? 1 : 0;
+	const showAuthor = anonAuthor === 0 || isStaff || viewerId === r.author_id;
+	const lastPosterId = r.last_poster_id ?? 0;
+	const showLast = anonLast === 0 || isStaff || viewerId === lastPosterId;
+
+	// Avatar resolution diverges between fast paths but the masked-author
+	// branch always blanks them out. Resolve both pairs once.
+	const authorAvatar =
+		useKvCache || !showAuthor ? "" : ((r.author_avatar as string | undefined) ?? "");
+	const authorAvatarPath =
+		useKvCache || !showAuthor ? "" : ((r.author_avatar_path as string | undefined) ?? "");
+	const lastPosterAvatar =
+		useKvCache || !showLast ? "" : ((r.last_poster_avatar as string | undefined) ?? "");
+	const lastPosterAvatarPath =
+		useKvCache || !showLast ? "" : ((r.last_poster_avatar_path as string | undefined) ?? "");
+
+	return {
+		id: r.id,
+		forumId: r.forum_id,
+		authorId: showAuthor ? r.author_id : 0,
+		authorName: showAuthor ? r.author_name : ANONYMOUS_AUTHOR_NAME,
+		authorAvatar,
+		authorAvatarPath,
+		subject: r.subject,
+		createdAt: r.created_at,
+		lastPostAt: r.last_post_at,
+		lastPoster: showLast ? r.last_poster : ANONYMOUS_AUTHOR_NAME,
+		lastPosterId: showLast ? lastPosterId : 0,
+		lastPosterAvatar,
+		lastPosterAvatarPath,
+		replies: r.replies,
+		views: r.views,
+		closed: r.closed,
+		sticky: r.sticky,
+		digest: r.digest,
+		special: r.special,
+		highlight: r.highlight,
+		recommends: r.recommends,
+		typeName: r.type_name,
+		anonymousAuthor: anonAuthor,
+		anonymousLastPoster: anonLast,
+		isAuthorFirstThread: r.is_author_first_thread === 1,
+		// List views do not surface the recommended-card flag — it is only
+		// read by the thread-detail mod menu. Default false so the Thread
+		// type stays uniform without paying for a per-row EXISTS probe in
+		// forum/profile lists.
+		isRecommended: false,
+	};
 }
 
 // Local row shape (mirrors D1ThreadRow used by mappers.toThread). Kept inline
@@ -154,6 +172,8 @@ interface D1ThreadRowLike {
 	highlight: number;
 	recommends: number;
 	type_name: string;
+	anonymous_author?: number;
+	anonymous_last_poster?: number;
 	author_avatar?: string;
 	author_avatar_path?: string;
 	last_poster_avatar?: string;
@@ -388,7 +408,13 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 			env.DB.prepare(getThreadListQuery(useKvCache, false)).bind(forumIdNum, clampedLimit).all(),
 		]);
 		const total = countResult?.total ?? 0;
-		let items = mapThreadRows(dataResult.results, useKvCache);
+		// Cached payload is shared across all viewers (docs/19 §6 thread:list:v2
+		// is bucket-independent), so we mask aggressively here — staff/self
+		// readers will see masked authorId on the list and can click into the
+		// thread detail to see the real author. Acceptable v1 trade-off; if
+		// staff need masking-aware lists, the cache key needs a viewer
+		// dimension.
+		let items = mapThreadRows(dataResult.results, useKvCache, null);
 		if (useKvCache) {
 			items = await enrichThreadsWithUserCacheFromList(items, env, ctx);
 		}
@@ -445,7 +471,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 								.all(),
 						]);
 			const total = countResult?.total ?? 0;
-			let items = mapThreadRows(dataResult.results, useKvCache);
+			let items = mapThreadRows(dataResult.results, useKvCache, null);
 			if (useKvCache) {
 				items = await enrichThreadsWithUserCacheFromList(items, env, ctx);
 			}
@@ -508,7 +534,7 @@ export async function list(request: Request, env: Env, ctx: ExecutionContext): P
 							.bind(forumIdNum, clampedLimit)
 							.all();
 
-		let items = mapThreadRows(result.results, useKvCache);
+		let items = mapThreadRows(result.results, useKvCache, null);
 		if (useKvCache) {
 			items = await enrichThreadsWithUserCacheFromList(items, env, ctx);
 		}
@@ -674,30 +700,47 @@ export async function getById(
 		scheduleThreadViewIncrement(env, ctx, id);
 	}
 
-	let thread = toThread(r);
+	let thread = toThread(r, toViewer(user));
 
 	if (sticky === STICKY_MODERATED) {
 		thread.moderationStatus = "pending_review";
 	}
 
-	// If JOIN approach, populate avatars directly from query result
-	if (!useKvCache) {
-		thread.authorAvatar = (r.author_avatar as string) ?? "";
-		thread.authorAvatarPath = (r.author_avatar_path as string) ?? "";
-		thread.lastPosterAvatar = (r.last_poster_avatar as string) ?? "";
-		thread.lastPosterAvatarPath = (r.last_poster_avatar_path as string) ?? "";
-	}
-
-	// Enrich with KV user cache (only if enabled)
-	if (useKvCache) {
-		const userIds = [thread.authorId, thread.lastPosterId].filter((uid) => uid > 0);
-		if (userIds.length > 0) {
-			const userCache = await getUserProfiles(env, ctx, userIds);
-			thread = enrichThreadsWithUserCache([thread], userCache)[0] ?? thread;
-		}
-	}
+	thread = await enrichThreadDetailAvatars(env, ctx, thread, r, useKvCache);
 
 	return jsonResponse(thread, origin);
+}
+
+/** Resolve author/last-poster avatars on a single Thread, respecting the
+ * anonymous masking already applied by {@link toThread}. Pulled out so
+ * `getById` stays under the cognitive-complexity ceiling. */
+async function enrichThreadDetailAvatars(
+	env: Env,
+	ctx: ExecutionContext,
+	thread: Thread,
+	row: Record<string, unknown>,
+	useKvCache: boolean,
+): Promise<Thread> {
+	// JOIN approach: avatars come on the row itself. Anonymous threads have
+	// authorId/lastPosterId zeroed by toThread(), so don't surface the
+	// underlying user's avatar in those slots.
+	if (!useKvCache) {
+		if (thread.authorId !== 0) {
+			thread.authorAvatar = (row.author_avatar as string) ?? "";
+			thread.authorAvatarPath = (row.author_avatar_path as string) ?? "";
+		}
+		if (thread.lastPosterId !== 0) {
+			thread.lastPosterAvatar = (row.last_poster_avatar as string) ?? "";
+			thread.lastPosterAvatarPath = (row.last_poster_avatar_path as string) ?? "";
+		}
+		return thread;
+	}
+
+	// KV-cache approach: only non-zero (unmasked) ids reach getUserProfiles.
+	const userIds = [thread.authorId, thread.lastPosterId].filter((uid) => uid > 0);
+	if (userIds.length === 0) return thread;
+	const userCache = await getUserProfiles(env, ctx, userIds);
+	return enrichThreadsWithUserCache([thread], userCache)[0] ?? thread;
 }
 
 /** POST /api/v1/threads - Create a new thread (requires auth) */
@@ -883,5 +926,13 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		),
 	]);
 
-	return jsonResponse(toThread(createdThread as Record<string, unknown>), origin, undefined, 201);
+	return jsonResponse(
+		toThread(createdThread as Record<string, unknown>, {
+			userId: user.userId,
+			role: user.role,
+		}),
+		origin,
+		undefined,
+		201,
+	);
 });

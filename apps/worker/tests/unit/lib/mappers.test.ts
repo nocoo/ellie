@@ -468,7 +468,7 @@ describe("D1 row mappers", () => {
 			expect("post_table_id" in thread).toBe(false);
 		});
 
-		it("should output exactly 20 fields", () => {
+		it("should output exactly 26 fields", () => {
 			const row = {
 				id: 1,
 				forum_id: 0,
@@ -491,8 +491,10 @@ describe("D1 row mappers", () => {
 			};
 
 			const thread = toThread(row);
-			// 23 base fields + 1 for `isRecommended` (migration 0045).
-			expect(Object.keys(thread)).toHaveLength(24);
+			// 24 base fields + 2 anonymous flags (migration 0048).
+			expect(Object.keys(thread)).toHaveLength(26);
+			expect(thread.anonymousAuthor).toBe(0);
+			expect(thread.anonymousLastPoster).toBe(0);
 		});
 
 		it("should map is_author_first_thread=1 to isAuthorFirstThread=true", () => {
@@ -574,6 +576,87 @@ describe("D1 row mappers", () => {
 
 			const thread = toThread(row);
 			expect(thread.isAuthorFirstThread).toBe(false);
+		});
+
+		// ─── Anonymous masking (migration 0048) ────────────────────────────
+		describe("anonymous masking", () => {
+			const baseRow = {
+				id: 1058149,
+				forum_id: 335,
+				author_id: 340271,
+				author_name: "小牧童",
+				subject: "日本风俗店体验",
+				created_at: 1367326318,
+				last_post_at: 1370000000,
+				last_poster: "batlet",
+				last_poster_id: 445134,
+				replies: 30,
+				views: 5000,
+				closed: 0,
+				sticky: 0,
+				digest: 0,
+				special: 0,
+				highlight: 0,
+				recommends: 0,
+				type_name: "",
+			};
+
+			it("masks authorId/authorName when anonymous_author=1 and viewer is anonymous", () => {
+				const t = toThread({ ...baseRow, anonymous_author: 1 });
+				expect(t.authorId).toBe(0);
+				expect(t.authorName).toBe(ANONYMOUS_AUTHOR_NAME);
+				expect(t.anonymousAuthor).toBe(1);
+				// last_poster untouched (anonymous_last_poster defaulted to 0)
+				expect(t.lastPosterId).toBe(445134);
+				expect(t.lastPoster).toBe("batlet");
+			});
+
+			it("unmasks the original author for staff", () => {
+				const t = toThread({ ...baseRow, anonymous_author: 1 }, { userId: 999, role: 1 });
+				expect(t.authorId).toBe(340271);
+				expect(t.authorName).toBe("小牧童");
+			});
+
+			it("unmasks for the thread's own author", () => {
+				const t = toThread({ ...baseRow, anonymous_author: 1 }, { userId: 340271, role: 0 });
+				expect(t.authorId).toBe(340271);
+				expect(t.authorName).toBe("小牧童");
+			});
+
+			it("masks lastPoster when anonymous_last_poster=1 for non-staff", () => {
+				const t = toThread({ ...baseRow, anonymous_last_poster: 1 });
+				expect(t.lastPosterId).toBe(0);
+				expect(t.lastPoster).toBe(ANONYMOUS_AUTHOR_NAME);
+				expect(t.anonymousLastPoster).toBe(1);
+				// authorId untouched
+				expect(t.authorId).toBe(340271);
+			});
+
+			it("unmasks lastPoster for the original last poster (self)", () => {
+				const t = toThread({ ...baseRow, anonymous_last_poster: 1 }, { userId: 445134, role: 0 });
+				expect(t.lastPosterId).toBe(445134);
+				expect(t.lastPoster).toBe("batlet");
+			});
+
+			it("masks both author and lastPoster independently", () => {
+				const t = toThread({
+					...baseRow,
+					anonymous_author: 1,
+					anonymous_last_poster: 1,
+				});
+				expect(t.authorId).toBe(0);
+				expect(t.authorName).toBe(ANONYMOUS_AUTHOR_NAME);
+				expect(t.lastPosterId).toBe(0);
+				expect(t.lastPoster).toBe(ANONYMOUS_AUTHOR_NAME);
+			});
+
+			it("treats missing flags as 0 (legacy/admin queries)", () => {
+				const t = toThread(baseRow);
+				expect(t.anonymousAuthor).toBe(0);
+				expect(t.anonymousLastPoster).toBe(0);
+				expect(t.authorId).toBe(340271);
+				expect(t.lastPosterId).toBe(445134);
+			});
 		});
 	});
 

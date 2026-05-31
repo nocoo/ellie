@@ -115,6 +115,13 @@ export interface ForumAggregateV2 {
 	lastPosterId: number;
 	lastPosterAvatar: string;
 	lastPosterAvatarPath: string;
+	/**
+	 * Anonymous-aware build stamp (migration 0048). Builders set this to 1;
+	 * pre-mask cached entries lack the field, so the validator force-misses
+	 * them — otherwise the unmasked last-poster of an anonymous reply would
+	 * stay in cache for the rest of the FORUM_SUMMARY_TTL window.
+	 */
+	anonAware?: number;
 }
 
 export interface ForumTreePayloadV2 {
@@ -137,6 +144,12 @@ export interface ForumSummaryPayloadV2 {
 export interface ForumMetaPayloadV2 {
 	bucket: VisibilityBucket;
 	forum: Forum;
+	/**
+	 * Anonymous-aware build stamp (migration 0048). Builders set this to 1;
+	 * pre-mask cached entries lack the field so the validator force-misses
+	 * them.
+	 */
+	anonAware?: number;
 }
 
 // ─── Bucket filter ─────────────────────────────────────────────────
@@ -223,6 +236,10 @@ export function buildForumSummaryPayload(
 			lastPosterId: f.lastPosterId,
 			lastPosterAvatar: f.lastPosterAvatar,
 			lastPosterAvatarPath: f.lastPosterAvatarPath,
+			// Build stamp — see isForumSummaryPayload(). Snapshot row is
+			// already masked for anonymous last-posters, so this just
+			// signals "post-migration-0048 build".
+			anonAware: 1,
 		};
 	}
 	return { bucket, aggregates };
@@ -239,7 +256,7 @@ export function buildForumMetaPayload(
 	bucket: VisibilityBucket,
 ): ForumMetaPayloadV2 | null {
 	if (!isForumVisibleToBucket(forum, bucket)) return null;
-	return { bucket, forum };
+	return { bucket, forum, anonAware: 1 };
 }
 
 // ─── Validators (post-cache-read shape guards) ─────────────────────
@@ -286,7 +303,18 @@ export function isForumTreePayload(value: unknown): value is ForumTreePayloadV2 
 export function isForumSummaryPayload(value: unknown): value is ForumSummaryPayloadV2 {
 	if (!value || typeof value !== "object") return false;
 	const v = value as Partial<ForumSummaryPayloadV2>;
-	return typeof v.bucket === "string" && v.aggregates != null && typeof v.aggregates === "object";
+	if (typeof v.bucket !== "string" || v.aggregates == null || typeof v.aggregates !== "object") {
+		return false;
+	}
+	// Reject pre-mask cached aggregates (migration 0048). One field check is
+	// enough — the builder always stamps every aggregate; if the first one
+	// lacks `anonAware`, the whole payload is stale.
+	const aggs = v.aggregates as Record<string, Partial<ForumAggregateV2>>;
+	for (const k in aggs) {
+		if (aggs[k]?.anonAware !== 1) return false;
+		break;
+	}
+	return true;
 }
 
 export function isForumMetaPayload(value: unknown): value is ForumMetaPayloadV2 {
@@ -301,5 +329,7 @@ export function isForumMetaPayload(value: unknown): value is ForumMetaPayloadV2 
 	// field and would echo `undefined` to clients; force a miss so the
 	// payload is rewritten with the column populated.
 	if (typeof forum.announcement !== "string") return false;
+	// Reject pre-anonymous-mask payloads (mig 0048).
+	if (v.anonAware !== 1) return false;
 	return true;
 }

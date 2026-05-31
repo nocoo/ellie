@@ -1610,9 +1610,9 @@ describe("admin user handlers", () => {
 					"SELECT COUNT(DISTINCT id) as cnt FROM post_comments": { cnt: 5 },
 					"SELECT COUNT(DISTINCT id) as cnt FROM attachments": { cnt: 4 },
 					"SELECT COUNT(*) as cnt FROM messages": { cnt: 3 },
-					"SELECT created_at, author_name, author_id\n\t\t\t FROM posts\n\t\t\t WHERE thread_id":
+					"SELECT created_at, author_name, author_id, anonymous\n\t\t\t FROM posts\n\t\t\t WHERE thread_id":
 						null,
-					"SELECT created_at, author_name, author_id FROM threads WHERE id": null,
+					"SELECT created_at, author_name, author_id, anonymous_author FROM threads WHERE id": null,
 					"SELECT id, subject, last_post_at, last_poster, last_poster_id\n\t\t\t FROM threads\n\t\t\t WHERE forum_id":
 						null,
 				},
@@ -1797,9 +1797,9 @@ describe("admin user handlers", () => {
 					"SELECT COUNT(DISTINCT id) as cnt FROM post_comments": { cnt: 0 },
 					"SELECT COUNT(DISTINCT id) as cnt FROM attachments": { cnt: 0 },
 					"SELECT COUNT(*) as cnt FROM messages": { cnt: 0 },
-					"SELECT created_at, author_name, author_id\n\t\t\t FROM posts\n\t\t\t WHERE thread_id":
+					"SELECT created_at, author_name, author_id, anonymous\n\t\t\t FROM posts\n\t\t\t WHERE thread_id":
 						null,
-					"SELECT created_at, author_name, author_id FROM threads WHERE id": null,
+					"SELECT created_at, author_name, author_id, anonymous_author FROM threads WHERE id": null,
 				},
 				allResults: {
 					"SELECT id, forum_id, digest FROM threads WHERE author_id": [{ id: 100, forum_id: 7 }],
@@ -1818,7 +1818,9 @@ describe("admin user handlers", () => {
 			(db.prepare as ReturnType<typeof import("vitest").vi.fn>).mockImplementation(
 				(sql: string) => {
 					if (
-						/SELECT created_at, author_name, author_id\s+FROM posts\s+WHERE thread_id/.test(sql)
+						/SELECT created_at, author_name, author_id, anonymous\s+FROM posts\s+WHERE thread_id/.test(
+							sql,
+						)
 					) {
 						return {
 							bind: vi.fn(() => ({

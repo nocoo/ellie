@@ -58,32 +58,56 @@ export async function recalcForumMetadata(env: Env, forumId: number): Promise<vo
 export async function recalcThreadMetadata(env: Env, threadId: number): Promise<void> {
 	// Find the most recent VISIBLE post in this thread
 	const lastPost = await env.DB.prepare(
-		`SELECT created_at, author_name, author_id
+		`SELECT created_at, author_name, author_id, anonymous
 		 FROM posts
 		 WHERE thread_id = ? AND ${POST_VISIBLE}
 		 ORDER BY position DESC LIMIT 1`,
 	)
 		.bind(threadId)
-		.first<{ created_at: number; author_name: string; author_id: number }>();
+		.first<{
+			created_at: number;
+			author_name: string;
+			author_id: number;
+			anonymous: number;
+		}>();
 
 	if (lastPost) {
 		await env.DB.prepare(
-			"UPDATE threads SET last_post_at = ?, last_poster = ?, last_poster_id = ? WHERE id = ?",
+			"UPDATE threads SET last_post_at = ?, last_poster = ?, last_poster_id = ?, anonymous_last_poster = ? WHERE id = ?",
 		)
-			.bind(lastPost.created_at, lastPost.author_name, lastPost.author_id, threadId)
+			.bind(
+				lastPost.created_at,
+				lastPost.author_name,
+				lastPost.author_id,
+				lastPost.anonymous === 1 ? 1 : 0,
+				threadId,
+			)
 			.run();
 	} else {
-		// No visible posts remain — fall back to thread's own creation info
+		// No visible posts remain — fall back to thread's own creation info.
+		// `anonymous_author` already reflects the original first-post flag, so
+		// reuse it for the last-poster denorm too.
 		const thread = await env.DB.prepare(
-			"SELECT created_at, author_name, author_id FROM threads WHERE id = ?",
+			"SELECT created_at, author_name, author_id, anonymous_author FROM threads WHERE id = ?",
 		)
 			.bind(threadId)
-			.first<{ created_at: number; author_name: string; author_id: number }>();
+			.first<{
+				created_at: number;
+				author_name: string;
+				author_id: number;
+				anonymous_author: number;
+			}>();
 		if (thread) {
 			await env.DB.prepare(
-				"UPDATE threads SET last_post_at = ?, last_poster = ?, last_poster_id = ? WHERE id = ?",
+				"UPDATE threads SET last_post_at = ?, last_poster = ?, last_poster_id = ?, anonymous_last_poster = ? WHERE id = ?",
 			)
-				.bind(thread.created_at, thread.author_name, thread.author_id, threadId)
+				.bind(
+					thread.created_at,
+					thread.author_name,
+					thread.author_id,
+					thread.anonymous_author === 1 ? 1 : 0,
+					threadId,
+				)
 				.run();
 		}
 	}

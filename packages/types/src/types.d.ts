@@ -344,6 +344,17 @@ export interface Thread {
     highlight: number;
     recommends: number;
     typeName: string;
+    /**
+     * 1 = the first post of this thread is anonymous; the API serializer hides
+     * authorId / authorName from non-staff, non-author viewers. Always
+     * present on the wire so the frontend can render the "匿名" badge.
+     */
+    anonymousAuthor?: number;
+    /**
+     * 1 = the post currently denormalized into last_poster / last_poster_id
+     * is anonymous; serializer hides those fields from non-staff viewers.
+     */
+    anonymousLastPoster?: number;
     /** True when this thread is the earliest visible thread by the author. */
     isAuthorFirstThread: boolean;
     /**
