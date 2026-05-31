@@ -9,7 +9,7 @@
  */
 
 import { Database } from "bun:sqlite";
-import { INDEX_DDL, TABLE_COLUMNS, TABLE_DDL, type TableName } from "./schema";
+import { INDEX_DDL, POST_LOAD_DDL, TABLE_COLUMNS, TABLE_DDL, type TableName } from "./schema";
 import {
 	type ExistsFilter,
 	type UpsertConfig,
@@ -67,6 +67,18 @@ export class BatchLoader {
 	/** Create all tables (no indexes yet). */
 	createTables(): void {
 		for (const ddl of TABLE_DDL) {
+			this.db.run(ddl);
+		}
+	}
+
+	/**
+	 * Run post-load backfills. Call AFTER all rows are inserted and BEFORE
+	 * indexes are built (some backfills are easier without indexes;
+	 * existence-check sub-queries are tolerant of the missing indexes
+	 * because data volumes here are small).
+	 */
+	applyPostLoadBackfills(): void {
+		for (const ddl of POST_LOAD_DDL) {
 			this.db.run(ddl);
 		}
 	}

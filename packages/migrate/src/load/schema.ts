@@ -298,6 +298,32 @@ export const INDEX_DDL: string[] = [
 	"CREATE INDEX IF NOT EXISTS idx_threads_forum_type ON threads(forum_id, type_id, last_post_at DESC, id DESC)",
 ];
 
+/**
+ * Post-load SQL run AFTER all data is inserted but BEFORE indexes are built.
+ *
+ * Use for backfills that derive denormalized values from already-loaded rows.
+ * They must be idempotent (safe to re-run) and tolerant of partial loads.
+ *
+ * Current contents — mig 0048 thread-anonymous mirror: posts.anonymous can
+ * only land via extractPost(); threads have no anonymous column in the
+ * original Discuz dump. After posts are loaded, walk back to threads and
+ * mirror the flag onto the denormalized author + last_poster slots, same
+ * SQL the prod migration ran by hand.
+ */
+export const POST_LOAD_DDL: string[] = [
+	"UPDATE threads SET anonymous_author = 1 WHERE id IN (SELECT thread_id FROM posts WHERE anonymous = 1 AND is_first = 1)",
+	`UPDATE threads SET anonymous_last_poster = 1
+	WHERE last_poster_id != 0
+	  AND EXISTS (
+	    SELECT 1 FROM posts p
+	    WHERE p.thread_id = threads.id
+	      AND p.author_id = threads.last_poster_id
+	      AND p.invisible = 0
+	      AND p.anonymous = 1
+	      AND p.created_at = threads.last_post_at
+	  )`,
+];
+
 /** Table names in FK dependency order (for migration). */
 export const TABLE_ORDER = [
 	"forums",

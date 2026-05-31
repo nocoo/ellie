@@ -9,7 +9,7 @@
  */
 
 import { Database } from "bun:sqlite";
-import { INDEX_DDL, TABLE_COLUMNS, TABLE_DDL, type TableName } from "./schema";
+import { INDEX_DDL, POST_LOAD_DDL, TABLE_COLUMNS, TABLE_DDL, type TableName } from "./schema";
 
 /** Options for the batch loader. */
 export interface LoaderOptions {
@@ -50,6 +50,16 @@ export class BatchLoader {
 	/** Create all tables (no indexes yet). */
 	createTables(): void {
 		for (const ddl of TABLE_DDL) {
+			this.db.run(ddl);
+		}
+	}
+
+	/**
+	 * Run post-load backfills. Call AFTER all rows are inserted and BEFORE
+	 * indexes are built. Mirrors packages/migrate/src/load/batch-insert.ts.
+	 */
+	applyPostLoadBackfills(): void {
+		for (const ddl of POST_LOAD_DDL) {
 			this.db.run(ddl);
 		}
 	}

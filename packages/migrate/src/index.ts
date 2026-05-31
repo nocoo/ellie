@@ -1360,6 +1360,12 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 		stats.checkins = checkinResult.eligible;
 		stats.skipped.checkinsMissingUser = checkinResult.skippedMissingUser;
 
+		// Backfill denormalized flags that depend on cross-table data
+		// (e.g. threads.anonymous_author/anonymous_last_poster mirror
+		// posts.anonymous, which only lands during the posts import).
+		log("Applying post-load backfills...");
+		loader.applyPostLoadBackfills();
+
 		// Create indexes after all data is loaded (much faster)
 		log("Creating indexes...");
 		loader.createIndexes();

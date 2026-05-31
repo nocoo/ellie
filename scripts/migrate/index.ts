@@ -544,6 +544,11 @@ export async function runMigration(config: MigrateConfig): Promise<MigrateStats>
 		stats.skipped.attachMissingPosts = attachResult.missingPosts;
 		stats.skipped.attachMissingThreads = attachResult.missingThreads;
 
+		// Backfill denormalized flags (e.g. threads.anonymous_* mirroring
+		// posts.anonymous). Runs before index creation; idempotent.
+		log("Applying post-load backfills...");
+		loader.applyPostLoadBackfills();
+
 		// Create indexes after all data is loaded (much faster)
 		log("Creating indexes...");
 		loader.createIndexes();
