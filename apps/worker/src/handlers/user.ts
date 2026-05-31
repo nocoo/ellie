@@ -67,7 +67,14 @@ async function runUserHistoryQuery<T>(
 	request: Request,
 	env: Env,
 	opts: {
-		buildQuery: (forumFilter: string, withCursor: boolean) => string;
+		buildQuery: (
+			forumFilter: string,
+			withCursor: boolean,
+			ctx: {
+				profileUserId: number;
+				viewer: { userId: number; role: number } | null;
+			},
+		) => string;
 		mapper: (row: Record<string, unknown>, viewer: { userId: number; role: number } | null) => T;
 		/**
 		 * Extract the keyset cursor from a mapped item. Default: read top-level
@@ -99,7 +106,10 @@ async function runUserHistoryQuery<T>(
 		? decodeGenericCursor<UserHistoryCursor>(cursorStr, isHistoryCursor)
 		: null;
 
-	const query = opts.buildQuery(forumFilter, cursor !== null);
+	const query = opts.buildQuery(forumFilter, cursor !== null, {
+		profileUserId: userId,
+		viewer,
+	});
 	const result: D1Result = cursor
 		? await env.DB.prepare(query)
 				.bind(userId, cursor.createdAt, cursor.createdAt, cursor.id, clampedLimit)
@@ -251,20 +261,51 @@ export async function getAvatarPath(request: Request, env: Env): Promise<Respons
 	return jsonResponse({ avatarPath: result.avatar_path ?? "" }, origin);
 }
 
+/**
+ * SQL fragment that filters out anonymous-flagged rows from a user-history
+ * listing.
+ *
+ * Even when the row's author_id/author_name are masked by the serializer, the
+ * URL `/api/v1/users/:id/posts` still encodes the implicit claim "these rows
+ * belong to user :id" — so anonymous content must be excluded from the
+ * listing itself. Skip the filter for staff and for the profile owner viewing
+ * their own history.
+ *
+ * `column` is the literal column reference (e.g. `p.anonymous` or
+ * `t.anonymous_author`) — produced by the caller to keep this helper alias-
+ * agnostic.
+ */
+export function anonymousHistoryFilter(
+	column: string,
+	profileUserId: number,
+	viewer: { userId: number; role: number } | null,
+): string {
+	if (viewer === null) return `${column} = 0`;
+	if (viewer.role === 1 || viewer.role === 2 || viewer.role === 3) return "1=1";
+	if (viewer.userId === profileUserId) return "1=1";
+	return `${column} = 0`;
+}
+
 /** GET /api/v1/users/:id/threads - List user's threads with keyset pagination */
 export async function listThreads(request: Request, env: Env): Promise<Response> {
 	return runUserHistoryQuery(request, env, {
-		buildQuery: (forumFilter, withCursor) =>
-			withCursor
+		buildQuery: (forumFilter, withCursor, ctx) => {
+			const anonFilter = anonymousHistoryFilter(
+				"t.anonymous_author",
+				ctx.profileUserId,
+				ctx.viewer,
+			);
+			return withCursor
 				? `SELECT t.* FROM threads t
 				   INNER JOIN forums f ON t.forum_id = f.id
-				   WHERE t.author_id = ? AND ${threadVisible("t")} AND ${forumFilter}
+				   WHERE t.author_id = ? AND ${anonFilter} AND ${threadVisible("t")} AND ${forumFilter}
 				   AND (t.created_at < ? OR (t.created_at = ? AND t.id < ?))
 				   ORDER BY t.created_at DESC, t.id DESC LIMIT ?`
 				: `SELECT t.* FROM threads t
 				   INNER JOIN forums f ON t.forum_id = f.id
-				   WHERE t.author_id = ? AND ${threadVisible("t")} AND ${forumFilter}
-				   ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
+				   WHERE t.author_id = ? AND ${anonFilter} AND ${threadVisible("t")} AND ${forumFilter}
+				   ORDER BY t.created_at DESC, t.id DESC LIMIT ?`;
+		},
 		mapper: (row) => toThread(row),
 	});
 }
@@ -292,19 +333,21 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 		"t.id AS thread_id_for_link, t.forum_id AS thread_forum_id, t.subject AS thread_subject, t.replies AS thread_replies, t.views AS thread_views, t.created_at AS thread_created_at, t.last_post_at AS thread_last_post_at, t.closed AS thread_closed, t.sticky AS thread_sticky, t.digest AS thread_digest, t.special AS thread_special, t.highlight AS thread_highlight, t.type_name AS thread_type_name";
 	const selectColumns = `${postColumns}, ${threadColumns}`;
 	return runUserHistoryQuery(request, env, {
-		buildQuery: (forumFilter, withCursor) =>
-			withCursor
+		buildQuery: (forumFilter, withCursor, ctx) => {
+			const anonFilter = anonymousHistoryFilter("p.anonymous", ctx.profileUserId, ctx.viewer);
+			return withCursor
 				? `SELECT ${selectColumns} FROM posts p
 				   INNER JOIN threads t ON p.thread_id = t.id
 				   INNER JOIN forums f ON t.forum_id = f.id
-				   WHERE p.author_id = ? AND p.is_first = 0 AND ${postVisible("p")} AND ${threadVisible("t")} AND ${forumFilter}
+				   WHERE p.author_id = ? AND p.is_first = 0 AND ${anonFilter} AND ${postVisible("p")} AND ${threadVisible("t")} AND ${forumFilter}
 				   AND (p.created_at < ? OR (p.created_at = ? AND p.id < ?))
 				   ORDER BY p.created_at DESC, p.id DESC LIMIT ?`
 				: `SELECT ${selectColumns} FROM posts p
 				   INNER JOIN threads t ON p.thread_id = t.id
 				   INNER JOIN forums f ON t.forum_id = f.id
-				   WHERE p.author_id = ? AND p.is_first = 0 AND ${postVisible("p")} AND ${threadVisible("t")} AND ${forumFilter}
-				   ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
+				   WHERE p.author_id = ? AND p.is_first = 0 AND ${anonFilter} AND ${postVisible("p")} AND ${threadVisible("t")} AND ${forumFilter}
+				   ORDER BY p.created_at DESC, p.id DESC LIMIT ?`;
+		},
 		mapper: (row, viewer) => toUserPostHistoryItem(row, viewer),
 		// Cursor must follow the leading table (posts), not the joined thread.
 		cursorOf: (item) => ({ createdAt: item.post.createdAt, id: item.post.id }),
@@ -314,17 +357,23 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 /** GET /api/v1/users/:id/digest - List user's digest threads with keyset pagination */
 export async function listDigest(request: Request, env: Env): Promise<Response> {
 	return runUserHistoryQuery(request, env, {
-		buildQuery: (forumFilter, withCursor) =>
-			withCursor
+		buildQuery: (forumFilter, withCursor, ctx) => {
+			const anonFilter = anonymousHistoryFilter(
+				"t.anonymous_author",
+				ctx.profileUserId,
+				ctx.viewer,
+			);
+			return withCursor
 				? `SELECT t.* FROM threads t
 				   INNER JOIN forums f ON t.forum_id = f.id
-				   WHERE t.author_id = ? AND t.digest > 0 AND ${threadVisible("t")} AND ${forumFilter}
+				   WHERE t.author_id = ? AND t.digest > 0 AND ${anonFilter} AND ${threadVisible("t")} AND ${forumFilter}
 				   AND (t.created_at < ? OR (t.created_at = ? AND t.id < ?))
 				   ORDER BY t.created_at DESC, t.id DESC LIMIT ?`
 				: `SELECT t.* FROM threads t
 				   INNER JOIN forums f ON t.forum_id = f.id
-				   WHERE t.author_id = ? AND t.digest > 0 AND ${threadVisible("t")} AND ${forumFilter}
-				   ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
+				   WHERE t.author_id = ? AND t.digest > 0 AND ${anonFilter} AND ${threadVisible("t")} AND ${forumFilter}
+				   ORDER BY t.created_at DESC, t.id DESC LIMIT ?`;
+		},
 		mapper: (row) => toThread(row),
 	});
 }
