@@ -191,7 +191,7 @@ export function PostCard({
 		<div id={`post-${post.id}`} className="border border-border bg-card -mt-px first:mt-0">
 			{/* Desktop: two-column layout */}
 			<div className="hidden md:flex">
-				<PostSidebar author={post.author} />
+				<PostSidebar author={post.author} isAnonymous={post.anonymous === 1} />
 				<div className="flex-1 min-w-0 flex flex-col">
 					<PostContent
 						post={post}
@@ -209,7 +209,17 @@ export function PostCard({
 			<div className="md:hidden">
 				{/* Compact header row */}
 				<div className="flex items-center gap-2 px-3 pt-3 pb-2 border-b border-dashed border-border">
-					{post.author ? (
+					{post.anonymous === 1 ? (
+						<Avatar className="h-8 w-8 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)] dark:shadow-[0_0_2px_rgba(255,255,255,0.10)]">
+							<AvatarFallback className="text-xs rounded-sm bg-muted p-0 overflow-hidden">
+								<img
+									src={getStaticImageUrl("tavatar.gif")}
+									alt="匿名"
+									className="h-full w-full object-cover"
+								/>
+							</AvatarFallback>
+						</Avatar>
+					) : post.author ? (
 						<Link href={`/users/${post.authorId}`} prefetch={false}>
 							<ForumAvatar
 								userId={post.authorId}
@@ -231,7 +241,14 @@ export function PostCard({
 						</Avatar>
 					)}
 					<div className="flex flex-col min-w-0">
-						{post.author ? (
+						{post.anonymous === 1 ? (
+							<span
+								className="text-xs font-medium text-muted-foreground truncate"
+								data-testid="post-card-mobile-author"
+							>
+								匿名
+							</span>
+						) : post.author ? (
 							<Link
 								href={`/users/${post.authorId}`}
 								prefetch={false}

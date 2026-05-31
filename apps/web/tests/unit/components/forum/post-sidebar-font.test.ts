@@ -97,6 +97,33 @@ describe("PostSidebar — 14/12 baseline", () => {
 		expect(author.textContent).toBe("未知用户");
 	});
 
+	// ─── Anonymous masking (mig 0047) ──────────────────────────────────
+	it("isAnonymous=true renders '匿名' instead of '未知用户'", () => {
+		render(
+			createElement(PostSidebar, {
+				author: null,
+				isAnonymous: true,
+			}),
+		);
+		const author = screen.getByTestId("post-sidebar-author");
+		expect(author.textContent).toBe("匿名");
+		// Must not be a clickable user link.
+		expect(author.tagName).toBe("SPAN");
+	});
+
+	it("isAnonymous=true with a populated author still renders '匿名'", () => {
+		// Defence in depth: even if the worker accidentally surfaced the
+		// real author, the flag wins on the render side.
+		render(
+			createElement(PostSidebar, {
+				author: makeAuthor(),
+				isAnonymous: true,
+			}),
+		);
+		const author = screen.getByTestId("post-sidebar-author");
+		expect(author.textContent).toBe("匿名");
+	});
+
 	it("checkin days uses text-xs (was text-2xs — 12px floor)", () => {
 		render(
 			createElement(PostSidebar, {

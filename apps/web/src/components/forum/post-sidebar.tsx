@@ -18,9 +18,40 @@ interface PostSidebarProps {
 	viewerRole?: number;
 	/** Current viewer's user ID */
 	viewerUserId?: number | null;
+	/**
+	 * True when the post was originally posted anonymously (Discuz convention,
+	 * mig 0047). Renders "匿名" with no profile link instead of the
+	 * "未知用户" fallback used for genuinely missing users.
+	 */
+	isAnonymous?: boolean;
 }
 
-export function PostSidebar({ author, viewerRole = 0, viewerUserId = null }: PostSidebarProps) {
+export function PostSidebar({
+	author,
+	viewerRole = 0,
+	viewerUserId = null,
+	isAnonymous = false,
+}: PostSidebarProps) {
+	// When the post is anonymous, the API masks `authorId=0` so `authorMap`
+	// returns null. Render the "匿名" identity card instead of the
+	// missing-user fallback so the anonymous social contract holds.
+	if (isAnonymous) {
+		return (
+			<div className="w-[160px] lg:w-[200px] shrink-0 bg-forum-sidebar-bg border-r border-border p-3 lg:p-4 flex flex-col items-center gap-1.5">
+				<span className="text-xs font-bold text-muted-foreground" data-testid="post-sidebar-author">
+					匿名
+				</span>
+				<div className="mt-1 bg-card p-1 lg:p-[5px] shadow-[0_0_3px_rgba(0,0,0,0.2)] dark:shadow-[0_0_3px_rgba(255,255,255,0.12)]">
+					<img
+						src={getStaticImageUrl("tavatar.gif")}
+						alt="匿名"
+						className="block w-[120px] lg:w-[160px] h-auto"
+					/>
+				</div>
+			</div>
+		);
+	}
+
 	const checkinLevel = author ? formatCheckinLevel(author.checkin) : null;
 	const checkinDays = author ? formatCheckinDays(author.checkin?.totalDays) : null;
 	return (
