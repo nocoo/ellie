@@ -67,11 +67,12 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 	const threadHref = returnTo
 		? `/threads/${thread.id}?returnTo=${encodeURIComponent(returnTo)}`
 		: `/threads/${thread.id}`;
-	// Anonymous-aware author rendering. The worker masks authorId to 0 and
-	// authorName to "匿名" when threads.anonymous_author=1; both signals are
-	// honored so a stale payload (no anonymousAuthor field yet) still
-	// degrades safely.
-	const isAnonAuthor = thread.anonymousAuthor === 1 || thread.authorId === 0;
+	// Anonymous-aware author rendering. The worker zeros authorId for
+	// non-staff/non-self viewers when threads.anonymous_author=1; staff/self
+	// see the real authorId. Gate on `authorId === 0` (the mask itself)
+	// rather than `anonymousAuthor === 1` (always-on badge signal) so
+	// staff/self land on the real user profile.
+	const isAnonAuthor = thread.authorId === 0;
 
 	return (
 		<div

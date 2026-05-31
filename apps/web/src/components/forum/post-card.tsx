@@ -113,14 +113,20 @@ export function PostCard({
 
 	// Rating entry visibility (docs/22 §7.1):
 	//  - Logged in, non-self, non-anonymous author (authorId > 0).
-	//    `invisible` is server-filtered before the row reaches the client,
+	//  - Also exclude posts with `anonymous === 1`. The worker masks
+	//    authorId=0 for non-staff/non-self, so for them the authorId guard
+	//    above is enough; but staff/self see the real authorId, and the
+	//    worker still rejects the rating with RATING_INVALID_POST. Without
+	//    this extra guard staff would see a button that always errors.
+	//  - `invisible` is server-filtered before the row reaches the client,
 	//    so we don't re-check it here.
 	//  - 同钱 is open to every authenticated role; 积分 additionally needs
 	//    role ∈ {Mod, SuperMod, Admin}.
 	//  - Email-unverified users still see the entry; the dialog (via
 	//    `writeGatePreflight`) surfaces §5.4 verbatim instead of silently
 	//    hiding the feature.
-	const isRateableTarget = currentUserId !== null && !isOwnPost && post.authorId > 0;
+	const isRateableTarget =
+		currentUserId !== null && !isOwnPost && post.authorId > 0 && post.anonymous !== 1;
 	const canRateCoins = isRateableTarget;
 	const canRateCredits =
 		isRateableTarget &&
@@ -191,7 +197,15 @@ export function PostCard({
 		<div id={`post-${post.id}`} className="border border-border bg-card -mt-px first:mt-0">
 			{/* Desktop: two-column layout */}
 			<div className="hidden md:flex">
-				<PostSidebar author={post.author} isAnonymous={post.anonymous === 1} />
+				{/*
+				 * Anonymous masking signal: the Worker zeros authorId/authorName
+				 * when the viewer is neither staff nor the post's own author.
+				 * Staff/self see the real authorId — they MUST see the real
+				 * sidebar, so we gate on `post.authorId === 0` (the mask itself)
+				 * rather than `post.anonymous === 1` (just the badge / decoration
+				 * signal which is true for everyone including staff).
+				 */}
+				<PostSidebar author={post.author} isAnonymous={post.authorId === 0} />
 				<div className="flex-1 min-w-0 flex flex-col">
 					<PostContent
 						post={post}
@@ -209,7 +223,7 @@ export function PostCard({
 			<div className="md:hidden">
 				{/* Compact header row */}
 				<div className="flex items-center gap-2 px-3 pt-3 pb-2 border-b border-dashed border-border">
-					{post.anonymous === 1 ? (
+					{post.authorId === 0 ? (
 						<Avatar className="h-8 w-8 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)] dark:shadow-[0_0_2px_rgba(255,255,255,0.10)]">
 							<AvatarFallback className="text-xs rounded-sm bg-muted p-0 overflow-hidden">
 								<img
@@ -241,7 +255,7 @@ export function PostCard({
 						</Avatar>
 					)}
 					<div className="flex flex-col min-w-0">
-						{post.anonymous === 1 ? (
+						{post.authorId === 0 ? (
 							<span
 								className="text-xs font-medium text-muted-foreground truncate"
 								data-testid="post-card-mobile-author"

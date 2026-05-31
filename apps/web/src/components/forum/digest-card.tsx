@@ -47,10 +47,10 @@ function getTitleStyle(highlight: number): CSSProperties | undefined {
 export function DigestCard({ thread, badges }: DigestCardProps) {
 	const borderClass = getDigestBorderClass(thread.digest);
 	const titleStyle = getTitleStyle(thread.highlight);
-	// Anonymous: worker masks authorId=0 / authorName="匿名" when
-	// threads.anonymous_author=1; honour both signals so a stale payload
-	// (no anonymousAuthor field) still degrades safely.
-	const isAnonAuthor = thread.anonymousAuthor === 1 || thread.authorId === 0;
+	// Anonymous: worker zeros authorId for non-staff/non-self viewers when
+	// threads.anonymous_author=1. Gate on authorId so staff/self (which
+	// the worker unmasks) still get the real profile link.
+	const isAnonAuthor = thread.authorId === 0;
 
 	return (
 		<div

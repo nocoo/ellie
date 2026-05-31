@@ -183,7 +183,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 							版块
 						</Link>
 						<span>·</span>
-						{thread.anonymousAuthor === 1 || thread.authorId === 0 ? (
+						{thread.authorId === 0 ? (
 							<span className="text-muted-foreground">匿名</span>
 						) : (
 							<Link
