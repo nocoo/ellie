@@ -18,6 +18,45 @@ import type {
 	UserPostHistoryItem,
 } from "@ellie/types";
 import { EMPTY_RATING_AGGREGATE, getCheckinLevel } from "@ellie/types";
+import { UserRole } from "@ellie/types";
+
+/**
+ * Display name shown in place of the real author for anonymous posts (Discuz
+ * convention). The same string is used by the legacy forum, so frontend
+ * snapshots / search results stay consistent across the migration boundary.
+ */
+export const ANONYMOUS_AUTHOR_NAME = "匿名";
+
+/**
+ * Viewer context for serializers that need to decide whether to unmask
+ * anonymous content. `null` represents an anonymous (logged-out) request.
+ */
+export interface ViewerContext {
+	userId: number;
+	role: number;
+}
+
+/** Staff (Mod / SuperMod / Admin) bypass anonymous masking. */
+function isStaff(viewer: ViewerContext | null | undefined): boolean {
+	if (!viewer) return false;
+	const r = viewer.role;
+	return r === UserRole.Admin || r === UserRole.SuperMod || r === UserRole.Mod;
+}
+
+/**
+ * Decide whether the viewer is allowed to see the real author of a post that
+ * was originally posted anonymously. Staff (Mod+) and the post's own author
+ * always see the real identity; everyone else (anonymous visitors and other
+ * logged-in members) sees the masked "匿名" label and authorId 0.
+ */
+export function shouldUnmaskAnonymous(
+	authorId: number,
+	viewer: ViewerContext | null | undefined,
+): boolean {
+	if (!viewer) return false;
+	if (isStaff(viewer)) return true;
+	return viewer.userId === authorId;
+}
 
 /** D1 row shape for users table */
 interface D1UserRow {
@@ -157,6 +196,12 @@ interface D1PostRow {
 	created_at: number;
 	is_first: number; // INTEGER 0/1 in D1
 	position: number;
+	/**
+	 * Anonymous posting flag (Discuz pre_forum_post.anonymous, restored by
+	 * migration 0047). 0 = normal, 1 = anonymous; non-staff/non-author viewers
+	 * see masked authorId/authorName.
+	 */
+	anonymous?: number;
 }
 
 /**
@@ -328,23 +373,34 @@ export function toThread(row: Record<string, unknown>): Thread {
  * `ratingAggregate` (docs/22 §6.3) is attached by the caller — `post.list` and
  * `post.getById` each fetch the active-row aggregate(s) in a single batch
  * query alongside the main read. Defaults to the empty zero-state so the
- * field is never absent on the wire. */
+ * field is never absent on the wire.
+ *
+ * `viewer` (optional) gates anonymous masking: when `row.anonymous === 1` and
+ * the viewer is neither staff nor the post's author, `authorId` is zeroed and
+ * `authorName` is replaced with `ANONYMOUS_AUTHOR_NAME`. The `anonymous` flag
+ * itself is always projected so the frontend can render an "匿名" badge.
+ * Callers that omit `viewer` (e.g. internal/admin paths that need the raw
+ * row) skip masking entirely. */
 export function toPost(
 	row: Record<string, unknown>,
 	ratingAggregate: PostRatingAggregate = EMPTY_RATING_AGGREGATE,
+	viewer?: ViewerContext | null,
 ): Post {
 	const r = row as unknown as D1PostRow;
+	const anonymous = r.anonymous === 1 ? 1 : 0;
+	const unmask = anonymous === 0 || shouldUnmaskAnonymous(r.author_id, viewer);
 	return {
 		id: r.id,
 		threadId: r.thread_id,
 		forumId: r.forum_id,
-		authorId: r.author_id,
-		authorName: r.author_name,
+		authorId: unmask ? r.author_id : 0,
+		authorName: unmask ? r.author_name : ANONYMOUS_AUTHOR_NAME,
 		content: r.content,
 		createdAt: r.created_at,
 		isFirst: r.is_first === 1,
 		position: r.position,
 		ratingAggregate,
+		anonymous,
 	};
 }
 
@@ -356,9 +412,12 @@ export function toPost(
  * `t.id AS thread_id_for_link`, `t.subject AS thread_subject`, etc., so the
  * raw `p.*` fields are not overwritten by `t.*` of the same name.
  */
-export function toUserPostHistoryItem(row: Record<string, unknown>): UserPostHistoryItem {
+export function toUserPostHistoryItem(
+	row: Record<string, unknown>,
+	viewer?: ViewerContext | null,
+): UserPostHistoryItem {
 	const r = row as unknown as D1PostRow & D1ThreadJoinRow;
-	const post = toPost(row);
+	const post = toPost(row, EMPTY_RATING_AGGREGATE, viewer);
 	const thread: PostThreadSummary = {
 		id: r.thread_id_for_link,
 		forumId: r.thread_forum_id,

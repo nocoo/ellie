@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+	ANONYMOUS_AUTHOR_NAME,
 	enrichForumsWithUserCache,
 	enrichThreadsWithUserCache,
 	parseModeratorIds,
+	shouldUnmaskAnonymous,
 	toAttachment,
 	toCensorWord,
 	toForum,
@@ -11,6 +13,7 @@ import {
 	toPublicUser,
 	toThread,
 	toUser,
+	toUserPostHistoryItem,
 } from "../../../src/lib/mappers";
 import type { UserMiniProfile } from "../../../src/lib/user-cache";
 
@@ -632,7 +635,7 @@ describe("D1 row mappers", () => {
 			expect(post.isFirst).toBe(false);
 		});
 
-		it("should output exactly 10 fields (incl. ratingAggregate, docs/22)", () => {
+		it("should output exactly 11 fields (incl. ratingAggregate + anonymous, docs/22 + migration 0047)", () => {
 			const row = {
 				id: 1,
 				thread_id: 0,
@@ -646,12 +649,153 @@ describe("D1 row mappers", () => {
 			};
 
 			const post = toPost(row);
-			expect(Object.keys(post)).toHaveLength(10);
+			expect(Object.keys(post)).toHaveLength(11);
 			expect(post.ratingAggregate).toEqual({
 				total: 0,
 				credits: { count: 0, sum: 0 },
 				coins: { count: 0, sum: 0 },
 			});
+			expect(post.anonymous).toBe(0);
+		});
+
+		// ─── Anonymous masking (migration 0047) ────────────────────────────
+		describe("anonymous masking", () => {
+			const anonRow = {
+				id: 9683900,
+				thread_id: 1058149,
+				forum_id: 335,
+				author_id: 340271,
+				author_name: "小牧童",
+				content: "本帖最后由 匿名 于 2013-5-1 13:09 编辑",
+				created_at: 1367326318,
+				is_first: 1,
+				position: 1,
+				anonymous: 1,
+			};
+			const visibleRow = { ...anonRow, anonymous: 0 };
+
+			it("masks author_id and author_name for anonymous viewer (no viewer)", () => {
+				const post = toPost(anonRow);
+				expect(post.authorId).toBe(0);
+				expect(post.authorName).toBe(ANONYMOUS_AUTHOR_NAME);
+				expect(post.anonymous).toBe(1);
+			});
+
+			it("masks author for a different logged-in member (UserRole.User)", () => {
+				const post = toPost(anonRow, undefined, { userId: 999, role: 0 });
+				expect(post.authorId).toBe(0);
+				expect(post.authorName).toBe(ANONYMOUS_AUTHOR_NAME);
+			});
+
+			it("unmasks for the post's own author", () => {
+				const post = toPost(anonRow, undefined, { userId: 340271, role: 0 });
+				expect(post.authorId).toBe(340271);
+				expect(post.authorName).toBe("小牧童");
+				expect(post.anonymous).toBe(1);
+			});
+
+			it("unmasks for Mod (role=3)", () => {
+				const post = toPost(anonRow, undefined, { userId: 999, role: 3 });
+				expect(post.authorId).toBe(340271);
+				expect(post.authorName).toBe("小牧童");
+			});
+
+			it("unmasks for SuperMod (role=2)", () => {
+				const post = toPost(anonRow, undefined, { userId: 999, role: 2 });
+				expect(post.authorId).toBe(340271);
+				expect(post.authorName).toBe("小牧童");
+			});
+
+			it("unmasks for Admin (role=1)", () => {
+				const post = toPost(anonRow, undefined, { userId: 999, role: 1 });
+				expect(post.authorId).toBe(340271);
+				expect(post.authorName).toBe("小牧童");
+			});
+
+			it("does not mask non-anonymous posts even for anonymous viewers", () => {
+				const post = toPost(visibleRow);
+				expect(post.authorId).toBe(340271);
+				expect(post.authorName).toBe("小牧童");
+				expect(post.anonymous).toBe(0);
+			});
+
+			it("treats missing anonymous column as 0 (legacy/admin queries)", () => {
+				const row = { ...anonRow, anonymous: undefined };
+				const post = toPost(row);
+				expect(post.anonymous).toBe(0);
+				expect(post.authorId).toBe(340271);
+				expect(post.authorName).toBe("小牧童");
+			});
+
+			it("normalizes truthy-but-non-1 anonymous values to 0", () => {
+				// Defensive: D1 returns INTEGER, but mappers must guard against
+				// stray strings so the `=== 1` short-circuit in the unmask
+				// branch stays watertight. 2 should not trigger masking.
+				const row = { ...anonRow, anonymous: 2 };
+				const post = toPost(row);
+				expect(post.anonymous).toBe(0);
+				expect(post.authorId).toBe(340271);
+			});
+		});
+	});
+
+	describe("shouldUnmaskAnonymous", () => {
+		it("returns false for null viewer", () => {
+			expect(shouldUnmaskAnonymous(100, null)).toBe(false);
+		});
+		it("returns false for undefined viewer", () => {
+			expect(shouldUnmaskAnonymous(100, undefined)).toBe(false);
+		});
+		it("returns true for staff Mod", () => {
+			expect(shouldUnmaskAnonymous(100, { userId: 999, role: 3 })).toBe(true);
+		});
+		it("returns true for the post's own author", () => {
+			expect(shouldUnmaskAnonymous(100, { userId: 100, role: 0 })).toBe(true);
+		});
+		it("returns false for an unrelated logged-in user", () => {
+			expect(shouldUnmaskAnonymous(100, { userId: 999, role: 0 })).toBe(false);
+		});
+	});
+
+	describe("toUserPostHistoryItem", () => {
+		const row = {
+			id: 9684572,
+			thread_id: 1058149,
+			forum_id: 335,
+			author_id: 340271,
+			author_name: "小牧童",
+			content: "Reply body",
+			created_at: 1367400000,
+			is_first: 0,
+			position: 5,
+			anonymous: 1,
+			thread_id_for_link: 1058149,
+			thread_forum_id: 335,
+			thread_subject: "日本风俗店体验",
+			thread_replies: 30,
+			thread_views: 5000,
+			thread_created_at: 1367326318,
+			thread_last_post_at: 1367500000,
+			thread_closed: 0,
+			thread_sticky: 0,
+			thread_digest: 0,
+			thread_special: 0,
+			thread_highlight: 0,
+			thread_type_name: "",
+		};
+
+		it("masks the post author for an anonymous viewer", () => {
+			const item = toUserPostHistoryItem(row);
+			expect(item.post.authorId).toBe(0);
+			expect(item.post.authorName).toBe(ANONYMOUS_AUTHOR_NAME);
+			expect(item.post.anonymous).toBe(1);
+			expect(item.thread.subject).toBe("日本风俗店体验");
+		});
+
+		it("unmasks for staff", () => {
+			const item = toUserPostHistoryItem(row, { userId: 999, role: 3 });
+			expect(item.post.authorId).toBe(340271);
+			expect(item.post.authorName).toBe("小牧童");
 		});
 	});
 

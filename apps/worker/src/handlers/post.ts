@@ -151,10 +151,11 @@ export async function list(request: Request, env: Env): Promise<Response> {
 	// is fetched in a single GROUP BY (docs/22 §6.3) so we avoid N+1.
 	const postIds = result.results.map((row) => (row as { id: number }).id);
 	const aggregates = await loadAggregatesForPosts(env, postIds);
+	const viewer = user ? { userId: user.userId, role: user.role } : null;
 	const posts = result.results.map((row) => {
 		const r = row as Record<string, unknown>;
 		const agg = aggregates.get(r.id as number) ?? EMPTY_RATING_AGGREGATE;
-		return toPost(r, agg);
+		return toPost(r, agg, viewer);
 	});
 
 	// Generate next cursor from raw D1 row (position is same in both)
@@ -246,7 +247,8 @@ export async function getById(request: Request, env: Env): Promise<Response> {
 	}
 
 	const aggregate = await loadAggregateForPost(env, id);
-	return jsonResponse(toPost(postRow, aggregate), origin);
+	const viewer = user ? { userId: user.userId, role: user.role } : null;
+	return jsonResponse(toPost(postRow, aggregate, viewer), origin);
 }
 
 /** POST /api/v1/posts - Reply to a thread (requires auth) */
@@ -383,5 +385,13 @@ export const create = withVerifiedEmail(async (request, env, user) => {
 		),
 	]);
 
-	return jsonResponse(toPost(createdPost as Record<string, unknown>), origin, undefined, 201);
+	return jsonResponse(
+		toPost(createdPost as Record<string, unknown>, EMPTY_RATING_AGGREGATE, {
+			userId: user.userId,
+			role: user.role,
+		}),
+		origin,
+		undefined,
+		201,
+	);
 });

@@ -475,6 +475,14 @@ export interface Post {
 	 * to null-check this field.
 	 */
 	ratingAggregate: PostRatingAggregate;
+	/**
+	 * Anonymous posting flag — Discuz `pre_forum_post.anonymous`. 1 means the
+	 * author chose to post anonymously; the API serializer hides authorId /
+	 * authorName from non-staff, non-author viewers. The flag itself is always
+	 * surfaced so the frontend can render an "匿名" badge and avoid linking
+	 * to a user profile.
+	 */
+	anonymous?: number;
 }
 
 /**

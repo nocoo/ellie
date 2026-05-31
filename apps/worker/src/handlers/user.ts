@@ -68,7 +68,7 @@ async function runUserHistoryQuery<T>(
 	env: Env,
 	opts: {
 		buildQuery: (forumFilter: string, withCursor: boolean) => string;
-		mapper: (row: Record<string, unknown>) => T;
+		mapper: (row: Record<string, unknown>, viewer: { userId: number; role: number } | null) => T;
 		/**
 		 * Extract the keyset cursor from a mapped item. Default: read top-level
 		 * `createdAt` + `id`. Composite items (e.g. `{ post, thread }`) must
@@ -88,6 +88,7 @@ async function runUserHistoryQuery<T>(
 	const user = await optionalAuthVerified(request, env);
 	const visCtx = buildVisibilityContext(user);
 	const forumFilter = buildForumFilter(visCtx);
+	const viewer = user ? { userId: user.userId, role: user.role } : null;
 
 	const clampedLimit = clampLimit(url.searchParams.get("limit"), {
 		defaultLimit: DEFAULT_HISTORY_LIMIT,
@@ -107,7 +108,7 @@ async function runUserHistoryQuery<T>(
 
 	const items: T[] = new Array(result.results.length);
 	for (let i = 0; i < result.results.length; i++) {
-		items[i] = opts.mapper(result.results[i] as Record<string, unknown>);
+		items[i] = opts.mapper(result.results[i] as Record<string, unknown>, viewer);
 	}
 
 	const cursorOf =
@@ -286,7 +287,7 @@ export async function listThreads(request: Request, env: Env): Promise<Response>
  */
 export async function listPosts(request: Request, env: Env): Promise<Response> {
 	const postColumns =
-		"p.id, p.thread_id, p.forum_id, p.author_id, p.author_name, p.content, p.created_at, p.is_first, p.position";
+		"p.id, p.thread_id, p.forum_id, p.author_id, p.author_name, p.content, p.created_at, p.is_first, p.position, p.anonymous";
 	const threadColumns =
 		"t.id AS thread_id_for_link, t.forum_id AS thread_forum_id, t.subject AS thread_subject, t.replies AS thread_replies, t.views AS thread_views, t.created_at AS thread_created_at, t.last_post_at AS thread_last_post_at, t.closed AS thread_closed, t.sticky AS thread_sticky, t.digest AS thread_digest, t.special AS thread_special, t.highlight AS thread_highlight, t.type_name AS thread_type_name";
 	const selectColumns = `${postColumns}, ${threadColumns}`;
@@ -304,7 +305,7 @@ export async function listPosts(request: Request, env: Env): Promise<Response> {
 				   INNER JOIN forums f ON t.forum_id = f.id
 				   WHERE p.author_id = ? AND p.is_first = 0 AND ${postVisible("p")} AND ${threadVisible("t")} AND ${forumFilter}
 				   ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
-		mapper: (row) => toUserPostHistoryItem(row),
+		mapper: (row, viewer) => toUserPostHistoryItem(row, viewer),
 		// Cursor must follow the leading table (posts), not the joined thread.
 		cursorOf: (item) => ({ createdAt: item.post.createdAt, id: item.post.id }),
 	});
