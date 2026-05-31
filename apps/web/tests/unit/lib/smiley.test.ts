@@ -219,6 +219,38 @@ describe("replaceSmileyCodesWithImages", () => {
 		expect(result).toBe(`<img src="${CDN}/default/eh.gif" alt=":eh:" class="smiley" />`);
 	});
 
+	// Historical Discuz form `:name.gif:` (5,398 D1 hits for :angry.gif:, never
+	// tokenized to :angry:). The optional .gif suffix is stripped before the
+	// whitelist gate, so the alt attribute preserves the original token.
+
+	test("replaces :angry.gif: (legacy Discuz form) with default/angry.gif img", () => {
+		const result = replaceSmileyCodesWithImages(":angry.gif:");
+		expect(result).toBe(`<img src="${CDN}/default/angry.gif" alt=":angry.gif:" class="smiley" />`);
+	});
+
+	test("renders thread 725604 fragment with :angry.gif: mixed in", () => {
+		// Reduced from D1 thread_id=725604, posted 2010-04-03 23:01:32.
+		const input = ":ico29: :w00t: :angry.gif: :crazy: :eh:";
+		const result = replaceSmileyCodesWithImages(input);
+		expect(result).toBe(
+			`<img src="${CDN}/default/ico29.gif" alt=":ico29:" class="smiley" /> ` +
+				`<img src="${CDN}/default/w00t.gif" alt=":w00t:" class="smiley" /> ` +
+				`<img src="${CDN}/default/angry.gif" alt=":angry.gif:" class="smiley" /> ` +
+				`<img src="${CDN}/default/crazy.gif" alt=":crazy:" class="smiley" /> ` +
+				`<img src="${CDN}/default/eh.gif" alt=":eh:" class="smiley" />`,
+		);
+	});
+
+	test("leaves :angry_smile.gif: unchanged (.gif must not bypass whitelist)", () => {
+		// `angry_smile` is not on the curated whitelist (0 D1 hits, never on
+		// the prior runtime whitelist). The .gif suffix must not smuggle it in.
+		expect(replaceSmileyCodesWithImages(":angry_smile.gif:")).toBe(":angry_smile.gif:");
+	});
+
+	test("leaves :foo.gif: unchanged (whitelist still gates names)", () => {
+		expect(replaceSmileyCodesWithImages(":foo.gif:")).toBe(":foo.gif:");
+	});
+
 	test("replaces the longest whitelist entry :whatchutalkingabout_smile:", () => {
 		const result = replaceSmileyCodesWithImages(":whatchutalkingabout_smile:");
 		expect(result).toBe(

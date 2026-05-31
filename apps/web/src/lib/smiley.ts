@@ -202,7 +202,12 @@ const RE_NUMBERED = /(?<!\{):(\d{1,2}):(?!\})/g;
 // `whatchutalkingabout_smile` (25 chars) with headroom; still bounded to
 // keep the regex linear-time. Closed whitelist below the regex is the real
 // gate — the regex is just a cheap pre-filter.
-const RE_NAMED = /(?<!\{):([a-z][a-z0-9_]{0,29}):(?!\})/g;
+//
+// The optional `.gif` suffix matches the historical Discuz form
+// `:angry.gif:` (5,398 D1 hits — never tokenized to `:angry:`). The
+// suffix is captured separately and stripped before the whitelist
+// lookup, so an extension cannot smuggle in a non-whitelisted name.
+const RE_NAMED = /(?<!\{):([a-z][a-z0-9_]{0,29})(?:\.gif)?:(?!\})/g;
 
 // ---------------------------------------------------------------------------
 // Numbered smiley validation (1.gif to 16.gif in default directory)
