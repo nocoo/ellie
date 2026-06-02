@@ -47,10 +47,13 @@ function getTitleStyle(highlight: number): CSSProperties | undefined {
 export function DigestCard({ thread, badges }: DigestCardProps) {
 	const borderClass = getDigestBorderClass(thread.digest);
 	const titleStyle = getTitleStyle(thread.highlight);
-	// Anonymous: worker zeros authorId for non-staff/non-self viewers when
-	// threads.anonymous_author=1. Gate on authorId so staff/self (which
-	// the worker unmasks) still get the real profile link.
-	const isAnonAuthor = thread.authorId === 0;
+	// Three branches, mutually exclusive:
+	//   isAnonAuthor   — anonymous=1 + authorId=0  → "匿名"
+	//   isOrphanAuthor — anonymous=0 + authorId=0  → "未知用户" (placeholder/
+	//                    tombstoned author; no /users/0 link, no popover)
+	//   default        — real authorId>0 → normal profile link
+	const isAnonAuthor = thread.anonymousAuthor === 1 && thread.authorId === 0;
+	const isOrphanAuthor = !isAnonAuthor && thread.authorId === 0;
 
 	return (
 		<div
@@ -60,9 +63,14 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 			<div className="hidden sm:flex items-center">
 				{/* Column 1: Avatar + Title (flex) */}
 				<div className="min-w-0 flex-1 flex items-center gap-3 py-2 px-3">
-					{isAnonAuthor ? (
+					{isAnonAuthor || isOrphanAuthor ? (
 						<div className="shrink-0">
-							<ForumAvatar userId={0} userName="匿名" avatarPath="" shadow />
+							<ForumAvatar
+								userId={0}
+								userName={isAnonAuthor ? "匿名" : "未知用户"}
+								avatarPath=""
+								shadow
+							/>
 						</div>
 					) : (
 						<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0">
@@ -94,6 +102,10 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 					{isAnonAuthor ? (
 						<span className="text-xs text-muted-foreground font-medium truncate max-w-full">
 							匿名
+						</span>
+					) : isOrphanAuthor ? (
+						<span className="text-xs text-muted-foreground font-medium truncate max-w-full">
+							未知用户
 						</span>
 					) : (
 						<UserPopover userId={thread.authorId}>
@@ -128,9 +140,9 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 			<div className="sm:hidden px-3 py-2">
 				{/* Row 1: Avatar + badges + subject */}
 				<div className="flex items-center gap-2">
-					{isAnonAuthor ? (
+					{isAnonAuthor || isOrphanAuthor ? (
 						<div className="shrink-0">
-							<ForumAvatar userId={0} userName="匿名" avatarPath="" />
+							<ForumAvatar userId={0} userName={isAnonAuthor ? "匿名" : "未知用户"} avatarPath="" />
 						</div>
 					) : (
 						<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0">
@@ -159,6 +171,8 @@ export function DigestCard({ thread, badges }: DigestCardProps) {
 				<div className="mt-1 ml-8 flex items-center gap-1.5 text-xs text-muted-foreground">
 					{isAnonAuthor ? (
 						<span className="text-muted-foreground">匿名</span>
+					) : isOrphanAuthor ? (
+						<span className="text-muted-foreground">未知用户</span>
 					) : (
 						<UserPopover userId={thread.authorId}>
 							<span className="text-foreground hover:text-primary cursor-pointer">

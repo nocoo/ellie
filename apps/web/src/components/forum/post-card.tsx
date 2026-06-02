@@ -201,11 +201,20 @@ export function PostCard({
 				 * Anonymous masking signal: the Worker zeros authorId/authorName
 				 * when the viewer is neither staff nor the post's own author.
 				 * Staff/self see the real authorId — they MUST see the real
-				 * sidebar, so we gate on `post.authorId === 0` (the mask itself)
-				 * rather than `post.anonymous === 1` (just the badge / decoration
-				 * signal which is true for everyone including staff).
+				 * sidebar, so we gate on `post.authorId === 0` (the mask itself).
+				 *
+				 * Distinguish two zero-author cases for the sidebar:
+				 *   - anonymous=1 + authorId=0  → "匿名" (intentional)
+				 *   - anonymous=0 + authorId=0  → "未知用户" (tombstoned author,
+				 *     UserStatus.Placeholder etc.) — different copy, no profile link
+				 *
+				 * `post.anonymous === 1` alone is not enough: staff/self see the
+				 * real authorId AND anonymous=1, and they must NOT be hidden.
 				 */}
-				<PostSidebar author={post.author} isAnonymous={post.authorId === 0} />
+				<PostSidebar
+					author={post.author}
+					isAnonymous={post.authorId === 0 && post.anonymous === 1}
+				/>
 				<div className="flex-1 min-w-0 flex flex-col">
 					<PostContent
 						post={post}
@@ -223,7 +232,7 @@ export function PostCard({
 			<div className="md:hidden">
 				{/* Compact header row */}
 				<div className="flex items-center gap-2 px-3 pt-3 pb-2 border-b border-dashed border-border">
-					{post.authorId === 0 ? (
+					{post.authorId === 0 && post.anonymous === 1 ? (
 						<Avatar className="h-8 w-8 rounded-sm shadow-[0_0_2px_rgba(0,0,0,0.15)] dark:shadow-[0_0_2px_rgba(255,255,255,0.10)]">
 							<AvatarFallback className="text-xs rounded-sm bg-muted p-0 overflow-hidden">
 								<img
@@ -255,7 +264,7 @@ export function PostCard({
 						</Avatar>
 					)}
 					<div className="flex flex-col min-w-0">
-						{post.authorId === 0 ? (
+						{post.authorId === 0 && post.anonymous === 1 ? (
 							<span
 								className="text-xs font-medium text-muted-foreground truncate"
 								data-testid="post-card-mobile-author"

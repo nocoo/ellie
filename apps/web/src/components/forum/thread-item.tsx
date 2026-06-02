@@ -67,12 +67,16 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 	const threadHref = returnTo
 		? `/threads/${thread.id}?returnTo=${encodeURIComponent(returnTo)}`
 		: `/threads/${thread.id}`;
-	// Anonymous-aware author rendering. The worker zeros authorId for
-	// non-staff/non-self viewers when threads.anonymous_author=1; staff/self
-	// see the real authorId. Gate on `authorId === 0` (the mask itself)
-	// rather than `anonymousAuthor === 1` (always-on badge signal) so
-	// staff/self land on the real user profile.
-	const isAnonAuthor = thread.authorId === 0;
+	// Three author-render branches, mutually exclusive:
+	//   isAnonAuthor   — anonymous=1 + authorId=0 (intentional anonymous;
+	//                    render "匿名"). Worker unmasks for staff/self so
+	//                    they end up with authorId>0 and skip this branch.
+	//   isOrphanAuthor — anonymous=0 + authorId=0 (placeholder/tombstoned
+	//                    user). No /users/0 link, but copy is "未知用户"
+	//                    not "匿名" — semantically distinct.
+	//   default        — real authorId>0, normal profile link + popover.
+	const isAnonAuthor = thread.anonymousAuthor === 1 && thread.authorId === 0;
+	const isOrphanAuthor = !isAnonAuthor && thread.authorId === 0;
 
 	return (
 		<div
@@ -87,9 +91,14 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 				</div>
 
 				{/* Avatar column (between icon and subject) */}
-				{isAnonAuthor ? (
+				{isAnonAuthor || isOrphanAuthor ? (
 					<div className="shrink-0 pl-1">
-						<ForumAvatar userId={0} userName="匿名" avatarPath="" shadow />
+						<ForumAvatar
+							userId={0}
+							userName={isAnonAuthor ? "匿名" : "未知用户"}
+							avatarPath=""
+							shadow
+						/>
 					</div>
 				) : (
 					<Link href={`/users/${thread.authorId}`} prefetch={false} className="shrink-0 pl-1">
@@ -134,6 +143,10 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 					{isAnonAuthor ? (
 						<span className="block text-xs text-muted-foreground font-medium truncate max-w-full">
 							匿名
+						</span>
+					) : isOrphanAuthor ? (
+						<span className="block text-xs text-muted-foreground font-medium truncate max-w-full">
+							未知用户
 						</span>
 					) : (
 						<UserPopover userId={thread.authorId}>
@@ -208,9 +221,14 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 				    (msg 8b90cb85). Avatar lives here (left of the username)
 				    per reviewer freeze msg=5a91dfd3. */}
 				<div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-					{isAnonAuthor ? (
+					{isAnonAuthor || isOrphanAuthor ? (
 						<div className="shrink-0" data-testid="thread-item-mobile-avatar-link">
-							<ForumAvatar userId={0} userName="匿名" avatarPath="" size="xs" />
+							<ForumAvatar
+								userId={0}
+								userName={isAnonAuthor ? "匿名" : "未知用户"}
+								avatarPath=""
+								size="xs"
+							/>
 						</div>
 					) : (
 						<Link
@@ -230,6 +248,8 @@ export function ThreadItem({ item, postsPerPage, returnTo }: ThreadItemProps) {
 					<span className="min-w-0 truncate">
 						{isAnonAuthor ? (
 							<span className="block truncate text-muted-foreground">匿名</span>
+						) : isOrphanAuthor ? (
+							<span className="block truncate text-muted-foreground">未知用户</span>
 						) : (
 							<UserPopover userId={thread.authorId}>
 								<span className="block truncate text-foreground hover:text-primary cursor-pointer">

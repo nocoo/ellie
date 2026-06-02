@@ -282,3 +282,54 @@ describe("ThreadItem — iPhone mobile-trim contract", () => {
 		expect(screen.queryByTestId("thread-row-stats-mobile")).toBeNull();
 	});
 });
+
+// ─── Anonymous masking vs orphan author (P3 — review feedback) ────────────────
+// Three mutually-exclusive cases:
+//   1. anonymous=1 + authorId=0 → render "匿名"
+//   2. anonymous=0 + authorId=0 → render "未知用户" (placeholder/tombstoned)
+//   3. authorId>0                → render real author + profile link
+// Staff/self viewers have authorId>0 (worker unmasks for them) and hit case 3
+// even when anonymousAuthor=1 — verified separately via worker tests.
+describe("ThreadItem — anonymous vs orphan author (P3)", () => {
+	it("anonymous=1 + authorId=0 renders '匿名' with no profile link", () => {
+		const item = makeDisplayItem({
+			authorId: 0,
+			authorName: "匿名",
+			anonymousAuthor: 1,
+		});
+		render(createElement(ThreadItem, { item, postsPerPage: 15 }));
+		// Both desktop and mobile views render — assert the shared label.
+		expect(screen.getAllByText("匿名").length).toBeGreaterThan(0);
+		expect(screen.queryByText("未知用户")).toBeNull();
+		// No /users/0 link must appear — profile would be broken.
+		const links = screen.queryAllByRole("link");
+		expect(links.every((l) => l.getAttribute("href") !== "/users/0")).toBe(true);
+	});
+
+	it("anonymous=0 + authorId=0 renders '未知用户' (placeholder/tombstoned)", () => {
+		const item = makeDisplayItem({
+			authorId: 0,
+			authorName: "[已删除]",
+			anonymousAuthor: 0,
+		});
+		render(createElement(ThreadItem, { item, postsPerPage: 15 }));
+		expect(screen.getAllByText("未知用户").length).toBeGreaterThan(0);
+		expect(screen.queryByText("匿名")).toBeNull();
+		const links = screen.queryAllByRole("link");
+		expect(links.every((l) => l.getAttribute("href") !== "/users/0")).toBe(true);
+	});
+
+	it("authorId>0 always renders the real author with a profile link (even with anonymous=1, e.g. staff/self view)", () => {
+		const item = makeDisplayItem({
+			authorId: 340271,
+			authorName: "小牧童",
+			anonymousAuthor: 1, // staff sees the real author despite the badge flag
+		});
+		render(createElement(ThreadItem, { item, postsPerPage: 15 }));
+		expect(screen.getAllByText("小牧童").length).toBeGreaterThan(0);
+		expect(screen.queryByText("匿名")).toBeNull();
+		expect(screen.queryByText("未知用户")).toBeNull();
+		const links = screen.queryAllByRole("link");
+		expect(links.some((l) => l.getAttribute("href") === "/users/340271")).toBe(true);
+	});
+});
