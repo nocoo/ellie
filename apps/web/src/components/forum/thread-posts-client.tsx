@@ -11,6 +11,21 @@ import { formatDateTime } from "@/viewmodels/shared/formatting";
 import type { Thread, UserRole } from "@ellie/types";
 import { useCallback, useEffect, useState } from "react";
 
+/**
+ * Author label for the quoted-reply preview.
+ *
+ * Three cases, matching the post-card / thread-item branching:
+ *   - anonymous=1 + authorId=0 → "匿名" (intentional)
+ *   - missing/tombstoned author → "未知用户" (do not rewrite history)
+ *   - real author present       → username
+ *
+ * Exported for unit testing — pure function, no React deps.
+ */
+export function quoteAuthorLabel(post: EnrichedPost): string {
+	if (post.authorId === 0 && post.anonymous === 1) return "匿名";
+	return post.author?.username ?? "未知用户";
+}
+
 interface ThreadPostsClientProps {
 	thread: Thread;
 	posts: EnrichedPost[];
@@ -80,7 +95,7 @@ export function ThreadPostsClient({
 				const timeStr = formatDateTime(post.createdAt);
 				setQuotedPost({
 					content: snippet,
-					author: post.author?.username ?? "匿名",
+					author: quoteAuthorLabel(post),
 					time: timeStr,
 				});
 			} else {

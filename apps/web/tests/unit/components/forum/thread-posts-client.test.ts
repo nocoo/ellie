@@ -198,3 +198,58 @@ describe("ThreadPostsClient", () => {
 		expect(lastCall.actionType).toBe("none");
 	});
 });
+
+// ─── quoteAuthorLabel — three-way author rendering (P3) ───────────────────────
+import { quoteAuthorLabel } from "@/components/forum/thread-posts-client";
+
+describe("quoteAuthorLabel", () => {
+	function makePost(overrides: Record<string, unknown> = {}): any {
+		return {
+			id: 1,
+			threadId: 10,
+			forumId: 1,
+			authorId: 100,
+			authorName: "alice",
+			content: "",
+			createdAt: 0,
+			isFirst: false,
+			position: 1,
+			ratingAggregate: { total: 0, credits: { count: 0, sum: 0 }, coins: { count: 0, sum: 0 } },
+			author: { id: 100, username: "alice" },
+			anonymous: 0,
+			attachments: [],
+			...overrides,
+		};
+	}
+
+	it("returns '匿名' only for anonymous=1 + authorId=0", () => {
+		expect(quoteAuthorLabel(makePost({ authorId: 0, anonymous: 1, author: null }))).toBe("匿名");
+	});
+
+	it("returns '未知用户' for authorId=0 without anonymous flag (tombstoned/placeholder)", () => {
+		expect(quoteAuthorLabel(makePost({ authorId: 0, anonymous: 0, author: null }))).toBe(
+			"未知用户",
+		);
+	});
+
+	it("returns '未知用户' when the author lookup failed for a real authorId", () => {
+		// e.g. enrichPosts couldn't resolve the user (network / FK fan-out gap)
+		expect(quoteAuthorLabel(makePost({ authorId: 100, author: null }))).toBe("未知用户");
+	});
+
+	it("returns the real username when the author is populated", () => {
+		expect(
+			quoteAuthorLabel(makePost({ authorId: 100, author: { id: 100, username: "alice" } })),
+		).toBe("alice");
+	});
+
+	it("staff/self viewing an anonymous post (worker unmasked authorId>0) sees the real username", () => {
+		// Worker decoded the anonymous post for staff/self → authorId>0,
+		// anonymous=1 stays as a badge signal but the label must NOT be 匿名.
+		expect(
+			quoteAuthorLabel(
+				makePost({ authorId: 340271, anonymous: 1, author: { id: 340271, username: "小牧童" } }),
+			),
+		).toBe("小牧童");
+	});
+});
