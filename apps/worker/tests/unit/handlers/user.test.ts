@@ -8,7 +8,7 @@ import {
 	search,
 } from "../../../src/handlers/user";
 import type { Env } from "../../../src/lib/env";
-import { createMockKV } from "../../helpers";
+import { createJwtForRole, createMockKV, makeEnv as makeFullEnv } from "../../helpers";
 
 describe("user handlers", () => {
 	const mockEnv: Env = {
@@ -1008,6 +1008,103 @@ describe("user handlers", () => {
 			await search(new Request("https://example.com/api/v1/users/search?q=test&limit=5"), env);
 
 			expect(bindSpy.mock.calls[0][1]).toBe(5);
+		});
+	});
+
+	// ─── Anonymous mapper viewer-passing (P2 — review feedback) ────────────
+	// listThreads / listDigest must pass `viewer` to toThread so staff/self
+	// see the real author of anonymous threads in /users/:id/{threads,digest}.
+	// Without it the mapper defaulted to viewer=null and masked everyone.
+	describe("listThreads / listDigest — passes viewer to toThread", () => {
+		// Build a per-test env that handles BOTH the user-status verification
+		// query (auth middleware) and the listThreads/listDigest query.
+		function makeViewerEnv(opts: {
+			viewerId: number;
+			viewerRole: number;
+			rows: Record<string, unknown>[];
+		}): Env {
+			const prepareSpy = vi.fn((sql: string) => ({
+				bind: vi.fn(() => ({
+					all: vi.fn(() => Promise.resolve({ results: opts.rows })),
+					first: vi.fn(() => {
+						// optionalAuthVerified probes (role, status); return active.
+						if (sql.includes("SELECT role, status FROM users")) {
+							return Promise.resolve({ role: opts.viewerRole, status: 0 });
+						}
+						return Promise.resolve(null);
+					}),
+				})),
+			}));
+			return makeFullEnv({ DB: { prepare: prepareSpy } as unknown as D1Database });
+		}
+
+		const anonRow = {
+			id: 1058149,
+			forum_id: 335,
+			author_id: 340271,
+			author_name: "小牧童",
+			subject: "日本风俗店体验",
+			created_at: 1367326318,
+			last_post_at: 1370000000,
+			last_poster: "batlet",
+			last_poster_id: 445134,
+			replies: 30,
+			views: 5000,
+			closed: 0,
+			sticky: 0,
+			digest: 1,
+			special: 0,
+			highlight: 0,
+			recommends: 0,
+			type_name: "",
+			anonymous_author: 1,
+			anonymous_last_poster: 0,
+		};
+
+		it("listThreads: profile-owner viewing own anonymous thread sees the real author", async () => {
+			const env = makeViewerEnv({ viewerId: 340271, viewerRole: 0, rows: [anonRow] });
+			const token = await createJwtForRole(0, 340271);
+			const response = await listThreads(
+				new Request("https://example.com/api/v1/users/340271/threads", {
+					headers: { Authorization: `Bearer ${token}` },
+				}),
+				env,
+			);
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.data[0].authorId).toBe(340271);
+			expect(data.data[0].authorName).toBe("小牧童");
+			expect(data.data[0].anonymousAuthor).toBe(1);
+		});
+
+		it("listThreads: staff (Mod) viewing anonymous thread sees the real author", async () => {
+			const env = makeViewerEnv({ viewerId: 999, viewerRole: 3, rows: [anonRow] });
+			const token = await createJwtForRole(3, 999);
+			const response = await listThreads(
+				new Request("https://example.com/api/v1/users/340271/threads", {
+					headers: { Authorization: `Bearer ${token}` },
+				}),
+				env,
+			);
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.data[0].authorId).toBe(340271);
+			expect(data.data[0].authorName).toBe("小牧童");
+		});
+
+		it("listDigest: staff sees the real author of an anonymous digest thread", async () => {
+			const env = makeViewerEnv({ viewerId: 999, viewerRole: 1, rows: [anonRow] });
+			const token = await createJwtForRole(1, 999);
+			const response = await listDigest(
+				new Request("https://example.com/api/v1/users/340271/digest", {
+					headers: { Authorization: `Bearer ${token}` },
+				}),
+				env,
+			);
+			expect(response.status).toBe(200);
+			const data = await response.json();
+			expect(data.data[0].authorId).toBe(340271);
+			expect(data.data[0].authorName).toBe("小牧童");
 		});
 	});
 });

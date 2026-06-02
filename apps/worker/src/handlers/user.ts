@@ -306,7 +306,7 @@ export async function listThreads(request: Request, env: Env): Promise<Response>
 				   WHERE t.author_id = ? AND ${anonFilter} AND ${threadVisible("t")} AND ${forumFilter}
 				   ORDER BY t.created_at DESC, t.id DESC LIMIT ?`;
 		},
-		mapper: (row) => toThread(row),
+		mapper: (row, viewer) => toThread(row, viewer),
 	});
 }
 
@@ -374,7 +374,7 @@ export async function listDigest(request: Request, env: Env): Promise<Response> 
 				   WHERE t.author_id = ? AND t.digest > 0 AND ${anonFilter} AND ${threadVisible("t")} AND ${forumFilter}
 				   ORDER BY t.created_at DESC, t.id DESC LIMIT ?`;
 		},
-		mapper: (row) => toThread(row),
+		mapper: (row, viewer) => toThread(row, viewer),
 	});
 }
 
