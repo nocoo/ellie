@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.7] - 2026-06-02
+
+### Fixed
+
+- **Anonymous post restoration**: Discuz `pre_forum_post.anonymous` was dropped during migration, exposing 8,474 originally-anonymous posts (912 threads). Restored end-to-end:
+  - Migrations 0047–0050: add `posts.anonymous`, `threads.anonymous_author`, `threads.anonymous_last_poster`, ship 8,474 backfill UPDATEs, and re-mirror thread denorms.
+  - Worker masking via `toPost(viewer)` / `toThread(viewer)` — staff and the post's own author see the real identity; everyone else sees `匿名` with `authorId=0`. Surfaces covered: thread detail, forum index, thread/digest list, search, recommended cards, forum last-poster, user history (`/users/:id/threads|posts|digest`).
+  - `/users/:id/{threads,posts,digest}` now also filters anonymous content out of the listing entirely (URL itself implies ownership). Staff / profile owner exempt.
+  - Post-rating refuses both `author_id=0` and `anonymous=1` to keep the anonymous social contract; rating button hidden in the UI to match.
+  - Admin statistics recalc now reads `posts.anonymous` and writes `threads.anonymous_last_poster`; without this, every admin recalc silently re-leaked the original last-poster.
+  - Thread/forum cache validators reject pre-mask payloads via `anonAware` build stamp; thread:list:v2 validator requires `anonymousAuthor` on items.
+- **Web rendering**: anonymous-post avatar/sidebar/header/list/digest/quoted-reply all branch three ways:
+  - `anonymous=1 && authorId=0` → `匿名` (no profile link)
+  - `authorId=0` alone (tombstoned/placeholder) → `未知用户` (also no link, distinct copy)
+  - `authorId>0` → real profile + popover (covers staff/self after worker unmask)
+
+### Added
+
+- `packages/migrate` POST_LOAD_DDL infra: fresh imports re-derive `threads.anonymous_*` from `posts.anonymous` after rows land and indexes are built (correlated-subquery would otherwise full-scan posts).
+- `packages/migrate` extractor + loader: `posts.anonymous` propagates through `extractPost()` and `TABLE_COLUMNS.posts`, so re-imports preserve the flag.
+- 33 worker tests, 8 web tests, 3 migrate tests covering masking, history filter, post-rating refusal, recalc propagation, and the three-way author rendering.
+
 ## [1.6.6] - 2026-05-30
 
 ### Fixed

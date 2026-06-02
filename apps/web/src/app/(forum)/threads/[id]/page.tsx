@@ -50,6 +50,27 @@ export async function generateMetadata({ params }: ThreadDetailPageProps): Promi
 	}
 }
 
+/** Thread-detail header author label — three-way branching kept out of the
+ * page component itself so the page stays under the cognitive-complexity
+ * ceiling. Same contract as post-card / thread-item / digest-card. */
+function ThreadHeaderAuthor({
+	thread,
+}: {
+	thread: { authorId: number; authorName: string; anonymousAuthor?: number };
+}) {
+	if (thread.anonymousAuthor === 1 && thread.authorId === 0) {
+		return <span className="text-muted-foreground">匿名</span>;
+	}
+	if (thread.authorId === 0) {
+		return <span className="text-muted-foreground">未知用户</span>;
+	}
+	return (
+		<Link href={`/users/${thread.authorId}`} className="hover:text-primary transition-colors">
+			{thread.authorName}
+		</Link>
+	);
+}
+
 export default async function ThreadDetailPage({ params, searchParams }: ThreadDetailPageProps) {
 	const { id } = await params;
 	const sp = await searchParams;
@@ -183,18 +204,7 @@ export default async function ThreadDetailPage({ params, searchParams }: ThreadD
 							版块
 						</Link>
 						<span>·</span>
-						{thread.anonymousAuthor === 1 && thread.authorId === 0 ? (
-							<span className="text-muted-foreground">匿名</span>
-						) : thread.authorId === 0 ? (
-							<span className="text-muted-foreground">未知用户</span>
-						) : (
-							<Link
-								href={`/users/${thread.authorId}`}
-								className="hover:text-primary transition-colors"
-							>
-								{thread.authorName}
-							</Link>
-						)}
+						<ThreadHeaderAuthor thread={thread} />
 						<span>·</span>
 						<span>{formatRelativeTime(thread.createdAt)}</span>
 					</div>

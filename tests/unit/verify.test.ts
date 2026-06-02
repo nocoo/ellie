@@ -137,6 +137,7 @@ function createTestDb(): BatchLoader {
 			is_first: 1,
 			position: 1,
 			invisible: 0,
+			anonymous: 0,
 		},
 		{
 			id: 2,
@@ -149,6 +150,7 @@ function createTestDb(): BatchLoader {
 			is_first: 0,
 			position: 2,
 			invisible: 0,
+			anonymous: 0,
 		},
 		{
 			id: 3,
@@ -161,6 +163,7 @@ function createTestDb(): BatchLoader {
 			is_first: 1,
 			position: 1,
 			invisible: 0,
+			anonymous: 0,
 		},
 	]);
 
