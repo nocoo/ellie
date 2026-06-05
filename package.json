@@ -96,7 +96,7 @@
 	},
 	"dependencies": {
 		"@base-ui/react": "^1.5.0",
-		"@cap.js/widget": "^0.1.53",
+		"@cap.js/widget": "^0.1.54",
 		"@cloudflare/workers-types": "^4.20260525.1",
 		"@radix-ui/react-avatar": "^1.1.11",
 		"@radix-ui/react-checkbox": "^1.3.3",
