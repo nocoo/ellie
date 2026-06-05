@@ -81,7 +81,7 @@
 		"@vitest/coverage-v8": "^4.1.8",
 		"happy-dom": "^20.10.1",
 		"husky": "^9.1.7",
-		"lint-staged": "^17.0.5",
+		"lint-staged": "^17.0.7",
 		"typescript": "^5.9",
 		"vitest": "^4.1.8"
 	},
