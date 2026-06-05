@@ -2,6 +2,7 @@
 	"compilerOptions": {
 		"target": "ESNext",
 		"lib": ["esnext"],
+		"types": ["bun"],
 		"strict": true,
 		"composite": true,
 		"declaration": true,
