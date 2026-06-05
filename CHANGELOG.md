@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.8] - 2026-06-05
+
+### Changed
+
+- **Dependency maintenance**: patch/minor bumps across the JS and Rust toolchains. No behavior or API change.
+  - JS: `@cap.js/widget` 0.1.54, `@cloudflare/workers-types` 4.20260605.1, `dompurify` 3.4.8, `lucide-react` 1.17.0, `next` 16.2.7, `react`/`react-dom` 19.2.7, `@types/react` 19.2.16, `@types/react-dom` 19.2.3, `@types/node` 25.9.1, `vitest`+`@vitest/coverage-v8` 4.1.8, `happy-dom` 20.10.1, `lint-staged` 17.0.7, `tailwindcss`+`@tailwindcss/postcss` 4.3.0, `@tiptap/*` 3.25.0.
+  - Rust: `cargo update` patch-level bumps across the `cli-rs` workspace (`rustls` 0.23.40, `chrono` 0.4.45, `clap` 4.6.1, `serde_json` 1.0.150, etc.).
+- Verified by full G1 (typecheck + lint), L1 (vitest 7343 + bun 119), and Rust `cargo test --workspace` (141) — all green.
+
 ## [1.6.7] - 2026-06-02
 
 ### Fixed
