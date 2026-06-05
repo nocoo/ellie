@@ -47,13 +47,13 @@
         "happy-dom": "^20.10.1",
         "husky": "^9.1.7",
         "lint-staged": "^17.0.7",
-        "typescript": "^5.9",
+        "typescript": "^6.0.3",
         "vitest": "^4.1.8",
       },
     },
     "apps/admin": {
       "name": "admin",
-      "version": "1.6.7",
+      "version": "1.6.8",
       "dependencies": {
         "@dnd-kit/core": "^6.3.1",
         "@dnd-kit/sortable": "^10.0.0",
@@ -81,13 +81,13 @@
         "@types/react": "^19.2.16",
         "@types/react-dom": "^19.2.3",
         "@vitest/coverage-v8": "^4.1.8",
-        "typescript": "^5.9",
+        "typescript": "^6.0.3",
         "vitest": "^4.1.8",
       },
     },
     "apps/web": {
       "name": "web",
-      "version": "1.6.7",
+      "version": "1.6.8",
       "dependencies": {
         "@auth/core": "^0.34.3",
         "@base-ui/react": "^1.3.0",
@@ -122,12 +122,12 @@
         "@types/react": "^19.2.16",
         "@types/react-dom": "^19.2.3",
         "server-only": "^0.0.1",
-        "typescript": "^5.9",
+        "typescript": "^6.0.3",
       },
     },
     "apps/worker": {
       "name": "@ellie/worker",
-      "version": "1.6.7",
+      "version": "1.6.8",
       "dependencies": {
         "@cloudflare/workers-types": "^4.20260605.1",
         "@ellie/types": "workspace:*",
@@ -137,13 +137,13 @@
         "@biomejs/biome": "^1.9.0",
         "@types/crypto-js": "^4.2.2",
         "bun-types": "latest",
-        "typescript": "^5.9",
+        "typescript": "^6.0.3",
         "wrangler": "^3.114.0",
       },
     },
     "packages/cli": {
       "name": "@ellie/cli",
-      "version": "1.6.7",
+      "version": "1.6.8",
       "bin": "./src/index.ts",
       "dependencies": {
         "@ellie/types": "workspace:*",
@@ -156,34 +156,34 @@
     },
     "packages/db": {
       "name": "@ellie/db",
-      "version": "1.6.7",
+      "version": "1.6.8",
     },
     "packages/migrate": {
       "name": "@ellie/migrate",
-      "version": "1.6.7",
+      "version": "1.6.8",
       "bin": "./src/index.ts",
     },
     "packages/shared": {
       "name": "@ellie/shared",
-      "version": "1.6.7",
+      "version": "1.6.8",
       "devDependencies": {
-        "typescript": "^5.9",
+        "typescript": "^6.0.3",
       },
     },
     "packages/test-mocks": {
       "name": "@ellie/test-mocks",
-      "version": "1.6.7",
+      "version": "1.6.8",
       "dependencies": {
         "@ellie/types": "workspace:*",
       },
     },
     "packages/types": {
       "name": "@ellie/types",
-      "version": "1.6.7",
+      "version": "1.6.8",
     },
     "packages/ui": {
       "name": "@ellie/ui",
-      "version": "1.6.7",
+      "version": "1.6.8",
       "dependencies": {
         "@base-ui/react": "^1.3.0",
         "@radix-ui/react-avatar": "^1.1.0",
@@ -206,7 +206,7 @@
       "devDependencies": {
         "@types/react": "^19.2.16",
         "@types/react-dom": "^19.2.3",
-        "typescript": "^5.9",
+        "typescript": "^6.0.3",
       },
       "peerDependencies": {
         "react": "^19",
@@ -1225,7 +1225,7 @@
 
     "type-fest": ["type-fest@0.21.3", "", {}, "sha512-t0rzBq87m3fVcduHDUFhKmyyX+9eo6WQjZvf51Ea/M0Q7+T374Jp1aUiyUl0GKxp8M/OETVHSDvmkyPgvX+X2w=="],
 
-    "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+    "typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
 
     "ufo": ["ufo@1.6.4", "", {}, "sha512-JFNbkD1Svwe0KvGi8GOeLcP4kAWQ609twvCdcHxq1oSL8svv39ZuSvajcD8B+5D0eL4+s1Is2D/O6KN3qcTeRA=="],
 
