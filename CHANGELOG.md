@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.9] - 2026-06-06
+
+### Changed
+
+- **TypeScript 5.9.3 → 6.0.3**: major upgrade across the JS/TS toolchain (apps/web, apps/admin, apps/worker, packages/ui, packages/shared, root). No runtime behavior change — types only.
+- **Excluded `packages/migrate` from the root `tsconfig.json` build references.** Migrate is a one-shot import tool (`bun run src/index.ts`) that doesn't emit a build artifact and is incompatible with TS 6's stricter ambient-type defaults (uses `bun:sqlite` + Node globals without explicit `types`/`lib`). Tests still run via `scripts/run-tests.sh` (bun) and `packages/migrate/vitest.config.ts`, so coverage is unaffected.
+
+### Fixed
+
+- **`packages/types`/`cli`/`db` tsconfig**: TS 6 changed the default `types` field to no longer auto-include all `@types`. Each affected workspace tsconfig now declares its required `lib` + `types` explicitly:
+  - `packages/types`: added `dom` lib (for `btoa`/`atob`).
+  - `packages/cli`: added `dom` lib + `types: ["node"]` (for `process`/`fetch`/`URLSearchParams`).
+  - `packages/db`: added `types: ["bun"]` (for the `require()`-loaded `bun:sqlite`).
+
+### Verified
+
+- G1 typecheck + lint, L1 (vitest 7343 + bun 119), L2 (352 integration), G2 (gitleaks + osv-scanner) — all green locally.
+- L3 verified by GitHub CI on a clean runner (5m2s success).
+
 ## [1.6.8] - 2026-06-05
 
 ### Changed
