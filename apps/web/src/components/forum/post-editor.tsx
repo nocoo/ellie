@@ -21,9 +21,7 @@
 
 import CharacterCount from "@tiptap/extension-character-count";
 import Image from "@tiptap/extension-image";
-import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
-import Underline from "@tiptap/extension-underline";
 import { type Editor, EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import {
@@ -478,15 +476,14 @@ export const PostEditor = forwardRef<PostEditorRef, PostEditorProps>(function Po
 		extensions: [
 			StarterKit.configure({
 				heading: { levels: [2, 3, 4] },
-			}),
-			Underline,
-			Link.configure({
-				openOnClick: false,
-				// Apply the same allow-list to paste / autolink / HTML parse
-				// paths so a `javascript:` URL pasted into the editor cannot
-				// reach the DOM. The popover already guards the manual flow.
-				isAllowedUri: (url) => sanitizeUrl(url).url !== null,
-				shouldAutoLink: (url) => sanitizeUrl(url).url !== null,
+				link: {
+					openOnClick: false,
+					// Apply the same allow-list to paste / autolink / HTML parse
+					// paths so a `javascript:` URL pasted into the editor cannot
+					// reach the DOM. The popover already guards the manual flow.
+					isAllowedUri: (url) => sanitizeUrl(url).url !== null,
+					shouldAutoLink: (url) => sanitizeUrl(url).url !== null,
+				},
 			}),
 			Image.configure({
 				inline: false,
