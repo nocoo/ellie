@@ -10,16 +10,16 @@
 // keyboard/focus, not mouse-hover only. We use base-ui `Popover` (radix-style
 // click+keyboard trigger) instead of a CSS hover popover.
 
+import type { PostRatingAggregate, PostRatingRow, PostRatingsResponse } from "@ellie/types";
+import { Award, ChevronDown, Coins, Loader2, Undo2 } from "lucide-react";
+import Link from "next/link";
+import { useCallback, useState } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { fetchPostRatings, revokePostRating } from "@/viewmodels/forum/rating-reasons";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
-import type { PostRatingAggregate, PostRatingRow, PostRatingsResponse } from "@ellie/types";
-import { Award, ChevronDown, Coins, Loader2, Undo2 } from "lucide-react";
-import Link from "next/link";
-import { useCallback, useState } from "react";
 
 interface PostRatingSummaryProps {
 	postId: number;

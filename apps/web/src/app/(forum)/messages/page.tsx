@@ -1,12 +1,12 @@
 // Route: /messages — Discuz-style 站内信 (private messaging) page
 // Server Component shell that renders the client messages page.
 
+import type { PublicUser } from "@ellie/types";
+import type { Metadata } from "next";
 import { MessagesPageClient } from "@/components/forum/messages-page";
 import { forumApi } from "@/lib/forum-api";
 import { buildMessagesBreadcrumbs } from "@/viewmodels/forum/messages";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
-import type { PublicUser } from "@ellie/types";
-import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "站内信" };
 

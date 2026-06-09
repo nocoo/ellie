@@ -16,11 +16,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { create } from "../../../src/handlers/thread";
 import type { Env } from "../../../src/lib/env";
 import {
-	TEST_JWT_SECRET,
 	createJwtForRole,
 	createMockKV,
 	makeD1ForumRow,
 	makeD1ThreadRow,
+	TEST_JWT_SECRET,
 } from "../../helpers";
 
 const mockEnv: Env = {

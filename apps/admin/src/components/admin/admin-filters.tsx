@@ -1,8 +1,6 @@
 "use client";
 
-import { Button } from "@ellie/ui";
-import { Input } from "@ellie/ui";
-import { Select } from "@ellie/ui";
+import { Button, Input, Select } from "@ellie/ui";
 import { Search, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 

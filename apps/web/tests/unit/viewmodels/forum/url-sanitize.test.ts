@@ -1,5 +1,5 @@
-import { sanitizeUrl } from "@/viewmodels/forum/url-sanitize";
 import { describe, expect, it } from "vitest";
+import { sanitizeUrl } from "@/viewmodels/forum/url-sanitize";
 
 describe("sanitizeUrl", () => {
 	describe("dangerous schemes — must reject", () => {

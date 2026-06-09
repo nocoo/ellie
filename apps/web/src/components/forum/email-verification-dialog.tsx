@@ -19,6 +19,9 @@
 //    contract; if more state is needed in the future, the dispatcher
 //    should carry it, not the dialog.
 
+import type { EmailNotVerifiedCtaVariant } from "@ellie/types";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -34,9 +37,6 @@ import {
 	type EmailNotVerifiedEventDetail,
 	normalizeCtaVariant,
 } from "@/viewmodels/forum/email-not-verified-dispatch";
-import type { EmailNotVerifiedCtaVariant } from "@ellie/types";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
 
 /**
  * Map the (already-normalized) §5.4 CTA variant to the Button's variant.

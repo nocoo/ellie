@@ -1,8 +1,8 @@
 // data/repositories/user.repository.ts — Mock UserRepository implementation
 // Ref: 04a §UserRepository
 
-import { decodeCursor, encodeCursor } from "@ellie/types";
 import type { User, UserRole, UserStatus } from "@ellie/types";
+import { decodeCursor, encodeCursor } from "@ellie/types";
 import type { MockDataStore } from "./mock/store";
 import type { PaginatedResult, UserListParams, UserRepository } from "./types";
 

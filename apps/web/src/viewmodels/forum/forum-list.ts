@@ -2,11 +2,11 @@
 // Ref: 04d §论坛首页 — Group → Forum → Sub tree, visibility filter
 
 import {
+	buildForumTree,
 	type Forum,
 	type ForumTreeNode,
-	type VisibilityContext,
-	buildForumTree,
 	filterVisibleForums,
+	type VisibilityContext,
 } from "@ellie/types";
 
 // ---------------------------------------------------------------------------

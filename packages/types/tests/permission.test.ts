@@ -1,5 +1,5 @@
-import { UserRole, UserStatus } from "@ellie/types";
 import type {
+	Forum,
 	PermissionForum,
 	PermissionPost,
 	PermissionThread,
@@ -18,8 +18,9 @@ import {
 	canMoveThread,
 	canReplyToThread,
 	canViewForum,
+	UserRole,
+	UserStatus,
 } from "@ellie/types";
-import type { Forum } from "@ellie/types";
 import { describe, expect, it } from "vitest";
 
 // ---------------------------------------------------------------------------

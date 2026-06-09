@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./tailwind.css";
-import { Providers } from "@/components/providers";
 import { cn } from "@ellie/ui/utils";
 import { DM_Sans, Inter } from "next/font/google";
+import { Providers } from "@/components/providers";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-dm-sans" });

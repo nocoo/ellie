@@ -1,5 +1,7 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { registerUser } from "@/actions/auth";
 import { CapWidget } from "@/components/cap-widget";
 import { ForumLogo } from "@/components/forum/forum-logo";
@@ -12,11 +14,11 @@ import { checkUsernameAvailability } from "@/lib/forum-browser-api";
 import { safeRedirect } from "@/lib/safe-redirect";
 import { CAMPUS_OPTIONS, IDENTITY_OPTIONS } from "@/viewmodels/forum/profile-options";
 import {
-	type PasswordStrength,
-	REGISTER_PROFILE_DEFAULTS,
 	buildRegisterProfile,
 	canSubmitRegister,
+	type PasswordStrength,
 	passwordStrength,
+	REGISTER_PROFILE_DEFAULTS,
 	registerErrorMessage,
 	validateBirthday,
 	validateEmail,
@@ -24,8 +26,6 @@ import {
 	validateSite,
 	validateUsername,
 } from "@/viewmodels/forum/register";
-import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
 import {
 	AuthDivider,
 	AuthErrorBanner,

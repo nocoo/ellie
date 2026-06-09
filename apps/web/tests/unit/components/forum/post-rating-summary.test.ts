@@ -41,9 +41,9 @@ vi.mock("next/navigation", () => ({
 	useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
 }));
 
+import type { PostRatingAggregate, PostRatingRow, PostRatingsResponse } from "@ellie/types";
 import { ForumToastProvider } from "@/components/forum/forum-toast";
 import { PostRatingSummary } from "@/components/forum/post-rating-summary";
-import type { PostRatingAggregate, PostRatingRow, PostRatingsResponse } from "@ellie/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

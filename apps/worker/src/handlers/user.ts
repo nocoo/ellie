@@ -5,11 +5,11 @@ import { buildNextCursor, clampLimit } from "../lib/pagination";
 import { parseIdFromPath, parsePathSegment } from "../lib/parseId";
 import { jsonResponse } from "../lib/response";
 import {
-	USER_ACTIVE,
 	buildForumFilter,
 	buildVisibilityContext,
 	postVisible,
 	threadVisible,
+	USER_ACTIVE,
 } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";

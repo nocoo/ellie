@@ -1,12 +1,12 @@
 import {
 	type CursorPayload,
-	DEFAULT_PAGE_SIZE,
-	MAX_PAGE_SIZE,
 	clampPageSize,
+	DEFAULT_PAGE_SIZE,
 	decodeCursor,
 	decodeGenericCursor,
 	encodeCursor,
 	encodeGenericCursor,
+	MAX_PAGE_SIZE,
 } from "@ellie/types";
 import { describe, expect, it } from "vitest";
 

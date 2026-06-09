@@ -10,18 +10,18 @@
 // because the worker `batchMove` rejects them implicitly (forums table
 // holds groups too but threads cannot live there).
 
-import { type Forum, fetchForums } from "@/viewmodels/admin/forums";
-import { Button } from "@ellie/ui";
 import {
+	Button,
 	Dialog,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
+	Select,
 } from "@ellie/ui";
-import { Select } from "@ellie/ui";
 import { useEffect, useMemo, useState } from "react";
+import { type Forum, fetchForums } from "@/viewmodels/admin/forums";
 import { AdminInlineMessage } from "./admin-inline-message";
 
 // ---------------------------------------------------------------------------

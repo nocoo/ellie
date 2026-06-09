@@ -6,9 +6,9 @@
 // Phase B: in-process caching now goes through `lib/ttl-cache`. Tests
 // reset state via the exported `featureFlagsCache.clear()`.
 
+import { useEffect, useState } from "react";
 import { fetchFeatureFlags } from "@/lib/forum-browser-api";
 import { createTtlCache } from "@/lib/ttl-cache";
-import { useEffect, useState } from "react";
 
 // Feature defaults for forum (subset of all feature flags)
 const FEATURE_DEFAULTS: Record<string, string> = {

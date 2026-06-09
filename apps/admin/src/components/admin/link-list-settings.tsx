@@ -1,11 +1,11 @@
 "use client";
 
-import { PageHeader } from "@/components/layout/page-header";
-import { updateSettings } from "@/viewmodels/admin/settings";
 import { Button } from "@ellie/ui";
 import { RotateCcw, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
+import { PageHeader } from "@/components/layout/page-header";
+import { updateSettings } from "@/viewmodels/admin/settings";
 import { NavLinksEditor } from "./nav-links-editor";
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
-import { adminApiAs, createProxyHandler, passthrough } from "@/lib/admin-proxy";
 import type { NextRequest } from "next/server";
+import { adminApiAs, createProxyHandler, passthrough } from "@/lib/admin-proxy";
 
 export const GET = createProxyHandler(async (request: NextRequest, admin) => {
 	const url = new URL(request.url);

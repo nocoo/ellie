@@ -1,16 +1,16 @@
+import type { ForumThreadType } from "@ellie/types";
+import { describe, expect, it } from "vitest";
 import {
-	type ForumThreadTypesPublic,
 	buildForumListReturnTo,
 	buildForumListUrl,
 	coerceTypeIdParam,
+	type ForumThreadTypesPublic,
 	mapCreateThreadTypeError,
 	normalizeTypeId,
 	shouldShowFilter,
 	shouldShowPicker,
 	shouldShowTypeNameBadge,
 } from "@/viewmodels/forum/thread-types";
-import type { ForumThreadType } from "@ellie/types";
-import { describe, expect, it } from "vitest";
 
 const t = (id: number, name: string): ForumThreadType => ({
 	id,

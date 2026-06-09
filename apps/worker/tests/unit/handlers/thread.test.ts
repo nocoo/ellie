@@ -34,13 +34,13 @@ vi.mock("../../../src/lib/cache/thread-list-read", async () => {
 import { create, getById, list } from "../../../src/handlers/thread";
 import type { Env } from "../../../src/lib/env";
 import {
-	TEST_JWT_SECRET,
 	createJwtForRole,
 	createMockCtx,
 	createMockDb,
 	createMockKV,
 	makeD1ForumRow,
 	makeD1ThreadRow,
+	TEST_JWT_SECRET,
 } from "../../helpers";
 import {
 	expectEmailNotVerifiedResponse,

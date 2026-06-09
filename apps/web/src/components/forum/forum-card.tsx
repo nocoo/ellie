@@ -17,11 +17,11 @@
 // `<ForumMetaLine>` and `<LastPostPreview>` keep the visual rhythm centralised
 // so future tweaks don't have to chase 2 layouts.
 
+import type { ForumTreeNode } from "@ellie/types";
+import Link from "next/link";
 import { getStaticImageUrl } from "@/lib/cdn";
 import { formatCount } from "@/viewmodels/forum/forum-list";
 import { formatDateTime, formatDateTimeMobile } from "@/viewmodels/shared/formatting";
-import type { ForumTreeNode } from "@ellie/types";
-import Link from "next/link";
 import { SafeHtml } from "./safe-html";
 import { ForumAvatar } from "./user-avatar";
 import { UserPopover } from "./user-popover";
@@ -42,7 +42,11 @@ function LastPosterAvatarLink({
 	userId,
 	userName,
 	avatarPath,
-}: { userId: number; userName: string; avatarPath?: string | null }) {
+}: {
+	userId: number;
+	userName: string;
+	avatarPath?: string | null;
+}) {
 	if (userId <= 0) return null;
 	return (
 		<Link href={`/users/${userId}`} prefetch={false} className="shrink-0">
@@ -68,7 +72,11 @@ function ForumStats({
 	threads,
 	posts,
 	variant,
-}: { threads: number; posts: number; variant: "desktop" | "inline" }) {
+}: {
+	threads: number;
+	posts: number;
+	variant: "desktop" | "inline";
+}) {
 	if (variant === "desktop") {
 		return (
 			<div className="flex flex-col items-end self-start text-xs text-muted-foreground tabular-nums leading-5">
@@ -91,7 +99,10 @@ function ForumStats({
 function TodayThreadBadge({
 	count,
 	variant,
-}: { count: number; variant: "parenthesized" | "pill" | "plus" }) {
+}: {
+	count: number;
+	variant: "parenthesized" | "pill" | "plus";
+}) {
 	if (count <= 0) return null;
 	if (variant === "pill") {
 		// Fixed line-height pill so it never bumps the row height.

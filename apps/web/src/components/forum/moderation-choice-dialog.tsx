@@ -10,6 +10,8 @@
  * (options, icons, confirm callback) is passed in by the caller.
  */
 
+import type { ReactNode } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -20,8 +22,6 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import type { ReactNode } from "react";
-import { useState } from "react";
 
 export interface ModerationChoiceOption<T> {
 	value: T;

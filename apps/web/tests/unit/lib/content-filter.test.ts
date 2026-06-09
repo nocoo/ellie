@@ -1,3 +1,4 @@
+import { describe, expect, it } from "vitest";
 import {
 	cleanupCETagParser,
 	cleanupLegacyBBCode,
@@ -5,7 +6,6 @@ import {
 	rewriteLegacyUrls,
 	transformEditNotices,
 } from "@/lib/content-filter";
-import { describe, expect, it } from "vitest";
 
 // ---------------------------------------------------------------------------
 // transformEditNotices

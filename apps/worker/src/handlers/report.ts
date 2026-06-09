@@ -1,10 +1,10 @@
-import { canViewForumVisibility } from "@ellie/types";
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
+import { canViewForumVisibility } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withAuthVerified, withVerifiedEmail } from "../lib/routeHelpers";
-import { POST_VISIBLE, THREAD_VISIBLE, isForumActive } from "../lib/visibility";
+import { isForumActive, POST_VISIBLE, THREAD_VISIBLE } from "../lib/visibility";
 import { corsHeaders } from "../middleware/cors";
 import { errorResponse } from "../middleware/error";
 

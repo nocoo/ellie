@@ -1,14 +1,20 @@
 "use client";
 
-import type { User, UserUpdate } from "@/viewmodels/admin/users";
-import { Button } from "@ellie/ui";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@ellie/ui";
-import { Input } from "@ellie/ui";
-import { Label } from "@ellie/ui";
-import { Select } from "@ellie/ui";
+import {
+	Button,
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+	Input,
+	Label,
+	Select,
+} from "@ellie/ui";
 import { cn } from "@ellie/ui/utils";
 import { Save, User as UserIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useReducer } from "react";
+import type { User, UserUpdate } from "@/viewmodels/admin/users";
 import { AdminInlineMessage } from "./admin-inline-message";
 
 // ---------------------------------------------------------------------------

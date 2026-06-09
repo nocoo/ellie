@@ -1,5 +1,5 @@
-import { buildPostSearchParams } from "@/viewmodels/admin/posts";
 import { describe, expect, it } from "vitest";
+import { buildPostSearchParams } from "@/viewmodels/admin/posts";
 
 describe("posts", () => {
 	describe("buildPostSearchParams", () => {

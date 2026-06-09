@@ -1,26 +1,15 @@
 "use client";
 
-import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
-import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
-import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
-import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
-import { PageHeader } from "@/components/layout/page-header";
-import { getAttachmentThumbUrl, getAttachmentUrl } from "@/lib/cdn";
 import {
-	type Attachment,
-	batchDeleteAttachments,
-	deleteAttachment,
-	formatFileSize,
-} from "@/viewmodels/admin/attachments";
-import { Button } from "@ellie/ui";
-import { Checkbox } from "@ellie/ui";
-import {
+	Button,
+	Checkbox,
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
+	Lightbox,
+	type LightboxImage,
 } from "@ellie/ui";
-import { Lightbox, type LightboxImage } from "@ellie/ui";
 import { cn } from "@ellie/ui/utils";
 import {
 	Download,
@@ -34,6 +23,18 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
+import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
+import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
+import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
+import { PageHeader } from "@/components/layout/page-header";
+import { getAttachmentThumbUrl, getAttachmentUrl } from "@/lib/cdn";
+import {
+	type Attachment,
+	batchDeleteAttachments,
+	deleteAttachment,
+	formatFileSize,
+} from "@/viewmodels/admin/attachments";
 
 // ---------------------------------------------------------------------------
 // Types

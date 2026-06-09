@@ -1,11 +1,11 @@
-import { getStaticImageUrl } from "@/lib/cdn";
-import {
-	POST_AUTHOR_ICON,
-	getPostAuthorIconAlt,
-	getPostAuthorIconName,
-} from "@/lib/post-author-icon";
 import { UserRole } from "@ellie/types";
 import { describe, expect, it } from "vitest";
+import { getStaticImageUrl } from "@/lib/cdn";
+import {
+	getPostAuthorIconAlt,
+	getPostAuthorIconName,
+	POST_AUTHOR_ICON,
+} from "@/lib/post-author-icon";
 
 describe("getPostAuthorIconName", () => {
 	it("returns ico_lz.png for the thread author regardless of role", () => {

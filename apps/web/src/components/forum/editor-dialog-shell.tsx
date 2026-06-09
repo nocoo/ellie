@@ -14,10 +14,10 @@
  * handler, button labels, and disabled/submitting state.
  */
 
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import type { ReactNode } from "react";
 
 // ---------------------------------------------------------------------------
 // EditorDialogFrame — thin wrapper for Dialog + DialogContent styling.
@@ -29,7 +29,11 @@ export function EditorDialogFrame({
 	open,
 	onOpenChange,
 	children,
-}: { open: boolean; onOpenChange: (open: boolean) => void; children: ReactNode }) {
+}: {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	children: ReactNode;
+}) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent

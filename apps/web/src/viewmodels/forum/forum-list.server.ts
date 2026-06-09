@@ -3,8 +3,8 @@
 
 import "server-only";
 
-import { getCachedForumList } from "@/lib/forum-cache";
 import type { ForumTreeNode } from "@ellie/types";
+import { getCachedForumList } from "@/lib/forum-cache";
 import { buildVisibleTree } from "./forum-list";
 
 export async function loadForumList(): Promise<ForumTreeNode[]> {

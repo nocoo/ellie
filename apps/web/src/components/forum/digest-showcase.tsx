@@ -1,14 +1,14 @@
 // components/forum/digest-showcase.tsx — Homepage digest threads showcase
 // Shows recent digest threads with a link to full digest page
 
-import { ThreadBadgeList } from "@/components/forum/thread-badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import type { Thread } from "@ellie/types";
 import { getThreadBadges } from "@ellie/types";
 import { Award } from "lucide-react";
 import Link from "next/link";
+import { ThreadBadgeList } from "@/components/forum/thread-badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 
 interface DigestShowcaseProps {
 	threads: Thread[];

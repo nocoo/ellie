@@ -1,13 +1,14 @@
+import { describe, expect, it } from "vitest";
 import {
-	FIRST_POST_VARIANT,
-	STATISTICS_DONE_VARIANT,
 	censorActionVariant,
+	FIRST_POST_VARIANT,
 	forumStatusVariant,
 	forumTypeVariant,
 	ipBanExpiryVariant,
 	ipBanStateVariant,
 	reportStatusVariant,
 	reportTypeVariant,
+	STATISTICS_DONE_VARIANT,
 	threadClosedVariant,
 	threadDigestVariant,
 	threadHighlightVariant,
@@ -15,7 +16,6 @@ import {
 	userRoleVariant,
 	userStatusVariant,
 } from "@/viewmodels/admin/badges";
-import { describe, expect, it } from "vitest";
 
 // The whole point of badges.ts is to keep status colours consistent and
 // stop pills rendering as transparent/white. These tests lock the

@@ -3,15 +3,15 @@
 
 "use client";
 
+import { Check, ChevronsUpDown, Search, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, type SelectOption } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { DigestFilterForum } from "@/viewmodels/forum/digest.server";
-import { Check, ChevronsUpDown, Search, X } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
 
 interface DigestFiltersClientProps {
 	years: number[];

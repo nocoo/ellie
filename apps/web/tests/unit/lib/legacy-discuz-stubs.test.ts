@@ -2,10 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
-	LEGACY_DISCUZ_STUBS_SCRIPT,
-	LEGACY_DISCUZ_STUB_NAMES,
-	type LegacyDiscuzStubTarget,
 	installLegacyDiscuzStubs,
+	LEGACY_DISCUZ_STUB_NAMES,
+	LEGACY_DISCUZ_STUBS_SCRIPT,
+	type LegacyDiscuzStubTarget,
 } from "@/lib/legacy-discuz-stubs";
 
 // ---------------------------------------------------------------------------

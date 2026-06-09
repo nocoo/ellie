@@ -9,13 +9,13 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+	resolveActor,
 	SYSTEM_ACTOR_ID,
 	SYSTEM_ACTOR_NAME,
-	resolveActor,
 	sanitizeAdminLogDetails,
 	writeAdminLog,
 } from "../../../src/lib/adminLog";
-import { TEST_ADMIN_API_KEY, TEST_API_KEY, makeEnv } from "../../helpers";
+import { makeEnv, TEST_ADMIN_API_KEY, TEST_API_KEY } from "../../helpers";
 
 // ─── resolveActor ─────────────────────────────────────────────────
 

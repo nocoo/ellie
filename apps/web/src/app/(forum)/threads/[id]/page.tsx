@@ -1,5 +1,8 @@
 // Ref: 04f §7 — Discuz classic two-column layout with mod action bar
 
+import { getThreadBadges } from "@ellie/types";
+import type { Metadata } from "next";
+import Link from "next/link";
 import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
 import { ModProvider } from "@/components/forum/mod-context";
 import { PagePagination } from "@/components/forum/page-pagination";
@@ -11,8 +14,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { getCachedPostsPerPage } from "@/lib/forum-cache";
 import { getSelfForumUser } from "@/lib/forum-self";
 import {
-	type ThreadDetailPageData,
 	loadThreadDetail,
+	type ThreadDetailPageData,
 } from "@/viewmodels/forum/thread-detail.server";
 import {
 	getThreadPageCount,
@@ -24,9 +27,6 @@ import {
 import { getThreadTitle } from "@/viewmodels/forum/title.server";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { parseIntParam } from "@/viewmodels/shared/params";
-import { getThreadBadges } from "@ellie/types";
-import type { Metadata } from "next";
-import Link from "next/link";
 
 interface ThreadDetailPageProps {
 	params: Promise<{ id: string }>;

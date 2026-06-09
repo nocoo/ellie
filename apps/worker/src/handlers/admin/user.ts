@@ -20,7 +20,7 @@ import { jsonNoStoreResponse } from "../../lib/response";
 import { invalidateUserCache } from "../../lib/user-cache";
 import { batchDecrementUserPosts } from "../../lib/userCounters";
 import { buildTombstoneStatement } from "../../lib/userTombstone";
-import { POST_VISIBLE, THREAD_VISIBLE, postVisible, threadVisible } from "../../lib/visibility";
+import { POST_VISIBLE, postVisible, THREAD_VISIBLE, threadVisible } from "../../lib/visibility";
 // Admin user handlers (#36-#42) — CRUD framework + custom actions
 import { errorResponse } from "../../middleware/error";
 
@@ -371,10 +371,7 @@ const userConfig: EntityConfig = {
 		// verify/correct flows, which gate on `email_verified_at = 0` and
 		// uniqueness — both safe with empty strings). So clearing it for
 		// admin-managed rows is a localized escape hatch, not a global change.
-		if (
-			typeof data.email === "string" &&
-			!Object.prototype.hasOwnProperty.call(data, "email_normalized")
-		) {
+		if (typeof data.email === "string" && !Object.hasOwn(data, "email_normalized")) {
 			data.email_normalized = "";
 		}
 

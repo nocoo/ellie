@@ -1,5 +1,23 @@
 "use client";
 
+import {
+	Badge,
+	Button,
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@ellie/ui";
+import { ExternalLink, Eye, MoreHorizontal, RefreshCw } from "lucide-react";
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
@@ -12,38 +30,18 @@ import {
 import { PageHeader } from "@/components/layout/page-header";
 import { reportStatusVariant, reportTypeVariant } from "@/viewmodels/admin/badges";
 import {
+	batchDeleteReports,
+	fetchReports,
+	getReportTargetAdminLink,
+	getReportTargetLabel,
 	REPORT_STATUS_OPTIONS,
 	REPORT_TYPE_OPTIONS,
 	type Report,
 	type ReportType,
 	STATUS_LABELS,
 	TYPE_LABELS,
-	batchDeleteReports,
-	fetchReports,
-	getReportTargetAdminLink,
-	getReportTargetLabel,
 	updateReportStatus,
 } from "@/viewmodels/admin/reports";
-import { Badge } from "@ellie/ui";
-import { Button } from "@ellie/ui";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@ellie/ui";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "@ellie/ui";
-import { ExternalLink, Eye, MoreHorizontal, RefreshCw } from "lucide-react";
-import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Filter definitions

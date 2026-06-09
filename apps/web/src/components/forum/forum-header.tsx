@@ -3,6 +3,10 @@
 
 "use client";
 
+import { LogOut, Search } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { ForumLogo } from "@/components/forum/forum-logo";
 import { MessageBadgeIcon } from "@/components/forum/message-badge-icon";
 import { TrackedUserAvatar } from "@/components/forum/user-avatar";
@@ -12,10 +16,6 @@ import { WidthToggle } from "@/components/width-toggle";
 import { cn } from "@/lib/utils";
 import type { HeaderViewModel } from "@/viewmodels/forum/header";
 import { formatNumber } from "@/viewmodels/shared/formatting";
-import { LogOut, Search } from "lucide-react";
-import { signOut } from "next-auth/react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 
 // ---------------------------------------------------------------------------
 // Props

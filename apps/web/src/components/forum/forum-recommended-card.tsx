@@ -17,9 +17,9 @@
 // is driven from the thread-detail mod menu; the card refreshes via
 // `router.refresh()` after the toggle.
 
-import type { RecommendedThreadItem } from "@/viewmodels/forum/recommended-threads.server";
 import { ThumbsUp } from "lucide-react";
 import Link from "next/link";
+import type { RecommendedThreadItem } from "@/viewmodels/forum/recommended-threads.server";
 
 interface ForumRecommendedCardProps {
 	threads: RecommendedThreadItem[];

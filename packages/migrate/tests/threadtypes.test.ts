@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
-	EMPTY_THREADTYPES_CONFIG,
 	coerceSerializedBool,
+	EMPTY_THREADTYPES_CONFIG,
 	parseThreadTypes,
 } from "../src/transform/threadtypes";
 

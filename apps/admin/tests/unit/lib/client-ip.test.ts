@@ -4,8 +4,8 @@
 // segment is honored only outside production. The opts toggle lets tests
 // simulate production explicitly.
 
-import { extractClientIp } from "@/lib/client-ip";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { extractClientIp } from "@/lib/client-ip";
 
 const originalNodeEnv = process.env.NODE_ENV;
 

@@ -1,10 +1,10 @@
+import { describe, expect, it } from "vitest";
 import {
-	type ForumThreadTypesConfig,
 	configFlagLabel,
 	diffConfig,
+	type ForumThreadTypesConfig,
 	validateConfig,
 } from "@/viewmodels/admin/forum-thread-types";
-import { describe, expect, it } from "vitest";
 
 const baseCfg: ForumThreadTypesConfig = {
 	enabled: false,

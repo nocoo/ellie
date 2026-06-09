@@ -3,12 +3,12 @@
 
 "use client";
 
-import { useForumToast } from "@/components/forum/forum-toast";
-import { ApiError, apiClient } from "@/lib/api-client";
-import { getErrorMessage } from "@/lib/error-messages";
 import type { User } from "@ellie/types";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { useForumToast } from "@/components/forum/forum-toast";
+import { ApiError, apiClient } from "@/lib/api-client";
+import { getErrorMessage } from "@/lib/error-messages";
 
 // ---------------------------------------------------------------------------
 // Types

@@ -1,9 +1,9 @@
 // components/forum/jump-to-page.tsx — Client island for jump-to-page input
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 
 interface JumpToPageProps {
 	basePath: string;

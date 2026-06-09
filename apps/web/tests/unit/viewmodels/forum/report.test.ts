@@ -15,7 +15,7 @@ vi.mock("@/lib/api-client", () => {
 });
 
 import { ApiError, apiClient } from "@/lib/api-client";
-import { REPORT_REASONS, checkReportPermission, submitReport } from "@/viewmodels/forum/report";
+import { checkReportPermission, REPORT_REASONS, submitReport } from "@/viewmodels/forum/report";
 
 const mockClient = apiClient as any;
 

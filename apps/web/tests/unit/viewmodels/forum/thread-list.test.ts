@@ -1,3 +1,6 @@
+import type { Thread } from "@ellie/types";
+import { decodeHighlight, getThreadBadges, StickyLevel } from "@ellie/types";
+import { describe, expect, it } from "vitest";
 import {
 	cursorToPage,
 	enrichThreads,
@@ -14,10 +17,6 @@ import {
 	resolveThreadPostCursor,
 	validateReturnTo,
 } from "@/viewmodels/forum/thread-list";
-import { decodeHighlight, getThreadBadges } from "@ellie/types";
-import type { Thread } from "@ellie/types";
-import { StickyLevel } from "@ellie/types";
-import { describe, expect, it } from "vitest";
 
 // ---------------------------------------------------------------------------
 // Factory helpers

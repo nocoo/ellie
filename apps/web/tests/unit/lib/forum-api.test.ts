@@ -1,6 +1,6 @@
-import { ForumApiError, forumApi, publicUserToUser } from "@/lib/forum-api";
 import { UserStatus } from "@ellie/types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ForumApiError, forumApi, publicUserToUser } from "@/lib/forum-api";
 
 // ---------------------------------------------------------------------------
 // Setup: mock fetch + env vars

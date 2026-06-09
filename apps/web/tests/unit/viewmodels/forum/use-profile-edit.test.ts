@@ -13,10 +13,10 @@ vi.mock("@/lib/api-client", () => ({
 
 import { apiClient } from "@/lib/api-client";
 import {
-	GENDER_OPTIONS,
 	buildProfilePayload,
 	createDefaultFormData,
 	createFormDataFromUser,
+	GENDER_OPTIONS,
 	submitProfileUpdate,
 	validateBirthDate,
 } from "@/viewmodels/forum/use-profile-edit";

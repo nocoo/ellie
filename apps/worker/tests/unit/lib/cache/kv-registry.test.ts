@@ -20,7 +20,7 @@
 //      not a perfect static analysis — when a new write lands, either
 //      register the family or extend the allowlist.
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {

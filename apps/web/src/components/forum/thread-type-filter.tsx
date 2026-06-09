@@ -4,11 +4,11 @@
 // Switching pills resets ?page back to 1 (callers don't need to). The "全部"
 // pill clears the typeId query entirely.
 
+import type { ForumThreadType } from "@ellie/types";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { buildForumListUrl } from "@/viewmodels/forum/thread-types";
-import type { ForumThreadType } from "@ellie/types";
-import Link from "next/link";
 
 interface ThreadTypeFilterProps {
 	forumId: number;

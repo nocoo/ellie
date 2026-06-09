@@ -1,15 +1,15 @@
+import { describe, expect, test } from "vitest";
 import {
-	DEFAULT_NAMED_SMILEY_NAMES,
-	DEFAULT_NAMED_SMILEY_SET,
-	SMILEY_PACKS,
 	comcomFilename,
 	coolmonkeyFilename,
+	DEFAULT_NAMED_SMILEY_NAMES,
+	DEFAULT_NAMED_SMILEY_SET,
 	escapeAttr,
 	namedSmileyFilename,
 	numberedFilename,
 	replaceSmileyCodesWithImages,
+	SMILEY_PACKS,
 } from "@/lib/smiley";
-import { describe, expect, test } from "vitest";
 
 const CDN = "https://t.no.mt/static/image/smiley";
 

@@ -62,6 +62,7 @@ test.describe("E2E-NX: Extended navigation coverage", () => {
 			.first();
 
 		const visible = await pageTwoLink.isVisible({ timeout: 5_000 }).catch(() => false);
+		// biome-ignore lint/suspicious/noSkippedTests: skip when seed data has fewer than 2 pages
 		test.skip(!visible, "forum does not currently span 2 pages in test data");
 
 		await pageTwoLink.click();

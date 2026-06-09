@@ -1,10 +1,17 @@
 "use client";
 
-import { NAV_GROUPS, type NavGroupDef, isNavItemActive } from "@/lib/navigation";
 import { VERSION_DISPLAY } from "@ellie/types";
-import { Avatar, AvatarFallback, AvatarImage } from "@ellie/ui";
-import { Collapsible, CollapsibleTrigger } from "@ellie/ui";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@ellie/ui";
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+	Collapsible,
+	CollapsibleTrigger,
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@ellie/ui";
 import { cn } from "@ellie/ui/utils";
 import {
 	BarChart3,
@@ -28,10 +35,11 @@ import {
 	ToggleLeft,
 	Users,
 } from "lucide-react";
-import { signOut, useSession } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut, useSession } from "next-auth/react";
 import { type ElementType, useState } from "react";
+import { isNavItemActive, NAV_GROUPS, type NavGroupDef } from "@/lib/navigation";
 import { useSidebar } from "./sidebar-context";
 
 // ---------------------------------------------------------------------------

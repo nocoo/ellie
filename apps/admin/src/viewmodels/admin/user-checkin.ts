@@ -10,8 +10,8 @@
 // a `note` warning that the manual value will be overwritten by the next
 // history-based recompute (see Phase E reviewer thread).
 
-import { apiClient } from "@/lib/api-client";
 import type { CheckinHistoryEntry, UserCheckin } from "@ellie/types";
+import { apiClient } from "@/lib/api-client";
 
 export interface UserCheckinDetail {
 	userId: number;

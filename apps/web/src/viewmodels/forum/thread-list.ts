@@ -1,8 +1,8 @@
 // viewmodels/forum/thread-list.ts — Thread list ViewModel
 // Ref: 04d §版块主题列表 — sorting, filtering, keyset pagination, badges
 
+import { decodeHighlight, getThreadBadges, StickyLevel, type Thread } from "@ellie/types";
 import { getStampImageUrl, getStaticImageUrl } from "@/lib/cdn";
-import { StickyLevel, type Thread, decodeHighlight, getThreadBadges } from "@ellie/types";
 
 // ---------------------------------------------------------------------------
 // Types

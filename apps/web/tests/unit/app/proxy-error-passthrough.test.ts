@@ -11,9 +11,9 @@
 // `forum-api`, `forum-auth`, and `getToken` are mocked so no real network or
 // session state is touched.
 
-import { ForumApiError } from "@/lib/forum-api";
 import { EMAIL_NOT_VERIFIED_PAYLOAD } from "@ellie/types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ForumApiError } from "@/lib/forum-api";
 
 const postAuthMock = vi.fn();
 const patchAuthMock = vi.fn();

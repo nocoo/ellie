@@ -1,3 +1,4 @@
+import { describe, expect, it } from "vitest";
 import {
 	buildThreadSearchParams,
 	buildThreadsListQuery,
@@ -7,7 +8,6 @@ import {
 	parseThreadsListQuery,
 	stickyLabel,
 } from "@/viewmodels/admin/threads";
-import { describe, expect, it } from "vitest";
 
 describe("threads", () => {
 	describe("buildThreadSearchParams", () => {

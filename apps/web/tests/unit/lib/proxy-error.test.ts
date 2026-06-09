@@ -6,10 +6,10 @@
 // `error`. This test pair locks both behaviours: §5.4 forwards verbatim,
 // every other ForumApiError gets the wrapped shape.
 
-import { ForumApiError } from "@/lib/forum-api";
-import { forumApiErrorToProxyResponse, isEmailNotVerifiedPayload } from "@/lib/proxy-error";
 import { EMAIL_NOT_VERIFIED_PAYLOAD } from "@ellie/types";
 import { describe, expect, it } from "vitest";
+import { ForumApiError } from "@/lib/forum-api";
+import { forumApiErrorToProxyResponse, isEmailNotVerifiedPayload } from "@/lib/proxy-error";
 
 describe("isEmailNotVerifiedPayload — §5.4 discriminator", () => {
 	it("returns true for the canonical payload", () => {

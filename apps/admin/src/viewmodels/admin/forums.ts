@@ -1,4 +1,4 @@
-import { type PaginatedResponse, apiClient } from "@/lib/api-client";
+import { apiClient, type PaginatedResponse } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
 // Types

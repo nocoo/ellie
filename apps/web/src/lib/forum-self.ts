@@ -31,10 +31,10 @@
 
 import "server-only";
 
+import type { User } from "@ellie/types";
 import { ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import type { EmailVerificationUserView } from "@/viewmodels/forum/email-verification";
-import type { User } from "@ellie/types";
 
 /**
  * The shape consumed by the /me page. Currently the same as

@@ -1,5 +1,7 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
+import { Suspense, useRef, useState } from "react";
 import { CapWidget } from "@/components/cap-widget";
 import { ForumLogo } from "@/components/forum/forum-logo";
 import { Button } from "@/components/ui/button";
@@ -15,8 +17,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { safeRedirect } from "@/lib/safe-redirect";
 import { canSubmitLogin, loginErrorMessage } from "@/viewmodels/forum/auth";
-import { useSearchParams } from "next/navigation";
-import { Suspense, useRef, useState } from "react";
 import {
 	AuthDivider,
 	AuthErrorBanner,

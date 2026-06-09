@@ -1,8 +1,8 @@
 // lib/forum-breadcrumbs.ts — Server-side breadcrumb builders
 // Pure functions, no React dependency.
 
-import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import type { Forum } from "@ellie/types";
+import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import type { AncestorItem } from "./forum-data";
 
 const DEFAULT_HOME_LABEL = "同济网论坛";

@@ -1,5 +1,5 @@
-import { safeRedirect } from "@/lib/safe-redirect";
 import { describe, expect, test } from "vitest";
+import { safeRedirect } from "@/lib/safe-redirect";
 
 describe("safeRedirect", () => {
 	test("returns fallback for null/undefined/empty", () => {

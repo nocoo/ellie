@@ -1,6 +1,6 @@
-import { extractErrorMessage } from "@/lib/admin-error";
 import { ApiError } from "@ellie/shared";
 import { describe, expect, it } from "vitest";
+import { extractErrorMessage } from "@/lib/admin-error";
 
 describe("extractErrorMessage", () => {
 	it("uses ApiError.message", () => {

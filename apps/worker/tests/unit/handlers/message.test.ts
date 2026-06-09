@@ -476,50 +476,47 @@ describe("message handlers", () => {
 			["banned", -1],
 			["muted", -2],
 			["archived", -3],
-		])(
-			"R3-C: rejects %s receiver (status=%i) with USER_NOT_FOUND, no INSERT",
-			async (_label, statusValue) => {
-				const token = await createJwtForRole(0, 10);
-				const { db, calls } = createMockDb({
-					firstResults: {
-						"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
-						"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
-							status: 0,
-							avatar_path: "",
-							has_avatar: 0,
-							reg_date: 1000000,
-							role: 0,
-						},
-						"SELECT id, username, status FROM users": {
-							id: 20,
-							username: "ghost",
-							status: statusValue,
-						},
+		])("R3-C: rejects %s receiver (status=%i) with USER_NOT_FOUND, no INSERT", async (_label, statusValue) => {
+			const token = await createJwtForRole(0, 10);
+			const { db, calls } = createMockDb({
+				firstResults: {
+					"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },
+					"SELECT status, avatar_path, has_avatar, reg_date, role FROM users": {
+						status: 0,
+						avatar_path: "",
+						has_avatar: 0,
+						reg_date: 1000000,
+						role: 0,
 					},
-					allResults: {
-						"SELECT key, value FROM settings": [],
+					"SELECT id, username, status FROM users": {
+						id: 20,
+						username: "ghost",
+						status: statusValue,
 					},
-				});
-				const env = makeEnv({ DB: db });
-				const request = new Request("https://api.example.com/api/v1/messages", {
-					method: "POST",
-					headers: {
-						Authorization: `Bearer ${token}`,
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify({ receiverId: 20, content: "hello", subject: "hi" }),
-				});
-				const response = await message.create(request, env);
-				expect(response.status).toBe(400);
-				const body = (await response.json()) as {
-					error: { code: string; message: string; details?: { message?: string } };
-				};
-				expect(body.error.code).toBe("USER_NOT_FOUND");
-				expect(body.error.details?.message).toBe("Receiver not found");
-				// Must short-circuit before INSERT INTO messages
-				expect(calls.some((c) => c.sql.includes("INSERT INTO messages"))).toBe(false);
-			},
-		);
+				},
+				allResults: {
+					"SELECT key, value FROM settings": [],
+				},
+			});
+			const env = makeEnv({ DB: db });
+			const request = new Request("https://api.example.com/api/v1/messages", {
+				method: "POST",
+				headers: {
+					Authorization: `Bearer ${token}`,
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ receiverId: 20, content: "hello", subject: "hi" }),
+			});
+			const response = await message.create(request, env);
+			expect(response.status).toBe(400);
+			const body = (await response.json()) as {
+				error: { code: string; message: string; details?: { message?: string } };
+			};
+			expect(body.error.code).toBe("USER_NOT_FOUND");
+			expect(body.error.details?.message).toBe("Receiver not found");
+			// Must short-circuit before INSERT INTO messages
+			expect(calls.some((c) => c.sql.includes("INSERT INTO messages"))).toBe(false);
+		});
 
 		it("should create message successfully", async () => {
 			const token = await createJwtForRole(0, 10);

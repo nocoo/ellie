@@ -6,15 +6,6 @@
 // - Admins see additional moderation controls and private info
 // - Includes "View Profile" link to full user page
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { apiClient } from "@/lib/api-client";
-import { getAvatarUrl } from "@/lib/avatar";
-import { cn } from "@/lib/utils";
-import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
-import { formatLocaleDate, formatNumber } from "@/viewmodels/shared/formatting";
-import { formatLastActive, getRoleBadge } from "@/viewmodels/shared/user-display";
 import type { PublicUser } from "@ellie/types";
 import { isUserBanned, isUserMuted } from "@ellie/types";
 import {
@@ -28,11 +19,20 @@ import {
 	Star,
 	User as UserIcon,
 } from "lucide-react";
-import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { apiClient } from "@/lib/api-client";
+import { getAvatarUrl } from "@/lib/avatar";
+import { cn } from "@/lib/utils";
+import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
+import { formatLocaleDate, formatNumber } from "@/viewmodels/shared/formatting";
+import { formatLastActive, getRoleBadge } from "@/viewmodels/shared/user-display";
 import { useForumToast } from "./forum-toast";
 import { UserAvatar } from "./user-avatar";
 import {
@@ -361,15 +361,7 @@ function StatItem({ label, value }: { label: string; value: string }) {
 	);
 }
 
-function DetailRow({
-	icon,
-	label,
-	value,
-}: {
-	icon: ReactNode;
-	label: string;
-	value: string;
-}) {
+function DetailRow({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
 	return (
 		<div className="flex items-center justify-between text-xs">
 			<span className="flex items-center gap-1.5 text-muted-foreground">

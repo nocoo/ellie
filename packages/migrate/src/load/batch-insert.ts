@@ -11,11 +11,11 @@
 import { Database } from "bun:sqlite";
 import { INDEX_DDL, POST_LOAD_DDL, TABLE_COLUMNS, TABLE_DDL, type TableName } from "./schema";
 import {
-	type ExistsFilter,
-	type UpsertConfig,
 	buildFilteredUpsertSql,
 	buildInsertSql,
 	buildUpsertSql,
+	type ExistsFilter,
+	type UpsertConfig,
 } from "./sql-builder";
 
 // Re-export pure SQL builders and types for external consumers

@@ -33,11 +33,7 @@ import { createMockCtx, makeEnv } from "../../../helpers";
 const INGEST_KEY = "test-ingest-key-deadbeef";
 
 function makeRequest(
-	opts: {
-		method?: string;
-		headers?: Record<string, string>;
-		body?: unknown;
-	} = {},
+	opts: { method?: string; headers?: Record<string, string>; body?: unknown } = {},
 ): Request {
 	const headers = new Headers(opts.headers ?? {});
 	const init: RequestInit = {

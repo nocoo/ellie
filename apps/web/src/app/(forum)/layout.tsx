@@ -1,3 +1,6 @@
+import type { PublicUser } from "@ellie/types";
+import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { EmailVerificationBanner } from "@/components/forum/email-verification-banner";
 import { ForumLayoutShell } from "@/components/forum/forum-layout";
 import { SessionGuard } from "@/components/forum/session-guard";
@@ -7,15 +10,12 @@ import { getCurrentForumUser } from "@/lib/forum-auth";
 import { getSelfForumUser } from "@/lib/forum-self";
 import { buildGlobalFooterViewModel } from "@/viewmodels/forum/footer";
 import {
+	buildHeaderViewModel,
 	type HeaderStats,
 	type HeaderUserInfo,
-	buildHeaderViewModel,
 } from "@/viewmodels/forum/header";
 import { fetchPublicSettings, getBool, getStr } from "@/viewmodels/forum/settings.server";
 import type { SiteStats } from "@/viewmodels/forum/stats.server";
-import type { PublicUser } from "@ellie/types";
-import type { Metadata } from "next";
-import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
 

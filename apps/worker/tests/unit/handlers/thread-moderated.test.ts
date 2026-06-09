@@ -31,11 +31,11 @@ vi.mock("../../../src/lib/cache/thread-list-read", async () => {
 import { getById } from "../../../src/handlers/thread";
 import type { Env } from "../../../src/lib/env";
 import {
-	TEST_JWT_SECRET,
 	createJwtForRole,
 	createMockCtx,
 	createMockKV,
 	makeD1ThreadRow,
+	TEST_JWT_SECRET,
 } from "../../helpers";
 
 const THREAD_AUTHOR_ID = 100;

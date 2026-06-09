@@ -405,13 +405,13 @@ export function replaceSmileyCodesWithImages(html: string): string {
 
 // Export internals for testing
 export {
+	comcomFilename,
+	coolmonkeyFilename,
 	DEFAULT_NAMED_SMILEY_NAMES,
 	DEFAULT_NAMED_SMILEY_SET,
-	namedSmileyFilename,
-	coolmonkeyFilename,
-	comcomFilename,
-	numberedFilename,
 	escapeAttr,
+	namedSmileyFilename,
+	numberedFilename,
 };
 
 // ---------------------------------------------------------------------------

@@ -1,22 +1,22 @@
 import { UserRole } from "@ellie/types";
 import { describe, expect, it } from "vitest";
 import {
-	FORUM_ACTIVE,
-	POST_VISIBLE,
-	STICKY_FORUM,
-	STICKY_GLOBAL,
-	STICKY_NONE,
-	THREAD_VISIBLE,
-	USER_ACTIVE,
 	buildForumFilter,
 	buildForumVisibilityFilter,
 	buildVisibilityContext,
 	canReadThreadContent,
 	canViewForumVisibility,
+	FORUM_ACTIVE,
 	forumActive,
 	isForumActive,
+	POST_VISIBLE,
 	postVisible,
+	STICKY_FORUM,
+	STICKY_GLOBAL,
+	STICKY_NONE,
+	THREAD_VISIBLE,
 	threadVisible,
+	USER_ACTIVE,
 	userActive,
 } from "../../../src/lib/visibility";
 

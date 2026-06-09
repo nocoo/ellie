@@ -1,5 +1,5 @@
 import type { Thread } from "@ellie/types";
-import { StickyLevel, decodeHighlight, getThreadBadges } from "@ellie/types";
+import { decodeHighlight, getThreadBadges, StickyLevel } from "@ellie/types";
 import { describe, expect, it } from "vitest";
 
 // ---------------------------------------------------------------------------

@@ -13,7 +13,7 @@
  */
 
 import { Database } from "bun:sqlite";
-import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const OUT_DIR = "reference/sync-2026-05-20/users-backfill-dryrun";
 

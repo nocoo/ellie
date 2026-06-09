@@ -31,8 +31,8 @@
 // so a recommendation that points at a thread that was moved away from
 // the forum or hidden (`sticky < 0`) is silently dropped.
 
-import { canModerate } from "@ellie/types";
 import type { ForumVisibility } from "@ellie/types";
+import { canModerate } from "@ellie/types";
 import { bumpThreadMetaGen } from "../lib/cache/invalidate";
 import {
 	recordDelete,
@@ -53,10 +53,10 @@ import {
 } from "../lib/permissionHelpers";
 import { jsonResponse } from "../lib/response";
 import {
-	THREAD_VISIBLE,
 	buildVisibilityContext,
 	canViewForumVisibility,
 	isForumActive,
+	THREAD_VISIBLE,
 } from "../lib/visibility";
 import { moderationMiddleware, optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";

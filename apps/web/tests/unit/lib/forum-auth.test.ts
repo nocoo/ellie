@@ -16,10 +16,10 @@ vi.mock("@/lib/forum-api", () => ({
 	},
 }));
 
-import { ForumApiError, forumApi } from "@/lib/forum-api";
-import { authPatch, getCurrentForumUser, getSessionProvider, getWorkerJwt } from "@/lib/forum-auth";
 import { getToken } from "@auth/core/jwt";
 import { headers } from "next/headers";
+import { ForumApiError, forumApi } from "@/lib/forum-api";
+import { authPatch, getCurrentForumUser, getSessionProvider, getWorkerJwt } from "@/lib/forum-auth";
 
 const mockGetToken = getToken as ReturnType<typeof vi.fn>;
 const mockHeaders = headers as ReturnType<typeof vi.fn>;

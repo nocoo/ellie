@@ -1,5 +1,11 @@
 "use client";
 
+import { formatDate, formatNumber } from "@ellie/shared";
+import { Badge, Button } from "@ellie/ui";
+import { Loader2, Lock, Pencil, Trash2, Unlock } from "lucide-react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
@@ -18,8 +24,6 @@ import {
 } from "@/viewmodels/admin/badges";
 import { type Forum, fetchForums } from "@/viewmodels/admin/forums";
 import {
-	type Thread,
-	type ThreadUpdate,
 	batchDeleteThreads,
 	batchMoveThreads,
 	buildThreadsListQuery,
@@ -30,16 +34,10 @@ import {
 	forumNameById,
 	parseThreadsListQuery,
 	stickyLabel,
+	type Thread,
+	type ThreadUpdate,
 	updateThread,
 } from "@/viewmodels/admin/threads";
-import { formatDate, formatNumber } from "@ellie/shared";
-import { Badge } from "@ellie/ui";
-import { Button } from "@ellie/ui";
-import { Lock, Pencil, Trash2, Unlock } from "lucide-react";
-import { Loader2 } from "lucide-react";
-import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Filter definitions

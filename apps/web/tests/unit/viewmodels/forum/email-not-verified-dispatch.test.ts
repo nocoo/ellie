@@ -12,16 +12,16 @@
 //   3. `dispatchEmailNotVerified` — browser-only; no-op on the server.
 //      The vitest env is "node", so we stub `window` for the browser case.
 
+import { EMAIL_NOT_VERIFIED_PAYLOAD } from "@ellie/types";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-	EMAIL_NOT_VERIFIED_EVENT,
 	dispatchEmailNotVerified,
+	EMAIL_NOT_VERIFIED_EVENT,
 	isEmailNotVerifiedPayloadClient,
 	normalizeCtaVariant,
 	pickDialogPayload,
 	preflightEmailVerifiedBlock,
 } from "@/viewmodels/forum/email-not-verified-dispatch";
-import { EMAIL_NOT_VERIFIED_PAYLOAD } from "@ellie/types";
-import { afterEach, describe, expect, it, vi } from "vitest";
 
 describe("EMAIL_NOT_VERIFIED_EVENT", () => {
 	it("is the documented event name", () => {

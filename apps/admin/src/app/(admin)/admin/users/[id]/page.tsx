@@ -11,8 +11,8 @@
 // internals (reloadUser after mutations, router.push for IP search)
 // match the pre-extraction page.
 
-import { UserDetailPanel } from "@/components/admin/user-detail-panel";
 import { useParams } from "next/navigation";
+import { UserDetailPanel } from "@/components/admin/user-detail-panel";
 
 export default function UserDetailPage() {
 	const params = useParams();

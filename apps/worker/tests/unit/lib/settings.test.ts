@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-	type SettingsMap,
 	getSetting,
 	getSettings,
 	getSettingsDetailed,
+	type SettingsMap,
 	upsertSettings,
 } from "../../../src/lib/settings";
 import { makeEnv } from "../../helpers";

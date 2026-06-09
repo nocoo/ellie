@@ -1,10 +1,10 @@
 "use client";
 
-import { ThemeToggle } from "@/components/theme-toggle";
 import { VERSION_DISPLAY } from "@ellie/types";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { signInWithGoogle } from "./actions";
 
 /** Static barcode decoration for the badge header. */

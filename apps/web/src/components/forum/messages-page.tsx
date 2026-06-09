@@ -3,6 +3,10 @@
 
 "use client";
 
+import { CheckCheck, Mail, PenLine, Send, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
 import { ComposeMessageDialog } from "@/components/forum/compose-message-dialog";
 import type { BreadcrumbItem } from "@/components/layout/breadcrumbs";
@@ -11,17 +15,13 @@ import { cn } from "@/lib/utils";
 import type { MessageListItem, SidebarItem } from "@/viewmodels/forum/messages";
 import {
 	ApiError,
-	SIDEBAR_ITEMS,
 	deleteMessage,
 	fetchMessages,
 	fetchUnreadCount,
 	markAllMessagesRead,
+	SIDEBAR_ITEMS,
 } from "@/viewmodels/forum/messages";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
-import { CheckCheck, Mail, PenLine, Send, Trash2 } from "lucide-react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
 import { useForumToast } from "./forum-toast";
 import { ForumAvatar } from "./user-avatar";
 

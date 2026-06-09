@@ -2,11 +2,11 @@
 // Forwards avatar uploads to Worker with JWT authentication
 import "server-only";
 
+import { NextResponse } from "next/server";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { ForumApiError } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse, isEmailNotVerifiedPayload } from "@/lib/proxy-error";
-import { NextResponse } from "next/server";
 
 function getWorkerUrl(): string {
 	const url = process.env.WORKER_API_URL;

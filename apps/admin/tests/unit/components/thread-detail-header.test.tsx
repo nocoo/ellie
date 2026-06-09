@@ -17,12 +17,11 @@
 
 // @vitest-environment happy-dom
 
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { ThreadDetailHeader } from "@/components/admin/thread-detail-header";
 import type { Forum } from "@/viewmodels/admin/forums";
 import type { Thread } from "@/viewmodels/admin/threads";
-import { cleanup, render, screen } from "@testing-library/react";
 
 afterEach(() => {
 	cleanup();

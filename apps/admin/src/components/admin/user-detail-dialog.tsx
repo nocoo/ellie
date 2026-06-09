@@ -19,8 +19,8 @@
 //     detail-dialog skin; pinning to that keeps width / scroll
 //     behaviour consistent with the KV / log / report detail dialogs.
 
-import { type UserDetailChangeKind, UserDetailPanel } from "@/components/admin/user-detail-panel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@ellie/ui";
+import { type UserDetailChangeKind, UserDetailPanel } from "@/components/admin/user-detail-panel";
 import { ADMIN_WIDE_DIALOG_BODY_CLASS } from "./dialog-presets";
 
 export interface UserDetailDialogProps {

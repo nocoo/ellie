@@ -3,21 +3,20 @@
 
 import "server-only";
 
-import { forumApi } from "@/lib/forum-api";
-import { buildForumBreadcrumbs } from "@/lib/forum-breadcrumbs";
-import { getCachedForumList } from "@/lib/forum-cache";
-import { getCachedPageSize } from "@/lib/forum-cache";
-import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import {
+	buildForumTree,
 	type Forum,
 	type ForumTreeNode,
-	type Thread,
-	buildForumTree,
 	filterVisibleForums,
 	findForumAncestors,
+	type Thread,
 } from "@ellie/types";
+import { forumApi } from "@/lib/forum-api";
+import { buildForumBreadcrumbs } from "@/lib/forum-breadcrumbs";
+import { getCachedForumList, getCachedPageSize } from "@/lib/forum-cache";
+import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import { fetchPublicSettings, getStr } from "./settings.server";
-import { type ThreadDisplayItem, type ThreadSort, enrichThreads } from "./thread-list";
+import { enrichThreads, type ThreadDisplayItem, type ThreadSort } from "./thread-list";
 
 export interface ThreadListData {
 	forum: ForumTreeNode | null;

@@ -1,11 +1,11 @@
+import { describe, expect, it } from "vitest";
 import {
 	CDN_BASE,
-	FALLBACK_URL,
 	computeAvatarCdnPath,
 	computeLegacyAvatarCdnPath,
+	FALLBACK_URL,
 	getCacheControl,
 } from "@/lib/avatar-proxy";
-import { describe, expect, it } from "vitest";
 
 describe("avatar-proxy", () => {
 	describe("constants", () => {

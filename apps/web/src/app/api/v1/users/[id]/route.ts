@@ -6,11 +6,11 @@
  * admins/mods can see IP fields.
  */
 
+import type { PublicUser } from "@ellie/types";
+import { NextResponse } from "next/server";
 import { extractClientIp } from "@/lib/client-ip";
 import { type ClientContext, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
-import type { PublicUser } from "@ellie/types";
-import { NextResponse } from "next/server";
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
 	const { id } = await context.params;

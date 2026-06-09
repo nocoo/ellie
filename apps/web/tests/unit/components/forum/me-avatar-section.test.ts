@@ -25,10 +25,7 @@ const lastAvatarUploadProps: {
 } = {};
 
 vi.mock("@/components/forum/avatar-upload", () => ({
-	AvatarUpload: (props: {
-		currentUrl: string;
-		onUploadComplete: (newUrl: string) => void;
-	}) => {
+	AvatarUpload: (props: { currentUrl: string; onUploadComplete: (newUrl: string) => void }) => {
 		lastAvatarUploadProps.currentUrl = props.currentUrl;
 		lastAvatarUploadProps.onUploadComplete = props.onUploadComplete;
 		return createElement(

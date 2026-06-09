@@ -1,11 +1,11 @@
 // components/forum/page-pagination.tsx — Discuz classic page-number pagination
 // Server component with Link-based page buttons + client JumpToPage island
 
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/viewmodels/shared/formatting";
 import { generatePageNumbers } from "@/viewmodels/shared/pagination";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import Link from "next/link";
 import { JumpToPage } from "./jump-to-page";
 
 // ---------------------------------------------------------------------------

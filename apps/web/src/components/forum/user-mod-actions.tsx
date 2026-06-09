@@ -4,13 +4,13 @@
 // Provides dropdown menu and confirmation dialogs for user moderation.
 // Used by UserPopover and ProfileHero components.
 
+import { Shield } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
-import { Shield } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
 import { useForumToast } from "./forum-toast";
 import {
 	MOD_ACTION_CONFIG,

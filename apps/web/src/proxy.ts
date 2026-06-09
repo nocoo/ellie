@@ -15,12 +15,12 @@
  * When enabled, all public forum routes require authentication.
  */
 
+import type { NextFetchEvent, NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { resolveTrustedClientIp } from "@/lib/client-ip";
 import { resolveLegacyDiscuzRedirect } from "@/lib/legacy-url";
 import { createTtlCache } from "@/lib/ttl-cache";
-import { NextResponse } from "next/server";
-import type { NextFetchEvent, NextRequest } from "next/server";
 
 // ---------------------------------------------------------------------------
 // Pure functions (exported for testing)

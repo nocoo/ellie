@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
+
+import type { ForumThreadType } from "@ellie/types";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { ThreadTypePicker } from "@/components/forum/thread-type-picker";
-import type { ForumThreadType } from "@ellie/types";
 
 const mkType = (id: number, name: string): ForumThreadType => ({
 	id,

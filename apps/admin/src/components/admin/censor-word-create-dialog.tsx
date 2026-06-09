@@ -1,16 +1,22 @@
 "use client";
 
+import {
+	Button,
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	Input,
+	Label,
+	Select,
+} from "@ellie/ui";
+import { useCallback, useEffect, useState } from "react";
 import type {
 	CensorWord,
 	CensorWordCreate,
 	CensorWordUpdate,
 } from "@/viewmodels/admin/censor-words";
-import { Button } from "@ellie/ui";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@ellie/ui";
-import { Input } from "@ellie/ui";
-import { Label } from "@ellie/ui";
-import { Select } from "@ellie/ui";
-import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Types

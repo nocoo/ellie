@@ -1,17 +1,5 @@
 "use client";
 
-import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
-import { PageHeader } from "@/components/layout/page-header";
-import {
-	type StatsJobKind,
-	formatPercent,
-	formatProcessedTotal,
-	formatTickTime,
-	percentValue,
-	snapshotStatusLabel,
-	snapshotStatusVariant,
-} from "@/viewmodels/admin/stats-recalc";
-import { useStatsRecalc } from "@/viewmodels/admin/use-stats-recalc";
 import {
 	Badge,
 	Button,
@@ -23,6 +11,18 @@ import {
 } from "@ellie/ui";
 import { Database, Loader2, MessageSquare, RefreshCw, RotateCcw, Users } from "lucide-react";
 import { useCallback, useState } from "react";
+import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
+import { PageHeader } from "@/components/layout/page-header";
+import {
+	formatPercent,
+	formatProcessedTotal,
+	formatTickTime,
+	percentValue,
+	type StatsJobKind,
+	snapshotStatusLabel,
+	snapshotStatusVariant,
+} from "@/viewmodels/admin/stats-recalc";
+import { useStatsRecalc } from "@/viewmodels/admin/use-stats-recalc";
 
 // ---------------------------------------------------------------------------
 // Card config

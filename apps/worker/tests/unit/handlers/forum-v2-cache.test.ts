@@ -14,7 +14,9 @@ import { createMockCtx, createMockKV } from "../../helpers";
 vi.mock("../../../src/middleware/auth", () => ({
 	optionalAuthVerified: vi.fn(async () => null),
 }));
+
 import { optionalAuthVerified } from "../../../src/middleware/auth";
+
 const mockAuth = optionalAuthVerified as ReturnType<typeof vi.fn>;
 
 // ─── Helpers ────────────────────────────────────────────────────────

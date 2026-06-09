@@ -1,8 +1,8 @@
 // components/forum/search-hero.tsx — Search page hero section
 // Displays search atmosphere with gradient background
 
-import { Card, CardContent } from "@/components/ui/card";
 import { Search } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 
 export function SearchHero() {
 	return (

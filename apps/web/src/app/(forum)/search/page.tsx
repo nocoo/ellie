@@ -1,5 +1,8 @@
 // Ref: 04f §9 — Single Card: search form + results + pagination
 
+import { getThreadBadges } from "@ellie/types";
+import type { Metadata } from "next";
+import Link from "next/link";
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
 import { SearchHero } from "@/components/forum/search-hero";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
@@ -7,12 +10,9 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { type SearchData, loadSearchResults } from "@/viewmodels/forum/search.server";
+import { loadSearchResults, type SearchData } from "@/viewmodels/forum/search.server";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 import { formatCompactNumber, formatRelativeTime } from "@/viewmodels/shared/formatting";
-import { getThreadBadges } from "@ellie/types";
-import type { Metadata } from "next";
-import Link from "next/link";
 
 interface SearchPageProps {
 	searchParams: Promise<{ q?: string; cursor?: string }>;

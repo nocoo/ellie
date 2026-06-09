@@ -1,8 +1,8 @@
 // components/forum/thread-row-stats.tsx — Shared stats display for thread rows
 // Used by thread-item.tsx and digest-card.tsx
 
-import { formatCompactNumber } from "@/viewmodels/shared/formatting";
 import { Heart } from "lucide-react";
+import { formatCompactNumber } from "@/viewmodels/shared/formatting";
 
 interface ThreadRowStatsProps {
 	replies: number;

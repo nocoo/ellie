@@ -24,23 +24,6 @@
  *     the feature is active for this forum.
  */
 
-import { extractErrorMessage } from "@/lib/admin-error";
-import {
-	type ForumThreadType,
-	type ForumThreadTypeCreate,
-	type ForumThreadTypeListResponse,
-	type ForumThreadTypeUpdate,
-	type ForumThreadTypesConfig,
-	configFlagLabel,
-	createForumThreadType,
-	deleteForumThreadType,
-	diffConfig,
-	fetchForumThreadTypes,
-	reorderForumThreadTypes,
-	updateForumThreadType,
-	updateForumThreadTypesConfig,
-	validateConfig,
-} from "@/viewmodels/admin/forum-thread-types";
 import { Badge, Button, Input, Label } from "@ellie/ui";
 import {
 	ArrowDown,
@@ -54,6 +37,23 @@ import {
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { extractErrorMessage } from "@/lib/admin-error";
+import {
+	configFlagLabel,
+	createForumThreadType,
+	deleteForumThreadType,
+	diffConfig,
+	type ForumThreadType,
+	type ForumThreadTypeCreate,
+	type ForumThreadTypeListResponse,
+	type ForumThreadTypesConfig,
+	type ForumThreadTypeUpdate,
+	fetchForumThreadTypes,
+	reorderForumThreadTypes,
+	updateForumThreadType,
+	updateForumThreadTypesConfig,
+	validateConfig,
+} from "@/viewmodels/admin/forum-thread-types";
 import { AdminInlineMessage } from "./admin-inline-message";
 
 export interface ForumThreadTypesPanelProps {

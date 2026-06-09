@@ -1,10 +1,10 @@
+import { describe, expect, it } from "vitest";
 import {
 	getAttachmentThumbUrl,
 	getAttachmentUrl,
 	getSmileyUrl,
 	getStaticImageUrl,
 } from "@/lib/cdn";
-import { describe, expect, it } from "vitest";
 
 // ---------------------------------------------------------------------------
 // getStaticImageUrl

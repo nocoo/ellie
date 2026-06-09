@@ -1,17 +1,17 @@
 import {
+	canRateDimension,
+	canRevokeRating,
 	EMPTY_RATING_AGGREGATE,
+	getRatingPerDayCap,
+	getRatingPerVoteBounds,
 	RATING_DIMENSION_KEYS,
 	RATING_LIMITS,
 	RATING_QUOTA_WINDOW_SECONDS,
 	RATING_REASON_MAX_LENGTH,
 	RatingDimension,
-	UserRole,
-	canRateDimension,
-	canRevokeRating,
-	getRatingPerDayCap,
-	getRatingPerVoteBounds,
 	ratingDimensionToKey,
 	ratingKeyToDimension,
+	UserRole,
 } from "@ellie/types";
 import { describe, expect, it } from "vitest";
 

@@ -1,5 +1,9 @@
 "use client";
 
+import { Button } from "@ellie/ui";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminPagination, type PaginationInfo } from "@/components/admin/admin-pagination";
 import { PostEditDialog } from "@/components/admin/post-edit-dialog";
@@ -13,14 +17,10 @@ import type { PostUpdate } from "@/viewmodels/admin/posts";
 import { deletePost, updatePost } from "@/viewmodels/admin/posts";
 import {
 	type EnrichedPost,
-	type ThreadDetailData,
 	loadThreadDetail,
+	type ThreadDetailData,
 } from "@/viewmodels/admin/thread-detail";
-import { type ThreadUpdate, deleteThread, updateThread } from "@/viewmodels/admin/threads";
-import { Button } from "@ellie/ui";
-import { ArrowLeft, Loader2 } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { deleteThread, type ThreadUpdate, updateThread } from "@/viewmodels/admin/threads";
 
 // ---------------------------------------------------------------------------
 // Page component

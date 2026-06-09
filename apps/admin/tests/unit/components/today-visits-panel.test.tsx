@@ -14,9 +14,9 @@
 
 // @vitest-environment happy-dom
 
-import { TodayVisitsPanel } from "@/components/admin/analytics/today-visits-panel";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TodayVisitsPanel } from "@/components/admin/analytics/today-visits-panel";
 
 // Default payloads. Per-test overrides via fetchMock impl.
 const KPI_PAYLOAD = {

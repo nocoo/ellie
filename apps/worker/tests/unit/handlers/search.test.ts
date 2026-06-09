@@ -2,11 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { searchThreads } from "../../../src/handlers/search";
 import type { Env } from "../../../src/lib/env";
 import {
-	TEST_JWT_SECRET,
 	createJwtForRole,
 	createMockCtx,
 	createMockKV,
 	makeD1ThreadRow,
+	TEST_JWT_SECRET,
 } from "../../helpers";
 
 describe("search handlers", () => {

@@ -1,9 +1,9 @@
 // components/forum/thread-badge.tsx — Thread badge display
 // Ref: 04d §ThreadBadge — sticky/digest/closed/special labels
 
-import { Badge } from "@/components/ui/badge";
 import type { ThreadBadge } from "@ellie/types";
 import type { VariantProps } from "class-variance-authority";
+import { Badge } from "@/components/ui/badge";
 
 type BadgeVariant = NonNullable<VariantProps<typeof Badge>["variant"]>;
 

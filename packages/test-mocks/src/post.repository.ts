@@ -1,9 +1,8 @@
 // data/repositories/post.repository.ts — Mock PostRepository implementation
 // Ref: 04a §PostRepository
 
-import { decodeCursor, encodeCursor } from "@ellie/types";
 import type { Post } from "@ellie/types";
-import { EMPTY_RATING_AGGREGATE } from "@ellie/types";
+import { decodeCursor, EMPTY_RATING_AGGREGATE, encodeCursor } from "@ellie/types";
 import type { MockDataStore } from "./mock/store";
 import type { CreatePostInput, PaginatedResult, PostListParams, PostRepository } from "./types";
 

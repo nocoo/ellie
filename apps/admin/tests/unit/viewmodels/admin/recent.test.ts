@@ -8,13 +8,13 @@ vi.mock("@/lib/api-client", () => ({
 
 import { apiClient } from "@/lib/api-client";
 import {
-	TAB_LABELS,
-	TIME_RANGE_LABELS,
 	fetchRecentAttachments,
 	fetchRecentPosts,
 	fetchRecentThreads,
 	fetchRecentUsers,
 	shanghaiDateStringToUnix,
+	TAB_LABELS,
+	TIME_RANGE_LABELS,
 	timeRangeToBounds,
 } from "@/viewmodels/admin/recent";
 

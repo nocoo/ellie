@@ -6,9 +6,9 @@
 // the editor can dispatch the global verification dialog instead of
 // silently surfacing "上传失败".
 
-import { parsePostImageUploadResponse } from "@/viewmodels/forum/post-image-upload";
 import { EMAIL_NOT_VERIFIED_PAYLOAD } from "@ellie/types";
 import { describe, expect, it } from "vitest";
+import { parsePostImageUploadResponse } from "@/viewmodels/forum/post-image-upload";
 
 describe("parsePostImageUploadResponse", () => {
 	it("returns success for 2xx with data.url + data.size + data.contentType", () => {

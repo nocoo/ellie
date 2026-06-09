@@ -3,14 +3,14 @@
 // Unified emoji picker combining Unicode emojis and forum smileys
 // Features: Tab switching, search, recent usage tracking with localStorage
 
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { SMILEY_PACKS, getSmileyImageUrl } from "@/lib/smiley";
-import { cn } from "@/lib/utils";
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
 import { Search, Smile } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { getSmileyImageUrl, SMILEY_PACKS } from "@/lib/smiley";
+import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -250,6 +250,7 @@ export function UnifiedEmojiPicker({ onSelect }: UnifiedEmojiPickerProps) {
 							<div className="grid grid-cols-8 gap-1">
 								{recent.map((item, idx) => (
 									<button
+										// biome-ignore lint/suspicious/noArrayIndexKey: composite key includes index to disambiguate duplicate emojis in recent list
 										key={`${item.type}-${item.value}-${idx}`}
 										type="button"
 										onClick={() => handleRecentSelect(item)}
@@ -285,6 +286,7 @@ export function UnifiedEmojiPicker({ onSelect }: UnifiedEmojiPickerProps) {
 							<span className="text-xs text-muted-foreground mr-1.5">最近：</span>
 							{recent.slice(0, 8).map((item, idx) => (
 								<button
+									// biome-ignore lint/suspicious/noArrayIndexKey: composite key includes index to disambiguate duplicate emojis in quick access bar
 									key={`quick-${item.type}-${item.value}-${idx}`}
 									type="button"
 									onClick={() => handleRecentSelect(item)}

@@ -1,6 +1,8 @@
-import { createMockDataStore } from "@ellie/test-mocks";
-import { createMockPostRepository } from "@ellie/test-mocks";
-import { createMockThreadRepository } from "@ellie/test-mocks";
+import {
+	createMockDataStore,
+	createMockPostRepository,
+	createMockThreadRepository,
+} from "@ellie/test-mocks";
 import { encodeCursor } from "@ellie/types";
 import { describe, expect, it } from "vitest";
 

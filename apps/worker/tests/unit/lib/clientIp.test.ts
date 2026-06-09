@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import { extractTrustedClientIp, isServerToWorkerRequest } from "../../../src/lib/clientIp";
-import { TEST_ADMIN_API_KEY, TEST_API_KEY, makeEnv } from "../../helpers";
+import { makeEnv, TEST_ADMIN_API_KEY, TEST_API_KEY } from "../../helpers";
 
 function req(headers: Record<string, string>): Request {
 	return new Request("https://api.example.com/", { headers });

@@ -3,9 +3,9 @@
 
 "use client";
 
+import type { ReactNode } from "react";
 import type { GlobalFooterViewModel } from "@/viewmodels/forum/footer";
 import type { HeaderViewModel } from "@/viewmodels/forum/header";
-import type { ReactNode } from "react";
 import { ForumHeader } from "./forum-header";
 import { SiteFooter } from "./site-footer";
 

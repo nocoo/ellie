@@ -17,8 +17,7 @@ import type {
 	UserCheckinSummary,
 	UserPostHistoryItem,
 } from "@ellie/types";
-import { EMPTY_RATING_AGGREGATE, getCheckinLevel } from "@ellie/types";
-import { UserRole } from "@ellie/types";
+import { EMPTY_RATING_AGGREGATE, getCheckinLevel, UserRole } from "@ellie/types";
 
 /**
  * Display name shown in place of the real author for anonymous posts (Discuz

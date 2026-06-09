@@ -17,17 +17,17 @@
 // checkin state from inside the user-detail page. There is no global
 // dashboard.
 
-import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
-import { extractErrorMessage } from "@/lib/admin-error";
-import {
-	type UserCheckinDetail,
-	fetchUserCheckins,
-	setCheckinDay,
-	setUserStreak,
-} from "@/viewmodels/admin/user-checkin";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label } from "@ellie/ui";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
+import { extractErrorMessage } from "@/lib/admin-error";
+import {
+	fetchUserCheckins,
+	setCheckinDay,
+	setUserStreak,
+	type UserCheckinDetail,
+} from "@/viewmodels/admin/user-checkin";
 
 // Number of trailing days rendered in the day grid. 35 = 5 weeks.
 const GRID_DAYS = 35;

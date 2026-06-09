@@ -4,8 +4,8 @@
 // authoritative security boundary, this file exists for live preview UX
 // plus defense-in-depth on the public render.
 
-import { sanitizeRichHtml } from "@/lib/safe-rich-html";
 import { describe, expect, test } from "vitest";
+import { sanitizeRichHtml } from "@/lib/safe-rich-html";
 
 describe("sanitizeRichHtml — basic shape", () => {
 	test("returns empty string for null / undefined / empty", () => {

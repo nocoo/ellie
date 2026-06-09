@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-	FORUM_DIGEST_AFFECTING_COLUMNS,
 	affectsForumDigest,
 	bumpDigestGen,
 	bumpForumSummaryGen,
@@ -11,6 +10,7 @@ import {
 	bumpThreadMetaGen,
 	deleteUserMini,
 	deleteUserPublicVariants,
+	FORUM_DIGEST_AFFECTING_COLUMNS,
 	invalidateForumReorderV2,
 	invalidateForumStructureV2,
 	invalidateForumSummaryV2,

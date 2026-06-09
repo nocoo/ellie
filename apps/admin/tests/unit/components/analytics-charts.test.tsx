@@ -62,11 +62,11 @@ vi.mock("recharts", async () => {
 	};
 });
 
+import { cleanup, render } from "@testing-library/react";
+import type * as React from "react";
 import { ForumDistChart } from "@/components/admin/analytics/forum-dist-chart";
 import { TrendChart } from "@/components/admin/analytics/trend-chart";
 import type { AnalyticsForumDistRow, AnalyticsTrendPoint } from "@/viewmodels/admin/analytics";
-import { cleanup, render } from "@testing-library/react";
-import type * as React from "react";
 
 afterEach(() => {
 	cleanup();

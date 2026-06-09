@@ -11,6 +11,8 @@
 // Each chart has its own loader + error slot, mirroring the previous inline
 // page implementation.
 
+import { Card, CardContent, CardHeader, CardTitle } from "@ellie/ui";
+import { useCallback, useEffect, useState } from "react";
 import { ForumDistChart } from "@/components/admin/analytics/forum-dist-chart";
 import { TrendChart } from "@/components/admin/analytics/trend-chart";
 import {
@@ -22,13 +24,11 @@ import {
 	type AnalyticsTrend,
 	type AnalyticsTrendMetric,
 	METRIC_LABELS,
-	RANGE_LABELS,
 	parseCheckinTrend,
 	parseForumDist,
 	parseTrend,
+	RANGE_LABELS,
 } from "@/viewmodels/admin/analytics";
-import { Card, CardContent, CardHeader, CardTitle } from "@ellie/ui";
-import { useCallback, useEffect, useState } from "react";
 
 async function fetchJson<T>(url: string, parse: (raw: unknown) => T): Promise<T> {
 	const res = await fetch(url, { credentials: "include" });

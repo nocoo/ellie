@@ -1,5 +1,5 @@
-import { buildAttachmentSearchParams, formatFileSize } from "@/viewmodels/admin/attachments";
 import { describe, expect, it } from "vitest";
+import { buildAttachmentSearchParams, formatFileSize } from "@/viewmodels/admin/attachments";
 
 describe("attachments", () => {
 	describe("buildAttachmentSearchParams", () => {

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./tailwind.css";
+import { DM_Sans, Inter } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { LEGACY_DISCUZ_STUBS_SCRIPT } from "@/lib/legacy-discuz-stubs";
 import { cn } from "@/lib/utils";
-import { DM_Sans, Inter } from "next/font/google";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-dm-sans" });

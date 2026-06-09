@@ -1,3 +1,4 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	formatCompactNumber,
 	formatDate,
@@ -7,7 +8,6 @@ import {
 	formatNumber,
 	formatRelativeTime,
 } from "@/viewmodels/shared/formatting";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("formatNumber", () => {
 	it("formats numbers with thousand separators", () => {

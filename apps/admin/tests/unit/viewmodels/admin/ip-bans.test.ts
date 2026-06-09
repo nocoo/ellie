@@ -1,5 +1,5 @@
-import { buildIpBanSearchParams, formatExpiry } from "@/viewmodels/admin/ip-bans";
 import { describe, expect, it } from "vitest";
+import { buildIpBanSearchParams, formatExpiry } from "@/viewmodels/admin/ip-bans";
 
 describe("ip-bans", () => {
 	describe("buildIpBanSearchParams", () => {

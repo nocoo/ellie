@@ -1,5 +1,5 @@
-import { parseIntParam, parsePageParam } from "@/viewmodels/shared/params";
 import { describe, expect, it } from "vitest";
+import { parseIntParam, parsePageParam } from "@/viewmodels/shared/params";
 
 describe("parseIntParam", () => {
 	it("returns null for null", () => {

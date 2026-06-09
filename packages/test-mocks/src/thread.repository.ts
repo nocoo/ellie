@@ -1,9 +1,8 @@
 // data/repositories/thread.repository.ts — Mock ThreadRepository implementation
 // Ref: 04a §ThreadRepository
 
-import { decodeCursor, encodeCursor } from "@ellie/types";
 import type { Thread } from "@ellie/types";
-import { EMPTY_RATING_AGGREGATE, StickyLevel } from "@ellie/types";
+import { decodeCursor, EMPTY_RATING_AGGREGATE, encodeCursor, StickyLevel } from "@ellie/types";
 import type { MockDataStore } from "./mock/store";
 import type {
 	CreateThreadInput,

@@ -20,10 +20,9 @@
 
 // @vitest-environment happy-dom
 
-import { afterEach, describe, expect, it, vi } from "vitest";
-
-import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 
 afterEach(() => {
 	cleanup();

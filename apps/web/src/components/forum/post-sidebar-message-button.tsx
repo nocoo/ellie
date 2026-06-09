@@ -4,10 +4,10 @@
 
 "use client";
 
-import { ComposeMessageDialog } from "@/components/forum/compose-message-dialog";
-import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { Mail } from "lucide-react";
 import { useState } from "react";
+import { ComposeMessageDialog } from "@/components/forum/compose-message-dialog";
+import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 
 interface PostSidebarMessageButtonProps {
 	userId: number;

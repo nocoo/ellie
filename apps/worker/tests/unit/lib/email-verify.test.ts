@@ -92,12 +92,10 @@ describe("constantTimeEqualHex", () => {
 
 describe("isValidEmail", () => {
 	it.each(["a@b.co", "user.name+tag@example.org", "x@y.zz"])("accepts %s", (s) =>
-		expect(isValidEmail(s)).toBe(true),
-	);
+		expect(isValidEmail(s)).toBe(true));
 
 	it.each(["", "no-at-sign", "no@domain", "spaces in@addr.com", "a@b"])("rejects %s", (s) =>
-		expect(isValidEmail(s)).toBe(false),
-	);
+		expect(isValidEmail(s)).toBe(false));
 
 	it("rejects oversize emails (> 254 chars)", () => {
 		const local = "a".repeat(260);

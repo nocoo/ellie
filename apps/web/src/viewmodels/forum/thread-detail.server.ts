@@ -4,15 +4,14 @@
 
 import "server-only";
 
-import { forumApi, publicUserToUser } from "@/lib/forum-api";
-import { getCurrentForumUser, getWorkerJwt } from "@/lib/forum-auth";
-import { buildThreadBreadcrumbs } from "@/lib/forum-breadcrumbs";
-import { getCachedForumList, getCachedThreadById } from "@/lib/forum-cache";
-import { getCachedPostsPerPage } from "@/lib/forum-cache";
-import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import {
 	type Attachment,
+	canEditThreadSubject,
+	canManageThread,
+	canModerate,
+	canMoveThread,
 	type Forum,
+	findForumAncestors,
 	type Post,
 	type PostComment,
 	type PublicUser,
@@ -20,16 +19,16 @@ import {
 	type User,
 	type UserRole,
 	UserStatus,
-	canEditThreadSubject,
-	canManageThread,
-	canModerate,
-	canMoveThread,
-	findForumAncestors,
 } from "@ellie/types";
+import { forumApi, publicUserToUser } from "@/lib/forum-api";
+import { getCurrentForumUser, getWorkerJwt } from "@/lib/forum-auth";
+import { buildThreadBreadcrumbs } from "@/lib/forum-breadcrumbs";
+import { getCachedForumList, getCachedPostsPerPage, getCachedThreadById } from "@/lib/forum-cache";
+import type { BreadcrumbItem } from "@/viewmodels/shared/breadcrumbs";
 import { fetchPublicSettings, getStr } from "./settings.server";
 import {
-	type EnrichedPost,
 	buildFallbackAuthorMap,
+	type EnrichedPost,
 	enrichPosts,
 	groupAttachmentsByPostId,
 	groupCommentsByPostId,

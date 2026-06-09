@@ -1,13 +1,13 @@
 // Route: /forums/[id]/new-thread — Discuz-style 发表主题 page
 // Server Component shell that loads breadcrumb data, then renders the client form.
 
+import type { Metadata } from "next";
+import Link from "next/link";
 import { NewThreadForm } from "@/components/forum/new-thread-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { loadNewThreadPageData } from "@/viewmodels/forum/new-thread.server";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 import { parseIntParam } from "@/viewmodels/shared/params";
-import type { Metadata } from "next";
-import Link from "next/link";
 
 interface NewThreadPageProps {
 	params: Promise<{ id: string }>;

@@ -1,7 +1,7 @@
-import { auth } from "@/auth";
-import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { auth } from "@/auth";
+import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 import RegisterForm from "./register-form";
 
 export async function generateMetadata(): Promise<Metadata> {

@@ -1,10 +1,10 @@
 // Route: /messages/[id] — Message detail page
 // Server Component shell that renders the client message detail view.
 
+import type { Metadata } from "next";
 import { MessageDetailClient } from "@/components/forum/message-detail";
 import { buildMessagesBreadcrumbs } from "@/viewmodels/forum/messages";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
-import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "站内信详情" };
 

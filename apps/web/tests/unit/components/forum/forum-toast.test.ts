@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, cleanup, render, renderHook, screen } from "@testing-library/react";
-import { createElement } from "react";
 import type { ReactNode } from "react";
+import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ForumToastProvider, useForumToast } from "@/components/forum/forum-toast";

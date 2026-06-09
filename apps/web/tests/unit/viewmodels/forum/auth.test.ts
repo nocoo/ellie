@@ -1,5 +1,5 @@
-import { canSubmitLogin, loginErrorMessage } from "@/viewmodels/forum/auth";
 import { describe, expect, it } from "vitest";
+import { canSubmitLogin, loginErrorMessage } from "@/viewmodels/forum/auth";
 
 // ---------------------------------------------------------------------------
 // canSubmitLogin

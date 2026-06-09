@@ -2,7 +2,7 @@
 // Ref: 04a §User interface
 
 import type { User } from "@ellie/types";
-import { UserRole, UserStatus, getCheckinLevel } from "@ellie/types";
+import { getCheckinLevel, UserRole, UserStatus } from "@ellie/types";
 
 export const MOCK_USERS: User[] = [
 	{

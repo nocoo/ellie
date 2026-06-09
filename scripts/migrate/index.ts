@@ -14,13 +14,13 @@
 import { DEFAULT_CONFIG, type MigrateConfig, parseCliArgs } from "./cli";
 import {
 	type AttachmentIndexData,
-	type MemberCountData,
-	type MemberData,
 	extractAttachment,
 	extractForum,
 	extractPost,
 	extractThread,
 	extractUser,
+	type MemberCountData,
+	type MemberData,
 	parseAttachmentIndex,
 	parseMemberCountRow,
 	parseMemberRow,

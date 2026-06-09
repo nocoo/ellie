@@ -1,5 +1,15 @@
 "use client";
 
+import {
+	Badge,
+	Button,
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@ellie/ui";
+import { MoreHorizontal, Plus } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
@@ -9,26 +19,16 @@ import { CensorWordCreateDialog } from "@/components/admin/censor-word-create-di
 import { PageHeader } from "@/components/layout/page-header";
 import { censorActionVariant } from "@/viewmodels/admin/badges";
 import {
+	actionLabel,
+	batchDeleteCensorWords,
 	type CensorWord,
 	type CensorWordCreate,
 	type CensorWordUpdate,
-	type TestContentResult,
-	actionLabel,
-	batchDeleteCensorWords,
 	deleteCensorWord,
 	replacementDisplay,
+	type TestContentResult,
 	updateCensorWord,
 } from "@/viewmodels/admin/censor-words";
-import { Badge } from "@ellie/ui";
-import { Button } from "@ellie/ui";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@ellie/ui";
-import { MoreHorizontal, Plus } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Filter definitions

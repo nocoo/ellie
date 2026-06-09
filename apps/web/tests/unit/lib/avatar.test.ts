@@ -1,5 +1,5 @@
-import { getAvatarUrl } from "@/lib/avatar";
 import { describe, expect, it } from "vitest";
+import { getAvatarUrl } from "@/lib/avatar";
 
 describe("getAvatarUrl", () => {
 	it("returns proxy URL for UID without avatarPath", () => {

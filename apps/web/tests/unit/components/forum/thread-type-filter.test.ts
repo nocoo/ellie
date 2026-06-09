@@ -8,8 +8,8 @@ vi.mock("next/link", () => ({
 	default: ({ href, children, ...rest }: any) => createElement("a", { href, ...rest }, children),
 }));
 
-import { ThreadTypeFilter } from "@/components/forum/thread-type-filter";
 import type { ForumThreadType } from "@ellie/types";
+import { ThreadTypeFilter } from "@/components/forum/thread-type-filter";
 
 const mkType = (id: number, name: string): ForumThreadType => ({
 	id,

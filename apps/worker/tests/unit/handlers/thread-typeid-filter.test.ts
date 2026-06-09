@@ -56,7 +56,7 @@ vi.mock("../../../src/lib/cache/thread-list-read", async () => {
 
 import { list } from "../../../src/handlers/thread";
 import type { Env } from "../../../src/lib/env";
-import { TEST_JWT_SECRET, createMockCtx, createMockKV, makeD1ThreadRow } from "../../helpers";
+import { createMockCtx, createMockKV, makeD1ThreadRow, TEST_JWT_SECRET } from "../../helpers";
 
 const mockEnv: Env = {
 	API_KEY: "k",

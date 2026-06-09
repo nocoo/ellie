@@ -3,12 +3,12 @@
 // Avatar upload component with drag-and-drop support
 // Validates client-side then uploads to /api/v1/upload with purpose=avatar
 
+import { Loader2, Upload } from "lucide-react";
+import { type DragEvent, useCallback, useState } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
 import { uploadAvatar } from "@/lib/forum-browser-api";
 import { cn } from "@/lib/utils";
 import { invalidateWriteGateCache } from "@/viewmodels/forum/write-gate";
-import { Loader2, Upload } from "lucide-react";
-import { type DragEvent, useCallback, useState } from "react";
 
 interface AvatarUploadProps {
 	currentUrl: string;

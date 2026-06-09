@@ -3,9 +3,15 @@
 // Phase 2 (docs/22-post-rating.md §6.2): create-rating endpoint.
 // Phase 3 (docs/22-post-rating.md §6.3 / §6.4): listByPost + revoke + posts list/get aggregate.
 
+import type { ForumVisibility } from "@ellie/types";
 import {
 	type CreatePostRatingResponse,
+	canRateDimension,
+	canRevokeRating,
+	canViewForumVisibility,
 	EMPTY_RATING_AGGREGATE,
+	getRatingPerDayCap,
+	getRatingPerVoteBounds,
 	type PostRatingAggregate,
 	type PostRatingRow,
 	type PostRatingsResponse,
@@ -13,26 +19,20 @@ import {
 	RATING_REASON_MAX_LENGTH,
 	RatingDimension,
 	type RatingDimensionKey,
-	type UserRole,
-	canRateDimension,
-	canRevokeRating,
-	canViewForumVisibility,
-	getRatingPerDayCap,
-	getRatingPerVoteBounds,
 	ratingDimensionToKey,
 	ratingKeyToDimension,
+	type UserRole,
 } from "@ellie/types";
-import type { ForumVisibility } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import type { Env } from "../lib/env";
 import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
 import {
-	STICKY_MODERATED,
 	buildVisibilityContext,
 	canReadThreadContent,
 	canViewModeratedThread,
 	isForumActive,
+	STICKY_MODERATED,
 } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";

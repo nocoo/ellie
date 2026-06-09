@@ -19,13 +19,13 @@ vi.mock("@/lib/api-client", () => {
 
 import { ApiError, apiClient } from "@/lib/api-client";
 import {
-	WRITE_GATE_EVENT,
 	checkWriteGate,
 	codeToCtaLabel,
 	codeToRedirect,
 	dispatchWriteGate,
 	getWriteGateOnboardingSteps,
 	invalidateWriteGateCache,
+	WRITE_GATE_EVENT,
 	writeGatePreflight,
 } from "@/viewmodels/forum/write-gate";
 

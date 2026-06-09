@@ -1,3 +1,4 @@
+import type { ForumTreeNode } from "@ellie/types";
 import { DigestShowcase } from "@/components/forum/digest-showcase";
 import { ForumGroup } from "@/components/forum/forum-group";
 import { HomeFooter } from "@/components/forum/home-footer";
@@ -6,7 +7,6 @@ import { buildHomeFooterViewModel } from "@/viewmodels/forum/footer";
 import { loadForumList } from "@/viewmodels/forum/forum-list.server";
 import { fetchPublicSettings } from "@/viewmodels/forum/settings.server";
 import { loadSiteStats } from "@/viewmodels/forum/stats.server";
-import type { ForumTreeNode } from "@ellie/types";
 
 /** Shuffle array using Fisher-Yates algorithm and return first n items */
 function shuffleAndTake<T>(arr: T[], n: number): T[] {

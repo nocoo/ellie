@@ -38,18 +38,18 @@ vi.mock("@/viewmodels/admin/forum-thread-types", async () => {
 	};
 });
 
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ForumThreadTypesPanel } from "@/components/admin/forum-thread-types-panel";
 import {
-	type ForumThreadType,
-	type ForumThreadTypeListResponse,
 	createForumThreadType,
 	deleteForumThreadType,
+	type ForumThreadType,
+	type ForumThreadTypeListResponse,
 	fetchForumThreadTypes,
 	reorderForumThreadTypes,
 	updateForumThreadType,
 	updateForumThreadTypesConfig,
 } from "@/viewmodels/admin/forum-thread-types";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const mockFetch = fetchForumThreadTypes as unknown as ReturnType<typeof vi.fn>;
 const mockCreate = createForumThreadType as unknown as ReturnType<typeof vi.fn>;

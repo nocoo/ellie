@@ -5,10 +5,10 @@
 // msg=a8ee78db. Mounting the dialog state is the only reason this needs to
 // be a client component — the dialog itself owns submit/error wiring.
 
-import { ThreadTitleEditDialog } from "@/components/forum/thread-title-edit-dialog";
-import { Button } from "@/components/ui/button";
 import { Pencil } from "lucide-react";
 import { useState } from "react";
+import { ThreadTitleEditDialog } from "@/components/forum/thread-title-edit-dialog";
+import { Button } from "@/components/ui/button";
 
 interface ThreadTitleEditButtonProps {
 	threadId: number;

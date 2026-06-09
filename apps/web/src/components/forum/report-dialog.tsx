@@ -2,6 +2,8 @@
 
 // components/forum/report-dialog.tsx — Post report dialog with three-step verification
 
+import { AlertCircle, CheckCircle2, CircleDot, Flag, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CapWidget } from "@/components/cap-widget";
 import { useForumToast } from "@/components/forum/forum-toast";
 import { Button } from "@/components/ui/button";
@@ -22,8 +24,6 @@ import {
 	submitReport,
 } from "@/viewmodels/forum/report";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
-import { AlertCircle, CheckCircle2, CircleDot, Flag, Loader2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
 
 const CAP_API_ENDPOINT = process.env.NEXT_PUBLIC_CAP_API_ENDPOINT ?? "";
 

@@ -1,6 +1,7 @@
 // Post handlers for Cloudflare Worker
-import { canViewForumVisibility, decodeGenericCursor } from "@ellie/types";
+
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
+import { canViewForumVisibility, decodeGenericCursor } from "@ellie/types";
 import {
 	bumpPostListGen,
 	bumpThreadMetaGen,
@@ -16,12 +17,12 @@ import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
 import { incrementStatsOnPostCreate } from "../lib/stats-counter";
 import {
-	POST_VISIBLE,
-	STICKY_MODERATED,
 	buildVisibilityContext,
 	canReadThreadContent,
 	canViewModeratedThread,
 	isForumActive,
+	POST_VISIBLE,
+	STICKY_MODERATED,
 } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";

@@ -1,7 +1,7 @@
-import { ApiError, apiClient } from "@/lib/api-client";
-import { EMAIL_NOT_VERIFIED_EVENT } from "@/viewmodels/forum/email-not-verified-dispatch";
 import { EMAIL_NOT_VERIFIED_PAYLOAD } from "@ellie/types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError, apiClient } from "@/lib/api-client";
+import { EMAIL_NOT_VERIFIED_EVENT } from "@/viewmodels/forum/email-not-verified-dispatch";
 
 // ---------------------------------------------------------------------------
 // Setup: mock fetch

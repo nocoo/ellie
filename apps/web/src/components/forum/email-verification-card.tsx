@@ -10,6 +10,8 @@
 // file is the wire-up: render the right stack for the user's mode, drive the
 // reducer with form events, fetch the proxy routes, and forward Cap callbacks.
 
+import { useRouter } from "next/navigation";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { CapWidget } from "@/components/cap-widget";
 import { useForumToast } from "@/components/forum/forum-toast";
 import { Button } from "@/components/ui/button";
@@ -23,9 +25,9 @@ import {
 	verifyEmailCode,
 } from "@/lib/forum-browser-api";
 import {
+	describeWrappedError,
 	type EmailVerificationUserView,
 	type FormState,
-	describeWrappedError,
 	initialFormState,
 	isValidCodeFormat,
 	isValidEmailFormat,
@@ -35,8 +37,6 @@ import {
 	validateCaptchaConfig,
 } from "@/viewmodels/forum/email-verification";
 import { invalidateWriteGateCache } from "@/viewmodels/forum/write-gate";
-import { useRouter } from "next/navigation";
-import { useEffect, useReducer, useRef, useState } from "react";
 
 // Default code TTL in seconds (matches worker CODE_TTL_SECONDS).
 const DEFAULT_CODE_TTL = 900;

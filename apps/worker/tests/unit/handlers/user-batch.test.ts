@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { batchGet } from "../../../src/handlers/user";
 import type { Env } from "../../../src/lib/env";
-import { TEST_JWT_SECRET, createMockDb, createMockKV, makeD1UserRow } from "../../helpers";
+import { createMockDb, createMockKV, makeD1UserRow, TEST_JWT_SECRET } from "../../helpers";
 
 describe("batchGet (GET /api/v1/users/batch)", () => {
 	const mockEnv: Env = {

@@ -11,13 +11,13 @@
  * downgraded to 400, breaking the global verification dialog dispatch.
  */
 
+import type { User } from "@ellie/types";
+import { NextResponse } from "next/server";
 import { extractClientIp } from "@/lib/client-ip";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { type ClientContext, ForumApiError } from "@/lib/forum-api";
 import { authPatch } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
-import type { User } from "@ellie/types";
-import { NextResponse } from "next/server";
 
 export async function PATCH(request: Request) {
 	// CSRF protection

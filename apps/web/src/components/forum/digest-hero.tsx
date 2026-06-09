@@ -1,9 +1,9 @@
 // components/forum/digest-hero.tsx — Digest page hero section
 // Displays stats and atmosphere copy for the digest collection
 
+import { Award, BookOpen, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCompactNumber } from "@/viewmodels/shared/formatting";
-import { Award, BookOpen, Users } from "lucide-react";
 
 interface DigestHeroProps {
 	stats: {

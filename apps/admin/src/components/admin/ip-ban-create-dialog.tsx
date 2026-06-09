@@ -1,11 +1,17 @@
 "use client";
 
-import type { IpBan, IpBanCreate, IpBanUpdate } from "@/viewmodels/admin/ip-bans";
-import { Button } from "@ellie/ui";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@ellie/ui";
-import { Input } from "@ellie/ui";
-import { Label } from "@ellie/ui";
+import {
+	Button,
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	Input,
+	Label,
+} from "@ellie/ui";
 import { useCallback, useEffect, useState } from "react";
+import type { IpBan, IpBanCreate, IpBanUpdate } from "@/viewmodels/admin/ip-bans";
 
 // ---------------------------------------------------------------------------
 // Types

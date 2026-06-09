@@ -22,10 +22,10 @@ vi.mock("next/link", () => ({
 		createElement("a", { href }, children),
 }));
 
+import type { PostComment } from "@ellie/types";
 import { ForumToastProvider } from "@/components/forum/forum-toast";
 import { PostComments } from "@/components/forum/post-comments";
 import { apiClient } from "@/lib/api-client";
-import type { PostComment } from "@ellie/types";
 
 // ---------------------------------------------------------------------------
 // Helpers

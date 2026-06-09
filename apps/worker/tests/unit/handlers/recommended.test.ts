@@ -36,7 +36,7 @@ import {
 	invalidateForumVolatileV2,
 } from "../../../src/lib/cache/invalidate";
 import { createJwt } from "../../../src/lib/jwt";
-import { TEST_JWT_SECRET, createMockCtx, createMockDb, createMockKV, makeEnv } from "../../helpers";
+import { createMockCtx, createMockDb, createMockKV, makeEnv, TEST_JWT_SECRET } from "../../helpers";
 
 const mockBumpThreadMeta = bumpThreadMetaGen as ReturnType<typeof vi.fn>;
 const mockBumpSummary = bumpForumSummaryGen as ReturnType<typeof vi.fn>;

@@ -18,8 +18,8 @@
 
 import "server-only";
 
-import { loadRecommendedThreads } from "@/viewmodels/forum/recommended-threads.server";
 import { cache } from "react";
+import { loadRecommendedThreads } from "@/viewmodels/forum/recommended-threads.server";
 import {
 	type ForumAncestorsData,
 	fetchForumAncestors,
@@ -28,7 +28,7 @@ import {
 	fetchThreadById,
 } from "./forum-data";
 import { type ForumSettings, fetchForumSettings } from "./forum-settings";
-import { type SettingsMap, fetchPublicSettingsRaw } from "./public-settings";
+import { fetchPublicSettingsRaw, type SettingsMap } from "./public-settings";
 
 // ---------------------------------------------------------------------------
 // Forum data (deduplicated within the same RSC render pass)
@@ -59,7 +59,7 @@ export async function getCachedPostsPerPage(): Promise<number> {
 	return settings.postsPerPage;
 }
 
+export type { AncestorItem, ForumContext } from "./forum-data";
 // Re-export the data shape types so callers don't need to import the
 // underlying loader modules.
 export type { ForumAncestorsData, ForumSettings, SettingsMap };
-export type { AncestorItem, ForumContext } from "./forum-data";

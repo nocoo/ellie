@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { list } from "../../../src/handlers/settings";
-import { TEST_API_KEY, makeEnv } from "../../helpers";
+import { makeEnv, TEST_API_KEY } from "../../helpers";
 
 // ─── Helpers ──────────────────────────────────────────────────
 

@@ -49,9 +49,7 @@ function normalizeSql(s: string): string {
  * results in the order they're prepared. `batch` consumes the next
  * `n` prepares.
  */
-function makeMockDb(opts: {
-	canned?: Array<{ results: Array<Record<string, unknown>> }>;
-}) {
+function makeMockDb(opts: { canned?: Array<{ results: Array<Record<string, unknown>> }> }) {
 	const calls: Array<{ sql: string; binds: unknown[] }> = [];
 	let cursor = 0;
 	const canned = opts.canned ?? [];

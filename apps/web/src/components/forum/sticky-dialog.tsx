@@ -2,9 +2,9 @@
 
 // components/forum/sticky-dialog.tsx — Sticky level selection dialog
 
+import { Pin, PinOff } from "lucide-react";
 import type { StickyLevel } from "@/lib/moderation-api";
 import { cn } from "@/lib/utils";
-import { Pin, PinOff } from "lucide-react";
 import { ModerationChoiceDialog, type ModerationChoiceOption } from "./moderation-choice-dialog";
 
 interface StickyDialogProps {

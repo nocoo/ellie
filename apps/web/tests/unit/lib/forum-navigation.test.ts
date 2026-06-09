@@ -1,5 +1,5 @@
-import { FORUM_NAV_ITEMS } from "@/lib/forum-navigation";
 import { describe, expect, it } from "vitest";
+import { FORUM_NAV_ITEMS } from "@/lib/forum-navigation";
 
 describe("FORUM_NAV_ITEMS", () => {
 	it("has 4 nav items: 首页, 精华, 签到, 搜索", () => {

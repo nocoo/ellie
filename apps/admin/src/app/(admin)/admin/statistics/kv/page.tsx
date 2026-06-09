@@ -30,6 +30,26 @@
 //      the operator never gets a button that immediately tells them
 //      "needs more input".
 
+import {
+	Badge,
+	Button,
+	Card,
+	CardContent,
+	ConfirmDialog,
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@ellie/ui";
+import { ChevronDown, ChevronRight, Eye, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
 import {
 	ADMIN_WIDE_DIALOG_BODY_CLASS,
@@ -41,14 +61,6 @@ import { SegmentedSwitch } from "@/components/admin/segmented-switch";
 import { PageHeader } from "@/components/layout/page-header";
 import { extractErrorMessage } from "@/lib/admin-error";
 import { readAdminKvJson } from "@/lib/admin-kv-fetch";
-import { Badge } from "@ellie/ui";
-import { Button } from "@ellie/ui";
-import { Card, CardContent } from "@ellie/ui";
-import { ConfirmDialog } from "@ellie/ui";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@ellie/ui";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@ellie/ui";
-import { ChevronDown, ChevronRight, Eye, Loader2, RefreshCw, Trash2 } from "lucide-react";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Wire types — mirrored from `apps/worker/src/handlers/admin/kv.ts`.

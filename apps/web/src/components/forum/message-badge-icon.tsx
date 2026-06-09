@@ -5,12 +5,12 @@
 
 "use client";
 
+import { Mail } from "lucide-react";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { fetchUnreadCount } from "@/viewmodels/forum/messages";
-import { Mail } from "lucide-react";
-import { useSession } from "next-auth/react";
-import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Refresh interval for polling unread count

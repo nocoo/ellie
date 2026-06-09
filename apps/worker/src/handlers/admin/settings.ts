@@ -6,7 +6,7 @@ import { resolveActor, writeAdminLog } from "../../lib/adminLog";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { jsonNoStoreResponse } from "../../lib/response";
-import { type SettingsDetailMap, getSettingsDetailed, upsertSettings } from "../../lib/settings";
+import { getSettingsDetailed, type SettingsDetailMap, upsertSettings } from "../../lib/settings";
 import { errorResponse } from "../../middleware/error";
 
 // ─── Config (for withEntityAuth pattern consistency) ─────────

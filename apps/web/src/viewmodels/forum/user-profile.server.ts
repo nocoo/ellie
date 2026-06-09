@@ -3,8 +3,6 @@
 
 import "server-only";
 
-import { forumApi, publicUserToUser } from "@/lib/forum-api";
-import { getCachedForumList, getCachedPageSize } from "@/lib/forum-cache";
 import type {
 	PostThreadSummary,
 	PublicUser,
@@ -12,9 +10,10 @@ import type {
 	User,
 	UserPostHistoryItem,
 } from "@ellie/types";
-import { type ProfileTab, isUserPostHistoryItem, resolveTab } from "./user-profile";
-
-import { type PaginatedResult, emptyPage } from "@/viewmodels/shared/pagination";
+import { forumApi, publicUserToUser } from "@/lib/forum-api";
+import { getCachedForumList, getCachedPageSize } from "@/lib/forum-cache";
+import { emptyPage, type PaginatedResult } from "@/viewmodels/shared/pagination";
+import { isUserPostHistoryItem, type ProfileTab, resolveTab } from "./user-profile";
 
 /**
  * Lookup map from forumId → forum display name, built once at load time so

@@ -6,11 +6,11 @@
  * Ref: docs/04g-user-auth.md §2
  */
 
-import NextAuth from "next-auth";
+import { headers } from "next/headers";
 import type { Account, Session, User } from "next-auth";
+import NextAuth from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import Credentials from "next-auth/providers/credentials";
-import { headers } from "next/headers";
 
 import { extractClientIp } from "@/lib/client-ip";
 
@@ -160,13 +160,7 @@ export function jwtCallback({
 }
 
 /** Session callback — expose user info to client (no workerJwt). */
-export function sessionCallback({
-	session,
-	token,
-}: {
-	session: Session;
-	token: JWT;
-}): Session {
+export function sessionCallback({ session, token }: { session: Session; token: JWT }): Session {
 	session.user = {
 		id: token.sub ?? "",
 		name: token.name ?? "",

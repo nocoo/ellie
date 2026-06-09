@@ -1,15 +1,7 @@
 "use client";
 
-import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
 import {
-	type AdminLog,
-	formatLogTime,
-	formatTarget,
-	parseDetails,
-	targetHref,
-} from "@/viewmodels/admin/admin-logs";
-import { Button } from "@ellie/ui";
-import {
+	Button,
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -18,6 +10,14 @@ import {
 	DialogTitle,
 } from "@ellie/ui";
 import Link from "next/link";
+import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
+import {
+	type AdminLog,
+	formatLogTime,
+	formatTarget,
+	parseDetails,
+	targetHref,
+} from "@/viewmodels/admin/admin-logs";
 import { ADMIN_WIDE_DIALOG_BODY_CLASS, ADMIN_WIDE_DIALOG_CONTENT_CLASS } from "./dialog-presets";
 
 // ---------------------------------------------------------------------------

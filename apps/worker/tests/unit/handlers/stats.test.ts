@@ -1,7 +1,7 @@
 import { describe, expect, it, type mock, vi } from "vitest";
-import { stats } from "../../../src/handlers/stats";
 import type { PublicStats } from "../../../src/handlers/stats";
-import { TEST_API_KEY, makeEnv } from "../../helpers";
+import { stats } from "../../../src/handlers/stats";
+import { makeEnv, TEST_API_KEY } from "../../helpers";
 
 // ─── Helpers ──────────────────────────────────────────────────
 

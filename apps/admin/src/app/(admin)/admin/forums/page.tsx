@@ -1,32 +1,8 @@
 "use client";
 
-import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
-import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
-import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
-import { ForumCreateDialog } from "@/components/admin/forum-create-dialog";
-import { ForumEditDialog } from "@/components/admin/forum-edit-dialog";
-import { ForumMergeDialog } from "@/components/admin/forum-merge-dialog";
-import { PageHeader } from "@/components/layout/page-header";
-import { extractErrorMessage } from "@/lib/admin-error";
-import { forumStatusVariant, forumTypeVariant } from "@/viewmodels/admin/badges";
 import {
-	type Forum,
-	type ForumCreate,
-	type ForumTreeNode,
-	type ForumUpdate,
-	buildForumTree,
-	createForum,
-	deleteForum,
-	fetchForums,
-	flattenForumTree,
-	mergeForums,
-	statusLabel,
-	typeLabel,
-	updateForum,
-} from "@/viewmodels/admin/forums";
-import { Badge } from "@ellie/ui";
-import { Button } from "@ellie/ui";
-import {
+	Badge,
+	Button,
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
@@ -44,6 +20,30 @@ import {
 	SquareStack,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
+import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
+import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
+import { ForumCreateDialog } from "@/components/admin/forum-create-dialog";
+import { ForumEditDialog } from "@/components/admin/forum-edit-dialog";
+import { ForumMergeDialog } from "@/components/admin/forum-merge-dialog";
+import { PageHeader } from "@/components/layout/page-header";
+import { extractErrorMessage } from "@/lib/admin-error";
+import { forumStatusVariant, forumTypeVariant } from "@/viewmodels/admin/badges";
+import {
+	buildForumTree,
+	createForum,
+	deleteForum,
+	type Forum,
+	type ForumCreate,
+	type ForumTreeNode,
+	type ForumUpdate,
+	fetchForums,
+	flattenForumTree,
+	mergeForums,
+	statusLabel,
+	typeLabel,
+	updateForum,
+} from "@/viewmodels/admin/forums";
 
 // ---------------------------------------------------------------------------
 // Filter definitions

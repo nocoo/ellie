@@ -1,5 +1,8 @@
 // Ref: 04f §6 — RSC page, Discuz classic thread list layout with page-number pagination
 
+import { canModerate, ForumType } from "@ellie/types";
+import type { Metadata } from "next";
+import Link from "next/link";
 import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
 import { ForumFloatingToolbar } from "@/components/forum/forum-floating-toolbar";
 import { ForumHeaderClient } from "@/components/forum/forum-header-client";
@@ -19,22 +22,19 @@ import {
 import { getSelfForumUser } from "@/lib/forum-self";
 import type { RecommendedThreadItem } from "@/viewmodels/forum/recommended-threads.server";
 import {
-	type ThreadListPagedData,
 	loadThreadListPaged,
+	type ThreadListPagedData,
 } from "@/viewmodels/forum/thread-list.server";
 import {
-	type ForumThreadTypesPublic,
 	buildForumListReturnTo,
 	coerceTypeIdParam,
+	type ForumThreadTypesPublic,
 	normalizeTypeId,
 	shouldShowFilter,
 	shouldShowTypeNameBadge,
 } from "@/viewmodels/forum/thread-types";
 import { getForumTitle } from "@/viewmodels/forum/title.server";
 import { parseIntParam, parsePageParam } from "@/viewmodels/shared/params";
-import { ForumType, canModerate } from "@ellie/types";
-import type { Metadata } from "next";
-import Link from "next/link";
 
 interface ForumThreadsPageProps {
 	params: Promise<{ id: string }>;

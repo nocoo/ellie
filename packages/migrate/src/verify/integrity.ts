@@ -7,7 +7,7 @@
  */
 
 import type { Database } from "bun:sqlite";
-import { FK_RELATIONS, buildFkCheckQuery } from "../load/d1-sql-builder";
+import { buildFkCheckQuery, FK_RELATIONS } from "../load/d1-sql-builder";
 
 /** Result of a single integrity check. */
 export interface CheckResult {

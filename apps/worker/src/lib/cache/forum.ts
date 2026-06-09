@@ -28,8 +28,7 @@ import type {
 	ModeratorInfo,
 	VisibilityContext,
 } from "@ellie/types";
-import { canViewForumVisibility } from "@ellie/types";
-import { UserRole } from "@ellie/types";
+import { canViewForumVisibility, UserRole } from "@ellie/types";
 import type { VisibilityBucket } from "./keys";
 
 // ─── Bucket → VisibilityContext ────────────────────────────────────

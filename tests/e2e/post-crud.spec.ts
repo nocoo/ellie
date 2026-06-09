@@ -80,6 +80,7 @@ test.describe("E2E-PR: Post CRUD", () => {
 		const editButtons = page.locator('button:has-text("编辑"):visible');
 		const editCount = await editButtons.count();
 
+		// biome-ignore lint/suspicious/noSkippedTests: editable posts depend on PR-01 reply succeeding
 		test.skip(editCount === 0, "No editable posts found");
 
 		// Click last visible edit button (our most recent reply)
@@ -127,6 +128,7 @@ test.describe("E2E-PR: Post CRUD", () => {
 		const deleteButtons = page.locator('button:has-text("删除"):visible');
 		const deleteCount = await deleteButtons.count();
 
+		// biome-ignore lint/suspicious/noSkippedTests: deletable posts depend on PR-01 reply succeeding
 		test.skip(deleteCount === 0, "No deletable posts found");
 
 		// Count posts before delete

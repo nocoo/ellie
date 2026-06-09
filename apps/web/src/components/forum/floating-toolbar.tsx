@@ -5,9 +5,6 @@
 // and context action (new thread / quick reply) into a single widget.
 // All actions have keyboard shortcuts; tooltips show labels + shortcut keys.
 
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
 import {
 	ArrowUp,
 	ChevronLeft,
@@ -19,6 +16,9 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Types

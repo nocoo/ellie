@@ -1,10 +1,10 @@
+import { FileText, MessageSquare, MessagesSquare, Users } from "lucide-react";
+import Link from "next/link";
 import { StatCard } from "@/components/admin/stat-card";
 import { PageHeader } from "@/components/layout/page-header";
 import { Section } from "@/components/layout/section";
-import { type DashboardStats, activeForums } from "@/viewmodels/admin/dashboard";
+import { activeForums, type DashboardStats } from "@/viewmodels/admin/dashboard";
 import { fetchDashboardStats } from "@/viewmodels/admin/dashboard.server";
-import { FileText, MessageSquare, MessagesSquare, Users } from "lucide-react";
-import Link from "next/link";
 
 // ---------------------------------------------------------------------------
 // Quick links data

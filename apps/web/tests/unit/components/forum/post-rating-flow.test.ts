@@ -58,15 +58,15 @@ vi.mock("next/navigation", () => ({
 	useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
 }));
 
-import { ForumToastProvider } from "@/components/forum/forum-toast";
-import { PostRatingDialog } from "@/components/forum/post-rating-dialog";
-import { PostRatingSummary } from "@/components/forum/post-rating-summary";
 import {
 	EMPTY_RATING_AGGREGATE,
 	type PostRatingAggregate,
 	type PostRatingsResponse,
 	RatingDimension,
 } from "@ellie/types";
+import { ForumToastProvider } from "@/components/forum/forum-toast";
+import { PostRatingDialog } from "@/components/forum/post-rating-dialog";
+import { PostRatingSummary } from "@/components/forum/post-rating-summary";
 
 // ─── Test harness — mirrors PostCard's wiring ────────────────────────────────
 

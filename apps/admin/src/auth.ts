@@ -5,8 +5,8 @@
  * Uses default /api/auth routes (no custom basePath).
  */
 
-import NextAuth from "next-auth";
 import type { Profile, Session } from "next-auth";
+import NextAuth from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import Google from "next-auth/providers/google";
 

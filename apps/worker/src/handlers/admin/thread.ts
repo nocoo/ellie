@@ -21,9 +21,8 @@ import { recalcForumMetadata } from "../../lib/recalcMetadata";
 import { jsonNoStoreResponse } from "../../lib/response";
 import { batchDecrementUserPosts, decrementUserThreads } from "../../lib/userCounters";
 import { STICKY_FORUM, STICKY_GLOBAL } from "../../lib/visibility";
-import { invalidateRecommendedCache } from "../recommended";
-
 import { errorResponse } from "../../middleware/error";
+import { invalidateRecommendedCache } from "../recommended";
 
 // ─── Entity config ───────────────────────────────────────────────
 

@@ -16,6 +16,17 @@
 // pre-validate role here — we let the API surface SELF_RATING /
 // PERMISSION_DENIED / EMAIL_NOT_VERIFIED as ApiError codes.
 
+import {
+	type CreatePostRatingResponse,
+	getRatingPerVoteBounds,
+	type PostRatingAggregate,
+	RATING_REASON_MAX_LENGTH,
+	RatingDimension,
+	type RatingDimensionKey,
+	ratingDimensionToKey,
+} from "@ellie/types";
+import { Award, Coins } from "lucide-react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -35,17 +46,6 @@ import {
 	RATING_SCORE_PRESETS,
 	submitPostRating,
 } from "@/viewmodels/forum/rating-reasons";
-import {
-	type CreatePostRatingResponse,
-	type PostRatingAggregate,
-	RATING_REASON_MAX_LENGTH,
-	RatingDimension,
-	type RatingDimensionKey,
-	getRatingPerVoteBounds,
-	ratingDimensionToKey,
-} from "@ellie/types";
-import { Award, Coins } from "lucide-react";
-import { useEffect, useId, useMemo, useState } from "react";
 
 // ─── Error code → user copy ───────────────────────────────────────────────────
 

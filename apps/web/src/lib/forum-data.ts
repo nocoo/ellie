@@ -9,8 +9,8 @@
 
 import "server-only";
 
-import type { ForumThreadTypesPublic } from "@/viewmodels/forum/thread-types";
 import type { Forum, ForumVisibility, ModeratorInfo, Thread } from "@ellie/types";
+import type { ForumThreadTypesPublic } from "@/viewmodels/forum/thread-types";
 import { forumApi } from "./forum-api";
 
 /** Fetch a single thread by ID. */

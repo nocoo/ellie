@@ -1,16 +1,16 @@
+import { describe, expect, it } from "vitest";
 import {
 	DEFAULT_ERROR_MESSAGES,
 	DELETE_ERROR_MESSAGES,
 	EDIT_ERROR_MESSAGES,
-	POST_ERROR_MESSAGES,
-	PROFILE_ERROR_MESSAGES,
-	THREAD_ERROR_MESSAGES,
 	getErrorMessage,
 	isAuthError,
 	isContentBlockedError,
 	isRateLimitError,
+	POST_ERROR_MESSAGES,
+	PROFILE_ERROR_MESSAGES,
+	THREAD_ERROR_MESSAGES,
 } from "@/lib/error-messages";
-import { describe, expect, it } from "vitest";
 
 // ---------------------------------------------------------------------------
 // getErrorMessage

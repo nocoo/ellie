@@ -9,12 +9,12 @@
  *   4. Returns the Worker response as-is
  */
 
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { type AdminInfo, resolveAdmin } from "@/lib/admin";
 import { type AdminApiClient, adminApi, adminApiAs } from "@/lib/admin-api";
 import { validateOrigin } from "@/lib/csrf";
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
 
 // Re-export for backward compatibility with existing tests
 export { getAllowedOrigins, validateOrigin } from "@/lib/csrf";
@@ -106,5 +106,5 @@ export async function passthrough(workerResponse: Response): Promise<Response> {
 // Re-export adminApi + adminApiAs for convenience
 // ---------------------------------------------------------------------------
 
-export { adminApi, adminApiAs };
 export type { AdminApiClient };
+export { adminApi, adminApiAs };

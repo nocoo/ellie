@@ -10,8 +10,8 @@
 //   - collapse `ForumApiError` via the shared
 //     `forumApiErrorToProxyResponse` helper, preserving status
 
-import { ForumApiError } from "@/lib/forum-api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ForumApiError } from "@/lib/forum-api";
 
 const getAllMock = vi.fn();
 const getAuthMock = vi.fn();

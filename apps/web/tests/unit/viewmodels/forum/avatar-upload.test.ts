@@ -5,9 +5,9 @@
 // where the §5.4 flat payload is recognized so the component can dispatch
 // the global dialog instead of silently rendering "上传失败".
 
-import { parseAvatarUploadResponse } from "@/viewmodels/forum/avatar-upload";
 import { EMAIL_NOT_VERIFIED_PAYLOAD } from "@ellie/types";
 import { describe, expect, it } from "vitest";
+import { parseAvatarUploadResponse } from "@/viewmodels/forum/avatar-upload";
 
 describe("parseAvatarUploadResponse", () => {
 	it("returns success for 2xx with data.url + data.size", () => {

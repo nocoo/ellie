@@ -10,15 +10,15 @@ import { describe, expect, it } from "vitest";
 
 import {
 	type AcceptedRow,
-	type MergedRatelogRow,
-	type NormalizedRatelogRow,
-	type RatelogRawRow,
 	applyMapping,
 	buildInsertChunk,
 	chunkRows,
 	extcreditsToDimension,
+	type MergedRatelogRow,
 	mergeDuplicates,
+	type NormalizedRatelogRow,
 	normalizeRatelogRow,
+	type RatelogRawRow,
 	renderDroppedCsv,
 	renderMergedCsv,
 	renderSummaryMarkdown,

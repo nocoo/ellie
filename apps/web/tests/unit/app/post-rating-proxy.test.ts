@@ -10,9 +10,9 @@
 // `forum-auth`, and CSRF helpers stay real; everything past the proxy
 // boundary is stubbed.
 
-import { ForumApiError } from "@/lib/forum-api";
 import { EMAIL_NOT_VERIFIED_PAYLOAD } from "@ellie/types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ForumApiError } from "@/lib/forum-api";
 
 const postAuthMock = vi.fn();
 const getMock = vi.fn();

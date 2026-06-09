@@ -10,8 +10,8 @@ import {
 	CHECKIN_REWARD_MAX,
 	CHECKIN_REWARD_MIN,
 	type CheckinMood,
-	type UserCheckin,
 	getCheckinLevel,
+	type UserCheckin,
 } from "@ellie/types";
 import { jsonResponse } from "../lib/response";
 import { withAuth, withAuthVerified } from "../lib/routeHelpers";

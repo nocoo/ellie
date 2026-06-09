@@ -1,5 +1,5 @@
-import { SETTING_GROUPS, getChangedSettings, toFormValues } from "@/viewmodels/admin/settings";
 import { describe, expect, it } from "vitest";
+import { getChangedSettings, SETTING_GROUPS, toFormValues } from "@/viewmodels/admin/settings";
 
 describe("settings", () => {
 	describe("SETTING_GROUPS", () => {

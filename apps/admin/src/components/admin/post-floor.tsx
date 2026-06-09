@@ -1,13 +1,9 @@
 "use client";
 
-import { UserAvatar } from "@/components/admin/user-avatar";
-import { FIRST_POST_VARIANT, userRoleVariant, userStatusVariant } from "@/viewmodels/admin/badges";
-import type { EnrichedPost } from "@/viewmodels/admin/thread-detail";
-import { roleLabel } from "@/viewmodels/admin/users";
 import { formatNumber } from "@ellie/shared";
-import { Badge } from "@ellie/ui";
-import { Button } from "@ellie/ui";
 import {
+	Badge,
+	Button,
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
@@ -15,6 +11,10 @@ import {
 } from "@ellie/ui";
 import { MoreHorizontal, Pencil, Shield, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { UserAvatar } from "@/components/admin/user-avatar";
+import { FIRST_POST_VARIANT, userRoleVariant, userStatusVariant } from "@/viewmodels/admin/badges";
+import type { EnrichedPost } from "@/viewmodels/admin/thread-detail";
+import { roleLabel } from "@/viewmodels/admin/users";
 
 // ---------------------------------------------------------------------------
 // Types

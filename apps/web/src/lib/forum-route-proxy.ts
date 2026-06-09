@@ -37,12 +37,12 @@
 
 import "server-only";
 
+import { type NextRequest, NextResponse } from "next/server";
 import { extractClientIp } from "@/lib/client-ip";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
-import { type NextRequest, NextResponse } from "next/server";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -267,7 +267,7 @@ export function proxyRoute<P>(opts: ProxyRouteOptions<P>): ProxyRouteHandler<P> 
 		const path = opts.path(params);
 
 		// 5. Body / query
-		let body: unknown = undefined;
+		let body: unknown;
 		if (opts.method !== "GET") {
 			try {
 				body = await readBody(request, opts.body as ProxyBodyMode);
