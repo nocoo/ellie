@@ -1,31 +1,47 @@
 {
-	"$schema": "https://biomejs.dev/schemas/1.9.0/schema.json",
-	"organizeImports": {
-		"enabled": true
-	},
+	"$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
+	"assist": { "actions": { "source": { "organizeImports": "on" } } },
 	"linter": {
 		"enabled": true,
 		"rules": {
 			"recommended": true,
+			"a11y": {
+				"noStaticElementInteractions": "off",
+				"useAriaPropsSupportedByRole": "off"
+			},
 			"complexity": {
 				"noExcessiveCognitiveComplexity": {
 					"level": "warn",
 					"options": {
 						"maxAllowedComplexity": 25
 					}
-				}
+				},
+				"useOptionalChain": "off",
+				"noImportantStyles": "off"
 			},
 			"correctness": {
 				"noUnusedVariables": "error",
-				"noUnusedImports": "error"
+				"noUnusedImports": "error",
+				"useParseIntRadix": "off",
+				"useHookAtTopLevel": "off"
+			},
+			"performance": {
+				"noImgElement": "off"
 			},
 			"style": {
 				"noNonNullAssertion": "warn",
-				"useConst": "error"
+				"useConst": "error",
+				"noDescendingSpecificity": "off"
 			},
 			"suspicious": {
-				"noExplicitAny": "warn"
+				"noExplicitAny": "warn",
+				"noTemplateCurlyInString": "off"
 			}
+		}
+	},
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
 		}
 	},
 	"formatter": {
@@ -40,31 +56,32 @@
 		}
 	},
 	"files": {
-		"ignore": [
-			"node_modules",
-			"dist",
-			".next",
-			"coverage",
-			"reference",
-			"output",
-			"test-results",
-			"*.sql",
-			"*.sql.gz",
-			".wrangler",
-			"packages/cli-rs/target",
-			"**/*.d.ts",
-			"*.tsbuildinfo",
-			"packages/*/src/**/*.js",
-			"packages/*/src/**/*.js.map",
-			"packages/*/src/**/*.d.ts"
+		"includes": [
+			"**",
+			"!**/node_modules",
+			"!**/dist",
+			"!**/.next",
+			"!**/coverage",
+			"!**/reference",
+			"!**/output",
+			"!**/test-results",
+			"!**/*.sql",
+			"!**/*.sql.gz",
+			"!**/.wrangler",
+			"!**/packages/cli-rs/target",
+			"!**/*.d.ts",
+			"!**/*.tsbuildinfo",
+			"!**/packages/**/*/src/**/*.js",
+			"!**/packages/**/*/src/**/*.js.map",
+			"!**/packages/**/*/src/**/*.d.ts"
 		]
 	},
 	"overrides": [
 		{
-			"include": [
-				"src/components/ui/**",
-				"apps/web/src/components/ui/**",
-				"packages/ui/src/components/**"
+			"includes": [
+				"**/src/components/ui/**",
+				"**/apps/web/src/components/ui/**",
+				"**/packages/ui/src/components/**"
 			],
 			"linter": {
 				"rules": {
@@ -77,10 +94,10 @@
 			}
 		},
 		{
-			"include": [
-				"src/components/forum/post-content.tsx",
-				"apps/web/src/components/forum/post-content.tsx",
-				"apps/admin/src/app/layout.tsx"
+			"includes": [
+				"**/src/components/forum/post-content.tsx",
+				"**/apps/web/src/components/forum/post-content.tsx",
+				"**/apps/admin/src/app/layout.tsx"
 			],
 			"linter": {
 				"rules": {
@@ -91,7 +108,7 @@
 			}
 		},
 		{
-			"include": ["apps/web/src/components/**"],
+			"includes": ["**/apps/web/src/components/**"],
 			"linter": {
 				"rules": {
 					"a11y": {
@@ -102,7 +119,7 @@
 			}
 		},
 		{
-			"include": ["scripts/**"],
+			"includes": ["**/scripts/**"],
 			"linter": {
 				"rules": {
 					"correctness": {
@@ -115,7 +132,7 @@
 			}
 		},
 		{
-			"include": ["apps/admin/src/app/(admin)/admin/forums/page.tsx"],
+			"includes": ["**/apps/admin/src/app/(admin)/admin/forums/page.tsx"],
 			"linter": {
 				"rules": {
 					"suspicious": {
@@ -125,7 +142,7 @@
 			}
 		},
 		{
-			"include": ["**/*.test.ts", "**/*.spec.ts", "tests/**"],
+			"includes": ["**/*.test.ts", "**/*.spec.ts", "**/tests/**"],
 			"linter": {
 				"rules": {
 					"style": {
