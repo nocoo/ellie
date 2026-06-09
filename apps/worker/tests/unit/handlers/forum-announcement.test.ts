@@ -9,7 +9,7 @@
 import { describe, expect, it } from "vitest";
 import { setAnnouncement } from "../../../src/handlers/forum";
 import { createJwt } from "../../../src/lib/jwt";
-import { TEST_JWT_SECRET, createMockDb, createMockKV, makeEnv } from "../../helpers";
+import { createMockDb, createMockKV, makeEnv, TEST_JWT_SECRET } from "../../helpers";
 
 async function makeToken(role: number, userId = 1): Promise<string> {
 	return createJwt({ userId, role, exp: Math.floor(Date.now() / 1000) + 3600 }, TEST_JWT_SECRET);

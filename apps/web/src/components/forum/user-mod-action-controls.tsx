@@ -14,6 +14,8 @@
  * toast notifications, refresh/redirect behavior.
  */
 
+import { Ban, Loader2, Trash2, VolumeX } from "lucide-react";
+import type { ReactElement } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -31,8 +33,6 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { Ban, Loader2, Trash2, VolumeX } from "lucide-react";
-import type { ReactElement } from "react";
 
 // ---------------------------------------------------------------------------
 // Types

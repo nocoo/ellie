@@ -11,6 +11,7 @@
 
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import {
 	dateInputToUnixSecondsEnd,
 	dateInputToUnixSecondsStart,
@@ -20,13 +21,12 @@ import {
 } from "@/components/admin/admin-filters";
 import { extractErrorMessage } from "@/lib/admin-error";
 import {
-	type User,
-	type UserUpdate,
 	batchSetStatus,
 	purgeUser,
+	type User,
+	type UserUpdate,
 	updateUser,
 } from "@/viewmodels/admin/users";
-import { useCallback, useEffect, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Types

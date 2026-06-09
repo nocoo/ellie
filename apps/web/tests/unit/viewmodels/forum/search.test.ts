@@ -1,5 +1,5 @@
-import { isValidSearchQuery } from "@/viewmodels/forum/search";
 import { describe, expect, it } from "vitest";
+import { isValidSearchQuery } from "@/viewmodels/forum/search";
 
 // ---------------------------------------------------------------------------
 // isValidSearchQuery

@@ -10,6 +10,15 @@
 
 "use client";
 
+import {
+	canRateDimension,
+	EMPTY_RATING_AGGREGATE,
+	type PostRatingAggregate,
+	RatingDimension,
+	type UserRole,
+} from "@ellie/types";
+import Link from "next/link";
+import { useState } from "react";
 import { PostActionBar } from "@/components/forum/post-action-bar";
 import { PostAuthorStatusIcon } from "@/components/forum/post-author-status-icon";
 import { PostComments } from "@/components/forum/post-comments";
@@ -27,15 +36,6 @@ import { type EnrichedPost, floorLabel } from "@/viewmodels/forum/thread-detail"
 import { usePostActions } from "@/viewmodels/forum/use-post-actions";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
-import {
-	EMPTY_RATING_AGGREGATE,
-	type PostRatingAggregate,
-	RatingDimension,
-	type UserRole,
-	canRateDimension,
-} from "@ellie/types";
-import Link from "next/link";
-import { useState } from "react";
 
 interface PostCardProps {
 	post: EnrichedPost;

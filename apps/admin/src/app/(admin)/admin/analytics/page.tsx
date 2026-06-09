@@ -24,6 +24,9 @@
 //   - Unknown values fall back to `trend` (the next click writes the
 //     normalized value back to the URL).
 
+import { CalendarCheck, FileText, MessageSquare, Users } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { AuditTab } from "@/components/admin/analytics/tabs/audit-tab";
 import { LoginTab } from "@/components/admin/analytics/tabs/login-tab";
 import { TrendTab } from "@/components/admin/analytics/tabs/trend-tab";
@@ -33,9 +36,6 @@ import { StatCard } from "@/components/admin/stat-card";
 import { PageHeader } from "@/components/layout/page-header";
 import { Section } from "@/components/layout/section";
 import { type AnalyticsOverview, parseOverview } from "@/viewmodels/admin/analytics";
-import { CalendarCheck, FileText, MessageSquare, Users } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Tab identity — single source of truth for the tab keys and labels.

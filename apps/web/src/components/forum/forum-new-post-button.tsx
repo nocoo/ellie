@@ -3,10 +3,10 @@
 // components/forum/forum-new-post-button.tsx — Discuz pn_post.png button
 // Opens the NewThreadDialog when clicked, with write-gate preflight.
 
+import { useCallback, useState } from "react";
 import { getStaticImageUrl } from "@/lib/cdn";
 import type { ForumThreadTypesPublic } from "@/viewmodels/forum/thread-types";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
-import { useCallback, useState } from "react";
 import { NewThreadDialog } from "./new-thread-dialog";
 
 interface ForumNewPostButtonProps {

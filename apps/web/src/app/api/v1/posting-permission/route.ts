@@ -1,9 +1,10 @@
 // Proxy route: GET /api/v1/posting-permission
+
+import { NextResponse } from "next/server";
 import { extractClientIp } from "@/lib/client-ip";
 import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
-import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
 	let jwt: string | null;

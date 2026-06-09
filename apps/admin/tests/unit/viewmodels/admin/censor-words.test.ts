@@ -1,9 +1,9 @@
+import { describe, expect, it } from "vitest";
 import {
 	actionLabel,
 	buildCensorWordSearchParams,
 	replacementDisplay,
 } from "@/viewmodels/admin/censor-words";
-import { describe, expect, it } from "vitest";
 
 describe("censor-words", () => {
 	describe("buildCensorWordSearchParams", () => {

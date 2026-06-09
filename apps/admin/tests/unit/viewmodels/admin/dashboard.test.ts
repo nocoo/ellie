@@ -1,5 +1,5 @@
-import { activeForums, parseDashboardStats } from "@/viewmodels/admin/dashboard";
 import { describe, expect, it } from "vitest";
+import { activeForums, parseDashboardStats } from "@/viewmodels/admin/dashboard";
 
 describe("dashboard", () => {
 	describe("parseDashboardStats", () => {

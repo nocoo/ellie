@@ -4,12 +4,12 @@
 // Opens as a modal overlay, contains a simplified PostEditor for replies
 // MVVM: This is the View layer. State and logic are in useReplySubmit hook.
 
+import { MessageSquare, Send, XCircle } from "lucide-react";
+import { useRef } from "react";
 import { PostEditor } from "@/components/forum/post-editor";
 import { Button } from "@/components/ui/button";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { useReplySubmit } from "@/viewmodels/forum/use-reply-submit";
-import { MessageSquare, Send, XCircle } from "lucide-react";
-import { useRef } from "react";
 import { DialogErrorBanner } from "./dialog-error-banner";
 import { DialogHeroHeader } from "./dialog-hero-header";
 import { EditorDialogFrame, EditorDialogShell } from "./editor-dialog-shell";

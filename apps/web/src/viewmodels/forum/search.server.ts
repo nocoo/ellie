@@ -3,9 +3,9 @@
 
 import "server-only";
 
+import type { Thread } from "@ellie/types";
 import { forumApi } from "@/lib/forum-api";
 import type { PaginatedResult } from "@/viewmodels/shared/pagination";
-import type { Thread } from "@ellie/types";
 
 export interface SearchData {
 	query: string;

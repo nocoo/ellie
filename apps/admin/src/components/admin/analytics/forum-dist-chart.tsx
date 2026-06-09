@@ -1,9 +1,9 @@
 "use client";
 
+import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartTooltip } from "@/components/admin/analytics/chart-tooltip";
 import { DashboardResponsiveContainer } from "@/components/admin/analytics/responsive-container";
 import type { AnalyticsForumDistRow } from "@/viewmodels/admin/analytics";
-import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
 
 interface ForumDistChartProps {
 	rows: AnalyticsForumDistRow[];

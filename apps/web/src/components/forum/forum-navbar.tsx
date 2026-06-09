@@ -4,6 +4,11 @@
 
 "use client";
 
+import { LogIn, LogOut, Menu } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { useState } from "react";
 import { ForumLogo } from "@/components/forum/forum-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -12,11 +17,6 @@ import { WidthToggle } from "@/components/width-toggle";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { FORUM_NAV_ITEMS } from "@/lib/forum-navigation";
 import { cn } from "@/lib/utils";
-import { LogIn, LogOut, Menu } from "lucide-react";
-import { useSession } from "next-auth/react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
 
 function NavLinks({ onClick }: { onClick?: () => void }) {
 	const pathname = usePathname();

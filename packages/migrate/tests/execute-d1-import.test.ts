@@ -30,10 +30,10 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import type { Manifest } from "../src/load/d1-sql-builder";
 import {
-	FK_RELATIONS,
-	IMPORT_TABLE_ORDER,
 	buildFkCheckQuery,
 	computeManifestFingerprint,
+	FK_RELATIONS,
+	IMPORT_TABLE_ORDER,
 	isValidChunkFilename,
 	isWarningOnly,
 	validateManifestStructure,

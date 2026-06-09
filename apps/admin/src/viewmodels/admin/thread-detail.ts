@@ -1,7 +1,7 @@
 import type { PaginatedResponse, PaginationMeta } from "@/lib/api-client";
-import { type Post, fetchPosts } from "./posts";
-import { type Thread, fetchThread } from "./threads";
-import { type User, fetchUsersByIds } from "./users";
+import { fetchPosts, type Post } from "./posts";
+import { fetchThread, type Thread } from "./threads";
+import { fetchUsersByIds, type User } from "./users";
 
 // ---------------------------------------------------------------------------
 // Types

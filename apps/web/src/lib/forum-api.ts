@@ -11,8 +11,8 @@
 
 import "server-only";
 
-import { UserStatus } from "@ellie/types";
 import type { PublicUser, User } from "@ellie/types";
+import { UserStatus } from "@ellie/types";
 
 // ---------------------------------------------------------------------------
 // Configuration

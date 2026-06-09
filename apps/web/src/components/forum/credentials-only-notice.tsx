@@ -1,9 +1,9 @@
 // CredentialsOnlyNotice — Shown to Google OAuth users when they access
 // features that require a forum (credentials) account.
 
-import { buttonVariants } from "@/components/ui/button-variants";
 import { AlertCircle } from "lucide-react";
 import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button-variants";
 
 interface CredentialsOnlyNoticeProps {
 	/** Feature name to display (e.g., "站内信") */

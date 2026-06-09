@@ -1,5 +1,5 @@
-import { extractClientIp, resolveTrustedClientIp } from "@/lib/client-ip";
 import { afterEach, beforeEach, describe, expect, it, test, vi } from "vitest";
+import { extractClientIp, resolveTrustedClientIp } from "@/lib/client-ip";
 
 function makeReq(headers: Record<string, string>): Request {
 	return new Request("http://example.com/", { headers });

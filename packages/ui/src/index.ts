@@ -1,8 +1,5 @@
 // @ellie/ui — Shared UI components
 
-// Utilities
-export { cn } from "./lib/utils";
-
 // Components
 export { Avatar, AvatarFallback, AvatarImage } from "./components/avatar";
 export { Badge, badgeVariants } from "./components/badge";
@@ -49,11 +46,11 @@ export {
 } from "./components/dropdown-menu";
 export { Input } from "./components/input";
 export { Label } from "./components/label";
-export { Lightbox } from "./components/lightbox";
 export type { LightboxImage } from "./components/lightbox";
+export { Lightbox } from "./components/lightbox";
 export { Popover, PopoverContent, PopoverTrigger } from "./components/popover";
-export { Select } from "./components/select";
 export type { SelectOption } from "./components/select";
+export { Select } from "./components/select";
 export { Separator } from "./components/separator";
 export {
 	Sheet,
@@ -83,3 +80,5 @@ export {
 	TooltipProvider,
 	TooltipTrigger,
 } from "./components/tooltip";
+// Utilities
+export { cn } from "./lib/utils";

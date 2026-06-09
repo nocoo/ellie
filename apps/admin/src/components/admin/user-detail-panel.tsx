@@ -35,6 +35,12 @@
 // `onChanged` is purely additive — route mode never sets it, so behaviour
 // matches the original single-page version.
 
+import { formatNumber } from "@ellie/shared";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@ellie/ui";
+import { ArrowLeft, Loader2, Pencil, Search, Shield, ShieldOff, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
@@ -49,22 +55,16 @@ import { FIRST_POST_VARIANT, userRoleVariant, userStatusVariant } from "@/viewmo
 import type { Thread } from "@/viewmodels/admin/threads";
 import { type UserDetailPost, useUserDetail } from "@/viewmodels/admin/use-user-detail";
 import {
-	type PurgeResult,
-	type User,
-	type UserUpdate,
 	banUser,
+	type PurgeResult,
 	purgeUser,
 	roleLabel,
 	statusLabel,
+	type User,
+	type UserUpdate,
 	unbanUser,
 	updateUser,
 } from "@/viewmodels/admin/users";
-import { formatNumber } from "@ellie/shared";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@ellie/ui";
-import { ArrowLeft, Loader2, Pencil, Search, Shield, ShieldOff, Trash2 } from "lucide-react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Helpers

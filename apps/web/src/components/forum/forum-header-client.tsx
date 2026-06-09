@@ -5,6 +5,10 @@
 // the dialog open with a §5.4 preflight when the parent server page can
 // reliably tell us the user is unverified — see `selfEmailVerifiedAt`.
 
+import type { Forum } from "@ellie/types";
+import { Award, Megaphone, PenLine } from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
 import { AnnouncementCard } from "@/components/forum/announcement-card";
 import { AnnouncementEditDialog } from "@/components/forum/announcement-edit-dialog";
 import { NewThreadDialog } from "@/components/forum/new-thread-dialog";
@@ -13,10 +17,6 @@ import { Button } from "@/components/ui/button";
 import type { ForumThreadTypesPublic } from "@/viewmodels/forum/thread-types";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { formatNumber } from "@/viewmodels/shared/formatting";
-import type { Forum } from "@ellie/types";
-import { Award, Megaphone, PenLine } from "lucide-react";
-import Link from "next/link";
-import { useState } from "react";
 
 interface ForumHeaderClientProps {
 	forum: Forum;

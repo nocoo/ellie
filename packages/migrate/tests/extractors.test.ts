@@ -1,13 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
 	type AttachmentIndexData,
-	type MemberCountData,
-	type MemberData,
-	type MemberFieldForumData,
-	type PostExtractionStats,
-	type ProfileData,
-	type StatusData,
-	type UsergroupData,
 	extractAttachment,
 	extractCheckin,
 	extractForum,
@@ -15,6 +8,11 @@ import {
 	extractPostComment,
 	extractThread,
 	extractUser,
+	type MemberCountData,
+	type MemberData,
+	type MemberFieldForumData,
+	type PostExtractionStats,
+	type ProfileData,
 	parseAttachmentIndex,
 	parseLastPost,
 	parseMemberCountRow,
@@ -25,6 +23,8 @@ import {
 	parseThreadClassRow,
 	parseThreadTypeRow,
 	parseUsergroupRow,
+	type StatusData,
+	type UsergroupData,
 } from "../src/extract/extractors";
 import type { ParsedRow } from "../src/extract/parser";
 

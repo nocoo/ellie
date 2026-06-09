@@ -14,6 +14,9 @@
 // the row works for both full `Thread` (主题/精华 Tab) and `PostThreadSummary`
 // (回复 Tab, which carries only the joined columns we actually display).
 
+import type { ThreadBadgeSource } from "@ellie/types";
+import { decodeHighlight, getThreadBadges } from "@ellie/types";
+import Link from "next/link";
 import { ThreadBadgeList } from "@/components/forum/thread-badge";
 import {
 	filterIconRedundantBadges,
@@ -22,9 +25,6 @@ import {
 	highlightStyle,
 } from "@/viewmodels/forum/thread-list";
 import { formatCompactNumber, formatRelativeTime } from "@/viewmodels/shared/formatting";
-import type { ThreadBadgeSource } from "@ellie/types";
-import { decodeHighlight, getThreadBadges } from "@ellie/types";
-import Link from "next/link";
 
 /**
  * Shared desktop grid template for the profile-list row + header. Centralizing

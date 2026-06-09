@@ -29,12 +29,12 @@
 //   so a deep link is always informational rather than a surprise
 //   redirect.
 
+import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { EmailVerificationCard } from "@/components/forum/email-verification-card";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { getSelfForumUser, toEmailVerificationUserView } from "@/lib/forum-self";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
-import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 
 export const metadata: Metadata = { title: "邮箱验证" };
 

@@ -19,11 +19,11 @@
 // `@/lib/forum-auth`, `@/lib/csrf` — so no real network or env state is
 // touched.
 
-import { ForumApiError } from "@/lib/forum-api";
-import { proxyRoute } from "@/lib/forum-route-proxy";
 import { EMAIL_NOT_VERIFIED_PAYLOAD } from "@ellie/types";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ForumApiError } from "@/lib/forum-api";
+import { proxyRoute } from "@/lib/forum-route-proxy";
 
 const getMock = vi.fn();
 const getAuthMock = vi.fn();

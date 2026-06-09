@@ -1,9 +1,9 @@
+import { describe, expect, it } from "vitest";
 import {
 	canSubmit,
 	emojiTokenToInsertion,
 	isForumSmileyCode,
 } from "@/viewmodels/forum/post-editor";
-import { describe, expect, it } from "vitest";
 
 // ---------------------------------------------------------------------------
 // canSubmit

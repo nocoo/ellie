@@ -13,15 +13,15 @@
 //     sanitizes back into 4 KiB is legal; we let the Worker decide.
 //   - DialogErrorBanner for save errors (PAYLOAD_TOO_LARGE, FORBIDDEN, …)
 
+import { Megaphone, Save } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api-error";
 import { setForumAnnouncement } from "@/lib/forum-announcement-api";
 import { cn } from "@/lib/utils";
-import { Megaphone, Save } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
 import { DialogErrorBanner } from "./dialog-error-banner";
 import { DialogHeroHeader } from "./dialog-hero-header";
 import { SafeRichHtml } from "./safe-rich-html";

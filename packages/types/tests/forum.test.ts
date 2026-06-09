@@ -1,12 +1,12 @@
 import type { Forum, ForumVisibility } from "@ellie/types";
 import {
-	type ForumTreeNode,
-	UserRole,
-	type VisibilityContext,
 	buildForumTree,
 	canViewForumVisibility,
+	type ForumTreeNode,
 	filterVisibleForums,
 	findForumAncestors,
+	UserRole,
+	type VisibilityContext,
 } from "@ellie/types";
 import { describe, expect, it } from "vitest";
 

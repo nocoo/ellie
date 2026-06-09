@@ -7,9 +7,9 @@
 // picker itself stays presentational so it can be reused by other compose
 // surfaces (quick reply / mobile sheet) later.
 
+import type { ForumThreadType } from "@ellie/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { ForumThreadType } from "@ellie/types";
 
 interface ThreadTypePickerProps {
 	types: ForumThreadType[];

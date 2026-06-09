@@ -8,10 +8,11 @@
  * tests lock the contract end-to-end.
  */
 
+import { describe, expect, it } from "vitest";
 import {
 	type CardMode,
-	type FormState,
 	describeWrappedError,
+	type FormState,
 	initialFormState,
 	isValidCodeFormat,
 	isValidEmailFormat,
@@ -24,7 +25,6 @@ import {
 	requestCodePreflight,
 	validateCaptchaConfig,
 } from "@/viewmodels/forum/email-verification";
-import { describe, expect, it } from "vitest";
 
 // ─── pickCardMode ─────────────────────────────────────────────────────────────
 describe("pickCardMode", () => {

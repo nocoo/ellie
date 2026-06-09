@@ -1,6 +1,6 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
 import * as forumApiModule from "@/lib/forum-api";
 import { loadSearchResults } from "@/viewmodels/forum/search.server";
-import { afterEach, describe, expect, it, vi } from "vitest";
 
 // ---------------------------------------------------------------------------
 // Test helpers

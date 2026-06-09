@@ -1,5 +1,5 @@
-import { getAllowedOrigins, isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { getAllowedOrigins, isMutatingMethod, validateOrigin } from "@/lib/csrf";
 
 describe("csrf", () => {
 	const originalEnv = process.env.AUTH_URL;

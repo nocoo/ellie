@@ -3,7 +3,7 @@
 
 import { createMockAttachmentRepository } from "./attachment.repository";
 import { createMockForumRepository } from "./forum.repository";
-import { type MockDataStore, createMockDataStore } from "./mock/store";
+import { createMockDataStore, type MockDataStore } from "./mock/store";
 import { createMockPostRepository } from "./post.repository";
 import { createMockThreadRepository } from "./thread.repository";
 import type {
@@ -58,13 +58,12 @@ export function createRepositories(): Repositories {
 	};
 }
 
-// Export types
-export * from "./types";
-
-// Export mock building blocks for unit testing
-export { createMockDataStore, type MockDataStore } from "./mock/store";
 export { createMockAttachmentRepository } from "./attachment.repository";
 export { createMockForumRepository } from "./forum.repository";
+// Export mock building blocks for unit testing
+export { createMockDataStore, type MockDataStore } from "./mock/store";
 export { createMockPostRepository } from "./post.repository";
 export { createMockThreadRepository } from "./thread.repository";
+// Export types
+export * from "./types";
 export { createMockUserRepository } from "./user.repository";

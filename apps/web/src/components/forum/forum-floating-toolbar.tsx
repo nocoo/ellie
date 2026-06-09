@@ -4,11 +4,11 @@
 // Computes page-based prev/next hrefs, wires new-thread action
 // with email verification preflight, and passes jump-page config.
 
+import { useCallback, useState } from "react";
 import { FloatingToolbar } from "@/components/forum/floating-toolbar";
 import { NewThreadDialog } from "@/components/forum/new-thread-dialog";
 import type { ForumThreadTypesPublic } from "@/viewmodels/forum/thread-types";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
-import { useCallback, useState } from "react";
 
 interface ForumFloatingToolbarProps {
 	page: number;

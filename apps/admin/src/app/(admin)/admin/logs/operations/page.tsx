@@ -1,5 +1,8 @@
 "use client";
 
+import { Input, Label } from "@ellie/ui";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
 import { AdminFilters, type FilterDef } from "@/components/admin/admin-filters";
 import { AdminLogDetailDialog } from "@/components/admin/admin-log-detail-dialog";
@@ -14,10 +17,6 @@ import {
 	formatTarget,
 	targetHref,
 } from "@/viewmodels/admin/admin-logs";
-import { Input } from "@ellie/ui";
-import { Label } from "@ellie/ui";
-import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Filter definitions — search/select use the shared AdminFilters helper.

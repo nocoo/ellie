@@ -2,18 +2,18 @@
 
 "use client";
 
+import { ArrowLeft, Loader2, Reply, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { useCallback, useEffect, useState } from "react";
 import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
 import { ComposeMessageDialog } from "@/components/forum/compose-message-dialog";
 import type { BreadcrumbItem } from "@/components/layout/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { ApiError, type Message, deleteMessage, fetchMessage } from "@/viewmodels/forum/messages";
+import { ApiError, deleteMessage, fetchMessage, type Message } from "@/viewmodels/forum/messages";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
-import { ArrowLeft, Loader2, Reply, Trash2 } from "lucide-react";
-import { useSession } from "next-auth/react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
 import { useForumToast } from "./forum-toast";
 import { ForumAvatar } from "./user-avatar";
 

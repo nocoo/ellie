@@ -10,8 +10,8 @@
 // inline copy would make screen readers double-announce and break tests
 // that rely on a single ARIA alert per dialog.
 
-import { cn } from "@/lib/utils";
 import { AlertCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface DialogErrorBannerProps {
 	message: string;

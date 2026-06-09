@@ -4,6 +4,7 @@
 
 "use client";
 
+import { useState } from "react";
 import { BreadcrumbBar } from "@/components/forum/breadcrumb-bar";
 import { PostEditor } from "@/components/forum/post-editor";
 import type { BreadcrumbItem } from "@/components/layout/breadcrumbs";
@@ -17,7 +18,6 @@ import {
 	POST_TYPE_TABS,
 	SUBJECT_MAX_LENGTH,
 } from "@/viewmodels/forum/new-thread";
-import { useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -67,13 +67,7 @@ function PostTypeTabs({
 // Layer 2: Subject input with char counter
 // ---------------------------------------------------------------------------
 
-function SubjectInput({
-	value,
-	onChange,
-}: {
-	value: string;
-	onChange: (v: string) => void;
-}) {
+function SubjectInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
 	const remaining = SUBJECT_MAX_LENGTH - value.length;
 
 	return (

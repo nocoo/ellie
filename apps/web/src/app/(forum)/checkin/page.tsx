@@ -3,15 +3,15 @@
 // Server component that loads checkin status, then renders the
 // interactive CheckinPanel client component.
 
+import type { CheckinLevel, UserCheckin } from "@ellie/types";
+import type { Metadata } from "next";
+import Link from "next/link";
 import { CheckinPanel } from "@/components/forum/checkin-panel";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
-import type { CheckinLevel, UserCheckin } from "@ellie/types";
-import type { Metadata } from "next";
-import Link from "next/link";
 
 export const metadata: Metadata = { title: "每日签到" };
 

@@ -1,5 +1,4 @@
-import type { Forum, ForumThreadType, ModeratorInfo } from "@ellie/types";
-import type { ForumVisibility } from "@ellie/types";
+import type { Forum, ForumThreadType, ForumVisibility, ModeratorInfo } from "@ellie/types";
 import { canModerate } from "@ellie/types";
 import { computeVisibilityBucket } from "../lib/cache/bucket";
 import {
@@ -23,11 +22,10 @@ import type { Env } from "../lib/env";
 import { ANONYMOUS_AUTHOR_NAME, parseModeratorIds, toForum } from "../lib/mappers";
 import { parseIdFromPath, parsePathSegment } from "../lib/parseId";
 import { getForumForPermission, getUserForPermission } from "../lib/permissionHelpers";
-import { prepareAnnouncement } from "../lib/sanitizeAnnouncement";
-import { THREAD_VISIBLE, buildVisibilityContext } from "../lib/visibility";
-
 // Forum handlers for Cloudflare Worker
 import { jsonResponse } from "../lib/response";
+import { prepareAnnouncement } from "../lib/sanitizeAnnouncement";
+import { buildVisibilityContext, THREAD_VISIBLE } from "../lib/visibility";
 import { moderationMiddleware, optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";
 

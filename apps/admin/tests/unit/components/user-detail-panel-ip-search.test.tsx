@@ -65,9 +65,9 @@ vi.mock("@/components/admin/user-checkin-panel", () => ({
 	UserCheckinPanel: () => null,
 }));
 
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { UserDetailPanel } from "@/components/admin/user-detail-panel";
 import type { User } from "@/viewmodels/admin/users";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 const MOCK_USER: User = {
 	id: 42,

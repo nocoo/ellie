@@ -1,4 +1,6 @@
 "use client";
+import type { Thread, UserRole } from "@ellie/types";
+import { useCallback, useEffect, useState } from "react";
 import { FloatingToolbar } from "@/components/forum/floating-toolbar";
 import { PostCard } from "@/components/forum/post-card";
 import { ReplyDialog } from "@/components/forum/reply-dialog";
@@ -8,8 +10,6 @@ import { buildQuoteSnippet } from "@/lib/text";
 import type { EnrichedPost } from "@/viewmodels/forum/thread-detail";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
 import { formatDateTime } from "@/viewmodels/shared/formatting";
-import type { Thread, UserRole } from "@ellie/types";
-import { useCallback, useEffect, useState } from "react";
 
 /**
  * Author label for the quoted-reply preview.

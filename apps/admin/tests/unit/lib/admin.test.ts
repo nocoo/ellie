@@ -1,5 +1,5 @@
-import { isAdmin, resolveAdmin } from "@/lib/admin";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { isAdmin, resolveAdmin } from "@/lib/admin";
 
 describe("admin", () => {
 	const originalEnv = process.env.ADMIN_EMAILS;

@@ -1,7 +1,7 @@
 // Search handlers for Cloudflare Worker
 // FTS5 full-text search on thread subjects
 
-import { type Thread, decodeGenericCursor, encodeGenericCursor } from "@ellie/types";
+import { decodeGenericCursor, encodeGenericCursor, type Thread } from "@ellie/types";
 import type { Env } from "../lib/env";
 import { isKvUserCacheEnabled } from "../lib/env";
 import { enrichThreadsWithUserCache, toThread } from "../lib/mappers";

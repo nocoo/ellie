@@ -4,7 +4,7 @@
 // When a user uploads a new avatar, all avatar components using this context
 // will immediately update to show the new image.
 
-import { type ReactNode, createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from "react";
 
 interface AvatarVersionMap {
 	[uid: number]: number; // uid -> timestamp for cache busting

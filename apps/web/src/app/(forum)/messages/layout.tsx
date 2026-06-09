@@ -1,9 +1,9 @@
 // messages/layout.tsx — Auth guard layout for private messages
 // Google OAuth users see a notice; credentials users proceed to content.
 
+import type { ReactNode } from "react";
 import { CredentialsOnlyNotice } from "@/components/forum/credentials-only-notice";
 import { getSessionProvider } from "@/lib/forum-auth";
-import type { ReactNode } from "react";
 
 export default async function MessagesLayout({ children }: { children: ReactNode }) {
 	const provider = await getSessionProvider();

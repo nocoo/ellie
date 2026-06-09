@@ -16,18 +16,18 @@
 // The posts stream / pagination / dialogs stay on the page. This component
 // is purely presentational + receives stable callbacks.
 
+import { formatNumber } from "@ellie/shared";
+import { Badge, Button } from "@ellie/ui";
+import { Pencil, Trash2 } from "lucide-react";
+import Link from "next/link";
 import {
 	threadClosedVariant,
 	threadDigestVariant,
 	threadHighlightVariant,
 	threadStickyVariant,
 } from "@/viewmodels/admin/badges";
-import { type Forum, buildForumBreadcrumb } from "@/viewmodels/admin/forums";
-import { type Thread, digestLabel, stickyLabel } from "@/viewmodels/admin/threads";
-import { formatNumber } from "@ellie/shared";
-import { Badge, Button } from "@ellie/ui";
-import { Pencil, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { buildForumBreadcrumb, type Forum } from "@/viewmodels/admin/forums";
+import { digestLabel, stickyLabel, type Thread } from "@/viewmodels/admin/threads";
 
 // ---------------------------------------------------------------------------
 // Props

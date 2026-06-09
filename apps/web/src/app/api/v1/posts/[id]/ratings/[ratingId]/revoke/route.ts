@@ -7,12 +7,12 @@
 // (`FORBIDDEN_MOD_ONLY`, `NOT_FOUND`, `EMAIL_NOT_VERIFIED`) reach the
 // client unchanged.
 
+import { type NextRequest, NextResponse } from "next/server";
 import { extractClientIp } from "@/lib/client-ip";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
-import { type NextRequest, NextResponse } from "next/server";
 
 export async function POST(
 	request: NextRequest,

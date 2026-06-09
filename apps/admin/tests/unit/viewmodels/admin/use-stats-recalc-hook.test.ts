@@ -15,7 +15,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { type StatsJobSnapshot, isSnapshot } from "@/viewmodels/admin/stats-recalc";
+import { isSnapshot, type StatsJobSnapshot } from "@/viewmodels/admin/stats-recalc";
 import {
 	type ParsedResponse,
 	parseRecalcResponse,

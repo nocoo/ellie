@@ -21,16 +21,16 @@ import { sendDoveEmail } from "../lib/dove";
 import {
 	CODE_TTL_SECONDS,
 	type CodeRecord,
-	MAX_ATTEMPTS,
-	RESEND_THROTTLE_SECONDS,
-	SEND_LOCK_TTL_SECONDS,
 	codeKvKey,
 	computeCodeHmac,
 	constantTimeEqualHex,
 	generateCode,
 	isValidEmail,
+	MAX_ATTEMPTS,
 	maskEmail,
 	normalizeEmail,
+	RESEND_THROTTLE_SECONDS,
+	SEND_LOCK_TTL_SECONDS,
 	sendLockKvKey,
 } from "../lib/email-verify";
 import { jsonResponse } from "../lib/response";

@@ -4,6 +4,8 @@
 // Opens as a modal overlay with form fields
 // MVVM: This is the View layer. State and logic are in useProfileEdit hook.
 
+import { Save, User as UserIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -14,8 +16,6 @@ import { useAvatarUrl, useAvatarVersion } from "@/contexts/avatar-context";
 import { cn } from "@/lib/utils";
 import { CAMPUS_OPTIONS, IDENTITY_OPTIONS } from "@/viewmodels/forum/profile-options";
 import { GENDER_OPTIONS, useProfileEdit } from "@/viewmodels/forum/use-profile-edit";
-import { Save, User as UserIcon } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { AvatarUpload } from "./avatar-upload";
 import { DialogErrorBanner } from "./dialog-error-banner";
 import { DialogHeroHeader } from "./dialog-hero-header";

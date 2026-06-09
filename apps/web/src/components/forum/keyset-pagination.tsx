@@ -1,9 +1,9 @@
 // components/forum/keyset-pagination.tsx — Shared keyset pagination controls
 // Ref: 04f §4 — extracted from 5 duplicated PageLink implementations
 
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/viewmodels/shared/formatting";
-import Link from "next/link";
 
 interface KeysetPaginationProps {
 	total: number;

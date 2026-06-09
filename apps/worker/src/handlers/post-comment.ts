@@ -1,6 +1,7 @@
 // Post comment (点评) handlers for Cloudflare Worker
-import { canViewForumVisibility } from "@ellie/types";
+
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
+import { canViewForumVisibility } from "@ellie/types";
 import { applyCensorFilter } from "../lib/censor";
 import { extractTrustedClientIp } from "../lib/clientIp";
 import type { Env } from "../lib/env";
@@ -9,11 +10,11 @@ import { checkPostingPermission } from "../lib/postingPermission";
 import { jsonResponse } from "../lib/response";
 import { withVerifiedEmail } from "../lib/routeHelpers";
 import {
-	STICKY_MODERATED,
 	buildVisibilityContext,
 	canReadThreadContent,
 	canViewModeratedThread,
 	isForumActive,
+	STICKY_MODERATED,
 } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";

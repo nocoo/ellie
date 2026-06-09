@@ -4,9 +4,9 @@
 // argument shape, error funneling, parser composition. The underlying
 // `fetch`/envelope behavior is covered separately in api-client tests.
 
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api-client";
 import * as browserApi from "@/lib/forum-browser-api";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/api-client", async () => {
 	const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");

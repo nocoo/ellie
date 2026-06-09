@@ -1,5 +1,10 @@
 "use client";
 
+import { formatDate, formatNumber } from "@ellie/shared";
+import { Badge, Button, Lightbox, type LightboxImage } from "@ellie/ui";
+import { FileIcon, Loader2, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
@@ -14,23 +19,18 @@ import { formatFileSize } from "@/viewmodels/admin/attachments";
 import { userRoleVariant } from "@/viewmodels/admin/badges";
 import type { Post } from "@/viewmodels/admin/posts";
 import {
-	TAB_LABELS,
-	TIME_RANGE_LABELS,
-	type TabKey,
-	type TimeRange,
 	fetchRecentAttachments,
 	fetchRecentPosts,
 	fetchRecentThreads,
 	fetchRecentUsers,
+	TAB_LABELS,
+	type TabKey,
+	TIME_RANGE_LABELS,
+	type TimeRange,
 	timeRangeToBounds,
 } from "@/viewmodels/admin/recent";
 import type { Thread } from "@/viewmodels/admin/threads";
-import { type User, roleLabel } from "@/viewmodels/admin/users";
-import { formatDate, formatNumber } from "@ellie/shared";
-import { Badge, Button, Lightbox, type LightboxImage } from "@ellie/ui";
-import { FileIcon, Loader2, Trash2 } from "lucide-react";
-import Link from "next/link";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { roleLabel, type User } from "@/viewmodels/admin/users";
 
 // ---------------------------------------------------------------------------
 // Constants

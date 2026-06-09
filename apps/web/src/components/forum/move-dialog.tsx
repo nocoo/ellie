@@ -2,6 +2,10 @@
 
 // components/forum/move-dialog.tsx — Move thread to another forum dialog
 
+import type { Forum } from "@ellie/types";
+import { buildForumTree, type ForumTreeNode } from "@ellie/types";
+import { ArrowRight, Folder, FolderOpen } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -13,10 +17,6 @@ import {
 } from "@/components/ui/dialog";
 import { apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
-import type { Forum } from "@ellie/types";
-import { type ForumTreeNode, buildForumTree } from "@ellie/types";
-import { ArrowRight, Folder, FolderOpen } from "lucide-react";
-import { useEffect, useState } from "react";
 
 interface MoveDialogProps {
 	open: boolean;

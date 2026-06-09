@@ -7,8 +7,8 @@
 // Inline radial glow / boxShadow are migrated verbatim from the original
 // login-form / register-form so visual output stays identical.
 
-import { ThemeToggle } from "@/components/theme-toggle";
 import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { AuthBarcode } from "./auth-barcode";
 
 interface AuthIdCardProps {

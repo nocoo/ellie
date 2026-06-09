@@ -19,15 +19,6 @@
 //     border that highlights on focus-within instead. The inner blue
 //     ProseMirror outline is killed via tailwind.css.
 
-import { useForumToast } from "@/components/forum/forum-toast";
-import { UnifiedEmojiPicker } from "@/components/forum/unified-emoji-picker";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { uploadPostImage } from "@/lib/forum-browser-api";
-import { emojiTokenToInsertion } from "@/viewmodels/forum/post-editor";
-import { sanitizeUrl } from "@/viewmodels/forum/url-sanitize";
 import CharacterCount from "@tiptap/extension-character-count";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
@@ -57,6 +48,15 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { useForumToast } from "@/components/forum/forum-toast";
+import { UnifiedEmojiPicker } from "@/components/forum/unified-emoji-picker";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { uploadPostImage } from "@/lib/forum-browser-api";
+import { emojiTokenToInsertion } from "@/viewmodels/forum/post-editor";
+import { sanitizeUrl } from "@/viewmodels/forum/url-sanitize";
 
 // ---------------------------------------------------------------------------
 // Props

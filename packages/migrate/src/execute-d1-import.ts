@@ -34,9 +34,9 @@ import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { ChunkInfo, Manifest } from "./load/d1-sql-builder";
 import {
+	computeManifestFingerprint,
 	FK_RELATIONS,
 	IMPORT_TABLE_ORDER,
-	computeManifestFingerprint,
 	isRetryableUploadFailure,
 	isWarningOnly,
 	validateManifestStructure,

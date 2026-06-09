@@ -3,6 +3,11 @@
 // Admin Users Page (View layer)
 // MVVM: This is the View layer. State and logic are in useUsersAdmin hook.
 
+import { formatNumber } from "@ellie/shared";
+import { Badge, Button } from "@ellie/ui";
+import { Eye, Pencil } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { useCallback } from "react";
 import { AdminBatchBar, type BatchAction } from "@/components/admin/admin-batch-bar";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AdminDataTable, type ColumnDef } from "@/components/admin/admin-data-table";
@@ -15,12 +20,7 @@ import { UserEditDialog } from "@/components/admin/user-edit-dialog";
 import { PageHeader } from "@/components/layout/page-header";
 import { userRoleVariant, userStatusVariant } from "@/viewmodels/admin/badges";
 import { formatPurgeBatchSummary, useUsersAdmin } from "@/viewmodels/admin/use-users-admin";
-import { type User, roleLabel, statusLabel } from "@/viewmodels/admin/users";
-import { formatNumber } from "@ellie/shared";
-import { Badge, Button } from "@ellie/ui";
-import { Eye, Pencil } from "lucide-react";
-import { useSearchParams } from "next/navigation";
-import { useCallback } from "react";
+import { roleLabel, statusLabel, type User } from "@/viewmodels/admin/users";
 
 // ---------------------------------------------------------------------------
 // Filter definitions

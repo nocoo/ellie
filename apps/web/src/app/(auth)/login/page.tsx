@@ -1,6 +1,6 @@
+import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
-import type { Metadata } from "next";
 import AlreadyLoggedIn from "./already-logged-in";
 import LoginForm from "./login-form";
 

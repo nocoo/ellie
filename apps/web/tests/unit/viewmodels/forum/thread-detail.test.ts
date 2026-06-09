@@ -1,3 +1,6 @@
+import type { Attachment, Post, PostComment, Thread, User } from "@ellie/types";
+import { UserRole, UserStatus } from "@ellie/types";
+import { describe, expect, it } from "vitest";
 import {
 	buildFallbackAuthorMap,
 	checkCanDeleteThread,
@@ -15,9 +18,6 @@ import {
 	groupCommentsByPostId,
 	uniqueAuthorIds,
 } from "@/viewmodels/forum/thread-detail";
-import type { Attachment, Post, PostComment, Thread, User } from "@ellie/types";
-import { UserRole, UserStatus } from "@ellie/types";
-import { describe, expect, it } from "vitest";
 
 // ---------------------------------------------------------------------------
 // Factory helpers

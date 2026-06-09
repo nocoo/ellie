@@ -1,3 +1,6 @@
+import type { Forum } from "@ellie/types";
+import { findForumAncestors } from "@ellie/types";
+import { describe, expect, it } from "vitest";
 import {
 	buildForumBreadcrumbs,
 	buildForumBreadcrumbsFromAncestors,
@@ -6,9 +9,6 @@ import {
 	buildThreadBreadcrumbsFromAncestors,
 	buildUserBreadcrumbs,
 } from "@/lib/forum-breadcrumbs";
-import { findForumAncestors } from "@ellie/types";
-import type { Forum } from "@ellie/types";
-import { describe, expect, it } from "vitest";
 
 // ---------------------------------------------------------------------------
 // Test fixtures

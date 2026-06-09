@@ -11,8 +11,8 @@
 //   - missing `postId` returns 400 INVALID_REQUEST
 //   - ForumApiError is collapsed via the unified proxy-error helper
 
-import { ForumApiError } from "@/lib/forum-api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ForumApiError } from "@/lib/forum-api";
 
 const getMock = vi.fn();
 

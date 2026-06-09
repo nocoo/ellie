@@ -7,6 +7,8 @@
 // React hydration mismatches. Keeping everything inside one container with
 // suppressHydrationWarning prevents that.
 
+import type { User } from "@ellie/types";
+import type { ReactNode } from "react";
 import { PostAuthorStatusIcon } from "@/components/forum/post-author-status-icon";
 import { Badge } from "@/components/ui/badge";
 import { getAttachmentThumbUrl, getAttachmentUrl, getStaticImageUrl } from "@/lib/cdn";
@@ -16,8 +18,6 @@ import {
 	formatDateTime,
 	formatFileSize,
 } from "@/viewmodels/forum/thread-detail";
-import type { User } from "@ellie/types";
-import type { ReactNode } from "react";
 
 interface PostContentProps {
 	post: EnrichedPost;

@@ -11,18 +11,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { list } from "../../../src/handlers/thread";
 import {
-	THREAD_LIST_LIMIT_BUCKETS,
-	THREAD_LIST_TTL,
 	isCacheableLimit,
 	isPage1,
 	isThreadListPayload,
+	THREAD_LIST_LIMIT_BUCKETS,
+	THREAD_LIST_TTL,
 } from "../../../src/lib/cache/thread-list-read";
 import { createMockCtx, createMockKV, makeD1ThreadRow, makeEnv } from "../../helpers";
 
 vi.mock("../../../src/middleware/auth", () => ({
 	optionalAuthVerified: vi.fn(async () => null),
 }));
+
 import { optionalAuthVerified } from "../../../src/middleware/auth";
+
 const mockAuth = optionalAuthVerified as ReturnType<typeof vi.fn>;
 
 // ─── Helpers ────────────────────────────────────────────────────────

@@ -4,11 +4,11 @@
 
 "use client";
 
-import { GRID_THRESHOLD } from "@/viewmodels/forum/forum-list";
 import type { ForumTreeNode } from "@ellie/types";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { GRID_THRESHOLD } from "@/viewmodels/forum/forum-list";
 import { ForumPanel } from "./forum-panel";
 import { SafeHtml } from "./safe-html";
 

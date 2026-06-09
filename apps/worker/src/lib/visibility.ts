@@ -7,8 +7,8 @@
 // - Users: status >= 0 means normal (negative = banned/archived/placeholder)
 // - Forums: status = 1 means active, plus visibility level check
 
-import { UserRole } from "@ellie/types";
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
+import { UserRole } from "@ellie/types";
 
 // ─── SQL Filter Constants ────────────────────────────────────
 

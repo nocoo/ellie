@@ -40,9 +40,9 @@ vi.mock("next/navigation", () => ({
 	useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
 }));
 
+import { RatingDimension } from "@ellie/types";
 import { ForumToastProvider } from "@/components/forum/forum-toast";
 import { PostRatingDialog } from "@/components/forum/post-rating-dialog";
-import { RatingDimension } from "@ellie/types";
 
 // Build a `Response` for the `{ data, meta }` envelope `apiClient` expects.
 function envelopeResponse(data: unknown, status = 200): Response {

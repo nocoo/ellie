@@ -17,9 +17,9 @@
 //   page repaints from the fresh URL, then call `router.refresh()` to
 //   re-run the server component for any avatar-dependent rendering.
 
+import { useRouter } from "next/navigation";
 import { AvatarUpload } from "@/components/forum/avatar-upload";
 import { useAvatarUrl, useAvatarVersion } from "@/contexts/avatar-context";
-import { useRouter } from "next/navigation";
 
 export interface MeAvatarSectionProps {
 	userId: number;

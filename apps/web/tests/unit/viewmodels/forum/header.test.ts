@@ -1,11 +1,11 @@
+import { describe, expect, it } from "vitest";
 import {
+	buildHeaderViewModel,
 	DEFAULT_STATS,
-	HOT_KEYWORDS,
 	type HeaderStats,
 	type HeaderUserInfo,
-	buildHeaderViewModel,
+	HOT_KEYWORDS,
 } from "@/viewmodels/forum/header";
-import { describe, expect, it } from "vitest";
 
 // ---------------------------------------------------------------------------
 // buildHeaderViewModel

@@ -1,13 +1,13 @@
-import {
-	GRID_THRESHOLD,
-	buildVisibleTree,
-	formatCount,
-	parseModerators,
-	totalStats,
-} from "@/viewmodels/forum/forum-list";
 import type { Forum } from "@ellie/types";
 import { ForumType } from "@ellie/types";
 import { describe, expect, it } from "vitest";
+import {
+	buildVisibleTree,
+	formatCount,
+	GRID_THRESHOLD,
+	parseModerators,
+	totalStats,
+} from "@/viewmodels/forum/forum-list";
 
 // ---------------------------------------------------------------------------
 // Factory helpers

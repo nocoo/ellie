@@ -5,13 +5,13 @@
 // was already burned at request-code time). docs/17 §5.4 flat payload is
 // forwarded verbatim via `forumApiErrorToProxyResponse`.
 
+import type { EmailVerifyCodeBody } from "@ellie/types";
+import { NextResponse } from "next/server";
 import { extractClientIp } from "@/lib/client-ip";
 import { isMutatingMethod, validateOrigin } from "@/lib/csrf";
 import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
-import type { EmailVerifyCodeBody } from "@ellie/types";
-import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
 	if (isMutatingMethod(request.method) && !validateOrigin(request)) {

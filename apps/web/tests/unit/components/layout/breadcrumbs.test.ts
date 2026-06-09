@@ -18,8 +18,8 @@ vi.mock("lucide-react", () => ({
 	Home: () => createElement("span", { "data-testid": "home-icon" }),
 }));
 
-import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import type { BreadcrumbItem } from "@ellie/shared";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 
 afterEach(() => {
 	cleanup();

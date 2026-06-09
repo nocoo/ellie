@@ -1,27 +1,26 @@
 "use client";
 
-import type { NavLinkItem } from "@/viewmodels/admin/settings";
 import {
+	closestCenter,
 	DndContext,
 	type DragEndEvent,
 	KeyboardSensor,
 	PointerSensor,
-	closestCenter,
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
 import {
-	SortableContext,
 	arrayMove,
+	SortableContext,
 	sortableKeyboardCoordinates,
 	useSortable,
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Button } from "@ellie/ui";
-import { Input } from "@ellie/ui";
+import { Button, Input } from "@ellie/ui";
 import { GripVertical, Plus, Trash2 } from "lucide-react";
 import { useCallback, useId, useMemo, useRef } from "react";
+import type { NavLinkItem } from "@/viewmodels/admin/settings";
 
 // ---------------------------------------------------------------------------
 // Types

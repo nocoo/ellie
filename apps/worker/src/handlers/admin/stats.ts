@@ -3,6 +3,7 @@ import { withEntityAuth } from "../../lib/adminHelpers";
 import type { EntityConfig } from "../../lib/crud";
 import type { Env } from "../../lib/env";
 import { jsonNoStoreResponse } from "../../lib/response";
+
 const statsConfig: EntityConfig = {
 	table: "",
 	entityName: "STATS",

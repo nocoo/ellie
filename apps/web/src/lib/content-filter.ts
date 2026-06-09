@@ -571,14 +571,14 @@ export function filterContent(content: string): string {
 
 // Export internals for testing
 export {
-	transformEditNotices,
-	cleanupLegacyBBCode,
 	cleanupCETagParser,
-	rewriteLegacyUrls,
+	cleanupLegacyBBCode,
 	escapeHtml,
-	sanitizeHtml,
+	RE_ALIGN,
 	RE_EDIT_NOTICE,
 	RE_FLY,
-	RE_ALIGN,
 	RE_HIDE,
+	rewriteLegacyUrls,
+	sanitizeHtml,
+	transformEditNotices,
 };

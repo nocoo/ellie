@@ -1,4 +1,4 @@
-import { UserStatus, isUserBanned, isUserMuted } from "@ellie/types";
+import { isUserBanned, isUserMuted, UserStatus } from "@ellie/types";
 import { describe, expect, it } from "vitest";
 
 // ---------------------------------------------------------------------------

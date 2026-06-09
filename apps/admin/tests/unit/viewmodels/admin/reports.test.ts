@@ -1,14 +1,14 @@
+import { describe, expect, it } from "vitest";
 import {
+	buildReportSearchParams,
+	getReportTargetAdminLink,
+	getReportTargetLabel,
 	REPORT_STATUS_OPTIONS,
 	REPORT_TYPE_OPTIONS,
 	type Report,
 	STATUS_LABELS,
 	TYPE_LABELS,
-	buildReportSearchParams,
-	getReportTargetAdminLink,
-	getReportTargetLabel,
 } from "@/viewmodels/admin/reports";
-import { describe, expect, it } from "vitest";
 
 function makeReport(overrides: Partial<Report> = {}): Report {
 	return {

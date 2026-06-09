@@ -3,11 +3,10 @@
 // components/forum/forum-toast.tsx — Lightweight global toast system
 // No external dependencies. Provides ForumToastProvider + useForumToast().
 
-import { cn } from "@/lib/utils";
 import { AlertCircle, CheckCircle, Info, X } from "lucide-react";
 import {
-	type ReactNode,
 	createContext,
+	type ReactNode,
 	useCallback,
 	useContext,
 	useEffect,
@@ -16,6 +15,7 @@ import {
 	useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -109,7 +109,10 @@ export function useForumToast(): ForumToastContextValue {
 function ToastContainer({
 	toasts,
 	onRemove,
-}: { toasts: ToastItem[]; onRemove: (id: number) => void }) {
+}: {
+	toasts: ToastItem[];
+	onRemove: (id: number) => void;
+}) {
 	const [mounted, setMounted] = useState(false);
 
 	useEffect(() => {

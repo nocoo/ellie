@@ -1,11 +1,11 @@
+import { describe, expect, it } from "vitest";
 import {
 	ANALYTICS_RANGES,
 	ANALYTICS_TREND_METRICS,
+	isPathKind,
 	METRIC_LABELS,
 	PATH_KIND_LABELS,
 	PATH_KIND_VALUES,
-	RANGE_LABELS,
-	isPathKind,
 	parseCheckinTrend,
 	parseForumDist,
 	parseLoginAttemptList,
@@ -14,8 +14,8 @@ import {
 	parseTodayVisitsKpi,
 	parseTodayVisitsList,
 	parseTrend,
+	RANGE_LABELS,
 } from "@/viewmodels/admin/analytics";
-import { describe, expect, it } from "vitest";
 
 describe("analytics viewmodel", () => {
 	describe("constants", () => {

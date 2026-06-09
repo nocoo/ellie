@@ -42,20 +42,18 @@ describe("getCheckinLevel — boundary contract", () => {
 		expect(getCheckinLevel(2)).toEqual(CHECKIN_LEVELS[0]);
 	});
 
-	it.each(CHECKIN_LEVELS.map((tier, idx) => [idx, tier] as const))(
-		"resolves exactly at the lower boundary of tier %i",
-		(_idx, tier) => {
-			expect(getCheckinLevel(tier.minDays)).toEqual(tier);
-		},
-	);
+	it.each(
+		CHECKIN_LEVELS.map((tier, idx) => [idx, tier] as const),
+	)("resolves exactly at the lower boundary of tier %i", (_idx, tier) => {
+		expect(getCheckinLevel(tier.minDays)).toEqual(tier);
+	});
 
-	it.each(CHECKIN_LEVELS.slice(0, -1).map((tier, idx) => [idx, tier] as const))(
-		"resolves to tier %i one day before the next tier's lower boundary",
-		(idx, tier) => {
-			const next = CHECKIN_LEVELS[idx + 1];
-			expect(getCheckinLevel(next.minDays - 1)).toEqual(tier);
-		},
-	);
+	it.each(
+		CHECKIN_LEVELS.slice(0, -1).map((tier, idx) => [idx, tier] as const),
+	)("resolves to tier %i one day before the next tier's lower boundary", (idx, tier) => {
+		const next = CHECKIN_LEVELS[idx + 1];
+		expect(getCheckinLevel(next.minDays - 1)).toEqual(tier);
+	});
 });
 
 // ---------------------------------------------------------------------------

@@ -1,10 +1,10 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
+import { useState } from "react";
 import { ForumLogo } from "@/components/forum/forum-logo";
 import { Button } from "@/components/ui/button";
-import { signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { AuthIdCard } from "../_components/auth-id-card";
 
 interface AlreadyLoggedInProps {

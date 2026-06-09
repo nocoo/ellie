@@ -2,6 +2,9 @@
 
 // components/forum/highlight-dialog.tsx — Thread highlight color/style dialog
 
+import { decodeHighlight } from "@ellie/types";
+import { Highlighter } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -14,9 +17,6 @@ import {
 } from "@/components/ui/dialog";
 import type { HighlightOptions } from "@/lib/moderation-api";
 import { cn } from "@/lib/utils";
-import { decodeHighlight } from "@ellie/types";
-import { Highlighter } from "lucide-react";
-import { useEffect, useState } from "react";
 
 interface HighlightDialogProps {
 	open: boolean;

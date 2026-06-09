@@ -1,6 +1,6 @@
-import { digestLabel } from "@/viewmodels/forum/digest";
 import { createRepositories, resetStore } from "@ellie/test-mocks";
 import { describe, expect, it } from "vitest";
+import { digestLabel } from "@/viewmodels/forum/digest";
 
 // ---------------------------------------------------------------------------
 // digestLabel

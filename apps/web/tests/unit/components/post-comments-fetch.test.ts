@@ -7,8 +7,8 @@
 // the URL the browser actually emits — bare path + URLSearchParams query —
 // without mounting the React component.
 
-import { apiClient } from "@/lib/api-client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { apiClient } from "@/lib/api-client";
 
 const originalFetch = globalThis.fetch;
 let fetchMock: ReturnType<typeof vi.fn>;

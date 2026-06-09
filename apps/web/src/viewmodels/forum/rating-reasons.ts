@@ -10,13 +10,13 @@
  * `trim+censor+escape` and fits within `RATING_REASON_MAX_LENGTH`.
  */
 
-import { ApiError, apiClient } from "@/lib/api-client";
 import type {
 	CreatePostRatingRequest,
 	CreatePostRatingResponse,
 	PostRatingsResponse,
 	RatingDimensionKey,
 } from "@ellie/types";
+import { ApiError, apiClient } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
 // Predefined reasons (docs/22 §7.2)

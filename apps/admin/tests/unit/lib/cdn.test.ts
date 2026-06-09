@@ -1,13 +1,13 @@
+import { describe, expect, it } from "vitest";
 import {
-	FALLBACK_AVATAR_URL,
 	computeLegacyAvatarCdnPath,
+	FALLBACK_AVATAR_URL,
 	getAttachmentThumbUrl,
 	getAttachmentUrl,
 	getSmileyUrl,
 	getStaticImageUrl,
 	getUserAvatarUrl,
 } from "@/lib/cdn";
-import { describe, expect, it } from "vitest";
 
 describe("cdn", () => {
 	describe("getStaticImageUrl", () => {

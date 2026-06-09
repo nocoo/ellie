@@ -1,8 +1,8 @@
 // Proxy GET /api/v1/settings to Worker API
 // Used by useFeatureFlags hook to fetch feature flags
 
-import { forumApi } from "@/lib/forum-api";
 import { NextResponse } from "next/server";
+import { forumApi } from "@/lib/forum-api";
 
 export async function GET(request: Request) {
 	const url = new URL(request.url);

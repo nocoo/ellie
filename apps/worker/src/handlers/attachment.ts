@@ -5,11 +5,11 @@ import { toAttachment } from "../lib/mappers";
 import { parsePathSegment } from "../lib/parseId";
 import { jsonResponse } from "../lib/response";
 import {
-	STICKY_MODERATED,
 	buildVisibilityContext,
 	canReadThreadContent,
 	canViewModeratedThread,
 	isForumActive,
+	STICKY_MODERATED,
 } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";
 import { errorResponse } from "../middleware/error";

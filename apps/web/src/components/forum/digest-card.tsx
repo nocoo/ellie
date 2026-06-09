@@ -2,12 +2,12 @@
 // Desktop: 4-column layout (Avatar+Title | Author | Stats | Last Reply)
 // Includes digest level border color, highlight-styled title, and recommends
 
-import { ThreadBadgeList } from "@/components/forum/thread-badge";
-import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import type { Thread, ThreadBadge } from "@ellie/types";
 import { decodeHighlight } from "@ellie/types";
 import Link from "next/link";
 import type { CSSProperties } from "react";
+import { ThreadBadgeList } from "@/components/forum/thread-badge";
+import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { ThreadLastPostCell } from "./thread-last-post-cell";
 import { ThreadRowStats } from "./thread-row-stats";
 import { ForumAvatar } from "./user-avatar";

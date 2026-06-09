@@ -4,9 +4,9 @@
  * Ref: docs/04g-user-auth.md §6
  */
 
+import { NextResponse } from "next/server";
 import { extractClientIp } from "@/lib/client-ip";
 import { forumApi } from "@/lib/forum-api";
-import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
 	const url = new URL(request.url);

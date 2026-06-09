@@ -17,7 +17,8 @@
  * discriminated unions) untouched.
  */
 
-import { ApiError, type RequestOptions, apiClient } from "@/lib/api-client";
+import type { EmailRequestCodeBody, EmailVerifyCodeBody } from "@ellie/types";
+import { ApiError, apiClient, type RequestOptions } from "@/lib/api-client";
 import {
 	type AvatarUploadResult,
 	parseAvatarUploadResponse,
@@ -26,7 +27,6 @@ import {
 	type PostImageUploadResult,
 	parsePostImageUploadResponse,
 } from "@/viewmodels/forum/post-image-upload";
-import type { EmailRequestCodeBody, EmailVerifyCodeBody } from "@ellie/types";
 
 // ---------------------------------------------------------------------------
 // Username availability (registration form)

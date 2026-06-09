@@ -1,12 +1,12 @@
 "use client";
 
+import { CHECKIN_MOODS, type CheckinLevel, type CheckinMood, type UserCheckin } from "@ellie/types";
+import Image from "next/image";
+import { useCallback, useState } from "react";
 import { useForumToast } from "@/components/forum/forum-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApiError, apiClient } from "@/lib/api-client";
-import { CHECKIN_MOODS, type CheckinLevel, type CheckinMood, type UserCheckin } from "@ellie/types";
-import Image from "next/image";
-import { useCallback, useState } from "react";
 
 // ─── Types ─────────────────────────────────────────────────
 

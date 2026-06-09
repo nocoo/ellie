@@ -1,13 +1,13 @@
 // components/forum/post-sidebar.tsx — Discuz classic left sidebar for desktop
 // Light blue background, bordered stats grid, group/level, credits, mod row.
 
+import type { User } from "@ellie/types";
+import Link from "next/link";
 import { getAvatarUrl } from "@/lib/avatar";
 import { getStaticImageUrl } from "@/lib/cdn";
 import { formatDate } from "@/viewmodels/forum/thread-detail";
 import { formatCheckinDays, formatCheckinLevel } from "@/viewmodels/forum/user-profile";
 import { formatNumber } from "@/viewmodels/shared/formatting";
-import type { User } from "@ellie/types";
-import Link from "next/link";
 import { PostSidebarMessageButton } from "./post-sidebar-message-button";
 import { UserAvatar } from "./user-avatar";
 import { UserPopover } from "./user-popover";

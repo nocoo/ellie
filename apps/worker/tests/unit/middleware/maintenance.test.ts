@@ -2,7 +2,7 @@ import { UserRole } from "@ellie/types";
 import { describe, expect, it, vi } from "vitest";
 import { createJwt } from "../../../src/lib/jwt";
 import { checkMaintenance } from "../../../src/middleware/maintenance";
-import { TEST_JWT_SECRET, createMockKV, makeEnv } from "../../helpers";
+import { createMockKV, makeEnv, TEST_JWT_SECRET } from "../../helpers";
 
 describe("maintenance middleware", () => {
 	/** Create a mock DB that returns user with specified role and status */

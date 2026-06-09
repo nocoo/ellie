@@ -6,13 +6,13 @@
 // and footer. Retains its own submit logic, error handling, and
 // permission checks.
 
+import { Pencil, Save } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useCallback, useRef, useState } from "react";
 import { PostEditor } from "@/components/forum/post-editor";
 import { ApiError } from "@/lib/api-client";
 import { editMyPost, editPost } from "@/lib/moderation-api";
 import { stripHtmlTags } from "@/lib/text";
-import { Pencil, Save } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useCallback, useRef, useState } from "react";
 import { DialogErrorBanner } from "./dialog-error-banner";
 import { DialogHeroHeader } from "./dialog-hero-header";
 import { EditorDialogShell } from "./editor-dialog-shell";

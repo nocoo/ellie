@@ -16,10 +16,10 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-	type LoginHistoryRow,
 	_internal,
 	cleanupLoginHistory,
 	insertLoginHistory,
+	type LoginHistoryRow,
 	scheduleLoginHistory,
 } from "../../../../src/lib/analytics/loginHistory";
 import type { Env } from "../../../../src/lib/env";

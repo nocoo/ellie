@@ -1,12 +1,12 @@
+import { describe, expect, it } from "vitest";
 import {
-	type Forum,
 	buildForumBreadcrumb,
 	buildForumTree,
+	type Forum,
 	flattenForumTree,
 	statusLabel,
 	typeLabel,
 } from "@/viewmodels/admin/forums";
-import { describe, expect, it } from "vitest";
 
 describe("forums", () => {
 	describe("statusLabel", () => {

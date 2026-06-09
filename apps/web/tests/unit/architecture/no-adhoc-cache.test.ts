@@ -27,7 +27,7 @@
 // real code. Template literals are intentionally NOT stripped (same
 // trade-off as the Phase A guard).
 
-import { readFile, readdir, stat } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 

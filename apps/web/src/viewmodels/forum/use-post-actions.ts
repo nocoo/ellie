@@ -3,10 +3,10 @@
 
 "use client";
 
-import { useForumToast } from "@/components/forum/forum-toast";
-import { deleteMyPost, deletePost, editMyPost, editPost } from "@/lib/moderation-api";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
+import { useForumToast } from "@/components/forum/forum-toast";
+import { deleteMyPost, deletePost, editMyPost, editPost } from "@/lib/moderation-api";
 
 /**
  * Post action state returned by usePostActions

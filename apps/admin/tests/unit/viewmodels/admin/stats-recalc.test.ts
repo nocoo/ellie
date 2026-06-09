@@ -7,7 +7,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-	type StatsJobSnapshot,
 	extractSnapshotFromError,
 	formatPercent,
 	formatProcessedTotal,
@@ -17,6 +16,7 @@ import {
 	jobEndpoint,
 	percentValue,
 	recalcEndpoint,
+	type StatsJobSnapshot,
 	snapshotStatusLabel,
 	snapshotStatusVariant,
 } from "@/viewmodels/admin/stats-recalc";

@@ -35,7 +35,7 @@
 // `no-raw-fetch.test.ts` / `no-adhoc-cache.test.ts` so failures point at
 // real source lines.
 
-import { readFile, readdir, stat } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -236,7 +236,7 @@ function importsFrom(line: string, mod: string): boolean {
 	// string literal contents are blanked, so we re-check the ORIGINAL line
 	// at the call site instead. To keep this self-contained, the scanner
 	// passes the original line array separately.
-	return new RegExp(`from\\s*["']${mod.replace(/[/\-]/g, (c) => `\\${c}`)}["']`).test(line);
+	return new RegExp(`from\\s*["']${mod.replace(/[/-]/g, (c) => `\\${c}`)}["']`).test(line);
 }
 
 function findIdentifierLines(stripped: string, ident: string): number[] {

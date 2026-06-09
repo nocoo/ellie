@@ -1,7 +1,6 @@
 // viewmodels/forum/user-profile.ts — User profile pure logic
 // Ref: 04d §UserProfile — formatting helpers, tab types
 
-import { formatLocaleDate, formatNumber } from "@/viewmodels/shared/formatting";
 import {
 	type User,
 	type UserCheckinSummary,
@@ -9,6 +8,7 @@ import {
 	UserRole,
 	UserStatus,
 } from "@ellie/types";
+import { formatLocaleDate, formatNumber } from "@/viewmodels/shared/formatting";
 
 // ---------------------------------------------------------------------------
 // Types

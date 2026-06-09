@@ -12,36 +12,36 @@
 // This module owns IO. The pure module `forum.ts` does not.
 
 import {
+	canViewForumVisibility,
 	type Forum,
 	type ForumVisibility,
 	type ModeratorInfo,
-	canViewForumVisibility,
 } from "@ellie/types";
 import type { Env } from "../env";
 import { ANONYMOUS_AUTHOR_NAME, parseModeratorIds } from "../mappers";
-import { THREAD_VISIBLE, isForumActive } from "../visibility";
+import { isForumActive, THREAD_VISIBLE } from "../visibility";
 import { bumpGen, getGen } from "./epoch";
 import {
+	bucketToVisibilityContext,
+	buildForumMetaPayload,
+	buildForumSummaryPayload,
+	buildForumTreePayload,
 	type ForumAggregateV2,
 	type ForumMetaPayloadV2,
 	type ForumSummaryPayloadV2,
 	type ForumTreeNodeV2,
 	type ForumTreePayloadV2,
-	bucketToVisibilityContext,
-	buildForumMetaPayload,
-	buildForumSummaryPayload,
-	buildForumTreePayload,
 	isForumMetaPayload,
 	isForumSummaryPayload,
 	isForumTreePayload,
 } from "./forum";
 import {
-	type VisibilityBucket,
 	forumMetaKey,
 	forumSummaryGenKey,
 	forumSummaryKey,
 	forumTreeGenKey,
 	forumTreeKey,
+	type VisibilityBucket,
 } from "./keys";
 import {
 	flushPendingNow,

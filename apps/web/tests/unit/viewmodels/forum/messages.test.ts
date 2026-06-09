@@ -16,13 +16,13 @@ vi.mock("@/lib/api-client", () => {
 
 import { ApiError, apiClient } from "@/lib/api-client";
 import {
-	SIDEBAR_ITEMS,
 	buildMessagesBreadcrumbs,
 	deleteMessage,
 	fetchMessage,
 	fetchMessages,
 	fetchUnreadCount,
 	markAllMessagesRead,
+	SIDEBAR_ITEMS,
 	searchUsers,
 	sendMessage,
 } from "@/viewmodels/forum/messages";

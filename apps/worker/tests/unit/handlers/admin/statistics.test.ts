@@ -1,10 +1,10 @@
 import { describe, expect, it, type vi } from "vitest";
 import * as statistics from "../../../../src/handlers/admin/statistics";
 import {
-	type StatsJobPayload,
 	deleteJob,
 	makeInitialPayload,
 	readJob,
+	type StatsJobPayload,
 	writeJob,
 } from "../../../../src/lib/stats-job";
 import { createAdminRequest, createMockDb, makeEnv } from "../../../helpers";
@@ -1026,7 +1026,7 @@ describe("admin statistics handlers", () => {
 						/FROM posts GROUP BY author_id\s*$/i.test(c.sql.trim()),
 				),
 			).toBe(false);
-			expect(calls.some((c) => /author_id IN \(\?\,?\?/i.test(c.sql))).toBe(true);
+			expect(calls.some((c) => /author_id IN \(\?,?\?/i.test(c.sql))).toBe(true);
 			// UPDATE went through batch().
 			expect(batchCalls.length).toBeGreaterThan(0);
 		});

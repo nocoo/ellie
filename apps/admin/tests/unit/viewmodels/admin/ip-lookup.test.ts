@@ -6,15 +6,15 @@ vi.mock("@/lib/api-client", () => ({
 	apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
 
+import { ApiError } from "@ellie/shared";
 import { apiClient } from "@/lib/api-client";
 import {
-	type IpLookupNormalized,
 	describeInvalidIpReason,
 	describeIpLookupError,
 	formatIpLookupSummary,
+	type IpLookupNormalized,
 	lookupIp,
 } from "@/viewmodels/admin/ip-lookup";
-import { ApiError } from "@ellie/shared";
 
 const mockGet = apiClient.get as ReturnType<typeof vi.fn>;
 

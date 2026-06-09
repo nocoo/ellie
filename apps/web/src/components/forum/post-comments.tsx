@@ -3,16 +3,16 @@
 
 "use client";
 
+import type { PostComment } from "@ellie/types";
+import { Loader2, MessageCircle, Send } from "lucide-react";
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
-import type { PostComment } from "@ellie/types";
-import { Loader2, MessageCircle, Send } from "lucide-react";
-import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
 import { useForumToast } from "./forum-toast";
 import { ForumAvatar } from "./user-avatar";
 

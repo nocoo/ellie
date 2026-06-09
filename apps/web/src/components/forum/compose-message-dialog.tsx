@@ -3,6 +3,8 @@
 
 "use client";
 
+import { AlertCircle, Loader2, Send, User, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -19,13 +21,11 @@ import { cn } from "@/lib/utils";
 import {
 	ApiError,
 	type SendMessagePayload,
-	type UserSearchResult,
 	searchUsers,
 	sendMessage,
+	type UserSearchResult,
 } from "@/viewmodels/forum/messages";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
-import { AlertCircle, Loader2, Send, User, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
 import { useForumToast } from "./forum-toast";
 
 // ---------------------------------------------------------------------------

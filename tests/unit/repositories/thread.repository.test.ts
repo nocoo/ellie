@@ -1,5 +1,4 @@
-import { createMockDataStore } from "@ellie/test-mocks";
-import { createMockThreadRepository } from "@ellie/test-mocks";
+import { createMockDataStore, createMockThreadRepository } from "@ellie/test-mocks";
 import { StickyLevel } from "@ellie/types";
 import { describe, expect, it } from "vitest";
 

@@ -1,14 +1,9 @@
 // viewmodels/forum/thread-detail.ts — Thread detail ViewModel
 // Ref: 04d §主题详情 — enriched posts, attachment grouping, permissions
 
-import { filterContent } from "@/lib/content-filter";
+import type { User } from "@ellie/types";
 import {
 	type Attachment,
-	type Post,
-	type PostComment,
-	type Thread,
-	UserRole,
-	UserStatus,
 	canDeletePost,
 	canDeleteThread,
 	canEditPost,
@@ -19,8 +14,13 @@ import {
 	canReplyToThread,
 	type decodeHighlight,
 	type getThreadBadges,
+	type Post,
+	type PostComment,
+	type Thread,
+	UserRole,
+	UserStatus,
 } from "@ellie/types";
-import type { User } from "@ellie/types";
+import { filterContent } from "@/lib/content-filter";
 
 // ---------------------------------------------------------------------------
 // Types

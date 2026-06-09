@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
-	REPORT_REASONS,
 	checkPermission,
 	create,
 	optionsPostingPermission,
 	optionsReports,
+	REPORT_REASONS,
 } from "../../../src/handlers/report";
 import { createJwt } from "../../../src/lib/jwt";
-import { TEST_JWT_SECRET, createMockDb, makeEnv } from "../../helpers";
+import { createMockDb, makeEnv, TEST_JWT_SECRET } from "../../helpers";
 import {
 	expectEmailNotVerifiedResponse,
 	makeUnverifiedEnv,
@@ -831,10 +831,7 @@ describe("report handlers — §5.4 email-verification gate", () => {
 
 describe("GET /api/v1/posting-permission — action parameter", () => {
 	/** Helper: create a verified user with settings that disable thread/reply */
-	function makeEnvWithContentSwitches(opts: {
-		allowNewThread?: boolean;
-		allowReply?: boolean;
-	}) {
+	function makeEnvWithContentSwitches(opts: { allowNewThread?: boolean; allowReply?: boolean }) {
 		const { db } = createMockDb({
 			firstResults: {
 				"SELECT role, status": { role: 0, status: 0, email_verified_at: 1700000000 },

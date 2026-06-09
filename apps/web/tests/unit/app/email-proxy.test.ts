@@ -9,9 +9,9 @@
 // They mock `forum-api` and `forum-auth` so no real network/DB/cookie state
 // is involved.
 
-import { ForumApiError } from "@/lib/forum-api";
 import { EMAIL_NOT_VERIFIED_PAYLOAD } from "@ellie/types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ForumApiError } from "@/lib/forum-api";
 
 const postAuthMock = vi.fn();
 const getWorkerJwtMock = vi.fn();

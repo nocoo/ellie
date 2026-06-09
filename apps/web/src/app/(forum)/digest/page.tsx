@@ -1,5 +1,9 @@
 // Ref: 04f §10 — Digest page: hero + tabs filter + card list + pagination
 
+import { getThreadBadges } from "@ellie/types";
+import { Award } from "lucide-react";
+import type { Metadata } from "next";
+import Link from "next/link";
 import { DigestCard } from "@/components/forum/digest-card";
 import { DigestFiltersClient } from "@/components/forum/digest-filters";
 import { DigestHero } from "@/components/forum/digest-hero";
@@ -10,10 +14,6 @@ import { cn } from "@/lib/utils";
 import { digestLabel } from "@/viewmodels/forum/digest";
 import { type DigestData, loadDigestList } from "@/viewmodels/forum/digest.server";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
-import { getThreadBadges } from "@ellie/types";
-import { Award } from "lucide-react";
-import type { Metadata } from "next";
-import Link from "next/link";
 
 export const metadata: Metadata = { title: "精华帖" };
 

@@ -1,11 +1,11 @@
 "use client";
 
-import { ThemeToggle } from "@/components/theme-toggle";
-import { useIsMobile } from "@/hooks/use-is-mobile";
-import { breadcrumbsFromPathname } from "@/lib/navigation";
 import { Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { useIsMobile } from "@/hooks/use-is-mobile";
+import { breadcrumbsFromPathname } from "@/lib/navigation";
 import { BreadcrumbOverrideProvider, useBreadcrumbOverrideValue } from "./breadcrumb-context";
 import { Breadcrumbs } from "./breadcrumbs";
 import { Sidebar } from "./sidebar";

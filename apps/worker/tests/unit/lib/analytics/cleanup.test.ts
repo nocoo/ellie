@@ -11,8 +11,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-	DEFAULT_RETENTION_HOURS,
 	cleanupAnalyticsDailyTargets,
+	DEFAULT_RETENTION_HOURS,
 } from "../../../../src/lib/analytics/cleanup";
 import { makeEnv } from "../../../helpers";
 

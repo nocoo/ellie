@@ -1,5 +1,5 @@
-import { buildUserSearchParams, roleLabel, statusLabel } from "@/viewmodels/admin/users";
 import { describe, expect, it } from "vitest";
+import { buildUserSearchParams, roleLabel, statusLabel } from "@/viewmodels/admin/users";
 
 describe("users", () => {
 	describe("buildUserSearchParams", () => {

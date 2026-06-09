@@ -6,11 +6,11 @@
 
 import { describe, expect, it } from "vitest";
 import {
+	cloneEmailNotVerifiedPayload,
 	EMAIL_NOT_VERIFIED_PAYLOAD,
 	type EmailNotVerifiedPayload,
 	type EmailRequestCodeBody,
 	type EmailVerifyCodeBody,
-	cloneEmailNotVerifiedPayload,
 } from "../src/email-verification";
 
 describe("EMAIL_NOT_VERIFIED_PAYLOAD — docs/17 §5.4 contract", () => {

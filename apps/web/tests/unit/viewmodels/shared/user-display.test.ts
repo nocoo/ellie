@@ -1,6 +1,6 @@
-import { formatLastActive, getRoleBadge } from "@/viewmodels/shared/user-display";
 import { UserRole } from "@ellie/types";
 import { describe, expect, it, vi } from "vitest";
+import { formatLastActive, getRoleBadge } from "@/viewmodels/shared/user-display";
 
 // ---------------------------------------------------------------------------
 // getRoleBadge

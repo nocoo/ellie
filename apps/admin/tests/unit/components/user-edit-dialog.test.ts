@@ -7,8 +7,8 @@
 // className tokens so a future Tailwind cleanup can't silently regress
 // the wrap behaviour and re-introduce the overlap.
 
-import { IP_INPUT_CLASSNAME } from "@/components/admin/user-edit-dialog";
 import { describe, expect, it } from "vitest";
+import { IP_INPUT_CLASSNAME } from "@/components/admin/user-edit-dialog";
 
 describe("UserEditDialog — IP input className", () => {
 	it("includes break-all so IPv6 wraps inside narrow viewports", () => {

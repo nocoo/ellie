@@ -9,8 +9,8 @@
 // encodes domain-specific URL conventions (CDN base, legacy path layout)
 // rather than presentational primitives.
 
-import { FALLBACK_AVATAR_URL, getUserAvatarUrl } from "@/lib/cdn";
 import { cn } from "@ellie/ui";
+import { FALLBACK_AVATAR_URL, getUserAvatarUrl } from "@/lib/cdn";
 
 interface UserAvatarProps {
 	/** Numeric user id; required for the legacy CDN fallback path. */

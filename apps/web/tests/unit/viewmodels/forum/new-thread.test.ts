@@ -1,3 +1,4 @@
+import { describe, expect, it } from "vitest";
 import {
 	EDITOR_TOOL_ACTIONS,
 	EXTRA_OPTIONS,
@@ -5,7 +6,6 @@ import {
 	POST_TYPE_TABS,
 	SUBJECT_MAX_LENGTH,
 } from "@/viewmodels/forum/new-thread";
-import { describe, expect, it } from "vitest";
 
 describe("POST_TYPE_TABS", () => {
 	it("has 5 tabs", () => {

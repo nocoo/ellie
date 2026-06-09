@@ -7,6 +7,9 @@
 // WRITE_GATE_EVENT with the restriction reason and code. This dialog
 // listens for that event and renders the appropriate message + CTA.
 
+import { Check } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -19,15 +22,12 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import {
-	WRITE_GATE_EVENT,
-	type WriteGateEventDetail,
 	codeToCtaLabel,
 	codeToRedirect,
 	getWriteGateOnboardingSteps,
+	WRITE_GATE_EVENT,
+	type WriteGateEventDetail,
 } from "@/viewmodels/forum/write-gate";
-import { Check } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
 
 /**
  * Global mount. Renders nothing visible by default; opens the dialog when

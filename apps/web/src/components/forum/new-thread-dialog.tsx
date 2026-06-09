@@ -4,6 +4,8 @@
 // Opens as a modal overlay for creating new forum threads
 // MVVM: This is the View layer. State and logic are in useThreadSubmit hook.
 
+import { PenLine, Send, XCircle } from "lucide-react";
+import { useRef } from "react";
 import { PostEditor } from "@/components/forum/post-editor";
 import { ThreadTypePicker } from "@/components/forum/thread-type-picker";
 import { Button } from "@/components/ui/button";
@@ -11,8 +13,6 @@ import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { cn } from "@/lib/utils";
 import { type ForumThreadTypesPublic, shouldShowPicker } from "@/viewmodels/forum/thread-types";
 import { useThreadSubmit } from "@/viewmodels/forum/use-thread-submit";
-import { PenLine, Send, XCircle } from "lucide-react";
-import { useRef } from "react";
 import { DialogErrorBanner } from "./dialog-error-banner";
 import { DialogHeroHeader } from "./dialog-hero-header";
 import { EditorDialogFrame, EditorDialogShell } from "./editor-dialog-shell";

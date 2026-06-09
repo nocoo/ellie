@@ -1,7 +1,7 @@
+import { describe, expect, it } from "vitest";
 import type { Post } from "@/viewmodels/admin/posts";
 import { enrichPosts, uniqueAuthorIds } from "@/viewmodels/admin/thread-detail";
 import type { User } from "@/viewmodels/admin/users";
-import { describe, expect, it } from "vitest";
 
 describe("thread-detail", () => {
 	const basePost: Post = {

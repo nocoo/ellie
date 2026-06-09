@@ -1,5 +1,5 @@
-import { buildQuoteSnippet, stripHtmlTags } from "@/lib/text";
 import { describe, expect, it } from "vitest";
+import { buildQuoteSnippet, stripHtmlTags } from "@/lib/text";
 
 // ---------------------------------------------------------------------------
 // stripHtmlTags

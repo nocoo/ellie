@@ -2,13 +2,13 @@
 // Displayed to the right of the thread title: ...2 3 4 5..8
 // Matches forumdisplay_list.htm <span class="tps">
 
+import Link from "next/link";
 import {
-	type InlinePageItem,
 	getInlinePageItems,
 	getThreadPageCount,
 	getThreadPageUrl,
+	type InlinePageItem,
 } from "@/viewmodels/forum/thread-list";
-import Link from "next/link";
 
 interface ThreadInlinePagesProps {
 	threadId: number;
@@ -47,7 +47,11 @@ function InlinePageLink({
 	item,
 	threadId,
 	returnTo,
-}: { item: InlinePageItem; threadId: number; returnTo?: string }) {
+}: {
+	item: InlinePageItem;
+	threadId: number;
+	returnTo?: string;
+}) {
 	if (item === "ellipsis") {
 		return <span className="px-0.5 select-none">...</span>;
 	}

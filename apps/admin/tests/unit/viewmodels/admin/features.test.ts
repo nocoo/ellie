@@ -1,3 +1,4 @@
+import { describe, expect, it } from "vitest";
 import {
 	FEATURE_DEFAULTS,
 	FEATURE_GROUPS,
@@ -5,7 +6,6 @@ import {
 	getChangedSettings,
 	toFormValues,
 } from "@/viewmodels/admin/features";
-import { describe, expect, it } from "vitest";
 
 describe("features", () => {
 	describe("FEATURE_GROUPS", () => {

@@ -1,10 +1,16 @@
 "use client";
 
-import type { Post, PostUpdate } from "@/viewmodels/admin/posts";
-import { Button } from "@ellie/ui";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@ellie/ui";
-import { Label } from "@ellie/ui";
+import {
+	Button,
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	Label,
+} from "@ellie/ui";
 import { useCallback, useEffect, useState } from "react";
+import type { Post, PostUpdate } from "@/viewmodels/admin/posts";
 import { AdminInlineMessage } from "./admin-inline-message";
 
 // ---------------------------------------------------------------------------

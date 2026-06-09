@@ -1,5 +1,7 @@
 // Ref: 04f §8 — Modern profile layout: hero + stats + tabbed content
 
+import type { Metadata } from "next";
+import Link from "next/link";
 import { KeysetPagination } from "@/components/forum/keyset-pagination";
 import { ProfileHero } from "@/components/forum/profile-hero";
 import { UserDigestTab } from "@/components/forum/user-digest-tab";
@@ -12,11 +14,9 @@ import { buildUserBreadcrumbs } from "@/lib/forum-breadcrumbs";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
 import { getUserTitle } from "@/viewmodels/forum/title.server";
 import { PROFILE_TABS } from "@/viewmodels/forum/user-profile";
-import { type UserProfileData, loadUserProfile } from "@/viewmodels/forum/user-profile.server";
+import { loadUserProfile, type UserProfileData } from "@/viewmodels/forum/user-profile.server";
 import { formatCompactNumber } from "@/viewmodels/shared/formatting";
 import { parseIntParam } from "@/viewmodels/shared/params";
-import type { Metadata } from "next";
-import Link from "next/link";
 
 interface UserProfilePageProps {
 	params: Promise<{ id: string }>;

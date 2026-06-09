@@ -16,9 +16,9 @@
 // The edit button opens `AnnouncementEditDialog`. State for the dialog
 // is owned here so the header doesn't have to thread it through.
 
-import { Button } from "@/components/ui/button";
 import { Megaphone, PenLine } from "lucide-react";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { AnnouncementEditDialog } from "./announcement-edit-dialog";
 import { SafeRichHtml } from "./safe-rich-html";
 

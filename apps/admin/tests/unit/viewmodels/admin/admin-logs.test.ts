@@ -1,3 +1,4 @@
+import { describe, expect, it } from "vitest";
 import {
 	buildAdminLogSearchParams,
 	dateInputToUnix,
@@ -6,7 +7,6 @@ import {
 	parseDetails,
 	targetHref,
 } from "@/viewmodels/admin/admin-logs";
-import { describe, expect, it } from "vitest";
 
 describe("admin-logs viewmodel", () => {
 	describe("buildAdminLogSearchParams", () => {

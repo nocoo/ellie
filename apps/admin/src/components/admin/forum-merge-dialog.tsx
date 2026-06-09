@@ -1,21 +1,21 @@
 "use client";
 
-import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
-import type { Forum } from "@/viewmodels/admin/forums";
-import { typeLabel } from "@/viewmodels/admin/forums";
-import { Button } from "@ellie/ui";
 import {
+	Button,
 	Dialog,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
+	Input,
+	Label,
+	Select,
 } from "@ellie/ui";
-import { Input } from "@ellie/ui";
-import { Label } from "@ellie/ui";
-import { Select } from "@ellie/ui";
 import { useCallback, useEffect, useState } from "react";
+import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
+import type { Forum } from "@/viewmodels/admin/forums";
+import { typeLabel } from "@/viewmodels/admin/forums";
 
 // ---------------------------------------------------------------------------
 // Types

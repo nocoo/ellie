@@ -2,16 +2,13 @@ import { UserRole } from "@ellie/types";
 import { describe, expect, it, vi } from "vitest";
 import * as postCommentHandler from "../../../src/handlers/post-comment";
 import type { Env } from "../../../src/lib/env";
-import { TEST_JWT_SECRET, createJwtForRole, createMockKV } from "../../helpers";
+import { createJwtForRole, createMockKV, TEST_JWT_SECRET } from "../../helpers";
 
 const THREAD_AUTHOR_ID = 100;
 const FORUM_MOD_ID = 200;
 const OTHER_USER_ID = 300;
 
-function createMockDb(opts: {
-	visRow: Record<string, unknown> | null;
-	userRole?: number;
-}) {
+function createMockDb(opts: { visRow: Record<string, unknown> | null; userRole?: number }) {
 	return {
 		prepare: vi.fn((sql: string) => {
 			if (

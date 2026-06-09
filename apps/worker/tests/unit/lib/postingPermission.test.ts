@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { checkPostingPermission } from "../../../src/lib/postingPermission";
 import type { PostingUser } from "../../../src/lib/postingPermission";
+import { checkPostingPermission } from "../../../src/lib/postingPermission";
 import { createMockDb, makeEnv } from "../../helpers";
 
 function makeUser(role = 0, userId = 1): PostingUser {

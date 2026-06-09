@@ -1,11 +1,11 @@
+import { describe, expect, it } from "vitest";
 import {
+	buildGlobalFooterViewModel,
+	buildHomeFooterViewModel,
 	DEFAULT_ONLINE_STATS,
 	FOOTER_QUICK_LINKS,
 	type OnlineStats,
-	buildGlobalFooterViewModel,
-	buildHomeFooterViewModel,
 } from "@/viewmodels/forum/footer";
-import { describe, expect, it } from "vitest";
 
 // ---------------------------------------------------------------------------
 // buildHomeFooterViewModel

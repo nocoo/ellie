@@ -4,15 +4,15 @@
 // Displays user identity and optional edit functionality
 // Includes mod actions for Admin/SuperMod users
 
+import { Pencil, User } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatUserRole, getUserRoleBadgeVariant } from "@/viewmodels/forum/user-profile";
 import { formatRelativeTime } from "@/viewmodels/shared/formatting";
-import { Pencil, User } from "lucide-react";
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { ProfileEditDialog } from "./profile-edit-dialog";
 import { TrackedUserAvatar } from "./user-avatar";
 import { UserModActions } from "./user-mod-actions";

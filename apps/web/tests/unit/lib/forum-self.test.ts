@@ -9,6 +9,8 @@
 //      ForumApiError, generic throw), so the page can use null as the
 //      "redirect to login" signal.
 
+import type { User } from "@ellie/types";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import {
@@ -16,8 +18,6 @@ import {
 	projectSelfForumUser,
 	toEmailVerificationUserView,
 } from "@/lib/forum-self";
-import type { User } from "@ellie/types";
-import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/forum-auth", () => ({ getWorkerJwt: vi.fn() }));
 vi.mock("@/lib/forum-api", () => ({

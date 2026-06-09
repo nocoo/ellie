@@ -3,11 +3,11 @@
 // components/forum/thread-report-button.tsx — User-facing "举报主题" entry on thread header.
 // Distinct from first-post (回帖) report; targets the thread itself.
 
+import { Flag } from "lucide-react";
+import { useState } from "react";
 import { ReportDialog } from "@/components/forum/report-dialog";
 import { Button } from "@/components/ui/button";
 import { writeGatePreflight } from "@/viewmodels/forum/write-gate";
-import { Flag } from "lucide-react";
-import { useState } from "react";
 
 interface ThreadReportButtonProps {
 	threadId: number;

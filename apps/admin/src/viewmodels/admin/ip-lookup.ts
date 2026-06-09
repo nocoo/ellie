@@ -14,8 +14,8 @@
 //   - IP_LOOKUP_TRANSPORT_ERROR   — non-timeout network failure.
 //   - IP_LOOKUP_UPSTREAM_<status> — other non-2xx upstream.
 
-import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@ellie/shared";
+import { apiClient } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
 // Types — must stay in lockstep with the worker payload.

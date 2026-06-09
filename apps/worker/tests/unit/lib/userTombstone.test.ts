@@ -5,9 +5,9 @@
 
 import { describe, expect, it, vi } from "vitest";
 import {
-	TOMBSTONE_STATUS,
 	buildTombstoneFields,
 	buildTombstoneStatement,
+	TOMBSTONE_STATUS,
 	tombstoneUsername,
 } from "../../../src/lib/userTombstone";
 

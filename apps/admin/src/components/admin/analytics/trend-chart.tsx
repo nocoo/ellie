@@ -1,10 +1,10 @@
 "use client";
 
+import { useId } from "react";
+import { Area, AreaChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartTooltip } from "@/components/admin/analytics/chart-tooltip";
 import { DashboardResponsiveContainer } from "@/components/admin/analytics/responsive-container";
 import type { AnalyticsTrendPoint } from "@/viewmodels/admin/analytics";
-import { useId } from "react";
-import { Area, AreaChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
 
 interface TrendChartProps {
 	series: AnalyticsTrendPoint[];

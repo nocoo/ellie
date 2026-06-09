@@ -1,15 +1,15 @@
 "use client";
 
-import { Button } from "@ellie/ui";
 import {
+	Button,
 	Dialog,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
+	Input,
 } from "@ellie/ui";
-import { Input } from "@ellie/ui";
 import { useCallback, useState } from "react";
 import { AdminInlineMessage } from "./admin-inline-message";
 

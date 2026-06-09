@@ -1,57 +1,23 @@
 // @ellie/types — Shared type definitions for Ellie monorepo
 
-// ─── Version ────────────────────────────────────────────────
-export { VERSION, VERSION_DISPLAY } from "./version";
-
-// ─── Enums ───────────────────────────────────────────────────
-export * from "./types";
-
-// ─── Entity Interfaces ───────────────────────────────────────
+// ─── Check-in (签到) ────────────────────────────────────────────
 export type {
-	PublicUser,
-	User,
-	Forum,
-	ForumVisibility,
-	ForumThreadType,
-	ForumThreadTypeConfig,
-	Thread,
-	Post,
-	PostThreadSummary,
-	UserPostHistoryItem,
-	PostComment,
-	Attachment,
-	IpBan,
-	CensorWord,
-} from "./types";
-
-// ─── Forum ───────────────────────────────────────────────────
-export type { ForumTreeNode, VisibilityContext } from "./forum";
+	CheckinHistoryEntry,
+	CheckinLevel,
+	CheckinMood,
+	UserCheckin,
+	UserCheckinSummary,
+} from "./checkin";
 export {
-	buildForumTree,
-	filterVisibleForums,
-	findForumAncestors,
-	canViewForum as canViewForumVisibility,
-} from "./forum";
-
-// ─── Thread ──────────────────────────────────────────────────
-export type { ThreadBadge, ThreadBadgeSource, HighlightStyle } from "./thread";
-export { getThreadBadges, decodeHighlight } from "./thread";
-
-// ─── Pagination ──────────────────────────────────────────────
-export type { CursorPayload } from "./pagination";
-export {
-	encodeCursor,
-	decodeCursor,
-	encodeGenericCursor,
-	decodeGenericCursor,
-	DEFAULT_PAGE_SIZE,
-	MAX_PAGE_SIZE,
-	clampPageSize,
-} from "./pagination";
-
-// ─── User ────────────────────────────────────────────────────
-export { isUserMuted, isUserBanned } from "./user";
-
+	CHECKIN_HOUR_END_EXCLUSIVE,
+	CHECKIN_HOUR_START,
+	CHECKIN_LEVELS,
+	CHECKIN_MOODS,
+	CHECKIN_REWARD_MAX,
+	CHECKIN_REWARD_MIN,
+	CHECKIN_TIMEZONE,
+	getCheckinLevel,
+} from "./checkin";
 // ─── Email verification (docs/17 §5.4 — Rev4) ───────────────
 export type {
 	EmailNotVerifiedCtaVariant,
@@ -61,72 +27,96 @@ export type {
 	EmailVerifyCodeBody,
 } from "./email-verification";
 export {
-	EMAIL_NOT_VERIFIED_PAYLOAD,
 	cloneEmailNotVerifiedPayload,
+	EMAIL_NOT_VERIFIED_PAYLOAD,
 } from "./email-verification";
-
-// ─── Check-in (签到) ────────────────────────────────────────────
-export type {
-	UserCheckin,
-	UserCheckinSummary,
-	CheckinHistoryEntry,
-	CheckinMood,
-	CheckinLevel,
-} from "./checkin";
+// ─── Forum ───────────────────────────────────────────────────
+export type { ForumTreeNode, VisibilityContext } from "./forum";
 export {
-	CHECKIN_MOODS,
-	CHECKIN_LEVELS,
-	CHECKIN_REWARD_MIN,
-	CHECKIN_REWARD_MAX,
-	CHECKIN_HOUR_START,
-	CHECKIN_HOUR_END_EXCLUSIVE,
-	CHECKIN_TIMEZONE,
-	getCheckinLevel,
-} from "./checkin";
-
+	buildForumTree,
+	canViewForum as canViewForumVisibility,
+	filterVisibleForums,
+	findForumAncestors,
+} from "./forum";
+// ─── Pagination ──────────────────────────────────────────────
+export type { CursorPayload } from "./pagination";
+export {
+	clampPageSize,
+	DEFAULT_PAGE_SIZE,
+	decodeCursor,
+	decodeGenericCursor,
+	encodeCursor,
+	encodeGenericCursor,
+	MAX_PAGE_SIZE,
+} from "./pagination";
 // ─── Permission ───────────────────────────────────────────────
 export type {
-	PermissionUser,
 	PermissionForum,
 	PermissionPost,
 	PermissionThread,
+	PermissionUser,
 } from "./permission";
 export {
-	canViewForum,
-	canCreateThread,
-	canReplyToThread,
-	canModerate,
 	canAccessAdmin,
-	canManageUsers,
-	canEditPost,
+	canCreateThread,
 	canDeletePost,
 	canDeleteThread,
-	canManageThread,
+	canEditPost,
 	canEditThreadSubject,
+	canManageThread,
+	canManageUsers,
+	canModerate,
 	canMoveThread,
+	canReplyToThread,
+	canViewForum,
 } from "./permission";
-
 // ─── Post rating (评分) — docs/22 ──────────────────────────────
 export type {
-	RatingDimensionKey,
-	PostRatingRow,
-	PostRatingDimensionAggregate,
-	PostRatingAggregate,
-	PostRatingsResponse,
 	CreatePostRatingRequest,
 	CreatePostRatingResponse,
+	PostRatingAggregate,
+	PostRatingDimensionAggregate,
+	PostRatingRow,
+	PostRatingsResponse,
+	RatingDimensionKey,
 } from "./rating";
 export {
-	RatingDimension,
-	RATING_DIMENSION_KEYS,
-	RATING_LIMITS,
-	RATING_REASON_MAX_LENGTH,
-	RATING_QUOTA_WINDOW_SECONDS,
-	EMPTY_RATING_AGGREGATE,
-	ratingDimensionToKey,
-	ratingKeyToDimension,
-	getRatingPerDayCap,
-	getRatingPerVoteBounds,
 	canRateDimension,
 	canRevokeRating,
+	EMPTY_RATING_AGGREGATE,
+	getRatingPerDayCap,
+	getRatingPerVoteBounds,
+	RATING_DIMENSION_KEYS,
+	RATING_LIMITS,
+	RATING_QUOTA_WINDOW_SECONDS,
+	RATING_REASON_MAX_LENGTH,
+	RatingDimension,
+	ratingDimensionToKey,
+	ratingKeyToDimension,
 } from "./rating";
+// ─── Thread ──────────────────────────────────────────────────
+export type { HighlightStyle, ThreadBadge, ThreadBadgeSource } from "./thread";
+export { decodeHighlight, getThreadBadges } from "./thread";
+// ─── Entity Interfaces ───────────────────────────────────────
+export type {
+	Attachment,
+	CensorWord,
+	Forum,
+	ForumThreadType,
+	ForumThreadTypeConfig,
+	ForumVisibility,
+	IpBan,
+	Post,
+	PostComment,
+	PostThreadSummary,
+	PublicUser,
+	Thread,
+	User,
+	UserPostHistoryItem,
+} from "./types";
+// ─── Enums ───────────────────────────────────────────────────
+export * from "./types";
+// ─── User ────────────────────────────────────────────────────
+export { isUserBanned, isUserMuted } from "./user";
+// ─── Version ────────────────────────────────────────────────
+export { VERSION, VERSION_DISPLAY } from "./version";

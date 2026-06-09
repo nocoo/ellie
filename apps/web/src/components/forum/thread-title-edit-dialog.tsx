@@ -10,6 +10,9 @@
 // thread title `<h1>`, marked `hidden sm:inline-flex` so the affordance
 // is PC-only per the reviewer design freeze (msg=a8ee78db).
 
+import { Pencil, Save } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -23,9 +26,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { ApiError } from "@/lib/api-client";
 import { editThreadSubject } from "@/lib/moderation-api";
-import { Pencil, Save } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
 import { useForumToast } from "./forum-toast";
 
 const SUBJECT_MAX = 200;

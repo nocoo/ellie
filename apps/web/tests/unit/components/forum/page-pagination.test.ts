@@ -1,5 +1,5 @@
-import { generatePageNumbers } from "@/viewmodels/shared/pagination";
 import { describe, expect, it } from "vitest";
+import { generatePageNumbers } from "@/viewmodels/shared/pagination";
 
 // ---------------------------------------------------------------------------
 // generatePageNumbers

@@ -7,9 +7,9 @@
 
 // @vitest-environment happy-dom
 
-import { LoginAttemptsPanel } from "@/components/admin/analytics/login-attempts-panel";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LoginAttemptsPanel } from "@/components/admin/analytics/login-attempts-panel";
 
 const KPI_PAYLOAD = {
 	now: 1_700_000_000,

@@ -1,14 +1,15 @@
 // Thread handlers for Cloudflare Worker
-import { type Thread, canViewForumVisibility, decodeGenericCursor } from "@ellie/types";
+
 import type { ForumVisibility, VisibilityContext } from "@ellie/types";
+import { canViewForumVisibility, decodeGenericCursor, type Thread } from "@ellie/types";
 import { computeVisibilityBucket } from "../lib/cache/bucket";
 import { getForumMetaV2 } from "../lib/cache/forum-read";
 import { invalidateForumVolatileV2 } from "../lib/cache/invalidate";
 import {
-	type ThreadListPayloadV2,
 	getThreadListPageOneV2,
 	isCacheableLimit,
 	isPage1,
+	type ThreadListPayloadV2,
 } from "../lib/cache/thread-list-read";
 import { applyCensorFilter } from "../lib/censor";
 import { type Env, isKvUserCacheEnabled } from "../lib/env";
@@ -23,13 +24,13 @@ import { scheduleThreadViewIncrement } from "../lib/thread-views";
 import { coerceTypeIdInput, resolveAndValidateTypeId } from "../lib/threadType";
 import { getUserProfiles } from "../lib/user-cache";
 import {
-	STICKY_GLOBAL,
-	STICKY_MODERATED,
-	THREAD_VISIBLE,
 	buildVisibilityContext,
 	canReadThreadContent,
 	canViewModeratedThread,
 	isForumActive,
+	STICKY_GLOBAL,
+	STICKY_MODERATED,
+	THREAD_VISIBLE,
 	threadVisible,
 } from "../lib/visibility";
 import { optionalAuthVerified } from "../middleware/auth";

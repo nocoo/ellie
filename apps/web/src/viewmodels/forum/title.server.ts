@@ -9,9 +9,9 @@
 
 import "server-only";
 
+import type { PublicUser } from "@ellie/types";
 import { forumApi } from "@/lib/forum-api";
 import { getCachedForumList, getCachedThreadById } from "@/lib/forum-cache";
-import type { PublicUser } from "@ellie/types";
 
 /** Fetch thread subject by ID (deduped via getThreadById cache). */
 export async function getThreadTitle(threadId: number): Promise<string> {

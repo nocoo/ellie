@@ -4,7 +4,7 @@
 
 import type { Env } from "../lib/env";
 import { jsonResponse } from "../lib/response";
-import { type SettingsMap, getSettings } from "../lib/settings";
+import { getSettings, type SettingsMap } from "../lib/settings";
 
 /**
  * Prefixes that are safe to expose publicly.

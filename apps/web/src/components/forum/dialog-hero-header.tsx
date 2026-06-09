@@ -5,11 +5,11 @@
 // + close button layout. Scope is intentionally narrow: A-class (hero shell)
 // dialogs only. Footer / error / width / height are NOT owned here.
 
+import { X } from "lucide-react";
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { X } from "lucide-react";
-import type { ReactNode } from "react";
 
 interface DialogHeroHeaderProps {
 	/** Pre-sized lucide icon (typically `h-5 w-5 text-primary`) */

@@ -22,13 +22,13 @@
 // re-renders into its verified branch on the next paint. There is no
 // long-lived client store to keep in sync.
 
+import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { EmailVerificationCard } from "@/components/forum/email-verification-card";
 import { MeAvatarSection } from "@/components/forum/me-avatar-section";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { getSelfForumUser, toEmailVerificationUserView } from "@/lib/forum-self";
 import { fetchPublicSettings, getStr } from "@/viewmodels/forum/settings.server";
-import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 
 export const metadata: Metadata = { title: "我的账号" };
 

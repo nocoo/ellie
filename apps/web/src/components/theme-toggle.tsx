@@ -3,8 +3,8 @@
 
 "use client";
 
-import { type Theme, useTheme } from "@/hooks/use-theme";
 import { Monitor, Moon, Sun } from "lucide-react";
+import { type Theme, useTheme } from "@/hooks/use-theme";
 import { Button } from "./ui/button";
 
 const ICONS: Record<Theme, typeof Sun> = {

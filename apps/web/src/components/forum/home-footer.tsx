@@ -3,11 +3,11 @@
 // 1. Online member stats (green border bar)
 // 2. Friend links section (header + grid) — only shown if links configured
 
+import { ExternalLink } from "lucide-react";
+import Link from "next/link";
 import { ForumLogo } from "@/components/forum/forum-logo";
 import type { HomeFooterViewModel } from "@/viewmodels/forum/footer";
 import { formatNumber } from "@/viewmodels/shared/formatting";
-import { ExternalLink } from "lucide-react";
-import Link from "next/link";
 
 // ---------------------------------------------------------------------------
 // Props

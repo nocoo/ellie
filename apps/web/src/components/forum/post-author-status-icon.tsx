@@ -7,9 +7,9 @@
 
 import { getStaticImageUrl } from "@/lib/cdn";
 import {
-	type PostAuthorIconInput,
 	getPostAuthorIconAlt,
 	getPostAuthorIconName,
+	type PostAuthorIconInput,
 } from "@/lib/post-author-icon";
 
 interface PostAuthorStatusIconProps extends PostAuthorIconInput {

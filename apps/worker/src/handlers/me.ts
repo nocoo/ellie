@@ -255,7 +255,7 @@ export const updateProfile = withVerifiedEmail(async (request, env, user) => {
 
 	// Reject any attempt to write `email` here — even an empty string. The
 	// only sanctioned email-edit path is the verification flow.
-	if (Object.prototype.hasOwnProperty.call(body, "email")) {
+	if (Object.hasOwn(body, "email")) {
 		return errorResponse(
 			"EMAIL_NOT_EDITABLE_HERE",
 			400,

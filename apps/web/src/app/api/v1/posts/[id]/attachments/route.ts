@@ -1,7 +1,8 @@
 // Proxy route: GET /api/v1/posts/:id/attachments
 // Browser → Next.js → Worker (get post attachments)
-import { forumApi } from "@/lib/forum-api";
+
 import { NextResponse } from "next/server";
+import { forumApi } from "@/lib/forum-api";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
 	const { id } = await params;

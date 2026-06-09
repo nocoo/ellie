@@ -4,8 +4,8 @@
 // - "grid": 2-col grid with dashed borders (includes odd-count placeholder)
 // - "auto": wide if ≤10 forums, grid if >10
 
-import { GRID_THRESHOLD } from "@/viewmodels/forum/forum-list";
 import type { ForumTreeNode } from "@ellie/types";
+import { GRID_THRESHOLD } from "@/viewmodels/forum/forum-list";
 import { ForumCard } from "./forum-card";
 
 interface ForumPanelProps {

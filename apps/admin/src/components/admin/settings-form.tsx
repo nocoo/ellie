@@ -1,20 +1,17 @@
 "use client";
 
-import {
-	SETTING_GROUPS,
-	type SettingFieldDef,
-	type SettingsDetailMap,
-	getChangedSettings,
-	toFormValues,
-	updateSettings,
-} from "@/viewmodels/admin/settings";
-import { Button } from "@ellie/ui";
-import { Checkbox } from "@ellie/ui";
-import { Input } from "@ellie/ui";
-import { Label } from "@ellie/ui";
+import { Button, Checkbox, Input, Label } from "@ellie/ui";
 import { RotateCcw, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
+import {
+	getChangedSettings,
+	SETTING_GROUPS,
+	type SettingFieldDef,
+	type SettingsDetailMap,
+	toFormValues,
+	updateSettings,
+} from "@/viewmodels/admin/settings";
 
 // ---------------------------------------------------------------------------
 // Props

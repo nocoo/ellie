@@ -5,12 +5,7 @@ import { hashPassword } from "../../../src/lib/password";
 import { createJwtForRole, makeD1UserRow } from "../../helpers";
 
 // Helper to create a mock D1 database
-function createMockDb(
-	overrides: {
-		firstResult?: unknown;
-		runResult?: { success: boolean };
-	} = {},
-) {
+function createMockDb(overrides: { firstResult?: unknown; runResult?: { success: boolean } } = {}) {
 	const runSpy = vi.fn(() => Promise.resolve(overrides.runResult ?? { success: true }));
 	const firstSpy = vi.fn(() => Promise.resolve(overrides.firstResult ?? null));
 

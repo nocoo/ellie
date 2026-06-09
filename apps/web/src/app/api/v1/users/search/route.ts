@@ -1,7 +1,8 @@
 // Proxy route: GET /api/v1/users/search (no JWT required)
+
+import { NextResponse } from "next/server";
 import { ForumApiError, forumApi } from "@/lib/forum-api";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
-import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
 	try {

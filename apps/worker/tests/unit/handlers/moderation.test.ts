@@ -17,7 +17,7 @@ import {
 	unmuteUser,
 } from "../../../src/handlers/moderation";
 import { createJwt } from "../../../src/lib/jwt";
-import { TEST_JWT_SECRET, createMockDb, makeEnv } from "../../helpers";
+import { createMockDb, makeEnv, TEST_JWT_SECRET } from "../../helpers";
 
 // ─── Helpers ──────────────────────────────────────────────────────
 

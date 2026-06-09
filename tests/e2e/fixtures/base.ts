@@ -2,7 +2,7 @@
 // Ref: docs/e2e-test-design.md §Fixtures
 // Pattern: surety project Page Object Model
 
-import { type BrowserContext, type Page, test as base } from "@playwright/test";
+import { type BrowserContext, test as base, type Page } from "@playwright/test";
 
 // ---------------------------------------------------------------------------
 // E2E Test Credentials

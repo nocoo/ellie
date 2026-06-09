@@ -3,7 +3,7 @@
 // components/forum/mod-context.tsx — Moderation permission context
 // Server computes canModerate, then passes to client components via this context.
 
-import { type ReactNode, createContext, useContext } from "react";
+import { createContext, type ReactNode, useContext } from "react";
 
 export interface ModContextValue {
 	/** Can current user moderate this forum */

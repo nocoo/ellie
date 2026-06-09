@@ -6,11 +6,11 @@
 
 "use client";
 
-import { extractErrorMessage } from "@/lib/admin-error";
-import { type Post, fetchPosts } from "@/viewmodels/admin/posts";
-import { type Thread, fetchThread, fetchThreads } from "@/viewmodels/admin/threads";
-import { type User, fetchUser } from "@/viewmodels/admin/users";
 import { useCallback, useEffect, useState } from "react";
+import { extractErrorMessage } from "@/lib/admin-error";
+import { fetchPosts, type Post } from "@/viewmodels/admin/posts";
+import { fetchThread, fetchThreads, type Thread } from "@/viewmodels/admin/threads";
+import { fetchUser, type User } from "@/viewmodels/admin/users";
 
 // ---------------------------------------------------------------------------
 // Types

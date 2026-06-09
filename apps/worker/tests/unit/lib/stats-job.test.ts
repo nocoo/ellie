@@ -27,11 +27,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	DEFAULT_BATCH_SIZE,
 	JOB_LEASE_SECONDS,
+	makeInitialPayload,
+	readJob,
 	STATS_JOB_PAYLOAD_VERSION,
 	type StatsJobPayload,
 	type StatsJobTicker,
-	makeInitialPayload,
-	readJob,
 	statsJobKey,
 	tickJob,
 	writeJob,

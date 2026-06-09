@@ -20,10 +20,10 @@ vi.mock("@/viewmodels/admin/ip-lookup", async () => {
 	return { ...actual, lookupIp: vi.fn() };
 });
 
-import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
-import { type IpLookupResult, lookupIp } from "@/viewmodels/admin/ip-lookup";
 import { ApiError } from "@ellie/shared";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
+import { type IpLookupResult, lookupIp } from "@/viewmodels/admin/ip-lookup";
 
 const mockLookupIp = lookupIp as ReturnType<typeof vi.fn>;
 

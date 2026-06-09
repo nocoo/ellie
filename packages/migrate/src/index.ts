@@ -14,13 +14,6 @@
 import { DEFAULT_CONFIG, type MigrateConfig, parseCliArgs } from "./cli";
 import {
 	type AttachmentIndexData,
-	type MemberCountData,
-	type MemberData,
-	type MemberFieldForumData,
-	type ProfileData,
-	type StatusData,
-	type ThreadClassRow,
-	type UsergroupData,
 	extractAttachment,
 	extractCheckin,
 	extractForum,
@@ -28,6 +21,10 @@ import {
 	extractPostComment,
 	extractThread,
 	extractUser,
+	type MemberCountData,
+	type MemberData,
+	type MemberFieldForumData,
+	type ProfileData,
 	parseAttachmentIndex,
 	parseMemberCountRow,
 	parseMemberFieldForumRow,
@@ -37,15 +34,18 @@ import {
 	parseThreadClassRow,
 	parseThreadTypeRow,
 	parseUsergroupRow,
+	type StatusData,
+	type ThreadClassRow,
+	type UsergroupData,
 } from "./extract/extractors";
 import { type ParsedRow, parseDumpFile } from "./extract/parser";
-import { type SourceFiles, resolveSourceFiles } from "./extract/source-resolver";
+import { resolveSourceFiles, type SourceFiles } from "./extract/source-resolver";
 import { BatchLoader } from "./load/batch-insert";
 import { MigrationLogger } from "./load/logger";
 import { CHECKINS_UPSERT_COLUMNS } from "./load/schema";
 import { createDeletedUserPlaceholder } from "./load/sql-builder";
 import { buildForumThreadTypeRows } from "./transform/forum-thread-types";
-import { type ThreadTypesConfig, parseThreadTypes } from "./transform/threadtypes";
+import { parseThreadTypes, type ThreadTypesConfig } from "./transform/threadtypes";
 import { verifyEncoding } from "./verify/encoding";
 import { type ExpectedCounts, verifyIntegrity } from "./verify/integrity";
 import { verifyPerformance } from "./verify/performance";

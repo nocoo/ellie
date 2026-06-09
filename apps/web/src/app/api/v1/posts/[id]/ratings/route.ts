@@ -7,11 +7,11 @@
 // or broken, so the popover still renders aggregate + reasons for
 // public/unverified visitors.
 
+import { NextResponse } from "next/server";
 import { extractClientIp } from "@/lib/client-ip";
 import { type ClientContext, ForumApiError, forumApi } from "@/lib/forum-api";
 import { getWorkerJwt } from "@/lib/forum-auth";
 import { forumApiErrorToProxyResponse } from "@/lib/proxy-error";
-import { NextResponse } from "next/server";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
 	const { id } = await params;

@@ -1,10 +1,10 @@
+import { describe, expect, it } from "vitest";
 import {
-	NAV_GROUPS,
-	ROUTE_LABELS,
 	breadcrumbsFromPathname,
 	isNavItemActive,
+	NAV_GROUPS,
+	ROUTE_LABELS,
 } from "@/lib/navigation";
-import { describe, expect, it } from "vitest";
 
 describe("navigation", () => {
 	describe("NAV_GROUPS", () => {

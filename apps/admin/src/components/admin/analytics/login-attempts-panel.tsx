@@ -6,16 +6,16 @@
  * KPI summary card row + detail list with raw IP/UA (admin-only, no masking).
  */
 
-import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
-import {
-	type LoginAttemptList,
-	type TodayLoginsKpi,
-	parseLoginAttemptList,
-	parseTodayLoginsKpi,
-} from "@/viewmodels/admin/analytics";
 import { Card, CardContent, CardHeader, CardTitle } from "@ellie/ui";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { IpLookupInline } from "@/components/admin/ip-lookup-inline";
+import {
+	type LoginAttemptList,
+	parseLoginAttemptList,
+	parseTodayLoginsKpi,
+	type TodayLoginsKpi,
+} from "@/viewmodels/admin/analytics";
 
 // ---------------------------------------------------------------------------
 // Fetch helpers

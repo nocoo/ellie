@@ -3,10 +3,10 @@
 
 import "server-only";
 
+import type { Thread } from "@ellie/types";
 import { forumApi } from "@/lib/forum-api";
 import { getCachedPageSize } from "@/lib/forum-cache";
 import type { PaginatedResult } from "@/viewmodels/shared/pagination";
-import type { Thread } from "@ellie/types";
 
 export interface DigestStats {
 	total: number;

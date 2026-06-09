@@ -2,7 +2,7 @@ import { UserRole } from "@ellie/types";
 import { describe, expect, it, vi } from "vitest";
 import * as postHandler from "../../../src/handlers/post";
 import type { Env } from "../../../src/lib/env";
-import { TEST_JWT_SECRET, createJwtForRole, createMockKV, makeD1PostRow } from "../../helpers";
+import { createJwtForRole, createMockKV, makeD1PostRow, TEST_JWT_SECRET } from "../../helpers";
 
 const THREAD_AUTHOR_ID = 100;
 const FORUM_MOD_ID = 200;

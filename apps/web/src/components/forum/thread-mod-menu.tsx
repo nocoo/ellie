@@ -3,21 +3,6 @@
 // components/forum/thread-mod-menu.tsx — Thread moderation action bar
 // Rendered inside ThreadToolbar before the first post and after the last post.
 
-import { useForumToast } from "@/components/forum/forum-toast";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { ApiError } from "@/lib/api-client";
-import {
-	type HighlightOptions,
-	type StickyLevel,
-	deleteThread,
-	moveThread,
-	recommendThread,
-	setThreadClosed,
-	setThreadDigest,
-	setThreadHighlight,
-	setThreadSticky,
-	unrecommendThread,
-} from "@/lib/moderation-api";
 import {
 	ArrowRight,
 	BookmarkPlus,
@@ -30,6 +15,21 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
+import { useForumToast } from "@/components/forum/forum-toast";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ApiError } from "@/lib/api-client";
+import {
+	deleteThread,
+	type HighlightOptions,
+	moveThread,
+	recommendThread,
+	type StickyLevel,
+	setThreadClosed,
+	setThreadDigest,
+	setThreadHighlight,
+	setThreadSticky,
+	unrecommendThread,
+} from "@/lib/moderation-api";
 import { DigestDialog } from "./digest-dialog";
 import { ForumActionButton } from "./forum-action-button";
 import { HighlightDialog } from "./highlight-dialog";

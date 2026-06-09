@@ -64,6 +64,7 @@ test.describe("E2E-TC: Thread CRUD", () => {
 	 * Then I should see the thread content
 	 */
 	test("E2E-TC-02: view the created thread", async ({ page, loginAs }) => {
+		// biome-ignore lint/suspicious/noSkippedTests: serial test depends on TC-01 succeeding
 		test.skip(!createdThreadUrl, "TC-01 must pass first");
 
 		await loginAs("e2etest");

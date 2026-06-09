@@ -19,17 +19,17 @@
 
 "use client";
 
-import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
-import { JsonCodeBlock } from "@/components/admin/json-code-block";
-import {
-	type IpLookupResult,
-	describeIpLookupError,
-	formatIpLookupSummary,
-	lookupIp,
-} from "@/viewmodels/admin/ip-lookup";
 import { Button } from "@ellie/ui";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
+import { AdminInlineMessage } from "@/components/admin/admin-inline-message";
+import { JsonCodeBlock } from "@/components/admin/json-code-block";
+import {
+	describeIpLookupError,
+	formatIpLookupSummary,
+	type IpLookupResult,
+	lookupIp,
+} from "@/viewmodels/admin/ip-lookup";
 
 export interface IpLookupInlineProps {
 	/** IP to query. When falsy/blank the query button is hidden. */

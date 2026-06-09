@@ -1,11 +1,11 @@
+import { describe, expect, it } from "vitest";
 import {
-	type SettingsMap,
 	getArr,
 	getBool,
 	getNum,
 	getStr,
+	type SettingsMap,
 } from "@/viewmodels/forum/settings.server";
-import { describe, expect, it } from "vitest";
 
 // ---------------------------------------------------------------------------
 // getStr

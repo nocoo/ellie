@@ -1,8 +1,9 @@
+import { describe, expect, it } from "vitest";
 import {
-	REGISTER_PROFILE_DEFAULTS,
 	buildRegisterProfile,
 	canSubmitRegister,
 	passwordStrength,
+	REGISTER_PROFILE_DEFAULTS,
 	registerErrorMessage,
 	validateBirthday,
 	validateEmail,
@@ -10,7 +11,6 @@ import {
 	validateSite,
 	validateUsername,
 } from "@/viewmodels/forum/register";
-import { describe, expect, it } from "vitest";
 
 /** Shorthand: merge auth + required education fields with profile defaults */
 function regState(

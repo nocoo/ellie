@@ -13,9 +13,9 @@
 // so it always lands on the canonical verification card regardless of
 // where the user clicked from.
 
+import { describe, expect, it } from "vitest";
 import type { SelfForumUser } from "@/lib/forum-self";
 import { pickEmailVerificationBannerVm } from "@/viewmodels/forum/email-verification-banner";
-import { describe, expect, it } from "vitest";
 
 function makeSelf(overrides: Partial<SelfForumUser> = {}): SelfForumUser {
 	return {

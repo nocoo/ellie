@@ -4,10 +4,10 @@
 // Desktop: 4-column table layout (Icon | Subject | Author | Stats | Last Post)
 // Mobile: 2-row compact layout (Icon + badges + subject on row 1, stats inline on row 2)
 
-import { type ThreadDisplayItem, highlightStyle } from "@/viewmodels/forum/thread-list";
-import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { Megaphone } from "lucide-react";
 import Link from "next/link";
+import { highlightStyle, type ThreadDisplayItem } from "@/viewmodels/forum/thread-list";
+import { formatRelativeTime } from "@/viewmodels/shared/formatting";
 import { ThreadBadgeList } from "./thread-badge";
 import { ThreadInlinePages } from "./thread-inline-pages";
 import { ThreadLastPostCell } from "./thread-last-post-cell";

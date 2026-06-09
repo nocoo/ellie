@@ -1,5 +1,7 @@
+import type { User } from "@ellie/types";
+import { getCheckinLevel, UserRole, UserStatus } from "@ellie/types";
+import { describe, expect, it } from "vitest";
 import {
-	PROFILE_TABS,
 	buildProfileStats,
 	formatBirthday,
 	formatCheckinDays,
@@ -11,11 +13,9 @@ import {
 	formatUserRole,
 	formatUserStatus,
 	getUserRoleBadgeVariant,
+	PROFILE_TABS,
 	resolveTab,
 } from "@/viewmodels/forum/user-profile";
-import { UserRole, UserStatus, getCheckinLevel } from "@ellie/types";
-import type { User } from "@ellie/types";
-import { describe, expect, it } from "vitest";
 
 // ---------------------------------------------------------------------------
 // Factory
