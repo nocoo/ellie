@@ -3,11 +3,37 @@
 -- (tests/e2e/navigation.spec.ts references forum 114, thread 662174, user 64495).
 -- Run with: npx wrangler d1 execute tongjinet-db-test -c apps/worker/wrangler.toml --remote --file scripts/seed-test-db.sql
 --
--- NOTE: D1 remote does NOT honor `PRAGMA foreign_keys = OFF`, and `DELETE
--- FROM threads` triggers an FTS5 SQLITE_ERROR via the threads_fts_ad
--- trigger (0023_create_threads_fts.sql). We avoid both by relying on
--- deterministic IDs + `INSERT OR REPLACE`, never deleting parent rows.
--- Order: parents (forums, users) → children (threads, posts) → FTS.
+-- Ordering note:
+--   1. Purge ad-hoc rows that L3 tests previously wrote into thread 1 /
+--      forum 1 (post-crud reply, thread-crud new-thread). Without this,
+--      every CI run leaves more data behind:
+--        - Thread 1 grows past `postsPerPage` (=20), so newly-created
+--          replies land on page ≥2 — but E2E-PR-01 only inspects page 1
+--          (because `page.reload()` strips the `?last=1` query param the
+--          viewmodel added via `router.push`). The reply assertion then
+--          fails despite a green 201.
+--        - Forum 1 accumulates threads whose `last_post_at` ticks within
+--          the last minute. `formatRelativeTime` renders "X 分钟前" at
+--          minute precision; an SSR vs. client minute-rollover produces a
+--          hydration mismatch, which Next.js dev mode surfaces as a
+--          full-screen overlay rendered with `role="dialog"`. That overlay
+--          satisfies E2E-TC-01's `page.locator('[role="dialog"]')` first,
+--          so the test waits on the wrong element.
+--      Migration 0034_fix_threads_fts_triggers.sql (deployed 2026-05-10)
+--      replaced the broken 0023 FTS5 trigger that previously made
+--      `DELETE FROM threads` crash with SQLITE_ERROR, so deletes are now
+--      safe on D1 remote.
+--   2. INSERT OR REPLACE the canonical fixtures (forums → users →
+--      threads → posts → post_comments → settings).
+
+-- ─── Purge prior-run mutations ────────────────────────────────────────────
+-- Thread 1: e2etest reply spam from E2E-PR-01 (seed keeps post id=1).
+DELETE FROM post_comments WHERE post_id IN (SELECT id FROM posts WHERE thread_id = 1 AND id > 1);
+DELETE FROM posts WHERE thread_id = 1 AND id > 1;
+-- Forum 1: brand-new threads from E2E-TC-01 (seed keeps thread id=1).
+DELETE FROM post_comments WHERE thread_id IN (SELECT id FROM threads WHERE forum_id = 1 AND id > 1);
+DELETE FROM posts WHERE thread_id IN (SELECT id FROM threads WHERE forum_id = 1 AND id > 1);
+DELETE FROM threads WHERE forum_id = 1 AND id > 1;
 
 -- Ensure test marker
 INSERT OR REPLACE INTO _test_marker (key, value) VALUES ('env', 'test');
