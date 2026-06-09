@@ -8,7 +8,14 @@ import { ThreadPage } from "./pages/thread.page";
 test.describe.configure({ mode: "serial" });
 
 test.describe("E2E-PR: Post CRUD", () => {
-	const THREAD_ID = 1; // Thread 1 has only 1 post in seed — reply will appear on page 1
+	const THREAD_ID = 1; // Thread 1 has only 1 post in seed.
+	// Across the serial trio (reply → edit → delete) the spec mutates this
+	// thread, and PR-01 always pushes the reply to the *last* page. The
+	// follow-up specs need to land on that same last page to find their own
+	// edit/delete buttons, so we navigate with `?last=1` (the contract the
+	// reply-submit viewmodel uses) rather than relying on `threadPage.goto`,
+	// which lands on page 1 and would miss the new reply when seed accretion
+	// from prior runs pushes the thread past `postsPerPage`.
 
 	/**
 	 * E2E-PR-01: Reply to Thread
@@ -40,9 +47,13 @@ test.describe("E2E-PR: Post CRUD", () => {
 		// Dialog should close
 		await expect(threadPage.replyDialog).not.toBeVisible({ timeout: 15000 });
 
-		// Reply should appear on page (may need refresh)
-		await page.waitForTimeout(1000);
-		await page.reload();
+		// Re-fetch the *last* page explicitly. The viewmodel hook navigates to
+		// `?last=1#post-<id>` after submit, but a `page.reload()` would drop
+		// the query string. With seeded thread 1 already at 1 post and the
+		// reply pushing it to ≥2, the new post can end up on a later page when
+		// the test DB has accumulated state; `?last=1` is the contract that
+		// the UI itself uses, so reuse it here.
+		await page.goto(`/threads/${THREAD_ID}?last=1`);
 		await page.waitForLoadState("networkidle");
 
 		// Find our reply text
@@ -59,8 +70,9 @@ test.describe("E2E-PR: Post CRUD", () => {
 	test("E2E-PR-02: edit own reply", async ({ page, loginAs }) => {
 		await loginAs("e2etest");
 
-		const threadPage = new ThreadPage(page);
-		await threadPage.goto(THREAD_ID);
+		// Edit/delete buttons are only rendered on the post the user wrote,
+		// which sits on the *last* page after PR-01's reply.
+		await page.goto(`/threads/${THREAD_ID}?last=1`);
 		await page.waitForLoadState("networkidle");
 
 		// Find edit buttons — desktop/mobile layouts both render them,
@@ -108,7 +120,7 @@ test.describe("E2E-PR: Post CRUD", () => {
 		await loginAs("e2etest");
 
 		const threadPage = new ThreadPage(page);
-		await threadPage.goto(THREAD_ID);
+		await page.goto(`/threads/${THREAD_ID}?last=1`);
 		await page.waitForLoadState("networkidle");
 
 		// Find delete buttons — filter to visible (desktop/mobile dual layout)
@@ -136,8 +148,10 @@ test.describe("E2E-PR: Post CRUD", () => {
 		// Dialog closing confirms the delete API succeeded
 		await expect(confirmDialog).not.toBeVisible({ timeout: 15000 });
 
-		// router.refresh() is a soft RSC refresh — reload fully to get updated data
-		await page.reload();
+		// router.refresh() is a soft RSC refresh — re-navigate to the last
+		// page explicitly so the now-shorter thread renders without
+		// reverting to page 1 (where the e2etest reply was never visible).
+		await page.goto(`/threads/${THREAD_ID}?last=1`);
 		await page.waitForLoadState("networkidle");
 
 		// Post count should decrease
