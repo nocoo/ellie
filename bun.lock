@@ -20,7 +20,7 @@
         "@radix-ui/react-slot": "^1.2.5",
         "@radix-ui/react-tabs": "^1.1.14",
         "@radix-ui/react-tooltip": "1.2.9",
-        "dompurify": "^3.4.8",
+        "dompurify": "^3.4.9",
         "fast-uri": "^3.1.2",
         "hono": "^4.12.25",
         "lucide-react": "^1.17.0",
@@ -99,7 +99,7 @@
         "@types/dompurify": "^3.2.0",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
-        "dompurify": "^3.4.8",
+        "dompurify": "^3.4.9",
         "linkedom": "^0.18.12",
         "lucide-react": "^1.17.0",
         "next": "^16.2.9",
@@ -219,7 +219,7 @@
     "brace-expansion": "^5.0.6",
     "cookie": "^0.7.2",
     "defu": "^6.1.7",
-    "dompurify": "^3.4.8",
+    "dompurify": "^3.4.9",
     "esbuild": "^0.25.0",
     "fast-uri": "^3.1.2",
     "hono": "^4.12.25",
@@ -889,7 +889,7 @@
 
     "domhandler": ["domhandler@5.0.3", "", { "dependencies": { "domelementtype": "^2.3.0" } }, "sha512-cgwlv/1iFQiFnU96XXgROh8xTeetsnJiDsTc7TYCLFd9+/WNkIqPTxiM/8pSd8VIrhXGTf1Ny1q1hquVqDJB5w=="],
 
-    "dompurify": ["dompurify@3.4.8", "", { "optionalDependencies": { "@types/trusted-types": "^2.0.7" } }, "sha512-yb1cEmaOum7wFvOCSQxyfgVlv5D47Rc30iZWoMpbDIWTnJ6grDDQyu2KFJzB2k7u0pMuJcQ1zphH//fFnw2tjQ=="],
+    "dompurify": ["dompurify@3.4.9", "", { "optionalDependencies": { "@types/trusted-types": "^2.0.7" } }, "sha512-4dPSRMRDqHvs0V4YDFCsaIZo4if5u0xM+llyxiM2fwuZFdKArUBAF3VtI2+n8NKg9P870WMdYk0UhqQNoWXbfQ=="],
 
     "domutils": ["domutils@3.2.2", "", { "dependencies": { "dom-serializer": "^2.0.0", "domelementtype": "^2.3.0", "domhandler": "^5.0.3" } }, "sha512-6kZKyUajlDuqlHKVX1w7gyslj9MPIXzIFiz/rGu35uC1wMi+kMhQwGhl4lt9unC9Vb9INnY9Z3/ZA3+FhASLaw=="],
 
