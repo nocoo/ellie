@@ -22,7 +22,7 @@
         "@radix-ui/react-tooltip": "1.2.9",
         "dompurify": "^3.4.8",
         "fast-uri": "^3.1.2",
-        "hono": "^4.12.24",
+        "hono": "^4.12.25",
         "lucide-react": "^1.17.0",
         "tailwind-merge": "^3.6.0",
       },
@@ -222,7 +222,7 @@
     "dompurify": "^3.4.8",
     "esbuild": "^0.25.0",
     "fast-uri": "^3.1.2",
-    "hono": "^4.12.22",
+    "hono": "^4.12.25",
     "ip-address": "^10.1.1",
     "postcss": "^8.5.10",
     "undici": "^6.24.0",
@@ -943,7 +943,7 @@
 
     "has-flag": ["has-flag@4.0.0", "", {}, "sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ=="],
 
-    "hono": ["hono@4.12.24", "", {}, "sha512-I36D1s+HgQc55KbhEr4iybfxv/9o1zdpw+XEM6dJa91LqQD0HCoSGdxpRJCZE+aavs87j4V3Ls2OJzq8C/U4iw=="],
+    "hono": ["hono@4.12.25", "", {}, "sha512-2NFaIyNVgJmBs/ecmtGzlmluTFs5cHEWGTdu0t1HBwYzoGXOL5nUQBRMXsXWla5i4KkG//QMzVP88m1+I3fdAQ=="],
 
     "html-escaper": ["html-escaper@3.0.3", "", {}, "sha512-RuMffC89BOWQoY0WKGpIhn5gX3iI54O6nRA0yC124NYVtzjmFWBIiFd8M0x+ZdX0P9R4lADg1mgP8C7PxGOWuQ=="],
 
