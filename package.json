@@ -122,6 +122,9 @@
 		"tailwind-merge": "^3.6.0"
 	},
 	"overrides": {
+		"@tiptap/core": "3.26.1",
+		"@tiptap/extensions": "3.26.1",
+		"@tiptap/pm": "3.26.1",
 		"brace-expansion": "^5.0.6",
 		"cookie": "^0.7.2",
 		"defu": "^6.1.7",
