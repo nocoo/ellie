@@ -73,7 +73,7 @@
 		"@emoji-mart/react": "^1.1.1",
 		"@playwright/test": "^1.60.0",
 		"@tiptap/extension-character-count": "3.26.1",
-		"@tiptap/extension-image": "^3.26.0",
+		"@tiptap/extension-image": "3.26.1",
 		"@tiptap/extension-placeholder": "^3.26.0",
 		"@tiptap/react": "^3.26.0",
 		"@tiptap/starter-kit": "^3.26.0",
