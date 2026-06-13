@@ -12,12 +12,12 @@
 		"test:coverage": "vitest run --coverage"
 	},
 	"dependencies": {
-		"@cloudflare/workers-types": "4.20260611.1",
+		"@cloudflare/workers-types": "4.20260612.1",
 		"@ellie/types": "workspace:*",
 		"crypto-js": "^4.2.0"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.4.16",
+		"@biomejs/biome": "2.5.0",
 		"@types/crypto-js": "^4.2.2",
 		"bun-types": "latest",
 		"typescript": "^6.0.3",
