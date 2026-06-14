@@ -54,6 +54,7 @@
 		"test:e2e": "bunx playwright test -c playwright.config.ts",
 		"test:e2e:browser": "bun run scripts/run-l3.ts",
 		"test:e2e:admin": "bun run scripts/run-l3-admin.ts",
+		"test:e2e:bdd": "bun run test:e2e:browser && bun run test:e2e:admin",
 		"typecheck": "bash scripts/typecheck.sh",
 		"lint": "biome check --error-on-warnings .",
 		"lint:fix": "biome check --write .",

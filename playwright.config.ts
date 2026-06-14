@@ -51,44 +51,38 @@ export default defineConfig({
 	// Projects: stateless (parallel within file) vs stateful (sequential)
 	//           vs admin (separate dev server on 7032, own runner)
 	//
-	// Stage 1 of the L3 → BDD migration (docs/23 §4.1 / §4.2):
-	//   - stateless / stateful / mobile testMatch is widened so the matching
-	//     filename is collected from EITHER tests/e2e/<name>.spec.ts (legacy)
-	//     OR tests/e2e/bdd/<name>.spec.ts (BDD target). The regex is
-	//     path-suffix based, so the bdd file is picked up automatically the
-	//     moment it lands — no second config change per migration phase.
-	//     - stateless reuses the existing name allowlist; its BDD targets
-	//       (auth, navigation, search, system) are already in the list, so
-	//       any bdd/<name>.spec.ts with one of those filenames is collected.
-	//     - stateful adds `content` and `social` (the two new BDD targets
-	//       that merge thread/post/* and message/user-actions/user-journey).
-	//     - mobile adds `mobile` (the BDD merge target of mobile-layout).
-	//   - admin project's testDir is broadened from "tests/e2e/admin" to
-	//     "tests/e2e", with testMatch listing both `admin/<x>.spec.ts` and
-	//     `bdd/admin/<x>.spec.ts` so admin BDD specs are collected once
-	//     they land. Stage 2 will collapse this back to tests/e2e/bdd/admin.
-	//     The admin name allowlist is pinned to these two subtrees so the
-	//     forum runner's --project=stateless/stateful/mobile and the admin
-	//     runner's --project=admin remain strictly non-overlapping.
+	// Stage 2 of the L3 → BDD migration (docs/23 §4.1 / §4.2 / §7.2): all
+	// legacy specs have been deleted, so each project's testMatch now pins
+	// the exact BDD filenames it owns. The forum runner passes --project=
+	// stateless / stateful / mobile; the admin runner passes --project=admin.
+	// The four projects remain strictly non-overlapping by construction.
+	//   - stateless: bdd/auth, bdd/navigation, bdd/search, bdd/system.
+	//     The four legacy stateless-only specs (pagination, digest-filter,
+	//     message, user-journey) merged into bdd/content + bdd/social and
+	//     therefore moved to the stateful project — docs/23 §4.1 records the
+	//     tradeoff (semantic grouping > per-file parallelism under workers=1).
+	//   - stateful: bdd/content, bdd/social (CRUD scenarios use describe.serial).
+	//   - mobile:   bdd/mobile.
+	//   - admin:    testDir collapsed back to tests/e2e/bdd/admin so the
+	//               regex stays tight to BDD specs only.
 	// ---------------------------------------------------------------------------
 	projects: [
 		{
 			name: "stateless",
-			testMatch:
-				/\/(navigation|navigation-extra|auth|search|system|redirect|pagination|message|user-journey|search-interaction|digest-filter|dialog-layout|not-found|user-actions|misc-coverage|already-logged-in|header-actions)\.spec\.ts/,
+			testMatch: /\/bdd\/(auth|navigation|search|system)\.spec\.ts$/,
 			fullyParallel: true, // Tests within same file can run in parallel
 			use: { ...devices["Desktop Chrome"] },
 		},
 		{
 			name: "stateful",
-			testMatch: /\/(thread|post|post-comments|thread-crud|post-crud|content|social)\.spec\.ts/,
+			testMatch: /\/bdd\/(content|social)\.spec\.ts$/,
 			fullyParallel: false,
 			dependencies: ["stateless"], // Run after stateless completes
 			use: { ...devices["Desktop Chrome"] },
 		},
 		{
 			// Mobile layout drift guard — iPhone-targeted polish (msg=037192fa).
-			// Runs only `mobile-layout.spec.ts`. Explicit allowlist guarantees
+			// Runs only `bdd/mobile.spec.ts`. Explicit allowlist guarantees
 			// that desktop-only specs cannot accidentally run inside a 390×844
 			// viewport, and the dedicated project name lets `run-l3.ts` opt-in
 			// the gate without affecting `--project=admin`. Default mobile
@@ -107,19 +101,18 @@ export default defineConfig({
 			// emulation covers the gate without dragging the CI runner image
 			// onto a second browser binary.
 			name: "mobile",
-			testMatch: /\/(mobile-layout|mobile)\.spec\.ts/,
+			testMatch: /\/bdd\/mobile\.spec\.ts$/,
 			fullyParallel: true,
 			use: { ...devices["iPhone 14"], browserName: "chromium" },
 		},
 		{
-			// Admin specs live under tests/e2e/admin/ and (Stage 1+) tests/e2e/bdd/admin/.
-			// They target apps/admin on port 7032 and are run only by
-			// scripts/run-l3-admin.ts; the forum runner explicitly passes
-			// --project=stateless / --project=stateful / --project=mobile so
-			// this `admin` project never executes against the forum dev server.
+			// Admin specs live under tests/e2e/bdd/admin/. They target apps/admin
+			// on port 7032 and are run only by scripts/run-l3-admin.ts; the forum
+			// runner passes --project=stateless / --project=stateful / --project=mobile
+			// so this `admin` project never executes against the forum dev server.
 			name: "admin",
-			testDir: "tests/e2e",
-			testMatch: /\/(admin\/[^/]+|bdd\/admin\/[^/]+)\.spec\.ts$/,
+			testDir: "tests/e2e/bdd/admin",
+			testMatch: /.*\.spec\.ts$/,
 			fullyParallel: false,
 			use: { ...devices["Desktop Chrome"], baseURL: "http://localhost:7032" },
 		},
